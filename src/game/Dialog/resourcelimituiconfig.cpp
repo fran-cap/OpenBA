@@ -7,7 +7,8 @@
 //
 //   +0x20  int  RESOURCE INDEX for this row:
 //               Log=0 Stone=1 Iron=2 Herbs=3 Tools=4 Fuel=5 Food=6 Clothing=7
-//               Alcohol=8 Coal=9 Textile=10  ->  townMgr(gw+0xf0)+0x170[idx*0x20+8]
+//               Alcohol=8 Coal=9 Textile=10, then the custom limits Custom0..Custom9 = 11..20
+//               ->  townMgr(gw+0xf0)+0x170[idx*0x20+8]
 //
 // Factory       0x140013780: MemAlloc(0x28) + base ctor + vtable + zero +0x20 (4 bytes)
 // CreateInPlace 0x1400137e0
@@ -23,21 +24,10 @@
 //               non-inlined helper; ControlUIConfig's Serialize (0x14005fb70) calls it
 //               directly and was verified live this session, so we use the slot.
 //
-// WHY THIS EXISTS (2026-07-31): ResourceLimitUIConfig was a UI_DIALOG_STUB whose idx5
-// was StubNop, so +0x20 stayed 0 for every row. The ResourceLimitUI promotion worked
-// around that by deriving the resource index from DISPATCH ORDER, keyed on the
-// controller pointer in an 11-entry static registry
-// (ui_dialog_stub_factories.cpp IdxFor). That workaround is unsound across dialog
-// rebuilds: reopening the Town Hall allocates fresh row controllers, and when the
-// allocator REUSES an address from the previous build, IdxFor finds a stale match and
-// returns the wrong index — desyncing every row after it. That is the user-reported
-// "the food limit shows a different value each time I open and close the dialog".
-//
-// The workaround's stated premise — "standalone creates these config objects but never
-// runs their field-deserialize, and controller+0x10 is always null" — is FALSE as of
-// this session: promoting ControlUIConfig the same way produced real deserialized
-// values ([ControlUIConfig] Serialize with cmd=0/1/2/3 and real target type ids), which
-// is only possible if the framework both creates AND deserializes controller configs.
+// The ResourceLimitUI controller reads this index (idx5 below fills it from the .rsc) as retail's
+// Slot4 / Slot7 / Slot9 do: IsDerivedFrom(config) ? config : null, then +0x20 unguarded, no bound.
+// (An earlier workaround derived the index from the dispatch order while this class was a stub;
+// it is gone.)
 //
 // Decompiled from Application-x64.exe.
 

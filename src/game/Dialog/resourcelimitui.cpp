@@ -13,11 +13,10 @@
 //
 // B4 DLG-c: the three retail-faithful C bodies ResourceLimitUI_Slot4 / _Slot7 /
 // _Slot9 (0x140077970 / 0x1400778d0 / 0x1400777e0) had no caller: the class's
-// members below are what the vtable dispatches. They differ from retail in one
-// standalone way only — the resource index falls back to the dispatch order
-// when the row's config is not bound (retail reads IsDerivedFrom(config) ?
-// config->_resourceIndex : null->+0x20 unconditionally) — and in their null
-// guards. The unreferenced copies were deleted with resourcelimitui_funcs.h.
+// members below are what the vtable dispatches. They read the resource index as
+// retail does (IsDerivedFrom(config) ? config : null, then +0x20 unguarded, no
+// bound) and differ from retail only in their null guards. The unreferenced
+// copies were deleted with resourcelimitui_funcs.h.
 //
 // LEFT: the limit table is read through GameUpdateLoop::m_citizenList (void*,
 // block GAME-a: CitizenBehavior::professionResources, +0x170).
@@ -37,22 +36,16 @@
 #include "ui/SpinnerElement.h"  // ENDGAME B.3.6 UI callers round 2 (K3)
 #include "Dialog/ResourceLimitUIConfig.h"   // X::TypeId() (B.3.9 CG2)
 #include "ext/high_limits/high_limits.h"   // EXT SEAM ext.high_limits (class B): the spinner range (NOT RETAIL)
-#include "Dialog/resourcelimitui_index.h"   // which ledger entry a row's config names
 
 // ============================================================
 // Standalone entry points — resource index supplied explicitly
 // ============================================================
-// In standalone the ResourceLimitUI child controllers never get their datasource
-// bound (self+0x10 == NULL): the config->controller binding flows through base
-// DialogController slots that the generic dialog stub no-ops, and through the
-// ResourceLimitUIConfig field-deserialize that the stub skips. The framework still
-// creates + dispatches the 11 row controllers in template/table order, which is
-// exactly the resource-index order the Town Hall's (user-verified) count columns
-// use: Log=0, Stone=1, Iron=2, Herbs=3, Tools=4, Fuel=5, Food=6, Clothing=7,
-// Alcohol=8, Coal=9, Textile=10 -> townMgr(gw+0xf0)+0x170[idx*0x20+8]. So the
-// standalone promotion supplies the index by dispatch order and drives the
-// "editLimit" spinner directly, bypassing the missing config. These take an
-// explicit index and never call IsDerivedFrom on a NULL config.
+// The limit read / write helpers below take the ledger entry explicitly:
+// townMgr(gw+0xf0)+0x170[idx*0x20+8] (CitizenBehavior::professionResources, 0x20 bytes an
+// entry). The index is the row's config index (resourcelimitui_sa::IdxFor). Entries 0..10
+// are the Town Hall's built-in limits (Log=0, Stone=1, Iron=2, Herbs=3, Tools=4, Fuel=5,
+// Food=6, Clothing=7, Alcohol=8, Coal=9, Textile=10); 11..20 are the custom limits
+// Custom0..Custom9.
 
 static int GetResourceLimitByIdx(int resourceIndex) {
     if (!GameUpdateLoop::_singleton) return 0;
@@ -95,57 +88,26 @@ int ResourceLimitUI_ReadLimit_SA(int resourceIndex) {
 // config +0x10, element root +0x20) afterward. Same shape as the
 // BuildRequirementUI / MapUI promotions above.
 namespace resourcelimitui_sa {
-    // Resource index for this row. PREFERRED source: the bound config's +0x20,
-    // exactly as retail Slot4/7/9 read it — ResourceLimitUIConfig is a real class
-    // as of 2026-07-31 (src/game/Dialog/resourcelimituiconfig.cpp) and its idx5
-    // deserialize fills that field.
-    //
-    // The dispatch-order fallback below is what we used while the config was a
-    // stub, and it is UNSOUND across dialog rebuilds: it keys on the controller
-    // POINTER, so when reopening the dialog allocates a row controller at an
-    // address reused from the previous build, the loop finds a stale match and
-    // returns that row's old index — desyncing every row after it. That was the
-    // user-visible "the food limit shows a different value each time I open and
-    // close the Town Hall". It is kept only so a row whose config somehow did not
-    // bind still shows plausible data instead of always reading Log, and it now
-    // says so when it fires.
-    static ResourceLimitUI* g_selves[11];
-    static int   g_count = 0;
-    int IdxForFallback(ResourceLimitUI* self) {
-        for (int i=0;i<g_count;i++) if (g_selves[i]==self) return i;
-        if (g_count >= 11) { for (int i=0;i<11;i++) g_selves[i]=nullptr; g_count=0; }
-        g_selves[g_count]=self;
-        return g_count++;
-    }
-    // The row's config (DialogController::_config, +0x10), read as the
-    // ResourceLimitUIConfig it is bound to.
+    // The row's config (DialogController::_config, +0x10) as a ResourceLimitUIConfig. Retail's
+    // Slot4 / Slot7 / Slot9 do IsDerivedFrom(config) ? config : null and read the resource index
+    // at +0x20 off the result unguarded, so a row with no config would crash retail too.
+    // AddController (dialog_create.cpp) always stores the config before OnCreated.
     static const ResourceLimitUIConfig* ConfigOf(ResourceLimitUI* self) {
-        return self ? static_cast<const ResourceLimitUIConfig*>(self->_config.Get()) : nullptr;
+        UI::DialogControllerConfig* config = self->_config.Get();
+        if (config->IsDerivedFrom(ResourceLimitUIConfig::TypeId()))
+            return static_cast<const ResourceLimitUIConfig*>(config);
+        return nullptr;
     }
-    // The ledger's entry count: retail's is always 21. Without a running town, 21.
-    static int LedgerSize() {
-        GameUpdateLoop* game = GameUpdateLoop::_singleton;
-        CitizenBehavior* town = game ? game->m_citizenList : nullptr;
-        const int size = town ? static_cast<int>(town->professionResources._size) : 0;
-        return size > 0 ? size : 21;
-    }
-    // Retail indexes the ledger by whatever the bound config holds, with no bound (Slot4/7/9). This used to
-    // accept only 0..10, which sent the Custom0..Custom9 rows (11..20) to the dispatch-order fallback below,
-    // i.e. onto the Log, Stone, ... limits. The bound is now the ledger's size (resourcelimitui_index.h).
+    // The ledger entry this row edits: the config's resource index, used as retail uses it, with no
+    // bound.
     int IdxFor(ResourceLimitUI* self) {
-        const ResourceLimitUIConfig* cfg = ConfigOf(self);
-        if (cfg) {
-            const int idx = ConfigLedgerIndex(cfg->_resourceIndex, LedgerSize());
-            if (idx >= 0) return idx;
-        }
-        int idx = IdxForFallback(self);
-        return idx;
+        return ConfigOf(self)->_resourceIndex;
     }
     void Trace([[maybe_unused]] const char* slot, ResourceLimitUI* self, [[maybe_unused]] int idx) {
         static int n=0; if (n>=24) return; ++n;
         const ResourceLimitUIConfig* cfg = ConfigOf(self);
         [[maybe_unused]] int cfgIdx = cfg ? cfg->_resourceIndex : -1;
-        printf("[ResourceLimitUI] %s self=%p cfg=%p cfg+0x20=%d dispIdx=%d liveLimit=%d\n",
+        printf("[ResourceLimitUI] %s self=%p cfg=%p cfg+0x20=%d idx=%d liveLimit=%d\n",
                slot, self, cfg, cfgIdx, idx, ResourceLimitUI_ReadLimit_SA(idx));
         fflush(stdout);
     }
@@ -191,8 +153,6 @@ void ResourceLimitUI::OnUpdateLayout() {
 // [9] 0x1400777e0
 void ResourceLimitUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id,
                                      int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    int resourceIndex = resourcelimitui_sa::IdxFor(this);
-    resourcelimitui_sa::Trace("Slot9", this, resourceIndex);
     if (msg != 0x15 || id != 0x3039) return;
     UI::SpinnerElement* spinner = this->editLimit;
     if (!spinner || !element) return;
@@ -201,5 +161,7 @@ void ResourceLimitUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, 
         UI::Element* child = spinner->Child(0).Get();
         if (sender != child) return;
     }
+    int resourceIndex = resourcelimitui_sa::IdxFor(this);
+    resourcelimitui_sa::Trace("Slot9", this, resourceIndex);
     SetResourceLimitByIdx(resourceIndex, spinner->GetValue());
 }

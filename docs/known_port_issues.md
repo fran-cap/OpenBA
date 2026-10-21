@@ -936,24 +936,24 @@ the hand-ins; the sentences are not evidence.
 
 ## 15. `ResourceLimitUI` accepted a config's resource index only below 11 — FIXED
 
-**Where.** `src/game/Dialog/resourcelimitui.cpp`, `resourcelimitui_sa::IdxFor`, used by `ResourceLimitUI::OnCreated` /
-`OnUpdateLayout` / `OnElementEvent` (retail Slot4 / Slot7 / Slot9, `0x140077970` / `0x1400778d0` / `0x1400777e0`).
+**Where.** `src/game/Dialog/resourcelimitui.cpp`, `resourcelimitui_sa::IdxFor`, used by
+`ResourceLimitUI::OnCreated` / `OnUpdateLayout` / `OnElementEvent` (retail Slot4 / Slot7 / Slot9,
+`0x140077970` / `0x1400778d0` / `0x1400777e0`).
 
-**What the code did.** It used the bound config's resource index only when it was `< 11`, and otherwise fell back to the
-dispatch order. The vanilla Town Hall shows only the 11 built-in limits, entries 0..10. Retail's ledger has ten more, the
-custom resource limits `Custom0` .. `Custom9` (entries 11..20), which the modkit documents for modders (its
-`limitresource` example). A mod that adds rows for them names entries 11..20, and those ten rows were sent to the
-fallback and read and wrote the Log, Stone, ... limits instead of their own (changing the Custom0 limit changed the Log
-limit).
+**What the code did.** It used the bound config's resource index only when it was `< 11`, and otherwise
+fell back to the dispatch order. The vanilla Town Hall shows only the 11 built-in limits, entries 0..10.
+Retail's ledger has ten more, the custom limits `Custom0` .. `Custom9` (entries 11..20), and a mod that
+adds rows for them names those entries: those rows read and wrote the Log, Stone, ... limits instead of
+their own (changing the Custom0 limit changed the Log limit).
 
-**What retail does.** Slot4 / 7 / 9 index the ledger (`CitizenBehavior::professionResources`, 21 entries of 0x20 bytes) with
-the config's index and no bound. Read in the retail decompile of all three (Steam `0x14007ce40`, `0x14007cda0`,
-`0x14007ccb0`, i.e. the GOG addresses above plus `0x54d0`): each computes `*(int*)(config + 0x20) * 0x20 + 8` off the
-ledger base, with no comparison against 11 or 21.
+**What retail does.** Slot4 / 7 / 9 index the ledger (`CitizenBehavior::professionResources`, 21 entries
+of 0x20 bytes) with `*(int*)(config + 0x20) * 0x20 + 8`, where `config` is `IsDerivedFrom(config) ? config :
+null`, and no bound.
 
-**Evidence.** Seen in a run (Custom0 and Log changed together); after the fix the rows are separate and the values survive a save and reload (a Windows run). The index decision is
-`resourcelimitui_index.h`, unit-tested in `tests/unit/resourcelimitui_index_test.cpp`.
-
-**Fix.** The bound is the ledger's size (21 in retail) instead of 11. It is kept as a bound, where retail has none, only
-because the standalone dialog can reach these slots with a config that did not bind and the fallback still serves that case.
-Whether that fallback can be removed is open. No serialized state is touched; the resave gate was not run.
+**Fix.** `IdxFor` returns the config's index directly and `ConfigOf` does retail's `IsDerivedFrom` check.
+The dispatch-order fallback (`IdxForFallback` and its 11-entry registry) is removed:
+`DialogInstance::AddController` (`src/engine/ui/dialog_create.cpp`) always stores the config before
+`OnCreated`, so the premise behind the fallback (standalone never binds the config) no longer holds, and a
+row with no config would crash retail too. Seen in a run before and after the change: the Custom rows are
+separate from Log and survive a save and reload. No serialized state is touched; the resave gate was not
+run by the author.
