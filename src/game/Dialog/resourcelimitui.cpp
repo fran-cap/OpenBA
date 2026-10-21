@@ -37,6 +37,7 @@
 #include "ui/SpinnerElement.h"  // ENDGAME B.3.6 UI callers round 2 (K3)
 #include "Dialog/ResourceLimitUIConfig.h"   // X::TypeId() (B.3.9 CG2)
 #include "ext/high_limits/high_limits.h"   // EXT SEAM ext.high_limits (class B): the spinner range (NOT RETAIL)
+#include "Dialog/resourcelimitui_index.h"   // which ledger entry a row's config names
 
 // ============================================================
 // Standalone entry points — resource index supplied explicitly
@@ -121,11 +122,21 @@ namespace resourcelimitui_sa {
     static const ResourceLimitUIConfig* ConfigOf(ResourceLimitUI* self) {
         return self ? static_cast<const ResourceLimitUIConfig*>(self->_config.Get()) : nullptr;
     }
+    // The ledger's entry count: retail's is always 21. Without a running town, 21.
+    static int LedgerSize() {
+        GameUpdateLoop* game = GameUpdateLoop::_singleton;
+        CitizenBehavior* town = game ? game->m_citizenList : nullptr;
+        const int size = town ? static_cast<int>(town->professionResources._size) : 0;
+        return size > 0 ? size : 21;
+    }
+    // Retail indexes the ledger by whatever the bound config holds, with no bound (Slot4/7/9). This used to
+    // accept only 0..10, which sent the Custom0..Custom9 rows (11..20) to the dispatch-order fallback below,
+    // i.e. onto the Log, Stone, ... limits. The bound is now the ledger's size (resourcelimitui_index.h).
     int IdxFor(ResourceLimitUI* self) {
         const ResourceLimitUIConfig* cfg = ConfigOf(self);
         if (cfg) {
-            int idx = cfg->_resourceIndex;
-            if (idx >= 0 && idx < 11) return idx;
+            const int idx = ConfigLedgerIndex(cfg->_resourceIndex, LedgerSize());
+            if (idx >= 0) return idx;
         }
         int idx = IdxForFallback(self);
         return idx;
