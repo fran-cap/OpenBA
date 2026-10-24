@@ -15,7 +15,6 @@ StringTable resource
 		// the dialog's chrome
 		{ String _name = "ExtensionsTitle";			String _text = "Fixes and Extensions"; }
 		{ String _name = "ExtensionsProfile";		String _text = "(profile: @0)"; }
-		{ String _name = "ExtensionsTab";			String _text = "Fixes and extensions"; }
 		{ String _name = "ExtensionsHeaderName";	String _text = "Name"; }
 		{ String _name = "ExtensionsHeaderDesc";	String _text = "Description"; }
 		{ String _name = "ExtensionsHeaderOn";		String _text = "On/Off"; }
@@ -71,5 +70,9 @@ StringTable resource
 		{ String _name = "LoadProgressMod";			String _text = "Loading mod @0 of @1"; }
 
 		{ String _name = "ExtensionTurnedOff";		String _text = "The following extension is turned off, but this save was made with it.~n~n@0 [@1]~nSaved with extension version @2~n~nA save keeps the extensions it was made with, so it will be turned on for this game. Do you still want to load the save game?"; }
+
+		// the Extensions dialog's two tabs (Extensions.rsc:tabCaptionOptional / tabCaptionDefault)
+		{ String _name = "ExtensionsTabOptional";	String _text = "Optional"; }
+		{ String _name = "ExtensionsTabDefault";		String _text = "Default"; }
 	]
 }

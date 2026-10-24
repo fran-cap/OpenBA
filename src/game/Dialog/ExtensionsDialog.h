@@ -4,7 +4,11 @@
 // ============================================================================
 // docs/extensions/DESIGN.md §3 "Menu". Lists every fix and extension of the
 // registry (src/ext/registry.h) with its kind and class letter, its lock
-// state ("live" / "locked for this game"), a toggle and its description.
+// state ("live" / "locked for this game"), a toggle and its description, in
+// two tabs: Optional (the entries with defaultOn false, where the player adds
+// extras; the tab shown first) and Default (defaultOn true: every fix and the
+// default-on extensions, where one is switched off). Presentation only: the
+// toggles, the keys and the lock are the same for both halves.
 //
 // THE RESOURCES ARE OURS, COMPILED. The shipped loader reads COMPILED
 // resources only (Object::External::Load, external_load.cpp: a
@@ -12,7 +16,7 @@
 // encoding's reader/writer were stripped from the DLL). The sources are
 // src/ext/ui/Dialog/: Extensions.rsc (the dialog, our own markup deriving
 // its list from the game's Dialog/Mod.rsc elements by reference; its row
-// template `entryRow`; the menu button
+// template `entryRow`, its tables `tableOptional` / `tableDefault`; the menu button
 // `buttonExtensions`, MainMenu.rsc:buttonMod with our label, icon and
 // tooltip), ExtensionsStringTable.rsc, ExtensionsSprites.rsc (the button icon,
 // the per-tier row glyphs). tools/ext_resources.sh compiles them with the mod
@@ -66,7 +70,8 @@ private:
 
     Row     _rows[kMaxRows];
     int32_t _rowCount = 0;
-    Object::InternalPtr<UI::Element>  _table;        // "tableMods"
+    Object::InternalPtr<UI::Element>  _tableOptional; // "tableOptional": the rows with defaultOn false
+    Object::InternalPtr<UI::Element>  _tableDefault;  // "tableDefault": the rows with defaultOn true
     Object::InternalPtr<MainMenuDialog> _parentMenu; // the menu that opened it (the reload goes through it)
 };
 

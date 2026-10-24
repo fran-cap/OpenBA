@@ -48,6 +48,7 @@
 #include "ext/registry.h"
 #include "ext/toolbar/toolbar.h"
 #include "ext/ui/find_element.h"
+#include "ext/ui/list_width.h"
 
 #include <algorithm>
 #include <cctype>
@@ -255,16 +256,19 @@ struct Row {
 };
 
 struct Cell {
+    Object::InternalPtr<UI::Element> root;       // ribbonItemPriorityCell
     Object::InternalPtr<UI::Element> label;      // labelItemPriorityRow
     Object::InternalPtr<UI::Element> check;      // CheckElement
     Object::InternalPtr<UI::Element> rankText;   // textItemPriorityRank
     Object::InternalPtr<UI::Element> border;     // the cell's border (colour)
+    int32_t labelMinWidth = 0;                   // the label's own _minWidth, from the .rsc
 };
 
 std::vector<Row> g_rows;                         // every item of the shown category in the game, by name
 std::vector<Cell> g_cells;                       // the table's cells, by position
 std::vector<size_t> g_order;                     // g_order[k] = the g_rows index the cell at position k shows
 int32_t g_idBase = 0;
+int32_t g_rowWidth = 0;                          // the shown list's width (Ext::ListWidth); 0: rows keep their own
 int g_category = kTool;                          // the player's choice for this town
 bool g_showAll = false;                          // the check box; the player's choice for this town
 uint32_t g_town = ~0u;                           // the lock epoch g_category and g_showAll belong to
@@ -315,6 +319,33 @@ void SortOrder() {
 }
 
 // Fills the cell at position k from the row it shows: icon and name, check box, rank number, tint.
+// The row is as wide as the list, and the label takes what the check box, the rank and the buttons leave. A
+// ribbon gives the space it has left only to its LAST element (RibbonElement::ComputeLayout, the ExpandWidth
+// arm) and the label sits in the middle of the row, so the label's own floor is raised by that space instead.
+// Run after every change of the label's text: a cell shows another item after a re-sort.
+void FitRow(Cell& cell) {
+    UI::Element* root = cell.root.Get();
+    UI::Element* label = cell.label.Get();
+    if (root == nullptr || g_rowWidth <= 0) {
+        return;
+    }
+    root->_minWidth = g_rowWidth;
+    if (label == nullptr) {
+        return;
+    }
+    label->_minWidth = cell.labelMinWidth;
+    label->SetNeedsSizeCalc();   // and every ancestor: the cell and the table measure again
+    root->ComputeSize();
+    const int32_t natural = root->_layoutWidth + root->_leftPad + root->_rightPad;
+    if (natural < g_rowWidth) {
+        int32_t w = 0;
+        int32_t h = 0;
+        label->GetPaddedSize(w, h);
+        label->_minWidth = w + (g_rowWidth - natural);
+        label->SetNeedsSizeCalc();
+    }
+}
+
 void BindCell(size_t k) {
     Cell& cell = g_cells[k];
     const Row& r = g_rows[g_order[k]];
@@ -345,6 +376,7 @@ void BindCell(size_t k) {
     if (cell.border.Get() != nullptr) {
         cell.border->SetColor(r.rank != kUnranked ? 0x20a0c8ffu : 0x10ffffffu);
     }
+    FitRow(cell);
 }
 
 // The list changed: re-rank, re-sort the shown rows and re-fill the cells that exist. Never creates or
@@ -409,6 +441,7 @@ void BuildRows() {
         }
     }
     SortOrder();
+    g_rowWidth = Ext::ListWidth(table);
     table->SetSize(static_cast<int>(g_order.size()), 1);   // clears the old cells
 
     for (size_t k = 0; k < g_order.size(); ++k) {
@@ -420,8 +453,12 @@ void BuildRows() {
         table->SetChild(&cell, static_cast<int32_t>(k));
 
         Cell c;
+        c.root = cell;
         c.label = Object::InternalPtr<UI::Element>(
             Ext::FindElement<UI::LabelElement>(cell.Get(), "labelItemPriorityRow"));
+        if (c.label.Get() != nullptr) {
+            c.labelMinWidth = c.label->_minWidth;
+        }
         c.rankText = Object::InternalPtr<UI::Element>(
             Ext::FindElement<UI::TextElement>(cell.Get(), "textItemPriorityRank"));
         c.check = Object::InternalPtr<UI::Element>(
@@ -444,8 +481,9 @@ void BuildRows() {
         g_cells.push_back(c);
         BindCell(k);
     }
-    std::fprintf(stderr, "[ItemPriority] %d of %d item(s) shown (%s)\n", static_cast<int>(g_cells.size()),
-                 static_cast<int>(g_rows.size()), CategoryName(g_category));
+    std::fprintf(stderr, "[ItemPriority] %d of %d item(s) shown (%s), rows %d px wide\n",
+                 static_cast<int>(g_cells.size()), static_cast<int>(g_rows.size()), CategoryName(g_category),
+                 static_cast<int>(g_rowWidth));
 }
 
 // Reads the shown category's items from the game and builds the cells.

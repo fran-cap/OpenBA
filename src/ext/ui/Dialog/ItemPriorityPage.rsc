@@ -201,16 +201,17 @@ TableDescription tableItemPriorityHealth
 }
 
 // One item: the check box, the compact label, its rank, and Top / Up / Down. The border is the Mods list's row border,
-// tinted by the controller while the item is ranked. The cell is as wide as the list's rows (the Foods page's
-// four cells and their gaps: 4 x 140 + 3 x 4), and the label takes what the rank and the buttons leave.
+// tinted by the controller while the item is ranked. No width here: the controller makes the cell as wide as the
+// list's viewport (Ext::ListWidth, src/ext/ui/list_width.h) and gives the label what the check box, the rank and
+// the buttons leave, so the row fills the list at any UI scale.
 RibbonDescription ribbonItemPriorityCell
 {
 	ElementDescription _border = "Mod.rsc:borderLine";
 	int _leftPad = 1;
+	int _rightPad = 1;
 	int _topPad = 1;
 	int _bottomPad = 1;
 	int _cellPad = 4;
-	int _minWidth = 572;
 	ElementDescription _elements [ "checkItemPriorityRow" "labelItemPriorityRow" "textItemPriorityRank" "ribbonItemPriorityMoves" ]
 }
 
@@ -220,10 +221,10 @@ CheckDescription checkItemPriorityRow : "Extensions.rsc:checkLoaded"
 	String _toolTipText = "ItemPriorityCheckTip";
 }
 
-// The Town Hall's inventory item label (20 px icon, small font, 132 px wide), its text from our table's "@0".
+// The Town Hall's inventory item label (20 px icon, small font), its text from our table's "@0". Its width is
+// the controller's (FitRow): the rest of the row, so the rank and Top / Up / Down end at the list's right.
 LabelDescription labelItemPriorityRow : "TownHall.rsc:storageItem"
 {
-	int _minWidth = 360;		// fills the row: the rank and Top / Up / Down follow at its right
 	StringTable _stringTable = "ExtensionsStringTable.rsc";
 	String _text = "ItemPriorityParam";
 }

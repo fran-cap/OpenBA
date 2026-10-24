@@ -1,14 +1,15 @@
 // Dialog/Extensions.rsc -- the Extensions dialog, its menu button and the save-load notices
 // (NOT RETAIL; authored for this port, src/ext).
 //
-// Shape of the dialog: a column (dialogBody) holding a heading row, one tab with the entry list,
-// and a right-aligned button row. The list is the game's own Mods list (Dialog/Mod.rsc:tableList,
+// Shape of the dialog: a column (dialogBody) holding a heading row, two tabs with an entry list each
+// (Optional, shown first: the registry rows off by default; Default: the rows on by default), and a
+// right-aligned button row. The list is the game's own Mods list (Dialog/Mod.rsc:tableList,
 // tableMods, borderLine) taken by reference, so the Extensions dialog sits in the same frame and
 // scrolls the same way as the Mods dialog next to it; everything of ours derives from a game element
 // and overrides only what differs.
 //
 // Controller: src/game/Dialog/extensionsdialog.cpp. It looks up, by name: buttonOk, buttonCancel
-// (SharedElements), textProfile, tableMods, and in each row (template 0 = entryRow) textModName,
+// (SharedElements), textProfile, tableOptional, tableDefault, and in each row (template 0 = entryRow) textModName,
 // textModDescription, textKind, textState, imageTier, checkLoaded. textModName / textModDescription
 // take the registry's text through the general table's "Parameter" (@0); textKind / textState keys
 // are chosen by the controller from our table. src/ext/load_notice.cpp names the three notice dialogs.
@@ -67,10 +68,13 @@ RibbonDescription buttonRow
 	ElementDescription _elements [ "SharedElements.rsc:buttonCancel" "SharedElements.rsc:buttonOk" ]
 }
 
-// One tab, in the Mods dialog's tab frame.
+// Two tabs in the Mods dialog's tab frame; the first (shown when the dialog opens) is Optional.
 TabDescription tabExtensions : "Mod.rsc:tabMod"
 {
-	Tab _tabs [ { ElementDescription _button = "tabButton"; ElementDescription _content = "entryList"; } ]
+	Tab _tabs [
+		{ ElementDescription _button = "tabButtonOptional"; ElementDescription _content = "entryListOptional"; }
+		{ ElementDescription _button = "tabButtonDefault"; ElementDescription _content = "entryListDefault"; }
+	]
 }
 
 ButtonDescription tabButton : "Mod.rsc:buttonMod"
@@ -80,14 +84,24 @@ ButtonDescription tabButton : "Mod.rsc:buttonMod"
 
 TextDescription tabCaption : "Mod.rsc:labelMod"
 {
-	StringTable _stringTable = "ExtensionsStringTable.rsc"; String _text = "ExtensionsTab";
+	StringTable _stringTable = "ExtensionsStringTable.rsc"; String _text = "ExtensionsTabOptional";
 }
 
-// The tab's content: the column headers over the scrolling list.
+ButtonDescription tabButtonOptional : "tabButton" { ElementDescription _content = "tabCaptionOptional"; }
+ButtonDescription tabButtonDefault  : "tabButton" { ElementDescription _content = "tabCaptionDefault"; }
+TextDescription tabCaptionOptional  : "tabCaption" { String _text = "ExtensionsTabOptional"; }
+TextDescription tabCaptionDefault   : "tabCaption" { String _text = "ExtensionsTabDefault"; }
+
+// A tab's content: the column headers over the scrolling list. entryList / tableList / tableMods are
+// the bases (the in-game window's pages derive from entryList and tableList too); each tab has its
+// own list and table, so the controller finds each table by its own name.
 RibbonDescription entryList : "Mod.rsc:modGroup"
 {
 	ElementDescription _elements [ "columnHeaders" "tableList" ]
 }
+
+RibbonDescription entryListOptional : "entryList" { ElementDescription _elements [ "columnHeaders" "tableListOptional" ] }
+RibbonDescription entryListDefault  : "entryList" { ElementDescription _elements [ "columnHeaders" "tableListDefault" ] }
 
 RibbonDescription columnHeaders : "Mod.rsc:headerLine"
 {
@@ -109,7 +123,7 @@ TextDescription headerDesc : "header" { String _text = "ExtensionsHeaderDesc"; i
 TextDescription headerOn   : "header" { String _text = "ExtensionsHeaderOn";   int _minWidth = 48; }
 
 // The scrolling list and the ribbon the rows go into, as the Mods dialog has them; the controller
-// finds "tableMods" and appends one entryRow per registry entry.
+// finds "tableOptional" / "tableDefault" and appends one entryRow per registry entry of that half.
 // Its size is the game's own (596 x 350), set here too: a mod that makes the Mods window wider (MegaMod does) would otherwise leave a
 // strip of empty list beside our rows.
 ContainerDescription tableList : "Mod.rsc:tableList"
@@ -123,6 +137,11 @@ ContainerDescription tableList : "Mod.rsc:tableList"
 RibbonDescription tableMods : "Mod.rsc:tableMods"
 {
 }
+
+ContainerDescription tableListOptional : "tableList" { ElementDescription _content = "tableOptional"; }
+ContainerDescription tableListDefault  : "tableList" { ElementDescription _content = "tableDefault"; }
+RibbonDescription tableOptional : "tableMods" { }
+RibbonDescription tableDefault  : "tableMods" { }
 
 // ---------------------------------------------------------------------------------------------
 // A row: [icon] [name / kind / state column] ... [description] ... [toggle]. The text column is a

@@ -55,6 +55,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/savetail.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/load_notice.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/resources/text_parser.cpp   # ext_rsc_text_test.cpp (block RSCTEXT)
+  ${CMAKE_SOURCE_DIR}/src/ext/resources/text_enums.cpp    #   its identifier tables
   ${CMAKE_SOURCE_DIR}/src/ext/eye_camera/eye_math.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/rock_seat/rock_seat_math.cpp   # ext_rock_seat_test.cpp (ROCKSEAT)
   ${CMAKE_SOURCE_DIR}/src/ext/large_packages/large_packages_unwrap.cpp   # ext_large_packages_test.cpp (LARGEPKM)

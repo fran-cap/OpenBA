@@ -170,24 +170,40 @@ void ExtensionsDialog::OnOpened() {
             profile->Hide(true);
     }
 
-    _table = FindElement(System::String("tableMods"));
+    // Two tabs, one table each: Optional (defaultOn false) and Default (defaultOn true), each in
+    // registry order. The rows keep one id space (1000 + row) whichever table holds them.
+    _tableOptional = FindElement(System::String("tableOptional"));
+    _tableDefault = FindElement(System::String("tableDefault"));
     const UI::Dialog* dialog = _dialog;
-    if (_table.Get() == nullptr || dialog == nullptr) {
-        printf("[ExtDialog] no tableMods / dialog resource: empty dialog\n");
+    if (_tableOptional.Get() == nullptr || _tableDefault.Get() == nullptr || dialog == nullptr) {
+        printf("[ExtDialog] no tableOptional / tableDefault / dialog resource: empty dialog\n");
         return;
     }
     UI::SpriteSheet* sprites = ExtSprites();
 
+    // The registry indices in row order: the Optional half first, then the Default half.
+    int order[kMaxRows];
+    int orderCount = 0;
+    for (int half = 0; half < 2; ++half) {
+        for (int i = 0; i < Ext::EntryCount() && orderCount < kMaxRows; ++i) {
+            if (Ext::EntryAt(i).defaultOn == (half == 1)) order[orderCount++] = i;
+        }
+    }
+
     _rowCount = 0;
-    for (int i = 0; i < Ext::EntryCount() && _rowCount < kMaxRows; ++i) {
+    int optionalRows = 0;
+    for (int k = 0; k < orderCount; ++k) {
+        const int i = order[k];
         const Ext::Entry& entry = Ext::EntryAt(i);
+        UI::Element* table = entry.defaultOn ? _tableDefault.Get() : _tableOptional.Get();
 
         Object::ExternalPtr<UI::ElementDescription> rowTemplate = dialog->GetTemplate(0);   // entryRow
         if (rowTemplate.Get() == nullptr) break;
         Object::InternalPtr<UI::Element> row;
         rowTemplate->CreateInstance(&row, dialog);
         if (row.Get() == nullptr) break;
-        _table->AddChild(&row);
+        table->AddChild(&row);
+        if (!entry.defaultOn) ++optionalRows;
 
         auto child = [&row](const char* name) {
             return row->FindElement(System::String(name)).Get();
@@ -216,8 +232,8 @@ void ExtensionsDialog::OnOpened() {
         RefreshRow(_rowCount);
         ++_rowCount;
     }
-    printf("[ExtDialog] opened: %d row(s), game=%p locked=%d\n", _rowCount,
-           (void*)GameUpdateLoop::_singleton, Ext::Locked() ? 1 : 0);
+    printf("[ExtDialog] opened: %d row(s) (optional %d, default %d), game=%p locked=%d\n", _rowCount,
+           optionalRows, _rowCount - optionalRows, (void*)GameUpdateLoop::_singleton, Ext::Locked() ? 1 : 0);
 }
 
 void ExtensionsDialog::RefreshRow(int index) {

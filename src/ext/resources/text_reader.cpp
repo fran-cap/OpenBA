@@ -45,16 +45,14 @@
 // after it, whose SetSize(n) builds zeroed fresh elements. Nothing here
 // touches a container, a String or an ExternalPtr directly.
 //
-// ENUMS. The .rsc identifiers are the kit's; their values come from the
-// engine's own readers (Element::GetAlignedPosition's row-major 3x3,
-// element.cpp), from the retail accessors (Dialog::IsModal 0x180038800 reads
-// bit 1, PausesGame 0x180038810 bit 0, IsFirstDraw 0x180038840 bit 4) or from
-// the compiled output (LayoutHorizontal LeftToLeft = 1 / LeftToRight = 2,
-// LayoutVertical TopToTop = 1, LabelPosition TextBottom = 3). An identifier
+// ENUMS. The identifier tables are text_enums.cpp's, each row with where its
+// value comes from (the engine's own readers, the retail accessors, the kit's
+// name tables in the profile DLL, or the compiled output). An identifier
 // without a known value is an error, never a guess.
 // ============================================================================
 
 #include "ext/resources/text_reader.h"
+#include "ext/resources/text_enums.h"
 
 #include <cstdarg>
 #include <cstdint>
@@ -83,8 +81,6 @@ namespace {
 // ---------------------------------------------------------------------------
 enum class K { Int, UInt, Bool, Float, String, Ext, ExtArray, Records };
 
-enum Enum { kNoEnum, kAlignment, kLabelPosition, kLayoutH, kLayoutV, kDialogFlags };
-
 struct FieldDesc {
     const char*      name;   // the kit's field name ("" = unnamed / not settable from text)
     K                kind;
@@ -102,7 +98,7 @@ const FieldDesc kElement[] = {
     F("_leftPad", Int), F("_rightPad", Int), F("_topPad", Int), F("_bottomPad", Int),
     F("_minWidth", Int), F("_minHeight", Int),
     FE("_alignment", kAlignment),        // +0x40, the ctor's 3 (MidLeft)
-    F("_flags", UInt),                   // +0x44
+    FE("_flags", kElementFlags),         // +0x44, OR'd into Element::_flags by CreateInstance
     F("_color", UInt),                   // +0x3c: the header's `_id`, copied to Element::_color
     F("_tabOrder", Int),
     F("_border", Ext),                   // +0x48 _childDesc
@@ -218,26 +214,6 @@ bool Flatten(const char* type, std::vector<FieldDesc>& out) {
     if (l->parent != nullptr && !Flatten(l->parent, out)) return false;
     out.insert(out.end(), l->fields, l->fields + l->count);
     return true;
-}
-
-struct EnumValue { Enum en; const char* name; uint32_t value; };
-const EnumValue kEnumValues[] = {
-    // Element::GetAlignedPosition (element.cpp): row-major 3x3, 0 = top-left .. 8 = bottom-right.
-    { kAlignment, "TopLeft", 0 },    { kAlignment, "TopCenter", 1 },    { kAlignment, "TopRight", 2 },
-    { kAlignment, "MidLeft", 3 },    { kAlignment, "MidCenter", 4 },    { kAlignment, "MidRight", 5 },
-    { kAlignment, "BottomLeft", 6 }, { kAlignment, "BottomCenter", 7 }, { kAlignment, "BottomRight", 8 },
-    // Dialog::PausesGame / IsModal / IsFirstDraw (retail 0x180038810 / 0x180038800 / 0x180038840).
-    { kDialogFlags, "PauseGame", 1 }, { kDialogFlags, "Modal", 2 }, { kDialogFlags, "FirstDraw", 0x10 },
-    // The compiled output of our own files (EnhancedOptions.rsc:labelEnhanced, Extensions.rsc:entryRow).
-    { kLabelPosition, "TextBottom", 3 },
-    { kLayoutH, "LeftToLeft", 1 }, { kLayoutH, "LeftToRight", 2 },
-    { kLayoutV, "TopToTop", 1 },
-};
-
-bool LookupEnum(Enum en, const std::string& name, uint32_t& value) {
-    for (const EnumValue& e : kEnumValues)
-        if (e.en == en && name == e.name) { value = e.value; return true; }
-    return false;
 }
 
 void Log(const char* fmt, ...) __attribute__((format(printf, 1, 2)));

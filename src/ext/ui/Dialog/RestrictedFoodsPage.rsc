@@ -7,9 +7,10 @@
 // is only the page.
 //
 // The list is laid out like the Town Hall's Inventory tab (TownHall.rsc:inventoryTable / storageItem): a table
-// of four columns of small cells, each a check box and a compact label (20 px icon, small font), so a modded
-// game's hundreds of foods are a short scroll. The controller sizes the table and clones
-// ribbonRestrictedFoodsCell into it, as TownHallUI::InitInventory does.
+// of columns of small cells (four in the game's list), each a check box and a compact label (20 px icon, small
+// font), so a modded game's hundreds of foods are a short scroll. The controller sizes the table (as many
+// columns as fit the list's width, filling it) and clones ribbonRestrictedFoodsCell into it, as
+// TownHallUI::InitInventory does.
 //
 // Controller: src/ext/restricted_foods/toolbar_page.cpp. It looks up, by name: tableRestrictedFoods,
 // checkRestrictedFoodsShowAll, and in each cell checkRestrictedFoodsRow and labelRestrictedFoodsRow.
@@ -68,8 +69,8 @@ ContainerDescription containerRestrictedFoodsBox : "Extensions.rsc:tableList"
 	ElementDescription _content = "tableRestrictedFoods";
 }
 
-// Four columns (the Town Hall's has three, wider, cells). The controller sizes it (rows = foods / 4) and
-// fills it with ribbonRestrictedFoodsCell.
+// Four columns here (the Town Hall's has three, wider, cells); the controller re-shapes it to as many columns as
+// fit the list (rows = foods / columns) and fills it with ribbonRestrictedFoodsCell.
 TableDescription tableRestrictedFoods
 {
 	int _width = 4;
@@ -79,15 +80,18 @@ TableDescription tableRestrictedFoods
 }
 
 // One food: the check box and the compact label. The border is the Mods list's row border, tinted red by the
-// controller while the food is not eaten.
+// controller while the food is not eaten. The controller makes the cells as wide as the list's columns
+// (the list's width shared out: Ext::ListWidth, src/ext/ui/list_width.h); ExpandWidth lays the cell across
+// that width, the label (its last element) taking what the check box leaves, as retail's
+// StatusBar.rsc:groupCommon does.
 RibbonDescription ribbonRestrictedFoodsCell
 {
 	ElementDescription _border = "Mod.rsc:borderLine";
+	Flags _flags = ExpandWidth;
 	int _leftPad = 1;
 	int _topPad = 1;
 	int _bottomPad = 1;
 	int _cellPad = 2;
-	int _minWidth = 140;		// four of these fill the list's width
 	ElementDescription _elements [ "checkRestrictedFoodsRow" "labelRestrictedFoodsRow" ]
 }
 
@@ -100,7 +104,7 @@ CheckDescription checkRestrictedFoodsRow : "Extensions.rsc:checkLoaded"
 // The Town Hall's inventory item label (20 px icon, small font, 132 px wide), its text from our table's "@0".
 LabelDescription labelRestrictedFoodsRow : "TownHall.rsc:storageItem"
 {
-	int _minWidth = 119;		// fills the cell (_minWidth 140 = 1 + the check box + 2 + this): no empty tail
+	int _minWidth = 119;		// the narrowest cell (1 + the check box + 2 + this = 140) decides how many columns fit
 	StringTable _stringTable = "ExtensionsStringTable.rsc";
 	String _text = "RestrictedFoodsParam";
 }

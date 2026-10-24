@@ -160,7 +160,7 @@ separate axis, a *surface*, and every surface is built once as a host that exten
 
 | Surface | Host | What an extension contributes |
 |---|---|---|
-| Extensions dialog (front end) | `src/game/Dialog/ExtensionsDialog.*` | its registry row (mandatory) |
+| Extensions dialog (front end) | `src/game/Dialog/ExtensionsDialog.*` | its registry row (mandatory), in the Optional tab when `defaultOn` is false, in the Default tab when it is true |
 | Enhanced tab (Options dialog) | `src/ext/enhanced_tab/` | rows for its class A values (`EnhancedTab::Contribution`: open / apply / close) |
 | In-game toolbar window | one extension button on the toolbar opening a window of pages, built with the first extension that needs it | a page, offered only while the extension is active for the town |
 
@@ -356,6 +356,7 @@ underscores dropped (`MYLIST`).
 | load and reset arms | `Ext::SaveTail::ApplyState(records, &offending)` hands each record's payload to its codec, once, after the manifest's lock on both load routes; `Ext::SaveTail::ResetAllState()` runs every codec's `reset` (new game, and inside `Ext::UnlockForGame` for the lock's owner only) |
 | toolbar host | `src/ext/toolbar/toolbar.{h,cpp}`, `toolbar_window.cpp`: `Contribution { id, caption, page, open, changed, close }`, `Offered()`, `InsertAt` / `Style` / `Toggle` for the button, `kPageIdSpan` / `IdBaseFor` / `OwnsId` for element ids, the shared helpers `OurString` / `SetTableText` / `Lower` |
 | element lookup | `Ext::FindElement<T>(page, name)` in `src/ext/ui/find_element.h` (the Enhanced tab's contributions use it) |
+| list rows that fill the list | `Ext::ListWidth(content)` in `src/ext/ui/list_width.h` (the scrolling list's viewport width, from its container); the controller gives the cells that width as `_minWidth` and the cell's `Flags _flags = ExpandWidth;` lays its last element across it (the Foods page); when the element that takes the space is not the last, its `_minWidth` is raised by the space instead (the Priority page's `FitRow`); never a pixel width for the row in the page's `.rsc` |
 | derived-data cache | `src/ext/derived_cache/` (`Ext::DerivedCache::Store`, the shared one `OpenShared()` / `Shared()`), files in `<Documents>\Banished\Cache\`; a user names itself by a producer FourCC and an encoder version in its `Key` (`AOB4`, `CompressAo::kEncoderVersion`; `PKIX`, ext.package_cache's package directory, handins/PKGCACHE.md); the one cap `ext.derived_cache_mb` (owned by its first user, compress_ao); never opened under the faithful profile (handins/COMPRESSAO.md) |
 | shared GPU objects | `src/render/common/share_gpu_data/share_table.h` (`GpuShare::Table`: key = device + descriptor blob + content hash, users counted, the table's own reference; backend-neutral), the DX11 create-or-share `src/render/dx11/share_gpu_data/share_create.h`; a backend shares only immutable objects (SHAREGPUDATA.md) |
 | resource records (the stream cache) | `src/ext/stream_cache/`: `stream_record.h` (`Ext::StreamCache::Recorder` / `Bundle` / `RecordView`: the ranges of a decompressed resource stream a load consumed, with their bytes, per packed entry and per package, kept as chunks in the derived cache), `segment_stream.h` (`SegmentStream`: the IO::Stream a load reads from a record), the seams `Object::ExternalFactory::_extLoadBegin` / `_extLoadEnd`, `IO::CompressedStream::_extReadTap`, `Engine::LoaderLoop::_extLoadDone`, `CreateOnDemand::g_altLocate` / `g_altSkip` (STREAMCACHE.md) |
@@ -384,7 +385,10 @@ profile.
 
 **Menu.** The front end gets an Extensions button beside Mods with its own icon (a new `.rsc` and
 sprite is fine). The dialog lists fixes and extensions with the class letter, the lock state
-("live" / "locked for this game"), the toggle, and the description. A B/C toggle in-game shows the
+("live" / "locked for this game"), the toggle, and the description, in two tabs in registry order:
+Optional (shown when the dialog opens: the rows with `defaultOn` false, where the player adds
+extras) and Default (the rows with `defaultOn` true: every fix and the default-on extensions, where
+one is switched off). The split is presentation only: keys, lock and save manifest are unchanged. A B/C toggle in-game shows the
 same restart/reload notice the Mods dialog shows.
 
 ## 4. Order of work

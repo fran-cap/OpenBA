@@ -4,9 +4,9 @@
 // docs/extensions/handins/RESTRICTEDFOODS.md, src/ext/toolbar/toolbar.h. One cell per edible food of the
 // running town with a check box; a checked food is not eaten by citizens, from the moment it is checked
 // (live: no Apply). The list is laid out like the Town Hall's Inventory tab (TownHall.rsc:inventoryTable /
-// storageItem): a table of four columns of small cells, each a check box and a compact label (20 px icon,
-// small font), so a modded game's hundreds of foods are a short scroll. The page sizes the table and clones
-// ribbonRestrictedFoodsCell into it, as TownHallUI::InitInventory does.
+// storageItem): a table of small cells, as many columns as fit the list (four in the game's), each a check
+// box and a compact label (20 px icon, small font), so a modded game's hundreds of foods are a short scroll.
+// The page sizes the table and clones ribbonRestrictedFoodsCell into it, as TownHallUI::InitInventory does.
 //
 // The page's objects are ours (src/ext/ui/Dialog/RestrictedFoodsPage.rsc); the texts are in
 // ExtensionsStringTable.rsc (the RestrictedFoods* keys). It looks up, by name: textRestrictedFoodsHint,
@@ -48,6 +48,7 @@
 #include "ext/restricted_foods/restricted_foods.h"
 #include "ext/toolbar/toolbar.h"
 #include "ext/ui/find_element.h"
+#include "ext/ui/list_width.h"
 
 #include <algorithm>
 #include <cctype>
@@ -70,6 +71,8 @@ constexpr int32_t kMaxRows = Toolbar::kPageIdSpan - kRowId;
 
 constexpr const char* kWindowRsc = "Dialog/ExtensionsWindow.rsc";
 constexpr const char* kCellRsc   = "Dialog/RestrictedFoodsPage.rsc:ribbonRestrictedFoodsCell";
+constexpr int kColumns = 4;   // RestrictedFoodsPage.rsc:tableRestrictedFoods's _width: the columns when the
+                              // list's width is not known
 
 UI::TextElement* AsText(UI::Element* e) {
     if (!::Object::IsDerivedFromNullSafe(e, UI::TextElement::TypeId())) {
@@ -245,9 +248,10 @@ void RefreshRow(int index) {
     }
 }
 
-// (Re)creates the cells of the shown foods in the four-column table, as TownHallUI::InitInventory fills its
-// inventory table: size the table (rows = foods / 4, rounded up), then SetChild a clone of the cell template
-// into each slot. The foods and their check state live in g_rows, so a rebuild keeps them.
+// (Re)creates the cells of the shown foods in the table, as TownHallUI::InitInventory fills its inventory
+// table: size the table (rows = foods / columns, rounded up), then SetChild a clone of the cell template into
+// each slot. The columns are as many as fit the list's width (Ext::ListWidth), and they fill it. The foods and
+// their check state live in g_rows, so a rebuild keeps them.
 void BuildRows() {
     if (g_table.Get() == nullptr) {
         return;
@@ -283,20 +287,18 @@ void BuildRows() {
             shownRows.push_back(i);
         }
     }
-    constexpr int kColumns = 4;   // RestrictedFoodsPage.rsc:tableRestrictedFoods's _width
-    const int rowCount = (static_cast<int>(shownRows.size()) + kColumns - 1) / kColumns;
-    table->SetSize(rowCount, kColumns);                      // clears the old cells
-
-    int made = 0;
+    // The cells first, filled, so their widths are known before the table is shaped.
+    const int32_t listWidth = Ext::ListWidth(table);
+    std::vector<Object::InternalPtr<UI::Element>> cells;
+    cells.reserve(shownRows.size());
+    int32_t widest = 0;
     for (size_t k = 0; k < shownRows.size(); ++k) {
-        const size_t i = shownRows[k];
-        Row& r = g_rows[i];
+        const Row& r = g_rows[shownRows[k]];
         Object::InternalPtr<UI::Element> cell;
         cellTemplate->CreateInstance(&cell, dialog);
         if (cell.Get() == nullptr) {
             break;
         }
-        table->SetChild(&cell, static_cast<int32_t>(k));
 
         // The label: the food's own icon (the small one the game's lists use) and its name.
         UI::LabelElement* labelElem =
@@ -313,6 +315,40 @@ void BuildRows() {
                 }
             }
         }
+        int32_t w = 0;
+        int32_t h = 0;
+        cell->GetPaddedSize(w, h);
+        widest = std::max(widest, w);
+        cells.push_back(cell);
+    }
+
+    // As many columns as the widest cell allows in the list (at least one; the .rsc's four when the list's
+    // width is not known), each as wide as the list shares out: the columns and their gaps fill it exactly,
+    // the first columns taking the odd pixels. Each cell lays its label across the width it gets
+    // (RestrictedFoodsPage.rsc: ExpandWidth).
+    int columns = kColumns;
+    int32_t columnWidth = 0;
+    int32_t oddPixels = 0;
+    const int32_t gap = table->_spacing;   // the .rsc's _spacing, between two columns
+    if (listWidth > 0 && widest > 0) {
+        columns = std::max(1, static_cast<int>((listWidth + gap) / (widest + gap)));
+        const int32_t room = listWidth - gap * (columns - 1);
+        columnWidth = room / columns;
+        oddPixels = room % columns;
+    }
+    const int rowCount = (static_cast<int>(cells.size()) + columns - 1) / columns;
+    table->SetSize(rowCount, columns);                      // clears the old cells
+
+    int made = 0;
+    for (size_t k = 0; k < cells.size(); ++k) {
+        const size_t i = shownRows[k];
+        Row& r = g_rows[i];
+        Object::InternalPtr<UI::Element> cell = cells[k];
+        if (columnWidth > 0) {
+            const int column = static_cast<int>(k % static_cast<size_t>(columns));
+            cell->_minWidth = columnWidth + (column < oddPixels ? 1 : 0);
+        }
+        table->SetChild(&cell, static_cast<int32_t>(k));
 
         r.check = Object::InternalPtr<UI::Element>(
             Ext::FindElement<UI::CheckElement>(cell.Get(), "checkRestrictedFoodsRow"));
@@ -324,8 +360,9 @@ void BuildRows() {
         RefreshRow(static_cast<int>(i));
         ++made;
     }
-    std::fprintf(stderr, "[RestrictedFoods] %d of %d food(s) shown in %d row(s)\n",
-                 made, static_cast<int>(g_rows.size()), rowCount);
+    std::fprintf(stderr, "[RestrictedFoods] %d of %d food(s) shown in %d row(s) x %d column(s) of %d px "
+                 "(list %d px, widest cell %d px)\n", made, static_cast<int>(g_rows.size()), rowCount, columns,
+                 static_cast<int>(columnWidth), static_cast<int>(listWidth), static_cast<int>(widest));
 }
 
 // One check box was used: fold that one food into the town's list, live. The box then shows
