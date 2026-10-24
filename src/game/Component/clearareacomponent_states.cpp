@@ -9,8 +9,7 @@
 //   state 0  (default): enter=helper_7960, update=helper_7890, perFrame=helper_78f0
 //                       transitions -> {1, 3}
 //   state 0x15        : enter=&LAB_1177e0, update=helper_7770, perFrame=&LAB_1177d0
-//                       transitions -> {1, 3}   (a cancel/removal path — NOT reached
-//                       from the clear flow; registered for structural fidelity)
+//                       transitions -> {1, 3}   (the bodies are state 0's)
 //   state 1          : enter=helper_7820  transitions -> {2, 3}
 //   state 2          : enter=helper_77f0  transitions -> {3}
 //
@@ -486,9 +485,11 @@ extern "C" void ClearAreaCtrl_PopulateTable() {
                        &CA_State0Update);
     TableAddTransition(t, 1, nullptr);
     TableAddTransition(t, 3, nullptr);
-    // state 0x15: cancel/removal path — not reached from the clear flow; register the
-    //             structure (ids + transitions) faithfully with null handlers.
-    TableRegisterState(t, 0x15, nullptr, nullptr, nullptr, nullptr);
+    // state 0x15: state 0's bodies (enter 0x1401177e0, update 0x140117770,
+    //             per-frame 0x1401177d0). transitions -> {1, 3}.
+    TableRegisterState(t, 0x15, &CA_State0Enter,
+                       nullptr, &CA_State0PerFrame,
+                       &CA_State0Update);
     TableAddTransition(t, 1, nullptr);
     TableAddTransition(t, 3, nullptr);
     // state 1: model-finalize on entry (helper_7820: 8270 + request 1->2) -> {2, 3}.
