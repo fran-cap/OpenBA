@@ -27,6 +27,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_start_barn_height";	String _source = "Sprite/Extensions/Entry_start_barn_height.png"; }
 		{ String _name = "ExtensionsEntry_ui_scale_layout";	String _source = "Sprite/Extensions/Entry_ui_scale_layout.png"; }
 		{ String _name = "ExtensionsEntry_rock_seat";	String _source = "Sprite/Extensions/Entry_rock_seat.png"; }
+		{ String _name = "ExtensionsEntry_town_screenshot";	String _source = "Sprite/Extensions/Entry_town_screenshot.png"; }
 		{ String _name = "ExtensionsEntry_terrain_resort";	String _source = "Sprite/Extensions/Entry_terrain_resort.png"; }
 		{ String _name = "ExtensionsEntry_large_packages";	String _source = "Sprite/Extensions/Entry_large_packages.png"; }
 		{ String _name = "ExtensionsEntry_boot_device_lost";	String _source = "Sprite/Extensions/Entry_boot_device_lost.png"; }
@@ -59,6 +60,8 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_restricted_foods";	String _source = "Sprite/Extensions/Entry_restricted_foods.png"; }
 		{ String _name = "ExtensionsEntry_item_priority";	String _source = "Sprite/Extensions/Entry_item_priority.png"; }
 		{ String _name = "ExtensionsEntry_terrain_edit";	String _source = "Sprite/Extensions/Entry_terrain_edit.png"; }
+		{ String _name = "ExtensionsGlyph_town_screenshot_view";	String _source = "Sprite/Extensions/Glyph_town_screenshot_view.png"; }
+		{ String _name = "ExtensionsGlyph_town_screenshot_take";	String _source = "Sprite/Extensions/Glyph_town_screenshot_take.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_raise";	String _source = "Sprite/Extensions/Glyph_terrain_raise.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_lower";	String _source = "Sprite/Extensions/Glyph_terrain_lower.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_flatten";	String _source = "Sprite/Extensions/Glyph_terrain_flatten.png"; }

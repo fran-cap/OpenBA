@@ -72,6 +72,7 @@ struct Contribution {
 const Contribution& RestrictedFoodsPage();
 const Contribution& ItemPriorityPage();
 const Contribution& TerrainEditPage();
+const Contribution& TownScreenshotPage();
 
 // The list, and the ones whose row is active for this game (into `out`; returns how many there are,
 // which may exceed `capacity`).

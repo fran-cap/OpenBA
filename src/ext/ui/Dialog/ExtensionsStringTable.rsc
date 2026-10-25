@@ -40,6 +40,24 @@ StringTable resource
 		{ String _name = "ExtensionsWindowTip";		String _text = "Game extensions: the pages of the extensions active in this town."; }
 		{ String _name = "RestrictedFoodsTab";			String _text = "Foods"; }
 		// ext.terrain_edit's page in it (TerrainEditPage.rsc)
+		// the Town Screenshot page (src/ext/town_screenshot)
+		{ String _name = "TownScreenshotTab";					String _text = "Town Screenshot"; }
+		{ String _name = "TownScreenshotHeading";				String _text = "Town Screenshot"; }
+		{ String _name = "TownScreenshotHint";				String _text = "Takes one picture of the whole town from above."; }
+		{ String _name = "TownScreenshotHint2";				String _text = "The game pauses while it works."; }
+		{ String _name = "TownScreenshotHeadingView";	String _text = "View Screenshot"; }
+		{ String _name = "TownScreenshotHint3";			String _text = "Saves what is on the screen now."; }
+		{ String _name = "TownScreenshotView";			String _text = "Take View Screenshot"; }
+		{ String _name = "TownScreenshotQuality";				String _text = "Quality"; }
+		{ String _name = "TownScreenshotAngle";				String _text = "Angle"; }
+		{ String _name = "TownScreenshotTurn";				String _text = "Turn"; }
+		{ String _name = "TownScreenshotWeather";				String _text = "Ignore Weather"; }
+		{ String _name = "TownScreenshotWeatherTip";			String _text = "Draws the map without rain or snowfall or their lighting, whatever the weather is."; }
+		{ String _name = "TownScreenshotSnow";				String _text = "Hide Snow on the Ground"; }
+		{ String _name = "TownScreenshotSnowTip";				String _text = "Draws the ground bare even where snow lies on it."; }
+		{ String _name = "TownScreenshotTake";				String _text = "Take Town Screenshot"; }
+		{ String _name = "TownScreenshotCancel";				String _text = "Cancel"; }
+		{ String _name = "TownScreenshotStatus";				String _text = "@0"; }
 		{ String _name = "TerrainEditTab";				String _text = "Terrain"; }
 		{ String _name = "TerrainEditHint";				String _text = "Pick a brush, then hold the left mouse button over the map."; }
 		{ String _name = "TerrainEditHint2";			String _text = "Lower digs lakes; Flatten levels ground to build on; Mountain raises peaks."; }
