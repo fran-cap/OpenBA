@@ -4,6 +4,8 @@
 # usage: tools/build.sh <command> [flavour] [--jobs N]
 #   build   [flavour]   configure the platform build dir if absent, build OpenBA
 #   unit    [flavour]   build the unit tests and run them (exit = the suite's exit)
+#   backend [flavour]   compile the renderer backend's own sources as OpenBA would, link nothing
+#                       (target render-backend; CI's second Windows configure)
 #   deploy  [flavour]   build + copy the exe to the game directory (BANISHED_DIR), then
 #                       tools/ext_resources.sh --deploy (the extension .crs files, loose in WinData/Dialog/)
 #   run     [flavour]   deploy + launch with BANISHED_AUTOSTART=1 and /profile:faithful (THE GATE's by-hand run)
@@ -121,6 +123,7 @@ case "$CMD" in
   exe)     echo "$EXE";;
   build)   build OpenBA;;
   unit)    build unit; "$B/unit$EXT";;
+  backend) build render-backend;;
   deploy)  deploy;;
   run)     deploy; ( cd "$BANISHED_DIR" && BANISHED_AUTOSTART=1 MSYS2_ARG_CONV_EXCL="$FAITHFUL" start OpenBA.exe $FAITHFUL )
            echo "Launched (autostart, $FAITHFUL)";;
@@ -137,7 +140,7 @@ case "$CMD" in
            else rm -rf build/cmake-debug build/cmake-og build/cmake-perf build/cmake-release build/cmake-*-vulkan; echo "removed build/cmake-{debug,og,perf,release}[-vulkan]"; fi;;
   *)
     echo "unknown command $CMD"
-    sed -n '2,17p' "$0"
+    sed -n '2,19p' "$0"
     exit 2
     ;;
 esac

@@ -27,7 +27,8 @@ A backend is a directory `src/render/<name>/` with:
 1. **`backend.cmake`** — included by the top-level `CMakeLists.txt` when
    `BANISHED_RENDER_BACKEND=<name>` (a cache string; `dx11` by default). It sets `RENDER_SRCS`
    (its own sources; the top level appends `src/render/common/*.cpp`), `RENDER_BACKEND_INCLUDES`
-   (its include directories) and `RENDER_BACKEND_READY` (`OFF`, with a message, when the host lacks
+   (its include directories, given to its own sources only: nothing outside the backend includes
+   its headers) and `RENDER_BACKEND_READY` (`OFF`, with a message, when the host lacks
    what it needs), plus per-source properties of its own files. `src/render/dx11/backend.cmake` is
    the reference.
 2. **`render_backend_<name>.cpp`** — the definitions of `render_backend.h` (DX11's are forwarders to

@@ -8,6 +8,10 @@ name: CI
 # ccache: each build job restores the newest cache of its own job (a PR reads main's), compiles
 # through ccache and saves a fresh one. CMakeLists.txt puts ccache on C++ when it is on PATH; the C
 # (SDL, FreeType, wmadec) and Objective-C++ launchers come from CCACHE_LAUNCHERS below.
+# CCACHE_NOHASHDIR: a -g compile otherwise hashes its working directory (the build directory, which
+# the debug info names), so the Windows job's second configure (build/cmake-debug-vulkan) hit nothing
+# of the first's: 24 hits in 2998 on a cold run. Without it the objects' debug info names whichever
+# build directory compiled them first, which nothing here reads.
 on:
   pull_request:
   push:
@@ -23,6 +27,7 @@ env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_BASEDIR: ${{ github.workspace }}
   CCACHE_COMPRESS: "true"
+  CCACHE_NOHASHDIR: "true"
   CCACHE_LAUNCHERS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache
 jobs:
   windows:
@@ -33,7 +38,7 @@ jobs:
       run:
         shell: msys2 {0}
     env:
-      CCACHE_MAXSIZE: 1000M   # the debug object set, dx11 + vulkan
+      CCACHE_MAXSIZE: 1000M   # the debug object set: dx11 OpenBA, unit, the vulkan backend + dxbc-spirv
     steps:
       - uses: actions/checkout@v5
         with:
@@ -71,12 +76,16 @@ jobs:
         run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build debug
       - name: Unit tests (debug)
         run: tools/build.sh unit debug
-      # The Vulkan backend (docs/vulkan/PLAN.md) in its own build directory; everything but
-      # src/render comes out of ccache. Headers only: no Vulkan runtime is needed to build it.
-      - name: Build OpenBA (debug, vulkan backend)
-        run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" BANISHED_RENDER_BACKEND=vulkan tools/build.sh build debug
+      # The Vulkan backend (docs/vulkan/PLAN.md) in its own build directory: its own sources only
+      # (target render-backend, compiled as OpenBA compiles them), not a second whole exe. The rest of
+      # that exe is the dx11 configure's, and the Linux job builds and links the whole vulkan OpenBA.
+      # Headers only: no Vulkan runtime is needed to build it.
+      - name: Build the vulkan backend (debug)
+        run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" BANISHED_RENDER_BACKEND=vulkan tools/build.sh backend debug
       # The unit tests again on the vulkan configure: they add tests/unit/vulkan_*_test.cpp (the
-      # dxbc-spirv shader converter and its SPIR-V cache), which only that configure builds.
+      # dxbc-spirv shader converter and its SPIR-V cache), which only that configure builds. Every
+      # other unit object compiles exactly as in the dx11 configure (the backend's include directory
+      # reaches its own sources only, CMakeLists.txt), so ccache serves them.
       - name: Unit tests (debug, vulkan backend)
         run: BANISHED_RENDER_BACKEND=vulkan tools/build.sh unit debug
       - name: ccache statistics

@@ -3,7 +3,7 @@
 # Included by the top-level CMakeLists.txt from src/render/${BANISHED_RENDER_BACKEND}/backend.cmake,
 # before the targets exist. The contract every backend.cmake fills (src/render/common/README.md):
 #   RENDER_SRCS              the backend's own sources (the top level appends src/render/common/*.cpp)
-#   RENDER_BACKEND_INCLUDES  the backend's include directories (added to BANISHED_INCLUDES)
+#   RENDER_BACKEND_INCLUDES  the backend's include directories (its own sources only)
 #   RENDER_BACKEND_READY     ON when OpenBA can be configured with this backend on this host
 # plus any per-source properties of its own files (directory scope, so they reach OpenBA).
 

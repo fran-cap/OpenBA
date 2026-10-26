@@ -266,6 +266,15 @@ if(NOT EXISTS ${CMAKE_SOURCE_DIR}/src/render/${BANISHED_RENDER_BACKEND}/backend.
 endif()
 include(${CMAKE_SOURCE_DIR}/src/render/${BANISHED_RENDER_BACKEND}/backend.cmake)
 message(STATUS "OpenBA render backend: ${BANISHED_RENDER_BACKEND} (ready: ${RENDER_BACKEND_READY})")
+# The backend's include directories reach its own sources only (a source property), so every other
+# compile line is the same whichever backend is configured, and ccache serves the second configure's
+# objects from the first's (.github/workflows/ci.yml). Nothing outside src/render/<backend> includes a
+# backend header (src/render/common/README.md). RENDER_BACKEND_OWN_SRCS (the target render-backend
+# below) is the list before src/render/common joins it.
+if(RENDER_BACKEND_INCLUDES)
+  set_property(SOURCE ${RENDER_SRCS} APPEND PROPERTY INCLUDE_DIRECTORIES ${RENDER_BACKEND_INCLUDES})
+endif()
+set(RENDER_BACKEND_OWN_SRCS ${RENDER_SRCS})
 file(GLOB_RECURSE RENDER_COMMON_SRCS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/render/common/*.cpp)
 list(APPEND RENDER_SRCS ${RENDER_COMMON_SRCS})
 # ext.compress_ao (docs/extensions/handins/COMPRESSAO.md): the BC4 encoder and the derived cache's
@@ -295,7 +304,6 @@ set(BANISHED_INCLUDES
   ${CMAKE_SOURCE_DIR}/src/game
   ${CMAKE_SOURCE_DIR}/src/engine
   ${CMAKE_SOURCE_DIR}/src/render/common
-  ${RENDER_BACKEND_INCLUDES}  # src/render/<backend>/backend.cmake (dx11: src/render/dx11)
   ${CMAKE_SOURCE_DIR}/src/app
   ${CMAKE_SOURCE_DIR}/src/diag
   ${CMAKE_SOURCE_DIR}/src/platform/common
@@ -554,6 +562,19 @@ if(RENDER_BACKEND_UNIT_LIBS)
   target_link_libraries(unit PRIVATE ${RENDER_BACKEND_UNIT_LIBS})
 endif()
 add_custom_target(run-unit COMMAND unit DEPENDS unit WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# render-backend: the backend's own sources compiled exactly as OpenBA compiles them, nothing linked
+# (`tools/build.sh backend`). CI's second Windows configure (vulkan) builds this and `unit` instead of a
+# second whole OpenBA: everything else in that exe is the dx11 configure's, and the Linux job builds
+# and links the whole vulkan OpenBA.
+if(TARGET OpenBA)
+  add_library(render-backend OBJECT EXCLUDE_FROM_ALL ${RENDER_BACKEND_OWN_SRCS})
+  target_compile_options(render-backend PRIVATE $<TARGET_PROPERTY:OpenBA,COMPILE_OPTIONS>)
+  target_compile_definitions(render-backend PRIVATE $<TARGET_PROPERTY:OpenBA,COMPILE_DEFINITIONS>)
+  target_include_directories(render-backend PRIVATE $<TARGET_PROPERTY:OpenBA,INCLUDE_DIRECTORIES>)
+  target_link_libraries(render-backend PRIVATE SDL3::SDL3-static ${RENDER_BACKEND_LINK_LIBRARIES})
+  add_dependencies(render-backend ext-rsc-text)
+endif()
 
 # ---------------------------------------------------------------------------------------
 # font_dump (KITFREE RSCFONT): the run-time font rasteriser's by-eye harness, a standalone
