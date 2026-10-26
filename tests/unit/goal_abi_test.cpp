@@ -13,9 +13,7 @@
 //   virtual destructor (ENDGAME decision 2), the proved parent.
 //
 // NOT PROVEN HERE: the member bodies (they stand on the address registry and
-// the Runtime and cannot link into a host test) and `Vtable()` against a
-// constructed object (the pilot's exe_class_abi_test.cpp PART C proves the
-// DEFINE_EXE_VTABLE mechanism on this toolchain; rb_achievement_abi_test.cpp
+// the Runtime and cannot link into a host test; rb_achievement_abi_test.cpp
 // pins the Goal::GetInstanceType retslot shape the two overrides take). The
 // real run and the resave gate verify those.
 // ============================================================================

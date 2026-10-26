@@ -419,6 +419,7 @@ void ParticleComponent::Setup() {
 // Inert_ScalarDtor slot 0 are gone; the compiler's 16-slot vtable carries the
 // slots above, with a real ctor/dtor chain (B38_RULES D1, D2).
 #include "Object/factory_registration.h"
+#include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 
 // ---- Per-frame frame-index un-stamp (Runtime-semantics fix, NOT a tick driver) ----
 // The tick itself is now driven faithfully by the EntityList tree walk: StartEmitter's
@@ -584,6 +585,7 @@ static bool PC_Culled(ParticleComponent* self, const System::Time* time) {
 // flags |= 0xc3.
 ParticleComponent::ParticleComponent() {
     OrFlagsInCtor(0xc3);
+    Object::ClassVptr<ParticleComponent>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
 }
 
 // 0x140053310 (the scalar 0x14000a560 adds the MemFree on &1). Restamp (the compiler's),
@@ -881,8 +883,7 @@ void ParticleComponent::OnEvent(int eventCode) {
     return static_cast<Object::Base*>(new (storage) ParticleComponent());
 }
 
-// [PREFETCHCOV] the compiler vtable's address point (= a constructed object's vptr): the
-// staged walk prefetch (entitylist.cpp, kPrefetchCovParticle) tells this class by its vptr.
-// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)
+// [PREFETCHCOV] the ctor records the vptr (Object::ClassVptr<ParticleComponent>): the staged walk
+// prefetch (entitylist.cpp, kPrefetchCovParticle) tells this class by it.
 
 DEFINE_EXE_TYPE(ParticleComponent, "Component")

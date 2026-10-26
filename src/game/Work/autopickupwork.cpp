@@ -14,7 +14,7 @@
 
 #include "Work/AutoPickupWork.h"
 #include "Object/factory_registration.h"   // Object::GetTypeIdByName
-#include "Object/exe_type.h"               // DEFINE_EXE_VTABLE
+#include "Object/exe_type.h"               // DEFINE_EXE_TYPE
 #include "object/Internal.h"               // Object::detail::InternalMemFree
 #include "system/MemoryAllocator.h"
 #include "Work/exe_bodies.h"

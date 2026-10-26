@@ -15,9 +15,8 @@
 //   the destructor (B3X W1: D1 + D0).
 //
 // NOT PROVEN HERE: the bodies (they stand on the address registry and cannot
-// link into a host test), and `Vtable() == vptr` (tests/unit/exe_class_abi_test.cpp
-// PART C proves DEFINE_EXE_VTABLE on this toolchain; rb_engine_abi_test.cpp
-// proves the loop bases' ctor/dtor stamp order through stand-in subclasses).
+// link into a host test; rb_engine_abi_test.cpp proves the loop bases' ctor/dtor
+// stamp order through stand-in subclasses).
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

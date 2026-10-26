@@ -565,6 +565,7 @@ bool MoveTo::GetTarget(ComponentEntity** param) {
 // the table, DECLARE_EXE_TYPE answers slots 1/2.
 // ============================================================
 #include "Object/factory_registration.h"
+#include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 
 // create 0x1400228c0. Retail's default ctor (0x1400c90e0) stores +0x20 = -1, +0x60 = -1, +0x478 = 1.0f;
 // the tree's factory zero-filled every field instead. B38 B8-1: the retail stores are kept; the
@@ -590,7 +591,9 @@ MoveTo::MoveTo()
       field_0x474(false),
       _pad475{},
       speedMultiplier(1.0f),
-      _pad47C{} {}
+      _pad47C{} {
+    Object::ClassVptr<MoveTo>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
+}
 
 // [3] 0x1400c8ec0
 // [4] 0x1400c8ab0
@@ -625,6 +628,7 @@ MoveTo::MoveTo()
 // 0x1400c9170 — the ctor body: after Action() the retail stores, in retail order.
 MoveTo::MoveTo(CharacterComponent* const* characterRef, uint32_t moveAnim, int stopAnim,
                const float* dest, uint32_t passFlagsArg, int profile, float speed) {
+    Object::ClassVptr<MoveTo>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
     ticket.slot = -1;
     ticket.token = 0;
     character = *characterRef;   // +0x28 (the InternalPtr's own ctor stored 0 first, as retail)
@@ -663,7 +667,6 @@ MoveTo::MoveTo(CharacterComponent* const* characterRef, uint32_t moveAnim, int s
 
 DEFINE_EXE_TYPE(MoveTo, "Action")
 
-// [EXT ext.walk_batch] the compiler vtable's address point: Ext::WalkBatch::Tick (src/ext/walk_batch/
-// walk_batch.cpp) tells a MoveTo top node by its vptr (MoveTo is final), as the walk prefetch
-// tells a CharacterComponent. Nothing in the faithful path reads it.
-// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)
+// [EXT ext.walk_batch] both ctors record the vptr (Object::ClassVptr<MoveTo>): Ext::WalkBatch::Tick
+// (src/ext/walk_batch/walk_batch.cpp) tells a MoveTo top node by it (MoveTo is final), as the walk
+// prefetch tells a CharacterComponent. Nothing in the faithful path reads it.

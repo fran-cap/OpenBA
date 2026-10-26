@@ -17,9 +17,8 @@
 //   `TableController<RPCtrlTag>` reaches the handler with RCX = the owner.
 //
 // NOT PROVEN HERE: the bodies and the constructors (they stand on the address
-// registry and cannot link into a host test), and `Vtable() == vptr`
-// (tests/unit/exe_class_abi_test.cpp PART C proves DEFINE_EXE_VTABLE on this
-// toolchain). Slot 18 (CreateWork) takes its InternalBasePtr slot as an explicit
+// registry and cannot link into a host test). Slot 18 (CreateWork) takes its
+// InternalBasePtr slot as an explicit
 // pointer (RCX = this, RDX = out), not as a hidden return: no retslot here.
 // ============================================================================
 #include "unit.h"

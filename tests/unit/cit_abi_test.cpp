@@ -13,9 +13,8 @@
 //   index of B38_SLOTS.md §6, and slot 0 is the destructor (B3X W1: D1 + D0).
 //
 // NOT PROVEN HERE: the bodies (they stand on the address registry and cannot
-// link into a host test), and `Vtable() == vptr` (tests/unit/exe_class_abi_test.cpp
-// PART C proves DEFINE_EXE_VTABLE on this toolchain; the real run and the resave
-// gate verify the classes). There is no retslot or hidden-pointer member in
+// link into a host test; the real run and the resave gate verify the classes).
+// There is no retslot or hidden-pointer member in
 // this block (every slot returns void, a pointer or an int in RAX).
 // ============================================================================
 #include "unit.h"

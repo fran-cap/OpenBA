@@ -10,9 +10,7 @@
 //            slot declared out of retail order fails here, not in a run.
 //   PART C — SHAPE: polymorphic, a virtual destructor (B3X W1), abstract exactly where
 //            retail is (SelectResourceUI, slots 11-13 _purecall).
-// `Vtable() == *(void**)&obj` for DEFINE_EXE_VTABLE is proven once, on probe
-// classes, by exe_class_abi_test.cpp PART C; the panel bodies stand on the
-// port registry and do not link into a host test.
+// The panel bodies stand on the port registry and do not link into a host test.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

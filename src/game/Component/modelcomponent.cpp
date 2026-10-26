@@ -117,6 +117,7 @@ static Graphics::GraphicsMesh* GetMeshFromDescription(const ModelDescription* de
 // registers the geometry in Graphics::Scene).
 // ============================================================================
 #include "Object/factory_registration.h"
+#include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 
 // 0x140124d20: Component() is the CALL 0x1401188b0 (the Object::Internal base
 // registers the object — the dtor's ~Internal must match it); the 0x140163ba0
@@ -126,6 +127,7 @@ static Graphics::GraphicsMesh* GetMeshFromDescription(const ModelDescription* de
 ModelComponent::ModelComponent()
     : meshGroup(0), meshIndex(0), yaw(0.0f), modelId(-1) {
     OrFlagsInCtor(0x83);
+    Object::ClassVptr<ModelComponent>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
 }
 
 // 0x140124cd0: ~MeshInstance(+0x28); the compiler then chains ~Component and
@@ -372,8 +374,7 @@ void ModelComponent::Tick(const System::Time* time) {
     return static_cast<Object::Base*>(new (storage) ModelComponent());
 }
 
-// [PREFETCH] the compiler vtable's address point (= a constructed object's vptr): the
-// staged walk prefetch (entitylist.cpp, kWalkPrefetch == 2) tells this class by its vptr.
-// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)
+// [PREFETCH] the ctor records the vptr (Object::ClassVptr<ModelComponent>): the staged walk
+// prefetch (entitylist.cpp, kWalkPrefetch == 2) tells this class by it.
 
 DEFINE_EXE_TYPE(ModelComponent, "Component")

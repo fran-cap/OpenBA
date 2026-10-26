@@ -34,7 +34,7 @@
 #include "Game/game_main.h"
 #include "platform/common/cpu/topology.h"     // block CPULIMIT: Cpu::Boot (sys.cpu_limit, before any thread)
 #include "Object/factory_registration.h"
-#include "Goal/StatGoal.h"             // ENDGAME B.3.9 EXA: StatGoal::Vtable() for the self-test
+#include "Goal/StatGoal.h"             // StatGoal::GetTypeInfo() for the self-test
 #include "object/TypeInfo.h"           // ENDGAME B.3.9 RF: BaseTypeInfo::_firstTypeInfo for the self-test
 #include "platform_window.h"   // Phase D.4 SDL W6: the pump observer
 #include "platform_app.h"      // Platform::App: the lifecycle hooks around SDL_Init / SDL_Quit
@@ -325,13 +325,14 @@ struct FieldCheck {
     const char* name;
 };
 
-// `expectedVtable` is the class's COMPILER table (`X::Vtable()`): the test asks
-// "did the factory build THIS class", an identity question (B38_RULES D5). It
-// used to take the retail table address and read it back through the address
-// registry, which only served the compiler table because a RegisterExeAddr row
-// existed for this test alone (ENDGAME B.3.9 EXA deleted it).
+// `expected` is the class's own record (`X::GetTypeInfo()`): the test asks "did the
+// factory build THIS class", and the built object's slot 2 (`Type()`) answers with its
+// class's type id. Factory::Startup has written the ids by now; a record still holding
+// the 0xFFFFFFFF sentinel fails the test instead of matching every unstarted class. (It
+// compared the vptr with the class's compiler vtable until 2026-10-26, and before
+// ENDGAME B.3.9 EXA the retail table read back through the address registry.)
 static bool RunFactorySelfTest(const char* typeName,
-                               const void* expectedVtable,
+                               const ::Object::BaseTypeInfo& expected,
                                size_t expectedSize,
                                const FieldCheck* fields, size_t fieldCount) {
     printf("\n[SelfTest %s] start\n", typeName);
@@ -364,14 +365,14 @@ static bool RunFactorySelfTest(const char* typeName,
     }
     printf("[SelfTest %s]   factory returned %p\n", typeName, (void*)obj);
 
-    // Validate vtable
-    void* actualVt = *(void**)obj;   // the object's vtable word (an identity check)  // CAST-OK: crash_walk
-    if (actualVt != expectedVtable) {
-        printf("[SelfTest %s] FAIL: vtable %p != expected %p (the class's compiler table)\n",
-               typeName, actualVt, expectedVtable);
+    // Validate the class
+    const uint32_t actualType = obj->Type();
+    if (expected.typeId == 0xFFFFFFFFu || actualType != expected.typeId) {
+        printf("[SelfTest %s] FAIL: type id 0x%08x != expected 0x%08x (the class's record)\n",
+               typeName, actualType, expected.typeId);
         return false;
     }
-    printf("[SelfTest %s]   vtable OK (%p)\n", typeName, actualVt);
+    printf("[SelfTest %s]   type id OK (0x%08x)\n", typeName, actualType);
 
     // Validate field defaults
     bool allOk = true;
@@ -548,7 +549,7 @@ extern "C" void RunStartupSelfTests() {
         { 0x78, 0x20, 4, "statFlags" },
         { 0x7c, 1,    4, "statSubType" },
     };
-    RunFactorySelfTest("StatGoal", StatGoal::Vtable(), 0x80,
+    RunFactorySelfTest("StatGoal", StatGoal::GetTypeInfo(), 0x80,
                        statGoalFields, sizeof(statGoalFields)/sizeof(*statGoalFields));
 
     DumpVideoState();

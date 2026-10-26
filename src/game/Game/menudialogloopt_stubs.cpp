@@ -43,7 +43,6 @@
 #include "Game/uifade.h"
 #include "Game/MenuDialogLoopT.h"   // ENDGAME B.3.8 LOOP
 #include "Game/WorldGeometry.h"     // _sceneGeometry's class (the device-lost pair)
-#include "Object/exe_type.h"      // DEFINE_EXE_VTABLE
 #include "autostart.h"
 #include <cstdio>
 #include <cstdint>
@@ -577,6 +576,3 @@ Object::InternalPtr<UI::DialogInstance>* MenuDialogLoopT::CreateLoopDialog(
     return retPtr;
 }
 
-// B38_RULES D5: `Vtable()` is the COMPILER's table. ENDGAME B.3.9 EXA: the
-// 0x14015ed00 registration went with the inline door-then-stamp builder.
-// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)

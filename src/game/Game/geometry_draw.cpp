@@ -43,7 +43,6 @@
 #include "Game/exe_constants.h"   // kRdata_*
 #include "ext/render_culling/render_culling.h"
 #include "ext/terrain_batch/terrain_batch.h"   // ext.terrain_batch: the row merge + the shadow chunk cull
-#include "Object/exe_type.h"   // DEFINE_EXE_VTABLE
 #include "object/Internal.h"   // Object::detail::InternalMemFree
 #include <atomic>
 #include <cstdint>

@@ -47,8 +47,6 @@ public:
     Object::InternalPtr<UI::DialogInstance>* CreateLoopDialog(   // [12] 0x140099070
         Object::InternalPtr<UI::DialogInstance>* ret) override;
 
-    static const void* Vtable();
-
 public:
     uint32_t       _fadeColor1;   // +0x188  ctor 0xff000000
     uint32_t       _fadeColor2;   // +0x18c  ctor 0xff000000

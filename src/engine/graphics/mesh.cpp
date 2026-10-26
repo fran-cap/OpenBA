@@ -140,6 +140,7 @@
 #include "graphics/Geometry.h"        // Graphics::Geometry::SetTransform
 #include "collection/Collection.h"    // rtcoll:: the array instantiations
 #include "math/Math.h"                // Math::Quaternion::Lerp
+#include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 
 using RtGraphics::EdgeVertex;
 using RtGraphics::TriangleVertex;
@@ -683,7 +684,7 @@ const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics:
 // (Geometry's copy ctor -- the base in the init list), the MeshInstance stamp
 // (the compiler's), then the stores below in retail's order.
 Graphics::MeshInstance::MeshInstance(const MeshInstance& other) : Geometry(other), _mesh(other._mesh) {
-
+    Object::ClassVptr<MeshInstance>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
     _materials._data = nullptr;
     _materials._size = 0;
     _materials._capacity = 0;
@@ -757,6 +758,7 @@ Graphics::MeshInstance::MeshInstance(const MeshInstance& other) : Geometry(other
 // (0x18001c550 / 0x18001c480 / 0x180014d00) are the implicit member dtors of
 // _nodes, _animation and _materials, in that reverse declaration order.
 Graphics::MeshInstance::MeshInstance() : _mesh(nullptr) {   // +0xc0 first, 0x1800fffe8
+    Object::ClassVptr<MeshInstance>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
     _materials._data = nullptr;
     _materials._size = 0;
     _materials._capacity = 0;

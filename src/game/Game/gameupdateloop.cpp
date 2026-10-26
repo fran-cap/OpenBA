@@ -36,7 +36,6 @@
 #include "Game/GameUpdateLoop.h"   // ENDGAME B.3.8 LOOP: the real class
 #include "Game/WorldGeometry.h"    // caller batch CB6: m_worldGeometry's class
 #include "Player/Tool.h"            // caller batch CB6: the active tool's Draw
-#include "Object/exe_type.h"        // DEFINE_EXE_VTABLE
 #include "Object/internal_factory_audit.h"
 #include "platform_time.h"   // Platform::PerfCounter / PerfFrequency (the SIMPROF probes)
 #include "ui/DialogInstance.h"
@@ -440,6 +439,7 @@ static void HonourPlatformSaveRequest(UI::UserInterface* ui) {
 // BANISHED_TOOL_HARNESS. No-op unless that env var is set.
 extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum);
 #include "pausemenu_harness.h"   // PauseMenuHarness_Tick (src/diag)
+#include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 extern "C" void FoodPanel_Tick(PlayerToolManager* entityUI, int frameNum);  // src/diag/food_panel_harness.cpp
 extern "C" void FoodPlace_Tick(int frameNum);                  // src/diag/food_placement_harness.cpp
 extern "C" void StartTown_DeferredSpawn_Tick(int frameNum);    // src/game/Game/starttown.cpp
@@ -2388,6 +2388,7 @@ GameUpdateLoop::GameUpdateLoop(Save::SavedState* savedState,
                                int32_t mapSize, bool disasters, MapGenerator* mapConfig,
                                TerrainGenerator* terrainConfig, ClimateGenerator* climateConfig)
     : Engine::UpdateLoop(), m_saveName(saveName) {
+    Object::ClassVptr<GameUpdateLoop>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
     m_seed          = seed;
     m_mapSize       = mapSize;
     m_gameTime      = 0;
@@ -2483,7 +2484,6 @@ const char* GameUpdateLoop::GetResourceFilename() {
     return "Game/Game";
 }
 
-// B38_RULES D5: `Vtable()` is the COMPILER's table (the splash's "is the next
-// loop a GameUpdateLoop" identity test reads it). ENDGAME B.3.9 EXA: the
+// The ctor records the vptr (Object::ClassVptr<GameUpdateLoop>): the splash's "is the
+// next loop a GameUpdateLoop" identity test reads it. ENDGAME B.3.9 EXA: the
 // 0x14015e2f0 registration went with the last door-then-stamp builder.
-// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)

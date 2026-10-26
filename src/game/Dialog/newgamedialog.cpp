@@ -675,9 +675,9 @@ void* MainMenuDialog::StartNewGame(const System::String& name, uint32_t seed, ui
     {
         LoadTime::Stamp("newgame.click");   // NOT RETAIL: print-only
         fprintf(stderr, "[StartNewGame] ENTER worldSetup=%p seed=%u size=%u disastersOff=%d "
-                "scenarioIdx=%d saved=%p GameUpdateLoop_Vtable=%p\n",
+                "scenarioIdx=%d saved=%p\n",
                 (void*)this, seed, terrainSize, (int)disastersOff, (int)scenarioResIdx,
-                savedStateIBP, GameUpdateLoop::Vtable());
+                savedStateIBP);
         fflush(stderr);
 
         // Step 1: GameUpdateLoop (0x160 bytes). ENDGAME B.3.9 EXA: the real class

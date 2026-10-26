@@ -13,6 +13,7 @@
 
 #include "math/Math.h"
 #include "object/Internal.h"
+#include "object/class_vptr.h"   // Object::ClassVptr (the vptr hint)
 #include "Action/Action.h"
 #include "Action/MoveTo.h"
 #include "Component/CharacterComponent.h"
@@ -96,7 +97,7 @@ MoveTo* Eligible(CharacterComponent* self, int* curCellOut, int* destCellOut) {
     // entered MoveTo, alone, that moves this character.
     Action* top = self->actionStack.actions[cur].Get();
     if (top == nullptr) return nullptr;
-    if (*reinterpret_cast<const void* const*>(top) != MoveTo::Vtable()) return nullptr;  // CAST-OK: vslot (MoveTo is final: the vptr names the class)
+    if (*reinterpret_cast<const void* const*>(top) != Object::ClassVptr<MoveTo>::Get()) return nullptr;  // CAST-OK: vslot (MoveTo is final: the vptr names the class)
     MoveTo* mv = static_cast<MoveTo*>(top);
     if (!mv->_status) return nullptr;
     if (mv->_next.Get() != nullptr) return nullptr;
