@@ -96,28 +96,51 @@ Engine seam: `_extBackdropOver` takes the sprite to draw (sheet and index, in / 
 bottom row; bottom: this branch). Rows 1074..1079 are black on the four loading frames captured on this branch (sampled
 across the width); on main rows 1078 / 1079 were picture.
 
-## 3. Toolbar tooltip over the button above the one tapped: NOT REPRODUCED, nothing changed
+## 3. Toolbar tooltip over the button above the one tapped: FIXED by the owner's ruling (hide it on the lift)
 
-On main and on this branch, at render scale Full and Half, a held 120-200 ms touch on a bar button, on a
-sub-toolbar button, and on a bar button with another sub-toolbar open shows the tooltip with its bottom-left
-exactly at the touch point (retail's rule: the tooltip above the pointer, `BeginToolTip` / the MOVE arm
-`SetUpperLeft(x, y - h)`), mapped correctly out of the toolbar's own units by touch_mode's `TooltipOffset`:
+**What it was.** No mis-anchor: on main, at render scale Full and Half, the tooltip's bottom-left sits exactly
+at the touch point (retail's rule, the tooltip above the pointer, `BeginToolTip` / the MOVE arm
+`SetUpperLeft(x, y - h)`, mapped correctly out of the toolbar's own units by touch_mode's `TooltipOffset`):
 `before/tip_houses.png`, `before/tip_sub.png`, `before/tools.png`, `after/tipseq_4.png`, `after/half_tip.png`.
-The tooltip's anchor is the pointer, not a button rectangle, and neither the unscaled button rectangle nor a
-lift offset (touch_pointer is not built on main) enters it.
+What a finger does differently from a mouse: the pointer stays where the finger lifted, so retail's hover rule
+(`DialogInstance::Update`, dialog.cpp: hover time grows while the pointer rests with no button down, past
+0.25 s an element opens its tooltip; a button down ends the hover) opens the tapped control's tooltip 0.25 s
+after every tap and keeps it up, over whatever is above it: with a sub-toolbar open above the bar, over the
+sub-toolbar's buttons.
 
-What a finger does differently from a mouse: the pointer stays where the finger lifted, so the tooltip stays
-up, sitting above the touch point; with a sub-toolbar open above the bar, it covers the sub-toolbar's lower
-edge, and over a sub-toolbar button it covers the tapped button's upper half. Whether that is what the owner
-saw is a ruling (below); the tutorial glow ring is not the same transform (it is placed from a toolbar
-element's rectangle, not from the pointer), so it was left as it was (`TOUCHMODE.md`).
+**Ruling (owner, 2026-10-26): hide the tooltip when the finger lifts.** Touch-originated hover only, a mouse
+untouched, the desktop unaffected.
+
+**The change** (commit "ext.phone_menu: no tooltip after a finger lifts"), in ext.phone_menu (touch_fit.cpp
+`FingerUpHidesToolTip`, part (e) of the P9 "dialogs for a finger" frame hook) rather than ext.touch_mode:
+it applies to every tooltip of every interface (a tap on a panel or Options control leaves the same tooltip
+up), not only the toolbar's, and phone_menu already runs once a frame per UserInterface before the dialogs
+are pumped; touch_mode acts on the game's toolbar and cluster only and is another lane's area. Both rows are
+on in the Android seed and off on a desktop.
+- *Which device*: `Platform::Input::PointerIsTouch()` (`src/platform/common/platform_input.h`, body in
+  `src/platform/sdl/pump_sdl.cpp`, every platform pumps through SDL): true when the last mouse motion or
+  button event was synthesised from a touch (`SDL_TOUCH_MOUSEID`). A real mouse on the phone (the owner's KVM
+  mouse) reports its own id, so it keeps retail's tooltips.
+- *What happens*: with the pointer last moved by a touch and no finger down, no dialog of the interface counts
+  hover time (`_hoverTime` held at 0, so retail's 0.25 s delay never runs out) and a tooltip still up is
+  closed the way `BeginToolTip` closes the previous one. With a finger down retail's own rule applies (a button
+  down ends the hover), so a held finger shows no tooltip either, as on main.
+
+**Verified on the S25** (this branch's debug apk, the settings found at the start of the run, `settings.cfg`
+unchanged after it): Houses tapped (sub-toolbar open), then a 150 ms tap on Food Production: 2.5 s after the
+lift no tooltip (`after/hide_food_lifted.png`; on main the same taps leave "Food Production. [F7]" up,
+`after/tipseq_4.png` was taken on the first build of this branch, before this commit). A 3 s held finger on the
+next button: pressed look, no tooltip while held, none after the lift (`after/hide_held_pair.png`, top held,
+bottom lifted). Not run: a real mouse on the phone (adb has no mouse); its events carry the mouse's own id.
 
 ## 4. Rulings owed
 
-1. **Tooltip under a finger** (§3): which tap showed the tooltip "over the button above", and what is wanted
-   for touch: keep retail's tooltip-above-the-pointer, or for a touch on the (sub-)toolbar put the tooltip
-   above the whole toolbar stack (clear of the sub-toolbar), or hide a toolbar tooltip once the finger lifts.
-   The touch_pointer agent's finger input (P11 item 1) is the natural owner of the last two.
+1. **Tooltips for a finger**: after §3 a finger never sees a tooltip (retail shows none while a button is
+   down, and none now after the lift), so the building costs in a sub-toolbar button's tooltip are out of
+   reach by touch. A press-and-hold tooltip would need a seam in `DialogInstance::Update`'s hover rule (count
+   hover time with the button down for a touch); a ruling whether it is wanted. The tutorial glow ring under
+   touch_mode is not the tooltip's transform (it is placed from a toolbar element's rectangle) and stays as
+   it was (`TOUCHMODE.md`).
 2. **Text of a fitted dialog**: a dialog drawn at its own scale is drawn with retail's filtered quads (the P10
    seam switches ext.sharp_ui's snap off for it), so Options / Fixes and Extensions text is no longer
    rasterised at the fitted size as it was when the whole interface was fitted. It reads clean on the S25
