@@ -90,6 +90,13 @@ UNIT_TEST(ext_touch_pointer_latch_queue) {
     // A push equal to the current state with nothing queued queues nothing.
     q.Push(P(5, 5, false));
     CHECK(q.Empty());
+    // A repeated Append holds the same state for one more poll each (the release held over a dialog).
+    q.Append(P(5, 5, false), true);
+    q.Append(P(5, 5, false), true);
+    q.Append(P(9, 9, false));
+    CHECK(q.Pop().x == 5);
+    CHECK(q.Pop().x == 5);
+    CHECK(q.Pop().x == 9);
 }
 
 UNIT_TEST(ext_touch_pointer_tap_and_aim) {

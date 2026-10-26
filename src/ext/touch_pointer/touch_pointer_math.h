@@ -35,8 +35,9 @@ struct PointerState {
 class LatchQueue {
 public:
     void Push(const PointerState& s);
-    // Queue `s` as a state of its own (never merged into the last one), unless it equals it.
-    void Append(const PointerState& s);
+    // Queue `s` as a state of its own (never merged into the last one), unless it equals it and `repeat` is
+    // false (a repeated state holds the pointer still for one more poll).
+    void Append(const PointerState& s, bool repeat = false);
     PointerState Pop();
     const PointerState& Current() const { return _current; }
     bool Empty() const { return _queue.empty(); }

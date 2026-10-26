@@ -23,8 +23,8 @@ void LatchQueue::Push(const PointerState& s) {
     _queue.push_back(s);
 }
 
-void LatchQueue::Append(const PointerState& s) {
-    if (Last() == s) return;
+void LatchQueue::Append(const PointerState& s, bool repeat) {
+    if (!repeat && Last() == s) return;
     _queue.push_back(s);
 }
 

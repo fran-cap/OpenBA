@@ -81,6 +81,9 @@ constexpr int32_t kMouseRight = 5;
 // After this long of real mouse use the bar hides (the ruling's "a few seconds").
 constexpr double kMouseHideSeconds = 3.0;
 
+// Polls the release over a dialog is held before the cursor goes back to the world (the Ui lift).
+constexpr int32_t kReleaseHoldPolls = 3;
+
 // ButtonElement (ButtonElement.h): state 3 = pressed (its fourth state child), child 4 = the label.
 constexpr int32_t kButtonPressedState = 3;
 constexpr int32_t kButtonLabelChild = 4;
@@ -140,6 +143,8 @@ enum class Role {
     Gesture,   // one of the two fingers of a gesture
     Ignored,   // a finger left over from a gesture, or a third one
 };
+
+constexpr const char* kRoleNames[] = {"none", "bar", "dialog", "aim", "pick", "plain", "gesture", "ignored"};
 
 struct Finger {
     uint64_t id = 0;
@@ -408,12 +413,27 @@ void AimLift(const Finger& f, ToolKind kind, double now) {
     }
 }
 
+// One line per gesture with the camera before / after (the session doc's measurements).
+GestureStep g_gestureTotal;
+
+void LogCamera(const char* what) {
+    const GameUpdateLoop* game = GameUpdateLoop::_singleton;
+    const PlayerController* pc = game != nullptr ? game->m_playerController : nullptr;
+    if (pc == nullptr) return;
+    std::fprintf(stderr, "[TouchPointer] %s: yaw %.1f target %.1f,%.1f distance %.1f\n", what, pc->yaw, pc->target.x,
+                 pc->target.y, pc->distance);
+}
+
 void EndGesture() {
     g_gestureActive = false;
     for (Finger& f : g_fingers) {
         if (f.role == Role::Gesture) f.role = Role::Ignored;
     }
-    std::fprintf(stderr, "[TouchPointer] gesture end\n");
+    std::fprintf(stderr, "[TouchPointer] gesture end: pan %s %.3f,%.3f pinch %s %.2f steps spin %s %.1f deg\n",
+                 g_two.panEngaged() ? "on" : "off", g_gestureTotal.dragX, g_gestureTotal.dragY,
+                 g_two.pinchEngaged() ? "on" : "off", g_gestureTotal.zoomSteps, g_two.spinEngaged() ? "on" : "off",
+                 g_gestureTotal.yawDegrees);
+    LogCamera("camera after the gesture");
 }
 
 void OnFinger(const Platform::Touch::Event& e) {
@@ -446,6 +466,7 @@ void OnFinger(const Platform::Touch::Event& e) {
         f.downAt = now;
         if (g_fingers.empty()) {
             f.role = Classify(e.x, e.y, kind);
+            std::fprintf(stderr, "[TouchPointer] down %.0f,%.0f: %s\n", e.x, e.y, kRoleNames[static_cast<int32_t>(f.role)]);
             g_fingers.push_back(f);
             Finger& p = g_fingers.back();
             if (p.role == Role::Ui || p.role == Role::Plain) Move(p.x, p.y, true);
@@ -458,7 +479,9 @@ void OnFinger(const Platform::Touch::Event& e) {
             f.role = Role::Gesture;
             g_two.Begin(first.x, first.y, f.x, f.y, ShortEdge());
             g_gestureActive = true;
+            g_gestureTotal = GestureStep();
             std::fprintf(stderr, "[TouchPointer] gesture begin\n");
+            LogCamera("camera before the gesture");
         } else {
             f.role = Role::Ignored;
         }
@@ -498,6 +521,10 @@ void OnFinger(const Platform::Touch::Event& e) {
                 g_pendingGesture.dragY += s.dragY;
                 g_pendingGesture.zoomSteps += s.zoomSteps;
                 g_pendingGesture.yawDegrees += s.yawDegrees;
+                g_gestureTotal.dragX += s.dragX;
+                g_gestureTotal.dragY += s.dragY;
+                g_gestureTotal.zoomSteps += s.zoomSteps;
+                g_gestureTotal.yawDegrees += s.yawDegrees;
             }
             break;
         }
@@ -507,6 +534,8 @@ void OnFinger(const Platform::Touch::Event& e) {
         return;
     }
     // Up or Cancel.
+    std::fprintf(stderr, "[TouchPointer] %s %.0f,%.0f: %s\n", e.phase == Phase::Up ? "up" : "cancel", e.x, e.y,
+                 kRoleNames[static_cast<int32_t>(f->role)]);
     const bool up = e.phase == Phase::Up;
     const Finger lifted = *f;
     for (size_t i = 0; i < g_fingers.size(); ++i) {
@@ -527,10 +556,16 @@ void OnFinger(const Platform::Touch::Event& e) {
     }
     case Role::Ui:
         Move(lifted.x, lifted.y, false);
-        // The cursor back on the world one poll later (the release lands on the button first), so no tooltip
-        // opens on the tapped button and a ghost stays put.
+        // The cursor back on the world a few polls later, so no tooltip opens on the tapped button and a ghost
+        // stays put. The release is held for kReleaseHoldPolls first: a dialog's drag arms from the press's
+        // element event, handled after its OnUpdate (ToolUI::OnUpdate tests the 5 px move before the button),
+        // so a jump on the poll after the release dragged an info panel across the screen (measured on the S25).
         // With no world position yet: off the screen (no dialog contains it, no tool ray is cast from it).
         {
+            PointerState hold;
+            hold.x = lifted.x;
+            hold.y = lifted.y;
+            for (int32_t i = 0; i < kReleaseHoldPolls; ++i) g_queue.Append(hold, true);
             PointerState back;
             back.x = g_haveWorld ? g_lastWorld.x : -1.0f;
             back.y = g_haveWorld ? g_lastWorld.y : -1.0f;
@@ -772,7 +807,9 @@ public:
         const int32_t sw = sprite.Width();
         const int32_t sh = sprite.Height();
         if (sw <= 0 || sh <= 0) return;
-        const int32_t h = cell / 3 > sh ? cell / 3 : sh;
+        // About half a button high, a whole multiple of the sprite (crisp), never smaller than the sprite.
+        int32_t h = cell / 2 > sh ? cell / 2 : sh;
+        if (h >= 2 * sh) h = (h / sh) * sh;
         image->SetWidthHeight(sw * h / sh, h);
         image->SetNeedsSizeCalc();
     }
