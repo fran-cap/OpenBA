@@ -46,6 +46,8 @@
 #include "ui/ScrollElement.h"
 #include "ui/ToolTipDialog.h"
 #include "ui/UserInterface.h"
+#include "input/Device.h"   // Input::Device::_singleton: the left button (a finger down)
+#include "platform/common/platform_input.h"   // Platform::Input::PointerIsTouch (P11)
 #include "video/Device.h"   // Video::Device::_singleton: the back buffer the fitted scale is for
 
 namespace Ext {
@@ -271,6 +273,31 @@ const UI::DialogInstance* FitOwner(const UI::DialogInstance* d) {
     return d;
 }
 
+// ---- (e) a lifted finger does not hover ---------------------------------------------
+
+// Retail shows a tooltip once the pointer has rested on a dialog for 0.25 s with no button down
+// (DialogInstance::Update: `_hoverTime` grows while the pointer stands still, `_hovering` is set past
+// the delay, an element under it then opens its tooltip; a button down ends the hover). A finger
+// leaves the pointer where it lifted, so after every tap the tapped control's tooltip came up and
+// stayed, over whatever is above it (the owner's ruling, P11: HIDE it when the finger lifts). With
+// the pointer last moved by a touch and no finger down, no dialog of this UserInterface counts
+// hover time, and a tooltip still up is closed (the arm BeginToolTip runs before opening a new
+// one). The element keeps its "tooltip begun" flag, so it does not reopen until the pointer leaves
+// it. A real mouse (on the phone too) is untouched. Main thread, before the dialogs are pumped.
+void FingerUpHidesToolTip(UI::UserInterface* ui) {
+    if (!::Platform::Input::PointerIsTouch()) return;
+    const ::Input::Device* in = ::Input::Device::_singleton;
+    if (in == nullptr || in->_mouse[4].value > 0) return;   // a finger down: retail's hover rule
+    for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
+        if (node->element != nullptr) node->element->_hoverTime = 0;
+    }
+    if (ui->_toolTipDialog == nullptr) return;
+    Object::InternalPtr<UI::DialogInstance> tip(ui->_toolTipDialog);
+    ui->CloseDialog(&tip);
+    ui->_toolTipDialog = nullptr;
+    ui->_toolTipOwner = nullptr;
+}
+
 }  // namespace
 
 void TouchFrame(int32_t point, const UI::DialogInstance* dialog) {
@@ -287,6 +314,7 @@ void TouchFrame(int32_t point, const UI::DialogInstance* dialog) {
         if (node->element != nullptr) Walk(node->element->_root.Get(), on);
     }
     DecideScale(ui, on);
+    if (on) FingerUpHidesToolTip(ui);
     if (on) {
         g_touched = true;
         g_quietFrames = 0;

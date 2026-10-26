@@ -165,6 +165,12 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
     interface's scale` when it ends.
     A value the Options slider applies is the player's new scale; the dialog's fit is decided again from
     it on the next frame, so the dialog shows the new size at once (P11).
+  * **No tooltip after a finger lifts** (P11, owner's ruling; `touch_fit.cpp` `FingerUpHidesToolTip`). A
+    finger leaves the pointer where it lifted, so retail's hover rule (`DialogInstance::Update`: 0.25 s at
+    rest with no button down) opened the tapped control's tooltip after every tap and kept it up. With the
+    pointer last moved by a touch (`Platform::Input::PointerIsTouch`, SDL's `SDL_TOUCH_MOUSEID`, read in
+    `pump_sdl.cpp`) and no finger down, no dialog counts hover time and an open tooltip is closed. A real
+    mouse keeps retail's tooltips.
   * **Undone from the description.** Each change is on the element instance; with the row switched off the
     next frames walk the open dialogs and put back the values of the element's own description
     (`Element::_description`, the values `ElementDescription::CreateInstance` copied: the scroll bar's

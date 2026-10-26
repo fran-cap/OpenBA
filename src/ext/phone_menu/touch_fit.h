@@ -15,7 +15,9 @@
 //       _extDialogScale; the rest of its UserInterface keeps the player's scale (P11: before, the
 //       whole interface was scaled, which moved and shrank everything behind the dialog);
 //   (d) the main and pause menus' backdrop gets its bottom border back (touch_math.h LowerBackdrop) and
-//       their version line moves down into it (LowVersionLayout, phone_menu.cpp).
+//       their version line moves down into it (LowVersionLayout, phone_menu.cpp);
+//   (e) P11: once a finger has lifted, no tooltip stays up (the owner's ruling; a real mouse keeps
+//       retail's hover tooltips): touch_fit.cpp FingerUpHidesToolTip.
 // Every change is made on the element INSTANCE and undone from the element's own description
 // (Element::_description: retail's values) when the row is switched off; an element built without
 // a description is left alone. Main thread only, except (d), which runs on the UI's draw.
