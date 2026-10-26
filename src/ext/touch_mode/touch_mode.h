@@ -9,7 +9,8 @@
 //       the same camera locals retail's keys drive in PlayerToolManager::UpdateCamera;
 //   (b) the in-game toolbar (Dialog/Toolbar.rsc) and its sub-toolbars in their own unit space, k
 //       times the UI scale (ext.touch_mode_toolbar_scale, shrunk to fit beside the cluster): laid
-//       out, hit-tested and drawn at k through UI::UserInterface::_extDialogScale; the rest of the
+//       out, hit-tested and drawn at k through UI::UserInterface::_extDialogScale (installed by
+//       ext.phone_menu, which asks Scale first); the rest of the
 //       UI keeps the UI scale. The toolbar's tooltips, sub-toolbars and event notices are put back
 //       where they belong in the global units (Place);
 //   (c) the right-hand strip above the bar stays free for the later touch_pointer action bar;
@@ -27,9 +28,10 @@ class DialogInstance;
 namespace Ext {
 namespace TouchMode {
 
-// Boot only (registry_boot.cpp): installs UI::UserInterface::_extDialogScale (null under the
-// faithful profile).
-void Sync();
+// The toolbar's own scale k for `dialog` (the toolbar, a sub-toolbar), 1.0 for any other dialog or
+// with the row off. ext.phone_menu's UI::UserInterface::_extDialogScale function asks this first
+// (phone_menu.h DialogScale; the seam is null under the faithful profile).
+float Scale(const UI::DialogInstance* dialog);
 
 // ext.phone_menu's place function (UI::UserInterface::_extDialogPlace), first: true when this row
 // placed the dialog (the toolbar, a sub-toolbar, a toolbar tooltip, the event notices, the

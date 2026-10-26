@@ -508,7 +508,7 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     if (dialog == nullptr) return;
     if (TouchMode::Place(point, dialog, width, height, rect)) return;   // ext.touch_mode first (TOUCH_MODE.md)
     // P9: scroll bars, close buttons and a dialog larger than the safe area (touch_fit.h).
-    TouchFrame(point, dialog, width, height, rect);
+    TouchFrame(point, dialog);
     if (!Ext().phone_menu) {
         // Switched off while a menu is open: its retail values back before retail lays it out.
         // (A recorded menu at that address went through MenuOpened, which forgets the old one.)
@@ -563,9 +563,20 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     // A root sized to the back buffer (ComputeLayout's 0x10 / 0x20 flags) is meant to cover
     // the screen: retail's rectangle.
     if ((root->_flags & 0x30) != 0) return;
-    Store(SafeArea(width, height, dialog->_upperLeftX, dialog->_upperLeftY,
-                   root->_layoutRight - root->_layoutLeft, root->_layoutBottom - root->_layoutTop),
+    // P11: a dialog shown at its own scale k (touch_fit.h (c)) keeps its upper-left and size in its
+    // own units; the safe area is decided in the layout units the engine then divides by k.
+    const float k = FitDialogScale(dialog);
+    Store(SafeArea(width, height, ToLayoutUnits(dialog->_upperLeftX, k), ToLayoutUnits(dialog->_upperLeftY, k),
+                   ToLayoutUnits(root->_layoutRight - root->_layoutLeft, k),
+                   ToLayoutUnits(root->_layoutBottom - root->_layoutTop, k)),
           rect);
+}
+
+// UI::UserInterface::_extDialogScale: ext.touch_mode's toolbar scale first, then (c) of touch_fit.h.
+float DialogScale(const UI::DialogInstance* dialog) {
+    const float toolbar = TouchMode::Scale(dialog);
+    if (toolbar != 1.0f) return toolbar;
+    return FitDialogScale(dialog);
 }
 
 }  // namespace
@@ -574,6 +585,7 @@ void Sync() {
     const bool faithful = CurrentProfile() == Profile::Faithful;
     UI::UserInterface::_extDialogPlace = faithful ? nullptr : &Place;
     UI::UserInterface::_extBackdropOver = faithful ? nullptr : &BackdropOver;   // P9 (loading_screen.h)
+    UI::UserInterface::_extDialogScale = faithful ? nullptr : &DialogScale;    // P11 + ext.touch_mode
 }
 
 void MenuOpened(const UI::Dialog* menu, const UI::Dialog* buildId, bool pause) {

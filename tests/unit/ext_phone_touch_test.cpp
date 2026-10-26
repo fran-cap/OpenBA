@@ -83,3 +83,23 @@ UNIT_TEST(ext_phone_touch_low_version_line) {
     // Lower than the safe-area placement by the margin.
     CHECK(PM::LowVersionTop(432, 56) - PM::VersionTop(936, 432, 56) == 19);
 }
+
+UNIT_TEST(ext_phone_touch_fit_is_the_dialogs_own_scale) {
+    // P11: the fit is the tall dialog's own scale k = player / fitted (UserInterface::_extDialogScale),
+    // the interface keeps the player's 0.40. The engine lays the dialog out in the placed rectangle
+    // divided by k: the safe area of the 936 x 432 layout, in the dialog's own units, holds it whole.
+    const float user = 0.40f;
+    const float s = PM::FitScale(user, 2340, 1080, 437, 427);
+    const float k = user / s;
+    CHECK(k < 1.0f);
+    const PM::Rect safe = PM::InsetLayout(936, 432);
+    const int32_t ownW = static_cast<int32_t>(static_cast<float>(safe.x2 - safe.x1) / k);
+    const int32_t ownH = static_cast<int32_t>(static_cast<float>(safe.y2 - safe.y1) / k);
+    CHECK(ownW >= 437 && ownH >= 427);
+    // Own units back to layout units (phone_menu.cpp's safe-area arm): rounded, sign kept, k 1 exact.
+    CHECK(PM::ToLayoutUnits(437, 1.0f) == 437);
+    CHECK(PM::ToLayoutUnits(427, k) == static_cast<int32_t>(427.0f * k + 0.5f));
+    CHECK(PM::ToLayoutUnits(-10, 0.5f) == -5);
+    CHECK(PM::ToLayoutUnits(0, k) == 0);
+    CHECK(PM::ToLayoutUnits(PM::ToLayoutUnits(200, 2.0f), 0.5f) == 200);
+}

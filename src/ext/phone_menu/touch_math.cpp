@@ -39,6 +39,12 @@ float FitScale(float userScale, int32_t backBufferW, int32_t backBufferH, int32_
     return userScale > kFitScaleMax ? userScale : kFitScaleMax;
 }
 
+int32_t ToLayoutUnits(int32_t own, float k) {
+    if (k == 1.0f) return own;
+    const float v = static_cast<float>(own) * k;
+    return static_cast<int32_t>(v < 0.0f ? v - 0.5f : v + 0.5f);
+}
+
 Rect LowerBackdrop(const Rect& top, int32_t width, int32_t height) {
     const int32_t pictureH = top.y2 - top.y1;
     if (width <= 0 || height <= 0 || pictureH <= 0 || top.y2 <= height) return Rect{0, 0, 0, 0};

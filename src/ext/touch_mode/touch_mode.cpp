@@ -1,6 +1,7 @@
 // src/ext/touch_mode/touch_mode.cpp -- ext.touch_mode (NOT RETAIL; docs/android/TOUCH_MODE.md)
 //
-// The control cluster dialog, the toolbar's own scale (UI::UserInterface::_extDialogScale), the place
+// The control cluster dialog, the toolbar's own scale (Scale, through ext.phone_menu's
+// UI::UserInterface::_extDialogScale), the place
 // rules for the dialogs that scale touches (called first from ext.phone_menu's place function) and the
 // camera hold. touch_math.h holds the arithmetic.
 
@@ -292,11 +293,6 @@ bool ToolbarShown(const UI::UserInterface* ui) {
 
 // ---- the place rules ----------------------------------------------------------
 
-float Scale(const UI::DialogInstance* dialog) {
-    if (!Ext().touch_mode) return 1.0f;
-    return IsToolbar(dialog) ? g_k : 1.0f;
-}
-
 void PlaceToolbar(int32_t point, const UI::DialogInstance* d, int32_t width, int32_t* rect) {
     UI::Element* const root = const_cast<UI::Element*>(d->_root.Get());
     if (root == nullptr) return;
@@ -342,9 +338,9 @@ void PlaceToolbar(int32_t point, const UI::DialogInstance* d, int32_t width, int
 
 }  // namespace
 
-void Sync() {
-    const bool faithful = CurrentProfile() == Profile::Faithful;
-    UI::UserInterface::_extDialogScale = faithful ? nullptr : &Scale;
+float Scale(const UI::DialogInstance* dialog) {
+    if (!Ext().touch_mode) return 1.0f;
+    return IsToolbar(dialog) ? g_k : 1.0f;
 }
 
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect) {

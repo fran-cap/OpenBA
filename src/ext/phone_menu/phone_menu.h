@@ -23,7 +23,7 @@
 //       put at a screen point stays there unless the point is inside the margin, a centred
 //       dialog does not move (phone_math.h SafeArea);
 //   (e) P9, for a finger (touch_fit.h): scroll bars four times thicker, close buttons twice the
-//       size, a dialog larger than the safe area shown whole at a fitted UI scale while it is open,
+//       size, a dialog larger than the safe area shown whole at its own fitted scale while it is open,
 //       the menus' backdrop's bottom border drawn back and the version line moved into it.
 // Default OFF on a desktop; the Android first run switches it on (src/platform/android/
 // app_android.cpp). Live: every hook reads the row each time. Under the faithful profile the
@@ -40,8 +40,9 @@ class Dialog;
 namespace Ext {
 namespace PhoneMenu {
 
-// Boot only (registry_boot.cpp): installs UI::UserInterface::_extDialogPlace (null under the
-// faithful profile).
+// Boot only (registry_boot.cpp): installs UI::UserInterface::_extDialogPlace, _extBackdropOver and
+// _extDialogScale (ext.touch_mode's toolbar scale, then the tall-dialog fit), all null under the
+// faithful profile.
 void Sync();
 
 // MainMenuDialog::OnOpened (the main menu, and the pause menu with `pause`): the dialogs the
