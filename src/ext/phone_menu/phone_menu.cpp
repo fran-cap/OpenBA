@@ -591,6 +591,7 @@ void Sync() {
 void MenuOpened(const UI::Dialog* menu, const UI::Dialog* buildId, bool pause) {
     Record(pause ? g_pauses : g_menus, menu);
     Record(g_buildIds, buildId);
+    KeepMenuOverlay(menu);   // P11: the loading screen's torn bottom border (loading_screen.h)
     // A new menu instance: its retail values are captured at its first layout.
     g_row = RowState();
     g_rowActive = false;
