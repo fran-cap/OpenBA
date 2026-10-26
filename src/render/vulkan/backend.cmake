@@ -100,9 +100,14 @@ endif()
 set(BANISHED_VULKAN_SHADER_DEFS "BANISHED_DXBC_SPIRV_COMMIT=\"${BANISHED_DXBC_SPIRV_COMMIT}\"")
 message(STATUS "OpenBA vulkan: dxbc-spirv ${BANISHED_DXBC_SPIRV_COMMIT}")
 
-set(RENDER_BACKEND_LINK_LIBRARIES dxbc_spv)
+# OpenBA and unit link the library WITHOUT its usage requirements ($<LINK_ONLY:>): only
+# shader_convert.cpp includes its headers, so only that file gets its switches and include
+# directories, and every other compile line stays the same as the dx11 configure's (ccache).
+set(RENDER_BACKEND_LINK_LIBRARIES $<LINK_ONLY:dxbc_spv>)
 set_property(SOURCE ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_convert.cpp APPEND PROPERTY
-             COMPILE_DEFINITIONS ${BANISHED_VULKAN_SHADER_DEFS})
+             COMPILE_DEFINITIONS ${BANISHED_VULKAN_SHADER_DEFS} DXBC_SPV_ENABLE_SM5 DXBC_SPV_ENABLE_SPIRV)
+set_property(SOURCE ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_convert.cpp APPEND PROPERTY
+             COMPILE_OPTIONS -isystem ${BANISHED_DXBC_SPIRV_DIR} -isystem ${BANISHED_DXBC_SPV_SHIM}/include)
 # What the unit build adds when this backend is configured (tests/unit/vulkan_shader_convert_test.cpp):
 # the converter and its cache entry point, which need neither a Vulkan header nor a device (the
 # derived cache and its hash are in the unit build already), and the library.
@@ -110,7 +115,7 @@ set(RENDER_BACKEND_UNIT_SRCS ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_conver
                              ${CMAKE_SOURCE_DIR}/src/render/vulkan/spirv_combine.cpp
                              ${CMAKE_SOURCE_DIR}/src/render/vulkan/spirv_legalize.cpp
                              ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_cache.cpp)
-set(RENDER_BACKEND_UNIT_LIBS dxbc_spv)
+set(RENDER_BACKEND_UNIT_LIBS $<LINK_ONLY:dxbc_spv>)
 
 # ---- vulkan-shader-check (tools/vulkan/shader_check.cpp): the metal-shader-check twin -----------
 # Converts every vertex and pixel program of the user's install through the same converter and

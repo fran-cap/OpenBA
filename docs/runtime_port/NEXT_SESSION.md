@@ -90,10 +90,9 @@ train in CI (no game data).
 **The compiler-vtable aliases.** DONE 2026-10-26 (STATUS entry VTABLE ALIASES RETIRED): `Object::ClassVptr`,
 recorded by the ctors, replaced `DEFINE_EXE_VTABLE`; every TU of the release exe is LTO.
 
-**CI duration (the user, 2026-10-26):** the debug pipeline is long, the Windows job's second (vulkan) configure in
-particular (two full debug builds + two unit runs in one job, ~13 min). Options: split the vulkan build into its own
-job (branch protection must then list it), build the vulkan configure's `unit` only (its OpenBA adds nothing the
-dx11 one does not check), or share more through ccache (the two configures differ only in src/render).
+**CI duration.** DONE 2026-10-26 (STATUS entry CI WINDOWS SHORTER): the Windows job's vulkan configure builds its
+backend's own objects (`tools/build.sh backend`) and `unit`, and ccache now shares the two configures. Splitting
+the vulkan build into its own job was not needed; it would add a required check to branch protection.
 
 **Before the repo goes public (the user, 2026-10-14): a final content-cleanup pass.** DONE 2026-10-17 in two
 rounds (STATUS entries REPO REVIEW + CLEANUP and CONTENT PURGE + HISTORY REWRITE): the 14 screenshots and the Sheep1
