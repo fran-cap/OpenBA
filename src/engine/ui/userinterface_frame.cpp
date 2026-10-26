@@ -201,8 +201,9 @@ const bool* UI::UserInterface::_extFixScaleLayout = nullptr;   // fix.ui_scale_l
 void (*UI::UserInterface::_extDialogPlace)(int32_t, const UI::DialogInstance*, int32_t, int32_t,
                                            int32_t*) = nullptr;   // ext.phone_menu seam
 float (*UI::UserInterface::_extDialogScale)(const UI::DialogInstance*) = nullptr;   // ext.touch_mode seam
-bool (*UI::UserInterface::_extBackdropOver)(const UI::DialogInstance*, int32_t, int32_t, int32_t*,
-                                            int32_t*) = nullptr;   // ext.phone_menu seam (P9)
+// ext.phone_menu seam (P9)
+bool (*UI::UserInterface::_extBackdropOver)(const UI::DialogInstance*, int32_t, int32_t, int32_t*, int32_t*,
+                                            UI::SpriteSheet**, int32_t*) = nullptr;
 
 int32_t UI::UserInterface::Update(const System::Time& timeRef) {
     // 0x1801213ef — _mouseCaptured = 0, BEFORE anything else.
@@ -411,7 +412,10 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
                 // the real class (block B), which spells the state as its
                 // address; it WRITES BACK into `st`.
                 // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): a dialog with its own scale k
-                // hit-tests the mouse in its own units; the shared state keeps the global ones.
+                // hit-tests the mouse in its own units; the shared state keeps the global ones. The
+                // screen's clip region (every element's hover test, IsInsideClipRegion) is the
+                // screen in the dialog's own units too: with k < 1 (ext.phone_menu's tall-dialog fit,
+                // P11) the global one would cut off the dialog's lower and right parts.
                 const float k = _extDialogScale != nullptr ? _extDialogScale(dlg) : 1.0f;
                 if (k == 1.0f) {
                     dlg->Update(timeRef, this, st);                 // 0x18012176a
@@ -420,11 +424,15 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
                     const int32_t gy = st.mouseY;
                     const int32_t gdx = st.dragDx;
                     const int32_t gdy = st.dragDy;
+                    const ClipRegion clip = _clipRegion;
                     st.mouseX = static_cast<int32_t>(static_cast<float>(gx) / k);
                     st.mouseY = static_cast<int32_t>(static_cast<float>(gy) / k);
                     st.dragDx = static_cast<int32_t>(static_cast<float>(gdx) / k);
                     st.dragDy = static_cast<int32_t>(static_cast<float>(gdy) / k);
+                    _clipRegion.right = static_cast<int32_t>(static_cast<float>(clip.right + 1) / k) - 1;
+                    _clipRegion.bottom = static_cast<int32_t>(static_cast<float>(clip.bottom + 1) / k) - 1;
                     dlg->Update(timeRef, this, st);
+                    _clipRegion = clip;
                     st.mouseX = gx;
                     st.mouseY = gy;
                     st.dragDx = gdx;

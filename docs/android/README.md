@@ -133,7 +133,8 @@ kept as anywhere else.
 
 **Dialogs for a finger** (P9, same row). Scroll bars are four times thicker, dialog close buttons twice
 the size, a dialog larger than the safe area (Options and Fixes and Extensions below about UI 45 at render
-scale Full) is shown whole at a fitted UI scale while it is open, and the main and pause menus show the
+scale Full) is shown whole at its own fitted scale while it is open (the rest of the interface keeps the
+player's, P11), and the main and pause menus show the
 backdrop's bottom border with the version line inside it (`docs/extensions/handins/PHONEMENU.md` §2,
 `docs/android/P9_DIALOGS.md`).
 

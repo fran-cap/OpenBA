@@ -95,14 +95,23 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
   picture with torn black borders top and bottom and one bottom-centred group (`main`: the spinner,
   "Loading...", the tip line). On a screen wider than the picture retail's centred cover fit cuts both
   borders. With the row on it looks like the pause menu: the picture top-aligned at the menus'
-  width-fitted scale (`LogoTop`, its top border whole), then the same picture once more, bottom-aligned at
-  the same scale (`LowerCopy`), drawn OVER it and clipped by the sprite scissor to the bottom strip that
-  holds its torn bottom border (`BorderStripTop`, `kLoadingBorderFraction` 0.125 of the picture's height;
-  seam `_extBackdropOver`, §3). The group keeps retail's bottom-centred rectangle (no safe-area inset) and,
-  ruled, the Options UI scale instead of retail's splash scale 900 / height (`LoadingUiScale`, in
-  `GameLoadDialogLoopT::Startup` and ext.load_progress's boot screen). The menus' see-through overlay
-  (`MainMenuBackground.png`), which the menus draw a second time instead, cannot be borrowed: it belongs
-  to the menu loop and is freed before a loading screen draws. A loading screen is recognised at its first
+  width-fitted scale (`LogoTop`, its top border whole), then the menus' see-through overlay
+  (`Dialog/MainMenu.rsc`'s backdrop sprite, 1600x900), bottom-aligned at the picture's width
+  (`OverlayLower`), drawn OVER it and clipped by the sprite scissor to its lower part
+  (`OverlayStripTop`, `kOverlayStripFraction` 0.30 of its height: inside its transparent middle, so the
+  line never shows), so its torn bottom border lies over a continuous picture (P11; seam
+  `_extBackdropOver`, §3). The bottom-aligned draw and its clip end on the screen's real bottom edge,
+  `ScreenBottomUnits` (the back buffer times the UI scale rounded UP; the UI's layout height is truncated
+  and left a one- or two-pixel sliver of picture along the bottom). The overlay is kept loaded from the
+  first `MenuOpened` with the row on (`KeepMenuOverlay`): a resource clean bit of its own, reserved once
+  from `Object::ExternalFactory::_cleanBitMask` and never handed back, ORed into the overlay sheet's row
+  through `ExternalFactory::Add` with `_loadEnabled` set, so the reference visit marks its material and
+  textures too (without the load flag the visit marks nothing and the material is freed under the sheet).
+  Before any menu opened (no overlay yet), the picture itself is drawn again bottom-aligned (`LowerCopy`)
+  and clipped to its own border (`BorderStripTop`, `kLoadingBorderFraction` 0.125). The group keeps
+  retail's bottom-centred rectangle (no safe-area inset) and, ruled, the Options UI scale instead of
+  retail's splash scale 900 / height (`LoadingUiScale`, in `GameLoadDialogLoopT::Startup` and
+  ext.load_progress's boot screen). A loading screen is recognised at its first
   layout by its `loadingImage` element (the Shining Rock splash has none and keeps retail's fit);
   ext.load_progress's boot screen is the same dialog and gets the same fit.
 * **UI scale slider**: Options > User interface scale goes below retail's 75 %. On a screen wider than
@@ -142,15 +151,20 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
     bottom on the screen's (`DialogInstance::ComputeLayout`), so the Options dialog (437 x 427 units)
     lost its tab row below UI 45 at render scale Full (a 432-unit-high layout at UI 40). Its tallest page,
     Video, is a plain ribbon with no scrolling list (`graphicsOptions`, 327 units), so capping the lists
-    cannot give the height back. Instead, while such a dialog is open, its UserInterface is laid out and
-    drawn at the lowest UI scale (in whole percent) at which every open window fits the safe area
-    (`FitScale`); the player's own scale comes back when it closes. Options at UI 40 on the S25 shows at
-    44 %, the Fixes and Extensions dialog at 52 %. A "window" is a dialog with a description, shown, with
-    no full-screen backdrop and a root not sized to the screen (the menus, the loading screen, combo
-    drop-downs and tooltips are not windows). One `[PhoneMenu] UI ...: a dialog larger than the safe
-    area, laid out at UI scale ...` line each time the fit changes, and `back to the player's UI scale`.
-    A value the Options slider applies while the fit is in force becomes the player's scale and shows once
-    the dialog closes.
+    cannot give the height back. Instead such a dialog alone is shown at the lowest UI scale (in whole
+    percent) at which it fits the safe area (`FitScale`), through the per-dialog scale seam
+    `UI::UserInterface::_extDialogScale` with k = player / fitted (P11; P9 raised the whole interface's
+    `_uiScale`, which shrank and moved everything behind the dialog). Options at UI 40 on the S25 shows at
+    44 %, the Fixes and Extensions dialog at 52 %. Judged: top-level "windows" only, a dialog with a
+    description, shown, with no full-screen backdrop and a root not sized to the screen, not a child
+    dialog (a sub-toolbar's left padding reaches across the screen: it set the old fit off) and not one
+    ext.touch_mode scales. What a fitted window opens takes its k (`FitOwner`): its child dialogs, its
+    tooltip (`_toolTipOwner`), its combo drop-downs (`ComboDialog::_parentDialog`). The safe-area arm
+    takes a fitted dialog's upper-left and size in layout units (`ToLayoutUnits`). One `[PhoneMenu] dialog
+    ... larger than the safe area: shown at UI scale ...` line when a fit starts or changes, `back at the
+    interface's scale` when it ends.
+    A value the Options slider applies is the player's new scale; the dialog's fit is decided again from
+    it on the next frame, so the dialog shows the new size at once (P11).
   * **Undone from the description.** Each change is on the element instance; with the row switched off the
     next frames walk the open dialogs and put back the values of the element's own description
     (`Element::_description`, the values `ElementDescription::CreateInstance` copied: the scroll bar's
@@ -193,19 +207,23 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
     bottom). It does not serve the loading screen: its picture is opaque, so a copy drawn UNDER it never
     shows (that one uses `_extBackdropOver` below). Row off: `Place` returns before this point (its row check);
     faithful profile: the pointer is null and `Draw` never asks.
-  * `TouchFrame` (`touch_fit.cpp`) sees every call first (row on or off): the P9 walk and the fitted UI
-    scale. While the scale is fitted, the `width` / `height` every other handler gets at
-    `kExtPlaceLayout` / `kExtPlaceAfterLayout` are the fitted layout size, and `rect` at
-    `kExtPlaceLayout` is `{0, 0, width, height}` (Update computed its own before the loop).
+  * `TouchFrame` (`touch_fit.cpp`) sees every call first (row on or off): the P9 walk and, once a frame per
+    UserInterface, the tall-dialog fit decision (P11: it no longer changes `width` / `height` or `rect`).
+* `UI::UserInterface::_extDialogScale` (P10 seam, `docs/android/TOUCH_MODE.md` §2): installed by this
+  row's `Sync` (null under the faithful profile) with `DialogScale`: ext.touch_mode's toolbar scale first
+  (`TouchMode::Scale`), then the tall-dialog fit (`FitDialogScale`). In the pump arm the engine also gives a
+  dialog with k != 1 the screen clip region (`_clipRegion`, every element's hover test) in its own units for
+  the length of its Update; with k < 1 the global one cut off the hit test of the dialog's lower part.
 * `UI::UserInterface::_extBackdropOver` (P9, engine, null by default and under the faithful profile, set
   by `Sync`): in `UserInterface::Draw`, just AFTER a dialog's backdrop is added. The hook gets the
-  backdrop's rectangle as drawn and may answer another rectangle and a clip `{x, y, w, h}` (layout units);
-  the same sprite is then drawn once more over the backdrop, before the dialog's elements, inside
+  backdrop's rectangle as drawn and its sprite (sheet and index, in / out) and may answer another
+  rectangle, another sprite (P11) and a clip `{x, y, w, h}` (layout units); that sprite (the backdrop's
+  unless the hook names another) is then drawn over the backdrop, before the dialog's elements, inside
   `SpriteContext::SetScissor(clip)` and with the previous scissor restored after it (w <= 0: no clip). A
-  scissor change flushes the batch and forgets its sheet, so the draw binds the backdrop's sheet again on
-  both sides of the clipped draw (without that the clipped copy is silently dropped, which is likely what
-  the earlier scissored `kExtPlaceBackdropLower` build ran into). `loading_screen.cpp` `BackdropOver`
-  answers it for loading screens only (the picture's torn bottom border, above).
+  scissor change flushes the batch and forgets its sheet, so the draw binds the extra sprite's sheet before
+  it and the backdrop's sheet again after it (without that the clipped draw is silently dropped, which is
+  likely what the earlier scissored `kExtPlaceBackdropLower` build ran into). `loading_screen.cpp`
+  `BackdropOver` answers it for loading screens only (the torn bottom border, above).
 * `MainMenuDialog::OnOpened` (`mainmenudialog.cpp`): `Ext::PhoneMenu::MenuOpened` records the menu's and
   the version line's dialog descriptions, and whether the menu is the pause menu (`game` set).
 * `OptionsDialog::OnOpened` (`optionsdialog.cpp`): `Ext::PhoneMenu::UiScaleSliderMinimum` after the
@@ -281,7 +299,7 @@ right-aligned on the safe edge, the Town panel opened at the safe top-left corne
 |---|---|
 | `src/ext/phone_menu/phone_math.{h,cpp}` | the pure decisions (unit-tested) |
 | `src/ext/phone_menu/phone_menu.{h,cpp}` | the hook, the recorded dialogs, the slider minimum |
-| `src/ext/phone_menu/touch_math.{h,cpp}`, `touch_fit.{h,cpp}` | P9: scroll bars, close buttons, the fitted UI scale, the backdrop's extra draw, the low version line |
+| `src/ext/phone_menu/touch_math.{h,cpp}`, `touch_fit.{h,cpp}` | P9: scroll bars, close buttons, the tall-dialog fit (P11: per dialog, `FitDialogScale`), the backdrop's extra draw, the low version line |
 | `src/engine/ui/UserInterface.h`, `userinterface_frame.cpp`, `userinterface_draw.cpp` | the seam |
 | `src/game/Dialog/mainmenudialog.cpp`, `optionsdialog.cpp` | the two game seams |
 | `src/ext/sharp_ui/sharp_math.{h,cpp}` | §4 |
