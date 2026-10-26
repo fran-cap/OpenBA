@@ -121,6 +121,13 @@ int32_t SubToolbarRight(int32_t layoutWidth, float k);
 // upper-left so it lands at the global point (x * k, y * k - h).
 void TooltipOffset(int32_t ulX, int32_t ulY, int32_t h, float k, int32_t& dx, int32_t& dy);
 
+// P11 (ext.touch_pointer): a two-finger drag of (dragX, dragY) short edges (+ right / down) as the camera
+// target's world motion, so the ground under the fingers follows them: the camera moves the other way,
+// along retail's ground basis at `yawDeg` (camera_input.cpp: right = (cos, sin), the Back key's axis
+// (sin, -cos)), kFingerDragWorldPerEdge world units per short edge per unit of camera distance.
+constexpr float kFingerDragWorldPerEdge = 1.1f;
+void FingerDragToWorld(float dragX, float dragY, float yawDeg, float distance, float& dx, float& dy);
+
 // The toolbar scale value key (percent) as k.
 float ScaleOfPercent(int32_t percent);
 

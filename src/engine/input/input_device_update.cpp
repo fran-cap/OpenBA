@@ -635,6 +635,12 @@ void Device::Update(const System::Time& time) {
     // otherwise, because the resulting state is "last frame's, unchanged".
 
     PlatformUpdate();   // retail: JMP 0x1800E2130
+
+    // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md): ext.touch_pointer writes the
+    // finger's pointer states and one-step action edges after the poll. Null: retail's path.
+    if (_extAfterUpdate != nullptr) _extAfterUpdate(*this);
 }
+
+void (*Device::_extAfterUpdate)(Device& device) = nullptr;
 
 }  // namespace Input

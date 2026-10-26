@@ -38,7 +38,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 8);
+    CHECK(kEmbeddedCount == 9);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -47,6 +47,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/ItemPriorityPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/TerrainEditPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/TouchControls.rsc") != nullptr);
+    CHECK(Embedded("Dialog/TouchPointer.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -362,6 +363,28 @@ UNIT_TEST(ext_rsc_text_parse_touch_controls) {
     CHECK(arrow && arrow->body.Find("_spriteSheet") &&
           arrow->body.Find("_spriteSheet")->tokens[0].text == "SpriteSheet.rsc");
     CheckKnownTypes(f, "TouchControls.rsc");
+}
+
+// P11 (docs/android/P11_TOUCH_POINTER.md): the action bar and the aim marker. The controller finds the five holders
+// and buttons by name; every look is the game's own (the toolbar's button, SpriteSheet.rsc's glyphs).
+UNIT_TEST(ext_rsc_text_parse_touch_pointer) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/TouchPointer.rsc", f));
+    const Object* dialog = f.Find("resource");
+    CHECK(dialog && dialog->type == "Dialog");
+    const Object* marker = f.Find("marker");
+    CHECK(marker && marker->type == "Dialog");
+    const char* names[] = {"Place", "RotateLeft", "RotateRight", "Flip", "Cancel"};
+    for (const char* n : names) {
+        const Object* holder = f.Find((std::string("holderPointer") + n).c_str());
+        const Object* button = f.Find((std::string("buttonPointer") + n).c_str());
+        CHECK(holder && holder->type == "GroupDescription");
+        CHECK(button && button->type == "ButtonDescription");
+    }
+    const Object* place = f.Find("buttonPointerPlace");
+    CHECK(place && place->base == "Toolbar.rsc:buttonToolbar");
+    CHECK(f.Find("imagePointerMarker") != nullptr);
+    CheckKnownTypes(f, "TouchPointer.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_syntax_errors) {

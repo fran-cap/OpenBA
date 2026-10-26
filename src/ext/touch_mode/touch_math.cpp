@@ -149,5 +149,14 @@ float ScaleOfPercent(int32_t percent) {
     return static_cast<float>(percent) / 100.0f;
 }
 
+void FingerDragToWorld(float dragX, float dragY, float yawDeg, float distance, float& dx, float& dy) {
+    const float yawR = yawDeg * 0.01745329f;
+    const float cy = std::cos(yawR);
+    const float sy = std::sin(yawR);
+    const float s = distance * kFingerDragWorldPerEdge;
+    dx = -(cy * dragX + sy * dragY) * s;
+    dy = -(sy * dragX - cy * dragY) * s;
+}
+
 }  // namespace TouchMode
 }  // namespace Ext

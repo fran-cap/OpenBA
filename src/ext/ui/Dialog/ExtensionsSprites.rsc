@@ -84,5 +84,6 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_phone_menu";	String _source = "Sprite/Extensions/Entry_phone_menu.png"; }
 		{ String _name = "ExtensionsEntry_fps_cap";	String _source = "Sprite/Extensions/Entry_fps_cap.png"; }
 		{ String _name = "ExtensionsEntry_touch_mode";	String _source = "Sprite/Extensions/Entry_touch_mode.png"; }
+		{ String _name = "ExtensionsEntry_touch_pointer";	String _source = "Sprite/Extensions/Entry_touch_pointer.png"; }
 	]
 }

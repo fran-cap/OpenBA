@@ -212,6 +212,9 @@ bool Pump(Window::MessageHandler handler) {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
         Input::PreprocessPumpEvent(&ev);
+        // NOT RETAIL (platform_touch.h, docs/android/P11_TOUCH_POINTER.md): with ext.touch_pointer's
+        // sink set, the finger events are its own. No sink: false, retail's path.
+        if (Touch::Sdl::ObservePumpEvent(ev)) continue;
 #if BANISHED_TWEAK_OVERLAY
         // The toggle key, and while the overlay is open its mouse / keyboard events (the game sees none).
         if (Diag::TweakOverlay::OnSdlEvent(ev)) continue;

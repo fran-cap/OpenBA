@@ -83,7 +83,7 @@ tested.
 |---|---|
 | `src/ext/touch_pointer/touch_pointer.{h,cpp}` | the glue: sink, post-poll writer, modes, action bar and marker dialogs, snap search |
 | `src/ext/touch_pointer/touch_pointer_math.{h,cpp}` | the pure parts |
-| `src/ext/ui/Dialog/TouchPointer.rsc` | the bar (retail button art and sprites: `SimpleCheck`, `ArrowLeft / Right`, `ToolClose`; tooltips from `StringTable.rsc:gameKeys`) and the marker |
+| `src/ext/ui/Dialog/TouchPointer.rsc` | the bar (retail button art and sprites: `GoalSuccess`, `ArrowLeft / Right`, `ToolClose`; tooltips from `StringTable.rsc:gameKeys`) and the marker |
 | `src/platform/common/platform_touch.h`, `src/platform/sdl/touch_sdl.cpp`, `pump_sdl.cpp` | the finger sink |
 | `src/engine/input/Device.h`, `input_device_update.cpp` | `_extAfterUpdate` |
 | `src/ext/touch_mode/touch_mode.{h,cpp}` | the hold's drag / yaw, the chained place call |

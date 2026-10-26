@@ -36,6 +36,10 @@ void Sync();
 // cluster), so phone_menu's own rule is skipped for it. False with the row off.
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect);
 
+// The cluster's cell (layout units of the game's UI), 0 before the first layout: ext.touch_pointer's
+// action bar uses the same button size.
+int32_t Cell();
+
 // True while the cluster dialog is open (the camera seam calls CameraInput while the row is on
 // OR this, so a row switched off closes it).
 bool Shown();
@@ -56,6 +60,12 @@ struct CameraHold {
     int8_t rotate = 0;
     int8_t zoom = 0;
     float zoomSteps = 0.0f;
+    // P11 (ext.touch_pointer, docs/android/P11_TOUCH_POINTER.md), the Fingers source only: a two-finger
+    // grab-the-map drag this frame (the fingers' motion in fractions of the screen's short edge, + right /
+    // down; the ground under them follows) and a direct turn of the yaw in degrees.
+    float dragX = 0.0f;
+    float dragY = 0.0f;
+    float yawDegrees = 0.0f;
 };
 void Hold(Source source, const CameraHold& hold);
 
