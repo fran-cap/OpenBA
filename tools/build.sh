@@ -72,7 +72,9 @@ if [ "$EXT" = .exe ]; then
     exit 1
   fi
   export PATH="$GCC_DIR:$PATH"
-  COMPILER_CMAKE="-DCMAKE_C_COMPILER=$GCC_DIR/gcc.exe -DCMAKE_CXX_COMPILER=$GCC_DIR/g++.exe"
+  # windres too: CMake otherwise takes whichever `windres` PATH holds at configure time (a bare name
+  # that CI's ninja could not spawn; locally MSYS2's masked that).
+  COMPILER_CMAKE="-DCMAKE_C_COMPILER=$GCC_DIR/gcc.exe -DCMAKE_CXX_COMPILER=$GCC_DIR/g++.exe -DCMAKE_RC_COMPILER=$GCC_DIR/windres.exe"
 fi
 
 configure() {

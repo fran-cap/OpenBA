@@ -46,7 +46,8 @@ if [ ! -f "$GEN/build.ninja" ] || ! grep -q '^BANISHED_PGO:STRING=generate$' "$G
     export PATH="$GCC_DIR:$PATH"
     cmake -S . -B "$GEN" -G Ninja -DBANISHED_FLAVOUR=release -DBANISHED_PGO=generate \
           -DBANISHED_GAME_DIR="$GAME_DIR" -DBANISHED_USE_CCACHE=OFF \
-          -DCMAKE_C_COMPILER="$GCC_DIR/gcc.exe" -DCMAKE_CXX_COMPILER="$GCC_DIR/g++.exe" || exit 1
+          -DCMAKE_C_COMPILER="$GCC_DIR/gcc.exe" -DCMAKE_CXX_COMPILER="$GCC_DIR/g++.exe" \
+          -DCMAKE_RC_COMPILER="$GCC_DIR/windres.exe" || exit 1
 fi
 ninja -C "$GEN" -j"${BUILD_JOBS:-8}" OpenBA || exit 1
 
