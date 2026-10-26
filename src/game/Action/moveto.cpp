@@ -666,4 +666,4 @@ DEFINE_EXE_TYPE(MoveTo, "Action")
 // [EXT ext.walk_batch] the compiler vtable's address point: Ext::WalkBatch::Tick (src/ext/walk_batch/
 // walk_batch.cpp) tells a MoveTo top node by its vptr (MoveTo is final), as the walk prefetch
 // tells a CharacterComponent. Nothing in the faithful path reads it.
-DEFINE_EXE_VTABLE(MoveTo, "_ZTV6MoveTo")
+// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)

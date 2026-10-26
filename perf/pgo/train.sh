@@ -43,11 +43,12 @@ echo "== 1. instrumented release build ($GEN)"
 if [ ! -f "$GEN/build.ninja" ] || ! grep -q '^BANISHED_PGO:STRING=generate$' "$GEN/CMakeCache.txt"; then
     rm -rf "$GEN"
     GCC_DIR="${BANISHED_GCC_DIR:-C:/winlibs-gcc16/mingw64/bin}"
-    export PATH="$GCC_DIR:$PATH"
+    export PATH="$(cygpath -u "$GCC_DIR"):$PATH"   # POSIX spelling: bash splits C:/... at the colon
     cmake -S . -B "$GEN" -G Ninja -DBANISHED_FLAVOUR=release -DBANISHED_PGO=generate \
           -DBANISHED_GAME_DIR="$GAME_DIR" -DBANISHED_USE_CCACHE=OFF \
           -DCMAKE_C_COMPILER="$GCC_DIR/gcc.exe" -DCMAKE_CXX_COMPILER="$GCC_DIR/g++.exe" \
-          -DCMAKE_RC_COMPILER="$GCC_DIR/windres.exe" || exit 1
+          -DCMAKE_RC_COMPILER="$GCC_DIR/windres.exe" \
+          -DCMAKE_AR="$GCC_DIR/gcc-ar.exe" -DCMAKE_RANLIB="$GCC_DIR/gcc-ranlib.exe" || exit 1
 fi
 ninja -C "$GEN" -j"${BUILD_JOBS:-8}" OpenBA || exit 1
 

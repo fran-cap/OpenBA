@@ -71,16 +71,21 @@ if [ "$EXT" = .exe ]; then
     echo "!! no g++.exe in $GCC_DIR -- run tools/toolchain/install_winlibs.sh (or set BANISHED_GCC_DIR)" >&2
     exit 1
   fi
-  export PATH="$GCC_DIR:$PATH"
+  # On PATH in its POSIX spelling: bash splits a `C:/...` entry at the drive colon, and then the
+  # LTO link's `make` (CMakeLists.txt, BANISHED_LTO) is not found and the partitions run serially.
+  export PATH="$(cygpath -u "$GCC_DIR"):$PATH"
   # windres too: CMake otherwise takes whichever `windres` PATH holds at configure time (a bare name
-  # that CI's ninja could not spawn; locally MSYS2's masked that).
-  COMPILER_CMAKE="-DCMAKE_C_COMPILER=$GCC_DIR/gcc.exe -DCMAKE_CXX_COMPILER=$GCC_DIR/g++.exe -DCMAKE_RC_COMPILER=$GCC_DIR/windres.exe"
+  # that CI's ninja could not spawn; locally MSYS2's masked that). gcc-ar / gcc-ranlib: the release
+  # exe is LTO (CMakeLists.txt BANISHED_LTO) and plain ar cannot index slim LTO objects in the static
+  # third-party libraries; they are plain ar for everything else, so every flavour gets them.
+  COMPILER_CMAKE="-DCMAKE_C_COMPILER=$GCC_DIR/gcc.exe -DCMAKE_CXX_COMPILER=$GCC_DIR/g++.exe -DCMAKE_RC_COMPILER=$GCC_DIR/windres.exe -DCMAKE_AR=$GCC_DIR/gcc-ar.exe -DCMAKE_RANLIB=$GCC_DIR/gcc-ranlib.exe"
 fi
 
 configure() {
   if [ -f "$B/build.ninja" ]; then
-    if [ -n "$COMPILER_CMAKE" ] && ! grep -q "^CMAKE_CXX_COMPILER:[A-Z]*=$GCC_DIR/g++.exe$" "$B/CMakeCache.txt" 2>/dev/null; then
-      echo "== $B was configured with another compiler; wiping it for $GCC_DIR"
+    if [ -n "$COMPILER_CMAKE" ] && ! { grep -q "^CMAKE_CXX_COMPILER:[A-Z]*=$GCC_DIR/g++.exe$" "$B/CMakeCache.txt" &&
+                                       grep -q "^CMAKE_AR:[A-Z]*=$GCC_DIR/gcc-ar.exe$" "$B/CMakeCache.txt"; } 2>/dev/null; then
+      echo "== $B was configured with another compiler / archiver; wiping it for $GCC_DIR"
       rm -rf "$B"
     else
       return 0

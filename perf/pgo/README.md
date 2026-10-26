@@ -18,6 +18,27 @@ draw. The world hash (`[WorldHash]`) is identical with and without the profile. 
 neutral the same day: the profile does that job, and the sim's cost is dependent loads, not
 mispredicts.
 
+## LTO on top (2026-10-26, same day, `perf/results/20261026_13*_lto_ab_*`)
+The release exe is also link-time optimised (`BANISHED_LTO`, on by default on Windows). Interleaved
+50x runs against the PGO release exe:
+
+| release exe | sim ms / iteration | draw ms | size |
+|---|---|---|---|
+| -O3 + PGO (two controls) | 0.1084, 0.1092 | 1.07 | 14.0 MB |
+| -O3 + LTO, no profile | 0.1190, 0.1228 | 1.10 | 13.7 MB |
+| -O3 + PGO + LTO | 0.1010, 0.1020 | 1.02 | 12.1 MB |
+
+LTO alone is no faster than plain -O3; with the profile it is another 7% on the sim and 5% on draw.
+The profile is recorded by the NON-LTO instrumented build (an instrumented LTO link fails inside
+GCC's lto1 with "missing resolution data" for a vtable) and read by the LTO build: 0
+coverage-mismatch warnings, the per-function records match. The static third-party libraries
+must be archived by `gcc-ar` / `gcc-ranlib` (tools/build.sh passes them at configure; plain `ar`
+leaves ~220 undefined SDL / wmadec references). The LTO link's partitions run in parallel only
+when a `make` is on PATH (install_winlibs.sh copies mingw32-make.exe to that name; serial = ~1.5 min,
+parallel = ~10 s). The nine `-Wodr` vtable warnings LTO first reported were the compiler-vtable
+aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol), now in two TUs built
+without -flto (`src/game/Object/exe_vtables.cpp`, `src/engine/graphics/mesh_vtable_alias.cpp`).
+
 ## Files
 - `train.sh` -- the recipe: instrumented release build, two training runs, optional release build.
 - `profile/` -- the profile set (`*.gcda`, one per object, about 3 MB), committed with each release.

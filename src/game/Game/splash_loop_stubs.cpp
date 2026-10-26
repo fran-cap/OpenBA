@@ -580,4 +580,4 @@ Object::InternalPtr<UI::DialogInstance>* GameLoadDialogLoopT::CreateLoopDialog(
 
 // B38_RULES D5: `Vtable()` is the COMPILER's table. ENDGAME B.3.9 EXA: the
 // 0x140158800 registration went with the last door-then-stamp builder.
-DEFINE_EXE_VTABLE(GameLoadDialogLoopT, "_ZTV19GameLoadDialogLoopT")
+// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)

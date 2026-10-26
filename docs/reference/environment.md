@@ -23,7 +23,8 @@ Then `tools/build.sh unit` (no game needed beyond item 3's skips) and `tools/bui
   C++17, static-linked runtime. `tools/build.sh` puts it first on PATH and passes it to CMake, and wipes a build
   directory configured with another compiler. Switched from MSYS2 GCC 13.1 on 2026-10-26 (3% faster sim, and the
   release exe's PGO profile set `perf/pgo/` is tied to the exact compiler version; `perf/pgo/README.md`). The MSYS2
-  install stays for its shell and gdb (`.vscode/launch.json`); its GCC is no longer used.
+  install stays for its shell and gdb (`.vscode/launch.json`); its GCC is no longer used. The install script also
+  copies `mingw32-make.exe` to `make.exe` beside the compiler: GCC's LTO link runs its partitions through `make`.
 - The build is CMake + Ninja through `tools/build.sh` (2026-10-11; the gate kit, the stress runner and the
   resave gate all call it; build directories `build/cmake-<flavour>`). The Makefile and its `mingw32-make`
   route were deleted the same day (history: `docs/history/`, the STATUS log).

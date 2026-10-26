@@ -8,8 +8,8 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 
 **Build**
 - Windows is built with GCC 16.2 (the pinned WinLibs build, `tools/toolchain/install_winlibs.sh`) instead of MSYS2
-  GCC 13.1, and the release exe is profile-guided (`perf/pgo/`): on the stress town the sim runs about 12% faster
-  at 50x and 10% at 10x, drawing about 5% faster. World generation's `powf` now uses the ported MSVC CRT body
+  GCC 13.1, and the release exe is profile-guided and link-time optimised (`perf/pgo/`): on the stress town the
+  sim runs about 20% faster at 50x, drawing about 10% faster, in a 14% smaller exe. World generation's `powf` now uses the ported MSVC CRT body
   everywhere (`MsvcLibm::Powf`), so a generated world no longer depends on which C runtime the exe was built with.
 
 **Loading (caching round 2)**

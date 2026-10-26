@@ -42,4 +42,9 @@ echo "$WINLIBS_SHA256  $WINLIBS_ZIP" | sha256sum -c -
 echo "== unpacking into $DIR"
 unzip -q "$WINLIBS_ZIP"
 rm -f "$WINLIBS_ZIP"
+# GCC's lto-wrapper runs the LTRANS partitions of an LTO link through a program named `make`
+# (-flto=N spawns it with -jN); WinLibs ships it as mingw32-make.exe only, and with no `make`
+# on PATH the release link (CMakeLists.txt BANISHED_LTO) falls back to serial partitions:
+# ~1.5 min instead of ~10 s. A copy under the expected name beside the compiler fixes it.
+cp -f "$DIR/mingw64/bin/mingw32-make.exe" "$DIR/mingw64/bin/make.exe"
 "$DIR/mingw64/bin/g++.exe" --version | head -1

@@ -214,6 +214,6 @@ Object::External* StatGoal::Construct() {
 // B38_RULES D5: src/app/main.cpp's factory self-test compares a
 // factory-built object's vptr with this (ENDGAME B.3.9 EXA: directly; the
 // 0x1401604c0 registration it used to read back is gone).
-DEFINE_EXE_VTABLE(StatGoal, "_ZTV8StatGoal")
+// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)
 
 DEFINE_EXE_TYPE(StatGoal, "Achievement::Goal")

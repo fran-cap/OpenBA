@@ -163,6 +163,30 @@ elseif(PGO_MODE STREQUAL "use")
 elseif(NOT PGO_MODE STREQUAL "off")
   message(FATAL_ERROR "BANISHED_PGO must be auto, generate, use or off (got '${BANISHED_PGO}')")
 endif()
+# Link-time optimisation, the Windows release exe only (BANISHED_LTO, default ON there). Measured
+# 2026-10-26 (perf/pgo/README.md): on top of the profile set about -7% sim / -5% draw and a 14% smaller
+# exe; without the profile set LTO alone is no faster than plain -O3. Never with `generate`: the
+# instrumented LTO link fails inside lto1 (missing resolution data for a vtable), so the profile set
+# is recorded by the non-LTO instrumented build and read by this one (the per-function records
+# match; 0 coverage-mismatch). The static libraries must then be archived by gcc-ar / gcc-ranlib
+# (tools/build.sh passes them: plain ar does not index slim LTO objects). Off on the other
+# platforms until their release builds are measured.
+option(BANISHED_LTO "Link-time optimisation on the Windows release exe" ON)
+set(LTO_FLAGS)
+if(WIN32 AND BANISHED_LTO AND BANISHED_FLAVOUR STREQUAL "release" AND NOT PGO_MODE STREQUAL "generate")
+  set(LTO_FLAGS -flto=8 -fno-fat-lto-objects)
+  message(STATUS "LTO: on (release exe)")
+  # The two compiler-vtable alias TUs (src/game/Object/exe_vtables.cpp and its graphics twin)
+  # name a vtable by its assembler symbol; inside LTO that reads as a second owner of the
+  # symbol (-Wodr x9, and the instrumented link fails on it). Compiled as plain objects they
+  # are symbol references the linker resolves as before. The parallel LTRANS stage needs a
+  # `make` on PATH (tools/toolchain/install_winlibs.sh provides it); without one GCC runs the
+  # partitions serially and the link takes ~1.5 min instead of ~10 s.
+  set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/src/game/Object/exe_vtables.cpp
+    ${CMAKE_SOURCE_DIR}/src/engine/graphics/mesh_vtable_alias.cpp
+    PROPERTIES COMPILE_OPTIONS "-fno-lto")
+endif()
 
 # ---------------------------------------------------------------------------------------
 # Sources: the tree mirrors the original source layout; every directory is globbed.
@@ -348,11 +372,11 @@ add_executable(OpenBA WIN32
   ${CMAKE_SOURCE_DIR}/src/app/icon.rc)
 set_target_properties(OpenBA PROPERTIES OUTPUT_NAME OpenBA RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 target_include_directories(OpenBA PRIVATE ${BANISHED_INCLUDES})
-target_compile_options(OpenBA PRIVATE ${BANISHED_CXX_FLAGS} ${BANISHED_ONE_WRITE_STDIO} ${FLAVOUR_FLAGS} ${PGO_FLAGS})
+target_compile_options(OpenBA PRIVATE ${BANISHED_CXX_FLAGS} ${BANISHED_ONE_WRITE_STDIO} ${FLAVOUR_FLAGS} ${PGO_FLAGS} ${LTO_FLAGS})
 # The backend's per-source properties (dx11: the verbatim ASSAO copy's silenced warnings) are set
 # by src/render/${BANISHED_RENDER_BACKEND}/backend.cmake.
 # the flavour flags are on the link line too (as the old Makefile did: -flto reaches the linker)
-target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} -static -static-libgcc -static-libstdc++ -mwindows)
+target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} ${LTO_FLAGS} -static -static-libgcc -static-libstdc++ -mwindows)
 # shell32: SHGetFolderPathW (Platform::DocumentsDir). No ole32 of ours since Phase D.4 SDL-5 D2;
 # SDL3's own system libraries still bring it.
 # gdi32: the run-time font rasteriser (src/platform/win/font_raster_win.cpp, KITFREE RSCFONT).
