@@ -19,9 +19,11 @@
 #
 # Jobs: --jobs N or BUILD_JOBS (default 8 since 2026-10-17, the user: no wide multi-agent builds any more; agents still use 2 -- memory
 # feedback_build_parallelism_low_memory). Extra cmake args: CMAKE_EXTRA (e.g. "-DBANISHED_USE_CCACHE=OFF").
-# Toolchain: cmake + ninja from pip on PATH, GCC from C:/msys64/ucrt64/bin (docs/reference/environment.md);
-# on Linux the same script works with the POSIX targets (OpenBA, unit) -- no deploy / run there
-# (tools/linux_gamedir.sh + tools/linux_run.sh do that).
+# Toolchain: cmake + ninja from pip on PATH; on Windows the compiler is the PINNED WinLibs GCC
+# (tools/toolchain/install_winlibs.sh; docs/reference/environment.md), found through BANISHED_GCC_DIR
+# (default C:/winlibs-gcc16/mingw64/bin), put first on PATH here and handed to CMake explicitly; a build dir
+# configured with another compiler is wiped and reconfigured. On Linux the same script works with the
+# POSIX targets (OpenBA, unit) -- no deploy / run there (tools/linux_gamedir.sh + tools/linux_run.sh do that).
 set -u
 CMD="${1:-build}"; shift || true
 FLAV="debug"; [ "$CMD" = stress ] && FLAV=perf
@@ -60,10 +62,37 @@ EXE="$B/OpenBA$EXT"
 # not pass it. MSYS2_ARG_CONV_EXCL keeps the shell from rewriting the leading `/` as a path.
 FAITHFUL="/profile:faithful"
 
+# The pinned Windows compiler (header comment). COMPILER_CMAKE carries it into every configure;
+# the wipe below keeps a build dir from silently staying on the compiler it was first configured with.
+COMPILER_CMAKE=""
+if [ "$EXT" = .exe ]; then
+  GCC_DIR="${BANISHED_GCC_DIR:-C:/winlibs-gcc16/mingw64/bin}"
+  if [ ! -x "$GCC_DIR/g++.exe" ]; then
+    echo "!! no g++.exe in $GCC_DIR -- run tools/toolchain/install_winlibs.sh (or set BANISHED_GCC_DIR)" >&2
+    exit 1
+  fi
+  # On PATH in its POSIX spelling: bash splits a `C:/...` entry at the drive colon, and then the
+  # LTO link's `make` (CMakeLists.txt, BANISHED_LTO) is not found and the partitions run serially.
+  export PATH="$(cygpath -u "$GCC_DIR"):$PATH"
+  # windres too: CMake otherwise takes whichever `windres` PATH holds at configure time (a bare name
+  # that CI's ninja could not spawn; locally MSYS2's masked that). gcc-ar / gcc-ranlib: the release
+  # exe is LTO (CMakeLists.txt BANISHED_LTO) and plain ar cannot index slim LTO objects in the static
+  # third-party libraries; they are plain ar for everything else, so every flavour gets them.
+  COMPILER_CMAKE="-DCMAKE_C_COMPILER=$GCC_DIR/gcc.exe -DCMAKE_CXX_COMPILER=$GCC_DIR/g++.exe -DCMAKE_RC_COMPILER=$GCC_DIR/windres.exe -DCMAKE_AR=$GCC_DIR/gcc-ar.exe -DCMAKE_RANLIB=$GCC_DIR/gcc-ranlib.exe"
+fi
+
 configure() {
-  [ -f "$B/build.ninja" ] && return 0
+  if [ -f "$B/build.ninja" ]; then
+    if [ -n "$COMPILER_CMAKE" ] && ! { grep -q "^CMAKE_CXX_COMPILER:[A-Z]*=$GCC_DIR/g++.exe$" "$B/CMakeCache.txt" &&
+                                       grep -q "^CMAKE_AR:[A-Z]*=$GCC_DIR/gcc-ar.exe$" "$B/CMakeCache.txt"; } 2>/dev/null; then
+      echo "== $B was configured with another compiler / archiver; wiping it for $GCC_DIR"
+      rm -rf "$B"
+    else
+      return 0
+    fi
+  fi
   echo "== configure $B (BANISHED_FLAVOUR=$FLAV${BACKEND:+, BANISHED_RENDER_BACKEND=$BACKEND})"
-  cmake -S . -B "$B" -G Ninja -DBANISHED_FLAVOUR="$FLAV" -DBANISHED_GAME_DIR="$BANISHED_DIR" $BACKEND_CMAKE ${CMAKE_EXTRA:-} || exit 1
+  cmake -S . -B "$B" -G Ninja -DBANISHED_FLAVOUR="$FLAV" -DBANISHED_GAME_DIR="$BANISHED_DIR" $COMPILER_CMAKE $BACKEND_CMAKE ${CMAKE_EXTRA:-} || exit 1
 }
 build() { # targets...
   configure

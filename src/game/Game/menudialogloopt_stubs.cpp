@@ -579,4 +579,4 @@ Object::InternalPtr<UI::DialogInstance>* MenuDialogLoopT::CreateLoopDialog(
 
 // B38_RULES D5: `Vtable()` is the COMPILER's table. ENDGAME B.3.9 EXA: the
 // 0x14015ed00 registration went with the inline door-then-stamp builder.
-DEFINE_EXE_VTABLE(MenuDialogLoopT, "_ZTV15MenuDialogLoopT")
+// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)

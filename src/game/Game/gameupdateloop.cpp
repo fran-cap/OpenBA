@@ -2486,4 +2486,4 @@ const char* GameUpdateLoop::GetResourceFilename() {
 // B38_RULES D5: `Vtable()` is the COMPILER's table (the splash's "is the next
 // loop a GameUpdateLoop" identity test reads it). ENDGAME B.3.9 EXA: the
 // 0x14015e2f0 registration went with the last door-then-stamp builder.
-DEFINE_EXE_VTABLE(GameUpdateLoop, "_ZTV14GameUpdateLoop")
+// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)

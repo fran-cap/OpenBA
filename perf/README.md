@@ -7,6 +7,9 @@ optimisation work a number to move.
 
 ## Run it
 
+(The release exe is profile-guided: `perf/pgo/README.md`, `perf/pgo/train.sh`. The perf flavour measured
+here stays plain so the baselines compare like with like.)
+
 ```bash
 tools/build.sh stress                                    # perf build, 800 citizens @10x, ~2.5 min
 STRESS_ARGS="--label wip --speed 5 --citizens 600" tools/build.sh stress

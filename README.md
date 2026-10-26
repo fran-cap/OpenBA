@@ -33,7 +33,7 @@ With AO and MSAA enabled on 10x, OpenBA  (left) performs 100fps better than reta
 - **Functionality:** OpenBA boots, loads retail saves, and has a working 1:1 simulation of the base game.
 - **Verification:** OpenBA has a full unit test suite verified against the retail games behavior.
 - **Platforms:** Windows x64 10/11 (DirectX 11), Linux x64 (Vulkan 1.3) and macOS arm64 (Metal), built
-  with CMake and GCC 13.
+  with CMake and GCC 16 (Windows: the pinned WinLibs build, release exe profile-guided).
 
 ## Versioning
 
@@ -68,7 +68,7 @@ For extension design see: [docs/extensions/DESIGN.md](docs/extensions/DESIGN.md)
 
 ## Building
 Prerequisites on Windows:
-MSYS2 UCRT64 GCC 13, CMake 3.20+ and Ninja.
+the pinned WinLibs GCC 16.2 (`tools/toolchain/install_winlibs.sh`), MSYS2 for its shell, CMake 3.20+ and Ninja.
 OpenBA also requires Python 3, and the game installed.
 
 ```bash

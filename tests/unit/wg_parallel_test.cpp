@@ -21,6 +21,7 @@
 #include "Game/worldgen_cells.h"
 #include "system/parallel_for.h"
 #include "utility/PerlinNoise.h"
+#include "crt/msvc_libm.h"   // MsvcLibm::Powf: worldgen_cells.cpp's powf since the GCC 16 move (the reference must match)
 
 #include <atomic>
 #include <chrono>
@@ -114,7 +115,7 @@ void BaseHeightmap(float* heightmap, int dim, const RtUtility::PerlinNoise& pn1,
         for (int col = 0; col < edge; ++col) {
             int dx = col - half;
             float dist  = sqrtf((float)(dx * dx + dz * dz));
-            float curve = powf(kFalloffBase, distBias - dist);
+            float curve = MsvcLibm::Powf(kFalloffBase, distBias - dist);   // the exe's CRT powf, as production
             float w     = kOne / (curve + kOne);
             float pn1s = RtUtility_PerlinNoise_Generate(&pn1, (float)col * kQuarter, (float)row * kQuarter);
             float base = (pn1s + kOne) * kBaseScale;

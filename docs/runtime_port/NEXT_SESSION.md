@@ -81,6 +81,27 @@ alt-tab under WSLg (§2.3). The retail crash window (a loss between the loop bec
 
 ### 2.5 Housekeeping
 
+**PGO on the other platforms (the user, 2026-10-26: later, mechanism agreed).** The Windows release exe is
+profile-guided (`perf/pgo/README.md`); Linux (g++, its own `.gcda` set trained in WSL2 on lavapipe), macOS and
+Android (clang: `-fprofile-instr-generate`, `llvm-profdata merge`, `-fprofile-instr-use`; Android trains on the
+device, `adb pull` the `.profraw`) each need their own committed set and a `train` step in `perf/pgo/`. None can
+train in CI (no game data).
+
+**The compiler-vtable aliases (the user, 2026-10-26: "good topic for next session").** `DEFINE_EXE_VTABLE` /
+`X::Vtable()` names OUR class's vtable by its assembler symbol (never a retail address; the retail registrations it
+once backed went at the B.3.8 / B.3.9 closes). Nine aliases remain, in the two TUs CMake keeps out of LTO. Readers:
+the vptr-identity hints (walk prefetch: CharacterComponent / ModelComponent / ParticleComponent; ext.walk_batch:
+MoveTo; gather: MeshInstance), the splash's "next loop is a GameUpdateLoop" test, the factory self-test
+(StatGoal, src/app/main.cpp), and two print-only log lines (MenuDialogLoopT in game_main.cpp, GameUpdateLoop in
+newgamedialog.cpp). Plan: drop the print-only two, move the identity test and the self-test onto the type id the
+classes carry, give the hint readers a plain accessor (a vptr captured once from a known instance), delete the
+macro and the no-LTO exception in CMakeLists.txt.
+
+**CI duration (the user, 2026-10-26):** the debug pipeline is long, the Windows job's second (vulkan) configure in
+particular (two full debug builds + two unit runs in one job, ~13 min). Options: split the vulkan build into its own
+job (branch protection must then list it), build the vulkan configure's `unit` only (its OpenBA adds nothing the
+dx11 one does not check), or share more through ccache (the two configures differ only in src/render).
+
 **Before the repo goes public (the user, 2026-10-14): a final content-cleanup pass.** DONE 2026-10-17 in two
 rounds (STATUS entries REPO REVIEW + CLEANUP and CONTENT PURGE + HISTORY REWRITE): the 14 screenshots and the Sheep1
 xWMA fixture out; the docs sweep (two opus agents, every tracked file against the local ToolKit) found no REMOVE-level

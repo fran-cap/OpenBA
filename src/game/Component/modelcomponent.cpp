@@ -374,6 +374,6 @@ void ModelComponent::Tick(const System::Time* time) {
 
 // [PREFETCH] the compiler vtable's address point (= a constructed object's vptr): the
 // staged walk prefetch (entitylist.cpp, kWalkPrefetch == 2) tells this class by its vptr.
-DEFINE_EXE_VTABLE(ModelComponent, "_ZTV14ModelComponent")
+// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)
 
 DEFINE_EXE_TYPE(ModelComponent, "Component")

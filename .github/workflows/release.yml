@@ -74,19 +74,33 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+      # The pinned WinLibs GCC (tools/toolchain/install_winlibs.sh), as in ci.yml; the release
+      # build reads the committed PGO profile set (perf/pgo/README.md), which only that compiler
+      # version can load.
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
           update: false
-          install: git
-          pacboy: gcc:p cmake:p ninja:p python:p ccache:p
+          install: git unzip
+          pacboy: cmake:p ninja:p python:p ccache:p
+      - uses: actions/cache@v4
+        id: winlibs
+        with:
+          path: C:/winlibs-gcc16
+          key: winlibs-${{ hashFiles('tools/toolchain/install_winlibs.sh') }}
+      - name: Pinned compiler
+        if: steps.winlibs.outputs.cache-hit != 'true'
+        run: tools/toolchain/install_winlibs.sh C:/winlibs-gcc16
       - uses: actions/cache@v4
         with:
           path: .ccache
           key: ccache-release-windows-${{ github.sha }}
           restore-keys: ccache-release-windows-
-      - name: Build OpenBA (release)
-        run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build release
+      - name: Build OpenBA (release, PGO)
+        run: |
+          ls perf/pgo/profile/*.gcda | wc -l
+          CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build release
+          grep -q '^BANISHED_PGO:STRING=auto$' build/cmake-release/CMakeCache.txt
       - name: Unit tests (release)
         run: tools/build.sh unit release
       - name: Package
