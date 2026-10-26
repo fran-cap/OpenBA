@@ -87,6 +87,16 @@ Android (clang: `-fprofile-instr-generate`, `llvm-profdata merge`, `-fprofile-in
 device, `adb pull` the `.profraw`) each need their own committed set and a `train` step in `perf/pgo/`. None can
 train in CI (no game data).
 
+**The compiler-vtable aliases (the user, 2026-10-26: "good topic for next session").** `DEFINE_EXE_VTABLE` /
+`X::Vtable()` names OUR class's vtable by its assembler symbol (never a retail address; the retail registrations it
+once backed went at the B.3.8 / B.3.9 closes). Nine aliases remain, in the two TUs CMake keeps out of LTO. Readers:
+the vptr-identity hints (walk prefetch: CharacterComponent / ModelComponent / ParticleComponent; ext.walk_batch:
+MoveTo; gather: MeshInstance), the splash's "next loop is a GameUpdateLoop" test, the factory self-test
+(StatGoal, src/app/main.cpp), and two print-only log lines (MenuDialogLoopT in game_main.cpp, GameUpdateLoop in
+newgamedialog.cpp). Plan: drop the print-only two, move the identity test and the self-test onto the type id the
+classes carry, give the hint readers a plain accessor (a vptr captured once from a known instance), delete the
+macro and the no-LTO exception in CMakeLists.txt.
+
 **CI duration (the user, 2026-10-26):** the debug pipeline is long, the Windows job's second (vulkan) configure in
 particular (two full debug builds + two unit runs in one job, ~13 min). Options: split the vulkan build into its own
 job (branch protection must then list it), build the vulkan configure's `unit` only (its OpenBA adds nothing the
