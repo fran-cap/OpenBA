@@ -122,6 +122,49 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------------------
+# Profile-guided optimisation (perf/pgo/README.md). BANISHED_PGO:
+#   auto      (default) release flavour on Windows: `use` when BANISHED_PGO_DIR holds a profile set,
+#             otherwise plain; every other flavour / platform: off
+#   generate  instrument OpenBA; the training runs (perf/pgo/train.sh) write the profile set
+#   use       compile OpenBA against the profile set in BANISHED_PGO_DIR
+#   off       never
+# The profile set is keyed on each object's path RELATIVE to the build dir (-fprofile-prefix-path),
+# so it is written by one build dir and read by another (CI's), on the one pinned compiler
+# (tools/toolchain/install_winlibs.sh): GCC refuses a profile written by a different version.
+# A profile older than a function it describes is a warning (coverage-mismatch), not an error:
+# releases are infrequent and retrain (train.sh) every time, drift between them is accepted.
+# ---------------------------------------------------------------------------------------
+set(BANISHED_PGO "auto" CACHE STRING "auto | generate | use | off (perf/pgo/README.md)")
+set_property(CACHE BANISHED_PGO PROPERTY STRINGS auto generate use off)
+set(BANISHED_PGO_DIR "${CMAKE_SOURCE_DIR}/perf/pgo/profile" CACHE PATH "the .gcda profile set")
+set(PGO_MODE "${BANISHED_PGO}")
+if(PGO_MODE STREQUAL "auto")
+  file(GLOB _pgo_set "${BANISHED_PGO_DIR}/*.gcda")
+  if(WIN32 AND BANISHED_FLAVOUR STREQUAL "release" AND _pgo_set)
+    set(PGO_MODE "use")
+  else()
+    set(PGO_MODE "off")
+  endif()
+endif()
+set(PGO_FLAGS)
+set(PGO_LINK_FLAGS)
+# GCC compares the prefix against the object path as the compiler sees it: the build dir from
+# getcwd() in the platform's native spelling (backslashes on Windows), a plain string match.
+file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}" PGO_PREFIX)
+if(PGO_MODE STREQUAL "generate")
+  set(PGO_FLAGS -fprofile-generate -fprofile-update=atomic
+      "-fprofile-dir=${BANISHED_PGO_DIR}" "-fprofile-prefix-path=${PGO_PREFIX}")
+  set(PGO_LINK_FLAGS -fprofile-generate)
+  message(STATUS "PGO: generate -> ${BANISHED_PGO_DIR}")
+elseif(PGO_MODE STREQUAL "use")
+  set(PGO_FLAGS -fprofile-use -fprofile-correction -Wno-missing-profile -Wno-error=coverage-mismatch
+      "-fprofile-dir=${BANISHED_PGO_DIR}" "-fprofile-prefix-path=${PGO_PREFIX}")
+  message(STATUS "PGO: use <- ${BANISHED_PGO_DIR}")
+elseif(NOT PGO_MODE STREQUAL "off")
+  message(FATAL_ERROR "BANISHED_PGO must be auto, generate, use or off (got '${BANISHED_PGO}')")
+endif()
+
+# ---------------------------------------------------------------------------------------
 # Sources: the tree mirrors the original source layout; every directory is globbed.
 # CONFIGURE_DEPENDS re-globs on build so a new file needs no edit here.
 # ---------------------------------------------------------------------------------------
@@ -305,11 +348,11 @@ add_executable(OpenBA WIN32
   ${CMAKE_SOURCE_DIR}/src/app/icon.rc)
 set_target_properties(OpenBA PROPERTIES OUTPUT_NAME OpenBA RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 target_include_directories(OpenBA PRIVATE ${BANISHED_INCLUDES})
-target_compile_options(OpenBA PRIVATE ${BANISHED_CXX_FLAGS} ${BANISHED_ONE_WRITE_STDIO} ${FLAVOUR_FLAGS})
+target_compile_options(OpenBA PRIVATE ${BANISHED_CXX_FLAGS} ${BANISHED_ONE_WRITE_STDIO} ${FLAVOUR_FLAGS} ${PGO_FLAGS})
 # The backend's per-source properties (dx11: the verbatim ASSAO copy's silenced warnings) are set
 # by src/render/${BANISHED_RENDER_BACKEND}/backend.cmake.
 # the flavour flags are on the link line too (as the old Makefile did: -flto reaches the linker)
-target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} -static -static-libgcc -static-libstdc++ -mwindows)
+target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} -static -static-libgcc -static-libstdc++ -mwindows)
 # shell32: SHGetFolderPathW (Platform::DocumentsDir). No ole32 of ours since Phase D.4 SDL-5 D2;
 # SDL3's own system libraries still bring it.
 # gdi32: the run-time font rasteriser (src/platform/win/font_raster_win.cpp, KITFREE RSCFONT).

@@ -39,13 +39,24 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
-      # A fresh MSYS2 on the runner: the stale-package rule (CLAUDE.md) is about the local install.
+      # A fresh MSYS2 on the runner for the shell, cmake, ninja, python and ccache: the stale-package
+      # rule (CLAUDE.md) is about the local install. The compiler is NOT MSYS2's: it is the pinned
+      # WinLibs GCC (tools/toolchain/install_winlibs.sh), the one build every Windows exe and the PGO
+      # profile set come from; cached under the install script's hash, so a pin change refetches it.
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
           update: false
-          install: git
-          pacboy: gcc:p cmake:p ninja:p python:p ccache:p
+          install: git unzip
+          pacboy: cmake:p ninja:p python:p ccache:p
+      - uses: actions/cache@v4
+        id: winlibs
+        with:
+          path: C:/winlibs-gcc16
+          key: winlibs-${{ hashFiles('tools/toolchain/install_winlibs.sh') }}
+      - name: Pinned compiler
+        if: steps.winlibs.outputs.cache-hit != 'true'
+        run: tools/toolchain/install_winlibs.sh C:/winlibs-gcc16
       - uses: actions/cache@v4
         with:
           path: .ccache
@@ -53,7 +64,7 @@ jobs:
           restore-keys: ccache-windows-
       - name: Toolchain
         run: |
-          g++ --version | head -1
+          C:/winlibs-gcc16/mingw64/bin/g++ --version | head -1
           cmake --version | head -1
           ccache -z
       - name: Build OpenBA (debug)

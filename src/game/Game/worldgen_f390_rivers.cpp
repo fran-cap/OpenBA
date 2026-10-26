@@ -59,6 +59,7 @@
 #include <cmath>
 #include "system/Value.h"      // ENDGAME B.3.4b System caller batch (Random/Time/Color)
 #include "Game/worldgen_brush_curve.h"   // [WGPAR] the exact falloff memo of the eee0 brush
+#include "crt/msvc_libm.h"               // MsvcLibm::Powf (wg_powf below)
 
 // ============================================================
 // The heightfield is TerrainHeightfield (TerrainHeightfield.h). The originals
@@ -91,8 +92,11 @@ static constexpr uint32_t kSignBit = 0x80000000u;// 0x1401722c0               fl
 // System::Random::RandFloatTol()  ?RandFloatTol@Random@System@@QEAAMXZ:
 // fn_Random_RandFloatTol (worldgen_f390_shims.cpp), declared in Game/exe_bodies.h.
 
-// CRT libm leaves (verified: sub_1460 = powf, FUN_140132010 = sqrtf).
-static inline float wg_powf(float b, float e) { return powf(b, e); }
+// CRT libm leaves (verified: sub_1460 = powf, FUN_140132010 = sqrtf). powf is the exe's own MSVC CRT
+// body, ported bit-exact in MsvcLibm (crt/msvc_libm.h): MinGW's powf differs in the last bit, and differs
+// again between mingw-w64 runtimes (WorldHash f32 changed from GCC 13 to 16, 2026-10-26); sqrtf is one
+// instruction everywhere.
+static inline float wg_powf(float b, float e) { return MsvcLibm::Powf(b, e); }
 static inline float wg_sqrtf(float v)         { return sqrtf(v); }
 
 // negate a float via the XOR sign-bit mask (matches the original codegen).

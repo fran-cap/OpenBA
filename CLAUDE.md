@@ -26,8 +26,10 @@ function with no body yet is a `// PORT GAP 0x<addr> <name>` comment at its call
 - No waves, lanes, new instruments or new `BANISHED_RT_*` flags (DIRECTION.md §2).
 
 ## Build, run, gates
-The build is CMake + Ninja (`CMakeLists.txt`; GCC from MSYS2 UCRT64, cmake / ninja from pip, all on
-PATH). `tools/build.sh` is the one entry point; every kit script calls it.
+The build is CMake + Ninja (`CMakeLists.txt`; the pinned WinLibs GCC 16.2 from
+`tools/toolchain/install_winlibs.sh`, cmake / ninja from pip on PATH). `tools/build.sh` is the one entry point;
+every kit script calls it. The release exe is PGO-built: `perf/pgo/train.sh --build` retrains the profile set
+before a release (`perf/pgo/README.md`).
 ```bash
 tools/build.sh build [debug|og|perf|release]   # exe -> build/cmake-<flavour>/OpenBA.exe (debug default)
 tools/build.sh deploy          # debug build + copy to C:/GOG Games/Banished
@@ -85,7 +87,7 @@ the merge. Renaming a CI job means updating the required checks in branch protec
 - **No game content in the tree or the exe.** No retail shader source / DXBC, textures, models, sounds,
   `.rsc` copies, or ports / derivatives of them; retail data is read from the user's install at run
   time (transform it at load if needed, never ship it). Rule 7 in `docs/extensions/DESIGN.md` §3.
-- MSYS2 packages are stale: don't `pacman -S`.
+- MSYS2 packages are stale: don't `pacman -S`. The compiler is not MSYS2's anyway (above).
 
 ## Subagents
 Use a cheaper model where the task allows: `haiku` for file/log searches, greps and

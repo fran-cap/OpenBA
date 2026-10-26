@@ -41,6 +41,7 @@
 #include "Game/TerrainHeightfield.h"   // TerrainHeightfield, the stage declarations
 #include "Game/exe_bodies.h"
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
+#include "crt/msvc_libm.h"            // MsvcLibm::Powf (wg_powf below)
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
@@ -78,10 +79,13 @@ static const     uint32_t kSignBitMask  = 0x80000000u; // 0x1401722c0 (float-neg
 
 // ============================================================================
 // powf / sqrtf — the exe's sub_1460 / FUN_140132010 are the CRT libm routines.
-// Worldgen never feeds inf/NaN, so the special-case branches are dead. Map to
-// std:: equivalents (blueprint §3). sub_1460(base, exp) == powf(base, exp).
+// Worldgen never feeds inf/NaN, so the special-case branches are dead. sqrtf maps to
+// std::sqrt (one instruction everywhere); powf is the exe's own MSVC CRT body, ported
+// bit-exact in MsvcLibm (crt/msvc_libm.h): MinGW's differs in the last bit and differs
+// again between mingw-w64 runtimes (WorldHash f32 changed from GCC 13 to 16, 2026-10-26).
+// sub_1460(base, exp) == powf(base, exp).
 // ============================================================================
-static inline float wg_powf(float base, float exp) { return std::pow(base, exp); }
+static inline float wg_powf(float base, float exp) { return MsvcLibm::Powf(base, exp); }
 static inline float wg_sqrtf(float v)               { return std::sqrt(v); }
 
 // XOR a float's bit pattern with the sign bit (== negate). Matches the exe's

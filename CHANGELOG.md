@@ -6,6 +6,12 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 
 ## Unreleased
 
+**Build**
+- Windows is built with GCC 16.2 (the pinned WinLibs build, `tools/toolchain/install_winlibs.sh`) instead of MSYS2
+  GCC 13.1, and the release exe is profile-guided (`perf/pgo/`): on the stress town the sim runs about 12% faster
+  at 50x and 10% at 10x, drawing about 5% faster. World generation's `powf` now uses the ported MSVC CRT body
+  everywhere (`MsvcLibm::Powf`), so a generated world no longer depends on which C runtime the exe was built with.
+
 **Loading (caching round 2)**
 - `ext.menu_entry` (on): returning to the main menu, or reaching it at boot, no longer rescans every mod
   file and remounts every package when nothing changed (MegaMod: return to the menu 2.2 s down to 0.8 s).

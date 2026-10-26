@@ -81,6 +81,12 @@ alt-tab under WSLg (§2.3). The retail crash window (a loss between the loop bec
 
 ### 2.5 Housekeeping
 
+**PGO on the other platforms (the user, 2026-10-26: later, mechanism agreed).** The Windows release exe is
+profile-guided (`perf/pgo/README.md`); Linux (g++, its own `.gcda` set trained in WSL2 on lavapipe), macOS and
+Android (clang: `-fprofile-instr-generate`, `llvm-profdata merge`, `-fprofile-instr-use`; Android trains on the
+device, `adb pull` the `.profraw`) each need their own committed set and a `train` step in `perf/pgo/`. None can
+train in CI (no game data).
+
 **Before the repo goes public (the user, 2026-10-14): a final content-cleanup pass.** DONE 2026-10-17 in two
 rounds (STATUS entries REPO REVIEW + CLEANUP and CONTENT PURGE + HISTORY REWRITE): the 14 screenshots and the Sheep1
 xWMA fixture out; the docs sweep (two opus agents, every tracked file against the local ToolKit) found no REMOVE-level

@@ -8,6 +8,9 @@
 
 #include "system/parallel_for.h"   // System::ParallelFor
 #include "utility/PerlinNoise.h"   // RtUtility_PerlinNoise_Generate (const, stateless)
+#include "crt/msvc_libm.h"         // MsvcLibm::Powf: the MSVC CRT powf the exe linked, bit-exact (worldgen is
+                                   // seed-deterministic; MinGW's powf differs in the last bit and differs again
+                                   // between mingw-w64 runtimes, 2026-10-26 GCC 13 -> 16 WorldHash f32 change)
 
 #include <cmath>
 #include <cstddef>
@@ -53,7 +56,7 @@ void WgCells_BaseHeightmap(float* heightmap, int dim,
             for (int col = 0; col < edge; ++col) {
                 int dx = col - half;
                 float dist  = sqrtf((float)(dx * dx + dz * dz));
-                float curve = powf(kFalloffBase, distBias - dist);  // 1.1 ^ ((dim*0.25+16) - dist)
+                float curve = MsvcLibm::Powf(kFalloffBase, distBias - dist);  // 1.1 ^ ((dim*0.25+16) - dist), the exe's CRT powf
                 float w     = kOne / (curve + kOne);
 
                 float pn1s = RtUtility_PerlinNoise_Generate(pn1, (float)col * kQuarter, (float)row * kQuarter);

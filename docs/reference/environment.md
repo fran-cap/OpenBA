@@ -4,7 +4,8 @@
 
 ## Fresh clone checklist
 1. `git submodule update --init` (SDL3 at `third_party/SDL`; CMake refuses to configure without it).
-2. MSYS2 UCRT64 GCC (`C:\msys64\ucrt64\bin`) and the pip `cmake` + `ninja` on PATH (Toolchain below).
+2. The pinned WinLibs GCC: `tools/toolchain/install_winlibs.sh` (unpacks to `C:\winlibs-gcc16`; `tools/build.sh`
+   finds it there or through `BANISHED_GCC_DIR`), and the pip `cmake` + `ninja` on PATH (Toolchain below).
 3. `BANISHED_DIR` (default `C:/GOG Games/Banished`): the game directory `tools/build.sh deploy` / `run`
    copy the exe into; the unit tests also read `WinData/data0.pkg` from it and skip the tests that
    need it when it is absent (also tried: `/mnt/c/GOG Games/Banished`).
@@ -17,7 +18,12 @@
 Then `tools/build.sh unit` (no game needed beyond item 3's skips) and `tools/build.sh run` (the gate).
 
 ## Toolchain
-- GCC 13.1 (MSYS2 UCRT64) at `C:\msys64\ucrt64\bin\`; C++17, static-linked runtime
+- **GCC 16.2.0, WinLibs build r3** (mingw-w64 14.0.0, UCRT, posix threads, SEH) at `C:\winlibs-gcc16\mingw64\bin\`,
+  installed and pinned by `tools/toolchain/install_winlibs.sh` (sha256 of the zip in the script; CI installs the same);
+  C++17, static-linked runtime. `tools/build.sh` puts it first on PATH and passes it to CMake, and wipes a build
+  directory configured with another compiler. Switched from MSYS2 GCC 13.1 on 2026-10-26 (3% faster sim, and the
+  release exe's PGO profile set `perf/pgo/` is tied to the exact compiler version; `perf/pgo/README.md`). The MSYS2
+  install stays for its shell and gdb (`.vscode/launch.json`); its GCC is no longer used.
 - The build is CMake + Ninja through `tools/build.sh` (2026-10-11; the gate kit, the stress runner and the
   resave gate all call it; build directories `build/cmake-<flavour>`). The Makefile and its `mingw32-make`
   route were deleted the same day (history: `docs/history/`, the STATUS log).
@@ -53,7 +59,7 @@ Then `tools/build.sh unit` (no game needed beyond item 3's skips) and `tools/bui
   commit `829a65d769d935c4852f8159e964312c0957260a` (D4_RULES §3 Q4: SDL3 only, static; the
   revised SDL plan §B). First pinned at `release-3.2.30`, moved the same day. `.gitmodules` has `shallow = true`. CMake builds it from source inside each build directory
   (`build/cmake-<flavour>/third_party/sdl3`, static, with the options below; the Makefile used to build it
-  once into `build/third_party/install`). GCC 13.1 ucrt64 builds it as is, no fallback:
+  once into `build/third_party/install`). GCC 13.1 ucrt64 built it as is, GCC 16.2 (WinLibs) too, no fallback:
   ```
   cmake -S third_party/SDL -B build/third_party/sdl3 -G Ninja -DCMAKE_BUILD_TYPE=Release
         -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF
