@@ -534,8 +534,7 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
                 // (src/game/Game/*.h); each is built with its real ctor.
                 {
                     void* menuMem = System::MemoryAllocator::MemAlloc(0xc00, 8);
-                    printf("[GameMain] MenuDLT alloc = %p (vtable=%p)\n",
-                           menuMem, MenuDialogLoopT::Vtable());
+                    printf("[GameMain] MenuDLT alloc = %p\n", menuMem);
 
                     if (menuMem) {
                         // Construct the dialog filename string.
@@ -555,8 +554,7 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
                                                   Engine::UpdateLoop* next, const char* tag)
                             -> GameLoadDialogLoopT* {
                             void* mem = System::MemoryAllocator::MemAlloc(0xb60, 4);
-                            printf("[GameMain] %s alloc = %p (vtable=%p)\n",
-                                   tag, mem, GameLoadDialogLoopT::Vtable());
+                            printf("[GameMain] %s alloc = %p\n", tag, mem);
                             if (!mem) return nullptr;
 
                             System::Time delayTime;

@@ -36,8 +36,8 @@ must be archived by `gcc-ar` / `gcc-ranlib` (tools/build.sh passes them at confi
 leaves ~220 undefined SDL / wmadec references). The LTO link's partitions run in parallel only
 when a `make` is on PATH (install_winlibs.sh copies mingw32-make.exe to that name; serial = ~1.5 min,
 parallel = ~10 s). The nine `-Wodr` vtable warnings LTO first reported were the compiler-vtable
-aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol), now in two TUs built
-without -flto (`src/game/Object/exe_vtables.cpp`, `src/engine/graphics/mesh_vtable_alias.cpp`).
+aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol); they were retired on
+2026-10-26 (`Object::ClassVptr`, `src/engine/object/class_vptr.h`), and every TU is LTO.
 
 ## Files
 - `train.sh` -- the recipe: instrumented release build, two training runs, optional release build.

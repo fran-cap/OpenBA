@@ -169,6 +169,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
 #include "Component/CharacterComponent.h"
 #include "Component/ModelComponent.h"     // ModelComponent::TypeId() (ENDGAME B.3.9 TR)
 #include "Component/PickingComponent.h"   // PickingComponent::TypeId() (ENDGAME B.3.9 TR)
+#include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 
 
 // 0x140109d20. Component() is the CALL 0x1401188b0; the 0x140162370 stamp is
@@ -182,6 +183,7 @@ CharacterComponent::CharacterComponent()
       actionStack(),
       modelComponent(nullptr), pickingComponent(nullptr), characterDescription(nullptr) {
     OrFlagsInCtor(0x8f);
+    Object::ClassVptr<CharacterComponent>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
 }
 
 
@@ -288,8 +290,7 @@ void CharacterComponent::Update(const System::Time* time) {
     return static_cast<Object::Base*>(new (storage) CharacterComponent());
 }
 
-// [PREFETCH] the compiler vtable's address point (= a constructed object's vptr): the
-// staged walk prefetch (entitylist.cpp, kWalkPrefetch == 2) tells this class by its vptr.
-// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)
+// [PREFETCH] the ctor records the vptr (Object::ClassVptr<CharacterComponent>): the staged walk
+// prefetch (entitylist.cpp, kWalkPrefetch == 2) tells this class by it.
 
 DEFINE_EXE_TYPE(CharacterComponent, "Component")

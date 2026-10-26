@@ -35,38 +35,26 @@
 //   DECLARE_EXE_TYPE(Class)
 //       slot 1 `TypeName()` and slot 2 `Type()` overrides (retail: `MOV RAX,
 //       [ti+8]; RET` / `MOV EAX,[ti]; RET` over the class's BaseTypeInfo), the
-//       static `TypeId()` / `GetTypeInfo()`, `CreateNewObject` /
-//       `CreateInPlaceObject` and `Vtable()`.
+//       static `TypeId()` / `GetTypeInfo()`, `CreateNewObject` and
+//       `CreateInPlaceObject`.
 //   DEFINE_EXE_TYPE(Class, "ParentLiteral")
 //       the record. The NAME literal is `#Class` and the parent literal is
 //       copied from B38_SLOTS.md §3 EXACTLY (quirks included): saves and .rsc
 //       files carry ~CRC32(name), so a name is ABI and is never respelt.
 //   DEFINE_EXE_ABSTRACT_TYPE(Class, "ParentLiteral")
 //       the same for an abstract base, with retail's abstract factory.
-//   DEFINE_EXE_VTABLE(Class, "_ZTV<len><Class>")
-//       `Class::Vtable()`: the address of the COMPILER's vtable (its address
-//       point, i.e. the value a constructed object's vptr holds), without
-//       constructing an object. The symbol is spelled by hand and the LINKER
-//       checks it: a misspelling is an undefined reference, not a silent wrong
-//       pointer. (B38 D5 wrote one per exe class so a `RegisterExeAddr(kVtable,
-//       Class::Vtable())` row could serve by-address readers; ENDGAME B.3.9
-//       deleted the last such row, and the close deleted the 303 lines whose
-//       `Vtable()` nobody read. Four remain, each with a reader: GameUpdateLoop,
-//       MenuDialogLoopT, GameLoadDialogLoopT -- vptr compares / hand-offs in
-//       the loop builders -- and StatGoal, RunFactorySelfTest's vptr check.)
+//
+// There is no vtable handle any more. B38 D5's DEFINE_EXE_VTABLE named the
+// compiler's table by its assembler symbol (`_ZTV...`) for by-address readers;
+// it went on 2026-10-26, and the few loops that tell a class by its vptr read
+// the one its ctor recorded (Object::ClassVptr, object/class_vptr.h).
 //
 // `X::TypeId()` returns `_typeInfo.typeId`: the ctor's 0xFFFFFFFF sentinel
 // until `Factory::Startup` writes the CRC (B33_RULES §2.5 — not
 // self-initialising), exactly as a Runtime DEFINE_TYPE record does.
-//
-// The Itanium vtable group GCC emits for a single-inheritance class is
-// `{ offset-to-top, &typeinfo, slot0, slot1, ... }`; the vptr of an object
-// points at slot0, two words in. tests/unit/exe_class_abi_test.cpp proves
-// `Vtable() == *(void**)&obj` on this toolchain.
 // ============================================================================
 
 #include <cstdint>
-#include "abi.h"                          // RT_ASM_LABEL
 #include "object/TypeInfo.h"
 #include "Object/factory_registration.h"   // Object::AbstractTypeFactory
 
@@ -86,7 +74,6 @@ public:                                                                         
     /* runtime's BaseTypeInfo::InPlaceFn (object/TypeInfo.h), the record's    */ \
     /* in-place factory entry for every class of the macro.                   */ \
     static ::Object::Base* CreateInPlaceObject(void* storage);                    \
-    static const void* Vtable();                                                  \
 private:                                                                          \
     static ::Object::BaseTypeInfo _typeInfo;                                      \
     /* the record's slot in the linker section .data$exetype_b (the count     */ \
@@ -133,10 +120,3 @@ private:                                                                        
     ::Object::Base* Class::CreateNewObject() { return ::Object::AbstractTypeFactory(#Class); } \
     ::Object::Base* Class::CreateInPlaceObject(void*) { return nullptr; }                   \
     DEFINE_EXE_TYPE(Class, ParentLiteral)
-
-// `TVSymbol` is the Itanium name of the class's vtable group, e.g.
-// "_ZTV13WellComponent" (13 = strlen("WellComponent")). x86_64-w64-mingw32 has
-// no user-label prefix; RT_ASM_LABEL (abi.h) pastes the target's in front.
-#define DEFINE_EXE_VTABLE(Class, TVSymbol)                                        \
-    extern const void* const Class##_VtableGroup[] RT_ASM_LABEL(TVSymbol);       \
-    const void* Class::Vtable() { return &Class##_VtableGroup[2]; }

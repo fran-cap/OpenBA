@@ -16,9 +16,7 @@
 //   retail), a virtual destructor (B3X W1; was "none", ENDGAME decision 2), the proved parent.
 //
 // NOT PROVEN HERE: the member bodies (they stand on the address registry and
-// the UI runtime and cannot link into a host test) and `Vtable()` against a
-// constructed object (the pilot's exe_class_abi_test.cpp PART C proves the
-// DEFINE_EXE_VTABLE mechanism on this toolchain). The real run and the resave
+// the UI runtime and cannot link into a host test). The real run and the resave
 // gate verify those.
 // ============================================================================
 #include "unit.h"

@@ -29,7 +29,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include "system/Thread.h"     // ENDGAME B.3.4b System caller batch (CriticalSection/Thread)
-#include "Object/exe_type.h"     // DEFINE_EXE_VTABLE
 #include "ext/path_workers/path_workers.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHWORKERS.md): Ext::PathWorkers::Engaged / Dispatch
 
 // A* / pathfinder helpers (reimplemented + registered elsewhere) — called by name through

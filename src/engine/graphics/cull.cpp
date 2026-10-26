@@ -68,6 +68,7 @@
 #include "graphics/Scene.h"
 #include "graphics/gather_prefetch.h"  // GATHERPF: the prefetch-ahead switches (NOT RETAIL; hints only)
 #include "system/MemoryAllocator.h"
+#include "object/class_vptr.h"   // Object::ClassVptr (the vptr hint)
 
 #include <cstddef>
 #include <cstdint>
@@ -246,11 +247,9 @@ Box NodeBoxShadow(const CullStack* st, const CullRecord& r) {
 
 }  // namespace
 
-// The address point of the compiler's MeshInstance vtable (mesh_vtable_alias.cpp, the one
-// graphics TU built without LTO: it names the table by its assembler symbol). Equality
+// MeshInstance's vptr, recorded by its ctors (Object::ClassVptr, object/class_vptr.h). Equality
 // with an object's vptr means the dynamic type is exactly MeshInstance; only the dispatch
 // arm's hints depend on it, so a mismatch only means those hints are not issued.
-namespace Graphics { const void* GatherPf_MeshInstanceVtable(); }
 
 namespace {
 
@@ -573,7 +572,7 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
     // GATHERPF arm 2: the list is an array, so the entries S and 2S ahead cost
     // no chase; both are entries this loop reads (and calls through) later.
     [[maybe_unused]] const void* meshVt = nullptr;
-    if constexpr (GatherPf::kDispatch) meshVt = Graphics::GatherPf_MeshInstanceVtable();
+    if constexpr (GatherPf::kDispatch) meshVt = Object::ClassVptr<MeshInstance>::Get();
     for (int32_t i = 0; i < list.size; ++i) {
         if constexpr (GatherPf::kDispatch) {
             constexpr int32_t S = GatherPf::kDispatchStride;

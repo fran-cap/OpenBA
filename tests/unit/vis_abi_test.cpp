@@ -19,8 +19,7 @@
 //
 // NOT PROVEN HERE: the bodies (they stand on the address registry and cannot
 // link into a host test), so no object is constructed and the raw retail-order
-// call through slot 8 is left to the real run; `Vtable() == vptr` is
-// tests/unit/exe_class_abi_test.cpp PART C's proof of DEFINE_EXE_VTABLE.
+// call through slot 8 is left to the real run.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

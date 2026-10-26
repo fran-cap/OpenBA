@@ -33,8 +33,8 @@
 #include "Game/game.h"          // g_gameContainer (0x1401c3de8), GameContainer::ApplyKeyMapToUI
 #include "video/Device.h"      // Video::Device::_singleton (the splash UI scale)
 #include "Game/GameLoadDialogLoopT.h"   // ENDGAME B.3.8 LOOP
-#include "Game/GameUpdateLoop.h"        // caller batch CB6: GameUpdateLoop::Vtable()
-#include "Object/exe_type.h"         // DEFINE_EXE_VTABLE
+#include "Game/GameUpdateLoop.h"        // caller batch CB6: the "next loop is a GameUpdateLoop" test
+#include "object/class_vptr.h"          // Object::ClassVptr<GameUpdateLoop>
 #include <cstdio>
 #include <cstdint>
 #include "system/String.h"   // -Iruntime/types
@@ -447,12 +447,12 @@ bool GameLoadDialogLoopT::Update(const System::Time& time) {
     // For every other loop (boot splashes -> MenuDLT) worldReady stays true and
     // the transition is purely time-based, exactly as before.
     // Caller batch CB6: "is the next loop a GameUpdateLoop" compares the vptr
-    // with the class's compiler table (B8-5 identity; it was the by-address
+    // with the one GameUpdateLoop's ctor recorded (B8-5 identity; it was the by-address
     // g_GameUpdateLoop_Vtable, which 0x14015e2f0's row served with that table).
     // A vptr identity compare (GameUpdateLoop is unreflected: no type id).
     bool worldReady = true;
     if (_nextLoop &&
-        *reinterpret_cast<const void* const*>(_nextLoop) == GameUpdateLoop::Vtable()) {   // vtable probe (a vptr identity compare: GameUpdateLoop is unreflected, no type id)  // CAST-OK: vslot
+        *reinterpret_cast<const void* const*>(_nextLoop) == Object::ClassVptr<GameUpdateLoop>::Get()) {   // vtable probe (a vptr identity compare: GameUpdateLoop is unreflected, no type id)  // CAST-OK: vslot
         worldReady = GameUpdateLoop_IsWorldBuilt(_nextLoop);
     }
 
@@ -578,6 +578,3 @@ Object::InternalPtr<UI::DialogInstance>* GameLoadDialogLoopT::CreateLoopDialog(
     return retPtr;
 }
 
-// B38_RULES D5: `Vtable()` is the COMPILER's table. ENDGAME B.3.9 EXA: the
-// 0x140158800 registration went with the last door-then-stamp builder.
-// (the DEFINE_EXE_VTABLE alias itself is in src/game/Object/exe_vtables.cpp, the one TU built without LTO)

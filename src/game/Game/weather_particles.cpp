@@ -44,7 +44,6 @@
 #include "math/Math.h"
 #include "collection/Collection.h"
 #include "object/Internal.h"     // Object::detail::InternalMemFree
-#include "Object/exe_type.h"     // DEFINE_EXE_VTABLE
 #include <new>
 #include <cstdint>
 #include <cstring>

@@ -12,9 +12,9 @@
 //   the 9-slot controller interface, Description 9 + the leaf's slot 9.
 //   `CHECK_SLOT` (slot_check.h) also FAILS on a this-adjusting PMF: there is no multiple
 //   inheritance in this family (D6), so every adjustment must be 0.
-// PART C — D5, `DEFINE_EXE_VTABLE`: the address `Class::Vtable()` hands to
-//   `RegisterExeAddr` is exactly the vptr a constructed object carries, on
-//   this toolchain, for a base and a derived class.
+// PART C — `Object::ClassVptr` (object/class_vptr.h): the vptr a class's ctor
+//   records is the one its objects carry, for a base and a derived class; a
+//   derived object's construction records the BASE's own table for the base.
 // PART D — D6, the table-driven controller member: a raw retail-shaped call
 //   through the member's COMPILER vtable (`[vptr+0x18](node, sm, idx)`, what
 //   StateMachine::Tick 0x1400a9660 does) reaches the per-state handler with
@@ -30,6 +30,7 @@
 
 #include "Component/WellComponent.h"
 #include "Component/WellDescription.h"
+#include "object/class_vptr.h"
 
 #include <cstdint>
 #include <cstddef>
@@ -125,52 +126,47 @@ UNIT_TEST(exe_description_slot_order) {
 }
 
 // ===========================================================================
-// PART C — D5: DEFINE_EXE_VTABLE answers the vptr a constructed object carries
+// PART C — Object::ClassVptr records the vptr a constructed object carries
 // ===========================================================================
 }  // namespace
 
-// Global-namespace wrappers so the Itanium names are simple to spell. The
-// linker is the checker: a wrong spelling is an undefined reference.
 struct B38VtProbe {
+    B38VtProbe() { Object::ClassVptr<B38VtProbe>::Record(this); }
+    virtual ~B38VtProbe() = default;
     virtual int A();
     virtual int B();
-    static const void* Vtable();
 };
-struct B38VtProbeLeaf : B38VtProbe {
+struct B38VtProbeLeaf final : B38VtProbe {
+    B38VtProbeLeaf() { Object::ClassVptr<B38VtProbeLeaf>::Record(this); }
     int B() override;
-    static const void* Vtable();
 };
 int B38VtProbe::A() { return 1; }
 int B38VtProbe::B() { return 2; }
 int B38VtProbeLeaf::B() { return 3; }
-DEFINE_EXE_VTABLE(B38VtProbe, "_ZTV10B38VtProbe")
-DEFINE_EXE_VTABLE(B38VtProbeLeaf, "_ZTV14B38VtProbeLeaf")
 
 namespace {
 
-UNIT_TEST(exe_vtable_handle_is_the_objects_vptr) {
-    B38VtProbe base;
+UNIT_TEST(class_vptr_is_the_objects_vptr) {
+    // The leaf first: its construction runs the base ctor too, which must record the
+    // BASE's own table (the vptr inside B38VtProbe's ctor body), not the leaf's.
     B38VtProbeLeaf leaf;
+    B38VtProbe base;
     const void* vBase = *reinterpret_cast<const void* const*>(&base);
     const void* vLeaf = *reinterpret_cast<const void* const*>(&leaf);
-    CHECK(vBase == B38VtProbe::Vtable());
-    CHECK(vLeaf == B38VtProbeLeaf::Vtable());
+    CHECK(vBase == Object::ClassVptr<B38VtProbe>::Get());
+    CHECK(vLeaf == Object::ClassVptr<B38VtProbeLeaf>::Get());
     CHECK(vBase != vLeaf);
-    // A slot read through the handle is the override the object dispatches to.
+    // A slot read through the recorded table is the override the object dispatches to.
     using Fn = int (*)(void*);
     auto slot = [](const void* vt, int i) {
         return reinterpret_cast<Fn>(reinterpret_cast<void* const*>(vt)[i]);
     };
-    CHECK_EQ(slot(B38VtProbeLeaf::Vtable(), 0)(&leaf), 1);
-    CHECK_EQ(slot(B38VtProbeLeaf::Vtable(), 1)(&leaf), 3);
-    CHECK_EQ(slot(B38VtProbe::Vtable(), 1)(&base), 2);
-    // The registry row a converted class keeps (D5) stores exactly this value;
-    // an unconverted by-address reader that stamps it builds an object whose
-    // dispatch is the compiler table's.
-    uintptr_t served = reinterpret_cast<uintptr_t>(B38VtProbeLeaf::Vtable());
-    B38VtProbeLeaf stamped;
-    *reinterpret_cast<const void**>(&stamped) = reinterpret_cast<const void*>(served);
-    CHECK_EQ(stamped.B(), 3);
+    const void* leafVt = Object::ClassVptr<B38VtProbeLeaf>::Get();
+    const void* baseVt = Object::ClassVptr<B38VtProbe>::Get();
+    // Itanium: slots 0 and 1 are the virtual destructor's two entries, A is 2, B is 3.
+    CHECK_EQ(slot(leafVt, 2)(&leaf), 1);
+    CHECK_EQ(slot(leafVt, 3)(&leaf), 3);
+    CHECK_EQ(slot(baseVt, 3)(&base), 2);
 }
 
 // ===========================================================================

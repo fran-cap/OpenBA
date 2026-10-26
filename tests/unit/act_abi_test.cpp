@@ -12,10 +12,8 @@
 //   PART C — class-shape rules: polymorphic, a virtual destructor (B3X W1: retail slot 0 = D1 + D0), Action
 //            abstract (slot 4 `_purecall`), every leaf concrete.
 //
-// NOT PROVEN HERE: `X::Vtable() == *(void**)&obj` needs a constructed object,
-// i.e. the member bodies, which stand on the address registry and do not link
-// into the host test (the pilot's exe_class_abi_test.cpp PART C proves the
-// DEFINE_EXE_VTABLE mechanism itself on this toolchain).
+// NOT PROVEN HERE: anything needing a constructed object, i.e. the member bodies,
+// which stand on the address registry and do not link into the host test.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

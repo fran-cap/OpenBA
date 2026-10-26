@@ -36,7 +36,6 @@
 #include "engine/MainLoop.h"     // -Iruntime/types: ENDGAME B.3.7 Engine::MainLoop
 #include "Game/InnerLoaderLoop.h"   // ENDGAME B.3.8 LOOP: the two LoaderLoop classes
 #include "Game/GameLoaderLoop.h"
-#include "Object/exe_type.h"        // DEFINE_EXE_VTABLE
 #include "Game/exe_bodies.h"        // GameContainer_Init (0x140099db0)
 #include "Game/game.h"              // GameContainer, g_gameContainer
 #include "Game/inputbindings.h"     // Game::RegisterDefaultInputBindings (0x1400992f0)
@@ -238,7 +237,6 @@ void GameLoaderLoop::Startup() {
     }
 }
 
-// B38_RULES D5: `X::Vtable()` is the COMPILER's table. Neither retail address
-// is registered any more: InnerLoaderLoop's 0x140158870 row went at the B.3.8
+// Neither retail vtable address is registered any more: InnerLoaderLoop's 0x140158870 row went at the B.3.8
 // close, GameLoaderLoop's 0x1401588d0 at B.3.9 EXA (every builder constructs
 // the real class).

@@ -19,9 +19,8 @@
 //   RCX = the owner (every retail member slot body: `MOV RCX,[RCX+0x18]; JMP`).
 //
 // NOT PROVEN HERE: the bodies and the constructors (they stand on the address
-// registry and cannot link into a host test), and `Vtable() == vptr`
-// (tests/unit/exe_class_abi_test.cpp PART C proves DEFINE_EXE_VTABLE on this
-// toolchain). No slot of these classes is a retslot or takes a hidden pointer.
+// registry and cannot link into a host test). No slot of these classes is a
+// retslot or takes a hidden pointer.
 // ============================================================================
 #include "unit.h"
 #include "slot_check.h"

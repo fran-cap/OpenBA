@@ -57,6 +57,7 @@
 #include "Entity/exe_bodies.h"
 #include "Game/exe_bodies.h"   // BucketTree_Serialize_21ba0
 #include "Work/exe_bodies.h"   // WorkBST_RegisterWork_1a30, WorkBST_BSTRemove_a6e0
+#include "object/class_vptr.h"   // Object::ClassVptr (the vptr hint)
 
 
 // ============================================================
@@ -640,7 +641,7 @@ static inline auto MakeWalkTick(const System::Time* time) {
         // CharacterComponent::Tick for everything else (src/ext/walk_batch/walk_batch.h); every
         // other component gets the faithful tick. Out of line on purpose: this TU's faithful
         // code stays as it was.
-        const void* const charVt = CharacterComponent::Vtable();
+        const void* const charVt = Object::ClassVptr<CharacterComponent>::Get();
         return [time, charVt](Component* c) {
             if (*reinterpret_cast<const void* const*>(c) == charVt) {  // CAST-OK: vslot (the vptr names the class)
                 if constexpr (kWalk == Ext::WalkBatch::kWalkNoPlace)
@@ -677,9 +678,10 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
     auto report = [](bool ok, int64_t detail) { StressHarness_Verify("TickList", ok, (long long)detail); };
     const bool verify = g_verifyOn != 0;
     WalkVptrs vt{nullptr, nullptr};
-    if constexpr (kWalkPrefetch == 2) vt = {CharacterComponent::Vtable(), ModelComponent::Vtable()};
+    if constexpr (kWalkPrefetch == 2)
+        vt = {Object::ClassVptr<CharacterComponent>::Get(), Object::ClassVptr<ModelComponent>::Get()};
     WalkCovVptrs cv{nullptr};   // [PREFETCHCOV] set only when the arm is on
-    if constexpr (kWalkPrefetch == 2 && kPrefetchCovParticle) cv.particle = ParticleComponent::Vtable();
+    if constexpr (kWalkPrefetch == 2 && kPrefetchCovParticle) cv.particle = Object::ClassVptr<ParticleComponent>::Get();
     for (size_t i = 0; i < n; ++i) {
         if constexpr (kWalkPrefetch == 2) WalkPrefetchStaged(arr, tl, n, i, cached, vt, cv);
         if constexpr (kWalkPrefetch == 1) {

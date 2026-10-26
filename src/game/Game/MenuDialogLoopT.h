@@ -61,8 +61,6 @@ public:
     Object::InternalPtr<UI::DialogInstance>* CreateLoopDialog(   // [12] 0x14009ba30
         Object::InternalPtr<UI::DialogInstance>* ret) override;
 
-    static const void* Vtable();
-
 
 public:
     System::Random _random;              // +0x168  ??0Random@System@@

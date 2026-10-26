@@ -6,7 +6,7 @@
 // hand-built leaf table: every leaf is a real class now.
 
 #include "Object/factory_registration.h"   // Object::GetTypeIdByName
-#include "Object/exe_type.h"               // DEFINE_EXE_VTABLE
+#include "Object/exe_type.h"               // DEFINE_EXE_TYPE
 #include "Work/Work.h"                     // Work (ENDGAME B.3.8), WorkAddr::Vtable
 #include "object/Internal.h"               // Object::detail::InternalMemFree
 #include <cstdint>
