@@ -59,6 +59,7 @@ struct Target {
 const Target kTargets[] = {
     {"graphicsOptions", "options.rsc:graphicsoptions"},   // the Options dialog's Video page
     {"soundOptions", "options.rsc:soundoptions"},         // its Audio page
+    {"professionTable", "profession.rsc:professiontable"},  // the Professions dialog's list
 };
 
 // The frame's description, loaded once (null when the embedded resource did not load: nothing is wrapped).
