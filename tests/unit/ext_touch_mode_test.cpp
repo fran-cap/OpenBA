@@ -7,6 +7,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/touch_mode/touch_math.h"
+#include "ext/better_camera/better_camera.h"   // P11d: ClampToRetailRange with the near limit
 #include "ext/registry.h"
 #include "io/settings_file.h"
 
@@ -259,6 +260,46 @@ UNIT_TEST(ext_touch_mode_held_zoom) {
     CHECK(target == 200.0f && distance == 200.0f);
     ApplyHeldZoom(100.0f, 5.0f, 6.0f, 200.0f, target, distance);
     CHECK(target == 6.0f && distance == 6.0f);
+}
+
+// P11d (docs/android/P11D_ZOOM.md; the owner, 2026-10-26: zoom in to about two houses): with the row on the near limit
+// is ext.touch_mode_zoom_min unless the frame's own is nearer (ext.better_camera's 6); row off: the frame's own.
+UNIT_TEST(ext_touch_mode_zoom_min) {
+    CHECK(NearZoomLimit(20.0f, false, kZoomMinDefault) == 20.0f);   // row off: retail's floor, whatever the key
+    CHECK(NearZoomLimit(6.0f, false, kZoomMinDefault) == 6.0f);
+    CHECK(NearZoomLimit(20.0f, true, kZoomMinDefault) == static_cast<float>(kZoomMinDefault));
+    CHECK(NearZoomLimit(20.0f, true, 20) == 20.0f);                 // the key at retail's floor: retail's range
+    CHECK(NearZoomLimit(6.0f, true, kZoomMinDefault) == 6.0f);      // better_camera's floor is nearer: kept
+    CHECK(NearZoomLimit(20.0f, true, 6) == 6.0f);
+
+    // The frame's clamps with the near limit: the held zoom (buttons, pinch) stops there, not at 20.
+    const float zNear = NearZoomLimit(20.0f, true, kZoomMinDefault);
+    float target = 22.0f;
+    float distance = 22.0f;
+    ApplyHeldZoom(100.0f, 5.0f, zNear, 130.0f, target, distance);
+    CHECK(target == zNear && distance == zNear);
+    // Retail's per-frame clamp keeps a target between the near limit and 20, and still clamps the far end.
+    CHECK(Ext::BetterCamera::ClampToRetailRange(zNear, zNear) == zNear);
+    CHECK(Ext::BetterCamera::ClampToRetailRange(zNear) == 20.0f);   // the faithful call: retail's floor
+    CHECK(Ext::BetterCamera::ClampToRetailRange(zNear - 1.0f, zNear) == zNear);
+    CHECK(Ext::BetterCamera::ClampToRetailRange(150.0f, zNear) == 130.0f);
+    // A fractional pinch (P11d: continuous) moves the target by steps * 5 units, no whole-step rounding.
+    target = 40.0f;
+    distance = 40.0f;
+    ApplyHeldZoom(0.3f, 5.0f, zNear, 130.0f, target, distance);
+    CHECK(Near(target, 38.5f) && Near(distance, 38.5f));
+
+    // The settings key: owner touch_mode, a range key 6 .. 20, the default the boot-less initialiser's.
+    const Ext::ValueKey* k = Ext::FindValueKey("touch_mode_zoom_min");
+    CHECK(k != nullptr);
+    if (k == nullptr) return;
+    CHECK(std::string(k->owner) == "touch_mode");
+    CHECK(k->minValue == 6 && k->maxValue == 20);
+    CHECK(k->defaultValue == kZoomMinDefault);
+    CHECK(Ext::Values().touch_mode_zoom_min == kZoomMinDefault);
+    CHECK(ResolveText("ext.touch_mode_zoom_min=14\n").val.touch_mode_zoom_min == 14);
+    CHECK(Ext::ClampValue(*k, 2) == 6);
+    CHECK(Ext::ClampValue(*k, 40) == 20);
 }
 
 UNIT_TEST(ext_touch_mode_unit_mapping) {

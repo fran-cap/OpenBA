@@ -533,12 +533,11 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     // The zoom buttons (P11c): a constant rate from the press to the release, beside whatever the wheel or a key
     // stepped this frame.
     if (src == 0) heldZoom = HeldZoomSteps(h.zoom, dt);
-    if (zoomDir == 0) {
-        if (src == 1 && (g_fingerZoom >= 1.0f || g_fingerZoom <= -1.0f)) {
-            zoomDir = g_fingerZoom > 0.0f ? 1 : -1;
-            g_fingerZoom -= static_cast<float>(zoomDir);
-        }
-    }
+    // The pinch (P11d, docs/android/P11D_ZOOM.md): continuous as well, the fingers' fractional steps this frame go
+    // the same ApplyHeldZoom way (no whole steps, no smoothing lag), inside the same range. A pinch while the pad
+    // source is the active one is dropped, as before.
+    if (src == 1) heldZoom += g_fingerZoom;
+    g_fingerZoom = 0.0f;
     // A finger hold lasts one frame: touch_pointer sends it every frame it applies.
     g_hold[1] = CameraHold();
     g_activeBefore[0] = g_activeNow[0];
