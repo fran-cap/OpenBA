@@ -443,7 +443,7 @@ const Entry kEntries[] = {
     { "touch_mode", Tier::Extension, Class::A, false,
       "Touch controls",
       "A camera pad and zoom / rotate buttons at the bottom left, and the toolbar enlarged for fingers "
-      "along the bottom. For phones and touch screens.",
+      "along the bottom; the camera zooms in closer. For phones and touch screens.",
       0, [](State& s) -> bool& { return s.ext.touch_mode; } },
     // P11 (docs/android/P11_TOUCH_POINTER.md): fingers drive the game's own tools: one finger aims a placement
     // or a road, an action bar places / rotates / cancels, two fingers pan, pinch-zoom and spin, a tap picks
@@ -527,7 +527,7 @@ const ValueKey kValueKeys[] = {
       [](State& s) -> int32_t& { return s.val.touch_mode_toolbar_scale; }, kTouchToolbarScales, 5 },
     // P11d (docs/android/P11D_ZOOM.md): the camera's near zoom limit in distance units while the row touch_mode is
     // on (every zoom input: the buttons, the pinch, keys, the wheel); retail's is 20. A range key, settings.cfg only.
-    { "touch_mode_zoom_min", "touch_mode", 6, 20, 10,
+    { "touch_mode_zoom_min", "touch_mode", 6, 20, 8,
       [](State& s) -> int32_t& { return s.val.touch_mode_zoom_min; }, nullptr, 0 },
     // P11 TOUCHPOINTER: the aim point's height above the finger in device pixels while ext.touch_pointer aims a
     // tool (0 = at the finger); 160 is the default, to be tuned on the phone (TOUCH_PLACEMENT_IDEAS.md §5).

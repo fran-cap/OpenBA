@@ -70,4 +70,4 @@ alone, as for the wheel. Neither combination was run on the phone (unit tests on
 ## Follow-ups
 
 - The pinch (ext.touch_pointer) still reaches the zoom as whole steps through `zoomDir`; it could use `heldZoom`'s
-  continuous path too (not in this ruling).
+  continuous path too (not in this ruling). DONE in P11d (`docs/android/P11D_ZOOM.md`).
