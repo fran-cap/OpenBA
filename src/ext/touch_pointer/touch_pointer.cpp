@@ -50,6 +50,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <initializer_list>
 #include <new>
 #include <vector>
 
@@ -88,6 +89,10 @@ constexpr int32_t kReleaseHoldPolls = 3;
 constexpr int32_t kButtonPressedState = 3;
 constexpr int32_t kButtonLabelChild = 4;
 constexpr float kGlyphFraction = 0.5f;
+// A button's glyph row fits this much of its width (the art's bevel and a margin outside the glyphs).
+constexpr float kPairFraction = 0.72f;
+// TouchPointer.rsc's ribbons: _cellPad 2 between two glyphs.
+constexpr int32_t kRibbonPad = 2;
 
 double Now() {
     using Clock = std::chrono::steady_clock;
@@ -740,22 +745,53 @@ public:
             content->_bottomPad = frame;
             content->SetNeedsSizeCalc();
         }
+        // One glyph (Place, Cancel): half the button high. A pair (Rotate: arrow + house, Change model: two arrows):
+        // both glyphs one height, chosen so the pair with the ribbon's cell pad fits kPairFraction of the button's
+        // width, centred (P11 sized each glyph alone and the house ran over the button's edge).
         const int32_t glyph = static_cast<int32_t>(kGlyphFraction * static_cast<float>(cell));
-        const char* images[] = {"imagePointerPlace",    "imagePointerRotateLeftArrow", "imagePointerHouseLeft",
-                                "imagePointerHouseRight", "imagePointerRotateRightArrow", "imagePointerFlipLeft",
-                                "imagePointerFlipRight",  "imagePointerCancel"};
-        for (const char* name : images) {
+        SizeGlyphs("imagePointerPlace", nullptr, glyph, cell);
+        SizeGlyphs("imagePointerCancel", nullptr, glyph, cell);
+        SizeGlyphs("imagePointerRotateLeftArrow", "imagePointerHouseLeft", glyph, cell);
+        SizeGlyphs("imagePointerHouseRight", "imagePointerRotateRightArrow", glyph, cell);
+        SizeGlyphs("imagePointerFlipLeft", "imagePointerFlipRight", glyph, cell);
+    }
+
+    // Sizes the one or two images of a button: each at height h (a whole multiple of its sprite when that is at
+    // least twice the sprite: crisp), h the largest up to `glyph` whose row (the widths plus the ribbon's pad) fits
+    // kPairFraction of the button.
+    void SizeGlyphs(const char* first, const char* second, int32_t glyph, int32_t cell) {
+        UI::ImageElement* images[2] = {nullptr, nullptr};
+        int32_t count = 0;
+        for (const char* name : {first, second}) {
+            if (name == nullptr) continue;
             UI::Element* e = FindElement(System::String(name)).Get();
             if (!::Object::IsDerivedFromNullSafe(e, UI::ImageElement::TypeId())) continue;
             UI::ImageElement* image = static_cast<UI::ImageElement*>(e);
             const UI::Sprite sprite = image->GetSprite();
-            const int32_t sw = sprite.Width();
-            const int32_t sh = sprite.Height();
-            if (sw <= 0 || sh <= 0) continue;
-            int32_t h = glyph;
-            if (h >= 2 * sh) h = (h / sh) * sh;
-            image->SetWidthHeight(sw * h / sh, h);
-            image->SetNeedsSizeCalc();
+            if (sprite.Width() <= 0 || sprite.Height() <= 0) continue;
+            images[count] = image;
+            ++count;
+        }
+        if (count == 0) return;
+        const int32_t room = static_cast<int32_t>(kPairFraction * static_cast<float>(cell)) - kRibbonPad * (count - 1);
+        for (int32_t h = glyph; h > 0; --h) {
+            int32_t width = 0;
+            int32_t widths[2] = {0, 0};
+            int32_t heights[2] = {0, 0};
+            for (int32_t i = 0; i < count; ++i) {
+                const UI::Sprite sprite = images[i]->GetSprite();
+                const int32_t sw = sprite.Width();
+                const int32_t sh = sprite.Height();
+                heights[i] = h >= 2 * sh ? (h / sh) * sh : h;
+                widths[i] = sw * heights[i] / sh;
+                width += widths[i];
+            }
+            if (width > room && h > 1) continue;
+            for (int32_t i = 0; i < count; ++i) {
+                images[i]->SetWidthHeight(widths[i], heights[i]);
+                images[i]->SetNeedsSizeCalc();
+            }
+            return;
         }
     }
 

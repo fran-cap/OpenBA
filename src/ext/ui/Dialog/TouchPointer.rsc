@@ -3,9 +3,10 @@
 // docs/android/P11_TOUCH_POINTER.md. The bar sits on the right above the toolbar: Place / Confirm, Rotate structure
 // left / right, Change structure model, Cancel. Every look is the game's own, read from the player's install: the
 // buttons are the toolbar's (Toolbar.rsc:buttonToolbar), the frame the toolbar's (SharedElements.rsc), the glyphs are
-// sprites of the game's SpriteSheet.rsc (GoalSuccess, ArrowLeft / Right, ToolbarHousing, ArrowLeftSmall / RightSmall,
-// ToolClose, ArrowDown), the tooltips the Options Input tab's key names (StringTable.rsc:gameKeys). Nothing here is
-// drawn by us.
+// sprites of the game's SpriteSheet.rsc (GoalSuccess, ToolbarHousing, ArrowLeftSmall / RightSmall, ToolClose,
+// ArrowDown), the tooltips the Options
+// Input tab's key names (StringTable.rsc:gameKeys). The rotate arrows are ext.terrain_edit's Undo / Redo glyphs
+// (ExtensionsSprites.rsc: ExtensionsGlyph_terrain_undo / _redo, our own sprites; the owner's ruling of 2026-10-26).
 //
 // Controller: src/ext/touch_pointer/touch_pointer.cpp. It sizes and places every holder and button from
 // touch_pointer_math.h LayoutBar and hides the buttons the current tool has no use for. Input is not read from these
@@ -85,8 +86,16 @@ RibbonDescription ribbonPointerRotateRight
 	ElementDescription _elements [ "imagePointerHouseRight" "imagePointerRotateRightArrow" ]
 }
 
-ImageDescription imagePointerRotateLeftArrow : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ArrowLeft"; }
-ImageDescription imagePointerRotateRightArrow : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ArrowRight"; }
+// Rotate left: the undo arrow (a counter-clockwise turn) before the house; rotate right: the house before the redo
+// arrow. touch_pointer.cpp sizes each pair to fit the button with a margin (the house overlapped the edge in P11).
+ImageDescription imagePointerRotateLeftArrow : "imagePointerGlyph"
+{
+	Alignment _alignment = MidCenter; SpriteSheet _spriteSheet = "ExtensionsSprites.rsc"; String _spriteName = "ExtensionsGlyph_terrain_undo";
+}
+ImageDescription imagePointerRotateRightArrow : "imagePointerGlyph"
+{
+	Alignment _alignment = MidCenter; SpriteSheet _spriteSheet = "ExtensionsSprites.rsc"; String _spriteName = "ExtensionsGlyph_terrain_redo";
+}
 ImageDescription imagePointerHouseLeft : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ToolbarHousing"; }
 ImageDescription imagePointerHouseRight : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ToolbarHousing"; }
 
@@ -103,6 +112,8 @@ RibbonDescription ribbonPointerFlip
 	ElementDescription _elements [ "imagePointerFlipLeft" "imagePointerFlipRight" ]
 }
 
+// Change structure model: two small arrows (P11's look, kept by the owner's ruling of 2026-10-26: the two rotate
+// arrows here read as "rotate both ways").
 ImageDescription imagePointerFlipLeft : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ArrowLeftSmall"; }
 ImageDescription imagePointerFlipRight : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ArrowRightSmall"; }
 
