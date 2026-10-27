@@ -435,7 +435,15 @@ slop (a slider drag starts after 13 px); hotkeys ignored during a dialog press o
 retail's stored-position drift on desktop; a dragged panel now stops at the safe margin; the Audio page's empty
 scroll-bar track; the cap applies to every tall window (New Game still shrinks to 0.47, nothing in it scrolls).
 
-**Next: the owner's real-finger test of the P11b apk; PR #60 then the P11b PR.**
+**RULED 2026-10-26 (owner, real-finger test of the P11b apk):** placement icons good, flicker gone, touch pointer
+combo fine (Off stays), slider slop fine, hotkey ignore good, drift fix good -> a `fix.*` row for desktop YES;
+BUG: opening Options several times in a row breaks its scaling; tooltips work but sit under the finger -> they float
+ABOVE it by about the lift distance (160 px); camera ROTATE ramp 0 (no ramp, too laggy); pan ramp kept but ~100 ms;
+the D-pad is not "smooth": it locks to the cardinals -> analogue direction from the finger's position on the pad
+(a circle of directions, the rectangular graphic stays); ZOOM smooth and continuous with zero delay (no steps);
+the safe margin can shrink ~25 % on the edges.
+
+**Next (P11c, three opus agents stacked on `android/p11b`):** the rulings above as code.
 
 ## 3. Rules that hold (do not relax)
 
