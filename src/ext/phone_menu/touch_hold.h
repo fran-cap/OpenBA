@@ -11,7 +11,20 @@
 // building costs of the sub-toolbar), and the lift hides it (the existing rule). A real mouse,
 // and the desktop, keep retail's rule. Seam: UI::UserInterface::_extHoverWhileDown, installed by
 // phone_menu.cpp Sync (null under the faithful profile). Main thread.
+//
+// P11c (docs/android/P11C_TOOLTIP.md, the owner's ruling of 2026-10-26): the tooltip opened that way
+// sat where retail puts every tooltip -- its bottom-left on the pointer (BeginToolTip 0x180120a27 and
+// the MOVE arm of Element::Update, SetUpperLeft(x, y - h)) -- under the finger, unreadable. While the
+// pointer is a touch, PlaceHeldToolTip lays the tooltip out about the lift distance ABOVE the finger
+// instead (ext.touch_pointer_lift with that row on, else 160 device pixels), inside the safe area,
+// and flips it below the finger only when there is no room above (hold_math.h PlaceHoldTip). It is the
+// ext placement point (UserInterface::_extDialogPlace, kExtPlaceLayout), called by phone_menu.cpp Place
+// after ext.touch_mode's own arm, so a tooltip of the scaled toolbar is placed by it too. Retail's
+// upper-left is left as SetUpperLeft stored it; the layout rectangle is offset from it. A real mouse,
+// and the desktop, keep retail's placement.
 // ============================================================================
+
+#include <cstdint>
 
 namespace UI {
 class DialogInstance;
@@ -22,6 +35,13 @@ namespace PhoneMenu {
 
 // UI::UserInterface::_extHoverWhileDown.
 bool HoverWhileFingerDown(const UI::DialogInstance* dialog);
+
+// UI::UserInterface::_extDialogPlace's tooltip arm (P11c): true when `dialog` is the tooltip up, the row
+// is on and the pointer is a touch, at kExtPlaceLayout (`rect` written: the tooltip above the finger)
+// and at kExtPlaceUpperLeft (`rect` left as retail's bounds, so SetUpperLeft keeps the pointer's
+// upper-left and does not move the laid-out tooltip back).
+bool PlaceHeldToolTip(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
+                      int32_t* rect);
 
 }  // namespace PhoneMenu
 }  // namespace Ext
