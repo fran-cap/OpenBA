@@ -67,6 +67,8 @@
 #include "Game/GameSettings.h"          // g_gameSettings->autoPause (Update)
 #include "showroom.h"                   // HARNESS: Showroom_Enabled (Update, the paused arm)
 #include "ext/toolbar/toolbar.h"         // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTHOSTS.md): RestoreWindow
+#include "ext/registry.h"                // Ext::Ext().touch_pointer (the Update seam below)
+#include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): HoldToolAim
 
 // ============================================================
 // GetDescPage (0x140011320)
@@ -900,8 +902,14 @@ int32_t PlayerToolManager::Update(System::Time time, bool inputFlag) {
         return 1;
     }
 
-    UpdateHotkeys(inputFlag);                       // 0x1400ff6e0 (Game/camera_input.cpp)
+    // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md §5): while ext.touch_pointer's finger presses a dialog
+    // with a placement / drag tool aiming, the tool's hotkeys are skipped and it updates as if no dialog held the
+    // mouse (its cursor ray kept on the aim), so its ghost stays where it was aimed while the cursor is over the
+    // dialog for the click. Row off (always under the faithful profile): retail.
+    const bool holdAim = Ext::Ext().touch_pointer && Ext::TouchPointer::HoldToolAim(currentTool.Get());
+    if (!holdAim)
+        UpdateHotkeys(inputFlag);                   // 0x1400ff6e0 (Game/camera_input.cpp)
     UpdateCamera(inputFlag, time._ticks);           // 0x1400feec0
-    currentTool.Get()->Update(&time, inputFlag);    // slot 7, +0x38
+    currentTool.Get()->Update(&time, holdAim || inputFlag);   // slot 7, +0x38
     return currentTool.Get()->GetCursor();          // slot 12, +0x60
 }

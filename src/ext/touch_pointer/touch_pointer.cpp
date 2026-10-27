@@ -46,6 +46,7 @@
 #include "Player/PlacementTool.h"
 #include "Player/exe_bodies.h"   // PlayerRay_GetMouseRay_1005a0: the tools' own cursor ray
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -175,6 +176,30 @@ bool g_sinkOn = false;
 double g_mouseAt = -1.0e9;  // the last real mouse event
 PointerState g_lastWorld;   // where the cursor last was over the world
 bool g_haveWorld = false;
+
+// P11b (the owner's ruling, 2026-10-26): a finger on a dialog while a placement / drag tool aims keeps the tool's
+// ghost where it was. The cursor has to go to the finger for the dialog's click, and retail's tool hides its ghost
+// while the cursor is over a dialog (PlacementTool::Update's inputFlag 0), so the ghost blinked out and back on a tap
+// of the toolbar. From the press until the cursor is back on the world (the release's held polls drained),
+// PlayerToolManager::Update skips the tool's hotkeys and update for that tool (HoldToolAim): its ghost, cost bar and
+// a drag tool's single-click state stay as they were. Another tool selected by the tap ends it (retail's
+// SelectTool clears the old tool's ghost).
+bool g_uiHold = false;
+const Tool* g_uiHoldTool = nullptr;
+// The same hold for the tools' cursor ray (ToolCursor), which the draw may run on the render thread: the world
+// cursor the tool keeps seeing, packed x << 16 | y (engine pixels).
+std::atomic<bool> g_rayHeld{false};
+std::atomic<uint32_t> g_rayCursor{0};
+
+void SetUiHold(bool on) {
+    g_uiHold = on;
+    if (on) {
+        const uint32_t x = static_cast<uint16_t>(static_cast<int16_t>(g_lastWorld.x));
+        const uint32_t y = static_cast<uint16_t>(static_cast<int16_t>(g_lastWorld.y));
+        g_rayCursor.store(x << 16 | y, std::memory_order_relaxed);
+    }
+    g_rayHeld.store(on, std::memory_order_release);
+}
 
 // Tap twice and tap-to-cycle.
 double g_lastTapAt = -1.0e9;
@@ -449,6 +474,7 @@ void OnFinger(const Platform::Touch::Event& e) {
         g_mouseAt = now;
         if (g_owns && g_fingers.empty()) {
             g_owns = false;
+            SetUiHold(false);
             std::fprintf(stderr, "[TouchPointer] mouse: the pointer goes back to the mouse\n");
         }
         return;
@@ -475,6 +501,10 @@ void OnFinger(const Platform::Touch::Event& e) {
             std::fprintf(stderr, "[TouchPointer] down %.0f,%.0f: %s\n", e.x, e.y, kRoleNames[static_cast<int32_t>(f.role)]);
             g_fingers.push_back(f);
             Finger& p = g_fingers.back();
+            if (p.role == Role::Ui && g_haveWorld && (kind == ToolKind::Place || kind == ToolKind::Drag)) {
+                g_uiHoldTool = CurrentTool();
+                SetUiHold(true);   // the tool's aim is kept until the cursor is back on the world
+            }
             if (p.role == Role::Ui || p.role == Role::Plain) Move(p.x, p.y, true);
             if (p.role == Role::Aim) AimAt(p);
             return;
@@ -647,11 +677,21 @@ void AfterUpdate(Input::Device& dev) {
         g_actions.clear();
         g_gestureActive = false;
         g_owns = false;
+        SetUiHold(false);
         std::fprintf(stderr, "[TouchPointer] %s\n", on ? "fingers taken (touch-to-mouse off)" : "fingers released");
     }
     if (!on || !g_owns) return;
 
     const PointerState s = g_queue.Pop();
+    // The UI hold ends on the poll that shows the cursor back on the world: no finger on a dialog any more and
+    // the release's queued states shown (this state is the last).
+    if (g_uiHold && g_queue.Empty()) {
+        bool uiFinger = false;
+        for (const Finger& f : g_fingers) {
+            if (f.role == Role::Ui) uiFinger = true;
+        }
+        if (!uiFinger) SetUiHold(false);
+    }
     const int16_t x = static_cast<int16_t>(s.x);
     const int16_t y = static_cast<int16_t>(s.y);
     const int16_t dx = static_cast<int16_t>(x - g_prev[kMouseX]);
@@ -928,6 +968,35 @@ void Sync() {
 
 bool Shown() {
     return g_barDialog != nullptr || g_markerDialog != nullptr;
+}
+
+void ToolCursor(int16_t& x, int16_t& y) {
+    if (!g_rayHeld.load(std::memory_order_acquire)) return;
+    const uint32_t packed = g_rayCursor.load(std::memory_order_relaxed);
+    x = static_cast<int16_t>(packed >> 16);
+    y = static_cast<int16_t>(packed & 0xFFFFu);
+}
+
+bool ToolAimHeld(const Tool* current) {
+    return g_uiHold && Ext().touch_pointer && g_owns && current != nullptr && current == g_uiHoldTool;
+}
+
+bool HoldToolAim(const Tool* current) {
+    static int32_t s_frames = 0;
+    if (!g_uiHold) {
+        if (s_frames > 0) std::fprintf(stderr, "[TouchPointer] tool aim held %d frame(s)\n", s_frames);
+        s_frames = 0;
+        return false;
+    }
+    if (!Ext().touch_pointer || !g_owns || current == nullptr || current != g_uiHoldTool) {
+        SetUiHold(false);   // the mouse took the pointer, the row went off, or the tap selected another tool
+        std::fprintf(stderr, "[TouchPointer] tool aim hold ended after %d frame(s): %s\n", s_frames,
+                     current != g_uiHoldTool ? "another tool" : "the pointer left the fingers");
+        s_frames = 0;
+        return false;
+    }
+    ++s_frames;
+    return true;
 }
 
 void GameFrame() {
