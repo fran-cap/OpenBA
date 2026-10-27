@@ -328,6 +328,10 @@ void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned) {
     g_nextSeen = (g_nextSeen + 1) % kMaxSeen;
 }
 
+bool TouchKnown(const UI::DialogInstance* dialog) {
+    return dialog != nullptr && FindSeen(dialog) != nullptr;
+}
+
 int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
     UI::Element* root = dialog->_root.Get();
     // The slider factor follows the row (one value for every slider).
@@ -336,10 +340,10 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
         g_sliderScale = scale;
         g_sliderResize = 32;   // the next few frames' walks (a few dialogs a frame)
     }
-    // A dialog is walked once the place hook has seen it (from its second frame: the walk runs at the
-    // first dialog's layout, before a newly opened one is placed), so a dialog ext.touch_mode places (its
-    // toolbar, sub-toolbars, event notices and camera cluster, sized for a finger by that row) is never
-    // touched.
+    // A dialog is walked once the place hook has seen it, so a dialog ext.touch_mode places (its toolbar,
+    // sub-toolbars, event notices and camera cluster, sized for a finger by that row) is never touched. A
+    // newly opened one is walked at its first placement or layout (touch_fit.cpp TouchFirstPlace, P11b),
+    // then here every frame.
     const Seen* seen = FindSeen(dialog);
     int32_t changes = 0;
     if (seen != nullptr && !seen->touchOwned) changes = Walk(root, on, Place());
