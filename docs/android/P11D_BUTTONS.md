@@ -78,11 +78,15 @@ The modal was shown on the phone by a temporary, uncommitted hack (`SaveLoadDial
    (only SaveLoad's `mainGroup` is known to have one). A dialog whose frame minimum is larger than its list
    would also shrink by the cap's amount, never below its content.
 
-## 6. Also seen (for p11d-firstframe, not changed here)
+## 6. The first-frame log lines (checked by p11d-firstframe)
 
-Both dialogs still log `larger than the safe area: shown at UI scale ...` on their first placement, then the
-cap, then `back at the interface's scale`: the first frame is drawn fitted, the second at the player's
-scale. That is the first-frame resize the other P11d lane owns (touch_fit.cpp TouchFirstPlace).
+Both dialogs log `larger than the safe area: shown at UI scale ...`, then the cap, then `back at the
+interface's scale` when they open. p11d-firstframe traced every layout and draw on the S25 with these two
+commits cherry-picked on its branch: all three lines print inside the frame before the dialog's first layout
+(the head dialog's DecideScale judges the new dialog at retail size, then TouchFirstPlace decides again), and
+nothing is drawn at the smaller scale. Load (179 15 803 438, k 1), Mods (159 15 823 438, k 1), Options and
+Fixes and Extensions each show one rectangle and one scale from the first drawn frame. No visible resize is
+left with both branches merged.
 
 ## 7. Verified
 
