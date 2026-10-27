@@ -21,6 +21,9 @@
 //       UI 42), which the scale-down shrank (measured at UI 42: the Fixes and Extensions dialog was
 //       drawn at 0.78 of its size, Options at 0.93). A cap that takes nothing off (the height is held
 //       by something that does not scroll) is dropped. Row off: each list's description height again.
+//       P11d: the tallest list is read from the height it asks for (a list on a hidden page, Mod.rsc's
+//       Browse page, is never laid out), and a frame between a capped list and the window's root that
+//       has a minimum height of its own (SaveLoad.rsc's mainGroup) loses what the cap took off the list.
 // Every change is on the element INSTANCE (Element::_description holds retail's values); main thread,
 // from touch_size.cpp's walk (touch_fit.cpp TouchFrame, once a frame per UserInterface).
 // ============================================================================
