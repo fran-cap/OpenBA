@@ -24,6 +24,7 @@
 #include "ext/menu_entry/menu_entry.h"             // ext.menu_entry: the mod scan and remount seams
 #include "ext/phone_menu/phone_menu.h"             // ext.phone_menu: the menu safe area and backdrop seam
 #include "ext/fps_cap/fps_cap.h"                     // ext.fps_cap: the frame limiter's settings cap
+#include "ext/touch_pointer/touch_pointer.h"         // ext.touch_pointer: the Input::Device::_extAfterUpdate seam
 #include "ext/decode_ahead/decode_ahead.h"       // ext.decode_ahead: the CompressedStream decode seam
 #include "ext/async_gpu_create/async_gpu_create.h"   // ext.async_gpu_create: the backend's request follows the toggle
 #include "ext/compress_ao/compress_ao.h"   // ext.compress_ao: the backend's request + the derived cache, at boot
@@ -171,6 +172,8 @@ void InitFromSettings() {
     Ext::PhoneMenu::KeepVSyncOnFixedSurface();
     // ext.fps_cap (class A, live): the frame limiter's settings cap (src/app/frame_limiter.h).
     Ext::FpsCap::Sync();
+    // ext.touch_pointer (class A, live): the Input::Device::_extAfterUpdate seam (P11_TOUCH_POINTER.md).
+    Ext::TouchPointer::Sync();
     // ext.ambient_occlusion (class A, live): the main depth's format + the per-frame arm.
     Ext::AmbientOcclusion::Sync();
     // ext.better_trees (class A, live): the VideoDX11::g_extFoliageAA seam + the mode, and the

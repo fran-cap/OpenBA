@@ -122,6 +122,7 @@ struct Extensions {
     bool phone_menu = false; // class A, live: src/ext/phone_menu/, seam UI::UserInterface::_extDialogPlace + the Options UI-scale slider (docs/extensions/handins/PHONEMENU.md)
     bool fps_cap = false; // class A, live: src/ext/fps_cap/, FrameLimiter::SetSettingsCap (src/app/frame_limiter.h; docs/android/P8_INPUT_OPTIONS.md)
     bool touch_mode = false; // class A, live: src/ext/touch_mode/, seam UI::UserInterface::_extDialogScale + ext.phone_menu's place hook + PlayerToolManager::UpdateCamera (docs/android/TOUCH_MODE.md)
+    bool touch_pointer = false; // class A, live: src/ext/touch_pointer/, seams Input::Device::_extAfterUpdate + Platform::Touch::SetSink + ext.touch_mode's camera hold and place hook (docs/android/P11_TOUCH_POINTER.md)
 #ifdef BANISHED_UNIT_TEST
     // tests/unit/ext_registry_test.cpp only: one extension per class, so the
     // lock semantics are tested before a real extension exists. Not in the exe.
@@ -150,6 +151,9 @@ struct Values {
     int32_t texture_quality_drop = 0; // ext.texture_quality_drop 0..1 (owner texture_quality): the top mip levels a qualifying texture is made without, 0 = Full (the default: the row or profile=all alone drops nothing), 1 = Half; an older 2 (Quarter, removed by ruling) clamps to 1; read once at boot (TEXQUALITY.md)
     int32_t fps_cap_rate = 60; // ext.fps_cap_rate 30 | 60 | 90 | 120 (owner fps_cap): the menu's and the game's frame-rate ceiling while the row is on; 60 is the phone's ruled default (docs/android/P8_INPUT_OPTIONS.md)
     int32_t touch_mode_toolbar_scale = 200; // ext.touch_mode_toolbar_scale 100 | 125 | 150 | 175 | 200 (owner touch_mode): the in-game toolbar's own scale in percent, shrunk to fit beside the control cluster (docs/android/TOUCH_MODE.md)
+    int32_t touch_pointer_lift = 160; // ext.touch_pointer_lift 0 | 80 | 120 | 160 | 200 | 240 (owner touch_pointer): the aim point's height above the finger, device pixels (docs/android/P11_TOUCH_POINTER.md)
+    int32_t touch_pointer_pick_radius = 50; // ext.touch_pointer_pick_radius 0 | 25 | 50 | 75 | 100 (owner touch_pointer): the pick snap's radius, device pixels
+    int32_t touch_pointer_tap_twice = 0; // ext.touch_pointer_tap_twice 0..1 (owner touch_pointer): a second tap near the first places the aimed building
     int32_t derived_cache_mb = 4096; // ext.derived_cache_mb 256..65536 (owner compress_ao, the cache's first user): the derived-data cache's cap in MB (COMPRESSAO.md)
 };
 

@@ -73,3 +73,13 @@ Capture: ...OpenBAActivity` while the button is held, `None` after the release.
 
 `adb shell input tap` is a touch, which the game sees as a left click only when held (a 1-frame tap is
 missed by the polled mouse): `adb shell input swipe X Y X Y 200` clicks.
+
+## Multi-touch without fingers: a uinput touchscreen
+
+`adb shell uinput` also makes a direct multi-touch device (`INPUT_PROP_DIRECT`, `ABS_MT_SLOT`, `ABS_MT_TRACKING_ID`,
+`ABS_MT_POSITION_X / Y`, `BTN_TOUCH`); Android maps it to the built-in display in the panel's natural (portrait)
+axes, so a landscape point (x, y) on the S25 is sent as (1079 - y, x). `tools/android_multitouch.py` writes the
+script: taps, one-finger drags (with a hold before the lift) and two-finger pinch / spin / pan, each frame 16 ms
+apart. SDL delivers it as `SDL_EVENT_FINGER_*` with distinct finger ids, the same path as real fingers
+(`docs/android/P11_TOUCH_POINTER.md` used it for every gesture). Push the file to `/data/local/tmp/` with
+`MSYS_NO_PATHCONV=1`; the device exists only while the command runs.

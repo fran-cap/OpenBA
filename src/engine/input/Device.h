@@ -131,6 +131,10 @@ public:
     // the name door, the address door and this member are the same bytes.
     // PUBLIC while foreign readers still reach the row through the doors.
     static Device* _singleton;
+    // EXT SEAM (NOT RETAIL, DESIGN.md hook rule 5; docs/android/P11_TOUCH_POINTER.md): called at the
+    // end of Update, after every UpdateState, when set (ext.touch_pointer's pointer writer). Null by
+    // default and under the faithful profile.
+    static void (*_extAfterUpdate)(Device& device);
     // By-value `System::Time` return: a hidden RETSLOT export (B37_SLOTS
     // sec. 4). A door would keep `(this, ret, ...)` and placement-new it.
     System::Time PressedTime(InputDevice device, int32_t joystick, int32_t input) const; // 0x1800e0e20  not ported

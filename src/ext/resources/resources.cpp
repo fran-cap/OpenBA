@@ -250,6 +250,7 @@ void InitText() {
     Register("Dialog/ItemPriorityPage", &ProvideText, nullptr);
     Register("Dialog/TerrainEditPage", &ProvideText, nullptr);
     Register("Dialog/TouchControls", &ProvideText, nullptr);
+    Register("Dialog/TouchPointer", &ProvideText, nullptr);
 }
 
 int TextObjectCount() {

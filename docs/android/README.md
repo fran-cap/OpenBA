@@ -119,7 +119,9 @@ off is Options > Shadow Quality = None, `VideoShaderDetail=0`, `P8_SHADOWS_RELEA
 `ext.max_shadow_res` off, `ext.fps_cap` on at `ext.fps_cap_rate=60` (P8, ruled: the menu and the game
 paced to 60 on the 120 Hz panel), `ext.touch_mode` on at `ext.touch_mode_toolbar_scale=200` (P10, ruled: a
 camera pad, rotate and zoom buttons bottom-left, the toolbar at its own scale beside them,
-`docs/android/TOUCH_MODE.md`), and `ext.phone_menu` on (`app_android.cpp`): on the phone's 19.5:9 screen the
+`docs/android/TOUCH_MODE.md`), `ext.touch_pointer` on (P11, ruled: fingers aim the tools, an action bar places /
+rotates / cancels, two fingers pan / pinch / spin, a tap picks the nearest; `docs/android/P11_TOUCH_POINTER.md`; its
+keys `ext.touch_pointer_lift`, `_pick_radius`, `_tap_twice` keep their defaults), and `ext.phone_menu` on (`app_android.cpp`): on the phone's 19.5:9 screen the
 main menu's logo sits whole and centred at the top and the menu's buttons form one row of square buttons
 across the middle (owner's ruling, P8 round 2), inside a 4.5 % safe area clear of the
 rounded corners and the camera cut-out, the in-game interface (the toolbar and event notices bottom-right,

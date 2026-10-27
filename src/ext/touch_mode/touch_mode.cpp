@@ -7,6 +7,7 @@
 
 #include "ext/touch_mode/touch_mode.h"
 #include "ext/touch_mode/touch_math.h"
+#include "ext/touch_pointer/touch_pointer.h"   // the chained place call (P11)
 
 #include "ext/registry.h"
 #include "ext/phone_menu/phone_math.h"   // SafeMargin: the cluster keeps ext.phone_menu's safe area
@@ -76,7 +77,8 @@ bool g_activeBefore[2] = {false, false};
 float g_fingerZoom = 0.0f;
 
 bool Active(const CameraHold& h) {
-    return h.panX != 0 || h.panY != 0 || h.rotate != 0 || h.zoom != 0 || h.zoomSteps != 0.0f;
+    return h.panX != 0 || h.panY != 0 || h.rotate != 0 || h.zoom != 0 || h.zoomSteps != 0.0f || h.dragX != 0.0f ||
+           h.dragY != 0.0f || h.yawDegrees != 0.0f;
 }
 
 // The cluster's held control and its zoom repeat.
@@ -344,6 +346,8 @@ float Scale(const UI::DialogInstance* dialog) {
 }
 
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect) {
+    // ext.touch_pointer's action bar and aim marker (docs/android/P11_TOUCH_POINTER.md), whatever this row's state.
+    if (TouchPointer::Place(point, dialog, width, height, rect)) return true;
     if (!Ext().touch_mode || dialog == nullptr) return false;
     if (point == UI::UserInterface::kExtPlaceBackdrop) return false;
     // The game's own interface only (the front end and the loading screens have their own).
@@ -484,6 +488,18 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir) {
     if (panX == 0.0f) panX = static_cast<float>(h.panX);
     if (panY == 0.0f) panY = static_cast<float>(h.panY);
     yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
+    if (src == 1) {
+        // ext.touch_pointer's two fingers: the turn as given, and the ground under the fingers following them.
+        yaw += h.yawDegrees;
+        PlayerController* pc = loop != nullptr ? loop->m_playerController : nullptr;
+        if (pc != nullptr && (h.dragX != 0.0f || h.dragY != 0.0f)) {
+            float dx = 0.0f;
+            float dy = 0.0f;
+            FingerDragToWorld(h.dragX, h.dragY, yaw, pc->distance, dx, dy);
+            pc->target.x += dx;
+            pc->target.y += dy;
+        }
+    }
     if (zoomDir == 0) {
         if (src == 0 && h.zoom != 0) {
             zoomDir = h.zoom;
@@ -498,6 +514,10 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir) {
     g_activeBefore[1] = g_activeNow[1];
     g_activeNow[0] = false;
     g_activeNow[1] = false;
+}
+
+int32_t Cell() {
+    return g_cluster.cell;
 }
 
 void BarRect(int32_t* rect) {

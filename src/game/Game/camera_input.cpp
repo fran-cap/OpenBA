@@ -52,6 +52,7 @@
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera's zoom
 #include "ext/better_camera/better_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera's zoom range + steady tilt
 #include "ext/touch_mode/touch_mode.h"   // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's camera controls
+#include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md): ext.touch_pointer's bar
 
 extern "C" bool StartTown_GetSpawnTile(int* x, int* y);   // starttown.cpp (BANISHED_CAMERA_PIN=town)
 
@@ -174,8 +175,12 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     }
     // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's held control (pad, rotate,
     // zoom) drives the same locals the keys above drive; a key that set one keeps it.
-    if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
+    // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md): ext.touch_pointer's two-finger camera
+    // reaches the same locals through touch_mode's hold, and its action bar follows the current tool.
+    if (Ext::Ext().touch_mode || Ext::Ext().touch_pointer || Ext::TouchMode::Shown())
         Ext::TouchMode::CameraInput(dt, yaw, panX, panY, zoomDir);
+    if (Ext::Ext().touch_pointer || Ext::TouchPointer::Shown())
+        Ext::TouchPointer::GameFrame();
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): while
     // ext.eye_camera follows a citizen the zoom moves the eye's own distance

@@ -205,7 +205,9 @@ namespace {
 bool g_pointerTouch = false;
 
 void NotePointerSource(const SDL_Event& ev) {
-    if (ev.type == SDL_EVENT_MOUSE_MOTION) {
+    if (ev.type == SDL_EVENT_FINGER_DOWN || ev.type == SDL_EVENT_FINGER_UP || ev.type == SDL_EVENT_FINGER_MOTION) {
+        g_pointerTouch = true;   // ext.touch_pointer's sink turns SDL's touch-to-mouse emulation off
+    } else if (ev.type == SDL_EVENT_MOUSE_MOTION) {
         g_pointerTouch = ev.motion.which == SDL_TOUCH_MOUSEID;
     } else if (ev.type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev.type == SDL_EVENT_MOUSE_BUTTON_UP) {
         g_pointerTouch = ev.button.which == SDL_TOUCH_MOUSEID;
@@ -231,7 +233,10 @@ bool Pump(Window::MessageHandler handler) {
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
         Input::PreprocessPumpEvent(&ev);
-        NotePointerSource(ev);   // NOT RETAIL (P11): Input::PointerIsTouch
+        NotePointerSource(ev);   // NOT RETAIL (P11): Input::PointerIsTouch (before the sink eats fingers)
+        // NOT RETAIL (platform_touch.h, docs/android/P11_TOUCH_POINTER.md): with ext.touch_pointer's
+        // sink set, the finger events are its own. No sink: false, retail's path.
+        if (Touch::Sdl::ObservePumpEvent(ev)) continue;
 #if BANISHED_TWEAK_OVERLAY
         // The toggle key, and while the overlay is open its mouse / keyboard events (the game sees none).
         if (Diag::TweakOverlay::OnSdlEvent(ev)) continue;

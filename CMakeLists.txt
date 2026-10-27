@@ -202,7 +202,8 @@ set(EXT_RSC_SOURCES
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/RestrictedFoodsPage.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ItemPriorityPage.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TerrainEditPage.rsc
-  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TouchControls.rsc)
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TouchControls.rsc
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/TouchPointer.rsc)
 set(EXT_RSC_GEN_DIR ${CMAKE_BINARY_DIR}/gen)
 set(EXT_RSC_GEN ${EXT_RSC_GEN_DIR}/ext_rsc_text.h)
 find_package(Python3 COMPONENTS Interpreter QUIET)
