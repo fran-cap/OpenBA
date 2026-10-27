@@ -57,3 +57,11 @@ UNIT_TEST(ext_phone_size_list_cap_grow) {
     CHECK(PM::GrowCap(0, 80, 318) == 0);       // no cap in force
     CHECK(PM::GrowCap(258, 0, 318) == 258);
 }
+
+// P11d (touch_scroll.cpp FitFrames): a frame with its own minimum around a capped list follows the cap.
+UNIT_TEST(ext_phone_size_list_frame_min) {
+    CHECK(PM::FrameMinHeight(360, 0) == 360);     // SaveLoad.rsc mainGroup, no cap: retail's
+    CHECK(PM::FrameMinHeight(360, 35) == 325);    // its 344-unit list capped at 309 (the S25 at UI 42)
+    CHECK(PM::FrameMinHeight(360, 400) == 0);     // never negative
+    CHECK(PM::FrameMinHeight(360, -5) == 360);    // a list grown past its description: retail's
+}

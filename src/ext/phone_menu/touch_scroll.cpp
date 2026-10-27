@@ -231,6 +231,30 @@ int32_t NaturalHeight(const UI::ContainerElement* list) {
     return retail;
 }
 
+// P11d: a frame around a list that retail gives a minimum height of its own (SaveLoad.rsc's mainGroup: 360
+// units around its 344-unit save list, 8 + 8 padding) would hold the window at that height, and the cap would
+// take nothing off (it was dropped and the window shown at a fitted, smaller scale: the Save / Load / Cancel
+// buttons at 0.8 of their touch size on the S25). Each frame between the list and the window's root keeps
+// its description's minimum less what the cap took off the list (`taken`, 0 = retail's). It follows the cap,
+// not the laid-out list, so a page shown before its list (SaveLoad's "Please wait" while the saves are read)
+// is already the capped height. Called only when the list's cap changes (ApplyCap); a minimum above the
+// description's (set at run time by its owner) is left alone. Row off: ApplyCap(0) puts retail's back.
+// Returns the frames changed.
+int32_t FitFrames(UI::Element* list, int32_t taken) {
+    int32_t changes = 0;
+    for (UI::Element* e = list->_parent; e != nullptr; e = e->_parent) {
+        const UI::ElementDescription* desc = e->_description;
+        if (desc == nullptr || desc->_minHeight <= 0) continue;
+        if (e->_minHeight > desc->_minHeight || e->_minHeight < 0) continue;
+        const int32_t want = FrameMinHeight(desc->_minHeight, taken);
+        if (e->_minHeight == want) continue;
+        e->_minHeight = want;
+        Dirty(e);
+        ++changes;
+    }
+    return changes;
+}
+
 // Every list of the window at `cap` (0: none, the description's height). Returns the lists changed.
 int32_t ApplyCap(Lists& lists, int32_t cap) {
     int32_t changes = 0;
@@ -239,6 +263,7 @@ int32_t ApplyCap(Lists& lists, int32_t cap) {
         const int32_t retail = RetailHeight(list);
         const int32_t want = cap > 0 && NaturalHeight(list) > cap ? cap : retail;
         if (list->_requestedHeight == want) continue;
+        changes += FitFrames(list, retail - want);
         list->_requestedHeight = want;
         Dirty(list);
         ++changes;
