@@ -45,5 +45,9 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on);
 // that row sizes for a finger itself).
 void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned);
 
+// Boot (phone_menu.cpp Sync): points UI::SliderElement::_extSpriteScale at the slider factor
+// (null under the faithful profile).
+void SyncTouchSize(bool faithful);
+
 }  // namespace PhoneMenu
 }  // namespace Ext

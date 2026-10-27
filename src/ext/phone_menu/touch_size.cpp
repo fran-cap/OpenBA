@@ -45,6 +45,7 @@
 #include "ui/ImageElement.h"
 #include "ui/ListElement.h"
 #include "ui/ScrollElement.h"
+#include "ui/SliderElement.h"
 #include "ui/SpinnerElement.h"
 #include "ui/TabElement.h"
 
@@ -56,6 +57,11 @@ namespace {
 // ButtonElement's child indices (buttonelement.cpp kChildLabel, checkelement.cpp kChildTick).
 constexpr int32_t kChildContent = 4;
 constexpr int32_t kChildTick = 5;
+
+// The slider factor UI::SliderElement::_extSpriteScale points at: kSliderSpriteFactor with the row on,
+// 1 (retail's sizes) off. When it changes, every slider walked over the next frames is sized again.
+int32_t g_sliderScale = 1;
+int32_t g_sliderResize = 0;
 
 // What kind of control a button-derived element is, which decides the axes it grows on.
 enum class Kind {
@@ -264,7 +270,12 @@ int32_t Walk(UI::Element* e, bool on, Place place) {
         return FitButton(static_cast<UI::ButtonElement*>(e), on && !place.fixedPage, place.title);
     }
     int32_t changes = 0;
-    if (e->IsA(UI::ListElement::TypeId())) {
+    if (e->IsA(UI::SliderElement::TypeId())) {
+        if (g_sliderResize > 0) {
+            e->SetNeedsSizeCalc();
+            ++changes;
+        }
+    } else if (e->IsA(UI::ListElement::TypeId())) {
         changes += FitListRows(static_cast<UI::ListElement*>(e), on && !place.fixedPage);
     } else if (IsScrollingList(e)) {
         place.fixedPage = false;
@@ -319,6 +330,12 @@ void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned) {
 
 int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
     UI::Element* root = dialog->_root.Get();
+    // The slider factor follows the row (one value for every slider).
+    const int32_t scale = on ? kSliderSpriteFactor : 1;
+    if (scale != g_sliderScale) {
+        g_sliderScale = scale;
+        g_sliderResize = 32;   // the next few frames' walks (a few dialogs a frame)
+    }
     // A dialog is walked once the place hook has seen it (from its second frame: the walk runs at the
     // first dialog's layout, before a newly opened one is placed), so a dialog ext.touch_mode places (its
     // toolbar, sub-toolbars, event notices and camera cluster, sized for a finger by that row) is never
@@ -326,7 +343,12 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
     const Seen* seen = FindSeen(dialog);
     int32_t changes = 0;
     if (seen != nullptr && !seen->touchOwned) changes = Walk(root, on, Place());
+    if (g_sliderResize > 0) --g_sliderResize;
     return changes;
+}
+
+void SyncTouchSize(bool faithful) {
+    ::UI::SliderElement::_extSpriteScale = faithful ? nullptr : &g_sliderScale;
 }
 
 }  // namespace PhoneMenu

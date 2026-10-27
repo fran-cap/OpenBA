@@ -25,7 +25,7 @@
 #include "ext/phone_menu/loading_screen.h"   // PlaceLoading (P9)
 #include "ext/phone_menu/touch_fit.h"
 #include "ext/phone_menu/touch_math.h"
-#include "ext/phone_menu/touch_size.h"   // TouchSeen (P11)
+#include "ext/phone_menu/touch_size.h"   // SyncTouchSize (P11)
 #include "ext/registry.h"
 #include "ext/touch_mode/touch_mode.h"   // ext.touch_mode places its dialogs first (docs/android/TOUCH_MODE.md)
 
@@ -577,6 +577,7 @@ void Sync() {
     const bool faithful = CurrentProfile() == Profile::Faithful;
     UI::UserInterface::_extDialogPlace = faithful ? nullptr : &Place;
     UI::UserInterface::_extBackdropOver = faithful ? nullptr : &BackdropOver;   // P9 (loading_screen.h)
+    SyncTouchSize(faithful);   // P11: the slider seam (touch_size.h)
 }
 
 void MenuOpened(const UI::Dialog* menu, const UI::Dialog* buildId, bool pause) {
