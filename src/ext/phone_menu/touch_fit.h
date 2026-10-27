@@ -17,7 +17,10 @@
 //   (d) the main and pause menus' backdrop gets its bottom border back (touch_math.h LowerBackdrop) and
 //       their version line moves down into it (LowVersionLayout, phone_menu.cpp);
 //   (e) P11: once a finger has lifted, no tooltip stays up (the owner's ruling; a real mouse keeps
-//       retail's hover tooltips): touch_fit.cpp FingerUpHidesToolTip.
+//       retail's hover tooltips): touch_fit.cpp FingerUpHidesToolTip;
+//   (f) P11d: a list widened by (a) inside a group hidden when its dialog opens (the Save and Load
+//       dialogs' save list, shown once the files are read) does not widen the dialog later: the group's
+//       parent is held at the width it has with the group shown from the dialog's first placement.
 // Every change is made on the element INSTANCE and undone from the element's own description
 // (Element::_description: retail's values) when the row is switched off; an element built without
 // a description is left alone. Main thread only, except (d), which runs on the UI's draw.
@@ -48,6 +51,8 @@ float FitDialogScale(const UI::DialogInstance* dialog);
 // Before, the walk ran only at the head dialog's layout for dialogs already seen, so a new dialog was laid
 // out once at retail's size and grew (and could be refitted) a frame later: an entity's panel, anchored
 // by its bottom above its building, moved by the growth (docs/android/P11B_DIALOG_SNAP.md).
+// P11d: (a), (b) and (f) here too, so a centred dialog (Options, Save, Load) is drawn at its final size
+// from its first frame (docs/android/P11D_FIRST_FRAME.md).
 void TouchFirstPlace(const UI::DialogInstance* dialog);
 
 // kExtPlaceBackdropLower for the main and pause menus (`rect`: the backdrop, answered with the extra

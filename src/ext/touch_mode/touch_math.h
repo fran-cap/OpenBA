@@ -115,6 +115,16 @@ float HeldZoomSteps(int32_t dir, float dt);
 // retail's 0.9 / 0.1 smoothing adds no lag at the press or the release (the zoom starts and stops with the finger).
 void ApplyHeldZoom(float steps, float stepDistance, float zMin, float zMax, float& target, float& distance);
 
+// P11d (docs/android/P11D_ZOOM.md; the owner's ruling of 2026-10-26: zoom in to about two houses on the screen): the
+// camera's near limit while the row is on, ext.touch_mode_zoom_min distance units (kZoomMinDefault), for every zoom
+// input of the frame (the zoom buttons, the pinch, a key or the wheel, so they agree). `zMin` is the frame's own
+// near limit (retail's 20 or ext.better_camera's 6): the nearer of the two wins; with the row off it is `zMin`
+// unchanged. Only the clamp moves: retail's normalised zoom ((target - 20) / 110) and the pitch blend and pan speed
+// that read it are retail's expressions, which carry on in a straight line below 20 (the tilt a little flatter,
+// the pan a little slower: P11D_ZOOM.md).
+constexpr int32_t kZoomMinDefault = 10;
+float NearZoomLimit(float zMin, bool rowOn, int32_t zoomMinKey);
+
 // P11b (docs/android/P11B_POINTER.md §4; the owner's ruling of 2026-10-26: the D-pad pan SMOOTH like the
 // two-finger pan): the pad's pan ramps its speed (the rotate buttons did too until P11c: the owner's ruling of
 // 2026-10-26 took the rotate ramp out, full speed on the press). Step(held, dt) returns the gain

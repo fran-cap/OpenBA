@@ -37,5 +37,11 @@ int32_t GrowCap(int32_t cap, int32_t slack, int32_t natural) {
     return want >= natural ? 0 : want;
 }
 
+int32_t FrameMinHeight(int32_t retailMin, int32_t taken) {
+    if (taken <= 0) return retailMin;
+    const int32_t want = retailMin - taken;
+    return want > 0 ? want : 0;
+}
+
 }  // namespace PhoneMenu
 }  // namespace Ext

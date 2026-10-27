@@ -49,11 +49,13 @@ bool Shown();
 
 // PlayerToolManager::UpdateCamera, after the keys set the locals and before ext.eye_camera's zoom:
 // the held control (or the touch_pointer hold) assigns the pan axes as the keys do, turns the yaw
-// at retail's key rate and zooms (the pinch in steps, the zoom buttons continuously). Opens / closes the cluster with the row and the toolbar.
+// at retail's key rate and zooms (the zoom buttons and, P11d, the pinch continuously). Opens / closes the cluster with the row and the toolbar.
 // P11b: the pad's pan ramps in and out (P11c: the rotate buttons do not) (touch_math.h SpeedRamp); `panGain` (the caller's 1.0)
 // is set to the pan's ramp while the pad drives the pan axes, and multiplies retail's pan speed.
 // P11c: a held zoom button zooms continuously: `heldZoom` (the caller's 0) is set to this frame's zoom in retail's
 // steps (+ in, zoomDir's sign; touch_math.h HeldZoomSteps), which the caller applies with ApplyHeldZoom.
+// P11d: the pinch's fractional steps are added to `heldZoom` too (no longer whole zoomDir steps); the caller's near
+// limit is touch_math.h NearZoomLimit (ext.touch_mode_zoom_min).
 void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain, float& heldZoom);
 
 // The camera hold of a source: the cluster's pad (Pad) or the later touch_pointer extension's

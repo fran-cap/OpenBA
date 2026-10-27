@@ -471,7 +471,29 @@ D-pad feels good. Still open: Options, and the Save and Load dialogs, RESIZE the
 (the first-frame rule does not reach them); the Mods menu's buttons are NOT scaled, nor the Save / Load / Cancel
 buttons (the touch size misses them); the camera should zoom IN closer, to about the size of two houses.
 
-**Next (P11d, three opus agents stacked on `android/p11c`):** the three items above as code.
+### 2.13 Android P11d outcome (2026-10-26 night, three opus worktree agents on `android/p11d`, stacked on PR #62)
+
+All three §2.12 items are code (`docs/android/P11D_FIRST_FRAME.md`, `P11D_BUTTONS.md`, `P11D_ZOOM.md`); DX11 gate
+PASS, resave PASS == golden, unit 1553/0/0; the P11d debug apk is on the S25.
+- **First frame:** Options grew 24 units on frame 2 (the scroll frames added at first placement brought bars the
+  thickening pass only reached a frame later); Save / Load widened ~230 ms after opening (they open on a hidden
+  "Please wait" group whose list, with the 4x bar, is wider than retail's page). The bar pass runs at first
+  placement and a thickened list inside a hidden group is measured as shown; its page holds that width. Every dialog
+  traced holds one rect / scale from its first drawn frame.
+- **Buttons:** the Mods and Save / Load dialogs were drawn SHRUNK (k 0.79 / 0.91) because their lists were never
+  capped (the cap read an uninitialised height from a list on the hidden Browse page; SaveLoad's `mainGroup`
+  minimum height) -> capped, drawn at the player's scale, Ok / Cancel / Load / Delete 85 px. Yes / No modal already
+  right. New Game stays at 0.933 (78 px): no scrolling list to give height back.
+- **Zoom:** `ext.touch_mode_zoom_min` (6..20, settings.cfg only), every zoom input on the phone stops at the nearer of
+  it and the frame's limit; the pinch is continuous now; desktop / faithful untouched. Measured 8 = ~2.5 houses but a
+  roof behind the focus cuts open below ~10; RULED default **10** (~3.2 houses, roofs closed).
+
+Rulings owed: New Game at 0.933 (accept, or frame its page in a scrolling list with the last rows below the fold);
+the Mods `...` Details button is 36 high but retail-narrow (needs the Load Order column wider); below 20 the tilt
+flattens slightly and the pan slows (retail's formulas continuing; holding the 20 values is one line); the pinch
+still stops at 20 with touch_mode off and touch_pointer on (both are on in the Android seed).
+
+**Next: the owner's real-finger test of the P11d apk; PRs #60 -> #61 -> #62 -> #63 in order.**
 
 ## 3. Rules that hold (do not relax)
 

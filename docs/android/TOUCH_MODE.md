@@ -192,6 +192,9 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   `tools/ext_resources.sh` re-run so the kit cross-check unit test passes (the stale-kit trap).
 - `ext.touch_mode_toolbar_scale`: a value key in `kValueKeys`, owner `touch_mode`, discrete
   100 / 125 / 150 / 175 / 200, default 200 (the ruled "about 2x", fitted per §3).
+- `ext.touch_mode_zoom_min` (P11d, `docs/android/P11D_ZOOM.md`): a range value key, owner `touch_mode`, 6 .. 20,
+  default 10: the camera's near zoom limit while the row is on (retail's is 20), for every zoom input (the zoom
+  buttons, the pinch, keys, the wheel); `touch_math.h` `NearZoomLimit`. settings.cfg only, no Enhanced-tab entry.
 - **Enhanced tab** (`src/ext/touch_mode/enhanced_entry.cpp`, `Ext::EnhancedTab::TouchModeEntry()`), one
   combo built like Frame rate cap: "Touch controls": Off / Toolbar 100 % / 125 % / 150 % / 175 % / 200 %.
   Picking a size sets the value key and turns the row on. Labels are new keys in

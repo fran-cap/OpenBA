@@ -62,8 +62,10 @@ inline float PitchTarget(float manual, float normZ, float farMan, float farFlat,
 
 // The zoom target brought back into retail's range, applied every frame the row is off. The identity for 20 .. 130.
 // (Retail's own "a zero target is seeded from the distance" step runs before the seam, so a zero does not reach it.)
-inline float ClampToRetailRange(float zoomTarget) {
-    if (zoomTarget < kRetailZoomMin) return kRetailZoomMin;
+// `nearLimit` is retail's 20 except while ext.touch_mode brings the near limit closer (touch_math.h NearZoomLimit,
+// docs/android/P11D_ZOOM.md): then a target between that limit and 20 is kept.
+inline float ClampToRetailRange(float zoomTarget, float nearLimit = kRetailZoomMin) {
+    if (zoomTarget < nearLimit) return nearLimit;
     if (zoomTarget > kRetailZoomMax) return kRetailZoomMax;
     return zoomTarget;
 }
