@@ -25,6 +25,7 @@
 #include "ext/phone_menu/loading_screen.h"   // PlaceLoading (P9)
 #include "ext/phone_menu/touch_fit.h"
 #include "ext/phone_menu/touch_math.h"
+#include "ext/phone_menu/touch_size.h"   // TouchSeen (P11)
 #include "ext/registry.h"
 #include "ext/touch_mode/touch_mode.h"   // ext.touch_mode places its dialogs first (docs/android/TOUCH_MODE.md)
 
@@ -506,7 +507,9 @@ void PlaceMenu(const UI::DialogInstance* dialog, int32_t width, int32_t height, 
 void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
            int32_t* rect) {
     if (dialog == nullptr) return;
-    if (TouchMode::Place(point, dialog, width, height, rect)) return;   // ext.touch_mode first (TOUCH_MODE.md)
+    const bool touchOwned = TouchMode::Place(point, dialog, width, height, rect);   // ext.touch_mode first
+    TouchSeen(dialog, touchOwned);   // P11: the touch size walk (touch_size.h)
+    if (touchOwned) return;   // placed by ext.touch_mode (TOUCH_MODE.md)
     // P9: scroll bars, close buttons and a dialog larger than the safe area (touch_fit.h).
     TouchFrame(point, dialog, width, height, rect);
     if (!Ext().phone_menu) {
