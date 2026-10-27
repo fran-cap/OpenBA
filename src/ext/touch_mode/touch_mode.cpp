@@ -87,13 +87,12 @@ float g_heldSeconds = 0.0f;
 ZoomRepeat g_zoomRepeat;
 Capture g_capture;
 
-// P11b: the pad's pan and the rotate buttons ramp in and out (touch_math.h SpeedRamp); the last direction
-// is kept so the camera coasts out of it after the release.
+// P11b: the pad's pan ramps in and out (touch_math.h SpeedRamp); the last direction is kept so the camera
+// coasts out of it after the release. The rotate buttons turn at retail's key rate from the press to the
+// release, no ramp (the owner, 2026-10-26: the 0.30 / 0.20 s rotate ramp was too laggy).
 SpeedRamp g_panRamp;
-SpeedRamp g_rotateRamp;
 int8_t g_rampPanX = 0;
 int8_t g_rampPanY = 0;
-int8_t g_rampRotate = 0;
 
 class ClusterDialog;
 ClusterDialog* g_open = nullptr;
@@ -495,21 +494,18 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     const CameraHold& h = g_hold[src];
     // The pad (P11b): its direction while held, the ramped gain in and out. A key panning keeps retail's speed.
     const bool padPan = src == 0 && (h.panX != 0 || h.panY != 0);
-    const bool padRotate = src == 0 && h.rotate != 0;
     if (padPan) {
         g_rampPanX = h.panX;
         g_rampPanY = h.panY;
     }
-    if (padRotate) g_rampRotate = h.rotate;
     const float panRamp = g_panRamp.Step(padPan, dt);
-    const float rotateRamp = g_rotateRamp.Step(padRotate, dt);
     if (src == 0) {
         if (panX == 0.0f && panY == 0.0f && panRamp > 0.0f) {
             panX = static_cast<float>(g_rampPanX);
             panY = static_cast<float>(g_rampPanY);
             panGain = panRamp;
         }
-        yaw += static_cast<float>(g_rampRotate) * dt * kRotateDegPerSecond * rotateRamp;
+        yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
     } else {
         if (panX == 0.0f) panX = static_cast<float>(h.panX);
         if (panY == 0.0f) panY = static_cast<float>(h.panY);

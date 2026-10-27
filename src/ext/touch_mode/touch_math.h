@@ -106,7 +106,8 @@ struct ZoomRepeat {
 };
 
 // P11b (docs/android/P11B_POINTER.md §4; the owner's ruling of 2026-10-26: the D-pad pan SMOOTH like the
-// two-finger pan): the pad's pan and the rotate buttons ramp their speed. Step(held, dt) returns the gain
+// two-finger pan): the pad's pan ramps its speed (the rotate buttons did too until P11c: the owner's ruling of
+// 2026-10-26 took the rotate ramp out, full speed on the press). Step(held, dt) returns the gain
 // 0..1 this frame: up from 0 over kRampInSeconds while held, down to 0 over kRampOutSeconds after the
 // release (the camera coasts to a stop in the last direction), eased with a smoothstep. Zoom keeps its
 // steps (retail's zoom target is smoothed already).

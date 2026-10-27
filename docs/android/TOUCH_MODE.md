@@ -149,7 +149,8 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   0.20 s after the release, smoothstep-eased; the camera coasts out of the last direction). The gain
   reaches retail's pan through `CameraInput`'s `panGain` (camera_input.cpp multiplies retail's speed by
   it; 1 without the seam). A key panning keeps retail's speed.
-- **Rotate**: `yaw -= / += dt * 90` every frame while held, retail's key rate, ramped like the pan (P11b).
+- **Rotate**: `yaw -= / += dt * 90` every frame while held, retail's key rate. P11b ramped it like the pan;
+  P11c (owner, 2026-10-26: too laggy) took the ramp out: full speed on the press, stop on the release.
 - **Zoom**: one step (`zoomDir = +/-1`) at the press, then one every 0.15 s after 0.35 s of holding (the
   repeat lives in touch_mode). The camera's own smoothing turns the steps into a glide.
 - **Keyboard and mouse still work.** The seam only assigns while a control is held. Keys, edge scroll, the

@@ -49,7 +49,7 @@ bool Shown();
 // PlayerToolManager::UpdateCamera, after the keys set the locals and before ext.eye_camera's zoom:
 // the held control (or the touch_pointer hold) assigns the pan axes as the keys do, turns the yaw
 // at retail's key rate and adds zoom steps. Opens / closes the cluster with the row and the toolbar.
-// P11b: the pad's pan and rotate ramp in and out (touch_math.h SpeedRamp); `panGain` (the caller's 1.0)
+// P11b: the pad's pan ramps in and out (P11c: the rotate buttons do not) (touch_math.h SpeedRamp); `panGain` (the caller's 1.0)
 // is set to the pan's ramp while the pad drives the pan axes, and multiplies retail's pan speed.
 void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain);
 
