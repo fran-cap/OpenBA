@@ -354,8 +354,13 @@ int32_t TouchScrollCap(const UI::DialogInstance* dialog, bool on) {
         int32_t tallest = 0;
         int32_t natural = 0;
         for (int32_t i = 0; i < lists.count; ++i) {
-            const int32_t h = lists.list[i]->_layoutHeight;
-            const int32_t n = NaturalHeight(lists.list[i]);
+            // P11d: the height the list asks for (its cap or its description's), not its laid-out one: a list
+            // on a hidden page (Mod.rsc's Browse page) is never laid out and its _layoutHeight is not written
+            // (a garbage value made the cap a no-op, so the Mods dialog was shown at 0.79 of its size).
+            const UI::ContainerElement* list = lists.list[i];
+            const int32_t n = NaturalHeight(list);
+            int32_t h = list->_requestedHeight > 0 ? list->_requestedHeight : list->_layoutHeight;
+            if (list->_clampHeight != 0 && n < h) h = n;   // shrunk to its content
             if (h > tallest) tallest = h;
             if (n > natural) natural = n;
         }
