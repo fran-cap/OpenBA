@@ -42,6 +42,14 @@ void TouchFrame(int32_t point, const UI::DialogInstance* dialog);
 // belong to. Any thread (the seam's Draw call point reads it too).
 float FitDialogScale(const UI::DialogInstance* dialog);
 
+// P11b: phone_menu.cpp Place, at a dialog's first placement (SetUpperLeft) or first layout, whichever
+// comes first, once it is known not to be ext.touch_mode's: with the row on, its touch size (touch_size.h)
+// and (c) decided again, so the size and scale it is first placed and laid out with are its final ones.
+// Before, the walk ran only at the head dialog's layout for dialogs already seen, so a new dialog was laid
+// out once at retail's size and grew (and could be refitted) a frame later: an entity's panel, anchored
+// by its bottom above its building, moved by the growth (docs/android/P11B_DIALOG_SNAP.md).
+void TouchFirstPlace(const UI::DialogInstance* dialog);
+
 // kExtPlaceBackdropLower for the main and pause menus (`rect`: the backdrop, answered with the extra
 // draw under it) with the row on.
 void BackdropLowerDraw(int32_t width, int32_t height, int32_t* rect);

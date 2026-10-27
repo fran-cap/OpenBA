@@ -222,12 +222,24 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
 ## 3. The seams
 
 * `UI::UserInterface::_extDialogPlace` (engine, null by default and under the faithful profile, set by
-  `Ext::PhoneMenu::Sync` at boot): one function pointer, four call points.
+  `Ext::PhoneMenu::Sync` at boot): one function pointer, five call points.
   * `kExtPlaceLayout` in `UserInterface::Update` (`userinterface_frame.cpp`): the rectangle each dialog
     is laid out in (`ComputeLayout(x, y, right, bottom)`), retail's `{0, 0, w, h}` unless the row moves
     a recorded menu dialog or puts another dialog in its safe area. With the pointer null the loop is retail's line.
   * `kExtPlaceAfterLayout` in the same loop, right after that `ComputeLayout` (P8 round 3): the menus'
     second row of squares is moved into place.
+  * `kExtPlaceUpperLeft` (P11b) in `DialogInstance::SetUpperLeft` (`dialog.cpp`), before the root is
+    sized: `rect` holds `{0, 0, w, h}`, the rectangle retail clamps the new upper-left into (its four
+    compares, in its order), and may come back inset. `phone_menu.cpp` `Place` answers the safe area the
+    layout uses (`phone_math.h` `SafeBounds`) for every dialog it lays out in that area (not the menus,
+    the version line, a screen-sized root, a dialog at its own fitted scale, nor ext.touch_mode's), and
+    first sets the dialog's `_upperLeft` to where its root was actually laid out (`LaidOutUpperLeft`, on
+    the axes its alignment anchors top / left), because SetUpperLeft moves the laid-out tree by the
+    delta from `_upperLeft`. Without the two, a dialog a game tool places after the layout (an entity's
+    info panel, every frame, `EditTool::Update`) was drawn for one frame where retail's clamp puts it and
+    then moved by the next layout (`docs/android/P11B_DIALOG_SNAP.md`). The same call is a dialog's first
+    placement when it comes before its first layout: the touch-size walk and the fit run there
+    (`touch_fit.h` `TouchFirstPlace`).
   * `kExtPlaceBackdrop` in `UserInterface::Draw` (`userinterface_draw.cpp`): the backdrop rectangle after
     retail's cover fit.
   * `kExtPlaceBackdropLower` (P9) in `UserInterface::Draw`, just BEFORE a dialog's backdrop is drawn,

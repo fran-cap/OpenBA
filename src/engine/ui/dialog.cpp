@@ -1177,6 +1177,15 @@ void DialogInstance::SetUpperLeft(int32_t x, int32_t y, bool scaled) {  // 0x180
 
     Element* const root = _root.Get();
 
+    // EXT SEAM (NOT RETAIL, docs/android/P11B_DIALOG_SNAP.md; UserInterface::kExtPlaceUpperLeft):
+    // the rectangle the upper-left is clamped into. Retail's is the whole layout-space screen; an
+    // ext that lays dialogs out inside a safe area answers that area, so the position stored here is
+    // the one its next layout keeps (a dialog moved here does not snap at that layout). Called before
+    // the size is taken, so what the ext sizes at a dialog's first placement is in it. Null: retail.
+    int32_t bounds[4] = {0, 0, screenW, screenH};
+    if (UserInterface::_extDialogPlace != nullptr)
+        UserInterface::_extDialogPlace(UserInterface::kExtPlaceUpperLeft, this, screenW, screenH, bounds);
+
     // Element vtable slot 4 — ComputeSize. Pure virtual on the base.
     root->ComputeSize();
 
@@ -1204,10 +1213,11 @@ void DialogInstance::SetUpperLeft(int32_t x, int32_t y, bool scaled) {  // 0x180
     }
 
     // THE CLAMP ORDER IS LOAD-BEARING (see the door).
-    if (x < 0) x = 0;
-    if (w + x > screenW) x = screenW - w;
-    if (y < 0) y = 0;
-    if (h + y > screenH) y = screenH - h;
+    // `bounds` is {0, 0, screenW, screenH} (retail's four compares) unless the seam above answered.
+    if (x < bounds[0]) x = bounds[0];
+    if (w + x > bounds[2]) x = bounds[2] - w;
+    if (y < bounds[1]) y = bounds[1];
+    if (h + y > bounds[3]) y = bounds[3] - h;
 
     const int32_t dx = x - _upperLeftX;
     const int32_t dy = y - _upperLeftY;
