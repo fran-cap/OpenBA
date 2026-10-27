@@ -111,8 +111,9 @@ struct ZoomRepeat {
 // 0..1 this frame: up from 0 over kRampInSeconds while held, down to 0 over kRampOutSeconds after the
 // release (the camera coasts to a stop in the last direction), eased with a smoothstep. Zoom keeps its
 // steps (retail's zoom target is smoothed already).
-constexpr float kRampInSeconds = 0.30f;
-constexpr float kRampOutSeconds = 0.20f;
+// P11c (the owner, 2026-10-26: 0.30 / 0.20 s too laggy, keep the ramp at about 100 ms): 0.10 s in, 0.09 s out.
+constexpr float kRampInSeconds = 0.10f;
+constexpr float kRampOutSeconds = 0.09f;
 
 struct SpeedRamp {
     float level = 0.0f;   // linear 0..1

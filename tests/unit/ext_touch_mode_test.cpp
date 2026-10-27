@@ -277,7 +277,9 @@ UNIT_TEST(ext_touch_mode_speed_ramp) {
     SpeedRamp r;
     CHECK(r.Step(false, 0.016f) == 0.0f);
     float g = r.Step(true, 0.016f);
-    CHECK(g > 0.0f && g < 0.05f);   // the first frame barely moves
+    const float l0 = 0.016f / kRampInSeconds;
+    CHECK(std::abs(g - l0 * l0 * (3.0f - 2.0f * l0)) < 1e-5f);   // the first frame: the eased level
+    CHECK(g > 0.0f && g < 0.1f);   // and well short of full speed
     float t = 0.016f;
     float last = g;
     while (t < kRampInSeconds - 0.02f) {
@@ -302,7 +304,8 @@ UNIT_TEST(ext_touch_mode_speed_ramp) {
     SpeedRamp b;
     float ga = 0.0f;
     float gb = 0.0f;
-    for (int i = 0; i < 4; ++i) ga = a.Step(true, 1.0f / 30.0f);
-    for (int i = 0; i < 16; ++i) gb = b.Step(true, 1.0f / 120.0f);
+    for (int i = 0; i < 2; ++i) ga = a.Step(true, 1.0f / 30.0f);
+    for (int i = 0; i < 8; ++i) gb = b.Step(true, 1.0f / 120.0f);
+    CHECK(ga < 1.0f);   // still ramping: the comparison means something
     CHECK(std::abs(ga - gb) < 1e-4f);
 }

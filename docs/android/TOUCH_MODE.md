@@ -145,8 +145,9 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   assigned as the keys assign them (`panX = -1/+1`, `panY = -1/+1`). Retail normalises the vector, so a
   diagonal pans at the same speed. Sliding between directions while held is allowed. Releasing, or
   leaving the pad, stops the pan. P11b (ruled 2026-10-26, `docs/android/P11B_POINTER.md` §4): the pan
-  speed RAMPS (touch_math.h `SpeedRamp`: up over `kRampInSeconds` 0.30 s, down over `kRampOutSeconds`
-  0.20 s after the release, smoothstep-eased; the camera coasts out of the last direction). The gain
+  speed RAMPS (touch_math.h `SpeedRamp`: up over `kRampInSeconds`, down over `kRampOutSeconds` after the
+  release, smoothstep-eased; the camera coasts out of the last direction). P11b tuned 0.30 / 0.20 s; P11c (owner,
+  2026-10-26: too laggy, about 100 ms) 0.10 s in, 0.09 s out. The gain
   reaches retail's pan through `CameraInput`'s `panGain` (camera_input.cpp multiplies retail's speed by
   it; 1 without the seam). A key panning keeps retail's speed.
 - **Rotate**: `yaw -= / += dt * 90` every frame while held, retail's key rate. P11b ramped it like the pan;
