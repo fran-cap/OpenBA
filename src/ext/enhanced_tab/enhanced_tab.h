@@ -14,6 +14,8 @@
 //   texture_quality/enhanced_entry.cpp     combo "Texture quality" (TEXQUALITY)
 //   enhanced_tab/render_scale_entry.cpp    combo "Render scale" (P8; the platform key VideoRenderScale)
 //   fps_cap/enhanced_entry.cpp             combo "Frame rate cap" (P8; ext.fps_cap)
+//   touch_mode/enhanced_entry.cpp          combo "Touch controls" (TOUCHMODE; ext.touch_mode)
+//   touch_pointer/enhanced_entry.cpp       combo "Touch pointer" (P11b; ext.touch_pointer and its three keys)
 //   derived_cache/enhanced_entry.cpp       the cache's size + button "Clear cache" (COMPRESSAO)
 // A contribution keeps its own element pointers (found by name in the new page); this file holds
 // only the dialog key, never OptionsDialog fields (its sizeof 0x1C0 is retail's, asserted). One
@@ -60,6 +62,7 @@ const Contribution& TextureQualityEntry();   // src/ext/texture_quality/enhanced
 const Contribution& RenderScaleEntry();   // src/ext/enhanced_tab/render_scale_entry.cpp: VideoRenderScale (P8)
 const Contribution& FpsCapEntry();        // src/ext/fps_cap/enhanced_entry.cpp: ext.fps_cap (P8)
 const Contribution& TouchModeEntry();     // src/ext/touch_mode/enhanced_entry.cpp: ext.touch_mode (TOUCHMODE)
+const Contribution& TouchPointerEntry();  // src/ext/touch_pointer/enhanced_entry.cpp: ext.touch_pointer (P11b)
 const Contribution& DerivedCacheEntry();   // src/ext/derived_cache/enhanced_entry.cpp: size + "Clear cache"
 
 // Whether this build offers the tab: always, except under the gate (`/profile:faithful` from the

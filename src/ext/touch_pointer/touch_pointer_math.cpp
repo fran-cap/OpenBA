@@ -189,5 +189,14 @@ int32_t HitButton(const Bar& bar, int32_t x, int32_t y) {
     return -1;
 }
 
+int32_t TouchPresetItem(bool rowOn, int32_t lift, int32_t pickRadius, int32_t tapTwice) {
+    if (!rowOn) return kTouchItemOff;
+    for (int32_t i = 0; i < kTouchPresetCount; ++i) {
+        const TouchPreset& p = kTouchPresets[i];
+        if (p.lift == lift && p.pickRadius == pickRadius && p.tapTwice == tapTwice) return i + 1;
+    }
+    return kTouchItemCustom;
+}
+
 }  // namespace TouchPointer
 }  // namespace Ext
