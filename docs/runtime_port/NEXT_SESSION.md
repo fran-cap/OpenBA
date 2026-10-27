@@ -466,7 +466,12 @@ Rulings owed: margin 3.375 % is just under the S25's corner radius (3.5 %; no cl
 icon; zoom rate constant in distance (close end feels faster) vs proportional; full vs proportional pad speed; the
 tooltip with lift 0 sits on the finger (a 160 floor is one line) and keeps retail's horizontal position.
 
-**Next: the owner's real-finger test of the P11c apk; PRs #60 -> #61 -> #62 in order.**
+**RULED 2026-10-26 (owner, real-finger test of the P11c apk):** Options sizing fixed, tooltips good, margin good,
+D-pad feels good. Still open: Options, and the Save and Load dialogs, RESIZE themselves 1-2 ticks after opening
+(the first-frame rule does not reach them); the Mods menu's buttons are NOT scaled, nor the Save / Load / Cancel
+buttons (the touch size misses them); the camera should zoom IN closer, to about the size of two houses.
+
+**Next (P11d, three opus agents stacked on `android/p11c`):** the three items above as code.
 
 ## 3. Rules that hold (do not relax)
 
