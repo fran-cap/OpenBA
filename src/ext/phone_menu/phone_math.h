@@ -35,10 +35,15 @@ namespace PhoneMenu {
 // The safe-area margin as a fraction of the screen height. A phone held in
 // landscape loses its corners to the rounded display (the S25's corner radius
 // is about 3.5 % of its 1080-pixel height) and the middle of one short edge to
-// the camera cut-out (about 3 % of the height deep). 4.5 % clears both with a
-// little air and is still small enough that nothing centred moves: on a desktop
-// screen the inset only shows on an element anchored to an edge.
-constexpr float kSafeMarginFraction = 0.045f;
+// the camera cut-out (about 3 % of the height deep). P7 took 4.5 %, which cleared
+// both with a little air; the owner's ruling after the P11b real-finger test
+// (docs/runtime_port/NEXT_SESSION.md §2.11) takes a quarter of it back on every
+// edge: 3.375 %, just over the cut-out's depth (a dialog's own frame and padding
+// keep its content off the rounded corners). Still small enough that nothing
+// centred moves: on a desktop screen the inset only shows on an element anchored
+// to an edge.
+constexpr float kSafeMarginP7Fraction = 0.045f;
+constexpr float kSafeMarginFraction = kSafeMarginP7Fraction * 0.75f;
 
 // The Options > UI scale slider's lowest value with the row on (percent).
 // _uiScale = percent / 100 is LAYOUT UNITS PER DEVICE PIXEL, so 25 draws the UI

@@ -26,7 +26,7 @@ the camera hooks stay callable from it (§4, §8).
 | Event notices | `EventNotifyDialog::OnUpdateLayout` (`eventnotifydialog.cpp`, 0x1400680c0) | Parented to the toolbar. Its padding is `toolbarRoot->_layoutWidth - ownWidth + 44 (+40 per extra entry)`, smoothed, so the ribbon sits LEFT of the toolbar on the bottom row. In touch mode that is where the cluster is. |
 | Tutorial glow | `TutorialHighlightDialog` (`tutorialhighlightdialog.cpp`) | Places its ring from a toolbar element's layout rectangle in global units. |
 | Camera input | `PlayerToolManager::UpdateCamera` (FUN_1400feec0, `src/game/Game/camera_input.cpp`), called every frame from `PlayerToolManager::Update` (`entityui.cpp`) | Locals: `yaw -= dt * kRotSpeed` (90 deg/s) for RotateLeft (key id 9) and `+=` for RotateRight (10). `panX / panY = -1 / +1` for Left / Right / Forward / Back (0xd, 0xe, 0xb, 0xc), assigned after edge scroll (`g_gameSettings->edgeScroll`, `GameEdgeScroll`). `zoomDir = +1 / -1` on a PRESS of ZoomIn / ZoomOut (0xf / 0x10), else the wheel, and each step is `kZoomStep` 5 on the zoom target. Keys run whatever `inputFlag` is (only the wheel is gated). The ext.eye_camera and ext.better_camera seams already sit in this function. |
-| Safe area | ext.phone_menu `phone_math.h` `SafeArea` (margin 4.5 % of the screen height) | The cluster and the bar stay inside it. |
+| Safe area | ext.phone_menu `phone_math.h` `SafeArea` (margin 3.375 % of the screen height since P11c, 4.5 % before) | The cluster and the bar stay inside it. |
 
 ## 2. Independent toolbar scale: a per-dialog unit space
 
@@ -97,7 +97,7 @@ nine-sliced frames draw at any size.
 
 No new art enters the tree. The only new PNG is the Extensions-row icon that every row has (§5).
 
-**Sizes.** `S` is the short edge in device pixels, `m` the safe margin (ext.phone_menu's 4.5 % of the
+**Sizes.** `S` is the short edge in device pixels, `m` the safe margin (ext.phone_menu's 3.375 % of the
 height when that row is on; 2 % of `S` without it, the desktop test case).
 
 | Item | Rule | S25 (2340x1080, S = 1080, m = 49) |

@@ -73,8 +73,10 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
   the menu and the version line are laid out inside the safe area; the column is centred between the
   logo's bottom (0.22 of the overlay) and the version line when it fits there, else above the version
   line, and the version line moves to the bottom-left corner when the column cannot sit above it.
-* **Safe area**: 4.5 % of the screen height in from every edge. The S25's corner radius is about 3.5 %
-  of the 1080-pixel height and the cut-out about 3 % deep; 4.5 % clears both with a little air and
+* **Safe area**: 3.375 % of the screen height in from every edge (P11c, the owner's ruling: a quarter
+  less than P7's 4.5 %; `phone_math.h` `kSafeMarginFraction`, 15 layout units at UI 42 on the S25, was
+  20). The S25's corner radius is about 3.5 % of the 1080-pixel height and the cut-out about 3 % deep;
+  the margin clears the cut-out, a dialog's own frame keeps its content off the rounded corners, and it
   moves nothing centred on a desktop.
 * **Every other dialog** (P8, 2026-10-25: the owner saw the in-game toolbar under the S25's corner). What
   retail anchors to an edge sits inside the same safe area. `DialogInstance::ComputeLayout` (0x180113d90)
