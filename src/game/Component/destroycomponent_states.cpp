@@ -459,13 +459,17 @@ char DestroyComponent::State3Enter(StateMachine* sm) {
     if (yard && yard->IsWorkPosted())
         yard->CancelWork();
 
-    // STANDALONE: status-icon strip (StatusIconComponent_helper_c2a0) and the
-    // render-scene mesh removal / rubble swap are skipped — visual-only, and the
-    // standalone mesh pipeline is partial (same policy as ResidenceInit's
-    // SetMeshFlag skip in residencecomponent.cpp).
+    // Strip every status icon of the building (0x14012c2a0; retail tests the component for null first).
+    StatusIconComponent* icon = FindOn<StatusIconComponent>(_entity.Get());
+    if (icon) icon->ClearAllFlags();
 
     int nextState = !burning ? 4 : 6;
     ::ControllerLive::RequestStateTransition(sm, nextState);
+
+    // Not burning: the "being demolished or upgraded" icon (BuildingIconSpriteSheet BuildDestroy = flag 5) goes on after the state
+    // request (0x14011d7b0 sets bit 0x20 and runs the SetFlag body inlined; a burning building goes to state 6 with no icon).
+    // Cancelling the demolition clears it again (CancelDemolition, SetFlag(5, 0)).
+    if (!burning && icon) icon->SetFlag(5, 1);
 
     // RETURN 0, NOT 1 — this is the state-machine ENTER WALK's stop bit, not a
     // success flag. StateMachine::Tick walks tail->parent through EVERY controller
