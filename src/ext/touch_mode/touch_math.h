@@ -122,7 +122,7 @@ void ApplyHeldZoom(float steps, float stepDistance, float zMin, float zMax, floa
 // unchanged. Only the clamp moves: retail's normalised zoom ((target - 20) / 110) and the pitch blend and pan speed
 // that read it are retail's expressions, which carry on in a straight line below 20 (the tilt a little flatter,
 // the pan a little slower: P11D_ZOOM.md).
-constexpr int32_t kZoomMinDefault = 8;
+constexpr int32_t kZoomMinDefault = 10;
 float NearZoomLimit(float zMin, bool rowOn, int32_t zoomMinKey);
 
 // P11b (docs/android/P11B_POINTER.md §4; the owner's ruling of 2026-10-26: the D-pad pan SMOOTH like the

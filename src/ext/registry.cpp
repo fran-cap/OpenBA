@@ -527,7 +527,7 @@ const ValueKey kValueKeys[] = {
       [](State& s) -> int32_t& { return s.val.touch_mode_toolbar_scale; }, kTouchToolbarScales, 5 },
     // P11d (docs/android/P11D_ZOOM.md): the camera's near zoom limit in distance units while the row touch_mode is
     // on (every zoom input: the buttons, the pinch, keys, the wheel); retail's is 20. A range key, settings.cfg only.
-    { "touch_mode_zoom_min", "touch_mode", 6, 20, 8,
+    { "touch_mode_zoom_min", "touch_mode", 6, 20, 10,
       [](State& s) -> int32_t& { return s.val.touch_mode_zoom_min; }, nullptr, 0 },
     // P11 TOUCHPOINTER: the aim point's height above the finger in device pixels while ext.touch_pointer aims a
     // tool (0 = at the finger); 160 is the default, to be tuned on the phone (TOUCH_PLACEMENT_IDEAS.md §5).

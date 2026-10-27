@@ -40,7 +40,8 @@ status icon was due in these short runs, so none appeared); no terrain clipping 
 
 ## 2. The route (decided before coding)
 
-**(a) ext.touch_mode owns a nearer floor, `ext.touch_mode_zoom_min`, default 8.** Taken.
+**(a) ext.touch_mode owns a nearer floor, `ext.touch_mode_zoom_min`, default 8.** Taken. RULED 2026-10-26 (owner):
+the default is **10** (the roofs stay closed, about 3.2 houses across; 8 was measured, 6..20 stays the range).
 - With the row on, every zoom input of the frame (the zoom buttons, the pinch, a key, the wheel) clamps at the
   nearer of the key and the frame's own floor (retail's 20, or ext.better_camera's 6 when that row is on), so the
   inputs agree: the wheel zooming in from 12 does not jump back out to 20. `touch_math.h NearZoomLimit`.
