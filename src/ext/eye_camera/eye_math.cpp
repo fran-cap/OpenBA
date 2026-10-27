@@ -43,6 +43,13 @@ float ZoomDistance(float distance, int zoomDir) {
     return d;
 }
 
+float ZoomDistanceBy(float distance, float steps) {
+    float d = distance - steps * kDistanceStep;
+    if (d < 0.0f) d = 0.0f;
+    if (d > kMaxDistance) d = kMaxDistance;
+    return d;
+}
+
 Pose ComputePose(const Vec3& feet, float headingDegrees, float modelScale, float distance) {
     const Vec3 f = Forward(headingDegrees);
     const Vec3 head{feet.x, feet.y, feet.z + kEyeHeight * modelScale};

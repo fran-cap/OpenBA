@@ -155,8 +155,14 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   it; 1 without the seam). A key panning keeps retail's speed.
 - **Rotate**: `yaw -= / += dt * 90` every frame while held, retail's key rate. P11b ramped it like the pan;
   P11c (owner, 2026-10-26: too laggy) took the ramp out: full speed on the press, stop on the release.
-- **Zoom**: one step (`zoomDir = +/-1`) at the press, then one every 0.15 s after 0.35 s of holding (the
-  repeat lives in touch_mode). The camera's own smoothing turns the steps into a glide.
+- **Zoom**: continuous (P11c, ruled 2026-10-26: smooth, zero delay, no steps; until P11b one step at the press,
+  then one every 0.15 s after 0.35 s). While a zoom button is held, `CameraInput` returns `heldZoom` =
+  `kZoomStepsPerSecond` 8 of retail's 5-unit steps per second (40 units/s) times `dt`, from the first frame to the
+  release, no ramp. `UpdateCamera` applies it after retail's own step with touch_math.h `ApplyHeldZoom`: the zoom
+  target (+0x3C) and the smoothed distance move together by what the target moved inside the frame's range
+  (retail's 20 .. 130, or ext.better_camera's 6 .. 200 with that row on), so retail's 0.9 / 0.1 smoothing adds
+  no lag at the press or the release. With ext.eye_camera following a citizen the same steps move the eye's
+  distance (`EyeCamera::ZoomBy`). The wheel and the zoom keys keep their steps.
 - **Keyboard and mouse still work.** The seam only assigns while a control is held. Keys, edge scroll, the
   wheel and the middle-button rotate drag (the KVM mouse) are unchanged, and a click anywhere outside the
   cluster is retail's.

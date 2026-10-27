@@ -133,6 +133,12 @@ UNIT_TEST(ext_eye_camera_zoom) {
     CHECK(Near(ZoomDistance(1.0f, 0), 1.0f));
     CHECK(Near(ZoomDistance(0.1f, 1), 0.0f));                    // first person is the floor
     CHECK(Near(ZoomDistance(kMaxDistance, -1), kMaxDistance));   // the over-the-shoulder cap
+    // ext.touch_mode's held zoom (P11c): fractional steps, the same clamps.
+    CHECK(Near(ZoomDistanceBy(1.0f, 0.5f), 1.0f - 0.5f * kDistanceStep));
+    CHECK(Near(ZoomDistanceBy(1.0f, -0.25f), 1.0f + 0.25f * kDistanceStep));
+    CHECK(Near(ZoomDistanceBy(1.0f, 0.0f), 1.0f));
+    CHECK(Near(ZoomDistanceBy(0.05f, 1.0f), 0.0f));
+    CHECK(Near(ZoomDistanceBy(kMaxDistance, -2.0f), kMaxDistance));
 }
 
 UNIT_TEST(ext_eye_camera_smoothing) {

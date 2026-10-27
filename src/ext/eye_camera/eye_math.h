@@ -72,6 +72,9 @@ Vec3 Forward(float headingDegrees);
 // brings the eye closer; the result is clamped to [0, kMaxDistance].
 float ZoomDistance(float distance, int zoomDir);
 
+// A continuous zoom of `steps` (+ in, fractional): distance - steps * kDistanceStep, clamped the same way.
+float ZoomDistanceBy(float distance, float steps);
+
 // The eye and its look-at point for a citizen standing at `feet` facing
 // `headingDegrees`, drawn at `modelScale` (the age scale, see CONVENTIONS: the
 // eye sits at kEyeHeight * modelScale, kFaceForward * modelScale ahead).

@@ -85,7 +85,6 @@ bool Active(const CameraHold& h) {
 // The cluster's held control and its zoom repeat.
 Control g_held = kNone;
 float g_heldSeconds = 0.0f;
-ZoomRepeat g_zoomRepeat;
 Capture g_capture;
 
 // P11b: the pad's pan ramps in and out (touch_math.h SpeedRamp); the last direction is kept so the camera
@@ -436,7 +435,7 @@ void Hold(Source source, const CameraHold& hold) {
     if (source == Source::Fingers) g_fingerZoom += hold.zoomSteps;
 }
 
-void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain) {
+void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain, float& heldZoom) {
     GameUpdateLoop* loop = GameUpdateLoop::_singleton;
     UI::UserInterface* ui = loop != nullptr ? loop->m_userInterface : nullptr;
     const bool want = Ext().touch_mode && ToolbarShown(ui);
@@ -468,10 +467,10 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     } else if (held == kRotateRight) {
         pad.rotate = 1;
     }
-    const bool zoomHeld = held == kZoomIn || held == kZoomOut;
-    if (g_zoomRepeat.Step(zoomHeld, dt) != 0) pad.zoom = static_cast<int8_t>(held == kZoomIn ? 1 : -1);
+    if (held == kZoomIn) pad.zoom = 1;
+    if (held == kZoomOut) pad.zoom = -1;
     Hold(Source::Pad, pad);
-    // A held control keeps the pad source active between a zoom button's repeats.
+    // A held control keeps the pad source active (a pad finger resting in the dead zone).
     g_activeNow[0] = held != kNone;
 
     // One line per press and release, with the camera after it (TOUCH_MODE.md section 7).
@@ -529,10 +528,11 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
             pc->target.y += dy;
         }
     }
+    // The zoom buttons (P11c): a constant rate from the press to the release, beside whatever the wheel or a key
+    // stepped this frame.
+    if (src == 0) heldZoom = HeldZoomSteps(h.zoom, dt);
     if (zoomDir == 0) {
-        if (src == 0 && h.zoom != 0) {
-            zoomDir = h.zoom;
-        } else if (src == 1 && (g_fingerZoom >= 1.0f || g_fingerZoom <= -1.0f)) {
+        if (src == 1 && (g_fingerZoom >= 1.0f || g_fingerZoom <= -1.0f)) {
             zoomDir = g_fingerZoom > 0.0f ? 1 : -1;
             g_fingerZoom -= static_cast<float>(zoomDir);
         }

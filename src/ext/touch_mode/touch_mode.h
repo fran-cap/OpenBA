@@ -6,7 +6,8 @@
 //   (a) a control cluster at the bottom left of the game view (Dialog/TouchControls.rsc): a D-pad
 //       (camera pan, any direction: P11c), Rotate left / right above it, Zoom in / out right of it, sized as
 //       fractions of the screen's short edge (touch_math.h LayoutCluster). A held control drives
-//       the same camera locals retail's keys drive in PlayerToolManager::UpdateCamera;
+//       the same camera locals retail's keys drive in PlayerToolManager::UpdateCamera (the zoom buttons:
+//       a continuous zoom, P11c);
 //   (b) the in-game toolbar (Dialog/Toolbar.rsc) and its sub-toolbars in their own unit space, k
 //       times the UI scale (ext.touch_mode_toolbar_scale, shrunk to fit beside the cluster): laid
 //       out, hit-tested and drawn at k through UI::UserInterface::_extDialogScale (installed by
@@ -48,14 +49,16 @@ bool Shown();
 
 // PlayerToolManager::UpdateCamera, after the keys set the locals and before ext.eye_camera's zoom:
 // the held control (or the touch_pointer hold) assigns the pan axes as the keys do, turns the yaw
-// at retail's key rate and adds zoom steps. Opens / closes the cluster with the row and the toolbar.
+// at retail's key rate and zooms (the pinch in steps, the zoom buttons continuously). Opens / closes the cluster with the row and the toolbar.
 // P11b: the pad's pan ramps in and out (P11c: the rotate buttons do not) (touch_math.h SpeedRamp); `panGain` (the caller's 1.0)
 // is set to the pan's ramp while the pad drives the pan axes, and multiplies retail's pan speed.
-void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain);
+// P11c: a held zoom button zooms continuously: `heldZoom` (the caller's 0) is set to this frame's zoom in retail's
+// steps (+ in, zoomDir's sign; touch_math.h HeldZoomSteps), which the caller applies with ApplyHeldZoom.
+void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain, float& heldZoom);
 
 // The camera hold of a source: the cluster's pad (Pad) or the later touch_pointer extension's
-// fingers (Fingers). `rotate` -1 left / +1 right, `zoom` +1 in / -1 out (one step per call while it
-// changes), `zoomSteps` continuous steps (a pinch). The source that changed last wins; keys and
+// fingers (Fingers). `rotate` -1 left / +1 right, `zoom` +1 in / -1 out (the Pad: held, a constant rate),
+// `zoomSteps` continuous steps (a pinch). The source that changed last wins; keys and
 // the real mouse are never overridden (they keep working through retail's lines).
 enum class Source : int32_t { Pad = 0, Fingers = 1 };
 struct CameraHold {

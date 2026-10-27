@@ -110,23 +110,18 @@ Control Capture::Step(const Cluster& c, bool down, int32_t x, int32_t y) {
     return control;
 }
 
-int32_t ZoomRepeat::Step(bool held, float dt) {
-    if (!held) {
-        heldFor = -1.0f;
-        return 0;
-    }
-    if (heldFor < 0.0f) {
-        heldFor = 0.0f;
-        nextAt = kZoomDelay;
-        return 1;
-    }
-    heldFor += dt;
-    if (heldFor >= nextAt) {
-        nextAt += kZoomRepeat;
-        if (nextAt <= heldFor) nextAt = heldFor + kZoomRepeat;   // a long frame: one step, not a burst
-        return 1;
-    }
-    return 0;
+float HeldZoomSteps(int32_t dir, float dt) {
+    if (dt <= 0.0f || dir == 0) return 0.0f;
+    return static_cast<float>(dir > 0 ? 1 : -1) * kZoomStepsPerSecond * dt;
+}
+
+void ApplyHeldZoom(float steps, float stepDistance, float zMin, float zMax, float& target, float& distance) {
+    if (steps == 0.0f) return;
+    float z = target - steps * stepDistance;
+    if (z < zMin) z = zMin;
+    if (z > zMax) z = zMax;
+    distance += z - target;
+    target = z;
 }
 
 float SpeedRamp::Step(bool held, float dt) {

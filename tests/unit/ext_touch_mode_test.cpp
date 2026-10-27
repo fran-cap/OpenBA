@@ -2,7 +2,7 @@
 // tests/unit/ext_touch_mode_test.cpp -- ext.touch_mode's pure decisions (TOUCHMODE)
 // ============================================================================
 // docs/android/TOUCH_MODE.md section 7: the cluster's rectangles on the S25 and their invariance, the
-// toolbar's fitted scale, the D-pad's pan vector, the zoom repeat, the unit-space mappings (the sub-toolbar
+// toolbar's fitted scale, the D-pad's pan vector, the held zoom, the unit-space mappings (the sub-toolbar
 // centring re-run with retail's own formula, the tooltip), and the registry row and its value key.
 // ============================================================================
 #include "unit.h"
@@ -221,33 +221,44 @@ UNIT_TEST(ext_touch_mode_capture) {
     CHECK(cap.Step(c, true, 100, 600) == kNone);
 }
 
-UNIT_TEST(ext_touch_mode_zoom_repeat) {
-    ZoomRepeat z;
-    CHECK(z.Step(false, 0.016f) == 0);
-    CHECK(z.Step(true, 0.016f) == 1);    // the press
-    int32_t steps = 0;
-    float t = 0.0f;
-    // Irregular frames up to 0.34 s: nothing more.
-    const float frames[] = {0.016f, 0.033f, 0.008f, 0.050f, 0.016f, 0.1f, 0.05f, 0.05f};
-    for (float dt : frames) {
-        t += dt;
-        steps += z.Step(true, dt);
-    }
-    CHECK(t < kZoomDelay);
-    CHECK(steps == 0);
-    // Past the delay: one, then one per kZoomRepeat.
-    steps = 0;
-    for (int i = 0; i < 100; ++i) steps += z.Step(true, 0.01f);   // 1.0 s more, held 1.323 s
-    // Repeats at 0.35, 0.50, ..., 1.25: 7.
-    CHECK(steps == 7);
-    CHECK(z.Step(false, 0.01f) == 0);   // released
-    CHECK(z.Step(false, 1.0f) == 0);
-    CHECK(z.Step(true, 0.01f) == 1);    // a new press
-    // A long frame gives one step, not a burst.
-    ZoomRepeat y;
-    y.Step(true, 0.0f);
-    CHECK(y.Step(true, 2.0f) == 1);
-    CHECK(y.Step(true, 0.01f) == 0);
+// P11c (the owner, 2026-10-26): a held zoom button zooms at a constant rate from the first frame, no ramp, no
+// steps, whatever the frame rate; the target and the smoothed distance move together inside the frame's range.
+UNIT_TEST(ext_touch_mode_held_zoom) {
+    CHECK(HeldZoomSteps(0, 0.016f) == 0.0f);
+    CHECK(HeldZoomSteps(1, 0.0f) == 0.0f);
+    CHECK(HeldZoomSteps(1, -0.5f) == 0.0f);
+    CHECK(Near(HeldZoomSteps(1, 0.016f), kZoomStepsPerSecond * 0.016f));   // the first frame: full rate
+    CHECK(Near(HeldZoomSteps(-1, 0.016f), -kZoomStepsPerSecond * 0.016f));
+    // One second at 30 and at 144 fps: the same zoom.
+    float a = 0.0f;
+    float b = 0.0f;
+    for (int i = 0; i < 30; ++i) a += HeldZoomSteps(1, 1.0f / 30.0f);
+    for (int i = 0; i < 144; ++i) b += HeldZoomSteps(1, 1.0f / 144.0f);
+    CHECK(Near(a, kZoomStepsPerSecond) && Near(b, kZoomStepsPerSecond));
+
+    // Retail's step (5 units) and range 20 .. 130: zoom in from a settled 60.
+    float target = 60.0f;
+    float distance = 60.0f;
+    ApplyHeldZoom(0.0f, 5.0f, 20.0f, 130.0f, target, distance);
+    CHECK(target == 60.0f && distance == 60.0f);
+    ApplyHeldZoom(HeldZoomSteps(1, 0.1f), 5.0f, 20.0f, 130.0f, target, distance);   // 0.8 steps = 4 units
+    CHECK(Near(target, 56.0f) && Near(distance, 56.0f));
+    ApplyHeldZoom(HeldZoomSteps(-1, 0.1f), 5.0f, 20.0f, 130.0f, target, distance);
+    CHECK(Near(target, 60.0f) && Near(distance, 60.0f));
+    // The range: the target stops at the floor, the distance moves only by what the target moved.
+    target = 21.0f;
+    distance = 25.0f;   // still gliding in from a wheel step
+    ApplyHeldZoom(1.0f, 5.0f, 20.0f, 130.0f, target, distance);
+    CHECK(target == 20.0f && Near(distance, 24.0f));
+    ApplyHeldZoom(1.0f, 5.0f, 20.0f, 130.0f, target, distance);
+    CHECK(target == 20.0f && Near(distance, 24.0f));
+    // ext.better_camera's range (6 .. 200) when that row is on: the same arithmetic, the wider clamp.
+    target = 130.0f;
+    distance = 130.0f;
+    ApplyHeldZoom(-20.0f, 5.0f, 6.0f, 200.0f, target, distance);
+    CHECK(target == 200.0f && distance == 200.0f);
+    ApplyHeldZoom(100.0f, 5.0f, 6.0f, 200.0f, target, distance);
+    CHECK(target == 6.0f && distance == 6.0f);
 }
 
 UNIT_TEST(ext_touch_mode_unit_mapping) {
