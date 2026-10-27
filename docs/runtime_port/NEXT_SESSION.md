@@ -443,7 +443,35 @@ the D-pad is not "smooth": it locks to the cardinals -> analogue direction from 
 (a circle of directions, the rectangular graphic stays); ZOOM smooth and continuous with zero delay (no steps);
 the safe margin can shrink ~25 % on the edges.
 
-**Next (P11c, three opus agents stacked on `android/p11b`):** the rulings above as code.
+### 2.12 Android P11c outcome (2026-10-26 night, three opus worktree agents on `android/p11c`, stacked on PR #61)
+
+All §2.11 rulings are code (`docs/android/P11C_CAMERA.md`, `P11C_DIALOGS.md`, `P11C_TOOLTIP.md`); DX11 gate PASS,
+resave PASS == golden, unit 1551/0/0; the P11c debug apk is on the S25.
+- **Camera (touch_mode):** rotate no ramp (90 deg/s from frame 1); pan ramp 0.10 s in / 0.09 s out; analogue D-pad
+  (finger direction at any angle, dead zone 0.10 of the side ~36 px, FULL speed outside it — proportional measured
+  48-73 % of key speed on the arrows, kept in code behind one constant); held zoom continuous at 40 units/s from
+  frame 1, no drift on release, clamped to retail's / better_camera's range, moves the eye under eye_camera
+  (`ApplyHeldZoom` seam in UpdateCamera). Pinch still zooms in steps (follow-up).
+- **Dialogs (phone_menu):** Options broke from the 3rd opening because the records (seen / list height) were keyed on
+  the dialog's address and never dropped on close -> `TouchForgetClosed` / `TouchScrollForgetClosed` once a frame
+  (6-7 reopenings of Options, Fixes and Extensions, Professions verified); safe margin 4.5 % -> 3.375 % of the screen
+  height (15 units at UI 42; UI floor at render 50: 70 -> 65); **fix.dialog_position_drift** ("Steady panels at the
+  edge", default on, `src/ext/dialog_position_drift/`, retail_bugs §13) on the `kExtPlaceUpperLeft` seam on every
+  platform (S25 with phone_menu off: 101 -> 106 for the first frame; desktop trigger = a panel growing against the
+  bottom edge, rare).
+- **Tooltip:** a held tooltip floats the lift distance (160 px, touch_pointer's value when on) above the finger,
+  inside the safe area, flipped below when there is no room (161-164 px measured); mouse = retail.
+
+Rulings owed: margin 3.375 % is just under the S25's corner radius (3.5 %; no clipping seen); the fix row's name and
+icon; zoom rate constant in distance (close end feels faster) vs proportional; full vs proportional pad speed; the
+tooltip with lift 0 sits on the finger (a 160 floor is one line) and keeps retail's horizontal position.
+
+**RULED 2026-10-26 (owner, real-finger test of the P11c apk):** Options sizing fixed, tooltips good, margin good,
+D-pad feels good. Still open: Options, and the Save and Load dialogs, RESIZE themselves 1-2 ticks after opening
+(the first-frame rule does not reach them); the Mods menu's buttons are NOT scaled, nor the Save / Load / Cancel
+buttons (the touch size misses them); the camera should zoom IN closer, to about the size of two houses.
+
+**Next (P11d, three opus agents stacked on `android/p11c`):** the three items above as code.
 
 ## 3. Rules that hold (do not relax)
 

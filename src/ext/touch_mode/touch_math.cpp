@@ -77,19 +77,23 @@ Control HitControl(const Cluster& c, int32_t x, int32_t y) {
     return kNone;
 }
 
-void PadDirection(const Rect& pad, int32_t x, int32_t y, int32_t& dx, int32_t& dy) {
-    dx = 0;
-    dy = 0;
+PadPan PadVector(const Rect& pad, int32_t x, int32_t y, PadSpeed mode) {
+    PadPan p;
     const float side = static_cast<float>(pad.Width() < pad.Height() ? pad.Width() : pad.Height());
     const float ox = static_cast<float>(x) - 0.5f * static_cast<float>(pad.x1 + pad.x2);
     const float oy = static_cast<float>(y) - 0.5f * static_cast<float>(pad.y1 + pad.y2);
     const float dead = kDeadZoneFraction * side;
-    if (ox * ox + oy * oy <= dead * dead) return;
-    const float tan22 = 0.41421356f;   // tan(22.5 deg)
-    const float ax = std::fabs(ox);
-    const float ay = std::fabs(oy);
-    if (ax > tan22 * ay) dx = ox > 0.0f ? 1 : -1;
-    if (ay > tan22 * ax) dy = oy > 0.0f ? 1 : -1;
+    const float r = std::sqrt(ox * ox + oy * oy);
+    if (r <= dead || r <= 0.0f) return p;
+    float speed = 1.0f;
+    const float edge = 0.5f * side;
+    if (mode == kPadProportional && edge > dead) {
+        speed = (r - dead) / (edge - dead);
+        if (speed > 1.0f) speed = 1.0f;
+    }
+    p.x = ox / r * speed;
+    p.y = oy / r * speed;
+    return p;
 }
 
 Control Capture::Step(const Cluster& c, bool down, int32_t x, int32_t y) {
@@ -106,23 +110,18 @@ Control Capture::Step(const Cluster& c, bool down, int32_t x, int32_t y) {
     return control;
 }
 
-int32_t ZoomRepeat::Step(bool held, float dt) {
-    if (!held) {
-        heldFor = -1.0f;
-        return 0;
-    }
-    if (heldFor < 0.0f) {
-        heldFor = 0.0f;
-        nextAt = kZoomDelay;
-        return 1;
-    }
-    heldFor += dt;
-    if (heldFor >= nextAt) {
-        nextAt += kZoomRepeat;
-        if (nextAt <= heldFor) nextAt = heldFor + kZoomRepeat;   // a long frame: one step, not a burst
-        return 1;
-    }
-    return 0;
+float HeldZoomSteps(int32_t dir, float dt) {
+    if (dt <= 0.0f || dir == 0) return 0.0f;
+    return static_cast<float>(dir > 0 ? 1 : -1) * kZoomStepsPerSecond * dt;
+}
+
+void ApplyHeldZoom(float steps, float stepDistance, float zMin, float zMax, float& target, float& distance) {
+    if (steps == 0.0f) return;
+    float z = target - steps * stepDistance;
+    if (z < zMin) z = zMin;
+    if (z > zMax) z = zMax;
+    distance += z - target;
+    target = z;
 }
 
 float SpeedRamp::Step(bool held, float dt) {

@@ -29,6 +29,7 @@
 
 namespace UI {
 class DialogInstance;
+class UserInterface;
 }
 
 namespace Ext {
@@ -41,6 +42,10 @@ int32_t TouchScrollWrap(const UI::DialogInstance* dialog, bool on);
 // (b), after the size walk (the controls' touch size is part of the height that must fit). Returns the
 // number of lists changed.
 int32_t TouchScrollCap(const UI::DialogInstance* dialog, bool on);
+
+// P11c (touch_size.h TouchForgetClosed): the cap decided for a window of `ui` that is no longer open is
+// dropped, so a window opened again at the same address decides its cap from its own lists.
+void TouchScrollForgetClosed(const UI::UserInterface* ui);
 
 }  // namespace PhoneMenu
 }  // namespace Ext

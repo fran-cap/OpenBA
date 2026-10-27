@@ -35,10 +35,15 @@ namespace PhoneMenu {
 // The safe-area margin as a fraction of the screen height. A phone held in
 // landscape loses its corners to the rounded display (the S25's corner radius
 // is about 3.5 % of its 1080-pixel height) and the middle of one short edge to
-// the camera cut-out (about 3 % of the height deep). 4.5 % clears both with a
-// little air and is still small enough that nothing centred moves: on a desktop
-// screen the inset only shows on an element anchored to an edge.
-constexpr float kSafeMarginFraction = 0.045f;
+// the camera cut-out (about 3 % of the height deep). P7 took 4.5 %, which cleared
+// both with a little air; the owner's ruling after the P11b real-finger test
+// (docs/runtime_port/NEXT_SESSION.md §2.11) takes a quarter of it back on every
+// edge: 3.375 %, just over the cut-out's depth (a dialog's own frame and padding
+// keep its content off the rounded corners). Still small enough that nothing
+// centred moves: on a desktop screen the inset only shows on an element anchored
+// to an edge.
+constexpr float kSafeMarginP7Fraction = 0.045f;
+constexpr float kSafeMarginFraction = kSafeMarginP7Fraction * 0.75f;
 
 // The Options > UI scale slider's lowest value with the row on (percent).
 // _uiScale = percent / 100 is LAYOUT UNITS PER DEVICE PIXEL, so 25 draws the UI
@@ -206,17 +211,9 @@ Rect SafeArea(int32_t width, int32_t height, int32_t upperLeftX, int32_t upperLe
 // at retail's clamp for one frame and pulled to the margin by the next layout (the snap).
 Rect SafeBounds(int32_t width, int32_t height, int32_t dialogWidth, int32_t dialogHeight);
 
-// The upper-left a laid-out dialog's root is at (`root`: its laid-out {left, top, right, bottom},
-// `leftPad` / `topPad` its pads), on the axes its `alignment` (ElementDescription::Alignment: 0..8,
-// x = alignment % 3, y = alignment / 3) anchors at the upper-left; `upperLeftX` / `upperLeftY` are
-// left as they are on a centred or right / bottom anchored axis and for a root not laid out yet
-// (empty). DialogInstance::SetUpperLeft moves the laid-out tree by (new - _upperLeft), so when the
-// layout put the root elsewhere (ComputeLayout pulls a dialog that crosses the far edge back to it;
-// the safe area raises one inside the margin) the move lands it off by that difference for one
-// frame, until the next layout (P11b: an entity's panel placed at its unbuilt size, 88 units high,
-// then laid out at 220 against the bottom margin, was drawn 3 units too high, then snapped down).
-void LaidOutUpperLeft(int32_t alignment, const Rect& root, int32_t leftPad, int32_t topPad, int32_t& upperLeftX,
-                      int32_t& upperLeftY);
+// (P11c: LaidOutUpperLeft, the stored upper-left synced to the laid-out root, moved to
+// src/ext/dialog_position_drift/drift_math.h, fix.dialog_position_drift's arithmetic, which carries it to
+// every platform; phone_menu.cpp's kExtPlaceUpperLeft arm calls it from there.)
 
 // ---- the icons in the squares ----------------------------------------------------
 

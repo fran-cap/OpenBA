@@ -472,3 +472,34 @@ Fix: `fix.slider_drag_clamp` (tier 1), default on, engine seams `UI::SliderEleme
 and `UI::ScrollElement::_extFixDragClamp` (null-by-default pointers the game side points at the fix's
 bool at boot: DESIGN.md hook rule 5).
 Hand-in `docs/extensions/handins/SLIDERCLAMP.md`.
+
+## 13. A panel at the screen's edge jumps for one frame when it is moved
+
+**Symptom.** A building's or citizen's info panel is placed every frame above its entity (its bottom on
+the entity's screen top, `EditTool::Update`). When the panel's layout crosses the screen's bottom edge
+(its first layout before its controller has filled it, or a panel that grows while it is held against
+the edge), it is drawn a few layout units too high for one frame, then snaps back. Measured on the
+Galaxy S25 at UI 42: 3 to 11 units (`docs/android/P11B_DIALOG_SNAP.md` cause 3). Rare at a desktop UI
+scale, where a panel's first size is usually its final one.
+
+**Retail mechanism.**
+- `DialogInstance::ComputeLayout` (`0x180113d90`) lays the root out at the stored `_upperLeft` (+0x88 /
+  +0x8c) and pulls a dialog that crosses the far edge back onto the screen. It does not write the
+  position it used back into `_upperLeft`.
+- `DialogInstance::SetUpperLeft` (`0x180114a60`) clamps the requested upper-left into the screen, then
+  moves the laid-out tree by `new - _upperLeft` (`Element::AdjustUpperLeft` `0x180115840`) and stores
+  the new value. When the last layout put the root elsewhere than `_upperLeft`, the move lands it off by
+  that difference until the next layout.
+
+**Proof it is retail.** The port's `src/engine/ui/dialog.cpp` `DialogInstance::SetUpperLeft` is the
+address-by-address port of `0x180114a60` (the clamp order is load-bearing, kept); `ComputeLayout` is
+faithful. Seen with ext.phone_menu on the S25 (P11b), the mechanism is the faithful pair's.
+
+**Lever.** Before SetUpperLeft takes its delta, set `_upperLeft` to where the root is laid out (the
+root's laid-out left / top less its pads), on the axes the root's alignment anchors top / left. The
+move then lands the dialog where the next layout keeps it. A root not laid out yet is left alone.
+
+Fix: `fix.dialog_position_drift` (tier 1), default on, off under `/profile:faithful`. No seam of its own:
+it rides `UI::UserInterface::_extDialogPlace` at `kExtPlaceUpperLeft` (installed under every profile but
+faithful by ext.phone_menu's `Place`, the row on or off). Code `src/ext/dialog_position_drift/`.
+Hand-in `docs/extensions/handins/DIALOGPOSITIONDRIFT.md`.

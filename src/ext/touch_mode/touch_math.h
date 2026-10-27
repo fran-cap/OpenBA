@@ -4,7 +4,7 @@
 // NOT RETAIL (docs/android/TOUCH_MODE.md). Everything here is plain arithmetic on the
 // layout-space screen (UserInterface::_uiScale units, the space every dialog but a scaled one is
 // laid out in): the control cluster's rectangles, the toolbar's own scale k, which control a
-// point is on, the D-pad's direction, the zoom buttons' repeat and the unit-space mappings the
+// point is on, the D-pad's pan vector, the zoom buttons' rate and the unit-space mappings the
 // place hook needs. Sizes are fractions of the screen's short edge, so the cluster keeps its
 // physical size at any UI scale and render scale.
 // ============================================================================
@@ -16,19 +16,20 @@ namespace Ext {
 namespace TouchMode {
 
 // The cluster's cell (a D-pad third, a button's side), the gap between its buttons and the frame
-// around them as fractions of the short edge, the D-pad's dead zone as a fraction of its side, the
+// around them as fractions of the short edge, the D-pad's dead-zone radius as a fraction of its side, the
 // margin used without ext.phone_menu. The gap and the frame match the toolbar's look on the S25 at
 // UI 40 (Toolbar.rsc: 4-unit cells, a 9-unit content pad, at k ~1.5): one frame around the group
 // (the owner, 2026-10-26).
 constexpr float kCellFraction = 0.11f;
 constexpr float kGapFraction = 0.014f;
 constexpr float kFrameFraction = 0.03f;
-constexpr float kDeadZoneFraction = 0.15f;
+constexpr float kDeadZoneFraction = 0.10f;   // P11c: 0.15 for the 8-way pad, smaller for the analogue one
 constexpr float kDesktopMarginFraction = 0.02f;
 
-// The zoom buttons: one step at the press, then one per kZoomRepeat seconds once held kZoomDelay.
-constexpr float kZoomDelay = 0.35f;
-constexpr float kZoomRepeat = 0.15f;
+// The zoom buttons (P11c, the owner's ruling of 2026-10-26: smooth and continuous, zero delay, no steps): a held
+// button zooms at a constant kZoomStepsPerSecond of retail's zoom steps (camera_input.cpp kZoomStep, 5 distance
+// units) from the first frame to the release. 8 steps/s = 40 units/s: retail's 20 .. 130 range in 2.75 s.
+constexpr float kZoomStepsPerSecond = 8.0f;
 
 // Retail's keyboard rotate rate (camera_input.cpp kRotSpeed, 0x140172204), degrees per second.
 constexpr float kRotateDegPerSecond = 90.0f;
@@ -77,11 +78,18 @@ float ToolbarScale(float requested, int32_t regionWidth, int32_t ownWidth);
 // The control under (x, y), or kNone.
 Control HitControl(const Cluster& c, int32_t x, int32_t y);
 
-// The D-pad's 8-way direction at (x, y): dx / dy in -1 .. 1 (right / down positive), from the pad's
-// centre, both 0 in the dead zone. A point outside the pad still gives its direction (a finger that
-// started on the pad and slid off keeps panning that way: the owner's capture rule, 2026-10-26). An
-// axis counts when its offset exceeds tan(22.5 deg) of the other's, so the corners give the diagonals.
-void PadDirection(const Rect& pad, int32_t x, int32_t y, int32_t& dx, int32_t& dy);
+// The D-pad (P11c, the owner's ruling of 2026-10-26: analogue, a circle of directions, the rectangular graphic
+// unchanged): the pan at (x, y) from the pad's centre. (x, y) of the result is the direction (a unit vector,
+// right / down positive) times the speed 0..1, (0, 0) inside the dead zone (kDeadZoneFraction of the side, as a
+// radius). kPadFull: full speed outside the dead zone. kPadProportional: the speed grows from 0 at the dead
+// zone's edge to 1 at the inscribed circle (half the side), full beyond. A point outside the pad still gives
+// its direction (a finger that started on the pad and slid off keeps panning that way: the capture rule).
+enum PadSpeed : int32_t { kPadFull = 0, kPadProportional = 1 };
+struct PadPan {
+    float x = 0.0f;
+    float y = 0.0f;
+};
+PadPan PadVector(const Rect& pad, int32_t x, int32_t y, PadSpeed mode);
 
 // The capture rule (owner, 2026-10-26): a press that STARTS on a control captures the pointer until it
 // is released; while down, that control and only that control acts, wherever the pointer moves (no
@@ -97,21 +105,25 @@ struct Capture {
     bool ShowsPressed(Control c) const { return c != kNone && wasDown && control == c; }
 };
 
-// The zoom buttons' repeat: Step(held, dt) returns the zoom steps this frame (0 or 1): one when
-// the button goes down, then one every kZoomRepeat seconds after kZoomDelay; none after release.
-struct ZoomRepeat {
-    float heldFor = -1.0f;   // seconds held; < 0 while up
-    float nextAt = 0.0f;     // the held time of the next repeat
-    int32_t Step(bool held, float dt);
-};
+// A held zoom button's zoom this frame in retail's steps (zoomDir's sign: + in), `dir` +1 in / -1 out / 0 up:
+// dir * kZoomStepsPerSecond * dt, 0 for a negative dt.
+float HeldZoomSteps(int32_t dir, float dt);
+
+// The held zoom applied as retail's own zoom moves (PlayerToolManager::UpdateCamera): the zoom target goes
+// `steps` * `stepDistance` closer (steps > 0) or farther, clamped to [zMin, zMax] (retail's range or
+// ext.better_camera's, as the caller's frame uses), and the smoothed distance moves by the same applied amount so
+// retail's 0.9 / 0.1 smoothing adds no lag at the press or the release (the zoom starts and stops with the finger).
+void ApplyHeldZoom(float steps, float stepDistance, float zMin, float zMax, float& target, float& distance);
 
 // P11b (docs/android/P11B_POINTER.md §4; the owner's ruling of 2026-10-26: the D-pad pan SMOOTH like the
-// two-finger pan): the pad's pan and the rotate buttons ramp their speed. Step(held, dt) returns the gain
+// two-finger pan): the pad's pan ramps its speed (the rotate buttons did too until P11c: the owner's ruling of
+// 2026-10-26 took the rotate ramp out, full speed on the press). Step(held, dt) returns the gain
 // 0..1 this frame: up from 0 over kRampInSeconds while held, down to 0 over kRampOutSeconds after the
-// release (the camera coasts to a stop in the last direction), eased with a smoothstep. Zoom keeps its
-// steps (retail's zoom target is smoothed already).
-constexpr float kRampInSeconds = 0.30f;
-constexpr float kRampOutSeconds = 0.20f;
+// release (the camera coasts to a stop in the last direction), eased with a smoothstep. Zoom has no
+// ramp (HeldZoomSteps).
+// P11c (the owner, 2026-10-26: 0.30 / 0.20 s too laggy, keep the ramp at about 100 ms): 0.10 s in, 0.09 s out.
+constexpr float kRampInSeconds = 0.10f;
+constexpr float kRampOutSeconds = 0.09f;
 
 struct SpeedRamp {
     float level = 0.0f;   // linear 0..1

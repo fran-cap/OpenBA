@@ -177,14 +177,6 @@ Rect SafeBounds(int32_t width, int32_t height, int32_t dialogWidth, int32_t dial
     return r;
 }
 
-void LaidOutUpperLeft(int32_t alignment, const Rect& root, int32_t leftPad, int32_t topPad, int32_t& upperLeftX,
-                      int32_t& upperLeftY) {
-    if (root.x2 <= root.x1 && root.y2 <= root.y1) return;
-    if (alignment < 0 || alignment > 8) return;
-    if (alignment % 3 == 0) upperLeftX = root.x1 - leftPad;
-    if (alignment / 3 == 0) upperLeftY = root.y1 - topPad;
-}
-
 int32_t IconSide(int32_t side, int32_t labelHeight, int32_t iconHeight) {
     if (side <= 0 || labelHeight <= 0 || iconHeight <= 0) return iconHeight;
     const int32_t room = side - 2 * kSquareInset - (labelHeight - iconHeight);

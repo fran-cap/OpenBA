@@ -125,6 +125,24 @@ def draw_slider(px):
     ])
 
 
+def draw_drift(px):
+    # a panel resting on the screen's bottom edge, a bar over it (a panel at the edge stays put, no jump)
+    _paint(px, [
+        "############",
+        "............",
+        "..########..",
+        "..#++++++#..",
+        "..########..",
+        "..#......#..",
+        "..#......#..",
+        "..#......#..",
+        "..#......#..",
+        "..########..",
+        "............",
+        "############",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -132,4 +150,5 @@ ICONS = {
     "start_barn_height": ("fix", draw_barn),         # barn with door on a ground line
     "ui_scale_layout": ("fix", draw_window),         # centred dialog frame, resize corner marks
     "slider_drag_clamp": ("fix", draw_slider),       # slider track, thumb at its end stop
+    "dialog_position_drift": ("fix", draw_drift),    # panel held between two edge bars
 }

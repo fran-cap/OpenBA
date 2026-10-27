@@ -52,6 +52,7 @@
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera's zoom
 #include "ext/better_camera/better_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera's zoom range + steady tilt
 #include "ext/touch_mode/touch_mode.h"   // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's camera controls
+#include "ext/touch_mode/touch_math.h"   // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ApplyHeldZoom
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md): ext.touch_pointer's bar
 
 extern "C" bool StartTown_GetSpawnTile(int* x, int* y);   // starttown.cpp (BANISHED_CAMERA_PIN=town)
@@ -178,17 +179,21 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md): ext.touch_pointer's two-finger camera
     // reaches the same locals through touch_mode's hold, and its action bar follows the current tool.
     // P11b: the pad's ramped pan speed comes back in panGain (1 = retail's speed, the only value without the seam).
+    // P11c: a held zoom button's continuous zoom comes back in heldZoom (retail's steps, + in; 0 without the seam).
     float panGain = 1.0f;
+    float heldZoom = 0.0f;
     if (Ext::Ext().touch_mode || Ext::Ext().touch_pointer || Ext::TouchMode::Shown())
-        Ext::TouchMode::CameraInput(dt, yaw, panX, panY, zoomDir, panGain);
+        Ext::TouchMode::CameraInput(dt, yaw, panX, panY, zoomDir, panGain, heldZoom);
     if (Ext::Ext().touch_pointer || Ext::TouchPointer::Shown())
         Ext::TouchPointer::GameFrame();
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): while
     // ext.eye_camera follows a citizen the zoom moves the eye's own distance
     // and retail's zoom target (+0x3C) is left alone.
-    if (Ext::Ext().eye_camera && Ext::EyeCamera::Active())
+    if (Ext::Ext().eye_camera && Ext::EyeCamera::Active()) {
         zoomDir = Ext::EyeCamera::Zoom(zoomDir);
+        heldZoom = Ext::EyeCamera::ZoomBy(heldZoom);
+    }
 
     // ── manual pitch accumulator +0x44 (0..1) from PitchUp/PitchDown (ids 0x11/0x12) ──
     if (keyMap->Pressed(0, 0x11))
@@ -214,6 +219,10 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
         float z = field_0x3C + (zoomDir < 1 ? kZoomStep : -kZoomStep);
         field_0x3C = clampf(z, zMin, zMax);
     }
+    // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's held zoom button, the zoom target and the
+    // smoothed distance moved together at a constant rate inside the frame's range (retail's or better_camera's).
+    if (heldZoom != 0.0f)
+        Ext::TouchMode::ApplyHeldZoom(heldZoom, kZoomStep, zMin, zMax, field_0x3C, pc->distance);
 
     // ── pitch/distance coupling ──
     const float manual  = field_0x44;                        // 0..1
