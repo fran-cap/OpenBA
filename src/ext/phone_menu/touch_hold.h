@@ -36,8 +36,10 @@ namespace PhoneMenu {
 // UI::UserInterface::_extHoverWhileDown.
 bool HoverWhileFingerDown(const UI::DialogInstance* dialog);
 
-// UI::UserInterface::_extDialogPlace's tooltip arm (P11c): true, with `rect` written, when `dialog` is
-// the tooltip up, the point is kExtPlaceLayout, the row is on and the pointer is a touch.
+// UI::UserInterface::_extDialogPlace's tooltip arm (P11c): true when `dialog` is the tooltip up, the row
+// is on and the pointer is a touch, at kExtPlaceLayout (`rect` written: the tooltip above the finger)
+// and at kExtPlaceUpperLeft (`rect` left as retail's bounds, so SetUpperLeft keeps the pointer's
+// upper-left and does not move the laid-out tooltip back).
 bool PlaceHeldToolTip(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
                       int32_t* rect);
 

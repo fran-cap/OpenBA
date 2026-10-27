@@ -37,12 +37,17 @@ bool HoverWhileFingerDown(const UI::DialogInstance* /*dialog*/) {
 
 bool PlaceHeldToolTip(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
                       int32_t* rect) {
-    if (point != UI::UserInterface::kExtPlaceLayout) return false;
+    if (point != UI::UserInterface::kExtPlaceLayout && point != UI::UserInterface::kExtPlaceUpperLeft) return false;
     if (!Ext().phone_menu || dialog == nullptr) return false;
     const UI::UserInterface* ui = dialog->_ui;
     if (ui == nullptr || ui->_toolTipDialog == nullptr) return false;
     if (dialog != ui->_toolTipDialog) return false;
     if (!::Platform::Input::PointerIsTouch()) return false;
+    // SetUpperLeft (BeginToolTip, then the MOVE arm every frame): retail's clamp, and the upper-left
+    // stays the pointer's. phone_menu.cpp's own kExtPlaceUpperLeft arm would store the laid-out
+    // upper-left instead (P11b), and the next SetUpperLeft(x, y - h) would then move the laid-out
+    // tooltip by the difference: back under the finger.
+    if (point == UI::UserInterface::kExtPlaceUpperLeft) return true;
     const ::Input::Device* in = ::Input::Device::_singleton;
     UI::Element* root = const_cast<UI::Element*>(dialog->_root.Get());
     if (in == nullptr || root == nullptr) return false;
