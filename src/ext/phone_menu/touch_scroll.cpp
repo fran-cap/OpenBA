@@ -258,6 +258,7 @@ int32_t PaddedHeight(UI::Element* root) {
 struct Window {
     const UI::DialogInstance* dialog = nullptr;
     const UI::Dialog* description = nullptr;
+    const UI::UserInterface* ui = nullptr;   // the UserInterface it is open in (TouchScrollForgetClosed)
     int32_t cap = 0;        // 0: the lists are retail's height
     int32_t settled = -1;   // the padded height the cap was decided at (-1: not yet)
     int32_t room = -1;      // the safe height it was decided for
@@ -275,7 +276,15 @@ Window& WindowOf(const UI::DialogInstance* d) {
     w = Window();
     w.dialog = d;
     w.description = d->_dialog;
+    w.ui = d->_ui;
     return w;
+}
+
+bool IsOpen(const UI::UserInterface* ui, const UI::DialogInstance* d) {
+    for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
+        if (node->element == d) return true;
+    }
+    return false;
 }
 
 // touch_fit.cpp IsWindow's test: a dialog with a description, shown, not a whole-screen picture and not
@@ -300,6 +309,13 @@ int32_t SafeHeight(const UI::DialogInstance* d) {
 }
 
 }  // namespace
+
+void TouchScrollForgetClosed(const UI::UserInterface* ui) {
+    for (Window& w : g_windows) {
+        if (w.dialog == nullptr || w.ui != ui || IsOpen(ui, w.dialog)) continue;
+        w = Window();
+    }
+}
 
 int32_t TouchScrollWrap(const UI::DialogInstance* dialog, bool on) {
     UI::Element* root = dialog->_root.Get();
@@ -328,7 +344,10 @@ int32_t TouchScrollCap(const UI::DialogInstance* dialog, bool on) {
 
     // Shrink until the window fits (two lists stacked lose twice what one cap step takes, so a few steps),
     // or grow back what the window no longer needs; a step that grows it past the room is taken back.
-    int32_t changes = 0;
+    // The lists carry the cap in force before it is searched from (a no-op for the window it was decided on;
+    // a window opened again at a closed one's address is forgotten first, TouchScrollForgetClosed).
+    int32_t changes = ApplyCap(lists, w.cap);
+    if (changes > 0) height = PaddedHeight(root);
     const int32_t before = w.cap;
     const int32_t uncapped = height;
     for (int32_t step = 0; step < 4; ++step) {

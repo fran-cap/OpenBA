@@ -308,7 +308,11 @@ void TouchFrame(int32_t point, const UI::DialogInstance* dialog) {
     if (ui == nullptr) return;
     const bool on = Ext().phone_menu;
     const bool head = ui->_dialogs._head != nullptr && ui->_dialogs._head->element == dialog;
-    if (!head || (!on && !g_touched)) return;
+    if (!head) return;
+    // P11c: a closed dialog's records go before anything is decided, so a dialog opened again at its
+    // address is a new one (touch_size.h TouchForgetClosed).
+    TouchForgetClosed(ui);
+    if (!on && !g_touched) return;
     // Once a frame per UserInterface, before any of its dialogs is laid out.
     g_changes = 0;
     for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {

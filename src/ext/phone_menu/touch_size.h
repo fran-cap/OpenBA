@@ -32,6 +32,7 @@
 
 namespace UI {
 class DialogInstance;
+class UserInterface;
 }
 
 namespace Ext {
@@ -50,6 +51,14 @@ void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned);
 // P11b: true once TouchSeen has seen `dialog` (with its current description). phone_menu.cpp Place asks
 // it before TouchSeen to find a dialog's first placement or layout (touch_fit.h TouchFirstPlace).
 bool TouchKnown(const UI::DialogInstance* dialog);
+
+// P11c: touch_fit.cpp TouchFrame, once a frame per UserInterface (row on or off): forgets every dialog of
+// `ui` that is no longer in its open list, here and in touch_scroll.h's per-window caps. What is known of a
+// dialog is keyed by its address, and a dialog opened again (the Options dialog, closed and reopened) is
+// often allocated at the address the closed one had: without this it was taken for the closed one (no
+// first-placement walk; its lists left uncapped under the old one's settled cap, so it was scaled down;
+// docs/android/P11C_DIALOGS.md).
+void TouchForgetClosed(const UI::UserInterface* ui);
 
 // Boot (phone_menu.cpp Sync): points UI::SliderElement::_extSpriteScale at the slider factor
 // (null under the faithful profile).
