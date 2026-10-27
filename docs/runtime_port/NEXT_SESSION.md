@@ -394,7 +394,20 @@ a hook in `DialogInstance::Update`'s hover rule). Not built from the ideas sheet
 scrolling, the road route-modifier toggle, Android back as Cancel. Not verified: the tutorial's forced placement,
 render scale Half with touch_pointer, a real KVM mouse on the phone with the tooltip hide.
 
-**Next: the owner's real-finger test of the P11 apk, then the rulings above.**
+**RULED 2026-10-26 (owner, after the real-finger test of the P11 apk; "great first pass"):** lift 160 KEPT; pick
+radius / cycle window KEPT; the three touch_pointer keys get ONE "Touch controls" combo on the Enhanced tab; spin
+sense KEPT; the Rotate / Change-model glyphs REUSE the undo / redo menu's left / right rotate icons, and the housing
+icon sits too far left / right in its button and overlaps the edge (spacing to fix); the D-pad camera pan should be
+SMOOTH (ramped) like the two-finger pan; the Enhanced tab's fit (a scrolling list) is the model: REPEAT it for the other
+Options pages (Game / Video / Audio / Input) instead of keeping them at retail size; slider thumb KEPT; house rows
+(3) KEPT; spinner scale KEPT but the Professions list must SCROLL (mods add professions); press-and-hold shows the
+tooltip (a seam in `DialogInstance::Update`'s hover rule); fitted-dialog text KEPT. Two more: the Cancel / Ok and
+Options / Default buttons of Fixes and Extensions, and the Game / Video / Audio / Input / Enhanced tab buttons of
+Options, are still TOO SMALL to tap (target the [x]'s height); a dialog opened on a building appears ABOVE its place
+and snaps down a few frames later. The remaining ideas-sheet items (two-finger list scroll, route-modifier toggle,
+Android back = Cancel) are DROPPED: not wanted.
+
+**Next (P11b, three opus agents stacked on `android/p11`):** the rulings above as code.
 
 ## 3. Rules that hold (do not relax)
 
