@@ -495,6 +495,54 @@ still stops at 20 with touch_mode off and touch_pointer on (both are on in the A
 
 **Next: the owner's real-finger test of the P11d apk; PRs #60 -> #61 -> #62 -> #63 in order.**
 
+### 2.14 Android P12: the mobile-platform pass (2026-10-27, one agent on `claude/vigilant-meitner-yjnlrv`, UNTESTED on a phone)
+
+Branch `claude/vigilant-meitner-yjnlrv` (commit `android: release-grade apk build, display frame rate, big-core
+roster, NEON cull`), written from a Linux container WITHOUT the NDK, a phone or the Windows gate: the Linux unit
+build is 1561/0/0 and the Android-only sources were cross-syntax-checked with clang for aarch64-android, nothing
+more. `docs/android/README.md` (Build, Release, Frame rate cap, Audio, Threads) and `perf/pgo/android/README.md`
+describe each change. **The next agent's first job is to build it (`tools/android.sh build release`, sign with the
+debug key, install) and run the checks below on the S25; nothing here is verified until then.**
+- **Release apk = release flavour** (-O3, Gradle's RelWithDebInfo keeps -g in the unstripped copy) + ThinLTO +
+  hidden visibility (`libmain.so` exports `main` alone, `-Wl,--exclude-libs,ALL`); `--flavour perf` keeps the P7
+  -O2 build for A/B. Check: the apk boots (a symbol SDL's Java glue needs besides `main` would show as an
+  UnsatisfiedLinkError in logcat), `standalone_crash.log` frames symbolise through `llvm-addr2line` as before
+  (function names are gone from the live dump), then the P7 stress run (`docs/android/PERF_P7.md` §3.1) against
+  `--flavour perf` for the delta.
+- **Clang PGO for the apk**: `build release --pgo generate`, the two training towns, `tools/android.sh pgo-merge`,
+  commit `perf/pgo/android/openba.profdata`, `build release` reads it (`BANISHED_PGO=auto`). The instrumented
+  library writes `<data>/pgo/openba-<hash>.profraw` at `Platform::App::Shutdown` through the weak
+  `__llvm_profile_write_file` (Android skips atexit). Check: the `.profraw` appears after a pause-menu quit; a
+  recents-kill writes nothing (expected).
+- **Display frame rate**: `Platform::Window::SetPreferredFrameRate` (new hook, identity off Android) is called by
+  `FrameLimiter::SetCeiling` and re-applied by the Vulkan backend after every `CreateSwapchain`
+  (`ANativeWindow_setFrameRate`, dlsym'd from libandroid.so, FIXED_SOURCE). Check: `[Window] preferred frame rate
+  60 -> ANativeWindow_setFrameRate = 0` in `standalone_error.log`, `dumpsys SurfaceFlinger --timestats` showing
+  presents at 16 ms (the panel at 60 Hz, not 120), and the rate surviving a trip to the background and back. If
+  SurfaceFlinger refuses the switch (some OEM builds pin the rate), the limiter still paces as before.
+- **Audio**: `SDL_HINT_ANDROID_LOW_LATENCY_AUDIO=0` in `PreSdlInitHints`. Check: music and effects play, no
+  underruns in logcat (`AAudio`), the audio thread's CPU share in a simpleperf run lower than P7's.
+- **Big-core roster**: `Platform::CpuCoreCapacity` (sysfs `cpu_capacity`) -> `Cpu::BigCoreMask` (keeps a CPU
+  whose capacity is MORE than half the largest in the mask; unit-tested) -> the topology's `physical` counted
+  inside that mask, `[Cpu] ... big=0x..` on a heterogeneous SoC. The S25 (2 prime + 6 performance) counts all
+  eight, so the S25 shows NO change; a 1+3+4 or 2+6-little phone is where it acts. Nothing is pinned: pinning the
+  process to the big mask (`sys.cpu_limit` in the phone seed) is the next lever if the helpers still land on little
+  cores.
+- **NEON frustum cull** (`src/engine/volume/frustum_cull.h`, the AArch64 arm) and the decode batch's FPCR: the
+  existing bit-identical frustum tests run the NEON body on CI's macOS arm64 runner; the stress town's
+  `BANISHED_STRESS_COMPPROF=4` shadow is the on-device check.
+- **Looked at, not changed**: the swap chain already ASKS for 3 images (the S25's 5 is the driver's answer; the
+  `[Vulkan] swap chain ... images (asked N, surface min M)` line will say which; 2 frames in flight is the real
+  lever and a larger change); `Transform::AsMatrix` (nine scalar products in a fixed order, no NEON win);
+  `VK_EXT_vertex_input_dynamic_state` (already not enabled).
+- **Still open from the same survey, in order of value**: ADPF (`APerformanceHint` sessions for the main and render
+  threads with the frame target, a thermal-status listener stepping the render scale / cap down; both API 31+,
+  dlopen under minSdk 29) and `android:appCategory="game"` + a game-mode config; the gather helpers' spin (10 % of
+  all samples in P7, `src/ext/gather_threads/`); WinData / the caches on external (FUSE) storage for Android 10-11
+  devices (internal `getFilesDir` or a first-run copy); transient + lazily-allocated depth / MSAA attachments on
+  the tiler (`draw.cpp` MakeMainImage); the NDK's stack protector / fortify defaults (a measured A/B before
+  touching); the 30-minute thermal soak at the 60 cap that P7 never ran.
+
 ## 3. Rules that hold (do not relax)
 
 - CLAUDE.md's hard rules: no null guard on a faithful crash (find what handed us the null); no `getenv`, flags through
