@@ -507,11 +507,21 @@ void PlaceMenu(const UI::DialogInstance* dialog, int32_t width, int32_t height, 
 void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
            int32_t* rect) {
     if (dialog == nullptr) return;
+    // The main thread's points (the backdrop ones come from the UI's draw).
+    const bool update = point == UI::UserInterface::kExtPlaceLayout ||
+                        point == UI::UserInterface::kExtPlaceAfterLayout ||
+                        point == UI::UserInterface::kExtPlaceUpperLeft;
+    // P11b: a dialog this hook has not seen yet is at its first placement (SetUpperLeft) or its first
+    // layout this frame.
+    const bool fresh = update && point != UI::UserInterface::kExtPlaceAfterLayout && !TouchKnown(dialog);
     const bool touchOwned = TouchMode::Place(point, dialog, width, height, rect);   // ext.touch_mode first
-    TouchSeen(dialog, touchOwned);   // P11: the touch size walk (touch_size.h)
+    if (update) TouchSeen(dialog, touchOwned);   // P11: the touch size walk (touch_size.h)
     if (touchOwned) return;   // placed by ext.touch_mode (TOUCH_MODE.md)
     // P9: scroll bars, close buttons and a dialog larger than the safe area (touch_fit.h).
     TouchFrame(point, dialog);
+    // P11b: its touch size and fitted scale before it is first sized, so its first layout is its last
+    // (touch_fit.h TouchFirstPlace; docs/android/P11B_DIALOG_SNAP.md).
+    if (fresh) TouchFirstPlace(dialog);
     if (!Ext().phone_menu) {
         // Switched off while a menu is open: its retail values back before retail lays it out.
         // (A recorded menu at that address went through MenuOpened, which forgets the old one.)
@@ -544,6 +554,27 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     if (point == UI::UserInterface::kExtPlaceAfterLayout) {
         // A menu in two rows: its second row moved under the first.
         if ((menu || pause) && dialog == g_row.dialog && g_rowActive) WrapRows(width, height);
+        return;
+    }
+    if (point == UI::UserInterface::kExtPlaceUpperLeft) {
+        // P11b: SetUpperLeft clamps into the safe area kExtPlaceLayout lays the dialog out in, so the
+        // position a game tool gives it after the layout (an entity's panel, every frame) is the one
+        // the next layout keeps (phone_math.h SafeBounds). The menus, the version line, a root sized
+        // to the screen and a dialog at its own fitted scale keep retail's clamp.
+        if (menu || pause || version || root == nullptr || (root->_flags & 0x30) != 0) return;
+        if (FitDialogScale(dialog) != 1.0f) return;
+        // SetUpperLeft moves the laid-out tree by its delta from _upperLeft: the upper-left the root is
+        // actually laid out at first, so the move lands it where the next layout keeps it.
+        UI::DialogInstance* placed = const_cast<UI::DialogInstance*>(dialog);
+        LaidOutUpperLeft(root->_alignment,
+                         Rect{root->_layoutLeft, root->_layoutTop, root->_layoutRight, root->_layoutBottom},
+                         root->_leftPad, root->_topPad, placed->_upperLeftX, placed->_upperLeftY);
+        int32_t w = 0;
+        int32_t h = 0;
+        PaddedSize(const_cast<UI::Element*>(root), w, h);
+        if (w < root->_minWidth) w = root->_minWidth;
+        if (h < root->_minHeight) h = root->_minHeight;
+        Store(SafeBounds(width, height, w, h), rect);
         return;
     }
     if (point != UI::UserInterface::kExtPlaceLayout) return;

@@ -326,6 +326,16 @@ void TouchFrame(int32_t point, const UI::DialogInstance* dialog) {
     }
 }
 
+void TouchFirstPlace(const UI::DialogInstance* dialog) {
+    if (dialog == nullptr || !Ext().phone_menu) return;
+    UI::UserInterface* ui = dialog->_ui;
+    if (ui == nullptr) return;
+    if (TouchSizeWalk(dialog, true) == 0) return;
+    g_touched = true;
+    g_quietFrames = 0;
+    DecideScale(ui, true);
+}
+
 float FitDialogScale(const UI::DialogInstance* dialog) {
     if (dialog == nullptr) return 1.0f;
     const DialogFit* f = FitEntry(FitOwner(dialog));

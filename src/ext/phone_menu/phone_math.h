@@ -197,6 +197,27 @@ int32_t VersionTop(int32_t width, int32_t height, int32_t versionHeight);
 Rect SafeArea(int32_t width, int32_t height, int32_t upperLeftX, int32_t upperLeftY, int32_t lastWidth,
               int32_t lastHeight);
 
+// The rectangle DialogInstance::SetUpperLeft clamps a dialog's upper-left into (P11b, the seam's
+// kExtPlaceUpperLeft; retail's is {0, 0, width, height}), for a dialog of `dialogWidth` x
+// `dialogHeight`: the safe area on each axis the dialog fits in with its margins, retail's whole
+// extent on an axis it does not (SafeArea's rule). An upper-left clamped into it is one SafeArea
+// keeps: SetUpperLeft then puts the dialog where its next layout leaves it. Without it a dialog a
+// game tool places after the layout (an entity's panel above its building, every frame) is drawn
+// at retail's clamp for one frame and pulled to the margin by the next layout (the snap).
+Rect SafeBounds(int32_t width, int32_t height, int32_t dialogWidth, int32_t dialogHeight);
+
+// The upper-left a laid-out dialog's root is at (`root`: its laid-out {left, top, right, bottom},
+// `leftPad` / `topPad` its pads), on the axes its `alignment` (ElementDescription::Alignment: 0..8,
+// x = alignment % 3, y = alignment / 3) anchors at the upper-left; `upperLeftX` / `upperLeftY` are
+// left as they are on a centred or right / bottom anchored axis and for a root not laid out yet
+// (empty). DialogInstance::SetUpperLeft moves the laid-out tree by (new - _upperLeft), so when the
+// layout put the root elsewhere (ComputeLayout pulls a dialog that crosses the far edge back to it;
+// the safe area raises one inside the margin) the move lands it off by that difference for one
+// frame, until the next layout (P11b: an entity's panel placed at its unbuilt size, 88 units high,
+// then laid out at 220 against the bottom margin, was drawn 3 units too high, then snapped down).
+void LaidOutUpperLeft(int32_t alignment, const Rect& root, int32_t leftPad, int32_t topPad, int32_t& upperLeftX,
+                      int32_t& upperLeftY);
+
 // ---- the icons in the squares ----------------------------------------------------
 
 // The icon's share of the square's side (owner's ruling, P8 round 4: "the icons could be a bit
