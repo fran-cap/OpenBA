@@ -57,6 +57,13 @@ constexpr float kTapSlopFraction = 0.03f; // and travels less than this fraction
 
 bool IsTap(float seconds, float travel, float shortEdge);
 
+// P11b: a finger held on a dialog keeps the cursor at its press point until it has moved this fraction of the
+// short edge away (a finger trembles; retail's tooltip delay counts only while the cursor stands still). Once out
+// of the slop the cursor follows the finger for the rest of the press.
+constexpr float kHoldSlopFraction = 0.012f;
+
+bool LeftHoldSlop(float dx, float dy, float shortEdge);
+
 // ---- the aim point ---------------------------------------------------------------------------
 
 // The cursor for a finger at (fx, fy) with the lift offset `lift` (engine px): `lift` above the finger,
@@ -165,6 +172,31 @@ Bar LayoutBar(int32_t width, int32_t height, int32_t cell, int32_t gap, int32_t 
 
 // The button under (x, y), or -1.
 int32_t HitButton(const Bar& bar, int32_t x, int32_t y);
+
+// ---- the Enhanced tab's "Touch pointer" presets (P11b) ---------------------------------------
+
+// The three keys set together (ext.touch_pointer_lift / _pick_radius / _tap_twice; each a value the
+// registry's key accepts). The combo (EnhancedOptions.rsc:touchPointerItems): item 0 = the row off,
+// item 1 + i = kTouchPresets[i], the last item = Custom (settings.cfg values no preset matches).
+struct TouchPreset {
+    int32_t lift;         // device px
+    int32_t pickRadius;   // device px
+    int32_t tapTwice;     // 0 / 1
+};
+
+constexpr TouchPreset kTouchPresets[] = {
+    {160, 50, 0},   // Default: the keys' defaults (lift 160 and radius 50 RULED kept, 2026-10-26)
+    {120, 25, 0},   // Close aim: the aim nearer the finger, a tighter pick snap
+    {240, 75, 0},   // Far aim: the aim well clear of a large thumb, a wider pick snap
+    {160, 50, 1},   // Tap twice: Default with a second tap near the first placing the building
+};
+constexpr int32_t kTouchPresetCount = static_cast<int32_t>(sizeof(kTouchPresets) / sizeof(kTouchPresets[0]));
+constexpr int32_t kTouchItemOff = 0;
+constexpr int32_t kTouchItemCustom = kTouchPresetCount + 1;
+
+// The combo item for the row's state and the three keys: kTouchItemOff with the row off, else the
+// matching preset's item, else kTouchItemCustom.
+int32_t TouchPresetItem(bool rowOn, int32_t lift, int32_t pickRadius, int32_t tapTwice);
 
 }  // namespace TouchPointer
 }  // namespace Ext

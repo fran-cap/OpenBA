@@ -270,3 +270,39 @@ UNIT_TEST(ext_touch_mode_registry_row_and_scale_key) {
     CHECK(Ext::ClampValue(*k, 160) == 200);   // not one of the combo's sizes: the default
     CHECK(Ext::ClampValue(*k, 50) == 200);
 }
+
+// P11b (docs/android/P11B_POINTER.md §4): the pad's pan and rotate ramp in over kRampInSeconds and out over
+// kRampOutSeconds, eased, whatever the frame rate.
+UNIT_TEST(ext_touch_mode_speed_ramp) {
+    SpeedRamp r;
+    CHECK(r.Step(false, 0.016f) == 0.0f);
+    float g = r.Step(true, 0.016f);
+    CHECK(g > 0.0f && g < 0.05f);   // the first frame barely moves
+    float t = 0.016f;
+    float last = g;
+    while (t < kRampInSeconds - 0.02f) {
+        g = r.Step(true, 0.016f);
+        CHECK(g >= last);
+        last = g;
+        t += 0.016f;
+    }
+    CHECK(g < 1.0f);
+    for (int i = 0; i < 4; ++i) g = r.Step(true, 0.016f);
+    CHECK(g == 1.0f);   // full speed once ramped
+    g = r.Step(false, kRampOutSeconds / 2.0f);
+    CHECK(g > 0.4f && g < 0.6f);   // half way out: the smoothstep's midpoint
+    g = r.Step(false, kRampOutSeconds);
+    CHECK(g == 0.0f);
+    // A long frame does not overshoot; a negative dt is ignored.
+    SpeedRamp s;
+    CHECK(s.Step(true, 5.0f) == 1.0f);
+    CHECK(s.Step(true, -1.0f) == 1.0f);
+    // The same total time ramps the same at 30 and 120 fps.
+    SpeedRamp a;
+    SpeedRamp b;
+    float ga = 0.0f;
+    float gb = 0.0f;
+    for (int i = 0; i < 4; ++i) ga = a.Step(true, 1.0f / 30.0f);
+    for (int i = 0; i < 16; ++i) gb = b.Step(true, 1.0f / 120.0f);
+    CHECK(std::abs(ga - gb) < 1e-4f);
+}

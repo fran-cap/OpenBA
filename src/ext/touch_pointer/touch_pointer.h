@@ -23,6 +23,7 @@
 namespace UI {
 class DialogInstance;
 }
+class Tool;   // src/game/Player/Tool.h
 
 namespace Ext {
 namespace TouchPointer {
@@ -37,6 +38,23 @@ bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
 // marker for the current tool. Called while the row is on or Shown().
 void GameFrame();
 bool Shown();
+
+// PlayerToolManager::Update (EXT SEAM, P11b): true while a finger pressed on a dialog with `current` (a placement or
+// drag tool) aiming, until the cursor is back on the world; the manager then skips the tool's hotkeys (no click of
+// the dialog's press reaches the tool) and updates it as if no dialog held the mouse, its ray on the aim
+// (ToolCursor), so its ghost stays where it was aimed (retail hides it while the cursor is over a dialog). False
+// otherwise, always with the row off, and once another tool is current.
+bool HoldToolAim(const Tool* current);
+
+// The draw's side of the same hold (GameUpdateLoop::Draw, render_pipe's main pass; EXT SEAM): true while the hold
+// above is on for `current`, so the tool's Draw gets retail's "no dialog under the cursor" flag and keeps drawing
+// its ghost (Tool::Draw hides it while the UI holds the mouse). Reads only.
+bool ToolAimHeld(const Tool* current);
+
+// The tools' cursor ray (PlayerRay_GetMouseRay_1005a0, EXT SEAM): while that hold is on, (x, y) are replaced by the
+// world cursor the tool last aimed at, so GetPlacement / the drag's end cell keep the aim while the real cursor is on
+// the dialog for the click. Any thread (the draw); a no-op otherwise.
+void ToolCursor(int16_t& x, int16_t& y);
 
 }  // namespace TouchPointer
 }  // namespace Ext

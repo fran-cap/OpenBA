@@ -99,6 +99,7 @@
 #include "platform/common/cpu/roster.h"      // Cpu::RenderThread (block CPULIMIT)
 #include "platform/common/cpu/topology.h"    // Cpu::Get().physical
 #include "ext/eye_camera/eye_camera.h"
+#include "ext/touch_pointer/touch_pointer.h"   // ToolAimHeld: the tool flag (P11b)
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/ambient_occlusion/ambient_occlusion.h"   // AOCORE: the AO arm, recorded into the packet
 #include "options.h"
@@ -289,10 +290,13 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     }
     // Step 11: the tool and its flag.
     {
-        const bool hasInput   = (g.m_userInterface->_mouseCaptured != 0);
+        bool hasInput         = (g.m_userInterface->_mouseCaptured != 0);
         const bool pauseCheck = g.m_userInterface->PausesGame();
-        p.toolFlag = (hasInput || pauseCheck) ? 1 : 0;
         p.tool     = g.m_toolManager->currentTool.Get();
+        // ext.touch_pointer (P11B_POINTER.md §5): GameUpdateLoop::Draw's same seam, a pressed dialog keeps the ghost.
+        if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(p.tool))
+            hasInput = false;
+        p.toolFlag = (hasInput || pauseCheck) ? 1 : 0;
     }
     // Step 12: which UI draw.
     p.sharpUi = Ext::Ext().sharp_ui;

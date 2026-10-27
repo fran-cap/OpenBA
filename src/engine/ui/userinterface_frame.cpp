@@ -201,6 +201,7 @@ const bool* UI::UserInterface::_extFixScaleLayout = nullptr;   // fix.ui_scale_l
 void (*UI::UserInterface::_extDialogPlace)(int32_t, const UI::DialogInstance*, int32_t, int32_t,
                                            int32_t*) = nullptr;   // ext.phone_menu seam
 float (*UI::UserInterface::_extDialogScale)(const UI::DialogInstance*) = nullptr;   // ext.touch_mode seam
+bool (*UI::UserInterface::_extHoverWhileDown)(const UI::DialogInstance*) = nullptr;   // ext.phone_menu seam (P11b)
 // ext.phone_menu seam (P9)
 bool (*UI::UserInterface::_extBackdropOver)(const UI::DialogInstance*, int32_t, int32_t, int32_t*, int32_t*,
                                             UI::SpriteSheet**, int32_t*) = nullptr;

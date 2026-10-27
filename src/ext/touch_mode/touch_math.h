@@ -105,6 +105,19 @@ struct ZoomRepeat {
     int32_t Step(bool held, float dt);
 };
 
+// P11b (docs/android/P11B_POINTER.md §4; the owner's ruling of 2026-10-26: the D-pad pan SMOOTH like the
+// two-finger pan): the pad's pan and the rotate buttons ramp their speed. Step(held, dt) returns the gain
+// 0..1 this frame: up from 0 over kRampInSeconds while held, down to 0 over kRampOutSeconds after the
+// release (the camera coasts to a stop in the last direction), eased with a smoothstep. Zoom keeps its
+// steps (retail's zoom target is smoothed already).
+constexpr float kRampInSeconds = 0.30f;
+constexpr float kRampOutSeconds = 0.20f;
+
+struct SpeedRamp {
+    float level = 0.0f;   // linear 0..1
+    float Step(bool held, float dt);
+};
+
 // Unit-space mappings (TOUCH_MODE.md §2). A dialog with its own scale k is laid out in units of
 // (layout units / k).
 int32_t ToOwn(int32_t layout, float k);

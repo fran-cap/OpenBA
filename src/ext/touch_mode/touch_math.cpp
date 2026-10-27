@@ -125,6 +125,18 @@ int32_t ZoomRepeat::Step(bool held, float dt) {
     return 0;
 }
 
+float SpeedRamp::Step(bool held, float dt) {
+    if (dt < 0.0f) dt = 0.0f;
+    if (held) {
+        level += kRampInSeconds > 0.0f ? dt / kRampInSeconds : 1.0f;
+    } else {
+        level -= kRampOutSeconds > 0.0f ? dt / kRampOutSeconds : 1.0f;
+    }
+    if (level > 1.0f) level = 1.0f;
+    if (level < 0.0f) level = 0.0f;
+    return level * level * (3.0f - 2.0f * level);
+}
+
 int32_t ToOwn(int32_t layout, float k) {
     return static_cast<int32_t>(static_cast<float>(layout) / k);
 }

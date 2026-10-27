@@ -87,6 +87,14 @@ float g_heldSeconds = 0.0f;
 ZoomRepeat g_zoomRepeat;
 Capture g_capture;
 
+// P11b: the pad's pan and the rotate buttons ramp in and out (touch_math.h SpeedRamp); the last direction
+// is kept so the camera coasts out of it after the release.
+SpeedRamp g_panRamp;
+SpeedRamp g_rotateRamp;
+int8_t g_rampPanX = 0;
+int8_t g_rampPanY = 0;
+int8_t g_rampRotate = 0;
+
 class ClusterDialog;
 ClusterDialog* g_open = nullptr;
 
@@ -424,7 +432,7 @@ void Hold(Source source, const CameraHold& hold) {
     if (source == Source::Fingers) g_fingerZoom += hold.zoomSteps;
 }
 
-void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir) {
+void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain) {
     GameUpdateLoop* loop = GameUpdateLoop::_singleton;
     UI::UserInterface* ui = loop != nullptr ? loop->m_userInterface : nullptr;
     const bool want = Ext().touch_mode && ToolbarShown(ui);
@@ -485,9 +493,28 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir) {
     int32_t src = 0;
     if (g_activeNow[1] && (!g_activeNow[0] || g_holdSince[1] > g_holdSince[0])) src = 1;
     const CameraHold& h = g_hold[src];
-    if (panX == 0.0f) panX = static_cast<float>(h.panX);
-    if (panY == 0.0f) panY = static_cast<float>(h.panY);
-    yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
+    // The pad (P11b): its direction while held, the ramped gain in and out. A key panning keeps retail's speed.
+    const bool padPan = src == 0 && (h.panX != 0 || h.panY != 0);
+    const bool padRotate = src == 0 && h.rotate != 0;
+    if (padPan) {
+        g_rampPanX = h.panX;
+        g_rampPanY = h.panY;
+    }
+    if (padRotate) g_rampRotate = h.rotate;
+    const float panRamp = g_panRamp.Step(padPan, dt);
+    const float rotateRamp = g_rotateRamp.Step(padRotate, dt);
+    if (src == 0) {
+        if (panX == 0.0f && panY == 0.0f && panRamp > 0.0f) {
+            panX = static_cast<float>(g_rampPanX);
+            panY = static_cast<float>(g_rampPanY);
+            panGain = panRamp;
+        }
+        yaw += static_cast<float>(g_rampRotate) * dt * kRotateDegPerSecond * rotateRamp;
+    } else {
+        if (panX == 0.0f) panX = static_cast<float>(h.panX);
+        if (panY == 0.0f) panY = static_cast<float>(h.panY);
+        yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
+    }
     if (src == 1) {
         // ext.touch_pointer's two fingers: the turn as given, and the ground under the fingers following them.
         yaw += h.yawDegrees;
