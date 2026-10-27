@@ -205,6 +205,31 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
   dialog taller, the fitted UI scale above then shrinks the whole dialog, and every control in it ends up
   smaller on screen than before; measured on the S25 at UI 42 with the Options Video page enlarged: the
   fit went from 44 % to 57 %). Controls in a scrolling list on any page grow.
+* **A tall window scrolls instead of shrinking** (P11b, `touch_scroll.{h,cpp}`, `size_math.{h,cpp}`
+  `ShrinkCap` / `GrowCap`; session log `docs/android/P11B_SCROLL_SIZE.md`; the owner: "the Enhanced tab's
+  fit is the model", "the Professions list must scroll"). Two steps inside the same walk:
+  * pages retail lays out without a scroll bar are moved into a scrolling frame of ours: the Options
+    dialog's Video and Audio pages (`Options.rsc:graphicsOptions`, `soundOptions`) and the Professions
+    dialog's table (`Profession.rsc:professionTable`), matched by element name and the tail of the
+    description's path. The frame is `Dialog/PhoneScroll.rsc:phoneScroll` (the Game page's container,
+    `_width` / `_height` 0: sized by its content), built as `TabElement::AddTab` builds a page (slot-8
+    `CreateInstance` against a scratch `UI::Dialog`); its empty content group is deleted and the page's
+    ELEMENT takes its place in the clip region (elements own their children by raw pointer; only a
+    dialog's root knows its `DialogInstance`), so the dialog's controller keeps the pointers it found at
+    open. The frame takes the page's slot and its hidden bit (the tab shows a page by that bit) and has
+    `_clampHeight` set (a page shorter than the cap does not leave a gap). Row off: the page goes back
+    into its slot with the frame's hidden bit, the frame is deleted;
+  * a top-level window taller than the safe area at the player's UI scale caps every vertical list it
+    holds (`ContainerElement::_requestedHeight` on the instance; the container clamps the clip region and
+    the bar follows) at one height, the tallest list's height less the overflow, at least `kListFloor`
+    (3 x 36 units); with room to spare the cap grows back and is dropped once the lists reach their own
+    height. A cap that takes nothing off (the height is held by something that does not scroll) is
+    dropped. The window then fits at the player's scale and the tall-dialog fit (above) does not shrink
+    it, which is what had kept the Fixes and Extensions dialog's buttons at 66 device pixels (drawn at
+    0.78) and Options' at 0.93. Decided once per change of the window's height or the safe area, not
+    every frame. Row off: each list's description height.
+  With every Options page a scrolling list, the non-scrolling-page rule above holds back only other
+  dialogs' tab pages.
 * **The menus' backdrop's bottom border** (P9, the owner: "the black fringe image is missing"). `LogoTop`
   keeps the 16:9 picture's top on the screen's top, so on a 19.5:9 screen its bottom border (the dark torn
   edge, the last tenth or so of the picture) fell 94 units below a 432-unit layout. The picture is now
@@ -339,6 +364,7 @@ right-aligned on the safe edge, the Town panel opened at the safe top-left corne
 |---|---|
 | `src/ext/phone_menu/phone_math.{h,cpp}` | the pure decisions (unit-tested) |
 | `src/ext/phone_menu/phone_menu.{h,cpp}` | the hook, the recorded dialogs, the slider minimum |
+| `src/ext/phone_menu/touch_scroll.{h,cpp}`, `src/ext/ui/Dialog/PhoneScroll.rsc` | P11b: pages framed in a scrolling list, a tall window's lists capped |
 | `src/ext/phone_menu/touch_math.{h,cpp}`, `touch_fit.{h,cpp}` | P9: scroll bars, close buttons, the tall-dialog fit (P11: per dialog, `FitDialogScale`), the backdrop's extra draw, the low version line |
 | `src/engine/ui/UserInterface.h`, `userinterface_frame.cpp`, `userinterface_draw.cpp` | the seam |
 | `src/game/Dialog/mainmenudialog.cpp`, `optionsdialog.cpp` | the two game seams |

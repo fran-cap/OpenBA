@@ -140,8 +140,11 @@ player's, P11), and the main and pause menus show the
 backdrop's bottom border with the version line inside it (`docs/extensions/handins/PHONEMENU.md` §2,
 `docs/android/P9_DIALOGS.md`). P11: every other control a finger presses is brought to about the close
 button's size (36 units): title-bar and icon buttons (the citizens' `>`), Ok / Cancel / Apply, check boxes,
-drop-downs and their rows, tabs, spinners, and sliders at twice their art; controls on a tab's
-non-scrolling page (Options > Video) keep retail's size (`docs/android/P11_TOUCH_SIZE.md`).
+drop-downs and their rows, tabs, spinners, and sliders at twice their art (`docs/android/P11_TOUCH_SIZE.md`).
+P11b: a dialog taller than the safe area caps its scrolling lists so it fits at the player's scale (the
+fitted scale-down only past three rows), and the Options Video / Audio pages and the Professions list are
+moved into a scrolling frame, so every Options page scrolls like the Enhanced tab
+(`docs/android/P11B_SCROLL_SIZE.md`).
 
 **Render scale** (P7). `VideoRenderScale=<percent>` (25..100) sizes the engine's back buffer against the
 window: the phone's 50 renders 1170x540 and the present pass scales it up (linear) while turning it into the
