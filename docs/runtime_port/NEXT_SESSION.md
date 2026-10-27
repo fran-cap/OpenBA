@@ -407,7 +407,35 @@ Options, are still TOO SMALL to tap (target the [x]'s height); a dialog opened o
 and snaps down a few frames later. The remaining ideas-sheet items (two-finger list scroll, route-modifier toggle,
 Android back = Cancel) are DROPPED: not wanted.
 
-**Next (P11b, three opus agents stacked on `android/p11`):** the rulings above as code.
+Also RULED the same evening: with a placement tool open, tapping a toolbar button made the ghost flicker -> the ghost
+stays SOLID until Place / Cancel or another tool; Flip keeps the `<` `>` arrows (the two-way rotate glyph confused),
+the new Rotate icons (undo / redo arrows) are good.
+
+### 2.11 Android P11b outcome (2026-10-26 late, three opus worktree agents on `android/p11b`, stacked on PR #60)
+
+All rulings of §2.10 are code (session docs `docs/android/P11B_POINTER.md`, `P11B_SCROLL_SIZE.md`,
+`P11B_DIALOG_SNAP.md`); DX11 gate PASS, resave PASS == golden, unit 1545/0/0; the P11b debug apk is on the S25.
+- **Pointer:** Rotate = ext.terrain_edit's undo / redo arrows by name, Flip = `<` `>`, glyphs fit 0.72 of the button;
+  press-and-hold tooltip via engine seam `UI::UserInterface::_extHoverWhileDown` (phone_menu `touch_hold.cpp`, cursor
+  held still within ~13 px of the press); "Touch pointer" combo on the Enhanced tab (Off / Default / Close aim / Far
+  aim / Tap twice / Custom; radius steps of 25); D-pad pan + rotate ramp 0.30 s in / 0.20 s out through `panGain`
+  (keys = 1); the ghost held while a finger presses a dialog (`HoldToolAim` / `ToolAimHeld` / `ToolCursor` seams in
+  PlayerToolManager::Update, GameUpdateLoop::Draw, the tools' cursor ray — all behind `Ext().touch_pointer`).
+- **Scroll / size:** round 1's buttons WERE 36 units — the P9 scale-down shrank the whole dialog (Fixes and Extensions
+  at 0.78). One rule: a tall window gives height back from its scrolling lists first (floor 3 touch rows), the
+  scale-down only below that; Video / Audio / Professions moved at run time into our `PhoneScroll.rsc` frame (retail
+  descriptions untouched); Options back at the player's scale, Cancel / Ok 84 px.
+- **Snap:** three causes (size walk a frame late; `SetUpperLeft` clamps to the screen while the layout uses the safe
+  area; retail's stored-position drift at the bottom edge) -> new call point `kExtPlaceUpperLeft` + the walk and the
+  fit run at a dialog's first placement. Panels stable from the first drawn frame.
+
+Rulings owed: combo caption "Touch pointer" vs renaming touch_mode's row "Touch toolbar"; whether Off belongs in the
+combo and the Close / Far presets; ramp constants and the coast after release (synthetic input only); the ~13 px hold
+slop (a slider drag starts after 13 px); hotkeys ignored during a dialog press over an aiming tool; a `fix.*` row for
+retail's stored-position drift on desktop; a dragged panel now stops at the safe margin; the Audio page's empty
+scroll-bar track; the cap applies to every tall window (New Game still shrinks to 0.47, nothing in it scrolls).
+
+**Next: the owner's real-finger test of the P11b apk; PR #60 then the P11b PR.**
 
 ## 3. Rules that hold (do not relax)
 
