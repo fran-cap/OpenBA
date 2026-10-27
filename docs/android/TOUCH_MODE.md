@@ -140,11 +140,14 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   the cluster (`UserInterface::_mouseDownX/Y`), and the pointer is over a control. Our own pure math
   (`touch_math.h`) does the hit test against the laid-out rectangles. It does not rely on the elements'
   click events, which fire on release.
-- **D-pad**, 8-way. The direction is the vector from the pad's centre, with a dead zone of 0.15 of the
-  side. Each axis is set when its component exceeds `tan(22.5 deg)` of the other, and the pan axes are
-  assigned as the keys assign them (`panX = -1/+1`, `panY = -1/+1`). Retail normalises the vector, so a
-  diagonal pans at the same speed. Sliding between directions while held is allowed. Releasing, or
-  leaving the pad, stops the pan. P11b (ruled 2026-10-26, `docs/android/P11B_POINTER.md` §4): the pan
+- **D-pad**, analogue (P11c, ruled 2026-10-26; it was 8-way until P11b). touch_math.h `PadVector`: the pan
+  direction is the finger's offset from the pad's centre at any angle (a unit vector), zero inside a dead zone of
+  radius `kDeadZoneFraction` 0.10 of the side, full speed outside it (`kPadFull`; `kPadProportional`, the speed
+  growing to the inscribed circle, is the tested alternative). The rectangular graphic is unchanged. The press
+  captures the pad and the direction follows the finger until the release, also off the pad. The seam hands
+  `UpdateCamera` the unit direction in `panX` / `panY` and the speed in `panGain`; retail normalises the vector,
+  so a diagonal pans no faster than a cardinal. Releasing stops the pan. P11b (ruled 2026-10-26,
+  `docs/android/P11B_POINTER.md` §4): the pan
   speed RAMPS (touch_math.h `SpeedRamp`: up over `kRampInSeconds`, down over `kRampOutSeconds` after the
   release, smoothstep-eased; the camera coasts out of the last direction). P11b tuned 0.30 / 0.20 s; P11c (owner,
   2026-10-26: too laggy, about 100 ms) 0.10 s in, 0.09 s out. The gain

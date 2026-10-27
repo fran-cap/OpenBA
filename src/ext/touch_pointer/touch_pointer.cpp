@@ -726,8 +726,8 @@ void AfterUpdate(Input::Device& dev) {
         int32_t ex = 0;
         int32_t ey = 0;
         EdgePan(g_fingers.front().x, g_fingers.front().y, w, h, ex, ey);
-        hold.panX = static_cast<int8_t>(ex);
-        hold.panY = static_cast<int8_t>(ey);
+        hold.panX = static_cast<float>(ex);
+        hold.panY = static_cast<float>(ey);
     }
     g_pendingGesture = GestureStep();
     TouchMode::Hold(TouchMode::Source::Fingers, hold);

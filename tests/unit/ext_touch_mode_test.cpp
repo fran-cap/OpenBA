@@ -2,7 +2,7 @@
 // tests/unit/ext_touch_mode_test.cpp -- ext.touch_mode's pure decisions (TOUCHMODE)
 // ============================================================================
 // docs/android/TOUCH_MODE.md section 7: the cluster's rectangles on the S25 and their invariance, the
-// toolbar's fitted scale, the D-pad's sectors, the zoom repeat, the unit-space mappings (the sub-toolbar
+// toolbar's fitted scale, the D-pad's pan vector, the zoom repeat, the unit-space mappings (the sub-toolbar
 // centring re-run with retail's own formula, the tooltip), and the registry row and its value key.
 // ============================================================================
 #include "unit.h"
@@ -127,36 +127,68 @@ UNIT_TEST(ext_touch_mode_hit_control) {
     CHECK(HitControl(c, 1200, 500) == kNone);  // the game view
 }
 
-UNIT_TEST(ext_touch_mode_pad_direction) {
-    const Rect pad{0, 0, 300, 300};   // centre 150, 150; dead zone 45
-    int32_t dx = 9;
-    int32_t dy = 9;
-    PadDirection(pad, 150, 150, dx, dy);
-    CHECK(dx == 0 && dy == 0);
-    PadDirection(pad, 180, 170, dx, dy);   // inside the dead zone
-    CHECK(dx == 0 && dy == 0);
-    PadDirection(pad, 290, 150, dx, dy);
-    CHECK(dx == 1 && dy == 0);
-    PadDirection(pad, 10, 150, dx, dy);
-    CHECK(dx == -1 && dy == 0);
-    PadDirection(pad, 150, 10, dx, dy);
-    CHECK(dx == 0 && dy == -1);
-    PadDirection(pad, 150, 290, dx, dy);
-    CHECK(dx == 0 && dy == 1);
-    PadDirection(pad, 280, 280, dx, dy);   // a corner: the diagonal
-    CHECK(dx == 1 && dy == 1);
-    PadDirection(pad, 20, 20, dx, dy);
-    CHECK(dx == -1 && dy == -1);
-    // The sector boundary: 22.5 degrees off the axis. Just inside the right sector, just past it.
-    PadDirection(pad, 150 + 100, 150 + 40, dx, dy);   // 21.8 deg
-    CHECK(dx == 1 && dy == 0);
-    PadDirection(pad, 150 + 100, 150 + 43, dx, dy);   // 23.3 deg
-    CHECK(dx == 1 && dy == 1);
-    // Outside the pad (a captured finger slid off): still its direction from the centre.
-    PadDirection(pad, 400, 150, dx, dy);
-    CHECK(dx == 1 && dy == 0);
-    PadDirection(pad, -500, 900, dx, dy);
-    CHECK(dx == -1 && dy == 1);
+namespace {
+
+bool Near(float a, float b) {
+    return std::abs(a - b) < 1e-4f;
+}
+
+float Length(const PadPan& p) {
+    return std::sqrt(p.x * p.x + p.y * p.y);
+}
+
+}  // namespace
+
+// P11c (the owner, 2026-10-26): the analogue pad. Any angle from the pad's centre, a dead zone of kDeadZoneFraction
+// of the side as a radius, full speed outside it (kPadFull) or growing to the inscribed circle (kPadProportional).
+UNIT_TEST(ext_touch_mode_pad_vector) {
+    const Rect pad{0, 0, 300, 300};   // centre 150, 150; dead zone radius 30; inscribed circle 150
+    for (PadSpeed mode : {kPadFull, kPadProportional}) {
+        PadPan p = PadVector(pad, 150, 150, mode);
+        CHECK(p.x == 0.0f && p.y == 0.0f);
+        p = PadVector(pad, 170, 170, mode);   // r = 28.3: inside the dead zone
+        CHECK(p.x == 0.0f && p.y == 0.0f);
+        p = PadVector(pad, 150, 120, mode);   // r = 30 exactly: still dead
+        CHECK(p.x == 0.0f && p.y == 0.0f);
+    }
+    // Full speed: a unit vector at any angle, the cardinals and the diagonals no faster than any other.
+    for (int32_t deg = 0; deg < 360; deg += 15) {
+        const float a = static_cast<float>(deg) * 0.01745329f;
+        const int32_t x = 150 + static_cast<int32_t>(std::lround(100.0f * std::cos(a)));
+        const int32_t y = 150 + static_cast<int32_t>(std::lround(100.0f * std::sin(a)));
+        const PadPan p = PadVector(pad, x, y, kPadFull);
+        CHECK(Near(Length(p), 1.0f));
+        // The direction is the finger's: the rounded point's own angle.
+        const float ox = static_cast<float>(x - 150);
+        const float oy = static_cast<float>(y - 150);
+        CHECK(Near(p.x * oy, p.y * ox));
+        CHECK(p.x * ox + p.y * oy > 0.0f);
+    }
+    PadPan p = PadVector(pad, 290, 150, kPadFull);
+    CHECK(Near(p.x, 1.0f) && Near(p.y, 0.0f));
+    p = PadVector(pad, 150, 10, kPadFull);
+    CHECK(Near(p.x, 0.0f) && Near(p.y, -1.0f));
+    p = PadVector(pad, 250, 250, kPadFull);   // the diagonal: 0.707 each, length 1
+    CHECK(Near(p.x, 0.70710678f) && Near(p.y, 0.70710678f));
+    p = PadVector(pad, 250, 190, kPadFull);   // 21.8 deg: no snapping to the cardinal any more
+    CHECK(Near(p.y / p.x, 0.4f));
+    // Just outside the dead zone: full speed already.
+    p = PadVector(pad, 181, 150, kPadFull);
+    CHECK(Near(p.x, 1.0f));
+    // Proportional: 0 at the dead zone's edge, half way at r = 90, 1 at the inscribed circle and beyond.
+    p = PadVector(pad, 181, 150, kPadProportional);
+    CHECK(Near(p.x, 1.0f / 120.0f));
+    p = PadVector(pad, 150 - 90, 150, kPadProportional);
+    CHECK(Near(p.x, -0.5f) && Near(p.y, 0.0f));
+    p = PadVector(pad, 150, 300, kPadProportional);
+    CHECK(Near(p.y, 1.0f));
+    p = PadVector(pad, 290, 290, kPadProportional);   // the pad's corner, past the circle: capped at 1
+    CHECK(Near(Length(p), 1.0f));
+    // Outside the pad (a captured finger slid off): still its direction from the centre, full length.
+    p = PadVector(pad, 400, 150, kPadFull);
+    CHECK(Near(p.x, 1.0f) && Near(p.y, 0.0f));
+    p = PadVector(pad, -500, 900, kPadProportional);
+    CHECK(Near(Length(p), 1.0f) && p.x < 0.0f && p.y > 0.0f);
 }
 
 // The owner's capture rule (2026-10-26): the control a press starts on holds until the release; sliding never

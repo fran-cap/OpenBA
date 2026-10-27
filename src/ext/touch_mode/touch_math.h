@@ -4,7 +4,7 @@
 // NOT RETAIL (docs/android/TOUCH_MODE.md). Everything here is plain arithmetic on the
 // layout-space screen (UserInterface::_uiScale units, the space every dialog but a scaled one is
 // laid out in): the control cluster's rectangles, the toolbar's own scale k, which control a
-// point is on, the D-pad's direction, the zoom buttons' repeat and the unit-space mappings the
+// point is on, the D-pad's pan vector, the zoom buttons' repeat and the unit-space mappings the
 // place hook needs. Sizes are fractions of the screen's short edge, so the cluster keeps its
 // physical size at any UI scale and render scale.
 // ============================================================================
@@ -16,14 +16,14 @@ namespace Ext {
 namespace TouchMode {
 
 // The cluster's cell (a D-pad third, a button's side), the gap between its buttons and the frame
-// around them as fractions of the short edge, the D-pad's dead zone as a fraction of its side, the
+// around them as fractions of the short edge, the D-pad's dead-zone radius as a fraction of its side, the
 // margin used without ext.phone_menu. The gap and the frame match the toolbar's look on the S25 at
 // UI 40 (Toolbar.rsc: 4-unit cells, a 9-unit content pad, at k ~1.5): one frame around the group
 // (the owner, 2026-10-26).
 constexpr float kCellFraction = 0.11f;
 constexpr float kGapFraction = 0.014f;
 constexpr float kFrameFraction = 0.03f;
-constexpr float kDeadZoneFraction = 0.15f;
+constexpr float kDeadZoneFraction = 0.10f;   // P11c: 0.15 for the 8-way pad, smaller for the analogue one
 constexpr float kDesktopMarginFraction = 0.02f;
 
 // The zoom buttons: one step at the press, then one per kZoomRepeat seconds once held kZoomDelay.
@@ -77,11 +77,18 @@ float ToolbarScale(float requested, int32_t regionWidth, int32_t ownWidth);
 // The control under (x, y), or kNone.
 Control HitControl(const Cluster& c, int32_t x, int32_t y);
 
-// The D-pad's 8-way direction at (x, y): dx / dy in -1 .. 1 (right / down positive), from the pad's
-// centre, both 0 in the dead zone. A point outside the pad still gives its direction (a finger that
-// started on the pad and slid off keeps panning that way: the owner's capture rule, 2026-10-26). An
-// axis counts when its offset exceeds tan(22.5 deg) of the other's, so the corners give the diagonals.
-void PadDirection(const Rect& pad, int32_t x, int32_t y, int32_t& dx, int32_t& dy);
+// The D-pad (P11c, the owner's ruling of 2026-10-26: analogue, a circle of directions, the rectangular graphic
+// unchanged): the pan at (x, y) from the pad's centre. (x, y) of the result is the direction (a unit vector,
+// right / down positive) times the speed 0..1, (0, 0) inside the dead zone (kDeadZoneFraction of the side, as a
+// radius). kPadFull: full speed outside the dead zone. kPadProportional: the speed grows from 0 at the dead
+// zone's edge to 1 at the inscribed circle (half the side), full beyond. A point outside the pad still gives
+// its direction (a finger that started on the pad and slid off keeps panning that way: the capture rule).
+enum PadSpeed : int32_t { kPadFull = 0, kPadProportional = 1 };
+struct PadPan {
+    float x = 0.0f;
+    float y = 0.0f;
+};
+PadPan PadVector(const Rect& pad, int32_t x, int32_t y, PadSpeed mode);
 
 // The capture rule (owner, 2026-10-26): a press that STARTS on a control captures the pointer until it
 // is released; while down, that control and only that control acts, wherever the pointer moves (no

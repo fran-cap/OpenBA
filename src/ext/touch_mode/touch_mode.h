@@ -4,7 +4,7 @@
 // ============================================================================
 // NOT RETAIL (docs/android/TOUCH_MODE.md; rulings 2026-10-26). A phone layout for fingers:
 //   (a) a control cluster at the bottom left of the game view (Dialog/TouchControls.rsc): a D-pad
-//       (camera pan, 8 ways), Rotate left / right above it, Zoom in / out right of it, sized as
+//       (camera pan, any direction: P11c), Rotate left / right above it, Zoom in / out right of it, sized as
 //       fractions of the screen's short edge (touch_math.h LayoutCluster). A held control drives
 //       the same camera locals retail's keys drive in PlayerToolManager::UpdateCamera;
 //   (b) the in-game toolbar (Dialog/Toolbar.rsc) and its sub-toolbars in their own unit space, k
@@ -59,8 +59,10 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
 // the real mouse are never overridden (they keep working through retail's lines).
 enum class Source : int32_t { Pad = 0, Fingers = 1 };
 struct CameraHold {
-    int8_t panX = 0;
-    int8_t panY = 0;
+    // The pan: a direction times a speed (the Pad: touch_math.h PadVector, length 0..1; the Fingers: an edge
+    // pan's -1 / 0 / +1 axes).
+    float panX = 0.0f;
+    float panY = 0.0f;
     int8_t rotate = 0;
     int8_t zoom = 0;
     float zoomSteps = 0.0f;

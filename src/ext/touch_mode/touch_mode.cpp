@@ -30,6 +30,7 @@
 #include "Game/GameUpdateLoop.h"
 #include "Game/PlayerController.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <new>
@@ -91,8 +92,12 @@ Capture g_capture;
 // coasts out of it after the release. The rotate buttons turn at retail's key rate from the press to the
 // release, no ramp (the owner, 2026-10-26: the 0.30 / 0.20 s rotate ramp was too laggy).
 SpeedRamp g_panRamp;
-int8_t g_rampPanX = 0;
-int8_t g_rampPanY = 0;
+float g_rampPanX = 0.0f;
+float g_rampPanY = 0.0f;
+
+// The pad's speed rule (touch_math.h PadSpeed; P11c, docs/android/P11C_CAMERA.md): full speed outside the dead
+// zone, the direction alone from the finger.
+constexpr PadSpeed kPadSpeed = kPadFull;
 
 class ClusterDialog;
 ClusterDialog* g_open = nullptr;
@@ -455,11 +460,9 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     if (g_open != nullptr) g_open->ShowPressed(g_capture);
     CameraHold pad;
     if (held == kPad) {
-        int32_t dx = 0;
-        int32_t dy = 0;
-        PadDirection(g_cluster.control[kPad], mx, my, dx, dy);
-        pad.panX = static_cast<int8_t>(dx);
-        pad.panY = static_cast<int8_t>(dy);
+        const PadPan v = PadVector(g_cluster.control[kPad], mx, my, kPadSpeed);
+        pad.panX = v.x;
+        pad.panY = v.y;
     } else if (held == kRotateLeft) {
         pad.rotate = -1;
     } else if (held == kRotateRight) {
@@ -500,15 +503,18 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     }
     const float panRamp = g_panRamp.Step(padPan, dt);
     if (src == 0) {
-        if (panX == 0.0f && panY == 0.0f && panRamp > 0.0f) {
-            panX = static_cast<float>(g_rampPanX);
-            panY = static_cast<float>(g_rampPanY);
-            panGain = panRamp;
+        // The direction as a unit vector (UpdateCamera normalises it anyway, so a diagonal is no faster than a
+        // cardinal), the pad's speed and the ramp in the gain.
+        const float speed = std::sqrt(g_rampPanX * g_rampPanX + g_rampPanY * g_rampPanY);
+        if (panX == 0.0f && panY == 0.0f && panRamp > 0.0f && speed > 0.0f) {
+            panX = g_rampPanX / speed;
+            panY = g_rampPanY / speed;
+            panGain = panRamp * speed;
         }
         yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
     } else {
-        if (panX == 0.0f) panX = static_cast<float>(h.panX);
-        if (panY == 0.0f) panY = static_cast<float>(h.panY);
+        if (panX == 0.0f) panX = h.panX;
+        if (panY == 0.0f) panY = h.panY;
         yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
     }
     if (src == 1) {
