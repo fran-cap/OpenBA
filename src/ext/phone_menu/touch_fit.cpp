@@ -45,6 +45,7 @@
 #include "ui/ImageDescription.h"
 #include "ui/ImageElement.h"
 #include "ui/ScrollElement.h"
+#include "ui/TabElement.h"
 #include "ui/ToolTipDialog.h"
 #include "ui/UserInterface.h"
 #include "input/Device.h"   // Input::Device::_singleton: the left button (a finger down)
@@ -274,6 +275,128 @@ const UI::DialogInstance* FitOwner(const UI::DialogInstance* d) {
     return d;
 }
 
+// ---- (f) a thickened list in a group shown later ------------------------------------
+
+// A scrolling list the rule widened ((a): the container grows by what its bar gained) inside a group that
+// is hidden when the dialog opens adds that width only when the group is shown: the Save and Load dialogs
+// open on their "Please wait" group and show the save list (`groupSelect`) once the files are read, a
+// quarter of a second later. Retail's page is as wide as the list it shows (572 units: list 540, bar 12,
+// spacing and pads), so retail does not resize there; with the bar 36 units thicker the whole dialog
+// widened and moved then (docs/android/P11D_FIRST_FRAME.md). So at a dialog's first placement the width
+// the group's parent (the page; shown: the group is the outermost hidden element) has with the group
+// shown is measured, and that parent's minimum width (the INSTANCE's) holds it from the first frame. The
+// parent, not the root: DialogInstance::ComputeLayout centres a root by its laid-out width, which a root's
+// own minimum does not enter. Only the width: the bars add nothing to a list's height. A tab's pages are
+// not concerned (TabElement sizes itself by every page, shown or not).
+
+// The elements whose minimum width is held, so it is given back with the row off (their description's)
+// and forgotten when the dialog closes.
+struct Held {
+    const UI::DialogInstance* dialog = nullptr;
+    UI::Element* element = nullptr;
+};
+constexpr int32_t kMaxHeld = 8;
+Held g_held[kMaxHeld];
+
+constexpr int32_t kMaxHidden = 8;
+struct HiddenGroups {
+    UI::Element* group[kMaxHidden] = {};
+    int32_t count = 0;
+};
+
+// True for a vertical scrolling list whose bar (`_children[1]`) (a) thickened.
+bool IsWidenedList(const UI::Element* e) {
+    if (!e->IsA(UI::ContainerElement::TypeId()) || e->_children._size < 2) return false;
+    const UI::Element* bar = e->_children._data[1];
+    if (bar == nullptr || !bar->IsA(UI::ScrollElement::TypeId())) return false;
+    if (static_cast<const UI::ScrollElement*>(bar)->_vertical == 0 || bar->_description == nullptr) return false;
+    return bar->_minWidth != bar->_description->_minWidth;
+}
+
+// The outermost hidden group above each widened list (`hidden`: the one this subtree is in, or null).
+void FindHidden(UI::Element* e, UI::Element* hidden, HiddenGroups& out) {
+    if (e == nullptr) return;
+    if (hidden == nullptr && (e->_flags & UI::kElementFlagHidden) != 0) {
+        // A tab's page slot (children 4 + 2 t): the tab is already as large as its largest page.
+        const UI::Element* parent = e->_parent;
+        if (parent == nullptr || parent->IsA(UI::TabElement::TypeId())) return;
+        hidden = e;
+    }
+    if (hidden != nullptr && IsWidenedList(e)) {
+        for (int32_t i = 0; i < out.count; ++i) {
+            if (out.group[i] == hidden) return;
+        }
+        if (out.count < kMaxHidden) out.group[out.count++] = hidden;
+        return;
+    }
+    for (int32_t i = 0; i < e->_children._size; ++i) FindHidden(e->_children._data[i], hidden, out);
+}
+
+int32_t PaddedWidth(const UI::Element* e) {
+    const int32_t w = e->_layoutWidth + e->_leftPad + e->_rightPad;
+    return w < e->_minWidth ? e->_minWidth : w;
+}
+
+// Row on, at the first placement: each such group's parent held at the width it has with the group shown.
+// Returns the elements changed.
+int32_t HoldHiddenListWidth(const UI::DialogInstance* d) {
+    UI::Element* root = nullptr;
+    if (!IsWindow(d, root)) return 0;
+    HiddenGroups groups;
+    FindHidden(root, nullptr, groups);
+    int32_t changes = 0;
+    for (int32_t i = 0; i < groups.count; ++i) {
+        UI::Element* group = groups.group[i];
+        UI::Element* parent = group->_parent;
+        // A root does not centre by its minimum (above): such a dialog widens as before.
+        if (parent == root || parent->_description == nullptr) continue;
+        root->ComputeSize();
+        const int32_t now = PaddedWidth(parent);
+        group->_flags &= ~UI::kElementFlagHidden;
+        group->SetNeedsSizeCalc();
+        root->ComputeSize();
+        const int32_t shown = PaddedWidth(parent);
+        group->_flags |= UI::kElementFlagHidden;
+        group->SetNeedsSizeCalc();
+        root->ComputeSize();
+        if (shown <= now) continue;
+        Held* held = nullptr;
+        for (Held& h : g_held) {
+            if (h.element == parent || (held == nullptr && h.element == nullptr)) held = &h;
+        }
+        if (held == nullptr) continue;   // more than kMaxHeld: that dialog widens as before
+        held->dialog = d;
+        held->element = parent;
+        parent->_minWidth = shown;
+        parent->SetNeedsSizeCalc();
+        ++changes;
+        std::fprintf(stderr, "[PhoneMenu] dialog %p: %s held at %d units wide (a widened list shown later; %d now)\n",
+                     static_cast<const void*>(d), parent->_name != nullptr ? parent->_name : "-", shown, now);
+    }
+    return changes;
+}
+
+// Once a frame per UserInterface: a closed dialog's records go; with the row off, a held element's own
+// minimum comes back.
+int32_t ReleaseHeld(const UI::UserInterface* ui, bool on) {
+    int32_t changes = 0;
+    for (Held& h : g_held) {
+        if (h.dialog == nullptr || h.dialog->_ui != ui) continue;
+        bool open = false;
+        for (auto* node = ui->_dialogs._head; node != nullptr && !open; node = node->next) {
+            open = node->element == h.dialog;
+        }
+        if (open && on) continue;
+        if (open && h.element->_minWidth != h.element->_description->_minWidth) {
+            h.element->_minWidth = h.element->_description->_minWidth;
+            h.element->SetNeedsSizeCalc();
+            ++changes;
+        }
+        h = Held();
+    }
+    return changes;
+}
+
 // ---- (e) a lifted finger does not hover ---------------------------------------------
 
 // Retail shows a tooltip once the pointer has rested on a dialog for 0.25 s with no button down
@@ -314,7 +437,7 @@ void TouchFrame(int32_t point, const UI::DialogInstance* dialog) {
     TouchForgetClosed(ui);
     if (!on && !g_touched) return;
     // Once a frame per UserInterface, before any of its dialogs is laid out.
-    g_changes = 0;
+    g_changes = ReleaseHeld(ui, on);   // P11d (f)
     for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
         if (node->element == nullptr) continue;
         Walk(node->element->_root.Get(), on);
@@ -334,7 +457,17 @@ void TouchFirstPlace(const UI::DialogInstance* dialog) {
     if (dialog == nullptr || !Ext().phone_menu) return;
     UI::UserInterface* ui = dialog->_ui;
     if (ui == nullptr) return;
-    if (TouchSizeWalk(dialog, true) == 0) return;
+    int32_t n = TouchSizeWalk(dialog, true);
+    // P11d: (a) and (b) here too. The touch size frames pages that do not scroll (touch_scroll.h), and
+    // the frames' bars were thickened only by the next frame's walk: the Options dialog widened by 24
+    // units on its second frame (docs/android/P11D_FIRST_FRAME.md). The lists are capped again when a
+    // bar changed (the cap search measures the window as it is).
+    const int32_t before = g_changes;
+    Walk(dialog->_root.Get(), true);
+    const int32_t thickened = g_changes - before;
+    if (thickened > 0) n += thickened + TouchSizeWalk(dialog, true);
+    n += HoldHiddenListWidth(dialog);   // (f)
+    if (n == 0) return;
     g_touched = true;
     g_quietFrames = 0;
     DecideScale(ui, true);
