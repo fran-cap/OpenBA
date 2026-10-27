@@ -517,12 +517,15 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     const bool fresh = update && point != UI::UserInterface::kExtPlaceAfterLayout && !TouchKnown(dialog);
     const bool touchOwned = TouchMode::Place(point, dialog, width, height, rect);   // ext.touch_mode first
     if (update) TouchSeen(dialog, touchOwned);   // P11: the touch size walk (touch_size.h)
+    // P11c: a finger's tooltip floats above the finger, whoever placed it (touch_hold.h PlaceHeldToolTip).
+    const bool heldTip = PlaceHeldToolTip(point, dialog, width, height, rect);
     if (touchOwned) return;   // placed by ext.touch_mode (TOUCH_MODE.md)
     // P9: scroll bars, close buttons and a dialog larger than the safe area (touch_fit.h).
     TouchFrame(point, dialog);
     // P11b: its touch size and fitted scale before it is first sized, so its first layout is its last
     // (touch_fit.h TouchFirstPlace; docs/android/P11B_DIALOG_SNAP.md).
     if (fresh) TouchFirstPlace(dialog);
+    if (heldTip) return;
     if (!Ext().phone_menu) {
         // Switched off while a menu is open: its retail values back before retail lays it out.
         // (A recorded menu at that address went through MenuOpened, which forgets the old one.)
