@@ -158,6 +158,7 @@ struct Finger {
     float travel = 0.0f;
     double downAt = 0.0;
     Role role = Role::None;
+    bool leftSlop = false;   // Role::Ui: moved out of kHoldSlopFraction (the cursor follows from then on)
 };
 
 std::vector<Finger> g_fingers;
@@ -503,6 +504,12 @@ void OnFinger(const Platform::Touch::Event& e) {
     if (e.phase == Phase::Move) {
         switch (f->role) {
         case Role::Ui:
+            // Held still within the slop: the cursor stays on the press point, so a press held on a control
+            // counts hover time (phone_menu's press-and-hold tooltip, touch_hold.cpp).
+            if (!f->leftSlop && !LeftHoldSlop(f->x - f->downX, f->y - f->downY, ShortEdge())) break;
+            f->leftSlop = true;
+            Move(f->x, f->y, true);
+            break;
         case Role::Plain:
             Move(f->x, f->y, true);
             break;
@@ -542,7 +549,7 @@ void OnFinger(const Platform::Touch::Event& e) {
     std::fprintf(stderr, "[TouchPointer] %s %.0f,%.0f: %s\n", e.phase == Phase::Up ? "up" : "cancel", e.x, e.y,
                  kRoleNames[static_cast<int32_t>(f->role)]);
     const bool up = e.phase == Phase::Up;
-    const Finger lifted = *f;
+    Finger lifted = *f;
     for (size_t i = 0; i < g_fingers.size(); ++i) {
         if (g_fingers[i].id == lifted.id) {
             g_fingers.erase(g_fingers.begin() + static_cast<std::ptrdiff_t>(i));
@@ -560,6 +567,10 @@ void OnFinger(const Platform::Touch::Event& e) {
         break;
     }
     case Role::Ui:
+        if (!lifted.leftSlop) {
+            lifted.x = lifted.downX;   // still in the hold slop: the release where the press was
+            lifted.y = lifted.downY;
+        }
         Move(lifted.x, lifted.y, false);
         // The cursor back on the world a few polls later, so no tooltip opens on the tapped button and a ghost
         // stays put. The release is held for kReleaseHoldPolls first: a dialog's drag arms from the press's

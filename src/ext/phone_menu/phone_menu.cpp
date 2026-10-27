@@ -24,6 +24,7 @@
 #include "ext/phone_menu/phone_math.h"
 #include "ext/phone_menu/loading_screen.h"   // PlaceLoading (P9)
 #include "ext/phone_menu/touch_fit.h"
+#include "ext/phone_menu/touch_hold.h"   // HoverWhileFingerDown (P11b)
 #include "ext/phone_menu/touch_math.h"
 #include "ext/phone_menu/touch_size.h"   // SyncTouchSize (P11)
 #include "ext/registry.h"
@@ -590,6 +591,7 @@ void Sync() {
     UI::UserInterface::_extBackdropOver = faithful ? nullptr : &BackdropOver;   // P9 (loading_screen.h)
     UI::UserInterface::_extDialogScale = faithful ? nullptr : &DialogScale;    // P11 + ext.touch_mode
     SyncTouchSize(faithful);   // P11: the slider seam (touch_size.h)
+    UI::UserInterface::_extHoverWhileDown = faithful ? nullptr : &HoverWhileFingerDown;   // P11b (touch_hold.h)
 }
 
 void MenuOpened(const UI::Dialog* menu, const UI::Dialog* buildId, bool pause) {

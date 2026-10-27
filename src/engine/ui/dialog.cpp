@@ -1080,7 +1080,9 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
         // (0.25 seconds) — no export names it, so it is a literal here.
         constexpr double kTooltipDelaySeconds = 0.25;
 
-        if (state.b08 == 0 && state.b09 == 0 && state.leftDown == 0) {
+        // Ext seam (NOT RETAIL, P11b): null (retail, the faithful profile) = the plain button test.
+        const bool buttonsUp = state.b08 == 0 && state.b09 == 0 && state.leftDown == 0;
+        if (buttonsUp || (UserInterface::_extHoverWhileDown != nullptr && UserInterface::_extHoverWhileDown(this))) {
             const int32_t mx = state.mouseX;
             const int32_t my = state.mouseY;
             if (state.mouseCaptured == 0 && Contains(mx, my)) {

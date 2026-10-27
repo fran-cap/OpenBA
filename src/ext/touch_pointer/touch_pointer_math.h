@@ -57,6 +57,13 @@ constexpr float kTapSlopFraction = 0.03f; // and travels less than this fraction
 
 bool IsTap(float seconds, float travel, float shortEdge);
 
+// P11b: a finger held on a dialog keeps the cursor at its press point until it has moved this fraction of the
+// short edge away (a finger trembles; retail's tooltip delay counts only while the cursor stands still). Once out
+// of the slop the cursor follows the finger for the rest of the press.
+constexpr float kHoldSlopFraction = 0.012f;
+
+bool LeftHoldSlop(float dx, float dy, float shortEdge);
+
 // ---- the aim point ---------------------------------------------------------------------------
 
 // The cursor for a finger at (fx, fy) with the lift offset `lift` (engine px): `lift` above the finger,

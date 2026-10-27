@@ -45,6 +45,11 @@ bool IsTap(float seconds, float travel, float shortEdge) {
     return seconds < kTapSeconds && travel < kTapSlopFraction * shortEdge;
 }
 
+bool LeftHoldSlop(float dx, float dy, float shortEdge) {
+    const float slop = kHoldSlopFraction * shortEdge;
+    return dx * dx + dy * dy > slop * slop;
+}
+
 void AimPoint(float fx, float fy, float lift, float& ax, float& ay) {
     ax = fx;
     ay = fy - (lift > 0.0f ? lift : 0.0f);

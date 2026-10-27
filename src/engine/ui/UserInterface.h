@@ -442,6 +442,11 @@ public:
     // _uiScale / k (Update: the layout rectangle and the mouse divided by k; Draw: the quads scaled
     // by k through the context's world transform). src/engine never includes src/ext.
     static float (*_extDialogScale)(const DialogInstance* dialog);
+    // EXT SEAM (NOT RETAIL, P11b, docs/android/P11B_POINTER.md; DESIGN.md hook rule 5): ext.phone_menu.
+    // Null by default (always under the faithful profile). DialogInstance::Update counts hover time
+    // (the tooltip delay) only with no mouse button down; a true answer lets `dialog` count it with a
+    // button down too (a finger held on a control: the press-and-hold tooltip). Main thread.
+    static bool (*_extHoverWhileDown)(const DialogInstance* dialog);
     // EXT SEAM (NOT RETAIL, P9, docs/extensions/handins/PHONEMENU.md §3): ext.phone_menu. Null by
     // default (always under the faithful profile). Draw, just AFTER a dialog's backdrop: `rect` holds
     // the backdrop's {x1, y1, x2, y2} as drawn, `sheet` / `sprite` the backdrop's sprite; a true
