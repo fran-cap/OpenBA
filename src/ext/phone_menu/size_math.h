@@ -41,5 +41,20 @@ struct PadSplit {
 };
 PadSplit PadToTarget(int32_t padded, int32_t target);
 
+// ---- a tall window's scrolling lists (touch_scroll.h (b), P11b) ------------------------------------
+
+// The lowest height a list is capped at: three rows of finger-sized controls. A window still taller than
+// the safe area with its lists there is shown smaller (touch_fit.h (c)).
+constexpr int32_t kListFloor = 3 * kTouchSide;
+
+// The cap (one height for every vertical list of a window) that takes `over` units off a window whose
+// tallest list is `tallest` high now: tallest - over, at least `floor`. `cap` (the cap in force, 0 =
+// none) is kept when the tallest list is already at or under the floor.
+int32_t ShrinkCap(int32_t cap, int32_t tallest, int32_t over, int32_t floor);
+
+// The cap in force (`cap` > 0) raised by the `slack` units the window has to spare; 0 (no cap: the
+// description's heights) once it reaches `natural`, the tallest list's uncapped height.
+int32_t GrowCap(int32_t cap, int32_t slack, int32_t natural);
+
 }  // namespace PhoneMenu
 }  // namespace Ext
