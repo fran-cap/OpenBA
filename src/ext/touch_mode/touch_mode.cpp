@@ -95,7 +95,9 @@ float g_rampPanX = 0.0f;
 float g_rampPanY = 0.0f;
 
 // The pad's speed rule (touch_math.h PadSpeed; P11c, docs/android/P11C_CAMERA.md): full speed outside the dead
-// zone, the direction alone from the finger.
+// zone, the direction alone from the finger. Proportional was measured on the S25 and not taken: a finger on the
+// drawn arrows (0.6 .. 0.8 of the half side) panned at 48 .. 73 % of the keys' speed, and a finger cannot feel
+// where on the flat pad it rests; the 0.10 s ramp already gives the soft start.
 constexpr PadSpeed kPadSpeed = kPadFull;
 
 class ClusterDialog;
