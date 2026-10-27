@@ -31,6 +31,7 @@
 
 #include "ext/phone_menu/touch_size.h"
 #include "ext/phone_menu/size_math.h"
+#include "ext/phone_menu/touch_scroll.h"
 
 #include <cstring>
 
@@ -263,6 +264,8 @@ bool IsScrollingList(const UI::Element* e) {
 // (touch_fit.h (c)), which makes every control in it smaller again (the Options dialog's Video page:
 // measured on the S25 at UI 42, the fit went from 44 % to 57 %, docs/android/P11_TOUCH_SIZE.md). So
 // controls on a tab's non-scrolling page keep retail's size; in a scrolling list on any page they grow.
+// P11b: every Options page is a scrolling list by then (touch_scroll.h frames Video and Audio), so the
+// rule holds back only other dialogs' non-scrolling tab pages.
 int32_t Walk(UI::Element* e, bool on, Place place) {
     if (e == nullptr) return 0;
     if (::Object::IsDerivedFromNullSafe(e, UI::ButtonElement::TypeId())) {
@@ -342,7 +345,11 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
     // touched.
     const Seen* seen = FindSeen(dialog);
     int32_t changes = 0;
-    if (seen != nullptr && !seen->touchOwned) changes = Walk(root, on, Place());
+    if (seen != nullptr && !seen->touchOwned) {
+        // P11b (touch_scroll.h): the lists are capped last, at the sized height.
+        changes += Walk(root, on, Place());
+        changes += TouchScrollCap(dialog, on);
+    }
     if (g_sliderResize > 0) --g_sliderResize;
     return changes;
 }

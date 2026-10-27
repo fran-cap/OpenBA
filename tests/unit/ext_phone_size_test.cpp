@@ -38,3 +38,22 @@ UNIT_TEST(ext_phone_size_pad_split) {
     const PM::PadSplit e = PM::PadToTarget(10, PM::kTouchSide / 2);   // a spinner arrow: half the side
     CHECK(e.before == 4 && e.after == 4);
 }
+
+// P11b (touch_scroll.h (b)): a tall window's lists capped so it fits the safe area.
+UNIT_TEST(ext_phone_size_list_cap_shrink) {
+    CHECK(PM::kListFloor == 108);
+    CHECK(PM::ShrinkCap(0, 318, 60, PM::kListFloor) == 258);    // the Options pages: 60 units over
+    CHECK(PM::ShrinkCap(258, 258, 10, PM::kListFloor) == 248);  // a further step (two stacked lists)
+    CHECK(PM::ShrinkCap(0, 318, 300, PM::kListFloor) == 108);   // never under the floor
+    CHECK(PM::ShrinkCap(108, 108, 20, PM::kListFloor) == 108);  // at the floor: the scale-down takes the rest
+    CHECK(PM::ShrinkCap(0, 90, 20, PM::kListFloor) == 0);       // lists already short: nothing to cap
+    CHECK(PM::ShrinkCap(200, 318, 0, PM::kListFloor) == 200);   // fits: unchanged
+}
+
+UNIT_TEST(ext_phone_size_list_cap_grow) {
+    CHECK(PM::GrowCap(258, 20, 318) == 278);   // a larger UI room: the lists grow back
+    CHECK(PM::GrowCap(258, 60, 318) == 0);     // back to their own height: no cap
+    CHECK(PM::GrowCap(258, 80, 318) == 0);
+    CHECK(PM::GrowCap(0, 80, 318) == 0);       // no cap in force
+    CHECK(PM::GrowCap(258, 0, 318) == 258);
+}

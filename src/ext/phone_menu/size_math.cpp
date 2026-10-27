@@ -25,5 +25,17 @@ PadSplit PadToTarget(int32_t padded, int32_t target) {
     return split;
 }
 
+int32_t ShrinkCap(int32_t cap, int32_t tallest, int32_t over, int32_t floor) {
+    if (over <= 0 || tallest <= floor) return cap;
+    const int32_t want = tallest - over;
+    return want > floor ? want : floor;
+}
+
+int32_t GrowCap(int32_t cap, int32_t slack, int32_t natural) {
+    if (cap <= 0 || slack <= 0) return cap;
+    const int32_t want = cap + slack;
+    return want >= natural ? 0 : want;
+}
+
 }  // namespace PhoneMenu
 }  // namespace Ext
