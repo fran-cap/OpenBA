@@ -140,18 +140,29 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   the cluster (`UserInterface::_mouseDownX/Y`), and the pointer is over a control. Our own pure math
   (`touch_math.h`) does the hit test against the laid-out rectangles. It does not rely on the elements'
   click events, which fire on release.
-- **D-pad**, 8-way. The direction is the vector from the pad's centre, with a dead zone of 0.15 of the
-  side. Each axis is set when its component exceeds `tan(22.5 deg)` of the other, and the pan axes are
-  assigned as the keys assign them (`panX = -1/+1`, `panY = -1/+1`). Retail normalises the vector, so a
-  diagonal pans at the same speed. Sliding between directions while held is allowed. Releasing, or
-  leaving the pad, stops the pan. P11b (ruled 2026-10-26, `docs/android/P11B_POINTER.md` §4): the pan
-  speed RAMPS (touch_math.h `SpeedRamp`: up over `kRampInSeconds` 0.30 s, down over `kRampOutSeconds`
-  0.20 s after the release, smoothstep-eased; the camera coasts out of the last direction). The gain
+- **D-pad**, analogue (P11c, ruled 2026-10-26; it was 8-way until P11b). touch_math.h `PadVector`: the pan
+  direction is the finger's offset from the pad's centre at any angle (a unit vector), zero inside a dead zone of
+  radius `kDeadZoneFraction` 0.10 of the side, full speed outside it (`kPadFull`; `kPadProportional`, the speed
+  growing to the inscribed circle, is the tested alternative). The rectangular graphic is unchanged. The press
+  captures the pad and the direction follows the finger until the release, also off the pad. The seam hands
+  `UpdateCamera` the unit direction in `panX` / `panY` and the speed in `panGain`; retail normalises the vector,
+  so a diagonal pans no faster than a cardinal. Releasing stops the pan. P11b (ruled 2026-10-26,
+  `docs/android/P11B_POINTER.md` §4): the pan
+  speed RAMPS (touch_math.h `SpeedRamp`: up over `kRampInSeconds`, down over `kRampOutSeconds` after the
+  release, smoothstep-eased; the camera coasts out of the last direction). P11b tuned 0.30 / 0.20 s; P11c (owner,
+  2026-10-26: too laggy, about 100 ms) 0.10 s in, 0.09 s out. The gain
   reaches retail's pan through `CameraInput`'s `panGain` (camera_input.cpp multiplies retail's speed by
   it; 1 without the seam). A key panning keeps retail's speed.
-- **Rotate**: `yaw -= / += dt * 90` every frame while held, retail's key rate, ramped like the pan (P11b).
-- **Zoom**: one step (`zoomDir = +/-1`) at the press, then one every 0.15 s after 0.35 s of holding (the
-  repeat lives in touch_mode). The camera's own smoothing turns the steps into a glide.
+- **Rotate**: `yaw -= / += dt * 90` every frame while held, retail's key rate. P11b ramped it like the pan;
+  P11c (owner, 2026-10-26: too laggy) took the ramp out: full speed on the press, stop on the release.
+- **Zoom**: continuous (P11c, ruled 2026-10-26: smooth, zero delay, no steps; until P11b one step at the press,
+  then one every 0.15 s after 0.35 s). While a zoom button is held, `CameraInput` returns `heldZoom` =
+  `kZoomStepsPerSecond` 8 of retail's 5-unit steps per second (40 units/s) times `dt`, from the first frame to the
+  release, no ramp. `UpdateCamera` applies it after retail's own step with touch_math.h `ApplyHeldZoom`: the zoom
+  target (+0x3C) and the smoothed distance move together by what the target moved inside the frame's range
+  (retail's 20 .. 130, or ext.better_camera's 6 .. 200 with that row on), so retail's 0.9 / 0.1 smoothing adds
+  no lag at the press or the release. With ext.eye_camera following a citizen the same steps move the eye's
+  distance (`EyeCamera::ZoomBy`). The wheel and the zoom keys keep their steps.
 - **Keyboard and mouse still work.** The seam only assigns while a control is held. Keys, edge scroll, the
   wheel and the middle-button rotate drag (the KVM mouse) are unchanged, and a click anywhere outside the
   cluster is retail's.

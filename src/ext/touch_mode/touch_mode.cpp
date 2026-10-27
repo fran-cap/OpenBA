@@ -30,6 +30,7 @@
 #include "Game/GameUpdateLoop.h"
 #include "Game/PlayerController.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <new>
@@ -84,16 +85,20 @@ bool Active(const CameraHold& h) {
 // The cluster's held control and its zoom repeat.
 Control g_held = kNone;
 float g_heldSeconds = 0.0f;
-ZoomRepeat g_zoomRepeat;
 Capture g_capture;
 
-// P11b: the pad's pan and the rotate buttons ramp in and out (touch_math.h SpeedRamp); the last direction
-// is kept so the camera coasts out of it after the release.
+// P11b: the pad's pan ramps in and out (touch_math.h SpeedRamp); the last direction is kept so the camera
+// coasts out of it after the release. The rotate buttons turn at retail's key rate from the press to the
+// release, no ramp (the owner, 2026-10-26: the 0.30 / 0.20 s rotate ramp was too laggy).
 SpeedRamp g_panRamp;
-SpeedRamp g_rotateRamp;
-int8_t g_rampPanX = 0;
-int8_t g_rampPanY = 0;
-int8_t g_rampRotate = 0;
+float g_rampPanX = 0.0f;
+float g_rampPanY = 0.0f;
+
+// The pad's speed rule (touch_math.h PadSpeed; P11c, docs/android/P11C_CAMERA.md): full speed outside the dead
+// zone, the direction alone from the finger. Proportional was measured on the S25 and not taken: a finger on the
+// drawn arrows (0.6 .. 0.8 of the half side) panned at 48 .. 73 % of the keys' speed, and a finger cannot feel
+// where on the flat pad it rests; the 0.10 s ramp already gives the soft start.
+constexpr PadSpeed kPadSpeed = kPadFull;
 
 class ClusterDialog;
 ClusterDialog* g_open = nullptr;
@@ -432,7 +437,7 @@ void Hold(Source source, const CameraHold& hold) {
     if (source == Source::Fingers) g_fingerZoom += hold.zoomSteps;
 }
 
-void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain) {
+void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain, float& heldZoom) {
     GameUpdateLoop* loop = GameUpdateLoop::_singleton;
     UI::UserInterface* ui = loop != nullptr ? loop->m_userInterface : nullptr;
     const bool want = Ext().touch_mode && ToolbarShown(ui);
@@ -456,20 +461,18 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     if (g_open != nullptr) g_open->ShowPressed(g_capture);
     CameraHold pad;
     if (held == kPad) {
-        int32_t dx = 0;
-        int32_t dy = 0;
-        PadDirection(g_cluster.control[kPad], mx, my, dx, dy);
-        pad.panX = static_cast<int8_t>(dx);
-        pad.panY = static_cast<int8_t>(dy);
+        const PadPan v = PadVector(g_cluster.control[kPad], mx, my, kPadSpeed);
+        pad.panX = v.x;
+        pad.panY = v.y;
     } else if (held == kRotateLeft) {
         pad.rotate = -1;
     } else if (held == kRotateRight) {
         pad.rotate = 1;
     }
-    const bool zoomHeld = held == kZoomIn || held == kZoomOut;
-    if (g_zoomRepeat.Step(zoomHeld, dt) != 0) pad.zoom = static_cast<int8_t>(held == kZoomIn ? 1 : -1);
+    if (held == kZoomIn) pad.zoom = 1;
+    if (held == kZoomOut) pad.zoom = -1;
     Hold(Source::Pad, pad);
-    // A held control keeps the pad source active between a zoom button's repeats.
+    // A held control keeps the pad source active (a pad finger resting in the dead zone).
     g_activeNow[0] = held != kNone;
 
     // One line per press and release, with the camera after it (TOUCH_MODE.md section 7).
@@ -495,24 +498,24 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     const CameraHold& h = g_hold[src];
     // The pad (P11b): its direction while held, the ramped gain in and out. A key panning keeps retail's speed.
     const bool padPan = src == 0 && (h.panX != 0 || h.panY != 0);
-    const bool padRotate = src == 0 && h.rotate != 0;
     if (padPan) {
         g_rampPanX = h.panX;
         g_rampPanY = h.panY;
     }
-    if (padRotate) g_rampRotate = h.rotate;
     const float panRamp = g_panRamp.Step(padPan, dt);
-    const float rotateRamp = g_rotateRamp.Step(padRotate, dt);
     if (src == 0) {
-        if (panX == 0.0f && panY == 0.0f && panRamp > 0.0f) {
-            panX = static_cast<float>(g_rampPanX);
-            panY = static_cast<float>(g_rampPanY);
-            panGain = panRamp;
+        // The direction as a unit vector (UpdateCamera normalises it anyway, so a diagonal is no faster than a
+        // cardinal), the pad's speed and the ramp in the gain.
+        const float speed = std::sqrt(g_rampPanX * g_rampPanX + g_rampPanY * g_rampPanY);
+        if (panX == 0.0f && panY == 0.0f && panRamp > 0.0f && speed > 0.0f) {
+            panX = g_rampPanX / speed;
+            panY = g_rampPanY / speed;
+            panGain = panRamp * speed;
         }
-        yaw += static_cast<float>(g_rampRotate) * dt * kRotateDegPerSecond * rotateRamp;
+        yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
     } else {
-        if (panX == 0.0f) panX = static_cast<float>(h.panX);
-        if (panY == 0.0f) panY = static_cast<float>(h.panY);
+        if (panX == 0.0f) panX = h.panX;
+        if (panY == 0.0f) panY = h.panY;
         yaw += static_cast<float>(h.rotate) * dt * kRotateDegPerSecond;
     }
     if (src == 1) {
@@ -527,10 +530,11 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
             pc->target.y += dy;
         }
     }
+    // The zoom buttons (P11c): a constant rate from the press to the release, beside whatever the wheel or a key
+    // stepped this frame.
+    if (src == 0) heldZoom = HeldZoomSteps(h.zoom, dt);
     if (zoomDir == 0) {
-        if (src == 0 && h.zoom != 0) {
-            zoomDir = h.zoom;
-        } else if (src == 1 && (g_fingerZoom >= 1.0f || g_fingerZoom <= -1.0f)) {
+        if (src == 1 && (g_fingerZoom >= 1.0f || g_fingerZoom <= -1.0f)) {
             zoomDir = g_fingerZoom > 0.0f ? 1 : -1;
             g_fingerZoom -= static_cast<float>(zoomDir);
         }

@@ -301,6 +301,11 @@ int Zoom(int zoomDir) {
     return 0;
 }
 
+float ZoomBy(float steps) {
+    if (steps != 0.0f) g_distance = ZoomDistanceBy(g_distance, steps);
+    return 0.0f;
+}
+
 void DrawScene(Graphics::Renderer& renderer, Video::Context& context, float alpha,
                const Graphics::Scene& scene, PlayerController& pc) {
     // The fit view: the eye's camera (its frustum) moved to ShadowFitPose,

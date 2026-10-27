@@ -70,6 +70,10 @@ void ApplyFrame(PlayerController& pc, float alpha, float fovY, float farZ);
 // returns 0, so retail's zoom target (PlayerToolManager +0x3C) is untouched.
 int Zoom(int zoomDir);
 
+// The same for a continuous zoom (ext.touch_mode's held zoom button): `steps` of retail's zoom (+ in, fractional)
+// move the eye's distance by steps * kDistanceStep; returns 0.
+float ZoomBy(float steps);
+
 // GameUpdateLoop::Draw step 7 (once per rendered frame): retail's
 // Renderer::Draw with the player camera (the eye, set at step 4), with the
 // sun's shadow camera fitted to ShadowFitPose's view instead of the eye's
