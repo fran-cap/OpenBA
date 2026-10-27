@@ -138,7 +138,10 @@ the size, a dialog larger than the safe area (Options and Fixes and Extensions b
 scale Full) is shown whole at its own fitted scale while it is open (the rest of the interface keeps the
 player's, P11), and the main and pause menus show the
 backdrop's bottom border with the version line inside it (`docs/extensions/handins/PHONEMENU.md` §2,
-`docs/android/P9_DIALOGS.md`).
+`docs/android/P9_DIALOGS.md`). P11: every other control a finger presses is brought to about the close
+button's size (36 units): title-bar and icon buttons (the citizens' `>`), Ok / Cancel / Apply, check boxes,
+drop-downs and their rows, tabs, spinners, and sliders at twice their art; controls on a tab's
+non-scrolling page (Options > Video) keep retail's size (`docs/android/P11_TOUCH_SIZE.md`).
 
 **Render scale** (P7). `VideoRenderScale=<percent>` (25..100) sizes the engine's back buffer against the
 window: the phone's 50 renders 1170x540 and the present pass scales it up (linear) while turning it into the

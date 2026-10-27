@@ -70,13 +70,21 @@ static_assert(kValue       == offsetof(UI::SliderElement, _value), "");
 // The thumb travel, computed identically by ComputeLayout, Draw and Update:
 //   span = (_layoutRight - 2*(thumbW/2 + _thumbMargin)) - _layoutLeft
 //   pos  = span * ((_value - _minimum) / (_maximum - _minimum))      (0 if flat)
-int32_t ThumbOffset(const UI::SliderElement& s, int32_t thumbW) {
+int32_t ThumbOffset(const UI::SliderElement& s, int32_t thumbW, int32_t margin) {
     const float range = s._maximum - s._minimum;
     if (range == 0.0f) return 0;
-    const int32_t span = (s._layoutRight + ((thumbW >> 1) + s._thumbMargin) * -2)
+    const int32_t span = (s._layoutRight + ((thumbW >> 1) + margin) * -2)
                          - s._layoutLeft;
     return static_cast<int32_t>(static_cast<float>(span)
                                 * ((s._value - s._minimum) / range));
+}
+
+// EXT SEAM (NOT RETAIL): ext.phone_menu's touch size (SliderElement.h `_extSpriteScale`). The factor
+// every sprite extent, the track offset and the thumb margin are multiplied by; 1 (null) is retail's.
+int32_t SpriteScale() {
+    const int32_t* k = UI::SliderElement::_extSpriteScale;
+    if (k == nullptr || *k < 1) return 1;
+    return *k;
 }
 
 void QueueEvent(UI::SliderElement* self, UI::UserInterface* ui,
@@ -102,8 +110,9 @@ namespace UI {
 void SliderElement::ComputeSize() {
     if ((_flags & kFlagNeedsSizeCalc) == 0) return;
 
-    const int32_t trackW = _trackStart.Width() + _trackMiddle.Width() + _trackEnd.Width();
-    int32_t width = _thumb.Width();
+    const int32_t k = SpriteScale();   // EXT SEAM: 1 = retail
+    const int32_t trackW = (_trackStart.Width() + _trackMiddle.Width() + _trackEnd.Width()) * k;
+    int32_t width = _thumb.Width() * k;
 
     int32_t height = 0;
     if (_children.GetSize() > 0) {
@@ -117,8 +126,8 @@ void SliderElement::ComputeSize() {
     if (width < trackW) width = trackW;
     _layoutWidth = width;
 
-    int32_t spriteH = _trackStart.Height();
-    const int32_t thumbH = _thumb.Height();
+    int32_t spriteH = _trackStart.Height() * k;
+    const int32_t thumbH = _thumb.Height() * k;
     if (spriteH < thumbH) spriteH = thumbH;
     if (height  < spriteH) height = spriteH;
 
@@ -167,13 +176,16 @@ void SliderElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     int32_t cw = 0, ch = 0;
     InlineGetPaddedSize(child, &cw, &ch);
 
-    int32_t pos = _layoutLeft + _thumbMargin + ThumbOffset(*this, _thumb.Width());
+    const int32_t k = SpriteScale();   // EXT SEAM: 1 = retail
+    const int32_t thumbW = _thumb.Width() * k;
+    const int32_t margin = _thumbMargin * k;
+    int32_t pos = _layoutLeft + margin + ThumbOffset(*this, thumbW, margin);
 
-    int32_t q = _thumb.Width() + pos;
-    if (q + cw < _layoutRight) q = _thumbMargin + q;
+    int32_t q = thumbW + pos;
+    if (q + cw < _layoutRight) q = margin + q;
     else                       q = pos - cw;
 
-    _children.GetData()[0]->ComputeLayout(q, _trackOffsetY + _layoutTop,
+    _children.GetData()[0]->ComputeLayout(q, _trackOffsetY * k + _layoutTop,
                                           q + cw, _layoutBottom);   // slot 5
 }
 
@@ -189,7 +201,27 @@ void SliderElement::Draw(SpriteContext& context, uint8_t alpha) const {
     const int32_t left   = _layoutLeft;
     const int32_t rightX = _layoutRight;
     const int32_t top    = _layoutTop;
-    const int32_t ty     = top + _trackOffsetY;
+    const int32_t k      = SpriteScale();   // EXT SEAM: 1 = retail
+    const int32_t ty     = top + _trackOffsetY * k;
+
+    if (k != 1) {
+        // EXT SEAM (NOT RETAIL): ext.phone_menu's touch size, every sprite k times its size (rect
+        // draws); retail's point draws below.
+        const int32_t sttW = _trackStart.Width() * k;
+        const int32_t endW = _trackEnd.Width() * k;
+        context.AddSprite(_trackStart, left, ty, left + sttW, ty + _trackStart.Height() * k, c);
+        context.AddSprite(_trackMiddle, left + sttW, ty, rightX - endW, ty + _trackMiddle.Height() * k, c);
+        context.AddSprite(_trackEnd, rightX - endW, ty, rightX, ty + _trackEnd.Height() * k, c);
+        const int32_t margin = _thumbMargin * k;
+        const int32_t pos = ThumbOffset(*this, _thumb.Width() * k, margin);
+        const ::Sprite& thumb = (_hovered != 0) ? _thumbHot : _thumb;
+        const int32_t tx = margin + pos + left;
+        context.AddSprite(thumb, tx, top, tx + thumb.Width() * k, top + thumb.Height() * k, c);
+        const Element* child = _children.GetData()[0];
+        if (child != nullptr)
+            child->Draw(context, alpha);   // slot 6
+        return;
+    }
 
     // UI::SpriteContext::AddSprite (block D's class) — by address, doors stay.
     context.AddSprite(_trackStart, left, ty, c);
@@ -204,7 +236,7 @@ void SliderElement::Draw(SpriteContext& context, uint8_t alpha) const {
     // The thumb's TRAVEL is measured with the idle sprite's width even when
     // the hot sprite is the one drawn (0x1800d6f3d reads +0xF0 before the
     // hover swap at 0x1800d6f5f). Reproduced.
-    const int32_t pos = ThumbOffset(*this, _thumb.Width());
+    const int32_t pos = ThumbOffset(*this, _thumb.Width(), _thumbMargin);
     const ::Sprite& thumb = (_hovered != 0) ? _thumbHot : _thumb;
     context.AddSprite(thumb, _thumbMargin + pos + left, top, c);
 
@@ -224,11 +256,13 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
     Object::InternalPtr<DialogInstance> slot = *dialog;
     Element::Update(time, ui, &slot, state);
 
-    const int32_t thumbW = _thumb.Width();
-    const int32_t thumbH = _thumb.Height();
+    const int32_t k      = SpriteScale();   // EXT SEAM: 1 = retail
+    const int32_t thumbW = _thumb.Width() * k;
+    const int32_t thumbH = _thumb.Height() * k;
+    const int32_t margin = _thumbMargin * k;
     const float   range  = _maximum - _minimum;
 
-    const int32_t pos = _layoutLeft + _thumbMargin + ThumbOffset(*this, thumbW);
+    const int32_t pos = _layoutLeft + margin + ThumbOffset(*this, thumbW, margin);
 
     const int32_t mx = state.mouseX;
     const int32_t my = state.mouseY;
@@ -287,8 +321,8 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
     }
 
     if (doDrag && isNear && (_flags & kFlagDragging) != 0) {
-        const int32_t w = _thumb.Width();
-        const int32_t span = (_layoutRight + ((w >> 1) + _thumbMargin) * -2) - _layoutLeft;
+        const int32_t w = _thumb.Width() * k;
+        const int32_t span = (_layoutRight + ((w >> 1) + margin) * -2) - _layoutLeft;
         const float v = _dragAnchor
             - (static_cast<float>(state.dragDx) / static_cast<float>(span))
               * (_maximum - _minimum);
@@ -307,6 +341,10 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/SLIDERCLAMP.md): fix.slider_drag_clamp, null by default
 // (SliderElement.h); set by Ext::InitFromSettings.
 const bool* SliderElement::_extFixDragClamp = nullptr;
+
+// EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_SIZE.md): ext.phone_menu's touch size, null by default
+// (SliderElement.h); set by Ext::PhoneMenu::Sync.
+const int32_t* SliderElement::_extSpriteScale = nullptr;
 
 // ??1SliderElement@UI@@UEAA@XZ   0x180049ee0 — retail's body is a BARE TAIL
 // JUMP to ~Element with no restamp: the compiler's chain is all of it.

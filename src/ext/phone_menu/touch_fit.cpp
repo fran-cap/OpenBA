@@ -29,6 +29,7 @@
 
 #include "ext/phone_menu/touch_fit.h"
 #include "ext/phone_menu/touch_math.h"
+#include "ext/phone_menu/touch_size.h"
 #include "ext/registry.h"
 #include "ext/touch_mode/touch_mode.h"   // TouchMode::Scale: the toolbar keeps its own scale
 
@@ -311,7 +312,9 @@ void TouchFrame(int32_t point, const UI::DialogInstance* dialog) {
     // Once a frame per UserInterface, before any of its dialogs is laid out.
     g_changes = 0;
     for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
-        if (node->element != nullptr) Walk(node->element->_root.Get(), on);
+        if (node->element == nullptr) continue;
+        Walk(node->element->_root.Get(), on);
+        g_changes += TouchSizeWalk(node->element, on);   // P11 (touch_size.h)
     }
     DecideScale(ui, on);
     if (on) FingerUpHidesToolTip(ui);

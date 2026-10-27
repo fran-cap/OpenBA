@@ -25,6 +25,9 @@
 //   (e) P9, for a finger (touch_fit.h): scroll bars four times thicker, close buttons twice the
 //       size, a dialog larger than the safe area shown whole at its own fitted scale while it is open,
 //       the menus' backdrop's bottom border drawn back and the version line moved into it.
+//   (f) P11 (touch_size.h): every control a finger presses (title-bar and icon buttons, text buttons,
+//       tabs, check boxes, drop-downs and their rows, spinners, sliders) about the size of (e)'s close
+//       button.
 // Default OFF on a desktop; the Android first run switches it on (src/platform/android/
 // app_android.cpp). Live: every hook reads the row each time. Under the faithful profile the
 // engine seam stays null.

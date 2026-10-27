@@ -1,0 +1,29 @@
+// ============================================================================
+// src/ext/phone_menu/size_math.cpp -- ext.phone_menu's touch size for every control (P11)
+// ============================================================================
+// The rules are in size_math.h. Standard C++ only.
+// ============================================================================
+
+#include "size_math.h"
+
+namespace Ext {
+namespace PhoneMenu {
+
+int32_t TouchIconSide(int32_t spriteSide) {
+    if (spriteSide <= 0) return 0;
+    const int32_t doubled = spriteSide * kCloseButtonFactor;
+    if (doubled + 2 * 2 <= kTouchSide) return doubled;
+    return spriteSide;
+}
+
+PadSplit PadToTarget(int32_t padded, int32_t target) {
+    PadSplit split;
+    if (padded >= target) return split;
+    const int32_t extra = target - padded;
+    split.before = extra / 2;
+    split.after = extra - split.before;
+    return split;
+}
+
+}  // namespace PhoneMenu
+}  // namespace Ext
