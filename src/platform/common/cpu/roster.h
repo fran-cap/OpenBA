@@ -38,6 +38,17 @@
 // clamped to the system mask (Platform::CpuAffinity); bits outside it are dropped and
 // the boot line says `clamped`. A mask with no bit left inside the system mask is
 // ignored like junk.
+//
+// THE BIG CORES (Android P12). A phone's SoC is heterogeneous (big.LITTLE / DynamIQ):
+// its little cores run the same code two to three times slower than its big ones, and
+// a fork-join over "n cores" waits for the slowest. `n` above is therefore the physical
+// cores among the BIG CPUs of the mask: BigCoreMask keeps a CPU whose capacity (the
+// kernel's cpu_capacity, 1024 for the biggest core on the machine) is more than half the
+// largest in the mask, which separates a prime or performance cluster from an
+// efficiency cluster on every SoC seen (prime 1024 / performance 700-900 / efficiency
+// 300-500). Uniform or unknown capacities (every PC, Windows, macOS) keep the whole mask,
+// so nothing changes off a phone. The main, render, audio and loader threads are not
+// pinned: the mask only sizes the roster.
 // ============================================================================
 #pragma once
 
@@ -49,6 +60,10 @@ namespace Cpu {
 constexpr int kMaxPathWorkers = 4;   // == Ext::PathWorkers::kMaxWorkers (asserted in path_workers.cpp)
 constexpr int kMaxCullHelpers = 2;
 constexpr int kMaxParallelWorkers = 7;   // == System::Parallel::kMaxWorkers
+
+// The CPUs of `mask` that count as big (the banner). `capacity[i]` is CPU i's capacity, 0
+// when unknown; one unknown CPU inside `mask` makes the whole mask big (no guess).
+uint64_t BigCoreMask(const int* capacity, uint64_t mask);
 
 bool RenderThread(int physicalCores);
 int  PathWorkers(int physicalCores, bool renderPipe);

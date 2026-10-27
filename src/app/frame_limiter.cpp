@@ -7,6 +7,7 @@
 #include "options.h"
 
 #include "platform_window.h"   // Platform::Window::GetCurrentDisplayRefreshHz (SDL W4)
+#include "platform_window_hooks.h"   // Platform::Window::SetPreferredFrameRate (Android P12)
 #include "platform_thread.h"   // Platform::SleepMs
 #include "platform_time.h"     // Platform::PerfCounter / PerfFrequency / WaitTimer* / CpuRelax
 #include <cstdio>
@@ -109,6 +110,8 @@ void SetCeiling(double fps, bool menu) {
     g_capFps   = fps;
     g_lastMenu = menu;
     g_havePrev = false;
+    // P12: the display is told the rate too (a no-op off Android, platform_window_hooks.h).
+    if (logIt) Platform::Window::SetPreferredFrameRate(fps > 0.0 ? static_cast<float>(fps) : 0.0f);
     if (fps <= 0.0) {
         if (logIt) {
             fprintf(stderr, "[FrameLimiter] %s: not paced\n", menu ? "menu" : "game");

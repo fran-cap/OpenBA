@@ -12,8 +12,8 @@
 # Flavours (the old Makefile target in brackets, for the history):
 #   debug   [standalone-debug]  -O0 -g -D_DEBUG, logs kept
 #   og      [standalone-og]     -Og -g -D_DEBUG, logs kept
-#   perf    [standalone-perf]   -O2 -g -DNDEBUG, logs stripped, PerfX knobs default-on
-#   release [standalone]        -O3 -DNDEBUG, logs stripped, PerfX knobs default-off
+#   perf    [standalone-perf]   -O2 -g -DNDEBUG, logs stripped (the perf baselines' build)
+#   release [standalone]        -O3 -DNDEBUG, logs stripped; on Windows and Android also PGO + LTO (below)
 #
 # Off Windows (Phase D.4 POSIX + LINUX-1; handins/LINUX-1.md has the recipe) the targets are
 # `OpenBA` (the Linux game over src/platform/posix + sdl and the Vulkan backend, the default
@@ -97,6 +97,17 @@ if(NOT WIN32)
   set(BANISHED_PORTABLE_FLAGS -fsigned-char -mms-bitfields)
   list(APPEND BANISHED_CXX_FLAGS ${BANISHED_PORTABLE_FLAGS})
 endif()
+# Android (P12): libmain.so exports nothing but `main` (src/app/main.cpp marks it). With the default
+# visibility a shared library's every cross-file call goes through the PLT and every global through
+# the GOT, and its dynamic symbol table runs to tens of thousands of entries the loader relocates at
+# start. Hidden is the Android norm; the crash and hang dumps still print `libmain.so + offset`,
+# which the unstripped library symbolises (docs/android/README.md). The vendored C (SDL, wmadec,
+# freetype) follows the same preset; SDL exports its API through its own macro.
+if(ANDROID)
+  set(CMAKE_C_VISIBILITY_PRESET hidden)
+  set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+  set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+endif()
 # (SHELL: keeps each `-include <file>` pair whole: CMake de-duplicates repeated option tokens,
 # which with two force-includes drops the second `-include` and leaves its path a bare input.)
 set(BANISHED_STRIP_LOGS -DBANISHED_STRIP_LOGS "SHELL:-include ${CMAKE_SOURCE_DIR}/src/app/log_strip.h")
@@ -123,24 +134,35 @@ endif()
 
 # ---------------------------------------------------------------------------------------
 # Profile-guided optimisation (perf/pgo/README.md). BANISHED_PGO:
-#   auto      (default) release flavour on Windows: `use` when BANISHED_PGO_DIR holds a profile set,
-#             otherwise plain; every other flavour / platform: off
-#   generate  instrument OpenBA; the training runs (perf/pgo/train.sh) write the profile set
-#   use       compile OpenBA against the profile set in BANISHED_PGO_DIR
+#   auto      (default) release flavour on Windows: `use` when BANISHED_PGO_DIR holds a profile set;
+#             release flavour on Android: `use` when BANISHED_PGO_PROFDATA exists (perf/pgo/android/
+#             README.md); otherwise, and in every other flavour / platform: off
+#   generate  instrument OpenBA; the training runs (perf/pgo/train.sh; tools/android.sh on the
+#             phone) write the profile
+#   use       compile OpenBA against the profile set in BANISHED_PGO_DIR (GCC) or the merged
+#             BANISHED_PGO_PROFDATA (clang)
 #   off       never
-# The profile set is keyed on each object's path RELATIVE to the build dir (-fprofile-prefix-path),
-# so it is written by one build dir and read by another (CI's), on the one pinned compiler
-# (tools/toolchain/install_winlibs.sh): GCC refuses a profile written by a different version.
-# A profile older than a function it describes is a warning (coverage-mismatch), not an error:
-# releases are infrequent and retrain (train.sh) every time, drift between them is accepted.
+# GCC (Windows): the profile set is keyed on each object's path RELATIVE to the build dir
+# (-fprofile-prefix-path), so it is written by one build dir and read by another (CI's), on the one
+# pinned compiler (tools/toolchain/install_winlibs.sh): GCC refuses a profile written by a different
+# version. A profile older than a function it describes is a warning (coverage-mismatch), not an
+# error: releases are infrequent and retrain (train.sh) every time, drift between them is accepted.
+# Clang (Android, the NDK): IR instrumentation (-fprofile-generate); the device writes one .profraw
+# per run into the app's data folder (src/platform/android/app_android.cpp), tools/android.sh
+# pgo-merge pulls and merges them with the NDK's llvm-profdata into the one .profdata the `use` build
+# reads. A stale or missing record is a warning there too (profile-instr-unprofiled / -out-of-date).
 # ---------------------------------------------------------------------------------------
 set(BANISHED_PGO "auto" CACHE STRING "auto | generate | use | off (perf/pgo/README.md)")
 set_property(CACHE BANISHED_PGO PROPERTY STRINGS auto generate use off)
-set(BANISHED_PGO_DIR "${CMAKE_SOURCE_DIR}/perf/pgo/profile" CACHE PATH "the .gcda profile set")
+set(BANISHED_PGO_DIR "${CMAKE_SOURCE_DIR}/perf/pgo/profile" CACHE PATH "the .gcda profile set (GCC)")
+set(BANISHED_PGO_PROFDATA "${CMAKE_SOURCE_DIR}/perf/pgo/android/openba.profdata" CACHE FILEPATH
+    "the merged clang profile (Android)")
 set(PGO_MODE "${BANISHED_PGO}")
 if(PGO_MODE STREQUAL "auto")
   file(GLOB _pgo_set "${BANISHED_PGO_DIR}/*.gcda")
   if(WIN32 AND BANISHED_FLAVOUR STREQUAL "release" AND _pgo_set)
+    set(PGO_MODE "use")
+  elseif(ANDROID AND BANISHED_FLAVOUR STREQUAL "release" AND EXISTS "${BANISHED_PGO_PROFDATA}")
     set(PGO_MODE "use")
   else()
     set(PGO_MODE "off")
@@ -151,7 +173,22 @@ set(PGO_LINK_FLAGS)
 # GCC compares the prefix against the object path as the compiler sees it: the build dir from
 # getcwd() in the platform's native spelling (backslashes on Windows), a plain string match.
 file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}" PGO_PREFIX)
-if(PGO_MODE STREQUAL "generate")
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  if(PGO_MODE STREQUAL "generate")
+    set(PGO_FLAGS -fprofile-generate)
+    set(PGO_LINK_FLAGS -fprofile-generate)
+    message(STATUS "PGO: generate (clang IR instrumentation; the device writes the .profraw files)")
+  elseif(PGO_MODE STREQUAL "use")
+    if(NOT EXISTS "${BANISHED_PGO_PROFDATA}")
+      message(FATAL_ERROR "BANISHED_PGO=use: no profile at ${BANISHED_PGO_PROFDATA} (tools/android.sh pgo-merge)")
+    endif()
+    set(PGO_FLAGS "-fprofile-use=${BANISHED_PGO_PROFDATA}" -Wno-profile-instr-unprofiled
+        -Wno-profile-instr-out-of-date -Wno-backend-plugin)
+    message(STATUS "PGO: use <- ${BANISHED_PGO_PROFDATA}")
+  elseif(NOT PGO_MODE STREQUAL "off")
+    message(FATAL_ERROR "BANISHED_PGO must be auto, generate, use or off (got '${BANISHED_PGO}')")
+  endif()
+elseif(PGO_MODE STREQUAL "generate")
   set(PGO_FLAGS -fprofile-generate -fprofile-update=atomic
       "-fprofile-dir=${BANISHED_PGO_DIR}" "-fprofile-prefix-path=${PGO_PREFIX}")
   set(PGO_LINK_FLAGS -fprofile-generate)
@@ -170,9 +207,14 @@ endif()
 # records match; 0 coverage-mismatch). The static libraries must then be archived by gcc-ar / gcc-ranlib
 # (tools/build.sh passes them: plain ar does not index slim LTO objects). Off on the other
 # platforms until their release builds are measured.
-option(BANISHED_LTO "Link-time optimisation on the Windows release exe" ON)
+# Android (P12): the same rule for libmain.so, as ThinLTO (lld, the NDK's clang); the static
+# third-party libraries stay plain objects, which lld links beside the bitcode as usual.
+option(BANISHED_LTO "Link-time optimisation on the Windows release exe and the Android release library" ON)
 set(LTO_FLAGS)
-if(WIN32 AND BANISHED_LTO AND BANISHED_FLAVOUR STREQUAL "release" AND NOT PGO_MODE STREQUAL "generate")
+if(ANDROID AND BANISHED_LTO AND BANISHED_FLAVOUR STREQUAL "release" AND NOT PGO_MODE STREQUAL "generate")
+  set(LTO_FLAGS -flto=thin)
+  message(STATUS "LTO: on (thin, release libmain.so)")
+elseif(WIN32 AND BANISHED_LTO AND BANISHED_FLAVOUR STREQUAL "release" AND NOT PGO_MODE STREQUAL "generate")
   set(LTO_FLAGS -flto=8 -fno-fat-lto-objects)
   message(STATUS "LTO: on (release exe)")
   # The parallel LTRANS stage needs a `make` on PATH (tools/toolchain/install_winlibs.sh
@@ -463,15 +505,20 @@ if(RENDER_BACKEND_READY)
                                                 BUILD_RPATH "$ORIGIN")
   endif()
   target_include_directories(OpenBA PRIVATE ${BANISHED_INCLUDES})
-  target_compile_options(OpenBA PRIVATE ${BANISHED_CXX_FLAGS} ${FLAVOUR_FLAGS})
+  # PGO_FLAGS / LTO_FLAGS are empty off Android (the blocks above): the Linux and macOS lines are
+  # as before.
+  target_compile_options(OpenBA PRIVATE ${BANISHED_CXX_FLAGS} ${FLAVOUR_FLAGS} ${PGO_FLAGS} ${LTO_FLAGS})
   # -rdynamic: the exe's own functions in the dynamic symbol table, so the crash and hang
   # dumps (backtrace + dladdr, src/diag/posix) name them.
   if(APPLE)
     target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} -Wl,-export_dynamic)
   elseif(ANDROID)
-    # A shared library exports its functions already (the crash dump's dladdr names them), and
-    # no undefined symbol may survive the link: the loader would only say so on the phone.
-    target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} -Wl,--no-undefined)
+    # P12: hidden visibility (above) leaves `main` as the library's one export; --exclude-libs keeps
+    # the static third-party archives' symbols out of the dynamic table too. No undefined symbol may
+    # survive the link: the loader would only say so on the phone. The crash dump's dladdr no
+    # longer names a function (it prints the library offset, symbolised offline as before).
+    target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} ${LTO_FLAGS}
+                        -Wl,--no-undefined -Wl,--exclude-libs,ALL)
   else()
     target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} -rdynamic)
   endif()

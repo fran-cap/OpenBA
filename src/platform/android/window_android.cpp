@@ -8,13 +8,18 @@
 // hidden; a swipe brings them back for a moment), which is how a game owns the screen there. The
 // engine's own "fullscreen" (a borderless window placed over the display, SetFramed) has no
 // meaning on Android and stays as the shared SDL code does it. P7: RenderScale reads the phone's
-// render scale (below); P8: SetRenderScale changes it in the run. Every other hook is the identity.
+// render scale (below); P8: SetRenderScale changes it in the run. P12: SetPreferredFrameRate tells
+// the display the rate the game is paced to (below). Every other hook is the identity.
 // ============================================================================
 
 #include "platform_window_hooks.h"
 #include "android_paths.h"
+#include "platform/sdl/window_sdl_internal.h"   // Sdl::GameWindow
 
 #include <SDL3/SDL_video.h>
+#include <SDL3/SDL_properties.h>
+#include <dlfcn.h>
+#include <mutex>
 
 #include <atomic>
 #include <cstdio>
@@ -83,6 +88,63 @@ void SetRenderScale(int percent) {
         std::fprintf(stderr, "[Window] render scale %.2f -> %.2f (Options)\n",
                      static_cast<float>(before) / 100.0f, static_cast<float>(percent) / 100.0f);
     }
+}
+
+// P12, THE PREFERRED FRAME RATE (platform_window_hooks.h). ANativeWindow_setFrameRate is API 30
+// and minSdk is 29, so libandroid.so is asked for it once at the first call (dlsym; absent = the
+// hooks do nothing). The native window is SDL's SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, the
+// window's CURRENT ANativeWindow (a new one after each trip to the background); a rate is set on
+// it with FIXED_SOURCE compatibility (the game's content is produced at that rate), 0 for no
+// preference. The last rate is kept so the new native window can be told it again.
+namespace {
+
+using SetFrameRateFn = int32_t (*)(void* window, float frameRate, int8_t compatibility);
+constexpr int8_t kFrameRateCompatibilityFixedSource = 1;   // ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_FIXED_SOURCE
+
+std::mutex g_frameRateLock;
+SetFrameRateFn g_setFrameRate = nullptr;
+bool g_setFrameRateLooked = false;
+float g_preferredFps = 0.0f;
+void* g_frameRateWindow = nullptr;   // the native window the rate was last applied to
+float g_frameRateApplied = -1.0f;    // the rate applied to it (-1: none yet)
+
+// Under g_frameRateLock.
+void ApplyFrameRateLocked() {
+    if (!g_setFrameRateLooked) {
+        g_setFrameRateLooked = true;
+        void* lib = dlopen("libandroid.so", RTLD_NOW | RTLD_NOLOAD);
+        if (lib == nullptr) lib = dlopen("libandroid.so", RTLD_NOW);
+        if (lib != nullptr) {
+            g_setFrameRate = reinterpret_cast<SetFrameRateFn>(dlsym(lib, "ANativeWindow_setFrameRate"));  // CAST-OK: dlsym
+        }
+        std::fprintf(stderr, "[Window] ANativeWindow_setFrameRate %s\n",
+                     g_setFrameRate != nullptr ? "resolved" : "absent (API 29): the display keeps its own rate");
+    }
+    if (g_setFrameRate == nullptr) return;
+    SDL_Window* window = Sdl::GameWindow();
+    if (window == nullptr) return;
+    void* native = SDL_GetPointerProperty(SDL_GetWindowProperties(window),
+                                          SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
+    if (native == nullptr) return;
+    if (native == g_frameRateWindow && g_frameRateApplied == g_preferredFps) return;
+    const int32_t rc = g_setFrameRate(native, g_preferredFps, kFrameRateCompatibilityFixedSource);
+    g_frameRateWindow = native;
+    g_frameRateApplied = g_preferredFps;
+    std::fprintf(stderr, "[Window] preferred frame rate %.0f -> ANativeWindow_setFrameRate = %d\n",
+                 static_cast<double>(g_preferredFps), static_cast<int>(rc));
+}
+
+}  // namespace
+
+void SetPreferredFrameRate(float fps) {
+    std::lock_guard<std::mutex> guard(g_frameRateLock);
+    g_preferredFps = fps > 0.0f ? fps : 0.0f;
+    ApplyFrameRateLocked();
+}
+
+void ReapplyPreferredFrameRate() {
+    std::lock_guard<std::mutex> guard(g_frameRateLock);
+    ApplyFrameRateLocked();
 }
 
 uint64_t PrepareCreate(int32_t* width, int32_t* height) {

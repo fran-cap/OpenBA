@@ -22,6 +22,22 @@ int HexDigit(char c) {
 
 }  // namespace
 
+uint64_t BigCoreMask(const int* capacity, uint64_t mask) {
+    int largest = 0;
+    for (int i = 0; i < 64; ++i) {
+        if (((mask >> i) & 1u) == 0) continue;
+        if (capacity[i] <= 0) return mask;   // unknown: every core counts
+        if (capacity[i] > largest) largest = capacity[i];
+    }
+    if (largest == 0) return mask;
+    uint64_t big = 0;
+    for (int i = 0; i < 64; ++i) {
+        if (((mask >> i) & 1u) == 0) continue;
+        if (capacity[i] * 2 > largest) big |= (uint64_t{1} << i);
+    }
+    return big != 0 ? big : mask;
+}
+
 bool RenderThread(int physicalCores) { return physicalCores >= 3; }
 
 int PathWorkers(int physicalCores, bool renderPipe) {

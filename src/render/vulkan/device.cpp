@@ -526,6 +526,9 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
                  static_cast<int>(presentMode), static_cast<unsigned>(ci.preTransform), static_cast<unsigned>(current),
                  surfaceCaps.currentExtent.width, surfaceCaps.currentExtent.height,
                  PresentActive() ? ", the present pass draws the frame into the images (turned or scaled)" : "");
+    // P12: a new native window (a trip to the background and back) is told the paced frame rate
+    // again (platform_window_hooks.h; nothing to do off Android).
+    Platform::Window::ReapplyPreferredFrameRate();
     return true;
 }
 

@@ -7,12 +7,15 @@
 //                      the logs, the crash / hang dumps and the boot state land beside the
 //                      pushed WinData/ where `adb pull` and tools/android_boot_state.sh find
 //                      them; the per-user Documents/ subfolder is made.
-//   PreSdlInitHints    landscape only (the manifest locks it too); the logcat copy of
-//                      standalone_error.log starts (the logs are open by now).
+//   PreSdlInitHints    landscape only (the manifest locks it too); P12: SDL's AAudio stream
+//                      asks for the default performance mode, not LOW_LATENCY; the logcat copy
+//                      of standalone_error.log starts (the logs are open by now).
 //   PostSdlInit        P7: the lifecycle watch (below): the boot-state watchdog's background
 //                      bracket, and the save request of SDL_EVENT_LOW_MEMORY / TERMINATING.
 //   Shutdown           stop the boot-state watchdog (EXITED, as on macOS), drain the logcat
-//                      copy.
+//                      copy; P12: an instrumented build (BANISHED_PGO=generate, perf/pgo/android/
+//                      README.md) writes its profile now, since Android ends the process without
+//                      running atexit.
 // The harness flags reach OptionsInit through the process environment, which the app's
 // activity fills from the launch intent's string extras before this library's main runs
 // (android/app/src/main/java/org/openba/game/OpenBAActivity.java, src/app/options.h).
@@ -38,6 +41,14 @@
 #include <cstring>
 #include <string>
 #include <thread>
+
+// P12, the clang profile runtime (perf/pgo/android/README.md). Weak: an ordinary build has no
+// profile runtime and the two resolve to null; an instrumented build (-fprofile-generate) links it
+// from compiler-rt. The file name is set once the data folder is the working directory, and the
+// counters are written at Shutdown: SDL's activity ends the process once main returns, before
+// any atexit handler the runtime registered would run.
+extern "C" void __llvm_profile_set_filename(const char*) __attribute__((weak));
+extern "C" int __llvm_profile_write_file(void) __attribute__((weak));
 
 namespace Platform {
 
@@ -243,10 +254,23 @@ void EnterRunDirectory() {
         return;
     }
     __android_log_print(ANDROID_LOG_INFO, kLogTag, "run directory %s", dir.c_str());
+    if (__llvm_profile_set_filename != nullptr) {
+        // P12: the instrumented build's raw profile, one file per library image (%m), pulled by
+        // tools/android.sh pgo-merge.
+        mkdir("pgo", 0770);
+        __llvm_profile_set_filename("pgo/openba-%m.profraw");
+        __android_log_print(ANDROID_LOG_INFO, kLogTag, "PGO: the raw profile is written to %s/pgo/ at quit",
+                            dir.c_str());
+    }
 }
 
 void PreSdlInitHints() {
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+    // P12: SDL's AAudio backend asks for AAUDIO_PERFORMANCE_MODE_LOW_LATENCY unless told otherwise
+    // (SDL_aaudio.c): a fast-mixer thread woken every few milliseconds. The game streams music and
+    // plays effects; nothing in it needs a 5 ms output latency, and the default mode is the
+    // cheaper one in power and CPU wakeups.
+    SDL_SetHint(SDL_HINT_ANDROID_LOW_LATENCY_AUDIO, "0");
     if (!g_mirror.joinable()) {
         g_mirrorStop.store(false);
         g_mirror = std::thread(&MirrorThread);
@@ -263,6 +287,10 @@ bool TakeSaveRequest() {
 
 void Shutdown() {
     BootState::Stop();
+    if (__llvm_profile_write_file != nullptr) {
+        const int rc = __llvm_profile_write_file();
+        std::fprintf(stderr, "[PGO] profile written (%d)\n", rc);
+    }
     std::fflush(stderr);
     if (g_mirror.joinable()) {
         g_mirrorStop.store(true);

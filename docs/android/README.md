@@ -46,8 +46,9 @@ tools/android.sh build debug --jobs 8      # android/app/build/outputs/apk/debug
 The script sets `ANDROID_HOME` (default `%LOCALAPPDATA%/Android/Sdk`) and `JAVA_HOME` (default Android
 Studio's `jbr`) when they are unset, and passes the job count to the native build. A clean debug build
 takes about 4.5 minutes with 2 jobs; a one-file change rebuilds in well under a minute. Release builds
-(`build release`, the perf flavour) come out unsigned (`apk/release/app-release-unsigned.apk`); `tools/android.sh
-sign` aligns and signs them (see Release below).
+(`build release`, the release flavour since P12: -O3, ThinLTO, the clang profile when one is committed,
+`perf/pgo/android/README.md`; `--flavour perf` for the perf baselines' -O2 build) come out unsigned
+(`apk/release/app-release-unsigned.apk`); `tools/android.sh sign` aligns and signs them (see Release below).
 
 The NDK configures the root `CMakeLists.txt` with `ANDROID` set. That branch takes `src/platform/posix`
 plus `src/platform/sdl` and `common`, with every `src/platform/android/<name>_android.cpp` replacing its
@@ -166,6 +167,25 @@ render scale. At render scale 100 (every desktop) this is retail's `UIScale / 10
 `ext.fps_cap` with `ext.fps_cap_rate`: `src/app/frame_limiter.h` paces the menu and the game to it (the
 game's fixed simulation step is untouched; only fewer frames draw it). The phone's first run turns it on
 at 60; a desktop leaves it off, the game uncapped as retail. `BANISHED_FPS_CAP` still overrides it.
+P12: the rate is also told to the display. Each ceiling the limiter paces to goes to
+`Platform::Window::SetPreferredFrameRate` (`src/platform/android/window_android.cpp`:
+`ANativeWindow_setFrameRate`, API 30, resolved at run time, so a minSdk 29 phone ignores it), and
+SurfaceFlinger switches a variable-rate panel to it: the S25's 120 Hz panel runs at 60 under the default
+cap, which halves the display's power and lets FIFO itself pace the frames instead of the limiter's sleep
+landing on every other vsync (`docs/android/PERF_P7.md` §4 rank 2). A new native window after a trip to
+the background is told again where the Vulkan backend makes its swap chain. The log line
+`[Window] preferred frame rate 60 -> ANativeWindow_setFrameRate = 0` is the check (0 = accepted).
+
+**Audio** (P12). SDL's AAudio stream is opened in the default performance mode, not LOW_LATENCY
+(`SDL_HINT_ANDROID_LOW_LATENCY_AUDIO` = 0 in `app_android.cpp`): the game needs no 5 ms output latency,
+and the default mode spares the fast-mixer wakeups.
+
+**Threads on a heterogeneous SoC** (P12). The roster (`src/platform/common/cpu/roster.h`, THE BIG
+CORES) sizes the path workers, cull helpers and the fork-join pool on the big cores only: a CPU whose
+kernel `cpu_capacity` is half the largest or less (an efficiency cluster) no longer counts, so no worker
+is created for a core that would run two to three times slower than the rest and hold up every
+fork-join. The boot line `[Cpu] ... big=0x..` shows the mask on such a phone; a uniform SoC (the S25's
+2 + 6, all within half) and every desktop are unchanged. Nothing is pinned.
 
 **Mouse** (P8). A mouse works as on a desktop. While the middle button is held (camera rotate) the window
 is in relative mode, which on Android is pointer capture; `OpenBASurface.java` passes the captured
@@ -240,6 +260,14 @@ stays the one CMake edit. The job installs the pinned SDK packages (`ndk;30.0.16
 1. `zipalign -f -P 16 4` (16 KB pages for the uncompressed native libraries), then
 2. `apksigner sign` (v2 / v3 by minSdk 29; no v1), the passwords read from the environment (`--ks-pass
    env:...`), then `zipalign -c -P 16 4` and `apksigner verify --verbose --print-certs`.
+
+**What the release library is built with** (P12). The release flavour (-O3, as the desktop packages; the
+apk was the perf flavour's -O2 before), ThinLTO, and the clang profile `perf/pgo/android/openba.profdata`
+when it exists (`perf/pgo/android/README.md` has the training recipe; without it the build is plain).
+`libmain.so` is linked with hidden visibility and exports `main` alone: every cross-file call inside it is
+direct instead of through the PLT, and the loader has no symbol table of tens of thousands of entries to
+relocate. The crash and hang dumps therefore print `libmain.so + <offset>` without a function name; the
+unstripped library symbolises them as before (Crashes below). Gradle keeps `-g` in the unstripped copy.
 
 The key: the repository's Actions secrets `ANDROID_KEYSTORE_BASE64` (the PKCS12 keystore, base64),
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. The keystore is decoded into the

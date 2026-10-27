@@ -62,4 +62,10 @@ bool CpuPhysicalCores(uint64_t mask, int* cores, const char** reason) {
     return true;
 }
 
+// No per-core capacity is read on Windows: the roster treats every core as the same size
+// (platform_cpu.h).
+bool CpuCoreCapacity(int, int*) {
+    return false;
+}
+
 }  // namespace Platform

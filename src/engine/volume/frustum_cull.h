@@ -32,6 +32,8 @@
 
 #if defined(__SSE2__)
 #include <emmintrin.h>
+#elif defined(__ARM_NEON) && defined(__aarch64__)
+#include <arm_neon.h>
 #endif
 
 namespace FrustumCull {
@@ -82,7 +84,12 @@ void FrustumCull_Prepare(const Frustum* f, FrustumCullPlanes* out);
 //     result = (outside & mask & 0x3F) ? 0x40 : mask & ~(notLe & 0x3F).
 //   The dot products the reference skips have no observable effect but the
 //   sticky MXCSR status flags (exceptions are masked; nothing reads them).
-// Off x86, evaluate the same prepared snapshot with scalar operations.
+// On AArch64 the NEON body below is the SSE2 body lane for lane: the selects are the same bit
+// operations on the float patterns, the dot products the unfused FMUL / FADD / FSUB (no FMLA:
+// -ffp-contract=off, and the intrinsics are the unfused ones), the compares the ordered <= / <
+// (FCMGE / FCMGT with the operands swapped, false on NaN); NEON rounds each lane under the
+// thread's FPCR exactly as the scalar FMUL / FADD / FSUB do. Elsewhere, evaluate the same prepared
+// snapshot with scalar operations.
 inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const Box* box, unsigned int mask) {
 #if defined(__SSE2__)
     const __m128 mnx = _mm_set1_ps(box->min.x), mxx = _mm_set1_ps(box->max.x);
@@ -115,6 +122,52 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
         const __m128 isLt = _mm_cmplt_ps(dP, zero);   // dP <  0.0f (false on NaN)
         le  |= static_cast<unsigned int>(_mm_movemask_ps(isLe)) << o;
         out |= static_cast<unsigned int>(_mm_movemask_ps(_mm_and_ps(isLe, isLt))) << o;
+    }
+    if (out & mask & 0x3Fu) return 0x40u;
+    return mask & ~(~le & 0x3Fu);
+#elif defined(__ARM_NEON) && defined(__aarch64__)
+    const uint32x4_t mnx = vreinterpretq_u32_f32(vdupq_n_f32(box->min.x));
+    const uint32x4_t mxx = vreinterpretq_u32_f32(vdupq_n_f32(box->max.x));
+    const uint32x4_t mny = vreinterpretq_u32_f32(vdupq_n_f32(box->min.y));
+    const uint32x4_t mxy = vreinterpretq_u32_f32(vdupq_n_f32(box->max.y));
+    const uint32x4_t mnz = vreinterpretq_u32_f32(vdupq_n_f32(box->min.z));
+    const uint32x4_t mxz = vreinterpretq_u32_f32(vdupq_n_f32(box->max.z));
+    const uint32x4_t dx = veorq_u32(mnx, mxx);
+    const uint32x4_t dy = veorq_u32(mny, mxy);
+    const uint32x4_t dz = veorq_u32(mnz, mxz);
+    const float32x4_t zero = vdupq_n_f32(0.0f);
+    // MOVMSKPS has no NEON twin: a lane's all-ones compare result ANDed with its bit, then the
+    // four lanes summed (the bits are distinct, so the sum is the mask).
+    static const uint32_t kLaneBits[4] = { 1u, 2u, 4u, 8u };
+    const uint32x4_t laneBits = vld1q_u32(kLaneBits);
+
+    unsigned int le = 0, out = 0;
+    for (int o = 0; o < 8; o += 4) {
+        // n-vertex = max where the normal is negative, min otherwise; p-vertex the other.
+        const uint32x4_t sx = vandq_u32(dx, vreinterpretq_u32_f32(vld1q_f32(p->negX + o)));
+        const uint32x4_t sy = vandq_u32(dy, vreinterpretq_u32_f32(vld1q_f32(p->negY + o)));
+        const uint32x4_t sz = vandq_u32(dz, vreinterpretq_u32_f32(vld1q_f32(p->negZ + o)));
+        const float32x4_t nx = vreinterpretq_f32_u32(veorq_u32(mnx, sx));
+        const float32x4_t px = vreinterpretq_f32_u32(veorq_u32(mxx, sx));
+        const float32x4_t ny = vreinterpretq_f32_u32(veorq_u32(mny, sy));
+        const float32x4_t py = vreinterpretq_f32_u32(veorq_u32(mxy, sy));
+        const float32x4_t nz = vreinterpretq_f32_u32(veorq_u32(mnz, sz));
+        const float32x4_t pz = vreinterpretq_f32_u32(veorq_u32(mxz, sz));
+
+        const float32x4_t X = vld1q_f32(p->x + o);
+        const float32x4_t Y = vld1q_f32(p->y + o);
+        const float32x4_t Z = vld1q_f32(p->z + o);
+        const float32x4_t W = vld1q_f32(p->w + o);
+
+        // dN = plane.y * n.y + plane.x * n.x + plane.z * n.z - plane.w (left to right)
+        const float32x4_t dN = vsubq_f32(vaddq_f32(vaddq_f32(vmulq_f32(Y, ny), vmulq_f32(X, nx)),
+                                                   vmulq_f32(Z, nz)), W);
+        const float32x4_t dP = vsubq_f32(vaddq_f32(vaddq_f32(vmulq_f32(Y, py), vmulq_f32(X, px)),
+                                                   vmulq_f32(Z, pz)), W);
+        const uint32x4_t isLe = vcleq_f32(dN, zero);   // dN <= 0.0f (false on NaN)
+        const uint32x4_t isLt = vcltq_f32(dP, zero);   // dP <  0.0f (false on NaN)
+        le  |= vaddvq_u32(vandq_u32(isLe, laneBits)) << o;
+        out |= vaddvq_u32(vandq_u32(vandq_u32(isLe, isLt), laneBits)) << o;
     }
     if (out & mask & 0x3Fu) return 0x40u;
     return mask & ~(~le & 0x3Fu);

@@ -86,5 +86,19 @@ void SetRenderScale(int percent);
 // on (src/ext/phone_menu/video_rows.cpp). False on Windows, Linux and macOS.
 bool FixedDisplaySurface();
 
+// P12: the frame rate the game is paced to, told to the display. The frame limiter calls it with
+// each ceiling it paces to (src/app/frame_limiter.cpp SetCeiling; 0 = not paced). Android passes it
+// to ANativeWindow_setFrameRate on the window's current native window (API 30, resolved at run
+// time, so a minSdk 29 device ignores it): SurfaceFlinger then switches a variable-rate panel to
+// that rate (a 120 Hz panel runs at 60 under the phone's default cap), which halves the display's
+// power and makes FIFO itself pace the game, instead of the limiter's sleep landing on every other
+// vsync. Nothing to do on Windows, Linux and macOS (the display keeps its mode). Any thread.
+void SetPreferredFrameRate(float fps);
+
+// P12: the last SetPreferredFrameRate again, on the window's current native window: a trip to the
+// background and back gives the window a new native window that knows nothing of the rate. The
+// Vulkan backend calls it where it makes a swap chain. Nothing to do off Android.
+void ReapplyPreferredFrameRate();
+
 }  // namespace Window
 }  // namespace Platform

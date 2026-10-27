@@ -7,6 +7,9 @@
 //       exactly
 // (ii)  the mask grammar: 0x55, 85, 0, junk
 // (iii) the clamp to a system mask (DecideLimit)
+// (iv)  the big-core mask of a heterogeneous SoC (BigCoreMask): uniform and unknown
+//       capacities keep the mask; a prime / performance / efficiency layout keeps the
+//       first two; the mask's own bits bound the answer
 // ============================================================================
 #include "unit.h"
 #include "platform/common/cpu/roster.h"
@@ -148,4 +151,42 @@ UNIT_TEST(cpu_limit_clamp) {
     CHECK_STREQ(Cpu::LimitName(Cpu::Limit::None), "none");
     CHECK_STREQ(Cpu::LimitName(Cpu::Limit::Applied), "applied");
     CHECK_STREQ(Cpu::LimitName(Cpu::Limit::Clamped), "clamped");
+}
+
+UNIT_TEST(cpu_big_core_mask) {
+    int cap[64] = {0};
+    // Unknown everywhere (a PC without the sysfs file, Windows, macOS): the mask itself.
+    CHECK_EQ(Cpu::BigCoreMask(cap, 0xFFu), 0xFFu);
+    // Uniform (a PC's kernel that has the file): the mask itself.
+    for (int i = 0; i < 16; ++i) cap[i] = 1024;
+    CHECK_EQ(Cpu::BigCoreMask(cap, 0xFFFFu), 0xFFFFu);
+    CHECK_EQ(Cpu::BigCoreMask(cap, 0x00F0u), 0x00F0u);
+    // One unknown CPU inside the mask: no guess, the mask itself.
+    cap[3] = 0;
+    CHECK_EQ(Cpu::BigCoreMask(cap, 0xFFu), 0xFFu);
+    // 2 prime + 6 performance (a Galaxy S25 class part): every core is big.
+    int s25[64] = {0};
+    for (int i = 0; i < 6; ++i) s25[i] = 800;
+    s25[6] = 1024;
+    s25[7] = 1024;
+    CHECK_EQ(Cpu::BigCoreMask(s25, 0xFFu), 0xFFu);
+    // 1 prime + 3 performance + 4 efficiency: the efficiency cluster is dropped.
+    int tri[64] = {0};
+    for (int i = 0; i < 4; ++i) tri[i] = 380;
+    for (int i = 4; i < 7; ++i) tri[i] = 760;
+    tri[7] = 1024;
+    CHECK_EQ(Cpu::BigCoreMask(tri, 0xFFu), 0xF0u);
+    // The same SoC under a sys.cpu_limit that already excludes the prime core: the performance
+    // cores are the largest left, the efficiency cores are still under half of them.
+    CHECK_EQ(Cpu::BigCoreMask(tri, 0x7Fu), 0x70u);
+    // A limit to the efficiency cluster alone: uniform inside the mask, kept whole.
+    CHECK_EQ(Cpu::BigCoreMask(tri, 0x0Fu), 0x0Fu);
+    // 2 big + 6 little (an older big.LITTLE part, 1024 / 450): the two big cores.
+    int bl[64] = {0};
+    for (int i = 0; i < 6; ++i) bl[i] = 450;
+    bl[6] = 1024;
+    bl[7] = 1024;
+    CHECK_EQ(Cpu::BigCoreMask(bl, 0xFFu), 0xC0u);
+    // The roster on that answer: 2 physical cores = no render thread, 1 path worker.
+    CHECK_EQ(Cpu::RenderThread(Cpu::MaskPopcount(Cpu::BigCoreMask(bl, 0xFFu))), false);
 }

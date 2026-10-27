@@ -55,6 +55,12 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   game data comes from the player's own install, `docs/android/README.md`). Its version follows the game's.
 - Shadows can be switched off on a weak device with the game's own Options > Video > Shadow Quality = None:
   no shadow map is drawn at all.
+- The release apk is built like the desktop packages (P12): the release flavour (-O3), ThinLTO, and a
+  clang profile when one is committed (`perf/pgo/android/README.md`); `libmain.so` exports `main` alone.
+- The frame rate cap is told to the display (`ANativeWindow_setFrameRate`, Android 11 and later): a
+  120 Hz panel runs at 60 under the default cap instead of the game sleeping between every other vsync.
+- The audio stream no longer asks for low-latency mode; the thread roster counts a heterogeneous SoC's
+  big cores only; the fast frustum cull has a NEON body on arm64 (it ran the scalar reference before).
 
 ## v1.0.1 (2026-10-23)
 

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # tools/android.sh -- build, install and drive the Android app (docs/android/README.md).
 #
-#   tools/android.sh build [debug|release] [--jobs N] [--ccache]
+#   tools/android.sh build [debug|release] [--jobs N] [--ccache] [--pgo generate|use|off] [--flavour perf]
 #                                                      # apk/debug/app-debug.apk, apk/release/app-release-unsigned.apk
+#   tools/android.sh pgo-merge [DIR]                   # pull the instrumented app's raw profiles (the data
+#                                                      # folder's pgo/) into DIR (default perf/pgo/android/raw) and
+#                                                      # merge them into perf/pgo/android/openba.profdata
 #   tools/android.sh sign [IN.apk OUT.apk]             # zipalign -P 16 + apksigner (default: the release apk ->
 #                                                      # apk/release/app-release.apk); the key from OPENBA_KEYSTORE*
 #   tools/android.sh install [debug|release|FILE.apk]  # adb install -r -d (downgrade allowed) of that apk
@@ -21,6 +24,9 @@
 # (the Windows install whose WinData is pushed; never copied anywhere else), BUILD_JOBS / --jobs
 # (native compile jobs, default 8 as tools/build.sh). `--ccache` compiles the native part through
 # ccache (on PATH; the release workflow's cache), which the Gradle build otherwise leaves off.
+# `--pgo generate` builds the release apk instrumented (perf/pgo/android/README.md: run the training
+# towns on it, `pgo-merge`, then a plain `build release` reads the merged profile); `--flavour perf`
+# builds the release apk as the perf flavour (-O2 -g, no PGO / LTO: the perf baselines' build).
 #
 # Signing (`sign`; .github/workflows/release.yml runs the same command): OPENBA_KEYSTORE (the
 # keystore file, PKCS12 or JKS), OPENBA_KEY_ALIAS, and the two passwords in OPENBA_KEYSTORE_PASSWORD
@@ -121,6 +127,8 @@ build)
             debug|release) type="$1" ;;
             --jobs) shift; jobs="$1" ;;
             --ccache) props+=("-Popenba.ccache=true") ;;
+            --pgo) shift; props+=("-Popenba.pgo=$1") ;;
+            --flavour) shift; props+=("-Popenba.flavour=$1") ;;
             *) usage ;;
         esac
         shift
@@ -219,6 +227,33 @@ run)
     ;;
 stop)
     "$ADB" shell am force-stop "$PKG"
+    ;;
+pgo-merge)
+    # The instrumented app (build release --pgo generate) writes pgo/openba-<hash>.profraw into the
+    # data folder at each clean quit (src/platform/android/app_android.cpp). llvm-profdata is the
+    # NDK's (the same clang that reads the merged file); the raw files are kept in DIR for a
+    # later merge with more runs. Commit perf/pgo/android/openba.profdata afterwards: the release
+    # build (CMake BANISHED_PGO=auto) reads it when it exists.
+    dir="${1:-$ROOT/perf/pgo/android/raw}"
+    mkdir -p "$dir"
+    if command -v cygpath >/dev/null 2>&1; then dir="$(cygpath -m "$dir")"; fi
+    "$ADB" pull "$DATA/pgo" "$dir" >/dev/null || { echo "no $DATA/pgo on the device (an instrumented run, ended by a quit, writes it)" >&2; exit 1; }
+    ndk="$ANDROID_HOME/ndk/$(sed -n "s/^ *ndkVersion = '\(.*\)'/\1/p" "$ANDROID_DIR/app/build.gradle" | head -1)"
+    profdata=""
+    for host in windows-x86_64 linux-x86_64 darwin-x86_64; do
+        for cand in "$ndk/toolchains/llvm/prebuilt/$host/bin/llvm-profdata.exe" "$ndk/toolchains/llvm/prebuilt/$host/bin/llvm-profdata"; do
+            if [ -f "$cand" ]; then profdata="$cand"; break 2; fi
+        done
+    done
+    [ -n "$profdata" ] || { echo "no llvm-profdata under $ndk/toolchains/llvm/prebuilt" >&2; exit 1; }
+    raws=()
+    while IFS= read -r f; do raws+=("$f"); done < <(find "$dir" -name '*.profraw' | sort)
+    [ ${#raws[@]} -gt 0 ] || { echo "no .profraw under $dir" >&2; exit 1; }
+    out="$ROOT/perf/pgo/android/openba.profdata"
+    if command -v cygpath >/dev/null 2>&1; then out="$(cygpath -m "$out")"; fi
+    "$profdata" merge -o "$out" "${raws[@]}"
+    "$profdata" show "$out" | head -20
+    ls -la "$out"
     ;;
 pull)
     dir="${1:?pull DIR}"
