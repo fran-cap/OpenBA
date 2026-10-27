@@ -205,6 +205,9 @@ int32_t FitButton(UI::ButtonElement* b, bool on, bool inTitle) {
         changes += FitContent(content, on, 0, tall);
         break;
     case Kind::Check:
+        changes += FitContent(content, on, square, tall);
+        changes += FitContent(Child(b, kChildTick), on, square, tall);
+        break;
     case Kind::Combo:
     case Kind::Tab:
     case Kind::Spinner:
