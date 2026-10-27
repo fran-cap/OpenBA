@@ -77,7 +77,19 @@ upper-left, the stored one before and after the sync, the root's laid-out rectan
 * S25, phone_menu + fix on, the house at tap (1123,760): first SetUpperLeft before any layout (stored 0,0, measured
   88 high); the second call finds the stored y 221 but the root laid out at 218 (pulled back 3 units to the
   bottom margin 438): the sync sets 218, the panel lands at the requested 42 (retail's delta would have drawn it
-  at 39 for that frame), and every later frame stored = laid out.
+  at 39 for that frame), and every later frame stored = laid out (`drift_phone_error.log`).
+* S25, the same house, fix OFF and phone_menu on (toggled in the Extensions dialog): phone_menu's own sync takes
+  the same 221 -> 218, drawn at 42. The P11b behaviour is kept with the fix off.
+* S25, phone_menu OFF (retail layout, 196-unit panel), a house panned to just above the toolbar so its first
+  layout crosses the screen's bottom (453), the same camera for both runs (`drift_abc_error.log`):
+
+  | fix | stored y before the move | root laid out at | requested | drawn that frame |
+  |---|---|---|---|---|
+  | off | 262 | 257 (pulled back 5) | 106 | **101** (retail's one-frame jump) |
+  | on | 262 -> 257 (synced) | 257 | 106 | **106** |
+
+  That is retail's mechanism on its own, reproduced and fixed without ext.phone_menu. Both rows were put back on
+  at the end of the session (`[Ext] ext.phone_menu requested=1`, `fix.dialog_position_drift requested=1`).
 * Windows (debug, functional dir, seed 31337, `BANISHED_CAMERA_PIN`, `BANISHED_PANEL_HOLD` house and citizen):
   the panels measure their final size at their first SetUpperLeft (368 x 196, 370 x 218 at UI 83), so stored and
   laid-out agree on every frame with the fix on; retail's drift needs a panel that grows against the bottom edge,
@@ -95,6 +107,6 @@ upper-left, the stored one before and after the sync, the root's laid-out rectan
 
 ## 5. Not done / follow-ups
 
-* The phone run with the fix off (phone_menu on, then both off) was not completed: the S25 locked behind its
-  secure keyguard during a build and could not be unlocked from adb.
+* The S25 locked behind its secure keyguard once during a build (the owner unlocked it); `svc power stayon usb` was
+  set so it stays awake on USB. The phone was left with a trace-free debug apk of this branch, stopped.
 * Linux and macOS not built here; the changes are portable C++ in `src/ext/` with no platform branch.
