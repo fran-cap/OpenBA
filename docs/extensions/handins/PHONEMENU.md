@@ -157,6 +157,34 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
     `_minWidth` / `_minHeight` and stretch bits, the icon's `ImageDescription::_width` / `_height`), the
     container's requested size by the same amount it grew, and the UI scale. An element built without a
     description is never changed.
+* **Every control the size of the close button** (P11, `touch_size.{h,cpp}`, `size_math.{h,cpp}`; session
+  log `docs/android/P11_TOUCH_SIZE.md`; the owner: "everything clickable gets about the height of the
+  enlarged [x]"). The same walk, the same undo from the description. The side is `kTouchSide` = 36 units
+  (the P9 close button: a 16-unit cross at twice its size, padded 2). A button (`ButtonElement`, and
+  `CheckElement` / `ComboElement`, which derive from it) is sized by its content's padded size, and its
+  content is laid out over it by the content's own alignment (TopLeft for most of the game's labels), so
+  the CONTENT's padding grows (centred: half above, half below), not the button's `_minHeight`:
+  * title-bar buttons (inside `StandardDialog.rsc:titleBar`: pin, centre, the event log's notify
+    checks), icon buttons (the `>` on each citizen row) and check boxes: the icon at twice its sprite
+    when that still fits (`TouchIconSide`), then padded to 36 x 36; a check box's tick (`_children[5]`)
+    gets the same icon size and padding as its unticked content;
+  * text buttons (Ok, Cancel, Apply, Yes, No, Follow, the key bindings), tab buttons and drop-downs: the
+    content padded to 36 high, retail's width;
+  * a drop-down's rows (the children of `ListElement::_ribbon`): padded to 36 high;
+  * a spinner's up / down buttons: arrows at twice their sprite, each button 36 wide and 18 high (the
+    pair is 36);
+  * sliders: every sprite (track, thumb, the track offset and thumb margin) at `kSliderSpriteFactor` (2)
+    times its size through the engine seam `UI::SliderElement::_extSpriteScale` (§3): the slider has no
+    size field to change.
+  Not changed: a button already at least 36 in its description's minimum (the toolbar's 40-unit buttons,
+  the menus' squares), a button whose minimum is not its description's (sized at run time by its owner),
+  every dialog ext.touch_mode places (its toolbar, sub-toolbars, event notices and camera cluster: they
+  are sized for a finger by that row; `TouchSeen` records them from the place hook, and a dialog is
+  walked only from its second frame, once the hook has seen it), and the controls on a tab's page that
+  does not scroll (a tab element is as tall as its tallest page: a taller non-scrolling page makes the
+  dialog taller, the fitted UI scale above then shrinks the whole dialog, and every control in it ends up
+  smaller on screen than before; measured on the S25 at UI 42 with the Options Video page enlarged: the
+  fit went from 44 % to 57 %). Controls in a scrolling list on any page grow.
 * **The menus' backdrop's bottom border** (P9, the owner: "the black fringe image is missing"). `LogoTop`
   keeps the 16:9 picture's top on the screen's top, so on a 19.5:9 screen its bottom border (the dark torn
   edge, the last tenth or so of the picture) fell 94 units below a 432-unit layout. The picture is now
@@ -206,6 +234,12 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
   both sides of the clipped draw (without that the clipped copy is silently dropped, which is likely what
   the earlier scissored `kExtPlaceBackdropLower` build ran into). `loading_screen.cpp` `BackdropOver`
   answers it for loading screens only (the picture's torn bottom border, above).
+* `UI::SliderElement::_extSpriteScale` (P11, engine, null by default and under the faithful profile, set by
+  `Sync` to `touch_size.cpp`'s factor: 2 with the row on, 1 off). `SliderElement::ComputeSize`,
+  `ComputeLayout`, `Draw` and `Update` multiply every sprite extent, `_trackOffsetY` and `_thumbMargin` by
+  it; at 1 every body is retail's arithmetic, and `Draw` keeps retail's natural-size sprite calls (at k > 1
+  it draws the same sprites over k-times rectangles). The 32-unit drag band and fix.slider_drag_clamp's
+  seam are untouched (verified on the S25: a drag off the band keeps its value with the fix on).
 * `MainMenuDialog::OnOpened` (`mainmenudialog.cpp`): `Ext::PhoneMenu::MenuOpened` records the menu's and
   the version line's dialog descriptions, and whether the menu is the pause menu (`game` set).
 * `OptionsDialog::OnOpened` (`optionsdialog.cpp`): `Ext::PhoneMenu::UiScaleSliderMinimum` after the
