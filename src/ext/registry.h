@@ -152,6 +152,7 @@ struct Values {
     int32_t texture_quality_drop = 0; // ext.texture_quality_drop 0..1 (owner texture_quality): the top mip levels a qualifying texture is made without, 0 = Full (the default: the row or profile=all alone drops nothing), 1 = Half; an older 2 (Quarter, removed by ruling) clamps to 1; read once at boot (TEXQUALITY.md)
     int32_t fps_cap_rate = 60; // ext.fps_cap_rate 30 | 60 | 90 | 120 (owner fps_cap): the menu's and the game's frame-rate ceiling while the row is on; 60 is the phone's ruled default (docs/android/P8_INPUT_OPTIONS.md)
     int32_t touch_mode_toolbar_scale = 200; // ext.touch_mode_toolbar_scale 100 | 125 | 150 | 175 | 200 (owner touch_mode): the in-game toolbar's own scale in percent, shrunk to fit beside the control cluster (docs/android/TOUCH_MODE.md)
+    int32_t touch_mode_zoom_min = 10; // ext.touch_mode_zoom_min 6..20 (owner touch_mode): the camera's near zoom limit in distance units while the row is on, retail's 20 otherwise (docs/android/P11D_ZOOM.md)
     int32_t touch_pointer_lift = 160; // ext.touch_pointer_lift 0 | 80 | 120 | 160 | 200 | 240 (owner touch_pointer): the aim point's height above the finger, device pixels (docs/android/P11_TOUCH_POINTER.md)
     int32_t touch_pointer_pick_radius = 50; // ext.touch_pointer_pick_radius 0 | 25 | 50 | 75 | 100 (owner touch_pointer): the pick snap's radius, device pixels
     int32_t touch_pointer_tap_twice = 0; // ext.touch_pointer_tap_twice 0..1 (owner touch_pointer): a second tap near the first places the aimed building

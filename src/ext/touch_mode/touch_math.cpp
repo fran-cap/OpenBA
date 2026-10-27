@@ -124,6 +124,12 @@ void ApplyHeldZoom(float steps, float stepDistance, float zMin, float zMax, floa
     target = z;
 }
 
+float NearZoomLimit(float zMin, bool rowOn, int32_t zoomMinKey) {
+    if (!rowOn) return zMin;
+    const float key = static_cast<float>(zoomMinKey);
+    return key < zMin ? key : zMin;
+}
+
 float SpeedRamp::Step(bool held, float dt) {
     if (dt < 0.0f) dt = 0.0f;
     if (held) {

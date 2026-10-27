@@ -211,18 +211,23 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // Row off: a zoom target outside retail's range (a save, or a camera preset, written with the row on) goes back into
     // 20 .. 130 before anything reads it. A no-op for every value retail itself can hold; retail's own seeding of a zero
     // target from the distance (above) has already run.
+    // EXT SEAM (NOT RETAIL, docs/android/P11D_ZOOM.md): with ext.touch_mode on the near limit is
+    // ext.touch_mode_zoom_min (the nearer of it and zMin) for every zoom input; zMin and zSpan, which normalise the
+    // zoom for the pitch and the pan speed below, stay the frame's own. Row off: zNear == zMin.
+    const float zNear = Ext::TouchMode::NearZoomLimit(zMin, Ext::Ext().touch_mode, Ext::Val().touch_mode_zoom_min);
     if (!betterCam)
-        field_0x3C = Ext::BetterCamera::ClampToRetailRange(field_0x3C);
+        field_0x3C = Ext::BetterCamera::ClampToRetailRange(field_0x3C, zNear);
 
     // ── apply zoom step to the zoom target, clamp 20..130 ──
     if (zoomDir != 0) {
         float z = field_0x3C + (zoomDir < 1 ? kZoomStep : -kZoomStep);
-        field_0x3C = clampf(z, zMin, zMax);
+        field_0x3C = clampf(z, zNear, zMax);
     }
-    // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's held zoom button, the zoom target and the
-    // smoothed distance moved together at a constant rate inside the frame's range (retail's or better_camera's).
+    // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's held zoom button and the pinch, the zoom
+    // target and the smoothed distance moved together inside the frame's range (retail's or better_camera's, the
+    // near end touch_mode's).
     if (heldZoom != 0.0f)
-        Ext::TouchMode::ApplyHeldZoom(heldZoom, kZoomStep, zMin, zMax, field_0x3C, pc->distance);
+        Ext::TouchMode::ApplyHeldZoom(heldZoom, kZoomStep, zNear, zMax, field_0x3C, pc->distance);
 
     // ── pitch/distance coupling ──
     const float manual  = field_0x44;                        // 0..1
