@@ -56,5 +56,10 @@ int32_t ShrinkCap(int32_t cap, int32_t tallest, int32_t over, int32_t floor);
 // description's heights) once it reaches `natural`, the tallest list's uncapped height.
 int32_t GrowCap(int32_t cap, int32_t slack, int32_t natural);
 
+// P11d: the minimum height of a frame around a capped list (SaveLoad.rsc's mainGroup): retail's minimum
+// `retailMin` less the `taken` units the cap took off the list (its description height minus the cap), at
+// least 0. `taken` <= 0 (no cap): retail's.
+int32_t FrameMinHeight(int32_t retailMin, int32_t taken);
+
 }  // namespace PhoneMenu
 }  // namespace Ext

@@ -230,6 +230,12 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
     it, which is what had kept the Fixes and Extensions dialog's buttons at 66 device pixels (drawn at
     0.78) and Options' at 0.93. Decided once per change of the window's height or the safe area, not
     every frame. Row off: each list's description height.
+    P11d: the tallest list is its requested height (cap or description), not its laid-out one: a list on a
+    hidden page (Mod.rsc's Browse page) is never laid out and its `_layoutHeight` is unwritten memory,
+    which had made the Mods dialog's cap a no-op (shown at k 0.79). A frame between a capped list and
+    the window's root with its own minimum height (SaveLoad.rsc's `mainGroup`, 360 around a 344 list)
+    keeps that minimum less what the cap took off (`size_math` `FrameMinHeight`), set with the cap, so
+    the Save / Load dialog fits too (it was shown at k 0.91).
   With every Options page a scrolling list, the non-scrolling-page rule above holds back only other
   dialogs' tab pages.
 * **The menus' backdrop's bottom border** (P9, the owner: "the black fringe image is missing"). `LogoTop`
