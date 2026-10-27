@@ -213,6 +213,8 @@ int32_t FitButton(UI::ButtonElement* b, bool on, bool inTitle) {
         changes += FitContent(content, on, 0, tall);
         break;
     case Kind::Tab:
+        changes += FitContent(content, on, 0, tall);
+        break;
     case Kind::Spinner:
     case Kind::None:   // (the kinds above: their own commits)
         break;
