@@ -43,6 +43,7 @@
 #include "ui/ElementDescription.h"
 #include "ui/ImageDescription.h"
 #include "ui/ImageElement.h"
+#include "ui/ListElement.h"
 #include "ui/ScrollElement.h"
 #include "ui/SpinnerElement.h"
 #include "ui/TabElement.h"
@@ -209,10 +210,24 @@ int32_t FitButton(UI::ButtonElement* b, bool on, bool inTitle) {
         changes += FitContent(Child(b, kChildTick), on, square, tall);
         break;
     case Kind::Combo:
+        changes += FitContent(content, on, 0, tall);
+        break;
     case Kind::Tab:
     case Kind::Spinner:
     case Kind::None:   // (the kinds above: their own commits)
         break;
+    }
+    return changes;
+}
+
+// A drop-down's rows (ListElement::_ribbon's children), each kTouchSide high.
+int32_t FitListRows(UI::ListElement* list, bool on) {
+    UI::Element* ribbon = list->_ribbon;
+    if (ribbon == nullptr) return 0;
+    int32_t changes = 0;
+    for (int32_t i = 0; i < ribbon->_children._size; ++i) {
+        UI::Element* row = ribbon->_children._data[i];
+        if (row != nullptr) changes += FitPads(row, on, 0, kTouchSide);
     }
     return changes;
 }
@@ -244,7 +259,9 @@ int32_t Walk(UI::Element* e, bool on, Place place) {
         return FitButton(static_cast<UI::ButtonElement*>(e), on && !place.fixedPage, place.title);
     }
     int32_t changes = 0;
-    if (IsScrollingList(e)) {
+    if (e->IsA(UI::ListElement::TypeId())) {
+        changes += FitListRows(static_cast<UI::ListElement*>(e), on && !place.fixedPage);
+    } else if (IsScrollingList(e)) {
         place.fixedPage = false;
     }
     const char* name = e->_name;
