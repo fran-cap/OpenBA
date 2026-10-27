@@ -25,6 +25,7 @@
 #include "ext/phone_menu/loading_screen.h"   // PlaceLoading (P9)
 #include "ext/phone_menu/touch_fit.h"
 #include "ext/phone_menu/touch_math.h"
+#include "ext/phone_menu/touch_size.h"   // SyncTouchSize (P11)
 #include "ext/registry.h"
 #include "ext/touch_mode/touch_mode.h"   // ext.touch_mode places its dialogs first (docs/android/TOUCH_MODE.md)
 
@@ -506,9 +507,11 @@ void PlaceMenu(const UI::DialogInstance* dialog, int32_t width, int32_t height, 
 void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
            int32_t* rect) {
     if (dialog == nullptr) return;
-    if (TouchMode::Place(point, dialog, width, height, rect)) return;   // ext.touch_mode first (TOUCH_MODE.md)
+    const bool touchOwned = TouchMode::Place(point, dialog, width, height, rect);   // ext.touch_mode first
+    TouchSeen(dialog, touchOwned);   // P11: the touch size walk (touch_size.h)
+    if (touchOwned) return;   // placed by ext.touch_mode (TOUCH_MODE.md)
     // P9: scroll bars, close buttons and a dialog larger than the safe area (touch_fit.h).
-    TouchFrame(point, dialog, width, height, rect);
+    TouchFrame(point, dialog);
     if (!Ext().phone_menu) {
         // Switched off while a menu is open: its retail values back before retail lays it out.
         // (A recorded menu at that address went through MenuOpened, which forgets the old one.)
@@ -563,9 +566,20 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     // A root sized to the back buffer (ComputeLayout's 0x10 / 0x20 flags) is meant to cover
     // the screen: retail's rectangle.
     if ((root->_flags & 0x30) != 0) return;
-    Store(SafeArea(width, height, dialog->_upperLeftX, dialog->_upperLeftY,
-                   root->_layoutRight - root->_layoutLeft, root->_layoutBottom - root->_layoutTop),
+    // P11: a dialog shown at its own scale k (touch_fit.h (c)) keeps its upper-left and size in its
+    // own units; the safe area is decided in the layout units the engine then divides by k.
+    const float k = FitDialogScale(dialog);
+    Store(SafeArea(width, height, ToLayoutUnits(dialog->_upperLeftX, k), ToLayoutUnits(dialog->_upperLeftY, k),
+                   ToLayoutUnits(root->_layoutRight - root->_layoutLeft, k),
+                   ToLayoutUnits(root->_layoutBottom - root->_layoutTop, k)),
           rect);
+}
+
+// UI::UserInterface::_extDialogScale: ext.touch_mode's toolbar scale first, then (c) of touch_fit.h.
+float DialogScale(const UI::DialogInstance* dialog) {
+    const float toolbar = TouchMode::Scale(dialog);
+    if (toolbar != 1.0f) return toolbar;
+    return FitDialogScale(dialog);
 }
 
 }  // namespace
@@ -574,11 +588,14 @@ void Sync() {
     const bool faithful = CurrentProfile() == Profile::Faithful;
     UI::UserInterface::_extDialogPlace = faithful ? nullptr : &Place;
     UI::UserInterface::_extBackdropOver = faithful ? nullptr : &BackdropOver;   // P9 (loading_screen.h)
+    UI::UserInterface::_extDialogScale = faithful ? nullptr : &DialogScale;    // P11 + ext.touch_mode
+    SyncTouchSize(faithful);   // P11: the slider seam (touch_size.h)
 }
 
 void MenuOpened(const UI::Dialog* menu, const UI::Dialog* buildId, bool pause) {
     Record(pause ? g_pauses : g_menus, menu);
     Record(g_buildIds, buildId);
+    KeepMenuOverlay(menu);   // P11: the loading screen's torn bottom border (loading_screen.h)
     // A new menu instance: its retail values are captured at its first layout.
     g_row = RowState();
     g_rowActive = false;

@@ -9,7 +9,8 @@
 //       the same camera locals retail's keys drive in PlayerToolManager::UpdateCamera;
 //   (b) the in-game toolbar (Dialog/Toolbar.rsc) and its sub-toolbars in their own unit space, k
 //       times the UI scale (ext.touch_mode_toolbar_scale, shrunk to fit beside the cluster): laid
-//       out, hit-tested and drawn at k through UI::UserInterface::_extDialogScale; the rest of the
+//       out, hit-tested and drawn at k through UI::UserInterface::_extDialogScale (installed by
+//       ext.phone_menu, which asks Scale first); the rest of the
 //       UI keeps the UI scale. The toolbar's tooltips, sub-toolbars and event notices are put back
 //       where they belong in the global units (Place);
 //   (c) the right-hand strip above the bar stays free for the later touch_pointer action bar;
@@ -27,14 +28,19 @@ class DialogInstance;
 namespace Ext {
 namespace TouchMode {
 
-// Boot only (registry_boot.cpp): installs UI::UserInterface::_extDialogScale (null under the
-// faithful profile).
-void Sync();
+// The toolbar's own scale k for `dialog` (the toolbar, a sub-toolbar), 1.0 for any other dialog or
+// with the row off. ext.phone_menu's UI::UserInterface::_extDialogScale function asks this first
+// (phone_menu.h DialogScale; the seam is null under the faithful profile).
+float Scale(const UI::DialogInstance* dialog);
 
 // ext.phone_menu's place function (UI::UserInterface::_extDialogPlace), first: true when this row
 // placed the dialog (the toolbar, a sub-toolbar, a toolbar tooltip, the event notices, the
 // cluster), so phone_menu's own rule is skipped for it. False with the row off.
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect);
+
+// The cluster's cell (layout units of the game's UI), 0 before the first layout: ext.touch_pointer's
+// action bar uses the same button size.
+int32_t Cell();
 
 // True while the cluster dialog is open (the camera seam calls CameraInput while the row is on
 // OR this, so a row switched off closes it).
@@ -56,6 +62,12 @@ struct CameraHold {
     int8_t rotate = 0;
     int8_t zoom = 0;
     float zoomSteps = 0.0f;
+    // P11 (ext.touch_pointer, docs/android/P11_TOUCH_POINTER.md), the Fingers source only: a two-finger
+    // grab-the-map drag this frame (the fingers' motion in fractions of the screen's short edge, + right /
+    // down; the ground under them follows) and a direct turn of the yaw in degrees.
+    float dragX = 0.0f;
+    float dragY = 0.0f;
+    float yawDegrees = 0.0f;
 };
 void Hold(Source source, const CameraHold& hold);
 

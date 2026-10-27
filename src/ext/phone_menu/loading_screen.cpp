@@ -16,12 +16,16 @@
 #include "ext/registry.h"
 
 #include <atomic>
+#include <cstdio>
 #include <cstring>
 
+#include "object/External.h"
 #include "ui/Dialog.h"
 #include "ui/DialogInstance.h"
 #include "ui/Element.h"
+#include "ui/SpriteSheet.h"
 #include "ui/UserInterface.h"
+#include "video/Device.h"   // Video::Device::_singleton: the screen's real bottom edge
 
 namespace Ext {
 namespace PhoneMenu {
@@ -30,6 +34,12 @@ namespace {
 
 constexpr int kMaxLoading = 4;
 std::atomic<const UI::Dialog*> g_loading[kMaxLoading] = {};
+
+// The menus' overlay, kept loaded by KeepMenuOverlay (main thread) and read by the draw: published
+// sprite first, sheet last, so a reader that sees the sheet sees its sprite.
+std::atomic<int32_t> g_overlaySprite{-1};
+std::atomic<UI::SpriteSheet*> g_overlaySheet{nullptr};
+bool g_overlayTried = false;   // main thread
 
 // Descriptions seen at a layout and found not to be a loading screen (main thread only): the
 // tree walk runs once per description, not per frame. A full table only costs the walk again.
@@ -108,11 +118,37 @@ bool PlaceLoading(int32_t point, const UI::DialogInstance* dialog, int32_t width
 }
 
 bool BackdropOver(const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect,
-                  int32_t* clip) {
+                  int32_t* clip, UI::SpriteSheet** sheet, int32_t* sprite) {
     if (!Ext().phone_menu || dialog == nullptr || !Recorded(dialog->_dialog)) return false;
-    const Rect lower = LowerCopy(Rect{rect[0], rect[1], rect[2], rect[3]}, height);
+    const Rect top{rect[0], rect[1], rect[2], rect[3]};
+    // The bottom-aligned draw and its clip end on the screen's real bottom edge, not the truncated
+    // layout height (loading_math.h ScreenBottomUnits); the clip's height reaches one unit past it.
+    const ::Video::Device* device = ::Video::Device::_singleton;
+    const int32_t bottom = device != nullptr && dialog->_ui != nullptr
+                               ? ScreenBottomUnits(height, device->backBufferHeight, dialog->_ui->_uiScale)
+                               : height;
+    UI::SpriteSheet* overlay = g_overlaySheet.load(std::memory_order_acquire);
+    if (overlay != nullptr) {
+        const int32_t index = g_overlaySprite.load(std::memory_order_relaxed);
+        const UI::SpriteInfo& info = overlay->m_sprites._data[index];
+        const Rect lower = OverlayLower(top, bottom, info.width, info.height);
+        if (lower.x2 <= lower.x1) return false;
+        const int32_t stripTop = OverlayStripTop(bottom, lower.y2 - lower.y1);
+        rect[0] = lower.x1;
+        rect[1] = lower.y1;
+        rect[2] = lower.x2;
+        rect[3] = lower.y2;
+        clip[0] = 0;
+        clip[1] = stripTop;
+        clip[2] = width;
+        clip[3] = bottom + 1 - stripTop;
+        *sheet = overlay;
+        *sprite = index;
+        return true;
+    }
+    const Rect lower = LowerCopy(top, bottom);
     if (lower.x2 <= lower.x1) return false;
-    const int32_t stripTop = BorderStripTop(height, lower.y2 - lower.y1);
+    const int32_t stripTop = BorderStripTop(bottom, lower.y2 - lower.y1);
     rect[0] = lower.x1;
     rect[1] = lower.y1;
     rect[2] = lower.x2;
@@ -120,8 +156,47 @@ bool BackdropOver(const UI::DialogInstance* dialog, int32_t width, int32_t heigh
     clip[0] = 0;
     clip[1] = stripTop;
     clip[2] = width;
-    clip[3] = height - stripTop;
+    clip[3] = bottom + 1 - stripTop;
     return true;
+}
+
+void KeepMenuOverlay(const UI::Dialog* menu) {
+    if (g_overlayTried || menu == nullptr || !Ext().phone_menu) return;
+    UI::SpriteSheet* sheet = menu->_spriteSheet;
+    if (sheet == nullptr) return;
+    const int32_t index = sheet->GetSpriteIndexFromName(menu->_spriteName);
+    if (index < 0 || index >= sheet->m_sprites._size) return;
+    g_overlayTried = true;
+    ::Object::ExternalFactory* factory = ::Object::ExternalFactory::_singleton;
+    if (factory == nullptr) return;
+    // A clean bit of our own (UpdateLoop's allocation, Engine::UpdateLoop::InitFields): the lowest
+    // free one, never handed back.
+    int32_t bit = -1;
+    for (int32_t b = 0; b < 32; ++b) {
+        if ((factory->_cleanBitMask & (1u << b)) == 0) {
+            bit = b;
+            break;
+        }
+    }
+    if (bit < 0) {
+        std::fprintf(stderr, "[PhoneMenu] no free resource bit: the loading screen keeps its own border\n");
+        return;
+    }
+    factory->_cleanBitMask |= 1u << bit;
+    // ExternalFactory::Add on a loaded resource ORs the current clean bit into its row and runs the
+    // reference visit over it, which marks what it references (its material, its textures) only
+    // while loading is enabled: the loader thread's bracket (Engine::LoaderLoop) in miniature.
+    const int32_t savedBit = factory->_cleanBitIndex;
+    const bool savedLoad = factory->_loadEnabled;
+    factory->_cleanBitIndex = bit;
+    factory->_loadEnabled = true;
+    factory->Add(sheet);
+    factory->_loadEnabled = savedLoad;
+    factory->_cleanBitIndex = savedBit;
+    g_overlaySprite.store(index, std::memory_order_relaxed);
+    g_overlaySheet.store(sheet, std::memory_order_release);
+    std::fprintf(stderr, "[PhoneMenu] menus' overlay %dx%d kept for the loading screen (resource bit %d)\n",
+                 sheet->m_sprites._data[index].width, sheet->m_sprites._data[index].height, bit);
 }
 
 float LoadingUiScale(float retailScale, float settingsScale) {

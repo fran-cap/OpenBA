@@ -119,7 +119,9 @@ off is Options > Shadow Quality = None, `VideoShaderDetail=0`, `P8_SHADOWS_RELEA
 `ext.max_shadow_res` off, `ext.fps_cap` on at `ext.fps_cap_rate=60` (P8, ruled: the menu and the game
 paced to 60 on the 120 Hz panel), `ext.touch_mode` on at `ext.touch_mode_toolbar_scale=200` (P10, ruled: a
 camera pad, rotate and zoom buttons bottom-left, the toolbar at its own scale beside them,
-`docs/android/TOUCH_MODE.md`), and `ext.phone_menu` on (`app_android.cpp`): on the phone's 19.5:9 screen the
+`docs/android/TOUCH_MODE.md`), `ext.touch_pointer` on (P11, ruled: fingers aim the tools, an action bar places /
+rotates / cancels, two fingers pan / pinch / spin, a tap picks the nearest; `docs/android/P11_TOUCH_POINTER.md`; its
+keys `ext.touch_pointer_lift`, `_pick_radius`, `_tap_twice` keep their defaults), and `ext.phone_menu` on (`app_android.cpp`): on the phone's 19.5:9 screen the
 main menu's logo sits whole and centred at the top and the menu's buttons form one row of square buttons
 across the middle (owner's ruling, P8 round 2), inside a 4.5 % safe area clear of the
 rounded corners and the camera cut-out, the in-game interface (the toolbar and event notices bottom-right,
@@ -133,9 +135,13 @@ kept as anywhere else.
 
 **Dialogs for a finger** (P9, same row). Scroll bars are four times thicker, dialog close buttons twice
 the size, a dialog larger than the safe area (Options and Fixes and Extensions below about UI 45 at render
-scale Full) is shown whole at a fitted UI scale while it is open, and the main and pause menus show the
+scale Full) is shown whole at its own fitted scale while it is open (the rest of the interface keeps the
+player's, P11), and the main and pause menus show the
 backdrop's bottom border with the version line inside it (`docs/extensions/handins/PHONEMENU.md` §2,
-`docs/android/P9_DIALOGS.md`).
+`docs/android/P9_DIALOGS.md`). P11: every other control a finger presses is brought to about the close
+button's size (36 units): title-bar and icon buttons (the citizens' `>`), Ok / Cancel / Apply, check boxes,
+drop-downs and their rows, tabs, spinners, and sliders at twice their art; controls on a tab's
+non-scrolling page (Options > Video) keep retail's size (`docs/android/P11_TOUCH_SIZE.md`).
 
 **Render scale** (P7). `VideoRenderScale=<percent>` (25..100) sizes the engine's back buffer against the
 window: the phone's 50 renders 1170x540 and the present pass scales it up (linear) while turning it into the

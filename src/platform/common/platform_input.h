@@ -107,5 +107,14 @@ bool ButtonsSwapped();
 // known_port_issues row 1278).
 bool ShiftHeld();
 
+// ---------------------------------------------------------------------------
+// NOT RETAIL (P11, docs/android/P11_PHONE_BUGS.md §3): which device moved the pointer last.
+// ---------------------------------------------------------------------------
+// True when the last mouse motion or button event the pump read was synthesised from a touch
+// (SDL's SDL_TOUCH_MOUSEID: a finger on a touch screen), false for a real mouse, a pen or before
+// any pointer event. The mouse the game reads (Input::Device) does not tell them apart.
+// Body: src/platform/sdl/pump_sdl.cpp (every platform pumps through SDL). Main thread.
+bool PointerIsTouch();
+
 }  // namespace Input
 }  // namespace Platform

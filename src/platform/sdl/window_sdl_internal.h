@@ -9,6 +9,7 @@
 #include <cstdint>
 
 struct SDL_Window;
+union SDL_Event;
 
 namespace Platform {
 namespace Window {
@@ -55,4 +56,14 @@ void RemoveWindowsMessageHook(void* window);
 
 }  // namespace Sdl
 }  // namespace Window
+}  // namespace Platform
+
+namespace Platform {
+namespace Touch {
+namespace Sdl {
+// touch_sdl.cpp (platform_touch.h): the pump offers every event first; true when it was a finger's and
+// went to the extension's sink (the game sees nothing). False with no sink.
+bool ObservePumpEvent(const SDL_Event& event);
+}  // namespace Sdl
+}  // namespace Touch
 }  // namespace Platform

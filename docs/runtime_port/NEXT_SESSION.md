@@ -360,9 +360,54 @@ last device wins (a pinch / spin ends on release, then the mouse or the D-pad ta
    border strip sits too high (P9_LOADING_SCALE.md: the clean route keeps the menus' overlay sprite alive past the
    menu loop); the toolbar tooltip pops up over the toolbar button ABOVE the one tapped (finger only); the version text
    gets smaller when Options opens (the tall-dialog scale-down applies to the whole interface, P9_DIALOGS.md); the
-   in-game pause menu is no longer centred.
+   in-game pause menu is no longer centred; opening the tools and reports menu makes every dialog jump (the toolbar,
+   the navigation panel and any open dialog such as a house), maybe the same per-interface scale-down.
 
 Waiting, no action: the fifth CI check, a dispatch dry run of `release.yml`, the sun map at Shadow Quality None.
+
+### 2.10 Android P11 outcome (2026-10-26, three opus worktree agents, merged on `android/p11`)
+
+All three items of the §2.9 list are DONE (session docs `docs/android/P11_TOUCH_POINTER.md`, `P11_TOUCH_SIZE.md`,
+`P11_PHONE_BUGS.md`); DX11 gate PASS (town up, empty crash log), resave PASS == golden, unit 1537/0/0.
+- **ext.touch_pointer** (class A, Android seed): finger events through `Platform::Touch::SetSink` (SDL's
+  touch-to-mouse emulation off), pointer states + action edges written after the poll through the one engine seam
+  `Input::Device::_extAfterUpdate`; aim with lift offset, Place / Rotate / Flip / Cancel bar, pinch / spin / two-finger
+  pan with last-device-wins, line and rectangle tools on retail's own single-click mode (`DragTool::OnKey`), edge
+  auto-pan, pick snap + tap-to-cycle, `ext.touch_pointer_lift` / `_pick_radius` / `_tap_twice` keys. Checked on the
+  S25 with SYNTHETIC input only (`tools/android_multitouch.py`); no real finger yet.
+- **Touch-size pass** (ext.phone_menu `touch_size.cpp`): every clickable control about the enlarged [x]'s 36 units
+  (85 device px at UI 42): title-bar buttons, the citizens' `>`, text buttons, check boxes, drop-downs, tabs,
+  spinners, sliders (engine seam `UI::SliderElement::_extSpriteScale`, 1 = retail). Options' non-scrolling tab pages
+  (Video, Audio) stay at retail size (enlarging them shrinks the whole fitted dialog).
+- **Phone bugs**: version-text shrink, off-centre pause menu and the Tools-and-Reports jump were ONE cause (P9's fit
+  scaled the whole interface) -> the tall-dialog fit now runs on the per-dialog seam `_extDialogScale` (installed by
+  phone_menu, `TouchMode::Sync` folded in; the hover clip region is given in the dialog's units); loading-screen
+  sliver = clip through the torn edge + strip on the truncated layout height -> the menus' overlay drawn to the real
+  bottom edge (`_extBackdropOver` takes the sprite); tooltip after a tap RULED hide on finger lift
+  (`Platform::Input::PointerIsTouch`, a finger event counts since touch_pointer eats the mouse emulation).
+
+Rulings owed (each session doc §"Rulings owed"): touch_pointer lift default (160 vs 240), cycle window 1.5 s and pick
+radius 50, Enhanced-tab rows for its three keys, spin direction, the bar's rotate / flip glyphs; touch size: Video /
+Audio pages at retail size, the stretched 2x slider thumb, 3 house rows before scrolling (was 5), spinner arrows 18
+units each; a finger never sees a tooltip now (building costs unreachable by touch: a press-and-hold tooltip would need
+a hook in `DialogInstance::Update`'s hover rule). Not built from the ideas sheet: long-press tooltips, two-finger list
+scrolling, the road route-modifier toggle, Android back as Cancel. Not verified: the tutorial's forced placement,
+render scale Half with touch_pointer, a real KVM mouse on the phone with the tooltip hide.
+
+**RULED 2026-10-26 (owner, after the real-finger test of the P11 apk; "great first pass"):** lift 160 KEPT; pick
+radius / cycle window KEPT; the three touch_pointer keys get ONE "Touch controls" combo on the Enhanced tab; spin
+sense KEPT; the Rotate / Change-model glyphs REUSE the undo / redo menu's left / right rotate icons, and the housing
+icon sits too far left / right in its button and overlaps the edge (spacing to fix); the D-pad camera pan should be
+SMOOTH (ramped) like the two-finger pan; the Enhanced tab's fit (a scrolling list) is the model: REPEAT it for the other
+Options pages (Game / Video / Audio / Input) instead of keeping them at retail size; slider thumb KEPT; house rows
+(3) KEPT; spinner scale KEPT but the Professions list must SCROLL (mods add professions); press-and-hold shows the
+tooltip (a seam in `DialogInstance::Update`'s hover rule); fitted-dialog text KEPT. Two more: the Cancel / Ok and
+Options / Default buttons of Fixes and Extensions, and the Game / Video / Audio / Input / Enhanced tab buttons of
+Options, are still TOO SMALL to tap (target the [x]'s height); a dialog opened on a building appears ABOVE its place
+and snaps down a few frames later. The remaining ideas-sheet items (two-finger list scroll, route-modifier toggle,
+Android back = Cancel) are DROPPED: not wanted.
+
+**Next (P11b, three opus agents stacked on `android/p11`):** the rulings above as code.
 
 ## 3. Rules that hold (do not relax)
 

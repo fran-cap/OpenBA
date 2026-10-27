@@ -22,25 +22,33 @@
 //     scale the Options slider writes and every draw reads (Draw, ext.sharp_ui's fonts). A dialog
 //     larger than that space is laid out with its bottom-right on the screen's (DialogInstance::
 //     ComputeLayout 0x180113d90) and its top cut off. The Options dialog's tallest page (Video, a
-//     plain ribbon) does not scroll, so no list can give the height back: the UI scale is raised
-//     while such a dialog is open instead (the choice is in docs/android/P9_DIALOGS.md §3).
+//     plain ribbon) does not scroll, so no list can give the height back: such a dialog is shown
+//     at a higher UI scale while it is open instead (the choice is in docs/android/P9_DIALOGS.md §3),
+//     the dialog alone, through UI::UserInterface::_extDialogScale (P11_PHONE_BUGS.md §1).
 // ============================================================================
 
 #include "ext/phone_menu/touch_fit.h"
 #include "ext/phone_menu/touch_math.h"
+#include "ext/phone_menu/touch_size.h"
 #include "ext/registry.h"
+#include "ext/touch_mode/touch_mode.h"   // TouchMode::Scale: the toolbar keeps its own scale
 
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 
 #include "object/TypeInfo.h"
+#include "ui/ComboDialog.h"
 #include "ui/ContainerElement.h"
 #include "ui/DialogInstance.h"
 #include "ui/ElementDescription.h"
 #include "ui/ImageDescription.h"
 #include "ui/ImageElement.h"
 #include "ui/ScrollElement.h"
+#include "ui/ToolTipDialog.h"
 #include "ui/UserInterface.h"
+#include "input/Device.h"   // Input::Device::_singleton: the left button (a finger down)
+#include "platform/common/platform_input.h"   // Platform::Input::PointerIsTouch (P11)
 #include "video/Device.h"   // Video::Device::_singleton: the back buffer the fitted scale is for
 
 namespace Ext {
@@ -144,34 +152,29 @@ void Walk(UI::Element* e, bool on) {
 
 // ---- (c) a dialog larger than the safe area -------------------------------------
 
-// One UserInterface's fitted scale. A loop's UserInterface lives as long as the loop (the front
-// end's, the game's, a modal's nested one), so a handful of entries is enough; a new one at an old
-// address starts inactive unless its scale happens to equal the old fit.
-struct ScaleFit {
-    const UI::UserInterface* ui = nullptr;
-    float user = 1.0f;      // the player's scale (what the Options slider / settings.cfg wrote)
-    float applied = 1.0f;   // the scale in force while `active`
-    bool active = false;
+// The windows shown smaller than the UI scale this frame: the dialog, its UserInterface and its
+// own scale k (UserInterface::_extDialogScale: own units = layout units / k, k < 1). Written by the
+// main thread at a UI's first layout call, read by the seam's three call points (Update's layout
+// and pump on the main thread, Draw on whichever thread draws the UI): one relaxed atomic per field,
+// so a reader sees a stale entry for one frame at worst.
+struct DialogFit {
+    std::atomic<const UI::DialogInstance*> dialog{nullptr};
+    std::atomic<const UI::UserInterface*> ui{nullptr};
+    std::atomic<float> k{1.0f};
 };
-constexpr int kMaxUis = 4;
-ScaleFit g_fits[kMaxUis];
-int g_nextFit = 0;
+constexpr int kMaxFits = 8;
+DialogFit g_dialogFits[kMaxFits];
 
-ScaleFit* FitOf(const UI::UserInterface* ui, bool create) {
-    for (ScaleFit& f : g_fits) {
-        if (f.ui == ui) return &f;
+DialogFit* FitEntry(const UI::DialogInstance* d) {
+    for (DialogFit& f : g_dialogFits) {
+        if (f.dialog.load(std::memory_order_relaxed) == d) return &f;
     }
-    if (!create) return nullptr;
-    ScaleFit& f = g_fits[g_nextFit];
-    g_nextFit = (g_nextFit + 1) % kMaxUis;
-    f = ScaleFit();
-    f.ui = ui;
-    return &f;
+    return nullptr;
 }
 
 // A window the fit is for: a dialog with a description, shown, not a whole-screen picture (a
 // backdrop: the menus, the loading screen) and not sized to the screen (ComputeLayout's 0x10 / 0x20).
-// Combo drop-downs (no description) and tooltips keep retail's placement.
+// Combo drop-downs (no description) and tooltips follow the window they belong to (FitOwner).
 bool IsWindow(const UI::DialogInstance* d, UI::Element*& root) {
     root = d->_root.Get();
     if (d->_dialog == nullptr || root == nullptr) return false;
@@ -189,81 +192,144 @@ void PaddedSize(UI::Element* root, int32_t& w, int32_t& h) {
     if (h < root->_minHeight) h = root->_minHeight;
 }
 
+DialogFit* NewFit() {
+    for (DialogFit& e : g_dialogFits) {
+        if (e.dialog.load(std::memory_order_relaxed) == nullptr) return &e;
+    }
+    return nullptr;
+}
+
+// Once a frame per UserInterface, before its dialogs are laid out: which of its top-level windows
+// are larger than the safe area at the player's UI scale, and the scale each is shown at. Only the
+// window itself (and what it opens: its child dialogs, its tooltip, its combo drop-downs) takes
+// that scale; the rest of the interface keeps the player's (docs/android/P11_PHONE_BUGS.md §1).
+// Not judged: a child dialog (its parent places it; a sub-toolbar's padding reaches across the
+// screen) and a dialog ext.touch_mode scales itself (the toolbar).
 void DecideScale(UI::UserInterface* ui, bool on) {
-    ScaleFit* fit = FitOf(ui, on);
-    if (fit == nullptr) return;
-    if (!fit->active || ui->_uiScale != fit->applied) fit->user = ui->_uiScale;   // the player's own
-    float want = fit->user;
+    const float user = ui->_uiScale;
     const ::Video::Device* device = ::Video::Device::_singleton;
-    if (on && device != nullptr) {
+    bool keep[kMaxFits] = {};
+    if (on && device != nullptr && user > 0.0f) {
         for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
+            const UI::DialogInstance* d = node->element;
             UI::Element* root = nullptr;
-            if (node->element == nullptr || !IsWindow(node->element, root)) continue;
+            if (d == nullptr || d->_parent.Get() != nullptr || !IsWindow(d, root)) continue;
+            if (TouchMode::Scale(d) != 1.0f) continue;
             int32_t w = 0;
             int32_t h = 0;
             PaddedSize(root, w, h);
-            const float s = FitScale(fit->user, device->backBufferWidth, device->backBufferHeight, w, h);
-            if (s > want) want = s;
+            float s = FitScale(user, device->backBufferWidth, device->backBufferHeight, w, h);
+            DialogFit* f = FitEntry(d);
+            const float before = f != nullptr ? user / f->k.load(std::memory_order_relaxed) : user;
+            // Keep a fit that is a hair above what is wanted (text measured in another font size can
+            // move a dialog by a unit), so the scale does not hunt between two percents.
+            if (s < before && s > user && before - s < 0.015f) s = before;
+            if (s <= user) continue;
+            const float k = user / s;
+            if (f == nullptr) {
+                f = NewFit();
+                if (f == nullptr) continue;   // more than kMaxFits tall windows open: retail's layout
+                f->ui.store(ui, std::memory_order_relaxed);
+                f->k.store(k, std::memory_order_relaxed);
+                f->dialog.store(d, std::memory_order_relaxed);
+                std::fprintf(stderr, "[PhoneMenu] dialog %p larger than the safe area: shown at UI scale %.2f "
+                             "(k %.3f), the interface keeps the player's %.2f\n", (const void*)d,
+                             static_cast<double>(s), static_cast<double>(k), static_cast<double>(user));
+            } else if (f->k.load(std::memory_order_relaxed) != k) {
+                f->k.store(k, std::memory_order_relaxed);
+                std::fprintf(stderr,
+                             "[PhoneMenu] dialog %p now shown at UI scale %.2f (k %.3f), the player's %.2f\n",
+                             (const void*)d, static_cast<double>(s), static_cast<double>(k),
+                             static_cast<double>(user));
+            }
+            keep[f - g_dialogFits] = true;
         }
     }
-    const float now = fit->active ? fit->applied : fit->user;
-    // Keep a fit that is a hair above what is wanted (text measured in another font size can move a
-    // dialog by a unit), so the scale does not hunt between two percents.
-    if (want < now && want > fit->user && now - want < 0.015f) want = now;
-    if (want != fit->user) {
-        if (!fit->active || fit->applied != want) {
-            std::fprintf(stderr, "[PhoneMenu] UI %p: a dialog larger than the safe area, laid out at UI scale "
-                         "%.2f (the player's %.2f) while it is open\n", (const void*)ui,
-                         static_cast<double>(want), static_cast<double>(fit->user));
-        }
-        fit->applied = want;
-        fit->active = true;
-        ui->_uiScale = want;
-        return;
+    for (int i = 0; i < kMaxFits; ++i) {
+        DialogFit& e = g_dialogFits[i];
+        if (keep[i] || e.ui.load(std::memory_order_relaxed) != ui) continue;
+        const UI::DialogInstance* gone = e.dialog.load(std::memory_order_relaxed);
+        if (gone == nullptr) continue;
+        e.dialog.store(nullptr, std::memory_order_relaxed);
+        e.ui.store(nullptr, std::memory_order_relaxed);
+        e.k.store(1.0f, std::memory_order_relaxed);
+        std::fprintf(stderr, "[PhoneMenu] dialog %p back at the interface's scale\n", (const void*)gone);
     }
-    if (fit->active) {
-        std::fprintf(stderr, "[PhoneMenu] UI %p: back to the player's UI scale %.2f\n", (const void*)ui,
-                     static_cast<double>(fit->user));
-        if (ui->_uiScale == fit->applied) ui->_uiScale = fit->user;
-        fit->active = false;
+}
+
+// The top-level dialog whose scale `d` follows: the root of its parent chain; a tooltip follows its
+// owner, a combo drop-down (not linked as a child: ComboDialog::_parentDialog) its box's dialog.
+const UI::DialogInstance* FitOwner(const UI::DialogInstance* d) {
+    for (int guard = 0; guard < 16; ++guard) {
+        const UI::DialogInstance* parent = d->_parent.Get();
+        if (parent == nullptr && d->IsA(UI::ComboDialog::TypeId()))
+            parent = static_cast<const UI::ComboDialog*>(d)->_parentDialog.Get();
+        const UI::UserInterface* ui = d->_ui;
+        const UI::DialogInstance* tip = ui != nullptr ? ui->_toolTipDialog : nullptr;
+        if (parent == nullptr && tip != nullptr && d == tip)
+            parent = ui->_toolTipOwner;
+        if (parent == nullptr) return d;
+        d = parent;
     }
+    return d;
+}
+
+// ---- (e) a lifted finger does not hover ---------------------------------------------
+
+// Retail shows a tooltip once the pointer has rested on a dialog for 0.25 s with no button down
+// (DialogInstance::Update: `_hoverTime` grows while the pointer stands still, `_hovering` is set past
+// the delay, an element under it then opens its tooltip; a button down ends the hover). A finger
+// leaves the pointer where it lifted, so after every tap the tapped control's tooltip came up and
+// stayed, over whatever is above it (the owner's ruling, P11: HIDE it when the finger lifts). With
+// the pointer last moved by a touch and no finger down, no dialog of this UserInterface counts
+// hover time, and a tooltip still up is closed (the arm BeginToolTip runs before opening a new
+// one). The element keeps its "tooltip begun" flag, so it does not reopen until the pointer leaves
+// it. A real mouse (on the phone too) is untouched. Main thread, before the dialogs are pumped.
+void FingerUpHidesToolTip(UI::UserInterface* ui) {
+    if (!::Platform::Input::PointerIsTouch()) return;
+    const ::Input::Device* in = ::Input::Device::_singleton;
+    if (in == nullptr || in->_mouse[4].value > 0) return;   // a finger down: retail's hover rule
+    for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
+        if (node->element != nullptr) node->element->_hoverTime = 0;
+    }
+    if (ui->_toolTipDialog == nullptr) return;
+    Object::InternalPtr<UI::DialogInstance> tip(ui->_toolTipDialog);
+    ui->CloseDialog(&tip);
+    ui->_toolTipDialog = nullptr;
+    ui->_toolTipOwner = nullptr;
 }
 
 }  // namespace
 
-void TouchFrame(int32_t point, const UI::DialogInstance* dialog, int32_t& width, int32_t& height, int32_t* rect) {
-    if (point != UI::UserInterface::kExtPlaceLayout && point != UI::UserInterface::kExtPlaceAfterLayout) return;
+void TouchFrame(int32_t point, const UI::DialogInstance* dialog) {
+    if (point != UI::UserInterface::kExtPlaceLayout) return;
     if (dialog == nullptr) return;
     UI::UserInterface* ui = dialog->_ui;
     if (ui == nullptr) return;
     const bool on = Ext().phone_menu;
     const bool head = ui->_dialogs._head != nullptr && ui->_dialogs._head->element == dialog;
-    if (point == UI::UserInterface::kExtPlaceLayout && head && (on || g_touched)) {
-        // Once a frame per UserInterface, before any of its dialogs is laid out.
-        g_changes = 0;
-        for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
-            if (node->element != nullptr) Walk(node->element->_root.Get(), on);
-        }
-        DecideScale(ui, on);
-        if (on) {
-            g_touched = true;
-            g_quietFrames = 0;
-        } else if (g_changes == 0 && ++g_quietFrames > 8) {
-            g_touched = false;
-        }
+    if (!head || (!on && !g_touched)) return;
+    // Once a frame per UserInterface, before any of its dialogs is laid out.
+    g_changes = 0;
+    for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
+        if (node->element == nullptr) continue;
+        Walk(node->element->_root.Get(), on);
+        g_changes += TouchSizeWalk(node->element, on);   // P11 (touch_size.h)
     }
-    const ScaleFit* fit = FitOf(ui, false);
-    if (fit == nullptr || !fit->active) return;
-    const ::Video::Device* device = ::Video::Device::_singleton;
-    if (device == nullptr) return;
-    width = static_cast<int32_t>(static_cast<float>(device->backBufferWidth) * fit->applied);
-    height = static_cast<int32_t>(static_cast<float>(device->backBufferHeight) * fit->applied);
-    if (point == UI::UserInterface::kExtPlaceLayout) {
-        rect[0] = 0;
-        rect[1] = 0;
-        rect[2] = width;
-        rect[3] = height;
+    DecideScale(ui, on);
+    if (on) FingerUpHidesToolTip(ui);
+    if (on) {
+        g_touched = true;
+        g_quietFrames = 0;
+    } else if (g_changes == 0 && ++g_quietFrames > 8) {
+        g_touched = false;
     }
+}
+
+float FitDialogScale(const UI::DialogInstance* dialog) {
+    if (dialog == nullptr) return 1.0f;
+    const DialogFit* f = FitEntry(FitOwner(dialog));
+    return f != nullptr ? f->k.load(std::memory_order_relaxed) : 1.0f;
 }
 
 void BackdropLowerDraw(int32_t width, int32_t height, int32_t* rect) {

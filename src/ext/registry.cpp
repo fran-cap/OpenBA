@@ -436,6 +436,16 @@ const Entry kEntries[] = {
       "A camera pad and zoom / rotate buttons at the bottom left, and the toolbar enlarged for fingers "
       "along the bottom. For phones and touch screens.",
       0, [](State& s) -> bool& { return s.ext.touch_mode; } },
+    // P11 (docs/android/P11_TOUCH_POINTER.md): fingers drive the game's own tools: one finger aims a placement
+    // or a road, an action bar places / rotates / cancels, two fingers pan, pinch-zoom and spin, a tap picks
+    // the nearest thing. Class A: input only, nothing saved, live. OFF by default on a desktop; the Android
+    // first run turns it on (ruled 2026-10-26).
+    { "touch_pointer", Tier::Extension, Class::A, false,
+      "Touch pointer",
+      "Fingers aim buildings and roads before they are placed (an action bar places, rotates and cancels), "
+      "two fingers move, zoom and turn the view, and a tap selects the nearest person or building. For "
+      "phones and touch screens.",
+      0, [](State& s) -> bool& { return s.ext.touch_pointer; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.
@@ -457,6 +467,8 @@ constexpr int kEntryCount = static_cast<int>(sizeof(kEntries) / sizeof(kEntries[
 constexpr int32_t kMaxShadowSizes[] = { 4096, 8192 };
 constexpr int32_t kFpsCapRates[] = { 30, 60, 90, 120 };
 constexpr int32_t kTouchToolbarScales[] = { 100, 125, 150, 175, 200 };
+constexpr int32_t kTouchPointerLifts[] = { 0, 80, 120, 160, 200, 240 };
+constexpr int32_t kTouchPointerPickRadii[] = { 0, 25, 50, 75, 100 };
 
 const ValueKey kValueKeys[] = {
     { "ao_quality", "ambient_occlusion", 1, 3, 2,
@@ -504,6 +516,16 @@ const ValueKey kValueKeys[] = {
     // sizes; 200 is the ruled "about 2x" (shrunk to fit beside the controls). Any other number reads as 200.
     { "touch_mode_toolbar_scale", "touch_mode", 100, 200, 200,
       [](State& s) -> int32_t& { return s.val.touch_mode_toolbar_scale; }, kTouchToolbarScales, 5 },
+    // P11 TOUCHPOINTER: the aim point's height above the finger in device pixels while ext.touch_pointer aims a
+    // tool (0 = at the finger); 160 is the default, to be tuned on the phone (TOUCH_PLACEMENT_IDEAS.md §5).
+    { "touch_pointer_lift", "touch_pointer", 0, 240, 160,
+      [](State& s) -> int32_t& { return s.val.touch_pointer_lift; }, kTouchPointerLifts, 6 },
+    // The pick snap's radius in device pixels (0 = retail's single ray at the finger); ruled about 50.
+    { "touch_pointer_pick_radius", "touch_pointer", 0, 100, 50,
+      [](State& s) -> int32_t& { return s.val.touch_pointer_pick_radius; }, kTouchPointerPickRadii, 5 },
+    // Tap twice to place: a second tap near the first places the aimed building (ruled a setting, off).
+    { "touch_pointer_tap_twice", "touch_pointer", 0, 1, 0,
+      [](State& s) -> int32_t& { return s.val.touch_pointer_tap_twice; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));

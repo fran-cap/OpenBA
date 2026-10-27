@@ -136,6 +136,12 @@ public:
     // reads true, a drag that leaves the 32-pixel band keeps following the pointer and clamps instead
     // of snapping back to _dragAnchor. src/engine never includes src/ext.
     static const bool* _extFixDragClamp;
+
+    // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_SIZE.md): ext.phone_menu's touch size -- null by
+    // default and under the faithful profile (DESIGN.md hook rule 5). While it points at a value k > 1,
+    // every sprite of the slider (track, thumb) is laid out, hit-tested and drawn k times its size, its
+    // track offset and thumb margin with it; 1 or null is retail's body exactly.
+    static const int32_t* _extSpriteScale;
 };
 
 static_assert(sizeof(SliderElement) == 0x130, "deleting dtor 0x18004a180: MOV EDX,0x130");

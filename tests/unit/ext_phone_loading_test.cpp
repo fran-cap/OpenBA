@@ -2,7 +2,9 @@
 // tests/unit/ext_phone_loading_test.cpp -- ext.phone_menu: the loading screen's backdrop (P9)
 // ============================================================================
 // src/ext/phone_menu/loading_math.h: the picture top-aligned (LogoTop), its lower copy at the same
-// scale (LowerCopy) and the strip that copy is clipped to (BorderStripTop).
+// scale (LowerCopy) and the strip that copy is clipped to (BorderStripTop); P11: the menus' overlay
+// drawn bottom-aligned instead (OverlayLower, OverlayStripTop) and the screen's real bottom edge in
+// layout units (ScreenBottomUnits).
 // docs/android/P9_LOADING_SCALE.md §1. The recognition and the seams need the running game.
 // ============================================================================
 #include "unit.h"
@@ -12,7 +14,10 @@ namespace {
 
 using Ext::PhoneMenu::BorderStripTop;
 using Ext::PhoneMenu::LowerCopy;
+using Ext::PhoneMenu::OverlayLower;
+using Ext::PhoneMenu::OverlayStripTop;
 using Ext::PhoneMenu::Rect;
+using Ext::PhoneMenu::ScreenBottomUnits;
 
 // Retail's cover fit on a screen wider than a 16:9 picture (UserInterface::Draw, 0x180121dbe).
 Rect CoverWide(int32_t width, int32_t height) {
@@ -45,4 +50,36 @@ UNIT_TEST(ext_phone_loading_no_lower_copy_when_the_picture_fits) {
     CHECK(a.x2 <= a.x1);
     const Rect b = LowerCopy(Rect{0, 0, 1400, 800}, 1000);
     CHECK(b.x2 <= b.x1);
+}
+
+UNIT_TEST(ext_phone_loading_screen_bottom_rounds_up) {
+    // The S25 at UI 42: the layout height is (int)(1080 * 0.42) = 453 of 453.6 units; a draw that ends
+    // at 453 leaves the last device pixels uncovered (P11's sliver). The real bottom rounds up.
+    CHECK(ScreenBottomUnits(453, 1080, 0.42f) == 454);
+    // An exact layout keeps its height (1080 * 0.5 = 540).
+    CHECK(ScreenBottomUnits(540, 1080, 0.5f) == 540);
+    // Never above the layout height; no device or scale: the layout height.
+    CHECK(ScreenBottomUnits(453, 0, 0.42f) == 453);
+    CHECK(ScreenBottomUnits(453, 1080, 0.0f) == 453);
+}
+
+UNIT_TEST(ext_phone_loading_overlay_bottom_border) {
+    // The S25 at UI 42 (982 x 453 layout, real bottom 454): the picture top-aligned, the menus' 1600x900
+    // overlay bottom-aligned at its width, ending on the real bottom.
+    const Rect top = Ext::PhoneMenu::LogoTop(CoverWide(982, 453));
+    const Rect over = OverlayLower(top, 454, 1600, 900);
+    CHECK(over.x1 == top.x1 && over.x2 == top.x2);
+    CHECK(over.y2 == 454);
+    CHECK(over.y2 - over.y1 == static_cast<int32_t>(982.0f * 900.0f / 1600.0f + 0.5f));
+    // The clip line is in the overlay's transparent middle: below its logo (top quarter), above its
+    // torn bottom border (lowest ~14 %).
+    const int32_t strip = OverlayStripTop(454, over.y2 - over.y1);
+    const int32_t h = over.y2 - over.y1;
+    CHECK(strip > over.y1 + h / 4);
+    CHECK(strip < over.y2 - (h * 14) / 100);
+    // A picture that does not overhang the bottom, or an overlay with no size: nothing drawn.
+    const Rect none = OverlayLower(Rect{0, 0, 1600, 900}, 900, 1600, 900);
+    CHECK(none.x2 <= none.x1);
+    const Rect empty = OverlayLower(top, 454, 0, 900);
+    CHECK(empty.x2 <= empty.x1);
 }

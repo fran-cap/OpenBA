@@ -53,6 +53,10 @@ bool FitsSafeArea(int32_t layoutW, int32_t layoutH, int32_t dialogW, int32_t dia
 constexpr float kFitScaleMax = 1.0f;
 float FitScale(float userScale, int32_t backBufferW, int32_t backBufferH, int32_t dialogW, int32_t dialogH);
 
+// A length or point in a fitted dialog's own units (own = layout / k, touch_fit.h (c)) in the
+// interface's layout units: `own * k`, rounded to the nearest unit. k == 1: `own` unchanged.
+int32_t ToLayoutUnits(int32_t own, float k);
+
 // ---- the menus' backdrop, its bottom border -----------------------------------------
 
 // The extra draw of the menus' 16:9 backdrop on a screen wider than it (P9, the owner: "the black

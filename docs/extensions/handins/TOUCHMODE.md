@@ -25,7 +25,8 @@ session log: `docs/android/TOUCH_MODE.md`.
   the world over its box. `Hold(Source, CameraHold)` is the entry point the later `touch_pointer`
   extension calls (last device wins).
 * **Toolbar at its own scale**: the engine seam `UI::UserInterface::_extDialogScale` (null by default and
-  under the faithful profile; `userinterface_frame.cpp` layout and pump loops, `userinterface_draw.cpp`
+  under the faithful profile; installed by ext.phone_menu's `Sync`, which asks `TouchMode::Scale` first and
+  then its own tall-dialog fit, P11; `userinterface_frame.cpp` layout and pump loops, `userinterface_draw.cpp`
   per-dialog world transform and scissor scale, `userinterface.cpp` `GetFirstContainedDialog`) gives
   `Dialog/Toolbar.rsc` dialogs (the toolbar and every sub-toolbar) a scale k: laid out, hit-tested and
   drawn in units of layout / k. k = the requested scale (`ext.touch_mode_toolbar_scale` 100..200),
