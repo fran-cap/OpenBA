@@ -24,16 +24,22 @@
 #include "ext/phone_menu/size_math.h"
 #include "ext/phone_menu/touch_math.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
+#include "object/External.h"
 #include "object/TypeInfo.h"
+#include "system/Filename.h"
 #include "ui/ClipRegionElement.h"
 #include "ui/ContainerDescription.h"
 #include "ui/ContainerElement.h"
+#include "ui/Dialog.h"
 #include "ui/DialogInstance.h"
 #include "ui/ElementDescription.h"
 #include "ui/ScrollElement.h"
+#include "ui/TabElement.h"
 #include "ui/UserInterface.h"
 #include "video/Device.h"   // Video::Device::_singleton: the back buffer the safe area is cut from
 
@@ -42,14 +48,140 @@ namespace PhoneMenu {
 
 namespace {
 
+constexpr const char* kFrameRsc = "Dialog/PhoneScroll.rsc:phoneScroll";
+
+// The pages moved into a frame: the element's name (what retail's controllers find it by) and the end of
+// its description's path (the object it was built from), both required.
+struct Target {
+    const char* name;
+    const char* path;   // lower case, compared with the description path's tail
+};
+const Target kTargets[] = {
+    {"graphicsOptions", "options.rsc:graphicsoptions"},   // the Options dialog's Video page
+    {"soundOptions", "options.rsc:soundoptions"},         // its Audio page
+};
+
+// The frame's description, loaded once (null when the embedded resource did not load: nothing is wrapped).
+const UI::ElementDescription* g_frame = nullptr;
+bool g_frameTried = false;
+
+const UI::ElementDescription* Frame() {
+    if (g_frameTried) return g_frame;
+    g_frameTried = true;
+    UI::ElementDescription* d =
+        ::Object::ExternalFactory::_singleton->FindOrLoadAs<UI::ElementDescription>(
+            System::Filename(kFrameRsc));
+    if (!::Object::IsDerivedFromNullSafe(d, UI::ContainerDescription::TypeId())) {
+        std::fprintf(stderr, "[PhoneMenu] %s did not load (%p): pages keep retail's frame\n", kFrameRsc,
+                     static_cast<const void*>(d));
+        return nullptr;
+    }
+    g_frame = d;
+    return g_frame;
+}
+
+bool EndsWithNoCase(const char* s, const char* tail) {
+    if (s == nullptr) return false;
+    const size_t n = std::strlen(s);
+    const size_t m = std::strlen(tail);
+    if (n < m) return false;
+    s += n - m;
+    for (size_t i = 0; i < m; ++i) {
+        if (std::tolower(static_cast<unsigned char>(s[i])) != tail[i]) return false;
+    }
+    return true;
+}
+
+bool IsTarget(const UI::Element* e) {
+    const char* name = e->_name;
+    if (name == nullptr || e->_description == nullptr) return false;
+    for (const Target& t : kTargets) {
+        if (name[0] != t.name[0] || std::strcmp(name, t.name) != 0) continue;
+        return EndsWithNoCase(e->_description->_path._data, t.path);
+    }
+    return false;
+}
+
 UI::Element* Child(const UI::Element* e, int32_t index) {
     if (index < 0 || index >= e->_children._size) return nullptr;
     return e->_children._data[index];
 }
 
-// The marks a size change needs, up the chain.
+// The marks retail's own insertions make (AddTab's dirty walk).
 void Dirty(UI::Element* e) {
     for (UI::Element* p = e; p != nullptr; p = p->_parent) p->SetNeedsSizeCalc();
+}
+
+bool IsFrame(const UI::Element* e) {
+    return g_frame != nullptr && e->_description == g_frame && e->IsA(UI::ContainerElement::TypeId());
+}
+
+// `page`, child `index` of `parent`, moved into a new frame that takes its place.
+int32_t Wrap(UI::Element* parent, int32_t index, UI::Element* page) {
+    const UI::ElementDescription* frameDesc = Frame();
+    if (frameDesc == nullptr) return 0;
+    alignas(16) uint8_t scratch[sizeof(UI::Dialog)];
+    UI::Dialog* const dialog = ::new (static_cast<void*>(scratch)) UI::Dialog();
+    Object::InternalPtr<UI::Element> made;
+    frameDesc->CreateInstance(&made, dialog);
+    dialog->UI::Dialog::~Dialog();
+    UI::Element* frame = made.Get();
+    UI::Element* clip = frame != nullptr ? Child(frame, 0) : nullptr;
+    if (clip == nullptr || !clip->IsA(UI::ClipRegionElement::TypeId()) || clip->_children._size < 1) {
+        delete frame;
+        return 0;
+    }
+    // The frame's own content (an empty group) gives its place to the page.
+    UI::Element* placeholder = clip->_children._data[0];
+    delete placeholder;
+    clip->_children._data[0] = page;
+    page->_parent = clip;
+    // The frame's size follows its content; it shrinks to a page shorter than its cap (touch_scroll.h (b)).
+    static_cast<UI::ContainerElement*>(frame)->_clampHeight = 1;
+    frame->_parent = parent;
+    parent->_children._data[index] = frame;
+    // The tab shows and hides its page by the slot's hidden bit: the frame carries it now.
+    frame->_flags = (frame->_flags & ~UI::kElementFlagHidden) | (page->_flags & UI::kElementFlagHidden);
+    page->_flags &= ~UI::kElementFlagHidden;
+    page->SetNeedsSizeCalc();
+    Dirty(frame);
+    return 1;
+}
+
+// The frame `frame`, child `index` of `parent`: its page back in its slot, the frame deleted.
+int32_t Unwrap(UI::Element* parent, int32_t index, UI::Element* frame) {
+    UI::Element* clip = Child(frame, 0);
+    UI::Element* page = clip != nullptr ? Child(clip, 0) : nullptr;
+    if (page == nullptr) return 0;
+    clip->_children._data[0] = nullptr;   // not deleted with the frame
+    page->_parent = parent;
+    page->_flags = (page->_flags & ~UI::kElementFlagHidden) | (frame->_flags & UI::kElementFlagHidden);
+    parent->_children._data[index] = page;
+    delete frame;
+    page->SetNeedsSizeCalc();
+    Dirty(page);
+    return 1;
+}
+
+int32_t WrapWalk(UI::Element* e, bool on) {
+    int32_t changes = 0;
+    for (int32_t i = 0; i < e->_children._size; ++i) {
+        UI::Element* child = e->_children._data[i];
+        if (child == nullptr) continue;
+        if (on && IsTarget(child)) {
+            // Already framed: its parent is a frame's clip region.
+            const UI::Element* above = e->_parent;
+            if (above != nullptr && IsFrame(above)) continue;
+            changes += Wrap(e, i, child);
+            continue;
+        }
+        if (!on && IsFrame(child)) {
+            changes += Unwrap(e, i, child);
+            child = e->_children._data[i];
+        }
+        changes += WrapWalk(child, on);
+    }
+    return changes;
 }
 
 // ---- (b) the lists capped so the window fits ----------------------------------
@@ -167,6 +299,14 @@ int32_t SafeHeight(const UI::DialogInstance* d) {
 }
 
 }  // namespace
+
+int32_t TouchScrollWrap(const UI::DialogInstance* dialog, bool on) {
+    UI::Element* root = dialog->_root.Get();
+    if (root == nullptr) return 0;
+    if (on && Frame() == nullptr) return 0;
+    if (!on && g_frame == nullptr) return 0;
+    return WrapWalk(root, on);
+}
 
 int32_t TouchScrollCap(const UI::DialogInstance* dialog, bool on) {
     UI::Element* root = nullptr;

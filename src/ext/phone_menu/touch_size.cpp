@@ -346,7 +346,9 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
     const Seen* seen = FindSeen(dialog);
     int32_t changes = 0;
     if (seen != nullptr && !seen->touchOwned) {
-        // P11b (touch_scroll.h): the lists are capped last, at the sized height.
+        // P11b (touch_scroll.h): a page retail does not scroll is framed first, so its controls are in a
+        // scrolling list when they are sized; the lists are capped last, at the sized height.
+        changes += TouchScrollWrap(dialog, on);
         changes += Walk(root, on, Place());
         changes += TouchScrollCap(dialog, on);
     }

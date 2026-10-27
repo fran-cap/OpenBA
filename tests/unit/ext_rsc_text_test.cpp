@@ -38,7 +38,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 9);
+    CHECK(kEmbeddedCount == 10);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -48,6 +48,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/TerrainEditPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/TouchControls.rsc") != nullptr);
     CHECK(Embedded("Dialog/TouchPointer.rsc") != nullptr);
+    CHECK(Embedded("Dialog/PhoneScroll.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -385,6 +386,17 @@ UNIT_TEST(ext_rsc_text_parse_touch_pointer) {
     CHECK(place && place->base == "Toolbar.rsc:buttonToolbar");
     CHECK(f.Find("imagePointerMarker") != nullptr);
     CheckKnownTypes(f, "TouchPointer.rsc");
+}
+
+// P11b (docs/android/P11B_SCROLL_SIZE.md): the scrolling frame ext.phone_menu moves a page into.
+UNIT_TEST(ext_rsc_text_parse_phone_scroll) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/PhoneScroll.rsc", f));
+    const Object* frame = f.Find("phoneScroll");
+    CHECK(frame && frame->type == "ContainerDescription" && frame->base == "Options.rsc:gameOptions");
+    CHECK(frame && frame->body.Find("_height") && frame->body.Find("_height")->tokens[0].text == "0");
+    CHECK(f.Find("phoneScrollContent") != nullptr);
+    CheckKnownTypes(f, "PhoneScroll.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_syntax_errors) {

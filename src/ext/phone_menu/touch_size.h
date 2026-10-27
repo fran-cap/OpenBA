@@ -20,6 +20,8 @@
 // squares), a button whose minimum is not its description's (sized at run time by its owner), every
 // dialog ext.touch_mode places (TouchSeen), and the controls on a tab's page that does not scroll (they
 // would make the dialog taller and the fitted UI scale, touch_fit.h (c), smaller; touch_size.cpp Walk).
+// P11b: the Options dialog's Video and Audio pages and the Professions table are first moved into a
+// scrolling frame (touch_scroll.h), so their controls are in a scrolling list and take the touch size.
 // Every change is made on the element INSTANCE (pads, an image's _width / _height) and undone from
 // the element's own description (Element::_description: retail's values) when the row is switched
 // off; an element built without a description is left alone. The close button's icon stays the P9
