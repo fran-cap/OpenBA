@@ -66,6 +66,7 @@ struct Fixes {
     bool large_packages    = true;   // docs/retail_bugs.md §9, src/ext/large_packages/ (docs/extensions/handins/LARGEPKM.md): engine seam IO::FileSystem::_extPackagesMounted
     bool boot_device_lost  = true;   // docs/retail_bugs.md §10 (engine seam Engine::MainLoop::_extFixBootDeviceLost, backend seam BootDeviceLostBackend::SetFixFlag)
     bool slider_drag_clamp = true;   // docs/retail_bugs.md §12 (engine seam UI::SliderElement::_extFixDragClamp; docs/extensions/handins/SLIDERCLAMP.md): UI only
+    bool dialog_position_drift = true;   // docs/retail_bugs.md §13, src/ext/dialog_position_drift/ (docs/extensions/handins/DIALOGPOSITIONDRIFT.md): UI only, at the _extDialogPlace seam's kExtPlaceUpperLeft
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

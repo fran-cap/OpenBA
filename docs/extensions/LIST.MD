@@ -6,6 +6,7 @@
 | Fix | Grounded starting buildings | Lower starter barn to actually sit h terrain |
 | Fix | Steady dialogs on UI rescale | Open dialogs no longer flash to a corner, instead stay centered. |
 | Fix | Sliders follow the mouse | A slider or scroll bar being dragged keeps following the mouse and stops at its ends, instead of jumping back when the pointer strays off it. |
+| Fix | Steady panels at the edge | A building or citizen panel opened near the bottom of the screen no longer jumps for a moment when it first appears (or grows against the edge). |
 | Fix | Graphics reset during start-up | A graphics driver reset while the game is starting up recovers instead of crashing or hanging. Off under the faithful profile, where retail's crash or hang remains. |
 | Ext A | Eye-level camera | Follow a citizen at eye level (replaces overhead follow). |
 | Ext B | Better camera | Zoom in much closer and out much farther (6 to 200 instead of 20 to 130) and keep the camera tilt when zoomed out instead of flattening to top-down. Off by default; locked for the game and recorded in saves. |
@@ -39,7 +40,7 @@
 | Ext A | Mod loading screen | While mods load at start-up, shows the loading screen and which mod is loading instead of a black window. |
 | Ext A | Background saving | Writes the save on a worker thread while the town holds still for a moment; the screen and camera keep moving. Identical save files. |
 | Ext A | No fog | Removes the fog that hazes the far map when the camera is zoomed far out. Off by default; live. |
-| Ext A | Phone screen fit | On a screen wider than 16:9 the main menu's logo sits whole on the left and the buttons on the right; the menu stays inside a 4.5 % safe area (rounded corners, camera cut-outs); the UI scale slider goes down to 25 %. Off by default (on in the Android first run); live. |
+| Ext A | Phone screen fit | On a screen wider than 16:9 the main menu's logo sits whole on the left and the buttons on the right; the menu stays inside a 3.4 % safe area (rounded corners, camera cut-outs); the UI scale slider goes down to 25 %. Off by default (on in the Android first run); live. |
 | Ext A | Touch controls | A camera pad (8-way pan), rotate and zoom buttons at the bottom left of the game view, and the in-game toolbar at its own scale (up to 2x, shrunk to fit beside the pad) along the bottom; panels and dialogs keep the UI scale. Off by default (on in the Android first run); live. `docs/android/TOUCH_MODE.md`. |
 | Ext A | Touch pointer | Fingers drive the game's own tools: one finger aims a building, road or area above the finger (an action bar on the right places, rotates, flips and cancels; roads and areas use the game's tap-start / tap-end mode), two fingers pan, pinch-zoom and spin the view, and a tap with no tool selects the nearest person or building (tap again to cycle). Off by default; the phone turns it on (docs/android/P11_TOUCH_POINTER.md). |
 | Ext B | Faster pathfinding | Looks for same length routes to save pathfinding work. |

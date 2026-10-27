@@ -337,40 +337,6 @@ UNIT_TEST(ext_phone_menu_safe_bounds_match_the_layout) {
     CHECK(tall.x1 == 15);
 }
 
-UNIT_TEST(ext_phone_menu_laid_out_upper_left) {
-    // The S25 trace: placed at (343, 216), laid out 404 x 220 and pulled back to the bottom margin (433).
-    int32_t x = 343;
-    int32_t y = 216;
-    Ext::PhoneMenu::LaidOutUpperLeft(0, Ext::PhoneMenu::Rect{343, 213, 747, 433}, 0, 0, x, y);
-    CHECK(x == 343);
-    CHECK(y == 213);
-    // Pads: the root is laid out at upper-left + pad.
-    x = 0;
-    y = 0;
-    Ext::PhoneMenu::LaidOutUpperLeft(0, Ext::PhoneMenu::Rect{24, 26, 100, 100}, 4, 6, x, y);
-    CHECK(x == 20);
-    CHECK(y == 20);
-    // A centred axis (4: centre / centre) and a bottom-right one (8) keep their upper-left.
-    x = 7;
-    y = 9;
-    Ext::PhoneMenu::LaidOutUpperLeft(4, Ext::PhoneMenu::Rect{100, 100, 200, 200}, 0, 0, x, y);
-    CHECK(x == 7);
-    CHECK(y == 9);
-    Ext::PhoneMenu::LaidOutUpperLeft(8, Ext::PhoneMenu::Rect{100, 100, 200, 200}, 0, 0, x, y);
-    CHECK(x == 7);
-    CHECK(y == 9);
-    // Top-centred (1): only y follows the root.
-    Ext::PhoneMenu::LaidOutUpperLeft(1, Ext::PhoneMenu::Rect{100, 50, 200, 200}, 0, 0, x, y);
-    CHECK(x == 7);
-    CHECK(y == 50);
-    // Not laid out yet (an empty root): nothing.
-    x = 343;
-    y = 216;
-    Ext::PhoneMenu::LaidOutUpperLeft(0, Ext::PhoneMenu::Rect{343, 216, 343, 216}, 0, 0, x, y);
-    CHECK(x == 343);
-    CHECK(y == 216);
-}
-
 UNIT_TEST(ext_phone_menu_safe_area_keeps_retail_for_big_dialogs) {
     // Taller than the safe band (1080 - 72): the vertical axis is retail's, the other still inset.
     const Ext::PhoneMenu::Rect tall = Ext::PhoneMenu::SafeArea(2340, 1080, 0, 0, 900, 1040);

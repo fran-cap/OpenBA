@@ -260,9 +260,11 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
     compares, in its order), and may come back inset. `phone_menu.cpp` `Place` answers the safe area the
     layout uses (`phone_math.h` `SafeBounds`) for every dialog it lays out in that area (not the menus,
     the version line, a screen-sized root, a dialog at its own fitted scale, nor ext.touch_mode's), and
-    first sets the dialog's `_upperLeft` to where its root was actually laid out (`LaidOutUpperLeft`, on
-    the axes its alignment anchors top / left), because SetUpperLeft moves the laid-out tree by the
-    delta from `_upperLeft`. Without the two, a dialog a game tool places after the layout (an entity's
+    first sets the dialog's `_upperLeft` to where its root was actually laid out (on the axes its
+    alignment anchors top / left), because SetUpperLeft moves the laid-out tree by the delta from
+    `_upperLeft`. P11c: that sync is `fix.dialog_position_drift`'s (`src/ext/dialog_position_drift/`,
+    `SyncUpperLeft`), which runs on every platform from the same call point with this row on or off;
+    with the fix off this row still syncs its own dialogs, so with both on it runs once. Without the two, a dialog a game tool places after the layout (an entity's
     info panel, every frame, `EditTool::Update`) was drawn for one frame where retail's clamp puts it and
     then moved by the next layout (`docs/android/P11B_DIALOG_SNAP.md`). The same call is a dialog's first
     placement when it comes before its first layout: the touch-size walk and the fit run there

@@ -211,17 +211,9 @@ Rect SafeArea(int32_t width, int32_t height, int32_t upperLeftX, int32_t upperLe
 // at retail's clamp for one frame and pulled to the margin by the next layout (the snap).
 Rect SafeBounds(int32_t width, int32_t height, int32_t dialogWidth, int32_t dialogHeight);
 
-// The upper-left a laid-out dialog's root is at (`root`: its laid-out {left, top, right, bottom},
-// `leftPad` / `topPad` its pads), on the axes its `alignment` (ElementDescription::Alignment: 0..8,
-// x = alignment % 3, y = alignment / 3) anchors at the upper-left; `upperLeftX` / `upperLeftY` are
-// left as they are on a centred or right / bottom anchored axis and for a root not laid out yet
-// (empty). DialogInstance::SetUpperLeft moves the laid-out tree by (new - _upperLeft), so when the
-// layout put the root elsewhere (ComputeLayout pulls a dialog that crosses the far edge back to it;
-// the safe area raises one inside the margin) the move lands it off by that difference for one
-// frame, until the next layout (P11b: an entity's panel placed at its unbuilt size, 88 units high,
-// then laid out at 220 against the bottom margin, was drawn 3 units too high, then snapped down).
-void LaidOutUpperLeft(int32_t alignment, const Rect& root, int32_t leftPad, int32_t topPad, int32_t& upperLeftX,
-                      int32_t& upperLeftY);
+// (P11c: LaidOutUpperLeft, the stored upper-left synced to the laid-out root, moved to
+// src/ext/dialog_position_drift/drift_math.h, fix.dialog_position_drift's arithmetic, which carries it to
+// every platform; phone_menu.cpp's kExtPlaceUpperLeft arm calls it from there.)
 
 // ---- the icons in the squares ----------------------------------------------------
 

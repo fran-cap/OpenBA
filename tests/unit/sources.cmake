@@ -65,6 +65,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/phone_menu/phone_math.cpp   # ext_phone_menu_test.cpp (PHONEMENU)
   ${CMAKE_SOURCE_DIR}/src/ext/phone_menu/touch_math.cpp   # ext_phone_touch_test.cpp (PHONEMENU, P9)
   ${CMAKE_SOURCE_DIR}/src/ext/phone_menu/size_math.cpp    # ext_phone_size_test.cpp (PHONEMENU, P11)
+  ${CMAKE_SOURCE_DIR}/src/ext/dialog_position_drift/drift_math.cpp   # ext_dialog_position_drift_test.cpp (DIALOGPOSITIONDRIFT)
   ${CMAKE_SOURCE_DIR}/src/ext/touch_mode/touch_math.cpp   # ext_touch_mode_test.cpp (TOUCHMODE)
   ${CMAKE_SOURCE_DIR}/src/ext/touch_pointer/touch_pointer_math.cpp   # ext_touch_pointer_test.cpp (P11)
   ${CMAKE_SOURCE_DIR}/src/ext/resources/font_tables.cpp         # ext_font_raster_test.cpp (block RSCFONT)
