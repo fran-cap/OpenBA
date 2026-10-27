@@ -28,18 +28,18 @@ UNIT_TEST(ext_phone_touch_close_icon_twice_the_sprite) {
 }
 
 UNIT_TEST(ext_phone_touch_fits_safe_area) {
-    // 936 x 432 (the S25 at UI 40): margin 19, a 394-unit safe height.
+    // 936 x 432 (the S25 at UI 40): margin 15, a 402-unit safe height.
     CHECK(!PM::FitsSafeArea(936, 432, 437, 427));   // the Options dialog: its top was cut off
-    CHECK(PM::FitsSafeArea(936, 432, 437, 394));
-    CHECK(!PM::FitsSafeArea(936, 432, 437, 395));
-    CHECK(!PM::FitsSafeArea(936, 432, 899, 100));   // too wide: 898 across
-    CHECK(PM::FitsSafeArea(936, 432, 898, 100));
+    CHECK(PM::FitsSafeArea(936, 432, 437, 402));
+    CHECK(!PM::FitsSafeArea(936, 432, 437, 403));
+    CHECK(!PM::FitsSafeArea(936, 432, 907, 100));   // too wide: 906 across
+    CHECK(PM::FitsSafeArea(936, 432, 906, 100));
 }
 
 UNIT_TEST(ext_phone_touch_fit_scale) {
-    // The Options dialog at the owner's UI 40 is shown at 44 % (475 units high, margin 21, 433 fit).
+    // The Options dialog at the owner's UI 40 is shown at 43 % (464 units high, margin 16, 432 fit).
     const float s = PM::FitScale(0.40f, 2340, 1080, 437, 427);
-    CHECK(s > 0.435f && s < 0.445f);
+    CHECK(s > 0.425f && s < 0.435f);
     // A dialog that fits keeps the player's scale exactly.
     CHECK(PM::FitScale(0.40f, 2340, 1080, 300, 300) == 0.40f);
     CHECK(PM::FitScale(0.37f, 2340, 1080, 300, 300) == 0.37f);
@@ -74,14 +74,14 @@ UNIT_TEST(ext_phone_touch_lower_backdrop) {
 
 UNIT_TEST(ext_phone_touch_low_version_line) {
     const PM::Rect r = PM::LowVersionLayout(936, 432);
-    CHECK(r.x1 == 19);
-    CHECK(r.y1 == 19);
-    CHECK(r.x2 == 936 - 19);
+    CHECK(r.x1 == 15);
+    CHECK(r.y1 == 15);
+    CHECK(r.x2 == 936 - 15);
     CHECK(r.y2 == 432);   // the screen's bottom edge, not the safe area's
     CHECK(PM::LowVersionTop(432, 56) == 376);
     CHECK(PM::LowVersionTop(432, 0) == -1);
     // Lower than the safe-area placement by the margin.
-    CHECK(PM::LowVersionTop(432, 56) - PM::VersionTop(936, 432, 56) == 19);
+    CHECK(PM::LowVersionTop(432, 56) - PM::VersionTop(936, 432, 56) == 15);
 }
 
 UNIT_TEST(ext_phone_touch_fit_is_the_dialogs_own_scale) {

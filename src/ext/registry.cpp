@@ -95,6 +95,15 @@ const Entry kEntries[] = {
       "of jumping back when the pointer strays off it.",
       0, [](State& s) -> bool& { return s.fix.slider_drag_clamp; } },
 
+    // DIALOGPOSITIONDRIFT (docs/extensions/handins/DIALOGPOSITIONDRIFT.md, docs/retail_bugs.md section 13): a dialog moved
+    // after its layout (an entity's panel above its building) is moved from where the layout put it, not
+    // from a stored position the layout's pull-back at the screen's edge left stale. UI only.
+    { "dialog_position_drift", Tier::Fix, Class::None, true,
+      "Steady panels at the edge",
+      "A building or citizen panel opened near the bottom of the screen no longer jumps for a moment "
+      "when it first appears.",
+      0, [](State& s) -> bool& { return s.fix.dialog_position_drift; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).

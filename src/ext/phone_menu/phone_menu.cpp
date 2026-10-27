@@ -24,6 +24,7 @@
 #include "ext/phone_menu/phone_math.h"
 #include "ext/phone_menu/loading_screen.h"   // PlaceLoading (P9)
 #include "ext/phone_menu/touch_fit.h"
+#include "ext/dialog_position_drift/dialog_position_drift.h"   // fix.dialog_position_drift (P11c)
 #include "ext/phone_menu/touch_hold.h"   // HoverWhileFingerDown (P11b)
 #include "ext/phone_menu/touch_math.h"
 #include "ext/phone_menu/touch_size.h"   // SyncTouchSize (P11)
@@ -505,6 +506,8 @@ void PlaceMenu(const UI::DialogInstance* dialog, int32_t width, int32_t height, 
     Store(MenuBand(width, height, logoBottom, g_versionAside ? -1 : versionTop, columnH), rect);
 }
 
+float DialogScale(const UI::DialogInstance* dialog);   // below
+
 void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
            int32_t* rect) {
     if (dialog == nullptr) return;
@@ -525,7 +528,12 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     // P11b: its touch size and fitted scale before it is first sized, so its first layout is its last
     // (touch_fit.h TouchFirstPlace; docs/android/P11B_DIALOG_SNAP.md).
     if (fresh) TouchFirstPlace(dialog);
-    if (heldTip) return;
+    if (heldTip) return;   // P11c: a held tooltip keeps retail's stored upper-left (no drift sync)
+    // P11c: fix.dialog_position_drift rides this seam's kExtPlaceUpperLeft point on every platform, the row
+    // on or off (dialog_position_drift.h); not for a dialog shown at its own scale (k != 1: ext.touch_mode's
+    // toolbar, a fitted window), which this hook places itself.
+    if (point == UI::UserInterface::kExtPlaceUpperLeft && DialogScale(dialog) == 1.0f)
+        DialogPositionDrift::OnSetUpperLeft(const_cast<UI::DialogInstance*>(dialog));
     if (!Ext().phone_menu) {
         // Switched off while a menu is open: its retail values back before retail lays it out.
         // (A recorded menu at that address went through MenuOpened, which forgets the old one.)
@@ -568,11 +576,10 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
         if (menu || pause || version || root == nullptr || (root->_flags & 0x30) != 0) return;
         if (FitDialogScale(dialog) != 1.0f) return;
         // SetUpperLeft moves the laid-out tree by its delta from _upperLeft: the upper-left the root is
-        // actually laid out at first, so the move lands it where the next layout keeps it.
-        UI::DialogInstance* placed = const_cast<UI::DialogInstance*>(dialog);
-        LaidOutUpperLeft(root->_alignment,
-                         Rect{root->_layoutLeft, root->_layoutTop, root->_layoutRight, root->_layoutBottom},
-                         root->_leftPad, root->_topPad, placed->_upperLeftX, placed->_upperLeftY);
+        // actually laid out at first, so the move lands it where the next layout keeps it. With
+        // fix.dialog_position_drift on that was done above (once); this row needs it with the fix off too.
+        if (!Fix().dialog_position_drift)
+            DialogPositionDrift::SyncUpperLeft(const_cast<UI::DialogInstance*>(dialog));
         int32_t w = 0;
         int32_t h = 0;
         PaddedSize(const_cast<UI::Element*>(root), w, h);

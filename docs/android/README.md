@@ -123,7 +123,7 @@ camera pad, rotate and zoom buttons bottom-left, the toolbar at its own scale be
 rotates / cancels, two fingers pan / pinch / spin, a tap picks the nearest; `docs/android/P11_TOUCH_POINTER.md`; its
 keys `ext.touch_pointer_lift`, `_pick_radius`, `_tap_twice` keep their defaults), and `ext.phone_menu` on (`app_android.cpp`): on the phone's 19.5:9 screen the
 main menu's logo sits whole and centred at the top and the menu's buttons form one row of square buttons
-across the middle (owner's ruling, P8 round 2), inside a 4.5 % safe area clear of the
+across the middle (owner's ruling, P8 round 2), inside a 3.4 % safe area (P11c; 4.5 % before) clear of the
 rounded corners and the camera cut-out, the in-game interface (the toolbar and event notices bottom-right,
 the panels at their default top-left, tooltips, drop-downs) is kept inside the same safe area, and Options >
 User interface scale goes down to 25 % (the UI four times larger than 100 %;

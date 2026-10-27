@@ -49,6 +49,7 @@
 #include "ui/SliderElement.h"
 #include "ui/SpinnerElement.h"
 #include "ui/TabElement.h"
+#include "ui/UserInterface.h"
 
 namespace Ext {
 namespace PhoneMenu {
@@ -300,6 +301,7 @@ int32_t Walk(UI::Element* e, bool on, Place place) {
 struct Seen {
     const UI::DialogInstance* dialog = nullptr;
     const UI::Dialog* description = nullptr;
+    const UI::UserInterface* ui = nullptr;   // the UserInterface it is open in (TouchForgetClosed)
     bool touchOwned = false;
 };
 constexpr int32_t kMaxSeen = 64;
@@ -320,6 +322,7 @@ void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned) {
     for (Seen& s : g_seen) {
         if (s.dialog == dialog) {
             s.description = dialog->_dialog;
+            s.ui = dialog->_ui;
             s.touchOwned = touchOwned;
             return;
         }
@@ -327,8 +330,22 @@ void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned) {
     Seen& s = g_seen[g_nextSeen];
     s.dialog = dialog;
     s.description = dialog->_dialog;
+    s.ui = dialog->_ui;
     s.touchOwned = touchOwned;
     g_nextSeen = (g_nextSeen + 1) % kMaxSeen;
+}
+
+void TouchForgetClosed(const UI::UserInterface* ui) {
+    if (ui == nullptr) return;
+    for (Seen& s : g_seen) {
+        if (s.dialog == nullptr || s.ui != ui) continue;
+        bool open = false;
+        for (auto* node = ui->_dialogs._head; node != nullptr && !open; node = node->next) {
+            open = node->element == s.dialog;
+        }
+        if (!open) s = Seen();
+    }
+    TouchScrollForgetClosed(ui);
 }
 
 bool TouchKnown(const UI::DialogInstance* dialog) {
