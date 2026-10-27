@@ -47,7 +47,7 @@
 //     event 1 5670  -> state 4
 //   state 3  DEPARTING — retrace the route outward
 //     enter   4ec0  play animation 3
-//     trans30 4d10  per-frame: steer toward +0x50; when clear of the dock -> state 4
+//     trans30 4d10  per-frame: steer toward +0x50; within 0x140172180 of it -> state 4
 //   state 4  GONE
 //     enter   4cd0  play animation 1
 //     trans30 4c40  per-frame: once 63d0 runs out of route, delete the boat entity
@@ -63,10 +63,6 @@
 // boat+0x38 = CharacterComponent (finder 0x1400012d0, type-id global 0x1401c7078)
 // boat+0x40 = the dock position   boat+0x50 = the CURRENT waypoint
 // boat+0x60/+0x68/+0x6c = route array/count/capacity   boat+0x70 = waypoint index
-//
-// GATED: BANISHED_LIVE_BOAT_CTRL. GRADUATED 2026-08-22 into the default-on table, so it is
-// now a KILL-SWITCH (=0), not an opt-in. Proven: the hull sails its route and both dock
-// gates fire at their exact retail thresholds.
 
 // graphics/Geometry.h FIRST: it pulls src/engine/volume/Volume.h, whose
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
@@ -393,16 +389,6 @@ char BoatComponent::State0Enter() {
         }
     }
 
-    // ── ROUTE WATER AUDIT (trace-only, once per boat) ────────────────────────────
-    // Settles by measurement the question a screenshot cannot: is the route the boat is
-    // about to sail actually navigable water end to end, or does the A* leg cut across
-    // land between two unconnected channels? Samples the terrain class of every route
-    // point's cell and reports non-water counts PER SEGMENT, because the segments have
-    // very different expectations — the approach/departure polylines run OFF-MAP (the
-    // route builder's own entry/exit points are outside the grid) and are skipped, while
-    // both A* legs must be 100% water or the pathfinder and the renderer disagree.
-    // Water mask 0x380 = the boat pathfinder's own terrain class set.
-
     SetAnim(this, 1);
     return 1;
 }
@@ -563,17 +549,14 @@ char BoatComponent::State3Enter() {
 // ============================================================
 // state 3 TRANS30 (per-frame) — 0x140044d10
 // ============================================================
-//   Length(boat+0x40 - boat+0x50, &distFromDockToWaypoint)   [out at RBP+0x20]
-//   dir = Normalize(boat+0x50 - model.pos)
+//   Length(boat+0x40 - boat+0x50, &len)            len at [RBP+0x20] (+0x36 LEA RDX,[RBP+0x20])
+//   dir = Normalize(boat+0x50 - model.pos, &len)   the same [RBP+0x20] (+0x94 LEA R8,[RBP+0x20])
 //   character+0x28 = 0
 //   character+0x2c..0x34 = Normalize(dir.xy, 0)
 //   character+0x3c = Heading(dir)
-//   if (0x140172180 > distFromDockToWaypoint) -> state 4
-//
-// ⚠ The distance that gates the transition is measured between the DOCK POSITION and the
-// CURRENT WAYPOINT, not between the boat and anything. That reads oddly until you note
-// the departing leg re-walks the same route array: the waypoint marching away from the
-// dock is exactly the progress signal.
+//   if (0x140172180 > [RBP+0x20]) -> state 4                         (+0x12a COMISS)
+// The second call overwrites the first length, so the gate is the boat -> waypoint distance.
+// Offsets are from the function's start.
 char BoatComponent::State3Tick(StateMachine* smV) {
     const Math::Vector3* mp = ModelPos(model.Get());
     if (!mp) return 1;
@@ -582,11 +565,11 @@ char BoatComponent::State3Tick(StateMachine* smV) {
     const Math::Vector3* wp      = &waypoint;
 
     const Math::Vector3 fromDock(dockPos->x - wp->x, dockPos->y - wp->y, dockPos->z - wp->z);
-    const float gate = fromDock.Length().v;
+    Math::Scalar gateLen = fromDock.Length();
 
     const Math::Vector3 toWp(wp->x - modelPos.x, wp->y - modelPos.y, wp->z - modelPos.z);
-    Math::Scalar dropLen;
-    const Math::Vector3 dir = toWp.Normalize(dropLen);
+    const Math::Vector3 dir = toWp.Normalize(gateLen);
+    const float gate = gateLen.v;
 
     if (CharacterComponent* chr = character.Get()) {
         chr->field_0x28 = false;

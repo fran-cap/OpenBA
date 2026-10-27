@@ -37,6 +37,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   `standalone_error.log` in released builds. A tester's 2-hour session had written a 1 GB log. The
   plague, tornado and citizen-vitals traces are now off unless `BANISHED_PLAGUE_TRACE=1`,
   `BANISHED_TORNADO_TRACE=1` or `BANISHED_VITALS=1` is set.
+- Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
+  Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
+  `docs/known_port_issues.md` row 1344).
 
 ## v1.0.2 (2026-10-30)
 
