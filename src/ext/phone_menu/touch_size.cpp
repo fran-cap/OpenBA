@@ -202,6 +202,8 @@ int32_t FitButton(UI::ButtonElement* b, bool on, bool inTitle) {
         if (b->IsA(UI::CheckElement::TypeId())) changes += FitContent(Child(b, kChildTick), on, square, tall);
         break;
     case Kind::Text:
+        changes += FitContent(content, on, 0, tall);
+        break;
     case Kind::Check:
     case Kind::Combo:
     case Kind::Tab:
