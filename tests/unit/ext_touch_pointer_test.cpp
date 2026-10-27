@@ -270,3 +270,39 @@ UNIT_TEST(ext_touch_pointer_registry_row_and_keys) {
     CHECK(Ext::ClampValue(*twice, 1) == 1);
     CHECK(Ext::ClampValue(*twice, 5) == 1);      // a range key clamps
 }
+
+// P11b (docs/android/P11B_POINTER.md §3): the Enhanced tab's "Touch pointer" presets. Every preset value is one the
+// registry key accepts as it is (a preset that clamped would read back as Custom), the presets are distinct, and a
+// stored set no preset matches is Custom.
+UNIT_TEST(ext_touch_pointer_presets) {
+    const Ext::ValueKey* lift = Ext::FindValueKey("touch_pointer_lift");
+    const Ext::ValueKey* radius = Ext::FindValueKey("touch_pointer_pick_radius");
+    const Ext::ValueKey* twice = Ext::FindValueKey("touch_pointer_tap_twice");
+    CHECK(lift != nullptr && radius != nullptr && twice != nullptr);
+    if (lift == nullptr || radius == nullptr || twice == nullptr) return;
+    for (int32_t i = 0; i < kTouchPresetCount; ++i) {
+        const TouchPreset& p = kTouchPresets[i];
+        CHECK(Ext::ClampValue(*lift, p.lift) == p.lift);
+        CHECK(Ext::ClampValue(*radius, p.pickRadius) == p.pickRadius);
+        CHECK(Ext::ClampValue(*twice, p.tapTwice) == p.tapTwice);
+        CHECK(TouchPresetItem(true, p.lift, p.pickRadius, p.tapTwice) == i + 1);
+    }
+    // The first preset is the keys' defaults.
+    CHECK(kTouchPresets[0].lift == lift->defaultValue);
+    CHECK(kTouchPresets[0].pickRadius == radius->defaultValue);
+    CHECK(kTouchPresets[0].tapTwice == twice->defaultValue);
+    CHECK(TouchPresetItem(false, 160, 50, 0) == kTouchItemOff);
+    CHECK(TouchPresetItem(true, 200, 50, 0) == kTouchItemCustom);
+    CHECK(TouchPresetItem(true, 160, 100, 1) == kTouchItemCustom);
+    CHECK(kTouchItemCustom == kTouchPresetCount + 1);
+}
+
+// P11b: a finger held on a dialog keeps the cursor still inside the hold slop (the press-and-hold tooltip).
+UNIT_TEST(ext_touch_pointer_hold_slop) {
+    const float shortEdge = 1080.0f;   // the S25 in landscape
+    CHECK(!LeftHoldSlop(0.0f, 0.0f, shortEdge));
+    CHECK(!LeftHoldSlop(6.0f, -6.0f, shortEdge));    // a trembling finger
+    CHECK(LeftHoldSlop(14.0f, 0.0f, shortEdge));     // past 0.012 * 1080 = 13 px
+    CHECK(LeftHoldSlop(0.0f, -40.0f, shortEdge));
+    CHECK(kHoldSlopFraction < kTapSlopFraction);      // a slider drag starts well inside a tap's slop
+}

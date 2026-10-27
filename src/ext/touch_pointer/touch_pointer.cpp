@@ -46,10 +46,12 @@
 #include "Player/PlacementTool.h"
 #include "Player/exe_bodies.h"   // PlayerRay_GetMouseRay_1005a0: the tools' own cursor ray
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <initializer_list>
 #include <new>
 #include <vector>
 
@@ -88,6 +90,10 @@ constexpr int32_t kReleaseHoldPolls = 3;
 constexpr int32_t kButtonPressedState = 3;
 constexpr int32_t kButtonLabelChild = 4;
 constexpr float kGlyphFraction = 0.5f;
+// A button's glyph row fits this much of its width (the art's bevel and a margin outside the glyphs).
+constexpr float kPairFraction = 0.72f;
+// TouchPointer.rsc's ribbons: _cellPad 2 between two glyphs.
+constexpr int32_t kRibbonPad = 2;
 
 double Now() {
     using Clock = std::chrono::steady_clock;
@@ -153,6 +159,7 @@ struct Finger {
     float travel = 0.0f;
     double downAt = 0.0;
     Role role = Role::None;
+    bool leftSlop = false;   // Role::Ui: moved out of kHoldSlopFraction (the cursor follows from then on)
 };
 
 std::vector<Finger> g_fingers;
@@ -169,6 +176,30 @@ bool g_sinkOn = false;
 double g_mouseAt = -1.0e9;  // the last real mouse event
 PointerState g_lastWorld;   // where the cursor last was over the world
 bool g_haveWorld = false;
+
+// P11b (the owner's ruling, 2026-10-26): a finger on a dialog while a placement / drag tool aims keeps the tool's
+// ghost where it was. The cursor has to go to the finger for the dialog's click, and retail's tool hides its ghost
+// while the cursor is over a dialog (PlacementTool::Update's inputFlag 0), so the ghost blinked out and back on a tap
+// of the toolbar. From the press until the cursor is back on the world (the release's held polls drained),
+// PlayerToolManager::Update skips the tool's hotkeys and update for that tool (HoldToolAim): its ghost, cost bar and
+// a drag tool's single-click state stay as they were. Another tool selected by the tap ends it (retail's
+// SelectTool clears the old tool's ghost).
+bool g_uiHold = false;
+const Tool* g_uiHoldTool = nullptr;
+// The same hold for the tools' cursor ray (ToolCursor), which the draw may run on the render thread: the world
+// cursor the tool keeps seeing, packed x << 16 | y (engine pixels).
+std::atomic<bool> g_rayHeld{false};
+std::atomic<uint32_t> g_rayCursor{0};
+
+void SetUiHold(bool on) {
+    g_uiHold = on;
+    if (on) {
+        const uint32_t x = static_cast<uint16_t>(static_cast<int16_t>(g_lastWorld.x));
+        const uint32_t y = static_cast<uint16_t>(static_cast<int16_t>(g_lastWorld.y));
+        g_rayCursor.store(x << 16 | y, std::memory_order_relaxed);
+    }
+    g_rayHeld.store(on, std::memory_order_release);
+}
 
 // Tap twice and tap-to-cycle.
 double g_lastTapAt = -1.0e9;
@@ -443,6 +474,7 @@ void OnFinger(const Platform::Touch::Event& e) {
         g_mouseAt = now;
         if (g_owns && g_fingers.empty()) {
             g_owns = false;
+            SetUiHold(false);
             std::fprintf(stderr, "[TouchPointer] mouse: the pointer goes back to the mouse\n");
         }
         return;
@@ -469,6 +501,10 @@ void OnFinger(const Platform::Touch::Event& e) {
             std::fprintf(stderr, "[TouchPointer] down %.0f,%.0f: %s\n", e.x, e.y, kRoleNames[static_cast<int32_t>(f.role)]);
             g_fingers.push_back(f);
             Finger& p = g_fingers.back();
+            if (p.role == Role::Ui && g_haveWorld && (kind == ToolKind::Place || kind == ToolKind::Drag)) {
+                g_uiHoldTool = CurrentTool();
+                SetUiHold(true);   // the tool's aim is kept until the cursor is back on the world
+            }
             if (p.role == Role::Ui || p.role == Role::Plain) Move(p.x, p.y, true);
             if (p.role == Role::Aim) AimAt(p);
             return;
@@ -498,6 +534,12 @@ void OnFinger(const Platform::Touch::Event& e) {
     if (e.phase == Phase::Move) {
         switch (f->role) {
         case Role::Ui:
+            // Held still within the slop: the cursor stays on the press point, so a press held on a control
+            // counts hover time (phone_menu's press-and-hold tooltip, touch_hold.cpp).
+            if (!f->leftSlop && !LeftHoldSlop(f->x - f->downX, f->y - f->downY, ShortEdge())) break;
+            f->leftSlop = true;
+            Move(f->x, f->y, true);
+            break;
         case Role::Plain:
             Move(f->x, f->y, true);
             break;
@@ -537,7 +579,7 @@ void OnFinger(const Platform::Touch::Event& e) {
     std::fprintf(stderr, "[TouchPointer] %s %.0f,%.0f: %s\n", e.phase == Phase::Up ? "up" : "cancel", e.x, e.y,
                  kRoleNames[static_cast<int32_t>(f->role)]);
     const bool up = e.phase == Phase::Up;
-    const Finger lifted = *f;
+    Finger lifted = *f;
     for (size_t i = 0; i < g_fingers.size(); ++i) {
         if (g_fingers[i].id == lifted.id) {
             g_fingers.erase(g_fingers.begin() + static_cast<std::ptrdiff_t>(i));
@@ -555,6 +597,10 @@ void OnFinger(const Platform::Touch::Event& e) {
         break;
     }
     case Role::Ui:
+        if (!lifted.leftSlop) {
+            lifted.x = lifted.downX;   // still in the hold slop: the release where the press was
+            lifted.y = lifted.downY;
+        }
         Move(lifted.x, lifted.y, false);
         // The cursor back on the world a few polls later, so no tooltip opens on the tapped button and a ghost
         // stays put. The release is held for kReleaseHoldPolls first: a dialog's drag arms from the press's
@@ -631,11 +677,21 @@ void AfterUpdate(Input::Device& dev) {
         g_actions.clear();
         g_gestureActive = false;
         g_owns = false;
+        SetUiHold(false);
         std::fprintf(stderr, "[TouchPointer] %s\n", on ? "fingers taken (touch-to-mouse off)" : "fingers released");
     }
     if (!on || !g_owns) return;
 
     const PointerState s = g_queue.Pop();
+    // The UI hold ends on the poll that shows the cursor back on the world: no finger on a dialog any more and
+    // the release's queued states shown (this state is the last).
+    if (g_uiHold && g_queue.Empty()) {
+        bool uiFinger = false;
+        for (const Finger& f : g_fingers) {
+            if (f.role == Role::Ui) uiFinger = true;
+        }
+        if (!uiFinger) SetUiHold(false);
+    }
     const int16_t x = static_cast<int16_t>(s.x);
     const int16_t y = static_cast<int16_t>(s.y);
     const int16_t dx = static_cast<int16_t>(x - g_prev[kMouseX]);
@@ -740,22 +796,53 @@ public:
             content->_bottomPad = frame;
             content->SetNeedsSizeCalc();
         }
+        // One glyph (Place, Cancel): half the button high. A pair (Rotate: arrow + house, Change model: two arrows):
+        // both glyphs one height, chosen so the pair with the ribbon's cell pad fits kPairFraction of the button's
+        // width, centred (P11 sized each glyph alone and the house ran over the button's edge).
         const int32_t glyph = static_cast<int32_t>(kGlyphFraction * static_cast<float>(cell));
-        const char* images[] = {"imagePointerPlace",    "imagePointerRotateLeftArrow", "imagePointerHouseLeft",
-                                "imagePointerHouseRight", "imagePointerRotateRightArrow", "imagePointerFlipLeft",
-                                "imagePointerFlipRight",  "imagePointerCancel"};
-        for (const char* name : images) {
+        SizeGlyphs("imagePointerPlace", nullptr, glyph, cell);
+        SizeGlyphs("imagePointerCancel", nullptr, glyph, cell);
+        SizeGlyphs("imagePointerRotateLeftArrow", "imagePointerHouseLeft", glyph, cell);
+        SizeGlyphs("imagePointerHouseRight", "imagePointerRotateRightArrow", glyph, cell);
+        SizeGlyphs("imagePointerFlipLeft", "imagePointerFlipRight", glyph, cell);
+    }
+
+    // Sizes the one or two images of a button: each at height h (a whole multiple of its sprite when that is at
+    // least twice the sprite: crisp), h the largest up to `glyph` whose row (the widths plus the ribbon's pad) fits
+    // kPairFraction of the button.
+    void SizeGlyphs(const char* first, const char* second, int32_t glyph, int32_t cell) {
+        UI::ImageElement* images[2] = {nullptr, nullptr};
+        int32_t count = 0;
+        for (const char* name : {first, second}) {
+            if (name == nullptr) continue;
             UI::Element* e = FindElement(System::String(name)).Get();
             if (!::Object::IsDerivedFromNullSafe(e, UI::ImageElement::TypeId())) continue;
             UI::ImageElement* image = static_cast<UI::ImageElement*>(e);
             const UI::Sprite sprite = image->GetSprite();
-            const int32_t sw = sprite.Width();
-            const int32_t sh = sprite.Height();
-            if (sw <= 0 || sh <= 0) continue;
-            int32_t h = glyph;
-            if (h >= 2 * sh) h = (h / sh) * sh;
-            image->SetWidthHeight(sw * h / sh, h);
-            image->SetNeedsSizeCalc();
+            if (sprite.Width() <= 0 || sprite.Height() <= 0) continue;
+            images[count] = image;
+            ++count;
+        }
+        if (count == 0) return;
+        const int32_t room = static_cast<int32_t>(kPairFraction * static_cast<float>(cell)) - kRibbonPad * (count - 1);
+        for (int32_t h = glyph; h > 0; --h) {
+            int32_t width = 0;
+            int32_t widths[2] = {0, 0};
+            int32_t heights[2] = {0, 0};
+            for (int32_t i = 0; i < count; ++i) {
+                const UI::Sprite sprite = images[i]->GetSprite();
+                const int32_t sw = sprite.Width();
+                const int32_t sh = sprite.Height();
+                heights[i] = h >= 2 * sh ? (h / sh) * sh : h;
+                widths[i] = sw * heights[i] / sh;
+                width += widths[i];
+            }
+            if (width > room && h > 1) continue;
+            for (int32_t i = 0; i < count; ++i) {
+                images[i]->SetWidthHeight(widths[i], heights[i]);
+                images[i]->SetNeedsSizeCalc();
+            }
+            return;
         }
     }
 
@@ -881,6 +968,35 @@ void Sync() {
 
 bool Shown() {
     return g_barDialog != nullptr || g_markerDialog != nullptr;
+}
+
+void ToolCursor(int16_t& x, int16_t& y) {
+    if (!g_rayHeld.load(std::memory_order_acquire)) return;
+    const uint32_t packed = g_rayCursor.load(std::memory_order_relaxed);
+    x = static_cast<int16_t>(packed >> 16);
+    y = static_cast<int16_t>(packed & 0xFFFFu);
+}
+
+bool ToolAimHeld(const Tool* current) {
+    return g_uiHold && Ext().touch_pointer && g_owns && current != nullptr && current == g_uiHoldTool;
+}
+
+bool HoldToolAim(const Tool* current) {
+    static int32_t s_frames = 0;
+    if (!g_uiHold) {
+        if (s_frames > 0) std::fprintf(stderr, "[TouchPointer] tool aim held %d frame(s)\n", s_frames);
+        s_frames = 0;
+        return false;
+    }
+    if (!Ext().touch_pointer || !g_owns || current == nullptr || current != g_uiHoldTool) {
+        SetUiHold(false);   // the mouse took the pointer, the row went off, or the tap selected another tool
+        std::fprintf(stderr, "[TouchPointer] tool aim hold ended after %d frame(s): %s\n", s_frames,
+                     current != g_uiHoldTool ? "another tool" : "the pointer left the fingers");
+        s_frames = 0;
+        return false;
+    }
+    ++s_frames;
+    return true;
 }
 
 void GameFrame() {

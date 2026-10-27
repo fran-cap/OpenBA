@@ -415,7 +415,7 @@ public:
     static const bool* _extFixScaleLayout;
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md; DESIGN.md hook rule 5): ext.phone_menu.
-    // Null by default (always under the faithful profile). One pointer, four call points:
+    // Null by default (always under the faithful profile). One pointer, five call points:
     //   kExtPlaceLayout      Update, before a dialog's ComputeLayout: `rect` holds {0, 0, w, h}
     //                        (retail's call) and may come back inset (a safe area);
     //   kExtPlaceAfterLayout Update, after that ComputeLayout (`rect` as laid out; ignored on
@@ -426,12 +426,16 @@ public:
     //                        backdrop's {x1, y1, x2, y2} (after kExtPlaceBackdrop); a different
     //                        non-empty answer is drawn first, under it (the menus' backdrop's bottom
     //                        border on a wide screen).
+    //   kExtPlaceUpperLeft   DialogInstance::SetUpperLeft, before the root is sized (P11b): `rect`
+    //                        holds {0, 0, w, h}, the rectangle retail clamps the upper-left into,
+    //                        and may come back inset (the same safe area kExtPlaceLayout answers).
     // `width` / `height` are the layout-space screen. src/engine never includes src/ext.
     enum : int32_t {
         kExtPlaceLayout = 0,
         kExtPlaceBackdrop = 1,
         kExtPlaceAfterLayout = 2,
-        kExtPlaceBackdropLower = 3
+        kExtPlaceBackdropLower = 3,
+        kExtPlaceUpperLeft = 4
     };
     static void (*_extDialogPlace)(int32_t point, const DialogInstance* dialog, int32_t width,
                                    int32_t height, int32_t* rect);
@@ -442,6 +446,11 @@ public:
     // _uiScale / k (Update: the layout rectangle and the mouse divided by k; Draw: the quads scaled
     // by k through the context's world transform). src/engine never includes src/ext.
     static float (*_extDialogScale)(const DialogInstance* dialog);
+    // EXT SEAM (NOT RETAIL, P11b, docs/android/P11B_POINTER.md; DESIGN.md hook rule 5): ext.phone_menu.
+    // Null by default (always under the faithful profile). DialogInstance::Update counts hover time
+    // (the tooltip delay) only with no mouse button down; a true answer lets `dialog` count it with a
+    // button down too (a finger held on a control: the press-and-hold tooltip). Main thread.
+    static bool (*_extHoverWhileDown)(const DialogInstance* dialog);
     // EXT SEAM (NOT RETAIL, P9, docs/extensions/handins/PHONEMENU.md §3): ext.phone_menu. Null by
     // default (always under the faithful profile). Draw, just AFTER a dialog's backdrop: `rect` holds
     // the backdrop's {x1, y1, x2, y2} as drawn, `sheet` / `sprite` the backdrop's sprite; a true

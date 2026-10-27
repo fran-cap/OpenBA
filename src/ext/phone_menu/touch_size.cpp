@@ -31,6 +31,7 @@
 
 #include "ext/phone_menu/touch_size.h"
 #include "ext/phone_menu/size_math.h"
+#include "ext/phone_menu/touch_scroll.h"
 
 #include <cstring>
 
@@ -263,6 +264,8 @@ bool IsScrollingList(const UI::Element* e) {
 // (touch_fit.h (c)), which makes every control in it smaller again (the Options dialog's Video page:
 // measured on the S25 at UI 42, the fit went from 44 % to 57 %, docs/android/P11_TOUCH_SIZE.md). So
 // controls on a tab's non-scrolling page keep retail's size; in a scrolling list on any page they grow.
+// P11b: every Options page is a scrolling list by then (touch_scroll.h frames Video and Audio), so the
+// rule holds back only other dialogs' non-scrolling tab pages.
 int32_t Walk(UI::Element* e, bool on, Place place) {
     if (e == nullptr) return 0;
     if (::Object::IsDerivedFromNullSafe(e, UI::ButtonElement::TypeId())) {
@@ -328,6 +331,10 @@ void TouchSeen(const UI::DialogInstance* dialog, bool touchOwned) {
     g_nextSeen = (g_nextSeen + 1) % kMaxSeen;
 }
 
+bool TouchKnown(const UI::DialogInstance* dialog) {
+    return dialog != nullptr && FindSeen(dialog) != nullptr;
+}
+
 int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
     UI::Element* root = dialog->_root.Get();
     // The slider factor follows the row (one value for every slider).
@@ -336,13 +343,19 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
         g_sliderScale = scale;
         g_sliderResize = 32;   // the next few frames' walks (a few dialogs a frame)
     }
-    // A dialog is walked once the place hook has seen it (from its second frame: the walk runs at the
-    // first dialog's layout, before a newly opened one is placed), so a dialog ext.touch_mode places (its
-    // toolbar, sub-toolbars, event notices and camera cluster, sized for a finger by that row) is never
-    // touched.
+    // A dialog is walked once the place hook has seen it, so a dialog ext.touch_mode places (its toolbar,
+    // sub-toolbars, event notices and camera cluster, sized for a finger by that row) is never touched. A
+    // newly opened one is walked at its first placement or layout (touch_fit.cpp TouchFirstPlace, P11b),
+    // then here every frame.
     const Seen* seen = FindSeen(dialog);
     int32_t changes = 0;
-    if (seen != nullptr && !seen->touchOwned) changes = Walk(root, on, Place());
+    if (seen != nullptr && !seen->touchOwned) {
+        // P11b (touch_scroll.h): a page retail does not scroll is framed first, so its controls are in a
+        // scrolling list when they are sized; the lists are capped last, at the sized height.
+        changes += TouchScrollWrap(dialog, on);
+        changes += Walk(root, on, Place());
+        changes += TouchScrollCap(dialog, on);
+    }
     if (g_sliderResize > 0) --g_sliderResize;
     return changes;
 }

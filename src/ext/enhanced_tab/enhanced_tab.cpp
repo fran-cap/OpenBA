@@ -38,7 +38,7 @@ UI::ElementDescription* LoadDescription(const char* path) {
 const Contribution* const* Contributions(int* n) {
     static const Contribution* const list[] = {
         &AmbientOcclusionEntry(), &BetterTreesEntry(), &MaxShadowResEntry(), &SeamlessLoopsEntry(),
-        &TextureQualityEntry(), &RenderScaleEntry(), &FpsCapEntry(), &TouchModeEntry(),
+        &TextureQualityEntry(), &RenderScaleEntry(), &FpsCapEntry(), &TouchModeEntry(), &TouchPointerEntry(),
         &DerivedCacheEntry(),
     };
     *n = static_cast<int>(sizeof(list) / sizeof(list[0]));

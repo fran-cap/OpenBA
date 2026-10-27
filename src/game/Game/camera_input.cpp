@@ -177,8 +177,10 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // zoom) drives the same locals the keys above drive; a key that set one keeps it.
     // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md): ext.touch_pointer's two-finger camera
     // reaches the same locals through touch_mode's hold, and its action bar follows the current tool.
+    // P11b: the pad's ramped pan speed comes back in panGain (1 = retail's speed, the only value without the seam).
+    float panGain = 1.0f;
     if (Ext::Ext().touch_mode || Ext::Ext().touch_pointer || Ext::TouchMode::Shown())
-        Ext::TouchMode::CameraInput(dt, yaw, panX, panY, zoomDir);
+        Ext::TouchMode::CameraInput(dt, yaw, panX, panY, zoomDir, panGain);
     if (Ext::Ext().touch_pointer || Ext::TouchPointer::Shown())
         Ext::TouchPointer::GameFrame();
 
@@ -239,8 +241,8 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
         const float cy = std::cos(yawR), sy = std::sin(yawR);
         const float rightX =  cy, rightY =  sy;   // camera right basis (PlayerController+0x98)
         const float fwdX   =  sy, fwdY   = -cy;   // cross(right, up=(0,0,1))
-        const float aR = panSpeed * nx; // along right
-        const float aF = panSpeed * ny; // along forward
+        const float aR = panSpeed * panGain * nx; // along right (panGain: the ext seam above, 1 in retail)
+        const float aF = panSpeed * panGain * ny; // along forward
         pc->target.x += (rightX * aR + fwdX * aF) * dt;
         pc->target.y += (rightY * aR + fwdY * aF) * dt;
         // z basis is 0 for both vectors, so focus.z is unaffected by panning.

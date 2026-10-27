@@ -161,6 +161,30 @@ Rect SafeArea(int32_t width, int32_t height, int32_t upperLeftX, int32_t upperLe
     return r;
 }
 
+Rect SafeBounds(int32_t width, int32_t height, int32_t dialogWidth, int32_t dialogHeight) {
+    const Rect safe = InsetLayout(width, height);
+    const int32_t m = safe.x1;
+    Rect r{0, 0, width, height};
+    if (m == 0) return r;
+    if (dialogWidth <= width - 2 * m) {
+        r.x1 = m;
+        r.x2 = width - m;
+    }
+    if (dialogHeight <= height - 2 * m) {
+        r.y1 = m;
+        r.y2 = height - m;
+    }
+    return r;
+}
+
+void LaidOutUpperLeft(int32_t alignment, const Rect& root, int32_t leftPad, int32_t topPad, int32_t& upperLeftX,
+                      int32_t& upperLeftY) {
+    if (root.x2 <= root.x1 && root.y2 <= root.y1) return;
+    if (alignment < 0 || alignment > 8) return;
+    if (alignment % 3 == 0) upperLeftX = root.x1 - leftPad;
+    if (alignment / 3 == 0) upperLeftY = root.y1 - topPad;
+}
+
 int32_t IconSide(int32_t side, int32_t labelHeight, int32_t iconHeight) {
     if (side <= 0 || labelHeight <= 0 || iconHeight <= 0) return iconHeight;
     const int32_t room = side - 2 * kSquareInset - (labelHeight - iconHeight);

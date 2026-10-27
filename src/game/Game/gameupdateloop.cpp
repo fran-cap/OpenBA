@@ -133,6 +133,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera, Update step 6 / Draw steps 4 and 7
 #include "ext/sharp_ui/sharp_ui.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, Draw step 12
 #include "ext/ambient_occlusion/ambient_occlusion.h"     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, Draw step 7
+#include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ext.touch_pointer, Draw step 11 (ToolAimHeld)
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
 #include "Component/AmbientEnvironmentComponent.h"   // AMBMEMO: ReportMemo at teardown
@@ -1610,10 +1611,14 @@ void GameUpdateLoop::Draw(float alpha) {
         // Check if UI has input focus or pauses game -> pass as flag
         bool hasInput = (m_userInterface->_mouseCaptured != 0);
         bool pauseCheck = m_userInterface->PausesGame();
-        uint64_t drawFlag = (hasInput || pauseCheck) ? 1 : 0;
 
         // +0x28 is the InternalPtr to the current tool
         Tool* tool = toolManager->currentTool.Get();
+        // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md §5): a finger pressing a dialog keeps the aimed ghost
+        // drawn (PlayerToolManager::Update holds the tool for the same press). Row off: retail's flag.
+        if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
+            hasInput = false;
+        uint64_t drawFlag = (hasInput || pauseCheck) ? 1 : 0;
         if (tool) {
             // Caller batch CB6: slot 8 (vtable +0x40) `Tool::Draw(context, active)`.
             // The receiver is PROVED by its only writer, Toolbar_ShowGroup_Impl
