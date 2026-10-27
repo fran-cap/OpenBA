@@ -216,7 +216,10 @@ int32_t FitButton(UI::ButtonElement* b, bool on, bool inTitle) {
         changes += FitContent(content, on, 0, tall);
         break;
     case Kind::Spinner:
-    case Kind::None:   // (the kinds above: their own commits)
+        // Up and down stacked: each half the touch side high, the pair kTouchSide.
+        changes += FitContent(content, on, square, tall > 0 ? kTouchSide / 2 : 0);
+        break;
+    case Kind::None:
         break;
     }
     return changes;
