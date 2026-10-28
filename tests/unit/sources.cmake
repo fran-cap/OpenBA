@@ -109,6 +109,8 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/derived_cache/hash64.cpp          #   its content hash
   ${CMAKE_SOURCE_DIR}/src/render/common/bc4/bc4.cpp             # bc4_test.cpp (COMPRESSAO)
   ${CMAKE_SOURCE_DIR}/src/render/common/bc_decode/bc_decode.cpp # bc_decode_test.cpp (a GPU without BC)
+  ${CMAKE_SOURCE_DIR}/src/render/common/etc2/etc2.cpp           # etc2_test.cpp (P13_MEM: BC to ETC2)
+  ${CMAKE_SOURCE_DIR}/src/render/common/etc2/bc_to_etc2.cpp     # etc2_test.cpp
   ${CMAKE_SOURCE_DIR}/src/render/common/share_gpu_data/share_table.cpp   # ext_share_gpu_data_test.cpp (SHAREGPUDATA)
   ${CMAKE_SOURCE_DIR}/src/render/common/create_on_demand/payload.cpp      # ext_create_on_demand_test.cpp (CREATEONDEMAND)
   ${CMAKE_SOURCE_DIR}/src/render/common/create_on_demand/lazy_table.cpp   #   the deferred-create table

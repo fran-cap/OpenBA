@@ -334,9 +334,12 @@ list(APPEND RENDER_SRCS ${RENDER_COMMON_SRCS})
 # content hash run over ~2 GB of AO maps on a large-mod boot, on the loader's critical path. They are
 # built -O2 in every flavour (debug and og included; the unit build too, as these properties are
 # per source file): at -O0 the encoder does ~7 MB/s instead of ~57 MB/s per core. The BC1 / BC3
-# decoder (a GPU without BC, bc_decode.h) runs over every retail texture at load, the same way.
+# decoder (a GPU without BC, bc_decode.h) runs over every retail texture at load, the same way, and
+# so does the ETC2 transcode that replaces it where the GPU samples ETC2 (docs/android/P13_MEM.md).
 set_source_files_properties(${CMAKE_SOURCE_DIR}/src/render/common/bc4/bc4.cpp
                             ${CMAKE_SOURCE_DIR}/src/render/common/bc_decode/bc_decode.cpp
+                            ${CMAKE_SOURCE_DIR}/src/render/common/etc2/etc2.cpp
+                            ${CMAKE_SOURCE_DIR}/src/render/common/etc2/bc_to_etc2.cpp
                             ${CMAKE_SOURCE_DIR}/src/ext/derived_cache/hash64.cpp
                             PROPERTIES COMPILE_OPTIONS "-O2")
 file(GLOB         APP_SRCS      CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/app/*.cpp)
