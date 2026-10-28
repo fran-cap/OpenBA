@@ -229,6 +229,17 @@ companion interface; each would sit under it as a fourth layer. See §4.1.
   state 1 + 2 (fewer pipeline keys), load/store-op-none, multisampled-render-to-single-sampled.
   Absent on the S25 and therefore never relied on: graphics pipeline library, shader object,
   EDS3, memory budget, descriptor buffer.
+- **The 1.1 path (P13, the Galaxy S10).** A device without dynamic rendering, synchronization2 or
+  timeline semaphores (the S10's Adreno 640: driver 1.1.128, loader 1.1.0, none of those
+  extensions, no maintenance4, no EDS1) runs the same backend through `src/render/vulkan/vulkan11.h`,
+  chosen from the caps, no flag: cached render passes and per-frame framebuffers, barriers folded
+  onto `vkCmdPipelineBarrier`, a fence per submit for the serial, vertex strides baked into the
+  pipeline key, every module downgraded to SPIR-V 1.3 (`spirv_legalize.h`; the demote becomes
+  `OpKill`) and a pixel input narrower than its vertex output widened per pair. Its floor: Vulkan
+  1.1, `VK_KHR_swapchain` and `VK_KHR_vulkan_memory_model`. Not on it: ext.ambient_occlusion and
+  multisampled-render-to-single-sampled. The 1.3 path makes the same calls as before. The S10 also
+  has no `textureCompressionBC` (a cap, not a path): BC1 / BC3 levels are decoded to RGBA8 at load
+  there (`src/render/common/bc_decode/`).
 - **Linux moves onto this backend**; dxvk-native stays only as the bring-up oracle (same D3D11
   code, same frames) and is removed once parity is gated. One backend per platform. (Removed in P5.)
 - **Windows is the dev bed**; Vulkan never ships on Windows unless asked. `BANISHED_RENDER_BACKEND`
