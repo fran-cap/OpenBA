@@ -7,7 +7,7 @@
 // (src/render/dx11/devicedata.cpp, contextdata.cpp); docs/vulkan/PLAN.md §4 is the design.
 //
 // P0 (PLAN.md §5): instance, physical device, logical device, SDL surface, swap chain and a
-// three-deep frame loop. P2: a frame is BeginCommands (wait for the slot, collect the retired
+// frame loop (kFramesInFlight deep). P2: a frame is BeginCommands (wait for the slot, collect the retired
 // objects, acquire an image, open the command buffer, reset the slot's ring and pools: draw.h),
 // the draws (draw.cpp records them into the lazily-begun dynamic-rendering pass), then Finish (end
 // the pass, submit the upload batch and the frame, present). The resource files are resources.h
@@ -455,7 +455,7 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
         if (w > 0 && h > 0) frameExtent = { static_cast<uint32_t>(w), static_cast<uint32_t>(h) };
     }
 
-    uint32_t imageCount = std::max(kFramesInFlight, surfaceCaps.minImageCount);
+    uint32_t imageCount = std::max(kSwapchainImages, surfaceCaps.minImageCount);
     if (surfaceCaps.maxImageCount != 0) imageCount = std::min(imageCount, surfaceCaps.maxImageCount);
 
     VkSwapchainCreateInfoKHR ci = Make<VkSwapchainCreateInfoKHR>(VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
