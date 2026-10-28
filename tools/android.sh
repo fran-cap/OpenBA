@@ -17,6 +17,7 @@
 #   tools/android.sh logcat                            # follow the app's logcat lines
 #   tools/android.sh boot-state [--wait N]             # = tools/boot_state.sh --android [--wait N]
 #   tools/android.sh validation on LAYER.so | off       # the Khronos validation layer in the debug app
+#   tools/android.sh debug [LLDB ARGS ...]             # LLDB attached to the running debug app (args = batch)
 #
 # Environment: ANDROID_HOME (default %LOCALAPPDATA%/Android/Sdk), JAVA_HOME (default Android
 # Studio's bundled JBR), ADB (default platform-tools/adb of ANDROID_HOME, then C:/code/platform-tools,
@@ -79,7 +80,7 @@ if [ -z "${ADB:-}" ]; then
 fi
 
 usage() {
-    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
 }
 
@@ -305,6 +306,49 @@ validation)
         ;;
     esac
     "$ADB" shell settings get global enable_gpu_debug_layers
+    ;;
+debug)
+    # LLDB on the running app (the NDK dropped gdbserver; lldb-server is its replacement). Needs the
+    # debuggable (debug) apk: run-as copies the NDK's aarch64 lldb-server into the app's data dir and
+    # starts it as a platform server on an abstract socket, which the host lldb's remote-android
+    # platform reaches through adb. The unstripped libmain.so of the newest native build is put on
+    # the symbol path. Any further arguments go to lldb after the attach (batch mode then), e.g.
+    #   tools/android.sh debug -o "thread backtrace all"     # all stacks, then detach
+    #   tools/android.sh debug                               # interactive
+    ndk="$ANDROID_HOME/ndk/$(sed -n "s/^ *ndkVersion = '\(.*\)'/\1/p" "$ANDROID_DIR/app/build.gradle" | head -1)"
+    host=""
+    for h in windows-x86_64 linux-x86_64 darwin-x86_64; do
+        [ -d "$ndk/toolchains/llvm/prebuilt/$h" ] && { host="$h"; break; }
+    done
+    [ -n "$host" ] || { echo "no NDK toolchain under $ndk" >&2; exit 1; }
+    tc="$ndk/toolchains/llvm/prebuilt/$host"
+    server="$(find "$tc/lib/clang" -path '*linux/aarch64/lldb-server' | head -1)"
+    lldb="$tc/bin/lldb"
+    [ -f "$lldb.exe" ] && lldb="$lldb.exe"
+    [ -f "$server" ] || { echo "no aarch64 lldb-server under $tc/lib/clang" >&2; exit 1; }
+    pid="$("$ADB" shell pidof "$PKG" | tr -d '\r')"
+    [ -n "$pid" ] || { echo "$PKG is not running (tools/android.sh run first)" >&2; exit 1; }
+    if command -v cygpath >/dev/null 2>&1; then server="$(cygpath -m "$server")"; fi
+    "$ADB" push "$server" /data/local/tmp/lldb-server >/dev/null
+    "$ADB" shell run-as "$PKG" cp /data/local/tmp/lldb-server ./lldb-server
+    "$ADB" shell run-as "$PKG" chmod 700 ./lldb-server
+    sock="/$PKG/lldb-platform.sock"
+    "$ADB" shell run-as "$PKG" killall lldb-server >/dev/null 2>&1 || true
+    "$ADB" shell "run-as $PKG sh -c 'cd /data/data/$PKG && nohup ./lldb-server platform --server --listen unix-abstract://$sock >/dev/null 2>&1 &'"
+    sleep 1
+    syms="$(ls -t "$ANDROID_DIR"/app/build/intermediates/cxx/*/*/obj/arm64-v8a/libmain.so 2>/dev/null | head -1)"
+    args=(-o "platform select remote-android" -o "platform connect unix-abstract-connect://$sock")
+    if [ -n "$syms" ]; then
+        if command -v cygpath >/dev/null 2>&1; then syms="$(cygpath -m "$syms")"; fi
+        args+=(-o "settings append target.exec-search-paths $(dirname "$syms")")
+    fi
+    args+=(-o "process attach -p $pid")
+    if [ $# -gt 0 ]; then
+        "$lldb" -b "${args[@]}" "$@" -o "process detach"
+        "$ADB" shell run-as "$PKG" killall lldb-server >/dev/null 2>&1 || true
+    else
+        "$lldb" "${args[@]}"
+    fi
     ;;
 *)
     usage
