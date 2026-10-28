@@ -32,20 +32,27 @@ UI-side draws must not run while the steps do.
 
 - **E1** (`FrameTailTime` .. `Pass2`): reads only the packet, its Renderer slot and the **snapshot** (2.2).
   It runs while the main thread runs the next Frame's steps.
-- **Gate**: when the packet carries a snapshot (`Packet::overlap`) and the emit is on the render thread, the
-  render thread drops the device lock, parks until the main thread opens the gate, and takes the lock again.
-  Sequential split or no snapshot: a no-op.
+- **Gate**: open by default. THE FENCE (`kExtBeforeSteps`), when the pending packet carries a snapshot
+  (`Packet::overlap`) and its emit is on the render thread, **claims** it instead of waiting
+  (`Handoff::ClaimSteps`): granted only while the emit has not reached it; an emit already past it is
+  fenced as before. Claimed, the render thread drops the device lock at the gate, parks until the main
+  thread opens it, and takes the lock again. Unclaimed (a Frame that does not step), the emit goes straight
+  through. Sequential split or no snapshot: a no-op.
 - **E2** (`SaveLoadDraw` .. `PostDraw`, `Released`, the tail): unchanged code, reading the UI, the tool and the
-  post-draw state live, **after the steps of the next Frame**: the gate opens at the Frame tail
-  (`kExtFrameTail`, before the main half) and before every wait on the render thread (`Handoff::WaitIdle`).
+  post-draw state live. After claimed steps it runs **after the steps of the next Frame**: the Frame tail
+  (`kExtFrameTail`) opens the gate and then waits for the release there (`FenceReleased`, the fence moved
+  after the steps), before the main half. `Handoff::WaitIdle` opens it too.
 
-E2 therefore overlaps only the next main half, which is what the whole emit overlaps today on every Frame that
-does not step (RENDERPIPE1 section 3 audit: the main half writes nothing the emit reads, except the camera and
-the sun, which it writes only when nothing is pending). The steps and E2 never run together.
+The steps and E2 never run together. The main half still runs with nothing pending after a Frame that
+stepped, exactly as after today's fence, so fixes 4 and 5 (the sun and the camera, written only while
+nothing is pending) keep writing on those Frames. *Revised during the implementation:* the first cut opened
+the gate at the tail without waiting; nothing was ever "not pending" at speed 10 then, the sun was never
+written (the RenderPipeIdem shadow caught it: every sun check a mismatch) and the camera's frustum would have
+frozen in normal play.
 
-The frame becomes, at speed 10: main `[steps N+1 | main half N+1 | hand-off]`, render `[E1 N (during the
-steps) | gate | E2 N + tail (during the main half)]`. The main thread waits only at the hand-off, for E2 and
-the tail, which are shorter than the main half (~1.5-2 ms against ~5 ms in the stress town).
+The frame becomes, at speed 10: main `[steps N+1 | wait for E2 N | main half N+1 | hand-off]`, render `[E1 N
+(during the steps) | gate | E2 N | tail (during the main half)]`. The fence's wait shrinks from "the rest of
+the emit up to its release" to "E2", whenever E1 finishes within the steps.
 
 **What the frame shows changes, the sim does not.** The scene of packet N is the state the main half of N
 gathered, as today. The UI, the tool's ghost and footprint and the save-thumbnail capture of packet N are
@@ -110,8 +117,11 @@ loop and runs unpipelined, as today. Nothing else in a step frees what E1 reads 
 ### 2.5 Ordering (happens-before pairs; `handoff.h` gets the gate)
 - publish (unchanged): the packet, the copies and the arena are written before `Publish` (unlock = release);
   the render thread's `WaitJob` lock acquires them.
-- gate: the main thread's `OpenGate` (lock, `gate = true`, unlock, notify) after the steps; the render
-  thread's `WaitGate` (lock, wait for `gate`) before E2: every step write happens-before E2's reads.
+- gate: `ClaimSteps` (lock; refused when the render thread already passed the gate, else `gate = false`;
+  unlock) before the steps; `OpenGate` (lock, `gate = true`, unlock, notify) after them; the render thread's
+  `PassGate` / `WaitGate` (lock, wait for `gate`, mark passed) before E2: a claim and a pass are ordered by
+  the one mutex, so either the steps run entirely before E2 (every step write happens-before E2's reads) or
+  the claim is refused and the fence waits as today.
 - idle (unchanged): E2 and the tail happen-before the hand-off / drain / transition joins.
 - What E1 and the steps share, and why it is safe: the packet Renderer slot (written by pass 1 only, the
   ping-pong keeps the next main half on the other slot), the copies and their arena (written once, before
@@ -163,9 +173,10 @@ sequential split (fewer cores) is unchanged: no gate, no copies, the fence as to
 in the Vulkan backend and keyed on the present mode and the surface's minimum.
 
 ## 5. Counters
-`[Stress::pipe]` keeps its fields; `waitsFence` falls to the ineligible packets; the hand-off wait now
-includes E2 and the tail. One field is added: `overlapped` (packets emitted with a snapshot), and the
-snapshot's copy time joins the main half's draw time (it is main-thread work).
+`[Stress::pipe]` keeps its fields; `drains step` falls to the packets fenced before the steps (ineligible, or
+past their gate), and the fence wait (`waits (fence N)`, `wait=`) now includes the moved fence at the tail.
+Added after a `| overlap:` separator: `steps` (fences claimed: the steps ran beside an E1), `snapshots`,
+`refused` (packets the snapshot refused), `copy` (main-thread ms per snapshot) and the arena KB per packet.
 
 ## 6. Risks
 1. An unlisted live read in pass 2 (a Draw body reading through a pointer the copy shares with the live object).
@@ -187,5 +198,69 @@ tools/build.sh run`, a COMPPROF=4 stress run (the RenderPipe shadows at 0). S10:
 (release + PGO, debug key; battery <= 32 C, thermal 0 at start), normal play 3 min with SurfaceFlinger
 latency, screenshots of animated characters.
 
-## 9. Results
-(appended after the measurements)
+## 9. Results (2026-10-28)
+Code: `77f1fffff` on `android/p13-overlap` (base `2a5c2c481`, `android/p12`). Builds: Android release, -O3
+ThinLTO with the committed `perf/pgo/android/openba.profdata` (cut on the base code: both legs share the
+profile), signed with the debug key; Windows debug (DX11 and Vulkan).
+
+### 9.1 S10 stress town, 60 cap (`BANISHED_STRESS=1 BANISHED_FPS_CAP=60`, speed 10, 6000 frames), ABBA
+Each run started at battery <= 32.0 C, thermal status 0, one run per phone lock; medians of the windows from
+20 s on (fps, frame) and of the `[Stress::pipe]` windows.
+
+| run | start / end C | fps | frame ms (p95) | update | draw | pipe main / packet / emit | fence wait | latency |
+|---|---|---|---|---|---|---|---|---|
+| 1 A base | 31.7 / 33.3 | 53.0 | 18.88 (27.83) | 9.10 | 7.91 | 4.20 / 3.70 / 5.28 | 4.21 ms | 5.50 ms |
+| 2 B overlap | 32.0 / 34.1 | **60.0** | **16.67 (16.73)** | 8.70 | 12.49 | 3.59 / 8.87 / 9.92 | **0.69 ms** | 10.25 ms |
+| 3 B overlap | 32.0 / 34.1 | **59.9** | **16.70 (16.67)** | 8.58 | 12.20 | 3.58 / 8.58 / 9.62 | **0.71 ms** | 9.97 ms |
+| 4 A base | 32.0 / 33.5 | 52.0 | 19.22 (27.72) | 9.11 | 7.97 | 4.24 / 3.69 / 5.30 | 4.22 ms | 5.52 ms |
+
+B: every packet overlapped (`overlap: steps=596 snapshots=596 refused=0`), the snapshot **2.0-2.1 ms** of
+main-thread time a frame (3.0 MB a packet) -- above section 2.7's estimate, paid inside the 60 cap. The fence
+wait falls from 4.2 to 0.7 ms (E2 only) and the frame holds the cap. `draw` and `packet` grow because they
+now include the copy and the emit's park at the gate; `latency` (hand-off to Present done) grows by the steps
+E2 waits for.
+
+### 9.2 Normal play (`BANISHED_AUTOSTART=1 BANISHED_CAMERA_PIN=town`, 1x, 180 s), SurfaceFlinger timestats
+| build | presents | dropped / janky | present-to-present | post-to-present mean / median / p95 |
+|---|---|---|---|---|
+| A base | 10799 | 0 / 0 | 16 ms | 44.2 / 44 / 46 ms |
+| B overlap | 10773 | 0 / 0 | 16 ms | **39.6 / 40 / 40 ms** |
+| C = B + FIFO asks the surface minimum (2) | 10984 | 0 / 0 | 16 ms | 39.6 / 40 / 40 ms |
+| D = B + `kFramesInFlight` 1 | 10987 | 0 / 0 | 16 ms | 36.8 / 38 / 38 ms |
+
+Section 3's candidates: (a) **no effect** on the S10: asked for 2 images under FIFO, the driver still creates
+3 (`3 images (asked 2, surface min 2)`); not kept. (b) cuts another ~3 ms in normal play but **costs the stress
+town half its frame rate** (one run: 32.0 fps, emit 25.4 ms: the CPU waits for the GPU's previous frame
+before recording); rejected by the ruling's "not costing stress fps". Kept: neither; the overlap alone moves
+post-to-present from 44 to 40 ms at a locked 60 (0 dropped, 0 janky), so normal-play latency improves. The
+app-side part (gather to post) is not in timestats; at 1x it is bounded by the same frame.
+
+Screenshots of B in normal play (three over the window, the town camera): citizens and cattle drawn whole, no
+torn or flickering animated meshes, the season advancing (the sun and weather keep updating).
+
+### 9.3 Windows
+- `tools/build.sh unit`: 1561 tests, 0 failures (5 new / changed render_pipe tests: the gate, the overlap
+  scripted runs with and without device loss, the transition join, the emit order with `Gate`).
+- The render_pipe tests built with `-fsanitize=thread` (WSL GCC 13, the driver and hand-off with the fake
+  engine): 15 tests pass, 0 ThreadSanitizer reports. The engine itself was not run under TSan.
+- `tools/build.sh run` (faithful) and `BANISHED_RENDER_BACKEND=vulkan tools/build.sh run`: RUNNING, crash log
+  empty.
+- Resave gate: `Gate` faithful **PASS** (golden unchanged); `GATE_PROFILE=` (render_pipe on) resaved image
+  byte-identical to the base commit's under the same profile (md5 `ba7d73e0...`).
+- COMPPROF=4 stress (debug, render_pipe + draw_batch on DX11; + terrain_batch on Vulkan), 2500 frames:
+  `RenderPipeCopy` 1111 / 1138 checks, `RenderPipeFrame`, `RenderPipe` and `RenderPipeIdem` 0 mismatches.
+
+### 9.4 Sim identity
+No sim code is changed or reordered (section 2.6). Evidence: the resave gates above, the shadows at 0, and the
+stress town's citizen counts (803 every window in all four runs). The stress town is not bit-reproducible
+run to run (entity counts differ by tens between the two A runs as between A and B; the final window's
+citizens 958 / 960 for A, 958 / 957 for B), so it cannot show bit identity by itself.
+
+### 9.5 Risks left
+1. The snapshot costs ~2 ms of main thread a frame in the stress town on the S10; uncapped, or on a phone whose
+   main thread is the limit, it is a trade against the fence wait it removes.
+2. An unlisted live read in pass 2 remains possible (section 6.1); the shadows cover what they hash.
+3. Packets refused by the snapshot (an unlisted Geometry type, `ext.terrain_edit` on) keep the fence; none
+   were refused in these runs. The first refusal of each reason is logged once (`[RenderPipe] snapshot refused`).
+4. The UI of a packet drawn after the steps of the next Frame (2.1) is visible only in motion; not checked by
+   eye beyond the screenshots.
