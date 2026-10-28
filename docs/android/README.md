@@ -201,7 +201,12 @@ CORES) sizes the path workers, cull helpers and the fork-join pool on the big co
 kernel `cpu_capacity` is half the largest or less (an efficiency cluster) no longer counts, so no worker
 is created for a core that would run two to three times slower than the rest and hold up every
 fork-join. The boot line `[Cpu] ... big=0x..` shows the mask on such a phone; a uniform SoC (the S25's
-2 + 6, all within half) and every desktop are unchanged. Nothing is pinned.
+2 + 6, all within half) and every desktop are unchanged. The roster pins nothing; the frame's two
+critical threads are pinned by `perf_hint_android.cpp` (P12, P13): the main and render threads go to the
+CPUs of the largest capacity when there are at least two (the S25's prime pair), else to the next tier
+with two or more (the S10's gold cluster, not its lone prime: `docs/android/P13_THERMAL.md`). Boot lines:
+`[Pin] main thread tid N -> CPUs 0x.. (of 0x..): pinned`, the same for the render thread, and on a lone
+prime `[Pin] the largest capacity 1024 has one CPU: the tier of capacity 871 (3 CPUs)`.
 
 **Mouse** (P8). A mouse works as on a desktop. While the middle button is held (camera rotate) the window
 is in relative mode, which on Android is pointer capture; `OpenBASurface.java` passes the captured

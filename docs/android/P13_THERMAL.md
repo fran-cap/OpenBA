@@ -43,26 +43,29 @@ The `[Stress]` `update=` column is the mean of ONE `GameUpdateLoop::Update` call
 accumulator holds, so when a frame takes longer than 16.7 ms the next frame runs more steps: the sim is
 held at 60 steps a second, and the drawn frame gets what is left of the main thread.
 
-| t (s) | fps | steps per drawn frame | update ms per step | 60 x update (% of a second) | draw main | pipe wait | citizens |
-|---|---|---|---|---|---|---|---|
-| 10 | 57.8 | 1.04 | 8.17 | 49% | 4.31 | 3.64 | 803 |
-| 100 | 46.5 | 1.29 | 9.91 | 59% | 4.26 | 4.31 | 954 |
-| 310 | 39.5 | 1.52 | 10.83 | 65% | 4.62 | 4.48 | 1010 |
-| 341 | 29.8 | 2.01 | 11.51 | 69% | 4.88 | 5.36 | 1012 |
-| 372 | 21.5 | 2.79 | 12.86 | 77% | 5.40 | 7.07 | 1016 |
+| t (s) | window (s) | sim steps / s | fps | steps per drawn frame | update ms per step | main ms / s in steps | in draw main | in pipe waits | citizens |
+|---|---|---|---|---|---|---|---|---|---|
+| 10 | 10.0 | 59.9 | 57.8 | 1.04 | 8.17 | 490 | 249 | 210 | 803 |
+| 100 | 10.0 | 60.0 | 46.5 | 1.29 | 9.91 | 595 | 198 | 200 | 954 |
+| 310 | 10.3 | 58.3 | 39.5 | 1.47 | 10.83 | 631 | 182 | 177 | 1010 |
+| 341 | 10.1 | 59.4 | 29.8 | 1.99 | 11.51 | 684 | 145 | 160 | 1012 |
+| 372 | 10.6 | 56.6 | 21.5 | 2.63 | 12.86 | 728 | 116 | 152 | 1016 |
 
-(this pass's diagnostic run; steps per drawn frame = `sim_iters / speed / drawn frames` of the CSV window.)
-The throttled frame of pass 2 adds up exactly: 2.7 steps x 12.4 ms + draw main 5.0 + wait 7.0 = 45.5 ms
-against the measured 45-46 ms. The profile agrees: in the throttled window the main thread is on a CPU
-82% of the time (atrace), and 681 of its 685 on-CPU ms a second are under `MainLoop::Update`; its off-CPU
-time (161 ms a second, 7.6 ms a drawn frame) is all `Ext::RenderPipe::Hook`, the pipe's waits. Nothing
-else blocks it.
+(this pass's diagnostic run; one CSV row per 600 steps, its window from the `wall_s` column; steps per drawn
+frame = `sim_iters / speed / (fps x window)`. The three main-thread columns and the rest, ~5-10 ms a
+second, add up to the second.) The throttled frame of pass 2 adds up the same way: 2.7 steps x 12.4 ms +
+draw main 5.0 + wait 7.0 = 45.5 ms against the measured 45-46 ms. The profile agrees: in the throttled
+window the main thread is on a CPU 82% of the time (atrace), and 681 of its 685 on-CPU ms a second are
+under `MainLoop::Update`; its off-CPU time (161 ms a second, 7.6 ms a drawn frame) is all
+`Ext::RenderPipe::Hook`, the pipe's waits. Nothing else blocks it.
 
-So fps ~ (1000 - 60 x update) / (draw main + wait + ~0.6) ms: the sim's real-time demand is fixed, and the
-drawn frames share the remainder. Near saturation this amplifies: at update 12.4 ms a step, 1 ms more
-per step costs ~25% of the fps. Fitted over pass 2's whole soak, the formula tracks the measured fps
-within ~2 fps up to ~600 s and underestimates after (it is a bound, the late windows' update means carry
-hitches).
+So fps ~ (1000 - 60 x update) / (draw main + wait + ~0.6) ms while the sim keeps real time: the sim's
+demand is fixed, and the drawn frames share the remainder. Near saturation this amplifies: at update
+12.4 ms a step, 1 ms more per step costs ~25% of the fps. Once the steps alone pass ~75% of the main thread
+(pass 2 after ~600 s, this pass's soak A after ~780 s), the game no longer keeps real time: the CSV rows
+stretch to 11-12.4 s for their 600 steps (48-54 steps a second, the accumulator's clamp drops the rest)
+while the drawn rate settles at ~22 fps. From there the cost of a slower step shows as a slower game, not
+as fewer frames, so a soak comparison reads both columns.
 
 ### 2.3 What the throttling itself costs
 - Pass 2's windows at t ~ 450-530 s, where the caps lifted for a minute (gold 2419 MHz, main thread back
@@ -115,9 +118,84 @@ render thread is now found by its `[ADPF]` / `[Pin]` line.
    ~75% of a second; the soak's comparable metric is update ms per step at a given citizen count, and the
    soak town grows, so A and B must be compared at equal t.
 
-## 4. Verified versus assumed
+## 4. Results
+
+### 4.1 Item 1, the tier pin: KEPT (commit `perf: pin the frame's two threads to the fastest tier of two or
+more CPUs`)
+`FindFastCores` walks the capacity tiers from the largest down and pins to the first with two CPUs or
+more; boot lines on the S10: `[Pin] the largest capacity 1024 has one CPU: the tier of capacity 871 (3
+CPUs)`, then `[Pin] render thread tid N -> CPUs 0x70 (of 0xff): pinned` and the same for the main thread.
+
+**Soak A/B** (one pair, A = `android/p12` as built here, B = the tier pin, same flavour: release + PGO,
+debug key, not profileable; 66000 steps, both from battery 31.7 C, thermal 0; ~1100 s of play each).
+Per minute (CSV rows by `wall_s`; clocks and placement from a sampler every ~9 s):
+
+| min | A fps | B fps | A update / step | B update / step | A wait / frame | B wait / frame | A gold MHz (cap) | B gold MHz (cap) | A GPU MHz busy | B GPU MHz busy |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 56.6 | 56.3 | 8.64 | 8.68 | 4.00 | 3.95 | 2355 (2419) | 2272 (2419) | 487 78% | 499 77% |
+| 2 | 44.8 | 44.8 | 10.15 | 10.19 | 4.30 | 4.26 | 2405 (2419) | 2392 (2405) | 427 74% | 427 73% |
+| 3 | 39.5 | 37.1 | 10.62 | 10.90 | 4.50 | 4.48 | 2106 (2137) | 1961 (1961) | 356 72% | 368 70% |
+| 4 | 25.7 | 30.2 | 11.81 | 11.62 | 6.19 | 4.67 | 1280 (1722) | 1708 (1708) | 270 60% | 270 76% |
+| 5 | 25.2 | 28.1 | 11.96 | 12.02 | 6.13 | 4.74 | 1182 (1796) | 1752 (1752) | 270 60% | 270 69% |
+| 6 | 30.4 | 32.3 | 11.67 | 11.64 | 5.01 | 4.41 | 1772 (2016) | 2016 (2016) | 307 67% | 307 71% |
+| 8 | 25.2 | 30.5 | 12.18 | 11.97 | 6.11 | 4.45 | 1399 (2016) | 2016 (2016) | 270 61% | 282 70% |
+| 10 | 26.4 | 30.1 | 12.16 | 11.95 | 5.45 | 4.40 | 1643 (2016) | 2016 (2016) | 294 68% | 257 74% |
+| 11 | 22.4 | 28.4 | 12.47 | 12.20 | 6.55 | 4.37 | 1168 (2016) | 2016 (2016) | 257 57% | 257 75% |
+| 12 | 22.2 | 25.3 | 12.95 | 12.62 | 6.64 | 4.54 | 1025 (2016) | 2016 (2016) | 257 55% | 257 68% |
+| 14 | 22.6 | 21.6 | 14.39 | 13.42 | 7.06 | 4.77 | 1089 (2016) | 2016 (2016) | 257 59% | 282 53% |
+| 16 | 22.6 | 22.2 | 14.41 | 13.14 | 6.91 | 4.69 | 710 (2016) | 2016 (2016) | 270 59% | 257 58% |
+| 18 | 23.1 | 22.4 | 14.54 | 13.96 | 6.71 | 4.81 | 1212 (2016) | 1968 (2016) | 257 62% | 279 54% |
+
+| phase | A fps | B fps | A sim steps / s | B sim steps / s | A update / step | B update / step | A wait | B wait | A current | B current | battery A / B |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0-240 s (not throttled) | 47.0 | 46.5 | 60.0 | 60.0 | 9.80 | 9.89 | 4.26 | 4.22 | -429 mA | -410 mA | 31.7 -> 34.4 / 31.7 -> 34.4 C |
+| 240-600 s (throttled) | 27.0 | **30.0** | 59.9 | 59.9 | 11.95 | 11.90 | 5.55 | **4.52** | -273 mA | -281 mA | -> 35.0 / -> 35.1 C |
+| 600-1100 s (saturated) | 23.0 | **24.2** | 54.0 | **59.1** | 13.60 | **12.97** | 6.65 | **4.62** | -238 mA | -271 mA | -> 35.4 / -> 35.8 C |
+| whole run | 29.4 | 30.8 | 57.2 | 59.5 | 12.19 | 11.96 | 5.51 | 4.46 | -290 mA | -304 mA | end 35.4 / 35.8 C |
+
+(current: `battery/current_now` with USB attached and the battery full, negative = drawn from the
+battery; a relative figure only.) Thermal status 0 throughout both; both runs ended `EXITED
+clean-shutdown`.
+- **Before throttling nothing changes** (as predicted: the prime is isolated and both threads are on gold
+  either way).
+- **Throttled (240-600 s): fps +11%**, the pipe wait -19% (the render thread at the gold cap instead of
+  its 710 MHz floor: A's gold averaged 1519 MHz, B's 1921, against caps of 1708-2016).
+- **Saturated (600 s on): the sim keeps real time** (59.1 against 54.0 steps a second: A's game ran 10%
+  slow) **and draws 5% more frames**, with update per step -4.6% although B's town, further along, is
+  as large or larger. The GPU is busier in B (70-75% against 55-68%) at the same clocks.
+- Placement: B's two threads stayed inside 4-6 in every sample (130 of 130 while running: no mask reset,
+  so item 2 is not needed); A's main thread was on cpu7 in 141 of 207 samples after t ~ 285 s.
+- **Cost:** +0.4 C at the end (35.8 against 35.4) and ~5% more current over the run. One pair: the heat
+  difference is not resolved against run-to-run spread (the throughput difference is consistent minute
+  by minute from minute 4 to 12). Below the cap either way, so the owner's policy (hold the cap, never step
+  below it) is not in play: B does more sim and draws more frames per degree.
+- Item 1's estimate (~25 fps against 21-22 in the throttled state) was close for 240-600 s (30.0 against
+  27.0); in the saturated phase most of the gain went to the sim rate instead of frames.
+
+**Normal play** (`BANISHED_AUTOSTART=1 BANISHED_CAMERA_PIN=town`, 1x, 180 s window after 40 s, both
+from 31.8 C): A 59.5-59.9 fps windows, SurfaceFlinger 10790 frames 0 dropped; B 59.6-59.8, 10812 frames 0
+dropped. CPU (% of one core over the window): main 46 / 35, render 33 / 30, process 85 / 73; current -158 /
+-113 mA; battery +0.8 / +0.4 C; gold sampled at 710 MHz most of the time in both; both threads on 4-6 in
+both (the prime idles isolated at 825 MHz). Not worse; single runs, so the lower CPU in B is not claimed as
+a gain.
+
+**S25 (not available today):** its largest tier has two CPUs (the prime pair), so the loop stops at the
+first tier and returns the same mask as before; no new log line (the "one CPU" line is printed only when a
+larger tier was skipped). Provably the same path; nothing to re-measure there. A uniform CPU or a failed
+capacity read still pins nothing.
+
+### 4.2 Dropped
+- Item 2 (periodic read-back of the pin): no reset seen in 130 samples over 19 minutes; not built.
+- ADPF changes: the S10 has no HAL; the S25 path is untouched. Reporting wall time instead of CPU time,
+  or one session over both threads, cannot be tested on this phone and was not changed.
+- uclamp / schedtune / core_ctl: not available to an app on this kernel (2.1).
+- The "untimed gap": it is sim steps (2.2); nothing to fix.
+
+## 5. Verified versus assumed
 - Verified: ADPF refused and why (`dumpsys performance_hint`); thermal status 0 throughout; the steps per
   frame arithmetic (CSV + the main thread's on / off-CPU profile); the threads' clocks and placement
   (atrace); no uclamp / schedtune for apps (sysctl, kernel config, file mode).
-- Assumed: item 1's estimate; that the caps' cost is ~10% of a step (two pass-2 windows at slightly
-  different citizen counts, not an A/B).
+- Verified: the tier pin's soak A/B (one pair) and normal-play check (one pair); that the pin held all run;
+  the S25's unchanged mask follows from the rule (not run on an S25).
+- Assumed: that the caps' cost is ~10% of a step (two pass-2 windows at slightly different citizen counts,
+  not an A/B); the heat cost of the pin (+0.4 C, one pair, within plausible spread).
