@@ -623,9 +623,13 @@ debug key, install) and run the checks below on the S25; nothing here is verifie
    - **The EntityList tree walk** (`EntityList_Update` treeWalk, `src/game/Entity/`): 3.9 ms a frame pinned, 70%
      of the sim at speed 10, ~1830 nodes per iteration. It is faithful sim code: a change must give identical
      results (class A, an `ext.*` row under `src/ext/`, the faithful path untouched and exactly as fast) or it is
-     class B (locked in the save; owner ruling needed). Check what the existing rows already cover first
-     (`walk_batch`, `walk_batch_grid` B, `drain_split` B, `anim_batch` B). Look at the node layout and the walk's
-     memory traffic (the main-thread draw work did not speed up with a 27% faster clock either: memory?).
+     class B (locked in the save; owner ruling needed). **The desktop already did this walk** (2026-10-12/13,
+     `docs/extensions/STATUS.md` those dates, handins PREFETCH / SMMEMO / STILLPATH / STILLTERRAIN / DIRECTTICK /
+     PARTREPEAT / OFFSCREEN / WALKBATCH): faithful treeWalk 2.57 -> ~1.9 ms, the ideas list closed. Do not redo it;
+     test what may not transfer to ARM: the IBS verdict "the sim is not memory-bound" was taken on a 96 MB X3D L3
+     (the S25: ~12 MB L2 per cluster + a small SLC; the main-thread draw work did not speed up with a 27% faster
+     clock either), the prefetch distance (`kWalkPrefetch`, "one entity apart", tuned on x86), and the class B
+     `walk_batch_grid` (desktop speed-50 everything-on fps +8..+20%) never measured on the phone.
    Both: findings and a ranked plan first, prototypes only where the profile justifies them, measured on the S25
    from the same start (battery <= 32 C, capped stress town); nothing merges without review.
 
