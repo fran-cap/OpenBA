@@ -176,6 +176,22 @@ landing on every other vsync (`docs/android/PERF_P7.md` §4 rank 2). A new nativ
 the background is told again where the Vulkan backend makes its swap chain. The log line
 `[Window] preferred frame rate 60 -> ANativeWindow_setFrameRate = 0` is the check (0 = accepted).
 
+**Performance hints and heat** (P12). The goal is to hold the cap, never to fall below it: the game does
+not step its frame rate down on heat. `Platform::PerfHint` (`src/platform/common/platform_perf_hint.h`;
+`src/platform/android/perf_hint_android.cpp`, identity twins elsewhere) gives the main thread and
+`ext.render_pipe`'s render thread one ADPF session each (`APerformanceHint_*`, API 31, resolved from
+libandroid.so at run time). The target is the limiter's ceiling (`FrameLimiter::SetCeiling`; a loop that
+is not paced reports nothing); each frame reports the thread's CPU time over its work (the main thread:
+from the end of the limiter's wait to the next frame's pace; the render thread: one packet's emit), so the
+limiter's sleep, the swap chain's waits and the hand-off are never counted as work. A session is made,
+retargeted, reported to and closed by its own thread only; the render thread's lives as long as the
+thread (a re-created render thread gets a new session for its new tid). On API 35
+`APerformanceHint_setPreferPowerEfficiency` is on (the S25 accepts it). The thermal listener (`AThermal_*`,
+API 30) only logs, for measurements. Log lines: `[ADPF] main session: APerformanceHint resolved, tid N,
+target 16666666 ns, preferPowerEfficiency on` (one per session, or one `[ADPF] not available` line),
+`[Thermal] status N` at start and at every change. `adb shell dumpsys performance_hint` lists the two
+sessions (Tag 3, `PowerEfficient: true`) beside HWUI's own.
+
 **Audio** (P12). SDL's AAudio stream is opened in the default performance mode, not LOW_LATENCY
 (`SDL_HINT_ANDROID_LOW_LATENCY_AUDIO` = 0 in `app_android.cpp`): the game needs no 5 ms output latency,
 and the default mode spares the fast-mixer wakeups.
