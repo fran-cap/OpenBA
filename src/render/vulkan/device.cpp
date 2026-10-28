@@ -363,7 +363,10 @@ uint32_t ResolveMultisampleMode(Video::Device* dev) {
 // ---- the swap chain ---------------------------------------------------------------------------
 
 void DestroySwapchainObjects() {
-    for (VkImageView v : swapViews) vkDestroyImageView(device, v, nullptr);
+    for (VkImageView v : swapViews) {
+        ForgetImageView(v);
+        vkDestroyImageView(device, v, nullptr);
+    }
     swapViews.clear();
     for (VkSemaphore s : renderFinished) vkDestroySemaphore(device, s, nullptr);
     renderFinished.clear();

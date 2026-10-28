@@ -18,6 +18,7 @@
 #include "VideoVulkanData.h"
 #include "device_objects.h"
 #include "draw.h"
+#include "vulkan11.h"                            // ForgetImageView
 #include "seeded_create.h"                       // P4: the seeded creates (compress_ao, share_gpu_data)
 #include "async_gpu_create/async_create.h"       // P4: ext.async_gpu_create
 #include "create_on_demand/lazy_create.h"        // P4: ext.create_on_demand
@@ -346,6 +347,7 @@ static void RetireAttachmentView(VkImageView* view) {
     VkImageView v = *view;
     *view = VK_NULL_HANDLE;
     Retire([v]() {
+        ForgetImageView(v);
         if (LiveDevice()) vkDestroyImageView(LiveDevice(), v, nullptr);
     });
 }

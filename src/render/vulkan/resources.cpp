@@ -455,6 +455,7 @@ void ResourcesShutdown() {
             vmaDestroyBuffer(g_allocator, kv.first, kv.second);
         g_liveBuffers.clear();
         for (auto& kv : g_liveImages) {
+            ForgetImageView(kv.second.view);
             if (kv.second.view) vkDestroyImageView(Dev(), kv.second.view, nullptr);
             vmaDestroyImage(g_allocator, kv.first, kv.second.allocation);
         }
@@ -917,6 +918,7 @@ void DestroyImageNow(GpuImage* image) {
         std::lock_guard<std::mutex> guard(g_liveLock);
         auto it = g_liveImages.find(image->image);
         if (it != g_liveImages.end()) {
+            ForgetImageView(it->second.view);
             if (it->second.view) vkDestroyImageView(Dev(), it->second.view, nullptr);
             vmaDestroyImage(g_allocator, it->first, it->second.allocation);
             g_liveImages.erase(it);

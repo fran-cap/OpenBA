@@ -11,8 +11,10 @@
 // What the 1.1 path does instead, per 1.3 feature:
 //   dynamic rendering   a VkRenderPass per attachment set (formats, samples, load / store ops, layouts;
 //                       cached for the device's life) and a VkFramebuffer per (pass, views, size), cached
-//                       for the frame being recorded and retired with it (a view's handle can be reused
-//                       once its image is destroyed, so a framebuffer never outlives its frame). The
+//                       for as long as its views live: every vkDestroyImageView is preceded by
+//                       ForgetImageView, which destroys the framebuffers of that view (a view's handle can
+//                       be reused once it is destroyed). The Adreno driver backs each framebuffer with
+//                       kernel memory, so making them per frame cost ~1.5 ms a frame (P13_RENDER.md). The
 //                       attachments are already in their layouts (the callers' barriers), so every
 //                       attachment's initial, subpass and final layout is the one VkRenderingInfo names:
 //                       the pass makes no transition. A pipeline is made against a pass of the same
@@ -42,6 +44,7 @@ extern bool g_active;
 void BeginRendering(VkCommandBuffer cb, const VkRenderingInfo& info, const VkFormat* colorFormats,
                     VkFormat depthFormat, VkSampleCountFlagBits samples);
 void PipelineBarrier(VkCommandBuffer cb, const VkDependencyInfo& dependency);
+void ForgetView(VkImageView view);
 }  // namespace Vulkan11Detail
 
 // True on the 1.1 path (set by CreateDevice before anything is recorded or built).
@@ -49,6 +52,13 @@ inline bool Vulkan11Path() {
     return Vulkan11Detail::g_active;
 }
 void SetVulkan11Path(bool on);
+
+// Called before every vkDestroyImageView: on the 1.1 path the cached framebuffers that use `view` are
+// destroyed with it (the GPU is done with them whenever it is done with the view: they are used only in
+// the commands that use the view). Nothing on the 1.3 path.
+inline void ForgetImageView(VkImageView view) {
+    if (Vulkan11Path()) Vulkan11Detail::ForgetView(view);
+}
 
 // vkCmdBeginRendering. The 1.1 path needs what a VkRenderPass is made of and VkRenderingInfo does not
 // carry: the colour attachments' formats (one per info.colorAttachmentCount; a resolve attachment has its
@@ -97,8 +107,8 @@ void SetPipelineTargets(VkGraphicsPipelineCreateInfo* ci, const VkPipelineRender
 VkPipelineStageFlags StageFlags1(VkPipelineStageFlags2 stages, bool source);
 VkAccessFlags AccessFlags1(VkAccessFlags2 access);
 
-// Destroys the render passes and forgets the frame's framebuffers (their destroys are retired with
-// their frame: ResourcesShutdown runs them). DeviceData::Shutdown, after ResourcesShutdown.
+// Destroys the render passes and the framebuffers still cached. DeviceData::Shutdown, after
+// ResourcesShutdown (the device is idle).
 void Vulkan11Shutdown();
 
 }  // namespace VideoVulkan
