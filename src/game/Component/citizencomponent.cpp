@@ -1840,7 +1840,7 @@ ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, Compone
         }
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
         // only the best rank stays eligible.
-        if (bitSet && prio && Ext::ItemPriority::RankOfMat(param_4, mat) != bestRank) {
+        if (bitSet && prio && !Ext::ItemPriority::Eligible(param_4, mat, bestRank)) {
             bitSet = false;
         }
         int demand = listBase[row]._count -
@@ -1870,7 +1870,7 @@ ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, Compone
         }
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
         // the same test as pass 1, so both passes agree.
-        if (bitSet && prio && Ext::ItemPriority::RankOfMat(param_4, mat) != bestRank) {
+        if (bitSet && prio && !Ext::ItemPriority::Eligible(param_4, mat, bestRank)) {
             bitSet = false;
         }
         int demand = entryP->_count - entryP->_reserve;

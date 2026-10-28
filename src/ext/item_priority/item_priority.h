@@ -24,6 +24,10 @@
 // list for that category; an item the list does not name is ranked last). Items that tie keep retail's choice
 // among them. With no list for a category every item ties, so nothing changes.
 //
+// NEVER. An item can instead be set to Never: no citizen takes it, whatever else the storages hold (section
+// 9 of the hand-in). It has the rank kNever, which no tier ceiling and no best rank lets through
+// (Eligible); a category with only a Never list still narrows its picks.
+//
 // ACROSS STORAGES. The finder picks the NEAREST storage that holds any item of the category, so a better item
 // in a farther storage would lose. The four call sites of the finder for these categories (FindTiered below)
 // therefore run it once per tier, best first: with a rank CEILING that makes ef40 skip every item ranked
@@ -67,6 +71,7 @@ constexpr int kHealth = 3;
 constexpr int kClothing = 4;
 constexpr int kCategories = 4;
 constexpr int kUnranked = 0x7fff;   // an item the list does not name: ranked after every named one
+constexpr int kNever = 0x7fffffff;  // an item marked Never: no tier, ceiling or best rank lets it through
 
 // The `_flags` bit that marks an item of a category (the ef40 table: 0 -> 5, 1 -> 6, 2 -> 9, 3 -> 13, 4 ->
 // 14).
@@ -75,18 +80,28 @@ bool IsCategory(int category);
 
 // ---- the lists (the town's state) ------------------------------------------------------------------------
 
-// One list per category, best first: template paths, no duplicates (compared without case).
+// One ranked list per category, best first, and one Never list: template paths, no duplicates (compared
+// without case). An item is in at most one of the two lists of its category.
 struct Lists {
     std::vector<std::string> paths[kCategories];   // index category - 1
+    std::vector<std::string> never[kCategories];   // items citizens never take
     bool Empty() const;
     const std::vector<std::string>& Of(int category) const { return paths[category - 1]; }
     std::vector<std::string>& Of(int category) { return paths[category - 1]; }
+    const std::vector<std::string>& NeverOf(int category) const { return never[category - 1]; }
+    std::vector<std::string>& NeverOf(int category) { return never[category - 1]; }
 };
 
 // The rank of an item in the list: its index, or kUnranked.
 int RankOf(const Lists& lists, int category, const std::string& path);
-// Edits (each returns whether the list changed). `Rank` appends an unranked item at the bottom; `Unrank`
-// removes it; `Move` swaps it with its neighbour (-1 up, +1 down; an item at an end stays).
+// Whether the item is on the category's Never list.
+bool IsNever(const Lists& lists, int category, const std::string& path);
+// Edits (each returns whether the lists changed). `Rank` appends an unranked item at the bottom (and takes
+// it off the Never list); `Unrank` removes it; `Move` swaps it with its neighbour (-1 up, +1 down; an item
+// at an end stays). `SetNever` puts an item on the Never list (and off the ranked one); `ClearNever` takes
+// it off, leaving it unranked.
+bool SetNever(Lists& lists, int category, const std::string& path);
+bool ClearNever(Lists& lists, int category, const std::string& path);
 bool Rank(Lists& lists, int category, const std::string& path);
 bool Unrank(Lists& lists, int category, const std::string& path);
 bool Move(Lists& lists, int category, const std::string& path, int direction);
@@ -118,15 +133,24 @@ void SetRowActive(bool rowOn);
 extern bool g_on;
 // The ranked materials per category (index category - 1), best first.
 extern std::vector<const void*> g_ranked[kCategories];
+// The materials marked Never per category (index category - 1).
+extern std::vector<const void*> g_never[kCategories];
 
-// Tested once by a seam, above its loops: item priority narrows this category.
+// Tested once by a seam, above its loops: item priority narrows this category (a ranked or a Never list).
 inline bool Active(int category) {
-    return g_on && category >= 1 && category <= kCategories && !g_ranked[category - 1].empty();
+    return g_on && category >= 1 && category <= kCategories &&
+           (!g_ranked[category - 1].empty() || !g_never[category - 1].empty());
 }
 
-// The rank of a material (a RawMaterialDescription) in `category`'s resolved list: its index, or kUnranked.
-// Called only after Active(category), for a row that passed retail's flag test.
+// The rank of a material (a RawMaterialDescription) in `category`'s resolved list: its index, or kUnranked;
+// kNever for an item on the Never list. Called only after Active(category), for a row that passed retail's
+// flag test.
 inline int RankOfMat(int category, const void* material) {
+    for (const void* never : g_never[category - 1]) {
+        if (never == material) {
+            return kNever;
+        }
+    }
     const std::vector<const void*>& ranked = g_ranked[category - 1];
     const int n = static_cast<int>(ranked.size());
     for (int i = 0; i < n; ++i) {
@@ -135,6 +159,14 @@ inline int RankOfMat(int category, const void* material) {
         }
     }
     return kUnranked;
+}
+
+// Whether a row of `category` stays eligible when the best rank among the rows is `bestRank`: it has
+// exactly that rank, and it is not Never. (A Never row ties with the "nothing eligible" bestRank of
+// 0x7fffffff, so the rank alone cannot say.)
+inline bool Eligible(int category, const void* material, int bestRank) {
+    const int r = RankOfMat(category, material);
+    return r == bestRank && r != kNever;
 }
 
 // The rank ceiling of the tier being searched: an item ranked worse than this is not eligible (kUnranked = no

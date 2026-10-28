@@ -99,6 +99,8 @@ StringTable resource
 		{ String _name = "ItemPriorityTop";			String _text = "Top"; }
 		{ String _name = "ItemPriorityUp";			String _text = "Up"; }
 		{ String _name = "ItemPriorityDown";		String _text = "Down"; }
+		{ String _name = "ItemPriorityNever";		String _text = "Never"; }
+		{ String _name = "ItemPriorityNeverTip";	String _text = "Citizens never take this item, even when it is the only one the storages hold. Click again to allow it."; }
 		// the filter button names what a click does, under the key of the mode being shown
 		{ String _name = "ItemPriorityShowAll";	String _text = "Show all items"; }
 		{ String _name = "ItemPriorityShowAllTip";	String _text = "Unchecked: only items your town has made or stored, and the ranked ones."; }
