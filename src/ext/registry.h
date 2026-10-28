@@ -102,6 +102,8 @@ struct Extensions {
     // class B: src/ext/terrain_edit/ (docs/extensions/handins/TERRAINEDIT.md); a brush tool that edits the
     // terrain under the mouse
     bool terrain_edit = false;
+    // class B: src/ext/town_screenshot/ (docs/extensions/handins/TOWNSCREENSHOT.md); a picture of the whole map from an isometric view
+    bool town_screenshot = false;
     bool spread_warmth = false; // class B: src/ext/spread_warmth/ (docs/extensions/handins/HITCH_PFBURST.md)
     bool async_save_compress = false; // class A: src/ext/async_save_compress/, seam IO::CompressedStream::_extAsyncCompress (docs/extensions/handins/HITCH_SAVE.md)
     bool drain_split = false; // class B: src/ext/drain_split/ (docs/extensions/handins/HITCH_DRAINSPLIT.md)

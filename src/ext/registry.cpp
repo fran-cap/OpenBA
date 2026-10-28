@@ -250,6 +250,15 @@ const Entry kEntries[] = {
       "A brush, started from the Terrain page in a game, that reshapes the ground under the mouse. "
       "Play diverges.",
       1, [](State& s) -> bool& { return s.ext.terrain_edit; } },
+    // TOWNSCREENSHOT (docs/extensions/handins/TOWNSCREENSHOT.md): one picture of the whole map from an isometric view,
+    // taken from the Town Screenshot page of the extension window. Class B only because the window's pages belong to
+    // B / C rows (the window is recorded and locked with the game): a screenshot changes nothing about how a town
+    // plays, and no state of its own is recorded.
+    { "town_screenshot", Tier::Extension, Class::B, false,
+      "Town Screenshot",
+      "Takes one picture of the whole map from above at an isometric angle, from the Town Screenshot page in a "
+      "game. The game pauses while it works.",
+      1, [](State& s) -> bool& { return s.ext.town_screenshot; } },
     // HITCH_PFBURST (docs/extensions/handins/HITCH_PFBURST.md): a per-frame budget of the cold
     // citizens' warm-house scans (one region path search per residence), so a cold spell at high
     // speed spreads its scans over a few frames instead of one 10-20 ms frame.
