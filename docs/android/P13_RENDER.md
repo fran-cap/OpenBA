@@ -89,3 +89,58 @@ the governor holds a low clock because the GPU has slack. The frame is CPU-bound
    clock-insensitive, the sim not). Measure, do not assume.
 5. Not planned: the skinning math (faithful), Present / submit (system), the render-pass and barrier code
    (not visible in the profile).
+
+## 5. Results (S10, release + PGO, debug-key signed, not profileable; ABBA)
+Every run: `tools/android.sh run BANISHED_STRESS=1 BANISHED_FPS_CAP=60`, 6000 stress frames (100 s), battery
+<= 32.0 C and thermal status 0 at the start (31.5-32.0 C), the app stopped between runs. Means of the
+`[Stress]` windows t=20..100 s and of the `[Stress::pipe]` windows after the first. Battery at the end
+32.4-33.7 C; thermal status never left 0.
+
+| run | build | fps | frame ms (p95) | update | draw | pipe main / packet / emit | main wait | latency |
+|---|---|---|---|---|---|---|---|---|
+| 1 | A base | 35.7 | 28.05 (34.75) | 10.00 | 9.58 | 4.37 / 5.21 / 8.03 | 6.65 | 8.27 |
+| 2 | B1 framebuffers | 44.6 | 22.54 (30.78) | 9.70 | 8.66 | 4.22 / 4.44 / 6.12 | 5.02 | 6.36 |
+| 3 | B1 framebuffers | 49.0 | 20.44 (29.43) | 9.15 | 8.50 | 4.29 / 4.21 / 5.79 | 4.71 | 6.03 |
+| 4 | A base | 35.5 | 28.23 (34.71) | 10.06 | 9.55 | 4.36 / 5.19 / 7.95 | 6.63 | 8.19 |
+| 5 | B2 = B1 + prefetch | 51.3 | 19.59 (28.51) | 9.47 | 7.77 | 4.10 / 3.66 / 5.20 | 4.18 | 5.42 |
+| 6 | B1 | 44.8 | 22.43 (30.51) | 9.69 | 8.62 | 4.21 / 4.42 / 6.09 | 4.99 | 6.32 |
+| 7 | B1 | 44.5 | 22.64 (31.00) | 9.76 | 8.61 | 4.19 / 4.42 / 6.14 | 5.00 | 6.37 |
+| 8 | B2 | 51.4 | 19.58 (27.98) | 9.45 | 7.78 | 4.14 / 3.64 / 5.19 | 4.15 | 5.41 |
+| 9 | B3 = B2 + main on prime | 51.0 | 19.69 (28.44) | 9.44 | 7.84 | 4.16 / 3.68 / 5.28 | 4.20 | 5.51 |
+| 10 | B2 | 51.2 | 19.61 (28.53) | 9.42 | 7.83 | 4.15 / 3.68 / 5.26 | 4.20 | 5.48 |
+
+- **Framebuffers kept (B1 vs A): KEPT.** Emit -1.9 ms, packet -0.8 ms, main-thread wait -1.6 ms; fps 35.6 ->
+  44.6-49.0, frame -5.6 to -7.7 ms. The frame gains more than the emit loses: frame - update - draw fell
+  from ~8.5 to ~4 ms; not attributed (the fence's wait before the steps is not inside update / draw; a
+  kernel-side contention of the kgsl alloc / free with the main thread's own driver calls is possible,
+  not shown).
+- **Instancing prefetch (B2 vs B1): KEPT.** Packet -0.77 ms, emit -0.9 ms, main draw -0.85 ms, fps 44.6 ->
+  51.3 (both B2 runs above all three B1 runs). Twice the profile's estimate: GetInstanceTransform's own
+  loads hit as well.
+- **Main thread alone on the prime core (B3 vs B2): DROPPED.** `[Pin] main thread ... -> CPUs 0x80:
+  pinned`, cpu7 uncapped (2841600 kHz max), and nothing moved (update 9.44 vs 9.42 ms). Why the 17% clock
+  did not show was not investigated (cpu7's clock during the run was not sampled).
+- B2 in all: **fps 35.6 -> 51.3 (+44%), frame 28.1 -> 19.6 ms, emit 8.0 -> 5.2 ms, render-thread CPU
+  ~6.8 -> ~3.9 ms a frame** (the B2 profile: 11846 samples in 30 s at ~51 fps). GPU busy rose from 66% at
+  ~370 MHz to 73% at ~430 MHz (runs 1-4); 585 MHz still unused, so still not GPU-bound.
+- **Rendering**: frame-matched screenshots (`adb exec-out screencap`, real frame 1524 on A, 1501 on B2: at
+  speed 10 the same frame is the same game time on any build) show the same image: lighting, weather,
+  water, shadows, UI. (A first pair taken at the same wall time differed in weather: B2 had run more
+  frames, so more game time.) The Windows Vulkan build (`BANISHED_RENDER_BACKEND=vulkan tools/build.sh
+  run`, the 1.3 path, debug) boots to a game: 228 draws, 4 passes at frame 900, crash log empty.
+
+### 5.1 The render thread after B2 (simpleperf, same method, 11846 samples)
+`IssueDraw` 26% (~1.0 ms): `vkCmdPushDescriptorSetKHR` 57% of it (~0.58 ms a frame, ~2.8 us a push, ~210
+pushes), `vkCmdDrawIndexed` 10%, `vkCmdBindVertexBuffers` 7%, `vkCmdBindIndexBuffer` 6%;
+`ExtDrawItemList` self 18% (~0.7 ms, was ~1.2); PresentFrame 7%; skinning (Lerp, GetBones,
+GetInstanceTransform, SkinMemo, Sqrtf) ~14%; SubmitCommands 3%; BeginCommands 3%. Framebuffer calls gone.
+`vkCmdBindDescriptorSets` (the vertex set, pooled, dynamic offsets) is 14 samples, 0.1%.
+
+## 6. Next
+1. **The pixel set as a pooled set with dynamic constant-buffer offsets** (as set 0), on the 1.1 path at
+   least: the profile prices a push at ~2.8 us and the vertex set's bind at almost nothing on this driver,
+   so up to ~0.5 ms a frame. It needs a non-push set-1 layout per pair, a per-slot set cache keyed by the
+   pixel stage's buffers / views / samplers (as `VertexSetKey`) and its allocation + write cost measured
+   (P7 found the opposite trade on the S25's 1.3 driver, so keep it to the device where it pays).
+2. The prime core is idle on the S10 and pinning the main thread to it changed nothing: sample cpu7's
+   clock in such a run before ruling it out.
