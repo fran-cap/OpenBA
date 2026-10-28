@@ -324,17 +324,25 @@ debug)
     tc="$ndk/toolchains/llvm/prebuilt/$host"
     server="$(find "$tc/lib/clang" -path '*linux/aarch64/lldb-server' | head -1)"
     lldb="$tc/bin/lldb"
-    [ -f "$lldb.exe" ] && lldb="$lldb.exe"
+    if [ -f "$lldb.exe" ]; then
+        # What the NDK's lldb.cmd does: liblldb.dll loads the bundled Python's DLL.
+        lldb="$lldb.exe"
+        export PYTHONHOME="$tc/python3"
+        export PATH="$(cygpath -u "$tc/python3"):$PATH"
+    fi
     [ -f "$server" ] || { echo "no aarch64 lldb-server under $tc/lib/clang" >&2; exit 1; }
     pid="$("$ADB" shell pidof "$PKG" | tr -d '\r')"
     [ -n "$pid" ] || { echo "$PKG is not running (tools/android.sh run first)" >&2; exit 1; }
     if command -v cygpath >/dev/null 2>&1; then server="$(cygpath -m "$server")"; fi
+    # A server left by an earlier attach holds its binary busy: stop it before the copy over it.
+    "$ADB" shell run-as "$PKG" killall lldb-server >/dev/null 2>&1 || true
     "$ADB" push "$server" /data/local/tmp/lldb-server >/dev/null
     "$ADB" shell run-as "$PKG" cp /data/local/tmp/lldb-server ./lldb-server
     "$ADB" shell run-as "$PKG" chmod 700 ./lldb-server
     sock="/$PKG/lldb-platform.sock"
-    "$ADB" shell run-as "$PKG" killall lldb-server >/dev/null 2>&1 || true
-    "$ADB" shell "run-as $PKG sh -c 'cd /data/data/$PKG && nohup ./lldb-server platform --server --listen unix-abstract://$sock >/dev/null 2>&1 &'"
+    # setsid and the redirections outside run-as: with a plain nohup ... & the server kept the remote
+    # session open and adb shell never returned.
+    "$ADB" shell "run-as $PKG setsid sh -c 'cd /data/data/$PKG && exec ./lldb-server platform --server --listen unix-abstract://$sock' </dev/null >/dev/null 2>&1 &"
     sleep 1
     syms="$(ls -t "$ANDROID_DIR"/app/build/intermediates/cxx/*/*/obj/arm64-v8a/libmain.so 2>/dev/null | head -1)"
     args=(-o "platform select remote-android" -o "platform connect unix-abstract-connect://$sock")
