@@ -537,7 +537,7 @@ debug key, install) and run the checks below on the S25; nothing here is verifie
   `VK_EXT_vertex_input_dynamic_state` (already not enabled).
 - **Still open from the same survey, in order of value**: ADPF (`APerformanceHint` sessions for the main and render
   threads with the frame target, a thermal-status listener stepping the render scale / cap down; both API 31+,
-  dlopen under minSdk 29) and `android:appCategory="game"` + a game-mode config; the gather helpers' spin (10 % of
+  dlopen under minSdk 29) and a game-mode config (`appCategory="game"` is in since P12 on the S25: `category=manifest: 0`; Samsung GOS still says non-game, it keys on its own list); the gather helpers' spin (10 % of
   all samples in P7, `src/ext/gather_threads/`); WinData / the caches on external (FUSE) storage for Android 10-11
   devices (internal `getFilesDir` or a first-run copy); transient + lazily-allocated depth / MSAA attachments on
   the tiler (`draw.cpp` MakeMainImage); the NDK's stack protector / fortify defaults (a measured A/B before

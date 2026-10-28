@@ -278,6 +278,9 @@ step; Gradle, the native build and the caches never see it. Signing in a step of
 Gradle daemon and every build script. The release keystore itself (alias `openba`, RSA 4096) is kept off-tree by
 the owner; nothing of it is in the repository.
 
+The manifest files the app as a game (`android:appCategory="game"`, and the older `android:isGame`), which is
+what the system's game list, Game Mode and the vendors' game launchers read.
+
 A local check of the same commands with the debug key (`adb install` replaces a debug install: same key):
 ```bash
 tools/android.sh build release --jobs 8
