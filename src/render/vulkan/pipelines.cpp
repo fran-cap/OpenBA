@@ -68,6 +68,7 @@ struct StageMasks {
     uint32_t cb = 0;
     uint32_t tex = 0;
     uint32_t smp = 0;   // P8: the further pairs' bits k (BindingOfSampler(k)); no separate sampler is left
+    uint32_t pooled = 0;   // P13: a pixel set made as a pool set (PairLayout::pixelSet); 0 in a pair's key
 };
 struct PairMasks {
     StageMasks vs;
@@ -84,6 +85,7 @@ struct MasksEqual {
     }
 };
 bool g_push = false;
+bool g_pooledPixel = false;   // P13: the 1.1 path's pixel set (pipelines.h PairLayout::pixelSet)
 std::mutex g_pushLock;
 std::vector<std::pair<StageMasks, VkDescriptorSetLayout>> g_pushSetLayouts;
 std::unordered_map<PairMasks, PairLayout, MasksHash, MasksEqual> g_pushLayouts;   // nodes: stable pointers
@@ -452,19 +454,21 @@ uint32_t BindingCount(const StageMasks& m) {
 }
 
 // g_pushLock held. The set layout of one stage's masks (made once): the pixel set is a push set with
-// plain uniform buffers, the vertex set a pool set with dynamic ones (pipelines.h, THE PAIR LAYOUTS).
+// plain uniform buffers, the vertex set a pool set with dynamic ones (pipelines.h, THE PAIR LAYOUTS);
+// P13: a pixel set with `pooled` is made as the vertex set is.
 VkDescriptorSetLayout PairSetLayoutLocked(const StageMasks& m) {
     for (const auto& entry : g_pushSetLayouts) {
         if (std::memcmp(&entry.first, &m, sizeof(StageMasks)) == 0) return entry.second;
     }
     const bool vertex = m.set == Shaders::kSetVertex;
+    const bool pool = vertex || m.pooled != 0;
     const VkShaderStageFlags stage = vertex ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
     std::vector<VkDescriptorSetLayoutBinding> bindings;
     for (uint32_t r = 0; r < Shaders::kMaxConstantBuffers; ++r) {
         if (!((m.cb >> r) & 1)) continue;
         VkDescriptorSetLayoutBinding b{};
         b.binding = Shaders::BindingOfConstantBuffer(r);
-        b.descriptorType = vertex ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        b.descriptorType = pool ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         b.descriptorCount = 1;
         b.stageFlags = stage;
         bindings.push_back(b);
@@ -488,7 +492,7 @@ VkDescriptorSetLayout PairSetLayoutLocked(const StageMasks& m) {
         }
     }
     auto li = Make<VkDescriptorSetLayoutCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
-    li.flags = vertex ? 0 : VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+    li.flags = pool ? 0 : VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
     li.bindingCount = static_cast<uint32_t>(bindings.size());
     li.pBindings = bindings.data();
     VkDescriptorSetLayout layout = VK_NULL_HANDLE;
@@ -880,6 +884,7 @@ bool PipelinesStartup(std::string* why) {
     // P7: the push-descriptor path (pipelines.h) wherever the extension is (its spec floor is 32).
     g_push = LiveCaps().pushDescriptor && vkCmdPushDescriptorSetKHR != nullptr &&
              LiveCaps().maxPushDescriptors >= 32;
+    g_pooledPixel = g_push && Vulkan11Path();
 
     g_persist = Ext::CurrentProfile() != Ext::Profile::Faithful && Ext::DerivedCache::CacheDir(g_cacheDir) &&
                 Platform::EnsureDirChain(ToPath(g_cacheDir).c_str());
@@ -913,7 +918,9 @@ bool PipelinesStartup(std::string* why) {
     std::fprintf(stderr, "[Vulkan] pipelines: layout set0/set1 x %u bindings, %u dynamic constant buffer(s) per set, "
                          "cache %zu bytes loaded%s; descriptors %s\n",
                  kSetBindings, g_dynamicCbs, blob.size(), g_persist ? "" : " (no cache folder: nothing persists)",
-                 g_push ? "a layout per shader pair (pixel set pushed, vertex set pooled)" : "sets from per-frame pools");
+                 !g_push         ? "sets from per-frame pools"
+                 : g_pooledPixel ? "a layout per shader pair (pixel and vertex sets pooled: the 1.1 path)"
+                                 : "a layout per shader pair (pixel set pushed, vertex set pooled)");
     return true;
 }
 
@@ -959,6 +966,7 @@ void PipelinesShutdown() {
         g_pushSetLayouts.clear();
     }
     g_push = false;
+    g_pooledPixel = false;
     for (VkDescriptorSetLayout& l : g_setLayouts) {
         if (l) vkDestroyDescriptorSetLayout(LiveDevice(), l, nullptr);
         l = VK_NULL_HANDLE;
@@ -1001,7 +1009,11 @@ const PairLayout* PairLayoutFor(const Shaders::ShaderReflection& vs, const Shade
     if (it != g_pushLayouts.end()) return it->second.layout ? &it->second : nullptr;
     PairLayout pair;
     if (BindingCount(key.ps) <= LiveCaps().maxPushDescriptors) {
-        VkDescriptorSetLayout sets[2] = { PairSetLayoutLocked(key.vs), PairSetLayoutLocked(key.ps) };
+        StageMasks ps = key.ps;
+        ps.pooled = g_pooledPixel &&
+                    static_cast<uint32_t>(__builtin_popcount(key.vs.cb) + __builtin_popcount(key.ps.cb)) <=
+                        LiveProperties().limits.maxDescriptorSetUniformBuffersDynamic;
+        VkDescriptorSetLayout sets[2] = { PairSetLayoutLocked(key.vs), PairSetLayoutLocked(ps) };
         if (sets[0] && sets[1]) {
             auto pl = Make<VkPipelineLayoutCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
             pl.setLayoutCount = 2;
@@ -1015,6 +1027,7 @@ const PairLayout* PairLayoutFor(const Shaders::ShaderReflection& vs, const Shade
         pair.vertexSet = sets[0];
         pair.vertexCbs = static_cast<uint32_t>(__builtin_popcount(key.vs.cb));
         pair.vertexBindings = BindingCount(key.vs);
+        if (ps.pooled) pair.pixelSet = sets[1];
     }
     if (!pair.layout) {
         std::fprintf(stderr,
