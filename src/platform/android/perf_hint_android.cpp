@@ -15,15 +15,26 @@
 // thread's CPU time (CLOCK_THREAD_CPUTIME_ID) over the WorkBegin / WorkEnd bracket: blocking waits in
 // the bracket (vkAcquireNextImageKHR / present, the render pipe's hand-off, a fence) cost no CPU time
 // and are not work; the frame limiter's own wait is outside the bracket.
+//
+// The fastest cores: the two roles' threads are also the frame's critical path, and the scheduler
+// keeps them off a heterogeneous SoC's biggest cores (the S25 stress town at the 60 cap: the main
+// thread at 92% of a 3.53 GHz core, 0 of 120 samples on the 4.47 GHz pair). AttachThread pins each to
+// the CPUs of the largest cpu_capacity when there are at least two of them (one core per thread;
+// pinning the main thread alone left the render thread on a cluster whose shared clock then fell,
+// and the frame gained nothing). Measured at 803 citizens: update 6.3 -> 4.6 ms, draw 6.3 -> 5.0 ms.
+// The threads either of them creates start on the process's mask again (thread_start_android.h).
 // ============================================================================
 
 #include "platform_perf_hint.h"
+#include "platform_cpu.h"            // Platform::CpuAffinity / CpuCoreCapacity
+#include "thread_start_android.h"    // Platform::Android::SetThreadStartMask
 
 #include <atomic>
 #include <cstddef>
 #include <cstdio>
 #include <dlfcn.h>
 #include <mutex>
+#include <sched.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -160,6 +171,54 @@ void Create(Slot& s, int64_t targetNs) {
     std::fflush(stderr);
 }
 
+// The fastest cores (the file comment): found once, from the first attaching thread's mask (the main
+// thread's, before any pin: the process's).
+std::once_flag g_fastOnce;
+uint64_t       g_processMask = 0;
+uint64_t       g_fastMask    = 0;   // 0 = no pin on this device
+
+void FindFastCores() {
+    uint64_t system = 0;
+    if (!CpuAffinity(&g_processMask, &system) || g_processMask == 0) {
+        std::fprintf(stderr, "[Pin] not pinned: the affinity mask is unknown\n");
+        return;
+    }
+    int best = 0;
+    int capacity[64] = {};
+    for (int c = 0; c < 64; ++c) {
+        if (((g_processMask >> c) & 1u) == 0 || !CpuCoreCapacity(c, &capacity[c])) continue;
+        if (capacity[c] > best) best = capacity[c];
+    }
+    uint64_t fast = 0;
+    for (int c = 0; c < 64; ++c) {
+        if (best > 0 && capacity[c] == best) fast |= uint64_t{1} << c;
+    }
+    const int count = __builtin_popcountll(fast);
+    if (count < 2 || fast == g_processMask) {
+        std::fprintf(stderr, "[Pin] not pinned: %d CPU(s) of the largest capacity %d in mask 0x%llx\n", count,
+                     best, static_cast<unsigned long long>(g_processMask));
+        return;
+    }
+    g_fastMask = fast;
+    Android::SetThreadStartMask(g_processMask);
+}
+
+// The calling thread onto the fastest cores, when the device has them.
+void PinToFastCores(const Slot& s) {
+    std::call_once(g_fastOnce, FindFastCores);
+    if (g_fastMask == 0) return;
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    for (int c = 0; c < 64; ++c) {
+        if ((g_fastMask >> c) & 1u) CPU_SET(c, &set);
+    }
+    const int rc = sched_setaffinity(0, sizeof(set), &set);
+    std::fprintf(stderr, "[Pin] %s thread tid %d -> CPUs 0x%llx (of 0x%llx): %s\n", s.name, static_cast<int>(s.tid),
+                 static_cast<unsigned long long>(g_fastMask), static_cast<unsigned long long>(g_processMask),
+                 rc == 0 ? "pinned" : "refused");
+    std::fflush(stderr);
+}
+
 }  // namespace
 
 void SetTarget(int64_t targetNs) {
@@ -176,6 +235,7 @@ void AttachThread(Role role) {
     s.tid      = tid;
     s.refused  = false;
     s.cpuBegin = -1;
+    PinToFastCores(s);
 }
 
 void DetachThread(Role role) {

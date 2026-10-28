@@ -526,8 +526,10 @@ if(RENDER_BACKEND_READY)
     # the static third-party archives' symbols out of the dynamic table too. No undefined symbol may
     # survive the link: the loader would only say so on the phone. The crash dump's dladdr no
     # longer names a function (it prints the library offset, symbolised offline as before).
+    # --wrap=pthread_create: a new thread starts on the process's mask, not on the fastest cores its
+    # creator may be pinned to (src/platform/android/thread_start_android.h).
     target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} ${PGO_LINK_FLAGS} ${LTO_FLAGS}
-                        -Wl,--no-undefined -Wl,--exclude-libs,ALL)
+                        -Wl,--no-undefined -Wl,--exclude-libs,ALL -Wl,--wrap=pthread_create)
   else()
     target_link_options(OpenBA PRIVATE ${FLAVOUR_FLAGS} -rdynamic)
   endif()
