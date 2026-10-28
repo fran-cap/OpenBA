@@ -10,8 +10,8 @@
 // the pinned Vulkan-Headers submodule (third_party/Vulkan-Headers), used with
 // VK_NO_PROTOTYPES so that no symbol is imported.
 //
-// The three X-lists are the whole surface the backend uses; a new call is added to the
-// list it belongs to and nothing else changes. An instance or device extension function
+// The X-lists are the whole surface the backend uses; a new call is added to the list it
+// belongs to and nothing else changes. An instance or device extension function
 // that the driver does not provide stays null (the callers test the one they need).
 // ============================================================================
 
@@ -80,14 +80,13 @@ namespace VideoVulkan {
     X(vkResetFences)                                     \
     X(vkCreateSemaphore)                                 \
     X(vkDestroySemaphore)                                \
-    X(vkQueueSubmit2)                                    \
-    X(vkCmdPipelineBarrier2)                             \
+    X(vkGetFenceStatus)                                  \
+    X(vkQueueSubmit)                                     \
+    X(vkCmdPipelineBarrier)                              \
     X(vkCmdClearColorImage)                              \
     X(vkCreateShaderModule)                              \
     X(vkDestroyShaderModule)                             \
     X(vkFreeCommandBuffers)                              \
-    X(vkGetSemaphoreCounterValue)                        \
-    X(vkWaitSemaphores)                                  \
     X(vkAllocateMemory)                                  \
     X(vkFreeMemory)                                      \
     X(vkMapMemory)                                       \
@@ -102,8 +101,6 @@ namespace VideoVulkan {
     X(vkGetImageMemoryRequirements)                      \
     X(vkGetBufferMemoryRequirements2)                    \
     X(vkGetImageMemoryRequirements2)                     \
-    X(vkGetDeviceBufferMemoryRequirements)               \
-    X(vkGetDeviceImageMemoryRequirements)                \
     X(vkCreateBuffer)                                    \
     X(vkDestroyBuffer)                                   \
     X(vkCreateImage)                                     \
@@ -131,18 +128,35 @@ namespace VideoVulkan {
     X(vkCmdCopyImageToBuffer)                            \
     X(vkCmdFillBuffer)                                   \
     X(vkCmdClearDepthStencilImage)                       \
-    X(vkCmdBeginRendering)                               \
-    X(vkCmdEndRendering)                                 \
     X(vkCmdBindPipeline)                                 \
     X(vkCmdBindDescriptorSets)                           \
-    X(vkCmdBindVertexBuffers2)                           \
+    X(vkCmdBindVertexBuffers)                            \
     X(vkCmdBindIndexBuffer)                              \
     X(vkCmdSetViewport)                                  \
     X(vkCmdSetScissor)                                   \
     X(vkCmdSetStencilReference)                          \
     X(vkCmdDraw)                                         \
     X(vkCmdDrawIndexed)                                  \
-    X(vkCmdPushConstants)
+    X(vkCmdPushConstants)                                \
+    X(vkCreateRenderPass)                                \
+    X(vkDestroyRenderPass)                               \
+    X(vkCreateFramebuffer)                               \
+    X(vkDestroyFramebuffer)                              \
+    X(vkCmdBeginRenderPass)                              \
+    X(vkCmdEndRenderPass)
+
+// Vulkan 1.2 / 1.3 core, resolved with vkGetDeviceProcAddr(device, ...) when the device has them: the
+// 1.3 path (device.cpp) requires every one, the 1.1 path (vulkan11.h) calls none of them.
+#define VIDEO_VULKAN_DEVICE_13_FUNCS(X)                  \
+    X(vkQueueSubmit2)                                    \
+    X(vkCmdPipelineBarrier2)                             \
+    X(vkGetSemaphoreCounterValue)                        \
+    X(vkWaitSemaphores)                                  \
+    X(vkGetDeviceBufferMemoryRequirements)               \
+    X(vkGetDeviceImageMemoryRequirements)                \
+    X(vkCmdBeginRendering)                               \
+    X(vkCmdEndRendering)                                 \
+    X(vkCmdBindVertexBuffers2)
 
 // Resolved with vkGetDeviceProcAddr(device, ...) when present: null when the device lacks the
 // extension (Caps says which were enabled). P7: VK_KHR_push_descriptor.
@@ -154,6 +168,7 @@ VIDEO_VULKAN_GLOBAL_FUNCS(VIDEO_VULKAN_DECLARE)
 VIDEO_VULKAN_INSTANCE_FUNCS(VIDEO_VULKAN_DECLARE)
 VIDEO_VULKAN_INSTANCE_EXT_FUNCS(VIDEO_VULKAN_DECLARE)
 VIDEO_VULKAN_DEVICE_FUNCS(VIDEO_VULKAN_DECLARE)
+VIDEO_VULKAN_DEVICE_13_FUNCS(VIDEO_VULKAN_DECLARE)
 VIDEO_VULKAN_DEVICE_EXT_FUNCS(VIDEO_VULKAN_DECLARE)
 #undef VIDEO_VULKAN_DECLARE
 extern PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
@@ -163,8 +178,8 @@ extern PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
 bool LoadGlobalFunctions(PFN_vkGetInstanceProcAddr getInstanceProcAddr, std::string* why);
 // Resolves the instance functions (and the optional extension ones) for `instance`.
 bool LoadInstanceFunctions(VkInstance instance, std::string* why);
-// Resolves the device functions for `device`.
-bool LoadDeviceFunctions(VkDevice device, std::string* why);
+// Resolves the device functions for `device`; with `core13`, the 1.2 / 1.3 list must resolve too.
+bool LoadDeviceFunctions(VkDevice device, bool core13, std::string* why);
 
 // A zeroed Vulkan structure with its sType set: `auto ci = Make<VkInstanceCreateInfo>(VK_STRUCTURE_TYPE_...)`.
 template <class T>

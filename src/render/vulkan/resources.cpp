@@ -6,6 +6,7 @@
 
 #include "resources.h"
 #include "device_objects.h"
+#include "vulkan11.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -30,6 +31,16 @@ VkSemaphore g_timeline = VK_NULL_HANDLE;
 // ---- submission ----
 std::mutex g_queueLock;
 uint64_t g_lastSerial = 0;   // the last serial handed out (under g_queueLock)
+
+// ---- the 1.1 path's serials (vulkan11.h): a fence per submit instead of the timeline ----
+struct SerialFence {
+    uint64_t serial = 0;
+    VkFence fence = VK_NULL_HANDLE;
+};
+std::mutex g_fenceLock;                   // taken under g_queueLock, never the other way round
+std::deque<SerialFence> g_pendingFences;  // submitted and not yet seen signalled, in serial order
+std::vector<VkFence> g_freeFences;        // reset, ready for the next submit
+uint64_t g_fenceCompleted = ~0ull;        // the highest serial seen complete (~0: no device)
 
 // ---- frames ----
 std::mutex g_frameLock;
@@ -113,7 +124,7 @@ void MemoryBarrier(VkCommandBuffer cb, VkPipelineStageFlags2 srcStage, VkAccessF
     VkDependencyInfo d = Make<VkDependencyInfo>(VK_STRUCTURE_TYPE_DEPENDENCY_INFO);
     d.memoryBarrierCount = 1;
     d.pMemoryBarriers = &b;
-    vkCmdPipelineBarrier2(cb, &d);
+    CmdPipelineBarrier2(cb, d);
 }
 
 void ImageBarrier(VkCommandBuffer cb, const GpuImage& image, VkImageLayout from, VkImageLayout to,
@@ -133,7 +144,7 @@ void ImageBarrier(VkCommandBuffer cb, const GpuImage& image, VkImageLayout from,
     VkDependencyInfo d = Make<VkDependencyInfo>(VK_STRUCTURE_TYPE_DEPENDENCY_INFO);
     d.imageMemoryBarrierCount = 1;
     d.pImageMemoryBarriers = &b;
-    vkCmdPipelineBarrier2(cb, &d);
+    CmdPipelineBarrier2(cb, d);
 }
 
 constexpr VkPipelineStageFlags2 kReadStages = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT |
@@ -323,7 +334,8 @@ bool ResourcesStartup(std::string* why) {
     ci.physicalDevice = LivePhysical();
     ci.device = Dev();
     ci.instance = LiveInstance();
-    ci.vulkanApiVersion = VK_API_VERSION_1_3;
+    // The 1.1 path (vulkan11.h): VMA keeps to the 1.1 calls (the two 1.3 ones above are null there).
+    ci.vulkanApiVersion = Vulkan11Path() ? VK_API_VERSION_1_1 : VK_API_VERSION_1_3;
     ci.pVulkanFunctions = &f;
     VkResult r = vmaCreateAllocator(&ci, &g_allocator);
     if (r != VK_SUCCESS) {
@@ -332,15 +344,20 @@ bool ResourcesStartup(std::string* why) {
         return false;
     }
 
-    auto ti = Make<VkSemaphoreTypeCreateInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO);
-    ti.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-    ti.initialValue = 0;
-    auto si = Make<VkSemaphoreCreateInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
-    si.pNext = &ti;
-    r = vkCreateSemaphore(Dev(), &si, nullptr, &g_timeline);
-    if (r != VK_SUCCESS) {
-        *why = std::string("timeline semaphore: ") + ResultName(r);
-        return false;
+    if (Vulkan11Path()) {
+        std::lock_guard<std::mutex> guard(g_fenceLock);
+        g_fenceCompleted = 0;
+    } else {
+        auto ti = Make<VkSemaphoreTypeCreateInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO);
+        ti.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+        ti.initialValue = 0;
+        auto si = Make<VkSemaphoreCreateInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
+        si.pNext = &ti;
+        r = vkCreateSemaphore(Dev(), &si, nullptr, &g_timeline);
+        if (r != VK_SUCCESS) {
+            *why = std::string("timeline semaphore: ") + ResultName(r);
+            return false;
+        }
     }
     g_lastSerial = 0;
     {
@@ -449,15 +466,103 @@ void ResourcesShutdown() {
     }
     if (g_timeline) vkDestroySemaphore(Dev(), g_timeline, nullptr);
     g_timeline = VK_NULL_HANDLE;
+    {
+        // The 1.1 path's serial fences; the device is idle, so every serial handed out is complete.
+        std::lock_guard<std::mutex> guard(g_fenceLock);
+        for (const SerialFence& s : g_pendingFences)
+            vkDestroyFence(Dev(), s.fence, nullptr);
+        g_pendingFences.clear();
+        for (VkFence fence : g_freeFences)
+            vkDestroyFence(Dev(), fence, nullptr);
+        g_freeFences.clear();
+        g_fenceCompleted = ~0ull;
+    }
     if (g_allocator) vmaDestroyAllocator(g_allocator);
     g_allocator = nullptr;
 }
 
 // ---- submission ------------------------------------------------------------------------------------
 
+namespace {
+
+// g_fenceLock held. Retires the serial fences signalled so far, in serial order.
+void RetireSignalledLocked() {
+    while (!g_pendingFences.empty()) {
+        const SerialFence s = g_pendingFences.front();
+        const VkResult r = vkGetFenceStatus(Dev(), s.fence);
+        if (r != VK_SUCCESS) {
+            NoteResult(r, "vkGetFenceStatus");
+            return;
+        }
+        g_fenceCompleted = s.serial;
+        vkResetFences(Dev(), 1, &s.fence);
+        g_freeFences.push_back(s.fence);
+        g_pendingFences.pop_front();
+    }
+}
+
+// The 1.1 path's SubmitCommands (g_queueLock held): vkQueueSubmit signalling the serial's own fence. A
+// caller's fence is signalled by an empty submit right after it (vkQueueSubmit takes one fence; an empty
+// submit's fence signals once everything submitted before it completed).
+uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait, VkSemaphore signal,
+                          VkFence fence, uint64_t serial) {
+    VkFence serialFence = VK_NULL_HANDLE;
+    {
+        std::lock_guard<std::mutex> guard(g_fenceLock);
+        if (!g_freeFences.empty()) {
+            serialFence = g_freeFences.back();
+            g_freeFences.pop_back();
+        }
+    }
+    if (!serialFence) {
+        auto fi = Make<VkFenceCreateInfo>(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO);
+        const VkResult r = vkCreateFence(Dev(), &fi, nullptr, &serialFence);
+        if (r != VK_SUCCESS) {
+            std::fprintf(stderr, "[Vulkan] serial fence: %s\n", ResultName(r));
+            return 0;
+        }
+    }
+    const VkPipelineStageFlags waitStage = wait ? StageFlags1(wait->stageMask, false) : 0;
+    auto si = Make<VkSubmitInfo>(VK_STRUCTURE_TYPE_SUBMIT_INFO);
+    si.waitSemaphoreCount = wait ? 1 : 0;
+    si.pWaitSemaphores = wait ? &wait->semaphore : nullptr;
+    si.pWaitDstStageMask = wait ? &waitStage : nullptr;
+    si.commandBufferCount = cb ? 1 : 0;
+    si.pCommandBuffers = cb ? &cb : nullptr;
+    si.signalSemaphoreCount = signal ? 1 : 0;
+    si.pSignalSemaphores = signal ? &signal : nullptr;
+    VkResult r = vkQueueSubmit(LiveQueue(), 1, &si, serialFence);
+    if (r != VK_SUCCESS) {
+        std::fprintf(stderr, "[Vulkan] vkQueueSubmit: %s\n", ResultName(r));
+        NoteResult(r, "vkQueueSubmit");
+        std::lock_guard<std::mutex> guard(g_fenceLock);
+        g_freeFences.push_back(serialFence);
+        return 0;
+    }
+    {
+        std::lock_guard<std::mutex> guard(g_fenceLock);
+        g_pendingFences.push_back({ serial, serialFence });
+    }
+    if (fence) {
+        r = vkQueueSubmit(LiveQueue(), 0, nullptr, fence);
+        if (r != VK_SUCCESS) {
+            std::fprintf(stderr, "[Vulkan] vkQueueSubmit (fence): %s\n", ResultName(r));
+            NoteResult(r, "vkQueueSubmit");
+        }
+    }
+    return serial;
+}
+
+}  // namespace
+
 uint64_t SubmitCommands(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait, VkSemaphore signal, VkFence fence) {
     std::lock_guard<std::mutex> guard(g_queueLock);
     const uint64_t serial = g_lastSerial + 1;
+    if (Vulkan11Path()) {
+        if (SubmitCommands11(cb, wait, signal, fence, serial) == 0) return 0;
+        g_lastSerial = serial;
+        return serial;
+    }
     VkSemaphoreSubmitInfo signals[2];
     signals[0] = Make<VkSemaphoreSubmitInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO);
     signals[0].semaphore = g_timeline;
@@ -495,6 +600,11 @@ VkResult PresentQueue(const VkPresentInfoKHR& info) {
 }
 
 uint64_t CompletedSerial() {
+    if (Vulkan11Path()) {
+        std::lock_guard<std::mutex> guard(g_fenceLock);
+        RetireSignalledLocked();
+        return g_fenceCompleted;
+    }
     if (!g_timeline) return ~0ull;
     uint64_t value = 0;
     vkGetSemaphoreCounterValue(Dev(), g_timeline, &value);
@@ -502,7 +612,19 @@ uint64_t CompletedSerial() {
 }
 
 void WaitSerial(uint64_t serial) {
-    if (!g_timeline || serial == 0) return;
+    if (serial == 0) return;
+    if (Vulkan11Path()) {
+        // Under the fence lock: a fence being waited on is never reset by a concurrent retire.
+        std::lock_guard<std::mutex> guard(g_fenceLock);
+        for (const SerialFence& s : g_pendingFences) {
+            if (s.serial < serial) continue;
+            NoteResult(vkWaitForFences(Dev(), 1, &s.fence, VK_TRUE, UINT64_MAX), "vkWaitForFences");
+            break;
+        }
+        RetireSignalledLocked();
+        return;
+    }
+    if (!g_timeline) return;
     auto wi = Make<VkSemaphoreWaitInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO);
     wi.semaphoreCount = 1;
     wi.pSemaphores = &g_timeline;
@@ -883,7 +1005,7 @@ void FlushBarriers(VkCommandBuffer cb, std::vector<VkImageMemoryBarrier2>* barri
     VkDependencyInfo d = Make<VkDependencyInfo>(VK_STRUCTURE_TYPE_DEPENDENCY_INFO);
     d.imageMemoryBarrierCount = static_cast<uint32_t>(barriers->size());
     d.pImageMemoryBarriers = barriers->data();
-    vkCmdPipelineBarrier2(cb, &d);
+    CmdPipelineBarrier2(cb, d);
     barriers->clear();
 }
 

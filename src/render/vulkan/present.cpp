@@ -10,8 +10,12 @@
 #include "device_objects.h"
 #include "present/present_spirv.h"
 #include "resources.h"
+#include "spirv_legalize.h"
+#include "vulkan11.h"
 
 #include <cstdio>
+#include <string>
+#include <vector>
 
 namespace VideoVulkan {
 
@@ -61,6 +65,19 @@ bool Fail(std::string* why, const char* what, VkResult r) {
 }
 
 VkShaderModule MakeModule(const uint32_t* words, size_t bytes, VkResult* r) {
+    // glslc wrote SPIR-V 1.6; the 1.1 path takes 1.3 (spirv_legalize.h).
+    std::vector<uint32_t> downgraded;
+    if (Vulkan11Path()) {
+        downgraded.assign(words, words + bytes / sizeof(uint32_t));
+        std::string why;
+        if (!Shaders::DowngradeSpirv(&downgraded, &why)) {
+            std::fprintf(stderr, "[Vulkan] present pass: %s\n", why.c_str());
+            *r = VK_ERROR_INITIALIZATION_FAILED;
+            return VK_NULL_HANDLE;
+        }
+        words = downgraded.data();
+        bytes = downgraded.size() * sizeof(uint32_t);
+    }
     VkShaderModuleCreateInfo ci = Make<VkShaderModuleCreateInfo>(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO);
     ci.codeSize = bytes;
     ci.pCode = words;
@@ -116,7 +133,6 @@ bool MakePipeline(VkFormat format, std::string* why) {
     rendering.pColorAttachmentFormats = &format;
 
     auto ci = Make<VkGraphicsPipelineCreateInfo>(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
-    ci.pNext = &rendering;
     ci.stageCount = 2;
     ci.pStages = stages;
     ci.pVertexInputState = &vertexInput;
@@ -126,6 +142,7 @@ bool MakePipeline(VkFormat format, std::string* why) {
     ci.pMultisampleState = &multisample;
     ci.pColorBlendState = &blend;
     ci.pDynamicState = &dynamic;
+    SetPipelineTargets(&ci, &rendering);
     ci.layout = g_layout;
     const VkResult r = vkCreateGraphicsPipelines(LiveDevice(), VK_NULL_HANDLE, 1, &ci, nullptr, &g_pipeline);
     if (r != VK_SUCCESS) {
@@ -293,7 +310,7 @@ void PresentRecord(VkCommandBuffer cb, VkImage swapImage, VkImageView swapView, 
     ri.layerCount = 1;
     ri.colorAttachmentCount = 1;
     ri.pColorAttachments = &color;
-    vkCmdBeginRendering(cb, &ri);
+    CmdBeginRendering(cb, ri, &g_pipelineFormat, VK_FORMAT_UNDEFINED, VK_SAMPLE_COUNT_1_BIT);
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline);
     vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, g_layout, 0, 1, &g_set, 0, nullptr);
     const Transform t = InverseOf(g_transform);
@@ -306,7 +323,7 @@ void PresentRecord(VkCommandBuffer cb, VkImage swapImage, VkImageView swapView, 
     const VkRect2D scissor{ { 0, 0 }, swapExtent };
     vkCmdSetScissor(cb, 0, 1, &scissor);
     vkCmdDraw(cb, 3, 1, 0, 0);
-    vkCmdEndRendering(cb);
+    CmdEndRendering(cb);
     g_sourceRead = true;
 }
 

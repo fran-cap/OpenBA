@@ -29,6 +29,9 @@ constexpr unsigned kSwapchainImages = 3;
 // What the instance / device creation found out, for the log line and the later phases.
 struct Caps {
     uint32_t apiVersion = 0;
+    // THE 1.1 PATH (vulkan11.h): the device lacks dynamic rendering, synchronization2 or timeline
+    // semaphores (1.3 core features), so render passes, vkCmdPipelineBarrier, fence serials and SPIR-V 1.3.
+    bool vulkan11 = false;
     bool debugUtils = false;             // VK_EXT_debug_utils on the instance
     bool validation = false;             // VK_LAYER_KHRONOS_validation enabled
     bool pushDescriptor = false;         // VK_KHR_push_descriptor
