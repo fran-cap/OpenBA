@@ -87,6 +87,7 @@
 #include "save/SaveLoad.h"
 #include "Game/GameUpdateLoop.h"
 #include "frame_limiter.h"     // src/app: FrameLimiter::TickInGame (the in-game frame cap)
+#include "platform_perf_hint.h"   // Platform::PerfHint: the render thread's performance hint session (Android P12)
 #include "Game/Minimap.h"
 #include "Game/PlayerController.h"
 #include "Entity/ComponentEntity.h"   // PlayerToolManager.h instantiates InternalPtr<ComponentEntity>::Get
@@ -494,7 +495,10 @@ struct EngineHost {
         StressHarness_PipeEmitBegin();
         EngineOps ops{ *loop, ctx, handoff, start };
         ops.check = check;
+        // The render thread's frame work for its performance hint session (a no-op off Android).
+        if (threaded) Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Render);
         Ext::RenderPipe::Emit(ops, p);
+        if (threaded) Platform::PerfHint::WorkEnd(Platform::PerfHint::Role::Render);
         StressHarness_PipeEmitEnd();
 
         res.failed = ops.failed;
@@ -545,7 +549,12 @@ public:
     // stack; give it a main-thread-sized stack, not the pool's 64 KB.
     RenderThread() : System::Thread(0x100000) {}
     ~RenderThread() = default;
-    void Run() override { g_driver.WorkerLoop(g_host); }
+    // P12: the thread's performance hint session lives as long as the thread (platform_perf_hint.h).
+    void Run() override {
+        Platform::PerfHint::AttachThread(Platform::PerfHint::Role::Render);
+        g_driver.WorkerLoop(g_host);
+        Platform::PerfHint::DetachThread(Platform::PerfHint::Role::Render);
+    }
 };
 RenderThread* g_thread = nullptr;
 

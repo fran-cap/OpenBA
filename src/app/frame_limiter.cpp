@@ -8,6 +8,7 @@
 
 #include "platform_window.h"   // Platform::Window::GetCurrentDisplayRefreshHz (SDL W4)
 #include "platform_window_hooks.h"   // Platform::Window::SetPreferredFrameRate (Android P12)
+#include "platform_perf_hint.h"   // Platform::PerfHint: the main thread's performance hint session (Android P12)
 #include "platform_thread.h"   // Platform::SleepMs
 #include "platform_time.h"     // Platform::PerfCounter / PerfFrequency / WaitTimer* / CpuRelax
 #include <cstdio>
@@ -68,6 +69,9 @@ void Init() {
     Platform::PerfFrequency(&f);  // QueryPerformanceFrequency
     g_qpcFreq = f;
 
+    // P12: this (the main) thread's performance hint session; a no-op off Android (platform_perf_hint.h).
+    Platform::PerfHint::AttachThread(Platform::PerfHint::Role::Main);
+
     // --- The harness flag ---
     if (const char* capEnv = Opt().fpsCap) {
         if (rtcrt::StrICmp(capEnv, "off") == 0 || rtcrt::StrICmp(capEnv, "false") == 0) {
@@ -112,6 +116,8 @@ void SetCeiling(double fps, bool menu) {
     g_havePrev = false;
     // P12: the display is told the rate too (a no-op off Android, platform_window_hooks.h).
     if (logIt) Platform::Window::SetPreferredFrameRate(fps > 0.0 ? static_cast<float>(fps) : 0.0f);
+    // ... and the performance hint sessions their frame budget (0 = none).
+    Platform::PerfHint::SetTarget(fps > 0.0 ? static_cast<int64_t>(1.0e9 / fps) : 0);
     if (fps <= 0.0) {
         if (logIt) {
             fprintf(stderr, "[FrameLimiter] %s: not paced\n", menu ? "menu" : "game");
@@ -181,8 +187,12 @@ void Pace(bool menu) {
         g_lastFrameTick  = now;
         g_fpsWindowStart = now;
         g_fpsFrameCount  = 0;
+        Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Main);
         return;
     }
+
+    // The frame's work on this thread ends here; the wait below is not work.
+    Platform::PerfHint::WorkEnd(Platform::PerfHint::Role::Main);
 
     int64_t deadline = g_lastFrameTick + g_intervalTicks;
 
@@ -190,6 +200,7 @@ void Pace(bool menu) {
         WaitUntil(deadline);
         now = QpcNow();
     }
+    Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Main);
 
     // Advance the cadence. If we fell behind by more than one full interval
     // (breakpoint, alt-tab, a long hitch), resync to `now` instead of trying
