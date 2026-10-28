@@ -1072,6 +1072,17 @@ purpose or not yet closed, as of P6 (2026-10-25).
   lifecycle watch in `device.cpp`). Verified on the S25: the file's mtime is the second of the HOME
   key press (`[Vulkan] pipeline cache: 355893 bytes written`). A kill while in the foreground (recents
   swipe of the running app, `am force-stop`) still keeps the file of the last background or quit.
+- **The Vulkan 1.1 path (P13, the Galaxy S10) differs from the 1.3 path in three places.** (1) D3D's
+  `discard` is `OpKill`, not a demote to a helper invocation (`spirv_legalize.h`): a killed pixel stops,
+  so a derivative its quad neighbours take after the discard is undefined. No retail permutation was
+  seen to break on it (all 465 downgrade and validate; the S10 town and menu look right), but it is
+  not the 1.3 meaning. (2) ext.ambient_occlusion reports not supported there. (3) The tiler MSAA
+  (multisampled-render-to-single-sampled) is never used. Verified on the S10 (Android 12, Adreno 640,
+  driver 1.1.128): debug and release apks boot to a new game and quit cleanly; the validation layer
+  (1.4.363) reports 0 errors.
+- **No `textureCompressionBC` (the S10): BC1 / BC3 decoded to RGBA8 at load.** 4x (BC3) or 8x (BC1)
+  the texture memory, and the decode on the load path (`src/render/common/bc_decode/`). A transcode to
+  ETC2 / ASTC would keep the size; not done.
 
 ## 15. `ResourceLimitUI` accepted a config's resource index only below 11 — FIXED
 

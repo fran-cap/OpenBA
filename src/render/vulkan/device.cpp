@@ -18,9 +18,12 @@
 // recursive) is taken in BeginCommands and dropped in Finish before the present, the DX11
 // order. CreateDevice / Shutdown run on the main thread inside Engine::Startup / shutdown.
 //
-// Vulkan floor (PLAN.md §4.1): 1.3 core with dynamicRendering and synchronization2, plus
-// VK_KHR_swapchain. Nothing else is required; what is merely used when present is probed
-// here and recorded in `caps`.
+// Vulkan floor (PLAN.md §4.1): 1.1 with VK_KHR_swapchain and the Vulkan memory model (core in 1.2,
+// VK_KHR_vulkan_memory_model before; the converted shaders declare it). A device with 1.3's
+// dynamicRendering, synchronization2 and timelineSemaphore takes the 1.3 path, the one the backend is
+// written for; one without any of them takes THE 1.1 PATH (vulkan11.h: render passes, vkCmdPipelineBarrier,
+// fence serials, baked vertex strides, SPIR-V 1.3), chosen here from the caps. Nothing else is required;
+// what is merely used when present is probed here and recorded in `caps`.
 // ============================================================================
 
 #include "VideoVulkanData.h"
@@ -29,6 +32,8 @@
 #include "present.h"
 #include "pipelines.h"
 #include "resources.h"
+#include "spirv_legalize.h"
+#include "vulkan11.h"
 #include "vulkan_entry.h"
 #include "ao/assao_pass.h"                         // P4: ext.ambient_occlusion's pass objects
 #include "async_gpu_create/async_create.h"         // P4: ext.async_gpu_create (the loader bracket)
@@ -87,6 +92,7 @@ struct Frame {
 };
 
 VkInstance instance = VK_NULL_HANDLE;
+uint32_t instanceVersion = 0;   // the instance's apiVersion: the loader's, at most 1.3
 VkDebugUtilsMessengerEXT messenger = VK_NULL_HANDLE;
 std::vector<VkPhysicalDevice> physicalDevices;   // the adapters Enumerate listed, in order
 VkPhysicalDevice physical = VK_NULL_HANDLE;
@@ -233,8 +239,8 @@ bool EnsureInstance(std::string* why) {
 
     uint32_t loaderVersion = VK_API_VERSION_1_0;
     vkEnumerateInstanceVersion(&loaderVersion);
-    if (loaderVersion < VK_API_VERSION_1_3) {
-        *why = "the Vulkan loader is older than 1.3";
+    if (loaderVersion < VK_API_VERSION_1_1) {
+        *why = "the Vulkan loader is older than 1.1";
         return false;
     }
 
@@ -273,7 +279,9 @@ bool EnsureInstance(std::string* why) {
     app.applicationVersion = 1;
     app.pEngineName = "OpenBA";
     app.engineVersion = 1;
-    app.apiVersion = VK_API_VERSION_1_3;
+    // The highest version the backend uses, as far as the loader goes (Android 12's loader is 1.1).
+    instanceVersion = std::min<uint32_t>(loaderVersion, VK_API_VERSION_1_3);
+    app.apiVersion = instanceVersion;
     VkInstanceCreateInfo ci = Make<VkInstanceCreateInfo>(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO);
     ci.pApplicationInfo = &app;
     ci.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
@@ -756,9 +764,17 @@ VkShaderModule CreateShaderModule(const std::vector<uint32_t>& spirv, std::strin
         if (why) *why = "no live device";
         return VK_NULL_HANDLE;
     }
+    // The 1.1 path takes SPIR-V 1.3 (spirv_legalize.h DowngradeSpirv): the cache keeps the 1.6 module.
+    const std::vector<uint32_t>* code = &spirv;
+    std::vector<uint32_t> downgraded;
+    if (Vulkan11Path()) {
+        downgraded = spirv;
+        if (!Shaders::DowngradeSpirv(&downgraded, why)) return VK_NULL_HANDLE;
+        code = &downgraded;
+    }
     auto ci = Make<VkShaderModuleCreateInfo>(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO);
-    ci.codeSize = spirv.size() * sizeof(uint32_t);
-    ci.pCode = spirv.data();
+    ci.codeSize = code->size() * sizeof(uint32_t);
+    ci.pCode = code->data();
     VkShaderModule module = VK_NULL_HANDLE;
     const VkResult r = vkCreateShaderModule(device, &ci, nullptr, &module);
     if (r != VK_SUCCESS) {
@@ -865,14 +881,18 @@ bool DeviceData::CreateDevice() {
     physical = physicalDevices[static_cast<size_t>(adapterIndex)];
     vkGetPhysicalDeviceProperties(physical, &deviceProperties);
     caps.apiVersion = deviceProperties.apiVersion;
-    if (deviceProperties.apiVersion < VK_API_VERSION_1_3) {
+    // The version the device is used at: its own, capped by the instance's.
+    const uint32_t usable = std::min(deviceProperties.apiVersion, instanceVersion);
+    if (usable < VK_API_VERSION_1_1) {
         return Fail(std::string("Vulkan: ") + deviceProperties.deviceName + " reports Vulkan " +
                     std::to_string(VK_API_VERSION_MAJOR(deviceProperties.apiVersion)) + "." +
                     std::to_string(VK_API_VERSION_MINOR(deviceProperties.apiVersion)) +
-                    "; OpenBA's Vulkan renderer needs 1.3");
+                    "; OpenBA's Vulkan renderer needs 1.1");
     }
 
-    // 2 -- the floor: dynamic rendering and synchronization2 (1.3 core features, still optional bits).
+    // 2 -- the path. The 1.3 path needs dynamic rendering, synchronization2 and timeline semaphores (1.3
+    // core features, still optional bits); a device without them takes the 1.1 path (vulkan11.h). The
+    // 1.2 / 1.3 feature structures are valid only on a device used at 1.3, so a 1.1 device leaves them 0.
     auto have13 = Make<VkPhysicalDeviceVulkan13Features>(
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES);
     auto have12 = Make<VkPhysicalDeviceVulkan12Features>(
@@ -883,14 +903,39 @@ bool DeviceData::CreateDevice() {
     have12.pNext = &have11;
     auto have2 = Make<VkPhysicalDeviceFeatures2>(
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
-    have2.pNext = &have13;
+    if (usable >= VK_API_VERSION_1_3) have2.pNext = &have13;
     vkGetPhysicalDeviceFeatures2(physical, &have2);
-    if (!have13.dynamicRendering || !have13.synchronization2) {
-        return Fail("Vulkan: the driver lacks dynamicRendering or synchronization2 (Vulkan 1.3 core)");
+    caps.vulkan11 = !have13.dynamicRendering || !have13.synchronization2 || !have12.timelineSemaphore;
+    // The 1.1 path's own needs, from the 1.1-valid structures: the Vulkan memory model (every converted
+    // module declares it: core in 1.2, VK_KHR_vulkan_memory_model before), shaderDrawParameters, and,
+    // when present, bufferDeviceAddress (modules declare PhysicalStorageBufferAddresses; core in 1.2,
+    // VK_KHR_buffer_device_address before).
+    auto haveDraw = Make<VkPhysicalDeviceShaderDrawParametersFeatures>(
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES);
+    auto haveMemoryModel = Make<VkPhysicalDeviceVulkanMemoryModelFeatures>(
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES);
+    auto haveAddress = Make<VkPhysicalDeviceBufferDeviceAddressFeatures>(
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES);
+    const bool memoryModelExtension = caps.vulkan11 && usable < VK_API_VERSION_1_2 &&
+                                      HasDeviceExtension(physical, VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME);
+    const bool addressExtension = caps.vulkan11 && usable < VK_API_VERSION_1_2 &&
+                                  HasDeviceExtension(physical, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+    if (caps.vulkan11) {
+        auto probe = Make<VkPhysicalDeviceFeatures2>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
+        probe.pNext = &haveDraw;
+        void** next = &haveDraw.pNext;
+        if (memoryModelExtension || usable >= VK_API_VERSION_1_2) {
+            *next = &haveMemoryModel;
+            next = &haveMemoryModel.pNext;
+        }
+        if (addressExtension || usable >= VK_API_VERSION_1_2) *next = &haveAddress;
+        vkGetPhysicalDeviceFeatures2(physical, &probe);
+        if (!haveMemoryModel.vulkanMemoryModel) {
+            return Fail("Vulkan: the device lacks the Vulkan memory model (VK_KHR_vulkan_memory_model), which "
+                        "the converted shaders declare");
+        }
     }
-    if (!have12.timelineSemaphore) {
-        return Fail("Vulkan: the driver lacks timelineSemaphore (Vulkan 1.2 core)");
-    }
+    SetVulkan11Path(caps.vulkan11);
     if (!HasDeviceExtension(physical, VK_KHR_SWAPCHAIN_EXTENSION_NAME)) {
         return Fail("Vulkan: the device has no VK_KHR_swapchain");
     }
@@ -913,7 +958,10 @@ bool DeviceData::CreateDevice() {
         vkGetPhysicalDeviceFormatProperties(physical, VK_FORMAT_D24_UNORM_S8_UINT, &fp);
         caps.d24s8 = (fp.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0;
     }
-    if (HasDeviceExtension(physical, VK_EXT_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_EXTENSION_NAME)) {
+    caps.msrtss = false;
+    // Not on the 1.1 path: its render passes have no VkMultisampledRenderToSingleSampledInfoEXT.
+    if (!caps.vulkan11 &&
+        HasDeviceExtension(physical, VK_EXT_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_EXTENSION_NAME)) {
         auto msrtss = Make<VkPhysicalDeviceMultisampledRenderToSingleSampledFeaturesEXT>(
             VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_FEATURES_EXT);
         auto probe = Make<VkPhysicalDeviceFeatures2>(VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
@@ -1016,6 +1064,10 @@ bool DeviceData::CreateDevice() {
     // state, and Qualcomm's Adreno guidance is to leave it off (docs/android/PERF_P7.md §2 row 11).
     if (caps.extendedDynamicState2) extensions.push_back(VK_EXT_EXTENDED_DYNAMIC_STATE_2_EXTENSION_NAME);
     if (caps.msrtss) extensions.push_back(VK_EXT_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_EXTENSION_NAME);
+    if (memoryModelExtension) extensions.push_back(VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME);
+    if (addressExtension && haveAddress.bufferDeviceAddress) {
+        extensions.push_back(VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME);
+    }
     auto want13 = Make<VkPhysicalDeviceVulkan13Features>(
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES);
     want13.dynamicRendering = VK_TRUE;
@@ -1042,7 +1094,24 @@ bool DeviceData::CreateDevice() {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTISAMPLED_RENDER_TO_SINGLE_SAMPLED_FEATURES_EXT);
     wantMsrtss.multisampledRenderToSingleSampled = VK_TRUE;
     want12.pNext = &want11;
-    void** tail = &want11.pNext;
+    // The 1.1 path chains the 1.1-valid structures instead of the 1.1 / 1.2 / 1.3 ones (which a device
+    // used at 1.1 does not know, and which may not be chained together with these).
+    auto wantDraw = Make<VkPhysicalDeviceShaderDrawParametersFeatures>(
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES);
+    wantDraw.shaderDrawParameters = haveDraw.shaderDrawParameters;
+    auto wantMemoryModel = Make<VkPhysicalDeviceVulkanMemoryModelFeatures>(
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES);
+    wantMemoryModel.vulkanMemoryModel = VK_TRUE;
+    wantMemoryModel.vulkanMemoryModelDeviceScope = haveMemoryModel.vulkanMemoryModelDeviceScope;
+    wantDraw.pNext = &wantMemoryModel;
+    auto wantAddress = Make<VkPhysicalDeviceBufferDeviceAddressFeatures>(
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES);
+    wantAddress.bufferDeviceAddress = VK_TRUE;
+    void** tail = caps.vulkan11 ? &wantMemoryModel.pNext : &want11.pNext;
+    if (caps.vulkan11 && haveAddress.bufferDeviceAddress) {
+        *tail = &wantAddress;
+        tail = &wantAddress.pNext;
+    }
     if (caps.extendedDynamicState2) {
         *tail = &wantEds2;
         tail = &wantEds2.pNext;
@@ -1053,7 +1122,7 @@ bool DeviceData::CreateDevice() {
     }
     auto want2 = Make<VkPhysicalDeviceFeatures2>(
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2);
-    want2.pNext = &want13;
+    want2.pNext = caps.vulkan11 ? static_cast<void*>(&wantDraw) : static_cast<void*>(&want13);
     want2.features.samplerAnisotropy = have2.features.samplerAnisotropy;
     want2.features.textureCompressionBC = have2.features.textureCompressionBC;
     want2.features.fillModeNonSolid = have2.features.fillModeNonSolid;
@@ -1074,7 +1143,7 @@ bool DeviceData::CreateDevice() {
         device = VK_NULL_HANDLE;
         return Fail(std::string("Vulkan: vkCreateDevice: ") + ResultName(r));
     }
-    if (!LoadDeviceFunctions(device, &why)) return Fail("Vulkan: " + why);
+    if (!LoadDeviceFunctions(device, !caps.vulkan11, &why)) return Fail("Vulkan: " + why);
     vkGetDeviceQueue(device, graphicsFamily, 0, &queue);
     StallDebug::Mark("  Vulkan vkCreateDevice");
 
@@ -1110,12 +1179,14 @@ bool DeviceData::CreateDevice() {
     CreateOnDemand::Resume();
 
     std::fprintf(stderr,
-                 "[Vulkan] device %s (%s) api %u.%u.%u driver 0x%x created; push_descriptor=%d (max %u) "
+                 "[Vulkan] device %s (%s) api %u.%u.%u driver 0x%x created; path %s; push_descriptor=%d (max %u) "
                  "vertex_input_dynamic=%d (not enabled) eds2=%d load_store_none=%d d24s8=%d msrtss=%d validation=%d "
                  "ao=%d/%d/%d; multisample %ux\n",
                  deviceProperties.deviceName, DeviceTypeName(deviceProperties.deviceType),
                  VK_API_VERSION_MAJOR(caps.apiVersion), VK_API_VERSION_MINOR(caps.apiVersion),
-                 VK_API_VERSION_PATCH(caps.apiVersion), deviceProperties.driverVersion, caps.pushDescriptor,
+                 VK_API_VERSION_PATCH(caps.apiVersion), deviceProperties.driverVersion,
+                 caps.vulkan11 ? "1.1 (render passes, pipeline barriers, fence serials, SPIR-V 1.3)" : "1.3",
+                 caps.pushDescriptor,
                  caps.maxPushDescriptors, caps.vertexInputDynamicState, caps.extendedDynamicState2, caps.loadStoreOpNone, caps.d24s8,
                  caps.msrtss, caps.validation, caps.fragmentStores, caps.storageWriteWithoutFormat, caps.aoFormats,
                  mainSamples);
@@ -1140,6 +1211,7 @@ void DeviceData::Shutdown() {
             DrawShutdown();
             PipelinesShutdown();
             ResourcesShutdown();
+            Vulkan11Shutdown();   // the 1.1 path's render passes (its framebuffers went with the retire queue)
             resourcesUp = false;
         }
         DestroySwapchainObjects();

@@ -14,6 +14,8 @@
 // SUBMISSION. One graphics queue, one timeline semaphore. Every vkQueueSubmit2 of the backend goes
 // through SubmitCommands, under the queue lock, and signals the timeline with the next SERIAL; a
 // serial is complete when the timeline's counter reached it. vkQueuePresentKHR takes the same lock.
+// The 1.1 path (vulkan11.h) has no timeline: each submit is a vkQueueSubmit signalling a fence of its
+// own, and a serial is complete when its fence is signalled (the fences are retired in serial order).
 //
 // THE UPLOAD BATCH. Creates and updates that need a copy (Create with initial data, SetData, a
 // texture's levels, ImageBuffer::Update) are recorded into one open command buffer with its own
@@ -157,9 +159,9 @@ struct ImageState {
     VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 };
 // Appends the barrier that moves `state` to `layout` (stages and accesses derived from the two
-// layouts; synchronization2) to `out`, and records the new layout. A move between two equal attachment
-// or transfer-write layouts still emits a memory dependency (two passes writing one attachment); an
-// equal read-only layout emits nothing.
+// layouts; synchronization2, folded onto vkCmdPipelineBarrier on the 1.1 path) to `out`, and records the
+// new layout. A move between two equal attachment or transfer-write layouts still emits a memory
+// dependency (two passes writing one attachment); an equal read-only layout emits nothing.
 void TransitionImage(ImageState& state, VkImageLayout layout, std::vector<VkImageMemoryBarrier2>* out);
 // Issues the collected barriers in one vkCmdPipelineBarrier2 and empties the list.
 void FlushBarriers(VkCommandBuffer cb, std::vector<VkImageMemoryBarrier2>* barriers);

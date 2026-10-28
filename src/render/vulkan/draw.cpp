@@ -14,6 +14,7 @@
 #include "present.h"
 #include "pipelines.h"
 #include "resources.h"
+#include "vulkan11.h"
 #include "create_on_demand/lazy_create.h"   // P4: ext.create_on_demand's use gate around a draw
 
 #include "video/Buffers.h"
@@ -510,7 +511,7 @@ bool ResolveTarget(const Video::RenderBuffer* rb, Target* t) {
 
 void EndPass() {
     if (!g_frame.passActive) return;
-    vkCmdEndRendering(g_frame.target.cb);
+    CmdEndRendering(g_frame.target.cb);
     g_frame.passActive = false;
 }
 
@@ -613,7 +614,7 @@ bool BeginPass(const Target& t) {
     ri.pColorAttachments = t.color ? &color : nullptr;
     ri.pDepthAttachment = t.depth ? &depth : nullptr;
     ri.pStencilAttachment = hasStencil ? &stencil : nullptr;
-    vkCmdBeginRendering(cb, &ri);
+    CmdBeginRendering(cb, ri, &t.colorFormat, t.depthFormat, static_cast<VkSampleCountFlagBits>(t.samples));
     g_frame.passActive = true;
     g_frame.pass = t;
     g_clear = PendingClear{};
@@ -1108,11 +1109,31 @@ void BindStreams(VkCommandBuffer cb) {
         std::memcmp(strides, g_frame.vstrides, sizeof(VkDeviceSize) * last) == 0) {
         return;
     }
-    vkCmdBindVertexBuffers2(cb, 0, last, buffers, offsets, nullptr, strides);
+    CmdBindVertexBuffers2(cb, 0, last, buffers, offsets, strides);
     std::memcpy(g_frame.vbuffers, buffers, sizeof(buffers));
     std::memcpy(g_frame.voffsets, offsets, sizeof(offsets));
     std::memcpy(g_frame.vstrides, strides, sizeof(strides));
     g_frame.vbuffersSet = true;
+}
+
+// The 1.1 path (vulkan11.h): no dynamic vertex strides, so the pipeline key carries what BindStreams
+// binds (0 for a stream with no buffer: it reads the zero buffer's first element). False, the draw
+// skipped, for a stride the key cannot hold (stream 8 or later, or past 255 bytes).
+bool KeyStrides(PipelineKey* key) {
+    const uint32_t mask = g_bound.layout ? g_bound.layout->streamMask : 0;
+    for (uint32_t i = 0; i < kStreams; ++i) {
+        if (!((mask >> i) & 1)) continue;
+        const StreamBinding& s = g_bound.streams[i];
+        const uint32_t stride = BufferOf(s.vb) ? s.stride : 0;
+        if (stride == 0) continue;
+        if (i >= sizeof(key->strides) || stride > 255) {
+            LogOnce(32, "1.1 path: a vertex stride the pipeline key cannot hold (stream 8+ or over 255 "
+                        "bytes): its draws are skipped");
+            return false;
+        }
+        key->strides[i] = static_cast<uint8_t>(stride);
+    }
+    return true;
 }
 
 // The render-state block D3D11 uses with no state bound (the default blend / depth / raster states).
@@ -1212,6 +1233,10 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
     key.samples = static_cast<uint8_t>(g_frame.pass.samples);
     key.msrtss = g_frame.pass.msrtss ? 1 : 0;
     key.linked = g_frame.lastValid ? g_frame.lastKey.linked : 0;
+    if (Vulkan11Path() && !KeyStrides(&key)) {
+        ++g_frame.failedDraws;
+        return;
+    }
     VkPipeline pipeline = VK_NULL_HANDLE;
     const PairLayout* pair = nullptr;
     if (g_frame.lastValid && std::memcmp(&key, &g_frame.lastKey, sizeof(PipelineKey)) == 0) {
@@ -1643,7 +1668,7 @@ bool DrawReadImage(ImageBufferData* image, void* dst, int width, int height) {
         FlushBarriers(cb, &g_barriers);
         vkCmdCopyImageToBuffer(cb, image->image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1,
                                &region);
-        vkCmdPipelineBarrier2(cb, &hostDep);
+        CmdPipelineBarrier2(cb, hostDep);
         g_frame.target.cb = SubmitFrameSoFar();
         ResetCommandState();
         g_discard.Note(StructureToken(&image->state, 'Q'));
@@ -1667,7 +1692,7 @@ bool DrawReadImage(ImageBufferData* image, void* dst, int width, int height) {
         FlushBarriers(cb, &g_barriers);
         vkCmdCopyImageToBuffer(cb, image->image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1,
                                &region);
-        vkCmdPipelineBarrier2(cb, &hostDep);
+        CmdPipelineBarrier2(cb, hostDep);
         if (was != VK_IMAGE_LAYOUT_UNDEFINED) TransitionImage(image->state, was, &g_barriers);
         FlushBarriers(cb, &g_barriers);
         vkEndCommandBuffer(cb);
@@ -1912,7 +1937,7 @@ bool DrawAoBegin(AoTargets* out) {
         auto dep = Make<VkDependencyInfo>(VK_STRUCTURE_TYPE_DEPENDENCY_INFO);
         dep.memoryBarrierCount = 1;
         dep.pMemoryBarriers = &resolved;
-        vkCmdPipelineBarrier2(g_frame.target.cb, &dep);
+        CmdPipelineBarrier2(g_frame.target.cb, dep);
     }
     TransitionImage(g_main.depthState, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &g_barriers);
     FlushBarriers(g_frame.target.cb, &g_barriers);
