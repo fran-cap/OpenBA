@@ -75,11 +75,17 @@ uint32_t DynamicConstantBuffers();
 //     moves to another chunk) and bound with its dynamic offsets.
 // Measured on the S25: the descriptor work was 37-42% of the render thread on the 40-binding layouts
 // (docs/android/PERF_P7.md §3.3). Without the extension the one-layout path above stays.
+// P13, THE 1.1 PATH's PIXEL SET (docs/android/P13_CPU.md): on a device without Vulkan 1.3 (vulkan11.h)
+// set 1 is a pool set like set 0 (constant buffers UNIFORM_BUFFER_DYNAMIC, found again by its contents,
+// bound with the ring offsets): the S10's Adreno 640 driver prices a push at ~2.8 us and a bind at
+// almost nothing. The 1.3 path keeps the push (P7 measured the opposite trade on the S25's 1.3 driver).
+// A pair whose two stages' constant buffers exceed maxDescriptorSetUniformBuffersDynamic pushes.
 struct PairLayout {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkDescriptorSetLayout vertexSet = VK_NULL_HANDLE;   // set 0, allocated from the frame's pools
     uint32_t vertexCbs = 0;                             // its dynamic constant buffers (popcount)
     uint32_t vertexBindings = 0;                        // its descriptors in all
+    VkDescriptorSetLayout pixelSet = VK_NULL_HANDLE;    // P13: set 1 as a pool set; null = pushed
 };
 bool PushDescriptors();
 // The pair's layouts on the push path (cached; the pointer stays valid until PipelinesShutdown; null
