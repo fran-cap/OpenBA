@@ -22,6 +22,10 @@
 // the CPUs of the largest cpu_capacity when there are at least two of them (one core per thread;
 // pinning the main thread alone left the render thread on a cluster whose shared clock then fell,
 // and the frame gained nothing). Measured at 803 citizens: update 6.3 -> 4.6 ms, draw 6.3 -> 5.0 ms.
+// With a single CPU of the largest capacity (the S10's lone prime) the pin is the next tier with two
+// or more (its gold cluster): the two threads then share one clock domain, which neither leaves for
+// the lone core (core_ctl wakes it for one thread and the other's cluster falls to its floor clock:
+// docs/android/P13_THERMAL.md). A device whose largest tier has two (the S25) is pinned as before.
 // The threads either of them creates start on the process's mask again (thread_start_android.h).
 // ============================================================================
 
@@ -183,21 +187,37 @@ void FindFastCores() {
         std::fprintf(stderr, "[Pin] not pinned: the affinity mask is unknown\n");
         return;
     }
-    int best = 0;
     int capacity[64] = {};
     for (int c = 0; c < 64; ++c) {
-        if (((g_processMask >> c) & 1u) == 0 || !CpuCoreCapacity(c, &capacity[c])) continue;
-        if (capacity[c] > best) best = capacity[c];
+        if (((g_processMask >> c) & 1u) == 0 || !CpuCoreCapacity(c, &capacity[c])) capacity[c] = 0;
     }
+    // The tiers from the largest capacity down; the first with two CPUs or more is the pin.
+    int tier = 0;
+    int above = 0;   // a larger tier skipped for having one CPU (0 = none)
     uint64_t fast = 0;
-    for (int c = 0; c < 64; ++c) {
-        if (best > 0 && capacity[c] == best) fast |= uint64_t{1} << c;
+    for (int ceiling = INT32_MAX;;) {
+        tier = 0;
+        for (int c = 0; c < 64; ++c) {
+            if (capacity[c] > tier && capacity[c] < ceiling) tier = capacity[c];
+        }
+        if (tier == 0) break;
+        fast = 0;
+        for (int c = 0; c < 64; ++c) {
+            if (capacity[c] == tier) fast |= uint64_t{1} << c;
+        }
+        if (__builtin_popcountll(fast) >= 2) break;
+        if (above == 0) above = tier;
+        ceiling = tier;
     }
-    const int count = __builtin_popcountll(fast);
+    const int count = tier > 0 ? __builtin_popcountll(fast) : 0;
     if (count < 2 || fast == g_processMask) {
-        std::fprintf(stderr, "[Pin] not pinned: %d CPU(s) of the largest capacity %d in mask 0x%llx\n", count,
-                     best, static_cast<unsigned long long>(g_processMask));
+        std::fprintf(stderr, "[Pin] not pinned: no tier of two or more CPUs below the whole mask 0x%llx\n",
+                     static_cast<unsigned long long>(g_processMask));
         return;
+    }
+    if (above > 0) {
+        std::fprintf(stderr, "[Pin] the largest capacity %d has one CPU: the tier of capacity %d (%d CPUs)\n",
+                     above, tier, count);
     }
     g_fastMask = fast;
     Android::SetThreadStartMask(g_processMask);
