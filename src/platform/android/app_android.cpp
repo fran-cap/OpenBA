@@ -25,6 +25,7 @@
 #include "platform_app.h"
 #include "android_paths.h"
 #include "phone_seed.h"   // MissingSeedLines (P8)
+#include "platform_memory.h"   // Platform::Memory::LowMemoryDevice (P13)
 
 #include "boot_state_watchdog.h"
 #include "android/boot_state_background.h"   // src/diag/android: the watchdog's background bracket
@@ -148,7 +149,16 @@ const char kPhoneSettings[] =
     "ext.touch_mode_toolbar_scale=200\n"
     "ext.touch_pointer=1\n";
 
+// P13 (ruled 2026-10-28, docs/android/P13_MEM.md §6): a low-memory phone (Platform::Memory: total RAM
+// below 6.5 GiB) also loads its textures at Half (ext.texture_quality; Options > Enhanced > Texture
+// quality), a default like the others: a key the file has is never touched.
+const char kLowMemorySettings[] =
+    "ext.texture_quality=1\n"
+    "ext.texture_quality_drop=1\n";
+
 void SeedPhoneSettings(const std::string& userDir) {
+    std::string seed = kPhoneSettings;
+    if (Platform::Memory::LowMemoryDevice()) seed += kLowMemorySettings;
     mkdir(userDir.c_str(), 0770);
     const std::string path = userDir + "/settings.cfg";
     struct stat st;
@@ -162,7 +172,7 @@ void SeedPhoneSettings(const std::string& userDir) {
             while ((n = std::fread(buf, 1, sizeof(buf), in)) > 0) existing.append(buf, n);
             std::fclose(in);
         }
-        const std::string missing = Platform::Android::MissingSeedLines(existing, kPhoneSettings);
+        const std::string missing = Platform::Android::MissingSeedLines(existing, seed.c_str());
         if (missing.empty()) return;
         FILE* out = std::fopen(path.c_str(), "a");
         if (out == nullptr) return;
@@ -175,7 +185,7 @@ void SeedPhoneSettings(const std::string& userDir) {
     }
     FILE* f = std::fopen(path.c_str(), "w");
     if (f == nullptr) return;
-    std::fputs(kPhoneSettings, f);
+    std::fputs(seed.c_str(), f);
     std::fclose(f);
     __android_log_print(ANDROID_LOG_INFO, kLogTag, "first run: phone defaults written to %s", path.c_str());
 }
