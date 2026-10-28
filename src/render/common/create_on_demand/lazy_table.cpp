@@ -290,6 +290,7 @@ void LazyTable::WorkerMain(int index) {
 void LazyTable::Pause() {
     std::unique_lock<std::mutex> lock(_mutex);
     _paused = true;
+    _doneCv.notify_all();   // DrainQueueUnlessPaused returns
     _doneCv.wait(lock, [this] { return _running == 0; });
 }
 
@@ -305,6 +306,11 @@ void LazyTable::Resume() {
 void LazyTable::DrainQueue() {
     std::unique_lock<std::mutex> lock(_mutex);
     _doneCv.wait(lock, [this] { return _queue.empty() && _running == 0; });
+}
+
+void LazyTable::DrainQueueUnlessPaused() {
+    std::unique_lock<std::mutex> lock(_mutex);
+    _doneCv.wait(lock, [this] { return _paused || (_queue.empty() && _running == 0); });
 }
 
 LazyTable::Stats LazyTable::GetStats() {

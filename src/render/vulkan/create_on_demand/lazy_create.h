@@ -79,6 +79,13 @@ void Resume();
 // The loader bracket's close (DeviceData::Slot4(false)): one summary line when anything changed.
 void LoadEnd();
 
+// P13 (docs/android/P13_MEM.md §9, ruled 2026-10-28): on a device that transcodes BC to ETC2, the
+// loader bracket's close waits here for the prefetch queue (the textures and buffers the load's mesh
+// instances queued) before the load ends, so a transcode the derived cache does not hold yet runs on
+// the workers during the load, never in the frame that first draws the texture. Returns at once when
+// the row is off or the table is paused; logs the wait when it took a millisecond or more.
+void FinishPrefetches();
+
 // Every slot that reads a companion's object holds one for its whole body: no eviction meanwhile, and
 // the use is stamped. Nothing while the row is off.
 class UseScope {

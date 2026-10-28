@@ -443,6 +443,35 @@ UNIT_TEST(ext_create_on_demand_table_pause_resume_and_retry) {
     CHECK_EQ(t.GetStats().pending, int64_t(0));
 }
 
+// P13 (P13_MEM.md §9): the loader's wait for its prefetches returns once they are made, and at once on
+// a paused table (a device going away) with the queue still holding them.
+UNIT_TEST(ext_create_on_demand_table_drain_unless_paused) {
+    LazyTable t(1);
+    Counters c;
+    int a = 0;
+    int b = 0;
+    const int objA = 0;
+    const int objB = 0;
+    t.Add(&objA, Fake(&c, &a, 1));
+    t.Add(&objB, Fake(&c, &b, 2));
+    t.Prefetch(&objA);
+    t.Prefetch(&objB);
+    t.DrainQueueUnlessPaused();
+    CHECK_EQ(a, 1);
+    CHECK_EQ(b, 2);
+
+    const int objC = 0;
+    int cField = 0;
+    t.Add(&objC, Fake(&c, &cField, 3));
+    t.Pause();
+    t.Prefetch(&objC);
+    t.DrainQueueUnlessPaused();   // returns: paused, the queue unworked
+    CHECK_EQ(cField, 0);
+    t.Resume();
+    t.DrainQueueUnlessPaused();
+    CHECK_EQ(cField, 3);
+}
+
 UNIT_TEST(ext_create_on_demand_table_four_threads) {
     constexpr int kObjects = 2000;
     Counters c;
