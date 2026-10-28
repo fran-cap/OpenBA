@@ -158,7 +158,7 @@ companion interface; each would sit under it as a fourth layer. See §4.1.
 - MSAA colour: transient + lazily allocated, resolved by the pass (never `vkCmdResolveImage`);
   the S25 also has `multisampled_render_to_single_sampled`.
 - Persist `VkPipelineCache` (24 ms vs 50 ms per pipeline); reuse descriptor sets across frames;
-  no ALL_COMMANDS barriers; triple-buffered FIFO.
+  no ALL_COMMANDS barriers; FIFO, 3 swap-chain images, 2 frames in flight.
 - Pre-rotation: without it the compositor rotates every frame at real power cost; read
   `currentTransform`, swap extent for 90 / 270, rotate the projection. Landscape-locked games still
   must handle `VK_SUBOPTIMAL_KHR`.
@@ -281,7 +281,7 @@ companion interface; each would sit under it as a fourth layer. See §4.1.
   request flips the store op). Shadow targets single-sample as retail.
 - Per-image layout tracking with sync2 barriers at pass boundaries only; no ALL_COMMANDS.
 - Memory through **VMA** (MIT, header-only); dynamic vertex / index / constant data on
-  triple-buffered persistently-mapped rings; a retire pool (Metal's) for in-flight objects.
+  per-frame-slot (kFramesInFlight) persistently-mapped rings; a retire pool (Metal's) for in-flight objects.
 
 ### 4.5 Presentation, lifecycle, device loss
 - Surface from `SDL_Vulkan_CreateSurface`; loader via `SDL_Vulkan_GetVkGetInstanceProcAddr`

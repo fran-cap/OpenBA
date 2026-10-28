@@ -18,7 +18,13 @@
 
 namespace VideoVulkan {
 
-constexpr unsigned kFramesInFlight = 3;
+// Frames the CPU may record ahead of the GPU: every per-frame-slot resource (command pool, fence, constant
+// ring, descriptor pools: device.cpp, draw.cpp, ao/assao_pass.cpp) is sized by it and fenced before reuse.
+// Two keeps the queued work and the input-to-photon latency down; the swap chain's depth is separate.
+constexpr unsigned kFramesInFlight = 2;
+// Images asked of the swap chain (the driver may raise it to its minimum): a third image keeps FIFO and
+// MAILBOX presenting without the acquire waiting on the image being scanned out.
+constexpr unsigned kSwapchainImages = 3;
 
 // What the instance / device creation found out, for the log line and the later phases.
 struct Caps {
