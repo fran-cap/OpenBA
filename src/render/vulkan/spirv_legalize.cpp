@@ -114,6 +114,8 @@ bool LowerBitFieldInsert(std::vector<uint32_t>* spirv, uint32_t* changed, std::s
 
 namespace {
 
+constexpr uint32_t kOpName = 5;
+constexpr uint32_t kOpMemberName = 6;
 constexpr uint32_t kOpExtension = 10;
 constexpr uint32_t kOpEntryPoint = 15;
 constexpr uint32_t kOpCapability = 17;
@@ -213,6 +215,7 @@ bool DowngradeSpirv(std::vector<uint32_t>* spirv, std::string* why) {
             extensionsAdded = true;
         }
         if (op == kOpCapability && words == 2 && w[1] == kCapabilityDemoteToHelperInvocation) continue;
+        if (op == kOpName || op == kOpMemberName) continue;
         if (op == kOpLabel && words == 2) block = w[1];
         if (op == kOpEntryPoint && words >= 4) {
             // Execution model, entry id, the name (to its last word), then the interface ids.

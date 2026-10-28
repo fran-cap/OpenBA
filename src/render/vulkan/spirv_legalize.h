@@ -36,7 +36,11 @@ bool LowerBitFieldInsert(std::vector<uint32_t>* spirv, uint32_t* changed, std::s
 //     shape fails the module. An OpPhi naming the killed block as a parent drops that pair. The
 //     difference: after a demote a pixel keeps running as a helper (its derivatives stay defined for
 //     its quad neighbours); after OpKill it stops. The 1.3 path keeps the demote;
-//   - OpTerminateInvocation (1.6) becomes OpKill.
+//   - OpTerminateInvocation (1.6) becomes OpKill;
+//   - the debug names (OpName, OpMemberName) are dropped. Not a version rule: the Galaxy S10's driver
+//     (Adreno 640, 1.1.128) fails vkCreateGraphicsPipelines with VK_ERROR_UNKNOWN ("Failed to link
+//     shaders. Assertion failed: (*mSymbolObjectMap)[gv] == NULL") on a vertex module whose input and
+//     output share a name (dxbc-spirv names both after their semantic: TEXCOORD in, TEXCOORD out).
 // False with *why (left unchanged) for a module it cannot read or lower.
 bool DowngradeSpirv(std::vector<uint32_t>* spirv, std::string* why);
 

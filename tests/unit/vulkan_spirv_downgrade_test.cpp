@@ -52,6 +52,7 @@ std::vector<uint32_t> DemoteModule(const std::vector<uint32_t>& afterDemote) {
     add({ Head(14, 3), 0, 3 });                                  // OpMemoryModel Logical Vulkan
     add({ Head(15, 7), 4, kMain, 0x6E69616Du, 0, kIn, kUniform });   // OpEntryPoint Fragment "main"
     add({ Head(16, 3), kMain, 7 });                              // OpExecutionMode OriginUpperLeft
+    add({ Head(5, 3), kIn, 0x78u });                             // OpName %in "x"
     add({ Head(19, 2), kVoid });                                 // OpTypeVoid
     add({ Head(33, 3), kFn, kVoid });                            // OpTypeFunction
     add({ Head(22, 3), kFloat, 32 });                            // OpTypeFloat 32
@@ -109,6 +110,7 @@ UNIT_TEST(vulkan_downgrade_synthetic_demote) {
     const auto ops = Instructions(m);
     CHECK_EQ(ops.count(5380), (size_t)0);   // no demote
     CHECK_EQ(ops.count(252), (size_t)1);    // one OpKill
+    CHECK_EQ(ops.count(5), (size_t)0);      // no debug name (the Adreno 640 linker, spirv_legalize.h)
     // The demote capability is gone; the memory model's extension is declared.
     for (auto it = ops.lower_bound(17); it != ops.upper_bound(17); ++it)
         CHECK(it->second[1] != 5379u);
