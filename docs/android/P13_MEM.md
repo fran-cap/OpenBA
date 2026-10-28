@@ -203,3 +203,38 @@ would lift two-colour blocks (unit test 29 dB) if a texture ever shows it.
 - Assumed: the RAM figures of 4 / 6 / 8 GB phone classes (vendor carve-outs vary); that a low-memory
   phone has ETC2 (every Android Vulkan device should); Half's memory at ETC2 size (estimated a quarter of
   the transcoded bytes, not measured).
+
+## 9. The encode before the load ends (ruled 2026-10-28)
+
+The ruling: no texture is made at its first use because its transcode is still pending; the encode runs
+on the loading side, ahead of first use. ext.create_on_demand already queues every texture of a mesh
+instance for its prefetch workers when the instance gets its mesh (during the load, for the town), so
+the transcode was always on those workers; on a cold cache they fell behind the first frames. Now, on a
+device that transcodes, the loader bracket's close (`DeviceData::Slot4(false)`) waits for the prefetch
+queue (`CreateOnDemand::FinishPrefetches`, over the new `LazyTable::DrainQueueUnlessPaused`, which also
+returns when the table is paused by a device going away) before the load ends. A load whose prefetches
+are already made waits nothing; `[CreateOnDemand] load end waited N ms` says when it did.
+
+S10, stress town, release build: **before** = the §8 build, **after** = this one. "Cold" = the whole
+derived cache deleted before the run (shader conversions included, so both cold runs also convert
+their shaders); "warm" = the cache of the previous run.
+
+| | before cold | after cold | before warm (2 runs) | after warm |
+|---|---|---|---|---|
+| launch to the menu's first update | 2.24 s | 3.27 s | 2.17 / 2.16 s | 2.08 s |
+| stress town load (loader run to done) | 8.73 s | 8.62 s | 8.71 / 8.61 s | 8.62 s |
+| launch to the town's loader done | 13.13 s | 13.48 s | 12.20 / 12.06 s | 12.02 s |
+| textures made on use (worst) | 131 (117 ms) | **0** at the load's end, 1 in play (0.9 ms) | 0 | 0 at the load's end, 1 in play (0.4 ms) |
+| load-end wait | - | menu 1178 ms, town 61 ms | - | 59 ms |
+| stress fps | 52.8 | 51.8 | 52.2 / 52.6 | 53.5 |
+
+- The first boot's hitch is gone: no texture is made on use while its transcode is pending. The one
+  object made on use in play (both after-runs, under 1 ms) is not a transcode: no `[Etc2]` encode is
+  counted after the load's end.
+- The cold cost moved to the menu: the main menu's scene textures (~43 MB of ETC2) are encoded before
+  the menu shows, 1.0 s later on the first boot only. The town's own textures are mostly done by its
+  load end (61 ms wait) because the town load is long (8.6 s) next to its encode.
+- Warm boots are unchanged (menu 2.08 s, town 8.62 s), and the fps of the one after-run is inside the
+  earlier runs' spread (no regression; one run, not an A/B pair).
+- The warm runs still encode 2 textures (the stress town's own, first met in the cold run, whose cache
+  writes a force-stop at the run's end can cut off; assumed, not traced).

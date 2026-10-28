@@ -1272,6 +1272,8 @@ void DeviceData::Slot4(bool loading) {
         return;
     }
     AsyncCreate::End();
+    // P13 (P13_MEM.md §9): the ETC2 transcodes of the textures this load queued run before it ends.
+    if (LiveCaps().etc2Transcode) CreateOnDemand::FinishPrefetches();
     ::CompressAo::LoadEnd();
     Etc2Chain::LoadEnd();
     ShareGpuData::LoadEnd();
