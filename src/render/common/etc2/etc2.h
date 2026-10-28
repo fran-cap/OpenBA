@@ -31,8 +31,10 @@
 // THE ENCODER (P13_MEM.md §3). RGB: per flip, each half's base is its mean (individual and
 // differential quantisations), each pixel takes the modifier nearest its mean channel offset from the
 // base, the error is measured exactly with the clamp; the best table per half, then one refit of the
-// base to the chosen modifiers. Planar: a least-squares plane per channel. The least squared RGB error
-// wins. T and H modes are decoded, never encoded. Alpha: the 16 tables, each with the multiplier
+// base to the chosen modifiers (individual only where the differential delta does not fit). Planar,
+// tried when that error is above a mean of 2 per channel: a least-squares plane per channel, each code
+// walked by one step while that helps (only when the plane comes near the other mode). A flat block
+// that planar holds exactly is written at once. The least squared RGB error wins. T and H modes are decoded, never encoded. Alpha: the 16 tables, each with the multiplier
 // spanning the block's range and the base centred, the best refined by +-1 multiplier and +-2 base.
 // ============================================================================
 #include <cstdint>

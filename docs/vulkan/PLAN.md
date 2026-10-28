@@ -238,8 +238,8 @@ companion interface; each would sit under it as a fourth layer. See §4.1.
   `OpKill`) and a pixel input narrower than its vertex output widened per pair. Its floor: Vulkan
   1.1, `VK_KHR_swapchain` and `VK_KHR_vulkan_memory_model`. Not on it: ext.ambient_occlusion and
   multisampled-render-to-single-sampled. The 1.3 path makes the same calls as before. The S10 also
-  has no `textureCompressionBC` (a cap, not a path): BC1 / BC3 levels are decoded to RGBA8 at load
-  there (`src/render/common/bc_decode/`).
+  has no `textureCompressionBC` (a cap, not a path): BC1 / BC3 levels are transcoded to ETC2 at load
+  there (`src/render/common/etc2/`, docs/android/P13_MEM.md; RGBA8 decode where ETC2 is missing too).
 - **Linux moves onto this backend**; dxvk-native stays only as the bring-up oracle (same D3D11
   code, same frames) and is removed once parity is gated. One backend per platform. (Removed in P5.)
 - **Windows is the dev bed**; Vulkan never ships on Windows unless asked. `BANISHED_RENDER_BACKEND`

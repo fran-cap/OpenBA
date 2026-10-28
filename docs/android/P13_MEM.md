@@ -135,6 +135,71 @@ compress_ao's `bc4_chain.cpp` does.
   stress town fps in one ABBA pair (battery <= 32 C, thermal status 0 at the start).
 - Half on low memory: the rule unit-tested; on the S10 the seed adds nothing (Full).
 
-## 8. Results
+## 8. Results (2026-10-28)
 
-(Filled in after the runs.)
+Builds: `tools/android.sh build release --jobs 2` (-O3, ThinLTO, the P13 PGO profile), signed with the
+debug key. **B** = this branch; **A** = the same tree with `caps.etc2Transcode` forced false (the RGBA8
+decode), built for the comparison only and never committed. S10 (SM-G973U, Adreno 640, driver 1.1.128).
+
+**The device.** `cmd gpu vkjson`: `textureCompressionBC` 0, `textureCompressionETC2` 1,
+`textureCompressionASTC_LDR` 1; the device line reads `bc=0 etc2=1 (transcode 1)`. MemTotal 7,640,540 kB
+(7.29 GiB): not low memory, the seed adds nothing, `[TextureQuality] off: drop=0` (Full). The S25 has BC
+(`PLAN.md` §2.1, read 2026-10-24): it never takes the transcode.
+
+**GPU memory** (kgsl `page_alloc` with the app running minus stopped, the P13_PROFILE method):
+
+| | A (RGBA8) | B (ETC2) | change |
+|---|---|---|---|
+| main menu (22 s after launch) | 589.6 MB | 394.4 MB | -195 MB |
+| new 1x town, camera pin at 25, 45 s after load | 656.6 MB | 390.0 MB | -267 MB |
+| stress town, t = 70 s (two runs each) | 657.9 / 660.8 MB | 391.7 / 393.2 MB | -267 MB |
+
+`[Etc2]` at the stress town's end: 127 textures, 66.3 MB of ETC2 where RGBA8 held 397.6 MB (P13_PROFILE's
+397 MB); no BC1 texture has a transparent texel (`punch_through=0`), so RGB8A1 is unused by the retail data.
+
+**Stress fps, one ABBA pair** (6000 frames, cap 60, battery 31.8-32.0 C and thermal 0 at each start, 33.3-33.5
+C at the end; means of t >= 20 s):
+
+| run | fps | frame ms (p95) | update | draw |
+|---|---|---|---|---|
+| A | 51.7 | 19.43 (28.21) | 9.16 | 8.04 |
+| B | 52.2 | 19.24 (27.94) | 9.22 | 7.88 |
+| B | 52.6 | 19.13 (27.32) | 9.12 | 7.93 |
+| A | 52.7 | 19.06 (27.34) | 9.11 | 7.90 |
+
+Neutral (A 52.2, B 52.4 mean): within run-to-run noise.
+
+**Load time.** Launch to the menu's first update: A 2.15-2.19 s, B 2.16-2.23 s. Stress town, loader done:
+A 12.17 / 12.12 s, B 12.20 / 12.06 s (cache warm). ext.create_on_demand makes most textures on its
+prefetch workers after the load, so the encode lands there: on the **first boot** (no ETC2 entry in the
+derived cache) the 1x town's load took 5.01 s against A's 4.91 s, the encode summed 4.5 s of worker time,
+and the prefetch fell behind: 166 textures were made on use (527 ms in all, **worst 89.8 ms**, a
+first-boot hitch; A: 0 on use). Every later boot finds them: the stress runs had 115 of 127 from the
+cache (the 12 others were the stress town's own, first seen there), 0 made on use, and the makes took
+844-908 ms against A's 1534-1612 ms (a sixth of the bytes to upload). The cache holds ~66 MB more.
+
+**Image.** Screenshots (scratch, not in the tree): menu, the 1x town at distance 25 and the stress town,
+A against B side by side. No banding on terrain or water, foliage and status-icon alpha edges the same,
+roofs and wood the same at this zoom. The encoder's error on 40 real levels (top levels of the menu and
+town textures, read on the Windows Vulkan build by a probe never committed): **35.7 dB PSNR** against
+the BC decode, pixel-weighted (BC1 37.0, BC3 35.3); the worst level 25.5 dB (a BC3 atlas whose
+transparent texels' colour counts in that figure). Throughput 12 Mpx/s a core on the desktop (from 3 Mpx/s
+in the first version: the table pick by the luminance identity, planar only when competitive, EAC over
+the distinct values).
+
+**Windows.** `BANISHED_RENDER_BACKEND=vulkan tools/build.sh run`: `bc=1 etc2=0 (transcode 0)`, the BC
+path unchanged, a new game reached, 0 validation errors. `tools/build.sh unit` (BUILD_JOBS=2): 1570 tests,
+0 failures, 3 skipped (the kit-font ones, as before).
+
+**Not done / open.** The Half default was not run on a low-memory phone (none attached); its rule and
+seed lines are unit-tested and the S10 confirms the Full side. The first-boot hitch (worst 90 ms) could
+be taken off by encoding on the prefetch worker ahead of use or by a faster (SIMD) encoder; T / H modes
+would lift two-colour blocks (unit test 29 dB) if a texture ever shows it.
+
+### Verified versus assumed
+- Verified: the S10's features and MemTotal; the GPU memory, fps, load and on-use numbers above; the
+  decoders against an independent decoder (`texture2ddecoder`, 256 random words per format, every mode);
+  the encoder's PSNR on real levels; the Windows BC path; the unit tests.
+- Assumed: the RAM figures of 4 / 6 / 8 GB phone classes (vendor carve-outs vary); that a low-memory
+  phone has ETC2 (every Android Vulkan device should); Half's memory at ETC2 size (estimated a quarter of
+  the transcoded bytes, not measured).
