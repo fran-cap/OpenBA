@@ -37,8 +37,9 @@ void SetTarget(int64_t targetNs);
 // session and makes a new one for the new tid. The first attach of the process also starts the
 // thermal log where the OS has one: `[Thermal] status N` at start and at every change (a log for
 // measurements only: nothing reads it). Android also pins the calling thread to the CPUs of the
-// largest capacity when a heterogeneous SoC has at least two (the frame's critical path,
-// perf_hint_android.cpp); elsewhere, and on a uniform CPU, nothing is pinned.
+// largest capacity when a heterogeneous SoC has at least two, else to the next tier that has two or
+// more (the frame's critical path, perf_hint_android.cpp); elsewhere, and on a uniform CPU, nothing
+// is pinned.
 void AttachThread(Role role);
 
 // `role`'s thread is about to exit: its session is closed (called by that thread).
