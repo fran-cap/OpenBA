@@ -477,6 +477,12 @@ public:
     // it. The extension tests one handle and queues the instance's creates only when they are not made
     // (a first sight the placement did not prefetch, an object given back by the idle eviction).
     static void (*_extLevelGathered)(const MeshInstance& instance, int32_t level);
+    // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md §2.3, DESIGN.md hook rule 5): ext.render_pipe's
+    // frozen copies. Null by default and under the faithful profile. Consulted only on the instanced
+    // branch of the four pose lookups (GetBones, InstancedPoses, RtInstancedPoolSlot, SkinMemo's
+    // PoseArray): non-null and answering, the copy's frozen record replaces the AnimationManager slot;
+    // a live instance always gets null and the faithful lookup.
+    static const InstancedAnimationState* (*_extInstancedState)(const MeshInstance& instance);
 
     // `??2MeshInstance@Graphics@@SAPEAX_K@Z` (0x180016940),
     // `??2…@SAPEAX_KPEAX@Z` (0x1800169b0) and `??3…@SAXPEAX@Z` (0x1800169c0) are

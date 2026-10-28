@@ -35,6 +35,18 @@
 // overlaps the tail too; it never reads the context's frame index while a tail
 // may run -- fix 2 takes it from the held packet). A tail that lost the device
 // discards the packet gathered meanwhile, as the hand-off does.
+//
+// P13_OVERLAP (docs/android/P13_OVERLAP.md): a packet whose items point at frozen
+// copies (Packet::overlap, snapshot.h) is not waited for at THE FENCE when its
+// emit has not reached its Gate (packet.h): the fence claims the gate instead
+// (Handoff::ClaimSteps), the emit runs on beside the steps and parks there. THE
+// FENCE then moves to the Frame tail: the main thread opens the gate and waits
+// for the release there, before the main half -- so the main half runs with
+// nothing pending exactly as after a fence before the steps (fixes 4 and 5: the
+// sun and the camera are written; the emit's tail may still run). Handoff::WaitIdle
+// opens the gate too. An emit already past its gate is fenced as before. Before MainLoop::Update ends the loop
+// (kExtBeforeTransition) the render thread is joined, so no step frees what the
+// emit still reads.
 // ============================================================================
 #pragma once
 
@@ -85,6 +97,7 @@ public:
         _result    = EmitResult{};
         _publishUs = 0;
         _tail      = false;
+        _overlapping = false;
     }
 
     Counters TakeWindow() {
@@ -94,9 +107,16 @@ public:
     }
 
     // kExtBeforeSteps: THE FENCE. The sim never runs with a packet in flight
-    // up to its post-draw callbacks (threaded: its tail may still run).
+    // up to its post-draw callbacks (threaded: its tail may still run) --
+    // P13_OVERLAP: except one whose emit reads frozen copies, parked at its gate.
     void BeforeSteps(Host& host) {
         if (_state.DrainBeforeSteps(true)) {
+            // P13_OVERLAP: a packet with a snapshot runs on during the steps, up to its gate.
+            if (_handoff != nullptr && _held.overlap && _handoff->ClaimSteps()) {
+                _overlapping = true;
+                ++_counters.overlapped;
+                return;
+            }
             ++_counters.drainStep;
             if (_handoff != nullptr)
                 FenceReleased(host);
@@ -109,9 +129,33 @@ public:
     // settle of that tail (the unit test reads it).
     bool TailInFlight() const { return _tail; }
 
+    // True while the steps run beside an emit that has not reached its gate (the unit test reads it).
+    bool Overlapping() const { return _overlapping; }
+
+    // kExtBeforeTransition (P13_OVERLAP): MainLoop::Update is about to shut down and
+    // delete the current loop. Nothing of the emit may be in flight then: the render
+    // thread is joined here (its gate opened by the wait). The Frame's tail then sees
+    // the new loop and runs unpipelined.
+    void BeforeTransition(Host& host) {
+        if (_handoff == nullptr) return;
+        _overlapping = false;
+        SettleTail(host, false);
+        if (_state.Pending()) {
+            ++_counters.drainOther;
+            Join(host, false);
+        }
+    }
+
     // kExtFrameTail. True: the extension was switched off -- uninstall now (the
     // render thread is idle and joined).
     bool Tail(Host& host, const TailInputs& in) {
+        // P13_OVERLAP: the steps are over; the emit parked at its gate goes on, and THE FENCE
+        // the steps skipped is waited for here.
+        if (_overlapping) {
+            _overlapping = false;
+            _handoff->OpenGate();
+            FenceReleased(host);
+        }
         const TailPlan plan = _state.PlanTail(in);
         if (!plan.pipelined) SettleTail(host, false);   // the faithful tail needs the render thread idle
         if (plan.drain) {
@@ -252,6 +296,7 @@ private:
     PipeState  _state;
     Packet     _held;              // the pending packet (the render thread reads it while busy)
     bool       _tail      = false; // RENDERPIPE_FENCE: a fence released the emit, its tail may run
+    bool       _overlapping = false; // P13_OVERLAP: the steps run beside an emit short of its gate
     EmitResult _result;            // written by the emitting thread before Done
     Handoff*   _handoff   = nullptr;
     int64_t    _publishUs = 0;

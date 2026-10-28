@@ -402,6 +402,11 @@ namespace {
 // dereference; `[hi]._states._data` the bank; `[lo]` the slot. The slot is the
 // 0x48 per-frame record (`Graphics::InstancedAnimationState`).
 const ::Graphics::InstancedAnimationState* RtInstancedPoolSlot(const ::Graphics::MeshInstance* mi) {
+    // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md §2.3): a frozen copy's own record.
+    if (::Graphics::MeshInstance::_extInstancedState != nullptr) {
+        if (const ::Graphics::InstancedAnimationState* frozen = ::Graphics::MeshInstance::_extInstancedState(*mi))
+            return frozen;
+    }
     // MOVSXD: the stored pool id is a SIGNED int32 widened to 64 bits.
     const int64_t poolId =
         mi->_animation._layers._data[mi->_animation._layers._size - 1]._handle;
@@ -2008,6 +2013,7 @@ void MeshInstance::SetMaterialInstance(int index, Object::ExternalPtr<MaterialIn
 
 void (*MeshInstance::_extMaterialAssigned)(const MaterialInstance* material) = nullptr;
 void (*MeshInstance::_extLevelGathered)(const MeshInstance& instance, int32_t level) = nullptr;
+const InstancedAnimationState* (*MeshInstance::_extInstancedState)(const MeshInstance& instance) = nullptr;
 
 // ---------------------------------------------------------------------------
 // ?SetMesh@MeshInstance@Graphics@@QEAAXV?$ExternalPtr@…@Z retail 0x1800ffea0
