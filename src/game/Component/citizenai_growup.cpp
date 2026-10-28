@@ -557,7 +557,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
         int stock = rowArrBase[row]._count - rowArrBase[row]._reserve;
         if (stock <= 0) continue;
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): only the best rank
-        if (prio && Ext::ItemPriority::RankOfMat(Ext::ItemPriority::kHealth, rm) != bestRank) {
+        if (prio && !Ext::ItemPriority::Eligible(Ext::ItemPriority::kHealth, rm, bestRank)) {
             continue;
         }
         if (rm->_unknown58 != '\0') {
@@ -589,7 +589,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
         int stock = rowArrBase[row]._count - rowArrBase[row]._reserve;
         if (stock <= 0) continue;
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): the same test as pass 1
-        if (prio && Ext::ItemPriority::RankOfMat(Ext::ItemPriority::kHealth, rm) != bestRank) {
+        if (prio && !Ext::ItemPriority::Eligible(Ext::ItemPriority::kHealth, rm, bestRank)) {
             continue;
         }
         if (ordinal == chosen) {

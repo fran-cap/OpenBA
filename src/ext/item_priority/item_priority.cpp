@@ -12,6 +12,7 @@ namespace ItemPriority {
 
 bool g_on = false;
 std::vector<const void*> g_ranked[kCategories];
+std::vector<const void*> g_never[kCategories];
 
 namespace {
 
@@ -62,6 +63,11 @@ bool Lists::Empty() const {
             return false;
         }
     }
+    for (const std::vector<std::string>& list : never) {
+        if (!list.empty()) {
+            return false;
+        }
+    }
     return true;
 }
 
@@ -73,12 +79,39 @@ int RankOf(const Lists& lists, int category, const std::string& path) {
     return at >= 0 ? at : kUnranked;
 }
 
+bool IsNever(const Lists& lists, int category, const std::string& path) {
+    return IsCategory(category) && !path.empty() && IndexOf(lists.NeverOf(category), path) >= 0;
+}
+
+bool ClearNever(Lists& lists, int category, const std::string& path) {
+    if (!IsCategory(category)) {
+        return false;
+    }
+    std::vector<std::string>& list = lists.NeverOf(category);
+    const int at = IndexOf(list, path);
+    if (at < 0) {
+        return false;
+    }
+    list.erase(list.begin() + at);
+    return true;
+}
+
+bool SetNever(Lists& lists, int category, const std::string& path) {
+    if (!IsCategory(category) || path.empty() || IsNever(lists, category, path)) {
+        return false;
+    }
+    Unrank(lists, category, path);   // an item is ranked or Never, never both
+    lists.NeverOf(category).push_back(path);
+    return true;
+}
+
 bool Rank(Lists& lists, int category, const std::string& path) {
     if (!IsCategory(category) || path.empty()) {
         return false;
     }
+    const bool wasNever = ClearNever(lists, category, path);   // ranking an item takes it off the Never list
     if (IndexOf(lists.Of(category), path) >= 0) {
-        return false;
+        return wasNever;
     }
     lists.Of(category).push_back(path);
     return true;
@@ -129,6 +162,9 @@ void ResetState() {
     for (std::vector<const void*>& ranked : g_ranked) {
         ranked.clear();
     }
+    for (std::vector<const void*>& never : g_never) {
+        never.clear();
+    }
     g_on = false;
     s_ceiling = kUnranked;
 }
@@ -140,6 +176,9 @@ bool NeedsResolve(uint32_t epoch) {
 void Resolve(uint32_t epoch, const std::vector<Candidate>& materials) {
     for (std::vector<const void*>& ranked : g_ranked) {
         ranked.clear();
+    }
+    for (std::vector<const void*>& never : g_never) {
+        never.clear();
     }
     if (!s_lists.Empty()) {
         std::unordered_map<std::string, const void*> byPath;
@@ -153,6 +192,12 @@ void Resolve(uint32_t epoch, const std::vector<Candidate>& materials) {
                     g_ranked[category - 1].push_back(found->second);
                 }
             }
+            for (const std::string& path : s_lists.NeverOf(category)) {
+                const auto found = byPath.find(Fold(path));
+                if (found != byPath.end()) {
+                    g_never[category - 1].push_back(found->second);
+                }
+            }
         }
     }
     s_resolvedVersion = s_version;
@@ -163,6 +208,9 @@ void SetRowActive(bool rowOn) {
     bool any = false;
     for (const std::vector<const void*>& ranked : g_ranked) {
         any = any || !ranked.empty();
+    }
+    for (const std::vector<const void*>& never : g_never) {
+        any = any || !never.empty();
     }
     g_on = rowOn && any;
 }

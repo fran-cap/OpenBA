@@ -17,7 +17,7 @@
 // Controller: src/ext/item_priority/toolbar_page.cpp. It looks up, by name: tabItemPriorityCategories (its four
 // tab buttons are the category buttons: tools, fuel, clothing, health), tableItemPriorityTool / Fuel / Clothing
 // / Health, checkItemPriorityShowAll, and in each cell checkItemPriorityRow, labelItemPriorityRow,
-// textItemPriorityRank and ribbonItemPriorityMoves (its two children are Up and Down).
+// textItemPriorityRank and ribbonItemPriorityMoves (its children are Top, Up, Down and Never).
 //
 // Texts: Dialog/ExtensionsStringTable.rsc (the ItemPriority* keys).
 
@@ -241,7 +241,7 @@ RibbonDescription ribbonItemPriorityMoves
 {
 	Alignment _alignment = MidLeft;
 	int _cellPad = 2;
-	ElementDescription _elements [ "buttonItemPriorityTop" "buttonItemPriorityUp" "buttonItemPriorityDown" ]
+	ElementDescription _elements [ "buttonItemPriorityTop" "buttonItemPriorityUp" "buttonItemPriorityDown" "buttonItemPriorityNever" ]
 }
 
 // The small button of the Mods list and the tab strip (not the dialog's large OK button): a row is as tall as
@@ -249,6 +249,13 @@ RibbonDescription ribbonItemPriorityMoves
 ButtonDescription buttonItemPriorityTop : "Mod.rsc:buttonMod" { ElementDescription _content = "textItemPriorityTop"; }
 ButtonDescription buttonItemPriorityUp : "Mod.rsc:buttonMod" { ElementDescription _content = "textItemPriorityUp"; }
 ButtonDescription buttonItemPriorityDown : "Mod.rsc:buttonMod" { ElementDescription _content = "textItemPriorityDown"; }
+// Marks the item Never (citizens do not take it); pressed again it allows the item. The controller shows "Never" in the rank column while it is set.
+ButtonDescription buttonItemPriorityNever : "Mod.rsc:buttonMod"
+{
+	ElementDescription _content = "textItemPriorityNever";
+	StringTable _toolTipStringTable = "ExtensionsStringTable.rsc";
+	String _toolTipText = "ItemPriorityNeverTip";
+}
 
 TextDescription textItemPriorityTop : "Mod.rsc:labelMod"
 {
@@ -264,4 +271,9 @@ TextDescription textItemPriorityDown : "Mod.rsc:labelMod"
 {
 	StringTable _stringTable = "ExtensionsStringTable.rsc";
 	String _text = "ItemPriorityDown";
+}
+TextDescription textItemPriorityNever : "Mod.rsc:labelMod"
+{
+	StringTable _stringTable = "ExtensionsStringTable.rsc";
+	String _text = "ItemPriorityNever";
 }

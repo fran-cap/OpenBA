@@ -239,7 +239,7 @@ const Entry kEntries[] = {
       "Item priority",
       "Lets you rank the tools, fuels, clothing and health items citizens take first, from the "
       "Priority page in a game. Play diverges; the choice is recorded in the save.",
-      1, [](State& s) -> bool& { return s.ext.item_priority; } },
+      2, [](State& s) -> bool& { return s.ext.item_priority; } },
 
     // TERRAINEDIT (docs/extensions/handins/TERRAINEDIT.md): a brush tool, started from the Terrain page of
     // the extension window, that edits the terrain under the mouse. Class B: play diverges (the map is no

@@ -65,11 +65,12 @@ namespace {
 
 // Local element ids (the host adds `idBase`): the category tab buttons 10 + their place in the strip, the check
 // box
-// 20, the cells 100 + 4 * their position (+ 0 check, + 1 top, + 2 up, + 3 down).
+// 20, the cells 100 + 5 * their position (+ 0 check, + 1 top, + 2 up, + 3 down, + 4 never).
 constexpr int32_t kCategoryId = 10;
 constexpr int32_t kShowAllId = 20;
 constexpr int32_t kCellId = 100;
-constexpr int32_t kMaxCells = (Toolbar::kPageIdSpan - kCellId) / 4;
+constexpr int32_t kCellStride = 5;   // ids per cell: check, top, up, down, never
+constexpr int32_t kMaxCells = (Toolbar::kPageIdSpan - kCellId) / kCellStride;
 constexpr int kButtonCount = 4;
 constexpr int kCategoryOrder[kButtonCount] = { kTool, kFuel, kClothing, kHealth };   // the order in the .rsc
 
@@ -90,7 +91,7 @@ void SetParameterText(UI::Element* e, const char* text) {
 }
 
 // The rank number ends at the right of its column: the left pad is the column width less the text's own width.
-constexpr int32_t kRankWidth = 30;   // the rank column: padding + text
+constexpr int32_t kRankWidth = 38;   // the rank column: padding + text ("Never" is the widest)
 void SetRankText(UI::Element* e, const char* text) {
     SetParameterText(e, text);
     if (UI::TextElement* t = AsText(e)) {
@@ -251,6 +252,7 @@ std::vector<Item> CollectItems(int category) {
 struct Row {
     Item item;
     int  rank = kUnranked;     // the item's place in the town's list (0 = best), or kUnranked
+    bool never = false;        // the item is on the town's Never list
     int  shownRank = 0;        // its number on the page among the ranked items that are loaded (1 = best)
     bool pinned = false;       // shown when the cells were built: stays shown while it is edited
 };
@@ -282,7 +284,8 @@ UI::Element* ShownTable() {
 }
 
 bool Shown(const Row& r) {
-    return g_showAll || r.item.inTown || r.rank != kUnranked || r.pinned;   // a ranked item never vanishes
+    // a ranked or Never item never vanishes
+    return g_showAll || r.item.inTown || r.rank != kUnranked || r.never || r.pinned;
 }
 
 void RefreshShowAll() {
@@ -297,6 +300,7 @@ void RankRows() {
     const Lists& lists = Current();
     for (Row& r : g_rows) {
         r.rank = RankOf(lists, g_category, r.item.path);
+        r.never = IsNever(lists, g_category, r.item.path);
     }
     std::vector<Row*> ranked;
     for (Row& r : g_rows) {
@@ -366,15 +370,17 @@ void BindCell(size_t k) {
         static_cast<UI::CheckElement*>(cell.check.Get())->_checked = r.rank != kUnranked ? 1 : 0;
     }
     if (cell.rankText.Get() != nullptr) {
-        if (r.rank != kUnranked) {
+        if (r.never) {
+            SetRankText(cell.rankText.Get(), "Never");
+        } else if (r.rank != kUnranked) {
             SetRankText(cell.rankText.Get(), std::to_string(r.shownRank).c_str());
         } else {
             SetRankText(cell.rankText.Get(), "-");
         }
     }
-    // Tinted while the item is ranked, the Mods list's white otherwise.
+    // Tinted while the item is ranked (blue) or Never (red), the Mods list's white otherwise.
     if (cell.border.Get() != nullptr) {
-        cell.border->SetColor(r.rank != kUnranked ? 0x20a0c8ffu : 0x10ffffffu);
+        cell.border->SetColor(r.never ? 0x30ff5050u : r.rank != kUnranked ? 0x20a0c8ffu : 0x10ffffffu);
     }
     FitRow(cell);
 }
@@ -464,16 +470,17 @@ void BuildRows() {
         c.check = Object::InternalPtr<UI::Element>(
             Ext::FindElement<UI::CheckElement>(cell.Get(), "checkItemPriorityRow"));
         // by position: ids never change
-        const int32_t base = g_idBase + kCellId + 4 * static_cast<int32_t>(k);
+        const int32_t base = g_idBase + kCellId + kCellStride * static_cast<int32_t>(k);
         if (c.check.Get() != nullptr) {
             c.check->SetElementId(base);
         }
         UI::RibbonElement* moves = Ext::FindElement<UI::RibbonElement>(cell.Get(), "ribbonItemPriorityMoves");
         if (moves != nullptr) {
-            if (moves->ChildCount() >= 3) {
+            if (moves->ChildCount() >= 4) {
                 moves->Child(0).Get()->SetElementId(base + 1);   // Top
                 moves->Child(1).Get()->SetElementId(base + 2);   // Up
                 moves->Child(2).Get()->SetElementId(base + 3);   // Down
+                moves->Child(3).Get()->SetElementId(base + 4);   // Never
             }
         }
         Object::InternalPtr<UI::Element> border;
@@ -500,7 +507,8 @@ void Rebuild() {
 
 // One cell's control was used: edit the town's list for the shown category, live, and re-fill the cells in
 // place.
-void ApplyCellAction(size_t position, int action) {   // action 0 = check box, 1 = top, 2 = up, 3 = down
+// action 0 = check box, 1 = top, 2 = up, 3 = down, 4 = never.
+void ApplyCellAction(size_t position, int action) {
     if (position >= g_order.size()) {
         return;
     }
@@ -513,6 +521,9 @@ void ApplyCellAction(size_t position, int action) {   // action 0 = check box, 1
                                     ? static_cast<UI::CheckElement*>(check)->_checked != 0
                                     : r.rank == kUnranked;
         changed = wantRanked ? Rank(lists, g_category, r.item.path) : Unrank(lists, g_category, r.item.path);
+    } else if (action == 4) {   // Never: on, or off again (the item is then unranked)
+        changed = r.never ? ClearNever(lists, g_category, r.item.path)
+                          : SetNever(lists, g_category, r.item.path);
     } else if (r.rank != kUnranked) {
         // Move past the neighbouring ranked item that is loaded in this game (a path the game no longer has
         // stays where it is in the list and is stepped over).
@@ -626,9 +637,9 @@ bool PageChanged(UI::Element* /*page*/, int32_t id) {
         BuildRows();   // the same items, a different set of cells
         return true;
     }
-    if (id >= kCellId && id < kCellId + 4 * static_cast<int32_t>(g_cells.size())) {
+    if (id >= kCellId && id < kCellId + kCellStride * static_cast<int32_t>(g_cells.size())) {
         const int32_t rel = id - kCellId;
-        ApplyCellAction(static_cast<size_t>(rel / 4), static_cast<int>(rel % 4));
+        ApplyCellAction(static_cast<size_t>(rel / kCellStride), static_cast<int>(rel % kCellStride));
         return true;
     }
     return false;
