@@ -11,8 +11,9 @@
 //                      asks for the default performance mode, not LOW_LATENCY; the logcat copy
 //                      of standalone_error.log starts (the logs are open by now).
 //   PostSdlInit        P7: the lifecycle watch (below): the boot-state watchdog's background
-//                      bracket, and the save request of SDL_EVENT_LOW_MEMORY / TERMINATING.
-//   Shutdown           stop the boot-state watchdog (EXITED, as on macOS), drain the logcat
+//                      bracket, and the save request of SDL_EVENT_LOW_MEMORY / TERMINATING;
+//                      P12: the screen kept on while the game runs.
+//   Shutdown          stop the boot-state watchdog (EXITED, as on macOS), drain the logcat
 //                      copy; P12: an instrumented build (BANISHED_PGO=generate, perf/pgo/android/
 //                      README.md) writes its profile now, since Android ends the process without
 //                      running atexit.
@@ -279,6 +280,13 @@ void PreSdlInitHints() {
 
 void PostSdlInit() {
     if (!g_lifecycleWatch) g_lifecycleWatch = SDL_AddEventWatch(&LifecycleWatch, nullptr);
+    // P12: the screen stays on while the game runs (SDL: FLAG_KEEP_SCREEN_ON on the activity's
+    // window). main.cpp allows the screensaver as retail does on a desktop
+    // (SDL_HINT_VIDEO_ALLOW_SCREENSAVER), which on a phone let its screen-off timeout darken a
+    // game in play; the flag is the window's, so the system still sleeps once the app is left.
+    if (!SDL_DisableScreenSaver()) {
+        __android_log_print(ANDROID_LOG_WARN, kLogTag, "SDL_DisableScreenSaver: %s", SDL_GetError());
+    }
 }
 
 bool TakeSaveRequest() {
