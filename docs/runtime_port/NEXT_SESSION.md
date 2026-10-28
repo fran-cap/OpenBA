@@ -564,6 +564,37 @@ debug key, install) and run the checks below on the S25; nothing here is verifie
 - Not checked here: audio underruns under load (none in logcat at boot), the big-core roster (`[Cpu] mask=0xff
   logical=8 physical=6`, no `big=` on the S25 as predicted), the NEON cull shadow (`BANISHED_STRESS_COMPPROF=4`).
 
+**P12 power pass (2026-10-27/28, same branch).** The four survey items, then the soaks:
+- **Gather-helper spin: already done** (`2e76704d4`, 2026-10-25); the P7 profile predates it.
+- **Two Vulkan frames in flight: MERGED** (`kFramesInFlight` 2, swap chain still asks 3: `kSwapchainImages`).
+- **ADPF: MERGED.** Main + render APerformanceHint sessions at the cap's frame time (thread CPU time per frame),
+  preferPowerEfficiency on, `[Thermal]` log only. Owner's policy: hold the cap, never step below it.
+- **Tiler depth DONT_CARE: CLOSED, no change.** The sun-map and spot depths are the sampled shadow maps; the
+  minimap depth is loaded across the frame-copy split on purpose; the reflection depth (~2.4 MiB/frame) cannot be
+  proven dead when its pass begins. A learned discard costs a wrong frame (seen once): rejected.
+- **Keep-screen-on: FIXED.** main.cpp allows the screensaver as retail does; Android `PostSdlInit` now calls
+  `SDL_DisableScreenSaver` (the phone's 30 s timeout darkened a game in play).
+- **Critical threads on the fastest cores: MERGED** (`3ccbba8f6`). The scheduler kept the main thread (92% of a
+  3.53 GHz core) off the 4.47 GHz pair in 120/120 samples, with or without ADPF or its efficiency flag.
+  AttachThread pins main + render to the largest-capacity CPUs when there are >= 2 (main alone: the render
+  thread's shared cluster clock fell, no gain); `-Wl,--wrap=pthread_create` starts every new thread on the
+  process mask (S25: 2 threads on 6-7, 41 on 0-7).
+- **Soaks** (30 min, stress town capped by `BANISHED_FPS_CAP=60`, speed 10, food top-up, 803 -> ~1305 citizens;
+  start at battery <= 32 C, fixed brightness, USB on; A = no ADPF, B = ADPF, C = ADPF + pin):
+
+  | | A | B | C |
+  |---|---|---|---|
+  | 10 s windows at 60 fps | 88% | 84% | **99%** |
+  | frame p95 last 10 min | 19.37 ms | 19.30 ms | **17.58 ms** |
+  | update / draw last 10 min | 8.26 / 6.59 ms | 8.12 / 6.55 ms | **5.53 / 5.03 ms** |
+  | thermal status 1 / 2 | 17.6 min / never | 17.3 / 29.9 min | **14.3 / 21.6 min** |
+  | battery at 30 min | 41.4 C | 42.0 C | 42.7 C |
+  | battery current, last 10 min (net of USB) | -58 mA | -54 mA | -441 mA |
+
+  ADPF alone changed nothing measurable on this town (no slack for it to use). The pin holds the cap through its
+  own throttling, at a heat and power cost. **Open:** a soak past 30 min (does deeper throttling cost frames?),
+  battery drain in normal play (speed 1-3, where ADPF has slack), and a PGO retrain on the final code.
+
 ## 3. Rules that hold (do not relax)
 
 - CLAUDE.md's hard rules: no null guard on a faithful crash (find what handed us the null); no `getenv`, flags through
