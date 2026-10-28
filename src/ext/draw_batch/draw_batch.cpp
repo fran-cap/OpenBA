@@ -82,6 +82,9 @@ constexpr uint32_t kModeRoad    = 0x4000u;
 constexpr int32_t  kMaxRunItems = 4096;     // the span scratch per run (a run is cut there)
 constexpr int32_t  kSmokeStride = 0x34;     // ParticleInstance::Draw's vertex stride
 constexpr int32_t  kSmokeSlots  = 52;       // Context::_transforms[52], the VS's cb of 208 float4
+// The instancing batch prefetches the geometry this many items ahead (P13_RENDER.md: the vptr load of the
+// virtual GetInstanceTransform missed once per instanced item on the scattered MeshInstances).
+constexpr int64_t  kInstanceAhead = 4;
 
 bool g_installed = false;
 
@@ -417,6 +420,16 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
                 batchCount = 0;
                 for (;;) {
                     const RendererDrawItem& cur = items._data[itemIndex];
+                    // A hint only (never faults, changes nothing): the vptr, the transform pair, _mesh /
+                    // _animation / _nodes and _color lines of a MeshInstance (0x120 bytes, Mesh.h).
+                    if (itemIndex + kInstanceAhead < count) {
+                        const auto* const next = items._data[itemIndex + kInstanceAhead]._geometry;
+                        const char* ahead = reinterpret_cast<const char*>(next);   // CAST-OK: a prefetch address
+                        __builtin_prefetch(ahead);
+                        __builtin_prefetch(ahead + 0x80);
+                        __builtin_prefetch(ahead + 0xc0);
+                        __builtin_prefetch(ahead + 0x100);
+                    }
                     ++batchCount;
                     ++itemIndex;
 

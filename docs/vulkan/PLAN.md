@@ -232,8 +232,8 @@ companion interface; each would sit under it as a fourth layer. See §4.1.
 - **The 1.1 path (P13, the Galaxy S10).** A device without dynamic rendering, synchronization2 or
   timeline semaphores (the S10's Adreno 640: driver 1.1.128, loader 1.1.0, none of those
   extensions, no maintenance4, no EDS1) runs the same backend through `src/render/vulkan/vulkan11.h`,
-  chosen from the caps, no flag: cached render passes and per-frame framebuffers, barriers folded
-  onto `vkCmdPipelineBarrier`, a fence per submit for the serial, vertex strides baked into the
+  chosen from the caps, no flag: cached render passes and framebuffers (a framebuffer lives as long as
+  its views), barriers folded onto `vkCmdPipelineBarrier`, a fence per submit for the serial, vertex strides baked into the
   pipeline key, every module downgraded to SPIR-V 1.3 (`spirv_legalize.h`; the demote becomes
   `OpKill`) and a pixel input narrower than its vertex output widened per pair. Its floor: Vulkan
   1.1, `VK_KHR_swapchain` and `VK_KHR_vulkan_memory_model`. Not on it: ext.ambient_occlusion and

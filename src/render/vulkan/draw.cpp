@@ -318,6 +318,7 @@ void DestroyMainTargets() {
     g_depthReadable.store(false);
     if (sampled) {
         Retire([sampled]() {
+            ForgetImageView(sampled);
             if (LiveDevice()) vkDestroyImageView(LiveDevice(), sampled, nullptr);
         });
     }
@@ -1363,7 +1364,10 @@ void DrawShutdown() {
         s.offset = 0;
         s.pool = 0;
     }
-    if (g_main.depthSampled) vkDestroyImageView(LiveDevice(), g_main.depthSampled, nullptr);
+    if (g_main.depthSampled) {
+        ForgetImageView(g_main.depthSampled);
+        vkDestroyImageView(LiveDevice(), g_main.depthSampled, nullptr);
+    }
     DestroyImageNow(&g_main.depth);
     DestroyImageNow(&g_main.color);
     g_main = MainTargets{};

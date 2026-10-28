@@ -43,6 +43,7 @@
 #include "pipelines.h"
 #include "resources.h"
 #include "shader_convert.h"
+#include "vulkan11.h"
 
 #include "ext/ambient_occlusion/ao_math.h"
 #include "ext/derived_cache/derived_cache.h"
@@ -322,12 +323,14 @@ void DropImage(Image* im, bool now) {
     views.insert(views.end(), im->mipViews.begin(), im->mipViews.end());
     if (now) {
         for (VkImageView v : views) {
+            ForgetImageView(v);
             if (v && LiveDevice()) vkDestroyImageView(LiveDevice(), v, nullptr);
         }
         DestroyImageNow(&im->gpu);
     } else {
         Retire([views]() {
             for (VkImageView v : views) {
+                ForgetImageView(v);
                 if (v && LiveDevice()) vkDestroyImageView(LiveDevice(), v, nullptr);
             }
         });

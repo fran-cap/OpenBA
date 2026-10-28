@@ -53,8 +53,7 @@ struct FramebufferKey {
 
 std::mutex g_lock;   // the pipeline builds (the warm-up worker) and the recording thread share the passes
 std::vector<std::pair<PassKey, VkRenderPass>> g_passes;
-std::vector<std::pair<FramebufferKey, VkFramebuffer>> g_framebuffers;   // the frame being recorded's
-uint64_t g_framebufferFrame = ~0ull;
+std::vector<std::pair<FramebufferKey, VkFramebuffer>> g_framebuffers;   // until a view of theirs is destroyed
 
 // g_lock held. The pass of `key`, made on first use; VK_NULL_HANDLE when vkCreateRenderPass fails (logged).
 VkRenderPass PassForLocked(const PassKey& key) {
@@ -132,13 +131,8 @@ VkRenderPass PassForLocked(const PassKey& key) {
     return pass;
 }
 
-// g_lock held. The frame's framebuffer of `key`; a new one is retired with the frame being recorded.
+// g_lock held. The framebuffer of `key`, made on first use; ForgetView destroys it with its first view.
 VkFramebuffer FramebufferForLocked(const FramebufferKey& key, uint32_t viewCount) {
-    const uint64_t frame = FramesSubmitted();
-    if (frame != g_framebufferFrame) {
-        g_framebuffers.clear();   // their destroys are queued already
-        g_framebufferFrame = frame;
-    }
     for (const auto& entry : g_framebuffers) {
         if (std::memcmp(&entry.first, &key, sizeof(FramebufferKey)) == 0) return entry.second;
     }
@@ -156,9 +150,6 @@ VkFramebuffer FramebufferForLocked(const FramebufferKey& key, uint32_t viewCount
         return VK_NULL_HANDLE;
     }
     g_framebuffers.emplace_back(key, framebuffer);
-    Retire([framebuffer]() {
-        vkDestroyFramebuffer(LiveDevice(), framebuffer, nullptr);
-    });
     return framebuffer;
 }
 
@@ -303,6 +294,22 @@ void Vulkan11Detail::PipelineBarrier(VkCommandBuffer cb, const VkDependencyInfo&
                          static_cast<uint32_t>(images.size()), images.data());
 }
 
+void Vulkan11Detail::ForgetView(VkImageView view) {
+    if (!view) return;
+    std::lock_guard<std::mutex> guard(g_lock);
+    VkDevice device = LiveDevice();
+    auto uses = [view](const std::pair<FramebufferKey, VkFramebuffer>& entry) {
+        for (VkImageView v : entry.first.views) {
+            if (v == view) return true;
+        }
+        return false;
+    };
+    for (const auto& entry : g_framebuffers) {
+        if (device && uses(entry)) vkDestroyFramebuffer(device, entry.second, nullptr);
+    }
+    g_framebuffers.erase(std::remove_if(g_framebuffers.begin(), g_framebuffers.end(), uses), g_framebuffers.end());
+}
+
 void SetPipelineTargets(VkGraphicsPipelineCreateInfo* ci, const VkPipelineRenderingCreateInfo* rendering) {
     if (!Vulkan11Path()) {
         ci->pNext = rendering;
@@ -335,9 +342,11 @@ void SetPipelineTargets(VkGraphicsPipelineCreateInfo* ci, const VkPipelineRender
 
 void Vulkan11Shutdown() {
     std::lock_guard<std::mutex> guard(g_lock);
-    g_framebuffers.clear();
-    g_framebufferFrame = ~0ull;
     VkDevice device = LiveDevice();
+    for (const auto& entry : g_framebuffers) {
+        if (device) vkDestroyFramebuffer(device, entry.second, nullptr);
+    }
+    g_framebuffers.clear();
     for (const auto& entry : g_passes) {
         if (device) vkDestroyRenderPass(device, entry.second, nullptr);
     }
