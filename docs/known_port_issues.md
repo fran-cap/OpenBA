@@ -1080,9 +1080,10 @@ purpose or not yet closed, as of P6 (2026-10-25).
   (multisampled-render-to-single-sampled) is never used. Verified on the S10 (Android 12, Adreno 640,
   driver 1.1.128): debug and release apks boot to a new game and quit cleanly; the validation layer
   (1.4.363) reports 0 errors.
-- **No `textureCompressionBC` (the S10): BC1 / BC3 decoded to RGBA8 at load.** 4x (BC3) or 8x (BC1)
-  the texture memory, and the decode on the load path (`src/render/common/bc_decode/`). A transcode to
-  ETC2 / ASTC would keep the size; not done.
+- **No `textureCompressionBC` (the S10): BC1 / BC3 transcoded to ETC2 at load** (P13,
+  `docs/android/P13_MEM.md`, `src/render/common/etc2/`): the same bytes as BC, a lossy re-encode (35.7 dB
+  PSNR against the BC decode over 40 real levels; no artefact seen on the S10 screenshots), cached in the
+  derived-data cache. A device with neither BC nor ETC2 still decodes to RGBA8.
 
 ## 15. `ResourceLimitUI` accepted a config's resource index only below 11 — FIXED
 

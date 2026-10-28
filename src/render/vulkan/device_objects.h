@@ -43,6 +43,11 @@ struct Caps {
     bool samplerAnisotropy = false;      // the feature, enabled when present
     bool fillModeNonSolid = false;       // wireframe render states
     bool textureCompressionBC = false;   // BC1 / BC3 sampled (every desktop GPU, the S25)
+    bool textureCompressionETC2 = false; // ETC2 / EAC sampled (every Android device; no desktop GPU here)
+    // P13 (docs/android/P13_MEM.md): no BC, the ETC2 feature and the three ETC2 formats sampleable with
+    // linear filtering: BC1 / BC3 textures are transcoded to ETC2 at load (seeded_create.cpp) instead of
+    // decoded to RGBA8.
+    bool etc2Transcode = false;
     // VK_EXT_multisampled_render_to_single_sampled with its feature (the S25; not the desktop dev box):
     // the main target's MSAA is then the tiler's own, resolved on the tile (PLAN.md §4.4).
     bool msrtss = false;

@@ -248,7 +248,8 @@ void SerializeBuffer(Data* self, IO::Serializer* serializer, VkBufferUsageFlags 
 
 // dx11's kFormatToDxgi, as Vulkan formats: BC1, BC3, BC3, A8, R8, BGRA8, R32F, D24S8 (or D32S8).
 // NOT RETAIL: a device without textureCompressionBC (the Galaxy S10's Adreno 640) gets RGBA8 for the
-// three BC formats, the levels decoded at load (seeded_create.cpp MakeTexture, bc_decode.h).
+// three BC formats here; MakeTexture (seeded_create.cpp) makes a seeded texture ETC2 instead when the
+// device samples it (P13_MEM.md), else decodes the levels to RGBA8 (bc_decode.h).
 VkFormat ImageFormat(int format) {
     const bool bc = LiveCaps().textureCompressionBC;
     switch (format) {

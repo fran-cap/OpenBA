@@ -43,6 +43,7 @@
 #include "shader_rewrites.h"                       // P4: the DXBC rewrite stages
 
 #include "compress_ao/bc4_chain.h"                 // P4: ext.compress_ao (the load's summary)
+#include "etc2/etc2_chain.h"                       // P13: BC1 / BC3 to ETC2 (the load's summary)
 #include "texture_quality/texture_quality.h"       // P4: ext.texture_quality (the load's summary)
 #include "device_lost_drive.h"                     // BANISHED_FORCE_DEVICE_LOST=bgsave (src/diag)
 
@@ -995,6 +996,18 @@ bool DeviceData::CreateDevice() {
     caps.samplerAnisotropy = have2.features.samplerAnisotropy != 0;
     caps.fillModeNonSolid = have2.features.fillModeNonSolid != 0;
     caps.textureCompressionBC = have2.features.textureCompressionBC != 0;
+    caps.textureCompressionETC2 = have2.features.textureCompressionETC2 != 0;
+    caps.etc2Transcode = false;
+    if (!caps.textureCompressionBC && caps.textureCompressionETC2) {
+        const VkFormatFeatureFlags need = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+        caps.etc2Transcode = true;
+        for (const VkFormat f : { VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK, VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK,
+                                  VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK }) {
+            VkFormatProperties fp{};
+            vkGetPhysicalDeviceFormatProperties(physical, f, &fp);
+            if ((fp.optimalTilingFeatures & need) != need) caps.etc2Transcode = false;
+        }
+    }
 
     // 3 -- the graphics queue family (it must also present to the surface, checked after the surface).
     uint32_t qCount = 0;
@@ -1128,6 +1141,7 @@ bool DeviceData::CreateDevice() {
     want2.pNext = caps.vulkan11 ? static_cast<void*>(&wantDraw) : static_cast<void*>(&want13);
     want2.features.samplerAnisotropy = have2.features.samplerAnisotropy;
     want2.features.textureCompressionBC = have2.features.textureCompressionBC;
+    want2.features.textureCompressionETC2 = have2.features.textureCompressionETC2;
     want2.features.fillModeNonSolid = have2.features.fillModeNonSolid;
     want2.features.independentBlend = have2.features.independentBlend;
     want2.features.depthClamp = have2.features.depthClamp;
@@ -1184,7 +1198,7 @@ bool DeviceData::CreateDevice() {
     std::fprintf(stderr,
                  "[Vulkan] device %s (%s) api %u.%u.%u driver 0x%x created; path %s; push_descriptor=%d (max %u) "
                  "vertex_input_dynamic=%d (not enabled) eds2=%d load_store_none=%d d24s8=%d msrtss=%d validation=%d "
-                 "ao=%d/%d/%d; multisample %ux\n",
+                 "ao=%d/%d/%d bc=%d etc2=%d (transcode %d); multisample %ux\n",
                  deviceProperties.deviceName, DeviceTypeName(deviceProperties.deviceType),
                  VK_API_VERSION_MAJOR(caps.apiVersion), VK_API_VERSION_MINOR(caps.apiVersion),
                  VK_API_VERSION_PATCH(caps.apiVersion), deviceProperties.driverVersion,
@@ -1192,7 +1206,7 @@ bool DeviceData::CreateDevice() {
                  caps.pushDescriptor,
                  caps.maxPushDescriptors, caps.vertexInputDynamicState, caps.extendedDynamicState2, caps.loadStoreOpNone, caps.d24s8,
                  caps.msrtss, caps.validation, caps.fragmentStores, caps.storageWriteWithoutFormat, caps.aoFormats,
-                 mainSamples);
+                 caps.textureCompressionBC, caps.textureCompressionETC2, caps.etc2Transcode, mainSamples);
     return true;
 }
 
@@ -1249,7 +1263,8 @@ void DeviceData::Shutdown() {
 
 // The loader bracket (dx11 devicedata_stubs.cpp Slot4): retail's body is empty. NOT RETAIL, the dx11
 // body's extension work (P4): `true` arms ext.async_gpu_create for the loader thread, `false` waits for
-// its deferred creates and disarms it, then the load-end summaries of ext.compress_ao, ext.share_gpu_data,
+// its deferred creates and disarms it, then the load-end summaries of ext.compress_ao, the ETC2 transcode
+// (docs/android/P13_MEM.md), ext.share_gpu_data,
 // ext.create_on_demand and ext.texture_quality, and the backend's own program summary (companions.cpp).
 void DeviceData::Slot4(bool loading) {
     if (loading) {
@@ -1258,6 +1273,7 @@ void DeviceData::Slot4(bool loading) {
     }
     AsyncCreate::End();
     ::CompressAo::LoadEnd();
+    Etc2Chain::LoadEnd();
     ShareGpuData::LoadEnd();
     CreateOnDemand::LoadEnd();
     ::TextureQuality::PrintIfChanged("load end (run total)");
