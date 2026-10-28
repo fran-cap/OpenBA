@@ -41,10 +41,13 @@
 #include "volume/frustum_cull.h"   // CULLROUTE: the prepared tables
 #include "graphics/Camera.h"
 #include "graphics/Geometry.h"
+#include "graphics/Material.h"   // P13: MaterialInstance::_shaderClass (kDispatchMaterials)
+#include "graphics/Mesh.h"       // P13: MeshInstance::_materials (kDispatchMaterials)
 #include "graphics/Scene.h"
 #include "graphics/scene_ext.h"
 #include "graphics/scene_grid.h"   // rtgfxgrid::GridReindex, Clean's re-index
 #include "ext/registry.h"
+#include "object/class_vptr.h"   // P13: Object::ClassVptr (the vptr picks the stage)
 #include "platform/common/cpu/roster.h"      // CULLPAR: Cpu::CullHelpers
 #include "platform/common/cpu/topology.h"    // CULLPAR: Cpu::Get().physical
 #include "stress_harness.h"        // g_verifyOn / StressHarness_Verify (COMPPROF=4 shadows)
@@ -65,6 +68,27 @@ static_assert(sizeof(::Box) == sizeof(float) * 6, "a side record's box is a ::Bo
 // Prefetch distances (nodes / geometries ahead). Exact: a prefetch changes no value.
 constexpr int32_t kCleanAhead    = 8;
 constexpr int32_t kDispatchAhead = 4;
+
+// P13 (docs/android/P13_CPU.md), ARM only: measured on the Galaxy S10, whose gather waits on one
+// Geometry miss at a time; the desktop object stays as it was.
+//   kLiveAfterWalk     the walk tests the side record's box alone and collects the survivors; a pass
+//                      over that array then makes retail's live flag / detail test with the
+//                      Geometries kLiveAhead entries ahead prefetched. Retail's per-object test is
+//                      `flagsOK && detailOK && boxOK`, three pure reads; all of them are still made
+//                      before the first AddDrawItems and the survivors keep the walk's order, so the
+//                      visible list is the same (the COMPPROF=4 `DrawGather` shadow checks it).
+//   kDispatchMaterials the dispatch also names a MeshInstance's `_materials._data` line (at i+3) and
+//                      the first kDispatchMaterialCount MaterialInstances' `_shaderClass` / `_material`
+//                      line (at i+2), which Renderer::AddDrawItem reads first.
+#if defined(__aarch64__)
+constexpr bool    kLiveAfterWalk     = true;
+constexpr bool    kDispatchMaterials = true;
+#else
+constexpr bool    kLiveAfterWalk     = false;
+constexpr bool    kDispatchMaterials = false;
+#endif
+constexpr size_t  kLiveAhead             = 16;
+constexpr int32_t kDispatchMaterialCount = 2;
 
 // ---------------------------------------------------------------------------
 // The state. Main thread only (Clean and the gather run there), except the add
@@ -187,6 +211,44 @@ struct SideTest {
         return pass;
     }
 };
+
+// kLiveAfterWalk: the box half from the record; the live half is LiveFilter's.
+struct SideBoxTest {
+    const Frame& f;
+    SideArray&   side;
+    bool         verify;
+    bool operator()(int32_t cur, const Geometry* geo, uint32_t cullMask, uint32_t shadowMask) {
+        ++g_counters.nodesTested;
+        if (!side.Valid(cur, geo)) {
+            StoreFull(side, cur, geo);
+        } else if (verify) {
+            // COMPPROF=4: a valid record must hold the live box, bit for bit.
+            const bool same = std::memcmp(side.At(cur).box, &geo->_worldBounds, sizeof(float) * 6) == 0;
+            StressHarness_Verify("DrawGatherSide", same, same ? 0 : cur);
+        }
+        Box wb;
+        std::memcpy(&wb, side.At(cur).box, sizeof(wb));
+        return BoxPasses(f, wb, cullMask, shadowMask);
+    }
+};
+
+// kLiveAfterWalk: retail's flag / detail test over the box survivors, in order, compacting the list
+// in place. `_detailId` (+0x28) and `_materialTypeFlags` (+0x30) can straddle a line: both named.
+void LiveFilter(const Frame& f, std::vector<Geometry*>& list) {
+    const size_t n = list.size();
+    size_t kept = 0;
+    for (size_t i = 0; i < n; ++i) {
+        if (i + kLiveAhead < n) {
+            const Geometry* ahead = list[i + kLiveAhead];
+            __builtin_prefetch(&ahead->_detailId);
+            __builtin_prefetch(&ahead->_materialTypeFlags);
+        }
+        Geometry* const geo = list[i];
+        if ((geo->_materialTypeFlags & f.passMask) != 0 && geo->_detailId <= f.rendererDetail) list[kept++] = geo;
+    }
+    g_counters.geoTouched += n;
+    list.resize(kept);
+}
 
 // The visible lists, one per nesting depth: a dispatch can re-enter the gather
 // (MaterialInstance::RenderTextures -> a generated image's own scene draw).
@@ -318,6 +380,10 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
     const bool verify = g_verifyOn != 0;
     if (__builtin_expect(g_parHelpers > 0, 0)) {
         ParallelGather(self, f, side, verify, list);   // CULLPAR: ext.gather_threads
+    } else if constexpr (kLiveAfterWalk) {
+        SideBoxTest test{ f, side, verify };
+        Walk(self, f, list, test);
+        LiveFilter(f, list);
     } else {
         SideTest test{ f, side, verify };
         Walk(self, f, list, test);
@@ -342,6 +408,8 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
 
     // The dispatch: retail's virtual slot 3 over the list, in order.
     const int32_t n = static_cast<int32_t>(list.size());
+    [[maybe_unused]] const void* meshVt = nullptr;
+    if constexpr (kDispatchMaterials) meshVt = Object::ClassVptr<Graphics::MeshInstance>::Get();
     for (int32_t i = 0; i < n; ++i) {
         if (i + kDispatchAhead < n) {
             const Geometry* ahead = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i + kDispatchAhead)];
@@ -350,6 +418,29 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
             __builtin_prefetch(&ahead->_opacity);              // opacity pair, transform
             __builtin_prefetch(&ahead->_transform._previous);
             __builtin_prefetch(ahead + 1);                     // a MeshInstance's mesh / materials / animation
+        }
+        if constexpr (kDispatchMaterials) {
+            // i+3: the vptr and `_materials` lines are the ones named at i+4.
+            if (i + 3 < n) {
+                const Geometry* g3 = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i + 3)];
+                if (*reinterpret_cast<const void* const*>(g3) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
+                    const auto* mi = static_cast<const Graphics::MeshInstance*>(g3);
+                    if (mi->_materials._data != nullptr) __builtin_prefetch(mi->_materials._data);
+                }
+            }
+            // i+2: the array line named at i+3; the MaterialInstances AddDrawItem reads.
+            if (i + 2 < n) {
+                const Geometry* g2 = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i + 2)];
+                if (*reinterpret_cast<const void* const*>(g2) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
+                    const auto* mi = static_cast<const Graphics::MeshInstance*>(g2);
+                    const int32_t count = mi->_materials._size < kDispatchMaterialCount ? mi->_materials._size
+                                                                                        : kDispatchMaterialCount;
+                    for (int32_t k = 0; k < count; ++k) {
+                        const Graphics::MaterialInstance* m = mi->_materials._data[k].Get();
+                        if (m != nullptr) __builtin_prefetch(&m->_shaderClass);
+                    }
+                }
+            }
         }
         // `list` may move if a nested gather grows g_lists: index it afresh.
         Geometry* geo = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i)];
