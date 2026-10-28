@@ -222,6 +222,10 @@ bool Engine::MainLoop::Update(const System::Time& time) {
     }
 
     // --- the transition, 0x1800dd0a7..0x1800dd0e7 ---------------------------
+    // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md): ext.render_pipe joins its
+    // render thread before the loop it may still be drawing is shut down and deleted.
+    if (_extFrame != nullptr)
+        _extFrame(*this, kExtBeforeTransition, 0.0f, 0.0f);
     _currentLoop->Shutdown();                                       // slot 2
 
     // Retail re-reads _currentLoop and null-tests it before the deleting dtor

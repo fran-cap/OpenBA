@@ -48,6 +48,11 @@ uint64_t Now() {
 // would show the difference as a mismatch.
 const Graphics::InterpolatedState<Math::Transform>*
 PoseArray(const Graphics::MeshInstance& m) {
+    // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md §2.3): GetBones' frozen-copy branch.
+    if (m._animation._instanced && Graphics::MeshInstance::_extInstancedState != nullptr) {
+        if (const Graphics::InstancedAnimationState* frozen = Graphics::MeshInstance::_extInstancedState(m))
+            return frozen->_nodes._data;
+    }
     if (m._animation._instanced) {
         const int32_t handle =
             m._animation._layers._data[m._animation._layers._size - 1]._handle;

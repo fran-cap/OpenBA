@@ -42,6 +42,15 @@
 // overlap EndCommands, the frame index and Present. The command stream is the
 // same: only the main thread's wait moves.
 //
+// THE OVERLAP (docs/android/P13_OVERLAP.md): with the render thread up, the main
+// half ends by pointing the packet's items at frozen copies of their geometry
+// (snapshot.h); such a packet is not waited for at THE FENCE: its pass 2 runs
+// beside the next Frame's steps, and its Gate (EngineOps::Gate, between pass 2
+// and the post-scene draws, the device lock dropped while it waits) holds the UI,
+// tool and save-load draws until the main thread reaches the Frame tail, which
+// opens it and waits for the release there (the fence, moved after the steps).
+// Before MainLoop::Update ends the loop (kExtBeforeTransition) the thread is joined.
+//
 // THE SIX FIXES (THREADRESEARCH section 1.5):
 //   1 two Renderer instances, ping-pong: slot 0 = GameUpdateLoop::m_renderer,
 //     slot 1 = g_second (allocated at install, freed at uninstall);
@@ -65,15 +74,18 @@
 #include "ext/render_pipe/pipe_driver.h"
 #include "ext/render_pipe/handoff.h"
 #include "ext/render_pipe/finish_split.h"
+#include "ext/render_pipe/snapshot.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 
 #include "engine/MainLoop.h"
 #include "engine/UpdateLoop.h"
 #include "graphics/Camera.h"
+#include "graphics/Mesh.h"        // MeshInstance::_extInstancedState (P13_OVERLAP)
 #include "graphics/SunLight.h"
 #include "math/Math.h"
 #include "object/External.h"
@@ -399,6 +411,15 @@ struct EngineOps {
         }
         Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr);
     }
+    // P13_OVERLAP: when the next Frame's steps claimed the gate, wait until they are over, the
+    // device lock dropped meanwhile (a step that uploads takes it: P13_OVERLAP 2.5).
+    void Gate(const Packet& p) {
+        if (handoff == nullptr || !p.overlap || handoff->PassGate()) return;
+        Video::Device* const device = ctx->_device;
+        device->Unlock();
+        handoff->WaitGate();
+        device->Lock();
+    }
     void SaveLoadDraw(const Packet& p) {
         if (p.saveLoad != nullptr)
             p.saveLoad->Draw(*ctx, Object::ExternalPtr<Graphics::Material>(p.uiMaterial));
@@ -455,6 +476,31 @@ struct EngineOps {
 // ===========================================================================
 // The Driver's Host (pipe_driver.h) over the engine.
 // ===========================================================================
+// P13_OVERLAP: the snapshot's share of the [Stress::pipe] window (main thread).
+struct SnapshotCounters {
+    uint64_t built   = 0;
+    uint64_t refused = 0;
+    uint64_t us      = 0;
+    uint64_t bytes   = 0;
+};
+SnapshotCounters g_snapshot;
+Handoff*         g_handoff = nullptr;   // non-null: the render thread is up
+
+// The first refusals, by reason, once each (a type name or a rule).
+void NoteRefusal(const char* why) {
+    static const char* s_said[8] = {};
+    for (const char*& said : s_said) {
+        if (said == why) return;
+        if (said == nullptr) {
+            said = why;
+            std::fprintf(stderr, "[RenderPipe] snapshot refused (%s): the packet keeps the fence\n",
+                         why != nullptr ? why : "?");
+            std::fflush(stderr);
+            return;
+        }
+    }
+}
+
 struct EngineHost {
     // Written only while nothing is in flight (the first Hook call after install).
     ::Engine::MainLoop* loop = nullptr;
@@ -478,11 +524,39 @@ struct EngineHost {
             next.hash   = HashFrame(*r, g.m_sunLight);
             next.hashed = true;
         }
+        if (g_handoff != nullptr) Freeze(next, *r, g);
+    }
+
+    // P13_OVERLAP: the packet's items at frozen copies (snapshot.h), when every one is covered.
+    void Freeze(Packet& next, Graphics::Renderer& r, GameUpdateLoop& g) {
+        const uint64_t live = verify ? HashFrame(r, g.m_sunLight, false) : 0;
+        const int64_t t0 = NowUs();
+        const SnapshotResult s = BuildSnapshot(next.slot, r, Ext::Ext().terrain_edit);
+        g_snapshot.us += static_cast<uint64_t>(NowUs() - t0);
+        if (!s.ok) {
+            ++g_snapshot.refused;
+            NoteRefusal(s.refused);
+            return;
+        }
+        ++g_snapshot.built;
+        g_snapshot.bytes += s.bytes;
+        next.overlap = true;
+        if (verify) {
+            // RenderPipeCopy: the copies hold what the live objects held; the shadow's later
+            // hashes (the emit's pre / post) are of the copies.
+            const SnapshotScope scope(next.slot);
+            const uint64_t copied = HashFrame(r, g.m_sunLight, false);
+            StressHarness_Verify("RenderPipeCopy", copied == live, static_cast<long long>(s.geometries));
+            next.hash = HashFrame(r, g.m_sunLight);
+        }
     }
 
     // The EMITTING thread: the render thread (handoff non-null) or the main thread.
     EmitResult Emit(const Packet& p, Handoff* handoff) {
         const bool threaded = handoff != nullptr;
+        // P13_OVERLAP: this thread's pose lookups answer for the packet's copies.
+        std::optional<SnapshotScope> scope;
+        if (p.overlap) scope.emplace(p.slot);
         EmitResult res;
         Video::Context* const ctx = loop->_context;   // only the main thread's recovery replaces it, at a join
         const bool check = g_verifyOn != 0 && p.hashed;
@@ -537,7 +611,6 @@ struct EngineHost {
 
 EngineHost          g_host;
 Driver<EngineHost>  g_driver;
-Handoff*            g_handoff = nullptr;   // non-null: the render thread is up
 
 // The render thread: System::Thread's Start / park protocol (as path_workers'
 // PoolThread); Run is the Driver's worker loop, which parks on the Handoff
@@ -593,6 +666,8 @@ void StopThread() {
 void Uninstall() {
     ::Engine::MainLoop::_extFrame = nullptr;
     StopThread();
+    Graphics::MeshInstance::_extInstancedState = nullptr;
+    FreeSnapshots();
     delete g_second;
     g_second    = nullptr;
     g_installed = false;
@@ -604,6 +679,10 @@ void Hook(::Engine::MainLoop& loop, int32_t point, float alpha, float time) {
     if (g_host.loop != &loop) g_host.loop = &loop;   // once (nothing is in flight before the first tail)
     if (point == ::Engine::MainLoop::kExtBeforeSteps) {
         g_driver.BeforeSteps(g_host);   // THE FENCE
+        return;
+    }
+    if (point == ::Engine::MainLoop::kExtBeforeTransition) {
+        g_driver.BeforeTransition(g_host);   // P13_OVERLAP: nothing in flight while the loop ends
         return;
     }
     GameUpdateLoop* const g = GameUpdateLoop::_singleton;
@@ -626,6 +705,7 @@ void Sync() {
             g_driver.Attach(g_handoff);
             g_thread = new RenderThread();
             g_thread->Start();
+            Graphics::MeshInstance::_extInstancedState = &FrozenInstancedState;   // P13_OVERLAP
             std::fprintf(stderr, "[RenderPipe] render thread up (%d physical cores)\n", physical);
             std::fflush(stderr);
         } else {
@@ -647,7 +727,15 @@ void Sync() {
 bool Installed() { return g_installed; }
 bool Threaded() { return g_handoff != nullptr; }
 
-Counters TakeWindow() { return g_driver.TakeWindow(); }
+Counters TakeWindow() {
+    Counters c = g_driver.TakeWindow();
+    c.snapshots  = g_snapshot.built;
+    c.refused    = g_snapshot.refused;
+    c.snapshotUs = g_snapshot.us;
+    c.snapshotKB = g_snapshot.bytes / 1024;
+    g_snapshot = SnapshotCounters{};
+    return c;
+}
 
 }  // namespace RenderPipe
 }  // namespace Ext

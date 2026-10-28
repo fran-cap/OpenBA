@@ -261,9 +261,13 @@ public:
     //                    (the drain: no render work is pending while the sim runs);
     //   kExtFrameTail    in place of the tail's `_time` store and `Draw(alpha)`
     //                    (`alpha` and `time` are the tail's two computed floats).
-    // Null: Frame is retail's body plus the two null tests.
-    static constexpr int32_t kExtBeforeSteps = 0;
-    static constexpr int32_t kExtFrameTail   = 1;
+    // and Update at a third (docs/android/P13_OVERLAP.md):
+    //   kExtBeforeTransition  before the loop transition's Shutdown and delete (the
+    //                    render thread is joined: nothing it reads is freed under it).
+    // Null: Frame is retail's body plus the two null tests, Update plus one.
+    static constexpr int32_t kExtBeforeSteps      = 0;
+    static constexpr int32_t kExtFrameTail        = 1;
+    static constexpr int32_t kExtBeforeTransition = 2;
     using ExtFrameFn = void (*)(MainLoop& loop, int32_t point, float alpha, float time);
     static ExtFrameFn _extFrame;   // defined in mainloop_frame.cpp
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md, HITCH_BGSAVE.md): ext.background_save's video-error barrier.

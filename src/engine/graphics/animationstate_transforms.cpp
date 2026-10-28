@@ -728,7 +728,12 @@ int MeshInstance::GetBones(float t, const Math::Transform& rootRef,
     const Math::Quaternion rootRot(rqx, rqy, rqz, rqw);
 
     const InterpolatedState<Math::Transform>* interp;
-    if (_animation._instanced) {
+    // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md §2.3): a frozen copy's own record.
+    const InstancedAnimationState* const frozen =
+        (_animation._instanced && _extInstancedState != nullptr) ? _extInstancedState(*this) : nullptr;
+    if (frozen != nullptr) {
+        interp = frozen->_nodes._data;
+    } else if (_animation._instanced) {
         const int32_t handle =
             _animation._layers._data[_animation._layers._size - 1]._handle;
         const AnimationManager::Instance& inst =

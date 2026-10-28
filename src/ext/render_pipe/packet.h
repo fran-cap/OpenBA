@@ -68,6 +68,11 @@ struct Packet {
     bool                 aoOn = false;
     Graphics::ExtAoFrame ao   = {};
 
+    // ---- P13_OVERLAP (docs/android/P13_OVERLAP.md) -------------------------
+    // The items point at frozen copies (snapshot.h): the emit up to Pass2 reads
+    // nothing the steps write, and the Gate holds the rest until they are over.
+    bool overlap = false;
+
     // ---- the RenderPipe shadow (COMPPROF=4 only) -------------------------
     bool     hashed = false;
     uint64_t hash   = 0;        // the lists and the state their items reference, at hand-off
@@ -81,6 +86,10 @@ struct Packet {
 // `Released` is not a retail step: it marks the end of what the sim may not
 // overlap (RENDERPIPE_FENCE.md). Nothing after it reads sim, scene, UI or
 // Renderer state -- only the device, the Context and MainLoop's timing fields.
+// `Gate` is not a retail step either (P13_OVERLAP.md): with a snapshot on the
+// render thread, the next Frame's steps may start during everything before it,
+// and then the emit waits there until they are over; everything after it reads
+// live UI, tool and save-load state.
 template <class Ops>
 void Emit(Ops& ops, const Packet& p) {
     ops.FrameTailTime(p);              // MainLoop::Frame: Context::_time, dirty 0x800
@@ -96,6 +105,7 @@ void Emit(Ops& ops, const Packet& p) {
     ops.WeatherContext(p);             // step 5: the four floats, dirty 0x10800, SetFog
     ops.ForceSnow(p);                  // step 5: the snow diagnostic
     ops.Pass2(p);                      // step 7: Renderer::Draw pass 2
+    ops.Gate(p);                       // (P13_OVERLAP: no step of the next Frame runs from here)
     ops.SaveLoadDraw(p);               // step 8
     ops.SetCamera(p);                  // step 10
     ops.ToolDraw(p);                   // step 11

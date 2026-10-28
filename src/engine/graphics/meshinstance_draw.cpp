@@ -163,6 +163,11 @@ Math::Transform LerpTransform(const Math::Transform& cur, const Math::Transform&
 // ---------------------------------------------------------------------------
 const Graphics::InterpolatedState<Math::Transform>*
 InstancedPoses(const Graphics::MeshInstance& self) {
+    // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md §2.3): a frozen copy's own record.
+    if (::Graphics::MeshInstance::_extInstancedState != nullptr) {
+        if (const ::Graphics::InstancedAnimationState* frozen = ::Graphics::MeshInstance::_extInstancedState(self))
+            return frozen->_nodes._data;
+    }
     const auto& layers = self._animation._layers;
     const int64_t poolId = layers._data[layers._size - 1]._handle;       // MOVSXD
 
