@@ -40,6 +40,7 @@
 #include "Component/ParticleComponent.h"   // AuditDyingEntity's particle arm
 #include "Component/CharacterComponent.h"  // [PREFETCH] the staged walk prefetch (kWalkPrefetch == 2)
 #include "graphics/ParticleInstance.h"     // [PREFETCHCOV] the emitter instance lines (kPrefetchCovParticle)
+#include "Action/MoveTo.h"                 // [PREFETCHCOV] the MoveTo lines (kPrefetchCovMoveTo)
 #include "stress_harness.h"               // g_compProfOn / CompProf_AddVtbl (BANISHED_STRESS)
 #include "ext/walk_batch/walk_batch.h"    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKBATCH.md, WALKGRID.md): ext.walk_batch (A) / ext.walk_batch_grid (B), the batched walk instantiations
 #include "ext/walk_batch_grid/walk_batch_grid.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKGRID.md): ext.walk_batch_grid (B), the grid walk's character tick
@@ -476,8 +477,21 @@ static constexpr size_t kWalkPrefetchStride = 1;
 //                            read (+0x00 vptr / _dirtyFlags / _localBounds, +0x7C _opacity,
 //                            +0xC0 _resource / _boundsPtr) (i+1). The first kPrefetchCovEmitters
 //                            emitters only.
+//   kPrefetchCovMoveTo       CharacterComponent, stage i+1: besides the current Action's head, the
+//                            lines a walking character's MoveTo is read at next (ext.walk_batch's
+//                            Eligible and MoveTo::Execute): +0x00..+0x43 (vptr, _status, _next,
+//                            character, description, destination), +0x60 (pathIndex, pathCount),
+//                            +0x474 (field_0x474, speedMultiplier). The vptr is not resident at
+//                            i+1, so the lines are named for any action; a shorter one wastes the
+//                            two far prefetches. ARM only (docs/android/P13_WALK.md): measured on
+//                            the Galaxy S10, not on the desktop, whose object stays as it was.
 static constexpr bool kPrefetchCovParticle     = true;
 static constexpr int  kPrefetchCovEmitters     = 4;
+#if defined(__aarch64__)
+static constexpr bool kPrefetchCovMoveTo       = true;
+#else
+static constexpr bool kPrefetchCovMoveTo       = false;
+#endif
 
 // kWalkPrefetch == 2. One entity apart per stage (an entity visit is ~75 ns, about one
 // DRAM latency), each stage touching only lines the stage before pulled in:
@@ -610,7 +624,16 @@ template <class Fn>
                     const int32_t cur = st.current;
                     if (cur >= 0 && cur < st.actions._size && st.actions._data) {
                         const char* a = reinterpret_cast<const char*>(st.actions._data[cur].Get());  // CAST-OK: crash_walk (a prefetch names a line, never a value)
-                        if (a) { __builtin_prefetch(a); __builtin_prefetch(a + 0x1F); }
+                        if (a) {
+                            __builtin_prefetch(a);
+                            if constexpr (kPrefetchCovMoveTo) {
+                                __builtin_prefetch(a + offsetof(MoveTo, destination) + 0xB);
+                                __builtin_prefetch(a + offsetof(MoveTo, pathIndex));
+                                __builtin_prefetch(a + offsetof(MoveTo, field_0x474));
+                            } else {
+                                __builtin_prefetch(a + 0x1F);
+                            }
+                        }
                     }
                 } else if (vp == vt.model) {
                     const Graphics::MeshInstance& mi = static_cast<const ModelComponent*>(c)->meshInstance;
