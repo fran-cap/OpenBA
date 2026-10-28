@@ -543,6 +543,27 @@ debug key, install) and run the checks below on the S25; nothing here is verifie
   the tiler (`draw.cpp` MakeMainImage); the NDK's stack protector / fortify defaults (a measured A/B before
   touching); the 30-minute thermal soak at the 60 cap that P7 never ran.
 
+**P12 on the S25 (2026-10-27, branch `android/p12` on top of the above).**
+- **Release apk boot: FAILED as written, fixed.** `[FactoryReg] FATAL: no exe type record`: under ThinLTO
+  `used` does not survive the NDK's `--gc-sections` (0 `exe_type_records` entries). The ELF slots now carry
+  `retain` (`platform_exe_type_section.h`; GCC 13 takes it too). Also ported from the local PGO attempt:
+  `-fno-delete-null-pointer-checks` on every clang build (the instrumented apk crashed at the menu without it).
+  After the fix: boots, new game, `libmain.so` exports `main` alone, no UnsatisfiedLinkError.
+- **Frame rate: VERIFIED.** `ANativeWindow_setFrameRate resolved`, `60 -> = 0`; SurfaceFlinger active mode
+  60 Hz with `frameRateOverride {uid=<app> 60}`; home screen 120 Hz, back in the game 60 Hz again (re-applied
+  after the swap chain is remade). The swap chain answers 4 images (asked 4, surface min 4).
+- **Crash symbolise: VERIFIED** on the boot-abort dump: `ExeTypeFatal` (factory_registration.cpp:64),
+  `RunGameMain` (game_main.cpp:394, the `VerifyExeTypeInfos` call, at offset - 1), `main` (main.cpp:1165).
+- **Stress A/B, `[Stress]` sim ms / iteration, 6000 frames, ABBA, 90 s cool-down + thermal 0 before each run,
+  every run ends at thermal 2 (~43 °C battery):** perf 0.642 / 0.612, release 0.657 / 0.637: **no gain from
+  -O3 + ThinLTO + hidden visibility**, inside the noise. PGO release 0.611 / 0.605 against plain release
+  0.634 / 0.648: **-5% sim**, both PGO runs under both plain ones; draw CPU +7% (5.1 vs 4.8 ms, the training
+  towns weight the sim).
+- **PGO: DONE**, `perf/pgo/android/openba.profdata` committed (recipe corrected in its README: the flags as
+  they exist, and a build dir configured before the file existed stays plain until removed).
+- Not checked here: audio underruns under load (none in logcat at boot), the big-core roster (`[Cpu] mask=0xff
+  logical=8 physical=6`, no `big=` on the S25 as predicted), the NEON cull shadow (`BANISHED_STRESS_COMPPROF=4`).
+
 ## 3. Rules that hold (do not relax)
 
 - CLAUDE.md's hard rules: no null guard on a faithful crash (find what handed us the null); no `getenv`, flags through
