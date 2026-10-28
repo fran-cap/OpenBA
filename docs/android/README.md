@@ -217,8 +217,9 @@ usual shape (arm64 registers, `Fault:` from the ESR, the stack walked from the s
 frame-pointer chain) and copies it to logcat, then hands the signal to Android's crash reporter, which
 writes a tombstone. To symbolise either:
 ```bash
-# the unstripped library Gradle built (the apk carries a stripped copy)
+# the unstripped library Gradle built (the apk carries a stripped copy); RelWithDebInfo for the release apk
 SO=$(ls android/app/build/intermediates/cxx/Debug/*/obj/arm64-v8a/libmain.so)
+# frames #1 and up are return addresses: pass offset - 1 to land on the call's own line
 NDK="$ANDROID_HOME/ndk/30.0.16248370"
 # one frame of standalone_crash.log ("libmain.so + 0xA74D14"):
 "$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin/llvm-addr2line.exe" -f -C -i -e "$SO" 0xA74D14

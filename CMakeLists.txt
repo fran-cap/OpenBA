@@ -108,6 +108,15 @@ if(ANDROID)
   set(CMAKE_CXX_VISIBILITY_PRESET hidden)
   set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 endif()
+# Clang (Android, macOS): -fno-delete-null-pointer-checks. Retail calls members through a null
+# `this` its callee tests first (UI::String {null, -1} -> StringTable::GetText checks the index
+# before touching `this`, src/engine/ui/sprite.cpp); clang otherwise marks `this` dereferenceable and
+# may hoist the callee's field load above that test. The instrumented Android build did exactly
+# that and crashed at the main menu (perf/pgo/android/README.md). GCC has not been seen to do it;
+# its flags are left as measured.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  list(APPEND BANISHED_CXX_FLAGS -fno-delete-null-pointer-checks)
+endif()
 # (SHELL: keeps each `-include <file>` pair whole: CMake de-duplicates repeated option tokens,
 # which with two force-includes drops the second `-include` and leaves its path a bare input.)
 set(BANISHED_STRIP_LOGS -DBANISHED_STRIP_LOGS "SHELL:-include ${CMAKE_SOURCE_DIR}/src/app/log_strip.h")
