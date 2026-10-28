@@ -142,6 +142,100 @@ an A76 (whose hardware prefetchers also run), which is variant 0 / 1 / 2 of `kWa
    bit-identical in allocation and the desktop closed it); huge pages for the TLB (2.7 page walks per
    1000 instructions is real, but Android gives an app no control over THP on its heap).
 
-## 5. Results
+## 5. Results (2026-10-28)
 
-(Filled in by the prototypes below.)
+Every A/B below is ABBA, one pair per hold of the phone lock, the protocol of section 1; numbers per
+run, mean of windows t = 20..100 s, all runs started at <= 32.0 C / thermal 0 and ended at thermal 0.
+The B builds of 5.2 and 5.3 change the walk's code, so clang drops the committed PGO profile for
+those functions (`-Wno-profile-instr-out-of-date` hides it): every B there ran its walk WITHOUT PGO
+against a PGO'd A. That biases against B, so the gains are a floor (and 5.2's losses partly PGO);
+the retrain on the final code (NEXT_SESSION §2.14 item 1) settles it.
+
+### 5.1 The main thread on the prime: blocked by the system, dropped
+
+| run | update ms | treeWalk ms | fps | main thread on (60 samples) |
+|---|---|---|---|---|
+| A base | 9.98 / 10.04 / 9.98 | 6.42 / 6.50 / 6.41 | 35.9 / 35.5 / 35.6 | gold 59-60, prime 0-1 |
+| B pin main to cpu7 at attach | 10.01 / 10.06 | 6.49 / 6.44 | 35.3 / 35.6 | gold 59, prime 1 |
+| B + re-pin every 60 frames | 9.86 | 6.36 | 36.9 | gold 60, prime 0 |
+
+`sched_setaffinity(cpu7)` returns 0 at attach, but the thread is back on 0-7 seconds later, and the
+re-pin is refused (EINVAL) whenever cpu7 is not in the allowed set: the thread's mask read back as
+0x5f and 0x3f. The cause is Qualcomm's `core_ctl` (`/sys/devices/system/cpu/cpu7/core_ctl`:
+`enable=1 min_cpus=0 max_cpus=1`, `global_state` CPU7 `Isolated: 1 Active CPUs: 0`, cpu6 isolated
+too, cpu7 idling at 825 MHz during the stress town): the prime is isolated until the cluster's own load
+asks for it, which a thread that never runs there cannot make. `min_cpus` is root-only. So an app cannot
+put its main thread on the S10's prime; the 2-prime S25 path is unaffected (nothing committed). Note
+for the S25: the same reset may undo its P12 pin after a cgroup move (P12 verified the pin by sampling
+at the time); a periodic read-back is the cheap check if a future S25 run shows the main thread off
+6-7.
+
+### 5.2 `kWalkPrefetch` on ARM: the shipped variant 2 is right, and the pipeline matters 3-4x more than on x86
+
+| run | update ms | treeWalk ms | fps |
+|---|---|---|---|
+| A variant 2 (shipped) | 10.06 / 10.02 | 6.50 / 6.47 | 35.1 / 36.0 |
+| B variant 0 (no prefetch) | 13.61 / 13.07 | 10.21 / 9.80 | 22.7 / 23.4 |
+| A variant 2 | 10.02 / 10.01 | 6.45 / 6.44 | 35.7 / 35.7 |
+| B variant 1 (three stages) | 11.03 / 11.04 | 7.74 / 7.73 | 31.9 / 31.4 |
+
+Without the prefetch the walk is **+54%** (desktop: +15..+19%), with the old three stages +20%
+(desktop: +3..+6%). Same ranking as x86, much larger gaps: the clearest evidence that the walk is
+memory-bound here, and that more coverage, not a different distance, is the lever. No per-ABI constant
+for the variant: 2 stays everywhere.
+
+### 5.3 More coverage: the MoveTo lines (kept, ARM only) and the visibility slot (dropped)
+
+`kPrefetchCovMoveTo` (commit `perf: the walk prefetch names a walking character's MoveTo lines on
+ARM`): stage i+1 already prefetched the character's current Action's first 0x20 bytes; ext.walk_batch's
+`Eligible` (the hottest line of the walk in section 3.3 is its `field_0x474` read) and MoveTo::Execute
+read +0x28..+0x43, +0x60 and +0x474 next. The arm names those three lines instead of +0x1F. The vptr is
+not resident yet at that stage, so the lines are named for any current action (wasted on a short one).
+
+| run | update ms | treeWalk ms | draw ms | fps |
+|---|---|---|---|---|
+| A base | 10.06 / 10.02 | 6.50 / 6.47 | 9.65 / 9.55 | 35.1 / 35.7 |
+| B MoveTo lines | 9.77 / 9.80 | 6.14 / 6.16 | 9.92 / 9.83 | 35.8 / 35.8 |
+
+**treeWalk -5.2%, update -2.5%**, both B runs under both A runs (and B ran without PGO on the walk).
+The frame barely moves (fps +1%): draw rises by about what update saves, i.e. the main thread now
+waits longer on the render thread, which becomes the limit at this town (the render-thread
+investigation's territory). `#if defined(__aarch64__)`: the desktop x86 object is the code it was;
+macOS arm64 takes it too, unmeasured there. A prefetch changes no value, so results are identical by
+construction; Windows gate (new game, 2 min, crash log 0), resave gate PASS (the golden md5
+`971aaec2cf95f5f730bb1cd1a4fa8428` unchanged), unit 1558 / 0 / 3 skipped.
+
+`kPrefetchCovVis` (not committed): stage i+2 prefetched ext.render_culling's visibility-cache slot of
+each model's position (the table made visible through a header). On top of MoveTo: treeWalk 6.13 /
+6.14 -> 6.07 / 6.13, update 9.75 / 9.75 -> 9.68 / 9.81, fps 36.5 / 37.2 -> 36.4 / 35.7: noise. Dropped;
+the section 3.3 cycles on that line were the skid of a neighbouring miss, or the slot is already
+resident (three asks per citizen per frame).
+
+### 5.4 ext.walk_batch_grid (class B) on the phone: no gain at speed 10
+
+| run | update ms | treeWalk ms | fps |
+|---|---|---|---|
+| B grid on | 10.05 | 6.50 | 35.3 |
+| A off | 10.10 / 10.04 | 6.44 / 6.51 | 35.0 / 35.2 |
+| B grid on | 10.01 | 6.50 | 36.2 |
+
+`[Ext] ext.walk_batch_grid=1 class B` in both B logs (a new game, so the row locked on). treeWalk
+6.50 against 6.48, update -0.4%: nothing. Expected from section 3.3: CharacterGrid::Place, the call the
+row skips, is 1.2% of the main thread here (6.5% on the desktop at speed 50 everything-on, where the
+row was aimed). The default stays off; no case for an owner ruling from the phone.
+
+## 6. Next steps, ranked
+
+1. **Retrain the Android PGO profile on the final code** (already NEXT_SESSION §2.14 item 1): the walk
+   of this branch runs unprofiled until then, so the shipped gain should grow, not shrink.
+2. **More prefetch coverage in the walk, ARM first.** Variant 0 -> 1 -> 2 -> MoveTo is monotone and
+   large on this phone; what is left to name: `MoveTo::path[pathIndex]` (needs the index, one stage
+   after the MoveTo lines: a new stage, or the index read at the visit for entity i+1), the terrain
+   cell under a walker (TerrainSidecar, ~1% of the walk), the CharacterGrid slot Place writes, the
+   MoveTo::Enter path (3.5% of the main thread, 6% of its L2 refills; pathfinding, not the walk). Each is
+   one A/B pair; the same no-PGO caveat applies until a retrain.
+3. **The frame at this town is now render-thread limited** after the sim gain: the render-thread
+   investigation's packet / emit work decides whether sim savings show as fps.
+4. **Not pursued, and why:** the prime pin (5.1, system-blocked); a different prefetch distance (3.4);
+   walk_batch_grid by default (5.4); entity or node repacking (not bit-identical in allocation, desktop
+   closed it); huge pages (no app control).
