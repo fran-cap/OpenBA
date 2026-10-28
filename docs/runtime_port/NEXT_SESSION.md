@@ -594,6 +594,40 @@ debug key, install) and run the checks below on the S25; nothing here is verifie
   ADPF alone changed nothing measurable on this town (no slack for it to use). The pin holds the cap through its
   own throttling, at a heat and power cost. **Open:** a soak past 30 min (does deeper throttling cost frames?),
   battery drain in normal play (speed 1-3, where ADPF has slack), and a PGO retrain on the final code.
+- **Where the frame goes** (last 10 min of the soaks, ~1305 citizens, speed 10 = 10 sim iterations a frame;
+  `[SIMPROF]`, `[COMPPROF]`, `[Stress::pipe]` in standalone_error.log), A (not pinned) -> C (pinned):
+
+  | per frame | A | C |
+  |---|---|---|
+  | sim (update) | 8.30 ms | 5.55 ms |
+  | ... EntityList: tree walk (~18.4k nodes) / bucket ticks | 5.85 / 1.21 | 3.88 / 0.81 |
+  | ... PostSim (UI, camera, audio) | 0.70 | 0.50 |
+  | main-thread draw work (gather, cull, sort) | 3.14 | 3.07 (clock-insensitive: memory-bound?) |
+  | main thread waiting on the render thread | 3.85 | 0.59 |
+  | render thread: packet / emit (Vulkan recording) | 3.45 / 4.34 | 1.96 / 2.80 |
+
+  At 1x speed the sim is one iteration (~0.55 ms pinned): normal play is render-bound (~3 ms main-thread draw
+  work + ~5 ms on the render thread); the tree walk dominates at high speed and in large towns.
+
+**Next session (2026-10-28), in order:**
+1. **The three open checks above:** a 60+ min capped soak with the pin; battery drain in normal play (speed 1-3,
+   camera pinned on the town, 30 min, pinned vs unpinned); retrain the PGO profile on the final code
+   (`perf/pgo/android/README.md`; remove the release `.cxx` dir before the rebuild).
+2. **Two investigations, in parallel (opus, one worktree each from `android/p12`, the scratchpad phone lock):**
+   - **The render thread** (`src/ext/render_pipe/`, `src/render/vulkan/`): packet ~2 ms + emit ~2.8 ms a frame for
+     ~400 draws. Profile it first (simpleperf needs `<profileable android:shell="true"/>` in a build-only
+     manifest, as P7 did, `docs/android/PERF_P7.md` §3.1). Suspects to check against the profile, not assume:
+     descriptor-set allocation per draw (P7: 93-99 sets a frame; the device has push_descriptor), redundant
+     pipeline / vertex-buffer binds, the constant ring's writes, the packet build's copies. Goal: less render
+     thread CPU per frame = power, and room for the main thread at 1x.
+   - **The EntityList tree walk** (`EntityList_Update` treeWalk, `src/game/Entity/`): 3.9 ms a frame pinned, 70%
+     of the sim at speed 10, ~1830 nodes per iteration. It is faithful sim code: a change must give identical
+     results (class A, an `ext.*` row under `src/ext/`, the faithful path untouched and exactly as fast) or it is
+     class B (locked in the save; owner ruling needed). Check what the existing rows already cover first
+     (`walk_batch`, `walk_batch_grid` B, `drain_split` B, `anim_batch` B). Look at the node layout and the walk's
+     memory traffic (the main-thread draw work did not speed up with a 27% faster clock either: memory?).
+   Both: findings and a ranked plan first, prototypes only where the profile justifies them, measured on the S25
+   from the same start (battery <= 32 C, capped stress town); nothing merges without review.
 
 ## 3. Rules that hold (do not relax)
 
