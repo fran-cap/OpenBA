@@ -94,6 +94,9 @@ public:
     // repositions it through Tick; the +0x20 flag 4 follows, and a change notifies
     // the entity.
     void SetFlag(uint8_t flagIndex, char value);
+    // 0x14012c2a0 (StatusIconComponent_helper_c2a0, one caller: DestroyComponent state 3 enter 0x14011d7b0): clear every set icon bit,
+    // bit 0 first, each with the scene and entity handling of SetFlag(bit, 0).
+    void ClearAllFlags();
     // The body of [11] 0x14012bf40 (re-run the sprite setup, add the geometry to the
     // scene when bits are set and it is not there yet). Slot11 calls it.
     void ShowAfterLoad();

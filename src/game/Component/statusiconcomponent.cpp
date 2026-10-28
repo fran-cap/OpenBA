@@ -267,6 +267,18 @@ void StatusIconComponent::SetFlag(uint8_t flagIndex, char value) {
     }
 }
 
+// ============================================================
+// StatusIconComponent::ClearAllFlags (0x14012c2a0)
+// ============================================================
+// Retail walks the 32 bits of the mask from bit 0 and, for each one that is set, clears it with the body of SetFlag(bit, 0) inlined
+// (remove the geometry from the scene when the mask reaches 0, notify the entity when the flag word changed). Its one caller is
+// DestroyComponent state 3 enter, which strips every icon of a building that is about to be demolished, then sets flag 5.
+void StatusIconComponent::ClearAllFlags() {
+    for (uint32_t bit = 0; bit < 32; ++bit) {
+        if ((_geometry.activeMask & (1u << bit)) != 0) SetFlag(static_cast<uint8_t>(bit), 0);
+    }
+}
+
 // B4 FORWARD: outside callers in 16 files (Component: attendancecomponent*, buildcomponent_state8,
 // citizenai_gather, citizen_needsupdate, destroycomponent_states, workcomponent,
 // workplacecomponent; Work: consumeproduce, fishingwork, foresterwork, harvestarea,
@@ -366,7 +378,7 @@ static bool SI_ComponentArray(const ComponentEntity* entity, int* outCount,
 // set). Remove the icon's scene object so the renderer's draw list never holds
 // freed geometry — same crash class as the StorageDisplay pile meshes fixed
 // 2026-07-20 (demolition → Draw-phase Transform::Lerp on freed memory). Retail
-// additionally strips icons at demolition start (state-3 enter → helper_c2a0);
+// additionally strips icons at demolition start (state-3 enter → ClearAllFlags, 0x14012c2a0) and shows flag 5;
 // this teardown-time removal is the safety net that must always run.
 void StatusIconComponent::OnRemove() {
     if (GameUpdateLoop::_singleton == nullptr) return;
