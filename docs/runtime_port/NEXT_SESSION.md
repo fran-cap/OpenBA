@@ -746,7 +746,7 @@ and 50x towns, 89006 blocks):
 Open:
 - The S25 has run no P13 commit (its BC path never takes the transcode; the pin returns the same mask there).
 - LLDB attach crashes the NDK 30 host lldb; `LLDB.md` recipe 1 is untried.
-- 2 textures re-encoded on every warm boot (the 1x town as the stress town), untraced.
+- 2 textures re-encoded on every warm boot: CLOSED, not reproducible. With a temporary miss log, 5 warm boots on `664c4045b` (60 s x3, 210 s x2, some ended by force-stop) had 0 misses, 103 of 103 hits, the cache steady at 294 entries; the earlier +2 a boot (251 -> 253 -> 282 entries, different textures each run) was the cache filling in, not a key that changes per boot.
 - ~~The desktop cost above (the seam, the snapshot)~~ DONE on `android/p13-adapt` (P13_OVERLAP section 10): the
   seam's `thread_local` (an emutls call per pose lookup, 4.4% of the main thread's samples, profiled) replaced by
   an address test, the seam installed only while a packet with copies is in flight, and a governor that takes the
