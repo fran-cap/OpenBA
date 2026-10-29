@@ -106,6 +106,8 @@ and `AnimationManager::Update` rolls that record in place every iteration. One n
 instanced branch only: non-null and answering for a copy, it returns the copy's frozen record; null (always
 under the faithful profile, and for every live object) the faithful lookup runs. The answer is decided by
 the address (the copy lies inside a snapshot arena), so the main thread's live objects never take it.
+*Since section 10:* the static is set only while a packet with copies is in flight, and the answer uses no
+thread-local state.
 
 ### 2.4 Loop changes: one more seam point
 A step can end the loop (`MainLoop::Update`: `Shutdown`, `delete` the GameUpdateLoop and with it Renderer
@@ -176,7 +178,8 @@ in the Vulkan backend and keyed on the present mode and the surface's minimum.
 `[Stress::pipe]` keeps its fields; `drains step` falls to the packets fenced before the steps (ineligible, or
 past their gate), and the fence wait (`waits (fence N)`, `wait=`) now includes the moved fence at the tail.
 Added after a `| overlap:` separator: `steps` (fences claimed: the steps ran beside an E1), `snapshots`,
-`refused` (packets the snapshot refused), `copy` (main-thread ms per snapshot) and the arena KB per packet.
+`refused` (packets the snapshot refused), `copy` (main-thread ms per snapshot) and the arena KB per packet;
+since section 10, the governor's state and measures.
 
 ## 6. Risks
 1. An unlisted live read in pass 2 (a Draw body reading through a pointer the copy shares with the live object).
@@ -264,3 +267,123 @@ citizens 958 / 960 for A, 958 / 957 for B), so it cannot show bit identity by it
    were refused in these runs. The first refusal of each reason is logged once (`[RenderPipe] snapshot refused`).
 4. The UI of a packet drawn after the steps of the next Frame (2.1) is visible only in motion; not checked by
    eye beyond the screenshots.
+
+## 10. The adaptive gate and the seam fix (2026-10-28)
+The combined verification (NEXT_SESSION 2.15) found two costs: the snapshot ran every frame, also where no fence
+wait was left to remove (S10 normal play, the desktop at speed 50), and with render_pipe installed the desktop's
+update was +10 % even with every snapshot refused. Branch `android/p13-adapt` (on `android/p12` `39e42fa13`).
+
+### 10.1 The seam: a `thread_local` per pose lookup
+Profiled on the desktop (perf build at `39e42fa13`, stress town speed 50, render_pipe on, `BANISHED_SAMPLE=2000`,
+120171 main-thread samples): `FrozenInstancedState` holds **4.38 %** of the main thread's samples, 3.96 % of them in
+`__gthread_getspecific` and 0.22 % in `__emutls_get_address` (MinGW GCC's emulated TLS: a `TlsGetValue` call per
+read of `t_arena`). Its callers are `RtInstancedPoolSlot` from `MeshInstance::RootAnimationOffset` in
+`CharacterComponent_MoveTick` (4.19 %) and from `GetNodeToWorld` (0.72 %): sim code, every walking character every
+step. The update phases are ~45 % of the samples, so the seam was ~10 % of update: the measured +10 %. Confirmed.
+
+The fix, two parts:
+- `FrozenInstancedState` decides by the address alone: a MeshInstance lying in either slot's arena
+  (`snapshot.cpp`: `[begin, end)` of the last snapshot, atomics written by the main thread only) is a copy, and its
+  header holds the frozen record. No `thread_local`; `SnapshotScope` is gone. A live object never lies in an
+  arena; the render thread only asks for its own packet's copies, whose slot the main thread does not rewrite
+  while that packet is pending; a racing read of the other slot's bounds can at most send a copy to its own
+  header, which answers the same.
+- The seam `MeshInstance::_extInstancedState` is set per packet: `Host::BeforePublish`, with the render thread idle
+  just before the publish, installs it when the packet carries copies and clears it otherwise. Without a snapshot
+  in flight the four pose lookups test one null global and run retail's code.
+
+### 10.2 The governor (`overlap_governor.h`)
+The snapshot buys the main thread's fence wait with main-thread time. It shortens the frame only when the main
+thread is the limit; in a frame that idles (the cap's sleep, the display, a slower render thread) a removed wait
+only moves. Every Frame tail feeds the governor two measures (`pipe_driver.h`):
+- **removable**: the fence wait the snapshot takes off the main thread -- without a snapshot the wait THE FENCE had,
+  with one the emit's run beside the steps (from the claim to its gate; `Handoff::OpenGate` returns when it
+  parked) -- in both cases less the part the emit spent before its `BeginCommands` returned
+  (`Handoff::NoteBegun`: a free swap-chain image or a frame in flight, the display's or the GPU's pace);
+- **idle**: the main thread's other waits -- the frame cap's sleep (`FrameLimiter::LastWaitUs`, reported by the
+  main half in `Packet::idleUs`), the hand-off's wait for the render thread, and the fence's waits for an emit short
+  of `BeginCommands`.
+
+Both are smoothed over ~16 Frames, the copy's time per snapshot too. Off at install (today's fence). **On** when the
+frame idles under 0.5 ms and the removable wait is above 1 ms and above the copy. **Off** when, without the
+snapshot, the frame would idle more than 4 ms (idle + copy - removable), or the removable wait falls under 0.5 ms
+or half the copy. Any switch holds for 120 Frames. No flag: the thresholds are constants with their rationale in the
+header. Every switch prints one `[RenderPipe] overlap on|off` line with the three measures, and `[Stress::pipe]`
+appends `governor=on|off removable= idle= (without the copies )`.
+
+Tuning, on the S10 (stress runs at the cap, normal play):
+- First cut (removable = the whole fence wait, no idle): stress 59.7 / 59.9 fps, but normal play turned it on too
+  (an 11 ms fence wait at 1x).
+- Idle added, the fence wait taken whole: normal play flapped every 120 Frames (24 switches in 180 s): at 1x ~7 of
+  the 11 ms fence wait is the emit waiting at `BeginCommands` for the display, which a snapshot only moves to the
+  hand-off.
+- The wait split at `BeginCommands` (as built): normal play never switches on; the stress town switches on 2-3 s
+  after install. The 4 ms off threshold: with the copies the stress town idles 0-2.5 ms from window to window,
+  estimated -1.2 to +0.8 ms without them; a 2 ms threshold switched it off four times in a minute (58.9 fps median).
+
+### 10.3 Results
+Desktop (perf build, stress town speed 50, 6000 frames, faithful profile + render_pipe, DX11; MSI Afterburner and
+RTSS could not be stopped from this session (elevated processes), their hook loader was; base `2a5c2c481`):
+
+| run | tree | sim ms / iter | update ms / frame | fps | frame p95 | overlap |
+|---|---|---|---|---|---|---|
+| A1 | base | 0.14 | 6.96 | 734 | 8.39 | - |
+| B1 | adapt | 0.15 | 7.30 | 706 | 8.98 | 0 snapshots |
+| B2 | adapt | 0.14 | 6.89 | 741 | 8.42 | 0 snapshots |
+| A2 | base | 0.14 | 7.01 | 732 | 8.55 | - |
+| B3 | adapt | 0.14 | 7.07 | 732 | 8.76 | 0 snapshots |
+| A3 | base | 0.14 | 6.97 | 738 | 8.54 | - |
+
+Base 6.98 ms / 735 fps, adapt 7.09 ms / 726 fps (B1 the low run, B2 the best of all six): within the run spread,
+against 8.06 ms / 619 fps for `39e42fa13`. The governor stays off (removable 17-24 us a frame).
+
+S10 (release + the committed PGO profile, debug key, battery 32.0 C and thermal 0 at each start):
+
+| run | fps | frame ms (p95) | update | draw | pipe main / packet / emit | wait | latency | snapshots / packets |
+|---|---|---|---|---|---|---|---|---|
+| stress 1 (cap 60) | 59.9 | 16.70 (16.94) | 9.11 | 12.50 | 3.47 / 9.06 / 9.97 | 0.49 ms | 10.24 ms | 5029 / ~5990 |
+| stress 2 (cap 60) | 59.9 | 16.70 (17.16) | 9.21 | 12.62 | 3.40 / 9.22 / 10.17 | 0.52 ms | 10.43 ms | 4962 / ~5990 |
+
+The packets without copies are the first seconds (the hold) and the shutdown frames. NEXT_SESSION 2.15's combined
+runs: 59.9 fps, p95 17.05-17.50.
+
+Normal play (`BANISHED_AUTOSTART=1 BANISHED_CAMERA_PIN=town`, 1x, 180 s after 40 s; SurfaceFlinger timestats):
+
+| build | snapshots | CPU % of a core main / render / process | presents | dropped / janky | post-to-present mean / median / p95 |
+|---|---|---|---|---|---|
+| adapt, run 1 | 0 | 29 / 26 / 61 | 10842 | 0 / 0 | 41.7 / 42 / 44 ms |
+| adapt, run 2 | 0 | 39 / 28 / 76 | 10836 | 0 / 0 | 43.5 / 44 / 46 ms |
+| adapt before the tail split of 10.2 (0 snapshots too) | 0 | 40 / 31 / 77 | 10826 | 0 / 0 | 39.1 / 40 / 42 ms |
+| first cut, the overlap on throughout | every frame (~1 ms copy at 1x) | 41 / 27 / 76 | 10865 | 0 / 0 | 39.9 / 40 / 42 ms |
+| `39e42fa13` (2.15) | every frame | 56 / 29 / 92 | 10830 | 0 / 0 | 40.2 / 40 / 44 ms |
+
+60 locked in every run. The main thread's CPU varies 29-41 % between runs of one build; the snapshot's own share at
+1x is ~1 ms a frame (6 % of a core), and the 56 % of 2.15 was not reproduced even with the overlap on throughout
+(41 %). Post-to-present without the snapshot is 39.1-43.5 ms (mean of the three 41.4), with it 39.6-40.2 (P13_OVERLAP
+9.2, 2.15, the first cut): back towards the base's 44 ms by ~1-2 ms, inside this spread; the overlap's 40 ms is not
+kept in normal play.
+
+19-min soak (cap 60, 66000 steps), at equal t against 2.15's run (`39e42fa13`) and P13_THERMAL soak B (no overlap):
+
+| phase | fps (2.15 / B) | sim steps / s | update / step | wait / frame | gold MHz | battery |
+|---|---|---|---|---|---|---|
+| 0-240 s | 53.2 (54.5 / 46.5) | 60.0 (60.0 / 60.0) | 10.11 (10.20 / 9.89) | 0.68 (0.47 / 4.22) | 2141 (2225 / 2246) | 32.0 -> 35.0 C (35.2 / 34.4) |
+| 240-600 s | 33.1 (33.0 / 30.0) | 59.9 (59.9 / 59.9) | 12.34 (12.49 / 11.90) | 0.55 (0.56 / 4.52) | 1708 (1708 / 1921) | -> 35.8 (35.9 / 35.1) |
+| 600-1100 s | 24.7 (24.8 / 24.2) | 55.6 (56.6 / 59.1) | 14.32 (14.23 / 12.97) | 0.58 (0.60 / 4.62) | 1708 (1708 / 2011) | -> 36.4 (36.3 / 35.8) |
+| whole | 33.4 (33.7 / 30.8) | 57.9 (58.4 / 59.5) | 12.73 (12.77 / 11.96) | 0.61 (0.54 / 4.46) | 1800 (1818 / 2031) | end 36.4 C |
+
+The stress town is main-thread bound from the first minute (below the cap, no idle), so the governor keeps the
+overlap on for the whole soak (one switch, at 3 s) and the run matches 2.15's: the adaptive gate does not change
+the soak. Its heat (the gold cap at 1708 MHz, the sim behind real time from minute 13) comes with the extra frames
+the overlap draws in the first minutes, or with ambient; one run against one earlier run does not separate them.
+`EXITED clean-shutdown`, crash log empty.
+
+Windows: `tools/build.sh unit` 1579 tests, 0 failures, 3 skipped (5 new governor tests; `BeforePublish` checked in
+the threaded fake); `tools/build.sh run` (DX11) and `BANISHED_RENDER_BACKEND=vulkan tools/build.sh run` in game,
+crash logs empty (Vulkan: only the documented depth-only `SV_Target` warning); resave `Gate` PASS, golden md5
+`971aaec2...` unchanged; `GATE_PROFILE=` (render_pipe on) resaved image md5 `ba7d73e0...`, the base commit's under
+the same profile; acceptance 0 lines off target. Shadows: neither the desktop debug stress nor the S10 under
+`BANISHED_STRESS_COMPPROF=4` switches the governor on (the shadow's hashes make the render thread the slower one,
+so the frame idles at the hand-off). With the governor forced on in a local build (not committed), the debug
+COMPPROF=4 stress (render_pipe + draw_batch, DX11, 2500 frames): `RenderPipeCopy` 1091, `RenderPipeFrame` 1091,
+`RenderPipe` 1090 checks, 0 mismatches.
