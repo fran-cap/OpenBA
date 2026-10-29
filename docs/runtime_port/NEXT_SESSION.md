@@ -747,9 +747,21 @@ Open:
 - The S25 has run no P13 commit (its BC path never takes the transcode; the pin returns the same mask there).
 - LLDB attach crashes the NDK 30 host lldb; `LLDB.md` recipe 1 is untried.
 - 2 textures re-encoded on every warm boot (the 1x town as the stress town), untraced.
-- The desktop cost above (the seam, the snapshot); the normal-play main-thread CPU (56% of a core against 35%
-  before the overlap) and the soak's heat (+0.5 C, sim behind real time from minute 13) are the phone side of the
-  same question.
+- ~~The desktop cost above (the seam, the snapshot)~~ DONE on `android/p13-adapt` (P13_OVERLAP section 10): the
+  seam's `thread_local` (an emutls call per pose lookup, 4.4% of the main thread's samples, profiled) replaced by
+  an address test, the seam installed only while a packet with copies is in flight, and a governor that takes the
+  snapshot only when the frame is main-thread bound and the removable fence wait beats the copy. Desktop speed 50
+  726 fps against the base's 735 (6 runs, within spread; 619 before); S10 stress 59.9 fps capped, normal play 0
+  snapshots, 60 locked, 0 dropped.
+- Left from that question: normal-play post-to-present without the snapshot is 39-44 ms (mean of three 41.4)
+  against 40 with it (~1-2 ms back towards the base's 44); the main thread's CPU in normal play varies 29-41%
+  between runs of one build (the 56% of 2.15 was not reproduced, 41% with the overlap on throughout). The soak is
+  main-thread bound throughout, so the governor keeps the overlap on and the soak's heat (gold cap 1708 MHz, sim
+  behind real time from minute 13) is unchanged; whether it is the overlap's extra early frames or ambient is not
+  separated (one run against one earlier run).
+- The RenderPipe shadows (COMPPROF=4) slow the render thread enough that the governor never switches on under them;
+  the copy shadow was run with the governor forced on in a local build (0 mismatches). A harness way to force it
+  (without a flag for the feature) is not there.
 - The low-memory Half path is untested on a real low-memory phone.
 - Candidates not done (P13_CPU §2 items 3-4, §4.4): the walk prefetch leftovers, more prefetch in draw_batch's
   instanced loop, the vertex / index bind de-dup.

@@ -11,8 +11,8 @@
 // points each item at its copy. Pass 2 then runs its unchanged code on copies the
 // steps cannot reach. An instanced MeshInstance's pose lives in the
 // AnimationManager; its copy carries a frozen record that
-// MeshInstance::_extInstancedState hands the four pose lookups (Mesh.h), for the
-// thread inside a SnapshotScope of that slot only.
+// MeshInstance::_extInstancedState hands the four pose lookups (Mesh.h) while a
+// packet with copies is in flight.
 //
 // A packet holding a geometry type, a drawable or a WorldGeometry mode the
 // snapshot does not cover, or built while ext.terrain_edit is active, is refused:
@@ -44,18 +44,8 @@ struct SnapshotResult {
 // Main thread, `r` being Renderer slot `slot` right after pass 1.
 SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEdit);
 
-// The calling thread reads slot `slot`'s copies while the scope lives (the emit of an
-// overlapped packet; the main thread's shadow hash of the copies).
-class SnapshotScope {
-public:
-    explicit SnapshotScope(int32_t slot);
-    ~SnapshotScope();
-    SnapshotScope(const SnapshotScope&) = delete;
-    SnapshotScope& operator=(const SnapshotScope&) = delete;
-};
-
-// MeshInstance::_extInstancedState: the frozen record of a copy in the calling thread's
-// scope, null for anything else.
+// MeshInstance::_extInstancedState: the frozen record of a copy (decided by its address:
+// it lies in a slot's arena), null for anything else.
 const Graphics::InstancedAnimationState* FrozenInstancedState(const Graphics::MeshInstance& mi);
 
 // Uninstall (render thread joined): the two arenas are released.

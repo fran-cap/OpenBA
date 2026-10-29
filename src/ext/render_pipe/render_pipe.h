@@ -51,6 +51,11 @@ struct Counters {
     uint64_t refused     = 0;   // packets the snapshot refused (they keep the fence)
     uint64_t snapshotUs  = 0;   // main-thread time building the copies, us
     uint64_t snapshotKB  = 0;   // arena bytes written, KB
+    // The overlap governor at the window's end (overlap_governor.h): its state and smoothed measures
+    bool     governorOn            = false;
+    int64_t  governorRemovableUs   = 0;   // the fence wait a snapshot removes, per Frame
+    int64_t  governorIdleUs        = 0;   // the main thread's other waits, per Frame
+    int64_t  governorIdleWithoutUs = 0;   // on: what it would idle without the copies (off: = idle)
 };
 
 // True while the packet runs on the render thread (installed, >= 3 physical cores).

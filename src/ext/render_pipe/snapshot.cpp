@@ -27,6 +27,7 @@
 #include "ext/render_pipe/snapshot.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -75,21 +76,29 @@ T* Place(unsigned char* at) {
     return static_cast<T*>(static_cast<void*>(at));   // CAST-OK: alloc_header
 }
 
+// One Renderer slot's copies. `begin` / `end` bound the last snapshot's bytes; the main
+// thread alone writes them (BuildSnapshot, FreeSnapshots) and both threads read them
+// without a lock in FrozenInstancedState, hence the atomics (relaxed: see there).
 struct Arena {
-    std::unique_ptr<unsigned char[]> storage;
-    size_t                           capacity = 0;
-    size_t                           used     = 0;
+    std::unique_ptr<unsigned char[]>        storage;
+    size_t                                  capacity = 0;
+    std::atomic<const unsigned char*>       begin{nullptr};
+    std::atomic<const unsigned char*>       end{nullptr};
 
     unsigned char* Base() const { return storage.get(); }
     bool Holds(const void* p) const {
         const std::less<const void*> before;
-        const unsigned char* const base = storage.get();
-        return base != nullptr && !before(p, base) && before(p, base + used);
+        const unsigned char* const b = begin.load(std::memory_order_relaxed);
+        const unsigned char* const e = end.load(std::memory_order_relaxed);
+        return b != nullptr && !before(p, b) && before(p, e);
+    }
+    void Clear() {
+        begin.store(nullptr, std::memory_order_relaxed);
+        end.store(nullptr, std::memory_order_relaxed);
     }
 };
 
-Arena                     g_arenas[2];
-thread_local const Arena* t_arena = nullptr;
+Arena g_arenas[2];
 
 // The word before a MeshInstance copy: its frozen instanced record (null: not instanced).
 struct alignas(16) MeshHeader {
@@ -517,12 +526,12 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
 
     // ---- pass B: the arena, then the copies ---------------------------------
     Arena& arena = g_arenas[slot & 1];
+    arena.Clear();   // nothing of the slot is a copy until its items point at the new ones
     if (arena.capacity < bytes) {
         const size_t grown = bytes + bytes / 2 + 4096;
         arena.storage.reset(new unsigned char[grown]);
         arena.capacity = grown;
     }
-    arena.used = bytes;
     unsigned char* const base = arena.Base();
     for (StateEntry& s : b.states) CopyState(s, base);
     for (Entry& e : b.entries) CopyEntry(e, b, base);
@@ -546,23 +555,26 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
         }
     }
 
+    arena.begin.store(base, std::memory_order_relaxed);
+    arena.end.store(base + bytes, std::memory_order_relaxed);
+
     result.ok         = true;
     result.geometries = static_cast<uint32_t>(b.entries.size());
     result.bytes      = bytes;
     return result;
 }
 
-SnapshotScope::SnapshotScope(int32_t slot) {
-    t_arena = &g_arenas[slot & 1];
-}
-
-SnapshotScope::~SnapshotScope() {
-    t_arena = nullptr;
-}
-
+// The seam is installed only while a packet with copies is in flight (render_pipe.cpp
+// BeforePublish), so this runs on the main thread's pose lookups during those steps too:
+// no thread_local (an emutls call per lookup under MinGW GCC: +10 % update at speed 50,
+// P13_OVERLAP section 10), just the address. A live object never lies in an arena. The
+// render thread asks only for its packet's copies, in a slot the main thread does not
+// rewrite while that packet is pending (pipe_state.h); a racing read of the OTHER slot's
+// bounds can at most send a copy to its own header, which answers the same. The main
+// thread is the bounds' only writer, so its own reads are exact. The publish / join
+// mutexes order the copies' bytes before the render thread reads them.
 const InstancedAnimationState* FrozenInstancedState(const MeshInstance& mi) {
-    const Arena* const arena = t_arena;
-    if (arena == nullptr || !arena->Holds(&mi)) return nullptr;
+    if (!g_arenas[0].Holds(&mi) && !g_arenas[1].Holds(&mi)) return nullptr;
     // A MeshInstance copy is preceded by its header (CopyMesh).
     const unsigned char* const object = static_cast<const unsigned char*>(static_cast<const void*>(&mi));   // CAST-OK: alloc_header
     const MeshHeader* const header = static_cast<const MeshHeader*>(static_cast<const void*>(object - Round(sizeof(MeshHeader))));   // CAST-OK: alloc_header
@@ -571,9 +583,9 @@ const InstancedAnimationState* FrozenInstancedState(const MeshInstance& mi) {
 
 void FreeSnapshots() {
     for (Arena& a : g_arenas) {
+        a.Clear();
         a.storage.reset();
         a.capacity = 0;
-        a.used     = 0;
     }
 }
 
