@@ -633,6 +633,127 @@ debug key, install) and run the checks below on the S25; nothing here is verifie
    Both: findings and a ranked plan first, prototypes only where the profile justifies them, measured on the S25
    from the same start (battery <= 32 C, capped stress town); nothing merges without review.
 
+### 2.15 Android P13 (Galaxy S10) (2026-10-28, opus worktree agents merged on `android/p12`, then one combined verification)
+
+The S10 (SM-G973U, Snapdragon 855, Adreno 640, Vulkan 1.1.128: the backend's 1.1 path, `src/render/vulkan/vulkan11.h`)
+stood in for the S25 for the whole pass. Every number is release + PGO, debug-key signed, battery <= 32.0 C and
+thermal status 0 at each start; the per-pass docs carry the protocols.
+- **Profile** (`docs/android/P13_PROFILE.md`): PGO retrained on the P13 base, stress town (cap 60, speed 10, ~803
+  citizens) 53.6 fps, treeWalk -6.5% from the retrain alone. The app holds ~0.9 GB (`dumpsys meminfo` under-reports the
+  GPU ~4x; the kgsl `page_alloc` difference is the method), ~330 MB of it the BC textures decoded to RGBA8. A 20-min
+  soak throttles from ~155 s with Android's thermal status still 0.
+- **Render thread** (`P13_RENDER.md`): the 1.1 path's per-pass VkFramebuffer kept in a cache (emit -1.9 ms) and the
+  draw_batch instancing prefetch (packet -0.8 ms): stress 35.6 -> 51.3 fps, render-thread CPU ~6.8 -> ~3.9 ms a frame.
+- **Walk** (`P13_WALK.md`): the S10's walk is memory-bound (unlike the desktop's X3D verdict); the prefetch names a
+  walking character's MoveTo lines on ARM: treeWalk -5.2%, update -2.5%. Main thread on the prime: blocked by
+  core_ctl, dropped; `ext.walk_batch_grid` no gain at speed 10.
+- **Memory** (`P13_MEM.md`): BC1 / BC3 transcoded to ETC2 at load on a GPU without BC (in-tree encoder, 35.7 dB
+  PSNR against the BC decode; ETC2 encodes cached in the derived-data cache): GPU memory -195 MB at the menu,
+  -267 MB in town, fps neutral; the load waits for its prefetches so no texture is made on use with its transcode
+  pending (first-boot hitch 117 ms -> 0); texture Half by default below 6.5 GiB RAM.
+- **Thermal** (`P13_THERMAL.md`): no ADPF HAL on the S10; the frame's two threads pinned to the fastest tier of two
+  or more CPUs (gold here): throttled soak +11% fps, the saturated phase keeps real time (59.1 against 54.0 sim
+  steps/s). How to read a soak: update ms/step AND sim steps/s at equal t, never fps alone.
+- **Overlap** (`P13_OVERLAP.md`): `ext.render_pipe`'s emit overlaps the next Frame's steps from a per-packet
+  snapshot of the drawn geometry; sim untouched (resave gates). Stress 52-53 -> 60 fps capped, fence wait 4.2 ->
+  0.7 ms, snapshot ~2 ms of main thread a frame; normal-play post-to-present 44 -> 40 ms.
+- **CPU** (`P13_CPU.md`): the 1.1 path's pooled pixel descriptor set with dynamic offsets, the ARM gather (flag test
+  + MaterialInstance prefetch): 53.5 -> 58.1 fps before the overlap.
+- **Tooling:** `docs/android/LLDB.md` (native debugging from the Windows host).
+
+Owner rulings of 2026-10-28: the render_pipe overlap APPROVED provided the sim stays retail; BC -> ETC2 / ASTC
+transcode on devices without BC; texture Half on low-memory devices; fewer frames in flight approved, but 1 frame
+REJECTED (the stress town halved: 32 fps); the ETC2 encode runs on the loading side ahead of first use.
+
+**Combined verification** (`android/p13-final`: android/p12 `65f3ac6e8` + the PGO profile retrained on it, the 10x
+and 50x towns, 89006 blocks):
+- **Boot** (1x town by autostart, Quit from the pause menu; `EXITED clean-shutdown`, crash log empty every time):
+
+  | | cold (derived cache deleted) | warm 1 | warm 2 |
+  |---|---|---|---|
+  | launch to the menu's first update | 3.26 s | 2.16 s | 2.20 s |
+  | town load (loader run to done) | 4.74 s | 4.93 s | 4.84 s |
+  | launch to the town loaded | 9.62 s | 8.44 s | 8.31 s |
+  | load-end wait (menu / town) | 1117 / 68 ms | 0 / 72 ms | 0 / 10 ms |
+  | made on use | 0 | 0 | 0 |
+  | `[Etc2]` at quit | 103 textures, 90 encoded (3962 ms), 53.4 MB (RGBA8 310.3) | 101 cache hits, 2 encoded | 101 hits, 2 encoded |
+
+  `path 1.1 ... bc=0 etc2=1 (transcode 1)`; `[Pin] the largest capacity 1024 has one CPU: the tier of capacity 871
+  (3 CPUs)`, both threads `-> CPUs 0x70: pinned`.
+- **Stress town, cap 60** (medians from t = 20 s; pipe = `[Stress::pipe]` windows after the first):
+
+  | run | start / end C | fps | frame ms (p95) | update | draw | pipe main / packet / emit | wait | latency | refused |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 1 | 31.9 / 33.7 | 59.9 | 16.70 (17.05) | 9.24 | 12.41 | 3.21 / 9.20 / 10.21 | 0.50 ms | 10.46 ms | 0 / 5980 |
+  | 2 | 32.0 / 34.0 | 59.9 | 16.70 (17.50) | 9.25 | 12.51 | 3.21 / 9.33 / 10.25 | 0.47 ms | 10.50 ms | 0 / 5977 |
+  | 3 | 32.0 / 34.0 | 59.9 | 16.70 (17.21) | 9.21 | 12.44 | 3.25 / 9.19 / 10.29 | 0.48 ms | 10.55 ms | 0 / 5970 |
+  | uncapped | 32.0 / 34.8 | **82.1** | 12.18 (16.59) | 8.56 | 10.31 | 3.16 / 7.13 / 9.03 | 0.62 ms | 9.21 ms | 0 / 8158 |
+
+  Snapshot 2.0-2.1 ms a frame (2.9-3.1 MB a packet); every packet overlapped, none refused. P13_OVERLAP's B runs:
+  60.0 / 59.9 fps, p95 16.7, update 8.6-8.7; the combination holds the cap with a p95 0.3-0.8 ms higher.
+- **Normal play** (autostart, `BANISHED_CAMERA_PIN=town`, 1x, 180 s after 40 s): SurfaceFlinger 10830 presents,
+  **0 dropped, 0 janky**, present-to-present 16 ms, post-to-present mean 40.2 / median 40 / p95 44 ms (P13_OVERLAP:
+  39.6 / 40 / 40). CPU % of one core: main 56, render 29, process 92 (P13_THERMAL's pin run: 35 / 30 / 73, without
+  the overlap; the snapshot is the assumed difference, no `[Stress::pipe]` counters at 1x, not split further). Gold 822 MHz mean, GPU 324 MHz 74%
+  busy. **GPU memory 391 MB** (kgsl 518.6 - 127.6 MB; P13_MEM's ETC2 town 390 MB), PSS 424 MB, battery 32.2 -> 33.0 C.
+  Screenshots: the town right (rain, smoke, roofs, foliage), citizens and chickens drawn whole at the town
+  camera's distance (~10 px figures; no torn or missing meshes).
+- **19-min soak** (cap 60, 66000 steps; against P13_THERMAL's soak B, the pin alone, at equal t):
+
+  | phase | fps | sim steps / s | update / step | wait / frame | gold MHz (cap) | battery |
+  |---|---|---|---|---|---|---|
+  | 0-240 s | **54.5** (B 46.5) | 60.0 (60.0) | 10.20 (9.89) | 0.47 (4.22) | 2225 | 32.0 -> 35.2 C (B -> 34.4) |
+  | 240-600 s | **33.0** (30.0) | 59.9 (59.9) | 12.49 (11.90) | 0.56 (4.52) | 1708 (B 2016 from min 6) | -> 35.9 (35.1) |
+  | 600-1100 s | 24.8 (24.2) | **56.6 (59.1)** | **14.23 (12.97)** | 0.60 (4.62) | 1708 (2016) | -> 36.3 (35.8) |
+  | whole | 33.7 (30.8) | 58.4 (59.5) | 12.77 (11.96) | 0.54 (4.46) | | end 36.3 C (35.8) |
+
+  More frames early (minutes 1-5 +5 to +12 fps), equal at minutes 6-12, -1 to +2 fps after; but the phone runs
+  0.5-1.1 C hotter from minute 2, the gold cap settles at 1708 MHz instead of 2016, and in the saturated
+  phase update per step is +10% and **the sim falls behind real time** from minute 13 (52-58 steps/s against
+  55.6-59.5). Thermal status 0 throughout, main thread on 4-6 in every sample, `EXITED clean-shutdown` at 1134 s.
+  One run against one earlier run (another session, another hour): the heat is not separated from ambient.
+- **Windows:** `tools/build.sh unit` 1574 tests, 0 failures, 3 skipped (the kit-font ones); `tools/build.sh run`
+  (DX11) and `BANISHED_RENDER_BACKEND=vulkan tools/build.sh run`: in game, crash logs empty (Vulkan: 0 validation
+  errors, the documented depth-only `SV_Target` warning); resave `Gate` **PASS**, golden unchanged (md5
+  `971aaec2...`); acceptance 0 lines off target.
+- **Desktop cost of the overlap** (perf flavour, stress town speed 50, 6000 frames, faithful profile + the
+  extensions named, DX11, RTSS stopped, nothing else running; base `2a5c2c481` = android/p12 before the overlap):
+
+  | run | tree | extensions | sim ms / iter | update ms / frame | fps | frame p95 | overlap |
+  |---|---|---|---|---|---|---|---|
+  | A1 | base | render_pipe | 0.14 | 7.03 | 715 | 8.64 | - |
+  | B1 | final | render_pipe | 0.16 | 8.06 | 619 | 9.38 | 600 steps, 5948 snapshots |
+  | B2 | final | render_pipe | 0.16 | 8.09 | 619 | 9.66 | 600 steps, 5520 snapshots |
+  | A2 | base | render_pipe | 0.14 | 7.19 | 713 | 8.78 | - |
+  | C1 | final | render_pipe + terrain_edit (every snapshot refused) | 0.16 | 7.86 | 675 | 9.58 | 0, 6441 refused |
+  | D1 | base | render_pipe + terrain_edit | 0.14 | 7.12 | 711 | 8.79 | - |
+  | E1 | final | none | 0.15 | 7.38 | 526 | 8.89 | - |
+  | F1 | base | none | 0.14 | 7.14 | 546 | 8.61 | - |
+
+  With render_pipe on the final tree costs the desktop **~13% fps (714 -> 619) and +13% update** at speed 50.
+  The overlap itself (B against C, same tree) is ~8% fps (675 -> 619) and draw CPU 1.06 -> 1.77 ms (copy 0.18 ms a
+  snapshot plus the park at the gate); the rest (+10% update, -5% fps) is there with every snapshot refused, so it
+  is not the copy. The sim-side change since the base that runs whenever render_pipe is installed is the
+  `MeshInstance::_extInstancedState` seam on the four pose lookups (`FrozenInstancedState`, a `thread_local`
+  read; under MinGW GCC a `thread_local` is an emutls call): the likely cause, **not profiled**. render_pipe off:
+  final 7.38 / 526 against 7.14 / 546 (one run each, within spread or a small layout cost). Desktop fps at speed
+  50 is far above any display, and ext.* is off by default there, so this is not a player-visible loss today; the
+  overlap pays where the fence wait is the limit (the S10's 4.2 ms) and costs where it is not (a 0.17 ms desktop
+  wait). Recommendation, no change made: profile the seam first; limit the snapshot to where it pays (e.g. a fence
+  wait above a threshold, or the platforms whose wait was measured), and keep the seam uninstalled when no
+  snapshot will run.
+
+Open:
+- The S25 has run no P13 commit (its BC path never takes the transcode; the pin returns the same mask there).
+- LLDB attach crashes the NDK 30 host lldb; `LLDB.md` recipe 1 is untried.
+- 2 textures re-encoded on every warm boot (the 1x town as the stress town), untraced.
+- The desktop cost above (the seam, the snapshot); the normal-play main-thread CPU (56% of a core against 35%
+  before the overlap) and the soak's heat (+0.5 C, sim behind real time from minute 13) are the phone side of the
+  same question.
+- The low-memory Half path is untested on a real low-memory phone.
+- Candidates not done (P13_CPU §2 items 3-4, §4.4): the walk prefetch leftovers, more prefetch in draw_batch's
+  instanced loop, the vertex / index bind de-dup.
+
 ## 3. Rules that hold (do not relax)
 
 - CLAUDE.md's hard rules: no null guard on a faithful crash (find what handed us the null); no `getenv`, flags through
