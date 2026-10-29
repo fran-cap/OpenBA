@@ -347,6 +347,14 @@ struct FakeHost {
         if (emitting.load() || inFlight.load() != 0) ++errors;
         ctxIndex.fetch_add(1);           // MainLoop::Draw's own ++_frameIndex
     }
+    void BeforePublish(const Ext::RenderPipe::Packet&) {
+        if (std::this_thread::get_id() != mainId) ++errors;
+        if (!threaded || inFlight.load() != 0) ++errors;   // the pose seam is written with the render thread idle
+        ++publishes;
+    }
+    void OverlapSwitch(const Ext::RenderPipe::OverlapGovernor&) { ++switches; }
+    int publishes = 0;
+    int switches  = 0;
 };
 
 // One scripted run of `frames` Frames. Returns the window counters summed.
@@ -572,6 +580,7 @@ UNIT_TEST(ext_render_pipe_threaded_overlap_keeps_the_ui_half_off_the_steps) {
     FakeHost host;
     const Counters c = RunScripted(true, 100000, 0, 20261028u, host, 2);
     CHECK(host.errors.load() == 0);    // the render thread's checks, and no UI half beside a step
+    CHECK(host.publishes == static_cast<int>(c.pipelined - c.discarded));   // BeforePublish before each
     CHECK(c.overlapped > 0);           // fences skipped for packets with a snapshot
     CHECK(c.drainStep > 0);            // the others kept their fence
     CHECK(c.idleWrites > 0);           // after overlapped steps the tail's fence leaves nothing pending
@@ -616,4 +625,92 @@ UNIT_TEST(ext_render_pipe_sequential_driver_matches_the_split) {
     CHECK(host.recoveries == 0);
     CHECK(c.emits + c.discarded == c.pipelined);
     CHECK(c.discarded > 0);
+}
+
+// ---- the overlap governor (overlap_governor.h) -----------------------------
+namespace {
+using Ext::RenderPipe::OverlapGovernor;
+
+// Feeds `n` Frames; returns the switches seen.
+int Feed(OverlapGovernor& g, int n, int64_t removableUs, int64_t idleUs) {
+    int switches = 0;
+    for (int i = 0; i < n; ++i) switches += g.Frame(removableUs, idleUs) ? 1 : 0;
+    return switches;
+}
+}  // namespace
+
+UNIT_TEST(ext_render_pipe_governor_off_without_a_wait_worth_a_copy) {
+    OverlapGovernor g;
+    CHECK(!g.On());
+    CHECK(Feed(g, 1000, 0, 0) == 0);       // no fence wait
+    CHECK(Feed(g, 1000, 170, 0) == 0);     // the desktop's 0.17 ms
+    CHECK(Feed(g, 1000, 900, 0) == 0);     // under the 1 ms floor
+    CHECK(!g.On());
+}
+
+UNIT_TEST(ext_render_pipe_governor_off_when_the_frame_idles_anyway) {
+    OverlapGovernor g;
+    // Normal play at the cap: a 5 ms fence wait, then the cap's sleep: removing the wait
+    // only lengthens the sleep.
+    CHECK(Feed(g, 2000, 5000, 6000) == 0);
+    CHECK(!g.On());
+    CHECK(Feed(g, 2000, 5000, 600) == 0);  // still idles over the 0.5 ms floor
+    CHECK(!g.On());
+}
+
+UNIT_TEST(ext_render_pipe_governor_on_when_the_wait_pays_and_holds) {
+    OverlapGovernor g;
+    // The first switch waits for the hold (a load hitch at install does not switch it).
+    CHECK(Feed(g, OverlapGovernor::kHoldFrames - 1, 4200, 0) == 0);
+    CHECK(!g.On());
+    CHECK(Feed(g, 30, 4200, 0) == 1);      // the S10 stress town: 4.2 ms, no idle
+    CHECK(g.On());
+    g.Copy(2000);                          // a 2 ms copy
+    // On, the frame reaches the cap: it idles 1.5 ms, and would idle 1.5 + 2 - 3.7 < 0 ms
+    // without the copies: kept.
+    CHECK(Feed(g, 1000, 3700, 1500) == 0);
+    CHECK(g.On());
+    // The load drops: it idles 6 ms, 4.3 ms without the copies (over 4): off, then it stays off.
+    CHECK(Feed(g, 1000, 3700, 6000) == 1);
+    CHECK(!g.On());
+    CHECK(Feed(g, 1000, 3700, 6000) == 0);
+    CHECK(!g.On());
+}
+
+UNIT_TEST(ext_render_pipe_governor_never_buys_a_wait_with_a_dearer_copy) {
+    OverlapGovernor g;
+    g.Copy(3000);                          // the copy costs 3 ms
+    CHECK(Feed(g, 2000, 2500, 0) == 0);    // a 2.5 ms wait is not worth it
+    CHECK(!g.On());
+    CHECK(Feed(g, 2000, 3500, 0) == 1);
+    CHECK(g.On());
+    for (int i = 0; i < 200; ++i) g.Copy(9000);   // the copy grew past twice the wait
+    CHECK(Feed(g, 200, 3500, 0) == 1);
+    CHECK(!g.On());
+}
+
+UNIT_TEST(ext_render_pipe_governor_does_not_flap_on_a_noisy_frame) {
+    OverlapGovernor g;
+    g.Copy(2000);
+    std::mt19937 rng(5u);
+    int switches = 0;
+    // A wait jumping between 0 and 8 ms Frame to Frame (mean 4 ms), the idle between 0 and
+    // 2 ms on: one switch on, then it holds.
+    for (int i = 0; i < 20000; ++i) {
+        const bool on = g.On();
+        const int64_t w = (rng() & 1u) != 0 ? 8000 : 0;
+        const int64_t idle = on ? ((rng() & 1u) != 0 ? 2000 : 0) : 0;
+        switches += g.Frame(w, idle) ? 1 : 0;
+    }
+    CHECK(switches == 1);
+    // A load drifting across both thresholds flips once per crossing, never faster than the hold.
+    OverlapGovernor h;
+    int last = -OverlapGovernor::kHoldFrames;
+    for (int i = 0; i < 20000; ++i) {
+        const int64_t idle = (i / 3000) % 2 == 0 ? 0 : 9000;
+        if (h.Frame(4000, idle)) {
+            CHECK(i - last >= OverlapGovernor::kHoldFrames);
+            last = i;
+        }
+    }
 }

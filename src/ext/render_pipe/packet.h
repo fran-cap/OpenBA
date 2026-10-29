@@ -72,6 +72,12 @@ struct Packet {
     // The items point at frozen copies (snapshot.h): the emit up to Pass2 reads
     // nothing the steps write, and the Gate holds the rest until they are over.
     bool overlap = false;
+    // The governor asks the main half for the copies (overlap_governor.h); the main half
+    // reports their main-thread time (us) when it built them.
+    bool    snapshot = false;
+    int64_t copyUs   = 0;
+    // The main half's own wait (the frame cap's sleep, us): idle time for the governor.
+    int64_t idleUs   = 0;
 
     // ---- the RenderPipe shadow (COMPPROF=4 only) -------------------------
     bool     hashed = false;

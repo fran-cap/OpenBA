@@ -42,13 +42,14 @@
 // overlap EndCommands, the frame index and Present. The command stream is the
 // same: only the main thread's wait moves.
 //
-// THE OVERLAP (docs/android/P13_OVERLAP.md): with the render thread up, the main
-// half ends by pointing the packet's items at frozen copies of their geometry
-// (snapshot.h); such a packet is not waited for at THE FENCE: its pass 2 runs
-// beside the next Frame's steps, and its Gate (EngineOps::Gate, between pass 2
-// and the post-scene draws, the device lock dropped while it waits) holds the UI,
-// tool and save-load draws until the main thread reaches the Frame tail, which
-// opens it and waits for the release there (the fence, moved after the steps).
+// THE OVERLAP (docs/android/P13_OVERLAP.md): with the render thread up and the
+// fence wait worth it (overlap_governor.h), the main half ends by pointing the
+// packet's items at frozen copies of their geometry (snapshot.h); such a packet
+// is not waited for at THE FENCE: its pass 2 runs beside the next Frame's steps,
+// and its Gate (EngineOps::Gate, between pass 2 and the post-scene draws, the
+// device lock dropped while it waits) holds the UI, tool and save-load draws
+// until the main thread reaches the Frame tail, which opens it and waits for the
+// release there (the fence, moved after the steps).
 // Before MainLoop::Update ends the loop (kExtBeforeTransition) the thread is joined.
 //
 // THE SIX FIXES (THREADRESEARCH section 1.5):
@@ -80,7 +81,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <optional>
 
 #include "engine/MainLoop.h"
 #include "engine/UpdateLoop.h"
@@ -98,7 +98,7 @@
 #include "ui/UserInterface.h"
 #include "save/SaveLoad.h"
 #include "Game/GameUpdateLoop.h"
-#include "frame_limiter.h"     // src/app: FrameLimiter::TickInGame (the in-game frame cap)
+#include "frame_limiter.h"     // src/app: FrameLimiter::TickInGame (the in-game frame cap), LastWaitUs
 #include "platform_perf_hint.h"   // Platform::PerfHint: the render thread's performance hint session (Android P12)
 #include "Game/Minimap.h"
 #include "Game/PlayerController.h"
@@ -339,7 +339,11 @@ struct EngineOps {
         ctx->_time.w = 0.0f;
         ctx->_dirty |= kContextDirtyFrameTime;
     }
-    bool BeginCommands() { return ctx->_contextData->BeginCommands(); }
+    bool BeginCommands() {
+        const bool begun = ctx->_contextData->BeginCommands();
+        if (handoff != nullptr) handoff->NoteBegun();   // the governor: its waits before here are the GPU's / display's
+        return begun;
+    }
     void BeginFailed() {
         failed = true;
         loop._currentLoop->DrawFailed();
@@ -520,11 +524,12 @@ struct EngineHost {
         next.frameTime       = time;
         next.frameStartTicks = loop->_frameStartTicks;   // this Frame's start (threaded FrameUpdateTime)
         Ext::RenderPipe::MainHalf(*loop, g, *r, alpha, plan.renderIdle, verify, next);
+        next.idleUs = FrameLimiter::LastWaitUs();   // the frame cap's sleep in it (the governor's idle)
         if (verify) {
             next.hash   = HashFrame(*r, g.m_sunLight);
             next.hashed = true;
         }
-        if (g_handoff != nullptr) Freeze(next, *r, g);
+        if (g_handoff != nullptr && next.snapshot) Freeze(next, *r, g);   // the governor asked (pipe_driver.h)
     }
 
     // P13_OVERLAP: the packet's items at frozen copies (snapshot.h), when every one is covered.
@@ -532,7 +537,8 @@ struct EngineHost {
         const uint64_t live = verify ? HashFrame(r, g.m_sunLight, false) : 0;
         const int64_t t0 = NowUs();
         const SnapshotResult s = BuildSnapshot(next.slot, r, Ext::Ext().terrain_edit);
-        g_snapshot.us += static_cast<uint64_t>(NowUs() - t0);
+        const int64_t us = NowUs() - t0;
+        g_snapshot.us += static_cast<uint64_t>(us);
         if (!s.ok) {
             ++g_snapshot.refused;
             NoteRefusal(s.refused);
@@ -541,10 +547,10 @@ struct EngineHost {
         ++g_snapshot.built;
         g_snapshot.bytes += s.bytes;
         next.overlap = true;
+        next.copyUs  = us;
         if (verify) {
             // RenderPipeCopy: the copies hold what the live objects held; the shadow's later
             // hashes (the emit's pre / post) are of the copies.
-            const SnapshotScope scope(next.slot);
             const uint64_t copied = HashFrame(r, g.m_sunLight, false);
             StressHarness_Verify("RenderPipeCopy", copied == live, static_cast<long long>(s.geometries));
             next.hash = HashFrame(r, g.m_sunLight);
@@ -554,9 +560,6 @@ struct EngineHost {
     // The EMITTING thread: the render thread (handoff non-null) or the main thread.
     EmitResult Emit(const Packet& p, Handoff* handoff) {
         const bool threaded = handoff != nullptr;
-        // P13_OVERLAP: this thread's pose lookups answer for the packet's copies.
-        std::optional<SnapshotScope> scope;
-        if (p.overlap) scope.emplace(p.slot);
         EmitResult res;
         Video::Context* const ctx = loop->_context;   // only the main thread's recovery replaces it, at a join
         const bool check = g_verifyOn != 0 && p.hashed;
@@ -604,6 +607,22 @@ struct EngineHost {
 
     void AfterJoin(const Packet& next) {
         if (verify) IdemCamera(*next.game->m_playerController);
+    }
+
+    // P13_OVERLAP: the pose seam answers for frozen copies only while a packet that has them
+    // is in flight; null otherwise, so the sim's pose lookups run retail's code alone. Written
+    // here with the render thread idle; the publish orders it before the emit's reads.
+    void BeforePublish(const Packet& next) {
+        Graphics::MeshInstance::_extInstancedState = next.overlap ? &FrozenInstancedState : nullptr;
+    }
+
+    void OverlapSwitch(const OverlapGovernor& gov) {
+        std::fprintf(stderr, "[RenderPipe] overlap %s: removable fence wait %lld us a frame, idle %lld us "
+                             "(%lld without the copies), copy %lld us\n",
+                     gov.On() ? "on" : "off", static_cast<long long>(gov.RemovableUs()),
+                     static_cast<long long>(gov.IdleUs()), static_cast<long long>(gov.IdleWithout()),
+                     static_cast<long long>(gov.CopyUs()));
+        std::fflush(stderr);
     }
 
     void FaithfulTail() { Ext::RenderPipe::FaithfulTail(*loop, alpha, time); }
@@ -705,7 +724,6 @@ void Sync() {
             g_driver.Attach(g_handoff);
             g_thread = new RenderThread();
             g_thread->Start();
-            Graphics::MeshInstance::_extInstancedState = &FrozenInstancedState;   // P13_OVERLAP
             std::fprintf(stderr, "[RenderPipe] render thread up (%d physical cores)\n", physical);
             std::fflush(stderr);
         } else {

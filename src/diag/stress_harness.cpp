@@ -1537,7 +1537,8 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                                  "(main share %.1f%%) wait=%.1fus/frame latency=%.1fus | window: pipelined=%llu "
                                  "sequential=%llu emits=%llu waits=%llu (fence %llu) recoveries=%llu "
                                  "drains step=%llu other=%llu discarded=%llu idle writes=%llu skips=%llu "
-                                 "| overlap: steps=%llu snapshots=%llu refused=%llu copy=%.3fms %lluKB/packet\n",
+                                 "| overlap: steps=%llu snapshots=%llu refused=%llu copy=%.3fms %lluKB/packet "
+                                 "governor=%s removable=%lldus idle=%lldus (without the copies %lldus)\n",
                          Ext::RenderPipe::Installed() ? 1 : 0, Ext::RenderPipe::Threaded() ? 1 : 0,
                          pipeMain, pipePacket, pipeEmit,
                          pipeMain + pipePacket > 0 ? 100.0 * pipeMain / (pipeMain + pipePacket) : 0.0,
@@ -1551,7 +1552,9 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          static_cast<unsigned long long>(rp.overlapped), static_cast<unsigned long long>(rp.snapshots),
                          static_cast<unsigned long long>(rp.refused),
                          rp.snapshots > 0 ? static_cast<double>(rp.snapshotUs) / 1000.0 / static_cast<double>(rp.snapshots) : 0.0,
-                         static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotKB / rp.snapshots : 0));
+                         static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotKB / rp.snapshots : 0),
+                         rp.governorOn ? "on" : "off", static_cast<long long>(rp.governorRemovableUs),
+                         static_cast<long long>(rp.governorIdleUs), static_cast<long long>(rp.governorIdleWithoutUs));
         }
     }
     (void)frame;

@@ -36,6 +36,7 @@ bool      g_lastMenu      = true;     // which loop the last tick was
 
 int64_t   g_lastFrameTick = 0;        // QPC stamp the prior frame was released at
 bool      g_havePrev      = false;    // false until the first paced tick primes it
+int64_t   g_lastWaitTicks = 0;        // QPC ticks the last Tick / TickInGame waited (LastWaitUs)
 
 // High-resolution waitable timer (Win10 1803+). Lets us sleep with sub-ms
 // precision without timeBeginPeriod's process-wide clock bump. Null => fall
@@ -176,6 +177,7 @@ void WaitUntil(int64_t deadlineTick) {
 
 // One paced frame of `menu`'s loop (Tick / TickInGame).
 void Pace(bool menu) {
+    g_lastWaitTicks = 0;
     if (!g_initialized) Init();
     SetCeiling(ResolveCeiling(g_harness, g_harnessFps, g_autoFps, g_settingsFps, menu), menu);
     if (g_capFps <= 0.0) return;
@@ -197,8 +199,10 @@ void Pace(bool menu) {
     int64_t deadline = g_lastFrameTick + g_intervalTicks;
 
     if (now < deadline) {
+        const int64_t before = now;
         WaitUntil(deadline);
         now = QpcNow();
+        g_lastWaitTicks = now - before;
     }
     Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Main);
 
@@ -239,6 +243,7 @@ void TickInGame() {
     // The common case off the phone (no flag, no settings cap): one test, no clock read.
     if (g_initialized && g_harness != HarnessCap::Fixed && g_settingsFps <= 0.0) {
         if (g_capFps != 0.0 || g_lastMenu) SetCeiling(0.0, false);
+        g_lastWaitTicks = 0;
         return;
     }
     Pace(false);
@@ -254,6 +259,10 @@ void SetSettingsCap(double fps) {
 
 double GetFps()    { return g_measuredFps; }
 double GetCapFps() { return g_capFps; }
+
+int64_t LastWaitUs() {
+    return g_qpcFreq > 0 ? g_lastWaitTicks * 1000000 / g_qpcFreq : 0;
+}
 
 } // namespace FrameLimiter
 

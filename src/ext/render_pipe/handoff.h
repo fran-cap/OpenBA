@@ -55,10 +55,17 @@
 //            itself past it -> every step write happens-before the rest of the
 //            job, and no step runs beside it. WaitIdle opens it first: a main
 //            thread that waits for the job has stopped stepping.
+//   governor P13_OVERLAP section 10 (overlap_governor.h): two timestamps, steady
+//            clock us. PassGate records when the job parked (read by OpenGate
+//            under the lock); NoteBegun, when its BeginCommands returned (an
+//            atomic stored before Release / PassGate, read after WaitReleased /
+//            OpenGate, whose locks order it). Measures only: nothing waits on them.
 // ============================================================================
 #pragma once
 
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <condition_variable>
 #include <mutex>
 
@@ -76,6 +83,8 @@ public:
             _ready  = true;
             _gate   = true;
             _passed = false;
+            _parkedUs = 0;
+            _begunUs.store(0, std::memory_order_relaxed);
             _busy.store(true, std::memory_order_relaxed);
             _released.store(false, std::memory_order_relaxed);
         }
@@ -92,13 +101,17 @@ public:
     }
 
     // The steps the job may have overlapped are over (P13_OVERLAP): let it past its gate.
-    void OpenGate() {
+    // Returns when the job reached the gate and parked (steady clock, us), 0 when it had not.
+    int64_t OpenGate() {
+        int64_t parked = 0;
         {
             std::lock_guard<std::mutex> lk(_m);
-            if (_gate) return;
-            _gate = true;
+            if (_gate) return 0;
+            _gate  = true;
+            parked = _parkedUs;
         }
         _work.notify_one();
+        return parked;
     }
 
     // Block until the render thread is idle. True when it had to wait.
@@ -119,6 +132,10 @@ public:
     }
 
     bool Busy() const { return _busy.load(std::memory_order_acquire); }
+
+    // P13_OVERLAP's governor: when the job's BeginCommands returned (steady clock, us; 0: not
+    // yet). Read after WaitReleased or OpenGate, whose lock orders the store before.
+    int64_t BegunUs() const { return _begunUs.load(std::memory_order_relaxed); }
 
     // The render thread is idle (WaitIdle returned): make its WaitJob return false.
     void Stop() {
@@ -145,7 +162,12 @@ public:
     // the caller parks in WaitGate (after dropping what a step may need).
     bool PassGate() {
         std::lock_guard<std::mutex> lk(_m);
-        if (!_gate) return false;
+        if (!_gate) {
+            // The governor's measure (overlap_governor.h): how far the job ran beside the steps.
+            _parkedUs = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
+            return false;
+        }
         _passed = true;
         return true;
     }
@@ -156,6 +178,14 @@ public:
         std::unique_lock<std::mutex> lk(_m);
         _work.wait(lk, [this] { return _gate || _stop; });
         _passed = true;
+    }
+
+    // The job's BeginCommands returned: what it waited for until here (a free swap-chain image,
+    // a frame in flight) was the GPU or the display, not its own work.
+    void NoteBegun() {
+        _begunUs.store(std::chrono::duration_cast<std::chrono::microseconds>(
+                           std::chrono::steady_clock::now().time_since_epoch()).count(),
+                       std::memory_order_relaxed);
     }
 
     // The part of the job the fence waits for is complete; the rest may still run.
@@ -185,8 +215,10 @@ private:
     bool                    _stop  = false;   // guarded by _m
     bool                    _gate  = true;    // guarded by _m; P13_OVERLAP: false from ClaimSteps to OpenGate
     bool                    _passed = false;  // guarded by _m; P13_OVERLAP: the job is past its gate
+    int64_t                 _parkedUs = 0;    // guarded by _m; P13_OVERLAP: when it parked at the gate (0: not)
     std::atomic<bool>       _busy{false};
     std::atomic<bool>       _released{true};   // RENDERPIPE_FENCE: false from Publish to Release / Done
+    std::atomic<int64_t>    _begunUs{0};        // P13_OVERLAP: when BeginCommands returned (NoteBegun)
 };
 
 }  // namespace RenderPipe
