@@ -164,13 +164,9 @@ void SaveLoadDialog::PopulateFileList() {
     int saveCountNow = saveCount;
     int minSlots = (saveCountNow < 6) ? 6 : saveCountNow;
     int totalSlots = minSlots + 2;
-    // Round up to nearest multiple of 3
-    totalSlots = ((totalSlots / 3) + ((totalSlots % 3) != 0 ? 1 : 0)) * 3;
-    // Actually match the original: (n/3 + rounding) * 3
-    // Original: (iVar10 / 3 + (iVar10 >> 0x1f) + (int)(((longlong)iVar10 / 3 + ...) >> 0x1f)) * 3
-    // For positive values this is just: ((n + 2) / 3) * 3 = round up to multiple of 3
-    // But actually looking more carefully: the original does integer division rounding
-    // which for positive ints is just n / 3 * 3 (round DOWN to multiple of 3)
+    // Round DOWN to a multiple of 3: 0x1400b6d9c `IMUL 0x55555556; SHR 0x1f; ADD` is a
+    // signed truncating /3, then `LEA R14D,[RDX+RDX*2]` multiplies back. R14D is kept
+    // ([RBP+0x120]) as the filler loop's bound below.
     totalSlots = (totalSlots / 3) * 3;
 
     // Set table size: (totalSlots/3 + 1) rows, 3 columns
