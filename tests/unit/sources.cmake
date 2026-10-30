@@ -15,6 +15,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/game/Game/cell_stamp.cpp   # cell_stamp_test.cpp (block AMBMEMO)
   ${CMAKE_SOURCE_DIR}/src/engine/crt/msvc_libm.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/crt/msvc_qsort.cpp
+  ${CMAKE_SOURCE_DIR}/src/game/Component/citizenai_sortbypriority.cpp   # citizenai_sort_test.cpp (row 290)
   ${CMAKE_SOURCE_DIR}/src/engine/system/string.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/system/filename.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/expand_memo.cpp   # block SAVELOAD: the ExpandRelativePath memo

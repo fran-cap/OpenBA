@@ -309,6 +309,8 @@ void OptionsInit() {
     o.birthTrace            = Raw("BANISHED_BIRTH_TRACE");
     o.forceBirth            = Raw("BANISHED_FORCE_BIRTH");
     o.forceBirthFrame       = Raw("BANISHED_FORCE_BIRTH_FRAME");
+    o.spouseProbe           = Raw("BANISHED_SPOUSE_PROBE");
+    o.nomadHarness          = Raw("BANISHED_NOMAD_HARNESS");
     o.foodPanel             = Raw("BANISHED_FOOD_PANEL");
     o.foodPanelFrame        = Raw("BANISHED_FOOD_PANEL_FRAME");
     o.foodPanelClose        = Raw("BANISHED_FOOD_PANEL_CLOSE");
@@ -333,6 +335,7 @@ void OptionsInit() {
     o.tradeSell             = Raw("BANISHED_TRADE_SELL");
     o.tradeSellPerRow       = Raw("BANISHED_TRADE_SELL_PERROW");
     o.tradeSellSeed         = Raw("BANISHED_TRADE_SELL_SEED");
+    o.tradeWatch            = Raw("BANISHED_TRADE_WATCH");
     o.panelHold             = Raw("BANISHED_PANEL_HOLD");
     o.panelHoldFrame        = Raw("BANISHED_PANEL_HOLD_FRAME");
     o.panelHoldClick        = Raw("BANISHED_PANEL_HOLD_CLICK");
