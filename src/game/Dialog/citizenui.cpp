@@ -247,8 +247,7 @@ void CitizenUI::OnCreated() {
 
 // [6] 0x140065130
 void CitizenUI::OnClosed() {
-    if (!SA_DialogEntityAlive(this)) return;
-
+    // No entity test: the body never reads +0x28 (0x140065136 tests only +0xE0).
     if (followDialog.Get() != nullptr) {
         // The UserInterface of the owning DialogInstance
         UI::UserInterface* userInterface = _dialog->_ui;
