@@ -132,17 +132,14 @@ inline Map*     Grid(GameUpdateLoop* gw) { return gw->m_game; }   // +0xF8
 // desc = comp->_description if IsDerivedFrom(ImmigrationDescription) else null — retail
 // dereferences the null; a town hall without its description is a broken template.
 ImmigrationDescription* ImmDesc(ImmigrationComponent* comp) {
+    // IsDerivedFrom on the unguarded description, CMOVNZ (e.g. 0x14004d0f7..0x14004d120).
     Description* d = comp->_description;
-    if (d && ::Object::IsDerivedFromNullSafe(d, TidImmDesc())) return static_cast<ImmigrationDescription*>(d);
-    static bool warned = false;
-    if (!warned) { warned = true; std::fprintf(stderr, "[ImmCtrl] comp=%p has no ImmigrationDescription (desc=%p tid=%08x)\n", static_cast<void*>(comp), static_cast<void*>(d), TidImmDesc()); std::fflush(stderr); }
-    return nullptr;
+    return d->IsDerivedFrom(TidImmDesc()) ? static_cast<ImmigrationDescription*>(d) : nullptr;
 }
 
 // The month of the in-game year: the clock at gw+0x128 holds {year int, Time-in-year}.
 int MonthOfYear(GameUpdateLoop* gw) {
-    Calendar* clock = gw->m_dayCounter;   // +0x128
-    if (!clock) return 0;
+    Calendar* clock = gw->m_dayCounter;   // +0x128, read unguarded (0x14004d119)
     float secs = clock->yearTime.AsSeconds();   // +0x08
     int m = static_cast<int>((secs / kSecondsPerYear) * kMonthsPerYear);
     if (m > 11) m = 0;
@@ -171,7 +168,6 @@ void PostEventToEntity(ComponentEntity* entity, int eventId) {
 bool ImmigrationComponent::CanAccept() {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return false;
     CitizenBehavior* tm = TownMgr(gw);
     if (tm->citizens._size < desc->_minPopulation) return false;
     int req = desc->_requiredBuildingCount;
@@ -529,12 +525,10 @@ char ImmigrationComponent::TickIdle(StateMachine* sm) {
 char ImmigrationComponent::EnterWaiting() {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return 0;
     float r = gw->m_random->RandFloat();
     float months = r * desc->_waitRandomMonths + desc->_waitMonths;
     float secs = months * kSecondsPerMonth;
     System::Time t;
-    t._ticks = 0;
     RtSystem_Time_Ctor(&t, secs);
     waitTimer = t;
     return 0;
@@ -543,8 +537,7 @@ char ImmigrationComponent::EnterWaiting() {
 char ImmigrationComponent::TickWaiting(StateMachine* sm, const System::Time* time) {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return 1;
-    waitTimer._ticks -= time ? time->_ticks : 0;
+    waitTimer._ticks -= time->_ticks;   // 0x14004d0ea / 0x14004d0f3
     int month = MonthOfYear(gw);
     bool inSeason = (desc->_arrivalMonthFirst <= month && month <= desc->_arrivalMonthLast);
     if (waitTimer._ticks < 1 && inSeason) {
@@ -584,17 +577,14 @@ void ImmigrationComponent::OnLeaveGroup() {
 // state 0x11 WAITING FOR AN ANSWER — enter 0x14004ceb0: the event-log line
 char ImmigrationComponent::EnterAnswer() {
     GameUpdateLoop* gw = GW();
-    if (gw) {
-        Object::InternalPtr<ComponentEntity> ownerIBP(_entity);
-        gw->m_eventNotifier->AddEvent(0xe, 2, &ownerIBP);
-    }
+    Object::InternalPtr<ComponentEntity> ownerIBP(_entity);
+    gw->m_eventNotifier->AddEvent(0xe, 2, &ownerIBP);   // retail inlines it (0x14004cece..)
     return 1;
 }
 // tick 0x14004ce00: past the leave month -> dismiss -> 2
 char ImmigrationComponent::TickAnswer(StateMachine* sm) {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return 1;
     if (desc->_leaveMonth <= MonthOfYear(gw)) {
         Dismiss();   // 0x14004d300
         ::ControllerLive::RequestStateTransition(sm, 2);
