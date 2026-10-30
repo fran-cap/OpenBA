@@ -18,7 +18,11 @@ namespace SaveTail {
 namespace {
 
 const StateCodec* const* Codecs(int& n) {
-    static const StateCodec* const kCodecs[] = { &RestrictedFoods::Codec(), &ItemPriority::Codec(), &ToolNames::Codec() };
+    static const StateCodec* const kCodecs[] = {
+        &RestrictedFoods::Codec(),
+        &ItemPriority::Codec(),
+        &ToolNames::Codec(),
+    };
     n = static_cast<int>(sizeof(kCodecs) / sizeof(kCodecs[0]));
     return kCodecs;
 }

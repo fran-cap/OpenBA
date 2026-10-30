@@ -20442,7 +20442,7 @@ inline constexpr uint8_t kRgba_ExtensionsEntry_touch_pointer[9216] = {
 
 // The table the builder packs: name, group (the kit writes the source path, backslashes),
 // size, pixels. Order = the .rsc's `_sprites` order = the sprite indices.
-inline constexpr int kBitmapCount = 75;
+inline constexpr int kBitmapCount = 76;
 inline const SheetBitmap kBitmaps[kBitmapCount] = {
     { "ExtensionsIcon", "Sprite\\Extensions\\ExtensionsIcon.png", 16, 16, kRgba_ExtensionsIcon },
     { "OptionsEnhanced", "Sprite\\Extensions\\OptionsEnhanced.png", 16, 16, kRgba_OptionsEnhanced },

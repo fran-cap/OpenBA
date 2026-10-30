@@ -1,4 +1,4 @@
-// src/ext/tool_names/tool_names.cpp -- see tool_names.h: the note table and the save-tail codec (standard C++)
+// src/ext/tool_names/tool_names.cpp: the note table and the save-tail codec (standard C++); see tool_names.h
 #include "ext/tool_names/tool_names.h"
 
 #include "ext/savetail.h"
@@ -14,11 +14,12 @@ namespace ToolNames {
 
 namespace {
 
-// ENCODE RUNS ON THE SAVE WORKER (ext.background_save) while the panel on the main thread may claim a record, so
-// every access to the two tables takes this lock.
+// ENCODE RUNS ON THE SAVE WORKER (ext.background_save) while the panel on the main thread may claim a record,
+// so every access to the two tables takes this lock.
 std::mutex g_lock;
 std::unordered_map<const void*, Note> g_live;        // citizen component -> its tool
 std::unordered_map<int32_t, Note> g_saved;           // entity id -> a record from a save, not claimed yet
+bool g_loaded = false;                               // a load filled g_saved since the game side looked
 
 bool Same(const Citizen& a, const Citizen& b) {
     return a.entity == b.entity && a.gender == b.gender && a.name == b.name;
@@ -40,9 +41,9 @@ bool PathIsValid(const std::string& path) {
 //     u32  length + name bytes      0..kMaxNameBytes, no NUL
 //     u32  length + path bytes      1..kMaxPathBytes, bytes 0x20..0xFF
 //   }
-// Decode accepts exactly what Encode writes: it refuses a count the payload cannot hold, a gender other than 0
-// or 1, a use count below 1, an over-long or NUL-holding name, an empty, over-long or control-character path,
-// an entity twice, bytes left over, or a cut-short payload. A refused payload changes nothing.
+// Decode accepts exactly what Encode writes: it refuses a count the payload cannot hold, a gender other than
+// 0 or 1, a use count below 1, an over-long or NUL-holding name, an empty, over-long or control-character
+// path, an entity twice, bytes left over, or a cut-short payload. A refused payload changes nothing.
 constexpr size_t kMinEntryBytes = 4 + 4 + 1 + 4 + 4 + 1;
 
 void Encode(std::vector<uint8_t>& payload) {
@@ -93,6 +94,7 @@ bool Decode(const uint8_t* bytes, size_t size, int32_t savedVersion) {
     std::lock_guard<std::mutex> guard(g_lock);
     g_live.clear();
     g_saved.swap(records);
+    g_loaded = true;
     return true;
 }
 
@@ -100,7 +102,8 @@ void Reset() { Clear(); }
 
 }  // namespace
 
-void Remember(const void* citizen, const void* item, int32_t uses, const Citizen& who, const std::string& path) {
+void Remember(const void* citizen, const void* item, int32_t uses, const Citizen& who,
+              const std::string& path) {
     if (citizen == nullptr || item == nullptr) return;
     std::lock_guard<std::mutex> guard(g_lock);
     if (g_live.size() >= kMaxNotes && g_live.find(citizen) == g_live.end()) g_live.clear();
@@ -136,6 +139,27 @@ void Prune(const std::unordered_set<const void*>& alive) {
     }
 }
 
+void PruneSaved(const std::vector<Citizen>& living) {
+    std::lock_guard<std::mutex> guard(g_lock);
+    for (auto it = g_saved.begin(); it != g_saved.end();) {
+        bool belongs = false;
+        for (const Citizen& c : living) {
+            if (Same(it->second.who, c)) {
+                belongs = true;
+                break;
+            }
+        }
+        it = belongs ? std::next(it) : g_saved.erase(it);
+    }
+}
+
+bool TakeLoadFlag() {
+    std::lock_guard<std::mutex> guard(g_lock);
+    const bool was = g_loaded;
+    g_loaded = false;
+    return was;
+}
+
 void Forget(const void* citizen) {
     std::lock_guard<std::mutex> guard(g_lock);
     g_live.erase(citizen);
@@ -145,6 +169,7 @@ void Clear() {
     std::lock_guard<std::mutex> guard(g_lock);
     g_live.clear();
     g_saved.clear();
+    g_loaded = false;
 }
 
 std::size_t LiveCount() {

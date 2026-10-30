@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 class CitizenComponent;
 class RawMaterialDescription;
@@ -59,15 +60,16 @@ struct Note {
     std::string path;             // the item's template path
 };
 
-// Citizens are few hundred at most; the cap keeps the table small however long a game runs. A save never holds
-// more than this either (it is the decoder's limit). When it is reached the live table is emptied.
+// Citizens are few hundred at most; the cap keeps the table small however long a game runs. A save never
+// holds more than this either (it is the decoder's limit). When it is reached the live table is emptied.
 constexpr std::size_t kMaxNotes = 4096;
 constexpr std::size_t kMaxNameBytes = 255;
 constexpr std::size_t kMaxPathBytes = 1024;
 
 // The citizen `citizen` (an opaque key: the component's address) is on its way to take `item`, which posts
 // `uses` uses. `who` and `path` are what a save needs to find the citizen and the item again.
-void Remember(const void* citizen, const void* item, int32_t uses, const Citizen& who, const std::string& path);
+void Remember(const void* citizen, const void* item, int32_t uses, const Citizen& who,
+              const std::string& path);
 
 // The item to name for `citizen`, who now carries a tool whose use count is `uses` (+0xA8), or null when no
 // trustworthy live note exists.
@@ -79,6 +81,15 @@ bool Claim(const Citizen& who, int32_t uses, std::string& path);
 
 // Drops every live note whose citizen is not in `alive` (citizens who died or left).
 void Prune(const std::unordered_set<const void*>& alive);
+
+// Drops every record still waiting from a load that does not belong to one of the `living` citizens (the same
+// entity id, name and gender): the citizen died or left before anyone opened their panel, so nothing will
+// claim it and the next save would carry it for good.
+void PruneSaved(const std::vector<Citizen>& living);
+
+// True once after a load put records in the waiting list: the game side prunes them on its next frame instead
+// of waiting for its timer, so the first save after a load already holds none for citizens who are gone.
+bool TakeLoadFlag();
 
 // Forget one citizen / everyone (a new game, a load, the tests). Clear also empties the saved records.
 void Forget(const void* citizen);
@@ -96,8 +107,8 @@ const SaveTail::StateCodec& Codec();
 // ---- the game side (tool_names_town.cpp; exe only) ----
 // The pick-up seam: the citizen is on its way to take `item`, which posts `uses` uses.
 void RememberPickup(const CitizenComponent* citizen, const RawMaterialDescription* item, int32_t uses);
-// The panel seam: the item to name for `citizen`, whose tool has `uses` uses; a live note first, then a record
-// that came from a save. Null when neither is trustworthy (the panel keeps retail's word).
+// The panel seam: the item to name for `citizen`, whose tool has `uses` uses; a live note first, then a
+// record that came from a save. Null when neither is trustworthy (the panel keeps retail's word).
 const RawMaterialDescription* ToolFor(const CitizenComponent* citizen, int32_t uses);
 // GameUpdateLoop::Update, once per frame: drops the notes of citizens who are gone.
 void BeginFrame();

@@ -1,10 +1,11 @@
 // ============================================================================
 // src/ext/tool_names/tool_names_town.cpp -- ext.tool_names (class C): the game side
 // ============================================================================
-// docs/extensions/handins/TOOLNAMES.md. The pick-up seam hands RememberPickup the citizen and the item; the panel
-// seam asks ToolFor for the item to name; BeginFrame (GameUpdateLoop::Update) drops the notes of citizens who are
-// gone. The note table and the codec are tool_names.cpp; this file is what needs the running game: a citizen's
-// entity id, name and gender, an item's template path, and the factory walk that finds an item by that path.
+// docs/extensions/handins/TOOLNAMES.md. The pick-up seam hands RememberPickup the citizen and the item; the
+// panel seam asks ToolFor for the item to name; BeginFrame (GameUpdateLoop::Update) drops the notes, and the
+// records a load left waiting, of citizens who are gone. The note table and the codec are tool_names.cpp;
+// this file is what needs the running game: a citizen's entity id, name and gender, an item's template path,
+// and the factory walk that finds an item by that path.
 // ============================================================================
 
 #include "ext/tool_names/tool_names.h"
@@ -22,6 +23,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_set>
+#include <vector>
 
 namespace Ext {
 namespace ToolNames {
@@ -72,27 +74,37 @@ void RememberPickup(const CitizenComponent* citizen, const RawMaterialDescriptio
 const RawMaterialDescription* ToolFor(const CitizenComponent* citizen, int32_t uses) {
     if (citizen == nullptr) return nullptr;
     if (const void* noted = Lookup(citizen, uses)) return static_cast<const RawMaterialDescription*>(noted);
-    if (SavedCount() == 0) return nullptr;   // nothing waits from a save: the usual case after the first panel
+    if (SavedCount() == 0) return nullptr;   // nothing waits from a save: the usual case
     const Citizen who = WhoIs(citizen);
     std::string path;
     if (!Claim(who, uses, path)) return nullptr;
     const RawMaterialDescription* item = ItemAtPath(path);
-    if (item == nullptr || item->_i54 != uses) return nullptr;   // the game no longer has it, or it is another tool now
+    // the game no longer has the item, or it is another tool now
+    if (item == nullptr || item->_i54 != uses) return nullptr;
     Remember(citizen, item, uses, who, path);
     return item;
 }
 
 void BeginFrame() {
     static int countdown = kPruneFrames;
-    if (--countdown > 0) return;
+    const bool loaded = TakeLoadFlag();   // the first frame after a load looks at the waiting records at once
+    if (!loaded && --countdown > 0) return;
     countdown = kPruneFrames;
-    if (LiveCount() == 0) return;
+    if (LiveCount() == 0 && SavedCount() == 0) return;
     GameUpdateLoop* g = GameUpdateLoop::_singleton;
     if (g == nullptr || g->m_citizenList == nullptr) return;
     std::unordered_set<const void*> alive;
+    std::vector<Citizen> living;
     const auto& list = g->m_citizenList->citizens;
-    for (int i = 0; i < list._size; ++i) alive.insert(list._data[i].Get());
+    for (int i = 0; i < list._size; ++i) {
+        const CitizenComponent* c = list._data[i].Get();
+        if (c == nullptr) continue;
+        alive.insert(c);
+        living.push_back(WhoIs(c));
+    }
     Prune(alive);
+    // a town with no citizens at all is a game that has not finished loading (or is over): keep the records
+    if (!living.empty()) PruneSaved(living);
 }
 
 }  // namespace ToolNames

@@ -131,6 +131,39 @@ UNIT_TEST(ext_tool_names_prune_drops_citizens_who_are_gone) {
     Clear();
 }
 
+UNIT_TEST(ext_tool_names_saved_records_of_citizens_who_are_gone_are_pruned) {
+    Clear();
+    int a = 0, b = 0, c = 0, item = 0;
+    Remember(&a, &item, 50, Who(7, "Anna", 0), "Mod/Tools/Wood.rsc");
+    Remember(&b, &item, 100, Who(9, "Bram", 1), "Mod/Tools/Iron.rsc");
+    Remember(&c, &item, 100, Who(11, "Cara", 0), "Mod/Tools/Iron.rsc");
+    const std::vector<uint8_t> bytes = Encoded();
+    Clear();
+    CHECK(!TakeLoadFlag());                                // nothing was loaded yet
+    CHECK(ToolCodec()->decode(bytes.data(), bytes.size(), 1));
+    CHECK(TakeLoadFlag());                                 // the game side is told once
+    CHECK(!TakeLoadFlag());
+    CHECK_EQ(SavedCount(), 3u);
+    // Anna lives; Bram's entity id is now another citizen's (a different name); Cara died
+    PruneSaved(std::vector<Citizen>{Who(7, "Anna", 0), Who(9, "Dirk", 1), Who(12, "Emil", 1)});
+    CHECK_EQ(SavedCount(), 1u);
+    std::string path;
+    CHECK(!Claim(Who(9, "Bram", 1), 100, path));
+    CHECK(!Claim(Who(11, "Cara", 0), 100, path));
+    CHECK(Claim(Who(7, "Anna", 0), 50, path));
+    CHECK_EQ(SavedCount(), 0u);
+    // the next save no longer carries the dead: a save, a load and a prune of everyone leaves nothing to write
+    Remember(&a, &item, 50, Who(7, "Anna", 0), "Mod/Tools/Wood.rsc");
+    const std::vector<uint8_t> second = Encoded();
+    Clear();
+    CHECK(ToolCodec()->decode(second.data(), second.size(), 1));
+    PruneSaved(std::vector<Citizen>{});
+    CHECK_EQ(SavedCount(), 0u);
+    CHECK_EQ(Encoded().size(), 4u);                        // only the count, 0
+    Clear();
+    CHECK(!TakeLoadFlag());                                // Clear forgets a pending load too
+}
+
 UNIT_TEST(ext_tool_names_table_is_capped) {
     Clear();
     static int citizens[kMaxNotes + 8];

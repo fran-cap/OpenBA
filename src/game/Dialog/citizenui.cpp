@@ -369,8 +369,9 @@ void CitizenUI::OnUpdateLayout() {
     if (textTool) {
         UI::String text = textTool->_text;
         text.index = toolValue;
-        // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C) names the tool
-        // the citizen carries from the item's own string table; retail's word (above) when no note matches.
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C) names the
+        // tool the citizen carries from the item's own string table; retail's word (above) when no note
+        // matches.
         if (toolValue != 0 && ::Ext::Ext().tool_names) {
             const RawMaterialDescription* item = ::Ext::ToolNames::ToolFor(ai, ai->field_0xA8);
             if (item != nullptr && item->_stringTable != nullptr) {
