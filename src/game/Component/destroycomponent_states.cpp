@@ -374,40 +374,40 @@ void DestroyComponent::ScatterContents(int baseX, int baseY, int width, int dept
                          (0.0f <= w1[2]) && (w1[2] < kMaxHeight);
             if (valid) {
                 RawMaterialDescription* rmDesc = FindRawMatDescInTemplate(tmpl);
-                int stackSize = rmDesc ? rmDesc->_weight : 0;
-                if (stackSize > 0) {
-                    int per = 100 / stackSize;
-                    if (per > remaining) per = remaining;
+                // Retail divides with no test of the desc or its weight: 0x14011ca59
+                // `MOV EAX,0x64; CDQ; IDIV dword ptr [RCX+0x48]`, RCX the CMOVNZ result
+                // of the template scan or 0. Then CMOVG clamps to what is left.
+                int per = 100 / rmDesc->_weight;
+                if (per > remaining) per = remaining;
 
-                    ComponentEntity* mem = (::System::MemoryAllocator::_singleton)
-                        ? static_cast<ComponentEntity*>(::System::MemoryAllocator::MemAlloc(0x48, 8)) : nullptr;
-                    ComponentEntity* newEntity = mem
-                        ? ::new (mem) ComponentEntity(tmpl)
-                        : nullptr;
-                    if (newEntity) {
-                        ::Object::InternalPtr<ComponentEntity> entIBP(newEntity);
+                ComponentEntity* mem = (::System::MemoryAllocator::_singleton)
+                    ? static_cast<ComponentEntity*>(::System::MemoryAllocator::MemAlloc(0x48, 8)) : nullptr;
+                ComponentEntity* newEntity = mem
+                    ? ::new (mem) ComponentEntity(tmpl)
+                    : nullptr;
+                if (newEntity) {
+                    ::Object::InternalPtr<ComponentEntity> entIBP(newEntity);
 
-                        // RawMaterialComponent on the new entity → position + amount.
-                        RawMaterialComponent* rm = newEntity->FindComponent<RawMaterialComponent>();   // 0x1400223c0
-                        if (rm) {
-                            int yaw = random ? random->RandTol(2) : 0;
-                            rm->PositionRawMaterial(cell, static_cast<float>(yaw) * kYawScale);   // 0x140129760
-                            rm->quantity = per;
-                            rm->profession = nullptr;
-                        }
-
-                        // Register into the world with the recipe category.
-                        int category = 0;
-                        if (recipeBase) {
-                            ComponentDescription* catTmpl = recipeBase[pi].material;
-                            if (catTmpl) category = catTmpl->_category;
-                        }
-                        ::Object::InternalPtr<ComponentEntity> regIBP = entIBP;
-                        if (entityList) entityList->RegisterEntity(&regIBP, category);
-
-                        remaining -= per;
-                        placed++;
+                    // RawMaterialComponent on the new entity → position + amount.
+                    RawMaterialComponent* rm = newEntity->FindComponent<RawMaterialComponent>();   // 0x1400223c0
+                    if (rm) {
+                        int yaw = random ? random->RandTol(2) : 0;
+                        rm->PositionRawMaterial(cell, static_cast<float>(yaw) * kYawScale);   // 0x140129760
+                        rm->quantity = per;
+                        rm->profession = nullptr;
                     }
+
+                    // Register into the world with the recipe category.
+                    int category = 0;
+                    if (recipeBase) {
+                        ComponentDescription* catTmpl = recipeBase[pi].material;
+                        if (catTmpl) category = catTmpl->_category;
+                    }
+                    ::Object::InternalPtr<ComponentEntity> regIBP = entIBP;
+                    if (entityList) entityList->RegisterEntity(&regIBP, category);
+
+                    remaining -= per;
+                    placed++;
                 }
             }
 
