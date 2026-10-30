@@ -1078,9 +1078,6 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
 // The citizen list is GameUpdateLoop::m_citizenList (CitizenBehavior::citizens).
 CitizenComponent* CitizenComponent::FindSpouse() {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
-    // The old door read the registered 8-byte cell 0x1401722b0 as a uint32_t: its low
-    // dword (little-endian) of 0x7fffffffffffffff.
-    uint32_t mask = static_cast<uint32_t>(kRdata_1401722b0);
     CitizenBehavior* list = gw->m_citizenList;
     int64_t n = list->citizens._size;
     for (int64_t i = 0; i < n; i++) {
@@ -1090,10 +1087,15 @@ CitizenComponent* CitizenComponent::FindSpouse() {
                 float* minAge = &description->marriageAge;
                 float candAge = cand->age;
                 if (*minAge <= candAge && candAge != *minAge) {
-                    float diff = candAge - age;
-                    // abs(diff) via mask, then compare to window max (+0x4c)
-                    uint32_t bits = *reinterpret_cast<uint32_t*>(&diff) & mask;   // CAST-OK: float_bits
-                    float adiff = *reinterpret_cast<float*>(&bits);   // CAST-OK: float_bits
+                    // abs(diff) as a double: CVTPS2PD, ANDPD with the 8-byte fabs mask
+                    // 0x1401722b0 (loaded once into XMM6, 0x14010fe87), CVTPD2PS
+                    // (0x14010ff19..0x14010ff25); then compare to the window max (+0x4c).
+                    double diff = static_cast<double>(candAge - age);
+                    uint64_t bits;
+                    __builtin_memcpy(&bits, &diff, sizeof(bits));
+                    bits &= kRdata_1401722b0;
+                    __builtin_memcpy(&diff, &bits, sizeof(diff));
+                    float adiff = static_cast<float>(diff);
                     if (adiff <= description->_f4c) {
                         return cand;
                     }

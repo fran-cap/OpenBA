@@ -9,7 +9,7 @@ strong it is, and what a fix must do. A fix is its own commit titled `behaviour:
 retail's disassembly and gated with resave x5. Status is one of `SUSPECTED` (not yet read in
 retail), `CONFIRMED` (retail read, addresses given), `FIXED` (commit).
 
-## 1. `CitizenComp_helper_fe40`: the age-difference `abs()` does nothing — SUSPECTED
+## 1. `CitizenComp_helper_fe40`: the age-difference `abs()` does nothing — FIXED
 
 **Where.** `src/game/Component/citizencomponent.cpp`, `CitizenComp_helper_fe40` (retail
 `0x14010fe40`): finds a partner citizen whose age is inside the description's window
@@ -36,6 +36,14 @@ every other reader of `kRdata_1401722b0` must be re-checked too.
 **What a fix must do.** Read `0x14010fe40` in Ghidra (the AND's operand address and width) and the
 image bytes at that address; then either point the body at the right constant or correct the
 constant. Check the other readers of `0x1401722b0` in the same commit.
+
+**Fixed.** Retail read (2026-10-30): explanation (a) without the second cell. `0x14010fe87` loads the
+8-byte cell into XMM6 (`MOVSD`); the difference is widened (`CVTPS2PD`, `0x14010ff19`), AND-ed as a
+double (`ANDPD XMM1,XMM6`, `0x14010ff21`) and narrowed (`CVTPD2PS`, `0x14010ff25`): a real `fabs`.
+The image bytes are `ff ff ff ff ff ff ff 7f`, so the registered value is right. The body is now
+`CitizenComponent::FindSpouse` and does the double round trip; the other two readers
+(`fruitcomponent.cpp` `AbsViaMask`, `growthcomponent.cpp`'s temperature distance) already did.
+Gated: `tools/build.sh run` clean, resave x5 PASS (no serialized state touched).
 
 ## 2. `OrchardRequestState` passes an ADDRESS where the state machine takes the time by value — SUSPECTED
 
