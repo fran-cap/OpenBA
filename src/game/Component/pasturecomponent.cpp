@@ -99,10 +99,9 @@ int PastureComponent::ComputeCapacity() const {
             break;
         }
     }
-    if (found == nullptr) return 0;
-    int cost = found->_i24;
-    if (cost == 0) return 0;
-    return (int)(w * h) / cost;
+    // No test of the desc or the divisor: 0x140128644 `IMUL R15D,R12D; CDQ;
+    // IDIV dword ptr [RBX+0x24]`, RBX the CMOVNZ scan result or 0.
+    return (int)(w * h) / found->_i24;
 }
 
 // B4 FORWARD: 1 outside caller file (Dialog/debugui.cpp).
