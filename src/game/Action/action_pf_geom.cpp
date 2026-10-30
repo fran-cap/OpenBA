@@ -12,7 +12,8 @@
 // simplify, or reorder. None of these are exercised on the autostart path, so a
 // wrong port is undetectable silent corruption — strictly worse than unregistered.
 //
-//   0x1400a5ec0  neighbour tile index by 8-direction code   (GridPathSearch::Neighbour)
+//   (0x1400a5ec0, the neighbour by direction code, is GridPathSearch::Neighbour, inline in
+//   Action/PathSearch.h so FindPath can carry the row and column)
 //   0x1400a6030  movement-cost octile/diagonal heuristic    (GridPathSearch::Heuristic)
 //   (0x1400a5ac0, the region-pair lookup, is RegionPairCache::Find in action_pf_region.cpp)
 //   (0x1400aa810, the ray/triangle intersect, is in Game/worldgeometry_ray.cpp)
@@ -51,43 +52,6 @@ static inline float C_half()   { return 0.5f; }
 static inline float C_negone() { return -1.0f; }
 
 } // namespace
-
-// ============================================================
-// 0x1400a5ec0 — neighbour cell by 8-direction code
-// ============================================================
-// Decompose the cell into (row, col) on the square grid of `width`; apply the direction
-// delta (case 0..7); bounds-check; skip a cell whose blocked bit (0x80) is set while
-// respectBlocked; finally only return the cell if its terrain type's bit is set in
-// passableTypes.
-int GridPathSearch::Neighbour(int index, uint32_t dir) const {
-    int w = width;
-    int row = index / w;
-    int col = index % w;
-    switch (dir) {
-    case 0: col = col + 1; break;
-    case 1: col = col - 1; break;
-    case 2: row = row + 1; break;            // case 2: +row
-    case 3: row = row - 1; break;            // case 3: -row
-    case 4: col = col + 1; row = row + 1; break;
-    case 5: col = col + 1; row = row - 1; break;
-    case 6: col = col - 1; row = row - 1; break;
-    case 7: col = col - 1; row = row + 1; break;
-    default: break;
-    }
-    if ((-1 < col) && (col < w) && (-1 < row) && (row < w)) {
-        int cell = w * row + col;
-        char gateFlag = static_cast<char>(respectBlocked);
-        const uint8_t* byteMap = cellFlags;
-        if (gateFlag == 0 || (byteMap[cell] & 0x80) == 0) {
-            uint32_t passMask = passableTypes;
-            uint8_t cb = byteMap[cell];
-            if (((passMask >> (cb & 0x1f)) & 1) != 0)
-                return cell;
-            return -1;
-        }
-    }
-    return -1;
-}
 
 // ============================================================
 // 0x1400a6030 — movement-cost octile / diagonal heuristic
