@@ -44,6 +44,10 @@
 #include "Component/CitizenComponent.h"   // the pick route's citizen list entries
 #include "Dialog/CitizenUI.h"             // the pick route's panel check
 #include "picking/Scene.h"                // Picking::Scene::Intersect / GetUserData
+#include "Dialog/SpriteCaptureUI.h"       // the spritecapture route (row 41)
+#include "ui/EditElement.h"
+#include "ui/ButtonElement.h"
+#include "io/FileSystem.h"
 #include "Component/TradeComponent.h"
 #include "Dialog/TradeUI.h"
 #include "Component/UIComponent.h"
@@ -3176,6 +3180,114 @@ void FirePick(PlayerToolManager* toolManager) {
 }
 
 // ============================================================================
+// row 41 -- BANISHED_TOOL_HARNESS=spritecapture
+// ============================================================================
+// Retail reaches SpriteCaptureUI through Game/Toolbar.rsc's hidden "capture" entry
+// (`_visible = false`, Action Utility, hot key Camera0, autoHotKey):
+// Template/UtilityCapture.rsc, whose UIDescription inserts SpriteCaptureUI with
+// Dialog/Capture.rsc into Dialog/StandardDialog.rsc. The exe names no dialog path for
+// it (its only Dialog\ literals are MainMenu, Loading and ShiningRock). This route opens
+// it the way the toolbar's Utility action does (PlayerToolManager::ToggleUtilityDialog
+// 0x140101a80), types a file name into editCapture the way a player would, and
+// kCaptureClickDelay frames later clicks buttonCapture: DialogInstance::OnElementEvent
+// with msg 0x12 and the id OnCreated gave it (1000), so slot 9 (0x140079620) runs
+// StartCapture (0x1400792b0). OnUpdate (0x1400793a0) saves one frame later; the route
+// reports the controller state and the file SaveText wrote.
+// THE SAVE FAULTS, AS IN THE SHIPPED GAME: External::SaveText (0x1800bb9d0) writes
+// through a TextFileStream whose TextEncoding (vtable 0x1801559d0) answers CreateWriter
+// with null (0x1800b9a70, `XOR EAX,EAX; RET`), and SpriteCapture::Serialize
+// (0x1800d9530) calls through that writer unguarded (0x1800d958d). Only the toolkit's
+// Runtime-x64-profile.dll exports a TextWriter. So this mode reproduces the developer
+// tool up to that fault (known_port_issues row 41); it is not a PASS/FAIL route.
+// Lines: "... buttonCapture clicked -> pendingExternal=<non-null>", then the crash in
+// SpriteCapture::Serialize; "SAVED <path>" would mean a text writer exists.
+constexpr int kCaptureClickDelay = 60;
+constexpr int kCaptureCheckDelay = 10;
+const char* const kCaptureName = "Game/Help/Dialog/HarnessCapture";
+int                 s_sc_clickFrame = 0;
+int                 s_sc_checkFrame = 0;
+UI::DialogInstance* s_sc_dialog     = nullptr;
+SpriteCaptureUI*    s_sc_ui         = nullptr;
+
+void FireSpriteCapture(PlayerToolManager* toolManager, int frameNum) {
+    const char* kTemplate = "Template\\UtilityCapture.rsc";
+    ComponentDescription* desc = StartTown_ResolveTemplateByPath(kTemplate);
+    if (!desc) {
+        fprintf(stderr, "[ToolHarness][spritecapture] FAILED: %s did not resolve\n", kTemplate);
+        return;
+    }
+    UI::DialogInstance* dialog = toolManager->ToggleUtilityDialog(desc);   // 0x140101a80
+    SpriteCaptureUI* ui = dialog
+        ? static_cast<SpriteCaptureUI*>(dialog->GetController(SpriteCaptureUI::TypeId()).Get())
+        : nullptr;
+    fprintf(stderr, "[ToolHarness][spritecapture] %s -> dialog=%p SpriteCaptureUI=%p\n", kTemplate,
+            static_cast<void*>(dialog), static_cast<void*>(ui));
+    if (!ui) {
+        fprintf(stderr, "[ToolHarness][spritecapture] FAILED: no SpriteCaptureUI on the dialog\n");
+        return;
+    }
+    fprintf(stderr, "[ToolHarness][spritecapture] OnCreated state: editCapture=%p buttonCapture=%p "
+            "captureBox=%p box=(%d,%d)-(%d,%d) text=\"%s\"\n", static_cast<void*>(ui->editCapture),
+            static_cast<void*>(ui->buttonCapture), static_cast<void*>(ui->captureBox), ui->curX,
+            ui->curY, ui->anchorX, ui->anchorY,
+            ui->editCapture ? ui->editCapture->GetText()._data : "");
+    System::String name(kCaptureName);
+    ui->editCapture->SetText(name);
+    s_sc_dialog = dialog;
+    s_sc_ui = ui;
+    s_sc_clickFrame = frameNum + kCaptureClickDelay;
+}
+
+void SpriteCaptureTick(int frameNum) {
+    if (s_sc_clickFrame != 0 && frameNum >= s_sc_clickFrame) {
+        s_sc_clickFrame = 0;
+        Object::InternalPtr<UI::Element> button(s_sc_ui->buttonCapture);
+        s_sc_dialog->OnElementEvent(&button, 0x12, 1000, 0, 0, 0, nullptr);   // the button click
+        fprintf(stderr, "[ToolHarness][spritecapture] frame %d: buttonCapture clicked -> "
+                "pendingExternal=%p saveFrameCount=%d box=(%d,%d)-(%d,%d)\n", frameNum,
+                static_cast<void*>(s_sc_ui->pendingExternal), s_sc_ui->saveFrameCount,
+                s_sc_ui->curX, s_sc_ui->curY, s_sc_ui->anchorX, s_sc_ui->anchorY);
+        if (!s_sc_ui->pendingExternal) {
+            fprintf(stderr, "[ToolHarness][spritecapture] FAILED: the click started no capture\n");
+            return;
+        }
+        s_sc_checkFrame = frameNum + kCaptureCheckDelay;
+        return;
+    }
+    if (s_sc_checkFrame == 0 || frameNum < s_sc_checkFrame) return;
+    s_sc_checkFrame = 0;
+    // OnUpdate's own path: GetSourceDirectory + the edit text + ".rsc".
+    const System::String sourceDir = ::IO::FileSystem::_singleton->GetSourceDirectory().AsString();
+    const System::String path = sourceDir + s_sc_ui->editCapture->GetText() + ".rsc";
+    fprintf(stderr, "[ToolHarness][spritecapture] frame %d: pendingExternal=%p sourceDirectory=\"%s\"\n",
+            frameNum, static_cast<void*>(s_sc_ui->pendingExternal), sourceDir._data);
+    if (s_sc_ui->pendingExternal) {
+        fprintf(stderr, "[ToolHarness][spritecapture] FAILED: OnUpdate never reached its save arm\n");
+        return;
+    }
+    FILE* f = std::fopen(path._data, "rb");
+    if (!f) {
+        fprintf(stderr, "[ToolHarness][spritecapture] FAILED: OnUpdate saved but %s is not there\n",
+                path._data);
+        return;
+    }
+    char head[512] = {};
+    const size_t got = std::fread(head, 1, sizeof(head) - 1, f);
+    std::fseek(f, 0, SEEK_END);
+    const long size = std::ftell(f);
+    std::fclose(f);
+    fprintf(stderr, "[ToolHarness][spritecapture] SAVED %s (%ld bytes); head:\n", path._data, size);
+    int lines = 0;
+    for (char* line = head; line < head + got && lines < 16; ++lines) {
+        char* end = std::strchr(line, '\n');
+        if (end) *end = '\0';
+        fprintf(stderr, "[ToolHarness][spritecapture]   | %s\n", line);
+        if (!end) break;
+        line = end + 1;
+    }
+}
+
+// ============================================================================
 // B8 RES -- BANISHED_TOOL_HARNESS=panelclose (row 994 G33, audit Q3)
 // ============================================================================
 // Opens a founding house's info panel through the real select (EditTool::SelectEntity),
@@ -3370,6 +3482,9 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
     // pick: the placed building's and the bridge's pick meshes (PickTick above).
     PickTick(frameNum);
 
+    // spritecapture: the scheduled capture click and the save check.
+    SpriteCaptureTick(frameNum);
+
     // panelclose: the scheduled close click and its check (FirePanelClose above).
     if (s_pc_closeFrame != 0 || s_pc_checkFrame != 0) PanelCloseTick(entityUI, frameNum);
 
@@ -3418,6 +3533,8 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
         PickArm(0, "pickplace", before);
         s_br_pickCheck = true;
         FireBridgeTool(entityUI);
+    } else if (std::strcmp(s_toolName, "spritecapture") == 0) {
+        FireSpriteCapture(entityUI, frameNum);
     } else if (std::strcmp(s_toolName, "panelclose") == 0) {
         FirePanelClose(entityUI, frameNum);
     } else if (std::strcmp(s_toolName, "utility") == 0) {
