@@ -156,6 +156,10 @@ check_pick() {
 }
 
 "route_$ROUTE"
+if [ "$ROUTE" = pick ] && [ ${#ENV[@]} -eq 0 ]; then
+    check_pick
+    exit 2
+fi
 
 # ---------------------------------------------------------------- the run
 [ -f "$EXE" ] || { echo "[route] no exe: $EXE (tools/build.sh build debug)" >&2; exit 2; }
