@@ -592,7 +592,9 @@ void PathGraph::AssignCitizens() {
 
     // ---------- Phase 5B: cleanup — clear workplace of leftover idle laborers ----------
     while (!profNeed.empty() && !idle.empty()) {
-        Profession*       key = profNeed.rbegin()->first;   // greatest profession key
+        // Both are the leftmost node of their tree: the walks before 0x1400d5e05 follow the
+        // profession map down +0x18 (the `key < node` side) and the idle set down +0x10.
+        Profession*       key = profNeed.begin()->first;    // smallest profession key
         CitizenComponent* c   = *idle.begin();              // smallest idle citizen ptr
 
         if (c->profession != key ||
