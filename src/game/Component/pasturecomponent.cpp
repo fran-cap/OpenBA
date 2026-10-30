@@ -57,7 +57,6 @@
 // map. Pure leaf.
 void AnimalComponent::GetWanderBox(int16_t* outX, int16_t* outY, int16_t* outW, int16_t* outH,
                                    int size) const {
-    if (GameUpdateLoop::_singleton == nullptr) return;
     const Map* map = GameUpdateLoop::_singleton->m_game;
     int cell = habitatCell;
     int mapDim = map->size;
