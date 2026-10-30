@@ -163,7 +163,7 @@ void BuildRequirementUI::OnCreated() {
         UI::ImageElement* imagePtr =
             static_cast<UI::ImageElement*>(FindDialogElemChecked(dialogInst, "imageIcon"));
 
-        if (imagePtr && buildReqComp) {
+        if (imagePtr) {   // 0x14005e99b; the description is read unguarded (0x14005e9a2)
             // The icon: sprite sheet (+0x20) and sprite name (+0x28)
 #ifdef _DEBUG
             uint8_t sprite[16];
@@ -182,7 +182,7 @@ void BuildRequirementUI::OnCreated() {
         UI::TextElement* textPtr =
             static_cast<UI::TextElement*>(FindDialogElemChecked(dialogInst, "textTitle"));
 
-        if (textPtr && buildReqComp) {
+        if (textPtr) {    // 0x14005ea40; the description is read unguarded (0x14005ea47)
             // The title: string table (+0x30) and key (+0x38)
             UI::String uiStr(Object::ExternalPtr<UI::StringTable>(buildReqComp->_stringTable),
                              buildReqComp->_str1);
