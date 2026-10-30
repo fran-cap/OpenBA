@@ -297,8 +297,10 @@ struct NeedEntry {
         while (head < candidates.size() && idle.count(candidates[head].citizen) == 0) ++head;
     }
 
+    // Read with no test, as retail (0x1400d5530, 0x1400d5d36): the tree is never empty
+    // while the need has seats (the invariant above AssignCitizens), and Phase 2 keeps
+    // only rosterCount != 0.
     int score(float uvScale) const {
-        if (empty() || rosterCount <= 0) return 0;
         int minCost = best().cost;
         float filled = static_cast<float>(rosterCount - remaining) / static_cast<float>(rosterCount);
         return static_cast<int>(static_cast<float>(minCost) * (uvScale - filled));
@@ -432,6 +434,13 @@ int PathGraph::RegionPairCost(Map* map, int fromCell, int toCell) {
 // ===========================================================================
 // CitizenComponent_impl_43b0 (0x1400d43b0)
 // ===========================================================================
+// Retail reads a need's best candidate with no empty test: in the Phase 4 scoring
+// (0x1400d5530), at the pop, and in the re-score after a removal (0x1400d5d36, where
+// an emptied tree would be read at null+0x10). That is safe by construction, and the
+// port relies on the same invariant: every seat counted in a roster (+0x60) is held by
+// a distinct adult citizen with no school, i.e. one Phase 3 puts in `idle` and in every
+// need's tree, so the seats still open never outnumber the idle citizens. Each
+// assignment takes one of each, so every need with seats left has a live candidate.
 void PathGraph::AssignCitizens() {
     // 0x1400d43df-0x1400d4403: the world, the town (+0xf0), the map (+0xf8) and the
     // registry (+0xb0) are read with no test (B8 RES, row 310).
@@ -522,7 +531,6 @@ void PathGraph::AssignCitizens() {
     // (score desc, need index asc); begin() is retail's pop (Component/need_queue.h).
     NeedQueue::Queue pq;
     for (size_t n = 0; n < needs.size(); ++n) {
-        if (needs[n].empty() || needs[n].remaining <= 0) continue;
         pq.insert(NeedQueue::Key{ needs[n].score(uvScale), n });
     }
     std::vector<std::pair<size_t, CitizenComponent*>> shadowSeq, realSeq;
@@ -535,7 +543,6 @@ void PathGraph::AssignCitizens() {
         size_t ni = pq.begin()->need;          // highest score, lowest index on a tie
         pq.erase(pq.begin());
         NeedEntry& e = needs[ni];
-        if (e.empty() || e.remaining <= 0) continue;
 
         CitizenComponent* citizen = e.best().citizen;   // nearest available laborer
         if (g_verifyOn) realSeq.emplace_back(ni, citizen);
@@ -570,15 +577,14 @@ void PathGraph::AssignCitizens() {
         // when the citizen was its head (Advance moves head to the next live one).
         for (size_t f = 0; f < needs.size(); ++f) {
             NeedEntry& nf = needs[f];
-            if (nf.remaining <= 0) continue;
-            const bool wasBest = !nf.empty() && nf.best().citizen == citizen;
+            if (nf.remaining == 0) continue;   // retail: remaining != 0 (0x1400d5b05)
+            const bool wasBest = nf.best().citizen == citizen;
             if (wasBest) {
                 // Erase the key nf is queued under, scored from the best it was queued
                 // with (0x1400d5c50), then re-insert with the new best's score.
                 pq.erase(NeedQueue::Key{ nf.score(uvScale), f });
                 nf.Advance(idle);
-                if (!nf.empty() && nf.remaining > 0)
-                    pq.insert(NeedQueue::Key{ nf.score(uvScale), f });
+                pq.insert(NeedQueue::Key{ nf.score(uvScale), f });
             }
         }
     }
