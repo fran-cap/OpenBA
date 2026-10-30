@@ -260,7 +260,6 @@ void OptionsInit() {
     o.showroom               = Raw("BANISHED_SHOWROOM");
     o.captureIngame          = Raw("BANISHED_CAPTURE_INGAME");
     o.achIgnoreMods          = Raw("BANISHED_ACH_IGNORE_MODS");
-    o.fastTrig               = Raw("BANISHED_FAST_TRIG");
     o.treeGuards             = Raw("BANISHED_TREE_GUARDS");
     o.treePrefetch           = Raw("BANISHED_TREE_PREFETCH");
     o.mapTrace               = Raw("BANISHED_MAP_TRACE");

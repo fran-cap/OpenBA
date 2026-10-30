@@ -194,7 +194,6 @@ struct Options {
                                                //   issue #13 showroom run script (scratchpad showroom/run.sh)
     const char* captureIngame        = nullptr;// BANISHED_CAPTURE_INGAME — gameupdateloop.cpp
     const char* achIgnoreMods        = nullptr;// BANISHED_ACH_IGNORE_MODS — gameupdateloop.cpp achievements
-    const char* fastTrig             = nullptr;// BANISHED_FAST_TRIG — src/game/Component/character_trig.cpp
     const char* treeGuards           = nullptr;// BANISHED_TREE_GUARDS — src/game/Entity/entitylist.cpp
     const char* treePrefetch         = nullptr;// BANISHED_TREE_PREFETCH — src/game/Entity/entitylist.cpp
 
