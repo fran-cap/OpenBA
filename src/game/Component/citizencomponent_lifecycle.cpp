@@ -137,29 +137,28 @@ void CitizenComponent::AddChild(CitizenComponent* child) {
 // fallback 0x140030b90). Resolve the entity's WorkComponent, read its profession key
 // (comp+0x28), then look that key up in the world priority RB-tree (GameWorld+0x118).
 // ============================================================
+// As retail (0x140110330): the WorkComponent, the world, the scheduler (+0x118) and the
+// found Work are used with no test; every workplace candidate carries a WorkComponent
+// whose id the scheduler registered (citizenai_work_scheduler.cpp).
 static int ProfessionKeyOfEntity(ComponentEntity* handle) {
     WorkComponent* comp = handle->FindComponent<WorkComponent>();   // 0x140003050
-    return comp ? comp->workId : 0;
+    return comp->workId;
 }
 
 // GameWorld+0x118 is the work scheduler; its trees[0] (+0x30) is keyed on the work id
 // (WorkSchedulerIdNode: key at +0, left +0x18, right +0x20, the Work at +0x8), the
 // priority at Work +0x24.
 static int LookupProfessionPriority(int key) {
-    if (GameUpdateLoop::_singleton == nullptr) return 0;
-    GameUpdateLoop* world = GameUpdateLoop::_singleton;
-    WorkScheduler* tree = world->m_tutorial;
-    if (!tree) return 0;
+    WorkScheduler* tree = GameUpdateLoop::_singleton->m_tutorial;
     WorkSchedulerIdNode* node = tree->trees[0].root;   // root
     while (node) {
         if (key < node->key)      node = node->left;    // left  (node+0x18)
         else if (key > node->key) node = node->right;   // right (node+0x20)
-        else {
-            Work* value = node->work.Get();              // node+0x8
-            return value ? value->field_24 : 0;
-        }
+        else break;
     }
-    return 0;   // absent: retail builds an empty IBP and derefs; guarded to 0 here
+    // An absent key leaves a null IBP (0x140110420), and retail reads its +0x24 anyway.
+    Work* value = node ? node->work.Get() : nullptr;   // node+0x8
+    return value->field_24;
 }
 
 static inline int ProfessionPriorityOf(ComponentEntity* handle) {
