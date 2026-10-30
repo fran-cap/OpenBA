@@ -348,8 +348,8 @@ void EntityUI::OnCreated() {
 // Slot6: Remove entity from world tracking set.
 // [6] 0x140067090
 void EntityUI::OnClosed() {
-    if (!SA_DialogEntityAlive(this)) return;
-
+    // No entity test: the key is compared by address, never dereferenced, so a
+    // dying entity's key leaves the set too.
     // Copy +0x30 (entity InternalBasePtr) to local
     ComponentEntity* entityKey = entity;
 

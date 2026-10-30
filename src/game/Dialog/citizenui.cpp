@@ -200,7 +200,6 @@ static CitizenComponent* CitizenUI_FindCitizen(Object::Base* dataSource) {
 
 // [4] 0x1400651a0
 void CitizenUI::OnCreated() {
-    if (!SA_DialogEntityAlive(this)) return;
     UI::DialogInstance* dialogInst = _dialog;
     UI::Element* parentElem = _container;
 

@@ -48,8 +48,6 @@
 
 // [4] 0x14007b270
 void StatusIconUI::OnCreated() {
-    if (!SA_DialogEntityAlive(this)) return;
-
     // Find "icons" container element by name. The original does an
     // IsDerivedFrom check here; the tree skips it (FindElement by name
     // returns the element).

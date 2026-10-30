@@ -90,7 +90,7 @@ static void Trace(const char* what, StorageUI* self) {
 
 // [4] 0x1400b8820
 void StorageUI::OnCreated() {
-    if (!storageui_sa::Ready() || !SA_DialogEntityAlive(this)) { storageui_sa::Trace("Serialize SKIP", this); return; }
+    if (!storageui_sa::Ready()) { storageui_sa::Trace("Serialize SKIP", this); return; }
     storageui_sa::Trace("Serialize", this);
 
     // Find "storageTable", fallback to "storageTable2"
