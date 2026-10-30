@@ -104,6 +104,16 @@ const Entry kEntries[] = {
       "when it first appears.",
       0, [](State& s) -> bool& { return s.fix.dialog_position_drift; } },
 
+    // ALLOCTIEBREAK (docs/extensions/handins/ALLOCTIEBREAK.md, docs/retail_bugs.md section 14): the
+    // employment allocator and the housing re-balancer break ties between equal candidates by entity id
+    // and profession-list index instead of by heap address. Sim-visible: which citizen takes a job, and
+    // which empty house a family moves to, among equals. Nothing new is saved.
+    { "alloc_tiebreak", Tier::Fix, Class::None, true,
+      "Repeatable job and house choices",
+      "When several citizens or houses are equally good for a job or a move, the choice no longer "
+      "depends on memory layout, so a town plays out the same way each time a save is loaded.",
+      0, [](State& s) -> bool& { return s.fix.alloc_tiebreak; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).

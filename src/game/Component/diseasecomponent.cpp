@@ -602,8 +602,8 @@ void DiseaseComponent::KillOneAnimal() {
 // 0x140048610 — InfectionTick (healthy path)
 // ============================================================
 void DiseaseComponent::InfectionTick(const System::Time* deltaTime) {
+    // As retail: the world (+0xD0, +0x128, +0xD8, +0xF8) and its year clock are read untested.
     GameUpdateLoop* gw = GameWorld();
-    if (!gw) return;
 
     // The noCropDisease debug flag (GameWorld+0xD0 bit 5) — retail's own kill switch.
     if (((gw->m_gameFlags >> 5) & 1) != 0) return;
@@ -613,7 +613,7 @@ void DiseaseComponent::InfectionTick(const System::Time* deltaTime) {
 
     // GameUpdateLoop::m_dayCounter (+0x128): the year clock's time into the year (+0x08).
     const Calendar* clock = gw->m_dayCounter;
-    float secs = clock ? clock->yearTime.AsSeconds() : 0.0f;
+    float secs = clock->yearTime.AsSeconds();
     int month = (int)((secs / SecsPerYear()) * MonthsPerYear());
     if (month > 0xB) month = 0;
 
