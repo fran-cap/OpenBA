@@ -28,11 +28,13 @@
 //   The two retail scratch trees are AVL trees whose node memory nothing outside
 //   this function observes, so — exactly as src/game/Component/citizen_assign_citizens.cpp
 //   does for the AssignCitizens allocator — they are modeled here as clean std::
-//   containers with the SAME visiting order (pointer tie-breaks are non-observable).
+//   containers with the SAME visiting order. The pointer tie-breaks follow heap
+//   addresses, in retail as here; fix.alloc_tiebreak puts the residence's entity id in
+//   front of the pointer (docs/retail_bugs.md §14; 0 with the row off).
 //   Every touch of real game state (residence/occupant/storage fields) and every
 //   leaf helper is called wholesale and byte-faithful.
 //
-//     retail tree local_b8  -> std::set<void*>              (empty residences, by ptr asc)
+//     retail tree local_b8  -> std::set<ResKey>             (empty residences, by ptr asc)
 //     retail tree local_98  -> std::set<CostRes, CostCmp>   (occupied residences; in-order
 //                                                            = cost DESC, ptr ASC on ties)
 //
@@ -94,6 +96,9 @@
 #include "Component/exe_bodies.h"
 #include "Action/exe_bodies.h"
 #include "Work/exe_bodies.h"
+#include "ext/registry.h"                     // Ext::Fix().alloc_tiebreak
+#include "ext/alloc_tiebreak/alloc_tiebreak.h"   // EntityKey
+#include "ext/alloc_tiebreak/tie_key.h"       // TieKey: the scratch trees' keys
 
 // Build-time roster-only guard, shared with citizen_assign_citizens.cpp: while set,
 // the workplace/housing attach-detach helpers skip the Graphics::Scene mesh toggle
@@ -112,11 +117,15 @@ namespace {
 // IsDerivedFrom + CMOVNZ on the first match -- so the tree's FindComponentDerived (null
 // entity / zero id / null slot tests) and its type-id cache are gone.
 
+using ResKey = Ext::AllocTiebreak::TieKey<ResidenceComponent>;
+
 // Candidate key: retail tree local_98 visits IN-ORDER as (cost DESC, residence ptr ASC).
-struct CostRes { int cost; ResidenceComponent* res; };
+// `tie` (fix.alloc_tiebreak, 0 with the row off) sits in front of the pointer.
+struct CostRes { int cost; int32_t tie; ResidenceComponent* res; };
 struct CostCmp {
     bool operator()(const CostRes& a, const CostRes& b) const {
         if (a.cost != b.cost) return a.cost > b.cost;   // higher cost visited first
+        if (a.tie != b.tie) return a.tie < b.tie;
         return a.res < b.res;                           // ties: ascending pointer
     }
 };
@@ -194,7 +203,12 @@ void PathGraph::ReassignWorkers() {
     int               resCount = townMgr->field_0x20._size;
     Object::InternalPtr<ComponentEntity>* resArray = townMgr->field_0x20._data;
 
-    std::set<ResidenceComponent*> empties;   // retail local_b8: available (occupant==0) residences
+    // FIX alloc_tiebreak (NOT RETAIL, docs/extensions/handins/ALLOCTIEBREAK.md): both trees order
+    // equal keys by the residence's entity id instead of by address. Off: every id is 0 and the
+    // order is the pointer's.
+    const bool stableTies = Ext::Fix().alloc_tiebreak;
+
+    std::set<ResKey>              empties;   // retail local_b8: available (occupant==0) residences
     std::set<CostRes, CostCmp>    occupied;  // retail local_98: keyed by relocation cost
 
     // ---------- Phase 1: bucket every residence with fewer than two households ----------
@@ -207,14 +221,15 @@ void PathGraph::ReassignWorkers() {
 
         ResidenceComponent::Family* occList = resComp->residentSlots._data;
         int occCount = occList->_size;
+        const int32_t tie = stableTies ? Ext::AllocTiebreak::EntityKey(resComp) : 0;
         if (occCount == 0) {
-            empties.insert(resComp);
+            empties.insert(ResKey{ tie, resComp });
         } else {
             ResidenceComponent* rc2 = resComp;
             ResidenceComponent* rc3 = resComp;
             uint32_t cost = static_cast<uint32_t>(
                 Entity_ReassignCost_6c60(occList, &rc2, &rc3));
-            occupied.insert(CostRes{ static_cast<int>(cost), resComp });
+            occupied.insert(CostRes{ static_cast<int>(cost), tie, resComp });
         }
     }
 
@@ -230,13 +245,19 @@ void PathGraph::ReassignWorkers() {
             ResidenceComponent* srcRes    = it->res;   // residence to (maybe) vacate (tree local_98 node)
             int                 threshold = it->cost;  // its own current cost (retail uVar13)
             ResidenceComponent* bestDest  = nullptr;   // retail local_res18
+            ResKey              bestKey{ 0, nullptr };
 
             // nearest empty residence whose relocation cost beats `threshold`
-            for (ResidenceComponent* destRes : empties) {   // ascending pointer == retail in-order walk
+            for (const ResKey& destKey : empties) {   // ascending key == retail in-order walk
+                ResidenceComponent* destRes = destKey.ptr;
                 ResidenceComponent* b = srcRes;
                 ResidenceComponent* a = destRes;
                 int c = static_cast<int>(Entity_ReassignCost_6c60(this, &b, &a));
-                if (c < threshold) { threshold = c; bestDest = destRes; }
+                if (c < threshold) {
+                    threshold = c;
+                    bestDest = destRes;
+                    bestKey = destKey;
+                }
             }
             if (!bestDest) continue;
 
@@ -279,7 +300,7 @@ void PathGraph::ReassignWorkers() {
             }
 
             // --- retire the now-occupied destination from the empty set ---
-            empties.erase(bestDest);
+            empties.erase(bestKey);
             ++relocations;
             if (empties.empty()) break;           // retail: local_b0 == 0
         }

@@ -503,3 +503,36 @@ Fix: `fix.dialog_position_drift` (tier 1), default on, off under `/profile:faith
 it rides `UI::UserInterface::_extDialogPlace` at `kExtPlaceUpperLeft` (installed under every profile but
 faithful by ext.phone_menu's `Place`, the row on or off). Code `src/ext/dialog_position_drift/`.
 Hand-in `docs/extensions/handins/DIALOGPOSITIONDRIFT.md`.
+
+## 14. Ties in the job and house allocators follow memory addresses
+
+**Symptom.** None a player can point at in one game: the town is valid either way. Load the same save
+twice, or play the same seed twice, and which of two equally near idle citizens takes an open seat,
+which idle citizen Phase 5B strips first, and which of two equally good empty houses a family moves to
+can differ between the runs. From that tick on the two towns diverge. It is a determinism defect, not a
+rule defect.
+
+**Retail mechanism.**
+- `PathGraph::AssignCitizens` (`0x1400d43b0`) builds its scratch trees with raw pointers in the key: the
+  idle set (local_148) by `CitizenComponent*`, the profession-count map (local_158) by `Profession*`
+  (citizen +0x1f0), and each need's cost tree by (cost, `CitizenComponent*`). The best candidate is a
+  tree's leftmost node, and Phase 5B takes both maps' leftmost.
+- `PathGraph::ReassignWorkers` (`0x1400d62a0`) keys the empty-residence tree (local_b8) by
+  `ResidenceComponent*` and the occupied tree (local_98) by (cost descending, `ResidenceComponent*`); the
+  destination search takes the first empty house whose cost is strictly lower, so on a tie the lowest
+  address wins.
+- Every one of those objects is a heap allocation, so a tie goes to whichever the allocator placed lower.
+
+**Proof it is retail.** The orders are read off the disassembly: the cost tree's (cost, then the
+citizen pointer with an unsigned compare) at `0x1400d5b55..0x1400d5b97`, Phase 5B's two leftmost walks at
+`0x1400d5dc0..0x1400d5dfc` (the profession map down +0x18, the idle set down +0x10). The port's std::
+containers use the same order (`src/game/Component/citizen_assign_citizens.cpp`, `citizen_reassign_workers.cpp`). The need
+priority queue is not affected: it keys on the need record's place in one array (`need_queue.h`).
+
+**Lever.** Put a stable id in front of each pointer: a citizen's or residence's entity id
+(`ComponentEntity::_entityId`, unique at any moment and saved), a profession's index in
+`ProfessionList::professions`. The pointer then only orders two keys with one id.
+
+Fix: `fix.alloc_tiebreak` (tier 1), default on, off under `/profile:faithful`. Two seams, one read of the
+row per call: `PathGraph::AssignCitizens` and `PathGraph::ReassignWorkers`. Code `src/ext/alloc_tiebreak/`.
+Hand-in `docs/extensions/handins/ALLOCTIEBREAK.md`.

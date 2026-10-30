@@ -19,8 +19,9 @@
 //   memory layout, so this port represents them as clean std:: containers with the
 //   same comparators and the same end taken. The idle set, the profession-count map
 //   and the cost trees' ties key on raw pointers (CitizenComponent*, Profession*), so
-//   their order follows heap addresses, in retail as here. The priority queue does
-//   not: it keys on the need RECORD's address, and the records sit in one array in
+//   their order follows heap addresses, in retail as here; fix.alloc_tiebreak puts a
+//   stable id in front of each pointer (Ext::AllocTiebreak::TieKey, 0 with the row off,
+//   docs/retail_bugs.md §14). The priority queue does not: it keys on the need RECORD's address, and the records sit in one array in
 //   Phase 2 order, so its tie-break is the need index (Component/need_queue.h).
 //   Every interaction with real game state (citizen/townMgr/reg/workplace fields)
 //   and every leaf helper is called wholesale and byte-faithful.
@@ -132,6 +133,9 @@
 #include "Component/InteractComponent.h"   // HomeNodeCell: NodePosition (0x140122e20)
 #include "Action/PathAvl.h"                  // PathCostTreeInsert (0x140025a10)
 #include "Component/need_queue.h"             // NeedQueue: the Phase 4 priority queue
+#include "ext/registry.h"                     // Ext::Fix().alloc_tiebreak
+#include "ext/alloc_tiebreak/alloc_tiebreak.h"   // EntityKey, ProfessionOrder
+#include "ext/alloc_tiebreak/tie_key.h"       // TieKey: the scratch trees' keys
 
 namespace {
 
@@ -257,17 +261,24 @@ WorkplaceList LookupWorkplaces(ProfessionBucket* mapRoot, Profession* key) {
 }
 
 // ---- scratch containers ----------------------------------------------------
+using IdleKey = Ext::AllocTiebreak::TieKey<CitizenComponent>;
+using ProfKey = Ext::AllocTiebreak::TieKey<Profession>;
+
 struct Candidate {
     int32_t cost;
+    int32_t tie;   // the citizen's TieKey id: 0 unless fix.alloc_tiebreak
     CitizenComponent* citizen;
     int32_t fromCell;
     int32_t toCell;
     // Ordered by (cost, citizen) — matches the retail cost-tree comparator; the
     // nearest laborer is begin() (min cost), the priority score reads begin()->cost.
+    // `tie` sits between the two and is 0 for every candidate with the row off.
     bool operator<(const Candidate& o) const {
         if (cost != o.cost) return cost < o.cost;
+        if (tie != o.tie) return tie < o.tie;
         return citizen < o.citizen;
     }
+    IdleKey Key() const { return IdleKey{ tie, citizen }; }
 };
 
 struct NeedEntry {
@@ -293,8 +304,8 @@ struct NeedEntry {
     bool empty() const { return head >= candidates.size(); }
     const Candidate& best() const { return candidates[head]; }
     // Step head past every candidate whose citizen has left the idle set.
-    void Advance(const std::set<CitizenComponent*>& idle) {
-        while (head < candidates.size() && idle.count(candidates[head].citizen) == 0) ++head;
+    void Advance(const std::set<IdleKey>& idle) {
+        while (head < candidates.size() && idle.count(candidates[head].Key()) == 0) ++head;
     }
 
     // Read with no test, as retail (0x1400d5530, 0x1400d5d36): the tree is never empty
@@ -494,15 +505,23 @@ void PathGraph::AssignCitizens() {
     }
 
     // ---------- Phase 3: idle set + profession counts + candidates ----------
-    std::set<CitizenComponent*> idle;
-    std::map<Profession*, int> profNeed;    // profession key -> idle-laborer count
+    // FIX alloc_tiebreak (NOT RETAIL, docs/extensions/handins/ALLOCTIEBREAK.md): the idle set,
+    // the profession-count map and the cost trees order equal keys by entity id / profession
+    // index instead of by address. Off: every id is 0 and the order is the pointer's.
+    const bool stableTies = Ext::Fix().alloc_tiebreak;
+    const Ext::AllocTiebreak::ProfessionOrder profOrder(reg);
+    auto profKey = [&](Profession* p) { return ProfKey{ stableTies ? profOrder.Rank(p) : 0, p }; };
+
+    std::set<IdleKey> idle;
+    std::map<ProfKey, int> profNeed;    // profession key -> idle-laborer count
     for (int i = 0; i < citCount; ++i) {
         CitizenComponent* c = CitizenAt(citArray, i);
         if (!IsIdleHealthy(c)) continue;
 
-        idle.insert(c);
+        const int32_t tie = stableTies ? Ext::AllocTiebreak::EntityKey(c) : 0;
+        idle.insert(IdleKey{ tie, c });
         Profession* prof = c->profession;   // +0x1f0
-        ++profNeed[prof];
+        ++profNeed[profKey(prof)];
 
         NormalizeMismatched(c, reg);    // embedded normalization (mirrors LAB_1400d4e57)
 
@@ -520,7 +539,7 @@ void PathGraph::AssignCitizens() {
                     if (ExactCellCost(pathData, srcCell, e.cellId) != cost) ++g_pathGraphCost.differ;
                 }
             }
-            e.candidates.push_back(Candidate{ cost, c, srcCell, e.cellId });
+            e.candidates.push_back(Candidate{ cost, tie, c, srcCell, e.cellId });
         }
     }
     // The (cost, citizen) order is strict (one candidate per citizen per need), so the
@@ -545,6 +564,7 @@ void PathGraph::AssignCitizens() {
         NeedEntry& e = needs[ni];
 
         CitizenComponent* citizen = e.best().citizen;   // nearest available laborer
+        const IdleKey citizenKey = e.best().Key();
         if (g_verifyOn) realSeq.emplace_back(ni, citizen);
         WorkPlaceComponent* wp = e.workplaceComp;
         Profession*      reqProf  = wp->profession;   // +0x48
@@ -560,9 +580,9 @@ void PathGraph::AssignCitizens() {
         // decrement this citizen's profession need
         // Retail decrements the count under the workplace's required profession
         // (= the citizen's post-assignment +0x1f0), which is what we look up here.
-        auto pit = profNeed.find(c->profession);
+        auto pit = profNeed.find(profKey(c->profession));
         if (pit != profNeed.end() && --pit->second == 0) profNeed.erase(pit);
-        idle.erase(citizen);
+        idle.erase(citizenKey);
         e.remaining -= 1;
         ++assignedTotal;
 
@@ -600,8 +620,9 @@ void PathGraph::AssignCitizens() {
     while (!profNeed.empty() && !idle.empty()) {
         // Both are the leftmost node of their tree: the walks before 0x1400d5e05 follow the
         // profession map down +0x18 (the `key < node` side) and the idle set down +0x10.
-        Profession*       key = profNeed.begin()->first;    // smallest profession key
-        CitizenComponent* c   = *idle.begin();              // smallest idle citizen ptr
+        const ProfKey     keyT = profNeed.begin()->first;   // smallest profession key
+        Profession*       key  = keyT.ptr;
+        CitizenComponent* c    = idle.begin()->ptr;          // smallest idle citizen key
 
         if (c->profession != key ||
             c->workplace != nullptr) {
@@ -622,7 +643,7 @@ void PathGraph::AssignCitizens() {
             c->profession = key;
         }
         idle.erase(idle.begin());
-        auto pit = profNeed.find(key);
+        auto pit = profNeed.find(keyT);
         if (pit != profNeed.end() && --pit->second == 0) profNeed.erase(pit);
     }
 
