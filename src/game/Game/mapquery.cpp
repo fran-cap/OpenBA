@@ -6,14 +6,14 @@
 // placement, tile classification, every tool/work/component that maps a world XY to a
 // terrain point) and is exe-only, so standalone needs a real body for it.
 //
-// The original is a 3-function chain:
-//   f3e0  → 08c0_sub_0f90 → QuarryComponent_helper_aa20 → ..._sub_a810
-// aa20 reads the int16 heightmap (WorldGeom+0xd8, row stride WorldGeom+0xd0, value scaled
-// by 1/256 — the inverse of worldgen's ×256 quantize), takes the 4 quad corners around the
-// sample point, and a810 ray-casts a vertical ray against the quad's two triangles to get the
-// interpolated height + surface normal. For a vertical ray against a height-field quad the
-// ray-triangle intersection height is exactly the planar interpolation of the corners, so we
-// compute it directly (bilinear over the quad) rather than transcribe the mangled 3-fn ray cast.
+// The height is WorldGeometry::HeightUnderPoint (0x1400b0f90, Game/worldgeometry_ray.cpp):
+// a vertical ray from z 100 down through the cell ((int)(x + half), (int)(y + half)) --
+// a TRUNCATING index, not floor -- tested against that cell's quad as two triangles
+// (0x1400aaa20), the diagonal chosen by (x + y) & 1, each by the Moller-Trumbore test
+// 0x1400aa810. The height is piecewise planar per triangle (not bilinear), the normal is the
+// unit normal of the triangle the ray hit, written into outTri only on a hit; a miss (a point
+// outside its truncated cell, e.g. x + half in (-1, 0), or a degenerate far-off quad) returns
+// height 0 and leaves outTri as the caller set it.
 // Output Vector3 = {worldX, worldZ, height} (matching f3e0's field order).
 //
 // flag (param_4): when flag==0 AND the cell carries a placed floor (cellRec+0x2d > 0),
@@ -41,91 +41,6 @@
 #include "Game/exe_bodies.h"
 #include "Game/Map.h"
 #include "Game/WorldGeometry.h"
-
-// WorldGeometry fields (worldgen.cpp writes them): _gridSize (+0xc0, dim*2 == the
-// heightfield grid size, e.g. 512), _fieldD0 (+0xd0, N = dim*2+1, the int16
-// heightmap's row stride, 513), _heights.data (+0xd8, the int16 heightmap, N x N).
-
-static constexpr float kHeightScale = 1.0f / 256.0f;   // DAT_1401720bc (reverses worldgen ×256)
-
-// Sample interpolated terrain height at a world (x, z) — the net effect of aa20+a810.
-// worldX/worldZ are in logical world units; the heightmap is indexed at fx = worldX + center,
-// center = (WorldGeom+0xc0)>>1, exactly as 08c0_sub_0f90 forms the tile coords.
-// [COPY-PINNED begin] tests/unit/copy_drift_test.cpp pins the text from here to
-// the end marker: tests/unit/still_terrain_test.cpp (World::SampleHeight) holds a
-// literal copy over a vector (and drives this body through Map::GetTerrainPos too).
-static float MapQuery_SampleHeight(const WorldGeometry* wg, float worldX, float worldZ) {
-    if (!wg) return 0.0f;
-    const int N = wg->_fieldD0;
-    const short* hm = wg->_heights.data;
-    if (!hm || N <= 0) return 0.0f;
-
-    const float center = (float)(wg->_gridSize >> 1);
-    const float fx = worldX + center;
-    const float fz = worldZ + center;
-
-    // Inline floor: MinGW's floorf is a libcall (2 per sample, ~1000 samples per tick at
-    // 800 citizens — the move tick calls this every tick). Truncate-then-fix is exact.
-    int ix = (int)fx; if ((float)ix > fx) --ix;
-    int iz = (int)fz; if ((float)iz > fz) --iz;
-    const float tx = fx - (float)ix;
-    const float tz = fz - (float)iz;
-
-    auto clampN = [N](int v) -> int { return v < 0 ? 0 : (v >= N ? N - 1 : v); };
-    const int x0 = clampN(ix),     z0 = clampN(iz);
-    const int x1 = clampN(ix + 1), z1 = clampN(iz + 1);
-
-    const float h00 = (float)hm[z0 * N + x0] * kHeightScale;
-    const float h10 = (float)hm[z0 * N + x1] * kHeightScale;
-    const float h01 = (float)hm[z1 * N + x0] * kHeightScale;
-    const float h11 = (float)hm[z1 * N + x1] * kHeightScale;
-
-    const float hTop = h00 + (h10 - h00) * tx;
-    const float hBot = h01 + (h11 - h01) * tx;
-    return hTop + (hBot - hTop) * tz;
-}
-// [COPY-PINNED end]
-
-// Unit surface normal at world (x, z), written into out3 in the engine's
-// (x, z, height) component order — so out3[2] is the vertical/flatness term.
-//
-// This is the net effect of sub_a810, which builds the sampled triangle's two
-// edge vectors, takes Cross(edge1, edge2), and Normalize()s it into the outTri
-// out-param. The tile classifier (CreateNaturalResource_helper_e2c0) reads only
-// outTri[2] (>= 0.9 == buildable). We compute the normal of the
-// {(x,z),(x+1,z),(x,z+1)} triangle via forward differences over one texel
-// (uv = g_fUVScale = 1.0, 0x14017214c) — exactly one of the two triangles a810
-// evaluates: normal = normalize(-dhx*uv, -dhz*uv, uv^2), giving
-// out3[2] = uv / sqrt(dhx^2 + dhz^2 + uv^2) (1.0 on flat ground).
-static void MapQuery_SampleNormal(const WorldGeometry* wg, float worldX, float worldZ, float out3[3]) {
-    out3[0] = 0.0f; out3[1] = 0.0f; out3[2] = 1.0f;   // default = flat / up
-    if (!wg) return;
-    const int N = wg->_fieldD0;
-    const short* hm = wg->_heights.data;
-    if (!hm || N <= 0) return;
-
-    const float center = (float)(wg->_gridSize >> 1);
-    const float fx = worldX + center, fz = worldZ + center;
-    int ix = (int)fx; if ((float)ix > fx) --ix;
-    int iz = (int)fz; if ((float)iz > fz) --iz;
-
-    auto clampN = [N](int v) -> int { return v < 0 ? 0 : (v >= N ? N - 1 : v); };
-    const int x0 = clampN(ix),     z0 = clampN(iz);
-    const int x1 = clampN(ix + 1), z1 = clampN(iz + 1);
-
-    const float h00 = (float)hm[z0 * N + x0] * kHeightScale;
-    const float h10 = (float)hm[z0 * N + x1] * kHeightScale;
-    const float h01 = (float)hm[z1 * N + x0] * kHeightScale;
-
-    const float uv  = 1.0f;          // g_fUVScale (0x14017214c)
-    const float nx  = -(h10 - h00) * uv;
-    const float nz  = -(h01 - h00) * uv;
-    const float nh  = uv * uv;
-    const float inv = 1.0f / sqrtf(nx * nx + nz * nz + nh * nh);
-    out3[0] = nx * inv;
-    out3[1] = nz * inv;
-    out3[2] = nh * inv;              // vertical (slope) term read by the classifier
-}
 
 // BANISHED_FLOOR_TRACE is gone (ENDGAME C.2). The symbol stays only until
 // src/game/Component/floorcomponent.cpp drops its call sites; it is dead.
@@ -173,17 +88,14 @@ float* Map::GetTerrainPos(float* outPos3, const float* inXY2,
     const float inX = inXY2[0];
     const float inZ = inXY2[1];
 
-    const WorldGeometry* worldGeom = nullptr;
+    WorldGeometry* worldGeom = nullptr;
     if (GameUpdateLoop::_singleton != nullptr)
         worldGeom = GameUpdateLoop::_singleton->m_worldGeometry;
 
-    const float height = MapQuery_SampleHeight(worldGeom, inX, inZ);
-
-    // outTri (param_5) receives the surface normal, three floats (retail: 0x1400b0f90
-    // hands it to 0x1400aaa20, whose 0x1400aa810 stores [0], [1], [2] on a hit).
+    // 0x14009f472: CALL 0x1400b0f90 (gw+0x110, the point, param_5). outTri receives the hit
+    // triangle's unit normal (0x1400aa810 stores [0], [1], [2] on a hit only).
     float* tri = outTri;
-    if (tri)
-        MapQuery_SampleNormal(worldGeom, inX, inZ, tri);
+    const float height = worldGeom ? worldGeom->HeightUnderPoint(inXY2, tri) : 0.0f;
 
     if (flag == 0) {
         Map* mapGrid = CanonicalMapGrid(this);

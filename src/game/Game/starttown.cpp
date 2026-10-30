@@ -149,7 +149,6 @@ static constexpr int   CELL_TYPE   = 0x29;     // tile type byte
 static constexpr int   GAME_CELLS  = 0x80;     // Game+0x80 = {void* data, int count, int cap}
 static constexpr int   TILE_BUILDABLE = 2;
 static constexpr float kCenterBias = 0.5f;     // DAT_140172114
-static constexpr float kDeg2Rad    = 3.14159265358979323846f / 180.0f;
 
 // Force-work harness (env BANISHED_FORCE_WORK): the first spawned start-town
 // structure (a StorageBarn = a real workplace building entity) is captured here so
@@ -384,9 +383,13 @@ static bool StartTown_FindSpawnTile(const Map* game, int size, int* outX, int* o
     const int kMaxRings = 4096;                // defensive cap (original loops forever)
     for (int ring = 0; ring < kMaxRings; ++ring) {
         for (int i = 0; i < points; ++i) {
-            const float ang = (float)i * (fullCircle / (float)points) * kDeg2Rad;
-            const int tx = (int)(cosf(ang) * radius) + half;   // local_res8 (cos) * r + dim/2
-            const int ty = (int)(sinf(ang) * radius) + half;   // local_res10 (sin) * r + dim/2
+            // Math::Scalar::SinCos takes degrees and applies pi/180 itself (0x180078790).
+            const Math::Scalar ang((float)i * (fullCircle / (float)points));
+            Math::Scalar sinA;
+            Math::Scalar cosA;
+            ang.SinCos(sinA, cosA);
+            const int tx = (int)(cosA.v * radius) + half;   // local_res8 (cos) * r + dim/2
+            const int ty = (int)(sinA.v * radius) + half;   // local_res10 (sin) * r + dim/2
             if (StartTown_DiskBuildable(game, tx, ty, size, sizeSq)) {
                 *outX = tx; *outY = ty;
                 return true;

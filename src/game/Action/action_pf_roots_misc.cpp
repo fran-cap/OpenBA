@@ -24,6 +24,7 @@
 #include "math/Math.h"
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Component/HerdDescription.h"
 #include "Component/AnimalComponent.h"
@@ -104,8 +105,11 @@ int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* al
     int iVar20 = -1;
     int iVar23 = 0;
     int local_e8 = -1;
-    uint64_t uVar13 = (uint64_t)((int64_t)param_2 / (int64_t)size);
-    uint64_t uVar19 = (uint64_t)((int64_t)param_2 % (int64_t)size);
+    // Retail divides in 64 bits (CDQE; IDIV r64). Both operands are ints and size is the map
+    // dimension (>= 1), so the 32-bit quotient and remainder are the same values (only
+    // INT_MIN / -1 differs), sign-extended the same way.
+    uint64_t uVar13 = (uint64_t)(int64_t)(param_2 / size);
+    uint64_t uVar19 = (uint64_t)(int64_t)(param_2 % size);
     uint64_t uVar15 = uVar19 & 0xffffffff;
     uint32_t uVar6 = (uint32_t)uVar13;
     uint32_t local_f8 = (uint32_t)uVar19;
@@ -130,9 +134,9 @@ int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* al
                 if (iVar20 <= (int)uVar15) {
                     uint32_t uVar24 = uVar22;
                     do {
-                        // ring-membership: abs(dRow)==r OR abs(dCol)==r (abs via shift trick)
-                        int abs9  = (int)(((int)uVar9  ^ ((int)uVar9  >> 0x1f)) - ((int)uVar9  >> 0x1f));
-                        int abs24 = (int)(((int)uVar24 ^ ((int)uVar24 >> 0x1f)) - ((int)uVar24 >> 0x1f));
+                        // ring-membership: abs(dRow)==r OR abs(dCol)==r (retail's shift-xor abs)
+                        int abs9  = std::abs((int)uVar9);
+                        int abs24 = std::abs((int)uVar24);
                         bool onRing = (abs9 == iVar23) || (abs24 == iVar23);
                         bool inBounds = false;
                         if (onRing && (-1 < iVar20) && (-1 < iVar18)) {

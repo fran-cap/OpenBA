@@ -46,7 +46,7 @@ UNIT_TEST(ext_registry_table_shape) {
     for (const char* id : {"icon_slide", "residence_goto", "tavern_counter", "start_barn_height",
                            "ui_scale_layout", "rock_seat", "terrain_resort",
                            "large_packages", "boot_device_lost", "slider_drag_clamp",
-                           "dialog_position_drift"}) {
+                           "dialog_position_drift", "alloc_tiebreak"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);

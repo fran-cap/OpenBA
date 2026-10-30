@@ -25,7 +25,6 @@
 #include "Game/exe_constants.h"     // B3R: kRdata_*
 #include "system/MemoryAllocator.h"
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
-#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -47,6 +46,7 @@
 #include "Game/WorkSchedulerNodes.h"   // WorkSchedulerIdNode (Pickup_FindTypeWork)
 #include "Game/ProfessionList.h"
 #include "collection/Collection.h"
+#include "collection/introsort_msvc.h"   // rtsort::Introsort (0x14002c070) / SelectionSortMaxToHigh (0x14002c380)
 #include "Game/Profession.h"   // B8 RT2: ::Object::SerializeExternal<Profession> (the downcast needs it complete)
 
 
@@ -114,8 +114,8 @@ void Pickup::Persist(IO::Stream& stream) {
 //      11x11 cell neighbourhood (dy,dx in -5..+5, skipping the centre) around
 //      the *pile*, collecting every other reachable pile of the same kind whose
 //      per-type Pickup work is not already claimed (vtable slot 11 == false).
-//   5. Sort candidates nearest-first (0x14002c070 = std::sort by +0x08 distance;
-//      reimplemented locally as Pickup_SortByDistance -- see the note there).
+//   5. Sort candidates nearest-first (0x14002c070, ascending on the +0x08 distance;
+//      Pickup_SortByDistance, retail's sort skeleton -- see the note there).
 //   6. For each candidate that still fits in the remaining capacity: convert its
 //      access cell to a world position and dispatch PerformWork (0x1400c0ad0) --
 //      THIS is what actually makes the citizen walk over and haul the pile --
@@ -151,18 +151,24 @@ static_assert(sizeof(PickupCandidate) == 0x20, "PickupCandidate must be 32 bytes
 // (Game/WorkSchedulerNodes.h: key +0x00, work +0x08, left +0x18, right +0x20, read by the
 // descent at 0x1400f33b0).
 
-// 0x14002c070 is MSVC's inlined std::sort over these 32-byte records, ordering
-// ascending on the int32 at +0x08 (distance): median-of-3 introsort with an
-// explicit range stack, falling back to a selection sort (0x14002c380) once a
-// range is <= 8 elements. Both are unstable, so std::sort reproduces the
-// ordering semantics exactly; only the tie-break among equal-distance
-// candidates may differ, which no caller observes. Reimplemented rather than
-// registered -- porting a hand-rolled introsort would add nothing.
+// 0x14002c070 is the shipped MSVC sort skeleton (rtsort::Introsort,
+// collection/introsort_msvc.h) instantiated on these 32-byte records, ascending on
+// the int32 at +0x08 (distance), with the 32-byte swap inlined; ranges of 8 or
+// fewer go to the max-to-high selection sort 0x14002c380 (rtsort::
+// SelectionSortMaxToHigh). The sort is unstable and equal-distance piles are
+// common, so the swap sequence decides which pile Execute dispatches first:
+// it has to be retail's, not std::sort's.
 static void Pickup_SortByDistance(PickupCandidate* buf, int count) {
-    std::sort(buf, buf + count,
-              [](const PickupCandidate& a, const PickupCandidate& b) {
-                  return a.distance < b.distance;
-              });
+    auto less = [](const PickupCandidate& a, const PickupCandidate& b) { return a.distance < b.distance; };
+    auto swp = [](PickupCandidate* a, PickupCandidate* b) {
+        const PickupCandidate t = *a;
+        *a = *b;
+        *b = t;
+    };
+    rtsort::Introsort(buf, count, less, swp,
+                      [&](PickupCandidate* lo, PickupCandidate* hi) {   // 0x14002c380
+                          rtsort::SelectionSortMaxToHigh(lo, hi, less, swp);
+                      });
 }
 
 // ---- sub-callees of the Execute port, called by name (B3R) ----

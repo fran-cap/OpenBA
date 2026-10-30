@@ -272,7 +272,7 @@ void ComputePlayPosition(const Audio::SoundBuffer* buf, int64_t nowTicks,
     const double loopDurationTicksD = static_cast<double>(loopDurationSeconds) / spt;
     const int64_t loopDurationTicks = static_cast<int64_t>(loopDurationTicksD);  // CVTTSD2SI
 
-    const int64_t remainderTicks = (loopDurationTicks != 0) ? (nowTicks % loopDurationTicks) : 0;
+    const int64_t remainderTicks = nowTicks % loopDurationTicks;  // CQO; IDIV R8, no zero test (1800de871)
     const double secondsInLoopD = static_cast<double>(remainderTicks) * spt;
     const float secondsInLoop = static_cast<float>(secondsInLoopD);  // CVTPD2PS
 

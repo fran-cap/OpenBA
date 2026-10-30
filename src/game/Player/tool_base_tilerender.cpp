@@ -41,6 +41,7 @@
 #include "graphics/Camera.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "math/Math.h"
+#include "crt/msvc_libm.h"   // MsvcLibm::Sinf / Cosf (the exe's sinf 0x140131c90 / cosf 0x140131090)
 #include "system/Filename.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include "collection/Collection.h"
@@ -221,8 +222,8 @@ extern "C" void PlayerTileRender_DrawOverlay_08c0(const void* /*param_1*/, Video
         const ToolSegmentRecord& rec = param_4->_data[rIdx];
         float variantCol = (float)rec.variant * uvScale;            // local_364
         float angle = (float)rec.angle * deg2rad;                   // rec+0x10
-        float sinA = std::sin(angle);   // FUN_140131c90 = sin (verified small-angle series ≈ x)
-        float cosA = std::cos(angle);   // helper_1090 = cos (verified series ≈ 1 - x²/2)
+        float sinA = MsvcLibm::Sinf(angle);   // 0x140131c90 sinf
+        float cosA = MsvcLibm::Cosf(angle);   // 0x140131090 cosf
         int w = grid->size;
         float rc = (float)(w >> 1) - half;
         // corner A (rec+0,+4)
@@ -274,8 +275,8 @@ extern "C" void PlayerTileRender_DrawOverlay_08c0(const void* /*param_1*/, Video
         const float* tmpl = (((rec.col + rec.row) & 1) == 0) ? TMPL_EVEN : TMPL_ODD;
         float variantCol = (float)rec.variant * uvScale;            // XMM8
         float angle = (float)rec.angle * deg2rad;                   // rec+0x10 * deg2rad
-        float sinA = std::sin(angle);   // FUN_140131c90 = sin (was mislabeled cos → arrows misrotated)
-        float cosA = std::cos(angle);   // helper_1090 = cos
+        float sinA = MsvcLibm::Sinf(angle);   // 0x140131c90 sinf (was mislabeled cos → arrows misrotated)
+        float cosA = MsvcLibm::Cosf(angle);   // 0x140131090 cosf
         for (int k = 0; k < 6; k++) {
             float ut = tmpl[k * 2];
             float vt = tmpl[k * 2 + 1];

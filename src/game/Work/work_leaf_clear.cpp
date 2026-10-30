@@ -33,7 +33,7 @@
 #include "Player/exe_bodies.h"   // B3R: PlayerPath_FindComponent_3ea0
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
 #include <cstdint>
-#include <cstdlib>   // qsort
+#include "rt_libm.h"   // RtCrt_Qsort_18007f050: the MSVC CRT qsort (the exe's 0x14003ae10)
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Entity/ComponentEntity.h"       // ENDGAME B.3.9 D5: ComponentEntity::TypeId()
 #include "Component/CitizenComponent.h"   // ENDGAME B.3.9 D5: CitizenComponent::TypeId()
@@ -308,7 +308,8 @@ using GridTileArray = RawArray<GridTile>;
 // tile's distance, then qsort ascending by that field. Grid width is the int at
 // *param_1. Comparator (exe stub @0x14009d7b0): (int)a[+4] - (int)b[+4].
 // ABI: void fn(int* mapGrid, longlong* tileArray, int refCell)
-// Closure: qsort (CRT) + inline comparator. SAFE.
+// Closure: qsort (the exe's MSVC CRT qsort 0x14003ae10, hash-identical to the Runtime's
+// 0x18007f050 that RtCrt_Qsort_18007f050 ports) + inline comparator. SAFE.
 namespace {
 int WorkLeaf_TileDistCompare(const void* a, const void* b) {   // LEFT: qsort's comparator signature (int (*)(const void*, const void*)); each points at a 0x10-byte tile record
     int da = static_cast<const GridTile*>(a)->distance;   // CAST-OK: crt
@@ -329,7 +330,7 @@ void Map::SortTilesByDistance(GridTileArray* arr, int refCell) const {
             e.distance = dy * dy + dx * dx;
         }
     }
-    qsort(base, static_cast<size_t>(count), 0x10, &WorkLeaf_TileDistCompare);
+    RtCrt_Qsort_18007f050(base, static_cast<size_t>(count), 0x10, &WorkLeaf_TileDistCompare);   // JMP 0x14003ae10
 }
 
 // ============================================================

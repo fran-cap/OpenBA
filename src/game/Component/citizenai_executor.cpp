@@ -76,6 +76,7 @@
 #include "Component/PickingComponent.h"
 #include "Component/still_path.h"             // STILLPATH: the exact still fast path of the tail
 #include "Component/still_terrain.h"          // STILLTERRAIN: the last iteration's terrain memo
+#include "crt/msvc_libm.h"                     // MsvcLibm::Sinf / Cosf (the exe's sinf / cosf)
 #include "stress_harness.h"                     // g_verifyOn / StressHarness_Verify (the StillFastPath shadow)
 
 namespace {
@@ -238,8 +239,8 @@ static inline float RdataF(uint32_t bits) {
 
 // --- exe sub-callees used by the tail, called by name ---
 //   0x14009f3e0 GridToWorld = Reimpl_MapGetTerrainPos; 0x140018660 = CharMgr_sub_8660.
-//   sinf / cosf (0x140131c90 / 0x140131090) come from CharacterComponent_SinCosf and
-//   sqrtf (0x140132010) is __builtin_sqrtf, see the tail.
+//   sinf / cosf (0x140131c90 / 0x140131090) are the exe's MSVC CRT bodies, ported as
+//   MsvcLibm::Sinf / Cosf; sqrtf (0x140132010) is __builtin_sqrtf, see the tail.
 
 // --- engine calls the tail makes through exe import slots (all rendering-layer) ---
 // Value-return ABIs (CLAUDE.md gotcha): MeshInstance::RootAnimationOffset returns
@@ -285,8 +286,6 @@ static inline float fabs_f(float v) {
 }
 
 } // namespace
-
-extern "C" void CharacterComponent_SinCosf(float x, float* s, float* c);   // character_trig.cpp
 
 // STILLPATH (still_path.h): the fast-path counter and the trig memo, one entry per
 // CharacterGrid index. Main thread only (the slot-8 walk).
@@ -519,8 +518,8 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     float c1720cc = RdataF(kRdata_1401720cc);
     float c172114 = kRdata_140172114;
     float ang = fVar14 * c1720cc * c172114;
-    // Retail calls sinf (0x140131c90) then cosf (0x140131090) on the same angle; both
-    // are ours (character_trig.cpp), so take the pair from one reduction.
+    // Retail calls sinf (0x140131c90) then cosf (0x140131090) on the same angle: two
+    // separate CRT bodies with their own reductions and tables (MsvcLibm::Sinf / Cosf).
     float s_ang = 0.0f, c_ang = 0.0f;
     float negSin = 0.0f;
     // [STILLTERRAIN] on the last iteration a character that did not step reads the trig from
@@ -540,7 +539,8 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
         negSin = StillTerrain::FromBits(trigMemo->negSin);
         c_ang = StillTerrain::FromBits(trigMemo->cos);
     } else {
-        CharacterComponent_SinCosf(ang, &s_ang, &c_ang);
+        s_ang = MsvcLibm::Sinf(ang);   // CALL 0x140131c90 (0x14010983f)
+        c_ang = MsvcLibm::Cosf(ang);   // CALL 0x140131090 (0x140109851)
         negSin = -s_ang;
         if (trigMemo != nullptr) {
             const long long d = (StillPath::Bits(negSin) != trigMemo->negSin ? 1 : 0) |

@@ -39,7 +39,7 @@
 #include "math/Math.h"
 #include "audio/Audio.h"       // ENDGAME B.3.7 callers (K4)
 #include <cstdio>
-#include <cstdlib>   // qsort
+#include "rt_libm.h"   // RtCrt_Qsort_18007f050: the MSVC CRT qsort (the exe's 0x14003ae10)
 #include <new>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
@@ -451,7 +451,7 @@ void ResidenceComponent::AddResident(int family, Object::InternalPtr<CitizenComp
     // Re-read count (3110 updated it) and sort the family when it holds >1 member.
     int newCount = rec->_size;
     if (newCount > 1)
-        qsort(rec->_data, static_cast<size_t>(newCount), 8, &RosterCompare_9e20);
+        RtCrt_Qsort_18007f050(rec->_data, static_cast<size_t>(newCount), 8, &RosterCompare_9e20);   // CALL 0x14003ae10
 }
 
 // ===== Standalone factory (Foundation D → Keystone D states) =====

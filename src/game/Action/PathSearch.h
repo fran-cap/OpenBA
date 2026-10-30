@@ -326,8 +326,10 @@ struct GridPathSearch {
     uint8_t    _padDC[4];         // +0xDC
     uint8_t*   cellFlags;         // +0xE0 per cell: terrain type (bits 0-6), blocked (bit 7)
 
+    // 0x1400a5ec0, -1 when not walkable (below). Retail takes the cell index and splits it
+    // into (row, col) on entry; here the caller passes the split and gets the neighbour's.
+    int      Neighbour(int& row, int& col, uint32_t direction) const;
     // action_pf_geom.cpp
-    int      Neighbour(int cell, uint32_t direction) const;   // 0x1400a5ec0, -1 when not walkable
     int      Heuristic(int from, int to) const;               // 0x1400a6030
     // action_pf_astar.cpp. FindPath returns retail's RAX: bit 0 = found, the upper
     // bytes whatever the last write left (the caller tests the low byte only).
@@ -346,6 +348,45 @@ static_assert(offsetof(GridPathSearch, respectBlocked) == 0xD6, "GridPathSearch:
 static_assert(offsetof(GridPathSearch, width) == 0xD8, "GridPathSearch::width @ +0xD8");
 static_assert(offsetof(GridPathSearch, cellFlags) == 0xE0, "GridPathSearch::cellFlags @ +0xE0");
 static_assert(std::is_trivially_copyable<GridPathSearch>::value, "raw record");
+
+// ============================================================
+// 0x1400a5ec0 — neighbour cell by 8-direction code
+// ============================================================
+// Retail opens with `row = index / width; col = index % width`. FindPath, the one caller,
+// makes that split once per expanded cell instead of once per neighbour and passes (row,
+// col) in; the rest is retail's body: apply the direction delta (case 0..7), bounds-check,
+// skip a cell whose blocked bit (0x80) is set while respectBlocked, and return the cell
+// only if its terrain type's bit is set in passableTypes. On return (row, col) is the
+// neighbour's; when the cell is returned, it is width * row + col with 0 <= row, col <
+// width, so its `/ width` and `% width` are exactly that row and col (FindPath relies on
+// this to carry the pair instead of dividing).
+inline int GridPathSearch::Neighbour(int& row, int& col, uint32_t dir) const {
+    int w = width;
+    switch (dir) {
+    case 0: col = col + 1; break;
+    case 1: col = col - 1; break;
+    case 2: row = row + 1; break;            // case 2: +row
+    case 3: row = row - 1; break;            // case 3: -row
+    case 4: col = col + 1; row = row + 1; break;
+    case 5: col = col + 1; row = row - 1; break;
+    case 6: col = col - 1; row = row - 1; break;
+    case 7: col = col - 1; row = row + 1; break;
+    default: break;
+    }
+    if ((-1 < col) && (col < w) && (-1 < row) && (row < w)) {
+        int cell = w * row + col;
+        char gateFlag = static_cast<char>(respectBlocked);
+        const uint8_t* byteMap = cellFlags;
+        if (gateFlag == 0 || (byteMap[cell] & 0x80) == 0) {
+            uint32_t passMask = passableTypes;
+            uint8_t cb = byteMap[cell];
+            if (((passMask >> (cb & 0x1f)) & 1) != 0)
+                return cell;
+            return -1;
+        }
+    }
+    return -1;
+}
 
 // ---------------------------------------------------------------------------
 // A worker command: the 0x10 bytes every enqueuer (0x1400a6fe0, 0x1400a6a30,

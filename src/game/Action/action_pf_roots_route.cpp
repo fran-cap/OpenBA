@@ -271,8 +271,11 @@ LAB_14012d8ce:;
                     int iVar4c = map->PathDistance(param_2, uVar16, '\x01');   // 0x14009f810
                     if (iVar4c < 0) {
                         int iVar4d = map->size;
-                        int iVar5b = (int)param_2 / iVar4d - (int)uVar16 / iVar4d;
-                        int iVar13b = (int)param_2 % iVar4d - (int)uVar16 % iVar4d;
+                        // uVar16 = size * iVar5 + iVar4b with both clamped to [0, size), so
+                        // retail's `uVar16 / size` and `% size` are iVar5 and iVar4b (the map
+                        // size does not change in between): carried, not divided.
+                        int iVar5b = (int)param_2 / iVar4d - iVar5;
+                        int iVar13b = (int)param_2 % iVar4d - iVar4b;
                         float fVar19 = __builtin_sqrtf((float)(iVar5b * iVar5b + iVar13b * iVar13b));   // PERF: inline, bit-identical
                         iVar4c = (int)fVar19 + iVar4d;
                         if (iVar4c < 0) goto LAB_14012d744;

@@ -7,6 +7,7 @@
 | Fix | Steady dialogs on UI rescale | Open dialogs no longer flash to a corner, instead stay centered. |
 | Fix | Sliders follow the mouse | A slider or scroll bar being dragged keeps following the mouse and stops at its ends, instead of jumping back when the pointer strays off it. |
 | Fix | Steady panels at the edge | A building or citizen panel opened near the bottom of the screen no longer jumps for a moment when it first appears (or grows against the edge). |
+| Fix | Repeatable job and house choices | When several citizens or houses are equally good for a job or a move, the choice no longer depends on memory layout, so a town plays out the same way each time a save is loaded. Off under the faithful profile. |
 | Fix | Graphics reset during start-up | A graphics driver reset while the game is starting up recovers instead of crashing or hanging. Off under the faithful profile, where retail's crash or hang remains. |
 | Ext A | Eye-level camera | Follow a citizen at eye level (replaces overhead follow). |
 | Ext B | Better camera | Zoom in much closer and out much farther (6 to 200 instead of 20 to 130) and keep the camera tilt when zoomed out instead of flattening to top-down. Off by default; locked for the game and recorded in saves. |

@@ -144,33 +144,27 @@ void QuarryDecalResume(DecalComponent* decal) {
 // The clamp is what makes the pit deepen: `depth` starts at _initialDepth (-1.4) and
 // falls toward _maxDepth (-7.0), so as it drops, progressively more of the floor
 // mesh's low geometry is allowed through and the floor sinks.
+//
+// As retail: the description is narrowed with IsDerivedFrom (null when it is not a
+// QuarryDescription) and its +0x20 read untested; the ModelComponent, the world's
+// terrain (+0x110), the mesh and the height array are all used with no test.
 void QuarryComponent::ApplyDepth(float depth) {
     Description* descRaw = _description;
-    const uint32_t tidDesc = QuarryDescription::TypeId();
-    if (tidDesc == 0) { QuarryBail("ApplyDepth", "QuarryDescription type id is 0"); return; }
-    if (!descRaw || !descRaw->IsDerivedFrom(tidDesc)) {
-        QuarryBail("ApplyDepth", "component +0x18 is not a QuarryDescription"); return;
-    }
-    QuarryDescription* desc = static_cast<QuarryDescription*>(descRaw);
+    QuarryDescription* desc = descRaw->IsDerivedFrom(QuarryDescription::TypeId())
+        ? static_cast<QuarryDescription*>(descRaw) : nullptr;
 
-    ModelComponent* model = _entity ? _entity->FindComponent<ModelComponent>() : nullptr;   // 0x140003f60
-    if (!model) { QuarryBail("ApplyDepth", "owner has no ModelComponent (finder 0x140003f60 returned null)"); return; }
+    ModelComponent* model = _entity->FindComponent<ModelComponent>();   // 0x140003f60
 
     // Retail copy-constructs a Transform on the stack (??0Transform@Math@@QEAA@AEBV01@@Z,
     // slot 0x140151418) from the ModelComponent's transform.
     const Math::Transform xform(model->transform);
 
-    if (GameUpdateLoop::_singleton == nullptr) return;
-    WorldGeometry* terrain = GameUpdateLoop::_singleton->m_worldGeometry;
-    if (!terrain) { QuarryBail("ApplyDepth", "gameWorld+0x110 terrain grid null"); return; }
-
-    const Picking::PickingMesh* mesh = desc->_floorMesh;
-    if (!mesh) { QuarryBail("ApplyDepth", "desc+0x20 _floorMesh is null"); return; }
+    const Picking::PickingMesh* mesh = desc->_floorMesh;   // +0x20
+    WorldGeometry* terrain = GameUpdateLoop::_singleton->m_worldGeometry;   // +0x110
 
     int16_t* heightArray = terrain->_heights.data;   // +0xD8 the height array
     const int       stride      = terrain->_fieldD0;
     const float     half        = static_cast<float>(terrain->_gridSize >> 1);
-    if (!heightArray) { QuarryBail("ApplyDepth", "terrainGrid+0xD8 heightmap null"); return; }
 
     // Picking::PickingMesh::Vertices (import slot 0x140151478) — a reference return.
     const int vertCount = mesh->Vertices(0).GetSize();
@@ -178,7 +172,6 @@ void QuarryComponent::ApplyDepth(float depth) {
     for (int i = 0; i < vertCount; ++i) {
         // Re-query per iteration exactly as retail does.
         const ::Vector3* data = mesh->Vertices(0).GetData();
-        if (!data) break;
 
         // Transform::operator*(const Vector3&) — slot 0x140151470. LEFT: the picking
         // mesh's element is the global engine Vector3, Math::Vector3's layout twin.

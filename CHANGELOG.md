@@ -49,6 +49,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - Crop fields are replanted after their first harvest. A field planted once and then stayed idle for good,
   because the field's re-clear state (ClearArea state 0x15) was registered with null handlers. A save with
   fields stuck that way recovers on load.
+- `fix.alloc_tiebreak` (on): when several citizens or houses are equally good for a job or a move, the job
+  and housing allocators pick by entity id and profession order instead of by memory address, so a save plays
+  out the same way each time it is loaded (a retail bug, `docs/retail_bugs.md` section 14). Off under
+  `/profile:faithful`.
 
 **Android**
 - The release carries a signed Android apk, `OpenBA-v<version>-android-arm64.apk` (arm64, Vulkan 1.3; the
