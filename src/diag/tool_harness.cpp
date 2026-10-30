@@ -237,7 +237,7 @@ void FireRemovalTool(PlayerToolManager* entityUI) {
 // cell so a real building entity materializes in the world — harness-driven, no
 // cursor/keypress. dialogPtr (+0x10) is supplied a zeroed controller by the create
 // driver (skips the existing-placement constraint).
-void FirePlacementTool() {
+void FirePlacementTool(int centerRowIn, int centerColIn) {
     // A simple placeable building the Easy start-town already spawns.
     //
     // BANISHED_PLACEMENT_TEMPLATE overrides it, exactly as it already does for
@@ -285,7 +285,8 @@ void FirePlacementTool() {
     }
 
     // Phase 2: place the building at map centre (same valley cell the RemovalTool
-    // harness targets). 256-wide grid; cell(124,124).
+    // harness targets), cell(124,124), or the caller's centre. The cell index uses the
+    // map's own width (Map::size); the grid is not 256 wide on every map.
     //
     // A WoodHouse is 3x3 and the valley centre is reliably clear enough for it, so the
     // original code placed at exactly one cell and reported the result. The food
@@ -295,7 +296,12 @@ void FirePlacementTool() {
     // burned by. Sweep an outward ring around the centre, stop at the first cell the
     // tool ACCEPTS, and say which cell won. A run that exhausts the ring is a real
     // failure; a run that succeeds at radius 9 is not.
+    const int width = GameUpdateLoop::_singleton->m_game->size;
     int centerRow = 124, centerCol = 124;
+    if (centerRowIn >= 0 && centerColIn >= 0) {
+        centerRow = centerRowIn;
+        centerCol = centerColIn;
+    }
     if (const char* pc = Opt().placementCell) {
         int r = 0, c = 0;
         if (std::sscanf(pc, "%d,%d", &r, &c) == 2) { centerRow = r; centerCol = c; }
@@ -311,9 +317,9 @@ void FirePlacementTool() {
                 // Ring only: skip the interior, which the earlier radii already covered.
                 if (r > 0 && dr > -r && dr < r && dc > -r && dc < r) continue;
                 const int row = centerRow + dr, col = centerCol + dc;
-                if (row < 1 || col < 1 || row > 254 || col > 254) continue;
+                if (row < 1 || col < 1 || row > width - 2 || col > width - 2) continue;
                 ++tried;
-                if (PlacementTool_HarnessPlaceAtCell(tool, Cell(row, col))) {
+                if (PlacementTool_HarnessPlaceAtCell(tool, row * width + col)) {
                     placed = 1; usedRow = row; usedCol = col;
                 }
             }
@@ -2434,6 +2440,216 @@ void UpgradeTick(int frameNum) {
 // Builders are seated by src/diag/panel_staffing_driver.cpp on unattended runs (the
 // old BANISHED_BUILDER_AUTOPOOL bypass was retired 2026-08-15); this run is much
 // faster under BANISHED_FORCE_SPEED=40.
+// ============================================================================
+// row 1261 -- BANISHED_TOOL_HARNESS=pick, the placed building and bridge
+// ============================================================================
+// D.4 LUT dropped the explicit PickingComponent::RefreshMesh after RegisterEntity in
+// PlacementTool::CreateAt (tool_base_tile.cpp) and BridgeTool::CalcPath
+// (bridgetool_calcpath.cpp): RegisterEntity's OnAdded pass (0x1400c48a0 -> slot 6
+// 0x140128b90) is the registration, as in retail. The pick route places a building and
+// a bridge through those two bodies and watches each new entity's PickingComponent:
+//   at placement (same frame): the scene gained exactly one live entry per component
+//     that registered one. A construction site's model is at meshIndex -1 then, so
+//     OnAdded's RefreshMesh registers nothing and the gain is 0.
+//   every kPickPollFrames after: once BuildComponent's RefreshMesh (0x140108b26) has
+//     given every component a mesh, each pickingId names a live entry carrying its
+//     userData, no two components share an id, the live entries carrying an owner
+//     number the components pointing at it (one mesh each, no stale one), and for
+//     every owner a ray dropped onto one of its models resolves to it the way
+//     EditTool::OnKey (0x1400fd030) picks. (Per owner, not per segment: a bridge
+//     segment's foundation-frame mesh need not cover its model's origin.)
+// Lines "[ToolHarness][pickplace] ..." / "[ToolHarness][pickbridge] ...": "AT PLACE ok",
+// then "PICK PASS"; "PICK FAIL" on a bad entry or at BANISHED_BRIDGE_WAIT_FRAMES.
+struct PickSnapshot {
+    int entities = 0;   // EntityList master array size
+    int live     = 0;   // live Picking::Scene entries (_nextFree == -2)
+};
+
+struct PickWatch {
+    const char*      route = nullptr;
+    ComponentEntity* entities[40] = {};
+    int              count = 0;
+    int              armFrame = 0;
+    int              lastPoll = 0;
+    bool             done = false;
+};
+
+const int kPickPollFrames = 60;
+PickWatch s_pickWatch[2];   // [0] pickplace, [1] pickbridge
+
+int PickLiveEntries(const Picking::Scene* scene, const void* userData) {
+    int live = 0;
+    for (int i = 0; i < scene->_entries._size; ++i) {
+        const Picking::Scene::Entry& entry = scene->_entries._data[i];
+        if (entry._nextFree != -2) continue;
+        if (userData && entry._userData != userData) continue;
+        ++live;
+    }
+    return live;
+}
+
+PickSnapshot PickTakeSnapshot() {
+    GameUpdateLoop* gw = GetGW();
+    PickSnapshot snap;
+    snap.entities = gw->m_entityList->masterArray._size;
+    snap.live = PickLiveEntries(gw->m_pickingScene, nullptr);
+    return snap;
+}
+
+// One pass over a watch's entities. Returns the number of BAD components and fills the
+// counts the caller reports (outOwners / outPicked: distinct owners, and those a ray
+// resolved); `verbose` logs every component, otherwise only a BAD one.
+int PickCheckEntities(const PickWatch& watch, bool verbose, int* outWithPicking,
+                      int* outRegistered, int* outOwners, int* outPicked) {
+    Picking::Scene* scene = GetGW()->m_pickingScene;
+    int withPicking = 0;
+    int registered = 0;
+    void* owners[40] = {};
+    bool resolved[40] = {};
+    int ownerCount = 0;
+    int bad = 0;
+    for (int i = 0; i < watch.count; ++i) {
+        ComponentEntity* entity = watch.entities[i];
+        PickingComponent* picking = entity->FindComponent<PickingComponent>();
+        ModelComponent* model = entity->FindComponent<ModelComponent>();
+        if (!picking) {
+            if (verbose)
+                fprintf(stderr, "[ToolHarness][%s]   entity %p: no PickingComponent\n",
+                        watch.route, static_cast<void*>(entity));
+            continue;
+        }
+        ++withPicking;
+        const int id = picking->pickingId;
+        void* owner = picking->userData.Get();
+        if (id < 0) {
+            if (verbose)
+                fprintf(stderr, "[ToolHarness][%s]   entity %p: pickingId=-1 (meshIndex=%d), no "
+                        "pick mesh yet\n", watch.route, static_cast<void*>(entity),
+                        model ? model->meshIndex : -99);
+            continue;
+        }
+        ++registered;
+        const bool inRange = id < scene->_entries._size;
+        const Picking::Scene::Entry* entry = inRange ? &scene->_entries._data[id] : nullptr;
+        const bool liveOwn = entry && entry->_nextFree == -2 && entry->_userData == owner;
+        int ownerComponents = 0;
+        int sameId = 0;
+        for (int j = 0; j < watch.count; ++j) {
+            PickingComponent* other = watch.entities[j]->FindComponent<PickingComponent>();
+            if (!other || other->pickingId < 0) continue;
+            if (other->userData.Get() == owner) ++ownerComponents;
+            if (other->pickingId == id) ++sameId;
+        }
+        const int ownerEntries = PickLiveEntries(scene, owner);
+
+        // Straight-down rays over a 13x13 grid, 0.5 apart, around the model's origin: a
+        // construction frame (stakes, a deck section) need not cover the origin itself.
+        // The first ray that answers this owner wins; otherwise the first hit is kept.
+        int hitId = -1;
+        void* hitData = nullptr;
+        for (int k = 0; model && k < 13 * 13 && hitData != owner; ++k) {
+            const Math::Vector3& pos = model->transform.translation;
+            const float dx = 0.5f * static_cast<float>(k % 13 - 6);
+            const float dy = 0.5f * static_cast<float>(k / 13 - 6);
+            const Math::Vector3 start(pos.x + dx, pos.y + dy, pos.z + 50.0f);
+            const Math::Vector3 dir(0.0f, 0.0f, -1.0f);
+            Math::Vector3 hitPos, hitNormal;
+            const int id2 = scene->Intersect(start, dir, Math::Scalar(400.0f), hitPos, hitNormal);
+            void* data2 = (id2 >= 0) ? scene->GetUserData(static_cast<uint32_t>(id2)) : nullptr;
+            if (data2 && (data2 == owner || !hitData)) {
+                hitId = id2;
+                hitData = data2;
+            }
+        }
+        const bool ok = liveOwn && sameId == 1 && ownerEntries == ownerComponents;
+        int slot = 0;
+        while (slot < ownerCount && owners[slot] != owner) ++slot;
+        if (slot == ownerCount) owners[ownerCount++] = owner;
+        if (hitData == owner) resolved[slot] = true;
+        if (!ok) ++bad;
+        if (verbose || !ok)
+            fprintf(stderr, "[ToolHarness][%s]   entity %p pickingId=%d live=%d userData=%p (%s) "
+                    "idUsers=%d ownerEntries=%d ownerComponents=%d meshIndex=%d ray hitId=%d -> %p "
+                    "(%s) %s\n", watch.route, static_cast<void*>(entity), id, liveOwn ? 1 : 0,
+                    owner, owner == entity ? "self" : "owner", sameId, ownerEntries,
+                    ownerComponents, model ? model->meshIndex : -99, hitId, hitData,
+                    hitData == owner ? "resolves" : (hitData ? "other entity" : "no hit"),
+                    ok ? "ok" : "BAD");
+    }
+    *outWithPicking = withPicking;
+    int picked = 0;
+    for (int k = 0; k < ownerCount; ++k) {
+        if (resolved[k]) ++picked;
+    }
+    *outRegistered = registered;
+    *outOwners = ownerCount;
+    *outPicked = picked;
+    return bad;
+}
+
+// The same-frame check after a placement; arms the watch PickTick then polls.
+void PickArm(int slot, const char* route, const PickSnapshot& before) {
+    GameUpdateLoop* gw = GetGW();
+    EntityList* list = gw->m_entityList;
+    PickWatch& watch = s_pickWatch[slot];
+    watch.route = route;
+    for (int i = before.entities; i < list->masterArray._size && watch.count < 40; ++i)
+        watch.entities[watch.count++] = list->masterArray._data[i].Get();
+    int withPicking = 0;
+    int registered = 0;
+    int owners = 0;
+    int picked = 0;
+    const int bad = PickCheckEntities(watch, true, &withPicking, &registered, &owners, &picked);
+    const int liveAfter = PickLiveEntries(gw->m_pickingScene, nullptr);
+    const int gained = liveAfter - before.live;
+    const bool ok = watch.count > 0 && bad == 0 && gained == registered;
+    fprintf(stderr, "[ToolHarness][%s] AT PLACE %s: %d new entities, %d with PickingComponent, "
+            "%d registered, scene live entries %d -> %d (+%d)\n", route, ok ? "ok" : "BAD",
+            watch.count, withPicking, registered, before.live, liveAfter, gained);
+    if (!ok) {
+        fprintf(stderr, "[ToolHarness][%s] PICK FAIL at placement\n", route);
+        watch.done = true;
+    }
+}
+
+int BridgeWaitFrames();   // below: the give-up budget, shared with the bridge route
+
+void PickTick(int frameNum) {
+    for (PickWatch& watch : s_pickWatch) {
+        if (!watch.route || watch.done) continue;
+        if (watch.armFrame == 0) {
+            watch.armFrame = frameNum;
+            watch.lastPoll = frameNum;
+            continue;
+        }
+        if (frameNum - watch.lastPoll < kPickPollFrames) continue;
+        watch.lastPoll = frameNum;
+        int withPicking = 0;
+        int registered = 0;
+        int owners = 0;
+        int picked = 0;
+        const int bad = PickCheckEntities(watch, false, &withPicking, &registered, &owners, &picked);
+        const bool complete = withPicking > 0 && registered == withPicking;
+        if (bad == 0 && !complete) {
+            if (frameNum - watch.armFrame > BridgeWaitFrames()) {
+                fprintf(stderr, "[ToolHarness][%s] PICK FAIL: %d of %d components registered "
+                        "after %d frames\n", watch.route, registered, withPicking,
+                        frameNum - watch.armFrame);
+                watch.done = true;
+            }
+            continue;
+        }
+        if (bad == 0)
+            PickCheckEntities(watch, true, &withPicking, &registered, &owners, &picked);
+        const bool pass = bad == 0 && picked == owners;
+        fprintf(stderr, "[ToolHarness][%s] PICK %s at frame %d (+%d): %d entities, %d with "
+                "PickingComponent, %d registered once each, %d of %d owners resolved by a ray\n",
+                watch.route, pass ? "PASS" : "FAIL", frameNum, frameNum - watch.armFrame,
+                watch.count, withPicking, registered, picked, owners);
+        watch.done = true;
+    }
+}
+
 extern "C" ComponentEntity* g_BridgeLastMaster;
 extern "C" ComponentEntity* g_BridgeLastSegments[32];
 extern "C" int   g_BridgeLastSegmentCount;
@@ -2451,6 +2667,7 @@ bool        s_br_selected  = false;   // BANISHED_BRIDGE_SELECT fired yet?
 DragTool*   s_br_tool      = nullptr;
 int         s_br_dragStart = -1, s_br_dragEnd = -1;
 int         s_br_dragUntil = 0;
+bool        s_br_pickCheck = false;   // the pick route: check the commit's pick meshes, stop
 
 void BridgeCommit(DragTool* tool, int startCell, int endCell);
 
@@ -2747,9 +2964,15 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
 // DragTool::CalcPath (retail [13], +0x68) — the commit a drag-release makes.
 void BridgeCommit(DragTool* tool, int startCell, int endCell) {
     tool->dragState = 0;                                     // drag released
+    const PickSnapshot pickBefore = s_br_pickCheck ? PickTakeSnapshot() : PickSnapshot();
     bool placed = tool->CalcPath(startCell, endCell);
     fprintf(stderr, "[ToolHarness][bridge] CalcPath (commit) -> %d; master=%p segments=%d\n",
            placed ? 1 : 0, g_BridgeLastMaster, g_BridgeLastSegmentCount);
+    if (s_br_pickCheck) {
+        PickArm(1, "pickbridge", pickBefore);
+        s_br_stage = BR_DONE;
+        return;
+    }
     if (!placed || g_BridgeLastSegmentCount == 0) {
         fprintf(stderr, "[ToolHarness][bridge] nothing was placed — stopping.\n");
         return;
@@ -2903,6 +3126,7 @@ void BridgeTick(PlayerToolManager* entityUI, int frameNum) {
 // citizen's model position and points straight down (Z is up). A citizen whose pick
 // mesh was never registered (row 252's upstream finding) answers no hit.
 // Success line: "[ToolHarness][pick] PICKED citizen ... panel OPENED ... CitizenUI=1".
+// The same route then places a building and a bridge for row 1261 (PickArm / PickTick).
 void FirePick(PlayerToolManager* toolManager) {
     if (!toolManager) { fprintf(stderr, "[ToolHarness][pick] ERROR: tool manager null\n"); return; }
     EditTool* tool = EditTool_HarnessAcquire(toolManager);
@@ -3143,6 +3367,9 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
         FirePasturePanel(entityUI);
     }
 
+    // pick: the placed building's and the bridge's pick meshes (PickTick above).
+    PickTick(frameNum);
+
     // panelclose: the scheduled close click and its check (FirePanelClose above).
     if (s_pc_closeFrame != 0 || s_pc_checkFrame != 0) PanelCloseTick(entityUI, frameNum);
 
@@ -3171,13 +3398,26 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
         fprintf(stderr, "[ToolHarness][pasturefull] tool fired; panel scheduled for frame %d\n",
                s_pf_panelFrame);
     } else if (std::strcmp(s_toolName, "placement") == 0) {
-        FirePlacementTool();
+        FirePlacementTool(-1, -1);
     } else if (std::strcmp(s_toolName, "select") == 0) {
         FireSelectEntity(entityUI);
     } else if (std::strcmp(s_toolName, "selectcitizen") == 0) {
         FireSelectCitizen(entityUI);
     } else if (std::strcmp(s_toolName, "pick") == 0) {
         FirePick(entityUI);
+        // Row 1261: a building placed through PlacementTool::CreateAt, then a bridge
+        // through BridgeTool::CalcPath (BridgeCommit checks it).
+        const PickSnapshot before = PickTakeSnapshot();
+        // Next to the first founding house, so the builders reach the site.
+        MapComponent* houseMap = StartTown_GetFoundingHouseCount() > 0
+            ? StartTown_GetFoundingHouseEntity(0)->FindComponent<MapComponent>() : nullptr;
+        if (houseMap)
+            FirePlacementTool(houseMap->tileY0, houseMap->tileX0 + 8);
+        else
+            FirePlacementTool(-1, -1);
+        PickArm(0, "pickplace", before);
+        s_br_pickCheck = true;
+        FireBridgeTool(entityUI);
     } else if (std::strcmp(s_toolName, "panelclose") == 0) {
         FirePanelClose(entityUI, frameNum);
     } else if (std::strcmp(s_toolName, "utility") == 0) {
