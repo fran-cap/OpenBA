@@ -17,10 +17,13 @@
 //   The retail function is a ~1351-line inlined-STL allocator building four
 //   red-black/AVL scratch containers. Nothing outside the function reads their
 //   memory layout, so this port represents them as clean std:: containers with the
-//   same comparators (behavior-faithful; pointer tie-breaks are non-observable and
-//   differ from retail's heap addresses anyway). Every interaction with real game
-//   state (citizen/townMgr/reg/workplace fields) and every leaf helper is called
-//   wholesale and byte-faithful.
+//   same comparators and the same end taken. The idle set, the profession-count map
+//   and the cost trees' ties key on raw pointers (CitizenComponent*, Profession*), so
+//   their order follows heap addresses, in retail as here. The priority queue does
+//   not: it keys on the need RECORD's address, and the records sit in one array in
+//   Phase 2 order, so its tie-break is the need index (Component/need_queue.h).
+//   Every interaction with real game state (citizen/townMgr/reg/workplace fields)
+//   and every leaf helper is called wholesale and byte-faithful.
 //
 //   Phase 1  Housing-sync: for each idle+healthy citizen already assigned to a
 //            workplace (+0x248) whose required profession (workplaceComp+0x48) no
@@ -58,7 +61,8 @@
 //            sub_6060) to every NeedEntry's cost-tree.
 //   Phase 4  Priority: score each NeedEntry = (int)(minCost * (uvScale - filled)),
 //            filled = (rosterCount-remaining)/rosterCount; insert into a max-
-//            priority queue.
+//            priority queue, an AVL set keyed (score, need record): highest score
+//            first, the lower need index first on a tie.
 //   Phase 5A Assign loop: while the queue is non-empty, pop the highest-score need,
 //            take its nearest available candidate (min cost), assign the citizen —
 //            AssignHousing(citizen, workplaceEntity) + set +0x1f0 = reqProf — then
@@ -127,6 +131,7 @@
 #include "Component/WorkPlaceComponent.h"
 #include "Component/InteractComponent.h"   // HomeNodeCell: NodePosition (0x140122e20)
 #include "Action/PathAvl.h"                  // PathCostTreeInsert (0x140025a10)
+#include "Component/need_queue.h"             // NeedQueue: the Phase 4 priority queue
 
 namespace {
 
@@ -323,16 +328,15 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
         sh[n].rosterCount = needs[n].rosterCount;
         sh[n].candidates.insert(needs[n].candidates.begin(), needs[n].candidates.end());
     }
-    std::multimap<int, size_t> pq;
+    NeedQueue::Queue pq;
     for (size_t n = 0; n < sh.size(); ++n) {
         if (sh[n].candidates.empty() || sh[n].remaining <= 0) continue;
-        pq.emplace(sh[n].score(uvScale), n);
+        pq.insert(NeedQueue::Key{ sh[n].score(uvScale), n });
     }
     std::vector<std::pair<size_t, CitizenComponent*>> seq;
     while (!pq.empty()) {
-        auto top = std::prev(pq.end());
-        size_t ni = top->second;
-        pq.erase(top);
+        size_t ni = pq.begin()->need;
+        pq.erase(pq.begin());
         ShadowNeed& e = sh[ni];
         if (e.candidates.empty() || e.remaining <= 0) continue;
         CitizenComponent* citizen = e.candidates.begin()->citizen;
@@ -341,6 +345,7 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
         for (size_t f = 0; f < sh.size(); ++f) {
             ShadowNeed& nf = sh[f];
             if (nf.remaining <= 0) continue;
+            const int oldScore = nf.score(uvScale);
             bool wasBest = false;
             for (auto it = nf.candidates.begin(); it != nf.candidates.end(); ++it) {
                 if (it->citizen == citizen) {
@@ -350,11 +355,9 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
                 }
             }
             if (wasBest) {
-                for (auto it = pq.begin(); it != pq.end();) {
-                    if (it->second == f) it = pq.erase(it); else ++it;
-                }
+                pq.erase(NeedQueue::Key{ oldScore, f });
                 if (!nf.candidates.empty() && nf.remaining > 0)
-                    pq.emplace(nf.score(uvScale), f);
+                    pq.insert(NeedQueue::Key{ nf.score(uvScale), f });
             }
         }
     }
@@ -516,11 +519,11 @@ void PathGraph::AssignCitizens() {
     for (auto& e : needs) std::sort(e.candidates.begin(), e.candidates.end());
 
     // ---------- Phase 4: max-priority queue ----------
-    // multimap<score, needIndex>; the greatest key is the highest priority.
-    std::multimap<int, size_t> pq;
+    // (score desc, need index asc); begin() is retail's pop (Component/need_queue.h).
+    NeedQueue::Queue pq;
     for (size_t n = 0; n < needs.size(); ++n) {
         if (needs[n].empty() || needs[n].remaining <= 0) continue;
-        pq.emplace(needs[n].score(uvScale), n);
+        pq.insert(NeedQueue::Key{ needs[n].score(uvScale), n });
     }
     std::vector<std::pair<size_t, CitizenComponent*>> shadowSeq, realSeq;
     if (g_verifyOn) shadowSeq = ShadowAssignSequence(needs, uvScale);
@@ -529,9 +532,8 @@ void PathGraph::AssignCitizens() {
 
     // ---------- Phase 5A: assign loop ----------
     while (!pq.empty()) {
-        auto top = std::prev(pq.end());        // greatest score
-        size_t ni = top->second;
-        pq.erase(top);
+        size_t ni = pq.begin()->need;          // highest score, lowest index on a tie
+        pq.erase(pq.begin());
         NeedEntry& e = needs[ni];
         if (e.empty() || e.remaining <= 0) continue;
 
@@ -571,13 +573,12 @@ void PathGraph::AssignCitizens() {
             if (nf.remaining <= 0) continue;
             const bool wasBest = !nf.empty() && nf.best().citizen == citizen;
             if (wasBest) {
+                // Erase the key nf is queued under, scored from the best it was queued
+                // with (0x1400d5c50), then re-insert with the new best's score.
+                pq.erase(NeedQueue::Key{ nf.score(uvScale), f });
                 nf.Advance(idle);
-                // erase nf's stale queue entries and re-insert with the new score
-                for (auto it = pq.begin(); it != pq.end();) {
-                    if (it->second == f) it = pq.erase(it); else ++it;
-                }
                 if (!nf.empty() && nf.remaining > 0)
-                    pq.emplace(nf.score(uvScale), f);
+                    pq.insert(NeedQueue::Key{ nf.score(uvScale), f });
             }
         }
     }
