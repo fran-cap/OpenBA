@@ -74,20 +74,24 @@ verdict() {
 }
 
 # --- marry: CitizenComponent::FindSpouse (0x14010fe40), the two-sided age window.
-# The census logs every new couple with both ages and the window (+0x4c); the spouse
-# probe moves one candidate's age just past the window, older then younger, and checks
-# FindSpouse never returns it (src/diag/death_harness.cpp).
+# The spouse probe asks FindSpouse directly with a candidate moved just past the window
+# (older, then younger) and inside it; its organic stage widows two founding couples and
+# lets CitizenComponent::Update marry the survivors, first held apart beyond the window,
+# then inside it. The census checks every couple FindSpouse formed against the window
+# (src/diag/death_harness.cpp).
 route_marry() {
-    DESC="marriages form; no couple and no probe pair outside the +0x4c age window"
-    QUIT_FRAME=9000
-    SECS=600
-    ENV=(BANISHED_FORCE_SPEED=10 BANISHED_FAMILY_CENSUS=600 BANISHED_MARRY_HARNESS=8
-         BANISHED_SPOUSE_PROBE=1200 BANISHED_BUILD_DEMO_HOUSE=2)
+    DESC="FindSpouse never pairs beyond the +0x4c age window (either direction); a pair inside it marries"
+    QUIT_FRAME=6600
+    SECS=540
+    ENV=(BANISHED_FORCE_SPEED=10 BANISHED_FAMILY_CENSUS=600 BANISHED_SPOUSE_PROBE=1200)
 }
 check_marry() {
-    verdict "\[SpouseProbe\] PASS|\[Couple\] PASS" "\[SpouseProbe\] FAIL|\[Couple\] FAIL" || return 1
-    [ -n "$(err "\[SpouseProbe\] PASS" | head -1)" ] || { echo "[route] the spouse probe never ran"; return 1; }
-    [ -n "$(err "\[Couple\] PASS" | head -1)" ] || { echo "[route] no couple formed"; return 1; }
+    verdict "\[SpouseOrganic\] PASS" "\[SpouseProbe\] FAIL|\[SpouseOrganic\] FAIL|\[Couple\] FAIL" || return 1
+    local m
+    for m in "\[SpouseProbe\] PASS" "\[SpouseOrganic\] beyond ok" "\[Couple\] PASS"; do
+        [ -n "$(err "$m" | head -1)" ] || { echo "[route] missing: $m"; return 1; }
+        err "$m" | head -2
+    done
     return 0
 }
 
@@ -102,21 +106,23 @@ route_birth() {
          BANISHED_FAMILY_CENSUS=600)
 }
 check_birth() {
-    verdict "\[BirthCheck\] PASS" "\[BirthCheck\] FAIL"
+    verdict "\[BirthCheck\] PASS" "\[BirthCheck\] FAIL|\[ProfessionCensus\].*null=[1-9]"
 }
 
 # --- immigration: the ImmigrationComponent state machine (immigrationcomponent_states.cpp,
 # row 1340). The nomad harness cuts the 2..6-year wait short, lets the group walk to the
 # town hall, then answers ALLOW on the first group and DENY on the second
-# (src/diag/nomad_harness.cpp).
+# (src/diag/death_harness.cpp). CanAccept wants a population floor (desc+0x28, 8 in the
+# shipped data) and its required buildings; the stress town is the one with a town hall.
 route_immigration() {
     DESC="a nomad group arrives and is accepted, a second arrives and is denied"
     QUIT_FRAME=12000
     SECS=600
-    ENV=(BANISHED_FORCE_SPEED=10 BANISHED_BUILD_DEMO_HOUSE=2 BANISHED_NOMAD_HARNESS=600)
+    ENV=(BANISHED_STRESS=1 BANISHED_STRESS_CITIZENS=120 BANISHED_FORCE_SPEED=10
+         BANISHED_NOMAD_HARNESS=300 BANISHED_FAMILY_CENSUS=1200)
 }
 check_immigration() {
-    verdict "\[NomadHarness\] PASS" "\[NomadHarness\] FAIL"
+    verdict "\[NomadHarness\] PASS" "\[NomadHarness\] FAIL|\[ProfessionCensus\].*null=[1-9]"
 }
 
 # --- trade: TradeComponent::TickIdle (tradecomponent_states.cpp) reads the
@@ -143,6 +149,8 @@ check_pick() {
 }
 
 "route_$ROUTE"
+# HARNESS_QUIT overrides the route's quit frame (a shorter look while debugging a route).
+QUIT_FRAME="${HARNESS_QUIT:-$QUIT_FRAME}"
 if [ "$ROUTE" = pick ] && [ ${#ENV[@]} -eq 0 ]; then
     check_pick
     exit 2
