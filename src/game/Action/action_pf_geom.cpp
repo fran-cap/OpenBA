@@ -15,7 +15,7 @@
 //   0x1400a5ec0  neighbour tile index by 8-direction code   (GridPathSearch::Neighbour)
 //   0x1400a6030  movement-cost octile/diagonal heuristic    (GridPathSearch::Heuristic)
 //   (0x1400a5ac0, the region-pair lookup, is RegionPairCache::Find in action_pf_region.cpp)
-//   0x1400aa810  ray/triangle (Moller-Trumbore) barycentric intersect (float)
+//   (0x1400aa810, the ray/triangle intersect, is in Game/worldgeometry_ray.cpp)
 //   0x1400ae180  edge-mask -> tile-shape LUT index (DAT_1401c22d0)
 //   0x14009d0a0  expanding-ring spiral search for nearest valid region cell     [loop]
 //   0x140018880  quadtree node subdivide / push 4 children
@@ -45,14 +45,10 @@ namespace {
 
 // Float constants (read from exe .rdata in the original; inlined here as bit-exact
 // values — verified via read_memory):
-//   DAT_14017226c = 0xb8d1b717 = -1.0e-4f   (barycentric epsilon)
 //   DAT_140172114 = 0x3f000000 =  0.5f
 //   DAT_140172280 = 0xbf800000 = -1.0f
-//   DAT_14017214c = 0x3f800000 =  1.0f      (g_fUVScale)
-static inline float C_eps()    { uint32_t b = 0xb8d1b717u; float f; __builtin_memcpy(&f, &b, 4); return f; }
 static inline float C_half()   { return 0.5f; }
 static inline float C_negone() { return -1.0f; }
-static inline float C_one()    { return 1.0f; }
 
 } // namespace
 
@@ -117,61 +113,6 @@ int GridPathSearch::Heuristic(int from, int to) const {
     }
     if (dy < dx) dy = dx;
     return dy * 10;
-}
-
-// ============================================================
-// 0x1400aa810 — ray/triangle (Moller-Trumbore) barycentric intersect
-// ============================================================
-// Args: (unused this), rayOrigin(float*P), rayDir(Vector3*D), maxT(float*),
-//   V0,V1,V2 (Vector3*), outT(float*), outNormal(Vector3* or null).
-// edge1=V1-V0, edge2=V2-V0, pvec=D x edge2, det=edge1.pvec; cull det<=0;
-// u=tvec.pvec (tvec=P-V0); cull u<-eps or u>det; qvec=tvec x edge1; v=D.qvec;
-// cull v<-eps or u+v>det; t=(1/det)*edge2.qvec; cull t<0 or t>*maxT; *outT=t;
-// if outNormal: *outNormal = normalize(edge1 x edge2). Returns 1 on hit, 0 else.
-// Transcribed from disasm 0x1400aa810 (decompiler retbuf-aliasing is misleading).
-int Pf_RayTriIntersect_aa810(void* /*self*/, const float* P, const float* D,
-                             const float* maxT, const float* V0, const float* V1,
-                             const float* V2, float* outT, float* outNormal) {
-    const Math::Vector3 Dv(D[0], D[1], D[2]);   // the ray direction (a copy of the three floats)
-    // edge1 = V1 - V0
-    Math::Vector3 edge1(V1[0] - V0[0], V1[1] - V0[1], V1[2] - V0[2]);
-    // edge2 = V2 - V0
-    Math::Vector3 edge2(V2[0] - V0[0], V2[1] - V0[1], V2[2] - V0[2]);
-    // pvec = D.Cross(edge2)
-    Math::Vector3 pvec = Dv.Cross(edge2);
-    // det = edge1.Dot(pvec)
-    float det = edge1.Dot(pvec).v;
-    // tvec = P - V0
-    Math::Vector3 tvec(P[0] - V0[0], P[1] - V0[1], P[2] - V0[2]);
-    // qvec = tvec.Cross(edge1)
-    Math::Vector3 qvec = tvec.Cross(edge1);
-    // u = tvec.Dot(pvec)
-    float u = tvec.Dot(pvec).v;
-    // v = D.Dot(qvec)
-    float v = Dv.Dot(qvec).v;
-
-    const float eps = C_eps();
-    if (det <= 0.0f) return 0;
-    if (eps > u) return 0;
-    if (u > det) return 0;
-    if (eps > v) return 0;
-    if (v + u > det) return 0;
-
-    // t = (1.0/det) * edge2.Dot(qvec)
-    float tdot = edge2.Dot(qvec).v;
-    float t = (C_one() / det) * tdot;
-    *outT = t;
-    if (t < 0.0f) return 0;
-    if (*maxT < t) return 0;
-    if (outNormal != nullptr) {
-        // outNormal = Normalize(edge1.Cross(edge2))
-        Math::Vector3 ncross = edge1.Cross(edge2);
-        Math::Vector3 nnorm  = ncross.Normalize();
-        outNormal[0] = nnorm.x;
-        outNormal[1] = nnorm.y;
-        outNormal[2] = nnorm.z;
-    }
-    return 1;
 }
 
 // Tile-shape variant LUT, retail .rdata 0x1401c22d0: 256 x int8 (read byte for byte,
