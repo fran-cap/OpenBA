@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -148,4 +149,104 @@ UNIT_TEST(terrain_ray_is_not_bilinear) {
     CHECK(std::fabs(t.wg->HeightUnderPoint(centre, nullptr)) < 1e-4f);
     const float upper[2] = { (float)(0 - half) + 0.75f, (float)(0 - half) + 0.75f };
     CHECK(std::fabs(t.wg->HeightUnderPoint(upper, nullptr) - 0.5f) < 1e-4f);
+}
+
+namespace {
+
+// TerrainHeightOnly (the height-only path HeightUnderPoint takes with no normal out) against
+// the generic body, bit for bit: one point, every heightmap below.
+struct RaySweep {
+    long long points = 0, hits = 0, misses = 0, even = 0, odd = 0, diverged = 0;
+
+    void Probe(Terrain& t, float px, float py) {
+        const float point[2] = { px, py };
+        const float fast = t.wg->HeightUnderPoint(point, nullptr);
+        const float ref = t.wg->HeightUnderPointReference(point, nullptr);
+        if (std::memcmp(&fast, &ref, sizeof fast) != 0) {
+            if (diverged < 8)
+                std::printf("  diverged at (%a, %a): fast %a, reference %a\n", px, py, fast, ref);
+            ++diverged;
+        }
+        // Hit or miss by the reference's normal out (written on a hit only).
+        float n[3] = { 7.0f, 7.0f, 7.0f };
+        t.wg->HeightUnderPointReference(point, n);
+        (n[0] == 7.0f && n[1] == 7.0f && n[2] == 7.0f ? misses : hits) += 1;
+        const float half = (float)(t.gridSize >> 1);
+        const float ox = px + half, oy = py + half;
+        if (ox > -4194304.0f && ox < 4194304.0f && oy > -4194304.0f && oy < 4194304.0f)
+            ((((int)ox + (int)oy) & 1) == 0 ? even : odd) += 1;
+        ++points;
+    }
+};
+
+}  // namespace
+
+UNIT_TEST(terrain_ray_height_only_path_is_bit_identical) {
+    RaySweep s;
+    const int grids[] = { 4, 16, 32 };
+    for (int g = 0; g < 3; ++g) {
+        for (uint64_t seed = 1; seed <= 4; ++seed) {
+            Terrain t;
+            t.Build(grids[g], seed * 977 + (uint64_t)g);
+            if (seed == 2) {   // the int16 extremes, alternating
+                for (size_t i = 0; i < t.heights.size(); ++i)
+                    t.heights[i] = (Mix(i ^ 0x5eed) & 1) ? (int16_t)32767 : (int16_t)-32768;
+            } else if (seed == 3) {   // flat: zero products everywhere
+                std::fill(t.heights.begin(), t.heights.end(), (int16_t)0);
+            } else if (seed == 4) {   // full int16 range
+                for (size_t i = 0; i < t.heights.size(); ++i)
+                    t.heights[i] = (int16_t)(Mix(i * 31 + seed) & 0xffff);
+            }
+            const int half = t.gridSize >> 1;
+            // Every cell from two outside the map to two past it: interiors, both diagonals,
+            // the cell's edges and corners, a float step either side of each.
+            const float offs[] = { 0.0f, 0.25f, 0.5f, 0.75f, 1.0f / 3.0f, 2.0f / 3.0f,
+                                   0.1f, 0.9f, 0.999f, 1e-7f };
+            for (int cx = -3; cx <= t.gridSize + 2; ++cx) {
+                for (int cy = -3; cy <= t.gridSize + 2; ++cy) {
+                    const float bx = (float)(cx - half);
+                    const float by = (float)(cy - half);
+                    for (float fx : offs) {
+                        for (float fy : offs) {
+                            const float px = bx + fx;
+                            const float py = by + fy;
+                            s.Probe(t, px, py);
+                            s.Probe(t, std::nextafter(px, -1e9f), std::nextafter(py, 1e9f));
+                            s.Probe(t, std::nextafter(px, 1e9f), std::nextafter(py, -1e9f));
+                        }
+                        s.Probe(t, bx + fx, by + (1.0f - fx));   // the even diagonal
+                        s.Probe(t, bx + fx, by + fx);            // the odd diagonal
+                    }
+                }
+            }
+            // Random points over and around the map, and random bit patterns.
+            for (int i = 0; i < 20000; ++i) {
+                const uint64_t h = Mix(seed * 0x9e37 + (uint64_t)i + (uint64_t)g * 1000003);
+                const float span = (float)(t.gridSize + 8);
+                const float px = ((float)(h & 0xffffff) / 16777216.0f - 0.5f) * span;
+                const float py = ((float)((h >> 24) & 0xffffff) / 16777216.0f - 0.5f) * span;
+                s.Probe(t, px, py);
+                uint32_t bxb = (uint32_t)(h >> 32), byb = (uint32_t)h;
+                float rx, ry;
+                std::memcpy(&rx, &bxb, 4);
+                std::memcpy(&ry, &byb, 4);
+                if (!std::isnan(rx) && !std::isnan(ry) && std::fabs(rx) < 1e6f && std::fabs(ry) < 1e6f)
+                    s.Probe(t, rx, ry);
+            }
+            // Far off the map, the range bound, and the non-finite inputs (the generic body).
+            const float far[] = { -1e30f, -4194304.0f, -4194303.5f, -1e6f, -65536.0f,
+                                  65536.0f, 1e6f, 4194303.5f, 4194304.0f, 1e30f,
+                                  INFINITY, -INFINITY, NAN, -0.0f };
+            for (float a : far) {
+                s.Probe(t, a, 0.5f);
+                s.Probe(t, 0.5f, a);
+                s.Probe(t, a, a);
+            }
+        }
+    }
+    std::printf("  %lld points (%lld hits, %lld misses; %lld even / %lld odd cells in range), %lld diverged\n",
+                s.points, s.hits, s.misses, s.even, s.odd, s.diverged);
+    CHECK_EQ(s.diverged, 0LL);
+    CHECK(s.hits > 100000 && s.misses > 1000);
+    CHECK(s.even > 100000 && s.odd > 100000);
 }

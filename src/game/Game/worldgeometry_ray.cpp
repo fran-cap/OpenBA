@@ -205,11 +205,127 @@ static float TerrainHeightUnder(WorldGeometry* geo, const float* point, float* o
 
 // [COPY-PINNED end]
 
+// [TERRAINRAY -- NOT RETAIL, faithful perf work, exact] The height-only form of
+// TerrainHeightUnder above (no normal out): the same float operations, minus the ones whose
+// result is fixed by the vertical ray. tests/unit/terrain_ray_test.cpp compares the two bit
+// for bit over a sweep (cell interiors, both diagonals, edges, grid lines, off the map).
+//
+// The proof. Let px, py be finite, |px + half| and |py + half| < 2^22 and |half| < 2^22
+// (otherwise the generic body runs). Then bx, by and bx + 1, by + 1 are exact integers, the
+// corner heights are finite multiples of 1/256, so every edge vector's x / y is exactly
+// -1, +0 or 1 and every intermediate is finite. With D = (0, 0, -1):
+//   * a product by +-0 is +-0 and a product by +-1 is exact, so dropping a `+ x * 0` term or
+//     a `* 1` changes at most the SIGN of a zero intermediate;
+//   * a zero's sign never reaches the result: it is lost in any sum with a nonzero term,
+//     the culls only compare, det is exactly 1 in all four triangles (so t = 1.0f * tdot
+//     = tdot), and the height is t * -1 + 100, which is 100 for either zero.
+// So each u, v and t below equals the generic one up to the sign of a zero, and the height,
+// which t written last decides (*outT is stored once the culls pass, even on a t miss), is
+// bit-identical. Per triangle (V0, V1, V2), tvec = P - V0 = (tx, ty, tz):
+//   u = pvec.y * ty + pvec.x * tx    pvec = D x e2 = (e2.y, -e2.x, 0)
+//   v = -qvec.z                      qvec = tvec x e1
+//   t = qvec.y * e2.y + qvec.x * e2.x + qvec.z * e2.z
+static constexpr float kHeightOnlyRange = 4194304.0f;   // 2^22
+
+static bool TerrainHeightOnly(const WorldGeometry* geo, const float* point, float* outHeight) {
+    const int half = geo->_gridSize >> 1;
+    if (half <= -(1 << 22) || half >= (1 << 22)) return false;
+    const float px = point[0];
+    const float py = point[1];
+    const float fhalf = static_cast<float>(half);
+    const float ox = px + fhalf;
+    const float oy = py + fhalf;
+    // false for a NaN as well.
+    if (!(ox > -kHeightOnlyRange && ox < kHeightOnlyRange && oy > -kHeightOnlyRange && oy < kHeightOnlyRange))
+        return false;
+    const int x = static_cast<int>(ox);
+    const int y = static_cast<int>(oy);
+
+    const int hmW = geo->_fieldD0;
+    const int64_t lW = hmW;
+    const int16_t* hm = geo->_heights.data;
+    const float hscale = f1720bc();
+    const float uv = kRdata_14017214c;
+    const int c0 = ClampCell(x, hmW);
+    const int c1 = ClampCell(x + 1, hmW);
+    const int r0 = ClampCell(y, hmW);
+    const int r1 = ClampCell(y + 1, hmW);
+    const float z00 = static_cast<float>(static_cast<int>(hm[r0 * lW + c0])) * hscale;   // V00 (x,   y)
+    const float z01 = static_cast<float>(static_cast<int>(hm[r0 * lW + c1])) * hscale;   // V01 (x+1, y)
+    const float z10 = static_cast<float>(static_cast<int>(hm[r1 * lW + c0])) * hscale;   // V10 (x,   y+1)
+    const float z11 = static_cast<float>(static_cast<int>(hm[r1 * lW + c1])) * hscale;   // V11 (x+1, y+1)
+
+    const float bx = static_cast<float>(x - half);
+    const float by = static_cast<float>(y - half);
+    const float originZ = RdataF(kRdata_140172208);
+    const float dirZ = kRdata_140172280;
+    const float eps = C_eps();
+    float maxT = RdataF(kRdata_140172228);
+    float tOut = 0.0f;
+
+    // aa810's culls with det == 1, then its t test; *outT is written once the culls pass.
+    auto tri = [&](float u, float v, float t) -> bool {
+        if (eps > u) return false;
+        if (u > 1.0f) return false;
+        if (eps > v) return false;
+        if (v + u > 1.0f) return false;
+        tOut = t;
+        if (t < 0.0f) return false;
+        if (maxT < t) return false;
+        return true;
+    };
+
+    const float tx = px - bx;        // tvec from V00
+    const float ty = py - by;
+    const float tz = originZ - z00;
+    bool hit;
+    if (((x + y) & 1) == 0) {
+        // (V00, V01, V10): e1 = (1, 0, a), e2 = (0, 1, b); u = tx, v = ty.
+        const float a = z01 - z00;
+        const float b = z10 - z00;
+        const float qy = tz - tx * a;
+        hit = tri(tx, ty, qy - ty * b);
+        if (hit) maxT = tOut;
+        // (V01, V11, V10): tvec from V01, e1 = (0, 1, c), e2 = (-1, 1, d); u = ty + tx1,
+        // v = -tx1.
+        const float tx1 = px - (bx + uv);
+        const float tz1 = originZ - z01;
+        const float c = z11 - z01;
+        const float d = z10 - z01;
+        const float qx1 = ty * c - tz1;
+        const float qy1 = -(tx1 * c);
+        if (tri(ty + tx1, -tx1, (qy1 - qx1) + tx1 * d)) hit = true;
+    } else {
+        // (V00, V01, V11): e1 = (1, 0, a), e2 = (1, 1, e); u = -ty + tx, v = ty.
+        const float a = z01 - z00;
+        const float e = z11 - z00;
+        const float qx = ty * a;
+        const float qy = tz - tx * a;
+        hit = tri(-ty + tx, ty, (qy + qx) - ty * e);
+        if (hit) maxT = tOut;
+        // (V00, V11, V10): e1 = (1, 1, f), e2 = (0, 1, b); u = tx, v = -(tx - ty).
+        const float f = z11 - z00;
+        const float b = z10 - z00;
+        const float qz1 = tx - ty;
+        const float qy1 = tz - tx * f;
+        if (tri(tx, -qz1, qy1 + qz1 * b)) hit = true;
+    }
+    *outHeight = hit ? tOut * dirZ + originZ : 0.0f;
+    return true;
+}
+
 int WorldGeometry::CellQuadRay(int x, int y, const float* dir, const float* origin,
                         const float* maxT, float* outHit, float* outT, float* outNormal) {
     return RayTestCell(this, x, y, dir, origin, maxT, outHit, outT, outNormal);
 }
 
 float WorldGeometry::HeightUnderPoint(const float* point, float* outNormal) {
+    float height;
+    if (outNormal == nullptr && TerrainHeightOnly(this, point, &height))
+        return height;
+    return TerrainHeightUnder(this, point, outNormal);
+}
+
+float WorldGeometry::HeightUnderPointReference(const float* point, float* outNormal) {
     return TerrainHeightUnder(this, point, outNormal);
 }

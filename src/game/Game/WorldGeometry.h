@@ -160,7 +160,8 @@ public:
     Collection::Array<int32_t>            _batchCounters;     // +0x220 per-batch fill counters
     void BuildRoadQuad(int x, int y, GeometryBatchVertex* quad, int dirIdx, uint8_t blend);   // 0x1400acc10 (Action/action_pf_road.cpp)
     int CellQuadRay(int x, int y, const float* dir, const float* origin, const float* maxT, float* outHit, float* outT, float* outNormal);   // 0x1400aaa20 (body: RayTestCell) (Action/action_pf_road.cpp)
-    float HeightUnderPoint(const float* point, float* outNormal);   // 0x1400b0f90 (body: TerrainHeightUnder) (Action/action_pf_road.cpp)
+    float HeightUnderPoint(const float* point, float* outNormal);   // 0x1400b0f90 (body: TerrainHeightUnder; height-only: TerrainHeightOnly) (Game/worldgeometry_ray.cpp)
+    float HeightUnderPointReference(const float* point, float* outNormal);   // NOT RETAIL: TerrainHeightUnder alone, the reference terrain_ray_test.cpp pins TerrainHeightOnly to
     int AddDecal(int param_2, int param_3, int param_4, int param_5, uint8_t param_6, uint32_t param_7, Graphics::MaterialInstance* material, bool param_9, float param_10, float param_11, float param_12, float param_13, float param_14, char param_15, int param_16, int param_17, bool param_19);   // 0x1400b0d80 (Player/tool_base_highlight.cpp)
     void TessellateDecal(int param_2, char param_3, int param_4, int param_5);   // 0x1400ace40 (Player/tool_base_highlight_tess.cpp)
     uint8_t TerrainMarch(float* param_2, float* param_3, float* param_4, float* param_5, float* param_6);   // 0x1400aa530 (Player/tool_base_ray.cpp)
