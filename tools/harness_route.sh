@@ -132,21 +132,30 @@ check_trade() {
     verdict "\[TradeWatch\] PASS" "\[TradeWatch\] FAIL"
 }
 
-# --- pick: OWNED BY THE UI-HARNESS LANE (h-uiharness). Its ENV / QUIT_FRAME / check go
-# here; until then the route refuses to run.
+# --- pick: known_port_issues rows 252 and 1261. BANISHED_TOOL_HARNESS=pick
+# (src/diag/tool_harness.cpp) picks a citizen through Picking::Scene::Intersect and
+# EditTool::SelectEntity, then places a building through PlacementTool::CreateAt and a
+# bridge through BridgeTool::CalcPath (no explicit RefreshMesh after RegisterEntity) and
+# checks each new entity's pick mesh: none at placement (a site's model is at meshIndex
+# -1, so the OnAdded pass registers nothing), then, once BuildComponent shows the
+# foundation frame, one live scene entry per PickingComponent, none stale or shared, and
+# a ray onto the model that resolves to the owner (the bridge segments answer the master).
 route_pick() {
-    DESC="(not yet added: the UI-harness lane owns this route)"
+    DESC="citizen pick opens CitizenUI; a placed building and a bridge register one pick mesh each and pick"
+    QUIT_FRAME=1200
+    SECS=300
+    ENV=(BANISHED_FORCE_SPEED=40 BANISHED_TOOL_HARNESS=pick)
 }
 check_pick() {
-    echo "[route] pick: not yet added"
-    return 1
+    verdict "\[ToolHarness\]\[pick(place|bridge)\] PICK PASS|\[ToolHarness\]\[pick\] PICKED" \
+            "\[ToolHarness\]\[pick(place|bridge)?\] (PICK FAIL|FAILED|ERROR)|\) BAD" || return 1
+    [ -n "$(err "\[ToolHarness\]\[pick\] PICKED citizen.*CitizenUI=1" | head -1)" ] || { echo "[route] the citizen pick did not open CitizenUI"; return 1; }
+    [ -n "$(err "\[ToolHarness\]\[pickplace\] PICK PASS" | head -1)" ] || { echo "[route] no pickplace PASS"; return 1; }
+    [ -n "$(err "\[ToolHarness\]\[pickbridge\] PICK PASS" | head -1)" ] || { echo "[route] no pickbridge PASS"; return 1; }
+    return 0
 }
 
 "route_$ROUTE"
-if [ "$ROUTE" = pick ] && [ ${#ENV[@]} -eq 0 ]; then
-    check_pick
-    exit 2
-fi
 
 # ---------------------------------------------------------------- the run
 [ -f "$EXE" ] || { echo "[route] no exe: $EXE (tools/build.sh build debug)" >&2; exit 2; }
