@@ -39,8 +39,8 @@ either: with `_b3c` set, the query is never made.
 | input | where | in the memo |
 |---|---|---|
 | `inXY2[0]`, `inXY2[1]` | the call's argument (`pos`) | **the key** (bits) |
-| `GameUpdateLoop::_singleton->m_worldGeometry` | `MapQuery_SampleHeight` | epoch: bumped where it is assigned (load step 23) and at teardown |
-| `WorldGeometry::_gridSize`, `_fieldD0`, `_heights.data` and the four words around (x, y) | `MapQuery_SampleHeight` | epoch: every writer (§1.3) |
+| `GameUpdateLoop::_singleton->m_worldGeometry` | `WorldGeometry::HeightUnderPoint` (was `MapQuery_SampleHeight`) | epoch: bumped where it is assigned (load step 23) and at teardown |
+| `WorldGeometry::_gridSize`, `_fieldD0`, `_heights.data` and the four words around (x, y) | `WorldGeometry::HeightUnderPoint` (was `MapQuery_SampleHeight`) | epoch: every writer (§1.3) |
 | `_singleton->m_game` (`CanonicalMapGrid`; the tick passes the same pointer) | the floor branch | epoch: bumped at `m_game = map` and at teardown |
 | `Map::size`, `Map::cells.data`, `cells[idx].floorCount` | the floor branch's test | epoch: every writer (§1.3); **plus** the memo is only recorded when `MapQuery_MayReachFloor` is false |
 | `Map::pickingScene` (Map +0x08) `Intersect` | only when `floorCount > 0` | **never skipped**: a query that may reach it is never recorded |

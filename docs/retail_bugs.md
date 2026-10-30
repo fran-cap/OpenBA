@@ -332,8 +332,9 @@ re-sorts that cell with `ClassifyTerrain` (`0x14009e2c0`) from the changed heigh
 it can come out as type 10 (too steep), outside the road mask `0xa17`, and nothing sorts it
 again. In one long drag the neighbouring cells are already queued, and finishing them
 overwrites the re-sorted type. Open: what the height grid `ResetTerrainHeights` writes really
-is, and whether the port's slope sample (`MapQuery_SampleNormal`, `Game/mapquery.cpp`) matches
-retail's `0x14009a810` at the 0.9 threshold.
+is. The port's slope sample did not match retail's (a fixed forward-difference triangle); since
+2026-10-30 `Map::GetTerrainPos` uses retail's ray cast (`WorldGeometry::HeightUnderPoint`,
+`Game/worldgeometry_ray.cpp`), whose hit-triangle normal is the value tested at 0.9.
 
 **The bridge: the far bank must not be road (Ghidra-confirmed).** Deleting a bridge undoes
 everything it wrote (body cells re-sorted back to water, the zone stamp cleared, no road and no

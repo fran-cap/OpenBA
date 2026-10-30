@@ -18,15 +18,17 @@
 // (src/game/Game/mapquery.cpp, linked) over a WorldGeometry record built from the same
 // heightmap, through a GameUpdateLoop record the test installs as the singleton, and
 // compares every result bit with World A's copy on random and edge queries (off-grid,
-// cell corners, negative). The floor branch (Picking::Scene::Intersect) cannot be linked,
-// so the real body is driven with no map grid: the no-floor path, which is every query
-// the copy's SampleHeight answers. The copy's text is also pinned by copy_drift_test.cpp.
+// cell corners, negative). The copy is of the terrain ray cast (WorldGeometry::
+// HeightUnderPoint, worldgeometry_ray.cpp). The floor branch (Picking::Scene::Intersect)
+// cannot be linked, so the real body is driven with no map grid: the no-floor path, which
+// is every query the copy's SampleHeight answers. The copy's text is also pinned by copy_drift_test.cpp.
 // ============================================================================
 #include "unit.h"
 #include "Component/still_terrain.h"
 #include "Game/GameUpdateLoop.h"     // the singleton the real GetTerrainPos reads
 #include "Game/Map.h"
 #include "Game/WorldGeometry.h"
+#include "math/Math.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -70,23 +72,65 @@ struct World {
         ++epoch;                       // world create / load
     }
 
-    // MapQuery_SampleHeight, literally.
+    // WorldGeometry::HeightUnderPoint (src/game/Game/worldgeometry_ray.cpp: TerrainHeightUnder,
+    // RayTestCell, Pf_RayTriIntersect_aa810), literally, with no normal out.
+    static int RayTri(const float* P, const float* D, const float* maxT, const float* V0,
+                      const float* V1, const float* V2, float* outT) {
+        const Math::Vector3 Dv(D[0], D[1], D[2]);
+        Math::Vector3 edge1(V1[0] - V0[0], V1[1] - V0[1], V1[2] - V0[2]);
+        Math::Vector3 edge2(V2[0] - V0[0], V2[1] - V0[1], V2[2] - V0[2]);
+        Math::Vector3 pvec = Dv.Cross(edge2);
+        float det = edge1.Dot(pvec).v;
+        Math::Vector3 tvec(P[0] - V0[0], P[1] - V0[1], P[2] - V0[2]);
+        Math::Vector3 qvec = tvec.Cross(edge1);
+        float u = tvec.Dot(pvec).v;
+        float v = Dv.Dot(qvec).v;
+        uint32_t epsBits = 0xb8d1b717u;
+        float eps;
+        std::memcpy(&eps, &epsBits, 4);
+        if (det <= 0.0f) return 0;
+        if (eps > u) return 0;
+        if (u > det) return 0;
+        if (eps > v) return 0;
+        if (v + u > det) return 0;
+        float tdot = edge2.Dot(qvec).v;
+        float t = (1.0f / det) * tdot;
+        *outT = t;
+        if (t < 0.0f) return 0;
+        if (*maxT < t) return 0;
+        return 1;
+    }
     float SampleHeight(float worldX, float worldZ) const {
-        const float center = (float)(gridSize >> 1);
-        const float fx = worldX + center, fz = worldZ + center;
-        int ix = (int)fx; if ((float)ix > fx) --ix;
-        int iz = (int)fz; if ((float)iz > fz) --iz;
-        const float tx = fx - (float)ix, tz = fz - (float)iz;
-        auto clampN = [this](int v) -> int { return v < 0 ? 0 : (v >= N ? N - 1 : v); };
-        const int x0 = clampN(ix), z0 = clampN(iz), x1 = clampN(ix + 1), z1 = clampN(iz + 1);
-        const float k = 1.0f / 256.0f;
-        const float h00 = (float)heights[(size_t)(z0 * N + x0)] * k;
-        const float h10 = (float)heights[(size_t)(z0 * N + x1)] * k;
-        const float h01 = (float)heights[(size_t)(z1 * N + x0)] * k;
-        const float h11 = (float)heights[(size_t)(z1 * N + x1)] * k;
-        const float hTop = h00 + (h10 - h00) * tx;
-        const float hBot = h01 + (h11 - h01) * tx;
-        return hTop + (hBot - hTop) * tz;
+        const float origin[3] = { worldX, worldZ, 100.0f };   // DAT_140172208
+        const float dir[3] = { 0.0f, 0.0f, -1.0f };           // DAT_140172280
+        const float maxT = 200.0f;                            // DAT_140172228
+        const float halfF = (float)(gridSize >> 1);
+        const int x = (int)(origin[0] + halfF), y = (int)(origin[1] + halfF);
+        const int half = gridSize >> 1;
+        auto H = [this](int col, int row) -> float {
+            const int cc = col < 0 ? 0 : (col >= N ? N - 1 : col);
+            const int cr = row < 0 ? 0 : (row >= N ? N - 1 : row);
+            return (float)(int)heights[(size_t)((int64_t)cr * N + cc)] * (1.0f / 256.0f);
+        };
+        const float bx = (float)(x - half), by = (float)(y - half);
+        const float V00[3] = { bx,        by,        H(x,     y)     };
+        const float V01[3] = { bx + 1.0f, by,        H(x + 1, y)     };
+        const float V10[3] = { bx,        by + 1.0f, H(x,     y + 1) };
+        const float V11[3] = { bx + 1.0f, by + 1.0f, H(x + 1, y + 1) };
+        float maxTbuf = maxT;
+        float t = 0.0f;
+        bool hit;
+        if (((x + y) & 1) == 0) {
+            hit = RayTri(origin, dir, &maxTbuf, V00, V01, V10, &t) != 0;
+            if (hit) maxTbuf = t;
+            if (RayTri(origin, dir, &maxTbuf, V01, V11, V10, &t) != 0) hit = true;
+        } else {
+            hit = RayTri(origin, dir, &maxTbuf, V00, V01, V11, &t) != 0;
+            if (hit) maxTbuf = t;
+            if (RayTri(origin, dir, &maxTbuf, V00, V11, V10, &t) != 0) hit = true;
+        }
+        const float z = t * dir[2] + origin[2];
+        return hit ? z : 0.0f;
     }
     int CellOf(float x, float y) const {
         int ix = (int)(x + (float)(dim >> 1));
@@ -361,8 +405,8 @@ UNIT_TEST(still_terrain_real_get_terrain_pos_matches_the_copy) {
             ++compared;
             if (std::memcmp(a, b, sizeof(a)) != 0) ++bitDiffs;
         };
-        // Random queries inside and well outside the grid (the clamp), cell corners and
-        // centres (the trunc-then-fix floor at exact integers), and negative coordinates.
+        // Random queries inside and well outside the grid (a miss: height 0), cell corners
+        // and centres (on a triangle edge or the diagonal), and negative coordinates.
         const int half = dim >> 1;
         for (int i = 0; i < 2000; ++i) {
             const uint64_t h = Hash(seed, 0x7e55u, static_cast<uint64_t>(i));
@@ -378,7 +422,7 @@ UNIT_TEST(still_terrain_real_get_terrain_pos_matches_the_copy) {
             }
         query(-0.0f, 0.0f);
         query(1e-7f, -1e-7f);
-        query(1e9f, -1e9f);                 // far off the grid: both clamp to the edge
+        query(1e9f, -1e9f);                 // far off the grid: a degenerate quad, a miss
         GameUpdateLoop::_singleton = nullptr;
 
         CHECK(compared > 2000);

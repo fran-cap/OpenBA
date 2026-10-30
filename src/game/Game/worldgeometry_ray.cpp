@@ -39,6 +39,9 @@ static inline int ClampCell(int v, int w) {
 
 } // namespace
 
+// [COPY-PINNED begin] tests/unit/copy_drift_test.cpp pins the text from here to the end
+// marker: tests/unit/still_terrain_test.cpp (World::SampleHeight and its two helpers) holds a
+// literal copy over a plain heightmap, and drives these bodies through Map::GetTerrainPos too.
 // ============================================================
 // 0x1400aa810 — ray/triangle (Moller-Trumbore) barycentric intersect
 // ============================================================
@@ -199,6 +202,8 @@ static float TerrainHeightUnder(WorldGeometry* geo, const float* point, float* o
                           dir, origin, &maxT, outHit, scratch, outNormal);   // 0x1400aaa20
     return hit ? outHit[2] : 0.0f;
 }
+
+// [COPY-PINNED end]
 
 int WorldGeometry::CellQuadRay(int x, int y, const float* dir, const float* origin,
                         const float* maxT, float* outHit, float* outT, float* outNormal) {
