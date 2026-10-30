@@ -270,12 +270,13 @@ int TradeWork::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
         // clamp qty to the citizen's carry-storage free space:
         CitizenComponent* citizen = *citizenRef;
         StorageComponent* carryStor = TW_StorageOf(citizen->_entity.Get());   // pvVar18
-        // The matDesc / weight arm is the tree's guard; retail divides unguarded.
-        if (matDesc && matDesc->_weight != 0) {
+        // Retail divides with no test of the desc or its weight (0x1400f6306
+        // `IDIV dword ptr [RDI+0x48]`, RDI the CMOVNZ result or 0).
+        {
             int freeSpace = carryStor->capacity;
             int cur = carryStor->QueryCount();
             int room = (freeSpace - cur) / matDesc->_weight;
-            if (room < qty) qty = room;
+            if (room < qty) qty = room;   // CMOVL 0x1400f630c
         }
 
         // building storage comp -> its items, find resType:
@@ -374,11 +375,12 @@ int TradeWork::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
         // clamp by the destination (citizen building) storage free space for resType:
         CitizenComponent* citizen = *citizenRef;
         StorageComponent* b8 = TW_StorageOf(citizen->_entity.Get());   // local_b8
-        if (matDesc && matDesc->_weight != 0) {   // the tree's guard, as in pass 2
+        // Unguarded in retail as in pass 2 (0x1400f6995 `IDIV dword ptr [RSI+0x48]`).
+        {
             int cap  = b8->capacity;
             int cur  = b8->QueryCount();
             int room = (cap - cur) / matDesc->_weight;
-            if (room < qtyMove) qtyMove = room;
+            if (room < qtyMove) qtyMove = room;   // CMOVL 0x1400f699b
         }
 
         // gate: can the trade-post building storage accept this resource+qty?
