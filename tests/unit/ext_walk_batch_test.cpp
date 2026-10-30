@@ -31,6 +31,7 @@
 #include "ext/walk_batch/walk_batch_rules.h"
 #include "ext/registry.h"
 #include "Game/exe_constants.h"
+#include "crt/msvc_libm.h"   // the tail's trig, the ported CRT sinf / cosf
 
 #include <cmath>
 #include <cstdint>
@@ -98,10 +99,6 @@ void RootOffset(const Walker& k, float* r) {
 }
 // GetTerrainPos's height stand-in (the last iteration's z), a pure function of (x, y).
 float Height(float x, float y) { return 0.25f * std::sin(x * 0.3f) + 0.125f * std::cos(y * 0.2f); }
-void TestSinCos(float x, float* s, float* c) {
-    *s = static_cast<float>(std::sin(static_cast<double>(x)));
-    *c = static_cast<float>(std::cos(static_cast<double>(x)));
-}
 
 // MoveTo::UpdateFacing (0x1400c8d20) stand-in: both worlds call this one function (the batched
 // tick calls the real body). Pure in the walker's position and the waypoint cell.
@@ -223,7 +220,8 @@ void TailRef(const World& wd, Walker& k, bool rootOnly) {
     fVar14 = fVar14 + k.desc->f24;
     float ang = fVar14 * FromBits(kRdata_1401720cc) * kRdata_140172114;
     float s = 0, c = 0;
-    TestSinCos(ang, &s, &c);
+    s = MsvcLibm::Sinf(ang);
+    c = MsvcLibm::Cosf(ang);
     k.rot[0] = 0.0f; k.rot[1] = 0.0f; k.rot[2] = -s; k.rot[3] = c;
     k.pos[0] = pos[0]; k.pos[1] = pos[1]; k.pos[2] = pos[2];
     k.yaw = fVar14;

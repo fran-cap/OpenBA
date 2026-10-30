@@ -162,7 +162,7 @@ be the next step (§8).
 
 The tail's trig maps yaw bits to `(-sin, cos)` bits, a pure function (STILLPATH §1.3). On the last
 iteration, a character that did not step now looks up `s_stillMemo[idx]`. If the entry is valid
-and holds this exact yaw, it takes the two results from it and skips `CharacterComponent_SinCosf`.
+and holds this exact yaw, it takes the two results from it and skips the `sinf` / `cosf` pair.
 On a miss it calls the trig and `Put`s the result, so speed 1, which has no intermediate
 iteration, also fills the memo. No invalidation is needed (STILLPATH §1.3). This is the "trig
 comes from the existing s_stillMemo" of the ideas file.

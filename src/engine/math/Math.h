@@ -112,6 +112,7 @@ public:
     Scalar Abs() const;                             // 0x1800646b0
     Scalar Lerp(const Scalar& to, const Scalar& t); // 0x1800218c0 (QEAA: non-const in retail)
     Scalar Max(const Scalar& other) const;          // 0x18005ff60
+    void SinCos(Scalar& sinOut, Scalar& cosOut) const;   // 0x180078790 (degrees in)
 };
 static_assert(sizeof(Scalar) == 4, "Math::Scalar must be 4 bytes");
 static_assert(offsetof(Scalar, v) == 0x0, "Scalar::v");

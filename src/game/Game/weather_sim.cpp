@@ -70,6 +70,7 @@
 #include "Entity/ComponentEntity.h"   // ComponentEntity(ComponentDescription*) (0x1400c3720)
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "utility/PerlinNoise.h"            // RtUtility_PerlinNoise_Ctor / _Generate
+#include "crt/msvc_libm.h"                    // MsvcLibm::Sinf (the exe's sinf 0x140131c90)
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
@@ -298,7 +299,7 @@ void WeatherSimulation::Update(const System::Time* time) {
         float perlin = 0.0f;
         perlin = RtUtility_PerlinNoise_Generate(&noise, sec / kPerlinDiv, 0.0f);
         float phase = ((sec - kKfSpan) / kDayLen) * k360 * kDeg2Rad;   // radians
-        float temp = sinf(phase) * variation + mean;
+        float temp = MsvcLibm::Sinf(phase) * variation + mean;   // CALL 0x140131c90 (0x14009388e)
         temperature = perlin * noiseAmp + temp;
     }
 

@@ -88,7 +88,7 @@ int CheckRegion(const Region& r) {
 const Region kRegions[] = {
     {"src/game/Component/citizenai_executor.cpp",
      "still_path_test.cpp (Tail) and ext_walk_batch_test.cpp (TailRef)",
-     0xe65865fb0a534c76ull},
+     0xef438eab1dbd76a7ull},
     {"src/game/Action/moveto.cpp",
      "ext_walk_batch_test.cpp (ExecuteRef)",
      0x55388122af05a199ull},

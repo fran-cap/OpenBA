@@ -92,6 +92,7 @@
 #include <atomic>
 #include "Component/CharacterGrid.h"   // CharacterGrid::RadiusQuery
 #include "Game/EventLog.h"   // EventLog::AddEvent (0x140095580)
+#include "crt/msvc_libm.h"   // MsvcLibm::Sinf / Cosf (0x140131c90 / 0x140131090)
 
 // "[Tornado] STRUCK a building" trace budget (was a function-local static; B6-5).
 static std::atomic<int> s_tornadoStruckTraced{0};
@@ -103,10 +104,8 @@ static std::atomic<int> s_tornadoStruckTraced{0};
 // for type 0x1e / severity 3. Porting the same retail body a second time here is the
 // trap that reference_one_retail_fn_ported_twice_diverges records.
 
-// 0x140131c90 = sinf, 0x140131090 = cosf, both already ported in
-// src/game/Component/character_trig.cpp (IEEE arg-reduced in retail).
-extern "C" float CharacterComponent_Sinf_131c90(float x);
-extern "C" float CharacterComponent_Cosf_131090(float x);
+// 0x140131c90 = sinf, 0x140131090 = cosf: the exe's MSVC CRT bodies, ported as
+// MsvcLibm::Sinf / Cosf (crt/msvc_libm.h).
 
 // ============================================================
 // .rdata constants (read from the binary, values in the comments)
@@ -467,8 +466,8 @@ void TornadoComponent::DamageTick(const System::Time* dt) {
 
     // The Vector3 ctor argument order (XMM1/XMM2/XMM3 at 0x140058121) puts sin on X
     // and cos on Y.
-    const float ox = CharacterComponent_Sinf_131c90(angle) * scatter * frac;
-    const float oy = CharacterComponent_Cosf_131090(angle) * scatter * frac;
+    const float ox = MsvcLibm::Sinf(angle) * scatter * frac;
+    const float oy = MsvcLibm::Cosf(angle) * scatter * frac;
 
     const float px = ox + position.x;
     const float py = oy + position.y;

@@ -44,7 +44,7 @@ inline uint32_t Bits(float f) {
 }
 
 // One trig result: the tail builds rotation (+0, +0, -sin(a), cos(a)) with
-// a = yaw * pi/180 * 0.5 from CharacterComponent_SinCosf, a pure function of the yaw.
+// a = yaw * pi/180 * 0.5 from MsvcLibm::Sinf / Cosf, a pure function of the yaw.
 struct Memo {
     uint32_t yaw = 0;      // the yaw the tail wrote (its trig input before the constants)
     uint32_t negSin = 0;   // rotation.z it wrote

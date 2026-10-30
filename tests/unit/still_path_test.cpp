@@ -16,6 +16,7 @@
 #include "Component/still_path.h"
 #include "char_prof.h"
 #include "Game/exe_constants.h"
+#include "crt/msvc_libm.h"   // the tail's trig, the ported CRT sinf / cosf
 
 #include <cmath>
 #include <cstdio>
@@ -34,11 +35,6 @@ struct Desc  { float f24, slowSpeed; bool b3c; float f40; };      // CharacterDe
 struct Char  { int index; float f3C, f38; float dir[3]; float root[3]; Desc* desc; Model m;
                long long pushes = 0, places = 0; };                 // the two calls the fast path keeps
 
-// Any pure function stands in for CharacterComponent_SinCosf: the memo only relies on purity.
-void TestSinCos(float x, float* s, float* c) {
-    *s = static_cast<float>(std::sin(static_cast<double>(x)));
-    *c = static_cast<float>(std::cos(static_cast<double>(x)));
-}
 
 float Heading(const Char& ch) {   // fVar14, the tail's heading recurrence
     float fVar14 = ch.f3C;
@@ -95,7 +91,8 @@ void Tail(Char& ch, bool fastPath, StillPath::MemoTable& memo, long long* fast) 
     fVar14 = fVar14 + ch.desc->f24;
     const float ang = fVar14 * FromBits(kRdata_1401720cc) * kRdata_140172114;
     float s = 0, c = 0;
-    TestSinCos(ang, &s, &c);
+    s = MsvcLibm::Sinf(ang);
+    c = MsvcLibm::Cosf(ang);
     const float negSin = -s;
     if (candidate) memo.Put(ch.index, fVar14, negSin, c);
     ch.m.rot[0] = 0.0f; ch.m.rot[1] = 0.0f; ch.m.rot[2] = negSin; ch.m.rot[3] = c;
