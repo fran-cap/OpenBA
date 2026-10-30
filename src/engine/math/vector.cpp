@@ -39,6 +39,14 @@ namespace {
 constexpr float kRadToDeg = 57.29578f;  // 0x180161708
 }  // namespace
 
+// ?SinCos@Scalar@Math@@QEBAXAEAV12@0@Z  retail 0x180078790
+// The angle is in DEGREES: Crt_sinf(v * DAT_18016167c) into sinOut, then Crt_cosf of the
+// same product into cosOut (the product is formed twice, as retail does).
+void Scalar::SinCos(Scalar& sinOut, Scalar& cosOut) const {
+    sinOut.v = RtLibm::Sin(this->v * RtMathConst::kDegToRad);
+    cosOut.v = RtLibm::Cos(this->v * RtMathConst::kDegToRad);
+}
+
 namespace Math {
 
 // ============================================================

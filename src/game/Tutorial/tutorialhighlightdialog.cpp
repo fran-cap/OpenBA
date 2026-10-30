@@ -104,6 +104,7 @@ void TutorialHighlightDialog::OnUpdate(const System::Time& time) {
 #include "Component/MapComponent.h"
 #include "Game/Map.h"
 #include "volume/Volume.h"
+#include "crt/msvc_libm.h"   // MsvcLibm::Sinf (the exe's sinf 0x140131c90)
 #include <cmath>
 #include <cstdlib>
 #include <cstdio>
@@ -121,7 +122,7 @@ float ArrowBob(const TutorialHighlightDialog* self) {
     System::Time elapsed{};
     elapsed._ticks = self->elapsedTicks;
     float t = elapsed.AsSeconds();
-    return std::sin(t * 3.14159274f) * 8.0f;
+    return MsvcLibm::Sinf(t * 3.14159274f) * 8.0f;
 }
 
 }  // namespace

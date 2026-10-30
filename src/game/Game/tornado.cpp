@@ -69,6 +69,7 @@
 #include "object/TypeInfo.h"
 #include "graphics/Camera.h"
 #include "math/Math.h"
+#include "crt/msvc_libm.h"     // MsvcLibm::Sinf / Cosf (the exe's sinf / cosf)
 #include "volume/Volume.h"        // RtVolume_Box_Extend
 #include "Game/exe_constants.h"   // kRdata_*
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch B
@@ -275,9 +276,9 @@ using TornadoPool     = RtGraphics::ParticleBoundsRecord;
 
 }  // namespace
 
-// Retail's sinf/cosf are the exe's own arg-reduced libm bodies at 0x140131c90 /
-// 0x140131090, already reimplemented as the CRT calls in Component/character_trig.cpp.
-// The same precedent applies here: a sub-ULP difference moves a dust particle.
+// Retail's sinf/cosf are the exe's statically linked MSVC CRT bodies at 0x140131c90 /
+// 0x140131090, instruction-for-instruction the Runtime's Crt_sinf / Crt_cosf, which
+// MsvcLibm::Sinf / Cosf port. A last-bit libm difference moves a dust particle.
 void TornadoInstance::Update(const System::Time& time) {
 
     // Caller batch CB6: the instance's fields (ParticleInstance's +0xc0/+0xc8, the
@@ -372,8 +373,8 @@ void TornadoInstance::Update(const System::Time& time) {
     const float spin = _funnelSpinDegrees + dtSec * res->_funnelSpin;  // +0xd8, _funnelSpin
     _funnelSpinDegrees = spin;
     const float spinRad = spin * 0.01745329f;
-    const float sinG = sinf(spinRad);
-    const float cosG = cosf(spinRad);
+    const float sinG = MsvcLibm::Sinf(spinRad);
+    const float cosG = MsvcLibm::Cosf(spinRad);
 
     // 90 deg/sec is a HARDCODED constant in the retail body (0x140172204), not
     // _particleSpinSpeed -- that one (+0x58) drives the helical angle below instead.
@@ -398,7 +399,7 @@ void TornadoInstance::Update(const System::Time& time) {
 
         // Lateral swirl: a cosine wobble that grows with age, biased so young
         // particles start inside the funnel (the -0.33 is retail's).
-        const float wob   = cosf((t - 0.2f) * 3.1415927f * 2.0f);
+        const float wob   = MsvcLibm::Cosf((t - 0.2f) * 3.1415927f * 2.0f);
         const float swirl = (wob * 0.5f + 0.5f) * (t + 0.5f) - 0.33f;
         const float offX  = sinG * funnelW * swirl;
         const float offY  = cosG * funnelW * swirl;
@@ -410,8 +411,8 @@ void TornadoInstance::Update(const System::Time& time) {
         const float rad = fabsf(c * c * c) * 3.7f + 0.05f + tail * tail * 4.0f;
 
         const float a    = spinSpeed * 0.31830987f * t;   // spinSpeed / pi * t
-        const float sinA = sinf(a);
-        const float cosA = cosf(a);
+        const float sinA = MsvcLibm::Sinf(a);
+        const float cosA = MsvcLibm::Cosf(a);
 
         p->_posPrev.x = p->_pos.x;
         p->_posPrev.y = p->_pos.y;
