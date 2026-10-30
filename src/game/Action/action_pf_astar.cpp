@@ -297,6 +297,13 @@ uint64_t GridPathSearch::FindPath(int start, int goal) {
     search.open.root = nullptr;                  // two dword stores in retail (H7)
     search.open.count = 0;
     search.sequence = 0;
+    // Row and column are carried, not divided out per neighbour (retail divides four times
+    // per neighbour; the values are the same): the expanded cell is split once per pop and
+    // the goal once per search, and Neighbour hands back the neighbour's pair, whose
+    // division by `width` gives back exactly that pair (PathSearch.h). `width` is written
+    // only by the command dispatcher (0x1400a6430), never during a search.
+    const int goalRow = goal / width;
+    const int goalCol = goal % width;
     iVar10 = Heuristic(start, goal);             // 0x1400a6030
     search.Relax(start, -1, 0, iVar10);          // 0x14001d320
     uVar13 = 0;  // d320's RAX-on-exit only ever flows to the masked (&...ff00) return below
@@ -322,6 +329,8 @@ uint64_t GridPathSearch::FindPath(int start, int goal) {
         PathSearchNode* cur = &search.nodes.data[iVar10];
         cur->openStamp = cur->openStamp + -1;
         cur->closedStamp = static_cast<int>(uVar14);
+        const int curRow = iVar10 / width;
+        const int curCol = iVar10 % width;
         iVar18 = 4;
         if (static_cast<char>(allowDiagonal) != '\0') {
             iVar18 = 8;
@@ -329,12 +338,13 @@ uint64_t GridPathSearch::FindPath(int start, int goal) {
         iVar19 = 0;
         if (iVar18 != 0) {
             do {
-                iVar11 = Neighbour(iVar10, iVar19);   // 0x1400a5ec0
+                int nbrRow = curRow;
+                int nbrCol = curCol;
+                iVar11 = Neighbour(nbrRow, nbrCol, iVar19);   // 0x1400a5ec0
                 uVar13 = static_cast<uint64_t>(static_cast<uint32_t>(iVar11));
                 if (-1 < iVar11) {
-                    iVar21 = width;
-                    uVar15 = iVar10 % iVar21 - iVar11 % iVar21;
-                    uVar14 = iVar10 / iVar21 - iVar11 / iVar21;
+                    uVar15 = curCol - nbrCol;
+                    uVar14 = curRow - nbrRow;
                     uVar16 = static_cast<int>(uVar15) >> 0x1f;
                     uVar17 = static_cast<int>(uVar14) >> 0x1f;
                     uVar13 = static_cast<uint64_t>(cellFlags[iVar11] & 0x7f);
@@ -353,9 +363,8 @@ uint64_t GridPathSearch::FindPath(int start, int goal) {
                     uVar13 = static_cast<uint64_t>(static_cast<uint>(search.generation));
                     if ((static_cast<uint>(search.nodes.data[iVar11].openStamp) != static_cast<uint>(search.generation)) ||
                         (iVar21 < search.nodes.data[iVar11].gCost)) {
-                        iVar12 = width;
-                        uVar15 = iVar11 % iVar12 - goal % iVar12;
-                        uVar16 = iVar11 / iVar12 - goal / iVar12;
+                        uVar15 = nbrCol - goalCol;
+                        uVar16 = nbrRow - goalRow;
                         uVar14 = static_cast<int>(uVar15) >> 0x1f;
                         iVar20 = (uVar15 ^ uVar14) - uVar14;
                         uVar14 = static_cast<int>(uVar16) >> 0x1f;
