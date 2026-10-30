@@ -426,6 +426,15 @@ const Entry kEntries[] = {
       "No fog",
       "Removes the fog that hazes the far map when the camera is zoomed far out.",
       0, [](State& s) -> bool& { return s.ext.no_fog; } },
+    // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
+    // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
+    // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a
+    // load (src/ext/tool_names/tool_names.cpp). No sim effect. OFF by default like the other class C rows.
+    { "tool_names", Tier::Extension, Class::C, false,
+      "Tool names",
+      "The citizen panel shows the name of the tool a citizen carries, so modded tools are not all shown "
+      "as iron or steel. The tool each citizen carries is recorded in the save.",
+      1, [](State& s) -> bool& { return s.ext.tool_names; } },
     // TEXQUALITY (docs/extensions/handins/TEXQUALITY.md): the large mipmapped world textures are made
     // without their ext.texture_quality_drop largest levels (half or quarter resolution), so far less
     // video memory and less decoding at load. Retail has no such setting. Read once at boot (next start).
