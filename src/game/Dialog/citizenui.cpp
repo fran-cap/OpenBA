@@ -217,7 +217,7 @@ void CitizenUI::OnCreated() {
     textEducatedYes = FindElemInTree(parentElem, "textEducatedYes");
     textClothing    = static_cast<UI::TextElement*>(FindElemInTree(parentElem, "textClothing"));
     textTool        = static_cast<UI::TextElement*>(FindElemInTree(parentElem, "textTool"));
-    textNameIs      = FindElemInTree(parentElem, "textNameIs");
+    textNameIs      = static_cast<UI::TextElement*>(FindElemInTree(parentElem, "textNameIs"));
     textAction      = static_cast<UI::TextElement*>(FindElemInTree(parentElem, "textAction"));
 
     // --- Icon groups (heart/star arrays built from group children) ---
@@ -425,12 +425,10 @@ void CitizenUI::OnUpdateLayout() {
     }
 
     // --- textNameIs: set name parameter ---
-    // In standalone the "textNameIs" element resolves to a partially-constructed
-    // TextElement whose parameter-array String entries are uninitialized (garbage buffer
-    // pointers), so SetParameter faults deep inside System::String::operator= even though
-    // the element, its param array and its parent chain all validate. It is a redundant
-    // secondary name label — the primary textName above already shows the citizen's name
-    // — so skip it in standalone. (The original keeps the CheckPtr + set here.)
+    // Retail 0x140064ae0, after buttonHome's Enable: CheckPtr(&citizen); CheckPtr(this + 0x90);
+    // TextElement::SetParameter(*(TextElement**)(this + 0x90), 0, (String*)(citizen + 0x28)). No type,
+    // address-range or parameter-array test. The status line reads "<name> is <action>": this is the name.
+    textNameIs->SetParameter(0, ai->name);
 
     // --- Action text ---
     // The citizen's entity (Component::_entity), then its CitizenAIComponent
