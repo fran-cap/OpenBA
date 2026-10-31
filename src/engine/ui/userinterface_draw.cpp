@@ -493,10 +493,26 @@ void UI::UserInterface::Draw(Video::Context& context) {
                                     v.height = clip[3];
                                     // A scissor change flushes and forgets the batch's sheet:
                                     // the sheet is bound again on each side of the clipped draw.
-                                    const Video::Viewport saved = sc->SetScissor(v);
+                                    // The scissor is put back from its own device-space fields,
+                                    // not through SetScissor(saved): SetScissor hands the old rect
+                                    // back multiplied by the UI scale and truncated (2340 px x 0.42
+                                    // = 982 units), and feeding that back in leaves a scissor 2 px
+                                    // short of the screen's right edge for the rest of the frame
+                                    // (the fade then left an unfaded sliver down the right of the
+                                    // loading screen on the S25).
+                                    const int32_t keepX = sc->_scissorX;
+                                    const int32_t keepY = sc->_scissorY;
+                                    const int32_t keepW = sc->_scissorW;
+                                    const int32_t keepH = sc->_scissorH;
+                                    (void)sc->SetScissor(v);
                                     selectSheet(overSheet);
                                     sc->AddSpriteDraw(over);
-                                    (void)sc->SetScissor(saved);
+                                    sc->Flush();
+                                    sc->FlushDeferredFonts();
+                                    sc->_scissorX = keepX;
+                                    sc->_scissorY = keepY;
+                                    sc->_scissorW = keepW;
+                                    sc->_scissorH = keepH;
                                     selectSheet(sheet);
                                 } else {
                                     selectSheet(overSheet);
