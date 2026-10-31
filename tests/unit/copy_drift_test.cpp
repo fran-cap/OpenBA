@@ -8,8 +8,8 @@
 //   still_path_test.cpp      Tail        <- citizenai_executor.cpp, the move tick's tail
 //   ext_walk_batch_test.cpp  TailRef     <- the same tail
 //   ext_walk_batch_test.cpp  ExecuteRef  <- moveto.cpp, MoveTo::Execute case 2
-//   still_terrain_test.cpp   SampleHeight<- mapquery.cpp, MapQuery_SampleHeight (also driven
-//                                          for real through Map::GetTerrainPos there)
+//   still_terrain_test.cpp   SampleHeight<- worldgeometry_ray.cpp, the terrain ray cast (also
+//                                          driven for real through Map::GetTerrainPos there)
 //
 // The copies are restructured (a Walker struct for the character, the model and the
 // description; helper calls for the retail constants), so their text cannot be compared
@@ -88,13 +88,13 @@ int CheckRegion(const Region& r) {
 const Region kRegions[] = {
     {"src/game/Component/citizenai_executor.cpp",
      "still_path_test.cpp (Tail) and ext_walk_batch_test.cpp (TailRef)",
-     0xe65865fb0a534c76ull},
+     0xef438eab1dbd76a7ull},
     {"src/game/Action/moveto.cpp",
      "ext_walk_batch_test.cpp (ExecuteRef)",
      0x55388122af05a199ull},
-    {"src/game/Game/mapquery.cpp",
-     "still_terrain_test.cpp (World::SampleHeight)",
-     0xde2c5d1b3093c7b1ull},
+    {"src/game/Game/worldgeometry_ray.cpp",
+     "still_terrain_test.cpp (World::SampleHeight, World::RayTri)",
+     0xf57b5bc7a095d6a1ull},
 };
 
 }  // namespace

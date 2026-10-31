@@ -287,7 +287,7 @@ static void SelectAndTransfer(ComponentEntity* found, ::Object::InternalPtr<Acti
             bool flagged = (rm->_flags >> 6 & 1) != 0;
             int avail = rowsBase[cur]._count - rowsBase[cur]._reserve;
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): only the best rank
-            if (flagged && prio && Ext::ItemPriority::RankOfMat(Ext::ItemPriority::kFuel, rm) != bestRank) {
+            if (flagged && prio && !Ext::ItemPriority::Eligible(Ext::ItemPriority::kFuel, rm, bestRank)) {
                 flagged = false;
             }
             if (flagged && avail > 0) {
@@ -314,7 +314,7 @@ static void SelectAndTransfer(ComponentEntity* found, ::Object::InternalPtr<Acti
             bool flagged = (rm->_flags >> 6 & 1) != 0;
             int avail = rb[cur]._count - rb[cur]._reserve;
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): the same test as pass 1
-            if (flagged && prio && Ext::ItemPriority::RankOfMat(Ext::ItemPriority::kFuel, rm) != bestRank) {
+            if (flagged && prio && !Ext::ItemPriority::Eligible(Ext::ItemPriority::kFuel, rm, bestRank)) {
                 flagged = false;
             }
             if (flagged && avail > 0) {

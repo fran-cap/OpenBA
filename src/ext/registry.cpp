@@ -104,6 +104,16 @@ const Entry kEntries[] = {
       "when it first appears.",
       0, [](State& s) -> bool& { return s.fix.dialog_position_drift; } },
 
+    // ALLOCTIEBREAK (docs/extensions/handins/ALLOCTIEBREAK.md, docs/retail_bugs.md section 14): the
+    // employment allocator and the housing re-balancer break ties between equal candidates by entity id
+    // and profession-list index instead of by heap address. Sim-visible: which citizen takes a job, and
+    // which empty house a family moves to, among equals. Nothing new is saved.
+    { "alloc_tiebreak", Tier::Fix, Class::None, true,
+      "Repeatable job and house choices",
+      "When several citizens or houses are equally good for a job or a move, the choice no longer "
+      "depends on memory layout, so a town plays out the same way each time a save is loaded.",
+      0, [](State& s) -> bool& { return s.fix.alloc_tiebreak; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).
@@ -239,7 +249,7 @@ const Entry kEntries[] = {
       "Item priority",
       "Lets you rank the tools, fuels, clothing and health items citizens take first, from the "
       "Priority page in a game. Play diverges; the choice is recorded in the save.",
-      1, [](State& s) -> bool& { return s.ext.item_priority; } },
+      2, [](State& s) -> bool& { return s.ext.item_priority; } },
 
     // TERRAINEDIT (docs/extensions/handins/TERRAINEDIT.md): a brush tool, started from the Terrain page of
     // the extension window, that edits the terrain under the mouse. Class B: play diverges (the map is no
@@ -250,6 +260,15 @@ const Entry kEntries[] = {
       "A brush, started from the Terrain page in a game, that reshapes the ground under the mouse. "
       "Play diverges.",
       1, [](State& s) -> bool& { return s.ext.terrain_edit; } },
+    // TOWNSCREENSHOT (docs/extensions/handins/TOWNSCREENSHOT.md): one picture of the whole map from an isometric view,
+    // taken from the Town Screenshot page of the extension window. Class B only because the window's pages belong to
+    // B / C rows (the window is recorded and locked with the game): a screenshot changes nothing about how a town
+    // plays, and no state of its own is recorded.
+    { "town_screenshot", Tier::Extension, Class::B, false,
+      "Town Screenshot",
+      "Takes one picture of the whole map from above at an isometric angle, from the Town Screenshot page in a "
+      "game. The game pauses while it works.",
+      1, [](State& s) -> bool& { return s.ext.town_screenshot; } },
     // HITCH_PFBURST (docs/extensions/handins/HITCH_PFBURST.md): a per-frame budget of the cold
     // citizens' warm-house scans (one region path search per residence), so a cold spell at high
     // speed spreads its scans over a few frames instead of one 10-20 ms frame.
@@ -407,6 +426,15 @@ const Entry kEntries[] = {
       "No fog",
       "Removes the fog that hazes the far map when the camera is zoomed far out.",
       0, [](State& s) -> bool& { return s.ext.no_fog; } },
+    // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
+    // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
+    // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a
+    // load (src/ext/tool_names/tool_names.cpp). No sim effect. OFF by default like the other class C rows.
+    { "tool_names", Tier::Extension, Class::C, false,
+      "Tool names",
+      "The citizen panel shows the name of the tool a citizen carries, so modded tools are not all shown "
+      "as iron or steel. The tool each citizen carries is recorded in the save.",
+      1, [](State& s) -> bool& { return s.ext.tool_names; } },
     // TEXQUALITY (docs/extensions/handins/TEXQUALITY.md): the large mipmapped world textures are made
     // without their ext.texture_quality_drop largest levels (half or quarter resolution), so far less
     // video memory and less decoding at load. Retail has no such setting. Read once at boot (next start).

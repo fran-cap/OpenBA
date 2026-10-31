@@ -194,7 +194,6 @@ struct Options {
                                                //   issue #13 showroom run script (scratchpad showroom/run.sh)
     const char* captureIngame        = nullptr;// BANISHED_CAPTURE_INGAME — gameupdateloop.cpp
     const char* achIgnoreMods        = nullptr;// BANISHED_ACH_IGNORE_MODS — gameupdateloop.cpp achievements
-    const char* fastTrig             = nullptr;// BANISHED_FAST_TRIG — src/game/Component/character_trig.cpp
     const char* treeGuards           = nullptr;// BANISHED_TREE_GUARDS — src/game/Entity/entitylist.cpp
     const char* treePrefetch         = nullptr;// BANISHED_TREE_PREFETCH — src/game/Entity/entitylist.cpp
 
@@ -243,6 +242,8 @@ struct Options {
     const char* birthTrace           = nullptr;// BANISHED_BIRTH_TRACE
     const char* forceBirth           = nullptr;// BANISHED_FORCE_BIRTH
     const char* forceBirthFrame      = nullptr;// BANISHED_FORCE_BIRTH_FRAME
+    const char* spouseProbe          = nullptr;// BANISHED_SPOUSE_PROBE — frame; tools/harness_route.sh marry
+    const char* nomadHarness         = nullptr;// BANISHED_NOMAD_HARNESS — period; tools/harness_route.sh immigration
     const char* foodPanel            = nullptr;// BANISHED_FOOD_PANEL — which food panel to open
     const char* foodPanelFrame       = nullptr;// BANISHED_FOOD_PANEL_FRAME
     const char* foodPanelClose       = nullptr;// BANISHED_FOOD_PANEL_CLOSE ("2" = close through the active tool)
@@ -267,6 +268,7 @@ struct Options {
     const char* tradeSell            = nullptr;// BANISHED_TRADE_SELL — interval
     const char* tradeSellPerRow      = nullptr;// BANISHED_TRADE_SELL_PERROW
     const char* tradeSellSeed        = nullptr;// BANISHED_TRADE_SELL_SEED
+    const char* tradeWatch           = nullptr;// BANISHED_TRADE_WATCH — period; tools/harness_route.sh trade
     const char* panelHold            = nullptr;// BANISHED_PANEL_HOLD — tools/capture_window.ps1 opens one building's panel
     const char* panelHoldFrame       = nullptr;// BANISHED_PANEL_HOLD_FRAME
     const char* panelHoldClick       = nullptr;// BANISHED_PANEL_HOLD_CLICK — "<control>:<id>"

@@ -259,16 +259,6 @@ int OrchardUI::GetCategory() {
 
 
 
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-void OrchardUI::OnUpdate(const System::Time& time) {
-    if (!SA_DialogEntityAlive(this)) return;
-    if (!yield) {
-        OrchardUI::OnCreated();
-        if (!yield) return;   // dialog genuinely lacks it
-    }
-    if (selectResource)
-        SelectResourceUI::OnUpdate(time);
-}
 
 // [9] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
 void OrchardUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,

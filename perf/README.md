@@ -281,7 +281,7 @@ needs them). Baseline rows: `perf/results/20261018_01*_hitch_s{50,20,10}*` (kept
 |---|---|---|
 | baseline after the population + heap fixes | 0.39 | `perf/baselines/2026-09-04_pre-perf-wave.csv` |
 | skip `InternalBasePtr::CheckPtr` (Runtime body is `RET 0`; `g_checkPtrIsNop`, kill-switch `BANISHED_CHECKPTR_NOP=0`) | 0.39 | no measurable change |
-| paired double-polynomial sin/cos in the character move tick (`character_trig.cpp`, `BANISHED_FAST_TRIG=0` restores libm) | 0.36 | MinGW sinf/cosf go through x87 long double: 16.7% of the phase |
+| paired double-polynomial sin/cos in the character move tick (`character_trig.cpp`; replaced 2026-10-30 by the ported CRT `MsvcLibm::Sinf/Cosf`, which retail matches bit for bit) | 0.36 | MinGW sinf/cosf go through x87 long double: 16.7% of the phase |
 | no `nearbyint`/`floorf` libcalls in per-tick code | 0.31 | nearbyint alone was 12% of the phase |
 | particle un-stamp seen-set: hash table + once-per-frame per component (the 64-entry array also silently CAPPED at 64 emits) | 0.30 | |
 | **register dispatch slot 0x140151f30 -> Runtime `MeshInstance::_rootOnlyUpdates`** | **0.25** | retail sets it on every intermediate speed iteration; the move tick then skips terrain + picking and MeshInstance::Update goes root-only. Unregistered, so 10x did 10 full updates |

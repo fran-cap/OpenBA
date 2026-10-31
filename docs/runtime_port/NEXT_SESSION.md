@@ -887,6 +887,24 @@ run started at battery <= 32.0 C and thermal status 0, cooled with the app stopp
 - Data: the scratchpad's `p13s25/` (the earlier runs) and `p13s25b/` (both soaks of 2026-10-30, `soak_ab.sh`,
   `soak2.py`, `sf.py`).
 
+### 2.16 The dialogs-on-dying-entities interlock: find retail's mechanism (ruled 2026-10-30)
+
+The user's ruling after the known_port_issues sweep (`docs/known_port_issues.md`, KPI sweep notes):
+the `SA_DialogEntityAlive` guards that never read the entity are removed first (row 1324 and the
+sweep's REMOVABLE list); this item is the second half. The rest of the family is a standalone-only
+interlock with no retail counterpart: the one-frame removal deferral in `EntityList::UpdateImpl`
+(`src/game/Entity/entitylist.cpp` ~771, "SA DEVIATION"), EditTool's close-on-death, and the
+per-panel `SA_DialogEntityAlive` guards (`src/game/Dialog/exe_bodies.h`). The diag harness
+(`src/diag/tool_harness.cpp`, "pinpanel") shows a PINNED panel still reads freed memory through
+it.
+
+- Read in retail how a panel bound to an entity learns that the entity died: the entity removal
+  path (EntityList's drain, `ComponentEntity` dtor), the DialogController's +0x28 data source
+  (a weak `InternalPtr`? CheckPtr on read?), EditTool's reposition / close (`edittool.cpp`),
+  and the pinned-panel path (ToolUI +0x40).
+- Port that mechanism; then remove the deferral and the remaining guards, one `behaviour:`
+  commit each, gated on the new-game, tool_removal and pinpanel routes plus resave x5.
+
 ## 3. Rules that hold (do not relax)
 
 - CLAUDE.md's hard rules: no null guard on a faithful crash (find what handed us the null); no `getenv`, flags through

@@ -143,6 +143,24 @@ def draw_drift(px):
     ])
 
 
+def draw_tiebreak(px):
+    # two equal figures, numbered 1 and 2 under them (equal candidates always taken in one order)
+    _paint(px, [
+        "............",
+        "..##....##..",
+        "..##....##..",
+        "............",
+        ".####..####.",
+        ".####..####.",
+        ".####..####.",
+        "..##....##..",
+        "..##....##..",
+        "............",
+        "..+.....++..",
+        "..+.....++..",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -151,4 +169,5 @@ ICONS = {
     "ui_scale_layout": ("fix", draw_window),         # centred dialog frame, resize corner marks
     "slider_drag_clamp": ("fix", draw_slider),       # slider track, thumb at its end stop
     "dialog_position_drift": ("fix", draw_drift),    # panel held between two edge bars
+    "alloc_tiebreak": ("fix", draw_tiebreak),        # two equal figures, numbered
 }

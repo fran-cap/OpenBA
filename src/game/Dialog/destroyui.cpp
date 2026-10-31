@@ -451,20 +451,9 @@ void DestroyUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, in
 // Standalone promotion — real DestroyUI vtable (2026-07-20)
 // ============================================================
 // Retail vtable @ 0x14015bb00 (11 slots): overrides 0,1,2,4,7,9; slots
-// 3,5,6,8,10 are inherited UI::DialogController base thunks in the exe. In
-// standalone the refresh is driven from slot 8 (OnUpdate) — element cache is
-// built once (OnCreated, guarded on +0x30 still null), then the visibility state
-// machine (OnUpdateLayout) runs every frame.
-
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-void DestroyUI::OnUpdate(const System::Time& /*time*/) {
-    if (!SA_DialogEntityAlive(this)) return;
-    if (progressRemove == nullptr) {
-        DestroyUI::OnCreated();
-        if (progressRemove == nullptr) return;  // build failed
-    }
-    DestroyUI::OnUpdateLayout();
-}
+// 3,5,6,8,10 are inherited UI::DialogController base thunks in the exe. The
+// visibility state machine (OnUpdateLayout, slot 7) runs every frame through
+// DialogInstance::OnUpdateLayout, as in retail.
 
 
 // create 0x140011130: MemAlloc(0x78, 8), then the ctor (DialogController ->

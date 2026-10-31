@@ -332,8 +332,9 @@ re-sorts that cell with `ClassifyTerrain` (`0x14009e2c0`) from the changed heigh
 it can come out as type 10 (too steep), outside the road mask `0xa17`, and nothing sorts it
 again. In one long drag the neighbouring cells are already queued, and finishing them
 overwrites the re-sorted type. Open: what the height grid `ResetTerrainHeights` writes really
-is, and whether the port's slope sample (`MapQuery_SampleNormal`, `Game/mapquery.cpp`) matches
-retail's `0x14009a810` at the 0.9 threshold.
+is. The port's slope sample did not match retail's (a fixed forward-difference triangle); since
+2026-10-30 `Map::GetTerrainPos` uses retail's ray cast (`WorldGeometry::HeightUnderPoint`,
+`Game/worldgeometry_ray.cpp`), whose hit-triangle normal is the value tested at 0.9.
 
 **The bridge: the far bank must not be road (Ghidra-confirmed).** Deleting a bridge undoes
 everything it wrote (body cells re-sorted back to water, the zone stamp cleared, no road and no
@@ -503,3 +504,58 @@ Fix: `fix.dialog_position_drift` (tier 1), default on, off under `/profile:faith
 it rides `UI::UserInterface::_extDialogPlace` at `kExtPlaceUpperLeft` (installed under every profile but
 faithful by ext.phone_menu's `Place`, the row on or off). Code `src/ext/dialog_position_drift/`.
 Hand-in `docs/extensions/handins/DIALOGPOSITIONDRIFT.md`.
+
+## 14. Ties in the job and house allocators follow memory addresses
+
+**Symptom.** None a player can point at in one game: the town is valid either way. Load the same save
+twice, or play the same seed twice, and which of two equally near idle citizens takes an open seat,
+which idle citizen Phase 5B strips first, and which of two equally good empty houses a family moves to
+can differ between the runs. From that tick on the two towns diverge. It is a determinism defect, not a
+rule defect.
+
+**Retail mechanism.**
+- `PathGraph::AssignCitizens` (`0x1400d43b0`) builds its scratch trees with raw pointers in the key: the
+  idle set (local_148) by `CitizenComponent*`, the profession-count map (local_158) by `Profession*`
+  (citizen +0x1f0), and each need's cost tree by (cost, `CitizenComponent*`). The best candidate is a
+  tree's leftmost node, and Phase 5B takes both maps' leftmost.
+- `PathGraph::ReassignWorkers` (`0x1400d62a0`) keys the empty-residence tree (local_b8) by
+  `ResidenceComponent*` and the occupied tree (local_98) by (cost descending, `ResidenceComponent*`); the
+  destination search takes the first empty house whose cost is strictly lower, so on a tie the lowest
+  address wins.
+- Every one of those objects is a heap allocation, so a tie goes to whichever the allocator placed lower.
+
+**Proof it is retail.** The orders are read off the disassembly: the cost tree's (cost, then the
+citizen pointer with an unsigned compare) at `0x1400d5b55..0x1400d5b97`, Phase 5B's two leftmost walks at
+`0x1400d5dc0..0x1400d5dfc` (the profession map down +0x18, the idle set down +0x10). The port's std::
+containers use the same order (`src/game/Component/citizen_assign_citizens.cpp`, `citizen_reassign_workers.cpp`). The need
+priority queue is not affected: it keys on the need record's place in one array (`need_queue.h`).
+
+**Lever.** Put a stable id in front of each pointer: a citizen's or residence's entity id
+(`ComponentEntity::_entityId`, unique at any moment and saved), a profession's index in
+`ProfessionList::professions`. The pointer then only orders two keys with one id.
+
+Fix: `fix.alloc_tiebreak` (tier 1), default on, off under `/profile:faithful`. Two seams, one read of the
+row per call: `PathGraph::AssignCitizens` and `PathGraph::ReassignWorkers`. Code `src/ext/alloc_tiebreak/`.
+Hand-in `docs/extensions/handins/ALLOCTIEBREAK.md`.
+
+## 15. The sprite capture utility crashes on its first save
+
+**Symptom.** None in a normal game: the utility is a hidden toolbar entry (`Toolbar capture` in
+`Game/Toolbar.rsc`, `_visible = false`, Action Utility, hot key Camera0) that opens
+`Template/UtilityCapture.rsc` (SpriteCaptureUI over `Dialog/Capture.rsc`). Opened and given a name,
+its Capture button starts the capture; one frame later the save faults reading address 0, and no
+file is written.
+
+**Retail mechanism.** The save goes through `External::SaveText`, whose `TextFileStream` (ctor
+`0x1800ba340`) installs the encoding vtable `0x1801559d0` (`LEA` at `0x1800ba431`). Its +0x18 and +0x20
+entries, `0x1800b9a80` (CreateReader) and `0x1800b9a70` (CreateWriter), are both `33 c0 c3`
+(`XOR EAX,EAX; RET`): the shipped runtime has no text writer. `SpriteCapture::Serialize` (`0x1800d9530`)
+builds its serializer through `[RAX+0x20]` (`0x1800d957f`), stores the null (`0x1800d9582`), and reads
+its vtable with no test (`MOV RCX,[RBP-0x30]` / `MOV RAX,[RCX]`, `0x1800d958d` / `0x1800d9591`).
+
+**Proof it is retail.** The bytes above, read with objdump from the GOG `Runtime-x64.dll`; the shipped DLL
+exports no `IO::TextWriter`, while the toolkit's `ToolKit/bin/x64/Runtime-x64-profile.dll` exports
+`??0TextWriter@IO@@QEAA@AEAVSerializer@1@H@Z`, so the tool only works in the toolkit build. The port
+faults at the same read (`UI::SpriteCapture::Serialize`, `src/engine/ui/spritecapture_class.cpp`); the
+reproduction is `BANISHED_TOOL_HARNESS=spritecapture` (`src/diag/tool_harness.cpp`). Retail itself was
+not launched. No fix or extension: the utility is a content-author tool.

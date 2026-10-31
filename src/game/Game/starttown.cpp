@@ -149,7 +149,6 @@ static constexpr int   CELL_TYPE   = 0x29;     // tile type byte
 static constexpr int   GAME_CELLS  = 0x80;     // Game+0x80 = {void* data, int count, int cap}
 static constexpr int   TILE_BUILDABLE = 2;
 static constexpr float kCenterBias = 0.5f;     // DAT_140172114
-static constexpr float kDeg2Rad    = 3.14159265358979323846f / 180.0f;
 
 // Force-work harness (env BANISHED_FORCE_WORK): the first spawned start-town
 // structure (a StorageBarn = a real workplace building entity) is captured here so
@@ -384,9 +383,13 @@ static bool StartTown_FindSpawnTile(const Map* game, int size, int* outX, int* o
     const int kMaxRings = 4096;                // defensive cap (original loops forever)
     for (int ring = 0; ring < kMaxRings; ++ring) {
         for (int i = 0; i < points; ++i) {
-            const float ang = (float)i * (fullCircle / (float)points) * kDeg2Rad;
-            const int tx = (int)(cosf(ang) * radius) + half;   // local_res8 (cos) * r + dim/2
-            const int ty = (int)(sinf(ang) * radius) + half;   // local_res10 (sin) * r + dim/2
+            // Math::Scalar::SinCos takes degrees and applies pi/180 itself (0x180078790).
+            const Math::Scalar ang((float)i * (fullCircle / (float)points));
+            Math::Scalar sinA;
+            Math::Scalar cosA;
+            ang.SinCos(sinA, cosA);
+            const int tx = (int)(cosA.v * radius) + half;   // local_res8 (cos) * r + dim/2
+            const int ty = (int)(sinA.v * radius) + half;   // local_res10 (sin) * r + dim/2
             if (StartTown_DiskBuildable(game, tx, ty, size, sizeSq)) {
                 *outX = tx; *outY = ty;
                 return true;
@@ -2558,6 +2561,23 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                             // the axes itself; Occupy needs the POST-rotation extents.
                             void* tent = placeStructure(ttmpl, bestX, bestY, bestRot, tw, th,
                                                         /*isDemoFoundation=*/false, -1);
+                            // Ground the post at z = 0, the flattened level the player's
+                            // PlacementTool::GetPlacement (0x1400fda00) gives every placed
+                            // building. placeStructure is retail's FOUNDING placer
+                            // (0x1400a1fc0), which averages the pre-flatten corner heights
+                            // (docs/retail_bugs.md section 4, fix.start_barn_height) -- and
+                            // retail never founds a trading post. On a bank that average
+                            // floated this post 0.31 up, so its "boat" dock sat out of the
+                            // merchant's reach: the boat's z is fixed at 0 and it docks only
+                            // within 0.2 of the dock in 3D (0x140044ff0, 0x1401720fc).
+                            if (tent) {
+                                ModelComponent* tmc =
+                                    static_cast<ComponentEntity*>(tent)->FindComponent<ModelComponent>();
+                                if (tmc) {
+                                    tmc->transform.translation.z = 0.0f;
+                                    tmc->meshInstance.SetTransform(tmc->transform);
+                                }
+                            }
                             Occupy(bestX, bestY, bestFpW, bestFpH);
                             if (tent) ++spawned;
                             if (bestPath >= 0)

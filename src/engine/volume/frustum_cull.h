@@ -75,11 +75,11 @@ void FrustumCull_Prepare(const Frustum* f, FrustumCullPlanes* out);
 //     compare); MULPS / ADDPS / SUBPS round each lane exactly as MULSS / ADDSS
 //     / SUBSS under the same MXCSR; no FMA (the tree is built without -mfma, so
 //     neither body is contracted; the unit test would catch a contracted one);
-//   * the decisions: CMPLEPS / CMPLTPS are the ordered `<=` / `<` (false on
-//     NaN), which is what `dN <= 0.0f` / `dP < 0.0f` compile to;
+//   * the decisions: CMPNGTPS is `!(dN > 0.0f)` (true on NaN, retail's JBE) and
+//     CMPLTPS the ordered `dP < 0.0f` (false on NaN);
 //   * the early-out: the reference returns the constant 0x40 at the first
 //     tested plane that is outside, so WHICH plane is first cannot be seen;
-//     otherwise it clears exactly the tested bits whose dN is not <= 0 and
+//     otherwise it clears exactly the tested bits whose dN is > 0 and
 //     leaves every other bit of `mask` (bit 6 and up included) alone. So
 //     result = (outside & mask & 0x3F) ? 0x40 : mask & ~(notLe & 0x3F).
 //   The dot products the reference skips have no observable effect but the
@@ -118,7 +118,7 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
                                                 _mm_mul_ps(Z, nz)), W);
         const __m128 dP = _mm_sub_ps(_mm_add_ps(_mm_add_ps(_mm_mul_ps(Y, py), _mm_mul_ps(X, px)),
                                                 _mm_mul_ps(Z, pz)), W);
-        const __m128 isLe = _mm_cmple_ps(dN, zero);   // dN <= 0.0f (false on NaN)
+        const __m128 isLe = _mm_cmpngt_ps(dN, zero);  // !(dN > 0.0f) (true on NaN)
         const __m128 isLt = _mm_cmplt_ps(dP, zero);   // dP <  0.0f (false on NaN)
         le  |= static_cast<unsigned int>(_mm_movemask_ps(isLe)) << o;
         out |= static_cast<unsigned int>(_mm_movemask_ps(_mm_and_ps(isLe, isLt))) << o;
@@ -181,7 +181,7 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
         const float nz = sz ? box->max.z : box->min.z, pz = sz ? box->min.z : box->max.z;
         const float dn = ((p->y[i] * ny + p->x[i] * nx) + p->z[i] * nz) - p->w[i];
         const float dp = ((p->y[i] * py + p->x[i] * px) + p->z[i] * pz) - p->w[i];
-        if (dn <= 0.0f) {
+        if (!(dn > 0.0f)) {   // retail JBE: taken on unordered (row 1327)
             le |= 1u << i;
             if (dp < 0.0f) out |= 1u << i;
         }

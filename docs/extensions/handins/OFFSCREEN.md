@@ -35,7 +35,7 @@ camera-independent and invisible, since only the last iteration is ever drawn). 
 | **T1 heading** `fVar14` smoothing toward `+0x3C` -> `model->yaw` | exponential turn | `yaw` is serialized (`modelcomponent.cpp:156`); no gameplay read found |
 | **T2 step** `RootAnimationOffset()` x `+0x38` along `+0x2C` | the walk is ROOT-MOTION driven: speed = the walk clip's per-tick root offset x the terrain speed MoveTo stored | yes: the position |
 | **T3 terrain** blocked cell (type 0x0b) + `GetTerrainPos` z, last iteration only | | z: serialized; gameplay reads are 2-D (cells, `Vector2` distances) |
-| **T4 trig** `CharacterComponent_SinCosf` -> rotation | | serialized (`transform.Serialize`); presentation otherwise |
+| **T4 trig** `sinf` / `cosf` (`MsvcLibm::Sinf/Cosf`) -> rotation | | serialized (`transform.Serialize`); presentation otherwise |
 | **T5 pushes** `Geometry::SetTransform`, `Picking::Scene::SetTransform` | | no (render_culling already skips them off-screen) |
 | **T6 grid** `CharacterGrid::Place` (`charmanager.cpp:158`, memoised for an unchanged rect) | | **yes**: `QueryNearestCharacter` (MoveTo::Enter's follow flag, hunts), `FindBestTarget` |
 | **M model** `MeshInstance::Update` (root-only on intermediates; full pose on the last unless render_culling) | clock + pose | the citizen's own clock is read only through T2; the three `IsAnimating` sim reads are on resource / tornado models (PERFXEXT §1) |

@@ -10,7 +10,7 @@
 //                roster before the head (or seed a singleton ring), then read the
 //                workplace descriptor (self +0x238 IBP / +0x240 slot) and AssignWorkplace.
 //   0x1400302a0  CitizenComp_SortByProfession_02a0 — sort an entity-handle array by
-//                profession priority (see note on the introsort below).
+//                profession priority (see note on the sort below).
 //   0x140117080  CitizenComp_DeferredInit_117080  — per-citizen deferred init:
 //                name/age/gender/appearance-variant/lifespan/housing/employment.
 //
@@ -18,24 +18,23 @@
 // four addresses in citizencomponent.cpp (s_fn_sub_2040 / s_fn_helper_68a0 /
 // s_fn_helper_02a0 / s_fn_FUN_140117080), so registering wires them live.
 //
-// The 0x1400302a0 sort is MSVC's inlined std::sort over 8-byte entity handles:
-// median-of-3 introsort with an explicit range stack, comparator 0x140110330 and an
-// insertion-sort fallback 0x140030b90 for ranges <= 8. Both comparator and fallback
-// reduce a handle to a profession priority (resolve the entity's WorkComponent, read
-// its profession key at comp+0x28, look that key up in the world priority RB-tree at
-// GameWorld+0x118 and read priority at record+0x24). Both the introsort and the
-// fallback are unstable, so a std::sort over the same strict-weak priority ordering
-// reproduces the result exactly — only equal-priority tie order may differ, which no
-// caller observes (same rationale/precedent as Pickup_SortByDistance in pickup.cpp).
-// 0x140110330 / 0x140030b90 are therefore reimplemented (their shared priority
-// predicate is ProfessionPriorityOf below), not registered.
+// The 0x1400302a0 sort is the shipped MSVC sort skeleton (rtsort::Introsort,
+// collection/introsort_msvc.h) over 8-byte entity handles, comparator 0x140110330
+// (`prio(a) < prio(b)`) and, for ranges of 8 or fewer, the max-to-high selection sort
+// 0x140030b90 (Ghidra's "InsertionSortByProfession" is a misnomer). Comparator and
+// fallback both reduce a handle to a profession priority (resolve the entity's
+// WorkComponent, read its profession key at comp+0x28, look that key up in the world
+// priority RB-tree at GameWorld+0x118 and read priority at record+0x24). The sort is
+// unstable and workplaces of equal priority are common, so the swap sequence decides
+// their order: it is retail's (rtsort::SelectionSortMaxToHigh for the fallback), not
+// std::sort's. The shared priority predicate is ProfessionPriorityOf below.
 
 #include <new>
 #include "Game/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/exe_constants.h"   // kRdata_* (B3R Leftovers: the .rdata constants)
 #include "system/String.h"
-#include <algorithm>
+#include "collection/introsort_msvc.h"   // rtsort::Introsort (0x1400302a0) / SelectionSortMaxToHigh (0x140030b90)
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -138,29 +137,28 @@ void CitizenComponent::AddChild(CitizenComponent* child) {
 // fallback 0x140030b90). Resolve the entity's WorkComponent, read its profession key
 // (comp+0x28), then look that key up in the world priority RB-tree (GameWorld+0x118).
 // ============================================================
+// As retail (0x140110330): the WorkComponent, the world, the scheduler (+0x118) and the
+// found Work are used with no test; every workplace candidate carries a WorkComponent
+// whose id the scheduler registered (citizenai_work_scheduler.cpp).
 static int ProfessionKeyOfEntity(ComponentEntity* handle) {
     WorkComponent* comp = handle->FindComponent<WorkComponent>();   // 0x140003050
-    return comp ? comp->workId : 0;
+    return comp->workId;
 }
 
 // GameWorld+0x118 is the work scheduler; its trees[0] (+0x30) is keyed on the work id
 // (WorkSchedulerIdNode: key at +0, left +0x18, right +0x20, the Work at +0x8), the
 // priority at Work +0x24.
 static int LookupProfessionPriority(int key) {
-    if (GameUpdateLoop::_singleton == nullptr) return 0;
-    GameUpdateLoop* world = GameUpdateLoop::_singleton;
-    WorkScheduler* tree = world->m_tutorial;
-    if (!tree) return 0;
+    WorkScheduler* tree = GameUpdateLoop::_singleton->m_tutorial;
     WorkSchedulerIdNode* node = tree->trees[0].root;   // root
     while (node) {
         if (key < node->key)      node = node->left;    // left  (node+0x18)
         else if (key > node->key) node = node->right;   // right (node+0x20)
-        else {
-            Work* value = node->work.Get();              // node+0x8
-            return value ? value->field_24 : 0;
-        }
+        else break;
     }
-    return 0;   // absent: retail builds an empty IBP and derefs; guarded to 0 here
+    // An absent key leaves a null IBP (0x140110420), and retail reads its +0x24 anyway.
+    Work* value = node ? node->work.Get() : nullptr;   // node+0x8
+    return value->field_24;
 }
 
 static inline int ProfessionPriorityOf(ComponentEntity* handle) {
@@ -172,9 +170,18 @@ static inline int ProfessionPriorityOf(ComponentEntity* handle) {
 // ============================================================
 void CitizenComp_SortByProfession_02a0(ComponentEntity** array, int n, void* /*tmpV*/) {
     if (!array || n < 2) return;
-    std::sort(array, array + n, [](ComponentEntity* a, ComponentEntity* b) {
+    auto less = [](ComponentEntity* a, ComponentEntity* b) {   // 0x140110330
         return ProfessionPriorityOf(a) < ProfessionPriorityOf(b);
-    });
+    };
+    auto swp = [](ComponentEntity** a, ComponentEntity** b) {
+        ComponentEntity* const t = *a;
+        *a = *b;
+        *b = t;
+    };
+    rtsort::Introsort(array, n, less, swp,
+                      [&](ComponentEntity** lo, ComponentEntity** hi) {   // 0x140030b90
+                          rtsort::SelectionSortMaxToHigh(lo, hi, less, swp);
+                      });
 }
 
 // ============================================================

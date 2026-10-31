@@ -38,7 +38,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 10);
+    CHECK(kEmbeddedCount == 11);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -49,6 +49,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/TouchControls.rsc") != nullptr);
     CHECK(Embedded("Dialog/TouchPointer.rsc") != nullptr);
     CHECK(Embedded("Dialog/PhoneScroll.rsc") != nullptr);
+    CHECK(Embedded("Dialog/TownScreenshotPage.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -178,7 +179,7 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(ParseEmbedded("Dialog/ExtensionsStringTable.rsc", s));
     CHECK(s.objects.size() == 1 && s.objects[0].type == "StringTable" && s.objects[0].name == "resource");
     const Field* strings = s.objects[0].body.Find("_strings");
-    CHECK(strings && strings->blocks.size() == 70);   // 70: terrain_edit Redo (NextStartSuffix removed, P9)
+    CHECK(strings && strings->blocks.size() == 89);   // 70: terrain_edit Redo (NextStartSuffix removed, P9), + 17 for the Town Screenshot page, + 2 for the Never button and its tip
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -312,6 +313,25 @@ UNIT_TEST(ext_rsc_text_element_flags) {
     CHECK(row && row->body.Find("_minWidth") == nullptr);
     const Object* label = p.Find("labelItemPriorityRow");
     CHECK(label && label->body.Find("_minWidth") == nullptr);
+}
+
+UNIT_TEST(ext_rsc_text_parse_town_screenshot_page) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/TownScreenshotPage.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // a page, not a dialog: the root object is pageTownScreenshot
+    const Object* page = f.Find("pageTownScreenshot");
+    CHECK(page && page->type == "RibbonDescription");
+    CHECK(f.Find("comboTownScreenshotQuality") && f.Find("comboTownScreenshotAngle") && f.Find("comboTownScreenshotTurn"));
+    CHECK(f.Find("buttonTownScreenshotTake") && f.Find("buttonTownScreenshotCancel") && f.Find("textTownScreenshotStatus"));
+    const Object* weather = f.Find("checkTownScreenshotWeather");
+    CHECK(weather && weather->type == "CheckDescription");
+    const Object* snow = f.Find("checkTownScreenshotSnow");
+    CHECK(snow && snow->type == "CheckDescription");
+    const Object* take = f.Find("buttonTownScreenshotTake");
+    CHECK(take && take->type == "ButtonDescription");
+    const Object* view = f.Find("buttonTownScreenshotView");
+    CHECK(view && view->type == "ButtonDescription" && f.Find("imageTownScreenshotView"));
+    CheckKnownTypes(f, "TownScreenshotPage.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_terrain_edit_page) {

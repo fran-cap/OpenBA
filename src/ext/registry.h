@@ -67,6 +67,7 @@ struct Fixes {
     bool boot_device_lost  = true;   // docs/retail_bugs.md §10 (engine seam Engine::MainLoop::_extFixBootDeviceLost, backend seam BootDeviceLostBackend::SetFixFlag)
     bool slider_drag_clamp = true;   // docs/retail_bugs.md §12 (engine seam UI::SliderElement::_extFixDragClamp; docs/extensions/handins/SLIDERCLAMP.md): UI only
     bool dialog_position_drift = true;   // docs/retail_bugs.md §13, src/ext/dialog_position_drift/ (docs/extensions/handins/DIALOGPOSITIONDRIFT.md): UI only, at the _extDialogPlace seam's kExtPlaceUpperLeft
+    bool alloc_tiebreak    = true;   // docs/retail_bugs.md §14, src/ext/alloc_tiebreak/ (docs/extensions/handins/ALLOCTIEBREAK.md): sim-visible, ties in the job / house allocators
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
@@ -76,6 +77,7 @@ struct Fixes {
 struct Extensions {
     bool eye_camera = false;   // class A: src/ext/eye_camera/ (docs/extensions/handins/EYECAM.md)
     bool no_fog = false;       // class A: src/ext/no_fog/ (docs/extensions/handins/NOFOG.md)
+    bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
     bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 + steady tilt
     bool high_limits = false;   // class B: src/ext/high_limits/ (docs/extensions/handins/HIGHLIMITS.md)
     bool sharp_ui   = false;   // class A: src/ext/sharp_ui/ (docs/extensions/handins/SHARPUI.md)
@@ -102,6 +104,8 @@ struct Extensions {
     // class B: src/ext/terrain_edit/ (docs/extensions/handins/TERRAINEDIT.md); a brush tool that edits the
     // terrain under the mouse
     bool terrain_edit = false;
+    // class B: src/ext/town_screenshot/ (docs/extensions/handins/TOWNSCREENSHOT.md); a picture of the whole map from an isometric view
+    bool town_screenshot = false;
     bool spread_warmth = false; // class B: src/ext/spread_warmth/ (docs/extensions/handins/HITCH_PFBURST.md)
     bool async_save_compress = false; // class A: src/ext/async_save_compress/, seam IO::CompressedStream::_extAsyncCompress (docs/extensions/handins/HITCH_SAVE.md)
     bool drain_split = false; // class B: src/ext/drain_split/ (docs/extensions/handins/HITCH_DRAINSPLIT.md)

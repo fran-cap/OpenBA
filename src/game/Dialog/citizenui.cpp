@@ -57,6 +57,10 @@
 #include "Player/EditTool.h"   // X::TypeId() (B.3.8 callers)
 #include "Work/Work.h"         // B.3.x W0: Work::GetTarget by name
 #include "Dialog/exe_bodies.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C)
+#include "ext/tool_names/tool_names.h"
+#include "ext/registry.h"
+#include "Component/RawMaterialDescription.h"   // the tool item: _stringTable, _name
 #include "Game/exe_constants.h"   // B3R: kRdata_140172198
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
 #include "Component/AttendanceComponent.h"   // B4 DLG-a: CitizenComponent::school
@@ -200,7 +204,6 @@ static CitizenComponent* CitizenUI_FindCitizen(Object::Base* dataSource) {
 
 // [4] 0x1400651a0
 void CitizenUI::OnCreated() {
-    if (!SA_DialogEntityAlive(this)) return;
     UI::DialogInstance* dialogInst = _dialog;
     UI::Element* parentElem = _container;
 
@@ -247,8 +250,7 @@ void CitizenUI::OnCreated() {
 
 // [6] 0x140065130
 void CitizenUI::OnClosed() {
-    if (!SA_DialogEntityAlive(this)) return;
-
+    // No entity test: the body never reads +0x28 (0x140065136 tests only +0xE0).
     if (followDialog.Get() != nullptr) {
         // The UserInterface of the owning DialogInstance
         UI::UserInterface* userInterface = _dialog->_ui;
@@ -365,6 +367,18 @@ void CitizenUI::OnUpdateLayout() {
     if (textTool) {
         UI::String text = textTool->_text;
         text.index = toolValue;
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C) names the
+        // tool the citizen carries from the item's own string table; retail's word (above) when no note
+        // matches.
+        if (toolValue != 0 && ::Ext::Ext().tool_names) {
+            const RawMaterialDescription* item = ::Ext::ToolNames::ToolFor(ai, ai->field_0xA8);
+            if (item != nullptr && item->_stringTable != nullptr) {
+                UI::String named(Object::ExternalPtr<UI::StringTable>(item->_stringTable), item->_name);
+                if (named.IsValid()) {
+                    text = named;
+                }
+            }
+        }
         textTool->SetText(&text);
     }
 

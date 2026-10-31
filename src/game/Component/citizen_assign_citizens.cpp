@@ -17,10 +17,14 @@
 //   The retail function is a ~1351-line inlined-STL allocator building four
 //   red-black/AVL scratch containers. Nothing outside the function reads their
 //   memory layout, so this port represents them as clean std:: containers with the
-//   same comparators (behavior-faithful; pointer tie-breaks are non-observable and
-//   differ from retail's heap addresses anyway). Every interaction with real game
-//   state (citizen/townMgr/reg/workplace fields) and every leaf helper is called
-//   wholesale and byte-faithful.
+//   same comparators and the same end taken. The idle set, the profession-count map
+//   and the cost trees' ties key on raw pointers (CitizenComponent*, Profession*), so
+//   their order follows heap addresses, in retail as here; fix.alloc_tiebreak puts a
+//   stable id in front of each pointer (Ext::AllocTiebreak::TieKey, 0 with the row off,
+//   docs/retail_bugs.md §14). The priority queue does not: it keys on the need RECORD's address, and the records sit in one array in
+//   Phase 2 order, so its tie-break is the need index (Component/need_queue.h).
+//   Every interaction with real game state (citizen/townMgr/reg/workplace fields)
+//   and every leaf helper is called wholesale and byte-faithful.
 //
 //   Phase 1  Housing-sync: for each idle+healthy citizen already assigned to a
 //            workplace (+0x248) whose required profession (workplaceComp+0x48) no
@@ -58,7 +62,8 @@
 //            sub_6060) to every NeedEntry's cost-tree.
 //   Phase 4  Priority: score each NeedEntry = (int)(minCost * (uvScale - filled)),
 //            filled = (rosterCount-remaining)/rosterCount; insert into a max-
-//            priority queue.
+//            priority queue, an AVL set keyed (score, need record): highest score
+//            first, the lower need index first on a tie.
 //   Phase 5A Assign loop: while the queue is non-empty, pop the highest-score need,
 //            take its nearest available candidate (min cost), assign the citizen —
 //            AssignHousing(citizen, workplaceEntity) + set +0x1f0 = reqProf — then
@@ -127,6 +132,10 @@
 #include "Component/WorkPlaceComponent.h"
 #include "Component/InteractComponent.h"   // HomeNodeCell: NodePosition (0x140122e20)
 #include "Action/PathAvl.h"                  // PathCostTreeInsert (0x140025a10)
+#include "Component/need_queue.h"             // NeedQueue: the Phase 4 priority queue
+#include "ext/registry.h"                     // Ext::Fix().alloc_tiebreak
+#include "ext/alloc_tiebreak/alloc_tiebreak.h"   // EntityKey, ProfessionOrder
+#include "ext/alloc_tiebreak/tie_key.h"       // TieKey: the scratch trees' keys
 
 namespace {
 
@@ -252,17 +261,24 @@ WorkplaceList LookupWorkplaces(ProfessionBucket* mapRoot, Profession* key) {
 }
 
 // ---- scratch containers ----------------------------------------------------
+using IdleKey = Ext::AllocTiebreak::TieKey<CitizenComponent>;
+using ProfKey = Ext::AllocTiebreak::TieKey<Profession>;
+
 struct Candidate {
     int32_t cost;
+    int32_t tie;   // the citizen's TieKey id: 0 unless fix.alloc_tiebreak
     CitizenComponent* citizen;
     int32_t fromCell;
     int32_t toCell;
     // Ordered by (cost, citizen) — matches the retail cost-tree comparator; the
     // nearest laborer is begin() (min cost), the priority score reads begin()->cost.
+    // `tie` sits between the two and is 0 for every candidate with the row off.
     bool operator<(const Candidate& o) const {
         if (cost != o.cost) return cost < o.cost;
+        if (tie != o.tie) return tie < o.tie;
         return citizen < o.citizen;
     }
+    IdleKey Key() const { return IdleKey{ tie, citizen }; }
 };
 
 struct NeedEntry {
@@ -288,12 +304,14 @@ struct NeedEntry {
     bool empty() const { return head >= candidates.size(); }
     const Candidate& best() const { return candidates[head]; }
     // Step head past every candidate whose citizen has left the idle set.
-    void Advance(const std::set<CitizenComponent*>& idle) {
-        while (head < candidates.size() && idle.count(candidates[head].citizen) == 0) ++head;
+    void Advance(const std::set<IdleKey>& idle) {
+        while (head < candidates.size() && idle.count(candidates[head].Key()) == 0) ++head;
     }
 
+    // Read with no test, as retail (0x1400d5530, 0x1400d5d36): the tree is never empty
+    // while the need has seats (the invariant above AssignCitizens), and Phase 2 keeps
+    // only rosterCount != 0.
     int score(float uvScale) const {
-        if (empty() || rosterCount <= 0) return 0;
         int minCost = best().cost;
         float filled = static_cast<float>(rosterCount - remaining) / static_cast<float>(rosterCount);
         return static_cast<int>(static_cast<float>(minCost) * (uvScale - filled));
@@ -323,16 +341,15 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
         sh[n].rosterCount = needs[n].rosterCount;
         sh[n].candidates.insert(needs[n].candidates.begin(), needs[n].candidates.end());
     }
-    std::multimap<int, size_t> pq;
+    NeedQueue::Queue pq;
     for (size_t n = 0; n < sh.size(); ++n) {
         if (sh[n].candidates.empty() || sh[n].remaining <= 0) continue;
-        pq.emplace(sh[n].score(uvScale), n);
+        pq.insert(NeedQueue::Key{ sh[n].score(uvScale), n });
     }
     std::vector<std::pair<size_t, CitizenComponent*>> seq;
     while (!pq.empty()) {
-        auto top = std::prev(pq.end());
-        size_t ni = top->second;
-        pq.erase(top);
+        size_t ni = pq.begin()->need;
+        pq.erase(pq.begin());
         ShadowNeed& e = sh[ni];
         if (e.candidates.empty() || e.remaining <= 0) continue;
         CitizenComponent* citizen = e.candidates.begin()->citizen;
@@ -341,6 +358,7 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
         for (size_t f = 0; f < sh.size(); ++f) {
             ShadowNeed& nf = sh[f];
             if (nf.remaining <= 0) continue;
+            const int oldScore = nf.score(uvScale);
             bool wasBest = false;
             for (auto it = nf.candidates.begin(); it != nf.candidates.end(); ++it) {
                 if (it->citizen == citizen) {
@@ -350,11 +368,9 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
                 }
             }
             if (wasBest) {
-                for (auto it = pq.begin(); it != pq.end();) {
-                    if (it->second == f) it = pq.erase(it); else ++it;
-                }
+                pq.erase(NeedQueue::Key{ oldScore, f });
                 if (!nf.candidates.empty() && nf.remaining > 0)
-                    pq.emplace(nf.score(uvScale), f);
+                    pq.insert(NeedQueue::Key{ nf.score(uvScale), f });
             }
         }
     }
@@ -429,6 +445,13 @@ int PathGraph::RegionPairCost(Map* map, int fromCell, int toCell) {
 // ===========================================================================
 // CitizenComponent_impl_43b0 (0x1400d43b0)
 // ===========================================================================
+// Retail reads a need's best candidate with no empty test: in the Phase 4 scoring
+// (0x1400d5530), at the pop, and in the re-score after a removal (0x1400d5d36, where
+// an emptied tree would be read at null+0x10). That is safe by construction, and the
+// port relies on the same invariant: every seat counted in a roster (+0x60) is held by
+// a distinct adult citizen with no school, i.e. one Phase 3 puts in `idle` and in every
+// need's tree, so the seats still open never outnumber the idle citizens. Each
+// assignment takes one of each, so every need with seats left has a live candidate.
 void PathGraph::AssignCitizens() {
     // 0x1400d43df-0x1400d4403: the world, the town (+0xf0), the map (+0xf8) and the
     // registry (+0xb0) are read with no test (B8 RES, row 310).
@@ -482,15 +505,23 @@ void PathGraph::AssignCitizens() {
     }
 
     // ---------- Phase 3: idle set + profession counts + candidates ----------
-    std::set<CitizenComponent*> idle;
-    std::map<Profession*, int> profNeed;    // profession key -> idle-laborer count
+    // FIX alloc_tiebreak (NOT RETAIL, docs/extensions/handins/ALLOCTIEBREAK.md): the idle set,
+    // the profession-count map and the cost trees order equal keys by entity id / profession
+    // index instead of by address. Off: every id is 0 and the order is the pointer's.
+    const bool stableTies = Ext::Fix().alloc_tiebreak;
+    const Ext::AllocTiebreak::ProfessionOrder profOrder(reg);
+    auto profKey = [&](Profession* p) { return ProfKey{ stableTies ? profOrder.Rank(p) : 0, p }; };
+
+    std::set<IdleKey> idle;
+    std::map<ProfKey, int> profNeed;    // profession key -> idle-laborer count
     for (int i = 0; i < citCount; ++i) {
         CitizenComponent* c = CitizenAt(citArray, i);
         if (!IsIdleHealthy(c)) continue;
 
-        idle.insert(c);
+        const int32_t tie = stableTies ? Ext::AllocTiebreak::EntityKey(c) : 0;
+        idle.insert(IdleKey{ tie, c });
         Profession* prof = c->profession;   // +0x1f0
-        ++profNeed[prof];
+        ++profNeed[profKey(prof)];
 
         NormalizeMismatched(c, reg);    // embedded normalization (mirrors LAB_1400d4e57)
 
@@ -508,7 +539,7 @@ void PathGraph::AssignCitizens() {
                     if (ExactCellCost(pathData, srcCell, e.cellId) != cost) ++g_pathGraphCost.differ;
                 }
             }
-            e.candidates.push_back(Candidate{ cost, c, srcCell, e.cellId });
+            e.candidates.push_back(Candidate{ cost, tie, c, srcCell, e.cellId });
         }
     }
     // The (cost, citizen) order is strict (one candidate per citizen per need), so the
@@ -516,11 +547,10 @@ void PathGraph::AssignCitizens() {
     for (auto& e : needs) std::sort(e.candidates.begin(), e.candidates.end());
 
     // ---------- Phase 4: max-priority queue ----------
-    // multimap<score, needIndex>; the greatest key is the highest priority.
-    std::multimap<int, size_t> pq;
+    // (score desc, need index asc); begin() is retail's pop (Component/need_queue.h).
+    NeedQueue::Queue pq;
     for (size_t n = 0; n < needs.size(); ++n) {
-        if (needs[n].empty() || needs[n].remaining <= 0) continue;
-        pq.emplace(needs[n].score(uvScale), n);
+        pq.insert(NeedQueue::Key{ needs[n].score(uvScale), n });
     }
     std::vector<std::pair<size_t, CitizenComponent*>> shadowSeq, realSeq;
     if (g_verifyOn) shadowSeq = ShadowAssignSequence(needs, uvScale);
@@ -529,13 +559,12 @@ void PathGraph::AssignCitizens() {
 
     // ---------- Phase 5A: assign loop ----------
     while (!pq.empty()) {
-        auto top = std::prev(pq.end());        // greatest score
-        size_t ni = top->second;
-        pq.erase(top);
+        size_t ni = pq.begin()->need;          // highest score, lowest index on a tie
+        pq.erase(pq.begin());
         NeedEntry& e = needs[ni];
-        if (e.empty() || e.remaining <= 0) continue;
 
         CitizenComponent* citizen = e.best().citizen;   // nearest available laborer
+        const IdleKey citizenKey = e.best().Key();
         if (g_verifyOn) realSeq.emplace_back(ni, citizen);
         WorkPlaceComponent* wp = e.workplaceComp;
         Profession*      reqProf  = wp->profession;   // +0x48
@@ -551,9 +580,9 @@ void PathGraph::AssignCitizens() {
         // decrement this citizen's profession need
         // Retail decrements the count under the workplace's required profession
         // (= the citizen's post-assignment +0x1f0), which is what we look up here.
-        auto pit = profNeed.find(c->profession);
+        auto pit = profNeed.find(profKey(c->profession));
         if (pit != profNeed.end() && --pit->second == 0) profNeed.erase(pit);
-        idle.erase(citizen);
+        idle.erase(citizenKey);
         e.remaining -= 1;
         ++assignedTotal;
 
@@ -568,16 +597,14 @@ void PathGraph::AssignCitizens() {
         // when the citizen was its head (Advance moves head to the next live one).
         for (size_t f = 0; f < needs.size(); ++f) {
             NeedEntry& nf = needs[f];
-            if (nf.remaining <= 0) continue;
-            const bool wasBest = !nf.empty() && nf.best().citizen == citizen;
+            if (nf.remaining == 0) continue;   // retail: remaining != 0 (0x1400d5b05)
+            const bool wasBest = nf.best().citizen == citizen;
             if (wasBest) {
+                // Erase the key nf is queued under, scored from the best it was queued
+                // with (0x1400d5c50), then re-insert with the new best's score.
+                pq.erase(NeedQueue::Key{ nf.score(uvScale), f });
                 nf.Advance(idle);
-                // erase nf's stale queue entries and re-insert with the new score
-                for (auto it = pq.begin(); it != pq.end();) {
-                    if (it->second == f) it = pq.erase(it); else ++it;
-                }
-                if (!nf.empty() && nf.remaining > 0)
-                    pq.emplace(nf.score(uvScale), f);
+                pq.insert(NeedQueue::Key{ nf.score(uvScale), f });
             }
         }
     }
@@ -591,8 +618,11 @@ void PathGraph::AssignCitizens() {
 
     // ---------- Phase 5B: cleanup — clear workplace of leftover idle laborers ----------
     while (!profNeed.empty() && !idle.empty()) {
-        Profession*       key = profNeed.rbegin()->first;   // greatest profession key
-        CitizenComponent* c   = *idle.begin();              // smallest idle citizen ptr
+        // Both are the leftmost node of their tree: the walks before 0x1400d5e05 follow the
+        // profession map down +0x18 (the `key < node` side) and the idle set down +0x10.
+        const ProfKey     keyT = profNeed.begin()->first;   // smallest profession key
+        Profession*       key  = keyT.ptr;
+        CitizenComponent* c    = idle.begin()->ptr;          // smallest idle citizen key
 
         if (c->profession != key ||
             c->workplace != nullptr) {
@@ -613,7 +643,7 @@ void PathGraph::AssignCitizens() {
             c->profession = key;
         }
         idle.erase(idle.begin());
-        auto pit = profNeed.find(key);
+        auto pit = profNeed.find(keyT);
         if (pit != profNeed.end() && --pit->second == 0) profNeed.erase(pit);
     }
 

@@ -84,7 +84,7 @@ UNIT_TEST(ext_item_priority_registry_row) {
     CHECK(e->tier == Ext::Tier::Extension);
     CHECK(e->cls == Ext::Class::C);                    // the lists are the town's state: recorded in the save
     CHECK(!e->defaultOn);
-    CHECK(e->formatVersion == 1);
+    CHECK(e->formatVersion == 2);                      // v2 added the Never list; v1 payloads still load
     CHECK(Ext::SettingsKey(*e) == "ext.item_priority");
     CHECK(std::string(kId) == e->id);
     CHECK(!ResolveText("").ext.item_priority);
@@ -343,14 +343,14 @@ UNIT_TEST(ext_item_priority_state_codec_refuses_every_damaged_payload) {
     extra.push_back(0);
     CHECK(refused(extra, 1));                                                         // bytes left over
     // a layout this build does not know
-    CHECK(refused(good, 2));
+    CHECK(refused(good, 3));   // v2 is the newest this build knows
     CHECK(refused(good, 0));
     CHECK(refused(std::vector<uint8_t>(), 1));                                        // no count at all
     // 5 categories: not this layout
     CHECK(refused(Payload(5, { PathList(), PathList(), PathList(), PathList(), PathList() }), 1));
     // kind 0: not a kind
     CHECK(refused(Payload(4, { { { 0, kSteel } }, PathList(), PathList(), PathList() }), 1));
-    // a kind this version lacks
+    // a kind this version lacks (kind 2, an item citizens never take, arrived in v2)
     CHECK(refused(Payload(4, { { { 2, kSteel } }, PathList(), PathList(), PathList() }), 1));
     // an empty path
     CHECK(refused(Payload(4, { { { 1, "" } }, PathList(), PathList(), PathList() }), 1));
@@ -411,7 +411,7 @@ UNIT_TEST(ext_item_priority_state_travels_in_the_tail) {
     for (const Ext::SaveTail::Record& r : recs) {
         if (r.id == "item_priority") {
             found = true;
-            CHECK(!r.payload.empty() && r.formatVersion == 1);
+            CHECK(!r.payload.empty() && r.formatVersion == 2);
         }
     }
     CHECK(found);
@@ -468,4 +468,139 @@ UNIT_TEST(ext_item_priority_the_reset_follows_the_lock_owner) {
     Ext::UnlockForGame(&newGame);
     CHECK(Current().Empty());
     InstallText("");
+}
+
+// ---- the Never list -------------------------------------------------------------------------------------
+
+UNIT_TEST(ext_item_priority_never_is_exclusive_with_a_rank) {
+    Lists l;
+    CHECK(Rank(l, kTool, kSteel));
+    CHECK(Rank(l, kTool, kIron));
+    CHECK(!IsNever(l, kTool, kSteel));
+    CHECK(SetNever(l, kTool, kSteel));                                   // a ranked item leaves the ranking
+    CHECK(IsNever(l, kTool, kSteel));
+    CHECK(IsNever(l, kTool, "TEMPLATE\\RAWMATERIALSTEELTOOL.RSC:RAWMATERIAL"));   // without case
+    CHECK_EQ(RankOf(l, kTool, kSteel), kUnranked);
+    CHECK_EQ(RankOf(l, kTool, kIron), 0);                                // the list closed up
+    CHECK(!SetNever(l, kTool, kSteel));                                  // already Never
+    CHECK(!SetNever(l, kTool, ""));
+    CHECK(!SetNever(l, 0, kSteel) && !SetNever(l, 5, kSteel));
+    CHECK(!IsNever(l, kFuel, kSteel));                                   // per category
+    CHECK(!l.Empty());
+    CHECK(Rank(l, kTool, kSteel));   // ranking it again takes it off Never
+    CHECK(!IsNever(l, kTool, kSteel));
+    CHECK_EQ(RankOf(l, kTool, kSteel), 1);
+    CHECK(SetNever(l, kTool, kSteel));
+    CHECK(ClearNever(l, kTool, kSteel));                                 // allowed again, but not ranked
+    CHECK(!ClearNever(l, kTool, kSteel));
+    CHECK_EQ(RankOf(l, kTool, kSteel), kUnranked);
+    CHECK(SetNever(l, kFuel, kCoal));
+    CHECK(Unrank(l, kTool, kIron));
+    CHECK(!l.Empty());                                                   // a Never list alone is state
+    CHECK(ClearNever(l, kFuel, kCoal));
+    CHECK(l.Empty());
+}
+
+UNIT_TEST(ext_item_priority_never_rows_are_never_eligible) {
+    ResetState();
+    int steel = 0, iron = 0, bronze = 0;
+    const std::vector<Candidate> game = { { &steel, kSteel }, { &iron, kIron }, { &bronze, kBronze } };
+    Lists l;
+    Rank(l, kTool, kIron);
+    SetNever(l, kTool, kSteel);
+    Apply(l);
+    Resolve(1, game);
+    SetRowActive(true);
+    CHECK(Active(kTool));
+    CHECK_EQ(RankOfMat(kTool, &steel), kNever);
+    CHECK_EQ(RankOfMat(kTool, &iron), 0);
+    CHECK_EQ(RankOfMat(kTool, &bronze), kUnranked);
+    CHECK(Eligible(kTool, &iron, 0));                                    // the best rank of the rows
+    CHECK(!Eligible(kTool, &bronze, 0));
+    CHECK(!Eligible(kTool, &steel, 0));
+    CHECK(Eligible(kTool, &bronze, kUnranked));                          // only unranked rows left: they win
+    CHECK(!Eligible(kTool, &steel, kUnranked));
+    // a storage holding only the Never item: no best rank (0x7fffffff), and the item still is not eligible
+    CHECK(!Eligible(kTool, &steel, 0x7fffffff));
+    CHECK(!Eligible(kTool, &iron, 0x7fffffff));
+    ResetState();
+}
+
+UNIT_TEST(ext_item_priority_a_never_list_alone_makes_the_category_active) {
+    ResetState();
+    int steel = 0, iron = 0;
+    const std::vector<Candidate> game = { { &steel, kSteel }, { &iron, kIron } };
+    Lists l;
+    SetNever(l, kTool, kSteel);
+    SetNever(l, kFuel, kCoal);                                           // a name the game does not have
+    Apply(l);
+    Resolve(1, game);
+    SetRowActive(true);
+    CHECK(g_on);
+    CHECK(Active(kTool));
+    CHECK(!Active(kFuel));                                               // resolved nothing: inert
+    CHECK(g_ranked[kTool - 1].empty() && g_never[kTool - 1].size() == 1);
+    CHECK_EQ(RankOfMat(kTool, &steel), kNever);
+    CHECK_EQ(RankOfMat(kTool, &iron), kUnranked);
+    // no ranks, so one search, and its ceiling lets the unranked items in but never the Never item
+    Searches s;
+    FindTiered(kTool, [&]() -> bool {
+        s.ceilings.push_back(Ceiling());
+        return false;
+    });
+    CHECK(s.ceilings.size() == 1 && s.ceilings[0] == kUnranked);
+    CHECK(kNever > kUnranked);
+    SetRowActive(false);
+    CHECK(!Active(kTool));
+    ResetState();
+    CHECK(g_never[kTool - 1].empty());
+}
+
+UNIT_TEST(ext_item_priority_state_codec_v2_carries_the_never_list) {
+    const Ext::SaveTail::StateCodec* c = TheCodec();
+    if (!c) {
+        CHECK(false);
+        return;
+    }
+    ResetState();
+    Lists l;
+    Rank(l, kTool, kIron);
+    SetNever(l, kTool, kSteel);
+    SetNever(l, kClothing, kCoat);
+    Apply(l);
+    std::vector<uint8_t> payload;
+    c->encode(payload);
+    c->reset();
+    CHECK(Current().Empty());
+    CHECK(c->decode(payload.data(), payload.size(), 2));
+    CHECK(Current().Of(kTool).size() == 1 && Current().Of(kTool)[0] == kIron);
+    CHECK(Current().NeverOf(kTool).size() == 1 && Current().NeverOf(kTool)[0] == kSteel);
+    CHECK(Current().NeverOf(kClothing).size() == 1 && Current().NeverOf(kClothing)[0] == kCoat);
+    CHECK(Current().NeverOf(kFuel).empty());
+    std::vector<uint8_t> again;
+    c->encode(again);
+    CHECK(again == payload);
+    // a v1 record has no Never kind: the same bytes under version 1 are refused, a ranked-only record loads
+    c->reset();
+    CHECK(!c->decode(payload.data(), payload.size(), 1));
+    CHECK(Current().Empty());
+    const std::vector<uint8_t> v1 = Payload(4, { PathList(), { { 1, kIron } }, PathList(), PathList() });
+    CHECK(c->decode(v1.data(), v1.size(), 1));
+    CHECK(c->decode(v1.data(), v1.size(), 2));
+    CHECK(Current().Of(kTool).size() == 1);
+    CHECK(Current().NeverOf(kTool).empty());
+    // damage specific to v2: the same path ranked and Never, a path Never twice, kind 3
+    CHECK(c->decode(payload.data(), payload.size(), 2));   // lists with a ranked and a Never entry to keep
+    const auto refused = [&](const std::vector<uint8_t>& bytes) {
+        const Lists keep = Current();
+        const bool ok = c->decode(bytes.data(), bytes.size(), 2);
+        return !ok && Current().Of(kTool) == keep.Of(kTool) &&
+               Current().NeverOf(kTool) == keep.NeverOf(kTool);
+    };
+    CHECK(refused(Payload(4, { PathList(),
+                               { { 1, kIron }, { 2, "TEMPLATE\\RAWMATERIALIRONTOOL.RSC:RAWMATERIAL" } },
+                               PathList(), PathList() })));
+    CHECK(refused(Payload(4, { PathList(), { { 2, kIron }, { 2, kIron } }, PathList(), PathList() })));
+    CHECK(refused(Payload(4, { PathList(), { { 3, kIron } }, PathList(), PathList() })));
+    c->reset();
 }

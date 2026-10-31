@@ -252,6 +252,7 @@ void InitText() {
     Register("Dialog/TouchControls", &ProvideText, nullptr);
     Register("Dialog/TouchPointer", &ProvideText, nullptr);
     Register("Dialog/PhoneScroll", &ProvideText, nullptr);
+    Register("Dialog/TownScreenshotPage", &ProvideText, nullptr);
 }
 
 int TextObjectCount() {

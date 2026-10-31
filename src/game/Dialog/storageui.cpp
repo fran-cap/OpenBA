@@ -15,7 +15,6 @@
 #include "system/String.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "ui/Element.h"  // ENDGAME B.3.6 UI callers (K3)
@@ -56,27 +55,6 @@ static UI::Element* StorageUI_FindChildElem(UI::Element* parentElem, const char*
     return parentElem->FindElement(nameStr).Get();
 }
 
-namespace storageui_sa {
-
-// ENDGAME B.3.9 CG2: TypeId_ComponentEntity -> ComponentEntity::TypeId(),
-// TypeId_RawMaterialDescription -> RawMaterialDescription::TypeId(). Both class
-// statics always answer, so the lazy-fill retires.
-
-// All globals OnCreated/OnUpdateLayout dereference must be live before we run,
-// or a null-deref would fault (MinGW has no __try/__except to catch it).
-bool Ready() {
-    return ::Object::ExternalFactory::_singleton != nullptr;
-}
-
-static void Trace(const char* what, StorageUI* self) {
-    fprintf(stderr, "[StorageUI] %s self=%p ready=%d rows(+0x38)=%d\n",
-            what, static_cast<void*>(self), Ready() ? 1 : 0,
-            self ? self->rows.GetSize() : -1);
-    fflush(stderr);
-}
-
-}  // namespace storageui_sa
-
 // ============================================================
 // StorageUI::OnCreated (vtable +0x20) — Setup storage table
 // ============================================================
@@ -90,9 +68,6 @@ static void Trace(const char* what, StorageUI* self) {
 
 // [4] 0x1400b8820
 void StorageUI::OnCreated() {
-    if (!storageui_sa::Ready() || !SA_DialogEntityAlive(this)) { storageui_sa::Trace("Serialize SKIP", this); return; }
-    storageui_sa::Trace("Serialize", this);
-
     // Find "storageTable", fallback to "storageTable2"
     UI::Element* tableRaw = StorageUI_FindChildElem(_container, "storageTable");
     if (!tableRaw) {
@@ -172,7 +147,7 @@ void StorageUI::OnCreated() {
 
 // [7] 0x1400b8450
 void StorageUI::OnUpdateLayout() {
-    if (!storageui_sa::Ready() || !SA_DialogEntityAlive(this)) return;
+    if (!SA_DialogEntityAlive(this)) return;
 
     // The entity from the data source (IsA ComponentEntity)
     Object::Base* dataSource = _dataSource;

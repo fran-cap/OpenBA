@@ -472,87 +472,6 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     if (character->actionStack.current + 1 < 1 && workplaceRef != nullptr) {
         char valid = CanReach(workplaceRef);
         if (valid == 0) {
-            // [DIAG] This is the ONLY writer that clears a citizen's home (+0x238) in
-            // normal play, and in the stress town it fired for ~8% of the housed
-            // population per meal cycle; the homeless then never eat and starve. Print
-            // both cells' kind (+0x29) and region id (+0x26) so a stale region grid, a
-            // wrong footprint cell and a citizen standing off-map stop looking alike.
-            static int s_hiN = 0;
-            if (s_hiN < 80) { ++s_hiN;
-                Map* mapInfo = gameWorld->m_game;
-                const MapCell* tiles = mapInfo ? mapInfo->cells.GetData() : nullptr;
-                int mapW = mapInfo ? mapInfo->size : 0, half = mapW >> 1;
-                CharacterComponent* ch = character.Get();
-                ModelComponent* model = ch ? ch->modelComponent.Get() : nullptr;
-                float cx = model ? model->transform.translation.x : -9999.f;
-                float cy = model ? model->transform.translation.y : -9999.f;
-                int tx = (int)(cx + (float)half), ty = (int)(cy + (float)half);
-                if (tx < 0) tx = 0; if (tx >= mapW) tx = mapW - 1;
-                if (ty < 0) ty = 0; if (ty >= mapW) ty = mapW - 1;
-                uint32_t czCell = (uint32_t)(mapW * ty + tx);
-                ComponentEntity* homeIBP = workplaceRef;
-                int homeCell = EntityAnchorCell(&homeIBP, nullptr);
-                unsigned sk = 0, sr = 0, dk = 0, dr = 0;
-                if (tiles && mapW > 0) {
-                    const MapCell* ts = tiles + (size_t)czCell;
-                    sk = ts->terrainType; sr = ts->zone;
-                    if (homeCell >= 0 && homeCell < mapW * mapW) {
-                        const MapCell* td = tiles + (size_t)homeCell;
-                        dk = td->terrainType; dr = td->zone;
-                    }
-                }
-                const char* nm = name._data;
-                ErrLine("[HomeInvalid] citizen=%p name=%s pos=(%.2f,%.2f) cell=%u(%d,%d) kind=%u region=%u"
-                                " | home=%p cell=%d(%d,%d) kind=%u region=%u | age=%.2f hunger=%.1f\n",
-                        (void*)this, nm ? nm : "?", cx, cy, czCell, tx, ty, sk, sr,
-                        (void*)workplaceRef, homeCell, homeCell >= 0 && mapW ? homeCell % mapW : -1,
-                        homeCell >= 0 && mapW ? homeCell / mapW : -1, dk, dr,
-                        this->age, hunger);
-                // First three hits: ASCII window of the tile grid around the citizen so a
-                // fragmented flood shows itself. Row = y, col = x; 'C' citizen, 'H' home cell;
-                // kinds outside the walk mask print as '#' (5-8) or '~' (12+); walkable cells
-                // print their region id in base-36 (mod 36).
-                if (s_hiN <= 3 && tiles && mapW > 0) {
-                    const int R = 24;
-                    ErrLine("[HomeInvalid] region window x=%d..%d y=%d..%d (kind/region)\n",
-                            tx - R, tx + R, ty - 12, ty + 12);
-                    for (int yy = ty - 12; yy <= ty + 12; ++yy) {
-                        char line[2 * R + 2]; int li = 0;
-                        for (int xx = tx - R; xx <= tx + R; ++xx) {
-                            char c = ' ';
-                            if (xx >= 0 && xx < mapW && yy >= 0 && yy < mapW) {
-                                const MapCell* t = tiles + (size_t)(yy * mapW + xx);
-                                unsigned k = t->terrainType, r = t->zone;
-                                if (xx == tx && yy == ty) c = 'C';
-                                else if (homeCell >= 0 && xx == homeCell % mapW && yy == homeCell / mapW) c = 'H';
-                                else if (((1u << (k & 0x1f)) & 0xe1fu) == 0) c = (k >= 5 && k <= 8) ? '#' : '~';
-                                else if (r == 0) c = '.';
-                                else { unsigned d = r % 36; c = d < 10 ? (char)('0' + d) : (char)('a' + d - 10); }
-                            }
-                            line[li++] = c;
-                        }
-                        line[li] = 0;
-                        ErrLine("[HomeInvalid] y=%3d |%s|\n", yy, line);
-                    }
-                    // Kind map of the same window.
-                    for (int yy = ty - 12; yy <= ty + 12; ++yy) {
-                        char line[2 * R + 2]; int li = 0;
-                        for (int xx = tx - R; xx <= tx + R; ++xx) {
-                            char c = ' ';
-                            if (xx >= 0 && xx < mapW && yy >= 0 && yy < mapW) {
-                                const MapCell* t = tiles + (size_t)(yy * mapW + xx);
-                                unsigned k = t->terrainType;
-                                c = k < 10 ? (char)('0' + k) : (char)('a' + k - 10);
-                                if (xx == tx && yy == ty) c = 'C';
-                            }
-                            line[li++] = c;
-                        }
-                        line[li] = 0;
-                        ErrLine("[HomeInvalid] kind y=%3d |%s|\n", yy, line);
-                    }
-                }
-                fflush(stderr);
-            }
             SetHome(nullptr, -1);
         }
     }
@@ -1078,9 +997,6 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
 // The citizen list is GameUpdateLoop::m_citizenList (CitizenBehavior::citizens).
 CitizenComponent* CitizenComponent::FindSpouse() {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
-    // The old door read the registered 8-byte cell 0x1401722b0 as a uint32_t: its low
-    // dword (little-endian) of 0x7fffffffffffffff.
-    uint32_t mask = static_cast<uint32_t>(kRdata_1401722b0);
     CitizenBehavior* list = gw->m_citizenList;
     int64_t n = list->citizens._size;
     for (int64_t i = 0; i < n; i++) {
@@ -1090,10 +1006,15 @@ CitizenComponent* CitizenComponent::FindSpouse() {
                 float* minAge = &description->marriageAge;
                 float candAge = cand->age;
                 if (*minAge <= candAge && candAge != *minAge) {
-                    float diff = candAge - age;
-                    // abs(diff) via mask, then compare to window max (+0x4c)
-                    uint32_t bits = *reinterpret_cast<uint32_t*>(&diff) & mask;   // CAST-OK: float_bits
-                    float adiff = *reinterpret_cast<float*>(&bits);   // CAST-OK: float_bits
+                    // abs(diff) as a double: CVTPS2PD, ANDPD with the 8-byte fabs mask
+                    // 0x1401722b0 (loaded once into XMM6, 0x14010fe87), CVTPD2PS
+                    // (0x14010ff19..0x14010ff25); then compare to the window max (+0x4c).
+                    double diff = static_cast<double>(candAge - age);
+                    uint64_t bits;
+                    __builtin_memcpy(&bits, &diff, sizeof(bits));
+                    bits &= kRdata_1401722b0;
+                    __builtin_memcpy(&diff, &bits, sizeof(diff));
+                    float adiff = static_cast<float>(diff);
                     if (adiff <= description->_f4c) {
                         return cand;
                     }
@@ -1840,7 +1761,7 @@ ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, Compone
         }
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
         // only the best rank stays eligible.
-        if (bitSet && prio && Ext::ItemPriority::RankOfMat(param_4, mat) != bestRank) {
+        if (bitSet && prio && !Ext::ItemPriority::Eligible(param_4, mat, bestRank)) {
             bitSet = false;
         }
         int demand = listBase[row]._count -
@@ -1870,7 +1791,7 @@ ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, Compone
         }
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
         // the same test as pass 1, so both passes agree.
-        if (bitSet && prio && Ext::ItemPriority::RankOfMat(param_4, mat) != bestRank) {
+        if (bitSet && prio && !Ext::ItemPriority::Eligible(param_4, mat, bestRank)) {
             bitSet = false;
         }
         int demand = entryP->_count - entryP->_reserve;

@@ -15,6 +15,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/game/Game/cell_stamp.cpp   # cell_stamp_test.cpp (block AMBMEMO)
   ${CMAKE_SOURCE_DIR}/src/engine/crt/msvc_libm.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/crt/msvc_qsort.cpp
+  ${CMAKE_SOURCE_DIR}/src/game/Component/citizenai_sortbypriority.cpp   # citizenai_sort_test.cpp (row 290)
   ${CMAKE_SOURCE_DIR}/src/engine/system/string.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/system/filename.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/expand_memo.cpp   # block SAVELOAD: the ExpandRelativePath memo
@@ -80,6 +81,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/toolbar/toolbar.cpp                    # ext_toolbar_test.cpp (the page list; the page is stubbed there)
   ${CMAKE_SOURCE_DIR}/src/ext/item_priority/item_priority.cpp         # ext_item_priority_test.cpp (ITEMPRIO)
   ${CMAKE_SOURCE_DIR}/src/ext/item_priority/save_state.cpp            #   its class C codec
+  ${CMAKE_SOURCE_DIR}/src/ext/tool_names/tool_names.cpp                # ext_tool_names_test.cpp (TOOLNAMES): the note table and its class C codec
   ${CMAKE_SOURCE_DIR}/src/ext/state_codecs.cpp                       # savetail.cpp's FindCodec (the class C codec table)
   ${CMAKE_SOURCE_DIR}/src/ext/host_codecs.cpp                        # savetail.cpp's FindHostCodec (the host codec table, EXTHOSTS)
   ${CMAKE_SOURCE_DIR}/src/ext/toolbar/window_state.cpp               #   the toolbar window's host record
@@ -135,6 +137,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/platform/common/audio_feed.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Component/statemachine_tick.cpp   # sm_memo_test.cpp: the real StateMachine::Tick
   ${CMAKE_SOURCE_DIR}/src/game/Game/mapquery.cpp                  # still_terrain_test.cpp: the real Map::GetTerrainPos
+  ${CMAKE_SOURCE_DIR}/src/game/Game/worldgeometry_ray.cpp          # its height: the terrain ray cast (terrain_ray_test.cpp)
   ${CMAKE_SOURCE_DIR}/src/game/Game/maparea.cpp                   # clear_area_road_test.cpp: Map::IsGroundClear / IsAreaEmpty
   ${CMAKE_SOURCE_DIR}/src/engine/collection/set_core.cpp          # set_ported_test.cpp: the four ported AVL cores
   ${CMAKE_SOURCE_DIR}/src/engine/collection/set_avl.cpp           #   element 0x10 (0x18000adc0 / aba0)

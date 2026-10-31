@@ -117,7 +117,6 @@ constexpr float kYawRange        = 180.0f;   // DAT_140172220
 // globals are not all registered in standalone; see the ImmigrationUI stub note).
 uint32_t TidImmDesc()   { static uint32_t t = 0; if (!t) t = ImmigrationDescription::TypeId(); return t; }
 uint32_t TidNomadDesc() { static uint32_t t = 0; if (!t) t = NomadDescription::TypeId();       return t; }
-uint32_t TidResidence() { static uint32_t t = 0; if (!t) t = ResidenceComponent::TypeId();     return t; }
 uint32_t TidCitDesc()   { static uint32_t t = 0; if (!t) t = CitizenDescription::TypeId();     return t; }
 // cell 0x1401c7938 (TypeId_InteractDescription_FC) always fell back to
 // InteractDescription::TypeId() unconditionally once filled; converting by cell
@@ -132,17 +131,14 @@ inline Map*     Grid(GameUpdateLoop* gw) { return gw->m_game; }   // +0xF8
 // desc = comp->_description if IsDerivedFrom(ImmigrationDescription) else null — retail
 // dereferences the null; a town hall without its description is a broken template.
 ImmigrationDescription* ImmDesc(ImmigrationComponent* comp) {
+    // IsDerivedFrom on the unguarded description, CMOVNZ (e.g. 0x14004d0f7..0x14004d120).
     Description* d = comp->_description;
-    if (d && ::Object::IsDerivedFromNullSafe(d, TidImmDesc())) return static_cast<ImmigrationDescription*>(d);
-    static bool warned = false;
-    if (!warned) { warned = true; std::fprintf(stderr, "[ImmCtrl] comp=%p has no ImmigrationDescription (desc=%p tid=%08x)\n", static_cast<void*>(comp), static_cast<void*>(d), TidImmDesc()); std::fflush(stderr); }
-    return nullptr;
+    return d->IsDerivedFrom(TidImmDesc()) ? static_cast<ImmigrationDescription*>(d) : nullptr;
 }
 
 // The month of the in-game year: the clock at gw+0x128 holds {year int, Time-in-year}.
 int MonthOfYear(GameUpdateLoop* gw) {
-    Calendar* clock = gw->m_dayCounter;   // +0x128
-    if (!clock) return 0;
+    Calendar* clock = gw->m_dayCounter;   // +0x128, read unguarded (0x14004d119)
     float secs = clock->yearTime.AsSeconds();   // +0x08
     int m = static_cast<int>((secs / kSecondsPerYear) * kMonthsPerYear);
     if (m > 11) m = 0;
@@ -151,12 +147,11 @@ int MonthOfYear(GameUpdateLoop* gw) {
 
 // Post an event to an entity's StateMachineComponent through its node vtable slot 2,
 // the exact call shape retail uses: node->PostEvent(node, &sm, curIdx, eventId).
+// Retail tests none of the entity, the component or the node (Dismiss 0x14004d394, Accept
+// 0x14004d615): a group member always carries its StateMachineComponent.
 void PostEventToEntity(ComponentEntity* entity, int eventId) {
-    if (!entity) return;
     StateMachineComponent* smc = entity->FindComponent<StateMachineComponent>();   // 0x140003ea0
-    if (!smc) return;
     ControllerComponent::Controller* node = smc->stateMachine.current;
-    if (!node) return;
     node->PostEvent(   // slot 2
         &smc->stateMachine, smc->stateMachine.activeState, eventId);
 }
@@ -171,7 +166,6 @@ void PostEventToEntity(ComponentEntity* entity, int eventId) {
 bool ImmigrationComponent::CanAccept() {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return false;
     CitizenBehavior* tm = TownMgr(gw);
     if (tm->citizens._size < desc->_minPopulation) return false;
     int req = desc->_requiredBuildingCount;
@@ -200,8 +194,7 @@ bool ImmigrationComponent::CanAccept() {
 // ============================================================
 int ImmigrationComponent::FindSpawnCell(int x, int y, int hallCell) {
     GameUpdateLoop* gw = GW();
-    ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return -1;
+    ImmigrationDescription* desc = ImmDesc(this);   // read unguarded (0x14004e2c4 / 0x14004e2d0)
     System::Random* rng = gw->m_random;
     Map* grid = Grid(gw);
     const int W = grid->size;
@@ -242,10 +235,10 @@ int ImmigrationComponent::FindSpawnCell(int x, int y, int hallCell) {
 void NomadComponent::Init(const Object::InternalPtr<ComponentEntity>* hallEntity, const Math::Vector3* spawn,
                           const Math::Vector3* meet) {
     GameUpdateLoop* gw = GW();
-    if (!gw) return;
+    // The description through CMOVNZ, the model and the material read with no test
+    // (0x140050078, 0x1400500dd, 0x140050138 / 0x14005013e).
     Description* nd = _description;
-    NomadDescription* ndesc = (nd && ::Object::IsDerivedFromNullSafe(nd, TidNomadDesc()))
-                                  ? static_cast<NomadDescription*>(nd) : nullptr;
+    NomadDescription* ndesc = nd->IsDerivedFrom(TidNomadDesc()) ? static_cast<NomadDescription*>(nd) : nullptr;
     hall = *hallEntity;
     spawnPoint = *spawn;
     meetPoint = *meet;
@@ -253,16 +246,13 @@ void NomadComponent::Init(const Object::InternalPtr<ComponentEntity>* hallEntity
     gender = static_cast<int32_t>(rng->Rand(2u));
 
     ModelComponent* model = _entity->FindComponent<ModelComponent>();   // DAT_1401c7a50
-    if (!model) return;
     float yaw = rng->RandFloatTol() * kYawRange;
     model->SetTransformFromYaw(&spawnPoint, yaw);   // 0x140003870
     model->SelectMesh(// 0x1401253d0
                     static_cast<uint16_t>(gender), 0);
-    if (ndesc) {
-        Graphics::MaterialInstance* mat = (gender == 0) ? ndesc->_materialGender0 : ndesc->_materialGender1;
-        model->meshInstance
-            .SetMaterialInstance(0, Object::ExternalPtr<Graphics::MaterialInstance>(mat));
-    }
+    Graphics::MaterialInstance* mat = (gender == 0) ? ndesc->_materialGender0 : ndesc->_materialGender1;
+    model->meshInstance
+        .SetMaterialInstance(0, Object::ExternalPtr<Graphics::MaterialInstance>(mat));
 }
 
 // ============================================================
@@ -274,8 +264,7 @@ void NomadComponent::Init(const Object::InternalPtr<ComponentEntity>* hallEntity
 // ============================================================
 void ImmigrationComponent::Spawn() {
     GameUpdateLoop* gw = GW();
-    ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return;
+    ImmigrationDescription* desc = ImmDesc(this);   // read unguarded (0x14004dbe0, the first +0x5c read)
     System::Random* rng = gw->m_random;
     Map* grid = Grid(gw);
     const int W = grid->size;
@@ -322,17 +311,16 @@ void ImmigrationComponent::Spawn() {
         Object::InternalPtr<ComponentEntity>* houses = tm->field_0x20._data;
         for (int i = 0; i < nh; ++i) {
             ComponentEntity* h = houses[i].Get();
-            ResidenceComponent* rc = (h && TidResidence())
-                                         ? h->FindComponent<ResidenceComponent>() : nullptr;
-            if (!rc) continue;
+            // Neither the house nor its ResidenceComponent is tested (0x14004de75, the +0x58 read).
+            ResidenceComponent* rc = h->FindComponent<ResidenceComponent>();
             int slots = rc->residentSlots._size;
             const ResidenceComponent::Family* arr = rc->residentSlots._data;   // +0x50, stride 0x10
             for (int s = 0; s < slots; ++s)
                 if (arr[static_cast<uintptr_t>(s)]._size == 0) ++emptySlots;   // Family +0x08
         }
     }
-    // Retail calls Rand(emptySlots*2) unguarded; skipped only when the range is 0.
-    int extra = (emptySlots > 0) ? static_cast<int>(rng->Rand(static_cast<uint32_t>(emptySlots * 2))) : 0;
+    // Retail calls Rand(emptySlots*2) unguarded; Rand(0) returns 0 without drawing.
+    int extra = static_cast<int>(rng->Rand(static_cast<uint32_t>(emptySlots * 2)));
     int n = extra + static_cast<int>(static_cast<float>(pop) * (fRand * (fHi - fLo) + fLo));
     if (n < 2) n = 2;
 
@@ -343,9 +331,9 @@ void ImmigrationComponent::Spawn() {
 
         // A random "use point" on the town hall for this nomad to stand at.
         Description* idesc = pc->_description;
-        InteractDescription* id = (idesc && ::Object::IsDerivedFromNullSafe(idesc, TidInteractDesc()))
+        InteractDescription* id = idesc->IsDerivedFrom(TidInteractDesc())
                                       ? static_cast<InteractDescription*>(idesc) : nullptr;
-        uint32_t nPts = id ? static_cast<uint32_t>(id->_createNodes.count) : 0;
+        uint32_t nPts = static_cast<uint32_t>(id->_createNodes.count);   // +0x50, unguarded
         int nChildren = pc->useLocations._size;
         for (int ci = 0; ci < nChildren; ++ci) {
             nPts += static_cast<uint32_t>(pc->useLocations[ci].Get()->NodeCount(2));   // 0x140123070
@@ -365,13 +353,12 @@ void ImmigrationComponent::Spawn() {
         grid->GetTerrainPos(&spawn.x, cellPos, '\0', nullptr);
 
         // Bind its NomadComponent to this hall and drop it into the world.
-        NomadComponent* nomad = ent ? ent->FindComponent<NomadComponent>() : nullptr;
-        if (nomad) nomad->Init(&_entity, &spawn, &meet);   // 0x140050030
-        if (ent) {
-            int category = ent->_description->_category;
-            Object::InternalPtr<ComponentEntity> regIBP = ent;
-            gw->m_entityList->RegisterEntity(&regIBP, category);
-        }
+        // Neither the clone nor its NomadComponent is tested (0x14004e127).
+        NomadComponent* nomad = ent->FindComponent<NomadComponent>();
+        nomad->Init(&_entity, &spawn, &meet);   // 0x140050030
+        int category = ent->_description->_category;
+        Object::InternalPtr<ComponentEntity> regIBP = ent;
+        gw->m_entityList->RegisterEntity(&regIBP, category);
         // Append to the group array (+0x58/+0x60/+0x64) — retail inlines this
         // DynArray8 push; the registered resize does the same growth policy.
         int count = group._size;
@@ -406,39 +393,33 @@ void ImmigrationComponent::Dismiss() {
 CitizenComponent* NomadComponent::ConvertToCitizen(CitizenComponent** out, CitizenComponent* const* parent,
                                                    int genderArg, char isChild) {
     GameUpdateLoop* gw = GW();
-    *out = nullptr;
-    if (!gw) return nullptr;
+    // Retail tests none of the nomad description, the citizen, its description, the
+    // nomad's model or the parent slot (0x1400501a0: +0x20, +0x18, +0x50 / +0x54, +0x158
+    // and *param_3 all read unguarded).
     Description* nd = _description;
-    NomadDescription* ndesc = (nd && ::Object::IsDerivedFromNullSafe(nd, TidNomadDesc()))
-                                  ? static_cast<NomadDescription*>(nd) : nullptr;
-    if (!ndesc) return nullptr;
+    NomadDescription* ndesc = nd->IsDerivedFrom(TidNomadDesc()) ? static_cast<NomadDescription*>(nd) : nullptr;
     System::Random* rng = gw->m_random;
 
     void* mem = System::MemoryAllocator::MemAlloc(0x48, 8);
     ComponentEntity* ent = mem ? new (mem) ComponentEntity(ndesc->_citizen) : nullptr;   // 0x1400c3720
     *out = ent->FindComponent<CitizenComponent>();
     CitizenComponent* cit = *out;
-    if (!cit) return nullptr;
     Description* cd = cit->_description;
-    CitizenDescription* cdesc = (cd && ::Object::IsDerivedFromNullSafe(cd, TidCitDesc()))
-                                    ? static_cast<CitizenDescription*>(cd) : nullptr;
+    CitizenDescription* cdesc = cd->IsDerivedFrom(TidCitDesc()) ? static_cast<CitizenDescription*>(cd) : nullptr;
 
     // Spawn the citizen where the nomad stands (its model transform translation).
     ModelComponent* model = _entity->FindComponent<ModelComponent>();
-    Math::Vector3 pos(0.0f, 0.0f, 0.0f);
-    if (model) {
-        pos = model->transform.translation;
-    }
+    Math::Vector3 pos = model->transform.translation;
     float age;
-    float aLo = cdesc ? cdesc->minPregnancyAge : 0.0f;
-    float aHi = cdesc ? cdesc->maxPregnancyAge : 0.0f;
+    float aLo = cdesc->minPregnancyAge;
+    float aHi = cdesc->maxPregnancyAge;
     if (isChild == 0) age = rng->RandFloat() * (aHi - aLo) + aLo;
     else              age = rng->RandFloat() * aLo;
     uint32_t r = rng->Rand(1u);
     char flag = (r == 0 || isChild != 0) ? 0 : 1;
     Profession* key = gw->m_professionList->field_0x30;
     cit->Initialize(&pos, static_cast<uint32_t>(genderArg), isChild, age, flag,
-                    parent ? *parent : nullptr, key);   // 0x140117080
+                    *parent, key);   // 0x140117080
 
     Object::InternalPtr<ComponentEntity> regIBP = ent;
     {
@@ -458,8 +439,7 @@ CitizenComponent* NomadComponent::ConvertToCitizen(CitizenComponent** out, Citiz
 // ============================================================
 void ImmigrationComponent::Accept() {
     GameUpdateLoop* gw = GW();
-    ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return;
+    ImmigrationDescription* desc = ImmDesc(this);   // read unguarded (0x14004d450: +0x60 / +0x64)
     CitizenBehavior* tm = TownMgr(gw);
 
     float chance = desc->_diseaseChance;
@@ -478,7 +458,7 @@ void ImmigrationComponent::Accept() {
     };
     auto convert = [&](int i, CitizenComponent* const* parent, int gender, char child) -> CitizenComponent* {
         ComponentEntity* ent = nomadAt(i);
-        NomadComponent* nomad = ent ? ent->FindComponent<NomadComponent>() : nullptr;
+        NomadComponent* nomad = ent->FindComponent<NomadComponent>();
         CitizenComponent* cit = nullptr;
         nomad->ConvertToCitizen(&cit, parent, gender, child);   // 0x1400501a0 (unguarded, as the tree's)
         PostEventToEntity(nomadAt(i), 0);
@@ -492,8 +472,8 @@ void ImmigrationComponent::Accept() {
         if (i + 1 >= n) break;
         CitizenComponent* nullIBP2 = nullptr;
         CitizenComponent* b = convert(i + 1, &nullIBP2, 0, 0);
-        if (b) b->spouse = a;
-        if (a) a->spouse = b;
+        b->spouse = a;   // both written unguarded (after 0x14004d745)
+        a->spouse = b;
         if (i + 2 >= n) break;
         CitizenComponent* parent = b;
         convert(i + 2, &parent, genderC, 1);
@@ -529,12 +509,10 @@ char ImmigrationComponent::TickIdle(StateMachine* sm) {
 char ImmigrationComponent::EnterWaiting() {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return 0;
     float r = gw->m_random->RandFloat();
     float months = r * desc->_waitRandomMonths + desc->_waitMonths;
     float secs = months * kSecondsPerMonth;
     System::Time t;
-    t._ticks = 0;
     RtSystem_Time_Ctor(&t, secs);
     waitTimer = t;
     return 0;
@@ -543,8 +521,7 @@ char ImmigrationComponent::EnterWaiting() {
 char ImmigrationComponent::TickWaiting(StateMachine* sm, const System::Time* time) {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return 1;
-    waitTimer._ticks -= time ? time->_ticks : 0;
+    waitTimer._ticks -= time->_ticks;   // 0x14004d0ea / 0x14004d0f3
     int month = MonthOfYear(gw);
     bool inSeason = (desc->_arrivalMonthFirst <= month && month <= desc->_arrivalMonthLast);
     if (waitTimer._ticks < 1 && inSeason) {
@@ -584,17 +561,14 @@ void ImmigrationComponent::OnLeaveGroup() {
 // state 0x11 WAITING FOR AN ANSWER — enter 0x14004ceb0: the event-log line
 char ImmigrationComponent::EnterAnswer() {
     GameUpdateLoop* gw = GW();
-    if (gw) {
-        Object::InternalPtr<ComponentEntity> ownerIBP(_entity);
-        gw->m_eventNotifier->AddEvent(0xe, 2, &ownerIBP);
-    }
+    Object::InternalPtr<ComponentEntity> ownerIBP(_entity);
+    gw->m_eventNotifier->AddEvent(0xe, 2, &ownerIBP);   // retail inlines it (0x14004cece..)
     return 1;
 }
 // tick 0x14004ce00: past the leave month -> dismiss -> 2
 char ImmigrationComponent::TickAnswer(StateMachine* sm) {
     GameUpdateLoop* gw = GW();
     ImmigrationDescription* desc = ImmDesc(this);
-    if (!gw || !desc) return 1;
     if (desc->_leaveMonth <= MonthOfYear(gw)) {
         Dismiss();   // 0x14004d300
         ::ControllerLive::RequestStateTransition(sm, 2);

@@ -149,7 +149,7 @@ void ClampToTerrain(Pose& pose) {
     Map* map = GameUpdateLoop::_singleton->m_game;
     const float in[2] = {pose.eye.x, pose.eye.y};
     float out[3] = {0.0f, 0.0f, 0.0f};
-    map->GetTerrainPos(out, in, 1, nullptr);   // flag 1: the heightmap only (clamped to the map)
+    map->GetTerrainPos(out, in, 1, nullptr);   // flag 1: the heightmap only (off the map: 0)
     const float floorZ = out[2] + kMinClearance;
     if (pose.eye.z < floorZ) pose.eye.z = floorZ;
 }

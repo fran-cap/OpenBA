@@ -46,7 +46,8 @@ extern "C" void Region_Seed(Map* map, int dim) {   // map: GameUpdateLoop::m_gam
 
     if (map->regionGraph != nullptr) return;       // already built
 
-    // coarse-grid dims = ceil(dim/8) via the exe's signed-rounding idiom (e8c0):
+    // coarse-grid dims = dim/8, a signed TRUNCATING divide (e8c0, 0x14009eb37:
+    // CDQ; AND EDX,7; ADD; SAR EAX,3 -- the sign fix-up only matters for dim < 0):
     //   (int)(dim + ((dim >> 0x1f) & 7)) >> 3
     int coarseDim = static_cast<int>((static_cast<int>(dim) + ((static_cast<int>(dim) >> 31) & 7)) >> 3);
     if (coarseDim <= 0) return;

@@ -185,9 +185,10 @@ void AmbientEmitterComponent::SetSlot(int slot, Audio::SoundEffect* sound, float
 #include "Object/factory_registration.h"
 
 // 0x1400430c0. Component() is the CALL 0x1401188b0; the 0x140158a60 stamp is
-// the compiler's; +0x28, +0x30 (dword), +0x38, +0x40 = 0; flags |= 0x43 (0xc3).
+// the compiler's; +0x28, +0x30 (dword, 0x1400430f1), +0x38, +0x40 = 0; flags |= 0x43
+// (0xc3). +0x34 is never written.
 AmbientEmitterComponent::AmbientEmitterComponent()
-    : position(), _pad34{}, slots() {
+    : position(), slots() {
     OrFlagsInCtor(0x43);
 }
 

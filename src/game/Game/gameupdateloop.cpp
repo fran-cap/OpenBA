@@ -71,6 +71,9 @@
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
 // ext.item_priority (class C), Ext::ItemPriority::BeginFrame
 #include "ext/item_priority/item_priority.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md):
+// ext.tool_names (class C), Ext::ToolNames::BeginFrame
+#include "ext/tool_names/tool_names.h"
 #include "ext/drain_split/drain_split.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (class B), Ext::DrainSplit::BeginFrame
 #include "Game/terrain_sidecar.h" // the terrain-type mirror's teardown (faithful perf work)
 #include <cstdio>
@@ -130,6 +133,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
                                 // in this file, even at global scope)
 #include "ext/registry.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): Ext::UnlockForGame
 #include "ext/background_save/background_save.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md): ext.background_save, the frozen Update / Draw alpha
+#include "ext/town_screenshot/town_screenshot.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOWNSCREENSHOT.md): ext.town_screenshot, Draw step 7
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera, Update step 6 / Draw steps 4 and 7
 #include "ext/sharp_ui/sharp_ui.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, Draw step 12
 #include "ext/ambient_occlusion/ambient_occlusion.h"     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, Draw step 7
@@ -661,6 +665,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     Ext::RestrictedFoods::BeginFrame();
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): ext.item_priority (C) read once per frame
     Ext::ItemPriority::BeginFrame();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (C) drops the notes and
+    // waiting records of citizens who are gone
+    Ext::ToolNames::BeginFrame();
     Ext::DrainSplit::BeginFrame();           // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (B) read once per frame, the owed half's frame count
 
     // [EVENTS] RETIRED: the BANISHED_LIVE_EVENTS resource-shortage scanner used to
@@ -1384,6 +1391,10 @@ void GameUpdateLoop::Draw(float alpha) {
         return;
     }
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOWNSCREENSHOT.md): while ext.town_screenshot takes a screenshot the player's
+    // status-icon and weather options read off for this frame only; the destructor puts them back at every return.
+    Ext::TownScreenshot::DrawOptions townScreenshotOptions;
+
     // NOT RETAIL: the in-game frame cap (src/app/frame_limiter.h). A no-op unless the settings cap
     // (ext.fps_cap, the phone's first run sets it to 60) or BANISHED_FPS_CAP asks for one; it sleeps
     // before the frame's draw work, and MainLoop::Frame's accumulator still runs every sim step owed.
@@ -1543,7 +1554,11 @@ void GameUpdateLoop::Draw(float alpha) {
         // ext.eye_camera follows a citizen, the same Renderer::Draw with the
         // sun's shadow camera fitted to a view over the citizen (retail's fit
         // to the eye-level view misses it).
-        if (Ext::Ext().eye_camera && Ext::EyeCamera::Active())
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOWNSCREENSHOT.md): while ext.town_screenshot takes a screenshot, the
+        // same Renderer::Draw through the camera of the screenshot's current tile.
+        if (Ext::Ext().town_screenshot && Ext::TownScreenshot::Active())
+            Ext::TownScreenshot::DrawScene(*m_renderer, *videoCtx, alpha, *m_graphicsScene, *m_playerController);
+        else if (Ext::Ext().eye_camera && Ext::EyeCamera::Active())
             Ext::EyeCamera::DrawScene(*m_renderer, *videoCtx, alpha, *m_graphicsScene,
                                  *m_playerController);
         else
