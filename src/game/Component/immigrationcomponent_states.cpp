@@ -52,6 +52,8 @@
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
 // been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
+#include "ext/family_tree/family_tree.h"
 #include "graphics/Mesh.h"
 #include "Component/ResidenceComponent.h"   // B.3.8 CB1a (TypeId)
 #include "Component/NomadDescription.h"   // B.3.8 CB1a (TypeId)
@@ -474,6 +476,9 @@ void ImmigrationComponent::Accept() {
         CitizenComponent* b = convert(i + 1, &nullIBP2, 0, 0);
         b->spouse = a;   // both written unguarded (after 0x14004d745)
         a->spouse = b;
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), an
+        // immigrant couple
+        Ext::FamilyTree::OnMarried(a, b);
         if (i + 2 >= n) break;
         CitizenComponent* parent = b;
         convert(i + 2, &parent, genderC, 1);

@@ -297,6 +297,14 @@ const Entry kEntries[] = {
       "Takes one picture of the whole map from above at an isometric angle, from the Town Screenshot page in a "
       "game. The game pauses while it works.",
       1, [](State& s) -> bool& { return s.ext.town_screenshot; } },
+    // FAMILYTREE (docs/extensions/handins/FAMILYTREE.md): the town's births, marriages and deaths are written
+    // down, so the Family page can show who is related to whom, living or dead. Class C: the record is the
+    // town's own state, kept in the save's tail (src/ext/family_tree/family_tree.cpp).
+    { "family_tree", Tier::Extension, Class::C, false,
+      "Family tree",
+      "Records who is born to whom, who marries and who dies, and shows each citizen's family on the Family "
+      "page in a game. The record is kept in the save.",
+      2, [](State& s) -> bool& { return s.ext.family_tree; } },
     // HITCH_PFBURST (docs/extensions/handins/HITCH_PFBURST.md): a per-frame budget of the cold
     // citizens' warm-house scans (one region path search per residence), so a cold spell at high
     // speed spreads its scans over a few frames instead of one 10-20 ms frame.

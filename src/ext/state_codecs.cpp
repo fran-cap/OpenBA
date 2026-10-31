@@ -10,6 +10,7 @@
 #include "ext/restricted_foods/restricted_foods.h"   // RestrictedFoods::Codec()
 #include "ext/item_priority/item_priority.h"   // ItemPriority::Codec()
 #include "ext/tool_names/tool_names.h"   // ToolNames::Codec()
+#include "ext/family_tree/family_tree.h"   // FamilyTree::Codec()
 
 #include <cstring>
 
@@ -22,6 +23,7 @@ const StateCodec* const* Codecs(int& n) {
         &RestrictedFoods::Codec(),
         &ItemPriority::Codec(),
         &ToolNames::Codec(),
+        &FamilyTree::Codec(),
     };
     n = static_cast<int>(sizeof(kCodecs) / sizeof(kCodecs[0]));
     return kCodecs;

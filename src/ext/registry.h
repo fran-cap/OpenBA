@@ -109,6 +109,9 @@ struct Extensions {
     bool terrain_edit = false;
     // class B: src/ext/town_screenshot/ (docs/extensions/handins/TOWNSCREENSHOT.md); a picture of the whole map from an isometric view
     bool town_screenshot = false;
+    // class C: src/ext/family_tree/ (docs/extensions/handins/FAMILYTREE.md); the town's births, marriages and
+    // deaths
+    bool family_tree = false;
     bool spread_warmth = false; // class B: src/ext/spread_warmth/ (docs/extensions/handins/HITCH_PFBURST.md)
     bool async_save_compress = false; // class A: src/ext/async_save_compress/, seam IO::CompressedStream::_extAsyncCompress (docs/extensions/handins/HITCH_SAVE.md)
     bool drain_split = false; // class B: src/ext/drain_split/ (docs/extensions/handins/HITCH_DRAINSPLIT.md)

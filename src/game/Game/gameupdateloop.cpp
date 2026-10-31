@@ -64,6 +64,9 @@
 #include "frame_limiter.h"    // NOT RETAIL: the in-game frame cap (src/app/)
 #include "ext/render_culling/render_culling.h" // EXT SEAM (NOT RETAIL, docs/extensions/handins/PERFXEXT.md): ext.render_culling / ext.anim_batch (PerfX)
 #include "ext/walk_batch/walk_batch.h" // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKBATCH.md, WALKGRID.md): ext.walk_batch (A) / ext.walk_batch_grid (B)
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C),
+// Ext::FamilyTree::BeginFrame
+#include "ext/family_tree/family_tree.h"
 #include "ext/spread_warmth/spread_warmth.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_PFBURST.md): ext.spread_warmth (class B), Ext::SpreadWarmth::BeginFrame
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md):
 // ext.restricted_foods (class C), Ext::RestrictedFoods::BeginFrame
@@ -664,6 +667,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     StressHarness_UpdateBegin(s_frameNum);   // [STRESS] no-op unless BANISHED_STRESS
     Ext::RenderCulling::BeginFrame(m_renderer);      // EXT SEAM (NOT RETAIL, docs/extensions/handins/PERFXEXT.md): ext.render_culling / ext.anim_batch read once per frame (frustum, pause flush)
     Ext::WalkBatch::BeginFrame();            // EXT SEAM (NOT RETAIL, docs/extensions/handins/WALKBATCH.md, WALKGRID.md): ext.walk_batch (A) / ext.walk_batch_grid (B) read once per frame
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (C) read once per frame,
+    // the load bind and the sweep
+    Ext::FamilyTree::BeginFrame();
     Ext::SpreadWarmth::BeginFrame();         // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_PFBURST.md): ext.spread_warmth (B) read once per frame, its budget reset
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): ext.restricted_foods (C) read once per frame
     Ext::RestrictedFoods::BeginFrame();

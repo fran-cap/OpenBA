@@ -64,6 +64,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_high_limits";	String _source = "Sprite/Extensions/Entry_high_limits.png"; }
 		{ String _name = "ExtensionsEntry_restricted_foods";	String _source = "Sprite/Extensions/Entry_restricted_foods.png"; }
 		{ String _name = "ExtensionsEntry_item_priority";	String _source = "Sprite/Extensions/Entry_item_priority.png"; }
+		{ String _name = "ExtensionsEntry_family_tree";	String _source = "Sprite/Extensions/Entry_family_tree.png"; }
 		{ String _name = "ExtensionsEntry_terrain_edit";	String _source = "Sprite/Extensions/Entry_terrain_edit.png"; }
 		{ String _name = "ExtensionsGlyph_town_screenshot_view";	String _source = "Sprite/Extensions/Glyph_town_screenshot_view.png"; }
 		{ String _name = "ExtensionsGlyph_town_screenshot_take";	String _source = "Sprite/Extensions/Glyph_town_screenshot_take.png"; }
@@ -94,5 +95,22 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_fps_cap";	String _source = "Sprite/Extensions/Entry_fps_cap.png"; }
 		{ String _name = "ExtensionsEntry_touch_mode";	String _source = "Sprite/Extensions/Entry_touch_mode.png"; }
 		{ String _name = "ExtensionsEntry_touch_pointer";	String _source = "Sprite/Extensions/Entry_touch_pointer.png"; }
+		{ String _name = "TreeLink1";	String _source = "Sprite/Extensions/TreeLink1.png"; }
+		{ String _name = "TreeLink2";	String _source = "Sprite/Extensions/TreeLink2.png"; }
+		{ String _name = "TreeLink3";	String _source = "Sprite/Extensions/TreeLink3.png"; }
+		{ String _name = "TreeLink4";	String _source = "Sprite/Extensions/TreeLink4.png"; }
+		{ String _name = "TreeLink5";	String _source = "Sprite/Extensions/TreeLink5.png"; }
+		{ String _name = "TreeLink6";	String _source = "Sprite/Extensions/TreeLink6.png"; }
+		{ String _name = "TreeLink7";	String _source = "Sprite/Extensions/TreeLink7.png"; }
+		{ String _name = "TreeLink8";	String _source = "Sprite/Extensions/TreeLink8.png"; }
+		{ String _name = "TreeLink9";	String _source = "Sprite/Extensions/TreeLink9.png"; }
+		{ String _name = "TreeLink10";	String _source = "Sprite/Extensions/TreeLink10.png"; }
+		{ String _name = "TreeLink11";	String _source = "Sprite/Extensions/TreeLink11.png"; }
+		{ String _name = "TreeLink12";	String _source = "Sprite/Extensions/TreeLink12.png"; }
+		{ String _name = "TreeLink13";	String _source = "Sprite/Extensions/TreeLink13.png"; }
+		{ String _name = "TreeLink14";	String _source = "Sprite/Extensions/TreeLink14.png"; }
+		{ String _name = "TreeLink15";	String _source = "Sprite/Extensions/TreeLink15.png"; }
+		{ String _name = "TreeGap";	String _source = "Sprite/Extensions/TreeGap.png"; }
+		{ String _name = "TreeGapStem";	String _source = "Sprite/Extensions/TreeGapStem.png"; }
 	]
 }
