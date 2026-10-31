@@ -86,10 +86,10 @@ void FrustumCull_Prepare(const Frustum* f, FrustumCullPlanes* out);
 //   sticky MXCSR status flags (exceptions are masked; nothing reads them).
 // On AArch64 the NEON body below is the SSE2 body lane for lane: the selects are the same bit
 // operations on the float patterns, the dot products the unfused FMUL / FADD / FSUB (no FMLA:
-// -ffp-contract=off, and the intrinsics are the unfused ones), the compares the ordered <= / <
-// (FCMGE / FCMGT with the operands swapped, false on NaN); NEON rounds each lane under the
-// thread's FPCR exactly as the scalar FMUL / FADD / FSUB do. Elsewhere, evaluate the same prepared
-// snapshot with scalar operations.
+// -ffp-contract=off, and the intrinsics are the unfused ones), the compares CMPNGTPS's twin
+// !(dN > 0) (FCMGT + MVN, true on NaN) and the ordered dP < 0 (FCMGT with the operands swapped,
+// false on NaN); NEON rounds each lane under the thread's FPCR exactly as the scalar FMUL / FADD /
+// FSUB do. Elsewhere, evaluate the same prepared snapshot with scalar operations.
 inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const Box* box, unsigned int mask) {
 #if defined(__SSE2__)
     const __m128 mnx = _mm_set1_ps(box->min.x), mxx = _mm_set1_ps(box->max.x);
@@ -164,7 +164,7 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
                                                    vmulq_f32(Z, nz)), W);
         const float32x4_t dP = vsubq_f32(vaddq_f32(vaddq_f32(vmulq_f32(Y, py), vmulq_f32(X, px)),
                                                    vmulq_f32(Z, pz)), W);
-        const uint32x4_t isLe = vcleq_f32(dN, zero);   // dN <= 0.0f (false on NaN)
+        const uint32x4_t isLe = vmvnq_u32(vcgtq_f32(dN, zero));   // !(dN > 0.0f) (true on NaN, retail JBE: row 1327)
         const uint32x4_t isLt = vcltq_f32(dP, zero);   // dP <  0.0f (false on NaN)
         le  |= vaddvq_u32(vandq_u32(isLe, laneBits)) << o;
         out |= vaddvq_u32(vandq_u32(vandq_u32(isLe, isLt), laneBits)) << o;
