@@ -211,8 +211,6 @@ static void BC8_EnsureMeshList(BuildComponent* bc) {
 // State1Update — sub_81e0 (per-frame while in state 1). trans38Handler for state 1.
 // ==================================================================================
 char BuildComponent::State1Update(StateMachine* sm) {
-    if (BuildComponent_DemoGateSkip(this)) return 1;   // don't self-advance completed/non-demo
-
     bool haveAll = HaveAllMaterials();
     if (!haveAll && BC8_DemoForce() && BC8_IsDemo(this)) {
         haveAll = true;   // brick-2a harness: pretend materials arrived (real haul = 2b)
@@ -238,8 +236,6 @@ char BuildComponent::State1Update(StateMachine* sm) {
 // See docs/history/notes/BRIDGE_HIGHLIGHT_DIALOG_BRIEF.md.
 // ==================================================================================
 char BuildComponent::State8Enter(StateMachine* sm) {
-    if (BuildComponent_DemoGateSkip(this)) return 1;
-
     uint8_t instant = 0;
     if (GameUpdateLoop::_singleton != nullptr)
         instant = GameUpdateLoop::_singleton->m_gameFlags & 1;
@@ -340,8 +336,6 @@ char BuildComponent::State8Enter(StateMachine* sm) {
 // requests 8 -> 2.
 // ==================================================================================
 char BuildComponent::State8Update(StateMachine* sm) {
-    if (BuildComponent_DemoGateSkip(this)) return 1;
-
     BuildDescription* matComp = BC8_MatComp(this);
     int target = BC8_Target(this, matComp);
 
@@ -433,8 +427,6 @@ char BuildComponent::State8Update(StateMachine* sm) {
 // the site MeshInstance.
 // ==================================================================================
 char BuildComponent::State8OneShot(StateMachine* /*sm*/) {
-    if (BuildComponent_DemoGateSkip(this)) return 1;
-
     _entity->SendEvent(4);
 
     CitizenBehavior* townMgr = nullptr;
@@ -541,12 +533,6 @@ void BuildComponent::State8Finalize() {
 
 // sub_75e0 — the 8->2 transition ACTION (node slot +0x28 / our OnState).
 char BuildComponent::State8To2Action() {
-    if (!BuildComponent_DemoGateSkip(this)) {
-        State8Finalize();
-        // Construction is over and the hand-off has run: drop the live-site record so
-        // the model-complete heuristic governs this BuildComponent again (it is now
-        // genuinely a finished building, and must not be re-driven through state 1/8).
-        BuildComponent_ClearLiveSite(this);
-    }
+    State8Finalize();
     return 0;   // return ignored by Tick (Phase A2 discards the slot-0x28 return)
 }

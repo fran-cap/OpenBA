@@ -808,12 +808,11 @@ static void ApplyResourceModelVariant(ComponentEntity* entity, uint32_t tidModel
                                       int16_t variantIdx, int16_t modelVariant);
 
 
-// ── Construction-demo foundation (BANISHED_LIVE_BUILDCTRL) ────────────────────────
-// When the live BuildComponent state machine is on we leave exactly ONE start-town
-// building at its foundation mesh (skip the force-complete below) and record its
-// BuildComponent as g_pConstructionDemoSite. State1Enter then drives ONLY that site
-// through gather→build→complete, so no finished building's storage gets clobbered.
-// Index selectable via BANISHED_BUILD_DEMO_INDEX (default 0 = first structure).
+// ── Construction-demo foundation (BANISHED_BUILD_DEMO_INDEX / _HOUSE) ────────────
+// When one of them asks for it we leave exactly ONE start-town building at its
+// foundation mesh (skip the force-complete below) and record its BuildComponent as
+// g_pConstructionDemoSite, the site the construction force harness drives through
+// gather→build→complete. Both are off by default (BuildDemoIndex() is -1).
 extern "C" void* g_pConstructionDemoSite;
 extern "C" ComponentEntity* g_pConstructionDemoEntity;   // the demo foundation's OWNER entity (force-harness work-area)
 // The demo-foundation CAPABILITY is always available; the actual "leave a start-town
@@ -837,9 +836,8 @@ static int BuildDemoIndex() {
     static int idx = -2;
     if (idx == -2) {
         const char* e = Opt().buildDemoIndex;
-        // Default -1 = NO forced demo foundation: leaves g_pConstructionDemoSite null so
-        // BuildComponent_DemoGateSkip drives any player-placed foundation organically
-        // instead. A start-town building is force-completed into the demo only when an
+        // Default -1 = NO forced demo foundation: leaves g_pConstructionDemoSite null.
+        // A start-town building is force-completed into the demo only when an
         // explicit index (>=0) is requested. (Old default 0 seeded the StorageBarn, which
         // had no haul source anyway.)
         idx = (e && e[0]) ? std::atoi(e) : -1;
