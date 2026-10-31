@@ -4,15 +4,18 @@
 // NOT RETAIL. The header has the contract, leaf_fall.h the pure part.
 //
 // THE TREES. The map's occupants are walked a slice per frame (the whole map in kScanSlices frames); an
-// occupant is a deciduous tree when it carries a NaturalResourceComponent and a model whose materials
-// include a billboard canopy that is not the evergreen one (the canopies natural_growth.h rewrites). The
-// answer is kept per description. Each pass keeps the trees' positions and crown boxes, no pointers.
+// occupant is a deciduous tree when it carries a NaturalResourceComponent and a mesh whose materials
+// include a billboard canopy that is not the evergreen one (the canopies natural_growth.h rewrites). Every
+// tree species is the one description Template/NaturalResourceTree.rsc, so the answer is kept per mesh
+// (its first material instance). Each pass keeps the trees' positions and crown boxes, no pointers.
 //
-// THE DRAW. One Graphics::Geometry in the scene's global list, drawn like WeatherParticleGeometry
-// (weather_particle_draw.cpp): one instance at the origin, the cards' world positions in the dynamic
-// vertex stream, the snow particle material's program with our atlas in its texture slot. The main thread
-// builds the cards (LeavesFrame); Draw, which ext.render_pipe may run on its render thread, copies the
-// last finished set under a lock and records the camera the next set is built for.
+// THE DRAW. One Graphics::Geometry in the scene's global list, drawn as the herbs are: the installed
+// Material/AlphaTest/AlphaTestMaterial.rsc with our leaf atlas in its "diffuse" slot, so the cards are lit
+// by the sun, receive the shadow map (the normal pass) and cast shadows (its depth pass). One instance
+// carries the cards' origin; the cards are in the dynamic vertex stream in ModelLayout (leaf_fall.h). The
+// main thread builds them from the player's camera (LeavesFrame); Draw, which ext.render_pipe may run on
+// its render thread and which the renderer calls once per pass (the shadow, normal and reflection
+// passes), copies the last finished set under a lock.
 // ============================================================================
 #include "ext/better_trees/falling_leaves.h"
 
@@ -21,15 +24,13 @@
 #include "ext/resources/sheet_builder.h"
 
 #include "Component/ComponentDescription.h"
-#include "Component/EnvironmentDescription.h"
 #include "Component/ModelComponent.h"
 #include "Component/NaturalResourceComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "Game/Calendar.h"
 #include "Game/GameUpdateLoop.h"
 #include "Game/Map.h"
-#include "Game/Weather.h"
-#include "Game/WeatherSimulation.h"
+#include "Game/PlayerController.h"
 #include "graphics/Camera.h"
 #include "graphics/Material.h"
 #include "graphics/Scene.h"
@@ -39,6 +40,7 @@
 
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -53,22 +55,18 @@ namespace BetterTrees {
 namespace {
 
 using LeafFall::Vertex;
-static_assert(sizeof(Vertex) == 0x14, "the particle program's vertex is 0x14 bytes");
 
 constexpr int   kScanSlices  = 16;      // the whole map in 16 frames
-constexpr float kRadius      = 45.0f;   // trees dropping leaves: within this of the camera (horizontally)
+constexpr float kRadius      = 45.0f;   // trees dropping leaves: within this of where the camera looks
 constexpr float kMaxHeight   = 110.0f;  // above this over the ground the leaves are sub-pixel: none drop
 constexpr float kBound       = 1024.0f; // WeatherParticleGeometry's bounds
+constexpr const char* kMaterial = "Material/AlphaTest/AlphaTestMaterial.rsc";   // the herbs' material
 
 // What Draw shares with the main thread.
 struct Shared {
     std::mutex mutex;
-    std::vector<Vertex> cards;     // the last finished set
-    bool  haveCamera = false;
-    float position[3] = {};
-    float right[3] = {1.0f, 0.0f, 0.0f};
-    float up[3] = {0.0f, 0.0f, 1.0f};
-    float forward[3] = {0.0f, 1.0f, 0.0f};
+    std::vector<Vertex> cards;   // the last finished set
+    float origin[3] = {};        // what their positions are relative to
 };
 
 class LeavesGeometry final : public Graphics::Geometry {
@@ -89,14 +87,18 @@ public:
 
     void Update(const System::Time& /*time*/) override {}
 
-    // WeatherParticleGeometry::AddDrawItems' item (weather_particles.cpp), every frame: Draw is also where
-    // the camera the next set of cards is built for is read.
+    // A mesh's item (mesh.cpp: its detail id as the sort key) without the mesh, as the weather's
+    // (weather_particles.cpp): the renderer calls Draw for each of the material's passes.
     void AddDrawItems(const Graphics::Scene& /*scene*/, Graphics::Renderer& renderer) const override {
-        renderer.AddDrawItem(this, _material, 0xffff, 0, 0.0f, 1.0f, 1, nullptr, 0);
+        {
+            std::lock_guard<std::mutex> lock(shared.mutex);
+            if (shared.cards.empty()) return;
+        }
+        renderer.AddDrawItem(this, _material, 2, 0, 0.0f, 1.0f, 1, nullptr, 0xffffffffu);
     }
 
-    void Draw(Video::Context& context, const Graphics::Camera& camera, Graphics::ExternalPtrHandle /*material*/,
-              float /*opacity*/, int /*a*/, int /*b*/, int /*c*/) const override;
+    void Draw(Video::Context& context, const Graphics::Camera& camera, Graphics::ExternalPtrHandle material,
+              float opacity, int a, int b, int c) const override;
 
     mutable Shared shared;
 
@@ -104,53 +106,36 @@ private:
     Graphics::MaterialInstance* _material;
 };
 
-void LeavesGeometry::Draw(Video::Context& context, const Graphics::Camera& camera, Graphics::ExternalPtrHandle,
-                          float, int, int, int) const {
-    const Math::Transform3 view(camera._cameraToWorld);
+void LeavesGeometry::Draw(Video::Context& context, const Graphics::Camera& /*camera*/,
+                          Graphics::ExternalPtrHandle /*material*/, float /*opacity*/, int /*a*/, int /*b*/,
+                          int /*c*/) const {
     std::lock_guard<std::mutex> lock(shared.mutex);
-    // the camera the next set is built for (weather_particle_draw.cpp: col0 and col2 span the view plane)
-    shared.haveCamera = true;
-    shared.position[0] = view.translation.x;
-    shared.position[1] = view.translation.y;
-    shared.position[2] = view.translation.z;
-    shared.right[0] = view.axisX.x;
-    shared.right[1] = view.axisX.y;
-    shared.right[2] = view.axisX.z;
-    shared.up[0] = view.axisZ.x;
-    shared.up[1] = view.axisZ.y;
-    shared.up[2] = view.axisZ.z;
-    shared.forward[0] = view.axisY.x;
-    shared.forward[1] = view.axisY.y;
-    shared.forward[2] = view.axisY.z;
     const int vertices = static_cast<int>(shared.cards.size());
     if (vertices == 0) return;
     const int indices = vertices / 4 * 6;
-
-    // the weather's state: full intensity, its two depth fades (o2 = the fade inputs, saturated)
-    context.SetColor(Math::Vector4(1.0f, 1.0f, 1.0f, 1.0f));
-    const float nearFadeStart = 90.0f;   // gone beyond 90 units of depth, fading from 70
-    const float nearFade = 70.0f;
-    const float farFade = 0.5f;          // and fading in over the first 2 units in front of the camera
-    const float farFadeStart = 2.0f;
-    context.SetInverseScale(-nearFadeStart, 1.0f / (nearFade - nearFadeStart), -farFade,
-                            1.0f / (farFadeStart - farFade));
-    if (context.GetMaxDynamicInstances(vertices, static_cast<int>(sizeof(Vertex)), indices) < 1) return;
-    const Math::Matrix origin(Math::Vector4(1.0f, 0.0f, 0.0f, 0.0f), Math::Vector4(0.0f, 1.0f, 0.0f, 0.0f),
-                              Math::Vector4(0.0f, 0.0f, 1.0f, 0.0f), Math::Vector4(0.0f, 0.0f, 0.0f, 1.0f));
-    context.SetTransform(0, origin);
-    if (!context.BeginInstancedIndexedVertices(vertices, static_cast<int>(sizeof(Vertex)), indices, 1)) return;
+    const int stride = static_cast<int>(sizeof(Vertex));
+    if (context.GetMaxDynamicInstances(vertices, stride, indices) < 1) return;
+    // the instance as a standalone rigid mesh sets it (meshinstance_draw.cpp): the cards' origin as the
+    // translation, a unit scale
+    Math::Transform world = Math::Transform::Identity();
+    world.translation.x = shared.origin[0];
+    world.translation.y = shared.origin[1];
+    world.translation.z = shared.origin[2];
+    context.SetTransformScale(0, world.AsMatrix(), Math::Vector4(1.0f, 1.0f, 1.0f, 0.0f));
+    if (!context.BeginInstancedIndexedVertices(vertices, stride, indices, 1)) return;
     const size_t bytes = static_cast<size_t>(vertices) * static_cast<size_t>(context._dynamicVertexStride);
     std::memcpy(context._dynamicVertexCursor, shared.cards.data(), bytes);
     context._dynamicVertexCursor += bytes;
     uint16_t*& out = context._dynamicIndexCursor;
     for (int q = 0; q < vertices / 4; ++q) {
         const uint16_t base = static_cast<uint16_t>(q * 4);
+        // wound to face the camera: AlphaTestMaterial culls back faces (the weather's material does not)
         out[0] = base;
-        out[1] = static_cast<uint16_t>(base + 1);
-        out[2] = static_cast<uint16_t>(base + 2);
+        out[1] = static_cast<uint16_t>(base + 2);
+        out[2] = static_cast<uint16_t>(base + 1);
         out[3] = base;
-        out[4] = static_cast<uint16_t>(base + 2);
-        out[5] = static_cast<uint16_t>(base + 3);
+        out[4] = static_cast<uint16_t>(base + 3);
+        out[5] = static_cast<uint16_t>(base + 2);
         out += 6;
     }
     context.EndInstancedIndexedVertices(0);
@@ -166,7 +151,7 @@ struct State {
     int slice = 0;
     std::vector<LeafFall::Tree> scanning;   // the pass in progress
     std::vector<LeafFall::Tree> trees;      // the last complete pass
-    std::unordered_map<const void*, bool> deciduous;   // per ComponentDescription
+    std::unordered_map<const void*, bool> deciduous;   // per mesh (its first material instance)
     LeafFall::Field field;
     std::vector<LeafFall::Tree> near;
     std::vector<Vertex> cards;
@@ -190,8 +175,6 @@ std::string PathOf(const Object::External* object) {
 }
 
 // A deciduous canopy: a billboard material that is not the evergreen one (NATURAL_GROWTH.md §6.1, S1).
-// Decided per mesh (its first material instance): every tree species is the one description
-// Template/NaturalResourceTree.rsc, with a mesh per species.
 bool IsDeciduous(ComponentEntity* entity, ModelComponent* model) {
     const auto& materials = model->meshInstance._materials;
     if (materials._size < 1) return false;
@@ -235,7 +218,6 @@ void ScanSlice(Map* map) {
         if (model == nullptr || model->modelId < 0 || model->meshIndex < 0) continue;
         if (!IsDeciduous(e, model)) continue;
         const Math::Vector3& t = model->transform.translation;
-        // one tree per entity: the cell its own position falls in (a footprint may cover several)
         const ::Box& b = model->meshInstance._worldBounds;
         if (b.max.z <= b.min.z) continue;   // not cleaned yet
         LeafFall::Tree tree;
@@ -248,6 +230,7 @@ void ScanSlice(Map* map) {
         tree.crown[3] = b.max.x;
         tree.crown[4] = b.max.y;
         tree.crown[5] = b.max.z;
+        // one tree per entity (a footprint may cover several neighbouring cells)
         bool dup = false;
         for (size_t k = g.scanning.size() > 8 ? g.scanning.size() - 8 : 0; k < g.scanning.size(); ++k) {
             if (g.scanning[k].x == tree.x && g.scanning[k].y == tree.y) dup = true;
@@ -261,7 +244,7 @@ void ScanSlice(Map* map) {
     }
 }
 
-// The material: our atlas in the snow particle material's texture slot.
+// The material: our atlas in AlphaTestMaterial's "diffuse" slot (the herbs' one texture).
 bool EnsureGeometry(GameUpdateLoop& game) {
     if (g.geometry != nullptr && g.scene == game.m_graphicsScene) return true;
     if (g.geometry != nullptr) {
@@ -270,21 +253,8 @@ bool EnsureGeometry(GameUpdateLoop& game) {
         g.geometry = nullptr;
         g.scene = nullptr;
     }
-    if (g.atlasFailed || game.m_graphicsScene == nullptr || game.m_weather == nullptr) return false;
+    if (g.atlasFailed || game.m_graphicsScene == nullptr) return false;
     if (g.atlas.material == nullptr) {
-        const EnvironmentDescription* env = game.m_weather->environment;
-        const Graphics::MaterialInstance* snow = nullptr;
-        if (env != nullptr) {
-            for (int i = 0; i < env->_weatherArray._size; ++i) {
-                const Weather* w = env->_weatherArray._data[i].weather;
-                if (w != nullptr && w->material != nullptr && !w->velocityStretch) snow = w->material;   // not rain's streaks
-            }
-        }
-        if (snow == nullptr || snow->_material.Get() == nullptr || snow->_textures._size < 1) {
-            std::fprintf(stderr, "[NaturalGrowth] leaves: no snow particle material in this climate: no leaves\n");
-            g.atlasFailed = true;
-            return false;
-        }
         const std::vector<uint8_t> pixels = LeafFall::PaintAtlas();
         const Ext::Resources::SheetBitmap bitmap{"leaves", "NaturalGrowth", LeafFall::kAtlasSize,
                                                  LeafFall::kAtlasSize, pixels.data()};
@@ -294,15 +264,14 @@ bool EnsureGeometry(GameUpdateLoop& game) {
         spec.padForFiltering = false;
         spec.materialName = "NaturalGrowthLeaves";
         spec.imageName = "NaturalGrowthLeaves";
-        const char* slot = snow->_textures._data[0].name._data;
-        g.atlas = Ext::Resources::BuildSheetObjects(spec, &bitmap, 1,
-                                                    const_cast<Graphics::Material*>(snow->_material.Get()), slot);
+        g.atlas = Ext::Resources::BuildSheetObjects(spec, &bitmap, 1, kMaterial, "diffuse");
         if (g.atlas.material == nullptr) {
+            std::fprintf(stderr, "[NaturalGrowth] leaves: no %s: no leaves\n", kMaterial);
             g.atlasFailed = true;
             return false;
         }
-        std::fprintf(stderr, "[NaturalGrowth] leaves: atlas %dx%d on %s (slot %s)\n", LeafFall::kAtlasSize,
-                     LeafFall::kAtlasSize, PathOf(snow->_material.Get()).c_str(), slot != nullptr ? slot : "?");
+        std::fprintf(stderr, "[NaturalGrowth] leaves: atlas %dx%d on %s\n", LeafFall::kAtlasSize,
+                     LeafFall::kAtlasSize, kMaterial);
     }
     void* mem = System::MemoryAllocator::MemAlloc(sizeof(LeavesGeometry), 16);
     if (mem == nullptr) return false;
@@ -325,7 +294,8 @@ void DropGeometry() {
 }  // namespace
 
 void LeavesFrame(GameUpdateLoop& game) {
-    if (!NaturalGrowthOn() || game.m_dayCounter == nullptr || game.m_game == nullptr) {
+    if (!NaturalGrowthOn() || game.m_dayCounter == nullptr || game.m_game == nullptr ||
+        game.m_playerController == nullptr) {
         if (g.geometry != nullptr) DropGeometry();
         return;
     }
@@ -352,25 +322,20 @@ void LeavesFrame(GameUpdateLoop& game) {
     }
     if (std::chrono::duration<float>(now - g.lastTick).count() > 0.25f) dt = 0.0f;
 
-    Shared& sh = g.geometry->shared;
-    float cam[3];
-    float right[3];
-    float up[3];
-    float forward[3];
-    {
-        std::lock_guard<std::mutex> lock(sh.mutex);
-        if (!sh.haveCamera) return;
-        std::memcpy(cam, sh.position, sizeof cam);
-        std::memcpy(right, sh.right, sizeof right);
-        std::memcpy(up, sh.up, sizeof up);
-        std::memcpy(forward, sh.forward, sizeof forward);
-    }
+    // the player's camera (weather_particle_draw.cpp: its X and Z axes span the view plane, Y looks ahead)
+    const Math::Transform3 view(game.m_playerController->camera._cameraToWorld);
+    const float cam[3] = {view.translation.x, view.translation.y, view.translation.z};
+    const float right[3] = {view.axisX.x, view.axisX.y, view.axisX.z};
+    const float up[3] = {view.axisZ.x, view.axisZ.y, view.axisZ.z};
+    const float forward[3] = {view.axisY.x, view.axisY.y, view.axisY.z};
+
     // the trees around where the camera looks: its view ray's point at ground height (the camera's own
     // spot when it looks level), at most kRadius ahead
     float ahead = forward[2] < -0.05f ? cam[2] / -forward[2] : 0.0f;
     if (ahead > kRadius) ahead = kRadius;
     const float centre[2] = {cam[0] + forward[0] * ahead, cam[1] + forward[1] * ahead};
     g.near.clear();
+    float ground = 0.0f;
     for (const LeafFall::Tree& t : g.trees) {
         const float dx = t.x - centre[0];
         const float dy = t.y - centre[1];
@@ -378,12 +343,22 @@ void LeavesFrame(GameUpdateLoop& game) {
         const float loss = LeafFall::AutumnLoss(t.x, t.y, months);
         if (loss <= 0.0f || loss >= 1.0f) continue;
         g.near.push_back(t);
+        ground += t.baseZ;
     }
     g.field.Step(dt, months, g.near);
+
+    // the cards around a whole-unit origin at the view's centre (int16 / 512 reaches +-64 units), lit as
+    // facing up and a little towards the camera
+    const float origin[3] = {std::floor(centre[0]), std::floor(centre[1]),
+                             std::floor(g.near.empty() ? 0.0f : ground / static_cast<float>(g.near.size()))};
+    float facing[3] = {-forward[0] * 0.5f, -forward[1] * 0.5f, 1.0f - forward[2] * 0.5f};
+    const float len = std::sqrt(facing[0] * facing[0] + facing[1] * facing[1] + facing[2] * facing[2]);
+    for (float& f : facing) f /= len;
     g.cards.clear();
-    LeafFall::BuildQuads(g.field.Leaves(), right, up, g.cards);
-    std::lock_guard<std::mutex> lock(sh.mutex);
-    sh.cards.swap(g.cards);
+    LeafFall::BuildQuads(g.field.Leaves(), right, up, facing, origin, g.cards);
+    std::lock_guard<std::mutex> lock(g.geometry->shared.mutex);
+    g.geometry->shared.cards.swap(g.cards);
+    std::memcpy(g.geometry->shared.origin, origin, sizeof origin);
 }
 
 void LeavesShutdown(Graphics::Scene* scene) {

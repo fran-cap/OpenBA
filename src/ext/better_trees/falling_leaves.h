@@ -3,9 +3,9 @@
 // src/ext/better_trees/falling_leaves.h -- natural tree growth's falling leaves (NATURAL_GROWTH.md §7)
 // ============================================================================
 // NOT RETAIL, class A (render only: nothing is saved, the sim never sees it). While natural tree growth is
-// on, the deciduous trees near the camera drop leaves during their own autumn leaf fall. The leaves are our
-// own procedural atlas (leaf_fall.h) drawn by the installed snow weather's particle material: no shader
-// is added or rewritten. Two seams in GameUpdateLoop: Frame (Draw step 2) and Shutdown (with the other
+// on, the deciduous trees near the camera drop leaves during their own autumn leaf fall. The leaves are
+// CC0 leaf photographs coloured into an atlas (leaf_fall.h), drawn lit and shadowed by the installed
+// AlphaTestMaterial (the herbs' material): no shader is added or rewritten. Two seams in GameUpdateLoop: Frame (Draw step 2) and Shutdown (with the other
 // global scene objects).
 // ============================================================================
 

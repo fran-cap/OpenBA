@@ -251,9 +251,9 @@ A natural-growth pixel copy reads an interpolant that only a natural-growth vert
 ## 7. Phase 2: the falling leaves (as built)
 
 While natural tree growth is on, deciduous trees near the view drop leaves during their own autumn leaf fall.
-Nothing new is shipped or rewritten.
-- The leaves are our own procedural atlas.
-- The program and blend state are the user's installed snow weather material (`Material/Weather/WeatherMaterial.rsc`).
+No shader is added or rewritten.
+- The leaves are three CC0 leaf photographs (THIRD_PARTY_NOTICES.md), baked small and coloured at load.
+- The program is the user's installed `Material/AlphaTest/AlphaTestMaterial.rsc`, the herbs' material. The leaves are lit by the sun, receive the shadow map (its normal pass) and cast shadows (its depth pass).
 - It is render only (class A): nothing is saved, and the sim never sees it.
 
 **Files.**
@@ -262,15 +262,26 @@ Nothing new is shipped or rewritten.
 - Two seams, both in `GameUpdateLoop` (with `ext.render_pipe`'s MainHalf twin of the first):
   - `LeavesFrame`: Draw step 2, beside the season stamp.
   - `LeavesShutdown`: Shutdown's removal of the global scene objects.
-- `Ext::Resources::BuildSheetObjects` gained an overload that takes a base material the caller already holds.
+- `tools/leaf_textures_bake.py` writes `src/ext/better_trees/leaf_textures_data.h` from the photographs (not in the tree).
 
-**The atlas.**
-- 128 x 128, with 4 leaf shapes (oval, lance, lobed, round) in 4 colours (gold, orange, red, brown).
-- Painted at load with 4 x 4 supersampled edges and a darker midrib.
-- The colour is filled across the whole cell, so bilinear filtering leaves no dark fringe.
-- It is bound in the snow material's `diffuse` slot.
-- The weather program reads its corner texture coordinates as UNORM8, so a card picks its cell in 1/255 steps. The cells keep a clear 2-texel margin.
-- The weather program is unlit and outputs the texture's colour as is, which is why the colours sit below the canopy palette.
+**The textures.**
+- The bake crops each photograph to its alpha and turns it 45 degrees so its long axis runs along the cell's diagonal. It then fits it into 64 x 64 with a clear 2-texel margin.
+- It keeps two 8-bit planes: the luminance, stretched to a mean of 0.8, and the alpha. Together they come to 24 KB in the exe.
+- At load, `PaintAtlas` builds a 256 x 256 RGBA8 atlas:
+  - 4 columns: the three leaves and the first one mirrored;
+  - 4 rows: gold, orange, red and brown, each multiplied into the luminance.
+- The atlas is bound in the material's `diffuse` slot.
+- The material's pixel program cuts at alpha 0.5.
+
+**The cards.**
+- They are drawn in the material's own vertex format (`ModelLayout`, 20 bytes):
+  - position and texture coordinates as `R16G16B16A16_SINT / 512`;
+  - the normal as `R8G8B8A8_UNORM`.
+- The positions are relative to a whole-unit origin at the view's centre, which the draw puts in the instance's translation (a rigid mesh's `SetTransformScale`). A card beyond 60 units of it is left out (int16 / 512 reaches 64).
+- The second texture set (the ambient lookup) is a fixed mid texel.
+- A card is lit as facing up and a little towards the camera.
+- The material culls back faces, so the cards are wound to face the camera.
+- The card's edge is 0.15 units, about a leaf of the canopy billboards (the user's ruling).
 
 **The trees.**
 - The map's occupants are scanned a sixteenth per frame. Every tree species shares one description, `Template/NaturalResourceTree.rsc`, so a tree counts as deciduous by its mesh: its first material instance is a billboard material that is not the evergreen one.
@@ -290,10 +301,9 @@ Nothing new is shipped or rewritten.
 - The leaves move in real time while the game clock runs. They freeze when the clock has not moved for 0.25 s (paused).
 
 **The draw.**
-- `LeavesGeometry` is a `Graphics::Geometry` in the scene's global list. Its draw item is WeatherParticleGeometry's own.
-- It draws one instance at the origin, with the cards' world positions in the dynamic vertex stream.
-- Visibility runs to 70-90 units of depth, plus the near fade.
-- The main thread builds the cards. `Draw` copies the last finished set under a lock, so it is safe on the render pipe's thread, and records the camera.
+- `LeavesGeometry` is a `Graphics::Geometry` in the scene's global list. While there are cards, it adds a mesh-like draw item. The renderer calls its `Draw` once per pass of the material: shadow depth, normal and reflection.
+- It draws one instance, with the cards in the dynamic vertex stream.
+- The main thread builds the cards from the player controller's camera. `Draw` copies the last finished set under a lock, so it is safe on the render pipe's thread.
 - Outside months 6-9.5 the geometry leaves the scene, so the rest of the year draws exactly as without the part.
 - A frame holding it is one the render pipe's snapshot does not cover, so that frame keeps the fence.
 
@@ -302,5 +312,6 @@ Nothing new is shipped or rewritten.
 - About 200 leaves at play distance (2,400 against the cap before the rate and radius were lowered).
 - Quit to the main menu mid-fall: clean, with an empty crash log.
 - The Vulkan build compiles.
-- No leaves run has been done on Vulkan or Metal. The draw uses only `Video::Context` calls the weather already makes.
+- No leaves run has been done on Vulkan or Metal. The draw uses only `Video::Context` calls the meshes and the weather already make.
+- The lit cards were checked in a RenderDoc capture (three draws a frame: the shadow, normal and reflection passes) and on screen: textured, coloured, and darker in shadow.
 - The look (size, colours, rate) is the user's ruling.

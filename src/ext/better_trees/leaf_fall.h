@@ -6,10 +6,14 @@
 // NOT RETAIL. No engine types: the host unit test (tests/unit/ext_natural_growth_test.cpp) runs all of it.
 // falling_leaves.cpp feeds it the deciduous trees near the camera and draws what it builds.
 //
-// THE ATLAS. Our own procedural content (rule 7): 4 x 4 leaves of 32 x 32 texels in a 128 x 128 RGBA8
-// sheet; a column is a leaf shape (oval, lance, lobed, round), a row a colour (gold, orange, red, brown).
-// The particle program reads its corner texture coordinates as UNORM8 (WeatherParticleGeometry's corner
-// dwords), so a cell is addressed in 1/255 steps: byte 64 c .. 64 c + 63 (inside the 32-texel cell).
+// THE ATLAS. 4 x 4 leaves of 64 x 64 texels in a 256 x 256 RGBA8 sheet: a column is a leaf (the three CC0
+// photographs of leaf_textures_data.h, tools/leaf_textures_bake.py, and the first one mirrored), a row a
+// colour (gold, orange, red, brown) multiplied into the photograph's luminance. No game content (rule 7).
+//
+// THE CARDS. AlphaTestMaterial's ModelLayout (MeshLayout/ModelLayout.rsc; the opaque Normal_vs and
+// DepthAlpha_vs read it): position and texture coordinates as R16G16B16A16_SINT / 512 (the second texture
+// set zw / 8192), the normal as R8G8B8A8_UNORM * 2 - 1, 20 bytes. A position is relative to an origin the
+// draw puts in the instance's translation, so the cards stay inside +-64 units of it.
 //
 // THE TIMING. A tree drops its leaves while its own autumn loss (NgRewrite::SeasonOf's autumn half, the
 // same terms the canopy shader computes) is between 0 and 1: about three weeks of game time per tree,
@@ -26,12 +30,13 @@ namespace Ext {
 namespace BetterTrees {
 namespace LeafFall {
 
-constexpr int kAtlasSize  = 128;
-constexpr int kCell       = 32;
+constexpr int kAtlasSize  = 256;
+constexpr int kCell       = 64;
 constexpr int kShapes     = 4;
 constexpr int kColours    = 4;    // 0 gold, 1 orange, 2 red, 3 brown
 constexpr int kMaxLeaves  = 2400; // 4 vertices each: inside one 16-bit dynamic index range
-constexpr float kLeafSize = 0.5f;    // the card's edge, world units (snow's particleSize is 0.25): a leaf, exaggerated to read at play distance
+constexpr float kLeafSize = 0.15f; // the card's edge, world units: about a leaf of the canopy billboards
+constexpr float kReach    = 60.0f;   // the cards' reach around the draw's origin (the int16 / 512 range)
 
 // The atlas, straight RGBA8, row-major, top-down (kAtlasSize^2 * 4 bytes).
 std::vector<uint8_t> PaintAtlas();
@@ -75,14 +80,18 @@ private:
     uint32_t _seed = 0x9e3779b9u;
 };
 
-// One quad corner as the particle program reads it (WeatherParticleGeometry's ParticleVertex).
+// One card corner in ModelLayout (above).
 struct Vertex {
-    float    position[4];
-    uint32_t corner;     // u | v << 8, UNORM8
+    int16_t position[4];   // (p - origin) * 512, w 0
+    int16_t texcoord[4];   // atlas uv * 512, then the second set * 8192 (the ambient lookup: a fixed texel)
+    uint8_t normal[4];     // n * 127.5 + 127.5
 };
-// The leaves as camera-facing cards: `right` / `up` two unit axes of the view plane. Appends four
-// vertices per leaf.
-void BuildQuads(const std::vector<Leaf>& leaves, const float right[3], const float up[3], std::vector<Vertex>& out);
+static_assert(sizeof(Vertex) == 20, "ModelLayout's stride");
+// The leaves as camera-facing cards around `origin`: `right` / `up` two unit axes of the view plane,
+// `facing` the normal the cards are lit with. Appends four vertices per leaf; a leaf beyond kReach of the
+// origin is left out.
+void BuildQuads(const std::vector<Leaf>& leaves, const float right[3], const float up[3], const float facing[3],
+                const float origin[3], std::vector<Vertex>& out);
 
 }  // namespace LeafFall
 }  // namespace BetterTrees

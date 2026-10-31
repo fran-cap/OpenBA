@@ -607,7 +607,7 @@ UNIT_TEST(ext_natural_growth_leaf_atlas) {
                 for (int x = 0; x < LF::kCell; ++x) {
                     const uint8_t a = px[(static_cast<size_t>(row * LF::kCell + y) * LF::kAtlasSize + col * LF::kCell + x) * 4 + 3];
                     if (a > 128) ++opaque;
-                    // the outer two texels stay clear: the 1/255 corner steps and bilinear filtering stay in the cell
+                    // the outer two texels stay clear: bilinear filtering and the mips stay in the cell
                     if ((x < 2 || y < 2 || x >= LF::kCell - 2 || y >= LF::kCell - 2) && a != 0) ++edge;
                 }
             }
@@ -667,27 +667,35 @@ UNIT_TEST(ext_natural_growth_leaf_field) {
 
 UNIT_TEST(ext_natural_growth_leaf_quads) {
     LF::Leaf l{};
-    l.pos[0] = 1.0f;
-    l.pos[1] = 2.0f;
-    l.pos[2] = 3.0f;
+    l.pos[0] = 11.0f;
+    l.pos[1] = 22.0f;
+    l.pos[2] = 33.0f;
     l.shape = 2;
     l.colour = 1;
-    const std::vector<LF::Leaf> leaves{l};
+    LF::Leaf far = l;
+    far.pos[0] = 10.0f + LF::kReach + 1.0f;   // beyond the int16 positions' reach: left out
+    const std::vector<LF::Leaf> leaves{l, far};
     const float right[3] = {1.0f, 0.0f, 0.0f};
     const float up[3] = {0.0f, 0.0f, 1.0f};
+    const float facing[3] = {0.0f, 0.0f, 1.0f};
+    const float origin[3] = {10.0f, 20.0f, 30.0f};
     std::vector<LF::Vertex> v;
-    LF::BuildQuads(leaves, right, up, v);
+    LF::BuildQuads(leaves, right, up, facing, origin, v);
     CHECK_EQ(v.size(), static_cast<size_t>(4));
-    float cx = 0.0f, cz = 0.0f;
+    float cx = 0.0f, cy = 0.0f, cz = 0.0f;
     for (const LF::Vertex& q : v) {
-        cx += q.position[0] / 4.0f;
-        cz += q.position[2] / 4.0f;
-        CHECK_EQ(q.position[3], 0.0f);
-        const uint32_t u = q.corner & 0xFF;
-        const uint32_t w = (q.corner >> 8) & 0xFF;
-        CHECK(u == 128u || u == 191u);   // shape 2's column
-        CHECK(w == 64u || w == 127u);    // colour 1's row
-        CHECK_EQ(q.corner >> 16, 0u);
+        cx += q.position[0] / 512.0f / 4.0f;   // ModelLayout: int16 / 512
+        cy += q.position[1] / 512.0f / 4.0f;
+        cz += q.position[2] / 512.0f / 4.0f;
+        CHECK_EQ(q.position[3], 0);
+        const float u = q.texcoord[0] / 512.0f;
+        const float w = q.texcoord[1] / 512.0f;
+        CHECK(Near(u, 0.5f, 1e-6f) || Near(u, 0.75f, 1e-6f));   // shape 2's column
+        CHECK(Near(w, 0.25f, 1e-6f) || Near(w, 0.5f, 1e-6f));   // colour 1's row
+        CHECK_EQ(q.normal[0], 128);   // (0, 0, 1) as UNORM8 * 2 - 1
+        CHECK_EQ(q.normal[1], 128);
+        CHECK_EQ(q.normal[2], 255);
     }
-    CHECK(Near(cx, 1.0f, 1e-5f) && Near(cz, 3.0f, 1e-5f));   // centred on the leaf
+    // centred on the leaf, relative to the origin
+    CHECK(Near(cx, 1.0f, 2e-3f) && Near(cy, 2.0f, 2e-3f) && Near(cz, 3.0f, 2e-3f));
 }

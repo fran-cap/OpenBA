@@ -5,6 +5,7 @@
 #include "ext/better_trees/leaf_fall.h"
 
 #include "better_trees/natural_growth.h"   // NgRewrite::TermsOf / kCurves: the canopy's own terms
+#include "ext/better_trees/leaf_textures_data.h"
 
 #include <cmath>
 
@@ -16,64 +17,34 @@ namespace {
 
 float Sat(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
-// The leaf colours, straight RGB 0..1: the canopy palette's gold / orange / red and the browning's brown,
-// deeper than the canopy's (the weather program is unlit: a leaf in the canopy's shade shows these as is).
+// The leaf colours, straight RGB 0..1, multiplied into the photograph's luminance (mean 0.8): the canopy
+// palette's gold / orange / red and the browning's brown. AlphaTestMaterial lights them as the herbs.
 constexpr float kRow[kColours][3] = {
-    {0.68f, 0.52f, 0.17f},
-    {0.70f, 0.35f, 0.10f},
-    {0.58f, 0.15f, 0.07f},
-    {0.42f, 0.27f, 0.13f},
+    {0.90f, 0.66f, 0.22f},
+    {0.90f, 0.45f, 0.13f},
+    {0.76f, 0.20f, 0.09f},
+    {0.52f, 0.34f, 0.17f},
 };
-
-// Inside test of leaf shape `s` at (u, v), both in [-1, 1], the stem along -v: the half width at height v.
-float HalfWidth(int s, float v) {
-    const float t = (v + 1.0f) * 0.5f;   // 0 at the stem, 1 at the tip
-    switch (s) {
-    case 0: return 0.62f * std::sin(3.14159265f * std::pow(t, 0.8f));                       // oval
-    case 1: return 0.36f * std::sin(3.14159265f * std::pow(t, 0.6f));                       // lance
-    case 2: {                                                                                // lobed
-        const float body = 0.55f * std::sin(3.14159265f * std::pow(t, 0.7f));
-        return body * (0.78f + 0.22f * std::cos(3.0f * 3.14159265f * t));
-    }
-    default: return 0.70f * std::sqrt(Sat(1.0f - (2.0f * t - 1.0f) * (2.0f * t - 1.0f)));   // round
-    }
-}
 
 }  // namespace
 
 std::vector<uint8_t> PaintAtlas() {
+    static_assert(kLeafCell == kCell, "the baked leaves are one atlas cell each");
     std::vector<uint8_t> px(static_cast<size_t>(kAtlasSize) * kAtlasSize * 4, 0);
-    constexpr int kSub = 4;   // 4 x 4 samples per texel for the edge
     for (int row = 0; row < kColours; ++row) {
         for (int col = 0; col < kShapes; ++col) {
+            // the three photographs, then the first one mirrored
+            const int photo = col < kLeafPhotos ? col : 0;
+            const bool mirror = col >= kLeafPhotos;
             for (int y = 0; y < kCell; ++y) {
                 for (int x = 0; x < kCell; ++x) {
-                    int inside = 0;
-                    float rib = 0.0f;
-                    float shade = 0.0f;
-                    for (int sy = 0; sy < kSub; ++sy) {
-                        for (int sx = 0; sx < kSub; ++sx) {
-                            // a 3-texel margin: the 1/255 corner steps and bilinear filtering stay in the cell
-                            const float u = ((x + (sx + 0.5f) / kSub) - kCell * 0.5f) / (kCell * 0.5f - 3.0f);
-                            const float v = -(((y + (sy + 0.5f) / kSub) - kCell * 0.5f) / (kCell * 0.5f - 3.0f));
-                            const float w = HalfWidth(col, v);
-                            const bool blade = v > -1.0f && v < 1.0f && std::fabs(u) < w;
-                            const bool stem = v <= -0.80f && v > -1.0f && std::fabs(u) < 0.06f;
-                            if (!blade && !stem) continue;
-                            ++inside;
-                            if (std::fabs(u) < 0.05f) rib += 1.0f;
-                            shade += 0.5f + 0.5f * (w > 0.0f ? std::fabs(u) / w : 0.0f);
-                        }
-                    }
+                    const int sx = mirror ? kCell - 1 - x : x;
+                    const float lum = kLeafLum[photo][y * kCell + sx] / 255.0f;
                     const size_t at = (static_cast<size_t>(row * kCell + y) * kAtlasSize + col * kCell + x) * 4;
-                    const float* c = kRow[row];
-                    // the colour everywhere (no dark fringe under bilinear filtering), the leaf in the alpha
-                    float k = 1.0f;
-                    if (inside > 0) k = 1.0f - 0.18f * (shade / inside - 0.5f) - 0.25f * (rib / inside);
                     for (int ch = 0; ch < 3; ++ch) {
-                        px[at + ch] = static_cast<uint8_t>(std::lround(Sat(c[ch] * k) * 255.0f));
+                        px[at + ch] = static_cast<uint8_t>(std::lround(Sat(kRow[row][ch] * lum) * 255.0f));
                     }
-                    px[at + 3] = static_cast<uint8_t>(std::lround(255.0f * inside / (kSub * kSub)));
+                    px[at + 3] = kLeafAlpha[photo][y * kCell + sx];
                 }
             }
         }
@@ -157,10 +128,21 @@ void Field::Step(float dt, float months, const std::vector<Tree>& trees) {
     }
 }
 
-void BuildQuads(const std::vector<Leaf>& leaves, const float right[3], const float up[3], std::vector<Vertex>& out) {
+void BuildQuads(const std::vector<Leaf>& leaves, const float right[3], const float up[3], const float facing[3],
+                const float origin[3], std::vector<Vertex>& out) {
     out.reserve(out.size() + leaves.size() * 4);
     const float half = kLeafSize * 0.5f;
+    uint8_t normal[4];
+    for (int k = 0; k < 3; ++k) normal[k] = static_cast<uint8_t>(std::lround(Sat(facing[k] * 0.5f + 0.5f) * 255.0f));
+    normal[3] = 0;
     for (const Leaf& l : leaves) {
+        float rel[3];
+        bool inside = true;
+        for (int k = 0; k < 3; ++k) {
+            rel[k] = l.pos[k] - origin[k];
+            if (std::fabs(rel[k]) > kReach) inside = false;
+        }
+        if (!inside) continue;
         const float c = std::cos(l.spin);
         const float s = std::sin(l.spin);
         const float tumble = 0.2f + 0.8f * std::fabs(std::cos(l.tumbleRate * l.phase));
@@ -169,19 +151,26 @@ void BuildQuads(const std::vector<Leaf>& leaves, const float right[3], const flo
             a[k] = (c * right[k] + s * up[k]) * half;
             b[k] = (-s * right[k] + c * up[k]) * half * tumble;
         }
-        const uint32_t u0 = 64u * (l.shape % kShapes);
-        const uint32_t v0 = 64u * (l.colour % kColours);
-        const uint32_t u1 = u0 + 63u;
-        const uint32_t v1 = v0 + 63u;
-        // the corners in WeatherParticleGeometry's order: (+a -b), (+a +b), (-a +b), (-a -b)
+        // the cell, in texels * 512 / kAtlasSize (int16 / 512 = uv)
+        const int u0 = (l.shape % kShapes) * kCell * 512 / kAtlasSize;
+        const int v0 = (l.colour % kColours) * kCell * 512 / kAtlasSize;
+        const int u1 = u0 + kCell * 512 / kAtlasSize;
+        const int v1 = v0 + kCell * 512 / kAtlasSize;
         const float sa[4] = {1.0f, 1.0f, -1.0f, -1.0f};
         const float sb[4] = {-1.0f, 1.0f, 1.0f, -1.0f};
-        const uint32_t uv[4] = {u1 | (v1 << 8), u1 | (v0 << 8), u0 | (v0 << 8), u0 | (v1 << 8)};
+        const int uu[4] = {u1, u1, u0, u0};
+        const int vv[4] = {v1, v0, v0, v1};
         for (int q = 0; q < 4; ++q) {
             Vertex v;
-            for (int k = 0; k < 3; ++k) v.position[k] = l.pos[k] + sa[q] * a[k] + sb[q] * b[k];
-            v.position[3] = 0.0f;
-            v.corner = uv[q];
+            for (int k = 0; k < 3; ++k) {
+                v.position[k] = static_cast<int16_t>(std::lround((rel[k] + sa[q] * a[k] + sb[q] * b[k]) * 512.0f));
+            }
+            v.position[3] = 0;
+            v.texcoord[0] = static_cast<int16_t>(uu[q]);
+            v.texcoord[1] = static_cast<int16_t>(vv[q]);
+            v.texcoord[2] = 4096;   // the ambient lookup's middle texel (8192 = 1.0)
+            v.texcoord[3] = 4096;
+            for (int k = 0; k < 4; ++k) v.normal[k] = normal[k];
             out.push_back(v);
         }
     }
