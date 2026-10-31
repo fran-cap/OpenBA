@@ -2340,8 +2340,13 @@ void EdgeMeshInstance::SetMesh(Object::ExternalPtr<EdgeMesh> mesh, MeshInstance*
 // of `_mesh` on every iteration, and the second loop RELOADS `_mesh` before it
 // starts — all three asymmetries are retail's and are reproduced.
 // ---------------------------------------------------------------------------
+bool (*EdgeMeshInstance::_extHoldDraw)(const EdgeMeshInstance*) = nullptr;   // fix.outline_with_panel seam
+
 void EdgeMeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
     (void)scene;
+    // FIX SEAM (fix.outline_with_panel, NOT RETAIL): an outline held back for this frame adds no
+    // items. Null pointer: retail's two passes.
+    if (_extHoldDraw != nullptr && _extHoldDraw(this)) return;
     ++g_addDrawItemsEdge;
 
     const float kOne = 1.0f;                                   // 0x18016169c

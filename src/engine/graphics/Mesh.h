@@ -602,6 +602,12 @@ public:
     // Exported, NOT PORTED, no caller: declared, deliberately undefined.
     Object::ExternalPtr<EdgeMesh> GetMesh() const;                        // 0x1800174c0
 
+    // FIX SEAM (fix.outline_with_panel, NOT RETAIL; docs/retail_bugs.md section 16): null by default
+    // and under the faithful profile. Asked once per AddDrawItems: true skips the instance in this
+    // gather (an outline held back for the one frame its panel is not laid out yet). Static data: the
+    // 0xd0-byte layout is untouched.
+    static bool (*_extHoldDraw)(const EdgeMeshInstance* instance);
+
     // `??2`/`??3` operator new/delete (0x1800173e0 / 0x180017450 / 0x180017460)
     // are deliberately not declared; see MeshInstance's note above.
 

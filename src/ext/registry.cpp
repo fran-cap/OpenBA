@@ -104,6 +104,15 @@ const Entry kEntries[] = {
       "when it first appears.",
       0, [](State& s) -> bool& { return s.fix.dialog_position_drift; } },
 
+    // OUTLINEWITHPANEL (docs/extensions/handins/OUTLINEWITHPANEL.md, docs/retail_bugs.md section 16): on
+    // the frame a click opens an entity's panel, its new outline is held back until the panel is laid
+    // out, the next frame. Render only. Engine seam Graphics::EdgeMeshInstance::_extHoldDraw.
+    { "outline_with_panel", Tier::Fix, Class::None, true,
+      "Outline with its panel",
+      "A selected building's or citizen's outline appears together with its panel, instead of one "
+      "frame before it.",
+      0, [](State& s) -> bool& { return s.fix.outline_with_panel; } },
+
     // ALLOCTIEBREAK (docs/extensions/handins/ALLOCTIEBREAK.md, docs/retail_bugs.md section 14): the
     // employment allocator and the housing re-balancer break ties between equal candidates by entity id
     // and profession-list index instead of by heap address. Sim-visible: which citizen takes a job, and

@@ -161,6 +161,24 @@ def draw_tiebreak(px):
     ])
 
 
+def draw_outline_panel(px):
+    # a panel over the outlined plot it belongs to (the outline arrives with its panel, not before it)
+    _paint(px, [
+        "..########..",
+        "..#++++++#..",
+        "..########..",
+        "..#......#..",
+        "..########..",
+        "............",
+        "############",
+        "#..........#",
+        "#..++++++..#",
+        "#..........#",
+        "############",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -170,4 +188,5 @@ ICONS = {
     "slider_drag_clamp": ("fix", draw_slider),       # slider track, thumb at its end stop
     "dialog_position_drift": ("fix", draw_drift),    # panel held between two edge bars
     "alloc_tiebreak": ("fix", draw_tiebreak),        # two equal figures, numbered
+    "outline_with_panel": ("fix", draw_outline_panel),   # a panel over its outlined plot
 }

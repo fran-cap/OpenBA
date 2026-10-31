@@ -67,6 +67,7 @@ struct Fixes {
     bool boot_device_lost  = true;   // docs/retail_bugs.md §10 (engine seam Engine::MainLoop::_extFixBootDeviceLost, backend seam BootDeviceLostBackend::SetFixFlag)
     bool slider_drag_clamp = true;   // docs/retail_bugs.md §12 (engine seam UI::SliderElement::_extFixDragClamp; docs/extensions/handins/SLIDERCLAMP.md): UI only
     bool dialog_position_drift = true;   // docs/retail_bugs.md §13, src/ext/dialog_position_drift/ (docs/extensions/handins/DIALOGPOSITIONDRIFT.md): UI only, at the _extDialogPlace seam's kExtPlaceUpperLeft
+    bool outline_with_panel = true;  // docs/retail_bugs.md §16, src/ext/outline_with_panel/ (docs/extensions/handins/OUTLINEWITHPANEL.md): render only, engine seam Graphics::EdgeMeshInstance::_extHoldDraw
     bool alloc_tiebreak    = true;   // docs/retail_bugs.md §14, src/ext/alloc_tiebreak/ (docs/extensions/handins/ALLOCTIEBREAK.md): sim-visible, ties in the job / house allocators
 };
 

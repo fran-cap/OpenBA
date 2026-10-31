@@ -35,6 +35,7 @@
 #include "ext/visit_replay/visit_replay.h"         // ext.visit_replay: the ExternalFactory::_extVisitReplay seam, at boot
 #include "ext/find_fastpath/find_fastpath.h"       // ext.find_fastpath: the ExternalFactory::_extFindFast seam, at boot
 #include "ext/heap_slack/heap_slack.h"             // ext.heap_slack: the MemoryAllocator::_extCommitSeam seam, at boot
+#include "ext/outline_with_panel/outline_with_panel.h"   // fix.outline_with_panel: the EdgeMeshInstance::_extHoldDraw seam
 #include "ext/resources/text_provider.h"        // the Extensions dialog / Enhanced tab resources from the exe's text (KITFREE)
 #include "rsc_text_check.h"                      // src/diag: the kit cross-check, /rsccheck:1 on the command line
 #include "ext/resources/font_provider.h"         // KITFREE RSCFONT: ext.sharp_ui's font variants, provided at run time
@@ -146,6 +147,9 @@ void InitFromSettings() {
     // fix.large_packages: the IO::FileSystem::_extPackagesMounted seam (null under the faithful
     // profile). The boot's .pkg mount ran inside Engine::Startup, before this; every mods mount runs it.
     LargePackages::Sync();
+    // fix.outline_with_panel: the Graphics::EdgeMeshInstance::_extHoldDraw seam (null under the
+    // faithful profile); the hook reads the row each frame.
+    OutlineWithPanel::Sync();
     // ext.package_cache: the IO::FileSystem::_extIndexRestore / _extIndexBuilt seams (null under the
     // faithful profile); the hooks read the row at each mount.
     PackageCache::Sync();
