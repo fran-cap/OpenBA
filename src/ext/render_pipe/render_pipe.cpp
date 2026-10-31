@@ -308,16 +308,7 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
             p.proj[i] = projMatrix.m[i];
         }
     }
-    // Step 11: the tool and its flag.
-    {
-        bool hasInput         = (g.m_userInterface->_mouseCaptured != 0);
-        const bool pauseCheck = g.m_userInterface->PausesGame();
-        p.tool     = g.m_toolManager->currentTool.Get();
-        // ext.touch_pointer (P11B_POINTER.md §5): GameUpdateLoop::Draw's same seam, a pressed dialog keeps the ghost.
-        if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(p.tool))
-            hasInput = false;
-        p.toolFlag = (hasInput || pauseCheck) ? 1 : 0;
-    }
+    // Step 11 (the tool and its flag) is read by the emit, live: EngineOps::ToolDraw.
     // Step 12: which UI draw.
     p.sharpUi = Ext::Ext().sharp_ui;
     // Step 7's ext.ambient_occlusion arm (GameUpdateLoop::Draw), as a value for pass 2.
@@ -445,8 +436,20 @@ struct EngineOps {
         }
         ctx->SetCamera(viewMatrix, projMatrix);
     }
+    // Step 11, read live as P13_OVERLAP.md 2.1 has E2 do: after claimed steps this runs after the next Frame's
+    // steps, whose UI update may switch the tool and delete the one current at record time. A pointer carried
+    // in the packet was then a dangling tool (a jump through a freed vtable on Android when the menu button
+    // switched tools). Sequential, or with the fence, the steps have not run yet and live = record time.
     void ToolDraw(const Packet& p) {
-        if (p.tool != nullptr) p.tool->Draw(ctx, p.toolFlag);
+        GameUpdateLoop& g     = *p.game;
+        bool hasInput         = (g.m_userInterface->_mouseCaptured != 0);
+        const bool pauseCheck = g.m_userInterface->PausesGame();
+        Tool* tool            = g.m_toolManager->currentTool.Get();
+        // ext.touch_pointer (P11B_POINTER.md §5): GameUpdateLoop::Draw's same seam, a pressed dialog keeps the ghost.
+        if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
+            hasInput = false;
+        const char toolFlag = (hasInput || pauseCheck) ? 1 : 0;
+        if (tool != nullptr) tool->Draw(ctx, toolFlag);
     }
     void UIDraw(const Packet& p) {
         if (p.sharpUi)
