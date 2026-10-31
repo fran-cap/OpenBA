@@ -128,7 +128,7 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
         const float nz = sz ? box->max.z : box->min.z, pz = sz ? box->min.z : box->max.z;
         const float dn = ((p->y[i] * ny + p->x[i] * nx) + p->z[i] * nz) - p->w[i];
         const float dp = ((p->y[i] * py + p->x[i] * px) + p->z[i] * pz) - p->w[i];
-        if (dn <= 0.0f) {
+        if (!(dn > 0.0f)) {   // retail JBE: taken on unordered (row 1327)
             le |= 1u << i;
             if (dp < 0.0f) out |= 1u << i;
         }
