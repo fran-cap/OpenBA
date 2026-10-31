@@ -57,7 +57,8 @@ fixes checked against retail, several of them contributed.
   only from Present, and the main loop no longer walks a SaveLoad that does not exist yet during a device loss
   before the menu (a retail bug, `docs/retail_bugs.md` section 10). Off under `/profile:faithful`.
 - Remove Roads works again: finished road tiles are marked and a laborer removes them, as in retail. The
-  removal marker used to finish the moment it was placed, because nothing stands on a road cell.
+  removal marker used to finish the moment it was placed, because nothing stands on a road cell. Thanks
+  to Karl for the report.
 - Drawn roads show their queued, see-through version at once, as in retail, instead of staying invisible
   until a builder finished the first cell (kralyerg, PR #41).
 - Crop fields are replanted after their first harvest. A field planted once and then stayed idle for good,
@@ -106,7 +107,7 @@ fixes checked against retail, several of them contributed.
 - The audio stream no longer asks for low-latency mode; the thread roster counts a heterogeneous SoC's
   big cores only; the fast frustum cull has a NEON body on arm64 (it ran the scalar reference before).
 
-Thanks to kralyerg and myungjoo for their pull requests, and to Karl for reporting the road placement bug.
+Thanks to kralyerg and myungjoo for their pull requests, and to Karl for reporting the road removal bug.
 
 ## v1.0.1 (2026-10-23)
 
