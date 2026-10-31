@@ -56,7 +56,7 @@ public:
     UI::Element*       buttonProfession = nullptr;   // +0x78 "buttonProfession" (id 0x227)
     UI::Element*       buttonHome = nullptr;         // +0x80 "buttonHome" (id 0x226)
     UI::Element*       buttonFollow = nullptr;       // +0x88 "buttonFollow" (id 0x228)
-    UI::Element*       textNameIs = nullptr;         // +0x90 "textNameIs"
+    UI::TextElement*   textNameIs = nullptr;         // +0x90 "textNameIs" (SetParameter)
     UI::TextElement*   textAction = nullptr;         // +0x98 "textAction" (SetText)
     // +0xA0 / +0xC0: the "groupHearts" / "groupStars" icon groups (Dialog/RatingGroup.h),
     // each two Collection::Array<InternalPtr<UI::Element>> (whole icons, half icons).
