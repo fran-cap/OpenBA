@@ -612,7 +612,8 @@ seeding, `MapGenerator::SeedStartingResources` `0x1400a1f00`), so a town hall's 
   (`0x14012d230`, registered by `StorageLocationDescription_SetupCrossRefs` `0x14014fc74`), that is
   after it is built, which needs the empty footprint.
 So with every existing store full, the piles cannot move and the footprint never empties. A building that
-cannot take the piles itself, such as a town hall, stays stuck.
+cannot take the piles itself, such as a town hall, stays stuck until some store has room. A stockpile placed
+beside it is such a store once built, and its own site clears without help (below).
 
 **A stockpile site is not caught in this cycle in retail.** Its `AbsorbResourceComponent` (`State0Tick`,
 `0x140105950`) sweeps the footprint every frame while the site is clearing, and a pile its own
@@ -630,7 +631,9 @@ registration). The reproduction is `tools/harness_route.sh clearoverlap`
 10x10 window, then a StorageYard over that window, the census shows the start stockpile at 5990/6000,
 `HasStorageFor` false for every pile, and 24 piles in the hall's footprint unchanged from frame 3100 to
 the end of the run at 9400. (The run also counted 17 piles unchanged in the yard's footprint; that was
-the port's ClearArea return value, row 1343, not retail, and the yard figure is dropped.) The control (`CLEAR_OVERLAP=400,150,300,6000,6,0`: a 6x6 window, no hall, the
+the port's ClearArea return value, row 1343, not retail. With that fixed, the same route empties the yard's
+footprint: its piles are absorbed and the yard is built by frame 2500, and the hall's piles are gone from its
+footprint by frame 3100.) The control (`CLEAR_OVERLAP=400,150,300,6000,6,0`: a 6x6 window, no hall, the
 stockpile placed over four claimed trees while their clear jobs run) clears and builds in 450 frames,
 so placing a stockpile over live clear jobs is not the cause. Retail itself was not launched.
 The stall is timing-dependent: a run in which food, firewood or tool use frees store room while the
