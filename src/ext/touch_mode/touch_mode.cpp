@@ -29,6 +29,7 @@
 #include "system/MemoryAllocator.h"
 #include "Game/GameUpdateLoop.h"
 #include "Game/PlayerController.h"
+#include "Dialog/EventNotifyDialog.h"   // the event notices' slots (HideEmptyNotices)
 
 #include <cmath>
 #include <cstdint>
@@ -351,6 +352,25 @@ void PlaceToolbar(int32_t point, const UI::DialogInstance* d, int32_t width, int
     ElementRectInLayout(root, g_k, g_sub);
 }
 
+// The lift below brings the whole ribbon out from behind the bar, where retail's slide shows only as many
+// slots as there are notices. A slot with no notice keeps the last sprite set on it (or the resource's
+// default), so it would show a stale icon beside the real ones. Each empty slot's group is hidden instead:
+// the ribbon lays out only the shown children, so the row shrinks to the notices it holds.
+void HideEmptyNotices(UI::DialogInstance* dialog) {
+    if (!::Object::IsDerivedFromNullSafe(dialog, EventNotifyDialog::TypeId())) return;
+    EventNotifyDialog* notify = static_cast<EventNotifyDialog*>(dialog);
+    const int32_t shown = notify->entries._size;
+    for (int32_t i = 0; i < notify->slots._size; ++i) {
+        UI::Element* group = notify->slots._data[i].group.Get();
+        if (group == nullptr) continue;
+        if (i < shown) {
+            group->SetFlagsOnOff(0, 1);
+        } else {
+            group->SetFlagsOnOff(1, 0);
+        }
+    }
+}
+
 }  // namespace
 
 float Scale(const UI::DialogInstance* dialog) {
@@ -405,6 +425,7 @@ bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     // from behind the bar's left end to just above it (the right-hand strip stays free for touch_pointer): fully
     // out once the offset reaches retail's 44-unit base.
     if (IsToolbar(dialog->_parent.Get())) {
+        if (point == UI::UserInterface::kExtPlaceLayout) HideEmptyNotices(const_cast<UI::DialogInstance*>(dialog));
         if (point == UI::UserInterface::kExtPlaceAfterLayout && g_bar[2] > g_bar[0]) {
             UI::Element* root = const_cast<UI::Element*>(dialog->_root.Get());
             if (root != nullptr) {
