@@ -117,7 +117,8 @@ copy back into `shore_params.h`. Release and perf builds draw with the defaults.
   coordinate), the twins are made per world (`[BetterWater] ... shore program made`, `twin made ...` in
   `standalone_error.log`), the user's spot checks in game, clean runs with no crash log; the perf flavour
   builds. `tools/build.sh unit`: 1660 tests, 0 failures (on the rebased tree).
-- **Not run:** Vulkan (Linux, Android) and Metal, where the converted program is the open question; the gate
+- Linux Vulkan (WSL2, lavapipe 1.4 / LLVM 21, debug, `tools/linux_run.sh world` with `LINUX_PROFILE=` so the row is on, seed 12345): both shore programs converted by dxbc-spirv ("2 shader module(s), 2 converted, 0 failed"), the twins made for the menu backdrop and the world, 0 validation messages, exit 0, empty crash log; the screenshot shows the same wet bed and line as DX11. The faithful route (`/profile:faithful`, row off) also exit 0.
+- **Not run:** Android Vulkan (a GPU driver rather than lavapipe) and Metal; the gate
   (`tools/build.sh run`, faithful: the row is off there) and `tools/resave_gate/resave_gate.sh Gate` (the row
   is drawing only and writes nothing to the save); a stress A/B.
 - **Not checked:** whether dock and bridge piles (OpaqueInWater) get the line round them from the frame
