@@ -4,7 +4,19 @@ One section per release, newest first. The section of the version being tagged i
 release's notes (`.github/workflows/release.yml` reads it with `tools/release/changelog_section.py`).
 Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CMakeLists.txt`.
 
-## Unreleased
+## v1.0.2 (2026-10-30)
+
+Third release of OpenBA, a week after v1.0.1: the first Android build (a signed apk), a Vulkan renderer
+that replaces dxvk-native on Linux, a profile-guided Windows exe, faster loading again, and a round of
+fixes checked against retail, several of them contributed.
+
+**Platforms and packages**
+- Android arm64 (`OpenBA-v1.0.2-android-arm64.apk`, signed; Vulkan 1.1 or later; the game data comes from
+  the player's own install, `docs/android/README.md`). Its version follows the game's. Details below.
+- A Vulkan renderer (`src/render/vulkan/`): the default on Linux and the renderer on Android. The Linux
+  package no longer carries dxvk-native (`OpenBA-v1.0.2-linux-x64.tar.gz`: the exe, libSDL3, `OpenBA.sh`).
+  Windows stays on DirectX 11; macOS on Metal.
+- The release assets carry no `.sha256` files any more: GitHub shows each asset's SHA-256 on the release page.
 
 **Build**
 - Windows is built with GCC 16.2 (the pinned WinLibs build, `tools/toolchain/install_winlibs.sh`) instead of MSYS2
@@ -46,17 +58,45 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   before the menu (a retail bug, `docs/retail_bugs.md` section 10). Off under `/profile:faithful`.
 - Remove Roads works again: finished road tiles are marked and a laborer removes them, as in retail. The
   removal marker used to finish the moment it was placed, because nothing stands on a road cell.
+- Drawn roads show their queued, see-through version at once, as in retail, instead of staying invisible
+  until a builder finished the first cell (kralyerg, PR #41).
 - Crop fields are replanted after their first harvest. A field planted once and then stayed idle for good,
   because the field's re-clear state (ClearArea state 0x15) was registered with null handlers. A save with
-  fields stuck that way recovers on load.
+  fields stuck that way recovers on load (myungjoo, PR #33).
+- A building marked for demolition shows its demolition status icon again (kralyerg, PR #65), and the
+  citizen panel's status line shows the citizen's name again (kralyerg, PR #66).
+- The terrain height and normal under a point use retail's terrain ray cast (two triangles per cell)
+  instead of a smooth approximation. On the same seed a generated map's buildable ground and the start
+  town can differ slightly from v1.0.1's.
+- Simulation sorts, `sinf` / `cosf` and the needs queue now order and round exactly as retail does, on every
+  platform (they used the host C library before). Marriage respects retail's age window (any younger single
+  citizen used to qualify). Guards retail lacks were removed from trade, immigration, nomads, disease,
+  quarries and several info panels; the Save / Load list rounds its slot count as retail.
+- Returning to the main menu from a heavily modded save no longer crashes on the second mod remount.
 - `fix.alloc_tiebreak` (on): when several citizens or houses are equally good for a job or a move, the job
   and housing allocators pick by entity id and profession order instead of by memory address, so a save plays
   out the same way each time it is loaded (a retail bug, `docs/retail_bugs.md` section 14). Off under
   `/profile:faithful`.
 
+**Extensions and interface**
+- `ext.item_priority` (class C, kralyerg, PRs #29, #64): rank the tools, fuel, clothing and health items
+  citizens fetch from storage, and set an item to Never so citizens never take it.
+- `ext.terrain_edit` (class B, off by default, kralyerg, PRs #37, #43, #44, #52): a brush that reshapes the
+  ground, a resource tool that plants trees, plants, rocks and ore, with Undo and Redo.
+- `ext.town_screenshot` (kralyerg, PR #54): one picture of the whole town from an isometric view.
+- `ext.tool_names` (class C, off by default, kralyerg, PR #67): the citizen panel names the tool the citizen carries.
+- The Extensions dialog has Optional and Default tabs; the in-game extension window's pages fill the list;
+  eleven rows gained icons; the list keeps its size when a mod resizes the Mods window (kralyerg, PR #28).
+- `fix.slider_drag_clamp` (on): a dragged slider keeps following the pointer and clamps at its ends.
+- The Enhanced options tab fits the retail tab width.
+
 **Android**
-- The release carries a signed Android apk, `OpenBA-v<version>-android-arm64.apk` (arm64, Vulkan 1.3; the
-  game data comes from the player's own install, `docs/android/README.md`). Its version follows the game's.
+- Touch controls: `ext.touch_mode` (an on-screen D-pad, rotate and zoom cluster, the toolbar as one scaled
+  bar, pinch zoom), `ext.touch_pointer`, finger-sized dialogs and lists, `ext.phone_menu` (a main menu laid
+  out for a phone), safe-area insets, a half-resolution render scale and an fps cap.
+- Older and mid-range phones (tested on a Galaxy S10 and S25): a Vulkan 1.1 path, BC textures transcoded to
+  ETC2 on a GPU without BC, Half texture quality by default below 6.5 GiB of RAM, the frame's two threads
+  pinned to the fastest cores, two frames in flight, ADPF hint sessions.
 - Shadows can be switched off on a weak device with the game's own Options > Video > Shadow Quality = None:
   no shadow map is drawn at all.
 - The release apk is built like the desktop packages (P12): the release flavour (-O3), ThinLTO, and a
@@ -65,6 +105,8 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   120 Hz panel runs at 60 under the default cap instead of the game sleeping between every other vsync.
 - The audio stream no longer asks for low-latency mode; the thread roster counts a heterogeneous SoC's
   big cores only; the fast frustum cull has a NEON body on arm64 (it ran the scalar reference before).
+
+Thanks to kralyerg and myungjoo for their pull requests, and to Karl for reporting the road placement bug.
 
 ## v1.0.1 (2026-10-23)
 

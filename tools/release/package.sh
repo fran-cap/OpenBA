@@ -6,7 +6,7 @@
 #            -> <out>/OpenBA-v<version>.zip            (the v1.0.0 layout: files at the zip root)
 #   linux    build/cmake-release/OpenBA (the Vulkan backend) + libSDL3.so.0 + OpenBA.sh
 #            + the same texts -> <out>/OpenBA-v<version>-linux-x64.tar.gz (one top-level folder)
-# Both write <archive>.sha256 beside the archive. Run from the repo root, after
+# No .sha256 file: GitHub records each release asset's SHA-256. Run from the repo root, after
 # `tools/build.sh build release`. The macOS package
 # is tools/macos/make_app.sh + make_release_zip.sh.
 #
@@ -32,9 +32,6 @@ no_game_content() { # <stage dir>
   bad="$(find -L "$1" \( -iname '*.pkg' -o -iname '*.pkm' -o -iname '*.crs' -o -iname 'WinData' \) -print)"
   [ -z "$bad" ] || { printf 'Forbidden package content:\n%s\n' "$bad" >&2; exit 1; }
 }
-checksum() { # <archive path>
-  (cd "$(dirname "$1")" && sha256sum "$(basename "$1")" > "$(basename "$1").sha256" && cat "$(basename "$1").sha256")
-}
 
 case "$PLAT" in
   windows)
@@ -48,8 +45,7 @@ case "$PLAT" in
     rm -f "$ZIP"
     # python's zipfile: present on every build machine (CMake already needs it); MSYS2 has no zip.
     (cd "$STAGE" && python3 -m zipfile -c "$ZIP" ./*) || (cd "$STAGE" && python -m zipfile -c "$ZIP" ./*)
-    python3 -m zipfile -l "$ZIP" 2>/dev/null || python -m zipfile -l "$ZIP"
-    checksum "$ZIP";;
+    python3 -m zipfile -l "$ZIP" 2>/dev/null || python -m zipfile -l "$ZIP";;
   linux)
     EXE="$B/OpenBA"
     [ -f "$EXE" ] || { echo "missing $EXE: run tools/build.sh build release"; exit 1; }
@@ -67,7 +63,6 @@ case "$PLAT" in
     TAR="$OUT/$NAME.tar.gz"
     rm -f "$TAR"
     tar -C "$TMP" -czf "$TAR" "$NAME"
-    tar -tzf "$TAR"
-    checksum "$TAR";;
+    tar -tzf "$TAR";;
   *) echo "usage: $0 windows|linux <version> [out-dir]"; exit 2;;
 esac

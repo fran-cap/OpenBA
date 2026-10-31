@@ -3,7 +3,7 @@ name: Release
 # each platform (tools/release/package.sh; tools/macos/make_app.sh + make_release_zip.sh), builds
 # and signs the Android apk (tools/android.sh build release + sign, the release key from the
 # repository's secrets) and, on a `v*` tag, publishes the GitHub release with the CHANGELOG.md
-# section of that version as its notes.
+# section of that version as its notes. No .sha256 files: GitHub records each asset's SHA-256.
 #
 # Dry run: a manual dispatch (Actions > Release > Run workflow) runs every job but `release`; the
 # packages are the run's artifacts. Pull requests do not run it: release builds are for releases.
@@ -113,7 +113,6 @@ jobs:
           name: package-windows
           path: |
             dist/*.zip
-            dist/*.sha256
           if-no-files-found: error
 
   linux:
@@ -151,7 +150,6 @@ jobs:
           name: package-linux
           path: |
             dist/*.tar.gz
-            dist/*.sha256
           if-no-files-found: error
 
   macos:
@@ -187,8 +185,6 @@ jobs:
           tools/macos/make_release_zip.sh dist/OpenBA.app dist
           VER="${{ needs.version.outputs.version }}"
           mv dist/OpenBA-mac-arm64.zip "dist/OpenBA-v$VER-mac-arm64.zip"
-          rm -f dist/OpenBA-mac-arm64.zip.sha256
-          (cd dist && shasum -a 256 "OpenBA-v$VER-mac-arm64.zip" > "OpenBA-v$VER-mac-arm64.zip.sha256" && cat "OpenBA-v$VER-mac-arm64.zip.sha256")
       - name: ccache statistics
         if: always()
         run: ccache -s
@@ -197,7 +193,6 @@ jobs:
           name: package-macos
           path: |
             dist/*.zip
-            dist/*.sha256
           if-no-files-found: error
 
   # The signed Android apk (docs/android/README.md "Release"). The pins are android/app/build.gradle's
@@ -276,7 +271,6 @@ jobs:
           APK="OpenBA-v$VER-android-arm64.apk"
           mkdir -p dist
           tools/android.sh sign android/app/build/outputs/apk/release/app-release-unsigned.apk "dist/$APK"
-          (cd dist && sha256sum "$APK" > "$APK.sha256" && cat "$APK.sha256")
       - name: ccache statistics
         if: always()
         run: ccache -s
@@ -285,7 +279,6 @@ jobs:
           name: package-android
           path: |
             dist/*.apk
-            dist/*.sha256
           if-no-files-found: error
 
   release:
