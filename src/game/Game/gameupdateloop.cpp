@@ -134,6 +134,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
                                 // (NAMESPACE HAZARD: spell ::Object::X everywhere
                                 // in this file, even at global scope)
 #include "ext/registry.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): Ext::UnlockForGame
+#include "ext/outline_with_panel/outline_with_panel.h"   // FIX SEAM (NOT RETAIL, docs/retail_bugs.md section 16): after step 10
 #include "ext/background_save/background_save.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md): ext.background_save, the frozen Update / Draw alpha
 #include "ext/town_screenshot/town_screenshot.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOWNSCREENSHOT.md): ext.town_screenshot, Draw step 7
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera, Update step 6 / Draw steps 4 and 7
@@ -1161,6 +1162,11 @@ post_simulation:
         cursorIndex = m_toolManager->Update(*time, m_userInterface->_mouseCaptured == 0);   // 0x1401026a0
     if (m_userInterface->_mouseCaptured != 0 || m_userInterface->PausesGame())
         cursorIndex = uiCursor;
+
+    // FIX SEAM (fix.outline_with_panel, NOT RETAIL; docs/retail_bugs.md section 16): a dialog the tool
+    // added in step 10 is taken in by the UI only at the next frame's step 9, so this frame would draw
+    // a new selection outline without its panel. The fix holds back new outlines on such a frame.
+    Ext::OutlineWithPanel::AfterToolUpdate(m_userInterface->GetAddDialogCount() > 0);
 
     // Step 11: Set cursor
     TRACE("[GameUpdateLoop::Update] setting cursor (index=%d)...\n", cursorIndex);
