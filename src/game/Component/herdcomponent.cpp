@@ -647,7 +647,9 @@ void HerdComponent::Update(const System::Time* time) {
     RtSystem_Time_Ctor(&interval, intervalMinutes * kRdata_140172234);
     int64_t intervalTicks = interval._ticks;
 
-    if ((g_hu_calls % 25) == 1) {
+    // One line per 100000 updates (it was one per 25: 129 million updates in a 2-hour town wrote a 1 GB standalone_error.log).
+    // The FIRED lines below are rare and stay.
+    if ((g_hu_calls % 100000) == 1) {
         ErrLine("[HerdUpd] calls=%lld noPop=%lld noCfg=%lld fired=%lld | "
                 "herd=%p members=%d timer=%lld interval=%lld cfgMin=%.3f\n",
                 g_hu_calls, g_hu_noPop, g_hu_noCfg, g_hu_fired, static_cast<void*>(this),

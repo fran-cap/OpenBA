@@ -442,6 +442,10 @@ void WorkPlaceUI::OnUpdateLayout() {
     // this line was invisible for its entire life. It is the discriminator for
     // "6/6 assigned but no citizens available": `workers` comes from the roster
     // while `assigned`/`laborers` come from the citizen loop.
+    // Capped: the first 200 lines, then one in 1000. This runs on every UI update of an open workplace window, so
+    // it wrote 2.4 million lines into a long session's standalone_error.log.
+    static unsigned long long s_wpLines = 0;
+    if (s_wpLines++ < 200 || (s_wpLines % 1000) == 0) {
     fprintf(stderr,
         "[WorkPlaceUI] workers=%u/%u assigned=%d laborers=%d wpMax=%d citizens=%d "
         "wpProf=%p laborProf30=%p jt+0x28=%d jt+0x2c=%d jt+0x34=%d\n",
@@ -451,6 +455,7 @@ void WorkPlaceUI::OnUpdateLayout() {
         workDesc ? workDesc->_i2c : -1,
         workDesc ? static_cast<int>(workDesc->_b34) : -1);
     fflush(stderr);
+    }
 
     if (workPlace->profession == professions->field_0x38) {
         // The laborer-style profession with a BuildComponent: the limit is the
