@@ -54,10 +54,19 @@ namespace {
 constexpr int kIncrement = 0xC0;
 static_assert(kIncrement == offsetof(UI::SpinnerElement, _increment), "");
 
+// EXT SEAM (NOT RETAIL): ext.phone_menu's side-by-side buttons (SpinnerElement.h `_extSideBySide`).
+bool SideBySide() {
+    const bool* on = UI::SpinnerElement::_extSideBySide;
+    return on != nullptr && *on;
+}
 
 }  // namespace
 
 namespace UI {
+
+// EXT SEAM (NOT RETAIL, issue #73): ext.phone_menu's touch size, null by default (SpinnerElement.h);
+// set by Ext::PhoneMenu::Sync.
+const bool* SpinnerElement::_extSideBySide = nullptr;
 
 // [4] 0x1800d83b0
 void SpinnerElement::ComputeSize() {
@@ -69,6 +78,17 @@ void SpinnerElement::ComputeSize() {
     InlineGetPaddedSize(kids[0], &w0, &h0);
     InlineGetPaddedSize(kids[1], &w1, &h1);
     InlineGetPaddedSize(kids[2], &w2, &h2);
+
+    if (SideBySide()) {
+        // EXT SEAM: the edit field, then up, then down, in one row.
+        _layoutWidth = w0 + w1 + w2;
+        int32_t h = h0;
+        if (h < h1) h = h1;
+        if (h < h2) h = h2;
+        _flags &= ~kFlagNeedsSizeCalc;
+        _layoutHeight = h;
+        return;
+    }
 
     if (w2 < w1) w2 = w1;
     _layoutWidth = w2 + w0;
@@ -120,12 +140,21 @@ void SpinnerElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t 
     int32_t ew = 0, eh = 0;
     InlineGetPaddedSize(kids[0], &ew, &eh);          // only the WIDTH is used
     int32_t bw = 0, bh = 0;
-    InlineGetPaddedSize(kids[1], &bw, &bh);          // only the HEIGHT is used
+    InlineGetPaddedSize(kids[1], &bw, &bh);          // only the HEIGHT is used (retail's arm)
     int32_t dw = 0, dh = 0;
     InlineGetPaddedSize(kids[2], &dw, &dh);          // measured and discarded
 
     const int32_t xmid = ew + _layoutLeft;
     const int32_t ymid = _layoutTop + bh;
+
+    if (SideBySide()) {
+        // EXT SEAM: up at the edit field's right, down at up's right.
+        const int32_t xdown = xmid + bw;
+        _children.GetData()[0]->ComputeLayout(_layoutLeft, _layoutTop, xmid, _layoutBottom);
+        _children.GetData()[1]->ComputeLayout(xmid, _layoutTop, xdown, _layoutBottom);
+        _children.GetData()[2]->ComputeLayout(xdown, _layoutTop, _layoutRight, _layoutBottom);
+        return;
+    }
 
     // The array is RE-READ before each of the three calls (slot 5, virtual).
     _children.GetData()[0]->ComputeLayout(_layoutLeft, _layoutTop, xmid, _layoutBottom);

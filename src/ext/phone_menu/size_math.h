@@ -41,6 +41,21 @@ struct PadSplit {
 };
 PadSplit PadToTarget(int32_t padded, int32_t target);
 
+// ---- a dialog's title bar (issue #73) ---------------------------------------------------------------
+
+// The gap kept between the parts of a title bar laid side by side (the name, the buttons).
+constexpr int32_t kTitleGap = 4;
+
+// The title bar's minimum width with the row on: its `parts` (the name, the buttons; StandardDialog.rsc's
+// titleBar is a GroupElement, which lays its children OVER each other) side by side, `partsWidth` their
+// padded widths summed, kTitleGap between each two; at least `retailMin`. `parts` <= 0: retailMin.
+int32_t TitleBarMinWidth(int32_t retailMin, int32_t partsWidth, int32_t parts);
+
+// A widened window's button bar (touch_wide.h): the gap between its `gaps` + 1 buttons that spreads them,
+// `used` units wide together, over `room` units; never less than `retail`, the description's gap.
+// `gaps` <= 0: retail.
+int32_t SpreadSpacing(int32_t retail, int32_t room, int32_t used, int32_t gaps);
+
 // ---- a tall window's scrolling lists (touch_scroll.h (b), P11b) ------------------------------------
 
 // The lowest height a list is capped at: three rows of finger-sized controls. A window still taller than

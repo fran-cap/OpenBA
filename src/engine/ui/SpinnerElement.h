@@ -117,6 +117,12 @@ public:
     SpinnerElement(const SpinnerElement& src);                    // 0x18004b2e0  not ported
     SpinnerElement& operator=(const SpinnerElement& src);         // 0x18004b330  not ported
 
+    // EXT SEAM (NOT RETAIL, issue #73): ext.phone_menu's touch size -- null by default and under the
+    // faithful profile (DESIGN.md hook rule 5). While it reads true, the up and down buttons are laid out
+    // side by side to the right of the edit field instead of stacked (two finger-sized buttons stacked
+    // would make the row twice their height); false or null is retail's body exactly.
+    static const bool* _extSideBySide;
+
 private:
 
 public:
