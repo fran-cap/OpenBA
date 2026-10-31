@@ -220,7 +220,7 @@ struct Options {
     bool        sceneCensus          = false;  // src/diag/scene_watch.cpp [no tool reader]
     bool        forceLod0            = false;  // src/diag/scene_watch.cpp [no tool reader]
     bool        lodCensus            = false;  // src/diag/scene_watch.cpp [no tool reader]
-    bool        citizenVitals        = true;   // src/diag/citizen_vitals.cpp — default ON, "0" disables [no tool reader]
+    bool        citizenVitals        = false;  // BANISHED_VITALS=1 — src/diag/citizen_vitals.cpp [no tool reader]
 
     // ── gameplay harnesses: RAW values, parsed at the harness ────────────────
     // Every one is `[no tool reader]` except BANISHED_PANEL_HOLD

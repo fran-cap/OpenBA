@@ -109,7 +109,6 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
 
     int slotCount = store->storageSlots._size;
     StorageComponent::Item* slots = store->storageSlots._data;
-    bool burned = false;
     for (int i = 0; i < slotCount; ++i) {
         StorageComponent::Item* slot = &slots[i];
         ComponentDescription* stack = slot->_resource;
@@ -158,23 +157,11 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
             // uncapped so long soak runs show the full consumption sawtooth.
             // (PERF 2026-09-05: gated -- 800 houses in winter made this unbuffered stderr
             // line 1.7% of the EntityList phase in the perf build.)
-            burned = true;
-            break;
+            return 1;
         }
     }
-    if (!burned) {
-        // House is COLD with no fuel available: heatRemaining stays negative, the
-        // warm-check 0x14012ac30 reads cold, and Gather2's no-target branch will
-        // raise status-icon bit 7. This branch re-runs every frame while cold, so
-        // throttle to ~1 line per 600 occurrences.
-        static int n = 0;
-        if ((n++ % 600) == 0) {
-            fprintf(stderr, "[HeatTick] house=%p COLD no fuel available "
-                    "(temp=%.2f < %.2f, heatLeft=%lld, storageSlots=%d)\n",
-                    static_cast<void*>(this), worldTemp, heatThreshold,
-                    (long long)heatRemaining._ticks, slotCount);
-            fflush(stderr);
-        }
-    }
+    // No fuel burned: the house is COLD with no fuel available. heatRemaining stays
+    // negative, the warm-check 0x14012ac30 reads cold, and Gather2's no-target branch
+    // raises status-icon bit 7.
     return 1;
 }

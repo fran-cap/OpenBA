@@ -89,7 +89,7 @@ whoever owns device-lost memory (the DEVLOSTMEM block).
 ## 4. Recipes (nothing of them is in the tree; scratchpad `faashadow2/`)
 
 - Boot arms: `runcfg.ps1 -Row 1 -Size 8192 -Scalar 0 -Tag x [-ExtraEnv "BANISHED_FORCE_DEVICE_LOST=12000"]` = settings.cfg rewritten from
-  the backup with the three keys, `BANISHED_AUTOSTART=1`, wait `[Vitals] frame=5`, hold, read the GPU counter and the `[ShadowRes]` /
+  the backup with the three keys, `BANISHED_AUTOSTART=1` (and `BANISHED_VITALS=1`, off by default since the log cleanup), wait `[Vitals] frame=5`, hold, read the GPU counter and the `[ShadowRes]` /
   `[Ext]` / `[DeviceLost]` lines, `Stop-Process -Id`.
 - Options combo: `launchopt.ps1` (`BANISHED_AUTOSTART=1 BANISHED_PAUSEMENU=900 BANISHED_PAUSEMENU_BUTTON=4`, `GameLastOption=4` opens
   Enhanced) + FAA-MENU's `ui.ps1` (SetCursorPos / mouse_event by PID). Client 2560x1377: shadow combo 1376,632; its list Off / 4096 /

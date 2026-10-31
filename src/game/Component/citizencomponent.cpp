@@ -2087,14 +2087,15 @@ AttendanceComponent* CitizenComponent::FindAttendance(AttendanceComponent* exclu
 // by `WorkPlaceComponent+0x48 == key`. The SCHOOL key is the THIRD ref, +0x20, consumed
 // by TryEnrolInSchool (0x140111840). See [[project_wpc_first_seat_and_attendance_keys]].
 // [Plague] soak trace — same kill-switch as citizen_updatehealth.cpp's tag.
-// Default ON; BANISHED_PLAGUE_TRACE=0 disables. Diagnostic only.
+// Default OFF; BANISHED_PLAGUE_TRACE=1 enables. Diagnostic only: the NOT-LINKED lines
+// print on every update of a sick citizen with no care building.
 // AttendanceComponent::field30 (the queue count, int32) is declared void* in its
 // header (COMP-a's): read at its retail width through the field's address (LEFT).
 static bool CareTraceOn() {
     static int en = -1;
     if (en < 0) {
         const char* e = Opt().plagueTrace;
-        en = (e && (e[0] == '0' || std::strcmp(e, "false") == 0)) ? 0 : 1;
+        en = (e && e[0] != '\0' && e[0] != '0' && std::strcmp(e, "false") != 0) ? 1 : 0;
     }
     return en == 1;
 }

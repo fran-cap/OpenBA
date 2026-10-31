@@ -17,11 +17,19 @@ differs from retail, and say so in the comment. Any behaviour retail does not ha
 `fix.*` or an `ext.*` row under `src/ext/<id>/`, with a class (A/B/C), a settings-driven switch and
 a Names-table entry (`docs/extensions/DESIGN.md` §3). It is never an `#if` in game code.
 
-## 3. Flags
+## 3. Flags and log output
 `src/app/options.h` is the one inventory of environment flags, read once at boot into `Options`.
 Nothing calls `getenv`. Do not add a flag for a working feature: a verified feature is unconditional
 code or a settings.cfg key. Harness-only flags go in the harness section, named `BANISHED_*`, with a
 comment naming the script that sets them. A field with no reader is removed.
+
+No log output on a hot path (per tick, per frame, per entity or UI update) in a shipped build. Only
+unqualified `printf` is stripped from the perf and release builds (`src/app/log_strip.h`);
+`fprintf(stderr, ...)` and `ErrLine` ship, and every stderr line is a file write. Such a line goes
+under `#ifdef _DEBUG`, behind an `Opt()` field that defaults to off, or under a hard cap on
+its total count (the first N lines, then never again). A modulo throttle (`n % 600 == 0`) is not a
+gate: it still prints for the whole session. A wall-clock heartbeat of one line every few seconds or
+slower is fine. Investigation lines are deleted when the investigation closes.
 
 ## 4. Platform and renderer seams
 - A platform is a set of whole-file twins picked by CMake: `src/platform/win/`, `src/platform/posix/`,

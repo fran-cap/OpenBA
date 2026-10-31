@@ -805,7 +805,8 @@ void Present() {
             statSem = statDrawable = statPipeline = statBuffer = 0;
             statPipelinesNew = 0;
         }
-        if (++frames == 1 || frames % 300 == 0) {
+        ++frames;
+        if (Opt().metalStats && (frames == 1 || frames % 300 == 0)) {
             fprintf(stderr, "[Metal] frame=%u status=%lu pipelines=%zu draws=%llu indexed=%llu instanced=%llu\n",
                     frames, (unsigned long)commands.status, pipelines.Size(), (unsigned long long)totalDraws,
                     (unsigned long long)indexedDraws, (unsigned long long)instancedDraws);

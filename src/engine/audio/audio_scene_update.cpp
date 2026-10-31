@@ -400,9 +400,12 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
             volumes[4] = static_cast<float>(cfg->effectVolume) / div;    // 1800df86b
         } else {
             volumes[1] = volumes[2] = volumes[3] = volumes[4] = 0.0f;
+#ifdef _DEBUG
+            // Debug only: this runs on every audio frame while the configuration is null.
             std::fprintf(stderr, "[RtPort] Audio::Scene::Update: "
                                  "Audio::Configuration::_singleton is NULL -- every "
                                  "channel will be mixed at volume 0\n");
+#endif
         }
     }
 
