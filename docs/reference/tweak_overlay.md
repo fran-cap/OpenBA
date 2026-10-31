@@ -23,7 +23,8 @@ Hand-in: `docs/extensions/handins/TWEAKUI.md`.
 | Panel | Control | Goes through |
 |---|---|---|
 | stats line | fps, frame ms (ImGui's rolling average), the sun map size of the last `[ShadowRes]` line, FAA generation / mode / blobs transformed / binds | read only |
-| Rows | `ambient_occlusion`, `better_trees`, `max_shadow_res`, `render_pipe`, `eye_camera` | `Ext::SetAndRecord` (the Extensions dialog's path: the Sync hooks, the shadow rebuild request) |
+| Rows | `ambient_occlusion`, `better_trees`, `better_water`, `max_shadow_res`, `render_pipe`, `eye_camera` | `Ext::SetAndRecord` (the Extensions dialog's path: the Sync hooks, the shadow rebuild request) |
+| Better water | open by default (the other sections below start collapsed): overall opacity; the wet bed's strength, shade, rise, band width (holds to depth) and end; the line's plain and bend opacity, fade-in, fade-out from / to; the bend ring's radius and land share from / to; the waterline's wander and its scale; **water defaults**; a line of the set to copy into `src/ext/better_water/shore_params.h` | `Ext::Tweak::Water` (`Ext::BetterWater::ShoreParams`), read by `DrawShore` every water range (BETTERWATER.md §4) |
 | Ambient occlusion | quality 1..3 (`ext.ao_quality`), strength 0..30 (`ext.ao_opacity`) | `Ext::SetValueAndRecord` (read by `Ext::AO::Current()` every frame) |
 | | radius street / overview, shadow multiplier, shadow power, horizon angle threshold, blur passes (-1 = the tier's), sharpness, detail shadow strength | `Ext::Tweak::Ao`, read by `AoMath::FrameFor` the next frame |
 | | fade with the fog, fog fade from / to (x the fog's near / far), fade ceiling | `Ext::Tweak::Ao`, read by `AoMath::FadeFromFog` in the AO pass |
