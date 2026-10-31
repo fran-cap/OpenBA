@@ -71,6 +71,7 @@
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
 // ext.item_priority (class C), Ext::ItemPriority::BeginFrame
 #include "ext/item_priority/item_priority.h"
+#include "ext/better_trees/better_trees.h"   // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md): Ext::BetterTrees::SeasonStamp
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md):
 // ext.tool_names (class C), Ext::ToolNames::BeginFrame
 #include "ext/tool_names/tool_names.h"
@@ -1446,6 +1447,10 @@ void GameUpdateLoop::Draw(float alpha) {
         float gameSeconds = gameTime.AsSeconds();
         float frameSeconds = engineFrameTime.AsSeconds();
         videoCtx->SetTime(gameSeconds + frameSeconds * alpha);
+        // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md): ext.better_trees' natural tree growth hands the
+        // rewritten tree shaders the day of the year in the time constant's y, which retail writes 0 and never reads.
+        if (Ext::BetterTrees::NaturalGrowthOn() && m_dayCounter != nullptr)
+            videoCtx->_time.y = Ext::BetterTrees::SeasonStamp(m_dayCounter->yearTime.AsSeconds());
     }
     TRACE("[GameUpdateLoop::Draw] video context time set\n");
 

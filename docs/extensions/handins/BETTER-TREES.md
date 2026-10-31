@@ -15,6 +15,7 @@ the three tree-only shader rewrites, all made at load from the user's own instal
 | the cutout | `ext.foliage_aa` (+ `ext.foliage_aa_mode`) | `src/render/dx11/foliage_aa/cutout_rewrite` | alpha to coverage + sharpened alpha on the six leaf / needle cutout pixel programs; mode 2 adds the distance fill (FOLIAGE_AA.md, FAA-CORE.md) |
 | the receiver lookup | `ext.billboard_shadow` | `src/render/dx11/billboard_shadow/receiver_rewrite` | the billboard colour VERTEX shader's shadow lookup moved per vertex (margin -0.05, jitter 0.4, the user's ruling; TREE_SHADOW.md, TS-CORE.md) |
 | the edge dither | new | `src/render/dx11/billboard_shadow/edge_dither` | per-texel noise on the billboard PIXEL shader's shadow compare depth, amplitude = the card's half extent (below) |
+| natural tree growth | new (2026-10-31) | `src/render/common/better_trees/natural_growth` | per-tree autumn colour, leaf fall, spring regrowth and green variation on the billboard and pine programs; valued key `ext.natural_tree_growth` (0..1, default 1) (NATURAL_GROWTH.md) |
 
 The valued key `ext.foliage_aa_mode` keeps its name and range (1..2, default 2); its owner is now `better_trees`.
 `ext.max_shadow_res` stays its own row (not tree-specific).

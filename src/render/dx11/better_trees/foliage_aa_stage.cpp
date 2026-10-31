@@ -8,6 +8,8 @@
 #include "better_trees/edge_dither.h"   // BETTER-TREES: the per-texel shadow dither, after the cutout
 #include "better_trees/cutout_rewrite.h"
 #include "better_trees/foliage_aa_backend.h"
+#include "better_trees/billboard_shadow_stage.h"   // NATURAL_GROWTH.md: g_ngVertexBound
+#include "better_trees/natural_growth.h"
 
 #include "dx11_backend_access.h"
 #include "video/CompanionData.h"
@@ -31,6 +33,8 @@ namespace {
 struct Program {
     ID3D11PixelShader* xf[kShaderVariantCount]     = {};
     ID3D11PixelShader* retail[kShaderVariantCount] = {};   // what the copies were made beside
+    bool               cov[kShaderVariantCount]    = {};   // the copy writes coverage (needs the A2C clone)
+    bool               ngVs[kShaderVariantCount]   = {};   // NATURAL_GROWTH.md: it reads the natural-growth interpolant
 };
 
 // One per retail blend state seen under a transformed program. `clone` null = the state blends
@@ -46,6 +50,7 @@ struct State {
     float    reqK    = 0.0f;
     float    reqFloor = 0.0f;
     BbsRewrite::Params reqDither = BbsRewrite::kRetailParams;   // BETTER-TREES: noise 0 = no dither
+    bool     reqNg   = false;   // NATURAL_GROWTH.md
     uint32_t reqGen  = 0;
     // ... and applied (the binding thread / the loaders)
     uint32_t       gen    = 0;
@@ -54,11 +59,14 @@ struct State {
     ID3D11Device*  device = nullptr;
     FaaRewrite::Options opt;
     BbsRewrite::Params dither = BbsRewrite::kRetailParams;   // the set the current copies were made with
+    bool           ng     = false;                          // natural growth in the current copies
     std::unordered_map<PixelProgramData*, Program>  programs;
     std::unordered_map<ID3D11BlendState*, Clone>    clones;
     // the bound pair (the immediate context's PS + blend state, as far as the stage is concerned)
     ID3D11PixelShader* curRetail = nullptr;   // what the engine bound (retail)
     ID3D11PixelShader* curXf     = nullptr;   // its transformed copy (null: none)
+    bool               curCov    = false;     // curXf writes coverage
+    bool               curNgVs   = false;     // curXf runs only beside a natural-growth vertex copy
     bool               psIsXf    = false;     // the stage bound curXf in curRetail's place
     ID3D11BlendState*  curBlend  = nullptr;   // the retail blend state RenderStateData last bound
     bool               haveBlend = false;     // curBlend is known (a render state was bound since the reset)
@@ -113,6 +121,7 @@ void Reset(State& s, ID3D11DeviceContext* ctx, const char* why) {
                      s.xfBinds, s.pixelBinds);
     ReleaseAll(s);
     s.curRetail = s.curXf = nullptr;
+    s.curCov = s.curNgVs = false;
     s.psIsXf = s.blendIsClone = false;
     if (!sameDevice) {   // same device: the retail state just restored is still the bound one
         s.curBlend = nullptr;
@@ -126,6 +135,7 @@ void Reset(State& s, ID3D11DeviceContext* ctx, const char* why) {
     s.msaa   = ::Video::Configuration::_singleton->multisample > 0;
     s.opt    = FaaRewrite::OptionsFor(s.mode, s.reqK, s.msaa, s.reqFloor);
     s.dither = s.reqDither;
+    s.ng     = s.mode > 0 && s.reqNg;
     if (s.mode > 0) {
         std::fprintf(stderr, "[FoliageAA] stage gen %u: mode %d (%s), MSAA %s -> %s, fill k %.3f floor %.3f, "
                              "edge dither noise %.2f scale %.0f\n", s.gen,
@@ -166,15 +176,41 @@ Program& Build(State& s, PixelProgramData* p) {
         pr.retail[i] = p->variants[i];
         if (i >= owner->_byteCode.GetSize() || p->variants[i] == nullptr) continue;
         const uint8_t* blob = blobs[i].GetData();
-        const size_t   size = static_cast<size_t>(blobs[i].GetSize());
+        size_t         size = static_cast<size_t>(blobs[i].GetSize());
+        pr.cov[i] = pr.ngVs[i] = false;
+        ++s.blobsSeen;
+        // NATURAL_GROWTH.md: natural growth first (it keeps the cutout's grammar), then the cutout and the
+        // dither on its result.
+        std::vector<uint8_t> grown;
+        bool changed = false;
+        if (s.ng) {
+            NgRewrite::Match nm;
+            NgRewrite::Analyse(blob, size, &nm);
+            const std::string nh = nm.container ? HashName(nm.cont.checksum) : std::string("(no container)");
+            if (nm.kind != NgRewrite::Kind::None) {
+                if (NgRewrite::Transform(nm, &grown)) {
+                    if (s.loggedHashes.insert("n" + nh).second)
+                        std::fprintf(stderr, "[NaturalGrowth] rewrote %s v%d (%s): %zu B -> %zu B\n", nh.c_str(), i,
+                                     NgRewrite::KindName(nm.kind), size, grown.size());
+                    blob = grown.data();
+                    size = grown.size();
+                    changed = true;
+                    pr.ngVs[i] = true;
+                } else {
+                    ++s.createFailed;
+                    std::fprintf(stderr, "[NaturalGrowth] rewrite of %s v%d FAILED its self-check: kept retail\n",
+                                 nh.c_str(), i);
+                }
+            } else if (nm.candidate && s.loggedHashes.insert("nu" + nh).second) {
+                std::fprintf(stderr, "[NaturalGrowth] untouched %s v%d: %s\n", nh.c_str(), i, nm.why.c_str());
+            }
+        }
         FaaRewrite::Match m;
         FaaRewrite::Analyse(blob, size, &m);
-        ++s.blobsSeen;
         const std::string hash = m.container ? HashName(m.cont.checksum) : std::string("(no container)");
         std::vector<uint8_t> cut;      // the cutout's output (when it applied)
         const uint8_t* cur = blob;     // what the next step / the create reads
         size_t curSize = size;
-        bool changed = false;
         if (!m.colour) {
             // Untouched by the cutout. Logged once per blob per run when it looked like a cutout (it
             // discards) or is not something we can read; the plain opaque programs are not worth a line.
@@ -185,6 +221,7 @@ Program& Build(State& s, PixelProgramData* p) {
             cur = cut.data();
             curSize = cut.size();
             changed = true;
+            pr.cov[i] = s.opt.coverage;
             char key[48];
             std::snprintf(key, sizeof key, "t%u:", s.gen);
             if (s.loggedHashes.insert(key + hash).second)
@@ -196,9 +233,9 @@ Program& Build(State& s, PixelProgramData* p) {
                              "xyzw"[m.alphaComp & 3]);
         } else if (s.opt.coverage || s.opt.fillK > 0.0f) {   // else: nothing to do in this mode
             ++s.createFailed;
-            std::fprintf(stderr, "[FoliageAA] transform of %s v%d FAILED its self-check: kept retail\n",
-                         hash.c_str(), i);
-            continue;
+            std::fprintf(stderr, "[FoliageAA] transform of %s v%d FAILED its self-check: kept %s\n",
+                         hash.c_str(), i, pr.ngVs[i] ? "natural growth alone" : "retail");
+            if (!pr.ngVs[i]) continue;
         }
         std::vector<uint8_t> dithered;
         // Only the cutout programs (m.colour): every lit pixel shader compares the shadow from an input
@@ -237,6 +274,7 @@ Program& Build(State& s, PixelProgramData* p) {
             ++s.createFailed;
             std::fprintf(stderr, "[FoliageAA] CreatePixelShader of the copy of %s v%d failed hr=0x%08lx: kept retail\n",
                          hash.c_str(), i, static_cast<unsigned long>(hr));
+            pr.cov[i] = pr.ngVs[i] = false;
             Rel(ps);
             continue;
         }
@@ -292,11 +330,14 @@ ID3D11BlendState* CloneOf(State& s, ID3D11BlendState* retail) {
 void Apply(State& s, ID3D11DeviceContext* ctx, bool psBind) {
     ID3D11BlendState* clone = nullptr;
     bool wantXf = s.curXf != nullptr;
-    if (wantXf && s.opt.coverage) {
+    // NATURAL_GROWTH.md: a copy that reads the natural-growth interpolant never runs beside a vertex
+    // shader that does not write it (retail's program there).
+    if (wantXf && s.curNgVs && !g_ngVertexBound.load(std::memory_order_relaxed)) wantXf = false;
+    if (wantXf && s.curCov) {
         clone  = s.haveBlend ? CloneOf(s, s.curBlend) : nullptr;
         wantXf = clone != nullptr;   // no A2C state under it: the transformed program must not run
     }
-    const bool wantClone = wantXf && s.opt.coverage;
+    const bool wantClone = wantXf && s.curCov;
     if (psBind || wantXf != s.psIsXf) {
         ctx->PSSetShader(wantXf ? s.curXf : s.curRetail, nullptr, 0);
         s.psIsXf = wantXf;
@@ -326,7 +367,16 @@ void Stage::BindPixel(ID3D11DeviceContext* ctx, PixelProgramData* p, int variant
     if (pr == nullptr || pr->retail[variant] != retail) pr = &Build(s, p);   // first bind, or re-created
     s.curRetail = retail;
     s.curXf     = pr->xf[variant];
+    s.curCov    = pr->cov[variant];
+    s.curNgVs   = pr->ngVs[variant];
     Apply(s, ctx, true);
+}
+
+void Stage::VertexPairChanged(ID3D11DeviceContext* ctx) {
+    State& s = S();
+    std::lock_guard<std::mutex> lock(s.mu);
+    if (s.gen != s.reqGen || s.mode == 0 || s.device != Dx11Device() || s.curRetail == nullptr) return;
+    Apply(s, ctx, false);
 }
 
 void Stage::AfterRenderState(ID3D11DeviceContext* ctx, ID3D11BlendState* retailBlend) {
@@ -371,6 +421,7 @@ void Stage::PixelDestroyed(PixelProgramData* p) {
         if (it->second.retail[i] != nullptr && it->second.retail[i] == s.curRetail) {
             // bound now: forget the pair (the engine binds another program before the next draw)
             s.curRetail = s.curXf = nullptr;
+            s.curCov = s.curNgVs = false;
             s.psIsXf = false;
         }
         Rel(it->second.xf[i]);
@@ -398,7 +449,7 @@ void Stage::RenderStateDestroyed(ID3D11BlendState* retailBlend) {
 
 namespace FaaBackend {
 
-void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither) {
+void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither, bool naturalGrowth) {
     using namespace VideoDX11;
     FaaStage::State& s = FaaStage::S();
     std::lock_guard<std::mutex> lock(s.mu);
@@ -411,12 +462,16 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
         d.noise      = dither->noise > 0.0f ? dither->noise : 0.0f;
         d.noiseScale = dither->noiseScale > 0.0f ? dither->noiseScale : BbsRewrite::kRetailParams.noiseScale;
     }
-    if (mode == s.reqMode && fillK == s.reqK && fillFloor == s.reqFloor && d == s.reqDither) return;
+    naturalGrowth = mode > 0 && naturalGrowth;
+    if (mode == s.reqMode && fillK == s.reqK && fillFloor == s.reqFloor && d == s.reqDither &&
+        naturalGrowth == s.reqNg)
+        return;
     const bool seamWasSet = g_extFoliageAA.load(std::memory_order_acquire) != nullptr;
     s.reqMode = mode;
     s.reqK    = fillK;
     s.reqFloor = fillFloor;
     s.reqDither = d;
+    s.reqNg   = naturalGrowth;
     ++s.reqGen;
     if (mode > 0) {
         g_extFoliageAA.store(&FaaStage::g_stage, std::memory_order_release);
@@ -425,9 +480,9 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
         s.gen = s.reqGen;
         s.mode = 0;
     }
-    std::fprintf(stderr, "[FoliageAA] request mode %d k %.3f floor %.3f dither %.2f/%.0f (gen %u)%s\n", mode,
-                 static_cast<double>(fillK), static_cast<double>(fillFloor), static_cast<double>(d.noise),
-                 static_cast<double>(d.noiseScale), s.reqGen, mode > 0 ? ": seam set" : (seamWasSet ? ": off at the next pixel bind" : ""));
+    std::fprintf(stderr, "[FoliageAA] request mode %d k %.3f floor %.3f dither %.2f/%.0f natural growth %d (gen %u)%s\n",
+                 mode, static_cast<double>(fillK), static_cast<double>(fillFloor), static_cast<double>(d.noise),
+                 static_cast<double>(d.noiseScale), naturalGrowth ? 1 : 0, s.reqGen, mode > 0 ? ": seam set" : (seamWasSet ? ": off at the next pixel bind" : ""));
 }
 
 #if BANISHED_TWEAK_OVERLAY

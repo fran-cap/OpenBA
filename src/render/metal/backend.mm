@@ -456,7 +456,7 @@ static void Draw(Video::Context* ctx, int primitive, int count, int instances, b
         auto targetSamples = targetColor ? targetColor.sampleCount : (targetDepth ? targetDepth.sampleCount : 1);
         TreePasses::BlendGuard treeBlend(
             bound.ps,
-            bound.blend.blendingEnabled || (targetSamples <= 1 && TreePasses::IsCoverage(bound.ps)));
+            bound.blend.blendingEnabled || (targetSamples <= 1 && TreePasses::IsCoverage(bound.ps)), bound.vs);
         auto pipeline = Pipeline();
         if (!pipeline) {
             return;

@@ -103,6 +103,9 @@ struct ShaderEntry {
     Shaders::ShaderReflection reflection;
     std::vector<uint8_t> dxbc;   // pixel stage only: the linked conversion reads it again
     int refs = 0;
+    // NOT RETAIL (docs/extensions/NATURAL_GROWTH.md): a rewrite stage's natural-growth copy. A pixel one reads
+    // an interpolant only a natural-growth vertex copy writes: the draw pairs them (draw.cpp).
+    bool naturalGrowth = false;
 };
 // The registry key of a blob: Hash64 of its bytes, mixed with the stage.
 uint64_t ShaderHash(const uint8_t* dxbc, size_t size, Shaders::Stage stage);

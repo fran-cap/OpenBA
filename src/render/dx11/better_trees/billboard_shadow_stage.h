@@ -32,6 +32,11 @@ namespace BbsStage { class Stage; }
 // THE SEAM. Null = faithful.
 extern std::atomic<BbsStage::Stage*> g_extBillboardShadow;
 
+// NATURAL_GROWTH.md: the bound vertex shader is a natural-growth copy (it writes the per-tree
+// interpolant). Written by BindVertex, read by the foliage_aa stage's pixel binds; both run on the one
+// immediate context's binding thread.
+extern std::atomic<bool> g_ngVertexBound;
+
 namespace BbsStage {
 
 class Stage {

@@ -63,6 +63,9 @@ public:
     void PixelCreated(PixelProgramData* p);
     void PixelDestroyed(PixelProgramData* p);
     void RenderStateDestroyed(ID3D11BlendState* retailBlend);
+    // NATURAL_GROWTH.md: the vertex stage bound (or left) a natural-growth copy. A pixel copy that reads
+    // its interpolant runs only beside one (g_ngVertexBound); the bound pair is re-applied.
+    void VertexPairChanged(ID3D11DeviceContext* ctx);
 };
 
 }  // namespace FaaStage

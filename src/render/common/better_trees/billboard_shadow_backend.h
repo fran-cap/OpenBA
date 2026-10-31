@@ -16,7 +16,9 @@ namespace BbsBackend {
 //        shaders are made per program at load (PlatformCreate) or lazily at the first bind.
 //   off  the binding thread's next vertex-program bind releases every rewritten shader and nulls
 //        the seam: from then on the faithful path runs again (one null test per bind).
-void Request(bool on);
+// `naturalGrowth` (NATURAL_GROWTH.md): the billboard and foliage vertex shaders also carry the per-tree
+// season terms (natural_growth.h); only with `on`.
+void Request(bool on, bool naturalGrowth = false);
 
 #if BANISHED_TWEAK_OVERLAY
 // TS-TWEAK (debug flavour only): the rewrite's immediates (basis / margin / jitter) from the debug

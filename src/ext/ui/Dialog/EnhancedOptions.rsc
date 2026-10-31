@@ -1,5 +1,5 @@
 // Dialog/EnhancedOptions.rsc -- the Options dialog's fifth tab "Enhanced" (NOT RETAIL; blocks AOMENU,
-// FAA-MENU, BETTER-TREES, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer: twelve rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
+// FAA-MENU, BETTER-TREES, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer: thirteen rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
 // OptionsDialog::OnOpened (src/ext/enhanced_tab/enhanced_tab.cpp). Every name here is NEW:
 // a loose .crs never overrides a name the game's packages hold (IO::FileSystem::OpenFile looks
 // in the packfile index first, handins/AOSPIKE.md S5). The look inherits the kit's own
@@ -13,6 +13,7 @@ StringTable aoStrings
 		{ String _name = "AoQuality";		String _text = "Ambient occlusion"; }
 		{ String _name = "AoOpacity";		String _text = "AO strength"; }
 		{ String _name = "BetterTrees";		String _text = "Better trees"; }
+		{ String _name = "NaturalGrowth";	String _text = "Natural tree growth"; }
 		{ String _name = "MaxShadowRes";	String _text = "Max shadow resolution"; }
 		{ String _name = "SeamlessLoops";	String _text = "Seamless ambient loops"; }
 		{ String _name = "TextureQuality";	String _text = "Texture quality"; }
@@ -47,6 +48,16 @@ StringTable betterTreesModes
 		{ String _name = "Mode0";		String _text = "Off";							}
 		{ String _name = "Mode1";		String _text = "On";					}
 		{ String _name = "Mode2";		String _text = "On + distance fill";	}
+	]
+}
+
+// Natural tree growth (NATURAL_GROWTH.md): ext.natural_tree_growth 0 / 1 (it takes effect while Better trees is on).
+StringTable naturalGrowthItems
+{
+	Entry _strings
+	[
+		{ String _name = "Item0";		String _text = "Off";	}
+		{ String _name = "Item1";		String _text = "On";	}
 	]
 }
 
@@ -184,7 +195,7 @@ ContainerDescription enhancedOptions : "Options.rsc:gameOptions"
 	ElementDescription _content = "enhancedOptionsTable";
 }
 
-// The rows: Options.rsc:gameOptionsTable's shape, twelve rows (AO combo, AO slider, Better trees, shadow,
+// The rows: Options.rsc:gameOptionsTable's shape, thirteen rows (AO combo, AO slider, Better trees, natural tree growth, shadow,
 // loops, texture quality (TEXQUALITY), render scale and frame rate cap (P8), the derived-data cache's
 // size and, under it, its "Clear cache" button: COMPRESSAO). The size sits in the control column, not in the label: "0 MB (cleared at the next
 // start)" in the label column made that column, and so the dialog, wider than the retail tabs.
@@ -198,34 +209,36 @@ TableDescription enhancedOptionsTable
 	Alignment _alignment = TopLeft;
 
 	int _width = 2;
-	int _height = 12;
+	int _height = 13;
 
 	TableItem _items
 	[
 		{ int _x = 0; int _y = 0; ElementDescription _element = "textAoQuality"; }
 		{ int _x = 0; int _y = 1; ElementDescription _element = "textAoOpacity"; }
 		{ int _x = 0; int _y = 2; ElementDescription _element = "textBetterTrees"; }
-		{ int _x = 0; int _y = 3; ElementDescription _element = "textMaxShadowRes"; }
-		{ int _x = 0; int _y = 4; ElementDescription _element = "textSeamlessLoops"; }
-		{ int _x = 0; int _y = 5; ElementDescription _element = "textTextureQuality"; }
-		{ int _x = 0; int _y = 6; ElementDescription _element = "textRenderScale"; }
-		{ int _x = 0; int _y = 7; ElementDescription _element = "textFpsCap"; }
-		{ int _x = 0; int _y = 8; ElementDescription _element = "textTouchMode"; }
-		{ int _x = 0; int _y = 9; ElementDescription _element = "textTouchPointer"; }
-		{ int _x = 0; int _y = 10; ElementDescription _element = "textDerivedCache"; }
+		{ int _x = 0; int _y = 3; ElementDescription _element = "textNaturalGrowth"; }
+		{ int _x = 0; int _y = 4; ElementDescription _element = "textMaxShadowRes"; }
+		{ int _x = 0; int _y = 5; ElementDescription _element = "textSeamlessLoops"; }
+		{ int _x = 0; int _y = 6; ElementDescription _element = "textTextureQuality"; }
+		{ int _x = 0; int _y = 7; ElementDescription _element = "textRenderScale"; }
+		{ int _x = 0; int _y = 8; ElementDescription _element = "textFpsCap"; }
+		{ int _x = 0; int _y = 9; ElementDescription _element = "textTouchMode"; }
+		{ int _x = 0; int _y = 10; ElementDescription _element = "textTouchPointer"; }
+		{ int _x = 0; int _y = 11; ElementDescription _element = "textDerivedCache"; }
 
 		{ int _x = 1; int _y = 0; ElementDescription _element = "comboAoQuality"; }
 		{ int _x = 1; int _y = 1; ElementDescription _element = "sliderAoOpacity"; }
 		{ int _x = 1; int _y = 2; ElementDescription _element = "comboBetterTrees"; }
-		{ int _x = 1; int _y = 3; ElementDescription _element = "comboMaxShadowRes"; }
-		{ int _x = 1; int _y = 4; ElementDescription _element = "comboSeamlessLoops"; }
-		{ int _x = 1; int _y = 5; ElementDescription _element = "comboTextureQuality"; }
-		{ int _x = 1; int _y = 6; ElementDescription _element = "comboRenderScale"; }
-		{ int _x = 1; int _y = 7; ElementDescription _element = "comboFpsCap"; }
-		{ int _x = 1; int _y = 8; ElementDescription _element = "comboTouchMode"; }
-		{ int _x = 1; int _y = 9; ElementDescription _element = "comboTouchPointer"; }
-		{ int _x = 1; int _y = 10; ElementDescription _element = "textDerivedCacheSize"; }
-		{ int _x = 1; int _y = 11; ElementDescription _element = "buttonDerivedCacheClear"; }
+		{ int _x = 1; int _y = 3; ElementDescription _element = "comboNaturalGrowth"; }
+		{ int _x = 1; int _y = 4; ElementDescription _element = "comboMaxShadowRes"; }
+		{ int _x = 1; int _y = 5; ElementDescription _element = "comboSeamlessLoops"; }
+		{ int _x = 1; int _y = 6; ElementDescription _element = "comboTextureQuality"; }
+		{ int _x = 1; int _y = 7; ElementDescription _element = "comboRenderScale"; }
+		{ int _x = 1; int _y = 8; ElementDescription _element = "comboFpsCap"; }
+		{ int _x = 1; int _y = 9; ElementDescription _element = "comboTouchMode"; }
+		{ int _x = 1; int _y = 10; ElementDescription _element = "comboTouchPointer"; }
+		{ int _x = 1; int _y = 11; ElementDescription _element = "textDerivedCacheSize"; }
+		{ int _x = 1; int _y = 12; ElementDescription _element = "buttonDerivedCacheClear"; }
 	]
 }
 
@@ -240,6 +253,7 @@ TextDescription textAoOption
 TextDescription textAoQuality : "textAoOption" { String _text = "AoQuality"; }
 TextDescription textAoOpacity : "textAoOption" { String _text = "AoOpacity"; }
 TextDescription textBetterTrees : "textAoOption" { String _text = "BetterTrees"; }
+TextDescription textNaturalGrowth : "textAoOption" { String _text = "NaturalGrowth"; }
 TextDescription textMaxShadowRes : "textAoOption" { String _text = "MaxShadowRes"; }
 TextDescription textSeamlessLoops : "textAoOption" { String _text = "SeamlessLoops"; }
 TextDescription textTextureQuality : "textAoOption" { String _text = "TextureQuality"; }
@@ -284,6 +298,13 @@ ComboDescription comboBetterTrees : "Options.rsc:comboAutosave"
 	int _minWidth = 180;
 	int _bottomPad = 3;
 	StringTable _initialData = "EnhancedOptions.rsc:betterTreesModes";
+}
+
+ComboDescription comboNaturalGrowth : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:naturalGrowthItems";
 }
 
 ComboDescription comboMaxShadowRes : "Options.rsc:comboAutosave"

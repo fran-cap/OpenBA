@@ -24,7 +24,10 @@ namespace FaaBackend {
 // BETTER-TREES: `dither` (null = none) is the billboard edge-noise set (BbsRewrite::Params noise /
 // noiseScale, handins/BETTER-TREES.md); the stage applies edge_dither after the cutout on the
 // billboard colour programs. A change re-creates the copies like a mode / k change.
-void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither = nullptr);
+// `naturalGrowth` (NATURAL_GROWTH.md): the billboard colour and foliage pixel shaders also take the per-tree
+// season terms and green variation (natural_growth.h); only with mode > 0.
+void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither = nullptr,
+             bool naturalGrowth = false);
 
 #if BANISHED_TWEAK_OVERLAY
 // The debug tweak overlay's stats line (debug flavour only): the applied generation's counters,

@@ -1319,7 +1319,8 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
     const PixelProgramData* psp = g_bound.ps;
     const ShaderEntry* ps = psp ? psp->shaders[psp->boundPermutation] : nullptr;
     StateBlock state = g_bound.state ? g_bound.state->block : DefaultState();
-    if (psp && psp->rewritten) {
+    // NATURAL_GROWTH.md: a natural-growth pixel copy runs only beside a natural-growth vertex shader.
+    if (psp && psp->rewritten && (!psp->rewritten->naturalGrowth || (vs && vs->naturalGrowth))) {
         if (!psp->coverage) {
             ps = psp->rewritten;
         } else if (!state.blendEnable) {

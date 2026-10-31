@@ -62,6 +62,9 @@ reused an existing register (the dither reads the shadow output's spare `.w`).
 
 ## 3. Design
 
+The plan as written before the spike. Phase 1 is built; where the build differs (the day goes in
+`gc.time.y`, the hash, the pines' interpolant, the chain order, the default), §6 is the record.
+
 ### 3.1 The per-tree terms (vertex shaders)
 
 In both billboard vertex shaders (`Normal_vs`, `Depth_vs`), after the instance transform is read:
@@ -184,7 +187,63 @@ Neither the switch nor the dump is kept.
 
 | Block | Who | What | Done when |
 |---|---|---|---|
-| NG-SPIKE | one opus agent | S1-S6 | a hand-in `handins/NG-SPIKE.md` answering each row |
-| NG-CORE | one opus agent | signature editing in `dxbc.{h,cpp}`, the `natgrowth_rewrite.{h,cpp}` VS + PS rewriters, the `doy` plumbing (S3's answer), the stage chaining on DX11 / Vulkan / Metal, the settings key and the Options checkbox, unit tests (the identity case of 3.4, the curves at the window edges, the signature round trip) | `tools/build.sh unit`, the gate, the resave check, the `[BetterTrees]` match line counting every variant |
+| NG-SPIKE | done | S1-S5 (S6 not run) | §6 |
+| NG-CORE | done | signature editing in `dxbc.{h,cpp}`, the `natgrowth_rewrite.{h,cpp}` VS + PS rewriters, the `doy` plumbing (S3's answer), the stage chaining on DX11 / Vulkan / Metal, the settings key and the Options checkbox, unit tests (the identity case of 3.4, the curves at the window edges, the signature round trip) | `tools/build.sh unit`, the gate, the resave check, the `[BetterTrees]` match line counting every variant |
 | NG-LOOK | the user | S7 | the ruling on curves, palette and default |
 | NG-LEAVES | one opus agent | phase 2 (3.7) | its own section here, then the look check |
+
+## 6. As built (phase 1)
+
+### 6.1 Spike answers
+
+| # | Answer |
+|---|---|
+| S1 | The deciduous canopies (Birch, Oak, the eight fruit trees) draw with `BillboardMaterial`'s `Normal` / `Depth` programs, and Pine with `FoliageMaterial`. Blueberry uses `BillboardEvergreen` (`psevergreen`), which has no season term. That program is refused and stays retail, so it gets no green variation (`no season mad after the sample` in the log). |
+| S2 | All four DETAIL variants match: `Normal_ps` 1d0afbb6 / d5503f8c / 1935b5ef / a437d0d2, `Normal_vs` a12e2a30 (v0) / a88a6da1 (v1-3), `Depth_vs` fa28d234, `Foliage_vs` 0c7bf19e / a62bf119, `Foliage_ps` bc55ff72 / d384ccbf / 97870cc6 / f299fbbb. `FoliageDepth_vs` b64eab92 is refused, so the pines' shadows are retail (they have no season). The translation is `cb3[rI + 3]`. The fall colour is `mul rA.w, move, pc.userPosition.y` feeding a `mad` toward the gold immediate. |
+| S3 | `gc.time.y` (cb0[10].y). `Context::SetTime` always writes 0 there, and no retail program reads it. While the part is on, the game writes `1 + months` after every SetTime (`gameupdateloop.cpp` Draw step 2, and the render pipe's replay). A missing stamp (0) gives retail's fadeA / fadeB and gold, which is what the menu scene shows. |
+| S4 | An appended TEXCOORD element survives DX11, and the Vulkan DXBC -> SPIR-V path on this machine (all 12 rewrites, nothing FAILED). On Metal, airconv has not been run: CI builds the code, and it still needs a run on the owner's Mac. |
+| S5 | No. One palette for all species: the hash picks gold / orange / red per tree. |
+| S6 | Not run (no stress A/B yet). The cost is one interpolant on the colour pair, about 40 vertex ALU (the hash, the grove, the curves) and about 15 pixel ALU. |
+| S7 | Open: the user's look pass. |
+
+### 6.2 The rewrite (`src/render/common/better_trees/natural_growth.{h,cpp}`)
+
+The header comment is the reference. In short:
+- Per tree, in the vertex shader, from the translation `T`:
+  - `h = hash33(T.xy)` (Dave Hoskins), and a grove term `g` from two sines.
+  - Autumn offset `o = 0.75 * (1.2 h.x - 0.6 + 0.2 g)`.
+  - Regrowth start `s = 0.75 + 0.75 * (1.2 frc(h.x + h.z) - 0.6 + 0.2 g)`.
+  - Colour `c = sat((d - o - 6) / 1.25)`.
+  - Loss `l = max(sat((d - o - 7.25) / 0.75), 1 - sat((d - s) / 0.75))`.
+  - Tint `t = 2 h.z - 1`.
+- The billboard colour pair carries `(c, l, hue = h.y, t)` in a new interpolant.
+- The depth VS uses `l` for the shadow caster's leaf loss.
+- The pines carry `t` in the snow interpolant's unused `w`.
+- Palette: gold (retail's 233,185,71) -> orange -> red by hue, browned up to 50 % by `l`.
+- Green variation: `colour *= 1 + t * move * (0.08, 0.05, -0.05)` after the discard. On the pines it applies without `move`.
+- The CPU mirror (`TermsOf` / `SeasonOf`) is unit tested against an interpreter run of synthetic blobs (`tests/unit/ext_natural_growth_test.cpp`). Phase 2 uses the same terms.
+
+### 6.3 The stages
+
+The chain is natural growth first, then the cutout, then the dither (pixel), and the receiver lookup (vertex).
+- DX11: `billboard_shadow_stage` / `foliage_aa_stage`.
+- Vulkan: `shader_rewrites.cpp`.
+- Metal: `passes/tree_passes.mm`.
+
+A natural-growth pixel copy reads an interpolant that only a natural-growth vertex copy writes. Each backend therefore binds it only beside one:
+- DX11: `FaaStage::VertexPairChanged`.
+- Vulkan: `ShaderEntry::naturalGrowth` in `draw.cpp`.
+- Metal: `BlendGuard` swaps back to retail.
+
+### 6.4 Settings
+
+`ext.natural_tree_growth` (0 / 1, default 1, owner `better_trees`) is shown as "Natural tree growth" in the Enhanced options. It takes effect only while `ext.better_trees` is on. The pixel half needs a foliage mode >= 1. The vertex half follows the row. The default is provisional until S7.
+
+### 6.5 Checks run (2026-10-31)
+
+- `tools/build.sh unit`: the natural-growth tests pass. `ext_sheet_kit_crosscheck` fails locally against a stale kit output (CI skips it without the kit).
+- DX11 debug: in-game screenshots (in the scratchpad, not the tree) at Early Fall, mid Mid Fall, Late Fall, Early Spring and Summer. Every rewrite applied.
+- Vulkan debug: mid Mid Fall, all 12 rewrites. The `SV_Target`-without-attachment validation warning is the same with the part off.
+- Metal: compiled by CI only.
+- The gate (`tools/build.sh run`, faithful): RUNNING, no crash.
+- `tools/resave_gate/resave_gate.sh Gate`: PASS.

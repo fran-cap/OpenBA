@@ -42,7 +42,7 @@ const Ext::ValueKey& K(const char* id) {
 }  // namespace
 
 UNIT_TEST(ext_values_table_shape) {
-    CHECK_EQ(Ext::ValueKeyCount(), 14);   // ao_quality, ao_opacity, foliage_aa_mode (ext_better_trees_test.cpp), max_shadow_size (below), rock_seat_mode (ext_rock_seat_test.cpp), derived_cache_mb (ext_compress_ao_test.cpp), create_on_demand_idle_min (ext_create_on_demand_test.cpp), texture_quality_drop (ext_texture_quality_test.cpp), fps_cap_rate (ext_fps_cap_test.cpp), touch_mode_toolbar_scale / _zoom_min (ext_touch_mode_test.cpp), touch_pointer_lift / _pick_radius / _tap_twice (ext_touch_pointer_test.cpp)
+    CHECK_EQ(Ext::ValueKeyCount(), 15);   // ao_quality, ao_opacity, foliage_aa_mode and natural_tree_growth (ext_better_trees_test.cpp), max_shadow_size (below), rock_seat_mode (ext_rock_seat_test.cpp), derived_cache_mb (ext_compress_ao_test.cpp), create_on_demand_idle_min (ext_create_on_demand_test.cpp), texture_quality_drop (ext_texture_quality_test.cpp), fps_cap_rate (ext_fps_cap_test.cpp), touch_mode_toolbar_scale / _zoom_min (ext_touch_mode_test.cpp), touch_pointer_lift / _pick_radius / _tap_twice (ext_touch_pointer_test.cpp)
     const Ext::ValueKey& q = K("ao_quality");
     const Ext::ValueKey& o = K("ao_opacity");
     CHECK_EQ(q.minValue, 1); CHECK_EQ(q.maxValue, 3); CHECK_EQ(q.defaultValue, 2);

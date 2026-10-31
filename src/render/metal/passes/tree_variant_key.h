@@ -24,11 +24,14 @@ struct PixelSettings {
     float fillK = 0.0f;
     float fillFloor = 0.0f;
     BbsRewrite::Params dither = BbsRewrite::kDefaultParams;
+    bool naturalGrowth = false;   // NATURAL_GROWTH.md
 };
 
-// The settings a vertex (billboard receiver) variant is made with.
+// The settings a vertex (billboard receiver, natural growth) variant is made with.
 struct VertexSettings {
     BbsRewrite::Params params = BbsRewrite::kDefaultParams;
+    bool billboardShadow = true;
+    bool naturalGrowth = false;
 };
 
 inline void AppendBytes(std::string& key, const void* data, size_t size) {
@@ -44,6 +47,7 @@ inline std::string PixelVariantKey(const std::string& identity, const PixelSetti
     AppendBytes(key, &settings.fillFloor, sizeof(settings.fillFloor));
     AppendBytes(key, &settings.dither.noise, sizeof(settings.dither.noise));
     AppendBytes(key, &settings.dither.noiseScale, sizeof(settings.dither.noiseScale));
+    key.push_back(settings.naturalGrowth ? 'G' : 'g');
     return key;
 }
 
@@ -53,6 +57,8 @@ inline std::string VertexVariantKey(const std::string& identity, const VertexSet
     AppendBytes(key, &settings.params.basis, sizeof(settings.params.basis));
     AppendBytes(key, &settings.params.margin, sizeof(settings.params.margin));
     AppendBytes(key, &settings.params.jitter, sizeof(settings.params.jitter));
+    key.push_back(settings.billboardShadow ? 'S' : 's');
+    key.push_back(settings.naturalGrowth ? 'G' : 'g');
     return key;
 }
 
