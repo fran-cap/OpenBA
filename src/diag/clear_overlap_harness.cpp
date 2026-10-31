@@ -143,6 +143,7 @@ struct CellCounts {
     int piles = 0;       // occupants carrying a RawMaterialComponent (a felled log, cut stone)
     int other = 0;       // any other occupant
     int markers = 0;     // blockers that are clear-tool markers
+    int blocked = 0;     // cells with any other blocker (a site's or a zone's footprint stamp)
     int claimed = 0;     // natural resources whose component carries bit 0x100000 (being removed)
 };
 
@@ -168,7 +169,11 @@ CellCounts CountRect(const Rect& r) {
                 }
             }
             ComponentEntity* blk = cell.blocker.Get();
-            if (blk && s_clearMarker && blk->_description == s_clearMarker) ++c.markers;
+            if (blk && s_clearMarker && blk->_description == s_clearMarker) {
+                ++c.markers;
+            } else if (blk) {
+                ++c.blocked;
+            }
         }
     }
     return c;
@@ -342,10 +347,11 @@ void Census(int frame) {
     CellCounts yard = s_yard.w > 0 ? CountRect(s_yard) : CellCounts{};
     std::fprintf(stderr,
                  "[ClearOverlap] census f=%d area: natural=%d (claimed %d) piles=%d markers=%d other=%d | "
-                 "hall: natural=%d piles=%d claimed=%d left=%d | yard: natural=%d piles=%d claimed=%d left=%d\n",
+                 "hall: natural=%d piles=%d claimed=%d left=%d blocked=%d | yard: natural=%d piles=%d claimed=%d "
+                 "left=%d blocked=%d\n",
                  frame, area.natural, area.claimed, area.piles, area.markers, area.other, hall.natural, hall.piles,
-                 SiteClaimed(s_hallEnt) ? 1 : 0, ClearRemaining(s_hallEnt), yard.natural, yard.piles,
-                 SiteClaimed(s_yardEnt) ? 1 : 0, ClearRemaining(s_yardEnt));
+                 SiteClaimed(s_hallEnt) ? 1 : 0, ClearRemaining(s_hallEnt), hall.blocked, yard.natural, yard.piles,
+                 SiteClaimed(s_yardEnt) ? 1 : 0, ClearRemaining(s_yardEnt), yard.blocked);
 
     WorkScheduler* sched = gw->m_tutorial;
     int nArea = 0, nOther = 0;
