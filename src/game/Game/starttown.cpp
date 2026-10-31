@@ -2561,6 +2561,23 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                             // the axes itself; Occupy needs the POST-rotation extents.
                             void* tent = placeStructure(ttmpl, bestX, bestY, bestRot, tw, th,
                                                         /*isDemoFoundation=*/false, -1);
+                            // Ground the post at z = 0, the flattened level the player's
+                            // PlacementTool::GetPlacement (0x1400fda00) gives every placed
+                            // building. placeStructure is retail's FOUNDING placer
+                            // (0x1400a1fc0), which averages the pre-flatten corner heights
+                            // (docs/retail_bugs.md section 4, fix.start_barn_height) -- and
+                            // retail never founds a trading post. On a bank that average
+                            // floated this post 0.31 up, so its "boat" dock sat out of the
+                            // merchant's reach: the boat's z is fixed at 0 and it docks only
+                            // within 0.2 of the dock in 3D (0x140044ff0, 0x1401720fc).
+                            if (tent) {
+                                ModelComponent* tmc =
+                                    static_cast<ComponentEntity*>(tent)->FindComponent<ModelComponent>();
+                                if (tmc) {
+                                    tmc->transform.translation.z = 0.0f;
+                                    tmc->meshInstance.SetTransform(tmc->transform);
+                                }
+                            }
                             Occupy(bestX, bestY, bestFpW, bestFpH);
                             if (tent) ++spawned;
                             if (bestPath >= 0)

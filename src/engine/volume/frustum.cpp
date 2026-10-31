@@ -197,13 +197,12 @@ Frustum* RtVolume_Frustum_MulTransform3(const Frustum* self, Frustum* ret, const
 // (straddling) leave the bit set. A normal return of 0 means the box is
 // fully inside every plane that was tested.
 //
-// KNOWN NaN DIFFERENCE FROM RETAIL (found by FRUSTUMCULL from the retail
-// disassembly, 2026-10-12; docs/known_port_issues.md; not changed here):
-// retail's SelectVertices tests `plane.<axis> >= 0` (COMISS + SETAE, false on
-// NaN -> max for the n-vertex), this port `plane.<axis> < 0` (false on NaN ->
-// min); and retail branches to the dP test on `dN <= 0 OR unordered` (COMISS +
-// JBE), this port only on an ordered `dN <= 0` (a NaN dN clears the bit here,
-// is tested on dP in retail). The select difference cannot change a result (a
+// NaN (found by FRUSTUMCULL from the retail disassembly, 2026-10-12; row 1327):
+// retail branches to the dP test on `dN <= 0 OR unordered` (COMISS + JBE), so
+// this body tests `!(dN > 0)`: a NaN dN goes to the dP test, as in retail.
+// LEFT: retail's SelectVertices tests `plane.<axis> >= 0` (COMISS + SETAE, false
+// on NaN -> max for the n-vertex), this port `plane.<axis> < 0` (false on NaN ->
+// min). The select difference cannot change a result (a
 // NaN normal component makes both dN and dP NaN whatever vertex is picked; a
 // unit-test mutation confirmed it); the dN one can: a NaN dN (a NaN anywhere,
 // or 0 * inf, inf - inf) clears the bit here and culls / keeps it on dP in
@@ -217,7 +216,7 @@ unsigned int RtVolume_Frustum_Contains(const Frustum* self, const Box* box, unsi
         Vector3 nVertex, pVertex;
         SelectVertices(plane, *box, nVertex, pVertex);
         float dN = plane.y * nVertex.y + plane.x * nVertex.x + plane.z * nVertex.z - plane.w;
-        if (dN <= 0.0f) {
+        if (!(dN > 0.0f)) {   // COMISS + JBE: taken on unordered
             float dP = plane.y * pVertex.y + plane.x * pVertex.x + plane.z * pVertex.z - plane.w;
             if (dP < 0.0f) { ours = 0x40u; goto diffed; }
             // else: straddles this plane — leave the bit set, test the next plane.

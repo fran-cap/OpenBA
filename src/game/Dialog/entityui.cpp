@@ -348,8 +348,8 @@ void EntityUI::OnCreated() {
 // Slot6: Remove entity from world tracking set.
 // [6] 0x140067090
 void EntityUI::OnClosed() {
-    if (!SA_DialogEntityAlive(this)) return;
-
+    // No entity test: the key is compared by address, never dereferenced, so a
+    // dying entity's key leaves the set too.
     // Copy +0x30 (entity InternalBasePtr) to local
     ComponentEntity* entityKey = entity;
 
@@ -549,9 +549,6 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t
         return;
     }
     if (id != 0x65 && id != 100) return;
-    // pin (id 100) needs the ToolUI type-id to fetch the sibling controller; center
-    // (id 0x65) tolerates null component type-ids (finders just return "not found").
-    if (GameUpdateLoop::_singleton == nullptr) return;
     // Gate the entity read like every other EntityUI slot (4/6/7): this body reads
     // the cached datasource copy (+0x30) for center (0x65) and toggles tracking on
     // it for pin (100). On a just-demolished building's still-open panel that +0x30

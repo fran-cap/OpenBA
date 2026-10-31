@@ -35,9 +35,6 @@ public:
     ~CropUI() override = default;                                 // [0]  0x140020b60
     void  OnCreated() override;                                   // [4]  0x1400b2b50
     void  OnUpdateLayout() override;                              // [7]  0x1400b2a50
-    // [8] STANDALONE DEVIATION: retail inherits SelectResourceUI's 0x140078d30;
-    // the tree wraps it with a Slot4 self-heal and a liveness guard.
-    void  OnUpdate(const System::Time& time) override;
     void  SetResource(ComponentDescription* type) override;       // [11] 0x1400b2920
     ComponentDescription** GetResource(ComponentDescription** out) override;  // [12] 0x1400b29d0
     int   GetCategory() override;                                 // [13] 0x1400b29c0  XOR EAX,EAX

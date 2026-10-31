@@ -30,9 +30,6 @@ public:
     ~OrchardUI() override = default;                              // [0]  0x1400130e0
     void  OnCreated() override;                                   // [4]  0x1400755b0
     void  OnUpdateLayout() override;                              // [7]  0x1400754b0
-    // [8] STANDALONE DEVIATION: retail inherits SelectResourceUI's 0x140078d30;
-    // the tree wraps it with a Slot4 self-heal and a liveness guard.
-    void  OnUpdate(const System::Time& time) override;
     // [9] STANDALONE DEVIATION: retail inherits SelectResourceUI's 0x140078d80;
     // the tree's wrapper traces the event, then runs the same base body.
     void  OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,

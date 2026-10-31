@@ -168,16 +168,6 @@ void CropUI::OnUpdateLayout() {
         SelectResourceUI::OnUpdateLayout();   // = 0x140078cb0, the base's idx7
 }
 
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-// idx8 (+0x40) — base combo refresh, with the same null-combo self-heal.
-void CropUI::OnUpdate(const System::Time& time) {
-    if (!SA_DialogEntityAlive(this)) return;
-    if (!selectResource) {
-        CropUI::OnCreated();
-        if (!selectResource) return;
-    }
-    SelectResourceUI::OnUpdate(time);
-}
 
 
 // create 0x140020b10: MemAlloc(0x60, 8), then the ctor (DialogController ->
