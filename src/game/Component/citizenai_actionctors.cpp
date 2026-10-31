@@ -95,6 +95,9 @@
 #include "Action/exe_bodies.h"
 #include "Work/exe_bodies.h"
 #include "Game/exe_constants.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C)
+#include "ext/tool_names/tool_names.h"
+#include "ext/registry.h"
 #include "system/Value.h"   // RtSystem_Time_Ctor
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
 
@@ -336,6 +339,12 @@ void CitizenAI_PerformWorkCtor5_bd070(CitizenComponent* const* citizenRef, Compo
     }
 
     RawMaterialDescription* limit = FindLimitComponent(material);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C) notes which item
+    // this citizen is on its way to take and the use count it posts, so the citizen panel can name it.
+    if (::Ext::Ext().tool_names && limit != nullptr && citizenRef != nullptr) {
+        ::Ext::ToolNames::RememberPickup(*citizenRef, limit, limit->_i54);
+    }
 
     // SendComponentMessage(7158, a4=1, a6 = limit->+0x54)
     {

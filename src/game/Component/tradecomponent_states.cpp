@@ -361,11 +361,10 @@ static char TradeCtrl_Event0A_Dismissed(TradeComponent* /*self*/, StateMachine* 
 //
 // RETURN VALUE: retail always returns a value whose LOW BYTE is zero - the not-yet
 // branch returns the delta-time with the low byte masked off, and the fired branch masks
-// the transition result the same way. So: 0, on every path. The null delta test is the
-// tree's.
+// the transition result the same way. So: 0, on every path. The delta is read
+// unguarded (0x14005aa82).
 char TradeComponent::TickIdle(StateMachine* smV, const System::Time* deltaTime) {
-    const int64_t dt = deltaTime ? deltaTime->_ticks : 0;
-    merchantTimer._ticks -= dt;
+    merchantTimer._ticks -= deltaTime->_ticks;
     if (merchantTimer._ticks >= 1) return 0;
 
     TradeDescription* desc = TradeDesc(this);
@@ -381,32 +380,15 @@ char TradeComponent::TickIdle(StateMachine* smV, const System::Time* deltaTime) 
     // Route it to THIS post. The destination is the trading post's own entity (+0x10).
     Object::InternalPtr<ComponentEntity> destIBP(_entity);
     BoatComponent* boatComp = merchant->FindComponent<BoatComponent>();   // 0x14000eb20
-    // Retail derefs the BoatComponent unguarded because a merchant template always
-    // carries one.
-    //
-    // The guard below is a STANDALONE-ONLY difference, not a softened retail deref: the
-    // BoatComponent type-id slot (0x1401c4020) is seeded behind BANISHED_LIVE_TRADE_TIDS,
-    // and with that gate off the finder matches nothing and hands back 0. Crashing on a
-    // gate the player can turn off is not a faithful reproduction of anything, so say
-    // which gate is missing instead. If this fires with TRADE_TIDS on, the merchant
-    // template genuinely lacks the component and THAT is the bug.
-    if (boatComp) {
-        boatComp->SetDestination(&destIBP);   // 0x1400456e0
-    } else {
-        std::fprintf(stderr, "[TradeCtrl] merchant has NO BoatComponent "
-                             "(the template lacks it) — "
-                             "boat spawned with no route\n");
-        std::fflush(stderr);
-    }
+    // Unguarded (0x14005ab29): a merchant template always carries a BoatComponent.
+    boatComp->SetDestination(&destIBP);   // 0x1400456e0
 
     // Publish the entity. The category is the template's own (template+0x20).
     Object::InternalPtr<ComponentEntity> regIBP = merchant;
-    GameUpdateLoop* gw = GameUpdateLoop::_singleton;
-    if (gw && desc) {
-        ComponentDescription* tmpl = desc->_merchantTemplate;
-        gw->m_entityList->RegisterEntity(&regIBP,
-                                       static_cast<int>(tmpl->_category));
-    }
+    // The description and the world are read unguarded (0x14005ab31..0x14005ab58).
+    ComponentDescription* tmpl = desc->_merchantTemplate;
+    GameUpdateLoop::_singleton->m_entityList->RegisterEntity(&regIBP,
+                                                            static_cast<int>(tmpl->_category));
 
     // OUTCOME, not intent: the route point count is the only thing that says the boat can
     // actually sail. "A boat was allocated" and "a boat has a route" are different claims.

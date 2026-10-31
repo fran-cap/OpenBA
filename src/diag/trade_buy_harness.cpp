@@ -44,6 +44,12 @@
 #include <cstdlib>
 #include "Component/StorageComponent.h"
 #include "Component/TradeComponent.h"
+#include "Component/BoatComponent.h"   // the trade watch: the merchant boat's route
+#include "Component/ModelComponent.h"
+#include "Component/StateMachineComponent.h"
+#include "Component/CharacterComponent.h"
+#include "Component/CharacterDescription.h"
+#include "Game/Map.h"
 #include "Dialog/TradeUI.h"
 #include "Action/exe_bodies.h"   // StorageAdd (0x14012d000)
 #include "ui/DialogInstance.h"   // B4: the open dialog's controller array
@@ -94,6 +100,106 @@ Component* FindCompOnEntity(ComponentEntity* ent, uint32_t tid) {
 
 }  // namespace
 
+// BANISHED_TRADE_WATCH=<period> — THE MERCHANT BOAT CHECK (tools/harness_route.sh trade).
+//
+// TradeComponent::TickIdle (0x14005aa60) clones the merchant boat, routes it to the post
+// through its BoatComponent (read unguarded) and asks for state 0x12; the boat posts
+// event 9 when it ties up (OnMerchantDocked -> state 0x13, whose enter builds the manifest
+// at +0x50 and arms the 900 s stay at +0x78). Every period this finds the first trading
+// post, cuts the first merchant countdown (+0x78, ~6,600 game seconds) to one tick -- the
+// one lever -- and then follows the boat: spawned (+0x80 set), its route (BoatComponent
+// +0x60 count) and waypoint (+0x70), docked (a manifest while the merchant is set), gone
+// (+0x80 clear again). [TradeWatch] PASS once a boat that was seen sailing has docked.
+namespace {
+int  s_watchPeriod = -2;      // -2 = unread, -1 = off
+bool s_watchCut    = false;
+bool s_watchSailed = false;
+bool s_watchDocked = false;
+ComponentEntity* s_watchBoat = nullptr;
+
+void TradeWatch(int frameNum) {
+    if (s_watchPeriod == -2) {
+        const char* e = Opt().tradeWatch;
+        s_watchPeriod = (e && e[0] && e[0] != '0') ? std::atoi(e) : -1;
+        if (s_watchPeriod > 0) {
+            std::fprintf(stderr, "[TradeWatch] armed: every %d frames\n", s_watchPeriod);
+            std::fflush(stderr);
+        }
+    }
+    if (s_watchPeriod <= 0 || frameNum == 0 || (frameNum % s_watchPeriod) != 0) return;
+    GameUpdateLoop* gw = GameUpdateLoop::_singleton;
+    if (!gw || !gw->m_entityList) return;
+    EntityList* el = gw->m_entityList;
+    TradeComponent* post = nullptr;
+    for (int i = 0; i < el->masterArray._size && !post; ++i) {
+        ComponentEntity* ent = el->masterArray._data[i].Get();
+        if (ent) post = ent->FindComponent<TradeComponent>();
+    }
+    if (!post) {
+        std::fprintf(stderr, "[TradeWatch] f=%d no trading post in the world\n", frameNum);
+        std::fflush(stderr);
+        return;
+    }
+    ComponentEntity* boat = post->merchant.Get();                       // +0x80
+    BoatComponent* bc = boat ? boat->FindComponent<BoatComponent>() : nullptr;
+    std::fprintf(stderr, "[TradeWatch] f=%d post=%p timer(+0x78)=%lld merchant(+0x80)=%p route=%d "
+                 "waypoint=%d manifest(+0x58)=%d\n", frameNum, static_cast<void*>(post),
+                 static_cast<long long>(post->merchantTimer._ticks), static_cast<void*>(boat),
+                 bc ? bc->route._size : -1, bc ? bc->routeIndex : -1, post->manifest._size);
+    if (bc) {
+        // Where the boat is against its dock (+0x40) and waypoint (+0x50), and which state
+        // its machine runs (table index: 0 sail, 1 approach, 2 docked, 3 leave, 4 gone).
+        StateMachineComponent* bsm = boat->FindComponent<StateMachineComponent>();
+        ModelComponent* bm = bc->model.Get();
+        const Math::Vector3 p = bm ? bm->transform.translation : Math::Vector3(0.0f, 0.0f, 0.0f);
+        std::fprintf(stderr, "[TradeWatch]   boat state[%d] pos (%.2f,%.2f,%.2f) dock (%.2f,%.2f,%.2f) "
+                     "waypoint (%.2f,%.2f)\n", bsm ? bsm->stateMachine.activeState : -9, p.x, p.y, p.z,
+                     bc->dockPosition.x, bc->dockPosition.y, bc->dockPosition.z, bc->waypoint.x,
+                     bc->waypoint.y);
+        // The boat's height rule (the move tick 0x1401094c0): fixed z (+0x3c / +0x40) or
+        // the terrain height clamped up to +0x44; and the terrain under it.
+        CharacterComponent* ch = bc->character.Get();
+        const CharacterDescription* cd = ch ? ch->characterDescription : nullptr;
+        float tri[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        float q[3] = {p.x, p.y, 0.0f};
+        const float* tp = gw->m_game->GetTerrainPos(tri, q, '\0', nullptr);
+        std::fprintf(stderr, "[TradeWatch]   boat height rule: fixed(+0x3c)=%d z(+0x40)=%.3f floor(+0x44)=%.3f "
+                     "terrain under it %.3f\n", cd ? cd->_b3c : -1, cd ? cd->_f40 : 0.0f,
+                     cd ? cd->_f44 : 0.0f, tp[2]);
+    }
+    if (!s_watchCut && !boat && post->merchantTimer._ticks > 1) {
+        // The post's own placement (its model translation): the dock's z is this z plus
+        // the "boat" attach point's local z, and the boat docks only within 0.2 of it in 3D.
+        ModelComponent* pm = post->_entity->FindComponent<ModelComponent>();
+        if (pm)
+            std::fprintf(stderr, "[TradeWatch]   post model translation (%.3f,%.3f,%.3f)\n",
+                         pm->transform.translation.x, pm->transform.translation.y,
+                         pm->transform.translation.z);
+        s_watchCut = true;
+        post->merchantTimer._ticks = 1;
+        std::fprintf(stderr, "[TradeWatch]   cut the merchant countdown to one tick\n");
+    }
+    if (boat && bc && bc->route._size > 0 && post->manifest._size == 0 && !s_watchSailed) {
+        s_watchSailed = true;
+        s_watchBoat = boat;
+        std::fprintf(stderr, "[TradeWatch] f=%d merchant boat %p sailing: %d route points\n",
+                     frameNum, static_cast<void*>(boat), bc->route._size);
+    }
+    if (boat && boat == s_watchBoat && post->manifest._size > 0 && !s_watchDocked) {
+        s_watchDocked = true;
+        std::fprintf(stderr, "[TradeWatch] PASS f=%d merchant boat %p docked: manifest of %d, "
+                     "stay timer %lld\n", frameNum, static_cast<void*>(boat), post->manifest._size,
+                     static_cast<long long>(post->merchantTimer._ticks));
+    }
+    if (!boat && s_watchDocked && s_watchBoat) {
+        std::fprintf(stderr, "[TradeWatch] f=%d merchant boat %p has left the post\n", frameNum,
+                     static_cast<void*>(s_watchBoat));
+        s_watchBoat = nullptr;
+    }
+    std::fflush(stderr);
+}
+}  // namespace
+
 // The panel's row arrays are not filled by the select itself: TradeUI builds them in
 // its own per-frame update, so reading self+0x30/+0x38 in the same tick that opened
 // the dialog always finds sellCount = 0 however well stocked the post is. Open on
@@ -104,6 +210,7 @@ static const int kSettleFrames = 30;
 // The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
 // declaration still spells the parameter void*).
 extern "C" void TradeSellHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
+    TradeWatch(frameNum);
     Init();
     if (s_interval <= 0 || frameNum == 0) return;
     if (!entityUI) return;

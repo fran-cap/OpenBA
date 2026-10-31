@@ -104,6 +104,10 @@ class Component;
 // in citizenai_housing_idle.cpp.
 template <class Node> void CitizenAI_Reg_helper_e360(Node** rootSlot, Node** walk);  // 0x14000e360  // B8: stays free -- already the template over the node type (explicit instantiations in citizenai_housing_idle.cpp); nothing erased
 
+// ---- citizenai_sortbypriority.cpp
+struct StateCandidate;   // Component/StateCandidate.h
+void CitizenAI_SortByPriority(StateCandidate* base, int count);  // 0x14002fe10 (the CRT qsort, comparator inlined: descending by priority)
+
 // ---- citizenai_work_scheduler.cpp
 class WorkScheduler; class WorkComponent; class Work; class Profession;
 

@@ -59,12 +59,9 @@ PlantOrchard::PlantOrchard(ComponentEntity* const* entityIBP, ComponentDescripti
     field_68 = treeType;   // tree type, stored verbatim: no null test, no validation,
                            // no refcount — as retail does.
 
+    // Read unguarded (0x1400f51b1 -> 0x1400f51c6): a PlantOrchard is only built for an
+    // entity that has an orchard.
     OrchardComponent* orchard = field_10->FindComponent<OrchardComponent>();   // 0x140005440
-    if (!orchard) return;             // SA: retail derefs unguarded below; a PlantOrchard is
-                                      // only ever built for an entity that has an orchard, so
-                                      // this can only fire if our caller is wrong. Returning
-                                      // early keeps the work item well-formed but empty
-                                      // rather than faulting on a null component.
 
     orchard->ValidateRefs();   // 0x140051830
 
@@ -76,10 +73,10 @@ PlantOrchard::PlantOrchard(ComponentEntity* const* entityIBP, ComponentDescripti
 
     // Zero each byte. Retail re-reads orchardComp->+0x58 and re-runs CheckPtr on every
     // iteration; the re-read is preserved because ValidateRefs/CheckPtr can in principle
-    // shrink the component's slot array underneath the loop.
+    // shrink the component's slot array underneath the loop. No data test
+    // (0x1400f5200..0x1400f5221): SetSize allocated whenever the loop runs.
     for (int i = 0; i < orchard->slotCount; ++i) {
         bool* base = field_58._data;
-        if (!base) break;   // the tree's guard
         base[i] = false;
     }
 }

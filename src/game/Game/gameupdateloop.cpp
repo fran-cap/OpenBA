@@ -71,6 +71,9 @@
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
 // ext.item_priority (class C), Ext::ItemPriority::BeginFrame
 #include "ext/item_priority/item_priority.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md):
+// ext.tool_names (class C), Ext::ToolNames::BeginFrame
+#include "ext/tool_names/tool_names.h"
 #include "ext/drain_split/drain_split.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (class B), Ext::DrainSplit::BeginFrame
 #include "Game/terrain_sidecar.h" // the terrain-type mirror's teardown (faithful perf work)
 #include <cstdio>
@@ -662,6 +665,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     Ext::RestrictedFoods::BeginFrame();
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): ext.item_priority (C) read once per frame
     Ext::ItemPriority::BeginFrame();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (C) drops the notes and
+    // waiting records of citizens who are gone
+    Ext::ToolNames::BeginFrame();
     Ext::DrainSplit::BeginFrame();           // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (B) read once per frame, the owed half's frame count
 
     // [EVENTS] RETIRED: the BANISHED_LIVE_EVENTS resource-shortage scanner used to

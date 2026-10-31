@@ -30,10 +30,17 @@
 #include "Component/ResidenceComponent.h"     // B4: IsFamilyFull
 #include "Component/ResidenceDescription.h"   // B4: _maxResidentsPerFamily
 #include "Component/CemeteryComponent.h"      // B4: plots._size
+#include "Component/ImmigrationComponent.h"   // the nomad harness: the town hall's controller
+#include "Component/ImmigrationDescription.h" //   its thresholds and month window
+#include "Component/StateMachineComponent.h"  //   the node the answer events go through
+#include "Entity/EntityList.h"                //   the master entity array (town hall scan)
+#include "Game/Calendar.h"                    //   the month of the year
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unordered_set>
 #include <vector>
 
 // CitizenComponent_HandleLifeEvent (0x140116dd0) — Component/exe_bodies.h.
@@ -58,6 +65,9 @@ int  s_moved        = 0;   // citizens the marriage harness has made independent
 int  s_forceBirth      = 0;   // BANISHED_FORCE_BIRTH — see the force-birth harness below
 int  s_forceBirthFrame = 1200;
 bool s_firedBirth      = false;
+int  s_spouseProbe     = 0;   // BANISHED_SPOUSE_PROBE — frame of the FindSpouse probe (0 = off)
+bool s_firedProbe      = false;
+int  s_nomadPeriod     = 0;   // BANISHED_NOMAD_HARNESS — poll period of the nomad harness (0 = off)
 bool s_fired       = false;
 bool s_firedFamily = false;
 bool s_firedMarry  = false;
@@ -80,6 +90,16 @@ void Init() {
     s_forceBirth = (fb && fb[0]) ? std::atoi(fb) : 0;
     const char* fbf = Opt().forceBirthFrame;
     if (fbf && fbf[0]) s_forceBirthFrame = std::atoi(fbf);
+    const char* sp = Opt().spouseProbe;
+    s_spouseProbe = (sp && sp[0]) ? std::atoi(sp) : 0;
+    const char* nh = Opt().nomadHarness;
+    s_nomadPeriod = (nh && nh[0]) ? std::atoi(nh) : 0;
+    if (s_spouseProbe > 0)
+        std::fprintf(stderr, "[SpouseProbe] ENABLED — probing FindSpouse's age window at frame %d\n",
+                     s_spouseProbe);
+    if (s_nomadPeriod > 0)
+        std::fprintf(stderr, "[NomadHarness] ENABLED — polling the town hall every %d frames\n",
+                     s_nomadPeriod);
     if (s_forceBirth > 0)
         std::fprintf(stderr, "[BirthHarness] ENABLED — delivering %d baby(ies) at frame %d\n",
                      s_forceBirth, s_forceBirthFrame);
@@ -270,6 +290,60 @@ void BirthGate(int frameNum, Object::InternalPtr<CitizenComponent>* list, int n)
     std::fflush(stderr);
 }
 
+// ---- Couples (part of the census) ---------------------------------------------------
+// CitizenComponent::FindSpouse (0x14010fe40) pairs a seeker with the first unmarried
+// citizen of the other gender older than the marriage age (+0x48) whose age differs from
+// the seeker's by at most the description's window (+0x4c). A couple whose partners the
+// census saw single at an earlier census is one FindSpouse formed (the founding families
+// and an accepted nomad group arrive married), so each such couple is checked once
+// against that window: [Couple] PASS / FAIL. Both partners age at the same rate, so the
+// gap read now is the gap at the marriage.
+std::unordered_set<const CitizenComponent*> s_seenSingle;
+std::unordered_set<const CitizenComponent*> s_checkedCouple;
+
+void Couples(int frameNum, Object::InternalPtr<CitizenComponent>* list, int n) {
+    for (int i = 0; i < n; i++) {
+        CitizenComponent* c = list[i].Get();
+        if (!c) continue;
+        CitizenComponent* s = c->spouse.Get();                     // +0x250
+        if (s == nullptr) {
+            s_seenSingle.insert(c);
+            continue;
+        }
+        if (c > s) continue;                                       // each pair once
+        if (s_checkedCouple.count(c) != 0) continue;
+        if (s_seenSingle.count(c) == 0 || s_seenSingle.count(s) == 0) continue;
+        s_checkedCouple.insert(c);
+        const CitizenDescription* d = c->description;              // +0x288
+        const float gap = std::fabs(c->age - s->age);              // +0x3c
+        const bool ok = c->gender != s->gender && s->spouse.Get() == c && gap <= d->_f4c;
+        std::fprintf(stderr, "[Couple] %s frame %d: %p (gender %d, age %.2f) + %p (gender %d, "
+                     "age %.2f) gap %.3f window(+0x4c) %.2f marriageAge(+0x48) %.2f\n",
+                     ok ? "PASS" : "FAIL", frameNum, static_cast<void*>(c), c->gender, c->age,
+                     static_cast<void*>(s), s->gender, s->age, gap, d->_f4c, d->marriageAge);
+    }
+    std::fflush(stderr);
+}
+
+// Known_port_issues row 990: every citizen carries a profession (+0x1f0) -- retail never
+// creates one without (every birth / immigration / founding path passes one). Counted
+// on every census, so a newborn or a converted nomad with a null one shows up.
+void ProfessionCensus(int frameNum, Object::InternalPtr<CitizenComponent>* list, int n) {
+    int nulls = 0;
+    for (int i = 0; i < n; i++) {
+        CitizenComponent* c = list[i].Get();
+        if (c && c->profession == nullptr) {
+            if (nulls < 4)
+                std::fprintf(stderr, "[ProfessionCensus]   null profession: %p age %.2f\n",
+                             static_cast<void*>(c), c->age);
+            nulls++;
+        }
+    }
+    std::fprintf(stderr, "[ProfessionCensus] frame %d: %d citizens, profession(+0x1f0) null=%d\n",
+                 frameNum, n, nulls);
+    std::fflush(stderr);
+}
+
 void Census(int frameNum) {
     Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
     if (!TownList(&list, &n, &townMgr)) {
@@ -411,6 +485,8 @@ void Census(int frameNum) {
                  overdue, (maxAgeMin > 1e8f ? 0.0f : maxAgeMin),
                  (maxAgeMax < -1e8f ? 0.0f : maxAgeMax), noMaxAge);
     std::fflush(stderr);
+    Couples(frameNum, list, n);
+    ProfessionCensus(frameNum, list, n);
     BirthGate(frameNum, list, n);
 }
 }  // namespace
@@ -499,6 +575,37 @@ void MoveOutGrownChildren(int frameNum) {
 // CitizenComp_helper_1b90 is declared in Component/exe_bodies.h.
 
 namespace {
+// The newborn check: the citizens before the deliveries, and the frame the town list is
+// read again (a newborn joins it through its own OnAdd, so give the world a few frames).
+std::unordered_set<const CitizenComponent*> s_beforeBirth;
+int s_birthsDelivered = 0;
+int s_birthCheckFrame = -1;
+
+void CheckNewborns(int frameNum) {
+    Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
+    if (!TownList(&list, &n, &townMgr)) {
+        std::fprintf(stderr, "[BirthCheck] FAIL frame %d: no town citizen list\n", frameNum);
+        std::fflush(stderr);
+        return;
+    }
+    int newborns = 0, nullProfession = 0;
+    for (int i = 0; i < n; i++) {
+        CitizenComponent* c = list[i].Get();
+        if (!c || s_beforeBirth.count(c) != 0) continue;
+        newborns++;
+        if (c->profession == nullptr) nullProfession++;           // +0x1f0
+        std::fprintf(stderr, "[BirthCheck]   newborn %p age %.2f gender %d profession(+0x1f0)=%p "
+                     "parent(+0x258)=%p home(+0x238)=%p\n", static_cast<void*>(c), c->age,
+                     c->gender, static_cast<void*>(c->profession),
+                     static_cast<void*>(c->_parent.Get()), static_cast<void*>(c->home.Get()));
+    }
+    const bool ok = newborns == s_birthsDelivered && nullProfession == 0;
+    std::fprintf(stderr, "[BirthCheck] %s frame %d: %d delivered, %d newborn(s) in the town list, "
+                 "%d with a null profession\n", ok ? "PASS" : "FAIL", frameNum,
+                 s_birthsDelivered, newborns, nullProfession);
+    std::fflush(stderr);
+}
+
 void ForceBirths(int frameNum) {
     Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
     if (!TownList(&list, &n, &townMgr)) {
@@ -525,6 +632,10 @@ void ForceBirths(int frameNum) {
     if (want == 0) return;
 
     int before = townMgr->citizens._size;                    // +0xa8
+    for (int i = 0; i < n; i++)
+        s_beforeBirth.insert(list[i].Get());
+    s_birthsDelivered = want;
+    s_birthCheckFrame = frameNum + 120;
     for (int i = 0; i < want; i++) {
         std::fprintf(stderr, "[BirthHarness] delivering %d/%d from mother=%p\n",
                      i + 1, want, static_cast<void*>(mothers[i]));
@@ -536,10 +647,301 @@ void ForceBirths(int frameNum) {
                  before, townMgr->citizens._size, want);
     std::fflush(stderr);
 }
+// ---- Spouse probe (BANISHED_SPOUSE_PROBE=<frame>) ---------------------------------
+// FindSpouse (0x14010fe40) is a pure query, so it can be asked directly. The probe picks a
+// seeker S and, as the candidate C, the FIRST unmarried citizen of the other gender in
+// the town list: every citizen before C is then of S's gender or married, so whenever C
+// is eligible FindSpouse must return C. For one call at a time it sets S to
+// marriageAge + window + 2 years and C to an age just past the window older, just past
+// it younger, inside it older and inside it younger, then restores both ages. Beyond the
+// window C must not come back (either direction); inside it C must. Any citizen returned
+// must be unmarried, of the other gender, older than the marriage age and within the
+// window of S.
+bool ProbeCase(const char* label, CitizenComponent* seeker, CitizenComponent* cand, float candAge,
+               bool expectCand) {
+    const CitizenDescription* d = seeker->description;            // +0x288
+    const float saved = cand->age;
+    cand->age = candAge;
+    CitizenComponent* got = seeker->FindSpouse();                 // 0x14010fe40
+    bool ok = expectCand ? got == cand : got != cand;
+    if (got != nullptr) {
+        const float gap = std::fabs(got->age - seeker->age);
+        if (got->gender == seeker->gender || got->spouse != nullptr || got->age <= d->marriageAge ||
+            gap > d->_f4c)
+            ok = false;
+    }
+    std::fprintf(stderr, "[SpouseProbe]   %-14s seeker age %.2f, candidate age %.2f (diff %+.2f): "
+                 "FindSpouse -> %s%p (age %.2f) %s\n", label, seeker->age, candAge,
+                 candAge - seeker->age, got == cand ? "THE CANDIDATE " : "", static_cast<void*>(got),
+                 got ? got->age : 0.0f, ok ? "ok" : "WRONG");
+    cand->age = saved;
+    return ok;
+}
+
+void SpouseProbe(int frameNum) {
+    Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
+    if (!TownList(&list, &n, &townMgr)) return;
+    CitizenComponent* seeker = nullptr;
+    CitizenComponent* cand = nullptr;
+    for (int i = 0; i < n && !seeker; i++) {
+        CitizenComponent* c = list[i].Get();
+        if (c && c->spouse == nullptr && c->description != nullptr) seeker = c;
+    }
+    for (int i = 0; i < n && seeker && !cand; i++) {
+        CitizenComponent* c = list[i].Get();
+        if (c && c->spouse == nullptr && c->gender != seeker->gender) cand = c;
+    }
+    if (!seeker || !cand) {
+        std::fprintf(stderr, "[SpouseProbe] FAIL frame %d: no unmarried pair of opposite gender "
+                     "(seeker %p, candidate %p)\n", frameNum, static_cast<void*>(seeker),
+                     static_cast<void*>(cand));
+        std::fflush(stderr);
+        return;
+    }
+    const CitizenDescription* d = seeker->description;
+    const float w = d->_f4c;
+    const float savedSeeker = seeker->age;
+    seeker->age = d->marriageAge + w + 2.0f;
+    const float a = seeker->age;
+    std::fprintf(stderr, "[SpouseProbe] frame %d: seeker %p (gender %d) candidate %p (gender %d); "
+                 "marriageAge(+0x48) %.2f window(+0x4c) %.2f\n", frameNum, static_cast<void*>(seeker),
+                 seeker->gender, static_cast<void*>(cand), cand->gender, d->marriageAge, w);
+    bool ok = true;
+    ok = ProbeCase("older, beyond", seeker, cand, a + w + 0.25f, false) && ok;
+    ok = ProbeCase("younger, beyond", seeker, cand, a - w - 0.25f, false) && ok;
+    ok = ProbeCase("older, inside", seeker, cand, a + w * 0.5f, true) && ok;
+    ok = ProbeCase("younger, inside", seeker, cand, a - w * 0.5f, true) && ok;
+    seeker->age = savedSeeker;
+    std::fprintf(stderr, "[SpouseProbe] %s frame %d: the age window holds in both directions\n",
+                 ok ? "PASS" : "FAIL", frameNum);
+    std::fflush(stderr);
+}
+
+// ---- The organic stage of the spouse probe (600 frames after the probe) ----------
+// The founding town's only unmarried citizens are children, decades of game time from
+// the marriage age, so no couple forms on its own in a test-length run. The stage makes
+// one pair that CitizenComponent::Update's partner block can reach: it widows a man of
+// one founding couple and a woman of another (HandleLifeEvent 3 on each one's spouse,
+// the death path), so the survivors are single, housed, guardian-free adults. It then
+// sets the woman's age to the man's + window + 1: for 1800 frames neither one's Update
+// may marry them (the candidate is beyond the window older for him, younger for her).
+// Then it sets her age inside the window, and the pair must marry within 1800 frames.
+// Every marriage itself is the game's own Update -> FindSpouse.
+int s_organicStage = 0;       // 0 not started, 1 apart, 2 inside the window, 3 done
+int s_organicFrame = 0;
+CitizenComponent* s_widower = nullptr;
+CitizenComponent* s_widow = nullptr;
+
+void SpouseOrganic(int frameNum) {
+    Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
+    if (!TownList(&list, &n, &townMgr)) return;
+    if (s_organicStage == 0) {
+        CitizenComponent* wifeOfA = nullptr;
+        CitizenComponent* husbandOfB = nullptr;
+        for (int i = 0; i < n; i++) {
+            CitizenComponent* c = list[i].Get();
+            if (!c || c->spouse == nullptr || c->_parent != nullptr || c->home == nullptr) continue;
+            CitizenComponent* s = c->spouse.Get();
+            if (s->_parent != nullptr || s->home == nullptr) continue;
+            if (c->gender == 1 && !s_widower && c != husbandOfB) {
+                s_widower = c;
+                wifeOfA = s;
+            } else if (c->gender == 0 && !s_widow && c != wifeOfA) {
+                s_widow = c;
+                husbandOfB = s;
+            }
+        }
+        if (!s_widower || !s_widow) {
+            std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: no two founding couples to widow\n",
+                         frameNum);
+            std::fflush(stderr);
+            s_organicStage = 3;
+            return;
+        }
+        wifeOfA->HandleLifeEvent(3, nullptr);                      // 0x140116dd0
+        husbandOfB->HandleLifeEvent(3, nullptr);
+        const float w = s_widower->description->_f4c;
+        s_widow->age = s_widower->age + w + 1.0f;
+        std::fprintf(stderr, "[SpouseOrganic] frame %d: widowed %p (gender 1, age %.2f) and %p "
+                     "(gender 0, age %.2f -- set to the window %.2f + 1 above him); spouses now %p / %p\n",
+                     frameNum, static_cast<void*>(s_widower), s_widower->age,
+                     static_cast<void*>(s_widow), s_widow->age, w,
+                     static_cast<void*>(s_widower->spouse.Get()), static_cast<void*>(s_widow->spouse.Get()));
+        s_organicStage = 1;
+        s_organicFrame = frameNum;
+    } else if (s_organicStage == 1) {
+        if (s_widower->spouse != nullptr || s_widow->spouse != nullptr) {
+            std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: married beyond the window (spouses "
+                         "%p / %p, ages %.2f / %.2f)\n", frameNum,
+                         static_cast<void*>(s_widower->spouse.Get()), static_cast<void*>(s_widow->spouse.Get()),
+                         s_widower->age, s_widow->age);
+            s_organicStage = 3;
+        } else if (frameNum - s_organicFrame >= 1800) {
+            const float w = s_widower->description->_f4c;
+            std::fprintf(stderr, "[SpouseOrganic] beyond ok frame %d: no marriage in %d frames at a gap "
+                         "of %.2f (window %.2f); setting her age inside it\n", frameNum,
+                         frameNum - s_organicFrame, s_widow->age - s_widower->age, w);
+            s_widow->age = s_widower->age + w * 0.5f;
+            s_organicStage = 2;
+            s_organicFrame = frameNum;
+        }
+    } else if (s_organicStage == 2) {
+        if (s_widower->spouse.Get() == s_widow && s_widow->spouse.Get() == s_widower) {
+            std::fprintf(stderr, "[SpouseOrganic] PASS frame %d: married inside the window after %d "
+                         "frames (ages %.2f / %.2f)\n", frameNum, frameNum - s_organicFrame,
+                         s_widower->age, s_widow->age);
+            s_organicStage = 3;
+        } else if (frameNum - s_organicFrame >= 1800) {
+            std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: not married inside the window "
+                         "(spouses %p / %p)\n", frameNum, static_cast<void*>(s_widower->spouse.Get()),
+                         static_cast<void*>(s_widow->spouse.Get()));
+            s_organicStage = 3;
+        }
+    }
+    std::fflush(stderr);
+}
+
+// ---- Nomad harness (BANISHED_NOMAD_HARNESS=<period>) ------------------------------
+// Drives the town hall's ImmigrationComponent state machine (immigrationcomponent_states.cpp)
+// end to end in a test-length run. Its one lever is the wait: on every poll it cuts the
+// 24..72-month WAITING countdown (+0x48) to one tick, so TickWaiting fires in the next
+// arrival month. Everything after that is the game's own code: CanAccept, Spawn at a map
+// edge, the nomads' walk to the hall (event 6 each), the answer state 0x11. The harness
+// then answers as the Nomads tab's buttons do, through the town hall's
+// StateMachineComponent node: ALLOW (event 7) for the first group, DENY (event 8) for the
+// second. Checked on the next poll: ALLOW adds the group to the admitted counter
+// (townMgr+0x1b0) and to the town list, every new citizen with a profession; DENY adds
+// nobody. Both answers clear the group (+0x58 / +0x60).
+// Needs a town CanAccept passes: population >= desc+0x28 (8 in the shipped data) and the
+// required buildings, and a town hall to carry the ImmigrationComponent: the stress town is
+// the one town that founds one (tools/harness_route.sh immigration).
+ImmigrationComponent* s_hall = nullptr;
+int  s_answered     = 0;      // groups answered so far (0: none, 1: allowed, 2: denied)
+int  s_arrivedPolls = 0;      // consecutive polls with the whole group at the hall
+int  s_answerGroup  = 0;      // the group size the last answer was given for
+int  s_admittedBefore = 0;    // townMgr+0x1b0 before the last answer
+std::unordered_set<const CitizenComponent*> s_beforeAnswer;
+bool s_verifyPending = false;
+
+ImmigrationComponent* FindTownHall(GameUpdateLoop* gw) {
+    EntityList* el = gw->m_entityList;                            // +0xe8
+    Object::InternalPtr<ComponentEntity>* arr = el->masterArray._data;
+    const int n = el->masterArray._size;
+    for (int i = 0; i < n; i++) {
+        ComponentEntity* ent = arr[i].Get();
+        if (!ent) continue;
+        if (ImmigrationComponent* imm = ent->FindComponent<ImmigrationComponent>()) return imm;
+    }
+    return nullptr;
+}
+
+void PostHallEvent(ImmigrationComponent* imm, int eventId) {
+    StateMachineComponent* smc = imm->_entity->FindComponent<StateMachineComponent>();
+    StateMachine* sm = &smc->stateMachine;
+    sm->current->PostEvent(sm, sm->activeState, eventId);
+}
+
+void VerifyAnswer(int frameNum, ImmigrationComponent* imm, CitizenBehavior* townMgr) {
+    s_verifyPending = false;
+    const int admitted = townMgr->field_0x1B0 - s_admittedBefore;
+    int added = 0, nullProfession = 0;
+    for (int i = 0; i < townMgr->citizens._size; i++) {
+        CitizenComponent* c = townMgr->citizens._data[i].Get();
+        if (!c || s_beforeAnswer.count(c) != 0) continue;
+        added++;
+        if (c->profession == nullptr) nullProfession++;           // +0x1f0
+    }
+    bool ok;
+    if (s_answered == 1) {
+        ok = imm->group._size == 0 && admitted == s_answerGroup && added >= s_answerGroup &&
+             nullProfession == 0;
+        std::fprintf(stderr, "[NomadHarness] %s frame %d: ALLOW of %d -> admitted(+0x1b0) +%d, "
+                     "%d new citizen(s), %d with a null profession, group now %d\n",
+                     ok ? "allow ok" : "FAIL", frameNum, s_answerGroup, admitted, added,
+                     nullProfession, imm->group._size);
+    } else {
+        ok = imm->group._size == 0 && admitted == 0;
+        std::fprintf(stderr, "[NomadHarness] %s frame %d: DENY of %d -> admitted(+0x1b0) +%d, "
+                     "%d new citizen(s) (births count here too), group now %d\n",
+                     ok ? "deny ok" : "FAIL", frameNum, s_answerGroup, admitted, added,
+                     imm->group._size);
+        if (ok)
+            std::fprintf(stderr, "[NomadHarness] PASS frame %d: one group allowed, one denied\n",
+                         frameNum);
+    }
+    if (!ok) s_answered = 3;                                      // stop driving
+    std::fflush(stderr);
+}
+
+void NomadHarness(int frameNum) {
+    GameUpdateLoop* gw = GameUpdateLoop::_singleton;
+    if (!gw || !gw->m_citizenList || !gw->m_entityList) return;
+    if (s_answered >= 3) return;
+    CitizenBehavior* townMgr = gw->m_citizenList;
+    if (!s_hall) {
+        s_hall = FindTownHall(gw);
+        if (!s_hall) {
+            std::fprintf(stderr, "[NomadHarness] frame %d: no town hall in the world yet\n", frameNum);
+            std::fflush(stderr);
+            return;
+        }
+    }
+    ImmigrationComponent* imm = s_hall;
+    const ImmigrationDescription* desc = static_cast<const ImmigrationDescription*>(imm->_description);
+    StateMachineComponent* smc = imm->_entity->FindComponent<StateMachineComponent>();
+    const float secs = gw->m_dayCounter->yearTime.AsSeconds();   // +0x128
+    const int month = static_cast<int>((secs / 3600.0f) * 12.0f);
+    if (s_verifyPending) VerifyAnswer(frameNum, imm, townMgr);
+    if (s_answered >= 2) return;
+    const bool arrived = imm->group._size > 0 && imm->arrivedCount == imm->group._size;
+    std::fprintf(stderr, "[NomadHarness] frame %d: month %d (arrive %d..%d, leave %d) pop %d "
+                 "(min %d) canAccept %d state[%d] pending %d wait(+0x48) %lld group %d arrived %d\n",
+                 frameNum, month, desc->_arrivalMonthFirst, desc->_arrivalMonthLast, desc->_leaveMonth,
+                 townMgr->citizens._size, desc->_minPopulation, imm->CanAccept() ? 1 : 0,
+                 smc->stateMachine.activeState, smc->stateMachine.pendingState,
+                 static_cast<long long>(imm->waitTimer._ticks), imm->group._size, imm->arrivedCount);
+    if (imm->group._size == 0 && imm->waitTimer._ticks > 1) {
+        imm->waitTimer._ticks = 1;
+        std::fprintf(stderr, "[NomadHarness]   cut the wait to one tick\n");
+    }
+    // The answer goes in once the whole group has stood at the hall for a full poll, so
+    // the 0x10 -> 0x11 transition OnArrived requested has run.
+    s_arrivedPolls = arrived ? s_arrivedPolls + 1 : 0;
+    if (s_arrivedPolls >= 2 && smc->stateMachine.pendingState < 0) {
+        s_beforeAnswer.clear();
+        for (int i = 0; i < townMgr->citizens._size; i++)
+            s_beforeAnswer.insert(townMgr->citizens._data[i].Get());
+        s_answerGroup = imm->group._size;
+        s_admittedBefore = townMgr->field_0x1B0;
+        s_answered++;
+        const int eventId = (s_answered == 1) ? 7 : 8;
+        std::fprintf(stderr, "[NomadHarness] frame %d: group of %d at the hall -> %s (event %d)\n",
+                     frameNum, s_answerGroup, eventId == 7 ? "ALLOW" : "DENY", eventId);
+        PostHallEvent(imm, eventId);
+        s_arrivedPolls = 0;
+        s_verifyPending = true;
+    }
+    std::fflush(stderr);
+}
 }  // namespace
 
 extern "C" void CitizenDeathHarness_Tick(int frameNum) {
     Init();
+
+    if (s_spouseProbe > 0 && !s_firedProbe && frameNum >= s_spouseProbe) {
+        s_firedProbe = true;
+        SpouseProbe(frameNum);
+    }
+    if (s_firedProbe && s_organicStage < 3 && frameNum >= s_spouseProbe + 600 && (frameNum % 60) == 0)
+        SpouseOrganic(frameNum);
+
+    if (s_nomadPeriod > 0 && frameNum > 0 && (frameNum % s_nomadPeriod) == 0)
+        NomadHarness(frameNum);
+
+    if (s_birthCheckFrame >= 0 && frameNum >= s_birthCheckFrame) {
+        s_birthCheckFrame = -1;
+        CheckNewborns(frameNum);
+    }
 
     if (s_forceBirth > 0 && !s_firedBirth && frameNum >= s_forceBirthFrame) {
         s_firedBirth = true;

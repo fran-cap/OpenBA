@@ -304,16 +304,6 @@ int PastureUI::GetCategory() {
 
 
 
-// [8] STANDALONE DEVIATION (retail inherits the base slot) — the tree's wiring, kept.
-void PastureUI::OnUpdate(const System::Time& time) {
-    if (!SA_DialogEntityAlive(this)) return;
-    if (!slider) {
-        PastureUI::OnCreated();
-        if (!slider) return;   // still no slider — dialog lacks it
-    }
-    if (selectResource)
-        SelectResourceUI::OnUpdate(time);
-}
 
 
 

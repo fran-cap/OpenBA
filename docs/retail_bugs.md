@@ -537,3 +537,25 @@ priority queue is not affected: it keys on the need record's place in one array 
 Fix: `fix.alloc_tiebreak` (tier 1), default on, off under `/profile:faithful`. Two seams, one read of the
 row per call: `PathGraph::AssignCitizens` and `PathGraph::ReassignWorkers`. Code `src/ext/alloc_tiebreak/`.
 Hand-in `docs/extensions/handins/ALLOCTIEBREAK.md`.
+
+## 15. The sprite capture utility crashes on its first save
+
+**Symptom.** None in a normal game: the utility is a hidden toolbar entry (`Toolbar capture` in
+`Game/Toolbar.rsc`, `_visible = false`, Action Utility, hot key Camera0) that opens
+`Template/UtilityCapture.rsc` (SpriteCaptureUI over `Dialog/Capture.rsc`). Opened and given a name,
+its Capture button starts the capture; one frame later the save faults reading address 0, and no
+file is written.
+
+**Retail mechanism.** The save goes through `External::SaveText`, whose `TextFileStream` (ctor
+`0x1800ba340`) installs the encoding vtable `0x1801559d0` (`LEA` at `0x1800ba431`). Its +0x18 and +0x20
+entries, `0x1800b9a80` (CreateReader) and `0x1800b9a70` (CreateWriter), are both `33 c0 c3`
+(`XOR EAX,EAX; RET`): the shipped runtime has no text writer. `SpriteCapture::Serialize` (`0x1800d9530`)
+builds its serializer through `[RAX+0x20]` (`0x1800d957f`), stores the null (`0x1800d9582`), and reads
+its vtable with no test (`MOV RCX,[RBP-0x30]` / `MOV RAX,[RCX]`, `0x1800d958d` / `0x1800d9591`).
+
+**Proof it is retail.** The bytes above, read with objdump from the GOG `Runtime-x64.dll`; the shipped DLL
+exports no `IO::TextWriter`, while the toolkit's `ToolKit/bin/x64/Runtime-x64-profile.dll` exports
+`??0TextWriter@IO@@QEAA@AEAVSerializer@1@H@Z`, so the tool only works in the toolkit build. The port
+faults at the same read (`UI::SpriteCapture::Serialize`, `src/engine/ui/spritecapture_class.cpp`); the
+reproduction is `BANISHED_TOOL_HARNESS=spritecapture` (`src/diag/tool_harness.cpp`). Retail itself was
+not launched. No fix or extension: the utility is a content-author tool.
