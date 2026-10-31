@@ -272,7 +272,7 @@ such a request is dropped. To check by hand: `adb shell input keyevent KEYCODE_H
 ## Release
 
 `.github/workflows/release.yml`, job `android`, builds and signs the apk next to the three desktop packages:
-`OpenBA-v<version>-android-arm64.apk` (+ `.sha256`) is a release asset on a `v*` tag and the run artifact
+`OpenBA-v<version>-android-arm64.apk` is a release asset on a `v*` tag and the run artifact
 `package-android` on a manual dispatch. The version is the root `CMakeLists.txt`'s `project(... VERSION x.y.z)`:
 `android/app/build.gradle` reads it (versionName `x.y.z`, versionCode `x*10000 + y*100 + z`), so the release bump
 stays the one CMake edit. The job installs the pinned SDK packages (`ndk;30.0.16248370`, `cmake;3.31.6`,

@@ -14,7 +14,5 @@ OUT="$(cd "$OUT" && pwd)"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$TMP/OpenBA-mac-arm64.zip"
-(cd "$TMP" && shasum -a 256 OpenBA-mac-arm64.zip > OpenBA-mac-arm64.zip.sha256)
 mv "$TMP/OpenBA-mac-arm64.zip" "$OUT/"
-mv "$TMP/OpenBA-mac-arm64.zip.sha256" "$OUT/"
-cat "$OUT/OpenBA-mac-arm64.zip.sha256"
+ls -l "$OUT/OpenBA-mac-arm64.zip"

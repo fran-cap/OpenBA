@@ -38,12 +38,11 @@ commit `50102f994b406f58f56d5d09f2ad20f9b90390a2`. See the root `THIRD_PARTY_NOT
 the root notices describe rebuilding and relinking it. ImGui is absent from the Mac app.
 
 ## Package for distribution
-To produce the distributable and its SHA-256 file, run:
+To produce the distributable, run:
 
     tools/macos/make_release_zip.sh
 
-This creates `dist/OpenBA-mac-arm64.zip` and `dist/OpenBA-mac-arm64.zip.sha256`
-using `ditto` and `shasum`. It refuses `.pkg`, `.pkm`, `WinData` and `.ttf` entries,
+This creates `dist/OpenBA-mac-arm64.zip` using `ditto`. It refuses `.pkg`, `.pkm`, `WinData` and `.ttf` entries,
 including symlink targets. Unzip and drag the app to Applications.
 For a packaging dry run without changing dist, use
 `tools/macos/make_release_zip.sh dist/OpenBA.app "$(mktemp -d)"`.
