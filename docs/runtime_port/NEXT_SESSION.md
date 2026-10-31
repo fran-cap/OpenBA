@@ -772,7 +772,7 @@ before the P13 merges, P12's profile); both release + PGO, debug-key signed, USB
 run started at battery <= 32.0 C and thermal status 0, cooled with the app stopped; the phone lock held.
 - **Checks: all PASS.**
   - `path 1.3 ... bc=1 etc2=1 (transcode 0)`; no `[Etc2]` line in any of the 19 runs (the BC path never transcodes).
-  - Pipelines: every `[Vulkan]` frame line reads `warmed 0 failed`, `failed=0` (939 lines).
+  - Pipelines: every `[Vulkan]` frame line reads `warmed 0 failed`, `failed=0` (1667 lines).
   - Validation (debug apk, Khronos layer 1.4.363): 0 errors. The only warning is the documented depth-only
     `SV_Target` one: 10 of it, then the duplicate limit.
   - Pin: `[Pin] main thread ... -> CPUs 0xc0 (of 0xff): pinned`, and the same for the render thread, in every run.
