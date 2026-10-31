@@ -123,6 +123,9 @@ bool BackdropOver(const UI::DialogInstance* dialog, int32_t width, int32_t heigh
     const Rect top{rect[0], rect[1], rect[2], rect[3]};
     // The bottom-aligned draw and its clip end on the screen's real bottom edge, not the truncated
     // layout height (loading_math.h ScreenBottomUnits); the clip's height reaches one unit past it.
+    // The clip's width reaches one unit past the layout width for the same reason: the layout width
+    // is truncated too (982 of 982.8 units on the S25 at UI 42), and SpriteContext::SetScissor turns
+    // 982 units into 2338 of the 2340 device pixels, leaving the border short of the right edge.
     const ::Video::Device* device = ::Video::Device::_singleton;
     const int32_t bottom = device != nullptr && dialog->_ui != nullptr
                                ? ScreenBottomUnits(height, device->backBufferHeight, dialog->_ui->_uiScale)
@@ -140,7 +143,7 @@ bool BackdropOver(const UI::DialogInstance* dialog, int32_t width, int32_t heigh
         rect[3] = lower.y2;
         clip[0] = 0;
         clip[1] = stripTop;
-        clip[2] = width;
+        clip[2] = width + 1;   // the scissor reaches past the truncated layout width
         clip[3] = bottom + 1 - stripTop;
         *sheet = overlay;
         *sprite = index;
@@ -155,7 +158,7 @@ bool BackdropOver(const UI::DialogInstance* dialog, int32_t width, int32_t heigh
     rect[3] = lower.y2;
     clip[0] = 0;
     clip[1] = stripTop;
-    clip[2] = width;
+    clip[2] = width + 1;   // the scissor reaches past the truncated layout width
     clip[3] = bottom + 1 - stripTop;
     return true;
 }
