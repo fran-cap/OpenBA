@@ -1,0 +1,21 @@
+# BANISHED_SHOWROOM list: one tree of every species, shot at seven points of the year
+# (tools/showroom/README.md; line forms in src/diag/showroom_list.h).
+#
+# Months: 0 = start of Early Spring, one month = 300 s of year time.
+#   0.3 / 0.45 / 0.6   early spring: catkins, blossom
+#   0.9 / 1.1          spring into mid spring
+#   3.2                summer
+#   6.8                autumn colour
+tree oak
+tree birch
+tree pine
+tree apple
+tree cherry
+tree peach
+tree pear
+tree plum
+tree chestnut
+tree pecan
+tree walnut
+
+months 0.3 0.45 0.6 0.9 1.1 3.2 6.8

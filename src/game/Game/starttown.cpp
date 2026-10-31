@@ -23,6 +23,7 @@
 // declares a global `Rectangle` FUNCTION that hides `Volume::Rectangle`'s class
 // name inside Volume.h's own static_asserts (Mesh.h -> Geometry.h -> Volume.h).
 #include "graphics/Mesh.h"
+#include "graphics/Material.h"   // BANISHED_SHOWROOM trees: a mesh's material instance paths
 #include <new>
 #include "graphics/Camera.h"
 #include "Game/exe_bodies.h"
@@ -1060,7 +1061,90 @@ static double StressNowMs() {
         std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-static int StartTown_StressSpawnStructures(Map* game, int cx, int cy) {
+// Defined in the resource section below; the showroom's trees use them before it.
+static void StartTown_PlaceResourceCell(ComponentEntity* entity, int cellIdx, Map* game,
+                                        System::Random* rng,
+                                        uint32_t tidNR, uint32_t tidMap, uint32_t tidModel);
+
+// ---- BANISHED_SHOWROOM trees (HARNESS, not retail; src/diag/showroom.h) ----------------------
+
+// An External's path, lower case ("" when it has none).
+static std::string ShowroomLowerPath(const ::Object::External* object) {
+    if (!object) return std::string();
+    const System::Filename path = object->GetPath();
+    const char* text = path.AsString()._data;
+    std::string out = text ? text : "";
+    for (char& c : out) {
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    }
+    return out;
+}
+
+// The first mesh of `tmpl` whose path or one of its first skin's material instance paths names
+// `species` (models\naturalresource\tree\materialinstance\oaktree.rsc); `what` gets the paths.
+static bool ShowroomFindTreeMesh(ComponentDescription* tmpl, const std::string& species, int* group,
+                                 int* index, std::string* what) {
+    const ModelDescription* modelDesc =
+        FindDescriptionOnTemplate<ModelDescription>(tmpl, ModelDescription::TypeId());
+    if (!modelDesc || !modelDesc->_meshGroups) return false;
+    for (int g = 0; g < modelDesc->_meshGroupCount; ++g) {
+        const ModelMeshGroup& meshGroup = modelDesc->_meshGroups[g];
+        for (int i = 0; i < meshGroup.meshCount && meshGroup.meshes; ++i) {
+            const Graphics::GraphicsMesh* mesh = meshGroup.meshes[i];
+            if (!mesh) continue;
+            std::string text = ShowroomLowerPath(mesh);
+            if (mesh->_skinMaterials._size > 0) {
+                const auto& materials = mesh->GetMaterialList(0);
+                for (int m = 0; m < materials._size; ++m) {
+                    text += ' ';
+                    text += ShowroomLowerPath(materials._data[m].Get());
+                }
+            }
+            if (text.find(species) == std::string::npos) continue;
+            *group = g;
+            *index = i;
+            *what = text;
+            return true;
+        }
+    }
+    return false;
+}
+
+// "tree <species>": the template and mesh to plant. Forest trees (oak, birch, pine) share
+// Template\NaturalResourceTree.rsc and differ by mesh; the orchard trees come from the start
+// condition's tree pool (MapGenerator +0xC0) by name, else Template\NaturalResource<Species>Tree.rsc.
+static ComponentDescription* ShowroomResolveTree(MapGenerator* startConfig, const std::string& species,
+                                                 int* group, int* index, std::string* what) {
+    *group = 0;
+    *index = 0;
+    std::vector<ComponentDescription*> candidates;
+    if (species == "oak" || species == "birch" || species == "pine") {
+        candidates.push_back(ResolveTemplateByPath("Template\\NaturalResourceTree.rsc"));
+    } else {
+        if (startConfig) {
+            const MapGenerator::ExternalRefArray& pool = startConfig->refArray6;
+            for (int i = 0; i < pool._size; ++i) {
+                MapGenerator::ExternalRef local = pool._data[i];
+                ComponentDescription* tmpl = StartTown_ResolveTemplate(&local);
+                if (tmpl && ShowroomLowerPath(tmpl).find(species) != std::string::npos) candidates.push_back(tmpl);
+            }
+        }
+        std::string guess = species;
+        if (!guess.empty() && guess[0] >= 'a' && guess[0] <= 'z') guess[0] = static_cast<char>(guess[0] - 'a' + 'A');
+        candidates.push_back(ResolveTemplateByPath(("Template\\NaturalResource" + guess + "Tree.rsc").c_str()));
+    }
+    ComponentDescription* fallback = nullptr;
+    for (ComponentDescription* tmpl : candidates) {
+        if (!tmpl) continue;
+        if (ShowroomFindTreeMesh(tmpl, species, group, index, what)) return tmpl;
+        if (!fallback) fallback = tmpl;
+    }
+    // An orchard template may name its species only in the template path: its first mesh then.
+    if (fallback) *what = "(no mesh names the species: group 0 mesh 0)";
+    return fallback;
+}
+
+static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game, int cx, int cy) {
     const int target = StressHarness_TargetCitizens();
     const int sets   = StressHarness_Sets();
     // BANISHED_SHOWROOM (src/diag/showroom.h): the listed templates, spaced for the camera.
@@ -1420,6 +1504,7 @@ static int StartTown_StressSpawnStructures(Map* game, int cx, int cy) {
         anchorY = cy;
         const uint32_t tidModel = ModelComponent::TypeId();
         for (int i = 0; i < Showroom_Count(); ++i) {
+            if (Showroom_IsTree(i)) continue;   // planted in the grid below
             const char* path = Showroom_Path(i);
             ComponentDescription* tmpl = ResolveTemplateByPath(path);
             if (!tmpl) {
@@ -1454,6 +1539,105 @@ static int StartTown_StressSpawnStructures(Map* game, int cx, int cy) {
             const ModelComponent* model = FindComponentOnEntity<ModelComponent>(lastEnt, tidModel);
             const float* bounds = model ? &model->meshInstance._worldBounds.min.x : nullptr;
             Showroom_NotePlaced(i, true, lastX, lastY, lastW, lastH, mapW, bounds, nullptr);
+        }
+
+        // The trees ("tree <species>"), in list order, in rows of kTreeCols at kTreeStep tiles,
+        // on the first grid origin outward from the anchor where every tree cell and its
+        // kTreeRing ring is free, dry, workable ground. Each is planted the way the terrain
+        // brush's PlantAt does (src/ext/terrain_edit/brush_tool.cpp): fully grown, the chosen
+        // mesh, registered; no jitter and yaw 0, and no world rng draw for the placement.
+        std::vector<int> trees;
+        for (int i = 0; i < Showroom_Count(); ++i) {
+            if (Showroom_IsTree(i)) trees.push_back(i);
+        }
+        if (!trees.empty()) {
+            constexpr int kTreeCols = 6;
+            constexpr int kTreeStep = 6;
+            constexpr int kTreeRing = 2;
+            const int n = static_cast<int>(trees.size());
+            const int cols = std::min(n, kTreeCols);
+            const int rows = (n + kTreeCols - 1) / kTreeCols;
+            const MapCell* mapCells = game->cells.GetData();
+            auto treeCellFree = [&](int x, int y) -> bool {
+                if (x < kTreeRing || y < kTreeRing || x >= mapW - kTreeRing || y >= mapW - kTreeRing) return false;
+                for (int yy = y - kTreeRing; yy <= y + kTreeRing; ++yy) {
+                    for (int xx = x - kTreeRing; xx <= x + kTreeRing; ++xx) {
+                        const int cell = yy * mapW + xx;
+                        if (occ[(size_t)cell]) return false;
+                        if (mapCells[cell].occupant || mapCells[cell].blocker) return false;
+                        if (!cellWorkable(cell)) return false;
+                    }
+                }
+                return true;
+            };
+            auto gridFree = [&](int ox, int oy) -> bool {
+                for (int k = 0; k < n; ++k) {
+                    if (!treeCellFree(ox + (k % cols) * kTreeStep, oy + (k / cols) * kTreeStep)) return false;
+                }
+                return true;
+            };
+            const int baseX = anchorX - (cols - 1) * kTreeStep / 2;
+            const int baseY = anchorY - (rows - 1) * kTreeStep / 2;
+            bool found = false;
+            int originX = 0;
+            int originY = 0;
+            for (int r = 0; r <= mapW / 2 && !found; ++r) {
+                for (int dy = -r; dy <= r && !found; ++dy) {
+                    for (int dx = -r; dx <= r && !found; ++dx) {
+                        if (std::max(std::abs(dx), std::abs(dy)) != r) continue;
+                        if (gridFree(baseX + dx, baseY + dy)) {
+                            found = true;
+                            originX = baseX + dx;
+                            originY = baseY + dy;
+                        }
+                    }
+                }
+            }
+            GameUpdateLoop* gul = GameUpdateLoop::_singleton;
+            const uint32_t tidNR = NaturalResourceComponent::TypeId();
+            const uint32_t tidMap = MapComponent::TypeId();
+            for (int k = 0; k < n; ++k) {
+                const int i = trees[k];
+                if (!found) {
+                    Showroom_NotePlaced(i, false, 0, 0, 0, 0, mapW, nullptr, "no free ground for the tree grid");
+                    continue;
+                }
+                const std::string species = Showroom_Path(i);
+                int meshGroup = 0;
+                int meshIndex = 0;
+                std::string meshText;
+                ComponentDescription* tmpl = ShowroomResolveTree(startConfig, species, &meshGroup, &meshIndex,
+                                                                 &meshText);
+                if (!tmpl) {
+                    Showroom_NotePlaced(i, false, 0, 0, 0, 0, mapW, nullptr, "no template names the species");
+                    continue;
+                }
+                const int x = originX + (k % cols) * kTreeStep;
+                const int y = originY + (k / cols) * kTreeStep;
+                const int cell = y * mapW + x;
+                void* mem = System::MemoryAllocator::MemAlloc(ENTITY_SIZE, 8);
+                ComponentEntity* ent = mem ? ::new (mem) ComponentEntity(tmpl) : nullptr;
+                if (!ent) {
+                    Showroom_NotePlaced(i, false, 0, 0, 0, 0, mapW, nullptr, "entity allocation failed");
+                    continue;
+                }
+                ::Object::InternalPtr<ComponentEntity> ref(ent);
+                StartTown_PlaceResourceCell(ent, cell, game, nullptr, tidNR, tidMap, tidModel);
+                GrowthComponent* growth = ent->FindComponent<GrowthComponent>();
+                const bool grown = growth && growth->resource.Get() && growth->model.Get() && growth->config &&
+                                   growth->growthScale != 0.0f;
+                if (grown) growth->SetProgress(1.0f / growth->growthScale);
+                ApplyResourceModelVariant(ent, tidModel, static_cast<int16_t>(meshGroup),
+                                          static_cast<int16_t>(meshIndex));
+                gul->m_entityList->RegisterEntity(&ref, static_cast<int>(tmpl->_category));
+                mark(x, y, 1, 1);
+                fprintf(stderr, "[Showroom] tree %d %s -> %s mesh=(%d,%d)%s %s\n", i, species.c_str(),
+                        ShowroomLowerPath(tmpl).c_str(), meshGroup, meshIndex, grown ? "" : " (NOT grown)",
+                        meshText.c_str());
+                const ModelComponent* model = FindComponentOnEntity<ModelComponent>(ent, tidModel);
+                const float* bounds = model ? &model->meshInstance._worldBounds.min.x : nullptr;
+                Showroom_NotePlaced(i, true, x, y, 1, 1, mapW, bounds, nullptr);
+            }
         }
     }
 
@@ -3227,7 +3411,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
     // (BANISHED_SHOWROOM shares its siting.)
     if (StressHarness_Enabled() || Showroom_Enabled()) {
         const int cx = (bbX0 + bbX1) / 2, cy = (bbY0 + bbY1) / 2;
-        spawned += StartTown_StressSpawnStructures(game, cx, cy);
+        spawned += StartTown_StressSpawnStructures(startConfig, game, cx, cy);
     }
 
     return spawned;
