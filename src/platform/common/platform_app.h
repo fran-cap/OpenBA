@@ -28,6 +28,11 @@ void PreSdlInitHints();
 void PostSdlInit();
 void Shutdown();
 
+// The second half of the missing-game-data message (src/app/game_data_check.h, issue #72): where
+// this platform's player copies the WinData packages from and how, after the shared text has named
+// the folder the game looked in. A static string; the box is SDL's on every platform.
+const char* MissingGameDataHelp();
+
 // True once for every save the platform asked for since the last call (main thread, the game's
 // update). Android asks at SDL_EVENT_LOW_MEMORY and SDL_EVENT_TERMINATING (PLAN.md §4.6): the
 // process may be killed without a quit. Never true on Windows, Linux or macOS.

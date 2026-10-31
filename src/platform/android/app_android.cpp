@@ -299,6 +299,15 @@ void PostSdlInit() {
     }
 }
 
+// docs/android/README.md: the app makes WinData/ itself at every start (EnterRunDirectory), because
+// a folder adb makes there belongs to the shell user and is unreadable to the app.
+const char* MissingGameDataHelp() {
+    // Short: the box does not scroll (game_data_check.cpp MessageText).
+    return "Connect to a PC by USB (File transfer), open Android > data > org.openba.game > files > "
+           "WinData and copy data0.pkg, data1.pkg, patch0.pkg and patch1.pkg into it from your "
+           "Banished WinData folder. Then start OpenBA again.";
+}
+
 bool TakeSaveRequest() {
     return g_saveRequested.exchange(false);
 }

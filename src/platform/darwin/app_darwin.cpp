@@ -39,6 +39,15 @@ void Shutdown() {
     BootState::Stop();
 }
 
+// The engine runs in ~/Library/Application Support/OpenBA/Run, where the launcher links WinData to
+// the Banished folder it found or was given (docs/macos/README_MAC.md, "Where is my game?").
+const char* MissingGameDataHelp() {
+    return "OpenBA looks for the Banished folder that holds WinData/data0.pkg: the --game-dir folder, "
+           "BANISHED_DIR, the folder you picked before, then the usual Steam, GOG, Porting Kit, Whisky "
+           "and CrossOver places. To pick the folder again, delete "
+           "~/Library/Application Support/OpenBA/gamedir.txt and start OpenBA.app.";
+}
+
 bool TakeSaveRequest() {
     return false;
 }

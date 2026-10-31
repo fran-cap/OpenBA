@@ -39,6 +39,10 @@
 #                     (exit 4) moments after publishing this, so seeing HUNG at all
 #                     usually means an ATTENDED run, where a human may simply be
 #                     sitting in a dialog.
+#   6  NO_GAME_DATA    the game directory's WinData/ is missing, holds no *.pkg, or has
+#                     no data0.pkg (src/app/game_data_check.h, issue #72). The exe showed
+#                     one box naming the folder (none on an unattended run) and exits with
+#                     code 6. detail= is "<verdict> <folder>". Never clears by waiting.
 #
 # (b) IS THE ONE THIS SCRIPT USED TO MISS, AND IT COST A 24-MINUTE OUTAGE.
 # The old script checked pid liveness and NEVER file freshness, so a crashed run
@@ -260,7 +264,8 @@ probe_once() {
     # A file whose pid is gone describes a previous run. Never report its state as live.
     # EXITED is the one state written by a process on its way out (Stop()): its pid is
     # gone by design, so it goes on to the NOT_RUNNING arm below.
-    if [ -n "$pid" ] && [ "$state" != "EXITED" ] && ! state_pid_alive "$pid"; then
+    # NO_GAME_DATA is the other one: written once, before the exe exits on purpose.
+    if [ -n "$pid" ] && [ "$state" != "EXITED" ] && [ "$state" != "NO_GAME_DATA" ] && ! state_pid_alive "$pid"; then
         echo "STALE  (state file says $state from pid $pid, which is no longer running)"
         return 4
     fi
@@ -318,6 +323,10 @@ probe_once() {
                         echo "                Click it, or relaunch -- an unattended run will never clear it."
                         return 2 ;;
         BOOTING)        echo "BOOTING  [$fresh $beat] ($line)"; return 3 ;;
+        NO_GAME_DATA)   echo "NO_GAME_DATA  the game data is not where the exe looked; it exits with code 6."
+                        echo "              verdict + folder: $detail"
+                        echo "              Copy the retail WinData/*.pkg there (src/app/game_data_check.h)."
+                        return 6 ;;
         EXITED)         echo "NOT_RUNNING  (clean shutdown: $line)"; return 1 ;;
         *)              echo "NOT_RUNNING  (unrecognised state file: $line)"; return 1 ;;
     esac
@@ -340,6 +349,7 @@ while :; do
         2) echo "$out"; exit 2 ;;
         4) echo "$out"; exit 4 ;;
         5) echo "$out"; exit 5 ;;
+        6) echo "$out"; exit 6 ;;
     esac
     if [ "$(date +%s)" -ge "$deadline" ]; then
         echo "TIMEOUT after ${WAIT_SECS}s -- last: $out"

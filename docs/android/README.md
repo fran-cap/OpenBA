@@ -84,6 +84,8 @@ tools/android.sh stop
 `WinData/` must be made by the app: a folder adb makes belongs to the shell user, and the app process can
 neither list nor open anything inside it (EACCES). The app makes `WinData/` and `Documents/` at every
 start, and `push-data` starts the app once when the folder is missing (or removes an adb-made one first).
+With no `data0.pkg` in it, the app shows one message with the USB / MTP copy steps and exits with code 6
+(`STATE=NO_GAME_DATA`; `src/app/game_data_check.h`, issue #72).
 
 **The font rasteriser** (P8). `ext.sharp_ui` draws the UI's text crisp at any UI scale by rasterising the
 game's typeface, FrancophilSans, at the pixel height the screen needs (FreeType,
