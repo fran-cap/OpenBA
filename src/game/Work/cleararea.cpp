@@ -602,7 +602,13 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 groundPair.citizen = *citizenIBP;
                 WorkCellBST_Insert_9a40(&_cells, &workIBP, &groundPair);
 
-                result = 0;
+                // 2 = work dispatched, as phases 1 and 3: retail loads ESI = 2 at
+                // 0x1400e640b (it is the PerformWork ctor's +0x20 argument) and returns
+                // it, JMP 0x1400e6621 -> MOV EAX,ESI at 0x1400e6633. A 0 told the
+                // scheduler (TryAssignWorkplace 0x1400f8620 / the walk 0x1400f7b60) the
+                // citizen was still free, and the next work's PerformWork ctor cleared
+                // the ground task this one had just pushed.
+                result = 2;
                 goto cleanup;
             }
         }
