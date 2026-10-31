@@ -547,7 +547,7 @@ UNIT_TEST(ext_natural_growth_pixel_foliage_and_refusals) {
     b.v[2][3] = -1.0f;  // t
     CHECK(Run(a, blob));
     CHECK(Run(b, xf));
-    for (int c = 0; c < 3; ++c) CHECK(Near(b.o[0][c], a.o[0][c] * (1.0f - NgRewrite::kTint[c]), 1e-5f));
+    for (int c = 0; c < 3; ++c) CHECK(Near(b.o[0][c], a.o[0][c] * (1.0f - NgRewrite::kPineTint[c]), 1e-5f));
     CHECK(Analyse(PixelBlob(PsShape::NoGold)).kind == NgRewrite::Kind::None);
 }
 

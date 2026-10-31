@@ -41,7 +41,7 @@
 //   BillboardDepth (vs): the shadow caster's `fadeB * move` reads l instead of userPosition.z. No
 //     signature change; the depth pixel shader is retail's.
 //   Foliage (vs): the snow interpolant's unused w carries t (dcl_output and OSGN widened to xyzw).
-//   Foliage (ps): after the discard the needle colour is tinted by 1 + t * kTint (ISGN and dcl widened).
+//   Foliage (ps): after the discard the needle colour is tinted by 1 + t * kPineTint (ISGN and dcl widened).
 // A rewritten billboard pixel shader reads an input only the rewritten vertex shader writes: the stages
 // bind it only beside a natural-growth vertex copy (`Pairs`), else retail's.
 //
@@ -83,6 +83,9 @@ constexpr float kOrangeAt  = 1.6f;    // gold -> orange over hue [0, 1 / 1.6]
 constexpr float kRedFrom   = 3.0f;    // orange -> red over hue [0.75, 1]: saturate(4 hue - 3)
 // The green variation: colour *= 1 + t * kTint, t in [-1, 1] (yellower and lighter / bluer and darker).
 constexpr float kTint[3]   = {0.08f, 0.05f, -0.05f};
+// The pines' needles are dark, so the same share barely shows: theirs is about three times as strong
+// (lighter and warmer / darker and bluer). The user, 2026-10-31: "cant really see any difference in the conifers".
+constexpr float kPineTint[3] = {0.20f, 0.15f, -0.02f};
 
 constexpr float kHashK[3]  = {0.1031f, 0.1030f, 0.0973f};
 constexpr float kHashAdd   = 33.33f;

@@ -220,7 +220,7 @@ The header comment is the reference. In short:
 - The depth VS uses `l` for the shadow caster's leaf loss.
 - The pines carry `t` in the snow interpolant's unused `w`.
 - Palette: gold (retail's 233,185,71) -> orange -> red by hue, browned up to 50 % by `l`.
-- Green variation: `colour *= 1 + t * move * (0.08, 0.05, -0.05)` after the discard. On the pines it applies without `move`.
+- Green variation: `colour *= 1 + t * move * (0.08, 0.05, -0.05)` after the discard. On the pines it applies without `move`, at about three times the strength: `(0.20, 0.15, -0.02)`, since `(0.08, 0.05, -0.05)` was not visible on the dark needles.
 - The CPU mirror (`TermsOf` / `SeasonOf`) is unit tested against an interpreter run of synthetic blobs (`tests/unit/ext_natural_growth_test.cpp`). Phase 2 uses the same terms.
 
 ### 6.3 The stages

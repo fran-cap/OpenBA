@@ -658,13 +658,14 @@ bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {
         }
         t.insert(t.end(), src, src + in.length);
         if (ii == m.discardIdx) {
-            // the green variation: rA.xyz *= 1 + t (* move) * kTint
+            // the green variation: rA.xyz *= 1 + t (* move) * kTint (kPineTint on the pines)
+            const float* k = bb ? kTint : kPineTint;
             if (bb) {
                 w.Ins(Op::Mul, [&] { E::TempDst(t, X, 1); InputSrc(t, N, E::Rep(3)); InputSrc(t, M, E::Rep(m.moveComp)); });
             } else {
                 w.Ins(Op::Mov, [&] { E::TempDst(t, X, 1); InputSrc(t, m.snowReg, E::Rep(3)); });
             }
-            w.Ins(Op::Mad, [&] { E::TempDst(t, X, 7); E::TempSrc(t, X, E::Rep(0)); E::Imm4(t, kTint[0], kTint[1], kTint[2], 0.0f);
+            w.Ins(Op::Mad, [&] { E::TempDst(t, X, 7); E::TempSrc(t, X, E::Rep(0)); E::Imm4(t, k[0], k[1], k[2], 0.0f);
                                  E::Imm4(t, 1.0f, 1.0f, 1.0f, 0.0f); });
             w.Ins(Op::Mul, [&] { E::TempDst(t, rA, 7); E::TempSrc(t, rA, XYZX); E::TempSrc(t, X, XYZX); });
         }
