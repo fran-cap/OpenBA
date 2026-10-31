@@ -281,7 +281,7 @@ No shader is added or rewritten.
 - The second texture set (the ambient lookup) is a fixed mid texel.
 - A card is lit as facing up and a little towards the camera.
 - The material culls back faces, so the cards are wound to face the camera.
-- The card's edge is 0.15 units, about a leaf of the canopy billboards (the user's ruling).
+- The card's edge is 0.075 units, the size of a leaf on the canopy billboards (the user's ruling, measured against a canopy leaf on screen).
 
 **The trees.**
 - The map's occupants are scanned a sixteenth per frame. Every tree species shares one description, `Template/NaturalResourceTree.rsc`, so a tree counts as deciduous by its mesh: its first material instance is a billboard material that is not the evergreen one.

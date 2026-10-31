@@ -35,7 +35,7 @@ constexpr int kCell       = 64;
 constexpr int kShapes     = 4;
 constexpr int kColours    = 4;    // 0 gold, 1 orange, 2 red, 3 brown
 constexpr int kMaxLeaves  = 2400; // 4 vertices each: inside one 16-bit dynamic index range
-constexpr float kLeafSize = 0.15f; // the card's edge, world units: about a leaf of the canopy billboards
+constexpr float kLeafSize = 0.075f; // the card's edge, world units: about a leaf of the canopy billboards
 constexpr float kReach    = 60.0f;   // the cards' reach around the draw's origin (the int16 / 512 range)
 
 // The atlas, straight RGBA8, row-major, top-down (kAtlasSize^2 * 4 bytes).
