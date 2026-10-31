@@ -150,7 +150,8 @@ void LayerBlob(int layer, float u, float v, const float n2[4], float* e, float* 
     float r = h[2] * kRadius1 + kRadius0;
     r = r * r;
     const float soft = Sat((r - d2) * kEdge);
-    *e = h[0] < std::fabs(n2[3]) * kShare ? soft : 0.0f;
+    const float fade = Sat((std::fabs(n2[3]) * kShare - h[0]) * kFade);
+    *e = soft * fade;
     *bright = h[1] * kBright1 + kBright0;
 }
 

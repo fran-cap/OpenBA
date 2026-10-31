@@ -912,4 +912,16 @@ UNIT_TEST(ext_blossom_pixel_match_and_meaning) {
         if (Blossom::Pixel(u, v, cat, 0.0f, 1.0f, 0.0f).mask > 0.5f) ++catkinTexels;
     }
     CHECK(blossomTexels > 0 && catkinTexels > 0);
+    // the fade: at a fixed texel the mask never falls as the bloom rises and never jumps by more than a
+    // small step per 1/100 of coverage (a blob grows in, it does not pop)
+    float prev = 0.0f, worstStep = 0.0f;
+    for (int i = 0; i <= 100; ++i) {
+        const float c[4] = {0.9f, 0.9f, 0.9f, static_cast<float>(i) / 100.0f};
+        const float f = Blossom::Pixel(in[0], in[1], c, 0.0f, 1.0f, 0.0f).mask;
+        CHECK(f >= prev - 1e-6f);
+        if (f - prev > worstStep) worstStep = f - prev;
+        prev = f;
+    }
+    CHECK(prev > 0.99f);
+    CHECK(worstStep <= Blossom::kShare * Blossom::kFade / 100.0f + 1e-4f);
 }

@@ -715,14 +715,15 @@ void EmitBloomLayer(Writer& w, const Match& m, int layer) {
     w.Ins(Op::MovC, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(3)); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, S, E::Rep(1)); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); E::TempSrc(t, S, XYXX); });
     w.Ins(Op::Dp2, [&] { E::TempDst(t, Q, 1); E::TempSrc(t, Q, XYXX); E::TempSrc(t, Q, XYXX); });
-    // the soft blob (S.y), present when h.x < |cov| * kShare; its brightness (S.z)
+    // the soft blob (S.y), fading in as |cov| * kShare passes h.x; its brightness (S.z)
     w.Ins(Op::Mad, [&] { E::TempDst(t, S, 2); E::TempSrc(t, R, E::Rep(2)); E::ImmScalar(t, Bl::kRadius1); E::ImmScalar(t, Bl::kRadius0); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::TempSrc(t, S, E::Rep(1)); });
     w.Ins(Op::Add, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::TempSrc(t, Q, E::Rep(0), 1); });
     w.Ins(Op::Mul, true, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::ImmScalar(t, Bl::kEdge); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, S, 4); InputSrc(t, N2, E::Rep(3), 2); E::ImmScalar(t, Bl::kShare); });
-    w.Ins(Op::Lt, [&] { E::TempDst(t, S, 4); E::TempSrc(t, R, E::Rep(0)); E::TempSrc(t, S, E::Rep(2)); });
-    w.Ins(Op::And, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::TempSrc(t, S, E::Rep(2)); });
+    w.Ins(Op::Add, [&] { E::TempDst(t, S, 4); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, R, E::Rep(0), 1); });
+    w.Ins(Op::Mul, true, [&] { E::TempDst(t, S, 4); E::TempSrc(t, S, E::Rep(2)); E::ImmScalar(t, Bl::kFade); });
+    w.Ins(Op::Mul, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::TempSrc(t, S, E::Rep(2)); });
     w.Ins(Op::Mad, [&] { E::TempDst(t, S, 4); E::TempSrc(t, R, E::Rep(1)); E::ImmScalar(t, Bl::kBright1); E::ImmScalar(t, Bl::kBright0); });
 }
 
