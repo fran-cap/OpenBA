@@ -39,6 +39,21 @@ UNIT_TEST(ext_phone_size_pad_split) {
     CHECK(e.before == 4 && e.after == 4);
 }
 
+// Issue #73: the title bar's name and buttons side by side, not over each other.
+UNIT_TEST(ext_phone_size_title_bar_min_width) {
+    CHECK(PM::TitleBarMinWidth(0, 120 + 300, 2) == 424);    // a work place: the name, its count and arrows
+    CHECK(PM::TitleBarMinWidth(500, 120 + 300, 2) == 500);  // retail's minimum already larger: kept
+    CHECK(PM::TitleBarMinWidth(0, 120, 1) == 120);          // one part: no gap
+    CHECK(PM::TitleBarMinWidth(40, 0, 0) == 40);            // nothing to place: retail's
+}
+
+UNIT_TEST(ext_phone_size_spread_spacing) {
+    CHECK(PM::SpreadSpacing(4, 400, 4 * 80, 3) == 26);    // four 80-unit buttons over 400: 26 between
+    CHECK(PM::SpreadSpacing(4, 401, 4 * 80, 3) == 27);
+    CHECK(PM::SpreadSpacing(4, 300, 4 * 80, 3) == 4);     // no room to spare: the description's gap
+    CHECK(PM::SpreadSpacing(4, 400, 80, 0) == 4);         // one button: nothing to spread
+}
+
 // P11b (touch_scroll.h (b)): a tall window's lists capped so it fits the safe area.
 UNIT_TEST(ext_phone_size_list_cap_shrink) {
     CHECK(PM::kListFloor == 108);

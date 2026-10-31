@@ -32,6 +32,7 @@
 #include "ext/phone_menu/touch_size.h"
 #include "ext/phone_menu/size_math.h"
 #include "ext/phone_menu/touch_scroll.h"
+#include "ext/phone_menu/touch_wide.h"
 
 #include <cstring>
 
@@ -41,10 +42,14 @@
 #include "ui/ComboElement.h"
 #include "ui/ContainerElement.h"
 #include "ui/DialogInstance.h"
+#include "ui/BorderElement.h"
 #include "ui/ElementDescription.h"
+#include "ui/GroupElement.h"
 #include "ui/ImageDescription.h"
 #include "ui/ImageElement.h"
 #include "ui/ListElement.h"
+#include "ui/RibbonDescription.h"
+#include "ui/RibbonElement.h"
 #include "ui/ScrollElement.h"
 #include "ui/SliderElement.h"
 #include "ui/SpinnerElement.h"
@@ -64,6 +69,13 @@ constexpr int32_t kChildTick = 5;
 // 1 (retail's sizes) off. When it changes, every slider walked over the next frames is sized again.
 int32_t g_sliderScale = 1;
 int32_t g_sliderResize = 0;
+
+// The flag UI::SpinnerElement::_extSideBySide points at: the row (issue #73). The spinners are sized again
+// through their buttons' padding, which changes in the same walk.
+bool g_spinnerSide = false;
+
+// The title bar the dialog's walk found (touch_wide.h fills the rows below it).
+UI::Element* g_walkTitleBar = nullptr;
 
 // What kind of control a button-derived element is, which decides the axes it grows on.
 enum class Kind {
@@ -224,8 +236,8 @@ int32_t FitButton(UI::ButtonElement* b, bool on, bool inTitle) {
         changes += FitContent(content, on, 0, tall);
         break;
     case Kind::Spinner:
-        // Up and down stacked: each half the touch side high, the pair kTouchSide.
-        changes += FitContent(content, on, square, tall > 0 ? kTouchSide / 2 : 0);
+        // Up and down side by side (UI::SpinnerElement::_extSideBySide, issue #73): each kTouchSide square.
+        changes += FitContent(content, on, square, tall);
         break;
     case Kind::None:
         break;
@@ -243,6 +255,57 @@ int32_t FitListRows(UI::ListElement* list, bool on) {
         if (row != nullptr) changes += FitPads(row, on, 0, kTouchSide);
     }
     return changes;
+}
+
+// Issue #73: a ribbon in a title bar that stacks buttons (Work.rsc's workersUpDown / jobsUpDown, the
+// worker and job count arrows) lays them side by side with the row on: two finger-sized buttons stacked
+// would make the title bar twice kTouchSide high. Row off: the description's direction. Returns 1 when it
+// changed.
+int32_t FitTitleRibbon(UI::RibbonElement* ribbon, bool on) {
+    const UI::ElementDescription* base = ribbon->_description;
+    if (!::Object::IsDerivedFromNullSafe(base, UI::RibbonDescription::TypeId())) return 0;
+    if (!static_cast<const UI::RibbonDescription*>(base)->_vertical) return 0;
+    if (ribbon->_children._size == 0) return 0;
+    for (int32_t i = 0; i < ribbon->_children._size; ++i) {
+        if (!::Object::IsDerivedFromNullSafe(ribbon->_children._data[i], UI::ButtonElement::TypeId())) return 0;
+    }
+    const uint8_t want = on ? 0 : 1;
+    if (ribbon->_vertical == want) return 0;
+    ribbon->_vertical = want;
+    ribbon->SetNeedsSizeCalc();
+    return 1;
+}
+
+// Issue #73: StandardDialog.rsc's titleBar is a GroupElement, which lays its children OVER each other
+// (GroupElement::ComputeSize 0x180117f00: the largest child's size), the name at the left and the buttons
+// (userTitle: a work place's count and arrows, the centre, pin and close buttons) at the right. Retail's
+// buttons are small enough to leave the name room; finger-sized, they cover it. With the row on the bar
+// is at least as wide as its parts side by side (size_math.h TitleBarMinWidth), so the window widens to
+// fit them; its border (borderTitle) is not a part. Row off: the description's minimum. Called after the
+// bar's children are sized. Returns 1 when it changed.
+int32_t FitTitleBar(UI::Element* bar, bool on) {
+    const UI::ElementDescription* desc = bar->_description;
+    if (desc == nullptr || !bar->IsA(UI::GroupElement::TypeId())) return 0;
+    int32_t want = desc->_minWidth;
+    if (on) {
+        int32_t width = 0;
+        int32_t parts = 0;
+        for (int32_t i = 0; i < bar->_children._size; ++i) {
+            UI::Element* child = bar->_children._data[i];
+            if (child == nullptr || !child->IsVisible()) continue;
+            if (child->IsA(UI::BorderElement::TypeId())) continue;
+            child->ComputeSize();
+            int32_t w = child->_layoutWidth + child->_leftPad + child->_rightPad;
+            if (w < child->_minWidth) w = child->_minWidth;
+            width += w;
+            ++parts;
+        }
+        want = TitleBarMinWidth(desc->_minWidth, width, parts);
+    }
+    if (bar->_minWidth == want) return 0;
+    bar->_minWidth = want;
+    bar->SetNeedsSizeCalc();
+    return 1;
 }
 
 // Where an element sits, for the rules that depend on it.
@@ -283,9 +346,15 @@ int32_t Walk(UI::Element* e, bool on, Place place) {
         changes += FitListRows(static_cast<UI::ListElement*>(e), on && !place.fixedPage);
     } else if (IsScrollingList(e)) {
         place.fixedPage = false;
+    } else if (place.title && e->IsA(UI::RibbonElement::TypeId())) {
+        changes += FitTitleRibbon(static_cast<UI::RibbonElement*>(e), on && !place.fixedPage);
     }
     const char* name = e->_name;
-    if (!place.title && name != nullptr && name[0] == 't' && std::strcmp(name, "titleBar") == 0) place.title = true;
+    const bool titleBar = !place.title && name != nullptr && name[0] == 't' && std::strcmp(name, "titleBar") == 0;
+    if (titleBar) {
+        place.title = true;
+        g_walkTitleBar = e;
+    }
     const bool tab = e->IsA(UI::TabElement::TypeId());
     for (int32_t i = 0; i < e->_children._size; ++i) {
         Place child = place;
@@ -293,6 +362,7 @@ int32_t Walk(UI::Element* e, bool on, Place place) {
         if (tab && i >= 4 && (i % 2) == 0) child.fixedPage = true;
         changes += Walk(e->_children._data[i], on, child);
     }
+    if (titleBar) changes += FitTitleBar(e, on && !place.fixedPage);
     return changes;
 }
 
@@ -360,6 +430,7 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
         g_sliderScale = scale;
         g_sliderResize = 32;   // the next few frames' walks (a few dialogs a frame)
     }
+    g_spinnerSide = on;
     // A dialog is walked once the place hook has seen it, so a dialog ext.touch_mode places (its toolbar,
     // sub-toolbars, event notices and camera cluster, sized for a finger by that row) is never touched. A
     // newly opened one is walked at its first placement or layout (touch_fit.cpp TouchFirstPlace, P11b),
@@ -370,7 +441,9 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
         // P11b (touch_scroll.h): a page retail does not scroll is framed first, so its controls are in a
         // scrolling list when they are sized; the lists are capped last, at the sized height.
         changes += TouchScrollWrap(dialog, on);
+        g_walkTitleBar = nullptr;
         changes += Walk(root, on, Place());
+        changes += TouchWideFill(root, g_walkTitleBar, on);
         changes += TouchScrollCap(dialog, on);
     }
     if (g_sliderResize > 0) --g_sliderResize;
@@ -379,6 +452,7 @@ int32_t TouchSizeWalk(const UI::DialogInstance* dialog, bool on) {
 
 void SyncTouchSize(bool faithful) {
     ::UI::SliderElement::_extSpriteScale = faithful ? nullptr : &g_sliderScale;
+    ::UI::SpinnerElement::_extSideBySide = faithful ? nullptr : &g_spinnerSide;
 }
 
 }  // namespace PhoneMenu

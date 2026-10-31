@@ -37,7 +37,7 @@ the description's again (`Element::_description`).
 | 5 | Check boxes | unticked icon and tick 2x, padded to 36 x 36 | `... check boxes` |
 | 5 | Drop-downs and their list rows | combo label padded to 36 high; each row of the list's ribbon padded to 36 high (the list hit-tests the ribbon's extents, so a padded row is picked and highlighted whole) | `... drop-downs and their rows` |
 | 5 | Tab buttons | label padded to 36 high | `... tab buttons` |
-| 5 | Spinner up / down | arrows 2x, each button 36 wide and 18 high, the pair 36 | `... spinner buttons` |
+| 5 | Spinner up / down | arrows 2x, each button 36 wide and 18 high, the pair 36 (issue #73: each 36 x 36, side by side, `UI::SpinnerElement::_extSideBySide`) | `... spinner buttons` |
 
 **Left as retail, and why:**
 * Buttons already 36 or more in their description's minimum: the in-game toolbar (40-unit buttons), the

@@ -25,6 +25,18 @@ PadSplit PadToTarget(int32_t padded, int32_t target) {
     return split;
 }
 
+int32_t TitleBarMinWidth(int32_t retailMin, int32_t partsWidth, int32_t parts) {
+    if (parts <= 0) return retailMin;
+    const int32_t want = partsWidth + kTitleGap * (parts - 1);
+    return want > retailMin ? want : retailMin;
+}
+
+int32_t SpreadSpacing(int32_t retail, int32_t room, int32_t used, int32_t gaps) {
+    if (gaps <= 0) return retail;
+    const int32_t want = (room - used) / gaps;
+    return want > retail ? want : retail;
+}
+
 int32_t ShrinkCap(int32_t cap, int32_t tallest, int32_t over, int32_t floor) {
     if (over <= 0 || tallest <= floor) return cap;
     const int32_t want = tallest - over;

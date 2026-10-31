@@ -13,9 +13,16 @@
 //   * text buttons (Ok, Cancel, Apply, Yes, No, Follow, the Options key bindings), tab buttons and
 //     drop-downs (ComboElement): their content padded to kTouchSide in height (width is retail's);
 //   * the rows of a drop-down's list: padded to kTouchSide in height;
-//   * a spinner's up / down buttons: arrows twice their size, the pair kTouchSide high;
+//   * a spinner's up / down buttons: arrows twice their size, each kTouchSide square, side by side
+//     (issue #73, through the engine seam UI::SpinnerElement::_extSideBySide; stacked, the pair would be
+//     twice kTouchSide high);
 //   * sliders: the thumb and track sprites drawn at kSliderSpriteFactor times their size, through the
-//     engine seam UI::SliderElement::_extSpriteScale (the slider has no size field to change).
+//     engine seam UI::SliderElement::_extSpriteScale (the slider has no size field to change);
+//   * a dialog's title bar (issue #73): a ribbon of stacked buttons in it (a work place's worker and job
+//     count arrows, Work.rsc's workersUpDown / jobsUpDown) is laid out side by side, and the bar (a
+//     GroupElement, its name and buttons drawn over each other) is at least as wide as the name and the
+//     buttons side by side, so the window widens and the finger-sized buttons no longer cover the name;
+//     the window's bars and button row then fill the new width (touch_wide.h).
 // Left alone: a button its description already makes kTouchSide or larger (the toolbar's, the menus'
 // squares), a button whose minimum is not its description's (sized at run time by its owner), every
 // dialog ext.touch_mode places (TouchSeen), and the controls on a tab's page that does not scroll (they
