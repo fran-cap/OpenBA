@@ -179,6 +179,24 @@ def draw_outline_panel(px):
     ])
 
 
+def draw_foundation(px):
+    # a dashed foundation outline, a log lying just outside it (piles carried off a site's footprint)
+    _paint(px, [
+        "############",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "############",
+        "............",
+        "..++++++++..",
+        ".+########+.",
+        "..++++++++..",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -189,4 +207,5 @@ ICONS = {
     "dialog_position_drift": ("fix", draw_drift),    # panel held between two edge bars
     "alloc_tiebreak": ("fix", draw_tiebreak),        # two equal figures, numbered
     "outline_with_panel": ("fix", draw_outline_panel),   # a panel over its outlined plot
+    "foundation_piles": ("fix", draw_foundation),    # foundation outline, a log outside it
 }

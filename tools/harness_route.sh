@@ -20,6 +20,11 @@
 # exit, after the logs are copied out. Hold no lock of your own around it.
 # HARNESS_EXE overrides the exe (default build/cmake-debug/OpenBA.exe); build it first
 # (tools/build.sh build debug). The run is /profile:faithful (fixes and extensions off).
+# HARNESS_FIXES=<id>[,<id>...] runs the per-entry profile instead with exactly those fixes
+# on: every `fix.<id>=` of the registry (src/ext/registry.cpp, Tier::Fix rows) is written
+# to the functional user dir's settings.cfg as 0 except the listed ones (1), and every
+# `ext.<id>=` line there is set to 0; the file is restored at exit. Class A rows the file
+# does not name keep their default (no sim effect).
 #
 # ADDING A ROUTE: a `route_<name>` function that sets ENV (the harness flags, one
 # KEY=VALUE per element), SECS (the wall-clock deadline) and DESC, plus a
@@ -30,7 +35,7 @@ set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
-ROUTES="marry birth immigration trade pick"
+ROUTES="marry birth immigration trade pick clearoverlap"
 
 ROUTE="${1:-}"
 [ -n "$ROUTE" ] || { echo "usage: tools/harness_route.sh <route> [outdir]   (routes: $ROUTES)" >&2; exit 2; }
@@ -161,6 +166,22 @@ check_pick() {
     return 0
 }
 
+# --- clearoverlap: a stockpile placed over a clear-tool area while it is still being
+# cleared (src/diag/clear_overlap_harness.cpp). Four builders, a town hall over trees,
+# Clear Tree / Stone / Iron dragged over a 10x10 window, then Template\StorageYard.rsc
+# over the same window 900 frames later; a census every 300 frames. PASS when the window
+# holds no natural resource and both sites hold their footprints by the deadline.
+# CLEAR_OVERLAP overrides the flag value (e.g. 400,900,300,9300,4,0: a 4x4 window, no hall).
+route_clearoverlap() {
+    DESC="a stockpile over a clear-tool area: the area is cleared and both sites finish clearing"
+    QUIT_FRAME=9600
+    SECS=600
+    ENV=(BANISHED_FORCE_SPEED=10 BANISHED_BUILDERS=4,300 BANISHED_CLEAR_OVERLAP="${CLEAR_OVERLAP:-400,900,300,9300}")
+}
+check_clearoverlap() {
+    verdict "\[ClearOverlap\] PASS" "\[ClearOverlap\] (FAIL|ERROR)"
+}
+
 "route_$ROUTE"
 # HARNESS_QUIT overrides the route's quit frame (a shorter look while debugging a route).
 QUIT_FRAME="${HARNESS_QUIT:-$QUIT_FRAME}"
@@ -189,6 +210,34 @@ G="$BANISHED_DIR"
 command -v cygpath >/dev/null 2>&1 && G="$(cygpath -u "$G")"
 
 cp -f "$EXE" "$G/OpenBA.exe" || { echo "[route] exe busy, is a game running?" >&2; exit 2; }
+
+PROFILE_ARGS=(/profile:faithful)
+CFG_SAVED=""
+if [ -n "${HARNESS_FIXES:-}" ]; then
+    U="${BANISHED_USER_DIR:-}"
+    [ -n "$U" ] || { echo "[route] HARNESS_FIXES needs the functional user dir (BANISHED_USER_DIR)" >&2; exit 2; }
+    command -v cygpath >/dev/null 2>&1 && U="$(cygpath -u "$U")"
+    mkdir -p "$U"
+    CFG="$U/settings.cfg"
+    CFG_SAVED="$(mktemp)"
+    if [ -f "$CFG" ]; then cp -f "$CFG" "$CFG_SAVED"; else : > "$CFG_SAVED"; touch "$CFG"; fi
+    restore_cfg() {
+        if [ -n "$CFG_SAVED" ]; then
+            cp -f "$CFG_SAVED" "$CFG"
+            rm -f "$CFG_SAVED"
+            CFG_SAVED=""
+        fi
+    }
+    trap 'restore_cfg; release_lock' EXIT
+    sed -i 's/^\(ext\.[a-z0-9_]*\)=.*/\1=0/; /^fix\./d' "$CFG"
+    for fx in $(grep -oE '\{ "[a-z0-9_]+", Tier::Fix' "$REPO/src/ext/registry.cpp" | cut -d'"' -f2); do
+        v=0
+        case ",$HARNESS_FIXES," in *",$fx,"*) v=1 ;; esac
+        printf 'fix.%s=%s\n' "$fx" "$v" >> "$CFG"
+    done
+    PROFILE_ARGS=()
+    echo "[route] per-entry profile: $(grep '^fix\.' "$CFG" | tr '\n' ' ')"
+fi
 rm -f "$G"/standalone_{debug,error,crash,hang}.log "$G/standalone_boot_state.txt"
 
 echo "[route] $ROUTE: $DESC"
@@ -198,7 +247,7 @@ START=$(date +%s)
     cd "$G" || exit 2
     exec env BANISHED_AUTOSTART=1 BANISHED_SEED="${HARNESS_SEED:-12345}" \
         BANISHED_PAUSEMENU="$QUIT_FRAME" BANISHED_PAUSEMENU_QUIT=120 "${ENV[@]}" \
-        MSYS2_ARG_CONV_EXCL="/profile:" ./OpenBA.exe /profile:faithful
+        MSYS2_ARG_CONV_EXCL="/profile:" ./OpenBA.exe "${PROFILE_ARGS[@]}"
 ) &
 PID=$!
 "$HERE/boot_state.sh" --wait 300
@@ -220,6 +269,7 @@ RC=$?
 for f in standalone_debug.log standalone_error.log standalone_crash.log standalone_hang.log standalone_boot_state.txt; do
     [ -f "$G/$f" ] && cp -f "$G/$f" "$OUT/"
 done
+[ -n "$CFG_SAVED" ] && restore_cfg
 release_lock
 
 CRASH=$(stat -c %s "$OUT/standalone_crash.log" 2>/dev/null || echo 0)

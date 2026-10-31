@@ -123,6 +123,16 @@ const Entry kEntries[] = {
       "depends on memory layout, so a town plays out the same way each time a save is loaded.",
       0, [](State& s) -> bool& { return s.fix.alloc_tiebreak; } },
 
+    // FOUNDATIONPILES (docs/extensions/handins/FOUNDATIONPILES.md, docs/retail_bugs.md section 17): a
+    // building site whose footprint holds only piles that no storage will take has them carried to free
+    // ground just outside it (ClearArea phase 3), so it can be built; retail waits until the piles rot.
+    // Sim-visible: which cells the piles lie on. Nothing new is saved: the move is retail's own actions.
+    { "foundation_piles", Tier::Fix, Class::None, true,
+      "Building sites clear with full storage",
+      "When every store is full, logs and stone lying where a building is to go are carried just "
+      "outside its footprint, so the building can go ahead instead of waiting for them to rot.",
+      0, [](State& s) -> bool& { return s.fix.foundation_piles; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).

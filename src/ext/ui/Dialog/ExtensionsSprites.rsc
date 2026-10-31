@@ -35,6 +35,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_dialog_position_drift";	String _source = "Sprite/Extensions/Entry_dialog_position_drift.png"; }
 		{ String _name = "ExtensionsEntry_outline_with_panel";	String _source = "Sprite/Extensions/Entry_outline_with_panel.png"; }
 		{ String _name = "ExtensionsEntry_alloc_tiebreak";	String _source = "Sprite/Extensions/Entry_alloc_tiebreak.png"; }
+		{ String _name = "ExtensionsEntry_foundation_piles";	String _source = "Sprite/Extensions/Entry_foundation_piles.png"; }
 		{ String _name = "ExtensionsEntry_eye_camera";	String _source = "Sprite/Extensions/Entry_eye_camera.png"; }
 		{ String _name = "ExtensionsEntry_sharp_ui";	String _source = "Sprite/Extensions/Entry_sharp_ui.png"; }
 		{ String _name = "ExtensionsEntry_fast_paths";	String _source = "Sprite/Extensions/Entry_fast_paths.png"; }

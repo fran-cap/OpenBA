@@ -49,6 +49,8 @@
 #include "Entity/ComponentEntity.h"
 #include "Game/ProfessionList.h"
 #include "Game/Map.h"
+#include "ext/registry.h"                    // Ext::Fix().foundation_piles
+#include "ext/foundation_piles/foundation_piles.h"
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 
 // Diagnostic trace for the harvest-completion investigation. Gated by
@@ -602,7 +604,13 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 groundPair.citizen = *citizenIBP;
                 WorkCellBST_Insert_9a40(&_cells, &workIBP, &groundPair);
 
-                result = 0;
+                // 2 = work dispatched, as phases 1 and 3: retail loads ESI = 2 at
+                // 0x1400e640b (it is the PerformWork ctor's +0x20 argument) and returns
+                // it, JMP 0x1400e6621 -> MOV EAX,ESI at 0x1400e6633. A 0 told the
+                // scheduler (TryAssignWorkplace 0x1400f8620 / the walk 0x1400f7b60) the
+                // citizen was still free, and the next work's PerformWork ctor cleared
+                // the ground task this one had just pushed.
+                result = 2;
                 goto cleanup;
             }
         }
@@ -612,6 +620,11 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
         // ============================================================
         if (field_72 != 0 && tileCount > 0) {
             GridTile* tiles = tileArray.data;
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/FOUNDATIONPILES.md): with
+            // fix.foundation_piles on, a site whose footprint holds only piles carries a pile
+            // no storage takes to free ground outside it, where retail leaves it there.
+            const bool relocatePiles = Ext::Fix().foundation_piles &&
+                                       Ext::FoundationPiles::WaitsOnPilesOnly(field_10.Get(), tiles, tileCount);
             for (int i = 0; i < tileCount; i++) {
                 GridTile* tile = &tiles[i];
 
@@ -636,6 +649,10 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 int gatherResult = static_cast<int>(gatherSys->TryAssignWorkplace(&citizenRef,
                                                           resourceTypeId, 0));   // the door read EAX
                 if (gatherResult & 0xFF) {
+                    result = 2;
+                    goto cleanup;
+                }
+                if (relocatePiles && Ext::FoundationPiles::Relocate(field_10.Get(), tile->entity, citizenIBP) == 2) {
                     result = 2;
                     goto cleanup;
                 }

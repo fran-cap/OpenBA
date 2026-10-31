@@ -350,6 +350,7 @@ void OptionsInit() {
     o.mouseTarget  = Raw("BANISHED_MOUSE_TARGET");
 
     o.toolHarness         = Raw("BANISHED_TOOL_HARNESS");
+    o.clearOverlap        = Raw("BANISHED_CLEAR_OVERLAP");
     o.placementTemplate   = Raw("BANISHED_PLACEMENT_TEMPLATE");
     o.placementCell       = Raw("BANISHED_PLACEMENT_CELL");
     o.placementRadius     = Raw("BANISHED_PLACEMENT_RADIUS");

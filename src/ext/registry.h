@@ -69,6 +69,7 @@ struct Fixes {
     bool dialog_position_drift = true;   // docs/retail_bugs.md §13, src/ext/dialog_position_drift/ (docs/extensions/handins/DIALOGPOSITIONDRIFT.md): UI only, at the _extDialogPlace seam's kExtPlaceUpperLeft
     bool outline_with_panel = true;  // docs/retail_bugs.md §16, src/ext/outline_with_panel/ (docs/extensions/handins/OUTLINEWITHPANEL.md): render only, engine seam Graphics::EdgeMeshInstance::_extHoldDraw
     bool alloc_tiebreak    = true;   // docs/retail_bugs.md §14, src/ext/alloc_tiebreak/ (docs/extensions/handins/ALLOCTIEBREAK.md): sim-visible, ties in the job / house allocators
+    bool foundation_piles  = true;   // docs/retail_bugs.md §17, src/ext/foundation_piles/ (docs/extensions/handins/FOUNDATIONPILES.md): sim-visible, piles a full town cannot store leave a site's footprint
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
