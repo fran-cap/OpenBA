@@ -351,11 +351,11 @@ void EventNotifyDialog::OnUpdate(const System::Time& time) {
 //      - Check the event log entry's popup field at +0x18:
 //          if < 0 (no popup): hide button, show image.
 //          if >= 0 (popup active): show button, hide image.
-//      - Colour the button's border (vtable slot 11 GetBorder, slot 10 SetColor)
+//      - Colour the image's border (vtable slot 11 GetBorder, slot 10 SetColor)
 //        and each of the button's 4 children.
 //      - The group element's tooltip string is the entry text.
 //   6. For empty slots (entries..slots-1):
-//      - Reset the border and button colour to 0xFFFFFFFF.
+//      - Reset the image's border and colour to 0xFFFFFFFF.
 //      - Clear the group element's tooltip string.
 //      - Show the image element, hide the button element.
 void EventNotifyDialog::OnUpdateLayout() {
@@ -457,10 +457,11 @@ void EventNotifyDialog::OnUpdateLayout() {
 
         uint32_t color = activeEntry.color;
 
-        // The button's border (slot 11 GetBorder, RETSLOT per B6-2), then SetColor (slot 10).
+        // The IMAGE's border (slot 11 GetBorder, RETSLOT per B6-2, on the slot's +0x08 at
+        // 0x1400682f9), then SetColor (slot 10).
         {
             Object::InternalPtr<UI::Element> border;
-            UI::Element* borderElem = buttonElem->GetBorder(&border)->Get();
+            UI::Element* borderElem = imageElem->GetBorder(&border)->Get();
             if (borderElem) {
                 borderElem->SetColor(color);
             }
@@ -486,17 +487,18 @@ void EventNotifyDialog::OnUpdateLayout() {
         UI::Element* buttonElem = slotEntry.button.Get();
         if (!buttonElem || !groupElem || !imageElem) continue;
 
-        // Reset the button border's color to 0xFFFFFFFF (white = no tint)
+        // Reset the image border's color to 0xFFFFFFFF (white = no tint): slot 11 on the
+        // slot's +0x08, as in the shown arm.
         {
             Object::InternalPtr<UI::Element> border;
-            UI::Element* borderElem = buttonElem->GetBorder(&border)->Get();
+            UI::Element* borderElem = imageElem->GetBorder(&border)->Get();
             if (borderElem) {
                 borderElem->SetColor(0xFFFFFFFFu);
             }
         }
 
-        // Also reset color on the button element itself (vtable slot 10)
-        buttonElem->SetColor(0xFFFFFFFFu);
+        // Also reset color on the image element itself (vtable slot 10, the +0x08 again).
+        imageElem->SetColor(0xFFFFFFFFu);
 
         // Clear the group element's tooltip string
         groupElem->SetToolTipString(System::String());
