@@ -273,6 +273,8 @@ struct Options {
     const char* panelHoldFrame       = nullptr;// BANISHED_PANEL_HOLD_FRAME
     const char* panelHoldClick       = nullptr;// BANISHED_PANEL_HOLD_CLICK — "<control>:<id>"
     const char* panelHoldClickEvery  = nullptr;// BANISHED_PANEL_HOLD_CLICK_EVERY
+    const char* clearOverlap         = nullptr;// BANISHED_CLEAR_OVERLAP=<start>[,<delay>[,<period>[,<deadline>]]] --
+                                               //   src/diag/clear_overlap_harness.cpp; tools/harness_route.sh clearoverlap
 
     // ── the mouse injector (src/diag/mouse_inject.cpp) [no tool reader] ─────
     const char* mouseInject          = nullptr;// comma-separated step script

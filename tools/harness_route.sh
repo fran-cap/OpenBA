@@ -30,7 +30,7 @@ set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
-ROUTES="marry birth immigration trade pick"
+ROUTES="marry birth immigration trade pick clearoverlap"
 
 ROUTE="${1:-}"
 [ -n "$ROUTE" ] || { echo "usage: tools/harness_route.sh <route> [outdir]   (routes: $ROUTES)" >&2; exit 2; }
@@ -159,6 +159,22 @@ check_pick() {
     [ -n "$(err "\[ToolHarness\]\[pickplace\] PICK PASS" | head -1)" ] || { echo "[route] no pickplace PASS"; return 1; }
     [ -n "$(err "\[ToolHarness\]\[pickbridge\] PICK PASS" | head -1)" ] || { echo "[route] no pickbridge PASS"; return 1; }
     return 0
+}
+
+# --- clearoverlap: a stockpile placed over a clear-tool area while it is still being
+# cleared (src/diag/clear_overlap_harness.cpp). Four builders, a town hall over trees,
+# Clear Tree / Stone / Iron dragged over a 10x10 window, then Template\StorageYard.rsc
+# over the same window 900 frames later; a census every 300 frames. PASS when the window
+# holds no natural resource and both sites hold their footprints by the deadline.
+# CLEAR_OVERLAP overrides the flag value (e.g. 400,900,300,9300,4,0: a 4x4 window, no hall).
+route_clearoverlap() {
+    DESC="a stockpile over a clear-tool area: the area is cleared and both sites finish clearing"
+    QUIT_FRAME=9600
+    SECS=600
+    ENV=(BANISHED_FORCE_SPEED=10 BANISHED_BUILDERS=4,300 BANISHED_CLEAR_OVERLAP="${CLEAR_OVERLAP:-400,900,300,9300}")
+}
+check_clearoverlap() {
+    verdict "\[ClearOverlap\] PASS" "\[ClearOverlap\] (FAIL|ERROR)"
 }
 
 "route_$ROUTE"
