@@ -127,30 +127,50 @@ void VertexOut(const NgRewrite::TreeTerms& t, float months, bool stamped, float 
     out[3] = cov;
 }
 
-PixelTerms Pixel(float u, float v, const float n2[4], float l, float move, float aa) {
-    const float qx = u * kCells, qy = v * kCells;
+namespace {
+
+// One layer's blob at (u, v): its mask and its brightness (EmitBloomLayer's arithmetic).
+void LayerBlob(int layer, float u, float v, const float n2[4], float* e, float* bright) {
+    const Layer& L = kLayers[layer];
+    const float qx = u * L.row0[0] + v * L.row0[1] + L.offset[0];
+    const float qy = u * L.row1[0] + v * L.row1[1] + L.offset[1];
     float h[3];
     Hash33(std::floor(qx), std::floor(qy), h);
-    float fx = Frc(qx) + (h[1] * -0.5f - 0.25f);
-    float fy = Frc(qy) + (h[2] * -0.5f - 0.25f);
+    float fx = Frc(qx) + (h[1] * -kCentreSpan - kCentreLo);
+    float fy = Frc(qy) + (h[2] * -kCentreSpan - kCentreLo);
+    float sx = Frc(h[0] * 7.0f + h[1]) * kAspect1 + kAspect0;
+    float sy = -sx + 2.0f;
     if (n2[3] < 0.0f) {
-        fx *= kCatkinX;
-        fy *= h[1] * kCatkinYVar + kCatkinY;
+        sy = h[1] * kCatkinYVar + kCatkinY;
+        sx = kCatkinX;
     }
+    fx *= sx;
+    fy *= sy;
     const float d2 = fx * fx + fy * fy;
     float r = h[2] * kRadius1 + kRadius0;
     r = r * r;
-    const float e = Sat((r - d2) * kEdge);
+    const float soft = Sat((r - d2) * kEdge);
+    *e = h[0] < std::fabs(n2[3]) * kShare ? soft : 0.0f;
+    *bright = h[1] * kBright1 + kBright0;
+}
+
+}  // namespace
+
+PixelTerms Pixel(float u, float v, const float n2[4], float l, float move, float aa) {
+    float e0, b0, e1, b1;
+    LayerBlob(0, u, v, n2, &e0, &b0);
+    LayerBlob(1, u, v, n2, &e1, &b1);
+    const float best = e0 < e1 ? e1 : e0;
+    const float bright = e0 < e1 ? b1 : b0;
     const float cov = std::fabs(n2[3]);
-    float f = h[0] < cov ? e : 0.0f;
     const float avg = cov * kArea;
-    f = aa * (avg - f) + f;
+    const float f = aa * (avg - best) + best;
     const float kept = Sat(f * kKeep);
     PixelTerms p;
     p.mask    = f;
     p.lossCut = -kept * l + l;
     p.amount  = (l * (kept - f) + f) * move;
-    p.bright  = h[1] * kBright1 + kBright0;
+    p.bright  = bright;
     return p;
 }
 

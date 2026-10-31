@@ -28,10 +28,11 @@
 //     rgb   = colour * (1 + pink (1 - open) kBudTint)                pink buds open to the colour
 // out: a second new interpolant (rgb, cov).
 //
-// THE PIXEL TERMS. A cell grid over the card's UV (kCells cells a side); each cell holds a cluster with
-// probability |cov| at a hashed centre, radius kRadius0 + kRadius1 h, a soft edge; catkins squash the cell
-// into a vertical streak. Where a cell is under ~2.5 pixels the mask blends to its average (|cov| kArea),
-// so the far canopy reads as a haze instead of shimmering. The flower mask F then:
+// THE PIXEL TERMS. Two cell grids over the card's UV (kLayers: 14 cells a side, and 19 turned 0.25 rad and
+// offset), so the blobs fall in no visible lattice. Each cell holds a blob with probability |cov| kShare at
+// a hashed centre, a soft ellipse of hashed aspect and radius; catkins squash it into a vertical streak.
+// The stronger layer wins. Where a blob is under ~3 pixels the mask blends to its average (|cov| kArea), so
+// the far canopy reads as a haze instead of shimmering. The flower mask F then:
 //     kept  = sat(4 F)                 the leaf loss is cut by (1 - kept): a bare tree keeps its flowers
 //     l'    = l (1 - kept)             replaces l in the season mad (alpha - l' move)
 //     k     = (F + l (kept - F)) move  the colour lerp toward rgb * bright
@@ -51,16 +52,36 @@ constexpr float kGroveShift = 0.05f;   // groves flower a little together (g in 
 constexpr float kBudTint[3] = {0.0f, -0.28f, -0.20f};   // pink buds: G and B down before the flower opens
 
 // ---- the pixel mask ----------------------------------------------------------------------------------
-constexpr float kCells     = 32.0f;    // cells across the card's UV square
-constexpr float kRadius0   = 0.16f;    // cluster radius in cells: kRadius0 + kRadius1 h
-constexpr float kRadius1   = 0.14f;
-constexpr float kEdge      = 30.0f;    // the soft edge: sat((r^2 - d^2) * kEdge)
-constexpr float kCatkinX   = 2.4f;     // catkins: the cell is narrowed in u ...
+// Two layers of soft elliptical blobs, one per cell at most, the stronger layer wins. The second layer's
+// grid is finer, turned and offset, so the two lattices never line up and no grid shows (the user,
+// 2026-10-31: one 32-cell grid of small dots read as a grid and shimmered at play distance).
+struct Layer {
+    float row0[2];     // cell x = dot(uv, row0) + offset.x
+    float row1[2];     // cell y = dot(uv, row1) + offset.y
+    float offset[2];
+};
+constexpr float kCells     = 14.0f;    // layer 0's cells across the card's UV square
+constexpr float kCells2    = 19.0f;    // layer 1's
+constexpr float kTurn2c    = 0.968912f;   // cos / sin of layer 1's turn (0.25 rad: catkins tilt 14 degrees
+constexpr float kTurn2s    = 0.247404f;   //   on its blobs, a natural sway)
+constexpr Layer kLayers[2] = {
+    {{kCells, 0.0f}, {0.0f, kCells}, {0.0f, 0.0f}},
+    {{kCells2 * kTurn2c, -kCells2 * kTurn2s}, {kCells2 * kTurn2s, kCells2 * kTurn2c}, {17.31f, 5.77f}},
+};
+constexpr float kCentreLo  = 0.22f;    // a blob's centre: anywhere in [kCentreLo, kCentreLo + kCentreSpan]
+constexpr float kCentreSpan = 0.56f;
+constexpr float kAspect0   = 0.75f;    // a blob's ellipse: (a, 2 - a), a = kAspect0 + kAspect1 h
+constexpr float kAspect1   = 0.50f;
+constexpr float kRadius0   = 0.17f;    // blob radius in cells: kRadius0 + kRadius1 h
+constexpr float kRadius1   = 0.09f;
+constexpr float kEdge      = 35.0f;    // the soft rim: sat((r^2 - d^2) * kEdge)
+constexpr float kShare     = 0.60f;    // a cell holds a blob with probability |cov| * kShare, per layer
+constexpr float kCatkinX   = 2.4f;     // catkins: the blob is narrowed in u ...
 constexpr float kCatkinY   = 0.40f;    // ... and stretched in v: by kCatkinY + kCatkinYVar h (a longer or
 constexpr float kCatkinYVar = 0.50f;   //     shorter streak per cell, so they do not look stamped)
-constexpr float kArea      = 0.18f;    // the mean covered share of a present cell (the far-field average)
-constexpr float kAaStart   = 0.40f;    // cells per pixel where the blend to the average begins
-constexpr float kAaSlope   = 2.5f;     // ... and its rate (full at 0.8 cells per pixel)
+constexpr float kArea      = 0.14f;    // the covered share at |cov| 1 (the far-field average)
+constexpr float kAaStart   = 0.15f;    // cells per pixel where the blend to the average begins (a blob of
+constexpr float kAaSlope   = 5.0f;     //   ~3 px) and its rate (full at 0.35: a blob of ~1 px)
 constexpr float kKeep      = 4.0f;     // kept = sat(kKeep F)
 constexpr float kBright0   = 0.80f;    // a cluster's brightness: kBright0 + kBright1 h (h the centre's u
 constexpr float kBright1   = 0.40f;    //   hash, independent of the radius)

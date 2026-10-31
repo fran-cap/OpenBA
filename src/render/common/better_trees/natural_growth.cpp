@@ -664,26 +664,31 @@ void AnalysePixel(Match* m) {
     m->kind = Kind::Foliage;
 }
 
-// The blossom mask (blossom.h "THE PIXEL TERMS"), BillboardColour only, before the season mad. Reads the
-// diffuse sample's UV, vN.y (l), vN2 (r, g, b, cov) and the move input; temps P, Q, S, R = n+3..n+6.
-// Leaves R.w = l' (the season mad's loss), R.x = k (the colour amount, move included), R.y = the cluster's
-// brightness. Blossom::Pixel is the same arithmetic in the same order.
-void EmitBloomMask(Writer& w, const Match& m) {
+// One layer of the blossom mask (blossom.h "THE PIXEL TERMS"): Q = the layer's cell coordinates of the UV,
+// the hashed blob of the cell; leaves S.y = the blob's mask e, S.z = its brightness. Layer 0 also computes
+// the far-field blend (P.x). Temps P, Q, S, R as EmitBloomMask's.
+void EmitBloomLayer(Writer& w, const Match& m, int layer) {
     namespace Bl = Blossom;
     const Dxbc::Program& p = m.prog;
     const uint32_t P = m.temps + 3, Q = m.temps + 4, S = m.temps + 5, R = m.temps + 6;
-    const uint32_t N = m.newReg, N2 = m.newReg + 1;
+    const uint32_t N2 = m.newReg + 1;
     const Dxbc::Operand& uv = p.instrs[static_cast<size_t>(m.sampleIdx)].operands[1];
     const uint32_t uvSwz = E::Swizzle(uv.Swz(0), uv.Swz(1), uv.Swz(0), uv.Swz(0));
+    const Bl::Layer& L = Bl::kLayers[layer];
     auto& t = w.t;
-    // the cell coordinates (Q.xy), the cells per pixel -> the far-field blend (P.x), the cell (P.zw)
-    w.Ins(Op::Mul, [&] { E::TempDst(t, Q, 3); E::CopyWithSwizzle(t, p, uv, uvSwz); E::Imm4(t, Bl::kCells, Bl::kCells, 0.0f, 0.0f); });
-    w.Ins(Op::DerivRtx, [&] { E::TempDst(t, P, 3); E::TempSrc(t, Q, XYXX); });
-    w.Ins(Op::DerivRty, [&] { E::TempDst(t, P, 0xC); E::TempSrc(t, Q, E::Swizzle(0, 0, 0, 1)); });
-    w.Ins(Op::Add, [&] { E::TempDst(t, P, 3); E::TempSrc(t, P, XYXX, 2); E::TempSrc(t, P, E::Swizzle(2, 3, 2, 2), 2); });
-    w.Ins(Op::Max, [&] { E::TempDst(t, P, 1); E::TempSrc(t, P, E::Rep(0)); E::TempSrc(t, P, E::Rep(1)); });
-    w.Ins(Op::Mad, true, [&] { E::TempDst(t, P, 1); E::TempSrc(t, P, E::Rep(0)); E::ImmScalar(t, Bl::kAaSlope);
-                               E::ImmScalar(t, -Bl::kAaStart * Bl::kAaSlope); });
+    // the cell coordinates (Q.xy)
+    w.Ins(Op::Dp2, [&] { E::TempDst(t, Q, 1); E::CopyWithSwizzle(t, p, uv, uvSwz); E::Imm4(t, L.row0[0], L.row0[1], 0.0f, 0.0f); });
+    w.Ins(Op::Dp2, [&] { E::TempDst(t, Q, 2); E::CopyWithSwizzle(t, p, uv, uvSwz); E::Imm4(t, L.row1[0], L.row1[1], 0.0f, 0.0f); });
+    w.Ins(Op::Add, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); E::Imm4(t, L.offset[0], L.offset[1], 0.0f, 0.0f); });
+    if (layer == 0) {
+        // the cells per pixel -> the far-field blend (P.x)
+        w.Ins(Op::DerivRtx, [&] { E::TempDst(t, P, 3); E::TempSrc(t, Q, XYXX); });
+        w.Ins(Op::DerivRty, [&] { E::TempDst(t, P, 0xC); E::TempSrc(t, Q, E::Swizzle(0, 0, 0, 1)); });
+        w.Ins(Op::Add, [&] { E::TempDst(t, P, 3); E::TempSrc(t, P, XYXX, 2); E::TempSrc(t, P, E::Swizzle(2, 3, 2, 2), 2); });
+        w.Ins(Op::Max, [&] { E::TempDst(t, P, 1); E::TempSrc(t, P, E::Rep(0)); E::TempSrc(t, P, E::Rep(1)); });
+        w.Ins(Op::Mad, true, [&] { E::TempDst(t, P, 1); E::TempSrc(t, P, E::Rep(0)); E::ImmScalar(t, Bl::kAaSlope);
+                                   E::ImmScalar(t, -Bl::kAaStart * Bl::kAaSlope); });
+    }
     w.Ins(kRoundNi, [&] { E::TempDst(t, P, 0xC); E::TempSrc(t, Q, E::Swizzle(0, 0, 0, 1)); });
     // hash33(cell) -> R.xyz (EmitTerms' sequence, S the scratch)
     w.Ins(Op::Mul, [&] { E::TempDst(t, S, 7); E::TempSrc(t, P, E::Swizzle(2, 3, 2, 2)); E::Imm4(t, kHashK[0], kHashK[1], kHashK[2], 0.0f); });
@@ -694,34 +699,60 @@ void EmitBloomMask(Writer& w, const Match& m) {
     w.Ins(Op::Add, [&] { E::TempDst(t, R, 7); E::TempSrc(t, S, E::Swizzle(0, 0, 1, 0)); E::TempSrc(t, S, E::Swizzle(1, 2, 2, 1)); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, R, 7); E::TempSrc(t, R, XYZX); E::TempSrc(t, S, E::Swizzle(2, 1, 0, 2)); });
     w.Ins(kFrc, [&] { E::TempDst(t, R, 7); E::TempSrc(t, R, XYZX); });
-    // f = frc(Q) - the cluster centre, squashed for catkins; d^2 (Q.x)
+    // f = frc(Q) - the blob's centre (anywhere in [lo, lo + span])
     w.Ins(kFrc, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); });
-    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 3); E::TempSrc(t, R, E::Swizzle(1, 2, 1, 1)); E::Imm4(t, -0.5f, -0.5f, 0.0f, 0.0f);
-                         E::Imm4(t, -0.25f, -0.25f, 0.0f, 0.0f); });
+    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 3); E::TempSrc(t, R, E::Swizzle(1, 2, 1, 1)); E::Imm4(t, -Bl::kCentreSpan, -Bl::kCentreSpan, 0.0f, 0.0f);
+                         E::Imm4(t, -Bl::kCentreLo, -Bl::kCentreLo, 0.0f, 0.0f); });
     w.Ins(Op::Add, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); E::TempSrc(t, S, XYXX); });
-    w.Ins(Op::Lt, [&] { E::TempDst(t, S, 1); InputSrc(t, N2, E::Rep(3)); E::ImmScalar(t, 0.0f); });
-    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 8); E::TempSrc(t, R, E::Rep(1)); E::ImmScalar(t, Bl::kCatkinYVar); E::ImmScalar(t, Bl::kCatkinY); });
-    w.Ins(Op::MovC, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(0)); E::ImmScalar(t, Bl::kCatkinX); E::ImmScalar(t, 1.0f); });
-    w.Ins(Op::MovC, [&] { E::TempDst(t, S, 4); E::TempSrc(t, S, E::Rep(0)); E::TempSrc(t, S, E::Rep(3)); E::ImmScalar(t, 1.0f); });
-    w.Ins(Op::Mul, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); E::TempSrc(t, S, E::Swizzle(1, 2, 1, 1)); });
+    // the blob's shape: an ellipse (a, 2 - a), a = kAspect0 + kAspect1 frc(7 h.x + h.y); catkins a streak
+    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 1); E::TempSrc(t, R, E::Rep(0)); E::ImmScalar(t, 7.0f); E::TempSrc(t, R, E::Rep(1)); });
+    w.Ins(kFrc, [&] { E::TempDst(t, S, 1); E::TempSrc(t, S, E::Rep(0)); });
+    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 1); E::TempSrc(t, S, E::Rep(0)); E::ImmScalar(t, Bl::kAspect1); E::ImmScalar(t, Bl::kAspect0); });
+    w.Ins(Op::Add, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(0), 1); E::ImmScalar(t, 2.0f); });
+    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 4); E::TempSrc(t, R, E::Rep(1)); E::ImmScalar(t, Bl::kCatkinYVar); E::ImmScalar(t, Bl::kCatkinY); });
+    w.Ins(Op::Lt, [&] { E::TempDst(t, S, 8); InputSrc(t, N2, E::Rep(3)); E::ImmScalar(t, 0.0f); });
+    w.Ins(Op::MovC, [&] { E::TempDst(t, S, 1); E::TempSrc(t, S, E::Rep(3)); E::ImmScalar(t, Bl::kCatkinX); E::TempSrc(t, S, E::Rep(0)); });
+    w.Ins(Op::MovC, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(3)); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, S, E::Rep(1)); });
+    w.Ins(Op::Mul, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); E::TempSrc(t, S, XYXX); });
     w.Ins(Op::Dp2, [&] { E::TempDst(t, Q, 1); E::TempSrc(t, Q, XYXX); E::TempSrc(t, Q, XYXX); });
-    // the soft cluster (S.y), present when h.x < |cov|; the far-field blend toward |cov| * kArea
+    // the soft blob (S.y), present when h.x < |cov| * kShare; its brightness (S.z)
     w.Ins(Op::Mad, [&] { E::TempDst(t, S, 2); E::TempSrc(t, R, E::Rep(2)); E::ImmScalar(t, Bl::kRadius1); E::ImmScalar(t, Bl::kRadius0); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::TempSrc(t, S, E::Rep(1)); });
     w.Ins(Op::Add, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::TempSrc(t, Q, E::Rep(0), 1); });
     w.Ins(Op::Mul, true, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::ImmScalar(t, Bl::kEdge); });
-    w.Ins(Op::Lt, [&] { E::TempDst(t, S, 4); E::TempSrc(t, R, E::Rep(0)); InputSrc(t, N2, E::Rep(3), 2); });
+    w.Ins(Op::Mul, [&] { E::TempDst(t, S, 4); InputSrc(t, N2, E::Rep(3), 2); E::ImmScalar(t, Bl::kShare); });
+    w.Ins(Op::Lt, [&] { E::TempDst(t, S, 4); E::TempSrc(t, R, E::Rep(0)); E::TempSrc(t, S, E::Rep(2)); });
     w.Ins(Op::And, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(1)); E::TempSrc(t, S, E::Rep(2)); });
+    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 4); E::TempSrc(t, R, E::Rep(1)); E::ImmScalar(t, Bl::kBright1); E::ImmScalar(t, Bl::kBright0); });
+}
+
+// The blossom mask (blossom.h "THE PIXEL TERMS"), BillboardColour only, before the season mad. Reads the
+// diffuse sample's UV, vN.y (l), vN2 (r, g, b, cov) and the move input; temps P, Q, S, R, U = n+3..n+7.
+// Two layers of blobs (kLayers: different scales, the second turned and offset, so no grid shows), the
+// stronger one wins. Leaves R.w = l' (the season mad's loss), R.x = k (the colour amount, move included),
+// R.y = the winning blob's brightness. Blossom::Pixel is the same arithmetic in the same order.
+void EmitBloomMask(Writer& w, const Match& m) {
+    namespace Bl = Blossom;
+    const uint32_t P = m.temps + 3, S = m.temps + 5, R = m.temps + 6, U = m.temps + 7;
+    const uint32_t N = m.newReg, N2 = m.newReg + 1;
+    auto& t = w.t;
+    EmitBloomLayer(w, m, 0);
+    w.Ins(Op::Mov, [&] { E::TempDst(t, U, 3); E::TempSrc(t, S, E::Swizzle(1, 2, 1, 1)); });
+    EmitBloomLayer(w, m, 1);
+    w.Ins(Op::Lt, [&] { E::TempDst(t, S, 8); E::TempSrc(t, U, E::Rep(0)); E::TempSrc(t, S, E::Rep(1)); });
+    w.Ins(Op::MovC, [&] { E::TempDst(t, U, 2); E::TempSrc(t, S, E::Rep(3)); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, U, E::Rep(1)); });
+    w.Ins(Op::Max, [&] { E::TempDst(t, U, 1); E::TempSrc(t, U, E::Rep(0)); E::TempSrc(t, S, E::Rep(1)); });
+    // the far-field blend toward |cov| * kArea (S.y = F)
     w.Ins(Op::Mul, [&] { E::TempDst(t, S, 4); InputSrc(t, N2, E::Rep(3), 2); E::ImmScalar(t, Bl::kArea); });
-    w.Ins(Op::Add, [&] { E::TempDst(t, S, 4); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, S, E::Rep(1), 1); });
-    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 2); E::TempSrc(t, P, E::Rep(0)); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, S, E::Rep(1)); });
+    w.Ins(Op::Add, [&] { E::TempDst(t, S, 4); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, U, E::Rep(0), 1); });
+    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 2); E::TempSrc(t, P, E::Rep(0)); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, U, E::Rep(0)); });
     // kept (S.z); l' (R.w); k (R.x); the brightness (R.y)
     w.Ins(Op::Mul, true, [&] { E::TempDst(t, S, 4); E::TempSrc(t, S, E::Rep(1)); E::ImmScalar(t, Bl::kKeep); });
     w.Ins(Op::Mad, [&] { E::TempDst(t, R, 8); E::TempSrc(t, S, E::Rep(2), 1); InputSrc(t, N, E::Rep(1)); InputSrc(t, N, E::Rep(1)); });
     w.Ins(Op::Add, [&] { E::TempDst(t, S, 8); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, S, E::Rep(1), 1); });
     w.Ins(Op::Mad, [&] { E::TempDst(t, S, 8); InputSrc(t, N, E::Rep(1)); E::TempSrc(t, S, E::Rep(3)); E::TempSrc(t, S, E::Rep(1)); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, R, 1); E::TempSrc(t, S, E::Rep(3)); InputSrc(t, m.moveReg, E::Rep(m.moveComp)); });
-    w.Ins(Op::Mad, [&] { E::TempDst(t, R, 2); E::TempSrc(t, R, E::Rep(1)); E::ImmScalar(t, Bl::kBright1); E::ImmScalar(t, Bl::kBright0); });
+    w.Ins(Op::Mov, [&] { E::TempDst(t, R, 2); E::TempSrc(t, U, E::Rep(1)); });
 }
 
 bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {
@@ -741,7 +772,7 @@ bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {
         if (in.isDecl) {
             const size_t at = t.size();
             t.insert(t.end(), src, src + in.length);
-            if (in.opcode == Op::DclTemps) t[at + 1] = m.temps + (bb ? 7 : 1);
+            if (in.opcode == Op::DclTemps) t[at + 1] = m.temps + (bb ? 8 : 1);
             if (!bb && ii == m.dclIdx) t[at + 1] |= 0xFu << 4;   // dcl_input_ps vD.xyzw
             if (bb && ii == m.lastDclIn) {
                 for (uint32_t r = N; r <= N + 1; ++r) {   // the terms, the blossom
