@@ -166,6 +166,11 @@ During each tree's own leaf-fall window (`l` between ~0.1 and ~0.9), leaf cards 
   terrain shader is not a better_trees program).
 Phase 2 is built: §7.
 
+### 3.8 Phase 3: spring blossom
+
+The canopies flower in spring (blossom on the fruit trees, catkins on oak, birch, pecan and chestnut),
+procedurally in the same `BillboardColour` pair: `BLOSSOM.md`.
+
 ## 4. The spike (before any rewrite code; nothing retail enters the tree)
 
 The season route is FAA-SPIKE's: a spike-only switch writes `Calendar::yearTime` once on the first in-game

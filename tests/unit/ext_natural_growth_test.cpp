@@ -12,6 +12,7 @@
 // ============================================================================
 #include "unit.h"
 
+#include "better_trees/blossom.h"
 #include "better_trees/dxbc.h"
 #include "better_trees/natural_growth.h"
 #include "ext/better_trees/leaf_fall.h"
@@ -256,6 +257,7 @@ struct Vm {
     float v[8][4]  = {};
     float o[8][4]  = {};
     float cb[4][32][4] = {};
+    float deriv = 0.0f;   // what deriv_rtx / deriv_rty return (0: the near field, no far-field blend)
 };
 
 bool Fetch(const Vm& vm, const Dxbc::Program& p, const Dxbc::Operand& o, float out[4]) {
@@ -279,6 +281,7 @@ bool Fetch(const Vm& vm, const Dxbc::Program& p, const Dxbc::Operand& o, float o
     default: return false;
     }
     for (int c = 0; c < 4; ++c) out[c] = raw[o.numComp == 1 ? 0 : o.Swz(c)];
+    if (o.modifier & 2) for (int c = 0; c < 4; ++c) out[c] = std::fabs(out[c]);
     if (o.modifier & 1) for (int c = 0; c < 4; ++c) out[c] = -out[c];
     return true;
 }
@@ -311,6 +314,9 @@ bool Run(Vm& vm, const std::vector<uint8_t>& blob) {
             case Op::Dp2: res[k] = a[0] * b[0] + a[1] * b[1]; break;
             case 16 /* dp3 */: res[k] = a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; break;
             case 26 /* frc */: res[k] = a[k] - std::floor(a[k]); break;
+            case 65 /* round_ni */: res[k] = std::floor(a[k]); break;
+            case Op::DerivRtx: case Op::DerivRty: res[k] = vm.deriv; break;   // one value for the whole quad
+            case Op::Min: res[k] = a[k] < b[k] ? a[k] : b[k]; break;
             case 77 /* sincos: dst0 = sin */: res[k] = std::sin(b[k]); break;
             case kIshl: res[k] = a[k] * 4.0f; break;   // the instance id is 0 here: index 0
             case Op::Ge: x = a[k] >= b[k] ? 0xFFFFFFFFu : 0u; std::memcpy(&res[k], &x, 4); break;
@@ -698,4 +704,212 @@ UNIT_TEST(ext_natural_growth_leaf_quads) {
     }
     // centred on the leaf, relative to the origin
     CHECK(Near(cx, 1.0f, 2e-3f) && Near(cy, 2.0f, 2e-3f) && Near(cz, 3.0f, 2e-3f));
+}
+
+// ---- the spring blossom (src/render/common/better_trees/blossom.{h,cpp}, BLOSSOM.md) ---------------
+namespace {
+
+const std::string kCanopy = "material\\billboard\\billboardmaterial.rsc:resource";
+
+Blossom::Species Named(const char* names) {
+    Blossom::Species s{};
+    bool known = false;
+    CHECK(Blossom::SpeciesFor(kCanopy, names, &s, &known));
+    CHECK(known);
+    return s;
+}
+
+}  // namespace
+
+UNIT_TEST(ext_blossom_species_and_pack) {
+    CHECK_STREQ(Named("models\\trees\\appletree.rsc|models\\trees\\apple_d.rsc").name, "apple");
+    CHECK_STREQ(Named("x|peachtree").name, "peach");
+    CHECK_STREQ(Named("x|peartree").name, "pear");
+    CHECK_STREQ(Named("x|chestnut").name, "chestnut");
+    CHECK((Named("x|birchtree").flags & Blossom::kCatkin) != 0);
+    CHECK((Named("x|plumtree").flags & Blossom::kCatkin) == 0);
+    // not a deciduous canopy: no code
+    Blossom::Species s{};
+    bool known = true;
+    CHECK(!Blossom::SpeciesFor("material\\billboard\\billboardevergreenmaterial.rsc:resource", "x|apple", &s, &known));
+    CHECK(!known);
+    CHECK(!Blossom::SpeciesFor("material\\opaque\\opaquematerial.rsc:resource", "x|apple", &s, &known));
+    // a mod's tree: a pale blossom from the name's hash, the same answer every time
+    Blossom::Species a{}, b{};
+    CHECK(Blossom::SpeciesFor(kCanopy, "mods\\mytree\\leaves.rsc", &a, &known));
+    CHECK(!known);
+    CHECK(Blossom::SpeciesFor(kCanopy, "mods\\mytree\\leaves.rsc", &b, nullptr));
+    CHECK(a.rgb[0] == b.rgb[0] && a.rgb[1] == b.rgb[1] && a.rgb[2] == b.rgb[2] && a.peak == b.peak);
+    CHECK((a.flags & Blossom::kCatkin) == 0);
+    CHECK(a.density >= 0.45f && a.density <= 0.75f && a.peak >= 0.5f && a.peak <= 1.1f);
+    CHECK_EQ(Blossom::Fnv1a(""), 2166136261u);
+    CHECK_EQ(Blossom::Fnv1a("a"), 0xE40C292Cu);
+    // the packing round trip: far from the peak the bloom is 0 and the colour decodes exactly
+    for (const char* n : {"x|plum", "x|cherry", "x|oak", "x|chestnut"}) {
+        const Blossom::Species sp = Named(n);
+        float z, w, out[4];
+        Blossom::Pack(sp, &z, &w);
+        Blossom::VertexOut(NgRewrite::TermsOf(50.0f, 70.0f), sp.peak + 5.0f, true, z, w, out);
+        CHECK(out[3] == 0.0f);
+        for (int c = 0; c < 3; ++c) CHECK(Near(out[c], sp.rgb[c] / 255.0f, 1e-6f));
+    }
+}
+
+UNIT_TEST(ext_blossom_vertex_match_and_meaning) {
+    const std::vector<uint8_t> blob = VertexBlob(VsShape::Colour);
+    const NgRewrite::Match m = Analyse(blob);
+    std::vector<uint8_t> xf;
+    CHECK(NgRewrite::Transform(m, &xf));
+    const SigOut e = SigAt(xf, Dxbc::FourCC('O', 'S', 'G', 'N'), 4);   // the blossom: TEXCOORD4 at o4
+    CHECK(e.mask == 0xF && e.rw == 0x0 && e.semIx == 4 && e.name == "TEXCOORD");
+    const float trees[4][2] = {{12.5f, 340.25f}, {501.0f, 77.0f}, {-3.0f, 905.5f}, {222.0f, 18.0f}};
+    for (const char* n : {"x|plum", "x|cherry", "x|apple", "x|birch"}) {
+        const Blossom::Species sp = Named(n);
+        float z, w;
+        Blossom::Pack(sp, &z, &w);
+        for (const auto& tr : trees) {
+            for (float dm : {-0.5f, -0.2f, -0.05f, 0.0f, 0.1f, 0.25f, 3.0f}) {
+                const float mo = sp.peak + dm;
+                Vm v;
+                SeedVertex(v, tr[0], tr[1], NgRewrite::kStampBase + mo, 0.0f, 0.0f);
+                v.cb[0][10][2] = z;
+                v.cb[0][10][3] = w;
+                CHECK(Run(v, xf));
+                float want[4];
+                Blossom::VertexOut(NgRewrite::TermsOf(tr[0], tr[1]), mo, true, z, w, want);
+                for (int c = 0; c < 4; ++c) CHECK(Near(v.o[4][c], want[c], 1e-4f));
+                if ((sp.flags & Blossom::kCatkin) != 0) CHECK(v.o[4][3] <= 0.0f);
+                else CHECK(v.o[4][3] >= 0.0f);
+            }
+        }
+    }
+    // no code (a draw that is not a canopy) or no stamp (the menu): no bloom
+    float z, w;
+    Blossom::Pack(Named("x|plum"), &z, &w);
+    Vm none, menu;
+    SeedVertex(none, 40.0f, 60.0f, NgRewrite::kStampBase + 0.4f, 0.0f, 0.0f);
+    CHECK(Run(none, xf));
+    CHECK(none.o[4][3] == 0.0f);
+    SeedVertex(menu, 40.0f, 60.0f, 0.0f, 0.0f, 0.0f);
+    menu.cb[0][10][2] = z;
+    menu.cb[0][10][3] = w;
+    CHECK(Run(menu, xf));
+    CHECK(menu.o[4][3] == 0.0f);
+}
+
+UNIT_TEST(ext_blossom_curves) {
+    // a spread of trees: plum flowers around its peak and never in summer or winter; the bloom is staggered
+    const Blossom::Species plum = Named("x|plum");
+    float z, w;
+    Blossom::Pack(plum, &z, &w);
+    int atPeak = 0, partial = 0, summer = 0, winter = 0;
+    for (int i = 0; i < 400; ++i) {
+        const NgRewrite::TreeTerms t = NgRewrite::TermsOf(17.0f * static_cast<float>(i % 23), 31.0f * static_cast<float>(i / 23));
+        float o[4];
+        Blossom::VertexOut(t, plum.peak, true, z, w, o);
+        if (o[3] > 0.0f) ++atPeak;
+        Blossom::VertexOut(t, plum.peak + 0.25f, true, z, w, o);
+        if (o[3] > 0.0f && o[3] < plum.density * 0.999f) ++partial;
+        Blossom::VertexOut(t, 5.0f, true, z, w, o);
+        if (o[3] != 0.0f) ++summer;
+        Blossom::VertexOut(t, 10.0f, true, z, w, o);
+        if (o[3] != 0.0f) ++winter;
+    }
+    CHECK(atPeak > 360);
+    CHECK(partial > 50);   // staggered: many trees part-way at once
+    CHECK_EQ(summer, 0);
+    CHECK_EQ(winter, 0);
+    // the year's wrap: a species peaking at 0 flowers on some trees in the last days of Late Winter
+    Blossom::Species early = plum;
+    early.peak = 0.0f;
+    Blossom::Pack(early, &z, &w);
+    int lateWinter = 0;
+    for (int i = 0; i < 200; ++i) {
+        float o[4];
+        Blossom::VertexOut(NgRewrite::TermsOf(13.0f * static_cast<float>(i), 7.0f * static_cast<float>(i)), 11.9f, true, z, w, o);
+        if (o[3] > 0.0f) ++lateWinter;
+    }
+    CHECK(lateWinter > 0);
+    // pink buds: before the peak cherry's green and blue are lower than its open colour
+    const Blossom::Species cherry = Named("x|cherry");
+    Blossom::Pack(cherry, &z, &w);
+    float bud[4], open[4];
+    const NgRewrite::TreeTerms t = NgRewrite::TermsOf(0.0f, 0.0f);
+    const float hj = t.h[0] + t.h[1];
+    const float j = (hj - std::floor(hj)) * 2.0f * Blossom::kJitter - Blossom::kJitter + t.grove * Blossom::kGroveShift;
+    Blossom::VertexOut(t, cherry.peak + j - 0.2f, true, z, w, bud);
+    Blossom::VertexOut(t, cherry.peak + j, true, z, w, open);
+    CHECK(bud[3] > 0.0f);
+    CHECK(Near(bud[0], open[0], 1e-6f) && bud[1] < open[1] - 0.05f && bud[2] < open[2] - 0.05f);
+}
+
+UNIT_TEST(ext_blossom_pixel_match_and_meaning) {
+    const std::vector<uint8_t> blob = PixelBlob(PsShape::Colour);
+    const NgRewrite::Match m = Analyse(blob);
+    std::vector<uint8_t> xf;
+    CHECK(NgRewrite::Transform(m, &xf));
+    const SigOut e = SigAt(xf, Dxbc::FourCC('I', 'S', 'G', 'N'), 4);
+    CHECK(e.mask == 0xF && e.rw == 0xF && e.semIx == 4 && e.name == "TEXCOORD");
+    const float n2[4] = {0.96f, 0.90f, 0.92f, 0.8f};
+    // a texel inside a flower cluster and one outside any (the CPU mirror finds them)
+    float in[2] = {-1.0f, -1.0f}, out[2] = {-1.0f, -1.0f};
+    for (int i = 0; i < 4096 && (in[0] < 0.0f || out[0] < 0.0f); ++i) {
+        const float u = 0.03f + 0.9f * static_cast<float>(i % 64) / 64.0f;
+        const float v = 0.05f + 0.9f * static_cast<float>(i / 64) / 64.0f;
+        const float f = Blossom::Pixel(u, v, n2, 0.0f, 1.0f, 0.0f).mask;
+        if (f == 1.0f && in[0] < 0.0f) {
+            in[0] = u;
+            in[1] = v;
+        }
+        if (f == 0.0f && out[0] < 0.0f) {
+            out[0] = u;
+            out[1] = v;
+        }
+    }
+    CHECK(in[0] >= 0.0f && out[0] >= 0.0f);
+    for (const float* uv : {in, out}) {
+        for (float l : {0.0f, 0.5f, 1.0f}) {
+            for (float move : {1.0f, 0.0f}) {
+                for (float deriv : {0.0f, 0.5f}) {
+                    const float leaf[4] = {uv[0], uv[1], 0.15f, 0.9f};   // the stand-in sample returns its coordinates
+                    Vm b;
+                    std::memcpy(b.v[1], leaf, sizeof leaf);
+                    b.v[2][3] = move;
+                    b.v[3][1] = l;
+                    std::memcpy(b.v[4], n2, sizeof n2);
+                    b.deriv = deriv;
+                    CHECK(Run(b, xf));
+                    float aa = 2.0f * deriv * Blossom::kAaSlope - Blossom::kAaStart * Blossom::kAaSlope;
+                    aa = aa < 0.0f ? 0.0f : (aa > 1.0f ? 1.0f : aa);
+                    const Blossom::PixelTerms p = Blossom::Pixel(uv[0], uv[1], n2, l, move, aa);
+                    CHECK(Near(b.r[2][0], (-p.lossCut * move + leaf[3]) - 0.5f, 1e-5f));   // the alpha before the cut
+                    for (int c = 0; c < 3; ++c)
+                        CHECK(Near(b.o[0][c], p.amount * (n2[c] * p.bright - leaf[c]) + leaf[c], 1e-5f));
+                    if (move == 0.0f) {   // the trunk: retail whatever the blossom
+                        CHECK(Near(b.r[2][0], leaf[3] - 0.5f, 1e-6f));
+                        for (int c = 0; c < 3; ++c) CHECK(Near(b.o[0][c], leaf[c], 1e-6f));
+                    }
+                }
+            }
+        }
+    }
+    // a bare tree (l 1) in flower keeps the flower's texels and cuts the rest; near, the flower is its colour
+    const Blossom::PixelTerms fin = Blossom::Pixel(in[0], in[1], n2, 1.0f, 1.0f, 0.0f);
+    const Blossom::PixelTerms fout = Blossom::Pixel(out[0], out[1], n2, 1.0f, 1.0f, 0.0f);
+    CHECK(fin.lossCut == 0.0f && Near(fin.amount, 1.0f, 1e-6f));
+    CHECK(fout.lossCut == 1.0f && fout.amount == 0.0f);
+    // no blossom (cov 0): the copy is the natural-growth one exactly (l' = l, no colour change)
+    const float none[4] = {0.9f, 0.9f, 0.9f, 0.0f};
+    const Blossom::PixelTerms zp = Blossom::Pixel(in[0], in[1], none, 0.6f, 1.0f, 1.0f);
+    CHECK(zp.lossCut == 0.6f && zp.amount == 0.0f);
+    // catkins: both shapes cover something
+    const float cat[4] = {0.7f, 0.7f, 0.3f, -0.8f};
+    int blossomTexels = 0, catkinTexels = 0;
+    for (int i = 0; i < 4096; ++i) {
+        const float u = static_cast<float>(i % 64) / 64.0f;
+        const float v = static_cast<float>(i / 64) / 64.0f;
+        if (Blossom::Pixel(u, v, n2, 0.0f, 1.0f, 0.0f).mask > 0.5f) ++blossomTexels;
+        if (Blossom::Pixel(u, v, cat, 0.0f, 1.0f, 0.0f).mask > 0.5f) ++catkinTexels;
+    }
+    CHECK(blossomTexels > 0 && catkinTexels > 0);
 }

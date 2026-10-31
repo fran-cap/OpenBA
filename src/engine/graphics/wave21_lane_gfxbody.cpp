@@ -295,6 +295,9 @@ extern "C" void* RtGraphics_MaterialInstance_OperatorNew(uint64_t bytes) {
 
 namespace Graphics {
 
+// EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): null unless natural tree growth is on (Material.h).
+void (*MaterialInstance::_extAfterSetup)(const MaterialInstance& instance, Video::Context& context) = nullptr;
+
 void MaterialInstance::Setup(Video::Context& context, int32_t shader) const {
     // prog = _material->_passes._data[shader]   (MOV RAX,[RCX+0x28] ;
     //                                            MOV RAX,[RAX+0x28] ;
@@ -333,6 +336,11 @@ void MaterialInstance::Setup(Video::Context& context, int32_t shader) const {
         }
         std::memcpy(dst, src, 4 * sizeof(float));       // (d) integer moves
         context._dirty |= kDirtyMaterialStagingBit;
+    }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): the blossom code for this draw; null = retail.
+    if (_extAfterSetup != nullptr) {
+        _extAfterSetup(*this, context);
     }
 }
 

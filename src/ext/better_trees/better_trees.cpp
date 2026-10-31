@@ -66,6 +66,7 @@ void Sync() {
     BbsBackend::RequestParams(bbs);   // before the row: an on request builds with it
 #endif
     BbsBackend::Request(Ext::Ext().better_trees, p.naturalGrowth);
+    SyncBlossom(p.naturalGrowth);
 }
 
 bool NaturalGrowthOn() { return Current().naturalGrowth; }
