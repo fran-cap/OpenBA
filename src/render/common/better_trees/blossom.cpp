@@ -27,7 +27,7 @@ const Species kTable[] = {
     // 2026-10-31: the first pass read as bright yellow sparks on the bare trees).
     {"birch",    {0xA0, 0x8A, 0x55}, 0.25f,   0.90f, kCatkin},     // yellow-brown lamb's tails
     {"oak",      {0xC4, 0xC2, 0x6E}, 0.28f,   1.10f, kCatkin},     // yellow-green tassels among new leaves
-    {"pecan",    {0xB8, 0xB2, 0x66}, 0.25f,   1.40f, kCatkin},     // greenish-yellow, the latest nut
+    {"pecan",    {0xE2, 0xDC, 0x8E}, 0.30f,   1.70f, kCatkin},     // greenish-yellow; later than real (1.4) so they hang among leaves, not in air
     {"walnut",   {0x7A, 0x86, 0x4A}, 0.0625f, 1.00f, kCatkin},     // green catkins: next to invisible
     {"chestnut", {0xE8, 0xDF, 0xA6}, 0.40f,   3.20f, kCatkin},     // showy cream spikes, early summer
 };

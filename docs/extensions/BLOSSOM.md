@@ -26,14 +26,21 @@ natural tree growth off are retail (the per-draw hook is null and the programs a
 | Pear | white, before or with the leaves | `#F2F1EA` | 0.70 |
 | Apple | pink buds open white with a blush, clusters of 4-6, among fresh leaves | `#F5E4E6` | 1.10 |
 | Birch | long hanging catkins, easy to see | `#A08A55` (density 0.25) | 0.90 |
-| Oak | thin yellow-green catkins, sparse, barely visible at range | `#9A9A5A` (density 0.125) | 1.10 |
-| Pecan | greenish-yellow catkins, the latest of the nuts | `#989458` (density 0.125) | 1.40 |
+| Oak | thin yellow-green catkins, sparse, barely visible at range | `#C4C26E` (density 0.28) | 1.10 |
+| Pecan | greenish-yellow catkins, the latest of the nuts | `#E2DC8E` (density 0.30) | 1.70 (real: about 1.40) |
 | Walnut | green catkins, close to invisible | `#7A864A` (density 1/16) | 1.00 |
-| Chestnut | cream catkins, mid June to early July | `#C8BF8C` (density 0.28) | 3.20 |
+| Chestnut | cream catkins, mid June to early July | `#E8DFA6` (density 0.40) | 3.20 |
 
 The catkin rows were muted to about 70 % brightness, made less saturated and thinned by about 30 % after
 the first in-game look (the user, 2026-10-31: the first values read as bright yellow sparks on the bare
 trees). Each catkin's length and each cluster's brightness also vary per cell.
+
+After the showroom zoom (same day) oak, pecan and chestnut were brightened and made denser again, since
+only the birch's catkins showed, and the streaks were made narrower and longer to read as tassels. The
+pecan peak moved from 1.40 to 1.70 by ruling (the look over realism): at 1.40 the tree is still bare and
+its catkins hang in the air past the bare branch model, which the leaf shader cannot see. At 1.70 they sit
+among the leaves, where the first olive colour went dark green in the canopy's shade, so pecan was made
+paler (`#E2DC8E`), close to the chestnut's cream.
 
 Sources: National Trust (blossom identification), specialtyproduce.com (apple blossom), Michigan State
 University thesis on apple phenology (king bloom, clusters), saps.org.uk and treeguideuk (cherry plum first),
