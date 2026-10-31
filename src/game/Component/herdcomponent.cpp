@@ -605,10 +605,6 @@ void HerdComponent::OnAdded() {
 
 // [9] 0x140121bf0. RDX is a pointer to the elapsed System::Time (EntityList
 // bucket tick 0x1400c42af).
-// HerdComponent::Update's diagnostic counters (main thread only: the update walk),
-// at namespace scope rather than function-local statics (B6-5).
-static long long s_herdUpdCalls = 0, s_herdUpdNoPop = 0, s_herdUpdNoCfg = 0, s_herdUpdFired = 0;
-
 void HerdComponent::Update(const System::Time* time) {
     const System::Time* deltaTime = time;
 
@@ -616,19 +612,7 @@ void HerdComponent::Update(const System::Time* time) {
     // (food sampling, tile validity, migration retarget), which retail derefs
     // unconditionally. A herd whose Populate never ran has +0x28 == 0, so bail
     // rather than fault; the herd simply stays idle.
-    // Update-entry census. The [Herd] census line below only prints once the
-    // respawn timer fires, so its absence cannot distinguish "Update never ran"
-    // from "ran but the timer never expired" from "bailed on a null +0x28".
-    auto& g_hu_calls = s_herdUpdCalls; auto& g_hu_noPop = s_herdUpdNoPop;
-    auto& g_hu_noCfg = s_herdUpdNoCfg; auto& g_hu_fired = s_herdUpdFired;
-    ++g_hu_calls;
     if (population == nullptr) {
-        ++g_hu_noPop;
-        if ((g_hu_noPop % 2000) == 1) {
-            ErrLine("[HerdUpd] calls=%lld noPop=%lld noCfg=%lld fired=%lld\n",
-                    g_hu_calls, g_hu_noPop, g_hu_noCfg, g_hu_fired);
-            fflush(stderr);
-        }
         return;
     }
 
@@ -636,7 +620,6 @@ void HerdComponent::Update(const System::Time* time) {
     Description* configRaw = _description;
     HerdDescription* config = ::Object::IsDerivedFromNullSafe(configRaw, HerdDescription::TypeId())
         ? static_cast<HerdDescription*>(configRaw) : nullptr;
-    if (!config) ++g_hu_noCfg;
 
     // === Timer tick: accumulate time at +0x58 ===
     spawnTimer._ticks += deltaTime->_ticks;
@@ -647,23 +630,7 @@ void HerdComponent::Update(const System::Time* time) {
     RtSystem_Time_Ctor(&interval, intervalMinutes * kRdata_140172234);
     int64_t intervalTicks = interval._ticks;
 
-    // One line per 100000 updates (it was one per 25: 129 million updates in a 2-hour town wrote a 1 GB standalone_error.log).
-    // The FIRED lines below are rare and stay.
-    if ((g_hu_calls % 100000) == 1) {
-        ErrLine("[HerdUpd] calls=%lld noPop=%lld noCfg=%lld fired=%lld | "
-                "herd=%p members=%d timer=%lld interval=%lld cfgMin=%.3f\n",
-                g_hu_calls, g_hu_noPop, g_hu_noCfg, g_hu_fired, static_cast<void*>(this),
-                members._size,
-                (long long)spawnTimer._ticks, (long long)intervalTicks, intervalMinutes);
-        fflush(stderr);
-    }
-
     if (intervalTicks < spawnTimer._ticks) {
-        ++g_hu_fired;
-        ErrLine("[HerdUpd] FIRED #%lld herd=%p members=%d (calls=%lld)\n",
-                g_hu_fired, static_cast<void*>(this),
-                members._size, g_hu_calls);
-        fflush(stderr);
         // Timer fired -- subtract interval
         spawnTimer._ticks -= intervalTicks;
 

@@ -91,7 +91,7 @@ captured from the screen instead (what was presented, overlay included).
 `drive.ps1 -ProcId <pid> toggle` = `SetForegroundWindow` + `keybd_event` Alt down (0x12), F10 down (0x79), F10 up,
 Alt up; `click <x> <y>` = `ClientToScreen` + `SetCursorPos` + `mouse_event` left down / up (client coordinates);
 `shot <png>` = `Graphics.CopyFromScreen` of the client rect; `rect`. The foreground took from a background shell
-(`foreground=True` every time). Run: launch with `BANISHED_AUTOSTART=1` (no `/profile`, so settings.cfg's rows apply),
+(`foreground=True` every time). Run: launch with `BANISHED_AUTOSTART=1 BANISHED_VITALS=1` (no `/profile`, so settings.cfg's rows apply; the census is off by default),
 wait `tools/boot_state.sh --wait 300` and the first `[EntityCensus] frame=5` line, then drive. Client coordinates at
 2560x1377 with the default layout: strength slider left end 38,410 (= 0), right end 350,410 (= 30); fill k 131,919
 (about 0.28); Rows render_pipe checkbox 49,247; Shadow max_shadow_res checkbox 49,1073; Write to settings.cfg 150,1140.

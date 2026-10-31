@@ -519,7 +519,7 @@ END {
     }
     if (!seen["plague"]) {
         print "   [Plague] tag never appeared -- UpdateHealth never ran, or the trace is off"
-        print "   (BANISHED_PLAGUE_TRACE=0). This is NOT the same as a zero count."
+        print "   (it is off unless BANISHED_PLAGUE_TRACE=1). This is NOT the same as a zero count."
     } else {
         if (boot_tuning != "") print "   " boot_tuning
         if (care_mult_zero) print "   !! careMult is ZERO -- every treated citizen dies instantly."
@@ -635,7 +635,8 @@ END {
     # ---- TORNADO detail --------------------------------------------------
     print "-- TORNADO -------------------------------------------------------------------"
     if (!seen["tornado"]) {
-        print "   [Tornado] tag never appeared -- nothing to measure (not a zero result)."
+        print "   [Tornado] tag never appeared -- nothing to measure, or the trace is off"
+        print "   (it is off unless BANISHED_TORNADO_TRACE=1). Not a zero result."
     } else {
         if (torn_init != "") print "   " torn_init
         printf "   spawns=%d waypoints=%s damageRadius=%s | path: FRACTAL=%d STRAIGHT=%d | exhausted=%d\n", \

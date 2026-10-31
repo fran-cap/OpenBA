@@ -28,7 +28,6 @@
 #include <cstdio>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "ui/Element.h"  // ENDGAME B.3.6 UI callers (K3)
-#include "object/VSlot.h"   // B.3.x W0: Object::SlotAddressOf (the [JobArrow] probe)
 #include "ui/Sprite.h"  // ENDGAME B.3.6 UI callers (K3)
 #include "ui/SpriteSheet.h"  // ENDGAME B.3.6 UI callers (K3)
 #include "object/External.h"  // ENDGAME B.3.6 UI callers (K3)
@@ -438,14 +437,11 @@ void WorkPlaceUI::OnUpdateLayout() {
     if (work->workState == 0) work->workState = work->CalcMaxWorkers();   // 0x14012e5c0
     int wpMaxCount = work->workState;
 
-    // stderr, NOT stdout, and no longer _DEBUG-only. stdout stalls in this build, so
-    // this line was invisible for its entire life. It is the discriminator for
-    // "6/6 assigned but no citizens available": `workers` comes from the roster
-    // while `assigned`/`laborers` come from the citizen loop.
-    // Capped: the first 200 lines, then one in 1000. This runs on every UI update of an open workplace window, so
-    // it wrote 2.4 million lines into a long session's standalone_error.log.
-    static unsigned long long s_wpLines = 0;
-    if (s_wpLines++ < 200 || (s_wpLines % 1000) == 0) {
+    // The discriminator for "6/6 assigned but no citizens available": `workers` comes from
+    // the roster while `assigned`/`laborers` come from the citizen loop. Debug builds only:
+    // it runs on every UI update of an open workplace window (2.4 million lines in a tester's
+    // 2-hour session when it shipped). stderr, not stdout: stdout stalls in this build.
+#ifdef _DEBUG
     fprintf(stderr,
         "[WorkPlaceUI] workers=%u/%u assigned=%d laborers=%d wpMax=%d citizens=%d "
         "wpProf=%p laborProf30=%p jt+0x28=%d jt+0x2c=%d jt+0x34=%d\n",
@@ -455,7 +451,7 @@ void WorkPlaceUI::OnUpdateLayout() {
         workDesc ? workDesc->_i2c : -1,
         workDesc ? static_cast<int>(workDesc->_b34) : -1);
     fflush(stderr);
-    }
+#endif
 
     if (workPlace->profession == professions->field_0x38) {
         // The laborer-style profession with a BuildComponent: the limit is the
@@ -476,36 +472,6 @@ void WorkPlaceUI::OnUpdateLayout() {
 
     int jobMinCount = workDesc->_i28;
 
-    // TEMPORARY INSTRUMENTATION (2026-08-15). The hunting cabin's job up-arrow is
-    // greyed out in the UI; the up-arrow's ONLY enable condition is
-    // wpMaxCount < _i2c. Print both sides of that comparison, the predicate's
-    // outcome, and each arrow's Enable slot (an unwired slot would swallow the
-    // enable). Symbolize these with nm against build/debug/OpenBA.exe.
-    {
-        static long long s_n = 0;
-        if ((++s_n % 120) == 1) {
-            const int jobMax = workDesc->_i2c;
-            // The slot comes from the member, never a literal index (B3X_RULES X3).
-            auto enableSlot = [](UI::Element* b) -> void* {
-                return b ? Object::SlotAddressOf(b, &UI::Element::Enable) : nullptr;
-            };
-            auto vptrOf = [](UI::Element* b) -> void* {
-                return b ? *reinterpret_cast<void**>(b) : nullptr;   // LEFT: diagnostic prints the vptr  // CAST-OK: crash_walk
-            };
-            std::fprintf(stderr, "[JobArrow] jobType=%p wpMaxCount=%d min(+0x28)=%d "
-                         "max(+0x2c)=%d -> upEnabled=%d downEnabled=%d | "
-                         "jobUp=%p vt=%p Enable=%p | jobDown=%p Enable=%p | "
-                         "wkUp=%p Enable=%p | wkDown=%p Enable=%p\n",
-                         static_cast<void*>(workDesc), wpMaxCount, jobMinCount, jobMax,
-                         wpMaxCount < jobMax ? 1 : 0,
-                         (wpMaxCount != jobMinCount && wpMaxCount > jobMinCount) ? 1 : 0,
-                         static_cast<void*>(jobCountUp), vptrOf(jobCountUp), enableSlot(jobCountUp),
-                         static_cast<void*>(jobCountDown), enableSlot(jobCountDown),
-                         static_cast<void*>(workerCountUp), enableSlot(workerCountUp),
-                         static_cast<void*>(workerCountDown), enableSlot(workerCountDown));
-            std::fflush(stderr);
-        }
-    }
     jobCountUp->Enable(wpMaxCount < workDesc->_i2c);
     jobCountDown->Enable(wpMaxCount != jobMinCount && wpMaxCount > jobMinCount);
 }

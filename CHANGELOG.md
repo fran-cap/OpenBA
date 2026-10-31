@@ -19,6 +19,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   no `data0.pkg`, OpenBA now shows one message that names the folder it looked in and says what to copy
   there (on Android: the USB / MTP steps into `Android/data/org.openba.game/files/WinData/`), then exits
   with code 6. Before, the boot failed with no explanation on every platform.
+- Log size: diagnostic lines that printed on every game tick or every window update no longer reach
+  `standalone_error.log` in released builds. A tester's 2-hour session had written a 1 GB log. The
+  plague, tornado and citizen-vitals traces are now off unless `BANISHED_PLAGUE_TRACE=1`,
+  `BANISHED_TORNADO_TRACE=1` or `BANISHED_VITALS=1` is set.
 
 ## v1.0.2 (2026-10-30)
 

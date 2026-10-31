@@ -122,14 +122,13 @@ static inline int64_t TimeFromSeconds(float secs) {
 // [Plague] soak instrumentation (DIAG ONLY — no behaviour change)
 // ============================================================
 // Every line reports an OUTCOME, printed from inside the guard it describes, with
-// both arms covered. Default ON; kill with BANISHED_PLAGUE_TRACE=0. The only
-// high-frequency site (the per-citizen catch roll) is a periodic census, not a
-// per-call line; every other event is inherently rare.
+// both arms covered. Default OFF; BANISHED_PLAGUE_TRACE=1 turns it on (the census and
+// the CARE lines run on every citizen update, so they never ship on by default).
 static bool PlagueTraceOn() {
     static int en = -1;
     if (en < 0) {
         const char* e = Opt().plagueTrace;
-        en = (e && (e[0] == '0' || std::strcmp(e, "false") == 0)) ? 0 : 1;
+        en = (e && e[0] != '\0' && e[0] != '0' && std::strcmp(e, "false") != 0) ? 1 : 0;
     }
     return en == 1;
 }

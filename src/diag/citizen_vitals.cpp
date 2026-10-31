@@ -28,7 +28,7 @@
 namespace {
 
 bool Enabled() {
-    return Opt().citizenVitals;          // default ON, "0" disables
+    return Opt().citizenVitals;          // BANISHED_VITALS=1
 }
 
 bool Readable(const void* p) {

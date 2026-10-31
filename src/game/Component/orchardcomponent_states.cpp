@@ -503,9 +503,11 @@ char OrchardComponent::TickTending(StateMachine* sm) {
     const bool hasWork = OrchardHasWork(_entity.Get());
 
     {   // This handler runs every frame and its four branch combinations look identical
-        // from outside. Report the deciding inputs a few times, then periodically.
+        // from outside. Report the deciding inputs the first four times only: a periodic
+        // line would print for the whole session in a shipped build.
         static int s_n = 0;
-        if (++s_n <= 4 || (s_n % 600) == 0) {
+        if (s_n < 4) {
+            ++s_n;
             std::fprintf(stderr, "[Orchard10] perFrame #%d: month=%d inSeason=%d hasWork=%d "
                          "holes=%d growth=%.6f year=%d lastHarvestYear(+0x4c)=%d -> %s\n",
                          s_n, m, (int)inSeason, (int)hasWork, OrchardHoleCount(this),
@@ -648,7 +650,8 @@ char OrchardComponent::TickHarvesting(StateMachine* sm) {
             ++doneCount;
     {
         static int s_n = 0;
-        if (++s_n <= 4 || (s_n % 600) == 0) {
+        if (s_n < 4) {
+            ++s_n;
             std::fprintf(stderr, "[Orchard11] perFrame #%d: live=%d picked=%d -> %s\n",
                          s_n, liveCount, doneCount,
                          liveCount <= doneCount ? "harvest done, request state 10" : "keep picking");
@@ -788,9 +791,10 @@ char OrchardComponent::TickClearing(StateMachine* sm) {
 
     const bool done = ca->IsDone();
     {   // "waiting on the woodcutters" and "finished" are the only two outcomes, and they
-        // look identical from outside; print the first few and then every 600 frames.
+        // look identical from outside; print the first four only.
         static int s_n = 0;
-        if (++s_n <= 4 || (s_n % 600) == 0) {
+        if (s_n < 4) {
+            ++s_n;
             std::fprintf(stderr, "[Orchard20] perFrame #%d: cleared=%d -> %s\n",
                          s_n, (int)done, done ? "request state 9 (replant)" : "still clearing");
             std::fflush(stderr);

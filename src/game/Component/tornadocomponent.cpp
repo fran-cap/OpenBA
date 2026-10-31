@@ -150,13 +150,13 @@ constexpr int kPathNodes = kPathLast + 1;   // 129
 
 // ---- tracing -------------------------------------------------------------
 // The lane is opt-in and the volume is a handful of lines per tornado (spawn,
-// one per damage tick, one per 16 waypoints, exhaustion, expiry), so tracing is on
-// by default whenever the feature is. BANISHED_TORNADO_TRACE=0 silences it.
+// one per damage tick, one per 16 waypoints, exhaustion, expiry). Off by default, as
+// every gameplay trace is; BANISHED_TORNADO_TRACE=1 turns it on.
 int g_trace = -1;
 bool TraceOn() {
     if (g_trace < 0) {
         const char* v = Opt().tornadoTrace;
-        g_trace = (v && (std::strcmp(v, "0") == 0 || std::strcmp(v, "false") == 0)) ? 0 : 1;
+        g_trace = (v && v[0] != '\0' && std::strcmp(v, "0") != 0 && std::strcmp(v, "false") != 0) ? 1 : 0;
     }
     return g_trace != 0;
 }

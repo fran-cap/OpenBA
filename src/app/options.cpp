@@ -291,7 +291,7 @@ void OptionsInit() {
     {   const char* v = Raw("BANISHED_LOD_CENSUS");
         o.lodCensus = v && v[0] != '0'; }
     {   const char* v = Raw("BANISHED_VITALS");
-        o.citizenVitals = !(v && v[0] == '0'); }          // default ON, "0" disables
+        o.citizenVitals = v && v[0] != '0'; }
 
     // ── gameplay harnesses (raw; each parses at its own site) ────────────────
     o.builders              = Raw("BANISHED_BUILDERS");

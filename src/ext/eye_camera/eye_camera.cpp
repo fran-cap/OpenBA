@@ -232,9 +232,12 @@ bool Active() {
         float heading = 0.0f;
         if (!SampleCitizen(front, 1.0f, true, feet, heading, g_scale)) {
             // No ModelComponent: nothing to put an eye on (retail's follow has
-            // no camera write for it either). Asked again next step.
+            // no camera write for it either). Asked again next step, so the line is
+            // debug only: it would print every step.
+#ifdef _DEBUG
             std::fprintf(stderr, "[EyeCamera] engage refused reason=no-model entity=%p dialog=%p\n",
                          static_cast<const void*>(front), static_cast<const void*>(dialog));
+#endif
             return false;
         }
         g_latched.entity = front;

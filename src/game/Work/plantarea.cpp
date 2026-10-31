@@ -295,22 +295,8 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
 // param4 packed: low 16 = primary cell, high 16 = paired cell.
 // ============================================================
 
-// Slot-traffic census (BANISHED_PLANTAREA_TRACE). A dropped plant action leaves its
-// set entry and its cleared mark in place forever unless the cancel/validate path
-// reclaims it. Counting the three slots separates "never dispatched" from "runs and
-// does not restore".
-namespace { void PA_SlotHit(const char* which) {
-    static long long s_complete = 0, s_cancel = 0, s_validate = 0, s_n = 0;
-    if (which[0] == 'C') ++s_complete; else if (which[0] == 'X') ++s_cancel; else ++s_validate;
-    if ((++s_n % 10) == 0) {
-        std::fprintf(stderr, "[PlantSlots] OnComplete=%lld OnCancel=%lld Validate=%lld\n",
-                     s_complete, s_cancel, s_validate);
-        std::fflush(stderr);
-    }
-} }
 int PlantArea::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** /*param3*/, int arg3) {
     const uint32_t param4 = static_cast<uint32_t>(arg3);
-    PA_SlotHit("C");
 
     uint32_t primaryIdx = param4 & 0xFFFF;
     uint32_t pairedIdx = (param4 >> 16) & 0xFFFF;
@@ -370,7 +356,6 @@ int PlantArea::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** /*par
 // ============================================================
 int PlantArea::OnCancel(CitizenComponent** /*param2*/, ComponentEntity** /*param3*/, int arg3) {
     const uint32_t param4 = static_cast<uint32_t>(arg3);
-    PA_SlotHit("X");
 
     uint32_t primaryIdx = param4 & 0xFFFF;
     uint32_t pairedIdx = (param4 >> 16) & 0xFFFF;
@@ -446,8 +431,6 @@ int PlantArea::Cleanup() {
 // Marks invalid cells as valid (available for re-planting).
 // ============================================================
 int PlantArea::Validate() {
-    PA_SlotHit("V");
-
     int* collectArray = nullptr;
     int* currentArray = nullptr;
     uint32_t collectCount = 0;
