@@ -58,8 +58,7 @@ struct Packet {
     Graphics::Material* uiMaterial = nullptr;   // step 8's ExternalPtr<Material>
     float               view[16]   = {};        // step 10: AsMatrix of the camera's transform
     float               proj[16]   = {};        // step 10: the camera's projection
-    Tool*               tool       = nullptr;   // step 11 (null: not drawn)
-    char                toolFlag   = 0;         // step 11: UI captured or paused
+    // Step 11 carries nothing: the emit reads the current tool and its flag live (EngineOps::ToolDraw).
     bool                sharpUi    = false;     // step 12: ext.sharp_ui at record time
 
     // ---- ext.ambient_occlusion (AOCORE): the game's arm, carried by value ----
