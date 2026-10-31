@@ -43,6 +43,7 @@
 #include "Game/exe_constants.h"   // kRdata_*
 #include "ext/render_culling/render_culling.h"
 #include "ext/terrain_batch/terrain_batch.h"   // ext.terrain_batch: the row merge + the shadow chunk cull
+#include "ext/better_water/better_water.h"     // ext.better_water: the shore pass after a water range
 #include "object/Internal.h"   // Object::detail::InternalMemFree
 #include <atomic>
 #include <cstdint>
@@ -432,6 +433,14 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
         // Original order at LAB_1400aed0e: (param_2, 0, iVar7, iVar8, iVar9, iVar10, 1)
         //   iVar7 = arr[1], iVar8 = arr[2], iVar9 = arr[0], iVar10 = arr[3].
         context.DrawIndexed(0, range.values[1], range.values[2], range.values[0], range.values[3], 1);
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md): ext.better_water draws the
+        // range once more with its shore pixel program over retail's water, then rebinds the water's.
+        if (Ext::BetterWater::Enabled()) {
+            const Ext::BetterWater::Kind kind =
+                mode == 0x8000 ? Ext::BetterWater::Kind::Lake : Ext::BetterWater::Kind::River;
+            Ext::BetterWater::DrawShore(context, kind, range.values[1], range.values[2], range.values[0],
+                                        range.values[3]);
+        }
     };
 
     if (mode == 0x8000) {

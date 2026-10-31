@@ -56,6 +56,7 @@ struct Contribution {
 // The contributions (defined beside their extensions).
 const Contribution& AmbientOcclusionEntry();
 const Contribution& BetterTreesEntry();
+const Contribution& BetterWaterEntry();   // src/ext/better_water/enhanced_entry.cpp: ext.better_water (BETTERWATER)
 const Contribution& MaxShadowResEntry();
 const Contribution& SeamlessLoopsEntry();
 const Contribution& TextureQualityEntry();   // src/ext/texture_quality/enhanced_entry.cpp (TEXQUALITY)

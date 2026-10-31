@@ -14,6 +14,7 @@ std::mutex g_mu;
 Ao         g_ao;
 Faa        g_faa;
 Bbs        g_bbs;
+Water      g_water;
 }  // namespace
 
 Ao AoValues() {
@@ -44,6 +45,16 @@ Bbs BbsValues() {
 void SetBbs(const Bbs& v) {
     std::lock_guard<std::mutex> lock(g_mu);
     g_bbs = v;
+}
+
+Water WaterValues() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_water;
+}
+
+void SetWater(const Water& v) {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_water = v;
 }
 
 }  // namespace Tweak

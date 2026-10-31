@@ -21,7 +21,8 @@
 
 #include "ext/ambient_occlusion/ao_math.h"
 #include "ext/better_trees/better_trees.h"
-#include "better_trees/receiver_rewrite.h"   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
+#include "better_trees/receiver_rewrite.h"
+#include "ext/better_water/shore_params.h"   // ext.better_water's look (BETTERWATER)   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
 
 namespace Ext {
 namespace Tweak {
@@ -46,6 +47,9 @@ struct Faa {
     float fillFloor = BetterTrees::kDistanceFillFloor;
 };
 
+struct Water {
+    BetterWater::ShoreParams p;   // ext.better_water's shore look, read by DrawShore every water range
+};
 struct Bbs {
     BbsRewrite::Params p = BbsRewrite::kDefaultParams;   // ext.better_trees' basis / margin / jitter / noise / noiseScale (TS-TWEAK)
 };
@@ -56,6 +60,8 @@ Faa  FaaValues();
 void SetFaa(const Faa& v);
 Bbs  BbsValues();
 void SetBbs(const Bbs& v);
+Water WaterValues();
+void  SetWater(const Water& v);
 
 }  // namespace Tweak
 }  // namespace Ext

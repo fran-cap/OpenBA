@@ -97,6 +97,7 @@ struct Extensions {
     bool ambient_occlusion = false; // class A: src/ext/ambient_occlusion/ (docs/extensions/AO.md)
     bool max_shadow_res = false; // class A: src/ext/max_shadow_res/ (the Enhanced tab row) + the Graphics::SunLight seam (docs/extensions/handins/FAA-SHADOW.md)
     bool seamless_loops = false; // class A, next start: src/ext/seamless_loops/ (docs/extensions/handins/SEAMLESS.md)
+    bool better_water = false; // class A, live: src/ext/better_water/, seam WorldGeometry's water-range draw (docs/extensions/handins/BETTERWATER.md)
     bool better_trees = false; // class A: src/ext/better_trees/ (docs/extensions/handins/BETTER-TREES.md): smooth leaf edges + stable tree shading + edge dapple
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten
