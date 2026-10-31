@@ -37,6 +37,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   `standalone_error.log` in released builds. A tester's 2-hour session had written a 1 GB log. The
   plague, tornado and citizen-vitals traces are now off unless `BANISHED_PLAGUE_TRACE=1`,
   `BANISHED_TORNADO_TRACE=1` or `BANISHED_VITALS=1` is set.
+- A crash in large towns at high game speed (`ext.render_culling`): a citizen or building removed while
+  offscreen no longer leaves entries behind that the next frame without a game tick writes through. Seen
+  after 7.8 hours in a 1588-citizen town (`docs/known_port_issues.md` row 1346).
+- Render thread (`ext.render_pipe`): no more long lines flickering across the screen, and no more crash of
+  the render thread, most often seen while placing a building with a radius circle (a well, a market)
+  and moving the camera. The frame copy the render thread draws from wrote two parts of itself over each
+  other (`docs/known_port_issues.md` row 1347).
 
 ## v1.0.2 (2026-10-30)
 

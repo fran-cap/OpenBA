@@ -11,6 +11,7 @@
 #include "system/Value.h"
 #include <cstdio>
 #include <cstring>
+#include <algorithm>   // std::remove / remove_if (Forget*)
 #include <new>       // placement new — the retslot door body at the call site
 #include <vector>
 #include "math/Math.h"       // -Iruntime/types
@@ -323,6 +324,32 @@ void Reset() {
     s_deferredReplays.clear();
     s_haveFrustum = false;
     s_simRanThisFrame = false;
+}
+
+void ForgetModel(ModelComponent* model) {
+    if (!s_culledModels.empty())
+        s_culledModels.erase(std::remove(s_culledModels.begin(), s_culledModels.end(), model),
+                             s_culledModels.end());
+    if (!s_deferredPicks.empty())
+        s_deferredPicks.erase(std::remove_if(s_deferredPicks.begin(), s_deferredPicks.end(),
+                                             [model](const DeferredPick& d) { return d.model == model; }),
+                              s_deferredPicks.end());
+}
+
+void ForgetPick(Picking::Scene* scene, uint32_t id) {
+    if (s_deferredPicks.empty()) return;
+    s_deferredPicks.erase(std::remove_if(s_deferredPicks.begin(), s_deferredPicks.end(),
+                                         [scene, id](const DeferredPick& d) {
+                                             return d.scene == scene && d.id == id;
+                                         }),
+                          s_deferredPicks.end());
+}
+
+void ForgetIcon(StatusIconComponent* obj) {
+    if (s_deferredReplays.empty()) return;
+    s_deferredReplays.erase(std::remove_if(s_deferredReplays.begin(), s_deferredReplays.end(),
+                                           [obj](const DeferredReplay& d) { return d.obj == obj; }),
+                            s_deferredReplays.end());
 }
 
 static inline bool PlanesVisible(const float* p, float m) {
