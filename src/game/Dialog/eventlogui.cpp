@@ -90,12 +90,14 @@ void EventLogUI::OnOpened() {
     // button, set element IDs
     int rowCount = displayTexts._size;
     for (int i = 0; i < rowCount; i++) {
-        // Child text element (direct child at index i)
-        displayTexts[i] = displayElem->Child(i);
+        // The "display" table is 2 columns (buttonEvent, textEvent) by GetRowCount rows,
+        // so it holds two children per row. Retail steps the child index by 2
+        // (0x1400678ce `lea r8d,[rsi+1]`, 0x1400678f1 `mov r8d,esi`, 0x140067961
+        // `add esi,2`): the text is child 2*i+1, the row's button child 2*i.
+        displayTexts[i] = displayElem->Child(2 * i + 1);
 
-        // The same child, as the row's button (the retail check is against
-        // Object::Internal, i.e. any element)
-        displayButtons[i] = displayElem->Child(i);
+        // The row's button (the retail check is against Object::Internal, i.e. any element)
+        displayButtons[i] = displayElem->Child(2 * i);
 
         // Set element ID on the button: 0x6C + index
         displayButtons[i]->SetElementId(0x6C + i);
@@ -152,10 +154,13 @@ void EventLogUI::OnUpdateLayout() {
 
     // Rows are filled bottom-up: the newest visible event lands in the BOTTOM row.
     // Entry index for row `row` = firstIdx - (displayCount-1) + row, where
-    // firstIdx = totalEvents - scrollOffset - 1 (the newest visible entry). The exe
-    // skips the whole fill if firstIdx < 0 (no events yet). (0x140067471..)
+    // firstIdx = totalEvents - scrollOffset - 1 (the newest visible entry). A row whose
+    // index is below 0 is blanked and its button disabled. The loop runs whenever there is
+    // a row: retail's one early exit (0x140067485 JS) tests displayCount-1, the flags of
+    // the DEC at 0x14006747d (the MOVSXDs between them set none), NOT firstIdx. With no
+    // events yet, or scrolled past the oldest, every row is blanked.
     int firstIdx = totalEvents - scroll - 1;
-    if (firstIdx >= 0) {
+    if (displayCount - 1 >= 0) {
         int base = firstIdx - (displayCount - 1);
         EventLogEntry* eventArray = eventLog->entries.GetData();
         for (int row = displayCount - 1; row >= 0; row--) {
