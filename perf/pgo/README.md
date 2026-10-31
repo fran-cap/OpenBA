@@ -70,12 +70,13 @@ aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol); they were
 The counters of both runs are summed (GCC merges on exit). Trained on the 50x run alone the
 profile gave only -4% at 10x; the mix gives -10% at 10x with nothing lost at 50x.
 
-## Other platforms (later)
-The recipe ports, the files do not. Linux (g++) needs its own set, trained in WSL2 on lavapipe
-(the sim is CPU-bound, lavapipe only slows the draw). macOS and Android are clang:
-`-fprofile-instr-generate`, merge the `.profraw` with `llvm-profdata`, build with
-`-fprofile-instr-use`; Android trains on the device and pulls the raw profile with adb. None of
-them can train in CI (no game data), each set is a committed artifact like this one.
+## Other platforms
+The recipe ports, the files do not. **Android** has its own (`perf/pgo/android/README.md`, P12): the
+NDK's clang, `-fprofile-generate` on the device, the `.profraw` files pulled with adb and merged with
+`llvm-profdata` into `perf/pgo/android/openba.profdata`, which the release apk reads. Linux (g++) would
+need its own set, trained in WSL2 on lavapipe (the sim is CPU-bound, lavapipe only slows the draw);
+macOS is clang like Android. None of them can train in CI (no game data), each set is a committed
+artifact like this one.
 
 ## How the numbers were taken
 `tools/stress_run.sh --no-build --speed 50 --frames 3000` and the 10x default, two runs per exe,

@@ -34,6 +34,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace FrameLimiter {
 
 // Pace the calling thread so successive Tick() calls are at least one frame
@@ -57,5 +59,9 @@ double GetFps();
 
 // The ceiling the last Tick / TickInGame paced to, in FPS (0 if that loop is not paced).
 double GetCapFps();
+
+// How long the last Tick / TickInGame waited for its deadline, us (0: not paced, or late).
+// ext.render_pipe's overlap governor counts it as the frame's idle time.
+int64_t LastWaitUs();
 
 } // namespace FrameLimiter

@@ -21,10 +21,11 @@
 // PIPELINES. A monolithic VkPipeline per PipelineKey: (vertex shader, pixel shader, linked flag,
 // vertex layout, render state, topology, colour format, depth format, sample count). Viewport,
 // scissor, stencil reference and the vertex strides are dynamic state (strides: core 1.3
-// VERTEX_INPUT_BINDING_STRIDE), so none of them is in the key. Vertex-input dynamic state
-// (VK_EXT_vertex_input_dynamic_state) is NOT used in P2: in this game a vertex shader implies its
-// layout, so dropping the layout from the key saves almost no pipelines; P7 stopped enabling the
-// extension (Qualcomm's Adreno guidance: avoid it).
+// VERTEX_INPUT_BINDING_STRIDE), so none of them is in the key; the 1.1 path (vulkan11.h) has no
+// dynamic stride and keys the strides (PipelineKey::strides), which the warm list then records.
+// Vertex-input dynamic state (VK_EXT_vertex_input_dynamic_state) is NOT used in P2: in this game a
+// vertex shader implies its layout, so dropping the layout from the key saves almost no pipelines; P7
+// stopped enabling the extension (Qualcomm's Adreno guidance: avoid it).
 // A pair whose interpolants do not link by register (Shaders::StagesCompatible false) gets a pixel
 // module converted again with the vertex stage's outputs (ConvertOptions::previousStage), cached per
 // pair. The VkPipelineCache persists in the user's derived-data folder (vulkan_pipelines.bin in
@@ -74,11 +75,17 @@ uint32_t DynamicConstantBuffers();
 //     moves to another chunk) and bound with its dynamic offsets.
 // Measured on the S25: the descriptor work was 37-42% of the render thread on the 40-binding layouts
 // (docs/android/PERF_P7.md §3.3). Without the extension the one-layout path above stays.
+// P13, THE 1.1 PATH's PIXEL SET (docs/android/P13_CPU.md): on a device without Vulkan 1.3 (vulkan11.h)
+// set 1 is a pool set like set 0 (constant buffers UNIFORM_BUFFER_DYNAMIC, found again by its contents,
+// bound with the ring offsets): the S10's Adreno 640 driver prices a push at ~2.8 us and a bind at
+// almost nothing. The 1.3 path keeps the push (P7 measured the opposite trade on the S25's 1.3 driver).
+// A pair whose two stages' constant buffers exceed maxDescriptorSetUniformBuffersDynamic pushes.
 struct PairLayout {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     VkDescriptorSetLayout vertexSet = VK_NULL_HANDLE;   // set 0, allocated from the frame's pools
     uint32_t vertexCbs = 0;                             // its dynamic constant buffers (popcount)
     uint32_t vertexBindings = 0;                        // its descriptors in all
+    VkDescriptorSetLayout pixelSet = VK_NULL_HANDLE;    // P13: set 1 as a pool set; null = pushed
 };
 bool PushDescriptors();
 // The pair's layouts on the push path (cached; the pointer stays valid until PipelinesShutdown; null
@@ -167,7 +174,9 @@ struct PipelineKey {
     uint8_t samples = 1;
     uint8_t linked = 0;          // the pixel shader is the pair's linked conversion
     uint8_t msrtss = 0;          // P3: `samples` is the tiler's MSAA on single-sampled attachments
-    uint8_t pad[8] = {};
+    // The 1.1 path (vulkan11.h): the vertex strides of streams 0..7, baked into the pipeline (no
+    // VERTEX_INPUT_BINDING_STRIDE there). All 0 on the 1.3 path, where the stride is dynamic.
+    uint8_t strides[8] = {};
 };
 static_assert(sizeof(PipelineKey) == 72, "PipelineKey is hashed as bytes: no padding");
 

@@ -6,6 +6,8 @@
 
 #include "pipelines.h"
 #include "device_objects.h"
+#include "spirv_legalize.h"
+#include "vulkan11.h"
 
 #include "ext/derived_cache/derived_cache.h"   // CacheDir, OpenShared: the user's derived-data folder
 #include "ext/derived_cache/hash64.h"
@@ -66,6 +68,7 @@ struct StageMasks {
     uint32_t cb = 0;
     uint32_t tex = 0;
     uint32_t smp = 0;   // P8: the further pairs' bits k (BindingOfSampler(k)); no separate sampler is left
+    uint32_t pooled = 0;   // P13: a pixel set made as a pool set (PairLayout::pixelSet); 0 in a pair's key
 };
 struct PairMasks {
     StageMasks vs;
@@ -82,6 +85,7 @@ struct MasksEqual {
     }
 };
 bool g_push = false;
+bool g_pooledPixel = false;   // P13: the 1.1 path's pixel set (pipelines.h PairLayout::pixelSet)
 std::mutex g_pushLock;
 std::vector<std::pair<StageMasks, VkDescriptorSetLayout>> g_pushSetLayouts;
 std::unordered_map<PairMasks, PairLayout, MasksHash, MasksEqual> g_pushLayouts;   // nodes: stable pointers
@@ -315,7 +319,9 @@ bool SameSemantic(const std::string& a, const char* b) {
 // The vertex input of (layout, vertex shader), exactly as D3D11 links an input layout whose element i
 // is (TEXCOORD, i): every input the shader reads is fed by the element of its semantic index. A shader
 // input no element feeds fails the pipeline, as CreateInputLayout fails on DX11 (nothing is drawn).
+// `strides`: the key's (PipelineKey::strides), used on the 1.1 path only.
 bool BuildVertexInput(const std::vector<LayoutElement>& elements, const Shaders::ShaderReflection& vs,
+                      const uint8_t* strides,
                       std::vector<VkVertexInputBindingDescription>* bindings,
                       std::vector<VkVertexInputAttributeDescription>* attributes, std::string* why) {
     uint32_t streamMask = 0;
@@ -344,6 +350,7 @@ bool BuildVertexInput(const std::vector<LayoutElement>& elements, const Shaders:
         VkVertexInputBindingDescription b{};
         b.binding = s;
         b.stride = 0;   // dynamic (VERTEX_INPUT_BINDING_STRIDE): the stride the engine binds
+        if (Vulkan11Path() && s < sizeof(PipelineKey::strides)) b.stride = strides[s];
         b.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
         bindings->push_back(b);
     }
@@ -352,6 +359,39 @@ bool BuildVertexInput(const std::vector<LayoutElement>& elements, const Shaders:
 
 bool HasStencil(VkFormat f) {
     return f == VK_FORMAT_D24_UNORM_S8_UINT || f == VK_FORMAT_D32_SFLOAT_S8_UINT;
+}
+
+// The 1.1 path (spirv_legalize.h WidenInputs): the width of each plain vertex output at component 0,
+// by Location; 0 where there is none.
+void OutputWidths(const Shaders::ShaderReflection& vs, uint32_t widths[32]) {
+    for (uint32_t i = 0; i < 32; ++i)
+        widths[i] = 0;
+    for (const Shaders::IoElement& out : vs.outputs) {
+        const bool plain = out.builtIn == Shaders::IoElement::kNoBuiltIn && out.location < 32;
+        if (!plain || !(out.componentMask & 1u)) continue;
+        widths[out.location] = 32u - static_cast<uint32_t>(__builtin_clz(out.componentMask));
+    }
+}
+
+// The 1.1 path: true when a vertex output is wider than the pixel input at its Location, which only
+// maintenance4 allows: the pair then gets its own pixel module, with those inputs widened.
+bool OutputsWider(const Shaders::ShaderReflection& vs, const Shaders::ShaderReflection& ps) {
+    uint32_t widths[32];
+    OutputWidths(vs, widths);
+    for (const Shaders::IoElement& in : ps.inputs) {
+        const bool plain = in.builtIn == Shaders::IoElement::kNoBuiltIn && in.location < 32;
+        if (!plain || !(in.componentMask & 1u)) continue;
+        if (32u - static_cast<uint32_t>(__builtin_clz(in.componentMask)) < widths[in.location]) return true;
+    }
+    return false;
+}
+
+// PipelineKey::linked for the pair: its interpolants do not link by register, or (the 1.1 path) a vertex
+// output is wider than its pixel input.
+uint8_t LinkedFlag(const ShaderEntry* vs, const ShaderEntry* ps) {
+    if (!ps) return 0;
+    if (!Shaders::StagesCompatible(vs->reflection, ps->reflection)) return 1;
+    return (Vulkan11Path() && OutputsWider(vs->reflection, ps->reflection)) ? 1 : 0;
 }
 
 // The pair's linked pixel module (pipelines.h): converted once per (vertex, pixel) pair.
@@ -372,6 +412,12 @@ VkShaderModule LinkedPixelModule(const ShaderEntry* vs, const ShaderEntry* ps, s
                                 Shaders::Stage::Pixel, &spirv, &refl, &hit, why, options)) {
         return VK_NULL_HANDLE;
     }
+    uint32_t widened = 0;
+    if (Vulkan11Path()) {
+        uint32_t widths[32];
+        OutputWidths(vs->reflection, widths);
+        if (!Shaders::WidenInputs(&spirv, widths, &widened, why)) return VK_NULL_HANDLE;
+    }
     VkShaderModule module = CreateShaderModule(spirv, why);
     if (!module) return VK_NULL_HANDLE;
     std::lock_guard<std::mutex> guard(g_linkLock);
@@ -383,6 +429,9 @@ VkShaderModule LinkedPixelModule(const ShaderEntry* vs, const ShaderEntry* ps, s
     std::fprintf(stderr, "[Vulkan] linked pixel shader %016llx for vertex shader %016llx (%s)\n",
                  static_cast<unsigned long long>(ps->hash), static_cast<unsigned long long>(vs->hash),
                  hit ? "cache" : "converted");
+    if (widened) {
+        std::fprintf(stderr, "[Vulkan] 1.1 path: %u pixel input(s) widened to the vertex outputs\n", widened);
+    }
     return module;
 }
 
@@ -405,19 +454,21 @@ uint32_t BindingCount(const StageMasks& m) {
 }
 
 // g_pushLock held. The set layout of one stage's masks (made once): the pixel set is a push set with
-// plain uniform buffers, the vertex set a pool set with dynamic ones (pipelines.h, THE PAIR LAYOUTS).
+// plain uniform buffers, the vertex set a pool set with dynamic ones (pipelines.h, THE PAIR LAYOUTS);
+// P13: a pixel set with `pooled` is made as the vertex set is.
 VkDescriptorSetLayout PairSetLayoutLocked(const StageMasks& m) {
     for (const auto& entry : g_pushSetLayouts) {
         if (std::memcmp(&entry.first, &m, sizeof(StageMasks)) == 0) return entry.second;
     }
     const bool vertex = m.set == Shaders::kSetVertex;
+    const bool pool = vertex || m.pooled != 0;
     const VkShaderStageFlags stage = vertex ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
     std::vector<VkDescriptorSetLayoutBinding> bindings;
     for (uint32_t r = 0; r < Shaders::kMaxConstantBuffers; ++r) {
         if (!((m.cb >> r) & 1)) continue;
         VkDescriptorSetLayoutBinding b{};
         b.binding = Shaders::BindingOfConstantBuffer(r);
-        b.descriptorType = vertex ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        b.descriptorType = pool ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC : VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         b.descriptorCount = 1;
         b.stageFlags = stage;
         bindings.push_back(b);
@@ -441,7 +492,7 @@ VkDescriptorSetLayout PairSetLayoutLocked(const StageMasks& m) {
         }
     }
     auto li = Make<VkDescriptorSetLayoutCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
-    li.flags = vertex ? 0 : VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+    li.flags = pool ? 0 : VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
     li.bindingCount = static_cast<uint32_t>(bindings.size());
     li.pBindings = bindings.data();
     VkDescriptorSetLayout layout = VK_NULL_HANDLE;
@@ -468,7 +519,9 @@ VkPipeline BuildPipeline(const PipelineKey& key, const ShaderEntry* vs, const Sh
     }
     std::vector<VkVertexInputBindingDescription> bindings;
     std::vector<VkVertexInputAttributeDescription> attributes;
-    if (!BuildVertexInput(elements, vs->reflection, &bindings, &attributes, why)) return VK_NULL_HANDLE;
+    if (!BuildVertexInput(elements, vs->reflection, key.strides, &bindings, &attributes, why)) {
+        return VK_NULL_HANDLE;
+    }
 
     VkShaderModule psModule = VK_NULL_HANDLE;
     if (ps) {
@@ -554,6 +607,7 @@ VkPipeline BuildPipeline(const PipelineKey& key, const ShaderEntry* vs, const Sh
                                         VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE };
     auto dyn = Make<VkPipelineDynamicStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO);
     dyn.dynamicStateCount = static_cast<uint32_t>(sizeof(dynamics) / sizeof(dynamics[0]));
+    if (Vulkan11Path()) dyn.dynamicStateCount -= 1;   // the strides are the binding descriptions'
     dyn.pDynamicStates = dynamics;
     const VkFormat color = static_cast<VkFormat>(key.colorFormat);
     const VkFormat depth = static_cast<VkFormat>(key.depthFormat);
@@ -568,7 +622,6 @@ VkPipeline BuildPipeline(const PipelineKey& key, const ShaderEntry* vs, const Sh
     // validation layer's "unexpected VkStructureType"); key.msrtss keeps those pipelines apart.
 
     auto pi = Make<VkGraphicsPipelineCreateInfo>(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
-    pi.pNext = &ri;
     pi.stageCount = ps ? 2 : 1;
     pi.pStages = stages;
     pi.pVertexInputState = &vi;
@@ -579,6 +632,7 @@ VkPipeline BuildPipeline(const PipelineKey& key, const ShaderEntry* vs, const Sh
     pi.pDepthStencilState = &ds;
     pi.pColorBlendState = &cb;
     pi.pDynamicState = &dyn;
+    SetPipelineTargets(&pi, &ri);
     // P7: the pair's own layout on the push path; the game layout (sets from the frame's pools) when
     // push descriptors are off, or for a pair whose pixel stage declares more bindings than
     // maxPushDescriptors (PairLayoutFor answers null; the draw then takes the pool path).
@@ -697,6 +751,12 @@ void LoadWarmList() {
             ok = static_cast<bool>(f) && Unhex(e, &element, sizeof(element));
             r.elements.push_back(element);
         }
+        // The 1.1 path's strides (PipelineKey::strides), written only when one is set: "S" + 16 hex digits.
+        std::string strides;
+        if (ok && f >> strides) {
+            ok = strides.size() == 17 && strides[0] == 'S' &&
+                 Unhex(strides.substr(1), r.key.strides, sizeof(r.key.strides));
+        }
         if (!ok) continue;
         r.key.layout = InternLayout(r.elements.data(), r.elements.size());
         if (!g_recordKeys.insert(r.key).second) continue;
@@ -717,6 +777,10 @@ void SaveWarmList() {
                Hex(&r.key.state, sizeof(StateBlock)) + " " + std::to_string(r.elements.size());
         for (const LayoutElement& e : r.elements)
             out += " " + Hex(&e, sizeof(e));
+        const uint8_t noStrides[sizeof(r.key.strides)] = {};
+        if (std::memcmp(r.key.strides, noStrides, sizeof(noStrides)) != 0) {
+            out += " S" + Hex(r.key.strides, sizeof(r.key.strides));
+        }
         out += "\n";
     }
     if (!WriteWhole(WarmPath(), out.data(), out.size())) {
@@ -761,6 +825,8 @@ void WarmMain() {
         ShaderEntry* vs = AcquireShader(key.vs);
         ShaderEntry* ps = key.ps ? AcquireShader(key.ps) : nullptr;
         if (vs && (ps || key.ps == 0)) {
+            // A record written on the 1.3 path does not know the 1.1 path's linked pairs.
+            if (Vulkan11Path()) key.linked = LinkedFlag(vs, ps);
             std::string why;
             VkPipeline p = BuildPipeline(key, vs, ps, &why);
             if (p) {
@@ -818,6 +884,7 @@ bool PipelinesStartup(std::string* why) {
     // P7: the push-descriptor path (pipelines.h) wherever the extension is (its spec floor is 32).
     g_push = LiveCaps().pushDescriptor && vkCmdPushDescriptorSetKHR != nullptr &&
              LiveCaps().maxPushDescriptors >= 32;
+    g_pooledPixel = g_push && Vulkan11Path();
 
     g_persist = Ext::CurrentProfile() != Ext::Profile::Faithful && Ext::DerivedCache::CacheDir(g_cacheDir) &&
                 Platform::EnsureDirChain(ToPath(g_cacheDir).c_str());
@@ -851,7 +918,9 @@ bool PipelinesStartup(std::string* why) {
     std::fprintf(stderr, "[Vulkan] pipelines: layout set0/set1 x %u bindings, %u dynamic constant buffer(s) per set, "
                          "cache %zu bytes loaded%s; descriptors %s\n",
                  kSetBindings, g_dynamicCbs, blob.size(), g_persist ? "" : " (no cache folder: nothing persists)",
-                 g_push ? "a layout per shader pair (pixel set pushed, vertex set pooled)" : "sets from per-frame pools");
+                 !g_push         ? "sets from per-frame pools"
+                 : g_pooledPixel ? "a layout per shader pair (pixel and vertex sets pooled: the 1.1 path)"
+                                 : "a layout per shader pair (pixel set pushed, vertex set pooled)");
     return true;
 }
 
@@ -897,6 +966,7 @@ void PipelinesShutdown() {
         g_pushSetLayouts.clear();
     }
     g_push = false;
+    g_pooledPixel = false;
     for (VkDescriptorSetLayout& l : g_setLayouts) {
         if (l) vkDestroyDescriptorSetLayout(LiveDevice(), l, nullptr);
         l = VK_NULL_HANDLE;
@@ -939,7 +1009,11 @@ const PairLayout* PairLayoutFor(const Shaders::ShaderReflection& vs, const Shade
     if (it != g_pushLayouts.end()) return it->second.layout ? &it->second : nullptr;
     PairLayout pair;
     if (BindingCount(key.ps) <= LiveCaps().maxPushDescriptors) {
-        VkDescriptorSetLayout sets[2] = { PairSetLayoutLocked(key.vs), PairSetLayoutLocked(key.ps) };
+        StageMasks ps = key.ps;
+        ps.pooled = g_pooledPixel &&
+                    static_cast<uint32_t>(__builtin_popcount(key.vs.cb) + __builtin_popcount(key.ps.cb)) <=
+                        LiveProperties().limits.maxDescriptorSetUniformBuffersDynamic;
+        VkDescriptorSetLayout sets[2] = { PairSetLayoutLocked(key.vs), PairSetLayoutLocked(ps) };
         if (sets[0] && sets[1]) {
             auto pl = Make<VkPipelineLayoutCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
             pl.setLayoutCount = 2;
@@ -953,6 +1027,7 @@ const PairLayout* PairLayoutFor(const Shaders::ShaderReflection& vs, const Shade
         pair.vertexSet = sets[0];
         pair.vertexCbs = static_cast<uint32_t>(__builtin_popcount(key.vs.cb));
         pair.vertexBindings = BindingCount(key.vs);
+        if (ps.pooled) pair.pixelSet = sets[1];
     }
     if (!pair.layout) {
         std::fprintf(stderr,
@@ -1039,7 +1114,7 @@ uint64_t InternLayout(const LayoutElement* elements, size_t count) {
 // ---- pipelines ---------------------------------------------------------------------------------------
 
 VkPipeline ResolvePipeline(PipelineKey& key, const ShaderEntry* vs, const ShaderEntry* ps, const PairLayout** pair) {
-    key.linked = (ps && !Shaders::StagesCompatible(vs->reflection, ps->reflection)) ? 1 : 0;
+    key.linked = LinkedFlag(vs, ps);
     *pair = g_push ? PairLayoutFor(vs->reflection, ps ? &ps->reflection : nullptr) : nullptr;
     {
         std::lock_guard<std::mutex> guard(g_pipelineLock);

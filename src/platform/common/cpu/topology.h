@@ -12,10 +12,11 @@
 //      watchdog / sampler / SDL threads exist;
 //   2. clamps it to the system mask and applies it (Platform::CpuSetProcessAffinity:
 //      SetProcessAffinityMask / sched_setaffinity);
-//   3. queries the topology inside the resulting mask and caches it;
+//   3. queries the topology inside the resulting mask and caches it; on a heterogeneous SoC
+//      (Android P12, roster.h THE BIG CORES) `physical` counts the big cores only;
 //   4. prints one stderr line (standalone_error.log):
 //        [Cpu] mask=0x.. logical=N physical=M limit=<applied|none|clamped>
-//              source=<topology|fallback:reason>[ requested=0x..]
+//              source=<topology|fallback:reason>[ requested=0x..][ big=0x..]
 // Cpu::Get() returns the cached struct from then on (read-once, like Ext::Ext()).
 // No getenv, no BANISHED_* flag.
 // ============================================================================
@@ -30,7 +31,9 @@ namespace Cpu {
 struct Topology {
     uint64_t mask      = 0;    // the process affinity mask (after the limit); 0 = unknown
     int      logical   = 1;    // popcount(mask)
-    int      physical  = 1;    // physical cores with a CPU in mask (== logical on fallback)
+    int      physical  = 1;    // physical cores with a CPU in bigMask (== logical on fallback)
+    uint64_t bigMask   = 0;    // the big CPUs of mask (roster.h BigCoreMask); == mask on a uniform machine
+    bool     heterogeneous = false;   // bigMask != mask: the roster is sized on the big cores
     bool     topology  = false;   // physical came from the OS topology query
     const char* reason = "not-booted";   // the fallback's reason (static string)
     Limit    limit     = Limit::None;

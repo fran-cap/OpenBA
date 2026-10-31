@@ -8,12 +8,19 @@
 // ============================================================================
 #include "seeded_create.h"
 
+#include "device_objects.h"
+
 #include "compress_ao/compress_ao.h"
 #include "share_gpu_data/share_create.h"
 
 #include "compress_ao/bc4_chain.h"
 
+#include "bc_decode/bc_decode.h"
+#include "etc2/etc2_chain.h"
+#include "ext/derived_cache/derived_cache.h"
+
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -50,8 +57,9 @@ bool MakeTexture(const TextureShape& s, const SourceLevel* levels, int count, bo
     // seeded from a resource file (the baked AO maps), every level of its chain present and the top level
     // a multiple of 4 each way, is made BC4 from its levels encoded (or found in the derived cache). The
     // engine image keeps format 4; only the Vulkan format and the uploads change.
-    std::vector<uint8_t> bc4;
-    std::vector<size_t> bc4Offsets;
+    std::vector<uint8_t> converted;   // the levels rewritten (BC4, or BC1 / BC3 decoded), back to back
+    std::vector<size_t> convertedOffsets;
+    bool decoded = false;
     if (seeded && CompressAo::Requested() && s.kind == 2 && s.format == 4 && !s.cube && s.layers == 1 &&
         (s.width & 3) == 0 && (s.height & 3) == 0 && count == static_cast<int>(s.mips) && count > 0) {
         std::vector<::CompressAo::Level> in(static_cast<size_t>(count));
@@ -60,7 +68,7 @@ bool MakeTexture(const TextureShape& s, const SourceLevel* levels, int count, bo
             in[static_cast<size_t>(i)].size = static_cast<int64_t>(levels[i].size);
         }
         if (::CompressAo::Encode(in.data(), count, static_cast<int>(s.width), static_cast<int>(s.height),
-                                 static_cast<uint32_t>(s.format), &bc4, &bc4Offsets)) {
+                                 static_cast<uint32_t>(s.format), &converted, &convertedOffsets)) {
             made->bc4 = true;
             desc.format = VK_FORMAT_BC4_UNORM_BLOCK;
             desc.swizzle = VkComponentMapping{ VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY,
@@ -70,6 +78,69 @@ bool MakeTexture(const TextureShape& s, const SourceLevel* levels, int count, bo
         }
     }
 
+    // NOT RETAIL (P13, docs/android/P13_MEM.md): a device without textureCompressionBC that samples ETC2
+    // (ImageFormat made the image RGBA8): every BC1 / BC3 level transcoded to ETC2 at the same size, or
+    // found in the derived cache; the image made in the ETC2 format. A level shorter than its blocks
+    // leaves the texture to the RGBA8 decode below.
+    bool transcoded = false;
+    if (compressed && !made->bc4 && desc.format == VK_FORMAT_R8G8B8A8_UNORM && levels != nullptr && count > 0 &&
+        LiveCaps().etc2Transcode) {
+        std::vector<Etc2Chain::Level> in(static_cast<size_t>(count));
+        for (int i = 0; i < count; ++i) {
+            const uint32_t mip = static_cast<uint32_t>(i) % desc.mips;
+            in[static_cast<size_t>(i)].data = static_cast<const uint8_t*>(levels[i].data);
+            in[static_cast<size_t>(i)].size = levels[i].size;
+            in[static_cast<size_t>(i)].width = static_cast<int>(std::max(desc.width >> mip, 1u));
+            in[static_cast<size_t>(i)].height = static_cast<int>(std::max(desc.height >> mip, 1u));
+        }
+        Etc2Chain::Target target = Etc2Chain::Target::Rgb8;
+        if (Etc2Chain::Transcode(in.data(), count, static_cast<int>(desc.width), static_cast<int>(desc.height), s.format,
+                                 Ext::DerivedCache::OpenShared(), &converted, &convertedOffsets, &target)) {
+            static std::atomic<bool> logged{ false };
+            if (!logged.exchange(true)) {
+                std::fprintf(stderr, "[Vulkan] no textureCompressionBC: BC1 / BC3 textures transcoded to ETC2 at "
+                                     "load\n");
+            }
+            desc.format = target == Etc2Chain::Target::Rgba8    ? VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK
+                          : target == Etc2Chain::Target::Rgb8A1 ? VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK
+                                                                : VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+            transcoded = true;
+        }
+    }
+
+    // NOT RETAIL: a device without textureCompressionBC (ImageFormat made the image RGBA8) and without the
+    // transcode above: each BC1 / BC3 level decoded, a level shorter than its blocks left empty (counted
+    // short below).
+    if (compressed && !made->bc4 && !transcoded && desc.format == VK_FORMAT_R8G8B8A8_UNORM && levels != nullptr) {
+        static std::atomic<bool> logged{ false };
+        if (!logged.exchange(true)) {
+            std::fprintf(stderr, "[Vulkan] no textureCompressionBC: BC1 / BC3 textures decoded to RGBA8 "
+                                 "at load\n");
+        }
+        convertedOffsets.push_back(0);
+        for (int i = 0; i < count; ++i) {
+            const uint32_t mip = static_cast<uint32_t>(i) % desc.mips;
+            const int w = static_cast<int>(std::max(desc.width >> mip, 1u));
+            const int h = static_cast<int>(std::max(desc.height >> mip, 1u));
+            const size_t need = s.format == 0 ? BcDecode::Bc1Size(w, h) : BcDecode::Bc3Size(w, h);
+            if (levels[i].size >= need) {
+                const size_t at = converted.size();
+                converted.resize(at + static_cast<size_t>(w) * h * 4);
+                const auto* src = static_cast<const uint8_t*>(levels[i].data);
+                if (s.format == 0) {
+                    BcDecode::DecodeBC1(src, w, h, converted.data() + at, w * 4);
+                } else {
+                    BcDecode::DecodeBC3(src, w, h, converted.data() + at, w * 4);
+                }
+            }
+            convertedOffsets.push_back(converted.size());
+        }
+        decoded = true;
+        compressed = false;
+        unit = 4;
+    }
+    const bool rewritten = made->bc4 || decoded || transcoded;
+
     // The levels into one staging blob, each region at a 16-byte boundary (a texel / block multiple).
     std::vector<ImageRegion> regions;
     std::vector<ShareGpuData::LevelBytes> keyLevels;
@@ -78,7 +149,8 @@ bool MakeTexture(const TextureShape& s, const SourceLevel* levels, int count, bo
     if (levels != nullptr && count > 0) {
         size_t total = 0;
         for (int i = 0; i < count; ++i) {
-            const size_t size = made->bc4 ? bc4Offsets[static_cast<size_t>(i) + 1] - bc4Offsets[static_cast<size_t>(i)]
+            const size_t size = rewritten ? convertedOffsets[static_cast<size_t>(i) + 1] -
+                                                convertedOffsets[static_cast<size_t>(i)]
                                           : levels[i].size;
             total += (size + 15) / 16 * 16;
         }
@@ -93,9 +165,9 @@ bool MakeTexture(const TextureShape& s, const SourceLevel* levels, int count, bo
                                            : static_cast<size_t>(w) * h * unit;
             const uint8_t* src = static_cast<const uint8_t*>(levels[i].data);
             size_t have = levels[i].size;
-            if (made->bc4) {
-                src = bc4.data() + bc4Offsets[static_cast<size_t>(i)];
-                have = bc4Offsets[static_cast<size_t>(i) + 1] - bc4Offsets[static_cast<size_t>(i)];
+            if (rewritten) {
+                src = converted.data() + convertedOffsets[static_cast<size_t>(i)];
+                have = convertedOffsets[static_cast<size_t>(i) + 1] - convertedOffsets[static_cast<size_t>(i)];
             }
             if (have < need) {
                 made->shortLevel = true;

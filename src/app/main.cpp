@@ -1091,7 +1091,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR lpCmdLine, int) {
 // the program name as one string; argv[1..] joined by single spaces is the same string for
 // any argument without embedded spaces. The platform handle is null: Engine::Engine stores
 // it for Application::PlatformStartup, whose window is SDL's (Phase D.4 SDL W3).
+//
+// Android (P12): libmain.so is built with hidden visibility (CMakeLists.txt), so `main`, the one
+// symbol SDL's activity looks up by name (SDL_android.c nativeRunMain: dlsym), is exported here.
 // ============================================================
+#if defined(__ANDROID__)
+__attribute__((visibility("default")))
+#endif
 int main(int argc, char** argv) {
     // The working directory the logs below are opened in (platform_app.h: Android moves to its
     // data folder; every other platform runs where it was launched).

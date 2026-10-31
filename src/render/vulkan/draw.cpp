@@ -14,6 +14,7 @@
 #include "present.h"
 #include "pipelines.h"
 #include "resources.h"
+#include "vulkan11.h"
 #include "create_on_demand/lazy_create.h"   // P4: ext.create_on_demand's use gate around a draw
 
 #include "video/Buffers.h"
@@ -105,6 +106,24 @@ struct VertexSetKey {
     VkSampler sampler[kImageBindings] = {};
 };
 
+// P7, the pair-layout path: one pixel-set descriptor as compared bytes (binding, a handle and an
+// offset; P13: the offset is 0 for a pooled set's constant buffer, whose offset is dynamic).
+struct PushedValue {
+    uint32_t binding = 0;
+    uint32_t pad = 0;
+    uint64_t a = 0;
+    uint64_t b = 0;
+};
+
+// P13, the 1.1 path (pipelines.h PairLayout::pixelSet): the contents of a pooled pixel set. Only the
+// first `count` values are compared and hashed.
+struct PixelSetKey {
+    VkPipelineLayout layout = VK_NULL_HANDLE;
+    uint32_t count = 0;
+    uint32_t pad = 0;
+    PushedValue values[Shaders::kBindingsPerSet];
+};
+
 struct SlotResources {
     std::vector<GpuBuffer> ring;   // constant-buffer chunks
     size_t chunk = 0;
@@ -113,6 +132,8 @@ struct SlotResources {
     size_t pool = 0;
     std::unordered_map<uint64_t, std::vector<std::pair<SetKey, VkDescriptorSet>>> sets;
     std::vector<std::pair<VertexSetKey, VkDescriptorSet>> vertexSets;   // P7: the pair-layout path
+    // P13: the pooled pixel sets, by the hash of their key.
+    std::unordered_map<uint64_t, std::vector<std::pair<PixelSetKey, VkDescriptorSet>>> pixelSets;
 };
 SlotResources g_slots[kFramesInFlight];
 
@@ -132,14 +153,8 @@ struct Target {
     VkExtent2D extent{};
 };
 
-// P7, the pair-layout path: the pixel set's pushed descriptors, as compared bytes (binding, a handle
-// and an offset). `count` 0xFFFFFFFF = nothing pushed into this command buffer yet.
-struct PushedValue {
-    uint32_t binding = 0;
-    uint32_t pad = 0;
-    uint64_t a = 0;
-    uint64_t b = 0;
-};
+// P7, the pair-layout path: the pixel set's pushed descriptors (PushedValue, above SlotResources).
+// `count` 0xFFFFFFFF = nothing pushed into this command buffer yet.
 struct PushedStage {
     VkPipelineLayout layout = VK_NULL_HANDLE;
     uint32_t count = 0xFFFFFFFFu;
@@ -154,6 +169,19 @@ struct VertexSetState {
     VkDescriptorSet set = VK_NULL_HANDLE;
     bool bound = false;
     const PairLayout* boundPair = nullptr;
+    VkDescriptorSet boundSet = VK_NULL_HANDLE;
+    uint32_t offsetCount = 0;
+    uint32_t offsets[kCbSlots] = {};
+};
+
+// P13, the 1.1 path: the pooled pixel set last found (key / set) and the one bound in this command
+// buffer with its dynamic offsets.
+struct PixelSetState {
+    bool found = false;
+    PixelSetKey key;
+    VkDescriptorSet set = VK_NULL_HANDLE;
+    bool bound = false;
+    VkPipelineLayout boundLayout = VK_NULL_HANDLE;
     VkDescriptorSet boundSet = VK_NULL_HANDLE;
     uint32_t offsetCount = 0;
     uint32_t offsets[kCbSlots] = {};
@@ -189,10 +217,12 @@ struct Frame {
     // P7, the pair-layout path (pipelines.h): the pixel set last pushed, the vertex set last bound.
     PushedStage pushed;
     VertexSetState vertex;
+    PixelSetState pixel;          // P13: the 1.1 path's pooled pixel set
     // Counters for the frame line.
     uint32_t passes = 0;
     uint32_t setsAllocated = 0;
     uint32_t pushes = 0;
+    uint32_t pixelBinds = 0;      // P13: pooled pixel-set binds (the 1.1 path)
     uint32_t depthPasses = 0;     // P7: passes with the main depth attached (THE DEPTH DISCARD)
     uint32_t depthDiscards = 0;
     uint32_t targetPasses = 0;    // passes on render buffers other than the main one
@@ -305,6 +335,7 @@ void ResetCommandState() {
     g_frame.setsBound = false;
     g_frame.pushed.count = 0xFFFFFFFFu;
     g_frame.vertex.bound = false;
+    g_frame.pixel.bound = false;
 }
 
 // ---- the main targets ----
@@ -317,6 +348,7 @@ void DestroyMainTargets() {
     g_depthReadable.store(false);
     if (sampled) {
         Retire([sampled]() {
+            ForgetImageView(sampled);
             if (LiveDevice()) vkDestroyImageView(LiveDevice(), sampled, nullptr);
         });
     }
@@ -510,7 +542,7 @@ bool ResolveTarget(const Video::RenderBuffer* rb, Target* t) {
 
 void EndPass() {
     if (!g_frame.passActive) return;
-    vkCmdEndRendering(g_frame.target.cb);
+    CmdEndRendering(g_frame.target.cb);
     g_frame.passActive = false;
 }
 
@@ -613,7 +645,7 @@ bool BeginPass(const Target& t) {
     ri.pColorAttachments = t.color ? &color : nullptr;
     ri.pDepthAttachment = t.depth ? &depth : nullptr;
     ri.pStencilAttachment = hasStencil ? &stencil : nullptr;
-    vkCmdBeginRendering(cb, &ri);
+    CmdBeginRendering(cb, ri, &t.colorFormat, t.depthFormat, static_cast<VkSampleCountFlagBits>(t.samples));
     g_frame.passActive = true;
     g_frame.pass = t;
     g_clear = PendingClear{};
@@ -910,16 +942,98 @@ VkDescriptorSet StageSet(Shaders::Stage stage, const Shaders::ShaderReflection* 
     return set;
 }
 
+// P13, the 1.1 path (pipelines.h PairLayout::pixelSet): finds (or makes) the pooled pixel set of
+// `values` (PushPixelSet's descriptors, the constant buffers at offset 0) and binds it with the
+// constant buffers' ring offsets when anything differs from the bound one: BindVertexSet's model.
+// False when no set could be allocated.
+bool BindPixelSet(VkCommandBuffer cb, const PairLayout& pair, const PushedValue* values,
+                  const VkDescriptorType* types, uint32_t n, const uint32_t* offsets, uint32_t nOffsets) {
+    if (n == 0) return true;
+    const uint32_t s = Shaders::kSetPixel;
+    PixelSetState& p = g_frame.pixel;
+    if (!p.found || p.key.layout != pair.layout || p.key.count != n ||
+        std::memcmp(p.key.values, values, n * sizeof(PushedValue)) != 0) {
+        p.key.layout = pair.layout;
+        p.key.count = n;
+        std::memcpy(p.key.values, values, n * sizeof(PushedValue));
+        uint64_t hash = 1469598103934665603ull ^ reinterpret_cast<uint64_t>(pair.layout);   // CAST-OK: a handle
+        const auto* bytes = reinterpret_cast<const uint8_t*>(values);   // CAST-OK: hashing a POD's bytes
+        for (size_t i = 0; i < n * sizeof(PushedValue); ++i) {
+            hash ^= bytes[i];
+            hash *= 1099511628211ull;
+        }
+        SlotResources& slot = g_slots[g_frame.target.slot];
+        auto& bucket = slot.pixelSets[hash];
+        VkDescriptorSet set = VK_NULL_HANDLE;
+        for (const auto& entry : bucket) {
+            if (entry.first.layout == pair.layout && entry.first.count == n &&
+                std::memcmp(entry.first.values, values, n * sizeof(PushedValue)) == 0) {
+                set = entry.second;
+                break;
+            }
+        }
+        if (!set) {
+            set = AllocateSet(pair.pixelSet);
+            if (!set) {
+                p.found = false;
+                return false;
+            }
+            VkDescriptorBufferInfo buffers[Shaders::kBindingsPerSet];
+            VkDescriptorImageInfo images[Shaders::kBindingsPerSet];
+            VkWriteDescriptorSet writes[Shaders::kBindingsPerSet];
+            for (uint32_t i = 0; i < n; ++i) {
+                writes[i] = Make<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);
+                writes[i].dstSet = set;
+                writes[i].dstBinding = values[i].binding;
+                writes[i].descriptorCount = 1;
+                if (types[i] == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+                    buffers[i].buffer = reinterpret_cast<VkBuffer>(values[i].a);   // CAST-OK: the handle stored above
+                    buffers[i].offset = 0;
+                    buffers[i].range = kConstantBufferRange;
+                    writes[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                    writes[i].pBufferInfo = &buffers[i];
+                } else {
+                    images[i].sampler = reinterpret_cast<VkSampler>(values[i].b);       // CAST-OK: as above
+                    images[i].imageView = reinterpret_cast<VkImageView>(values[i].a);   // CAST-OK: as above
+                    images[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    writes[i].descriptorType = types[i];
+                    writes[i].pImageInfo = &images[i];
+                }
+            }
+            vkUpdateDescriptorSets(LiveDevice(), n, writes, 0, nullptr);
+            bucket.emplace_back(p.key, set);
+        }
+        p.found = true;
+        p.set = set;
+    }
+    if (!p.bound || p.boundLayout != pair.layout || p.boundSet != p.set || p.offsetCount != nOffsets ||
+        std::memcmp(p.offsets, offsets, nOffsets * sizeof(uint32_t)) != 0) {
+        vkCmdBindDescriptorSets(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pair.layout, s, 1, &p.set, nOffsets, offsets);
+        p.bound = true;
+        p.boundLayout = pair.layout;
+        p.boundSet = p.set;
+        p.offsetCount = nOffsets;
+        std::memcpy(p.offsets, offsets, nOffsets * sizeof(uint32_t));
+        ++g_frame.pixelBinds;
+    }
+    return true;
+}
+
 // P7, the pair-layout path (pipelines.h): pushes the pixel set (set 1) for the bound resources the
 // pixel shader reads into the pair's layout, unless this command buffer already holds exactly those.
 // The same resources StageSet picks: the ring copy of each constant buffer, the bound view or a
-// placeholder of the declared type (the hazard slots read the placeholder), the sampler.
-void PushPixelSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::ShaderReflection* refl) {
+// placeholder of the declared type (the hazard slots read the placeholder), the sampler. P13: a pair
+// with a pooled pixel set (the 1.1 path) binds those resources through BindPixelSet instead. False when
+// no set could be allocated.
+bool PushPixelSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::ShaderReflection* refl) {
     const uint32_t s = Shaders::kSetPixel;
     const uint32_t cbMask = refl ? refl->constantBufferMask : 0;
+    const bool pooled = pair.pixelSet != VK_NULL_HANDLE;   // P13: the 1.1 path
     PushedValue values[Shaders::kBindingsPerSet];
     VkDescriptorType types[Shaders::kBindingsPerSet];
+    uint32_t offsets[kCbSlots];
     uint32_t n = 0;
+    uint32_t nOffsets = 0;
     for (uint32_t b = 0; b < kCbSlots; ++b) {
         if (!((cbMask >> b) & 1)) continue;
         CbBinding& c = g_bound.cbs[s][b];
@@ -927,7 +1041,11 @@ void PushPixelSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sha
         values[n] = PushedValue{};
         values[n].binding = Shaders::BindingOfConstantBuffer(b);
         values[n].a = reinterpret_cast<uint64_t>(c.buffer);   // CAST-OK: a handle compared as bytes
-        values[n].b = c.offset;
+        if (pooled) {
+            offsets[nOffsets++] = static_cast<uint32_t>(c.offset);
+        } else {
+            values[n].b = c.offset;
+        }
         types[n] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         ++n;
     }
@@ -944,15 +1062,16 @@ void PushPixelSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sha
         types[n] = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         ++n;
     }
+    if (pooled) return BindPixelSet(cb, pair, values, types, n, offsets, nOffsets);
     PushedStage& last = g_frame.pushed;
     if (last.layout == pair.layout && last.count == n &&
         std::memcmp(last.values, values, n * sizeof(PushedValue)) == 0) {
-        return;
+        return true;
     }
     last.layout = pair.layout;
     last.count = n;
     std::memcpy(last.values, values, n * sizeof(PushedValue));
-    if (n == 0) return;
+    if (n == 0) return true;
     VkDescriptorBufferInfo buffers[Shaders::kBindingsPerSet];
     VkDescriptorImageInfo images[Shaders::kBindingsPerSet];
     VkWriteDescriptorSet writes[Shaders::kBindingsPerSet];
@@ -975,6 +1094,7 @@ void PushPixelSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sha
     }
     vkCmdPushDescriptorSetKHR(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pair.layout, s, n, writes);
     ++g_frame.pushes;
+    return true;
 }
 
 // P7, the pair-layout path: finds (or makes) the vertex set (set 0) of the bound constant buffers and
@@ -1052,8 +1172,9 @@ bool BindVertexSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sh
         v.boundSet = v.set;
         v.offsetCount = n;
         std::memcpy(v.offsets, offsets, n * sizeof(uint32_t));
-        // A new set 0 of another layout disturbs set 1: the pixel set is pushed again.
+        // A new set 0 of another layout disturbs set 1: the pixel set is pushed (or bound) again.
         g_frame.pushed.count = 0xFFFFFFFFu;
+        g_frame.pixel.bound = false;
     }
     return true;
 }
@@ -1108,11 +1229,31 @@ void BindStreams(VkCommandBuffer cb) {
         std::memcmp(strides, g_frame.vstrides, sizeof(VkDeviceSize) * last) == 0) {
         return;
     }
-    vkCmdBindVertexBuffers2(cb, 0, last, buffers, offsets, nullptr, strides);
+    CmdBindVertexBuffers2(cb, 0, last, buffers, offsets, strides);
     std::memcpy(g_frame.vbuffers, buffers, sizeof(buffers));
     std::memcpy(g_frame.voffsets, offsets, sizeof(offsets));
     std::memcpy(g_frame.vstrides, strides, sizeof(strides));
     g_frame.vbuffersSet = true;
+}
+
+// The 1.1 path (vulkan11.h): no dynamic vertex strides, so the pipeline key carries what BindStreams
+// binds (0 for a stream with no buffer: it reads the zero buffer's first element). False, the draw
+// skipped, for a stride the key cannot hold (stream 8 or later, or past 255 bytes).
+bool KeyStrides(PipelineKey* key) {
+    const uint32_t mask = g_bound.layout ? g_bound.layout->streamMask : 0;
+    for (uint32_t i = 0; i < kStreams; ++i) {
+        if (!((mask >> i) & 1)) continue;
+        const StreamBinding& s = g_bound.streams[i];
+        const uint32_t stride = BufferOf(s.vb) ? s.stride : 0;
+        if (stride == 0) continue;
+        if (i >= sizeof(key->strides) || stride > 255) {
+            LogOnce(32, "1.1 path: a vertex stride the pipeline key cannot hold (stream 8+ or over 255 "
+                        "bytes): its draws are skipped");
+            return false;
+        }
+        key->strides[i] = static_cast<uint8_t>(stride);
+    }
+    return true;
 }
 
 // The render-state block D3D11 uses with no state bound (the default blend / depth / raster states).
@@ -1212,6 +1353,10 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
     key.samples = static_cast<uint8_t>(g_frame.pass.samples);
     key.msrtss = g_frame.pass.msrtss ? 1 : 0;
     key.linked = g_frame.lastValid ? g_frame.lastKey.linked : 0;
+    if (Vulkan11Path() && !KeyStrides(&key)) {
+        ++g_frame.failedDraws;
+        return;
+    }
     VkPipeline pipeline = VK_NULL_HANDLE;
     const PairLayout* pair = nullptr;
     if (g_frame.lastValid && std::memcmp(&key, &g_frame.lastKey, sizeof(PipelineKey)) == 0) {
@@ -1272,7 +1417,10 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
             ++g_frame.failedDraws;
             return;
         }
-        PushPixelSet(cb, *pair, ps ? &ps->reflection : nullptr);
+        if (!PushPixelSet(cb, *pair, ps ? &ps->reflection : nullptr)) {
+            ++g_frame.failedDraws;
+            return;
+        }
     } else {
         uint32_t offsets[2][kCbSlots];
         VkDescriptorSet sets[2];
@@ -1284,6 +1432,7 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
         }
         g_frame.vertex.bound = false;
         g_frame.pushed.count = 0xFFFFFFFFu;
+        g_frame.pixel.bound = false;
         BindSets(cb, sets, offsets);
     }
 
@@ -1334,11 +1483,15 @@ void DrawShutdown() {
         s.pools.clear();
         s.sets.clear();
         s.vertexSets.clear();
+        s.pixelSets.clear();
         s.chunk = 0;
         s.offset = 0;
         s.pool = 0;
     }
-    if (g_main.depthSampled) vkDestroyImageView(LiveDevice(), g_main.depthSampled, nullptr);
+    if (g_main.depthSampled) {
+        ForgetImageView(g_main.depthSampled);
+        vkDestroyImageView(LiveDevice(), g_main.depthSampled, nullptr);
+    }
     DestroyImageNow(&g_main.depth);
     DestroyImageNow(&g_main.color);
     g_main = MainTargets{};
@@ -1361,6 +1514,7 @@ void DrawBeginFrame(const FrameTarget& target) {
     s.pool = 0;
     s.sets.clear();
     s.vertexSets.clear();
+    s.pixelSets.clear();
     const PipelineKey lastKey = g_frame.lastKey;
     const VkPipeline lastPipeline = g_frame.lastPipeline;
     const PairLayout* const lastPair = g_frame.lastPair;
@@ -1460,11 +1614,11 @@ void DrawLogFrame(uint64_t frame, const Video::Context* context) {
     TakeUploadStats(&uploadBytes, &batches);
     std::fprintf(stderr,
                  "[Vulkan] frame=%llu draws=%d triangles=%d vertices=%d objects=%d | passes=%u (other targets %u) "
-                 "resolves=%u reads=%u sets=%u pushes=%u depth %u/%u discarded (%u mispredicted) ring=%lluB failed=%u | "
+                 "resolves=%u reads=%u sets=%u pushes=%u pixel binds=%u depth %u/%u discarded (%u mispredicted) ring=%lluB failed=%u | "
                  "pipelines +%u built +%u warmed %u failed | uploads %llu KB in %u batch(es)\n",
                  static_cast<unsigned long long>(frame), context->_drawsSubmitted, context->_trianglesSubmitted,
                  context->_verticesSubmitted, context->_objectsSubmitted, g_frame.passes, g_frame.targetPasses,
-                 g_frame.resolves, g_frame.reads, g_frame.setsAllocated, g_frame.pushes,
+                 g_frame.resolves, g_frame.reads, g_frame.setsAllocated, g_frame.pushes, g_frame.pixelBinds,
                  g_frame.depthDiscards, g_frame.depthPasses, g_discard.Mispredicts(),
                  static_cast<unsigned long long>(g_frame.ringBytes), g_frame.failedDraws, built, warmed, failed, static_cast<unsigned long long>(uploadBytes >> 10),
                  batches);
@@ -1643,7 +1797,7 @@ bool DrawReadImage(ImageBufferData* image, void* dst, int width, int height) {
         FlushBarriers(cb, &g_barriers);
         vkCmdCopyImageToBuffer(cb, image->image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1,
                                &region);
-        vkCmdPipelineBarrier2(cb, &hostDep);
+        CmdPipelineBarrier2(cb, hostDep);
         g_frame.target.cb = SubmitFrameSoFar();
         ResetCommandState();
         g_discard.Note(StructureToken(&image->state, 'Q'));
@@ -1667,7 +1821,7 @@ bool DrawReadImage(ImageBufferData* image, void* dst, int width, int height) {
         FlushBarriers(cb, &g_barriers);
         vkCmdCopyImageToBuffer(cb, image->image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1,
                                &region);
-        vkCmdPipelineBarrier2(cb, &hostDep);
+        CmdPipelineBarrier2(cb, hostDep);
         if (was != VK_IMAGE_LAYOUT_UNDEFINED) TransitionImage(image->state, was, &g_barriers);
         FlushBarriers(cb, &g_barriers);
         vkEndCommandBuffer(cb);
@@ -1912,7 +2066,7 @@ bool DrawAoBegin(AoTargets* out) {
         auto dep = Make<VkDependencyInfo>(VK_STRUCTURE_TYPE_DEPENDENCY_INFO);
         dep.memoryBarrierCount = 1;
         dep.pMemoryBarriers = &resolved;
-        vkCmdPipelineBarrier2(g_frame.target.cb, &dep);
+        CmdPipelineBarrier2(g_frame.target.cb, dep);
     }
     TransitionImage(g_main.depthState, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &g_barriers);
     FlushBarriers(g_frame.target.cb, &g_barriers);

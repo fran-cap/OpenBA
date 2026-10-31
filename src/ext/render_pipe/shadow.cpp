@@ -21,6 +21,7 @@
 // packet. A difference names a writer between the gather and the emit.
 // ============================================================================
 #include "ext/render_pipe/render_pipe_internal.h"
+#include "ext/render_pipe/snapshot.h"
 
 #include <cstdint>
 #include <cstring>
@@ -46,7 +47,13 @@ public:
     void U32(uint32_t v) { U64(v); }
     void F(float f)      { uint32_t u; std::memcpy(&u, &f, 4); U64(u); }
     void P(const void* p) { U64(static_cast<uint64_t>(std::hash<const void*>{}(p))); }
+    // A pointer the snapshot replaces by its copy's (a Geometry, a particle pool, a pose array):
+    // left out when the live frame and its copies are compared (P13_OVERLAP.md).
+    void Own(const void* p) {
+        if (ownPointers) P(p);
+    }
     uint64_t Value() const { return _h; }
+    bool ownPointers = true;
 
     void V3(const Math::Vector3& v) { F(v.x); F(v.y); F(v.z); }
     void V4(const Math::Vector4& v) { F(v.x); F(v.y); F(v.z); F(v.w); }
@@ -83,17 +90,23 @@ void HashMesh(Hasher& h, const Graphics::MeshInstance& mi) {
     const int32_t count = mesh->GetNodes()._size;
     const int32_t handle = mi._animation._layers._data[mi._animation._layers._size - 1]._handle;
     if (handle < 0) return;
-    const Graphics::AnimationManager::Instance& inst =
-        Graphics::AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
-    const Graphics::InterpolatedState<Math::Transform>* const pose =
-        inst._states._data[handle & 0xff]._nodes._data;
-    h.P(pose);
+    // P13_OVERLAP: a frozen copy's pose is its own record (snapshot.h).
+    const Graphics::InstancedAnimationState* const frozen = FrozenInstancedState(mi);
+    const Graphics::InterpolatedState<Math::Transform>* pose = nullptr;
+    if (frozen != nullptr) {
+        pose = frozen->_nodes._data;
+    } else {
+        const Graphics::AnimationManager::Instance& inst =
+            Graphics::AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
+        pose = inst._states._data[handle & 0xff]._nodes._data;
+    }
+    h.Own(pose);
     for (int32_t k = 0; k < count; ++k) h.XfPair(pose[k]);
 }
 
 void HashParticles(Hasher& h, const Graphics::ParticleInstance& pi) {
     const RtGraphics::ParticleBoundsRecord* const pool = pi._boundsPtr;
-    h.P(pool);
+    h.Own(pool);
     if (pool == nullptr) return;
     h.I32(pool->_liveCount);
     for (int32_t i = 0; i < pool->_liveCount && i < pool->_records._size; ++i) {
@@ -107,7 +120,7 @@ void HashParticles(Hasher& h, const Graphics::ParticleInstance& pi) {
 }
 
 void HashGeometry(Hasher& h, const Graphics::Geometry* g) {
-    h.P(g);
+    h.Own(g);
     if (g == nullptr) return;
     h.I32(g->_detailId);
     h.U32(g->_dirtyFlags);
@@ -123,7 +136,7 @@ void HashGeometry(Hasher& h, const Graphics::Geometry* g) {
 }
 
 void HashItem(Hasher& h, const Graphics::RendererDrawItem& it) {
-    h.P(it._geometry);
+    h.Own(it._geometry);
     h.P(it._material);
     h.P(it._instance);
     h.U32(it._flags);
@@ -137,8 +150,9 @@ void HashItem(Hasher& h, const Graphics::RendererDrawItem& it) {
 
 }  // namespace
 
-uint64_t HashFrame(const Graphics::Renderer& r, const Graphics::SunLight* sun) {
+uint64_t HashFrame(const Graphics::Renderer& r, const Graphics::SunLight* sun, bool ownPointers) {
     Hasher h;
+    h.ownPointers = ownPointers;
     h.I32(r._sceneGroups._size);
     for (int32_t i = 0; i < r._sceneGroups._size; ++i) {
         const Graphics::RendererSceneEntry& e = r._sceneGroups._data[i];

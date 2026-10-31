@@ -4,7 +4,7 @@
 // NOT RETAIL. The metal-shader-check twin (tools/metal/shader_check.mm) for the Vulkan backend,
 // docs/vulkan/PLAN.md §4.2 / §5 P1 ("every retail shader converts and passes spirv-val").
 //
-//   vulkan-shader-check <game dir> [--spirv-val <exe>]
+//   vulkan-shader-check <game dir> [--spirv-val <exe>] [--vulkan1.1]
 //   (cmake --build build/cmake-debug-vulkan -t vulkan-shader-check)
 //
 // Reads the user's own install, never a copy: every <game dir>/WinData/*.pkg (the top level only,
@@ -17,12 +17,15 @@
 // companions make), its cache payload is encoded and decoded back (the entry round trip), and the
 // module is validated with `spirv-val --target-env vulkan1.3` when one is found (--spirv-val, else
 // `spirv-val` on PATH), else with the converter's structural check. Nothing is written but one
-// temporary .spv file in the system temp folder per validation, deleted at once.
+// temporary .spv file in the system temp folder per validation, deleted at once. With --vulkan1.1 each
+// module is first rewritten to SPIR-V 1.3 as the backend's 1.1 path does (spirv_legalize.h
+// DowngradeSpirv; src/render/vulkan/vulkan11.h) and validated with `--target-env vulkan1.1`.
 //
 // Prints a summary table and the first error of every failure; exits 1 on any failure, 2 when the
 // game directory holds no package.
 // ============================================================================
 #include "shader_convert.h"
+#include "spirv_legalize.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -307,30 +310,35 @@ int HighestBit(uint32_t mask) {
 int main(int argc, char** argv) {
     std::string gameDir;
     std::string validator;
+    bool vulkan11 = false;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--spirv-val" && i + 1 < argc) {
             validator = argv[++i];
+        } else if (arg == "--vulkan1.1") {
+            vulkan11 = true;
         } else if (gameDir.empty() && arg.rfind("--", 0) != 0) {
             gameDir = arg;
         } else {
-            std::fprintf(stderr, "usage: vulkan-shader-check <game dir> [--spirv-val <exe>]\n");
+            std::fprintf(stderr, "usage: vulkan-shader-check <game dir> [--spirv-val <exe>] [--vulkan1.1]\n");
             return 2;
         }
     }
     if (gameDir.empty()) {
-        std::fprintf(stderr, "usage: vulkan-shader-check <game dir> [--spirv-val <exe>]\n");
+        std::fprintf(stderr, "usage: vulkan-shader-check <game dir> [--spirv-val <exe>] [--vulkan1.1]\n");
         return 2;
     }
 
     // The validator: the one named, else spirv-val on PATH, else the structural check.
+    const std::string targetEnv = vulkan11 ? " --target-env vulkan1.1 " : " --target-env vulkan1.3 ";
     std::string probe;
     if (validator.empty()) validator = "spirv-val";
     const bool haveValidator = Run(Quote(validator) + " --version", &probe) == 0;
     std::printf("vulkan-shader-check: dxbc-spirv %s, mapping v%u, game dir %s\n", CompilerCommit(),
                 kMappingVersion, gameDir.c_str());
     if (haveValidator) {
-        std::printf("validator: %s --target-env vulkan1.3 (%s)\n", validator.c_str(), FirstLine(probe).c_str());
+        std::printf("validator: %s%s(%s)%s\n", validator.c_str(), targetEnv.c_str(), FirstLine(probe).c_str(),
+                    vulkan11 ? ", modules downgraded to SPIR-V 1.3 first" : "");
     } else {
         std::printf("validator: no spirv-val found (PATH or --spirv-val): structural check only\n");
     }
@@ -346,7 +354,7 @@ int main(int argc, char** argv) {
             out.write(reinterpret_cast<const char*>(empty), sizeof(empty));
         }
         std::string output;
-        if (Run(Quote(validator) + " --target-env vulkan1.3 " + Quote(temp.string()), &output) == 0) {
+        if (Run(Quote(validator) + targetEnv + Quote(temp.string()), &output) == 0) {
             std::fprintf(stderr, "validator self-check failed: %s accepted an empty module\n", validator.c_str());
             fs::remove(temp, ec);
             return 2;
@@ -449,6 +457,11 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
+                if (vulkan11 && !DowngradeSpirv(&spirv, &why)) {
+                    failures.push_back(where + " (" + StageName(s) + "): " + why);
+                    t.failed++;
+                    continue;
+                }
                 if (haveValidator) {
                     {
                         std::ofstream out(temp, std::ios::binary | std::ios::trunc);
@@ -457,7 +470,7 @@ int main(int argc, char** argv) {
                     }
                     std::string output;
                     const int status =
-                        Run(Quote(validator) + " --target-env vulkan1.3 " + Quote(temp.string()), &output);
+                        Run(Quote(validator) + targetEnv + Quote(temp.string()), &output);
                     if (status != 0) {
                         failures.push_back(where + " (" + StageName(s) + "): spirv-val: " + FirstLine(output));
                         t.failed++;

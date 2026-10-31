@@ -18,6 +18,7 @@
 #include "VideoVulkanData.h"
 #include "device_objects.h"
 #include "draw.h"
+#include "vulkan11.h"                            // ForgetImageView
 #include "seeded_create.h"                       // P4: the seeded creates (compress_ao, share_gpu_data)
 #include "async_gpu_create/async_create.h"       // P4: ext.async_gpu_create
 #include "create_on_demand/lazy_create.h"        // P4: ext.create_on_demand
@@ -246,11 +247,15 @@ void SerializeBuffer(Data* self, IO::Serializer* serializer, VkBufferUsageFlags 
 // ---- images (dx11 imagebufferdata.cpp) ----
 
 // dx11's kFormatToDxgi, as Vulkan formats: BC1, BC3, BC3, A8, R8, BGRA8, R32F, D24S8 (or D32S8).
+// NOT RETAIL: a device without textureCompressionBC (the Galaxy S10's Adreno 640) gets RGBA8 for the
+// three BC formats here; MakeTexture (seeded_create.cpp) makes a seeded texture ETC2 instead when the
+// device samples it (P13_MEM.md), else decodes the levels to RGBA8 (bc_decode.h).
 VkFormat ImageFormat(int format) {
+    const bool bc = LiveCaps().textureCompressionBC;
     switch (format) {
-    case 0: return VK_FORMAT_BC1_RGBA_UNORM_BLOCK;
-    case 1: return VK_FORMAT_BC3_UNORM_BLOCK;
-    case 2: return VK_FORMAT_BC3_UNORM_BLOCK;
+    case 0: return bc ? VK_FORMAT_BC1_RGBA_UNORM_BLOCK : VK_FORMAT_R8G8B8A8_UNORM;
+    case 1: return bc ? VK_FORMAT_BC3_UNORM_BLOCK : VK_FORMAT_R8G8B8A8_UNORM;
+    case 2: return bc ? VK_FORMAT_BC3_UNORM_BLOCK : VK_FORMAT_R8G8B8A8_UNORM;
     case 3: return VK_FORMAT_R8_UNORM;   // A8_UNORM: R8 with an alpha swizzle (no core A8)
     case 4: return VK_FORMAT_R8_UNORM;
     case 5: return VK_FORMAT_B8G8R8A8_UNORM;
@@ -343,6 +348,7 @@ static void RetireAttachmentView(VkImageView* view) {
     VkImageView v = *view;
     *view = VK_NULL_HANDLE;
     Retire([v]() {
+        ForgetImageView(v);
         if (LiveDevice()) vkDestroyImageView(LiveDevice(), v, nullptr);
     });
 }

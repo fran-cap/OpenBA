@@ -87,6 +87,18 @@ bool CpuSetProcessAffinity(uint64_t mask) {
     return sched_setaffinity(0, sizeof(set), &set) == 0;
 }
 
+// The kernel's capacity of one CPU (a heterogeneous SoC exposes it for the energy-aware
+// scheduler; a PC's kernel has the file too, every CPU at 1024, or not at all).
+bool CpuCoreCapacity(int cpu, int* capacity) {
+    if (cpu < 0 || cpu >= kMaxCpus) return false;
+    char path[128];
+    std::snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpu_capacity", cpu);
+    int value = 0;
+    if (!ReadInt(path, &value) || value <= 0) return false;
+    *capacity = value;
+    return true;
+}
+
 bool CpuPhysicalCores(uint64_t mask, int* cores, const char** reason) {
     uint64_t seen[kMaxCpus];
     int n = 0;

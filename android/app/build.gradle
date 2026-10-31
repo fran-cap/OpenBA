@@ -33,6 +33,14 @@ if (project.hasProperty('openba.ccache') && project.property('openba.ccache') ==
     ccacheArgs = ['-DBANISHED_USE_CCACHE=ON', '-DCMAKE_C_COMPILER_LAUNCHER=ccache']
 }
 
+// -Popenba.pgo=generate|use|off (tools/android.sh build --pgo ...; perf/pgo/android/README.md) is
+// CMake's BANISHED_PGO for the native part; unset, CMake's `auto` (the release flavour uses the
+// merged profile when perf/pgo/android/openba.profdata exists).
+def pgoArgs = []
+if (project.hasProperty('openba.pgo')) {
+    pgoArgs = ["-DBANISHED_PGO=${project.property('openba.pgo')}"]
+}
+
 // The version is the root CMakeLists.txt's `project(... VERSION x.y.z)`, as for the desktop
 // packages (the release workflow's tag check reads the same line): versionName x.y.z, versionCode
 // x * 10000 + y * 100 + z, so a release bump is the one CMake edit.
@@ -61,7 +69,7 @@ android {
             cmake {
                 // c++_shared: libmain.so and libSDL3.so share one C++ runtime (libc++_shared.so).
                 arguments '-DANDROID_STL=c++_shared', '-DBANISHED_RENDER_BACKEND=vulkan',
-                          *ccacheArgs, *nativeJobArgs
+                          *ccacheArgs, *nativeJobArgs, *pgoArgs
                 targets 'OpenBA', 'SDL3-shared'
             }
         }
@@ -78,10 +86,15 @@ android {
         release {
             // Unsigned here: tools/android.sh sign aligns and signs it (P8; the release workflow
             // signs with the release key from the repository's secrets, docs/android/README.md).
+            // P12: the release flavour, as the desktop packages (-O3; ThinLTO and the clang profile
+            // when perf/pgo/android/openba.profdata exists, CMakeLists.txt). Gradle's RelWithDebInfo
+            // keeps -g, so the unstripped library under build/intermediates still symbolises a crash
+            // log or a simpleperf profile; the apk carries the stripped copy. The perf flavour
+            // (-O2 -g, the perf baselines' build) is `-Popenba.flavour=perf`.
             minifyEnabled false
             externalNativeBuild {
                 cmake {
-                    arguments '-DBANISHED_FLAVOUR=perf'
+                    arguments "-DBANISHED_FLAVOUR=${project.hasProperty('openba.flavour') ? project.property('openba.flavour') : 'release'}"
                 }
             }
         }

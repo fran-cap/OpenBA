@@ -43,6 +43,7 @@
 #include "pipelines.h"
 #include "resources.h"
 #include "shader_convert.h"
+#include "vulkan11.h"
 
 #include "ext/ambient_occlusion/ao_math.h"
 #include "ext/derived_cache/derived_cache.h"
@@ -322,12 +323,14 @@ void DropImage(Image* im, bool now) {
     views.insert(views.end(), im->mipViews.begin(), im->mipViews.end());
     if (now) {
         for (VkImageView v : views) {
+            ForgetImageView(v);
             if (v && LiveDevice()) vkDestroyImageView(LiveDevice(), v, nullptr);
         }
         DestroyImageNow(&im->gpu);
     } else {
         Retire([views]() {
             for (VkImageView v : views) {
+                ForgetImageView(v);
                 if (v && LiveDevice()) vkDestroyImageView(LiveDevice(), v, nullptr);
             }
         });
@@ -1075,6 +1078,12 @@ bool InitLocked() {
     if (g.device) DestroyLocked();
     g.device = dev;
     const Caps& caps = LiveCaps();
+    if (caps.vulkan11) {
+        // The apply draws inside draw.cpp's main pass with a pipeline made for its colour alone, which a
+        // render pass with the main depth attached is not compatible with (vulkan11.h).
+        std::fprintf(stderr, "[AmbientOcclusion] Vulkan: not supported on the Vulkan 1.1 path\n");
+        return false;
+    }
     if (!caps.fragmentStores || !caps.storageWriteWithoutFormat || !caps.aoFormats) {
         std::fprintf(stderr, "[AmbientOcclusion] Vulkan: not supported on this device (fragment-stage storage writes "
                              "%d, format-less storage writes %d, ASSAO target formats %d)\n",

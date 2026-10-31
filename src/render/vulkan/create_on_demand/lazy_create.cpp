@@ -261,6 +261,17 @@ void LoadEnd() {
     Print("load end (run total)");
 }
 
+void FinishPrefetches() {
+    ::CreateOnDemand::LazyTable* const t = g_table.load(std::memory_order_relaxed);
+    if (t == nullptr) return;
+    const auto t0 = std::chrono::steady_clock::now();
+    t->DrainQueueUnlessPaused();
+    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    if (ms >= 1.0) {
+        std::fprintf(stderr, "[CreateOnDemand] load end waited %.0f ms for the prefetches (ETC2 transcode)\n", ms);
+    }
+}
+
 }  // namespace CreateOnDemand
 }  // namespace VideoVulkan
 

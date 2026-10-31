@@ -7,6 +7,8 @@
 #include "options.h"
 
 #include "platform_window.h"   // Platform::Window::GetCurrentDisplayRefreshHz (SDL W4)
+#include "platform_window_hooks.h"   // Platform::Window::SetPreferredFrameRate (Android P12)
+#include "platform_perf_hint.h"   // Platform::PerfHint: the main thread's performance hint session (Android P12)
 #include "platform_thread.h"   // Platform::SleepMs
 #include "platform_time.h"     // Platform::PerfCounter / PerfFrequency / WaitTimer* / CpuRelax
 #include <cstdio>
@@ -34,6 +36,7 @@ bool      g_lastMenu      = true;     // which loop the last tick was
 
 int64_t   g_lastFrameTick = 0;        // QPC stamp the prior frame was released at
 bool      g_havePrev      = false;    // false until the first paced tick primes it
+int64_t   g_lastWaitTicks = 0;        // QPC ticks the last Tick / TickInGame waited (LastWaitUs)
 
 // High-resolution waitable timer (Win10 1803+). Lets us sleep with sub-ms
 // precision without timeBeginPeriod's process-wide clock bump. Null => fall
@@ -66,6 +69,9 @@ void Init() {
     int64_t f;
     Platform::PerfFrequency(&f);  // QueryPerformanceFrequency
     g_qpcFreq = f;
+
+    // P12: this (the main) thread's performance hint session; a no-op off Android (platform_perf_hint.h).
+    Platform::PerfHint::AttachThread(Platform::PerfHint::Role::Main);
 
     // --- The harness flag ---
     if (const char* capEnv = Opt().fpsCap) {
@@ -109,6 +115,10 @@ void SetCeiling(double fps, bool menu) {
     g_capFps   = fps;
     g_lastMenu = menu;
     g_havePrev = false;
+    // P12: the display is told the rate too (a no-op off Android, platform_window_hooks.h).
+    if (logIt) Platform::Window::SetPreferredFrameRate(fps > 0.0 ? static_cast<float>(fps) : 0.0f);
+    // ... and the performance hint sessions their frame budget (0 = none).
+    Platform::PerfHint::SetTarget(fps > 0.0 ? static_cast<int64_t>(1.0e9 / fps) : 0);
     if (fps <= 0.0) {
         if (logIt) {
             fprintf(stderr, "[FrameLimiter] %s: not paced\n", menu ? "menu" : "game");
@@ -167,6 +177,7 @@ void WaitUntil(int64_t deadlineTick) {
 
 // One paced frame of `menu`'s loop (Tick / TickInGame).
 void Pace(bool menu) {
+    g_lastWaitTicks = 0;
     if (!g_initialized) Init();
     SetCeiling(ResolveCeiling(g_harness, g_harnessFps, g_autoFps, g_settingsFps, menu), menu);
     if (g_capFps <= 0.0) return;
@@ -178,15 +189,22 @@ void Pace(bool menu) {
         g_lastFrameTick  = now;
         g_fpsWindowStart = now;
         g_fpsFrameCount  = 0;
+        Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Main);
         return;
     }
+
+    // The frame's work on this thread ends here; the wait below is not work.
+    Platform::PerfHint::WorkEnd(Platform::PerfHint::Role::Main);
 
     int64_t deadline = g_lastFrameTick + g_intervalTicks;
 
     if (now < deadline) {
+        const int64_t before = now;
         WaitUntil(deadline);
         now = QpcNow();
+        g_lastWaitTicks = now - before;
     }
+    Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Main);
 
     // Advance the cadence. If we fell behind by more than one full interval
     // (breakpoint, alt-tab, a long hitch), resync to `now` instead of trying
@@ -225,6 +243,7 @@ void TickInGame() {
     // The common case off the phone (no flag, no settings cap): one test, no clock read.
     if (g_initialized && g_harness != HarnessCap::Fixed && g_settingsFps <= 0.0) {
         if (g_capFps != 0.0 || g_lastMenu) SetCeiling(0.0, false);
+        g_lastWaitTicks = 0;
         return;
     }
     Pace(false);
@@ -240,6 +259,10 @@ void SetSettingsCap(double fps) {
 
 double GetFps()    { return g_measuredFps; }
 double GetCapFps() { return g_capFps; }
+
+int64_t LastWaitUs() {
+    return g_qpcFreq > 0 ? g_lastWaitTicks * 1000000 / g_qpcFreq : 0;
+}
 
 } // namespace FrameLimiter
 

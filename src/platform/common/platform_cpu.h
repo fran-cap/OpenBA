@@ -37,4 +37,13 @@ bool CpuSetProcessAffinity(uint64_t mask);
 // logical CPUs instead.
 bool CpuPhysicalCores(uint64_t mask, int* cores, const char** reason);
 
+// The relative compute capacity of logical CPU `cpu`, as the scheduler sees it (the kernel's
+// cpu_capacity: the biggest core on the machine is 1024, a little core a few hundred).
+//   Linux / Android: /sys/devices/system/cpu/cpuN/cpu_capacity (a heterogeneous SoC's file;
+//                    absent or uniform on an ordinary PC).
+//   Windows, macOS:  false (no per-core capacity is read there; the roster treats the cores as
+//                    uniform, as it did before).
+// false when unknown; the caller then treats every core as the same size (roster.h, BigCoreMask).
+bool CpuCoreCapacity(int cpu, int* capacity);
+
 }  // namespace Platform

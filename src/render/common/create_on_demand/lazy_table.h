@@ -113,6 +113,9 @@ public:
     void Resume();
     // Wait until the prefetch queue is empty and no worker runs (tests, diagnostics).
     void DrainQueue();
+    // DrainQueue that also returns once the table is paused (a device going away leaves the queue
+    // unworked): the loader's wait for its prefetches (lazy_create.h FinishPrefetches).
+    void DrainQueueUnlessPaused();
 
     struct Stats {
         int64_t  recorded       = 0;   // records added, run total

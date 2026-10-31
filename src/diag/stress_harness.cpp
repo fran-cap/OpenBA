@@ -1536,7 +1536,9 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
             std::fprintf(stderr, "[Stress::pipe] render_pipe=%d thread=%d draw main=%.3fms packet=%.3fms emit=%.3fms "
                                  "(main share %.1f%%) wait=%.1fus/frame latency=%.1fus | window: pipelined=%llu "
                                  "sequential=%llu emits=%llu waits=%llu (fence %llu) recoveries=%llu "
-                                 "drains step=%llu other=%llu discarded=%llu idle writes=%llu skips=%llu\n",
+                                 "drains step=%llu other=%llu discarded=%llu idle writes=%llu skips=%llu "
+                                 "| overlap: steps=%llu snapshots=%llu refused=%llu copy=%.3fms %lluKB/packet "
+                                 "governor=%s removable=%lldus idle=%lldus (without the copies %lldus)\n",
                          Ext::RenderPipe::Installed() ? 1 : 0, Ext::RenderPipe::Threaded() ? 1 : 0,
                          pipeMain, pipePacket, pipeEmit,
                          pipeMain + pipePacket > 0 ? 100.0 * pipeMain / (pipeMain + pipePacket) : 0.0,
@@ -1546,7 +1548,13 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          static_cast<unsigned long long>(rp.waitsFence), static_cast<unsigned long long>(rp.recoveries),
                          static_cast<unsigned long long>(rp.drainStep),
                          static_cast<unsigned long long>(rp.drainOther), static_cast<unsigned long long>(rp.discarded),
-                         static_cast<unsigned long long>(rp.idleWrites), static_cast<unsigned long long>(rp.idleSkips));
+                         static_cast<unsigned long long>(rp.idleWrites), static_cast<unsigned long long>(rp.idleSkips),
+                         static_cast<unsigned long long>(rp.overlapped), static_cast<unsigned long long>(rp.snapshots),
+                         static_cast<unsigned long long>(rp.refused),
+                         rp.snapshots > 0 ? static_cast<double>(rp.snapshotUs) / 1000.0 / static_cast<double>(rp.snapshots) : 0.0,
+                         static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotKB / rp.snapshots : 0),
+                         rp.governorOn ? "on" : "off", static_cast<long long>(rp.governorRemovableUs),
+                         static_cast<long long>(rp.governorIdleUs), static_cast<long long>(rp.governorIdleWithoutUs));
         }
     }
     (void)frame;

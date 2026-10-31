@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # tools/android.sh -- build, install and drive the Android app (docs/android/README.md).
 #
-#   tools/android.sh build [debug|release] [--jobs N] [--ccache]
+#   tools/android.sh build [debug|release] [--jobs N] [--ccache] [--pgo generate|use|off] [--flavour perf]
 #                                                      # apk/debug/app-debug.apk, apk/release/app-release-unsigned.apk
+#   tools/android.sh pgo-merge [DIR]                   # pull the instrumented app's raw profiles (the data
+#                                                      # folder's pgo/) into DIR (default perf/pgo/android/raw) and
+#                                                      # merge them into perf/pgo/android/openba.profdata
 #   tools/android.sh sign [IN.apk OUT.apk]             # zipalign -P 16 + apksigner (default: the release apk ->
 #                                                      # apk/release/app-release.apk); the key from OPENBA_KEYSTORE*
 #   tools/android.sh install [debug|release|FILE.apk]  # adb install -r -d (downgrade allowed) of that apk
@@ -14,6 +17,7 @@
 #   tools/android.sh logcat                            # follow the app's logcat lines
 #   tools/android.sh boot-state [--wait N]             # = tools/boot_state.sh --android [--wait N]
 #   tools/android.sh validation on LAYER.so | off       # the Khronos validation layer in the debug app
+#   tools/android.sh debug [LLDB ARGS ...]             # LLDB attached to the running debug app (args = batch)
 #
 # Environment: ANDROID_HOME (default %LOCALAPPDATA%/Android/Sdk), JAVA_HOME (default Android
 # Studio's bundled JBR), ADB (default platform-tools/adb of ANDROID_HOME, then C:/code/platform-tools,
@@ -21,6 +25,9 @@
 # (the Windows install whose WinData is pushed; never copied anywhere else), BUILD_JOBS / --jobs
 # (native compile jobs, default 8 as tools/build.sh). `--ccache` compiles the native part through
 # ccache (on PATH; the release workflow's cache), which the Gradle build otherwise leaves off.
+# `--pgo generate` builds the release apk instrumented (perf/pgo/android/README.md: run the training
+# towns on it, `pgo-merge`, then a plain `build release` reads the merged profile); `--flavour perf`
+# builds the release apk as the perf flavour (-O2 -g, no PGO / LTO: the perf baselines' build).
 #
 # Signing (`sign`; .github/workflows/release.yml runs the same command): OPENBA_KEYSTORE (the
 # keystore file, PKCS12 or JKS), OPENBA_KEY_ALIAS, and the two passwords in OPENBA_KEYSTORE_PASSWORD
@@ -73,7 +80,7 @@ if [ -z "${ADB:-}" ]; then
 fi
 
 usage() {
-    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
 }
 
@@ -121,6 +128,8 @@ build)
             debug|release) type="$1" ;;
             --jobs) shift; jobs="$1" ;;
             --ccache) props+=("-Popenba.ccache=true") ;;
+            --pgo) shift; props+=("-Popenba.pgo=$1") ;;
+            --flavour) shift; props+=("-Popenba.flavour=$1") ;;
             *) usage ;;
         esac
         shift
@@ -220,6 +229,33 @@ run)
 stop)
     "$ADB" shell am force-stop "$PKG"
     ;;
+pgo-merge)
+    # The instrumented app (build release --pgo generate) writes pgo/openba-<hash>.profraw into the
+    # data folder at each clean quit (src/platform/android/app_android.cpp). llvm-profdata is the
+    # NDK's (the same clang that reads the merged file); the raw files are kept in DIR for a
+    # later merge with more runs. Commit perf/pgo/android/openba.profdata afterwards: the release
+    # build (CMake BANISHED_PGO=auto) reads it when it exists.
+    dir="${1:-$ROOT/perf/pgo/android/raw}"
+    mkdir -p "$dir"
+    if command -v cygpath >/dev/null 2>&1; then dir="$(cygpath -m "$dir")"; fi
+    "$ADB" pull "$DATA/pgo" "$dir" >/dev/null || { echo "no $DATA/pgo on the device (an instrumented run, ended by a quit, writes it)" >&2; exit 1; }
+    ndk="$ANDROID_HOME/ndk/$(sed -n "s/^ *ndkVersion = '\(.*\)'/\1/p" "$ANDROID_DIR/app/build.gradle" | head -1)"
+    profdata=""
+    for host in windows-x86_64 linux-x86_64 darwin-x86_64; do
+        for cand in "$ndk/toolchains/llvm/prebuilt/$host/bin/llvm-profdata.exe" "$ndk/toolchains/llvm/prebuilt/$host/bin/llvm-profdata"; do
+            if [ -f "$cand" ]; then profdata="$cand"; break 2; fi
+        done
+    done
+    [ -n "$profdata" ] || { echo "no llvm-profdata under $ndk/toolchains/llvm/prebuilt" >&2; exit 1; }
+    raws=()
+    while IFS= read -r f; do raws+=("$f"); done < <(find "$dir" -name '*.profraw' | sort)
+    [ ${#raws[@]} -gt 0 ] || { echo "no .profraw under $dir" >&2; exit 1; }
+    out="$ROOT/perf/pgo/android/openba.profdata"
+    if command -v cygpath >/dev/null 2>&1; then out="$(cygpath -m "$out")"; fi
+    "$profdata" merge -o "$out" "${raws[@]}"
+    "$profdata" show "$out" | head -20
+    ls -la "$out"
+    ;;
 pull)
     dir="${1:?pull DIR}"
     mkdir -p "$dir"
@@ -270,6 +306,57 @@ validation)
         ;;
     esac
     "$ADB" shell settings get global enable_gpu_debug_layers
+    ;;
+debug)
+    # LLDB on the running app (the NDK dropped gdbserver; lldb-server is its replacement). Needs the
+    # debuggable (debug) apk: run-as copies the NDK's aarch64 lldb-server into the app's data dir and
+    # starts it as a platform server on an abstract socket, which the host lldb's remote-android
+    # platform reaches through adb. The unstripped libmain.so of the newest native build is put on
+    # the symbol path. Any further arguments go to lldb after the attach (batch mode then), e.g.
+    #   tools/android.sh debug -o "thread backtrace all"     # all stacks, then detach
+    #   tools/android.sh debug                               # interactive
+    ndk="$ANDROID_HOME/ndk/$(sed -n "s/^ *ndkVersion = '\(.*\)'/\1/p" "$ANDROID_DIR/app/build.gradle" | head -1)"
+    host=""
+    for h in windows-x86_64 linux-x86_64 darwin-x86_64; do
+        [ -d "$ndk/toolchains/llvm/prebuilt/$h" ] && { host="$h"; break; }
+    done
+    [ -n "$host" ] || { echo "no NDK toolchain under $ndk" >&2; exit 1; }
+    tc="$ndk/toolchains/llvm/prebuilt/$host"
+    server="$(find "$tc/lib/clang" -path '*linux/aarch64/lldb-server' | head -1)"
+    lldb="$tc/bin/lldb"
+    if [ -f "$lldb.exe" ]; then
+        # What the NDK's lldb.cmd does: liblldb.dll loads the bundled Python's DLL.
+        lldb="$lldb.exe"
+        export PYTHONHOME="$tc/python3"
+        export PATH="$(cygpath -u "$tc/python3"):$PATH"
+    fi
+    [ -f "$server" ] || { echo "no aarch64 lldb-server under $tc/lib/clang" >&2; exit 1; }
+    pid="$("$ADB" shell pidof "$PKG" | tr -d '\r')"
+    [ -n "$pid" ] || { echo "$PKG is not running (tools/android.sh run first)" >&2; exit 1; }
+    if command -v cygpath >/dev/null 2>&1; then server="$(cygpath -m "$server")"; fi
+    # A server left by an earlier attach holds its binary busy: stop it before the copy over it.
+    "$ADB" shell run-as "$PKG" killall lldb-server >/dev/null 2>&1 || true
+    "$ADB" push "$server" /data/local/tmp/lldb-server >/dev/null
+    "$ADB" shell run-as "$PKG" cp /data/local/tmp/lldb-server ./lldb-server
+    "$ADB" shell run-as "$PKG" chmod 700 ./lldb-server
+    sock="/$PKG/lldb-platform.sock"
+    # setsid and the redirections outside run-as: with a plain nohup ... & the server kept the remote
+    # session open and adb shell never returned.
+    "$ADB" shell "run-as $PKG setsid sh -c 'cd /data/data/$PKG && exec ./lldb-server platform --server --listen unix-abstract://$sock' </dev/null >/dev/null 2>&1 &"
+    sleep 1
+    syms="$(ls -t "$ANDROID_DIR"/app/build/intermediates/cxx/*/*/obj/arm64-v8a/libmain.so 2>/dev/null | head -1)"
+    args=(-o "platform select remote-android" -o "platform connect unix-abstract-connect://$sock")
+    if [ -n "$syms" ]; then
+        if command -v cygpath >/dev/null 2>&1; then syms="$(cygpath -m "$syms")"; fi
+        args+=(-o "settings append target.exec-search-paths $(dirname "$syms")")
+    fi
+    args+=(-o "process attach -p $pid")
+    if [ $# -gt 0 ]; then
+        "$lldb" -b "${args[@]}" "$@" -o "process detach"
+        "$ADB" shell run-as "$PKG" killall lldb-server >/dev/null 2>&1 || true
+    else
+        "$lldb" "${args[@]}"
+    fi
     ;;
 *)
     usage

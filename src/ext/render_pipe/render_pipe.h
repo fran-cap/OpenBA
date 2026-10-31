@@ -45,6 +45,17 @@ struct Counters {
     uint64_t latencyUs   = 0;   // sum over joined packets of hand-off -> Present done, us
     uint64_t latencyN    = 0;
     uint64_t recoveries  = 0;   // device-lost recoveries run on the main thread at a join
+    // P13_OVERLAP (docs/android/P13_OVERLAP.md; render thread only)
+    uint64_t overlapped  = 0;   // fences skipped: the steps ran beside a packet's emit (its snapshot)
+    uint64_t snapshots   = 0;   // packets built with frozen copies
+    uint64_t refused     = 0;   // packets the snapshot refused (they keep the fence)
+    uint64_t snapshotUs  = 0;   // main-thread time building the copies, us
+    uint64_t snapshotKB  = 0;   // arena bytes written, KB
+    // The overlap governor at the window's end (overlap_governor.h): its state and smoothed measures
+    bool     governorOn            = false;
+    int64_t  governorRemovableUs   = 0;   // the fence wait a snapshot removes, per Frame
+    int64_t  governorIdleUs        = 0;   // the main thread's other waits, per Frame
+    int64_t  governorIdleWithoutUs = 0;   // on: what it would idle without the copies (off: = idle)
 };
 
 // True while the packet runs on the render thread (installed, >= 3 physical cores).

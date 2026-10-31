@@ -68,5 +68,12 @@ bool FixedDisplaySurface() {
     return false;
 }
 
+void SetPreferredFrameRate(float fps) {
+    (void)fps;
+}
+
+void ReapplyPreferredFrameRate() {
+}
+
 }  // namespace Window
 }  // namespace Platform

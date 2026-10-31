@@ -31,6 +31,10 @@
 #if defined(__x86_64__) || defined(__i386__)
 #define LOADDECODE_HAVE_X87 1
 #endif
+#if defined(__aarch64__)
+// AArch64: FPCR holds the rounding mode and the flush-to-zero bits (the MXCSR's part on x86).
+#define LOADDECODE_HAVE_FPCR 1
+#endif
 
 namespace Audio {
 namespace LoadDecode {
@@ -45,6 +49,7 @@ namespace {
 struct FpEnv {
     uint32_t csr = 0;   // MXCSR: SSE rounding / DAZ / FTZ (the decoder's float math)
     uint16_t fcw = 0;   // x87 control word: precision / rounding of any x87 code (libm)
+    uint64_t fpcr = 0;  // AArch64 FPCR: rounding mode / FZ / FZ16 (the same role as MXCSR there)
 };
 
 FpEnv ReadFpEnv() {
@@ -55,6 +60,9 @@ FpEnv ReadFpEnv() {
 #ifdef LOADDECODE_HAVE_X87
     __asm__ volatile("fnstcw %0" : "=m"(e.fcw));
 #endif
+#ifdef LOADDECODE_HAVE_FPCR
+    __asm__ volatile("mrs %0, fpcr" : "=r"(e.fpcr));
+#endif
     return e;
 }
 
@@ -64,16 +72,18 @@ void WriteFpEnv(const FpEnv& e) {
 #endif
 #ifdef LOADDECODE_HAVE_X87
     __asm__ volatile("fldcw %0" : : "m"(e.fcw));
-#else
-    (void)e;
 #endif
+#ifdef LOADDECODE_HAVE_FPCR
+    __asm__ volatile("msr fpcr, %0" : : "r"(e.fpcr));
+#endif
+    (void)e;
 }
 
 // Install `want` for one call, put the thread's own back after it.
 class FpEnvScope {
 public:
     explicit FpEnvScope(const FpEnv& want) : _saved(ReadFpEnv()) {
-        _changed = want.csr != _saved.csr || want.fcw != _saved.fcw;
+        _changed = want.csr != _saved.csr || want.fcw != _saved.fcw || want.fpcr != _saved.fpcr;
         if (_changed) WriteFpEnv(want);
     }
     ~FpEnvScope() { if (_changed) WriteFpEnv(_saved); }

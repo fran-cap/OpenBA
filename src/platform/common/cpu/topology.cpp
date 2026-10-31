@@ -58,9 +58,18 @@ Topology QueryTopology() {
     }
     t.mask = process;
     t.logical = MaskPopcount(process);
+    // The big cores (roster.h): the kernel's capacity per CPU of the mask, 0 where unknown.
+    int capacity[64] = {0};
+    for (int i = 0; i < 64; ++i) {
+        if (((process >> i) & 1u) == 0) continue;
+        int c = 0;
+        if (Platform::CpuCoreCapacity(i, &c)) capacity[i] = c;
+    }
+    t.bigMask = BigCoreMask(capacity, process);
+    t.heterogeneous = t.bigMask != process;
     int cores = 0;
     const char* reason = "";
-    if (Platform::CpuPhysicalCores(process, &cores, &reason) && cores >= 1 && cores <= t.logical) {
+    if (Platform::CpuPhysicalCores(t.bigMask, &cores, &reason) && cores >= 1 && cores <= t.logical) {
         t.physical = cores;
         t.topology = true;
         t.reason = "";
@@ -117,9 +126,12 @@ void Describe(const Topology& t, char* buf, int cap) {
     if (t.requested != 0)
         std::snprintf(requested, sizeof(requested), " requested=0x%llx",
                       static_cast<unsigned long long>(t.requested));
-    std::snprintf(buf, static_cast<size_t>(cap), "mask=0x%llx logical=%d physical=%d limit=%s source=%s%s",
+    char big[40] = "";
+    if (t.heterogeneous)
+        std::snprintf(big, sizeof(big), " big=0x%llx", static_cast<unsigned long long>(t.bigMask));
+    std::snprintf(buf, static_cast<size_t>(cap), "mask=0x%llx logical=%d physical=%d limit=%s source=%s%s%s",
                   static_cast<unsigned long long>(t.mask), t.logical, t.physical,
-                  LimitName(t.limit), source, requested);
+                  LimitName(t.limit), source, requested, big);
 }
 
 }  // namespace Cpu
