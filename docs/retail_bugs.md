@@ -559,3 +559,31 @@ exports no `IO::TextWriter`, while the toolkit's `ToolKit/bin/x64/Runtime-x64-pr
 faults at the same read (`UI::SpriteCapture::Serialize`, `src/engine/ui/spritecapture_class.cpp`); the
 reproduction is `BANISHED_TOOL_HARNESS=spritecapture` (`src/diag/tool_harness.cpp`). Retail itself was
 not launched. No fix or extension: the utility is a content-author tool.
+
+## 16. A selected entity's outline shows one frame before its panel
+
+**Symptom.** Click a building, a field or a citizen: for one frame its yellow outline is drawn and its
+info panel is not; the panel appears the next frame. Where the panel lands over the outlined area the
+outline seems to flash over the panel. Invisible at a desktop's frame rate; plain at 60 fps on a phone
+(measured on the Galaxy S25 by screen recording a tap on a stockpile: the outline alone for 16.7 ms).
+
+**Retail mechanism.**
+- `GameUpdateLoop::Update` runs `UserInterface::Update` (step 9, `0x1801213c0`), which takes the dialogs
+  added since its last run (`_addDialogs`, appended by `AddDialog` `0x180120ee0`) into its list and lays
+  them out, BEFORE the tool manager's Update (step 10, `0x1400965a0`-`0x1400965ed`).
+- A click is handled in step 10: the select tool adds the entity's outline (`HighlightComponent`'s
+  embedded `EdgeMeshInstance`) to the scene and opens its panel, which only reaches `_addDialogs`.
+- The frame's draw gathers the scene with the outline (`EdgeMeshInstance::AddDrawItems` `0x1800a2fd0`)
+  and draws the UI without the panel, which the next frame's step 9 takes in.
+
+**Proof it is retail.** The port's step order in `src/game/Game/gameupdateloop.cpp` follows retail's
+(steps 9 and 10 at the addresses above), and `UserInterface::Update` / `AddDialog` are address-by-address
+ports. Seen with every phone extension's draw path unchanged; the order alone produces it.
+
+**Lever.** On a frame whose tool update left a dialog waiting (`GetAddDialogCount() > 0` after step 10),
+skip at the gather the outlines the previous frame did not draw. They are drawn from the next frame, with
+the panel. Outlines already on screen and frames that opened no dialog are untouched.
+
+Fix: `fix.outline_with_panel` (tier 1), default on, off under `/profile:faithful`. Engine seam
+`Graphics::EdgeMeshInstance::_extHoldDraw` (null under the faithful profile). Code
+`src/ext/outline_with_panel/`. Hand-in `docs/extensions/handins/OUTLINEWITHPANEL.md`.

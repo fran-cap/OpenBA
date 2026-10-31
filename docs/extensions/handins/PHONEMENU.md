@@ -300,7 +300,12 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
   backdrop's rectangle as drawn and its sprite (sheet and index, in / out) and may answer another
   rectangle, another sprite (P11) and a clip `{x, y, w, h}` (layout units); that sprite (the backdrop's
   unless the hook names another) is then drawn over the backdrop, before the dialog's elements, inside
-  `SpriteContext::SetScissor(clip)` and with the previous scissor restored after it (w <= 0: no clip). A
+  `SpriteContext::SetScissor(clip)` and with the previous scissor restored after it (w <= 0: no clip). The
+  restore writes the scissor's four device-space fields back after a flush, not `SetScissor(saved)`:
+  `SetScissor` returns the old rect times the UI scale, truncated (2340 px x 0.42 = 982 units), and feeding
+  it back left the rest of the frame clipped 2 px short of the right edge (an unfaded sliver while a loading
+  screen faded, S25, 2026-10-31). The loading screen's clip width is the layout width plus one unit for the
+  same truncation (the border otherwise stopped 1-2 px short). A
   scissor change flushes the batch and forgets its sheet, so the draw binds the extra sprite's sheet before
   it and the backdrop's sheet again after it (without that the clipped draw is silently dropped, which is
   likely what the earlier scissored `kExtPlaceBackdropLower` build ran into). `loading_screen.cpp`
