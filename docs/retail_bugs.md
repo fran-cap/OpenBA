@@ -622,11 +622,16 @@ registration). The reproduction is `tools/harness_route.sh clearoverlap`
 from frame 3100 to the end of the run at 9400. The control (`CLEAR_OVERLAP=400,150,300,6000,6,0`: a 6x6 window, no hall, the
 stockpile placed over four claimed trees while their clear jobs run) clears and builds in 450 frames,
 so placing a stockpile over live clear jobs is not the cause. Retail itself was not launched.
+The stall is timing-dependent: a run in which food, firewood or tool use frees store room while the
+footprint piles are still being offered clears on its own. Retail also recovers after a game year, when the
+piles rot (`RawMaterialComponent::Update` `0x140129130`, age past 3600 s).
 
-**Lever, if it ever changes.** A `fix.*` row (class B: it changes the simulation and the save): let a
-storage site take the piles inside its own footprint, e.g. when a StorageLocation site's ClearArea
-has only RawMaterial piles left and `HasStorageFor` refuses them, count them as done and move them
-into the site's StorageComponent at state 2 (`StorageLocationComponent` state 2's enter, after the
-build-complete capacity init `0x140107ff0`). That breaks the cycle for a stockpile; a town hall over
-resources still needs room somewhere, which is the player's lever in retail (build a stockpile on clear
-ground first).
+**Fix: `fix.foundation_piles` (WIRED 2026-10-31, `docs/extensions/handins/FOUNDATIONPILES.md`).** At the
+lever, `ClearArea::Execute` phase 3: when a building site's footprint holds only piles and
+`HasStorageFor` refuses one, a citizen carries it to the nearest free cell outside the footprint with
+retail's own haul chain and `DropOffRawMaterial`'s drop-on-ground arm (`0x1400c78c0`). Loose piles are not
+in the town's totals or storage numbers (`CountResources` `0x140089ed0` sums the storage lists only), so
+the move changes no count, and the new pile posts its own Pickup work. Off under `/profile:faithful`.
+`tools/harness_route.sh clearoverlap`: `HARNESS_FIXES=none` FAILs (2 of 2 runs, 2026-10-31);
+`HARNESS_FIXES=foundation_piles` PASSes (3 of 3; one run moved 18 piles off the town hall's footprint,
+two cleared without a move because store room freed first).
