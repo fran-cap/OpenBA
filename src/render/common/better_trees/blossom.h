@@ -56,13 +56,14 @@ constexpr float kRadius0   = 0.16f;    // cluster radius in cells: kRadius0 + kR
 constexpr float kRadius1   = 0.14f;
 constexpr float kEdge      = 30.0f;    // the soft edge: sat((r^2 - d^2) * kEdge)
 constexpr float kCatkinX   = 2.4f;     // catkins: the cell is narrowed in u ...
-constexpr float kCatkinY   = 0.55f;    // ... and stretched in v
+constexpr float kCatkinY   = 0.40f;    // ... and stretched in v: by kCatkinY + kCatkinYVar h (a longer or
+constexpr float kCatkinYVar = 0.50f;   //     shorter streak per cell, so they do not look stamped)
 constexpr float kArea      = 0.18f;    // the mean covered share of a present cell (the far-field average)
 constexpr float kAaStart   = 0.40f;    // cells per pixel where the blend to the average begins
 constexpr float kAaSlope   = 2.5f;     // ... and its rate (full at 0.8 cells per pixel)
 constexpr float kKeep      = 4.0f;     // kept = sat(kKeep F)
-constexpr float kBright0   = 0.85f;    // a cluster's brightness: kBright0 + kBright1 h
-constexpr float kBright1   = 0.30f;
+constexpr float kBright0   = 0.80f;    // a cluster's brightness: kBright0 + kBright1 h (h the centre's u
+constexpr float kBright1   = 0.40f;    //   hash, independent of the radius)
 
 enum Flags : uint32_t {
     kCatkin   = 1u,

@@ -700,8 +700,9 @@ void EmitBloomMask(Writer& w, const Match& m) {
                          E::Imm4(t, -0.25f, -0.25f, 0.0f, 0.0f); });
     w.Ins(Op::Add, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); E::TempSrc(t, S, XYXX); });
     w.Ins(Op::Lt, [&] { E::TempDst(t, S, 1); InputSrc(t, N2, E::Rep(3)); E::ImmScalar(t, 0.0f); });
-    w.Ins(Op::MovC, [&] { E::TempDst(t, S, 6); E::TempSrc(t, S, E::Rep(0)); E::Imm4(t, 0.0f, Bl::kCatkinX, Bl::kCatkinY, 0.0f);
-                          E::Imm4(t, 0.0f, 1.0f, 1.0f, 0.0f); });
+    w.Ins(Op::Mad, [&] { E::TempDst(t, S, 8); E::TempSrc(t, R, E::Rep(1)); E::ImmScalar(t, Bl::kCatkinYVar); E::ImmScalar(t, Bl::kCatkinY); });
+    w.Ins(Op::MovC, [&] { E::TempDst(t, S, 2); E::TempSrc(t, S, E::Rep(0)); E::ImmScalar(t, Bl::kCatkinX); E::ImmScalar(t, 1.0f); });
+    w.Ins(Op::MovC, [&] { E::TempDst(t, S, 4); E::TempSrc(t, S, E::Rep(0)); E::TempSrc(t, S, E::Rep(3)); E::ImmScalar(t, 1.0f); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, Q, 3); E::TempSrc(t, Q, XYXX); E::TempSrc(t, S, E::Swizzle(1, 2, 1, 1)); });
     w.Ins(Op::Dp2, [&] { E::TempDst(t, Q, 1); E::TempSrc(t, Q, XYXX); E::TempSrc(t, Q, XYXX); });
     // the soft cluster (S.y), present when h.x < |cov|; the far-field blend toward |cov| * kArea
@@ -720,7 +721,7 @@ void EmitBloomMask(Writer& w, const Match& m) {
     w.Ins(Op::Add, [&] { E::TempDst(t, S, 8); E::TempSrc(t, S, E::Rep(2)); E::TempSrc(t, S, E::Rep(1), 1); });
     w.Ins(Op::Mad, [&] { E::TempDst(t, S, 8); InputSrc(t, N, E::Rep(1)); E::TempSrc(t, S, E::Rep(3)); E::TempSrc(t, S, E::Rep(1)); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, R, 1); E::TempSrc(t, S, E::Rep(3)); InputSrc(t, m.moveReg, E::Rep(m.moveComp)); });
-    w.Ins(Op::Mad, [&] { E::TempDst(t, R, 2); E::TempSrc(t, R, E::Rep(2)); E::ImmScalar(t, Bl::kBright1); E::ImmScalar(t, Bl::kBright0); });
+    w.Ins(Op::Mad, [&] { E::TempDst(t, R, 2); E::TempSrc(t, R, E::Rep(1)); E::ImmScalar(t, Bl::kBright1); E::ImmScalar(t, Bl::kBright0); });
 }
 
 bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {

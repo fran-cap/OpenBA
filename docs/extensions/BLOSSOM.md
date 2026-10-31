@@ -25,11 +25,15 @@ natural tree growth off are retail (the per-draw hook is null and the programs a
 | Peach | pink to magenta, rarely white, on bare wood | `#E58AA8` | 0.60 |
 | Pear | white, before or with the leaves | `#F2F1EA` | 0.70 |
 | Apple | pink buds open white with a blush, clusters of 4-6, among fresh leaves | `#F5E4E6` | 1.10 |
-| Birch | long hanging catkins, easy to see | `#C2A55A` | 0.90 |
-| Oak | thin yellow-green catkins, sparse, barely visible at range | `#B9B65A` | 1.10 |
-| Pecan | greenish-yellow catkins, the latest of the nuts | `#B8B060` | 1.40 |
-| Walnut | green catkins, close to invisible | `#8C9A50` (density 1/16) | 1.00 |
-| Chestnut | cream catkins, mid June to early July | `#E6DCA0` | 3.20 |
+| Birch | long hanging catkins, easy to see | `#A08A55` (density 0.25) | 0.90 |
+| Oak | thin yellow-green catkins, sparse, barely visible at range | `#9A9A5A` (density 0.125) | 1.10 |
+| Pecan | greenish-yellow catkins, the latest of the nuts | `#989458` (density 0.125) | 1.40 |
+| Walnut | green catkins, close to invisible | `#7A864A` (density 1/16) | 1.00 |
+| Chestnut | cream catkins, mid June to early July | `#C8BF8C` (density 0.28) | 3.20 |
+
+The catkin rows were muted to about 70 % brightness, made less saturated and thinned by about 30 % after
+the first in-game look (the user, 2026-10-31: the first values read as bright yellow sparks on the bare
+trees). Each catkin's length and each cluster's brightness also vary per cell.
 
 Sources: National Trust (blossom identification), specialtyproduce.com (apple blossom), Michigan State
 University thesis on apple phenology (king bloom, clusters), saps.org.uk and treeguideuk (cherry plum first),
@@ -72,8 +76,14 @@ so plum, cherry, peach and pear flower on bare or half-leafed trees, apple among
   interpreter against the CPU mirror (`Blossom::VertexOut`, `Blossom::Pixel`): species and packing, the
   vertex terms, the curves (staggered, none in summer or winter, the year's wrap, pink buds), the pixel
   terms (alpha before the cut, colour, the trunk untouched, a bare tree keeping its flowers).
-- Open: the in-game look (DX11, then Vulkan; Metal on the owner's Mac), the real model names in the
-  `[NaturalGrowth] blossom:` lines, the cell size and catkin direction on the cards, a stress A/B.
+- DX11 debug, in game (2026-10-31, a local-only calendar spike, not in the tree): every model name matches
+  a table row (`models\naturalresource\tree\materialinstance\{oak,birch}tree.rsc`,
+  `models\naturalresource\fruittrees\materialinstance\<name>tree.rsc`); all four `Normal_ps` variants
+  are rewritten and the cutout chains on each (`season mad yes`). Catkins hang vertically on the cards.
+  Blossom was checked by drawing the oaks as plum (a new map has no fruit trees; orchards do): white
+  clouds on the bare crowns, staggered per tree. The faithful gate run reached the world with no crash
+  and no blossom line (the hook stays null).
+- Open: an orchard in bloom, Vulkan (Metal on the owner's Mac), the resave check, a stress A/B.
 
 ## 5. Known limits
 

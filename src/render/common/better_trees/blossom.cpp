@@ -23,11 +23,13 @@ const Species kTable[] = {
     {"peach",    {0xE5, 0x8A, 0xA8}, 0.70f,   0.60f, 0},           // pink to magenta
     {"pear",     {0xF2, 0xF1, 0xEA}, 0.80f,   0.70f, 0},           // white
     {"apple",    {0xF5, 0xE4, 0xE6}, 0.50f,   1.10f, kPinkBuds},   // pink buds open white, among leaves
-    {"birch",    {0xC2, 0xA5, 0x5A}, 0.35f,   0.90f, kCatkin},     // yellow-brown lamb's tails
-    {"oak",      {0xB9, 0xB6, 0x5A}, 0.15f,   1.10f, kCatkin},     // sparse yellow-green
-    {"pecan",    {0xB8, 0xB0, 0x60}, 0.15f,   1.40f, kCatkin},     // greenish-yellow, the latest nut
-    {"walnut",   {0x8C, 0x9A, 0x50}, 0.0625f, 1.00f, kCatkin},     // green catkins: next to invisible
-    {"chestnut", {0xE6, 0xDC, 0xA0}, 0.40f,   3.20f, kCatkin},     // cream spikes, early summer
+    // Catkins: muted (about 70 % brightness, less saturated) and sparser after the first look (the user,
+    // 2026-10-31: the first pass read as bright yellow sparks on the bare trees).
+    {"birch",    {0xA0, 0x8A, 0x55}, 0.25f,   0.90f, kCatkin},     // yellow-brown lamb's tails
+    {"oak",      {0x9A, 0x9A, 0x5A}, 0.125f,  1.10f, kCatkin},     // sparse yellow-green
+    {"pecan",    {0x98, 0x94, 0x58}, 0.125f,  1.40f, kCatkin},     // greenish-yellow, the latest nut
+    {"walnut",   {0x7A, 0x86, 0x4A}, 0.0625f, 1.00f, kCatkin},     // green catkins: next to invisible
+    {"chestnut", {0xC8, 0xBF, 0x8C}, 0.28f,   3.20f, kCatkin},     // cream spikes, early summer
 };
 
 // A mod's tree: pale blossom colours (whites, creams, pinks, a pale yellow, a lilac).
@@ -133,7 +135,7 @@ PixelTerms Pixel(float u, float v, const float n2[4], float l, float move, float
     float fy = Frc(qy) + (h[2] * -0.5f - 0.25f);
     if (n2[3] < 0.0f) {
         fx *= kCatkinX;
-        fy *= kCatkinY;
+        fy *= h[1] * kCatkinYVar + kCatkinY;
     }
     const float d2 = fx * fx + fy * fy;
     float r = h[2] * kRadius1 + kRadius0;
@@ -148,7 +150,7 @@ PixelTerms Pixel(float u, float v, const float n2[4], float l, float move, float
     p.mask    = f;
     p.lossCut = -kept * l + l;
     p.amount  = (l * (kept - f) + f) * move;
-    p.bright  = h[2] * kBright1 + kBright0;
+    p.bright  = h[1] * kBright1 + kBright0;
     return p;
 }
 
