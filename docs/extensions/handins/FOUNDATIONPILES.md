@@ -8,7 +8,9 @@
 
 Retail entry: `docs/retail_bugs.md` §17. Inventory row F16. Reported by a player 2026-10-31 (a stockpile
 placed over a clear-tool area, a town hall over trees, the Easy start's stockpile full); the owner asked for
-the piles to be moved off the footprint, for any building.
+the piles to be moved off the footprint, for any building. The stockpile half of that report was the port's
+ClearArea return value (known-issue row 1343): a stockpile site absorbs the piles its own storage takes, as
+retail does. The town hall half is retail's behavior.
 
 ## 1. Are loose piles "in storage"?
 
