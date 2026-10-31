@@ -4,6 +4,18 @@ One section per release, newest first. The section of the version being tagged i
 release's notes (`.github/workflows/release.yml` reads it with `tools/release/changelog_section.py`).
 Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CMakeLists.txt`.
 
+## Unreleased
+
+**Fixes**
+- `fix.foundation_piles` (on): a building placed over trees or rocks no longer stalls forever when the
+  town's storage is full. Retail leaves the felled logs and stone on the site, because no store will take
+  them, and the site never finishes (the piles rot a year later). With the fix, citizens carry those piles
+  to free ground just outside the foundation, and a stockpile collects them later as usual
+  (`docs/retail_bugs.md` section 17). Off under `/profile:faithful`.
+- Clearing road or field ground under a new building: a citizen given that task is no longer counted as
+  still free, so the next job can no longer overwrite the task (`ClearArea::Execute` returns 2 there, as
+  retail does).
+
 ## v1.0.2 (2026-10-30)
 
 **Major Changes:**

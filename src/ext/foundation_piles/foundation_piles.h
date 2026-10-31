@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/foundation_piles/foundation_piles.h -- fix.foundation_piles (fix tier, default ON)
 // ============================================================================
-// NOT RETAIL. docs/extensions/handins/FOUNDATIONPILES.md, docs/retail_bugs.md §16.
+// NOT RETAIL. docs/extensions/handins/FOUNDATIONPILES.md, docs/retail_bugs.md §17.
 //
 // A building placed over trees and rocks finishes clearing only when its footprint
 // holds no occupant (ClearAreaComponent::IsDone 0x140118440 -> Map::IsAreaEmpty

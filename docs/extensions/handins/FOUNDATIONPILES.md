@@ -6,7 +6,7 @@
 > finish clearing and be built. Retail leaves the piles where they are until they rot (a game year).
 > Nothing new is saved: the move is made of retail's own actions.
 
-Retail entry: `docs/retail_bugs.md` §16. Inventory row F16. Reported by a player 2026-10-31 (a stockpile
+Retail entry: `docs/retail_bugs.md` §17. Inventory row F16. Reported by a player 2026-10-31 (a stockpile
 placed over a clear-tool area, a town hall over trees, the Easy start's stockpile full); the owner asked for
 the piles to be moved off the footprint, for any building.
 
@@ -77,4 +77,4 @@ Off, the seam is one bool read before the loop; the loop and its result are reta
 - `tools/harness_route.sh clearoverlap` with `HARNESS_FIXES=foundation_piles` (the per-entry profile with only
   this fix on) against `HARNESS_FIXES=none`; the scenario's stall depends on timing (a run where food or
   firewood use frees store room first can clear without a move), see the report of 2026-10-31 in
-  `docs/retail_bugs.md` §16.
+  `docs/retail_bugs.md` §17.

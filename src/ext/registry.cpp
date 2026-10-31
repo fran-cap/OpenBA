@@ -123,7 +123,7 @@ const Entry kEntries[] = {
       "depends on memory layout, so a town plays out the same way each time a save is loaded.",
       0, [](State& s) -> bool& { return s.fix.alloc_tiebreak; } },
 
-    // FOUNDATIONPILES (docs/extensions/handins/FOUNDATIONPILES.md, docs/retail_bugs.md section 16): a
+    // FOUNDATIONPILES (docs/extensions/handins/FOUNDATIONPILES.md, docs/retail_bugs.md section 17): a
     // building site whose footprint holds only piles that no storage will take has them carried to free
     // ground just outside it (ClearArea phase 3), so it can be built; retail waits until the piles rot.
     // Sim-visible: which cells the piles lie on. Nothing new is saved: the move is retail's own actions.
