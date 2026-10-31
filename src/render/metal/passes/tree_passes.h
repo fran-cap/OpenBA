@@ -6,8 +6,10 @@ namespace VideoMetal::TreePasses {
 
 // The extension's requests (FaaBackend::Request / BbsBackend::Request, integration.mm). Main
 // thread; the render thread picks them up in BeginFrame. `dither` null = the shipped set.
-void SetFoliage(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither);
-void SetBillboardShadow(bool on);
+// `naturalGrowth` (docs/extensions/NATURAL_GROWTH.md): the pixel / vertex halves also run natural_growth.h
+// first, on the billboard and foliage programs.
+void SetFoliage(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither, bool naturalGrowth);
+void SetBillboardShadow(bool on, bool naturalGrowth);
 
 // Snapshot the last request once per command frame, outside draw loops.
 void BeginFrame();
@@ -21,13 +23,17 @@ Shader* Select(Shader* retail, const std::vector<uint8_t>& bytes,
 // multisampled target, otherwise the caller must run the retail shader.
 bool IsCoverage(const Shader* pixel);
 
-// Match DX11: transformed cutout shaders never run with alpha blending.
+// True for a variant that carries natural growth (NATURAL_GROWTH.md): a pixel one reads the interpolant
+// only a natural-growth vertex variant writes.
+bool IsNaturalGrowth(const Shader* shader);
+// Match DX11: transformed cutout shaders never run with alpha blending, and a natural-growth pixel
+// variant never runs beside a vertex shader that does not write its interpolant (retail's there).
 class BlendGuard {
     Shader*& slot;
     Shader* saved;
 
 public:
-    BlendGuard(Shader*& pixel, bool blending);
+    BlendGuard(Shader*& pixel, bool blending, const Shader* vertex);
     ~BlendGuard() { slot = saved; }
 };
 

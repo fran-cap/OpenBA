@@ -26,6 +26,12 @@
 // Options dialog's combo is Off / On / On + distance fill = Current().mode 0 / 1 / 2,
 // written through Set(). Mode 0 = the row off, which also turns the shading half off.
 //
+// Natural tree growth (docs/extensions/NATURAL_GROWTH.md): the valued key `ext.natural_tree_growth`
+// (0..1, default 1, owner better_trees; the Options dialog's "Natural tree growth" combo Off / On).
+// While the row is on and the key is 1, the billboard and foliage programs also carry the per-tree
+// autumn colour, leaf fall, spring regrowth and green variation (natural_growth.h), and the game
+// writes SeasonStamp into the shaders' spare time.y after every SetTime.
+//
 //   Sync()   boot (Ext::InitFromSettings), every Extensions-dialog toggle
 //            (Ext::SetAndRecord) and every Set(): hands the mode, k and the dapple
 //            parameters to the render side (FaaBackend::Request, BbsBackend::Request).
@@ -59,7 +65,8 @@ constexpr float kDistanceFillK = 0.15f;
 constexpr float kDistanceFillFloor = 0.15f;
 
 struct Params {
-    int mode = kOff;   // 0 = the row is off, else ext.foliage_aa_mode (1..2)
+    int  mode          = kOff;    // 0 = the row is off, else ext.foliage_aa_mode (1..2)
+    bool naturalGrowth = false;   // the row is on and ext.natural_tree_growth is 1
 };
 
 // The live value: mode = row on ? ext.foliage_aa_mode : 0. Cheap; never read
@@ -69,8 +76,16 @@ const Params& Current();
 // The menu's write : mode <= 0 turns the row off (the key keeps its
 // stored mode); mode >= 1 stores clamp(mode, 1, 2) and turns the row on. Records
 // the settings keys (the caller flushes, Ext::PersistSettings or retail's
-// WriteSettings), then Sync()s.
+// WriteSettings), then Sync()s. `naturalGrowth` is stored with the mode, only when
+// mode >= 1 (the key keeps its value while the row is off).
 void Set(const Params& p);
+
+// GameUpdateLoop::Draw / the render pipe, after SetTime: the value for Context::_time.y,
+// kStampBase + the months into the year (natural_growth.h "THE DAY"), or 0 while natural
+// growth is off (retail's 0: nothing is written).
+float SeasonStamp(float yearSeconds);
+// Current().naturalGrowth, for the two seams (they read the year clock only while it is on).
+bool NaturalGrowthOn();
 
 void Sync();
 

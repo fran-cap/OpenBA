@@ -166,7 +166,7 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(page && page->body.Find("_content") &&
           page->body.Find("_content")->tokens[0].text == "enhancedOptionsTable");
     const Object* table = e.Find("enhancedOptionsTable");
-    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 23);   // eleven labels, twelve controls (COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer)
+    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 25);   // twelve labels, thirteen controls (NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer)
     const Object* tpItems = e.Find("touchPointerItems");   // P11b: Off, four presets, Custom
     CHECK(tpItems && tpItems->body.Find("_strings") && tpItems->body.Find("_strings")->blocks.size() == 6);
     // TEXQUALITY: the Texture quality combo offers Full / Half only (Quarter removed by the user's ruling).

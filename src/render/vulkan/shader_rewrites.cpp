@@ -18,6 +18,7 @@
 #include "better_trees/cutout_rewrite.h"
 #include "better_trees/edge_dither.h"
 #include "better_trees/foliage_aa_backend.h"
+#include "better_trees/natural_growth.h"
 #include "better_trees/receiver_rewrite.h"
 #include "draw_batch/smoke_vs_backend.h"
 #include "draw_batch/smoke_vs_rewrite.h"
@@ -41,6 +42,7 @@ namespace {
 struct Copies {
     ShaderEntry* xf[kPermutationCount] = {};       // the rewritten permutations (null: retail)
     ShaderEntry* retail[kPermutationCount] = {};   // what they were made beside (a re-create is detected)
+    bool cov[kPermutationCount] = {};               // the copy writes coverage (foliage_aa)
 };
 
 using CopyMap = std::unordered_map<const void*, Copies>;
@@ -51,6 +53,7 @@ struct FaaState {
     float reqK = 0.0f;
     float reqFloor = 0.0f;
     BbsRewrite::Params reqDither = BbsRewrite::kRetailParams;
+    bool reqNg = false;   // NATURAL_GROWTH.md
     uint32_t reqGen = 0;
     // ... and applied (the binding thread / the loaders)
     uint32_t gen = 0;
@@ -58,6 +61,7 @@ struct FaaState {
     bool msaa = false;
     FaaRewrite::Options opt;
     BbsRewrite::Params dither = BbsRewrite::kRetailParams;
+    bool ng = false;
     CopyMap programs;
     int blobsSeen = 0;
     int blobsTransformed = 0;
@@ -69,6 +73,8 @@ struct FaaState {
 
 struct VertexStage {
     bool reqOn = false;
+    bool reqNg = false;   // NATURAL_GROWTH.md (billboard_shadow's stage only) ...
+    bool ng = false;      // ... and what the current copies were made with
 #if BANISHED_TWEAK_OVERLAY
     BbsRewrite::Params reqParams = BbsRewrite::kDefaultParams;   // billboard_shadow only (TS-TWEAK)
     BbsRewrite::Params params = BbsRewrite::kDefaultParams;
@@ -105,6 +111,7 @@ void ReleaseCopies(Copies& c) {
         ReleaseShader(x);
         x = nullptr;
     }
+    for (bool& b : c.cov) b = false;
 }
 
 void ReleaseAll(CopyMap& map) {
@@ -116,6 +123,23 @@ void ReleaseAll(CopyMap& map) {
 // The registry entry of a rewritten blob (one reference): an equal blob already registered is shared,
 // else it is converted (through the user's derived-data cache: our transform of their own bytecode)
 // and made a module. Null with *why on failure.
+// NATURAL_GROWTH.md: natural growth on (`blob`, `size`) when it matches, into `out`; the caller then reads `out`.
+bool Grow(const uint8_t* blob, size_t size, std::vector<uint8_t>* out, const char* tag, int i) {
+    NgRewrite::Match nm;
+    NgRewrite::Analyse(blob, size, &nm);
+    if (nm.kind == NgRewrite::Kind::None) return false;
+    const std::string hash = HashName(nm.cont.checksum);
+    if (!NgRewrite::Transform(nm, out)) {
+        std::fprintf(stderr, "[NaturalGrowth] %s rewrite of %s v%d FAILED its self-check: kept retail\n", tag, hash.c_str(), i);
+        return false;
+    }
+    if (g_logged.insert("ng" + hash).second) {
+        std::fprintf(stderr, "[NaturalGrowth] rewrote %s v%d (%s): %zu B -> %zu B (Vulkan)\n", hash.c_str(), i,
+                     NgRewrite::KindName(nm.kind), size, out->size());
+    }
+    return true;
+}
+
 ShaderEntry* EntryOf(const std::vector<uint8_t>& dxbc, Shaders::Stage stage, std::string* why) {
     const uint64_t hash = ShaderHash(dxbc.data(), dxbc.size(), stage);
     if (ShaderEntry* e = AcquireShader(hash)) return e;
@@ -166,6 +190,7 @@ void FaaReset(const char* why) {
     g_faa.msaa = MsaaNow();
     g_faa.opt = FaaRewrite::OptionsFor(g_faa.mode, g_faa.reqK, g_faa.msaa, g_faa.reqFloor);
     g_faa.dither = g_faa.reqDither;
+    g_faa.ng = g_faa.mode > 0 && g_faa.reqNg;
     if (g_faa.mode > 0) {
         std::fprintf(stderr, "[FoliageAA] stage gen %u: mode %d (%s), MSAA %s -> %s, fill k %.3f floor %.3f, "
                              "edge dither noise %.2f scale %.0f (Vulkan: copies through the shader converter)\n",
@@ -201,13 +226,20 @@ Copies& FaaBuild(PixelProgramData* p) {
         if (i >= owner->_byteCode.GetSize() || p->shaders[i] == nullptr) continue;
         const Collection::Array<uint8_t>& b = owner->_byteCode.GetData()[i];
         const uint8_t* blob = b.GetData();
-        const size_t size = static_cast<size_t>(b.GetSize());
+        size_t size = static_cast<size_t>(b.GetSize());
+        ++g_faa.blobsSeen;
+        // NATURAL_GROWTH.md: natural growth first (it keeps the cutout's grammar).
+        std::vector<uint8_t> grown;
+        const bool ng = g_faa.ng && Grow(blob, size, &grown, "pixel", i);
+        if (ng) {
+            blob = grown.data();
+            size = grown.size();
+        }
         FaaRewrite::Match m;
         FaaRewrite::Analyse(blob, size, &m);
-        ++g_faa.blobsSeen;
         const std::string hash = m.container ? HashName(m.cont.checksum) : std::string("(no container)");
         std::vector<uint8_t> cur(blob, blob + size);
-        bool changed = false;
+        bool changed = ng;
         if (!m.colour) {
             if ((m.discards > 0 || !m.program) && g_logged.insert("fu" + hash).second) {
                 std::fprintf(stderr, "[FoliageAA] untouched %s v%d (%zu B): %s\n", hash.c_str(), i, size, m.why.c_str());
@@ -217,6 +249,7 @@ Copies& FaaBuild(PixelProgramData* p) {
             if (FaaRewrite::Transform(m, g_faa.opt, &cut)) {
                 cur = std::move(cut);
                 changed = true;
+                c.cov[i] = g_faa.opt.coverage;
                 if (g_logged.insert("ft" + std::to_string(g_faa.gen) + ":" + hash).second) {
                     std::fprintf(stderr, "[FoliageAA] transformed %s v%d gen %u%s%s: %zu B -> %zu B\n", hash.c_str(), i,
                                  g_faa.gen, g_faa.opt.coverage ? " coverage" : "",
@@ -224,9 +257,9 @@ Copies& FaaBuild(PixelProgramData* p) {
                 }
             } else if (g_faa.opt.coverage || g_faa.opt.fillK > 0.0f) {
                 ++g_faa.createFailed;
-                std::fprintf(stderr, "[FoliageAA] transform of %s v%d FAILED its self-check: kept retail\n",
-                             hash.c_str(), i);
-                continue;
+                std::fprintf(stderr, "[FoliageAA] transform of %s v%d FAILED its self-check: kept %s\n",
+                             hash.c_str(), i, ng ? "natural growth alone" : "retail");
+                if (!ng) continue;
             }
         }
         if (g_faa.dither.noise > 0.0f && m.colour) {
@@ -247,7 +280,9 @@ Copies& FaaBuild(PixelProgramData* p) {
         if (!changed) continue;
         std::string why;
         c.xf[i] = EntryOf(cur, Shaders::Stage::Pixel, &why);
+        if (c.xf[i] != nullptr && ng) c.xf[i]->naturalGrowth = true;
         if (c.xf[i] == nullptr) {
+            c.cov[i] = false;
             ++g_faa.createFailed;
             std::fprintf(stderr, "[FoliageAA] the copy of %s v%d did not convert (%s): kept retail\n", hash.c_str(), i,
                          why.c_str());
@@ -294,6 +329,7 @@ Copies& VertexBuild(VertexStage& s, VertexKind k, VertexProgramData* p) {
         ++s.blobsSeen;
         std::vector<uint8_t> out;
         bool built = false;
+        bool ng = false;
         std::string name;
         if (k == VertexKind::Smoke) {
             SmokeVs::Match m;
@@ -302,21 +338,29 @@ Copies& VertexBuild(VertexStage& s, VertexKind k, VertexProgramData* p) {
             built = SmokeVs::Transform(m, &out);
             name = m.container ? HashName(m.cont.checksum) : std::string("(no container)");
         } else {
+            // NATURAL_GROWTH.md: natural growth first (billboard colour / depth, foliage), then the receiver.
+            std::vector<uint8_t> grown;
+            ng = s.ng && Grow(blob, size, &grown, "vertex", i);
+            const uint8_t* src = ng ? grown.data() : blob;
+            const size_t srcSize = ng ? grown.size() : size;
             BbsRewrite::Match m;
-            BbsRewrite::Analyse(blob, size, &m);
+            BbsRewrite::Analyse(src, srcSize, &m);
             name = m.container ? HashName(m.cont.checksum) : std::string("(no container)");
             if (!m.matched) {
                 if ((m.candidate || !m.program) && g_logged.insert("bu" + name).second) {
-                    std::fprintf(stderr, "[BillboardShadow] untouched %s v%d (%zu B): %s\n", name.c_str(), i, size,
+                    std::fprintf(stderr, "[BillboardShadow] untouched %s v%d (%zu B): %s\n", name.c_str(), i, srcSize,
                                  m.why.c_str());
                 }
-                continue;
-            }
+                if (!ng) continue;
+                out = std::move(grown);
+                built = true;
+            } else {
 #if BANISHED_TWEAK_OVERLAY
-            built = BbsRewrite::TransformWithParams(m, &out, s.params);
+                built = BbsRewrite::TransformWithParams(m, &out, s.params);
 #else
-            built = BbsRewrite::Transform(m, &out);
+                built = BbsRewrite::Transform(m, &out);
 #endif
+            }
         }
         if (!built) {
             ++s.createFailed;
@@ -325,6 +369,7 @@ Copies& VertexBuild(VertexStage& s, VertexKind k, VertexProgramData* p) {
         }
         std::string why;
         c.xf[i] = EntryOf(out, Shaders::Stage::Vertex, &why);
+        if (c.xf[i] != nullptr && ng) c.xf[i]->naturalGrowth = true;
         if (c.xf[i] == nullptr) {
             ++s.createFailed;
             std::fprintf(stderr, "%s copy of %s v%d did not convert (%s): kept retail\n", Tag(k), name.c_str(), i,
@@ -348,6 +393,10 @@ ShaderEntry* VertexCopy(VertexStage& s, VertexKind k, VertexProgramData* p, int 
             std::fprintf(stderr, "%s stage off: copies released\n", Tag(k));
         }
         return nullptr;
+    }
+    if (s.ng != s.reqNg) {   // NATURAL_GROWTH.md: re-made with (or without) it
+        VertexRelease(s, k, s.reqNg ? "natural growth on" : "natural growth off");
+        s.ng = s.reqNg;
     }
     auto it = s.programs.find(p);
     Copies* c = it != s.programs.end() ? &it->second : nullptr;
@@ -404,14 +453,14 @@ ShaderEntry* BindPixel(PixelProgramData* p, int permutation, bool* coverage) {
     ShaderEntry* const xf = c->xf[permutation];
     if (xf == nullptr) return nullptr;
     if (++g_faa.xfBinds == 1) std::fprintf(stderr, "[FoliageAA] first transformed bind of gen %u\n", g_faa.gen);
-    *coverage = g_faa.opt.coverage;
+    *coverage = c->cov[permutation];
     return AcquireShader(xf->hash);
 }
 
 void VertexCreated(VertexProgramData* p) {
     std::lock_guard<std::mutex> lock(g_mu);
     if (g_smoke.reqOn) VertexBuild(g_smoke, VertexKind::Smoke, p);
-    if (g_bbs.reqOn) VertexBuild(g_bbs, VertexKind::Billboard, p);
+    if (g_bbs.reqOn && g_bbs.ng == g_bbs.reqNg) VertexBuild(g_bbs, VertexKind::Billboard, p);
     UpdateActive();
 }
 
@@ -470,7 +519,7 @@ void Shutdown() {
 namespace FaaBackend {
 
 // foliage_aa_stage.cpp's Request: the same normalisation and the same generation rule.
-void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither) {
+void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither, bool naturalGrowth) {
     using namespace VideoVulkan::Rewrites;
     std::lock_guard<std::mutex> lock(g_mu);
     if (mode < 0 || mode > 2) mode = 0;
@@ -481,7 +530,11 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
         d.noise = dither->noise > 0.0f ? dither->noise : 0.0f;
         d.noiseScale = dither->noiseScale > 0.0f ? dither->noiseScale : BbsRewrite::kRetailParams.noiseScale;
     }
-    if (mode == g_faa.reqMode && fillK == g_faa.reqK && fillFloor == g_faa.reqFloor && d == g_faa.reqDither) return;
+    naturalGrowth = mode > 0 && naturalGrowth;
+    if (mode == g_faa.reqMode && fillK == g_faa.reqK && fillFloor == g_faa.reqFloor && d == g_faa.reqDither &&
+        naturalGrowth == g_faa.reqNg)
+        return;
+    g_faa.reqNg = naturalGrowth;
     g_faa.reqMode = mode;
     g_faa.reqK = fillK;
     g_faa.reqFloor = fillFloor;
@@ -520,9 +573,10 @@ TweakStats Stats() {
 
 namespace BbsBackend {
 
-void Request(bool on) {
+void Request(bool on, bool naturalGrowth) {
     using namespace VideoVulkan::Rewrites;
     std::lock_guard<std::mutex> lock(g_mu);
+    g_bbs.reqNg = on && naturalGrowth;
     if (on == g_bbs.reqOn) return;
     g_bbs.reqOn = on;
     UpdateActive();

@@ -69,6 +69,9 @@
 //   6 the SkinMemo scope around pass 2 only (passes.cpp).
 // ============================================================================
 #include "ext/render_pipe/render_pipe.h"
+#include "ext/better_trees/better_trees.h"   // NATURAL_GROWTH.md: SeasonStamp
+#include "ext/better_trees/falling_leaves.h"   // NATURAL_GROWTH.md section 7: LeavesFrame
+#include "Game/Calendar.h"                     // NATURAL_GROWTH.md: GameUpdateLoop::m_dayCounter's year time
 #include "ext/render_pipe/render_pipe_internal.h"
 #include "ext/render_pipe/packet.h"
 #include "ext/render_pipe/pipe_state.h"
@@ -225,6 +228,10 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     // MainLoop::_frameUpdateTime, which the previous emit wrote, as retail's
     // SetTime reads the previous Draw's).
     p.gameTimeTicks = g.m_gameTime;
+    p.seasonStamp = 0.0f;   // NATURAL_GROWTH.md: ext.better_trees' day of the year (Draw step 2's seam)
+    if (Ext::BetterTrees::NaturalGrowthOn() && g.m_dayCounter != nullptr)
+        p.seasonStamp = Ext::BetterTrees::SeasonStamp(g.m_dayCounter->yearTime.AsSeconds());
+    Ext::BetterTrees::LeavesFrame(g);   // NATURAL_GROWTH.md §7: the falling leaves (Draw step 2's seam)
 
     // Step 3 (PaintTerrain) never reaches here: PlanTail runs that frame unpipelined.
 
@@ -381,6 +388,7 @@ struct EngineOps {
         const float gameSeconds  = gameTime.AsSeconds();
         const float frameSeconds = engineFrameTime.AsSeconds();
         ctx->SetTime(gameSeconds + frameSeconds * p.alpha);
+        if (p.seasonStamp > 0.0f) ctx->_time.y = p.seasonStamp;   // NATURAL_GROWTH.md (GameUpdateLoop::Draw step 2)
     }
     void WeatherContext(const Packet& p) {
         ctx->_unknown03b8.x = p.weather[0];

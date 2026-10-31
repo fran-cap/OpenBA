@@ -567,6 +567,10 @@ const ValueKey kValueKeys[] = {
     // Tap twice to place: a second tap near the first places the aimed building (ruled a setting, off).
     { "touch_pointer_tap_twice", "touch_pointer", 0, 1, 0,
       [](State& s) -> int32_t& { return s.val.touch_pointer_tap_twice; }, nullptr, 0 },
+    // NATURAL_GROWTH.md: Better trees' natural tree growth (the per-tree autumn colour, leaf fall, spring
+    // regrowth and green variation), on whenever the row is; the Enhanced tab's second Better trees combo.
+    { "natural_tree_growth", "better_trees", 0, 1, 1,
+      [](State& s) -> int32_t& { return s.val.natural_tree_growth; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));

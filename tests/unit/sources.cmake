@@ -91,6 +91,8 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/cutout_rewrite.cpp
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/receiver_rewrite.cpp   # ext_better_trees_test.cpp (block TS-CORE)
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/edge_dither.cpp        # ext_better_trees_test.cpp (BETTER-TREES)
+  ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/natural_growth.cpp     # ext_natural_growth_test.cpp (NATURAL_GROWTH.md)
+  ${CMAKE_SOURCE_DIR}/src/ext/better_trees/leaf_fall.cpp                    # ext_natural_growth_test.cpp (NATURAL_GROWTH.md section 7)
   ${CMAKE_SOURCE_DIR}/src/ext/fast_paths/fast_search.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Action/action_pf_region_search.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Game/worldgen_f390_erosion.cpp   # worldgen_erosion_test.cpp (block EROSION)

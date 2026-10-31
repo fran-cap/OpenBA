@@ -235,6 +235,7 @@ void Apply(const Action& a) {
         case Act::FaaMode: {
             Ext::BetterTrees::Params p;
             p.mode = a.value;
+            p.naturalGrowth = Ext::Val().natural_tree_growth != 0;   // kept (NATURAL_GROWTH.md)
             Ext::BetterTrees::Set(p);   // 0 turns the row off (the Options combo's rule)
             break;
         }

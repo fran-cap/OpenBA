@@ -55,16 +55,16 @@ bool DepthReadable() {
 // supports every mode the interface carries, so there is no "not supported" answer to give.
 namespace FaaBackend {
 
-void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither) {
-    VideoMetal::TreePasses::SetFoliage(mode, fillK, fillFloor, dither);
+void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither, bool naturalGrowth) {
+    VideoMetal::TreePasses::SetFoliage(mode, fillK, fillFloor, dither, mode > 0 && naturalGrowth);
 }
 
 }  // namespace FaaBackend
 
 namespace BbsBackend {
 
-void Request(bool on) {
-    VideoMetal::TreePasses::SetBillboardShadow(on);
+void Request(bool on, bool naturalGrowth) {
+    VideoMetal::TreePasses::SetBillboardShadow(on, on && naturalGrowth);
 }
 
 }  // namespace BbsBackend

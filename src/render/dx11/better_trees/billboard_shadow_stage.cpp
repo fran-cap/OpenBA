@@ -8,6 +8,8 @@
 #include "better_trees/billboard_shadow_stage.h"
 
 #include "better_trees/billboard_shadow_backend.h"
+#include "better_trees/foliage_aa_stage.h"     // NATURAL_GROWTH.md: the pixel stage's pairing re-apply
+#include "better_trees/natural_growth.h"
 #include "better_trees/receiver_rewrite.h"
 
 #include "dx11_backend_access.h"
@@ -22,6 +24,7 @@
 namespace VideoDX11 {
 
 std::atomic<BbsStage::Stage*> g_extBillboardShadow{nullptr};
+std::atomic<bool> g_ngVertexBound{false};
 
 namespace BbsStage {
 namespace {
@@ -29,11 +32,14 @@ namespace {
 struct Program {
     ID3D11VertexShader* xf[kShaderVariantCount]     = {};
     ID3D11VertexShader* retail[kShaderVariantCount] = {};   // what the copies were made beside
+    bool                ng[kShaderVariantCount]     = {};   // the copy carries natural growth
 };
 
 struct State {
     std::mutex    mu;
     bool          reqOn  = false;   // the extension's request (main thread)
+    bool          reqNg  = false;   // NATURAL_GROWTH.md: natural tree growth requested ...
+    bool          ng     = false;   // ... and what the current copies were made with
 #if BANISHED_TWEAK_OVERLAY
     BbsRewrite::Params reqParams = BbsRewrite::kDefaultParams;   // TS-TWEAK: the overlay's request
     BbsRewrite::Params params    = BbsRewrite::kDefaultParams;   // what the current copies were made with
@@ -41,7 +47,7 @@ struct State {
     ID3D11Device* device = nullptr; // the device the copies belong to
     std::unordered_map<VertexProgramData*, Program> programs;
     // evidence counters (since the last reset)
-    int  blobsSeen = 0, blobsTransformed = 0, createFailed = 0;
+    int  blobsSeen = 0, blobsTransformed = 0, ngTransformed = 0, createFailed = 0;
     long xfBinds = 0, vertexBinds = 0;
     std::set<std::string> logged;   // a blob is logged once per run
 };
@@ -68,12 +74,12 @@ void ReleaseAll(State& s, const char* why) {
     if (s.blobsTransformed || s.xfBinds)
         std::fprintf(stderr,
                      "[BillboardShadow] stage reset (%s): %d blobs seen, %d rewritten, %d create failures, "
-                     "%ld of %ld vertex binds rewritten\n",
-                     why, s.blobsSeen, s.blobsTransformed, s.createFailed, s.xfBinds, s.vertexBinds);
+                     "%ld of %ld vertex binds rewritten (%d with natural growth)\n",
+                     why, s.blobsSeen, s.blobsTransformed, s.createFailed, s.xfBinds, s.vertexBinds, s.ngTransformed);
     for (auto& kv : s.programs)
         for (ID3D11VertexShader*& x : kv.second.xf) Rel(x);
     s.programs.clear();
-    s.blobsSeen = s.blobsTransformed = s.createFailed = 0;
+    s.blobsSeen = s.blobsTransformed = s.ngTransformed = s.createFailed = 0;
     s.xfBinds = s.vertexBinds = 0;
 }
 
@@ -89,13 +95,55 @@ Program& Build(State& s, VertexProgramData* p) {
     const RtByteCodeBlob* blobs = owner->_byteCode.GetData();
     for (int i = 0; i < kShaderVariantCount; ++i) {
         pr.retail[i] = p->variants[i];
+        pr.ng[i] = false;
         if (i >= owner->_byteCode.GetSize() || p->variants[i] == nullptr) continue;
         const uint8_t* blob = blobs[i].GetData();
-        const size_t   size = static_cast<size_t>(blobs[i].GetSize());
+        size_t         size = static_cast<size_t>(blobs[i].GetSize());
+        ++s.blobsSeen;
+        // NATURAL_GROWTH.md: natural growth first (the billboard colour / depth and foliage programs), then
+        // the receiver lookup on its result.
+        std::vector<uint8_t> grown;
+        if (s.ng) {
+            NgRewrite::Match nm;
+            NgRewrite::Analyse(blob, size, &nm);
+            const std::string nh = nm.container ? HashName(nm.cont.checksum) : std::string("(no container)");
+            if (nm.kind != NgRewrite::Kind::None) {
+                if (NgRewrite::Transform(nm, &grown)) {
+                    if (s.logged.insert("n" + nh).second)
+                        std::fprintf(stderr, "[NaturalGrowth] rewrote %s v%d (%s): %zu B -> %zu B\n", nh.c_str(), i,
+                                     NgRewrite::KindName(nm.kind), size, grown.size());
+                    blob = grown.data();
+                    size = grown.size();
+                    pr.ng[i] = true;
+                } else {
+                    ++s.createFailed;
+                    std::fprintf(stderr, "[NaturalGrowth] rewrite of %s v%d FAILED its self-check: kept retail\n",
+                                 nh.c_str(), i);
+                }
+            } else if (nm.candidate && s.logged.insert("nu" + nh).second) {
+                std::fprintf(stderr, "[NaturalGrowth] untouched %s v%d: %s\n", nh.c_str(), i, nm.why.c_str());
+            }
+        }
         BbsRewrite::Match m;
         BbsRewrite::Analyse(blob, size, &m);
-        ++s.blobsSeen;
         const std::string hash = m.container ? HashName(m.cont.checksum) : std::string("(no container)");
+        if (!m.matched && pr.ng[i]) {
+            // natural growth alone (the depth and foliage programs, and DETAIL0's colour one)
+            ID3D11VertexShader* vs = nullptr;
+            const HRESULT hr = s.device->CreateVertexShader(blob, size, nullptr, &vs);
+            if (hr != S_OK || vs == nullptr) {
+                ++s.createFailed;
+                pr.ng[i] = false;
+                std::fprintf(stderr, "[NaturalGrowth] CreateVertexShader of %s v%d failed hr=0x%08lx: kept retail\n",
+                             hash.c_str(), i, static_cast<unsigned long>(hr));
+                Rel(vs);
+                continue;
+            }
+            pr.xf[i] = vs;
+            ++s.blobsTransformed;
+            ++s.ngTransformed;
+            continue;
+        }
         if (!m.matched) {
             // Untouched. Logged once per blob per run when it looked like ours (it reads both windows)
             // or could not be read at all; every other vertex shader is not worth a line.
@@ -112,6 +160,7 @@ Program& Build(State& s, VertexProgramData* p) {
 #endif
         if (!built) {
             ++s.createFailed;
+            pr.ng[i] = false;
             std::fprintf(stderr, "[BillboardShadow] rewrite of %s v%d FAILED its self-check: kept retail\n",
                          hash.c_str(), i);
             continue;
@@ -122,11 +171,13 @@ Program& Build(State& s, VertexProgramData* p) {
             ++s.createFailed;
             std::fprintf(stderr, "[BillboardShadow] CreateVertexShader of the copy of %s v%d failed hr=0x%08lx: "
                                  "kept retail\n", hash.c_str(), i, static_cast<unsigned long>(hr));
+            pr.ng[i] = false;
             Rel(vs);
             continue;
         }
         pr.xf[i] = vs;
         ++s.blobsTransformed;
+        if (pr.ng[i]) ++s.ngTransformed;
 #if BANISHED_TWEAK_OVERLAY
         const BbsRewrite::Params k = s.params;
         char kTag[48];
@@ -147,6 +198,14 @@ Program& Build(State& s, VertexProgramData* p) {
     return pr;
 }
 
+// NATURAL_GROWTH.md: publish whether the bound vertex shader writes the per-tree interpolant; on a
+// change the pixel stage re-applies its bound pair (a copy that reads the interpolant runs only beside one).
+void SetNgBound(ID3D11DeviceContext* ctx, bool ng) {
+    if (g_ngVertexBound.load(std::memory_order_relaxed) == ng) return;
+    g_ngVertexBound.store(ng, std::memory_order_relaxed);
+    if (FaaStage::Stage* faa = g_extFoliageAA.load(std::memory_order_acquire)) faa->VertexPairChanged(ctx);
+}
+
 }  // namespace
 
 void Stage::BindVertex(ID3D11DeviceContext* ctx, VertexProgramData* p, int variant) {
@@ -159,7 +218,12 @@ void Stage::BindVertex(ID3D11DeviceContext* ctx, VertexProgramData* p, int varia
         g_extBillboardShadow.store(nullptr, std::memory_order_release);
         std::fprintf(stderr, "[BillboardShadow] stage off: copies released, seam cleared\n");
         ctx->VSSetShader(retail, nullptr, 0);
+        SetNgBound(ctx, false);
         return;
+    }
+    if (s.ng != s.reqNg) {   // NATURAL_GROWTH.md: the copies are re-made with (or without) it below / lazily
+        ReleaseAll(s, s.reqNg ? "natural growth on" : "natural growth off");
+        s.ng = s.reqNg;
     }
     ++s.vertexBinds;
     if (s.device != Dx11Device()) {
@@ -182,6 +246,7 @@ void Stage::BindVertex(ID3D11DeviceContext* ctx, VertexProgramData* p, int varia
     const bool use = xf != nullptr;
     if (use && ++s.xfBinds == 1) std::fprintf(stderr, "[BillboardShadow] first rewritten bind\n");
     ctx->VSSetShader(use ? xf : retail, nullptr, 0);
+    SetNgBound(ctx, use && pr->ng[variant]);
 }
 
 void Stage::VertexCreated(VertexProgramData* p) {
@@ -205,10 +270,16 @@ void Stage::VertexDestroyed(VertexProgramData* p) {
 
 namespace BbsBackend {
 
-void Request(bool on) {
+void Request(bool on, bool naturalGrowth) {
     using namespace VideoDX11;
     VideoDX11::BbsStage::State& s = VideoDX11::BbsStage::S();
     std::lock_guard<std::mutex> lock(s.mu);
+    naturalGrowth = on && naturalGrowth;
+    if (naturalGrowth != s.reqNg) {
+        s.reqNg = naturalGrowth;
+        std::fprintf(stderr, "[NaturalGrowth] vertex request %s (applied at the next vertex bind)\n",
+                     naturalGrowth ? "on" : "off");
+    }
     if (on == s.reqOn) return;
     s.reqOn = on;
     if (on) g_extBillboardShadow.store(&BbsStage::g_stage, std::memory_order_release);

@@ -45,6 +45,7 @@ struct Packet {
     float   frameTime     = 0;   // MainLoop::Frame tail: Context::_time.x
     int64_t frameStartTicks = 0; // RENDERPIPE-1: MainLoop::_frameStartTicks of the Frame that gathered it (FrameUpdateTime)
     int64_t gameTimeTicks = 0;   // step 2: SetTime's game time (the frame time is read at emit)
+    float   seasonStamp   = 0;   // step 2: ext.better_trees' natural growth, Context::_time.y after SetTime (0: none)
     float   weather[4]    = {};  // step 5: WeatherSimulation +0x1C -> Context +0x3B8 and pixel[4]
     float   fogNear       = 0;   // step 5: SetFog
     float   fogFar        = 0;
