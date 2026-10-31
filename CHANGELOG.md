@@ -6,9 +6,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 
 ## v1.0.2 (2026-10-30)
 
-Third release of OpenBA, a week after v1.0.1: the first Android build (a signed apk), a Vulkan renderer
-that replaces dxvk-native on Linux, a profile-guided Windows exe, faster loading again, and a round of
-fixes checked against retail, several of them contributed.
+**Major Changes:**
+1. First Android build (a signed apk)
+2. Vulkan renderer that replaces dxvk-native on Linux
+3. Profile-guided Windows exe
+4. Faster loading again, and a round of fixes checked against retail, several of them contributed.
 
 **Platforms and packages**
 - Android arm64 (`OpenBA-v1.0.2-android-arm64.apk`, signed; Vulkan 1.1 or later; the game data comes from
