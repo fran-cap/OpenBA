@@ -49,6 +49,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
   Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
   `docs/known_port_issues.md` row 1344).
+- `fix.path_query_first` (on): in a large town the game no longer freezes for 15 to 20 seconds when a
+  merchant boat sets off, or while a road is drawn. Retail queues that path query behind every citizen
+  route search already waiting; with the fix it is answered first, and those citizens get their routes a
+  few ticks later (`docs/retail_bugs.md` section 18). Off under `/profile:faithful`.
 
 ## v1.0.2 (2026-10-30)
 

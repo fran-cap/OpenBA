@@ -34,6 +34,7 @@
 #include "system/Thread.h"     // ENDGAME B.3.4b System callers
 #include "stress_harness.h"   // PFBENCH: g_pfProfOn / PfProf_* (stress harness only; one branch when off)
 #include "ext/fast_paths/fast_paths.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FASTPATHS.md): ext.fast_paths, cases 2 and 5 below
+#include "ext/path_query_first/path_query_first.h"   // EXT SEAM (NOT RETAIL): fix.path_query_first, command 6
 #include <atomic>      // std::atomic_signal_fence (ApplyCommand case 5: retail's per-iteration reloads)
 #include <cstdint>
 #include <cstdio>    // [FLOODDIAG] diagnostic reporting
@@ -751,6 +752,11 @@ void PathfinderThread::ApplyCommand(const PathCommandArgs& cmd) {
         if (g_pfProfOn) PfProf_Ready(slot);   // [PFBENCH] e2e split: publish stamp (stress harness only)
         return;
     }
+    case Ext::PathQueryFirst::kCommand:
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHQUERYFIRST.md): fix.path_query_first's
+        // head-of-queue query; retail queues no command 6.
+        Ext::PathQueryFirst::Apply(*this, cmd);
+        return;
     }
 }
 
