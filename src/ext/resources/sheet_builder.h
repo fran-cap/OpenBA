@@ -133,6 +133,10 @@ struct SheetObjects {
 // is destroyed and all three are null; the reason is logged as `[ExtRes]`.
 SheetObjects BuildSheetObjects(const SheetSpec& spec, const SheetBitmap* bitmaps, int count,
                                const char* baseMaterialPath, const char* textureSlot = "diffuse");
+// The same on a base material the caller already holds (natural tree growth's falling leaves: the
+// loaded snow particle material, NATURAL_GROWTH.md §7).
+SheetObjects BuildSheetObjects(const SheetSpec& spec, const SheetBitmap* bitmaps, int count,
+                               Graphics::Material* baseMaterial, const char* textureSlot);
 
 // Destroys objects BuildSheetObjects made that were never handed to the factory.
 void DestroySheetObjects(SheetObjects& objects);

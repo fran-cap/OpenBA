@@ -164,7 +164,7 @@ During each tree's own leaf-fall window (`l` between ~0.1 and ~0.9), leaf cards 
   wind from the weather sim's wind term, if one is exposed.
 - Optional: a ground-litter tint on the terrain under bare trees through Late Fall (a separate question; the
   terrain shader is not a better_trees program).
-Phase 2 gets its own section of this file after phase 1's look ruling.
+Phase 2 is built: §7.
 
 ## 4. The spike (before any rewrite code; nothing retail enters the tree)
 
@@ -190,7 +190,7 @@ Neither the switch nor the dump is kept.
 | NG-SPIKE | done | S1-S5 (S6 not run) | §6 |
 | NG-CORE | done | signature editing in `dxbc.{h,cpp}`, the `natgrowth_rewrite.{h,cpp}` VS + PS rewriters, the `doy` plumbing (S3's answer), the stage chaining on DX11 / Vulkan / Metal, the settings key and the Options checkbox, unit tests (the identity case of 3.4, the curves at the window edges, the signature round trip) | `tools/build.sh unit`, the gate, the resave check, the `[BetterTrees]` match line counting every variant |
 | NG-LOOK | the user | S7 | the ruling on curves, palette and default |
-| NG-LEAVES | one opus agent | phase 2 (3.7) | its own section here, then the look check |
+| NG-LEAVES | done | phase 2 (3.7) | §7, then the look check |
 
 ## 6. As built (phase 1)
 
@@ -247,3 +247,60 @@ A natural-growth pixel copy reads an interpolant that only a natural-growth vert
 - Metal: compiled by CI only.
 - The gate (`tools/build.sh run`, faithful): RUNNING, no crash.
 - `tools/resave_gate/resave_gate.sh Gate`: PASS.
+
+## 7. Phase 2: the falling leaves (as built)
+
+While natural tree growth is on, deciduous trees near the view drop leaves during their own autumn leaf fall.
+Nothing new is shipped or rewritten.
+- The leaves are our own procedural atlas.
+- The program and blend state are the user's installed snow weather material (`Material/Weather/WeatherMaterial.rsc`).
+- It is render only (class A): nothing is saved, and the sim never sees it.
+
+**Files.**
+- `src/ext/better_trees/leaf_fall.{h,cpp}`: the pure part, unit tested.
+- `src/ext/better_trees/falling_leaves.{h,cpp}`: the exe part.
+- Two seams, both in `GameUpdateLoop` (with `ext.render_pipe`'s MainHalf twin of the first):
+  - `LeavesFrame`: Draw step 2, beside the season stamp.
+  - `LeavesShutdown`: Shutdown's removal of the global scene objects.
+- `Ext::Resources::BuildSheetObjects` gained an overload that takes a base material the caller already holds.
+
+**The atlas.**
+- 128 x 128, with 4 leaf shapes (oval, lance, lobed, round) in 4 colours (gold, orange, red, brown).
+- Painted at load with 4 x 4 supersampled edges and a darker midrib.
+- The colour is filled across the whole cell, so bilinear filtering leaves no dark fringe.
+- It is bound in the snow material's `diffuse` slot.
+- The weather program reads its corner texture coordinates as UNORM8, so a card picks its cell in 1/255 steps. The cells keep a clear 2-texel margin.
+- The weather program is unlit and outputs the texture's colour as is, which is why the colours sit below the canopy palette.
+
+**The trees.**
+- The map's occupants are scanned a sixteenth per frame. Every tree species shares one description, `Template/NaturalResourceTree.rsc`, so a tree counts as deciduous by its mesh: its first material instance is a billboard material that is not the evergreen one.
+- Each pass keeps every tree's position and world box. It holds no pointers.
+- A tree drops leaves when it is within 45 units of where the camera looks (the view ray at ground height) and the camera is under 110 units above it.
+
+**The timing.**
+- A tree's drop rate is `0.1 + 1.6 l (1 - l)` leaves a second, where `l` is its own autumn leaf loss. `l` is the autumn half of `SeasonOf`, the canopy shader's own terms.
+- Leaves fall only while that tree's canopy thins.
+- There is a cap of 2400 leaves. Spawning starts from a random tree each frame, so a capped frame favours no part of the view.
+
+**The motion.**
+- Leaves spawn on the crown's outer edge, in its lower 35-70 %.
+- Each leaf falls at 0.7-1.2 units a second, modulated by its flutter.
+- It also has a side-to-side flutter, a drift, a spin about the view axis and a tumble (the card squashed by `|cos|`).
+- It is gone at the tree's foot.
+- The leaves move in real time while the game clock runs. They freeze when the clock has not moved for 0.25 s (paused).
+
+**The draw.**
+- `LeavesGeometry` is a `Graphics::Geometry` in the scene's global list. Its draw item is WeatherParticleGeometry's own.
+- It draws one instance at the origin, with the cards' world positions in the dynamic vertex stream.
+- Visibility runs to 70-90 units of depth, plus the near fade.
+- The main thread builds the cards. `Draw` copies the last finished set under a lock, so it is safe on the render pipe's thread, and records the camera.
+- Outside months 6-9.5 the geometry leaves the scene, so the rest of the year draws exactly as without the part.
+- A frame holding it is one the render pipe's snapshot does not cover, so that frame keeps the fence.
+
+**Checked (2026-10-31, DX11 debug, the spike-only season switch):**
+- 9-11 k deciduous trees on a new map, and about 250-450 dropping near a town view.
+- About 200 leaves at play distance (2,400 against the cap before the rate and radius were lowered).
+- Quit to the main menu mid-fall: clean, with an empty crash log.
+- The Vulkan build compiles.
+- No leaves run has been done on Vulkan or Metal. The draw uses only `Video::Context` calls the weather already makes.
+- The look (size, colours, rate) is the user's ruling.

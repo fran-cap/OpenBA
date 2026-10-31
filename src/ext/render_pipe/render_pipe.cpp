@@ -70,6 +70,7 @@
 // ============================================================================
 #include "ext/render_pipe/render_pipe.h"
 #include "ext/better_trees/better_trees.h"   // NATURAL_GROWTH.md: SeasonStamp
+#include "ext/better_trees/falling_leaves.h"   // NATURAL_GROWTH.md section 7: LeavesFrame
 #include "Game/Calendar.h"                     // NATURAL_GROWTH.md: GameUpdateLoop::m_dayCounter's year time
 #include "ext/render_pipe/render_pipe_internal.h"
 #include "ext/render_pipe/packet.h"
@@ -230,6 +231,7 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     p.seasonStamp = 0.0f;   // NATURAL_GROWTH.md: ext.better_trees' day of the year (Draw step 2's seam)
     if (Ext::BetterTrees::NaturalGrowthOn() && g.m_dayCounter != nullptr)
         p.seasonStamp = Ext::BetterTrees::SeasonStamp(g.m_dayCounter->yearTime.AsSeconds());
+    Ext::BetterTrees::LeavesFrame(g);   // NATURAL_GROWTH.md §7: the falling leaves (Draw step 2's seam)
 
     // Step 3 (PaintTerrain) never reaches here: PlanTail runs that frame unpipelined.
 

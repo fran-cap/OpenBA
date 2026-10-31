@@ -72,6 +72,7 @@
 // ext.item_priority (class C), Ext::ItemPriority::BeginFrame
 #include "ext/item_priority/item_priority.h"
 #include "ext/better_trees/better_trees.h"   // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md): Ext::BetterTrees::SeasonStamp
+#include "ext/better_trees/falling_leaves.h" // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): the falling leaves
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md):
 // ext.tool_names (class C), Ext::ToolNames::BeginFrame
 #include "ext/tool_names/tool_names.h"
@@ -1451,6 +1452,8 @@ void GameUpdateLoop::Draw(float alpha) {
         // rewritten tree shaders the day of the year in the time constant's y, which retail writes 0 and never reads.
         if (Ext::BetterTrees::NaturalGrowthOn() && m_dayCounter != nullptr)
             videoCtx->_time.y = Ext::BetterTrees::SeasonStamp(m_dayCounter->yearTime.AsSeconds());
+        // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): and its falling leaves' frame.
+        Ext::BetterTrees::LeavesFrame(*this);
     }
     TRACE("[GameUpdateLoop::Draw] video context time set\n");
 
@@ -2098,6 +2101,8 @@ void GameUpdateLoop::Shutdown() {
         gs->RemoveGlobalObject(m_worldGeometry);
         gs->RemoveGlobalObject(m_sunLight);
         gs->RemoveGlobalObject(m_skyMesh);
+        // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): natural tree growth's falling leaves.
+        Ext::BetterTrees::LeavesShutdown(gs);
     }
 
     // Delete scenario instance

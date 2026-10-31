@@ -14,6 +14,7 @@
 
 #include "better_trees/dxbc.h"
 #include "better_trees/natural_growth.h"
+#include "ext/better_trees/leaf_fall.h"
 #include "ext/registry.h"
 
 #include <cmath>
@@ -590,4 +591,103 @@ UNIT_TEST(ext_natural_growth_registry_key) {
     CHECK_STREQ(Ext::SettingsKey(*k).c_str(), "ext.natural_tree_growth");
     const Ext::State boot;
     CHECK_EQ(boot.val.natural_tree_growth, 1);
+}
+
+// ---- the falling leaves' pure part (src/ext/better_trees/leaf_fall.{h,cpp}, NATURAL_GROWTH.md section 7) ----
+namespace LF = Ext::BetterTrees::LeafFall;
+
+UNIT_TEST(ext_natural_growth_leaf_atlas) {
+    const std::vector<uint8_t> px = LF::PaintAtlas();
+    CHECK_EQ(px.size(), static_cast<size_t>(LF::kAtlasSize * LF::kAtlasSize * 4));
+    for (int row = 0; row < LF::kColours; ++row) {
+        for (int col = 0; col < LF::kShapes; ++col) {
+            int opaque = 0;
+            int edge = 0;
+            for (int y = 0; y < LF::kCell; ++y) {
+                for (int x = 0; x < LF::kCell; ++x) {
+                    const uint8_t a = px[(static_cast<size_t>(row * LF::kCell + y) * LF::kAtlasSize + col * LF::kCell + x) * 4 + 3];
+                    if (a > 128) ++opaque;
+                    // the outer two texels stay clear: the 1/255 corner steps and bilinear filtering stay in the cell
+                    if ((x < 2 || y < 2 || x >= LF::kCell - 2 || y >= LF::kCell - 2) && a != 0) ++edge;
+                }
+            }
+            CHECK(opaque > LF::kCell * LF::kCell / 8);   // a leaf, not a speck
+            CHECK(opaque < LF::kCell * LF::kCell * 3 / 4);   // and not a square
+            CHECK_EQ(edge, 0);
+        }
+    }
+}
+
+UNIT_TEST(ext_natural_growth_leaf_timing) {
+    // the autumn half of the canopy's own loss (SeasonOf): the same tree is bare in both at the same day
+    for (int i = 0; i < 200; ++i) {
+        const float x = 13.0f * static_cast<float>(i % 17);
+        const float y = 29.0f * static_cast<float>(i / 17);
+        float colour, loss;
+        for (float m : {6.0f, 7.0f, 7.6f, 8.2f, 9.0f}) {
+            NgRewrite::SeasonOf(NgRewrite::TermsOf(x, y), m, &colour, &loss);
+            CHECK(Near(LF::AutumnLoss(x, y, m), loss, 1e-6f));
+        }
+        CHECK_EQ(LF::AutumnLoss(x, y, 3.0f), 0.0f);   // summer: in leaf
+        CHECK_EQ(LF::AutumnLoss(x, y, 10.0f), 1.0f);  // winter: bare
+        const int c = LF::ColourOf(x, y);
+        CHECK(c >= 0 && c <= 2);
+    }
+    CHECK_EQ(LF::DropRate(0.0f), 0.0f);
+    CHECK_EQ(LF::DropRate(1.0f), 0.0f);
+    CHECK(LF::DropRate(0.5f) > LF::DropRate(0.1f));
+}
+
+UNIT_TEST(ext_natural_growth_leaf_field) {
+    // one tree, mid fall at its own timing
+    LF::Tree t{50.0f, 80.0f, 2.0f, {48.0f, 78.0f, 2.0f, 52.0f, 82.0f, 10.0f}};
+    float m = 6.0f;
+    while (m < 9.5f && (LF::AutumnLoss(t.x, t.y, m) < 0.4f)) m += 0.01f;
+    CHECK(LF::AutumnLoss(t.x, t.y, m) > 0.0f && LF::AutumnLoss(t.x, t.y, m) < 1.0f);
+    const std::vector<LF::Tree> trees{t};
+    LF::Field f;
+    for (int i = 0; i < 2000; ++i) f.Step(0.05f, m, trees);   // 100 s
+    CHECK(!f.Leaves().empty());
+    for (const LF::Leaf& l : f.Leaves()) {
+        CHECK(l.pos[2] > t.baseZ && l.pos[2] <= t.crown[5]);
+        CHECK(l.shape < LF::kShapes && l.colour < LF::kColours);
+    }
+    // paused: nothing moves, nothing drops
+    const std::vector<LF::Leaf> before = f.Leaves();
+    f.Step(0.0f, m, trees);
+    CHECK_EQ(f.Leaves().size(), before.size());
+    CHECK(f.Leaves().empty() || f.Leaves()[0].pos[2] == before[0].pos[2]);
+    // summer and winter: none drop, the ones in the air land
+    LF::Field s;
+    for (int i = 0; i < 400; ++i) s.Step(0.05f, 3.0f, trees);
+    CHECK(s.Leaves().empty());
+    for (int i = 0; i < 2000; ++i) f.Step(0.05f, 11.0f, trees);
+    CHECK(f.Leaves().empty());
+}
+
+UNIT_TEST(ext_natural_growth_leaf_quads) {
+    LF::Leaf l{};
+    l.pos[0] = 1.0f;
+    l.pos[1] = 2.0f;
+    l.pos[2] = 3.0f;
+    l.shape = 2;
+    l.colour = 1;
+    const std::vector<LF::Leaf> leaves{l};
+    const float right[3] = {1.0f, 0.0f, 0.0f};
+    const float up[3] = {0.0f, 0.0f, 1.0f};
+    std::vector<LF::Vertex> v;
+    LF::BuildQuads(leaves, right, up, v);
+    CHECK_EQ(v.size(), static_cast<size_t>(4));
+    float cx = 0.0f, cz = 0.0f;
+    for (const LF::Vertex& q : v) {
+        cx += q.position[0] / 4.0f;
+        cz += q.position[2] / 4.0f;
+        CHECK_EQ(q.position[3], 0.0f);
+        const uint32_t u = q.corner & 0xFF;
+        const uint32_t w = (q.corner >> 8) & 0xFF;
+        CHECK(u == 128u || u == 191u);   // shape 2's column
+        CHECK(w == 64u || w == 127u);    // colour 1's row
+        CHECK_EQ(q.corner >> 16, 0u);
+    }
+    CHECK(Near(cx, 1.0f, 1e-5f) && Near(cz, 3.0f, 1e-5f));   // centred on the leaf
 }

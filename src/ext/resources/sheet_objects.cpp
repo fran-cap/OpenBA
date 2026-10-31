@@ -52,18 +52,28 @@ SheetObjects BuildSheetObjects(const SheetSpec& spec, const SheetBitmap* bitmaps
         return o;
     }
 
-    SheetLayout layout;
-    if (!PackSheet(spec, bitmaps, count, layout)) {
-        std::fprintf(stderr, "[ExtRes] sheet: %d bitmap(s) do not fit a %d x %d sheet\n",
-                     count, spec.sheetWidth, spec.sheetHeight);
-        return o;
-    }
-
     Graphics::Material* base =
         factory->FindOrLoadAs<Graphics::Material>(System::Filename(baseMaterialPath));
     if (!Object::IsDerivedFromNullSafe(base, Graphics::Material::TypeId())) {
         std::fprintf(stderr, "[ExtRes] sheet: base material %s did not load (%p)\n",
                      baseMaterialPath, static_cast<const void*>(base));
+        return o;
+    }
+    return BuildSheetObjects(spec, bitmaps, count, base, textureSlot);
+}
+
+SheetObjects BuildSheetObjects(const SheetSpec& spec, const SheetBitmap* bitmaps, int count,
+                               Graphics::Material* base, const char* textureSlot) {
+    SheetObjects o;
+    if (base == nullptr || Video::Device::_singleton == nullptr) {
+        std::fprintf(stderr, "[ExtRes] sheet: no base material / Device, cannot build\n");
+        return o;
+    }
+
+    SheetLayout layout;
+    if (!PackSheet(spec, bitmaps, count, layout)) {
+        std::fprintf(stderr, "[ExtRes] sheet: %d bitmap(s) do not fit a %d x %d sheet\n",
+                     count, spec.sheetWidth, spec.sheetHeight);
         return o;
     }
 
