@@ -78,8 +78,8 @@ constexpr float kEdge      = 35.0f;    // the soft rim: sat((r^2 - d^2) * kEdge)
 constexpr float kShare     = 0.60f;    // a cell holds a blob with probability |cov| * kShare, per layer
 constexpr float kFade      = 6.0f;     // ... fading in as |cov| * kShare passes its hash: sat((|cov| kShare - h) kFade),
                                        //   so a blob grows from its centre instead of popping in (the user, 2026-10-31)
-constexpr float kCatkinX   = 1.6f;     // catkins: the blob is narrowed in u ...
-constexpr float kCatkinY   = 0.30f;    // ... and stretched in v: by kCatkinY + kCatkinYVar h (a longer or
+constexpr float kCatkinX   = 1.9f;     // catkins: the blob is narrowed in u ...
+constexpr float kCatkinY   = 0.24f;    // ... and stretched in v: by kCatkinY + kCatkinYVar h (a longer or
 constexpr float kCatkinYVar = 0.40f;   //     shorter streak per cell, so they do not look stamped). Wider and
                                        //     longer after the second look: the thin streaks broke into pixels.
 constexpr float kArea      = 0.14f;    // the covered share at |cov| 1 (the far-field average)

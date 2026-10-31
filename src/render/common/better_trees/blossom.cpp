@@ -26,10 +26,10 @@ const Species kTable[] = {
     // Catkins: muted (about 70 % brightness, less saturated) and sparser after the first look (the user,
     // 2026-10-31: the first pass read as bright yellow sparks on the bare trees).
     {"birch",    {0xA0, 0x8A, 0x55}, 0.25f,   0.90f, kCatkin},     // yellow-brown lamb's tails
-    {"oak",      {0x9A, 0x9A, 0x5A}, 0.125f,  1.10f, kCatkin},     // sparse yellow-green
-    {"pecan",    {0x98, 0x94, 0x58}, 0.125f,  1.40f, kCatkin},     // greenish-yellow, the latest nut
+    {"oak",      {0xC4, 0xC2, 0x6E}, 0.28f,   1.10f, kCatkin},     // yellow-green tassels among new leaves
+    {"pecan",    {0xB8, 0xB2, 0x66}, 0.25f,   1.40f, kCatkin},     // greenish-yellow, the latest nut
     {"walnut",   {0x7A, 0x86, 0x4A}, 0.0625f, 1.00f, kCatkin},     // green catkins: next to invisible
-    {"chestnut", {0xC8, 0xBF, 0x8C}, 0.28f,   3.20f, kCatkin},     // cream spikes, early summer
+    {"chestnut", {0xE8, 0xDF, 0xA6}, 0.40f,   3.20f, kCatkin},     // showy cream spikes, early summer
 };
 
 // A mod's tree: pale blossom colours (whites, creams, pinks, a pale yellow, a lilac).
