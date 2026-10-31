@@ -744,7 +744,7 @@ and 50x towns, 89006 blocks):
   snapshot will run.
 
 Open:
-- The S25 has run no P13 commit (its BC path never takes the transcode; the pin returns the same mask there).
+- ~~The S25 has run no P13 commit~~ DONE: "P13 on the S25" below, no regression.
 - LLDB attach crashes the NDK 30 host lldb; `LLDB.md` recipe 1 is untried.
 - 2 textures re-encoded on every warm boot: CLOSED, not reproducible. With a temporary miss log, 5 warm boots on `664c4045b` (60 s x3, 210 s x2, some ended by force-stop) had 0 misses, 103 of 103 hits, the cache steady at 294 entries; the earlier +2 a boot (251 -> 253 -> 282 entries, different textures each run) was the cache filling in, not a key that changes per boot.
 - ~~The desktop cost above (the seam, the snapshot)~~ DONE on `android/p13-adapt` (P13_OVERLAP section 10): the
@@ -765,6 +765,127 @@ Open:
 - The low-memory Half path is untested on a real low-memory phone.
 - Candidates not done (P13_CPU §2 items 3-4, §4.4): the walk prefetch leftovers, more prefetch in draw_batch's
   instanced loop, the vertex / index bind de-dup.
+
+**P13 on the S25** (2026-10-28/30; Galaxy S25 SM-S931U, Snapdragon 8 Elite, Adreno 830, Vulkan 1.3.284, Android
+17). Tip = `android/p12` `e8a0f6a52` (the whole P13 pass + the adaptive overlap), base = `fb9190a26` (the last commit
+before the P13 merges, P12's profile); both release + PGO, debug-key signed, USB attached, screen kept on. Every
+run started at battery <= 32.0 C and thermal status 0, cooled with the app stopped; the phone lock held.
+- **Checks: all PASS.**
+  - `path 1.3 ... bc=1 etc2=1 (transcode 0)`; no `[Etc2]` line in any of the 19 runs (the BC path never transcodes).
+  - Pipelines: every `[Vulkan]` frame line reads `warmed 0 failed`, `failed=0` (1667 lines).
+  - Validation (debug apk, Khronos layer 1.4.363): 0 errors. The only warning is the documented depth-only
+    `SV_Target` one: 10 of it, then the duplicate limit.
+  - Pin: `[Pin] main thread ... -> CPUs 0xc0 (of 0xff): pinned`, and the same for the render thread, in every run.
+    Main and render were on the prime pair (6-7) in every sample of every run.
+  - ADPF: `[ADPF] main session` and `render session` (`target 16666666 ns, preferPowerEfficiency on`) in every
+    capped run. The uncapped runs, tip and base alike, create no session (no frame target).
+  - Memory: `[Memory] total RAM 10.85 GiB: not low memory` (logcat).
+  - Frame rate: `preferred frame rate 60 -> ANativeWindow_setFrameRate = 0` in every capped run, and the
+    SurfaceFlinger `activeMode` is 60 Hz.
+  - Shutdown: `EXITED clean-shutdown` after the pause-menu Quit and at the end of every stress run and soak; the
+    normal-play runs are force-stopped by their script. Every crash log is empty; there is no hang log.
+- **The overlap governor never switches on on the S25.** No `[RenderPipe] overlap on|off` line appears in any
+  release run, and every `[Stress::pipe]` window reads `governor=off snapshots=0 refused=0`. That is the rule of
+  P13_OVERLAP §10.2 working as built:
+  - Capped stress: the frame idles 5-7 ms (the cap's sleep), and the removable wait is 1.7-2.3 ms.
+  - Uncapped stress: idle 2.7-3.4 ms against a removable wait of 0.4-0.7 ms.
+  - Normal play: no switch line.
+  The debug apk under the layer switched it on while loading (`removable fence wait 8139 us, idle 498 us`) and
+  off once in town. On this phone the P13 overlap code is installed and idle.
+- **Stress town, cap 60** (6000 frames, ABBA; medians from t = 20 s; pipe = `[Stress::pipe]` windows after the
+  first; update / step from the CSV after t = 40 s):
+
+  | run | start / end C | fps | p95 | update | update / iter | draw | pipe main / packet / emit | wait | latency |
+  |---|---|---|---|---|---|---|---|---|---|
+  | 1 tip | 32.0 / 35.0 | 60.0 | 16.67 | 4.30 | 0.427 | 4.90 | 3.11 / 1.78 / 6.17 | 2.04 | 6.22 |
+  | 2 base | 32.0 / 35.0 | 60.0 | 16.67 | 4.45 | 0.436 | 5.09 | 3.15 / 1.94 / 5.75 | 2.25 | 5.81 |
+  | 3 base | 32.0 / 35.1 | 60.0 | 16.67 | 4.50 | 0.447 | 4.99 | 3.13 / 1.87 / 5.47 | 2.14 | 5.58 |
+  | 4 tip | 32.0 / 34.9 | 60.0 | 16.67 | 4.32 | 0.439 | 5.18 | 3.27 / 1.79 / 5.50 | 2.10 | 5.56 |
+
+  **No regression.** Update is 3% lower on the tip in both pairs (4.30 / 4.32 against 4.45 / 4.50 ms; the walk
+  prefetch and the retrained profile are the assumed cause, not profiled). Draw and packet are equal. The emit
+  includes the wait for a swap-chain image at the display's pace and is not separated from noise (tip 6.17 / 5.50,
+  base 5.75 / 5.47).
+- **Stress town, uncapped** (same, ABBA; fps = median, then the run mean and the mean after t = 40 s):
+
+  | run | start / end C | fps | p95 | update | update / iter | draw | pipe main / packet / emit | wait |
+  |---|---|---|---|---|---|---|---|---|
+  | 1 tip | 31.9 / 40.5 | 132.9 (128.5, 120.6) | 14.65 | 3.64 | 0.367 | 3.53 | 2.30 / 1.27 / 6.95 | 2.95 |
+  | 2 base | 31.9 / 40.7 | 132.2 (128.8, 121.8) | 15.03 | 3.86 | 0.379 | 3.66 | 2.32 / 1.31 / 6.57 | 3.57 |
+  | 3 base | 31.3 / 41.3 | 132.4 (123.7, 116.5) | 14.91 | 3.83 | 0.380 | 3.52 | 2.25 / 1.32 / 6.57 | 3.74 |
+  | 4 tip | 31.7 / 41.5 | 130.5 (125.0, 116.8) | 14.88 | 3.79 | 0.373 | 3.62 | 2.27 / 1.26 / 6.68 | 3.80 |
+
+  fps is equal within the pairs' spread. Update per iteration is 2-3% lower on the tip. Every run ends at
+  thermal status 2.
+- **Normal play** (autostart, `BANISHED_CAMERA_PIN=town`, 1x, 180 s after 40 s; tip-base-base-tip-tip-base;
+  SurfaceFlinger timestats of the game layer; CPU % of one core from `/proc` ticks; GPU memory = kgsl `page_alloc`
+  in game less after the stop, the P13_PROFILE method):
+
+  | run | presents | dropped / janky | post-to-present mean / median / p95 | CPU main / render / process | GPU MHz, busy | GPU memory | battery |
+  |---|---|---|---|---|---|---|---|
+  | 1 tip | 10984 | 0 / 0 | 35.3 / 36 / 46 ms | 15 / 13 / 35 | 351, 76% | 420.5 MB | - |
+  | 2 base | 11027 | 0 / 0 | 29.4 / 29 / 38 | 16 / 13 / 37 | 587, 81% | 420.3 | - |
+  | 3 base | 10956 | 0 / 0 | 47.3 / 48 / 58 | 16 / 13 / 37 | 386, 83% | 424.5 | 33.3 -> 34.6 C |
+  | 4 tip | 10928 | 0 / 0 | 44.5 / 44 / 58 | 13 / 13 / 33 | 512, 80% | 421.6 | 33.7 -> 35.0 |
+  | 5 tip | 10959 | 0 / 0 | 35.2 / 36 / 46 | 15 / 13 / 36 | 495, 79% | 421.4 | 33.7 -> 35.2 |
+  | 6 base | 10998 | 0 / 0 | 36.2 / 36 / 46 | 13 / 12 / 33 | 646, 80% | 419.4 | 34.6 -> 37.2 |
+
+  **No regression.**
+  - Frames: 60 locked (present-to-present 16 ms), 0 dropped, 0 janky in all six runs.
+  - Post-to-present: a mean of three of 38.3 ms on the tip against 37.6 on the base, with a 29-47 ms spread
+    within each build.
+  - CPU: equal (main 13-16%, render 12-13%). The prime pair sits at its 1017 MHz floor throughout.
+  - GPU memory: equal (419-425 MB; no transcode on either build). PSS 772-794 MB (`dumpsys meminfo`).
+  - Battery current: net of USB, -47 to +1 mA, not comparable at this size (runs 1-2 recorded none).
+- **Soak** (P12 soak C's protocol: 30 min stress town at cap 60, 108000 frames, brightness manual 100, sensors
+  every ~10 s; equal t, P13_THERMAL's columns):
+
+  | phase | 60 fps windows | update / step | update / step per 1000 citizens | citizens | draw | p95 | thermal | battery |
+  |---|---|---|---|---|---|---|---|---|
+  | 0-300 s | 100% (base 97%) | 4.36 (4.16) | 4.81 (4.59) | 991 (1007) | 4.82 (4.74) | 16.67 (16.67) | 0 (0) | 37.1 (35.8) C |
+  | 300-600 s | 100% (100%) | 4.75 (4.82) | 4.68 (4.67) | 1048 (1062) | 4.99 (5.01) | 16.67 (16.99) | 0 (0) | 39.1 (37.9) |
+  | 600-900 s | 100% (100%) | 4.96 (5.57) | 4.54 (4.99) | 1140 (1170) | 4.96 (5.28) | 16.92 (16.67) | 1 (0) | 40.7 (39.5) |
+  | 900-1200 s | 100% (100%) | 5.87 (6.06) | 5.00 (5.04) | 1199 (1227) | 5.15 (5.24) | 17.36 (17.07) | 1 (1) | 41.9 (41.2) |
+  | 1200-1500 s | 100% (100%) | 6.06 (6.05) | 4.97 (4.80) | 1242 (1285) | 5.18 (5.08) | 16.82 (17.42) | 2 (2) | 42.5 (42.2) |
+  | 1500-1800 s | 100% (100%) | 6.15 (6.06) | 4.91 (4.68) | 1258 (1297) | 5.06 (5.05) | 17.56 (16.67) | 2 (2) | 42.9 (42.8) |
+
+  Tip run 2 (base in brackets). The details:
+  - Sim: 60.0 steps / s in every phase of both runs.
+  - Last 10 min: update 6.11 against 6.05 ms (per 1000 citizens 4.94 against 4.74, +4%), draw 5.12 against 5.06,
+    p95 17.20 against 17.04, wait 2.53 against 2.56 ms.
+  - Thermal status 1 / 2 at 662 / 1360 s against 916 / 1452 s.
+  - Battery: 32.0 -> 42.9 C against 31.4 -> 42.8 C.
+  - Current (net of USB, charging in both): +234..+348 against +233..+303 mA.
+  - The 600-900 s phase is the base's throttle (CPU caps 2009 / 1974 MHz, GPU 525); the tip throttled later and
+    less there.
+  - Both runs: main and render on 6-7 in every sample, `EXITED clean-shutdown`, crash log empty.
+
+  **No regression in frames or sim.** Thermal status came 4.2 / 1.5 min earlier on the tip, but its start was
+  0.6 C warmer, its battery was at 70% against 58% (a different charge current), and the end temperature is equal.
+  This is one pair, so that difference is not separated from the start; nothing points at P13 code, since the
+  overlap stays off here.
+
+  Tip run 1 (`p13s25/soak_tip`, 2026-10-29) is **not comparable**:
+  - A fire at ~35 s burned 10 buildings.
+  - The fire-fighting walks swamped the pathfinder: 99.9% busy from 50 to 230 s, a queue of up to 103k, path
+    length 15 -> 70.
+  - The town starved from 947 to 633 citizens and ended at 1056.
+  - Thermal 2 came at 231 s, with the clocks capped from 51 s and -950 mA drawn.
+  Fires are random in the stress town (P12's soak A had one; even the 100 s runs differ by a few citizens between
+  identical runs), so a soak whose log shows `[Collapse] ... burning` is re-run, not compared.
+
+  Against P12 soak C (the same protocol, 2026-10-27):
+  - C: 99% at 60 fps, update 5.53 ms in the last 10 min at ~1290 citizens, thermal 1 / 2 at 855 / 1297 s,
+    42.7 C at 30 min, -433 mA (not charging).
+  - This session's base: update 6.05 ms (+9%) with the same code minus P13, so the session (ambient, the phone
+    charging, 2026-10-30) costs ~9% update.
+  - Tip and base agree with each other.
+- **Verified:** every check above. Equal frames and sim on the S25 in capped and uncapped stress, normal play
+  and the 30-min soak. The overlap governor stays off on this phone. GPU memory unchanged (no transcode).
+  **Assumed:** the cause of the tip's 2-3% lower update (walk prefetch / profile, not profiled). The earlier
+  thermal status of tip soak 2 being the start conditions (one pair). The emit difference being display pacing.
+- Data: the scratchpad's `p13s25/` (the earlier runs) and `p13s25b/` (both soaks of 2026-10-30, `soak_ab.sh`,
+  `soak2.py`, `sf.py`).
 
 ## 3. Rules that hold (do not relax)
 
