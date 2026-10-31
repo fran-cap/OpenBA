@@ -322,11 +322,17 @@ char ClearAreaComponent::State0Enter(StateMachine* sm) {
 //   is what stranded piles on the ground. The pile registers itself into its cell+0x08
 //   (see the grid claim in action_base_cnr.cpp), so Map::IsAreaEmpty stays false while it
 //   lies there, holding the job open until a citizen hauls it away — exactly as retail.
+//
+//   RETURNS 0, on both exits (0x140117952: `xor al,al`, reached from the not-done branch and after the request).
+//   StateMachine::Tick walks to the parent node whenever a node's per-frame handler returns 0, so a controller
+//   behind this one on the entity's chain (AbsorbResourceComponent on every stockpile) is ticked only because this
+//   returns 0. Returning 1 stopped the walk here: a stockpile site never absorbed the piles lying on its footprint
+//   while it was being cleared, and they had to be hauled off first.
 char ClearAreaComponent::State0PerFrame(StateMachine* sm) {
     if (IsDone()) {
         ::ControllerLive::RequestStateTransition(sm, 1);
     }
-    return 1;
+    return 0;
 }
 
 // ============================================================

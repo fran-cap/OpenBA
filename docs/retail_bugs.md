@@ -588,11 +588,12 @@ Fix: `fix.outline_with_panel` (tier 1), default on, off under `/profile:faithful
 `Graphics::EdgeMeshInstance::_extHoldDraw` (null under the faithful profile). Code
 `src/ext/outline_with_panel/`. Hand-in `docs/extensions/handins/OUTLINEWITHPANEL.md`.
 
-## 17. A building placed over resources never finishes while the town's storage is full
+## 17. A building with no absorb component, placed over resources, never finishes while the town's storage is full
 
-**Symptom.** A stockpile (or any building) placed over trees and rocks, typically over an area the
-Clear Tree / Clear Stone / Clear Iron tools are already working, is never built, and a town hall placed
-over trees stalls the same way. The trees and rocks are felled, the logs and stone stay on the ground,
+**Symptom.** A building with no `AbsorbResourceComponent` (a town hall is the case measured) placed over
+trees and rocks, typically over an area the Clear Tree / Clear Stone / Clear Iron tools are already
+working, is never built. (The first report, 2026-10-31, was a stockpile; that half was a port bug, see
+below.) The trees and rocks are felled, the logs and stone stay on the ground,
 the site keeps showing "x of y to remove", and the laborers stand idle. Reported 2026-10-31. It is
 reached quickly on an Easy start: the starting stockpile holds 5550 of its 6000 units (the faithful
 seeding, `MapGenerator::SeedStartingResources` `0x1400a1f00`), so a town hall's footprint and one
@@ -610,16 +611,29 @@ seeding, `MapGenerator::SeedStartingResources` `0x1400a1f00`), so a town hall's 
 - A new stockpile joins the storage list only from `StorageLocationComponent` state 2's enter
   (`0x14012d230`, registered by `StorageLocationDescription_SetupCrossRefs` `0x14014fc74`), that is
   after it is built, which needs the empty footprint.
-So with every existing store full, the piles cannot move, the footprints never empty, and the new
-stockpile, the only thing that would make room, never exists.
+So with every existing store full, the piles cannot move and the footprint never empties. A building that
+cannot take the piles itself, such as a town hall, stays stuck until some store has room. A stockpile placed
+beside it is such a store once built, and its own site clears without help (below).
+
+**A stockpile site is not caught in this cycle in retail.** Its `AbsorbResourceComponent` (`State0Tick`,
+`0x140105950`) sweeps the footprint every frame while the site is clearing, and a pile its own
+`StorageComponent` takes (`CanAdd` `0x14012cd80`: the flags admit it and the whole stack fits) is moved into
+that storage and removed from the footprint; the town's storage list and its room are not involved. The
+sweep runs because `ClearAreaComponent`'s per-frame handler (`0x1401178f0`) returns 0 and
+`StateMachine::Tick` (`0x1400a9660`) then goes on to the next node of the chain. The port's handler returned
+1, so the sweep never ran and a stockpile stalled like the hall (known-issue row 1343). A stockpile site
+still waits for a pile its storage refuses (the flags do not admit it, or the stack does not fit).
 
 **Proof it is retail.** Every link above is the port of the address named, read against the decompile
 (Pickup::Execute's gate and drop-target walk, HasStorageFor, IsDone / IsAreaEmpty, the state-2
 registration). The reproduction is `tools/harness_route.sh clearoverlap`
 (`src/diag/clear_overlap_harness.cpp`): with a town hall over 46 trees and the three clear tools over a
 10x10 window, then a StorageYard over that window, the census shows the start stockpile at 5990/6000,
-`HasStorageFor` false for every pile, and 24 piles in the hall's footprint and 17 in the yard's unchanged
-from frame 3100 to the end of the run at 9400. The control (`CLEAR_OVERLAP=400,150,300,6000,6,0`: a 6x6 window, no hall, the
+`HasStorageFor` false for every pile, and 24 piles in the hall's footprint unchanged from frame 3100 to
+the end of the run at 9400. (The run also counted 17 piles unchanged in the yard's footprint; that was
+the port's ClearArea return value, row 1343, not retail. With that fixed, the same route empties the yard's
+footprint: its piles are absorbed and the yard is built by frame 2500, and the hall's piles are gone from its
+footprint by frame 3100.) The control (`CLEAR_OVERLAP=400,150,300,6000,6,0`: a 6x6 window, no hall, the
 stockpile placed over four claimed trees while their clear jobs run) clears and builds in 450 frames,
 so placing a stockpile over live clear jobs is not the cause. Retail itself was not launched.
 The stall is timing-dependent: a run in which food, firewood or tool use frees store room while the
@@ -632,6 +646,9 @@ lever, `ClearArea::Execute` phase 3: when a building site's footprint holds only
 retail's own haul chain and `DropOffRawMaterial`'s drop-on-ground arm (`0x1400c78c0`). Loose piles are not
 in the town's totals or storage numbers (`CountResources` `0x140089ed0` sums the storage lists only), so
 the move changes no count, and the new pile posts its own Pickup work. Off under `/profile:faithful`.
+A stockpile site meets it only for piles its own storage refuses (see above); the buildings it is for are
+those without an absorb component.
 `tools/harness_route.sh clearoverlap`: `HARNESS_FIXES=none` FAILs (2 of 2 runs, 2026-10-31);
 `HARNESS_FIXES=foundation_piles` PASSes (3 of 3; one run moved 18 piles off the town hall's footprint,
-two cleared without a move because store room freed first).
+two cleared without a move because store room freed first). These runs predate the ClearArea return fix
+(row 1343); the yard's part of each result is from before it.

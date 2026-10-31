@@ -9,8 +9,11 @@
 // the site's ClearArea work (0x1400e5ee0, phase 3) offers each pile's Pickup work, and
 // Pickup::Execute (0x1400f2f00) gives up when CitizenBehavior::HasStorageFor
 // (0x14008d3c0) finds no store with room. With every store full the site never
-// finishes, and a new stockpile among the piles cannot help: it joins the storage
-// list only once built (StorageLocationComponent state 2, 0x14012d230). Retail
+// finishes, and a new stockpile cannot help through that list: it joins the storage
+// list only once built (StorageLocationComponent state 2, 0x14012d230). A stockpile
+// site is not stuck this way in retail: its AbsorbResourceComponent (0x140105950) moves
+// the piles its own storage takes into that storage, so this matters for a building
+// without one (a town hall) and for piles a stockpile site's own storage refuses. Retail
 // recovers only when the piles rot a game year later (RawMaterialComponent::Update
 // 0x140129130).
 //
