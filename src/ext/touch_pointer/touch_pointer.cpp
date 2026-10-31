@@ -371,6 +371,9 @@ Role Classify(float x, float y, ToolKind kind) {
         const int32_t b = HitButton(g_bar, static_cast<int32_t>(x * ui->_uiScale), static_cast<int32_t>(y * ui->_uiScale));
         if (b >= 0) {
             g_barPressed = b;
+            // The press sound a game button plays when a press starts on it (ButtonElement::Update
+            // 0x1801110b0's Play(4)); the bar's buttons are hit-tested here, never pressed through the engine.
+            ui->Play(4);
             return Role::Bar;
         }
     }
@@ -592,7 +595,10 @@ void OnFinger(const Platform::Touch::Event& e) {
         const int32_t b = ui != nullptr ? HitButton(g_bar, static_cast<int32_t>(lifted.x * ui->_uiScale),
                                                     static_cast<int32_t>(lifted.y * ui->_uiScale))
                                         : -1;
-        if (up && b == g_barPressed && b >= 0) PressButton(b);
+        if (up && b == g_barPressed && b >= 0) {
+            ui->Play(5);   // a game button's click when it fires (ButtonElement::Update's Play(5))
+            PressButton(b);
+        }
         g_barPressed = -1;
         break;
     }
