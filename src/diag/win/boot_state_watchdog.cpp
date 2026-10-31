@@ -400,7 +400,20 @@ DWORD WINAPI WatchdogThread(LPVOID) {
     return 0;
 }
 
+// The line Stop() writes: EXITED / clean-shutdown unless SetExitState named another
+// (boot_state_watchdog.h).
+char g_exitState[32]   = "EXITED";
+char g_exitDetail[512] = "clean-shutdown";
+
 }  // namespace
+
+void SetExitState(const char* state, const char* detail) {
+    std::snprintf(g_exitState, sizeof(g_exitState), "%s", state);
+    std::snprintf(g_exitDetail, sizeof(g_exitDetail), "%s", detail);
+    // Published at once as well: a box shown before the process exits must not leave a previous
+    // run's line (STALE) or none at all behind while it waits.
+    WriteStateFile(g_exitState, 0, 0, 0, g_exitDetail);
+}
 
 void Start() {
     if (g_thread) return;
@@ -429,9 +442,10 @@ void Stop() {
         CloseHandle(g_thread);
         g_thread = nullptr;
     }
-    WriteStateFile("EXITED", (GetTickCount() - g_startTick) / 1000,
-                   (unsigned)InterlockedCompareExchange(&g_frames, 0, 0), 0,
-                   "clean-shutdown");
+    // Before Start() (a boot stopped by the game-data check) there is no uptime to report.
+    const unsigned uptimeSec = g_startTick != 0 ? (GetTickCount() - g_startTick) / 1000 : 0;
+    WriteStateFile(g_exitState, uptimeSec, (unsigned)InterlockedCompareExchange(&g_frames, 0, 0), 0,
+                   g_exitDetail);
 }
 
 }  // namespace BootState

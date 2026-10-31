@@ -52,6 +52,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/settings_file.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/io/settings_store.cpp
   ${CMAKE_SOURCE_DIR}/src/platform/common/user_dir_override.cpp   # DefaultPath's BANISHED_USER_DIR arm
+  ${CMAKE_SOURCE_DIR}/src/app/game_data_check.cpp   # game_data_check_test.cpp (issue #72): the pure half only
   ${CMAKE_SOURCE_DIR}/src/ext/registry.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/savetail.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/load_notice.cpp

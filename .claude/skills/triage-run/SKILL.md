@@ -24,7 +24,7 @@ tools/boot_state.sh --wait 300   # block until RUNNING; bails INSTANTLY if block
 ```
 
 Exit codes: `0` RUNNING · `1` NOT_RUNNING · `2` BLOCKED_DIALOG · `3` BOOTING ·
-`4` STALE (state file left by a pid that is gone) · `5` HUNG.
+`4` STALE (state file left by a pid that is gone) · `5` HUNG · `6` NO_GAME_DATA.
 
 Always poll with this, never a `grep -q`-until-timeout loop on the log: against a blocked
 boot that burns the whole timeout for nothing. The state is published every second by
@@ -41,6 +41,7 @@ cases where the guard does not hold. Background: `docs/reference/engine_architec
 |---|---|---|
 | exit 3 + `standalone_crash.log` | crashed (VEH handler) | the crash log |
 | exit 4 + `standalone_hang.log` | froze; watchdog killed it | the hang log |
+| exit 6 + `STATE=NO_GAME_DATA` | the exe's `WinData/` is missing, empty or has no `data0.pkg`; stopped before `Init()` (`src/app/game_data_check.h`) | the state line's `detail=` (verdict + folder) |
 | BLOCKED_DIALOG in the boot state, then exit 255 after the box is clicked | `Engine::Startup` failed: retail's fatal box (`System::Error::Display`), GameMain returns -1 (row 1273) | `standalone_debug.log`'s error string; `BANISHED_MODAL_ANSWER` does NOT answer this box |
 
 ### HUNG

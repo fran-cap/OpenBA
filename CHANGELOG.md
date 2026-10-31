@@ -15,6 +15,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - Clearing road or field ground under a new building: a citizen given that task is no longer counted as
   still free, so the next job can no longer overwrite the task (`ClearArea::Execute` returns 2 there, as
   retail does).
+- Missing game data (issue #72): when the game folder's `WinData/` is missing, holds no `.pkg` files or has
+  no `data0.pkg`, OpenBA now shows one message that names the folder it looked in and says what to copy
+  there (on Android: the USB / MTP steps into `Android/data/org.openba.game/files/WinData/`), then exits
+  with code 6. Before, the boot failed with no explanation on every platform.
 
 ## v1.0.2 (2026-10-30)
 

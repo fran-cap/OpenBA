@@ -38,6 +38,7 @@
 #include "object/TypeInfo.h"           // ENDGAME B.3.9 RF: BaseTypeInfo::_firstTypeInfo for the self-test
 #include "platform_window.h"   // Phase D.4 SDL W6: the pump observer
 #include "platform_app.h"      // Platform::App: the lifecycle hooks around SDL_Init / SDL_Quit
+#include "game_data_check.h"   // issue #72: WinData present before the loader mounts anything
 #include "platform_settings.h" // Platform::SetUserDirOverride (BANISHED_USER_DIR, tools/game_dirs.sh)
 #include "engine/MainLoop.h"   // ENDGAME B.3.9 SS2: Engine::MainLoop::_singleton
 // WAVE 11 follow-up 5 (lane TINFO): the BaseTypeInfo::factoryFn dispatch census.
@@ -728,6 +729,50 @@ static void InstallWndMsgHook() {
 }
 
 // ============================================================
+// The game-data check (NOT RETAIL, issue #72; src/app/game_data_check.h)
+// ============================================================
+// True when the boot must stop: the WinData folder SetupDirectories will name is missing, empty
+// of packages or without data0.pkg. The boot state then reads NO_GAME_DATA (written at once, and
+// again by Platform::App::Shutdown's BootState::Stop), one box names the folder and what to copy
+// there, and the caller exits with GameData::kExitNoGameData. An unattended run
+// (Opt().unattendedBoot) gets no box: nobody would click it. Runs before Init(), so before the
+// crash handler, the watchdog and everything the loader needs.
+static bool StopForMissingGameData(const char* cmdLine) {
+    const GameData::ProbeResult r = GameData::Probe(cmdLine);
+    if (r.skipped) {
+        fprintf(stderr, "[GameData] not checked: the command line or cmd.txt moves the packages "
+                        "(default folder %s)\n", r.folder.c_str());
+        return false;
+    }
+    if (r.verdict == GameData::Verdict::Present) {
+        fprintf(stderr, "[GameData] present: %s\n", r.folder.c_str());
+        return false;
+    }
+    const std::string detail = std::string(GameData::VerdictName(r.verdict)) + " " + r.folder;
+    fprintf(stderr, "[BootState] NO_GAME_DATA %s (exit code %d)\n", detail.c_str(),
+            GameData::kExitNoGameData);
+    BootState::SetExitState("NO_GAME_DATA", detail.c_str());
+    if (!Opt().unattendedBoot) {
+        const std::string text = GameData::MessageText(r, Platform::App::MissingGameDataHelp());
+        // The label is padded: SDL's Android box sizes the button to its text, and a bare "OK" is a
+        // small target on a phone. Windows' buttons have a minimum width the padding stays inside.
+        SDL_MessageBoxButtonData ok{};
+        ok.flags = SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT | SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT;
+        ok.buttonID = 0;
+        ok.text = "        OK        ";
+        SDL_MessageBoxData box{};
+        box.flags = SDL_MESSAGEBOX_ERROR;
+        box.title = "Banished game data not found";
+        box.message = text.c_str();
+        box.numbuttons = 1;
+        box.buttons = &ok;
+        int pressed = 0;
+        SDL_ShowMessageBox(&box, &pressed);
+    }
+    return true;
+}
+
+// ============================================================
 // Initialization sequence
 // ============================================================
 static bool Init() {
@@ -1047,6 +1092,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR lpCmdLine, int) {
     SDL_SetEventEnabled(SDL_EVENT_DROP_TEXT, false);
     Platform::App::PostSdlInit();
 
+    if (StopForMissingGameData(lpCmdLine ? lpCmdLine : "")) {
+        Platform::App::Shutdown();
+        SDL_Quit();
+        SDL_UnregisterApp();
+        return GameData::kExitNoGameData;
+    }
+
     if (!Init()) {
         // Phase D.4 SDL W6: was MessageBoxA(nullptr, ..., MB_OK | MB_ICONERROR).
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Banished Standalone - Init Failed",
@@ -1145,6 +1197,18 @@ int main(int argc, char** argv) {
     SDL_SetEventEnabled(SDL_EVENT_DROP_TEXT, false);
     Platform::App::PostSdlInit();
 
+    std::string cmdLine;
+    for (int i = 1; i < argc; ++i) {
+        if (i > 1) cmdLine += ' ';
+        cmdLine += argv[i];
+    }
+
+    if (StopForMissingGameData(cmdLine.c_str())) {
+        Platform::App::Shutdown();
+        SDL_Quit();
+        return GameData::kExitNoGameData;
+    }
+
     if (!Init()) {
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Banished Standalone - Init Failed",
             "Failed to initialize. Check standalone_debug.log for details.", nullptr);
@@ -1154,12 +1218,6 @@ int main(int argc, char** argv) {
     }
 
     printf("\n[Standalone] === INIT SUCCESS ===\n");
-
-    std::string cmdLine;
-    for (int i = 1; i < argc; ++i) {
-        if (i > 1) cmdLine += ' ';
-        cmdLine += argv[i];
-    }
 
     printf("\n[Standalone] === ENTERING GameMain ===\n");
     int rc = Game::RunGameMain(nullptr, cmdLine.c_str());

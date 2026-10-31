@@ -148,6 +148,13 @@ check "N4 NEW script says NOT_RUNNING, not STALE" "$NEW" 1
 make_state EXITED 999999 0
 check "N4b NEW script says NOT_RUNNING for EXITED with its pid gone (a clean exit)" "$NEW" 1
 
+echo "--- N4c: NO_GAME_DATA (issue #72) -- written once before a deliberate exit, so neither"
+echo "         its frozen age nor its gone pid makes it STALE."
+make_state NO_GAME_DATA "$LIVE_PID" 600
+check "N4c NEW script says NO_GAME_DATA, frozen 600s, pid alive" "$NEW" 6
+make_state NO_GAME_DATA 999999 0
+check "N4d NEW script says NO_GAME_DATA with its pid gone" "$NEW" 6
+
 echo "--- N5: pid GONE -- the pre-existing STALE(4) must be unchanged"
 make_state RUNNING 999999 0
 check "N5a OLD script says STALE" "$OLD" 4

@@ -336,7 +336,20 @@ void* WatchdogThread(void*) {
     return nullptr;
 }
 
+// The line Stop() writes: EXITED / clean-shutdown unless SetExitState named another
+// (boot_state_watchdog.h).
+char g_exitState[32]   = "EXITED";
+char g_exitDetail[512] = "clean-shutdown";
+
 }  // namespace
+
+void SetExitState(const char* state, const char* detail) {
+    std::snprintf(g_exitState, sizeof(g_exitState), "%s", state);
+    std::snprintf(g_exitDetail, sizeof(g_exitDetail), "%s", detail);
+    // Published at once as well: a box shown before the process exits must not leave a previous
+    // run's line (STALE) or none at all behind while it waits.
+    WriteStateFile(g_exitState, 0, 0, 0, g_exitDetail);
+}
 
 void Start() {
     if (g_threadStarted) return;
@@ -366,8 +379,9 @@ void Stop() {
         pthread_join(g_thread, nullptr);
         g_threadStarted = false;
     }
-    WriteStateFile("EXITED", static_cast<unsigned>((NowMs() - g_startMs) / 1000),
-                   g_frames.load(), 0, "clean-shutdown");
+    // Before Start() (a boot stopped by the game-data check) there is no uptime to report.
+    const unsigned uptimeSec = g_startMs != 0 ? static_cast<unsigned>((NowMs() - g_startMs) / 1000) : 0;
+    WriteStateFile(g_exitState, uptimeSec, g_frames.load(), 0, g_exitDetail);
 }
 
 }  // namespace BootState

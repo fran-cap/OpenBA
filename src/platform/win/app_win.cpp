@@ -41,6 +41,13 @@ void Shutdown() {
     BootState::Stop();
 }
 
+const char* MissingGameDataHelp() {
+    return "OpenBA needs your own copy of Banished (data0.pkg, data1.pkg, patch0.pkg, patch1.pkg). "
+           "Put OpenBA.exe in your Banished folder, beside its WinData folder (for example "
+           "C:\\GOG Games\\Banished or Steam\\steamapps\\common\\Banished), and start it from there. "
+           "Nothing in that folder is changed.";
+}
+
 bool TakeSaveRequest() {
     return false;
 }

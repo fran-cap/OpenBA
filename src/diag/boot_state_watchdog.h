@@ -20,6 +20,13 @@ void MarkStartupComplete();
 // process leaves its last line behind, which the reader script reports as STALE.
 void Stop();
 
+// The state and detail Stop() writes in place of EXITED / clean-shutdown, also published at once.
+// Safe before Start():
+// src/app/main.cpp names NO_GAME_DATA here when the game-data check stops the boot
+// (src/app/game_data_check.h), and the platform's Shutdown then writes it. tools/boot_state.sh
+// reports that state with its own exit code.
+void SetExitState(const char* state, const char* detail);
+
 }  // namespace BootState
 
 // ---------------------------------------------------------------------------

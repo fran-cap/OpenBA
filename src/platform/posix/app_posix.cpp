@@ -28,6 +28,11 @@ void Shutdown() {
     BootState::Stop();
 }
 
+const char* MissingGameDataHelp() {
+    return "Copy the WinData folder of your Banished install (Steam or GOG, its top-level .pkg files "
+           "are enough) into the folder OpenBA.sh and OpenBA run from, then start OpenBA.sh again.";
+}
+
 bool TakeSaveRequest() {
     return false;
 }
