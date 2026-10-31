@@ -726,6 +726,9 @@ UNIT_TEST(ext_blossom_species_and_pack) {
     CHECK_STREQ(Named("x|peachtree").name, "peach");
     CHECK_STREQ(Named("x|peartree").name, "pear");
     CHECK_STREQ(Named("x|chestnut").name, "chestnut");
+    // the retail chestnut / pecan material swap: the species follows the tree, not the material's name
+    CHECK_STREQ(Named("models\\naturalresource\\fruittrees\\materialinstance\\pecantree.rsc:resource").name, "chestnut");
+    CHECK_STREQ(Named("models\\naturalresource\\fruittrees\\materialinstance\\chestnuttree.rsc:resource").name, "pecan");
     CHECK((Named("x|birchtree").flags & Blossom::kCatkin) != 0);
     CHECK((Named("x|plumtree").flags & Blossom::kCatkin) == 0);
     // not a deciduous canopy: no code

@@ -53,9 +53,15 @@ bool SpeciesFor(const std::string& materialPath, const std::string& names, Speci
     if (known != nullptr) *known = false;
     if (materialPath.find("billboard") == std::string::npos) return false;
     if (materialPath.find("evergreen") != std::string::npos) return false;
+    // The retail data swaps two: chestnuttreemesh draws with pecantree.rsc and pecantreemesh with
+    // chestnuttree.rsc (showroom tree run, 2026-10-31). The species follows the tree, so a draw with the
+    // pecan material is a chestnut and the reverse.
+    const char* want = nullptr;
+    if (names.find("pecantree") != std::string::npos) want = "chestnut";
+    else if (names.find("chestnuttree") != std::string::npos) want = "pecan";
     // "chestnut" and "walnut" before nothing they contain; "pecan" and "peach" share no prefix with "pear".
     for (const Species& s : kTable) {
-        if (names.find(s.name) == std::string::npos) continue;
+        if (want != nullptr ? std::string(s.name) != want : names.find(s.name) == std::string::npos) continue;
         *out = s;
         if (known != nullptr) *known = true;
         return true;
