@@ -56,8 +56,21 @@ pointer back at once (last device wins) and the overlay hides after 3 s of mouse
 | The world, any other tool (a mod's, ext.terrain_edit's brush) | a plain mouse | a plain mouse |
 
 Two fingers on the world: pan (the centroid's motion, grab-the-map), pinch (the spread's log ratio as zoom steps),
-spin (the pair's angle change as yaw), through `Hold(Source::Fingers)`. Each component engages past its own threshold
+spin (the pair's angle change as yaw), through `Hold(Source::Fingers)`. A component engages past its own threshold
 and then follows the fingers. The gesture ends when either finger lifts; the other is ignored until it lifts too.
+
+**The mode lock** (`TwoFingers` in `touch_pointer_math.cpp`, after PR #91's report that a drag zoomed and a zoom
+turned the camera). The thresholds are distances, measured since the two fingers went down: centroid travel 2 % of
+the short edge, spread log ratio 0.06, angle 8 degrees. Until one is passed the gesture is undecided and nothing
+moves. The first component past its threshold is the mode (on a tie in one step, the one furthest past it), and
+the other two stay zero until both fingers lift and a new gesture begins. Pan is exclusive for the whole gesture:
+a one-thumb pinch moves the centroid by half the moving finger's travel, and a turn about one finger moves it
+too, so no centroid threshold separates a deliberate pan from those; to zoom after a pan, lift and touch again.
+Pinch and spin may join each other, as map apps allow a twist while zooming, but only once the second one passes
+3x its own threshold (`kJoinFactor`: 24 degrees of turn during a pinch, a 20 % spread change during a turn); the
+incidental turn of an ordinary pinch stays below that. No settling time: the totals since the touch already
+absorb finger tremble, and a distance rule does not depend on the frame or poll rate. No settings key; the lock
+is part of the row.
 
 ### 1.5 The snap search
 

@@ -19,6 +19,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   visibly starts) and foam where the water meets piers, bridge feet and boats (DX11 and Vulkan; Metal draws
   none yet). Extra passes over the water with our own shaders; retail's water shader is not touched
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
+- Touch pointer (`ext.touch_pointer`): a two-finger gesture now locks to the first thing it does. A drag
+  no longer zooms or turns the camera, and a pinch no longer drags it; a deliberate twist (past 24 degrees)
+  may still turn the camera during a pinch. Lift both fingers to switch (`docs/android/P11_TOUCH_POINTER.md`).
 
 **Fixes**
 - Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The

@@ -98,11 +98,27 @@ GestureStep TwoFingers::Step(float x1, float y1, float x2, float y2) {
     if (dist < 1.0f) dist = 1.0f;
     const float angle = std::atan2(y2 - y1, x2 - x1) * 180.0f / kPi;
 
-    // Engage each component once its total since Begin passes its threshold; from then on it follows.
+    // Each component's total since Begin as a multiple of its engage threshold.
     const float travel = std::sqrt((cx - _startCx) * (cx - _startCx) + (cy - _startCy) * (cy - _startCy));
-    if (!_pan && travel > kPanEngageFraction * _shortEdge) _pan = true;
-    if (!_pinch && std::fabs(std::log(dist / _startDist)) > kPinchEngageLog) _pinch = true;
-    if (!_spin && std::fabs(AngleDelta(angle, _startAngle)) > kSpinEngageDegrees) _spin = true;
+    const float panRatio = travel / (kPanEngageFraction * _shortEdge);
+    const float pinchRatio = std::fabs(std::log(dist / _startDist)) / kPinchEngageLog;
+    const float spinRatio = std::fabs(AngleDelta(angle, _startAngle)) / kSpinEngageDegrees;
+
+    // The mode lock (kJoinFactor's comment): the first component past its threshold engages alone; from then on
+    // it follows. Pan never shares the gesture; pinch and spin join each other only past kJoinFactor.
+    if (!_pan && !_pinch && !_spin) {
+        if (panRatio > 1.0f && panRatio >= pinchRatio && panRatio >= spinRatio) {
+            _pan = true;
+        } else if (pinchRatio > 1.0f && pinchRatio >= spinRatio) {
+            _pinch = true;
+        } else if (spinRatio > 1.0f) {
+            _spin = true;
+        }
+    } else if (_pinch && !_spin && spinRatio > kJoinFactor) {
+        _spin = true;
+    } else if (_spin && !_pinch && pinchRatio > kJoinFactor) {
+        _pinch = true;
+    }
 
     GestureStep out;
     if (_pan) {
