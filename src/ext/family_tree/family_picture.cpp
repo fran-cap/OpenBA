@@ -448,6 +448,11 @@ constexpr int kPaletteSize = static_cast<int>(sizeof(kPalette) / sizeof(kPalette
 
 struct Out {
     std::string s;
+    // A line with nothing to format is appended as it is: a format string with no arguments is what
+    // -Wformat-security refuses (the Android build is -Werror).
+    void Add(const char* text) {
+        s += text;
+    }
     // snprintf into one line's worth, appended (a template, not a va_list: tools/abi_audit.py)
     template <typename... Args>
     void Add(const char* fmt, Args... args) {
