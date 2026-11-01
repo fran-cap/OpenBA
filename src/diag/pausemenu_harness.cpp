@@ -26,7 +26,9 @@
 //                                  Extra tokens: w = wait one interval, p = dump the
 //                                  IO::Modification/FileSystem state ([ModProbe:clicks]),
 //                                  q<id> = open the pause menu on the current world and
-//                                  click its button <id>.
+//                                  click its button <id>, t<row> = flip the row's
+//                                  checkbox and send its toggle (a bare 1000+row
+//                                  leaves the box, so the mod, unchanged).
 //                                  1 = Resume, 3 = Save, 5 = Quit to Main Menu.
 //
 // The dialog it drives is a MainMenuDialog (the same class as the front end),
@@ -48,6 +50,7 @@
 #include <cstring>
 #include "ui/UserInterface.h"   // ENDGAME B.3.6 UI callers (K4)
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
+#include "ui/CheckElement.h"          // the t<row> token flips a ModDialog row's box
 
 // src/game/Dialog/mod_dialog_vtables.cpp -- BANISHED_PAUSEMENU_CLICKS targets
 extern "C" ModDialog*        ModDialog_LastOpened();
@@ -148,6 +151,24 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                              static_cast<void*>(pause), id, frameNum);
                 if (pause) {
                     pause->OnElementEvent(nullptr, 0x12, id, 0, 0, 0, nullptr);
+                }
+            } else if (tok[0] == 't') {
+                // t<row>: what a real click on a row's checkbox does -- the CheckElement flips
+                // its own state, then the dialog gets id 1000+row (ToggleMod reads the box).
+                // A bare <id> token sends the event alone, which leaves the box, and so the
+                // mod, as it was.
+                ModDialog* dlg = ModDialog_LastOpened();
+                int row = std::atoi(tok + 1);
+                int rows = dlg ? dlg->entries.GetSize() : 0;
+                std::fprintf(stderr, "[PauseMenu] CLICKS: ModDialog=%p toggle row %d of %d\n",
+                             static_cast<void*>(dlg), row, rows);
+                if (dlg && row >= 0 && row < rows) {
+                    UI::CheckElement* box = static_cast<UI::CheckElement*>(dlg->entries._data[row].checkLoaded.Get());
+                    box->_checked = box->_checked ? 0 : 1;
+                    std::fprintf(stderr, "[PauseMenu] CLICKS: row %d box now %d\n", row, (int)box->_checked);
+                    Object::InternalPtr<UI::Element> nullElem;
+                    static_cast<UI::DialogInstance*>(dlg)->OnElementEvent(&nullElem, 0x12, 1000 + row, 0, 0, 0,
+                                                                          nullptr);
                 }
             } else if (tok[0] == 'd') {
                 ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
