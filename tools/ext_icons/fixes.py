@@ -215,6 +215,42 @@ def draw_queue_first(px):
     ])
 
 
+def draw_field_rows(px):
+    # crop rows in a field, the last row broken off (a field that finishes planting past an unreachable row)
+    _paint(px, [
+        "############",
+        "#..........#",
+        "#.++.++.++.#",
+        "#..........#",
+        "#.++.++.++.#",
+        "#..........#",
+        "#.++.++.++.#",
+        "#..........#",
+        "#.++.......#",
+        "#..........#",
+        "############",
+        "............",
+    ])
+
+
+def draw_well(px):
+    # a well: roof, posts and a round stone wall (an achievement counted against the wells it names)
+    _paint(px, [
+        "............",
+        "..########..",
+        ".##########.",
+        "..#......#..",
+        "..#......#..",
+        "..#..##..#..",
+        "..#..##..#..",
+        ".++++++++++.",
+        ".+########+.",
+        ".+########+.",
+        ".++++++++++.",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -227,4 +263,6 @@ ICONS = {
     "outline_with_panel": ("fix", draw_outline_panel),   # a panel over its outlined plot
     "foundation_piles": ("fix", draw_foundation),    # foundation outline, a log outside it
     "path_query_first": ("fix", draw_queue_first),   # arrow to the front of a waiting row
+    "crop_planting_exit": ("fix", draw_field_rows),  # crop rows in a field outline
+    "firefighter_wells": ("fix", draw_well),         # a well under its roof
 }

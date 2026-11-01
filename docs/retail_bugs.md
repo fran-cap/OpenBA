@@ -412,27 +412,57 @@ fails on a removed device (retail recovers only from Present, which such a reset
 seam `BootDeviceLostBackend::SetFixFlag`, `src/render/common/boot_device_lost/`). Off under
 `/profile:faithful`: retail's spin in the reset, or the crash above.
 
-## 11. A crop field whose every slot ends "done" while planting stays in the planting state
+## 11. A crop field stays in the planting state when its last slots cannot be planted
 
-**Symptom.** A crop field that is still planting (state 9) when every one of its slots reads
-done (state 2: no crop left growing on any of them) stays in state 9. It never moves on to
-tending or to the re-clear, so it does not plant again. Not observed in play: it needs every
-planted crop of the field to be lost before planting finishes.
+**Symptom.** A crop field that is planting (state 9) never moves on to tending, harvest or the re-clear,
+so it is never harvested and never planted again. Two triggers reach it:
+- **A slot no farmer can reach** (a steep or fenced-off row, a blocked edge): the farmers plant the rest
+  and the field stays in "planting"; the crops that did grow are never harvested and rot. Reported by
+  players since 2019 (about five Discord reports, 2019-2026: "Since they can't finish planting, they never
+  see that field as ready to tend for the summer, or ready to harvest"; removing the field and building a
+  smaller one is the known workaround).
+- **Every slot ends done while planting** (state 2 on every slot: every planted crop lost before planting
+  finished). Not observed in play.
 
 **Retail mechanism.**
-- `CropFieldComponent` state 9 per-frame (`0x14011a1e0`) requests 0x15 (21, the re-clear) on its
-  "all slots done" branch, and 10 when every slot is growing or done.
-- The crop-field populator (`0x14011b1a6`) registers state 9 with the transitions {3, 10} only.
-  States 10 and 11 list 0x15; state 9 does not. The node's transition lookup misses, so the
-  request is dropped.
+- `CropFieldComponent` state 9 per-frame (`0x14011a1e0`) requests 10 (tend) when every slot is growing or
+  done, and 0x15 (21, the re-clear) when every slot is done. A slot leaves "empty" (state 0) only when a
+  crop is bound to it (OnMessage 0, `0x14011ab50`) or when `MarkPlantSlots` (`0x14011b390`) turns every
+  empty slot done.
+- `PlantArea::Execute` (`0x1400f4010`) walks the slots still to plant. For each it clears its "nothing
+  left to plant" flag *before* the reach test (`Map::FindCell` `0x14009ccf0`: an access cell among the
+  slot's eight neighbours; `Map::ValidateCell` `0x1400a00f0`: the citizen's zone), and skips a slot that
+  fails it. When the walk assigns nothing it returns 1 on that flag (`0x1400f4281` `JZ` past the `MarkPlantSlots` call at `0x1400f4298`), so its
+  end-of-planting branch (`MarkPlantSlots` when no plant is in flight) runs only once every slot has been
+  handed out. An unreachable slot is never handed out: it stays empty, growing + done never reaches the
+  slot count, and state 9 never requests 10. Frost does not end it either: dead crops turn their slots
+  done (`ValidateEntityRefs`), the unreachable slot stays empty.
+- For the all-done trigger, the crop-field populator (`0x14011b1a6`) registers state 9 with the
+  transitions {3, 10} only. States 10 and 11 list 0x15; state 9 does not. The node's transition lookup
+  misses, so the request is dropped.
 
 **Proof it is retail.** The populator read in Ghidra (PR #33 review), and the per-frame body in the
-Steam build's disassembly (`MOV dword [RSP+0x30],0x15` on the all-done branch). The port
-(`CropFieldComponent::State9PerFrame`, `src/game/Component/cropfieldcomponent_states.cpp`) makes the
-same request against the same table and drops it the same way.
+Steam build's disassembly (`MOV dword [RSP+0x30],0x15` on the all-done branch). `PlantArea::Execute` read
+in the Ghidra decompile of `0x1400f4010` (2026-11-01): the flag store precedes the set lookup and the reach
+test, and the `return 1` on it precedes the `MarkPlantSlots` call. The port
+(`CropFieldComponent::State9PerFrame`, `src/game/Component/cropfieldcomponent_states.cpp`;
+`PlantArea::Execute`, `src/game/Work/plantarea.cpp`) is the same logic. Retail itself was not run on
+either trigger; the reports above are retail players'.
 
-**Lever.** Add 0x15 to state 9's transitions, so the all-done branch reaches the re-clear (ClearArea
-state 0x15) as states 10 and 11 do.
+**Lever.** For the all-done trigger, add 0x15 to state 9's transitions, so the all-done branch reaches the
+re-clear (ClearArea state 0x15) as states 10 and 11 do. That alone does not reach the unreachable-slot
+trigger (its slot is never done). For that one, let `PlantArea::Execute` run its end-of-planting branch
+when every slot left to plant fails the reach test.
+
+**Fix: `fix.crop_planting_exit` (WIRED 2026-11-01).** State 9's table carries 21 (appended after 3 and 10,
+so their transition indices are retail's; the table is built before settings are read), and
+`State9PerFrame` makes the 21 request only with the row on. In `PlantArea::Execute`, when the walk assigns
+nothing because every slot left failed the reach test, no plant is in flight and at least one slot of the
+field is growing or done (a farmer did reach the field, so the slots are not merely out of this citizen's
+reach), the end-of-planting branch runs: the unreached slots are marked done and stay bare for the season,
+and the field goes on to tending (`Ext::CropPlantingExit::EndPlantingOnUnreachable`,
+`src/ext/crop_planting_exit/crop_planting_exit_rule.h`). The next planting rebuilds every slot and tries
+them all again. Off under `/profile:faithful`.
 
 ## 12. A dragged slider snaps back when the pointer strays off it
 
@@ -682,3 +712,31 @@ worker is in.
 Fix: `fix.path_query_first` (tier 1), default on, off under `/profile:faithful`. One seam reads the row,
 `RunPathQuery`; the worker runs the query as command 6 (`PathfinderThread::ApplyCommand`). Code
 `src/ext/path_query_first/`. Hand-in `docs/extensions/handins/PATHQUERYFIRST.md`.
+
+## 19. The Firefighter achievement asks for 20 wells and is awarded at 40
+
+**Symptom.** "Firefighter: Build 20 wells in a single town." is awarded only once the town has 40
+finished wells. Players have reported it for years (Steam, February 2025: "You will need 40 well. It's a
+very well known bug/typo"; the poster's achievement came at 38 + 2 wells).
+
+**Retail mechanism.** The threshold is game data, not code. The achievement list in the user's install
+holds, for Firefighter, one `StatGoal` with stat type 0x19 (finished, standing buildings of a template:
+`0x1400d81b0`, one per entity, no double count), template `Template\Well.rsc`, comparison 10 (`>=`) and
+the constant 40. The description string `FirefighterDesc` reads "Build 20 wells in a single town."
+(`ToolKit/resource/Dialog/StringTable.rsc`). `StatGoal::CheckGoalState` (`0x1400da720`) compares the
+count with the constant as given.
+
+**Proof it is retail.** The goal's fields read from the loaded data in the port (a one-run dump of every
+achievement's goals, 2026-11-01: `stat A=25 cmp=10 fixed=40 a=Template\Well.rsc`); the counting body
+`0x1400d81b0` and the comparison are the port's transcriptions. The player report above is retail.
+
+**Lever.** Compare that one goal with 20 (what the description says), or change the description to 40.
+The description is what the player is shown, so the fix takes the number from it.
+
+**Fix: `fix.firefighter_wells` (WIRED 2026-11-01).** In `StatGoal::ComputeOperands`
+(`src/game/Goal/statgoal.cpp`), the constant operand goes through
+`Ext::FirefighterWells::Threshold` (`src/ext/firefighter_wells/firefighter_wells_rule.h`): with the row
+on, a goal with stat 0x19, the constant 40 and the template `Template\Well.rsc` compares with 20; every
+other goal, and a mod that sets its own constant, is unchanged. The data in the install is not touched.
+An award is written to the settings (`Ach/<index>`) and announced in the event log; there is no Steam in
+OpenBA. Off under `/profile:faithful`.
