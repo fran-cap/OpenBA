@@ -113,6 +113,6 @@ SpriteSheet resource
 		{ String _name = "TreeLink15";	String _source = "Sprite/Extensions/TreeLink15.png"; }
 		{ String _name = "TreeGap";	String _source = "Sprite/Extensions/TreeGap.png"; }
 		{ String _name = "TreeGapStem";	String _source = "Sprite/Extensions/TreeGapStem.png"; }
-		{ String _name = "GameFilesIcon";		String _source = "Sprite/Extensions/GameFilesIcon.png"; }	// ext.phone_menu's Saves and game files menu button (issue #96)
+		{ String _name = "GameFilesIcon";		String _source = "Sprite/Extensions/GameFilesIcon.png"; }	// ext.phone_menu's Game files menu button (issue #96)
 	]
 }

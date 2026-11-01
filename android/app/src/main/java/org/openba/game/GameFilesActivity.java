@@ -1,6 +1,6 @@
 // android/app/src/main/java/org/openba/game/GameFilesActivity.java (docs/android/README.md, issue #96)
 //
-// "Saves and game files": the game-files screen (GameFilesScreen.java, MANAGE) in an activity of its
+// "Game files": the game-files screen (GameFilesScreen.java, MANAGE) in an activity of its
 // own, reached from the launcher icon's long-press menu (the dynamic shortcut OpenBAActivity
 // publishes). A plain Activity, no SDL: it runs beside the game or without it. The saves' export and
 // import work at any time; the packages can be replaced only while the game is not running.

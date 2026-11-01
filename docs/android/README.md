@@ -17,9 +17,9 @@ set, the FrancophilSans typeface with its notice (below, `THIRD_PARTY_NOTICES.md
 |---|---|
 | `android/` | The Gradle project: `settings.gradle`, `build.gradle` (AGP pin), `gradle.properties` (the package id and app name, each set once), the Gradle wrapper. |
 | `android/app/build.gradle` | The app module: SDK levels, NDK and CMake pins, arm64-v8a only, the native build over `../../CMakeLists.txt` (targets `OpenBA` = `libmain.so` and `SDL3-shared` = `libSDL3.so`), SDL's Java glue compiled in place from `third_party/SDL/android-project`. |
-| `android/app/src/main/AndroidManifest.xml` | The game's activity (landscape only, Vulkan 1.3 required) and `GameFilesActivity` (plain views, the "Saves and game files" shortcut). |
+| `android/app/src/main/AndroidManifest.xml` | The game's activity (landscape only, Vulkan 1.3 required) and `GameFilesActivity` (plain views, the "Game files" shortcut). |
 | `android/app/src/main/java/org/openba/game/OpenBAActivity.java` | `SDLActivity` subclass: runs the game's own `main`, turns the launch intent's `BANISHED_*` extras into the environment, makes the surface an `OpenBASurface`. |
-| `android/app/src/main/java/org/openba/game/GameFiles*.java` | The first-run screen and the "Saves and game files" shortcut: the game files copied from a picked folder or `.zip`, the saves exported and imported (Installing the game files, below). |
+| `android/app/src/main/java/org/openba/game/GameFiles*.java` | The first-run screen and the "Game files" shortcut: the game files copied from a picked folder or `.zip`, the saves exported and imported (Installing the game files, below). |
 | `android/app/src/main/java/org/openba/game/OpenBASurface.java` | `SDLSurface` subclass: the captured mouse's buttons and motion (P8). |
 | `src/platform/android/` | The platform twins (`README.md` there has the rule). |
 | `src/diag/android/` | The crash handler and boot-state watchdog twins. |
@@ -91,7 +91,7 @@ the app's own folder: the same thing a USB copy or `push-data` does. Nothing of 
 or the tree (`AGENTS.md` §1, `docs/extensions/DESIGN.md` §3 rule 7).
 
 **Saves.** The same screen's overflow (⋮) has **Import saves** and **Export saves**. In the game, the
-main menu and the pause menu have a **Saves and game files** button (beside Extensions) that opens the
+main menu and the pause menu have a **Game files** button (beside Extensions) that opens the
 screen over the game (`GameFilesActivity`); the back key returns to the menu. The launcher icon's
 long-press shortcut of the same name opens it too, at any time. Export writes a `.zip` of `Documents/Banished/Save/` (`Save/<name>`, the
 files' times kept) wherever the player picks; Import takes every `*.sav` of a `.zip`, at any depth,
@@ -101,7 +101,7 @@ packages while the game is not running. `GameFilesActivity` is not exported: the
 reaches it, no other app can, and neither can `adb shell am start` (refused with a SecurityException;
 `run-as` does not lift that, since `am` runs as the shell). To open it in a test, use the menu button,
 or long-press the icon in the launcher (on the emulator: `input swipe X Y X Y 1200` on the icon, then
-tap "Saves and game files").
+tap "Game files").
 
 **The menu button** is part of `ext.phone_menu` (the phone and tablet front end the Android first run
 turns on; no row of its own): `ExtensionsDialog_AttachGameFilesButton` (`src/game/Dialog/extensionsdialog.cpp`)

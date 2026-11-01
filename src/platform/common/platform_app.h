@@ -38,7 +38,7 @@ const char* MissingGameDataHelp();
 // process may be killed without a quit. Never true on Windows, Linux or macOS.
 bool TakeSaveRequest();
 
-// The platform's own "Saves and game files" screen (issue #96): the saves exported to and imported
+// The platform's own "Game files" screen (issue #96): the saves exported to and imported
 // from a .zip the player picks, and the game's packages chosen again. Android has one (the app's
 // GameFilesActivity, plain views over the game); Windows, Linux and macOS do not: there the files are
 // ordinary folders. HasGameFilesScreen answers whether the menus may offer it (ext.phone_menu's

@@ -55,7 +55,7 @@ def icon(size=W):
 
 
 def game_files_icon():
-    """ext.phone_menu's "Saves and game files" menu button (issue #96): a floppy disk, white with
+    """ext.phone_menu's "Game files" menu button (issue #96): a floppy disk, white with
     antialiased alpha and no outline like icon(): the body with its top-right corner cut, the shutter
     slot near the top and the label window at the bottom cut out. Drawn at 8x, box-filtered down."""
     S = 8

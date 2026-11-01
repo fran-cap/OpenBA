@@ -545,7 +545,7 @@ void MainMenuDialog::OnOpened() {
     // the gate's command-line faithful profile this adds nothing.
     ExtensionsDialog_AttachMenuButton(this);
     // EXT SEAM (NOT RETAIL, docs/android/README.md "Installing the game files", issue #96):
-    // ext.phone_menu's "Saves and game files" button, on a platform with that screen (Android).
+    // ext.phone_menu's "Game files" button, on a platform with that screen (Android).
     ExtensionsDialog_AttachGameFilesButton(this);
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): ext.phone_menu learns which
@@ -672,7 +672,7 @@ void MainMenuDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
         ExtensionsDialog_OpenFromMainMenu(this);
         break;
     case kGameFilesMenuButtonId:
-        // EXT SEAM (NOT RETAIL, issue #96): ext.phone_menu's "Saves and game files" button
+        // EXT SEAM (NOT RETAIL, issue #96): ext.phone_menu's "Game files" button
         // (ExtensionsDialog_AttachGameFilesButton). The platform's own screen opens over the game;
         // the menu stays as it is underneath.
         printf("[MainMenuDialog::OnCommand] -> OpenGameFilesScreen\n");

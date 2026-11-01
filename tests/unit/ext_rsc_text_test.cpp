@@ -201,7 +201,7 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // and its tip, + 2 for the search box (its label and tip), + 3 for the town summary (button, title,
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
     // the picture's main-job check box and its tip
-    // + 2 for the Saves and game files menu button and its tip (issue #96)
+    // + 2 for the Game files menu button and its tip (issue #96)
     CHECK(strings && strings->blocks.size() == 120);
     if (strings) {
         // The Extensions dialog's two tab captions.

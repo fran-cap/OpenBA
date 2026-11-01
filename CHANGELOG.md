@@ -33,6 +33,14 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   no longer zooms or turns the camera, and a pinch no longer drags it; a deliberate twist (past 24 degrees)
   may still turn the camera during a pinch. Lift both fingers to switch (`docs/android/P11_TOUCH_POINTER.md`).
 
+**Android**
+- Installing the game files (issue #96): with no Banished packages yet, the app opens a first-run screen in
+  the game's dialog style. "Choose the folder" or "Choose an archive" (a `.zip`) in the system's picker, and the
+  app copies the retail `.pkg` files of the player's own Banished install into its data folder, with a progress
+  bar and a cancel, then starts the game. No file manager access to `Android/data` is needed any more.
+- "Game files": a button in the main and pause menus (and the app icon's long-press shortcut) opens the same
+  screen at any time to export the saves to a `.zip` or import them from one (`docs/android/README.md`).
+
 **Fixes**
 - Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
   billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the

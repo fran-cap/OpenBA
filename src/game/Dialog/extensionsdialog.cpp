@@ -443,7 +443,7 @@ void ExtensionsDialog_AttachMenuButton(MainMenuDialog* menu) {
 }
 
 // ===========================================================================
-// ext.phone_menu's "Saves and game files" button (issue #96)
+// ext.phone_menu's "Game files" button (issue #96)
 // ===========================================================================
 void ExtensionsDialog_AttachGameFilesButton(MainMenuDialog* menu) {
     if (menu == nullptr || menu->_ui == nullptr || menu->_dialog == nullptr) return;
@@ -452,7 +452,7 @@ void ExtensionsDialog_AttachGameFilesButton(MainMenuDialog* menu) {
     UI::Element* after = Find(menu, "buttonExtensions");
     if (after == nullptr) after = Find(menu, "buttonMod");
     if (after == nullptr || after->_parent == nullptr) {
-        printf("[ExtMenu] no buttonExtensions / buttonMod: no Saves and game files button\n");
+        printf("[ExtMenu] no buttonExtensions / buttonMod: no Game files button\n");
         return;
     }
     AddMenuButtonAfter(menu, after, kGameFilesButtonRsc, "buttonGameFiles", kGameFilesMenuButtonId);

@@ -10,7 +10,7 @@
 //    copies the packages into the app's WinData (GameFilesJob) and hands back to the activity, which
 //    then starts the game. The overflow button holds Import saves / Export saves.
 //
-//  * MANAGE, in GameFilesActivity (the main and pause menus' "Saves and game files" button through
+//  * MANAGE, in GameFilesActivity (the main and pause menus' "Game files" button through
 //    Platform::App::OpenGameFilesScreen, and the launcher icon's long-press shortcut of that name), any
 //    time: the saves' export and import, and the packages replaced while the game is not running.
 //
@@ -112,7 +112,7 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         scroll.addView(column, new ScrollView.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                                                            ViewGroup.LayoutParams.MATCH_PARENT));
 
-        final TextView title = text(mode == Mode.FIRST_RUN ? "Banished game files needed" : "Game files and saves",
+        final TextView title = text(mode == Mode.FIRST_RUN ? "Banished game files needed" : "Game files",
                                     24, COLOR_HEADING);
         if (sFaceBold != null) {
             title.setTypeface(sFaceBold);

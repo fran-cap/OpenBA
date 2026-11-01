@@ -41,7 +41,7 @@ class MainMenuDialog;                                   // Dialog/MainMenuDialog
 
 // The menu button's element id (MainMenuDialog's ids stop at 12, Tutorial).
 constexpr int32_t kExtensionsMenuButtonId = 13;
-// ext.phone_menu's "Saves and game files" button (issue #96).
+// ext.phone_menu's "Game files" button (issue #96).
 constexpr int32_t kGameFilesMenuButtonId = 14;
 
 class ExtensionsDialog final : public UI::DialogInstance {
@@ -88,7 +88,7 @@ void ExtensionsDialog_OpenFromMainMenu(MainMenuDialog* menu);
 // as `[ExtMenu]`).
 void ExtensionsDialog_AttachMenuButton(MainMenuDialog* menu);
 
-// ext.phone_menu's "Saves and game files" button (issue #96, docs/android/README.md): after the
+// ext.phone_menu's "Game files" button (issue #96, docs/android/README.md): after the
 // Extensions button (or Mods), Dialog/Extensions.rsc:buttonGameFiles, id kGameFilesMenuButtonId,
 // in the main menu and the pause menu while the row is on and the platform has a game-files screen
 // (Platform::App::HasGameFilesScreen: Android only). Its click is Platform::App::OpenGameFilesScreen.

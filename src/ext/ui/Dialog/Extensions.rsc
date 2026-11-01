@@ -240,7 +240,7 @@ LabelDescription labelExtensions : "MainMenu.rsc:labelMod"
 	SpriteSheet _spriteSheet = "ExtensionsSprites.rsc"; String _spriteName = "ExtensionsIcon";
 }
 
-// ext.phone_menu's "Saves and game files" button (issue #96; ExtensionsDialog_AttachGameFilesButton):
+// ext.phone_menu's "Game files" button (issue #96; ExtensionsDialog_AttachGameFilesButton):
 // on Android the main and pause menus open the app's game-files screen with it. The Mods button's
 // shape, as buttonExtensions, with our caption, icon (a floppy disk, tools/ext_sprites.py) and
 // tooltip. Not based on MainMenu.rsc:buttonSave / labelSaveGame for the Save icon: a provided object
