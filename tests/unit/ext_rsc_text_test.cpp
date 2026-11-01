@@ -170,9 +170,10 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(page && page->body.Find("_content") &&
           page->body.Find("_content")->tokens[0].text == "enhancedOptionsTable");
     const Object* table = e.Find("enhancedOptionsTable");
-    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 35);   // eighteen labels, seventeen controls (BETTERWATER: better water; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin)
+    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 37);   // nineteen labels, eighteen controls (BETTERWATER: better water; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin; the reporter's follow-up: corner camera buttons)
     // Issue #96: one combo item per choice of its value key (registry.cpp), in the key's order.
     const char* const keyCombos[][2] = {{"touchPadItems", "touch_mode_pad_scale"},
+                                        {"touchCameraButtonItems", "touch_mode_camera_buttons"},
                                         {"touchActionBarItems", "touch_mode_action_bar_scale"},
                                         {"phoneSafeMarginItems", "phone_menu_safe_margin"}};
     for (const auto& kc : keyCombos) {
@@ -452,6 +453,18 @@ UNIT_TEST(ext_rsc_text_parse_touch_controls) {
     const Object* arrow = f.Find("imageTouchArrow");
     CHECK(arrow && arrow->body.Find("_spriteSheet") &&
           arrow->body.Find("_spriteSheet")->tokens[0].text == "SpriteSheet.rsc");
+    // Issue #96 (the reporter's follow-up): the corner camera buttons, a second dialog of the file around the same
+    // four rotate / zoom holders (the controller finds them by the cluster's names), no pad.
+    const Object* corner = f.Find("cameraButtons");
+    CHECK(corner && corner->type == "Dialog" && corner->body.Find("_rootElement") &&
+          corner->body.Find("_rootElement")->tokens[0].text == "cameraButtonsRoot");
+    const Object* cornerContent = f.Find("groupCameraButtonsContent");
+    CHECK(cornerContent && cornerContent->type == "GroupDescription");
+    if (cornerContent && cornerContent->body.Find("_elements")) {
+        const Field* elements = cornerContent->body.Find("_elements");
+        CHECK(elements->tokens.size() == 4);
+        for (const auto& t : elements->tokens) CHECK(t.text != "holderTouchPad" && f.Find(t.text.c_str()) != nullptr);
+    }
     CheckKnownTypes(f, "TouchControls.rsc");
 }
 
