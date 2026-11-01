@@ -120,6 +120,7 @@ extern "C" void MapComponent_ReportDc20Evictions(const char* tag);  // keystone_
 #include <algorithm>
 #include <functional>
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::NoteWrite after a cell store
+#include "ext/registry.h"      // EXT SEAM: Ext::Fix().unresolved_seeds
 
 // ============================================================================
 // Economy Brick M-D — live town storage (BANISHED_LIVE_STORAGE, default OFF).
@@ -546,6 +547,16 @@ static int SeedAgriPool(MapGenerator* sc, CitizenBehavior* townMgr, System::Rand
         // 2026-10-11 the port resolved the pool entry in place and cached into it).
         MapGenerator::ExternalRef local = poolHdr._data[idx];
         ComponentDescription* tmpl = StartTown_ResolveTemplate(&local);
+        // EXT SEAM (NOT RETAIL, docs/retail_bugs.md section 19): fix.unresolved_seeds. Retail spawns
+        // from and appends the result untested, so a start-condition entry naming a resource that
+        // does not exist puts null in the +0x120 list (and hands null to the herd spawn); every
+        // crop field, orchard and pasture panel then faults reading it (0x140078830). The pick
+        // above has already drawn from the world RNG, as retail's does.
+        if (tmpl == nullptr && Ext::Fix().unresolved_seeds) {
+            fprintf(stderr, "[UnresolvedSeeds] start condition entry %s does not resolve: skipped\n",
+                    local.name._data != nullptr ? local.name._data : "(null)");
+            continue;
+        }
         // Retail order: spawn FIRST (0x1400a35dc), then the availability add
         // (0x1400a35e7). Both consume the same resolved template.
         if (spawnCentre) sc->SpawnStartingHerd(spawnCentre, tmpl);

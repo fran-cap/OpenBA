@@ -21,6 +21,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.unresolved_seeds` (on): selecting a crop field, orchard or pasture no longer crashes when the
+  town's list of crops, trees and animals names one that no installed mod provides: a starting condition
+  naming a missing resource (one mod's "Fig" where the package has "Fig Tree"), or a save made with a
+  mod's crop, loaded with that mod off. Retail puts an empty entry in the list and the panel's menu reads
+  it; the fix leaves the entry out (`docs/retail_bugs.md` section 19). Off under `/profile:faithful`.
 - Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
   billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the
   tree's growth scale, and retail eases that scale a little every frame (also while paused with Space, and

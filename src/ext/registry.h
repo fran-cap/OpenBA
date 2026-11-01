@@ -71,6 +71,7 @@ struct Fixes {
     bool alloc_tiebreak    = true;   // docs/retail_bugs.md §14, src/ext/alloc_tiebreak/ (docs/extensions/handins/ALLOCTIEBREAK.md): sim-visible, ties in the job / house allocators
     bool foundation_piles  = true;   // docs/retail_bugs.md §17, src/ext/foundation_piles/ (docs/extensions/handins/FOUNDATIONPILES.md): sim-visible, piles a full town cannot store leave a site's footprint
     bool path_query_first  = true;   // docs/retail_bugs.md §18, src/ext/path_query_first/ (docs/extensions/handins/PATHQUERYFIRST.md): sim-visible timing, the synchronous path query jumps the worker queue
+    bool unresolved_seeds  = true;   // docs/retail_bugs.md §19, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
