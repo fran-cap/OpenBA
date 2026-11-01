@@ -28,6 +28,7 @@
 #include "Game/PlayerController.h"
 #include "Game/WorldGeometry.h"
 
+#include <atomic>
 #include <cstdio>
 #include <vector>
 
@@ -167,14 +168,16 @@ void DrawTriangles(Video::Context* context, const std::vector<LineVertex>& trian
 }  // namespace
 
 namespace {
-bool g_shown = false;   // runtime only: no value key, nothing in settings.cfg or a save
+// Runtime only: no value key, nothing in settings.cfg or a save. Atomic: the page writes it on the main thread
+// and ext.render_pipe's ToolDraw reads it on the render thread.
+std::atomic<bool> g_shown{false};
 }
 
-bool Shown() { return g_shown; }
+bool Shown() { return g_shown.load(std::memory_order_relaxed); }
 
-void SetShown(bool shown) { g_shown = shown; }
+void SetShown(bool shown) { g_shown.store(shown, std::memory_order_relaxed); }
 
-void OnGameStart() { g_shown = false; }
+void OnGameStart() { g_shown.store(false, std::memory_order_relaxed); }
 
 void Draw(Video::Context* context) {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;

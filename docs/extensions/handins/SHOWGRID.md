@@ -65,7 +65,7 @@ The icon is `tools/ext_icons/showgrid.py` (`Entry_show_grid.png`, `ExtensionsSpr
 ## 4. Not done yet
 
 - No hotkey and nothing on the Enhanced tab: the Grid tab of the extension window holds the check box and the sliders.
-  It is the one class A row with a tab there (`ext_toolbar_test` allows `show_grid`).
+  It is the first class A row with a tab there (a page may belong to a row of any class: DESIGN.md, surfaces).
 - A steep slope can hide a line segment that lies inside the hill by less than the 0.03 tile lift.
 - The grid is not in `ext.town_screenshot`'s pictures, nor in the game's own screenshot (the Take View Screenshot button):
   the town screenshot draws the scene at `GameUpdateLoop::Draw` step 7, and the game's screenshot is read back at step 9,
@@ -77,8 +77,8 @@ The icon is `tools/ext_icons/showgrid.py` (`Entry_show_grid.png`, `ExtensionsSpr
 `tests/unit/ext_show_grid_test.cpp` (7): the box has a margin and stays in the map; no box without cells or when too big;
 color (white, grey, the hues), width and bold lines; the hash of the heights under the box follows the ground; box
 equality; the lines cover every tile edge once; the lines follow the ground. `ext_registry_values_test.cpp` pins the
-value count (21), `ext_rsc_text_test.cpp` the page and its strings, `ext_toolbar_test.cpp` the page list and its class
-rule, and `ext_registry_test.cpp` allows the row's description.
+value count (21), `ext_rsc_text_test.cpp` the page and its strings, `ext_toolbar_test.cpp` the page list and that every
+page names an extension row, and `ext_registry_test.cpp` allows the row's description.
 
 ## 6. Verified
 

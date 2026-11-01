@@ -115,7 +115,7 @@ UNIT_TEST(ext_toolbar_the_faithful_gate_never_offers_the_button) {
     Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
 }
 
-UNIT_TEST(ext_toolbar_every_page_names_a_registered_class_b_or_c_extension) {
+UNIT_TEST(ext_toolbar_every_page_names_a_registered_extension) {
     int n = 0;
     const Ext::Toolbar::Contribution* const* list = Ext::Toolbar::All(&n);
     CHECK(n > 0);
@@ -123,9 +123,9 @@ UNIT_TEST(ext_toolbar_every_page_names_a_registered_class_b_or_c_extension) {
         const Ext::Entry* e = Ext::FindEntry(list[i]->id);
         CHECK(e != nullptr);
         if (e != nullptr) {
-            // a page belongs to a class B / C row, or to the one live (class A) row with settings of its own
+            // a page belongs to an extension row of any class: the UI surface is not the class axis
+            // (docs/extensions/DESIGN.md, surfaces, ruled 2026-10-20); a class A row's page is live
             CHECK(e->tier == Ext::Tier::Extension);
-            CHECK(e->cls == Ext::Class::B || e->cls == Ext::Class::C || std::strcmp(e->id, "show_grid") == 0);
         }
         CHECK(list[i]->caption != nullptr && list[i]->caption[0] != 0);
         CHECK(list[i]->page != nullptr && std::strstr(list[i]->page, ".rsc:") != nullptr);
