@@ -9,7 +9,8 @@
 // and Windows logs. What differs:
 //   * The registers are arm64's (x0-x30, sp, pc), from the signal frame's mcontext; Fault:
 //     READ / WRITE comes from the ESR record the kernel appends to it (WnR, bit 6), EXEC is
-//     pc == fault address.
+//     pc == fault address. The x86_64 build (the emulator, docs/android/EMULATOR.md) prints the
+//     Linux twin's register set and reads READ / WRITE / EXEC from the page-fault error code.
 //   * The stack: bionic has no backtrace() before API 33 (minSdk is 29), so the crash stack
 //     is walked from the signal frame's pc, lr and frame-pointer chain (arm64 Android code
 //     keeps x29 as the frame pointer), each frame checked readable first; std::terminate and
@@ -26,6 +27,7 @@
 
 #include "crash_handler.h"
 #include "redzone_alloc.h"            // RedzoneAlloc_SetDumpSink / RedzoneAlloc_HeapDump
+#include "signal_context_android.h"   // SignalContext: the pc / sp / lr / frame pointer by ABI
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::_singleton (the crash dump's cell)
 
 #include <android/log.h>
@@ -175,13 +177,16 @@ void PrintStackTrace() {
     for (int i = 0; i < st.count; ++i) LogFrame(i, frames[i]);
 }
 
-// The crash stack from the signal frame: pc, then lr, then the x29 chain ({fp, lr} pairs).
+// The crash stack from the signal frame: pc, then lr (arm64), then the frame-pointer chain
+// ({fp, return address} pairs).
 void PrintSignalStack(const mcontext_t& mc) {
     CrashLogf("Stack trace:\n");
     int i = 0;
-    LogFrame(i++, reinterpret_cast<void*>(mc.pc));  // CAST-OK: crash_walk
-    LogFrame(i++, reinterpret_cast<void*>(mc.regs[30]));  // CAST-OK: crash_walk
-    uintptr_t fp = static_cast<uintptr_t>(mc.regs[29]);
+    LogFrame(i++, reinterpret_cast<void*>(SignalContext::Pc(mc)));  // CAST-OK: crash_walk
+    if (SignalContext::Lr(mc) != 0) {
+        LogFrame(i++, reinterpret_cast<void*>(SignalContext::Lr(mc)));  // CAST-OK: crash_walk
+    }
+    uintptr_t fp = SignalContext::Fp(mc);
     while (i < 48 && fp != 0 && (fp & 0xF) == 0) {
         const uintptr_t* rec = reinterpret_cast<const uintptr_t*>(fp);  // CAST-OK: crash_walk
         if (!Readable(rec, 2 * sizeof(uintptr_t))) break;
@@ -205,6 +210,7 @@ const char* SignalName(int sig) {
     }
 }
 
+#if defined(__aarch64__)
 // The ESR the kernel appends to an arm64 signal frame (its esr_context record in
 // mcontext's reserved area); 0 when absent.
 uint64_t FaultEsr(const mcontext_t& mc) {
@@ -225,6 +231,61 @@ uint64_t FaultEsr(const mcontext_t& mc) {
     }
     return 0;
 }
+#endif
+
+// The fault's kind for the Fault: line. arm64: WnR (bit 6) of the ESR, EXEC when pc is the fault
+// address. x86_64: the page-fault error code (bit 1 = write, bit 4 = instruction fetch).
+const char* FaultOp(const mcontext_t& mc, const siginfo_t* si) {
+    const bool exec = SignalContext::Pc(mc) == reinterpret_cast<uintptr_t>(si->si_addr);  // CAST-OK: crash_walk
+#if defined(__aarch64__)
+    const uint64_t esr = FaultEsr(mc);
+    if (exec) return "EXEC";
+    if (esr == 0) return "ACCESS";
+    return (esr & (1u << 6)) ? "WRITE" : "READ";
+#else
+    const unsigned long long err = static_cast<unsigned long long>(mc.gregs[REG_ERR]);
+    if (exec || (err & 0x10)) return "EXEC";
+    return (err & 0x2) ? "WRITE" : "READ";
+#endif
+}
+
+// The signal frame's registers, in the dump shape of the ABI's desktop twin.
+void LogRegisters(const mcontext_t& mc) {
+#if defined(__aarch64__)
+    for (int r = 0; r < 28; r += 4) {
+        CrashLogf("X%-2d=%016llX X%-2d=%016llX X%-2d=%016llX X%-2d=%016llX\n", r,
+                  (unsigned long long)mc.regs[r], r + 1, (unsigned long long)mc.regs[r + 1], r + 2,
+                  (unsigned long long)mc.regs[r + 2], r + 3, (unsigned long long)mc.regs[r + 3]);
+    }
+    CrashLogf("X28=%016llX FP =%016llX LR =%016llX\n", (unsigned long long)mc.regs[28],
+              (unsigned long long)mc.regs[29], (unsigned long long)mc.regs[30]);
+    CrashLogf("PC =%016llX SP =%016llX\n", (unsigned long long)mc.pc, (unsigned long long)mc.sp);
+#else
+    const greg_t* g = mc.gregs;
+    CrashLogf("RAX=%016llX RCX=%016llX RDX=%016llX RBX=%016llX\n",
+              (unsigned long long)g[REG_RAX], (unsigned long long)g[REG_RCX],
+              (unsigned long long)g[REG_RDX], (unsigned long long)g[REG_RBX]);
+    CrashLogf("RBP=%016llX RSI=%016llX RDI=%016llX R8 =%016llX\n",
+              (unsigned long long)g[REG_RBP], (unsigned long long)g[REG_RSI],
+              (unsigned long long)g[REG_RDI], (unsigned long long)g[REG_R8]);
+    CrashLogf("R9 =%016llX R10=%016llX R11=%016llX R12=%016llX\n",
+              (unsigned long long)g[REG_R9], (unsigned long long)g[REG_R10],
+              (unsigned long long)g[REG_R11], (unsigned long long)g[REG_R12]);
+    CrashLogf("R13=%016llX R14=%016llX R15=%016llX\n",
+              (unsigned long long)g[REG_R13], (unsigned long long)g[REG_R14],
+              (unsigned long long)g[REG_R15]);
+    CrashLogf("RIP=%016llX RSP=%016llX\n", (unsigned long long)g[REG_RIP], (unsigned long long)g[REG_RSP]);
+#endif
+}
+
+// A call through a null pointer leaves pc = 0: the caller is the return address, in lr on arm64,
+// at [rsp] on x86_64 (the CALL pushed it); 0 when unreadable.
+uintptr_t NullCallCaller(const mcontext_t& mc) {
+    if (SignalContext::Lr(mc) != 0) return SignalContext::Lr(mc);
+    const uintptr_t* sp = reinterpret_cast<const uintptr_t*>(SignalContext::Sp(mc));  // CAST-OK: crash_walk
+    if (!Readable(sp, sizeof(uintptr_t))) return 0;
+    return *sp;
+}
 
 struct sigaction g_previous[32];
 
@@ -239,25 +300,17 @@ void CrashHandler(int sig, siginfo_t* si, void* ucv) {
 
     CrashLogRaw("\n=== STANDALONE CRASH ===\n");
     CrashLogf("Exception: signal %d (%s) si_code=%d\n", sig, SignalName(sig), si->si_code);
-    CrashLogf("Address:   %p\n", reinterpret_cast<void*>(mc.pc));  // CAST-OK: crash_walk
-    for (int r = 0; r < 28; r += 4) {
-        CrashLogf("X%-2d=%016llX X%-2d=%016llX X%-2d=%016llX X%-2d=%016llX\n", r,
-                  (unsigned long long)mc.regs[r], r + 1, (unsigned long long)mc.regs[r + 1], r + 2,
-                  (unsigned long long)mc.regs[r + 2], r + 3, (unsigned long long)mc.regs[r + 3]);
-    }
-    CrashLogf("X28=%016llX FP =%016llX LR =%016llX\n", (unsigned long long)mc.regs[28],
-              (unsigned long long)mc.regs[29], (unsigned long long)mc.regs[30]);
-    CrashLogf("PC =%016llX SP =%016llX\n", (unsigned long long)mc.pc, (unsigned long long)mc.sp);
+    CrashLogf("Address:   %p\n", reinterpret_cast<void*>(SignalContext::Pc(mc)));  // CAST-OK: crash_walk
+    LogRegisters(mc);
 
-    LogModuleLine("Module:    ", reinterpret_cast<void*>(mc.pc));  // CAST-OK: crash_walk
-    // A call through a null pointer leaves pc = 0 with the return address in lr.
-    if (mc.pc == 0) LogModuleLine("Caller:    ", reinterpret_cast<void*>(mc.regs[30]));  // CAST-OK: crash_walk
+    LogModuleLine("Module:    ", reinterpret_cast<void*>(SignalContext::Pc(mc)));  // CAST-OK: crash_walk
+    // A call through a null pointer leaves pc = 0 with the return address in lr (arm64) or at [rsp].
+    if (SignalContext::Pc(mc) == 0) {
+        LogModuleLine("Caller:    ", reinterpret_cast<void*>(NullCallCaller(mc)));  // CAST-OK: crash_walk
+    }
 
     if (sig == SIGSEGV || sig == SIGBUS) {
-        const uint64_t esr = FaultEsr(mc);
-        const bool exec = mc.pc == reinterpret_cast<uintptr_t>(si->si_addr);  // CAST-OK: crash_walk
-        const char* op = exec ? "EXEC" : (esr != 0 ? ((esr & (1u << 6)) ? "WRITE" : "READ") : "ACCESS");
-        CrashLogf("Fault: %s of %p\n", op, si->si_addr);
+        CrashLogf("Fault: %s of %p\n", FaultOp(mc, si), si->si_addr);
     }
 
     {
