@@ -307,7 +307,7 @@ struct Options {
     const char* fencedRuns           = nullptr;
     const char* fencedSide           = nullptr;
     const char* utilityTemplate      = nullptr;
-    const char* fingerTap            = nullptr;// BANISHED_FINGER_TAP=<fx>,<fy>[,<frames>] — one synthetic finger tap at that
+    const char* fingerTap            = nullptr;// BANISHED_FINGER_TAP=<fx>,<fy>[,<frames>[,<hold>]] — one synthetic finger tap (held <hold> frames) at that
                                                //   fraction of the window, <frames> (default 30) after the harness
                                                //   fires (tool_harness.cpp); tools/device_sim.sh sets it
     const char* mapTestPattern       = nullptr;
