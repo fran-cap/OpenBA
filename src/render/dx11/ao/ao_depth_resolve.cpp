@@ -45,7 +45,7 @@ bool DepthResolve::Create(ID3D11Device* dev) {
         hr = dev->CreateBlendState(&bd, &_bs);
     }
     if (hr != S_OK) {
-        std::fprintf(stderr, "[AmbientOcclusion] depth resolve: shader / state creation failed (0x%08lx)\n",
+        std::fprintf(stderr, "[%s] depth resolve: shader / state creation failed (0x%08lx)\n", _tag,
                      static_cast<unsigned long>(hr));
         Release();
         return false;
@@ -76,7 +76,7 @@ bool DepthResolve::Resize(ID3D11Device* dev, unsigned w, unsigned h) {
     HRESULT hr = dev->CreateTexture2D(&td, nullptr, &_tex);
     if (hr == S_OK) hr = dev->CreateRenderTargetView(_tex, nullptr, &_rtv);
     if (hr == S_OK) hr = dev->CreateShaderResourceView(_tex, nullptr, &_srv);
-    std::fprintf(stderr, "[AmbientOcclusion] depth resolve target %ux%u R32_FLOAT: 0x%08lx\n", w, h,
+    std::fprintf(stderr, "[%s] depth resolve target %ux%u R32_FLOAT: 0x%08lx\n", _tag, w, h,
                  static_cast<unsigned long>(hr));
     if (hr != S_OK) {
         Rel(_srv); Rel(_rtv); Rel(_tex);
