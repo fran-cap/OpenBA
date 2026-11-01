@@ -102,12 +102,22 @@ GestureStep TwoFingers::Step(float x1, float y1, float x2, float y2) {
     const float travel = std::sqrt((cx - _startCx) * (cx - _startCx) + (cy - _startCy) * (cy - _startCy));
     const float panRatio = travel / (kPanEngageFraction * _shortEdge);
     const float pinchRatio = std::fabs(std::log(dist / _startDist)) / kPinchEngageLog;
-    const float spinRatio = std::fabs(AngleDelta(angle, _startAngle)) / kSpinEngageDegrees;
+    const float turn = AngleDelta(angle, _startAngle);
+    const float spinRatio = std::fabs(turn) / kSpinEngageDegrees;
+
+    // The fingers' motion relative to each other since Begin, in px: the spread change, and the arc one finger
+    // swept about the other. A one-thumb pinch or a turn about one finger moves the centroid by half of this; a
+    // pan moves the centroid with almost none of it.
+    const float spreadPx = std::fabs(dist - _startDist);
+    const float arcPx = _startDist * std::fabs(turn) * kPi / 180.0f;
+    const bool fingersApart = spreadPx >= travel || arcPx >= travel;
 
     // The mode lock (kJoinFactor's comment): the first component past its threshold engages alone; from then on
-    // it follows. Pan never shares the gesture; pinch and spin join each other only past kJoinFactor.
+    // it follows. Pan never shares the gesture; pinch and spin join each other only past kJoinFactor. Pan does not
+    // engage while the fingers' relative motion is at least the centroid's travel (a wide one-thumb pinch passes
+    // the pan threshold before the pinch one): the gesture stays undecided until pinch or spin passes its own.
     if (!_pan && !_pinch && !_spin) {
-        if (panRatio > 1.0f && panRatio >= pinchRatio && panRatio >= spinRatio) {
+        if (panRatio > 1.0f && panRatio >= pinchRatio && panRatio >= spinRatio && !fingersApart) {
             _pan = true;
         } else if (pinchRatio > 1.0f && pinchRatio >= spinRatio) {
             _pinch = true;

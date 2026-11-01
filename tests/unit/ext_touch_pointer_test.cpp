@@ -252,6 +252,37 @@ UNIT_TEST(ext_touch_pointer_gesture_lock_rotate_first) {
     CHECK(Near(total.yawDegrees, 32.0f, 1e-2f));   // engaged at 10 degrees (step 5), then follows
 }
 
+UNIT_TEST(ext_touch_pointer_gesture_lock_wide_one_thumb_pinch) {
+    // Fingers 70 % of the short edge apart, one still, the other closing 15 % of the spread (700 -> 595 px) in
+    // 5 px steps. At 45 px the centroid has travelled 22.5 px (pan ratio 1.125) and the spread log 0.066 (pinch
+    // ratio 1.107): pan is furthest past its threshold, but the spread change (45 px) is at least the centroid's
+    // travel, so it is a pinch. Zoom out from that step, no drag.
+    TwoFingers g;
+    g.Begin(150, 500, 850, 500, 1000.0f);
+    GestureStep total;
+    for (int32_t i = 1; i <= 21; ++i) {
+        Accumulate(total, g.Step(150, 500, 850 - 5 * static_cast<float>(i), 500));
+    }
+    CHECK(g.pinchEngaged() && !g.panEngaged() && !g.spinEngaged());
+    CHECK(total.dragX == 0.0f && total.dragY == 0.0f && total.yawDegrees == 0.0f);
+    CHECK(Near(total.zoomSteps, std::log(595.0f / 660.0f) / kPinchLogPerStep, 1e-3f));   // from step 9
+}
+
+UNIT_TEST(ext_touch_pointer_gesture_lock_pan_with_spread_jitter) {
+    // A two-finger drag whose spread jitters 3 % (200 px, +-6 px every other step): still a pan, no zoom.
+    TwoFingers g;
+    BeginPose(g, Pose{500, 500, 200, 0});
+    GestureStep total;
+    for (int32_t i = 1; i <= 20; ++i) {
+        const float k = static_cast<float>(i);
+        const float jitter = (i % 2 == 0) ? -6.0f : 6.0f;
+        Accumulate(total, StepPose(g, Pose{500 + 10 * k, 500, 200 + jitter, 0}));
+    }
+    CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
+    CHECK(total.zoomSteps == 0.0f && total.yawDegrees == 0.0f);
+    CHECK(Near(total.dragX, 0.18f, 1e-4f));   // engaged at 30 px (step 3), then follows to 200 px
+}
+
 UNIT_TEST(ext_touch_pointer_gesture_lock_join_and_reset) {
     // Pinch locked: a 15-degree twist (under 3x the spin threshold) is dropped; past 24 degrees spin joins and
     // follows from that step. Pan never joins, however far the centroid then travels.
