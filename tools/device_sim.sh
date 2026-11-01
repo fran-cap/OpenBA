@@ -10,9 +10,9 @@
 # screenshot of it. Facts, limits and what is NOT the device: docs/reference/device_sim.md.
 #
 # USAGE
-#   tools/device_sim.sh <phone|tablet> [--screenshot PATH] [--ui N] [--view game|panels]
-#                       [--panels LIST] [--tap FX,FY] [--building TEMPLATE] [--lane NAME] [--jobs N]
-#                       [--no-build]
+#   tools/device_sim.sh <phone|tablet> [--screenshot PATH] [--ui N] [--view game|panels|options]
+#                       [--panels LIST] [--tap FX,FY] [--building TEMPLATE] [--set KEY=VALUE]...
+#                       [--lane NAME] [--jobs N] [--no-build]
 #
 #   phone    Galaxy S25 class, 2340 x 1080 (docs/android/TOUCH_MODE.md, the reference device)
 #   tablet   OnePlus Pad class, 3392 x 2400 (issue #96)
@@ -22,10 +22,14 @@
 #                      in the placement tool and one finger tap on the world, so ext.touch_pointer's
 #                      action bar and the ghost show
 #   --view game        the plain game screen (no harness dialogs, no tap)
+#   --view options     the Options dialog on its Enhanced tab, opened from the pause menu
+#                      (GameLastOption=4; the run is ended once the shot is written)
 #   --panels LIST      the utility panels --view panels opens, in order, comma separated, from
 #                      professions, town, eventlog, limits, map, help (default professions,town,eventlog)
 #   --tap FX,FY        where the finger lands, as fractions of the window (default 0.62,0.42)
 #   --building T       the armed template (default Template\WoodHouse.rsc)
+#   --set KEY=VALUE    one more settings.cfg key, written after the profile's (repeatable; e.g.
+#                      --set ext.touch_mode_pad_scale=0). The saved settings.cfg is put back after.
 #   --no-build         deploy the exe already built (build/cmake-debug/OpenBA.exe)
 #
 # WHAT IT DOES, in order: builds the debug exe (tools/build.sh build debug), takes the FUNCTIONAL
@@ -79,6 +83,7 @@ PANELS="professions,town,eventlog"
 LANE="device-sim"
 JOBS="${BUILD_JOBS:-8}"
 BUILD=1
+EXTRA_KEYS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --screenshot) SHOT="${2:?--screenshot needs a path}"; shift 2 ;;
@@ -89,11 +94,18 @@ while [ $# -gt 0 ]; do
         --panels)     PANELS="${2:?--panels needs a list}"; shift 2 ;;
         --lane)       LANE="${2:?--lane needs a name}"; shift 2 ;;
         --jobs)       JOBS="${2:?--jobs needs a number}"; shift 2 ;;
+        --set)
+            case "${2:-}" in
+                ?*=*) EXTRA_KEYS+=("$2") ;;
+                *) die "--set needs KEY=VALUE" ;;
+            esac
+            shift 2
+            ;;
         --no-build)   BUILD=0; shift ;;
         *) die "unknown option '$1'" ;;
     esac
 done
-case "$VIEW" in game | panels) ;; *) die "--view is game or panels" ;; esac
+case "$VIEW" in game | panels | options) ;; *) die "--view is game, panels or options" ;; esac
 case "$UI" in '' | *[!0-9]*) die "--ui is a whole percent" ;; esac
 # The toolbar's utility templates; "town" is the town status window (UtilityStatusBar).
 TEMPLATES=""
@@ -196,6 +208,13 @@ set_key ext.fps_cap_rate 60
 set_key ext.touch_mode 1
 set_key ext.touch_mode_toolbar_scale 200
 set_key ext.touch_pointer 1
+if [ "$VIEW" = options ]; then
+    set_key GameLastOption 4   # the Options dialog opens on its fifth tab, Enhanced (optionsdialog.cpp)
+fi
+for kv in ${EXTRA_KEYS[@]+"${EXTRA_KEYS[@]}"}; do
+    set_key "${kv%%=*}" "${kv#*=}"
+    echo "[device_sim] --set ${kv%%=*}=${kv#*=}"
+done
 echo "[device_sim] $PROFILE: window ${WIN_W}x${WIN_H}, GameUIScale=$UI, phone_menu / touch_mode / touch_pointer on ($CFG)"
 
 # ---------------------------------------------------------------- deploy and run
@@ -212,6 +231,17 @@ if [ "$VIEW" = panels ]; then
              "BANISHED_PLACEMENT_TEMPLATE=$BUILDING"
              "BANISHED_FINGER_TAP=$TAP")
 fi
+# --view options: the pause menu opens at QUIT_FRAME and its Options button (MainMenuDialog id 4) is
+# clicked 60 frames later; the shot is taken 120 frames after that and the run is ended once it is
+# written (the Options dialog has no harness route back to Quit Game).
+PAUSE_BUTTON=()
+if [ "$VIEW" = options ]; then
+    PAUSE_BUTTON=(BANISHED_PAUSEMENU_BUTTON=4)
+    PAUSE_DELAY=60
+    SHOT_FRAME=$((QUIT_FRAME + PAUSE_DELAY + 120))
+else
+    PAUSE_DELAY=120
+fi
 echo "[device_sim] launching (view $VIEW; shot at frame $SHOT_FRAME, quit at $QUIT_FRAME)"
 START=$(date +%s)
 # BANISHED_AUTOSTART=<frames>: the menu settles MENU_FRAMES before New Game, the time the window
@@ -221,8 +251,8 @@ MENU_FRAMES=300
     cd "$G" || exit 2
     exec env BANISHED_AUTOSTART="$MENU_FRAMES" BANISHED_SEED=12345 BANISHED_WINDOW_ANY_SIZE=1 \
         BANISHED_SCREENSHOT_AT="$SHOT_FRAME,ui" \
-        BANISHED_PAUSEMENU="$QUIT_FRAME" BANISHED_PAUSEMENU_QUIT=120 \
-        "${HARNESS[@]}" ./OpenBA.exe
+        BANISHED_PAUSEMENU="$QUIT_FRAME" BANISHED_PAUSEMENU_QUIT="$PAUSE_DELAY" \
+        ${PAUSE_BUTTON[@]+"${PAUSE_BUTTON[@]}"} ${HARNESS[@]+"${HARNESS[@]}"} ./OpenBA.exe
 ) &
 PID=$!
 "$HERE/boot_state.sh" --wait 300
@@ -243,10 +273,22 @@ done
 # The run quits itself through the pause menu; the deadline catches one that does not.
 while kill -0 "$PID" 2>/dev/null; do
     [ $(( $(date +%s) - START )) -ge "$DEADLINE_SECS" ] && break
+    if [ "$VIEW" = options ] && ls -1 "$SHOTS" 2>/dev/null | sort | comm -13 <(printf '%s\n' "$BEFORE") - | grep -qi '\.bmp$'; then
+        sleep 3   # the .bmp is written in one go by TakeScreenshot; leave it time to close
+        break
+    fi
     sleep 2
 done
 KILLED=no
-if kill -0 "$PID" 2>/dev/null; then
+ENDED=no
+if [ "$VIEW" = options ] && kill -0 "$PID" 2>/dev/null; then
+    ENDED=yes   # by design: the shot is in, nothing quits the Options dialog
+    # This run's process only (the lane's other users may have their own OpenBA.exe running).
+    WINPID="$(cat "/proc/$PID/winpid" 2> /dev/null)"
+    [ -n "$WINPID" ] && taskkill //F //PID "$WINPID" > /dev/null 2>&1
+    kill -9 "$PID" 2> /dev/null
+fi
+if [ "$ENDED" = no ] && kill -0 "$PID" 2>/dev/null; then
     KILLED=yes
     taskkill //F //IM OpenBA.exe > /dev/null 2>&1
     kill -9 "$PID" 2> /dev/null
@@ -264,6 +306,7 @@ if [ -s "$G/standalone_crash.log" ]; then
     FAIL=1
 fi
 [ -f "$G/standalone_hang.log" ] && { echo "[device_sim] HANG -- read $BANISHED_DIR/standalone_hang.log"; FAIL=1; }
+[ "$ENDED" = yes ] && echo "[device_sim] note: --view options ended the run after the shot"
 [ "$KILLED" = yes ] && echo "[device_sim] note: killed at the ${DEADLINE_SECS}s deadline (no clean quit)"
 if [ -z "$NEW" ]; then
     echo "[device_sim] no new screenshot in $SHOTS ([Screenshot] lines in $BANISHED_DIR/standalone_error.log)"

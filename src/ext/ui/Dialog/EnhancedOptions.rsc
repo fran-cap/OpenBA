@@ -1,5 +1,5 @@
 // Dialog/EnhancedOptions.rsc -- the Options dialog's fifth tab "Enhanced" (NOT RETAIL; blocks AOMENU,
-// FAA-MENU, BETTER-TREES, BETTERWATER, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer, issue #96's "Touch screen" group: eighteen rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
+// FAA-MENU, BETTER-TREES, BETTERWATER, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer, issue #96's "Touch screen" and "General" groups: nineteen rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
 // OptionsDialog::OnOpened (src/ext/enhanced_tab/enhanced_tab.cpp). Every name here is NEW:
 // a loose .crs never overrides a name the game's packages hold (IO::FileSystem::OpenFile looks
 // in the packfile index first, handins/AOSPIKE.md S5). The look inherits the kit's own
@@ -23,6 +23,7 @@ StringTable aoStrings
 		{ String _name = "TouchMode";		String _text = "Touch controls"; }
 		{ String _name = "TouchPointer";	String _text = "Touch pointer"; }
 		{ String _name = "TouchGroup";		String _text = "Touch screen"; }
+		{ String _name = "GeneralGroup";	String _text = "General"; }
 		{ String _name = "TouchPad";		String _text = "Camera pad"; }
 		{ String _name = "TouchActionBar";	String _text = "Placement bar"; }
 		{ String _name = "PhoneSafeMargin";	String _text = "Screen edge margin"; }
@@ -254,9 +255,10 @@ ContainerDescription enhancedOptions : "Options.rsc:gameOptions"
 	ElementDescription _content = "enhancedOptionsTable";
 }
 
-// The rows: Options.rsc:gameOptionsTable's shape, eighteen rows (AO combo, AO slider, Better trees, natural tree growth, Better water, shadow,
-// loops, texture quality (TEXQUALITY), render scale and frame rate cap (P8); then the "Touch screen" group (issue #96: its
-// header, Touch controls, Camera pad, Placement bar, Touch pointer, Screen edge margin), then the derived-data cache's
+// The rows: Options.rsc:gameOptionsTable's shape, nineteen rows. First the "Touch screen" group (issue #96: its header,
+// Touch controls, Camera pad, Placement bar, Touch pointer, Screen edge margin), at the top so a phone shows it without
+// scrolling the page; then the "General" header over the rest: AO combo, AO slider, Better trees, natural tree growth,
+// Better water, shadow, loops, texture quality (TEXQUALITY), render scale and frame rate cap (P8), the derived-data cache's
 // size and, under it, its "Clear cache" button: COMPRESSAO). The size sits in the control column, not in the label: "0 MB (cleared at the next
 // start)" in the label column made that column, and so the dialog, wider than the retail tabs.
 TableDescription enhancedOptionsTable
@@ -269,45 +271,46 @@ TableDescription enhancedOptionsTable
 	Alignment _alignment = TopLeft;
 
 	int _width = 2;
-	int _height = 18;
+	int _height = 19;
 
 	TableItem _items
 	[
-		{ int _x = 0; int _y = 0; ElementDescription _element = "textAoQuality"; }
-		{ int _x = 0; int _y = 1; ElementDescription _element = "textAoOpacity"; }
-		{ int _x = 0; int _y = 2; ElementDescription _element = "textBetterTrees"; }
-		{ int _x = 0; int _y = 3; ElementDescription _element = "textNaturalGrowth"; }
-		{ int _x = 0; int _y = 4; ElementDescription _element = "textBetterWater"; }
-		{ int _x = 0; int _y = 5; ElementDescription _element = "textMaxShadowRes"; }
-		{ int _x = 0; int _y = 6; ElementDescription _element = "textSeamlessLoops"; }
-		{ int _x = 0; int _y = 7; ElementDescription _element = "textTextureQuality"; }
-		{ int _x = 0; int _y = 8; ElementDescription _element = "textRenderScale"; }
-		{ int _x = 0; int _y = 9; ElementDescription _element = "textFpsCap"; }
-		{ int _x = 0; int _y = 10; ElementDescription _element = "textTouchGroup"; }
-		{ int _x = 0; int _y = 11; ElementDescription _element = "textTouchMode"; }
-		{ int _x = 0; int _y = 12; ElementDescription _element = "textTouchPad"; }
-		{ int _x = 0; int _y = 13; ElementDescription _element = "textTouchActionBar"; }
-		{ int _x = 0; int _y = 14; ElementDescription _element = "textTouchPointer"; }
-		{ int _x = 0; int _y = 15; ElementDescription _element = "textPhoneSafeMargin"; }
-		{ int _x = 0; int _y = 16; ElementDescription _element = "textDerivedCache"; }
+		{ int _x = 0; int _y = 0; ElementDescription _element = "textTouchGroup"; }
+		{ int _x = 0; int _y = 1; ElementDescription _element = "textTouchMode"; }
+		{ int _x = 0; int _y = 2; ElementDescription _element = "textTouchPad"; }
+		{ int _x = 0; int _y = 3; ElementDescription _element = "textTouchActionBar"; }
+		{ int _x = 0; int _y = 4; ElementDescription _element = "textTouchPointer"; }
+		{ int _x = 0; int _y = 5; ElementDescription _element = "textPhoneSafeMargin"; }
+		{ int _x = 0; int _y = 6; ElementDescription _element = "textGeneralGroup"; }
+		{ int _x = 0; int _y = 7; ElementDescription _element = "textAoQuality"; }
+		{ int _x = 0; int _y = 8; ElementDescription _element = "textAoOpacity"; }
+		{ int _x = 0; int _y = 9; ElementDescription _element = "textBetterTrees"; }
+		{ int _x = 0; int _y = 10; ElementDescription _element = "textNaturalGrowth"; }
+		{ int _x = 0; int _y = 11; ElementDescription _element = "textBetterWater"; }
+		{ int _x = 0; int _y = 12; ElementDescription _element = "textMaxShadowRes"; }
+		{ int _x = 0; int _y = 13; ElementDescription _element = "textSeamlessLoops"; }
+		{ int _x = 0; int _y = 14; ElementDescription _element = "textTextureQuality"; }
+		{ int _x = 0; int _y = 15; ElementDescription _element = "textRenderScale"; }
+		{ int _x = 0; int _y = 16; ElementDescription _element = "textFpsCap"; }
+		{ int _x = 0; int _y = 17; ElementDescription _element = "textDerivedCache"; }
 
-		{ int _x = 1; int _y = 0; ElementDescription _element = "comboAoQuality"; }
-		{ int _x = 1; int _y = 1; ElementDescription _element = "sliderAoOpacity"; }
-		{ int _x = 1; int _y = 2; ElementDescription _element = "comboBetterTrees"; }
-		{ int _x = 1; int _y = 3; ElementDescription _element = "comboNaturalGrowth"; }
-		{ int _x = 1; int _y = 4; ElementDescription _element = "comboBetterWater"; }
-		{ int _x = 1; int _y = 5; ElementDescription _element = "comboMaxShadowRes"; }
-		{ int _x = 1; int _y = 6; ElementDescription _element = "comboSeamlessLoops"; }
-		{ int _x = 1; int _y = 7; ElementDescription _element = "comboTextureQuality"; }
-		{ int _x = 1; int _y = 8; ElementDescription _element = "comboRenderScale"; }
-		{ int _x = 1; int _y = 9; ElementDescription _element = "comboFpsCap"; }
-		{ int _x = 1; int _y = 11; ElementDescription _element = "comboTouchMode"; }
-		{ int _x = 1; int _y = 12; ElementDescription _element = "comboTouchPad"; }
-		{ int _x = 1; int _y = 13; ElementDescription _element = "comboTouchActionBar"; }
-		{ int _x = 1; int _y = 14; ElementDescription _element = "comboTouchPointer"; }
-		{ int _x = 1; int _y = 15; ElementDescription _element = "comboPhoneSafeMargin"; }
-		{ int _x = 1; int _y = 16; ElementDescription _element = "textDerivedCacheSize"; }
-		{ int _x = 1; int _y = 17; ElementDescription _element = "buttonDerivedCacheClear"; }
+		{ int _x = 1; int _y = 1; ElementDescription _element = "comboTouchMode"; }
+		{ int _x = 1; int _y = 2; ElementDescription _element = "comboTouchPad"; }
+		{ int _x = 1; int _y = 3; ElementDescription _element = "comboTouchActionBar"; }
+		{ int _x = 1; int _y = 4; ElementDescription _element = "comboTouchPointer"; }
+		{ int _x = 1; int _y = 5; ElementDescription _element = "comboPhoneSafeMargin"; }
+		{ int _x = 1; int _y = 7; ElementDescription _element = "comboAoQuality"; }
+		{ int _x = 1; int _y = 8; ElementDescription _element = "sliderAoOpacity"; }
+		{ int _x = 1; int _y = 9; ElementDescription _element = "comboBetterTrees"; }
+		{ int _x = 1; int _y = 10; ElementDescription _element = "comboNaturalGrowth"; }
+		{ int _x = 1; int _y = 11; ElementDescription _element = "comboBetterWater"; }
+		{ int _x = 1; int _y = 12; ElementDescription _element = "comboMaxShadowRes"; }
+		{ int _x = 1; int _y = 13; ElementDescription _element = "comboSeamlessLoops"; }
+		{ int _x = 1; int _y = 14; ElementDescription _element = "comboTextureQuality"; }
+		{ int _x = 1; int _y = 15; ElementDescription _element = "comboRenderScale"; }
+		{ int _x = 1; int _y = 16; ElementDescription _element = "comboFpsCap"; }
+		{ int _x = 1; int _y = 17; ElementDescription _element = "textDerivedCacheSize"; }
+		{ int _x = 1; int _y = 18; ElementDescription _element = "buttonDerivedCacheClear"; }
 	]
 }
 
@@ -331,9 +334,10 @@ TextDescription textRenderScale : "textAoOption" { String _text = "RenderScale";
 TextDescription textFpsCap : "textAoOption" { String _text = "FpsCap"; }
 TextDescription textTouchMode : "textAoOption" { String _text = "TouchMode"; }
 TextDescription textTouchPointer : "textAoOption" { String _text = "TouchPointer"; }
-// The "Touch screen" group's header (issue #96): a label row of its own, white where the rows are grey, with the
-// cache row's top spacing, over the touch and phone rows below it.
+// The group headers (issue #96): a label row of its own, white where the rows are grey, with the cache row's top
+// spacing. "Touch screen" over the touch and phone rows at the top of the page, "General" over the rest.
 TextDescription textTouchGroup : "textAoOption" { String _text = "TouchGroup"; Color _color = 0xFFFFFFFF; int _topPad = 5; int _bottomPad = 3; }
+TextDescription textGeneralGroup : "textAoOption" { String _text = "GeneralGroup"; Color _color = 0xFFFFFFFF; int _topPad = 5; int _bottomPad = 3; }
 TextDescription textTouchPad : "textAoOption" { String _text = "TouchPad"; }
 TextDescription textTouchActionBar : "textAoOption" { String _text = "TouchActionBar"; }
 TextDescription textPhoneSafeMargin : "textAoOption" { String _text = "PhoneSafeMargin"; }
