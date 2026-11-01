@@ -108,6 +108,29 @@ UI::Element* Child(const UI::Element* e, int32_t index) {
     return e->_children._data[index];
 }
 
+bool IsVerticalList(const UI::Element* e);
+
+// The Options dialog's tab element (Options.rsc:tabOptions). Each of its pages that does not scroll is
+// given what it lacks, whatever its name, one page at a time: a mod's Options.rsc can rebuild a page retail
+// scrolls without its bar (The North 7's gameOptions, issue #96: the sliders this row grows ran past the
+// page's fixed height and the last row, "User interface scale", was cut off with no bar to reach it).
+//   * a container page without its vertical bar gets the frame's bar (GiveBar): it is a scrolling list
+//     again, so the touch sizes and the cap below treat it as retail's own Game page. It is not framed: a
+//     clip region inside another draws with its own scissor, not the outer one's, so the rows a framed
+//     container grows to were drawn over the dialog's buttons;
+//   * any other page kTargets does not name (it lists what retail itself does not scroll) is framed.
+// The pages that do scroll are untouched.
+bool IsOptionsTab(const UI::Element* e) {
+    const char* name = e->_name;
+    if (name == nullptr || e->_description == nullptr) return false;
+    if (std::strcmp(name, "tabOptions") != 0 || !e->IsA(UI::TabElement::TypeId())) return false;
+    return EndsWithNoCase(e->_description->_path._data, "options.rsc:taboptions");
+}
+
+// The lines the rule above writes, at most kMaxPageLines in a session (one per page per dialog build).
+constexpr int32_t kMaxPageLines = 8;
+int32_t g_pageLines = 0;
+
 // The marks retail's own insertions make (AddTab's dirty walk).
 void Dirty(UI::Element* e) {
     for (UI::Element* p = e; p != nullptr; p = p->_parent) p->SetNeedsSizeCalc();
@@ -115,6 +138,64 @@ void Dirty(UI::Element* e) {
 
 bool IsFrame(const UI::Element* e) {
     return g_frame != nullptr && e->_description == g_frame && e->IsA(UI::ContainerElement::TypeId());
+}
+
+// The vertical bar of a container page whose description has none: the frame's own (PhoneScroll.rsc names
+// it, SharedElements.rsc:verticalScrollbar, so a mod that restyles the bar restyles this one), built as the
+// container's child 1, where ContainerDescription::CreateInstance (0x1800ccb90) puts _partDescs[1]'s.
+const UI::ElementDescription* BarDescription() {
+    const UI::ElementDescription* frameDesc = Frame();
+    if (frameDesc == nullptr) return nullptr;
+    return static_cast<const UI::ContainerDescription*>(frameDesc)->_partDescs[1];
+}
+
+bool LacksBar(const UI::Element* page) {
+    if (!page->IsA(UI::ContainerElement::TypeId()) || page->_children._size < 2) return false;
+    if (page->_children._data[1] != nullptr) return false;
+    return ::Object::IsDerivedFromNullSafe(page->_description, UI::ContainerDescription::TypeId());
+}
+
+// True when child 1 of `page` is a bar GiveBar added (its description names none).
+bool HasGivenBar(const UI::Element* page) {
+    if (!page->IsA(UI::ContainerElement::TypeId()) || page->_children._size < 2) return false;
+    if (page->_children._data[1] == nullptr) return false;
+    if (!::Object::IsDerivedFromNullSafe(page->_description, UI::ContainerDescription::TypeId())) return false;
+    return static_cast<const UI::ContainerDescription*>(page->_description)->_partDescs[1] == nullptr;
+}
+
+int32_t GiveBar(UI::Element* page) {
+    const UI::ElementDescription* barDesc = BarDescription();
+    if (barDesc == nullptr) return 0;
+    alignas(16) uint8_t scratch[sizeof(UI::Dialog)];
+    UI::Dialog* const dialog = ::new (static_cast<void*>(scratch)) UI::Dialog();
+    Object::InternalPtr<UI::Element> made;
+    barDesc->CreateInstance(&made, dialog);
+    dialog->UI::Dialog::~Dialog();
+    UI::Element* bar = made.Get();
+    if (bar == nullptr) return 0;
+    if (!bar->IsA(UI::ScrollElement::TypeId())) {
+        delete bar;
+        return 0;
+    }
+    bar->_parent = page;
+    page->_children._data[1] = bar;
+    // The page's width was its content's without a bar: it follows its content now, the bar and its gap
+    // added beside it (ContainerElement::ComputeSize 0x1800cc850 with no requested width), rather than
+    // the bar taking its gutter out of the rows (the Autosave combo's arrow was cut off).
+    static_cast<UI::ContainerElement*>(page)->_requestedWidth = 0;
+    Dirty(page);
+    return 1;
+}
+
+// Row off: the bar GiveBar added is deleted, child 1 null again and the width the description's.
+int32_t TakeBar(UI::Element* page) {
+    UI::Element* bar = page->_children._data[1];
+    page->_children._data[1] = nullptr;
+    delete bar;
+    UI::ContainerElement* list = static_cast<UI::ContainerElement*>(page);
+    list->_requestedWidth = static_cast<const UI::ContainerDescription*>(page->_description)->_requestedWidth;
+    Dirty(page);
+    return 1;
 }
 
 // `page`, child `index` of `parent`, moved into a new frame that takes its place.
@@ -166,9 +247,27 @@ int32_t Unwrap(UI::Element* parent, int32_t index, UI::Element* frame) {
 
 int32_t WrapWalk(UI::Element* e, bool on) {
     int32_t changes = 0;
+    const bool optionsTab = IsOptionsTab(e);
     for (int32_t i = 0; i < e->_children._size; ++i) {
         UI::Element* child = e->_children._data[i];
         if (child == nullptr) continue;
+        // A tab's pages are its children 4 + 2 t (TabElement::GetContainerIndex 0x1800da110).
+        const bool page = optionsTab && i >= 4 && (i % 2) == 0;
+        if (page && !on && HasGivenBar(child)) {
+            changes += TakeBar(child);
+        }
+        if (page && on && !IsFrame(child) && !IsVerticalList(child) && !IsTarget(child)) {
+            const bool bar = LacksBar(child);
+            if (g_pageLines < kMaxPageLines) {
+                ++g_pageLines;
+                std::fprintf(stderr, "[PhoneMenu] Options page '%s' (%s) has no vertical scroll bar: %s\n",
+                             child->_name != nullptr ? child->_name : "",
+                             child->_description != nullptr ? child->_description->_path._data : "",
+                             bar ? "given one" : "framed");
+            }
+            changes += bar ? GiveBar(child) : Wrap(e, i, child);
+            if (!bar) continue;
+        }
         if (on && IsTarget(child)) {
             // Already framed: its parent is a frame's clip region.
             const UI::Element* above = e->_parent;

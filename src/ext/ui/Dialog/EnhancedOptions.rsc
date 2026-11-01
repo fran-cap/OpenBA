@@ -249,9 +249,12 @@ LabelDescription labelEnhanced
 // The page: the Game tab's own scrolling container (Options.rsc:gameOptions: its size, clip region and
 // vertical scroll bar), so the Enhanced tab takes exactly the room the retail tabs take and never widens
 // the dialog. Its viewport is the container's width less the scroll bar and its gap; every row below
-// fits in it with the retail tabs' column widths (labels 200, controls 180).
+// fits in it with the retail tabs' column widths (labels 200, controls 180). The vertical bar is named, not
+// inherited: a mod's Options.rsc can rebuild gameOptions without one (The North 7, issue #96), which left
+// the nineteen rows clipped at the page's height with nothing to scroll them.
 ContainerDescription enhancedOptions : "Options.rsc:gameOptions"
 {
+	ElementDescription _verticalScroll = "SharedElements.rsc:verticalScrollbar";
 	ElementDescription _content = "enhancedOptionsTable";
 }
 

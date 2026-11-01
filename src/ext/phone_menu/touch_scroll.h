@@ -12,7 +12,10 @@
 //       (soundOptions), and the Professions dialog's table (Profession.rsc:professionTable; retail's own
 //       comment there: "could put parent object(content) in a Container with scroll bar"). The page's
 //       element is MOVED, not rebuilt: the dialog's controller keeps every pointer it found at open.
-//       Row off: the page is put back where it was and the frame deleted;
+//       Any other Options page found without its vertical bar (a mod's Options.rsc can rebuild gameOptions
+//       without one: The North 7, issue #96) is fixed on its own: a container page is given the frame's
+//       bar, another page is framed. Row off: the page is put back where it was and the frame deleted
+//       (a given bar deleted);
 //   (b) a window taller than the safe area (touch_math.h FitsSafeArea, at the player's UI scale) gives
 //       the height back from its scrolling lists: every vertical list of the window is capped at one
 //       height (size_math.h ShrinkCap / GrowCap), so the window fits and keeps the player's UI scale;

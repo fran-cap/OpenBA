@@ -149,7 +149,10 @@ const FieldDesc kRibbon[] = { F("_vertical", Bool), F("", Bool), F("_cellPad", I
 const FieldDesc kGroup[]  = { F("_elements", ExtArray) };
 const FieldDesc kContainer[] = {
     F("_width", Int), F("_height", Int), F("_scrollSpacing", Int),   // +0x68 / +0x6c requested size, +0x74 the scroll bar's gap
-    F("", Ext), F("", Ext), F("_content", Ext), F("", Bool), F("", Bool),
+    // _partDescs[0] / [1]: the bars, built as children 2 (horizontal) and 1 (vertical) by
+    // ContainerDescription::CreateInstance. Named so a page of ours can state its vertical bar rather
+    // than inherit it from a game page a mod may have rebuilt without one (issue #96, The North 7).
+    F("_horizontalScroll", Ext), F("_verticalScroll", Ext), F("_content", Ext), F("", Bool), F("", Bool),
 };
 const FieldDesc kLayoutItem[] = {
     F("_element", Ext), F("_name", String), F("_xAnchorTo", String), F("_yAnchorTo", String),
