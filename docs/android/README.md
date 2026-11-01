@@ -23,6 +23,7 @@ set, the FrancophilSans typeface with its notice (below, `THIRD_PARTY_NOTICES.md
 | `src/diag/android/` | The crash handler and boot-state watchdog twins. |
 | `tools/android.sh` | Build, install, push the data, run, pull the logs. |
 | `tools/boot_state.sh --android` | The boot state of the app on the attached device. |
+| `docs/android/EMULATOR.md` | The emulator test bed: the x86_64 build (`build debug --emulator`), the `tablet` and `phone` AVD profiles, `avd create / start / stop`, `--avd`, `screenshot`. |
 
 ## Versions (pinned)
 
