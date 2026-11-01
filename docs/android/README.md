@@ -90,16 +90,32 @@ The copy is the player's own files, on the player's own device, at the player's 
 the app's own folder: the same thing a USB copy or `push-data` does. Nothing of the game enters the apk
 or the tree (`AGENTS.md` §1, `docs/extensions/DESIGN.md` §3 rule 7).
 
-**Saves.** The same screen's overflow (⋮) has **Import saves** and **Export saves**, and the launcher
-icon's long-press shortcut **Saves and game files** opens the screen at any time, beside a running
-game (`GameFilesActivity`). Export writes a `.zip` of `Documents/Banished/Save/` (`Save/<name>`, the
+**Saves.** The same screen's overflow (⋮) has **Import saves** and **Export saves**. In the game, the
+main menu and the pause menu have a **Saves and game files** button (beside Extensions) that opens the
+screen over the game (`GameFilesActivity`); the back key returns to the menu. The launcher icon's
+long-press shortcut of the same name opens it too, at any time. Export writes a `.zip` of `Documents/Banished/Save/` (`Save/<name>`, the
 files' times kept) wherever the player picks; Import takes every `*.sav` of a `.zip`, at any depth,
 and asks before replacing a save of the same name (Replace / Keep mine). The game's Load dialog lists an
 imported save at once. The shortcut screen also shows the packages' count and size and replaces the
 packages while the game is not running. `GameFilesActivity` is not exported: the app's own shortcut
 reaches it, no other app can, and neither can `adb shell am start` (refused with a SecurityException;
-`run-as` does not lift that, since `am` runs as the shell). To open it in a test, long-press the icon in
-the launcher (on the emulator: `input swipe X Y X Y 1200` on the icon, then tap "Saves and game files").
+`run-as` does not lift that, since `am` runs as the shell). To open it in a test, use the menu button,
+or long-press the icon in the launcher (on the emulator: `input swipe X Y X Y 1200` on the icon, then
+tap "Saves and game files").
+
+**The menu button** is part of `ext.phone_menu` (the phone and tablet front end the Android first run
+turns on; no row of its own): `ExtensionsDialog_AttachGameFilesButton` (`src/game/Dialog/extensionsdialog.cpp`)
+adds `Dialog/Extensions.rsc:buttonGameFiles` (the Mods button's shape, our caption and floppy-disk icon,
+`tools/ext_sprites.py`) while the row is on and `Platform::App::HasGameFilesScreen()` answers true. That
+hook and `OpenGameFilesScreen()` are declared in `src/platform/common/platform_app.h`; Windows, Linux
+and macOS answer false (no button), Android starts `GameFilesActivity` through one JNI call,
+`OpenBAActivity.openGameFilesScreen` (`src/platform/android/app_android.cpp`). The screen opening sends
+the game to the background like any trip out of the app (Lifecycle, below).
+
+**The look.** The screen is dressed as the game's dialogs: the panel, label, heading and button colours
+sampled from the game's own Options dialog, square-cornered buttons with the game's dark outline, light
+bevel and face gradient, and the FrancophilSans typeface from the apk's assets (the files below). The
+system's own picker, the overflow menu and the replace question keep the system's look.
 
 Code: `android/app/src/main/java/org/openba/game/GameFilesScreen.java` (the views),
 `GameFilesJob.java` (the copy, export and import thread), `GameFiles.java` (the folders and the

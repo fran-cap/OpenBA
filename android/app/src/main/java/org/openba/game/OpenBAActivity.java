@@ -28,7 +28,9 @@
 //
 //  * physicalDisplay, called by the native side through JNI (src/platform/android/
 //    display_size_android.cpp): the display's size in pixels and dots per inch, which the first
-//    run's settings seed turns into inches to tell a tablet from a phone (issue #96).
+//    run's settings seed turns into inches to tell a tablet from a phone (issue #96); and
+//    openGameFilesScreen, the same way (src/platform/android/app_android.cpp): the main and pause
+//    menus' "Saves and game files" button starts GameFilesActivity.
 //
 //  * The first-run screen (issue #96). When WinData holds no data0.pkg, the activity shows the
 //    game-files screen (GameFilesScreen.java) in place of SDL's layout before the game starts: the
@@ -99,6 +101,17 @@ public class OpenBAActivity extends SDLActivity {
         mFirstRun.destroy();
         mFirstRun = null;
         setContentView(mLayout);
+    }
+
+    // Called by the native side through JNI (src/platform/android/app_android.cpp,
+    // Platform::App::OpenGameFilesScreen, "()Z") from the game's thread when the player presses the
+    // menu's "Saves and game files" button: GameFilesActivity is started on the UI thread.
+    public boolean openGameFilesScreen() {
+        runOnUiThread(() -> {
+            final Intent intent = new Intent(this, GameFilesActivity.class);
+            startActivity(intent);
+        });
+        return true;
     }
 
     // True while the game's main runs in this process (GameFilesActivity keeps the packages then).

@@ -45,6 +45,7 @@
 #include "ext/registry.h"
 #include "options.h"
 #include "rsc_text_check.h"   // src/diag: the KITFREE cross-check at menu time (NOT RETAIL)
+#include "platform/common/platform_app.h"   // Platform::App::HasGameFilesScreen (ext.phone_menu's menu button, issue #96)
 
 #include <cstdint>
 #include <cstdio>
@@ -56,6 +57,7 @@ namespace {
 // Our compiled resources (src/ext/ui/Dialog/*.rsc).
 constexpr const char* kDialogRsc      = "Dialog/Extensions.rsc";
 constexpr const char* kMenuButtonRsc  = "Dialog/Extensions.rsc:buttonExtensions";
+constexpr const char* kGameFilesButtonRsc = "Dialog/Extensions.rsc:buttonGameFiles";   // ext.phone_menu (issue #96)
 constexpr const char* kStringTableRsc = "Dialog/ExtensionsStringTable.rsc";
 constexpr const char* kSpritesRsc     = "Dialog/ExtensionsSprites.rsc";
 
@@ -367,8 +369,56 @@ void ExtensionsDialog_OpenFromMainMenu(MainMenuDialog* menu) {
 }
 
 // ===========================================================================
-// The menu button (the seam in MainMenuDialog::OnOpened)
+// The menu buttons (the seam in MainMenuDialog::OnOpened)
 // ===========================================================================
+
+// Instantiates `rsc` (a ButtonDescription of ours, the menu's button shape) in the menu dialog, names
+// it, gives it `id` and puts it in `after`'s list just after `after`. The button, or null (logged).
+static UI::Element* AddMenuButtonAfter(MainMenuDialog* menu, UI::Element* after, const char* rsc,
+                                       const char* name, int32_t id) {
+    const UI::ElementDescription* desc = nullptr;
+    if (::Object::ExternalFactory::_singleton) {
+        const ::Object::External* ext = ::Object::ExternalFactory::_singleton->FindOrLoad(
+            System::Filename(rsc));
+        if (::Object::IsDerivedFromNullSafe(ext, UI::ElementDescription::TypeId()))
+            desc = static_cast<const UI::ElementDescription*>(ext);
+    }
+    if (desc == nullptr) {
+        printf("[ExtMenu] %s did not load (tools/ext_resources.sh not deployed?): no %s\n", rsc, name);
+        return nullptr;
+    }
+
+    Object::InternalPtr<UI::Element> button;
+    desc->CreateInstance(&button, menu->_dialog);
+    if (button.Get() == nullptr) {
+        printf("[ExtMenu] CreateInstance failed (%s)\n", name);
+        return nullptr;
+    }
+    UI::Element* list = after->_parent;
+    button->SetName(System::String(name));
+    button->SetElementId(id);
+    list->AddChild(&button);
+
+    // Move the appended child from the end to just after `after`.
+    UI::Element** kids = list->_children.GetData();
+    const int n = list->_children.GetSize();
+    int afterIndex = -1;
+    for (int i = 0; i < n; ++i) {
+        if (kids[i] == after) {
+            afterIndex = i;
+            break;
+        }
+    }
+    if (afterIndex >= 0 && n >= 2 && kids[n - 1] == button.Get()) {
+        UI::Element* added = kids[n - 1];
+        for (int i = n - 1; i > afterIndex + 1; --i) kids[i] = kids[i - 1];
+        kids[afterIndex + 1] = added;
+    }
+    printf("[ExtMenu] %s added (id %d, list %p, after index %d of %d)\n", name, id, (void*)list,
+           afterIndex, n);
+    return button.Get();
+}
+
 void ExtensionsDialog_AttachMenuButton(MainMenuDialog* menu) {
     if (menu == nullptr || menu->_ui == nullptr || menu->_dialog == nullptr) return;
     if (Ext::GateProfileForced()) {
@@ -384,44 +434,26 @@ void ExtensionsDialog_AttachMenuButton(MainMenuDialog* menu) {
     Diag::RscTextCheckIfArmed("standalone_rsccheck_menu");
     // Our button: Dialog/Extensions.rsc:buttonExtensions, the menu's button
     // shape (MainMenu.rsc:buttonMod) with our label, icon and tooltip.
-    const UI::ElementDescription* desc = nullptr;
-    if (::Object::ExternalFactory::_singleton) {
-        const ::Object::External* ext = ::Object::ExternalFactory::_singleton->FindOrLoad(
-            System::Filename(kMenuButtonRsc));
-        if (::Object::IsDerivedFromNullSafe(ext, UI::ElementDescription::TypeId()))
-            desc = static_cast<const UI::ElementDescription*>(ext);
-    }
-    if (desc == nullptr) {
-        printf("[ExtMenu] %s did not load (tools/ext_resources.sh not deployed?): no Extensions button\n",
-               kMenuButtonRsc);
-        return;
-    }
-
-    Object::InternalPtr<UI::Element> button;
-    desc->CreateInstance(&button, menu->_dialog);
-    if (button.Get() == nullptr) {
-        printf("[ExtMenu] CreateInstance failed\n");
-        return;
-    }
-    UI::Element* list = mod->_parent;
-    button->SetName(System::String("buttonExtensions"));
-    button->SetElementId(kExtensionsMenuButtonId);
-    list->AddChild(&button);
-
-    // Beside Mods: move the appended child from the end to just after buttonMod.
-    UI::Element** kids = list->_children.GetData();
-    const int n = list->_children.GetSize();
-    int modIndex = -1;
-    for (int i = 0; i < n; ++i) if (kids[i] == mod) { modIndex = i; break; }
-    if (modIndex >= 0 && n >= 2 && kids[n - 1] == button.Get()) {
-        UI::Element* added = kids[n - 1];
-        for (int i = n - 1; i > modIndex + 1; --i) kids[i] = kids[i - 1];
-        kids[modIndex + 1] = added;
-    }
+    UI::Element* button = AddMenuButtonAfter(menu, mod, kMenuButtonRsc, "buttonExtensions",
+                                             kExtensionsMenuButtonId);
+    if (button == nullptr) return;
     // In-game the Mods button is disabled for some games (game flag bit 10);
     // follow it.
     if (!mod->IsEnabled()) button->Enable(false);
+}
 
-    printf("[ExtMenu] Extensions button added (id %d, list %p, after index %d of %d)\n",
-           kExtensionsMenuButtonId, (void*)list, modIndex, n);
+// ===========================================================================
+// ext.phone_menu's "Saves and game files" button (issue #96)
+// ===========================================================================
+void ExtensionsDialog_AttachGameFilesButton(MainMenuDialog* menu) {
+    if (menu == nullptr || menu->_ui == nullptr || menu->_dialog == nullptr) return;
+    if (!::Ext::Ext().phone_menu || !Platform::App::HasGameFilesScreen()) return;
+    // After the Extensions button when there is one, else after Mods.
+    UI::Element* after = Find(menu, "buttonExtensions");
+    if (after == nullptr) after = Find(menu, "buttonMod");
+    if (after == nullptr || after->_parent == nullptr) {
+        printf("[ExtMenu] no buttonExtensions / buttonMod: no Saves and game files button\n");
+        return;
+    }
+    AddMenuButtonAfter(menu, after, kGameFilesButtonRsc, "buttonGameFiles", kGameFilesMenuButtonId);
 }

@@ -36,6 +36,7 @@
 #include <SDL3/SDL_system.h>
 
 #include <android/log.h>
+#include <jni.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -346,6 +347,38 @@ const char* MissingGameDataHelp() {
 
 bool TakeSaveRequest() {
     return g_saveRequested.exchange(false);
+}
+
+// The app's GameFilesActivity (android/app/src/main/java/org/openba/game/GameFilesActivity.java).
+bool HasGameFilesScreen() {
+    return true;
+}
+
+// One JNI call, as display_size_android.cpp's: OpenBAActivity.openGameFilesScreen ("()Z") posts the
+// start of GameFilesActivity to the UI thread and returns at once. The game then goes to the
+// background like any trip out of the app (THE LIFECYCLE WATCH above) and comes back when the
+// player leaves the screen.
+bool OpenGameFilesScreen() {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+    if (env == nullptr) return false;
+    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+    if (activity == nullptr) return false;
+    bool ok = false;
+    jclass cls = env->GetObjectClass(activity);
+    jmethodID mid = env->GetMethodID(cls, "openGameFilesScreen", "()Z");
+    if (mid != nullptr) {
+        ok = env->CallBooleanMethod(activity, mid) == JNI_TRUE;
+    }
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        ok = false;
+    }
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(activity);
+    __android_log_print(ok ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, kLogTag,
+                        "[GameFiles] OpenBAActivity.openGameFilesScreen: %s", ok ? "started" : "failed");
+    return ok;
 }
 
 void Shutdown() {

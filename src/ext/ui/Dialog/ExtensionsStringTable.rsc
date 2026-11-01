@@ -12,6 +12,10 @@ StringTable resource
 		{ String _name = "Extensions";				String _text = "Extensions"; }
 		{ String _name = "ExtensionsTip";			String _text = "Turn fixes for the game's known bugs and new features on or off."; }
 
+		// ext.phone_menu's menu button (Android: the app's game-files screen, issue #96)
+		{ String _name = "GameFiles";				String _text = "Saves and game files"; }
+		{ String _name = "GameFilesTip";			String _text = "Export your saves to a .zip, or import saves from one."; }
+
 		// the dialog's chrome
 		{ String _name = "ExtensionsTitle";			String _text = "Fixes and Extensions"; }
 		{ String _name = "ExtensionsProfile";		String _text = "(profile: @0)"; }

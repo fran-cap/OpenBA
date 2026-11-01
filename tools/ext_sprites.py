@@ -54,6 +54,35 @@ def icon(size=W):
     return img
 
 
+def game_files_icon():
+    """ext.phone_menu's "Saves and game files" menu button (issue #96): a floppy disk, white with
+    antialiased alpha and no outline like icon(): the body with its top-right corner cut, the shutter
+    slot near the top and the label window at the bottom cut out. Drawn at 8x, box-filtered down."""
+    S = 8
+    big = Image.new("L", (W * S, H * S), 0)
+    px = big.load()
+    for y in range(H * S):
+        for x in range(W * S):
+            fx, fy = (x + 0.5) / S, (y + 0.5) / S
+            on = 1.0 <= fx <= 15.0 and 1.0 <= fy <= 15.0
+            if fx - fy > 11.0:                               # the cut top-right corner
+                on = False
+            if 4.0 <= fx <= 10.5 and 1.0 <= fy <= 5.5:       # the shutter's window
+                on = False
+            if 8.0 <= fx <= 9.5 and 1.8 <= fy <= 4.7:        # the shutter's slot stays solid
+                on = True
+            if 3.5 <= fx <= 12.5 and 8.5 <= fy <= 13.5:      # the label window
+                on = False
+            px[x, y] = 255 if on else 0
+    alpha = big.resize((W, H), Image.BOX)
+    img = Image.new("RGBA", (W, H), CLEAR)
+    ipx, apx = img.load(), alpha.load()
+    for y in range(H):
+        for x in range(W):
+            ipx[x, y] = (255, 255, 255, apx[x, y])
+    return img
+
+
 def options_enhanced():
     """The Options dialog's "Enhanced" tab icon (block AOMENU): a ball resting in a soft contact
     shadow, white with alpha like retail's 16 x 16 OptionsGraphics / OptionsSound tab icons."""
@@ -170,6 +199,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     icon().save(os.path.join(OUT, "ExtensionsIcon.png"))
     options_enhanced().save(os.path.join(OUT, "OptionsEnhanced.png"))
+    game_files_icon().save(os.path.join(OUT, "GameFilesIcon.png"))
     icon(32).save(os.path.join(OUT, "Toolbar_extensions.png"))   # the toolbar's one extension button: the cog at the toolbar icons' 32 px
     glyph("F", TIER_COLOUR["fix"]).save(os.path.join(OUT, "TierFix.png"))
     glyph("A", TIER_COLOUR["A"]).save(os.path.join(OUT, "TierA.png"))

@@ -10,8 +10,9 @@
 //    copies the packages into the app's WinData (GameFilesJob) and hands back to the activity, which
 //    then starts the game. The overflow button holds Import saves / Export saves.
 //
-//  * MANAGE, in GameFilesActivity (the launcher icon's long-press shortcut "Saves and game files"),
-//    any time: the saves' export and import, and the packages replaced while the game is not running.
+//  * MANAGE, in GameFilesActivity (the main and pause menus' "Saves and game files" button through
+//    Platform::App::OpenGameFilesScreen, and the launcher icon's long-press shortcut of that name), any
+//    time: the saves' export and import, and the packages replaced while the game is not running.
 //
 // Text is short: it has to fit a phone in landscape. The screen scrolls when it does not.
 package org.openba.game;
