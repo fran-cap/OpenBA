@@ -1,7 +1,7 @@
 // android/app/src/main/java/org/openba/game/OpenBAActivity.java (docs/android/README.md)
 //
 // The app's one activity: SDL's SDLActivity (compiled from the pinned SDL submodule, see
-// android/app/build.gradle) with five changes.
+// android/app/build.gradle) with six changes.
 //
 //  * The native entry point is the game's own `main` (src/app/main.cpp, built into libmain.so),
 //    the same function Linux runs, not SDL's renamed SDL_main: main.cpp defines SDL_MAIN_HANDLED.
@@ -22,17 +22,31 @@
 //    desktop packages put beside the exe; THIRD_PARTY_NOTICES.md). ext.sharp_ui's rasteriser reads
 //    the TTF from the app's data folder (src/platform/android/font_raster_android.cpp, the folder
 //    SDL_GetAndroidExternalStoragePath names = getExternalFilesDir(null)), so each file absent there
-//    is copied in before the native side starts. A file present is left alone (the player's own
-//    copy wins). Here rather than in the native boot: assets are a Java API, the native side
+//    is copied in before the native side starts, and so is an empty one (a copy cut short). Any
+//    other file present is left alone (the player's own copy wins). Here rather than in the native boot: assets are a Java API, the native side
 //    would need the activity's AssetManager through JNI for the same three copies.
 //
 //  * physicalDisplay, called by the native side through JNI (src/platform/android/
 //    display_size_android.cpp): the display's size in pixels and dots per inch, which the first
 //    run's settings seed turns into inches to tell a tablet from a phone (issue #96).
+//
+//  * The first-run screen (issue #96). When WinData holds no data0.pkg, the activity shows the
+//    game-files screen (GameFilesScreen.java) in place of SDL's layout before the game starts: the
+//    player picks the folder or the .zip holding their packages, the app copies them into WinData,
+//    and the screen hands back. SDL starts the game's main only once its surface is ready
+//    (SDLActivity.handleNativeState), and its surface is in SDL's layout, so while the screen is the
+//    content view nothing native runs; putting SDL's layout back makes the surface and starts the
+//    game in the same process, no restart. A harness launch (any BANISHED_* extra) never shows the
+//    screen: the native check then reports NO_GAME_DATA and exits with code 6, as before
+//    (src/app/game_data_check.h). The launcher icon's long-press shortcut "Saves and game files"
+//    (GameFilesActivity) is published here.
 package org.openba.game;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ShortcutInfo;
+import android.content.pm.ShortcutManager;
+import android.graphics.drawable.Icon;
 import android.os.Bundle;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -44,6 +58,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Collections;
 
 import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLSurface;
@@ -56,11 +71,105 @@ public class OpenBAActivity extends SDLActivity {
         "FrancophilSans.ttf", "FrancophilSans-Bold.ttf", "FrancophilSans_README.txt",
     };
 
+    // The first-run screen while it is the content view (the game not started); null otherwise.
+    private GameFilesScreen mFirstRun;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        applyLaunchEnvironment(getIntent());
+        final boolean harness = applyLaunchEnvironment(getIntent());
         copyFontAssets();
+        // WinData is made here too, before the native side: tools/android.sh push-data starts the
+        // app once so that the folder belongs to it, and the first-run screen may hold the start.
+        GameFiles.winDataDir(this);
         super.onCreate(savedInstanceState);
+        if (mBrokenLibraries || isFinishing()) {
+            return;
+        }
+        publishShortcut();
+        if (!harness && !GameFiles.hasGameData(this)) {
+            Log.i(TAG, "game files: no data0.pkg in WinData, the first-run screen is shown");
+            mFirstRun = new GameFilesScreen(this, GameFilesScreen.Mode.FIRST_RUN, this::startGameAfterFirstRun);
+            setContentView(mFirstRun.view());
+        }
+    }
+
+    // The packages are in WinData: SDL's layout goes back, its surface is made, and SDL starts main.
+    private void startGameAfterFirstRun() {
+        Log.i(TAG, "game files: installed, starting the game");
+        mFirstRun.destroy();
+        mFirstRun = null;
+        setContentView(mLayout);
+    }
+
+    // True while the game's main runs in this process (GameFilesActivity keeps the packages then).
+    static boolean gameRunning() {
+        return mSDLThread != null && !mSDLMainFinished;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (mFirstRun != null) {
+            mFirstRun.resume();
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (mFirstRun == null) {
+            super.onBackPressed();
+            return;
+        }
+        if (!mFirstRun.onBackPressed()) {
+            finish();
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (mFirstRun != null) {
+            mFirstRun.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        final boolean leftFirstRun = mFirstRun != null && isFinishing();
+        if (mFirstRun != null) {
+            mFirstRun.destroy();
+            mFirstRun = null;
+        }
+        super.onDestroy();
+        // SDL refuses a second activity in the same process (SDLActivity.onCreate exits it), so a
+        // player who left the first-run screen would find the next tap on the icon doing nothing.
+        // The game never started: nothing is lost by ending the process here.
+        if (leftFirstRun) {
+            System.exit(0);
+        }
+    }
+
+    // The launcher icon's long-press entry for GameFilesActivity (API 25+; the minSdk is 29).
+    private void publishShortcut() {
+        try {
+            final ShortcutManager manager = getSystemService(ShortcutManager.class);
+            if (manager == null) {
+                return;
+            }
+            final Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setClass(this, GameFilesActivity.class);
+            final ShortcutInfo info = new ShortcutInfo.Builder(this, "game_files")
+                                          .setShortLabel("Saves and files")
+                                          .setLongLabel("Saves and game files")
+                                          .setIcon(Icon.createWithResource(this, getApplicationInfo().icon))
+                                          .setIntent(intent)
+                                          .build();
+            manager.setDynamicShortcuts(Collections.singletonList(info));
+        } catch (RuntimeException e) {
+            Log.w(TAG, "shortcut: " + e);
+        }
     }
 
     @Override
@@ -93,7 +202,10 @@ public class OpenBAActivity extends SDLActivity {
         }
         for (String name : FONT_ASSETS) {
             final File target = new File(dataDir, name);
-            if (target.isFile()) {
+            // An empty file is a copy cut short (the process killed between the open and the first
+            // write: the .part rename makes that rare, an older build or a crash can still leave one);
+            // it is copied again. Any other file present is the player's and is kept.
+            if (target.isFile() && target.length() > 0) {
                 continue;
             }
             final File part = new File(dataDir, name + ".part");
@@ -117,7 +229,8 @@ public class OpenBAActivity extends SDLActivity {
         }
     }
 
-    private static void applyLaunchEnvironment(Intent intent) {
+    // True when the intent carried a BANISHED_* extra (a harness launch).
+    private static boolean applyLaunchEnvironment(Intent intent) {
         try {
             for (String entry : Os.environ()) {
                 final int eq = entry.indexOf('=');
@@ -130,8 +243,9 @@ public class OpenBAActivity extends SDLActivity {
         }
         final Bundle extras = intent != null ? intent.getExtras() : null;
         if (extras == null) {
-            return;
+            return false;
         }
+        boolean any = false;
         for (String key : extras.keySet()) {
             if (!key.startsWith(FLAG_PREFIX)) {
                 continue;
@@ -140,6 +254,7 @@ public class OpenBAActivity extends SDLActivity {
             if (value == null) {
                 continue;
             }
+            any = true;
             try {
                 Os.setenv(key, String.valueOf(value), true);
                 Log.i(TAG, "launch environment " + key + "=" + value);
@@ -147,5 +262,6 @@ public class OpenBAActivity extends SDLActivity {
                 Log.w(TAG, "setenv " + key + " failed: " + e);
             }
         }
+        return any;
     }
 }
