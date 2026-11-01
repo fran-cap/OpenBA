@@ -96,7 +96,10 @@ game (`GameFilesActivity`). Export writes a `.zip` of `Documents/Banished/Save/`
 files' times kept) wherever the player picks; Import takes every `*.sav` of a `.zip`, at any depth,
 and asks before replacing a save of the same name (Replace / Keep mine). The game's Load dialog lists an
 imported save at once. The shortcut screen also shows the packages' count and size and replaces the
-packages while the game is not running.
+packages while the game is not running. `GameFilesActivity` is not exported: the app's own shortcut
+reaches it, no other app can, and neither can `adb shell am start` (refused with a SecurityException;
+`run-as` does not lift that, since `am` runs as the shell). To open it in a test, long-press the icon in
+the launcher (on the emulator: `input swipe X Y X Y 1200` on the icon, then tap "Saves and game files").
 
 Code: `android/app/src/main/java/org/openba/game/GameFilesScreen.java` (the views),
 `GameFilesJob.java` (the copy, export and import thread), `GameFiles.java` (the folders and the
