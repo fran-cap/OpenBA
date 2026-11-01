@@ -71,6 +71,7 @@ struct Fixes {
     bool alloc_tiebreak    = true;   // docs/retail_bugs.md §14, src/ext/alloc_tiebreak/ (docs/extensions/handins/ALLOCTIEBREAK.md): sim-visible, ties in the job / house allocators
     bool foundation_piles  = true;   // docs/retail_bugs.md §17, src/ext/foundation_piles/ (docs/extensions/handins/FOUNDATIONPILES.md): sim-visible, piles a full town cannot store leave a site's footprint
     bool path_query_first  = true;   // docs/retail_bugs.md §18, src/ext/path_query_first/ (docs/extensions/handins/PATHQUERYFIRST.md): sim-visible timing, the synchronous path query jumps the worker queue
+    bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

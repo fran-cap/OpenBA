@@ -223,6 +223,12 @@ No instruction on that arm writes R15.
 
 **Lever.** Return the computed cost on the not-found arm, that is, the value just stored.
 
+**Fix: `fix.commute_cost` (WIRED 2026-11-01).** The not-found arm of `PathGraph::RegionPairCost` returns the
+cost it just stored, read the way the found arm reads a stored cost (a negative cost is unreachable,
+`0x1000000`), so a pair's first query answers what every later query of it answers. Pure rule
+`src/ext/commute_cost/commute_cost_rule.h`, unit test `tests/unit/ext_commute_cost_test.cpp`. Default on,
+off under `/profile:faithful`. Sim-visible only after a miss (see "When it happens"); nothing new is saved.
+
 ## 7. Rocks on a slope float on their downhill side
 
 **Symptom.** A boulder or an iron deposit on sloped ground shows a lit band of ground between

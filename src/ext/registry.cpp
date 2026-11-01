@@ -143,6 +143,16 @@ const Entry kEntries[] = {
       "citizen route queued before it is worked out.",
       0, [](State& s) -> bool& { return s.fix.path_query_first; } },
 
+    // COMMUTECOST (docs/retail_bugs.md section 6): PathGraph::RegionPairCost's not-found arm (0x1400d6060)
+    // returns the commute cost it just computed and stored instead of 0, so the employment allocator no
+    // longer rates a region pair's first, never-measured commute as free. Sim-visible: which citizen takes
+    // a job when a home, workplace or region changed while the pairs drained. Nothing new is saved.
+    { "commute_cost", Tier::Fix, Class::None, true,
+      "Jobs near home after building",
+      "A citizen is no longer sent to a far workplace because the walk to a newly built home or "
+      "workplace had not been measured yet and was counted as no walk at all.",
+      0, [](State& s) -> bool& { return s.fix.commute_cost; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).

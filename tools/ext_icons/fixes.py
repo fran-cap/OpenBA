@@ -215,6 +215,24 @@ def draw_queue_first(px):
     ])
 
 
+def draw_commute(px):
+    # a house and a workplace joined by a dotted walk with a tick mark (the commute is measured)
+    _paint(px, [
+        "............",
+        "..#......##.",
+        ".###....####",
+        "#####...#++#",
+        ".#+#....#++#",
+        ".#+#....####",
+        "............",
+        "..#.#.#.#...",
+        "............",
+        ".....#......",
+        "....###.....",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -227,4 +245,5 @@ ICONS = {
     "outline_with_panel": ("fix", draw_outline_panel),   # a panel over its outlined plot
     "foundation_piles": ("fix", draw_foundation),    # foundation outline, a log outside it
     "path_query_first": ("fix", draw_queue_first),   # arrow to the front of a waiting row
+    "commute_cost": ("fix", draw_commute),           # house and workplace joined by a measured path
 }
