@@ -144,6 +144,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/sharp_ui/sharp_ui.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, Draw step 12
 #include "ext/ambient_occlusion/ambient_occlusion.h"     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, Draw step 7
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ext.touch_pointer, Draw step 11 (ToolAimHeld)
+#include "ext/show_grid/show_grid.h"   // EXT SEAM (NOT RETAIL, SHOWGRID.md): ext.show_grid, Draw step 11
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
 #include "Component/AmbientEnvironmentComponent.h"   // AMBMEMO: ReportMemo at teardown
@@ -1657,6 +1658,10 @@ void GameUpdateLoop::Draw(float alpha) {
         if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
             hasInput = false;
         uint64_t drawFlag = (hasInput || pauseCheck) ? 1 : 0;
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHOWGRID.md): ext.show_grid draws its tile grid under
+        // the tool, whether or not one is selected. Row off: nothing.
+        if (Ext::Ext().show_grid && Ext::ShowGrid::Shown())
+            Ext::ShowGrid::Draw(videoCtx);
         if (tool) {
             // Caller batch CB6: slot 8 (vtable +0x40) `Tool::Draw(context, active)`.
             // The receiver is PROVED by its only writer, Toolbar_ShowGroup_Impl

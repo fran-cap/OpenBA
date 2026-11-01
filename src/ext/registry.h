@@ -80,6 +80,7 @@ struct Fixes {
 struct Extensions {
     bool eye_camera = false;   // class A: src/ext/eye_camera/ (docs/extensions/handins/EYECAM.md)
     bool no_fog = false;       // class A: src/ext/no_fog/ (docs/extensions/handins/NOFOG.md)
+    bool show_grid = false;    // class A: src/ext/show_grid/ (docs/extensions/handins/SHOWGRID.md)
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
     bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 + steady tilt
     bool high_limits = false;   // class B: src/ext/high_limits/ (docs/extensions/handins/HIGHLIMITS.md)
@@ -163,6 +164,17 @@ struct Values {
     int32_t texture_quality_drop = 0; // ext.texture_quality_drop 0..1 (owner texture_quality): the top mip levels a qualifying texture is made without, 0 = Full (the default: the row or profile=all alone drops nothing), 1 = Half; an older 2 (Quarter, removed by ruling) clamps to 1; read once at boot (TEXQUALITY.md)
     int32_t fps_cap_rate = 60; // ext.fps_cap_rate 30 | 60 | 90 | 120 (owner fps_cap): the menu's and the game's frame-rate ceiling while the row is on; 60 is the phone's ruled default (docs/android/P8_INPUT_OPTIONS.md)
     int32_t touch_mode_toolbar_scale = 200; // ext.touch_mode_toolbar_scale 100 | 125 | 150 | 175 | 200 (owner touch_mode): the in-game toolbar's own scale in percent, shrunk to fit beside the control cluster (docs/android/TOUCH_MODE.md)
+    // ext.show_grid_shade 0..100 (owner show_grid): the lines' grey in percent, 100 = white, 0 = black
+    int32_t show_grid_shade = 100;
+    // ext.show_grid_width 1..30 (owner show_grid): the lines' width in hundredths of a tile (a bold line is
+    // two thirds wider)
+    int32_t show_grid_width = 6;
+    int32_t show_grid_hue = 0;        // ext.show_grid_hue 0..359 (owner show_grid): the lines' hue in degrees
+    // ext.show_grid_saturation 0..100 (owner show_grid): 0 grey or white, 100 the pure hue
+    int32_t show_grid_saturation = 0;
+    // ext.show_grid_opacity 10..100 (owner show_grid): how strong the grid lines are, in percent; the
+    // bold lines are stronger still
+    int32_t show_grid_opacity = 75;
     int32_t touch_mode_zoom_min = 10; // ext.touch_mode_zoom_min 6..20 (owner touch_mode): the camera's near zoom limit in distance units while the row is on, retail's 20 otherwise (docs/android/P11D_ZOOM.md)
     int32_t touch_pointer_lift = 160; // ext.touch_pointer_lift 0 | 80 | 120 | 160 | 200 | 240 (owner touch_pointer): the aim point's height above the finger, device pixels (docs/android/P11_TOUCH_POINTER.md)
     int32_t touch_pointer_pick_radius = 50; // ext.touch_pointer_pick_radius 0 | 25 | 50 | 75 | 100 (owner touch_pointer): the pick snap's radius, device pixels
