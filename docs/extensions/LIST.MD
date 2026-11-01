@@ -23,7 +23,7 @@
 | Ext A | Quick loading screens | Loading and save screens close/open faster. |
 | Ext A | Ambient occlusion | Screen-space AO. |
 | Ext A | Better trees | Smoothes leaf edges, adds ability to adjust tree billboard shadows.|
-| Ext A | Better water | A soft shore edge on rivers and lakes: the bed darkens under the shallows and a thin line runs along the waterline, white on the outside of bends. Plain (every backend); Fancy planned. |
+| Ext A | Better water | A soft shore edge on rivers and lakes: the bed darkens under the shallows and a thin line runs along the waterline, white on the outside of bends. Plain (every backend, the default); Fancy adds a wet bank, a foam fringe and foam round piers and bridge feet (DX11, Vulkan). |
 | Ext A | Max shadow resolution | Adjustable shadow max resolution. |
 | Ext A | Seamless ambient loops | When loops (ambient) end cleanly cycle into the next one. |
 | Ext A | Background save compression | Compresses the save on a worker thread; identical save files. |
