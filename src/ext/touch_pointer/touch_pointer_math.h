@@ -93,6 +93,11 @@ constexpr float kSpinEngageDegrees = 8.0f;
 // deliberate spread during a turn, as map apps allow); below that a pinch's incidental turn and a turn's
 // incidental spread are dropped.
 constexpr float kJoinFactor = 3.0f;
+// Pan wins the lock only while each finger's own travel since Begin is at least this fraction of the centroid's:
+// a pan moves both fingers about as far as the centroid, a one-thumb pinch or a turn about one finger leaves one
+// nearly still (it moves the centroid by half the other finger's travel). Short of it the gesture stays
+// undecided until pinch or spin passes its own threshold.
+constexpr float kPanFingerShare = 0.4f;
 // One retail zoom step (camera_input.cpp kZoomStep) per this log ratio of the spread.
 constexpr float kPinchLogPerStep = 0.12f;
 
@@ -116,6 +121,7 @@ public:
 private:
     float _shortEdge = 1.0f;
     float _startCx = 0.0f, _startCy = 0.0f, _startDist = 1.0f, _startAngle = 0.0f;
+    float _startX1 = 0.0f, _startY1 = 0.0f, _startX2 = 0.0f, _startY2 = 0.0f;
     float _cx = 0.0f, _cy = 0.0f, _dist = 1.0f, _angle = 0.0f;
     bool _pan = false, _pinch = false, _spin = false;
 };
