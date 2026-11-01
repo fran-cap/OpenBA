@@ -335,11 +335,13 @@ void PostSdlInit() {
 
 // docs/android/README.md: the app makes WinData/ itself at every start (EnterRunDirectory), because
 // a folder adb makes there belongs to the shell user and is unreadable to the app.
+// Since issue #96 a start from the icon never reaches this box: OpenBAActivity shows its first-run
+// screen (the folder / .zip picker) while WinData has no data0.pkg. The box is left for a launch with
+// BANISHED_* extras (a harness run) and for a WinData the Java check and the native one disagree on.
 const char* MissingGameDataHelp() {
     // Short: the box does not scroll (game_data_check.cpp MessageText).
-    return "Connect to a PC by USB (File transfer), open Android > data > org.openba.game > files > "
-           "WinData and copy data0.pkg, data1.pkg, patch0.pkg and patch1.pkg into it from your "
-           "Banished WinData folder. Then start OpenBA again.";
+    return "Start OpenBA from its icon and choose the folder, or a .zip, holding data0.pkg, "
+           "data1.pkg, patch0.pkg and patch1.pkg from your Banished WinData folder.";
 }
 
 bool TakeSaveRequest() {
