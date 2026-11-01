@@ -282,6 +282,8 @@ void ModelComponent::OnAdded() {
 // Removes mesh from Scene and resets modelId. Notifies owner entity.
 
 void ModelComponent::OnRemove() {
+    // EXT SEAM (NOT RETAIL): ext.render_culling drops its deferred entries for this model.
+    Ext::RenderCulling::ForgetModel(this);
     const int16_t index = meshIndex;
     const int32_t id0 = modelId;
 

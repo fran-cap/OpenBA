@@ -181,6 +181,10 @@ struct Builder {
     PointerTable            stateTable;
     std::vector<uint32_t>   decalMark;   // per WorldGeometry::_decals index: drawn this packet
     std::vector<uint32_t>   roadMark;
+    // Per marked batch: the arena offset of its vertices and indices. They are reserved when the
+    // batch is marked, after any entry admitted since the WorldGeometry, so not next to its arrays.
+    std::vector<size_t>     decalAt;
+    std::vector<size_t>     roadAt;
     uint32_t                markGen = 0;
     const WorldGeometry*    world   = nullptr;
 };
@@ -337,11 +341,16 @@ bool MarkBatch(Builder& b, uint32_t mode, uint32_t key, size_t& bytes) {
     const bool decal = mode == kModeDecal;
     const GeometryBatchArray& array = decal ? world._decals : world._roadBatches;
     std::vector<uint32_t>& marks = decal ? b.decalMark : b.roadMark;
+    std::vector<size_t>& at = decal ? b.decalAt : b.roadAt;
     const int32_t index = static_cast<int32_t>(key & 0xFFFF1FFFu);   // WorldGeometry::Draw's key
     if (array._data == nullptr || index < 0 || index >= array._size) return false;
-    if (marks.size() < static_cast<size_t>(array._size)) marks.resize(static_cast<size_t>(array._size), 0);
+    if (marks.size() < static_cast<size_t>(array._size)) {
+        marks.resize(static_cast<size_t>(array._size), 0);
+        at.resize(static_cast<size_t>(array._size), 0);
+    }
     if (marks[static_cast<size_t>(index)] == b.markGen) return true;
     marks[static_cast<size_t>(index)] = b.markGen;
+    at[static_cast<size_t>(index)] = bytes;
     const GeometryBatch& batch = array._data[index];
     bytes += ArrayBytes<GeometryBatchVertex>(batch.vertices._size) + ArrayBytes<uint16_t>(batch.indices._size);
     return true;
@@ -397,6 +406,7 @@ void CopyWorld(Entry& e, const Builder& b, unsigned char* base) {
     for (int pass = 0; pass < 2; ++pass) {
         GeometryBatchArray& array = pass == 0 ? copy->_decals : copy->_roadBatches;
         const std::vector<uint32_t>& marks = pass == 0 ? b.decalMark : b.roadMark;
+        const std::vector<size_t>& reserved = pass == 0 ? b.decalAt : b.roadAt;
         if (array._data == nullptr) continue;
         const int32_t n = array._size > 0 ? array._size : 0;
         if (n > 0) std::memcpy(at, array._data, static_cast<size_t>(n) * sizeof(GeometryBatch));
@@ -408,8 +418,11 @@ void CopyWorld(Entry& e, const Builder& b, unsigned char* base) {
             GeometryBatch& batch = batches[i];
             const bool drawn = static_cast<size_t>(i) < marks.size() && marks[static_cast<size_t>(i)] == b.markGen;
             if (drawn) {
-                DeepCopy(batch.vertices, at);
-                DeepCopy(batch.indices, at);
+                // At the bytes MarkBatch reserved: the ones after this entry's arrays may
+                // belong to an entry admitted after it.
+                unsigned char* data = base + reserved[static_cast<size_t>(i)];
+                DeepCopy(batch.vertices, data);
+                DeepCopy(batch.indices, data);
             } else {
                 // Never read for this packet: emptied rather than left pointing at live data.
                 batch.vertices._data     = nullptr;

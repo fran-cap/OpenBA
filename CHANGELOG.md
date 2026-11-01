@@ -53,6 +53,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   merchant boat sets off, or while a road is drawn. Retail queues that path query behind every citizen
   route search already waiting; with the fix it is answered first, and those citizens get their routes a
   few ticks later (`docs/retail_bugs.md` section 18). Off under `/profile:faithful`.
+- A crash in large towns at high game speed (`ext.render_culling`): a citizen or building removed while
+  offscreen no longer leaves entries behind that the next frame without a game tick writes through. Seen
+  after 7.8 hours in a 1588-citizen town (`docs/known_port_issues.md` row 1346).
+- Render thread (`ext.render_pipe`): no more long lines flickering across the screen, and no more crash of
+  the render thread, most often seen while placing a building with a radius circle (a well, a market)
+  and moving the camera. The frame copy the render thread draws from wrote two parts of itself over each
+  other (`docs/known_port_issues.md` row 1347).
 
 ## v1.0.2 (2026-10-30)
 

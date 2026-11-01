@@ -73,6 +73,14 @@ void BeginFrame(Graphics::Renderer* renderer);
 void SetWorldFrustum(const void* frustum);
 // World teardown: forget every cached pointer (unconditional).
 void Reset();
+// Entity removal (the components' OnRemove, at MarkForRemoval): drop every deferred entry
+// that names this component. The pick mesh is freed at once (PickingComponent::OnRemove ->
+// Scene::RemoveMesh) and the component at the next frame's removal drain, while a deferred
+// entry lives until the next sim frame's first culled tick or a flush on a frame the sim
+// did not run; replaying it then wrote through a freed pick entry (null transforms).
+void ForgetModel(ModelComponent* modelComponent);
+void ForgetPick(Picking::Scene* pickScene, uint32_t pickId);
+void ForgetIcon(StatusIconComponent* obj);
 
 // Current MeshInstance::_rootOnlyUpdates value (0 on the last iteration / speed 1).
 bool RootOnlyNow();

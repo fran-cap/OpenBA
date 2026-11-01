@@ -27,6 +27,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.4 caller batch G
 #include "Entity/ComponentEntity.h"   // ENDGAME B.3.9 CB: ComponentEntity::TypeId()
 #include "picking/Scene.h"     // ENDGAME B.3.7 callers (K2)
+#include "ext/render_culling/render_culling.h"   // EXT SEAM: ForgetPick (OnRemove)
 
 
 
@@ -139,6 +140,8 @@ void PickingComponent::OnRemove() {
     if ((int)pickingId >= 0) {
         if (GameUpdateLoop::_singleton != nullptr) {
             Picking::Scene* pickingScene = GameUpdateLoop::_singleton->m_pickingScene;
+            // EXT SEAM (NOT RETAIL): ext.render_culling drops a deferred push to this id.
+            Ext::RenderCulling::ForgetPick(pickingScene, (uint32_t)pickingId);
             // Picking::Scene::RemoveMesh (import slot 0x140152438, Runtime 0x180125290).
             pickingScene->RemoveMesh((uint32_t)pickingId);
         }

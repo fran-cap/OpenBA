@@ -381,6 +381,8 @@ static bool SI_ComponentArray(const ComponentEntity* entity, int* outCount,
 // additionally strips icons at demolition start (state-3 enter → ClearAllFlags, 0x14012c2a0) and shows flag 5;
 // this teardown-time removal is the safety net that must always run.
 void StatusIconComponent::OnRemove() {
+    // EXT SEAM (NOT RETAIL): ext.render_culling drops a deferred replay of this icon.
+    Ext::RenderCulling::ForgetIcon(this);
     if (GameUpdateLoop::_singleton == nullptr) return;
     Graphics::Scene* scene = StatusIcon_Scene();
     int32_t sceneId = iconId;
