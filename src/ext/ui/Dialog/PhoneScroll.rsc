@@ -8,10 +8,13 @@
 // Game page's own container (Options.rsc:gameOptions: its padding, its scroll bar), with its size
 // left to its content: _width / _height 0 (the description's own default height is 100). The height
 // the frame scrolls at is set at run time (touch_scroll.h (b)); the empty group is replaced by the page.
+// The vertical bar is named here, not inherited: a mod's Options.rsc can rebuild gameOptions without one
+// (The North 7, issue #96), and a frame without its bar clips the page it holds.
 ContainerDescription phoneScroll : "Options.rsc:gameOptions"
 {
 	int _width = 0;
 	int _height = 0;
+	ElementDescription _verticalScroll = "SharedElements.rsc:verticalScrollbar";
 	ElementDescription _content = "phoneScrollContent";
 }
 

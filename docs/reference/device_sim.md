@@ -10,6 +10,7 @@ tools/device_sim.sh phone --no-build --ui 42 --view game  # the owner's UI 42, n
 tools/device_sim.sh tablet --panels eventlog,town --tap 0.5,0.5
 tools/device_sim.sh tablet --set ext.touch_mode_pad_scale=0 --set ext.phone_menu_safe_margin=0
 tools/device_sim.sh phone --view options                  # Options open on its Enhanced tab
+tools/device_sim.sh phone --view options --set GameLastOption=0   # ... on its Game tab (0..4 = Game..Enhanced)
 ```
 
 `--set KEY=VALUE` (repeatable) writes one more settings.cfg key after the profile's; the saved settings.cfg is
@@ -69,7 +70,9 @@ They also write the windowed size (`VideoWindowWidth/Height`, `VideoFullscreen=f
   covers the others. `town` (`Template\UtilityStatusBar.rsc`) resolves and opens, but nothing showed in the
   shots: unexplained.
 - **Mods.** The functional dir's mods are parked. A mod-specific symptom (issue #96: Options under the North 7 mod)
-  needs the mod installed and enabled there.
+  needs the mod installed and enabled there: copy its `.pkm` into the functional dir's `WinData` for the run only,
+  add `--set ModEnabled_<stem>=true --set ModIndex_<stem>=0` (the keys the Mods dialog writes; settings.cfg is put
+  back after the run) and remove the file afterwards.
 - **DX11.** The exe is the Windows DX11 backend, not Vulkan.
 
 ## Capture
