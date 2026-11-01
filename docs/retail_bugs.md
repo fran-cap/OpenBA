@@ -682,3 +682,76 @@ worker is in.
 Fix: `fix.path_query_first` (tier 1), default on, off under `/profile:faithful`. One seam reads the row,
 `RunPathQuery`; the worker runs the query as command 6 (`PathfinderThread::ApplyCommand`). Code
 `src/ext/path_query_first/`. Hand-in `docs/extensions/handins/PATHQUERYFIRST.md`.
+
+## 19. A citizen who reaches another land zone over water or mountain cannot walk back, and starves
+
+**Symptom.** Player reports since 2015 (Steam "Wandering Idles", "Citizens Getting Stuck"; Discord
+2019-2025, collected in the 2026-11-01 community sweep): a citizen stands still until he starves or
+freezes, often showing "going somewhere to get warm"; idle citizens end up on a spot across a stream
+or at the map edge and never come back; builders walk out to a dock, bridge or planking piece over
+water ("under water"), and are stuck on it once it is built if it is not joined to land. A bridge or a
+land fill back to the spot frees them; so, sometimes, does changing their profession. "Citizens can
+walk on water precisely once" (a player, 2020).
+
+**Status: the mechanism is read in Ghidra and matches the port function by function; not reproduced
+in a run, no fix (the lever needs a ruling, below).**
+
+**Retail mechanism.** Reachability is a zone test. `Map::FillZone` (`0x14009c170`) floods a zone id
+(MapCell `+0x26`) over connected cells whose terrain type is in the land set `0xe1f` (types 0-4, 9,
+10, 11). Types 5-8 (`0x1e0`: quarry-dug ground, mountain 6, shore 7, deep water 8; the classifier
+`0x14009e2c0`) get no zone. Every reachability test has the same shape, mask = the caller's pass
+flags | both cells' type bits, then:
+- `Map::ValidateCell` (`0x1400a00f0`; `CitizenComponent::CanReach` `0x1401158d0`, the work and target
+  pickers, `Map::PathDistance` `0x14009f810`), the build-node test inlined in `BuildStructure::Execute`
+  (`0x1400e4fc0`) and `Component::FindBestAdjacentCell` (`0x14012d5d0`): **if either cell's type is in
+  `0x1e0` the pair is reachable**, with no zone test; else both zones must be non-zero and equal.
+- `Map::RequestPath` (`0x14009cfb0`, every citizen walk, from `MoveTo::PathSetup` `0x1400c8c10`):
+  the same test; when an endpoint is in `0x1e0` the A* runs with that endpoint's type added to the
+  passable mask *for the whole map* (and both water types when either is in `0x180`). Otherwise a
+  zone mismatch returns the ticket {-1, 0}, and `MoveTo::Execute` (`0x1400c8570`) answers 2 (no path).
+
+So a walk with a water or mountain endpoint may cross water or mountains anywhere on the map, and
+nothing checks which land zone it ends in. A citizen who ends a walk on land in another zone (or is
+standing there when the zones are refilled) is stranded: from a zoned land cell every target on the
+town's side fails the zone test, in the pickers and in `RequestPath`. Routes into that state, all in
+retail's code:
+1. *Builders over water.* A build node on a water cell (a dock / bridge / planking piece placed out
+   over the water) passes the build-node test (an endpoint in `0x1e0`), and the builder walks out over
+   the water. If the finished piece's cells are stamped with a land type, the next `FillZones` gives
+   them a zone of their own unless they touch land or a finished piece, and the builder standing on
+   it is stranded (players: "they build the far ones first"). Inferred from the code shape and the
+   reports; the stamped type of a finished dock / bridge cell was not read for this entry.
+2. *Standing on a zone-less cell.* While a citizen's own cell is a mountain, shore or water cell, every
+   picker passes for every target on the map (the source is in `0x1e0`), and the walk's A* may cross
+   that type of ground; the walk can end on land across a stream or on an island at the map edge.
+3. *The world changes under him:* a building, road removal or quarry splits a zone while he is on
+   the far side.
+
+**Why he stands still.** The warmth state `0x14010d2c0` (state 1 / 15) first asks
+`CitizenBehavior::FindElderResidence` (`0x14008ec70`, which validates from the citizen's cell), then
+falls back to his own home with **no reachability test** and pushes the walk (`PerformWork` chain
+`0x1400bd790`, `MoveTo` mask `0xe1f`). The walk fails at once, `ActionStack::Execute` (`0x1400c4c50`)
+clears the stack on the 2, and the AI picks the same state on its next update: the citizen stands with
+"going somewhere to get warm" until he dies. The food states test reachability and find nothing, so he
+starves. A profession change can free him only when the new job's picker accepts a target through the
+`0x1e0` bypass (a build node over water, for instance), which lets the next walk cross back.
+
+**Ruled out.** (a) The pickers do test zones (the same test as `FindSpawnCell`); the gap is the
+`0x1e0` bypass, not a missing test. (b) No path request leak freezes a citizen: a refused request
+returns {-1, 0} without claiming a result slot, a search that fails publishes an empty path and
+`TakePath` (`0x1400a6d50`) makes `MoveTo::Execute` answer 2. (A walk destroyed while its search is
+queued never frees its slot: `MoveTo`'s dtor `0x140022900` does not release the ticket, so the result
+table grows by one slot per abandoned walk. A slow leak, not a freeze.) (c) §18 (`fix.path_query_first`)
+only moves the synchronous query (boats, road tool) to the head of the queue; a citizen's walk is
+answered in the same order as before, so it neither causes nor cures this.
+
+**Levers, if this is ever changed** (a `fix.*` row, `docs/extensions/DESIGN.md` §3; not ruled):
+- *Rescue, narrowest:* in the warmth fallback, when `CanReach(home)` fails, push the home walk with
+  the zone-less types in its pass flags (`0xe1f | 0x1e0`): `RequestPath` then takes its bypass and the
+  A* wades or climbs home, the same movement retail already allows any walk with a water endpoint.
+  Reaches only cold citizens (every winter); a stranded citizen in summer still starves.
+- *Rescue, general:* treat a citizen as stranded when his cell is land whose zone differs from his
+  home's (both non-zero), and let his walks and pickers use the bypass until he is back. Wider, and it
+  needs a rule for the homeless.
+- *Prevention* (end a bypass walk only in the zone it started from) would break building a bridge from
+  one bank and does not cover route 1, so it is not recommended on its own.
