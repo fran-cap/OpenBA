@@ -6,12 +6,24 @@
 
 #include "phone_math.h"
 
+#include "ext/registry.h"   // Val().phone_menu_safe_margin (issue #96)
+
 namespace Ext {
 namespace PhoneMenu {
 
+float SafeMarginFractionOf(int32_t key) {
+    if (key <= 0) return 0.0f;
+    if (key == kSafeMarginDefaultKey) return kSafeMarginFraction;
+    return static_cast<float>(key) / 100000.0f;
+}
+
+int32_t SafeMarginAt(int32_t height, float fraction) {
+    if (height <= 0 || fraction <= 0.0f) return 0;
+    return static_cast<int32_t>(static_cast<float>(height) * fraction + 0.5f);
+}
+
 int32_t SafeMargin(int32_t height) {
-    if (height <= 0) return 0;
-    return static_cast<int32_t>(static_cast<float>(height) * kSafeMarginFraction + 0.5f);
+    return SafeMarginAt(height, SafeMarginFractionOf(Val().phone_menu_safe_margin));
 }
 
 Rect InsetLayout(int32_t width, int32_t height) {

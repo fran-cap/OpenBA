@@ -14,8 +14,14 @@
 //   texture_quality/enhanced_entry.cpp     combo "Texture quality" (TEXQUALITY)
 //   enhanced_tab/render_scale_entry.cpp    combo "Render scale" (P8; the platform key VideoRenderScale)
 //   fps_cap/enhanced_entry.cpp             combo "Frame rate cap" (P8; ext.fps_cap)
-//   touch_mode/enhanced_entry.cpp          combo "Touch controls" (TOUCHMODE; ext.touch_mode)
+//   touch_mode/enhanced_entry.cpp          combos "Touch controls" (TOUCHMODE; ext.touch_mode), "Camera pad" and
+//                                          "Placement bar" (issue #96; ext.touch_mode_pad_scale / _action_bar_scale)
 //   touch_pointer/enhanced_entry.cpp       combo "Touch pointer" (P11b; ext.touch_pointer and its three keys)
+//   phone_menu/enhanced_entry.cpp          combo "Screen edge margin" (issue #96; ext.phone_menu_safe_margin)
+// The touch and phone rows sit together under a "Touch screen" header row (issue #96): a label row in the one
+// page's table (EnhancedOptions.rsc), not a second tab. A sixth tab would need a second page resource, the
+// contributions split by page and the last-tab restore taught a fifth index, and the phone's Options dialog
+// already fills its width with five tab buttons; the one page already scrolls (ext.phone_menu's touch_scroll).
 //   derived_cache/enhanced_entry.cpp       the cache's size + button "Clear cache" (COMPRESSAO)
 // A contribution keeps its own element pointers (found by name in the new page); this file holds
 // only the dialog key, never OptionsDialog fields (its sizeof 0x1C0 is retail's, asserted). One
@@ -38,6 +44,7 @@
 
 namespace UI {
 class TabElement;
+class ComboElement;
 }
 
 namespace Ext {
@@ -64,7 +71,14 @@ const Contribution& RenderScaleEntry();   // src/ext/enhanced_tab/render_scale_e
 const Contribution& FpsCapEntry();        // src/ext/fps_cap/enhanced_entry.cpp: ext.fps_cap (P8)
 const Contribution& TouchModeEntry();     // src/ext/touch_mode/enhanced_entry.cpp: ext.touch_mode (TOUCHMODE)
 const Contribution& TouchPointerEntry();  // src/ext/touch_pointer/enhanced_entry.cpp: ext.touch_pointer (P11b)
+const Contribution& PhoneMenuEntry();     // src/ext/phone_menu/enhanced_entry.cpp: ext.phone_menu_safe_margin (issue #96)
 const Contribution& DerivedCacheEntry();   // src/ext/derived_cache/enhanced_entry.cpp: size + "Clear cache"
+
+// A combo whose item i is the discrete value key `keyId`'s i-th choice (registry.cpp, `ValueKey::choices`):
+// Open selects the live value's item; Apply records the chosen item's value when it changed (the caller
+// flushes) and logs it under `logTag`. A null combo, an unknown or a range key: nothing.
+void OpenChoiceCombo(UI::ComboElement* combo, const char* keyId);
+void ApplyChoiceCombo(const UI::ComboElement* combo, const char* keyId, const char* logTag);
 
 // Whether this build offers the tab: always, except under the gate (`/profile:faithful` from the
 // command line), whose menus stay exactly retail's (Ext::GateProfileForced). Deliberately NOT a

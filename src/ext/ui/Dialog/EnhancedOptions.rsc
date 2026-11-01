@@ -1,5 +1,5 @@
 // Dialog/EnhancedOptions.rsc -- the Options dialog's fifth tab "Enhanced" (NOT RETAIL; blocks AOMENU,
-// FAA-MENU, BETTER-TREES, BETTERWATER, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer: fourteen rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
+// FAA-MENU, BETTER-TREES, BETTERWATER, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer, issue #96's "Touch screen" group: eighteen rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
 // OptionsDialog::OnOpened (src/ext/enhanced_tab/enhanced_tab.cpp). Every name here is NEW:
 // a loose .crs never overrides a name the game's packages hold (IO::FileSystem::OpenFile looks
 // in the packfile index first, handins/AOSPIKE.md S5). The look inherits the kit's own
@@ -22,6 +22,10 @@ StringTable aoStrings
 		{ String _name = "FpsCap";			String _text = "Frame rate cap"; }
 		{ String _name = "TouchMode";		String _text = "Touch controls"; }
 		{ String _name = "TouchPointer";	String _text = "Touch pointer"; }
+		{ String _name = "TouchGroup";		String _text = "Touch screen"; }
+		{ String _name = "TouchPad";		String _text = "Camera pad"; }
+		{ String _name = "TouchActionBar";	String _text = "Placement bar"; }
+		{ String _name = "PhoneSafeMargin";	String _text = "Screen edge margin"; }
 		{ String _name = "DerivedCache";	String _text = "Data cache on disk"; }
 		{ String _name = "DerivedCacheSize";	String _text = "@0"; }
 		{ String _name = "DerivedCacheClear";	String _text = "Clear cache"; }
@@ -152,6 +156,48 @@ StringTable touchPointerItems
 	]
 }
 
+// Camera pad (issue #96): ext.touch_mode_pad_scale 0 (the cluster hidden) / 50 / 60 / 75 / 100 / 125 percent of
+// its own size; 100 is the size it always had.
+StringTable touchPadItems
+{
+	Entry _strings
+	[
+		{ String _name = "Item0";		String _text = "Off";		}
+		{ String _name = "Item1";		String _text = "50%";		}
+		{ String _name = "Item2";		String _text = "60%";		}
+		{ String _name = "Item3";		String _text = "75%";		}
+		{ String _name = "Item4";		String _text = "100%";		}
+		{ String _name = "Item5";		String _text = "125%";		}
+	]
+}
+
+// Placement bar (issue #96): ext.touch_mode_action_bar_scale 50 / 60 / 75 / 100 / 125 percent; 100 = as before.
+StringTable touchActionBarItems
+{
+	Entry _strings
+	[
+		{ String _name = "Item0";		String _text = "50%";		}
+		{ String _name = "Item1";		String _text = "60%";		}
+		{ String _name = "Item2";		String _text = "75%";		}
+		{ String _name = "Item3";		String _text = "100%";		}
+		{ String _name = "Item4";		String _text = "125%";		}
+	]
+}
+
+// Screen edge margin (issue #96): ext.phone_menu_safe_margin 0 / 2000 / 3375 / 4500 / 6000 thousandths of a percent of
+// the screen height (Phone screen fit's safe area; 3375 is the phone default).
+StringTable phoneSafeMarginItems
+{
+	Entry _strings
+	[
+		{ String _name = "Item0";		String _text = "None";				}
+		{ String _name = "Item1";		String _text = "2%";				}
+		{ String _name = "Item2";		String _text = "3.4% (phone)";		}
+		{ String _name = "Item3";		String _text = "4.5%";				}
+		{ String _name = "Item4";		String _text = "6%";				}
+	]
+}
+
 ButtonDescription buttonEnhanced : "Options.rsc:buttonGame"
 {
 	Alignment _alignment = MidCenter;
@@ -208,8 +254,9 @@ ContainerDescription enhancedOptions : "Options.rsc:gameOptions"
 	ElementDescription _content = "enhancedOptionsTable";
 }
 
-// The rows: Options.rsc:gameOptionsTable's shape, fourteen rows (AO combo, AO slider, Better trees, natural tree growth, Better water, shadow,
-// loops, texture quality (TEXQUALITY), render scale and frame rate cap (P8), the derived-data cache's
+// The rows: Options.rsc:gameOptionsTable's shape, eighteen rows (AO combo, AO slider, Better trees, natural tree growth, Better water, shadow,
+// loops, texture quality (TEXQUALITY), render scale and frame rate cap (P8); then the "Touch screen" group (issue #96: its
+// header, Touch controls, Camera pad, Placement bar, Touch pointer, Screen edge margin), then the derived-data cache's
 // size and, under it, its "Clear cache" button: COMPRESSAO). The size sits in the control column, not in the label: "0 MB (cleared at the next
 // start)" in the label column made that column, and so the dialog, wider than the retail tabs.
 TableDescription enhancedOptionsTable
@@ -222,7 +269,7 @@ TableDescription enhancedOptionsTable
 	Alignment _alignment = TopLeft;
 
 	int _width = 2;
-	int _height = 14;
+	int _height = 18;
 
 	TableItem _items
 	[
@@ -236,9 +283,13 @@ TableDescription enhancedOptionsTable
 		{ int _x = 0; int _y = 7; ElementDescription _element = "textTextureQuality"; }
 		{ int _x = 0; int _y = 8; ElementDescription _element = "textRenderScale"; }
 		{ int _x = 0; int _y = 9; ElementDescription _element = "textFpsCap"; }
-		{ int _x = 0; int _y = 10; ElementDescription _element = "textTouchMode"; }
-		{ int _x = 0; int _y = 11; ElementDescription _element = "textTouchPointer"; }
-		{ int _x = 0; int _y = 12; ElementDescription _element = "textDerivedCache"; }
+		{ int _x = 0; int _y = 10; ElementDescription _element = "textTouchGroup"; }
+		{ int _x = 0; int _y = 11; ElementDescription _element = "textTouchMode"; }
+		{ int _x = 0; int _y = 12; ElementDescription _element = "textTouchPad"; }
+		{ int _x = 0; int _y = 13; ElementDescription _element = "textTouchActionBar"; }
+		{ int _x = 0; int _y = 14; ElementDescription _element = "textTouchPointer"; }
+		{ int _x = 0; int _y = 15; ElementDescription _element = "textPhoneSafeMargin"; }
+		{ int _x = 0; int _y = 16; ElementDescription _element = "textDerivedCache"; }
 
 		{ int _x = 1; int _y = 0; ElementDescription _element = "comboAoQuality"; }
 		{ int _x = 1; int _y = 1; ElementDescription _element = "sliderAoOpacity"; }
@@ -250,10 +301,13 @@ TableDescription enhancedOptionsTable
 		{ int _x = 1; int _y = 7; ElementDescription _element = "comboTextureQuality"; }
 		{ int _x = 1; int _y = 8; ElementDescription _element = "comboRenderScale"; }
 		{ int _x = 1; int _y = 9; ElementDescription _element = "comboFpsCap"; }
-		{ int _x = 1; int _y = 10; ElementDescription _element = "comboTouchMode"; }
-		{ int _x = 1; int _y = 11; ElementDescription _element = "comboTouchPointer"; }
-		{ int _x = 1; int _y = 12; ElementDescription _element = "textDerivedCacheSize"; }
-		{ int _x = 1; int _y = 13; ElementDescription _element = "buttonDerivedCacheClear"; }
+		{ int _x = 1; int _y = 11; ElementDescription _element = "comboTouchMode"; }
+		{ int _x = 1; int _y = 12; ElementDescription _element = "comboTouchPad"; }
+		{ int _x = 1; int _y = 13; ElementDescription _element = "comboTouchActionBar"; }
+		{ int _x = 1; int _y = 14; ElementDescription _element = "comboTouchPointer"; }
+		{ int _x = 1; int _y = 15; ElementDescription _element = "comboPhoneSafeMargin"; }
+		{ int _x = 1; int _y = 16; ElementDescription _element = "textDerivedCacheSize"; }
+		{ int _x = 1; int _y = 17; ElementDescription _element = "buttonDerivedCacheClear"; }
 	]
 }
 
@@ -277,6 +331,12 @@ TextDescription textRenderScale : "textAoOption" { String _text = "RenderScale";
 TextDescription textFpsCap : "textAoOption" { String _text = "FpsCap"; }
 TextDescription textTouchMode : "textAoOption" { String _text = "TouchMode"; }
 TextDescription textTouchPointer : "textAoOption" { String _text = "TouchPointer"; }
+// The "Touch screen" group's header (issue #96): a label row of its own, white where the rows are grey, with the
+// cache row's top spacing, over the touch and phone rows below it.
+TextDescription textTouchGroup : "textAoOption" { String _text = "TouchGroup"; Color _color = 0xFFFFFFFF; int _topPad = 5; int _bottomPad = 3; }
+TextDescription textTouchPad : "textAoOption" { String _text = "TouchPad"; }
+TextDescription textTouchActionBar : "textAoOption" { String _text = "TouchActionBar"; }
+TextDescription textPhoneSafeMargin : "textAoOption" { String _text = "PhoneSafeMargin"; }
 // The cache row's label and size take the combo rows' spacing (a combo row is 26 + 3 high, its label
 // sits 5 down), so the size and the button under it do not crowd the row above.
 TextDescription textDerivedCache : "textAoOption" { String _text = "DerivedCache"; int _topPad = 5; int _bottomPad = 3; }
@@ -377,4 +437,25 @@ ComboDescription comboTouchPointer : "Options.rsc:comboAutosave"
 	int _minWidth = 180;
 	int _bottomPad = 3;
 	StringTable _initialData = "EnhancedOptions.rsc:touchPointerItems";
+}
+
+ComboDescription comboTouchPad : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:touchPadItems";
+}
+
+ComboDescription comboTouchActionBar : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:touchActionBarItems";
+}
+
+ComboDescription comboPhoneSafeMargin : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:phoneSafeMarginItems";
 }
