@@ -1011,11 +1011,42 @@ bool HoldToolAim(const Tool* current) {
     return true;
 }
 
+// A placement or drag tool armed with no world position yet (the first one after the start: the only touches
+// so far were on dialogs, so the cursor was sent off the screen after the toolbar tap) gets one: the first
+// point of a 3 x 3 sweep from the screen's centre that no dialog covers. Retail's mouse is always somewhere
+// over the world once the player moves it; a finger leaves the cursor where it was, so without this the tool
+// casts no ray, shows no ghost, and its CreateBar (name, cost, status) stays at the dialog's default place,
+// the screen's upper-left, until the first aim. Later tools start at the last aim, as before (issue #96).
+void SeedWorldAim(ToolKind kind) {
+    if (g_haveWorld || !g_owns || !g_fingers.empty()) return;
+    if (kind != ToolKind::Place && kind != ToolKind::Drag) return;
+    if (g_queue.Last().x >= 0.0f) return;   // the cursor is somewhere already (a pending release, a real place)
+    int32_t w = 0;
+    int32_t h = 0;
+    ScreenSize(w, h);
+    if (w <= 0 || h <= 0) return;
+    static const float kSweep[9][2] = {{0.5f, 0.5f},   {0.75f, 0.5f}, {0.5f, 0.25f},
+                                       {0.75f, 0.25f}, {0.25f, 0.5f}, {0.25f, 0.25f},
+                                       {0.5f, 0.75f},  {0.75f, 0.75f}, {0.25f, 0.75f}};
+    for (const auto& p : kSweep) {
+        const float x = p[0] * static_cast<float>(w);
+        const float y = p[1] * static_cast<float>(h);
+        if (OverDialog(x, y)) continue;
+        Move(x, y, false);
+        g_lastWorld.x = x;
+        g_lastWorld.y = y;
+        g_haveWorld = true;
+        std::fprintf(stderr, "[TouchPointer] first tool with no aim yet: cursor parked at %.0f,%.0f\n", x, y);
+        return;
+    }
+}
+
 void GameFrame() {
     UI::UserInterface* ui = GameUi();
     if (ui == nullptr) return;
     const Tool* tool = CurrentTool();
     const ToolKind kind = KindOf(tool);
+    if (Ext().touch_pointer) SeedWorldAim(kind);
     const bool mouseRecently = Now() - g_mouseAt < kMouseHideSeconds;
     const uint32_t shown = Ext().touch_pointer && (g_owns || !mouseRecently) ? ShownFor(tool, kind) : 0;
     const bool wantBar = shown != 0 && g_owns;
