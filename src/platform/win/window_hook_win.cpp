@@ -32,6 +32,11 @@
 //    SDL's with CallWindowProcW. The pump drops SDL's foreground-based focus events on
 //    Windows.
 //
+// 3. Harness only: with BANISHED_WINDOW_ANY_SIZE (tools/device_sim.sh) the subclass raises
+//    WM_GETMINMAXINFO's max track size after SDL and DefWindowProc filled it, so the window
+//    can keep a client area larger than the desktop (a 3392x2400 tablet on a 1440-high
+//    monitor). The one place this file changes a message's answer.
+//
 // It lives under src/platform/win/ because it reads Win32 messages (<windows.h>); the
 // rest of the SDL backend has no OS header.
 // ============================================================================
@@ -44,6 +49,7 @@
 
 #include "../sdl/window_sdl_internal.h"
 #include "platform_window.h"
+#include "app/options.h"   // Opt().windowAnySize (harness, tools/device_sim.sh)
 
 // The compile-time proof that platform_window.h's message ids, flags and Point / Rect are
 // Win32's: the pump hands the window-procedure callbacks retail's message tuples, and this
@@ -91,6 +97,16 @@ bool SDLCALL MessageHook(void* /*userdata*/, MSG* msg) {
 LRESULT CALLBACK FocusSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     if (msg == WM_ACTIVATE || msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
         QueueRawMessage(msg, static_cast<uint64_t>(wParam), static_cast<int64_t>(lParam));
+    }
+    if (msg == WM_GETMINMAXINFO && Opt().windowAnySize) {
+        // Harness only (BANISHED_WINDOW_ANY_SIZE, tools/device_sim.sh): DefWindowProc's default
+        // max track size is the virtual screen plus the frame, so the window's own SetWindowPos
+        // could not keep a tablet-sized client on a smaller desktop. SDL fills the struct first.
+        const LRESULT result = CallWindowProcW(g_sdlProc, hwnd, msg, wParam, lParam);
+        MINMAXINFO* info = reinterpret_cast<MINMAXINFO*>(lParam);   // CAST-OK: win32
+        info->ptMaxTrackSize.x = 16384;
+        info->ptMaxTrackSize.y = 16384;
+        return result;
     }
     return CallWindowProcW(g_sdlProc, hwnd, msg, wParam, lParam);
 }

@@ -32,6 +32,8 @@
 #include <cstring>
 #include <cstdint>
 #include <new>
+#include <SDL3/SDL_events.h>   // BANISHED_FINGER_TAP pushes finger events (FingerTapTick)
+#include <SDL3/SDL_timer.h>
 #include "ui/DialogInstance.h"   // ENDGAME B.3.6 UI callers (K4)
 #include "ui/ComboElement.h"                  // ENDGAME B.3.6 UI callers (K4)
 #include "Component/MapComponent.h"
@@ -829,10 +831,9 @@ void FirePreviewPlacement(PlayerToolManager* entityUI) {
 // Toolbar_Utility_Impl finds its UIDescription child, builds a DialogInstance with
 // the ToolUI child vtable, and AddDialog's it. This fires that path with a resolved
 // template as the param — proving open + subsequent-frame render are crash-free
-// without a live cursor/click. Template overridable via BANISHED_UTILITY_TEMPLATE.
-void FireUtilityDialog() {
-    const char* tmplName = Opt().utilityTemplate;
-    if (!tmplName || tmplName[0] == '\0') tmplName = "Template\\UtilityMap.rsc";
+// without a live cursor/click. Template overridable via BANISHED_UTILITY_TEMPLATE, which may
+// name several, comma separated (FireUtilityDialog below opens each in turn).
+void FireUtilityDialogOne(const char* tmplName) {
     fprintf(stderr, "[ToolHarness] resolving utility template \"%s\"...\n", tmplName);
     ComponentDescription* desc = StartTown_ResolveTemplateByPath(tmplName);
     fprintf(stderr, "[ToolHarness] utility Description -> %p\n", desc);
@@ -931,6 +932,73 @@ void FireUtilityDialog() {
             sampleArr("overlay(+0x28)", over);
         }
     }
+}
+
+// BANISHED_UTILITY_TEMPLATE: one template, or several comma separated (tools/device_sim.sh opens the
+// Professions, Town and Event Log panels together); unset = the map.
+void FireUtilityDialog() {
+    const char* list = Opt().utilityTemplate;
+    if (!list || list[0] == '\0') list = "Template\\UtilityMap.rsc";
+    const char* at = list;
+    while (*at != '\0') {
+        const char* end = std::strchr(at, ',');
+        const size_t len = end != nullptr ? static_cast<size_t>(end - at) : std::strlen(at);
+        char name[256];
+        if (len > 0 && len < sizeof(name)) {
+            std::memcpy(name, at, len);
+            name[len] = '\0';
+            FireUtilityDialogOne(name);
+        }
+        if (end == nullptr) break;
+        at = end + 1;
+    }
+}
+
+// BANISHED_FINGER_TAP=<fx>,<fy>[,<frames>] (tools/device_sim.sh): one finger put down, held one frame and
+// lifted at that fraction of the window, <frames> (default 30) after the harness fired. The events are
+// pushed into SDL's queue, so the pump hands them to Platform::Touch's sink exactly as a touch screen's
+// would: with ext.touch_pointer on, a tap on the world under a placement tool aims it and shows the
+// action bar. Without a sink (the row off) nothing reads them.
+int   s_ft_frame = -1;   // the frame the finger goes down; -1 = not armed
+int   s_ft_step = 0;     // 0 down, 1 move, 2 up, 3 done
+float s_ft_x = 0.5f;
+float s_ft_y = 0.5f;
+
+void ArmFingerTap(int frameNum) {
+    const char* e = Opt().fingerTap;
+    if (e == nullptr || e[0] == '\0') return;
+    float fx = 0.5f;
+    float fy = 0.5f;
+    int delay = 30;
+    const int n = std::sscanf(e, "%f,%f,%d", &fx, &fy, &delay);
+    if (n < 2) {
+        fprintf(stderr, "[ToolHarness] BANISHED_FINGER_TAP=\"%s\" not <fx>,<fy>[,<frames>]; no tap\n", e);
+        return;
+    }
+    s_ft_x = fx;
+    s_ft_y = fy;
+    s_ft_frame = frameNum + (delay > 0 ? delay : 1);
+    s_ft_step = 0;
+    fprintf(stderr, "[ToolHarness] finger tap armed at %.3f,%.3f for frame %d\n", fx, fy, s_ft_frame);
+}
+
+void FingerTapTick(int frameNum) {
+    if (s_ft_frame < 0 || s_ft_step > 2 || frameNum < s_ft_frame + s_ft_step) return;
+    static const Uint32 kTypes[3] = {SDL_EVENT_FINGER_DOWN, SDL_EVENT_FINGER_MOTION, SDL_EVENT_FINGER_UP};
+    SDL_Event ev;
+    std::memset(&ev, 0, sizeof(ev));
+    ev.type = kTypes[s_ft_step];
+    ev.tfinger.timestamp = SDL_GetTicksNS();
+    ev.tfinger.touchID = 0x0BA5;   // any id but SDL_MOUSE_TOUCHID / SDL_PEN_TOUCHID: a touch screen's
+    ev.tfinger.fingerID = 1;
+    ev.tfinger.x = s_ft_x;
+    ev.tfinger.y = s_ft_y;
+    ev.tfinger.pressure = s_ft_step == 2 ? 0.0f : 1.0f;
+    const bool pushed = SDL_PushEvent(&ev);
+    fprintf(stderr, "[ToolHarness] finger %s at %.3f,%.3f (frame %d)%s\n",
+            s_ft_step == 0 ? "down" : (s_ft_step == 1 ? "move" : "up"), s_ft_x, s_ft_y, frameNum,
+            pushed ? "" : " -- SDL_PushEvent refused it");
+    ++s_ft_step;
 }
 
 // GUI (click building/citizen → info dialog): activate the default EditTool via the real
@@ -3434,12 +3502,13 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
         if (std::strcmp(s_toolName, "utility") == 0 ||
             std::strcmp(s_toolName, "scan") == 0) {
             const char* tmpl = Opt().utilityTemplate;
-            bool isProf = tmpl && std::strstr(tmpl, "Profession") != nullptr;
+            // The template may be a comma list (FireUtilityDialog): the map is driven when it is in it.
+            bool isMap = !tmpl || tmpl[0] == '\0' || std::strstr(tmpl, "Map") != nullptr;
             fprintf(stderr, "[ToolHarness] DELAYED rescan at frame %d (looking for %s content)...\n",
-                   frameNum, isProf ? "profession" : "minimap");
+                   frameNum, isMap ? "minimap" : "profession");
             // ProfessionUI's slot 5 already ran in AddDialog's open: not re-driven
             // (row 1200); the rescan only reports for it.
-            if (!isProf) ToolbarUtility_HarnessDriveController("MapUI", 4);
+            if (isMap) ToolbarUtility_HarnessDriveController("MapUI", 4);
         }
     }
 
@@ -3488,11 +3557,15 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
     // panelclose: the scheduled close click and its check (FirePanelClose above).
     if (s_pc_closeFrame != 0 || s_pc_checkFrame != 0) PanelCloseTick(entityUI, frameNum);
 
+    // BANISHED_FINGER_TAP: the scheduled finger (ArmFingerTap below).
+    FingerTapTick(frameNum);
+
     if (s_fired) return;
     if (frameNum < s_settleFrame) return;
 
     s_fired = true;
     fprintf(stderr, "[ToolHarness] firing at frame %d (tool=\"%s\")\n", frameNum, s_toolName);
+    ArmFingerTap(frameNum);
     if (std::strcmp(s_toolName, "click") == 0) {
         FireActivatePlacement(entityUI);
     } else if (std::strcmp(s_toolName, "preview") == 0) {
@@ -3539,6 +3612,11 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
         FirePanelClose(entityUI, frameNum);
     } else if (std::strcmp(s_toolName, "utility") == 0) {
         FireUtilityDialog();
+        // tools/device_sim.sh: a building armed in the same run, so the panels and the placement
+        // ghost (and, with BANISHED_FINGER_TAP, ext.touch_pointer's action bar) share one frame.
+        if (const char* e = Opt().placementTemplate) {
+            if (e[0] != '\0') FireActivatePlacement(entityUI);
+        }
     } else if (std::strcmp(s_toolName, "markremoval") == 0) {
         s_mr_fireFrame = frameNum;
         FireMarkRemoval();
