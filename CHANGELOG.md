@@ -46,6 +46,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   finishes properly. Before, it kept its construction storage, so a house finished that way took no food
   or firewood. Buildings already finished that way in an existing save are not repaired
   (`docs/known_port_issues.md` row 1345).
+- Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
+  Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
+  `docs/known_port_issues.md` row 1344).
 
 ## v1.0.2 (2026-10-30)
 
