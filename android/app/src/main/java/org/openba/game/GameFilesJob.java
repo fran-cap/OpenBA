@@ -363,7 +363,7 @@ final class GameFilesJob {
             GameFiles.deleteTree(staged);
         }
         succeeded = true;
-        message = "Copied " + packages.size() + " packages, " + GameFiles.megabytes(bytesDone) + ".";
+        message = "Copied " + count(packages.size(), "package") + ", " + GameFiles.megabytes(bytesDone) + ".";
     }
 
     // ------------------------------------------------------------------------------------------
@@ -505,7 +505,7 @@ final class GameFilesJob {
             GameFiles.deleteTree(staged);
         }
         succeeded = true;
-        message = "Copied " + counts.get(best) + " packages, " + GameFiles.megabytes(bytesDone) + ", from "
+        message = "Copied " + count(counts.get(best), "package") + ", " + GameFiles.megabytes(bytesDone) + ", from "
                   + (best.isEmpty() ? "the archive's top" : best + "/") + ".";
         Log.i(TAG, "game files: archive read " + counted + " of " + archiveSize + " bytes");
     }
@@ -533,7 +533,9 @@ final class GameFilesJob {
                 for (File f : files) {
                     currentName = f.getName();
                     progress(true);
-                    zip.putNextEntry(new ZipEntry("Save/" + f.getName()));
+                    final ZipEntry entry = new ZipEntry("Save/" + f.getName());
+                    entry.setTime(f.lastModified());
+                    zip.putNextEntry(entry);
                     try (InputStream in = new FileInputStream(f)) {
                         pump(in, zip);
                     }
@@ -550,7 +552,7 @@ final class GameFilesJob {
             throw e;
         }
         succeeded = true;
-        message = "Exported " + files.length + " saves, " + GameFiles.megabytes(bytesDone) + ".";
+        message = "Exported " + count(files.length, "save") + ", " + GameFiles.megabytes(bytesDone) + ".";
     }
 
     // Stages every *.sav of the archive (at any depth, by its file name) in Save.incoming beside
@@ -585,8 +587,13 @@ final class GameFilesJob {
                     }
                     currentName = name;
                     progress(true);
-                    try (OutputStream out = new FileOutputStream(new File(staged, name))) {
+                    final File target = new File(staged, name);
+                    try (OutputStream out = new FileOutputStream(target)) {
                         pump(zip, out);
+                    }
+                    // The save's own time, kept by Export saves: the Load dialog dates the save by it.
+                    if (entry.getTime() > 0) {
+                        target.setLastModified(entry.getTime());
                     }
                     if (!importedNames.contains(name)) {
                         importedNames.add(name);
@@ -636,15 +643,14 @@ final class GameFilesJob {
             }
         }
         GameFiles.deleteTree(staged);
-        String text = "Imported " + moved + (moved == 1 ? " save." : " saves.");
+        String text = "Imported " + count(moved, "save") + ".";
         if (kept > 0) {
             text += " Kept " + kept + " of yours with the same name.";
         }
         return text;
     }
 
-    static void discardImport(Context context) {
-        final File saves = GameFiles.savesDir(context);
-        GameFiles.deleteTree(new File(saves.getParentFile(), "Save.incoming"));
+    static String count(int n, String noun) {
+        return n + " " + noun + (n == 1 ? "" : "s");
     }
 }

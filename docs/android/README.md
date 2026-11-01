@@ -6,8 +6,9 @@ an app whose native library is the repository's root `CMakeLists.txt`. Plan and 
 Only new Adreno parts are in scope; a mouse and a keyboard are how the game is played (touches arrive as
 mouse clicks).
 
-No game data is in the tree, the build directory or the apk. The player copies the `WinData` packages of
-their own Banished install into the app's data folder (below). The apk does carry one third-party file
+No game data is in the tree, the build directory or the apk. The player hands the app the `WinData`
+packages of their own Banished install, which it copies into its data folder (Installing the game files,
+below). The apk does carry one third-party file
 set, the FrancophilSans typeface with its notice (below, `THIRD_PARTY_NOTICES.md`).
 
 ## Layout
@@ -16,8 +17,9 @@ set, the FrancophilSans typeface with its notice (below, `THIRD_PARTY_NOTICES.md
 |---|---|
 | `android/` | The Gradle project: `settings.gradle`, `build.gradle` (AGP pin), `gradle.properties` (the package id and app name, each set once), the Gradle wrapper. |
 | `android/app/build.gradle` | The app module: SDK levels, NDK and CMake pins, arm64-v8a only, the native build over `../../CMakeLists.txt` (targets `OpenBA` = `libmain.so` and `SDL3-shared` = `libSDL3.so`), SDL's Java glue compiled in place from `third_party/SDL/android-project`. |
-| `android/app/src/main/AndroidManifest.xml` | One activity, landscape only, Vulkan 1.3 required. |
+| `android/app/src/main/AndroidManifest.xml` | The game's activity (landscape only, Vulkan 1.3 required) and `GameFilesActivity` (plain views, the "Saves and game files" shortcut). |
 | `android/app/src/main/java/org/openba/game/OpenBAActivity.java` | `SDLActivity` subclass: runs the game's own `main`, turns the launch intent's `BANISHED_*` extras into the environment, makes the surface an `OpenBASurface`. |
+| `android/app/src/main/java/org/openba/game/GameFiles*.java` | The first-run screen and the "Saves and game files" shortcut: the game files copied from a picked folder or `.zip`, the saves exported and imported (Installing the game files, below). |
 | `android/app/src/main/java/org/openba/game/OpenBASurface.java` | `SDLSurface` subclass: the captured mouse's buttons and motion (P8). |
 | `src/platform/android/` | The platform twins (`README.md` there has the rule). |
 | `src/diag/android/` | The crash handler and boot-state watchdog twins. |
@@ -57,11 +59,56 @@ plus `src/platform/sdl` and `common`, with every `src/platform/android/<name>_an
 shared library `libmain.so`, keeps SDL shared (`libSDL3.so`), and turns on SDL's joystick and HIDAPI
 modules because SDL's Java glue calls into them at startup. The renderer is the Vulkan backend.
 
-## Install, data, run
+## Installing the game files (players)
+
+OpenBA plays the files of the player's own copy of Banished; the app ships none of them. Since Android 11
+a file manager on the phone cannot write into `Android/data`, so the app copies the files itself, from a
+place the player can reach (issue #96):
+
+1. Copy the `WinData` folder of a Banished install (`data0.pkg`, `data1.pkg`, `patch0.pkg`,
+   `patch1.pkg`) to the phone, into a folder of its own, e.g. `Download/WinData` (USB, a cloud drive, a
+   card). A `.zip` holding that folder, or the `.pkg` files at any depth, works too.
+2. Start OpenBA. Without the files it shows **Banished game files needed** with two buttons:
+   **Choose the folder** opens the system's folder picker (pick the folder holding `data0.pkg`, or one
+   up to three levels above it, such as the Banished folder, then Use this folder and Allow);
+   **Choose an archive** opens the file picker for a `.zip`. Android does not let an app take
+   `Download` itself, so the packages must be in a folder inside it.
+3. The app copies the packages into its data folder with a bar and the megabytes copied, then starts the
+   game: the main menu follows without a restart.
+
+What is copied: the `*.pkg` files of the shallowest folder holding `data0.pkg`, and nothing from its
+subfolders (parked mods such as `_mods_off` stay out; top-level mod packages beside `data0.pkg` are
+copied, as by a USB copy). The copy goes to a staging folder first and is moved into `WinData` only when
+every file arrived, so **Cancel** (or the back key) during the copy, a failed read or a folder without
+`data0.pkg` leaves `WinData` as it was. A wrong pick says what was expected ("No data0.pkg in that
+folder. Choose Banished's WinData folder: ..."). Backing out of the picker changes nothing. The copy
+runs on its own thread, keeps the screen on, and goes on while the screen is off; on the emulator it ran
+at about 250 MB/s from a folder and 30 MB/s from a deflated `.zip`. Only `.zip` is read
+(`java.util.zip`, no new dependency); `.7z` and `.rar` would need a third-party library and are not.
+
+The copy is the player's own files, on the player's own device, at the player's explicit action, into
+the app's own folder: the same thing a USB copy or `push-data` does. Nothing of the game enters the apk
+or the tree (`AGENTS.md` §1, `docs/extensions/DESIGN.md` §3 rule 7).
+
+**Saves.** The same screen's overflow (⋮) has **Import saves** and **Export saves**, and the launcher
+icon's long-press shortcut **Saves and game files** opens the screen at any time, beside a running
+game (`GameFilesActivity`). Export writes a `.zip` of `Documents/Banished/Save/` (`Save/<name>`, the
+files' times kept) wherever the player picks; Import takes every `*.sav` of a `.zip`, at any depth,
+and asks before replacing a save of the same name (Replace / Keep mine). The game's Load dialog lists an
+imported save at once. The shortcut screen also shows the packages' count and size and replaces the
+packages while the game is not running.
+
+Code: `android/app/src/main/java/org/openba/game/GameFilesScreen.java` (the views),
+`GameFilesJob.java` (the copy, export and import thread), `GameFiles.java` (the folders and the
+`data0.pkg` check), `GameFilesActivity.java`, and `OpenBAActivity.java` (holds SDL off while the screen
+is shown: SDL starts `main` only once its surface is ready, and the surface is in SDL's layout, so
+putting that layout back starts the game in the same process).
+
+## Install, data, run (developers)
 
 ```bash
 tools/android.sh install debug            # adb install -r -d (a debug apk replaces any debuggable build)
-tools/android.sh push-data                # BANISHED_DIR's WinData/*.pkg -> the phone (once; the font comes with the apk)
+tools/android.sh push-data                # BANISHED_DIR's WinData/*.pkg -> the phone (once; the developer route, adb in place of the picker)
 tools/android.sh run                      # launch to the main menu
 tools/android.sh run BANISHED_AUTOSTART=1 BANISHED_PAUSEMENU=3000 BANISHED_PAUSEMENU_QUIT=120 \
                      BANISHED_PAUSEMENU_BUTTON=6   # new game, then Quit Game from the pause menu
@@ -75,7 +122,8 @@ tools/android.sh stop
 
 | On the phone | What |
 |---|---|
-| `files/WinData/*.pkg` | The retail packages, pushed by the player. Only the top-level `*.pkg` are pushed; parked mods and other subfolders stay home. |
+| `files/WinData/*.pkg` | The retail packages, copied by the first-run screen from the player's folder or `.zip`, or pushed by `push-data`. Only the top-level `*.pkg` are taken; parked mods and other subfolders stay home. |
+| `files/WinData.incoming/`, `files/Documents/Banished/Save.incoming/` | The staging folders of a copy or a saves import while it runs; removed when it ends. |
 | `files/FrancophilSans.ttf`, `FrancophilSans-Bold.ttf`, `FrancophilSans_README.txt` | The typeface `ext.sharp_ui` rasterises its fonts from at a UI scale other than 100 % (below). Carried by the apk as assets and copied here by the app at start when absent (P9); a file already there is left alone. |
 | `files/OpenBA` | Does not exist: it is the "exe path" the engine is told (`file_android.cpp`), so the game directory is `files/`. |
 | `files/standalone_debug.log`, `standalone_error.log`, `standalone_crash.log`, `standalone_hang.log`, `standalone_boot_state.txt` | The same files as beside `OpenBA.exe` on Windows. |
@@ -84,9 +132,12 @@ tools/android.sh stop
 
 `WinData/` must be made by the app: a folder adb makes belongs to the shell user, and the app process can
 neither list nor open anything inside it (EACCES). The app makes `WinData/` and `Documents/` at every
-start, and `push-data` starts the app once when the folder is missing (or removes an adb-made one first).
-With no `data0.pkg` in it, the app shows one message with the USB / MTP copy steps and exits with code 6
-(`STATE=NO_GAME_DATA`; `src/app/game_data_check.h`, issue #72).
+start (`WinData/` already in `OpenBAActivity.onCreate`, before the first-run screen), and `push-data`
+starts the app once when the folder is missing (or removes an adb-made one first). With no `data0.pkg`
+in it, a start from the icon shows the first-run screen above. A launch with any `BANISHED_*` extra (a
+harness run, `tools/android.sh run ...`) skips that screen: the native check then stops the boot, shows
+one message (none when unattended) and exits with code 6 (`STATE=NO_GAME_DATA`;
+`src/app/game_data_check.h`, issue #72).
 
 **The font rasteriser** (P8). `ext.sharp_ui` draws the UI's text crisp at any UI scale by rasterising the
 game's typeface, FrancophilSans, at the pixel height the screen needs (FreeType,
