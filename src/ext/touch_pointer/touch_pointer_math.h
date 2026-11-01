@@ -80,11 +80,19 @@ void EdgePan(float x, float y, int32_t w, int32_t h, int32_t& dx, int32_t& dy);
 
 // ---- two fingers -----------------------------------------------------------------------------
 
-// The thresholds past which each component of a two-finger gesture engages (then it follows the fingers
-// exactly): the centroid's travel (a fraction of the short edge), the spread's log ratio, the angle.
+// The thresholds past which a component of a two-finger gesture engages (then it follows the fingers
+// exactly), each measured since Begin: the centroid's travel (a fraction of the short edge), the spread's log
+// ratio, the angle.
 constexpr float kPanEngageFraction = 0.02f;
 constexpr float kPinchEngageLog = 0.06f;
 constexpr float kSpinEngageDegrees = 8.0f;
+// The mode lock: the first component past its threshold is the gesture's mode and the others stay zero until
+// the next Begin (the fingers lifted). If several pass in one step, the one furthest past its threshold (the
+// largest measure / threshold) wins. Pan is exclusive for the whole gesture. Pinch and spin may join each other
+// once the second one passes this many times its own threshold (a deliberate twist during a zoom, or a
+// deliberate spread during a turn, as map apps allow); below that a pinch's incidental turn and a turn's
+// incidental spread are dropped.
+constexpr float kJoinFactor = 3.0f;
 // One retail zoom step (camera_input.cpp kZoomStep) per this log ratio of the spread.
 constexpr float kPinchLogPerStep = 0.12f;
 
@@ -97,7 +105,9 @@ struct GestureStep {
 
 class TwoFingers {
 public:
+    // A new gesture (two fingers down): the mode lock is undecided again.
     void Begin(float x1, float y1, float x2, float y2, float shortEdge);
+    // The fingers' new positions: this step's motion of the engaged components (all zero while undecided).
     GestureStep Step(float x1, float y1, float x2, float y2);
     bool panEngaged() const { return _pan; }
     bool pinchEngaged() const { return _pinch; }

@@ -3,7 +3,7 @@
 // ============================================================================
 // docs/android/P11_TOUCH_POINTER.md: the latch queue (a tap inside one pump still shows a press and a release),
 // the tap test, the lift offset, the edge auto-pan, the two-finger gesture classifier (pan, pinch, spin, each
-// engaging past its threshold), the pick snap's samples and candidate order with the tap-to-cycle, the action
+// engaging past its threshold) and its mode lock, the pick snap's samples and candidate order with the tap-to-cycle, the action
 // bar's layout, the touch_mode hold's drag mapping, and the registry row with its three value keys.
 // ============================================================================
 #include "unit.h"
@@ -47,6 +47,35 @@ PointerState P(float x, float y, bool left) {
 
 bool Near(float a, float b, float eps) {
     return std::fabs(a - b) <= eps;
+}
+
+// A two-finger pose: the centroid (cx, cy), the spread d, the pair's angle in degrees (y down).
+struct Pose {
+    float cx;
+    float cy;
+    float d;
+    float deg;
+};
+
+void BeginPose(TwoFingers& g, const Pose& p) {
+    const float a = p.deg * 3.14159265f / 180.0f;
+    const float hx = 0.5f * p.d * std::cos(a);
+    const float hy = 0.5f * p.d * std::sin(a);
+    g.Begin(p.cx - hx, p.cy - hy, p.cx + hx, p.cy + hy, 1000.0f);
+}
+
+GestureStep StepPose(TwoFingers& g, const Pose& p) {
+    const float a = p.deg * 3.14159265f / 180.0f;
+    const float hx = 0.5f * p.d * std::cos(a);
+    const float hy = 0.5f * p.d * std::sin(a);
+    return g.Step(p.cx - hx, p.cy - hy, p.cx + hx, p.cy + hy);
+}
+
+void Accumulate(GestureStep& total, const GestureStep& s) {
+    total.dragX += s.dragX;
+    total.dragY += s.dragY;
+    total.zoomSteps += s.zoomSteps;
+    total.yawDegrees += s.yawDegrees;
 }
 
 }  // namespace
@@ -163,6 +192,90 @@ UNIT_TEST(ext_touch_pointer_two_finger_classifier) {
     s = w.Step(402, 501, 601, 499);
     CHECK(!w.panEngaged() && !w.pinchEngaged() && !w.spinEngaged());
     CHECK(s.dragX == 0.0f && s.zoomSteps == 0.0f && s.yawDegrees == 0.0f);
+}
+
+// The mode lock: the first component past its threshold owns the gesture until the next Begin.
+UNIT_TEST(ext_touch_pointer_gesture_lock_pan_only) {
+    // A two-finger drag whose spread grows 15 % and whose pair tilts 6 degrees on the way: before the lock the
+    // spread alone (log 0.14 > 0.06) engaged a zoom. Locked to pan: no zoom, no yaw, the whole drag.
+    TwoFingers g;
+    BeginPose(g, Pose{500, 500, 200, 0});
+    GestureStep total;
+    for (int32_t i = 1; i <= 30; ++i) {
+        const float k = static_cast<float>(i);
+        Accumulate(total, StepPose(g, Pose{500 + 10 * k, 500, 200 + k, 0.2f * k}));
+    }
+    CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
+    CHECK(total.zoomSteps == 0.0f && total.yawDegrees == 0.0f);
+    // Pan engages on the step its total passes 20 px (step 3); from there it follows: 280 px.
+    CHECK(Near(total.dragX, 0.28f, 1e-4f) && Near(total.dragY, 0.0f, 1e-5f));
+}
+
+UNIT_TEST(ext_touch_pointer_gesture_lock_pinch_drift) {
+    // A symmetric pinch out (200 -> 600 px) whose centroid drifts 30 px down (1.5x the pan threshold): no drag.
+    TwoFingers p;
+    BeginPose(p, Pose{500, 500, 200, 0});
+    GestureStep total;
+    for (int32_t i = 1; i <= 20; ++i) {
+        const float k = static_cast<float>(i);
+        Accumulate(total, StepPose(p, Pose{500, 500 + 1.5f * k, 200 + 20 * k, 0}));
+    }
+    CHECK(p.pinchEngaged() && !p.panEngaged() && !p.spinEngaged());
+    CHECK(total.dragX == 0.0f && total.dragY == 0.0f && total.yawDegrees == 0.0f);
+    CHECK(Near(total.zoomSteps, std::log(3.0f) / kPinchLogPerStep, 1e-3f));
+
+    // A one-thumb pinch: one finger still, the other out 200 px, so the centroid travels 100 px (5x the pan
+    // threshold). The spread passes its threshold first: zoom only.
+    TwoFingers q;
+    q.Begin(400, 500, 600, 500, 1000.0f);
+    total = GestureStep();
+    for (int32_t i = 1; i <= 20; ++i) {
+        Accumulate(total, q.Step(400, 500, 600 + 10 * static_cast<float>(i), 500));
+    }
+    CHECK(q.pinchEngaged() && !q.panEngaged() && !q.spinEngaged());
+    CHECK(total.dragX == 0.0f && total.dragY == 0.0f);
+    CHECK(Near(total.zoomSteps, std::log(400.0f / 210.0f) / kPinchLogPerStep, 1e-3f));   // from step 2
+}
+
+UNIT_TEST(ext_touch_pointer_gesture_lock_rotate_first) {
+    // A 40-degree turn whose centroid drifts 30 px and whose spread wobbles 5 %: yaw only.
+    TwoFingers r;
+    BeginPose(r, Pose{500, 500, 300, 0});
+    GestureStep total;
+    for (int32_t i = 1; i <= 20; ++i) {
+        const float k = static_cast<float>(i);
+        const float wobble = (i % 2 == 0) ? 15.0f : 0.0f;
+        Accumulate(total, StepPose(r, Pose{500 + 1.5f * k, 500, 300 + wobble, 2.0f * k}));
+    }
+    CHECK(r.spinEngaged() && !r.panEngaged() && !r.pinchEngaged());
+    CHECK(total.dragX == 0.0f && total.dragY == 0.0f && total.zoomSteps == 0.0f);
+    CHECK(Near(total.yawDegrees, 32.0f, 1e-2f));   // engaged at 10 degrees (step 5), then follows
+}
+
+UNIT_TEST(ext_touch_pointer_gesture_lock_join_and_reset) {
+    // Pinch locked: a 15-degree twist (under 3x the spin threshold) is dropped; past 24 degrees spin joins and
+    // follows from that step. Pan never joins, however far the centroid then travels.
+    TwoFingers g;
+    BeginPose(g, Pose{500, 500, 200, 0});
+    GestureStep s = StepPose(g, Pose{500, 500, 240, 0});
+    CHECK(g.pinchEngaged() && s.zoomSteps > 0.0f);
+    s = StepPose(g, Pose{500, 500, 240, 15});
+    CHECK(!g.spinEngaged() && s.yawDegrees == 0.0f);
+    s = StepPose(g, Pose{500, 500, 240, 30});
+    CHECK(g.spinEngaged() && Near(s.yawDegrees, 15.0f, 1e-3f));
+    s = StepPose(g, Pose{700, 500, 240, 30});
+    CHECK(!g.panEngaged() && s.dragX == 0.0f);
+
+    // Lift and touch again: undecided, and a plain drag now pans with no zoom or yaw.
+    BeginPose(g, Pose{500, 500, 200, 0});
+    CHECK(!g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
+    s = StepPose(g, Pose{550, 500, 200, 0});
+    CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
+    CHECK(Near(s.dragX, 0.05f, 1e-5f) && s.zoomSteps == 0.0f && s.yawDegrees == 0.0f);
+    // And the reverse: a pan-locked gesture, lifted, then a pinch zooms.
+    BeginPose(g, Pose{500, 500, 200, 0});
+    s = StepPose(g, Pose{500, 500, 260, 0});
+    CHECK(g.pinchEngaged() && !g.panEngaged() && s.zoomSteps > 0.0f && s.dragX == 0.0f);
 }
 
 UNIT_TEST(ext_touch_pointer_hold_drag_to_world) {
