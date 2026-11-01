@@ -319,6 +319,19 @@ public:
         }
     }
 
+    // Shows the page with this id and puts the window in front.
+    void ActivatePage(const char* pageId) {
+        if (_tabs == nullptr) return;
+        for (const OpenPage& p : _pages) {
+            if (std::string(p.contribution->id) == pageId) {
+                _tabs->SetActiveTab(p.tab);
+                break;
+            }
+        }
+        Object::InternalPtr<UI::DialogInstance> self(this);
+        _ui->BringDialogToFront(&self);
+    }
+
 private:
     // The showing page into SavedWindow().page, when the player switched tabs.
     void RecordShownPage() {
@@ -373,6 +386,16 @@ void OpenWindow(UI::UserInterface* ui) {
 }
 
 }  // namespace
+
+void ShowPage(UI::UserInterface* ui, const char* pageId) {
+    if (ui == nullptr || pageId == nullptr) return;
+    SavedWindow().page = pageId;   // a window that opens now starts on it
+    if (g_open != nullptr) {
+        g_open->ActivatePage(pageId);
+        return;
+    }
+    OpenWindow(ui);
+}
 
 UI::String OurString(const char* key) {
     UI::StringTable* table = OurStringTable();

@@ -73,6 +73,7 @@ const Contribution& RestrictedFoodsPage();
 const Contribution& ItemPriorityPage();
 const Contribution& TerrainEditPage();
 const Contribution& TownScreenshotPage();
+const Contribution& FamilyTreePage();
 
 // The list, and the ones whose row is active for this game (into `out`; returns how many there are,
 // which may exceed `capacity`).
@@ -90,6 +91,10 @@ UI::String OurString(const char* key);
 void SetTableText(UI::Element* e, const char* key);
 // ASCII lower case of a C string (null = empty).
 std::string Lower(const char* s);
+
+// Opens the window on the page whose Contribution::id is `pageId` (brings it to the front when it is open
+// already). For a control elsewhere in the game that leads to a page (the citizen panel's Family button).
+void ShowPage(UI::UserInterface* ui, const char* pageId);
 
 // ---- the button (toolbar_window.cpp; EXT SEAMS in ToolbarDialog) ----
 // Where in the sorted `items` (count `n`) of the Reports group the button goes, or -1 for none: not the

@@ -253,6 +253,9 @@ void InitText() {
     Register("Dialog/TouchPointer", &ProvideText, nullptr);
     Register("Dialog/PhoneScroll", &ProvideText, nullptr);
     Register("Dialog/TownScreenshotPage", &ProvideText, nullptr);
+    Register("Dialog/FamilyTreePage", &ProvideText, nullptr);
+    Register("Dialog/FamilyTreeWindow", &ProvideText, nullptr);
+    Register("Dialog/FamilyTreeSummary", &ProvideText, nullptr);
 }
 
 int TextObjectCount() {

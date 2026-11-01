@@ -60,6 +60,8 @@
 // progress breaks went -- retail 0x140113ca0 tests none of them, and the component is
 // built by its real ctor (toolSceneId -1, so HideTool returns before reading +0x278).
 
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
+#include "ext/family_tree/family_tree.h"
 #include <new>
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/PlayerToolManager.h"   // PlayerToolManager::OnEntityRemoved (0x140103480)
@@ -81,6 +83,8 @@
 // [7] 0x140113ca0 — the removed-from-world broadcast (MarkForRemoval 0x1400c2ea0,
 // flags bit 1): leave the town citizen list.
 void CitizenComponent::OnRemove() {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), a death
+    Ext::FamilyTree::OnRemoved(this);
     // ---- 1. prologue teardown -------------------------------------------------
     HideTool();                                      // 0x1401176e0 (0x140113cb3, no test)
     LeaveSchool('\0');         // 0x140115a50, +0x208

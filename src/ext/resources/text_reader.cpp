@@ -135,6 +135,10 @@ const FieldDesc kButton[] = {
     F("", UInt), F("", UInt), F("", UInt), F("", UInt),
 };
 const FieldDesc kCheck[] = { F("_check", Ext) };   // the element drawn over the button while it is checked
+// UI::EditDescription::Serialize (editdescription.cpp): the font, the starting text, the typed-character
+// limit, the password mask, and the characters it accepts (empty: any).
+const FieldDesc kEdit[] = { F("_font", Ext), F("_text", String), F("_maxLength", Int), F("", Bool),
+                           F("_filter", String) };
 const FieldDesc kCombo[] = { F("", Ext), F("", Ext), F("_initialData", Ext) };
 const FieldDesc kTab[]   = { F("_button", Ext), F("_content", Ext) };
 const FieldDesc kTabDesc[] = {
@@ -184,6 +188,7 @@ const Level kLevels[] = {
     L("ButtonDescription",    "ElementDescription", kButton),
     L("CheckDescription",     "ButtonDescription",  kCheck),
     L("ComboDescription",     "ButtonDescription",  kCombo),
+    L("EditDescription",      "ElementDescription", kEdit),
     L("TabDescription",       "ElementDescription", kTabDesc),
     L("RibbonDescription",    "ElementDescription", kRibbon),
     L("GroupDescription",     "ElementDescription", kGroup),

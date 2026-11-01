@@ -38,13 +38,16 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 11);
+    CHECK(kEmbeddedCount == 14);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/RestrictedFoodsPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ItemPriorityPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/FamilyTreePage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/FamilyTreeWindow.rsc") != nullptr);
+    CHECK(Embedded("Dialog/FamilyTreeSummary.rsc") != nullptr);
     CHECK(Embedded("Dialog/TerrainEditPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/TouchControls.rsc") != nullptr);
     CHECK(Embedded("Dialog/TouchPointer.rsc") != nullptr);
@@ -179,7 +182,14 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(ParseEmbedded("Dialog/ExtensionsStringTable.rsc", s));
     CHECK(s.objects.size() == 1 && s.objects[0].type == "StringTable" && s.objects[0].name == "resource");
     const Field* strings = s.objects[0].body.Find("_strings");
-    CHECK(strings && strings->blocks.size() == 89);   // 70: terrain_edit Redo (NextStartSuffix removed, P9), + 17 for the Town Screenshot page, + 2 for the Never button and its tip
+    // 70: terrain_edit Redo (NextStartSuffix removed, P9), + 17 for the Town Screenshot page, + 2 for the
+    // Never button and its tip, + 3 for the tree window (Show family tree, Details, the title), + 3 for the
+    // picture (button, check box, its tip), + 5 for the Family page, + 3 for its drawn tree (the slide
+    // buttons and the note), + 1 for the citizen panel's Family button and its tip, + 2 for the SVG button
+    // and its tip, + 2 for the search box (its label and tip), + 3 for the town summary (button, title,
+    // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
+    // the picture's main-job check box and its tip
+    CHECK(strings && strings->blocks.size() == 118);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -216,7 +226,7 @@ void CheckKnownTypes(const File& f, const char* file) {
                            o.type == "ButtonDescription" || o.type == "TableDescription" ||
                            o.type == "ContainerDescription" || o.type == "CheckDescription" ||
                            o.type == "ImageDescription" || o.type == "SliderDescription" ||
-                           o.type == "ComboDescription";
+                           o.type == "ComboDescription" || o.type == "EditDescription";
         CHECK(known);
         if (!known) std::printf("  %s:%s has type %s\n", file, o.name.c_str(), o.type.c_str());
     }
@@ -280,6 +290,52 @@ UNIT_TEST(ext_rsc_text_parse_item_priority_page) {
     const Object* rank = f.Find("textItemPriorityRank");
     CHECK(rank && rank->body.Find("_text"));
     CheckKnownTypes(f, "ItemPriorityPage.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_family_tree_page) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/FamilyTreePage.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // a page, not a dialog: the root object is pageFamilyTree
+    const Object* page = f.Find("pageFamilyTree");
+    CHECK(page && page->type == "RibbonDescription");
+    CHECK(f.Find("checkFamilyShowDead") && f.Find("tableFamilyPeople") && f.Find("tableFamilyDetail") &&
+          f.Find("textFamilyDetailTitle") && f.Find("ribbonFamilyPersonCell") && f.Find("buttonFamilyPick") &&
+          f.Find("textFamilyPickName") && f.Find("ribbonFamilyRelationCell") &&
+          f.Find("textFamilyRelation") &&
+          f.Find("buttonFamilyRelated") && f.Find("textFamilyRelatedName") && f.Find("textFamilyInfo"));
+    const Object* related = f.Find("buttonFamilyRelated");
+    CHECK(related && related->base == "Mod.rsc:buttonMod");
+    // the drawn tree's cell templates: the box, the spaces, and the 15 line tiles plus the two gap tiles
+    CHECK(f.Find("ribbonFamilyBox") && f.Find("buttonFamilyBox") && f.Find("textFamilyBoxName") &&
+          f.Find("ribbonFamilySpaceBox") && f.Find("ribbonFamilySpaceLink") && f.Find("imageFamilyGap") &&
+          f.Find("imageFamilyGapStem") && f.Find("buttonFamilyShowTree") && f.Find("buttonFamilyImage") &&
+          f.Find("checkFamilyImageLiving") && f.Find("textFamilyImageStatus"));
+    for (int m = 1; m <= 15; ++m) CHECK(f.Find(("imageFamilyLink" + std::to_string(m)).c_str()) != nullptr);
+    CHECK(f.Find("tableFamilyTree") == nullptr);   // the tree itself is the window's
+    CHECK(f.Find("buttonFamilyCitizen") && f.Find("textFamilyCitizen"));   // the citizen panel's button
+    CheckKnownTypes(f, "FamilyTreePage.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_family_tree_window) {
+    File w;
+    CHECK(ParseEmbedded("Dialog/FamilyTreeWindow.rsc", w));
+    CHECK(w.Find("resource") != nullptr);   // a dialog: the tree window
+    CHECK(w.Find("dialogRoot") && w.Find("dialogBody") && w.Find("ribbonFamilyTreeBar")
+          && w.Find("ribbonFamilyTree"));
+    CHECK(w.Find("buttonFamilyTreeLeft") && w.Find("buttonFamilyTreeRight")
+          && w.Find("buttonFamilyTreeDetails") &&
+          w.Find("tableFamilyTree") && w.Find("ribbonFamilyTreeRow"));
+    CheckKnownTypes(w, "FamilyTreeWindow.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_family_tree_summary) {
+    File w;
+    CHECK(ParseEmbedded("Dialog/FamilyTreeSummary.rsc", w));
+    CHECK(w.Find("resource") != nullptr);   // a dialog: the town summary window
+    CHECK(w.Find("dialogRoot") && w.Find("dialogBody") && w.Find("textFamilySummaryNote")
+          && w.Find("ribbonFamilySummary") &&
+          w.Find("containerFamilySummaryBox") && w.Find("tableFamilySummary"));
+    CheckKnownTypes(w, "FamilyTreeSummary.rsc");
 }
 
 // The element flags our pages may set (`Flags _flags = ExpandWidth;`): the kit's names with the bits the engine
