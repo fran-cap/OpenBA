@@ -8,7 +8,15 @@ Runs the Windows debug exe with an Android device's screen, so the phone / table
 tools/device_sim.sh tablet --screenshot shot.png          # build, run, shot, quit (~30 s after the build)
 tools/device_sim.sh phone --no-build --ui 42 --view game  # the owner's UI 42, no harness dialogs
 tools/device_sim.sh tablet --panels eventlog,town --tap 0.5,0.5
+tools/device_sim.sh tablet --set ext.touch_mode_pad_scale=0 --set ext.phone_menu_safe_margin=0
+tools/device_sim.sh phone --view options                  # Options open on its Enhanced tab
 ```
+
+`--set KEY=VALUE` (repeatable) writes one more settings.cfg key after the profile's; the saved settings.cfg is
+put back after the run as usual. `--view options` opens the pause menu at frame 600, clicks its Options button
+(MainMenuDialog id 4) 60 frames later with `GameLastOption=4` so the dialog opens on the Enhanced tab, takes the
+shot 120 frames after that, and ends the run by its own process id once the shot is written (nothing in the
+harness clicks the dialog shut).
 
 Options are in the script's header. It uses the functional game dir only
 (`tools/game_dirs.sh env device-sim functional`). It saves that dir's `settings.cfg`, writes the profile into
@@ -49,8 +57,9 @@ They also write the windowed size (`VideoWindowWidth/Height`, `VideoFullscreen=f
 - **Render scale.** Windows renders at full size (`RenderScale()` is 1.0 there; the `VideoRenderScale` key is
   written but ignored). The layout is the same (above). The frame is sharper than the phone's upscaled
   half-resolution frame, and rounding of a fraction can differ by a pixel.
-- **The safe area is the extension's 4.5 %, not the device's cut-outs.** No Android insets exist on Windows;
-  `ext.phone_menu` does not read them on Android either.
+- **The safe area is the extension's margin, not the device's cut-outs.** `ext.phone_menu_safe_margin`, 3.375 % of
+  the height by default (`--set` another). No Android insets exist on Windows; `ext.phone_menu` does not read
+  them on Android either.
 - **Fingers are one synthetic tap.** `BANISHED_FINGER_TAP` pushes an SDL finger down / move / up into the
   event queue, at a window fraction. `ext.touch_pointer` takes it as a touch screen's. With a building armed,
   the tap aims it (the ghost sits `touch_pointer_lift` device pixels above the finger) and the action bar shows.

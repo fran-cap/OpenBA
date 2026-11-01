@@ -192,13 +192,28 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   `tools/ext_resources.sh` re-run so the kit cross-check unit test passes (the stale-kit trap).
 - `ext.touch_mode_toolbar_scale`: a value key in `kValueKeys`, owner `touch_mode`, discrete
   100 / 125 / 150 / 175 / 200, default 200 (the ruled "about 2x", fitted per §3).
+- `ext.touch_mode_pad_scale` (issue #96): a discrete value key, owner `touch_mode`, 0 | 50 | 60 | 75 | 100 | 125,
+  default 100. The cluster's cell, gap and frame are this percent of their fractions of the short edge
+  (`touch_math.h` `LayoutCluster`'s `scale`); 0 hides the cluster (no dialog, nothing to hit) and gives the toolbar's
+  region the whole safe width. **Default rule:** 100 % is the cluster's own size before the key (it never followed
+  the toolbar scale: the cluster was always 0.11 of the short edge), so an install without the key looks the same.
+- `ext.touch_mode_action_bar_scale` (issue #96): a discrete value key, owner `touch_mode`, 50 | 60 | 75 | 100 | 125,
+  default 100: ext.touch_pointer's placement bar (place / rotate / flip / cancel). Its cell is this percent of the
+  cluster's scale-1 cell (`TouchMode::BaseCell()`), its gap and frame likewise, whatever the pad's scale. **Default
+  rule:** the bar always took the cluster's cell, so 100 % is the bar as it was. The aim marker keeps the scale-1 cell.
+  The key is owned by this row (the cell it scales is the cluster's) though the bar is ext.touch_pointer's.
 - `ext.touch_mode_zoom_min` (P11d, `docs/android/P11D_ZOOM.md`): a range value key, owner `touch_mode`, 6 .. 20,
   default 10: the camera's near zoom limit while the row is on (retail's is 20), for every zoom input (the zoom
   buttons, the pinch, keys, the wheel); `touch_math.h` `NearZoomLimit`. settings.cfg only, no Enhanced-tab entry.
 - **Enhanced tab** (`src/ext/touch_mode/enhanced_entry.cpp`, `Ext::EnhancedTab::TouchModeEntry()`), one
   combo built like Frame rate cap: "Touch controls": Off / Toolbar 100 % / 125 % / 150 % / 175 % / 200 %.
   Picking a size sets the value key and turns the row on. Labels are new keys in
-  `ExtensionsStringTable.rsc`.
+  `ExtensionsStringTable.rsc`. Issue #96 adds "Camera pad" (Off / 50 % .. 125 %) and "Placement bar"
+  (50 % .. 125 %) to the same contribution, one value key each, and the tab's "Touch screen" group (a header row at
+  the top of the Enhanced page: Touch controls, Camera pad, Placement bar, Touch pointer, Screen edge margin), then
+  a "General" header over the other rows. A header row, not a sixth tab: the one page already scrolls on the phone,
+  and a second tab would need a second page resource, the contributions split per page and the last-tab restore
+  taught another index, on a dialog whose five tab buttons already fill its width.
 - **Android seed** (`app_android.cpp` first-run lines, appended to an existing file through
   `phone_seed.h`): `ext.touch_mode=1`, `ext.touch_mode_toolbar_scale=200`.
 - No `BANISHED_*` flag, no `getenv`.

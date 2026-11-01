@@ -7,6 +7,12 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 ## Unreleased
 
 **Extensions**
+- Touch screens (issue #96): the camera pad, the placement bar and the screen-edge margin now have their own
+  sizes, in a new "Touch screen" group at the top of the Options Enhanced tab. "Camera pad" Off / 50 % to 125 %
+  (`ext.touch_mode_pad_scale`; Off hides the pad for gesture-only play and gives the toolbar the whole bottom
+  edge), "Placement bar" 50 % to 125 % (`ext.touch_mode_action_bar_scale`), and "Screen edge margin" None / 2 % /
+  3.4 % / 4.5 % / 6 % (`ext.phone_menu_safe_margin`; None puts panels on a tablet's edges). The defaults are the
+  sizes they had, so nothing changes until a player picks another.
 - Natural tree growth (`ext.better_trees`): in spring the deciduous trees now flower, each on its own
   schedule for a week or two. Plum, cherry, peach, pear and apple carry white and pink blossom, and the
   early ones flower on bare branches. Oak, birch, pecan and chestnut carry catkins. Modded trees get a pale

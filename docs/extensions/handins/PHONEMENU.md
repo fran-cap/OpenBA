@@ -78,6 +78,16 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
   20). The S25's corner radius is about 3.5 % of the 1080-pixel height and the cut-out about 3 % deep;
   the margin clears the cut-out, a dialog's own frame keeps its content off the rounded corners, and it
   moves nothing centred on a desktop.
+  **The player's choice** (issue #96): `ext.phone_menu_safe_margin`, a discrete value key owned by this row,
+  in thousandths of a percent of the height: 0 (None) | 2000 | 3375 (default) | 4500 (P7's) | 6000. The
+  default is `kSafeMarginFraction` itself (`SafeMarginFractionOf(3375)` returns the constant, not
+  3375 / 100000), so a phone with no key is unchanged bit for bit. Every safe-area reader goes through
+  `phone_math.h` `SafeMargin`, which reads the key: the main menu (`InsetLayout`, the row band, the version
+  line), every other dialog (`SafeArea`), the tall-dialog fit and touch_scroll (`touch_math.cpp`), the hold
+  tip, and ext.touch_mode's cluster and toolbar and ext.touch_pointer's bar (their `Margin`; with this row on,
+  None is no margin at all, not the 2 % desktop margin). A tablet without cut-outs picks None and the panels
+  sit on the screen's edges. The Enhanced tab's "Screen edge margin" combo (`src/ext/phone_menu/enhanced_entry.cpp`,
+  `Ext::EnhancedTab::PhoneMenuEntry()`) sets it, in the tab's "Touch screen" group; live.
 * **Every other dialog** (P8, 2026-10-25: the owner saw the in-game toolbar under the S25's corner). What
   retail anchors to an edge sits inside the same safe area. `DialogInstance::ComputeLayout` (0x180113d90)
   puts a dialog at `_upperLeftX + x` (left / top alignment), against `right` less its width (right /
