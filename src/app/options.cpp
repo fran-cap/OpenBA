@@ -100,6 +100,7 @@ void OptionsInit() {
     o.inputTrace = On("BANISHED_INPUT_TRACE");
     o.background = On("BANISHED_BACKGROUND");
     o.userDir = Raw("BANISHED_USER_DIR");
+    o.windowAnySize = On("BANISHED_WINDOW_ANY_SIZE");
 
     // ── harness drivers: menu → game ─────────────────────────────────────────
     o.autostart       = On("BANISHED_AUTOSTART");
@@ -361,6 +362,7 @@ void OptionsInit() {
     o.fencedRuns          = Raw("BANISHED_FENCED_RUNS");
     o.fencedSide          = Raw("BANISHED_FENCED_SIDE");
     o.utilityTemplate     = Raw("BANISHED_UTILITY_TEMPLATE");
+    o.fingerTap           = Raw("BANISHED_FINGER_TAP");
     o.mapTestPattern      = Raw("BANISHED_MAP_TESTPATTERN");
     o.dlgSettingsRoute    = Raw("BANISHED_DLGSETTINGS_ROUTE");
     o.housePanelIndex     = Raw("BANISHED_HOUSEPANEL_INDEX");

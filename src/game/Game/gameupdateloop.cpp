@@ -1265,16 +1265,24 @@ post_simulation:
         // BANISHED_CAMERA_PIN (which make framing reproducible run to run) this
         // turns a visual regression into a file two runs can diff.
         {
+            // A ",ui" suffix (tools/device_sim.sh) raises the quickload bit instead: Draw's step 13 takes
+            // the same shot after the interface is drawn, as retail's with-UI screenshot key does.
             static const char* const ssEnv = Opt().screenshotAt;
             static const int32_t ssAt = ssEnv ? std::atol(ssEnv) : -1;
+            static const bool ssWithUi = ssEnv != nullptr && std::strstr(ssEnv, ",ui") != nullptr;
             static int32_t ssFrame = 0;
             static bool ssFired = false;
             ++ssFrame;
             if (ssAt >= 0 && !ssFired && ssFrame >= ssAt) {
                 ssFired = true;
-                m_quickSavePressed = 1;
+                if (ssWithUi) {
+                    m_quickLoadPressed = 1;
+                } else {
+                    m_quickSavePressed = 1;
+                }
                 std::fprintf(stderr, "[Screenshot] BANISHED_SCREENSHOT_AT=%d reached at frame %d"
-                                     " -- raising the TakeScreenshot request bit\n", ssAt, ssFrame);
+                                     " -- raising the TakeScreenshot request bit (%s)\n", ssAt, ssFrame,
+                             ssWithUi ? "with the interface" : "scene only");
             }
             // BANISHED_SHOWROOM (src/diag/showroom.h): the same request bit, once per
             // building, after the camera pin has framed it.

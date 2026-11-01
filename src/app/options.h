@@ -55,6 +55,12 @@ struct Options {
                                         //   holds settings.cfg, Save\, Cache\); tools/game_dirs.sh sets it for the functional
                                         //   dir. Handed to Platform::SetUserDirOverride by main.cpp; nothing else reads it.
 
+    // ── harness: the device simulator (tools/device_sim.sh) ───────────────
+    bool windowAnySize = false;         // BANISHED_WINDOW_ANY_SIZE: the Win32 window may be larger than the desktop
+                                        //   (src/platform/win/window_hook_win.cpp lifts WM_GETMINMAXINFO's max track
+                                        //   size), so a 3392x2400 tablet window keeps its size on a 1440-high monitor.
+                                        //   tools/device_sim.sh sets it; inert off Windows.
+
     // ── harness drivers: menu → game (src/diag/autostart.cpp) ──────────────
     bool        autostart            = false;  // Makefile sa-run, tools/cutover_run.sh, perf/mintsel, CLAUDE.md
     int         autostartFrames      = 0;      //   numeric value > 1 overrides the 60-frame menu settle; 0 = default
@@ -189,7 +195,9 @@ struct Options {
     const char* forceDeviceLost      = nullptr;// BANISHED_FORCE_DEVICE_LOST — src/render/dx11/contextdata.cpp; "bgsave" =
                                                //   on the first Present after a background save starts (src/diag/device_lost_drive.h);
                                                //   the Vulkan reader is src/render/vulkan/device.cpp (VK_ERROR_DEVICE_LOST)
-    const char* screenshotAt         = nullptr;// BANISHED_SCREENSHOT_AT — gameupdateloop.cpp
+    const char* screenshotAt         = nullptr;// BANISHED_SCREENSHOT_AT=<frame>[,ui] — gameupdateloop.cpp; ",ui" takes retail's
+                                               //   with-interface shot (the quickload bit) instead of the scene-only
+                                               //   one; tools/device_sim.sh sets it
     const char* showroom             = nullptr;// BANISHED_SHOWROOM=<template list> — src/diag/showroom.cpp; set by the
                                                //   issue #13 showroom run script (scratchpad showroom/run.sh)
     const char* captureIngame        = nullptr;// BANISHED_CAPTURE_INGAME — gameupdateloop.cpp
@@ -286,6 +294,8 @@ struct Options {
     const char* mouseTarget          = nullptr;// #name | @x,y | an element id
 
     // ── the tool/placement harness (src/diag/tool_harness.cpp) [no tool reader]
+    // except the route tools/device_sim.sh drives: BANISHED_TOOL_HARNESS=utility with a comma list in
+    // BANISHED_UTILITY_TEMPLATE, BANISHED_PLACEMENT_TEMPLATE and BANISHED_FINGER_TAP.
     const char* toolHarness          = nullptr;
     const char* placementTemplate    = nullptr;
     const char* placementCell        = nullptr;
@@ -297,6 +307,9 @@ struct Options {
     const char* fencedRuns           = nullptr;
     const char* fencedSide           = nullptr;
     const char* utilityTemplate      = nullptr;
+    const char* fingerTap            = nullptr;// BANISHED_FINGER_TAP=<fx>,<fy>[,<frames>] — one synthetic finger tap at that
+                                               //   fraction of the window, <frames> (default 30) after the harness
+                                               //   fires (tool_harness.cpp); tools/device_sim.sh sets it
     const char* mapTestPattern       = nullptr;
     const char* dlgSettingsRoute     = nullptr;
     const char* housePanelIndex      = nullptr;
