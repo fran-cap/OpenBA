@@ -48,8 +48,8 @@ int32_t Cell();
 // (issue #96; before the keys the bar took Cell(), the same number at the default 100 %).
 int32_t BaseCell();
 
-// True while the cluster dialog is open (the camera seam calls CameraInput while the row is on
-// OR this, so a row switched off closes it).
+// True while the cluster dialog or the corner camera buttons' dialog (issue #96, ext.touch_mode_camera_buttons) is
+// open (the camera seam calls CameraInput while the row is on OR this, so a row switched off closes them).
 bool Shown();
 
 // PlayerToolManager::UpdateCamera, after the keys set the locals and before ext.eye_camera's zoom:

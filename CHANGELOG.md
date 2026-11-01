@@ -13,6 +13,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   edge), "Placement bar" 50 % to 125 % (`ext.touch_mode_action_bar_scale`), and "Screen edge margin" None / 2 % /
   3.4 % / 4.5 % / 6 % (`ext.phone_menu_safe_margin`; None puts panels on a tablet's edges). The defaults are the
   sizes they had, so nothing changes until a player picks another.
+- Touch screens (issue #96, the reporter's follow-up): "Corner camera buttons" in the same group, Off / 50 % to
+  125 % (`ext.touch_mode_camera_buttons`, Off by default): rotate left / right and zoom in / out as a compact block
+  of four in the upper right, held like the camera pad's own buttons. Independent of the pad, so a player can use
+  the pad, the corner buttons, both, or neither (gestures only).
 - Natural tree growth (`ext.better_trees`): in spring the deciduous trees now flower, each on its own
   schedule for a week or two. Plum, cherry, peach, pear and apple carry white and pink blossom, and the
   early ones flower on bare branches. Oak, birch, pecan and chestnut carry catkins. Modded trees get a pale

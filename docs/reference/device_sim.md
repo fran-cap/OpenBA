@@ -64,7 +64,9 @@ They also write the windowed size (`VideoWindowWidth/Height`, `VideoFullscreen=f
 - **Fingers are one synthetic tap.** `BANISHED_FINGER_TAP` pushes an SDL finger down / move / up into the
   event queue, at a window fraction. `ext.touch_pointer` takes it as a touch screen's. With a building armed,
   the tap aims it (the ghost sits `touch_pointer_lift` device pixels above the finger) and the action bar shows.
-  A real mouse event in the 3 s that follow hides the bar again (`kMouseHideSeconds`).
+  A real mouse event in the 3 s that follow hides the bar again (`kMouseHideSeconds`). `--tap FX,FY,DELAY,HOLD`
+  keeps the finger down HOLD frames (a motion event each frame), so a held control acts: on a camera button it
+  rotates or zooms for that long (ext.touch_mode's `[TouchMode] press` / `held` lines give the camera before and after).
 - **Panels open where the game puts them.** `--panels` opens the toolbar's utility panels through the
   harness (`BANISHED_TOOL_HARNESS=utility`). They all open at the same top-left anchor, so the last one opened
   covers the others. `town` (`Template\UtilityStatusBar.rsc`) resolves and opens, but nothing showed in the

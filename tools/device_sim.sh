@@ -26,7 +26,9 @@
 #                      (GameLastOption=4; the run is ended once the shot is written)
 #   --panels LIST      the utility panels --view panels opens, in order, comma separated, from
 #                      professions, town, eventlog, limits, map, help (default professions,town,eventlog)
-#   --tap FX,FY        where the finger lands, as fractions of the window (default 0.62,0.42)
+#   --tap FX,FY[,DELAY[,HOLD]]  where the finger lands, as fractions of the window (default 0.62,0.42);
+#                      DELAY frames after the harness (default 30), held HOLD frames (default 1: a tap; a
+#                      longer hold presses a held control such as a camera button)
 #   --building T       the armed template (default Template\WoodHouse.rsc)
 #   --set KEY=VALUE    one more settings.cfg key, written after the profile's (repeatable; e.g.
 #                      --set ext.touch_mode_pad_scale=0). The saved settings.cfg is put back after.

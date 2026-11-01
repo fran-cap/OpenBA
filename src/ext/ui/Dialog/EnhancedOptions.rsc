@@ -25,6 +25,7 @@ StringTable aoStrings
 		{ String _name = "TouchGroup";		String _text = "Touch screen"; }
 		{ String _name = "GeneralGroup";	String _text = "General"; }
 		{ String _name = "TouchPad";		String _text = "Camera pad"; }
+		{ String _name = "TouchCameraButtons";	String _text = "Corner camera buttons"; }
 		{ String _name = "TouchActionBar";	String _text = "Placement bar"; }
 		{ String _name = "PhoneSafeMargin";	String _text = "Screen edge margin"; }
 		{ String _name = "DerivedCache";	String _text = "Data cache on disk"; }
@@ -172,6 +173,20 @@ StringTable touchPadItems
 	]
 }
 
+// Corner camera buttons (issue #96, the reporter's follow-up): ext.touch_mode_camera_buttons 0 (none) / 50 / 75 /
+// 100 / 125 percent of the pad's button at pad 100 %.
+StringTable touchCameraButtonItems
+{
+	Entry _strings
+	[
+		{ String _name = "Item0";		String _text = "Off";		}
+		{ String _name = "Item1";		String _text = "50%";		}
+		{ String _name = "Item2";		String _text = "75%";		}
+		{ String _name = "Item3";		String _text = "100%";		}
+		{ String _name = "Item4";		String _text = "125%";		}
+	]
+}
+
 // Placement bar (issue #96): ext.touch_mode_action_bar_scale 50 / 60 / 75 / 100 / 125 percent; 100 = as before.
 StringTable touchActionBarItems
 {
@@ -274,46 +289,48 @@ TableDescription enhancedOptionsTable
 	Alignment _alignment = TopLeft;
 
 	int _width = 2;
-	int _height = 19;
+	int _height = 20;
 
 	TableItem _items
 	[
 		{ int _x = 0; int _y = 0; ElementDescription _element = "textTouchGroup"; }
 		{ int _x = 0; int _y = 1; ElementDescription _element = "textTouchMode"; }
 		{ int _x = 0; int _y = 2; ElementDescription _element = "textTouchPad"; }
-		{ int _x = 0; int _y = 3; ElementDescription _element = "textTouchActionBar"; }
-		{ int _x = 0; int _y = 4; ElementDescription _element = "textTouchPointer"; }
-		{ int _x = 0; int _y = 5; ElementDescription _element = "textPhoneSafeMargin"; }
-		{ int _x = 0; int _y = 6; ElementDescription _element = "textGeneralGroup"; }
-		{ int _x = 0; int _y = 7; ElementDescription _element = "textAoQuality"; }
-		{ int _x = 0; int _y = 8; ElementDescription _element = "textAoOpacity"; }
-		{ int _x = 0; int _y = 9; ElementDescription _element = "textBetterTrees"; }
-		{ int _x = 0; int _y = 10; ElementDescription _element = "textNaturalGrowth"; }
-		{ int _x = 0; int _y = 11; ElementDescription _element = "textBetterWater"; }
-		{ int _x = 0; int _y = 12; ElementDescription _element = "textMaxShadowRes"; }
-		{ int _x = 0; int _y = 13; ElementDescription _element = "textSeamlessLoops"; }
-		{ int _x = 0; int _y = 14; ElementDescription _element = "textTextureQuality"; }
-		{ int _x = 0; int _y = 15; ElementDescription _element = "textRenderScale"; }
-		{ int _x = 0; int _y = 16; ElementDescription _element = "textFpsCap"; }
-		{ int _x = 0; int _y = 17; ElementDescription _element = "textDerivedCache"; }
+		{ int _x = 0; int _y = 3; ElementDescription _element = "textTouchCameraButtons"; }
+		{ int _x = 0; int _y = 4; ElementDescription _element = "textTouchActionBar"; }
+		{ int _x = 0; int _y = 5; ElementDescription _element = "textTouchPointer"; }
+		{ int _x = 0; int _y = 6; ElementDescription _element = "textPhoneSafeMargin"; }
+		{ int _x = 0; int _y = 7; ElementDescription _element = "textGeneralGroup"; }
+		{ int _x = 0; int _y = 8; ElementDescription _element = "textAoQuality"; }
+		{ int _x = 0; int _y = 9; ElementDescription _element = "textAoOpacity"; }
+		{ int _x = 0; int _y = 10; ElementDescription _element = "textBetterTrees"; }
+		{ int _x = 0; int _y = 11; ElementDescription _element = "textNaturalGrowth"; }
+		{ int _x = 0; int _y = 12; ElementDescription _element = "textBetterWater"; }
+		{ int _x = 0; int _y = 13; ElementDescription _element = "textMaxShadowRes"; }
+		{ int _x = 0; int _y = 14; ElementDescription _element = "textSeamlessLoops"; }
+		{ int _x = 0; int _y = 15; ElementDescription _element = "textTextureQuality"; }
+		{ int _x = 0; int _y = 16; ElementDescription _element = "textRenderScale"; }
+		{ int _x = 0; int _y = 17; ElementDescription _element = "textFpsCap"; }
+		{ int _x = 0; int _y = 18; ElementDescription _element = "textDerivedCache"; }
 
 		{ int _x = 1; int _y = 1; ElementDescription _element = "comboTouchMode"; }
 		{ int _x = 1; int _y = 2; ElementDescription _element = "comboTouchPad"; }
-		{ int _x = 1; int _y = 3; ElementDescription _element = "comboTouchActionBar"; }
-		{ int _x = 1; int _y = 4; ElementDescription _element = "comboTouchPointer"; }
-		{ int _x = 1; int _y = 5; ElementDescription _element = "comboPhoneSafeMargin"; }
-		{ int _x = 1; int _y = 7; ElementDescription _element = "comboAoQuality"; }
-		{ int _x = 1; int _y = 8; ElementDescription _element = "sliderAoOpacity"; }
-		{ int _x = 1; int _y = 9; ElementDescription _element = "comboBetterTrees"; }
-		{ int _x = 1; int _y = 10; ElementDescription _element = "comboNaturalGrowth"; }
-		{ int _x = 1; int _y = 11; ElementDescription _element = "comboBetterWater"; }
-		{ int _x = 1; int _y = 12; ElementDescription _element = "comboMaxShadowRes"; }
-		{ int _x = 1; int _y = 13; ElementDescription _element = "comboSeamlessLoops"; }
-		{ int _x = 1; int _y = 14; ElementDescription _element = "comboTextureQuality"; }
-		{ int _x = 1; int _y = 15; ElementDescription _element = "comboRenderScale"; }
-		{ int _x = 1; int _y = 16; ElementDescription _element = "comboFpsCap"; }
-		{ int _x = 1; int _y = 17; ElementDescription _element = "textDerivedCacheSize"; }
-		{ int _x = 1; int _y = 18; ElementDescription _element = "buttonDerivedCacheClear"; }
+		{ int _x = 1; int _y = 3; ElementDescription _element = "comboTouchCameraButtons"; }
+		{ int _x = 1; int _y = 4; ElementDescription _element = "comboTouchActionBar"; }
+		{ int _x = 1; int _y = 5; ElementDescription _element = "comboTouchPointer"; }
+		{ int _x = 1; int _y = 6; ElementDescription _element = "comboPhoneSafeMargin"; }
+		{ int _x = 1; int _y = 8; ElementDescription _element = "comboAoQuality"; }
+		{ int _x = 1; int _y = 9; ElementDescription _element = "sliderAoOpacity"; }
+		{ int _x = 1; int _y = 10; ElementDescription _element = "comboBetterTrees"; }
+		{ int _x = 1; int _y = 11; ElementDescription _element = "comboNaturalGrowth"; }
+		{ int _x = 1; int _y = 12; ElementDescription _element = "comboBetterWater"; }
+		{ int _x = 1; int _y = 13; ElementDescription _element = "comboMaxShadowRes"; }
+		{ int _x = 1; int _y = 14; ElementDescription _element = "comboSeamlessLoops"; }
+		{ int _x = 1; int _y = 15; ElementDescription _element = "comboTextureQuality"; }
+		{ int _x = 1; int _y = 16; ElementDescription _element = "comboRenderScale"; }
+		{ int _x = 1; int _y = 17; ElementDescription _element = "comboFpsCap"; }
+		{ int _x = 1; int _y = 18; ElementDescription _element = "textDerivedCacheSize"; }
+		{ int _x = 1; int _y = 19; ElementDescription _element = "buttonDerivedCacheClear"; }
 	]
 }
 
@@ -342,6 +359,7 @@ TextDescription textTouchPointer : "textAoOption" { String _text = "TouchPointer
 TextDescription textTouchGroup : "textAoOption" { String _text = "TouchGroup"; Color _color = 0xFFFFFFFF; int _topPad = 5; int _bottomPad = 3; }
 TextDescription textGeneralGroup : "textAoOption" { String _text = "GeneralGroup"; Color _color = 0xFFFFFFFF; int _topPad = 5; int _bottomPad = 3; }
 TextDescription textTouchPad : "textAoOption" { String _text = "TouchPad"; }
+TextDescription textTouchCameraButtons : "textAoOption" { String _text = "TouchCameraButtons"; }
 TextDescription textTouchActionBar : "textAoOption" { String _text = "TouchActionBar"; }
 TextDescription textPhoneSafeMargin : "textAoOption" { String _text = "PhoneSafeMargin"; }
 // The cache row's label and size take the combo rows' spacing (a combo row is 26 + 3 high, its label
@@ -451,6 +469,13 @@ ComboDescription comboTouchPad : "Options.rsc:comboAutosave"
 	int _minWidth = 180;
 	int _bottomPad = 3;
 	StringTable _initialData = "EnhancedOptions.rsc:touchPadItems";
+}
+
+ComboDescription comboTouchCameraButtons : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:touchCameraButtonItems";
 }
 
 ComboDescription comboTouchActionBar : "Options.rsc:comboAutosave"

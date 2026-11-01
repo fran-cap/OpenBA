@@ -74,6 +74,35 @@ float PadScaleOfPercent(int32_t percent) {
     return static_cast<float>(percent) / 100.0f;
 }
 
+Cluster LayoutCornerButtons(int32_t width, int32_t height, int32_t margin, int32_t top, float scale) {
+    Cluster c;
+    const int32_t shortEdge = width < height ? width : height;
+    if (shortEdge <= 0 || scale <= 0.0f) return c;
+    const float s = static_cast<float>(shortEdge);
+    c.baseCell = Round(s * kCellFraction);
+    c.cell = Round(s * kCellFraction * scale);
+    c.gap = Round(s * kGapFraction * scale);
+    c.frame = Round(s * kFrameFraction * scale);
+    c.margin = margin;
+    // The pad's zoom button at this scale (LayoutCluster).
+    const int32_t buttonW = Round(1.4f * static_cast<float>(c.cell));
+    const int32_t buttonH = (3 * c.cell - c.gap) / 2;
+    const int32_t boxW = 2 * buttonW + c.gap + 2 * c.frame;
+    const int32_t boxH = 2 * buttonH + c.gap + 2 * c.frame;
+    const int32_t boxX = width - margin - boxW;
+    const int32_t boxY = top > margin ? top : margin;
+    const int32_t leftX = boxX + c.frame;
+    const int32_t rightX = leftX + buttonW + c.gap;
+    const int32_t upperY = boxY + c.frame;
+    const int32_t lowerY = upperY + buttonH + c.gap;
+    c.control[kRotateLeft] = Make(leftX, upperY, buttonW, buttonH);
+    c.control[kRotateRight] = Make(rightX, upperY, buttonW, buttonH);
+    c.control[kZoomIn] = Make(leftX, lowerY, buttonW, buttonH);
+    c.control[kZoomOut] = Make(rightX, lowerY, buttonW, buttonH);
+    c.box = Rect{boxX, boxY, boxX + boxW, boxY + boxH};
+    return c;
+}
+
 float ToolbarScale(float requested, int32_t regionWidth, int32_t ownWidth) {
     float k = requested;
     if (ownWidth > 0 && regionWidth > 0) {

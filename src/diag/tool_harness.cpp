@@ -954,13 +954,15 @@ void FireUtilityDialog() {
     }
 }
 
-// BANISHED_FINGER_TAP=<fx>,<fy>[,<frames>] (tools/device_sim.sh): one finger put down, held one frame and
-// lifted at that fraction of the window, <frames> (default 30) after the harness fired. The events are
+// BANISHED_FINGER_TAP=<fx>,<fy>[,<frames>[,<hold>]] (tools/device_sim.sh): one finger put down, held <hold> frames
+// (default 1; a motion event each frame, at the same point) and lifted at that fraction of the window, <frames>
+// (default 30) after the harness fired. A long hold presses a held control (ext.touch_mode's camera buttons). The events are
 // pushed into SDL's queue, so the pump hands them to Platform::Touch's sink exactly as a touch screen's
 // would: with ext.touch_pointer on, a tap on the world under a placement tool aims it and shows the
 // action bar. Without a sink (the row off) nothing reads them.
 int   s_ft_frame = -1;   // the frame the finger goes down; -1 = not armed
-int   s_ft_step = 0;     // 0 down, 1 move, 2 up, 3 done
+int   s_ft_step = 0;     // 0 down, 1 .. s_ft_hold move, s_ft_hold + 1 up, then done
+int   s_ft_hold = 1;     // the frames the finger stays down
 float s_ft_x = 0.5f;
 float s_ft_y = 0.5f;
 
@@ -970,34 +972,41 @@ void ArmFingerTap(int frameNum) {
     float fx = 0.5f;
     float fy = 0.5f;
     int delay = 30;
-    const int n = std::sscanf(e, "%f,%f,%d", &fx, &fy, &delay);
+    int hold = 1;
+    const int n = std::sscanf(e, "%f,%f,%d,%d", &fx, &fy, &delay, &hold);
     if (n < 2) {
-        fprintf(stderr, "[ToolHarness] BANISHED_FINGER_TAP=\"%s\" not <fx>,<fy>[,<frames>]; no tap\n", e);
+        fprintf(stderr, "[ToolHarness] BANISHED_FINGER_TAP=\"%s\" not <fx>,<fy>[,<frames>[,<hold>]]; no tap\n", e);
         return;
     }
+    s_ft_hold = hold > 0 ? hold : 1;
     s_ft_x = fx;
     s_ft_y = fy;
     s_ft_frame = frameNum + (delay > 0 ? delay : 1);
     s_ft_step = 0;
-    fprintf(stderr, "[ToolHarness] finger tap armed at %.3f,%.3f for frame %d\n", fx, fy, s_ft_frame);
+    fprintf(stderr, "[ToolHarness] finger tap armed at %.3f,%.3f for frame %d, held %d frame(s)\n", fx, fy,
+            s_ft_frame, s_ft_hold);
 }
 
 void FingerTapTick(int frameNum) {
-    if (s_ft_frame < 0 || s_ft_step > 2 || frameNum < s_ft_frame + s_ft_step) return;
-    static const Uint32 kTypes[3] = {SDL_EVENT_FINGER_DOWN, SDL_EVENT_FINGER_MOTION, SDL_EVENT_FINGER_UP};
+    if (s_ft_frame < 0 || s_ft_step > s_ft_hold + 1 || frameNum < s_ft_frame + s_ft_step) return;
+    const bool down = s_ft_step == 0;
+    const bool up = s_ft_step == s_ft_hold + 1;
     SDL_Event ev;
     std::memset(&ev, 0, sizeof(ev));
-    ev.type = kTypes[s_ft_step];
+    ev.type = down ? SDL_EVENT_FINGER_DOWN : (up ? SDL_EVENT_FINGER_UP : SDL_EVENT_FINGER_MOTION);
     ev.tfinger.timestamp = SDL_GetTicksNS();
     ev.tfinger.touchID = 0x0BA5;   // any id but SDL_MOUSE_TOUCHID / SDL_PEN_TOUCHID: a touch screen's
     ev.tfinger.fingerID = 1;
     ev.tfinger.x = s_ft_x;
     ev.tfinger.y = s_ft_y;
-    ev.tfinger.pressure = s_ft_step == 2 ? 0.0f : 1.0f;
+    ev.tfinger.pressure = up ? 0.0f : 1.0f;
     const bool pushed = SDL_PushEvent(&ev);
-    fprintf(stderr, "[ToolHarness] finger %s at %.3f,%.3f (frame %d)%s\n",
-            s_ft_step == 0 ? "down" : (s_ft_step == 1 ? "move" : "up"), s_ft_x, s_ft_y, frameNum,
-            pushed ? "" : " -- SDL_PushEvent refused it");
+    // One line for the down, the first move and the up (a long hold sends a move every frame).
+    if (s_ft_step <= 1 || up || !pushed) {
+        fprintf(stderr, "[ToolHarness] finger %s at %.3f,%.3f (frame %d)%s\n",
+                down ? "down" : (up ? "up" : "move"), s_ft_x, s_ft_y, frameNum,
+                pushed ? "" : " -- SDL_PushEvent refused it");
+    }
     ++s_ft_step;
 }
 

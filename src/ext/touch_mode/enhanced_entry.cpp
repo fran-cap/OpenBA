@@ -7,7 +7,8 @@
 // Issue #96: two more combos of the same row, each one value key, item i = the key's i-th choice
 // (registry.cpp kTouchPadScales / kTouchActionBarScales): "Camera pad" Off / 50 % .. 125 %
 // (ext.touch_mode_pad_scale) and "Placement bar" 50 % .. 125 % (ext.touch_mode_action_bar_scale). Neither
-// touches the row's bool; both are live.
+// touches the row's bool; both are live. Issue #96 (the reporter's follow-up): "Corner camera buttons" Off / 50 % ..
+// 125 % (ext.touch_mode_camera_buttons), the same kind of combo, under Camera pad.
 
 #include "ext/enhanced_tab/enhanced_tab.h"
 #include "ext/registry.h"
@@ -23,6 +24,7 @@ namespace {
 
 UI::ComboElement* g_combo = nullptr;
 UI::ComboElement* g_pad = nullptr;
+UI::ComboElement* g_cameraButtons = nullptr;
 UI::ComboElement* g_actionBar = nullptr;
 
 constexpr int32_t kScales[] = { 0, 100, 125, 150, 175, 200 };   // the combo's items, in order
@@ -42,6 +44,8 @@ void Open(UI::Element* page) {
     if (g_combo != nullptr) g_combo->SetCurrentItem(item);
     g_pad = FindElement<UI::ComboElement>(page, "comboTouchPad");
     OpenChoiceCombo(g_pad, "touch_mode_pad_scale");
+    g_cameraButtons = FindElement<UI::ComboElement>(page, "comboTouchCameraButtons");
+    OpenChoiceCombo(g_cameraButtons, "touch_mode_camera_buttons");
     g_actionBar = FindElement<UI::ComboElement>(page, "comboTouchActionBar");
     OpenChoiceCombo(g_actionBar, "touch_mode_action_bar_scale");
     std::fprintf(stderr, "[TouchMode] combo=%p items=%d item=%d, pad %p, placement bar %p\n",
@@ -51,6 +55,7 @@ void Open(UI::Element* page) {
 
 void Apply() {
     ApplyChoiceCombo(g_pad, "touch_mode_pad_scale", "[TouchMode]");
+    ApplyChoiceCombo(g_cameraButtons, "touch_mode_camera_buttons", "[TouchMode]");
     ApplyChoiceCombo(g_actionBar, "touch_mode_action_bar_scale", "[TouchMode]");
     if (g_combo == nullptr) return;
     const int item = g_combo->_currentItem;
@@ -61,6 +66,7 @@ void Apply() {
 void Close() {
     g_combo = nullptr;
     g_pad = nullptr;
+    g_cameraButtons = nullptr;
     g_actionBar = nullptr;
 }
 
