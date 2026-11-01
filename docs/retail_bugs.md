@@ -652,3 +652,33 @@ those without an absorb component.
 `HARNESS_FIXES=foundation_piles` PASSes (3 of 3; one run moved 18 piles off the town hall's footprint,
 two cleared without a move because store room freed first). These runs predate the ClearArea return fix
 (row 1343); the yard's part of each result is from before it.
+
+## 18. A synchronous path query waits for every citizen search queued before it
+
+**Symptom.** In a large town (about 1600 citizens, a 640-cell map, game speed 10) the game freezes for
+15 to 20 seconds, sometimes longer, when a merchant boat sets off for a trading post. The same wait can hit
+the road tool's cost query. Unattended runs end it as a hang (`standalone_hang.log`: the main thread in
+`RunPathQuery` under `BoatComponent::SetDestination`, the pathfinder thread in `GridPathSearch::Run`).
+
+**Retail mechanism.** There is one pathfinder worker (`PathfinderThread`) with one FIFO of commands
+(tail `+0x60`, head `+0x68`, count `+0x70`). Citizens' walks queue their searches there (`Map::RequestPath`
+-> `0x1400a6c10`, command 5) and poll for the answer later. The synchronous query `0x1400a6e30` (port:
+`RunPathQuery`, `src/game/Action/keystone_a_zone.cpp`) queues its search the same way, at the tail, and then
+spins on the main thread (`YieldToThreads`) until its result slot is ready. Its callers are the boat route
+builder (`BoatComponent::SetDestination` `0x1400456e0` via `0x14009ffc0`) and the road tool (`0x14009ce00`).
+So the main thread waits until every command queued before the query has run.
+
+**Proof it is retail.** The order is the port's faithful transcription of `0x1400a6c10` (claim a slot,
+then queue command 5 at the tail), `0x1400a6e30` (the spin) and the worker loop (pop the head, apply).
+Measured on a copy of a player's save (six runs, 20 min each budget): when the merchant's query was
+queued behind 1899 / 2509 commands (1063 / 1199 searches, citizen walks of up to ~50 ms each), it took
+19.4 s / 17.6 s; behind 1 to 19 commands it took 0 to 15 ms. Retail itself was not run on that town.
+
+**Lever.** Queue the synchronous query at the HEAD, with the search settings the caller queued just before
+it (the main thread's staged passable mask, step costs and search flags), and put the worker's own settings
+back after it, so every command behind it runs as before. The query then waits for at most the search the
+worker is in.
+
+Fix: `fix.path_query_first` (tier 1), default on, off under `/profile:faithful`. One seam reads the row,
+`RunPathQuery`; the worker runs the query as command 6 (`PathfinderThread::ApplyCommand`). Code
+`src/ext/path_query_first/`. Hand-in `docs/extensions/handins/PATHQUERYFIRST.md`.

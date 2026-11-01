@@ -46,6 +46,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   finishes properly. Before, it kept its construction storage, so a house finished that way took no food
   or firewood. Buildings already finished that way in an existing save are not repaired
   (`docs/known_port_issues.md` row 1345).
+- Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
+  Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
+  `docs/known_port_issues.md` row 1344).
+- `fix.path_query_first` (on): in a large town the game no longer freezes for 15 to 20 seconds when a
+  merchant boat sets off, or while a road is drawn. Retail queues that path query behind every citizen
+  route search already waiting; with the fix it is answered first, and those citizens get their routes a
+  few ticks later (`docs/retail_bugs.md` section 18). Off under `/profile:faithful`.
 - A crash in large towns at high game speed (`ext.render_culling`): a citizen or building removed while
   offscreen no longer leaves entries behind that the next frame without a game tick writes through. Seen
   after 7.8 hours in a 1588-citizen town (`docs/known_port_issues.md` row 1346).

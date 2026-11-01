@@ -133,6 +133,16 @@ const Entry kEntries[] = {
       "outside its footprint, so the building can go ahead instead of waiting for them to rot.",
       0, [](State& s) -> bool& { return s.fix.foundation_piles; } },
 
+    // PATHQUERYFIRST (docs/extensions/handins/PATHQUERYFIRST.md, docs/retail_bugs.md section 18): the
+    // synchronous path query (a merchant boat's water route, the road tool's cost query) runs at the head of
+    // the pathfinder's queue instead of behind every queued citizen search. Sim-visible timing: those
+    // citizens get their paths a few ticks later. Nothing new is saved.
+    { "path_query_first", Tier::Fix, Class::None, true,
+      "No freeze when a merchant arrives",
+      "In a large town a merchant boat or a road being drawn no longer freezes the game while every "
+      "citizen route queued before it is worked out.",
+      0, [](State& s) -> bool& { return s.fix.path_query_first; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).
