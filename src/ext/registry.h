@@ -80,6 +80,7 @@ struct Fixes {
 struct Extensions {
     bool eye_camera = false;   // class A: src/ext/eye_camera/ (docs/extensions/handins/EYECAM.md)
     bool no_fog = false;       // class A: src/ext/no_fog/ (docs/extensions/handins/NOFOG.md)
+    bool show_grid = false;    // class A: src/ext/show_grid/ (docs/extensions/handins/SHOWGRID.md)
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
     bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 + steady tilt
     bool high_limits = false;   // class B: src/ext/high_limits/ (docs/extensions/handins/HIGHLIMITS.md)
@@ -166,6 +167,17 @@ struct Values {
     int32_t touch_mode_pad_scale = 100; // ext.touch_mode_pad_scale 0 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): the camera pad cluster's size in percent of its own (a cell of 0.11 of the short edge), 0 = the cluster hidden; 100 = the size it always had (issue #96, docs/android/TOUCH_MODE.md section 5)
     int32_t touch_mode_action_bar_scale = 100; // ext.touch_mode_action_bar_scale 50 | 60 | 75 | 100 | 125 (owner touch_mode): ext.touch_pointer's placement bar (place / rotate / flip / cancel) in percent of the cluster's 100 % cell, whatever the pad's own scale; 100 = the size it always had (issue #96)
     int32_t touch_mode_camera_buttons = 0; // ext.touch_mode_camera_buttons 0 | 50 | 75 | 100 | 125 (owner touch_mode): the corner camera buttons (rotate left / right, zoom in / out, a 2x2 block in the upper right) in percent of the pad's button at pad 100 %, 0 = none (issue #96, docs/android/TOUCH_MODE.md section 3a)
+    // ext.show_grid_shade 0..100 (owner show_grid): the lines' grey in percent, 100 = white, 0 = black
+    int32_t show_grid_shade = 100;
+    // ext.show_grid_width 1..30 (owner show_grid): the lines' width in hundredths of a tile (a bold line is
+    // two thirds wider)
+    int32_t show_grid_width = 6;
+    int32_t show_grid_hue = 0;        // ext.show_grid_hue 0..359 (owner show_grid): the lines' hue in degrees
+    // ext.show_grid_saturation 0..100 (owner show_grid): 0 grey or white, 100 the pure hue
+    int32_t show_grid_saturation = 0;
+    // ext.show_grid_opacity 10..100 (owner show_grid): how strong the grid lines are, in percent; the
+    // bold lines are stronger still
+    int32_t show_grid_opacity = 75;
     int32_t touch_mode_zoom_min = 10; // ext.touch_mode_zoom_min 6..20 (owner touch_mode): the camera's near zoom limit in distance units while the row is on, retail's 20 otherwise (docs/android/P11D_ZOOM.md)
     int32_t touch_pointer_lift = 160; // ext.touch_pointer_lift 0 | 80 | 120 | 160 | 200 | 240 (owner touch_pointer): the aim point's height above the finger, device pixels (docs/android/P11_TOUCH_POINTER.md)
     int32_t touch_pointer_pick_radius = 50; // ext.touch_pointer_pick_radius 0 | 25 | 50 | 75 | 100 (owner touch_pointer): the pick snap's radius, device pixels

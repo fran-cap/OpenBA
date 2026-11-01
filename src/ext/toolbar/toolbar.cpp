@@ -12,7 +12,7 @@ namespace Toolbar {
 const Contribution* const* All(int* n) {
     static const Contribution* const list[] = { &RestrictedFoodsPage(), &ItemPriorityPage(),
                                                 &TerrainEditPage(), &TownScreenshotPage(),
-                                                &FamilyTreePage() };
+                                                &FamilyTreePage(), &ShowGridPage() };
     *n = static_cast<int>(sizeof(list) / sizeof(list[0]));
     return list;
 }

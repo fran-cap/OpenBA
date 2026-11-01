@@ -116,6 +116,7 @@
 #include "platform/common/cpu/topology.h"    // Cpu::Get().physical
 #include "ext/eye_camera/eye_camera.h"
 #include "ext/touch_pointer/touch_pointer.h"   // ToolAimHeld: the tool flag (P11b)
+#include "ext/show_grid/show_grid.h"   // the grid, drawn under the tool (step 11)
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/ambient_occlusion/ambient_occlusion.h"   // AOCORE: the AO arm, recorded into the packet
 #include "options.h"
@@ -449,6 +450,10 @@ struct EngineOps {
         if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
             hasInput = false;
         const char toolFlag = (hasInput || pauseCheck) ? 1 : 0;
+        // ext.show_grid (docs/extensions/handins/SHOWGRID.md): GameUpdateLoop::Draw's same seam, under the
+        // tool, with or without one. Row off: nothing.
+        if (Ext::Ext().show_grid && Ext::ShowGrid::Shown())
+            Ext::ShowGrid::Draw(ctx);
         if (tool != nullptr) tool->Draw(ctx, toolFlag);
     }
     void UIDraw(const Packet& p) {

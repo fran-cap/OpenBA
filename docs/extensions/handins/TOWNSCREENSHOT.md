@@ -24,7 +24,7 @@ The player's own camera is never moved (the tile camera is a copy of it).
 
 ## 2. Why class B
 
-Class A would be the honest class: a screenshot changes nothing about how a town plays and records nothing. But the extension window and its pages are built on B / C rows (the window is recorded and locked with the game: `docs/extensions/handins/EXTHOSTS.md`; `ext_toolbar_every_page_names_a_registered_class_b_or_c_extension`), and a page-less class A row would have no way for the player to take a screenshot. So the row is B (off by default, locked for the game, the faithful profile turns it off), with no state of its own. If the window should one day offer pages to class A rows, the row moves to A and nothing else changes.
+Class A would be the honest class: a screenshot changes nothing about how a town plays and records nothing. But the extension window and its pages are built on B / C rows (the window is recorded and locked with the game: `docs/extensions/handins/EXTHOSTS.md`; the toolbar page test required B / C until `ext.show_grid`, 2026-11-01: `ext_toolbar_every_page_names_a_registered_extension`), and a page-less class A row would have no way for the player to take a screenshot. So the row is B (off by default, locked for the game, the faithful profile turns it off), with no state of its own. If the window should one day offer pages to class A rows, the row moves to A and nothing else changes.
 
 ## 3. The seams
 

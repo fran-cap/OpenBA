@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 14);
+    CHECK(kEmbeddedCount == 15);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -54,6 +54,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/TouchPointer.rsc") != nullptr);
     CHECK(Embedded("Dialog/PhoneScroll.rsc") != nullptr);
     CHECK(Embedded("Dialog/TownScreenshotPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/ShowGridPage.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -200,9 +201,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // buttons and the note), + 1 for the citizen panel's Family button and its tip, + 2 for the SVG button
     // and its tip, + 2 for the search box (its label and tip), + 3 for the town summary (button, title,
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
-    // the picture's main-job check box and its tip
+    // the picture's main-job check box and its tip, + 10 for the Grid page,
     // + 2 for the Game files menu button and its tip (issue #96)
-    CHECK(strings && strings->blocks.size() == 120);
+    CHECK(strings && strings->blocks.size() == 130);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -382,6 +383,18 @@ UNIT_TEST(ext_rsc_text_element_flags) {
     CHECK(row && row->body.Find("_minWidth") == nullptr);
     const Object* label = p.Find("labelItemPriorityRow");
     CHECK(label && label->body.Find("_minWidth") == nullptr);
+}
+
+UNIT_TEST(ext_rsc_text_parse_show_grid_page) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/ShowGridPage.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // a page, not a dialog: the root object is pageShowGrid
+    const Object* page = f.Find("pageShowGrid");
+    CHECK(page && page->type == "RibbonDescription");
+    const Object* shown = f.Find("checkShowGridShown");
+    CHECK(shown && shown->type == "CheckDescription");
+    CHECK(f.Find("sliderShowGridOpacity") && f.Find("sliderShowGridShade") && f.Find("sliderShowGridWidth"));
+    CheckKnownTypes(f, "ShowGridPage.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_town_screenshot_page) {

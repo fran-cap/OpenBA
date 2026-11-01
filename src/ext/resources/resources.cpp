@@ -256,6 +256,7 @@ void InitText() {
     Register("Dialog/FamilyTreePage", &ProvideText, nullptr);
     Register("Dialog/FamilyTreeWindow", &ProvideText, nullptr);
     Register("Dialog/FamilyTreeSummary", &ProvideText, nullptr);
+    Register("Dialog/ShowGridPage", &ProvideText, nullptr);
 }
 
 int TextObjectCount() {
