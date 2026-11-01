@@ -67,6 +67,7 @@
 #include "Game/PlayerToolManager.h"
 #include "ui/DialogController.h"
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
+#include "ext/registry.h"           // Ext::Fix().ui_scale_layout (the CreateBar position seam)
 
 namespace {
 
@@ -386,7 +387,12 @@ void PlayerToolManager::UpdateCreateBar(int param_2, int param_3,
         *cachedY = static_cast<float>(screenY);
     }
 
-    dialog->SetUpperLeft(static_cast<int>(*cachedX), static_cast<int>(*cachedY), true);
+    // FIX SEAM (fix.ui_scale_layout, NOT RETAIL; docs/retail_bugs.md section 5): fe960 already scaled the rect
+    // by the UI scale (layout units), and retail's SetUpperLeft(.., true) at 0x1401000c7 scales it again, so
+    // below 100 % the bar lands toward the screen's upper-left (a phone's 50 %: at half the ghost's position).
+    // With the row on the position is passed as the layout units it already is. Off: retail's double scale.
+    const bool scaled = !Ext::Fix().ui_scale_layout;
+    dialog->SetUpperLeft(static_cast<int>(*cachedX), static_cast<int>(*cachedY), scaled);
     {
         static bool s_posLogged = false;
         if (!s_posLogged) {
