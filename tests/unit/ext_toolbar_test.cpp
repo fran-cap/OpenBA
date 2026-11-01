@@ -9,6 +9,7 @@
 #include "unit.h"
 #include "ext/registry.h"
 #include "ext/item_priority/item_priority.h"
+#include "ext/family_tree/family_tree.h"
 #include "ext/restricted_foods/restricted_foods.h"
 #include "ext/toolbar/toolbar.h"
 #include "io/settings_file.h"
@@ -62,6 +63,13 @@ const Ext::Toolbar::Contribution& Ext::Toolbar::TerrainEditPage() {
     return c;
 }
 
+const Ext::Toolbar::Contribution& Ext::Toolbar::FamilyTreePage() {
+    static const Contribution c = { Ext::FamilyTree::kId, Ext::FamilyTree::kPageCaption,
+                                   Ext::FamilyTree::kPageRsc,
+                                    StubOpen, StubChanged, StubClose };
+    return c;
+}
+
 const Ext::Toolbar::Contribution& Ext::Toolbar::TownScreenshotPage() {
     static const Contribution c = { "town_screenshot", "TownScreenshotTab", "Dialog/TownScreenshotPage.rsc:pageTownScreenshot",
                                     StubOpen, StubChanged, StubClose };
@@ -89,7 +97,7 @@ UNIT_TEST(ext_toolbar_a_page_is_offered_while_its_row_is_active) {
     CHECK_EQ(Ext::Toolbar::ActivePages(none, 0), 1);
     CHECK(none[0] == nullptr);
     int n = 0;
-    CHECK(Ext::Toolbar::All(&n) != nullptr && n == 4);
+    CHECK(Ext::Toolbar::All(&n) != nullptr && n == 5);
     Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
 }
 

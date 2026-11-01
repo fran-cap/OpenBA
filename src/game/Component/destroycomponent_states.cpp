@@ -151,8 +151,8 @@ extern "C" ComponentEntity* g_pConstructionDemoEntity;
 
 // Drop the construction-demo pointers when the building being retired owns them; they
 // would otherwise dangle at a freed BuildComponent, and a reused heap block landing on
-// the same address would compare equal to it in BuildComponent_DemoGateSkip. The spawn
-// path retargets them to the replacement immediately afterwards.
+// the same address would compare equal to it in the construction force harness. The
+// spawn path retargets them to the replacement immediately afterwards.
 static void Destroy_ReleaseDemoSite(BuildComponent* buildComp) {
     if (buildComp && g_pConstructionDemoSite == buildComp) {
         g_pConstructionDemoSite   = nullptr;

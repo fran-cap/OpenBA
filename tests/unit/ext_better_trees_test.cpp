@@ -93,6 +93,8 @@ struct Shape {
     bool     relCb0    = false;          // the offset reads cb0[r0.w + 4] (relative)
     bool     relCb3    = false;          // an instance read cb3[r3.w + 0] after the first taint (renamed sub-operand)
     int      filler    = 0;              // extra unrelated instructions (lighting-like)
+    bool     grow      = false;          // C = v0 * cb3[r5.w + 0].w + cb3[r5.w + 3] (retail: scaled by the growth, translated)
+    bool     noInput   = false;          // C is loaded from cb0[8], not from a vertex input
 };
 
 // v0 = position, cb0 rows 0..3 worldToProjection, 4..7 worldToCamera, 8 cameraPosition;
@@ -105,11 +107,18 @@ Tokens Program(const Shape& s) {
       i.End(Op::DclConstantBuffer); }
     { Ins i(t); t.push_back(6); i.End(Op::DclTemps); }
     // 0: mov r0.xyz, v0.xyz                    the card centre (shared)
-    { Ins i(t); Dst(t, OT::Temp, 0, 7); Swz(t, OT::Input, 0, kXYZW); i.End(Op::Mov); }
+    if (s.noInput) { Ins i(t); Dst(t, OT::Temp, 0, 7); Cb(t, 0, 8); i.End(Op::Mov); }
+    else { Ins i(t); Dst(t, OT::Temp, 0, 7); Swz(t, OT::Input, 0, kXYZW); i.End(Op::Mov); }
     // 1: mov r3.xyz, v1.xyz                    the world normal N
     { Ins i(t); Dst(t, OT::Temp, 3, 7); Swz(t, OT::Input, 1, kXYZW); i.End(Op::Mov); }
     // 2: mov r5.w, l(0)                        an index register (for the relative variants)
     { Ins i(t); Dst(t, OT::Temp, 5, 8); Enc::ImmScalar(t, 0.0f); i.End(Op::Mov); }
+    if (s.grow) {
+        // 2a: mul r0.xyz, r0.xyzx, cb3[r5.w + 0].wwww   the instance scale (the growth)
+        { Ins i(t); Dst(t, OT::Temp, 0, 7); Swz(t, OT::Temp, 0, kXYZW); CbRel(t, 3, 0, 5, 3, Enc::Rep(3)); i.End(Op::Mul); }
+        // 2b: add r0.xyz, r0.xyzx, cb3[r5.w + 3].xyzx   the instance translation T
+        { Ins i(t); Dst(t, OT::Temp, 0, 7); Swz(t, OT::Temp, 0, kXYZW); CbRel(t, 3, 3, 5, 3); i.End(Op::Add); }
+    }
     // 3: mul r1.xyz, r3.yyyy, cb0[5].xyzx      camera-space normal (tainted from here)
     { Ins i(t); Dst(t, OT::Temp, 1, 7); Swz(t, OT::Temp, 3, Enc::Rep(1));
       if (s.relCb0) CbRel(t, 0, 5, 5, 3); else Cb(t, 0, 5); i.End(Op::Mul); }
@@ -291,8 +300,9 @@ void IdentityShadow(Vm& vm) {
 
 // The rewrite means: o0 / o1 as the original, and with an identity shadow matrix the shadow output is
 //   P' = P + (basis dot(C - P, L) - (margin + jitter (2 frc(C.K) - 1)) |C - P|) L
-// where P is the original's shadow position, C = v0 (the card centre) and L = cb2[3].xyz.
-void CheckMeaning(const std::vector<uint8_t>& orig, const std::vector<uint8_t>& xf) {
+// where P is the original's shadow position, C the card centre (v0, or v0 * s + T with `grow`) and
+// L = cb2[3].xyz; the hash reads v0 and T only (THE HASH: never the scale s).
+void CheckMeaning(const std::vector<uint8_t>& orig, const std::vector<uint8_t>& xf, bool grow = false) {
     for (uint32_t salt = 1; salt <= 6; ++salt) {
         Vm a, b;
         Seed(a, salt);
@@ -308,13 +318,17 @@ void CheckMeaning(const std::vector<uint8_t>& orig, const std::vector<uint8_t>& 
         xv = pv;
         CHECK(Run(pv, orig));
         CHECK(Run(xv, xf));
-        float C[3], P[3], L[3], d[3];
+        float C[3], P[3], L[3], d[3], T[3];
+        const float sc = grow ? pv.cb[3][0][3] : 1.0f;
         for (int k = 0; k < 3; ++k) {
-            C[k] = pv.v[0][k]; P[k] = pv.o[3][k]; L[k] = pv.cb[2][3][k]; d[k] = C[k] - P[k];
+            T[k] = grow ? pv.cb[3][3][k] : 0.0f;
+            C[k] = pv.v[0][k] * sc + T[k]; P[k] = pv.o[3][k]; L[k] = pv.cb[2][3][k]; d[k] = C[k] - P[k];
         }
         auto dot = [](const float* u, const float* v) { return u[0] * v[0] + u[1] * v[1] + u[2] * v[2]; };
-        // the hash, in the interpreter's own float order (dp3 = x*x + y*y + z*z, then frc)
-        const float hd = C[0] * BbsRewrite::kHashX + C[1] * BbsRewrite::kHashY + C[2] * BbsRewrite::kHashZ;
+        // the hash, in the interpreter's own float order (dp3 = x*x + y*y + z*z, add, then frc)
+        const float hv = pv.v[0][0] * BbsRewrite::kHashX + pv.v[0][1] * BbsRewrite::kHashY + pv.v[0][2] * BbsRewrite::kHashZ;
+        const float ht = T[0] * BbsRewrite::kTreeX + T[1] * BbsRewrite::kTreeY + T[2] * BbsRewrite::kTreeZ;
+        const float hd = hv + ht;
         const float h = hd - std::floor(hd);
         const BbsRewrite::Params k = BbsRewrite::kDefaultParams;
         const float e = h * (2.0f * k.jitter) + (k.margin - k.jitter);
@@ -340,10 +354,11 @@ void CheckMeaning(const std::vector<uint8_t>& orig, const std::vector<uint8_t>& 
 
 UNIT_TEST(ext_better_trees_receiver_match_and_meaning) {
     for (int filler = 0; filler < 3; ++filler) {
-        for (int rel = 0; rel < 2; ++rel) {
+        for (int rel = 0; rel < 4; ++rel) {
             Shape s;
             s.filler = filler;
-            s.relCb3 = rel != 0;
+            s.relCb3 = (rel & 1) != 0;
+            s.grow   = (rel & 2) != 0;
             const std::vector<uint8_t> b = Blob(s);
             const BbsRewrite::Match m = Analyse(b);
             CHECK(m.container && m.program && m.vertex && m.candidate);
@@ -363,8 +378,44 @@ UNIT_TEST(ext_better_trees_receiver_match_and_meaning) {
             for (const Dxbc::Instr& in : m2.prog.instrs)
                 if (in.opcode == Op::DclTemps) temps2 = m2.prog.tokens[in.offset + 1];
             CHECK_EQ(temps2, 9u);   // T + 3
-            CheckMeaning(b, out);
+            CheckMeaning(b, out, s.grow);
         }
+    }
+}
+
+// THE HASH (TS-GROW): the lookup of a growing tree does not re-roll. Two runs that differ only in the
+// instance scale (cb3[0].w) move each card's cut by its scaled extent, never by a new hash: with
+// jitter alone (basis 0, margin 0) e / r is the same in both.
+UNIT_TEST(ext_better_trees_receiver_hash_ignores_growth) {
+    Shape s;
+    s.grow = true;
+    const std::vector<uint8_t> b = Blob(s);
+    const BbsRewrite::Match m = Analyse(b);
+    CHECK(m.matched);
+    CHECK(m.inputIdx >= 0);
+    CHECK(m.xlateIdx >= 0);
+    std::vector<uint8_t> out;
+    BbsRewrite::Params k = BbsRewrite::kDefaultParams;
+    k.basis = 0.0f;
+    k.margin = 0.0f;
+    CHECK(BbsRewrite::TransformWithParams(m, &out, k));
+    for (uint32_t salt = 1; salt <= 6; ++salt) {
+        float ratio[2] = {};
+        for (int run = 0; run < 2; ++run) {
+            Vm vm;
+            Seed(vm, salt);
+            IdentityShadow(vm);
+            vm.cb[3][0][3] = run == 0 ? 0.9f : 0.9009f;   // a 0.1% growth step
+            Vm pv = vm;
+            CHECK(Run(pv, b));
+            CHECK(Run(vm, out));
+            const float* L = vm.cb[2][3];
+            float along = 0.0f;
+            for (int c = 0; c < 3; ++c) along += (vm.o[3][c] - pv.o[3][c]) * L[c];   // = -e r
+            const float r = -vm.o[3][3];
+            if (r > 1e-3f) ratio[run] = -along / r;   // = e, from the hash alone
+        }
+        CHECK(std::fabs(ratio[0] - ratio[1]) < 1e-3f);
     }
 }
 
@@ -558,6 +609,11 @@ UNIT_TEST(ext_better_trees_receiver_refusals) {
         Shape s; s.flow = true;
         const BbsRewrite::Match m = Analyse(Blob(s));
         CHECK(!m.matched);
+    }
+    {
+        Shape s; s.noInput = true;   // the centre is not a vertex input: no growth-stable hash, kept retail
+        const BbsRewrite::Match m = Analyse(Blob(s));
+        CHECK(m.candidate && !m.matched);
     }
     {
         Shape s; s.relCb0 = true;   // a relative gc read: which rows it reads is unknown

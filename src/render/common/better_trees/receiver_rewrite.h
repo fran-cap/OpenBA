@@ -23,7 +23,7 @@
 //
 // THE LOOKUP (TS-DAPPLE, `Transform`): keep P's light-space position (the texel retail samples) and move
 // the depth along the light by a per-card amount:
-//     d = C - P,  r = |d|,  h = frc(dot(C, K)) (a hash of the card centre, K = (12.9898, 78.233, 37.719)),
+//     d = C - P,  r = |d|,  h = frc(dot(V, K) + dot(T, Kt)) (see THE HASH),
 //     e = margin + jitter (2 h - 1),
 //     P' = P + (basis dot(d, L) - e r) L,      L = lc.nearPlane.xyz (the sun direction)
 // With basis 0, margin 0, jitter 0 the lookup is retail's (P' = P). Retail's look inside a crown is
@@ -39,8 +39,23 @@
 // reads of P are pointed at P'. `dcl_temps` + 3; every other token is the user's own.
 //
 // NOTE (TS-HASH, handins/TS-CORE.md): the card's four corners carry four different base positions
-// (a small rectangle, not one shared centre), so C and the hash differ per VERTEX; the cut inside a
+// (a small rectangle, not one shared centre), so the hash differs per VERTEX; the cut inside a
 // card is the bilinear blend of four corner offsets. A per-texel term needs the pixel shader:
+//
+// THE HASH (TS-GROW). It must not move while a tree grows. C is the instance-transformed position, and
+// retail scales it by the instance's growth (tc.transforms[i] rows 0..2 .w, eased every frame by
+// GrowthComponent::PostUpdate, also while the game is paused at speed 0): a 0.1% size step moves C
+// by ~0.005 units, which re-rolls frc(C . K) entirely, so every growing tree's cuts jumped frame to
+// frame (a shimmer on the crowns, worst after a spell at high speed). The hash therefore reads two
+// inputs the growth never touches:
+//     V = the vertex input C is loaded from (`itof` / `mov rC.xyz, v#`, the model-space position;
+//         after an itof scaled by kInputUnit, retail's own `mul ..., 0.00195312`), and
+//     T = the instance translation tc.transforms[i] row 3 (cb3[rI + 3]), read just before retail's
+//         first read of it while its index register is live; a program without that read hashes V
+//         alone (T = 0).
+// Emitted as `itof|mov rV.xyz, v#` + `dp3 rV.x, rV.xyz, K'` after the input load and
+// `dp3 rV.w, cb3[rI + 3].xyz, Kt` before the translation read (or `mov rV.w, l(0)`); the lookup adds
+// them. A program whose C does not come from a vertex input is refused (kept retail).
 //
 // THE EXTENT (BETTER-TREES, edge_dither.h): after the shadow output's last write, `o<shadow>.w =
 // -(r * |lc.shadowProjection[0] row 2 .xyz|)`, the card's half extent in depth units, NEGATIVE so a
@@ -80,7 +95,9 @@ struct Params {
 };
 constexpr Params kDefaultParams{0.0f, -0.05f, 0.4f, 0.05f, 32.0f};   // the user's ruling 2026-10-17: noise 0.05, scale 32
 constexpr Params kRetailParams{0.0f, 0.0f, 0.0f, 0.0f, 64.0f};   // the lookup is retail's exactly
-constexpr float  kHashX = 12.9898f, kHashY = 78.233f, kHashZ = 37.719f;   // K above
+constexpr float  kHashX = 12.9898f, kHashY = 78.233f, kHashZ = 37.719f;   // K above (on V)
+constexpr float  kTreeX = 0.1031f, kTreeY = 0.1030f, kTreeZ = 0.0973f;    // Kt above (on T, world units)
+constexpr float  kInputUnit = 1.0f / 512.0f;   // an integer position input's unit (retail: itof, then * 0.00195312)
 
 struct Match {
     bool        container = false;   // parsed as DXBC with an SHDR / SHEX chunk
@@ -99,6 +116,9 @@ struct Match {
     int             insertAt      = -1;  // instruction index of the first shadow-matrix instruction
     int             centerIdx     = -1;  // instruction index of `add P, C, offset`
     int             centerOperand = 0;   // which of its operands is C (1 or 2)
+    int             inputIdx      = -1;  // THE HASH: instruction index of `itof|mov rC.xyz, v#` (C's input load)
+    int             xlateIdx      = -1;  // THE HASH: the first read of cb3[rI + 3] before centerIdx (-1: none)
+    int             xlateOperand  = 0;   // which of its operands that is
     int             extentIdx     = -1;  // instruction index of the shadow output's last write (the extent goes after it)
 };
 

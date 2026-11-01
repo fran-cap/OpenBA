@@ -21,6 +21,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
+  billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the
+  tree's growth scale, and retail eases that scale a little every frame (also while paused with Space, and
+  most after a spell at high speed), so each step re-rolled the cut. The hash now reads the card's model
+  position and the tree's map position, which growth never changes (`receiver_rewrite.h` "THE HASH").
 - `fix.foundation_piles` (on): a building placed over trees or rocks no longer stalls forever when the
   town's storage is full. Retail leaves the felled logs and stone on the site, because no store will take
   them, and the site never finishes (the piles rot a year later). With the fix, citizens carry those piles
@@ -37,6 +42,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   `standalone_error.log` in released builds. A tester's 2-hour session had written a 1 GB log. The
   plague, tornado and citizen-vitals traces are now off unless `BANISHED_PLAGUE_TRACE=1`,
   `BANISHED_TORNADO_TRACE=1` or `BANISHED_VITALS=1` is set.
+- Construction after a load: a building that was under construction when the game was saved now
+  finishes properly. Before, it kept its construction storage, so a house finished that way took no food
+  or firewood. Buildings already finished that way in an existing save are not repaired
+  (`docs/known_port_issues.md` row 1345).
 - A crash in large towns at high game speed (`ext.render_culling`): a citizen or building removed while
   offscreen no longer leaves entries behind that the next frame without a game tick writes through. Seen
   after 7.8 hours in a 1588-citizen town (`docs/known_port_issues.md` row 1346).

@@ -166,18 +166,18 @@ bool Stale() {
 
 // <saveDir>\Screenshots\TownScreenshot<N>.png, the first N that does not exist; empty when there is no save
 // directory.
-std::string NextScreenshotPath() {
+std::string NextScreenshotPath(const char* stem = "TownScreenshot", const char* extension = "png") {
     const ::IO::FileSystem* fileSys = ::IO::FileSystem::_singleton;
     if (fileSys == nullptr) return std::string();
-    System::Filename base = [fileSys]() {
+    System::Filename base = [fileSys, stem]() {
         System::Filename saveDir(fileSys->GetSaveDirectory());
-        System::String joined(saveDir.AsString() + "\\Screenshots\\TownScreenshot");
+        System::String joined(saveDir.AsString() + "\\Screenshots\\" + stem);
         return System::Filename(joined);
     }();
     System::Filename path;
     int index = 1;
     do {
-        System::String suffix(System::String::Format("%i.%s", index, "png"));
+        System::String suffix(System::String::Format("%i.%s", index, extension));
         System::String full(base.AsString() + suffix);
         path = full;
         ++index;
@@ -372,6 +372,20 @@ void Finish() {
 }
 
 }  // namespace
+
+std::string SaveInScreenshots(const char* stem, const char* extension, const void* data, size_t size) {
+    const std::string path = NextScreenshotPath(stem, extension);
+    if (path.empty() || !WriteFileBytes(path, data, size)) return std::string();
+    return path;
+}
+
+std::string SavePngInScreenshots(const char* stem, std::vector<uint8_t>& rgba, int width, int height) {
+    if (width <= 0 || height <= 0
+        || rgba.size() < static_cast<size_t>(width) * static_cast<size_t>(height) * 4u) return std::string();
+    const std::string path = NextScreenshotPath(stem, "png");
+    if (path.empty() || !WritePng(path, rgba, width, height)) return std::string();
+    return path;
+}
 
 Choices& Choose() {
     return g_choices;

@@ -39,6 +39,8 @@
 // global-scope `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once
 // <windows.h> has been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
 #include "graphics/Geometry.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
+#include "ext/family_tree/family_tree.h"
 #include <new>
 #include "err_line.h"   // HITCH_POSTDRAIN: one write per diagnostic line
 #include "object/TypeInfo.h"
@@ -263,6 +265,9 @@ extern "C" void Cemetery_SpawnTombstone_6a90(CemeteryComponent* cem, int cell,
 // Citizen death handler. Returns 1 (handled) or 0 when the world is in the
 // bit-8 state at +0xd0 (loading/shutdown) — retail early-outs with AL=0 there.
 uint64_t CitizenComponent::HandleLifeEvent(int eventType, const char* strParam) {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), the cause a
+    // death will be recorded with
+    Ext::FamilyTree::OnLifeEvent(this, eventType);
     void* selfV = this;
     // Row 310 (B7 RES), 0x140116dd0: no world test, the character / model read straight,
     // the second pick's slot used as is, the entity list read straight. Its tests are the

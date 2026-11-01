@@ -88,6 +88,11 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/host_codecs.cpp                        # savetail.cpp's FindHostCodec (the host codec table, EXTHOSTS)
   ${CMAKE_SOURCE_DIR}/src/ext/toolbar/window_state.cpp               #   the toolbar window's host record
   ${CMAKE_SOURCE_DIR}/src/ext/spread_warmth/spread_warmth.cpp     # ext_spread_warmth_test.cpp (HITCH_PFBURST)
+  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_tree.cpp          # ext_family_tree_test.cpp (FAMILYTREE)
+  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/tree_layout.cpp           # ext_family_tree_test.cpp (the drawn tree)
+  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_summary.cpp         # ext_family_tree_test.cpp (the town summary)
+  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_picture.cpp         # ext_family_tree_test.cpp (the whole-town picture)
+  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_raster.cpp          #   the same picture as pixels (PNG)
   ${CMAKE_SOURCE_DIR}/src/ext/drain_split/drain_split.cpp         # ext_drain_split_test.cpp (HITCH_DRAINSPLIT)
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/dxbc.cpp            # ext_better_trees_test.cpp (block FAA-CORE)
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/cutout_rewrite.cpp

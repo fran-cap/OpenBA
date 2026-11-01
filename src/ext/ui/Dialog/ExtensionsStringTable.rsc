@@ -105,6 +105,37 @@ StringTable resource
 		{ String _name = "ItemPriorityShowAll";	String _text = "Show all items"; }
 		{ String _name = "ItemPriorityShowAllTip";	String _text = "Unchecked: only items your town has made or stored, and the ranked ones."; }
 
+		// ext.family_tree's page in it (FamilyTreePage.rsc); the rows' texts are set by the controller through FamilyParam
+		{ String _name = "FamilyTreeTab";			String _text = "Family"; }
+		{ String _name = "FamilyHint";				String _text = "Pick a person to see their family: dates, parents, grandparents, spouses, children and siblings."; }
+		{ String _name = "FamilyParam";				String _text = "@0"; }
+		{ String _name = "FamilyTreeLeft";			String _text = "<"; }
+		{ String _name = "FamilyTreeRight";			String _text = ">"; }
+		{ String _name = "FamilyTreeNote";			String _text = "Click a person in the tree to center it on them."; }
+		{ String _name = "FamilyImageButton";	String _text = "Save village family tree picture"; }
+		{ String _name = "FamilyImageSvgButton";	String _text = "Save as SVG"; }
+		{ String _name = "FamilyImageSvgTip";	String _text = "Save the picture as an SVG file instead: it stays sharp at any size, and a web browser opens it."; }
+		{ String _name = "FamilyImageLiving";	String _text = "Only the living and their ancestors"; }
+		{ String _name = "FamilyImageLivingTip";	String _text = "Leave out the people who died and are nobody's ancestor."; }
+		{ String _name = "FamilyShowTree";	String _text = "Show family tree"; }
+		{ String _name = "FamilyTreeDetails";	String _text = "Details"; }
+		{ String _name = "FamilyTreeWindowTitle";	String _text = "Family Tree"; }
+		{ String _name = "FamilyCitizenButton";	String _text = "Family"; }
+		{ String _name = "FamilyCitizenTip";	String _text = "Show this citizen in the family tree."; }
+		{ String _name = "FamilySummaryButton";		String _text = "Town summary"; }
+		{ String _name = "FamilySummaryWindowTitle";	String _text = "Town Summary"; }
+		{ String _name = "FamilySummaryNote";		String _text = "What the family record says about the town: where people came from, how they died, the generations and each year."; }
+		{ String _name = "FamilyImageHighlight";	String _text = "Outline the picked person's descendants"; }
+		{ String _name = "FamilyImageHighlightTip";	String _text = "In the saved picture, outline in orange the person picked on this page and everyone who descends from them."; }
+		{ String _name = "FamilyImageJobs";		String _text = "Show each person's main job"; }
+		{ String _name = "FamilyImageJobsTip";		String _text = "In the saved picture, add the job each person worked longest under their dates (for example Farmer 12 y). The boxes get a little taller."; }
+		{ String _name = "FamilyShowInTown";		String _text = "Show in town"; }
+		{ String _name = "FamilyShowInTownTip";		String _text = "Move the camera to the picked person and open their panel. Only for people living in the town now."; }
+		{ String _name = "FamilySearch";			String _text = "Find:"; }
+		{ String _name = "FamilySearchTip";			String _text = "Type part of a name to shorten the list of people. Click the box, type, and press Enter or click away when done. Clear it to see everyone."; }
+		{ String _name = "FamilyShowDead";			String _text = "Show people who have died"; }
+		{ String _name = "FamilyShowDeadTip";		String _text = "Unchecked: only the people living in your town. Checked: the dead too, after the living."; }
+
 		// the load notices (Extensions.rsc:extension*, shown by SaveLoadDialog::DoLoad in place of
 		// retail's ModMissing): @0 name, @1 the save's `ext:<id>`, @2 the saved format version
 		{ String _name = "ExtensionNotInBuild";		String _text = "The following extension is not part of this version of the game.~n~n@0 [@1]~nSaved with extension version @2~n~nA save keeps the extensions it was made with, so this one cannot be played here: loading it will stop the game with an error. Do you still want to load the save game?"; }

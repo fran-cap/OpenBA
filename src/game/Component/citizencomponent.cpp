@@ -15,6 +15,8 @@
 // graphics/*.h FIRST: they pull src/engine/volume/Volume.h, whose global-scope
 // `struct Rectangle` is hidden by <wingdi.h>'s `Rectangle()` once <windows.h> has
 // been seen through resolve.h.  ENDGAME B.3.5 caller batch I2.
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
+#include "ext/family_tree/family_tree.h"
 #include "graphics/Scene.h"
 #include "Component/StorageComponent.h"   // B.3.8 CB1a (TypeId)
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): ext.restricted_foods
@@ -596,6 +598,9 @@ FindWorkLabel:
 
                     // Set the spouse's spouse reference to this citizen
                     spouse->spouse = this;
+                    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class
+                    // C), a marriage
+                    Ext::FamilyTree::OnMarried(this, spouse.Get());
 
                     // The spouse moves into this citizen's home
                     spouse->SetHome(workplaceRef, homeSlot);

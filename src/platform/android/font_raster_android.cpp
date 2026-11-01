@@ -88,6 +88,12 @@ bool FacePath(const char* face, std::string& path, std::string* why) {
 
 }  // namespace
 
+const char* const* DefaultFaces(size_t& count) {
+    static const char* const faces[] = {kGameFace, "Arial", "Helvetica"};
+    count = sizeof faces / sizeof faces[0];
+    return faces;
+}
+
 bool FaceAvailable(const char* face, std::string* why) {
     std::lock_guard<std::mutex> lock(g_lock);
     std::string path;

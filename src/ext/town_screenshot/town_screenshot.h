@@ -10,7 +10,10 @@
 // the pause and the pipelined renderer are put back as they were.
 // ============================================================================
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 class PlayerController;
 namespace Graphics {
@@ -50,6 +53,14 @@ bool Active();
 const char* Status();
 // Called whenever Status() changes (the page shows it).
 void SetStatusHook(void (*hook)());
+
+// Writes `data` as <save directory>\Screenshots\<stem><N>.<extension>, the first N that does not exist (the
+// folder the town screenshot uses; other extensions that make a picture put it there too). The full path;
+// empty when the file could not be written.
+std::string SaveInScreenshots(const char* stem, const char* extension, const void* data, size_t size);
+// The same for a picture: `rgba` is width * height * 4 bytes, encoded as a PNG <stem><N>.png. Empty when it
+// could not be written.
+std::string SavePngInScreenshots(const char* stem, std::vector<uint8_t>& rgba, int width, int height);
 
 // A screenshot leaves out the icons over buildings and citizens and, when asked, the weather: both are options the
 // player set (GameSettings::statusIconEnable, showWeather) that the frame's drawing reads. GameUpdateLoop::Draw

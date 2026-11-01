@@ -126,10 +126,3 @@ static_assert(offsetof(BuildComponent, modelComponents) + offsetof(BuildComponen
 static_assert(offsetof(BuildComponent, pickingComponents) == 0x68, "BuildComponent picking array data @ +0x68");
 static_assert(offsetof(BuildComponent, pickingComponents) + offsetof(BuildComponent::PickingList, _size) == 0x70, "BuildComponent picking array count @ +0x70");
 static_assert(offsetof(BuildComponent, pickingComponents) + offsetof(BuildComponent::PickingList, _capacity) == 0x74, "BuildComponent picking array capacity @ +0x74");
-
-// The standalone's construction gate (no retail address): a BuildComponent whose
-// model is already at its final sub-mesh and that never ran State1Enter is a
-// force-completed start-town building, and the state handlers skip it
-// (buildcomponent_state1.cpp).
-bool BuildComponent_DemoGateSkip(BuildComponent* buildComp);
-void BuildComponent_ClearLiveSite(BuildComponent* bc);

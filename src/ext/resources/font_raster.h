@@ -30,6 +30,7 @@
 // src/platform/posix/font_raster_posix.cpp answering "absent".
 // ============================================================================
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -67,6 +68,11 @@ bool RasterizeFont(const char* face, int32_t pixelHeight, const int32_t* codepoi
 // True when `face` can be selected (installed or the private file beside the
 // exe); the private load is remembered for the process. `why` says which.
 bool FaceAvailable(const char* face, std::string* why);
+
+// The faces a text picture (the family tree's) tries, the likeliest first, and how many. Each platform's
+// rasterizer says what it does best: Windows asks GDI for installed faces, so a system face leads; the
+// others look up one face file per process, so the game's own face (kGameFace) leads there.
+const char* const* DefaultFaces(size_t& count);
 
 }  // namespace Resources
 }  // namespace Ext

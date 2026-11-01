@@ -29,6 +29,8 @@
 // their order: it is retail's (rtsort::SelectionSortMaxToHigh for the fallback), not
 // std::sort's. The shared priority predicate is ProfessionPriorityOf below.
 
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C)
+#include "ext/family_tree/family_tree.h"
 #include <new>
 #include "Game/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -264,6 +266,10 @@ void CitizenComponent::Initialize(const Math::Vector3* pos, uint32_t gender, cha
     // 13. sprite/anim init on the CharacterComponent (+0x278)
     character.Get()->SetAnimation(0,
               kRdata_14017214c, 0.0f);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), a birth or an
+    // arrival
+    Ext::FamilyTree::OnCreated(this, parent);
 }
 
 // [11] 0x1401140f0 — the LOAD-TIME visual re-apply (clothing colour, age scale,

@@ -61,6 +61,8 @@
 #include "ext/tool_names/tool_names.h"
 #include "ext/registry.h"
 #include "Component/RawMaterialDescription.h"   // the tool item: _stringTable, _name
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), the Family button
+#include "ext/family_tree/family_tree.h"
 #include "Game/exe_constants.h"   // B3R: kRdata_140172198
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
 #include "Component/AttendanceComponent.h"   // B4 DLG-a: CitizenComponent::school
@@ -241,6 +243,9 @@ void CitizenUI::OnCreated() {
     buttonProfession->SetElementId(0x227);
     buttonHome->SetElementId(0x226);
     buttonFollow->SetElementId(0x228);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), the Family
+    // button
+    Ext::FamilyTree::CitizenPanelOpened(this);
 }
 
 // ============================================================
@@ -250,6 +255,9 @@ void CitizenUI::OnCreated() {
 
 // [6] 0x140065130
 void CitizenUI::OnClosed() {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), forgets the
+    // Family button
+    Ext::FamilyTree::CitizenPanelClosed(this);
     // No entity test: the body never reads +0x28 (0x140065136 tests only +0xE0).
     if (followDialog.Get() != nullptr) {
         // The UserInterface of the owning DialogInstance
@@ -283,6 +291,9 @@ void CitizenUI::OnClosed() {
 // [7] 0x140064ae0
 void CitizenUI::OnUpdateLayout() {
     if (!SA_DialogEntityAlive(this)) return;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), keeps the
+    // Family button left of Follow
+    Ext::FamilyTree::CitizenPanelLayout(this);
 
     // Find the CitizenComponent of the data source (+0x28)
     CitizenComponent* ai = CitizenUI_FindCitizen(_dataSource);
@@ -505,6 +516,9 @@ void CitizenUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, in
     if (!SA_DialogEntityAlive(this)) return;
     // Only handle event type 0x12 (button click)
     if (param3 != 0x12) return;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), the Family
+    // button
+    if (Ext::FamilyTree::CitizenPanelEvent(this, param4)) return;
 
     if (param4 == 0x227) {
         // --- buttonProfession: go to school / workplace ---
