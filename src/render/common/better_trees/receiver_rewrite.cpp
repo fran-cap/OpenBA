@@ -16,12 +16,13 @@ constexpr uint32_t kFrc = 26;   // D3D10_SB_OPCODE_FRC
 namespace OT = Dxbc::OperandType;
 
 constexpr uint32_t kOperandNull = 13;   // D3D10_SB_OPERAND_TYPE_NULL
+constexpr uint32_t kInstanceCb = 3, kTranslationRow = 3;   // tc.transforms[i] row 3 (THE HASH's T)
 
 // D3D10_SB_OPCODE_TYPE values this file needs beyond Dxbc::Op.
 enum : uint32_t {
     kBreak = 2, kBreakC = 3, kCall = 4, kCallC = 5, kCase = 6, kContinue = 7, kContinueC = 8, kCut = 9,
     kDefault = 10, kDp3 = 16, kDp4 = 17, kElse = 18, kEmit = 19, kEmitThenCut = 20, kEndIf = 21,
-    kEndLoop = 22, kEndSwitch = 23, kIf = 31, kIMul = 38, kLabel = 44, kLd = 45, kLoop = 48,
+    kEndLoop = 22, kEndSwitch = 23, kIf = 31, kIMul = 38, kItof = 43, kLabel = 44, kLd = 45, kLoop = 48,
     kRetC = 63, kSqrt = 75, kSwitch = 76, kSinCos = 77, kUDiv = 78, kUMul = 81, kDclIndexableTemp = 105,
 };
 
@@ -368,6 +369,40 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
     }
     if (!sliceReadsW2C) { Refuse(m, "the shadow output does not depend on gc.worldToCamera"); return; }
     if (m->centerIdx < 0) { Refuse(m, "no card centre found"); return; }
+
+    // THE HASH (receiver_rewrite.h): V, the vertex input the centre's register is loaded from (the last
+    // whole-xyz load of it from an input before the centre add), and T, the first read of the instance
+    // translation cb3[rI + 3] before it.
+    {
+        const Dxbc::Operand& c = p.instrs[static_cast<size_t>(m->centerIdx)].operands[static_cast<size_t>(m->centerOperand)];
+        const uint32_t centreReg = c.index[0];
+        for (int i = 0; i < m->centerIdx; ++i) {
+            const Dxbc::Instr& in = p.instrs[static_cast<size_t>(i)];
+            if (in.isDecl) continue;
+            if (in.opcode == Op::Mov || in.opcode == kItof) {
+                if (in.operands.size() == 2) {
+                    const Dxbc::Operand& d = in.operands[0];
+                    const Dxbc::Operand& s = in.operands[1];
+                    if (d.type == OT::Temp && !d.relative && d.index[0] == centreReg && d.selMode == 0 &&
+                        (d.Mask() & 7) == 7 && s.type == OT::Input && !s.relative && s.modifier == 0)
+                        m->inputIdx = i;
+                }
+            }
+            if (m->xlateIdx < 0) {
+                for (size_t k = 1; k < in.operands.size(); ++k) {
+                    const Dxbc::Operand& o = in.operands[k];
+                    if (o.type == OT::ConstantBuffer && o.relative && o.indexDim == 2 &&
+                        o.index[0] == kInstanceCb && o.index[1] == kTranslationRow) {
+                        m->xlateIdx = i;
+                        m->xlateOperand = static_cast<int>(k);
+                        break;
+                    }
+                }
+            }
+        }
+        if (m->inputIdx < 0) { Refuse(m, "the card centre is not loaded from a vertex input (no growth-stable hash)"); return; }
+        if (m->xlateIdx >= 0 && m->xlateIdx == m->inputIdx) m->xlateIdx = -1;   // a translation read cannot also be the load
+    }
     m->matched = true;
     m->why.clear();
 }
@@ -394,8 +429,8 @@ bool RetargetTemp(uint32_t* t, uint32_t avail, uint32_t reg) {
 }
 
 // The lookup block (receiver_rewrite.h "THE LOOKUP"): rW.xyz = P + (basis (C - P).L - e |C - P|) L with
-// e = margin + jitter (2 frc(C.K) - 1), from rP (P), rS.xyz (C, saved earlier), rV (the hash scalar)
-// and L = lc.nearPlane.xyz (cb2[3]). 10 instructions.
+// e = margin + jitter (2 frc(V.K + T.Kt) - 1), from rP (P), rS.xyz (C, saved earlier), rV (rV.x = V.K and
+// rV.w = T.Kt, written by EmitHashInput / EmitHashTree) and L = lc.nearPlane.xyz (cb2[3]). 10 instructions.
 void EmitLookup(std::vector<uint32_t>& t, uint32_t P, uint32_t S, uint32_t W, uint32_t V, const Params& k) {
     namespace E = Dxbc::Enc;
     const uint32_t XYZ = E::Swizzle(0, 1, 2, 0);
@@ -409,7 +444,7 @@ void EmitLookup(std::vector<uint32_t>& t, uint32_t P, uint32_t S, uint32_t W, ui
     ins(kDp3, [&] { E::TempDst(t, W, 8); E::TempSrc(t, W, XYZ); E::TempSrc(t, W, XYZ); });          // |d|^2
     ins(kSqrt, [&] { E::TempDst(t, W, 8); E::TempSrc(t, W, E::Rep(3)); });                          // r = |d|
     ins(kDp3, [&] { E::TempDst(t, S, 8); E::TempSrc(t, W, XYZ); CbSrc(t, kLightCb, kNearPlane, XYZ); });  // d . L
-    ins(kDp3, [&] { E::TempDst(t, V, 1); E::TempSrc(t, S, XYZ); E::Imm4(t, kHashX, kHashY, kHashZ, 0.0f); }); // C . K
+    ins(Op::Add, [&] { E::TempDst(t, V, 1); E::TempSrc(t, V, E::Rep(0)); E::TempSrc(t, V, E::Rep(3)); });  // V.K + T.Kt
     ins(kFrc, [&] { E::TempDst(t, V, 1); E::TempSrc(t, V, E::Rep(0)); });                            // h = frc
     ins(Op::Mad, [&] { E::TempDst(t, V, 1); E::TempSrc(t, V, E::Rep(0)); E::ImmScalar(t, 2.0f * k.jitter);
                        E::ImmScalar(t, k.margin - k.jitter); });                                    // e = 2j h + (m - j)
@@ -437,7 +472,40 @@ void EmitExtent(std::vector<uint32_t>& t, uint32_t out, uint32_t S, uint32_t W) 
     ins(Op::Mov, [&] { E::OutputDst(t, out, 8); E::TempSrc(t, S, E::Rep(3), 1); });                   // o.w = -(...)
 }
 
-constexpr int kAddedInstrs = 1 + 10 + 4;   // the centre save + the lookup block + the extent
+// THE HASH's V (receiver_rewrite.h): after C's input load `in`, the same load into rV.xyz and
+// rV.x = rV.xyz . K (K scaled by kInputUnit after an itof). With no translation read, rV.w = 0 too.
+// 2 or 3 instructions.
+int EmitHashInput(std::vector<uint32_t>& t, const Dxbc::Program& p, const Dxbc::Instr& in, uint32_t V, bool noTree) {
+    namespace E = Dxbc::Enc;
+    const uint32_t XYZ = E::Swizzle(0, 1, 2, 0);
+    const float unit = in.opcode == kItof ? kInputUnit : 1.0f;
+    auto ins = [&](uint32_t opc, auto body) {
+        const size_t at = t.size();
+        t.push_back(0);
+        body();
+        t[at] = E::Opcode(opc, static_cast<uint32_t>(t.size() - at));
+    };
+    ins(in.opcode, [&] { E::TempDst(t, V, 7); E::Copy(t, p, in.operands[1]); });                      // V
+    ins(kDp3, [&] { E::TempDst(t, V, 1); E::TempSrc(t, V, XYZ);
+                    E::Imm4(t, kHashX * unit, kHashY * unit, kHashZ * unit, 0.0f); });                  // V . K
+    if (!noTree) return 2;
+    ins(Op::Mov, [&] { E::TempDst(t, V, 8); E::ImmScalar(t, 0.0f); });                                // T.Kt = 0
+    return 3;
+}
+
+// THE HASH's T: before retail's first read of cb3[rI + 3] (its index register is live there),
+// rV.w = cb3[rI + 3].xyz . Kt. 1 instruction.
+void EmitHashTree(std::vector<uint32_t>& t, const Dxbc::Program& p, const Dxbc::Operand& xlate, uint32_t V) {
+    namespace E = Dxbc::Enc;
+    const size_t at = t.size();
+    t.push_back(0);
+    E::TempDst(t, V, 8);
+    E::CopyWithSwizzle(t, p, xlate, E::Swizzle(0, 1, 2, 0));
+    E::Imm4(t, kTreeX, kTreeY, kTreeZ, 0.0f);
+    t[at] = E::Opcode(kDp3, static_cast<uint32_t>(t.size() - at));
+}
+
+constexpr int kAddedInstrs = 1 + 10 + 4;   // the centre save + the lookup block + the extent (+ THE HASH's, counted per program)
 
 }  // namespace
 
@@ -450,6 +518,7 @@ bool TransformWithParams(const Match& m, std::vector<uint8_t>* out, const Params
     std::vector<uint32_t> t;
     t.reserve(p.tokens.size() + 64);
     int retargeted = 0;
+    int hashInstrs = 0;
     for (size_t i = 0; i < p.instrs.size(); ++i) {
         const Dxbc::Instr& in = p.instrs[i];
         const uint32_t* src = p.tokens.data() + in.offset;
@@ -472,8 +541,13 @@ bool TransformWithParams(const Match& m, std::vector<uint8_t>* out, const Params
             t[at] = Dxbc::Enc::Opcode(Op::Mov, static_cast<uint32_t>(t.size() - at));
         }
         if (static_cast<int>(i) == m.insertAt) EmitLookup(t, m.posReg, S, W, V, k);
+        if (static_cast<int>(i) == m.xlateIdx) {
+            EmitHashTree(t, p, in.operands[static_cast<size_t>(m.xlateOperand)], V);
+            ++hashInstrs;
+        }
         const size_t at = t.size();
         t.insert(t.end(), src, src + in.length);
+        if (static_cast<int>(i) == m.inputIdx) hashInstrs += EmitHashInput(t, p, in, V, m.xlateIdx < 0);
         if (static_cast<int>(i) == m.extentIdx) EmitExtent(t, m.shadowOut, S, W);
         // The shadow-matrix instructions read the lookup point instead of P.
         if (static_cast<int>(i) >= m.insertAt) {
@@ -515,7 +589,7 @@ bool TransformWithParams(const Match& m, std::vector<uint8_t>* out, const Params
     const Dxbc::Chunk* rs = rc.Find(shdr->fourcc);
     Dxbc::Program rp;
     if (rs == nullptr || !Dxbc::ParseProgram(*rs, &rp, &err)) return false;
-    if (rp.instrs.size() != p.instrs.size() + kAddedInstrs) return false;
+    if (rp.instrs.size() != p.instrs.size() + kAddedInstrs + static_cast<size_t>(hashInstrs)) return false;
     *out = std::move(blob);
     return true;
 }
