@@ -472,6 +472,13 @@ const Entry kEntries[] = {
       "No fog",
       "Removes the fog that hazes the far map when the camera is zoomed far out.",
       0, [](State& s) -> bool& { return s.ext.no_fog; } },
+    // SHOWGRID (docs/extensions/handins/SHOWGRID.md): a grid of tile outlines over the map, for planning with
+    // the game paused. Class A: a picture-only change, no sim effect, nothing saved, live. OFF by default:
+    // how the map looks is the player's choice (like no_fog).
+    { "show_grid", Tier::Extension, Class::A, false,
+      "Show grid",
+      "Draws a grid over the map so you can see where the tiles are while planning where to build.",
+      0, [](State& s) -> bool& { return s.ext.show_grid; } },
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a
@@ -595,6 +602,18 @@ const ValueKey kValueKeys[] = {
     // default. Any other number reads as 60 (a discrete key).
     { "fps_cap_rate", "fps_cap", 30, 120, 60,
       [](State& s) -> int32_t& { return s.val.fps_cap_rate; }, kFpsCapRates, 4 },
+    // SHOWGRID: the grid lines' hue in degrees (read every frame, so a settings.cfg edit shows at the next
+    // start). A range key.
+    { "show_grid_hue", "show_grid", 0, 359, 0,
+      [](State& s) -> int32_t& { return s.val.show_grid_hue; }, nullptr, 0 },
+    { "show_grid_saturation", "show_grid", 0, 100, 0,
+      [](State& s) -> int32_t& { return s.val.show_grid_saturation; }, nullptr, 0 },
+    { "show_grid_opacity", "show_grid", 10, 100, 75,
+      [](State& s) -> int32_t& { return s.val.show_grid_opacity; }, nullptr, 0 },
+    { "show_grid_shade", "show_grid", 0, 100, 100,
+      [](State& s) -> int32_t& { return s.val.show_grid_shade; }, nullptr, 0 },
+    { "show_grid_width", "show_grid", 1, 30, 6,
+      [](State& s) -> int32_t& { return s.val.show_grid_width; }, nullptr, 0 },
     // TOUCHMODE: the toolbar's own scale in percent while the row touch_mode is on, one of the combo's
     // sizes; 200 is the ruled "about 2x" (shrunk to fit beside the controls). Any other number reads as 200.
     { "touch_mode_toolbar_scale", "touch_mode", 100, 200, 200,

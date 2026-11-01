@@ -76,6 +76,12 @@ const Ext::Toolbar::Contribution& Ext::Toolbar::TownScreenshotPage() {
     return c;
 }
 
+const Ext::Toolbar::Contribution& Ext::Toolbar::ShowGridPage() {
+    static const Contribution c = { "show_grid", "ShowGridTab", "Dialog/ShowGridPage.rsc:pageShowGrid",
+                                    StubOpen, StubChanged, StubClose };
+    return c;
+}
+
 UNIT_TEST(ext_toolbar_no_page_while_the_row_is_off) {
     Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
     const Ext::Toolbar::Contribution* pages[4] = {};
@@ -97,7 +103,7 @@ UNIT_TEST(ext_toolbar_a_page_is_offered_while_its_row_is_active) {
     CHECK_EQ(Ext::Toolbar::ActivePages(none, 0), 1);
     CHECK(none[0] == nullptr);
     int n = 0;
-    CHECK(Ext::Toolbar::All(&n) != nullptr && n == 5);
+    CHECK(Ext::Toolbar::All(&n) != nullptr && n == 6);
     Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
 }
 
@@ -109,7 +115,7 @@ UNIT_TEST(ext_toolbar_the_faithful_gate_never_offers_the_button) {
     Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
 }
 
-UNIT_TEST(ext_toolbar_every_page_names_a_registered_class_b_or_c_extension) {
+UNIT_TEST(ext_toolbar_every_page_names_a_registered_extension) {
     int n = 0;
     const Ext::Toolbar::Contribution* const* list = Ext::Toolbar::All(&n);
     CHECK(n > 0);
@@ -117,9 +123,9 @@ UNIT_TEST(ext_toolbar_every_page_names_a_registered_class_b_or_c_extension) {
         const Ext::Entry* e = Ext::FindEntry(list[i]->id);
         CHECK(e != nullptr);
         if (e != nullptr) {
-            // a page is offered only under the lock, so its row is a locked class
+            // a page belongs to an extension row of any class: the UI surface is not the class axis
+            // (docs/extensions/DESIGN.md, surfaces, ruled 2026-10-20); a class A row's page is live
             CHECK(e->tier == Ext::Tier::Extension);
-            CHECK(e->cls == Ext::Class::B || e->cls == Ext::Class::C);
         }
         CHECK(list[i]->caption != nullptr && list[i]->caption[0] != 0);
         CHECK(list[i]->page != nullptr && std::strstr(list[i]->page, ".rsc:") != nullptr);

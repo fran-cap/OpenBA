@@ -67,7 +67,7 @@ UNIT_TEST(ext_registry_table_shape) {
         // Class A ships ON, class B / C OFF (DESIGN.md section 2, ruled 2026-10-18).
         // The unit_* test rows keep OFF: the lock tests below start from nothing on.
         // eye_camera is class A but changes how the game is played: the player's call, OFF.
-        // no_fog is class A but changes how the map looks: the player's call, OFF.
+        // no_fog is class A but changes how the map looks: the player's call, OFF. So is show_grid.
         // texture_quality is class A but lowers texture detail: the player's call, OFF (TEXQUALITY).
         // phone_menu is class A but moves the desktop menu: OFF; the Android first run turns it on (PHONEMENU).
         // fps_cap is class A but caps a desktop's game, retail's uncapped: OFF; the Android first run turns it on (P8).
@@ -75,7 +75,8 @@ UNIT_TEST(ext_registry_table_shape) {
         // touch_pointer is class A but takes a touch screen's fingers from the mouse: OFF; the Android first run turns it on.
         if (e.tier == Ext::Tier::Extension && std::strncmp(e.id, "unit_", 5) != 0)
             CHECK(e.defaultOn == (e.cls == Ext::Class::A && std::strcmp(e.id, "eye_camera") != 0 &&
-                                  std::strcmp(e.id, "no_fog") != 0 && std::strcmp(e.id, "texture_quality") != 0 &&
+                                  std::strcmp(e.id, "no_fog") != 0 && std::strcmp(e.id, "show_grid") != 0 &&
+                                  std::strcmp(e.id, "texture_quality") != 0 &&
                                   std::strcmp(e.id, "phone_menu") != 0 && std::strcmp(e.id, "fps_cap") != 0 &&
                                   std::strcmp(e.id, "touch_mode") != 0 && std::strcmp(e.id, "touch_pointer") != 0));
     }

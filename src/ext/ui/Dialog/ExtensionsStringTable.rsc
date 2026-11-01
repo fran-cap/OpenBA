@@ -58,6 +58,16 @@ StringTable resource
 		{ String _name = "TownScreenshotTake";				String _text = "Take Town Screenshot"; }
 		{ String _name = "TownScreenshotCancel";				String _text = "Cancel"; }
 		{ String _name = "TownScreenshotStatus";				String _text = "@0"; }
+		{ String _name = "ShowGridTab";				String _text = "Grid"; }
+		{ String _name = "ShowGridHeading";			String _text = "Show Grid"; }
+		{ String _name = "ShowGridHint";			String _text = "Lines along the tiles' edges over the ground."; }
+		{ String _name = "ShowGridShown";			String _text = "Show the grid"; }
+		{ String _name = "ShowGridShownTip";			String _text = "Draws or hides the grid. The extension stays on either way."; }
+		{ String _name = "ShowGridOpacityLabel";		String _text = "Opacity"; }
+		{ String _name = "ShowGridShadeLabel";			String _text = "Brightness"; }
+		{ String _name = "ShowGridHueLabel";			String _text = "Hue"; }
+		{ String _name = "ShowGridSaturationLabel";		String _text = "Color"; }
+		{ String _name = "ShowGridWidthLabel";			String _text = "Width"; }
 		{ String _name = "TerrainEditTab";				String _text = "Terrain"; }
 		{ String _name = "TerrainEditHint";				String _text = "Pick a brush, then hold the left mouse button over the map."; }
 		{ String _name = "TerrainEditHint2";			String _text = "Lower digs lakes; Flatten levels ground to build on; Mountain raises peaks."; }
