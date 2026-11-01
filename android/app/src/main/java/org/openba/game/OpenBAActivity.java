@@ -22,8 +22,8 @@
 //    desktop packages put beside the exe; THIRD_PARTY_NOTICES.md). ext.sharp_ui's rasteriser reads
 //    the TTF from the app's data folder (src/platform/android/font_raster_android.cpp, the folder
 //    SDL_GetAndroidExternalStoragePath names = getExternalFilesDir(null)), so each file absent there
-//    is copied in before the native side starts. A file present is left alone (the player's own
-//    copy wins). Here rather than in the native boot: assets are a Java API, the native side
+//    is copied in before the native side starts, and so is an empty one (a copy cut short). Any
+//    other file present is left alone (the player's own copy wins). Here rather than in the native boot: assets are a Java API, the native side
 //    would need the activity's AssetManager through JNI for the same three copies.
 //
 //  * physicalDisplay, called by the native side through JNI (src/platform/android/
@@ -202,7 +202,10 @@ public class OpenBAActivity extends SDLActivity {
         }
         for (String name : FONT_ASSETS) {
             final File target = new File(dataDir, name);
-            if (target.isFile()) {
+            // An empty file is a copy cut short (the process killed between the open and the first
+            // write: the .part rename makes that rare, an older build or a crash can still leave one);
+            // it is copied again. Any other file present is the player's and is kept.
+            if (target.isFile() && target.length() > 0) {
                 continue;
             }
             final File part = new File(dataDir, name + ".part");

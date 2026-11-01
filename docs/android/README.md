@@ -124,7 +124,7 @@ tools/android.sh stop
 |---|---|
 | `files/WinData/*.pkg` | The retail packages, copied by the first-run screen from the player's folder or `.zip`, or pushed by `push-data`. Only the top-level `*.pkg` are taken; parked mods and other subfolders stay home. |
 | `files/WinData.incoming/`, `files/Documents/Banished/Save.incoming/` | The staging folders of a copy or a saves import while it runs; removed when it ends. |
-| `files/FrancophilSans.ttf`, `FrancophilSans-Bold.ttf`, `FrancophilSans_README.txt` | The typeface `ext.sharp_ui` rasterises its fonts from at a UI scale other than 100 % (below). Carried by the apk as assets and copied here by the app at start when absent (P9); a file already there is left alone. |
+| `files/FrancophilSans.ttf`, `FrancophilSans-Bold.ttf`, `FrancophilSans_README.txt` | The typeface `ext.sharp_ui` rasterises its fonts from at a UI scale other than 100 % (below). Carried by the apk as assets and copied here by the app at start when absent or empty (P9; an empty file is a copy cut short); any other file already there is left alone. |
 | `files/OpenBA` | Does not exist: it is the "exe path" the engine is told (`file_android.cpp`), so the game directory is `files/`. |
 | `files/standalone_debug.log`, `standalone_error.log`, `standalone_crash.log`, `standalone_hang.log`, `standalone_boot_state.txt` | The same files as beside `OpenBA.exe` on Windows. |
 | `files/Documents/Banished/` | The per-user folder: `settings.cfg`, `Save/`, `Cache/` (the derived-data cache: SPIR-V, `vulkan_pipelines.bin` / `.txt`). |
