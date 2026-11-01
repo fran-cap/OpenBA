@@ -42,6 +42,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   `standalone_error.log` in released builds. A tester's 2-hour session had written a 1 GB log. The
   plague, tornado and citizen-vitals traces are now off unless `BANISHED_PLAGUE_TRACE=1`,
   `BANISHED_TORNADO_TRACE=1` or `BANISHED_VITALS=1` is set.
+- Construction after a load: a building that was under construction when the game was saved now
+  finishes properly. Before, it kept its construction storage, so a house finished that way took no food
+  or firewood. Buildings already finished that way in an existing save are not repaired
+  (`docs/known_port_issues.md` row 1345).
 
 ## v1.0.2 (2026-10-30)
 

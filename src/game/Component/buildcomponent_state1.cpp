@@ -96,130 +96,21 @@ static RawMaterialDescription* BCS1_FindRawMatDesc(ComponentDescription* matEnti
 // OnCreate FUN_14012f520), so the tick-driven Builder pool (BuilderPool_Tick) finds them
 // via FindAvailableBuilding and seats idle laborers as Builders.
 
-// ---- Construction-demo gating (standalone) ---------------------------------------
-// StartTown force-completes every start-town building (advances its ModelComponent to
-// the final construction sub-mesh). Driving State1Enter on such a building would RESET
-// its storage (f090 resize + accept-mask), blanking finished houses. To keep the build
-// pipeline testable without that damage we (a) seed ONE genuine foundation as the demo
-// site and (b) skip everything else. `g_pConstructionDemoSite` (set by StartTown) is the
-// BuildComponent of that one foundation; when non-null, ONLY it is driven. When it is
-// null (no demo seeded) we still skip buildings whose model is already complete.
+// ---- Construction-demo site (harness) -------------------------------------------
+// `g_pConstructionDemoSite` is the BuildComponent of the one foundation StartTown leaves
+// unbuilt when BANISHED_BUILD_DEMO_INDEX / BANISHED_BUILD_DEMO_HOUSE ask for it; the
+// construction force harness (BANISHED_BUILD_DEMO_FORCE) drives only that site. It is not
+// a gate: every BuildComponent runs the construction states as retail does.
 extern "C" { void* g_pConstructionDemoSite = nullptr; }
 // The demo foundation's OWNER entity (set by StartTown alongside g_pConstructionDemoSite).
 // The construction force harness uses it as the GatherRawMaterials/BuildStructure work-area.
 extern "C" { ComponentEntity* g_pConstructionDemoEntity = nullptr; }
-
-// Best-effort completion check: a force-completed building has its ModelComponent build
-// variant (+0x166) at the final sub-mesh of a multi-stage group; a genuine foundation
-// sits at variant 0. Foundation / single-mesh buildings -> false (i.e. "build me").
-static bool BCS1_IsModelComplete(BuildComponent* buildComp) {
-    ComponentEntity* entity = buildComp->_entity.Get();
-    if (!entity) return false;
-    uint32_t tidModel = ModelComponent::TypeId();
-    if (!tidModel) return false;
-    int count = entity->_components._size;
-    if (!entity->_components._data) return false;
-    ModelComponent* model = nullptr;
-    for (int i = 0; i < count; ++i) {
-        Component* comp = entity->_components[i].Get();
-        if (!comp) continue;
-        uint32_t t = comp->Type();
-        if (t == tidModel) { model = static_cast<ModelComponent*>(comp); break; }
-    }
-    if (!model) return false;
-    int16_t modelVariant = model->meshIndex;
-    if (modelVariant <= 0) return false;                      // foundation / not advanced
-    int16_t variantIdx = model->meshGroup;
-    // (read as the ModelDescription it is when the model was found by type; the tree
-    // never checked the description's type here)
-    Description* modelDescription = model->_description;
-    ModelDescription* modelDesc = static_cast<ModelDescription*>(modelDescription);
-    if (!modelDesc) return true;                              // advanced but no desc -> treat complete
-    ModelMeshGroup* groupArray = modelDesc->_meshGroups;
-    uint32_t groupCount = static_cast<uint32_t>(modelDesc->_meshGroupCount);
-    if (!groupArray || variantIdx < 0 || (uint32_t)variantIdx >= groupCount) return true;
-    int subCount = groupArray[variantIdx].meshCount;
-    return (subCount > 1 && modelVariant >= subCount - 1);
-}
-
-// Shared construction-demo gate. Returns true if this BuildComponent must NOT be driven
-// through the construction state machine (State1Enter / State1Update / state-8 handlers):
-//   * the seeded demo foundation -> drive it (false);
-//   * any completed building (model at final sub-mesh) -> skip;
-//   * any other genuine foundation -> drive it.
-// This must gate the PER-FRAME handlers too (State1Update), not just State1Enter — else a
-// completed building's node self-advances 1->8->2 and its finalize clobbers finished storage.
-//
-// The completed-building test used to be bypassed whenever a demo site was registered — the
-// gate then returned "skip" for EVERY other building, as belt-and-braces against resetting a
-// finished building's storage. That also blocked buildings that genuinely need constructing,
-// including the UPGRADE REPLACEMENT (DestroyComponent state-5 spawns a fresh stone-house
-// foundation, which is never the demo site, so it sat inert forever). BCS1_IsModelComplete is
-// the real protection and is known-good on its own: with no demo site registered all seven
-// force-completed start-town BuildComponents skip, while a player-placed foundation builds.
-// ---- Live-site table (standalone) ------------------------------------------------
-// BCS1_IsModelComplete is a HEURISTIC for "was force-completed by StartTown, never
-// constructed". It misreads one case: State8Update snaps the model to its final
-// sub-mesh and THEN requests 8->2, so a genuinely-built building is "model complete"
-// by the time the 8->2 transition action runs. DemoGateSkip then suppressed
-// State8Finalize — the workplace hand-off (WorkPlaceComponent_EnterBuiltState, which
-// drops the Builder key so WorkPlaceUI stops showing the worker up/down spinner) and
-// the OUTPUT storage reconfigure. Only the demo site escaped, via the short-circuit
-// above it; every upgrade replacement and every player-placed building lost both
-// (observed live 2026-07-25: upgraded house kept the builder spinner, and its
-// [Residence] state-2 enter had no State8Finalize before it).
-//
-// So record the exact fact the gate wants instead of inferring it: a BuildComponent
-// that actually ran State1Enter is a live site until its completion clears it. Small
-// fixed table — concurrent construction sites are a handful, and a linear scan keeps
-// this allocation-free on a path that runs per-frame per-site.
-namespace {
-constexpr int kMaxLiveSites = 64;
-BuildComponent* s_liveSites[kMaxLiveSites];
-}
-static bool BuildComponent_IsLiveSite(BuildComponent* bc) {
-    if (!bc) return false;
-    for (int i = 0; i < kMaxLiveSites; ++i)
-        if (s_liveSites[i] == bc) return true;
-    return false;
-}
-static void BuildComponent_MarkLiveSite(BuildComponent* bc) {
-    if (!bc || BuildComponent_IsLiveSite(bc)) return;
-    for (int i = 0; i < kMaxLiveSites; ++i) {
-        if (s_liveSites[i] == nullptr) { s_liveSites[i] = bc; return; }
-    }
-    // Table full: fall back to the heuristic for this site rather than evicting a
-    // live one (worst case = the pre-fix behaviour, never a wrong "is complete").
-}
-void BuildComponent_ClearLiveSite(BuildComponent* bc) {
-    if (!bc) return;
-    for (int i = 0; i < kMaxLiveSites; ++i)
-        if (s_liveSites[i] == bc) { s_liveSites[i] = nullptr; return; }
-}
-
-bool BuildComponent_DemoGateSkip(BuildComponent* buildComp) {
-    if (!buildComp) return false;
-    if (g_pConstructionDemoSite && buildComp == g_pConstructionDemoSite) return false;
-    if (BuildComponent_IsLiveSite(buildComp)) return false;   // genuinely under construction
-    return BCS1_IsModelComplete(buildComp);
-}
 
 // 0x140108290, the state-1 ENTER handler (sm = the state machine).
 int BuildComponent::State1Enter(StateMachine* smNode) {
     // 0x14000a170 (FindComponent<ClearAreaComponent>) and 0x140118270
     // (ModelComponent_impl_8270): ClearArea_Finalize8270 is the clean C++ port
     // of the second, called below.
-
-    // ---- Construction-demo gate (see g_pConstructionDemoSite header note) ----------
-    // Must run BEFORE any mutation (multiplier write / model reset / storage reset).
-    if (BuildComponent_DemoGateSkip(this)) {
-        return 1;
-    }
-
-    // Past the gate: this is a real construction site. Record it so the state-8
-    // handlers keep running once the mesh progression reaches the final sub-mesh
-    // (see the live-site table note above). Cleared by the 8->2 completion.
-    BuildComponent_MarkLiveSite(this);
 
     // +0x4c = 1 (default multiplier)
     costMultiplier = 1;
