@@ -20,21 +20,30 @@ Rect Make(int32_t x, int32_t y, int32_t w, int32_t h) {
 }  // namespace
 
 int32_t Margin(int32_t width, int32_t height, int32_t phoneMargin) {
-    if (phoneMargin > 0) return phoneMargin;
+    if (phoneMargin >= 0) return phoneMargin;
     const int32_t shortEdge = width < height ? width : height;
     if (shortEdge <= 0) return 0;
     return Round(static_cast<float>(shortEdge) * kDesktopMarginFraction);
 }
 
-Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin) {
+Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin, float scale) {
     Cluster c;
     const int32_t shortEdge = width < height ? width : height;
     if (shortEdge <= 0) return c;
     const float s = static_cast<float>(shortEdge);
-    c.cell = Round(s * kCellFraction);
-    c.gap = Round(s * kGapFraction);
-    c.frame = Round(s * kFrameFraction);
+    c.baseCell = Round(s * kCellFraction);
     c.margin = margin;
+    if (scale <= 0.0f) {
+        // No pad (issue #96): nothing to hit, the toolbar's region from the left safe edge.
+        c.gap = Round(s * kGapFraction);
+        c.box = Rect{margin, height - margin, margin, height - margin};
+        c.barRegion = Rect{margin, margin, width - margin, height - margin};
+        return c;
+    }
+    // At scale 1 each product is the unscaled one exactly (x * 1.0f == x).
+    c.cell = Round(s * kCellFraction * scale);
+    c.gap = Round(s * kGapFraction * scale);
+    c.frame = Round(s * kFrameFraction * scale);
 
     const int32_t padSide = 3 * c.cell;
     const int32_t padX = margin + c.frame;
@@ -58,6 +67,11 @@ Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin) {
     c.box = Rect{padX - c.frame, rotateY - c.frame, zoomX + zoomW + c.frame, padY + padSide + c.frame};
     c.barRegion = Rect{c.box.x2 + 2 * c.gap, margin, width - margin, height - margin};
     return c;
+}
+
+float PadScaleOfPercent(int32_t percent) {
+    if (percent <= 0) return 0.0f;
+    return static_cast<float>(percent) / 100.0f;
 }
 
 float ToolbarScale(float requested, int32_t regionWidth, int32_t ownWidth) {

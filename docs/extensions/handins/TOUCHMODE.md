@@ -39,6 +39,14 @@ session log: `docs/android/TOUCH_MODE.md`.
   free for touch_pointer's action bar.
 * **Enhanced tab**: "Touch controls" Off / Toolbar 100 % .. 200 % (`enhanced_entry.cpp`,
   `SetTouchModeAndRecord`).
+* **Separate sizes** (issue #96): `ext.touch_mode_pad_scale` (0 = the cluster hidden, 50 .. 125 %, default 100)
+  scales the cluster alone (`LayoutCluster`'s `scale`; hidden, the toolbar's region spans the safe width and
+  `BarRect` still answers); `ext.touch_mode_action_bar_scale` (50 .. 125 %, default 100) sizes ext.touch_pointer's
+  placement bar from the cluster's scale-1 cell (`BaseCell`). Both default to the sizes they had, so installs
+  without the keys are unchanged (verified: the S25 profile's layout log lines match the integration branch's).
+  Combos "Camera pad" and "Placement bar" in the Enhanced tab's "Touch screen" group (`OpenChoiceCombo` /
+  `ApplyChoiceCombo`, the host's helpers). ext.phone_menu's `ext.phone_menu_safe_margin` moves the cluster and the
+  toolbar with every other dialog; at None they sit on the screen's edges (`Margin`'s -1 = the row off).
 
 ## Where
 

@@ -6,6 +6,7 @@
 
 #include "ext/registry.h"
 
+#include "ui/ComboElement.h"
 #include "ui/ElementDescription.h"
 #include "ui/TabElement.h"
 #include "object/External.h"
@@ -39,7 +40,7 @@ const Contribution* const* Contributions(int* n) {
     static const Contribution* const list[] = {
         &AmbientOcclusionEntry(), &BetterTreesEntry(), &BetterWaterEntry(), &MaxShadowResEntry(), &SeamlessLoopsEntry(),
         &TextureQualityEntry(), &RenderScaleEntry(), &FpsCapEntry(), &TouchModeEntry(), &TouchPointerEntry(),
-        &DerivedCacheEntry(),
+        &PhoneMenuEntry(), &DerivedCacheEntry(),
     };
     *n = static_cast<int>(sizeof(list) / sizeof(list[0]));
     return list;
@@ -48,6 +49,25 @@ const Contribution* const* Contributions(int* n) {
 }  // namespace
 
 bool Offered() { return !GateProfileForced(); }
+
+void OpenChoiceCombo(UI::ComboElement* combo, const char* keyId) {
+    const ValueKey* k = FindValueKey(keyId);
+    if (combo == nullptr || k == nullptr || k->choices == nullptr) return;
+    const int32_t value = Value(*k);
+    for (int32_t i = 0; i < k->choiceCount; ++i) {
+        if (k->choices[i] == value) combo->SetCurrentItem(i);
+    }
+}
+
+void ApplyChoiceCombo(const UI::ComboElement* combo, const char* keyId, const char* logTag) {
+    const ValueKey* k = FindValueKey(keyId);
+    if (combo == nullptr || k == nullptr || k->choices == nullptr) return;
+    const int32_t item = combo->_currentItem;
+    if (item < 0 || item >= k->choiceCount) return;
+    if (Value(*k) == k->choices[item]) return;
+    const int32_t stored = SetValueAndRecord(*k, k->choices[item]);
+    std::fprintf(stderr, "%s Apply: ext.%s=%d\n", logTag, keyId, stored);
+}
 
 bool Open(const void* dialog, UI::TabElement* tabs) {
     g_dialog = nullptr;

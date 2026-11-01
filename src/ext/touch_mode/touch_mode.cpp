@@ -67,6 +67,9 @@ int32_t g_loggedOwnWidth = -1;
 Cluster g_cluster;
 int32_t g_layoutW = 0;
 int32_t g_layoutH = 0;
+int32_t g_layoutPad = -1;      // ext.touch_mode_pad_scale the cluster was laid out at
+int32_t g_layoutMargin = -1;   // the margin it was laid out in (ext.phone_menu_safe_margin follows live)
+bool g_barShown = false;       // the row on and the top-level toolbar shown (BarRect answers; the pad may be Off)
 int32_t g_bar[4] = {0, 0, 0, 0};   // the toolbar, layout units
 int32_t g_sub[4] = {0, 0, 0, 0};   // the open sub-toolbar, layout units
 
@@ -154,13 +157,20 @@ void ElementRectInLayout(const UI::Element* e, float k, int32_t* out) {
               ToLayout(e->_layoutBottom, k));
 }
 
-// The cluster for this layout screen; true when it changed.
+// The cluster for this layout screen, at the pad key's scale and in the safe margin; true when it changed.
 bool UpdateCluster(int32_t width, int32_t height) {
-    if (width == g_layoutW && height == g_layoutH && g_cluster.cell > 0) return false;
+    const int32_t pad = Val().touch_mode_pad_scale;
+    const int32_t phoneMargin = Ext().phone_menu ? PhoneMenu::SafeMargin(height) : -1;
+    const int32_t margin = Margin(width, height, phoneMargin);
+    if (width == g_layoutW && height == g_layoutH && pad == g_layoutPad && margin == g_layoutMargin &&
+        g_cluster.baseCell > 0) {
+        return false;
+    }
     g_layoutW = width;
     g_layoutH = height;
-    const int32_t phoneMargin = Ext().phone_menu ? PhoneMenu::SafeMargin(height) : 0;
-    g_cluster = LayoutCluster(width, height, Margin(width, height, phoneMargin));
+    g_layoutPad = pad;
+    g_layoutMargin = margin;
+    g_cluster = LayoutCluster(width, height, margin, PadScaleOfPercent(pad));
     return true;
 }
 
@@ -208,11 +218,16 @@ public:
     }
 
     // The holders' padding and the buttons' sizes from the cluster's rectangles, the glyphs scaled to
-    // their buttons. Again whenever the layout screen changes.
+    // their buttons. Again whenever the layout screen, the pad's scale or the margin changes.
     void Shape() {
-        if (_shapedW == g_layoutW && _shapedH == g_layoutH) return;
+        if (_shapedW == g_layoutW && _shapedH == g_layoutH && _shapedPad == g_layoutPad &&
+            _shapedMargin == g_layoutMargin) {
+            return;
+        }
         _shapedW = g_layoutW;
         _shapedH = g_layoutH;
+        _shapedPad = g_layoutPad;
+        _shapedMargin = g_layoutMargin;
         std::fprintf(stderr, "[TouchMode] %dx%d: cluster cell %d, box %d,%d..%d,%d, bar region %d..%d\n", g_layoutW,
                      g_layoutH, g_cluster.cell, g_cluster.box.x1, g_cluster.box.y1, g_cluster.box.x2,
                      g_cluster.box.y2, g_cluster.barRegion.x1, g_cluster.barRegion.x2);
@@ -275,6 +290,8 @@ public:
 private:
     int32_t _shapedW = -1;
     int32_t _shapedH = -1;
+    int32_t _shapedPad = -1;
+    int32_t _shapedMargin = -1;
 };
 
 void OpenCluster(UI::UserInterface* ui) {
@@ -461,7 +478,10 @@ void Hold(Source source, const CameraHold& hold) {
 void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain, float& heldZoom) {
     GameUpdateLoop* loop = GameUpdateLoop::_singleton;
     UI::UserInterface* ui = loop != nullptr ? loop->m_userInterface : nullptr;
-    const bool want = Ext().touch_mode && ToolbarShown(ui);
+    // The toolbar's rectangle is answered whenever the row lays it out (BarRect); the cluster is shown with it
+    // unless the pad key is Off (issue #96: play with the gestures alone).
+    g_barShown = Ext().touch_mode && ToolbarShown(ui);
+    const bool want = g_barShown && Val().touch_mode_pad_scale > 0;
     if (want && g_open == nullptr && ui != nullptr) OpenCluster(ui);
     if (!want && g_open != nullptr && ui != nullptr) CloseCluster(ui);
 
@@ -571,8 +591,12 @@ int32_t Cell() {
     return g_cluster.cell;
 }
 
+int32_t BaseCell() {
+    return g_cluster.baseCell;
+}
+
 void BarRect(int32_t* rect) {
-    if (g_open == nullptr) {
+    if (!g_barShown) {
         StoreRect(rect, 0, 0, 0, 0);
         return;
     }
@@ -580,7 +604,7 @@ void BarRect(int32_t* rect) {
 }
 
 void SubToolbarRect(int32_t* rect) {
-    if (g_open == nullptr) {
+    if (!g_barShown) {
         StoreRect(rect, 0, 0, 0, 0);
         return;
     }

@@ -8,6 +8,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/load_notice.h"
+#include "ext/registry.h"   // issue #96: the key combos have one item per choice
 #include "ext/resources/text_parser.h"
 #include "ext/resources/text_enums.h"
 #include "ext_rsc_text.h"
@@ -169,7 +170,17 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(page && page->body.Find("_content") &&
           page->body.Find("_content")->tokens[0].text == "enhancedOptionsTable");
     const Object* table = e.Find("enhancedOptionsTable");
-    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 27);   // thirteen labels, fourteen controls (BETTERWATER: better water; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer)
+    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 35);   // eighteen labels, seventeen controls (BETTERWATER: better water; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin)
+    // Issue #96: one combo item per choice of its value key (registry.cpp), in the key's order.
+    const char* const keyCombos[][2] = {{"touchPadItems", "touch_mode_pad_scale"},
+                                        {"touchActionBarItems", "touch_mode_action_bar_scale"},
+                                        {"phoneSafeMarginItems", "phone_menu_safe_margin"}};
+    for (const auto& kc : keyCombos) {
+        const Object* items = e.Find(kc[0]);
+        const Ext::ValueKey* key = Ext::FindValueKey(kc[1]);
+        CHECK(items && items->body.Find("_strings") && key &&
+              static_cast<int32_t>(items->body.Find("_strings")->blocks.size()) == key->choiceCount);
+    }
     const Object* tpItems = e.Find("touchPointerItems");   // P11b: Off, four presets, Custom
     CHECK(tpItems && tpItems->body.Find("_strings") && tpItems->body.Find("_strings")->blocks.size() == 6);
     // TEXQUALITY: the Texture quality combo offers Full / Half only (Quarter removed by the user's ruling).

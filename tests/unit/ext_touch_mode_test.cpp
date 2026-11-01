@@ -78,7 +78,7 @@ UNIT_TEST(ext_touch_mode_cluster_layout_other_screens) {
     for (const auto& s : sizes) {
         const int32_t w = s[0];
         const int32_t h = s[1];
-        const int32_t m = Margin(w, h, 0);
+        const int32_t m = Margin(w, h, -1);
         CHECK(m == static_cast<int32_t>(std::floor(static_cast<float>(h) * kDesktopMarginFraction + 0.5f)));
         const Cluster c = LayoutCluster(w, h, m);
         const Rect safe{m, m, w - m, h - m};
@@ -89,6 +89,62 @@ UNIT_TEST(ext_touch_mode_cluster_layout_other_screens) {
         CHECK(c.barRegion.x2 == w - m);
     }
     CHECK(Margin(2340, 1080, 49) == 49);   // ext.phone_menu's margin when that row is on
+    CHECK(Margin(2340, 1080, 0) == 0);     // issue #96: that row's margin at None is no margin, not the desktop's
+}
+
+// Issue #96: ext.touch_mode_pad_scale. At 100 % (the default) the cluster is the one it always was, bit for bit;
+// smaller scales shrink it from the same corner and widen the toolbar's region; Off leaves no control to hit and
+// gives the toolbar the whole safe width.
+UNIT_TEST(ext_touch_mode_pad_scale) {
+    const Cluster base = LayoutCluster(2340, 1080, 36);
+    const Cluster same = LayoutCluster(2340, 1080, 36, PadScaleOfPercent(100));
+    CHECK(same.cell == base.cell && same.gap == base.gap && same.frame == base.frame);
+    CHECK(same.box.x1 == base.box.x1 && same.box.y1 == base.box.y1 && same.box.x2 == base.box.x2 &&
+          same.box.y2 == base.box.y2);
+    CHECK(same.barRegion.x1 == base.barRegion.x1 && same.barRegion.x2 == base.barRegion.x2);
+    CHECK(same.baseCell == same.cell);
+
+    const Cluster half = LayoutCluster(2340, 1080, 36, PadScaleOfPercent(50));
+    CHECK(half.baseCell == base.cell);                       // the action bar's size does not follow the pad
+    CHECK(std::abs(half.cell - base.cell / 2) <= 1);
+    CHECK(half.box.x1 == 36 && half.box.y2 == 1080 - 36);    // the same bottom-left corner of the safe area
+    CHECK(half.barRegion.x1 < base.barRegion.x1);            // the toolbar gains the room
+    CHECK(HitControl(half, half.control[kPad].x1 + 1, half.control[kPad].y1 + 1) == kPad);
+
+    const Cluster off = LayoutCluster(2340, 1080, 36, PadScaleOfPercent(0));
+    CHECK(off.cell == 0 && off.frame == 0);
+    CHECK(off.baseCell == base.cell);
+    CHECK(off.gap == base.gap);
+    CHECK(off.barRegion.x1 == 36 && off.barRegion.x2 == 2340 - 36 && off.barRegion.y2 == 1080 - 36);
+    for (int32_t x = 0; x < 2340; x += 37) {
+        for (int32_t y = 0; y < 1080; y += 31) CHECK(HitControl(off, x, y) == kNone);
+    }
+    CHECK(PadScaleOfPercent(-5) == 0.0f);
+    CHECK(PadScaleOfPercent(125) == 1.25f);
+
+    const Ext::ValueKey* k = Ext::FindValueKey("touch_mode_pad_scale");
+    CHECK(k != nullptr);
+    if (k == nullptr) return;
+    CHECK(std::string(k->owner) == "touch_mode");
+    CHECK(k->defaultValue == 100);
+    CHECK(Ext::Values().touch_mode_pad_scale == 100);
+    CHECK(ResolveText("ext.touch_mode_pad_scale=0\n").val.touch_mode_pad_scale == 0);
+    CHECK(ResolveText("ext.touch_mode_pad_scale=60\n").val.touch_mode_pad_scale == 60);
+    CHECK(Ext::ClampValue(*k, 80) == 100);    // not one of the combo's sizes: the default
+    CHECK(Ext::ClampValue(*k, 300) == 100);
+}
+
+// Issue #96: ext.touch_mode_action_bar_scale, the placement bar's percent of the cluster's scale-1 cell.
+UNIT_TEST(ext_touch_mode_action_bar_scale_key) {
+    const Ext::ValueKey* k = Ext::FindValueKey("touch_mode_action_bar_scale");
+    CHECK(k != nullptr);
+    if (k == nullptr) return;
+    CHECK(std::string(k->owner) == "touch_mode");
+    CHECK(k->defaultValue == 100);
+    CHECK(Ext::Values().touch_mode_action_bar_scale == 100);
+    CHECK(ResolveText("ext.touch_mode_action_bar_scale=50\n").val.touch_mode_action_bar_scale == 50);
+    CHECK(Ext::ClampValue(*k, 0) == 100);     // the bar has no Off: it is how a finger places
+    CHECK(Ext::ClampValue(*k, 125) == 125);
 }
 
 // Render scale Full / Half / Quarter with the UI scale re-derived (the interface keeps its on-screen size): the

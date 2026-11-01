@@ -941,19 +941,25 @@ uint32_t ShownFor(const Tool* tool, ToolKind kind) {
     return 0;
 }
 
-// The bar's layout on the game UI's layout screen.
-Bar CurrentBar(const UI::UserInterface* ui, uint32_t shown, int32_t& cell, int32_t& frame) {
+// The bar's layout on the game UI's layout screen. `baseCell` is the cluster's cell at scale 1 (the aim
+// marker's size); the bar's own `cell`, `frame` and gap are ext.touch_mode_action_bar_scale times their
+// scale-1 sizes (issue #96: 100 % = the bar as it always was, whatever the pad's own scale).
+Bar CurrentBar(const UI::UserInterface* ui, uint32_t shown, int32_t& baseCell, int32_t& cell, int32_t& frame) {
     int32_t w = 0;
     int32_t h = 0;
     ScreenSize(w, h);
     const int32_t lw = static_cast<int32_t>(static_cast<float>(w) * ui->_uiScale);
     const int32_t lh = static_cast<int32_t>(static_cast<float>(h) * ui->_uiScale);
     const int32_t shortEdge = lw < lh ? lw : lh;
-    cell = TouchMode::Cell();
-    if (cell <= 0) cell = static_cast<int32_t>(TouchMode::kCellFraction * static_cast<float>(shortEdge) + 0.5f);
-    frame = static_cast<int32_t>(TouchMode::kFrameFraction * static_cast<float>(shortEdge) + 0.5f);
-    const int32_t gap = static_cast<int32_t>(TouchMode::kGapFraction * static_cast<float>(shortEdge) + 0.5f);
-    const int32_t margin = TouchMode::Margin(lw, lh, Ext().phone_menu ? PhoneMenu::SafeMargin(lh) : 0);
+    const float scale = static_cast<float>(Val().touch_mode_action_bar_scale) / 100.0f;
+    baseCell = TouchMode::BaseCell();
+    if (baseCell <= 0) {
+        baseCell = static_cast<int32_t>(TouchMode::kCellFraction * static_cast<float>(shortEdge) + 0.5f);
+    }
+    cell = static_cast<int32_t>(static_cast<float>(baseCell) * scale + 0.5f);
+    frame = static_cast<int32_t>(TouchMode::kFrameFraction * static_cast<float>(shortEdge) * scale + 0.5f);
+    const int32_t gap = static_cast<int32_t>(TouchMode::kGapFraction * static_cast<float>(shortEdge) * scale + 0.5f);
+    const int32_t margin = TouchMode::Margin(lw, lh, Ext().phone_menu ? PhoneMenu::SafeMargin(lh) : -1);
     int32_t bar[4] = {0, 0, 0, 0};
     int32_t sub[4] = {0, 0, 0, 0};
     TouchMode::BarRect(bar);
@@ -961,7 +967,7 @@ Bar CurrentBar(const UI::UserInterface* ui, uint32_t shown, int32_t& cell, int32
     int32_t above = 0;
     if (bar[3] > bar[1]) above = bar[1];
     if (sub[3] > sub[1] && (above == 0 || sub[1] < above)) above = sub[1];
-    if (above == 0) above = lh - margin - cell * 3 / 2;   // retail's toolbar: about a cell and a half high
+    if (above == 0) above = lh - margin - baseCell * 3 / 2;   // retail's toolbar: about a cell and a half high
     return LayoutBar(lw, lh, cell, gap, frame, margin, above, shown);
 }
 
@@ -1015,9 +1021,10 @@ void GameFrame() {
     const bool wantBar = shown != 0 && g_owns;
     if (wantBar && g_barDialog == nullptr) OpenDialog<BarDialog>(ui, kBarRsc);
     if (!wantBar && g_barDialog != nullptr) CloseDialog(ui, g_barDialog);
+    int32_t baseCell = 0;
     int32_t cell = 0;
     int32_t frame = 0;
-    g_bar = CurrentBar(ui, shown, cell, frame);
+    g_bar = CurrentBar(ui, shown, baseCell, cell, frame);
     g_shown = shown;
     if (g_barDialog != nullptr) {
         g_barDialog->Shape(g_bar, shown, cell, frame);
@@ -1031,7 +1038,7 @@ void GameFrame() {
     const bool wantMarker = Ext().touch_pointer && aiming && Val().touch_pointer_lift > 0;
     if (wantMarker && g_markerDialog == nullptr) OpenDialog<MarkerDialog>(ui, kMarkerRsc);
     if (!wantMarker && g_markerDialog != nullptr) CloseDialog(ui, g_markerDialog);
-    if (g_markerDialog != nullptr) g_markerDialog->Shape(cell);
+    if (g_markerDialog != nullptr) g_markerDialog->Shape(baseCell);
 }
 
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect) {

@@ -53,6 +53,7 @@ enum Control : int32_t {
 };
 
 struct Cluster {
+    int32_t baseCell = 0; // the cell at scale 1 (kCellFraction of the short edge): ext.touch_pointer's bar sizes from it
     int32_t cell = 0;
     int32_t gap = 0;
     int32_t frame = 0;    // the frame's inset around the controls
@@ -63,13 +64,21 @@ struct Cluster {
 };
 
 // The margin kept from every screen edge: ext.phone_menu's safe margin when that row is on
-// (`phoneMargin`), else kDesktopMarginFraction of the short edge.
+// (`phoneMargin` >= 0, which may be 0: ext.phone_menu_safe_margin None), else (`phoneMargin` < 0)
+// kDesktopMarginFraction of the short edge.
 int32_t Margin(int32_t width, int32_t height, int32_t phoneMargin);
 
 // The cluster on a width x height layout screen, `margin` in from the edges (TOUCH_MODE.md §3):
 // one frame (`frame` inset) around the D-pad bottom-left (3 cells square), the two rotate buttons
 // above it and the two zoom buttons right of it; the bar region right of the frame.
-Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin);
+// `scale` (issue #96, ext.touch_mode_pad_scale / 100): the cell, gap and frame are scale times their
+// fractions of the short edge (1 = the cluster as it always was). `scale` <= 0: no cluster (cell 0, every
+// control and the box empty, never hit) and the bar region spans the whole safe width; the gap keeps its
+// scale-1 size (the event notices keep it above the bar).
+Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin, float scale = 1.0f);
+
+// The pad key (percent, 0 = hidden) as LayoutCluster's scale.
+float PadScaleOfPercent(int32_t percent);
 
 // The toolbar's own scale: `requested` (1.0 .. 2.0), shrunk so a bar `ownWidth` wide in its own
 // units fits `regionWidth` layout units, never below 1. A width <= 0 (not laid out yet): requested.

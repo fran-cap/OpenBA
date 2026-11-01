@@ -163,12 +163,15 @@ struct Values {
     int32_t texture_quality_drop = 0; // ext.texture_quality_drop 0..1 (owner texture_quality): the top mip levels a qualifying texture is made without, 0 = Full (the default: the row or profile=all alone drops nothing), 1 = Half; an older 2 (Quarter, removed by ruling) clamps to 1; read once at boot (TEXQUALITY.md)
     int32_t fps_cap_rate = 60; // ext.fps_cap_rate 30 | 60 | 90 | 120 (owner fps_cap): the menu's and the game's frame-rate ceiling while the row is on; 60 is the phone's ruled default (docs/android/P8_INPUT_OPTIONS.md)
     int32_t touch_mode_toolbar_scale = 200; // ext.touch_mode_toolbar_scale 100 | 125 | 150 | 175 | 200 (owner touch_mode): the in-game toolbar's own scale in percent, shrunk to fit beside the control cluster (docs/android/TOUCH_MODE.md)
+    int32_t touch_mode_pad_scale = 100; // ext.touch_mode_pad_scale 0 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): the camera pad cluster's size in percent of its own (a cell of 0.11 of the short edge), 0 = the cluster hidden; 100 = the size it always had (issue #96, docs/android/TOUCH_MODE.md section 5)
+    int32_t touch_mode_action_bar_scale = 100; // ext.touch_mode_action_bar_scale 50 | 60 | 75 | 100 | 125 (owner touch_mode): ext.touch_pointer's placement bar (place / rotate / flip / cancel) in percent of the cluster's 100 % cell, whatever the pad's own scale; 100 = the size it always had (issue #96)
     int32_t touch_mode_zoom_min = 10; // ext.touch_mode_zoom_min 6..20 (owner touch_mode): the camera's near zoom limit in distance units while the row is on, retail's 20 otherwise (docs/android/P11D_ZOOM.md)
     int32_t touch_pointer_lift = 160; // ext.touch_pointer_lift 0 | 80 | 120 | 160 | 200 | 240 (owner touch_pointer): the aim point's height above the finger, device pixels (docs/android/P11_TOUCH_POINTER.md)
     int32_t touch_pointer_pick_radius = 50; // ext.touch_pointer_pick_radius 0 | 25 | 50 | 75 | 100 (owner touch_pointer): the pick snap's radius, device pixels
     int32_t touch_pointer_tap_twice = 0; // ext.touch_pointer_tap_twice 0..1 (owner touch_pointer): a second tap near the first places the aimed building
     int32_t derived_cache_mb = 4096; // ext.derived_cache_mb 256..65536 (owner compress_ao, the cache's first user): the derived-data cache's cap in MB (COMPRESSAO.md)
     int32_t natural_tree_growth = 1; // ext.natural_tree_growth 0..1 (owner better_trees): per-tree autumn colour, leaf fall, regrowth and green variation while the row is on (NATURAL_GROWTH.md)
+    int32_t phone_menu_safe_margin = 3375; // ext.phone_menu_safe_margin 0 | 2000 | 3375 | 4500 | 6000 (owner phone_menu): the safe-area inset in thousandths of a percent of the screen height (3375 = 3.375 %, the margin it always had: phone_math.h kSafeMarginFraction), 0 = none (a tablet without cut-outs; issue #96, handins/PHONEMENU.md)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
 

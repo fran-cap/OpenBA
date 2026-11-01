@@ -2,7 +2,9 @@
 // src/ext/phone_menu/phone_math.h -- ext.phone_menu's pure decisions
 // ============================================================================
 // NOT RETAIL. Standard C++ only (tests/unit/ext_phone_menu_test.cpp links
-// phone_math.cpp on its own). docs/extensions/handins/PHONEMENU.md has the why.
+// phone_math.cpp with the registry, src/ext/registry.cpp, also standard C++:
+// SafeMargin reads ext.phone_menu_safe_margin). docs/extensions/handins/PHONEMENU.md
+// has the why.
 //
 // UNITS. Every extent here is in the units the caller hands in: the UI layout
 // space (back buffer * _uiScale), which is also the space UserInterface::Draw
@@ -42,8 +44,11 @@ namespace PhoneMenu {
 // keep its content off the rounded corners). Still small enough that nothing
 // centred moves: on a desktop screen the inset only shows on an element anchored
 // to an edge.
+// Issue #96: the player picks the inset with ext.phone_menu_safe_margin (thousandths of a
+// percent: 0 / 2000 / 3375 / 4500 / 6000); its default 3375 is this fraction, exactly.
 constexpr float kSafeMarginP7Fraction = 0.045f;
 constexpr float kSafeMarginFraction = kSafeMarginP7Fraction * 0.75f;
+constexpr int32_t kSafeMarginDefaultKey = 3375;   // ext.phone_menu_safe_margin's default (registry.cpp)
 
 // The Options > UI scale slider's lowest value with the row on (percent).
 // _uiScale = percent / 100 is LAYOUT UNITS PER DEVICE PIXEL, so 25 draws the UI
@@ -65,7 +70,16 @@ struct Rect {
     int32_t x1, y1, x2, y2;
 };
 
-// round(height * kSafeMarginFraction); 0 for a height <= 0.
+// ext.phone_menu_safe_margin (thousandths of a percent of the height) as a fraction of the height:
+// kSafeMarginFraction itself for the default 3375 (so the default margin is the one it always was, bit
+// for bit), key / 100000 otherwise, 0 for a key <= 0.
+float SafeMarginFractionOf(int32_t key);
+
+// round(height * fraction); 0 for a height <= 0 or a fraction <= 0.
+int32_t SafeMarginAt(int32_t height, float fraction);
+
+// The live margin: SafeMarginAt(height, SafeMarginFractionOf(ext.phone_menu_safe_margin)). Every
+// safe-area reader (the main menu, the in-game dialogs, the touch cluster and bar) goes through it.
 int32_t SafeMargin(int32_t height);
 
 // The rectangle a dialog is laid out in on a width x height screen: the screen
