@@ -166,6 +166,9 @@ std::vector<Finger> g_fingers;
 TwoFingers g_two;
 GestureStep g_pendingGesture;   // summed since the last poll
 bool g_gestureActive = false;
+bool g_lockPanning = false;
+bool g_lockZooming = false;
+int32_t g_gestureFrames = 0;
 int32_t g_barPressed = -1;
 
 LatchQueue g_queue;
@@ -719,21 +722,60 @@ void AfterUpdate(Input::Device& dev) {
 
     // The camera: the two fingers' motion since the last poll, or the edge auto-pan of a drag tool's aim.
     TouchMode::CameraHold hold;
-    if (g_gestureActive) {
-        hold.dragX = g_pendingGesture.dragX;
-        hold.dragY = g_pendingGesture.dragY;
-        hold.zoomSteps = g_pendingGesture.zoomSteps;
-        hold.yawDegrees = g_pendingGesture.yawDegrees;
-    } else if (g_fingers.size() == 1 && g_fingers.front().role == Role::Aim &&
+    if (g_gestureActive && g_fingers.size() == 2) {
+        int32_t screenW = 0, screenH = 0;
+        ScreenSize(screenW, screenH);
+        float widthThresh = static_cast<float>(screenW) * 0.35f; 
+
+        float fingerDistX = std::fabs(g_fingers[1].x - g_fingers[0].x);
+        bool isRotating = (fingerDistX > widthThresh);
+
+        // Přičítáme snímky po celou dobu, co držíš dva prsty
+        g_gestureFrames++;
+
+        if (!g_lockPanning && !g_lockZooming && !isRotating) {
+            // Teprve po 6 snímcích (cca 0.2s stabilního držení) má zoom vůbec šanci se aktivovat
+            if (g_gestureFrames > 6 && std::fabs(g_pendingGesture.zoomSteps) > 0.40f) {
+                g_lockZooming = true;
+            }
+            else if (std::fabs(g_pendingGesture.dragX) > 0.005f || std::fabs(g_pendingGesture.dragY) > 0.005f) {
+                g_lockPanning = true;
+            }
+        }
+
+        if (isRotating) {
+            hold.dragX = 0.0f; hold.dragY = 0.0f; hold.zoomSteps = 0.0f;
+            hold.yawDegrees = g_pendingGesture.yawDegrees;
+        }
+        else if (g_lockZooming) {
+            hold.dragX = 0.0f; hold.dragY = 0.0f; hold.yawDegrees = 0.0f;
+            hold.zoomSteps = g_pendingGesture.zoomSteps;
+        }
+        else if (g_lockPanning) {
+            hold.dragX = g_pendingGesture.dragX;
+            hold.dragY = g_pendingGesture.dragY;
+            hold.zoomSteps = 0.0f;
+            hold.yawDegrees = 0.0f;
+        }
+        else {
+            hold.dragX = g_pendingGesture.dragX;
+            hold.dragY = g_pendingGesture.dragY;
+            hold.zoomSteps = 0.0f;
+            hold.yawDegrees = 0.0f;
+        }
+    } else {
+        // RESET: Všechny zámky i časový filtr se okamžitě mažou při zvednutí prstů
+        g_lockPanning = false;
+        g_lockZooming = false;
+        g_gestureFrames = 0;
+
+        if (g_fingers.size() == 1 && g_fingers.front().role == Role::Aim &&
                KindOf(CurrentTool()) == ToolKind::Drag) {
-        int32_t w = 0;
-        int32_t h = 0;
-        ScreenSize(w, h);
-        int32_t ex = 0;
-        int32_t ey = 0;
-        EdgePan(g_fingers.front().x, g_fingers.front().y, w, h, ex, ey);
-        hold.panX = static_cast<float>(ex);
-        hold.panY = static_cast<float>(ey);
+            int32_t w = 0; int32_t h = 0; ScreenSize(w, h);
+            int32_t ex = 0; int32_t ey = 0;
+            EdgePan(g_fingers.front().x, g_fingers.front().y, w, h, ex, ey);
+            hold.panX = static_cast<float>(ex); hold.panY = static_cast<float>(ey);
+        }
     }
     g_pendingGesture = GestureStep();
     TouchMode::Hold(TouchMode::Source::Fingers, hold);
