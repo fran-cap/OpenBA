@@ -36,6 +36,7 @@
 #include "vulkan11.h"
 #include "vulkan_entry.h"
 #include "ao/assao_pass.h"                         // P4: ext.ambient_occlusion's pass objects
+#include "better_water/scene_depth_pass.h"         // ext.better_water's scene depth copy
 #include "async_gpu_create/async_create.h"         // P4: ext.async_gpu_create (the loader bracket)
 #include "boot_device_lost/boot_device_lost.h"     // P4: fix.boot_device_lost
 #include "create_on_demand/lazy_create.h"          // P4: ext.create_on_demand
@@ -1222,6 +1223,7 @@ void DeviceData::Shutdown() {
             // the draw state, the pipelines (their cache is written here), then everything the companions
             // still hold (resources.h); the shader modules after them, below.
             Assao::Shutdown();
+            SceneDepth::Shutdown();
             Rewrites::Shutdown();
             ShareGpuData::Clear();
             PresentShutdown();
