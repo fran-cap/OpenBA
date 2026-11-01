@@ -57,9 +57,9 @@ The routes found have the lengths the row-off runs found for the same trading po
 `tests/unit/ext_path_query_first_test.cpp` checks the pure parts (`src/ext/path_query_first/queue_first.h`):
 the query pushed at the head is the next command the worker's pop (a copy of `PathfinderThread::Run`'s)
 takes, the commands queued before and after it keep their order, and the search runs under the query's
-settings with the worker's own written back. Unit tests and `tools/acceptance/acceptance.sh` pass. The
-resave gate and `tools/build.sh run` were not run (no `Gate.sav` and no `C:/GOG Games` install on the
-machine).
+settings with the worker's own written back. Unit tests and `tools/acceptance/acceptance.sh` pass.
+`tools/build.sh run` passes `/profile:faithful`, so the gate checks the row-off path only; the row-on path is
+checked by the measured runs above and a row-on autostart run.
 
 ## 4. Cost
 

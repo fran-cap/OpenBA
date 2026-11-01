@@ -652,6 +652,7 @@ those without an absorb component.
 `HARNESS_FIXES=foundation_piles` PASSes (3 of 3; one run moved 18 piles off the town hall's footprint,
 two cleared without a move because store room freed first). These runs predate the ClearArea return fix
 (row 1343); the yard's part of each result is from before it.
+
 ## 18. A synchronous path query waits for every citizen search queued before it
 
 **Symptom.** In a large town (about 1600 citizens, a 640-cell map, game speed 10) the game freezes for

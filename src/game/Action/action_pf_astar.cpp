@@ -754,7 +754,9 @@ void PathfinderThread::ApplyCommand(const PathCommandArgs& cmd) {
     }
     case Ext::PathQueryFirst::kCommand:
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHQUERYFIRST.md): fix.path_query_first's
-        // head-of-queue query; retail queues no command 6.
+        // head-of-queue query; retail queues no command 6. Apply re-enters this function as case 5, so
+        // the worker holds two 0x10000-byte path buffers at once (well inside its 2 MB stack,
+        // src/platform/common/platform_thread.h).
         Ext::PathQueryFirst::Apply(*this, cmd);
         return;
     }
