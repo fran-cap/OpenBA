@@ -102,11 +102,16 @@ GestureStep TwoFingers::Step(float x1, float y1, float x2, float y2) {
     if (dist < 1.0f) dist = 1.0f;
     const float angle = std::atan2(y2 - y1, x2 - x1) * 180.0f / kPi;
 
-    // Each component's total since Begin as a multiple of its engage threshold.
+    // Each component's total since Begin as a multiple of its engage threshold; pinch and spin take the smaller of
+    // the relative ratio and the px floor's (kPinchSpinEngageFraction), so both must be passed.
     const float travel = std::sqrt((cx - _startCx) * (cx - _startCx) + (cy - _startCy) * (cy - _startCy));
     const float panRatio = travel / (kPanEngageFraction * _shortEdge);
-    const float pinchRatio = std::fabs(std::log(dist / _startDist)) / kPinchEngageLog;
-    const float spinRatio = std::fabs(AngleDelta(angle, _startAngle)) / kSpinEngageDegrees;
+    const float floorPx = kPinchSpinEngageFraction * _shortEdge;
+    const float turn = std::fabs(AngleDelta(angle, _startAngle));
+    const float pinchPx = std::fabs(dist - _startDist);
+    const float spinPx = _startDist * turn * kPi / 180.0f;
+    const float pinchRatio = std::min(std::fabs(std::log(dist / _startDist)) / kPinchEngageLog, pinchPx / floorPx);
+    const float spinRatio = std::min(turn / kSpinEngageDegrees, spinPx / floorPx);
 
     // Each finger's own travel since Begin (kPanFingerShare's comment): both moving is a pan.
     const float travel1 = std::sqrt((x1 - _startX1) * (x1 - _startX1) + (y1 - _startY1) * (y1 - _startY1));

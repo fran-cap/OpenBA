@@ -86,6 +86,13 @@ void EdgePan(float x, float y, int32_t w, int32_t h, int32_t& dx, int32_t& dy);
 constexpr float kPanEngageFraction = 0.02f;
 constexpr float kPinchEngageLog = 0.06f;
 constexpr float kSpinEngageDegrees = 8.0f;
+// Pinch and spin also need the fingers' motion relative to each other in px (the spread change; the arc one finger
+// swept about the other) past this fraction of the short edge (27 px on the S25's 1080). The relative thresholds
+// alone are a few px for fingers close together (index + middle, 120 px apart: 7 px of spread, 17 px of arc),
+// which their jitter trips before the centroid travels its 2 %; 2.5 % sits just above the pan threshold, so a
+// close pair's jitter cannot reach it first, and a deliberate pinch or twist moves well past it. The relative
+// thresholds govern once the fingers are wide (pinch from about 440 px apart, spin from about 190 px).
+constexpr float kPinchSpinEngageFraction = 0.025f;
 // The mode lock: the first component past its threshold is the gesture's mode and the others stay zero until
 // the next Begin (the fingers lifted). If several pass in one step, the one furthest past its threshold (the
 // largest measure / threshold) wins. Pan is exclusive for the whole gesture. Pinch and spin may join each other

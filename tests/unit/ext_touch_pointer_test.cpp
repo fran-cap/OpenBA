@@ -57,11 +57,11 @@ struct Pose {
     float deg;
 };
 
-void BeginPose(TwoFingers& g, const Pose& p) {
+void BeginPose(TwoFingers& g, const Pose& p, float shortEdge = 1000.0f) {
     const float a = p.deg * 3.14159265f / 180.0f;
     const float hx = 0.5f * p.d * std::cos(a);
     const float hy = 0.5f * p.d * std::sin(a);
-    g.Begin(p.cx - hx, p.cy - hy, p.cx + hx, p.cy + hy, 1000.0f);
+    g.Begin(p.cx - hx, p.cy - hy, p.cx + hx, p.cy + hy, shortEdge);
 }
 
 GestureStep StepPose(TwoFingers& g, const Pose& p) {
@@ -173,11 +173,11 @@ UNIT_TEST(ext_touch_pointer_two_finger_classifier) {
     // Pinch: the fingers spread symmetrically, the centroid stays: zoom in, no pan, no spin.
     TwoFingers p;
     p.Begin(400, 500, 600, 500, 1000.0f);
-    s = p.Step(390, 500, 610, 500);               // ratio 1.1: log 0.095 > 0.06
+    s = p.Step(385, 500, 615, 500);               // ratio 1.15: log 0.140 > 0.06, 30 px > 25 px (2.5 %)
     CHECK(p.pinchEngaged() && !p.panEngaged() && !p.spinEngaged());
-    CHECK(Near(s.zoomSteps, std::log(1.1f) / kPinchLogPerStep, 1e-4f) && s.zoomSteps > 0.0f);
+    CHECK(Near(s.zoomSteps, std::log(1.15f) / kPinchLogPerStep, 1e-4f) && s.zoomSteps > 0.0f);
     s = p.Step(400, 500, 600, 500);               // back together: zoom out by the same amount
-    CHECK(Near(s.zoomSteps, -std::log(1.1f) / kPinchLogPerStep, 1e-4f));
+    CHECK(Near(s.zoomSteps, -std::log(1.15f) / kPinchLogPerStep, 1e-4f));
 
     // Spin: the pair turns clockwise on the screen (y down) about its centre by 10 degrees.
     TwoFingers r;
@@ -222,7 +222,8 @@ UNIT_TEST(ext_touch_pointer_gesture_lock_pinch_drift) {
     }
     CHECK(p.pinchEngaged() && !p.panEngaged() && !p.spinEngaged());
     CHECK(total.dragX == 0.0f && total.dragY == 0.0f && total.yawDegrees == 0.0f);
-    CHECK(Near(total.zoomSteps, std::log(3.0f) / kPinchLogPerStep, 1e-3f));
+    // Engaged at step 2 (40 px of spread; step 1's 20 px is under the 25 px floor).
+    CHECK(Near(total.zoomSteps, std::log(600.0f / 220.0f) / kPinchLogPerStep, 1e-3f));
 
     // A one-thumb pinch: one finger still, the other out 200 px, so the centroid travels 100 px (5x the pan
     // threshold). The spread passes its threshold first: zoom only.
@@ -234,7 +235,7 @@ UNIT_TEST(ext_touch_pointer_gesture_lock_pinch_drift) {
     }
     CHECK(q.pinchEngaged() && !q.panEngaged() && !q.spinEngaged());
     CHECK(total.dragX == 0.0f && total.dragY == 0.0f);
-    CHECK(Near(total.zoomSteps, std::log(400.0f / 210.0f) / kPinchLogPerStep, 1e-3f));   // from step 2
+    CHECK(Near(total.zoomSteps, std::log(400.0f / 220.0f) / kPinchLogPerStep, 1e-3f));   // from step 3 (30 px)
 }
 
 UNIT_TEST(ext_touch_pointer_gesture_lock_rotate_first) {
@@ -319,6 +320,46 @@ UNIT_TEST(ext_touch_pointer_gesture_lock_pan_drifting_apart) {
     CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
     CHECK(total.zoomSteps == 0.0f && total.yawDegrees == 0.0f);
     CHECK(Near(total.dragX, 0.0f, 1e-5f) && Near(total.dragY, 0.18f, 1e-4f));
+}
+
+// Fingers close together (index + middle, 120 px apart on the S25's 1080 short edge): the px floor (27 px).
+UNIT_TEST(ext_touch_pointer_gesture_lock_close_fingers) {
+    // A 150 px pan whose spread jitters +-8 px and whose angle jitters +-5 degrees every step. The relative
+    // thresholds alone (7 px of spread, 8 degrees) would lock to pinch on the first step; the floor keeps both
+    // under 27 px, so pan engages at step 3 (30 px > 21.6 px) and follows.
+    TwoFingers g;
+    BeginPose(g, Pose{500, 500, 120, 0}, 1080.0f);
+    GestureStep total;
+    for (int32_t i = 1; i <= 15; ++i) {
+        const float k = static_cast<float>(i);
+        const float sign = (i % 2 == 0) ? -1.0f : 1.0f;
+        Accumulate(total, StepPose(g, Pose{500 + 10 * k, 500, 120 + 8 * sign, 5 * sign}));
+    }
+    CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
+    CHECK(total.zoomSteps == 0.0f && total.yawDegrees == 0.0f);
+    CHECK(Near(total.dragX, 130.0f / 1080.0f, 1e-4f));   // 150 px less the 20 px before the lock
+
+    // A deliberate pinch of close fingers, 120 -> 60 px in 5 px steps: engaged at 30 px of spread (step 6).
+    TwoFingers p;
+    BeginPose(p, Pose{500, 500, 120, 0}, 1080.0f);
+    total = GestureStep();
+    for (int32_t i = 1; i <= 12; ++i) {
+        Accumulate(total, StepPose(p, Pose{500, 500, 120 - 5 * static_cast<float>(i), 0}));
+    }
+    CHECK(p.pinchEngaged() && !p.panEngaged() && !p.spinEngaged());
+    CHECK(total.dragX == 0.0f && total.dragY == 0.0f && total.yawDegrees == 0.0f);
+    CHECK(Near(total.zoomSteps, std::log(60.0f / 95.0f) / kPinchLogPerStep, 1e-3f));
+
+    // A deliberate 40-degree twist of close fingers in 2-degree steps: the arc passes 27 px at 14 degrees (step 7).
+    TwoFingers r;
+    BeginPose(r, Pose{500, 500, 120, 0}, 1080.0f);
+    total = GestureStep();
+    for (int32_t i = 1; i <= 20; ++i) {
+        Accumulate(total, StepPose(r, Pose{500, 500, 120, 2 * static_cast<float>(i)}));
+    }
+    CHECK(r.spinEngaged() && !r.panEngaged() && !r.pinchEngaged());
+    CHECK(total.dragX == 0.0f && total.dragY == 0.0f && total.zoomSteps == 0.0f);
+    CHECK(Near(total.yawDegrees, 28.0f, 1e-2f));
 }
 
 UNIT_TEST(ext_touch_pointer_gesture_lock_join_and_reset) {

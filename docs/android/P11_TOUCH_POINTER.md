@@ -71,7 +71,13 @@ centroid's (`kPanFingerShare`): a pan moves both fingers about as far as the cen
 turn about one finger leaves one nearly still. A wide one-thumb pinch passes the pan threshold before the pinch one
 (the S25 check) and stays undecided until the pinch passes its own. An earlier rule compared the spread change with
 the centroid's travel; two thumbs jitter their spread by about the 20 px the centroid has moved at engage time, so
-plain pans sometimes did not engage (the second S25 check).
+plain pans sometimes did not engage (the second S25 check). Pinch and spin also need a px floor: the spread change,
+and the arc one finger swept about the other, must each pass 2.5 % of the short edge (`kPinchSpinEngageFraction`,
+27 px on the S25) as well as the relative threshold. Fingers close together (index + middle, 120 px apart) have a
+relative pinch threshold of 7 px and a spin one of 17 px, which their jitter trips before the centroid has
+travelled its 2 % (the third S25 check); 2.5 % sits just above the pan threshold. Once the fingers are wide (pinch
+from about 440 px apart, spin from about 190 px) the relative thresholds govern as before. The 3x join applies to
+both, so a join also needs 3x the floor.
 Pinch and spin may join each other, as map apps allow a twist while zooming, but only once the second one passes
 3x its own threshold (`kJoinFactor`: 24 degrees of turn during a pinch, a 20 % spread change during a turn); the
 incidental turn of an ordinary pinch stays below that. No settling time: the totals since the touch already
