@@ -47,7 +47,7 @@ UNIT_TEST(ext_registry_table_shape) {
                            "ui_scale_layout", "rock_seat", "terrain_resort",
                            "large_packages", "boot_device_lost", "slider_drag_clamp",
                            "dialog_position_drift", "alloc_tiebreak", "outline_with_panel",
-                           "foundation_piles"}) {
+                           "foundation_piles", "path_query_first"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);

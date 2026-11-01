@@ -197,6 +197,24 @@ def draw_foundation(px):
     ])
 
 
+def draw_queue_first(px):
+    # an arrow passing a row of waiting dots to the front (the urgent path query goes first)
+    _paint(px, [
+        "............",
+        "..#.........",
+        "..##........",
+        "#######.....",
+        "..##........",
+        "..#.........",
+        "............",
+        "............",
+        "##.++.++.++.",
+        "##.++.++.++.",
+        "............",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -208,4 +226,5 @@ ICONS = {
     "alloc_tiebreak": ("fix", draw_tiebreak),        # two equal figures, numbered
     "outline_with_panel": ("fix", draw_outline_panel),   # a panel over its outlined plot
     "foundation_piles": ("fix", draw_foundation),    # foundation outline, a log outside it
+    "path_query_first": ("fix", draw_queue_first),   # arrow to the front of a waiting row
 }

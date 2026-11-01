@@ -28,6 +28,8 @@
 #include "Game/Map.h"                  // Map, MapCell
 #include "Game/PathfinderThread.h"     // PathfinderThread
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
+#include "ext/registry.h"                           // EXT SEAM: Ext::Fix().path_query_first
+#include "ext/path_query_first/path_query_first.h"  // EXT SEAM: fix.path_query_first (RunPathQuery)
 #include "stress_harness.h"   // PFBENCH: PfMainTimer (pf_sync_wait_ms; stress harness only)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::NoteWrite after a cell store
 #include "cell_trace.h"   // red square: BANISHED_CELL_TRACE (src/diag/cell_trace.h)
@@ -85,7 +87,11 @@ static int RunPathQuery(PathfinderThread* pf, int start, int goal, int passableT
     PathTicket ticket{0, 0};
 
     pf->SetPassableTypes(passableTypes);          // 0x1400a6b20
-    pf->RequestPath(&ticket, start, goal);        // 0x1400a6c10
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHQUERYFIRST.md): fix.path_query_first queues
+    // this query at the head of the worker's queue instead of behind every queued citizen search.
+    if (!(Ext::Fix().path_query_first && Ext::PathQueryFirst::RequestFirst(pf, &ticket, start, goal))) {
+        pf->RequestPath(&ticket, start, goal);    // 0x1400a6c10
+    }
 
     do {
         if (ticket.slot < pf->results.size) {
