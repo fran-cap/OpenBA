@@ -146,8 +146,10 @@ defaults above with three values changed: `VideoRenderScale=100` (the panel's ow
 drew 1696x1200 on a 3392x2400 tablet and stretched it), `GameUIScale=50` (written out: the panels keep the
 size the phone defaults gave a tablet, 2 screen pixels per layout unit, where a first run at Full would
 otherwise take the game's 100 and halve them) and `ext.touch_mode_toolbar_scale=150` (toolbar buttons
-about 9 mm square at 320 dpi, as the S25's 8.5 mm; 200 made them 12 mm). `ext.phone_menu`,
-`ext.touch_mode` and `ext.touch_pointer` stay on. A phone, and any device whose size is unknown, gets the
+about 9 mm square at 320 dpi, as the S25's 8.5 mm; 200 made them 12 mm), plus `ext.touch_mode_pad_scale=50`
+and `ext.touch_mode_action_bar_scale=50` (the pad's cell is 11 % of the shorter edge, 21 mm on this tablet
+against the S25's 7 mm, and the placement bar's buttons take the pad's full size; 50 % gives both about
+10.5 mm, the smallest step offered). `ext.phone_menu`, `ext.touch_mode` and `ext.touch_pointer` stay on. A phone, and any device whose size is unknown, gets the
 phone defaults unchanged. The log line `first run: tablet defaults written to ... (display 10.60x7.50 in,
 ...)` (logcat, tag OpenBA) names the class and the size. The seed is written only when `settings.cfg` is
 absent; a later start only appends the keys a file lacks (P8, `phone_seed.h`), so an existing install keeps

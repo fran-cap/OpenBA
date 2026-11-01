@@ -168,11 +168,17 @@ const char kLowMemorySettings[] =
 // phone defaults give a tablet today (2 screen pixels per layout unit, about 6 units per mm at
 // 320 dpi). The toolbar at 150 % gives buttons about 9 mm square at that UI scale, the size a finger
 // needs (TOUCH_MODE.md §3: the S25's 8.5 mm); 200 % made them 12 mm and the bar 18 mm tall.
+// The camera pad's cell is 11 % of the screen's shorter edge (touch_math.h): 21 mm on a 2400-row
+// 320 dpi tablet against the S25's 7 mm, and the placement bar's buttons take the pad's full-size
+// button. Both at 50 % (ext.touch_mode_pad_scale, ext.touch_mode_action_bar_scale, TOUCH_MODE.md §5)
+// are about 10.5 mm, the smallest step the rows offer and the nearest to the phone's.
 // ext.phone_menu, ext.touch_mode and ext.touch_pointer stay on, as everything else of the phone's.
 const char kTabletOverrides[] =
     "VideoRenderScale=100\n"
     "GameUIScale=50\n"
-    "ext.touch_mode_toolbar_scale=150\n";
+    "ext.touch_mode_toolbar_scale=150\n"
+    "ext.touch_mode_pad_scale=50\n"
+    "ext.touch_mode_action_bar_scale=50\n";
 
 void SeedPhoneSettings(const std::string& userDir) {
     float widthInches = 0.0f;
