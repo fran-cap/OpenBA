@@ -1,7 +1,7 @@
 // android/app/src/main/java/org/openba/game/OpenBAActivity.java (docs/android/README.md)
 //
 // The app's one activity: SDL's SDLActivity (compiled from the pinned SDL submodule, see
-// android/app/build.gradle) with four changes.
+// android/app/build.gradle) with five changes.
 //
 //  * The native entry point is the game's own `main` (src/app/main.cpp, built into libmain.so),
 //    the same function Linux runs, not SDL's renamed SDL_main: main.cpp defines SDL_MAIN_HANDLED.
@@ -25,6 +25,10 @@
 //    is copied in before the native side starts. A file present is left alone (the player's own
 //    copy wins). Here rather than in the native boot: assets are a Java API, the native side
 //    would need the activity's AssetManager through JNI for the same three copies.
+//
+//  * physicalDisplay, called by the native side through JNI (src/platform/android/
+//    display_size_android.cpp): the display's size in pixels and dots per inch, which the first
+//    run's settings seed turns into inches to tell a tablet from a phone (issue #96).
 package org.openba.game;
 
 import android.content.Context;
@@ -32,6 +36,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.system.ErrnoException;
 import android.system.Os;
+import android.util.DisplayMetrics;
 import android.util.Log;
 
 import java.io.File;
@@ -66,6 +71,18 @@ public class OpenBAActivity extends SDLActivity {
     @Override
     protected SDLSurface createSDLSurface(Context context) {
         return new OpenBASurface(context);
+    }
+
+    // The whole display's metrics (getRealMetrics: the panel, not the window less the system bars):
+    // { widthPixels, heightPixels, xdpi, ydpi, densityDpi }. Called once at boot through JNI from
+    // src/platform/android/display_size_android.cpp, which names this method and its "()[F" signature.
+    @SuppressWarnings("deprecation")
+    public float[] physicalDisplay() {
+        final DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+        return new float[] {
+            metrics.widthPixels, metrics.heightPixels, metrics.xdpi, metrics.ydpi, metrics.densityDpi,
+        };
     }
 
     private void copyFontAssets() {
