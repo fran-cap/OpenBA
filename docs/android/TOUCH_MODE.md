@@ -126,6 +126,55 @@ requested scale, shrunk to fit beside the cluster; the stacked full-width 2x lay
 y = 557, and a sub-toolbar sits at about y 650..840. They overlap only if a group is wider than the bar
 region, which is a modded case: it then aligns to the region's left edge.
 
+## 3a. The corner camera buttons (issue #96, the reporter's follow-up)
+
+**What it is.** A second, compact block of the cluster's rotate and zoom buttons in the upper right, so a player can
+choose the pad only, the corner buttons only, both, or neither (gestures only). `ext.touch_mode_camera_buttons`:
+Off (0, the default) / 50 / 75 / 100 / 125 %. A second dialog of the same resource,
+`Dialog/TouchControls.rsc:cameraButtons`: its root (the cluster's frame) and content group are new; the four holders
+and buttons are the cluster's own descriptions (each dialog builds its own elements), so the art, the glyphs and the
+pressed state are the pad's.
+
+**Layout** (`touch_math.h LayoutCornerButtons`). Two rows of two: rotate left | rotate right over zoom in | zoom out.
+Each button is the pad's zoom button at the same scale: 1.4 c wide, (3 c - g) / 2 tall, c = scale x 0.11 of the
+short edge, so 100 % is the pad's button at pad 100 %. The gap and the frame scale the same way. The frame's right
+edge sits at W - m, its top at m (the safe margin).
+
+| Layout screen (UI 50) | 100 % block | at 125 % |
+|---|---|---|
+| phone 1170 x 540, m = 18 | x 946..1152, y 18..226 (buttons 83 x 84) | y 18..279 |
+| tablet 1696 x 1200, m = 41 | x 1196..1655, y 41..508 (buttons 185 x 189); at 50 % x 1427..1655, y 41..275 | y 41..626 |
+
+(The `[TouchMode] ... corner buttons cell` log lines of the device_sim runs, 2026-11-01.)
+
+**2x2, not the sketch's 1x4.** The reporter's sketch stacks four small buttons in one column at the right edge. At
+100 % that column is 4 x 84 + 3 gaps + the frame = 392 units tall on the phone's 540-unit layout screen: from the
+top margin it runs into ext.touch_pointer's placement bar and the toolbar's sub-toolbars, which sit above the bar's
+right part, and at 125 % it does not fit the safe height at all. The 2x2 block is 208 units tall on the phone (39 %
+of the height) and leaves the right-hand strip above the bar free. On the tablet a column would fit up to 100 %
+(879 of 1200 units) but crowd the bar at 125 %; one 2x2 rule serves both. The order reads as the sketch's (rotate,
+then zoom), row by row.
+
+**What else is in the corner.** Nothing of the game's own while the row is on: the event notices are lifted out from
+behind the bar's left end to just above it (section 4, `Place`), the utility panels open at the top left, and the
+toolbar and its sub-toolbars are along the bottom. The block therefore takes the top of the safe area. A panel or an
+info window the player drags there is drawn over it (dialogs opened later draw on top), and so is the placement
+tool's name / cost label, which follows the aim and passes over the block when the aim is near the top right.
+
+**Input.** The block is laid out as a `Cluster` whose pad rectangle is empty, so `HitControl`, `Capture` and
+`ShowsPressed` serve it unchanged. It has its own `Capture` (a press starts on one block or the other; they never
+overlap), and the held control goes through the same `Hold(Source::Pad)` as the cluster's: rotate at the key rate,
+zoom continuously (`HeldZoomSteps`), no ramp (the pad's pan ramp is the pad's alone). All four tooltips are off, as
+the pad's: a finger resting on a button is a parked cursor. The press / release log lines say `corner`.
+
+**Lifetime.** Opened with the toolbar while the row is on and the key is above 0, whatever the pad's key (it works
+with the pad Off); at 0 no dialog is built and nothing is hit. Live, like the pad's key.
+
+**Verified** (Windows, `tools/device_sim.sh`, 2026-11-01): phone and tablet at 100 % with the pad Off, the tablet at
+the seed's values with the pad and the block both at 50 %, the phone at the defaults unchanged against the
+integration branch. A finger held 120 frames on the phone's zoom-in button (`--tap 0.857,0.311,30,120`, pad Off):
+`press corner zoom in: ... distance 25.0`, then `held corner zoom in 2.00 s: ... distance 6.0` (the near limit).
+
 ## 4. Input flow
 
 Touches arrive as left-button mouse events (SDL). The cluster is a UI dialog, so a touch on it sets
@@ -202,6 +251,10 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   cluster's scale-1 cell (`TouchMode::BaseCell()`), its gap and frame likewise, whatever the pad's scale. **Default
   rule:** the bar always took the cluster's cell, so 100 % is the bar as it was. The aim marker keeps the scale-1 cell.
   The key is owned by this row (the cell it scales is the cluster's) though the bar is ext.touch_pointer's.
+- `ext.touch_mode_camera_buttons` (issue #96, the reporter's follow-up): a discrete value key, owner `touch_mode`,
+  0 | 50 | 75 | 100 | 125, default 0: the corner camera buttons (section 3a), in percent of the pad's button at pad
+  100 %. **Default rule:** Off, so nothing changes for anyone who does not pick it. The Enhanced tab's "Corner camera
+  buttons" combo, under "Camera pad".
 - `ext.touch_mode_zoom_min` (P11d, `docs/android/P11D_ZOOM.md`): a range value key, owner `touch_mode`, 6 .. 20,
   default 10: the camera's near zoom limit while the row is on (retail's is 20), for every zoom input (the zoom
   buttons, the pinch, keys, the wheel); `touch_math.h` `NearZoomLimit`. settings.cfg only, no Enhanced-tab entry.
