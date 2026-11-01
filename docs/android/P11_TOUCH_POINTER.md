@@ -66,10 +66,12 @@ moves. The first component past its threshold is the mode (on a tie in one step,
 the other two stay zero until both fingers lift and a new gesture begins. Pan is exclusive for the whole gesture:
 a one-thumb pinch moves the centroid by half the moving finger's travel, and a turn about one finger moves it
 too, so no centroid threshold separates a deliberate pan from those; to zoom after a pan, lift and touch again.
-For the same reason pan does not engage while the fingers' motion relative to each other since the touch (the
-spread change in px, or the arc one finger swept about the other) is at least the centroid's travel in px: a wide
-one-thumb pinch passes the pan threshold before the pinch one (the S25 check), and stays undecided until the
-pinch passes its own. A real pan moves the centroid with almost no relative motion.
+For the same reason pan wins the lock only while each finger's own travel since the touch is at least 0.4x the
+centroid's (`kPanFingerShare`): a pan moves both fingers about as far as the centroid, while a one-thumb pinch or a
+turn about one finger leaves one nearly still. A wide one-thumb pinch passes the pan threshold before the pinch one
+(the S25 check) and stays undecided until the pinch passes its own. An earlier rule compared the spread change with
+the centroid's travel; two thumbs jitter their spread by about the 20 px the centroid has moved at engage time, so
+plain pans sometimes did not engage (the second S25 check).
 Pinch and spin may join each other, as map apps allow a twist while zooming, but only once the second one passes
 3x its own threshold (`kJoinFactor`: 24 degrees of turn during a pinch, a 20 % spread change during a turn); the
 incidental turn of an ordinary pinch stays below that. No settling time: the totals since the touch already

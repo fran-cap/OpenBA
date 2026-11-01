@@ -255,8 +255,8 @@ UNIT_TEST(ext_touch_pointer_gesture_lock_rotate_first) {
 UNIT_TEST(ext_touch_pointer_gesture_lock_wide_one_thumb_pinch) {
     // Fingers 70 % of the short edge apart, one still, the other closing 15 % of the spread (700 -> 595 px) in
     // 5 px steps. At 45 px the centroid has travelled 22.5 px (pan ratio 1.125) and the spread log 0.066 (pinch
-    // ratio 1.107): pan is furthest past its threshold, but the spread change (45 px) is at least the centroid's
-    // travel, so it is a pinch. Zoom out from that step, no drag.
+    // ratio 1.107): pan is furthest past its threshold, but one finger has not moved at all (under 0.4x the
+    // centroid's travel), so it is a pinch. Zoom out from that step, no drag.
     TwoFingers g;
     g.Begin(150, 500, 850, 500, 1000.0f);
     GestureStep total;
@@ -281,6 +281,44 @@ UNIT_TEST(ext_touch_pointer_gesture_lock_pan_with_spread_jitter) {
     CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
     CHECK(total.zoomSteps == 0.0f && total.yawDegrees == 0.0f);
     CHECK(Near(total.dragX, 0.18f, 1e-4f));   // engaged at 30 px (step 3), then follows to 200 px
+
+    // The S25 case: thumbs 400 px apart whose spread has jittered 22 px by the time the centroid has travelled
+    // 22 px (pan ratio 1.1, pinch ratio 0.86). Both fingers moved (11 and 33 px): pan.
+    TwoFingers w;
+    w.Begin(300, 500, 700, 500, 1000.0f);
+    const GestureStep s = w.Step(311, 500, 733, 500);
+    CHECK(w.panEngaged() && !w.pinchEngaged() && !w.spinEngaged());
+    CHECK(Near(s.dragX, 0.022f, 1e-5f) && s.zoomSteps == 0.0f);
+}
+
+UNIT_TEST(ext_touch_pointer_gesture_lock_pan_asymmetric_speeds) {
+    // A drag right with one finger at 70 % of the other's speed (10 and 7 px a step): the spread closes 60 px
+    // over the drag, but both fingers move: pan from step 3 (centroid 25.5 px), no zoom.
+    TwoFingers g;
+    g.Begin(400, 500, 600, 500, 1000.0f);
+    GestureStep total;
+    for (int32_t i = 1; i <= 20; ++i) {
+        const float k = static_cast<float>(i);
+        Accumulate(total, g.Step(400 + 10 * k, 500, 600 + 7 * k, 500));
+    }
+    CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
+    CHECK(total.zoomSteps == 0.0f && total.yawDegrees == 0.0f);
+    CHECK(Near(total.dragX, 0.153f, 1e-4f));   // 170 px less the 17 px before the lock
+}
+
+UNIT_TEST(ext_touch_pointer_gesture_lock_pan_drifting_apart) {
+    // Both fingers drag down together while the pair drifts apart slowly (200 -> 220 px, +10 % over the drag):
+    // pan, no zoom.
+    TwoFingers g;
+    BeginPose(g, Pose{500, 500, 200, 0});
+    GestureStep total;
+    for (int32_t i = 1; i <= 20; ++i) {
+        const float k = static_cast<float>(i);
+        Accumulate(total, StepPose(g, Pose{500, 500 + 10 * k, 200 + k, 0}));
+    }
+    CHECK(g.panEngaged() && !g.pinchEngaged() && !g.spinEngaged());
+    CHECK(total.zoomSteps == 0.0f && total.yawDegrees == 0.0f);
+    CHECK(Near(total.dragX, 0.0f, 1e-5f) && Near(total.dragY, 0.18f, 1e-4f));
 }
 
 UNIT_TEST(ext_touch_pointer_gesture_lock_join_and_reset) {

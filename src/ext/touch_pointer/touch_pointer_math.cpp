@@ -86,6 +86,10 @@ void TwoFingers::Begin(float x1, float y1, float x2, float y2, float shortEdge) 
     _startCy = _cy;
     _startDist = _dist;
     _startAngle = _angle;
+    _startX1 = x1;
+    _startY1 = y1;
+    _startX2 = x2;
+    _startY2 = y2;
     _pan = false;
     _pinch = false;
     _spin = false;
@@ -102,22 +106,19 @@ GestureStep TwoFingers::Step(float x1, float y1, float x2, float y2) {
     const float travel = std::sqrt((cx - _startCx) * (cx - _startCx) + (cy - _startCy) * (cy - _startCy));
     const float panRatio = travel / (kPanEngageFraction * _shortEdge);
     const float pinchRatio = std::fabs(std::log(dist / _startDist)) / kPinchEngageLog;
-    const float turn = AngleDelta(angle, _startAngle);
-    const float spinRatio = std::fabs(turn) / kSpinEngageDegrees;
+    const float spinRatio = std::fabs(AngleDelta(angle, _startAngle)) / kSpinEngageDegrees;
 
-    // The fingers' motion relative to each other since Begin, in px: the spread change, and the arc one finger
-    // swept about the other. A one-thumb pinch or a turn about one finger moves the centroid by half of this; a
-    // pan moves the centroid with almost none of it.
-    const float spreadPx = std::fabs(dist - _startDist);
-    const float arcPx = _startDist * std::fabs(turn) * kPi / 180.0f;
-    const bool fingersApart = spreadPx >= travel || arcPx >= travel;
+    // Each finger's own travel since Begin (kPanFingerShare's comment): both moving is a pan.
+    const float travel1 = std::sqrt((x1 - _startX1) * (x1 - _startX1) + (y1 - _startY1) * (y1 - _startY1));
+    const float travel2 = std::sqrt((x2 - _startX2) * (x2 - _startX2) + (y2 - _startY2) * (y2 - _startY2));
+    const bool bothMove = travel1 >= kPanFingerShare * travel && travel2 >= kPanFingerShare * travel;
 
     // The mode lock (kJoinFactor's comment): the first component past its threshold engages alone; from then on
     // it follows. Pan never shares the gesture; pinch and spin join each other only past kJoinFactor. Pan does not
-    // engage while the fingers' relative motion is at least the centroid's travel (a wide one-thumb pinch passes
-    // the pan threshold before the pinch one): the gesture stays undecided until pinch or spin passes its own.
+    // engage while one finger stands nearly still (a wide one-thumb pinch passes the pan threshold before the
+    // pinch one): the gesture stays undecided until pinch or spin passes its own.
     if (!_pan && !_pinch && !_spin) {
-        if (panRatio > 1.0f && panRatio >= pinchRatio && panRatio >= spinRatio && !fingersApart) {
+        if (panRatio > 1.0f && panRatio >= pinchRatio && panRatio >= spinRatio && bothMove) {
             _pan = true;
         } else if (pinchRatio > 1.0f && pinchRatio >= spinRatio) {
             _pinch = true;
