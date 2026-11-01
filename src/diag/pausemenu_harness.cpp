@@ -24,7 +24,9 @@
 //                                  harness disarms itself after the last token so
 //                                  a world reload (mods Ok) does not re-run it.
 //                                  Extra tokens: w = wait one interval, p = dump the
-//                                  IO::Modification/FileSystem state ([ModProbe:clicks]).
+//                                  IO::Modification/FileSystem state ([ModProbe:clicks]),
+//                                  q<id> = open the pause menu on the current world and
+//                                  click its button <id>.
 //                                  1 = Resume, 3 = Save, 5 = Quit to Main Menu.
 //
 // The dialog it drives is a MainMenuDialog (the same class as the front end),
@@ -136,6 +138,17 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
             else       { s_clickCursor = nullptr; }
             if (tok[0] == 'w') {
                 std::fprintf(stderr, "[PauseMenu] CLICKS: wait (frame %d)\n", frameNum);
+            } else if (tok[0] == 'q') {
+                // q<id>: open the pause menu on the CURRENT world (the one a mods Ok rebuilt)
+                // and click its button <id> at once (5 = Quit to Main Menu).
+                PlayerToolManager* eui = entityUI ? entityUI : gameWorld->m_toolManager;   // +0x120
+                UI::DialogInstance* pause = eui->OpenPauseMenu();
+                int id = std::atoi(tok + 1);
+                std::fprintf(stderr, "[PauseMenu] CLICKS: pause menu=%p id=%d (frame %d)\n",
+                             static_cast<void*>(pause), id, frameNum);
+                if (pause) {
+                    pause->OnElementEvent(nullptr, 0x12, id, 0, 0, 0, nullptr);
+                }
             } else if (tok[0] == 'd') {
                 ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
                 int id = std::atoi(tok + 1);
