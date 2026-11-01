@@ -1,0 +1,19 @@
+# BANISHED_SHOWROOM list: every species at each blossom / catkin peak (docs/extensions/BLOSSOM.md §2).
+# Needs ext.better_trees on with natural tree growth (not /profile:faithful).
+#
+# Months: 0 = start of Early Spring, one month = 300 s of year time.
+#   0.4 plum   0.6 cherry, peach   0.7 pear   0.9 birch   1.1 apple, oak   1.7 pecan   3.2 chestnut
+# Each tree flowers about 0.6 month around its peak, offset per tree by up to +-0.25 month.
+tree oak
+tree birch
+tree pine
+tree apple
+tree cherry
+tree peach
+tree pear
+tree plum
+tree chestnut
+tree pecan
+tree walnut
+
+months 0.4 0.6 0.7 0.9 1.1 1.7 3.2

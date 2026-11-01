@@ -42,6 +42,9 @@
 //     signature change; the depth pixel shader is retail's.
 //   Foliage (vs): the snow interpolant's unused w carries t (dcl_output and OSGN widened to xyzw).
 //   Foliage (ps): after the discard the needle colour is tinted by 1 + t * kPineTint (ISGN and dcl widened).
+// The spring blossom (blossom.h, docs/extensions/BLOSSOM.md) rides the BillboardColour pair: the vertex copy
+// writes a second new interpolant (r, g, b, cov) from gc.time.zw, the pixel copy masks flower clusters before
+// the season mad (which then reads l' = l (1 - kept)) and lerps the flower colour in after the discard.
 // A rewritten billboard pixel shader reads an input only the rewritten vertex shader writes: the stages
 // bind it only beside a natural-growth vertex copy (`Pairs`), else retail's.
 //

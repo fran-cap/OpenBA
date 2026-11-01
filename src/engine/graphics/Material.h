@@ -410,6 +410,10 @@ public:
     // Bodies in the wave-lane files this block owns; each keeps its registered
     // door, which becomes a QUALIFIED non-virtual delegation.
     void    Setup(Video::Context& context, int32_t pass) const;   // 0x180102c90  wave21
+    // EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): ext.better_trees' natural tree growth writes the
+    // draw's blossom code (Context::_time.zw) after Setup's retail body. Null by default and while natural
+    // tree growth is off; set and cleared only by Ext::BetterTrees::Sync. A static: the layout is unchanged.
+    static void (*_extAfterSetup)(const MaterialInstance& instance, Video::Context& context);
     void    RenderTextures(Renderer& renderer, const Scene& scene,
                            const Camera& camera, int32_t pass) const;  // 0x180102df0  wave9
     void    GenerateTextures(Video::Context& context, int32_t pass) const;  // 0x180102eb0  batchc

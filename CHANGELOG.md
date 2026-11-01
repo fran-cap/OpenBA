@@ -6,6 +6,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 
 ## Unreleased
 
+**Extensions**
+- Natural tree growth (`ext.better_trees`): in spring the deciduous trees now flower, each on its own
+  schedule for a week or two. Plum, cherry, peach, pear and apple carry white and pink blossom, and the
+  early ones flower on bare branches. Oak, birch, pecan and chestnut carry catkins. Modded trees get a pale
+  blossom colour picked from their names. The flowers are drawn in the existing tree shaders, so DX11,
+  Vulkan and Metal all get them (`docs/extensions/BLOSSOM.md`).
+
 **Fixes**
 - `fix.foundation_piles` (on): a building placed over trees or rocks no longer stalls forever when the
   town's storage is full. Retail leaves the felled logs and stone on the site, because no store will take

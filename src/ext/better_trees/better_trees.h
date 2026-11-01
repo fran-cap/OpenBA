@@ -30,7 +30,8 @@
 // (0..1, default 1, owner better_trees; the Options dialog's "Natural tree growth" combo Off / On).
 // While the row is on and the key is 1, the billboard and foliage programs also carry the per-tree
 // autumn colour, leaf fall, spring regrowth and green variation (natural_growth.h), and the game
-// writes SeasonStamp into the shaders' spare time.y after every SetTime.
+// writes SeasonStamp into the shaders' spare time.y after every SetTime. In spring the canopies also
+// flower (docs/extensions/BLOSSOM.md): each draw's species code goes in time.zw (SyncBlossom).
 //
 //   Sync()   boot (Ext::InitFromSettings), every Extensions-dialog toggle
 //            (Ext::SetAndRecord) and every Set(): hands the mode, k and the dapple
@@ -88,6 +89,10 @@ float SeasonStamp(float yearSeconds);
 bool NaturalGrowthOn();
 
 void Sync();
+
+// blossom_draw.cpp (docs/extensions/BLOSSOM.md): arms Graphics::MaterialInstance::_extAfterSetup, the
+// per-draw blossom code in gc.time.zw, while natural tree growth is on; clears it otherwise. Sync calls it.
+void SyncBlossom(bool on);
 
 }  // namespace BetterTrees
 }  // namespace Ext
