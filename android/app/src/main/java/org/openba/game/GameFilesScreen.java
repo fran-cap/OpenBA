@@ -29,6 +29,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.text.format.DateFormat;
 import android.util.Log;
 import android.util.TypedValue;
@@ -36,6 +37,7 @@ import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -92,6 +94,7 @@ final class GameFilesScreen implements GameFilesJob.Listener {
     private final ProgressBar mBar;
     private final TextView mStatus;
     private View mOverflow;
+    private Button mBackButton;   // MANAGE only
 
     GameFilesScreen(Activity activity, Mode mode, Host host) {
         mActivity = activity;
@@ -101,6 +104,19 @@ final class GameFilesScreen implements GameFilesJob.Listener {
 
         mRoot = new FrameLayout(activity);
         mRoot.setBackgroundColor(COLOR_PANEL);
+        // The window draws edge to edge (target SDK 35): keep the buttons off the navigation bar,
+        // the status bar and a cutout. The panel colour still fills behind them.
+        mRoot.setOnApplyWindowInsetsListener((v, insets) -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                final android.graphics.Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            } else {
+                v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(),
+                             insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            }
+            return insets;
+        });
         final ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         mRoot.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
@@ -183,6 +199,15 @@ final class GameFilesScreen implements GameFilesJob.Listener {
             p.setMargins(0, dp(8), dp(16), 0);
             mRoot.addView(overflow, p);
             mOverflow = overflow;
+        } else {
+            // Back to the game without the system's back gesture: bottom-right, where the game's
+            // dialogs put Cancel / Ok. Not on the first run: there is no game to go back to yet.
+            mBackButton = button("Back");
+            mBackButton.setOnClickListener(v -> mActivity.finish());
+            final FrameLayout.LayoutParams p =
+                new FrameLayout.LayoutParams(dp(160), dp(48), Gravity.BOTTOM | Gravity.END);
+            p.setMargins(0, 0, dp(24), dp(16));
+            mRoot.addView(mBackButton, p);
         }
 
         GameFilesJob.setListener(this);
@@ -358,6 +383,12 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         mImportButton.setEnabled(!busy);
         if (mOverflow != null) {
             mOverflow.setEnabled(!busy);
+        }
+        if (mBackButton != null) {
+            // Not while a copy, an export or an import runs: Cancel first (the import's question needs
+            // this screen when it ends).
+            mBackButton.setEnabled(!busy);
+            mBackButton.setAlpha(busy ? 0.45f : 1f);
         }
         mFolderButton.setAlpha(mFolderButton.isEnabled() ? 1f : 0.45f);
         mArchiveButton.setAlpha(mArchiveButton.isEnabled() ? 1f : 0.45f);

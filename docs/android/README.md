@@ -92,7 +92,7 @@ or the tree (`AGENTS.md` §1, `docs/extensions/DESIGN.md` §3 rule 7).
 
 **Saves.** The same screen's overflow (⋮) has **Import saves** and **Export saves**. In the game, the
 main menu and the pause menu have a **Game files** button (beside Extensions) that opens the
-screen over the game (`GameFilesActivity`); the back key returns to the menu. The launcher icon's
+screen over the game (`GameFilesActivity`); its **Back** button (bottom-right, as the game's dialogs put Cancel / Ok; not on the first-run screen) or the back key returns to the menu. The launcher icon's
 long-press shortcut of the same name opens it too, at any time. Export writes a `.zip` of `Documents/Banished/Save/` (`Save/<name>`, the
 files' times kept) wherever the player picks; Import takes every `*.sav` of a `.zip`, at any depth,
 and asks before replacing a save of the same name (Replace / Keep mine). The game's Load dialog lists an
