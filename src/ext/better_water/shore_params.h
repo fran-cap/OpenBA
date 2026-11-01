@@ -78,8 +78,13 @@ struct ContactParams {
     float breakup      = 0.6f;      // how much of the foam the breakup removes (0 = solid)
     float opacity      = 1.0f;      // the whole contact pass (0 = none)
     float unused1      = 0.0f;
-    // mc2, mc3: unused
-    float unused[8]    = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    // mc2: not a look value -- DrawShore fills them per draw from the context's view-projection
+    // (DepthLinearize): view depth = depthMul / (depthAdd - z) for a 0..1 hardware depth z.
+    float depthMul     = 0.0f;
+    float depthAdd     = 0.0f;
+    float unused2[2]   = {0.0f, 0.0f};
+    // mc3: unused
+    float unused[4]    = {0.0f, 0.0f, 0.0f, 0.0f};
 };
 static_assert(sizeof(ContactParams) == 64, "ContactParams is the shader's four float4s");
 

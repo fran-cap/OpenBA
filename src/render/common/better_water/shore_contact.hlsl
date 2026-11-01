@@ -8,13 +8,13 @@
 // trading post's stone base, a boat. Those write no shore depth into the frame copy's alpha, so the
 // shore pass and the strip see nothing there; the scene depth has them.
 //
-// THE DEPTH. t4 holds the opaque scene's hardware depth (0 near .. 1 far, D3D convention), read with
-// Load at the pixel. For a perspective projection 1 - z is proportional to (far - v) / v for view depth
-// v, so along one ray the ratio (1 - zWater) / (1 - zModel) is vModel / vWater to within v / far (the
-// camera's far plane is hundreds of units out; the error is a fraction of a percent). The water
-// pixel's own distance is |viewDir|: the model behind it lies |viewDir| * (ratio - 1) further along the
-// ray, and times the ray's steepness that is its depth below the surface. No projection constant is
-// needed.
+// THE DEPTH. t4 holds the opaque scene's hardware depth (0 near .. 1 far, D3D convention, not reversed),
+// read with Load at the pixel. Both depths are linearised exactly, view depth = depthMul / (depthAdd - z)
+// (the pass fills the pair per draw from the context's view-projection: better_water.cpp
+// DepthLinearize; retail's far plane is 512). Along one ray view depth and distance scale together, so
+// the model behind a water pixel lies |viewDir| * (vModel / vWater - 1) further along the ray, and
+// times the ray's steepness that is its depth below the surface. (A ratio of the raw 1 - z values is
+// NOT enough: it over-reads the depth by far / (far - vModel), 1.24x at 100 units.)
 //
 // THE RING. Foam also spreads a little OUTWARD from the model onto the open water: eight taps on a
 // ring of `ringRadius` world units round the pixel (the screen offsets of a world unit from the view
@@ -57,7 +57,7 @@ float2 MeshCoord(float4 t) { return float2(t.x, (0.01 * t.y + 0.0057 * t.w) / 0.
 cbuffer MaterialConstants : register(b1) {
     float4 mc0;   // width, strength, ringRadius, ringStrength
     float4 mc1;   // breakupScale, breakupAmount, opacity, unused
-    float4 mc2;
+    float4 mc2;   // depthMul, depthAdd (filled per draw, not look values), unused
     float4 mc3;
 };
 #define kWidth         mc0.x
@@ -67,6 +67,8 @@ cbuffer MaterialConstants : register(b1) {
 #define kBreakupScale  mc1.x
 #define kBreakup       mc1.y
 #define kOpacity       mc1.z
+#define kDepthMul      mc2.x
+#define kDepthAdd      mc2.y
 
 static const float kMeshScale     = 18.0;   // as the shore pass
 static const float kMaxRingPixels = 64.0;   // the ring never reaches further than this on screen
@@ -97,8 +99,9 @@ float ValueNoise(float2 p) {
 float SceneOffset(int2 px, float zWater, float dist, float steep) {
     float zModel = g_depth.Load(int3(px, 0));
     if (zModel >= 1.0) return 1e4;   // the sky / nothing drawn
-    float ratio = (1.0 - zWater) / max(1.0 - zModel, 1e-7);
-    return dist * (ratio - 1.0) * steep;
+    float vWater = kDepthMul / max(kDepthAdd - zWater, 1e-7);
+    float vModel = kDepthMul / max(kDepthAdd - zModel, 1e-7);
+    return dist * (vModel / max(vWater, 1e-4) - 1.0) * steep;
 }
 
 float4 PSShoreContact(PSIn i) : SV_Target {

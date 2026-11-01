@@ -124,11 +124,88 @@ copy back into `shore_params.h`. Release and perf builds draw with the defaults.
 - **Not checked:** whether dock and bridge piles (OpaqueInWater) get the line round them from the frame
   alpha, which decides part of Fancy.
 
-## 6. Fancy (not built)
+## 6. Levels
 
-Desktop only; a third combo item with a valued key of this row:
-- contact foam for models that write no frame alpha (boats), from a readable depth (the AO depth resolve);
-- a wet, darker line on the bank above the waterline, which needs the terrain shader (above the waterline
-  the frame alpha is flat 0, so the water pass has nothing to measure);
-- a 3D break-up of the edge (stones along the bank); flat cell "pebbles" in the overlay read as dark ovals
-  and were removed.
+`ext.better_water` is the row (Off / on); the valued key `ext.better_water_mode` (1..2, default 1) is the
+level while it is on: 1 Plain (sections 3-4), 2 Fancy = Plain + the shore strip (section 7) + contact foam
+(section 8). The Enhanced tab's combo is Off / Plain / Fancy; Off keeps the level, so Off and back restores
+it. Fancy is desktop's: Android keeps Plain (ruled with the user). The default stays Plain until Fancy is
+verified on every backend that supports it.
+
+## 7. Fancy: the shore strip
+
+Plain draws only on the water (where the frame alpha is above 0), so it cannot reach the bank side of the
+waterline, and an edge drawn only from the water side reads as hard. The strip is a mesh of ours for the
+bank side.
+
+**The mesh** (`src/ext/better_water/shore_strip.{h,cpp}`, pure, unit-tested). The terrain cells that cross
+the waterline: a cell is kept when the game's water mesh is within two cells of it (dry basins below the
+waterline get none) and its corners reach from 0.25 below the waterline (-0.75, `GetUnderWaterAmount`'s 0)
+to 0.6 above. Each cell is laid on the terrain: the terrain's own int16 heights (`WorldGeometry::_heights`)
+and the terrain mesh's own diagonal per cell (`serialize_heightmap_mesh.cpp`: even col + row splits
+bottom-left to top-right, odd top-left to bottom-right), lifted 0.02 and never below the highest water
+surface (lakes sit up to a few 1/256 above -0.75). Its vertices are in the water's 16-byte format (phase 2's
+packing: position * 48, height * 256, planar uv = position * 48) and wound as the water's quads are, and the
+edge-alpha byte (which the water vertex program passes through as `TEXCOORD3.w`) holds the corner's height
+above the waterline, `(h + 0.5) / 2`. Interpolated, that is the terrain's own height, so the strip's 0 is
+where retail's water meets the ground. Seed 12345: about 15,800 cells, 21,700 vertices, one chunk (16-bit
+indices; chunks of at most 65,000 vertices with their own base vertex otherwise).
+
+**The draw.** One draw item per frame (`WorldGeometry::AddDrawItems`, an `EXT SEAM`): the river material,
+sort key 0x5fff (after every lake range's 0x4000 | index), mode 0x6000 with range index 0x1fff, which retail
+never reaches; `WorldGeometry::Draw` hands it to `DrawStrip`, which binds the strip twin (the river water's
+vertex layout, vertex program and render state, `shore_strip.hlsl`), the strip's buffers, draws, and rebinds
+the water program. The buffers (raw storage + the engine's own ctors, as ext.terrain_batch keeps its run
+index buffer) are per geometry: built on first draw, rebuilt when the heights or the water mesh change (a
+load, the terrain brush), the device half dropped at `WorldGeometry::OnVideoError` and remade at the next
+draw, freed in `~WorldGeometry`. Both seams return at once until a strip was ever built.
+
+**The look** (`shore_strip.hlsl`, `StripParams`, heights in world units): a wet bank darkest at the line and
+gone by `wetTop`, its top broken by a coarse noise, fading into the water over `waterFade` as Plain's wet bed
+rises over the same stretch, so the dark runs on across the line; and a broken foam fringe `lineDrop` below
+the true waterline. That drop is the lesson of the first spot check: retail's water is clear at the true
+waterline and turns visibly coloured only further down, so a line at 0 reads as floating up the bank, with a
+gap of clear shallows below it; at the drop it sits on Plain's line. Defaults: the user's set from the
+overlay (2026-10-31).
+
+| value | default | meaning |
+|---|---|---|
+| `wetTop`, `wetBreakup` | 0.134, 0.06 | the wet bank's height, and how much a noise lowers its top |
+| `wetStrength`, `wetShade` | 0.26, 0.25 | how far the bank is pulled toward its wet shade, and the shade |
+| `lineDrop` | 0.081 | the foam's line below the true waterline |
+| `foamUp`, `foamDown` | 0.024, 0.053 | the fringe above and below its line |
+| `foamStrength`, `foamScale` | 0.13, 1.13 | its opacity and breakup cells per world unit |
+| `wanderAmp`, `wanderScale` | 0.058, 0.323 | the waterline's wander |
+| `waterFade` | 0.148 | the wet bank's fade below the line |
+| `opacity` | 1.0 | the whole strip |
+
+**What it is not.** It does not move the real meeting line of water and ground (the terrain fixes that): the
+bands only break up how the edge reads. A 3D break-up (stones, reeds) waits for the user's own models.
+
+## 8. Fancy: contact foam
+
+Foam where the water meets a model: a pier, a bridge foot, a trading post's stone base, a boat. Those are
+ordinary opaque models, which write 0 into the frame alpha, so Plain and the strip treat them as dry land and
+draw nothing; retail's water is even fully clear over their submerged part. The scene's depth buffer has them.
+
+**The interface** (`src/render/common/better_water/scene_depth_backend.h`): `Supported` / `Request` /
+`Copy` / `Image`. The backend copies the scene's hardware depth, single-sampled and the size of the render
+target, into an engine `Video::ImageBuffer`; the extension binds it at t4 (no water material uses that slot)
+for the contact draw only and puts the slot back. A backend that cannot answers `Supported() == false` and
+Fancy draws no contact foam there (Metal, until it is run on a Mac).
+
+**When.** Retail makes its frame copy for the water once per frame, right before the water draws
+(`Graphics::FrameCopyImageBuffer::Generate`, from the water material's `GenerateTextures`). The seam
+`FrameCopyImageBuffer::_extAfterCopy` (a static, null by default and under the faithful profile, installed by
+`registry_boot.cpp`) runs `AfterFrameCopy` right after retail's colour resolve: it requests the copy while
+contact foam is on and has the backend make it.
+
+**The pass** (`shore_contact.hlsl`, river and lake variants, `ContactParams`): a third draw of each water
+range. The model behind a water pixel lies `|viewDir| * ((1 - zWater) / (1 - zModel) - 1)` further along the
+ray (for a perspective projection 1 - z is proportional to (far - v) / v, so the ratio is the view depths'
+to within v / far): no projection constant is needed. Foam where that, times the ray's steepness, is within
+`width` of the surface: on the model's own pixels (the contact line) and, through an 8-tap ring of
+`ringRadius` world units, spread a little onto the open water beside it. The frame alpha keeps it off the
+banks (the depth alone cannot tell a bank above the waterline from a pier: both write alpha 0): the contact
+line only where the frame alpha is 0, the ring only where the bed behind is at least 0.15 down.
+

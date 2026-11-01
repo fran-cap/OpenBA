@@ -272,6 +272,32 @@ bool Enabled() { return Ext::Ext().better_water; }
 
 bool StripEnabled() { return Ext::Ext().better_water && Ext::Val().better_water_mode >= 2; }
 
+// The linearisation of the context's 0..1 hardware depth, from its view-projection (row-vector
+// convention, v * M: clip z is column 2, clip w column 3). A perspective projection's clip z is
+// add * w - mul (AO's ao_math.h LinearizeConsts reads the same pair off the projection alone); the view
+// transform keeps that relation, so column 2 = add * column 3 in the three rotation rows, and the
+// translation row gives mul = add * m[15] - m[14]. False when column 3 has no rotation part
+// (orthographic) or the columns disagree (not a perspective of that shape): no contact foam then.
+bool DepthLinearize(const float m[16], float& mul, float& add) {
+    int row = -1;
+    float best = 0.0f;
+    for (int r = 0; r < 3; ++r) {
+        const float w = m[r * 4 + 3] < 0.0f ? -m[r * 4 + 3] : m[r * 4 + 3];
+        if (w > best) {
+            best = w;
+            row = r;
+        }
+    }
+    if (row < 0 || best < 1e-6f) return false;
+    add = m[row * 4 + 2] / m[row * 4 + 3];
+    for (int r = 0; r < 3; ++r) {
+        const float diff = m[r * 4 + 2] - add * m[r * 4 + 3];
+        if (diff > 1e-3f * best || diff < -1e-3f * best) return false;
+    }
+    mul = add * m[15] - m[14];
+    return mul > 0.0f && add > 1.0f;
+}
+
 bool ContactEnabled() { return StripEnabled() && SceneDepthBackend::Supported(); }
 
 void AfterFrameCopy(void* context) {
@@ -332,7 +358,24 @@ void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t
         const Kind contactKind = kind == Kind::Lake ? Kind::ContactLake : Kind::ContactRiver;
         const Video::VideoProgram* contact = TwinFor(water, contactKind);
         if (contact != nullptr) {
-            const ContactParams cp = CurrentContactParams();
+            ContactParams cp = CurrentContactParams();
+            static bool logged = false;
+            // Row-vector cells first (SetCamera's invView * proj); the transposed reading if the
+            // context holds it as the shader's column-vector matrix.
+            const float* vp = context._viewProjection.m;
+            float tr[16];
+            for (int r = 0; r < 4; ++r) {
+                for (int c = 0; c < 4; ++c) tr[c * 4 + r] = vp[r * 4 + c];
+            }
+            if (!DepthLinearize(vp, cp.depthMul, cp.depthAdd) && !DepthLinearize(tr, cp.depthMul, cp.depthAdd)) {
+                cp.opacity = 0.0f;
+            }
+            if (!logged) {
+                logged = true;
+                std::fprintf(stderr, "[BetterWater] contact depth: mul %.4f add %.6f (near %.3f far %.1f)\n",
+                             cp.depthMul, cp.depthAdd, cp.depthMul / cp.depthAdd,
+                             cp.depthAdd > 1.0f ? cp.depthMul / (cp.depthAdd - 1.0f) : 0.0f);
+            }
             static_assert(sizeof(cp) == sizeof(saved), "ContactParams fills the material staging");
             std::memcpy(context._pixelConstantStaging.material, &cp, sizeof(saved));
             context._dirty |= 0x8000u;
