@@ -1,6 +1,7 @@
 // android/app/src/main/java/org/openba/game/GameFilesScreen.java (docs/android/README.md, issue #96)
 //
-// The game-files screen: plain Android views in the game's dark palette. Two hosts:
+// The game-files screen: plain Android views dressed as the game's dialogs (its panel and button
+// colours, square-cornered bevelled buttons, the FrancophilSans typeface). Two hosts:
 //
 //  * FIRST_RUN, in OpenBAActivity before the game starts, when WinData holds no data0.pkg. Since
 //    Android 11 a file manager on the phone cannot write into Android/data, so most players could
@@ -19,10 +20,16 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Typeface;
+import android.graphics.drawable.ClipDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.LayerDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.text.format.DateFormat;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.ContextThemeWrapper;
 import android.view.Gravity;
@@ -52,14 +59,24 @@ final class GameFilesScreen implements GameFilesJob.Listener {
     private static final int REQUEST_EXPORT = 0x4f03;
     private static final int REQUEST_IMPORT = 0x4f04;
 
-    // The game's dark palette: the menus' dark wood and parchment text.
-    private static final int COLOR_BACKGROUND = 0xff17120d;
-    private static final int COLOR_TEXT = 0xffeadfc8;
-    private static final int COLOR_DIM = 0xffb5a68a;
-    private static final int COLOR_TITLE = 0xffd9a94e;
-    private static final int COLOR_BUTTON = 0xff4a3826;
-    private static final int COLOR_BUTTON_EDGE = 0xff8c6a3e;
-    private static final int COLOR_ERROR = 0xffe58a6a;
+    // The game's dialog colours, sampled from its own Options dialog on the tablet (a screenshot of the
+    // running game, 3392x2400): the panel's warm grey, the label grey and the heading white, and a
+    // button's face (a top-to-bottom gradient under a one-pixel light bevel, inside a dark outline).
+    private static final int COLOR_PANEL = 0xff423e3a;          // the dialog face (66, 62, 58)
+    private static final int COLOR_TEXT = 0xffc0c0c0;           // labels and button captions (192)
+    private static final int COLOR_HEADING = 0xfffefefe;        // the group headings ("Touch screen")
+    private static final int COLOR_BUTTON_TOP = 0xff5d5651;     // the face's top, under the bevel
+    private static final int COLOR_BUTTON_BOTTOM = 0xff454039;  // the face's bottom
+    private static final int COLOR_BUTTON_BEVEL = 0xff6d655e;   // the one-pixel light line on top
+    private static final int COLOR_OUTLINE = 0xff2e2b28;        // button outlines, the scroll track
+    private static final int COLOR_PRESSED = 0xff3a3632;        // a pressed button's face
+    private static final int COLOR_ERROR = 0xffd98a74;          // a wrong pick (not a game colour)
+
+    // FrancophilSans, the game's typeface, from the apk's assets (tools/release/fonts, the same files
+    // OpenBAActivity copies into the data folder for ext.sharp_ui). Null if an asset cannot be read:
+    // the views then keep the system's face.
+    private static Typeface sFace;
+    private static Typeface sFaceBold;
 
     private final Activity mActivity;
     private final Mode mMode;
@@ -79,9 +96,10 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         mActivity = activity;
         mMode = mode;
         mHost = host;
+        loadFaces(activity);
 
         mRoot = new FrameLayout(activity);
-        mRoot.setBackgroundColor(COLOR_BACKGROUND);
+        mRoot.setBackgroundColor(COLOR_PANEL);
         final ScrollView scroll = new ScrollView(activity);
         scroll.setFillViewport(true);
         mRoot.addView(scroll, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
@@ -94,8 +112,10 @@ final class GameFilesScreen implements GameFilesJob.Listener {
                                                            ViewGroup.LayoutParams.MATCH_PARENT));
 
         final TextView title = text(mode == Mode.FIRST_RUN ? "Banished game files needed" : "Game files and saves",
-                                    22, COLOR_TITLE);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
+                                    24, COLOR_HEADING);
+        if (sFaceBold != null) {
+            title.setTypeface(sFaceBold);
+        }
         column.addView(title, wrap());
 
         mBody = text("", 15, COLOR_TEXT);
@@ -130,7 +150,10 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         barParams.topMargin = dp(12);
         column.addView(mBar, barParams);
 
-        mStatus = text("", 14, COLOR_DIM);
+        mBar.setProgressDrawable(barDrawable());
+        mBar.setIndeterminateTintList(ColorStateList.valueOf(COLOR_BUTTON_BEVEL));
+
+        mStatus = text("", 15, COLOR_TEXT);
         final LinearLayout.LayoutParams statusParams = wrap();
         statusParams.topMargin = dp(8);
         column.addView(mStatus, statusParams);
@@ -150,6 +173,8 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         if (mode == Mode.FIRST_RUN) {
             // The overflow: the saves, for a player who reinstalled and kept an export.
             final TextView overflow = text("⋮", 26, COLOR_TEXT);
+            // The system face: FrancophilSans has no vertical ellipsis.
+            overflow.setTypeface(Typeface.DEFAULT_BOLD);
             overflow.setGravity(Gravity.CENTER);
             overflow.setContentDescription("More");
             overflow.setOnClickListener(this::showOverflow);
@@ -207,20 +232,73 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP, sp);
         t.setTextColor(color);
         t.setGravity(Gravity.CENTER_HORIZONTAL);
+        if (sFace != null) {
+            t.setTypeface(sFace);
+        }
         return t;
+    }
+
+    private static void loadFaces(Activity activity) {
+        if (sFace != null) {
+            return;
+        }
+        try {
+            sFace = Typeface.createFromAsset(activity.getAssets(), "FrancophilSans.ttf");
+            sFaceBold = Typeface.createFromAsset(activity.getAssets(), "FrancophilSans-Bold.ttf");
+        } catch (RuntimeException e) {
+            Log.w("OpenBA", "game files: the FrancophilSans assets did not load: " + e);
+            sFace = null;
+            sFaceBold = null;
+        }
+    }
+
+    // A square-cornered button face as the game draws one: a dark outline, a one-pixel light bevel on
+    // top, then the face's gradient. `pressed` is the flat darker face.
+    private Drawable buttonFace(boolean pressed) {
+        final int px = Math.max(1, dp(1));
+        final GradientDrawable outline = new GradientDrawable();
+        outline.setShape(GradientDrawable.RECTANGLE);
+        outline.setColor(COLOR_OUTLINE);
+        final GradientDrawable bevel = new GradientDrawable();
+        bevel.setShape(GradientDrawable.RECTANGLE);
+        bevel.setColor(pressed ? COLOR_PRESSED : COLOR_BUTTON_BEVEL);
+        final GradientDrawable face = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM,
+            pressed ? new int[] {COLOR_PRESSED, COLOR_PRESSED} : new int[] {COLOR_BUTTON_TOP, COLOR_BUTTON_BOTTOM});
+        face.setShape(GradientDrawable.RECTANGLE);
+        final LayerDrawable layers = new LayerDrawable(new Drawable[] {outline, bevel, face});
+        layers.setLayerInset(1, px, px, px, px);
+        layers.setLayerInset(2, px, 2 * px, px, px);
+        return layers;
+    }
+
+    // The bar: the game's dark track (its scroll bars') and the button bevel's grey as the fill.
+    private Drawable barDrawable() {
+        final GradientDrawable track = new GradientDrawable();
+        track.setColor(COLOR_OUTLINE);
+        final GradientDrawable fill = new GradientDrawable(
+            GradientDrawable.Orientation.TOP_BOTTOM, new int[] {COLOR_BUTTON_BEVEL, COLOR_BUTTON_BOTTOM});
+        final ClipDrawable clip = new ClipDrawable(fill, Gravity.START, ClipDrawable.HORIZONTAL);
+        final LayerDrawable layers = new LayerDrawable(new Drawable[] {track, clip});
+        layers.setId(0, android.R.id.background);
+        layers.setId(1, android.R.id.progress);
+        return layers;
     }
 
     private Button button(String label) {
         final Button b = new Button(mActivity);
         b.setText(label);
         b.setAllCaps(false);
-        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 17);
         b.setTextColor(COLOR_TEXT);
-        final GradientDrawable bg = new GradientDrawable();
-        bg.setColor(COLOR_BUTTON);
-        bg.setStroke(dp(2), COLOR_BUTTON_EDGE);
-        bg.setCornerRadius(dp(6));
-        b.setBackground(bg);
+        if (sFace != null) {
+            b.setTypeface(sFace);
+        }
+        final StateListDrawable states = new StateListDrawable();
+        states.addState(new int[] {android.R.attr.state_pressed}, buttonFace(true));
+        states.addState(new int[] {}, buttonFace(false));
+        b.setBackground(states);
+        b.setStateListAnimator(null);
         return b;
     }
 
@@ -309,7 +387,7 @@ final class GameFilesScreen implements GameFilesJob.Listener {
 
     private void setStatus(String s, boolean error) {
         mStatus.setText(s);
-        mStatus.setTextColor(error ? COLOR_ERROR : COLOR_DIM);
+        mStatus.setTextColor(error ? COLOR_ERROR : COLOR_TEXT);
     }
 
     // ------------------------------------------------------------------------------------------
