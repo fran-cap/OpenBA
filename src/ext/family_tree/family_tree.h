@@ -137,6 +137,8 @@ public:
 
     // The living, in id order.
     std::vector<uint32_t> LivingIds() const;
+    // The first living person's id, 0 when nobody is living (no list is built).
+    uint32_t FirstLivingId() const;
     // Names repeat ("Anna"), so the page shows a person's place among those with the same name: 1 for the
     // first of a name, 2 for the next, and so on. 0 for an unknown id.
     int SameNameOrdinal(uint32_t id) const;
@@ -238,14 +240,15 @@ uint32_t PersonOfCitizen(const CitizenComponent* citizen);
 std::string JobText(const std::string& key);
 
 // ---- the citizen panel's Family button (citizen_button.cpp) -----------------------------------------------
-// The panel (CitizenUI) gets one more button, left of Follow; pressing it opens the extension window on the
-// Family page, with the drawn tree centered on that citizen. One EXT SEAM line per site in
+// The panel (CitizenUI) gets one more button, left of Follow; pressing it picks that citizen on the Family
+// page and opens the tree window, centered on them. One EXT SEAM line per site in
 // src/game/Dialog/citizenui.cpp, each a test of g_on.
 void CitizenPanelOpenedSlow(CitizenUI* panel);            // OnCreated, at its end: adds the button
 void CitizenPanelLayoutSlow(CitizenUI* panel);            // OnUpdateLayout, on entry: keeps it left of Follow
 // OnElementEvent: true when the click was the button's
 bool CitizenPanelEventSlow(CitizenUI* panel, int32_t id);
 void CitizenPanelClosedSlow(CitizenUI* panel);            // OnClosed: forgets it
+void CitizenButtonsForget();                              // the row went off: forgets every panel's button
 inline void CitizenPanelOpened(CitizenUI* panel) { if (g_on) CitizenPanelOpenedSlow(panel); }
 inline void CitizenPanelLayout(CitizenUI* panel) { if (g_on) CitizenPanelLayoutSlow(panel); }
 inline bool CitizenPanelEvent(CitizenUI* panel, int32_t id) { return g_on

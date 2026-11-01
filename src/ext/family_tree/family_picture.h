@@ -37,6 +37,11 @@ constexpr int kPictureSiblingGap = 24;
 constexpr int kPictureMargin = 40;
 constexpr int kPictureHeader = 100;
 constexpr int kPictureLegend = 70;
+// The roots (lineages with no known parents) stand side by side in a band; the next root that would pass this
+// width starts a new band below, so a long-lived town is a block and not a strip thousands of units wide.
+constexpr int kPictureBandWidth = 4800;
+// The legend's text runs to about this x, so a picture is never narrower.
+constexpr int kPictureMinWidth = 1040;
 
 struct PictureBox {
     uint32_t id = 0;
@@ -56,7 +61,9 @@ struct PictureLayout {
     std::vector<PictureBox> boxes;
     std::vector<std::pair<uint32_t, uint32_t>> couples;   // the marriages drawn (the smaller id first)
     std::vector<PictureFamily> families;
-    int gens = 0;
+    int gens = 0;       // the generations: a founder's is the first
+    // the rows of boxes drawn: the generations of every band, and a row of space between bands
+    int rows = 0;
     // the picture's width without margins counted twice: the right edge of the last box + margin
     int width = 0;
     int people = 0;

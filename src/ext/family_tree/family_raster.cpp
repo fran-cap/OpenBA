@@ -28,22 +28,48 @@ Rgb Hex(const char* s) {   // "#rrggbb"
 
 // ---- text -------------------------------------------------------------------------------------------------
 
-// UTF-8 to code points; a bad byte is a '?'.
+// UTF-8 to code points. A byte that does not start a valid sequence (a stray continuation, a lead above 0xF4,
+// an overlong form, a surrogate, a value past U+10FFFF, a sequence cut short or with a bad continuation byte)
+// is one '?'.
 std::vector<int32_t> Decode(const std::string& s) {
     std::vector<int32_t> out;
     size_t i = 0;
     while (i < s.size()) {
         const uint8_t b = static_cast<uint8_t>(s[i]);
-        int32_t c = b;
+        if (b < 0x80) {
+            out.push_back(b);
+            ++i;
+            continue;
+        }
         size_t extra = 0;
-        if (b >= 0xF0) { c = b & 0x07; extra = 3; }
-        else if (b >= 0xE0) { c = b & 0x0F; extra = 2; }
-        else if (b >= 0xC0) { c = b & 0x1F; extra = 1; }
-        else if (b >= 0x80) { c = '?'; }
-        if (extra > 0 && i + extra >= s.size()) { out.push_back('?'); break; }   // cut short
-        for (size_t k = 1; k <= extra; ++k) c = (c << 6) | (static_cast<uint8_t>(s[i + k]) & 0x3F);
-        i += extra + 1;
+        int32_t c = 0;
+        int32_t smallest = 0;   // the least value that needs this many bytes
+        if (b >= 0xC2 && b <= 0xDF) {
+            extra = 1;
+            c = b & 0x1F;
+            smallest = 0x80;
+        } else if (b >= 0xE0 && b <= 0xEF) {
+            extra = 2;
+            c = b & 0x0F;
+            smallest = 0x800;
+        } else if (b >= 0xF0 && b <= 0xF4) {
+            extra = 3;
+            c = b & 0x07;
+            smallest = 0x10000;
+        }
+        bool ok = extra > 0 && i + extra < s.size();
+        for (size_t k = 1; ok && k <= extra; ++k) {
+            const uint8_t next = static_cast<uint8_t>(s[i + k]);
+            ok = (next & 0xC0) == 0x80;
+            c = (c << 6) | (next & 0x3F);
+        }
+        if (!ok || c < smallest || c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF)) {
+            out.push_back('?');
+            ++i;
+            continue;
+        }
         out.push_back(c);
+        i += extra + 1;
     }
     return out;
 }
@@ -92,15 +118,15 @@ public:
 
     // An axis-aligned rectangle, its edges covering a pixel as far as they reach into it.
     void Rect(float x0, float y0, float x1, float y1, Rgb c) {
-        const int ix0 = std::max(0, static_cast<int>(std::floor(x0))), ix1 = std::min(r_.width,
-                static_cast<int>(std::ceil(x1)));
-        const int iy0 = std::max(0, static_cast<int>(std::floor(y0))), iy1 = std::min(r_.height,
-                static_cast<int>(std::ceil(y1)));
+        const int ix0 = std::max(0, static_cast<int>(std::floor(x0)));
+        const int ix1 = std::min(r_.width, static_cast<int>(std::ceil(x1)));
+        const int iy0 = std::max(0, static_cast<int>(std::floor(y0)));
+        const int iy1 = std::min(r_.height, static_cast<int>(std::ceil(y1)));
         for (int y = iy0; y < iy1; ++y) {
             const float cy = std::min(static_cast<float>(y + 1), y1) - std::max(static_cast<float>(y), y0);
             for (int x = ix0; x < ix1; ++x) {
-                const float cx = std::min(static_cast<float>(x + 1), x1) - std::max(static_cast<float>(x),
-                        x0);
+                const float cx =
+                    std::min(static_cast<float>(x + 1), x1) - std::max(static_cast<float>(x), x0);
                 Blend(x, y, c, cx * cy);
             }
         }
@@ -121,16 +147,21 @@ public:
     // the border into dashes `dash` long with gaps of 3/5 of that (the corners stay solid).
     void Box(float x, float y, float w, float h, float radius, Rgb fill, Rgb border, float borderW,
              float dash) {
-        const float hx = w / 2, hy = h / 2, cx = x + hx, cy = y + hy;
+        const float hx = w / 2;
+        const float hy = h / 2;
+        const float cx = x + hx;
+        const float cy = y + hy;
         const float pad = borderW + 1.0f;
-        for (int py = std::max(0, static_cast<int>(std::floor(y - pad))); py < std::min(r_.height,
-                static_cast<int>(std::ceil(y + h + pad))); ++py) {
-            for (int px = std::max(0, static_cast<int>(std::floor(x - pad))); px < std::min(r_.width,
-                    static_cast<int>(std::ceil(x + w + pad))); ++px) {
+        const int py0 = std::max(0, static_cast<int>(std::floor(y - pad)));
+        const int py1 = std::min(r_.height, static_cast<int>(std::ceil(y + h + pad)));
+        const int px0 = std::max(0, static_cast<int>(std::floor(x - pad)));
+        const int px1 = std::min(r_.width, static_cast<int>(std::ceil(x + w + pad)));
+        for (int py = py0; py < py1; ++py) {
+            for (int px = px0; px < px1; ++px) {
                 const float qx = std::fabs(px + 0.5f - cx) - (hx - radius);
                 const float qy = std::fabs(py + 0.5f - cy) - (hy - radius);
-                const float d = std::hypot(std::max(qx, 0.0f),
-                                           std::max(qy, 0.0f)) + std::min(std::max(qx, qy), 0.0f) - radius;
+                const float outside = std::hypot(std::max(qx, 0.0f), std::max(qy, 0.0f));
+                const float d = outside + std::min(std::max(qx, qy), 0.0f) - radius;
                 Blend(px, py, fill, std::clamp(0.5f - d, 0.0f, 1.0f));
                 float a = std::clamp(borderW / 2 + 0.5f - std::fabs(d), 0.0f, 1.0f);
                 if (a > 0.0f && dash > 0.0f) {
@@ -179,8 +210,10 @@ bool RenderPictureRaster(const Tree& tree, const PictureLayout& lay, const Pictu
     out.rgba.assign(static_cast<size_t>(out.width) * static_cast<size_t>(out.height) * 4u, 255);
 
     Painter paint(out);
-    const Rgb ink = Hex("#262626"), deadInk = Hex("#6a6a6a"), grey = Hex("#555555"),
-              lightGrey = Hex("#666666");
+    const Rgb ink = Hex("#262626");
+    const Rgb deadInk = Hex("#6a6a6a");
+    const Rgb grey = Hex("#555555");
+    const Rgb lightGrey = Hex("#666666");
 
     // ---- the words: collect them, and get the glyphs of each size they are drawn at ----
     struct Word {
@@ -259,6 +292,7 @@ bool RenderPictureRaster(const Tree& tree, const PictureLayout& lay, const Pictu
 
     // the names are the text that matters: if their size is a real size and no face gives it, there is no PNG
     const int nameCell = cellFor(13.0f);
+    out.namesDrawn = nameCell >= kMinCell && nameCell <= 256;
     if (nameCell >= kMinCell && nameCell <= 256 && fontAt(nameCell) == nullptr) {
         out.why = why.empty() ? std::string("no font") : why;
         out.rgba.clear();

@@ -259,7 +259,10 @@ void BeginFrame() {
     const bool was = g_on;
     g_on = ::Ext::Ext().family_tree;
     if (!g_on) {
-        if (was) ForgetAll();
+        if (was) {
+            ForgetAll();
+            CitizenButtonsForget();
+        }
         return;
     }
     if (!was) {

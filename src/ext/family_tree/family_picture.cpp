@@ -353,11 +353,31 @@ PictureLayout BuildPictureLayout(const Tree& tree, bool livingOnly, const Pictur
         c.x = std::max(left, std::min(center - c.w / 2, left + c.subtreeW - c.w));
         return c.x + c.w / 2;
     };
+    // The roots stand side by side in a band. A root that would pass kPictureBandWidth starts the next band,
+    // below the deepest row so far with one empty row between: its clusters' rows move down by the band's
+    // first row.
+    int trueGens = 0;
+    for (const Cluster& c : clusters) trueGens = std::max(trueGens, c.gen + 1);
+    std::function<int(int, int)> lift = [&](int ci, int rows) {
+        Cluster& c = clusters[static_cast<size_t>(ci)];
+        c.gen += rows;
+        int deepest = c.gen;
+        for (const int kid : c.kids) deepest = std::max(deepest, lift(kid, rows));
+        return deepest;
+    };
     int left = kPictureMargin;
+    int bandRow = 0;       // the row the current band starts at
+    int deepestRow = 0;    // the deepest row of any band so far
     for (const int r : roots) {
         measure(r);
+        const int rootWidth = clusters[static_cast<size_t>(r)].subtreeW;
+        if (left > kPictureMargin && left + rootWidth > kPictureBandWidth) {
+            bandRow = deepestRow + 2;
+            left = kPictureMargin;
+        }
         place(r, left);
-        left += clusters[static_cast<size_t>(r)].subtreeW + 3 * kPictureSiblingGap;
+        deepestRow = std::max(deepestRow, lift(r, bandRow));
+        left += rootWidth + 3 * kPictureSiblingGap;
     }
 
     // the boxes
@@ -384,7 +404,11 @@ PictureLayout BuildPictureLayout(const Tree& tree, bool livingOnly, const Pictur
     // then land in one row over each other. Each row is swept left to right and a marriage cluster that
     // overlaps the one before it moves right.
     {
-        struct Group { int row; int x; std::vector<size_t> boxes; };
+        struct Group {
+            int row;
+            int x;
+            std::vector<size_t> boxes;
+        };
         std::map<std::pair<int, int>, size_t> at;
         std::vector<Group> groups;
         size_t bi = 0;
@@ -416,7 +440,8 @@ PictureLayout BuildPictureLayout(const Tree& tree, bool livingOnly, const Pictur
         maxRight = 0;
         for (const PictureBox& b : out.boxes) maxRight = std::max(maxRight, b.x + b.w);
     }
-    out.gens = maxGen + 1;
+    out.rows = maxGen + 1;
+    out.gens = trueGens;
     out.width = maxRight + kPictureMargin;
     for (const auto& pr : pairs) out.couples.push_back({ids[static_cast<size_t>(pr.first)],
                                                         ids[static_cast<size_t>(pr.second)]});
@@ -457,8 +482,16 @@ struct Out {
     template <typename... Args>
     void Add(const char* fmt, Args... args) {
         char buf[1024];
-        std::snprintf(buf, sizeof buf, fmt, args...);
-        s += buf;
+        const int needed = std::snprintf(buf, sizeof buf, fmt, args...);
+        if (needed < 0) return;
+        if (static_cast<size_t>(needed) < sizeof buf) {
+            s.append(buf, static_cast<size_t>(needed));
+            return;
+        }
+        // a longer line (a subtitle with a long name, escaped): measured, then written whole
+        std::vector<char> big(static_cast<size_t>(needed) + 1);
+        std::snprintf(big.data(), big.size(), fmt, args...);
+        s.append(big.data(), static_cast<size_t>(needed));
     }
 };
 
@@ -472,8 +505,8 @@ PictureCanvas CanvasFor(const PictureLayout& lay) {
     PictureCanvas c;
     c.rowStep = lay.boxHeight + kPictureRowGap;
     c.top = kPictureHeader + kPictureMargin;
-    c.width = std::max(lay.width, 640);
-    c.height = c.top + std::max(lay.gens, 1) * c.rowStep - kPictureRowGap + kPictureMargin + kPictureLegend;
+    c.width = std::max(lay.width, kPictureMinWidth);
+    c.height = c.top + std::max(lay.rows, 1) * c.rowStep - kPictureRowGap + kPictureMargin + kPictureLegend;
     return c;
 }
 

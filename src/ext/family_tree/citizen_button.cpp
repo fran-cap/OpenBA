@@ -9,7 +9,8 @@
 // pad that clears the Follow button's width, which is known only after the panel's first layout, so
 // OnUpdateLayout keeps the pad right.
 //
-// A click picks the citizen's person on the Family page (ShowPerson) and shows the page (Toolbar::ShowPage).
+// A click picks the citizen's person on the Family page (ShowPerson) and opens the tree window on them
+// (OpenTreeWindow).
 // A citizen the tree does not know (turned on after the citizen was made, before the first sweep) has no
 // person: nothing happens.
 // ============================================================================
@@ -149,6 +150,12 @@ bool CitizenPanelEventSlow(CitizenUI* panel, int32_t id) {
 
 void CitizenPanelClosedSlow(CitizenUI* panel) {
     g_button.erase(panel);
+}
+
+// CitizenPanelClosed is gated on g_on, so a panel that closes after the row went off would leave its entry (a
+// raw element pointer) behind: BeginFrame clears them all when the row goes off.
+void CitizenButtonsForget() {
+    g_button.clear();
 }
 
 }  // namespace FamilyTree

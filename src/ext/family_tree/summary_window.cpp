@@ -198,6 +198,23 @@ private:
         dateRow_ = -1;
         for (size_t k = 0; k < rows.size() && k < 3; ++k)
             if (rows[k].label == "Date") dateRow_ = static_cast<int32_t>(k);
+        // The same rows with other numbers (a birth, a death): only the texts change, so the list keeps its
+        // scroll.
+        if (!shown_.empty() && rows.size() == shown_.size()) {
+            bool sameRows = true;
+            for (size_t k = 0; k < rows.size() && sameRows; ++k) sameRows = rows[k].label == shown_[k].label;
+            if (sameRows) {
+                for (size_t k = 0; k < rows.size(); ++k) {
+                    if (rows[k].info == shown_[k].info) continue;
+                    Object::InternalPtr<UI::Element> cell = table->Child(static_cast<int32_t>(k));
+                    if (cell.Get() == nullptr) continue;
+                    SetText(Ext::FindElement<UI::TextElement>(cell.Get(), "textFamilyInfo"), rows[k].info);
+                }
+                shown_ = rows;
+                return;
+            }
+        }
+        shown_.clear();
         const ::Object::External* ext =
             ::Object::ExternalFactory::_singleton->FindOrLoad(System::Filename(kRowRsc));
         if (!::Object::IsDerivedFromNullSafe(ext, UI::ElementDescription::TypeId())) {
@@ -220,6 +237,7 @@ private:
                     "buttonFamilyRelated")) button->Hide(true);
             if (width > 0) cell->_minWidth = width;
         }
+        shown_ = rows;
     }
 
     // The month moves on every few minutes: the Date row's text is set in place, the list (and its scroll
@@ -234,6 +252,7 @@ private:
 
     const UI::Dialog* dialog_ = nullptr;
     int32_t dateRow_ = -1;
+    std::vector<SummaryRow> shown_;   // the rows the table holds now
     Object::InternalPtr<UI::Element> table_;
     std::string seen_;
     int countdown_ = kRecheckFrames;

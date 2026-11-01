@@ -136,8 +136,11 @@ public:
     void OnUpdate(const System::Time& time) override {
         UI::DialogInstance::OnUpdate(time);
         const uint32_t selected = SelectedPerson();
-        if (SelectionStamp() != seenStamp_ || Town().Size() != seenSize_) {
-            Redraw(true);
+        if (SelectionStamp() != seenStamp_) {
+            Redraw(true);                       // another person was picked: the view moves to them
+        } else if (Town().Size() != seenSize_) {
+            // a birth or an arrival: the tree is drawn again where the player left it
+            Redraw(false);
         } else if (view_.TakeSlide(selected)) {
             // redrawn
         }

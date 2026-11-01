@@ -156,10 +156,12 @@ the SVG's size (one unit is one pixel), and the game side encodes it with SDL (`
 text is the platform's font rasterizer (`ext/resources/font_raster.h`, the one `ext.sharp_ui` uses): Segoe UI, then Arial,
 then the game's own face on Windows; the game's face (`FrancophilSans.ttf` beside the exe) first elsewhere, because the posix
 rasterizer looks up one face file per process. A name with a character the face lacks shows it as "?". A picture wider than
-16,384 pixels or larger than 40 million pixels in all is drawn at a smaller scale that fits, and the status line says the
-percentage (the text may then be too small to read; the SVG is sharp at any size). If no font can be had at all, the PNG
-button saves the SVG instead and the status line says so. The PNG is drawn and encoded on the main thread, so a very big
-town pauses the game for a few seconds.
+16,384 pixels or larger than 16 million pixels in all (64 MB of pixels; the encoder copies them once more) is drawn at a
+smaller scale that fits, and the status line says the percentage. When the scale is so small that the names cannot be drawn
+(a box's name would be under a 5-pixel cell), the PNG would be coloured boxes only, so the button saves the SVG instead and
+the status line says why (`PictureRaster::namesDrawn`). The same fallback applies when no font can be had at all and when
+the pixels or their encoding run out of memory (`std::bad_alloc` is caught in `SaveImage`). The PNG is drawn and encoded on
+the main thread, so a very big town pauses the game for a few seconds.
 
 The SVG and the PNG share one set of lines (`BuildPictureStrokes`: the marriages, each family's line, and the dots where the
 children meet their boxes) and the same words (`PictureTitle`, `PictureName` and the other `Picture*` functions), so they
@@ -235,7 +237,11 @@ The rows reuse the Family page's relation cell with its person button hidden; a 
   hunger, cold, disease, old age each tick and acts only when the citizen dies) is stored all the same, so a citizen who
   is later removed another way can carry an earlier cause.
 - The father of a child is the mother's spouse at the birth. Retail has no other record.
-- The whole-town picture has one row per generation, with a marriage cluster (the people joined by marriages) in one row. When
+- The whole-town picture has one row per generation within a band, with a marriage cluster (the people joined by marriages)
+  in one row. The lineages with no known parents (the roots) stand side by side; a root that would pass
+  `kPictureBandWidth` (4800 units) starts a new band below the last, one empty row between, so a long-lived town is a block
+  and not a strip (`PictureLayout::rows` counts the rows drawn, `gens` the generations). A family that joins lineages
+  of two bands is drawn as one long line across them (rare: a marriage between two lineages). When
   marriages loop back on a family (a grandson who marries his grandmother, as happens in a town that starts from two
   people), one parent link of the loop cannot be kept, and the people involved may be drawn above a parent, so their line
   comes up from below. The rows always settle, and families outside the loop are not affected.

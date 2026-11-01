@@ -946,9 +946,81 @@ UNIT_TEST(ext_family_tree_picture_raster_scales_a_big_town_down) {
     PictureRaster r;
     CHECK(RenderPictureRaster(t, l, PictureOptions(), fonts, r));
     CHECK(r.scale < 1.0);
+    CHECK(!r.namesDrawn);   // at this scale a box's name is smaller than any font cell: coloured boxes only
     CHECK(r.width <= kRasterMaxSide && r.height <= kRasterMaxSide);
     CHECK(static_cast<int64_t>(r.width) * r.height <= kRasterMaxPixels);
     CHECK_EQ(r.rgba.size(), static_cast<size_t>(r.width) * static_cast<size_t>(r.height) * 4u);
+}
+
+// Many lineages with no known parents: the roots stand in bands of at most kPictureBandWidth, each band below
+// the last, so the picture is a block and its names can be drawn (a 750-person town used to be one strip
+// 16384 units wide).
+UNIT_TEST(ext_family_tree_picture_wraps_the_roots_into_bands) {
+    Tree t;
+    for (int i = 0; i < 90; ++i) {
+        const uint32_t a = t.Add("Man" + std::to_string(i), 1, false, 0, 20, 0, 0);
+        const uint32_t e = t.Add("Wife" + std::to_string(i), 0, false, 0, 19, 0, 0);
+        t.Marry(a, e, 1);
+        t.Add("Son" + std::to_string(i), 1, true, 30, 0, e, a);
+        t.Add("Daughter" + std::to_string(i), 0, true, 31, 0, e, a);
+    }
+    const PictureLayout l = BuildPictureLayout(t, false);
+    CHECK_EQ(l.gens, 2);                       // two generations, however many bands
+    CHECK(l.rows > 2 * 4);                     // several bands of two rows, with a row of space between
+    CHECK(l.width <= kPictureBandWidth + 400);
+    CHECK(CanvasFor(l).height > CanvasFor(l).width / 4);   // taller than a strip would be
+    int maxGen = 0;
+    for (const PictureBox& b : l.boxes) {
+        CHECK(b.x >= kPictureMargin && b.x + b.w <= l.width);
+        maxGen = std::max(maxGen, b.gen);
+    }
+    CHECK_EQ(maxGen + 1, l.rows);
+    // a parent is always on a row above its child's, whichever band they are in
+    for (const PictureFamily& f : l.families) {
+        int motherGen = -1, kidGen = -1;
+        for (const PictureBox& b : l.boxes) {
+            if (b.id == f.mother) motherGen = b.gen;
+            if (!f.kids.empty() && b.id == f.kids.front()) kidGen = b.gen;
+        }
+        if (motherGen >= 0 && kidGen >= 0) CHECK(kidGen > motherGen);
+    }
+    // a small town stays one band: the same rows as generations
+    Town3 w;
+    const PictureLayout small = BuildPictureLayout(w.t, false);
+    CHECK_EQ(small.rows, small.gens);
+}
+
+// The SVG helper used to cut a line at 1024 bytes: a long highlighted name (255 bytes, each '&' written as
+// "&amp;") lost its closing tag.
+UNIT_TEST(ext_family_tree_picture_svg_keeps_a_long_line_whole) {
+    Town3 w;
+    PictureOptions o;
+    o.highlight = w.t.People().front().id;
+    o.highlightName = std::string(255, '&');
+    const PictureLayout layout = BuildPictureLayout(w.t, false);
+    const std::string svg = RenderPictureSvg(w.t, layout, o);
+    auto count = [](const std::string& text, const char* what) {
+        size_t n = 0;
+        for (size_t at = text.find(what); at != std::string::npos; at = text.find(what, at + 1)) ++n;
+        return n;
+    };
+    CHECK(count(svg, "<text") > 0u && count(svg, "<text") == count(svg, "</text>"));
+    // the picture's own text has an '&amp;' or two; the name adds exactly its 255
+    const std::string plain = RenderPictureSvg(w.t, layout, PictureOptions());
+    CHECK_EQ(count(svg, "&amp;") - count(plain, "&amp;"), 255u);
+    CHECK(svg.size() >= 6u && svg.compare(svg.size() - 7, 7, "</svg>\n") == 0);
+}
+
+UNIT_TEST(ext_family_tree_first_living_id_and_a_raster_that_names_people) {
+    Tree none;
+    CHECK_EQ(none.FirstLivingId(), 0u);
+    Town3 w;
+    const uint32_t first = w.t.FirstLivingId();
+    CHECK(first != 0u && w.t.Find(first) != nullptr && w.t.Find(first)->Alive());
+    BlockGlyphs fonts;
+    PictureRaster r;
+    CHECK(RenderPictureRaster(w.t, BuildPictureLayout(w.t, false), PictureOptions(), fonts, r));
+    CHECK(r.namesDrawn);
 }
 
 UNIT_TEST(ext_family_tree_picture_raster_needs_a_font_or_says_so) {

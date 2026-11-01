@@ -53,6 +53,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <new>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -128,6 +129,8 @@ int32_t g_idBase = 0;
 int32_t g_peopleWidth = 0;
 int32_t g_detailWidth = 0;
 uint32_t g_selected = 0;
+// the tree's size when nobody was living: SelectedPerson's scan waits for it to grow
+size_t g_noLivingAt = ~size_t(0);
 uint32_t g_pending = 0;                         // a pick waiting for the tick
 bool g_showDead = false;
 uint32_t g_town = ~0u;                          // the lock epoch g_selected and g_showDead belong to
@@ -231,20 +234,25 @@ size_t CountLiving(const Tree& tree) {
 
 // The people the first list shows: the living by name, then (when asked) the dead by name.
 std::vector<uint32_t> PeopleToShow(const Tree& tree) {
-    std::vector<const Person*> alive, dead;
-    for (const Person& p : tree.People()) (p.Alive() ? alive : dead).push_back(&p);
-    auto byName = [](const Person* a, const Person* b) {
-        const std::string la = LowerOf(a->name), lb = LowerOf(b->name);
-        return la != lb ? la < lb : a->id < b->id;
+    // each name is lowered once, not twice per comparison
+    struct Keyed {
+        std::string key;
+        const Person* person;
+    };
+    std::vector<Keyed> alive;
+    std::vector<Keyed> dead;
+    for (const Person& p : tree.People()) (p.Alive() ? alive : dead).push_back(Keyed{LowerOf(p.name), &p});
+    auto byName = [](const Keyed& a, const Keyed& b) {
+        return a.key != b.key ? a.key < b.key : a.person->id < b.person->id;
     };
     std::sort(alive.begin(), alive.end(), byName);
     std::sort(dead.begin(), dead.end(), byName);
     std::vector<uint32_t> out;
-    for (const Person* p : alive)
-        if (NameMatches(LabelOf(p->id), g_query)) out.push_back(p->id);
+    for (const Keyed& k : alive)
+        if (NameMatches(LabelOf(k.person->id), g_query)) out.push_back(k.person->id);
     if (g_showDead)
-        for (const Person* p : dead)
-            if (NameMatches(LabelOf(p->id), g_query)) out.push_back(p->id);
+        for (const Keyed& k : dead)
+            if (NameMatches(LabelOf(k.person->id), g_query)) out.push_back(k.person->id);
     if (out.size() > static_cast<size_t>(kMaxPeopleRows)) out.resize(static_cast<size_t>(kMaxPeopleRows));
     return out;
 }
@@ -548,17 +556,37 @@ void SaveImage(bool png) {
         SetParameterText(g_imageStatusText.Get(), g_imageStatus);
         return;
     }
+    // Why the SVG is saved instead of the PNG that was asked for: "" none, "font", "names" (the picture is
+    // too big for its names to be drawn: coloured boxes only), "memory" (the PNG could not be built).
     std::string noPng;
     if (png) {
         PictureRaster raster;
-        if (RenderPictureRaster(Town(), layout, options, SystemGlyphs(), raster)) {
-            const std::string path = TownScreenshot::SavePngInScreenshots("FamilyTree", raster.rgba,
-                    raster.width, raster.height);
-            if (path.empty()) {
+        bool rendered = false;
+        try {
+            rendered = RenderPictureRaster(Town(), layout, options, SystemGlyphs(), raster);
+        } catch (const std::bad_alloc&) {
+            raster = PictureRaster();
+            noPng = "memory";
+            std::fprintf(stderr, "[FamilyTree] no PNG: not enough memory for the picture\n");
+        }
+        if (rendered && !raster.namesDrawn) {
+            noPng = "names";
+            std::fprintf(stderr, "[FamilyTree] no PNG: at scale %.3f the names cannot be drawn\n",
+                         raster.scale);
+        } else if (rendered) {
+            std::string path;
+            try {
+                path = TownScreenshot::SavePngInScreenshots("FamilyTree", raster.rgba, raster.width,
+                                                            raster.height);
+            } catch (const std::bad_alloc&) {
+                noPng = "memory";
+                std::fprintf(stderr, "[FamilyTree] no PNG: not enough memory to encode it\n");
+            }
+            if (noPng.empty() && path.empty()) {
                 g_imageStatus = "The picture could not be saved.";
                 std::fprintf(stderr, "[FamilyTree] could not write the PNG (%d x %d)\n", raster.width,
                              raster.height);
-            } else {
+            } else if (noPng.empty()) {
                 std::string note;
                 if (raster.scale < 1.0) {
                     note = "; drawn at " + std::to_string(static_cast<int>(raster.scale * 100.0)) +
@@ -569,11 +597,14 @@ void SaveImage(bool png) {
                              raster.width,
                              raster.height, raster.scale, layout.people);
             }
-            SetParameterText(g_imageStatusText.Get(), g_imageStatus);
-            return;
+            if (noPng.empty()) {
+                SetParameterText(g_imageStatusText.Get(), g_imageStatus);
+                return;
+            }
+        } else if (noPng.empty()) {
+            noPng = "font";
+            std::fprintf(stderr, "[FamilyTree] no PNG: %s\n", raster.why.c_str());
         }
-        noPng = "no font";
-        std::fprintf(stderr, "[FamilyTree] no PNG: %s\n", raster.why.c_str());
     }
     const std::string svg = RenderPictureSvg(Town(), layout, options);
     const std::string path = TownScreenshot::SaveInScreenshots("FamilyTree", "svg", svg.data(), svg.size());
@@ -581,8 +612,11 @@ void SaveImage(bool png) {
         g_imageStatus = "The picture could not be saved.";
         std::fprintf(stderr, "[FamilyTree] could not write the picture (%zu bytes)\n", svg.size());
     } else {
-        g_imageStatus = FitStatus((noPng.empty() ? std::string()
-                                   : std::string("SVG instead: ")) + SavedLine(path, layout, ""));
+        std::string note;
+        if (noPng == "names") note = "; a PNG this big has no names";
+        else if (noPng == "memory") note = "; not enough memory for a PNG";
+        g_imageStatus = FitStatus((noPng == "font" ? std::string("SVG instead: ") : std::string()) +
+                                  SavedLine(path, layout, note));
         std::fprintf(stderr, "[FamilyTree] wrote %s (%zu bytes, %d people)\n", path.c_str(), svg.size(),
                      layout.people);
     }
@@ -801,11 +835,18 @@ uint32_t SelectedPerson() {
         g_pending = 0;
         g_showDead = false;
         g_imageStatus.clear();   // the last picture belonged to the old town
+        g_noLivingAt = ~size_t(0);
     }
     const Tree& tree = Town();
     if (tree.Find(g_selected) == nullptr) {
-        const std::vector<uint32_t> living = tree.LivingIds();
-        SetSelected(living.empty() ? 0 : living.front());
+        // Nobody to pick stays so until the tree grows (a birth or an arrival), so the scan is not repeated
+        // every frame the tree window is open.
+        static size_t noLivingAt = ~size_t(0);
+        if (tree.Size() != noLivingAt) {
+            const uint32_t first = tree.FirstLivingId();
+            noLivingAt = first == 0 ? tree.Size() : ~size_t(0);
+            SetSelected(first);
+        }
     }
     return g_selected;
 }

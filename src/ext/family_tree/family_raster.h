@@ -21,7 +21,7 @@ namespace Ext {
 namespace FamilyTree {
 
 constexpr int kRasterMaxSide = 16384;
-constexpr int64_t kRasterMaxPixels = 40000000;   // 160 MB of RGBA
+constexpr int64_t kRasterMaxPixels = 16000000;   // 64 MB of RGBA (the encoder copies it once more)
 
 // Where the glyphs come from: `cps` rasterized at a cell height of `cellPx`.
 class GlyphSource {
@@ -41,6 +41,10 @@ struct PictureRaster {
     std::vector<uint8_t> rgba;   // width * height * 4, opaque
     double scale = 1.0;          // below 1: drawn smaller than the layout's units
     bool textDrawn = false;      // false: no glyphs at any size (too small a scale, or no font)
+    // False: the scale is so small that the names (the text that matters) are not drawn, and the picture is
+    // coloured boxes only. The title and the legend are then the only text, and `textDrawn` can still be
+    // true.
+    bool namesDrawn = false;
     std::string why;             // what went wrong, when RenderPictureRaster is false
 };
 

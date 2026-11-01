@@ -246,6 +246,12 @@ std::vector<uint32_t> Tree::LivingIds() const {
     return out;
 }
 
+uint32_t Tree::FirstLivingId() const {
+    for (const Person& p : people_)
+        if (p.Alive()) return p.id;
+    return 0;
+}
+
 int Tree::SameNameOrdinal(uint32_t id) const {
     const Person* me = Find(id);
     if (me == nullptr) return 0;
