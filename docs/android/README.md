@@ -137,6 +137,25 @@ the menus' scale plus its torn bottom border drawn again at the screen's bottom,
 100 in back-buffer pixels, stored in screen units: 50 at the seeded Half (P9, below). Options changes are
 kept as anywhere else.
 
+**Tablet defaults** (issue #96, ruled 2026-11-01). The first run picks the seed by the screen's physical
+size: `Platform::Display::PhysicalScreenInches` (`src/platform/common/platform_display_size.h`; Android's
+body asks `OpenBAActivity.physicalDisplay` through JNI for `getRealMetrics`' pixels and xdpi / ydpi, the
+dpi checked against the density bucket) and `IsTabletScreen`: a shorter edge of at least 3.3 inches is a
+tablet (the largest phones are about 2.8-3.1" short, a 7" 16:9 tablet 3.43"). A tablet gets the phone
+defaults above with three values changed: `VideoRenderScale=100` (the panel's own pixels; the phone's Half
+drew 1696x1200 on a 3392x2400 tablet and stretched it), `GameUIScale=50` (written out: the panels keep the
+size the phone defaults gave a tablet, 2 screen pixels per layout unit, where a first run at Full would
+otherwise take the game's 100 and halve them) and `ext.touch_mode_toolbar_scale=150` (toolbar buttons
+about 9 mm square at 320 dpi, as the S25's 8.5 mm; 200 made them 12 mm). `ext.phone_menu`,
+`ext.touch_mode` and `ext.touch_pointer` stay on. A phone, and any device whose size is unknown, gets the
+phone defaults unchanged. The log line `first run: tablet defaults written to ... (display 10.60x7.50 in,
+...)` (logcat, tag OpenBA) names the class and the size. The seed is written only when `settings.cfg` is
+absent; a later start only appends the keys a file lacks (P8, `phone_seed.h`), so an existing install keeps
+its render scale, UI scale and toolbar scale. To move an existing tablet to these defaults, delete
+`settings.cfg` (Options and key bindings go back to their defaults) or set the three rows in Options. The
+camera pad is not a setting: its cell is 0.11 of the screen's short edge (`TOUCH_MODE.md` §3), about 21 mm
+on a 13" tablet.
+
 **Dialogs for a finger** (P9, same row). Scroll bars are four times thicker, dialog close buttons twice
 the size, a dialog larger than the safe area (Options and Fixes and Extensions below about UI 45 at render
 scale Full) is shown whole at its own fitted scale while it is open (the rest of the interface keeps the

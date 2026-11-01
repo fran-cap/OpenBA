@@ -72,10 +72,12 @@ as `screencap` writes them).
   `api 1.3.0 ... path 1.3; push_descriptor=0 ... vertex_input_dynamic=0 ... eds2=0 load_store_none=1
   d24s8=1 msrtss=0 ... bc=1 etc2=1`.
 - Tablet: boot, the main menu, AutoStart to a new town, at the 60 fps cap (`[FrameLimiter] fps=60.0
-  (cap=60.0) in game`), empty `standalone_crash.log`. The phone defaults apply as on any Android device
-  (render scale 50: 1696x1200 drawn into the 3392x2400 swap chain; `ext.phone_menu`, `ext.touch_mode`,
-  `ext.touch_pointer` on).
-- Phone: the same route to a town at the 60 fps cap, empty `standalone_crash.log`, through pre-rotation
+  (cap=60.0) in game`), empty `standalone_crash.log`. The first run reports `[Display] 3392x2400 px,
+  xdpi 320.0 ydpi 320.0 (density 320 dpi): 10.60x7.50 in` and writes the tablet defaults (`README.md`,
+  Tablet defaults: render scale 100, `GameUIScale=50`, toolbar 150 %; `ext.phone_menu`,
+  `ext.touch_mode`, `ext.touch_pointer` on). Before issue #96 it got the phone's render scale 50.
+- Phone: `[Display] 2340x1080 px, xdpi 420.0 ydpi 420.0 (density 420 dpi): 5.57x2.57 in`, the phone
+  defaults; the same route to a town at the 60 fps cap, empty `standalone_crash.log`, through pre-rotation
   (`swap chain 1080x2340 ... transform 0x2 (current 0x2, currentExtent 2340x1080)`, `present pass: frame
   1170x540 drawn into 1080x2340`).
 

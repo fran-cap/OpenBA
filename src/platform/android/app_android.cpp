@@ -26,6 +26,7 @@
 #include "android_paths.h"
 #include "phone_seed.h"   // MissingSeedLines (P8)
 #include "platform_memory.h"   // Platform::Memory::LowMemoryDevice (P13)
+#include "platform_display_size.h"   // Platform::Display::PhysicalScreenInches (issue #96)
 
 #include "boot_state_watchdog.h"
 #include "android/boot_state_background.h"   // src/diag/android: the watchdog's background bracket
@@ -156,8 +157,31 @@ const char kLowMemorySettings[] =
     "ext.texture_quality=1\n"
     "ext.texture_quality_drop=1\n";
 
+// Issue #96 (ruled 2026-11-01): a TABLET (the screen's shorter physical edge at least
+// Platform::Display::kTabletShortEdgeInches, 3.3", platform_display_size.h) starts from the phone
+// defaults with these values instead. The phone's Half render scale on a 3392x2400 tablet draws
+// 1696x1200 and stretches it; at Full the panel draws its own pixels (the tablet emulator holds the 60
+// cap at 100 and at 75, which says nothing of a tablet's GPU; 75 is not a choice of the Options row,
+// which offers 100 / 50 / 25; docs/android/README.md "Tablet defaults"). The
+// UI scale is the phone's 50 written out: a first run with no UIScale takes the game's 100 at the
+// render percent (FirstRunUiScalePercent), which at Full would draw the panels at half the size the
+// phone defaults give a tablet today (2 screen pixels per layout unit, about 6 units per mm at
+// 320 dpi). The toolbar at 150 % gives buttons about 9 mm square at that UI scale, the size a finger
+// needs (TOUCH_MODE.md §3: the S25's 8.5 mm); 200 % made them 12 mm and the bar 18 mm tall.
+// ext.phone_menu, ext.touch_mode and ext.touch_pointer stay on, as everything else of the phone's.
+const char kTabletOverrides[] =
+    "VideoRenderScale=100\n"
+    "GameUIScale=50\n"
+    "ext.touch_mode_toolbar_scale=150\n";
+
 void SeedPhoneSettings(const std::string& userDir) {
-    std::string seed = kPhoneSettings;
+    float widthInches = 0.0f;
+    float heightInches = 0.0f;
+    const bool sizeKnown = Platform::Display::PhysicalScreenInches(&widthInches, &heightInches);
+    const bool tablet = sizeKnown && Platform::Display::IsTabletScreen(widthInches, heightInches);
+    const char* const kind = tablet ? "tablet" : "phone";
+    std::string seed = tablet ? Platform::Android::WithSeedOverrides(kPhoneSettings, kTabletOverrides)
+                              : std::string(kPhoneSettings);
     if (Platform::Memory::LowMemoryDevice()) seed += kLowMemorySettings;
     mkdir(userDir.c_str(), 0770);
     const std::string path = userDir + "/settings.cfg";
@@ -179,7 +203,7 @@ void SeedPhoneSettings(const std::string& userDir) {
         if (!existing.empty() && existing.back() != '\n') std::fputc('\n', out);
         std::fputs(missing.c_str(), out);
         std::fclose(out);
-        __android_log_print(ANDROID_LOG_INFO, kLogTag, "phone defaults added to %s: %s", path.c_str(),
+        __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s defaults added to %s: %s", kind, path.c_str(),
                             missing.c_str());
         return;
     }
@@ -187,7 +211,11 @@ void SeedPhoneSettings(const std::string& userDir) {
     if (f == nullptr) return;
     std::fputs(seed.c_str(), f);
     std::fclose(f);
-    __android_log_print(ANDROID_LOG_INFO, kLogTag, "first run: phone defaults written to %s", path.c_str());
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                        "first run: %s defaults written to %s (display %.2fx%.2f in%s, tablet from a %.1f in "
+                        "short edge)",
+                        kind, path.c_str(), widthInches, heightInches, sizeKnown ? "" : ", size unknown",
+                        Platform::Display::kTabletShortEdgeInches);
 }
 
 // THE LIFECYCLE WATCH (P7, docs/android/README.md "Lifecycle"). SDL delivers the Android lifecycle
