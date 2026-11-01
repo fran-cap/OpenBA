@@ -107,6 +107,9 @@ WorldGeometry::~WorldGeometry() {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINBATCH.md): ext.terrain_batch frees
     // this geometry's run index buffer.
     if (_extTerrainBatch != nullptr) Ext::TerrainBatch::Forget(*this);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md): ext.better_water's shore strip
+    // goes with its geometry (nothing to do unless a strip was ever built).
+    Ext::BetterWater::Forget(*this);
     // +0x148: the height ImageBuffer, deleted through its own slot 0 with
     // flags 1 (retail: MOV RAX,[RCX]; MOV EDX,1; CALL [RAX]).
     if (_heightImage) {
@@ -137,6 +140,9 @@ void WorldGeometry::OnVideoError() {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINBATCH.md): ext.terrain_batch's run
     // index buffer loses its device half too (the restart's BuildTerrainMesh rebuilds it).
     if (_extTerrainBatch != nullptr) Ext::TerrainBatch::OnVideoError(*this);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md): the shore strip's buffers lose
+    // their device half too (its next draw makes them again).
+    Ext::BetterWater::OnVideoError(*this);
 }
 
 // 0x1400b0c50 (read in Ghidra): new companions on the new device through the
@@ -289,6 +295,15 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
         uint16_t key1 = static_cast<uint16_t>(idx | 0x4000);
         uint16_t key2 = static_cast<uint16_t>(idx | 0x8000);
         renderer.AddDrawItem(this, matInst2, key1, key2, 0.0f, uvScale, 1, nullptr, 0);
+    }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md section 7): ext.better_water Fancy's
+    // shore strip, one item with the river material sorted after every water range (its sort key
+    // above the lakes' 0x4000 | index), mode 0x6000 with a range index retail never reaches; Draw
+    // below hands it to DrawStrip. Only where retail drew river ranges with that material itself.
+    if (countA > 0 && Ext::BetterWater::StripEnabled()) {
+        renderer.AddDrawItem(this, matInst1, Ext::BetterWater::kStripSortKey, Ext::BetterWater::kStripDrawKey,
+                             0.0f, uvScale, 1, nullptr, 0);
     }
 
     // +0x1F0 — the decals.
@@ -450,6 +465,12 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
         return;
     }
     if (mode == 0x6000) {
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md section 7): the shore strip's
+        // item (AddDrawItems above), not a range.
+        if (key == Ext::BetterWater::kStripIndex) {
+            Ext::BetterWater::DrawStrip(*this, context);
+            return;
+        }
         const GeometryDrawRange* ranges = _contourRangesA.data;   // +0x1C0
         if (!ranges) return;
         DrawContourRange(ranges);

@@ -26,6 +26,7 @@
 #include "ext/ambient_occlusion/ambient_occlusion.h"
 #include "ext/better_trees/better_trees.h"
 #include "ext/registry.h"
+#include "ext/better_water/better_water.h"   // StripEnabled (the Better water panel)
 #include "ext/tweak/ext_tweaks.h"
 #include "better_trees/foliage_aa_backend.h"   // src/render/common/better_trees: FaaBackend::Stats
 #include "better_trees/billboard_shadow_backend.h"   // src/render/common/better_trees: AppliedParams
@@ -346,6 +347,22 @@ void DrawPanels(const Snapshot& s) {
         ImGui::SeparatorText("edge");
         changed |= ImGui::SliderFloat("waterline wander (depth)", &w.edgeAmp, 0.0f, 0.3f, "%.3f");
         changed |= ImGui::SliderFloat("wander scale (cells per world unit)", &w.edgeScale, 0.02f, 2.0f, "%.3f");
+        ImGui::SeparatorText("Fancy: the shore strip (bank side; heights in world units)");
+        Ext::BetterWater::StripParams& t = g_uiWater.strip;
+        ImGui::Text("level %s", Ext::BetterWater::StripEnabled() ? "Fancy (strip drawn)" : "Plain (no strip)");
+        changed |= ImGui::SliderFloat("strip opacity", &t.opacity, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet bank strength", &t.wetStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet bank shade", &t.wetShade, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet bank top (height)", &t.wetTop, 0.0f, 0.6f, "%.3f");
+        changed |= ImGui::SliderFloat("wet bank top breakup", &t.wetBreakup, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("foam line drop (below the true waterline)", &t.lineDrop, 0.0f, 0.5f, "%.3f");
+        changed |= ImGui::SliderFloat("foam fringe strength", &t.foamStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("foam fringe above its line", &t.foamUp, 0.0f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("foam fringe below its line", &t.foamDown, 0.0f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("foam fringe breakup scale", &t.foamScale, 0.1f, 4.0f, "%.2f");
+        changed |= ImGui::SliderFloat("strip waterline wander", &t.wanderAmp, 0.0f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("strip wander scale", &t.wanderScale, 0.02f, 2.0f, "%.3f");
+        changed |= ImGui::SliderFloat("strip fade into the water", &t.waterFade, 0.01f, 0.3f, "%.3f");
         if (changed) Ext::Tweak::SetWater(g_uiWater);
         if (ImGui::Button("water defaults")) {
             g_uiWater = Ext::Tweak::Water{};
@@ -357,6 +374,10 @@ void DrawPanels(const Snapshot& s) {
                     w.lineOut0, w.lineOut1, w.linePlain, w.lineBend, w.bendRadius, w.bendFrom, w.bendTo);
         ImGui::Text("wet rise/fall/end/strength/shade %.3f/%.3f/%.3f/%.2f/%.2f  edge %.3f/%.3f  opacity %.2f", w.wetRise,
                     w.wetFall, w.wetEnd, w.wetStrength, w.wetShade, w.edgeAmp, w.edgeScale, w.opacity);
+        ImGui::Text("strip wet top/strength/shade/breakup %.3f/%.2f/%.2f/%.2f  foam up/down/strength/scale "
+                    "%.3f/%.3f/%.2f/%.2f  wander %.3f/%.3f  fade %.3f  opacity %.2f  drop %.3f",
+                    t.wetTop, t.wetStrength, t.wetShade, t.wetBreakup, t.foamUp, t.foamDown, t.foamStrength,
+                    t.foamScale, t.wanderAmp, t.wanderScale, t.waterFade, t.opacity, t.lineDrop);
     }
 
     if (ImGui::CollapsingHeader("Ambient occlusion")) {

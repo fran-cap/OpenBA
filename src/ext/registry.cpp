@@ -599,6 +599,10 @@ const ValueKey kValueKeys[] = {
     // regrowth and green variation), on whenever the row is; the Enhanced tab's second Better trees combo.
     { "natural_tree_growth", "better_trees", 0, 1, 1,
       [](State& s) -> int32_t& { return s.val.natural_tree_growth; }, nullptr, 0 },
+    // BETTERWATER.md section 7: Better water's level, the Enhanced tab's "Better water" Plain / Fancy (Off is
+    // the row). Fancy adds the shore strip on the bank side of the waterline.
+    { "better_water_mode", "better_water", 1, 2, 1,
+      [](State& s) -> int32_t& { return s.val.better_water_mode; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));

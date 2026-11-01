@@ -13,6 +13,8 @@
 #include "better_trees/dxbc.h"
 #include "better_water/shore_overlay_lake_ps.h"
 #include "better_water/shore_overlay_river_ps.h"
+#include "better_water/shore_strip_ps.h"
+#include "ext/better_water/shore_strip.h"
 #include "ext/registry.h"
 
 #include <cstring>
@@ -30,9 +32,10 @@ struct Blob {
     const uint8_t* data;
     size_t size;
 };
-const Blob kBlobs[2] = {
+const Blob kBlobs[3] = {
     { g_bw_PSShoreRiver, sizeof(g_bw_PSShoreRiver) },
     { g_bw_PSShoreLake, sizeof(g_bw_PSShoreLake) },
+    { g_bw_PSShoreStrip, sizeof(g_bw_PSShoreStrip) },
 };
 
 }  // namespace
@@ -101,4 +104,125 @@ UNIT_TEST(ext_better_water_row_is_class_a_default_on) {
     if (row == nullptr) return;
     CHECK(row->cls == Ext::Class::A);
     CHECK(row->defaultOn);
+}
+
+UNIT_TEST(ext_better_water_mode_key) {
+    const Ext::ValueKey* k = Ext::FindValueKey("better_water_mode");
+    CHECK(k != nullptr);
+    if (k == nullptr) return;
+    CHECK(k->minValue == 1);
+    CHECK(k->maxValue == 2);
+    CHECK(k->defaultValue == 1);   // Plain until Fancy is verified
+}
+
+UNIT_TEST(ext_better_water_strip_height_byte_round_trips) {
+    using namespace Ext::BetterWater::Strip;
+    CHECK(EncodeHeight(-0.5f) == 0);
+    CHECK(EncodeHeight(1.5f) == 255);
+    CHECK(EncodeHeight(-3.0f) == 0);
+    CHECK(EncodeHeight(9.0f) == 255);
+    for (float h = -0.5f; h <= 1.5f; h += 0.0625f) {
+        const float back = DecodeHeight(EncodeHeight(h));
+        CHECK(back > h - 0.005f && back < h + 0.005f);
+    }
+}
+
+namespace {
+
+// A 9 x 9 grid (8 x 8 cells, world = index - 4): a bank sloping down along +x, the waterline
+// (-0.75) between columns 3 and 4; water vertices on columns 5..8.
+struct Slope {
+    int16_t h[81];
+    std::vector<Ext::BetterWater::Strip::Vertex> water;
+    Slope() {
+        for (int r = 0; r < 9; ++r) {
+            for (int c = 0; c < 9; ++c) {
+                const float z = -0.75f + 0.45f - 0.3f * static_cast<float>(c - 2);   // c 3 -> -0.6, c 4 -> -0.9
+                h[r * 9 + c] = static_cast<int16_t>(z * 256.0f);
+            }
+        }
+        for (int r = 0; r < 9; ++r) {
+            for (int c = 5; c < 9; ++c) {
+                Ext::BetterWater::Strip::Vertex v = {};
+                v.position[0] = static_cast<int16_t>((c - 4) * 48);
+                v.position[1] = static_cast<int16_t>((r - 4) * 48);
+                water.push_back(v);
+            }
+        }
+    }
+};
+
+}  // namespace
+
+UNIT_TEST(ext_better_water_strip_keeps_the_waterline_cells) {
+    using namespace Ext::BetterWater::Strip;
+    Slope s;
+    Mesh m;
+    Build(s.h, 9, 4, s.water.data(), static_cast<int32_t>(s.water.size()), m);
+    // Above water at column c (corner): 0.45 - 0.3 (c - 2). The water vertices on columns 5..8 mark cells
+    // 4..7, grown by two: cells 2..7 are near water. A cell (corners c, c + 1) is kept when its corners
+    // reach -0.25 .. 0.6: cell 2 (0.45 .. 0.15), 3 (0.15 .. -0.15) and 4 (-0.15 .. -0.45); cell 5
+    // (-0.45 .. -0.75) lies wholly below the band.
+    CHECK(m.cells == 8 * 3);
+    CHECK(m.chunks.size() == 1);
+    CHECK(m.indices.size() == static_cast<size_t>(m.cells) * 6);
+    for (uint16_t i : m.indices) CHECK(i < m.vertices.size());
+    for (const Vertex& v : m.vertices) {
+        // Never below the water surfaces, never below the terrain.
+        CHECK(static_cast<float>(v.position[2]) / 256.0f >= kWaterTop - 0.005f);
+        CHECK(v.uv[0] == v.position[0]);
+        CHECK(v.uv[1] == v.position[1]);
+    }
+}
+
+UNIT_TEST(ext_better_water_strip_follows_the_terrain_diagonal) {
+    using namespace Ext::BetterWater::Strip;
+    Slope s;
+    Mesh m;
+    Build(s.h, 9, 4, s.water.data(), static_cast<int32_t>(s.water.size()), m);
+    // Every triangle winds as the water quads do (counter-clockwise in x, y) and every cell's two
+    // triangles share the terrain's diagonal: bottom-left / top-right on even col + row, top-left /
+    // bottom-right on odd.
+    for (size_t t = 0; t + 5 < m.indices.size(); t += 6) {
+        const Vertex* v[6];
+        for (int k = 0; k < 6; ++k) v[k] = &m.vertices[m.indices[t + k]];
+        for (int k = 0; k < 6; k += 3) {
+            const int ax = v[k + 1]->position[0] - v[k]->position[0];
+            const int ay = v[k + 1]->position[1] - v[k]->position[1];
+            const int bx = v[k + 2]->position[0] - v[k]->position[0];
+            const int by = v[k + 2]->position[1] - v[k]->position[1];
+            CHECK(ax * by - ay * bx > 0);
+        }
+        int minX = 1 << 30;
+        int minY = 1 << 30;
+        for (int k = 0; k < 6; ++k) {
+            minX = v[k]->position[0] < minX ? v[k]->position[0] : minX;
+            minY = v[k]->position[1] < minY ? v[k]->position[1] : minY;
+        }
+        const int col = minX / 48 + 4;
+        const int row = minY / 48 + 4;
+        // The two vertices both triangles use are the diagonal.
+        int shared[2];
+        int n = 0;
+        for (int a = 0; a < 3; ++a) {
+            for (int b = 3; b < 6; ++b) {
+                if (m.indices[t + a] == m.indices[t + b] && n < 2) shared[n++] = a;
+            }
+        }
+        CHECK(n == 2);
+        if (n != 2) continue;
+        const Vertex* d0 = v[shared[0]];
+        const Vertex* d1 = v[shared[1]];
+        const bool tlbr = (d0->position[0] - d1->position[0]) * (d0->position[1] - d1->position[1]) > 0;
+        CHECK(tlbr == (((col + row) & 1) != 0));
+    }
+}
+
+UNIT_TEST(ext_better_water_strip_skips_dry_basins) {
+    using namespace Ext::BetterWater::Strip;
+    Slope s;
+    Mesh m;
+    Build(s.h, 9, 4, nullptr, 0, m);   // the same ground, no water on it
+    CHECK(m.cells == 0);
+    CHECK(m.chunks.empty());
 }

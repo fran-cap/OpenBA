@@ -25,6 +25,11 @@
 
 #include "better_water/shore_overlay_lake_ps.h"    // src/render/common: g_bw_PSShoreLake (tools/water_shaders.py)
 #include "better_water/shore_overlay_river_ps.h"   // src/render/common: g_bw_PSShoreRiver
+#include "better_water/shore_strip_ps.h"           // src/render/common: g_bw_PSShoreStrip
+#include "ext/better_water/shore_strip.h"
+
+#include "Game/WorldGeometry.h"
+#include "video/Buffers.h"
 
 #include "video/Context.h"
 #include "video/ShaderProgram.h"
@@ -32,6 +37,9 @@
 
 #include <cstdio>
 #include <cstring>
+#include <atomic>
+#include <mutex>
+#include <new>
 
 namespace Ext {
 namespace BetterWater {
@@ -40,8 +48,8 @@ namespace {
 
 // The shore pixel programs, one per Kind, shared by every twin of that kind. Made once; null after a
 // failed create.
-Video::PixelProgram* g_shorePixel[2] = {nullptr, nullptr};
-bool g_shorePixelTried[2] = {false, false};
+Video::PixelProgram* g_shorePixel[3] = {nullptr, nullptr, nullptr};
+bool g_shorePixelTried[3] = {false, false, false};
 
 struct Twin {
     // The game's water program and the parts the twin was made from. A twin is reused only while
@@ -73,9 +81,18 @@ Video::PixelProgram* ShorePixel(Kind kind) {
     const int k = static_cast<int>(kind);
     if (g_shorePixelTried[k]) return g_shorePixel[k];
     g_shorePixelTried[k] = true;
-    const uint8_t* bytes = kind == Kind::Lake ? g_bw_PSShoreLake : g_bw_PSShoreRiver;
-    const int size = kind == Kind::Lake ? static_cast<int>(sizeof(g_bw_PSShoreLake))
-                                        : static_cast<int>(sizeof(g_bw_PSShoreRiver));
+    const uint8_t* bytes = g_bw_PSShoreRiver;
+    int size = static_cast<int>(sizeof(g_bw_PSShoreRiver));
+    const char* name = "river";
+    if (kind == Kind::Lake) {
+        bytes = g_bw_PSShoreLake;
+        size = static_cast<int>(sizeof(g_bw_PSShoreLake));
+        name = "lake";
+    } else if (kind == Kind::Strip) {
+        bytes = g_bw_PSShoreStrip;
+        size = static_cast<int>(sizeof(g_bw_PSShoreStrip));
+        name = "strip";
+    }
 
     // The factory's own create (what a package load runs): the class operator new is not ported.
     Video::PixelProgram* p = static_cast<Video::PixelProgram*>(Video::PixelProgram::CreateNewObject());
@@ -92,8 +109,7 @@ Video::PixelProgram* ShorePixel(Kind kind) {
         std::fprintf(stderr, "[BetterWater] the device refused the shore program: no shore on this device\n");
         return nullptr;
     }
-    std::fprintf(stderr, "[BetterWater] %s shore program made (%d bytes)\n",
-                 kind == Kind::Lake ? "lake" : "river", size);
+    std::fprintf(stderr, "[BetterWater] %s shore program made (%d bytes)\n", name, size);
     g_shorePixel[k] = p;
     return p;
 }
@@ -132,9 +148,125 @@ const Video::VideoProgram* TwinFor(const Video::VideoProgram* water, Kind kind) 
     return t.twin;
 }
 
+// ---- the shore strip ---------------------------------------------------------------------------
+// One WorldGeometry's strip: its mesh and the two buffers (raw storage + the engine's own ctors, as
+// ext.terrain_batch keeps its run index buffer). The game has at most two geometries alive (the menu
+// backdrop's and the town's); four slots leave room. Built and drawn on the drawing thread; the
+// geometry's destructor and OnVideoError reach it from the main thread, hence the mutex.
+struct StripSlot {
+    const WorldGeometry* owner = nullptr;
+    // What the strip was built from: a reload or the terrain brush changes one of them.
+    const void* heights = nullptr;
+    const void* waterVertices = nullptr;
+    int32_t waterCount = -1;
+    bool tried = false;                    // built (or found empty) for this key
+    bool ready = false;                    // buffers live on the current device
+    Strip::Mesh mesh;
+    Video::VertexBuffer* vb = nullptr;     // never `delete`d: operator delete after PlatformDestruct
+    Video::IndexBuffer* ib = nullptr;
+    bool linked = false;
+};
+
+constexpr int kStripSlots = 4;
+StripSlot g_strips[kStripSlots];
+std::mutex g_stripMutex;
+// Set by the first strip built: until then the geometry seams (OnVideoError, Forget) return at once,
+// so the faithful path never takes the mutex.
+std::atomic<bool> g_anyStrip{false};
+
+StripSlot* FindStrip(const WorldGeometry& geo) {
+    for (StripSlot& s : g_strips) {
+        if (s.owner == &geo) return &s;
+    }
+    return nullptr;
+}
+
+void UnlinkStrip(StripSlot& s) {
+    if (s.linked) {
+        s.vb->PlatformDestruct();
+        s.ib->PlatformDestruct();
+    }
+    s.linked = false;
+    s.ready = false;
+}
+
+// The strip's buffers on the current device, from its mesh. False when there is nothing to draw.
+bool UploadStrip(StripSlot& s) {
+    if (s.mesh.indices.empty()) return false;
+    if (s.vb == nullptr) {
+        s.vb = new (::operator new(sizeof(Video::VertexBuffer))) Video::VertexBuffer;
+        Video_VertexBuffer_Ctor(s.vb);   // size, dynamic, PlatformConstruct
+        s.ib = new (::operator new(sizeof(Video::IndexBuffer))) Video::IndexBuffer;
+        Video_IndexBuffer_Ctor(s.ib);
+    } else {
+        // A fresh device half: Create on a live companion would overwrite its buffer unreleased.
+        UnlinkStrip(s);
+        s.vb->PlatformConstruct();
+        s.ib->PlatformConstruct();
+    }
+    s.linked = true;
+    if (s.vb->platformData == nullptr || s.ib->platformData == nullptr) return false;
+    const int vbytes = static_cast<int>(s.mesh.vertices.size() * sizeof(Strip::Vertex));
+    const int ibytes = static_cast<int>(s.mesh.indices.size() * sizeof(uint16_t));
+    if (!s.ib->Create(ibytes, false, s.mesh.indices.data()) ||
+        !s.vb->Create(vbytes, false, s.mesh.vertices.data())) {
+        std::fprintf(stderr, "[BetterWater] the strip's buffers (%d + %d bytes) were not made\n", vbytes,
+                     ibytes);
+        return false;
+    }
+    s.ready = true;
+    return true;
+}
+
+// The geometry's strip, built or rebuilt when its water changed; null when it has nothing to draw.
+StripSlot* StripFor(const WorldGeometry& geo) {
+    const void* heights = geo._heights.data;
+    const void* waterVertices = geo._contourVertices.data;
+    const int32_t waterCount = geo._contourVertices.size;
+
+    StripSlot* s = FindStrip(geo);
+    if (s == nullptr) {
+        for (StripSlot& f : g_strips) {
+            if (f.owner == nullptr) {
+                s = &f;
+                break;
+            }
+        }
+        if (s == nullptr) return nullptr;
+        s->owner = &geo;
+        g_anyStrip.store(true, std::memory_order_release);
+    }
+    const bool same =
+        s->heights == heights && s->waterVertices == waterVertices && s->waterCount == waterCount;
+    if (!same || !s->tried) {
+        s->heights = heights;
+        s->waterVertices = waterVertices;
+        s->waterCount = waterCount;
+        s->tried = true;
+        Strip::Build(geo._heights.data, geo._fieldD0, geo._gridSize >> 1,
+                     reinterpret_cast<const Strip::Vertex*>(geo._contourVertices.data), waterCount, s->mesh);
+        std::fprintf(stderr, "[BetterWater] strip built: %d cells, %d vertices, %d chunk(s)\n",
+                     s->mesh.cells, static_cast<int>(s->mesh.vertices.size()),
+                     static_cast<int>(s->mesh.chunks.size()));
+        s->ready = false;
+    }
+    if (!s->ready && !UploadStrip(*s)) return nullptr;
+    return s;
+}
+
 }  // namespace
 
 bool Enabled() { return Ext::Ext().better_water; }
+
+bool StripEnabled() { return Ext::Ext().better_water && Ext::Val().better_water_mode >= 2; }
+
+StripParams CurrentStripParams() {
+#if BANISHED_TWEAK_OVERLAY
+    return Ext::Tweak::WaterValues().strip;
+#else
+    return StripParams{};
+#endif
+}
 
 ShoreParams CurrentParams() {
 #if BANISHED_TWEAK_OVERLAY
@@ -168,6 +300,61 @@ void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t
     std::memcpy(context._pixelConstantStaging.material, saved, sizeof(saved));
     context._dirty |= 0x8000u;
     water->SetupShaders(context);
+}
+
+void DrawStrip(const WorldGeometry& geo, Video::Context& context) {
+    const Video::VideoProgram* water = context._pixelConstantStaging.videoProgram;
+    if (water == nullptr) return;
+    const Video::VideoProgram* twin = TwinFor(water, Kind::Strip);
+    if (twin == nullptr) return;
+
+    const std::lock_guard<std::mutex> lock(g_stripMutex);
+    StripSlot* s = StripFor(geo);
+    if (s == nullptr) return;
+
+    // The strip's look, as DrawShore hands Plain's (the material staging for this draw only).
+    float saved[4][4];
+    std::memcpy(saved, context._pixelConstantStaging.material, sizeof(saved));
+    const StripParams params = CurrentStripParams();
+    static_assert(sizeof(params) == sizeof(saved), "StripParams fills the material staging");
+    std::memcpy(context._pixelConstantStaging.material, &params, sizeof(saved));
+    context._dirty |= 0x8000u;
+
+    twin->SetupShaders(context);
+    context.SetVertexBuffer(s->vb, 0, 0, static_cast<int32_t>(sizeof(Strip::Vertex)));
+    // The inlined SetIndexBuffer of WorldGeometry::Draw (dirty bit 0x10).
+    if (context._indexBuffer != s->ib || context._indexOffset != 0) {
+        context._dirty |= 0x10u;
+        context._indexBuffer = s->ib;
+        context._indexOffset = 0;
+    }
+    // A contour range's DrawIndexed arguments: base vertex, vertex count, first index, index count.
+    for (const Strip::Chunk& c : s->mesh.chunks) {
+        context.DrawIndexed(0, c.vertexStart, c.vertexCount, c.indexStart, c.indexCount, 1);
+    }
+
+    std::memcpy(context._pixelConstantStaging.material, saved, sizeof(saved));
+    context._dirty |= 0x8000u;
+    water->SetupShaders(context);
+}
+
+void OnVideoError(const WorldGeometry& geo) {
+    if (!g_anyStrip.load(std::memory_order_acquire)) return;
+    const std::lock_guard<std::mutex> lock(g_stripMutex);
+    StripSlot* s = FindStrip(geo);
+    if (s != nullptr) UnlinkStrip(*s);
+}
+
+void Forget(const WorldGeometry& geo) {
+    if (!g_anyStrip.load(std::memory_order_acquire)) return;
+    const std::lock_guard<std::mutex> lock(g_stripMutex);
+    StripSlot* s = FindStrip(geo);
+    if (s == nullptr) return;
+    UnlinkStrip(*s);
+    // No ~VertexBuffer / ~IndexBuffer: they would PlatformDestruct (unlink) again.
+    ::operator delete(static_cast<void*>(s->vb));
+    ::operator delete(static_cast<void*>(s->ib));
+    *s = StripSlot{};
 }
 
 }  // namespace BetterWater

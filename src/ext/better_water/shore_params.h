@@ -41,9 +41,34 @@ struct ShoreParams {
 };
 static_assert(sizeof(ShoreParams) == 64, "ShoreParams is the shader's four float4s");
 
+// Fancy's shore strip (shore_strip.hlsl): the bank side of the waterline. Heights are in WORLD units
+// above the waterline (the strip carries the terrain's own height, not the frame alpha).
+struct StripParams {
+    // mc0: the wet bank
+    float wetTop       = 0.134f;    // the darkening is gone by this height above the line
+    float wetStrength  = 0.26f;     // how far the bank is pulled toward its wet shade
+    float wetShade     = 0.25f;     // the wet shade: the bank's colour at this brightness
+    float wetBreakup   = 0.06f;     // how much a coarse noise lowers the wet line's top (0 = even)
+    // mc1: the foam fringe where the water visibly starts (lineDrop below the true waterline)
+    float foamUp       = 0.024f;    // it reaches this far above its line...
+    float foamDown     = 0.053f;    // ...and this far below it
+    float foamStrength = 0.13f;     // its opacity
+    float foamScale    = 1.13f;     // its breakup's cells per world unit
+    // mc2: the waterline, the whole
+    float wanderAmp    = 0.058f;    // how far the waterline wanders (height)
+    float wanderScale  = 0.323f;    // the wander's cells per world unit
+    float waterFade    = 0.148f;    // below the line the wet bank fades out over this depth (as Plain's wet bed rises)
+    float opacity      = 1.0f;      // the whole strip (0 = Plain's look)
+    // mc3
+    float lineDrop     = 0.081f;    // the foam's line below the true waterline: where the water visibly starts
+    float unused[3]    = {0.0f, 0.0f, 0.0f};
+};
+static_assert(sizeof(StripParams) == 64, "StripParams is the shader's four float4s");
+
 // The set the pass draws with: the defaults above, or (debug flavour with the tweak overlay) the
 // overlay's live set.
 ShoreParams CurrentParams();
+StripParams CurrentStripParams();
 
 }  // namespace BetterWater
 }  // namespace Ext

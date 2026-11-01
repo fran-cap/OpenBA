@@ -70,6 +70,7 @@ StringTable betterWaterItems
 	[
 		{ String _name = "Item0";		String _text = "Off";	}
 		{ String _name = "Item1";		String _text = "Plain";	}
+		{ String _name = "Item2";		String _text = "Fancy";	}
 	]
 }
 

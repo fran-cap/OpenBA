@@ -49,6 +49,7 @@ struct Faa {
 
 struct Water {
     BetterWater::ShoreParams p;   // ext.better_water's shore look, read by DrawShore every water range
+    BetterWater::StripParams strip;   // Fancy's shore strip look, read by DrawStrip once per frame
 };
 struct Bbs {
     BbsRewrite::Params p = BbsRewrite::kDefaultParams;   // ext.better_trees' basis / margin / jitter / noise / noiseScale (TS-TWEAK)

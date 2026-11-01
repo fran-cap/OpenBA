@@ -10,9 +10,11 @@
 // (the user's installed ones). The shore depth is the frame copy's alpha, which retail's terrain and
 // in-water models already write, so nothing new is rendered or bound for it.
 //
-// Plain is this pass alone and runs on every backend (Android's choice for power). Fancy, later,
-// adds what needs a readable depth or the terrain shader (contact foam for models that write no
-// frame alpha, a wet line on the bank); it will be a valued key of this row.
+// Plain is this pass alone and runs on every backend (Android's choice for power). Fancy
+// (ext.better_water_mode 2) adds the shore strip: a mesh of ours over the terrain cells that cross the
+// waterline (shore_strip.h), drawn once per frame after every water range with the river water's
+// vertex program and the strip pixel program (shore_strip.hlsl), for the bank side of the line: a wet
+// bank and a foam fringe across the line.
 //
 // THE SEAM is WorldGeometry's contour-range draw (geometry_draw.cpp, modes 0x6000 / 0x8000): right
 // after retail's DrawIndexed, `if (Enabled()) DrawShore(...)`. A few water ranges per frame; the
@@ -26,6 +28,7 @@
 #include <cstdint>
 
 namespace Video { class Context; }
+class WorldGeometry;
 
 namespace Ext {
 namespace BetterWater {
@@ -37,13 +40,33 @@ bool Enabled();
 // Which water the range is: picks the shore program whose still-coordinate blend matches the
 // material's uv scroll (shore_overlay.hlsl MeshCoord). A mod that swaps the two materials gets a
 // slowly drifting pattern, nothing worse.
-enum class Kind : int32_t { River = 0, Lake = 1 };
+enum class Kind : int32_t { River = 0, Lake = 1, Strip = 2 };
 
 // Draws the range retail just drew once more with the shore program, then rebinds the water's own
 // program, so the next draw item finds the context as retail left it. a..d are retail's
 // Context::DrawIndexed arguments for the range (primitive type 0, instance count 1). Does nothing
 // (and logs once) when the program could not be made on this device.
 void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t c, int32_t d);
+
+// ---- Fancy: the shore strip -------------------------------------------------------------------
+// The row is on and ext.better_water_mode is Fancy (2). Read on both threads: plain loads.
+bool StripEnabled();
+
+// The strip's draw item (geometry_draw.cpp): WorldGeometry::AddDrawItems adds one with the river
+// material after the lake ranges' items (its sort key above every 0x4000 | index), mode 0x6000 with a
+// range index retail never reaches; WorldGeometry::Draw hands that item to DrawStrip.
+constexpr uint16_t kStripSortKey = 0x5fff;
+constexpr uint16_t kStripIndex = 0x1fff;
+constexpr uint16_t kStripDrawKey = 0x6000 | kStripIndex;
+
+// Draws the geometry's strip (built on first use and whenever the water mesh changed) with the strip
+// program, then rebinds the water's own program. The river material bound its program for the item.
+void DrawStrip(const WorldGeometry& geo, Video::Context& context);
+
+// The device half of the geometry's strip buffers goes with the device (WorldGeometry::OnVideoError);
+// the next DrawStrip makes it again. Forget frees the strip with its geometry (~WorldGeometry).
+void OnVideoError(const WorldGeometry& geo);
+void Forget(const WorldGeometry& geo);
 
 }  // namespace BetterWater
 }  // namespace Ext
