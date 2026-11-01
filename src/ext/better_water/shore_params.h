@@ -65,10 +65,29 @@ struct StripParams {
 };
 static_assert(sizeof(StripParams) == 64, "StripParams is the shader's four float4s");
 
+// Fancy's contact foam (shore_contact.hlsl): foam where the water meets a model. Distances in world
+// units.
+struct ContactParams {
+    // mc0
+    float width        = 0.25f;     // a model within this of the water surface is at the waterline
+    float strength     = 0.55f;     // the contact line's opacity (over the model just under the surface)
+    float ringRadius   = 0.9f;      // how far the foam spreads out onto the open water
+    float ringStrength = 0.45f;     // the spread foam's opacity
+    // mc1
+    float breakupScale = 1.6f;      // the breakup's cells per world unit
+    float breakup      = 0.6f;      // how much of the foam the breakup removes (0 = solid)
+    float opacity      = 1.0f;      // the whole contact pass (0 = none)
+    float unused1      = 0.0f;
+    // mc2, mc3: unused
+    float unused[8]    = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+};
+static_assert(sizeof(ContactParams) == 64, "ContactParams is the shader's four float4s");
+
 // The set the pass draws with: the defaults above, or (debug flavour with the tweak overlay) the
 // overlay's live set.
 ShoreParams CurrentParams();
 StripParams CurrentStripParams();
+ContactParams CurrentContactParams();
 
 }  // namespace BetterWater
 }  // namespace Ext

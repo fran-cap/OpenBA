@@ -40,7 +40,7 @@ bool Enabled();
 // Which water the range is: picks the shore program whose still-coordinate blend matches the
 // material's uv scroll (shore_overlay.hlsl MeshCoord). A mod that swaps the two materials gets a
 // slowly drifting pattern, nothing worse.
-enum class Kind : int32_t { River = 0, Lake = 1, Strip = 2 };
+enum class Kind : int32_t { River = 0, Lake = 1, Strip = 2, ContactRiver = 3, ContactLake = 4 };
 
 // Draws the range retail just drew once more with the shore program, then rebinds the water's own
 // program, so the next draw item finds the context as retail left it. a..d are retail's
@@ -67,6 +67,17 @@ void DrawStrip(const WorldGeometry& geo, Video::Context& context);
 // the next DrawStrip makes it again. Forget frees the strip with its geometry (~WorldGeometry).
 void OnVideoError(const WorldGeometry& geo);
 void Forget(const WorldGeometry& geo);
+
+// ---- Fancy: contact foam ----------------------------------------------------------------------
+// Foam where the water meets a model (piers, bridge feet, boats), from the scene depth the backend
+// copies beside retail's frame copy (src/render/common/better_water/scene_depth_backend.h). Drawn as
+// a third pass over each water range (shore_contact.hlsl), only at Fancy on a backend that supports
+// the copy.
+bool ContactEnabled();
+
+// The Graphics::FrameCopyImageBuffer::Generate seam (registry_boot.cpp installs it): asks the backend
+// for the copy while ContactEnabled(). Drawing thread.
+void AfterFrameCopy(void* context);
 
 }  // namespace BetterWater
 }  // namespace Ext

@@ -14,6 +14,8 @@
 #include "better_water/shore_overlay_lake_ps.h"
 #include "better_water/shore_overlay_river_ps.h"
 #include "better_water/shore_strip_ps.h"
+#include "better_water/shore_contact_lake_ps.h"
+#include "better_water/shore_contact_river_ps.h"
 #include "ext/better_water/shore_strip.h"
 #include "ext/registry.h"
 
@@ -32,10 +34,12 @@ struct Blob {
     const uint8_t* data;
     size_t size;
 };
-const Blob kBlobs[3] = {
+const Blob kBlobs[5] = {
     { g_bw_PSShoreRiver, sizeof(g_bw_PSShoreRiver) },
     { g_bw_PSShoreLake, sizeof(g_bw_PSShoreLake) },
     { g_bw_PSShoreStrip, sizeof(g_bw_PSShoreStrip) },
+    { g_bw_PSContactRiver, sizeof(g_bw_PSContactRiver) },
+    { g_bw_PSContactLake, sizeof(g_bw_PSContactLake) },
 };
 
 }  // namespace

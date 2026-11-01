@@ -26,6 +26,9 @@
 #include "better_water/shore_overlay_lake_ps.h"    // src/render/common: g_bw_PSShoreLake (tools/water_shaders.py)
 #include "better_water/shore_overlay_river_ps.h"   // src/render/common: g_bw_PSShoreRiver
 #include "better_water/shore_strip_ps.h"           // src/render/common: g_bw_PSShoreStrip
+#include "better_water/shore_contact_lake_ps.h"    // src/render/common: g_bw_PSContactLake
+#include "better_water/shore_contact_river_ps.h"   // src/render/common: g_bw_PSContactRiver
+#include "better_water/scene_depth_backend.h"      // src/render/common: the backend's depth copy
 #include "ext/better_water/shore_strip.h"
 
 #include "Game/WorldGeometry.h"
@@ -48,8 +51,9 @@ namespace {
 
 // The shore pixel programs, one per Kind, shared by every twin of that kind. Made once; null after a
 // failed create.
-Video::PixelProgram* g_shorePixel[3] = {nullptr, nullptr, nullptr};
-bool g_shorePixelTried[3] = {false, false, false};
+constexpr int kKinds = 5;
+Video::PixelProgram* g_shorePixel[kKinds] = {};
+bool g_shorePixelTried[kKinds] = {};
 
 struct Twin {
     // The game's water program and the parts the twin was made from. A twin is reused only while
@@ -92,6 +96,14 @@ Video::PixelProgram* ShorePixel(Kind kind) {
         bytes = g_bw_PSShoreStrip;
         size = static_cast<int>(sizeof(g_bw_PSShoreStrip));
         name = "strip";
+    } else if (kind == Kind::ContactRiver) {
+        bytes = g_bw_PSContactRiver;
+        size = static_cast<int>(sizeof(g_bw_PSContactRiver));
+        name = "river contact";
+    } else if (kind == Kind::ContactLake) {
+        bytes = g_bw_PSContactLake;
+        size = static_cast<int>(sizeof(g_bw_PSContactLake));
+        name = "lake contact";
     }
 
     // The factory's own create (what a package load runs): the class operator new is not ported.
@@ -260,6 +272,22 @@ bool Enabled() { return Ext::Ext().better_water; }
 
 bool StripEnabled() { return Ext::Ext().better_water && Ext::Val().better_water_mode >= 2; }
 
+bool ContactEnabled() { return StripEnabled() && SceneDepthBackend::Supported(); }
+
+void AfterFrameCopy(void* context) {
+    const bool on = ContactEnabled();
+    SceneDepthBackend::Request(on);
+    if (on) SceneDepthBackend::Copy(context);
+}
+
+ContactParams CurrentContactParams() {
+#if BANISHED_TWEAK_OVERLAY
+    return Ext::Tweak::WaterValues().contact;
+#else
+    return ContactParams{};
+#endif
+}
+
 StripParams CurrentStripParams() {
 #if BANISHED_TWEAK_OVERLAY
     return Ext::Tweak::WaterValues().strip;
@@ -296,6 +324,25 @@ void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t
 
     twin->SetupShaders(context);
     context.DrawIndexed(0, a, b, c, d, 1);
+
+    // Fancy's contact foam: a third draw of the range with the contact program, the backend's scene
+    // depth copy bound at t4 for it alone (slot 4 put back after: no water material uses it).
+    const Video::ImageBuffer* depth = ContactEnabled() ? SceneDepthBackend::Image() : nullptr;
+    if (depth != nullptr) {
+        const Kind contactKind = kind == Kind::Lake ? Kind::ContactLake : Kind::ContactRiver;
+        const Video::VideoProgram* contact = TwinFor(water, contactKind);
+        if (contact != nullptr) {
+            const ContactParams cp = CurrentContactParams();
+            static_assert(sizeof(cp) == sizeof(saved), "ContactParams fills the material staging");
+            std::memcpy(context._pixelConstantStaging.material, &cp, sizeof(saved));
+            context._dirty |= 0x8000u;
+            const Video::ImageBuffer* slot4 = context._imageBuffers[4];
+            context.SetImageBuffer(depth, 4);
+            contact->SetupShaders(context);
+            context.DrawIndexed(0, a, b, c, d, 1);
+            context.SetImageBuffer(slot4, 4);
+        }
+    }
 
     std::memcpy(context._pixelConstantStaging.material, saved, sizeof(saved));
     context._dirty |= 0x8000u;

@@ -363,6 +363,16 @@ void DrawPanels(const Snapshot& s) {
         changed |= ImGui::SliderFloat("strip waterline wander", &t.wanderAmp, 0.0f, 0.3f, "%.3f");
         changed |= ImGui::SliderFloat("strip wander scale", &t.wanderScale, 0.02f, 2.0f, "%.3f");
         changed |= ImGui::SliderFloat("strip fade into the water", &t.waterFade, 0.01f, 0.3f, "%.3f");
+        ImGui::SeparatorText("Fancy: contact foam (piers, bridge feet, boats; world units)");
+        Ext::BetterWater::ContactParams& cf = g_uiWater.contact;
+        ImGui::Text("contact foam %s", Ext::BetterWater::ContactEnabled() ? "on" : "off (Plain, or this backend copies no depth)");
+        changed |= ImGui::SliderFloat("contact opacity", &cf.opacity, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::SliderFloat("contact band (depth at the waterline)", &cf.width, 0.02f, 1.0f, "%.3f");
+        changed |= ImGui::SliderFloat("contact line strength", &cf.strength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("spread onto the water (radius)", &cf.ringRadius, 0.1f, 3.0f, "%.2f");
+        changed |= ImGui::SliderFloat("spread strength", &cf.ringStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("contact breakup scale", &cf.breakupScale, 0.1f, 5.0f, "%.2f");
+        changed |= ImGui::SliderFloat("contact breakup amount", &cf.breakup, 0.0f, 1.0f, "%.2f");
         if (changed) Ext::Tweak::SetWater(g_uiWater);
         if (ImGui::Button("water defaults")) {
             g_uiWater = Ext::Tweak::Water{};
@@ -378,6 +388,8 @@ void DrawPanels(const Snapshot& s) {
                     "%.3f/%.3f/%.2f/%.2f  wander %.3f/%.3f  fade %.3f  opacity %.2f  drop %.3f",
                     t.wetTop, t.wetStrength, t.wetShade, t.wetBreakup, t.foamUp, t.foamDown, t.foamStrength,
                     t.foamScale, t.wanderAmp, t.wanderScale, t.waterFade, t.opacity, t.lineDrop);
+        ImGui::Text("contact width/strength/ring/ringStrength %.3f/%.2f/%.2f/%.2f  breakup %.2f/%.2f  opacity %.2f",
+                    cf.width, cf.strength, cf.ringRadius, cf.ringStrength, cf.breakupScale, cf.breakup, cf.opacity);
     }
 
     if (ImGui::CollapsingHeader("Ambient occlusion")) {

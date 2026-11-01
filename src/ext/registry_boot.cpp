@@ -49,6 +49,8 @@
 
 #include "audio/SoundBuffer.h"  // the ext.seamless_loops seam (DESIGN.md hook rule 5)
 #include "graphics/SunLight.h"  // the ext.max_shadow_res seam (DESIGN.md hook rule 5)
+#include "graphics/FrameCopyImageBuffer.h"   // the ext.better_water scene depth seam (DESIGN.md hook rule 5)
+#include "ext/better_water/better_water.h"
 #include "io/Persistence.h"
 #include "save/SaveLoad.h"      // the pseudo-mod seam Save::SaveLoad::_extExtraMods (DESIGN.md hook rule 5)
 #include "system/Configuration.h"
@@ -200,6 +202,11 @@ void InitFromSettings() {
     // built and the terrain loop and draw pay one null test each.
     ::WorldGeometry::_extTerrainBatch =
         CurrentProfile() == Profile::Faithful ? nullptr : &Ext().terrain_batch;
+    // ext.better_water (class A, live): the Graphics::FrameCopyImageBuffer::Generate seam, installed
+    // once like the two above; the body itself follows the live level (it copies only while Fancy's
+    // contact foam is on). Null under the faithful profile: the frame copy pays one null test.
+    ::Graphics::FrameCopyImageBuffer::_extAfterCopy =
+        CurrentProfile() == Profile::Faithful ? nullptr : &BetterWater::AfterFrameCopy;
     // ext.seamless_loops (class A, next start): the Audio::SoundBuffer::DecodeAtLoad seam, set ONCE
     // here from the boot value (it reads nothing live: a buffer already decoded keeps its PCM, so the
     // dialog's toggle is recorded for the next start). Null under the faithful profile (which turns the

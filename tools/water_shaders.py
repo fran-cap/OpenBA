@@ -5,7 +5,7 @@ The exe has no runtime shader compiler, so the shore overlay's pixel program is 
 twice (river and, with WATER_LAKE, lake: their uv sets scroll differently), and written as
 `src/render/common/better_water/shore_overlay_{river,lake}_ps.h` (`/Fh`, `const uint8_t
 g_bw_PSShoreRiver[]` / `g_bw_PSShoreLake[]`); Fancy's shore strip program likewise as `shore_strip_ps.h`
-(`g_bw_PSShoreStrip`). fxc's BYTE rewritten so shared code needs no Win32 typedef). Every backend
+(`g_bw_PSShoreStrip`), and its contact foam as `shore_contact_{river,lake}_ps.h`. fxc's BYTE rewritten so shared code needs no Win32 typedef). Every backend
 takes the DXBC (docs/extensions/handins/BETTERWATER.md). The tools/ao_shaders.py pattern.
 
     python -I tools/water_shaders.py [--fxc PATH] [--check]
@@ -30,6 +30,8 @@ SHADERS = [
     ("shore_overlay.hlsl", "PSShoreOverlay", "ps_4_0", "g_bw_PSShoreRiver", "shore_overlay_river_ps.h", []),
     ("shore_overlay.hlsl", "PSShoreOverlay", "ps_4_0", "g_bw_PSShoreLake", "shore_overlay_lake_ps.h", ["WATER_LAKE=1"]),
     ("shore_strip.hlsl", "PSShoreStrip", "ps_4_0", "g_bw_PSShoreStrip", "shore_strip_ps.h", []),
+    ("shore_contact.hlsl", "PSShoreContact", "ps_4_0", "g_bw_PSContactRiver", "shore_contact_river_ps.h", []),
+    ("shore_contact.hlsl", "PSShoreContact", "ps_4_0", "g_bw_PSContactLake", "shore_contact_lake_ps.h", ["WATER_LAKE=1"]),
 ]
 FLAGS = ["/O3", "/WX", "/Ges"]
 
