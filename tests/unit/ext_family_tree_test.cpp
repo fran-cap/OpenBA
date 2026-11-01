@@ -934,6 +934,16 @@ UNIT_TEST(ext_family_tree_picture_strokes_are_in_the_svg) {
     CHECK_EQ(families, 2u);
 }
 
+// A name must be readable, not only drawn: the review's 749-person town lands at scale 0.34 (a 6 pixel cell).
+UNIT_TEST(ext_family_tree_names_are_readable_from_a_10_pixel_cell) {
+    CHECK(!NamesReadableAt(0.26));
+    CHECK(!NamesReadableAt(0.336));
+    CHECK(!NamesReadableAt(0.50));
+    CHECK(NamesReadableAt(0.58));
+    CHECK(NamesReadableAt(0.94));
+    CHECK(NamesReadableAt(1.0));
+}
+
 UNIT_TEST(ext_family_tree_picture_raster_scales_a_big_town_down) {
     Tree t;
     const uint32_t a = t.Add("Adam", 1, false, 0, 20, 0, 0);

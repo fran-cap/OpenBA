@@ -187,6 +187,10 @@ GlyphSource& SystemGlyphs() {
     return s;
 }
 
+bool NamesReadableAt(double scale) {
+    return std::lround(13.0 * scale * 1.33) >= kReadableNameCell;
+}
+
 bool RenderPictureRaster(const Tree& tree, const PictureLayout& lay, const PictureOptions& opt,
                          GlyphSource& glyphs,
                          PictureRaster& out) {
@@ -292,8 +296,8 @@ bool RenderPictureRaster(const Tree& tree, const PictureLayout& lay, const Pictu
 
     // the names are the text that matters: if their size is a real size and no face gives it, there is no PNG
     const int nameCell = cellFor(13.0f);
-    out.namesDrawn = nameCell >= kMinCell && nameCell <= 256;
-    if (nameCell >= kMinCell && nameCell <= 256 && fontAt(nameCell) == nullptr) {
+    out.namesDrawn = NamesReadableAt(scale) && nameCell <= 256;
+    if (out.namesDrawn && fontAt(nameCell) == nullptr) {
         out.why = why.empty() ? std::string("no font") : why;
         out.rgba.clear();
         return false;

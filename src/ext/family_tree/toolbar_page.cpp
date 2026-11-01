@@ -613,7 +613,7 @@ void SaveImage(bool png) {
         std::fprintf(stderr, "[FamilyTree] could not write the picture (%zu bytes)\n", svg.size());
     } else {
         std::string note;
-        if (noPng == "names") note = "; a PNG this big has no names";
+        if (noPng == "names") note = "; a PNG this big has no names you could read";
         else if (noPng == "memory") note = "; not enough memory for a PNG";
         g_imageStatus = FitStatus((noPng == "font" ? std::string("SVG instead: ") : std::string()) +
                                   SavedLine(path, layout, note));
@@ -840,11 +840,10 @@ uint32_t SelectedPerson() {
     const Tree& tree = Town();
     if (tree.Find(g_selected) == nullptr) {
         // Nobody to pick stays so until the tree grows (a birth or an arrival), so the scan is not repeated
-        // every frame the tree window is open.
-        static size_t noLivingAt = ~size_t(0);
-        if (tree.Size() != noLivingAt) {
+        // every frame the tree window is open. g_noLivingAt is reset with the town, above.
+        if (tree.Size() != g_noLivingAt) {
             const uint32_t first = tree.FirstLivingId();
-            noLivingAt = first == 0 ? tree.Size() : ~size_t(0);
+            g_noLivingAt = first == 0 ? tree.Size() : ~size_t(0);
             SetSelected(first);
         }
     }

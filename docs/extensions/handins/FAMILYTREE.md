@@ -157,9 +157,9 @@ text is the platform's font rasterizer (`ext/resources/font_raster.h`, the one `
 then the game's own face on Windows; the game's face (`FrancophilSans.ttf` beside the exe) first elsewhere, because the posix
 rasterizer looks up one face file per process. A name with a character the face lacks shows it as "?". A picture wider than
 16,384 pixels or larger than 16 million pixels in all (64 MB of pixels; the encoder copies them once more) is drawn at a
-smaller scale that fits, and the status line says the percentage. When the scale is so small that the names cannot be drawn
-(a box's name would be under a 5-pixel cell), the PNG would be coloured boxes only, so the button saves the SVG instead and
-the status line says why (`PictureRaster::namesDrawn`). The same fallback applies when no font can be had at all and when
+smaller scale that fits, and the status line says the percentage. When the scale is so small that the names cannot be read
+(a box's name would be under a 10-pixel cell, `kReadableNameCell`: a town of about 750 people), the PNG would be hard-to-read
+boxes, so the button saves the SVG instead and the status line says why (`PictureRaster::namesDrawn`). The same fallback applies when no font can be had at all and when
 the pixels or their encoding run out of memory (`std::bad_alloc` is caught in `SaveImage`). The PNG is drawn and encoded on
 the main thread, so a very big town pauses the game for a few seconds.
 
@@ -241,7 +241,9 @@ The rows reuse the Family page's relation cell with its person button hidden; a 
   in one row. The lineages with no known parents (the roots) stand side by side; a root that would pass
   `kPictureBandWidth` (4800 units) starts a new band below the last, one empty row between, so a long-lived town is a block
   and not a strip (`PictureLayout::rows` counts the rows drawn, `gens` the generations). A family that joins lineages
-  of two bands is drawn as one long line across them (rare: a marriage between two lineages). When
+  of two bands is drawn as one long line across them, which in a big town crosses the boxes of the bands between (the lines
+  are coloured per family). Bands split between roots only: one root's own subtree is never wrapped, and in a town that
+  descends from a few founding couples that subtree can be wider than a band. When
   marriages loop back on a family (a grandson who marries his grandmother, as happens in a town that starts from two
   people), one parent link of the loop cannot be kept, and the people involved may be drawn above a parent, so their line
   comes up from below. The rows always settle, and families outside the loop are not affected.

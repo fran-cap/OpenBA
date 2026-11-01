@@ -44,9 +44,15 @@ struct PictureRaster {
     // False: the scale is so small that the names (the text that matters) are not drawn, and the picture is
     // coloured boxes only. The title and the legend are then the only text, and `textDrawn` can still be
     // true.
-    bool namesDrawn = false;
+    bool namesDrawn = false;   // true only when they can be read: see NamesReadableAt
     std::string why;             // what went wrong, when RenderPictureRaster is false
 };
+
+// The smallest name cell (pixels) at which a name can be read in the 1:1 picture. A name cell is 13 units of
+// the layout times the scale times 1.33; below this one the picture is coloured boxes and the PNG is not
+// worth saving.
+constexpr int kReadableNameCell = 10;
+bool NamesReadableAt(double scale);
 
 // False (and `why`) when there is nothing to draw or no font could be had at the normal size.
 bool RenderPictureRaster(const Tree& tree, const PictureLayout& layout, const PictureOptions& options,
