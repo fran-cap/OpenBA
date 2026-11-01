@@ -37,7 +37,7 @@ UI::ElementDescription* LoadDescription(const char* path) {
 
 const Contribution* const* Contributions(int* n) {
     static const Contribution* const list[] = {
-        &AmbientOcclusionEntry(), &BetterTreesEntry(), &MaxShadowResEntry(), &SeamlessLoopsEntry(),
+        &AmbientOcclusionEntry(), &BetterTreesEntry(), &BetterWaterEntry(), &MaxShadowResEntry(), &SeamlessLoopsEntry(),
         &TextureQualityEntry(), &RenderScaleEntry(), &FpsCapEntry(), &TouchModeEntry(), &TouchPointerEntry(),
         &DerivedCacheEntry(),
     };

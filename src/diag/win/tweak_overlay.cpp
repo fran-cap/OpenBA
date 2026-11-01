@@ -26,6 +26,7 @@
 #include "ext/ambient_occlusion/ambient_occlusion.h"
 #include "ext/better_trees/better_trees.h"
 #include "ext/registry.h"
+#include "ext/better_water/better_water.h"   // StripEnabled (the Better water panel)
 #include "ext/tweak/ext_tweaks.h"
 #include "better_trees/foliage_aa_backend.h"   // src/render/common/better_trees: FaaBackend::Stats
 #include "better_trees/billboard_shadow_backend.h"   // src/render/common/better_trees: AppliedParams
@@ -68,7 +69,7 @@ using detail::g_open;
 // ---------------------------------------------------------------------------
 // The rows and keys the overlay touches (registry ids, registry.cpp's tables).
 // ---------------------------------------------------------------------------
-constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "max_shadow_res", "render_pipe",
+constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
                                  "eye_camera"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
@@ -117,6 +118,7 @@ SDL_ThreadID   g_loggedDrawThread = 0;
 Ext::Tweak::Ao  g_uiAo;
 Ext::Tweak::Faa g_uiFaa;
 Ext::Tweak::Bbs g_uiBbs;
+Ext::Tweak::Water g_uiWater;
 bool            g_uiLoaded = false;
 
 void Queue(Act kind, const char* id, int value) {
@@ -221,6 +223,13 @@ void LogConstants() {
                  a.sharpness, a.detailShadowStrength, a.blurPasses, a.fogFade ? 1 : 0, a.fogFromScale,
                  a.fogToScale, a.fadeCeiling, f.fillK, f.fillFloor, b.p.basis, b.p.margin, b.p.jitter, b.p.noise,
                  b.p.noiseScale);
+    const Ext::BetterWater::ShoreParams w = Ext::Tweak::WaterValues().p;
+    std::fprintf(stderr,
+                 "[TweakOverlay] constants: water lineIn %.3f lineOut0 %.3f lineOut1 %.3f linePlain %.3f lineBend %.3f "
+                 "bendRadius %.3f bendFrom %.3f bendTo %.3f wetRise %.3f wetFall %.3f wetEnd %.3f wetStrength %.3f "
+                 "wetShade %.3f edgeAmp %.3f edgeScale %.3f opacity %.3f\n",
+                 w.lineIn, w.lineOut0, w.lineOut1, w.linePlain, w.lineBend, w.bendRadius, w.bendFrom, w.bendTo,
+                 w.wetRise, w.wetFall, w.wetEnd, w.wetStrength, w.wetShade, w.edgeAmp, w.edgeScale, w.opacity);
 }
 
 // Main thread: one queued change through the extension's own live path.
@@ -262,6 +271,7 @@ void Apply(const Action& a) {
             Ext::Tweak::SetAo(Ext::Tweak::Ao{});
             Ext::Tweak::SetFaa(Ext::Tweak::Faa{});
             Ext::Tweak::SetBbs(Ext::Tweak::Bbs{});
+            Ext::Tweak::SetWater(Ext::Tweak::Water{});
             for (const char* id : kKeys)
                 if (const Ext::ValueKey* k = Ext::FindValueKey(id)) Ext::SetValueAndRecord(*k, k->defaultValue);
             Ext::BetterTrees::Sync();
@@ -311,7 +321,78 @@ void DrawPanels(const Snapshot& s) {
         for (int i = 0; i < kRowCount; ++i) RowCheckbox(s, i, "rows");
     }
 
-    if (ImGui::CollapsingHeader("Ambient occlusion", ImGuiTreeNodeFlags_DefaultOpen)) {
+    // ext.better_water (BETTERWATER): the shore program's look, live (Ext::BetterWater::ShoreParams, read by
+    // DrawShore every water range). Depths in frame-alpha units: 0 = the bank, 1 = about 1.5 world units down.
+    if (ImGui::CollapsingHeader("Better water", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::BetterWater::ShoreParams& w = g_uiWater.p;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("better_water")] ? "on" : "off");
+        changed |= ImGui::SliderFloat("overall opacity", &w.opacity, 0.0f, 2.0f, "%.2f");
+        ImGui::SeparatorText("wet bed (the darker band under the shallows)");
+        changed |= ImGui::SliderFloat("wet strength", &w.wetStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet shade (bed brightness)", &w.wetShade, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet rise (fade-in depth)", &w.wetRise, 0.0f, 0.5f, "%.3f");
+        changed |= ImGui::SliderFloat("wet band width (holds to depth)", &w.wetFall, 0.0f, 1.0f, "%.3f");
+        changed |= ImGui::SliderFloat("wet end (gone by depth)", &w.wetEnd, 0.0f, 1.5f, "%.3f");
+        ImGui::SeparatorText("line at the waterline");
+        changed |= ImGui::SliderFloat("line opacity (plain bank)", &w.linePlain, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("line opacity (outside of bends)", &w.lineBend, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("line fade-in depth", &w.lineIn, 0.0f, 0.2f, "%.3f");
+        changed |= ImGui::SliderFloat("line fade-out from", &w.lineOut0, 0.0f, 0.5f, "%.3f");
+        changed |= ImGui::SliderFloat("line fade-out to (band size)", &w.lineOut1, 0.0f, 0.6f, "%.3f");
+        ImGui::SeparatorText("bends (where the line turns white)");
+        changed |= ImGui::SliderFloat("bend ring radius (world units)", &w.bendRadius, 0.5f, 8.0f, "%.2f");
+        changed |= ImGui::SliderFloat("bend from (land share, 0.5 = straight)", &w.bendFrom, 0.3f, 1.0f, "%.3f");
+        changed |= ImGui::SliderFloat("bend to", &w.bendTo, 0.3f, 1.0f, "%.3f");
+        ImGui::SeparatorText("edge");
+        changed |= ImGui::SliderFloat("waterline wander (depth)", &w.edgeAmp, 0.0f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("wander scale (cells per world unit)", &w.edgeScale, 0.02f, 2.0f, "%.3f");
+        ImGui::SeparatorText("Fancy: the shore strip (bank side; heights in world units)");
+        Ext::BetterWater::StripParams& t = g_uiWater.strip;
+        ImGui::Text("level %s", Ext::BetterWater::StripEnabled() ? "Fancy (strip drawn)" : "Plain (no strip)");
+        changed |= ImGui::SliderFloat("strip opacity", &t.opacity, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet bank strength", &t.wetStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet bank shade", &t.wetShade, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("wet bank top (height)", &t.wetTop, 0.0f, 0.6f, "%.3f");
+        changed |= ImGui::SliderFloat("wet bank top breakup", &t.wetBreakup, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("foam line drop (below the true waterline)", &t.lineDrop, 0.0f, 0.5f, "%.3f");
+        changed |= ImGui::SliderFloat("foam fringe strength", &t.foamStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("foam fringe above its line", &t.foamUp, 0.0f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("foam fringe below its line", &t.foamDown, 0.0f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("foam fringe breakup scale", &t.foamScale, 0.1f, 4.0f, "%.2f");
+        changed |= ImGui::SliderFloat("strip waterline wander", &t.wanderAmp, 0.0f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("strip wander scale", &t.wanderScale, 0.02f, 2.0f, "%.3f");
+        changed |= ImGui::SliderFloat("strip fade into the water", &t.waterFade, 0.01f, 0.3f, "%.3f");
+        ImGui::SeparatorText("Fancy: contact foam (piers, bridge feet, boats; world units)");
+        Ext::BetterWater::ContactParams& cf = g_uiWater.contact;
+        ImGui::Text("contact foam %s", Ext::BetterWater::ContactEnabled() ? "on" : "off (Plain, or this backend copies no depth)");
+        changed |= ImGui::SliderFloat("contact opacity", &cf.opacity, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::SliderFloat("contact band (depth at the waterline)", &cf.width, 0.02f, 1.0f, "%.3f");
+        changed |= ImGui::SliderFloat("contact line strength", &cf.strength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("spread onto the water (radius)", &cf.ringRadius, 0.1f, 3.0f, "%.2f");
+        changed |= ImGui::SliderFloat("spread strength", &cf.ringStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("contact breakup scale", &cf.breakupScale, 0.1f, 5.0f, "%.2f");
+        changed |= ImGui::SliderFloat("contact breakup amount", &cf.breakup, 0.0f, 1.0f, "%.2f");
+        if (changed) Ext::Tweak::SetWater(g_uiWater);
+        if (ImGui::Button("water defaults")) {
+            g_uiWater = Ext::Tweak::Water{};
+            Ext::Tweak::SetWater(g_uiWater);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/better_water/shore_params.h:");
+        ImGui::Text("line in/out0/out1/plain %.3f/%.3f/%.3f/%.2f  bend %.2f r %.2f from/to %.3f/%.3f", w.lineIn,
+                    w.lineOut0, w.lineOut1, w.linePlain, w.lineBend, w.bendRadius, w.bendFrom, w.bendTo);
+        ImGui::Text("wet rise/fall/end/strength/shade %.3f/%.3f/%.3f/%.2f/%.2f  edge %.3f/%.3f  opacity %.2f", w.wetRise,
+                    w.wetFall, w.wetEnd, w.wetStrength, w.wetShade, w.edgeAmp, w.edgeScale, w.opacity);
+        ImGui::Text("strip wet top/strength/shade/breakup %.3f/%.2f/%.2f/%.2f  foam up/down/strength/scale "
+                    "%.3f/%.3f/%.2f/%.2f  wander %.3f/%.3f  fade %.3f  opacity %.2f  drop %.3f",
+                    t.wetTop, t.wetStrength, t.wetShade, t.wetBreakup, t.foamUp, t.foamDown, t.foamStrength,
+                    t.foamScale, t.wanderAmp, t.wanderScale, t.waterFade, t.opacity, t.lineDrop);
+        ImGui::Text("contact width/strength/ring/ringStrength %.3f/%.2f/%.2f/%.2f  breakup %.2f/%.2f  opacity %.2f",
+                    cf.width, cf.strength, cf.ringRadius, cf.ringStrength, cf.breakupScale, cf.breakup, cf.opacity);
+    }
+
+    if (ImGui::CollapsingHeader("Ambient occlusion")) {
         ImGui::Text("row %s, pass %s", s.rowRequested[RowIndex("ambient_occlusion")] ? "on" : "off",
                     s.aoEnabled ? "enabled" : "inactive");
         int tier = s.aoQuality;
@@ -336,7 +417,7 @@ void DrawPanels(const Snapshot& s) {
         if (aoChanged) Ext::Tweak::SetAo(g_uiAo);   // read by the next frame's FrameFor / FadeFromFog
     }
 
-    if (ImGui::CollapsingHeader("Foliage", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Foliage")) {
         const bool faaRow = s.rowRequested[RowIndex("better_trees")];
         int mode = faaRow ? s.faaMode : 0;
         const char* const kModes[] = {"0 off", "1 smooth edges", "2 + distance fill"};
@@ -357,7 +438,7 @@ void DrawPanels(const Snapshot& s) {
                     faa.mode == 0 ? "retail" : (faa.coverage ? "A2C" : "discard kept"), faa.fillK, faa.fillFloor);
     }
 
-    if (ImGui::CollapsingHeader("Billboard shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Billboard shadow")) {
         // TS-TWEAK / TS-DAPPLE: the rewrite's three immediates; each applied on release (a change
         // re-creates the rewritten copies once, through the stage's reset path), snapped to 0.05.
         RowCheckbox(s, RowIndex("better_trees"), "better_trees");
@@ -402,7 +483,7 @@ void DrawPanels(const Snapshot& s) {
                     static_cast<double>(BbsRewrite::kDefaultParams.noiseScale));
     }
 
-    if (ImGui::CollapsingHeader("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Shadow")) {
         // The Enhanced tab's three-way choice: Off = the row off, 4096 / 8192 = ext.max_shadow_size + the row on.
         int choice = s.shadowChoice == 8192 ? 2 : (s.shadowChoice == 4096 ? 1 : 0);
         const char* const kChoices[] = {"Off", "4096", "8192"};
@@ -419,6 +500,7 @@ void DrawPanels(const Snapshot& s) {
         g_uiAo  = Ext::Tweak::Ao{};
         g_uiFaa = Ext::Tweak::Faa{};
         g_uiBbs = Ext::Tweak::Bbs{};
+        g_uiWater = Ext::Tweak::Water{};
         Queue(Act::Reset, nullptr, 0);
     }
     ImGui::TextDisabled("no settings key (copy into ao_math.h / better_trees.h / receiver_rewrite.h):");
@@ -505,6 +587,7 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
         g_uiAo  = Ext::Tweak::AoValues();
         g_uiFaa = Ext::Tweak::FaaValues();
         g_uiBbs = Ext::Tweak::BbsValues();
+        g_uiWater = Ext::Tweak::WaterValues();
         g_uiLoaded = true;
     }
 

@@ -167,6 +167,13 @@ public:
     // doors and `DoorBody` are retired; every builder spells `::new (p) X()`.
     FrameCopyImageBuffer();
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md section 8): ext.better_water's
+    // scene depth copy, called by Generate right after retail's colour resolve, on the frame the copy
+    // is made. Null by default and under the faithful profile (DESIGN.md hook rule 5): Generate pays
+    // one null test. A static: the 0x88-byte layout is unchanged.
+    using ExtAfterCopy = void (*)(void* context);
+    static ExtAfterCopy _extAfterCopy;
+
 protected:
 
     // RULE B5-15, both COPIED from B35_SLOTS section 3 into the DEFINE_TYPE:

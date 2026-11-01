@@ -38,11 +38,12 @@ bool Supported() {
 }
 
 void RequestReadableDepth(bool on) {
-    if (VideoVulkan::DrawDepthReadable() != on) {
+    // The AO pass's own request (draw.h THE READABLE DEPTH: ext.better_water's scene depth copy is the
+    // other reader); logged when it changes.
+    if (VideoVulkan::DrawRequestReadableDepth(VideoVulkan::kDepthReaderAo, on)) {
         std::fprintf(stderr, "[AmbientOcclusion] main depth -> %s: rebuilt at the next frame (Vulkan)\n",
-                     on ? "readable (sampled view)" : "retail (attachment only)");
+                     on ? "readable (sampled view)" : "retail (attachment only, unless another reader asks)");
     }
-    VideoVulkan::DrawRequestReadableDepth(on);
 }
 
 bool DepthReadable() {

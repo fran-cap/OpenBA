@@ -76,6 +76,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/platform/common/font_raster_freetype.cpp   #   the FreeType rasteriser (block FREETYPE; GDI comparison on Windows)
   ${CMAKE_SOURCE_DIR}/src/ext/ambient_occlusion/ao_math.cpp   # ext_ambient_occlusion_test.cpp (block AOCORE)
   ${CMAKE_SOURCE_DIR}/src/ext/seamless_loops/seamless_loops.cpp   # ext_seamless_loops_test.cpp (block SEAMLESS)
+  ${CMAKE_SOURCE_DIR}/src/ext/better_water/shore_strip.cpp   # ext_better_water_test.cpp (block BETTERWATER, Fancy)
   ${CMAKE_SOURCE_DIR}/src/ext/high_limits/high_limits.cpp             # ext_high_limits_test.cpp (HIGHLIMITS)
   ${CMAKE_SOURCE_DIR}/src/ext/restricted_foods/restricted_foods.cpp            # ext_restricted_foods_test.cpp (RESTRICTEDFOODS)
   ${CMAKE_SOURCE_DIR}/src/ext/restricted_foods/save_state.cpp             #   its class C codec

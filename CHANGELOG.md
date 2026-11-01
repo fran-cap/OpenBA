@@ -12,6 +12,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   early ones flower on bare branches. Oak, birch, pecan and chestnut carry catkins. Modded trees get a pale
   blossom colour picked from their names. The flowers are drawn in the existing tree shaders, so DX11,
   Vulkan and Metal all get them (`docs/extensions/BLOSSOM.md`).
+- `ext.better_water` (on, the Enhanced tab's "Better water" Off / Plain / Fancy, Plain by default): a shore
+  edge on rivers and lakes. Plain: the ground under the shallows darkens as wet ground does, the waterline
+  wanders a little instead of following the terrain contour exactly, and a thin line runs along it, white on
+  the outside of bends. Fancy adds the bank side (a wet, darker bank and a foam fringe where the water
+  visibly starts) and foam where the water meets piers, bridge feet and boats (DX11 and Vulkan; Metal draws
+  none yet). Extra passes over the water with our own shaders; retail's water shader is not touched
+  (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
 - `fix.foundation_piles` (on): a building placed over trees or rocks no longer stalls forever when the

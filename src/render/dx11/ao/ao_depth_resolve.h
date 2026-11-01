@@ -13,6 +13,8 @@ namespace AoStage {
 class DepthResolve {
 public:
     DepthResolve() = default;
+    // `tag` names the user in the log lines (ext.better_water's scene depth copy is the second).
+    explicit DepthResolve(const char* tag) : _tag(tag) {}
     DepthResolve(const DepthResolve&) = delete;
     DepthResolve& operator=(const DepthResolve&) = delete;
     ~DepthResolve() { Release(); }
@@ -45,6 +47,7 @@ private:
     ID3D11ShaderResourceView* _srv  = nullptr;
     unsigned                  _width  = 0;
     unsigned                  _height = 0;
+    const char*               _tag    = "AmbientOcclusion";
 };
 
 }  // namespace AoStage

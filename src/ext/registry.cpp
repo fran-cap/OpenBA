@@ -237,6 +237,15 @@ const Entry kEntries[] = {
       "Screen-space ambient occlusion on the opaque scene (ASSAO).",
       0, [](State& s) -> bool& { return s.ext.ambient_occlusion; } },
 
+    // BETTERWATER (docs/extensions/handins/BETTERWATER.md): a shore edge on the water -- a shallow tint and
+    // a thin broken foam line at the bank, drawn as a second pass over each water range with our own
+    // pixel program. Class A: drawing only, nothing saved, live; ON by default as class A is (DESIGN.md §2).
+    { "better_water", Tier::Extension, Class::A, true,
+      "Better water",
+      "A soft shore edge on rivers and lakes: shallow water at the bank and a thin line of foam at the "
+      "waterline.",
+      0, [](State& s) -> bool& { return s.ext.better_water; } },
+
     // BETTER_TREES (docs/extensions/handins/BETTER-TREES.md; the history in FOLIAGE_AA.md and
     // TREE_SHADOW.md): one row for the tree look. The alpha-tested leaf programs are rewritten at load
     // from the user's own shaders (alpha to coverage + a sharpened alpha), the billboard canopies look
@@ -590,6 +599,10 @@ const ValueKey kValueKeys[] = {
     // regrowth and green variation), on whenever the row is; the Enhanced tab's second Better trees combo.
     { "natural_tree_growth", "better_trees", 0, 1, 1,
       [](State& s) -> int32_t& { return s.val.natural_tree_growth; }, nullptr, 0 },
+    // BETTERWATER.md section 7: Better water's level, the Enhanced tab's "Better water" Plain / Fancy (Off is
+    // the row). Fancy adds the shore strip on the bank side of the waterline.
+    { "better_water_mode", "better_water", 1, 2, 1,
+      [](State& s) -> int32_t& { return s.val.better_water_mode; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));

@@ -603,6 +603,8 @@ bool FrameCopyImageBuffer::Create(ImageType imageType, Usage usage, Format forma
 // field is `mutable` (GeneratedImageBuffer.h, B.4 const_slot). The
 // four-argument platform slot-3 call (`MOV R9B,0x1`) is unchanged.
 // ---------------------------------------------------------------------------
+FrameCopyImageBuffer::ExtAfterCopy FrameCopyImageBuffer::_extAfterCopy = nullptr;
+
 void FrameCopyImageBuffer::Generate(void* context, int32_t generation) const {
     Attend("FrameCopyImageBuffer::Generate", g_generateCalls);   // B.3.9: from the retired door
     if (_generation == generation) return;              // CMP [RCX+0x68],R8D / JZ
@@ -614,6 +616,10 @@ void FrameCopyImageBuffer::Generate(void* context, int32_t generation) const {
     // is `void*` (Device.h), viewed once as the companion it is.
     _destTarget->platformData   // faithful: unguarded
         ->Resolve(context, _sourceTarget, true);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md section 8): the scene depth copy
+    // for ext.better_water's contact foam, beside the colour copy (FrameCopyImageBuffer.h).
+    if (_extAfterCopy != nullptr) _extAfterCopy(context);
 
     _generation = generation;  // [RBX+0x68]: the const (UEBA) slot writes the mutable latch
 }

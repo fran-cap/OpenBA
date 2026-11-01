@@ -97,6 +97,7 @@ struct Extensions {
     bool ambient_occlusion = false; // class A: src/ext/ambient_occlusion/ (docs/extensions/AO.md)
     bool max_shadow_res = false; // class A: src/ext/max_shadow_res/ (the Enhanced tab row) + the Graphics::SunLight seam (docs/extensions/handins/FAA-SHADOW.md)
     bool seamless_loops = false; // class A, next start: src/ext/seamless_loops/ (docs/extensions/handins/SEAMLESS.md)
+    bool better_water = false; // class A, live: src/ext/better_water/, seam WorldGeometry's water-range draw (docs/extensions/handins/BETTERWATER.md)
     bool better_trees = false; // class A: src/ext/better_trees/ (docs/extensions/handins/BETTER-TREES.md): smooth leaf edges + stable tree shading + edge dapple
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten
@@ -164,6 +165,7 @@ struct Values {
     int32_t touch_pointer_tap_twice = 0; // ext.touch_pointer_tap_twice 0..1 (owner touch_pointer): a second tap near the first places the aimed building
     int32_t derived_cache_mb = 4096; // ext.derived_cache_mb 256..65536 (owner compress_ao, the cache's first user): the derived-data cache's cap in MB (COMPRESSAO.md)
     int32_t natural_tree_growth = 1; // ext.natural_tree_growth 0..1 (owner better_trees): per-tree autumn colour, leaf fall, regrowth and green variation while the row is on (NATURAL_GROWTH.md)
+    int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
 
 // All three together: what the tables' `slot` accessors index.

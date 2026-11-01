@@ -195,6 +195,9 @@ struct Frame {
     bool mainDrawn = false;       // a pass ran on the main colour this frame
     Target pass;                  // the attachments of the active (or last) pass
     uint64_t index = 0;           // the frame index (FramesSubmitted at BeginCommands)
+    // THE READABLE DEPTH (draw.h) as requested when the frame began: the main targets are (re)made with
+    // it, so a request that changes mid-frame takes effect at the next frame, never between two passes.
+    bool readableWanted = false;
     VkPipeline pipeline = VK_NULL_HANDLE;
     bool viewportSet = false;
     VkViewport viewport{};
@@ -262,9 +265,9 @@ struct MainTargets {
 MainTargets g_main;
 ImageState g_swap;                // the acquired swap-chain image, this frame
 bool g_targetsChanged = false;
-// P4 (draw.h THE READABLE DEPTH): the AO extension's request (main thread) and what the main targets
-// have (built on the recording thread).
-std::atomic<bool> g_readableRequested{false};
+// P4 (draw.h THE READABLE DEPTH): the readers' requests (DepthReader bits, any thread) and what the
+// main targets have (built on the recording thread).
+std::atomic<uint32_t> g_readableRequested{0};
 std::atomic<bool> g_depthReadable{false};
 // The companion images this frame moved out of SHADER_READ_ONLY (the frame's end moves them back).
 std::vector<ImageState*> g_touched;
@@ -399,7 +402,7 @@ bool EnsureMainTargets() {
     const uint32_t samples = MainSampleCount();
     const bool msrtss = samples > 1 && LiveCaps().msrtss;
     const bool onSource = msrtss && g_frame.target.presentImage != VK_NULL_HANDLE;
-    const bool readable = g_readableRequested.load();
+    const bool readable = g_frame.readableWanted;
     if (g_main.depth.image && !g_targetsChanged && g_main.extent.width == extent.width &&
         g_main.extent.height == extent.height && g_main.samples == samples && g_main.msrtss == msrtss &&
         g_main.onSource == onSource && g_main.readable == readable) {
@@ -432,7 +435,7 @@ bool EnsureMainTargets() {
                  samples == 1 ? "swap-chain image"
                               : (onSource ? "tiler msrtss on the present source"
                                           : (msrtss ? "tiler msrtss" : "resolve attachments")),
-                 g_main.readable ? "readable (sampled view for the AO pass)" : "attachment only");
+                 g_main.readable ? "readable (sampled view: the AO pass, the scene depth copy)" : "attachment only");
     return true;
 }
 
@@ -616,7 +619,7 @@ bool BeginPass(const Target& t) {
         const bool loads = depth.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD ||
                            (hasStencil && stencil.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD);
         bool missed = false;
-        const bool discard = g_discard.MainDepthPass(loads, !g_readableRequested.load(), &missed);
+        const bool discard = g_discard.MainDepthPass(loads, !g_frame.readableWanted, &missed);
         if (missed) {
             depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
             depth.clearValue.depthStencil.depth = 1.0f;
@@ -1528,6 +1531,7 @@ void DrawBeginFrame(const FrameTarget& target) {
     g_frame.lastPipeline = lastPipeline;
     g_frame.lastPair = lastPair;
     g_frame.lastValid = lastValid;
+    g_frame.readableWanted = g_readableRequested.load() != 0;
     g_clear = PendingClear{};
     g_discard.BeginFrame();
     g_swap.image = target.image;
@@ -2043,8 +2047,9 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
 
 // ---- P4: ext.ambient_occlusion's pass (draw.h) --------------------------------------------------------
 
-void DrawRequestReadableDepth(bool on) {
-    g_readableRequested.store(on);
+bool DrawRequestReadableDepth(uint32_t reader, bool on) {
+    const uint32_t was = on ? g_readableRequested.fetch_or(reader) : g_readableRequested.fetch_and(~reader);
+    return ((was & reader) != 0) != on;
 }
 
 bool DrawDepthReadable() {
@@ -2080,6 +2085,10 @@ bool DrawAoBegin(AoTargets* out) {
     out->msrtss = g_main.samples > 1 && g_main.msrtss;
     out->colorFormat = SwapchainFormat();
     return true;
+}
+
+uint64_t DrawFrameIndex() {
+    return g_frame.active ? g_frame.index : ~0ull;
 }
 
 bool DrawAoBeginApply() {
