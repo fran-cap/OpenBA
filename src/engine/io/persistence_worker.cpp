@@ -563,7 +563,7 @@ void IO::PersistenceWorker::SaveJob() {
     // destructor at the close of this body is retail's teardown.
     IO::BinaryFileStream bfs;
 
-    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §29): fix.save_failure_notice writes
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice writes
     // `<name>.tmp` and moves it over the save below, once every byte is written.
     // Read once: the whole job takes one path.
     const bool viaTemp = _extFixSaveTemp != nullptr && *_extFixSaveTemp;

@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/save_failure_notice/save_failure_notice.h -- fix.save_failure_notice (fix tier, default ON)
 // ============================================================================
-// NOT RETAIL. docs/retail_bugs.md §29.
+// NOT RETAIL. docs/retail_bugs.md §27.
 //
 // Retail's save (Save::SaveLoad::UpdateSave, Runtime 0x1800c2a80) queues the write on the
 // persistence worker and, in state 2, resets once the spinner time has passed. Nothing reads the

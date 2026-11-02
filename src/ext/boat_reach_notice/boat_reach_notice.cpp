@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/boat_reach_notice/boat_reach_notice.cpp -- fix.boat_reach_notice (NOT RETAIL)
 // ============================================================================
-// docs/retail_bugs.md §30; the header has the mechanism. The line is an ordinary event-log entry,
+// docs/retail_bugs.md §28; the header has the mechanism. The line is an ordinary event-log entry,
 // built as EventLog::AddEventCore builds one (the date prefix the game's messages carry, the
 // severity colour, the post's tile), filed under the trader's event type 0xd so the event log
 // and the ribbon file it with the merchant messages and show the trader icon. The game's own

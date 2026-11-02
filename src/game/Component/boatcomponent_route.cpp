@@ -434,7 +434,7 @@ void BoatComponent::SetDestination(const Object::InternalPtr<ComponentEntity>* d
             }
         }
     } else if (Ext::Fix().boat_reach_notice) {
-        // NOT RETAIL (fix.boat_reach_notice, docs/retail_bugs.md §30): retail drops the failed
+        // NOT RETAIL (fix.boat_reach_notice, docs/retail_bugs.md §28): retail drops the failed
         // legs without a word. The event log says so; the route below is retail's.
         Ext::BoatReachNotice::OnLegsFailed(dest);
     }

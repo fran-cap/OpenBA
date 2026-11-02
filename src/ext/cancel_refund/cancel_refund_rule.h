@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/cancel_refund/cancel_refund_rule.h -- fix.cancel_refund: the pure rule
 // ============================================================================
-// NOT RETAIL. docs/retail_bugs.md §27. Standard C++ only, so
+// NOT RETAIL. docs/retail_bugs.md §26. Standard C++ only, so
 // tests/unit/ext_cancel_refund_test.cpp links it without the world; the map search and
 // the pile entities are cancel_refund.cpp.
 //

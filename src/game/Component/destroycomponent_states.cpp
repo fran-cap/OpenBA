@@ -422,7 +422,7 @@ void DestroyComponent::ScatterContents(int baseX, int baseY, int width, int dept
         } while (row != depth && remaining > 0);
 
         // Retail discards `remaining` here. fix.cancel_refund lays it around the footprint
-        // (docs/retail_bugs.md §27).
+        // (docs/retail_bugs.md §26).
         if (remaining > 0 && Ext::Fix().cancel_refund) {
             RawMaterialDescription* rmDesc = FindRawMatDescInTemplate(tmpl);
             int weight = rmDesc ? rmDesc->_weight : 0;

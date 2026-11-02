@@ -202,7 +202,7 @@ const Entry kEntries[] = {
       "A change in the Mods window is saved as soon as you confirm it, so a crash no longer brings back "
       "the old list; mods are changed from the main menu only (the in-game Mods button is greyed out).",
       0, [](State& s) -> bool& { return s.fix.mods_persist; } },
-    // SAVEFAILURENOTICE (docs/retail_bugs.md section 29): a save that does not reach the disk (read-only
+    // SAVEFAILURENOTICE (docs/retail_bugs.md section 27): a save that does not reach the disk (read-only
     // folder, Controlled Folder Access, antivirus, full disk) opens a message box naming the save folder,
     // where retail's UpdateSave (0x1800c2a80) never reads the save job's status; and the job writes a
     // temporary file and moves it over the save, so a failed write keeps the previous save. No sim change.
@@ -211,7 +211,7 @@ const Entry kEntries[] = {
       "A save that cannot be written (a read-only or protected save folder, an antivirus block, a full "
       "disk) shows a message instead of failing silently, and the previous save of that name is kept.",
       0, [](State& s) -> bool& { return s.fix.save_failure_notice; } },
-    // BOATREACHNOTICE (docs/retail_bugs.md section 30): when a merchant boat's two water legs to a trading
+    // BOATREACHNOTICE (docs/retail_bugs.md section 28): when a merchant boat's two water legs to a trading
     // post's dock come back empty (BoatComponent::SetDestination 0x1400456e0 drops them without a word),
     // the event log says so, at the post's tile. Where the boat sails is unchanged. The line is an ordinary
     // event-log entry (text, a save keeps it like any other).
@@ -221,7 +221,7 @@ const Entry kEntries[] = {
       "post that never trades is no longer a mystery.",
       0, [](State& s) -> bool& { return s.fix.boat_reach_notice; } },
 
-    // CANCELREFUND (docs/retail_bugs.md section 27): the materials DestroyComponent::ScatterContents
+    // CANCELREFUND (docs/retail_bugs.md section 26): the materials DestroyComponent::ScatterContents
     // (0x14011c530) cannot lay on a cancelled site's (or a demolished building's) own footprint are laid in
     // piles on the free cells around it, found by the search a citizen's dropped load uses (0x14009bd40),
     // instead of being discarded. Sim-visible: more piles, more material. Nothing new is saved: the piles

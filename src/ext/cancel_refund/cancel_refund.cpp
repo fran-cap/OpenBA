@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/cancel_refund/cancel_refund.cpp -- fix.cancel_refund
 // ============================================================================
-// NOT RETAIL. docs/retail_bugs.md §27. The seam is DestroyComponent::ScatterContents
+// NOT RETAIL. docs/retail_bugs.md §26. The seam is DestroyComponent::ScatterContents
 // (src/game/Component/destroycomponent_states.cpp); the ring walk and the pile size are
 // cancel_refund_rule.h.
 // ============================================================================

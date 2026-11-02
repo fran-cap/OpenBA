@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/save_failure_notice/save_failure_notice_rule.h -- fix.save_failure_notice: the pure rule
 // ============================================================================
-// NOT RETAIL. docs/retail_bugs.md §29. Standard C++ only, so
+// NOT RETAIL. docs/retail_bugs.md §27. Standard C++ only, so
 // tests/unit/ext_save_failure_notice_test.cpp links it without the world.
 // ============================================================================
 #pragma once

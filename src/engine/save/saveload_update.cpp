@@ -990,7 +990,7 @@ void Save::SaveLoad::UpdateSave() {
         // fast save still shows its spinner for a readable moment.
         if (_elapsed <= _minOperationTime) return;
 
-        // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §29): fix.save_failure_notice. Retail
+        // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice. Retail
         // finishes here without reading the worker's status, so a save that never reached
         // the disk says nothing. With the row on, wait for the job's status (0 while it
         // runs; EnqueueSave cleared it) and report it before the machine resets.
@@ -1026,7 +1026,7 @@ void Save::SaveLoad::UpdateSave() {
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md): ext.background_save, null by default (SaveLoad.h).
 bool (*Save::SaveLoad::_extSaveStart)(SavedState*) = nullptr;
 bool (*Save::SaveLoad::_extSavePoll)() = nullptr;
-// EXT SEAM (NOT RETAIL, docs/retail_bugs.md §29): fix.save_failure_notice, null by default (SaveLoad.h).
+// EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice, null by default (SaveLoad.h).
 const bool* Save::SaveLoad::_extFixSaveResult = nullptr;
 void (*Save::SaveLoad::_extSaveResult)(bool) = nullptr;
 

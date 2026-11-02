@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/save_failure_notice/save_failure_notice.cpp -- fix.save_failure_notice (NOT RETAIL)
 // ============================================================================
-// docs/retail_bugs.md §29; the header has the mechanism. The notice is the game's MessageDialog
+// docs/retail_bugs.md §27; the header has the mechanism. The notice is the game's MessageDialog
 // over our Dialog/Extensions.rsc:saveFailed (the game's MessageBox with only OK showing), added
 // to the game's UserInterface without a nested modal loop: state 2 of the save runs inside
 // GameUpdateLoop::Update, and the box closes itself on OK (MessageDialog::OnOk).

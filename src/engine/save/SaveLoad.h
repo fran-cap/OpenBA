@@ -420,7 +420,7 @@ public:
     static bool (*_extSaveStart)(SavedState* state);
     static bool (*_extSavePoll)();
     static constexpr uint32_t kExtProgressSerializing = 0x100;
-    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §29): fix.save_failure_notice, both null by
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice, both null by
     // default (set by src/ext/save_failure_notice). Retail's state 2 never reads the persistence
     // worker's status. While `*_extFixSaveResult` is true, state 2 waits (after the spinner time)
     // until the worker has stored the save job's status, then calls `_extSaveResult` with

@@ -77,9 +77,9 @@ struct Fixes {
     bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
     bool nomad_arrival     = true;   // docs/retail_bugs.md §22, src/ext/nomad_arrival/: sim-visible, a nomad counts as arrived only near the town hall, else retries once and leaves
     bool mods_persist      = true;   // docs/retail_bugs.md §23: the mod list is written to settings.cfg when Mods is confirmed, and Mods is greyed out in a game
-    bool boat_reach_notice = true;   // docs/retail_bugs.md §30, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
-    bool save_failure_notice = true; // docs/retail_bugs.md §29, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
-    bool cancel_refund     = true;   // docs/retail_bugs.md §27, src/ext/cancel_refund/: sim-visible, a cancelled site's materials that do not fit on its footprint are laid around it, not discarded
+    bool boat_reach_notice = true;   // docs/retail_bugs.md §28, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
+    bool save_failure_notice = true; // docs/retail_bugs.md §27, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
+    bool cancel_refund     = true;   // docs/retail_bugs.md §26, src/ext/cancel_refund/: sim-visible, a cancelled site's materials that do not fit on its footprint are laid around it, not discarded
     bool autotrade_free_goods = true;   // docs/retail_bugs.md §24, src/ext/autotrade_free_goods/: sim-visible, auto-trade does not pay with goods the merchant prices 0
     bool input_fetch_room  = true;   // docs/retail_bugs.md §25, src/ext/input_fetch_room/: sim-visible, a production worker's input fetch fits the workplace's free room
     bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home's zone (else his lost home's, the hall's, a storage's) whose walk there was refused wades back

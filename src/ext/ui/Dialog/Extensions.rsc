@@ -282,7 +282,7 @@ Dialog extensionTurnedOff : "SaveLoad.rsc:modsMissing"
 	]
 }
 
-// fix.save_failure_notice (docs/retail_bugs.md §29): a save that did not reach the disk. The same
+// fix.save_failure_notice (docs/retail_bugs.md §27): a save that did not reach the disk. The same
 // MessageBox base with only OK showing; src/ext/save_failure_notice adds it to the game's UI
 // (not modal: the save's last state runs inside the game's update) and sets @0 to the save folder.
 Dialog saveFailed : "SaveLoad.rsc:modsMissing"

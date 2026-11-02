@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/cancel_refund/cancel_refund.h -- fix.cancel_refund (fix tier, default ON)
 // ============================================================================
-// NOT RETAIL. docs/retail_bugs.md §27.
+// NOT RETAIL. docs/retail_bugs.md §26.
 //
 // A cancelled construction site (and a demolished building's refund) is turned into
 // ground piles by DestroyComponent::ScatterContents (0x14011c530). Retail lays them only

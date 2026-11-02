@@ -1,7 +1,7 @@
 // ============================================================================
 // src/ext/boat_reach_notice/boat_reach_notice.h -- fix.boat_reach_notice (fix tier, default ON)
 // ============================================================================
-// NOT RETAIL. docs/retail_bugs.md §30.
+// NOT RETAIL. docs/retail_bugs.md §28.
 //
 // A trading post's idle state (TradeComponent::TickIdle, 0x14005aa60) spawns a merchant boat when
 // its timer runs out and hands it to BoatComponent::SetDestination (0x1400456e0). That builds the
