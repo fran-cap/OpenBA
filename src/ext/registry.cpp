@@ -180,6 +180,15 @@ const Entry kEntries[] = {
       "A citizen is no longer sent to a far workplace because the walk to a newly built home or "
       "workplace had not been measured yet and was counted as no walk at all.",
       0, [](State& s) -> bool& { return s.fix.commute_cost; } },
+    // SAVEFAILURENOTICE (docs/retail_bugs.md section 29): a save that does not reach the disk (read-only
+    // folder, Controlled Folder Access, antivirus, full disk) opens a message box naming the save folder,
+    // where retail's UpdateSave (0x1800c2a80) never reads the save job's status; and the job writes a
+    // temporary file and moves it over the save, so a failed write keeps the previous save. No sim change.
+    { "save_failure_notice", Tier::Fix, Class::None, true,
+      "Tell when a save fails",
+      "A save that cannot be written (a read-only or protected save folder, an antivirus block, a full "
+      "disk) shows a message instead of failing silently, and the previous save of that name is kept.",
+      0, [](State& s) -> bool& { return s.fix.save_failure_notice; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

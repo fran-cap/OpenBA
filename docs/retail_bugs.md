@@ -861,3 +861,42 @@ Fix: `fix.unresolved_seeds` (tier 1), default on, off under `/profile:faithful`.
 (`src/game/Game/citizenlist_serialize.cpp`). Code `src/ext/unresolved_seeds/`, test
 `tests/unit/ext_unresolved_seeds_test.cpp`. Each seam prints one `[UnresolvedSeeds]` line to stderr when
 it drops something.
+
+## 29. A save that cannot be written fails silently, and a failed overwrite destroys the previous save
+
+**Symptom.** Saving shows the usual spinner and then nothing: the save is missing from the list, or
+an older save of that name has turned into a blank row that will not load. Players report it with a
+read-only or OneDrive-synced Documents folder, with Windows Controlled Folder Access ("ransomware
+protection") on, and with antivirus software that blocks the game's writes. The autosave fails the
+same way, so a player can play for hours with nothing saved.
+
+**Retail mechanism.** `Save::SaveLoad::UpdateSave` (Runtime `0x1800c2a80`) state 1 builds the two
+save blocks and queues the write on the persistence worker (`0x1800b75c0`, which clears the worker's
+status `Persistence+0x48`); state 2 waits only for the minimum spinner time (`[this+0x8] > [this+0x10]`)
+and then frees the saved state and resets. It never reads the status. The worker's save job
+(`0x1800b6e00`) opens the save itself with `IO::FileStream::Create` (`CreateFileW`, `CREATE_ALWAYS`),
+writes the header and the blocks in place, and stores status 1 on success or 2 when the create fails
+or any `WriteFile` comes up short. So a blocked create says nothing, and a write that fails part way
+(disk full, a scanner or sync client taking the file) has already truncated the previous save of that
+name to a file that fails the save list's CRC check.
+
+**Proof it is retail.** The decompile of `0x1800c2a80`: state 2 is the time test, the two frees and
+the field resets, with no read of `Persistence+0x48` anywhere in the function; nothing else in the
+save path reads it either. The decompile of `0x1800b6e00`: `FileStream::Create` on the pending name,
+the four `WriteFile` calls into that handle, `*(param_1 + 0x38) = 1` or `2`. The port transcribes both
+(`src/engine/save/saveload_update.cpp`, `src/engine/io/persistence_worker.cpp`).
+
+**Lever.** Report the status the job already computes, and write so that a failure cannot take the old
+save with it: the job writes `<name>.tmp` and moves it over the save only after every byte is written
+(`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, `Platform::FileReplace`), deleting it on failure; state
+2 waits for the job's status and, when the save did not reach the disk, the game shows a message box
+naming the save folder and the usual causes.
+
+Fix: `fix.save_failure_notice` (tier 1), default on, off under `/profile:faithful`. Engine seams
+`IO::PersistenceWorker::_extFixSaveTemp` (the temporary file) and `Save::SaveLoad::_extFixSaveResult` /
+`_extSaveResult` (the status read), installed by `src/ext/registry_boot.cpp`; the notice is
+`src/ext/save_failure_notice/` over `Dialog/Extensions.rsc:saveFailed`, added to the game's UI without a
+nested modal loop. The first failure after a success opens it; further failures in a row (a failing
+autosave) do not, until a save succeeds. Every save path takes it: a manual save, the autosave, and
+`ext.background_save` / `ext.async_save_compress`, which change how the blocks are built but end in the
+same enqueue and save job. Test `tests/unit/ext_save_failure_notice_test.cpp`.

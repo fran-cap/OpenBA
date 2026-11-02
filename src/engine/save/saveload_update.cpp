@@ -869,6 +869,10 @@ namespace {
 // ============================================================================
 }  // namespace
 
+// NOT RETAIL (fix.save_failure_notice): whether UpdateSaveTail queued the save job. A file
+// static, not a field: SaveLoad's layout is retail's.
+static bool g_extSaveQueued = false;
+
 // ENDGAME B.3.7 B2: the body is the member (it was `UpdateSaveBody(self, out)`).
 void Save::SaveLoad::UpdateSave() {
     const uint32_t progress = _progress;
@@ -986,6 +990,17 @@ void Save::SaveLoad::UpdateSave() {
         // fast save still shows its spinner for a readable moment.
         if (_elapsed <= _minOperationTime) return;
 
+        // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §29): fix.save_failure_notice. Retail
+        // finishes here without reading the worker's status, so a save that never reached
+        // the disk says nothing. With the row on, wait for the job's status (0 while it
+        // runs; EnqueueSave cleared it) and report it before the machine resets.
+        if (_extFixSaveResult != nullptr && *_extFixSaveResult && _extSaveResult != nullptr) {
+            const ::IO::Persistence* persistence = PersistenceSingleton();
+            const int32_t status = *static_cast<const volatile int32_t*>(&persistence->_worker._status);
+            if (g_extSaveQueued && status == 0) return;
+            _extSaveResult(g_extSaveQueued && status == 1);
+        }
+
         // FUN_180032320 — `if (p->_data) MemFree(p->_data); MemFree(p);`, the
         // inlined `delete` of a SavedState. Spelled out rather than called by
         // address: both halves are MemFree, which this file already owns, so
@@ -1011,6 +1026,9 @@ void Save::SaveLoad::UpdateSave() {
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md): ext.background_save, null by default (SaveLoad.h).
 bool (*Save::SaveLoad::_extSaveStart)(SavedState*) = nullptr;
 bool (*Save::SaveLoad::_extSavePoll)() = nullptr;
+// EXT SEAM (NOT RETAIL, docs/retail_bugs.md §29): fix.save_failure_notice, null by default (SaveLoad.h).
+const bool* Save::SaveLoad::_extFixSaveResult = nullptr;
+void (*Save::SaveLoad::_extSaveResult)(bool) = nullptr;
 
 // The rest of UpdateSave's state 1, moved out unchanged (NOT RETAIL as a function: retail's
 // body is straight-line). Retail's SaveRestore call and ext.background_save's poll both end here.
@@ -1051,10 +1069,12 @@ void Save::SaveLoad::UpdateSaveTail() {
     blocks[1].id   = heap->_id;
 
     ::IO::Persistence* persistence = PersistenceSingleton();
+    g_extSaveQueued = false;   // NOT RETAIL: fix.save_failure_notice's state-2 read
     if ((persistence->_worker._runFlags & 1) == 0) {
         System::Filename filename = persistence->GetSaveFilename(_string20);
         RtIo_PersistenceWorker_EnqueueSave(&persistence->_worker,
                                            &filename.AsString(), 2, blocks);
+        g_extSaveQueued = true;
     }
 
     _progress = 2;
