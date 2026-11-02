@@ -927,7 +927,10 @@ route lengths of 746 / 207 and 767 / 184 for the stress town's posts.
 
 **Lever.** Say so where the player looks for news: an event-log line (and the event ribbon) at the
 post, when a merchant's boat finds no water route to its dock. Whether boats come and where they sail
-stay retail's; refusing such a placement would be a behaviour change and needs a ruling.
+stay retail's.
+
+**Ruling (2026-11-01).** Trading-post placement stays as retail's: a dock that boats cannot reach is
+not refused. The event-log warning below is the whole fix.
 
 Fix: `fix.boat_reach_notice` (tier 1), default on, off under `/profile:faithful`. The failed-leg arm
 of `BoatComponent::SetDestination` calls `src/ext/boat_reach_notice/`, which appends one ordinary
