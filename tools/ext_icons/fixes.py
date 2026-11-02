@@ -251,6 +251,24 @@ def draw_well(px):
     ])
 
 
+def draw_seed_rows(px):
+    # two sprouts on furrows with a dark gap between them (a crop the town names but cannot find)
+    _paint(px, [
+        "............",
+        "............",
+        ".#.......#..",
+        "###.....###.",
+        ".#.......#..",
+        ".#...+...#..",
+        ".#.......#..",
+        "............",
+        "####.###.###",
+        "............",
+        "####.###.###",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -265,4 +283,5 @@ ICONS = {
     "path_query_first": ("fix", draw_queue_first),   # arrow to the front of a waiting row
     "crop_planting_exit": ("fix", draw_field_rows),  # crop rows in a field outline
     "firefighter_wells": ("fix", draw_well),         # a well under its roof
+    "unresolved_seeds": ("fix", draw_seed_rows),     # two sprouts on furrows, a gap between them
 }

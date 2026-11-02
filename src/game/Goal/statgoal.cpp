@@ -152,7 +152,7 @@ void StatGoal::ComputeOperands(int& statValueA, int& comparisonValue) const {
         comparisonValue = static_cast<int>(StatValue(statTypeB, extB));
     } else {
         // Even comparisonType: use fixedValue
-        // FIX firefighter_wells (docs/retail_bugs.md section 19): the Firefighter goal's data says
+        // FIX firefighter_wells (docs/retail_bugs.md section 20): the Firefighter goal's data says
         // 40 wells where its description says 20; with the row on that one goal compares against 20.
         comparisonValue = Ext::FirefighterWells::Threshold(Ext::Fix().firefighter_wells, statTypeA,
                                                            fixedValue, statA.name._data);

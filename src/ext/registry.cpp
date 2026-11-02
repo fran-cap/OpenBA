@@ -161,6 +161,16 @@ const Entry kEntries[] = {
       "The Firefighter achievement is awarded at the 20 wells its description asks for; the game's own "
       "data asked for 40.",
       0, [](State& s) -> bool& { return s.fix.firefighter_wells; } },
+    // UNRESOLVEDSEEDS (docs/retail_bugs.md section 21): the town's available-agriculture list keeps no
+    // null entry: the start town skips a start-condition crop / tree / animal that does not resolve, and
+    // a load drops an entry whose resource no longer loads. Retail's crop field, orchard and pasture
+    // panels fault on the null. Sim-visible only where retail would have crashed (or, at the start town,
+    // spawned a herd from nothing). Nothing new is saved.
+    { "unresolved_seeds", Tier::Fix, Class::None, true,
+      "No crash on fields with a missing crop",
+      "A crop, tree or animal that a starting condition or a save names but no installed mod provides "
+      "is left out of the town's list, so selecting a crop field, orchard or pasture no longer crashes.",
+      0, [](State& s) -> bool& { return s.fix.unresolved_seeds; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

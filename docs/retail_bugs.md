@@ -813,3 +813,45 @@ on, a goal with stat 0x19, the constant 40 and the template `Template\Well.rsc` 
 other goal, and a mod that sets its own constant, is unchanged. The data in the install is not touched.
 An award is written to the settings (`Ach/<index>`) and announced in the event log; there is no Steam in
 OpenBA. Off under `/profile:faithful`.
+
+## 21. Selecting a crop field, orchard or pasture crashes when the town names a crop it cannot find
+
+**Symptom.** The game faults ("fatal access violation") the moment the player clicks a crop field,
+orchard or pasture, finished or still a construction site; placing one is fine. It depends on the map
+seed and the starting condition, or on a save made with a mod that is now off. About twelve player
+reports 2022-2026; a mod author traced one to a starting condition that names an orchard seed "Fig"
+where the mod's resource is "Fig Tree".
+
+**Retail mechanism.** The three panels share `SelectResourceUI::PopulateCombo` (`0x140078830`), which
+fills the seed / tree / animal menu from the town's available-agriculture list (`CitizenBehavior +0x120`,
+count `+0x128`) and reads each entry's sub-description count (`entry+0x30`) with no test. Two writers can
+put null in that list:
+- the start town (`0x1400a3300`): for each of the start condition's three pools (crops `+0xb0`, trees
+  `+0xc0`, livestock `+0xd0`) it picks an entry at random, resolves its name with the find-only resolver
+  `0x14001b1d0`, and passes the result untested to the dedup-append `0x140091a20` (`0x1400a34b9`,
+  `0x1400a3549`, `0x1400a35e7`; the livestock loop also hands it to the herd spawn `0x1400a0b10`). A name
+  that does not resolve appends null.
+- a load: the list is read with the `ExternalPtr<ComponentDescription>` array body `0x1400049c0`, which
+  stores null when `FindOrLoad` finds nothing for the saved path. A save that has a mod's crop in the list
+  (granted at start, or bought from a trader, `0x140081420`) loads with a null entry once the mod is off;
+  so does the world an in-game Mods change restores after disabling that mod.
+Either way, the first panel that builds the menu faults reading address `0x30`.
+
+**Proof it is retail.** The decompile of `0x140078830` (the `*(int *)(lVar4 + 0x30)` loop bound with
+`lVar4` the list entry) and the disassembly of `0x1400a3300` (`CALL 0x14001b1d0` / `MOV RBX,[RBP-8]` /
+`MOV RDX,RBX` / `CALL 0x140091a20`, no test between) and of `0x140091a20` (compare-and-append, no null
+test). `0x1400049c0` writes `local_58 = 0` and stores it through the element when `FindOrLoad` returns
+null. The port transcribes all four (`selectresourceui.cpp`, `starttown.cpp` `SeedAgriPool`,
+`game.cpp` `CitizenBehavior::RemoveEntity`, `External.h` `SerializeExternalArray`). Unmodded data alone
+does not produce the null: every vanilla start condition names resources that exist.
+
+**Lever.** Keep the null out of the list where it is written, not at the panels: the start town skips an
+entry that did not resolve (after its random pick, so the world RNG draws as in retail, and with no herd
+spawned from it), and the load drops the null entries from the list it read (order kept: the panels'
+menus index the list by position).
+
+Fix: `fix.unresolved_seeds` (tier 1), default on, off under `/profile:faithful`. Two seams read the row:
+`SeedAgriPool` (`src/game/Game/starttown.cpp`) and `CitizenBehavior::Serialize`'s `+0x120` array
+(`src/game/Game/citizenlist_serialize.cpp`). Code `src/ext/unresolved_seeds/`, test
+`tests/unit/ext_unresolved_seeds_test.cpp`. Each seam prints one `[UnresolvedSeeds]` line to stderr when
+it drops something.

@@ -23,13 +23,18 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 **Fixes**
 - `fix.firefighter_wells` (on): the Firefighter achievement ("Build 20 wells in a single town") is
   awarded at 20 wells. The game's data asks for 40, a long-known mismatch with the description
-  (`docs/retail_bugs.md` section 19). Off under `/profile:faithful`.
+  (`docs/retail_bugs.md` section 20). Off under `/profile:faithful`.
 - `fix.crop_planting_exit` (on): a crop field no longer stays in "planting" forever. Retail never finishes
   planting a field with a row the farmers cannot reach (a steep or fenced-off edge), so the field is never
   tended or harvested and its crop rots; nor does it move on when every crop was lost before planting
   finished. With the fix, the unreachable slots are left bare and the field goes on to tending and harvest,
   and a field with nothing left growing is cleared for replanting (`docs/retail_bugs.md` section 11). Off
   under `/profile:faithful`.
+- `fix.unresolved_seeds` (on): selecting a crop field, orchard or pasture no longer crashes when the
+  town's list of crops, trees and animals names one that no installed mod provides: a starting condition
+  naming a missing resource (one mod's "Fig" where the package has "Fig Tree"), or a save made with a
+  mod's crop, loaded with that mod off. Retail puts an empty entry in the list and the panel's menu reads
+  it; the fix leaves the entry out (`docs/retail_bugs.md` section 21). Off under `/profile:faithful`.
 - Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
   billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the
   tree's growth scale, and retail eases that scale a little every frame (also while paused with Space, and
