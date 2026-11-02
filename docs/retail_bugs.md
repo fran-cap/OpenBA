@@ -855,12 +855,30 @@ rescue runs where the AI picks its next state, at the head of `CitizenAIComponen
 (`0x14010db90`), for any state: a stranded citizen gets one walk with the pass flags `0xe1f | 0x1e0`
 (retail's own wade / climb bypass in `RequestPath`) to his home's interaction node, or to the nearest town
 hall (an `ImmigrationComponent` entity) when he is homeless or his last wading walk home failed (if that
-one fails too, the next rescue tries home again). The walk carries the AI's usual "decide again" lead
-message; after it the count resets and normal behaviour resumes. A builder left on a finished dock or
+one fails too, the next rescue tries home again). No rescue when that goal is land in his own zone: retail
+also pushes walks to targets cut off from a citizen *and* his home (measured: a town citizen's walks to a
+work target across the river, refused 45 times in 200 s), and such a citizen is not the stranded one. The
+walk carries the AI's usual "decide again" lead message, and while it is out no state pick replaces it
+(`Decide`'s cold / hunger / housing transitions call `TransitionState(1)` while an action runs, and every
+state's builder clears the stack first; without this the rescue was cleared on the next update). After
+it the count resets and normal behaviour resumes. A builder left on a finished dock or
 bridge piece is covered by the same rule (ruled). Composes with `fix.nomad_arrival` (§22): that row keeps
 cut-off nomads from becoming citizens; this one rescues any citizen stranded by another route (or by a
 nomad arrival with §22 off). Code `src/ext/stranded_wade/`, test `tests/unit/ext_stranded_wade_test.cpp`,
 one `[StrandedWade]` stderr line per rescue for the first 16. Off under `/profile:faithful`.
+
+*Runs (2026-11-01, functional dir, seed 12345, speed 10, debug exe, a throwaway probe not committed):* one
+housed citizen teleported to grass in the zone across the river (28 cells from home) and kept cold.
+Faithful: he never left that zone in 240 s and ended standing in the warmth state. Row on, with his count
+set to 2 at the teleport (as after two refused walks home): one rescue, he waded over shore and deep water
+(types 7, 8) into the home zone and stood at his home's node about 1900 AI updates later; the byte cleared
+on arrival; no other citizen was rescued. **Open (needs a ruling):** with the count left to the rule, the
+same citizen did not reach two *consecutive* zone refusals in 200 s: the warmth fallback's refused walk
+home alternated with wander walks inside his zone that arrived and reset the count. The rule as ruled
+therefore fires for a citizen who has nothing to do but the refused walk (a builder on a finished
+dock piece, a small island), not for one on a large cut-off zone. Candidate: an arrival inside his own
+zone does not reset the count, only an arrival in another zone or a walk whose request was accepted
+across zones.
 
 ## 20. The Firefighter achievement asks for 20 wells and is awarded at 40
 

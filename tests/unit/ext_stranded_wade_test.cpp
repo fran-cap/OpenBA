@@ -90,6 +90,18 @@ UNIT_TEST(ext_stranded_wade_interrupted_rescue_is_forgotten) {
     CHECK(RescueTarget(s, true) == Target::Home);
 }
 
+UNIT_TEST(ext_stranded_wade_goal_in_his_own_zone_needs_no_rescue) {
+    // A town citizen whose walks to a target across the river were refused: home is in his zone.
+    CHECK(!NeedsRescue(2, 3, 2, 3));
+    CHECK(!NeedsRescue(1, 3, 4, 3));
+    // Cut off from home: a rescue.
+    CHECK(NeedsRescue(2, 2, 4, 3));
+    // A zone-less cell on either side (water, shore, mountain) or a cell with no zone: a rescue.
+    CHECK(NeedsRescue(7, 0, 2, 3));
+    CHECK(NeedsRescue(2, 3, 8, 0));
+    CHECK(NeedsRescue(2, 0, 2, 3));
+}
+
 UNIT_TEST(ext_stranded_wade_no_target_restarts) {
     uint8_t s = OnOutcome(OnOutcome(0, Outcome::ZoneRefused, false), Outcome::ZoneRefused, false);
     s = OnNoTarget(s);

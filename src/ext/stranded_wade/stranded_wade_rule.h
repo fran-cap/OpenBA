@@ -16,6 +16,8 @@
 //
 // Rescue: one walk with the pass flags 0xe1f | 0x1e0, so RequestPath takes retail's own bypass
 // (wade / climb), to his home; if he has none, or the wading walk home failed, to the town hall.
+// No rescue when that goal is land of his own zone (NeedsRescue): the refused walks went to targets
+// cut off from him and his home alike, so he is not the one who is stranded.
 //
 // The state is one byte per character (CharacterComponent padding +0x44, never saved: a load
 // restarts the count at 0).
@@ -96,6 +98,19 @@ inline Target RescueTarget(uint8_t state, bool hasHome) {
     return Target::Hall;
 }
 
+// Whether the rescue walk to the goal is needed at all: false when the citizen's cell and the goal's
+// cell are land of the same zone, so an ordinary walk reaches the goal. Then the refusals that made
+// him "stranded" were walks to targets cut off from HIM and his home alike (retail pushes such walks:
+// a gatherer's target across a river, a walk toward a family member who is cut off), and a wading
+// walk home would only interrupt him.
+inline bool NeedsRescue(uint8_t typeHere, uint16_t zoneHere, uint8_t typeGoal, uint16_t zoneGoal) {
+    const uint32_t bitHere = 1u << (typeHere & 0x1f);
+    const uint32_t bitGoal = 1u << (typeGoal & 0x1f);
+    if ((bitHere & kLandTypes) == 0 || (bitGoal & kLandTypes) == 0) return true;
+    if (zoneHere == 0 || zoneGoal == 0) return true;
+    return zoneHere != zoneGoal;
+}
+
 // The state once the rescue walk to `target` was pushed: the count restarts.
 inline uint8_t OnRescuePushed(uint8_t state, Target target) {
     uint8_t next = static_cast<uint8_t>((state & kHomeFailed) | kPending);
@@ -103,8 +118,8 @@ inline uint8_t OnRescuePushed(uint8_t state, Target target) {
     return next;
 }
 
-// The state when no rescue target exists (no home that a wading walk reached, no town hall): the
-// count restarts so the AI is not asked again at every pick.
+// The state when no rescue is pushed (no home that a wading walk reached and no town hall, or the
+// goal is in his own zone): the count restarts so the AI is not asked again at every pick.
 inline uint8_t OnNoTarget(uint8_t state) {
     return static_cast<uint8_t>(state & ~(kCountMask | kHomeFailed));
 }

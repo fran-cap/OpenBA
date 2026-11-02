@@ -92,6 +92,15 @@ ComponentEntity* NearestHall(const Map* map, int cell) {
     return best;
 }
 
+// True while the action on top of the character's stack is a walk with the rescue pass flags.
+bool RescueWalkRunning(CharacterComponent* character) {
+    ActionStack& stack = character->actionStack;
+    if (stack.current < 0) return false;
+    Action* top = stack.actions[stack.current].Get();
+    if (top == nullptr || top->Type() != MoveTo::TypeId()) return false;
+    return static_cast<MoveTo*>(top)->passFlags == kRescueFlags;
+}
+
 // Clear the citizen's stack and push one walk to `dest` with the rescue pass flags, led by the
 // "decide again" message the AI's own builders install (citizenai_actionctors.cpp
 // InstallLeadMessage: SendComponentMessage to CitizenAIComponent in ActionStack +0x10).
@@ -151,6 +160,10 @@ bool Rescue(CitizenAIComponent* ai) {
     CitizenComponent* citizen = ai->citizen.Get();
     CharacterComponent* character = citizen->character.Get();
     uint8_t& state = State(character);
+    // The rescue walk is still out: no state pick may replace it (the cold / hunger / housing
+    // transitions of CitizenAIComponent::Decide call TransitionState(1) while an action runs, and
+    // every state's builder clears the stack first).
+    if ((state & kPending) != 0 && RescueWalkRunning(character)) return true;
     if (!IsStranded(state)) return false;
 
     Map* map = GameUpdateLoop::_singleton->m_game;
@@ -179,6 +192,13 @@ bool Rescue(CitizenAIComponent* ai) {
 
     Math::Vector3 dest;
     goalNode->NodePosition(&dest, 0, 0, nullptr);
+    const MapCell* cells = map->cells.GetData();
+    const MapCell& here = cells[cell];
+    const MapCell& there = cells[CellOf(map, dest.x, dest.y)];
+    if (!NeedsRescue(here.terrainType, here.zone, there.terrainType, there.zone)) {
+        state = OnNoTarget(state);
+        return false;
+    }
     PushRescueWalk(citizen, &dest.x);
     state = OnRescuePushed(state, target);
     if (s_logged < kLogCap) {
