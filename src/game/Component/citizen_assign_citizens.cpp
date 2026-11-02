@@ -136,6 +136,7 @@
 #include "ext/registry.h"                     // Ext::Fix().alloc_tiebreak
 #include "ext/alloc_tiebreak/alloc_tiebreak.h"   // EntityKey, ProfessionOrder
 #include "ext/alloc_tiebreak/tie_key.h"       // TieKey: the scratch trees' keys
+#include "ext/commute_cost/commute_cost_rule.h"   // fix.commute_cost: RegionPairCost's not-found answer
 
 namespace {
 
@@ -439,7 +440,8 @@ int PathGraph::RegionPairCost(Map* map, int fromCell, int toCell) {
                                                             static_cast<uint32_t>(toCell)));   // 0x140008830
     if (cost <= 1) cost = static_cast<uint32_t>(euclid());   // 0x1400d6152 CMP EAX,1 / JA
     CostAdd(keyHigh, keyLow, static_cast<int32_t>(cost));   // PathCostTreeInsert 0x140025a10, {high, low, cost}
-    return 0;
+    // FIX commute_cost (NOT RETAIL, docs/retail_bugs.md §6): the stored cost instead of retail's 0.
+    return Ext::CommuteCost::MissCost(Ext::Fix().commute_cost, static_cast<int32_t>(cost));
 }
 
 // ===========================================================================

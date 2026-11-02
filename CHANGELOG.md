@@ -63,6 +63,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
   Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
   `docs/known_port_issues.md` row 1344).
+- `fix.commute_cost` (on): the job allocator no longer treats the walk from a newly built home to a
+  workplace (or from a home to a newly built workplace) as no walk at all the first time it asks for it, so
+  such a citizen is no longer sent to a far workplace for that reason. Retail answers 0 for a commute it has
+  not measured yet (`docs/retail_bugs.md` section 6). Off under `/profile:faithful`.
 - `fix.path_query_first` (on): in a large town the game no longer freezes for 15 to 20 seconds when a
   merchant boat sets off, or while a road is drawn. Retail queues that path query behind every citizen
   route search already waiting; with the fix it is answered first, and those citizens get their routes a

@@ -269,6 +269,24 @@ def draw_seed_rows(px):
     ])
 
 
+def draw_commute(px):
+    # a house and a workplace joined by a dotted walk with a tick mark (the commute is measured)
+    _paint(px, [
+        "............",
+        "..#......##.",
+        ".###....####",
+        "#####...#++#",
+        ".#+#....#++#",
+        ".#+#....####",
+        "............",
+        "..#.#.#.#...",
+        "............",
+        ".....#......",
+        "....###.....",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -284,4 +302,5 @@ ICONS = {
     "crop_planting_exit": ("fix", draw_field_rows),  # crop rows in a field outline
     "firefighter_wells": ("fix", draw_well),         # a well under its roof
     "unresolved_seeds": ("fix", draw_seed_rows),     # two sprouts on furrows, a gap between them
+    "commute_cost": ("fix", draw_commute),           # house and workplace joined by a measured path
 }

@@ -74,6 +74,7 @@ struct Fixes {
     bool crop_planting_exit = true;  // docs/retail_bugs.md §11, src/ext/crop_planting_exit/: sim-visible, a crop field leaves planting when every slot is done or the rest are out of reach
     bool firefighter_wells = true;   // docs/retail_bugs.md §20, src/ext/firefighter_wells/: the Firefighter achievement unlocks at the 20 wells its description gives (the data says 40)
     bool unresolved_seeds  = true;   // docs/retail_bugs.md §21, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
+    bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
