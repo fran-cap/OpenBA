@@ -153,7 +153,7 @@ const Entry kEntries[] = {
       "every crop was lost before planting finished; it goes on to tending and harvest.",
       0, [](State& s) -> bool& { return s.fix.crop_planting_exit; } },
 
-    // FIREFIGHTERWELLS (docs/retail_bugs.md section 19): the Firefighter achievement's goal in the game data
+    // FIREFIGHTERWELLS (docs/retail_bugs.md section 20): the Firefighter achievement's goal in the game data
     // compares the count of finished wells with 40, while its description reads "Build 20 wells"; with the
     // row on that one goal compares with 20. Changes when an achievement is awarded, nothing in the sim.
     { "firefighter_wells", Tier::Fix, Class::None, true,
