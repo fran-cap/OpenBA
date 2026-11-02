@@ -146,8 +146,9 @@ check_trade() {
 # --- autotrade: docs/retail_bugs.md section 24. The trade route's boat docks; the watch then
 # stocks the post with a good the merchant prices 0 and one he prices above 0, asks 3 units of
 # every buy-order category and runs TradeComponent::AutoTrade (0x140059ad0) once
-# (src/diag/trade_buy_harness.cpp). PASS when the priced-0 stack is kept, which needs
-# HARNESS_FIXES=autotrade_free_goods; the faithful run reports GAVE AWAY and FAILs.
+# (src/diag/trade_buy_harness.cpp; it stages the pricing merchant and the manifest when the docked
+# merchant has nothing to show). PASS when the priced-0 stack is kept and a priced good paid, which
+# needs HARNESS_FIXES=autotrade_free_goods; the faithful run reports GAVE AWAY and FAILs.
 route_autotrade() {
     DESC="auto-trade pays with priced goods only; a priced-0 stack stays in the post"
     QUIT_FRAME=12000

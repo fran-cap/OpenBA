@@ -47,6 +47,8 @@
 #include "ext/registry.h"   // Ext::Fix().autotrade_free_goods (the autotrade watch's report)
 #include "Component/StorageComponent.h"
 #include "Component/TradeComponent.h"
+#include "Component/TradeDescription.h"   // the autotrade watch: _merchantCount
+#include "Component/RawMaterialDescription.h"   // the autotrade watch: a manifest line AutoTrade can buy
 #include "Component/BoatComponent.h"   // the trade watch: the merchant boat's route
 #include "Component/ModelComponent.h"
 #include "Component/StateMachineComponent.h"
@@ -131,7 +133,8 @@ int StoredUnits(const StorageComponent* storage, const ComponentDescription* res
 
 // BANISHED_TRADE_WATCH=<period>,autotrade (tools/harness_route.sh autotrade, retail_bugs §24): once the
 // merchant has docked, put 20 units of a good the merchant prices 0 and 20 of one he prices above 0
-// into the post's storage, ask 3 units of every buy-order category, and run the ported
+// into the post's storage (pricing by another of the post's merchants when the docked one values every
+// stored good), ask 3 units of every buy-order category, and run the ported
 // TradeComponent::AutoTrade (0x140059ad0) once. Retail's payment walk sells the priced-0 stack whole;
 // fix.autotrade_free_goods keeps it. The orders are put back afterwards.
 void TradeWatchAutoTrade(int frameNum, TradeComponent* post) {
@@ -151,13 +154,55 @@ void TradeWatchAutoTrade(int frameNum, TradeComponent* post) {
         if (price <= 0 && !freeGood) freeGood = t;
         if (price > 0 && !paidGood) paidGood = t;
     }
+    // A docked merchant who prices every good the post stores: price the payment by another merchant
+    // of the post's TradeDescription (+0x2c is all GetResourcePrice 0x14005a520 reads; the manifest
+    // AutoTrade buys from stays the docked one's), the first under whose masks a stored good is worth 0.
+    const int dockedId = post->tradeId;
+    const TradeDescription* td = static_cast<const TradeDescription*>(post->_description);
+    for (int m = 0; !freeGood && td && m < td->_merchantCount; ++m) {
+        post->tradeId = m;
+        freeGood = nullptr;
+        paidGood = nullptr;
+        for (int i = 0; i < town->field_0x110._size; ++i) {
+            ComponentDescription* t = town->field_0x110._data[i];
+            if (!t || !storage->AcceptsMaterial(t)) continue;
+            const int price = post->GetResourcePrice(t);
+            if (price <= 0 && !freeGood) freeGood = t;
+            if (price > 0 && !paidGood) paidGood = t;
+        }
+        if (!paidGood) freeGood = nullptr;
+    }
+    if (post->tradeId != dockedId)
+        std::fprintf(stderr, "[TradeWatch] AUTOTRADE f=%d priced by merchant %d (docked: %d)\n", frameNum,
+                     post->tradeId, dockedId);
     if (!freeGood || !paidGood) {
+        post->tradeId = dockedId;
         std::fprintf(stderr, "[TradeWatch] AUTOTRADE ERROR f=%d no priced-0 (%p) or priced (%p) good the post "
                      "stores\n", frameNum, static_cast<void*>(freeGood), static_cast<void*>(paidGood));
         return;
     }
     storage->AddItem(freeGood, 20);   // 0x14012d000
     storage->AddItem(paidGood, 20);
+    // Something to buy: every manifest line offers at least 5 units, and a merchant whose lines are all
+    // goods with no RawMaterialDescription (livestock, which AutoTrade never buys) offers the priced good
+    // on his first line instead.
+    int offered = 0;
+    bool rawLine = false;
+    for (int k = 0; k < post->manifest._size; ++k) {
+        const ComponentDescription* g = post->manifest._data[k].good;
+        for (int32_t q = 0; g && q < g->_subDescCount; ++q) {
+            if (g->_subDescs[q]->Type() == RawMaterialDescription::TypeId()) rawLine = true;
+        }
+    }
+    if (!rawLine && post->manifest._size > 0) {
+        post->manifest._data[0].good = paidGood;
+        std::fprintf(stderr, "[TradeWatch] AUTOTRADE f=%d the merchant offers no raw material: line 0 now "
+                     "offers the priced good\n", frameNum);
+    }
+    for (int k = 0; k < post->manifest._size; ++k) {
+        if (post->manifest._data[k].stock < 5) post->manifest._data[k].stock = 5;
+        offered += post->manifest._data[k].stock;
+    }
     std::vector<int> saved;
     for (int o = 0; o < post->buyOrders._size; ++o) {
         saved.push_back(post->buyOrders._data[o].amount);
@@ -177,8 +222,12 @@ void TradeWatchAutoTrade(int frameNum, TradeComponent* post) {
                  volumeBefore, storage->QueryCount(), storage->capacity, static_cast<void*>(freeGood),
                  post->GetResourcePrice(freeGood), freeBefore, freeAfter, static_cast<void*>(paidGood),
                  post->GetResourcePrice(paidGood), paidBefore, paidAfter);
-    if (freeAfter == freeBefore)
-        std::fprintf(stderr, "[TradeWatch] AUTOTRADE KEPT the priced-0 stack\n");
+    post->tradeId = dockedId;
+    if (freeAfter == freeBefore && paidAfter == paidBefore)
+        std::fprintf(stderr, "[TradeWatch] AUTOTRADE ERROR nothing was bought (manifest offered %d unit(s))\n",
+                     offered);
+    else if (freeAfter == freeBefore)
+        std::fprintf(stderr, "[TradeWatch] AUTOTRADE KEPT the priced-0 stack and paid with the priced good\n");
     else
         std::fprintf(stderr, "[TradeWatch] AUTOTRADE GAVE AWAY %d priced-0 unit(s)\n", freeBefore - freeAfter);
 }

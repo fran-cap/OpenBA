@@ -893,8 +893,15 @@ remainder is never collected. Both are retail and left alone.)
 
 **Fix: `fix.autotrade_free_goods` (tier 1), default on, off under `/profile:faithful`.** One seam,
 `AutoTrade`'s payment loop. Pure rule `src/ext/autotrade_free_goods/autotrade_free_goods_rule.h`, unit test
-`tests/unit/ext_autotrade_free_goods_test.cpp` (the payment walk over a priced-0 slot, on and off). Not
-shown in a game run: no harness drives auto-trade with a staged stock. Sim-visible (what the post keeps);
+`tests/unit/ext_autotrade_free_goods_test.cpp` (the payment walk over a priced-0 slot, on and off). Game
+run: `tools/harness_route.sh autotrade` (`BANISHED_TRADE_WATCH=300,autotrade`, `src/diag/trade_buy_harness.cpp`)
+lets the trade route's merchant dock, then stocks the post with 20 of a priced-0 good and 20 of a priced
+good, asks 3 units of every buy-order category, lets every manifest line offer at least 5 units, and runs
+`AutoTrade` once (it prices by another of the post's merchants when the docked one values every stored good,
+and offers the priced good on line 0 when the docked one offers only livestock). 2026-11-01, seed 12345:
+fixes off, the priced-0 stack went 20 -> 0 and the priced good 20 -> 18 (route FAIL); `HARNESS_FIXES=
+autotrade_free_goods`, the priced-0 stack stayed at 20 and the purchase was paid with priced goods (route
+PASS). Sim-visible (what the post keeps);
 nothing new is saved.
 
 ## 25. A production worker hauls an input to a nearly full workplace, is refused, and carries it back
@@ -943,4 +950,9 @@ reserved at the destination), so a tight workplace can still refuse the later lo
 **Fix: `fix.input_fetch_room` (tier 1), default on, off under `/profile:faithful`.** One seam,
 `ConsumeProduce::Execute`'s second pass. Pure rule `src/ext/input_fetch_room/input_fetch_room_rule.h`, unit
 test `tests/unit/ext_input_fetch_room_test.cpp`. Sim-visible (what a worker carries, and where); nothing new
-is saved.
+is saved. Shown on 2026-11-01 with a temporary watch (not committed): a staffed demo tavern
+(`BANISHED_BUILD_DEMO_TAVERN=1`, `BANISHED_AUTOSTAFF=300`, seed 12345) kept at 270 of 300 with ale and an
+input stack of 400 placed in the start stockpile at frame 1800. Faithful: the tavern refused the brewer's
+load 16 times between frames 3000 and 9000 (about one round trip per 300 frames at speed 10) and never
+received the input (0 of the 30 the recipe needs). Row on
+(`HARNESS_FIXES=input_fetch_room`): no refused load at the tavern, and the input arrived by frame 3300 (46 held to the end of the run).
