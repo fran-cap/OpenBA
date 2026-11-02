@@ -443,11 +443,11 @@ UNIT_TEST(ext_touch_pointer_snap_samples_and_cycle) {
 
 UNIT_TEST(ext_touch_pointer_bar_layout) {
     // The S25 at UI 100 (layout = 2340 x 1080 px): cell 119, gap 15, frame 32, margin 49, above the toolbar at 900.
-    const uint32_t all = 0x1Fu;
+    const uint32_t all = 0x3Fu;
     const Bar b = LayoutBar(2340, 1080, 119, 15, 32, 49, 900, all);
     CHECK(b.box.x2 == 2340 - 49);
     CHECK(b.box.y2 == 900 - 15);
-    CHECK(b.box.x2 - b.box.x1 == 2 * 32 + 5 * 119 + 4 * 15);
+    CHECK(b.box.x2 - b.box.x1 == 2 * 32 + 6 * 119 + 5 * 15);
     CHECK(b.box.y2 - b.box.y1 == 2 * 32 + 119);
     for (int32_t i = 0; i < kButtonCount; ++i) {
         CHECK(b.button[i].x2 - b.button[i].x1 == 119);
@@ -457,7 +457,11 @@ UNIT_TEST(ext_touch_pointer_bar_layout) {
     CHECK(HitButton(b, b.box.x1 + 1, b.box.y1 + 1) == -1);   // the frame is not a button
     // A drag tool: Place and Cancel only, packed to the right edge, the others empty.
     const Bar d = LayoutBar(2340, 1080, 119, 15, 32, 49, 900, (1u << kPlace) | (1u << kCancel));
-    CHECK(d.button[kRotateLeft].Empty() && d.button[kFlip].Empty());
+    CHECK(d.button[kRotateLeft].Empty() && d.button[kFlip].Empty() && d.button[kShift].Empty());
+    // The road tool: Place, Shift and Cancel, Shift between the two.
+    const Bar r = LayoutBar(2340, 1080, 119, 15, 32, 49, 900, (1u << kPlace) | (1u << kShift) | (1u << kCancel));
+    CHECK(r.button[kShift].x1 == r.button[kPlace].x2 + 15 && r.button[kCancel].x1 == r.button[kShift].x2 + 15);
+    CHECK(HitButton(r, r.button[kShift].x1 + 3, r.button[kShift].y1 + 3) == kShift);
     CHECK(d.button[kCancel].x2 == 2340 - 49 - 32);
     CHECK(d.button[kCancel].x1 == d.button[kPlace].x2 + 15);
     // No toolbar: the margin above the bottom. Nothing shown: no bar.

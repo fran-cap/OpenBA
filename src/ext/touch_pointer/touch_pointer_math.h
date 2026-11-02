@@ -171,8 +171,10 @@ enum Button : int32_t {
     kRotateLeft = 1,    // action 0x13
     kRotateRight = 2,   // action 0x14
     kFlip = 3,          // action 0x15
-    kCancel = 4,        // action 6
-    kButtonCount = 5
+    kShift = 4,         // a toggle: action 0x16 (PathMethod, retail's Shift) held while on; a placement tool keeps
+                        // its model (issue #96, the reporter's third round)
+    kCancel = 5,        // action 6
+    kButtonCount = 6
 };
 
 struct Rect {

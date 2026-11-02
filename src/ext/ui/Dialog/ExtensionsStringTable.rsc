@@ -16,6 +16,9 @@ StringTable resource
 		{ String _name = "GameFiles";				String _text = "Game files"; }
 		{ String _name = "GameFilesTip";			String _text = "Export your saves to a .zip, or import saves from one."; }
 
+		// ext.touch_pointer's action bar (issue #96): the Shift toggle
+		{ String _name = "TouchPointerShiftTip";	String _text = "Shift: roads go diagonal, the next building keeps this model"; }
+
 		// the dialog's chrome
 		{ String _name = "ExtensionsTitle";			String _text = "Fixes and Extensions"; }
 		{ String _name = "ExtensionsProfile";		String _text = "(profile: @0)"; }

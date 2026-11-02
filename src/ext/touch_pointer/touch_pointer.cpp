@@ -44,6 +44,7 @@
 #include "Player/FencedTool.h"
 #include "Player/PathTool.h"
 #include "Player/PlacementTool.h"
+#include "Player/RoadTool.h"
 #include "Player/exe_bodies.h"   // PlayerRay_GetMouseRay_1005a0: the tools' own cursor ray
 
 #include <atomic>
@@ -64,12 +65,18 @@ constexpr const char* kBarRsc = "Dialog/TouchPointer.rsc";
 constexpr const char* kMarkerRsc = "Dialog/TouchPointer.rsc:marker";
 
 constexpr const char* kButtons[kButtonCount] = {"buttonPointerPlace", "buttonPointerRotateLeft",
-                                                "buttonPointerRotateRight", "buttonPointerFlip", "buttonPointerCancel"};
+                                                "buttonPointerRotateRight", "buttonPointerFlip", "buttonPointerShift",
+                                                "buttonPointerCancel"};
 constexpr const char* kHolders[kButtonCount] = {"holderPointerPlace", "holderPointerRotateLeft",
-                                                "holderPointerRotateRight", "holderPointerFlip", "holderPointerCancel"};
-constexpr const char* kButtonNames[kButtonCount] = {"place", "rotate left", "rotate right", "flip", "cancel"};
+                                                "holderPointerRotateRight", "holderPointerFlip", "holderPointerShift",
+                                                "holderPointerCancel"};
+constexpr const char* kButtonNames[kButtonCount] = {"place", "rotate left", "rotate right", "flip", "shift", "cancel"};
 // The KeyMap actions the buttons send (src/game/Game/inputbindings.cpp): StructureLeft / Right / Type, MouseRight.
-constexpr int32_t kButtonAction[kButtonCount] = {-1, 0x13, 0x14, 0x15, 6};
+// Place clicks and Shift toggles (-1: no one-step action).
+constexpr int32_t kButtonAction[kButtonCount] = {-1, 0x13, 0x14, 0x15, -1, 6};
+// The binding the Shift toggle holds: PathMethod, retail's Shift (RoadTool::OnKey reads it with GetValue and routes
+// the road diagonally).
+constexpr int32_t kShiftAction = 0x16;
 
 // Retail's input values (input_device_update.cpp kFullScale) and mouse inputs (inputbindings.cpp).
 constexpr int16_t kFullScale = 0x7FFF;
@@ -167,6 +174,12 @@ TwoFingers g_two;
 GestureStep g_pendingGesture;   // summed since the last poll
 bool g_gestureActive = false;
 int32_t g_barPressed = -1;
+// The Shift toggle (issue #96, the reporter's third round): while on, kShiftAction is held down every poll (a road
+// tool routes diagonally) and a placement tool keeps its model after a placement (PlacementTool::CreateAt's seam,
+// KeepsModel). Off again on a tap, when the tool changes or ends, or when a mouse takes the pointer back.
+bool g_shift = false;
+const Tool* g_shiftTool = nullptr;
+int16_t g_prevShift = 0;
 
 LatchQueue g_queue;
 std::vector<int32_t> g_actions;   // KeyMap action ids, one per poll
@@ -403,6 +416,11 @@ void PressButton(int32_t b) {
     std::fprintf(stderr, "[TouchPointer] bar %s\n", kButtonNames[b]);
     if (b == kPlace) {
         ClickAtParked();
+        return;
+    }
+    if (b == kShift) {
+        g_shift = !g_shift;
+        g_shiftTool = CurrentTool();
         return;
     }
     g_actions.push_back(kButtonAction[b]);
@@ -674,6 +692,28 @@ void PressAction(Input::Device& dev, int32_t action) {
     }
 }
 
+// The input the KeyMap binds `action` to (its first bound slot), held at full scale while `down`, let go once
+// after; nothing is written while it is up and was up, so a real key on that binding still reads.
+void HoldAction(Input::Device& dev, int32_t action, bool down, int16_t& prev) {
+    if (!down && prev == 0) return;
+    const Input::KeyMap* km = Input::Configuration::_singleton != nullptr ? Input::Configuration::_singleton->_keyMap
+                                                                         : nullptr;
+    if (km == nullptr) return;
+    const int16_t value = down ? kFullScale : 0;
+    for (int32_t slot = 0; slot < 2; ++slot) {
+        const int32_t device = static_cast<int8_t>(km->GetDeviceForId(action, slot));
+        const int32_t input = km->GetInputForId(action, slot);
+        if (device == 1 && input >= 0 && input < Input::Device::kKeyboardInputCount) {
+            SetInput(dev._keyboard[input], value, prev);
+            return;
+        }
+        if (device == 2 && input >= 0 && input < Input::Device::kMouseInputCount) {
+            SetInput(dev._mouse[input], value, prev);
+            return;
+        }
+    }
+}
+
 void AfterUpdate(Input::Device& dev) {
     const bool on = Ext().touch_pointer;
     if (on != g_sinkOn) {
@@ -716,6 +756,7 @@ void AfterUpdate(Input::Device& dev) {
         PressAction(dev, g_actions.front());
         g_actions.erase(g_actions.begin());
     }
+    HoldAction(dev, kShiftAction, g_shift, g_prevShift);
 
     // The camera: the two fingers' motion since the last poll, or the edge auto-pan of a drag tool's aim.
     TouchMode::CameraHold hold;
@@ -811,6 +852,7 @@ public:
         SizeGlyphs("imagePointerRotateLeftArrow", "imagePointerHouseLeft", glyph, cell);
         SizeGlyphs("imagePointerHouseRight", "imagePointerRotateRightArrow", glyph, cell);
         SizeGlyphs("imagePointerFlipLeft", "imagePointerFlipRight", glyph, cell);
+        SizeGlyphs("imagePointerShift", nullptr, glyph, cell);
     }
 
     // Sizes the one or two images of a button: each at height h (a whole multiple of its sprite when that is at
@@ -932,10 +974,11 @@ void CloseDialog(UI::UserInterface* ui, UI::DialogInstance* d) {
 // The buttons the current tool uses.
 uint32_t ShownFor(const Tool* tool, ToolKind kind) {
     if (kind == ToolKind::Place) return (1u << kPlace) | (1u << kRotateLeft) | (1u << kRotateRight) | (1u << kFlip) |
-                                        (1u << kCancel);
+                                        (1u << kShift) | (1u << kCancel);
     if (kind == ToolKind::Drag) {
         uint32_t m = (1u << kPlace) | (1u << kCancel);
         if (tool != nullptr && tool->IsA(FencedTool::TypeId())) m |= (1u << kRotateLeft) | (1u << kRotateRight);
+        if (tool != nullptr && tool->IsA(RoadTool::TypeId())) m |= (1u << kShift);   // the only drag tool reading 0x16
         return m;
     }
     return 0;
@@ -1041,11 +1084,20 @@ void SeedWorldAim(ToolKind kind) {
     }
 }
 
+bool KeepsModel() {
+    return g_shift && Ext().touch_pointer && g_shiftTool != nullptr && g_shiftTool == CurrentTool();
+}
+
 void GameFrame() {
     UI::UserInterface* ui = GameUi();
     if (ui == nullptr) return;
     const Tool* tool = CurrentTool();
     const ToolKind kind = KindOf(tool);
+    if (g_shift && (tool != g_shiftTool || tool == nullptr || !g_owns || !Ext().touch_pointer)) {
+        std::fprintf(stderr, "[TouchPointer] shift off (tool changed or the pointer left)\n");
+        g_shift = false;
+        g_prevShift = 0;
+    }
     if (Ext().touch_pointer) SeedWorldAim(kind);
     const bool mouseRecently = Now() - g_mouseAt < kMouseHideSeconds;
     const uint32_t shown = Ext().touch_pointer && (g_owns || !mouseRecently) ? ShownFor(tool, kind) : 0;
@@ -1060,6 +1112,7 @@ void GameFrame() {
     if (g_barDialog != nullptr) {
         g_barDialog->Shape(g_bar, shown, cell, frame);
         g_barDialog->ShowPressed(g_barPressed);
+        if (g_shift) g_barDialog->ShowPressed(kShift);   // the toggle shows the pressed art while on
     }
     // The marker while a finger aims with a lift offset.
     bool aiming = false;

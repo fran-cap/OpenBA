@@ -78,6 +78,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsGlyph_terrain_undo";	String _source = "Sprite/Extensions/Glyph_terrain_undo.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_redo";	String _source = "Sprite/Extensions/Glyph_terrain_redo.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_plant";	String _source = "Sprite/Extensions/Glyph_terrain_plant.png"; }
+		{ String _name = "ExtensionsGlyph_pointer_shift";	String _source = "Sprite/Extensions/Glyph_pointer_shift.png"; }	// ext.touch_pointer's Shift toggle (TouchPointer.rsc)
 		{ String _name = "ToolbarExtensions";	String _source = "Sprite/Extensions/Toolbar_extensions.png"; }	// the toolbar's one extension button (ExtensionsWindow.rsc, src/ext/toolbar)
 		{ String _name = "ExtensionsEntry_terrain_batch";	String _source = "Sprite/Extensions/Entry_terrain_batch.png"; }
 		{ String _name = "ExtensionsEntry_decode_ahead";	String _source = "Sprite/Extensions/Entry_decode_ahead.png"; }

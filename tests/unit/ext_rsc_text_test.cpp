@@ -202,8 +202,8 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // and its tip, + 2 for the search box (its label and tip), + 3 for the town summary (button, title,
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
     // the picture's main-job check box and its tip, + 10 for the Grid page,
-    // + 2 for the Game files menu button and its tip (issue #96)
-    CHECK(strings && strings->blocks.size() == 130);
+    // + 2 for the Game files menu button and its tip (issue #96), + 1 for the touch pointer bar's Shift tip
+    CHECK(strings && strings->blocks.size() == 131);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -491,7 +491,7 @@ UNIT_TEST(ext_rsc_text_parse_touch_pointer) {
     CHECK(dialog && dialog->type == "Dialog");
     const Object* marker = f.Find("marker");
     CHECK(marker && marker->type == "Dialog");
-    const char* names[] = {"Place", "RotateLeft", "RotateRight", "Flip", "Cancel"};
+    const char* names[] = {"Place", "RotateLeft", "RotateRight", "Flip", "Shift", "Cancel"};
     for (const char* n : names) {
         const Object* holder = f.Find((std::string("holderPointer") + n).c_str());
         const Object* button = f.Find((std::string("buttonPointer") + n).c_str());

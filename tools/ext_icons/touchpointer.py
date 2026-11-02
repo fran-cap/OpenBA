@@ -39,3 +39,29 @@ def draw_touch_pointer(px):
 ICONS = {
     "touch_pointer": ("A", draw_touch_pointer),
 }
+
+
+def shift_glyph(size=48):
+    """The action bar's Shift toggle: the keyboard's shift arrow as an outline (a hollow up arrow on a short stem),
+    48 x 48 white with antialiased alpha like terrain_tools.py's glyphs. Drawn at 4x and box-filtered down."""
+    from PIL import Image, ImageDraw
+    S = 4
+    big = Image.new("L", (size * S, size * S), 0)
+    d = ImageDraw.Draw(big)
+    pts = [(24, 4), (43, 24), (33, 24), (33, 43), (15, 43), (15, 24), (5, 24)]
+    scaled = [(x * S, y * S) for x, y in pts]
+    d.line(scaled + [scaled[0], scaled[1]], fill=255, width=5 * S, joint="curve")
+    alpha = big.resize((size, size), Image.BOX)
+    img = Image.new("RGBA", (size, size), (255, 255, 255, 0))
+    img.putalpha(alpha)
+    px = img.load()
+    ap = alpha.load()
+    for y in range(size):
+        for x in range(size):
+            px[x, y] = (255, 255, 255, ap[x, y])
+    return img
+
+
+GLYPHS = {
+    "pointer_shift": shift_glyph,
+}

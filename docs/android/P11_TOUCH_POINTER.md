@@ -131,8 +131,16 @@ tested.
 - **Which buttons:** a placement tool shows all five; a drag tool Place (= Confirm) and Cancel, plus Rotate for a
   `FencedTool`; no tool, no bar. The bar sits a gap above the higher of touch_mode's `BarRect` / `SubToolbarRect`
   (an open sub-toolbar pushes it up), right-aligned to the safe margin, with touch_mode's cell size.
+- **The Shift toggle** (issue #96, the reporter's third round, 2026-11-02): a sixth button between Change model and
+  Cancel, shown for a placement tool and the road tool (the only drag tool that reads the key). On, the bar holds
+  the `PathMethod` binding (action 0x16, Shift by default; `RoadTool::OnKey` reads it with `GetValue` and routes the
+  road diagonally) at full scale every poll, and `PlacementTool::CreateAt` skips its closing `FlipVariant` (the seam
+  `KeepsModel`), so a row of identical houses takes one tap each. The button shows the pressed art while on; it
+  goes off on a tap, when the tool changes or ends, or when a mouse takes the pointer back. Retail's placement
+  tool has no model lock on Shift: it reads only 0x13 / 0x14 / 0x15 and the click, and `CreateAt` always advances
+  the model (decompiled 0x1400fe2a0 and 0x1400fd650, 2026-11-02); the lock is this extension's.
 - **Not built** (in the ideas sheet, not in this task's six parts): the long press for a tooltip, two-finger list
-  scrolling over a dialog, the road route modifier (0x16) toggle, the Android back gesture as Cancel. One finger in
+  scrolling over a dialog, the Android back gesture as Cancel. One finger in
   idle (no tool) does nothing but tap (no one-finger pan: not ruled).
 
 ## 3. Verification
