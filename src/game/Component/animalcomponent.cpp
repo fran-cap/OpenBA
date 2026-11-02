@@ -170,7 +170,6 @@ inline int ClampCell(int v, int dim) {
 
 // --- rate-limited liveness tracing (stderr -> standalone_error.log) ---------
 int s_traceFirstUpdate = 0;
-int s_traceDeath       = 0;
 int s_traceMoveTo      = 0;
 int s_traceMissing     = 0;
 constexpr int kTraceCap = 24;
@@ -479,15 +478,6 @@ void AnimalComponent::Update(const System::Time* time) {
             const int newCount = corpseOwner->removalList._size + 1;
             corpseOwner->removalList
                 .SetSize(newCount, entity);
-        }
-        // Running total, not a capped sample: at kTraceCap=24 this read as
-        // "24 deaths" against a 47-animal drain and hid the fact that old age
-        // accounts for the whole thing. Print a total every 10.
-        ++s_traceDeath;
-        if (s_traceDeath <= kTraceCap || (s_traceDeath % 10) == 0) {
-            ErrLine("[AnimalUpd] death #%d: this=%p entity=%p age=%.2f deathAge=%.2f\n",
-                    s_traceDeath, static_cast<void*>(this),
-                    static_cast<void*>(entity), newAge, death);
         }
         return;
     }
