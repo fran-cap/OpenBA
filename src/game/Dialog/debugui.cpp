@@ -852,18 +852,19 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t 
 
     switch (b) {
     // --- Resource spawn buttons ---
-    // Each calls Game_SpawnResources(citizenList, resourceFlag, count)
-    case 300:  citizenList->SpawnResources(0x400,     50);   return;  // Logs
-    case 301:  citizenList->SpawnResources(0x800,     50);   return;  // Food
-    case 302:  citizenList->SpawnResources(0x1000,    50);   return;  // Herbs
-    case 303:  citizenList->SpawnResources(0x80,      50);   return;  // Stone
-    case 304:  citizenList->SpawnResources(0x100,     50);   return;  // Iron
-    case 305:  citizenList->SpawnResources(0x200,     50);   return;  // Firewood
-    case 306:  citizenList->SpawnResources(0x20,      1000); return;  // Tool
-    case 307:  citizenList->SpawnResources(0x2000,    25);   return;  // Coat
-    case 308:  citizenList->SpawnResources(0x4000,    25);   return;  // Leather coat
-    case 309:  citizenList->SpawnResources(0x10000,   50);   return;  // Herbs2
-    case 310:  citizenList->SpawnResources(0x20000,   100);  return;  // Ale
+    // Each calls CitizenBehavior::SpawnResources(resourceFlag, count). The comments name the
+    // element OnCreated gives the id (buttonTool -> 0x131 at 0x140061d7e, and so on in order).
+    case 300:  citizenList->SpawnResources(0x400,     50);   return;  // buttonWood
+    case 301:  citizenList->SpawnResources(0x800,     50);   return;  // buttonStone
+    case 302:  citizenList->SpawnResources(0x1000,    50);   return;  // buttonIron
+    case 303:  citizenList->SpawnResources(0x80,      50);   return;  // buttonFuel
+    case 304:  citizenList->SpawnResources(0x100,     50);   return;  // buttonCoal
+    case 305:  citizenList->SpawnResources(0x200,     50);   return;  // buttonTool
+    case 306:  citizenList->SpawnResources(0x20,      1000); return;  // buttonFood
+    case 307:  citizenList->SpawnResources(0x2000,    25);   return;  // buttonHealth
+    case 308:  citizenList->SpawnResources(0x4000,    25);   return;  // buttonClothes
+    case 309:  citizenList->SpawnResources(0x10000,   50);   return;  // buttonTextile
+    case 310:  citizenList->SpawnResources(0x20000,   100);  return;  // buttonAlcohol
     case 311:  citizenList->SpawnResources(0x40000,   100);  return;  // Resource type 18
     case 312:  citizenList->SpawnResources(0x80000,   100);  return;  // Resource type 19
     case 313:  citizenList->SpawnResources(0x100000,  100);  return;  // Resource type 20
