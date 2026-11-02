@@ -842,43 +842,46 @@ answered in the same order as before, so it neither causes nor cures this.
 - *Prevention* (end a bypass walk only in the zone it started from) would break building a bridge from
   one bank and does not cover route 1, so it is not recommended on its own.
 
-**Fix: `fix.stranded_wade` (WIRED 2026-11-01; ruled by the user, "option C").** Stranded means the
-citizen's last two walk requests were refused on a land-to-land zone mismatch (`RequestPath` {-1, 0},
-`MoveTo::Execute` answers 2), not "his home's zone differs from the town's": a citizen living across water
-by the player's choice is left alone while his walks succeed. A refusal with a zone-less endpoint or pass
-flag (types 5-8), an empty path, or any other failure does not count, and one walk that arrives resets the
-count. Three seams in `src/game/Action/moveto.cpp` report each walk's outcome: `AbstractImpl`
-(`0x1400c8ab0`, the refused ticket, classified from the two endpoint cells), `Execute` (`TakePath` gave an
-empty path) and `Exit` (`0x1400c8520`, an arrival when the character stands on the destination cell). The
-count is a byte of `CharacterComponent`'s padding (`+0x44`), never saved: a load restarts it at 0. The
-rescue runs where the AI picks its next state, at the head of `CitizenAIComponent::TransitionState`
-(`0x14010db90`), for any state: a stranded citizen gets one walk with the pass flags `0xe1f | 0x1e0`
-(retail's own wade / climb bypass in `RequestPath`) to his home's interaction node, or to the nearest town
-hall (an `ImmigrationComponent` entity) when he is homeless or his last wading walk home failed (if that
-one fails too, the next rescue tries home again). No rescue when that goal is land in his own zone: retail
-also pushes walks to targets cut off from a citizen *and* his home (measured: a town citizen's walks to a
-work target across the river, refused 45 times in 200 s), and such a citizen is not the stranded one. The
-walk carries the AI's usual "decide again" lead message, and while it is out no state pick replaces it
-(`Decide`'s cold / hunger / housing transitions call `TransitionState(1)` while an action runs, and every
-state's builder clears the stack first; without this the rescue was cleared on the next update). After
-it the count resets and normal behaviour resumes. A builder left on a finished dock or
-bridge piece is covered by the same rule (ruled). Composes with `fix.nomad_arrival` (§22): that row keeps
-cut-off nomads from becoming citizens; this one rescues any citizen stranded by another route (or by a
-nomad arrival with §22 off). Code `src/ext/stranded_wade/`, test `tests/unit/ext_stranded_wade_test.cpp`,
-one `[StrandedWade]` stderr line per rescue for the first 16. Off under `/profile:faithful`.
+**Fix: `fix.stranded_wade` (WIRED 2026-11-01; trigger ruled by the user, second ruling).** A citizen is
+stranded when both hold: (1) he stands on zoned land (not types 5-8) whose zone differs from his *anchor*
+zone, his home's zone, or the nearest town hall's when he is homeless; (2) since he entered his current zone,
+at least one of his walks to a target in the anchor zone was refused on the land-to-land zone mismatch
+(`RequestPath` {-1, 0}, `MoveTo::Execute` answers 2). It clears when he stands in the anchor zone again; a
+walk that succeeds inside his zone does not reset it, nor does a refusal toward another zone. A citizen
+whose home is in his own zone is never rescued: one living across water by the player's choice, and the
+town citizen whose walks to a work target across the river are refused (measured: 45 refusals in 200 s).
+Three seams in `src/game/Action/moveto.cpp` report the walks: `AbstractImpl` (`0x1400c8ab0`, the refused
+ticket, classified from the two endpoint cells and recorded with the zone he stands in), `Execute`
+(`TakePath` gave an empty path) and `Exit` (`0x1400c8520`, an arrival on the destination cell; a record
+made in another zone than the one he arrives in is dropped). The state is `CharacterComponent`'s padding
+(`+0x44`: flags in byte 0, the zone of the recorded refusal in bytes 2..3), never saved: a load starts
+every citizen unstranded. The rescue runs where the AI picks its next state, at the head of
+`CitizenAIComponent::TransitionState` (`0x14010db90`), for any state: one walk with the pass flags
+`0xe1f | 0x1e0` (retail's own wade / climb bypass in `RequestPath`) to his home's interaction node, or to
+the nearest town hall when he is homeless or his last wading walk home failed (if that one fails too, the
+record is dropped and the next refusal tries home again). The walk carries the AI's usual "decide again"
+lead message, and while it is out no state pick replaces it (`Decide`'s cold / hunger / housing
+transitions call `TransitionState(1)` while an action runs, and every state's builder clears the stack
+first; without this the rescue was cleared on the next update). A builder left on a finished dock or
+bridge piece is covered by the same rule. Composes with `fix.nomad_arrival` (§22): that row keeps cut-off
+nomads from becoming citizens; this one rescues a citizen stranded by any other route (or by a nomad
+arrival with §22 off). Code `src/ext/stranded_wade/`, test `tests/unit/ext_stranded_wade_test.cpp`, one
+`[StrandedWade]` stderr line per rescue for the first 16. Off under `/profile:faithful`.
 
 *Runs (2026-11-01, functional dir, seed 12345, speed 10, debug exe, a throwaway probe not committed):* one
-housed citizen teleported to grass in the zone across the river (28 cells from home) and kept cold.
-Faithful: he never left that zone in 240 s and ended standing in the warmth state. Row on, with his count
-set to 2 at the teleport (as after two refused walks home): one rescue, he waded over shore and deep water
-(types 7, 8) into the home zone and stood at his home's node about 1900 AI updates later; the byte cleared
-on arrival; no other citizen was rescued. **Open (needs a ruling):** with the count left to the rule, the
-same citizen did not reach two *consecutive* zone refusals in 200 s: the warmth fallback's refused walk
-home alternated with wander walks inside his zone that arrived and reset the count. The rule as ruled
-therefore fires for a citizen who has nothing to do but the refused walk (a builder on a finished
-dock piece, a small island), not for one on a large cut-off zone. Candidate: an arrival inside his own
-zone does not reset the count, only an arrival in another zone or a walk whose request was accepted
-across zones.
+housed citizen teleported to grass in the zone across a river and kept cold.
+- Ordinary start town, faithful: he never left that zone in 240 s and ended standing in the warmth state.
+- Stress town (60 citizens, a town hall), row on, nothing set by hand: his first walk home was refused
+  (recorded), retail's `CitizenComponent::Update` then dropped his home (an idle citizen whose home fails
+  `CanReach` gets `SetHome(nullptr, -1)`), so his anchor became the town hall's zone; the next state pick
+  sent him wading 44 cells over the river to the hall, where the record cleared and he went on with his
+  needs. One rescue in the town, no other citizen rescued, no crash.
+- **Open (needs a ruling):** in the ordinary start town the same citizen is *not* rescued. He loses his home
+  at once (above) and the start town has no town hall, so he has no anchor. Every stranded citizen becomes
+  homeless this way, so the rule rescues only in a town with a town hall. Candidates: keep the home's zone
+  as the anchor for a while after the home is dropped (the padding holds one zone; the "since he entered"
+  zone would then have to be re-derived from his walks), or fall back to another town building (a
+  storage barn, the start town's centre) when there is no hall.
 
 ## 20. The Firefighter achievement asks for 20 wells and is awarded at 40
 

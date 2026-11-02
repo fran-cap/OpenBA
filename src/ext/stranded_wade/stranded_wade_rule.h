@@ -7,20 +7,25 @@
 // Retail's walk test (Map::RequestPath 0x14009cfb0) lets a walk with a water or mountain endpoint
 // cross water and mountains anywhere and end in any land zone, then refuses every land-to-land walk
 // between two different zones ({-1, 0}; MoveTo::Execute 0x1400c8570 answers 2). A citizen who ends
-// up on land cut off from his home asks for the same refused walk until he starves or freezes.
+// up on land cut off from his home asks for refused walks home until he starves or freezes.
 //
-// Ruled definition (the user, 2026-11-01): a citizen is stranded when his last TWO walk requests
-// were refused on a land-to-land zone mismatch. Any other failure, and a walk with a zone-less
-// endpoint (types 5-8), does not count; one normal success resets the count. Where he lives (across
-// water by the player's choice, say) is never looked at.
+// Ruled trigger (the user, 2026-11-01, replacing the "two refusals in a row" counter). A citizen is
+// STRANDED when both hold:
+//   1. he stands on a land cell (zoned, not types 5-8) whose zone differs from his ANCHOR zone: his
+//      home's zone, or the nearest town hall's zone when he is homeless;
+//   2. since he entered his current zone, at least one of his walks to a target in the anchor zone was
+//      refused on the land-to-land zone mismatch.
+// The state clears when he stands in the anchor zone again. A walk that succeeds inside his current
+// zone does not reset it, nor does a refusal toward some other zone. So a citizen whose home is in his
+// own zone (one living across water by the player's choice, a town citizen whose work target is across
+// a river) is never rescued.
 //
 // Rescue: one walk with the pass flags 0xe1f | 0x1e0, so RequestPath takes retail's own bypass
 // (wade / climb), to his home; if he has none, or the wading walk home failed, to the town hall.
-// No rescue when that goal is land of his own zone (NeedsRescue): the refused walks went to targets
-// cut off from him and his home alike, so he is not the one who is stranded.
 //
-// The state is one byte per character (CharacterComponent padding +0x44, never saved: a load
-// restarts the count at 0).
+// Storage: CharacterComponent padding +0x44 (four bytes no retail code reads; never saved, a load
+// starts every citizen unstranded): byte 0 the flags below, bytes 2..3 the zone he stood in when the
+// refusal toward the anchor was recorded ("since he entered": a record from another zone is stale).
 // ============================================================================
 #pragma once
 
@@ -33,58 +38,81 @@ constexpr uint32_t kLandTypes = 0xe1fu;   // Map::FillZone 0x14009c170: types th
 constexpr uint32_t kZonelessTypes = 0x1e0u;   // types 5-8: the bypass in RequestPath
 constexpr uint32_t kRescueFlags = kLandTypes | kZonelessTypes;   // 0xfff
 
-// The state byte.
-constexpr uint8_t kCountMask = 0x03;   // consecutive zone refusals, 0..2
+// The flag byte.
+constexpr uint8_t kRefused = 0x01;     // a walk toward the anchor zone was refused from `zone`
 constexpr uint8_t kPending = 0x04;     // a rescue walk is out; its outcome is the next one
 constexpr uint8_t kToHall = 0x08;      // the rescue walk out goes to the town hall
 constexpr uint8_t kHomeFailed = 0x10;  // the last rescue walk home failed: the next goes to the hall
 
-constexpr uint8_t kStrandedAt = 2;
-
-enum class Outcome : uint8_t {
-    Arrived,       // the walk ended on its destination cell
-    ZoneRefused,   // RequestPath refused it on a land-to-land zone mismatch
-    OtherFailed,   // any other failure (an empty path, a refusal for another reason)
+struct State {
+    uint8_t flags = 0;
+    uint16_t zone = 0;   // where he stood when kRefused was recorded
 };
 
-// Why RequestPath refused a walk: `flags` its pass flags, (typeA, zoneA) / (typeB, zoneB) the two
-// endpoint cells' terrain type and zone. A zone mismatch only when no endpoint (and no pass flag)
-// is zone-less and both cells carry a zone.
-inline Outcome ClassifyRefusal(uint32_t flags, uint8_t typeA, uint16_t zoneA, uint8_t typeB, uint16_t zoneB) {
-    const uint32_t bitA = 1u << (typeA & 0x1f);
-    const uint32_t bitB = 1u << (typeB & 0x1f);
-    const uint32_t mask = flags | bitA | bitB;
-    if ((mask & kZonelessTypes) != 0) return Outcome::OtherFailed;
-    if ((bitA & kLandTypes) == 0 || (bitB & kLandTypes) == 0) return Outcome::OtherFailed;
-    if (zoneA == 0 || zoneB == 0) return Outcome::OtherFailed;
-    if (zoneA == zoneB) return Outcome::OtherFailed;
-    return Outcome::ZoneRefused;
+// A land cell with a zone (FillZone gives zones to the land types only).
+inline bool IsZonedLand(uint8_t type, uint16_t zone) {
+    return ((1u << (type & 0x1f)) & kLandTypes) != 0 && zone != 0;
 }
 
-inline uint8_t Count(uint8_t state) {
-    return state & kCountMask;
+// Whether RequestPath refused a walk on the land-to-land zone mismatch: `flags` its pass flags,
+// (typeA, zoneA) / (typeB, zoneB) the two endpoint cells. Not when an endpoint or a pass flag is
+// zone-less (types 5-8: RequestPath bypasses the zone test) or a cell has no zone.
+inline bool IsZoneRefusal(uint32_t flags, uint8_t typeA, uint16_t zoneA, uint8_t typeB, uint16_t zoneB) {
+    const uint32_t mask = flags | (1u << (typeA & 0x1f)) | (1u << (typeB & 0x1f));
+    if ((mask & kZonelessTypes) != 0) return false;
+    if (!IsZonedLand(typeA, zoneA) || !IsZonedLand(typeB, zoneB)) return false;
+    return zoneA != zoneB;
 }
 
-inline bool IsStranded(uint8_t state) {
-    return Count(state) >= kStrandedAt;
+// A refused walk from (typeHere, zoneHere) to (typeDest, zoneDest), `anchorZone` the citizen's anchor
+// zone (0: none). Only a zone refusal toward the anchor zone, from outside it, is recorded.
+inline State OnRefusal(State s, uint32_t flags, uint8_t typeHere, uint16_t zoneHere, uint8_t typeDest,
+                       uint16_t zoneDest, uint16_t anchorZone) {
+    if (anchorZone == 0) return s;
+    if (!IsZoneRefusal(flags, typeHere, zoneHere, typeDest, zoneDest)) return s;
+    if (zoneDest != anchorZone || zoneHere == anchorZone) return s;
+    s.flags = static_cast<uint8_t>(s.flags | kRefused);
+    s.zone = zoneHere;
+    return s;
 }
 
-// The state after a walk's outcome. `rescueFlags`: the walk carried kRescueFlags. A rescue walk's
-// outcome is the first outcome after it was pushed with those flags; any outcome clears kPending.
-inline uint8_t OnOutcome(uint8_t state, Outcome outcome, bool rescueFlags) {
-    const bool rescue = (state & kPending) != 0 && rescueFlags;
-    const bool toHall = (state & kToHall) != 0;
-    uint8_t next = static_cast<uint8_t>(state & ~(kPending | kToHall | kCountMask));
-    if (rescue) {
-        if (outcome == Outcome::Arrived || toHall) return static_cast<uint8_t>(next & ~kHomeFailed);
-        return static_cast<uint8_t>(next | kHomeFailed);
+// Condition 1 and 2 at (typeHere, zoneHere).
+inline bool IsStranded(State s, uint8_t typeHere, uint16_t zoneHere, uint16_t anchorZone) {
+    if (anchorZone == 0 || !IsZonedLand(typeHere, zoneHere)) return false;
+    if (zoneHere == anchorZone) return false;
+    return (s.flags & kRefused) != 0 && s.zone == zoneHere;
+}
+
+// The record clears when he stands in the anchor zone again, and goes stale when he stands on land
+// of another zone than the one it was made in (he left that zone).
+inline State Settle(State s, uint8_t typeHere, uint16_t zoneHere, uint16_t anchorZone) {
+    if ((s.flags & kRefused) == 0 || !IsZonedLand(typeHere, zoneHere)) return s;
+    if (zoneHere == anchorZone || zoneHere != s.zone) {
+        s.flags = static_cast<uint8_t>(s.flags & ~kRefused);
+        s.zone = 0;
     }
-    if (outcome == Outcome::ZoneRefused) {
-        uint8_t count = static_cast<uint8_t>(Count(state) + 1);
-        if (count > kStrandedAt) count = kStrandedAt;
-        return static_cast<uint8_t>(next | count);
+    return s;
+}
+
+// A walk's end that is not a refusal: `arrived` (on its destination cell) or failed (an empty path).
+// `rescueFlags`: the walk carried kRescueFlags. A rescue walk's outcome is the first one after it was
+// pushed with those flags; any outcome clears kPending. A failed rescue home sends the next one to the
+// hall; a failed rescue to the hall drops the record (the next rescue waits for a new refusal and
+// tries home again).
+inline State OnWalkEnd(State s, bool arrived, bool rescueFlags) {
+    const bool rescue = (s.flags & kPending) != 0 && rescueFlags;
+    const bool toHall = (s.flags & kToHall) != 0;
+    s.flags = static_cast<uint8_t>(s.flags & ~(kPending | kToHall));
+    if (!rescue) return s;
+    if (arrived) {
+        s.flags = static_cast<uint8_t>(s.flags & ~kHomeFailed);
+    } else if (toHall) {
+        s.flags = static_cast<uint8_t>(s.flags & ~(kHomeFailed | kRefused));
+        s.zone = 0;
+    } else {
+        s.flags = static_cast<uint8_t>(s.flags | kHomeFailed);
     }
-    return next;
+    return s;
 }
 
 enum class Target : uint8_t {
@@ -93,35 +121,31 @@ enum class Target : uint8_t {
 };
 
 // Where the rescue walk goes: home when he has one and the last wading walk home did not fail.
-inline Target RescueTarget(uint8_t state, bool hasHome) {
-    if (hasHome && (state & kHomeFailed) == 0) return Target::Home;
+inline Target RescueTarget(State s, bool hasHome) {
+    if (hasHome && (s.flags & kHomeFailed) == 0) return Target::Home;
     return Target::Hall;
 }
 
-// Whether the rescue walk to the goal is needed at all: false when the citizen's cell and the goal's
-// cell are land of the same zone, so an ordinary walk reaches the goal. Then the refusals that made
-// him "stranded" were walks to targets cut off from HIM and his home alike (retail pushes such walks:
-// a gatherer's target across a river, a walk toward a family member who is cut off), and a wading
-// walk home would only interrupt him.
+// Whether a walk to the goal needs the bypass: false when he and the goal stand on land of one zone
+// (an ordinary walk gets there). Used for the hall a homeless-or-failed rescue falls back to.
 inline bool NeedsRescue(uint8_t typeHere, uint16_t zoneHere, uint8_t typeGoal, uint16_t zoneGoal) {
-    const uint32_t bitHere = 1u << (typeHere & 0x1f);
-    const uint32_t bitGoal = 1u << (typeGoal & 0x1f);
-    if ((bitHere & kLandTypes) == 0 || (bitGoal & kLandTypes) == 0) return true;
-    if (zoneHere == 0 || zoneGoal == 0) return true;
+    if (!IsZonedLand(typeHere, zoneHere) || !IsZonedLand(typeGoal, zoneGoal)) return true;
     return zoneHere != zoneGoal;
 }
 
-// The state once the rescue walk to `target` was pushed: the count restarts.
-inline uint8_t OnRescuePushed(uint8_t state, Target target) {
-    uint8_t next = static_cast<uint8_t>((state & kHomeFailed) | kPending);
-    if (target == Target::Hall) next = static_cast<uint8_t>(next | kToHall);
-    return next;
+// The state once the rescue walk to `target` was pushed.
+inline State OnRescuePushed(State s, Target target) {
+    s.flags = static_cast<uint8_t>(s.flags | kPending);
+    if (target == Target::Hall) s.flags = static_cast<uint8_t>(s.flags | kToHall);
+    return s;
 }
 
-// The state when no rescue is pushed (no home that a wading walk reached and no town hall, or the
-// goal is in his own zone): the count restarts so the AI is not asked again at every pick.
-inline uint8_t OnNoTarget(uint8_t state) {
-    return static_cast<uint8_t>(state & ~(kCountMask | kHomeFailed));
+// The state when no rescue can be pushed (no goal, or the goal is in his own zone): the record is
+// dropped so the AI is not asked again at every pick.
+inline State OnNoTarget(State s) {
+    s.flags = static_cast<uint8_t>(s.flags & ~(kRefused | kHomeFailed));
+    s.zone = 0;
+    return s;
 }
 
 }  // namespace StrandedWade

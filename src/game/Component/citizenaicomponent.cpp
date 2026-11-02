@@ -341,9 +341,9 @@ int ResidenceComponent::GetFoodCount() const {
 // candidate list and enters the first state whose handler started an action.
 void CitizenAIComponent::TransitionState(char param) {
     EnsureCallees();
-    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade. A citizen whose last two
-    // walks were refused on a land-to-land zone mismatch wades home (or to the town hall) instead of
-    // asking for the same refused walk again (src/ext/stranded_wade/).
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade. A citizen cut off from his
+    // home's zone (homeless: the town hall's) whose walk there was refused on the zone mismatch wades
+    // home (or to the town hall) instead of asking for the refused walk again (src/ext/stranded_wade/).
     if (Ext::Fix().stranded_wade && Ext::StrandedWade::Rescue(this)) return;
     int queued = queuedState;
     char ok = 0;

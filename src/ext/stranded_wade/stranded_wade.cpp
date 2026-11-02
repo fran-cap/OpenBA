@@ -3,7 +3,7 @@
 // ============================================================================
 // NOT RETAIL. docs/retail_bugs.md §19. The seams are MoveTo::AbstractImpl / Execute / Exit
 // (src/game/Action/moveto.cpp) and CitizenAIComponent::TransitionState
-// (src/game/Component/citizenaicomponent.cpp); the counting rule is stranded_wade_rule.h.
+// (src/game/Component/citizenaicomponent.cpp); the stranded rule is stranded_wade_rule.h.
 // ============================================================================
 #include "ext/stranded_wade/stranded_wade.h"
 #include "ext/stranded_wade/stranded_wade_rule.h"
@@ -26,6 +26,7 @@
 #include "system/MemoryAllocator.h"
 
 #include <cstdio>
+#include <cstring>
 #include <new>
 
 namespace Ext {
@@ -37,10 +38,18 @@ namespace {
 int s_logged = 0;
 constexpr int kLogCap = 16;
 
-// The state byte: the first byte of CharacterComponent's padding at +0x44 (zeroed by the ctor,
-// never read by retail, never saved).
-uint8_t& State(CharacterComponent* character) {
-    return character->_pad44[0];
+// The state lives in CharacterComponent's padding at +0x44 (zeroed by the ctor, never read by retail,
+// never saved): byte 0 the flags, bytes 2..3 the zone of the recorded refusal.
+State Load(const CharacterComponent* character) {
+    State s;
+    s.flags = character->_pad44[0];
+    std::memcpy(&s.zone, &character->_pad44[2], sizeof s.zone);
+    return s;
+}
+
+void Store(CharacterComponent* character, State s) {
+    character->_pad44[0] = s.flags;
+    std::memcpy(&character->_pad44[2], &s.zone, sizeof s.zone);
 }
 
 // A world position (x, y) to its clamped cell, as MoveTo::PathSetup 0x1400c8c10 computes it.
@@ -56,11 +65,13 @@ int CellOf(const Map* map, float x, float y) {
     return width * cy + cx;
 }
 
-void Record(MoveTo* walk, Outcome outcome) {
-    CharacterComponent* character = walk->character.Get();
-    if (character == nullptr) return;
-    uint8_t& state = State(character);
-    state = OnOutcome(state, outcome, walk->passFlags == kRescueFlags);
+const MapCell& CellAt(const Map* map, float x, float y) {
+    return map->cells.GetData()[CellOf(map, x, y)];
+}
+
+const MapCell& CharacterCell(const Map* map, const CharacterComponent* character) {
+    const Math::Vector3& pos = character->modelComponent->transform.translation;
+    return CellAt(map, pos.x, pos.y);
 }
 
 // The nearest town hall (an entity with an ImmigrationComponent) to `cell`, or null.
@@ -90,6 +101,26 @@ ComponentEntity* NearestHall(const Map* map, int cell) {
         }
     }
     return best;
+}
+
+// The interaction node (node 0) of `entity`, false when it has no InteractComponent.
+bool NodeOf(ComponentEntity* entity, Math::Vector3* out) {
+    InteractComponent* interact = entity ? entity->FindComponent<InteractComponent>() : nullptr;
+    if (interact == nullptr) return false;
+    interact->NodePosition(out, 0, 0, nullptr);
+    return true;
+}
+
+// The citizen's anchor zone: his home's zone, or the nearest town hall's when he is homeless (0: none).
+uint16_t AnchorZone(const Map* map, CitizenComponent* citizen, const CharacterComponent* character) {
+    Math::Vector3 node;
+    if (citizen->home != nullptr) {
+        if (!NodeOf(citizen->home.Get(), &node)) return 0;
+    } else {
+        const Math::Vector3& pos = character->modelComponent->transform.translation;
+        if (!NodeOf(NearestHall(map, CellOf(map, pos.x, pos.y)), &node)) return 0;
+    }
+    return CellAt(map, node.x, node.y).zone;
 }
 
 // True while the action on top of the character's stack is a walk with the rescue pass flags.
@@ -136,15 +167,21 @@ void OnRefused(MoveTo* walk) {
     CharacterComponent* character = walk->character.Get();
     if (character == nullptr) return;
     Map* map = GameUpdateLoop::_singleton->m_game;
-    const Math::Vector3& pos = character->modelComponent->transform.translation;
-    const MapCell* cells = map->cells.GetData();
-    const MapCell& here = cells[CellOf(map, pos.x, pos.y)];
-    const MapCell& there = cells[CellOf(map, walk->destination.x, walk->destination.y)];
-    Record(walk, ClassifyRefusal(walk->passFlags, here.terrainType, here.zone, there.terrainType, there.zone));
+    const MapCell& here = CharacterCell(map, character);
+    const MapCell& there = CellAt(map, walk->destination.x, walk->destination.y);
+    if (!IsZoneRefusal(walk->passFlags, here.terrainType, here.zone, there.terrainType, there.zone)) return;
+    // Only a citizen has an anchor (a nomad's or an animal's walk is not recorded).
+    CitizenComponent* citizen = character->_entity->FindComponent<CitizenComponent>();
+    if (citizen == nullptr) return;
+    const uint16_t anchor = AnchorZone(map, citizen, character);
+    Store(character, OnRefusal(Load(character), walk->passFlags, here.terrainType, here.zone,
+                               there.terrainType, there.zone, anchor));
 }
 
 void OnEmptyPath(MoveTo* walk) {
-    Record(walk, Outcome::OtherFailed);
+    CharacterComponent* character = walk->character.Get();
+    if (character == nullptr) return;
+    Store(character, OnWalkEnd(Load(character), false, walk->passFlags == kRescueFlags));
 }
 
 void OnExit(MoveTo* walk) {
@@ -153,59 +190,67 @@ void OnExit(MoveTo* walk) {
     Map* map = GameUpdateLoop::_singleton->m_game;
     const Math::Vector3& pos = character->modelComponent->transform.translation;
     if (CellOf(map, pos.x, pos.y) != CellOf(map, walk->destination.x, walk->destination.y)) return;
-    Record(walk, Outcome::Arrived);
+    State s = OnWalkEnd(Load(character), true, walk->passFlags == kRescueFlags);
+    // A record made in another zone than the one he arrived in is stale ("since he entered").
+    const MapCell& here = CharacterCell(map, character);
+    if (IsZonedLand(here.terrainType, here.zone) && here.zone != s.zone) {
+        s.flags = static_cast<uint8_t>(s.flags & ~kRefused);
+        s.zone = 0;
+    }
+    Store(character, s);
 }
 
 bool Rescue(CitizenAIComponent* ai) {
     CitizenComponent* citizen = ai->citizen.Get();
     CharacterComponent* character = citizen->character.Get();
-    uint8_t& state = State(character);
+    State s = Load(character);
     // The rescue walk is still out: no state pick may replace it (the cold / hunger / housing
     // transitions of CitizenAIComponent::Decide call TransitionState(1) while an action runs, and
     // every state's builder clears the stack first).
-    if ((state & kPending) != 0 && RescueWalkRunning(character)) return true;
-    if (!IsStranded(state)) return false;
+    if ((s.flags & kPending) != 0 && RescueWalkRunning(character)) return true;
+    if ((s.flags & kRefused) == 0) return false;   // the common case: one byte test
 
     Map* map = GameUpdateLoop::_singleton->m_game;
-    const Math::Vector3& pos = character->modelComponent->transform.translation;
-    const int cell = CellOf(map, pos.x, pos.y);
-
-    ComponentEntity* home = citizen->home.Get();
-    InteractComponent* homeNode = home ? home->FindComponent<InteractComponent>() : nullptr;
-    Target target = RescueTarget(state, homeNode != nullptr);
-    ComponentEntity* goal = home;
-    InteractComponent* goalNode = homeNode;
-    if (target == Target::Hall) {
-        goal = NearestHall(map, cell);
-        goalNode = goal ? goal->FindComponent<InteractComponent>() : nullptr;
-        if (goalNode == nullptr && homeNode != nullptr) {
-            // No town hall: home is the only place left to try.
-            target = Target::Home;
-            goal = home;
-            goalNode = homeNode;
-        }
-    }
-    if (goalNode == nullptr) {
-        state = OnNoTarget(state);
+    const MapCell& here = CharacterCell(map, character);
+    const uint16_t anchor = AnchorZone(map, citizen, character);
+    s = Settle(s, here.terrainType, here.zone, anchor);
+    if (!IsStranded(s, here.terrainType, here.zone, anchor)) {
+        Store(character, s);
         return false;
     }
 
+    const Math::Vector3& pos = character->modelComponent->transform.translation;
+    Math::Vector3 homeNode;
+    const bool hasHome = citizen->home != nullptr && NodeOf(citizen->home.Get(), &homeNode);
+    Target target = RescueTarget(s, hasHome);
     Math::Vector3 dest;
-    goalNode->NodePosition(&dest, 0, 0, nullptr);
-    const MapCell* cells = map->cells.GetData();
-    const MapCell& here = cells[cell];
-    const MapCell& there = cells[CellOf(map, dest.x, dest.y)];
-    if (!NeedsRescue(here.terrainType, here.zone, there.terrainType, there.zone)) {
-        state = OnNoTarget(state);
+    bool found = false;
+    if (target == Target::Hall) {
+        found = NodeOf(NearestHall(map, CellOf(map, pos.x, pos.y)), &dest);
+        if (found) {
+            const MapCell& hall = CellAt(map, dest.x, dest.y);
+            if (!NeedsRescue(here.terrainType, here.zone, hall.terrainType, hall.zone)) found = false;
+        }
+        if (!found && hasHome) {
+            // No town hall he is cut off from: home is the only place left to try.
+            target = Target::Home;
+        }
+    }
+    if (target == Target::Home) {
+        dest = homeNode;
+        found = true;
+    }
+    if (!found) {
+        Store(character, OnNoTarget(s));
         return false;
     }
     PushRescueWalk(citizen, &dest.x);
-    state = OnRescuePushed(state, target);
+    Store(character, OnRescuePushed(s, target));
     if (s_logged < kLogCap) {
         ++s_logged;
-        fprintf(stderr, "[StrandedWade] citizen %p at (%.1f, %.1f) wades to his %s at (%.1f, %.1f)\n",
-                static_cast<void*>(citizen), pos.x, pos.y, target == Target::Home ? "home" : "town hall",
-                dest.x, dest.y);
+        fprintf(stderr, "[StrandedWade] citizen %p at (%.1f, %.1f) zone %u wades to his %s at (%.1f, %.1f) zone %u\n",
+                static_cast<void*>(citizen), pos.x, pos.y, here.zone, target == Target::Home ? "home" : "town hall",
+                dest.x, dest.y, CellAt(map, dest.x, dest.y).zone);
     }
     return true;
 }

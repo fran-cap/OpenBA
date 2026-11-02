@@ -9,13 +9,14 @@
 // somewhere to get warm": State_ElderTransition 0x14010d2c0 pushes the refused walk home at every
 // pick).
 //
-// With the row on, every MoveTo reports its outcome (the three seams in Action/moveto.cpp) into a
-// byte of its character's padding, and when the last two walks were refused on a land-to-land zone
-// mismatch, the AI's next state pick (CitizenAIComponent::TransitionState 0x14010db90) pushes one
-// walk with the pass flags 0xe1f | 0x1e0 instead: retail's own wade / climb bypass in RequestPath,
-// to his home, or to the town hall when he has no home or the wading walk home failed. The rule is
-// stranded_wade_rule.h. No rescue when the goal is land in his own zone (he is not the one cut off),
-// and while the rescue walk is out no state pick replaces it. Nothing is saved.
+// With the row on, the MoveTo seams (Action/moveto.cpp) record, in the character's padding, a walk
+// toward his anchor zone (home, or the nearest town hall when homeless) refused on the land-to-land
+// zone mismatch while he stands in another land zone. While he still stands in that zone, the AI's
+// next state pick (CitizenAIComponent::TransitionState 0x14010db90) pushes one walk with the pass
+// flags 0xe1f | 0x1e0 instead: retail's own wade / climb bypass in RequestPath, to his home, or to
+// the town hall when he has no home or the wading walk home failed. The record clears when he
+// stands in the anchor zone again; while the rescue walk is out no state pick replaces it. The rule
+// is stranded_wade_rule.h. Nothing is saved.
 // ============================================================================
 #pragma once
 

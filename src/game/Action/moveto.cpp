@@ -241,7 +241,7 @@ int  MoveTo::AbstractImpl(ActionStack* actionStack) {
     if (pathVersion == 0 || pathSlotId < 0) {
         // No valid path cached
         if (pathIndex < 0) {
-            // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade counts a refusal
+            // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade records a refusal
             // on a land-to-land zone mismatch (src/ext/stranded_wade/).
             if (Ext::Fix().stranded_wade) Ext::StrandedWade::OnRefused(this);
             return 2;  // No path possible
