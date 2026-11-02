@@ -88,12 +88,6 @@
 //   0x14010ffc0 / 0x140110470 workplace finders  CitizenComp_sub_ffc0 / CitizenComp_sub_0470
 //   0x140111ee0 CitizenComp_AssignHousing, 0x1400f8400 CitizenAI_WorkScheduler_Rekey
 
-// workplacecomponent.cpp — roster-only mode for the Attach/Detach helpers: do the list
-// mutation, skip the gameplay-time Scene mesh-visual toggle. See the long note there; the
-// short version is that our inert StatusIconComponents are zero-filled, so a never-
-// registered icon reads scene id 0 and Graphics::Scene::RemoveObject(scene, 0) spins forever.
-extern bool g_wpcRosterOnly;
-
 static bool Plausible(const void* p) {   // LEFT: void* is a raw address (diagnostic probe), not an object: checks it is >= 0x10000
     return reinterpret_cast<uintptr_t>(p) >= 0x10000;   // CAST-OK: ptr_int
 }
@@ -130,9 +124,8 @@ void WorkPlaceComponent::SetMaxWorkers(int newMax) {
                  (void*)this, workers._size, newMax);
     std::fflush(stderr);
 
-    const bool savedRosterOnly = g_wpcRosterOnly;
-    g_wpcRosterOnly = true;
-
+    // No roster-only mode, as retail: each re-home runs the full Detach and Attach, so the
+    // workplace that receives a worker loses its "no workers" icon (known_port_issues row 1349).
     int guard = 0;
     while (newMax < workers._size) {
         const int before = workers._size;
@@ -176,8 +169,6 @@ void WorkPlaceComponent::SetMaxWorkers(int newMax) {
             break;
         }
     }
-
-    g_wpcRosterOnly = savedRosterOnly;
 }
 
 // ============================================================

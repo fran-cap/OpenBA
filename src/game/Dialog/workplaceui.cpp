@@ -235,8 +235,8 @@ void WorkPlaceUI::AdjustJobCount(int delta) {
     if (work->workState == 0) work->workState = work->CalcMaxWorkers();   // 0x14012e5c0
     const int cur = work->workState;
 
-    // No g_wpcRosterOnly wrapper here: the ported SetMaxWorkers body holds that guard
-    // across its own eviction loop (destroycomponent_workerrelease.cpp).
+    // No g_wpcRosterOnly hold, here or in SetMaxWorkers: this is gameplay time and the
+    // re-homed workers' Attach must clear the receiving workplace's icon (row 1349).
     const int rosterBefore = workPlace->workers._size;
     workPlace->SetMaxWorkers(cur + delta);   // 0x14012fb00
 
