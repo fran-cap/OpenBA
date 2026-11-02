@@ -13,7 +13,7 @@
 //   2. a foam fringe where the water visibly starts, so the edge where water meets ground softens;
 // both from a waterline that wanders (a still noise added to the height), so the edge breaks up.
 //
-// THE HEIGHT. The vertex's edge-alpha byte (the water program passes it through as TEXCOORD3.w) holds
+// THE HEIGHT. The vertex's edge-alpha byte (the water program passes it through as TEXCOORD4.w) holds
 // the corner's height above the waterline, (h + 0.5) / 2 in world units: -0.5 .. 1.5. Interpolated over
 // a triangle it is exactly the terrain's own height (the same grid, the same diagonal), so the line
 // the strip draws at 0 is where retail's water meets the ground.
@@ -32,10 +32,10 @@ SamplerState s_frame : register(s1);
 
 struct PSIn {
     float4 position : SV_Position;
-    float4 texcoord : TEXCOORD0;
-    float3 viewDir  : TEXCOORD1;
-    float4 screen   : TEXCOORD2;
-    float4 lfa      : TEXCOORD3;
+    float4 texcoord : TEXCOORD1;
+    float3 viewDir  : TEXCOORD2;
+    float4 screen   : TEXCOORD3;
+    float4 lfa      : TEXCOORD4;
 };
 
 // River: y += 0.02 t, w += 0.01 t; x, z still.  2w - y = v (shore_overlay.hlsl).

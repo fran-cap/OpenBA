@@ -17,10 +17,14 @@
 //       and the in-water models (piles, piers) write it; the water uses it to fade in from the bank.
 //       That makes it a vertical, world-space shore depth that does not move with the camera.
 //
-// THE INTERPOLANTS are the water vertex program's outputs, in its register order; this program reads
-// a prefix of them (the shadow coordinate after TEXCOORD3 is not declared):
-//   TEXCOORD0  the two scrolling uv sets (xy, zw)      TEXCOORD2  the projective screen coordinate
-//   TEXCOORD1  the view direction (world - camera)    TEXCOORD3  x/y lighting, z fog, w the mesh alpha
+// THE INTERPOLANTS are the water vertex program's outputs, in its register order and under its own
+// semantic names (TEXCOORD1..5: the installed program numbers them from 1); this program reads a
+// prefix of them (the shadow coordinate, TEXCOORD5, is not declared):
+//   TEXCOORD1  the two scrolling uv sets (xy, zw)      TEXCOORD3  the projective screen coordinate
+//   TEXCOORD2  the view direction (world - camera)    TEXCOORD4  x/y lighting, z fog, w the mesh alpha
+// The names must match, not only the registers: DX11 links the stages by register, but the Vulkan
+// backend links a pair whose names differ by semantic (pipelines.cpp LinkedPixelModule), and
+// TEXCOORD0..3 there fed every input the wrong output (no shore at all on Vulkan).
 //
 // FIXED TO THE WORLD. Every pattern here is keyed to the mesh's own still coordinate (MeshCoord: a
 // blend of the two scrolling uv sets that cancels the scroll, per material) or to the world through
@@ -42,10 +46,10 @@ SamplerState s_frame : register(s1);
 
 struct PSIn {
     float4 position : SV_Position;
-    float4 texcoord : TEXCOORD0;
-    float3 viewDir  : TEXCOORD1;
-    float4 screen   : TEXCOORD2;
-    float4 lfa      : TEXCOORD3;
+    float4 texcoord : TEXCOORD1;
+    float3 viewDir  : TEXCOORD2;
+    float4 screen   : TEXCOORD3;
+    float4 lfa      : TEXCOORD4;
 };
 
 // The mesh's still coordinate. Both water vertex programs copy the vertex uv into xy and zw and then

@@ -70,14 +70,17 @@ UNIT_TEST(ext_better_water_shore_blob_is_ps_4_0) {
     }
 }
 
+// The water vertex program writes TEXCOORD1..5 (the S25 run of 2026-11-01 logged its output signature).
+// Names and registers both: the Vulkan backend links a pair whose names differ by semantic, so
+// TEXCOORD0..3 fed every shore input the wrong output there (BETTERWATER.md section 5).
 UNIT_TEST(ext_better_water_shore_inputs_match_the_water_interpolants) {
     struct Want { const char* name; uint32_t index; uint32_t reg; };
     const Want want[5] = {
         { "SV_Position", 0, 0 },   // the clip position
-        { "TEXCOORD", 0, 1 },      // the two scrolling uv sets
-        { "TEXCOORD", 1, 2 },      // the view direction
-        { "TEXCOORD", 2, 3 },      // the projective screen coordinate
-        { "TEXCOORD", 3, 4 },      // lighting / fog / the mesh alpha
+        { "TEXCOORD", 1, 1 },      // the two scrolling uv sets
+        { "TEXCOORD", 2, 2 },      // the view direction
+        { "TEXCOORD", 3, 3 },      // the projective screen coordinate
+        { "TEXCOORD", 4, 4 },      // lighting / fog / the mesh alpha
     };
     for (const Blob& b : kBlobs) {
         Dxbc::Container c;

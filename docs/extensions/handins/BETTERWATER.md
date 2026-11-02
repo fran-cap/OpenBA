@@ -24,9 +24,11 @@ Ruled with the user: a subtle look (no stylized foam bands); Plain for every bac
   0x8000 (`_contourRangesB`, `_waterMaterialB`) the phase-2 shore rings round lakes and ponds
   (`water_contour_mesh.cpp`). Their vertex programs scroll the two uv sets differently (`Normal_vs`:
   y += 0.02 t, w += 0.01 t; `Normal_lakevs`: y -= 0.0057 t, w += 0.01 t, z += 0.005 t).
-- **The water's interpolants** (`RiverMaterial.srsl` `Interpolant`, compiled to `TEXCOORD0..4` in struct
-  order): texcoord, viewDir (world - camera), screenProjection, lightFogAlpha (x/y lighting, z fog,
-  w the mesh alpha), shadowProjection.
+- **The water's interpolants** (`RiverMaterial.srsl` `Interpolant`, in struct order): texcoord, viewDir
+  (world - camera), screenProjection, lightFogAlpha (x/y lighting, z fog, w the mesh alpha),
+  shadowProjection. The installed vertex programs name them `TEXCOORD1..5` (registers 1..5, after
+  `SV_Position`), not from 0: the output signature the Vulkan backend reflected on the S25. The shore
+  programs declare the same names, not only the same registers (section 5, Android).
 
 The kit's `.srsl` sources were read as a reference (DESIGN.md §3 rule 7); nothing of them is in the tree.
 
@@ -148,7 +150,28 @@ copy back into `shore_params.h`. Release and perf builds draw with the defaults.
   The CPU side does not move; fps is within run-to-run noise (about 1.5%). The frame at 50x is bound by the
   update, so the GPU cost of the extra passes is not measured by this run. Fancy holds about 80 MB more:
   the depth copy at MSAA x4 and its 1x R32F resolve (about 68 MB at 2528 x 1345).
-- **Not run:** Android (it keeps Plain; its Vulkan path is the one Linux runs), Metal (contact foam answers
+- Android, Galaxy S25 (Adreno 830, Vulkan 1.3, tiler MSAA 2x on the present source, push descriptors),
+  debug apk, the user's autosave (a lake in view), 2026-11-01. Before the fix the pass drew and showed
+  nothing. A diagnostic build split the shore program's output into screen bands (solid magenta, the
+  frame alpha, the b1 constants, the interpolants, the frame colour, the computed alpha): the twin
+  rasterised over the lake and the constants arrived (0.85 / 0.84 / 0.85), but the frame alpha read 0,
+  the fog term read 1 or more, `screen.w` read 0 and the frame colour was one flat texel. The cause: the
+  shore programs declared `TEXCOORD0..3` while the water vertex program writes `TEXCOORD1..5`. DX11
+  links stages by register, so the names did not matter there; the Vulkan backend links a pair whose
+  names differ by semantic (`pipelines.cpp` `LinkedPixelModule`), which gave each shore input the
+  wrong output (uv from nothing, the view direction from the uv, the screen coordinate from the view
+  direction with w = 0, lighting / fog from the screen coordinate), and the computed alpha came out 0.
+  The fix renames the inputs of all three shore programs (overlay, strip, contact) to `TEXCOORD1..4`;
+  the registers do not change, so the DX11 path binds the same bytes as before. After it, the pair
+  links directly (no "linked pixel shader" line), and Plain shows the wet bed along the lake's bank,
+  absent with the row off; Fancy (mode 2) shows the strip on the bank side, the scene depth copy made
+  from the 2x main depth (`[SceneDepth] Vulkan: copy 2340x1080 R32F`), 0 failed pipelines. The water
+  vertex program is the same one at shader detail 2 and 3. The Linux and Windows Vulkan runs above
+  predate this and were not re-run: the same installed program and the same linking would have hidden
+  the shore there too, so "the same look as DX11" on Linux is doubtful. `tools/build.sh unit` 1739
+  tests, 0 failures, 3 skipped; the Windows debug build compiles. The Android performance cost was not
+  measured.
+- **Not run:** Metal (contact foam answers
   not supported; the strip and Plain are untested there), a device restart and a window resize with the
   copy live (the remake paths exist in both backends; no run reached them).
 
@@ -174,7 +197,7 @@ and the terrain mesh's own diagonal per cell (`serialize_heightmap_mesh.cpp`: ev
 bottom-left to top-right, odd top-left to bottom-right), lifted 0.02 and never below the highest water
 surface (lakes sit up to a few 1/256 above -0.75). Its vertices are in the water's 16-byte format (phase 2's
 packing: position * 48, height * 256, planar uv = position * 48) and wound as the water's quads are, and the
-edge-alpha byte (which the water vertex program passes through as `TEXCOORD3.w`) holds the corner's height
+edge-alpha byte (which the water vertex program passes through as `TEXCOORD4.w`) holds the corner's height
 above the waterline, `(h + 0.5) / 2`. Interpolated, that is the terrain's own height, so the strip's 0 is
 where retail's water meets the ground. Seed 12345: about 15,800 cells, 21,700 vertices, one chunk (16-bit
 indices; chunks of at most 65,000 vertices with their own base vertex otherwise).
