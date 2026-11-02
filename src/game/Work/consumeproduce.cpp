@@ -578,6 +578,11 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                 if (by < 0) by = 0;
                 if (by >= mapSize) by = mapSize - 1;
 
+                // 0x1400e81f8-0x1400e823b: the input's RawMaterialDescription (RSI), read by
+                // the carry-room test below (its weight, +0x48).
+                RawMaterialDescription* rawMat2 = static_cast<RawMaterialDescription*>(
+                    FindDescriptionOnObject(matEntity2, RawMaterialDescription::TypeId()));
+
                 ComponentEntity* foundStorage = nullptr;
                 worldEntityList->PickBestDropTarget(&foundStorage,
                     mapSize * by + bx, matEntity2, 1, '\0', searchPos2,
@@ -594,12 +599,27 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                         for (int fi = 0; fi < fSlotCount; fi++) {
                             if (fSlots[fi]._resource == matEntity2) {
                                 if (fi >= 0 && fSlots[fi]._count != fSlots[fi]._reserve) {
-                                    // Material available -- find storage on the citizen's entity
+                                    // Material available -- the citizen's own storage.
+                                    // 0x1400e85b6-0x1400e85ee: no room for one unit
+                                    // (capacity +0x38 - QueryCount < weight) -> replan.
+                                    StorageComponent* carry =
+                                        (*citizenIBP)->_entity->FindComponent<StorageComponent>();
+                                    if (carry->capacity - carry->QueryCount() < rawMat2->_weight) {
+                                        (*citizenIBP)->LongTermPlan();   // 0x1400e8686 -> 0x140115e60
+                                        return 2;
+                                    }
+
                                     StorageComponent* homeStorage2 =
                                         (*citizenIBP)->_entity->FindComponent<StorageComponent>();
 
                                     int hs2Count = homeStorage2->QueryCount();   // 0x14012cf10
-                                    if (hs2Count < 1) {
+                                    if (hs2Count >= 1) {
+                                        // 0x1400e867b JLE 0x1400e8717 not taken: already
+                                        // carrying something -> replan (0x1400e8683).
+                                        (*citizenIBP)->LongTermPlan();   // 0x140115e60
+                                        return 2;
+                                    }
+                                    {
                                         // Storage empty -- set up path to fetch material
                                         ComponentEntity* fetchDest = foundStorage;
                                         Vector3Slot fetchPos;
