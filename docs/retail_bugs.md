@@ -331,6 +331,46 @@ on the house's door cell. Candidates, both unconfirmed:
    load: the fix-up pass sets the count to 1 on a road cell, and `RemovePendingRoad`'s
    `+0x2A == 0xFF` arm never subtracts. Survives a reload.
 
+**Candidates 1 and 2 checked in Ghidra (2026-11-01): neither completes twice.** Neither was run.
+- *Candidate 1.* The second drag does place a second marker on the still-finished road
+  (`RemovePendingRoad` returns 1). In the same pass it marks the first marker for removal
+  (`RemovalTool::CalcPath` `0x1401035e0`: the cell's entity has the marker template `+0x38`).
+  `MarkForRemoval` (`0x1400c2ea0`) runs `WorkComponent`'s remove hook (`0x14012e6c0`), which cancels the
+  marker's ClearArea work. `WorkScheduler::TaskCleanup` (`0x1400f8e30`) then calls the work's slot 8,
+  `ClearArea::Cleanup` (`0x1400e6650`). That clears the action stack of every citizen in its cell set
+  (`+0x58`), which holds the citizen phase 2 dispatched `CompleteRoad` to. The first `CompleteRoad` is
+  dropped before it runs, and the second marker's own phase 2 dispatches a single one. The marker's phase 2
+  only offers road cells: `Map::GetTilesInArea` (`0x14009fc00`, empty-tile arm at `0x14009fdce`) emits an empty tile only
+  when it holds a road, is road terrain or is pending.
+- *Candidate 2.* `RemovePendingRoad` (`0x14009c700`) hands the pending road's work to `TaskCleanup` the
+  same way. `BuildRoad::Cleanup` (`0x1400e4910`) clears the stack of the citizen it dispatched (`+0x48`).
+- The saves checked hold no stuck count. These are the dumps of the four player saves and of `RetailA`
+  (4300 road cells). None has a cell with a count, no road and no building within 2 cells (`cell_diff.py
+  --suspects`), and none has a road-terrain cell (type 0 / 1) whose `+0x2A` is 0xFF.
+
+**A third sequence, read only, not reproduced.** A road upgrade drawn over a cell that a removal marker
+still holds:
+1. The upgrade queues a `BuildRoad` and a pending node. `PlaceRoadCell` (`0x14009c960`) sets `+0x2A` to
+   the new type and leaves the count alone, because the cell already has a road.
+2. The marker's citizen finishes first. `BuildRoad::Execute` waits while a non-pile, non-resource entity
+   occupies the cell. `FinishRoadCell` type 2 sets the count to 0 and `+0x2A` to 0xFF, sets type 2, and
+   erases the pending node. It does not touch the queued `BuildRoad`.
+3. That builder then finishes. `FinishRoadCell` with a road type writes the terrain type and `+0x2B` but
+   not `+0x2A`.
+
+The result is road terrain with `+0x2A` 0xFF and count 0. From there:
+- Drawing a road over it adds no count (`PlaceRoadCell` adds only on non-road terrain), so its later
+  removal wraps the count to 0xFF.
+- A save and load before any change sets the count to 1 (the fix-up pass counts road terrain). The Remove
+  tool then takes `RemovePendingRoad`'s 0xFF arm, which sets type 2 and leaves the count at 1. The result
+  is a red cell that the Remove tool does not select, and that re-laying and removing a road leaves at 1.
+
+This needs the road tool to accept a cell holding a removal marker. `RoadTool::CalcPath` refuses a
+blocker only at the endpoints and in its A*, and whether the marker template stamps a blocker is in the
+game data, not checked. No fix row until a run shows it. The lever would be in `FinishRoadCell` type 2:
+erase the pending node and cancel its `BuildRoad` as `RemovePendingRoad` does, or skip the subtraction
+when the cell holds no road.
+
 **The tile-by-tile road: the removal re-sort.** `FinishRoadCell` resets the height grid at the
 finished cell's four corners (`Map::ResetTerrainHeights` `0x14009e0e0`). When an entity later
 leaves a neighbouring cell (a tree, rock or pile cleared, a building demolished), `0x14009dee0`
@@ -1037,3 +1077,65 @@ of `BoatComponent::SetDestination` calls `src/ext/boat_reach_notice/`, which app
 event-log entry (the trader's event type 0xd and icon, warning colour, the post's tile; the game's
 message table has no text for it, so the text is ours). A save keeps it like any other entry, as text
 and five ints, and retail reads such a save unchanged. No unit test: the row has no pure logic.
+
+## 27. A cancelled building site loses most of its delivered materials
+
+**Symptom.** A building site that is cancelled, or removed with the Remove tool, after its materials were
+delivered gives back only a few piles. They lie on the site's ground, and the rest is gone ("all
+disappeared into the ether", Steam). A large footprint, such as a town hall, refunds the least.
+
+**Retail mechanism.**
+- `DestroyComponent` state 4's enter (`0x14011cfd0`) skips the `ClearStorage` haul-away for a site that is
+  not finished.
+- State 5 (enter `0x14011cc70`, or its tick `0x14011c120` once any labour was spent) calls
+  `ScatterContents` (`0x14011c530`). For an unfinished site it lists the storage stacks,
+  `(count - reserve) / (laborProgress > 0 ? 2 : 1)`.
+- It then walks the footprint with one cursor. A pile goes only on a cell with no blocker (`cell+0x00`),
+  terrain type 2 and terrain height in [0, 0.2). Each cell takes one pile of at most `100 / weight`
+  (`0x14011ca59`).
+- The site's zone stamp (`Map::StampFootprint` `0x14009d360`) is still on the cells: it is removed only when
+  the entity drains after `Destroy_MarkAndPushRemoval`. It stores the site as the blocker on every non-'.'
+  cell, so only the footprint's '.' cells qualify.
+- When the cursor leaves the footprint (`row == depth`), the material still listed is dropped with no
+  message.
+
+**Proof it is retail.** The decompile of `0x14011c530`:
+- the blocker / type / height test on `*(cells + idx*0x30)`, `+0x29` and `DAT_1401720fc`;
+- the `while ((iVar30 != param_5) && (0 < iVar24))` loop exit;
+- the list freed with nothing done for the rest.
+
+The port transcribes it (`destroycomponent_states.cpp`). Measured on the port with retail's logic
+(`fix.cancel_refund` off), on the `clearoverlap` town hall (10x9, 90 cells) cancelled with 118 units in
+storage and no labour:
+- 10 of the 90 footprint cells qualified (no blocker); all 90 passed the type and height tests.
+- The first material's 62 units took 7 cells (9 a pile).
+- The second material's 56 units got the last 3 cells (18 units). The other 38, a third of the delivery,
+  were dropped.
+
+The run used a temporary hook in `src/diag/clear_overlap_harness.cpp` (not committed) that called
+`DestroyComponent::RunStateMachine` once the hall held 1500 weight units. That is the Remove tool's path
+for a site. Retail itself was not launched.
+
+**The halving is retail's design, not part of this fix.** A site with any labour (`laborProgress > 0`)
+first goes through a demolition work (state 5's `BuildStructure`), and its stock is then halved. A finished
+building refunds half its recipe the same way (a quarter after a fire). So the halving is read as the
+price of a started building. It is left as retail has it.
+
+**Lever.** Place what the footprint walk could not, around the site, through the search a citizen's dropped
+load uses (`Map::FindPlacementCell` `0x14009bd40`, as `DropOffRawMaterial::DropOnGround` `0x1400c78c0`
+calls it). Piles keep retail's size.
+
+Fix: `fix.cancel_refund` (tier 1), default on, off under `/profile:faithful`.
+- What the row does: after each material's footprint walk, the units left go out as piles of
+  `100 / weight`. Each pile's cell is the first one `FindPlacementCell` returns from the ring of cells just
+  outside the footprint. The site's own cells never qualify: the blocker is on the non-'.' cells and the
+  footprint count on the '.' cells.
+- What stays as retail: what no cell within that search's six rings can take is still dropped. The new
+  piles are ordinary piles: they post their own Pickup work and go to storage, and nothing new is saved.
+- The fix-on run of the same scene: `[CancelRefund] site 183,224 10x9: 38 of 38 units laid in 7 piles
+  outside the footprint`.
+- Code: the seam is `DestroyComponent::ScatterContents`, the code is `src/ext/cancel_refund/`, and the test
+  is `tests/unit/ext_cancel_refund_test.cpp`. The row prints one `[CancelRefund]` line per scatter that
+  needs it, for the first 16 only.
+- Not touched: `fix.foundation_piles` (§17) moves piles off a site that is waiting to be built; this row
+  acts once, when a site is removed.

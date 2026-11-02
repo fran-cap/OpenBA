@@ -79,6 +79,7 @@ struct Fixes {
     bool mods_persist      = true;   // docs/retail_bugs.md §23: the mod list is written to settings.cfg when Mods is confirmed, and Mods is greyed out in a game
     bool boat_reach_notice = true;   // docs/retail_bugs.md §30, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
     bool save_failure_notice = true; // docs/retail_bugs.md §29, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
+    bool cancel_refund     = true;   // docs/retail_bugs.md §27, src/ext/cancel_refund/: sim-visible, a cancelled site's materials that do not fit on its footprint are laid around it, not discarded
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

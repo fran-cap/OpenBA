@@ -45,6 +45,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_mods_persist";	String _source = "Sprite/Extensions/Entry_mods_persist.png"; }
 		{ String _name = "ExtensionsEntry_save_failure_notice";	String _source = "Sprite/Extensions/Entry_save_failure_notice.png"; }
 		{ String _name = "ExtensionsEntry_boat_reach_notice";	String _source = "Sprite/Extensions/Entry_boat_reach_notice.png"; }
+		{ String _name = "ExtensionsEntry_cancel_refund";	String _source = "Sprite/Extensions/Entry_cancel_refund.png"; }
 		{ String _name = "ExtensionsEntry_eye_camera";	String _source = "Sprite/Extensions/Entry_eye_camera.png"; }
 		{ String _name = "ExtensionsEntry_sharp_ui";	String _source = "Sprite/Extensions/Entry_sharp_ui.png"; }
 		{ String _name = "ExtensionsEntry_fast_paths";	String _source = "Sprite/Extensions/Entry_fast_paths.png"; }
