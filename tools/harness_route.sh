@@ -35,7 +35,7 @@ set -u
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
-ROUTES="marry birth immigration trade pick clearoverlap"
+ROUTES="marry birth immigration trade autotrade pick clearoverlap"
 
 ROUTE="${1:-}"
 [ -n "$ROUTE" ] || { echo "usage: tools/harness_route.sh <route> [outdir]   (routes: $ROUTES)" >&2; exit 2; }
@@ -141,6 +141,21 @@ route_trade() {
 }
 check_trade() {
     verdict "\[TradeWatch\] PASS" "\[TradeWatch\] FAIL"
+}
+
+# --- autotrade: docs/retail_bugs.md section 24. The trade route's boat docks; the watch then
+# stocks the post with a good the merchant prices 0 and one he prices above 0, asks 3 units of
+# every buy-order category and runs TradeComponent::AutoTrade (0x140059ad0) once
+# (src/diag/trade_buy_harness.cpp). PASS when the priced-0 stack is kept, which needs
+# HARNESS_FIXES=autotrade_free_goods; the faithful run reports GAVE AWAY and FAILs.
+route_autotrade() {
+    DESC="auto-trade pays with priced goods only; a priced-0 stack stays in the post"
+    QUIT_FRAME=12000
+    SECS=600
+    ENV=(BANISHED_FORCE_SPEED=10 BANISHED_BUILD_DEMO_TRADINGPOST=1 BANISHED_TRADE_WATCH=300,autotrade)
+}
+check_autotrade() {
+    verdict "\[TradeWatch\] AUTOTRADE KEPT" "\[TradeWatch\] (FAIL|AUTOTRADE GAVE|AUTOTRADE ERROR)"
 }
 
 # --- pick: known_port_issues rows 252 and 1261. BANISHED_TOOL_HARNESS=pick

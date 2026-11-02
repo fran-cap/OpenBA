@@ -268,7 +268,7 @@ struct Options {
     const char* tradeSell            = nullptr;// BANISHED_TRADE_SELL — interval
     const char* tradeSellPerRow      = nullptr;// BANISHED_TRADE_SELL_PERROW
     const char* tradeSellSeed        = nullptr;// BANISHED_TRADE_SELL_SEED
-    const char* tradeWatch           = nullptr;// BANISHED_TRADE_WATCH — period; tools/harness_route.sh trade
+    const char* tradeWatch           = nullptr;// BANISHED_TRADE_WATCH — period[,autotrade]; tools/harness_route.sh trade / autotrade
     const char* panelHold            = nullptr;// BANISHED_PANEL_HOLD — tools/capture_window.ps1 opens one building's panel
     const char* panelHoldFrame       = nullptr;// BANISHED_PANEL_HOLD_FRAME
     const char* panelHoldClick       = nullptr;// BANISHED_PANEL_HOLD_CLICK — "<control>:<id>"

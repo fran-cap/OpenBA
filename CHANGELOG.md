@@ -21,6 +21,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.autotrade_free_goods` (on): a trading post set to trade automatically no longer hands the merchant
+  whole stacks of goods he does not buy. Retail pays for an automatic purchase by selling stored goods one
+  unit at a time until the price is covered, and a good the merchant values at nothing never covers it, so
+  the whole stack went for nothing; with the fix such goods are not used to pay (`docs/retail_bugs.md`
+  section 24). Off under `/profile:faithful`.
 - `fix.firefighter_wells` (on): the Firefighter achievement ("Build 20 wells in a single town") is
   awarded at 20 wells. The game's data asks for 40, a long-known mismatch with the description
   (`docs/retail_bugs.md` section 20). Off under `/profile:faithful`.

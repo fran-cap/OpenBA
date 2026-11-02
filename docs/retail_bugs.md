@@ -861,3 +861,38 @@ Fix: `fix.unresolved_seeds` (tier 1), default on, off under `/profile:faithful`.
 (`src/game/Game/citizenlist_serialize.cpp`). Code `src/ext/unresolved_seeds/`, test
 `tests/unit/ext_unresolved_seeds_test.cpp`. Each seam prints one `[UnresolvedSeeds]` line to stderr when
 it drops something.
+
+## 24. A trading post on auto-trade gives the merchant whole stacks of goods he does not buy
+
+**Symptom.** A trading post set to trade on a merchant's arrival or departure, with a standing buy
+order, loses whole stacks of some stored goods each time it buys, and gets nothing for them. Players:
+"if there's mixed goods in the trading post, it just gives EVERYTHING to the trader"; "they sold those
+[logs] off first".
+
+**Retail mechanism.** `TradeComponent::AutoTrade` (`0x140059ad0`, reached from `EnterDocked`
+`0x14005a800` when the post's policy `+0x28` is 1 and from `LeaveDocked` `0x14005a6d0` when it is 2)
+buys unit by unit up to the value of the post's stock, then pays for the purchase by walking the post's
+storage slots in order and selling unit by unit until the sum paid reaches the sum spent
+(`0x14005a177`..`0x14005a330`). Each unit sold adds the good's price for the docked merchant,
+`TradeComponent::GetResourcePrice` (`0x14005a520`): the base value when the good's raw-material flags
+(`+0x5c`) hit the merchant's full-price mask (`TradeDescription +0x48`, row `+0x14`), three quarters of
+it when they hit the discount mask (row `+0x18`), and **0** when they hit neither (a value-1 good in the
+discount class also truncates to 0). The loop's only exits are "paid >= spent" and "this slot is
+empty", so a slot whose unit price is 0 is drained to nothing, every unit crediting 0, before the walk
+reaches the next slot. The step-1 budget counts such a good as worth 0, so nothing else notices.
+
+**Proof it is retail.** The decompile of `0x140059ad0`: `local_8c = TradeComponent_GetResourcePrice(..)`,
+`local_90 = count - reserve`, then `while ((int)uVar33 < iVar20) { if (local_90 <= iVar5) break;
+uVar33 = uVar31 + local_8c; iVar5++; ... }` with no test of `local_8c`. The decompile of `0x14005a520`
+returns 0 on the arm where neither mask hits. The port (`src/game/Component/tradecomponent_dock.cpp`
+`AutoTrade` step 4, `src/game/Dialog/tradeui_price.cpp` `GetResourcePrice`) transcribes both.
+
+**Lever.** In the payment walk, pass over a slot whose unit price is 0 or less: it cannot pay.
+(Not part of the fix: the purchase loop may overspend the budget by one unit price, and an unpaid
+remainder is never collected. Both are retail and left alone.)
+
+**Fix: `fix.autotrade_free_goods` (tier 1), default on, off under `/profile:faithful`.** One seam,
+`AutoTrade`'s payment loop. Pure rule `src/ext/autotrade_free_goods/autotrade_free_goods_rule.h`, unit test
+`tests/unit/ext_autotrade_free_goods_test.cpp` (the payment walk over a priced-0 slot, on and off). Not
+shown in a game run: no harness drives auto-trade with a staged stock. Sim-visible (what the post keeps);
+nothing new is saved.

@@ -75,6 +75,7 @@ struct Fixes {
     bool firefighter_wells = true;   // docs/retail_bugs.md §20, src/ext/firefighter_wells/: the Firefighter achievement unlocks at the 20 wells its description gives (the data says 40)
     bool unresolved_seeds  = true;   // docs/retail_bugs.md §21, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
     bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
+    bool autotrade_free_goods = true;   // docs/retail_bugs.md §24, src/ext/autotrade_free_goods/: sim-visible, auto-trade does not pay with goods the merchant prices 0
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

@@ -181,6 +181,16 @@ const Entry kEntries[] = {
       "workplace had not been measured yet and was counted as no walk at all.",
       0, [](State& s) -> bool& { return s.fix.commute_cost; } },
 
+    // AUTOTRADEFREEGOODS (docs/retail_bugs.md section 24): TradeComponent::AutoTrade (0x140059ad0) pays for an
+    // auto-purchase by selling the post's goods unit by unit until the price is covered; a good the docked
+    // merchant prices 0 never covers it, so retail hands over the whole stack. With the row on such a good
+    // is passed over. Sim-visible: what the post keeps. Nothing new is saved.
+    { "autotrade_free_goods", Tier::Fix, Class::None, true,
+      "Auto-trade keeps unwanted goods",
+      "A trading post that trades automatically no longer gives a merchant whole stacks of goods he "
+      "does not buy, for nothing, while paying for what it bought.",
+      0, [](State& s) -> bool& { return s.fix.autotrade_free_goods; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).

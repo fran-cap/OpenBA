@@ -287,6 +287,24 @@ def draw_commute(px):
     ])
 
 
+def draw_coin_crossed(px):
+    # a crate kept back beside a coin (goods worth nothing to the merchant are not handed over)
+    _paint(px, [
+        "............",
+        "......####..",
+        ".....#....#.",
+        ".....#.##.#.",
+        ".....#.##.#.",
+        ".....#....#.",
+        "......####..",
+        "############",
+        "#++#++#++#.#",
+        "#++#++#++#.#",
+        "############",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -303,4 +321,5 @@ ICONS = {
     "firefighter_wells": ("fix", draw_well),         # a well under its roof
     "unresolved_seeds": ("fix", draw_seed_rows),     # two sprouts on furrows, a gap between them
     "commute_cost": ("fix", draw_commute),           # house and workplace joined by a measured path
+    "autotrade_free_goods": ("fix", draw_coin_crossed),   # a crate kept back beside a coin
 }
