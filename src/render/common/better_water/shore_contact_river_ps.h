@@ -38,10 +38,10 @@
 // Name                 Index   Mask Register SysValue  Format   Used
 // -------------------- ----- ------ -------- -------- ------- ------
 // SV_Position              0   xyzw        0      POS   float   xyz 
-// TEXCOORD                 0   xyzw        1     NONE   float   xyzw
-// TEXCOORD                 1   xyz         2     NONE   float   xyz 
-// TEXCOORD                 2   xyzw        3     NONE   float   xy w
-// TEXCOORD                 3   xyzw        4     NONE   float     z 
+// TEXCOORD                 1   xyzw        1     NONE   float   xyzw
+// TEXCOORD                 2   xyz         2     NONE   float   xyz 
+// TEXCOORD                 3   xyzw        3     NONE   float   xy w
+// TEXCOORD                 4   xyzw        4     NONE   float     z 
 //
 //
 // Output signature:
@@ -571,10 +571,10 @@ ret
 
 const uint8_t g_bw_PSContactRiver[] =
 {
-     68,  88,  66,  67,  62,  72, 
-    143,  66,  91,  24,  36,  17, 
-    225, 250, 121, 205, 106,  70, 
-    112, 153,   1,   0,   0,   0, 
+     68,  88,  66,  67,  47,  31, 
+      6, 207, 228, 124, 243,  77, 
+    180,  91, 251, 109, 114, 205, 
+    209, 229,   1,   0,   0,   0, 
      20,  63,   0,   0,   5,   0, 
       0,   0,  52,   0,   0,   0, 
      20,   2,   0,   0, 180,   2, 
@@ -667,19 +667,19 @@ const uint8_t g_bw_PSContactRiver[] =
       0,   0,   3,   0,   0,   0, 
       0,   0,   0,   0,  15,   7, 
       0,   0, 140,   0,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
+      1,   0,   0,   0,   0,   0, 
       0,   0,   3,   0,   0,   0, 
       1,   0,   0,   0,  15,  15, 
       0,   0, 140,   0,   0,   0, 
-      1,   0,   0,   0,   0,   0, 
+      2,   0,   0,   0,   0,   0, 
       0,   0,   3,   0,   0,   0, 
       2,   0,   0,   0,   7,   7, 
       0,   0, 140,   0,   0,   0, 
-      2,   0,   0,   0,   0,   0, 
+      3,   0,   0,   0,   0,   0, 
       0,   0,   3,   0,   0,   0, 
       3,   0,   0,   0,  15,  11, 
       0,   0, 140,   0,   0,   0, 
-      3,   0,   0,   0,   0,   0, 
+      4,   0,   0,   0,   0,   0, 
       0,   0,   3,   0,   0,   0, 
       4,   0,   0,   0,  15,   4, 
       0,   0,  83,  86,  95,  80, 

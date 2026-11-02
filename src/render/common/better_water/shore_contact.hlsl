@@ -40,10 +40,10 @@ Texture2D<float> g_depth : register(t4);
 
 struct PSIn {
     float4 position : SV_Position;
-    float4 texcoord : TEXCOORD0;
-    float3 viewDir  : TEXCOORD1;
-    float4 screen   : TEXCOORD2;
-    float4 lfa      : TEXCOORD3;
+    float4 texcoord : TEXCOORD1;
+    float3 viewDir  : TEXCOORD2;
+    float4 screen   : TEXCOORD3;
+    float4 lfa      : TEXCOORD4;
 };
 
 #ifndef WATER_LAKE
