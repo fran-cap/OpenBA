@@ -154,16 +154,22 @@ for SRC in "$ROOT"/src/ext/ui/Font/SharpFont*.rsc; do
   done
   if [ "$FRESH" = 1 ]; then FONTS_SKIPPED=$((FONTS_SKIPPED + 1)); else TARGETS+=("Font/$N.rsc"); fi
 done
+# The compiler's problem lines. Its progress lines ("Compiling '<file>:<name>'" and
+# "  --> Compiled <type> '<file>:<name>'") quote resource names, which may contain these words
+# (Dialog/Extensions.rsc:saveFailed), so they are dropped before the search.
+problems() {
+  grep -v -E "^(Compiling '|  --> Compiled )" "$1" | grep -E 'Warning|Error|Failed|Unable|Assert'
+}
 FAIL=0
 for T in "${TARGETS[@]}"; do
   LOG="$LOGS/$(echo "$T" | tr '/:' '__').log"
   ( cd "$KIT" && MSYS2_ARG_CONV_EXCL='*' timeout 900 ./bin/x64/Tools-x64.exe /build "$T" /pathres "$RRES" /pathdat "$RDAT" /pathpkg "$RDAT" ) > "$LOG" 2>&1
   RC=$?
-  BAD="$(grep -c -E 'Warning|Error|Failed|Unable|Assert' "$LOG")"
+  BAD="$(problems "$LOG" | wc -l)"
   echo "ext_resources: /build $T -> exit $RC, $(grep -c -- '--> Compiled' "$LOG") compiled, $BAD problem line(s)  ($LOG)"
   if [ "$RC" != 0 ] || [ "$BAD" != 0 ]; then
     FAIL=1
-    grep -E 'Warning|Error|Failed|Unable|Assert' "$LOG" | sort -u | head -10
+    problems "$LOG" | sort -u | head -10
   fi
 done
 [ "$FAIL" = 0 ] || { echo "ext_resources: FAILED (see $LOGS)"; exit 1; }
