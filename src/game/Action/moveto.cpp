@@ -52,6 +52,8 @@
 #include "Component/CharacterDescription.h"   // CharacterDescription::TypeId() (moved ctor)
 #include "system/Value.h"      // System::Random (moved ctor)
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
+#include "ext/registry.h"                      // EXT SEAM (NOT RETAIL): Ext::Fix().stranded_wade
+#include "ext/stranded_wade/stranded_wade.h"   // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19)
 
 // ============================================================
 // Helpers, called by name (B3R)
@@ -239,6 +241,9 @@ int  MoveTo::AbstractImpl(ActionStack* actionStack) {
     if (pathVersion == 0 || pathSlotId < 0) {
         // No valid path cached
         if (pathIndex < 0) {
+            // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade counts a refusal
+            // on a land-to-land zone mismatch (src/ext/stranded_wade/).
+            if (Ext::Fix().stranded_wade) Ext::StrandedWade::OnRefused(this);
             return 2;  // No path possible
         }
     } else {
@@ -320,6 +325,9 @@ int  MoveTo::Execute(ActionStack* actionStack, const System::Time* time) {
                 pathCount = nodeCount;
 
                 if (nodeCount == 0) {
+                    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade, a failure
+                    // that is not a zone refusal.
+                    if (Ext::Fix().stranded_wade) Ext::StrandedWade::OnEmptyPath(this);
                     return 2;  // Path found but empty -- no valid route
                 }
 
@@ -538,6 +546,8 @@ void MoveTo::Enter(ActionStack*, const System::Time*) {
 // ============================================================
 void MoveTo::Exit(ActionStack* actionStack) {
     (void)actionStack;
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade, an arrival resets the count.
+    if (Ext::Fix().stranded_wade) Ext::StrandedWade::OnExit(this);
     character.Get()->SetAnimation(static_cast<uint32_t>(stopAnimation), kRdata_14017214c, kRdata_14017214c);   // 0x14010a1f0
 }
 

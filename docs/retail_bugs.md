@@ -769,8 +769,8 @@ water ("under water"), and are stuck on it once it is built if it is not joined 
 land fill back to the spot frees them; so, sometimes, does changing their profession. "Citizens can
 walk on water precisely once" (a player, 2020).
 
-**Status: the mechanism is read in Ghidra and matches the port function by function; not reproduced
-in a run, no fix (the lever needs a ruling, below).**
+**Status: the mechanism is read in Ghidra and matches the port function by function. Fixed by
+`fix.stranded_wade` (the ruled rescue, below).**
 
 **Retail mechanism.** Reachability is a zone test. `Map::FillZone` (`0x14009c170`) floods a zone id
 (MapCell `+0x26`) over connected cells whose terrain type is in the land set `0xe1f` (types 0-4, 9,
@@ -841,6 +841,26 @@ answered in the same order as before, so it neither causes nor cures this.
   needs a rule for the homeless.
 - *Prevention* (end a bypass walk only in the zone it started from) would break building a bridge from
   one bank and does not cover route 1, so it is not recommended on its own.
+
+**Fix: `fix.stranded_wade` (WIRED 2026-11-01; ruled by the user, "option C").** Stranded means the
+citizen's last two walk requests were refused on a land-to-land zone mismatch (`RequestPath` {-1, 0},
+`MoveTo::Execute` answers 2), not "his home's zone differs from the town's": a citizen living across water
+by the player's choice is left alone while his walks succeed. A refusal with a zone-less endpoint or pass
+flag (types 5-8), an empty path, or any other failure does not count, and one walk that arrives resets the
+count. Three seams in `src/game/Action/moveto.cpp` report each walk's outcome: `AbstractImpl`
+(`0x1400c8ab0`, the refused ticket, classified from the two endpoint cells), `Execute` (`TakePath` gave an
+empty path) and `Exit` (`0x1400c8520`, an arrival when the character stands on the destination cell). The
+count is a byte of `CharacterComponent`'s padding (`+0x44`), never saved: a load restarts it at 0. The
+rescue runs where the AI picks its next state, at the head of `CitizenAIComponent::TransitionState`
+(`0x14010db90`), for any state: a stranded citizen gets one walk with the pass flags `0xe1f | 0x1e0`
+(retail's own wade / climb bypass in `RequestPath`) to his home's interaction node, or to the nearest town
+hall (an `ImmigrationComponent` entity) when he is homeless or his last wading walk home failed (if that
+one fails too, the next rescue tries home again). The walk carries the AI's usual "decide again" lead
+message; after it the count resets and normal behaviour resumes. A builder left on a finished dock or
+bridge piece is covered by the same rule (ruled). Composes with `fix.nomad_arrival` (§22): that row keeps
+cut-off nomads from becoming citizens; this one rescues any citizen stranded by another route (or by a
+nomad arrival with §22 off). Code `src/ext/stranded_wade/`, test `tests/unit/ext_stranded_wade_test.cpp`,
+one `[StrandedWade]` stderr line per rescue for the first 16. Off under `/profile:faithful`.
 
 ## 20. The Firefighter achievement asks for 20 wells and is awarded at 40
 

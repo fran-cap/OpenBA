@@ -377,6 +377,25 @@ def draw_cancel_refund(px):
     ])
 
 
+
+def draw_wade(px):
+    # a figure in the water (wave lines) walking back to a house on the bank
+    _paint(px, [
+        "............",
+        "........#...",
+        ".......###..",
+        "..#...#####.",
+        ".###..#+.+#.",
+        "..#...#+.+#.",
+        ".###..#####.",
+        "..#.........",
+        "+#+#+.......",
+        "............",
+        "++.++.++.++.",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -398,4 +417,5 @@ ICONS = {
     "save_failure_notice": ("fix", draw_save_failed),   # a floppy disk with a "!" on its label
     "boat_reach_notice": ("fix", draw_boat_ridge),   # a boat kept from its dock by a ridge
     "cancel_refund": ("fix", draw_cancel_refund),    # a site outline, piles laid outside it
+    "stranded_wade": ("fix", draw_wade),             # a figure in the water, a house on the bank
 }

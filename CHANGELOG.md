@@ -21,6 +21,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.stranded_wade` (on): a citizen stuck on land cut off from the town (he crossed a stream where it
+  touches a mountain or shore, or a builder was left on a finished dock or bridge piece) no longer stands
+  there "going somewhere to get warm" until he starves. Once his last two walks were refused because the
+  place is cut off, he wades or climbs back home (or to the town hall), as retail already lets other walks
+  do (`docs/retail_bugs.md` section 19). Off under `/profile:faithful`.
 - `fix.mods_persist` (on): a change in the Mods window is saved to `settings.cfg` as soon as it is
   confirmed, so a crash no longer brings back the old mod list. Mods are changed from the main menu only:
   the pause menu's Mods button is greyed out, since retail dropped an in-game change at the next menu

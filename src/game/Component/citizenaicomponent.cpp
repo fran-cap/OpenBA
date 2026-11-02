@@ -25,6 +25,8 @@
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): ext.restricted_foods
 // (class C), Ext::RestrictedFoods::g_on, Ext::RestrictedFoods::IsBlocked
 #include "ext/restricted_foods/restricted_foods.h"
+#include "ext/registry.h"                        // EXT SEAM (NOT RETAIL): Ext::Fix().stranded_wade
+#include "ext/stranded_wade/stranded_wade.h"     // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19)
 #include "Component/CitizenComponent.h"   // ENDGAME B.3.8 CIT (TypeId)
 #include "Component/CitizenDescription.h" // B.4 W1 COMP-b: description fields by name
 #include "Component/CharacterComponent.h"
@@ -339,6 +341,10 @@ int ResidenceComponent::GetFoodCount() const {
 // candidate list and enters the first state whose handler started an action.
 void CitizenAIComponent::TransitionState(char param) {
     EnsureCallees();
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade. A citizen whose last two
+    // walks were refused on a land-to-land zone mismatch wades home (or to the town hall) instead of
+    // asking for the same refused walk again (src/ext/stranded_wade/).
+    if (Ext::Fix().stranded_wade && Ext::StrandedWade::Rescue(this)) return;
     int queued = queuedState;
     char ok = 0;
     if (queued >= 0) {

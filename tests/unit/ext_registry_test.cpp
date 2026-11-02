@@ -50,7 +50,8 @@ UNIT_TEST(ext_registry_table_shape) {
                            "foundation_piles", "path_query_first", "crop_planting_exit",
                            "firefighter_wells", "unresolved_seeds",
                            "commute_cost", "nomad_arrival", "mods_persist",
-                           "save_failure_notice", "boat_reach_notice", "cancel_refund"}) {
+                           "save_failure_notice", "boat_reach_notice", "cancel_refund",
+                           "stranded_wade"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);
