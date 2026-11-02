@@ -305,6 +305,24 @@ def draw_save_failed(px):
     ])
 
 
+def draw_boat_ridge(px):
+    # a boat on water, a ridge between it and the dock post (a dock the boats cannot reach)
+    _paint(px, [
+        "............",
+        "...#........",
+        "...##.......",
+        "...###....#.",
+        "...#......#.",
+        "+++++++...#.",
+        ".+++++..+.#.",
+        "........+.#.",
+        "#######+++##",
+        "............",
+        "#.#.#.#.#.#.",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -322,4 +340,5 @@ ICONS = {
     "unresolved_seeds": ("fix", draw_seed_rows),     # two sprouts on furrows, a gap between them
     "commute_cost": ("fix", draw_commute),           # house and workplace joined by a measured path
     "save_failure_notice": ("fix", draw_save_failed),   # a floppy disk with a "!" on its label
+    "boat_reach_notice": ("fix", draw_boat_ridge),   # a boat kept from its dock by a ridge
 }

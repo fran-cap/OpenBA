@@ -40,6 +40,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   folder, where the game used to fail without a word. The save is written to a temporary file and moved
   over the old one only when complete, so a failed save no longer leaves the previous save of that name
   broken (`docs/retail_bugs.md` section 29). Off under `/profile:faithful`.
+- `fix.boat_reach_notice` (on): when a merchant's boat finds no water route to a trading post's dock (a
+  pond, a lake, shallows between the dock and the river), the event log says so, at the post. The game
+  used to send the boat past without a word, for ever, so the post never traded and nothing said why
+  (`docs/retail_bugs.md` section 30). Where boats sail is unchanged. Off under `/profile:faithful`.
 - Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
   billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the
   tree's growth scale, and retail eases that scale a little every frame (also while paused with Space, and

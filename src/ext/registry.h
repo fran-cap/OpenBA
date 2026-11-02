@@ -75,6 +75,7 @@ struct Fixes {
     bool firefighter_wells = true;   // docs/retail_bugs.md §20, src/ext/firefighter_wells/: the Firefighter achievement unlocks at the 20 wells its description gives (the data says 40)
     bool unresolved_seeds  = true;   // docs/retail_bugs.md §21, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
     bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
+    bool boat_reach_notice = true;   // docs/retail_bugs.md §30, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
     bool save_failure_notice = true; // docs/retail_bugs.md §29, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
 };
 

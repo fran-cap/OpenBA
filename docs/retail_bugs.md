@@ -900,3 +900,37 @@ nested modal loop. The first failure after a success opens it; further failures 
 autosave) do not, until a save succeeds. Every save path takes it: a manual save, the autosave, and
 `ext.background_save` / `ext.async_save_compress`, which change how the blocks are built but end in the
 same enqueue and save job. Test `tests/unit/ext_save_failure_notice_test.cpp`.
+
+## 30. A trading post whose dock boats cannot reach never trades, and nothing says why
+
+**Symptom.** A trading post is built, staffed and stocked, and no merchant ever arrives. Players
+report it for posts on ponds or lakes, behind shallows, or on a river bend; moving the post a few
+tiles sometimes cures it. The game gives no hint that the dock is the problem.
+
+**Retail mechanism.** The post's idle state (`TradeComponent` state 2 per-frame, `0x14005aa60`) counts
+the merchant timer down, clones the trader boat and calls `BoatComponent::SetDestination`
+(`0x1400456e0`) with the post. That builds the route from the map's river polyline and two water A*
+legs (`0x14009ffc0`, mode `0x380`: terrain classes 7 to 9): river entry to the dock's "boat" point,
+and the dock to the river exit. When either leg comes back empty, the test at `0x140045e2e` /
+`0x140045e38` (`TEST EBX,EBX / JLE`, `TEST EAX,EAX / JLE` to `0x140046104`) skips both and the route
+is the bare polyline. The boat then docks only if the polyline happens to pass close to the dock;
+otherwise it sails the river, is deleted at the route's end (state 0, `0x140045250`), and the post
+re-arms its timer, for ever. Placement (`0x14009f5d0`) never tests that the dock's water joins the
+river; shallow cells below class 7 cut the water graph while still looking like water.
+
+**Proof it is retail.** The disassembly of `0x1400456e0`: the two `CALL 0x14009ffc0` at `0x140045d77`
+and `0x140045e23`, the length of each kept in `RBX` / `[RBP+0x8060]`, then the two `JLE` to the
+departure-lane code with nothing between them that records or reports the failure. The port
+transcribes it (`src/game/Component/boatcomponent_route.cpp`). A working dock's legs are not empty:
+the `fix.path_query_first` measurements (`docs/extensions/handins/PATHQUERYFIRST.md` §3) logged
+route lengths of 746 / 207 and 767 / 184 for the stress town's posts.
+
+**Lever.** Say so where the player looks for news: an event-log line (and the event ribbon) at the
+post, when a merchant's boat finds no water route to its dock. Whether boats come and where they sail
+stay retail's; refusing such a placement would be a behaviour change and needs a ruling.
+
+Fix: `fix.boat_reach_notice` (tier 1), default on, off under `/profile:faithful`. The failed-leg arm
+of `BoatComponent::SetDestination` calls `src/ext/boat_reach_notice/`, which appends one ordinary
+event-log entry (the trader's event type 0xd and icon, warning colour, the post's tile; the game's
+message table has no text for it, so the text is ours). A save keeps it like any other entry, as text
+and five ints, and retail reads such a save unchanged. No unit test: the row has no pure logic.

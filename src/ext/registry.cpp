@@ -189,6 +189,15 @@ const Entry kEntries[] = {
       "A save that cannot be written (a read-only or protected save folder, an antivirus block, a full "
       "disk) shows a message instead of failing silently, and the previous save of that name is kept.",
       0, [](State& s) -> bool& { return s.fix.save_failure_notice; } },
+    // BOATREACHNOTICE (docs/retail_bugs.md section 30): when a merchant boat's two water legs to a trading
+    // post's dock come back empty (BoatComponent::SetDestination 0x1400456e0 drops them without a word),
+    // the event log says so, at the post's tile. Where the boat sails is unchanged. The line is an ordinary
+    // event-log entry (text, a save keeps it like any other).
+    { "boat_reach_notice", Tier::Fix, Class::None, true,
+      "Tell when boats cannot reach a dock",
+      "When a merchant's boat finds no water route to a trading post's dock, the event log says so, so a "
+      "post that never trades is no longer a mystery.",
+      0, [](State& s) -> bool& { return s.fix.boat_reach_notice; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
