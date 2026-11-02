@@ -901,3 +901,65 @@ Fix: `fix.unresolved_seeds` (tier 1), default on, off under `/profile:faithful`.
 (`src/game/Game/citizenlist_serialize.cpp`). Code `src/ext/unresolved_seeds/`, test
 `tests/unit/ext_unresolved_seeds_test.cpp`. Each seam prints one `[UnresolvedSeeds]` line to stderr when
 it drops something.
+
+## 27. A cancelled building site loses most of its delivered materials
+
+**Symptom.** A building site that is cancelled, or removed with the Remove tool, after its materials were
+delivered gives back only a few piles. They lie on the site's ground, and the rest is gone ("all
+disappeared into the ether", Steam). A large footprint, such as a town hall, refunds the least.
+
+**Retail mechanism.**
+- `DestroyComponent` state 4's enter (`0x14011cfd0`) skips the `ClearStorage` haul-away for a site that is
+  not finished.
+- State 5 (enter `0x14011cc70`, or its tick `0x14011c120` once any labour was spent) calls
+  `ScatterContents` (`0x14011c530`). For an unfinished site it lists the storage stacks,
+  `(count - reserve) / (laborProgress > 0 ? 2 : 1)`.
+- It then walks the footprint with one cursor. A pile goes only on a cell with no blocker (`cell+0x00`),
+  terrain type 2 and terrain height in [0, 0.2). Each cell takes one pile of at most `100 / weight`
+  (`0x14011ca59`).
+- The site's zone stamp (`Map::StampFootprint` `0x14009d360`) is still on the cells: it is removed only when
+  the entity drains after `Destroy_MarkAndPushRemoval`. It stores the site as the blocker on every non-'.'
+  cell, so only the footprint's '.' cells qualify.
+- When the cursor leaves the footprint (`row == depth`), the material still listed is dropped with no
+  message.
+
+**Proof it is retail.** The decompile of `0x14011c530`:
+- the blocker / type / height test on `*(cells + idx*0x30)`, `+0x29` and `DAT_1401720fc`;
+- the `while ((iVar30 != param_5) && (0 < iVar24))` loop exit;
+- the list freed with nothing done for the rest.
+
+The port transcribes it (`destroycomponent_states.cpp`). Measured on the port with retail's logic
+(`fix.cancel_refund` off), on the `clearoverlap` town hall (10x9, 90 cells) cancelled with 118 units in
+storage and no labour:
+- 10 of the 90 footprint cells qualified (no blocker); all 90 passed the type and height tests.
+- The first material's 62 units took 7 cells (9 a pile).
+- The second material's 56 units got the last 3 cells (18 units). The other 38, a third of the delivery,
+  were dropped.
+
+The run used a temporary hook in `src/diag/clear_overlap_harness.cpp` (not committed) that called
+`DestroyComponent::RunStateMachine` once the hall held 1500 weight units. That is the Remove tool's path
+for a site. Retail itself was not launched.
+
+**The halving is retail's design, not part of this fix.** A site with any labour (`laborProgress > 0`)
+first goes through a demolition work (state 5's `BuildStructure`), and its stock is then halved. A finished
+building refunds half its recipe the same way (a quarter after a fire). So the halving is read as the
+price of a started building. It is left as retail has it.
+
+**Lever.** Place what the footprint walk could not, around the site, through the search a citizen's dropped
+load uses (`Map::FindPlacementCell` `0x14009bd40`, as `DropOffRawMaterial::DropOnGround` `0x1400c78c0`
+calls it). Piles keep retail's size.
+
+Fix: `fix.cancel_refund` (tier 1), default on, off under `/profile:faithful`.
+- What the row does: after each material's footprint walk, the units left go out as piles of
+  `100 / weight`. Each pile's cell is the first one `FindPlacementCell` returns from the ring of cells just
+  outside the footprint. The site's own cells never qualify: the blocker is on the non-'.' cells and the
+  footprint count on the '.' cells.
+- What stays as retail: what no cell within that search's six rings can take is still dropped. The new
+  piles are ordinary piles: they post their own Pickup work and go to storage, and nothing new is saved.
+- The fix-on run of the same scene: `[CancelRefund] site 183,224 10x9: 38 of 38 units laid in 7 piles
+  outside the footprint`.
+- Code: the seam is `DestroyComponent::ScatterContents`, the code is `src/ext/cancel_refund/`, and the test
+  is `tests/unit/ext_cancel_refund_test.cpp`. The row prints one `[CancelRefund]` line per scatter that
+  needs it, for the first 16 only.
+- Not touched: `fix.foundation_piles` (§17) moves piles off a site that is waiting to be built; this row
+  acts once, when a site is removed.

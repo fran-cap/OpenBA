@@ -63,6 +63,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
   Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
   `docs/known_port_issues.md` row 1344).
+- `fix.cancel_refund` (on): a building site cancelled after its materials arrived now leaves all of them in
+  piles on and around its ground. Retail lays piles only on the few free cells of the site's own ground and
+  drops the rest, a third of a town hall's delivery in one test (`docs/retail_bugs.md` section 27). A site
+  that builders had already started still gives back half, as in retail. Off under `/profile:faithful`.
 - `fix.commute_cost` (on): the job allocator no longer treats the walk from a newly built home to a
   workplace (or from a home to a newly built workplace) as no walk at all the first time it asks for it, so
   such a citizen is no longer sent to a far workplace for that reason. Retail answers 0 for a commute it has

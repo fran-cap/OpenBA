@@ -181,6 +181,17 @@ const Entry kEntries[] = {
       "workplace had not been measured yet and was counted as no walk at all.",
       0, [](State& s) -> bool& { return s.fix.commute_cost; } },
 
+    // CANCELREFUND (docs/retail_bugs.md section 27): the materials DestroyComponent::ScatterContents
+    // (0x14011c530) cannot lay on a cancelled site's (or a demolished building's) own footprint are laid in
+    // piles on the free cells around it, found by the search a citizen's dropped load uses (0x14009bd40),
+    // instead of being discarded. Sim-visible: more piles, more material. Nothing new is saved: the piles
+    // are ordinary piles.
+    { "cancel_refund", Tier::Fix, Class::None, true,
+      "Cancelled buildings return their materials",
+      "Materials delivered to a building site that is cancelled are left in piles around it instead of "
+      "most of them vanishing when they do not fit on the site's own ground.",
+      0, [](State& s) -> bool& { return s.fix.cancel_refund; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).
