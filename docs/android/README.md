@@ -76,9 +76,9 @@ place the player can reach (issue #96):
 3. The app copies the packages into its data folder with a bar and the megabytes copied, then starts the
    game: the main menu follows without a restart.
 
-What is copied: the `*.pkg` files of the shallowest folder holding `data0.pkg`, and nothing from its
-subfolders (parked mods such as `_mods_off` stay out; top-level mod packages beside `data0.pkg` are
-copied, as by a USB copy). The copy goes to a staging folder first and is moved into `WinData` only when
+What is copied: the `*.pkg` and `*.pkm` files of the shallowest folder holding `data0.pkg`, and nothing from its
+subfolders (parked mods such as `_mods_off` stay out; mods beside `data0.pkg` are copied and show up on the
+Mods page, as by a USB copy). The copy goes to a staging folder first and is moved into `WinData` only when
 every file arrived, so **Cancel** (or the back key) during the copy, a failed read or a folder without
 `data0.pkg` leaves `WinData` as it was. A wrong pick says what was expected ("No data0.pkg in that
 folder. Choose Banished's WinData folder: ..."). Backing out of the picker changes nothing. The copy
@@ -141,7 +141,7 @@ tools/android.sh stop
 
 | On the phone | What |
 |---|---|
-| `files/WinData/*.pkg` | The retail packages, copied by the first-run screen from the player's folder or `.zip`, or pushed by `push-data`. Only the top-level `*.pkg` are taken; parked mods and other subfolders stay home. |
+| `files/WinData/*.pkg`, `*.pkm` | The retail packages and the player's mods, copied by the first-run screen from the player's folder or `.zip`, or pushed by `push-data`. Only the top-level files are taken; parked mods and other subfolders stay home. |
 | `files/WinData.incoming/`, `files/Documents/Banished/Save.incoming/` | The staging folders of a copy or a saves import while it runs; removed when it ends. |
 | `files/FrancophilSans.ttf`, `FrancophilSans-Bold.ttf`, `FrancophilSans_README.txt` | The typeface `ext.sharp_ui` rasterises its fonts from at a UI scale other than 100 % (below). Carried by the apk as assets and copied here by the app at start when absent or empty (P9; an empty file is a copy cut short); any other file already there is left alone. |
 | `files/OpenBA` | Does not exist: it is the "exe path" the engine is told (`file_android.cpp`), so the game directory is `files/`. |

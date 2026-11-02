@@ -18,6 +18,7 @@ import java.util.Locale;
 final class GameFiles {
     static final String BASE_PACKAGE = "data0.pkg";
     static final String PACKAGE_SUFFIX = ".pkg";
+    static final String MOD_SUFFIX = ".pkm";   // a mod package beside data0.pkg (issue #96: the reporter's mods)
 
     private GameFiles() {
     }
@@ -46,8 +47,13 @@ final class GameFiles {
         return new File(data, "Documents/Banished/Save");
     }
 
+    // A retail package (.pkg) or a mod (.pkm): both live in WinData, the game lists *.pkm there for its Mods page.
     static boolean isPackageName(String name) {
-        return name != null && name.toLowerCase(Locale.ROOT).endsWith(PACKAGE_SUFFIX);
+        if (name == null) {
+            return false;
+        }
+        final String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(PACKAGE_SUFFIX) || lower.endsWith(MOD_SUFFIX);
     }
 
     static boolean isBasePackageName(String name) {

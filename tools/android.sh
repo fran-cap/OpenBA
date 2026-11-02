@@ -318,8 +318,8 @@ push-data)
         done
         "$ADB" shell am force-stop "$PKG"
     fi
-    # The retail packages only: parked mods (_mods_off and every other subfolder) stay home.
-    for pkg in "$src"/*.pkg; do
+    # The folder's packages and mods: parked mods (_mods_off and every other subfolder) stay home.
+    for pkg in "$src"/*.pkg "$src"/*.pkm; do
         [ -f "$pkg" ] || continue
         if command -v cygpath >/dev/null 2>&1; then pkg="$(cygpath -m "$pkg")"; fi
         "$ADB" push "$pkg" "$DATA/WinData/"

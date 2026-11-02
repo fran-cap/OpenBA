@@ -11,8 +11,9 @@
 // picker) into this app's own data folder: the same thing `tools/android.sh push-data` does for a
 // developer and the USB copy the README describes. Nothing of the game is in the apk or the tree
 // (AGENTS.md section 1, docs/extensions/DESIGN.md section 3 rule 7); the app only reads what the
-// player hands it. Only the retail packages are taken: the *.pkg files of the one folder that holds
-// data0.pkg, never a subfolder (parked mods: _mods_off and the like), the rule push-data follows.
+// player hands it. The packages of the one folder that holds data0.pkg are taken: its *.pkg (retail) and
+// *.pkm (the player's mods, which the game lists from WinData), never a subfolder (parked mods: _mods_off
+// and the like), the rule push-data follows.
 //
 // Every copy is staged: the files are written into a folder beside WinData and moved into it only
 // when every one of them arrived, so a cancel, a failure or a wrong folder leaves WinData as it was.
@@ -424,7 +425,7 @@ final class GameFilesJob {
     }
 
     private void copyFromArchive() throws IOException {
-        // One pass over the stream (a picked document need not be seekable). Every *.pkg is staged by
+        // One pass over the stream (a picked document need not be seekable). Every *.pkg / *.pkm is staged by
         // the folder it is in; the shallowest folder holding data0.pkg wins at the end and the rest
         // are dropped. A folder deeper than one already known to hold data0.pkg is skipped.
         final long archiveSize = documentSize(mUri);
