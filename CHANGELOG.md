@@ -61,6 +61,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   from the building (`docs/retail_bugs.md` section 5; issue #96).
 - `ext.phone_menu` and the Enhanced tab keep their scroll bar when a mod replaces the Options page with one that
   has none (the North 7 mod hid the UI-scale slider and everything below it; issue #96).
+- `fix.debug_spawn_origin` (on): the debug panel's "spawn citizens" button (a debug-menu mod such as
+  MegaMod) no longer freezes the game in a town whose storage has no place to put new citizens (only
+  stockpiles). Retail kept looking for one for ever; the new citizens now appear on free land near the
+  middle of the map (`docs/retail_bugs.md` section 29). Off under `/profile:faithful`.
 - `fix.stranded_wade` (on): a citizen stuck on land cut off from the town (he crossed a stream where it
   touches a mountain or shore, or a builder was left on a finished dock or bridge piece) no longer stands
   there "going somewhere to get warm" until he starves. Once a walk of his toward home was refused because
