@@ -921,3 +921,43 @@ hall, and Allow made 15 citizens there (the route's PASS). Row on: each nomad re
 group; the empty group sent the hall back to waiting, and no group reached the answer (no crash, no hang).
 With the real walk and the row on, all 70 arrivals ended within 0.07 cells of their meeting point and the
 route PASSed (one group allowed, one denied).
+
+## 23. A Mods change is lost after a crash, and a change made in a game is undone at the next menu
+
+**Symptom.** Players report that "a crash resets the mod list", that a mod turned on or off in the Mods
+window is back to its old state at the next start, and that changing mods without a full restart crashes
+later (the community's "restart twice" ritual; 2026-11-01 sweep, leads 4 and 5).
+
+**Retail mechanism** (Runtime-x64.dll and Application-x64.exe):
+1. *The list reaches disk only at a clean shutdown.* `ModDialog::Apply` (`0x14006ea70`) calls
+   `Modification::SaveList` (`0x1800b05f0`), which writes `ModEnabled_<name>` / `ModIndex_<name>` into the
+   in-memory `Persistence` map only. `Persistence::WriteSettings` (`0x1800b88e0`) is called from
+   `Engine::Shutdown` (`0x1800db671`, `0x1800b7ed2`), the launcher's `PlatformConfigure`,
+   `SetAchievementMet` and the Options dialog's OK, not from the Mods dialog. The reload that follows a
+   Mods change is where a bad mod set crashes, so the change is lost exactly when it matters.
+2. *An in-game change is never kept.* `Engine::Loader::Load` (`0x1800dc050`) clears `_savingSettings`
+   when the next loop is a game loop, so the in-game `SaveList` only copies `_mods` to `_savedMods`
+   (`0x1800b0619`). The world reloads under the new set (Apply -> SaveRestore -> LoadFromSave ->
+   `Loader::Load`). At the next menu `Loader::Load` sets `_savingSettings` again and calls `RefreshList`,
+   which reads the list back from `Persistence`, i.e. the pre-change list, and remounts the old set: every
+   resource whose package changed is reloaded or force-unloaded a second time, and the player's change
+   silently disappears. A world restored after an in-game disable also loads missing descriptions as null
+   (section 21).
+
+**Proof it is retail.** The disassembly of the functions above (handin of 2026-11-01, contentload). The
+port transcribes them (`src/game/Dialog/moddialog.cpp`, `src/engine/io/modification.cpp`,
+`src/engine/engine/engine_lifecycle.cpp`); mechanism 2 was reproduced in the port with the pause-menu
+harness (`t<row>` / `q<id>` tokens): the quit to menu ran a second remount with the list read back from
+the settings.
+
+**Lever.** Write the settings when the Mods dialog is confirmed; refuse changes in a game, so the list is
+only changed from the main menu (ruled 2026-11-01).
+
+**Fix: `fix.mods_persist` (WIRED 2026-11-01).** Two seams read the row:
+- `ModDialog::Apply` (`src/game/Dialog/moddialog.cpp`): after `SaveList`, before the reload,
+  `Persistence::WriteSettings`. At the main menu `SaveList` has just put the list in the settings map, so
+  the file holds the new list before the reload starts.
+- `MainMenuDialog::OnOpened` (`src/game/Dialog/mainmenudialog.cpp`), the pause menu only: the Mods button
+  is disabled with retail's own `Enable(false)`, the call retail makes for a game with flag bit 10. It shows
+  greyed out like any disabled button; no new text, no new dialog.
+Not sim-visible; nothing new is saved. Off under `/profile:faithful` (retail's behaviour, both parts).

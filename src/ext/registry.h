@@ -76,6 +76,7 @@ struct Fixes {
     bool unresolved_seeds  = true;   // docs/retail_bugs.md §21, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
     bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
     bool nomad_arrival     = true;   // docs/retail_bugs.md §22, src/ext/nomad_arrival/: sim-visible, a nomad counts as arrived only near the town hall, else retries once and leaves
+    bool mods_persist      = true;   // docs/retail_bugs.md §23: the mod list is written to settings.cfg when Mods is confirmed, and Mods is greyed out in a game
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

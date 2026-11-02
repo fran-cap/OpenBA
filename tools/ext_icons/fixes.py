@@ -305,6 +305,24 @@ def draw_arrival(px):
     ])
 
 
+def draw_mods_lock(px):
+    # a package with a padlock on it (the mod list is saved at once and changed only from the main menu)
+    _paint(px, [
+        "............",
+        ".########...",
+        ".#......#...",
+        ".#.++++.#...",
+        ".#......#...",
+        ".#.++++.#...",
+        ".#......###.",
+        ".######.#.#.",
+        "......#####.",
+        "......##+##.",
+        "......#####.",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -322,4 +340,5 @@ ICONS = {
     "unresolved_seeds": ("fix", draw_seed_rows),     # two sprouts on furrows, a gap between them
     "commute_cost": ("fix", draw_commute),           # house and workplace joined by a measured path
     "nomad_arrival": ("fix", draw_arrival),          # walker, river line, hall, turn-back arrow
+    "mods_persist": ("fix", draw_mods_lock),         # a package with a padlock
 }

@@ -191,6 +191,17 @@ const Entry kEntries[] = {
       "arrived where they are stuck; they try once more, then leave, instead of becoming citizens who "
       "cannot reach the town.",
       0, [](State& s) -> bool& { return s.fix.nomad_arrival; } },
+    // MODSPERSIST (docs/retail_bugs.md section 23): retail writes the mod list to settings.cfg only at a
+    // clean shutdown, so a crash after a Mods change (often the reload itself) loses it; and a change made
+    // in a game is used for that game, then dropped at the next menu after every changed resource was
+    // reloaded twice. With the row on, confirming Mods writes the settings at once, and the pause menu's
+    // Mods button is greyed out (retail's own Enable(false), as for a game with flag bit 10). Not
+    // sim-visible. Nothing new is saved.
+    { "mods_persist", Tier::Fix, Class::None, true,
+      "Mod changes saved, from the main menu",
+      "A change in the Mods window is saved as soon as you confirm it, so a crash no longer brings back "
+      "the old list; mods are changed from the main menu only (the in-game Mods button is greyed out).",
+      0, [](State& s) -> bool& { return s.fix.mods_persist; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

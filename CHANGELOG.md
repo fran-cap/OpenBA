@@ -21,6 +21,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.mods_persist` (on): a change in the Mods window is saved to `settings.cfg` as soon as it is
+  confirmed, so a crash no longer brings back the old mod list. Mods are changed from the main menu only:
+  the pause menu's Mods button is greyed out, since retail dropped an in-game change at the next menu
+  anyway (`docs/retail_bugs.md` section 23). Off under `/profile:faithful`.
 - `fix.nomad_arrival` (on): nomads who cannot walk to the town hall (cut off by a river, for example) no
   longer count as arrived where they are stuck. Retail let such a group be allowed in, and the new citizens
   appeared where they stood and starved there. With the fix a nomad must reach the hall; it tries once more,
