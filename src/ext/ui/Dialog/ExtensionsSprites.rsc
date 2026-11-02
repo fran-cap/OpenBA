@@ -48,6 +48,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_cancel_refund";	String _source = "Sprite/Extensions/Entry_cancel_refund.png"; }
 		{ String _name = "ExtensionsEntry_autotrade_free_goods";	String _source = "Sprite/Extensions/Entry_autotrade_free_goods.png"; }
 		{ String _name = "ExtensionsEntry_input_fetch_room";	String _source = "Sprite/Extensions/Entry_input_fetch_room.png"; }
+		{ String _name = "ExtensionsEntry_stranded_wade";	String _source = "Sprite/Extensions/Entry_stranded_wade.png"; }
 		{ String _name = "ExtensionsEntry_eye_camera";	String _source = "Sprite/Extensions/Entry_eye_camera.png"; }
 		{ String _name = "ExtensionsEntry_sharp_ui";	String _source = "Sprite/Extensions/Entry_sharp_ui.png"; }
 		{ String _name = "ExtensionsEntry_fast_paths";	String _source = "Sprite/Extensions/Entry_fast_paths.png"; }

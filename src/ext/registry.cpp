@@ -231,6 +231,20 @@ const Entry kEntries[] = {
       "Materials delivered to a building site that is cancelled are left in piles around it instead of "
       "most of them vanishing when they do not fit on the site's own ground.",
       0, [](State& s) -> bool& { return s.fix.cancel_refund; } },
+    // STRANDEDWADE (docs/retail_bugs.md section 19): Map::RequestPath (0x14009cfb0) refuses every walk
+    // between two land zones, while a walk with a water or mountain endpoint may cross into any zone; a
+    // citizen left on cut-off land asks for the same refused walk until he starves or freezes. With the
+    // row on, a citizen on land outside his anchor's zone (home; the home he just lost; the nearest town
+    // hall; the nearest storage) whose walk toward it was refused on the zone mismatch makes one walk
+    // with retail's wade / climb bypass (pass flags 0xe1f | 0x1e0) there. Sim-visible only for such a
+    // citizen.
+    // Nothing is saved (a load starts every citizen unstranded).
+    { "stranded_wade", Tier::Fix, Class::None, true,
+      "Stranded citizens wade home",
+      "A citizen stuck on land cut off from the town (across a stream, on a finished dock or bridge "
+      "piece) wades or climbs back home (or to the town hall or a storage building), instead of standing there until he "
+      "starves or freezes.",
+      0, [](State& s) -> bool& { return s.fix.stranded_wade; } },
 
     // AUTOTRADEFREEGOODS (docs/retail_bugs.md section 24): TradeComponent::AutoTrade (0x140059ad0) pays for an
     // auto-purchase by selling the post's goods unit by unit until the price is covered; a good the docked

@@ -77,7 +77,8 @@ public:
                                   //       it); serialized
     int32_t  characterIndex;      // +0x40 int, ctor -1; the index the character manager
                                   //       (GameUpdateLoop+0x88, 0x1400183f0) returns on load
-    uint8_t  _pad44[4];           // +0x44
+    uint8_t  _pad44[4];           // +0x44 never read by retail; fix.stranded_wade keeps its flags in [0]
+                                  //       and a zone in [2..3] (NOT RETAIL, src/ext/stranded_wade/; never saved)
     // +0x48..+0x67: one retail sub-object (the ctor takes its address for unwinding and
     // the dtor releases it through 0x1400c5150): the action stack (Action/Action.h).
     //   +0x00 actions  Collection::Array<InternalPtr<Action>> data (cell 0x1401c5da8; the

@@ -769,8 +769,8 @@ water ("under water"), and are stuck on it once it is built if it is not joined 
 land fill back to the spot frees them; so, sometimes, does changing their profession. "Citizens can
 walk on water precisely once" (a player, 2020).
 
-**Status: the mechanism is read in Ghidra and matches the port function by function; not reproduced
-in a run, no fix (the lever needs a ruling, below).**
+**Status: the mechanism is read in Ghidra and matches the port function by function. Fixed by
+`fix.stranded_wade` (the ruled rescue, below).**
 
 **Retail mechanism.** Reachability is a zone test. `Map::FillZone` (`0x14009c170`) floods a zone id
 (MapCell `+0x26`) over connected cells whose terrain type is in the land set `0xe1f` (types 0-4, 9,
@@ -841,6 +841,59 @@ answered in the same order as before, so it neither causes nor cures this.
   needs a rule for the homeless.
 - *Prevention* (end a bypass walk only in the zone it started from) would break building a bridge from
   one bank and does not cover route 1, so it is not recommended on its own.
+
+**Fix: `fix.stranded_wade` (WIRED 2026-11-01; trigger and anchor ruled by the user).** A citizen is
+stranded when both hold: (1) he stands on zoned land (not types 5-8) whose zone differs from his *anchor*
+zone; (2) since he entered his current zone, at least one of his walks to a target in the anchor zone was
+refused on the land-to-land zone mismatch (`RequestPath` {-1, 0}, `MoveTo::Execute` answers 2). It clears
+when he stands in the anchor zone again; a walk that succeeds inside his zone does not reset it, nor does a
+refusal toward another zone. A citizen whose home is in his own zone is never rescued: one living across
+water by the player's choice, and the town citizen whose walks to a work target across the river are
+refused (measured: 45 refusals in 200 s).
+
+*The anchor* is the first of these that exists: (1) his home; (2) the home he just lost; (3) the nearest
+town hall; (4) the nearest storage building. (2) matters because retail's `CitizenComponent::Update`
+drops a home the citizen cannot reach as soon as he is idle (`SetHome(nullptr, -1)`, measured on the
+stranded citizen right after his first refused walk), so a stranded citizen is homeless almost at once,
+and the start town has no town hall. The lost home is remembered by an observing seam at the head of
+`CitizenComponent::SetHome` (`0x1401163d0`; retail's body runs unchanged): losing a home stores the cell of
+its interaction node (a house's footprint cells are type 5 with no zone; the node in front of the door is
+land), a new home forgets it, and it is forgotten when he stands on land of its zone again. The rescue
+destination is the anchor's: the home's node; the lost home's node if a residence still stands there,
+else the nearest storage building in that zone, else any building in it, else the remembered cell; the
+hall's node; the storage's node. Storage buildings are the town's storage lists that
+`CitizenBehavior::PickBestDropTarget` (`0x14008d590`) walks for a citizen's load (+0x00 and +0x10), taken
+by distance only (no material, capacity or reachability test: the goal is across water). If the wading
+walk to the anchor fails, the next rescue goes to the nearest town hall, else storage, when that lies in
+another zone; if that fails too, the record is dropped and the next refusal tries the anchor again.
+
+Three seams in `src/game/Action/moveto.cpp` report the walks: `AbstractImpl` (`0x1400c8ab0`, the refused
+ticket, classified from the two endpoint cells and recorded with the zone he stands in), `Execute`
+(`TakePath` gave an empty path) and `Exit` (`0x1400c8520`, an arrival on the destination cell; a record
+made in another zone than the one he arrives in is dropped). State, never saved (a load starts every
+citizen unstranded), all in retail padding no code reads: `CharacterComponent` `+0x44` (flags in byte 0,
+the zone of the recorded refusal in bytes 2..3) and `CitizenComponent` `+0x244` (the lost home's node
+cell + 1). The rescue runs where the AI picks its next state, at the head of
+`CitizenAIComponent::TransitionState` (`0x14010db90`), for any state: one walk with the pass flags
+`0xe1f | 0x1e0` (retail's own wade / climb bypass in `RequestPath`), carrying the AI's usual "decide
+again" lead message; while it is out no state pick replaces it (`Decide`'s cold / hunger / housing
+transitions call `TransitionState(1)` while an action runs, and every state's builder clears the stack
+first; without this the rescue was cleared on the next update). A builder left on a finished dock or
+bridge piece is covered by the same rule. Composes with `fix.nomad_arrival` (§22): that row keeps cut-off
+nomads from becoming citizens; this one rescues a citizen stranded by any other route (or by a nomad
+arrival with §22 off). Code `src/ext/stranded_wade/`, test `tests/unit/ext_stranded_wade_test.cpp`, one
+`[StrandedWade]` stderr line per rescue for the first 16. Off under `/profile:faithful`.
+
+*Runs (2026-11-01, functional dir, seed 12345, speed 10, debug exe, a throwaway probe not committed):* one
+housed citizen teleported to grass in the zone across a river and kept cold; nothing else set by hand.
+- Ordinary start town, faithful: he never left that zone in 240 s and ended standing in the warmth state.
+- Ordinary start town (no town hall), row on: his walk home was refused and recorded, retail dropped his
+  home, the lost home became the anchor; the next state pick sent him wading 28 cells over shore and deep
+  water (types 7, 8) to his old house's node (it still stood), where the record cleared (2025 AI updates).
+  One rescue in the town, no other citizen rescued, no crash. (Before the lost-home anchor he was not
+  rescued at all: homeless, no hall, no anchor.)
+- Stress town (60 citizens, a town hall), row on: the same, to his lost home 44 cells across the river
+  (866 AI updates). One rescue, no crash.
 
 ## 20. The Firefighter achievement asks for 20 wells and is awarded at 40
 
