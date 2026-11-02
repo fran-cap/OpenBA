@@ -173,34 +173,38 @@ StringTable touchPadItems
 	]
 }
 
-// Corner camera buttons (issue #96, the reporter's follow-up): ext.touch_mode_camera_buttons 0 (none) / 50 / 75 /
-// 100 / 125 percent of the pad's button at pad 100 %.
+// Corner camera buttons (issue #96, the reporter's follow-ups): ext.touch_mode_camera_buttons 0 (none) / 15 / 20 /
+// 25 / 35 / 50 / 75 / 100 / 125 percent of the pad's button at pad 100 %.
 StringTable touchCameraButtonItems
 {
 	Entry _strings
 	[
 		{ String _name = "Item0";		String _text = "Off";		}
-		{ String _name = "Item1";		String _text = "25%";		}
-		{ String _name = "Item2";		String _text = "35%";		}
-		{ String _name = "Item3";		String _text = "50%";		}
-		{ String _name = "Item4";		String _text = "75%";		}
-		{ String _name = "Item5";		String _text = "100%";		}
-		{ String _name = "Item6";		String _text = "125%";		}
+		{ String _name = "Item1";		String _text = "15%";		}
+		{ String _name = "Item2";		String _text = "20%";		}
+		{ String _name = "Item3";		String _text = "25%";		}
+		{ String _name = "Item4";		String _text = "35%";		}
+		{ String _name = "Item5";		String _text = "50%";		}
+		{ String _name = "Item6";		String _text = "75%";		}
+		{ String _name = "Item7";		String _text = "100%";		}
+		{ String _name = "Item8";		String _text = "125%";		}
 	]
 }
 
-// Placement bar (issue #96): ext.touch_mode_action_bar_scale 25 / 35 / 50 / 60 / 75 / 100 / 125 percent; 100 = as before.
+// Placement bar (issue #96): ext.touch_mode_action_bar_scale 25 / 30 / 35 / 50 / 60 / 75 / 100 / 125 percent; 100 = as
+// before.
 StringTable touchActionBarItems
 {
 	Entry _strings
 	[
 		{ String _name = "Item0";		String _text = "25%";		}
-		{ String _name = "Item1";		String _text = "35%";		}
-		{ String _name = "Item2";		String _text = "50%";		}
-		{ String _name = "Item3";		String _text = "60%";		}
-		{ String _name = "Item4";		String _text = "75%";		}
-		{ String _name = "Item5";		String _text = "100%";		}
-		{ String _name = "Item6";		String _text = "125%";		}
+		{ String _name = "Item1";		String _text = "30%";		}
+		{ String _name = "Item2";		String _text = "35%";		}
+		{ String _name = "Item3";		String _text = "50%";		}
+		{ String _name = "Item4";		String _text = "60%";		}
+		{ String _name = "Item5";		String _text = "75%";		}
+		{ String _name = "Item6";		String _text = "100%";		}
+		{ String _name = "Item7";		String _text = "125%";		}
 	]
 }
 

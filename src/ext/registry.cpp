@@ -558,8 +558,8 @@ constexpr int32_t kMaxShadowSizes[] = { 4096, 8192 };
 constexpr int32_t kFpsCapRates[] = { 30, 60, 90, 120 };
 constexpr int32_t kTouchToolbarScales[] = { 100, 125, 150, 175, 200 };
 constexpr int32_t kTouchPadScales[] = { 0, 50, 60, 75, 100, 125 };
-constexpr int32_t kTouchActionBarScales[] = { 25, 35, 50, 60, 75, 100, 125 };
-constexpr int32_t kTouchCameraButtonScales[] = { 0, 25, 35, 50, 75, 100, 125 };
+constexpr int32_t kTouchActionBarScales[] = { 25, 30, 35, 50, 60, 75, 100, 125 };
+constexpr int32_t kTouchCameraButtonScales[] = { 0, 15, 20, 25, 35, 50, 75, 100, 125 };
 constexpr int32_t kPhoneSafeMargins[] = { 0, 2000, 3375, 4500, 6000 };
 constexpr int32_t kTouchPointerLifts[] = { 0, 80, 120, 160, 200, 240 };
 constexpr int32_t kTouchPointerPickRadii[] = { 0, 25, 50, 75, 100 };
@@ -630,13 +630,13 @@ const ValueKey kValueKeys[] = {
     // Issue #96: ext.touch_pointer's placement bar in percent of the cluster's 100 % cell (the bar always took
     // the cluster's cell), independent of the pad's scale. 100 = as before. Any other number reads as 100.
     { "touch_mode_action_bar_scale", "touch_mode", 25, 125, 100,
-      [](State& s) -> int32_t& { return s.val.touch_mode_action_bar_scale; }, kTouchActionBarScales, 7 },
+      [](State& s) -> int32_t& { return s.val.touch_mode_action_bar_scale; }, kTouchActionBarScales, 8 },
     // Issue #96 (the reporter's follow-up): the corner camera buttons, rotate left / right and zoom in / out in a
     // column in the upper right (touch_math.h LayoutCornerButtons), in percent of the pad's own button at pad
     // 100 %; 0 = none (no dialog, nothing to hit). Independent of the pad's key. Off by default, so nothing changes
     // for anyone who does not pick it. Any other number reads as 0.
     { "touch_mode_camera_buttons", "touch_mode", 0, 125, 0,
-      [](State& s) -> int32_t& { return s.val.touch_mode_camera_buttons; }, kTouchCameraButtonScales, 7 },
+      [](State& s) -> int32_t& { return s.val.touch_mode_camera_buttons; }, kTouchCameraButtonScales, 9 },
     // P11d (docs/android/P11D_ZOOM.md): the camera's near zoom limit in distance units while the row touch_mode is
     // on (every zoom input: the buttons, the pinch, keys, the wheel); retail's is 20. A range key, settings.cfg only.
     { "touch_mode_zoom_min", "touch_mode", 6, 20, 10,

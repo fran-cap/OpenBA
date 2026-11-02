@@ -145,6 +145,8 @@ UNIT_TEST(ext_touch_mode_action_bar_scale_key) {
     CHECK(ResolveText("ext.touch_mode_action_bar_scale=50\n").val.touch_mode_action_bar_scale == 50);
     CHECK(Ext::ClampValue(*k, 0) == 100);     // the bar has no Off: it is how a finger places
     CHECK(Ext::ClampValue(*k, 125) == 125);
+    CHECK(Ext::ClampValue(*k, 30) == 30);     // the reporter's Lenovo step, between 25 and 35
+    CHECK(k->choiceCount == 8);
 }
 
 // Issue #96 (the reporter's follow-up): ext.touch_mode_camera_buttons, the corner block. At 100 % each button is the
@@ -189,9 +191,16 @@ UNIT_TEST(ext_touch_mode_camera_buttons) {
     // At 125 % on the tablet's layout screen the column fits the safe height.
     const Cluster big = LayoutCornerButtons(1696, 1200, 40, 40, PadScaleOfPercent(125));
     CHECK(big.box.x2 == 1696 - 40 && big.box.y2 <= 1200 - 40);
-    // 25 %: a fifth of the 125 % button, the smallest step.
+    // 25 %: a fifth of the 125 % button. 15 %, the smallest step (the reporter's second follow-up): still four
+    // equal buttons in order, with a gap between them.
     const Cluster quarter = LayoutCornerButtons(1696, 1200, 40, 40, PadScaleOfPercent(25));
     CHECK(std::abs(quarter.control[kZoomIn].Width() - big.control[kZoomIn].Width() / 5) <= 2);
+    const Cluster tiny = LayoutCornerButtons(1696, 1200, 40, 40, PadScaleOfPercent(15));
+    CHECK(tiny.cell > 0 && tiny.gap > 0 && tiny.box.x2 == 1696 - 40 && tiny.box.y1 == 40);
+    CHECK(tiny.control[kZoomIn].Width() < quarter.control[kZoomIn].Width());
+    CHECK(tiny.control[kZoomOut].Height() == tiny.control[kRotateLeft].Height());
+    CHECK(tiny.control[kRotateRight].y1 >= tiny.control[kRotateLeft].y2 && tiny.control[kZoomIn].y1 >= tiny.control[kRotateRight].y2);
+    CHECK(tiny.control[kZoomOut].y1 >= tiny.control[kZoomIn].y2 && tiny.control[kZoomOut].y2 <= tiny.box.y2);
     // Below whatever sits in the corner: `top` moves the block down, never above the margin.
     const Cluster lower = LayoutCornerButtons(2340, 1080, m, 200, PadScaleOfPercent(100));
     CHECK(lower.box.y1 == 200 && lower.box.x1 == c.box.x1);
@@ -223,10 +232,11 @@ UNIT_TEST(ext_touch_mode_camera_buttons) {
     if (k == nullptr) return;
     CHECK(std::string(k->owner) == "touch_mode");
     CHECK(k->defaultValue == 0);   // Off: nothing changes for anyone who does not pick it
-    CHECK(k->choiceCount == 7);
+    CHECK(k->choiceCount == 9);
     CHECK(Ext::Values().touch_mode_camera_buttons == 0);
     CHECK(ResolveText("ext.touch_mode_camera_buttons=100\n").val.touch_mode_camera_buttons == 100);
     CHECK(ResolveText("ext.touch_mode_camera_buttons=50\n").val.touch_mode_camera_buttons == 50);
+    CHECK(ResolveText("ext.touch_mode_camera_buttons=15\n").val.touch_mode_camera_buttons == 15);
     CHECK(Ext::ClampValue(*k, 60) == 0);    // not one of the combo's sizes: the default
     CHECK(Ext::ClampValue(*k, 125) == 125);
 }

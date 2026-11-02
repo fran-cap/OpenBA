@@ -41,7 +41,7 @@ session log: `docs/android/TOUCH_MODE.md`.
   `SetTouchModeAndRecord`).
 * **Separate sizes** (issue #96): `ext.touch_mode_pad_scale` (0 = the cluster hidden, 50 .. 125 %, default 100)
   scales the cluster alone (`LayoutCluster`'s `scale`; hidden, the toolbar's region spans the safe width and
-  `BarRect` still answers); `ext.touch_mode_action_bar_scale` (50 .. 125 %, default 100) sizes ext.touch_pointer's
+  `BarRect` still answers); `ext.touch_mode_action_bar_scale` (25 .. 125 %, default 100) sizes ext.touch_pointer's
   placement bar from the cluster's scale-1 cell (`BaseCell`). Both default to the sizes they had, so installs
   without the keys are unchanged (verified: the S25 profile's layout log lines match the integration branch's).
   Combos "Camera pad" and "Placement bar" in the Enhanced tab's "Touch screen" group (`OpenChoiceCombo` /
@@ -49,7 +49,8 @@ session log: `docs/android/TOUCH_MODE.md`.
   toolbar with every other dialog; at None they sit on the screen's edges (`Margin`'s -1 = the row off).
 
 * **Corner camera buttons** (issue #96, the reporter's follow-up; `docs/android/TOUCH_MODE.md` section 3a):
-  `ext.touch_mode_camera_buttons` (0 = none, the default, 25 / 35 / 50 / 75 / 100 / 125 %) opens a second dialog,
+  `ext.touch_mode_camera_buttons` (0 = none, the default, 15 / 20 / 25 / 35 / 50 / 75 / 100 / 125 %) opens a second
+  dialog,
   `Dialog/TouchControls.rsc:cameraButtons`, with the cluster's own rotate and zoom holders and buttons (only its root
   and content group are new), in one column in the upper right of the safe area (`touch_math.h
   LayoutCornerButtons`; 100 % = the pad's zoom button at pad 100 %; a column too tall for the safe height is laid

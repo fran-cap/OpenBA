@@ -130,7 +130,7 @@ region, which is a modded case: it then aligns to the region's left edge.
 
 **What it is.** A second, compact block of the cluster's rotate and zoom buttons in the upper right, so a player can
 choose the pad only, the corner buttons only, both, or neither (gestures only). `ext.touch_mode_camera_buttons`:
-Off (0, the default) / 25 / 35 / 50 / 75 / 100 / 125 %. A second dialog of the same resource,
+Off (0, the default) / 15 / 20 / 25 / 35 / 50 / 75 / 100 / 125 %. A second dialog of the same resource,
 `Dialog/TouchControls.rsc:cameraButtons`: its root (the cluster's frame) and content group are new; the four holders
 and buttons are the cluster's own descriptions (each dialog builds its own elements), so the art, the glyphs and the
 pressed state are the pad's.
@@ -140,17 +140,19 @@ in, zoom out, top to bottom. Each button is the pad's zoom button at the same sc
 c = scale x 0.11 of the short edge, so 100 % is the pad's button at pad 100 %. The gap and the frame scale the same
 way. The frame's right edge sits at W - m, its top at m (the safe margin).
 
-**The steps and the fit rule.** The scales below 50 % (25 and 35) are what the column is for on a high-resolution
-tablet: 25 % is a button of about 7 mm on the OnePlus Pad (92 px at 320 dpi); the sketch's buttons measure about
-30 %. The reporter asked for steps down to 10 %, which would be a 3 mm button; 25 % is the smallest step offered.
+**The steps and the fit rule.** The scales below 50 % are what the column is for on a high-resolution tablet. The
+button's size on the glass does not depend on the UI scale (c is a fraction of the short edge): 25 % is a button
+of 92 px on the OnePlus Pad, about 6.5 mm at its 358 dpi; the sketch's buttons measure about 30 %. The reporter
+found 25 % still large and asked for 20 and 15 (74 and 55 px there, 5.2 and 3.9 mm); 15 % is the smallest step
+offered (the first ask, 10 %, would be 2.6 mm). A touch target that small is the player's pick, not a default.
 At the large steps the column is tall: 100 % is 392 of the phone's 540 layout units and 125 % reaches the
 toolbar's sub-toolbars (y 509 of 522); that is the player's pick. A column that would reach below H - m (a
 `top` below the margin, a short screen) is laid out at the largest scale that fits that height instead.
 
-| Layout screen (UI 50) | 25 % | 35 % | 50 % | 100 % | 125 % |
-|---|---|---|---|---|---|
-| phone 1170 x 540, m = 18 | 21 x 21, y 18..116 | 29 x 30, y 18..159 | 42 x 43, y 18..218 | 83 x 84, y 18..410 | 104 x 106, y 18..509 |
-| tablet 1696 x 1200, m = 41 | 46 x 47, y 41..259 | 64 x 66, y 41..349 | 92 x 95, y 41..481 | 185 x 189, y 41..920 | 231 x 237, y 41..1142 |
+| Layout screen (UI 50) | 15 % | 20 % | 25 % | 35 % | 50 % | 100 % | 125 % |
+|---|---|---|---|---|---|---|---|
+| phone 1170 x 540, m = 18 | 13 x 13, y 18..77 | 17 x 17, y 18..98 | 21 x 21, y 18..116 | 29 x 30, y 18..159 | 42 x 43, y 18..218 | 83 x 84, y 18..410 | 104 x 106, y 18..509 |
+| tablet 1696 x 1200, m = 41 | 28 x 28, y 41..172 | 36 x 37, y 41..212 | 46 x 47, y 41..259 | 64 x 66, y 41..349 | 92 x 95, y 41..481 | 185 x 189, y 41..920 | 231 x 237, y 41..1142 |
 
 (Button width x height and the frame's rows, from `LayoutCornerButtons` at those sizes, 2026-11-02.)
 
@@ -249,14 +251,14 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   (`touch_math.h` `LayoutCluster`'s `scale`); 0 hides the cluster (no dialog, nothing to hit) and gives the toolbar's
   region the whole safe width. **Default rule:** 100 % is the cluster's own size before the key (it never followed
   the toolbar scale: the cluster was always 0.11 of the short edge), so an install without the key looks the same.
-- `ext.touch_mode_action_bar_scale` (issue #96): a discrete value key, owner `touch_mode`, 25 | 35 | 50 | 60 | 75 |
-  100 | 125,
+- `ext.touch_mode_action_bar_scale` (issue #96): a discrete value key, owner `touch_mode`, 25 | 30 | 35 | 50 | 60 |
+  75 | 100 | 125,
   default 100: ext.touch_pointer's placement bar (place / rotate / flip / cancel). Its cell is this percent of the
   cluster's scale-1 cell (`TouchMode::BaseCell()`), its gap and frame likewise, whatever the pad's scale. **Default
   rule:** the bar always took the cluster's cell, so 100 % is the bar as it was. The aim marker keeps the scale-1 cell.
   The key is owned by this row (the cell it scales is the cluster's) though the bar is ext.touch_pointer's.
 - `ext.touch_mode_camera_buttons` (issue #96, the reporter's follow-up): a discrete value key, owner `touch_mode`,
-  0 | 25 | 35 | 50 | 75 | 100 | 125, default 0: the corner camera buttons (section 3a), in percent of the pad's button
+  0 | 15 | 20 | 25 | 35 | 50 | 75 | 100 | 125, default 0: the corner camera buttons (section 3a), in percent of the pad's button
   at pad
   100 %. **Default rule:** Off, so nothing changes for anyone who does not pick it. The Enhanced tab's "Corner camera
   buttons" combo, under "Camera pad".

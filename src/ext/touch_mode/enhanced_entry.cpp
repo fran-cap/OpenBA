@@ -7,7 +7,7 @@
 // Issue #96: two more combos of the same row, each one value key, item i = the key's i-th choice
 // (registry.cpp kTouchPadScales / kTouchActionBarScales): "Camera pad" Off / 50 % .. 125 %
 // (ext.touch_mode_pad_scale) and "Placement bar" 25 % .. 125 % (ext.touch_mode_action_bar_scale). Neither
-// touches the row's bool; both are live. Issue #96 (the reporter's follow-up): "Corner camera buttons" Off / 25 % ..
+// touches the row's bool; both are live. Issue #96 (the reporter's follow-up): "Corner camera buttons" Off / 15 % ..
 // 125 % (ext.touch_mode_camera_buttons), the same kind of combo, under Camera pad.
 
 #include "ext/enhanced_tab/enhanced_tab.h"
