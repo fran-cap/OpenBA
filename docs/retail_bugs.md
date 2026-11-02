@@ -331,6 +331,46 @@ on the house's door cell. Candidates, both unconfirmed:
    load: the fix-up pass sets the count to 1 on a road cell, and `RemovePendingRoad`'s
    `+0x2A == 0xFF` arm never subtracts. Survives a reload.
 
+**Candidates 1 and 2 checked in Ghidra (2026-11-01): neither completes twice.** Neither was run.
+- *Candidate 1.* The second drag does place a second marker on the still-finished road
+  (`RemovePendingRoad` returns 1). In the same pass it marks the first marker for removal
+  (`RemovalTool::CalcPath` `0x1401035e0`: the cell's entity has the marker template `+0x38`).
+  `MarkForRemoval` (`0x1400c2ea0`) runs `WorkComponent`'s remove hook (`0x14012e6c0`), which cancels the
+  marker's ClearArea work. `WorkScheduler::TaskCleanup` (`0x1400f8e30`) then calls the work's slot 8,
+  `ClearArea::Cleanup` (`0x1400e6650`). That clears the action stack of every citizen in its cell set
+  (`+0x58`), which holds the citizen phase 2 dispatched `CompleteRoad` to. The first `CompleteRoad` is
+  dropped before it runs, and the second marker's own phase 2 dispatches a single one. The marker's phase 2
+  only offers road cells: `Map::GetTilesInArea` (`0x14009fc00`, empty-tile arm at `0x14009fdce`) emits an empty tile only
+  when it holds a road, is road terrain or is pending.
+- *Candidate 2.* `RemovePendingRoad` (`0x14009c700`) hands the pending road's work to `TaskCleanup` the
+  same way. `BuildRoad::Cleanup` (`0x1400e4910`) clears the stack of the citizen it dispatched (`+0x48`).
+- The saves checked hold no stuck count. These are the dumps of the four player saves and of `RetailA`
+  (4300 road cells). None has a cell with a count, no road and no building within 2 cells (`cell_diff.py
+  --suspects`), and none has a road-terrain cell (type 0 / 1) whose `+0x2A` is 0xFF.
+
+**A third sequence, read only, not reproduced.** A road upgrade drawn over a cell that a removal marker
+still holds:
+1. The upgrade queues a `BuildRoad` and a pending node. `PlaceRoadCell` (`0x14009c960`) sets `+0x2A` to
+   the new type and leaves the count alone, because the cell already has a road.
+2. The marker's citizen finishes first. `BuildRoad::Execute` waits while a non-pile, non-resource entity
+   occupies the cell. `FinishRoadCell` type 2 sets the count to 0 and `+0x2A` to 0xFF, sets type 2, and
+   erases the pending node. It does not touch the queued `BuildRoad`.
+3. That builder then finishes. `FinishRoadCell` with a road type writes the terrain type and `+0x2B` but
+   not `+0x2A`.
+
+The result is road terrain with `+0x2A` 0xFF and count 0. From there:
+- Drawing a road over it adds no count (`PlaceRoadCell` adds only on non-road terrain), so its later
+  removal wraps the count to 0xFF.
+- A save and load before any change sets the count to 1 (the fix-up pass counts road terrain). The Remove
+  tool then takes `RemovePendingRoad`'s 0xFF arm, which sets type 2 and leaves the count at 1. The result
+  is a red cell that the Remove tool does not select, and that re-laying and removing a road leaves at 1.
+
+This needs the road tool to accept a cell holding a removal marker. `RoadTool::CalcPath` refuses a
+blocker only at the endpoints and in its A*, and whether the marker template stamps a blocker is in the
+game data, not checked. No fix row until a run shows it. The lever would be in `FinishRoadCell` type 2:
+erase the pending node and cancel its `BuildRoad` as `RemovePendingRoad` does, or skip the subtraction
+when the cell holds no road.
+
 **The tile-by-tile road: the removal re-sort.** `FinishRoadCell` resets the height grid at the
 finished cell's four corners (`Map::ResetTerrainHeights` `0x14009e0e0`). When an entity later
 leaves a neighbouring cell (a tree, rock or pile cleared, a building demolished), `0x14009dee0`
