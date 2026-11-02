@@ -180,6 +180,17 @@ const Entry kEntries[] = {
       "A citizen is no longer sent to a far workplace because the walk to a newly built home or "
       "workplace had not been measured yet and was counted as no walk at all.",
       0, [](State& s) -> bool& { return s.fix.commute_cost; } },
+    // NOMADARRIVAL (docs/retail_bugs.md section 22): NomadComponent::TickWalkIn (0x14004f9c0) counts an
+    // idle nomad as arrived wherever it stands, so a group whose walk to the town hall fails becomes
+    // citizens where it is stuck. With the row on, arrival means near the meeting point; otherwise the
+    // nomad walks again once, then leaves the group and goes back to the map edge. Sim-visible only where
+    // a walk failed. Nothing new is saved (the retry mark is not saved; after a load it retries again).
+    { "nomad_arrival", Tier::Fix, Class::None, true,
+      "Nomads must reach the town hall",
+      "Nomads who cannot walk to the town hall (cut off by a river, for example) no longer count as "
+      "arrived where they are stuck; they try once more, then leave, instead of becoming citizens who "
+      "cannot reach the town.",
+      0, [](State& s) -> bool& { return s.fix.nomad_arrival; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

@@ -21,6 +21,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.nomad_arrival` (on): nomads who cannot walk to the town hall (cut off by a river, for example) no
+  longer count as arrived where they are stuck. Retail let such a group be allowed in, and the new citizens
+  appeared where they stood and starved there. With the fix a nomad must reach the hall; it tries once more,
+  then leaves (`docs/retail_bugs.md` section 22). Off under `/profile:faithful`.
 - `fix.firefighter_wells` (on): the Firefighter achievement ("Build 20 wells in a single town") is
   awarded at 20 wells. The game's data asks for 40, a long-known mismatch with the description
   (`docs/retail_bugs.md` section 20). Off under `/profile:faithful`.

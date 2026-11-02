@@ -763,6 +763,16 @@ retail's code:
 3. *The world changes under him:* a building, road removal or quarry splits a zone while he is on
    the far side.
 
+**Route: nomad arrival.** `ImmigrationComponent::FindSpawnCell` (`0x14004e270`) applies the same test
+to the spawn cell and the town hall's cell (`NodePosition(0,0)`). The candidate must be type
+0/1/2/9/10/11, so the bypass fires only if the hall's cell is type 5..8. A town hall's cell is stamped
+type 4 (measured, zone 3), so the zone test runs, and in the measured town it rejected every candidate on
+cut-off edge land. What strands nomads is the walk: `NomadComponent::TickWalkIn` (`0x14004f9c0`) takes
+"action stack idle" as arrival, so a nomad whose walk to the hall fails (`MoveTo::Execute` returns 2)
+counts as arrived where it stands. Allowing the group then converts every member in place
+(`ConvertToCitizen` `0x1400501a0`, the nomad's model position), and they are stranded as citizens. Fixed
+for nomads by `fix.nomad_arrival` (section 22).
+
 **Why he stands still.** The warmth state `0x14010d2c0` (state 1 / 15) first asks
 `CitizenBehavior::FindElderResidence` (`0x14008ec70`, which validates from the citizen's cell), then
 falls back to his own home with **no reachability test** and pushes the walk (`PerformWork` chain
@@ -861,3 +871,53 @@ Fix: `fix.unresolved_seeds` (tier 1), default on, off under `/profile:faithful`.
 (`src/game/Game/citizenlist_serialize.cpp`). Code `src/ext/unresolved_seeds/`, test
 `tests/unit/ext_unresolved_seeds_test.cpp`. Each seam prints one `[UnresolvedSeeds]` line to stderr when
 it drops something.
+
+## 22. Nomads whose walk to the town hall fails count as arrived and become citizens where they are stuck
+
+**Symptom.** A nomad group spawns at the map edge, cannot walk to the town hall (behind a river, on
+cut-off land), and the town hall reports it as arrived anyway. If the player allows it, the new citizens
+appear where the nomads stood and starve there (player reports of nomads "spawning behind a river and
+starving", collected in the 2026-11-01 community sweep).
+
+**Retail mechanism.** `NomadComponent::TickWalkIn` (`0x14004f9c0`, state 0 of the nomad's state table)
+waits only for the action stack to be idle (`CharacterComponent+0x60 == -1`) and has no position test.
+When the walk to the meeting point fails, `MoveTo::Execute` (`0x1400c8570`) answers 2 and
+`ActionStack::Execute` clears the stack; the nomad is idle where it stands, posts event 6 (ARRIVED) to
+the town hall's `ImmigrationComponent` and starts to loiter. Once every member has posted ARRIVED the hall
+moves to "waiting for an answer" (`OnArrived` `0x14004cff0`). On Allow, `Accept` (`0x14004d450`) calls
+`ConvertToCitizen` (`0x1400501a0`) for each member, which places the citizen at the nomad's current model
+position. The citizens are then stranded as in section 19. Loitering (`0x14004f600`, cells of type < 3
+within 8 of the meeting point) and walking out (`0x14004f5e0`, back to the spawn point) do not rescue
+them.
+
+**Proof it is retail.** The Ghidra decompile of `0x14004f9c0`: the idle test, the `hall == null` destroy
+arm, `PostEvent(..., 6)` through the hall's StateMachineComponent node and the transition to state 1, with
+no read of the nomad's position or of `+0x3c` (the meeting point). `0x1400501a0` reads the nomad's
+ModelComponent transform for the citizen's position. The port transcribes both
+(`src/game/Component/nomadcomponent_states.cpp`, `immigrationcomponent_states.cpp`).
+
+**Lever.** Arrival means being near the meeting point. A nomad that is idle away from it walks there once
+more; if it is still away when idle again, it leaves the hall's group and walks back to the map edge, as
+a turned-away nomad does. A walk that succeeds ends on the meeting point, so nothing changes in a game
+where every walk succeeds. (A stricter spawn test, choosing only spawn cells from which the hall is
+reachable, was proposed and not ruled; it would not catch zones joined only through building footprints,
+which the arrival test does.)
+
+**Fix: `fix.nomad_arrival` (WIRED 2026-11-01).** In `NomadComponent::TickWalkIn`, after retail's
+`hall == null` arm, `Ext::NomadArrival::Decide` (`src/ext/nomad_arrival/nomad_arrival_rule.h`) lets an
+idle nomad count as arrived only within 4 cells of its meeting point. Otherwise the first time it re-issues
+the walk, and the second time `NomadLeaveHall` takes it out of the hall's group, forgets the hall and walks
+it back to its spawn point, where retail's `hall == null` arm destroys it. The hall then moves to the answer
+state (0x11) if the members left have all arrived, or back to idle (state 2) if nobody is left; the 0x10 -> 2
+transition is appended to the hall's state table (always present, requested only by the row; the indices of
+retail's transitions are unchanged). The retry mark is a byte of the component's padding (`+0x54`), not
+saved. Nothing new is written to a save. Off under `/profile:faithful`.
+
+**Runs (2026-11-01, `tools/harness_route.sh immigration`, stress town, seed 12345).** No map in reach has
+nomads whose walk to the hall fails, so the failure was forced in a throwaway build (the nomad's walk to the
+meeting point pushed no action: the stack clears at once, as when `MoveTo::Execute` answers 2). Faithful
+profile: the first group (15) "arrived" at the map edge the frame after it spawned, about 140 cells from the
+hall, and Allow made 15 citizens there (the route's PASS). Row on: each nomad retried once, gave up, left the
+group; the empty group sent the hall back to waiting, and no group reached the answer (no crash, no hang).
+With the real walk and the row on, all 70 arrivals ended within 0.07 cells of their meeting point and the
+route PASSed (one group allowed, one denied).
