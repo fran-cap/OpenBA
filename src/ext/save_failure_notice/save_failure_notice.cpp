@@ -60,7 +60,10 @@ void ShowNotice() {
     UI::Element* raw = notice->FindElementType(UI::TextElement::TypeId()).Get();
     const bool hasText = ::Object::IsDerivedFromNullSafe(raw, UI::TextElement::TypeId());
     const ::IO::Persistence* persistence = ::IO::Persistence::_singleton;
-    const System::String folder = persistence != nullptr ? persistence->GetSavePath() : System::String("");
+    // GetSavePath is the user folder; the saves sit in its Save\ (GetSaveFilename's "%sSave\%s.sav").
+    const System::String userPath = persistence != nullptr ? persistence->GetSavePath() : System::String("");
+    const System::String folder =
+        System::String::Format("%sSave", userPath._data != nullptr ? userPath._data : "");
     if (hasText) static_cast<UI::TextElement*>(raw)->SetParameter(0, folder);
 
     ui->AddDialog(&ref);   // dispatches OnOpened; OK closes it
