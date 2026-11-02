@@ -377,6 +377,42 @@ def draw_cancel_refund(px):
     ])
 
 
+def draw_coin_crossed(px):
+    # a crate kept back beside a coin (goods worth nothing to the merchant are not handed over)
+    _paint(px, [
+        "............",
+        "......####..",
+        ".....#....#.",
+        ".....#.##.#.",
+        ".....#.##.#.",
+        ".....#....#.",
+        "......####..",
+        "############",
+        "#++#++#++#.#",
+        "#++#++#++#.#",
+        "############",
+        "............",
+    ])
+
+
+def draw_load_fits(px):
+    # a short stack going into a nearly full bin (the fetched load fits the building's room)
+    _paint(px, [
+        ".....#......",
+        ".....#......",
+        "...#####....",
+        "....###.....",
+        ".....#......",
+        "#..........#",
+        "#..........#",
+        "#..++++++..#",
+        "#++++++++++#",
+        "#++++++++++#",
+        "############",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -398,4 +434,6 @@ ICONS = {
     "save_failure_notice": ("fix", draw_save_failed),   # a floppy disk with a "!" on its label
     "boat_reach_notice": ("fix", draw_boat_ridge),   # a boat kept from its dock by a ridge
     "cancel_refund": ("fix", draw_cancel_refund),    # a site outline, piles laid outside it
+    "autotrade_free_goods": ("fix", draw_coin_crossed),   # a crate kept back beside a coin
+    "input_fetch_room": ("fix", draw_load_fits),     # a short load into a nearly full bin
 }

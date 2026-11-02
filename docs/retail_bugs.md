@@ -1139,3 +1139,98 @@ Fix: `fix.cancel_refund` (tier 1), default on, off under `/profile:faithful`.
   needs it, for the first 16 only.
 - Not touched: `fix.foundation_piles` (§17) moves piles off a site that is waiting to be built; this row
   acts once, when a site is removed.
+
+## 24. A trading post on auto-trade gives the merchant whole stacks of goods he does not buy
+
+**Symptom.** A trading post set to trade on a merchant's arrival or departure, with a standing buy
+order, loses whole stacks of some stored goods each time it buys, and gets nothing for them. Players:
+"if there's mixed goods in the trading post, it just gives EVERYTHING to the trader"; "they sold those
+[logs] off first".
+
+**Retail mechanism.** `TradeComponent::AutoTrade` (`0x140059ad0`, reached from `EnterDocked`
+`0x14005a800` when the post's policy `+0x28` is 1 and from `LeaveDocked` `0x14005a6d0` when it is 2)
+buys unit by unit up to the value of the post's stock, then pays for the purchase by walking the post's
+storage slots in order and selling unit by unit until the sum paid reaches the sum spent
+(`0x14005a177`..`0x14005a330`). Each unit sold adds the good's price for the docked merchant,
+`TradeComponent::GetResourcePrice` (`0x14005a520`): the base value when the good's raw-material flags
+(`+0x5c`) hit the merchant's full-price mask (`TradeDescription +0x48`, row `+0x14`), three quarters of
+it when they hit the discount mask (row `+0x18`), and **0** when they hit neither (a value-1 good in the
+discount class also truncates to 0). The loop's only exits are "paid >= spent" and "this slot is
+empty", so a slot whose unit price is 0 is drained to nothing, every unit crediting 0, before the walk
+reaches the next slot. The step-1 budget counts such a good as worth 0, so nothing else notices.
+
+**Proof it is retail.** The decompile of `0x140059ad0`: `local_8c = TradeComponent_GetResourcePrice(..)`,
+`local_90 = count - reserve`, then `while ((int)uVar33 < iVar20) { if (local_90 <= iVar5) break;
+uVar33 = uVar31 + local_8c; iVar5++; ... }` with no test of `local_8c`. The decompile of `0x14005a520`
+returns 0 on the arm where neither mask hits. The port (`src/game/Component/tradecomponent_dock.cpp`
+`AutoTrade` step 4, `src/game/Dialog/tradeui_price.cpp` `GetResourcePrice`) transcribes both.
+
+**Lever.** In the payment walk, pass over a slot whose unit price is 0 or less: it cannot pay.
+(Not part of the fix: the purchase loop may overspend the budget by one unit price, and an unpaid
+remainder is never collected. Both are retail and left alone.)
+
+**Fix: `fix.autotrade_free_goods` (tier 1), default on, off under `/profile:faithful`.** One seam,
+`AutoTrade`'s payment loop. Pure rule `src/ext/autotrade_free_goods/autotrade_free_goods_rule.h`, unit test
+`tests/unit/ext_autotrade_free_goods_test.cpp` (the payment walk over a priced-0 slot, on and off). Game
+run: `tools/harness_route.sh autotrade` (`BANISHED_TRADE_WATCH=300,autotrade`, `src/diag/trade_buy_harness.cpp`)
+lets the trade route's merchant dock, then stocks the post with 20 of a priced-0 good and 20 of a priced
+good, asks 3 units of every buy-order category, lets every manifest line offer at least 5 units, and runs
+`AutoTrade` once (it prices by another of the post's merchants when the docked one values every stored good,
+and offers the priced good on line 0 when the docked one offers only livestock). 2026-11-01, seed 12345:
+fixes off, the priced-0 stack went 20 -> 0 and the priced good 20 -> 18 (route FAIL); `HARNESS_FIXES=
+autotrade_free_goods`, the priced-0 stack stayed at 20 and the purchase was paid with priced goods (route
+PASS). Sim-visible (what the post keeps);
+nothing new is saved.
+
+## 25. A production worker hauls an input to a nearly full workplace, is refused, and carries it back
+
+**Symptom.** A tavern (or another production building) whose storage is nearly full keeps its worker
+walking back and forth: the brewer brings a full load of fruit, does not put it down, carries it to a
+storage barn, and comes for it again. Steam thread "BUG - Brewer Eternaly Bringing Fruits to Tavern" (June
+2025, unmodded); the workaround players found is to keep the tavern's stock low ("they can only hold 300
+combined ale/raw materials").
+
+**Retail mechanism.** `ConsumeProduce::Execute` (`0x1400e7840`), second pass: for an input the workplace
+holds less of than the recipe needs, it finds a store holding some unreserved (`PickBestDropTarget`
+`0x14008d590`, count 1, no capacity test) and, for an empty-handed worker, builds the fetch at
+`0x1400e87b9` (`0x1400bf790`) with count **-1** (`0x1400e8785 OR R12D,-1`). The pickup
+(`PickupStoredRawMaterial` ctor `0x1400ca520`, count < 1 arm) then loads as much as the worker can carry,
+and the drop-off at the workplace (`DropOffRawMaterial::Deposit` `0x1400c7620`, cap `+0x24` = -1) offers
+all of it to `StorageComponent::CanAdd` (`0x14012cd80`), which admits a stack only when
+`weight * count + stored <= capacity`: the whole load or nothing. Nothing on the way compares the load with
+the workplace's free room. A workplace with some room, but less than one load, refuses it; the drop-off's
+redirect arm (`+0x20` set by `0x1400bf790`) carries it to the nearest store that takes it, usually the one
+it came from, and the next pass sends the worker for it again. The loop ends only when something else
+frees room at the workplace (a hauler takes product away, production consumes an input).
+
+**Proof it is retail.** The disassembly of `0x1400e7840` around `0x1400e8717`..`0x1400e87b9` (`OR
+R12D,-1` / `MOV [RSP+0x40],R12D`, the count argument of `0x1400bf790`) and the decompiles of
+`0x1400ca520` (count < 1 -> `(capacity - QueryCount) / weight`), `0x1400c7620` (`min(cap, carried)` then
+`CanAdd`, the redirect on failure) and `0x14012cd80` (`*(desc+0x48) * count + QueryCount <= +0x38`). The
+port transcribes them (`src/game/Work/consumeproduce.cpp`, `src/game/Action/pickupstoredrawmaterial.cpp`,
+`src/game/Action/action_pf_roots_drop.cpp`, `src/game/Action/action_pf_roots_route.cpp`).
+(The port also lacked retail's two replan exits just before this fetch, "no room for one unit" and
+"already carrying something", which made a worker go on holding an input; restored as a port fix, not a
+retail bug.)
+
+**Related, not changed.** `TradeWork::Execute` (`0x1400f5d40`) does not loop this way: its export pass asks
+`PickBestDropTarget` for a destination with room for the whole quantity (`0x1400f64d2`, capacity flag 1),
+so a tavern with less room than one load is skipped rather than refused; its import pass tests the post's
+`CanAdd` at assignment time but reserves nothing, so two loads in flight can still overfill the post and
+the second is redirected.
+
+**Lever.** Hand the fetch the number of units both the workplace and the worker can take
+(`(capacity - QueryCount) / weight` of each); when that is 0, pass the input over as if no store held it.
+The pickup then loads no more than fits, and the drop-off's partial cap delivers it.
+Not covered: several workers of one workplace fetching at once each see the same free room (nothing is
+reserved at the destination), so a tight workplace can still refuse the later load.
+
+**Fix: `fix.input_fetch_room` (tier 1), default on, off under `/profile:faithful`.** One seam,
+`ConsumeProduce::Execute`'s second pass. Pure rule `src/ext/input_fetch_room/input_fetch_room_rule.h`, unit
+test `tests/unit/ext_input_fetch_room_test.cpp`. Sim-visible (what a worker carries, and where); nothing new
+is saved. Shown on 2026-11-01 with a temporary watch (not committed): a staffed demo tavern
+(`BANISHED_BUILD_DEMO_TAVERN=1`, `BANISHED_AUTOSTAFF=300`, seed 12345) kept at 270 of 300 with ale and an
+input stack of 400 placed in the start stockpile at frame 1800. Faithful: the tavern refused the brewer's
+load 16 times between frames 3000 and 9000 (about one round trip per 300 frames at speed 10) and never
+received the input (0 of the 30 the recipe needs). Row on
+(`HARNESS_FIXES=input_fetch_room`): no refused load at the tavern, and the input arrived by frame 3300 (46 held to the end of the run).

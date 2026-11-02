@@ -232,6 +232,27 @@ const Entry kEntries[] = {
       "most of them vanishing when they do not fit on the site's own ground.",
       0, [](State& s) -> bool& { return s.fix.cancel_refund; } },
 
+    // AUTOTRADEFREEGOODS (docs/retail_bugs.md section 24): TradeComponent::AutoTrade (0x140059ad0) pays for an
+    // auto-purchase by selling the post's goods unit by unit until the price is covered; a good the docked
+    // merchant prices 0 never covers it, so retail hands over the whole stack. With the row on such a good
+    // is passed over. Sim-visible: what the post keeps. Nothing new is saved.
+    { "autotrade_free_goods", Tier::Fix, Class::None, true,
+      "Auto-trade keeps unwanted goods",
+      "A trading post that trades automatically no longer gives a merchant whole stacks of goods he "
+      "does not buy, for nothing, while paying for what it bought.",
+      0, [](State& s) -> bool& { return s.fix.autotrade_free_goods; } },
+
+    // INPUTFETCHROOM (docs/retail_bugs.md section 25): ConsumeProduce::Execute's input fetch (0x1400e7840)
+    // asks for a full carry (-1), which the workplace's all-or-nothing CanAdd (0x14012cd80) refuses when it
+    // has less room than that, so the load goes back to a barn and the worker comes for it again. With the
+    // row on the fetch asks for what the workplace and the worker can take, and skips the input when that is
+    // nothing. Sim-visible: what a worker carries and where. Nothing new is saved.
+    { "input_fetch_room", Tier::Fix, Class::None, true,
+      "Workers fetch what fits",
+      "A brewer, smith or other production worker fetches only as much of an input as the building has "
+      "room for, instead of hauling a full load to a nearly full building and carrying it back again.",
+      0, [](State& s) -> bool& { return s.fix.input_fetch_room; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).

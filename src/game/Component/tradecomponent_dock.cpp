@@ -84,6 +84,8 @@
 #include "Action/exe_bodies.h"   // StorageAdd, ResourceCategory
 #include "Dialog/exe_bodies.h"   // TradeUI_GetBuyEntries_59670, TradeUI_GetResourcePrice_a520, TradeDescription_ExtendMerchantStay
 #include "Work/exe_bodies.h"     // WorkBase_TreeNodeFree_e320
+#include "ext/registry.h"        // Ext::Fix().autotrade_free_goods
+#include "ext/autotrade_free_goods/autotrade_free_goods_rule.h"   // fix.autotrade_free_goods
 
 namespace {
 
@@ -488,6 +490,9 @@ void TradeComponent::AutoTrade() {
                 const int unit = GetResourcePrice(resource);
                 const int avail = entry._count - entry._reserve;
                 if (avail == 0) continue;
+                // FIX autotrade_free_goods (NOT RETAIL, docs/retail_bugs.md §24): a good the merchant
+                // prices 0 pays nothing; retail sells the whole stack of it here.
+                if (Ext::AutotradeFreeGoods::SkipInPayment(Ext::Fix().autotrade_free_goods, unit)) continue;
 
                 int sold = 0;
                 while (paid < spent) {
