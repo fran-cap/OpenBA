@@ -21,6 +21,13 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.input_fetch_room` (on): a brewer, smith or other production worker no longer walks back and forth
+  between a barn and a nearly full building. Retail sends the worker for a full load of an input whatever
+  room the building has left, the building refuses a load it cannot take whole, and the worker carries it
+  back to storage and comes for it again; with the fix the worker fetches only what fits
+  (`docs/retail_bugs.md` section 25). Off under `/profile:faithful`.
+- ConsumeProduce workers (brewers, smiths, tailors...) no longer set off for an input while already
+  carrying something or with no room to carry it; as in retail, they re-plan instead.
 - `fix.autotrade_free_goods` (on): a trading post set to trade automatically no longer hands the merchant
   whole stacks of goods he does not buy. Retail pays for an automatic purchase by selling stored goods one
   unit at a time until the price is covered, and a good the merchant values at nothing never covers it, so

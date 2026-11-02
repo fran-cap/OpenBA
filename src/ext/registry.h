@@ -76,6 +76,7 @@ struct Fixes {
     bool unresolved_seeds  = true;   // docs/retail_bugs.md §21, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
     bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
     bool autotrade_free_goods = true;   // docs/retail_bugs.md §24, src/ext/autotrade_free_goods/: sim-visible, auto-trade does not pay with goods the merchant prices 0
+    bool input_fetch_room  = true;   // docs/retail_bugs.md §25, src/ext/input_fetch_room/: sim-visible, a production worker's input fetch fits the workplace's free room
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

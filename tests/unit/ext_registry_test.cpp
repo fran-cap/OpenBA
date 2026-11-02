@@ -49,7 +49,7 @@ UNIT_TEST(ext_registry_table_shape) {
                            "dialog_position_drift", "alloc_tiebreak", "outline_with_panel",
                            "foundation_piles", "path_query_first", "crop_planting_exit",
                            "firefighter_wells", "unresolved_seeds",
-                           "commute_cost", "autotrade_free_goods"}) {
+                           "commute_cost", "autotrade_free_goods", "input_fetch_room"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);

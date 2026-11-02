@@ -53,6 +53,8 @@
 #include "Component/Description.h"
 #include "Action/CompleteTask.h"
 #include "Action/PathSearch.h"   // RawArray (PickBestDropTarget)
+#include "ext/registry.h"         // Ext::Fix().input_fetch_room
+#include "ext/input_fetch_room/input_fetch_room_rule.h"   // fix.input_fetch_room: the fetch count
 
 // ============================================================
 // Sub-functions, called by name (B3R; Work/Action/Component exe_bodies.h)
@@ -619,6 +621,16 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                                         (*citizenIBP)->LongTermPlan();   // 0x140115e60
                                         return 2;
                                     }
+                                    // FIX input_fetch_room (NOT RETAIL, docs/retail_bugs.md §25): ask
+                                    // for what the workplace can take, not retail's -1 (a full carry
+                                    // the drop-off delivers whole or not at all); none fits -> this
+                                    // input is passed over like a store with nothing unreserved.
+                                    const int fetchCount = Ext::InputFetchRoom::FetchCount(
+                                        Ext::Fix().input_fetch_room, storage->capacity, storage->QueryCount(),
+                                        homeStorage2->capacity, hs2Count, rawMat2->_weight);
+                                    if (fetchCount == 0) {
+                                        break;
+                                    }
                                     {
                                         // Storage empty -- set up path to fetch material
                                         ComponentEntity* fetchDest = foundStorage;
@@ -644,7 +656,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                                             &pickup, &pathCitizen,
                                             field_20, &pathSrc,
                                             &fetchPos.v.x, &fetchDest, searchPos2,
-                                            matEntity2, -1, slot, 1, '\0', 0, 0);
+                                            matEntity2, fetchCount, slot, 1, '\0', 0, 0);   // retail -1 (0x1400e8785)
 
                                         int priority2 = field_20;
                                         return FinalizeAction(this, citizenIBP, priority2, slot);

@@ -305,6 +305,24 @@ def draw_coin_crossed(px):
     ])
 
 
+def draw_load_fits(px):
+    # a short stack going into a nearly full bin (the fetched load fits the building's room)
+    _paint(px, [
+        ".....#......",
+        ".....#......",
+        "...#####....",
+        "....###.....",
+        ".....#......",
+        "#..........#",
+        "#..........#",
+        "#..++++++..#",
+        "#++++++++++#",
+        "#++++++++++#",
+        "############",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -322,4 +340,5 @@ ICONS = {
     "unresolved_seeds": ("fix", draw_seed_rows),     # two sprouts on furrows, a gap between them
     "commute_cost": ("fix", draw_commute),           # house and workplace joined by a measured path
     "autotrade_free_goods": ("fix", draw_coin_crossed),   # a crate kept back beside a coin
+    "input_fetch_room": ("fix", draw_load_fits),     # a short load into a nearly full bin
 }

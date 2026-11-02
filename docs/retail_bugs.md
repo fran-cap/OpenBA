@@ -896,3 +896,51 @@ remainder is never collected. Both are retail and left alone.)
 `tests/unit/ext_autotrade_free_goods_test.cpp` (the payment walk over a priced-0 slot, on and off). Not
 shown in a game run: no harness drives auto-trade with a staged stock. Sim-visible (what the post keeps);
 nothing new is saved.
+
+## 25. A production worker hauls an input to a nearly full workplace, is refused, and carries it back
+
+**Symptom.** A tavern (or another production building) whose storage is nearly full keeps its worker
+walking back and forth: the brewer brings a full load of fruit, does not put it down, carries it to a
+storage barn, and comes for it again. Steam thread "BUG - Brewer Eternaly Bringing Fruits to Tavern" (June
+2025, unmodded); the workaround players found is to keep the tavern's stock low ("they can only hold 300
+combined ale/raw materials").
+
+**Retail mechanism.** `ConsumeProduce::Execute` (`0x1400e7840`), second pass: for an input the workplace
+holds less of than the recipe needs, it finds a store holding some unreserved (`PickBestDropTarget`
+`0x14008d590`, count 1, no capacity test) and, for an empty-handed worker, builds the fetch at
+`0x1400e87b9` (`0x1400bf790`) with count **-1** (`0x1400e8785 OR R12D,-1`). The pickup
+(`PickupStoredRawMaterial` ctor `0x1400ca520`, count < 1 arm) then loads as much as the worker can carry,
+and the drop-off at the workplace (`DropOffRawMaterial::Deposit` `0x1400c7620`, cap `+0x24` = -1) offers
+all of it to `StorageComponent::CanAdd` (`0x14012cd80`), which admits a stack only when
+`weight * count + stored <= capacity`: the whole load or nothing. Nothing on the way compares the load with
+the workplace's free room. A workplace with some room, but less than one load, refuses it; the drop-off's
+redirect arm (`+0x20` set by `0x1400bf790`) carries it to the nearest store that takes it, usually the one
+it came from, and the next pass sends the worker for it again. The loop ends only when something else
+frees room at the workplace (a hauler takes product away, production consumes an input).
+
+**Proof it is retail.** The disassembly of `0x1400e7840` around `0x1400e8717`..`0x1400e87b9` (`OR
+R12D,-1` / `MOV [RSP+0x40],R12D`, the count argument of `0x1400bf790`) and the decompiles of
+`0x1400ca520` (count < 1 -> `(capacity - QueryCount) / weight`), `0x1400c7620` (`min(cap, carried)` then
+`CanAdd`, the redirect on failure) and `0x14012cd80` (`*(desc+0x48) * count + QueryCount <= +0x38`). The
+port transcribes them (`src/game/Work/consumeproduce.cpp`, `src/game/Action/pickupstoredrawmaterial.cpp`,
+`src/game/Action/action_pf_roots_drop.cpp`, `src/game/Action/action_pf_roots_route.cpp`).
+(The port also lacked retail's two replan exits just before this fetch, "no room for one unit" and
+"already carrying something", which made a worker go on holding an input; restored as a port fix, not a
+retail bug.)
+
+**Related, not changed.** `TradeWork::Execute` (`0x1400f5d40`) does not loop this way: its export pass asks
+`PickBestDropTarget` for a destination with room for the whole quantity (`0x1400f64d2`, capacity flag 1),
+so a tavern with less room than one load is skipped rather than refused; its import pass tests the post's
+`CanAdd` at assignment time but reserves nothing, so two loads in flight can still overfill the post and
+the second is redirected.
+
+**Lever.** Hand the fetch the number of units both the workplace and the worker can take
+(`(capacity - QueryCount) / weight` of each); when that is 0, pass the input over as if no store held it.
+The pickup then loads no more than fits, and the drop-off's partial cap delivers it.
+Not covered: several workers of one workplace fetching at once each see the same free room (nothing is
+reserved at the destination), so a tight workplace can still refuse the later load.
+
+**Fix: `fix.input_fetch_room` (tier 1), default on, off under `/profile:faithful`.** One seam,
+`ConsumeProduce::Execute`'s second pass. Pure rule `src/ext/input_fetch_room/input_fetch_room_rule.h`, unit
+test `tests/unit/ext_input_fetch_room_test.cpp`. Sim-visible (what a worker carries, and where); nothing new
+is saved.
