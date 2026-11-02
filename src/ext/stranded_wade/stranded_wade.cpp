@@ -2,7 +2,8 @@
 // src/ext/stranded_wade/stranded_wade.cpp -- fix.stranded_wade
 // ============================================================================
 // NOT RETAIL. docs/retail_bugs.md §19. The seams are MoveTo::AbstractImpl / Execute / Exit
-// (src/game/Action/moveto.cpp) and CitizenAIComponent::TransitionState
+// (src/game/Action/moveto.cpp), CitizenComponent::SetHome (observed only,
+// src/game/Component/citizen_assignworkplace.cpp) and CitizenAIComponent::TransitionState
 // (src/game/Component/citizenaicomponent.cpp); the stranded rule is stranded_wade_rule.h.
 // ============================================================================
 #include "ext/stranded_wade/stranded_wade.h"
@@ -11,6 +12,7 @@
 #include "Game/GameUpdateLoop.h"
 #include "Game/Map.h"
 #include "Game/exe_constants.h"   // kRdata_140172280 (the MoveTo speed sentinel)
+#include "Entity/CitizenBehavior.h"   // the town's storage lists (+0x00 / +0x10)
 #include "Entity/ComponentEntity.h"
 #include "Entity/EntityList.h"
 #include "Action/Action.h"
@@ -22,6 +24,7 @@
 #include "Component/ImmigrationComponent.h"
 #include "Component/InteractComponent.h"
 #include "Component/ModelComponent.h"
+#include "Component/ResidenceComponent.h"
 #include "object/Internal.h"
 #include "system/MemoryAllocator.h"
 
@@ -52,6 +55,18 @@ void Store(CharacterComponent* character, State s) {
     std::memcpy(&character->_pad44[2], &s.zone, sizeof s.zone);
 }
 
+// The lost home's cell + 1 (0: none) lives in CitizenComponent's padding at +0x244 (zeroed by the
+// ctor, never read by retail, never saved).
+uint32_t LoadLost(const CitizenComponent* citizen) {
+    uint32_t lost = 0;
+    std::memcpy(&lost, citizen->_pad244, sizeof lost);
+    return lost;
+}
+
+void StoreLost(CitizenComponent* citizen, uint32_t lost) {
+    std::memcpy(citizen->_pad244, &lost, sizeof lost);
+}
+
 // A world position (x, y) to its clamped cell, as MoveTo::PathSetup 0x1400c8c10 computes it.
 int CellOf(const Map* map, float x, float y) {
     const int width = map->size;
@@ -65,6 +80,14 @@ int CellOf(const Map* map, float x, float y) {
     return width * cy + cx;
 }
 
+// A cell's centre in world space.
+Math::Vector3 CellCentre(const Map* map, int cell) {
+    const int width = map->size;
+    const float center = static_cast<float>(width >> 1);
+    return Math::Vector3(static_cast<float>(cell % width) - center + 0.5f,
+                         static_cast<float>(cell / width) - center + 0.5f, 0.0f);
+}
+
 const MapCell& CellAt(const Map* map, float x, float y) {
     return map->cells.GetData()[CellOf(map, x, y)];
 }
@@ -72,35 +95,6 @@ const MapCell& CellAt(const Map* map, float x, float y) {
 const MapCell& CharacterCell(const Map* map, const CharacterComponent* character) {
     const Math::Vector3& pos = character->modelComponent->transform.translation;
     return CellAt(map, pos.x, pos.y);
-}
-
-// The nearest town hall (an entity with an ImmigrationComponent) to `cell`, or null.
-ComponentEntity* NearestHall(const Map* map, int cell) {
-    EntityList* entities = GameUpdateLoop::_singleton->m_entityList;
-    const int width = map->size;
-    const int cx = cell % width;
-    const int cy = cell / width;
-    ComponentEntity* best = nullptr;
-    long long bestDist = 0;
-    for (int i = 0; i < entities->masterArray._size; ++i) {
-        ComponentEntity* entity = entities->masterArray._data[i].Get();
-        if (entity == nullptr) continue;
-        if (((entity->_entityFlags >> 10) & 1) != 0) continue;   // marked for removal
-        if (entity->FindComponent<ImmigrationComponent>() == nullptr) continue;
-        InteractComponent* interact = entity->FindComponent<InteractComponent>();
-        if (interact == nullptr) continue;
-        Math::Vector3 node;
-        interact->NodePosition(&node, 0, 0, nullptr);
-        const int hallCell = CellOf(map, node.x, node.y);
-        const long long dx = hallCell % width - cx;
-        const long long dy = hallCell / width - cy;
-        const long long dist = dx * dx + dy * dy;
-        if (best == nullptr || dist < bestDist) {
-            best = entity;
-            bestDist = dist;
-        }
-    }
-    return best;
 }
 
 // The interaction node (node 0) of `entity`, false when it has no InteractComponent.
@@ -111,16 +105,125 @@ bool NodeOf(ComponentEntity* entity, Math::Vector3* out) {
     return true;
 }
 
-// The citizen's anchor zone: his home's zone, or the nearest town hall's when he is homeless (0: none).
-uint16_t AnchorZone(const Map* map, CitizenComponent* citizen, const CharacterComponent* character) {
-    Math::Vector3 node;
-    if (citizen->home != nullptr) {
-        if (!NodeOf(citizen->home.Get(), &node)) return 0;
-    } else {
-        const Math::Vector3& pos = character->modelComponent->transform.translation;
-        if (!NodeOf(NearestHall(map, CellOf(map, pos.x, pos.y)), &node)) return 0;
+// The squared cell distance from `cell` to `entity`'s interaction node, -1 when it has none or (with
+// zone != 0) the node is not in that zone.
+long long NodeDistance(const Map* map, ComponentEntity* entity, int cell, uint16_t zone, Math::Vector3* node) {
+    if (entity == nullptr || ((entity->_entityFlags >> 10) & 1) != 0) return -1;   // marked for removal
+    if (!NodeOf(entity, node)) return -1;
+    const int nodeCell = CellOf(map, node->x, node->y);
+    if (zone != 0 && map->cells.GetData()[nodeCell].zone != zone) return -1;
+    const int width = map->size;
+    const long long dx = nodeCell % width - cell % width;
+    const long long dy = nodeCell / width - cell / width;
+    return dx * dx + dy * dy;
+}
+
+enum class Pick : uint8_t {
+    Hall,       // an entity with an ImmigrationComponent
+    Residence,  // an entity with a ResidenceComponent
+    Building,   // any entity with an interaction node that is not a character
+};
+
+// The nearest entity of `pick` to `cell` (in `zone` when non-zero), its node in `node`; null if none.
+ComponentEntity* NearestEntity(const Map* map, int cell, uint16_t zone, Pick pick, Math::Vector3* node) {
+    EntityList* entities = GameUpdateLoop::_singleton->m_entityList;
+    ComponentEntity* best = nullptr;
+    long long bestDist = 0;
+    for (int i = 0; i < entities->masterArray._size; ++i) {
+        ComponentEntity* entity = entities->masterArray._data[i].Get();
+        if (entity == nullptr) continue;
+        if (pick == Pick::Hall && entity->FindComponent<ImmigrationComponent>() == nullptr) continue;
+        if (pick == Pick::Residence && entity->FindComponent<ResidenceComponent>() == nullptr) continue;
+        if (pick == Pick::Building && entity->FindComponent<CharacterComponent>() != nullptr) continue;
+        Math::Vector3 at;
+        const long long dist = NodeDistance(map, entity, cell, zone, &at);
+        if (dist < 0) continue;
+        if (best == nullptr || dist < bestDist) {
+            best = entity;
+            bestDist = dist;
+            *node = at;
+        }
     }
-    return CellAt(map, node.x, node.y).zone;
+    return best;
+}
+
+// The nearest storage building to `cell` (in `zone` when non-zero): the town's storage lists that
+// CitizenBehavior::PickBestDropTarget (0x14008d590) walks for a citizen's load (+0x00 and +0x10),
+// nearest by distance only (no material, capacity or reachability test: the goal may be across water).
+ComponentEntity* NearestStorage(const Map* map, int cell, uint16_t zone, Math::Vector3* node) {
+    CitizenBehavior* town = GameUpdateLoop::_singleton->m_citizenList;
+    ComponentEntity* best = nullptr;
+    long long bestDist = 0;
+    for (int pass = 0; pass < 2; ++pass) {
+        const CitizenIbpList<ComponentEntity>& list = pass == 0 ? town->field_0x00 : town->field_0x10;
+        for (int i = 0; i < list._size; ++i) {
+            ComponentEntity* entity = list._data[i].Get();
+            Math::Vector3 at;
+            const long long dist = NodeDistance(map, entity, cell, zone, &at);
+            if (dist < 0) continue;
+            if (best == nullptr || dist < bestDist) {
+                best = entity;
+                bestDist = dist;
+                *node = at;
+            }
+        }
+    }
+    return best;
+}
+
+// The anchor: its kind, zone and the rescue walk's destination.
+struct Anchor {
+    AnchorKind kind = AnchorKind::None;
+    uint16_t zone = 0;
+    Math::Vector3 dest;
+};
+
+// The ruled order: home; the lost home (the building if it still stands, else the nearest storage,
+// else any building, in its zone, else its cell); the nearest town hall; the nearest storage.
+Anchor ResolveAnchor(const Map* map, CitizenComponent* citizen, int here) {
+    Anchor a;
+    Math::Vector3 node;
+    const bool hasHome = citizen->home != nullptr && NodeOf(citizen->home.Get(), &node);
+    const uint32_t lost = LoadLost(citizen);
+    Math::Vector3 hallNode;
+    ComponentEntity* hall = nullptr;
+    Math::Vector3 storageNode;
+    ComponentEntity* storage = nullptr;
+    if (!hasHome && lost == 0) {
+        hall = NearestEntity(map, here, 0, Pick::Hall, &hallNode);
+        if (hall == nullptr) storage = NearestStorage(map, here, 0, &storageNode);
+    }
+    a.kind = ChooseAnchor(hasHome, lost != 0, hall != nullptr, storage != nullptr);
+    switch (a.kind) {
+    case AnchorKind::Home:
+        a.dest = node;
+        break;
+    case AnchorKind::LostHome: {
+        const int lostCell = static_cast<int>(lost - 1);
+        a.zone = map->cells.GetData()[lostCell].zone;
+        // The lost home still stands when a residence's node is on the remembered cell.
+        ComponentEntity* building = NearestEntity(map, lostCell, a.zone, Pick::Residence, &node);
+        if (building != nullptr && CellOf(map, node.x, node.y) == lostCell) {
+            a.dest = node;
+        } else if (NearestStorage(map, lostCell, a.zone, &node) != nullptr ||
+                   NearestEntity(map, lostCell, a.zone, Pick::Building, &node) != nullptr) {
+            a.dest = node;
+        } else {
+            a.dest = CellCentre(map, lostCell);
+        }
+        return a;
+    }
+    case AnchorKind::Hall:
+        a.dest = hallNode;
+        break;
+    case AnchorKind::Storage:
+        a.dest = storageNode;
+        break;
+    case AnchorKind::None:
+        return a;
+    }
+    a.zone = CellAt(map, a.dest.x, a.dest.y).zone;
+    return a;
 }
 
 // True while the action on top of the character's stack is a walk with the rescue pass flags.
@@ -161,7 +264,35 @@ void PushRescueWalk(CitizenComponent* citizen, float* dest) {
     ActionStackPush(stack, &ibp);   // 0x1400c54e0
 }
 
+const char* KindName(AnchorKind kind) {
+    switch (kind) {
+    case AnchorKind::Home:
+        return "home";
+    case AnchorKind::LostHome:
+        return "lost home";
+    case AnchorKind::Hall:
+        return "town hall";
+    case AnchorKind::Storage:
+        return "storage";
+    case AnchorKind::None:
+        break;
+    }
+    return "none";
+}
+
 }  // namespace
+
+void OnHomeChange(CitizenComponent* citizen, ComponentEntity* oldHome, ComponentEntity* newHome) {
+    // The home's interaction node cell: a house's footprint cells are not land (type 5, no zone),
+    // the node in front of its door is.
+    int oldCell = -1;
+    Math::Vector3 node;
+    if (oldHome != nullptr && newHome == nullptr && NodeOf(oldHome, &node)) {
+        oldCell = CellOf(GameUpdateLoop::_singleton->m_game, node.x, node.y);
+    }
+    StoreLost(citizen, Ext::StrandedWade::OnHomeChange(LoadLost(citizen), oldHome != nullptr, oldCell,
+                                                       newHome != nullptr));
+}
 
 void OnRefused(MoveTo* walk) {
     CharacterComponent* character = walk->character.Get();
@@ -173,9 +304,10 @@ void OnRefused(MoveTo* walk) {
     // Only a citizen has an anchor (a nomad's or an animal's walk is not recorded).
     CitizenComponent* citizen = character->_entity->FindComponent<CitizenComponent>();
     if (citizen == nullptr) return;
-    const uint16_t anchor = AnchorZone(map, citizen, character);
+    const Math::Vector3& pos = character->modelComponent->transform.translation;
+    const Anchor anchor = ResolveAnchor(map, citizen, CellOf(map, pos.x, pos.y));
     Store(character, OnRefusal(Load(character), walk->passFlags, here.terrainType, here.zone,
-                               there.terrainType, there.zone, anchor));
+                               there.terrainType, there.zone, anchor.zone));
 }
 
 void OnEmptyPath(MoveTo* walk) {
@@ -208,49 +340,56 @@ bool Rescue(CitizenAIComponent* ai) {
     // transitions of CitizenAIComponent::Decide call TransitionState(1) while an action runs, and
     // every state's builder clears the stack first).
     if ((s.flags & kPending) != 0 && RescueWalkRunning(character)) return true;
-    if ((s.flags & kRefused) == 0) return false;   // the common case: one byte test
+    const uint32_t lost = LoadLost(citizen);
+    if ((s.flags & kRefused) == 0 && lost == 0) return false;   // the common case: two loads
 
     Map* map = GameUpdateLoop::_singleton->m_game;
-    const MapCell& here = CharacterCell(map, character);
-    const uint16_t anchor = AnchorZone(map, citizen, character);
-    s = Settle(s, here.terrainType, here.zone, anchor);
-    if (!IsStranded(s, here.terrainType, here.zone, anchor)) {
+    const Math::Vector3& pos = character->modelComponent->transform.translation;
+    const int cell = CellOf(map, pos.x, pos.y);
+    const MapCell& here = map->cells.GetData()[cell];
+    // The lost home is forgotten once he stands in its zone again.
+    if (lost != 0) {
+        StoreLost(citizen, SettleLostHome(lost, here.terrainType, here.zone,
+                                          map->cells.GetData()[lost - 1].zone));
+    }
+    if ((s.flags & kRefused) == 0) return false;
+
+    const Anchor anchor = ResolveAnchor(map, citizen, cell);
+    s = Settle(s, here.terrainType, here.zone, anchor.zone);
+    if (!IsStranded(s, here.terrainType, here.zone, anchor.zone)) {
         Store(character, s);
         return false;
     }
 
-    const Math::Vector3& pos = character->modelComponent->transform.translation;
-    Math::Vector3 homeNode;
-    const bool hasHome = citizen->home != nullptr && NodeOf(citizen->home.Get(), &homeNode);
-    Target target = RescueTarget(s, hasHome);
-    Math::Vector3 dest;
-    bool found = false;
-    if (target == Target::Hall) {
-        found = NodeOf(NearestHall(map, CellOf(map, pos.x, pos.y)), &dest);
-        if (found) {
-            const MapCell& hall = CellAt(map, dest.x, dest.y);
-            if (!NeedsRescue(here.terrainType, here.zone, hall.terrainType, hall.zone)) found = false;
+    Target target = RescueTarget(s);
+    Math::Vector3 dest = anchor.dest;
+    AnchorKind goal = anchor.kind;
+    if (target == Target::Fallback) {
+        // The wading walk to the anchor failed: the nearest town hall, else storage, in another zone.
+        Math::Vector3 node;
+        if (NearestEntity(map, cell, 0, Pick::Hall, &node) != nullptr) {
+            goal = AnchorKind::Hall;
+        } else if (NearestStorage(map, cell, 0, &node) != nullptr) {
+            goal = AnchorKind::Storage;
+        } else {
+            goal = AnchorKind::None;
         }
-        if (!found && hasHome) {
-            // No town hall he is cut off from: home is the only place left to try.
-            target = Target::Home;
+        const MapCell& there = CellAt(map, node.x, node.y);
+        if (goal == AnchorKind::None || !NeedsRescue(here.terrainType, here.zone, there.terrainType, there.zone)) {
+            // No fallback he is cut off from: the anchor is the only place left to try.
+            target = Target::Anchor;
+            goal = anchor.kind;
+        } else {
+            dest = node;
         }
-    }
-    if (target == Target::Home) {
-        dest = homeNode;
-        found = true;
-    }
-    if (!found) {
-        Store(character, OnNoTarget(s));
-        return false;
     }
     PushRescueWalk(citizen, &dest.x);
     Store(character, OnRescuePushed(s, target));
     if (s_logged < kLogCap) {
         ++s_logged;
         fprintf(stderr, "[StrandedWade] citizen %p at (%.1f, %.1f) zone %u wades to his %s at (%.1f, %.1f) zone %u\n",
-                static_cast<void*>(citizen), pos.x, pos.y, here.zone, target == Target::Home ? "home" : "town hall",
-                dest.x, dest.y, CellAt(map, dest.x, dest.y).zone);
+                static_cast<void*>(citizen), pos.x, pos.y, here.zone, KindName(goal), dest.x, dest.y,
+                CellAt(map, dest.x, dest.y).zone);
     }
     return true;
 }

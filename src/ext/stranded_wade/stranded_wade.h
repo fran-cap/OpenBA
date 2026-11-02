@@ -10,11 +10,11 @@
 // pick).
 //
 // With the row on, the MoveTo seams (Action/moveto.cpp) record, in the character's padding, a walk
-// toward his anchor zone (home, or the nearest town hall when homeless) refused on the land-to-land
-// zone mismatch while he stands in another land zone. While he still stands in that zone, the AI's
-// next state pick (CitizenAIComponent::TransitionState 0x14010db90) pushes one walk with the pass
-// flags 0xe1f | 0x1e0 instead: retail's own wade / climb bypass in RequestPath, to his home, or to
-// the town hall when he has no home or the wading walk home failed. The record clears when he
+// toward his anchor zone (home; the home he just lost; the nearest town hall; the nearest storage)
+// refused on the land-to-land zone mismatch while he stands in another land zone. While he still
+// stands in that zone, the AI's next state pick (CitizenAIComponent::TransitionState 0x14010db90)
+// pushes one walk with the pass flags 0xe1f | 0x1e0 instead: retail's own wade / climb bypass in
+// RequestPath, to the anchor (or, when that walk failed, the town hall / storage). The record clears when he
 // stands in the anchor zone again; while the rescue walk is out no state pick replaces it. The rule
 // is stranded_wade_rule.h. Nothing is saved.
 // ============================================================================
@@ -22,9 +22,15 @@
 
 class MoveTo;
 class CitizenAIComponent;
+class CitizenComponent;
+class ComponentEntity;
 
 namespace Ext {
 namespace StrandedWade {
+
+// CitizenComponent::SetHome 0x1401163d0, observed before retail's body: losing a home remembers its
+// cell (the anchor of a homeless stranded citizen), a new home forgets it.
+void OnHomeChange(CitizenComponent* citizen, ComponentEntity* oldHome, ComponentEntity* newHome);
 
 // MoveTo::AbstractImpl 0x1400c8ab0: RequestPath refused the walk (ticket {-1, 0}, answer 2).
 void OnRefused(MoveTo* walk);

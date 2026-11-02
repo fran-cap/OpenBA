@@ -80,7 +80,7 @@ struct Fixes {
     bool boat_reach_notice = true;   // docs/retail_bugs.md §30, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
     bool save_failure_notice = true; // docs/retail_bugs.md §29, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
     bool cancel_refund     = true;   // docs/retail_bugs.md §27, src/ext/cancel_refund/: sim-visible, a cancelled site's materials that do not fit on its footprint are laid around it, not discarded
-    bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home zone (homeless: the town hall's) whose walk there was refused wades home (or to the town hall)
+    bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home's zone (else his lost home's, the hall's, a storage's) whose walk there was refused wades back
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

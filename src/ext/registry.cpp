@@ -234,14 +234,15 @@ const Entry kEntries[] = {
     // STRANDEDWADE (docs/retail_bugs.md section 19): Map::RequestPath (0x14009cfb0) refuses every walk
     // between two land zones, while a walk with a water or mountain endpoint may cross into any zone; a
     // citizen left on cut-off land asks for the same refused walk until he starves or freezes. With the
-    // row on, a citizen on land outside his home's zone (homeless: the nearest town hall's) whose walk
-    // toward it was refused on the zone mismatch makes one walk with retail's wade / climb bypass (pass
-    // flags 0xe1f | 0x1e0) to his home, else the town hall. Sim-visible only for such a citizen.
+    // row on, a citizen on land outside his anchor's zone (home; the home he just lost; the nearest town
+    // hall; the nearest storage) whose walk toward it was refused on the zone mismatch makes one walk
+    // with retail's wade / climb bypass (pass flags 0xe1f | 0x1e0) there. Sim-visible only for such a
+    // citizen.
     // Nothing is saved (a load starts every citizen unstranded).
     { "stranded_wade", Tier::Fix, Class::None, true,
       "Stranded citizens wade home",
       "A citizen stuck on land cut off from the town (across a stream, on a finished dock or bridge "
-      "piece) wades or climbs back home, or to the town hall, instead of standing there until he "
+      "piece) wades or climbs back home (or to the town hall or a storage building), instead of standing there until he "
       "starves or freezes.",
       0, [](State& s) -> bool& { return s.fix.stranded_wade; } },
 

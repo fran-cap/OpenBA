@@ -94,29 +94,28 @@ UNIT_TEST(ext_stranded_wade_clears_in_the_anchor_zone_and_goes_stale_elsewhere) 
     CHECK(!IsStranded(s, kGrass, kIsland, 0));
 }
 
-UNIT_TEST(ext_stranded_wade_rescue_home_then_hall) {
+UNIT_TEST(ext_stranded_wade_rescue_anchor_then_fallback) {
     State s = RefusedHome(State());
-    CHECK(RescueTarget(s, true) == Target::Home);
-    CHECK(RescueTarget(s, false) == Target::Hall);   // homeless
-    s = OnRescuePushed(s, Target::Home);
+    CHECK(RescueTarget(s) == Target::Anchor);
+    s = OnRescuePushed(s, Target::Anchor);
     CHECK((s.flags & kPending) != 0);
     // The wading walk home fails (an empty path): the next rescue goes to the town hall.
     s = OnWalkEnd(s, false, true);
     CHECK((s.flags & kPending) == 0);
     CHECK(IsStranded(s, kGrass, kIsland, kTown));
-    CHECK(RescueTarget(s, true) == Target::Hall);
-    s = OnRescuePushed(s, Target::Hall);
+    CHECK(RescueTarget(s) == Target::Fallback);
+    s = OnRescuePushed(s, Target::Fallback);
     // The walk to the hall fails too: the record is dropped, the next rescue tries home again.
     s = OnWalkEnd(s, false, true);
     CHECK(!IsStranded(s, kGrass, kIsland, kTown));
     s = RefusedHome(s);
-    CHECK(RescueTarget(s, true) == Target::Home);
+    CHECK(RescueTarget(s) == Target::Anchor);
 }
 
 UNIT_TEST(ext_stranded_wade_rescue_arrival) {
-    State s = OnRescuePushed(RefusedHome(State()), Target::Home);
+    State s = OnRescuePushed(RefusedHome(State()), Target::Anchor);
     s = OnWalkEnd(s, true, true);
-    CHECK((s.flags & (kPending | kHomeFailed)) == 0);
+    CHECK((s.flags & (kPending | kAnchorFailed)) == 0);
     // Home is the anchor zone: settling there clears the record.
     s = Settle(s, kGrass, kTown, kTown);
     CHECK(s.flags == 0);
@@ -124,11 +123,11 @@ UNIT_TEST(ext_stranded_wade_rescue_arrival) {
 
 UNIT_TEST(ext_stranded_wade_interrupted_rescue_is_forgotten) {
     // The rescue walk was cleared before it ended; the next outcome is a normal walk's.
-    State s = OnRescuePushed(RefusedHome(State()), Target::Home);
+    State s = OnRescuePushed(RefusedHome(State()), Target::Anchor);
     s = OnWalkEnd(s, false, false);
     CHECK((s.flags & kPending) == 0);
-    CHECK((s.flags & kHomeFailed) == 0);
-    CHECK(RescueTarget(s, true) == Target::Home);
+    CHECK((s.flags & kAnchorFailed) == 0);
+    CHECK(RescueTarget(s) == Target::Anchor);
 }
 
 UNIT_TEST(ext_stranded_wade_hall_in_his_zone_needs_no_rescue) {
@@ -140,4 +139,35 @@ UNIT_TEST(ext_stranded_wade_hall_in_his_zone_needs_no_rescue) {
 UNIT_TEST(ext_stranded_wade_no_target_drops_the_record) {
     State s = OnNoTarget(RefusedHome(State()));
     CHECK(!IsStranded(s, kGrass, kIsland, kTown));
+}
+
+UNIT_TEST(ext_stranded_wade_anchor_order) {
+    CHECK(ChooseAnchor(true, true, true, true) == AnchorKind::Home);
+    CHECK(ChooseAnchor(false, true, true, true) == AnchorKind::LostHome);
+    CHECK(ChooseAnchor(false, false, true, true) == AnchorKind::Hall);
+    CHECK(ChooseAnchor(false, false, false, true) == AnchorKind::Storage);
+    CHECK(ChooseAnchor(false, false, false, false) == AnchorKind::None);
+}
+
+UNIT_TEST(ext_stranded_wade_lost_home_is_remembered_until_home_zone_or_new_home) {
+    // SetHome(nullptr) on a housed citizen remembers that home's cell (+ 1).
+    uint32_t lost = OnHomeChange(0, true, 1234, false);
+    CHECK(lost == 1235);
+    // Another SetHome(nullptr) with no home keeps it.
+    CHECK(OnHomeChange(lost, false, -1, false) == lost);
+    // A new home forgets it.
+    CHECK(OnHomeChange(lost, false, -1, true) == 0);
+    CHECK(OnHomeChange(lost, true, 99, true) == 0);
+    // Standing on land of the lost home's zone forgets it; elsewhere, or on water, it is kept.
+    CHECK(SettleLostHome(lost, kGrass, kTown, kTown) == 0);
+    CHECK(SettleLostHome(lost, kGrass, kIsland, kTown) == lost);
+    CHECK(SettleLostHome(lost, kWater, 0, kTown) == lost);
+}
+
+UNIT_TEST(ext_stranded_wade_lost_home_anchor_strands_the_river_citizen) {
+    // His walk home was refused from the island, then retail dropped the unreachable home: the lost
+    // home's zone is the anchor, he is still stranded and the rescue goes to it.
+    State s = RefusedHome(State());
+    CHECK(IsStranded(s, kGrass, kIsland, kTown));
+    CHECK(RescueTarget(s) == Target::Anchor);
 }
