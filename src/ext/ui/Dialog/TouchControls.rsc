@@ -15,7 +15,7 @@
 // Issue #96 (the reporter's follow-up): a second dialog, `cameraButtons` (Dialog/TouchControls.rsc:cameraButtons),
 // the corner camera buttons of ext.touch_mode_camera_buttons. It reuses the cluster's rotate and zoom holders and
 // buttons as they are (each dialog builds its own elements from the descriptions); only its root and its content
-// group are its own. The controller lays it out from touch_math.h LayoutCornerButtons: two rows of two in the
+// group are its own. The controller lays it out from touch_math.h LayoutCornerButtons: one column in the
 // upper right.
 
 Dialog resource		// the dialog object: Dialog/TouchControls.rsc

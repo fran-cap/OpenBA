@@ -79,26 +79,36 @@ Cluster LayoutCornerButtons(int32_t width, int32_t height, int32_t margin, int32
     const int32_t shortEdge = width < height ? width : height;
     if (shortEdge <= 0 || scale <= 0.0f) return c;
     const float s = static_cast<float>(shortEdge);
-    c.baseCell = Round(s * kCellFraction);
-    c.cell = Round(s * kCellFraction * scale);
-    c.gap = Round(s * kGapFraction * scale);
-    c.frame = Round(s * kFrameFraction * scale);
-    c.margin = margin;
-    // The pad's zoom button at this scale (LayoutCluster).
-    const int32_t buttonW = Round(1.4f * static_cast<float>(c.cell));
-    const int32_t buttonH = (3 * c.cell - c.gap) / 2;
-    const int32_t boxW = 2 * buttonW + c.gap + 2 * c.frame;
-    const int32_t boxH = 2 * buttonH + c.gap + 2 * c.frame;
-    const int32_t boxX = width - margin - boxW;
     const int32_t boxY = top > margin ? top : margin;
-    const int32_t leftX = boxX + c.frame;
-    const int32_t rightX = leftX + buttonW + c.gap;
-    const int32_t upperY = boxY + c.frame;
-    const int32_t lowerY = upperY + buttonH + c.gap;
-    c.control[kRotateLeft] = Make(leftX, upperY, buttonW, buttonH);
-    c.control[kRotateRight] = Make(rightX, upperY, buttonW, buttonH);
-    c.control[kZoomIn] = Make(leftX, lowerY, buttonW, buttonH);
-    c.control[kZoomOut] = Make(rightX, lowerY, buttonW, buttonH);
+    const int32_t fitH = height - margin - boxY;
+    // The column at `scale`, shrunk to the safe height when it would not fit (a second pass at most: the rounding of
+    // the cell, gap and frame can leave a unit or two over after the first).
+    int32_t buttonW = 0;
+    int32_t buttonH = 0;
+    int32_t boxW = 0;
+    int32_t boxH = 0;
+    for (int32_t pass = 0; pass < 3; ++pass) {
+        c.cell = Round(s * kCellFraction * scale);
+        c.gap = Round(s * kGapFraction * scale);
+        c.frame = Round(s * kFrameFraction * scale);
+        // The pad's zoom button at this scale (LayoutCluster).
+        buttonW = Round(1.4f * static_cast<float>(c.cell));
+        buttonH = (3 * c.cell - c.gap) / 2;
+        boxW = buttonW + 2 * c.frame;
+        boxH = 4 * buttonH + 3 * c.gap + 2 * c.frame;
+        if (boxH <= fitH || fitH <= 0 || boxH <= 0) break;
+        scale *= static_cast<float>(fitH) / static_cast<float>(boxH);
+    }
+    c.baseCell = Round(s * kCellFraction);
+    c.margin = margin;
+    const int32_t boxX = width - margin - boxW;
+    const int32_t x = boxX + c.frame;
+    const int32_t step = buttonH + c.gap;
+    const int32_t y0 = boxY + c.frame;
+    c.control[kRotateLeft] = Make(x, y0, buttonW, buttonH);
+    c.control[kRotateRight] = Make(x, y0 + step, buttonW, buttonH);
+    c.control[kZoomIn] = Make(x, y0 + 2 * step, buttonW, buttonH);
+    c.control[kZoomOut] = Make(x, y0 + 3 * step, buttonW, buttonH);
     c.box = Rect{boxX, boxY, boxX + boxW, boxY + boxH};
     return c;
 }

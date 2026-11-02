@@ -148,7 +148,8 @@ UNIT_TEST(ext_touch_mode_action_bar_scale_key) {
 }
 
 // Issue #96 (the reporter's follow-up): ext.touch_mode_camera_buttons, the corner block. At 100 % each button is the
-// pad's zoom button at pad 100 %; two rows of two in the upper right of the safe area, below `top`; the pad never
+// pad's zoom button at pad 100 %; one column in the upper right of the safe area, below `top`, shrunk to the safe
+// height when the column would not fit; the pad never
 // hit; Off lays out nothing. The capture rule serves it unchanged.
 UNIT_TEST(ext_touch_mode_camera_buttons) {
     const int32_t m = 36;
@@ -160,22 +161,37 @@ UNIT_TEST(ext_touch_mode_camera_buttons) {
         CHECK(c.control[i].Height() == pad.control[kZoomIn].Height());
     }
     CHECK(c.control[kPad].Width() == 0 && c.control[kPad].Height() == 0);
-    // Two rows of two: rotate left | rotate right over zoom in | zoom out, the gap between them.
-    CHECK(c.control[kRotateLeft].y1 == c.control[kRotateRight].y1);
-    CHECK(c.control[kZoomIn].y1 == c.control[kZoomOut].y1);
-    CHECK(c.control[kRotateLeft].x1 == c.control[kZoomIn].x1);
-    CHECK(c.control[kRotateRight].x1 == c.control[kZoomOut].x1);
-    CHECK(c.control[kRotateRight].x1 == c.control[kRotateLeft].x2 + c.gap);
-    CHECK(c.control[kZoomIn].y1 == c.control[kRotateLeft].y2 + c.gap);
+    // One column: rotate left, rotate right, zoom in, zoom out, the gap between them.
+    CHECK(c.control[kRotateLeft].x1 == c.control[kRotateRight].x1);
+    CHECK(c.control[kRotateRight].x1 == c.control[kZoomIn].x1);
+    CHECK(c.control[kZoomIn].x1 == c.control[kZoomOut].x1);
+    CHECK(c.control[kRotateRight].y1 == c.control[kRotateLeft].y2 + c.gap);
+    CHECK(c.control[kZoomIn].y1 == c.control[kRotateRight].y2 + c.gap);
+    CHECK(c.control[kZoomOut].y1 == c.control[kZoomIn].y2 + c.gap);
     // The frame in the upper right of the safe area, around the four.
     CHECK(c.box.x2 == 2340 - m && c.box.y1 == m);
     CHECK(c.control[kRotateLeft].x1 == c.box.x1 + c.frame && c.control[kRotateLeft].y1 == c.box.y1 + c.frame);
     CHECK(c.control[kZoomOut].x2 == c.box.x2 - c.frame && c.control[kZoomOut].y2 == c.box.y2 - c.frame);
     CHECK(c.barRegion.Width() == 0);
-    // Never over the pad's cluster or the toolbar's region on the phone, nor at 125 % on the tablet layout.
-    CHECK(c.box.y2 < pad.box.y1 && c.box.x1 > pad.box.x2);
+    // Never over the pad's cluster: right of it, and above the safe bottom edge.
+    CHECK(c.box.x1 > pad.box.x2 && c.box.y2 <= 1080 - m);
+    // The phone's layout screen (1170 x 540): a 100 % column is 392 units and fits the safe height unshrunk.
+    const Cluster phone = LayoutCornerButtons(1170, 540, 18, 18, PadScaleOfPercent(100));
+    CHECK(phone.cell == LayoutCluster(1170, 540, 18).cell && phone.box.y1 == 18 && phone.box.y2 == 410);
+    CHECK(phone.box.x2 == 1170 - 18);
+    // The fit rule: pushed down by `top` so that the column would reach below the safe height, it comes out at the
+    // largest scale that fits, the four buttons still equal and in order.
+    const Cluster pushed = LayoutCornerButtons(1170, 540, 18, 200, PadScaleOfPercent(100));
+    CHECK(pushed.box.y1 == 200 && pushed.box.y2 <= 540 - 18 && pushed.box.y2 >= 540 - 18 - 4);
+    CHECK(pushed.box.x2 == 1170 - 18 && pushed.cell < phone.cell && pushed.cell > phone.cell / 2);
+    CHECK(pushed.control[kZoomOut].Height() == pushed.control[kRotateLeft].Height());
+    CHECK(pushed.control[kZoomOut].y1 > pushed.control[kZoomIn].y1);
+    // At 125 % on the tablet's layout screen the column fits the safe height.
     const Cluster big = LayoutCornerButtons(1696, 1200, 40, 40, PadScaleOfPercent(125));
-    CHECK(big.box.x2 == 1696 - 40 && big.box.y2 < 1200 * 2 / 3);
+    CHECK(big.box.x2 == 1696 - 40 && big.box.y2 <= 1200 - 40);
+    // 25 %: a fifth of the 125 % button, the smallest step.
+    const Cluster quarter = LayoutCornerButtons(1696, 1200, 40, 40, PadScaleOfPercent(25));
+    CHECK(std::abs(quarter.control[kZoomIn].Width() - big.control[kZoomIn].Width() / 5) <= 2);
     // Below whatever sits in the corner: `top` moves the block down, never above the margin.
     const Cluster lower = LayoutCornerButtons(2340, 1080, m, 200, PadScaleOfPercent(100));
     CHECK(lower.box.y1 == 200 && lower.box.x1 == c.box.x1);
@@ -207,7 +223,7 @@ UNIT_TEST(ext_touch_mode_camera_buttons) {
     if (k == nullptr) return;
     CHECK(std::string(k->owner) == "touch_mode");
     CHECK(k->defaultValue == 0);   // Off: nothing changes for anyone who does not pick it
-    CHECK(k->choiceCount == 5);
+    CHECK(k->choiceCount == 7);
     CHECK(Ext::Values().touch_mode_camera_buttons == 0);
     CHECK(ResolveText("ext.touch_mode_camera_buttons=100\n").val.touch_mode_camera_buttons == 100);
     CHECK(ResolveText("ext.touch_mode_camera_buttons=50\n").val.touch_mode_camera_buttons == 50);

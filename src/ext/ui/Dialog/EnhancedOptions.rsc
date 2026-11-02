@@ -180,23 +180,27 @@ StringTable touchCameraButtonItems
 	Entry _strings
 	[
 		{ String _name = "Item0";		String _text = "Off";		}
-		{ String _name = "Item1";		String _text = "50%";		}
-		{ String _name = "Item2";		String _text = "75%";		}
-		{ String _name = "Item3";		String _text = "100%";		}
-		{ String _name = "Item4";		String _text = "125%";		}
+		{ String _name = "Item1";		String _text = "25%";		}
+		{ String _name = "Item2";		String _text = "35%";		}
+		{ String _name = "Item3";		String _text = "50%";		}
+		{ String _name = "Item4";		String _text = "75%";		}
+		{ String _name = "Item5";		String _text = "100%";		}
+		{ String _name = "Item6";		String _text = "125%";		}
 	]
 }
 
-// Placement bar (issue #96): ext.touch_mode_action_bar_scale 50 / 60 / 75 / 100 / 125 percent; 100 = as before.
+// Placement bar (issue #96): ext.touch_mode_action_bar_scale 25 / 35 / 50 / 60 / 75 / 100 / 125 percent; 100 = as before.
 StringTable touchActionBarItems
 {
 	Entry _strings
 	[
-		{ String _name = "Item0";		String _text = "50%";		}
-		{ String _name = "Item1";		String _text = "60%";		}
-		{ String _name = "Item2";		String _text = "75%";		}
-		{ String _name = "Item3";		String _text = "100%";		}
-		{ String _name = "Item4";		String _text = "125%";		}
+		{ String _name = "Item0";		String _text = "25%";		}
+		{ String _name = "Item1";		String _text = "35%";		}
+		{ String _name = "Item2";		String _text = "50%";		}
+		{ String _name = "Item3";		String _text = "60%";		}
+		{ String _name = "Item4";		String _text = "75%";		}
+		{ String _name = "Item5";		String _text = "100%";		}
+		{ String _name = "Item6";		String _text = "125%";		}
 	]
 }
 

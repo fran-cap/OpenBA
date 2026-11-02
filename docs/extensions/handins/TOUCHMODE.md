@@ -49,10 +49,11 @@ session log: `docs/android/TOUCH_MODE.md`.
   toolbar with every other dialog; at None they sit on the screen's edges (`Margin`'s -1 = the row off).
 
 * **Corner camera buttons** (issue #96, the reporter's follow-up; `docs/android/TOUCH_MODE.md` section 3a):
-  `ext.touch_mode_camera_buttons` (0 = none, the default, 50 / 75 / 100 / 125 %) opens a second dialog,
+  `ext.touch_mode_camera_buttons` (0 = none, the default, 25 / 35 / 50 / 75 / 100 / 125 %) opens a second dialog,
   `Dialog/TouchControls.rsc:cameraButtons`, with the cluster's own rotate and zoom holders and buttons (only its root
-  and content group are new), in two rows of two in the upper right of the safe area (`touch_math.h
-  LayoutCornerButtons`; 100 % = the pad's zoom button at pad 100 %). It is laid out as a `Cluster` with no pad, so
+  and content group are new), in one column in the upper right of the safe area (`touch_math.h
+  LayoutCornerButtons`; 100 % = the pad's zoom button at pad 100 %; a column too tall for the safe height is laid
+  out at the largest scale that fits). It is laid out as a `Cluster` with no pad, so
   `HitControl`, `Capture` and the pressed art serve it unchanged; its own `Capture` feeds the same `Hold(Source::Pad)`
   as the cluster's (held = continuous, the same rates). Its four tooltips are off (a resting finger is a parked
   cursor). Shown with the toolbar whatever the pad's key; with the key at 0 no dialog is built and nothing is hit.
