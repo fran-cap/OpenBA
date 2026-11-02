@@ -36,6 +36,7 @@
 #include "ext/find_fastpath/find_fastpath.h"       // ext.find_fastpath: the ExternalFactory::_extFindFast seam, at boot
 #include "ext/heap_slack/heap_slack.h"             // ext.heap_slack: the MemoryAllocator::_extCommitSeam seam, at boot
 #include "ext/outline_with_panel/outline_with_panel.h"   // fix.outline_with_panel: the EdgeMeshInstance::_extHoldDraw seam
+#include "ext/save_failure_notice/save_failure_notice.h"   // fix.save_failure_notice: the save job / SaveLoad seams
 #include "ext/resources/text_provider.h"        // the Extensions dialog / Enhanced tab resources from the exe's text (KITFREE)
 #include "rsc_text_check.h"                      // src/diag: the kit cross-check, /rsccheck:1 on the command line
 #include "ext/resources/font_provider.h"         // KITFREE RSCFONT: ext.sharp_ui's font variants, provided at run time
@@ -142,6 +143,10 @@ void InitFromSettings() {
     ::UI::UserInterface::_extFixScaleLayout = &Fix().ui_scale_layout;
     ::UI::SliderElement::_extFixDragClamp = &Fix().slider_drag_clamp;
     ::UI::ScrollElement::_extFixDragClamp = &Fix().slider_drag_clamp;
+    // fix.save_failure_notice: the save job's temporary file, and state 2's status read + notice.
+    ::IO::PersistenceWorker::_extFixSaveTemp = &Fix().save_failure_notice;
+    ::Save::SaveLoad::_extFixSaveResult = &Fix().save_failure_notice;
+    ::Save::SaveLoad::_extSaveResult = &Ext::SaveFailureNotice::OnSaveResult;
     // fix.boot_device_lost: one row, two seams -- the engine's SaveLoad-walk skip and the
     // renderer backend's recovery of a reset that failed on a removed device.
     ::Engine::MainLoop::_extFixBootDeviceLost = &Fix().boot_device_lost;

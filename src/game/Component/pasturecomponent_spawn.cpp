@@ -191,12 +191,6 @@ void PastureComponent::SpawnLivestock(AnimalComponent* const* parent) {
     Object::InternalPtr<ComponentEntity> regRef = ent;
     // LEFT: GameUpdateLoop::m_entityList is void* (W0 header); the forwarder takes it.
     w->m_entityList->RegisterEntity(&regRef, tmpl->_category);
-
-    std::fprintf(stderr, "[Pasture] SPAWN livestock ent=%p into pasture=%p at (%.1f,%.1f) "
-                 "female=%d birth=%d (count now %d/%d)\n",
-                 static_cast<void*>(ent), static_cast<void*>(this), posX, posY, (int)female,
-                 (int)(parentCharacter != nullptr), animals._size, capacity);
-    std::fflush(stderr);
 }
 
 

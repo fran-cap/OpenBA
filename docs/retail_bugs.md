@@ -961,3 +961,79 @@ only changed from the main menu (ruled 2026-11-01).
   is disabled with retail's own `Enable(false)`, the call retail makes for a game with flag bit 10. It shows
   greyed out like any disabled button; no new text, no new dialog.
 Not sim-visible; nothing new is saved. Off under `/profile:faithful` (retail's behaviour, both parts).
+
+## 29. A save that cannot be written fails silently, and a failed overwrite destroys the previous save
+
+**Symptom.** Saving shows the usual spinner and then nothing: the save is missing from the list, or
+an older save of that name has turned into a blank row that will not load. Players report it with a
+read-only or OneDrive-synced Documents folder, with Windows Controlled Folder Access ("ransomware
+protection") on, and with antivirus software that blocks the game's writes. The autosave fails the
+same way, so a player can play for hours with nothing saved.
+
+**Retail mechanism.** `Save::SaveLoad::UpdateSave` (Runtime `0x1800c2a80`) state 1 builds the two
+save blocks and queues the write on the persistence worker (`0x1800b75c0`, which clears the worker's
+status `Persistence+0x48`); state 2 waits only for the minimum spinner time (`[this+0x8] > [this+0x10]`)
+and then frees the saved state and resets. It never reads the status. The worker's save job
+(`0x1800b6e00`) opens the save itself with `IO::FileStream::Create` (`CreateFileW`, `CREATE_ALWAYS`),
+writes the header and the blocks in place, and stores status 1 on success or 2 when the create fails
+or any `WriteFile` comes up short. So a blocked create says nothing, and a write that fails part way
+(disk full, a scanner or sync client taking the file) has already truncated the previous save of that
+name to a file that fails the save list's CRC check.
+
+**Proof it is retail.** The decompile of `0x1800c2a80`: state 2 is the time test, the two frees and
+the field resets, with no read of `Persistence+0x48` anywhere in the function; nothing else in the
+save path reads it either. The decompile of `0x1800b6e00`: `FileStream::Create` on the pending name,
+the four `WriteFile` calls into that handle, `*(param_1 + 0x38) = 1` or `2`. The port transcribes both
+(`src/engine/save/saveload_update.cpp`, `src/engine/io/persistence_worker.cpp`).
+
+**Lever.** Report the status the job already computes, and write so that a failure cannot take the old
+save with it: the job writes `<name>.tmp` and moves it over the save only after every byte is written
+(`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, `Platform::FileReplace`), deleting it on failure; state
+2 waits for the job's status and, when the save did not reach the disk, the game shows a message box
+naming the save folder and the usual causes.
+
+Fix: `fix.save_failure_notice` (tier 1), default on, off under `/profile:faithful`. Engine seams
+`IO::PersistenceWorker::_extFixSaveTemp` (the temporary file) and `Save::SaveLoad::_extFixSaveResult` /
+`_extSaveResult` (the status read), installed by `src/ext/registry_boot.cpp`; the notice is
+`src/ext/save_failure_notice/` over `Dialog/Extensions.rsc:saveFailed`, added to the game's UI without a
+nested modal loop. The first failure after a success opens it; further failures in a row (a failing
+autosave) do not, until a save succeeds. Every save path takes it: a manual save, the autosave, and
+`ext.background_save` / `ext.async_save_compress`, which change how the blocks are built but end in the
+same enqueue and save job. Test `tests/unit/ext_save_failure_notice_test.cpp`.
+
+## 30. A trading post whose dock boats cannot reach never trades, and nothing says why
+
+**Symptom.** A trading post is built, staffed and stocked, and no merchant ever arrives. Players
+report it for posts on ponds or lakes, behind shallows, or on a river bend; moving the post a few
+tiles sometimes cures it. The game gives no hint that the dock is the problem.
+
+**Retail mechanism.** The post's idle state (`TradeComponent` state 2 per-frame, `0x14005aa60`) counts
+the merchant timer down, clones the trader boat and calls `BoatComponent::SetDestination`
+(`0x1400456e0`) with the post. That builds the route from the map's river polyline and two water A*
+legs (`0x14009ffc0`, mode `0x380`: terrain classes 7 to 9): river entry to the dock's "boat" point,
+and the dock to the river exit. When either leg comes back empty, the test at `0x140045e2e` /
+`0x140045e38` (`TEST EBX,EBX / JLE`, `TEST EAX,EAX / JLE` to `0x140046104`) skips both and the route
+is the bare polyline. The boat then docks only if the polyline happens to pass close to the dock;
+otherwise it sails the river, is deleted at the route's end (state 0, `0x140045250`), and the post
+re-arms its timer, for ever. Placement (`0x14009f5d0`) never tests that the dock's water joins the
+river; shallow cells below class 7 cut the water graph while still looking like water.
+
+**Proof it is retail.** The disassembly of `0x1400456e0`: the two `CALL 0x14009ffc0` at `0x140045d77`
+and `0x140045e23`, the length of each kept in `RBX` / `[RBP+0x8060]`, then the two `JLE` to the
+departure-lane code with nothing between them that records or reports the failure. The port
+transcribes it (`src/game/Component/boatcomponent_route.cpp`). A working dock's legs are not empty:
+the `fix.path_query_first` measurements (`docs/extensions/handins/PATHQUERYFIRST.md` §3) logged
+route lengths of 746 / 207 and 767 / 184 for the stress town's posts.
+
+**Lever.** Say so where the player looks for news: an event-log line (and the event ribbon) at the
+post, when a merchant's boat finds no water route to its dock. Whether boats come and where they sail
+stay retail's.
+
+**Ruling (2026-11-01).** Trading-post placement stays as retail's: a dock that boats cannot reach is
+not refused. The event-log warning below is the whole fix.
+
+Fix: `fix.boat_reach_notice` (tier 1), default on, off under `/profile:faithful`. The failed-leg arm
+of `BoatComponent::SetDestination` calls `src/ext/boat_reach_notice/`, which appends one ordinary
+event-log entry (the trader's event type 0xd and icon, warning colour, the post's tile; the game's
+message table has no text for it, so the text is ours). A save keeps it like any other entry, as text
+and five ints, and retail reads such a save unchanged. No unit test: the row has no pure logic.

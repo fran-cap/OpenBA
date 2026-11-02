@@ -75,6 +75,8 @@
 #include "Player/exe_bodies.h"
 #include "Work/exe_bodies.h"
 #include "system/MemoryAllocator.h"
+#include "ext/registry.h"                          // Ext::Fix().boat_reach_notice
+#include "ext/boat_reach_notice/boat_reach_notice.h"
 
 // ── Leaves, called directly ──────────────────────────────────────────────────────
 //   0x140003ea0 PlayerPath_FindComponent_3ea0      0x140002ed0 WorkBase_FindComponent_2ed0
@@ -431,6 +433,10 @@ void BoatComponent::SetDestination(const Object::InternalPtr<ComponentEntity>* d
                 AppendRoutePoint(this, snapped);
             }
         }
+    } else if (Ext::Fix().boat_reach_notice) {
+        // NOT RETAIL (fix.boat_reach_notice, docs/retail_bugs.md §30): retail drops the failed
+        // legs without a word. The event log says so; the route below is retail's.
+        Ext::BoatReachNotice::OnLegsFailed(dest);
     }
 
     // ── 3. the departure lane: the rest of the polyline ─────────────────────────

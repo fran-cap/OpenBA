@@ -202,6 +202,24 @@ const Entry kEntries[] = {
       "A change in the Mods window is saved as soon as you confirm it, so a crash no longer brings back "
       "the old list; mods are changed from the main menu only (the in-game Mods button is greyed out).",
       0, [](State& s) -> bool& { return s.fix.mods_persist; } },
+    // SAVEFAILURENOTICE (docs/retail_bugs.md section 29): a save that does not reach the disk (read-only
+    // folder, Controlled Folder Access, antivirus, full disk) opens a message box naming the save folder,
+    // where retail's UpdateSave (0x1800c2a80) never reads the save job's status; and the job writes a
+    // temporary file and moves it over the save, so a failed write keeps the previous save. No sim change.
+    { "save_failure_notice", Tier::Fix, Class::None, true,
+      "Tell when a save fails",
+      "A save that cannot be written (a read-only or protected save folder, an antivirus block, a full "
+      "disk) shows a message instead of failing silently, and the previous save of that name is kept.",
+      0, [](State& s) -> bool& { return s.fix.save_failure_notice; } },
+    // BOATREACHNOTICE (docs/retail_bugs.md section 30): when a merchant boat's two water legs to a trading
+    // post's dock come back empty (BoatComponent::SetDestination 0x1400456e0 drops them without a word),
+    // the event log says so, at the post's tile. Where the boat sails is unchanged. The line is an ordinary
+    // event-log entry (text, a save keeps it like any other).
+    { "boat_reach_notice", Tier::Fix, Class::None, true,
+      "Tell when boats cannot reach a dock",
+      "When a merchant's boat finds no water route to a trading post's dock, the event log says so, so a "
+      "post that never trades is no longer a mystery.",
+      0, [](State& s) -> bool& { return s.fix.boat_reach_notice; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

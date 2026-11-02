@@ -77,6 +77,8 @@ struct Fixes {
     bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
     bool nomad_arrival     = true;   // docs/retail_bugs.md §22, src/ext/nomad_arrival/: sim-visible, a nomad counts as arrived only near the town hall, else retries once and leaves
     bool mods_persist      = true;   // docs/retail_bugs.md §23: the mod list is written to settings.cfg when Mods is confirmed, and Mods is greyed out in a game
+    bool boat_reach_notice = true;   // docs/retail_bugs.md §30, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
+    bool save_failure_notice = true; // docs/retail_bugs.md §29, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
