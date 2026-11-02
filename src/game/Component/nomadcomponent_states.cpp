@@ -57,6 +57,10 @@
 #include "system/Value.h"   // ENDGAME B.3.4b System caller batch
 #include "Component/NomadComponent.h"
 #include "Action/MoveTo.h"   // 0x1400c9170, by name
+#include "Component/ModelComponent.h"
+#include "Component/ImmigrationComponent.h"   // fix.nomad_arrival: the hall's group
+#include "ext/registry.h"                     // Ext::Fix().nomad_arrival
+#include "ext/nomad_arrival/nomad_arrival_rule.h"
 
 namespace {
 
@@ -85,6 +89,68 @@ bool Idle(NomadComponent* nomad) {
     CharacterComponent* chr = entity ? entity->FindComponent<CharacterComponent>() : nullptr;
     if (!chr) return false;
     return chr->actionStack.current + 1 < 1;
+}
+
+// NOT RETAIL: fix.nomad_arrival (docs/retail_bugs.md §22). A nomad that gives up leaves its
+// hall's group, so the hall does not wait for its ARRIVED; when the members left have all
+// arrived the hall moves on to the answer (0x11), and when nobody is left it goes back to idle
+// (2, the transition the fix appends to state 0x10). Then the nomad forgets the hall: idle at
+// the map edge, retail's own `hall == nullptr` arm of TickWalkIn destroys it.
+void NomadLeaveHall(NomadComponent* nomad) {
+    ComponentEntity* hallEntity = nomad->hall.Get();
+    ComponentEntity* self = nomad->_entity.Get();
+    ImmigrationComponent* imm = hallEntity->FindComponent<ImmigrationComponent>();
+    if (imm) {
+        ImmigrationComponent::GroupList& group = imm->group;
+        const int n = group._size;
+        int kept = 0;
+        for (int i = 0; i < n; ++i) {
+            if (group._data[i].Get() == self) continue;
+            if (kept != i) group._data[kept] = group._data[i];
+            ++kept;
+        }
+        for (int i = kept; i < n; ++i) group._data[i] = nullptr;
+        group._size = kept;
+        StateMachineComponent* smc = hallEntity->FindComponent<StateMachineComponent>();
+        switch (Ext::NomadArrival::AfterGiveUp(imm->arrivedCount, kept)) {
+        case Ext::NomadArrival::HallStep::AllArrived:
+            ::ControllerLive::RequestStateTransition(&smc->stateMachine, 0x11);
+            break;
+        case Ext::NomadArrival::HallStep::Empty:
+            ::ControllerLive::RequestStateTransition(&smc->stateMachine, 2);
+            break;
+        case Ext::NomadArrival::HallStep::None:
+            break;
+        }
+    }
+    nomad->hall = nullptr;
+}
+
+// NOT RETAIL: fix.nomad_arrival. True when the idle nomad has arrived (retail's arm runs).
+// Otherwise it has re-issued the walk to the meeting point (the first time) or given up and
+// started back to its spawn point. The retry mark is a byte of the class's padding (+0x54,
+// never saved: after a load the nomad gets its retry again).
+bool NomadHasArrived(NomadComponent* nomad) {
+    ModelComponent* model = nomad->_entity->FindComponent<ModelComponent>();
+    const Math::Vector3& pos = model->transform.translation;
+    uint8_t& retried = nomad->_pad54[0];
+    const Ext::NomadArrival::Step step = Ext::NomadArrival::Decide(
+        true, pos.x - nomad->meetPoint.x, pos.y - nomad->meetPoint.y, retried != 0);
+    switch (step) {
+    case Ext::NomadArrival::Step::Arrived:
+        retried = 0;
+        return true;
+    case Ext::NomadArrival::Step::Retry:
+        retried = 1;
+        nomad->MoveTo(&nomad->meetPoint);
+        return false;
+    case Ext::NomadArrival::Step::GiveUp:
+        retried = 0;
+        NomadLeaveHall(nomad);
+        nomad->MoveTo(&nomad->spawnPoint);
+        return false;
+    }
+    return true;
 }
 
 }  // namespace
@@ -137,6 +203,9 @@ char NomadComponent::TickWalkIn(StateMachine* sm) {
         if (gw) Entities(gw)->QueueDestroy(&ibp);   // 0x1400c49d0
         return 1;
     }
+    // FIX nomad_arrival (docs/retail_bugs.md §22): retail takes "idle" as "arrived"; with the
+    // row on, a nomad idle away from its meeting point walks again once, then gives up.
+    if (Ext::Fix().nomad_arrival && !NomadHasArrived(this)) return 1;
     StateMachineComponent* smc = hall->FindComponent<StateMachineComponent>();   // 0x140003ea0
     if (smc) {
         ControllerComponent::Controller* node = smc->stateMachine.current;

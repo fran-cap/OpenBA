@@ -154,7 +154,10 @@ StringTable resource
 		{ String _name = "LoadProgressGameData";	String _text = "Loading game data"; }
 		{ String _name = "LoadProgressMod";			String _text = "Loading mod @0 of @1"; }
 
-		{ String _name = "ExtensionTurnedOff";		String _text = "The following extension is turned off, but this save was made with it.~n~n@0 [@1]~nSaved with extension version @2~n~nA save keeps the extensions it was made with, so it will be turned on for this game. Do you still want to load the save game?"; }
+		// fix.save_failure_notice's message box (Extensions.rsc:saveFailed): @0 the save folder
+		{ String _name = "SaveFailed";				String _text = "The game could not be saved.~n~nThe save folder could not be written:~n@0~n~nCheck that the folder is not read-only, that Windows Controlled Folder Access or an antivirus is not blocking the game, and that the disk has free space. The previous save of that name was kept."; }
+
+		{ String _name = "ExtensionTurnedOff";		String _text ="The following extension is turned off, but this save was made with it.~n~n@0 [@1]~nSaved with extension version @2~n~nA save keeps the extensions it was made with, so it will be turned on for this game. Do you still want to load the save game?"; }
 
 		// the Extensions dialog's two tabs (Extensions.rsc:tabCaptionOptional / tabCaptionDefault)
 		{ String _name = "ExtensionsTabOptional";	String _text = "Optional"; }

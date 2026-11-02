@@ -125,6 +125,8 @@
 #include "system/Filename.h"
 #include "system/string_internal.h"
 #include "io/FileSystem.h"
+#include "system/WideString.h"   // fix.save_failure_notice: the move's paths
+#include <string>
 
 using RtIo::SaveBlock;
 
@@ -553,11 +555,23 @@ IO::PersistenceWorker::~PersistenceWorker() {
 // actually promises — status ends at 1 or 2, never left at whatever it was —
 // which catches a body that returns without touching it at all.
 // ============================================================================
+const bool* IO::PersistenceWorker::_extFixSaveTemp = nullptr;   // fix.save_failure_notice seam
+
 void IO::PersistenceWorker::SaveJob() {
 
     // ENDGAME B.3.9 IO (W2) / B.4 R-IO: the REAL class, a stack object; its
     // destructor at the close of this body is retail's teardown.
     IO::BinaryFileStream bfs;
+
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice writes
+    // `<name>.tmp` and moves it over the save below, once every byte is written.
+    // Read once: the whole job takes one path.
+    const bool viaTemp = _extFixSaveTemp != nullptr && *_extFixSaveTemp;
+    std::string tempName;
+    if (viaTemp) {
+        tempName = _pendingFilename._data != nullptr ? _pendingFilename._data : "";
+        tempName += ".tmp";
+    }
 
     bool created;
     {
@@ -565,7 +579,7 @@ void IO::PersistenceWorker::SaveJob() {
         // `Filename(const char*)` (retail 0x180026cf0) -- see B31_RULES
         // DELIMITERS. `Set` COPIES the bytes (it does not adopt
         // `_pendingFilename`'s buffer), exactly as this ctor does.
-        System::Filename f(_pendingFilename._data);
+        System::Filename f(viaTemp ? tempName.c_str() : _pendingFilename._data);
 
         created = bfs.IO::FileStream::Create(f);   // ENDGAME B.3.9 IO: the member
 
@@ -618,6 +632,18 @@ void IO::PersistenceWorker::SaveJob() {
             }
         }
 
+        if (viaTemp) {
+            // NOT RETAIL (fix.save_failure_notice): close the temporary file, then move it
+            // over the save; a short write or a failed move deletes it and the old save
+            // stays. The status is stored last, so a reader that sees 1 finds the save in place.
+            if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
+            const System::Filename tempPath(tempName.c_str());
+            const System::Filename savePath(_pendingFilename._data);
+            const System::WideString tempWide(tempPath);
+            const System::WideString saveWide(savePath);
+            if (wroteAll) wroteAll = Platform::FileReplace(tempWide._data, saveWide._data) != 0;
+            if (!wroteAll) Platform::FileDelete(tempWide._data);
+        }
         _status = wroteAll ? 1 : 2;
     } else {
         _status = 2;

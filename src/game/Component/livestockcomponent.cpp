@@ -72,9 +72,6 @@ void LivestockComponent::OnAdded() {
     LivestockComponent* ibp = this;
     town->livestock
         .SetSizeFill(town->livestock._size + 1, &ibp);
-    std::fprintf(stderr, "[Pasture] livestock %p joined the free-roaming pool (now %d)\n",
-                 (void*)this, town->livestock._size);
-    std::fflush(stderr);
 }
 
 void LivestockComponent::OnRemove() {

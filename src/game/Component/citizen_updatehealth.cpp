@@ -162,99 +162,6 @@ static void PlagueCensusTick() {
 // UpdateHealth call — the CitizenDescription is fully populated by then.
 static bool s_bootReported = false;
 
-// Hospital census. RE-ARMS until it has proof the registry is populated, because an
-// assertion of absence is only valid once the list is known to be non-empty.
-//
-// ⚠ WHAT THIS LIST ACTUALLY IS (root-caused 2026-08-22 after a smoke run reported
-// "buildings=0" on a town that plainly had buildings):
-// FindCareBuilding -> sub_1930 (0x140111930) walks townMgr+0x60 / count +0x68, and that
-// is the TOWN ATTENDANCE REGISTRY, not a building list. It is appended by
-// AttendanceComponent state-2 enter (retail 0x140043c90 — the OPEN transition), so a
-// building appears in it only once it HAS an AttendanceComponent AND that component has
-// opened. The real building/house registry is a different array, townMgr+0x20 / +0x28
-// (the one Game::StartRandomFire and the employment scan use).
-// The earlier label "buildings=" was therefore wrong, and wrong in the worst direction:
-// it made an empty attendance registry read as an empty town. Both counts are now
-// printed so the two cases can never be confused again.
-static bool s_censusDone = false;
-static int32_t s_censusTries = 0;
-
-static void PlagueHospitalCensus(GameUpdateLoop* gw, Profession* healerProf) {
-    if (s_censusDone) return;
-    ++s_censusTries;
-
-    CitizenBehavior* mgr = gw ? gw->m_citizenList : nullptr;
-    if (!mgr) {
-        if (s_censusTries == 1) {
-            fprintf(stderr, "[Plague] BOOT: town manager (gw+0xf0) NULL — census re-arming\n");
-            fflush(stderr);
-        }
-        return;
-    }
-
-    int attendance = mgr->attendanceComponents._size;   // townMgr+0x60/+0x68 — what sub_1930 walks
-    int buildings  = mgr->field_0x20._size;                 // townMgr+0x20/+0x28 — the real building list
-    int citizens   = mgr->citizens._size;               // townMgr+0xa8
-
-    if (attendance <= 0) {
-        // NOT an assertion of absence. Say plainly that we cannot answer yet.
-        if (s_censusTries == 1 || (s_censusTries % 5000) == 0) {
-            fprintf(stderr,
-                    "[Plague] BOOT: hospital census DEFERRED — attendance registry "
-                    "(townMgr+0x60/+0x68) is EMPTY, so there is nothing to search yet. "
-                    "buildings(townMgr+0x28)=%d citizens(+0xa8)=%d try=%d. A building "
-                    "joins that registry only when its AttendanceComponent reaches state 2 "
-                    "(the OPEN transition), which is after StartTown. Re-arming.\n",
-                    buildings, citizens, s_censusTries);
-            fflush(stderr);
-        }
-        if (s_censusTries >= 200000) {
-            s_censusDone = true;
-            fprintf(stderr,
-                    "[Plague] BOOT: hospital census GAVE UP after %d tries — the attendance "
-                    "registry never became non-empty. buildings(townMgr+0x28)=%d. If the town "
-                    "has buildings, nothing is completing the AttendanceComponent OPEN "
-                    "transition, and FindCareBuilding / FindStorage / TryEnrolInSchool are ALL "
-                    "blind for the same reason. That is the thing to chase, not the hospital.\n",
-                    s_censusTries, buildings);
-            fflush(stderr);
-        }
-        return;
-    }
-
-    // Registry is populated — an answer here is now meaningful.
-    s_censusDone = true;
-    uint32_t tidWpc = WorkPlaceComponent::TypeId();
-    Object::InternalPtr<AttendanceComponent>* arr = mgr->attendanceComponents._data;
-    int withWpc = 0, matches = 0;
-    for (int i = 0; i < attendance && arr && tidWpc; i++) {
-        AttendanceComponent* comp = arr[i].Get();
-        if (!comp) continue;
-        ComponentEntity* entity = comp->_entity.Get();
-        if (!entity) continue;
-        int n = entity->_components._size;
-        Object::InternalPtr<Component>* comps = entity->_components._data;
-        for (int j = 0; j < n && comps; j++) {
-            Component* c = comps[j].Get();
-            if (!c) continue;
-            if (c->Type() != tidWpc) continue;
-            ++withWpc;
-            if (static_cast<WorkPlaceComponent*>(c)->profession == healerProf && healerProf != nullptr) ++matches;
-            break;
-        }
-    }
-    fprintf(stderr,
-            "[Plague] BOOT: hospital census — attendanceRegistry(townMgr+0x68)=%d "
-            "withWorkPlaceComponent=%d matchingHealerProfession=%d "
-            "buildings(townMgr+0x28)=%d tidWorkPlaceComponent=%u settledAfter=%d tries%s\n",
-            attendance, withWpc, matches, buildings, tidWpc, s_censusTries,
-            (matches == 0) ? "  <== NO HOSPITAL IN THE ATTENDANCE REGISTRY: FindCareBuilding"
-                             " can never link, so the cure arm is unreachable. Check that the"
-                             " hospital template carries an AttendanceDescription and that its"
-                             " AttendanceComponent has OPENED." : "");
-    fflush(stderr);
-}
-
 static void PlagueBootReport(CitizenComponent* citizen) {
     if (!PlagueTraceOn()) return;
 
@@ -290,7 +197,6 @@ static void PlagueBootReport(CitizenComponent* citizen) {
         fflush(stderr);
     }
 
-    PlagueHospitalCensus(gw, healerProf);
 }
 
 } // namespace

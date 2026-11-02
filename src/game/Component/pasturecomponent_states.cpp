@@ -229,9 +229,6 @@ void PastureComponent::Reproduce() {
             animal->_entity->RefreshEntityFlags();   // 0x1400c3470
         }
         if (animals._size < limit) {
-            std::fprintf(stderr, "[Pasture] BIRTH: pasture=%p parent=%p (count=%d limit=%d)\n",
-                         static_cast<void*>(this), static_cast<void*>(animal), animals._size, limit);
-            std::fflush(stderr);
             AnimalComponent* parent = animal;
             SpawnLivestock(&parent);   // 0x140128670
         }
@@ -336,10 +333,6 @@ void PastureComponent::ReleaseAllAnimals() {
 // Returns AL = 0 (`& 0xff..00`) so sibling state nodes still run.
 // ============================================================
 char PastureComponent::EnterOperational() {
-    std::fprintf(stderr, "[Pasture] state 2 ENTER (operational) pasture=%p type=%p\n",
-                 static_cast<void*>(this), static_cast<void*>(livestockType));
-    std::fflush(stderr);
-
     AdoptWanderers();   // 0x140127140
 
     CitizenBehavior* town = Town();
@@ -358,9 +351,6 @@ char PastureComponent::EnterOperational() {
 // Returns AL = 0.
 // ============================================================
 char PastureComponent::EnterTeardown() {
-    std::fprintf(stderr, "[Pasture] state 3 ENTER (teardown) pasture=%p count=%d\n",
-                 static_cast<void*>(this), animals._size);
-    std::fflush(stderr);
     ReleaseAllAnimals();
     return 0;
 }

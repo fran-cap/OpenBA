@@ -21,6 +21,55 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.stranded_wade` (on): a citizen stuck on land cut off from the town (he crossed a stream where it
+  touches a mountain or shore, or a builder was left on a finished dock or bridge piece) no longer stands
+  there "going somewhere to get warm" until he starves. Once a walk of his toward home was refused because
+  the place is cut off, he wades or climbs back: to his home, or to the house he just lost (the game takes
+  a house from a citizen who cannot reach it), else to the town hall or a storage building, as retail
+  already lets other walks do (`docs/retail_bugs.md` section 19). Off under `/profile:faithful`.
+- `fix.mods_persist` (on): a change in the Mods window is saved to `settings.cfg` as soon as it is
+  confirmed, so a crash no longer brings back the old mod list. Mods are changed from the main menu only:
+  the pause menu's Mods button is greyed out, since retail dropped an in-game change at the next menu
+  anyway (`docs/retail_bugs.md` section 23). Off under `/profile:faithful`.
+- `fix.nomad_arrival` (on): nomads who cannot walk to the town hall (cut off by a river, for example) no
+  longer count as arrived where they are stuck. Retail let such a group be allowed in, and the new citizens
+  appeared where they stood and starved there. With the fix a nomad must reach the hall; it tries once more,
+  then leaves (`docs/retail_bugs.md` section 22). Off under `/profile:faithful`.
+- `fix.input_fetch_room` (on): a brewer, smith or other production worker no longer walks back and forth
+  between a barn and a nearly full building. Retail sends the worker for a full load of an input whatever
+  room the building has left, the building refuses a load it cannot take whole, and the worker carries it
+  back to storage and comes for it again; with the fix the worker fetches only what fits
+  (`docs/retail_bugs.md` section 25). Off under `/profile:faithful`.
+- ConsumeProduce workers (brewers, smiths, tailors...) no longer set off for an input while already
+  carrying something or with no room to carry it; as in retail, they re-plan instead.
+- `fix.autotrade_free_goods` (on): a trading post set to trade automatically no longer hands the merchant
+  whole stacks of goods he does not buy. Retail pays for an automatic purchase by selling stored goods one
+  unit at a time until the price is covered, and a good the merchant values at nothing never covers it, so
+  the whole stack went for nothing; with the fix such goods are not used to pay (`docs/retail_bugs.md`
+  section 24). Off under `/profile:faithful`.
+- `fix.firefighter_wells` (on): the Firefighter achievement ("Build 20 wells in a single town") is
+  awarded at 20 wells. The game's data asks for 40, a long-known mismatch with the description
+  (`docs/retail_bugs.md` section 20). Off under `/profile:faithful`.
+- `fix.crop_planting_exit` (on): a crop field no longer stays in "planting" forever. Retail never finishes
+  planting a field with a row the farmers cannot reach (a steep or fenced-off edge), so the field is never
+  tended or harvested and its crop rots; nor does it move on when every crop was lost before planting
+  finished. With the fix, the unreachable slots are left bare and the field goes on to tending and harvest,
+  and a field with nothing left growing is cleared for replanting (`docs/retail_bugs.md` section 11). Off
+  under `/profile:faithful`.
+- `fix.unresolved_seeds` (on): selecting a crop field, orchard or pasture no longer crashes when the
+  town's list of crops, trees and animals names one that no installed mod provides: a starting condition
+  naming a missing resource (one mod's "Fig" where the package has "Fig Tree"), or a save made with a
+  mod's crop, loaded with that mod off. Retail puts an empty entry in the list and the panel's menu reads
+  it; the fix leaves the entry out (`docs/retail_bugs.md` section 21). Off under `/profile:faithful`.
+- `fix.save_failure_notice` (on): a save that cannot be written (a read-only or OneDrive save folder,
+  Windows Controlled Folder Access, an antivirus block, a full disk) shows a message naming the save
+  folder, where the game used to fail without a word. The save is written to a temporary file and moved
+  over the old one only when complete, so a failed save no longer leaves the previous save of that name
+  broken (`docs/retail_bugs.md` section 27). Off under `/profile:faithful`.
+- `fix.boat_reach_notice` (on): when a merchant's boat finds no water route to a trading post's dock (a
+  pond, a lake, shallows between the dock and the river), the event log says so, at the post. The game
+  used to send the boat past without a word, for ever, so the post never traded and nothing said why
+  (`docs/retail_bugs.md` section 28). Where boats sail is unchanged. Off under `/profile:faithful`.
 - Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
   billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the
   tree's growth scale, and retail eases that scale a little every frame (also while paused with Space, and
@@ -49,6 +98,14 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
   Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
   `docs/known_port_issues.md` row 1344).
+- `fix.cancel_refund` (on): a building site cancelled after its materials arrived now leaves all of them in
+  piles on and around its ground. Retail lays piles only on the few free cells of the site's own ground and
+  drops the rest, a third of a town hall's delivery in one test (`docs/retail_bugs.md` section 26). A site
+  that builders had already started still gives back half, as in retail. Off under `/profile:faithful`.
+- `fix.commute_cost` (on): the job allocator no longer treats the walk from a newly built home to a
+  workplace (or from a home to a newly built workplace) as no walk at all the first time it asks for it, so
+  such a citizen is no longer sent to a far workplace for that reason. Retail answers 0 for a commute it has
+  not measured yet (`docs/retail_bugs.md` section 6). Off under `/profile:faithful`.
 - `fix.path_query_first` (on): in a large town the game no longer freezes for 15 to 20 seconds when a
   merchant boat sets off, or while a road is drawn. Retail queues that path query behind every citizen
   route search already waiting; with the fix it is answered first, and those citizens get their routes a
