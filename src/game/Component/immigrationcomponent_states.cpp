@@ -644,6 +644,11 @@ extern "C" void ImmigrationCtrl_PopulateTable() {
                        &ImmTickArriving, nullptr);
     TableAddTransition(t, 3, &ImmOnLeaveGroup);
     TableAddTransition(t, 0x11, nullptr);
+    // NOT RETAIL: fix.nomad_arrival's way back to idle when every member of the group gave up
+    // (docs/retail_bugs.md §22, nomadcomponent_states.cpp NomadLeaveHall). Retail lists {3, 0x11}.
+    // The table is built before settings are read, so the entry is always here and only the
+    // row makes the request. Appended last, so the indices of 3 and 0x11 are retail's.
+    TableAddTransition(t, 2, nullptr);
     TableAddEvent(t, 6, &ImmOnArrived);
 
     TableRegisterState(t, 0x11, &ImmEnterAnswer, nullptr,

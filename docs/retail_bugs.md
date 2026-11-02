@@ -223,6 +223,12 @@ No instruction on that arm writes R15.
 
 **Lever.** Return the computed cost on the not-found arm, that is, the value just stored.
 
+**Fix: `fix.commute_cost` (WIRED 2026-11-01).** The not-found arm of `PathGraph::RegionPairCost` returns the
+cost it just stored, read the way the found arm reads a stored cost (a negative cost is unreachable,
+`0x1000000`), so a pair's first query answers what every later query of it answers. Pure rule
+`src/ext/commute_cost/commute_cost_rule.h`, unit test `tests/unit/ext_commute_cost_test.cpp`. Default on,
+off under `/profile:faithful`. Sim-visible only after a miss (see "When it happens"); nothing new is saved.
+
 ## 7. Rocks on a slope float on their downhill side
 
 **Symptom.** A boulder or an iron deposit on sloped ground shows a lit band of ground between
@@ -325,6 +331,46 @@ on the house's door cell. Candidates, both unconfirmed:
    load: the fix-up pass sets the count to 1 on a road cell, and `RemovePendingRoad`'s
    `+0x2A == 0xFF` arm never subtracts. Survives a reload.
 
+**Candidates 1 and 2 checked in Ghidra (2026-11-01): neither completes twice.** Neither was run.
+- *Candidate 1.* The second drag does place a second marker on the still-finished road
+  (`RemovePendingRoad` returns 1). In the same pass it marks the first marker for removal
+  (`RemovalTool::CalcPath` `0x1401035e0`: the cell's entity has the marker template `+0x38`).
+  `MarkForRemoval` (`0x1400c2ea0`) runs `WorkComponent`'s remove hook (`0x14012e6c0`), which cancels the
+  marker's ClearArea work. `WorkScheduler::TaskCleanup` (`0x1400f8e30`) then calls the work's slot 8,
+  `ClearArea::Cleanup` (`0x1400e6650`). That clears the action stack of every citizen in its cell set
+  (`+0x58`), which holds the citizen phase 2 dispatched `CompleteRoad` to. The first `CompleteRoad` is
+  dropped before it runs, and the second marker's own phase 2 dispatches a single one. The marker's phase 2
+  only offers road cells: `Map::GetTilesInArea` (`0x14009fc00`, empty-tile arm at `0x14009fdce`) emits an empty tile only
+  when it holds a road, is road terrain or is pending.
+- *Candidate 2.* `RemovePendingRoad` (`0x14009c700`) hands the pending road's work to `TaskCleanup` the
+  same way. `BuildRoad::Cleanup` (`0x1400e4910`) clears the stack of the citizen it dispatched (`+0x48`).
+- The saves checked hold no stuck count. These are the dumps of the four player saves and of `RetailA`
+  (4300 road cells). None has a cell with a count, no road and no building within 2 cells (`cell_diff.py
+  --suspects`), and none has a road-terrain cell (type 0 / 1) whose `+0x2A` is 0xFF.
+
+**A third sequence, read only, not reproduced.** A road upgrade drawn over a cell that a removal marker
+still holds:
+1. The upgrade queues a `BuildRoad` and a pending node. `PlaceRoadCell` (`0x14009c960`) sets `+0x2A` to
+   the new type and leaves the count alone, because the cell already has a road.
+2. The marker's citizen finishes first. `BuildRoad::Execute` waits while a non-pile, non-resource entity
+   occupies the cell. `FinishRoadCell` type 2 sets the count to 0 and `+0x2A` to 0xFF, sets type 2, and
+   erases the pending node. It does not touch the queued `BuildRoad`.
+3. That builder then finishes. `FinishRoadCell` with a road type writes the terrain type and `+0x2B` but
+   not `+0x2A`.
+
+The result is road terrain with `+0x2A` 0xFF and count 0. From there:
+- Drawing a road over it adds no count (`PlaceRoadCell` adds only on non-road terrain), so its later
+  removal wraps the count to 0xFF.
+- A save and load before any change sets the count to 1 (the fix-up pass counts road terrain). The Remove
+  tool then takes `RemovePendingRoad`'s 0xFF arm, which sets type 2 and leaves the count at 1. The result
+  is a red cell that the Remove tool does not select, and that re-laying and removing a road leaves at 1.
+
+This needs the road tool to accept a cell holding a removal marker. `RoadTool::CalcPath` refuses a
+blocker only at the endpoints and in its A*, and whether the marker template stamps a blocker is in the
+game data, not checked. No fix row until a run shows it. The lever would be in `FinishRoadCell` type 2:
+erase the pending node and cancel its `BuildRoad` as `RemovePendingRoad` does, or skip the subtraction
+when the cell holds no road.
+
 **The tile-by-tile road: the removal re-sort.** `FinishRoadCell` resets the height grid at the
 finished cell's four corners (`Map::ResetTerrainHeights` `0x14009e0e0`). When an entity later
 leaves a neighbouring cell (a tree, rock or pile cleared, a building demolished), `0x14009dee0`
@@ -412,27 +458,57 @@ fails on a removed device (retail recovers only from Present, which such a reset
 seam `BootDeviceLostBackend::SetFixFlag`, `src/render/common/boot_device_lost/`). Off under
 `/profile:faithful`: retail's spin in the reset, or the crash above.
 
-## 11. A crop field whose every slot ends "done" while planting stays in the planting state
+## 11. A crop field stays in the planting state when its last slots cannot be planted
 
-**Symptom.** A crop field that is still planting (state 9) when every one of its slots reads
-done (state 2: no crop left growing on any of them) stays in state 9. It never moves on to
-tending or to the re-clear, so it does not plant again. Not observed in play: it needs every
-planted crop of the field to be lost before planting finishes.
+**Symptom.** A crop field that is planting (state 9) never moves on to tending, harvest or the re-clear,
+so it is never harvested and never planted again. Two triggers reach it:
+- **A slot no farmer can reach** (a steep or fenced-off row, a blocked edge): the farmers plant the rest
+  and the field stays in "planting"; the crops that did grow are never harvested and rot. Reported by
+  players since 2019 (about five Discord reports, 2019-2026: "Since they can't finish planting, they never
+  see that field as ready to tend for the summer, or ready to harvest"; removing the field and building a
+  smaller one is the known workaround).
+- **Every slot ends done while planting** (state 2 on every slot: every planted crop lost before planting
+  finished). Not observed in play.
 
 **Retail mechanism.**
-- `CropFieldComponent` state 9 per-frame (`0x14011a1e0`) requests 0x15 (21, the re-clear) on its
-  "all slots done" branch, and 10 when every slot is growing or done.
-- The crop-field populator (`0x14011b1a6`) registers state 9 with the transitions {3, 10} only.
-  States 10 and 11 list 0x15; state 9 does not. The node's transition lookup misses, so the
-  request is dropped.
+- `CropFieldComponent` state 9 per-frame (`0x14011a1e0`) requests 10 (tend) when every slot is growing or
+  done, and 0x15 (21, the re-clear) when every slot is done. A slot leaves "empty" (state 0) only when a
+  crop is bound to it (OnMessage 0, `0x14011ab50`) or when `MarkPlantSlots` (`0x14011b390`) turns every
+  empty slot done.
+- `PlantArea::Execute` (`0x1400f4010`) walks the slots still to plant. For each it clears its "nothing
+  left to plant" flag *before* the reach test (`Map::FindCell` `0x14009ccf0`: an access cell among the
+  slot's eight neighbours; `Map::ValidateCell` `0x1400a00f0`: the citizen's zone), and skips a slot that
+  fails it. When the walk assigns nothing it returns 1 on that flag (`0x1400f4281` `JZ` past the `MarkPlantSlots` call at `0x1400f4298`), so its
+  end-of-planting branch (`MarkPlantSlots` when no plant is in flight) runs only once every slot has been
+  handed out. An unreachable slot is never handed out: it stays empty, growing + done never reaches the
+  slot count, and state 9 never requests 10. Frost does not end it either: dead crops turn their slots
+  done (`ValidateEntityRefs`), the unreachable slot stays empty.
+- For the all-done trigger, the crop-field populator (`0x14011b1a6`) registers state 9 with the
+  transitions {3, 10} only. States 10 and 11 list 0x15; state 9 does not. The node's transition lookup
+  misses, so the request is dropped.
 
 **Proof it is retail.** The populator read in Ghidra (PR #33 review), and the per-frame body in the
-Steam build's disassembly (`MOV dword [RSP+0x30],0x15` on the all-done branch). The port
-(`CropFieldComponent::State9PerFrame`, `src/game/Component/cropfieldcomponent_states.cpp`) makes the
-same request against the same table and drops it the same way.
+Steam build's disassembly (`MOV dword [RSP+0x30],0x15` on the all-done branch). `PlantArea::Execute` read
+in the Ghidra decompile of `0x1400f4010` (2026-11-01): the flag store precedes the set lookup and the reach
+test, and the `return 1` on it precedes the `MarkPlantSlots` call. The port
+(`CropFieldComponent::State9PerFrame`, `src/game/Component/cropfieldcomponent_states.cpp`;
+`PlantArea::Execute`, `src/game/Work/plantarea.cpp`) is the same logic. Retail itself was not run on
+either trigger; the reports above are retail players'.
 
-**Lever.** Add 0x15 to state 9's transitions, so the all-done branch reaches the re-clear (ClearArea
-state 0x15) as states 10 and 11 do.
+**Lever.** For the all-done trigger, add 0x15 to state 9's transitions, so the all-done branch reaches the
+re-clear (ClearArea state 0x15) as states 10 and 11 do. That alone does not reach the unreachable-slot
+trigger (its slot is never done). For that one, let `PlantArea::Execute` run its end-of-planting branch
+when every slot left to plant fails the reach test.
+
+**Fix: `fix.crop_planting_exit` (WIRED 2026-11-01).** State 9's table carries 21 (appended after 3 and 10,
+so their transition indices are retail's; the table is built before settings are read), and
+`State9PerFrame` makes the 21 request only with the row on. In `PlantArea::Execute`, when the walk assigns
+nothing because every slot left failed the reach test, no plant is in flight and at least one slot of the
+field is growing or done (a farmer did reach the field, so the slots are not merely out of this citizen's
+reach), the end-of-planting branch runs: the unreached slots are marked done and stay bare for the season,
+and the field goes on to tending (`Ext::CropPlantingExit::EndPlantingOnUnreachable`,
+`src/ext/crop_planting_exit/crop_planting_exit_rule.h`). The next planting rebuilds every slot and tries
+them all again. Off under `/profile:faithful`.
 
 ## 12. A dragged slider snaps back when the pointer strays off it
 
@@ -682,3 +758,532 @@ worker is in.
 Fix: `fix.path_query_first` (tier 1), default on, off under `/profile:faithful`. One seam reads the row,
 `RunPathQuery`; the worker runs the query as command 6 (`PathfinderThread::ApplyCommand`). Code
 `src/ext/path_query_first/`. Hand-in `docs/extensions/handins/PATHQUERYFIRST.md`.
+
+## 19. A citizen who reaches another land zone over water or mountain cannot walk back, and starves
+
+**Symptom.** Player reports since 2015 (Steam "Wandering Idles", "Citizens Getting Stuck"; Discord
+2019-2025, collected in the 2026-11-01 community sweep): a citizen stands still until he starves or
+freezes, often showing "going somewhere to get warm"; idle citizens end up on a spot across a stream
+or at the map edge and never come back; builders walk out to a dock, bridge or planking piece over
+water ("under water"), and are stuck on it once it is built if it is not joined to land. A bridge or a
+land fill back to the spot frees them; so, sometimes, does changing their profession. "Citizens can
+walk on water precisely once" (a player, 2020).
+
+**Status: the mechanism is read in Ghidra and matches the port function by function. Fixed by
+`fix.stranded_wade` (the ruled rescue, below).**
+
+**Retail mechanism.** Reachability is a zone test. `Map::FillZone` (`0x14009c170`) floods a zone id
+(MapCell `+0x26`) over connected cells whose terrain type is in the land set `0xe1f` (types 0-4, 9,
+10, 11). Types 5-8 (`0x1e0`: quarry-dug ground, mountain 6, shore 7, deep water 8; the classifier
+`0x14009e2c0`) get no zone. Every reachability test has the same shape, mask = the caller's pass
+flags | both cells' type bits, then:
+- `Map::ValidateCell` (`0x1400a00f0`; `CitizenComponent::CanReach` `0x1401158d0`, the work and target
+  pickers, `Map::PathDistance` `0x14009f810`), the build-node test inlined in `BuildStructure::Execute`
+  (`0x1400e4fc0`) and `Component::FindBestAdjacentCell` (`0x14012d5d0`): **if either cell's type is in
+  `0x1e0` the pair is reachable**, with no zone test; else both zones must be non-zero and equal.
+- `Map::RequestPath` (`0x14009cfb0`, every citizen walk, from `MoveTo::PathSetup` `0x1400c8c10`):
+  the same test; when an endpoint is in `0x1e0` the A* runs with that endpoint's type added to the
+  passable mask *for the whole map* (and both water types when either is in `0x180`). Otherwise a
+  zone mismatch returns the ticket {-1, 0}, and `MoveTo::Execute` (`0x1400c8570`) answers 2 (no path).
+
+So a walk with a water or mountain endpoint may cross water or mountains anywhere on the map, and
+nothing checks which land zone it ends in. A citizen who ends a walk on land in another zone (or is
+standing there when the zones are refilled) is stranded: from a zoned land cell every target on the
+town's side fails the zone test, in the pickers and in `RequestPath`. Routes into that state, all in
+retail's code:
+1. *Builders over water.* A build node on a water cell (a dock / bridge / planking piece placed out
+   over the water) passes the build-node test (an endpoint in `0x1e0`), and the builder walks out over
+   the water. If the finished piece's cells are stamped with a land type, the next `FillZones` gives
+   them a zone of their own unless they touch land or a finished piece, and the builder standing on
+   it is stranded (players: "they build the far ones first"). Inferred from the code shape and the
+   reports; the stamped type of a finished dock / bridge cell was not read for this entry.
+2. *Standing on a zone-less cell.* While a citizen's own cell is a mountain, shore or water cell, every
+   picker passes for every target on the map (the source is in `0x1e0`), and the walk's A* may cross
+   that type of ground; the walk can end on land across a stream or on an island at the map edge.
+3. *The world changes under him:* a building, road removal or quarry splits a zone while he is on
+   the far side.
+
+**Route: nomad arrival.** `ImmigrationComponent::FindSpawnCell` (`0x14004e270`) applies the same test
+to the spawn cell and the town hall's cell (`NodePosition(0,0)`). The candidate must be type
+0/1/2/9/10/11, so the bypass fires only if the hall's cell is type 5..8. A town hall's cell is stamped
+type 4 (measured, zone 3), so the zone test runs, and in the measured town it rejected every candidate on
+cut-off edge land. What strands nomads is the walk: `NomadComponent::TickWalkIn` (`0x14004f9c0`) takes
+"action stack idle" as arrival, so a nomad whose walk to the hall fails (`MoveTo::Execute` returns 2)
+counts as arrived where it stands. Allowing the group then converts every member in place
+(`ConvertToCitizen` `0x1400501a0`, the nomad's model position), and they are stranded as citizens. Fixed
+for nomads by `fix.nomad_arrival` (section 22).
+
+**Why he stands still.** The warmth state `0x14010d2c0` (state 1 / 15) first asks
+`CitizenBehavior::FindElderResidence` (`0x14008ec70`, which validates from the citizen's cell), then
+falls back to his own home with **no reachability test** and pushes the walk (`PerformWork` chain
+`0x1400bd790`, `MoveTo` mask `0xe1f`). The walk fails at once, `ActionStack::Execute` (`0x1400c4c50`)
+clears the stack on the 2, and the AI picks the same state on its next update: the citizen stands with
+"going somewhere to get warm" until he dies. The food states test reachability and find nothing, so he
+starves. A profession change can free him only when the new job's picker accepts a target through the
+`0x1e0` bypass (a build node over water, for instance), which lets the next walk cross back.
+
+**Ruled out.** (a) The pickers do test zones (the same test as `FindSpawnCell`); the gap is the
+`0x1e0` bypass, not a missing test. (b) No path request leak freezes a citizen: a refused request
+returns {-1, 0} without claiming a result slot, a search that fails publishes an empty path and
+`TakePath` (`0x1400a6d50`) makes `MoveTo::Execute` answer 2. (A walk destroyed while its search is
+queued never frees its slot: `MoveTo`'s dtor `0x140022900` does not release the ticket, so the result
+table grows by one slot per abandoned walk. A slow leak, not a freeze.) (c) §18 (`fix.path_query_first`)
+only moves the synchronous query (boats, road tool) to the head of the queue; a citizen's walk is
+answered in the same order as before, so it neither causes nor cures this.
+
+**Levers, if this is ever changed** (a `fix.*` row, `docs/extensions/DESIGN.md` §3; not ruled):
+- *Rescue, narrowest:* in the warmth fallback, when `CanReach(home)` fails, push the home walk with
+  the zone-less types in its pass flags (`0xe1f | 0x1e0`): `RequestPath` then takes its bypass and the
+  A* wades or climbs home, the same movement retail already allows any walk with a water endpoint.
+  Reaches only cold citizens (every winter); a stranded citizen in summer still starves.
+- *Rescue, general:* treat a citizen as stranded when his cell is land whose zone differs from his
+  home's (both non-zero), and let his walks and pickers use the bypass until he is back. Wider, and it
+  needs a rule for the homeless.
+- *Prevention* (end a bypass walk only in the zone it started from) would break building a bridge from
+  one bank and does not cover route 1, so it is not recommended on its own.
+
+**Fix: `fix.stranded_wade` (WIRED 2026-11-01; trigger and anchor ruled by the user).** A citizen is
+stranded when both hold: (1) he stands on zoned land (not types 5-8) whose zone differs from his *anchor*
+zone; (2) since he entered his current zone, at least one of his walks to a target in the anchor zone was
+refused on the land-to-land zone mismatch (`RequestPath` {-1, 0}, `MoveTo::Execute` answers 2). It clears
+when he stands in the anchor zone again; a walk that succeeds inside his zone does not reset it, nor does a
+refusal toward another zone. A citizen whose home is in his own zone is never rescued: one living across
+water by the player's choice, and the town citizen whose walks to a work target across the river are
+refused (measured: 45 refusals in 200 s).
+
+*The anchor* is the first of these that exists: (1) his home; (2) the home he just lost; (3) the nearest
+town hall; (4) the nearest storage building. (2) matters because retail's `CitizenComponent::Update`
+drops a home the citizen cannot reach as soon as he is idle (`SetHome(nullptr, -1)`, measured on the
+stranded citizen right after his first refused walk), so a stranded citizen is homeless almost at once,
+and the start town has no town hall. The lost home is remembered by an observing seam at the head of
+`CitizenComponent::SetHome` (`0x1401163d0`; retail's body runs unchanged): losing a home stores the cell of
+its interaction node (a house's footprint cells are type 5 with no zone; the node in front of the door is
+land), a new home forgets it, and it is forgotten when he stands on land of its zone again. The rescue
+destination is the anchor's: the home's node; the lost home's node if a residence still stands there,
+else the nearest storage building in that zone, else any building in it, else the remembered cell; the
+hall's node; the storage's node. Storage buildings are the town's storage lists that
+`CitizenBehavior::PickBestDropTarget` (`0x14008d590`) walks for a citizen's load (+0x00 and +0x10), taken
+by distance only (no material, capacity or reachability test: the goal is across water). If the wading
+walk to the anchor fails, the next rescue goes to the nearest town hall, else storage, when that lies in
+another zone; if that fails too, the record is dropped and the next refusal tries the anchor again.
+
+Three seams in `src/game/Action/moveto.cpp` report the walks: `AbstractImpl` (`0x1400c8ab0`, the refused
+ticket, classified from the two endpoint cells and recorded with the zone he stands in), `Execute`
+(`TakePath` gave an empty path) and `Exit` (`0x1400c8520`, an arrival on the destination cell; a record
+made in another zone than the one he arrives in is dropped). State, never saved (a load starts every
+citizen unstranded), all in retail padding no code reads: `CharacterComponent` `+0x44` (flags in byte 0,
+the zone of the recorded refusal in bytes 2..3) and `CitizenComponent` `+0x244` (the lost home's node
+cell + 1). The rescue runs where the AI picks its next state, at the head of
+`CitizenAIComponent::TransitionState` (`0x14010db90`), for any state: one walk with the pass flags
+`0xe1f | 0x1e0` (retail's own wade / climb bypass in `RequestPath`), carrying the AI's usual "decide
+again" lead message; while it is out no state pick replaces it (`Decide`'s cold / hunger / housing
+transitions call `TransitionState(1)` while an action runs, and every state's builder clears the stack
+first; without this the rescue was cleared on the next update). A builder left on a finished dock or
+bridge piece is covered by the same rule. Composes with `fix.nomad_arrival` (§22): that row keeps cut-off
+nomads from becoming citizens; this one rescues a citizen stranded by any other route (or by a nomad
+arrival with §22 off). Code `src/ext/stranded_wade/`, test `tests/unit/ext_stranded_wade_test.cpp`, one
+`[StrandedWade]` stderr line per rescue for the first 16. Off under `/profile:faithful`.
+
+*Runs (2026-11-01, functional dir, seed 12345, speed 10, debug exe, a throwaway probe not committed):* one
+housed citizen teleported to grass in the zone across a river and kept cold; nothing else set by hand.
+- Ordinary start town, faithful: he never left that zone in 240 s and ended standing in the warmth state.
+- Ordinary start town (no town hall), row on: his walk home was refused and recorded, retail dropped his
+  home, the lost home became the anchor; the next state pick sent him wading 28 cells over shore and deep
+  water (types 7, 8) to his old house's node (it still stood), where the record cleared (2025 AI updates).
+  One rescue in the town, no other citizen rescued, no crash. (Before the lost-home anchor he was not
+  rescued at all: homeless, no hall, no anchor.)
+- Stress town (60 citizens, a town hall), row on: the same, to his lost home 44 cells across the river
+  (866 AI updates). One rescue, no crash.
+
+## 20. The Firefighter achievement asks for 20 wells and is awarded at 40
+
+**Symptom.** "Firefighter: Build 20 wells in a single town." is awarded only once the town has 40
+finished wells. Players have reported it for years (Steam, February 2025: "You will need 40 well. It's a
+very well known bug/typo"; the poster's achievement came at 38 + 2 wells).
+
+**Retail mechanism.** The threshold is game data, not code. The achievement list in the user's install
+holds, for Firefighter, one `StatGoal` with stat type 0x19 (finished, standing buildings of a template:
+`0x1400d81b0`, one per entity, no double count), template `Template\Well.rsc`, comparison 10 (`>=`) and
+the constant 40. The description string `FirefighterDesc` reads "Build 20 wells in a single town."
+(`ToolKit/resource/Dialog/StringTable.rsc`). `StatGoal::CheckGoalState` (`0x1400da720`) compares the
+count with the constant as given.
+
+**Proof it is retail.** The goal's fields read from the loaded data in the port (a one-run dump of every
+achievement's goals, 2026-11-01: `stat A=25 cmp=10 fixed=40 a=Template\Well.rsc`); the counting body
+`0x1400d81b0` and the comparison are the port's transcriptions. The player report above is retail.
+
+**Lever.** Compare that one goal with 20 (what the description says), or change the description to 40.
+The description is what the player is shown, so the fix takes the number from it.
+
+**Fix: `fix.firefighter_wells` (WIRED 2026-11-01).** In `StatGoal::ComputeOperands`
+(`src/game/Goal/statgoal.cpp`), the constant operand goes through
+`Ext::FirefighterWells::Threshold` (`src/ext/firefighter_wells/firefighter_wells_rule.h`): with the row
+on, a goal with stat 0x19, the constant 40 and the template `Template\Well.rsc` compares with 20; every
+other goal, and a mod that sets its own constant, is unchanged. The data in the install is not touched.
+An award is written to the settings (`Ach/<index>`) and announced in the event log; there is no Steam in
+OpenBA. Off under `/profile:faithful`.
+
+## 21. Selecting a crop field, orchard or pasture crashes when the town names a crop it cannot find
+
+**Symptom.** The game faults ("fatal access violation") the moment the player clicks a crop field,
+orchard or pasture, finished or still a construction site; placing one is fine. It depends on the map
+seed and the starting condition, or on a save made with a mod that is now off. About twelve player
+reports 2022-2026; a mod author traced one to a starting condition that names an orchard seed "Fig"
+where the mod's resource is "Fig Tree".
+
+**Retail mechanism.** The three panels share `SelectResourceUI::PopulateCombo` (`0x140078830`), which
+fills the seed / tree / animal menu from the town's available-agriculture list (`CitizenBehavior +0x120`,
+count `+0x128`) and reads each entry's sub-description count (`entry+0x30`) with no test. Two writers can
+put null in that list:
+- the start town (`0x1400a3300`): for each of the start condition's three pools (crops `+0xb0`, trees
+  `+0xc0`, livestock `+0xd0`) it picks an entry at random, resolves its name with the find-only resolver
+  `0x14001b1d0`, and passes the result untested to the dedup-append `0x140091a20` (`0x1400a34b9`,
+  `0x1400a3549`, `0x1400a35e7`; the livestock loop also hands it to the herd spawn `0x1400a0b10`). A name
+  that does not resolve appends null.
+- a load: the list is read with the `ExternalPtr<ComponentDescription>` array body `0x1400049c0`, which
+  stores null when `FindOrLoad` finds nothing for the saved path. A save that has a mod's crop in the list
+  (granted at start, or bought from a trader, `0x140081420`) loads with a null entry once the mod is off;
+  so does the world an in-game Mods change restores after disabling that mod.
+Either way, the first panel that builds the menu faults reading address `0x30`.
+
+**Proof it is retail.** The decompile of `0x140078830` (the `*(int *)(lVar4 + 0x30)` loop bound with
+`lVar4` the list entry) and the disassembly of `0x1400a3300` (`CALL 0x14001b1d0` / `MOV RBX,[RBP-8]` /
+`MOV RDX,RBX` / `CALL 0x140091a20`, no test between) and of `0x140091a20` (compare-and-append, no null
+test). `0x1400049c0` writes `local_58 = 0` and stores it through the element when `FindOrLoad` returns
+null. The port transcribes all four (`selectresourceui.cpp`, `starttown.cpp` `SeedAgriPool`,
+`game.cpp` `CitizenBehavior::RemoveEntity`, `External.h` `SerializeExternalArray`). Unmodded data alone
+does not produce the null: every vanilla start condition names resources that exist.
+
+**Lever.** Keep the null out of the list where it is written, not at the panels: the start town skips an
+entry that did not resolve (after its random pick, so the world RNG draws as in retail, and with no herd
+spawned from it), and the load drops the null entries from the list it read (order kept: the panels'
+menus index the list by position).
+
+Fix: `fix.unresolved_seeds` (tier 1), default on, off under `/profile:faithful`. Two seams read the row:
+`SeedAgriPool` (`src/game/Game/starttown.cpp`) and `CitizenBehavior::Serialize`'s `+0x120` array
+(`src/game/Game/citizenlist_serialize.cpp`). Code `src/ext/unresolved_seeds/`, test
+`tests/unit/ext_unresolved_seeds_test.cpp`. Each seam prints one `[UnresolvedSeeds]` line to stderr when
+it drops something.
+
+## 22. Nomads whose walk to the town hall fails count as arrived and become citizens where they are stuck
+
+**Symptom.** A nomad group spawns at the map edge, cannot walk to the town hall (behind a river, on
+cut-off land), and the town hall reports it as arrived anyway. If the player allows it, the new citizens
+appear where the nomads stood and starve there (player reports of nomads "spawning behind a river and
+starving", collected in the 2026-11-01 community sweep).
+
+**Retail mechanism.** `NomadComponent::TickWalkIn` (`0x14004f9c0`, state 0 of the nomad's state table)
+waits only for the action stack to be idle (`CharacterComponent+0x60 == -1`) and has no position test.
+When the walk to the meeting point fails, `MoveTo::Execute` (`0x1400c8570`) answers 2 and
+`ActionStack::Execute` clears the stack; the nomad is idle where it stands, posts event 6 (ARRIVED) to
+the town hall's `ImmigrationComponent` and starts to loiter. Once every member has posted ARRIVED the hall
+moves to "waiting for an answer" (`OnArrived` `0x14004cff0`). On Allow, `Accept` (`0x14004d450`) calls
+`ConvertToCitizen` (`0x1400501a0`) for each member, which places the citizen at the nomad's current model
+position. The citizens are then stranded as in section 19. Loitering (`0x14004f600`, cells of type < 3
+within 8 of the meeting point) and walking out (`0x14004f5e0`, back to the spawn point) do not rescue
+them.
+
+**Proof it is retail.** The Ghidra decompile of `0x14004f9c0`: the idle test, the `hall == null` destroy
+arm, `PostEvent(..., 6)` through the hall's StateMachineComponent node and the transition to state 1, with
+no read of the nomad's position or of `+0x3c` (the meeting point). `0x1400501a0` reads the nomad's
+ModelComponent transform for the citizen's position. The port transcribes both
+(`src/game/Component/nomadcomponent_states.cpp`, `immigrationcomponent_states.cpp`).
+
+**Lever.** Arrival means being near the meeting point. A nomad that is idle away from it walks there once
+more; if it is still away when idle again, it leaves the hall's group and walks back to the map edge, as
+a turned-away nomad does. A walk that succeeds ends on the meeting point, so nothing changes in a game
+where every walk succeeds. (A stricter spawn test, choosing only spawn cells from which the hall is
+reachable, was proposed and not ruled; it would not catch zones joined only through building footprints,
+which the arrival test does.)
+
+**Fix: `fix.nomad_arrival` (WIRED 2026-11-01).** In `NomadComponent::TickWalkIn`, after retail's
+`hall == null` arm, `Ext::NomadArrival::Decide` (`src/ext/nomad_arrival/nomad_arrival_rule.h`) lets an
+idle nomad count as arrived only within 4 cells of its meeting point. Otherwise the first time it re-issues
+the walk, and the second time `NomadLeaveHall` takes it out of the hall's group, forgets the hall and walks
+it back to its spawn point, where retail's `hall == null` arm destroys it. The hall then moves to the answer
+state (0x11) if the members left have all arrived, or back to idle (state 2) if nobody is left; the 0x10 -> 2
+transition is appended to the hall's state table (always present, requested only by the row; the indices of
+retail's transitions are unchanged). The retry mark is a byte of the component's padding (`+0x54`), not
+saved. Nothing new is written to a save. Off under `/profile:faithful`.
+
+**Runs (2026-11-01, `tools/harness_route.sh immigration`, stress town, seed 12345).** No map in reach has
+nomads whose walk to the hall fails, so the failure was forced in a throwaway build (the nomad's walk to the
+meeting point pushed no action: the stack clears at once, as when `MoveTo::Execute` answers 2). Faithful
+profile: the first group (15) "arrived" at the map edge the frame after it spawned, about 140 cells from the
+hall, and Allow made 15 citizens there (the route's PASS). Row on: each nomad retried once, gave up, left the
+group; the empty group sent the hall back to waiting, and no group reached the answer (no crash, no hang).
+With the real walk and the row on, all 70 arrivals ended within 0.07 cells of their meeting point and the
+route PASSed (one group allowed, one denied).
+
+## 23. A Mods change is lost after a crash, and a change made in a game is undone at the next menu
+
+**Symptom.** Players report that "a crash resets the mod list", that a mod turned on or off in the Mods
+window is back to its old state at the next start, and that changing mods without a full restart crashes
+later (the community's "restart twice" ritual; 2026-11-01 sweep, leads 4 and 5).
+
+**Retail mechanism** (Runtime-x64.dll and Application-x64.exe):
+1. *The list reaches disk only at a clean shutdown.* `ModDialog::Apply` (`0x14006ea70`) calls
+   `Modification::SaveList` (`0x1800b05f0`), which writes `ModEnabled_<name>` / `ModIndex_<name>` into the
+   in-memory `Persistence` map only. `Persistence::WriteSettings` (`0x1800b88e0`) is called from
+   `Engine::Shutdown` (`0x1800db671`, `0x1800b7ed2`), the launcher's `PlatformConfigure`,
+   `SetAchievementMet` and the Options dialog's OK, not from the Mods dialog. The reload that follows a
+   Mods change is where a bad mod set crashes, so the change is lost exactly when it matters.
+2. *An in-game change is never kept.* `Engine::Loader::Load` (`0x1800dc050`) clears `_savingSettings`
+   when the next loop is a game loop, so the in-game `SaveList` only copies `_mods` to `_savedMods`
+   (`0x1800b0619`). The world reloads under the new set (Apply -> SaveRestore -> LoadFromSave ->
+   `Loader::Load`). At the next menu `Loader::Load` sets `_savingSettings` again and calls `RefreshList`,
+   which reads the list back from `Persistence`, i.e. the pre-change list, and remounts the old set: every
+   resource whose package changed is reloaded or force-unloaded a second time, and the player's change
+   silently disappears. A world restored after an in-game disable also loads missing descriptions as null
+   (section 21).
+
+**Proof it is retail.** The disassembly of the functions above (handin of 2026-11-01, contentload). The
+port transcribes them (`src/game/Dialog/moddialog.cpp`, `src/engine/io/modification.cpp`,
+`src/engine/engine/engine_lifecycle.cpp`); mechanism 2 was reproduced in the port with the pause-menu
+harness (`t<row>` / `q<id>` tokens): the quit to menu ran a second remount with the list read back from
+the settings.
+
+**Lever.** Write the settings when the Mods dialog is confirmed; refuse changes in a game, so the list is
+only changed from the main menu (ruled 2026-11-01).
+
+**Fix: `fix.mods_persist` (WIRED 2026-11-01).** Two seams read the row:
+- `ModDialog::Apply` (`src/game/Dialog/moddialog.cpp`): after `SaveList`, before the reload,
+  `Persistence::WriteSettings`. At the main menu `SaveList` has just put the list in the settings map, so
+  the file holds the new list before the reload starts.
+- `MainMenuDialog::OnOpened` (`src/game/Dialog/mainmenudialog.cpp`), the pause menu only: the Mods button
+  is disabled with retail's own `Enable(false)`, the call retail makes for a game with flag bit 10. It shows
+  greyed out like any disabled button; no new text, no new dialog.
+Not sim-visible; nothing new is saved. Off under `/profile:faithful` (retail's behaviour, both parts).
+
+## 24. A trading post on auto-trade gives the merchant whole stacks of goods he does not buy
+
+**Symptom.** A trading post set to trade on a merchant's arrival or departure, with a standing buy
+order, loses whole stacks of some stored goods each time it buys, and gets nothing for them. Players:
+"if there's mixed goods in the trading post, it just gives EVERYTHING to the trader"; "they sold those
+[logs] off first".
+
+**Retail mechanism.** `TradeComponent::AutoTrade` (`0x140059ad0`, reached from `EnterDocked`
+`0x14005a800` when the post's policy `+0x28` is 1 and from `LeaveDocked` `0x14005a6d0` when it is 2)
+buys unit by unit up to the value of the post's stock, then pays for the purchase by walking the post's
+storage slots in order and selling unit by unit until the sum paid reaches the sum spent
+(`0x14005a177`..`0x14005a330`). Each unit sold adds the good's price for the docked merchant,
+`TradeComponent::GetResourcePrice` (`0x14005a520`): the base value when the good's raw-material flags
+(`+0x5c`) hit the merchant's full-price mask (`TradeDescription +0x48`, row `+0x14`), three quarters of
+it when they hit the discount mask (row `+0x18`), and **0** when they hit neither (a value-1 good in the
+discount class also truncates to 0). The loop's only exits are "paid >= spent" and "this slot is
+empty", so a slot whose unit price is 0 is drained to nothing, every unit crediting 0, before the walk
+reaches the next slot. The step-1 budget counts such a good as worth 0, so nothing else notices.
+
+**Proof it is retail.** The decompile of `0x140059ad0`: `local_8c = TradeComponent_GetResourcePrice(..)`,
+`local_90 = count - reserve`, then `while ((int)uVar33 < iVar20) { if (local_90 <= iVar5) break;
+uVar33 = uVar31 + local_8c; iVar5++; ... }` with no test of `local_8c`. The decompile of `0x14005a520`
+returns 0 on the arm where neither mask hits. The port (`src/game/Component/tradecomponent_dock.cpp`
+`AutoTrade` step 4, `src/game/Dialog/tradeui_price.cpp` `GetResourcePrice`) transcribes both.
+
+**Lever.** In the payment walk, pass over a slot whose unit price is 0 or less: it cannot pay.
+(Not part of the fix: the purchase loop may overspend the budget by one unit price, and an unpaid
+remainder is never collected. Both are retail and left alone.)
+
+**Fix: `fix.autotrade_free_goods` (tier 1), default on, off under `/profile:faithful`.** One seam,
+`AutoTrade`'s payment loop. Pure rule `src/ext/autotrade_free_goods/autotrade_free_goods_rule.h`, unit test
+`tests/unit/ext_autotrade_free_goods_test.cpp` (the payment walk over a priced-0 slot, on and off). Game
+run: `tools/harness_route.sh autotrade` (`BANISHED_TRADE_WATCH=300,autotrade`, `src/diag/trade_buy_harness.cpp`)
+lets the trade route's merchant dock, then stocks the post with 20 of a priced-0 good and 20 of a priced
+good, asks 3 units of every buy-order category, lets every manifest line offer at least 5 units, and runs
+`AutoTrade` once (it prices by another of the post's merchants when the docked one values every stored good,
+and offers the priced good on line 0 when the docked one offers only livestock). 2026-11-01, seed 12345:
+fixes off, the priced-0 stack went 20 -> 0 and the priced good 20 -> 18 (route FAIL); `HARNESS_FIXES=
+autotrade_free_goods`, the priced-0 stack stayed at 20 and the purchase was paid with priced goods (route
+PASS). Sim-visible (what the post keeps);
+nothing new is saved.
+
+## 25. A production worker hauls an input to a nearly full workplace, is refused, and carries it back
+
+**Symptom.** A tavern (or another production building) whose storage is nearly full keeps its worker
+walking back and forth: the brewer brings a full load of fruit, does not put it down, carries it to a
+storage barn, and comes for it again. Steam thread "BUG - Brewer Eternaly Bringing Fruits to Tavern" (June
+2025, unmodded); the workaround players found is to keep the tavern's stock low ("they can only hold 300
+combined ale/raw materials").
+
+**Retail mechanism.** `ConsumeProduce::Execute` (`0x1400e7840`), second pass: for an input the workplace
+holds less of than the recipe needs, it finds a store holding some unreserved (`PickBestDropTarget`
+`0x14008d590`, count 1, no capacity test) and, for an empty-handed worker, builds the fetch at
+`0x1400e87b9` (`0x1400bf790`) with count **-1** (`0x1400e8785 OR R12D,-1`). The pickup
+(`PickupStoredRawMaterial` ctor `0x1400ca520`, count < 1 arm) then loads as much as the worker can carry,
+and the drop-off at the workplace (`DropOffRawMaterial::Deposit` `0x1400c7620`, cap `+0x24` = -1) offers
+all of it to `StorageComponent::CanAdd` (`0x14012cd80`), which admits a stack only when
+`weight * count + stored <= capacity`: the whole load or nothing. Nothing on the way compares the load with
+the workplace's free room. A workplace with some room, but less than one load, refuses it; the drop-off's
+redirect arm (`+0x20` set by `0x1400bf790`) carries it to the nearest store that takes it, usually the one
+it came from, and the next pass sends the worker for it again. The loop ends only when something else
+frees room at the workplace (a hauler takes product away, production consumes an input).
+
+**Proof it is retail.** The disassembly of `0x1400e7840` around `0x1400e8717`..`0x1400e87b9` (`OR
+R12D,-1` / `MOV [RSP+0x40],R12D`, the count argument of `0x1400bf790`) and the decompiles of
+`0x1400ca520` (count < 1 -> `(capacity - QueryCount) / weight`), `0x1400c7620` (`min(cap, carried)` then
+`CanAdd`, the redirect on failure) and `0x14012cd80` (`*(desc+0x48) * count + QueryCount <= +0x38`). The
+port transcribes them (`src/game/Work/consumeproduce.cpp`, `src/game/Action/pickupstoredrawmaterial.cpp`,
+`src/game/Action/action_pf_roots_drop.cpp`, `src/game/Action/action_pf_roots_route.cpp`).
+(The port also lacked retail's two replan exits just before this fetch, "no room for one unit" and
+"already carrying something", which made a worker go on holding an input; restored as a port fix, not a
+retail bug.)
+
+**Related, not changed.** `TradeWork::Execute` (`0x1400f5d40`) does not loop this way: its export pass asks
+`PickBestDropTarget` for a destination with room for the whole quantity (`0x1400f64d2`, capacity flag 1),
+so a tavern with less room than one load is skipped rather than refused; its import pass tests the post's
+`CanAdd` at assignment time but reserves nothing, so two loads in flight can still overfill the post and
+the second is redirected.
+
+**Lever.** Hand the fetch the number of units both the workplace and the worker can take
+(`(capacity - QueryCount) / weight` of each); when that is 0, pass the input over as if no store held it.
+The pickup then loads no more than fits, and the drop-off's partial cap delivers it.
+Not covered: several workers of one workplace fetching at once each see the same free room (nothing is
+reserved at the destination), so a tight workplace can still refuse the later load.
+
+**Fix: `fix.input_fetch_room` (tier 1), default on, off under `/profile:faithful`.** One seam,
+`ConsumeProduce::Execute`'s second pass. Pure rule `src/ext/input_fetch_room/input_fetch_room_rule.h`, unit
+test `tests/unit/ext_input_fetch_room_test.cpp`. Sim-visible (what a worker carries, and where); nothing new
+is saved. Shown on 2026-11-01 with a temporary watch (not committed): a staffed demo tavern
+(`BANISHED_BUILD_DEMO_TAVERN=1`, `BANISHED_AUTOSTAFF=300`, seed 12345) kept at 270 of 300 with ale and an
+input stack of 400 placed in the start stockpile at frame 1800. Faithful: the tavern refused the brewer's
+load 16 times between frames 3000 and 9000 (about one round trip per 300 frames at speed 10) and never
+received the input (0 of the 30 the recipe needs). Row on
+(`HARNESS_FIXES=input_fetch_room`): no refused load at the tavern, and the input arrived by frame 3300 (46 held to the end of the run).
+
+## 26. A cancelled building site loses most of its delivered materials
+
+**Symptom.** A building site that is cancelled, or removed with the Remove tool, after its materials were
+delivered gives back only a few piles. They lie on the site's ground, and the rest is gone ("all
+disappeared into the ether", Steam). A large footprint, such as a town hall, refunds the least.
+
+**Retail mechanism.**
+- `DestroyComponent` state 4's enter (`0x14011cfd0`) skips the `ClearStorage` haul-away for a site that is
+  not finished.
+- State 5 (enter `0x14011cc70`, or its tick `0x14011c120` once any labour was spent) calls
+  `ScatterContents` (`0x14011c530`). For an unfinished site it lists the storage stacks,
+  `(count - reserve) / (laborProgress > 0 ? 2 : 1)`.
+- It then walks the footprint with one cursor. A pile goes only on a cell with no blocker (`cell+0x00`),
+  terrain type 2 and terrain height in [0, 0.2). Each cell takes one pile of at most `100 / weight`
+  (`0x14011ca59`).
+- The site's zone stamp (`Map::StampFootprint` `0x14009d360`) is still on the cells: it is removed only when
+  the entity drains after `Destroy_MarkAndPushRemoval`. It stores the site as the blocker on every non-'.'
+  cell, so only the footprint's '.' cells qualify.
+- When the cursor leaves the footprint (`row == depth`), the material still listed is dropped with no
+  message.
+
+**Proof it is retail.** The decompile of `0x14011c530`:
+- the blocker / type / height test on `*(cells + idx*0x30)`, `+0x29` and `DAT_1401720fc`;
+- the `while ((iVar30 != param_5) && (0 < iVar24))` loop exit;
+- the list freed with nothing done for the rest.
+
+The port transcribes it (`destroycomponent_states.cpp`). Measured on the port with retail's logic
+(`fix.cancel_refund` off), on the `clearoverlap` town hall (10x9, 90 cells) cancelled with 118 units in
+storage and no labour:
+- 10 of the 90 footprint cells qualified (no blocker); all 90 passed the type and height tests.
+- The first material's 62 units took 7 cells (9 a pile).
+- The second material's 56 units got the last 3 cells (18 units). The other 38, a third of the delivery,
+  were dropped.
+
+The run used a temporary hook in `src/diag/clear_overlap_harness.cpp` (not committed) that called
+`DestroyComponent::RunStateMachine` once the hall held 1500 weight units. That is the Remove tool's path
+for a site. Retail itself was not launched.
+
+**The halving is retail's design, not part of this fix.** A site with any labour (`laborProgress > 0`)
+first goes through a demolition work (state 5's `BuildStructure`), and its stock is then halved. A finished
+building refunds half its recipe the same way (a quarter after a fire). So the halving is read as the
+price of a started building. It is left as retail has it.
+
+**Lever.** Place what the footprint walk could not, around the site, through the search a citizen's dropped
+load uses (`Map::FindPlacementCell` `0x14009bd40`, as `DropOffRawMaterial::DropOnGround` `0x1400c78c0`
+calls it). Piles keep retail's size.
+
+Fix: `fix.cancel_refund` (tier 1), default on, off under `/profile:faithful`.
+- What the row does: after each material's footprint walk, the units left go out as piles of
+  `100 / weight`. Each pile's cell is the first one `FindPlacementCell` returns from the ring of cells just
+  outside the footprint. The site's own cells never qualify: the blocker is on the non-'.' cells and the
+  footprint count on the '.' cells.
+- What stays as retail: what no cell within that search's six rings can take is still dropped. The new
+  piles are ordinary piles: they post their own Pickup work and go to storage, and nothing new is saved.
+- The fix-on run of the same scene: `[CancelRefund] site 183,224 10x9: 38 of 38 units laid in 7 piles
+  outside the footprint`.
+- Code: the seam is `DestroyComponent::ScatterContents`, the code is `src/ext/cancel_refund/`, and the test
+  is `tests/unit/ext_cancel_refund_test.cpp`. The row prints one `[CancelRefund]` line per scatter that
+  needs it, for the first 16 only.
+- Not touched: `fix.foundation_piles` (§17) moves piles off a site that is waiting to be built; this row
+  acts once, when a site is removed.
+
+## 27. A save that cannot be written fails silently, and a failed overwrite destroys the previous save
+
+**Symptom.** Saving shows the usual spinner and then nothing: the save is missing from the list, or
+an older save of that name has turned into a blank row that will not load. Players report it with a
+read-only or OneDrive-synced Documents folder, with Windows Controlled Folder Access ("ransomware
+protection") on, and with antivirus software that blocks the game's writes. The autosave fails the
+same way, so a player can play for hours with nothing saved.
+
+**Retail mechanism.** `Save::SaveLoad::UpdateSave` (Runtime `0x1800c2a80`) state 1 builds the two
+save blocks and queues the write on the persistence worker (`0x1800b75c0`, which clears the worker's
+status `Persistence+0x48`); state 2 waits only for the minimum spinner time (`[this+0x8] > [this+0x10]`)
+and then frees the saved state and resets. It never reads the status. The worker's save job
+(`0x1800b6e00`) opens the save itself with `IO::FileStream::Create` (`CreateFileW`, `CREATE_ALWAYS`),
+writes the header and the blocks in place, and stores status 1 on success or 2 when the create fails
+or any `WriteFile` comes up short. So a blocked create says nothing, and a write that fails part way
+(disk full, a scanner or sync client taking the file) has already truncated the previous save of that
+name to a file that fails the save list's CRC check.
+
+**Proof it is retail.** The decompile of `0x1800c2a80`: state 2 is the time test, the two frees and
+the field resets, with no read of `Persistence+0x48` anywhere in the function; nothing else in the
+save path reads it either. The decompile of `0x1800b6e00`: `FileStream::Create` on the pending name,
+the four `WriteFile` calls into that handle, `*(param_1 + 0x38) = 1` or `2`. The port transcribes both
+(`src/engine/save/saveload_update.cpp`, `src/engine/io/persistence_worker.cpp`).
+
+**Lever.** Report the status the job already computes, and write so that a failure cannot take the old
+save with it: the job writes `<name>.tmp` and moves it over the save only after every byte is written
+(`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`, `Platform::FileReplace`), deleting it on failure; state
+2 waits for the job's status and, when the save did not reach the disk, the game shows a message box
+naming the save folder and the usual causes.
+
+Fix: `fix.save_failure_notice` (tier 1), default on, off under `/profile:faithful`. Engine seams
+`IO::PersistenceWorker::_extFixSaveTemp` (the temporary file) and `Save::SaveLoad::_extFixSaveResult` /
+`_extSaveResult` (the status read), installed by `src/ext/registry_boot.cpp`; the notice is
+`src/ext/save_failure_notice/` over `Dialog/Extensions.rsc:saveFailed`, added to the game's UI without a
+nested modal loop. The first failure after a success opens it; further failures in a row (a failing
+autosave) do not, until a save succeeds. Every save path takes it: a manual save, the autosave, and
+`ext.background_save` / `ext.async_save_compress`, which change how the blocks are built but end in the
+same enqueue and save job. Test `tests/unit/ext_save_failure_notice_test.cpp`.
+
+## 28. A trading post whose dock boats cannot reach never trades, and nothing says why
+
+**Symptom.** A trading post is built, staffed and stocked, and no merchant ever arrives. Players
+report it for posts on ponds or lakes, behind shallows, or on a river bend; moving the post a few
+tiles sometimes cures it. The game gives no hint that the dock is the problem.
+
+**Retail mechanism.** The post's idle state (`TradeComponent` state 2 per-frame, `0x14005aa60`) counts
+the merchant timer down, clones the trader boat and calls `BoatComponent::SetDestination`
+(`0x1400456e0`) with the post. That builds the route from the map's river polyline and two water A*
+legs (`0x14009ffc0`, mode `0x380`: terrain classes 7 to 9): river entry to the dock's "boat" point,
+and the dock to the river exit. When either leg comes back empty, the test at `0x140045e2e` /
+`0x140045e38` (`TEST EBX,EBX / JLE`, `TEST EAX,EAX / JLE` to `0x140046104`) skips both and the route
+is the bare polyline. The boat then docks only if the polyline happens to pass close to the dock;
+otherwise it sails the river, is deleted at the route's end (state 0, `0x140045250`), and the post
+re-arms its timer, for ever. Placement (`0x14009f5d0`) never tests that the dock's water joins the
+river; shallow cells below class 7 cut the water graph while still looking like water.
+
+**Proof it is retail.** The disassembly of `0x1400456e0`: the two `CALL 0x14009ffc0` at `0x140045d77`
+and `0x140045e23`, the length of each kept in `RBX` / `[RBP+0x8060]`, then the two `JLE` to the
+departure-lane code with nothing between them that records or reports the failure. The port
+transcribes it (`src/game/Component/boatcomponent_route.cpp`). A working dock's legs are not empty:
+the `fix.path_query_first` measurements (`docs/extensions/handins/PATHQUERYFIRST.md` §3) logged
+route lengths of 746 / 207 and 767 / 184 for the stress town's posts.
+
+**Lever.** Say so where the player looks for news: an event-log line (and the event ribbon) at the
+post, when a merchant's boat finds no water route to its dock. Whether boats come and where they sail
+stay retail's.
+
+**Ruling (2026-11-01).** Trading-post placement stays as retail's: a dock that boats cannot reach is
+not refused. The event-log warning below is the whole fix.
+
+Fix: `fix.boat_reach_notice` (tier 1), default on, off under `/profile:faithful`. The failed-leg arm
+of `BoatComponent::SetDestination` calls `src/ext/boat_reach_notice/`, which appends one ordinary
+event-log entry (the trader's event type 0xd and icon, warning colour, the post's tile; the game's
+message table has no text for it, so the text is ours). A save keeps it like any other entry, as text
+and five ints, and retail reads such a save unchanged. No unit test: the row has no pure logic.

@@ -400,6 +400,12 @@ public:
     void GetSaveInfoJob();   // command 3  0x1800b65b0  persistence_saveinfo_job.cpp
     void GetSaveListJob();   // command 4  0x1800b6290  persistence_savelist_job.cpp
 
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice, null by default
+    // (set by src/ext/registry_boot.cpp to the row's live bool; DESIGN.md hook rule 5). While it
+    // reads true, SaveJob writes `<name>.tmp` and replaces the save with it only after every byte
+    // is written, so a failed write leaves the previous save as it was. Retail writes in place.
+    static const bool* _extFixSaveTemp;
+
     // B.4 R-IO: the String and the three arrays are the real classes. Their
     // member destructors ARE the four releases 0x1800b7740 makes: members die
     // in reverse declaration order, so _saves (+0x70, 0x18002ac40), _blockPtrs

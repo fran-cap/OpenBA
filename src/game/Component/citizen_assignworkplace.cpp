@@ -48,6 +48,8 @@
 #include "Action/exe_bodies.h"
 #include "Work/exe_bodies.h"
 #include "Game/exe_constants.h"
+#include "ext/registry.h"                      // EXT SEAM (NOT RETAIL): Ext::Fix().stranded_wade
+#include "ext/stranded_wade/stranded_wade.h"   // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19)
 
 // The residence roster helpers this file used to hold (0x14012a550 / 0x14012a710 /
 // 0x140129ff0 / the 0x140129e20 comparator) are ResidenceComponent members now
@@ -70,6 +72,10 @@ void CitizenComponent::SetHome(ComponentEntity* newHome, int32_t slotIndex) {
 
     if (pWorkplace->Get() == newWp && *pSlot == slotIndex)
         return;   // no change
+
+    // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §19): fix.stranded_wade only observes the change: a
+    // lost home is remembered as a homeless stranded citizen's anchor (src/ext/stranded_wade/).
+    if (Ext::Fix().stranded_wade) Ext::StrandedWade::OnHomeChange(this, pWorkplace->Get(), newWp);
 
     // [diag] A citizen losing its home is how "everyone froze after a load"
     // starts: +0x238 goes null, the AI has nothing to plan, and the town starves.

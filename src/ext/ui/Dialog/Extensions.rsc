@@ -27,7 +27,7 @@ Dialog resource		// the dialog object: Dialog/Extensions.rsc
 	ElementDescription _templates [ "entryRow" ]			// GetTemplate(0): one per registry entry
 
 	// Built along with the dialog (as SaveLoad.rsc lists its own notices); DoLoad shows them.
-	External _references [ "extensionNotInBuild" "extensionNewer" "extensionTurnedOff" ]
+	External _references [ "extensionNotInBuild" "extensionNewer" "extensionTurnedOff" "saveFailed" ]
 }
 
 GroupDescription dialogRoot
@@ -282,6 +282,21 @@ Dialog extensionTurnedOff : "SaveLoad.rsc:modsMissing"
 	]
 }
 
+// fix.save_failure_notice (docs/retail_bugs.md §27): a save that did not reach the disk. The same
+// MessageBox base with only OK showing; src/ext/save_failure_notice adds it to the game's UI
+// (not modal: the save's last state runs inside the game's update) and sets @0 to the save folder.
+Dialog saveFailed : "SaveLoad.rsc:modsMissing"
+{
+	ElementDescription _rootElement = "MessageBox.rsc:main";
+	ElementOverride _override
+	[
+		{ String _name = "text"; ElementDescription _element = "noticeSaveFailed"; }
+		{ String _name = "buttonYes"; }			// no element: hidden
+		{ String _name = "buttonNo"; }
+		{ String _name = "buttonCancel"; }
+	]
+}
+
 // The message box's text element, our table.
 TextDescription notice : "MessageBox.rsc:text"
 {
@@ -291,3 +306,4 @@ TextDescription notice : "MessageBox.rsc:text"
 TextDescription noticeNotInBuild : "notice" { String _text = "ExtensionNotInBuild"; }
 TextDescription noticeNewer      : "notice" { String _text = "ExtensionNewer"; }
 TextDescription noticeTurnedOff  : "notice" { String _text = "ExtensionTurnedOff"; }
+TextDescription noticeSaveFailed : "notice" { String _text = "SaveFailed"; }

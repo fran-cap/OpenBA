@@ -84,6 +84,8 @@
 #include "Action/exe_bodies.h"   // StorageAdd, ResourceCategory
 #include "Dialog/exe_bodies.h"   // TradeUI_GetBuyEntries_59670, TradeUI_GetResourcePrice_a520, TradeDescription_ExtendMerchantStay
 #include "Work/exe_bodies.h"     // WorkBase_TreeNodeFree_e320
+#include "ext/registry.h"        // Ext::Fix().autotrade_free_goods
+#include "ext/autotrade_free_goods/autotrade_free_goods_rule.h"   // fix.autotrade_free_goods
 
 namespace {
 
@@ -297,43 +299,17 @@ void TradeComponent::BuildMerchantManifest() {
     for (int32_t i = 0; i < goods.count; ++i)
         StackArrayPush(values, FindSubDescription<ValueDescription>(goods.base[i]), 8);   // cell 0x1401c4bf0
 
-    // STANDALONE-ONLY guard, not a softened retail deref. Retail rolls at least once and
-    // indexes `values` without checking, because its data guarantees both a non-empty buy
-    // list and a ValueDescription on every entry. In standalone both can be empty for a
-    // reason that has nothing to do with the data: the ComponentDescription and
-    // ValueDescription type-ids (0x1401c7318 / 0x1401c4bf0) sit behind
-    // BANISHED_LIVE_TRADE_TIDS, and with that gate off 0x140059670's ExternalFactory walk
-    // matches nothing and every ValueDescription lookup returns null. Faulting on a flag
-    // the player can turn off reproduces nothing, so name the flag instead.
-    if (values.count <= 0) {
-        std::fprintf(stderr, "[TradeDock] manifest: NO GOODS to offer (buy list empty). "
-                             "The ExternalFactory walk over ComponentDescription "
-                             "matched nothing.\n");
-        std::fflush(stderr);
-        System::MemoryAllocator::MemFree(values.base);
-        System::MemoryAllocator::MemFree(goods.base);
-        return;
-    }
-
+    // Retail rolls at least once and indexes `values` with no test of the count or of the
+    // entry (0x14005b8c7 `Rand(count)`, then `MOV RCX,[R14+RDI*8]` and `[RCX+0x44]` at
+    // 0x14005b8d4): the data guarantees a non-empty buy list and a ValueDescription on every
+    // good. A mod good with no ValueDescription faults here in retail too
+    // (docs/known_port_issues.md section 14d).
     int rolls = merchantRec.stockRolls / tier.rollDivisor;
     if (rolls < 1) rolls = 1;
 
     for (int r = 0; r < rolls; ++r) {
         const int pick = static_cast<int>(rng->Rand(static_cast<uint32_t>(values.count)));
         const ValueDescription* vd = values.base[pick];
-        if (!vd) {
-            // Same standalone-only reasoning as above: with the type-id gate off EVERY
-            // entry is null. Say so once rather than faulting on vd+0x44.
-            static bool warned = false;
-            if (!warned) {
-                warned = true;
-                std::fprintf(stderr, "[TradeDock] manifest: good #%d has NO ValueDescription "
-                                     "(ValueDescription type-id %u) — skipping the roll\n",
-                             pick, ValueDescription::TypeId());
-                std::fflush(stderr);
-            }
-            continue;
-        }
 
         int stock = vd->_baseValue / tier.stockDivisor;
         if (stock < vd->_weight)
@@ -514,6 +490,9 @@ void TradeComponent::AutoTrade() {
                 const int unit = GetResourcePrice(resource);
                 const int avail = entry._count - entry._reserve;
                 if (avail == 0) continue;
+                // FIX autotrade_free_goods (NOT RETAIL, docs/retail_bugs.md §24): a good the merchant
+                // prices 0 pays nothing; retail sells the whole stack of it here.
+                if (Ext::AutotradeFreeGoods::SkipInPayment(Ext::Fix().autotrade_free_goods, unit)) continue;
 
                 int sold = 0;
                 while (paid < spent) {

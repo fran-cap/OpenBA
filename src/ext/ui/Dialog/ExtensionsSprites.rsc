@@ -37,6 +37,18 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_alloc_tiebreak";	String _source = "Sprite/Extensions/Entry_alloc_tiebreak.png"; }
 		{ String _name = "ExtensionsEntry_foundation_piles";	String _source = "Sprite/Extensions/Entry_foundation_piles.png"; }
 		{ String _name = "ExtensionsEntry_path_query_first";	String _source = "Sprite/Extensions/Entry_path_query_first.png"; }
+		{ String _name = "ExtensionsEntry_crop_planting_exit";	String _source = "Sprite/Extensions/Entry_crop_planting_exit.png"; }
+		{ String _name = "ExtensionsEntry_firefighter_wells";	String _source = "Sprite/Extensions/Entry_firefighter_wells.png"; }
+		{ String _name = "ExtensionsEntry_unresolved_seeds";	String _source = "Sprite/Extensions/Entry_unresolved_seeds.png"; }
+		{ String _name = "ExtensionsEntry_commute_cost";	String _source = "Sprite/Extensions/Entry_commute_cost.png"; }
+		{ String _name = "ExtensionsEntry_nomad_arrival";	String _source = "Sprite/Extensions/Entry_nomad_arrival.png"; }
+		{ String _name = "ExtensionsEntry_mods_persist";	String _source = "Sprite/Extensions/Entry_mods_persist.png"; }
+		{ String _name = "ExtensionsEntry_save_failure_notice";	String _source = "Sprite/Extensions/Entry_save_failure_notice.png"; }
+		{ String _name = "ExtensionsEntry_boat_reach_notice";	String _source = "Sprite/Extensions/Entry_boat_reach_notice.png"; }
+		{ String _name = "ExtensionsEntry_cancel_refund";	String _source = "Sprite/Extensions/Entry_cancel_refund.png"; }
+		{ String _name = "ExtensionsEntry_autotrade_free_goods";	String _source = "Sprite/Extensions/Entry_autotrade_free_goods.png"; }
+		{ String _name = "ExtensionsEntry_input_fetch_room";	String _source = "Sprite/Extensions/Entry_input_fetch_room.png"; }
+		{ String _name = "ExtensionsEntry_stranded_wade";	String _source = "Sprite/Extensions/Entry_stranded_wade.png"; }
 		{ String _name = "ExtensionsEntry_eye_camera";	String _source = "Sprite/Extensions/Entry_eye_camera.png"; }
 		{ String _name = "ExtensionsEntry_sharp_ui";	String _source = "Sprite/Extensions/Entry_sharp_ui.png"; }
 		{ String _name = "ExtensionsEntry_fast_paths";	String _source = "Sprite/Extensions/Entry_fast_paths.png"; }

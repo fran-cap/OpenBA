@@ -143,6 +143,130 @@ const Entry kEntries[] = {
       "citizen route queued before it is worked out.",
       0, [](State& s) -> bool& { return s.fix.path_query_first; } },
 
+    // CROPPLANTINGEXIT (docs/retail_bugs.md section 11): a crop field in planting (state 9) moves on when
+    // every slot ends done (the re-clear request state 9's transition table drops in retail) and when the
+    // only slots left to plant are out of the workers' reach (PlantArea skips them and never ends
+    // planting). Sim-visible. Nothing new is saved: the states and slot marks are retail's own.
+    { "crop_planting_exit", Tier::Fix, Class::None, true,
+      "Fields finish planting",
+      "A crop field no longer stays in planting forever when farmers cannot reach one of its rows, or when "
+      "every crop was lost before planting finished; it goes on to tending and harvest.",
+      0, [](State& s) -> bool& { return s.fix.crop_planting_exit; } },
+
+    // FIREFIGHTERWELLS (docs/retail_bugs.md section 20): the Firefighter achievement's goal in the game data
+    // compares the count of finished wells with 40, while its description reads "Build 20 wells"; with the
+    // row on that one goal compares with 20. Changes when an achievement is awarded, nothing in the sim.
+    { "firefighter_wells", Tier::Fix, Class::None, true,
+      "Firefighter at 20 wells",
+      "The Firefighter achievement is awarded at the 20 wells its description asks for; the game's own "
+      "data asked for 40.",
+      0, [](State& s) -> bool& { return s.fix.firefighter_wells; } },
+    // UNRESOLVEDSEEDS (docs/retail_bugs.md section 21): the town's available-agriculture list keeps no
+    // null entry: the start town skips a start-condition crop / tree / animal that does not resolve, and
+    // a load drops an entry whose resource no longer loads. Retail's crop field, orchard and pasture
+    // panels fault on the null. Sim-visible only where retail would have crashed (or, at the start town,
+    // spawned a herd from nothing). Nothing new is saved.
+    { "unresolved_seeds", Tier::Fix, Class::None, true,
+      "No crash on fields with a missing crop",
+      "A crop, tree or animal that a starting condition or a save names but no installed mod provides "
+      "is left out of the town's list, so selecting a crop field, orchard or pasture no longer crashes.",
+      0, [](State& s) -> bool& { return s.fix.unresolved_seeds; } },
+    // COMMUTECOST (docs/retail_bugs.md section 6): PathGraph::RegionPairCost's not-found arm (0x1400d6060)
+    // returns the commute cost it just computed and stored instead of 0, so the employment allocator no
+    // longer rates a region pair's first, never-measured commute as free. Sim-visible: which citizen takes
+    // a job when a home, workplace or region changed while the pairs drained. Nothing new is saved.
+    { "commute_cost", Tier::Fix, Class::None, true,
+      "Jobs near home after building",
+      "A citizen is no longer sent to a far workplace because the walk to a newly built home or "
+      "workplace had not been measured yet and was counted as no walk at all.",
+      0, [](State& s) -> bool& { return s.fix.commute_cost; } },
+    // NOMADARRIVAL (docs/retail_bugs.md section 22): NomadComponent::TickWalkIn (0x14004f9c0) counts an
+    // idle nomad as arrived wherever it stands, so a group whose walk to the town hall fails becomes
+    // citizens where it is stuck. With the row on, arrival means near the meeting point; otherwise the
+    // nomad walks again once, then leaves the group and goes back to the map edge. Sim-visible only where
+    // a walk failed. Nothing new is saved (the retry mark is not saved; after a load it retries again).
+    { "nomad_arrival", Tier::Fix, Class::None, true,
+      "Nomads must reach the town hall",
+      "Nomads who cannot walk to the town hall (cut off by a river, for example) no longer count as "
+      "arrived where they are stuck; they try once more, then leave, instead of becoming citizens who "
+      "cannot reach the town.",
+      0, [](State& s) -> bool& { return s.fix.nomad_arrival; } },
+    // MODSPERSIST (docs/retail_bugs.md section 23): retail writes the mod list to settings.cfg only at a
+    // clean shutdown, so a crash after a Mods change (often the reload itself) loses it; and a change made
+    // in a game is used for that game, then dropped at the next menu after every changed resource was
+    // reloaded twice. With the row on, confirming Mods writes the settings at once, and the pause menu's
+    // Mods button is greyed out (retail's own Enable(false), as for a game with flag bit 10). Not
+    // sim-visible. Nothing new is saved.
+    { "mods_persist", Tier::Fix, Class::None, true,
+      "Mod changes saved, from the main menu",
+      "A change in the Mods window is saved as soon as you confirm it, so a crash no longer brings back "
+      "the old list; mods are changed from the main menu only (the in-game Mods button is greyed out).",
+      0, [](State& s) -> bool& { return s.fix.mods_persist; } },
+    // SAVEFAILURENOTICE (docs/retail_bugs.md section 27): a save that does not reach the disk (read-only
+    // folder, Controlled Folder Access, antivirus, full disk) opens a message box naming the save folder,
+    // where retail's UpdateSave (0x1800c2a80) never reads the save job's status; and the job writes a
+    // temporary file and moves it over the save, so a failed write keeps the previous save. No sim change.
+    { "save_failure_notice", Tier::Fix, Class::None, true,
+      "Tell when a save fails",
+      "A save that cannot be written (a read-only or protected save folder, an antivirus block, a full "
+      "disk) shows a message instead of failing silently, and the previous save of that name is kept.",
+      0, [](State& s) -> bool& { return s.fix.save_failure_notice; } },
+    // BOATREACHNOTICE (docs/retail_bugs.md section 28): when a merchant boat's two water legs to a trading
+    // post's dock come back empty (BoatComponent::SetDestination 0x1400456e0 drops them without a word),
+    // the event log says so, at the post's tile. Where the boat sails is unchanged. The line is an ordinary
+    // event-log entry (text, a save keeps it like any other).
+    { "boat_reach_notice", Tier::Fix, Class::None, true,
+      "Tell when boats cannot reach a dock",
+      "When a merchant's boat finds no water route to a trading post's dock, the event log says so, so a "
+      "post that never trades is no longer a mystery.",
+      0, [](State& s) -> bool& { return s.fix.boat_reach_notice; } },
+
+    // CANCELREFUND (docs/retail_bugs.md section 26): the materials DestroyComponent::ScatterContents
+    // (0x14011c530) cannot lay on a cancelled site's (or a demolished building's) own footprint are laid in
+    // piles on the free cells around it, found by the search a citizen's dropped load uses (0x14009bd40),
+    // instead of being discarded. Sim-visible: more piles, more material. Nothing new is saved: the piles
+    // are ordinary piles.
+    { "cancel_refund", Tier::Fix, Class::None, true,
+      "Cancelled buildings return their materials",
+      "Materials delivered to a building site that is cancelled are left in piles around it instead of "
+      "most of them vanishing when they do not fit on the site's own ground.",
+      0, [](State& s) -> bool& { return s.fix.cancel_refund; } },
+    // STRANDEDWADE (docs/retail_bugs.md section 19): Map::RequestPath (0x14009cfb0) refuses every walk
+    // between two land zones, while a walk with a water or mountain endpoint may cross into any zone; a
+    // citizen left on cut-off land asks for the same refused walk until he starves or freezes. With the
+    // row on, a citizen on land outside his anchor's zone (home; the home he just lost; the nearest town
+    // hall; the nearest storage) whose walk toward it was refused on the zone mismatch makes one walk
+    // with retail's wade / climb bypass (pass flags 0xe1f | 0x1e0) there. Sim-visible only for such a
+    // citizen.
+    // Nothing is saved (a load starts every citizen unstranded).
+    { "stranded_wade", Tier::Fix, Class::None, true,
+      "Stranded citizens wade home",
+      "A citizen stuck on land cut off from the town (across a stream, on a finished dock or bridge "
+      "piece) wades or climbs back home (or to the town hall or a storage building), instead of standing there until he "
+      "starves or freezes.",
+      0, [](State& s) -> bool& { return s.fix.stranded_wade; } },
+
+    // AUTOTRADEFREEGOODS (docs/retail_bugs.md section 24): TradeComponent::AutoTrade (0x140059ad0) pays for an
+    // auto-purchase by selling the post's goods unit by unit until the price is covered; a good the docked
+    // merchant prices 0 never covers it, so retail hands over the whole stack. With the row on such a good
+    // is passed over. Sim-visible: what the post keeps. Nothing new is saved.
+    { "autotrade_free_goods", Tier::Fix, Class::None, true,
+      "Auto-trade keeps unwanted goods",
+      "A trading post that trades automatically no longer gives a merchant whole stacks of goods he "
+      "does not buy, for nothing, while paying for what it bought.",
+      0, [](State& s) -> bool& { return s.fix.autotrade_free_goods; } },
+
+    // INPUTFETCHROOM (docs/retail_bugs.md section 25): ConsumeProduce::Execute's input fetch (0x1400e7840)
+    // asks for a full carry (-1), which the workplace's all-or-nothing CanAdd (0x14012cd80) refuses when it
+    // has less room than that, so the load goes back to a barn and the worker comes for it again. With the
+    // row on the fetch asks for what the workplace and the worker can take, and skips the input when that is
+    // nothing. Sim-visible: what a worker carries and where. Nothing new is saved.
+    { "input_fetch_room", Tier::Fix, Class::None, true,
+      "Workers fetch what fits",
+      "A brewer, smith or other production worker fetches only as much of an input as the building has "
+      "room for, instead of hauling a full load to a nearly full building and carrying it back again.",
+      0, [](State& s) -> bool& { return s.fix.input_fetch_room; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).

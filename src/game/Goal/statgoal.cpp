@@ -29,6 +29,8 @@
 #include <cstring>
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch D
 #include "achievement/Goal.h"   // ENDGAME B.3.7: QUALIFIED base calls
+#include "ext/registry.h"                                // Ext::Fix().firefighter_wells
+#include "ext/firefighter_wells/firefighter_wells_rule.h"
 
 // The two exe helpers the slots call — FUN_1400265b0 (the lazy ExternalPtr
 // resolve) and FUN_1400da4e0 (the stat value switch) — are ported
@@ -150,7 +152,10 @@ void StatGoal::ComputeOperands(int& statValueA, int& comparisonValue) const {
         comparisonValue = static_cast<int>(StatValue(statTypeB, extB));
     } else {
         // Even comparisonType: use fixedValue
-        comparisonValue = fixedValue;
+        // FIX firefighter_wells (docs/retail_bugs.md section 20): the Firefighter goal's data says
+        // 40 wells where its description says 20; with the row on that one goal compares against 20.
+        comparisonValue = Ext::FirefighterWells::Threshold(Ext::Fix().firefighter_wells, statTypeA,
+                                                           fixedValue, statA.name._data);
     }
 }
 

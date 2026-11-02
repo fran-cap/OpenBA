@@ -239,7 +239,6 @@ static void SubdivideSeg(TerrainHeightfield* hf, WgPathPointArray* vec, int para
     float limit = fneg(param_5);           // fVar9 = -param5
 
     float candX = 0.0f, candY = 0.0f;
-    int safety = 0;
     do {
         float t = rftol(rng) * param_6 * kMidAmp;   // displacement magnitude
         candX = perp.x * t + midX;         // fVar8
@@ -261,8 +260,7 @@ static void SubdivideSeg(TerrainHeightfield* hf, WgPathPointArray* vec, int para
                  (param_5 < candX) ||
                  ((param_5 <= candX) && (param_5 < candY)) ||
                  (0.0f < facing)) retry = true;
-        if (!retry) break;
-        if (++safety > 1000000) return;    // guard (original is unbounded)
+        if (!retry) break;   // unbounded, as retail 0x1400cc510
     } while (true);
 
     int mid = (span >> 1) + param_3;
@@ -587,10 +585,8 @@ void wg_f390_paths(TerrainHeightfield* hf) {
     for (int i = 0; i < numSecondary; ++i) {
         for (int attempt = 0; attempt < 1000; ++attempt) {
             int pathCount = hf->paths._size;
-            // Defensive: secondary paths branch off an existing path. If none exists
-            // (coastline ring not placed), there is nothing to branch from — skip
-            // rather than null-deref the empty patchList in TryPlacePath's branch path.
-            if (pathCount <= 0) break;
+            // No test of the count (0x1400ccf60): the coastline stage (0x1400cd090) leaves at
+            // least one path.
             float branchSel = (float)rng->Rand((uint32_t)pathCount);
             int ok = TryPlacePath(hf, dim + 1, (float)dim, P4, P5, P6, P7, P8, branchSel);
             if (ok) break;
