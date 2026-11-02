@@ -21,6 +21,15 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
 
 **Fixes**
+- `fix.firefighter_wells` (on): the Firefighter achievement ("Build 20 wells in a single town") is
+  awarded at 20 wells. The game's data asks for 40, a long-known mismatch with the description
+  (`docs/retail_bugs.md` section 19). Off under `/profile:faithful`.
+- `fix.crop_planting_exit` (on): a crop field no longer stays in "planting" forever. Retail never finishes
+  planting a field with a row the farmers cannot reach (a steep or fenced-off edge), so the field is never
+  tended or harvested and its crop rots; nor does it move on when every crop was lost before planting
+  finished. With the fix, the unreachable slots are left bare and the field goes on to tending and harvest,
+  and a field with nothing left growing is cleared for replanting (`docs/retail_bugs.md` section 11). Off
+  under `/profile:faithful`.
 - Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
   billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the
   tree's growth scale, and retail eases that scale a little every frame (also while paused with Space, and

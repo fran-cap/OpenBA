@@ -71,6 +71,8 @@ struct Fixes {
     bool alloc_tiebreak    = true;   // docs/retail_bugs.md §14, src/ext/alloc_tiebreak/ (docs/extensions/handins/ALLOCTIEBREAK.md): sim-visible, ties in the job / house allocators
     bool foundation_piles  = true;   // docs/retail_bugs.md §17, src/ext/foundation_piles/ (docs/extensions/handins/FOUNDATIONPILES.md): sim-visible, piles a full town cannot store leave a site's footprint
     bool path_query_first  = true;   // docs/retail_bugs.md §18, src/ext/path_query_first/ (docs/extensions/handins/PATHQUERYFIRST.md): sim-visible timing, the synchronous path query jumps the worker queue
+    bool crop_planting_exit = true;  // docs/retail_bugs.md §11, src/ext/crop_planting_exit/: sim-visible, a crop field leaves planting when every slot is done or the rest are out of reach
+    bool firefighter_wells = true;   // docs/retail_bugs.md §20, src/ext/firefighter_wells/: the Firefighter achievement unlocks at the 20 wells its description gives (the data says 40)
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension

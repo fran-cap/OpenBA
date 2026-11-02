@@ -143,6 +143,25 @@ const Entry kEntries[] = {
       "citizen route queued before it is worked out.",
       0, [](State& s) -> bool& { return s.fix.path_query_first; } },
 
+    // CROPPLANTINGEXIT (docs/retail_bugs.md section 11): a crop field in planting (state 9) moves on when
+    // every slot ends done (the re-clear request state 9's transition table drops in retail) and when the
+    // only slots left to plant are out of the workers' reach (PlantArea skips them and never ends
+    // planting). Sim-visible. Nothing new is saved: the states and slot marks are retail's own.
+    { "crop_planting_exit", Tier::Fix, Class::None, true,
+      "Fields finish planting",
+      "A crop field no longer stays in planting forever when farmers cannot reach one of its rows, or when "
+      "every crop was lost before planting finished; it goes on to tending and harvest.",
+      0, [](State& s) -> bool& { return s.fix.crop_planting_exit; } },
+
+    // FIREFIGHTERWELLS (docs/retail_bugs.md section 19): the Firefighter achievement's goal in the game data
+    // compares the count of finished wells with 40, while its description reads "Build 20 wells"; with the
+    // row on that one goal compares with 20. Changes when an achievement is awarded, nothing in the sim.
+    { "firefighter_wells", Tier::Fix, Class::None, true,
+      "Firefighter at 20 wells",
+      "The Firefighter achievement is awarded at the 20 wells its description asks for; the game's own "
+      "data asked for 40.",
+      0, [](State& s) -> bool& { return s.fix.firefighter_wells; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).
