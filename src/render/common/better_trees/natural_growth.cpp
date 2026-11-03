@@ -149,7 +149,9 @@ bool AppendElement(Dxbc::Container& c, uint32_t fourcc, uint32_t reg, uint32_t s
         uint32_t no;
         std::memcpy(&no, d.data() + 8 + 24 * i, 4);
         if (no < table || no >= d.size()) return false;   // names live after the table
-        if (std::strncmp(reinterpret_cast<const char*>(d.data() + no), "TEXCOORD", 9) == 0) tex = static_cast<int>(i);  // CAST-OK: byte_io
+        // Hardening (review F-027): the name and its NUL must lie inside the chunk. A strncmp here read
+        // past the chunk's end when its last bytes were "TEXCOORD" with no terminator.
+        if (no + 9 <= d.size() && std::memcmp(d.data() + no, "TEXCOORD", 9) == 0) tex = static_cast<int>(i);
     }
     if (tex < 0) return false;
     uint8_t e[24];
