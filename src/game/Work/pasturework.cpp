@@ -20,6 +20,7 @@
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Work/PastureWork.h"
+#include "Work/work_rules.h"   // review F-199..F-206: the shared Execute decisions
 #include "object/Internal.h"
 #include "object/TypeInfo.h"
 #include "Game/exe_bodies.h"
@@ -353,9 +354,8 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         short sVar2 = area->tileY0;
         short sVar3 = area->tileX1;
 
-        uint32_t uVar11 = (uint32_t)rng->RandTol((int)area->tileY1);
-        uint32_t uVar13 = (uint32_t)rng->RandTol((int)sVar3);
-        int randCell = ((int)sVar2 + uVar11) * map->size + uVar13 + (int)sVar1;
+        // Random::Rand(h) then Rand(w), the bounded overload (0x1400f299d / 0x1400f29aa)
+        int randCell = WorkRules::PastureGrazeCell(*rng, sVar1, sVar2, sVar3, area->tileY1, map->size);
 
         int nearCell = piVar4->FindCell(randCell, uVar23, 0xe1f);
         if (nearCell >= 0) {
