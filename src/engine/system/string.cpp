@@ -900,6 +900,22 @@ void String::Serialize(::IO::Serializer& serializer) {
 
     // Stream +0x08: 0 = loading/decode, non-zero = saving/encode.
     const bool loading = (serializer._stream->_direction == 0);
+
+    // NOT RETAIL (hardening, review 2026-11-03 F-079 / F-080): retail sizes the String
+    // straight from the 31-bit length word, so a hostile record asks for 2 GB (plain) or
+    // 4 GB (legacy UTF-16, n * 2 below) and then reads up to 2^31 failing elements. A
+    // length the rest of the stream cannot hold is rejected here: the String is left
+    // empty and nothing more is read. A well-formed record always fits, so valid saves
+    // and packages load byte-identically.
+    if (loading && n != 0) {
+        const uint64_t need = legacyWide ? static_cast<uint64_t>(n) * 2 : static_cast<uint64_t>(n);
+        if (need > ::IO::StreamBytesLeft(*serializer._stream)) {
+            Release();
+            _data = nullptr;
+            return;
+        }
+    }
+
     if (loading && n != 0)
         SetLength(static_cast<int>(n) - 1);
 
@@ -953,6 +969,13 @@ void String::Serialize(::IO::Serializer& serializer) {
     }
 
     rw->SerializeCharArray(static_cast<int>(n), _data, nullptr);   // +0x18
+
+    // NOT RETAIL (review 2026-11-03 F-023, heap over-read): retail fills all n bytes,
+    // _data[n - 1] included, from the stream and never stores the terminator, so a
+    // payload that does not end in NUL leaves a String every strlen-walking consumer
+    // reads past. A well-formed record already has the NUL there.
+    if (loading && n != 0)
+        _data[n - 1] = '\0';
 }
 
 // ============================================================

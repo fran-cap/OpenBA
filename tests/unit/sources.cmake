@@ -30,6 +30,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/serialize_family.cpp       # decode_exact_test.cpp (issue #13): the reader's array slots
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_read.cpp #   CompressedStream::Read / SetWindow / ReadArray
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
+  ${CMAKE_SOURCE_DIR}/src/engine/io/text_codec.cpp             # string_codec_hardening_test.cpp: the codecs, RtIo_SerializeStringArray
   ${CMAKE_SOURCE_DIR}/src/engine/system/crc.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/picking/picking_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/pathfinding/pathfinding_type_records.cpp

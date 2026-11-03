@@ -489,6 +489,16 @@ inline Stream::~Stream() {
     if (_encoding) RtSystem::RtMemFree(_encoding);
 }
 
+// NOT RETAIL (hardening, review 2026-11-03 F-079 / F-080): the bytes a reading stream
+// still holds, GetSize() - GetCurrentPos(), or 0 when the position is already past the
+// end. System::String::Serialize and RtIo_SerializeStringArray reject a length word
+// larger than this before they size anything from it.
+inline uint64_t StreamBytesLeft(const Stream& s) {
+    const uint32_t size = s.GetSize();
+    const uint32_t pos = s.GetCurrentPos();
+    return size > pos ? static_cast<uint64_t>(size - pos) : 0u;
+}
+
 static_assert(sizeof(Stream) == 0x18, "IO::Stream is 0x18 bytes");
 static_assert(offsetof(Stream, _direction) == 0x08, "??0Stream@IO@@ 0x1800b99d0: +0x08 = 0");
 static_assert(offsetof(Stream, _pad0c)     == 0x0c, "the gap the ctor never writes");
