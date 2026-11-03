@@ -309,8 +309,8 @@ int BuildComponent::State1Enter(StateMachine* smNode) {
             // was ORIGINALLY believed to deadlock the WPC Scene mesh-visual toggle, which
             // is why the off-path defers the SEAT to State8Enter (direct CitizenEmploy_
             // SeatWorkersAt against the site entity) instead of registering. That deadlock
-            // is now neutralized by g_wpcRosterOnly (held across the allocator body, the
-            // builder pool, and the profession spinner), so the NATURAL register path below
+            // was closed at its source (StatusIconComponent's ctor sets scene id -1; the
+            // allocator no longer holds g_wpcRosterOnly, row 1349), so the NATURAL register path below
             // is default-on and verified safe: a 30s autostart run with a registered site
             // stays hang-free and the town-hall Professions panel shows the site's real
             // Builder capacity ("X of 3" via the CapProbe in builder_pool_driver.cpp — the
@@ -330,7 +330,7 @@ int BuildComponent::State1Enter(StateMachine* smNode) {
             // (WorkComponent+0x30) is computed lazily by FindAvailableBuilding via
             // CalcMaxWorkers; accepting (WPC+0x50) was set just above. The employment
             // allocator's AssignHousing churn (which townMgr+0x100 population activates)
-            // is freeze-guarded by g_wpcRosterOnly inside CitizenAssignCitizens.
+            // runs the full Attach / Detach, as retail (row 1349).
             if (townMgr) {
                 TownRegistry_RegisterWorkplace(townMgr, wpc);
             }

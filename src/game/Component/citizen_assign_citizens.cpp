@@ -380,16 +380,11 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
 
 }  // namespace
 
-// Build-time roster-only guard (workplacecomponent.cpp). When set, the WPC worker
-// attach/detach helpers (fa20/f7e0, reached through AssignHousing 0x140111ee0) skip
-// the Graphics::Scene mesh-visual toggle (Scene::Add/RemoveObject on gw+0x60 +
-// FUN_1400c3470 re-bucket + component-event broadcast) down to the bare roster-list
-// mutation. This allocator runs every town tick once townMgr+0x100 has any employer
-// workplace (e.g. a registered construction site), and its Phase 1/3/5A/5B AssignHousing
-// churn is O(idle-laborers) per tick — the exact scene churn that deadlocks. We hold the
-// guard across the whole allocation body so none of those AssignHousing calls touch the
-// scene. Verified sufficient in Ghidra (see reference_builder_profession_bst_flow).
-extern bool g_wpcRosterOnly;
+// No roster-only mode here, as retail: every AssignHousing (0x140111ee0) below runs the
+// full WorkPlaceComponent Detach / Attach, so a workplace this allocator staffs loses its
+// "no workers" icon (bit 4) and one it empties raises it again (known_port_issues row 1349).
+// The hold this body once took (g_wpcRosterOnly) guarded against Scene::RemoveObject(scene, 0)
+// on a never-registered icon; StatusIconComponent's ctor closes that (scene id -1).
 
 // ===========================================================================
 // PathGraph::RegionPairCost (0x1400d6060)
@@ -469,11 +464,6 @@ void PathGraph::AssignCitizens() {
     int                citCount = townMgr->citizens._size;  // +0xa8
     ProfessionBucket*  mapRoot  = townMgr->field_0x100._root;   // +0x100
     float     uvScale  = kRdata_14017214c;   // g_fUVScale 0x14017214c
-
-    // Hold the roster-only guard for every AssignHousing call below (no early returns
-    // remain past this point). Restored just before the trace/return.
-    bool prevRoster = g_wpcRosterOnly;
-    g_wpcRosterOnly = true;
 
     // ---------- Phase 1: housing-sync ----------
     for (int i = 0; i < citCount; ++i) {
@@ -648,6 +638,4 @@ void PathGraph::AssignCitizens() {
         auto pit = profNeed.find(keyT);
         if (pit != profNeed.end() && --pit->second == 0) profNeed.erase(pit);
     }
-
-    g_wpcRosterOnly = prevRoster;
 }
