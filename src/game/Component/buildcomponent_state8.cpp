@@ -43,6 +43,7 @@
 #include "graphics/Camera.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "Component/controller_state_table.h"
 #include <cstdint>
 #include <cstdio>
@@ -354,7 +355,7 @@ char BuildComponent::State8Update(StateMachine* sm) {
         static int rampFrames = -1;
         if (rampFrames < 0) {
             const char* e = Opt().buildDemoFrames;
-            rampFrames = (e && e[0]) ? std::atoi(e) : 600;
+            rampFrames = (e && e[0]) ? ClampedAtoi(e) : 600;
             if (rampFrames < 1) rampFrames = 600;
         }
         // Demo mode ALWAYS ramps over rampFrames. The real target (matComp[0x30] *

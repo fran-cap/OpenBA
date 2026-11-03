@@ -21,6 +21,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/object/expand_memo.cpp   # block SAVELOAD: the ExpandRelativePath memo
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array_destroy.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/collection/array_graphics_anim.cpp   # review_engine_ub_test.cpp (F-049): kSpec_MeshNode
   ${CMAKE_SOURCE_DIR}/src/engine/collection/linkedlist.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/introsort.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/type_reflection.cpp

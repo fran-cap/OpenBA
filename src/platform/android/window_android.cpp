@@ -14,6 +14,7 @@
 
 #include "platform_window_hooks.h"
 #include "android_paths.h"
+#include "app/clamped_atoi.h"   // review F-087: atoi on settings.cfg text
 #include "platform/sdl/window_sdl_internal.h"   // Sdl::GameWindow
 
 #include <SDL3/SDL_video.h>
@@ -50,7 +51,7 @@ int ReadPercentFromSettings() {
     const char key[] = "VideoRenderScale=";
     while (std::fgets(line, sizeof(line), f) != nullptr) {
         if (std::strncmp(line, key, sizeof(key) - 1) != 0) continue;
-        const int percent = std::atoi(line + sizeof(key) - 1);
+        const int percent = ClampedAtoi(line + sizeof(key) - 1);
         if (percent >= 25 && percent <= 100) result = percent;
     }
     std::fclose(f);
