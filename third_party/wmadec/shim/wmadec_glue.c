@@ -84,6 +84,13 @@ int wmav2_open(const Wmav2Params *params, Wmav2Decoder **out)
         params->block_align <= 0 || params->extradata_size < 0 ||
         params->extradata_size > 6 || (params->extradata_size && !params->extradata))
         return AVERROR(EINVAL);
+    /* avcodec_open2 rejects a negative sample rate before a codec's init runs;
+     * this glue calls init directly, and ff_wma_init checks only the upper bound
+     * (a negative rate overflowed `channels * sample_rate` at wma.c:140 and
+     * shifted a negative value at wma.c:246; review F-071). Zero is refused too:
+     * it divides in the same init. */
+    if (params->sample_rate <= 0)
+        return AVERROR(EINVAL);
 
     dec = av_mallocz(sizeof(*dec));
     if (!dec)

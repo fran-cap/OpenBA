@@ -90,7 +90,8 @@ public:
     // WMA frame length in samples (2048 at 44.1 / 48 kHz).
     uint32_t FrameLength() const { return _frameLength; }
 
-    // seekTable[last] / (2 * channels): the samples a pass from packet 0 yields.
+    // seekTable[last] / (2 * channels): the samples a pass from packet 0 yields,
+    // capped at what PacketCount() packets can decode to (an untrusted table).
     uint64_t TotalSamples() const;
     // The seek table's position before `packet` (0 for packet 0), in samples.
     uint64_t SeekSamples(uint32_t packet) const;

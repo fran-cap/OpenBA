@@ -194,7 +194,16 @@ bool XwmaDecoder::Open(const uint8_t* format, const uint8_t* packets, size_t byt
 
 uint64_t XwmaDecoder::TotalSamples() const {
     if (!IsOpen()) return 0;
-    return _seekTable[_packetCount - 1] / (2u * _channels);
+    const uint64_t table = _seekTable[_packetCount - 1] / (2u * _channels);
+    // NOT RETAIL (hardening, review F-073): the seek table is resource data and
+    // its last entry is not checked against the packets; decode at load sizes its
+    // PCM allocation from this value, so {0xffffffff} asked for 4 GiB for one
+    // 278-byte packet. A pass from packet 0 cannot yield more than its packets
+    // decode to (a superframe's 15 frames per packet plus the two drained
+    // frames, MaxSamplesFor's bound), so the total is capped there. A shipped
+    // table is far below the cap.
+    const uint64_t bound = (static_cast<uint64_t>(_packetCount) * 15u + 2u) * _frameLength;
+    return table < bound ? table : bound;
 }
 
 uint64_t XwmaDecoder::SeekSamples(uint32_t packet) const {
