@@ -37,12 +37,17 @@ env:
   CCACHE_LAUNCHERS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache
 jobs:
   windows:
-    name: Windows (MSYS2 UCRT64)
+    name: Windows (MSYS2 UCRT64)   # the required-check name: kept, though the job no longer installs MSYS2
     runs-on: windows-latest
     timeout-minutes: 60
+    # Git Bash (the runner's Git for Windows) is the shell. Everything else comes from the pinned WinLibs
+    # GCC (tools/toolchain/install_winlibs.sh), the one build every Windows exe and the PGO profile set
+    # come from; cached under the install script's hash, so a pin change refetches it. Its bin directory
+    # also holds cmake, ninja and ccache, which a fresh MSYS2 (msys2/setup-msys2, ~65 s a run) used to
+    # install. The build needs python3 too (CMakeLists.txt, tools/ext_rsc_embed.py): actions/setup-python.
     defaults:
       run:
-        shell: msys2 {0}
+        shell: bash
     env:
       CCACHE_MAXSIZE: 1000M   # the debug object set: dx11 OpenBA, unit, the vulkan backend + dxbc-spirv
     steps:
@@ -50,16 +55,9 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
-      # A fresh MSYS2 on the runner for the shell, cmake, ninja, python and ccache: the stale-package
-      # rule (CLAUDE.md) is about the local install. The compiler is NOT MSYS2's: it is the pinned
-      # WinLibs GCC (tools/toolchain/install_winlibs.sh), the one build every Windows exe and the PGO
-      # profile set come from; cached under the install script's hash, so a pin change refetches it.
-      - uses: msys2/setup-msys2@v2
+      - uses: actions/setup-python@v5
         with:
-          msystem: UCRT64
-          update: false
-          install: git unzip
-          pacboy: cmake:p ninja:p python:p ccache:p
+          python-version: "3.12"
       - uses: actions/cache@v4
         id: winlibs
         with:
@@ -68,6 +66,8 @@ jobs:
       - name: Pinned compiler
         if: steps.winlibs.outputs.cache-hit != 'true'
         run: tools/toolchain/install_winlibs.sh C:/winlibs-gcc16
+      - name: Pinned compiler on PATH
+        run: echo 'C:\winlibs-gcc16\mingw64\bin' >> "$GITHUB_PATH"
       - uses: actions/cache@v4
         with:
           path: .ccache
@@ -75,8 +75,10 @@ jobs:
           restore-keys: ccache-windows-
       - name: Toolchain
         run: |
-          C:/winlibs-gcc16/mingw64/bin/g++ --version | head -1
+          command -v g++ cmake ninja ccache python
+          g++ --version | head -1
           cmake --version | head -1
+          ccache --version | head -1
           ccache -z
       - name: Build OpenBA (debug)
         run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build debug
