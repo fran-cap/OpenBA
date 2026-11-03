@@ -90,7 +90,30 @@ const rt::system::MemoryAllocatorCommitSeam* System::MemoryAllocator::_extCommit
 
 // The instrument seat (MemoryAllocator.h): STANDALONE DEVIATION, instrument
 // seat, retail has no such branch. Constant-initialised null; armed at boot only.
+// The AddressSanitizer build (CMakeLists.txt BANISHED_SANITIZE=asan|fuzz) arms the seat from the
+// start with the C heap: ASan cannot see inside this allocator's boundary-tag blocks (an overrun
+// lands in the neighbour's tag, a freed block is reused at once), and through malloc / free every
+// engine allocation gets ASan's redzones, quarantine and leak report. Nothing outside this file
+// reads the tags (GetAllocationSize / GetMemoryRange have no other caller), and every engine
+// allocation and free goes through MemAlloc / MemFree. Not in any shipped build.
+#if BANISHED_ASAN_HEAP
+#include <cstdlib>
+namespace {
+void* AsanMemAlloc(uint64_t size, int align) {
+    size_t a = align < 16 ? 16 : static_cast<size_t>(align);
+    void* p = nullptr;
+    if (posix_memalign(&p, a, size == 0 ? 1 : static_cast<size_t>(size)) != 0)
+        std::abort();
+    return p;
+}
+void AsanMemFree(void* p) {
+    std::free(p);
+}
+}  // namespace
+System::MemoryAllocatorInstrument System::g_memoryAllocatorInstrument = { AsanMemAlloc, AsanMemFree };
+#else
 System::MemoryAllocatorInstrument System::g_memoryAllocatorInstrument = { nullptr, nullptr };
+#endif
 
 // ---------------------------------------------------------------------------
 // Platform seam (see MemoryAllocator.h). Null until the host installs it.
