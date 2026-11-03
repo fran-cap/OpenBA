@@ -227,6 +227,9 @@ void Map::Serialize(IO::Stream& stream) {
     }
 
     GameGrid_SerializeCellArray_ac10(&serializer, count, cells.GetData());
+    if (!isSaving) {
+        size = LoadedSize(size, count);
+    }
     if (!isSaving) StillTerrain::Bump();   // [STILLTERRAIN] size, the cell array and every floorCount were streamed in
 
     // 9 shorts at +0x90.

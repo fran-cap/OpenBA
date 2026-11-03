@@ -184,7 +184,7 @@ bool SpriteCapture::Serialize(IO::Stream& streamv) {
             uint64_t idxSlot;                                // see the banner
             SpriteSheet* sheet;
             Sprite*      sprites;
-            if (sheetIndex < 0) {                            // 1800d9664 CMP/JGE
+            if (!HasSheetSlot(sheetIndex)) {                 // 1800d9664 CMP/JGE
                 const int32_t minusOne = -1;
                 __builtin_memcpy(&idxSlot, &minusOne, sizeof minusOne);  // 1800d966b
                 sprites = _sprites._data;                                 // 1800d9672

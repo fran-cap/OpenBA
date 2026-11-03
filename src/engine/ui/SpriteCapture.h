@@ -251,6 +251,16 @@ public:
     Collection::Array<Sprite>       _sprites;  // +0x40  Array<UI::Sprite>,               stride 0x10
     int32_t      _width;      // +0x50  GetWidth
     int32_t      _height;     // +0x54  GetHeight
+
+    // Serialize's load loop (0x1800d9664 CMP/JGE): does a loaded entry's sheetIndex name a
+    // slot of `_sheets`? A false answer takes the scissor arm (no sheet, sprite index -1).
+    // NOT RETAIL (review F-024): retail tests only `sheetIndex < 0`; the index is serialized
+    // apart from the sheet count, and one at or past `_sheets._size` reads a pointer past the
+    // array and dereferences it. Such an entry is read as having no sheet, the same result
+    // as a null sheet slot. Every index a valid capture holds is below the count.
+    bool HasSheetSlot(int32_t sheetIndex) const {
+        return sheetIndex >= 0 && sheetIndex < _sheets._size;
+    }
 };
 static_assert(sizeof(SpriteCapture) == 0x58,
               "UI::SpriteCapture is 0x58 bytes (MOV EDX,0x58 in slot 0, 0x18003ccf0)");

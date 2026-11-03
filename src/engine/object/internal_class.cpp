@@ -623,6 +623,11 @@ void InternalFactory::ResetPersistState(IO::Stream& stream) {
         _persistIds._data[i] = -1;
 }   // ~Serializer: 0x1800bfef8
 
+#endif  // !BANISHED_UNIT_TEST
+
+// PersistObject builds in the unit too (review_object_index_bounds_test.cpp): its read arm
+// reaches only the stream's direction, the two arrays and, on a miss, the Factory type tree.
+
 // ============================================================================
 // ?PersistObject@InternalFactory@Object@@QEAAPEAVInternal@2@AEAVStream@IO@@IHI@Z
 //                                                          retail 0x1800bff10
@@ -687,6 +692,14 @@ Internal* InternalFactory::PersistObject(IO::Stream& stream, uint32_t generation
         // `slot` stays `index`: EBX is never reassigned on this arm.
     } else {
         // ---- READ, 0x1800bff3d ---------------------------------------------
+        // NOT RETAIL (review F-022): `index` is the InternalPtr record's int from
+        // the save, and retail indexes `_persistIds` with it unchecked. An index
+        // outside the table ResetPersistState sized from the save's object count
+        // is a corrupt record (an out-of-bounds read, and on a miss a write of the
+        // new object's index past the buffer): it reads as a null reference. Every
+        // index a valid save holds is in range and takes retail's path unchanged.
+        if (index < 0 || index >= _persistIds._size)
+            return nullptr;
         slot = persistIds[i];
         if (slot < 0) {
             // ---- the type-tree descent, 0x1800bff5f ------------------------
@@ -729,7 +742,5 @@ Internal* InternalFactory::PersistObject(IO::Stream& stream, uint32_t generation
     // 0x1800bffea — `_objects._data` is re-read AFTER the Serialize.
     return _objects._data[static_cast<int64_t>(slot)];
 }
-
-#endif  // !BANISHED_UNIT_TEST
 
 }  // namespace Object

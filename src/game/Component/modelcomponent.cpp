@@ -88,12 +88,8 @@ static ModelDescription* LinkedModelDescription(const ModelComponent* self) {
 // _meshGroups[meshGroup].meshes[meshIndex]
 static Graphics::GraphicsMesh* GetMeshFromDescription(const ModelDescription* desc, int16_t meshGroup,
                                                       int16_t meshIndex) {
-    if (!desc || meshIndex < 0 || meshGroup < 0) return nullptr;
-    const ModelMeshGroup* groupArray = desc->_meshGroups;
-    if (!groupArray) return nullptr;            // description carries no meshes
-    Graphics::GraphicsMesh** group = groupArray[meshGroup].meshes;
-    if (!group) return nullptr;
-    return group[meshIndex];
+    if (!desc) return nullptr;
+    return ModelDescriptionMesh(desc->_meshGroups, desc->_meshGroupCount, meshGroup, meshIndex);
 }
 
 // (ModelComponent_RandomizeVariant, a standalone per-entity mesh-group pick with no
