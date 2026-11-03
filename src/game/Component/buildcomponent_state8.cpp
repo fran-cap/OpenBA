@@ -70,9 +70,6 @@ extern "C" void* g_pConstructionDemoSite;                            // the seed
 extern "C" void* g_pBuildStructureWork = nullptr;                    // 2c-B probe: last spawned build work
 // BuildStructure_CreateInPlace (0x1400e5a90) and BuildStructure_CreateInPlaceFull
 // (0x1400e59c0), buildstructure.cpp, are declared in Work/exe_bodies.h.
-// workplacecomponent.cpp — roster-only mode: the WPC attach/detach (fa20/f7e0 reimpl) skips the
-// Scene mesh-visual toggle, so seating a Builder does NOT swap the site's build mesh.
-extern bool g_wpcRosterOnly;
 
 // ---- demo-force gate -------------------------------------------------------------
 // Brick-2a plumbing harness: fake the citizen half so the state chain can be validated

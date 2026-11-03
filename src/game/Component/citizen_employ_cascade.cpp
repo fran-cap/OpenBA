@@ -450,24 +450,12 @@ CitizenComponent** CitizenBehavior::FindIdleLaborer(CitizenComponent** out,
 // The copy matters: c3d0 takes `availPtr` by pointer and each strategy anchors
 // through it, so the caller's value must not be handed over directly.
 //
-// DEVIATION (deliberate): we hold g_wpcRosterOnly across the call. Retail does not
-// need it — its WorkplaceComponent Attach/Detach can run the full Graphics::Scene
-// mesh-visual toggle, which faults on our inert standalone objects (READ of 0x10 in
-// Detach's e710 getter). No gameplay seat path holds it any more (the panel spinners,
-// PathGraph::AssignCitizens, EvictRoster, SetMaxWorkers: known_port_issues row 1349); the
-// only caller here is src/diag/builder_seat_harness.cpp, so it stays as that harness
-// measured it.
+// No roster-only hold, as in retail (review F-088). Its one caller,
+// src/diag/builder_seat_harness.cpp, takes the hold around its own call instead.
 void CitizenBehavior::AddWorker(Profession* profession) {
     // Row 1141: no test of the profession (0x14009113a passes RDX straight to
     // 0x14008d100 as R8, and 0x14009114f reloads it for 0x14008c3d0's R9).
     EnsureFns();
-
-    extern bool g_wpcRosterOnly;
-    struct RosterGuard {
-        bool prev;
-        RosterGuard() { prev = g_wpcRosterOnly; g_wpcRosterOnly = true; }
-        ~RosterGuard() { g_wpcRosterOnly = prev; }
-    } _rosterGuard;
 
     ComponentEntity* avail[2] = { nullptr, nullptr };
     FindAvailableBuilding(avail, profession);   // 0x14008d100
