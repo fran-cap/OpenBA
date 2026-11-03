@@ -114,6 +114,19 @@ bool IO::CompressedStream::Open(Stream& srcRef, int windowCount) {
     int32_t blockCount = 0;
     src->Read(4, &blockCount);                             // 1800aa5bd slot 3
 
+    // NOT RETAIL (review F-032 / F-050 / F-052, UB + plain hardening): retail
+    // takes any blockCount. A negative one passes the signed test below and
+    // sizes the directory negative (Read(-16, nullptr) follows); one >= 2^28
+    // overflows `blockCount * 8` (UB) and sizes a directory of up to 16 GB; and
+    // with 65536 blocks the last starts at 0x7fff8000, where the window
+    // arithmetic `start + 0x8000` overflows int32. A stream holds at most
+    // 0xFFFF blocks of 32 KB (just under 2 GB, the int32 position range), so
+    // anything outside [0, 0xFFFF] is a corrupt directory; with that bound
+    // neither product below can overflow.
+    if (blockCount < 0 || blockCount > 0xFFFF) {
+        return false;
+    }
+
     if (static_cast<int32_t>(blockCount * 8) >
         static_cast<int32_t>(len)) {                       // 1800aa5cb CMP/JG (SIGNED, 32-bit)
         return false;

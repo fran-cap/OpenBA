@@ -40,11 +40,11 @@
 namespace {
 
 // ---------------------------------------------------------------------------
-// The oracle: retail's Decompress (0x1800c4660), byte at a time.
+// The oracle: retail's Decompress (0x1800c4660), byte at a time. `overread`
+// reports whether it read past srcEnd (the read cursor only moves forward and
+// every read advances it, so that is `sp > srcEnd` wherever it stops).
 // ---------------------------------------------------------------------------
-int RetailDecompress(const void* src, uint32_t srcLen, void* dst, uint32_t dstCap) {
-    const uint8_t* sp           = static_cast<const uint8_t*>(src);
-    const uint8_t* const srcEnd = sp + srcLen;
+int RetailDecompressBody(const uint8_t*& sp, const uint8_t* const srcEnd, void* dst, uint32_t dstCap) {
     uint8_t* const dstBase      = static_cast<uint8_t*>(dst);
     uint8_t* const dstEnd       = dstBase + dstCap;
     uint8_t* op                 = dstBase;
@@ -79,17 +79,29 @@ int RetailDecompress(const void* src, uint32_t srcLen, void* dst, uint32_t dstCa
     return static_cast<int>(op - dstBase);
 }
 
+int RetailDecompress(const void* src, uint32_t srcLen, void* dst, uint32_t dstCap, bool* overread) {
+    const uint8_t* sp           = static_cast<const uint8_t*>(src);
+    const uint8_t* const srcEnd = sp + srcLen;
+    const int r = RetailDecompressBody(sp, srcEnd, dst, dstCap);
+    *overread = sp > srcEnd;
+    return r;
+}
+
 constexpr uint32_t kPad = 512;   // readable slack past srcEnd (a run overshoots by <= 33)
 
 struct DecodeTally {
     int cases = 0;
     int ok = 0;        // returned > 0
     int failed = 0;    // returned 0
+    int overread = 0;  // retail read past srcEnd: the port must return 0
     int mismatches = 0;
 };
 
 // Runs both decoders on src[0..srcLen) (padded) into identically pre-filled
-// destinations of dstCap bytes and compares everything.
+// destinations of dstCap bytes and compares everything. Where retail reads past
+// srcEnd (a truncated or corrupt stream, or srcLen 0), the port rejects the
+// stream instead (NOT RETAIL, review F-001): it must return 0, and the bytes are
+// not compared (retail went on decoding the padding).
 void CompareDecode(const std::vector<uint8_t>& srcIn, uint32_t srcLen, uint32_t dstCap,
                    DecodeTally& t, uint8_t fill) {
     std::vector<uint8_t> src(static_cast<size_t>(srcLen) + kPad, 0x5a);
@@ -97,9 +109,19 @@ void CompareDecode(const std::vector<uint8_t>& srcIn, uint32_t srcLen, uint32_t 
     // A cap of 0 still needs a valid pointer; +16 of guard checks no write past dstCap.
     std::vector<uint8_t> a(static_cast<size_t>(dstCap) + 16, fill);
     std::vector<uint8_t> b(static_cast<size_t>(dstCap) + 16, fill);
-    const int ra = RetailDecompress(src.data(), srcLen, a.data(), dstCap);
+    bool overread = false;
+    const int ra = RetailDecompress(src.data(), srcLen, a.data(), dstCap, &overread);
     const int rb = System::Compression::Decompress(src.data(), srcLen, b.data(), dstCap);
     ++t.cases;
+    if (overread) {
+        ++t.overread;
+        if (rb != 0) {
+            if (t.mismatches < 5)
+                std::printf("  decode over-read not rejected: srcLen=%u dstCap=%u new=%d\n", srcLen, dstCap, rb);
+            ++t.mismatches;
+        }
+        return;
+    }
     if (ra > 0) ++t.ok; else ++t.failed;
     if (ra != rb || a != b) {
         if (t.mismatches < 5)
@@ -195,8 +217,8 @@ UNIT_TEST(decode_exact_matches_retail_on_encoder_output) {
             CompareDecode(bad, elen, 0x8000, t, 0x33);
         }
     }
-    std::printf("  [decode] encoder corpus: %d cases, %d ok, %d failed, %d mismatches\n",
-                t.cases, t.ok, t.failed, t.mismatches);
+    std::printf("  [decode] encoder corpus: %d cases, %d ok, %d failed, %d over-read (rejected), %d mismatches\n",
+                t.cases, t.ok, t.failed, t.overread, t.mismatches);
     CHECK_EQ(t.mismatches, 0);
     CHECK(t.ok > 1000);
     CHECK(t.failed > 1000);
@@ -240,8 +262,8 @@ UNIT_TEST(decode_exact_overlapping_matches_every_distance_and_length) {
         s.push_back(static_cast<uint8_t>(d1 & 0xff));
         CompareDecode(s, static_cast<uint32_t>(s.size()), 64, t, 0x99);
     }
-    std::printf("  [decode] overlap corpus: %d cases, %d ok, %d failed, %d mismatches\n",
-                t.cases, t.ok, t.failed, t.mismatches);
+    std::printf("  [decode] overlap corpus: %d cases, %d ok, %d failed, %d over-read (rejected), %d mismatches\n",
+                t.cases, t.ok, t.failed, t.overread, t.mismatches);
     CHECK_EQ(t.mismatches, 0);
 }
 
@@ -258,15 +280,18 @@ UNIT_TEST(decode_exact_random_garbage_and_empty_source) {
         const uint32_t cap = (iter % 5 == 0) ? 0x8000 : static_cast<uint32_t>(rng() % 2000);
         CompareDecode(s, n, cap, t, static_cast<uint8_t>(iter));
     }
-    // srcLen == 0: retail's do-while still decodes one control byte (from the pad)
+    // srcLen == 0: retail's do-while still decodes one control byte (from the pad); the port rejects it
     for (int c = 0; c < 256; ++c) {
         std::vector<uint8_t> s(1, static_cast<uint8_t>(c));
         CompareDecode(s, 0, 64, t, 0x42);
     }
-    std::printf("  [decode] garbage corpus: %d cases, %d ok, %d failed, %d mismatches\n",
-                t.cases, t.ok, t.failed, t.mismatches);
+    std::printf("  [decode] garbage corpus: %d cases, %d ok, %d failed, %d over-read (rejected), %d mismatches\n",
+                t.cases, t.ok, t.failed, t.overread, t.mismatches);
     CHECK_EQ(t.mismatches, 0);
-    CHECK(t.ok > 100);
+    // Most garbage that decoded "ok" in retail did so by reading past srcEnd
+    // (the over-read exit); the port rejects those, so few clean decodes remain.
+    CHECK(t.ok > 10);
+    CHECK(t.overread > 100);
     CHECK(t.failed > 1000);
 }
 

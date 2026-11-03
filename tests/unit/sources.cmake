@@ -30,6 +30,8 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/serialize_family.cpp       # decode_exact_test.cpp (issue #13): the reader's array slots
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_read.cpp #   CompressedStream::Read / SetWindow / ReadArray
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp # compressed_stream_bounds_test.cpp: Open / SetWindowCount
+  ${CMAKE_SOURCE_DIR}/src/engine/io/memory_stream.cpp          #   MemoryStream's six slots (no longer stubbed)
   ${CMAKE_SOURCE_DIR}/src/engine/system/crc.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/picking/picking_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/pathfinding/pathfinding_type_records.cpp

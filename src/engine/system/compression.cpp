@@ -276,9 +276,9 @@ inline void CopyMatchFar(uint8_t* op, size_t dist, uint32_t total) {
 //   * A literal run copies sp[0..n) to op[0..n) in 8- / 4-byte steps
 //     (CopyDisjoint). Retail's loop reads and writes them in order; the two
 //     ranges are in different buffers, so the order cannot be observed, and no
-//     byte outside either range is read or written. It reads up to 31 bytes
-//     past srcEnd when a run straddles the end exactly as retail does (the
-//     overshoot exit).
+//     byte outside either range is read or written. Retail reads up to 31
+//     bytes past srcEnd when a run straddles the end (the overshoot exit);
+//     this body returns 0 there instead (NOT RETAIL, review F-001, below).
 //   * A match of `total = len + 2` bytes at distance `dist` is op[i] =
 //     op[i - dist] for i = 0..total in order, so each byte may be one the same
 //     match just wrote. dist >= 8 copies 8 bytes a step (CopyMatchFar: each
@@ -301,6 +301,15 @@ int System::Compression::Decompress(const void* src, uint32_t srcLen,
     uint8_t* const dstEnd       = dstBase + dstCap;     // 1800c467b, zero-extended
     uint8_t* op                 = dstBase;
 
+    // NOT RETAIL (review F-001, plain hardening): retail never tests the
+    // source end inside the loop, so an empty source, a literal run or a
+    // match's length / offset byte past srcLen reads beyond the source buffer
+    // (and a corrupt block's run copies those bytes into the window). Such a
+    // stream is rejected with the decoder's own failure value, 0. A valid
+    // stream never reads past its end, so it decodes exactly as before.
+    if (srcLen == 0)
+        return 0;
+
     // do-while: retail has NO test before the first iteration (§2 note 3).
     do {
         const uint32_t c = *sp++;                       // 1800c4680
@@ -309,12 +318,18 @@ int System::Compression::Decompress(const void* src, uint32_t srcLen,
             const uint32_t n = c + 1u;                  // 1800c468c
             if (op + n > dstEnd)                        // 1800c4696  JA
                 return 0;
+            if (n > static_cast<size_t>(srcEnd - sp))   // NOT RETAIL (F-001): run past the source end
+                return 0;
             RtSystem::CopyDisjoint(op, sp, n);          // 1800c46a0 loop
             op += n;
             sp += n;
         } else {
             // ---- match ----------------------------------------------------
             uint32_t len = c >> 5;                      // 1800c46bf   1..7
+            // NOT RETAIL (F-001): the length byte (len 7) and the offset byte
+            // must lie inside the source.
+            if (static_cast<size_t>(srcEnd - sp) < (len == 7u ? 2u : 1u))
+                return 0;
             // dist = ((c & 0x1f) << 8) + 1 + lo: retail's mp = op - dist, built
             // in the same two steps (1800c46b6/bc/c5/c8, then the low byte).
             size_t dist = (static_cast<size_t>(c & 0x1fu) << 8) + 1u;
@@ -331,8 +346,12 @@ int System::Compression::Decompress(const void* src, uint32_t srcLen,
             } else if (dist == 1u) {
                 std::memset(op, op[-1], total);
             } else {
+                // NOT RETAIL (F-002, UB): `op[k - dist]` wrapped the unsigned
+                // index (k < dist) and so formed a pointer 2^64 - n bytes past
+                // op; the signed index names the same byte without the overflow.
+                const ptrdiff_t back = static_cast<ptrdiff_t>(dist);
                 for (uint32_t k = 0; k < total; ++k)    // 1800c46fa..1800c4711
-                    op[k] = op[k - dist];
+                    op[k] = op[static_cast<ptrdiff_t>(k) - back];
             }
             op += total;
         }

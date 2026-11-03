@@ -57,14 +57,9 @@ namespace {
 
 namespace IO {
 
-// ---- IO::MemoryStream (src/engine/io/memory_stream.cpp) -------------------
-// Retail slot 0 is the class's own virtual destructor (B3X W1; ENDGAME B.3.9 IO).
-bool     MemoryStream::Write(int, const void*) { StubReached("MemoryStream::Write"); }
-bool     MemoryStream::Read(int, void*)        { StubReached("MemoryStream::Read"); }
-bool     MemoryStream::SetCurrentPos(int)      { StubReached("MemoryStream::SetCurrentPos"); }
-uint32_t MemoryStream::GetCurrentPos() const   { StubReached("MemoryStream::GetCurrentPos"); }
-uint32_t MemoryStream::GetSize() const         { StubReached("MemoryStream::GetSize"); }
-void     MemoryStream::Close()                 { StubReached("MemoryStream::Close"); }
+// ---- IO::MemoryStream ------------------------------------------------------
+// The real bodies (src/engine/io/memory_stream.cpp) are linked for
+// compressed_stream_bounds_test.cpp: they stand on nothing but Stream.h.
 
 // ---- IO::FileStream (src/engine/io/file_stream.cpp + file_stream_write.cpp) --
 // Slot 0 is PURE on this class, so there is nothing to stub for it.
