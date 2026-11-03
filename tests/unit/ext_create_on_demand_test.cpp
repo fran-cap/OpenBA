@@ -131,6 +131,10 @@ struct Counters {
     std::atomic<int> published{0};
     std::atomic<int> destroyed{0};
     std::atomic<int> evicted{0};
+    // Lifetime canary (review 2026-11-03, F-005): a record destroyed after its Counters (a
+    // LazyTable declared before the Counters it reports to) reads 0 here instead of 1.
+    std::atomic<int> alive{1};
+    ~Counters() { alive.store(0); }
 };
 
 class FakeRecord final : public Record {
@@ -138,7 +142,10 @@ public:
     FakeRecord(Counters* c, int* field, int value, std::atomic<bool>* gate = nullptr,
                Outcome outcome = Outcome::Made)
         : _c(c), _field(field), _value(value), _gate(gate), _outcome(outcome) {}
-    ~FakeRecord() override { ++_c->destroyed; }
+    ~FakeRecord() override {
+        CHECK_EQ(_c->alive.load(), 1);   // the Counters outlive every record
+        ++_c->destroyed;
+    }
     Outcome Materialize() override {
         ++_c->entered;
         if (_gate != nullptr) {
@@ -147,13 +154,16 @@ public:
         if (_outcome == Outcome::Made) ++_c->made;
         return _outcome;
     }
+    // The field is written BEFORE the counter: a test that waits on the counter from another
+    // thread (timed_sweep_on_worker) then reads the field after the worker's write, not racing
+    // it (review 2026-11-03, F-007: TSan).
     void Publish() override {
-        ++_c->published;
         *_field = _value;
+        ++_c->published;
     }
     void Evict() override {
-        ++_c->evicted;
         *_field = 0;
+        ++_c->evicted;
     }
     uint64_t Bytes() const override { return 100; }
 
@@ -333,8 +343,8 @@ UNIT_TEST(ext_create_on_demand_locator_redecodes_through_the_process_maps) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_materializes_once) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int obj = 0;
     t.Ensure(&obj);   // nothing recorded: a no-op
@@ -355,8 +365,8 @@ UNIT_TEST(ext_create_on_demand_table_materializes_once) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_forget_drops_unrun) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int a = 0;
     const int b = 0;
@@ -382,8 +392,8 @@ UNIT_TEST(ext_create_on_demand_table_forget_drops_unrun) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_use_waits_for_a_running_worker) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int obj = 0;
     std::atomic<bool> gate{false};
@@ -407,8 +417,8 @@ UNIT_TEST(ext_create_on_demand_table_use_waits_for_a_running_worker) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_pause_resume_and_retry) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int obj = 0;
     t.Add(&obj, Fake(&c, &field, 3));
@@ -446,8 +456,8 @@ UNIT_TEST(ext_create_on_demand_table_pause_resume_and_retry) {
 // P13 (P13_MEM.md §9): the loader's wait for its prefetches returns once they are made, and at once on
 // a paused table (a device going away) with the queue still holding them.
 UNIT_TEST(ext_create_on_demand_table_drain_unless_paused) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int a = 0;
     int b = 0;
     const int objA = 0;
@@ -746,9 +756,9 @@ UNIT_TEST(ext_create_on_demand_use_stamps) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_evicts_idle_and_remakes) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(0);
     t.SetIdleLimit(2, std::chrono::milliseconds(0));
-    Counters c;
     int fa = 0;
     int fb = 0;
     const int a = 0;
@@ -783,9 +793,9 @@ UNIT_TEST(ext_create_on_demand_table_evicts_idle_and_remakes) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_kept_is_never_evicted) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
     t.SetIdleLimit(1, std::chrono::milliseconds(0));
-    Counters c;
     int fa = 0;
     int fb = 0;
     int fc = 0;
@@ -822,9 +832,9 @@ UNIT_TEST(ext_create_on_demand_table_kept_is_never_evicted) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_idle_zero_never_evicts) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(0);
     t.SetIdleLimit(0, std::chrono::milliseconds(0));
-    Counters c;
     int f = 0;
     const int a = 0;
     t.Add(&a, Fake(&c, &f, 1));
@@ -837,9 +847,9 @@ UNIT_TEST(ext_create_on_demand_table_idle_zero_never_evicts) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_eviction_waits_for_a_use_in_progress) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(0);
     t.SetIdleLimit(1, std::chrono::milliseconds(0));
-    Counters c;
     int f = 0;
     const int a = 0;
     t.Add(&a, Fake(&c, &f, 1));
@@ -868,8 +878,8 @@ UNIT_TEST(ext_create_on_demand_table_eviction_waits_for_a_use_in_progress) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_timed_sweep_on_worker) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int f = 0;
     const int a = 0;
     t.Add(&a, Fake(&c, &f, 1));

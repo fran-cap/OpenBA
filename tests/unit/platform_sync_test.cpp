@@ -246,6 +246,8 @@ UNIT_TEST(platform_wait_timer_sleeps) {
     Platform::PerfCounter(&b);
     CHECK((b - a) * 1000 >= freq);                          // at least ~1 ms passed
     Platform::CpuRelax();
+    Platform::WaitTimerDestroy(t);   // review 2026-11-03, F-006: LSan saw the POSIX handle leak
+    Platform::WaitTimerDestroy(nullptr);
 }
 
 namespace {
