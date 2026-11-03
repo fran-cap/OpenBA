@@ -40,7 +40,7 @@ constexpr int kMaxCount = 40;   // floats per "node" record = 14 (two Transforms
 struct Buffer { std::vector<float> data; bool live = false; };
 
 // One cheap bijective step (multiply by an odd constant, xorshift): the producer runs ~1.4M times
-// in this file at -O0, where splitmix64 per input float and per output float was most of its time.
+// in this file; in the -O0 unit build splitmix64 per input and output float was most of its time.
 uint64_t Step(uint64_t h, uint32_t u) {
     h = (h ^ u) * 0x100000001B3ull;
     return h ^ (h >> 29);

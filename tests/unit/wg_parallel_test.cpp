@@ -284,7 +284,7 @@ UNIT_TEST(wg_parallel_base_and_blend_match_sequential) {
     for (int dim : dims) {
         for (uint32_t seed : seeds) {
             // The seeds vary the noise, the dims the chunk boundaries: the largest dim (~3/4 of the
-            // cells, and of this test's time at -O0) runs the first seed only.
+            // cells, and of this test's time) runs the first seed only.
             if (dim == 256 && seed != seeds[0]) continue;
             std::mt19937 rng(seed ^ (uint32_t)dim);
             RtUtility::PerlinNoise pn1, pn2, pnb;

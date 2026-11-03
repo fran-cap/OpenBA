@@ -18,8 +18,8 @@ build/cmake-debug/unit.exe                    # run from the repo root
 `build/cmake-<flavour>/unit` directly; run it from the REPO ROOT (the tests open `tests/unit/data/`
 and `src/` by relative path). The `run-unit` CMake target does the same with that directory set. On Linux the same CMakeLists builds `unit`
 over `src/platform/posix` (`cmake --build build/linux -t unit && build/linux/unit`). The
-exe links statically on Windows, never links SDL, and is built with `-g -O0 -D_DEBUG
--DBANISHED_UNIT_TEST` plus the tree's portable flags. `--jobs N` / `BUILD_JOBS` limit the
+exe links statically on Windows, never links SDL, and is built with `-g -Og -D_DEBUG
+-DBANISHED_UNIT_TEST` plus the tree's portable flags, in every flavour (CMakeLists.txt says why). `--jobs N` / `BUILD_JOBS` limit the
 parallelism (agents use 2).
 
 ## The harness (`unit.h`, `main.cpp`)

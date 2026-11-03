@@ -52,9 +52,9 @@ uint64_t PlatformPage() {
 }
 
 // FNV-1a over 8-byte words, then the tail bytes: the script hashes every handed byte (megabytes per
-// run, five runs) and the unit build is -O0, where the byte-at-a-time loop was ~80% of this file's
-// time. Each step is a bijection of h, so two blocks that differ in any word hash differently
-// unless a later difference cancels it.
+// run, five runs); in the -O0 unit build the byte-at-a-time loop was ~80% of this file's time. Each
+// step is a bijection of h, so two blocks that differ in any word hash differently unless a later
+// difference cancels it.
 uint64_t Fnv(const uint8_t* p, uint64_t n) {
     uint64_t h = 1469598103934665603ull;
     uint64_t i = 0;
