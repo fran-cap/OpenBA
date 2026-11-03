@@ -452,15 +452,17 @@ void EntityUI::OnUpdateLayout() {
 }
 
 // ============================================================
-// EntityUI::UpdateInput — retail's slot 8 (vtable +0x40) body
+// [8] 0x140066ad0 EntityUI::OnUpdate
 // ============================================================
 // Reads mouse position from KeyMap, scales by the UI scale.
 // Gets ToolUI controller, sets +0x4C = 1, syncs the pin check with it.
 // On key 5 press: checks if mouse is over this dialog and entity exists,
-// then selects the entity in the edit tool (creating one if needed).
-//
-// Original: 0x140066AD0. Not wired (see EntityUI.h).
-void EntityUI::UpdateInput() {
+// then selects the entity in the edit tool (creating one if needed). A click
+// anywhere on the panel (the centre button, the pin box, the product box, the
+// body) selects the panel's entity, which draws its outline. The panel's
+// OnUpdateLayout runs in the UI's layout pass (DialogInstance::ComputeLayout
+// 0x180113d90, every dialog every frame), not here.
+void EntityUI::OnUpdate(const System::Time& /*time*/) {
     // Get KeyMap singleton (triple deref from exref: slot → External → KeyMap)
     Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
 
@@ -691,24 +693,9 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t
 // Vtable offsets (verified from the exe EntityUI vtable @ 0x14015bb90):
 //   +0x20 (idx4) Slot4 = Startup/Setup  (sets +0x30 entity ref; find elements)
 //   +0x30 (idx6) Slot6 = remove entity from the world tracking set
-//   +0x38 (idx7) Slot7 = page switching (driven per-frame via W_OnUpdate on +0x40)
-//   +0x48 (idx9) Slot9 = OnElementEvent: buttonCenter (0x65) + checkPin (100) buttons
-// Slot9 is wired (W_Slot9) so the panel's "center" and "pin" options work — for every
-// entity dialog, since EntityUI is the shared frame controller. It forwards only the
-// center/pin ids; the close button (id 1) stays with the sibling ToolUI::Slot9 to
-// avoid retail's SetEditMode(0) tool-teardown (see W_Slot9). Slot8 (the real +0x40
-// input handler) remains a no-op — its +0x40 slot is reused to drive Slot7 per-frame,
-// and clicking entities works via EditTool::OnKey. The panel's close/drag come from
-// the ToolUI controller (already wired).
-
-
-
-
-
-// [8] 0x140066ad0
-void EntityUI::OnUpdate(const System::Time& /*time*/) {
-    EntityUI::OnUpdateLayout();
-}
+//   +0x38 (idx7) Slot7 = page switching (the UI's per-frame layout pass)
+//   +0x40 (idx8) Slot8 = OnUpdate: drag arm, pin sync, a click on the panel selects its entity
+//   +0x48 (idx9) Slot9 = OnElementEvent: close (1), buttonCenter (0x65), checkPin (100)
 
 
 // create 0x140011270: MemAlloc(0x48, 8), then the ctor (DialogController ->
