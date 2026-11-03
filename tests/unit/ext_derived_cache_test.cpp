@@ -483,15 +483,7 @@ UNIT_TEST(ext_derived_cache_open_creates_missing_parents) {
 // The holder rewrites the files (here: to drop a superseded record) while a read-only
 // store holds them open. Windows: the reader's FILE_SHARE_DELETE lets the replace go through; the
 // reader keeps the old bytes until it closes. POSIX: the reader keeps the old inode.
-// TEMPORARY (CI time investigation, PR 99): elapsed seconds since `t0` per phase, to see why the
-// two rewrite tests take 11-13 s on the Windows runner and well under 1 s on Linux. Remove with the fix.
-void PhaseTime(const char* test, const char* phase, std::chrono::steady_clock::time_point t0) {
-    std::fprintf(stderr, "  [phase] %s: %s at %.2f s\n", test, phase,
-                 std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
-}
-
 UNIT_TEST(ext_derived_cache_rewrite_with_a_reader_open) {
-    const auto t0 = std::chrono::steady_clock::now();
     TempDir t;
     const std::vector<uint8_t> a = Payload(600, 17);
     const std::vector<uint8_t> b = Payload(700, 18);
@@ -501,7 +493,6 @@ UNIT_TEST(ext_derived_cache_rewrite_with_a_reader_open) {
         s.Put(MakeKey(5), a);
         s.Put(MakeKey(6), b);
     }
-    PhaseTime("reader_open", "two puts", t0);
     Store holder;
     CHECK(holder.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
     Store reader;
@@ -528,12 +519,9 @@ UNIT_TEST(ext_derived_cache_rewrite_with_a_reader_open) {
     }
     const uint64_t rewritten = 64ull + b.size() + b.size() + 2 * sizeof(IndexRecord);
     const uint64_t asItWas   = 64ull + a.size() + b.size() + b.size() + 3 * sizeof(IndexRecord);
-    PhaseTime("reader_open", "records appended", t0);
     CHECK(holder.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
-    PhaseTime("reader_open", "holder reopened", t0);
     holder.RequestCompact();
     holder.Flush();
-    PhaseTime("reader_open", "first rewrite flushed", t0);
     // POSIX: the rewrite went through (the files hold key 6 and key 5's newest copy only). Windows
     // 10: MoveFileExW refuses to replace a file another handle holds, FILE_SHARE_DELETE or not, so
     // the files stay as they were. Either way the holder serves the newest copy and leaves no
@@ -554,15 +542,12 @@ UNIT_TEST(ext_derived_cache_rewrite_with_a_reader_open) {
     reader.Close();
     holder.Close();
     // With the reader gone the rewrite goes through.
-    PhaseTime("reader_open", "reader and holder closed", t0);
     CHECK(holder.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
     holder.RequestCompact();
     holder.Flush();
-    PhaseTime("reader_open", "second rewrite flushed", t0);
     CHECK(holder.Find(MakeKey(5), out));
     CHECK(out == b);
     holder.Close();
-    PhaseTime("reader_open", "closed", t0);
     CHECK_EQ(BytesInDir(t.Path()), rewritten);
 }
 
@@ -664,7 +649,6 @@ UNIT_TEST(ext_derived_cache_new_data_old_index_keeps_the_matching_prefix) {
 // The rewrite runs on the writer thread while other threads go on reading: every Find before,
 // during and after the swap returns its key's own bytes.
 UNIT_TEST(ext_derived_cache_rewrite_runs_beside_finds) {
-    const auto t0 = std::chrono::steady_clock::now();
     TempDir t;
     constexpr uint64_t kKeys = 64;
     {
@@ -695,11 +679,9 @@ UNIT_TEST(ext_derived_cache_rewrite_runs_beside_finds) {
             at += p.size();
         }
     }
-    PhaseTime("beside_finds", "64 puts + 32 appended records", t0);
     Store s;
     CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
     CHECK_EQ(s.GetStats().entries, kKeys);
-    PhaseTime("beside_finds", "opened", t0);
     std::atomic<bool> done{false};
     std::atomic<uint64_t> finds{0};
     std::atomic<uint64_t> wrong{0};
@@ -714,12 +696,16 @@ UNIT_TEST(ext_derived_cache_rewrite_runs_beside_finds) {
                     wrong.fetch_add(1);
                 finds.fetch_add(1);
                 ++k;
+                // A pause between finds: they still overlap the rewrite, but do not spin three cores
+                // flat out. On the Windows CI runner the rewrite (background mode there,
+                // Platform::ThreadBackgroundMode) took 10.8 s beside 133k spinning finds, the
+                // suite's other workers sharing the same four cores.
+                std::this_thread::sleep_for(std::chrono::microseconds(200));
             }
         });
     }
     s.RequestCompact();
     s.Flush();
-    PhaseTime("beside_finds", "rewrite flushed (readers running)", t0);
     done.store(true);
     for (std::thread& th : readers)
         th.join();
