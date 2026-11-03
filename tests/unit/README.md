@@ -28,7 +28,8 @@ parallelism (agents use 2).
   list in link order and prints `ok  `, `FAIL` or `skip` before each name, and the test's
   wall time after it when that is a second or more (`ok   name (12.3 s)`). stdout is
   flushed after every test, so a crash's log ends at the test that was running.
-- `unit --shard K/N` runs only the tests at positions K, K+N, K+2N... of the list.
+- `unit --shard K/N` runs only the tests at positions K, K+N, K+2N... of the list;
+  `unit --filter TEXT` only the tests whose name contains TEXT (`build/cmake-debug/unit --filter wg_parallel`).
   `tools/build.sh unit --shards N` cuts the list into 8N chunks and runs them on N parallel
   processes (`xargs -P`), prints the chunks' output in order, one summary line, the skips
   and the ten slowest tests; it exits non-zero when any chunk failed or died. Tests that

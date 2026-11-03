@@ -4,6 +4,7 @@
 // `--shard K/N` runs only the tests whose position in the list is K modulo N (0 <= K < N), so N
 // processes started with K = 0 .. N-1 run every test exactly once between them; `tools/build.sh unit
 // --shards N` starts them in parallel and adds up their summaries (tests/unit/README.md).
+// `--filter TEXT` runs only the tests whose name contains TEXT (applied before the shard cut).
 #include "unit.h"
 
 #include <chrono>
@@ -20,18 +21,24 @@ bool ParseShard(const char* arg, int& index, int& count) {
 int main(int argc, char** argv) {
     int shardIndex = 0;
     int shardCount = 1;
+    const char* filter = nullptr;
     for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--filter") == 0 && i + 1 < argc) {
+            filter = argv[++i];
+            continue;
+        }
         if (std::strcmp(argv[i], "--shard") == 0 && i + 1 < argc && ParseShard(argv[i + 1], shardIndex, shardCount)) {
             ++i;
             continue;
         }
-        std::fprintf(stderr, "usage: unit [--shard K/N]   (0 <= K < N)\n");
+        std::fprintf(stderr, "usage: unit [--shard K/N] [--filter TEXT]   (0 <= K < N)\n");
         return 2;
     }
     int tests = 0;
     int position = 0;
-    for (unit::Test* t = unit::Head(); t; t = t->next, ++position) {
-        if (position % shardCount != shardIndex) continue;
+    for (unit::Test* t = unit::Head(); t; t = t->next) {
+        if (filter && !std::strstr(t->name, filter)) continue;
+        if (position++ % shardCount != shardIndex) continue;
         const int before = unit::Failures();
         const int skippedBefore = unit::Skipped();
         unit::Current() = t->name;

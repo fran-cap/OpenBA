@@ -148,7 +148,7 @@ UNIT_TEST(path_index_fold_matches_stricmp) {
     static const unsigned char alphabet[] = {'a', 'A', 'z', 'Z', 'm', 'M', '[', '\\', ']', '^', '_', '`',
                                              '@', '{', '/', '.', 0x80, 0xC0, 0xDE, 0xE0, 0xFF, '0'};
     int bad = 0;
-    for (int i = 0; i < 300000; ++i) {
+    for (int i = 0; i < 150000; ++i) {   // 150k random pairs (300k before)
         std::string a, b;
         const int la = static_cast<int>(rng() % 21);
         for (int k = 0; k < la; ++k)

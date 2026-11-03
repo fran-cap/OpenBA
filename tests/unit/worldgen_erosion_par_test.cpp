@@ -172,9 +172,12 @@ std::vector<float> Ramp(int dim, int variant, float sx, float sy) {
 
 UNIT_TEST(erosion_par_noise_matches_sequential) {
     Totals tot;
+    // Each AllMatch is 33 erosion runs (the reference, then 4 worker counts x 8 tunings); the droplet
+    // counts were halved from 40000 / 20000 for CI time. The slow paths are forced by the stress test
+    // below, not by droplet volume here.
     for (uint32_t seed : {1u, 0xBADC0DEu}) {
-        CHECK(AllMatch(128, Noise(128, seed * 7919ull + 1, 60.0f, 18.0f), seed, 40000, StandardTunings(), &tot));
-        CHECK(AllMatch(47, Noise(47, seed * 104729ull + 3, 30.0f, 5.0f), seed, 20000, StandardTunings(), &tot));
+        CHECK(AllMatch(128, Noise(128, seed * 7919ull + 1, 60.0f, 18.0f), seed, 20000, StandardTunings(), &tot));
+        CHECK(AllMatch(47, Noise(47, seed * 104729ull + 3, 30.0f, 5.0f), seed, 10000, StandardTunings(), &tot));
     }
     CHECK(tot.spec > 0);
     CHECK(tot.conflicts > 0);

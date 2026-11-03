@@ -264,14 +264,22 @@ bool SameResults(const std::vector<Result>& a, const std::vector<Result>& b) {
 }  // namespace
 
 UNIT_TEST(ext_path_workers_pool_matches_serial) {
+    // 750 streams and their serial results, made once; each pool size (N = 1..4) runs every stream.
+    // (The serial reference per stream was ~40% of this test's time when every N drew its own 750.)
     std::mt19937 rng(0x9a7b1u);
+    std::vector<Case> streams;
+    std::vector<std::vector<Result>> serials;
+    for (int k = 0; k < 750; ++k) {
+        streams.push_back(MakeCase(rng));
+        serials.push_back(RunSerial(streams.back()));
+    }
     int64_t cases = 0, requests = 0, mismatches = 0, edits = 0, editsBusy = 0, changed = 0, found = 0;
     for (int n = 1; n <= Ext::PathWorkers::kMaxWorkers; ++n) {
         RunningPool rp(n);
         rp.runner.shake = n == 1 ? 0u : 7u;
-        for (int k = 0; k < 750; ++k) {
-            const Case c = MakeCase(rng);
-            const std::vector<Result> serial = RunSerial(c);
+        for (int k = 0; k < static_cast<int>(streams.size()); ++k) {
+            const Case& c = streams[static_cast<size_t>(k)];
+            const std::vector<Result>& serial = serials[static_cast<size_t>(k)];
 
             PoolCase pc;
             pc.grid = c.start;
