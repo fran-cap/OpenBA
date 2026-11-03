@@ -261,7 +261,7 @@ void EventNotifyDialog::OnUpdate(const System::Time& time) {
 
                         // icon: "EventIcon%i" on the first slot image's sprite sheet
                         int iconIndex = eventArray[scanIdx].iconIndex;
-                        System::String iconNameStr = System::String::Format("EventIcon%i", (uint64_t)(uint32_t)iconIndex);
+                        System::String iconNameStr = System::String::Format("EventIcon%i", (int)(uint32_t)iconIndex);
 
                         UI::Sprite slotSprite =
                             static_cast<UI::ImageElement*>(slots._data[0].image.Get())->GetSprite();

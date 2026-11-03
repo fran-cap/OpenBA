@@ -147,7 +147,7 @@ void OrchardUI::OnUpdateLayout() {
 
     // Format percentage text: (int)(growth * 100.0f + 0.5f)
     int percent = (int)(growth * 100.0f + 0.5f);
-    System::String textStr = System::String::Format("%i", (uint64_t)(uint32_t)percent);
+    System::String textStr = System::String::Format("%i", (int)(uint32_t)percent);
 
     // Set progress text parameter
     yieldElem->SetProgressTextParameter(0, textStr);

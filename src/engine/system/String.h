@@ -192,6 +192,9 @@ public:
     String operator+=(char c);                      // ??YString@System@@QEAA?AV01@D@Z       0x1800c89e0
 
     // ---- statics -----------------------------------------------------------
+    // Format is vsnprintf: each argument has its conversion's type. NOT RETAIL (UB, vararg
+    // type): the game's `%d` / `%i` callers pass `int`; the port passed retail's zero-extended
+    // 64-bit register as a uint64_t, which `%d` does not read. The printed low 32 bits are the same.
     static String Format(const char* fmt, ...);        // ?Format@..@SA?AV12@PEBDZZ         0x1800c9730
     static String FormatIndexed(const char* fmt, ...); // ?FormatIndexed@..@SA?AV12@PEBDZZ  0x1800c8b40
     static int    FormatParamCount(const char* fmt);   // ?FormatParamCount@..@SAHPEBD@Z    0x1800c8d20

@@ -171,7 +171,7 @@ std::string MonthName(int month) {
     UI::StringTable* seasons = g->m_eventNotifier->seasons;
     if (seasons == nullptr
         || !::Object::IsDerivedFromNullSafe(seasons, UI::StringTable::TypeId())) return std::string();
-    const System::String key = System::String::Format("Month%i", static_cast<uint64_t>(month));
+    const System::String key = System::String::Format("Month%i", static_cast<int>(month));
     int32_t index = seasons->GetIndexFromName(key);
     if (index < 0) index = month;   // the event log reads the table by position
     if (index >= seasons->GetCount()) return std::string();
