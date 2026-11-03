@@ -54,5 +54,11 @@ bool RotateDragReturnsCursor() {
     return false;
 }
 
+void TextEntryChanged(bool /*active*/) {
+}
+
+void AddScreenKeys(uint8_t* /*dik*/) {
+}
+
 }  // namespace Input
 }  // namespace Platform

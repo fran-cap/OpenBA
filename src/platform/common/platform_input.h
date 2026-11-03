@@ -67,6 +67,12 @@ void Release(void* object);
 // ---------------------------------------------------------------------------
 void Poll();
 
+// NOT RETAIL (issue #100). Whether a text box has the keyboard: Input::KeyMap's text-input
+// latch, raised by UI::EditElement while it has focus. Input::Device::Update reports it before
+// each poll; a platform with a screen keyboard shows it while true (platform_input_hooks.h
+// TextEntryChanged). Retail had no screen keyboard to show.
+void SetTextEntryActive(bool active);
+
 // ---------------------------------------------------------------------------
 // The DirectInput path's two reads (IDirectInputDevice8::GetDeviceState).
 // ---------------------------------------------------------------------------

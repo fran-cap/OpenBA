@@ -42,8 +42,12 @@
 //    VK_NUMPADn are NumLock-on only), and VK_OEM_8 (index 104) has no key. The legacy
 //    path is off by default (Input/Legacy = 0).
 //  * No text input. Retail types from key indices and SelectCharacter's US table
-//    (editelement.cpp); SDL_StartTextInput is never called. Key repeat stays
+//    (editelement.cpp); SDL's text events are never read. Key repeat stays
 //    UpdateState's own 0.3 s / 0.25 s timer; SDL's repeat flag is never read.
+//  * The screen keyboard (issue #100). A text box's focus reaches the platform through
+//    SetTextEntryActive (TextEntryChanged on a change); ReadKeyboard ends with AddScreenKeys.
+//    Both hooks do nothing on Windows, Linux and macOS; Android shows its keyboard and feeds
+//    its keys through them (src/platform/android/input_android.cpp).
 // ============================================================================
 
 #include "platform_input.h"
@@ -178,6 +182,13 @@ void Poll() {
     SDL_PumpEvents();
 }
 
+void SetTextEntryActive(bool active) {
+    static bool s_active = false;
+    if (active == s_active) return;
+    s_active = active;
+    TextEntryChanged(active);
+}
+
 int32_t ReadKeyboard(void* /*device*/, uint8_t dik[256]) {
     if (!GameWindowHasKeyboardFocus()) return kNotAcquired;
 #if BANISHED_TWEAK_OVERLAY
@@ -196,6 +207,7 @@ int32_t ReadKeyboard(void* /*device*/, uint8_t dik[256]) {
     for (int s = 0; s < count; ++s) {
         if (state[s]) dik[kSdlScancodeToDik[s]] = 0x80;
     }
+    AddScreenKeys(dik);
     return kOk;
 }
 
