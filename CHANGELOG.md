@@ -153,6 +153,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - A crash in large towns at high game speed (`ext.render_culling`): a citizen or building removed while
   offscreen no longer leaves entries behind that the next frame without a game tick writes through. Seen
   after 7.8 hours in a 1588-citizen town (`docs/known_port_issues.md` row 1346).
+- A crash after upgrading or demolishing buildings (the game stops with "pure virtual call" while it draws
+  the frame): a removed building's status icon could be put back on the screen after the building was
+  gone. The icon's removal now empties its flags as retail does, so a later change to them no longer
+  brings it back. Seen in a MegaMod X game about two hours in (`docs/known_port_issues.md` row 1350).
 - Render thread (`ext.render_pipe`): no more long lines flickering across the screen, and no more crash of
   the render thread, most often seen while placing a building with a radius circle (a well, a market)
   and moving the camera. The frame copy the render thread draws from wrote two parts of itself over each
