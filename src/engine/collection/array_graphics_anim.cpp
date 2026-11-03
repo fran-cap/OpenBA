@@ -118,7 +118,12 @@ static void IdentityTransform(Math::Transform& t) {
 }
 static void MeshNodeInit(Graphics::GraphicsMesh::Node* n) {
     n->_name._data = nullptr;         // +0x00
-    // +0x08 (the parent index) NOT written
+    // NOT RETAIL (review F-049, undefined behaviour): retail does not write +0x08 (the
+    // parent index), and Node::Serialize's write path (RtGraphics_SerializeMeshNodes) and the
+    // copy ctor then read an indeterminate int, which C++ leaves undefined; the bytes written
+    // were heap garbage. Zeroed here. Every reader sets it first (the read path serializes
+    // it in), so a loaded mesh is unchanged.
+    n->_parent = 0;                   // +0x08
     IdentityTransform(n->_local);     // +0x0c .. +0x27
     IdentityTransform(n->_bind);      // +0x28 .. +0x43
     // +0x44 NOT written
@@ -246,7 +251,7 @@ constexpr ArraySpec kSpec_MeshNode = {
     "Array<GraphicsMesh::Node>", 0x48, 8,
     &AssignMeshNode, &InitMeshNode, &DestroyMeshNodeRange, false,
     0, 0,          // the copy ctor writes +0x00..+0x44 (it skips +0x45..+0x47)
-    0x08, 0x0c,    // init skips the parent index; it ALSO skips +0x44..+0x47
+    0x44, 0x48,    // init skips +0x44..+0x47 (retail also skips the parent index: zeroed, F-049)
     0x00, 0x08 };  // the name slot is refcounted — a probe must seed it null
 
 constexpr ArraySpec kSpec_AnimState = {

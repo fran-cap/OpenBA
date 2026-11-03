@@ -293,7 +293,9 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     Profession* profRef = pendingProfession;
     if (profRef != nullptr) {
         // Build UI::String from profession name, convert to System::String
-        uint8_t localStr[16] = {};
+        // NOT RETAIL (review F-064, undefined behaviour): placement new of a UI::String needs
+        // its 8-byte alignment; retail's local was typed.
+        alignas(UI::String) uint8_t localStr[16] = {};
         UI::String* uiName = ::new (localStr) UI::String(
             Object::ExternalPtr<UI::StringTable>(profRef->stringTable),
             profRef->stringTool);
