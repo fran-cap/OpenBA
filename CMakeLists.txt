@@ -619,6 +619,16 @@ target_include_directories(unit PRIVATE ${BANISHED_INCLUDES} ${CMAKE_SOURCE_DIR}
 target_compile_options(unit PRIVATE
   -fexceptions -fno-strict-aliasing ${BANISHED_LIFETIME_DSE_FLAG} -ffp-contract=off -Wall -Wextra -Wno-invalid-offsetof
   -g -Og -D_DEBUG -DBANISHED_UNIT_TEST ${BANISHED_PORTABLE_FLAGS} ${BANISHED_ONE_WRITE_STDIO})
+# Except these, -O0: under clang they call a base class's D2 destructor by its mangled name
+# (RT_ASM_LABEL, "Clang with the Itanium ABI traps in abstract-base D1"). The base destructors are
+# inline; optimised, clang inlines them into the probes' destructors and emits no D2, and on Mach-O
+# (label prefix "_") the label is a separate symbol, left undefined at link (the macOS job). At -O0
+# the probes call D2 out of line, which emits it. A source's options follow the target's: -O0 wins.
+set_source_files_properties(
+  ${CMAKE_SOURCE_DIR}/tests/unit/rb_achievement_abi_test.cpp ${CMAKE_SOURCE_DIR}/tests/unit/rb_engine_abi_test.cpp
+  ${CMAKE_SOURCE_DIR}/tests/unit/rb_graphics_abi_test.cpp ${CMAKE_SOURCE_DIR}/tests/unit/rb_ui_abi_test.cpp
+  ${CMAKE_SOURCE_DIR}/tests/unit/rb_video_abi_test.cpp
+  PROPERTIES COMPILE_OPTIONS -O0)
 if(WIN32)
   target_link_options(unit PRIVATE -static -static-libgcc -static-libstdc++)
   target_link_libraries(unit PRIVATE gdi32)   # font_raster_win.cpp (ext_font_raster_test.cpp)
