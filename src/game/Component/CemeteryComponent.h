@@ -74,3 +74,10 @@ static_assert(offsetof(CemeteryComponent, _controller) + offsetof(ControllerComp
 static_assert(offsetof(CemeteryComponent, plots) == 0x48, "CemeteryComponent +0x48 plots");
 static_assert(offsetof(CemeteryComponent, plots) + offsetof(Collection::Array<int32_t>, _size) == 0x50, "CemeteryComponent +0x50");
 static_assert(offsetof(CemeteryComponent, plots) + offsetof(Collection::Array<int32_t>, _capacity) == 0x54, "CemeteryComponent +0x54");
+
+// The state-2 enter's zone test on a free plot's cell (0x140047100 MOVZX ECX,[RDI+0x29];
+// 0x140047104 SHL EAX,CL; 0x140047106 TEST EAX,0x1e0): zones 5..8 are walkable.
+constexpr bool CemeteryWalkableZone(uint8_t zone) {
+    // SHL masks its count to 5 bits; the mask keeps a saved zone byte >= 32 defined (review F-161).
+    return ((1u << (zone & 0x1f)) & 0x1e0u) != 0;
+}

@@ -285,7 +285,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
         coldness = 0.0f;
     } else {
         // Thirst rate depends on clothing level (field at +0x1E4)
-        float thirstRate = desc->coldRate[clothingLevel];
+        float thirstRate = CitizenColdRate(desc->coldRate, clothingLevel);
         coldness += (dt_sec * thirstRate) / fVar14;
     }
 
