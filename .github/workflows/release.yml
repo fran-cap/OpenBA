@@ -102,7 +102,7 @@ jobs:
           CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build release
           grep -q '^BANISHED_PGO:STRING=auto$' build/cmake-release/CMakeCache.txt
       - name: Unit tests (release)
-        run: tools/build.sh unit release
+        run: tools/build.sh unit release --shards 4
       - name: Package
         run: tools/release/package.sh windows "${{ needs.version.outputs.version }}" dist
       - name: ccache statistics
@@ -139,7 +139,7 @@ jobs:
       - name: Build OpenBA (release)
         run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build release
       - name: Unit tests (release)
-        run: tools/build.sh unit release
+        run: tools/build.sh unit release --shards 4
       - name: Package
         run: tools/release/package.sh linux "${{ needs.version.outputs.version }}" dist
       - name: ccache statistics

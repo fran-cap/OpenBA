@@ -696,6 +696,11 @@ UNIT_TEST(ext_derived_cache_rewrite_runs_beside_finds) {
                     wrong.fetch_add(1);
                 finds.fetch_add(1);
                 ++k;
+                // A pause between finds: they still overlap the rewrite, but do not spin three cores
+                // flat out. On the Windows CI runner the rewrite (background mode there,
+                // Platform::ThreadBackgroundMode) took 10.8 s beside 133k spinning finds, the
+                // suite's other workers sharing the same four cores.
+                std::this_thread::sleep_for(std::chrono::microseconds(200));
             }
         });
     }

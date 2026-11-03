@@ -40,7 +40,13 @@ echo "== downloading $WINLIBS_ZIP"
 curl -fsSL --retry 3 -o "$WINLIBS_ZIP" "$URL"
 echo "$WINLIBS_SHA256  $WINLIBS_ZIP" | sha256sum -c -
 echo "== unpacking into $DIR"
-unzip -q "$WINLIBS_ZIP"
+# unzip where the shell has it (MSYS2); otherwise Windows' own bsdtar, which reads zips (Git Bash, the
+# CI shell, has no guaranteed unzip and its /usr/bin/tar is GNU tar, which does not).
+if command -v unzip > /dev/null 2>&1; then
+    unzip -q "$WINLIBS_ZIP"
+else
+    "$(cygpath -u "${SYSTEMROOT:-C:/Windows}")/System32/tar.exe" -xf "$WINLIBS_ZIP"
+fi
 rm -f "$WINLIBS_ZIP"
 # GCC's lto-wrapper runs the LTRANS partitions of an LTO link through a program named `make`
 # (-flto=N spawns it with -jN); WinLibs ships it as mingw32-make.exe only, and with no `make`

@@ -3,7 +3,8 @@
 #
 # usage: tools/build.sh <command> [flavour] [--jobs N]
 #   build   [flavour]   configure the platform build dir if absent, build OpenBA
-#   unit    [flavour]   build the unit tests and run them (exit = the suite's exit)
+#   unit    [flavour]   build the unit tests and run them (exit = the suite's exit); --shards N runs
+#                       them on N parallel processes (run_unit below)
 #   backend [flavour]   compile the renderer backend's own sources as OpenBA would, link nothing
 #                       (target render-backend; CI's second Windows configure)
 #   deploy  [flavour]   build + copy the exe to the game directory (BANISHED_DIR), then
@@ -32,9 +33,11 @@ FLAV="debug"; [ "$CMD" = stress ] && FLAV=perf
 FLAV_GIVEN=0
 case "${1:-}" in debug|og|perf|release) FLAV="$1"; FLAV_GIVEN=1; shift;; esac
 JOBS="${BUILD_JOBS:-8}"
+SHARDS=1
 while [ $# -gt 0 ]; do
   case "$1" in
     --jobs) JOBS="$2"; shift 2;;
+    --shards) SHARDS="$2"; shift 2;;
     *) echo "unknown argument $1"; exit 2;;
   esac
 done
@@ -101,6 +104,46 @@ build() { # targets...
   echo "== build $B: $* (-j$JOBS)"
   cmake --build "$B" -j "$JOBS" -t "$@" || exit 1
 }
+# The unit suite, whole or on SHARDS parallel workers. The list is cut into 8 chunks per worker
+# (tests/unit/main.cpp `--shard K/N`) that the workers take in turn (xargs -P), so a chunk holding one
+# of the multi-second tests does not hold up the rest. Each chunk writes its own log; they are printed
+# in order, then one summary and the skips. Exit 0 only when every chunk exits 0: a chunk that dies
+# prints no summary line and is reported as such.
+run_unit() {
+  local exe="$B/unit$EXT"
+  case "$SHARDS" in ''|*[!0-9]*) echo "build.sh unit: --shards wants a number (got '$SHARDS')" >&2; return 2;; esac
+  if [ "$SHARDS" -le 1 ]; then
+    "$exe"
+    return
+  fi
+  local dir="$B/unit-shards"
+  local chunks=$((SHARDS * 8))
+  rm -rf "$dir"
+  mkdir -p "$dir"
+  seq 0 $((chunks - 1)) | xargs -P "$SHARDS" -I{} sh -c \
+    '"$1" --shard "$2/$3" > "$4/$2.log" 2>&1; echo $? > "$4/$2.rc"' sh "$exe" {} "$chunks" "$dir"
+  local k rc=0 code line tests=0 fails=0 skips=0
+  for ((k = 0; k < chunks; k++)); do
+    code=$(cat "$dir/$k.rc" 2>/dev/null || echo 127)
+    grep -vE '^[0-9]+ tests, [0-9]+ failures, [0-9]+ skipped$|^  skipped ' "$dir/$k.log" 2>/dev/null
+    line=$(grep -E '^[0-9]+ tests, [0-9]+ failures, [0-9]+ skipped$' "$dir/$k.log" 2>/dev/null | tail -1)
+    if [ -n "$line" ]; then
+      set -- $line
+      tests=$((tests + $1))
+      fails=$((fails + $3))
+      skips=$((skips + $5))
+    else
+      echo "!! unit chunk $k/$chunks exited $code with no summary: it died in the test after its last line above"
+      [ "$code" -eq 0 ] && code=1
+    fi
+    [ "$code" -ne 0 ] && [ "$rc" -eq 0 ] && rc=$code
+  done
+  echo "$tests tests, $fails failures, $skips skipped ($SHARDS workers, $chunks chunks)"
+  cat "$dir"/*.log | grep -E '^  skipped '
+  echo "slowest tests:"
+  cat "$dir"/*.log | grep -E '^(ok  |FAIL|skip) [A-Za-z0-9_]+ \([0-9.]+ s\)$' | sort -t'(' -k2 -rn | head -10
+  return $rc
+}
 need_game_dir() {
   [ -d "$BANISHED_DIR" ] || { echo "build.sh $CMD: game directory not found: $BANISHED_DIR (set BANISHED_DIR to the Banished install)"; exit 1; }
 }
@@ -122,7 +165,7 @@ deploy() {
 case "$CMD" in
   exe)     echo "$EXE";;
   build)   build OpenBA;;
-  unit)    build unit; "$B/unit$EXT";;
+  unit)    build unit; run_unit;;
   backend) build render-backend;;
   deploy)  deploy;;
   run)     deploy; ( cd "$BANISHED_DIR" && BANISHED_AUTOSTART=1 MSYS2_ARG_CONV_EXCL="$FAITHFUL" start OpenBA.exe $FAITHFUL )

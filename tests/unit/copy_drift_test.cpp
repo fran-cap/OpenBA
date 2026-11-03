@@ -94,7 +94,7 @@ const Region kRegions[] = {
      0x55388122af05a199ull},
     {"src/game/Game/worldgeometry_ray.cpp",
      "still_terrain_test.cpp (World::SampleHeight, World::RayTri)",
-     0xf57b5bc7a095d6a1ull},
+     0xf02cd72d13ca6196ull},
 };
 
 }  // namespace

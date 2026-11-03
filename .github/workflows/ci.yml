@@ -12,6 +12,12 @@ name: CI
 # the debug info names), so the Windows job's second configure (build/cmake-debug-vulkan) hit nothing
 # of the first's: 24 hits in 2998 on a cold run. Without it the objects' debug info names whichever
 # build directory compiled them first, which nothing here reads.
+# `ccache -z` runs after the cache restore: the restored directory carries the stats of the run that saved
+# it, so zeroing before the restore made `ccache -s` report every run's hits added together.
+#
+# Unit tests run on parallel workers (`tools/build.sh unit --shards N`, one per runner core: 4 on the
+# Windows and Linux runners, 3 on macos-15 arm64). The suite is ~1800 tests and a few take 5-20 s each,
+# so one process left the other cores idle for most of the step; the step also prints the slowest tests.
 on:
   pull_request:
   push:
@@ -31,12 +37,17 @@ env:
   CCACHE_LAUNCHERS: -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_OBJCXX_COMPILER_LAUNCHER=ccache
 jobs:
   windows:
-    name: Windows (MSYS2 UCRT64)
+    name: Windows (MSYS2 UCRT64)   # the required-check name: kept, though the job no longer installs MSYS2
     runs-on: windows-latest
     timeout-minutes: 60
+    # Git Bash (the runner's Git for Windows) is the shell. Everything else comes from the pinned WinLibs
+    # GCC (tools/toolchain/install_winlibs.sh), the one build every Windows exe and the PGO profile set
+    # come from; cached under the install script's hash, so a pin change refetches it. Its bin directory
+    # also holds cmake, ninja and ccache, which a fresh MSYS2 (msys2/setup-msys2, ~65 s a run) used to
+    # install. The build needs python3 too (CMakeLists.txt, tools/ext_rsc_embed.py): actions/setup-python.
     defaults:
       run:
-        shell: msys2 {0}
+        shell: bash
     env:
       CCACHE_MAXSIZE: 1000M   # the debug object set: dx11 OpenBA, unit, the vulkan backend + dxbc-spirv
     steps:
@@ -44,16 +55,9 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
-      # A fresh MSYS2 on the runner for the shell, cmake, ninja, python and ccache: the stale-package
-      # rule (CLAUDE.md) is about the local install. The compiler is NOT MSYS2's: it is the pinned
-      # WinLibs GCC (tools/toolchain/install_winlibs.sh), the one build every Windows exe and the PGO
-      # profile set come from; cached under the install script's hash, so a pin change refetches it.
-      - uses: msys2/setup-msys2@v2
+      - uses: actions/setup-python@v5
         with:
-          msystem: UCRT64
-          update: false
-          install: git unzip
-          pacboy: cmake:p ninja:p python:p ccache:p
+          python-version: "3.12"
       - uses: actions/cache@v4
         id: winlibs
         with:
@@ -62,32 +66,49 @@ jobs:
       - name: Pinned compiler
         if: steps.winlibs.outputs.cache-hit != 'true'
         run: tools/toolchain/install_winlibs.sh C:/winlibs-gcc16
+      - name: Pinned compiler on PATH
+        run: echo 'C:\winlibs-gcc16\mingw64\bin' >> "$GITHUB_PATH"
       - uses: actions/cache@v4
         with:
           path: .ccache
           key: ccache-windows-${{ github.sha }}
           restore-keys: ccache-windows-
+      # The two configures' CMake caches. A fresh configure runs ~176 try-compile checks (SDL's, mostly),
+      # ~0.35 s each on this runner: 64 s for each build directory. A restored CMakeCache.txt holds their
+      # results, so the configure (tools/build.sh runs it: no build.ninja yet) skips them. Exact key only,
+      # over the runner image, every CMake file in the tree (SDL's and the other submodules' included) and
+      # the compiler pin: any change to what the checks would find configures from scratch.
+      - name: Runner image (part of the CMake cache key)
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/cmake-debug/CMakeCache.txt
+            build/cmake-debug-vulkan/CMakeCache.txt
+          key: cmake-configure-windows-${{ steps.image.outputs.version }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', 'tools/toolchain/install_winlibs.sh') }}
       - name: Toolchain
         run: |
-          C:/winlibs-gcc16/mingw64/bin/g++ --version | head -1
+          command -v g++ cmake ninja ccache python
+          g++ --version | head -1
           cmake --version | head -1
+          ccache --version | head -1
           ccache -z
       - name: Build OpenBA (debug)
         run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build debug
-      - name: Unit tests (debug)
-        run: tools/build.sh unit debug
       # The Vulkan backend (docs/vulkan/PLAN.md) in its own build directory: its own sources only
       # (target render-backend, compiled as OpenBA compiles them), not a second whole exe. The rest of
       # that exe is the dx11 configure's, and the Linux job builds and links the whole vulkan OpenBA.
       # Headers only: no Vulkan runtime is needed to build it.
       - name: Build the vulkan backend (debug)
         run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" BANISHED_RENDER_BACKEND=vulkan tools/build.sh backend debug
-      # The unit tests again on the vulkan configure: they add tests/unit/vulkan_*_test.cpp (the
-      # dxbc-spirv shader converter and its SPIR-V cache), which only that configure builds. Every
-      # other unit object compiles exactly as in the dx11 configure (the backend's include directory
-      # reaches its own sources only, CMakeLists.txt), so ccache serves them.
+      # The unit tests, once, on the vulkan configure. Its unit exe is the dx11 configure's plus
+      # tests/unit/vulkan_*_test.cpp (the dxbc-spirv shader converter and its SPIR-V cache), which only
+      # that configure builds: every other unit object compiles exactly as in the dx11 configure (the
+      # backend's include directory reaches its own sources only, CMakeLists.txt). A dx11-configure
+      # unit run as well ran the same ~1770 tests a second time (1766 of the vulkan run's 1792).
       - name: Unit tests (debug, vulkan backend)
-        run: BANISHED_RENDER_BACKEND=vulkan tools/build.sh unit debug
+        run: BANISHED_RENDER_BACKEND=vulkan tools/build.sh unit debug --shards 4
       - name: ccache statistics
         if: always()
         run: ccache -s
@@ -109,12 +130,21 @@ jobs:
           sudo apt-get install -y -q ninja-build ccache libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
             libxi-dev libxss-dev libxtst-dev libxfixes-dev libwayland-dev libxkbcommon-dev libegl-dev \
             libdecor-0-dev libasound2-dev libpulse-dev
-          ccache -z
       - uses: actions/cache@v4
         with:
           path: .ccache
           key: ccache-linux-${{ github.sha }}
           restore-keys: ccache-linux-
+      # The configure's CMake cache: its try-compile results (SDL's, mostly), as on Windows above.
+      - name: Runner image (part of the CMake cache key)
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: build/cmake-debug/CMakeCache.txt
+          key: cmake-configure-linux-${{ steps.image.outputs.version }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+      - name: Zero the ccache statistics
+        run: ccache -z
       # The default configure is the Vulkan backend off Windows (Vulkan P5), so this one build and
       # unit run include tests/unit/vulkan_*_test.cpp. Headers only: no Vulkan runtime is needed.
       - name: Build OpenBA (debug)
@@ -126,7 +156,7 @@ jobs:
           grep -q '^BANISHED_RENDER_BACKEND:STRING=vulkan$' build/cmake-debug/CMakeCache.txt
           test -x build/cmake-debug/OpenBA
       - name: Unit tests (debug)
-        run: tools/build.sh unit debug
+        run: tools/build.sh unit debug --shards 4
       - name: ccache statistics
         if: always()
         run: ccache -s
@@ -142,15 +172,28 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+      # No `brew update` and no cleanup pass: the two packages come from the runner image's tap.
       - name: Packages
-        run: |
-          brew install ninja ccache
-          ccache -z
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+        run: brew install ninja ccache
       - uses: actions/cache@v4
         with:
           path: .ccache
           key: ccache-macos-${{ github.sha }}
           restore-keys: ccache-macos-
+      # The configure's CMake cache: its try-compile results (SDL's, mostly), as on Windows above.
+      - name: Runner image (part of the CMake cache key)
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: build/mac-arm64/CMakeCache.txt
+          key: cmake-configure-macos-${{ steps.image.outputs.version }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+      - name: Zero the ccache statistics
+        run: ccache -z
       # The engine only; libairconv.dylib (tools/macos/setup_deps.sh, an LLVM build) is dlopened at
       # run time and not needed to compile or link it.
       - name: Build OpenBA (debug)
@@ -158,23 +201,23 @@ jobs:
           CMAKE_EXTRA="-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 $CCACHE_LAUNCHERS" \
             tools/build.sh build debug
       # Hang watchdog: a unit test that deadlocks otherwise burns the 60-minute job limit and leaves no
-      # trace. After 12 minutes every thread's stack is sampled (`sample`), printed, and the run fails.
+      # trace. After 12 minutes every thread's stack of every unit process still running is sampled
+      # (`sample`), printed, and the run fails.
       - name: Unit tests (debug)
         run: |
-          tools/build.sh unit debug &
+          tools/build.sh unit debug --shards 3 &
           pid=$!
           for i in $(seq 1 144); do
             kill -0 "$pid" 2>/dev/null || break
             sleep 5
           done
           if kill -0 "$pid" 2>/dev/null; then
-            upid=$(pgrep -x unit | head -1)
             echo "::error::unit still running after 12 minutes: thread stacks follow"
-            if [ -n "$upid" ]; then
-              sample "$upid" 2 -mayDie -file /tmp/unit.sample || true
-              cat /tmp/unit.sample || true
+            for upid in $(pgrep -x unit); do
+              sample "$upid" 2 -mayDie -file "/tmp/unit.$upid.sample" || true
+              cat "/tmp/unit.$upid.sample" || true
               kill -9 "$upid" 2>/dev/null || true
-            fi
+            done
             kill -9 "$pid" 2>/dev/null || true
             exit 1
           fi
@@ -209,7 +252,6 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q ccache
-          ccache -z
       - name: Android SDK packages
         run: |
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
@@ -220,6 +262,8 @@ jobs:
           path: .ccache
           key: ccache-android-${{ github.sha }}
           restore-keys: ccache-android-
+      - name: Zero the ccache statistics
+        run: ccache -z
       - uses: actions/cache@v4
         with:
           path: |

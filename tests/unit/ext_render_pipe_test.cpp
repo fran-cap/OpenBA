@@ -578,7 +578,9 @@ UNIT_TEST(ext_render_pipe_handoff_gate_holds_the_job_until_opened) {
 
 UNIT_TEST(ext_render_pipe_threaded_overlap_keeps_the_ui_half_off_the_steps) {
     FakeHost host;
-    const Counters c = RunScripted(true, 100000, 0, 20261028u, host, 2);
+    // 25k frames (100k before; the ownership rules keep their 100k above): every counter below stayed
+    // non-zero in 30 runs with six copies of the suite on four cores.
+    const Counters c = RunScripted(true, 25000, 0, 20261028u, host, 2);
     CHECK(host.errors.load() == 0);    // the render thread's checks, and no UI half beside a step
     CHECK(host.publishes == static_cast<int>(c.pipelined - c.discarded));   // BeforePublish before each
     CHECK(c.overlapped > 0);           // fences skipped for packets with a snapshot
@@ -593,7 +595,7 @@ UNIT_TEST(ext_render_pipe_threaded_overlap_keeps_the_ui_half_off_the_steps) {
 
 UNIT_TEST(ext_render_pipe_threaded_overlap_device_lost_recovers_on_main) {
     FakeHost host;
-    const Counters c = RunScripted(true, 100000, 997, 99u, host, 1);
+    const Counters c = RunScripted(true, 25000, 997, 99u, host, 1);   // ~25 device losses (one in 997)
     CHECK(host.errors.load() == 0);
     CHECK(c.recoveries > 0);
     CHECK(host.recoveries == static_cast<int>(c.recoveries));
@@ -603,7 +605,7 @@ UNIT_TEST(ext_render_pipe_threaded_overlap_device_lost_recovers_on_main) {
 
 UNIT_TEST(ext_render_pipe_threaded_device_lost_recovers_on_main_and_discards_one) {
     FakeHost host;
-    const Counters c = RunScripted(true, 100000, 997, 77u, host);
+    const Counters c = RunScripted(true, 25000, 997, 77u, host);   // ~25 device losses (one in 997)
     CHECK(host.errors.load() == 0);
     CHECK(c.recoveries > 0);
     CHECK(host.recoveries == static_cast<int>(c.recoveries));

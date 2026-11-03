@@ -37,6 +37,16 @@ static inline int ClampCell(int v, int w) {
     return v;
 }
 
+// float -> int as retail's CVTTSS2SI does it: truncation toward zero, and INT_MIN (x86's
+// "integer indefinite") for a NaN or a value outside the int range. In C++ that conversion is
+// undefined there: arm64 saturates instead (1e30 -> INT_MAX, then the cell's x + 1 overflows), and
+// clang, optimising, assumed it in range: the unit test's off-map points read outside the
+// heightmap on macOS at -Og. On x86 the result is the instruction's, as before.
+static inline int TruncCvttss2si(float f) {
+    if (!(f >= -2147483648.0f && f < 2147483648.0f)) return INT32_MIN;
+    return static_cast<int>(f);
+}
+
 } // namespace
 
 // [COPY-PINNED begin] tests/unit/copy_drift_test.cpp pins the text from here to the end
@@ -197,8 +207,8 @@ static float TerrainHeightUnder(WorldGeometry* geo, const float* point, float* o
     float scratch[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
     int hit = RayTestCell(geo,
-                          static_cast<int>(origin[0] + half),
-                          static_cast<int>(origin[1] + half),
+                          TruncCvttss2si(origin[0] + half),   // CVTTSS2SI
+                          TruncCvttss2si(origin[1] + half),
                           dir, origin, &maxT, outHit, scratch, outNormal);   // 0x1400aaa20
     return hit ? outHit[2] : 0.0f;
 }

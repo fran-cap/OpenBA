@@ -105,7 +105,9 @@ struct World {
         const float dir[3] = { 0.0f, 0.0f, -1.0f };           // DAT_140172280
         const float maxT = 200.0f;                            // DAT_140172228
         const float halfF = (float)(gridSize >> 1);
-        const int x = (int)(origin[0] + halfF), y = (int)(origin[1] + halfF);
+        // CVTTSS2SI: NaN or out of int range -> INT_MIN (worldgeometry_ray.cpp TruncCvttss2si).
+        auto trunc = [](float f) -> int { return (f >= -2147483648.0f && f < 2147483648.0f) ? (int)f : INT32_MIN; };
+        const int x = trunc(origin[0] + halfF), y = trunc(origin[1] + halfF);
         const int half = gridSize >> 1;
         auto H = [this](int col, int row) -> float {
             const int cc = col < 0 ? 0 : (col >= N ? N - 1 : col);

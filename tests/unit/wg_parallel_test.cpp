@@ -283,6 +283,9 @@ UNIT_TEST(wg_parallel_base_and_blend_match_sequential) {
     const uint32_t seeds[] = {1u, 0xC0FFEEu, 424242u};
     for (int dim : dims) {
         for (uint32_t seed : seeds) {
+            // The seeds vary the noise, the dims the chunk boundaries: the largest dim (~3/4 of the
+            // cells, and of this test's time) runs the first seed only.
+            if (dim == 256 && seed != seeds[0]) continue;
             std::mt19937 rng(seed ^ (uint32_t)dim);
             RtUtility::PerlinNoise pn1, pn2, pnb;
             MakeNoise(rng, 0.5f, 5.0f, &pn1);
@@ -400,6 +403,7 @@ UNIT_TEST(wg_parallel_scatter_perlin_table_matches_per_cell_call) {
     const uint32_t seeds[] = {7u, 0xBEEFu};
     for (int dim : dims) {
         for (uint32_t seed : seeds) {
+            if (dim == 256 && seed != seeds[0]) continue;   // as in base_and_blend above
             std::mt19937 rng(seed ^ (uint32_t)(dim * 31));
             RtUtility::PerlinNoise pn;
             MakeNoise(rng, 0.5f + 0.05f * (float)(seed & 3), 4.0f + (float)(dim & 1), &pn);

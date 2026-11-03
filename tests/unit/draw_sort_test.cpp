@@ -116,7 +116,8 @@ bool SameBytes(const std::vector<RendererDrawItem>& a, const std::vector<Rendere
 UNIT_TEST(draw_sort_key_order_is_the_comparator) {
     Rng r{0x9E3779B97F4A7C15ull};
     long long pairs = 0, less = 0, equal = 0;
-    for (int round = 0; round < 2000000; ++round) {
+    // 500k pairs (2M before): ~10% are full ties, ~49k, well above the floor checked below.
+    for (int round = 0; round < 500000; ++round) {
         const int pool = 1 + r.Below(r.Below(2) ? 3 : 40);
         RendererDrawItem it[2] = { RandomItem(r, pool, false, false), RandomItem(r, pool, false, false) };
         // Often copy some leading terms across so the later ones decide.

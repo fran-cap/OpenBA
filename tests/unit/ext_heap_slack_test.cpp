@@ -51,9 +51,21 @@ uint64_t PlatformPage() {
     return page;
 }
 
+// FNV-1a over 8-byte words, then the tail bytes: the script hashes every handed byte (megabytes per
+// run, five runs); in the -O0 unit build the byte-at-a-time loop was ~80% of this file's time. Each
+// step is a bijection of h, so two blocks that differ in any word hash differently unless a later
+// difference cancels it.
 uint64_t Fnv(const uint8_t* p, uint64_t n) {
     uint64_t h = 1469598103934665603ull;
-    for (uint64_t i = 0; i < n; ++i) {
+    uint64_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        uint64_t w;
+        std::memcpy(&w, p + i, sizeof(w));
+        h ^= w;
+        h *= 1099511628211ull;
+        h ^= h >> 29;
+    }
+    for (; i < n; ++i) {
         h ^= p[i];
         h *= 1099511628211ull;
     }

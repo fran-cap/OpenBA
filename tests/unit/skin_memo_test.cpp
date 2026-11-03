@@ -39,16 +39,28 @@ constexpr int kMaxCount = 40;   // floats per "node" record = 14 (two Transforms
 
 struct Buffer { std::vector<float> data; bool live = false; };
 
-// The producer: every output float depends on every input bit.
+// One cheap bijective step (multiply by an odd constant, xorshift): the producer runs ~1.4M times
+// in this file; in the -O0 unit build splitmix64 per input and output float was most of its time.
+uint64_t Step(uint64_t h, uint32_t u) {
+    h = (h ^ u) * 0x100000001B3ull;
+    return h ^ (h >> 29);
+}
+
+// The producer: every output float depends on every input bit (each input goes through a bijective
+// step of hk, and every output is drawn from hk after all of them).
 void Produce(const float* pose, const float* binds, int count, bool instanced,
              const uint32_t root[7], uint32_t t, Math::Matrix* out) {
     uint64_t h = Mix((uint64_t)count * 31u + (instanced ? 7u : 0u) + t);
     if (!instanced) for (int i = 0; i < 7; ++i) h = Mix(h ^ root[i]);
     for (int k = 0; k < count; ++k) {
         uint64_t hk = h;
-        for (int j = 0; j < 14; ++j) { uint32_t u; std::memcpy(&u, &pose[k * 14 + j], 4); hk = Mix(hk ^ u); }
-        for (int j = 0; j < 7; ++j)  { uint32_t u; std::memcpy(&u, &binds[k * 7 + j], 4); hk = Mix(hk ^ u); }
-        for (int c = 0; c < 16; ++c) { hk = Mix(hk); out[k].m[c] = (float)(hk >> 40) * 0.001f; }
+        for (int j = 0; j < 14; ++j) { uint32_t u; std::memcpy(&u, &pose[k * 14 + j], 4); hk = Step(hk, u); }
+        for (int j = 0; j < 7; ++j)  { uint32_t u; std::memcpy(&u, &binds[k * 7 + j], 4); hk = Step(hk, u); }
+        hk = Mix(hk);
+        for (int c = 0; c < 16; ++c) {
+            hk = Step(hk, (uint32_t)c);
+            out[k].m[c] = (float)(hk >> 40) * 0.001f;
+        }
     }
 }
 
@@ -165,7 +177,7 @@ UNIT_TEST(skin_memo_table_slots_and_epochs) {
 UNIT_TEST(skin_memo_two_renderers_bit_identical) {
     long long req = 0, hits = 0, ev = 0;
     for (uint64_t seed = 1; seed <= 6; ++seed) {
-        const Stats st = Run(seed, false, 400);
+        const Stats st = Run(seed, false, 200);   // 360k requests, 800 same-address refills per seed
         CHECK_EQ(st.mismatches, 0LL);
         req += st.requests; hits += st.hits; ev += st.evictions;
     }
@@ -176,7 +188,7 @@ UNIT_TEST(skin_memo_two_renderers_bit_identical) {
 
 UNIT_TEST(skin_memo_write_inside_scope_diverges) {
     long long mism = 0;
-    for (uint64_t seed = 1; seed <= 6; ++seed) mism += Run(seed, true, 200).mismatches;
+    for (uint64_t seed = 1; seed <= 6 && mism == 0; ++seed) mism += Run(seed, true, 200).mismatches;   // one is enough
     CHECK(mism > 0);
 }
 
