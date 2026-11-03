@@ -114,7 +114,9 @@ set_property(SOURCE ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_convert.cpp APP
 set(RENDER_BACKEND_UNIT_SRCS ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_convert.cpp
                              ${CMAKE_SOURCE_DIR}/src/render/vulkan/spirv_combine.cpp
                              ${CMAKE_SOURCE_DIR}/src/render/vulkan/spirv_legalize.cpp
-                             ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_cache.cpp)
+                             ${CMAKE_SOURCE_DIR}/src/render/vulkan/shader_cache.cpp
+                             # tests/unit/vulkan_async_create_exit_test.cpp (its DeviceLive stub is there)
+                             ${CMAKE_SOURCE_DIR}/src/render/vulkan/async_gpu_create/async_create.cpp)
 set(RENDER_BACKEND_UNIT_LIBS $<LINK_ONLY:dxbc_spv>)
 
 # ---- vulkan-shader-check (tools/vulkan/shader_check.cpp): the metal-shader-check twin -----------
