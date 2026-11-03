@@ -2246,6 +2246,16 @@ void SetSizeCore(ArrayHdr* a, int newSize, const uint8_t* fill,
                  const ArraySpec* spec) {
     const uint32_t stride = spec->stride;
 
+    // NOT RETAIL (review F-012, UB): retail 0x1800298f0 has no sign check, and
+    // every array Serialize hands it the count read from the stream. A negative
+    // newSize skips the grow, then the shrink arm destroys `oldSize - newSize`
+    // elements from `old + newSize*stride` (below the buffer: pointer arithmetic
+    // out of the object, a wild destroy/free) and leaves _size negative. Clamped
+    // to 0 here; no valid data reaches it, so retail's behaviour is unchanged.
+    if (newSize < 0) {
+        newSize = 0;
+    }
+
     const int32_t oldSizeI = a->_size;
     const int64_t oldSize  = static_cast<int64_t>(oldSizeI);   // MOVSXD
     if (newSize == oldSizeI) {

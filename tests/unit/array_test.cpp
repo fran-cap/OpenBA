@@ -508,3 +508,72 @@ UNIT_TEST(array_assign_from_empty_leaves_an_empty_array) {
     CHECK_EQ(dst.GetCapacity(), 0);
     CHECK(dst.GetData() == nullptr);
 }
+
+// ============================================================================
+// Review finding F-012 — a negative serialized count
+// ============================================================================
+//
+// Every array Serialize reads its count with `SerializeInt(n)` and then calls
+// `SetSize(n)` with no sign check (PackageFile, SoundEffect, GraphicsMesh
+// nodes, AnimationGroup keys). The fuzz input below is the 25-byte SoundEffect
+// .rsc body that reached it; its last four bytes are the array count, -1.
+// Retail's 0x1800298f0 then takes the shrink arm with a negative newSize and
+// destroys `oldSize - newSize` elements starting at `old + newSize*stride`,
+// i.e. BELOW the buffer, and leaves `_size` negative.
+
+namespace {
+
+const uint8_t kSoundEffectNegCount[] = {
+    0x03, 0xaa, 0xaa, 0xaa, 0xaa, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x80, 0x3f, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+};
+
+int32_t NegCountFromInput() {
+    int32_t n = 0;
+    std::memcpy(&n, kSoundEffectNegCount + sizeof(kSoundEffectNegCount) - 4, 4);
+    return n;
+}
+
+}  // namespace
+
+UNIT_TEST(array_negcount_setsize_on_empty_array_stays_empty) {
+    const int32_t n = NegCountFromInput();
+    CHECK_EQ(n, -1);
+
+    Collection::Array<int32_t> a;
+    a.SetSize(n);
+    CHECK_EQ(a.GetSize(), 0);
+    CHECK_EQ(a.GetCapacity(), 0);
+    CHECK(a.GetData() == nullptr);
+}
+
+UNIT_TEST(array_negcount_setsize_destroys_only_the_live_elements) {
+    std::vector<Event> log;
+    g_log = &log;
+    {
+        Collection::Array<Counted> a;
+        a.SetSize(3);
+        for (int i = 0; i < 3; ++i) {
+            a[i].value = 10 + i;
+        }
+        Counted* buf = a.GetData();
+        log.clear();
+
+        a.SetSize(NegCountFromInput());
+
+        // Exactly the three live elements are destroyed, none below the buffer.
+        CHECK_EQ(CountOf(log, Event::kDtor), 3);
+        bool allLive = true;
+        for (const Event& e : log) {
+            if (e.value < 10 || e.value > 12) {
+                allLive = false;
+            }
+        }
+        CHECK(allLive);
+        CHECK_EQ(a.GetSize(), 0);
+        CHECK(a.GetData() == buf);
+        log.clear();
+    }
+    CHECK_EQ(CountOf(log, Event::kDtor), 0);   // size 0: ~Array destroys nothing more
+    g_log = nullptr;
+}
