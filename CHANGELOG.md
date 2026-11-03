@@ -157,6 +157,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   the render thread, most often seen while placing a building with a radius circle (a well, a market)
   and moving the camera. The frame copy the render thread draws from wrote two parts of itself over each
   other (`docs/known_port_issues.md` row 1347).
+- A workplace no longer keeps its "no workers" icon while it is staffed, whether its workers were hired by
+  the town or sent from another workplace (a field, orchard, pasture or workshop that stops taking workers,
+  or a building whose worker count was lowered); a workplace that loses its last worker shows the icon
+  again. Both as in retail (`docs/known_port_issues.md` row 1349).
 
 Thanks to sintaxcz for the Android tablet reports, the gesture-lock idea (PR #91) and the testing of every build
 along the way (issue #96).

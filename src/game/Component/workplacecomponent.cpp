@@ -130,9 +130,9 @@ void WorkPlaceComponent::Detach(Object::InternalPtr<CitizenComponent>* worker) {
 
     // Partial-world guard: on an inert standalone workplace, 0x140005780 yields a null
     // DestroyComponent; passing it to Getter_e710 dereferences null+0x10 (READ of 0x10),
-    // which crashed when a citizen switched workplaces during the per-frame update (that
-    // path doesn't hold g_wpcRosterOnly). A null accessor means "nothing renderable to
-    // toggle", so skip the visual tail — same as g != 0 (entity already culled).
+    // which crashed when a citizen switched workplaces during the per-frame update. A null
+    // accessor means "nothing renderable to toggle", so skip the visual tail — same as g != 0
+    // (entity already culled).
     DestroyComponent* destroy = _entity->FindComponent<DestroyComponent>();   // 0x140005780
     if (!destroy) return;
     // 0x14011e710 DestroyComponent::InRemovalState (the tree's PlayerPath_Sub_11e710).
@@ -245,17 +245,11 @@ void WorkPlaceComponent::Attach(Object::InternalPtr<CitizenComponent>* worker) {
 // AssignHousing's it there. AssignHousing detaches from the old workplace first, which is
 // what decrements +0x60 and makes the loop terminate.
 //
-// ONE STANDALONE DEVIATION (the progress guard that stood second here is gone, B8 RES
-// row 1060: retail's loop has no progress test and terminates because the workplace
-// stopped accepting before the loop):
-//  1. g_wpcRosterOnly is held across the whole loop. Without it each AssignHousing drives
-//     the Detach/Attach status-icon visuals, i.e. FUN_14012c3f0 -> Graphics::Scene::
-//     RemoveObject on the building's StatusIconComponent. Our components come from the
-//     inert factory (zero-filled from +0x28), so a never-registered icon reads scene id 0
-//     instead of -1 and RemoveObject(scene, 0) removes whichever object genuinely owns id
-//     0 — the engine's list walk then spins and the game freezes in-world (the failure
-//     mode fixed at source for HighlightComponent in 0f97d16). Roster-only keeps the list
-//     mutation, which is all the loop's termination depends on.
+// Retail's loop has no progress test: it terminates because the workplace stopped accepting
+// before the loop (B8 RES, row 1060). It holds no roster-only mode either: each re-home runs
+// the full Detach and Attach, so the workplace that receives a worker loses its "no workers"
+// icon (known_port_issues row 1349). The scene-id hazard that hold once guarded against is
+// closed by StatusIconComponent's ctor (scene id -1 from construction).
 //
 // HISTORY (2026-07-25): this loop faulted twice on live clicks — READ of 0x8, then READ of
 // 0xffffffffffffffff inside AssignHousing. Neither was a bug in this port. BuildUI_Slot9
@@ -269,9 +263,6 @@ void WorkPlaceComponent::Attach(Object::InternalPtr<CitizenComponent>* worker) {
 // citizens evicted, zero guard trips).
 
 void WorkPlaceComponent::EvictRoster() {
-    const bool savedRosterOnly = g_wpcRosterOnly;
-    g_wpcRosterOnly = true;
-
     // 0x140130011-0x14013006c: `while ([RSI+0x60] > 0)`, no progress test. It ends because
     // SetAccepting stored +0x50 = 0 first, so the finders (FindAvailableBuilding's
     // isAccepting test) never hand back THIS workplace (B8 RES, row 1060).
@@ -289,8 +280,6 @@ void WorkPlaceComponent::EvictRoster() {
         // Re-read the roster base — the finders above can reallocate it.
         workers[0].Get()->SetWorkplace(newWorkplace);   // 0x140111ee0 (the tree's "AssignHousing")
     }
-
-    g_wpcRosterOnly = savedRosterOnly;
 }
 
 // ============================================================

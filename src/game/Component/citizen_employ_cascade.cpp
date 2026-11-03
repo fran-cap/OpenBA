@@ -453,11 +453,10 @@ CitizenComponent** CitizenBehavior::FindIdleLaborer(CitizenComponent** out,
 // DEVIATION (deliberate): we hold g_wpcRosterOnly across the call. Retail does not
 // need it — its WorkplaceComponent Attach/Detach can run the full Graphics::Scene
 // mesh-visual toggle, which faults on our inert standalone objects (READ of 0x10 in
-// Detach's e710 getter). Every other seat path in this build holds the same guard
-// (ProfessionUI_HandleSpinner, TownHallUI_OnProfessionSpinner, WorkPlaceUI
-// W_OnRemove, BuilderPool_Tick, CitizenAssignCitizens); this is a call site, so it
-// holds it too. Drop the guard here if WorkPlaceComponent is ever promoted to a live
-// controller with real scene objects.
+// Detach's e710 getter). No gameplay seat path holds it any more (the panel spinners,
+// PathGraph::AssignCitizens, EvictRoster, SetMaxWorkers: known_port_issues row 1349); the
+// only caller here is src/diag/builder_seat_harness.cpp, so it stays as that harness
+// measured it.
 void CitizenBehavior::AddWorker(Profession* profession) {
     // Row 1141: no test of the profession (0x14009113a passes RDX straight to
     // 0x14008d100 as R8, and 0x14009114f reloads it for 0x14008c3d0's R9).
