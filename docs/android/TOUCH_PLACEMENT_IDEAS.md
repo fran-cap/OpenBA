@@ -26,7 +26,7 @@ The KeyMap action ids the tools read (names from the callers' comments):
 | 0, 1 | cursor x, y | every tool's ray (`PlayerRay_GetMouseRay_1005a0`), UI hover |
 | 2 | mouse dx (rotate drag) | camera update, `camera_input.cpp` |
 | 4 | wheel | camera zoom; UI list scrolling |
-| 5 | primary button (left click) | every tool's `OnKey`, `EntityUI::UpdateInput`, `ToolUI` dialog drag |
+| 5 | primary button (left click) | every tool's `OnKey`, `EntityUI::OnUpdate`, `ToolUI` dialog drag |
 | 6 | cancel (right click) | `PlayerToolManager::UpdateHotkeys` |
 | 7 | middle button (rotate drag) | camera |
 | 9, 10 / 0xb-0xe / 0xf, 0x10 / 0x11, 0x12 | rotate / pan / zoom / pitch keys | camera |
@@ -93,7 +93,7 @@ With a finger:
 
 ### 2.5 Panels and dialogs that follow an entity
 
-- **`EntityUI`** is the info panel. `UpdateInput` uses `Pressed(0, 5)` over the panel to re-select its entity, and its pin check box keeps it open.
+- **`EntityUI`** is the info panel. `OnUpdate` (slot 8) uses `Pressed(0, 5)` over the panel to re-select its entity, and its pin check box keeps it open.
 - **`ToolUI`** (`src/game/Dialog/toolui.cpp`) drags a dialog once the press moves more than 5 px. This works with a finger.
 - **Hover tooltips** need the mouse still with the button up for 0.25 s. After a tap the parked cursor satisfies that, so every tapped button opens its tooltip, and it stays until the next touch elsewhere.
 - **Lists** scroll with the wheel (id 4) or the scroll bar. A finger has only the bar.

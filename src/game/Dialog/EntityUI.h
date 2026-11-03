@@ -41,12 +41,6 @@ public:
     void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140067050
 
-    // 0x140066ad0 -- retail's [8] OnUpdate body (mouse select of the entity in
-    // the EditTool, pin sync with the ToolUI). NOT WIRED: the tree's OnUpdate
-    // drives OnUpdateLayout per frame instead (standalone deviation); wiring it
-    // is a behaviour decision (B4 DLG-a hand-in).
-    void UpdateInput();
-
     // B4 PLAYER (bodies in Player/tool_base_trade.cpp): the pin check box.
     void SyncPin();     // 0x1400666b0 copy the box into the ToolUI, add / remove the entity in the tool manager's +0x60 set
     void SetPinned();   // 0x140066800 check the box, then SyncPin

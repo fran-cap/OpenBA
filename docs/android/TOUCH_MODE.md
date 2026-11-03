@@ -49,7 +49,7 @@ under the faithful profile. A null pointer, or an answer of 1.0, is retail's pat
    `_extSharp` is null: its text is drawn with retail's filtered quads, as sharp_ui already does below
    75 %. No edits to src/ext/sharp_ui, which is another agent's area.
 
-`GetFirstContainedDialog` (only the unwired `EntityUI::UpdateInput` calls it) gets the same per-dialog
+`GetFirstContainedDialog` (`EntityUI::OnUpdate`, the panel click that selects its entity) gets the same per-dialog
 point division so it stays consistent.
 
 **Which dialogs.** The `Dialog` description equals the toolbar's, `Dialog/Toolbar.rsc`, recorded at
