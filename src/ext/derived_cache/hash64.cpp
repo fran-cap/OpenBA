@@ -72,12 +72,15 @@ uint64_t Hash64(const void* data, size_t size, uint64_t seed) {
         h = seed + kP5;
     }
     h += static_cast<uint64_t>(size);
-    while (p + 8 <= end) {
+    // The tails compare what is left, not p + 8 / p + 4 against end: that sum forms a pointer up to
+    // 7 bytes past one-past-the-end (and nullptr + 8 for an empty buffer), undefined behaviour even
+    // when it is never dereferenced.
+    while (static_cast<size_t>(end - p) >= 8) {
         h ^= Round(0, Read64(p));
         h = Rotl(h, 27) * kP1 + kP4;
         p += 8;
     }
-    if (p + 4 <= end) {
+    if (static_cast<size_t>(end - p) >= 4) {
         h ^= static_cast<uint64_t>(Read32(p)) * kP1;
         h = Rotl(h, 23) * kP2 + kP3;
         p += 4;

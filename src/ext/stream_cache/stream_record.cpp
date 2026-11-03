@@ -235,6 +235,9 @@ bool Bundle::AddChunk(std::vector<uint8_t> chunk) {
     const uint32_t count = ChunkRecordCount(chunk);
     if (count == 0) return false;
     if (chunk.size() % 8 != 0) return false;
+    // No record is smaller than its header: a count the chunk cannot hold is refused before the
+    // reserve, which would otherwise ask for 72 bytes per claimed record (309 GB for 0xFFFFFFFF).
+    if (count > (chunk.size() - kChunkHeader) / kRecordHeader) return false;
     std::vector<std::pair<uint64_t, RecordView>> parsed;
     parsed.reserve(count);
     const uint8_t* const base = chunk.data();
