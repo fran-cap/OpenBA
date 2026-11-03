@@ -29,6 +29,9 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/serializer_class.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/io/serialize_family.cpp       # decode_exact_test.cpp (issue #13): the reader's array slots
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_read.cpp #   CompressedStream::Read / SetWindow / ReadArray
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp # package_file_read_test.cpp: CompressedStream::Open
+  ${CMAKE_SOURCE_DIR}/src/engine/io/memory_stream.cpp         #   the MemoryStream it opens over
+  ${CMAKE_SOURCE_DIR}/src/engine/io/package_file_read.cpp     #   PackageFile::ReadPackfile (FileSystem faked in the test)
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
   ${CMAKE_SOURCE_DIR}/src/engine/system/crc.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/picking/picking_type_records.cpp

@@ -111,9 +111,27 @@
 // what retail has, rather than as two independent arrays — which would silently
 // change what happens on any packfile that hits the cap.
 //
-// Neither read is bounds-checked against the frame (`Read(len, buf860)` with
-// `len` straight off disk). Reproduced, not "fixed": CLAUDE.md's rule, and a
-// clamp here would change which packfiles this function accepts.
+// Neither read is bounds-checked against the frame in retail (`Read(len, buf860)`
+// with `len` straight off disk). NOT RETAIL since review 2026-11-03: a length
+// that does not fit its buffer is a stack overflow (UB), and the package is
+// rejected instead (see "the hardening" below). Every valid package fits.
+//
+// ---------------------------------------------------------------------------
+// THE HARDENING (review 2026-11-03; NOT RETAIL, no fix.* row)
+// ---------------------------------------------------------------------------
+// Retail trusts every length in the index. These checks reject what a valid
+// package never contains, at the parse, and change nothing a valid package reads:
+//  * a negative blob length, or a blob the file does not hold (F-033);
+//  * a raw string or name longer than the frame less its terminator, a UTF-16
+//    one longer than buf860 (F-019, F-020, F-021);
+//  * a negative icon size, or an icon or preview larger than the bytes the index
+//    has left (F-055, F-056, F-076);
+//  * a file count the index cannot hold at 12 bytes an entry (F-077).
+// A rejected package returns false with its file closed and no entry kept: the
+// state of a package whose file never opened, which both callers handle.
+// Three UB fixes keep retail's reads otherwise: the frame starts zeroed (F-054),
+// a raw read is terminated (F-018), and the UTF-16 decode stops at the end of
+// buf860 instead of walking off the frame (F-017).
 //
 // ---------------------------------------------------------------------------
 // §94. THE CODEC PAIR IS TRANSCRIBED FROM THE JUMP-TABLE BODIES
@@ -232,6 +250,10 @@ namespace {
 // 0x800 into it. Sized and positioned exactly as retail's frame.
 constexpr size_t kFrameBufBytes = 0x1840;
 constexpr size_t kOutCap        = 0x800;    // = 0x860 - 0x60
+// NOT RETAIL (review 2026-11-03): the longest length each buffer takes. The raw
+// arm keeps one byte for the terminator it now writes; buf860 runs to the frame's end.
+constexpr int32_t kRawMaxLen    = static_cast<int32_t>(kFrameBufBytes) - 1;            // 0x183f
+constexpr int32_t kUtf16MaxLen  = static_cast<int32_t>(kFrameBufBytes - kOutCap);      // 0x1040
 
 // `?_singleton@FileSystem@IO@@0PEAV12@EA`  (0x1801fc6a8) — the global retail
 // loads into RSI at 0x1800b46e8 and RELOADS at 0x1800b478b.
@@ -339,18 +361,32 @@ bool RawTerminatorInRead(const uint8_t* buf, int32_t len) {
 // Returns whether the result is deterministic (§95).
 // `cs->IO::CompressedStream::Read` is retail's direct CALL 0x1800aa780 (a
 // qualified, non-virtual call, as the door that stood here was).
+// `malformed` is set, and nothing read, for a length buf860 cannot hold.
 bool ReadStringUtf16(IO::CompressedStream* cs, uint8_t* buf60, uint8_t* buf860,
-                     System::String& tmp) {
+                     System::String& tmp, bool& malformed) {
     int32_t len = 0;                                       // 1800b4e22
     cs->IO::CompressedStream::Read(4, &len);               // 1800b4e2e group
+    // NOT RETAIL (review 2026-11-03, F-019): retail reads `len` bytes into buf860,
+    // which has 0x1040 before the frame ends; a longer length overflows the stack
+    // (UB). Rejected at the parse; retail has no check.
+    if (len > kUtf16MaxLen) {
+        malformed = true;
+        return false;
+    }
     if (len > 0)                                           // 1800b4eba  TEST/JLE
         cs->IO::CompressedStream::Read(len, buf860);       // 1800b4eb3 group
 
     const bool deterministic = (len <= 0) || Utf16TerminatorInRead(buf860, len);
 
     // `LEA EAX,[R15+R15*1] ; CDQE` — TWICE what was read. §76.
+    // NOT RETAIL (review 2026-11-03, F-017): retail's 2 * len walks past the frame
+    // for len > 0x820 (an out-of-bounds stack read, UB). The walk stops at buf860's
+    // end; below that it is retail's, stale bytes and all.
+    int64_t walk = 2 * static_cast<int64_t>(len);
+    if (walk > kUtf16MaxLen)
+        walk = kUtf16MaxLen;
     const uint8_t* src       = buf860;                     // 1800b4f2a  RDI
-    const uint8_t* const end = buf860 + 2 * static_cast<int64_t>(len);  // 1800b4f23/f33
+    const uint8_t* const end = buf860 + walk;              // 1800b4f23/f33
     uint8_t*       dst       = buf60;                      // 1800b4f3d  R14
     int32_t        total     = 0;                          // 1800b4f27  ESI
 
@@ -378,15 +414,41 @@ bool ReadStringUtf16(IO::CompressedStream* cs, uint8_t* buf60, uint8_t* buf860,
 // ---- PATH B's string group (0x1800b559f and its two clones) ----------------
 // Read a length, read that many bytes STRAIGHT into the output buffer. No
 // transcode, and — note — no terminator is written either.
-bool ReadStringRaw(IO::CompressedStream* cs, uint8_t* buf60, System::String& tmp) {
+// `malformed` is set, and nothing read, for a length the frame cannot hold.
+bool ReadStringRaw(IO::CompressedStream* cs, uint8_t* buf60, System::String& tmp,
+                   bool& malformed) {
     int32_t len = 0;                                       // 1800b55a2
     cs->IO::CompressedStream::Read(4, &len);               // 1800b55ae group
+    // NOT RETAIL (review 2026-11-03, F-020): retail reads `len` bytes into the
+    // 0x1840-byte frame; a longer length overflows the stack (UB). Rejected at the
+    // parse (one byte is kept for the terminator below); retail has no check.
+    if (len > kRawMaxLen) {
+        malformed = true;
+        return false;
+    }
     if (len > 0)                                           // 1800b5633  TEST/JLE
         cs->IO::CompressedStream::Read(len, buf60);        // 1800b562f group
 
     const bool deterministic = (len > 0) && RawTerminatorInRead(buf60, len);
+    // NOT RETAIL (review 2026-11-03, F-018): retail writes no terminator, so a
+    // string with no NUL in its bytes is strlen'd into stale stack and past the
+    // frame (UB). A valid string carries its NUL, so this byte changes nothing.
+    if (len > 0)
+        buf60[len] = 0;
     BuildStringFrom(buf60, tmp);
     return deterministic;
+}
+
+// NOT RETAIL (review 2026-11-03): the decompressed bytes the index has left after
+// the read position: the block directory's length (CompressedStream::GetSize's
+// directory term, every block 32 KB but the last) less `_position`. Valid
+// packages never ask for more than this.
+int64_t IndexBytesLeft(const IO::CompressedStream* cs) {
+    if (cs->_headerSize <= 0)
+        return 0;
+    const int64_t total = (static_cast<int64_t>(cs->_headerSize) << 15) - RtIo::kCompressedStreamWindowSize +
+                          cs->_headerData[cs->_headerSize - 1].uncompressedSize;
+    return total - cs->_position;
 }
 
 
@@ -462,9 +524,20 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
     // ---- the compressed blob -----------------------------------------------
     int32_t blobLen = 0;
     fs->ReadFile(*fi, 4, &blobLen);                            // 1800b47f9
+    // NOT RETAIL (review 2026-11-03, F-033): retail sign-extends a negative length
+    // into a 16 EB MemAlloc. Rejected at the parse, as is a blob the file does not
+    // hold (retail then parses an uninitialised heap block).
+    if (blobLen < 0) {
+        fs->CloseFile(*fi);
+        return false;
+    }
     void* const blob = ::System::MemoryAllocator::MemAlloc(
         static_cast<uint64_t>(static_cast<int64_t>(blobLen)), 4);   // 1800b47fe MOVSXD
-    fs->ReadFile(*fi, blobLen, blob);                          // 1800b4820
+    if (!fs->ReadFile(*fi, blobLen, blob)) {                   // 1800b4820
+        ::System::MemoryAllocator::MemFree(blob);
+        fs->CloseFile(*fi);
+        return false;
+    }
 
     // ---- ONE CompressedMemoryStream, built in halves (§48) -----------------
     // Not two objects: the CompressedStream base ctor, then the class's own
@@ -484,9 +557,16 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
     IO::CompressedStream* const cs = &cms;
 
     // The frame's one buffer region, §93.
-    uint8_t  frameBuf[kFrameBufBytes];
+    // NOT RETAIL (review 2026-11-03, F-054): retail's frame is never initialised,
+    // and a length <= 0 or a short read leaves bytes that are then strlen'd and
+    // decoded (an indeterminate read). Zeroed here; a written byte reads the same.
+    uint8_t  frameBuf[kFrameBufBytes] = {};
     uint8_t* const buf60  = frameBuf;                          // [RBP+0x60]
     uint8_t* const buf860 = frameBuf + kOutCap;                // [RBP+0x860]
+
+    // NOT RETAIL (review 2026-11-03): set by the hardening; the package is then
+    // rejected at the teardown below.
+    bool malformed = false;
 
     int32_t fileCount = 0;
     cs->IO::CompressedStream::Read(4, &fileCount);             // 1800b4869 group
@@ -510,6 +590,16 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
         // reads `array._size * 4` bytes — the array's OWN size, not the product
         // it just passed. Identical unless SetSize clamped; transcribed as
         // spelled.
+        // NOT RETAIL (review 2026-11-03, F-055 / F-056 / F-076): retail multiplies
+        // the two int32s (it overflows: UB) and sizes the array from the file with
+        // no cap. A negative size, or more pixels than the index has bytes left,
+        // is rejected at the parse; a valid icon is inside the index.
+        const int64_t iconPixels = static_cast<int64_t>(_iconHeight) * _iconWidth;
+        if (_iconWidth < 0 || _iconHeight < 0 || iconPixels > INT32_MAX / 4 ||
+            iconPixels > IndexBytesLeft(cs) / 4) {
+            malformed = true;
+            goto teardown;
+        }
         // Array<uint32>::SetSize, handed the {data, size, capacity} header.
         rtcoll::RtColl_ArraySetSize_180029510(&_iconData,
                      _iconHeight * _iconWidth);      // 1800b4d27/d37
@@ -520,6 +610,13 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
             int32_t* const n90 =
                 &_previewByteCount;   /* +0x90 -- see PackageFile.h */
             cs->IO::CompressedStream::Read(4, n90);            // 1800b4d6c  +0x90
+            // NOT RETAIL (review 2026-11-03, F-076): retail sizes the preview from
+            // the file with no cap. A negative count, or more bytes than the index
+            // has left, is rejected at the parse.
+            if (*n90 < 0 || *n90 > IndexBytesLeft(cs)) {
+                malformed = true;
+                goto teardown;
+            }
             rtcoll::RtColl_ArraySetSize_180029630(&_previewData, *n90);   // 1800b4dea/df1
             // NOTE the bound: retail reads `*n90` bytes, not the ARRAY's size.
             cs->IO::CompressedStream::Read(*n90, _previewData._data);  // 1800b4e09
@@ -532,37 +629,49 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
             // ---- PATH A (§81): UTF-16 metadata, with the §76 over-read -----
             {
                 System::String tmp;
-                ReadStringUtf16(cs, buf60, buf860, tmp);   // 1800b4e1f  group 1
+                ReadStringUtf16(cs, buf60, buf860, tmp, malformed);   // 1800b4e1f  group 1
                 _name = tmp;                               // 1800b5044  +0x40
             }                                              // ~tmp 1800b507b
+            if (malformed)                                 // NOT RETAIL (review 2026-11-03)
+                goto teardown;
             {
                 System::String tmp;
-                ReadStringUtf16(cs, buf60, buf860, tmp);   // 1800b530d  group 2
+                ReadStringUtf16(cs, buf60, buf860, tmp, malformed);   // 1800b530d  group 2
                 _author = tmp;                             // 1800b52b4  +0x48
             }
+            if (malformed)                                 // NOT RETAIL (review 2026-11-03)
+                goto teardown;
             {
                 System::String tmp;
-                ReadStringUtf16(cs, buf60, buf860, tmp);   // group 3
+                ReadStringUtf16(cs, buf60, buf860, tmp, malformed);   // group 3
                 _description = tmp;                        // 1800b5536  +0x50
             }
+            if (malformed)                                 // NOT RETAIL (review 2026-11-03)
+                goto teardown;
             // 1800b558e / 559a  JMP 0x1800b5b6c  (reloads formatVersion; §92(c))
         } else {
             // ---- PATH B (§81): the bytes are already UTF-8 -----------------
             {
                 System::String tmp;
-                ReadStringRaw(cs, buf60, tmp);             // 1800b559f  group 4
+                ReadStringRaw(cs, buf60, tmp, malformed);  // 1800b559f  group 4
                 _name = tmp;                               // 1800b5726  +0x40
             }
+            if (malformed)                                 // NOT RETAIL (review 2026-11-03)
+                goto teardown;
             {
                 System::String tmp;
-                ReadStringRaw(cs, buf60, tmp);             // 1800b5783  group 5
+                ReadStringRaw(cs, buf60, tmp, malformed);  // 1800b5783  group 5
                 _author = tmp;                             // 1800b58f6  +0x48
             }
+            if (malformed)                                 // NOT RETAIL (review 2026-11-03)
+                goto teardown;
             {
                 System::String tmp;
-                ReadStringRaw(cs, buf60, tmp);             // 1800b5953  group 6
+                ReadStringRaw(cs, buf60, tmp, malformed);  // 1800b5953  group 6
                 _description = tmp;                        // 1800b5ac6  +0x50
             }
+            if (malformed)                                 // NOT RETAIL (review 2026-11-03)
+                goto teardown;
             // 1800b5b1a / 5b23  JMP 0x1800b5b73
         }
     } else {
@@ -583,6 +692,15 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
     // ---- the entry directory (0x1800b5b73) ---------------------------------
     if (fileCount > 0) {                                       // 1800b5b73  TEST/JLE
 
+        // NOT RETAIL (review 2026-11-03, F-077): retail loops `fileCount` times
+        // whatever the index holds (2^31 iterations, one entry each, past the end
+        // of the stream). Every entry takes at least 12 bytes (name length,
+        // offset, size); a count the index cannot hold is rejected at the parse.
+        if (static_cast<int64_t>(fileCount) * 12 > IndexBytesLeft(cs)) {
+            malformed = true;
+            goto teardown;
+        }
+
         for (int32_t i = fileCount; i != 0; --i) {             // 1800b5b99 / 601a
 
             int32_t nameLen = 0;
@@ -592,15 +710,34 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
             // OPPOSITE ORDER — raw first at 0x1800b5c1f, jumping over the
             // UTF-16 arm at 0x1800b5c9d. §86.
             if (formatVersion > 2) {                           // 1800b5c19  CMP 2 / JLE
+                // NOT RETAIL (review 2026-11-03, F-021): as ReadStringRaw, a name
+                // longer than the frame overflows the stack (UB); rejected.
+                if (nameLen > kRawMaxLen) {
+                    malformed = true;
+                    goto teardown;
+                }
                 if (nameLen > 0)                               // 1800b5c29
                     cs->IO::CompressedStream::Read(nameLen, buf60);  // 1800b5c25
                 // 1800b5c98  JMP 0x1800b5de3 — NO terminator is written here.
+                // NOT RETAIL (review 2026-11-03, F-018): one is, as in ReadStringRaw.
+                if (nameLen > 0)
+                    buf60[nameLen] = 0;
             } else {
+                // NOT RETAIL (review 2026-11-03, F-019 / F-021): as ReadStringUtf16,
+                // a name longer than buf860 overflows the stack (UB); rejected.
+                if (nameLen > kUtf16MaxLen) {
+                    malformed = true;
+                    goto teardown;
+                }
                 if (nameLen > 0)                               // 1800b5cae
                     cs->IO::CompressedStream::Read(nameLen, buf860); // 1800b5ca7
+                // NOT RETAIL (review 2026-11-03, F-017): the 2 * nameLen walk stops
+                // at buf860's end, as in ReadStringUtf16.
+                int64_t walk = 2 * static_cast<int64_t>(nameLen);
+                if (walk > kUtf16MaxLen)
+                    walk = kUtf16MaxLen;
                 const uint8_t* src       = buf860;             // 1800b5d22
-                const uint8_t* const end =
-                    buf860 + 2 * static_cast<int64_t>(nameLen);// 1800b5d1c/d32
+                const uint8_t* const end = buf860 + walk;      // 1800b5d1c/d32
                 uint8_t*       dst       = buf60;              // 1800b5d35
                 int32_t        total     = 0;                  // 1800b5d20
                 while (src < end) {                            // 1800b5d40/db8
@@ -652,6 +789,7 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
     }
 
     // ---- teardown (0x1800b6023) --------------------------------------------
+teardown:
     // §70 proves this Commit is unreachable on the read path: `?Open@` sets
     // direction = 0 and only direction == 1 gets here. The GUARD is
     // transcribed and the arm is COUNTED, so "provably dead" is measured on
@@ -662,6 +800,16 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
     cms._memoryStream.Close();                                 // 1800b603a  slot 7, the member's vtable
     ::System::MemoryAllocator::MemFree(blob);                  // 1800b6045
     // ~cms at the return: 1800b604f  ~CompressedMemoryStream
+
+    // NOT RETAIL (review 2026-11-03): a package the hardening rejected keeps no
+    // entry and has its file closed, the state of a package whose file never
+    // opened: ModificationList skips it (no CloseFile on that path) and
+    // LoadPackages indexes nothing from it.
+    if (malformed) {
+        _entries.Clear();
+        fs->CloseFile(*fi);
+        return false;
+    }
     const bool ours = true;                                    // 1800b6059  MOV AL,1
 
     return ours;
