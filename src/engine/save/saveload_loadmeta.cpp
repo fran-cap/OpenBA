@@ -314,6 +314,17 @@ void Save::SaveLoad::LoadMetaData(System::String& description, void** pixels,
         // overflows. The locked Allocate retail inlines around
         // MemoryAllocator::_singleton+0x640 is byte-identical to the exported
         // MemAlloc (established by Wave 5 on SavedState::Store, same call shape).
+        //
+        // NOT RETAIL (review F-061): width and height come straight from the file,
+        // and a product that leaves int32 is signed overflow (UB) here; retail's
+        // IMUL wraps and sign-extends the result into the allocation. A negative
+        // dimension or a byte count past INT32_MAX is a corrupt record: the
+        // thumbnail is dropped (0 x 0, no pixel bytes read). Every product that
+        // fits, i.e. every valid save, takes the retail arithmetic unchanged.
+        if (*width < 0 || *height < 0 || static_cast<int64_t>(*width) * (*height) > INT32_MAX / 4) {
+            *width  = 0;
+            *height = 0;
+        }
         const int32_t byteCount = (*width) * (*height) * 4;
         *pixels = MemAlloc(static_cast<uint64_t>(static_cast<int64_t>(byteCount)), 4);
         rw->SerializeBytes(byteCount, *pixels, nullptr);
@@ -331,6 +342,16 @@ void Save::SaveLoad::LoadMetaData(System::String& description, void** pixels,
             // `MOV RAX,[RSP+0x20] ; CMP dword ptr [RAX+0x8],0x0` — the stream the
             // SERIALIZER holds, dereferenced, then its direction. This is the
             // dereference Ghidra's C drops; see the header.
+            // NOT RETAIL (review F-035): retail hands the stored count to SetSize
+            // unbounded. A negative count, or one past kMaxSavedMods, is a corrupt
+            // record that asks for count * 0x20 bytes (a failed allocation leaves
+            // `_data` null under the init loop, a smaller one hangs on 2^28 entry
+            // reads): it is read as no mods. Reading path only; the writing path
+            // writes the array's own size.
+            constexpr int kMaxSavedMods = 0x10000;
+            if (ser._stream->_direction == 0 && (count < 0 || count > kMaxSavedMods))
+                count = 0;
+
             if (ser._stream->_direction == 0)
                 // retail 0x180034010 — Array<Save::MetaDataEntry>::SetSize(n), the
                 // hand-derived kSpec_MetaEntry20 row (see the banner above `mods`
