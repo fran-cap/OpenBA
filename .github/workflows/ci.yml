@@ -73,6 +73,20 @@ jobs:
           path: .ccache
           key: ccache-windows-${{ github.sha }}
           restore-keys: ccache-windows-
+      # The two configures' CMake caches. A fresh configure runs ~176 try-compile checks (SDL's, mostly),
+      # ~0.35 s each on this runner: 64 s for each build directory. A restored CMakeCache.txt holds their
+      # results, so the configure (tools/build.sh runs it: no build.ninja yet) skips them. Exact key only,
+      # over the runner image, every CMake file in the tree (SDL's and the other submodules' included) and
+      # the compiler pin: any change to what the checks would find configures from scratch.
+      - name: Runner image (part of the CMake cache key)
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/cmake-debug/CMakeCache.txt
+            build/cmake-debug-vulkan/CMakeCache.txt
+          key: cmake-configure-windows-${{ steps.image.outputs.version }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', 'tools/toolchain/install_winlibs.sh') }}
       - name: Toolchain
         run: |
           command -v g++ cmake ninja ccache python
@@ -121,6 +135,14 @@ jobs:
           path: .ccache
           key: ccache-linux-${{ github.sha }}
           restore-keys: ccache-linux-
+      # The configure's CMake cache: its try-compile results (SDL's, mostly), as on Windows above.
+      - name: Runner image (part of the CMake cache key)
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: build/cmake-debug/CMakeCache.txt
+          key: cmake-configure-linux-${{ steps.image.outputs.version }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
       - name: Zero the ccache statistics
         run: ccache -z
       # The default configure is the Vulkan backend off Windows (Vulkan P5), so this one build and
@@ -162,6 +184,14 @@ jobs:
           path: .ccache
           key: ccache-macos-${{ github.sha }}
           restore-keys: ccache-macos-
+      # The configure's CMake cache: its try-compile results (SDL's, mostly), as on Windows above.
+      - name: Runner image (part of the CMake cache key)
+        id: image
+        run: echo "version=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: build/mac-arm64/CMakeCache.txt
+          key: cmake-configure-macos-${{ steps.image.outputs.version }}-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
       - name: Zero the ccache statistics
         run: ccache -z
       # The engine only; libairconv.dylib (tools/macos/setup_deps.sh, an LLVM build) is dlopened at
