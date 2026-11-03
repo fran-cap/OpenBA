@@ -5,3 +5,4 @@ app/build/
 app/.cxx/
 local.properties
 *.apk
+app/build-emulator/

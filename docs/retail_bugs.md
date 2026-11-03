@@ -194,6 +194,18 @@ Extensions restart notice, the save / load warnings, the Options confirmations) 
 Lever: copy `_uiScale` into the nested UI in the same step. Under the same row (both are "a dialog drawn
 at the wrong UI scale"): `userinterface_showdialog.cpp`, the same seam pointer.
 
+**The placement label is scaled twice (same row, 2026-11-01, issue #96 on a tablet and the S25).** While a
+building is placed, `PlayerToolManager::UpdateCreateBar` (`0x1400ffc60`) centres the CreateBar (name, cost,
+"cannot be placed" line) on the ghost's projected top edge. Its rectangle comes from `0x1400fe960`, which
+already multiplies the screen pixels by `GameSettings::uiScale / 100` (`0x1400feb21..0x1400feb68`): layout
+units. The call `DialogInstance::SetUpperLeft(x, y, true)` (`0x1401000c1` `MOV R9B,1`, `0x1401000c7`) then
+multiplies by `_uiScale` again (`0x180114ab9..0x180114ada`). At 100 % both factors are 1 and nothing shows;
+at any other UI scale the bar sits at the ghost's position times the scale, toward the upper left (a
+phone's 50 %: half way, on the panels there). `EditTool` places an entity's panel from the same rectangle
+correctly: it divides by `_uiScale` before its own `SetUpperLeft(.., true)`. Lever: pass `false` (the
+position is already in layout units). Under the same row: `tool_base_createbar.cpp` reads
+`Ext::Fix().ui_scale_layout`.
+
 ## 6. The employment allocator rates a never-measured commute as free
 
 **Symptom.** None a player can point at. Once every 300 simulated seconds the employment

@@ -20,21 +20,30 @@ Rect Make(int32_t x, int32_t y, int32_t w, int32_t h) {
 }  // namespace
 
 int32_t Margin(int32_t width, int32_t height, int32_t phoneMargin) {
-    if (phoneMargin > 0) return phoneMargin;
+    if (phoneMargin >= 0) return phoneMargin;
     const int32_t shortEdge = width < height ? width : height;
     if (shortEdge <= 0) return 0;
     return Round(static_cast<float>(shortEdge) * kDesktopMarginFraction);
 }
 
-Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin) {
+Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin, float scale) {
     Cluster c;
     const int32_t shortEdge = width < height ? width : height;
     if (shortEdge <= 0) return c;
     const float s = static_cast<float>(shortEdge);
-    c.cell = Round(s * kCellFraction);
-    c.gap = Round(s * kGapFraction);
-    c.frame = Round(s * kFrameFraction);
+    c.baseCell = Round(s * kCellFraction);
     c.margin = margin;
+    if (scale <= 0.0f) {
+        // No pad (issue #96): nothing to hit, the toolbar's region from the left safe edge.
+        c.gap = Round(s * kGapFraction);
+        c.box = Rect{margin, height - margin, margin, height - margin};
+        c.barRegion = Rect{margin, margin, width - margin, height - margin};
+        return c;
+    }
+    // At scale 1 each product is the unscaled one exactly (x * 1.0f == x).
+    c.cell = Round(s * kCellFraction * scale);
+    c.gap = Round(s * kGapFraction * scale);
+    c.frame = Round(s * kFrameFraction * scale);
 
     const int32_t padSide = 3 * c.cell;
     const int32_t padX = margin + c.frame;
@@ -57,6 +66,50 @@ Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin) {
 
     c.box = Rect{padX - c.frame, rotateY - c.frame, zoomX + zoomW + c.frame, padY + padSide + c.frame};
     c.barRegion = Rect{c.box.x2 + 2 * c.gap, margin, width - margin, height - margin};
+    return c;
+}
+
+float PadScaleOfPercent(int32_t percent) {
+    if (percent <= 0) return 0.0f;
+    return static_cast<float>(percent) / 100.0f;
+}
+
+Cluster LayoutCornerButtons(int32_t width, int32_t height, int32_t margin, int32_t top, float scale) {
+    Cluster c;
+    const int32_t shortEdge = width < height ? width : height;
+    if (shortEdge <= 0 || scale <= 0.0f) return c;
+    const float s = static_cast<float>(shortEdge);
+    const int32_t boxY = top > margin ? top : margin;
+    const int32_t fitH = height - margin - boxY;
+    // The column at `scale`, shrunk to the safe height when it would not fit (a second pass at most: the rounding of
+    // the cell, gap and frame can leave a unit or two over after the first).
+    int32_t buttonW = 0;
+    int32_t buttonH = 0;
+    int32_t boxW = 0;
+    int32_t boxH = 0;
+    for (int32_t pass = 0; pass < 3; ++pass) {
+        c.cell = Round(s * kCellFraction * scale);
+        c.gap = Round(s * kGapFraction * scale);
+        c.frame = Round(s * kFrameFraction * scale);
+        // The pad's zoom button at this scale (LayoutCluster).
+        buttonW = Round(1.4f * static_cast<float>(c.cell));
+        buttonH = (3 * c.cell - c.gap) / 2;
+        boxW = buttonW + 2 * c.frame;
+        boxH = 4 * buttonH + 3 * c.gap + 2 * c.frame;
+        if (boxH <= fitH || fitH <= 0 || boxH <= 0) break;
+        scale *= static_cast<float>(fitH) / static_cast<float>(boxH);
+    }
+    c.baseCell = Round(s * kCellFraction);
+    c.margin = margin;
+    const int32_t boxX = width - margin - boxW;
+    const int32_t x = boxX + c.frame;
+    const int32_t step = buttonH + c.gap;
+    const int32_t y0 = boxY + c.frame;
+    c.control[kRotateLeft] = Make(x, y0, buttonW, buttonH);
+    c.control[kRotateRight] = Make(x, y0 + step, buttonW, buttonH);
+    c.control[kZoomIn] = Make(x, y0 + 2 * step, buttonW, buttonH);
+    c.control[kZoomOut] = Make(x, y0 + 3 * step, buttonW, buttonH);
+    c.box = Rect{boxX, boxY, boxX + boxW, boxY + boxH};
     return c;
 }
 

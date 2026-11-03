@@ -86,6 +86,10 @@ void TwoFingers::Begin(float x1, float y1, float x2, float y2, float shortEdge) 
     _startCy = _cy;
     _startDist = _dist;
     _startAngle = _angle;
+    _startX1 = x1;
+    _startY1 = y1;
+    _startX2 = x2;
+    _startY2 = y2;
     _pan = false;
     _pinch = false;
     _spin = false;
@@ -98,11 +102,39 @@ GestureStep TwoFingers::Step(float x1, float y1, float x2, float y2) {
     if (dist < 1.0f) dist = 1.0f;
     const float angle = std::atan2(y2 - y1, x2 - x1) * 180.0f / kPi;
 
-    // Engage each component once its total since Begin passes its threshold; from then on it follows.
+    // Each component's total since Begin as a multiple of its engage threshold; pinch and spin take the smaller of
+    // the relative ratio and the px floor's (kPinchSpinEngageFraction), so both must be passed.
     const float travel = std::sqrt((cx - _startCx) * (cx - _startCx) + (cy - _startCy) * (cy - _startCy));
-    if (!_pan && travel > kPanEngageFraction * _shortEdge) _pan = true;
-    if (!_pinch && std::fabs(std::log(dist / _startDist)) > kPinchEngageLog) _pinch = true;
-    if (!_spin && std::fabs(AngleDelta(angle, _startAngle)) > kSpinEngageDegrees) _spin = true;
+    const float panRatio = travel / (kPanEngageFraction * _shortEdge);
+    const float floorPx = kPinchSpinEngageFraction * _shortEdge;
+    const float turn = std::fabs(AngleDelta(angle, _startAngle));
+    const float pinchPx = std::fabs(dist - _startDist);
+    const float spinPx = _startDist * turn * kPi / 180.0f;
+    const float pinchRatio = std::min(std::fabs(std::log(dist / _startDist)) / kPinchEngageLog, pinchPx / floorPx);
+    const float spinRatio = std::min(turn / kSpinEngageDegrees, spinPx / floorPx);
+
+    // Each finger's own travel since Begin (kPanFingerShare's comment): both moving is a pan.
+    const float travel1 = std::sqrt((x1 - _startX1) * (x1 - _startX1) + (y1 - _startY1) * (y1 - _startY1));
+    const float travel2 = std::sqrt((x2 - _startX2) * (x2 - _startX2) + (y2 - _startY2) * (y2 - _startY2));
+    const bool bothMove = travel1 >= kPanFingerShare * travel && travel2 >= kPanFingerShare * travel;
+
+    // The mode lock (kJoinFactor's comment): the first component past its threshold engages alone; from then on
+    // it follows. Pan never shares the gesture; pinch and spin join each other only past kJoinFactor. Pan does not
+    // engage while one finger stands nearly still (a wide one-thumb pinch passes the pan threshold before the
+    // pinch one): the gesture stays undecided until pinch or spin passes its own.
+    if (!_pan && !_pinch && !_spin) {
+        if (panRatio > 1.0f && panRatio >= pinchRatio && panRatio >= spinRatio && bothMove) {
+            _pan = true;
+        } else if (pinchRatio > 1.0f && pinchRatio >= spinRatio) {
+            _pinch = true;
+        } else if (spinRatio > 1.0f) {
+            _spin = true;
+        }
+    } else if (_pinch && !_spin && spinRatio > kJoinFactor) {
+        _spin = true;
+    } else if (_spin && !_pinch && pinchRatio > kJoinFactor) {
+        _pinch = true;
+    }
 
     GestureStep out;
     if (_pan) {

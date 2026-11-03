@@ -65,6 +65,31 @@ UNIT_TEST(ext_phone_menu_safe_margin_is_3_4_percent_of_the_height) {
     CHECK(Ext::PhoneMenu::SafeMargin(-5) == 0);
 }
 
+// Issue #96: ext.phone_menu_safe_margin. Its default is the ruled fraction exactly (phones unchanged); None is
+// no inset at all (InsetLayout = the whole screen); the other choices are key / 100000 of the height.
+UNIT_TEST(ext_phone_menu_safe_margin_key) {
+    using namespace Ext::PhoneMenu;
+    CHECK(SafeMarginFractionOf(kSafeMarginDefaultKey) == kSafeMarginFraction);
+    CHECK(SafeMarginFractionOf(0) == 0.0f);
+    CHECK(SafeMarginFractionOf(-1) == 0.0f);
+    CHECK(SafeMarginFractionOf(4500) == kSafeMarginP7Fraction);
+    CHECK(SafeMarginAt(1080, SafeMarginFractionOf(0)) == 0);
+    CHECK(SafeMarginAt(1080, SafeMarginFractionOf(2000)) == 22);    // 21.6
+    CHECK(SafeMarginAt(1080, SafeMarginFractionOf(4500)) == 49);    // P7's
+    CHECK(SafeMarginAt(1080, SafeMarginFractionOf(6000)) == 65);    // 64.8
+    CHECK(SafeMarginAt(1200, SafeMarginFractionOf(kSafeMarginDefaultKey)) == SafeMargin(1200));   // the live key's default
+
+    const Ext::ValueKey* k = Ext::FindValueKey("phone_menu_safe_margin");
+    CHECK(k != nullptr);
+    if (k == nullptr) return;
+    CHECK(std::string(k->owner) == "phone_menu");
+    CHECK(k->defaultValue == kSafeMarginDefaultKey);
+    CHECK(Ext::Values().phone_menu_safe_margin == kSafeMarginDefaultKey);
+    CHECK(ResolveText("ext.phone_menu_safe_margin=0\n").val.phone_menu_safe_margin == 0);
+    CHECK(Ext::ClampValue(*k, 4500) == 4500);
+    CHECK(Ext::ClampValue(*k, 45) == kSafeMarginDefaultKey);   // not a choice (a percent typed by hand): the default
+}
+
 UNIT_TEST(ext_phone_menu_inset_layout_takes_edges) {
     const Ext::PhoneMenu::Rect r = Ext::PhoneMenu::InsetLayout(2340, 1080);
     CHECK(r.x1 == 36);

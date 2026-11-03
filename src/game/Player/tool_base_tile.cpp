@@ -43,6 +43,8 @@
 #include "Entity/ComponentEntity.h"
 #include "Game/Map.h"
 #include "Game/PlayerToolManager.h"
+#include "ext/registry.h"                      // EXT SEAM (NOT RETAIL): Ext::Ext().touch_pointer
+#include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md): KeepsModel
 
 // ============================================================
 // 0x140003870 — ModelComponent::SetTransformFromYaw
@@ -326,7 +328,9 @@ uint64_t PlacementTool::CreateAt(int param_2, int param_3, int param_4, int para
     // ClearArea reaches state 2 (MapComponent_Slot12VSlot, mapcomponent.cpp).
 
     // 0x1400fd960's body is void: every caller of this function reads only AL (= 1).
-    FlipVariant();
+    // EXT SEAM (NOT RETAIL, docs/android/P11_TOUCH_POINTER.md section 2): ext.touch_pointer's Shift toggle keeps
+    // the model for the next placement (a row of identical houses); retail always advances it here.
+    if (!(Ext::Ext().touch_pointer && Ext::TouchPointer::KeepsModel())) FlipVariant();
     uint64_t uVar9 = 0;
     return (uVar9 & ~0xffULL) | 1ULL;
 }

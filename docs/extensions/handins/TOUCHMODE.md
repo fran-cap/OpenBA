@@ -39,13 +39,33 @@ session log: `docs/android/TOUCH_MODE.md`.
   free for touch_pointer's action bar.
 * **Enhanced tab**: "Touch controls" Off / Toolbar 100 % .. 200 % (`enhanced_entry.cpp`,
   `SetTouchModeAndRecord`).
+* **Separate sizes** (issue #96): `ext.touch_mode_pad_scale` (0 = the cluster hidden, 50 .. 125 %, default 100)
+  scales the cluster alone (`LayoutCluster`'s `scale`; hidden, the toolbar's region spans the safe width and
+  `BarRect` still answers); `ext.touch_mode_action_bar_scale` (25 .. 125 %, default 100) sizes ext.touch_pointer's
+  placement bar from the cluster's scale-1 cell (`BaseCell`). Both default to the sizes they had, so installs
+  without the keys are unchanged (verified: the S25 profile's layout log lines match the integration branch's).
+  Combos "Camera pad" and "Placement bar" in the Enhanced tab's "Touch screen" group (`OpenChoiceCombo` /
+  `ApplyChoiceCombo`, the host's helpers). ext.phone_menu's `ext.phone_menu_safe_margin` moves the cluster and the
+  toolbar with every other dialog; at None they sit on the screen's edges (`Margin`'s -1 = the row off).
+
+* **Corner camera buttons** (issue #96, the reporter's follow-up; `docs/android/TOUCH_MODE.md` section 3a):
+  `ext.touch_mode_camera_buttons` (0 = none, the default, 15 / 20 / 25 / 35 / 50 / 75 / 100 / 125 %) opens a second
+  dialog,
+  `Dialog/TouchControls.rsc:cameraButtons`, with the cluster's own rotate and zoom holders and buttons (only its root
+  and content group are new), in one column in the upper right of the safe area (`touch_math.h
+  LayoutCornerButtons`; 100 % = the pad's zoom button at pad 100 %; a column too tall for the safe height is laid
+  out at the largest scale that fits). It is laid out as a `Cluster` with no pad, so
+  `HitControl`, `Capture` and the pressed art serve it unchanged; its own `Capture` feeds the same `Hold(Source::Pad)`
+  as the cluster's (held = continuous, the same rates). Its four tooltips are off (a resting finger is a parked
+  cursor). Shown with the toolbar whatever the pad's key; with the key at 0 no dialog is built and nothing is hit.
+  Combo "Corner camera buttons" under "Camera pad".
 
 ## Where
 
 | file | change |
 |---|---|
 | `src/ext/touch_mode/touch_math.{h,cpp}` | the pure decisions (unit-tested) |
-| `src/ext/touch_mode/touch_mode.{h,cpp}` | the cluster dialog, the scale, the place rules, the camera hold |
+| `src/ext/touch_mode/touch_mode.{h,cpp}` | the cluster dialog and the corner buttons' dialog, the scale, the place rules, the camera hold |
 | `src/ext/touch_mode/enhanced_entry.cpp` | the Enhanced combo |
 | `src/ext/ui/Dialog/TouchControls.rsc`, `EnhancedOptions.rsc`, `ExtensionsSprites.rsc` | the cluster, the combo row, the icon |
 | `src/engine/ui/UserInterface.h`, `userinterface_frame.cpp`, `userinterface_draw.cpp`, `userinterface.cpp` | the seam |

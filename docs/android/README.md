@@ -6,8 +6,9 @@ an app whose native library is the repository's root `CMakeLists.txt`. Plan and 
 Only new Adreno parts are in scope; a mouse and a keyboard are how the game is played (touches arrive as
 mouse clicks).
 
-No game data is in the tree, the build directory or the apk. The player copies the `WinData` packages of
-their own Banished install into the app's data folder (below). The apk does carry one third-party file
+No game data is in the tree, the build directory or the apk. The player hands the app the `WinData`
+packages of their own Banished install, which it copies into its data folder (Installing the game files,
+below). The apk does carry one third-party file
 set, the FrancophilSans typeface with its notice (below, `THIRD_PARTY_NOTICES.md`).
 
 ## Layout
@@ -16,13 +17,15 @@ set, the FrancophilSans typeface with its notice (below, `THIRD_PARTY_NOTICES.md
 |---|---|
 | `android/` | The Gradle project: `settings.gradle`, `build.gradle` (AGP pin), `gradle.properties` (the package id and app name, each set once), the Gradle wrapper. |
 | `android/app/build.gradle` | The app module: SDK levels, NDK and CMake pins, arm64-v8a only, the native build over `../../CMakeLists.txt` (targets `OpenBA` = `libmain.so` and `SDL3-shared` = `libSDL3.so`), SDL's Java glue compiled in place from `third_party/SDL/android-project`. |
-| `android/app/src/main/AndroidManifest.xml` | One activity, landscape only, Vulkan 1.3 required. |
+| `android/app/src/main/AndroidManifest.xml` | The game's activity (landscape only, Vulkan 1.3 required) and `GameFilesActivity` (plain views, the "Game files" shortcut). |
 | `android/app/src/main/java/org/openba/game/OpenBAActivity.java` | `SDLActivity` subclass: runs the game's own `main`, turns the launch intent's `BANISHED_*` extras into the environment, makes the surface an `OpenBASurface`. |
+| `android/app/src/main/java/org/openba/game/GameFiles*.java` | The first-run screen and the "Game files" shortcut: the game files copied from a picked folder or `.zip`, the saves exported and imported (Installing the game files, below). |
 | `android/app/src/main/java/org/openba/game/OpenBASurface.java` | `SDLSurface` subclass: the captured mouse's buttons and motion (P8). |
 | `src/platform/android/` | The platform twins (`README.md` there has the rule). |
 | `src/diag/android/` | The crash handler and boot-state watchdog twins. |
 | `tools/android.sh` | Build, install, push the data, run, pull the logs. |
 | `tools/boot_state.sh --android` | The boot state of the app on the attached device. |
+| `docs/android/EMULATOR.md` | The emulator test bed: the x86_64 build (`build debug --emulator`), the `tablet` and `phone` AVD profiles, `avd create / start / stop`, `--avd`, `screenshot`. |
 
 ## Versions (pinned)
 
@@ -56,11 +59,75 @@ plus `src/platform/sdl` and `common`, with every `src/platform/android/<name>_an
 shared library `libmain.so`, keeps SDL shared (`libSDL3.so`), and turns on SDL's joystick and HIDAPI
 modules because SDL's Java glue calls into them at startup. The renderer is the Vulkan backend.
 
-## Install, data, run
+## Installing the game files (players)
+
+OpenBA plays the files of the player's own copy of Banished; the app ships none of them. Since Android 11
+a file manager on the phone cannot write into `Android/data`, so the app copies the files itself, from a
+place the player can reach (issue #96):
+
+1. Copy the `WinData` folder of a Banished install (`data0.pkg`, `data1.pkg`, `patch0.pkg`,
+   `patch1.pkg`) to the phone, into a folder of its own, e.g. `Download/WinData` (USB, a cloud drive, a
+   card). A `.zip` holding that folder, or the `.pkg` files at any depth, works too.
+2. Start OpenBA. Without the files it shows **Banished game files needed** with two buttons:
+   **Choose the folder** opens the system's folder picker (pick the folder holding `data0.pkg`, or one
+   up to three levels above it, such as the Banished folder, then Use this folder and Allow);
+   **Choose an archive** opens the file picker for a `.zip`. Android does not let an app take
+   `Download` itself, so the packages must be in a folder inside it.
+3. The app copies the packages into its data folder with a bar and the megabytes copied, then starts the
+   game: the main menu follows without a restart.
+
+What is copied: the `*.pkg` and `*.pkm` files of the shallowest folder holding `data0.pkg`, and nothing from its
+subfolders (parked mods such as `_mods_off` stay out; mods beside `data0.pkg` are copied and show up on the
+Mods page, as by a USB copy). The copy goes to a staging folder first and is moved into `WinData` only when
+every file arrived, so **Cancel** (or the back key) during the copy, a failed read or a folder without
+`data0.pkg` leaves `WinData` as it was. A wrong pick says what was expected ("No data0.pkg in that
+folder. Choose Banished's WinData folder: ..."). Backing out of the picker changes nothing. The copy
+runs on its own thread, keeps the screen on, and goes on while the screen is off; on the emulator it ran
+at about 250 MB/s from a folder and 30 MB/s from a deflated `.zip`. Only `.zip` is read
+(`java.util.zip`, no new dependency); `.7z` and `.rar` would need a third-party library and are not.
+
+The copy is the player's own files, on the player's own device, at the player's explicit action, into
+the app's own folder: the same thing a USB copy or `push-data` does. Nothing of the game enters the apk
+or the tree (`AGENTS.md` §1, `docs/extensions/DESIGN.md` §3 rule 7).
+
+**Saves.** The same screen's overflow (⋮) has **Import saves** and **Export saves**. In the game, the
+main menu and the pause menu have a **Game files** button (beside Extensions) that opens the
+screen over the game (`GameFilesActivity`); its **Back** button (bottom-right, as the game's dialogs put Cancel / Ok; not on the first-run screen) or the back key returns to the menu. The launcher icon's
+long-press shortcut of the same name opens it too, at any time. Export writes a `.zip` of `Documents/Banished/Save/` (`Save/<name>`, the
+files' times kept) wherever the player picks; Import takes every `*.sav` of a `.zip`, at any depth,
+and asks before replacing a save of the same name (Replace / Keep mine). The game's Load dialog lists an
+imported save at once. The shortcut screen also shows the packages' count and size and replaces the
+packages while the game is not running. `GameFilesActivity` is not exported: the app's own shortcut
+reaches it, no other app can, and neither can `adb shell am start` (refused with a SecurityException;
+`run-as` does not lift that, since `am` runs as the shell). To open it in a test, use the menu button,
+or long-press the icon in the launcher (on the emulator: `input swipe X Y X Y 1200` on the icon, then
+tap "Game files").
+
+**The menu button** is part of `ext.phone_menu` (the phone and tablet front end the Android first run
+turns on; no row of its own): `ExtensionsDialog_AttachGameFilesButton` (`src/game/Dialog/extensionsdialog.cpp`)
+adds `Dialog/Extensions.rsc:buttonGameFiles` (the Mods button's shape, our caption and floppy-disk icon,
+`tools/ext_sprites.py`) while the row is on and `Platform::App::HasGameFilesScreen()` answers true. That
+hook and `OpenGameFilesScreen()` are declared in `src/platform/common/platform_app.h`; Windows, Linux
+and macOS answer false (no button), Android starts `GameFilesActivity` through one JNI call,
+`OpenBAActivity.openGameFilesScreen` (`src/platform/android/app_android.cpp`). The screen opening sends
+the game to the background like any trip out of the app (Lifecycle, below).
+
+**The look.** The screen is dressed as the game's dialogs: the panel, label, heading and button colours
+sampled from the game's own Options dialog, square-cornered buttons with the game's dark outline, light
+bevel and face gradient, and the FrancophilSans typeface from the apk's assets (the files below). The
+system's own picker, the overflow menu and the replace question keep the system's look.
+
+Code: `android/app/src/main/java/org/openba/game/GameFilesScreen.java` (the views),
+`GameFilesJob.java` (the copy, export and import thread), `GameFiles.java` (the folders and the
+`data0.pkg` check), `GameFilesActivity.java`, and `OpenBAActivity.java` (holds SDL off while the screen
+is shown: SDL starts `main` only once its surface is ready, and the surface is in SDL's layout, so
+putting that layout back starts the game in the same process).
+
+## Install, data, run (developers)
 
 ```bash
 tools/android.sh install debug            # adb install -r -d (a debug apk replaces any debuggable build)
-tools/android.sh push-data                # BANISHED_DIR's WinData/*.pkg -> the phone (once; the font comes with the apk)
+tools/android.sh push-data                # BANISHED_DIR's WinData/*.pkg -> the phone (once; the developer route, adb in place of the picker)
 tools/android.sh run                      # launch to the main menu
 tools/android.sh run BANISHED_AUTOSTART=1 BANISHED_PAUSEMENU=3000 BANISHED_PAUSEMENU_QUIT=120 \
                      BANISHED_PAUSEMENU_BUTTON=6   # new game, then Quit Game from the pause menu
@@ -74,8 +141,9 @@ tools/android.sh stop
 
 | On the phone | What |
 |---|---|
-| `files/WinData/*.pkg` | The retail packages, pushed by the player. Only the top-level `*.pkg` are pushed; parked mods and other subfolders stay home. |
-| `files/FrancophilSans.ttf`, `FrancophilSans-Bold.ttf`, `FrancophilSans_README.txt` | The typeface `ext.sharp_ui` rasterises its fonts from at a UI scale other than 100 % (below). Carried by the apk as assets and copied here by the app at start when absent (P9); a file already there is left alone. |
+| `files/WinData/*.pkg`, `*.pkm` | The retail packages and the player's mods, copied by the first-run screen from the player's folder or `.zip`, or pushed by `push-data`. Only the top-level files are taken; parked mods and other subfolders stay home. |
+| `files/WinData.incoming/`, `files/Documents/Banished/Save.incoming/` | The staging folders of a copy or a saves import while it runs; removed when it ends. |
+| `files/FrancophilSans.ttf`, `FrancophilSans-Bold.ttf`, `FrancophilSans_README.txt` | The typeface `ext.sharp_ui` rasterises its fonts from at a UI scale other than 100 % (below). Carried by the apk as assets and copied here by the app at start when absent or empty (P9; an empty file is a copy cut short); any other file already there is left alone. |
 | `files/OpenBA` | Does not exist: it is the "exe path" the engine is told (`file_android.cpp`), so the game directory is `files/`. |
 | `files/standalone_debug.log`, `standalone_error.log`, `standalone_crash.log`, `standalone_hang.log`, `standalone_boot_state.txt` | The same files as beside `OpenBA.exe` on Windows. |
 | `files/Documents/Banished/` | The per-user folder: `settings.cfg`, `Save/`, `Cache/` (the derived-data cache: SPIR-V, `vulkan_pipelines.bin` / `.txt`). |
@@ -83,9 +151,12 @@ tools/android.sh stop
 
 `WinData/` must be made by the app: a folder adb makes belongs to the shell user, and the app process can
 neither list nor open anything inside it (EACCES). The app makes `WinData/` and `Documents/` at every
-start, and `push-data` starts the app once when the folder is missing (or removes an adb-made one first).
-With no `data0.pkg` in it, the app shows one message with the USB / MTP copy steps and exits with code 6
-(`STATE=NO_GAME_DATA`; `src/app/game_data_check.h`, issue #72).
+start (`WinData/` already in `OpenBAActivity.onCreate`, before the first-run screen), and `push-data`
+starts the app once when the folder is missing (or removes an adb-made one first). With no `data0.pkg`
+in it, a start from the icon shows the first-run screen above. A launch with any `BANISHED_*` extra (a
+harness run, `tools/android.sh run ...`) skips that screen: the native check then stops the boot, shows
+one message (none when unattended) and exits with code 6 (`STATE=NO_GAME_DATA`;
+`src/app/game_data_check.h`, issue #72).
 
 **The font rasteriser** (P8). `ext.sharp_ui` draws the UI's text crisp at any UI scale by rasterising the
 game's typeface, FrancophilSans, at the pixel height the screen needs (FreeType,
@@ -135,6 +206,27 @@ the menus' scale plus its torn bottom border drawn again at the screen's bottom,
 "Loading..." in that border at the Options UI scale (P9). The first-run UI scale is the game's own
 100 in back-buffer pixels, stored in screen units: 50 at the seeded Half (P9, below). Options changes are
 kept as anywhere else.
+
+**Tablet defaults** (issue #96, ruled 2026-11-01). The first run picks the seed by the screen's physical
+size: `Platform::Display::PhysicalScreenInches` (`src/platform/common/platform_display_size.h`; Android's
+body asks `OpenBAActivity.physicalDisplay` through JNI for `getRealMetrics`' pixels and xdpi / ydpi, the
+dpi checked against the density bucket) and `IsTabletScreen`: a shorter edge of at least 3.3 inches is a
+tablet (the largest phones are about 2.8-3.1" short, a 7" 16:9 tablet 3.43"). A tablet gets the phone
+defaults above with three values changed: `VideoRenderScale=100` (the panel's own pixels; the phone's Half
+drew 1696x1200 on a 3392x2400 tablet and stretched it), `GameUIScale=50` (written out: the panels keep the
+size the phone defaults gave a tablet, 2 screen pixels per layout unit, where a first run at Full would
+otherwise take the game's 100 and halve them) and `ext.touch_mode_toolbar_scale=150` (toolbar buttons
+about 9 mm square at 320 dpi, as the S25's 8.5 mm; 200 made them 12 mm), plus `ext.touch_mode_pad_scale=50`
+and `ext.touch_mode_action_bar_scale=50` (the pad's cell is 11 % of the shorter edge, 21 mm on this tablet
+against the S25's 7 mm, and the placement bar's buttons take the pad's full size; 50 % gives both about
+10.5 mm, the smallest step offered). `ext.phone_menu`, `ext.touch_mode` and `ext.touch_pointer` stay on. A phone, and any device whose size is unknown, gets the
+phone defaults unchanged. The log line `first run: tablet defaults written to ... (display 10.60x7.50 in,
+...)` (logcat, tag OpenBA) names the class and the size. The seed is written only when `settings.cfg` is
+absent; a later start only appends the keys a file lacks (P8, `phone_seed.h`), so an existing install keeps
+its render scale, UI scale and toolbar scale. To move an existing tablet to these defaults, delete
+`settings.cfg` (Options and key bindings go back to their defaults) or set the three rows in Options. The
+camera pad is not a setting: its cell is 0.11 of the screen's short edge (`TOUCH_MODE.md` §3), about 21 mm
+on a 13" tablet.
 
 **Dialogs for a finger** (P9, same row). Scroll bars are four times thicker, dialog close buttons twice
 the size, a dialog larger than the safe area (Options and Fixes and Extensions below about UI 45 at render

@@ -240,6 +240,23 @@ LabelDescription labelExtensions : "MainMenu.rsc:labelMod"
 	SpriteSheet _spriteSheet = "ExtensionsSprites.rsc"; String _spriteName = "ExtensionsIcon";
 }
 
+// ext.phone_menu's "Game files" button (issue #96; ExtensionsDialog_AttachGameFilesButton):
+// on Android the main and pause menus open the app's game-files screen with it. The Mods button's
+// shape, as buttonExtensions, with our caption, icon (a floppy disk, tools/ext_sprites.py) and
+// tooltip. Not based on MainMenu.rsc:buttonSave / labelSaveGame for the Save icon: a provided object
+// derived from those crashed the next load (docs/known_port_issues.md, issue #96 row).
+ButtonDescription buttonGameFiles : "MainMenu.rsc:buttonMod"
+{
+	ElementDescription _content = "labelGameFiles";
+	StringTable _toolTipStringTable = "ExtensionsStringTable.rsc"; String _toolTipText = "GameFilesTip";
+}
+
+LabelDescription labelGameFiles : "MainMenu.rsc:labelMod"
+{
+	StringTable _stringTable = "ExtensionsStringTable.rsc"; String _text = "GameFiles";
+	SpriteSheet _spriteSheet = "ExtensionsSprites.rsc"; String _spriteName = "GameFilesIcon";
+}
+
 // ---------------------------------------------------------------------------------------------
 // The load notices (block EXTNOTICE, docs/extensions/handins/EXTNOTICE.md). SaveLoadDialog::DoLoad
 // raises one per `ext:<id>` entry of a save this build cannot honour as it stands, where retail

@@ -126,6 +126,60 @@ requested scale, shrunk to fit beside the cluster; the stacked full-width 2x lay
 y = 557, and a sub-toolbar sits at about y 650..840. They overlap only if a group is wider than the bar
 region, which is a modded case: it then aligns to the region's left edge.
 
+## 3a. The corner camera buttons (issue #96, the reporter's follow-up)
+
+**What it is.** A second, compact block of the cluster's rotate and zoom buttons in the upper right, so a player can
+choose the pad only, the corner buttons only, both, or neither (gestures only). `ext.touch_mode_camera_buttons`:
+Off (0, the default) / 15 / 20 / 25 / 35 / 50 / 75 / 100 / 125 %. A second dialog of the same resource,
+`Dialog/TouchControls.rsc:cameraButtons`: its root (the cluster's frame) and content group are new; the four holders
+and buttons are the cluster's own descriptions (each dialog builds its own elements), so the art, the glyphs and the
+pressed state are the pad's.
+
+**Layout** (`touch_math.h LayoutCornerButtons`). One column, the reporter's sketch: rotate left, rotate right, zoom
+in, zoom out, top to bottom. Each button is the pad's zoom button at the same scale: 1.4 c wide, (3 c - g) / 2 tall,
+c = scale x 0.11 of the short edge, so 100 % is the pad's button at pad 100 %. The gap and the frame scale the same
+way. The frame's right edge sits at W - m, its top at m (the safe margin).
+
+**The steps and the fit rule.** The scales below 50 % are what the column is for on a high-resolution tablet. The
+button's size on the glass does not depend on the UI scale (c is a fraction of the short edge): 25 % is a button
+of 92 px on the OnePlus Pad, about 6.5 mm at its 358 dpi; the sketch's buttons measure about 30 %. The reporter
+found 25 % still large and asked for 20 and 15 (74 and 55 px there, 5.2 and 3.9 mm); 15 % is the smallest step
+offered (the first ask, 10 %, would be 2.6 mm). A touch target that small is the player's pick, not a default.
+At the large steps the column is tall: 100 % is 392 of the phone's 540 layout units and 125 % reaches the
+toolbar's sub-toolbars (y 509 of 522); that is the player's pick. A column that would reach below H - m (a
+`top` below the margin, a short screen) is laid out at the largest scale that fits that height instead.
+
+| Layout screen (UI 50) | 15 % | 20 % | 25 % | 35 % | 50 % | 100 % | 125 % |
+|---|---|---|---|---|---|---|---|
+| phone 1170 x 540, m = 18 | 13 x 13, y 18..77 | 17 x 17, y 18..98 | 21 x 21, y 18..116 | 29 x 30, y 18..159 | 42 x 43, y 18..218 | 83 x 84, y 18..410 | 104 x 106, y 18..509 |
+| tablet 1696 x 1200, m = 41 | 28 x 28, y 41..172 | 36 x 37, y 41..212 | 46 x 47, y 41..259 | 64 x 66, y 41..349 | 92 x 95, y 41..481 | 185 x 189, y 41..920 | 231 x 237, y 41..1142 |
+
+(Button width x height and the frame's rows, from `LayoutCornerButtons` at those sizes, 2026-11-02.)
+
+**Why a column, after the 2x2 block.** The first cut was two rows of two, to keep the block short on the phone.
+The reporter's own layout on the tablet wanted the sketch's single ribbon at a much smaller size, so the column
+is the shape and the small steps make it compact. The order reads as the sketch's (rotate, then zoom).
+
+**What else is in the corner.** Nothing of the game's own while the row is on: the event notices are lifted out from
+behind the bar's left end to just above it (section 4, `Place`), the utility panels open at the top left, and the
+toolbar and its sub-toolbars are along the bottom. The block therefore takes the top of the safe area. A panel or an
+info window the player drags there is drawn over it (dialogs opened later draw on top), and so is the placement
+tool's name / cost label, which follows the aim and passes over the block when the aim is near the top right.
+
+**Input.** The block is laid out as a `Cluster` whose pad rectangle is empty, so `HitControl`, `Capture` and
+`ShowsPressed` serve it unchanged. It has its own `Capture` (a press starts on one block or the other; they never
+overlap), and the held control goes through the same `Hold(Source::Pad)` as the cluster's: rotate at the key rate,
+zoom continuously (`HeldZoomSteps`), no ramp (the pad's pan ramp is the pad's alone). All four tooltips are off, as
+the pad's: a finger resting on a button is a parked cursor. The press / release log lines say `corner`.
+
+**Lifetime.** Opened with the toolbar while the row is on and the key is above 0, whatever the pad's key (it works
+with the pad Off); at 0 no dialog is built and nothing is hit. Live, like the pad's key.
+
+**Verified** (Windows, `tools/device_sim.sh`, 2026-11-01): phone and tablet at 100 % with the pad Off, the tablet at
+the seed's values with the pad and the block both at 50 %, the phone at the defaults unchanged against the
+integration branch. A finger held 120 frames on the phone's zoom-in button (`--tap 0.857,0.311,30,120`, pad Off):
+`press corner zoom in: ... distance 25.0`, then `held corner zoom in 2.00 s: ... distance 6.0` (the near limit).
+
 ## 4. Input flow
 
 Touches arrive as left-button mouse events (SDL). The cluster is a UI dialog, so a touch on it sets
@@ -192,13 +246,34 @@ if (Ext::Ext().touch_mode || Ext::TouchMode::Shown())
   `tools/ext_resources.sh` re-run so the kit cross-check unit test passes (the stale-kit trap).
 - `ext.touch_mode_toolbar_scale`: a value key in `kValueKeys`, owner `touch_mode`, discrete
   100 / 125 / 150 / 175 / 200, default 200 (the ruled "about 2x", fitted per §3).
+- `ext.touch_mode_pad_scale` (issue #96): a discrete value key, owner `touch_mode`, 0 | 50 | 60 | 75 | 100 | 125,
+  default 100. The cluster's cell, gap and frame are this percent of their fractions of the short edge
+  (`touch_math.h` `LayoutCluster`'s `scale`); 0 hides the cluster (no dialog, nothing to hit) and gives the toolbar's
+  region the whole safe width. **Default rule:** 100 % is the cluster's own size before the key (it never followed
+  the toolbar scale: the cluster was always 0.11 of the short edge), so an install without the key looks the same.
+- `ext.touch_mode_action_bar_scale` (issue #96): a discrete value key, owner `touch_mode`, 25 | 30 | 35 | 50 | 60 |
+  75 | 100 | 125,
+  default 100: ext.touch_pointer's placement bar (place / rotate / flip / cancel). Its cell is this percent of the
+  cluster's scale-1 cell (`TouchMode::BaseCell()`), its gap and frame likewise, whatever the pad's scale. **Default
+  rule:** the bar always took the cluster's cell, so 100 % is the bar as it was. The aim marker keeps the scale-1 cell.
+  The key is owned by this row (the cell it scales is the cluster's) though the bar is ext.touch_pointer's.
+- `ext.touch_mode_camera_buttons` (issue #96, the reporter's follow-up): a discrete value key, owner `touch_mode`,
+  0 | 15 | 20 | 25 | 35 | 50 | 75 | 100 | 125, default 0: the corner camera buttons (section 3a), in percent of the pad's button
+  at pad
+  100 %. **Default rule:** Off, so nothing changes for anyone who does not pick it. The Enhanced tab's "Corner camera
+  buttons" combo, under "Camera pad".
 - `ext.touch_mode_zoom_min` (P11d, `docs/android/P11D_ZOOM.md`): a range value key, owner `touch_mode`, 6 .. 20,
   default 10: the camera's near zoom limit while the row is on (retail's is 20), for every zoom input (the zoom
   buttons, the pinch, keys, the wheel); `touch_math.h` `NearZoomLimit`. settings.cfg only, no Enhanced-tab entry.
 - **Enhanced tab** (`src/ext/touch_mode/enhanced_entry.cpp`, `Ext::EnhancedTab::TouchModeEntry()`), one
   combo built like Frame rate cap: "Touch controls": Off / Toolbar 100 % / 125 % / 150 % / 175 % / 200 %.
   Picking a size sets the value key and turns the row on. Labels are new keys in
-  `ExtensionsStringTable.rsc`.
+  `ExtensionsStringTable.rsc`. Issue #96 adds "Camera pad" (Off / 50 % .. 125 %) and "Placement bar"
+  (25 % .. 125 %) to the same contribution, one value key each, and the tab's "Touch screen" group (a header row at
+  the top of the Enhanced page: Touch controls, Camera pad, Placement bar, Touch pointer, Screen edge margin), then
+  a "General" header over the other rows. A header row, not a sixth tab: the one page already scrolls on the phone,
+  and a second tab would need a second page resource, the contributions split per page and the last-tab restore
+  taught another index, on a dialog whose five tab buttons already fill its width.
 - **Android seed** (`app_android.cpp` first-run lines, appended to an existing file through
   `phone_seed.h`): `ext.touch_mode=1`, `ext.touch_mode_toolbar_scale=200`.
 - No `BANISHED_*` flag, no `getenv`.

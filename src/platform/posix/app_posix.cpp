@@ -37,5 +37,14 @@ bool TakeSaveRequest() {
     return false;
 }
 
+// No game-files screen: the saves and the packages are folders the player opens in a file manager.
+bool HasGameFilesScreen() {
+    return false;
+}
+
+bool OpenGameFilesScreen() {
+    return false;
+}
+
 }  // namespace App
 }  // namespace Platform

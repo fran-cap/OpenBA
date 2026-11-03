@@ -23,6 +23,7 @@
 
 #include "boot_state_watchdog.h"
 #include "boot_state_background.h"
+#include "signal_context_android.h"   // SignalContext: the pc / lr / frame pointer by ABI
 
 #include "options.h"
 #include "platform/common/cpu/topology.h"   // CPULIMIT: the [Cpu] facts on the RUNNING line
@@ -139,12 +140,12 @@ void DumpFrame(int i, uintptr_t pcValue) {
     HangLogRaw(line);
 }
 
-// The interrupted thread's stack, one line per frame: pc, lr, then the x29 chain.
+// The interrupted thread's stack, one line per frame: pc, lr (arm64), then the frame-pointer chain.
 void DumpInterruptedStack(const mcontext_t& mc) {
     int i = 0;
-    DumpFrame(i++, static_cast<uintptr_t>(mc.pc));
-    DumpFrame(i++, static_cast<uintptr_t>(mc.regs[30]));
-    uintptr_t fp = static_cast<uintptr_t>(mc.regs[29]);
+    DumpFrame(i++, SignalContext::Pc(mc));
+    if (SignalContext::Lr(mc) != 0) DumpFrame(i++, SignalContext::Lr(mc));
+    uintptr_t fp = SignalContext::Fp(mc);
     while (i < 40 && fp != 0 && (fp & 0xF) == 0) {
         const uintptr_t* rec = reinterpret_cast<const uintptr_t*>(fp);  // CAST-OK: crash_walk
         if (!Readable(rec, 2 * sizeof(uintptr_t))) break;

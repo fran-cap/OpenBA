@@ -56,8 +56,33 @@ pointer back at once (last device wins) and the overlay hides after 3 s of mouse
 | The world, any other tool (a mod's, ext.terrain_edit's brush) | a plain mouse | a plain mouse |
 
 Two fingers on the world: pan (the centroid's motion, grab-the-map), pinch (the spread's log ratio as zoom steps),
-spin (the pair's angle change as yaw), through `Hold(Source::Fingers)`. Each component engages past its own threshold
+spin (the pair's angle change as yaw), through `Hold(Source::Fingers)`. A component engages past its own threshold
 and then follows the fingers. The gesture ends when either finger lifts; the other is ignored until it lifts too.
+
+**The mode lock** (`TwoFingers` in `touch_pointer_math.cpp`, after PR #91's report that a drag zoomed and a zoom
+turned the camera). The thresholds are distances, measured since the two fingers went down: centroid travel 2 % of
+the short edge, spread log ratio 0.06, angle 8 degrees. Until one is passed the gesture is undecided and nothing
+moves. The first component past its threshold is the mode (on a tie in one step, the one furthest past it), and
+the other two stay zero until both fingers lift and a new gesture begins. Pan is exclusive for the whole gesture:
+a one-thumb pinch moves the centroid by half the moving finger's travel, and a turn about one finger moves it
+too, so no centroid threshold separates a deliberate pan from those; to zoom after a pan, lift and touch again.
+For the same reason pan wins the lock only while each finger's own travel since the touch is at least 0.4x the
+centroid's (`kPanFingerShare`): a pan moves both fingers about as far as the centroid, while a one-thumb pinch or a
+turn about one finger leaves one nearly still. A wide one-thumb pinch passes the pan threshold before the pinch one
+(the S25 check) and stays undecided until the pinch passes its own. An earlier rule compared the spread change with
+the centroid's travel; two thumbs jitter their spread by about the 20 px the centroid has moved at engage time, so
+plain pans sometimes did not engage (the second S25 check). Pinch and spin also need a px floor: the spread change,
+and the arc one finger swept about the other, must each pass 2.5 % of the short edge (`kPinchSpinEngageFraction`,
+27 px on the S25) as well as the relative threshold. Fingers close together (index + middle, 120 px apart) have a
+relative pinch threshold of 7 px and a spin one of 17 px, which their jitter trips before the centroid has
+travelled its 2 % (the third S25 check); 2.5 % sits just above the pan threshold. Once the fingers are wide (pinch
+from about 440 px apart, spin from about 190 px) the relative thresholds govern as before. The 3x join applies to
+both, so a join also needs 3x the floor.
+Pinch and spin may join each other, as map apps allow a twist while zooming, but only once the second one passes
+3x its own threshold (`kJoinFactor`: 24 degrees of turn during a pinch, a 20 % spread change during a turn); the
+incidental turn of an ordinary pinch stays below that. No settling time: the totals since the touch already
+absorb finger tremble, and a distance rule does not depend on the frame or poll rate. No settings key; the lock
+is part of the row.
 
 ### 1.5 The snap search
 
@@ -106,8 +131,16 @@ tested.
 - **Which buttons:** a placement tool shows all five; a drag tool Place (= Confirm) and Cancel, plus Rotate for a
   `FencedTool`; no tool, no bar. The bar sits a gap above the higher of touch_mode's `BarRect` / `SubToolbarRect`
   (an open sub-toolbar pushes it up), right-aligned to the safe margin, with touch_mode's cell size.
+- **The Shift toggle** (issue #96, the reporter's third round, 2026-11-02): a sixth button between Change model and
+  Cancel, shown for a placement tool and the road tool (the only drag tool that reads the key). On, the bar holds
+  the `PathMethod` binding (action 0x16, Shift by default; `RoadTool::OnKey` reads it with `GetValue` and routes the
+  road diagonally) at full scale every poll, and `PlacementTool::CreateAt` skips its closing `FlipVariant` (the seam
+  `KeepsModel`), so a row of identical houses takes one tap each. The button shows the pressed art while on; it
+  goes off on a tap, when the tool changes or ends, or when a mouse takes the pointer back. Retail's placement
+  tool has no model lock on Shift: it reads only 0x13 / 0x14 / 0x15 and the click, and `CreateAt` always advances
+  the model (decompiled 0x1400fe2a0 and 0x1400fd650, 2026-11-02); the lock is this extension's.
 - **Not built** (in the ideas sheet, not in this task's six parts): the long press for a tooltip, two-finger list
-  scrolling over a dialog, the road route modifier (0x16) toggle, the Android back gesture as Cancel. One finger in
+  scrolling over a dialog, the Android back gesture as Cancel. One finger in
   idle (no tool) does nothing but tap (no one-finger pan: not ruled).
 
 ## 3. Verification

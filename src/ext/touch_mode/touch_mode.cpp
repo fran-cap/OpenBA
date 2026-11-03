@@ -43,6 +43,9 @@ namespace {
 
 constexpr const char* kToolbarRsc = "Dialog/Toolbar.rsc";
 constexpr const char* kClusterRsc = "Dialog/TouchControls.rsc";
+// Issue #96 (the reporter's follow-up): the corner camera buttons, a second dialog of the same file with the
+// cluster's own rotate and zoom holders and buttons.
+constexpr const char* kCornerRsc = "Dialog/TouchControls.rsc:cameraButtons";
 
 // The buttons and their holders in the cluster dialog, in touch_math.h Control order.
 constexpr const char* kButtons[kControlCount] = {"buttonTouchPad", "buttonTouchRotateLeft", "buttonTouchRotateRight",
@@ -65,8 +68,13 @@ float g_k = 1.0f;                            // the toolbar's own scale this fra
 float g_loggedK = 0.0f;
 int32_t g_loggedOwnWidth = -1;
 Cluster g_cluster;
+Cluster g_corner;              // the corner camera buttons (touch_math.h LayoutCornerButtons), laid out with it
 int32_t g_layoutW = 0;
 int32_t g_layoutH = 0;
+int32_t g_layoutPad = -1;      // ext.touch_mode_pad_scale the cluster was laid out at
+int32_t g_layoutCorner = -1;   // ext.touch_mode_camera_buttons the corner buttons were laid out at
+int32_t g_layoutMargin = -1;   // the margin it was laid out in (ext.phone_menu_safe_margin follows live)
+bool g_barShown = false;       // the row on and the top-level toolbar shown (BarRect answers; the pad may be Off)
 int32_t g_bar[4] = {0, 0, 0, 0};   // the toolbar, layout units
 int32_t g_sub[4] = {0, 0, 0, 0};   // the open sub-toolbar, layout units
 
@@ -87,6 +95,8 @@ bool Active(const CameraHold& h) {
 Control g_held = kNone;
 float g_heldSeconds = 0.0f;
 Capture g_capture;
+Capture g_cornerCapture;       // the corner buttons' own: a press starts on one block or on the other
+bool g_heldInCorner = false;   // the held control is a corner button (the press / release lines say so)
 
 // P11b: the pad's pan ramps in and out (touch_math.h SpeedRamp); the last direction is kept so the camera
 // coasts out of it after the release. The rotate buttons turn at retail's key rate from the press to the
@@ -103,6 +113,7 @@ constexpr PadSpeed kPadSpeed = kPadFull;
 
 class ClusterDialog;
 ClusterDialog* g_open = nullptr;
+ClusterDialog* g_cornerOpen = nullptr;
 
 const UI::Dialog* LoadDialog(const char* path) {
     if (::Object::ExternalFactory::_singleton == nullptr) return nullptr;
@@ -154,34 +165,53 @@ void ElementRectInLayout(const UI::Element* e, float k, int32_t* out) {
               ToLayout(e->_layoutBottom, k));
 }
 
-// The cluster for this layout screen; true when it changed.
+// The cluster for this layout screen, at the pad key's scale and in the safe margin; true when it changed.
 bool UpdateCluster(int32_t width, int32_t height) {
-    if (width == g_layoutW && height == g_layoutH && g_cluster.cell > 0) return false;
+    const int32_t pad = Val().touch_mode_pad_scale;
+    const int32_t phoneMargin = Ext().phone_menu ? PhoneMenu::SafeMargin(height) : -1;
+    const int32_t margin = Margin(width, height, phoneMargin);
+    const int32_t corner = Val().touch_mode_camera_buttons;
+    if (width == g_layoutW && height == g_layoutH && pad == g_layoutPad && margin == g_layoutMargin &&
+        corner == g_layoutCorner && g_cluster.baseCell > 0) {
+        return false;
+    }
     g_layoutW = width;
     g_layoutH = height;
-    const int32_t phoneMargin = Ext().phone_menu ? PhoneMenu::SafeMargin(height) : 0;
-    g_cluster = LayoutCluster(width, height, Margin(width, height, phoneMargin));
+    g_layoutPad = pad;
+    g_layoutMargin = margin;
+    g_layoutCorner = corner;
+    g_cluster = LayoutCluster(width, height, margin, PadScaleOfPercent(pad));
+    // The corner block at the top of the safe area: the top right holds nothing else of the game's own (the event
+    // notices sit above the bar's left end, Place below), and ext.touch_pointer's placement bar sits above the bar.
+    g_corner = LayoutCornerButtons(width, height, margin, margin, PadScaleOfPercent(corner));
     return true;
 }
 
 // ---- the cluster dialog -----------------------------------------------------
 
+// One class for both dialogs: the cluster (`layout` g_cluster, `slot` g_open) and the corner buttons (g_corner,
+// g_cornerOpen). A dialog shapes only the controls its layout has (the corner's pad rectangle is empty and its
+// resource has no pad).
 class ClusterDialog final : public UI::DialogInstance {
 public:
-    ClusterDialog(UI::UserInterface* ui, const UI::Dialog* dialog)
-        : UI::DialogInstance(ui, dialog, Object::InternalPtr<UI::DialogInstance>(), nullptr, nullptr, 0) {}
+    ClusterDialog(UI::UserInterface* ui, const UI::Dialog* dialog, const Cluster* layout, ClusterDialog** slot,
+                  const char* content)
+        : UI::DialogInstance(ui, dialog, Object::InternalPtr<UI::DialogInstance>(), nullptr, nullptr, 0),
+          _layout(layout),
+          _slot(slot),
+          _content(content) {}
 
     ~ClusterDialog() override {
-        if (g_open == this) g_open = nullptr;
+        if (*_slot == this) *_slot = nullptr;
     }
 
     void OnOpened() override {
-        g_open = this;
+        *_slot = this;
         _shapedW = -1;
     }
 
     void OnClosed() override {
-        if (g_open == this) g_open = nullptr;
+        if (*_slot == this) *_slot = nullptr;
     }
 
     // The captured control in its pressed state (ButtonElement state 3, the toolbar's held art) while the press is
@@ -208,16 +238,25 @@ public:
     }
 
     // The holders' padding and the buttons' sizes from the cluster's rectangles, the glyphs scaled to
-    // their buttons. Again whenever the layout screen changes.
+    // their buttons. Again whenever the layout screen, the pad's scale or the margin changes.
     void Shape() {
-        if (_shapedW == g_layoutW && _shapedH == g_layoutH) return;
+        if (_shapedW == g_layoutW && _shapedH == g_layoutH && _shapedPad == g_layoutPad &&
+            _shapedMargin == g_layoutMargin && _shapedCorner == g_layoutCorner) {
+            return;
+        }
         _shapedW = g_layoutW;
         _shapedH = g_layoutH;
-        std::fprintf(stderr, "[TouchMode] %dx%d: cluster cell %d, box %d,%d..%d,%d, bar region %d..%d\n", g_layoutW,
-                     g_layoutH, g_cluster.cell, g_cluster.box.x1, g_cluster.box.y1, g_cluster.box.x2,
-                     g_cluster.box.y2, g_cluster.barRegion.x1, g_cluster.barRegion.x2);
+        _shapedPad = g_layoutPad;
+        _shapedMargin = g_layoutMargin;
+        _shapedCorner = g_layoutCorner;
+        const Cluster& c = *_layout;
+        const bool corner = _layout == &g_corner;
+        std::fprintf(stderr, "[TouchMode] %dx%d: %s cell %d, box %d,%d..%d,%d, bar region %d..%d\n", g_layoutW,
+                     g_layoutH, corner ? "corner buttons" : "cluster", c.cell, c.box.x1, c.box.y1, c.box.x2,
+                     c.box.y2, c.barRegion.x1, c.barRegion.x2);
         for (int32_t i = 0; i < kControlCount; ++i) {
-            const Rect& r = g_cluster.control[i];
+            const Rect& r = c.control[i];
+            if (r.Width() <= 0) continue;   // the corner block has no pad
             UI::Element* holder = FindElement(System::String(kHolders[i])).Get();
             UI::Element* button = FindElement(System::String(kButtons[i])).Get();
             if (holder == nullptr || button == nullptr) {
@@ -226,31 +265,32 @@ public:
             }
             // Relative to the cluster's box: the dialog's root sits at the box's corner (Place), so the
             // dialog hit-tests (and takes the pointer from the world) over the box only.
-            holder->_leftPad = r.x1 - g_cluster.box.x1 - g_cluster.frame;
-            holder->_topPad = r.y1 - g_cluster.box.y1 - g_cluster.frame;
+            holder->_leftPad = r.x1 - c.box.x1 - c.frame;
+            holder->_topPad = r.y1 - c.box.y1 - c.frame;
             holder->SetNeedsSizeCalc();
             button->_minWidth = r.Width();
             button->_minHeight = r.Height();
             button->SetNeedsSizeCalc();
-            // The pad's tooltip off: a finger left on it after a pan is a parked cursor.
-            if (i == kPad) button->SetFlagsOnOff(0, UI::kElementFlagToolTipValid);
+            // The pad's tooltip off: a finger left on it after a pan is a parked cursor. The corner buttons' too:
+            // a finger rests on them the same way, and their tooltip would open over the world beside the corner.
+            if (i == kPad || corner) button->SetFlagsOnOff(0, UI::kElementFlagToolTipValid);
         }
         // The content inside the frame: inset by the cluster's frame on every side, so the frame (the toolbar's
         // borders, which fill the root) wraps the controls with the toolbar's margin.
-        if (UI::Element* content = FindElement(System::String("groupTouchContent")).Get()) {
-            content->_leftPad = g_cluster.frame;
-            content->_topPad = g_cluster.frame;
-            content->_rightPad = g_cluster.frame;
-            content->_bottomPad = g_cluster.frame;
+        if (UI::Element* content = FindElement(System::String(_content)).Get()) {
+            content->_leftPad = c.frame;
+            content->_topPad = c.frame;
+            content->_rightPad = c.frame;
+            content->_bottomPad = c.frame;
             content->SetNeedsSizeCalc();
         }
-        const Rect& pad = g_cluster.control[kPad];
+        const Rect& pad = c.control[kPad];
         if (UI::Element* arrows = FindElement(System::String("groupTouchPadArrows")).Get()) {
             arrows->_minWidth = pad.Width() - 2 * kFrameInset;
             arrows->_minHeight = pad.Height() - 2 * kFrameInset;
             arrows->SetNeedsSizeCalc();
         }
-        const int32_t glyph = static_cast<int32_t>(kGlyphFraction * static_cast<float>(g_cluster.cell));
+        const int32_t glyph = static_cast<int32_t>(kGlyphFraction * static_cast<float>(c.cell));
         const char* images[] = {"imageTouchUp", "imageTouchDown", "imageTouchLeft", "imageTouchRight",
                                 "imageTouchRotateLeftArrow", "imageTouchCameraLeft", "imageTouchCameraRight",
                                 "imageTouchRotateRightArrow", "imageTouchZoomIn", "imageTouchZoomOut"};
@@ -273,26 +313,33 @@ public:
     }
 
 private:
+    const Cluster* _layout;
+    ClusterDialog** _slot;
+    const char* _content;   // the group inside the frame
     int32_t _shapedW = -1;
     int32_t _shapedH = -1;
+    int32_t _shapedPad = -1;
+    int32_t _shapedMargin = -1;
+    int32_t _shapedCorner = -1;
 };
 
-void OpenCluster(UI::UserInterface* ui) {
-    const UI::Dialog* rsc = LoadDialog(kClusterRsc);
+void OpenControls(UI::UserInterface* ui, const char* path, const Cluster* layout, ClusterDialog** slot,
+                  const char* content, const char* what) {
+    const UI::Dialog* rsc = LoadDialog(path);
     if (rsc == nullptr) return;
     void* mem = System::MemoryAllocator::MemAlloc(sizeof(ClusterDialog), 8);
     if (mem == nullptr) return;
-    ClusterDialog* dlg = ::new (mem) ClusterDialog(ui, rsc);
+    ClusterDialog* dlg = ::new (mem) ClusterDialog(ui, rsc, layout, slot, content);
     Object::InternalPtr<UI::DialogInstance> ref(dlg);
     ui->AddDialog(&ref);   // dispatches OnOpened
-    std::fprintf(stderr, "[TouchMode] controls shown\n");
+    std::fprintf(stderr, "[TouchMode] %s shown\n", what);
 }
 
-void CloseCluster(UI::UserInterface* ui) {
-    Object::InternalPtr<UI::DialogInstance> ref(g_open);
+void CloseControls(UI::UserInterface* ui, ClusterDialog** slot, const char* what) {
+    Object::InternalPtr<UI::DialogInstance> ref(*slot);
     ui->CloseDialog(&ref);
-    g_open = nullptr;
-    std::fprintf(stderr, "[TouchMode] controls hidden\n");
+    *slot = nullptr;
+    std::fprintf(stderr, "[TouchMode] %s hidden\n", what);
 }
 
 // The top-level toolbar, open and visible (the cluster follows it).
@@ -401,6 +448,14 @@ bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
         }
         return true;
     }
+    if (dialog == g_cornerOpen) {
+        // The corner buttons: their root at their box's upper-left, as the cluster's.
+        if (point == UI::UserInterface::kExtPlaceLayout) {
+            g_cornerOpen->Shape();
+            StoreRect(rect, g_corner.box.x1, g_corner.box.y1, width, height);
+        }
+        return true;
+    }
     const UI::UserInterface* ui = dialog->_ui;
     if (ui == nullptr) return false;
     // A tooltip opened from the scaled toolbar: retail put it at the pointer in the toolbar's units.
@@ -446,7 +501,7 @@ bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
 }
 
 bool Shown() {
-    return g_open != nullptr;
+    return g_open != nullptr || g_cornerOpen != nullptr;
 }
 
 void Hold(Source source, const CameraHold& hold) {
@@ -461,25 +516,53 @@ void Hold(Source source, const CameraHold& hold) {
 void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, float& panGain, float& heldZoom) {
     GameUpdateLoop* loop = GameUpdateLoop::_singleton;
     UI::UserInterface* ui = loop != nullptr ? loop->m_userInterface : nullptr;
-    const bool want = Ext().touch_mode && ToolbarShown(ui);
-    if (want && g_open == nullptr && ui != nullptr) OpenCluster(ui);
-    if (!want && g_open != nullptr && ui != nullptr) CloseCluster(ui);
+    // The toolbar's rectangle is answered whenever the row lays it out (BarRect); the cluster is shown with it
+    // unless the pad key is Off (issue #96: play with the gestures alone).
+    g_barShown = Ext().touch_mode && ToolbarShown(ui);
+    const bool want = g_barShown && Val().touch_mode_pad_scale > 0;
+    if (want && g_open == nullptr && ui != nullptr) {
+        OpenControls(ui, kClusterRsc, &g_cluster, &g_open, "groupTouchContent", "controls");
+    }
+    if (!want && g_open != nullptr && ui != nullptr) CloseControls(ui, &g_open, "controls");
+    // The corner camera buttons (issue #96): with the toolbar too, whatever the pad's key; Off = no dialog.
+    const bool wantCorner = g_barShown && Val().touch_mode_camera_buttons > 0;
+    if (wantCorner && g_cornerOpen == nullptr && ui != nullptr) {
+        OpenControls(ui, kCornerRsc, &g_corner, &g_cornerOpen, "groupCameraButtonsContent", "corner buttons");
+    }
+    if (!wantCorner && g_cornerOpen != nullptr && ui != nullptr) CloseControls(ui, &g_cornerOpen, "corner buttons");
 
     // The cluster: the control the press started on, held until the release whatever the pointer crosses
     // (touch_math.h Capture; the owner's rule, 2026-10-26).
     Control held = kNone;
     int32_t mx = 0;
     int32_t my = 0;
-    if (g_open != nullptr && ui != nullptr && ::Input::Device::_singleton != nullptr) {
+    bool inCorner = false;
+    if ((g_open != nullptr || g_cornerOpen != nullptr) && ui != nullptr && ::Input::Device::_singleton != nullptr) {
         const ::Input::Device* in = ::Input::Device::_singleton;
         mx = static_cast<int32_t>(static_cast<float>(in->_mouse[0].value) * ui->_uiScale);
         my = static_cast<int32_t>(static_cast<float>(in->_mouse[1].value) * ui->_uiScale);
         const bool down = in->_mouse[4].value > 0;
-        held = g_capture.Step(g_cluster, down, mx, my);
+        // Each block captures on its own; the two never overlap, so at most one holds a control.
+        if (g_open != nullptr) {
+            held = g_capture.Step(g_cluster, down, mx, my);
+        } else {
+            g_capture = Capture();
+        }
+        if (g_cornerOpen != nullptr) {
+            const Control corner = g_cornerCapture.Step(g_corner, down, mx, my);
+            if (held == kNone && corner != kNone) {
+                held = corner;
+                inCorner = true;
+            }
+        } else {
+            g_cornerCapture = Capture();
+        }
     } else {
         g_capture = Capture();
+        g_cornerCapture = Capture();
     }
     if (g_open != nullptr) g_open->ShowPressed(g_capture);
+    if (g_cornerOpen != nullptr) g_cornerOpen->ShowPressed(g_cornerCapture);
     CameraHold pad;
     if (held == kPad) {
         const PadPan v = PadVector(g_cluster.control[kPad], mx, my, kPadSpeed);
@@ -500,14 +583,17 @@ void CameraInput(float dt, float& yaw, float& panX, float& panY, int& zoomDir, f
     if (held != g_held) {
         const PlayerController* pc = loop != nullptr ? loop->m_playerController : nullptr;
         if (g_held != kNone && pc != nullptr) {
-            std::fprintf(stderr, "[TouchMode] held %s %.2f s: yaw %.1f target %.1f,%.1f distance %.1f\n",
-                         kControlNames[g_held], g_heldSeconds, pc->yaw, pc->target.x, pc->target.y, pc->distance);
+            std::fprintf(stderr, "[TouchMode] held %s%s %.2f s: yaw %.1f target %.1f,%.1f distance %.1f\n",
+                         g_heldInCorner ? "corner " : "", kControlNames[g_held], g_heldSeconds, pc->yaw, pc->target.x,
+                         pc->target.y, pc->distance);
         }
         if (held != kNone && pc != nullptr) {
-            std::fprintf(stderr, "[TouchMode] press %s: yaw %.1f target %.1f,%.1f distance %.1f\n",
-                         kControlNames[held], pc->yaw, pc->target.x, pc->target.y, pc->distance);
+            std::fprintf(stderr, "[TouchMode] press %s%s: yaw %.1f target %.1f,%.1f distance %.1f\n",
+                         inCorner ? "corner " : "", kControlNames[held], pc->yaw, pc->target.x, pc->target.y,
+                         pc->distance);
         }
         g_held = held;
+        g_heldInCorner = inCorner;
         g_heldSeconds = 0.0f;
     } else if (held != kNone) {
         g_heldSeconds += dt;
@@ -571,8 +657,12 @@ int32_t Cell() {
     return g_cluster.cell;
 }
 
+int32_t BaseCell() {
+    return g_cluster.baseCell;
+}
+
 void BarRect(int32_t* rect) {
-    if (g_open == nullptr) {
+    if (!g_barShown) {
         StoreRect(rect, 0, 0, 0, 0);
         return;
     }
@@ -580,7 +670,7 @@ void BarRect(int32_t* rect) {
 }
 
 void SubToolbarRect(int32_t* rect) {
-    if (g_open == nullptr) {
+    if (!g_barShown) {
         StoreRect(rect, 0, 0, 0, 0);
         return;
     }

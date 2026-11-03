@@ -7,7 +7,9 @@ A pull request is reviewed against the rules below. They are short; the pointers
 ## 1. No game content in the tree, the exe or a package
 No retail shader source or DXBC, textures, models, sounds, `.rsc` or `.pkg` copies, and no port or
 derivative of them. Retail data is read from the user's own install at run time; transform it at
-load if you must, never ship it. A launcher or installer never copies game data.
+load if you must, never ship it. A launcher or installer never copies game data from a package it
+ships; copying the player's own files on their own device at their explicit request (the Android
+first-run picker, `tools/android.sh push-data`) is fine.
 (`docs/extensions/DESIGN.md` §3, rule 7.)
 
 ## 2. Faithful first; everything else is a fix or an extension

@@ -13,7 +13,8 @@
 //     single-click mode, a tap with no tool picks the nearest pickable (snap and tap-to-cycle);
 //   * two fingers pan, pinch-zoom and spin through ext.touch_mode's camera hold (Source::Fingers);
 //   * an action bar (Dialog/TouchPointer.rsc) on the right above the toolbar: Place / Confirm, Rotate
-//     left / right, Change model, Cancel; a marker at the aim point.
+//     left / right, Change model, Shift (a toggle: retail's Shift held, and the model kept), Cancel; a marker at
+//     the aim point.
 // A real mouse event hands the pointer back at once (last device wins); the bar hides after 3 s of it.
 // Default OFF on a desktop; the Android first run switches it on (src/platform/android/app_android.cpp).
 // Under the faithful profile no seam is installed.
@@ -55,6 +56,11 @@ bool ToolAimHeld(const Tool* current);
 // world cursor the tool last aimed at, so GetPlacement / the drag's end cell keep the aim while the real cursor is on
 // the dialog for the click. Any thread (the draw); a no-op otherwise.
 void ToolCursor(int16_t& x, int16_t& y);
+
+// PlacementTool::CreateAt (EXT SEAM, issue #96): true while the bar's Shift toggle is on for the current placement
+// tool; the tool then keeps its model after the placement instead of advancing to the next one (retail's
+// FlipVariant at the end of CreateAt). False with the row off or the toggle off.
+bool KeepsModel();
 
 }  // namespace TouchPointer
 }  // namespace Ext

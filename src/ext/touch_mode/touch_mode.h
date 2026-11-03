@@ -39,12 +39,17 @@ float Scale(const UI::DialogInstance* dialog);
 // cluster), so phone_menu's own rule is skipped for it. False with the row off.
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect);
 
-// The cluster's cell (layout units of the game's UI), 0 before the first layout: ext.touch_pointer's
-// action bar uses the same button size.
+// The cluster's cell (layout units of the game's UI) at ext.touch_mode_pad_scale, 0 before the first
+// layout or with the pad Off.
 int32_t Cell();
 
-// True while the cluster dialog is open (the camera seam calls CameraInput while the row is on
-// OR this, so a row switched off closes it).
+// The cluster's cell at scale 1 (kCellFraction of the short edge), 0 before the first layout, whatever
+// the pad key says: ext.touch_pointer's action bar sizes from it times ext.touch_mode_action_bar_scale
+// (issue #96; before the keys the bar took Cell(), the same number at the default 100 %).
+int32_t BaseCell();
+
+// True while the cluster dialog or the corner camera buttons' dialog (issue #96, ext.touch_mode_camera_buttons) is
+// open (the camera seam calls CameraInput while the row is on OR this, so a row switched off closes them).
 bool Shown();
 
 // PlayerToolManager::UpdateCamera, after the keys set the locals and before ext.eye_camera's zoom:
@@ -80,8 +85,9 @@ struct CameraHold {
 };
 void Hold(Source source, const CameraHold& hold);
 
-// The toolbar's and the open sub-toolbar's rectangles in layout units ({0,0,0,0} when not shown),
-// for the touch_pointer action bar (TOUCH_MODE.md section 4 "Reserved strip").
+// The toolbar's and the open sub-toolbar's rectangles in layout units ({0,0,0,0} when the row is off or
+// the toolbar is not shown; given with the pad Off too), for the touch_pointer action bar (TOUCH_MODE.md
+// section 4 "Reserved strip").
 void BarRect(int32_t* rect);
 void SubToolbarRect(int32_t* rect);
 

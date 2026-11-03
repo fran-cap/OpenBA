@@ -26,6 +26,7 @@
 #include "android_paths.h"
 #include "phone_seed.h"   // MissingSeedLines (P8)
 #include "platform_memory.h"   // Platform::Memory::LowMemoryDevice (P13)
+#include "platform_display_size.h"   // Platform::Display::PhysicalScreenInches (issue #96)
 
 #include "boot_state_watchdog.h"
 #include "android/boot_state_background.h"   // src/diag/android: the watchdog's background bracket
@@ -35,6 +36,7 @@
 #include <SDL3/SDL_system.h>
 
 #include <android/log.h>
+#include <jni.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -156,8 +158,37 @@ const char kLowMemorySettings[] =
     "ext.texture_quality=1\n"
     "ext.texture_quality_drop=1\n";
 
+// Issue #96 (ruled 2026-11-01): a TABLET (the screen's shorter physical edge at least
+// Platform::Display::kTabletShortEdgeInches, 3.3", platform_display_size.h) starts from the phone
+// defaults with these values instead. The phone's Half render scale on a 3392x2400 tablet draws
+// 1696x1200 and stretches it; at Full the panel draws its own pixels (the tablet emulator holds the 60
+// cap at 100 and at 75, which says nothing of a tablet's GPU; 75 is not a choice of the Options row,
+// which offers 100 / 50 / 25; docs/android/README.md "Tablet defaults"). The
+// UI scale is the phone's 50 written out: a first run with no UIScale takes the game's 100 at the
+// render percent (FirstRunUiScalePercent), which at Full would draw the panels at half the size the
+// phone defaults give a tablet today (2 screen pixels per layout unit, about 6 units per mm at
+// 320 dpi). The toolbar at 150 % gives buttons about 9 mm square at that UI scale, the size a finger
+// needs (TOUCH_MODE.md §3: the S25's 8.5 mm); 200 % made them 12 mm and the bar 18 mm tall.
+// The camera pad's cell is 11 % of the screen's shorter edge (touch_math.h): 21 mm on a 2400-row
+// 320 dpi tablet against the S25's 7 mm, and the placement bar's buttons take the pad's full-size
+// button. Both at 50 % (ext.touch_mode_pad_scale, ext.touch_mode_action_bar_scale, TOUCH_MODE.md §5)
+// are about 10.5 mm, the smallest step the rows offer and the nearest to the phone's.
+// ext.phone_menu, ext.touch_mode and ext.touch_pointer stay on, as everything else of the phone's.
+const char kTabletOverrides[] =
+    "VideoRenderScale=100\n"
+    "GameUIScale=50\n"
+    "ext.touch_mode_toolbar_scale=150\n"
+    "ext.touch_mode_pad_scale=50\n"
+    "ext.touch_mode_action_bar_scale=50\n";
+
 void SeedPhoneSettings(const std::string& userDir) {
-    std::string seed = kPhoneSettings;
+    float widthInches = 0.0f;
+    float heightInches = 0.0f;
+    const bool sizeKnown = Platform::Display::PhysicalScreenInches(&widthInches, &heightInches);
+    const bool tablet = sizeKnown && Platform::Display::IsTabletScreen(widthInches, heightInches);
+    const char* const kind = tablet ? "tablet" : "phone";
+    std::string seed = tablet ? Platform::Android::WithSeedOverrides(kPhoneSettings, kTabletOverrides)
+                              : std::string(kPhoneSettings);
     if (Platform::Memory::LowMemoryDevice()) seed += kLowMemorySettings;
     mkdir(userDir.c_str(), 0770);
     const std::string path = userDir + "/settings.cfg";
@@ -179,7 +210,7 @@ void SeedPhoneSettings(const std::string& userDir) {
         if (!existing.empty() && existing.back() != '\n') std::fputc('\n', out);
         std::fputs(missing.c_str(), out);
         std::fclose(out);
-        __android_log_print(ANDROID_LOG_INFO, kLogTag, "phone defaults added to %s: %s", path.c_str(),
+        __android_log_print(ANDROID_LOG_INFO, kLogTag, "%s defaults added to %s: %s", kind, path.c_str(),
                             missing.c_str());
         return;
     }
@@ -187,7 +218,11 @@ void SeedPhoneSettings(const std::string& userDir) {
     if (f == nullptr) return;
     std::fputs(seed.c_str(), f);
     std::fclose(f);
-    __android_log_print(ANDROID_LOG_INFO, kLogTag, "first run: phone defaults written to %s", path.c_str());
+    __android_log_print(ANDROID_LOG_INFO, kLogTag,
+                        "first run: %s defaults written to %s (display %.2fx%.2f in%s, tablet from a %.1f in "
+                        "short edge)",
+                        kind, path.c_str(), widthInches, heightInches, sizeKnown ? "" : ", size unknown",
+                        Platform::Display::kTabletShortEdgeInches);
 }
 
 // THE LIFECYCLE WATCH (P7, docs/android/README.md "Lifecycle"). SDL delivers the Android lifecycle
@@ -301,15 +336,49 @@ void PostSdlInit() {
 
 // docs/android/README.md: the app makes WinData/ itself at every start (EnterRunDirectory), because
 // a folder adb makes there belongs to the shell user and is unreadable to the app.
+// Since issue #96 a start from the icon never reaches this box: OpenBAActivity shows its first-run
+// screen (the folder / .zip picker) while WinData has no data0.pkg. The box is left for a launch with
+// BANISHED_* extras (a harness run) and for a WinData the Java check and the native one disagree on.
 const char* MissingGameDataHelp() {
     // Short: the box does not scroll (game_data_check.cpp MessageText).
-    return "Connect to a PC by USB (File transfer), open Android > data > org.openba.game > files > "
-           "WinData and copy data0.pkg, data1.pkg, patch0.pkg and patch1.pkg into it from your "
-           "Banished WinData folder. Then start OpenBA again.";
+    return "Start OpenBA from its icon and choose the folder, or a .zip, holding data0.pkg, "
+           "data1.pkg, patch0.pkg and patch1.pkg from your Banished WinData folder.";
 }
 
 bool TakeSaveRequest() {
     return g_saveRequested.exchange(false);
+}
+
+// The app's GameFilesActivity (android/app/src/main/java/org/openba/game/GameFilesActivity.java).
+bool HasGameFilesScreen() {
+    return true;
+}
+
+// One JNI call, as display_size_android.cpp's: OpenBAActivity.openGameFilesScreen ("()Z") posts the
+// start of GameFilesActivity to the UI thread and returns at once. The game then goes to the
+// background like any trip out of the app (THE LIFECYCLE WATCH above) and comes back when the
+// player leaves the screen.
+bool OpenGameFilesScreen() {
+    JNIEnv* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+    if (env == nullptr) return false;
+    jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+    if (activity == nullptr) return false;
+    bool ok = false;
+    jclass cls = env->GetObjectClass(activity);
+    jmethodID mid = env->GetMethodID(cls, "openGameFilesScreen", "()Z");
+    if (mid != nullptr) {
+        ok = env->CallBooleanMethod(activity, mid) == JNI_TRUE;
+    }
+    if (env->ExceptionCheck()) {
+        env->ExceptionDescribe();
+        env->ExceptionClear();
+        ok = false;
+    }
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(activity);
+    __android_log_print(ok ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, kLogTag,
+                        "[GameFiles] OpenBAActivity.openGameFilesScreen: %s", ok ? "started" : "failed");
+    return ok;
 }
 
 void Shutdown() {

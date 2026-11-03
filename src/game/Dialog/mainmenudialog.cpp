@@ -27,6 +27,7 @@
 #include "Dialog/ModDialog.h"
 #include "Dialog/ExtensionsDialog.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): the Extensions button
 #include "ext/phone_menu/phone_menu.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): the menu safe area
+#include "platform/common/platform_app.h"   // EXT SEAM (NOT RETAIL, issue #96): Platform::App::OpenGameFilesScreen
 #include "ext/registry.h"                // Ext::Fix().mods_persist
 #include "Dialog/NewGameDialog.h"
 #include "Dialog/MapParamsDialog.h"
@@ -549,6 +550,9 @@ void MainMenuDialog::OnOpened() {
     // Extensions button beside Mods. Retail's steps above are untouched; under
     // the gate's command-line faithful profile this adds nothing.
     ExtensionsDialog_AttachMenuButton(this);
+    // EXT SEAM (NOT RETAIL, docs/android/README.md "Installing the game files", issue #96):
+    // ext.phone_menu's "Game files" button, on a platform with that screen (Android).
+    ExtensionsDialog_AttachGameFilesButton(this);
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): ext.phone_menu learns which
     // dialogs are the menu's (this one and the version line) for its layouts and backdrop fit;
@@ -672,6 +676,13 @@ void MainMenuDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
         // AttachMenuButton adds in OnOpened. Retail has no id 13.
         printf("[MainMenuDialog::OnCommand] -> OpenExtensions (ExtensionsDialog)\n");
         ExtensionsDialog_OpenFromMainMenu(this);
+        break;
+    case kGameFilesMenuButtonId:
+        // EXT SEAM (NOT RETAIL, issue #96): ext.phone_menu's "Game files" button
+        // (ExtensionsDialog_AttachGameFilesButton). The platform's own screen opens over the game;
+        // the menu stays as it is underneath.
+        printf("[MainMenuDialog::OnCommand] -> OpenGameFilesScreen\n");
+        Platform::App::OpenGameFilesScreen();
         break;
     default:
         printf("[MainMenuDialog::OnCommand] button id=%d not yet wired in standalone\n", id);

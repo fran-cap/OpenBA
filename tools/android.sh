@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # tools/android.sh -- build, install and drive the Android app (docs/android/README.md).
 #
+#   tools/android.sh [--avd PROFILE | --serial S] COMMAND ...   # COMMAND against that emulator / device
 #   tools/android.sh build [debug|release] [--jobs N] [--ccache] [--pgo generate|use|off] [--flavour perf]
-#                                                      # apk/debug/app-debug.apk, apk/release/app-release-unsigned.apk
+#                          [--emulator]                # apk/debug/app-debug.apk, apk/release/app-release-unsigned.apk
+#                                                      # (--emulator: x86_64, under app/build-emulator/)
 #   tools/android.sh pgo-merge [DIR]                   # pull the instrumented app's raw profiles (the data
 #                                                      # folder's pgo/) into DIR (default perf/pgo/android/raw) and
 #                                                      # merge them into perf/pgo/android/openba.profdata
@@ -18,6 +20,11 @@
 #   tools/android.sh boot-state [--wait N]             # = tools/boot_state.sh --android [--wait N]
 #   tools/android.sh validation on LAYER.so | off       # the Khronos validation layer in the debug app
 #   tools/android.sh debug [LLDB ARGS ...]             # LLDB attached to the running debug app (args = batch)
+#   tools/android.sh avd list                          # the emulator profiles, their AVDs and serials
+#   tools/android.sh avd create PROFILE [--force]      # make the AVD of a profile (tablet | phone)
+#   tools/android.sh avd start PROFILE [--window]      # boot it (headless unless --window), wait for the boot
+#   tools/android.sh avd stop [PROFILE]                # shut it down (every profile's without one)
+#   tools/android.sh screenshot FILE.png               # adb exec-out screencap (no window needed)
 #
 # Environment: ANDROID_HOME (default %LOCALAPPDATA%/Android/Sdk), JAVA_HOME (default Android
 # Studio's bundled JBR), ADB (default platform-tools/adb of ANDROID_HOME, then C:/code/platform-tools,
@@ -42,6 +49,10 @@
 #   tools/android.sh run BANISHED_AUTOSTART=1 BANISHED_AUTOQUIT=600
 # A run always force-stops first: SDL's activity ends the process's game once main returns and
 # refuses a second start in the same process.
+#
+# The emulator (docs/android/EMULATOR.md): `avd create tablet`, `avd start tablet`, then every
+# command with `--avd tablet` talks to that emulator (its fixed console port names its adb serial),
+# and `install debug` takes the x86_64 apk of `build debug --emulator` when the device is x86_64.
 set -euo pipefail
 # Git Bash on Windows rewrites arguments that look like POSIX paths ("/sdcard/...") before
 # handing them to a Windows program; adb's device paths must pass through untouched.
@@ -80,9 +91,102 @@ if [ -z "${ADB:-}" ]; then
 fi
 
 usage() {
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'
     exit 2
 }
+
+# ---- The emulator profiles (docs/android/EMULATOR.md) ----
+# One AVD per profile on the SDK's x86_64 API 35 image, each on a fixed console port so its adb
+# serial is known without asking adb: emulator-<port>.
+AVD_IMAGE="system-images;android-35;google_apis_playstore;x86_64"
+AVD_PROFILES="tablet phone"
+avd_name() {
+    case "$1" in
+        tablet) echo "OpenBA_Tablet" ;;
+        phone) echo "OpenBA_Phone" ;;
+        *) echo "unknown emulator profile '$1' (tablet | phone)" >&2; return 1 ;;
+    esac
+}
+avd_port() {
+    case "$1" in
+        tablet) echo 5580 ;;
+        phone) echo 5582 ;;
+        *) echo "unknown emulator profile '$1' (tablet | phone)" >&2; return 1 ;;
+    esac
+}
+# The hardware keys written into the AVD's config.ini over the base device's.
+#   tablet: the OnePlus Pad 3 class (issue #96): 3392x2400, 13.2", ~315 ppi -> the 320 dpi bucket;
+#           landscape is its natural orientation.
+#   phone:  the Galaxy S25 class (the reference device): 1080x2340, 6.2", ~416 ppi -> 420 dpi;
+#           portrait natural, so the landscape app runs pre-rotated as on the S25.
+# Both: host GPU (gfxstream on the host's Vulkan / GL driver), 6 cores (the emulator's maximum), 6 GB RAM, an 8 GB data partition.
+avd_hw() {
+    case "$1" in
+        tablet)
+            echo "hw.lcd.width=3392 hw.lcd.height=2400 hw.lcd.density=320 hw.initialOrientation=landscape"
+            ;;
+        phone)
+            echo "hw.lcd.width=1080 hw.lcd.height=2340 hw.lcd.density=420 hw.initialOrientation=portrait"
+            ;;
+    esac
+    echo "hw.ramSize=6144 vm.heapSize=512 hw.cpu.ncore=6 hw.gpu.enabled=yes hw.gpu.mode=host hw.keyboard=yes"
+    echo "disk.dataPartition.size=8G showDeviceFrame=no skin.dynamic=yes"
+}
+avd_base_device() {
+    case "$1" in
+        tablet) echo "pixel_tablet" ;;
+        phone) echo "medium_phone" ;;
+    esac
+}
+avd_home() {
+    echo "${ANDROID_AVD_HOME:-${ANDROID_USER_HOME:-$HOME/.android}/avd}"
+}
+sdk_tool() {
+    for cand in "$@"; do
+        if [ -f "$cand" ]; then
+            echo "$cand"
+            return 0
+        fi
+    done
+    echo "none of: $*" >&2
+    return 1
+}
+emulator_bin() {
+    sdk_tool "$ANDROID_HOME/emulator/emulator.exe" "$ANDROID_HOME/emulator/emulator"
+}
+avdmanager_bin() {
+    sdk_tool "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager.bat" "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+}
+# key=value into an AVD config.ini: the line replaced when the key is there, appended when not.
+ini_set() {
+    local file="$1" key="$2" value="$3"
+    if grep -q "^$key[ ]*=" "$file"; then
+        sed -i "s|^$key[ ]*=.*|$key=$value|" "$file"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$file"
+    fi
+}
+# Is the emulator behind a serial up and answering adb?
+serial_online() {
+    [ "$("$ADB" -s "$1" get-state 2>/dev/null | tr -d '\r')" = device ]
+}
+
+# The leading device options: --avd PROFILE (that profile's emulator) or --serial S. Both set
+# ANDROID_SERIAL, which every adb call here and tools/boot_state.sh then use.
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --avd)
+            shift
+            export ANDROID_SERIAL="emulator-$(avd_port "${1:?--avd PROFILE}")"
+            ;;
+        --serial)
+            shift
+            export ANDROID_SERIAL="${1:?--serial SERIAL}"
+            ;;
+        *) break ;;
+    esac
+    shift
+done
 
 gradlew() {
     if [ "${OS:-}" = "Windows_NT" ]; then
@@ -95,8 +199,8 @@ gradlew() {
 # The apk Gradle writes for a build type: debug is signed with the debug key; release is unsigned
 # (`app-release-unsigned.apk`) until `sign` writes `app-release.apk` beside it.
 apk_path() {
-    local p="$ANDROID_DIR/app/build/outputs/apk/$1/app-$1.apk"
-    if [ "${2:-}" = unsigned ]; then p="$ANDROID_DIR/app/build/outputs/apk/$1/app-$1-unsigned.apk"; fi
+    local p="$ANDROID_DIR/app/${BUILD_SUBDIR:-build}/outputs/apk/$1/app-$1.apk"
+    if [ "${2:-}" = unsigned ]; then p="$ANDROID_DIR/app/${BUILD_SUBDIR:-build}/outputs/apk/$1/app-$1-unsigned.apk"; fi
     if command -v cygpath >/dev/null 2>&1; then p="$(cygpath -m "$p")"; fi
     echo "$p"
 }
@@ -130,6 +234,7 @@ build)
             --ccache) props+=("-Popenba.ccache=true") ;;
             --pgo) shift; props+=("-Popenba.pgo=$1") ;;
             --flavour) shift; props+=("-Popenba.flavour=$1") ;;
+            --emulator) props+=("-Popenba.emulator=true"); BUILD_SUBDIR=build-emulator ;;
             *) usage ;;
         esac
         shift
@@ -177,10 +282,19 @@ install)
     # -d: a dev phone moves between trees whose versionCode differs (build.gradle derives it from the
     # CMake VERSION since P8; older trees had 1). Android takes a lower code only over a debuggable
     # install; over a signed release apk, `adb uninstall` first (that deletes the data folder).
+    # An x86_64 device (the emulator) takes the apk of `build ... --emulator`.
     type="${1:-debug}"
+    abi="$("$ADB" shell getprop ro.product.cpu.abi | tr -d '\r')"
+    if [ "$abi" = x86_64 ]; then
+        BUILD_SUBDIR=build-emulator
+    fi
     case "$type" in
         *.apk) "$ADB" install -r -d "$type" ;;
-        *) "$ADB" install -r -d "$(apk_path "$type")" ;;
+        *)
+            apk="$(apk_path "$type")"
+            [ -f "$apk" ] || { echo "no apk at $apk (device ABI $abi: tools/android.sh build $type${BUILD_SUBDIR:+ --emulator})" >&2; exit 1; }
+            "$ADB" install -r -d "$apk"
+            ;;
     esac
     ;;
 push-data)
@@ -204,8 +318,8 @@ push-data)
         done
         "$ADB" shell am force-stop "$PKG"
     fi
-    # The retail packages only: parked mods (_mods_off and every other subfolder) stay home.
-    for pkg in "$src"/*.pkg; do
+    # The folder's packages and mods: parked mods (_mods_off and every other subfolder) stay home.
+    for pkg in "$src"/*.pkg "$src"/*.pkm; do
         [ -f "$pkg" ] || continue
         if command -v cygpath >/dev/null 2>&1; then pkg="$(cygpath -m "$pkg")"; fi
         "$ADB" push "$pkg" "$DATA/WinData/"
@@ -357,6 +471,113 @@ debug)
     else
         "$lldb" "${args[@]}"
     fi
+    ;;
+screenshot)
+    out="${1:?screenshot FILE.png}"
+    "$ADB" exec-out screencap -p > "$out"
+    [ -s "$out" ] || { echo "screencap wrote nothing" >&2; exit 1; }
+    ls -la "$out"
+    ;;
+avd)
+    sub="${1:-}"
+    [ $# -gt 0 ] && shift
+    case "$sub" in
+    list)
+        for profile in $AVD_PROFILES; do
+            name="$(avd_name "$profile")"
+            serial="emulator-$(avd_port "$profile")"
+            made="no AVD"
+            [ -f "$(avd_home)/$name.avd/config.ini" ] && made="AVD made"
+            state="stopped"
+            serial_online "$serial" && state="running"
+            printf '%-7s %-14s %-9s %-15s %s\n' "$profile" "$name" "$made" "$serial" "$state"
+        done
+        ;;
+    create)
+        profile="${1:?avd create PROFILE (tablet | phone)}"
+        name="$(avd_name "$profile")"
+        force=""
+        [ "${2:-}" = "--force" ] && force="--force"
+        dir="$(avd_home)/$name.avd"
+        if [ -f "$dir/config.ini" ] && [ -z "$force" ]; then
+            echo "$name exists ($dir); --force makes it again (its data is wiped)" >&2
+            exit 1
+        fi
+        # avdmanager asks whether to make a custom hardware profile: the answer is no, the
+        # profile's keys are written into config.ini below.
+        echo no | "$(avdmanager_bin)" create avd -n "$name" -k "$AVD_IMAGE" -d "$(avd_base_device "$profile")" $force
+        for kv in $(avd_hw "$profile"); do
+            ini_set "$dir/config.ini" "${kv%%=*}" "${kv#*=}"
+        done
+        # No skin: the screen is the lcd size above (a skin would fix the base device's).
+        ini_set "$dir/config.ini" skin.name "$(sed -n 's/^hw.lcd.width=//p' "$dir/config.ini")x$(sed -n 's/^hw.lcd.height=//p' "$dir/config.ini")"
+        ini_set "$dir/config.ini" skin.path _no_skin
+        # avdmanager also writes every hardware default, among them placeholders Android Studio
+        # leaves out (a "<temp>" data-partition path, zero partition sizes): drop those.
+        sed -i '/=<temp>$/d; /^disk\.systemPartition\.size=0$/d; /^disk\.vendorPartition\.size=0$/d' "$dir/config.ini"
+        grep -E '^(hw\.(lcd|ramSize|cpu|gpu|keyboard|initialOrientation)|disk|skin|image)' "$dir/config.ini"
+        ;;
+    start)
+        profile="${1:?avd start PROFILE (tablet | phone)}"
+        name="$(avd_name "$profile")"
+        port="$(avd_port "$profile")"
+        serial="emulator-$port"
+        [ -f "$(avd_home)/$name.avd/config.ini" ] || { echo "no AVD $name (tools/android.sh avd create $profile)" >&2; exit 1; }
+        if serial_online "$serial"; then
+            echo "$name is already running as $serial"
+            exit 0
+        fi
+        # Headless by default (-no-window; screenshots with `screenshot`): a script never opens a
+        # visible window unless asked (--window). -gpu host: the host's GPU through gfxstream (the
+        # software renderers have no Vulkan). -no-snapshot: a cold boot every time, no saved state.
+        args=(-avd "$name" -port "$port" -gpu host -no-audio -no-boot-anim -no-snapshot)
+        [ "${2:-}" = "--window" ] || args+=(-no-window)
+        log="${TMPDIR:-/tmp}/openba-emulator-$profile.log"
+        nohup "$(emulator_bin)" "${args[@]}" > "$log" 2>&1 < /dev/null &
+        emu_pid=$!
+        echo "starting $name on $serial (pid $emu_pid, log $log)"
+        booted=""
+        for _ in $(seq 1 300); do
+            if ! kill -0 "$emu_pid" 2>/dev/null; then
+                echo "the emulator exited during boot:" >&2
+                tail -20 "$log" >&2
+                exit 1
+            fi
+            if [ "$("$ADB" -s "$serial" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then
+                booted=yes
+                break
+            fi
+            sleep 1
+        done
+        [ -n "$booted" ] || { echo "$serial did not finish booting in 300 s (log $log)" >&2; exit 1; }
+        # A headless screen still sleeps: an app behind a sleeping screen is in the background
+        # (the Vulkan backend drops its swap chain), so keep it awake and unlocked.
+        "$ADB" -s "$serial" shell svc power stayon true
+        "$ADB" -s "$serial" shell input keyevent KEYCODE_WAKEUP
+        "$ADB" -s "$serial" shell wm dismiss-keyguard || true
+        # The system's one-time "Viewing full screen" notice takes the focus from a fresh install's
+        # first fullscreen start, which pauses the game (GameAutoPause): mark it seen.
+        "$ADB" -s "$serial" shell settings put secure immersive_mode_confirmations confirmed
+        echo "$name booted: $serial ($("$ADB" -s "$serial" shell wm size | tr -d '\r' | tail -1), $("$ADB" -s "$serial" shell wm density | tr -d '\r' | tail -1))"
+        ;;
+    stop)
+        profiles="${1:-$AVD_PROFILES}"
+        for profile in $profiles; do
+            serial="emulator-$(avd_port "$profile")"
+            if serial_online "$serial"; then
+                "$ADB" -s "$serial" emu kill
+                for _ in $(seq 1 30); do
+                    serial_online "$serial" || break
+                    sleep 1
+                done
+                echo "$serial stopped"
+            fi
+        done
+        ;;
+    *)
+        usage
+        ;;
+    esac
     ;;
 *)
     usage

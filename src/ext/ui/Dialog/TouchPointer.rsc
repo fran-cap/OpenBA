@@ -1,7 +1,7 @@
 // Dialog/TouchPointer.rsc -- ext.touch_pointer's action bar and aim marker (NOT RETAIL; authored for this port, src/ext).
 //
 // docs/android/P11_TOUCH_POINTER.md. The bar sits on the right above the toolbar: Place / Confirm, Rotate structure
-// left / right, Change structure model, Cancel. Every look is the game's own, read from the player's install: the
+// left / right, Change structure model, Shift (a toggle, issue #96), Cancel. Every look is the game's own, read from the player's install: the
 // buttons are the toolbar's (Toolbar.rsc:buttonToolbar), the frame the toolbar's (SharedElements.rsc), the glyphs are
 // sprites of the game's SpriteSheet.rsc (GoalSuccess, ToolbarHousing, ArrowLeftSmall / RightSmall, ToolClose,
 // ArrowDown), the tooltips the Options
@@ -34,7 +34,8 @@ GroupDescription groupPointerContent
 	Alignment _alignment = TopLeft;
 	ElementDescription _elements
 	[
-		"holderPointerPlace" "holderPointerRotateLeft" "holderPointerRotateRight" "holderPointerFlip" "holderPointerCancel"
+		"holderPointerPlace" "holderPointerRotateLeft" "holderPointerRotateRight" "holderPointerFlip" "holderPointerShift"
+		"holderPointerCancel"
 	]
 }
 
@@ -42,6 +43,7 @@ GroupDescription holderPointerPlace { Alignment _alignment = TopLeft; ElementDes
 GroupDescription holderPointerRotateLeft { Alignment _alignment = TopLeft; ElementDescription _elements [ "buttonPointerRotateLeft" ] }
 GroupDescription holderPointerRotateRight { Alignment _alignment = TopLeft; ElementDescription _elements [ "buttonPointerRotateRight" ] }
 GroupDescription holderPointerFlip { Alignment _alignment = TopLeft; ElementDescription _elements [ "buttonPointerFlip" ] }
+GroupDescription holderPointerShift { Alignment _alignment = TopLeft; ElementDescription _elements [ "buttonPointerShift" ] }
 GroupDescription holderPointerCancel { Alignment _alignment = TopLeft; ElementDescription _elements [ "buttonPointerCancel" ] }
 
 ImageDescription imagePointerGlyph
@@ -116,6 +118,21 @@ RibbonDescription ribbonPointerFlip
 // arrows here read as "rotate both ways").
 ImageDescription imagePointerFlipLeft : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ArrowLeftSmall"; }
 ImageDescription imagePointerFlipRight : "imagePointerGlyph" { Alignment _alignment = MidCenter; String _spriteName = "ArrowRightSmall"; }
+
+// Shift (issue #96, the reporter's third round): a toggle. On, the bar holds retail's Shift (the PathMethod key: a
+// road routes diagonally) and a placement tool keeps its model after each placement. The glyph is the keyboard's
+// shift arrow (ExtensionsSprites.rsc: ExtensionsGlyph_pointer_shift, our own sprite); the pressed art shows it on.
+ButtonDescription buttonPointerShift : "buttonPointerPlace"
+{
+	ElementDescription _content = "imagePointerShift";
+	StringTable _toolTipStringTable = "ExtensionsStringTable.rsc";
+	String _toolTipText = "TouchPointerShiftTip";
+}
+
+ImageDescription imagePointerShift : "imagePointerGlyph"
+{
+	Alignment _alignment = MidCenter; SpriteSheet _spriteSheet = "ExtensionsSprites.rsc"; String _spriteName = "ExtensionsGlyph_pointer_shift";
+}
 
 // Cancel (retail's right click).
 ButtonDescription buttonPointerCancel : "buttonPointerPlace"

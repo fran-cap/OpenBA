@@ -7,6 +7,25 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 ## Unreleased
 
 **Extensions**
+- Touch screens (issue #96): the camera pad, the placement bar and the screen-edge margin now have their own
+  sizes, in a new "Touch screen" group at the top of the Options Enhanced tab. "Camera pad" Off / 50 % to 125 %
+  (`ext.touch_mode_pad_scale`; Off hides the pad for gesture-only play and gives the toolbar the whole bottom
+  edge), "Placement bar" 25 % to 125 % (`ext.touch_mode_action_bar_scale`), and "Screen edge margin" None / 2 % /
+  3.4 % / 4.5 % / 6 % (`ext.phone_menu_safe_margin`; None puts panels on a tablet's edges). The defaults are the
+  sizes they had, so nothing changes until a player picks another.
+- Touch screens (issue #96, the reporter's follow-ups): "Corner camera buttons" in the same group, Off / 15 % to
+  125 % (`ext.touch_mode_camera_buttons`, Off by default): rotate left / right and zoom in / out as one compact
+  column in the upper right, held like the camera pad's own buttons. Independent of the pad, so a player can use
+  the pad, the corner buttons, both, or neither (gestures only). The small steps are for high-resolution tablets,
+  where 100 % is a thumb-sized button; a column too tall for the screen is laid out at the largest size that fits.
+- Touch screens (issue #96): a tablet (a screen of 3.3 inches or more across its short side) starts with the
+  camera pad and the placement bar at 50 % and the game UI at the desktop scale, instead of the phone's sizes.
+- Touch pointer (`ext.touch_pointer`): a Shift button on the placement bar, between "Change model" and Cancel,
+  shown for buildings and roads. On, a road routes diagonally (what Shift does on the PC), and a building keeps
+  its current model after each placement, so a row of identical houses takes one tap each. It goes off on a tap,
+  when the tool changes, or when a mouse takes over (`docs/android/P11_TOUCH_POINTER.md`).
+- Touch pointer (`ext.touch_pointer`): a tool armed before the first aim (a building picked from the toolbar on a
+  tablet) parks the cursor on the world, so the placement bar and the ghost appear at once.
 - Natural tree growth (`ext.better_trees`): in spring the deciduous trees now flower, each on its own
   schedule for a week or two. Plum, cherry, peach, pear and apple carry white and pink blossom, and the
   early ones flower on bare branches. Oak, birch, pecan and chestnut carry catkins. Modded trees get a pale
@@ -19,8 +38,29 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   visibly starts) and foam where the water meets piers, bridge feet and boats (DX11 and Vulkan; Metal draws
   none yet). Extra passes over the water with our own shaders; retail's water shader is not touched
   (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
+- Touch pointer (`ext.touch_pointer`): a two-finger gesture now locks to the first thing it does. A drag
+  no longer zooms or turns the camera, and a pinch no longer drags it; a deliberate twist (past 24 degrees)
+  may still turn the camera during a pinch. Lift both fingers to switch (`docs/android/P11_TOUCH_POINTER.md`).
+  The idea, and the first cut of it, came from sintaxcz (PR #91).
+- `ext.better_water`: the shore edge is now drawn on Vulkan (Linux, and Windows with
+  `BANISHED_RENDER_BACKEND=vulkan`) and on Android; the shore shaders read the water's own texture coordinates,
+  where they had assumed the DX11 layout.
+
+**Android**
+- Installing the game files (issue #96): with no Banished packages yet, the app opens a first-run screen in
+  the game's dialog style. "Choose the folder" or "Choose an archive" (a `.zip`) in the system's picker, and the
+  app copies the retail `.pkg` files of the player's own Banished install into its data folder, with a progress
+  bar and a cancel, then starts the game. Mods (`.pkm` files) in that folder are copied beside the packages.
+  No file manager access to `Android/data` is needed any more.
+- "Game files": a button in the main and pause menus (and the app icon's long-press shortcut) opens the same
+  screen at any time to export the saves to a `.zip` or import them from one (`docs/android/README.md`).
 
 **Fixes**
+- `fix.ui_scale_layout` (on): the building's name shown while placing it now sits by the ghost on a touch
+  screen. Retail scales that label's position by the UI scale twice, so at any scale but 100 % it floated far
+  from the building (`docs/retail_bugs.md` section 5; issue #96).
+- `ext.phone_menu` and the Enhanced tab keep their scroll bar when a mod replaces the Options page with one that
+  has none (the North 7 mod hid the UI-scale slider and everything below it; issue #96).
 - `fix.stranded_wade` (on): a citizen stuck on land cut off from the town (he crossed a stream where it
   touches a mountain or shore, or a builder was left on a finished dock or bridge piece) no longer stands
   there "going somewhere to get warm" until he starves. Once a walk of his toward home was refused because
@@ -117,6 +157,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   the render thread, most often seen while placing a building with a radius circle (a well, a market)
   and moving the camera. The frame copy the render thread draws from wrote two parts of itself over each
   other (`docs/known_port_issues.md` row 1347).
+
+Thanks to sintaxcz for the Android tablet reports, the gesture-lock idea (PR #91) and the testing of every build
+along the way (issue #96).
 
 ## v1.0.2 (2026-10-30)
 

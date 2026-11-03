@@ -55,6 +55,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- "Game files" (issue #96): the launcher icon's long-press shortcut, published by
+             OpenBAActivity. Plain views, no SDL; its own task, so it opens beside a running game. Not
+             exported: the app's own shortcut reaches it all the same, and no other app can. -->
+        <activity
+            android:name="org.openba.game.GameFilesActivity"
+            android:label="Game files"
+            android:taskAffinity="org.openba.game.files"
+            android:excludeFromRecents="true"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
+            android:exported="false" />
     </application>
 
 </manifest>

@@ -80,11 +80,31 @@ void EdgePan(float x, float y, int32_t w, int32_t h, int32_t& dx, int32_t& dy);
 
 // ---- two fingers -----------------------------------------------------------------------------
 
-// The thresholds past which each component of a two-finger gesture engages (then it follows the fingers
-// exactly): the centroid's travel (a fraction of the short edge), the spread's log ratio, the angle.
+// The thresholds past which a component of a two-finger gesture engages (then it follows the fingers
+// exactly), each measured since Begin: the centroid's travel (a fraction of the short edge), the spread's log
+// ratio, the angle.
 constexpr float kPanEngageFraction = 0.02f;
 constexpr float kPinchEngageLog = 0.06f;
 constexpr float kSpinEngageDegrees = 8.0f;
+// Pinch and spin also need the fingers' motion relative to each other in px (the spread change; the arc one finger
+// swept about the other) past this fraction of the short edge (27 px on the S25's 1080). The relative thresholds
+// alone are a few px for fingers close together (index + middle, 120 px apart: 7 px of spread, 17 px of arc),
+// which their jitter trips before the centroid travels its 2 %; 2.5 % sits just above the pan threshold, so a
+// close pair's jitter cannot reach it first, and a deliberate pinch or twist moves well past it. The relative
+// thresholds govern once the fingers are wide (pinch from about 440 px apart, spin from about 190 px).
+constexpr float kPinchSpinEngageFraction = 0.025f;
+// The mode lock: the first component past its threshold is the gesture's mode and the others stay zero until
+// the next Begin (the fingers lifted). If several pass in one step, the one furthest past its threshold (the
+// largest measure / threshold) wins. Pan is exclusive for the whole gesture. Pinch and spin may join each other
+// once the second one passes this many times its own threshold (a deliberate twist during a zoom, or a
+// deliberate spread during a turn, as map apps allow); below that a pinch's incidental turn and a turn's
+// incidental spread are dropped.
+constexpr float kJoinFactor = 3.0f;
+// Pan wins the lock only while each finger's own travel since Begin is at least this fraction of the centroid's:
+// a pan moves both fingers about as far as the centroid, a one-thumb pinch or a turn about one finger leaves one
+// nearly still (it moves the centroid by half the other finger's travel). Short of it the gesture stays
+// undecided until pinch or spin passes its own threshold.
+constexpr float kPanFingerShare = 0.4f;
 // One retail zoom step (camera_input.cpp kZoomStep) per this log ratio of the spread.
 constexpr float kPinchLogPerStep = 0.12f;
 
@@ -97,7 +117,9 @@ struct GestureStep {
 
 class TwoFingers {
 public:
+    // A new gesture (two fingers down): the mode lock is undecided again.
     void Begin(float x1, float y1, float x2, float y2, float shortEdge);
+    // The fingers' new positions: this step's motion of the engaged components (all zero while undecided).
     GestureStep Step(float x1, float y1, float x2, float y2);
     bool panEngaged() const { return _pan; }
     bool pinchEngaged() const { return _pinch; }
@@ -106,6 +128,7 @@ public:
 private:
     float _shortEdge = 1.0f;
     float _startCx = 0.0f, _startCy = 0.0f, _startDist = 1.0f, _startAngle = 0.0f;
+    float _startX1 = 0.0f, _startY1 = 0.0f, _startX2 = 0.0f, _startY2 = 0.0f;
     float _cx = 0.0f, _cy = 0.0f, _dist = 1.0f, _angle = 0.0f;
     bool _pan = false, _pinch = false, _spin = false;
 };
@@ -148,8 +171,10 @@ enum Button : int32_t {
     kRotateLeft = 1,    // action 0x13
     kRotateRight = 2,   // action 0x14
     kFlip = 3,          // action 0x15
-    kCancel = 4,        // action 6
-    kButtonCount = 5
+    kShift = 4,         // a toggle: action 0x16 (PathMethod, retail's Shift) held while on; a placement tool keeps
+                        // its model (issue #96, the reporter's third round)
+    kCancel = 5,        // action 6
+    kButtonCount = 6
 };
 
 struct Rect {

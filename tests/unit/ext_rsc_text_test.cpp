@@ -8,6 +8,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/load_notice.h"
+#include "ext/registry.h"   // issue #96: the key combos have one item per choice
 #include "ext/resources/text_parser.h"
 #include "ext/resources/text_enums.h"
 #include "ext_rsc_text.h"
@@ -150,8 +151,9 @@ UNIT_TEST(ext_rsc_text_parse_extensions) {
     }
     // The bases the in-game pages derive from (RestrictedFoodsPage.rsc, ItemPriorityPage.rsc) stay.
     CHECK(f.Find("entryList") && f.Find("tableList") && f.Find("tableMods"));
-    // 46 + fix.save_failure_notice's box (saveFailed, noticeSaveFailed)
-    CHECK(f.objects.size() == 48);
+    // 46 + fix.save_failure_notice's box (saveFailed, noticeSaveFailed) + 2: buttonGameFiles and labelGameFiles
+    // (issue #96)
+    CHECK(f.objects.size() == 50);
 }
 
 UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
@@ -171,7 +173,18 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(page && page->body.Find("_content") &&
           page->body.Find("_content")->tokens[0].text == "enhancedOptionsTable");
     const Object* table = e.Find("enhancedOptionsTable");
-    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 27);   // thirteen labels, fourteen controls (BETTERWATER: better water; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer)
+    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 37);   // nineteen labels, eighteen controls (BETTERWATER: better water; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin; the reporter's follow-up: corner camera buttons)
+    // Issue #96: one combo item per choice of its value key (registry.cpp), in the key's order.
+    const char* const keyCombos[][2] = {{"touchPadItems", "touch_mode_pad_scale"},
+                                        {"touchCameraButtonItems", "touch_mode_camera_buttons"},
+                                        {"touchActionBarItems", "touch_mode_action_bar_scale"},
+                                        {"phoneSafeMarginItems", "phone_menu_safe_margin"}};
+    for (const auto& kc : keyCombos) {
+        const Object* items = e.Find(kc[0]);
+        const Ext::ValueKey* key = Ext::FindValueKey(kc[1]);
+        CHECK(items && items->body.Find("_strings") && key &&
+              static_cast<int32_t>(items->body.Find("_strings")->blocks.size()) == key->choiceCount);
+    }
     const Object* tpItems = e.Find("touchPointerItems");   // P11b: Off, four presets, Custom
     CHECK(tpItems && tpItems->body.Find("_strings") && tpItems->body.Find("_strings")->blocks.size() == 6);
     // TEXQUALITY: the Texture quality combo offers Full / Half only (Quarter removed by the user's ruling).
@@ -191,8 +204,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // and its tip, + 2 for the search box (its label and tip), + 3 for the town summary (button, title,
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
-    // fix.save_failure_notice's message
-    CHECK(strings && strings->blocks.size() == 129);
+    // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
+    // + 1 for the touch pointer bar's Shift tip
+    CHECK(strings && strings->blocks.size() == 132);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -456,6 +470,18 @@ UNIT_TEST(ext_rsc_text_parse_touch_controls) {
     const Object* arrow = f.Find("imageTouchArrow");
     CHECK(arrow && arrow->body.Find("_spriteSheet") &&
           arrow->body.Find("_spriteSheet")->tokens[0].text == "SpriteSheet.rsc");
+    // Issue #96 (the reporter's follow-up): the corner camera buttons, a second dialog of the file around the same
+    // four rotate / zoom holders (the controller finds them by the cluster's names), no pad.
+    const Object* corner = f.Find("cameraButtons");
+    CHECK(corner && corner->type == "Dialog" && corner->body.Find("_rootElement") &&
+          corner->body.Find("_rootElement")->tokens[0].text == "cameraButtonsRoot");
+    const Object* cornerContent = f.Find("groupCameraButtonsContent");
+    CHECK(cornerContent && cornerContent->type == "GroupDescription");
+    if (cornerContent && cornerContent->body.Find("_elements")) {
+        const Field* elements = cornerContent->body.Find("_elements");
+        CHECK(elements->tokens.size() == 4);
+        for (const auto& t : elements->tokens) CHECK(t.text != "holderTouchPad" && f.Find(t.text.c_str()) != nullptr);
+    }
     CheckKnownTypes(f, "TouchControls.rsc");
 }
 
@@ -468,7 +494,7 @@ UNIT_TEST(ext_rsc_text_parse_touch_pointer) {
     CHECK(dialog && dialog->type == "Dialog");
     const Object* marker = f.Find("marker");
     CHECK(marker && marker->type == "Dialog");
-    const char* names[] = {"Place", "RotateLeft", "RotateRight", "Flip", "Cancel"};
+    const char* names[] = {"Place", "RotateLeft", "RotateRight", "Flip", "Shift", "Cancel"};
     for (const char* n : names) {
         const Object* holder = f.Find((std::string("holderPointer") + n).c_str());
         const Object* button = f.Find((std::string("buttonPointer") + n).c_str());

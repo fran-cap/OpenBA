@@ -44,6 +44,7 @@
 #include "Player/FencedTool.h"
 #include "Player/PathTool.h"
 #include "Player/PlacementTool.h"
+#include "Player/RoadTool.h"
 #include "Player/exe_bodies.h"   // PlayerRay_GetMouseRay_1005a0: the tools' own cursor ray
 
 #include <atomic>
@@ -64,12 +65,18 @@ constexpr const char* kBarRsc = "Dialog/TouchPointer.rsc";
 constexpr const char* kMarkerRsc = "Dialog/TouchPointer.rsc:marker";
 
 constexpr const char* kButtons[kButtonCount] = {"buttonPointerPlace", "buttonPointerRotateLeft",
-                                                "buttonPointerRotateRight", "buttonPointerFlip", "buttonPointerCancel"};
+                                                "buttonPointerRotateRight", "buttonPointerFlip", "buttonPointerShift",
+                                                "buttonPointerCancel"};
 constexpr const char* kHolders[kButtonCount] = {"holderPointerPlace", "holderPointerRotateLeft",
-                                                "holderPointerRotateRight", "holderPointerFlip", "holderPointerCancel"};
-constexpr const char* kButtonNames[kButtonCount] = {"place", "rotate left", "rotate right", "flip", "cancel"};
+                                                "holderPointerRotateRight", "holderPointerFlip", "holderPointerShift",
+                                                "holderPointerCancel"};
+constexpr const char* kButtonNames[kButtonCount] = {"place", "rotate left", "rotate right", "flip", "shift", "cancel"};
 // The KeyMap actions the buttons send (src/game/Game/inputbindings.cpp): StructureLeft / Right / Type, MouseRight.
-constexpr int32_t kButtonAction[kButtonCount] = {-1, 0x13, 0x14, 0x15, 6};
+// Place clicks and Shift toggles (-1: no one-step action).
+constexpr int32_t kButtonAction[kButtonCount] = {-1, 0x13, 0x14, 0x15, -1, 6};
+// The binding the Shift toggle holds: PathMethod, retail's Shift (RoadTool::OnKey reads it with GetValue and routes
+// the road diagonally).
+constexpr int32_t kShiftAction = 0x16;
 
 // Retail's input values (input_device_update.cpp kFullScale) and mouse inputs (inputbindings.cpp).
 constexpr int16_t kFullScale = 0x7FFF;
@@ -167,6 +174,12 @@ TwoFingers g_two;
 GestureStep g_pendingGesture;   // summed since the last poll
 bool g_gestureActive = false;
 int32_t g_barPressed = -1;
+// The Shift toggle (issue #96, the reporter's third round): while on, kShiftAction is held down every poll (a road
+// tool routes diagonally) and a placement tool keeps its model after a placement (PlacementTool::CreateAt's seam,
+// KeepsModel). Off again on a tap, when the tool changes or ends, or when a mouse takes the pointer back.
+bool g_shift = false;
+const Tool* g_shiftTool = nullptr;
+int16_t g_prevShift = 0;
 
 LatchQueue g_queue;
 std::vector<int32_t> g_actions;   // KeyMap action ids, one per poll
@@ -403,6 +416,11 @@ void PressButton(int32_t b) {
     std::fprintf(stderr, "[TouchPointer] bar %s\n", kButtonNames[b]);
     if (b == kPlace) {
         ClickAtParked();
+        return;
+    }
+    if (b == kShift) {
+        g_shift = !g_shift;
+        g_shiftTool = CurrentTool();
         return;
     }
     g_actions.push_back(kButtonAction[b]);
@@ -674,6 +692,28 @@ void PressAction(Input::Device& dev, int32_t action) {
     }
 }
 
+// The input the KeyMap binds `action` to (its first bound slot), held at full scale while `down`, let go once
+// after; nothing is written while it is up and was up, so a real key on that binding still reads.
+void HoldAction(Input::Device& dev, int32_t action, bool down, int16_t& prev) {
+    if (!down && prev == 0) return;
+    const Input::KeyMap* km = Input::Configuration::_singleton != nullptr ? Input::Configuration::_singleton->_keyMap
+                                                                         : nullptr;
+    if (km == nullptr) return;
+    const int16_t value = down ? kFullScale : 0;
+    for (int32_t slot = 0; slot < 2; ++slot) {
+        const int32_t device = static_cast<int8_t>(km->GetDeviceForId(action, slot));
+        const int32_t input = km->GetInputForId(action, slot);
+        if (device == 1 && input >= 0 && input < Input::Device::kKeyboardInputCount) {
+            SetInput(dev._keyboard[input], value, prev);
+            return;
+        }
+        if (device == 2 && input >= 0 && input < Input::Device::kMouseInputCount) {
+            SetInput(dev._mouse[input], value, prev);
+            return;
+        }
+    }
+}
+
 void AfterUpdate(Input::Device& dev) {
     const bool on = Ext().touch_pointer;
     if (on != g_sinkOn) {
@@ -716,6 +756,7 @@ void AfterUpdate(Input::Device& dev) {
         PressAction(dev, g_actions.front());
         g_actions.erase(g_actions.begin());
     }
+    HoldAction(dev, kShiftAction, g_shift, g_prevShift);
 
     // The camera: the two fingers' motion since the last poll, or the edge auto-pan of a drag tool's aim.
     TouchMode::CameraHold hold;
@@ -811,6 +852,7 @@ public:
         SizeGlyphs("imagePointerRotateLeftArrow", "imagePointerHouseLeft", glyph, cell);
         SizeGlyphs("imagePointerHouseRight", "imagePointerRotateRightArrow", glyph, cell);
         SizeGlyphs("imagePointerFlipLeft", "imagePointerFlipRight", glyph, cell);
+        SizeGlyphs("imagePointerShift", nullptr, glyph, cell);
     }
 
     // Sizes the one or two images of a button: each at height h (a whole multiple of its sprite when that is at
@@ -932,28 +974,35 @@ void CloseDialog(UI::UserInterface* ui, UI::DialogInstance* d) {
 // The buttons the current tool uses.
 uint32_t ShownFor(const Tool* tool, ToolKind kind) {
     if (kind == ToolKind::Place) return (1u << kPlace) | (1u << kRotateLeft) | (1u << kRotateRight) | (1u << kFlip) |
-                                        (1u << kCancel);
+                                        (1u << kShift) | (1u << kCancel);
     if (kind == ToolKind::Drag) {
         uint32_t m = (1u << kPlace) | (1u << kCancel);
         if (tool != nullptr && tool->IsA(FencedTool::TypeId())) m |= (1u << kRotateLeft) | (1u << kRotateRight);
+        if (tool != nullptr && tool->IsA(RoadTool::TypeId())) m |= (1u << kShift);   // the only drag tool reading 0x16
         return m;
     }
     return 0;
 }
 
-// The bar's layout on the game UI's layout screen.
-Bar CurrentBar(const UI::UserInterface* ui, uint32_t shown, int32_t& cell, int32_t& frame) {
+// The bar's layout on the game UI's layout screen. `baseCell` is the cluster's cell at scale 1 (the aim
+// marker's size); the bar's own `cell`, `frame` and gap are ext.touch_mode_action_bar_scale times their
+// scale-1 sizes (issue #96: 100 % = the bar as it always was, whatever the pad's own scale).
+Bar CurrentBar(const UI::UserInterface* ui, uint32_t shown, int32_t& baseCell, int32_t& cell, int32_t& frame) {
     int32_t w = 0;
     int32_t h = 0;
     ScreenSize(w, h);
     const int32_t lw = static_cast<int32_t>(static_cast<float>(w) * ui->_uiScale);
     const int32_t lh = static_cast<int32_t>(static_cast<float>(h) * ui->_uiScale);
     const int32_t shortEdge = lw < lh ? lw : lh;
-    cell = TouchMode::Cell();
-    if (cell <= 0) cell = static_cast<int32_t>(TouchMode::kCellFraction * static_cast<float>(shortEdge) + 0.5f);
-    frame = static_cast<int32_t>(TouchMode::kFrameFraction * static_cast<float>(shortEdge) + 0.5f);
-    const int32_t gap = static_cast<int32_t>(TouchMode::kGapFraction * static_cast<float>(shortEdge) + 0.5f);
-    const int32_t margin = TouchMode::Margin(lw, lh, Ext().phone_menu ? PhoneMenu::SafeMargin(lh) : 0);
+    const float scale = static_cast<float>(Val().touch_mode_action_bar_scale) / 100.0f;
+    baseCell = TouchMode::BaseCell();
+    if (baseCell <= 0) {
+        baseCell = static_cast<int32_t>(TouchMode::kCellFraction * static_cast<float>(shortEdge) + 0.5f);
+    }
+    cell = static_cast<int32_t>(static_cast<float>(baseCell) * scale + 0.5f);
+    frame = static_cast<int32_t>(TouchMode::kFrameFraction * static_cast<float>(shortEdge) * scale + 0.5f);
+    const int32_t gap = static_cast<int32_t>(TouchMode::kGapFraction * static_cast<float>(shortEdge) * scale + 0.5f);
+    const int32_t margin = TouchMode::Margin(lw, lh, Ext().phone_menu ? PhoneMenu::SafeMargin(lh) : -1);
     int32_t bar[4] = {0, 0, 0, 0};
     int32_t sub[4] = {0, 0, 0, 0};
     TouchMode::BarRect(bar);
@@ -961,7 +1010,7 @@ Bar CurrentBar(const UI::UserInterface* ui, uint32_t shown, int32_t& cell, int32
     int32_t above = 0;
     if (bar[3] > bar[1]) above = bar[1];
     if (sub[3] > sub[1] && (above == 0 || sub[1] < above)) above = sub[1];
-    if (above == 0) above = lh - margin - cell * 3 / 2;   // retail's toolbar: about a cell and a half high
+    if (above == 0) above = lh - margin - baseCell * 3 / 2;   // retail's toolbar: about a cell and a half high
     return LayoutBar(lw, lh, cell, gap, frame, margin, above, shown);
 }
 
@@ -1005,23 +1054,65 @@ bool HoldToolAim(const Tool* current) {
     return true;
 }
 
+// A placement or drag tool armed with no world position yet (the first one after the start: the only touches
+// so far were on dialogs, so the cursor was sent off the screen after the toolbar tap) gets one: the first
+// point of a 3 x 3 sweep from the screen's centre that no dialog covers. Retail's mouse is always somewhere
+// over the world once the player moves it; a finger leaves the cursor where it was, so without this the tool
+// casts no ray, shows no ghost, and its CreateBar (name, cost, status) stays at the dialog's default place,
+// the screen's upper-left, until the first aim. Later tools start at the last aim, as before (issue #96).
+void SeedWorldAim(ToolKind kind) {
+    if (g_haveWorld || !g_owns || !g_fingers.empty()) return;
+    if (kind != ToolKind::Place && kind != ToolKind::Drag) return;
+    if (g_queue.Last().x >= 0.0f) return;   // the cursor is somewhere already (a pending release, a real place)
+    int32_t w = 0;
+    int32_t h = 0;
+    ScreenSize(w, h);
+    if (w <= 0 || h <= 0) return;
+    static const float kSweep[9][2] = {{0.5f, 0.5f},   {0.75f, 0.5f}, {0.5f, 0.25f},
+                                       {0.75f, 0.25f}, {0.25f, 0.5f}, {0.25f, 0.25f},
+                                       {0.5f, 0.75f},  {0.75f, 0.75f}, {0.25f, 0.75f}};
+    for (const auto& p : kSweep) {
+        const float x = p[0] * static_cast<float>(w);
+        const float y = p[1] * static_cast<float>(h);
+        if (OverDialog(x, y)) continue;
+        Move(x, y, false);
+        g_lastWorld.x = x;
+        g_lastWorld.y = y;
+        g_haveWorld = true;
+        std::fprintf(stderr, "[TouchPointer] first tool with no aim yet: cursor parked at %.0f,%.0f\n", x, y);
+        return;
+    }
+}
+
+bool KeepsModel() {
+    return g_shift && Ext().touch_pointer && g_shiftTool != nullptr && g_shiftTool == CurrentTool();
+}
+
 void GameFrame() {
     UI::UserInterface* ui = GameUi();
     if (ui == nullptr) return;
     const Tool* tool = CurrentTool();
     const ToolKind kind = KindOf(tool);
+    if (g_shift && (tool != g_shiftTool || tool == nullptr || !g_owns || !Ext().touch_pointer)) {
+        std::fprintf(stderr, "[TouchPointer] shift off (tool changed or the pointer left)\n");
+        g_shift = false;
+        g_prevShift = 0;
+    }
+    if (Ext().touch_pointer) SeedWorldAim(kind);
     const bool mouseRecently = Now() - g_mouseAt < kMouseHideSeconds;
     const uint32_t shown = Ext().touch_pointer && (g_owns || !mouseRecently) ? ShownFor(tool, kind) : 0;
     const bool wantBar = shown != 0 && g_owns;
     if (wantBar && g_barDialog == nullptr) OpenDialog<BarDialog>(ui, kBarRsc);
     if (!wantBar && g_barDialog != nullptr) CloseDialog(ui, g_barDialog);
+    int32_t baseCell = 0;
     int32_t cell = 0;
     int32_t frame = 0;
-    g_bar = CurrentBar(ui, shown, cell, frame);
+    g_bar = CurrentBar(ui, shown, baseCell, cell, frame);
     g_shown = shown;
     if (g_barDialog != nullptr) {
         g_barDialog->Shape(g_bar, shown, cell, frame);
         g_barDialog->ShowPressed(g_barPressed);
+        if (g_shift) g_barDialog->ShowPressed(kShift);   // the toggle shows the pressed art while on
     }
     // The marker while a finger aims with a lift offset.
     bool aiming = false;
@@ -1031,7 +1122,7 @@ void GameFrame() {
     const bool wantMarker = Ext().touch_pointer && aiming && Val().touch_pointer_lift > 0;
     if (wantMarker && g_markerDialog == nullptr) OpenDialog<MarkerDialog>(ui, kMarkerRsc);
     if (!wantMarker && g_markerDialog != nullptr) CloseDialog(ui, g_markerDialog);
-    if (g_markerDialog != nullptr) g_markerDialog->Shape(cell);
+    if (g_markerDialog != nullptr) g_markerDialog->Shape(baseCell);
 }
 
 bool Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height, int32_t* rect) {

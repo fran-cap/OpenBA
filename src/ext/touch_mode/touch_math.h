@@ -53,6 +53,7 @@ enum Control : int32_t {
 };
 
 struct Cluster {
+    int32_t baseCell = 0; // the cell at scale 1 (kCellFraction of the short edge): ext.touch_pointer's bar sizes from it
     int32_t cell = 0;
     int32_t gap = 0;
     int32_t frame = 0;    // the frame's inset around the controls
@@ -63,13 +64,33 @@ struct Cluster {
 };
 
 // The margin kept from every screen edge: ext.phone_menu's safe margin when that row is on
-// (`phoneMargin`), else kDesktopMarginFraction of the short edge.
+// (`phoneMargin` >= 0, which may be 0: ext.phone_menu_safe_margin None), else (`phoneMargin` < 0)
+// kDesktopMarginFraction of the short edge.
 int32_t Margin(int32_t width, int32_t height, int32_t phoneMargin);
 
 // The cluster on a width x height layout screen, `margin` in from the edges (TOUCH_MODE.md §3):
 // one frame (`frame` inset) around the D-pad bottom-left (3 cells square), the two rotate buttons
 // above it and the two zoom buttons right of it; the bar region right of the frame.
-Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin);
+// `scale` (issue #96, ext.touch_mode_pad_scale / 100): the cell, gap and frame are scale times their
+// fractions of the short edge (1 = the cluster as it always was). `scale` <= 0: no cluster (cell 0, every
+// control and the box empty, never hit) and the bar region spans the whole safe width; the gap keeps its
+// scale-1 size (the event notices keep it above the bar).
+Cluster LayoutCluster(int32_t width, int32_t height, int32_t margin, float scale = 1.0f);
+
+// The pad key (percent, 0 = hidden) as LayoutCluster's scale.
+float PadScaleOfPercent(int32_t percent);
+
+// Issue #96 (the reporter's follow-up): the corner camera buttons (ext.touch_mode_camera_buttons, TOUCH_MODE.md
+// section 3a), a second, compact block of the pad's rotate and zoom buttons in the upper right, independent of the
+// cluster. Laid out as a Cluster so HitControl, Capture and the press art serve it unchanged: control[kPad] is
+// empty (never hit), barRegion is empty. One column (the reporter's sketch): rotate left, rotate right, zoom in,
+// zoom out, top to bottom, each button the pad's zoom button at the same scale (1.4 c wide, (3 c - g) / 2 tall,
+// c = `scale` x kCellFraction of the short edge, so 100 % is the pad's button at pad 100 %), one frame around them
+// like the cluster's. The frame's right edge at width - `margin`, its top at `top` (the caller's first free row
+// below the corner's other occupants; never above `margin`). A column that would reach below height - `margin`
+// (a `top` below the margin, a short screen) is laid out at the largest scale that fits that height instead, so it never runs
+// into the toolbar. `scale` <= 0: an empty layout (cell 0, nothing to hit).
+Cluster LayoutCornerButtons(int32_t width, int32_t height, int32_t margin, int32_t top, float scale);
 
 // The toolbar's own scale: `requested` (1.0 .. 2.0), shrunk so a bar `ownWidth` wide in its own
 // units fits `regionWidth` layout units, never below 1. A width <= 0 (not laid out yet): requested.

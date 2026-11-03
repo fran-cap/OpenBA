@@ -11,6 +11,12 @@
 // holders are groups whose padding puts their button at its place inside the root group (groups overlap their children,
 // as TutorialHighlight.rsc's do). Input is not read from these elements: the controller hit-tests the pointer against
 // the same rectangles (a held control acts every frame; the buttons' own events come only on release).
+//
+// Issue #96 (the reporter's follow-up): a second dialog, `cameraButtons` (Dialog/TouchControls.rsc:cameraButtons),
+// the corner camera buttons of ext.touch_mode_camera_buttons. It reuses the cluster's rotate and zoom holders and
+// buttons as they are (each dialog builds its own elements from the descriptions); only its root and its content
+// group are its own. The controller lays it out from touch_math.h LayoutCornerButtons: one column in the
+// upper right.
 
 Dialog resource		// the dialog object: Dialog/TouchControls.rsc
 {
@@ -125,3 +131,32 @@ ButtonDescription buttonTouchZoomOut : "buttonTouchZoomIn"
 
 ImageDescription imageTouchZoomIn : "imageTouchArrow" { Alignment _alignment = MidCenter; String _spriteName = "Plus"; }
 ImageDescription imageTouchZoomOut : "imageTouchArrow" { Alignment _alignment = MidCenter; String _spriteName = "Minus"; }
+
+// ---- the corner camera buttons (issue #96) ------------------------------------------------------------------------
+
+Dialog cameraButtons
+{
+	// No flags, as the cluster's.
+	ElementDescription _rootElement = "cameraButtonsRoot";
+}
+
+// The cluster's frame (touchRoot) around the four buttons; the controller pads the content by the frame inset.
+GroupDescription cameraButtonsRoot
+{
+	Alignment _alignment = TopLeft;
+	ElementDescription _elements
+	[
+		"SharedElements.rsc:dialogBorder"
+		"SharedElements.rsc:sunkenBorderPad6"
+		"groupCameraButtonsContent"
+	]
+}
+
+GroupDescription groupCameraButtonsContent
+{
+	Alignment _alignment = TopLeft;
+	ElementDescription _elements
+	[
+		"holderTouchRotateLeft" "holderTouchRotateRight" "holderTouchZoomIn" "holderTouchZoomOut"
+	]
+}

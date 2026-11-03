@@ -43,8 +43,8 @@ const Entry kEntries[] = {
 
     { "ui_scale_layout", Tier::Fix, Class::None, true,
       "Steady dialogs on UI rescale",
-      "Dialogs no longer flash to a corner when the UI scale changes, and pop-up notices follow the "
-      "UI scale.",
+      "Dialogs no longer flash to a corner when the UI scale changes, pop-up notices follow the "
+      "UI scale, and the name and cost of a building being placed show above it at any UI scale.",
       0, [](State& s) -> bool& { return s.fix.ui_scale_layout; } },
 
     // ROCKSEAT (docs/extensions/handins/ROCKSEAT.md, docs/retail_bugs.md section 7): rocks and ore
@@ -681,6 +681,10 @@ constexpr int kEntryCount = static_cast<int>(sizeof(kEntries) / sizeof(kEntries[
 constexpr int32_t kMaxShadowSizes[] = { 4096, 8192 };
 constexpr int32_t kFpsCapRates[] = { 30, 60, 90, 120 };
 constexpr int32_t kTouchToolbarScales[] = { 100, 125, 150, 175, 200 };
+constexpr int32_t kTouchPadScales[] = { 0, 50, 60, 75, 100, 125 };
+constexpr int32_t kTouchActionBarScales[] = { 25, 30, 35, 50, 60, 75, 100, 125 };
+constexpr int32_t kTouchCameraButtonScales[] = { 0, 15, 20, 25, 35, 50, 75, 100, 125 };
+constexpr int32_t kPhoneSafeMargins[] = { 0, 2000, 3375, 4500, 6000 };
 constexpr int32_t kTouchPointerLifts[] = { 0, 80, 120, 160, 200, 240 };
 constexpr int32_t kTouchPointerPickRadii[] = { 0, 25, 50, 75, 100 };
 
@@ -742,6 +746,21 @@ const ValueKey kValueKeys[] = {
     // sizes; 200 is the ruled "about 2x" (shrunk to fit beside the controls). Any other number reads as 200.
     { "touch_mode_toolbar_scale", "touch_mode", 100, 200, 200,
       [](State& s) -> int32_t& { return s.val.touch_mode_toolbar_scale; }, kTouchToolbarScales, 5 },
+    // Issue #96: the camera pad cluster's own size in percent (touch_math.h LayoutCluster's scale), 0 = the
+    // cluster hidden (the gestures alone; the toolbar then takes the bottom from the left margin). 100 is the
+    // size the cluster always had, so a settings.cfg without the key looks as before. Any other number reads as 100.
+    { "touch_mode_pad_scale", "touch_mode", 0, 125, 100,
+      [](State& s) -> int32_t& { return s.val.touch_mode_pad_scale; }, kTouchPadScales, 6 },
+    // Issue #96: ext.touch_pointer's placement bar in percent of the cluster's 100 % cell (the bar always took
+    // the cluster's cell), independent of the pad's scale. 100 = as before. Any other number reads as 100.
+    { "touch_mode_action_bar_scale", "touch_mode", 25, 125, 100,
+      [](State& s) -> int32_t& { return s.val.touch_mode_action_bar_scale; }, kTouchActionBarScales, 8 },
+    // Issue #96 (the reporter's follow-up): the corner camera buttons, rotate left / right and zoom in / out in a
+    // column in the upper right (touch_math.h LayoutCornerButtons), in percent of the pad's own button at pad
+    // 100 %; 0 = none (no dialog, nothing to hit). Independent of the pad's key. Off by default, so nothing changes
+    // for anyone who does not pick it. Any other number reads as 0.
+    { "touch_mode_camera_buttons", "touch_mode", 0, 125, 0,
+      [](State& s) -> int32_t& { return s.val.touch_mode_camera_buttons; }, kTouchCameraButtonScales, 9 },
     // P11d (docs/android/P11D_ZOOM.md): the camera's near zoom limit in distance units while the row touch_mode is
     // on (every zoom input: the buttons, the pinch, keys, the wheel); retail's is 20. A range key, settings.cfg only.
     { "touch_mode_zoom_min", "touch_mode", 6, 20, 10,
@@ -756,6 +775,12 @@ const ValueKey kValueKeys[] = {
     // Tap twice to place: a second tap near the first places the aimed building (ruled a setting, off).
     { "touch_pointer_tap_twice", "touch_pointer", 0, 1, 0,
       [](State& s) -> int32_t& { return s.val.touch_pointer_tap_twice; }, nullptr, 0 },
+    // Issue #96 (handins/PHONEMENU.md "Safe area"): the safe-area inset while the row phone_menu is on, in
+    // thousandths of a percent of the screen height: 3375 = 3.375 %, the owner's P11c ruling (phone_math.h
+    // kSafeMarginFraction) and the default, so phones are unchanged; 0 = no inset (a tablet: panels to the
+    // edges); 4500 = P7's 4.5 %. Every reader goes through phone_math.h SafeMargin. Any other number reads as 3375.
+    { "phone_menu_safe_margin", "phone_menu", 0, 6000, 3375,
+      [](State& s) -> int32_t& { return s.val.phone_menu_safe_margin; }, kPhoneSafeMargins, 5 },
     // NATURAL_GROWTH.md: Better trees' natural tree growth (the per-tree autumn colour, leaf fall, spring
     // regrowth and green variation), on whenever the row is; the Enhanced tab's second Better trees combo.
     { "natural_tree_growth", "better_trees", 0, 1, 1,

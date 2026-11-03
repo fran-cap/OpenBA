@@ -28,6 +28,9 @@
 //   (f) P11 (touch_size.h): every control a finger presses (title-bar and icon buttons, text buttons,
 //       tabs, check boxes, drop-downs and their rows, spinners, sliders) about the size of (e)'s close
 //       button.
+//   (g) issue #96: the main and pause menus get a "Game files" button on a platform with that
+//       screen (Platform::App::HasGameFilesScreen, Android; ExtensionsDialog_AttachGameFilesButton in
+//       src/game/Dialog/extensionsdialog.cpp, docs/android/README.md "Saves").
 // Default OFF on a desktop; the Android first run switches it on (src/platform/android/
 // app_android.cpp). Live: every hook reads the row each time. Under the faithful profile the
 // engine seam stays null.
