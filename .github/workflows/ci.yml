@@ -12,6 +12,12 @@ name: CI
 # the debug info names), so the Windows job's second configure (build/cmake-debug-vulkan) hit nothing
 # of the first's: 24 hits in 2998 on a cold run. Without it the objects' debug info names whichever
 # build directory compiled them first, which nothing here reads.
+# `ccache -z` runs after the cache restore: the restored directory carries the stats of the run that saved
+# it, so zeroing before the restore made `ccache -s` report every run's hits added together.
+#
+# Unit tests run on parallel workers (`tools/build.sh unit --shards N`, one per runner core: 4 on the
+# Windows and Linux runners, 3 on macos-15 arm64). The suite is ~1800 tests and a few take 5-20 s each,
+# so one process left the other cores idle for most of the step; the step also prints the slowest tests.
 on:
   pull_request:
   push:
@@ -74,20 +80,19 @@ jobs:
           ccache -z
       - name: Build OpenBA (debug)
         run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" tools/build.sh build debug
-      - name: Unit tests (debug)
-        run: tools/build.sh unit debug
       # The Vulkan backend (docs/vulkan/PLAN.md) in its own build directory: its own sources only
       # (target render-backend, compiled as OpenBA compiles them), not a second whole exe. The rest of
       # that exe is the dx11 configure's, and the Linux job builds and links the whole vulkan OpenBA.
       # Headers only: no Vulkan runtime is needed to build it.
       - name: Build the vulkan backend (debug)
         run: CMAKE_EXTRA="$CCACHE_LAUNCHERS" BANISHED_RENDER_BACKEND=vulkan tools/build.sh backend debug
-      # The unit tests again on the vulkan configure: they add tests/unit/vulkan_*_test.cpp (the
-      # dxbc-spirv shader converter and its SPIR-V cache), which only that configure builds. Every
-      # other unit object compiles exactly as in the dx11 configure (the backend's include directory
-      # reaches its own sources only, CMakeLists.txt), so ccache serves them.
+      # The unit tests, once, on the vulkan configure. Its unit exe is the dx11 configure's plus
+      # tests/unit/vulkan_*_test.cpp (the dxbc-spirv shader converter and its SPIR-V cache), which only
+      # that configure builds: every other unit object compiles exactly as in the dx11 configure (the
+      # backend's include directory reaches its own sources only, CMakeLists.txt). A dx11-configure
+      # unit run as well ran the same ~1770 tests a second time (1766 of the vulkan run's 1792).
       - name: Unit tests (debug, vulkan backend)
-        run: BANISHED_RENDER_BACKEND=vulkan tools/build.sh unit debug
+        run: BANISHED_RENDER_BACKEND=vulkan tools/build.sh unit debug --shards 4
       - name: ccache statistics
         if: always()
         run: ccache -s
@@ -109,12 +114,13 @@ jobs:
           sudo apt-get install -y -q ninja-build ccache libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
             libxi-dev libxss-dev libxtst-dev libxfixes-dev libwayland-dev libxkbcommon-dev libegl-dev \
             libdecor-0-dev libasound2-dev libpulse-dev
-          ccache -z
       - uses: actions/cache@v4
         with:
           path: .ccache
           key: ccache-linux-${{ github.sha }}
           restore-keys: ccache-linux-
+      - name: Zero the ccache statistics
+        run: ccache -z
       # The default configure is the Vulkan backend off Windows (Vulkan P5), so this one build and
       # unit run include tests/unit/vulkan_*_test.cpp. Headers only: no Vulkan runtime is needed.
       - name: Build OpenBA (debug)
@@ -126,7 +132,7 @@ jobs:
           grep -q '^BANISHED_RENDER_BACKEND:STRING=vulkan$' build/cmake-debug/CMakeCache.txt
           test -x build/cmake-debug/OpenBA
       - name: Unit tests (debug)
-        run: tools/build.sh unit debug
+        run: tools/build.sh unit debug --shards 4
       - name: ccache statistics
         if: always()
         run: ccache -s
@@ -142,15 +148,20 @@ jobs:
         with:
           submodules: true
           persist-credentials: false
+      # No `brew update` and no cleanup pass: the two packages come from the runner image's tap.
       - name: Packages
-        run: |
-          brew install ninja ccache
-          ccache -z
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+          HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK: "1"
+        run: brew install ninja ccache
       - uses: actions/cache@v4
         with:
           path: .ccache
           key: ccache-macos-${{ github.sha }}
           restore-keys: ccache-macos-
+      - name: Zero the ccache statistics
+        run: ccache -z
       # The engine only; libairconv.dylib (tools/macos/setup_deps.sh, an LLVM build) is dlopened at
       # run time and not needed to compile or link it.
       - name: Build OpenBA (debug)
@@ -158,23 +169,23 @@ jobs:
           CMAKE_EXTRA="-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 $CCACHE_LAUNCHERS" \
             tools/build.sh build debug
       # Hang watchdog: a unit test that deadlocks otherwise burns the 60-minute job limit and leaves no
-      # trace. After 12 minutes every thread's stack is sampled (`sample`), printed, and the run fails.
+      # trace. After 12 minutes every thread's stack of every unit process still running is sampled
+      # (`sample`), printed, and the run fails.
       - name: Unit tests (debug)
         run: |
-          tools/build.sh unit debug &
+          tools/build.sh unit debug --shards 3 &
           pid=$!
           for i in $(seq 1 144); do
             kill -0 "$pid" 2>/dev/null || break
             sleep 5
           done
           if kill -0 "$pid" 2>/dev/null; then
-            upid=$(pgrep -x unit | head -1)
             echo "::error::unit still running after 12 minutes: thread stacks follow"
-            if [ -n "$upid" ]; then
-              sample "$upid" 2 -mayDie -file /tmp/unit.sample || true
-              cat /tmp/unit.sample || true
+            for upid in $(pgrep -x unit); do
+              sample "$upid" 2 -mayDie -file "/tmp/unit.$upid.sample" || true
+              cat "/tmp/unit.$upid.sample" || true
               kill -9 "$upid" 2>/dev/null || true
-            fi
+            done
             kill -9 "$pid" 2>/dev/null || true
             exit 1
           fi
@@ -209,7 +220,6 @@ jobs:
         run: |
           sudo apt-get update -q
           sudo apt-get install -y -q ccache
-          ccache -z
       - name: Android SDK packages
         run: |
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
@@ -220,6 +230,8 @@ jobs:
           path: .ccache
           key: ccache-android-${{ github.sha }}
           restore-keys: ccache-android-
+      - name: Zero the ccache statistics
+        run: ccache -z
       - uses: actions/cache@v4
         with:
           path: |

@@ -9,6 +9,7 @@ the failure count.
 
 ```bash
 tools/build.sh unit [debug|og|perf|release]   # build + run; debug is the default
+tools/build.sh unit debug --shards 4          # the same suite on 4 parallel processes (CI does this)
 cmake --build build/cmake-debug -t unit -j2   # build only -> build/cmake-debug/unit.exe
 build/cmake-debug/unit.exe                    # run from the repo root
 ```
@@ -24,7 +25,15 @@ parallelism (agents use 2).
 ## The harness (`unit.h`, `main.cpp`)
 
 - `UNIT_TEST(name) { ... }` registers a test at static-init time; `main.cpp` walks the
-  list in link order and prints `ok  `, `FAIL` or `skip` before each name.
+  list in link order and prints `ok  `, `FAIL` or `skip` before each name, and the test's
+  wall time after it when that is a second or more (`ok   name (12.3 s)`). stdout is
+  flushed after every test, so a crash's log ends at the test that was running.
+- `unit --shard K/N` runs only the tests at positions K, K+N, K+2N... of the list.
+  `tools/build.sh unit --shards N` cuts the list into 8N chunks and runs them on N parallel
+  processes (`xargs -P`), prints the chunks' output in order, one summary line, the skips
+  and the ten slowest tests; it exits non-zero when any chunk failed or died. Tests that
+  write files must therefore use a name no other test uses (the temp-directory helpers
+  stamp theirs with the clock or the pid); a test may run beside any other test.
 - `CHECK(cond)`, `CHECK_EQ(a, b)`, `CHECK_STREQ(a, b)` print `FAIL file:line: expr` and
   count one failure; the test keeps running (return early yourself when a later line
   would dereference what the failed check guarded).
