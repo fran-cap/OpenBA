@@ -360,9 +360,15 @@ UNIT_TEST(packfile_read_raw_string_without_terminator) {
         CHECK_STREQ(r.entryNames[0].c_str(), "ef");
 }
 
-// F-017: formatVersion 1, a UTF-16 string of 0x900 bytes ('A' 00 repeated, no
-// terminator unit): the decode walked 2 * 0x900 bytes from buf860, 0x1c0 past
-// the frame, and pulled stack bytes into the name.
+// F-054 on the UTF-16 arm (and F-017's input): formatVersion 1, a UTF-16 string
+// of 0x900 bytes ('A' 00 repeated, no terminator unit). The decode walks
+// 2 * 0x900 bytes from buf860, so it reads buf860[0x900..) that the read never
+// wrote (the poisoned 'B's before the frame was zeroed). What this test pins is
+// the zeroed frame: with it alone, buf860[0x900] decodes to cp 0 and ends the
+// name. The F-017 clamp (the walk stops at the frame's end, 0x1c0 short of
+// retail's) cannot be observed on this host: the bytes past the frame are not
+// checked here, and the MinGW build has no ASan. It is proven by reading and by
+// the fuzz ASan reports pkC1 / pkC2.
 UNIT_TEST(packfile_read_utf16_overread_past_frame) {
     std::vector<uint8_t> p;
     Put32(p, 0);
@@ -436,6 +442,75 @@ UNIT_TEST(packfile_read_rejects_utf16_longer_than_buffer) {
         Put32(p, 0);
         SetImage(p, false);
         CheckRejected(Run());
+    }
+}
+
+// F-019 boundary: a UTF-16 string or name of 0x1040 non-zero bytes fills buf860
+// to the frame's last byte. The clamped walk's output fills buf60 (total 0x800,
+// so no terminator is written), and strlen ran through buf860 and read past the
+// frame. Rejected; 0x103f is the longest length kept.
+UNIT_TEST(packfile_read_rejects_utf16_filling_buffer) {
+    {
+        std::vector<uint8_t> p;
+        Put32(p, 0);
+        PutMeta(p, 1, 0, 0, 0);
+        Put32(p, 0x1040);
+        p.resize(p.size() + 0x1040, 0x01);
+        PutUtf16(p, "x");
+        PutUtf16(p, "y");
+        SetImage(p, true);
+        CheckRejected(Run());
+    }
+    {
+        std::vector<uint8_t> p;
+        Put32(p, 1);
+        Put32(p, 0x1040);
+        p.resize(p.size() + 0x1040, 0x01);
+        Put32(p, 0);
+        Put32(p, 0);
+        SetImage(p, false);
+        CheckRejected(Run());
+    }
+}
+
+// The longest UTF-16 length kept, 0x103f bytes of 0x01: the frame's last byte
+// (buf860[0x103f]) is never written and ends the string. The name is buf60's
+// 0x400 units of cp 0x0101 (C4 81), then buf860's 0x103f bytes, as retail
+// builds it from the same frame.
+UNIT_TEST(packfile_read_utf16_longest_kept) {
+    std::string expected;
+    for (int i = 0; i < 0x400; ++i)
+        expected += "\xC4\x81";
+    expected.append(0x103f, '\x01');
+    {
+        std::vector<uint8_t> p;
+        Put32(p, 0);
+        PutMeta(p, 1, 0, 0, 0);
+        Put32(p, 0x103f);
+        p.resize(p.size() + 0x103f, 0x01);
+        PutUtf16(p, "x");
+        PutUtf16(p, "y");
+        SetImage(p, true);
+        const Result r = Run();
+        CHECK(r.ok);
+        CHECK(r.name == expected);
+        CHECK_STREQ(r.author.c_str(), "x");
+    }
+    {
+        std::vector<uint8_t> p;
+        Put32(p, 1);
+        Put32(p, 0x103f);
+        p.resize(p.size() + 0x103f, 0x01);
+        Put32(p, 5);
+        Put32(p, 6);
+        SetImage(p, false);
+        const Result r = Run();
+        CHECK(r.ok);
+        CHECK_EQ(r.entryNames.size(), static_cast<size_t>(1));
+        if (r.entryNames.size() == 1) {
+            CHECK(r.entryNames[0] == expected);
+            CHECK_EQ(r.entryOffsets[0], 5u);
+        }
     }
 }
 

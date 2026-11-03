@@ -123,7 +123,8 @@
 // package never contains, at the parse, and change nothing a valid package reads:
 //  * a negative blob length, or a blob the file does not hold (F-033);
 //  * a raw string or name longer than the frame less its terminator, a UTF-16
-//    one longer than buf860 (F-019, F-020, F-021);
+//    one longer than buf860 less the frame's last byte, kept zero as the
+//    terminator a full decode does not write (F-019, F-020, F-021);
 //  * a negative icon size, or an icon or preview larger than the bytes the index
 //    has left (F-055, F-056, F-076);
 //  * a file count the index cannot hold at 12 bytes an entry (F-077).
@@ -250,10 +251,13 @@ namespace {
 // 0x800 into it. Sized and positioned exactly as retail's frame.
 constexpr size_t kFrameBufBytes = 0x1840;
 constexpr size_t kOutCap        = 0x800;    // = 0x860 - 0x60
-// NOT RETAIL (review 2026-11-03): the longest length each buffer takes. The raw
-// arm keeps one byte for the terminator it now writes; buf860 runs to the frame's end.
+// NOT RETAIL (review 2026-11-03): the longest length each buffer takes. Both keep
+// the frame's last byte for a terminator. The raw arm writes it; the UTF-16 arm
+// leaves it zero, because a read that fills buf860 to the frame's end and a
+// decode that fills buf60 (no terminator then) would be strlen'd past the frame.
 constexpr int32_t kRawMaxLen    = static_cast<int32_t>(kFrameBufBytes) - 1;            // 0x183f
-constexpr int32_t kUtf16MaxLen  = static_cast<int32_t>(kFrameBufBytes - kOutCap);      // 0x1040
+constexpr int64_t kBuf860Bytes  = static_cast<int64_t>(kFrameBufBytes - kOutCap);      // 0x1040
+constexpr int32_t kUtf16MaxLen  = static_cast<int32_t>(kBuf860Bytes) - 1;              // 0x103f
 
 // `?_singleton@FileSystem@IO@@0PEAV12@EA`  (0x1801fc6a8) — the global retail
 // loads into RSI at 0x1800b46e8 and RELOADS at 0x1800b478b.
@@ -368,7 +372,8 @@ bool ReadStringUtf16(IO::CompressedStream* cs, uint8_t* buf60, uint8_t* buf860,
     cs->IO::CompressedStream::Read(4, &len);               // 1800b4e2e group
     // NOT RETAIL (review 2026-11-03, F-019): retail reads `len` bytes into buf860,
     // which has 0x1040 before the frame ends; a longer length overflows the stack
-    // (UB). Rejected at the parse; retail has no check.
+    // (UB), and 0x1040 itself leaves no terminator for strlen inside the frame
+    // (an out-of-frame read, UB). Rejected at the parse; retail has no check.
     if (len > kUtf16MaxLen) {
         malformed = true;
         return false;
@@ -383,8 +388,8 @@ bool ReadStringUtf16(IO::CompressedStream* cs, uint8_t* buf60, uint8_t* buf860,
     // for len > 0x820 (an out-of-bounds stack read, UB). The walk stops at buf860's
     // end; below that it is retail's, stale bytes and all.
     int64_t walk = 2 * static_cast<int64_t>(len);
-    if (walk > kUtf16MaxLen)
-        walk = kUtf16MaxLen;
+    if (walk > kBuf860Bytes)
+        walk = kBuf860Bytes;
     const uint8_t* src       = buf860;                     // 1800b4f2a  RDI
     const uint8_t* const end = buf860 + walk;              // 1800b4f23/f33
     uint8_t*       dst       = buf60;                      // 1800b4f3d  R14
@@ -724,7 +729,8 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
                     buf60[nameLen] = 0;
             } else {
                 // NOT RETAIL (review 2026-11-03, F-019 / F-021): as ReadStringUtf16,
-                // a name longer than buf860 overflows the stack (UB); rejected.
+                // a name longer than buf860 overflows the stack, and one that fills
+                // it leaves no terminator inside the frame (UB); rejected.
                 if (nameLen > kUtf16MaxLen) {
                     malformed = true;
                     goto teardown;
@@ -734,8 +740,8 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
                 // NOT RETAIL (review 2026-11-03, F-017): the 2 * nameLen walk stops
                 // at buf860's end, as in ReadStringUtf16.
                 int64_t walk = 2 * static_cast<int64_t>(nameLen);
-                if (walk > kUtf16MaxLen)
-                    walk = kUtf16MaxLen;
+                if (walk > kBuf860Bytes)
+                    walk = kBuf860Bytes;
                 const uint8_t* src       = buf860;             // 1800b5d22
                 const uint8_t* const end = buf860 + walk;      // 1800b5d1c/d32
                 uint8_t*       dst       = buf60;              // 1800b5d35
