@@ -1,0 +1,40 @@
+=================================================================
+==107835==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x74a03e6019b0 at pc 0x65167927eb12 bp 0x7ffd6e24a150 sp 0x7ffd6e249910
+WRITE of size 8192 at 0x74a03e6019b0 thread T0
+    #0 0x65167927eb11 in __asan_memcpy (/home/uspc/tidy/p3/pkm_readpackfile_poc+0x106b11) (BuildId: 20d663a4dbb34b3e9d9adeb356869d1897e6de5e)
+    #1 0x6516792fa2c8 in IO::CompressedStream::Read(int, void*) /home/uspc/openba-review/src/engine/io/compressed_stream_read.cpp:448:9
+    #2 0x6516792c882f in IO::PackageFile::ReadPackfile(System::Filename const&) /home/uspc/openba-review/src/engine/io/package_file_read.cpp:596:47
+    #3 0x6516792c5463 in main /home/uspc/tidy/p3/pkm_readpackfile_poc.cpp:74:25
+    #4 0x74a03fe2a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #5 0x74a03fe2a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #6 0x6516791e0f14 in _start (/home/uspc/tidy/p3/pkm_readpackfile_poc+0x68f14) (BuildId: 20d663a4dbb34b3e9d9adeb356869d1897e6de5e)
+
+Address 0x74a03e6019b0 is located in stack of thread T0 at offset 6576 in frame
+    #0 0x6516792c73af in IO::PackageFile::ReadPackfile(System::Filename const&) /home/uspc/openba-review/src/engine/io/package_file_read.cpp:413
+
+  This frame has 19 object(s):
+    [32, 80) 'ref.tmp' (line 440)
+    [112, 116) 'hdr' (line 450)
+    [128, 132) 'blobLen' (line 463)
+    [144, 296) 'cms' (line 477)
+    [368, 6576) 'frameBuf' (line 487)
+    [6832, 6836) 'fileCount' (line 491) <== Memory access at offset 6576 partially underflows this variable
+    [6848, 6852) 'formatVersion' (line 494) <== Memory access at offset 6576 partially underflows this variable
+    [6864, 6872) 'tmp' (line 534) <== Memory access at offset 6576 partially underflows this variable
+    [6896, 6904) 'tmp176' (line 539) <== Memory access at offset 6576 partially underflows this variable
+    [6928, 6936) 'tmp188' (line 544) <== Memory access at offset 6576 partially underflows this variable
+    [6960, 6968) 'tmp200' (line 552) <== Memory access at offset 6576 partially underflows this variable
+    [6992, 7000) 'tmp213' (line 557) <== Memory access at offset 6576 partially underflows this variable
+    [7024, 7032) 'tmp226' (line 562) <== Memory access at offset 6576 partially underflows this variable
+    [7056, 7060) 'nameLen' (line 588) <== Memory access at offset 6576 partially underflows this variable
+    [7072, 7076) 'scratch' (line 610) <== Memory access at offset 6576 partially underflows this variable
+    [7088, 7092) 'entryOffset' (line 627) <== Memory access at offset 6576 partially underflows this variable
+    [7104, 7108) 'entrySize' (line 627) <== Memory access at offset 6576 partially underflows this variable
+    [7120, 7128) 'tmp340' (line 632) <== Memory access at offset 6576 partially underflows this variable
+    [7152, 7168) 'entry346' (line 640) <== Memory access at offset 6576 partially underflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow (/home/uspc/tidy/p3/pkm_readpackfile_poc+0x106b11) (BuildId: 20d663a4dbb34b3e9d9adeb356869d1897e6de5e) in __asan_memcpy
+Shadow bytes around the buggy address:
+  0x74a03e601700: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x74a03e601780: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00

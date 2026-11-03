@@ -1,0 +1,1 @@
+-*,bugprone-*,cert-*,concurrency-*,clang-analyzer-*,performance-move-const-arg,performance-no-int-to-ptr,cppcoreguidelines-init-variables,cppcoreguidelines-narrowing-conversions,-bugprone-easily-swappable-parameters,-bugprone-reserved-identifier,-cert-dcl37-c,-cert-dcl51-cpp,-bugprone-macro-parentheses,-cert-err58-cpp

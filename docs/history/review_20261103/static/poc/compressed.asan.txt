@@ -1,0 +1,40 @@
+=================================================================
+==24080==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x73fa67908020 at pc 0x587b1cb19432 bp 0x7ffe725147d0 sp 0x7ffe72513f90
+WRITE of size 36864 at 0x73fa67908020 thread T0
+    #0 0x587b1cb19431 in __asan_memcpy (/home/uspc/tidy/p3/cs_block_poc+0xfc431) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef)
+    #1 0x587b1cb60166 in BlobStream::Read(int, void*) /home/uspc/tidy/p3/cs_block_poc.cpp:25:9
+    #2 0x587b1cb88e21 in IO::CompressedStream::DecompressFromSource(int) /home/uspc/openba-review/src/engine/io/compressed_stream_read.cpp:276:14
+    #3 0x587b1cb8b0ef in IO::CompressedStream::Read(int, void*) /home/uspc/openba-review/src/engine/io/compressed_stream_read.cpp:439:14
+    #4 0x587b1cb5f4da in main /home/uspc/tidy/p3/cs_block_poc.cpp:58:31
+    #5 0x73fa6902a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #6 0x73fa6902a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #7 0x587b1ca7b834 in _start (/home/uspc/tidy/p3/cs_block_poc+0x5e834) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef)
+
+Address 0x73fa67908020 is located in stack of thread T0 at offset 32800 in frame
+    #0 0x587b1cb8899f in IO::CompressedStream::DecompressFromSource(int) /home/uspc/openba-review/src/engine/io/compressed_stream_read.cpp:249
+
+  This frame has 1 object(s):
+    [32, 32800) 'scratch' (line 256) <== Memory access at offset 32800 overflows this variable
+HINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork
+      (longjmp and C++ exceptions *are* supported)
+SUMMARY: AddressSanitizer: stack-buffer-overflow (/home/uspc/tidy/p3/cs_block_poc+0xfc431) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef) in __asan_memcpy
+Shadow bytes around the buggy address:
+  0x73fa67907d80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x73fa67907e00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x73fa67907e80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x73fa67907f00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x73fa67907f80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x73fa67908000: 00 00 00 00[f3]f3 f3 f3 f3 f3 f3 f3 f3 f3 f3 f3
+  0x73fa67908080: f3 f3 f3 f3 f3 f3 f3 f3 f3 f3 f3 f3 f3 f3 f3 f3
+  0x73fa67908100: f3 f3 f3 f3 00 00 00 00 00 00 00 00 00 00 00 00
+  0x73fa67908180: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x73fa67908200: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x73fa67908280: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3

@@ -217,6 +217,7 @@
 
 #include "device_lost_drive.h"   // BANISHED_FORCE_DEVICE_LOST=bgsave (src/diag)
 #include "options.h"
+#include "d3d_debug.h"
 #include "dx11_backend_access.h"
 #include "async_gpu_create/async_create.h"   // NOT RETAIL: ext.async_gpu_create
 #include "boot_device_lost/boot_device_lost.h"   // NOT RETAIL: fix.boot_device_lost
@@ -647,6 +648,7 @@ void ContextData::Finish() {
         std::lock_guard<std::recursive_mutex> presentLock(Dx11PresentMutex());
         hr = dd->swapChain->Present(sync, 0);
     }
+    D3dDebug::Drain();   // NOT RETAIL: BANISHED_D3D_DEBUG's info queue (no-op without it)
 
     // The PLAN 5.5 drive. Substitutes the Present result and nothing else; see
     // the block comment above ForceDeviceLostThisFrame.
