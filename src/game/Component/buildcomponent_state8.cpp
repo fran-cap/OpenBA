@@ -175,14 +175,9 @@ static BuildDescription* BC8_MatComp(BuildComponent* bc) {
 }
 static int BC8_Target(BuildComponent* bc, BuildDescription* matComp) {
     if (!matComp) return 0;
-    // target = base build effort (matComp+0x30) * multiplier (bc+0x4c). The multiplier is
-    // MultiObjectComponent+0x58 (0 when that component is inert in the standalone exe);
-    // clamp to the retail default of 1 so the target never collapses to 0 (which would
-    // instant-complete the build with no visible labor). See buildcomponent_state1.cpp for
-    // the source clamp.
-    int mult = bc->costMultiplier;
-    if (mult <= 0) mult = 1;
-    return matComp->_i30 * mult;
+    // target = base build effort (matComp+0x30) * multiplier (bc+0x4c), no clamp
+    // (0x140107bb5 MOV EAX,[RBX+0x30] / 0x140107bb8 IMUL EAX,[R15+0x4c]; review F-175).
+    return matComp->_i30 * bc->costMultiplier;
 }
 
 // Ensure the construction mesh list (+0x58 / count +0x60) is populated.
