@@ -173,6 +173,12 @@ bool SpriteCapture::Serialize(IO::Stream& streamv) {
     }
     RtUi_SpriteCapture_SerializeEntries(&ser, n, _entries._data);   // 0x18004c0d0
 
+    // NOT RETAIL (review F-024): a capture with an entry that names no sheet loads empty
+    // (SpriteCapture.h), so neither the rebuild below nor Draw reads past `_sheets`.
+    if (stream->_direction == 0) {
+        DropEntriesNamingNoSheet();
+    }
+
     if (stream->_direction == 0) {                           // 1800d9630  the ORIGINAL stream
         rtcoll::RtColl_ArraySetSize_1800370c0(
             &_sprites, _entries._size);         // 1800d9642
@@ -184,7 +190,7 @@ bool SpriteCapture::Serialize(IO::Stream& streamv) {
             uint64_t idxSlot;                                // see the banner
             SpriteSheet* sheet;
             Sprite*      sprites;
-            if (!HasSheetSlot(sheetIndex)) {                 // 1800d9664 CMP/JGE
+            if (sheetIndex < 0) {                            // 1800d9664 CMP/JGE
                 const int32_t minusOne = -1;
                 __builtin_memcpy(&idxSlot, &minusOne, sizeof minusOne);  // 1800d966b
                 sprites = _sprites._data;                                 // 1800d9672

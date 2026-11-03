@@ -11,11 +11,11 @@
 //   F-022  InternalFactory::PersistObject (0x1800bff10), read arm: the save's
 //          object index against `_persistIds._size`. The real member runs here.
 //   F-024  SpriteCapture::Serialize (0x1800d9530): an entry's sheetIndex against
-//          `_sheets._size` (UI::SpriteCapture::HasSheetSlot, the load loop's test).
+//          `_sheets._size` (UI::SpriteCapture::DropEntriesNamingNoSheet).
 //   F-025  ModelComponent::Persist: the save's mesh group / index against the
 //          description's group and mesh counts (ModelDescriptionMesh).
 //   F-026  Map::Serialize (0x14009f100): the save's map edge against the cell
-//          array's count (Map::LoadedSize).
+//          array's count (Map::CellsCoverSize).
 // ============================================================================
 #include "unit.h"
 
@@ -142,40 +142,83 @@ UNIT_TEST(review_bounds_f022_persistobject_rejects_a_negative_index) {
 // ---------------------------------------------------------------------------
 // F-024 — a capture entry's sheetIndex against the loaded sheet count
 // ---------------------------------------------------------------------------
+//
+// SpriteCapture::Serialize's read arm calls DropEntriesNamingNoSheet right after
+// the entry array is read, before it rebuilds `_sprites`. These tests drive that
+// member over a capture laid out as the reader leaves it. Serialize itself is
+// not in the unit target: spritecapture_class.cpp also holds Draw, which needs the
+// SpriteContext / material chain.
 
-UNIT_TEST(review_bounds_f024_spritecapture_sheet_index_past_sheets_is_no_sheet) {
+namespace {
+
+// A capture as Serialize leaves it after reading `sheetCount` sheet slots and the
+// given entries' sheetIndex fields (each 4 bytes little-endian, inline hex).
+struct LoadedCapture {
     alignas(UI::SpriteCapture) unsigned char buf[sizeof(UI::SpriteCapture)];
-    UI::SpriteCapture* c = ::new (static_cast<void*>(buf)) UI::SpriteCapture();
+    UI::SpriteSheet* sheets[2] = {nullptr, nullptr};
+    UI::SpriteCapture* c;
 
-    // `_sheets` as Serialize leaves it after a sheet count of 0; the entry that
-    // follows in the resource carries sheetIndex 5 (bytes 05 00 00 00).
-    const uint8_t rawIndex[4] = {0x05, 0x00, 0x00, 0x00};
-    int32_t sheetIndex;
-    std::memcpy(&sheetIndex, rawIndex, 4);
-    CHECK(!c->HasSheetSlot(sheetIndex));
-    CHECK(!c->HasSheetSlot(0));
+    LoadedCapture(int32_t sheetCount, const uint8_t* rawIndexes, int32_t entryCount) {
+        c = ::new (static_cast<void*>(buf)) UI::SpriteCapture();
+        c->_sheets._data = sheets;   // borrowed: put back before the destructor runs
+        c->_sheets._size = sheetCount;
+        const UI::CaptureEntry blank{};   // every entry starts with an empty name
+        c->_entries.SetSize(entryCount, blank);
+        for (int32_t i = 0; i < entryCount; ++i)
+            std::memcpy(&c->_entries._data[i].sheetIndex, rawIndexes + 4 * i, 4);
+    }
+    ~LoadedCapture() {
+        c->_sheets._data = nullptr;
+        c->_sheets._size = 0;
+        c->~SpriteCapture();
+    }
+};
 
-    // The scissor sentinels stay the scissor arm.
-    CHECK(!c->HasSheetSlot(-1));
-    CHECK(!c->HasSheetSlot(-2));
+}  // namespace
 
-    c->~SpriteCapture();
+UNIT_TEST(review_bounds_f024_capture_entry_past_the_sheets_drops_the_entries) {
+    // One sheet slot; entries: a scissor (-1), a sprite on sheet 0, a sprite on
+    // sheet 5 (05 00 00 00), past the one slot. Draw would take the sprite arm for
+    // the last one and dereference a sheet that does not exist.
+    const uint8_t raw[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00};
+    LoadedCapture cap(1, raw, 3);
+    CHECK(cap.c->DropEntriesNamingNoSheet());
+    CHECK_EQ(cap.c->_entries._size, 0);
 }
 
-UNIT_TEST(review_bounds_f024_spritecapture_valid_sheet_index_is_unchanged) {
-    alignas(UI::SpriteCapture) unsigned char buf[sizeof(UI::SpriteCapture)];
-    UI::SpriteCapture* c = ::new (static_cast<void*>(buf)) UI::SpriteCapture();
+UNIT_TEST(review_bounds_f024_capture_entry_at_the_sheet_count_drops_the_entries) {
+    // Two sheet slots; a sprite on sheet 2 (02 00 00 00), the first index past them.
+    const uint8_t raw[8] = {0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00};
+    LoadedCapture cap(2, raw, 2);
+    CHECK(cap.c->DropEntriesNamingNoSheet());
+    CHECK_EQ(cap.c->_entries._size, 0);
+}
 
-    UI::SpriteSheet* sheets[2] = {nullptr, nullptr};
-    c->_sheets._data = sheets;   // borrowed: put back before the destructor runs
-    c->_sheets._size = 2;
-    CHECK(c->HasSheetSlot(0));
-    CHECK(c->HasSheetSlot(1));
-    CHECK(!c->HasSheetSlot(2));
+UNIT_TEST(review_bounds_f024_capture_negative_non_scissor_index_drops_the_entries) {
+    // sheetIndex -3 (FD FF FF FF): neither scissor sentinel, so Draw's sprite arm,
+    // with no sheet.
+    const uint8_t raw[4] = {0xFD, 0xFF, 0xFF, 0xFF};
+    LoadedCapture cap(1, raw, 1);
+    CHECK(cap.c->DropEntriesNamingNoSheet());
+    CHECK_EQ(cap.c->_entries._size, 0);
+}
 
-    c->_sheets._data = nullptr;
-    c->_sheets._size = 0;
-    c->~SpriteCapture();
+UNIT_TEST(review_bounds_f024_capture_valid_entries_are_unchanged) {
+    // Two sheet slots; a scissor (-1), sprites on sheets 0 and 1, a full-screen
+    // scissor (-2): every entry a valid capture can hold.
+    const uint8_t raw[16] = {0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
+                             0x01, 0x00, 0x00, 0x00, 0xFE, 0xFF, 0xFF, 0xFF};
+    LoadedCapture cap(2, raw, 4);
+    CHECK(!cap.c->DropEntriesNamingNoSheet());
+    CHECK_EQ(cap.c->_entries._size, 4);
+    CHECK_EQ(cap.c->_entries._data[1].sheetIndex, 0);
+    CHECK_EQ(cap.c->_entries._data[2].sheetIndex, 1);
+
+    // No sheets and only scissors is valid too.
+    const uint8_t scissors[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFE, 0xFF, 0xFF, 0xFF};
+    LoadedCapture none(0, scissors, 2);
+    CHECK(!none.c->DropEntriesNamingNoSheet());
+    CHECK_EQ(none.c->_entries._size, 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -221,8 +264,13 @@ UNIT_TEST(review_bounds_f025_model_mesh_group_and_index_past_the_description) {
 // ---------------------------------------------------------------------------
 // F-026 — the save's map edge against the cell count
 // ---------------------------------------------------------------------------
+//
+// Map::Serialize refuses the load (System::Error's fatal box, then exit) when
+// Map::CellsCoverSize is false, right after it reads the two ints. Serialize is not
+// in the unit target (its load tail builds zones, the pathfinder and the road mesh)
+// and the refusal exits the process, so these tests drive the predicate only.
 
-UNIT_TEST(review_bounds_f026_map_size_larger_than_the_cell_array_is_rejected) {
+UNIT_TEST(review_bounds_f026_map_size_larger_than_the_cell_array_is_refused) {
     // The head of Map::Serialize's record, inline: size 512 (00 02 00 00), then the
     // cell array's count 1 (01 00 00 00). Every load walk covers size * size cells.
     const uint8_t head[8] = {0x00, 0x02, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00};
@@ -230,17 +278,22 @@ UNIT_TEST(review_bounds_f026_map_size_larger_than_the_cell_array_is_rejected) {
     int32_t count;
     std::memcpy(&size, head + 0, 4);
     std::memcpy(&count, head + 4, 4);
-    const int32_t kept = Map::LoadedSize(size, count);
-    CHECK(static_cast<int64_t>(kept) * kept <= count);
+    CHECK(!Map::CellsCoverSize(size, count));
 
+    // One cell short of a 512 map.
+    CHECK(!Map::CellsCoverSize(512, 512 * 512 - 1));
     // An edge whose square leaves int32 (46341^2 > INT32_MAX) against a large count.
-    CHECK_EQ(Map::LoadedSize(46341, 0x7fffffff), 0);
+    CHECK(!Map::CellsCoverSize(46341, 0x7fffffff));
     // A negative edge.
-    CHECK_EQ(Map::LoadedSize(-4, 16), 0);
+    CHECK(!Map::CellsCoverSize(-4, 16));
+    // Edge 0: the game divides cell indexes by the edge (action_base_cnr.cpp and others).
+    CHECK(!Map::CellsCoverSize(0, 0));
 }
 
 UNIT_TEST(review_bounds_f026_map_valid_sizes_are_unchanged) {
-    CHECK_EQ(Map::LoadedSize(512, 512 * 512), 512);
-    CHECK_EQ(Map::LoadedSize(256, 256 * 256), 256);
-    CHECK_EQ(Map::LoadedSize(0, 0), 0);
+    CHECK(Map::CellsCoverSize(512, 512 * 512));
+    CHECK(Map::CellsCoverSize(384, 384 * 384));
+    CHECK(Map::CellsCoverSize(256, 256 * 256));
+    // A count above size * size is accepted: no walk reaches the extra cells.
+    CHECK(Map::CellsCoverSize(4, 17));
 }

@@ -252,14 +252,25 @@ public:
     int32_t      _width;      // +0x50  GetWidth
     int32_t      _height;     // +0x54  GetHeight
 
-    // Serialize's load loop (0x1800d9664 CMP/JGE): does a loaded entry's sheetIndex name a
-    // slot of `_sheets`? A false answer takes the scissor arm (no sheet, sprite index -1).
-    // NOT RETAIL (review F-024): retail tests only `sheetIndex < 0`; the index is serialized
-    // apart from the sheet count, and one at or past `_sheets._size` reads a pointer past the
-    // array and dereferences it. Such an entry is read as having no sheet, the same result
-    // as a null sheet slot. Every index a valid capture holds is below the count.
-    bool HasSheetSlot(int32_t sheetIndex) const {
-        return sheetIndex >= 0 && sheetIndex < _sheets._size;
+    // NOT RETAIL (review F-024): retail has no such check. Serialize's read arm calls this
+    // after reading `_entries` and before the `_sprites` rebuild. A sheetIndex is serialized
+    // apart from the sheet count. One at or past `_sheets._size` reads a pointer past the
+    // array at 0x1800d968f, and any negative one other than the scissor sentinels -1 / -2
+    // leaves a sprite entry with no sheet that Draw dereferences (0x1800d93fb). A capture
+    // holding such an entry is malformed: all its entries are dropped, so it loads (and
+    // draws) as an empty capture. Returns true when it dropped them. A valid capture's
+    // entries are scissors or name a sheet slot and are left as they are.
+    bool DropEntriesNamingNoSheet() {
+        for (int32_t i = 0; i < _entries._size; ++i) {
+            const int32_t sheetIndex = _entries._data[i].sheetIndex;
+            if (sheetIndex == -1 || sheetIndex == -2)
+                continue;   // a scissor: Draw's first two arms, no sheet read
+            if (sheetIndex >= 0 && sheetIndex < _sheets._size)
+                continue;
+            _entries.SetSize(0);
+            return true;
+        }
+        return false;
     }
 };
 static_assert(sizeof(SpriteCapture) == 0x58,

@@ -696,8 +696,13 @@ Internal* InternalFactory::PersistObject(IO::Stream& stream, uint32_t generation
         // the save, and retail indexes `_persistIds` with it unchecked. An index
         // outside the table ResetPersistState sized from the save's object count
         // is a corrupt record (an out-of-bounds read, and on a miss a write of the
-        // new object's index past the buffer): it reads as a null reference. Every
-        // index a valid save holds is in range and takes retail's path unchanged.
+        // new object's index past the buffer). It returns null without running
+        // Persist, so the stream is NOT kept in step: on retail's miss path the
+        // object's body follows inline, and the rest of the load parses those bytes
+        // as later fields. The InternalPtr caller stores null where the record said
+        // present. This only bounds the table access; it does not make the corrupt
+        // save load. Every index a valid save holds is in range and takes retail's
+        // path unchanged.
         if (index < 0 || index >= _persistIds._size)
             return nullptr;
         slot = persistIds[i];

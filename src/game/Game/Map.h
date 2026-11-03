@@ -122,16 +122,17 @@ public:
     Map();                       // 0x14009ee70 (defined in gameupdateloop_load.cpp)
     ~Map();                      // 0x14009ed60 (keystone_a_gamedtor.cpp); Shutdown MemFrees the map after it
     void Serialize(IO::Stream& stream);   // 0x14009f100 (gamegrid_serialize.cpp)
-    // The map edge Serialize keeps after reading `size` and the cell array's `count`; every
-    // later walk of the grid covers size * size cells of that array.
-    // NOT RETAIL (review F-026): retail keeps the saved `size` whatever the count; a save whose
-    // size * size exceeds the cell count walks (and in the version < 2 fix-up writes) past the
-    // array, and an edge past 46340 overflows the int32 product. Such a record is read as an
-    // empty grid (edge 0). A valid save holds exactly size * size cells and keeps its size.
-    static int32_t LoadedSize(int32_t size, int32_t count) {
-        if (size < 0 || static_cast<int64_t>(size) * size > count)
-            return 0;
-        return size;
+    // NOT RETAIL (review F-026): retail has no such check. Does a loaded map record's cell
+    // array (`count` cells) cover its edge `size`? Serialize refuses the load when it does not.
+    // Retail keeps the saved `size` whatever the count: Serialize's walks (and the version < 2
+    // fix-up's writes) and every later cell index the game forms run over size * size cells,
+    // an edge past 46340 overflows the int32 product, and an edge of 0 reaches the game's
+    // divisions by `size` (action_base_cnr.cpp and others). A valid save holds exactly
+    // size * size cells (MapTileGrid_Build's cells.SetSize(dim * dim)) with a positive edge.
+    // A count ABOVE size * size is accepted (no walk reaches the extra cells); the finding's
+    // `count != size * size` would refuse it as well.
+    static bool CellsCoverSize(int32_t size, int32_t count) {
+        return size > 0 && static_cast<int64_t>(size) * size <= count;
     }
     void SortTilesByDistance(RawArray<GridTile>* tiles, int refCell) const;   // 0x14009d7c0 (Work/work_leaf_clear.cpp)
 
