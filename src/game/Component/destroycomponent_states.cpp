@@ -113,6 +113,8 @@
 #include "Game/WorkScheduler.h"
 #include "Game/WorkSchedulerNodes.h"   // WorkSchedulerIdNode (the by-id tree, B6 row 390)
 #include "Game/PlayerToolManager.h"
+#include "ext/registry.h"                       // Ext::Fix().cancel_refund
+#include "ext/cancel_refund/cancel_refund.h"
 
 // ============================================================
 // Helpers, called directly
@@ -282,7 +284,8 @@ static RawMaterialDescription* FindRawMatDescInTemplate(ComponentDescription* tm
 //   in [0, 0.2), clones the resource template, positions it (9760) with a random
 //   yaw, sets amount(+0x28)/clears +0x30, and registers it into the world. The
 //   placement cursor (col,row) persists across resource types. Overflow beyond the
-//   footprint (row reaches depth) is dropped, exactly as retail.
+//   footprint (row reaches depth) is dropped, exactly as retail (fix.cancel_refund lays
+//   it around the footprint instead).
 // The register category is read from recipe[pairIndex]->+0x20 (retail indexes the
 // build recipe by the scatter-pair index; benign for the ordered partial-build case).
 // ============================================================
@@ -417,6 +420,14 @@ void DestroyComponent::ScatterContents(int baseX, int baseY, int width, int dept
                 rowWorld++;
             }
         } while (row != depth && remaining > 0);
+
+        // Retail discards `remaining` here. fix.cancel_refund lays it around the footprint
+        // (docs/retail_bugs.md §26).
+        if (remaining > 0 && Ext::Fix().cancel_refund) {
+            RawMaterialDescription* rmDesc = FindRawMatDescInTemplate(tmpl);
+            int weight = rmDesc ? rmDesc->_weight : 0;
+            Ext::CancelRefund::PlaceOverflow(tmpl, weight, remaining, baseX, baseY, width, depth);
+        }
     }
 
 }

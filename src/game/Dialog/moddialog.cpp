@@ -63,6 +63,8 @@
 #include "system/Configuration.h"      // B3R: System::Configuration::GetVersionString
 #include "Game/exe_constants.h"   // B3R: kRdata_*
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "io/Persistence.h"             // fix.mods_persist: Persistence::WriteSettings
+#include "ext/registry.h"               // Ext::Fix().mods_persist
 
 
 // ============================================================
@@ -578,6 +580,12 @@ void ModDialog::Apply() {
         if ((unsigned)(result - 1) < 2) {
             // User confirmed: save and reload
             modification->SaveList();
+            // FIX mods_persist (docs/retail_bugs.md section 23): retail writes settings.cfg only at a
+            // clean shutdown (Persistence::WriteSettings 0x1800b88e0, from Engine::Shutdown), so a
+            // crash during or after the reload loses the change. With the row on the list is written
+            // now. At the main menu SaveList has just put it in the settings; in a game (reachable only
+            // with the row off) it has not, and the write leaves the mod keys as they were.
+            if (Ext::Fix().mods_persist) ::IO::Persistence::_singleton->WriteSettings();
             CloseAndReload();   // 0x14006e9b0
 
             if (gameWorld == nullptr) {

@@ -230,7 +230,8 @@ public:
                                        //        by 0x1401116f0; != 0 scores happiness
     Object::InternalPtr<ComponentEntity> home;         // +0x238 InternalPtr<ComponentEntity> (cell 0x1401c5d70): the residence
     int32_t  homeSlot;             // +0x240 int, NOT written by the ctor; the household slot in the residence
-    uint8_t  _pad244[4];           // +0x244
+    uint8_t  _pad244[4];           // +0x244 never read by retail; fix.stranded_wade keeps the lost home's
+                                   //        cell + 1 here (NOT RETAIL, src/ext/stranded_wade/; never saved)
     Object::InternalPtr<ComponentEntity> workplace;    // +0x248 InternalPtr<ComponentEntity> (cell 0x1401c5d70)
     Object::InternalPtr<CitizenComponent> spouse;      // +0x250 InternalPtr (cell 0x1401c7158); set pairwise by the marriage scan
     Object::InternalPtr<CitizenComponent> _parent;     // +0x258 InternalPtr (profile assert `child->_parent.IsPtrNull()`)

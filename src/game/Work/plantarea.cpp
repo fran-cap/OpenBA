@@ -38,6 +38,8 @@
 #include "Component/WorkComponent.h"
 #include "Component/WorkPlaceComponent.h"
 #include "Entity/ComponentEntity.h"
+#include "ext/registry.h"                                  // Ext::Fix().crop_planting_exit
+#include "ext/crop_planting_exit/crop_planting_exit_rule.h"
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
 
 // ============================================================
@@ -77,6 +79,16 @@ static WorkCellSetNode* FindCell(WorkCellSetNode* node, int key) {
         }
     }
     return nullptr;
+}
+
+// NOT RETAIL: fix.crop_planting_exit's count of the field's slots that left "empty" (growing or
+// done), the sign that some worker reached the field.
+static int SettledSlots(const CropFieldComponent* crop) {
+    int n = 0;
+    for (int i = 0; i < crop->slots._size; i++) {
+        if (crop->slots._data[i].state != 0) n++;
+    }
+    return n;
 }
 
 // LEFT (every slot below): the set bodies 0x140029a40 / 0x14001ca60 / 0x140029de0
@@ -272,8 +284,16 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
 
         // If we had no cells with validity flag set (anyUnplanted still true)
         // we return 1 below
+        // FIX crop_planting_exit (docs/retail_bugs.md section 11): here every slot still to plant
+        // failed the reach test for this citizen. Retail returns, so a slot no worker can reach
+        // keeps the field in state 9 for good; with the row on, once nothing is in flight and some
+        // slot was planted, the end-of-planting branch below runs instead.
         if (!anyUnplanted) {
-            return 1;
+            const bool fixOn = Ext::Fix().crop_planting_exit;
+            const int settled = fixOn ? SettledSlots(crop) : 0;
+            if (!Ext::CropPlantingExit::EndPlantingOnUnreachable(fixOn, _cells._count, settled)) {
+                return 1;
+            }
         }
     }
 

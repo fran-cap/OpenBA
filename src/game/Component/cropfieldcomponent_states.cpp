@@ -76,6 +76,7 @@
 #include "Component/NaturalResourceDescription.h"   // ENDGAME B.3.9 C1: 0x1401c7b68 cell class
 #include "Component/RawMaterialDescription.h"        // ENDGAME B.3.9 C1: 0x1401c7cb8 cell class
 #include "Component/exe_bodies.h"
+#include "ext/registry.h"   // Ext::Fix().crop_planting_exit
 #include "system/MemoryAllocator.h"
 #include "Work/exe_bodies.h"
 #include "Game/exe_constants.h"
@@ -430,6 +431,10 @@ char CropFieldComponent::State9Enter() {
 
 // ── state 9 per-frame — 0x14011a1e0 ───────────────────────────────────────────────
 // Refresh the slots, then: all done -> 21; all either growing or done -> 10 (tend).
+// FIX crop_planting_exit (docs/retail_bugs.md section 11): retail's state 9 has no 21 in its
+// transition list, so its 21 request is dropped and the field stays here. The table below
+// carries 21 for the row; with the row off the request is not made, which is what retail's
+// dropped request amounts to (nothing else asks a crop field for 21 in state 9).
 char CropFieldComponent::State9PerFrame(StateMachine* sm) {
     ValidateEntityRefs();
     const int total   = slots._size;
@@ -438,7 +443,8 @@ char CropFieldComponent::State9PerFrame(StateMachine* sm) {
 
     if (done == total) {
         CF_ReleaseWorkSlot(this);
-        ::ControllerLive::RequestStateTransition(sm, 21);
+        if (Ext::Fix().crop_planting_exit)
+            ::ControllerLive::RequestStateTransition(sm, 21);
     } else if (growing + done == total) {
         CF_ReleaseWorkSlot(this);
         ::ControllerLive::RequestStateTransition(sm, 10);
@@ -559,6 +565,11 @@ static void CropFieldCtrl_PopulateTable() {
                        &CropField_State9PerFrame, nullptr);
     TableAddTransition(t, 3,  nullptr);
     TableAddTransition(t, 10, nullptr);
+    // NOT RETAIL: fix.crop_planting_exit's re-clear (docs/retail_bugs.md section 11). Retail lists
+    // {3, 10} only. The table is built at static init, before settings, so the entry is always
+    // here and State9PerFrame makes the request only with the row on. Appended last, so the
+    // indices of 3 and 10 (the transition index a save carries) are retail's.
+    TableAddTransition(t, 21, nullptr);
 
     // ── state 10 — TEND / GROW ────────────────────────────────────────────────────
     // The only state with an UPDATE handler (0x140119f70) as well as a per-frame

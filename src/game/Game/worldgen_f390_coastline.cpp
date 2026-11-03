@@ -617,19 +617,15 @@ void wg_f390_coastline(TerrainHeightfield* hf) {
 
     int gridSize = hf->gridSize;
 
-    // Guard: without the allocator the rejection sampler can't make progress;
-    // bail rather than spin forever.
-    if (!System::MemoryAllocator::_singleton) return;
-
     // branchSel = -NAN in the original (negative-as-int). Use -1.0f:
     // (int)(-1.0f) = -1 < 0 selects the closed-ring branch.
     const float branchSel = -1.0f;
 
-    int guard = 0;
+    // Unbounded, as retail (0x1400cd118 `CMP [RBX+0x20],0 ; JZ 0x1400cd0e0`): a size row whose
+    // grid makes a closed ring impossible hangs the world build in retail too.
     while (hf->paths._size == 0) {
         coastline_TryPlacePath_cc850(hf, gridSize + 1, (float)gridSize,
                                      kRing_a4_2_0, kRing_a5_10_0, kRing_a6_1_25,
                                      kRing_a78_4_0, kRing_a78_4_0, branchSel);
-        if (++guard > 100000) break; // safety: never hang the load thread
     }
 }

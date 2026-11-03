@@ -131,6 +131,8 @@
 #include "Work/exe_bodies.h"               // WorkBase_TreeNodeFree_e320 (B6 row 810: retail frees the legacy tree's subtrees)
 #include "Game/Profession.h"   // B8 RT2: ::Object::SerializeExternal<Profession> (the downcast needs it complete)
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
+#include "ext/registry.h"                           // EXT SEAM: Ext::Fix().unresolved_seeds
+#include "ext/unresolved_seeds/unresolved_seeds.h"  // EXT SEAM: Ext::UnresolvedSeeds::DropNulls
 
 // Already-ported sibling functions, called by name through their declaring headers:
 //   0x140014b40 Avl38Retrace (Player/exe_bodies.h), 0x14000e360
@@ -530,6 +532,17 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
         if (SerializerLoading(ser))
             field_0x120.SetSize(count);
         ::Object::SerializeExternalArray<ComponentDescription>(*ser, count, field_0x120._data);   // 0x1400049c0
+        // EXT SEAM (NOT RETAIL, docs/retail_bugs.md section 21): fix.unresolved_seeds. 0x1400049c0
+        // stores null for an entry whose resource no longer loads (a mod's crop, tree or animal
+        // with the mod now off); the crop field / orchard / pasture panels fault on it (0x140078830).
+        if (SerializerLoading(ser) && Ext::Fix().unresolved_seeds) {
+            const int32_t kept = Ext::UnresolvedSeeds::DropNulls(field_0x120._data, count);
+            if (kept != count) {
+                fprintf(stderr, "[UnresolvedSeeds] %d agriculture entries no longer resolve: dropped\n",
+                        count - kept);
+                field_0x120.SetSize(kept);
+            }
+        }
     }
 
     // LEFT: the three clocks are declared int64_t (CitizenBehavior.h, block WORK-a).

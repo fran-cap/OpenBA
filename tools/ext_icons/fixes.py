@@ -215,6 +215,223 @@ def draw_queue_first(px):
     ])
 
 
+def draw_field_rows(px):
+    # crop rows in a field, the last row broken off (a field that finishes planting past an unreachable row)
+    _paint(px, [
+        "############",
+        "#..........#",
+        "#.++.++.++.#",
+        "#..........#",
+        "#.++.++.++.#",
+        "#..........#",
+        "#.++.++.++.#",
+        "#..........#",
+        "#.++.......#",
+        "#..........#",
+        "############",
+        "............",
+    ])
+
+
+def draw_well(px):
+    # a well: roof, posts and a round stone wall (an achievement counted against the wells it names)
+    _paint(px, [
+        "............",
+        "..########..",
+        ".##########.",
+        "..#......#..",
+        "..#......#..",
+        "..#..##..#..",
+        "..#..##..#..",
+        ".++++++++++.",
+        ".+########+.",
+        ".+########+.",
+        ".++++++++++.",
+        "............",
+    ])
+
+
+def draw_seed_rows(px):
+    # two sprouts on furrows with a dark gap between them (a crop the town names but cannot find)
+    _paint(px, [
+        "............",
+        "............",
+        ".#.......#..",
+        "###.....###.",
+        ".#.......#..",
+        ".#...+...#..",
+        ".#.......#..",
+        "............",
+        "####.###.###",
+        "............",
+        "####.###.###",
+        "............",
+    ])
+
+
+def draw_commute(px):
+    # a house and a workplace joined by a dotted walk with a tick mark (the commute is measured)
+    _paint(px, [
+        "............",
+        "..#......##.",
+        ".###....####",
+        "#####...#++#",
+        ".#+#....#++#",
+        ".#+#....####",
+        "............",
+        "..#.#.#.#...",
+        "............",
+        ".....#......",
+        "....###.....",
+        "............",
+    ])
+
+
+def draw_arrival(px):
+    # a walker beside a house with a river line between them and a turn-back arrow (arrival means at the hall)
+    _paint(px, [
+        "............",
+        ".#.......#..",
+        "###.....###.",
+        ".#.....#####",
+        "###....#+.+#",
+        ".#.....#+.+#",
+        "#.#....#####",
+        "............",
+        "++++++++++++",
+        "............",
+        "..#.........",
+        ".######.....",
+    ])
+
+
+def draw_mods_lock(px):
+    # a package with a padlock on it (the mod list is saved at once and changed only from the main menu)
+    _paint(px, [
+        "............",
+        ".########...",
+        ".#......#...",
+        ".#.++++.#...",
+        ".#......#...",
+        ".#.++++.#...",
+        ".#......###.",
+        ".######.#.#.",
+        "......#####.",
+        "......##+##.",
+        "......#####.",
+        "............",
+    ])
+
+
+def draw_save_failed(px):
+    # a floppy disk with a "!" on its label (a save that did not reach the disk says so)
+    _paint(px, [
+        "##########..",
+        "#+++++++#.#.",
+        "#+++++++#..#",
+        "#+++++++####",
+        "#..........#",
+        "#.########.#",
+        "#.###++###.#",
+        "#.###++###.#",
+        "#.########.#",
+        "#.###++###.#",
+        "#.########.#",
+        "############",
+    ])
+
+
+def draw_boat_ridge(px):
+    # a boat on water, a ridge between it and the dock post (a dock the boats cannot reach)
+    _paint(px, [
+        "............",
+        "...#........",
+        "...##.......",
+        "...###....#.",
+        "...#......#.",
+        "+++++++...#.",
+        ".+++++..+.#.",
+        "........+.#.",
+        "#######+++##",
+        "............",
+        "#.#.#.#.#.#.",
+        "............",
+    ])
+
+
+def draw_cancel_refund(px):
+    # a dashed site outline with piles (logs) laid outside it
+    _paint(px, [
+        "............",
+        ".##......##.",
+        ".##.#.#..##.",
+        "...#.....#..",
+        "..#.......#.",
+        "...#.....#..",
+        "..#.......#.",
+        "...#.#.#.#..",
+        "............",
+        ".++..++..++.",
+        ".##..##..##.",
+        "............",
+    ])
+
+
+def draw_coin_crossed(px):
+    # a crate kept back beside a coin (goods worth nothing to the merchant are not handed over)
+    _paint(px, [
+        "............",
+        "......####..",
+        ".....#....#.",
+        ".....#.##.#.",
+        ".....#.##.#.",
+        ".....#....#.",
+        "......####..",
+        "############",
+        "#++#++#++#.#",
+        "#++#++#++#.#",
+        "############",
+        "............",
+    ])
+
+
+def draw_load_fits(px):
+    # a short stack going into a nearly full bin (the fetched load fits the building's room)
+    _paint(px, [
+        ".....#......",
+        ".....#......",
+        "...#####....",
+        "....###.....",
+        ".....#......",
+        "#..........#",
+        "#..........#",
+        "#..++++++..#",
+        "#++++++++++#",
+        "#++++++++++#",
+        "############",
+        "............",
+    ])
+
+
+
+def draw_wade(px):
+    # a figure in the water (wave lines) walking back to a house on the bank
+    _paint(px, [
+        "............",
+        "........#...",
+        ".......###..",
+        "..#...#####.",
+        ".###..#+.+#.",
+        "..#...#+.+#.",
+        ".###..#####.",
+        "..#.........",
+        "+#+#+.......",
+        "............",
+        "++.++.++.++.",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -227,4 +444,16 @@ ICONS = {
     "outline_with_panel": ("fix", draw_outline_panel),   # a panel over its outlined plot
     "foundation_piles": ("fix", draw_foundation),    # foundation outline, a log outside it
     "path_query_first": ("fix", draw_queue_first),   # arrow to the front of a waiting row
+    "crop_planting_exit": ("fix", draw_field_rows),  # crop rows in a field outline
+    "firefighter_wells": ("fix", draw_well),         # a well under its roof
+    "unresolved_seeds": ("fix", draw_seed_rows),     # two sprouts on furrows, a gap between them
+    "commute_cost": ("fix", draw_commute),           # house and workplace joined by a measured path
+    "nomad_arrival": ("fix", draw_arrival),          # walker, river line, hall, turn-back arrow
+    "mods_persist": ("fix", draw_mods_lock),         # a package with a padlock
+    "save_failure_notice": ("fix", draw_save_failed),   # a floppy disk with a "!" on its label
+    "boat_reach_notice": ("fix", draw_boat_ridge),   # a boat kept from its dock by a ridge
+    "cancel_refund": ("fix", draw_cancel_refund),    # a site outline, piles laid outside it
+    "autotrade_free_goods": ("fix", draw_coin_crossed),   # a crate kept back beside a coin
+    "input_fetch_room": ("fix", draw_load_fits),     # a short load into a nearly full bin
+    "stranded_wade": ("fix", draw_wade),             # a figure in the water, a house on the bank
 }

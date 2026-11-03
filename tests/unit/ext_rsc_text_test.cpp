@@ -66,7 +66,7 @@ UNIT_TEST(ext_rsc_text_parse_extensions) {
         const Field* flags = dlg->body.Find("_flags");
         CHECK(flags && !flags->isArray && flags->tokens.size() == 3 && flags->tokens[1].text == "PauseGame");
         const Field* refs = dlg->body.Find("_references");
-        CHECK(refs && refs->isArray && refs->tokens.size() == 3 && refs->tokens[0].quoted);
+        CHECK(refs && refs->isArray && refs->tokens.size() == 4 && refs->tokens[0].quoted);
         const Field* tpl = dlg->body.Find("_templates");
         CHECK(tpl && tpl->isArray && tpl->tokens.size() == 1 && tpl->tokens[0].text == "entryRow");
     }
@@ -151,7 +151,9 @@ UNIT_TEST(ext_rsc_text_parse_extensions) {
     }
     // The bases the in-game pages derive from (RestrictedFoodsPage.rsc, ItemPriorityPage.rsc) stay.
     CHECK(f.Find("entryList") && f.Find("tableList") && f.Find("tableMods"));
-    CHECK(f.objects.size() == 48);   // + 2: buttonGameFiles and labelGameFiles (issue #96)
+    // 46 + fix.save_failure_notice's box (saveFailed, noticeSaveFailed) + 2: buttonGameFiles and labelGameFiles
+    // (issue #96)
+    CHECK(f.objects.size() == 50);
 }
 
 UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
@@ -201,9 +203,10 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // buttons and the note), + 1 for the citizen panel's Family button and its tip, + 2 for the SVG button
     // and its tip, + 2 for the search box (its label and tip), + 3 for the town summary (button, title,
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
-    // the picture's main-job check box and its tip, + 10 for the Grid page,
-    // + 2 for the Game files menu button and its tip (issue #96), + 1 for the touch pointer bar's Shift tip
-    CHECK(strings && strings->blocks.size() == 131);
+    // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
+    // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
+    // + 1 for the touch pointer bar's Shift tip
+    CHECK(strings && strings->blocks.size() == 132);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;

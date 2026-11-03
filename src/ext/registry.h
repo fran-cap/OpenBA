@@ -71,6 +71,18 @@ struct Fixes {
     bool alloc_tiebreak    = true;   // docs/retail_bugs.md §14, src/ext/alloc_tiebreak/ (docs/extensions/handins/ALLOCTIEBREAK.md): sim-visible, ties in the job / house allocators
     bool foundation_piles  = true;   // docs/retail_bugs.md §17, src/ext/foundation_piles/ (docs/extensions/handins/FOUNDATIONPILES.md): sim-visible, piles a full town cannot store leave a site's footprint
     bool path_query_first  = true;   // docs/retail_bugs.md §18, src/ext/path_query_first/ (docs/extensions/handins/PATHQUERYFIRST.md): sim-visible timing, the synchronous path query jumps the worker queue
+    bool crop_planting_exit = true;  // docs/retail_bugs.md §11, src/ext/crop_planting_exit/: sim-visible, a crop field leaves planting when every slot is done or the rest are out of reach
+    bool firefighter_wells = true;   // docs/retail_bugs.md §20, src/ext/firefighter_wells/: the Firefighter achievement unlocks at the 20 wells its description gives (the data says 40)
+    bool unresolved_seeds  = true;   // docs/retail_bugs.md §21, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
+    bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
+    bool nomad_arrival     = true;   // docs/retail_bugs.md §22, src/ext/nomad_arrival/: sim-visible, a nomad counts as arrived only near the town hall, else retries once and leaves
+    bool mods_persist      = true;   // docs/retail_bugs.md §23: the mod list is written to settings.cfg when Mods is confirmed, and Mods is greyed out in a game
+    bool boat_reach_notice = true;   // docs/retail_bugs.md §28, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
+    bool save_failure_notice = true; // docs/retail_bugs.md §27, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
+    bool cancel_refund     = true;   // docs/retail_bugs.md §26, src/ext/cancel_refund/: sim-visible, a cancelled site's materials that do not fit on its footprint are laid around it, not discarded
+    bool autotrade_free_goods = true;   // docs/retail_bugs.md §24, src/ext/autotrade_free_goods/: sim-visible, auto-trade does not pay with goods the merchant prices 0
+    bool input_fetch_room  = true;   // docs/retail_bugs.md §25, src/ext/input_fetch_room/: sim-visible, a production worker's input fetch fits the workplace's free room
+    bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home's zone (else his lost home's, the hall's, a storage's) whose walk there was refused wades back
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
