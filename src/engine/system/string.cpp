@@ -904,12 +904,14 @@ void String::Serialize(::IO::Serializer& serializer) {
     // NOT RETAIL (hardening, review 2026-11-03 F-079 / F-080): retail sizes the String
     // straight from the 31-bit length word, so a hostile record asks for 2 GB (plain) or
     // 4 GB (legacy UTF-16, n * 2 below) and then reads up to 2^31 failing elements. A
-    // length the rest of the stream cannot hold is rejected here: the String is left
-    // empty and nothing more is read. A well-formed record always fits, so valid saves
-    // and packages load byte-identically.
+    // length the rest of a binary stream cannot hold is rejected here: the String is
+    // left empty and nothing more is read. A well-formed record always fits, so valid
+    // saves and packages load byte-identically; a non-binary reading stream (the ext
+    // .rsc text reader) is never capped (IO::StringLengthExceedsStream).
     if (loading && n != 0) {
-        const uint64_t need = legacyWide ? static_cast<uint64_t>(n) * 2 : static_cast<uint64_t>(n);
-        if (need > ::IO::StreamBytesLeft(*serializer._stream)) {
+        const uint64_t need = legacyWide ? static_cast<uint64_t>(n) * 2
+                                         : static_cast<uint64_t>(n);
+        if (::IO::StringLengthExceedsStream(*serializer._stream, need)) {
             Release();
             _data = nullptr;
             return;

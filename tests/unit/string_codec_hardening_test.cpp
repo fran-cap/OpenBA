@@ -11,7 +11,14 @@
 //   F-034  41 | 99                    a one-byte format-1 source (the 99 is past the end)
 //   F-057  EncodeOne(INT_MIN, fmt 4 / 5)
 // The stream below fails a read past its end without touching the destination, as
-// MemoryStream::Read does, and reports its size the way every reading stream does.
+// MemoryStream::Read does, and wears the binary encoding every BinaryReader stream
+// wears, so its size and position are byte counts.
+//
+// The text-resource path (src/ext/resources/text_reader.cpp) is the other reading
+// route: a stream whose encoding is not binary and whose GetSize / GetCurrentPos
+// answer 0, under a ReaderWriter that answers a String's length slot with
+// (strlen + 1) | 0x80000000 and then fills the chars slot itself. The cap must not
+// apply there (review of PR #107): the string_codec_text_stream_* tests pin it.
 // ============================================================================
 #include "unit.h"
 
@@ -29,12 +36,17 @@
 
 namespace {
 
+IO::BinaryEncoding g_binaryEncoding;
+
 struct VecStream final : IO::Stream {
     std::vector<uint8_t> bytes;
     uint32_t pos = 0;
 
-    VecStream() { _direction = 0; }   // reading; _encoding stays null
-    ~VecStream() override = default;
+    VecStream() {
+        _direction = 0;                 // reading
+        _encoding = &g_binaryEncoding;  // shared, not owned
+    }
+    ~VecStream() override { _encoding = nullptr; }   // ~Stream must not free it
 
     bool Write(int, const void*) override { return false; }
     bool Read(int n, void* dst) override {
@@ -97,6 +109,98 @@ void ReleaseString(System::String& str) {
     System::StringPrivateAccess::Release(str);
     str._data = nullptr;
 }
+
+// The shape of the ext .rsc text reader's IO side (text_reader.cpp TextEncoding /
+// TextStream): IsBinary false, GetKind 1, a reading stream that holds nothing and
+// answers 0 for both its size and its position.
+class RscTextEncoding final : public IO::Encoding {
+public:
+    bool IsBinary() const override { return false; }
+    bool IsText() const override { return true; }
+    int GetKind() const override { return 1; }
+    IO::ReaderWriter* CreateReader(IO::Serializer&, int) override { return nullptr; }
+    IO::ReaderWriter* CreateWriter(IO::Serializer&, int) override { return nullptr; }
+};
+RscTextEncoding g_rscTextEncoding;
+
+struct RscTextStream final : IO::Stream {
+    RscTextStream() {
+        _encoding = &g_rscTextEncoding;
+        _direction = IO::kReading;
+    }
+    ~RscTextStream() override { _encoding = nullptr; }
+    bool Write(int, const void*) override { return false; }
+    bool Read(int, void*) override { return false; }
+    bool SetCurrentPos(int) override { return true; }
+    uint32_t GetCurrentPos() const override { return 0; }
+    uint32_t GetSize() const override { return 0; }
+};
+
+// The text reader's answers for one String field: the length slot gets
+// (strlen + 1) | 0x80000000, the chars slot gets the text and its NUL.
+class RscTextAnswer final : public IO::ReaderWriter {
+public:
+    RscTextAnswer(IO::Serializer& ser, const char* text) : ReaderWriter(ser), _text(text) {}
+    ~RscTextAnswer() override {}
+    int GetVersion() const override { return 0; }
+    void Skip() override {}
+    void SerializeCharArray(int n, char* a, const char*) override {
+        ++charCalls;
+        lastCharCount = n;
+        if (a != nullptr && n > 0)
+            std::memcpy(a, _text, static_cast<size_t>(n));
+    }
+    void SerializeUInt(uint32_t& v, const char*) override {
+        ++uintCalls;
+        v = static_cast<uint32_t>(std::strlen(_text) + 1) | 0x80000000u;
+    }
+    void SerializeBoolArray(int, bool*, const char*) override { ++otherCalls; }
+    void SerializeFloatArray(int, float*, const char*) override { ++otherCalls; }
+    void SerializeUInt64Array(int, uint64_t*, const char*) override { ++otherCalls; }
+    void SerializeInt64Array(int, int64_t*, const char*) override { ++otherCalls; }
+    void SerializeUIntArray(int, uint32_t*, const char*) override { ++otherCalls; }
+    void SerializeIntArray(int, int32_t*, const char*) override { ++otherCalls; }
+    void SerializeUShortArray(int, uint16_t*, const char*) override { ++otherCalls; }
+    void SerializeShortArray(int, int16_t*, const char*) override { ++otherCalls; }
+    void SerializeUCharArray(int, unsigned char*, const char*) override { ++otherCalls; }
+    void SerializeSCharArray(int, signed char*, const char*) override { ++otherCalls; }
+    void SerializeChar(char&, const char*) override { ++otherCalls; }
+    void SerializeBool(bool&, const char*) override { ++otherCalls; }
+    void SerializeFloat(float&, const char*) override { ++otherCalls; }
+    void SerializeUInt64(uint64_t&, const char*) override { ++otherCalls; }
+    void SerializeInt64(int64_t&, const char*) override { ++otherCalls; }
+    void SerializeInt(int32_t&, const char*) override { ++otherCalls; }
+    void SerializeUShort(uint16_t&, const char*) override { ++otherCalls; }
+    void SerializeShort(int16_t&, const char*) override { ++otherCalls; }
+    void SerializeUChar(unsigned char&, const char*) override { ++otherCalls; }
+    void SerializeSChar(signed char&, const char*) override { ++otherCalls; }
+    void SerializeBytes(int, void*, const char*) override { ++otherCalls; }
+
+    int charCalls = 0;
+    int lastCharCount = 0;
+    int uintCalls = 0;
+    int otherCalls = 0;
+
+private:
+    const char* _text;
+};
+
+// A reading Serializer over an RscTextStream with the text reader's answers bound.
+struct RscTextReader {
+    HeapSeat seat;
+    alignas(8) uint8_t serBytes[16] = {};
+    IO::Serializer& ser;
+    RscTextAnswer rw;
+
+    RscTextReader(RscTextStream& s, const char* text) : ser(Bind(serBytes, s)), rw(ser, text) {
+        ser._readerWriter = &rw;
+    }
+    static IO::Serializer& Bind(uint8_t* bytes, RscTextStream& s) {
+        IO::Serializer& out = *reinterpret_cast<IO::Serializer*>(bytes);
+        out._stream = &s;
+        return out;
+    }
+};
 
 }  // namespace
 
@@ -253,4 +357,45 @@ UNIT_TEST(string_codec_encode_utf16_negative_codepoint_wraps) {
     CHECK_EQ(RtIo_TextCodec_EncodeOne(0xD800, d, 4), 0);
     CHECK_EQ(RtIo_TextCodec_EncodeOne(0xDFFF, d, 5), 0);
     CHECK_EQ(RtIo_TextCodec_EncodeOne(0xE000, d, 4), 2);
+}
+
+// Review of PR #107 (blocker): the F-079 / F-080 cap must not touch the ext .rsc text
+// reader. Its stream answers 0 for size and position, so a cap on GetSize() -
+// GetCurrentPos() rejected every String it set, the chars slot was never asked for,
+// and RscText::BuildObject failed for every embedded object with a String field.
+UNIT_TEST(string_codec_text_stream_string_still_loads) {
+    RscTextStream s;
+    System::String str;
+    int charCalls = 0;
+    int lastCharCount = 0;
+    {
+        RscTextReader r(s, "Extensions");
+        str.Serialize(r.ser);
+        charCalls = r.rw.charCalls;
+        lastCharCount = r.rw.lastCharCount;
+        CHECK_EQ(r.rw.uintCalls, 1);
+        CHECK_EQ(r.rw.otherCalls, 0);
+    }
+    CHECK_EQ(charCalls, 1);
+    CHECK_EQ(lastCharCount, 11);
+    CHECK_STREQ(str._data, "Extensions");
+    ReleaseString(str);
+}
+
+// The same through RtIo_SerializeStringArray: every element still asks for its chars.
+UNIT_TEST(string_codec_text_stream_string_array_still_loads) {
+    RscTextStream s;
+    System::String arr[2];
+    int charCalls = 0;
+    {
+        RscTextReader r(s, "Sprites/ext");
+        RtIo_SerializeStringArray(&r.ser, 2, arr, nullptr);
+        charCalls = r.rw.charCalls;
+        CHECK_EQ(r.rw.otherCalls, 0);
+    }
+    CHECK_EQ(charCalls, 2);
+    CHECK_STREQ(arr[0]._data, "Sprites/ext");
+    CHECK_STREQ(arr[1]._data, "Sprites/ext");
+    ReleaseString(arr[0]);
+    ReleaseString(arr[1]);
 }

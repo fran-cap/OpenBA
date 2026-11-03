@@ -215,7 +215,7 @@ extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
             // NOT RETAIL (review 2026-11-03 F-034, heap over-read): retail reads both
             // bytes unchecked, so an odd-length source reads one byte past `end`. A
             // lone trailing byte is malformed here, as a short unit is in case 4 / 5.
-            if (src + 2 > end) goto bad;
+            if (end - src < 2) goto bad;
             *cp = src[0] | (static_cast<int32_t>(src[1]) << 8);
             return 2;
 
@@ -268,7 +268,7 @@ extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
 
         case 4:                                                    // 0x1800ca0e8
         case 5: {
-            if (src + 2 > end) goto bad;          // `JA`, not `JAE`
+            if (end - src < 2) goto bad;          // `JA`, not `JAE`
             // The ENDIANNESS comes from ECX, the table index from arg5.
             const uint16_t w = (fmtEcx == 4)
                 ? static_cast<uint16_t>((src[1] << 8) | src[0])
@@ -518,11 +518,13 @@ extern "C" void RtIo_SerializeStringArray(::IO::Serializer* ser, int32_t count,
 
         // NOT RETAIL (hardening, review 2026-11-03 F-079): retail sizes the String and
         // the UTF-16 temporary straight from the length word (2 GB / 4 GB from a 5-byte
-        // record). A length the rest of the stream cannot hold leaves this String empty
-        // and reads nothing for it; a well-formed table always fits.
+        // record). A length the rest of a binary stream cannot hold leaves this String
+        // empty and reads nothing for it; a well-formed table always fits, and a
+        // non-binary reading stream is never capped (IO::StringLengthExceedsStream).
         if (reading && len != 0) {
-            const uint64_t need = wasWide ? static_cast<uint64_t>(len) * 2 : static_cast<uint64_t>(len);
-            if (need > ::IO::StreamBytesLeft(*ser->_stream)) {
+            const uint64_t need = wasWide ? static_cast<uint64_t>(len) * 2
+                                          : static_cast<uint64_t>(len);
+            if (::IO::StringLengthExceedsStream(*ser->_stream, need)) {
                 ::System::StringPrivateAccess::Release(*slot);
                 slot->_data = nullptr;
                 continue;

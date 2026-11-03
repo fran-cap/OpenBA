@@ -489,14 +489,27 @@ inline Stream::~Stream() {
     if (_encoding) RtSystem::RtMemFree(_encoding);
 }
 
-// NOT RETAIL (hardening, review 2026-11-03 F-079 / F-080): the bytes a reading stream
-// still holds, GetSize() - GetCurrentPos(), or 0 when the position is already past the
-// end. System::String::Serialize and RtIo_SerializeStringArray reject a length word
-// larger than this before they size anything from it.
-inline uint64_t StreamBytesLeft(const Stream& s) {
+// NOT RETAIL (hardening, review 2026-11-03 F-079 / F-080): true when a String length
+// word asks for more bytes than a BINARY-encoded reading stream still holds,
+// GetSize() - GetCurrentPos(). System::String::Serialize and RtIo_SerializeStringArray
+// reject such a record before they size anything from it.
+//
+// Only a binary encoding is tested, because only there are the size and the position
+// byte counts of the payload: MemoryStream (_size / _cursor; Read fails past _size),
+// FileStream (the file's or the package entry's size / cursor), CompressedStream (the
+// decompressed total the block directory read at Open implies, or a larger window end;
+// the logical position) and ext.stream_cache's SegmentStream (the record total, or its
+// CompressedStream). Every other encoding answers false (no cap): retail's TextEncoding
+// (TextFileStream, never read through: its CreateReader is stripped), VisitorEncoding
+// (VisitorStream, 0 / 0) and the ext .rsc text reader's TextStream (0 / 0, its reader
+// supplies the chars itself). A null encoding is not tested either.
+inline bool StringLengthExceedsStream(const Stream& s, uint64_t need) {
+    if (s._encoding == nullptr || !s._encoding->IsBinary())
+        return false;
     const uint32_t size = s.GetSize();
     const uint32_t pos = s.GetCurrentPos();
-    return size > pos ? static_cast<uint64_t>(size - pos) : 0u;
+    const uint64_t left = size > pos ? static_cast<uint64_t>(size - pos) : 0u;
+    return need > left;
 }
 
 static_assert(sizeof(Stream) == 0x18, "IO::Stream is 0x18 bytes");
