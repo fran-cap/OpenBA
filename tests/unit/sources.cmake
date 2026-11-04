@@ -42,6 +42,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/audio/audio_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collision2d/collision2d_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/achievement/achievement_type_records.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/achievement/achievement_update.cpp   # achievement_update_bounds_test.cpp (review F-092..F-094)
   ${CMAKE_SOURCE_DIR}/src/engine/video/video_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/graphics/graphics_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/root_operator_delete.cpp
