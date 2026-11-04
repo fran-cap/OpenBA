@@ -1530,7 +1530,7 @@ void GameUpdateLoop::Draw(float alpha) {
         if (s_forceSnow < 0) {
             const char* e = Opt().forceSnow;
             s_forceSnow = (e && e[0]) ? 1 : 0;
-            if (s_forceSnow) s_snowVal = (float)std::strtod(e, nullptr);
+            if (s_forceSnow) s_snowVal = ClampedAtof(e);   // F-087: a double beyond float range
         }
         if (s_forceSnow) {
             videoCtx->_unknown03b8.x = s_snowVal;
@@ -2421,6 +2421,10 @@ GameUpdateLoop::~GameUpdateLoop() {
 
     // Step 2: Clear game world singleton
     _singleton = nullptr;
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOWNSCREENSHOT.md): a town screenshot this loop was taking
+    // ends with it (review F-263: left running, it switched the next game's status icons and weather off).
+    Ext::TownScreenshot::GameEnded(this);
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): release this loop's class B / C lock (ignored
     // when a reload's new loop already holds it). Releasing it also empties the class C state.

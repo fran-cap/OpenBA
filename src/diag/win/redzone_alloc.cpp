@@ -2,6 +2,7 @@
 
 
 #include "redzone_alloc.h"
+#include "redzone_canary.h"            // RedzoneCanary::PadBytes / FormatHead
 #include "options.h"
 #include "system/MemoryAllocator.h"   // -Iruntime/types: the instrument seat
 #include "platform_sync.h"           // Platform::MutexLock / MutexUnlock on the allocator lock
@@ -127,11 +128,10 @@ void PrintEntry(const char* why, void* userPtr, const Entry& e) {
            "overflow bytes [%d..%d] of %zu\n",
            why, userPtr, e.reqSize, e.reqSize, e.seq,
            firstBad, lastBad, g_pad);
-    // Dump the canary's first 16 bytes — the overflow payload identifies the writer.
-    RZBoth("[REDZONE]   canary head: %02x %02x %02x %02x %02x %02x %02x %02x "
-           "%02x %02x %02x %02x %02x %02x %02x %02x\n",
-           c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7],
-           c[8], c[9], c[10], c[11], c[12], c[13], c[14], c[15]);
+    // Dump the canary's first bytes (at most 16, never past the pad) — the overflow
+    // payload identifies the writer.
+    char head[96];
+    if (RedzoneCanary::FormatHead(head, sizeof(head), c, g_pad)) RZBoth("%s", head);
     // First user qword = vtable for engine objects; names the corrupted block's type.
     if (!IsBadReadPtr(userPtr, 8))
         RZBoth("[REDZONE]   user+0 qword: 0x%016llx\n",
@@ -334,7 +334,7 @@ void RedzoneAlloc_Install() {
     g_realFree  = &RtAllocInstrument_MemFree;
     g_exeBase   = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));  // CAST-OK: crash_walk
     if (Opt().redzoneScan > 0) g_scanEvery = (uint32_t)Opt().redzoneScan;
-    if (Opt().redzonePad > 0) g_pad = (size_t)((Opt().redzonePad + 7) & ~7);  // 8-byte multiple
+    g_pad = RedzoneCanary::PadBytes(Opt().redzonePad);  // 8-byte multiple, 0 = off
     if (Opt().redzoneWatchMs != -1) {
         g_watchIntervalMs = Opt().redzoneWatchMs;  // 0 = tight spin
     }
@@ -803,7 +803,9 @@ extern "C" void RedzoneAlloc_ArmTeardownCheck() {
 }
 extern "C" void RedzoneAlloc_TeardownOp(const char* what) {
     if (!g_teardownHeapCheck) return;
-    static int depth = 0;
+    // Per thread: the callers (alloc_cutover_arm.cpp) no longer hold the allocator
+    // lock here (review F-287), and the guard is only against the walk re-entering.
+    static thread_local int depth = 0;
     if (depth) return;          // the walk itself must not re-enter
     ++depth;
     RedzoneAlloc_HeapCheck(what);

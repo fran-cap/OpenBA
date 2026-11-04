@@ -50,6 +50,19 @@ private:
     std::vector<PointerState> _queue;
 };
 
+// ---- the tool a toggle belongs to -------------------------------------------------------------
+
+// One tool selection: the tool's address and the group PlayerToolManager::SelectTool made it for
+// (Tool +0x20). Shift and the UI hold end when the tool changes. Selecting another group frees the
+// old tool and makes the new one in the same call, and the allocator hands the freed block straight
+// back (a run logged four house-to-house selections at one address, review F-258), so the address
+// alone does not tell the tools apart. SelectTool makes no new tool for the group already selected.
+struct ToolSelection {
+    const void* tool = nullptr;
+    const void* group = nullptr;
+    bool operator==(const ToolSelection& o) const { return tool == o.tool && group == o.group; }
+};
+
 // ---- taps -------------------------------------------------------------------------------------
 
 constexpr float kTapSeconds = 0.35f;      // a tap is shorter than this

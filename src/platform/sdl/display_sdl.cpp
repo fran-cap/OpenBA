@@ -71,8 +71,12 @@ FrameBorders CurrentFrame(SDL_Window* w) {
     const int framed = (flags & SDL_WINDOW_BORDERLESS) ? 0 : 1;
     if ((flags & SDL_WINDOW_MINIMIZED) == 0) {
         int top = 0, left = 0, bottom = 0, right = 0;
+        // A restore from a minimise can still be in flight here: SDL has cleared MINIMIZED
+        // but Windows still reports the iconic window rect (160 x 28 at -32000), so the
+        // frame comes out negative and OuterToClient nearly doubled the window (4960 x 2852
+        // for a 2560 x 1440 fullscreen restore). Such a measurement keeps the last good one.
         if (SDL_GetWindowBordersSize(w, &top, &left, &bottom, &right) &&
-            (framed == 0 || (top | left | bottom | right) != 0)) {
+            UsableFrameMeasurement(FrameBorders{top, left, bottom, right}, framed != 0)) {
             g_frame[framed]     = FrameBorders{top, left, bottom, right};
             g_haveFrame[framed] = true;
         }

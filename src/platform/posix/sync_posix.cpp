@@ -52,8 +52,9 @@ void MutexInit(LockStorage* lock, uint32_t /*spinCount*/) {
     pthread_mutex_init(Mx(lock), &attr);
     pthread_mutexattr_destroy(&attr);
 }
-void MutexLock(LockStorage* lock)    { pthread_mutex_lock(Mx(lock)); }
-void MutexUnlock(LockStorage* lock)  { pthread_mutex_unlock(Mx(lock)); }
+// The primitives the analysis takes on trust (platform_sync.h declares what they acquire / release).
+void MutexLock(LockStorage* lock) NO_THREAD_SAFETY_ANALYSIS { pthread_mutex_lock(Mx(lock)); }
+void MutexUnlock(LockStorage* lock) NO_THREAD_SAFETY_ANALYSIS { pthread_mutex_unlock(Mx(lock)); }
 void MutexDestroy(LockStorage* lock) { pthread_mutex_destroy(Mx(lock)); }
 
 void OnceRun(OnceFlag* flag, void (*fn)()) {

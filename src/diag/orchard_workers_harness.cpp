@@ -35,6 +35,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Object/factory_registration.h"   // ::Object::GetTypeIdByName
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -72,7 +73,7 @@ void Init() {
         fprintf(stderr, "[OrchardWorkers] disabled (BANISHED_ORCHARD_WORKERS unset)\n");
         return;
     }
-    s_count = std::atoi(env);
+    s_count = HarnessAtoi(env);
     if (s_count <= 0) s_count = 1;
     fprintf(stderr, "[OrchardWorkers] ENABLED (BANISHED_ORCHARD_WORKERS=\"%s\") — seat %d "
                     "worker(s) per orchard, re-checked every %d frames from frame %d\n",

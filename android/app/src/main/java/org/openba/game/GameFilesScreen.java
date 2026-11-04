@@ -46,6 +46,7 @@ import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.Date;
 
@@ -211,6 +212,9 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         }
 
         GameFilesJob.setListener(this);
+        if (mode == Mode.FIRST_RUN) {
+            GameFilesJob.setCopyWaiter(this);
+        }
         refresh();
     }
 
@@ -231,6 +235,7 @@ final class GameFilesScreen implements GameFilesJob.Listener {
 
     void destroy() {
         GameFilesJob.clearListener(this);
+        GameFilesJob.clearCopyWaiter(this);
     }
 
     // The back key: a running job is cancelled (and the screen stays); otherwise false.
@@ -493,6 +498,12 @@ final class GameFilesScreen implements GameFilesJob.Listener {
             setStatus("", false);
             return true;
         }
+        // The game may have started while the picker was open: refresh()'s lock is checked again.
+        if (mMode == Mode.MANAGE && GameFilesJob.isPackageCopy(kind) && gameRunning()) {
+            setStatus("The game is running: quit it to replace the game files.", true);
+            refresh();
+            return true;
+        }
         if (GameFilesJob.start(mActivity, kind, uri) == null) {
             setStatus("Busy: wait for the copy that is running.", true);
             return true;
@@ -539,6 +550,14 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         refresh();
         if (!job.succeeded) {
             setStatus(job.message, !job.cancelled);
+            // The game's start waited here for a copy run from "Game files" (OpenBAActivity.onCreate):
+            // the copy failed or was cancelled, WinData is as it was and holds data0.pkg, so it starts.
+            // The screen goes with the start: a toast keeps the reason in view.
+            if (mMode == Mode.FIRST_RUN && GameFilesJob.isPackageCopy(job.kind)
+                && GameFiles.hasGameData(mActivity)) {
+                Toast.makeText(mActivity, job.message, Toast.LENGTH_LONG).show();
+                mHost.onGameFilesInstalled();
+            }
             return;
         }
         switch (job.kind) {

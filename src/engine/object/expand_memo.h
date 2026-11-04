@@ -55,15 +55,19 @@
 
 #include <cstddef>
 
+#include "res_load_lock.h"   // the ResLoad capability
+
 namespace RtObject {
 
 // The cached answer for (path[0..len), appendIdentifier), NUL-terminated, or
 // null. When the answer is the request's own characters the result is `path`
 // itself, so `path` must be NUL-terminated at `len` (a Filename's buffer is).
-const char* ExpandMemoFind(const char* path, int len, bool appendIdentifier);
+// REQUIRES(ResLoad): the THREADS rule above, checked by clang's thread-safety analysis.
+const char* ExpandMemoFind(const char* path, int len, bool appendIdentifier) REQUIRES(ResLoad);
 
 // Remember `result` (resultLen characters) for that request.
-void ExpandMemoStore(const char* path, int len, bool appendIdentifier, const char* result, int resultLen);
+void ExpandMemoStore(const char* path, int len, bool appendIdentifier, const char* result, int resultLen)
+    REQUIRES(ResLoad);
 
 // For the unit tests: the entry count, and a full reset.
 size_t ExpandMemoSize();

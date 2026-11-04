@@ -46,7 +46,9 @@ DrawChoice ChooseDraw(float uiScale, int32_t backBufferWidth, int32_t backBuffer
     return c;
 }
 
-// round(baseHeight * num / 3) for a positive height, in integers.
+// round(baseHeight * num / 3) for a positive height, in integers. Callers keep
+// baseHeight within kMaxFontBaseHeight (NOT RETAIL: review F-229, a _lineHeight
+// from the font file would overflow 2 * num * baseHeight).
 static int RoundThirds(int baseHeight, int num) {
     return (2 * num * baseHeight + 3) / 6;
 }
@@ -55,14 +57,20 @@ int VariantLow(int baseHeight)  { return RoundThirds(baseHeight, 2); }
 int VariantHigh(int baseHeight) { return RoundThirds(baseHeight, 4); }
 int VariantStep(int baseHeight) { return baseHeight >= kVariantCoarseFrom ? 2 : 1; }
 
+// True for a base height that has variants: positive and within kMaxFontBaseHeight.
+static bool HasVariants(int baseHeight) {
+    return baseHeight > 0 && baseHeight <= kMaxFontBaseHeight;
+}
+
 bool IsVariantHeight(int baseHeight, int height) {
-    if (baseHeight <= 0 || height == baseHeight) return false;
+    if (!HasVariants(baseHeight) || height == baseHeight) return false;
     const int lo = VariantLow(baseHeight);
     if (height < lo || height > VariantHigh(baseHeight)) return false;
     return (height - lo) % VariantStep(baseHeight) == 0;
 }
 
 int VariantCount(int baseHeight) {
+    if (!HasVariants(baseHeight)) return 0;
     int n = 0;
     for (int h = VariantLow(baseHeight); h <= VariantHigh(baseHeight); ++h)
         if (IsVariantHeight(baseHeight, h)) ++n;
@@ -70,7 +78,7 @@ int VariantCount(int baseHeight) {
 }
 
 int PickVariantHeight(int baseHeight, float pxPerUnit) {
-    if (baseHeight <= 0 || !(pxPerUnit > 0.0f)) return baseHeight;
+    if (!HasVariants(baseHeight) || !(pxPerUnit > 0.0f)) return baseHeight;
     const float want = static_cast<float>(baseHeight) * pxPerUnit;
     if (std::fabs(want - static_cast<float>(baseHeight)) < 0.5f) return baseHeight;
 
@@ -92,14 +100,14 @@ int PickVariantHeight(int baseHeight, float pxPerUnit) {
 int RetinaHigh(int baseHeight) { return RoundThirds(baseHeight, 8); }
 
 bool IsRetinaVariantHeight(int baseHeight, int height) {
-    if (baseHeight <= 0) return false;
+    if (!HasVariants(baseHeight)) return false;
     return height > VariantHigh(baseHeight) && height <= RetinaHigh(baseHeight) &&
            height % VariantStep(baseHeight) == 0;
 }
 
 int PickRetinaVariantHeight(int baseHeight, float pxPerUnit) {
     const int pick = PickVariantHeight(baseHeight, pxPerUnit);
-    if (pick != baseHeight || baseHeight <= 0 || !(pxPerUnit > 0.0f)) return pick;
+    if (pick != baseHeight || !HasVariants(baseHeight) || !(pxPerUnit > 0.0f)) return pick;
     const int step = VariantStep(baseHeight);
     const float want = static_cast<float>(baseHeight) * pxPerUnit;
     if (want <= static_cast<float>(VariantHigh(baseHeight) + step) ||
@@ -168,6 +176,12 @@ int PickSheetFactor(float pxPerUnitX, float pxPerUnitY, const int* factors, int 
         if (px <= static_cast<float>(factors[i]) + kIntegerTolerance) return factors[i];
     }
     return factors[count - 1];
+}
+
+bool ScaledSheetFits(int32_t baseW, int32_t baseH, int factor) {
+    if (baseW <= 0 || baseH <= 0 || factor <= 0) return false;
+    return static_cast<int64_t>(baseW) * factor <= kMaxScaledSheetSide &&
+           static_cast<int64_t>(baseH) * factor <= kMaxScaledSheetSide;
 }
 
 int PickFontHeight(int baseHeight, float pxPerUnit, float density, bool* keepRetail) {

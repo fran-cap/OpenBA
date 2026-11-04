@@ -533,3 +533,21 @@ UNIT_TEST(ext_touch_pointer_hold_slop) {
     CHECK(LeftHoldSlop(0.0f, -40.0f, shortEdge));
     CHECK(kHoldSlopFraction < kTapSlopFraction);      // a slider drag starts well inside a tap's slop
 }
+
+// Review F-258: Shift and the UI hold belong to one tool selection. A new tool at the freed tool's
+// address (another group) is another selection; the same tool in the same group is the same one.
+UNIT_TEST(ext_touch_pointer_tool_selection_is_not_the_address_alone) {
+    static int block;
+    static int woodHouse;
+    static int stoneHouse;
+    ToolSelection shift;
+    shift.tool = &block;
+    shift.group = &woodHouse;
+    ToolSelection now = shift;
+    CHECK(now == shift);
+    now.group = &stoneHouse;   // StoneHouse's PlacementTool at the WoodHouse tool's address
+    CHECK(!(now == shift));
+    now.group = nullptr;       // the EditTool there (SelectTool(nullptr))
+    CHECK(!(now == shift));
+    CHECK(ToolSelection() == ToolSelection());
+}

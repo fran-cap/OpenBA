@@ -178,10 +178,16 @@ glyphs rasterised`.
 (`src/app/options.cpp`; `src/app/options.h` is the inventory). On Android the launch intent is the
 source: every string extra whose key starts with `BANISHED_` becomes that environment variable before the
 native library loads (`OpenBAActivity.java`); leftovers from an earlier launch in the same process are
-cleared first, so a launch from the icon runs with none. By hand:
+cleared first, so a launch from the icon runs with none. The activity is exported (the launcher starts
+it), so the extras are honoured only beside a one-use token: the text of `harness_token` in the data
+folder, passed again as the extra `OPENBA_HARNESS_TOKEN`. adb can write that folder and another app
+cannot. `tools/android.sh run BANISHED_AUTOSTART=1` does both; by hand:
 ```bash
-adb shell am start -n org.openba.game/org.openba.game.OpenBAActivity -e BANISHED_AUTOSTART 1
+adb shell "echo 1234abcd > /sdcard/Android/data/org.openba.game/files/harness_token"
+adb shell am start -n org.openba.game/org.openba.game.OpenBAActivity -e BANISHED_AUTOSTART 1 \
+    -e OPENBA_HARNESS_TOKEN 1234abcd
 ```
+Without the token the extras are ignored (logcat `launch extras ignored`) and the launch is a plain one.
 SDL ends the game's process state once `main` returns and refuses a second start in the same process, so
 `tools/android.sh run` force-stops the app first.
 

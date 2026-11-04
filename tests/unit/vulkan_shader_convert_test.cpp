@@ -624,6 +624,38 @@ UNIT_TEST(vulkan_combine_texture_with_two_samplers) {
     CHECK(CheckSpirvStructure(code, &why));
 }
 
+// review S-014: a cache entry is only checked for its record and payload hashes, both unkeyed, so a
+// forged entry under the right key reaches the draw code. Its reflection indexes 32-entry binding
+// arrays and shifts 32-bit masks: an out-of-range field is a miss, never a decoded entry.
+UNIT_TEST(vulkan_shader_cache_entry_rejects_out_of_range_reflection) {
+    std::vector<uint32_t> code;
+    ShaderReflection refl;
+    CHECK(ConvertCombined(PairsPixelBlob({{0, 0}, {0, 1}, {1, 0}}, -1), &code, &refl));
+    CHECK_EQ(refl.extraPairs.size(), (size_t)1);
+    const std::vector<uint8_t> good = EncodeEntry(code, refl);
+    std::vector<uint32_t> back;
+    ShaderReflection backRefl;
+    CHECK(DecodeEntry(good, &back, &backRefl));
+    // the payload layout (EncodeEntry): magic, version, stage, the five masks (cb at 12, texture at
+    // 16, sampler at 20, cube at 24, uav at 28), combined at 32, textureSampler[16] at 33, the pair
+    // count at 49, then (binding, texture, sampler) per pair from 53
+    const auto rejects = [&](size_t at, uint8_t value) {
+        std::vector<uint8_t> bad = good;
+        bad[at] = value;
+        return !DecodeEntry(bad, &back, &backRefl);
+    };
+    CHECK(rejects(53, 0xFF));                                           // binding past the sampler range
+    CHECK(rejects(53, static_cast<uint8_t>(BindingOfSampler(0) - 1)));  // binding below it
+    CHECK(rejects(54, 0xFF));                                           // texture
+    CHECK(rejects(55, kMaxSamplers));                                   // sampler
+    CHECK(rejects(33, kMaxSamplers));                                   // textureSampler[0]
+    CHECK(rejects(12 + 1, 0x01));                                       // constant buffer b8
+    CHECK(rejects(16 + 2, 0x01));                                       // texture t16
+    CHECK(rejects(20 + 2, 0x01));                                       // sampler s16
+    CHECK(rejects(24 + 2, 0x01));                                       // cube texture t16
+    CHECK(!rejects(33 + 15, kNoSampler));                               // no sampler stays valid
+}
+
 UNIT_TEST(vulkan_combine_texture_read_without_sampler) {
     // t2 is read with ld only: still combined (no sampler register), its image taken with OpImage.
     std::vector<uint32_t> code;
