@@ -405,10 +405,11 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
     // and the quit (GameUpdateLoop::Shutdown, before Persistence ends) both destroy the
     // SaveLoad with no wait, a use-after-free on the worker thread. hFinished is manual-reset
     // and every enqueue resets it, so this returns at once when no job runs.
+    // The wait is not gated on IsWorking(): bit 0 of _runFlags is set only once the worker
+    // thread wakes (Thread::ThreadFunc), so a job enqueued this frame and not yet picked up
+    // reads as idle while hFinished is already reset. hFinished alone covers both cases.
     if (::IO::Persistence* persistence = PersistenceSingleton()) {
-        if (persistence->_worker.IsWorking()) {
-            persistence->_worker.WaitForFinish();
-        }
+        persistence->_worker.WaitForFinish();
     }
 
     // MOV qword ptr [0x1801fc6f0],0x0 -- unconditional, and it happens FIRST,
