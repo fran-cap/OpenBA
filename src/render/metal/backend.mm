@@ -395,10 +395,10 @@ static id<MTLRenderPipelineState> Pipeline() {
     desc.stencilAttachmentPixelFormat = desc.depthAttachmentPixelFormat;
     desc.rasterSampleCount = samples;
     auto state = CachedPipeline(desc, bound.vs, bound.ps, true);
-    if (state) {
-        pipelines.Insert(key, state, { vf, pf, layout, blendKey });
-        if (pipelines.Size() <= 15) fprintf(stderr, "[Metal] pipeline %zu created\n", pipelines.Size());
-    }
+    // A descriptor Metal rejected is cached as nil too: the draws that bind it are skipped without compiling it
+    // (and printing its error) again on every draw. The entry goes with its owners like any other.
+    pipelines.Insert(key, state, { vf, pf, layout, blendKey });
+    if (state && pipelines.Size() <= 15) fprintf(stderr, "[Metal] pipeline %zu created\n", pipelines.Size());
     return state;
 }
 // DXMT's SM50 tables contain GPU addresses/resource IDs, indexed in qwords by
