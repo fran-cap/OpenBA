@@ -389,10 +389,10 @@ void DestroyUI::OnUpdateLayout() {
         // Element slot 8 (Enable) on buttonRebuild: enabled when state != 6
         buttonRebuild->Enable(stateByte != 6);
 
-        // Retail finds the StateMachineComponent again for buttonDestroy
-        // (the result is not read)
-        (void)DestroyUI_FindStateMachine(compEntity);
-        buttonDestroy->Enable(true);
+        // Retail finds the StateMachineComponent again for buttonDestroy and runs the
+        // same test (0x140065c1d..0x140065c48: CMP CL,0x6 / SETNZ DL / CALL [RAX + 0x40])
+        int8_t destroyStateByte = DestroyUI_StateByte(DestroyUI_FindStateMachine(compEntity));
+        buttonDestroy->Enable(destroyStateByte != 6);
 
         // Show rebuild and destroy buttons
         buttonRebuild->SetFlagsOnOff(0, 1);

@@ -60,6 +60,10 @@ static_assert(offsetof(EventNotifyEntry, text) == 0x20, "EventNotifyEntry::text 
 static_assert(offsetof(EventNotifyEntry, color) == 0x28, "EventNotifyEntry::color @ +0x28");
 static_assert(sizeof(EventNotifyEntry) == 0x30, "EventNotifyEntry is 0x30 (the +0xd8 array stride)");
 
+// 0x140011670: removes entries[removeIndex] (eventnotify_remove.cpp). OnUpdate 0x140067c30
+// calls it when a shown notification's timer runs out.
+void EventNotifyDialog_RemoveEntry(Collection::Array<EventNotifyEntry>& entries, int removeIndex);
+
 class EventNotifyDialog final : public UI::DialogInstance {
     DECLARE_EXE_TYPE(EventNotifyDialog)
 
