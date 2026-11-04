@@ -942,3 +942,46 @@ UNIT_TEST(ext_stream_cache_bundle_refuses_a_total_past_int32) {
     }
     CHECK(!added);
 }
+
+// Review phase 2 (F-234, the second route): ext.texture_quality's ReadDropped reads a level's size
+// from the stream -- the record's own bytes -- and hands it to SkipIfWithin, which asks g_altSkip
+// (AltSkip) first. AltSkip skipped without a range check, so a size of 0x7FFFFFFF at any position
+// past 0 overflowed SegmentStream's int32 _pos (or the fallback's _position), whatever the total.
+// SkipWithin skips only what lies within the record's total, in both modes.
+UNIT_TEST(ext_stream_cache_segment_stream_skip_within_refuses_past_the_end) {
+    const std::vector<uint8_t> plain = Pattern(70000, 13);
+    const std::vector<uint8_t> entry = BuildEntry(plain);
+    std::vector<uint8_t> chunk;
+    BeginChunk(chunk);
+    Recorder r;
+    CHECK(RecordReads(r, Id(6), plain, {{0, 100}, {65000, 100}}, chunk));
+    EndChunk(chunk, 1);
+    Bundle b;
+    CHECK(b.AddChunk(chunk));
+    const RecordView* rec = b.Find(Id(6));
+    CHECK(rec != nullptr);
+
+    FallbackContext ctx;
+    ctx.entry = &entry;
+    SegmentStream ss(rec, nullptr, 6, &OpenReader, &ctx);
+    std::vector<uint8_t> out(100);
+    CHECK(ss.Read(4, out.data()));
+    // from the record: an oversize, a negative and a one-past-the-end length do nothing
+    CHECK(!ss.SkipWithin(0x7FFFFFFF));
+    CHECK(!ss.SkipWithin(-1));
+    CHECK(!ss.SkipWithin(70000 - 4 + 1));
+    CHECK_EQ(ss.GetCurrentPos(), 4u);
+    CHECK(ss.SkipWithin(64996));
+    CHECK_EQ(ss.GetCurrentPos(), 65000u);
+    CHECK(ss.Read(100, out.data()));
+    CHECK(std::memcmp(out.data(), plain.data() + 65000, 100) == 0);
+    // in fallback: the same bound on the engine stream's position
+    CHECK(ss.Read(100, out.data()));
+    CHECK(ss.Extended());
+    CHECK_EQ(ss.GetCurrentPos(), 65200u);
+    CHECK(!ss.SkipWithin(0x7FFFFFFF));
+    CHECK(!ss.SkipWithin(70000 - 65200 + 1));
+    CHECK_EQ(ss.GetCurrentPos(), 65200u);
+    CHECK(ss.SkipWithin(70000 - 65200));
+    CHECK_EQ(ss.GetCurrentPos(), 70000u);
+}
