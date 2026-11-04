@@ -55,6 +55,9 @@ final class GameFilesJob {
     private static final int MAX_FOLDER_DEPTH = 3;
     private static final int BUFFER_SIZE = 1 << 20;
     private static final long PROGRESS_INTERVAL_MS = 100;
+    // Kept free on the data folder's volume by every job that writes there (the game's own saves and
+    // settings live on it too).
+    private static final long FREE_SPACE_MARGIN = 64L << 20;
 
     enum Kind { COPY_FOLDER, COPY_ARCHIVE, EXPORT_SAVES, IMPORT_SAVES }
 
@@ -87,6 +90,10 @@ final class GameFilesJob {
     private final Uri mUri;
     private volatile boolean mCancelRequested;
     private long mLastPost;
+    // The bytes the job may write into the data folder (startWriteBudget); unbounded for the export,
+    // which writes to the picked document.
+    private long mFreeAtStart;
+    private long mWriteBudget = Long.MAX_VALUE;
 
     private GameFilesJob(Context app, Kind kind, Uri uri) {
         mApp = app;
@@ -141,6 +148,9 @@ final class GameFilesJob {
 
     private void run() {
         try {
+            if (kind != Kind.EXPORT_SAVES) {
+                startWriteBudget();
+            }
             switch (kind) {
             case COPY_FOLDER:
                 copyFromFolder();
@@ -205,6 +215,7 @@ final class GameFilesJob {
         int n;
         while ((n = in.read(buffer)) > 0) {
             checkCancel();
+            checkWriteBudget(n);
             out.write(buffer, 0, n);
             bytesDone += n;
             barDone = bytesDone;
@@ -225,10 +236,26 @@ final class GameFilesJob {
         return dir;
     }
 
+    // The free space is read once, at the start. A size the archive or the provider reports bounds
+    // nothing (a zip entry inflates to any size, a provider's SIZE is its own word), so every write
+    // into the data folder is counted against it.
+    private void startWriteBudget() {
+        final File data = GameFiles.dataDir(mApp);
+        mFreeAtStart = data != null ? data.getUsableSpace() : 0;
+        mWriteBudget = mFreeAtStart - FREE_SPACE_MARGIN;
+    }
+
+    private void checkWriteBudget(long more) throws IOException {
+        if (bytesDone + more > mWriteBudget) {
+            throw new IOException("not enough free space: more than " + GameFiles.megabytes(bytesDone + more)
+                                  + " to write, " + GameFiles.megabytes(mFreeAtStart) + " free");
+        }
+    }
+
     private void checkFreeSpace(long needed) throws IOException {
         final File data = GameFiles.dataDir(mApp);
         final long free = data != null ? data.getUsableSpace() : 0;
-        if (needed > 0 && free < needed + (64L << 20)) {
+        if (needed > 0 && free < needed + FREE_SPACE_MARGIN) {
             throw new IOException("not enough free space: " + GameFiles.megabytes(needed) + " needed, "
                                   + GameFiles.megabytes(free) + " free");
         }
@@ -479,6 +506,7 @@ final class GameFilesJob {
                         int n;
                         while ((n = zip.read(buffer)) > 0) {
                             checkCancel();
+                            checkWriteBudget(n);
                             out.write(buffer, 0, n);
                             bytesDone += n;
                             // The bar follows the archive's bytes read; the text says MB written.
