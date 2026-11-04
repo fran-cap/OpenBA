@@ -154,6 +154,11 @@ std::string Serialize(const Entries& entries) {
     std::stable_sort(sorted.begin(), sorted.end(), KeyLess);
 
     std::string out;
+    // A key that begins with the UTF-8 BOM bytes would land at offset 0 and be stripped
+    // by Parse as a BOM, renaming the key on the next read. Such a file gets a real BOM
+    // in front, which Parse skips, so the key comes back whole (review F-085).
+    if (!sorted.empty() && sorted[0].key.compare(0, 3, "\xEF\xBB\xBF") == 0)
+        out += "\xEF\xBB\xBF";
     for (const Entry& e : sorted) {
         out += Escape(e.key, true);
         out += '=';
