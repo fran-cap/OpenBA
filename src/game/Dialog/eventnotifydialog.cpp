@@ -95,32 +95,8 @@ static EventPopupDialog* EventNotifyDialog_CreatePopup(EventNotifyDialog* self, 
     return popup;
 }
 
-// ============================================================
-// EventNotifyDialog_RemoveEntry (0x140011670)
-// ============================================================
-// Removes element [removeIndex] of the +0xD8 array: the removed entry's String
-// is destroyed, every later entry is copied one slot down (its String
-// copy-CONSTRUCTED into the slot), and the count drops by one. The transcription
-// is kept exactly (Collection::Array has no remove member).
-static void EventNotifyDialog_RemoveEntry(Collection::Array<EventNotifyEntry>& entries, int removeIndex) {
-    int count = entries._size;
-
-    if (removeIndex < count) {
-        entries._data[removeIndex].text.~String();
-
-        // Shift subsequent entries down (removeIndex+1 ... count-1 -> removeIndex ... count-2)
-        for (int i = removeIndex + 1; i < count; i++) {
-            EventNotifyEntry& dst = entries._data[i - 1];
-            const EventNotifyEntry& src = entries._data[i];
-            dst.timer = src.timer;
-            dst.eventIndex = src.eventIndex;
-            dst.icon = src.icon;
-            new (&dst.text) System::String(src.text);
-            dst.color = src.color;
-        }
-    }
-    entries._size = count - 1;
-}
+// EventNotifyDialog_RemoveEntry (0x140011670): eventnotify_remove.cpp, declared in
+// EventNotifyDialog.h.
 
 // ============================================================
 // EventNotifyDialog::OnOpened (vtable +0x20) — 0x1400686d0

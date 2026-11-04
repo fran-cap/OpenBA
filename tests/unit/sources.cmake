@@ -164,4 +164,5 @@ set(UNIT_TREE_SRCS
   # as slot probes; the test mirrors the record format and the exe logs the real writer's CRC.)
   ${CMAKE_SOURCE_DIR}/src/ext/resources/sheet_builder.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/sprite.cpp                     #   AddSpriteInfo / SetSpriteInfo
+  ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
 )
