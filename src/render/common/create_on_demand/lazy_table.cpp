@@ -23,7 +23,7 @@ LazyTable::LazyTable(int workers) : _workers(workers < 0 ? 0 : workers) {}
 
 LazyTable::~LazyTable() {
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         _stop = true;
     }
     _workCv.notify_all();
@@ -39,9 +39,9 @@ void LazyTable::Untrack(Entry& e, const void* obj) {
 }
 
 void LazyTable::Add(const void* obj, std::unique_ptr<Record> record) {
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     // A running record is never replaced under its thread (the caller's Forget already waited).
-    _doneCv.wait(lock, [&] {
+    _doneCv.wait(lock.Native(), [&]() REQUIRES(_mutex) {
         auto it = _entries.find(obj);
         return it == _entries.end() || it->second.state != State::Running;
     });
@@ -68,14 +68,16 @@ void LazyTable::Add(const void* obj, std::unique_ptr<Record> record) {
     _stats.pendingBytes += bytes;
 }
 
-void LazyTable::RunClaimed(std::unique_lock<std::mutex>& lock, const void* obj, bool onUse) {
+// REQUIRES(_mutex) is checked at the callers; the body is not analysed: it drops and re-takes the
+// caller's lock through `lock`, which clang's analysis does not follow through a reference.
+void LazyTable::RunClaimed(Sys::MutexLock& lock, const void* obj, bool onUse) NO_THREAD_SAFETY_ANALYSIS {
     Record* const record = _entries.find(obj)->second.record.get();
     ++_running;
-    lock.unlock();
+    lock.Unlock();
     const uint64_t t0 = NowNs();
     const Outcome outcome = record->Materialize();
     const uint64_t dt = NowNs() - t0;
-    lock.lock();
+    lock.Lock();
     --_running;
     _stats.materialNs += dt;
     Entry& e = _entries.find(obj)->second;
@@ -116,7 +118,7 @@ void LazyTable::RunClaimed(std::unique_lock<std::mutex>& lock, const void* obj, 
 }
 
 void LazyTable::EnsureSlow(const void* obj) {
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     bool waited = false;
     for (;;) {
         auto it = _entries.find(obj);
@@ -124,7 +126,7 @@ void LazyTable::EnsureSlow(const void* obj) {
         if (it->second.state == State::Running) {
             if (!waited) ++_stats.waited;
             waited = true;
-            _doneCv.wait(lock);
+            _doneCv.wait(lock.Native());
             continue;
         }
         if (_paused) return;   // no device: the use goes without, as on a failed create
@@ -135,7 +137,7 @@ void LazyTable::EnsureSlow(const void* obj) {
 }
 
 void LazyTable::ForgetSlow(const void* obj) {
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     bool waited = false;
     for (;;) {
         auto it = _entries.find(obj);
@@ -143,7 +145,7 @@ void LazyTable::ForgetSlow(const void* obj) {
         if (it->second.state == State::Running) {
             if (!waited) ++_stats.waited;
             waited = true;
-            _doneCv.wait(lock);
+            _doneCv.wait(lock.Native());
             continue;
         }
         if (it->second.state != State::Made) {
@@ -166,7 +168,7 @@ void LazyTable::StartWorkers() {
 
 void LazyTable::Prefetch(const void* obj) {
     if (_count.load(std::memory_order_acquire) == 0 || _workers == 0) return;
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     auto it = _entries.find(obj);
     if (it == _entries.end()) return;
     QueueLocked(it->second, obj);
@@ -174,7 +176,7 @@ void LazyTable::Prefetch(const void* obj) {
 
 void LazyTable::Keep(const void* obj) {
     if (_count.load(std::memory_order_acquire) == 0) return;
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     auto it = _entries.find(obj);
     if (it == _entries.end() || it->second.kept) return;
     Entry& e = it->second;
@@ -193,7 +195,7 @@ void LazyTable::QueueLocked(Entry& e, const void* obj) {
 }
 
 void LazyTable::SetIdleLimit(uint32_t epochs, std::chrono::milliseconds epochLength) {
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     _idleEpochs  = epochs;
     _epochLength = epochLength;
     if (_threads.empty() && _workers > 0 && epochs != 0 && epochLength.count() > 0) StartWorkers();
@@ -201,11 +203,11 @@ void LazyTable::SetIdleLimit(uint32_t epochs, std::chrono::milliseconds epochLen
 }
 
 int64_t LazyTable::Sweep() {
-    std::lock_guard<std::mutex> one(_sweepMutex);
+    Sys::MutexLock one(_sweepMutex);
     const uint32_t now = _epoch.fetch_add(1, std::memory_order_relaxed) + 1;
     uint32_t idle = 0;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         ++_stats.sweeps;
         idle = _paused ? 0 : _idleEpochs;
     }
@@ -219,7 +221,7 @@ int64_t LazyTable::Sweep() {
     };
     std::vector<const void*> candidates;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         for (const void* obj : _made) {
             if (idleNow(obj)) candidates.push_back(obj);
         }
@@ -232,13 +234,13 @@ int64_t LazyTable::Sweep() {
     // A use that does not leave within the bound may be waiting for a lock whose holder waits at the
     // gate (use_tracker.h): this sweep gives up (the gate reopened) and the next epoch tries again.
     if (!_gate.Close(kGateWaitLimit)) {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         _stats.evictNs += NowNs() - t0;
         return 0;
     }
     int64_t evicted = 0;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         // Pause() may have returned while this waited at the gate (review F-209 / F-210): the device is
         // going away and nothing is given back on it. Pause sets the flag under this mutex, so an
         // eviction that did not see it finished before Pause returned.
@@ -266,21 +268,21 @@ int64_t LazyTable::Sweep() {
 }
 
 void LazyTable::WorkerMain(int index) {
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     auto nextSweep = std::chrono::steady_clock::now() + _epochLength;
     for (;;) {
-        auto ready = [this] { return _stop || (!_paused && !_queue.empty()); };
+        auto ready = [this]() REQUIRES(_mutex) { return _stop || (!_paused && !_queue.empty()); };
         // Worker 0 also runs the sweep, once per epoch, while an idle limit is set.
         if (index == 0 && _idleEpochs != 0 && _epochLength.count() > 0) {
-            if (!_workCv.wait_until(lock, nextSweep, ready)) {
-                lock.unlock();
+            if (!_workCv.wait_until(lock.Native(), nextSweep, ready)) {
+                lock.Unlock();
                 Sweep();
-                lock.lock();
+                lock.Lock();
                 nextSweep = std::chrono::steady_clock::now() + _epochLength;
                 continue;
             }
         } else {
-            _workCv.wait(lock, ready);
+            _workCv.wait(lock.Native(), ready);
             nextSweep = std::chrono::steady_clock::now() + _epochLength;
         }
         if (_stop) return;
@@ -298,15 +300,15 @@ void LazyTable::WorkerMain(int index) {
 }
 
 void LazyTable::Pause() {
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     _paused = true;
     _doneCv.notify_all();   // DrainQueueUnlessPaused returns
-    _doneCv.wait(lock, [this] { return _running == 0; });
+    _doneCv.wait(lock.Native(), [this]() REQUIRES(_mutex) { return _running == 0; });
 }
 
 void LazyTable::Resume() {
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         _paused = false;
     }
     _workCv.notify_all();
@@ -314,17 +316,17 @@ void LazyTable::Resume() {
 }
 
 void LazyTable::DrainQueue() {
-    std::unique_lock<std::mutex> lock(_mutex);
-    _doneCv.wait(lock, [this] { return _queue.empty() && _running == 0; });
+    Sys::MutexLock lock(_mutex);
+    _doneCv.wait(lock.Native(), [this]() REQUIRES(_mutex) { return _queue.empty() && _running == 0; });
 }
 
 void LazyTable::DrainQueueUnlessPaused() {
-    std::unique_lock<std::mutex> lock(_mutex);
-    _doneCv.wait(lock, [this] { return _paused || (_queue.empty() && _running == 0); });
+    Sys::MutexLock lock(_mutex);
+    _doneCv.wait(lock.Native(), [this]() REQUIRES(_mutex) { return _paused || (_queue.empty() && _running == 0); });
 }
 
 LazyTable::Stats LazyTable::GetStats() {
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     return _stats;
 }
 

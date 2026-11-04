@@ -51,6 +51,7 @@
 #include "ext/enhanced_tab/enhanced_tab.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): the Enhanced tab
 #include "graphics/SunLight.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAA-MENU.md): ExtRequestMaxShadowResSync
 #include "ext/phone_menu/phone_menu.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): UI scale minimum
+#include "ext/render_pipe/render_pipe.h"   // EXT SEAM (NOT RETAIL, review S-028): SettleBeforeStepWrite
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -964,6 +965,11 @@ void OptionsDialog::ApplyVideoSettings() {
             }
         }
     }
+
+    // EXT SEAM (NOT RETAIL, review S-028): ext.render_pipe -- the video settings and the sun map's
+    // descriptors below are read by an emit's pass 2 that P13_OVERLAP runs beside the steps: join it
+    // first. A no-op unless that emit is in flight (never under the faithful profile).
+    Ext::RenderPipe::SettleBeforeStepWrite();
 
     // A video setting actually changed → arm a RenderDoc capture ~8 frames out
     // so we capture a steady-state frame AFTER the engine's deferred swapchain/

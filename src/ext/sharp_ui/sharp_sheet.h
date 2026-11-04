@@ -82,6 +82,13 @@ struct ScaledSprite {
     const uint8_t* art;
 };
 
+// The ScaledSprite of one record of a loaded sheet (UI::SpriteInfo): its
+// rectangle from the UVs (RectFromUvs), and the art FindArt gives its name and
+// record size, only when that rectangle is the record's own width x height
+// (PlaceArt reads the art at the rectangle's size): else no art, upscaled.
+ScaledSprite SpriteFromRecord(const ArtSprite* table, int count, const char* name, int recordW, int recordH,
+                              float u0, float v0, float u1, float v1, int sheetW, int sheetH, int scale);
+
 // The whole sheet: `out` = (scale * baseW) x (scale * baseH) BGRA8, zero where
 // no sprite is. `pad` is the base atlas's ring (1 with _padForFiltering, else
 // 0). Returns the number of sprites drawn from art.

@@ -133,9 +133,17 @@ public:
     // `Format` is known to have nine valid values, 0..8, from the table
     // VideoDX11's `PlatformCreate` builds on its stack; the DXGI mapping is
     // transcribed in `src/render/dx11/vertexlayoutdata.cpp`. Retail range-checks
-    // neither, and neither do we.
+    // neither (FormatInRange below is the port's check, review S-043).
     using Usage  = int32_t;
     using Format = int32_t;
+
+    // NOT RETAIL (UB, out-of-bounds index; review S-043): retail VideoDX11
+    // 0x180003ff0 indexes its 9-entry DXGI table with the raw format of a
+    // MeshLayout .rsc element and has no check. True for every retail format 0..8.
+    static constexpr uint32_t kFormatCount = 9;
+    static constexpr bool FormatInRange(Format format) {
+        return static_cast<uint32_t>(format) < kFormatCount;
+    }
 
     // ============================================================
     // Video::VertexLayout::Element — 0x20 bytes, a `struct` (the mangled

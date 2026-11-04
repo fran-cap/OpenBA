@@ -53,6 +53,7 @@
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch D
 #include "io/Stream.h"      // ENDGAME B.3.4 callers batch H: IO::Stream::GetDirection
 #include "system/Value.h"   // ENDGAME B.3.4b System callers: System::Time
+#include "system/Error.h"   // NOT RETAIL (review S-007): a damaged saved list is retail's fatal error box
 #include "ui/DialogInstance.h"   // ENDGAME B.3.6 UI callers (K4)
 #include <new>
 #include <new>
@@ -821,7 +822,8 @@ template <int kWalk>
     if (prof) { Platform::PerfCounter(&pq1); g_elProfDrainTicks += pq1 - pq0; pq0 = pq1; }
 
     // Step 1: Accumulate time
-    accumulatedTime._ticks += time->_ticks;
+    // NOT RETAIL (review S-038): a wrapping add (EntityListBucket::AddTicks), as retail's ADD.
+    accumulatedTime._ticks = EntityListBucket::AddTicks(accumulatedTime._ticks, time->_ticks);
 
     // Step 2: PreUpdate — process staging arrays into update tree
     PreUpdate();
@@ -907,7 +909,9 @@ template <int kWalk>
             if (!((entIBP->_entityFlags >> 10) & 1)) {
                 // +0x20 is the entity's last-update System::Time (Serialize below
                 // writes it through Time::Serialize)
-                int64_t delta = currentTime - entIBP->_lastUpdateTime._ticks;
+                // NOT RETAIL (review S-038): a wrapping subtract (EntityListBucket::TicksSince),
+                // as retail's SUB; both times come from the save.
+                int64_t delta = EntityListBucket::TicksSince(currentTime, entIBP->_lastUpdateTime._ticks);
 
                 if (delta > 0) {
                     if (prof) ++g_elProfBucketTicked;
@@ -1538,6 +1542,16 @@ void EntityList::FlushForSerialize(IO::Stream& stream) {
     }
 }
 
+// NOT RETAIL (review S-007): a saved entity list whose placements do not describe its own
+// arrays cannot be loaded: retail's own fatal error box (System::Error::SetText(.., true) +
+// Display: the box, then exit), as Map::Serialize refuses a damaged map (review F-026).
+static void RefuseDamagedEntityList() {
+    std::fprintf(stderr, "[EntityList::Serialize] FATAL: the saved entity placements are damaged\n");
+    std::fflush(stderr);
+    System::Error::SetText("This save's entity list is damaged and cannot be loaded.", true);
+    System::Error::Display();   // the box; _stopApplication then exits the process
+}
+
 void EntityList::Serialize(IO::Stream& stream) {
     // Step 1: Construct Serializer (version 0; destroyed at the end, as retail)
     IO::Serializer serializer(stream, 0);
@@ -1594,9 +1608,18 @@ void EntityList::Serialize(IO::Stream& stream) {
     serializer.Serialize(5, cursor, nullptr);
 
     // Step 8: Per-entity metadata serialization
+    const bool loading = static_cast<int>(serializer.GetDirection()) == 0;
     int32_t entityIdx = 0;
     if (masterArray._size > 0) {
         do {
+            // NOT RETAIL (review S-007): a master slot the load left null (a null or
+            // non-ComponentEntity record, cleared by the F-143 filter above) is refused before
+            // the reads below dereference it. Retail reads through it.
+            if (loading && masterArray._data[entityIdx].IsNull()) {
+                RefuseDamagedEntityList();
+                return;
+            }
+
             // Read master array index from entity+0x18
             int32_t masterIdxField = masterArray._data[entityIdx]->_entityId;
 
@@ -1626,6 +1649,28 @@ void EntityList::Serialize(IO::Stream& stream) {
 
             entityIdx++;
         } while (entityIdx < masterArray._size);
+    }
+
+    // NOT RETAIL (review S-007): the master / bucket placements just read are the ones
+    // RemoveEntity and the bucket round robin index with, unchecked (retail stores them at
+    // 0x1400c46b9..0x1400c46dd and RemoveEntity 0x1400c38e0 writes through them). A list whose
+    // placements do not describe its own arrays is refused, as Map::Serialize refuses a
+    // damaged map (review F-026). A valid save always passes.
+    if (loading) {
+        auto master = [this](int32_t i) {
+            return masterArray._data[i].Get();
+        };
+        auto bucketSize = [this](int32_t b) {
+            return buckets[b]._size;
+        };
+        auto bucket = [this](int32_t b, int32_t i) {
+            return buckets[b]._data[i].Get();
+        };
+        if (!EntityListBucket::PlacementsConsistent<ComponentEntity>(masterArray._size, master, bucketSize,
+                                                                     bucket)) {
+            RefuseDamagedEntityList();
+            return;
+        }
     }
 
     // Step 9: the Serializer's destructor runs here

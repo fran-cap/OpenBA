@@ -388,9 +388,12 @@ public:
 
     // ---- the recursive render lock (RULE B5-6) -----------------------------
     // ?Lock@Device@Video@@QEAAXXZ                0x18000ca90  dynamic_resources.cpp
-    void Lock();
+    // ACQUIRE / RELEASE: clang's thread-safety analysis (system/thread_annotations.h) checks that a
+    // function pairs them. ext.render_pipe hands the held lock from the main thread to its render
+    // thread, which the analysis cannot follow: those functions say so where they do it.
+    void Lock() ACQUIRE(lock);
     // ?Unlock@Device@Video@@QEAAXXZ              0x18000cac0  dynamic_resources.cpp
-    void Unlock();
+    void Unlock() RELEASE(lock);
     // ?VerifyLock@Device@Video@@QEAAXXZ          0x18000cae0  NOT PORTED
     void VerifyLock();
 
@@ -588,8 +591,8 @@ public:
     Platform::LockStorage lock;            // +0x60  CRITICAL_SECTION (InitializeCriticalSection + spin 5000)
                                            //        RULE B5-6: opaque, never a std::mutex;
                                            //        built in place by Platform::MutexInit.
-    uint32_t          lockOwnerThreadId;   // +0x88  RenderBuffer::PlatformConstruct / ~RenderBuffer
-    int32_t           lockRecursionCount;  // +0x8C  ditto
+    uint32_t          lockOwnerThreadId GUARDED_BY(lock);    // +0x88  RenderBuffer::PlatformConstruct / ~RenderBuffer
+    int32_t           lockRecursionCount GUARDED_BY(lock);   // +0x8C  ditto
     void*             windowHandle;        // +0x90  HWND, copied from Application::_singleton[0] by Startup
     int32_t           maxAnisotropy;       // +0x98  max anisotropic filter level; read by
                                            //        src/game/Dialog/optionsdialog.cpp:359 as
@@ -1107,12 +1110,12 @@ void Video_Device_Dtor(RtVideo::Device* self);  // 0x1800f7290  ??1Device@Video@
 // unlock re-reads the singleton. The second pair is the body of the exported
 // `Device::Lock` / `Device::Unlock` (dynamic_resources.cpp), on the device
 // handed in.
-void RtVideoDeviceLock(Video::Device** deviceSingleton);
-void RtVideoDeviceUnlock(Video::Device** deviceSingleton);
-void RtVideoDeviceLockThis(Video::Device* device);
+void RtVideoDeviceLock(Video::Device** deviceSingleton) ACQUIRE((*deviceSingleton)->lock);
+void RtVideoDeviceUnlock(Video::Device** deviceSingleton) RELEASE((*deviceSingleton)->lock);
+void RtVideoDeviceLockThis(Video::Device* device) ACQUIRE(device->lock);
 // src/engine/video/video_resources_platform.cpp -- ??1Device's DeleteCriticalSection.
 void RtVideoDeleteDeviceLock(Video::Device* device);
-void RtVideoDeviceUnlockThis(Video::Device* device);
+void RtVideoDeviceUnlockThis(Video::Device* device) RELEASE(device->lock);
 
 // src/engine/video/device_startup.cpp -- prints the run-identity line (this
 // translation unit's build stamp). Called once, from RuntimeInit()

@@ -70,7 +70,10 @@ struct Job {
     float             start3C = 0, start40 = 0, start44 = 0;   // the real camera floats at Start
     // The tool manager's camera floats (+0x3c zoom distance, +0x40 pitch target, +0x44 manual
     // pitch): the frozen camera input writes these copies; the real ones are the body's.
-    alignas(PlayerToolManager) uint8_t shadowStorage[sizeof(PlayerToolManager)];
+    // A constructed manager (review F-236): a byte copy into raw storage created no object (the
+    // class has a non-trivial destructor, so it is not an implicit-lifetime type), and calling
+    // UpdateCamera on it was undefined. Start copies in the fields UpdateCamera reads.
+    PlayerToolManager shadowManager;
     PlayerToolManager* shadow = nullptr;
     std::vector<uint8_t> verifyImage;   // g_verifyOn only
 };
@@ -225,8 +228,17 @@ bool Start(Save::SavedState* state) {
     job->start3C = loop->m_toolManager->field_0x3C;
     job->start40 = loop->m_toolManager->field_0x40;
     job->start44 = loop->m_toolManager->field_0x44;
-    std::memcpy(job->shadowStorage, static_cast<const void*>(loop->m_toolManager), sizeof(PlayerToolManager));
-    job->shadow = reinterpret_cast<PlayerToolManager*>(job->shadowStorage);   // CAST-OK: a byte copy only UpdateCamera's floats are read from or written to; never destroyed
+    // The fields PlayerToolManager::UpdateCamera (camera_input.cpp) reads or writes.
+    const PlayerToolManager* const real = loop->m_toolManager;
+    job->shadow = &job->shadowManager;
+    job->shadow->field_0x38 = real->field_0x38;
+    job->shadow->field_0x3C = real->field_0x3C;
+    job->shadow->field_0x40 = real->field_0x40;
+    job->shadow->field_0x44 = real->field_0x44;
+    job->shadow->field_0x48 = real->field_0x48;
+    job->shadow->field_0xA4 = real->field_0xA4;
+    job->shadow->field_0xA8 = real->field_0xA8;
+    job->shadow->field_0xAC = real->field_0xAC;
     job->mainMs = LoadTime::NowMs() - tMain;
 
     g_job = job;
@@ -318,12 +330,16 @@ void Join(bool finishSave) {
         sl->UpdateSaveTail();
         const IO::Persistence* const p = IO::Persistence::_singleton;
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-        while (p != nullptr &&
-               *static_cast<const volatile int32_t*>(&p->_worker._status) == 0 &&
-               std::chrono::steady_clock::now() < deadline)
+        // Acquire loads (review F-232 / F-238, the F-147 pattern): SaveJob publishes the status
+        // with a release store, and a volatile read of a word the worker writes is still a data
+        // race; the acquire also orders the job's last reads of the blocks before the teardown.
+        int32_t status = p != nullptr ? __atomic_load_n(&p->_worker._status, __ATOMIC_ACQUIRE) : -1;
+        while (status == 0 && std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            status = __atomic_load_n(&p->_worker._status, __ATOMIC_ACQUIRE);
+        }
         ErrLine("[BackgroundSave] save %d: state 1 finished at the quit, write status=%d after %.2f ms\n",
-                g_saves, p != nullptr ? p->_worker._status : -1, LoadTime::NowMs() - t);
+                g_saves, status, LoadTime::NowMs() - t);
     }
     ClearIfSwitchedOff();
     if (toggled) ToggleExercise(true);

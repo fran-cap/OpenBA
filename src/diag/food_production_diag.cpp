@@ -20,6 +20,7 @@
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Object/factory_registration.h"
 #include "object/TypeInfo.h"   // Object::IsDerivedFromNullSafe
 #include <cstdint>
@@ -53,7 +54,7 @@ void Init() {
     s_init = true;
     const char* e = Opt().foodDiag;
     if (!e || !e[0] || std::strcmp(e, "0") == 0) { s_period = 0; return; }
-    s_period = std::atoi(e);
+    s_period = HarnessAtoi(e);
     if (s_period <= 1) s_period = 600;
     std::fprintf(stderr, "[FoodDiag] ENABLED — dumping every %d frames\n", s_period);
     std::fflush(stderr);

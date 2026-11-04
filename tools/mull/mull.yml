@@ -1,0 +1,26 @@
+# tools/mull/mull.yml -- the Mull (LLVM 19) mutation-testing configuration for the engine cores.
+# Read by the compiler plugin (mull-ir-frontend-19) at build time through MULL_CONFIG, which
+# tools/mull/run.sh sets; README.md beside this file says how to run it. Only the files below get
+# mutants; the rest of the unit tree is compiled normally.
+mutators:
+  - cxx_default
+includePaths:
+  # serializer
+  - '.*/src/engine/io/serialize_family\.cpp'
+  - '.*/src/engine/io/compressed_stream_read\.cpp'
+  - '.*/src/engine/io/compressed_stream_open\.cpp'
+  - '.*/src/engine/io/memory_stream\.cpp'
+  - '.*/src/engine/io/text_codec\.cpp'
+  # collections: the Array / LinkedList / sort cores and the AVL set / map cores
+  - '.*/src/engine/collection/array\.cpp'
+  - '.*/src/engine/collection/array_destroy\.cpp'
+  - '.*/src/engine/collection/linkedlist\.cpp'
+  - '.*/src/engine/collection/introsort\.cpp'
+  - '.*/src/engine/collection/set_core\.cpp'
+  - '.*/src/engine/collection/set_avl\.cpp'
+  - '.*/src/engine/collection/set_avl_e24\.cpp'
+  - '.*/src/engine/collection/avl_trees\.cpp'
+  # math
+  - '.*/src/engine/math/[a-z0-9_]+\.cpp'
+  # the string codec
+  - '.*/src/engine/system/string\.cpp'

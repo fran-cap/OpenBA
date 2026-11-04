@@ -53,6 +53,7 @@
 #include "Object/factory_registration.h"     // ::Object::GetTypeIdByName
 #include "orchard_diag.h"   // the five entries below
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -86,9 +87,10 @@ void Init() {
     s_enabled = true;
 
     // Numeric override for the dump period.
-    char* endp = nullptr;
-    int32_t v = std::strtol(env, &endp, 10);
-    if (endp != env && *endp == '\0' && v > 0) s_periodTicks = static_cast<int>(v);
+    const char* endp = env;
+    int v = 0;
+    if (ScanClampedInt(endp, &v, -kHarnessIntLimit, kHarnessIntLimit) && *endp == '\0' && v > 0)
+        s_periodTicks = v;
 
     fprintf(stderr, "[OrchardDiag] ENABLED (BANISHED_ORCHARD_DIAG=\"%s\") — dumping every "
                     "%d ticks\n", env, s_periodTicks);
