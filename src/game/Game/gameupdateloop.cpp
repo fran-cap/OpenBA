@@ -2422,6 +2422,10 @@ GameUpdateLoop::~GameUpdateLoop() {
     // Step 2: Clear game world singleton
     _singleton = nullptr;
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOWNSCREENSHOT.md): a town screenshot this loop was taking
+    // ends with it (review F-263: left running, it switched the next game's status icons and weather off).
+    Ext::TownScreenshot::GameEnded(this);
+
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): release this loop's class B / C lock (ignored
     // when a reload's new loop already holds it). Releasing it also empties the class C state.
     Ext::UnlockForGame(this);
