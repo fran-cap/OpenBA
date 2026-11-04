@@ -1397,9 +1397,16 @@ bool ContextData::BeginCommands() {
         dev->Unlock();
         return false;
     }
-    if (lost.load()) return BeginLostFrame(dev, ctx);
     auto w = GameWindow();
     if (backgrounded.load()) return false;   // THE MOBILE LIFECYCLE: no surface while in the background
+    // A minimised window has no pixels: the recovery's CreateDevice cannot make a swap chain for it and
+    // would end the game. A loss noted while minimised (or backgrounded, above) stays latched and is
+    // recovered on the first frame the window has pixels again (review S-023).
+    const bool minimised = w && (SDL_GetWindowFlags(w) & SDL_WINDOW_MINIMIZED) != 0;
+    if (lost.load()) {
+        if (minimised) return false;
+        return BeginLostFrame(dev, ctx);
+    }
     if (!surface) {
         // Back from the background: a new surface on the window's new native window, then a swap chain.
         if (!SDL_Vulkan_CreateSurface(w, instance, nullptr, &surface)) {
@@ -1418,7 +1425,7 @@ bool ContextData::BeginCommands() {
             // FIX SEAM (NOT RETAIL, boot_device_lost/boot_device_lost.h): with fix.boot_device_lost on, a
             // rebuild that failed on a lost device enters the device-lost recovery (this frame's Finish).
             // Row off (and under the faithful profile): retried every frame, as DX11 retries its reset.
-            if (swapchainLost && BootDeviceLost::On()) {
+            if (swapchainLost && BootDeviceLost::On() && !minimised) {
                 std::fprintf(stderr, "[DeviceLost] swap-chain rebuild failed on a lost device: device-lost recovery\n");
                 NoteResult(VK_ERROR_DEVICE_LOST, "vkCreateSwapchainKHR (fix.boot_device_lost)");
                 return BeginLostFrame(dev, ctx);
