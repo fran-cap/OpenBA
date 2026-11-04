@@ -37,6 +37,11 @@
 //    system's Back) queues a Return after the pending keys: the box ends its edit as Enter
 //    ends it on a desktop. Losing the box clears the queue, so no key typed into the box
 //    reaches a game binding.
+//  * The game's own hide (review F-305). Losing the box stops text input, and SDL hides a
+//    shown keyboard by posting to the UI thread, whose handler raises the hidden event later.
+//    A box that takes the keyboard before that handler has run must not read that event as
+//    the player's Return, or its edit ends as it begins. TextEntryChanged(false) counts a stop
+//    made while SDL holds the keyboard shown, and the watch drops one hidden event per count.
 // ============================================================================
 
 #include "platform_input.h"
@@ -82,6 +87,12 @@ bool       g_gap = false;                 // the last poll pressed a key: this o
 bool       g_watching = false;            // game thread only
 std::atomic<bool> g_textEntry{false};
 
+// NOT RETAIL (issue #100 glue, review F-305): hidden events still owed to the game's own stops.
+// g_hideMutex guards it. It is a lock of its own, never held with g_mutex, so the count and the
+// watch's drop are ordered against each other without waiting on the key queue.
+std::mutex g_hideMutex;
+int        g_ownHides = 0;
+
 // Under g_mutex.
 void PushScreenKey(uint16_t scancode, bool shift) {
     if (g_count == kScreenKeyCapacity) return;
@@ -112,7 +123,21 @@ bool SDLCALL WatchScreenKeyboard(void* /*userdata*/, SDL_Event* e) {
         } else if (down && g_textEntry.load()) {
             PushScreenKey(static_cast<uint16_t>(sc), g_virtualShift);
         }
+    } else if (e->type == SDL_EVENT_SCREEN_KEYBOARD_SHOWN) {
+        // SDL raises shown only after a hidden event (its shown flag goes false, then true), and
+        // every counted stop's hidden event comes before it: a count left here is owed to no
+        // event (a keyboard SDL did not hide itself), so the player's next Return is not dropped.
+        std::lock_guard<std::mutex> lock(g_hideMutex);
+        g_ownHides = 0;
     } else if (e->type == SDL_EVENT_SCREEN_KEYBOARD_HIDDEN) {
+        {
+            // The hide a stop of the game posted: not the player's Return (review F-305).
+            std::lock_guard<std::mutex> lock(g_hideMutex);
+            if (g_ownHides > 0) {
+                --g_ownHides;
+                return true;
+            }
+        }
         // The test of g_textEntry is under g_mutex, as the key arm's is: TextEntryChanged(false)
         // stores false before it takes g_mutex to clear the queue, so a Return pushed here
         // either precedes that clear or sees false. Tested outside the lock, the push could
@@ -139,6 +164,14 @@ void TextEntryChanged(bool active) {
         SDL_StartTextInputWithProperties(w, props);
         SDL_DestroyProperties(props);
         return;
+    }
+    if (w != nullptr) {
+        // SDL_StopTextInput posts a hide when SDL holds the keyboard shown (the banner's "auto":
+        // no keyboard registered), and the UI thread clears that flag before it raises the
+        // hidden event, which waits on g_hideMutex. So a flag seen true here under the lock
+        // means exactly one hidden event still to come, whichever path raises it.
+        std::lock_guard<std::mutex> lock(g_hideMutex);
+        if (SDL_ScreenKeyboardShown(w)) ++g_ownHides;
     }
     g_textEntry.store(false);
     if (w != nullptr) SDL_StopTextInput(w);
