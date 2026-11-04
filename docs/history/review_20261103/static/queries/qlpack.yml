@@ -1,0 +1,6 @@
+name: openba/review-queries
+version: 0.0.1
+library: false
+dependencies:
+  codeql/cpp-all: "12.4.0"
+extractor: cpp

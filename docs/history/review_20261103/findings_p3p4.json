@@ -1,0 +1,1767 @@
+[
+ {
+  "id": "F-011",
+  "file": "src/diag/scene_watch.cpp",
+  "line": 719,
+  "hunts": [
+   "semgrep_variants"
+  ],
+  "title": "LodCensus line builder overflows its stack buffer once a level truncates (snprintf return used as an unclamped offset)",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "harness",
+  "label_evidence": "src/diag, gated by Opt().lodCensus (BANISHED_LOD_CENSUS); no retail counterpart",
+  "reachability": "Only with BANISHED_LOD_CENSUS=1, at the frame-120 dump of a mesh whose 8 LOD levels have large or absurd distances or long fields",
+  "proof_kind": "sanitizer",
+  "proof": "Replay of scene_watch.cpp:717-721 at docs/history/review_20261103/static/semgrep/replays/lodcensus_overflow.cpp, run in WSL with: clang++-19 -g -O0 -fsanitize=address lodcensus_overflow.cpp -o lod && ./lod. The input is 8 levels whose distance is about 1e30; the census itself flags distances above 1e6 at line 725. Output: ==ERROR: AddressSanitizer: stack-buffer-overflow ... WRITE of size 87 ... #0 vsnprintf #1 snprintf #2 main lodcensus_overflow.cpp:10 ... 'buf' (line 8) <== Memory access at offset 680 overflows this variable.",
+  "root_cause": "The loop does off += snprintf(buf + off, sizeof(buf) - off, ...) with no room test. After one call truncates, off is greater than 512, so sizeof(buf) - off (a size_t) wraps to about 2^64 and the next call writes past buf. The vb2[320] loop at line 735 has the same shape.",
+  "minimal_fix": "Stop each loop when off >= (int)sizeof(buf) (or clamp off to sizeof(buf) - 1), as redzone_alloc.cpp:144 and stress_harness.cpp:1217 already do; same for the vo / vb2 loop at line 735.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-012",
+  "file": "src/engine/collection/array.cpp",
+  "line": 2312,
+  "hunts": [
+   "rsc_serialize"
+  ],
+  "title": "Negative serialized array count: SetSizeCore destroys -n elements at old + n*stride (wild pointer free/release)",
+  "bug_class": "memory-corruption (wild pointer destroy)",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "array.cpp banner: SetSizeCore is retail 0x1800298f0. Its comment says 0x180026b50 (the destroy step) is called from both branches, including `old + newSize*stride`. Every caller is retail's `SerializeInt(n); if reading SetSize(n)`, and the comments carry the retail addresses: package_file_serialize.cpp 1800b617e, vtbatch7 SoundEffect::Serialize, animationstate.cpp 0x18005aa30/0x18005b1e0/0x18005c8a0.",
+  "reachability": "Any .rsc in a mod .pkm: PackageFile (package metadata), SoundEffect, GraphicsMesh nodes, AnimationGroup keys. Also the AnimationManager save state in a shared .sav.",
+  "proof_kind": "fuzz_input",
+  "proof": "Inputs in scratchpad/crashes/rsc_serialize/: pkg-negcount-setsize (45 B), soundeffect-negcount-setsize (25 B, hex 03aaaaaaaa00000000000000000000803f00000000ffffffff), meshnodes-negcount-setsize (17 B, hex 05aaaaaaaa0000000000000000ffffffff). Repro: wsl ~/fz/rsc_serialize/fuzz_rsc_serialize <file>. Masked build: 'AddressSanitizer: SEGV ... #0 rtcoll::ReleaseStringsCounted array_destroy.cpp:451 #1 IO::PackageFile::Serialize package_file_serialize.cpp:215'; 'SEGV #0 rtcoll::FreeInnerArraysCounted array_destroy.cpp:439 #1 Audio::SoundEffect::Serialize vtbatch7_soundbuffer_soundeffect.cpp:630'. Unmasked build: 'array.cpp:2312:36: runtime error: applying non-zero offset 18446744073709551608 to null pointer #0 rtcoll::SetSizeCore #1 IO::PackageFile::Serialize :215'. The fuzzer also reached the same site through RtGraphics_SerializeAnimInstances animationstate.cpp:353/358 (FreeInnerArraysCore).",
+  "root_cause": "The count is read straight from the stream and passed to SetSize(int) with no sign check. With newSize < 0 == oldSize - k: the grow branch is skipped, the element loop is empty, and the shrink arm runs `spec->destroy(nullptr, old + newSize*stride, oldSizeI - newSize)`. That releases Strings or frees inner arrays at an address below the buffer (below null on a fresh object), and _size is left negative. On a non-empty array this frees heap memory the array does not own.",
+  "minimal_fix": "In SetSizeCore, reject newSize < 0 (treat it as 0, or fail the read) before any pointer arithmetic, with a comment that retail has the same arm. Alternatively, validate the count at each Serialize read site (count < 0 -> stop reading).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-013",
+  "file": "src/engine/io/compressed_stream_read.cpp",
+  "line": 276,
+  "hunts": [
+   "codeql",
+   "compressed_stream",
+   "save_meta"
+  ],
+  "title": "DecompressFromSource reads a u16 compressedSize (up to 0xFFFF) into a 0x8000-byte stack scratch",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Ghidra 0x1800a96b0: _alloca(0x8020), scratch at RSP+0x20, MOVZX EDX,word [RDI+4]; CALL [RAX+0x18] with no bound; in retail the overflow reaches the saved RSI/RDI and the return address",
+  "reachability": "Every package entry (ReadPackfile blob, .pkg/.pkm mods) and every save block: the directory comes from the file.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/A_stack_scratch (33812 B; header {off 12, comp 0x8400, unc 0x8000} + a valid all-literal LZF stream; op Read(1)). ./fuzz_compressed_stream A_stack_scratch -> ERROR: AddressSanitizer: stack-buffer-overflow WRITE of size 33792; #1 IO::MemoryStream::Read memory_stream.cpp:74; #2 IO::CompressedStream::DecompressFromSource compressed_stream_read.cpp:276; #3 IO::CompressedStream::Read :439; the address is in DecompressFromSource's frame at offset 32800",
+  "root_cause": "The header's compressedSize is u16 and is never checked against kWin before src->Read(compressedSize, scratch).",
+  "minimal_fix": "In DecompressFromSource: `if (h->compressedSize > RtIo::kWin || h->uncompressedSize > RtIo::kWin) return false;` (comment: retail trusts the directory, and a crafted package smashes the stack), placed before the window start/end stores.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "save_meta",
+    "title": "DecompressFromSource reads a block's u16 compressedSize (up to 0xFFFF) into a 0x8000-byte stack scratch: stack-buffer-overflow WRITE",
+    "proof": "wsl: ~/fz/save_meta/fuzz_save_meta scratchpad/crashes/save_meta/csize_9000 (36876 B: blockCount 1, header {12, csize 0x9000, usize 0x8000}, 0x9000 source bytes) -> ERROR: AddressSanitizer: stack-buffer-overflow WRITE of size 36864; #1 IO::MemoryStream::Read memory_stream.cpp:74, #2 IO::CompressedStream::DecompressFromSource compressed_stream_read.cpp:276, #3 CompressedStream::Read :439, BinaryReader ctor, LoadMetaData saveload_loadmeta.cpp:290. The fuzzer found the same site 11 times, plus 21 stack-buffer-overflow READs in Compression::Decompress compression.cpp:306 called from :279 (Decompress(scratch, csize > 0x8000) when the source Read had failed)."
+   },
+   {
+    "hunt": "codeql",
+    "title": "CompressedStream block with u16 compressedSize > 0x8000 overflows the 0x8000 stack scratch",
+    "proof": "WSL ~/tidy/p3/cs_block_poc compressed (source static/poc/cs_block_poc.cpp; blockCount 1, header {12, 0x9000, 0x9000}, len = 12+0x9000 so Open passes): ASan stack-buffer-overflow WRITE of size 36864; #1 BlobStream::Read; #2 IO::CompressedStream::DecompressFromSource compressed_stream_read.cpp:276; #3 CompressedStream::Read :439; frame object 'scratch' [32,32800) line 256. Log static/poc/compressed.asan.txt"
+   }
+  ]
+ },
+ {
+  "id": "F-014",
+  "file": "src/engine/io/compressed_stream_read.cpp",
+  "line": 285,
+  "hunts": [
+   "codeql",
+   "compressed_stream",
+   "save_meta"
+  ],
+  "title": "Stored block: uncompressedSize up to 0xFFFF is read straight into the 0x8000 window buffer",
+  "bug_class": "heap-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Ghidra 0x1800a974d: MOVZX EDX,word [RDI+6]; MOV R8,[RSI+0x10]; CALL [RAX+0x18], with no bound",
+  "reachability": "Package / save block directory (a mod .pkm or a shared .sav).",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/B_stored_window (header {12, comp 0, unc 0xffff} + 0xffff bytes; Read(1)). ERROR: AddressSanitizer: heap-buffer-overflow WRITE of size 65535, 0 bytes after the 32768-byte region allocated in CompressedStream::SetWindowCount; #1 MemoryStream::Read memory_stream.cpp:74; #2 DecompressFromSource compressed_stream_read.cpp:285",
+  "root_cause": "The stored arm reads uncompressedSize bytes into a fixed 0x8000 window with no check.",
+  "minimal_fix": "The same validation as the stack finding: return false from DecompressFromSource when uncompressedSize > kWin.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "save_meta",
+    "title": "STORED block with uncompressedSize > 0x8000 overflows the 0x8000 window buffer (heap WRITE); window.end beyond the buffer also lets CompressedStream::Read over-read it",
+    "proof": "(a) WRITE: ~/fz/save_meta/fuzz_save_meta scratchpad/crashes/save_meta/stored_usize_9000 (36876 B: header {12, csize 0, usize 0x9000}) -> heap-buffer-overflow WRITE of size 36864; #1 MemoryStream::Read memory_stream.cpp:74, #2 DecompressFromSource compressed_stream_read.cpp:285; allocated in CompressedStream::SetWindowCount compressed_stream_open.cpp:67. (b) READ, found by the fuzzer: scratchpad/crashes/save_meta/window_overread_fuzz (997 B) -> heap-buffer-overflow READ of size 49152 at window+0x8000; #1 CompressedStream::Read compressed_stream_read.cpp:448, #2 LoadMetaData saveload_loadmeta.cpp:319 (thumbnail SerializeBytes)."
+   },
+   {
+    "hunt": "codeql",
+    "title": "CompressedStream stored block with u16 uncompressedSize > 0x8000 overflows the heap window",
+    "proof": "~/tidy/p3/cs_block_poc stored: ASan heap-buffer-overflow WRITE of size 36864, 0 bytes after 32768-byte region allocated in CompressedStream::SetWindowCount compressed_stream_open.cpp:67; #2 DecompressFromSource compressed_stream_read.cpp:285. Log static/poc/stored.asan.txt"
+   }
+  ]
+ },
+ {
+  "id": "F-015",
+  "file": "src/engine/io/compressed_stream_read.cpp",
+  "line": 448,
+  "hunts": [
+   "compressed_stream"
+  ],
+  "title": "A window whose uncompressedSize exceeds 0x8000 makes Read copy past the window buffer",
+  "bug_class": "heap-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Ghidra 0x1800a9703-09: end = start + MOVZX word [RDI+6], unchecked; Read (0x1800aa780, transcribed statement for statement) clamps only to w->end",
+  "reachability": "Package / save block directory.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/C_window_overread (53 B, cfg 4, compressed block of 33 bytes with unc 0xffff, Read(0x9000)): heap-buffer-overflow READ of size 36864, 0 bytes after the 32768-byte window; #1 IO::CompressedStream::Read compressed_stream_read.cpp:448. Fuzzer variants: run1 crash-304c685d..., and crash-0e3c5bee... (memcpy-param-overlap, the over-read running into the destination)",
+  "root_cause": "w->end = w->start + h->uncompressedSize trusts the directory, so Read's chunk = w->end - pos can extend beyond the 32 KB buffer.",
+  "minimal_fix": "Reject uncompressedSize > kWin in DecompressFromSource (the same check as the two findings above).",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "compressed_stream",
+    "title": "Read copies a negative chunk when the position lies past a short block's end inside its window",
+    "proof": "scratchpad/crashes/compressed_stream/J_negative_chunk hex 0010000000010000000c000000000004006162636400000000000101000064000000010100 (block of 4 bytes, read at 0, seek 100, Read(1)) -> ERROR: AddressSanitizer: negative-size-param: (size=-96); #1 IO::CompressedStream::Read compressed_stream_read.cpp:448"
+   }
+  ]
+ },
+ {
+  "id": "F-016",
+  "file": "src/engine/io/memory_stream.cpp",
+  "line": 74,
+  "hunts": [
+   "compressed_stream",
+   "packfile",
+   "rsc_serialize"
+  ],
+  "title": "Negative sourceOffset: MemoryStream::Read copies from before the blob",
+  "bug_class": "heap-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "memory_stream.cpp:55-77 transcribes 0x1800ae950 (32-bit signed end check only); DecompressFromSource 0x1800a9715 passes sourceOffset to SetCurrentPos unchecked (Ghidra)",
+  "reachability": "Package / save block directory sourceOffset.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/D2_srcoff_negative hex 001c0000000100000000ffffff1000100000000000000000000000000000000000010100 -> heap-buffer-overflow READ of size 16; #1 MemoryStream::Read memory_stream.cpp:74; #2 DecompressFromSource compressed_stream_read.cpp:276. The fuzzer found it too: crash-8a117fc3... (READ of size 19677, 1 byte before the blob)",
+  "root_cause": "The cursor is a u32 set from the attacker's sourceOffset. Read checks only cursor+count <= size in signed 32-bit, so a negative cursor passes and memcpy reads _data + negative.",
+  "minimal_fix": "In MemoryStream::Read: `if (cursor < 0 || n < 0 || cursor + n > (int64_t)_size) return false;` computed in int64 (comment: retail lets a negative cursor through).",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "compressed_stream",
+    "title": "Open with blockCount 0 calls memcpy(nullptr, src, 0)",
+    "proof": "scratchpad/crashes/compressed_stream/K_zero_count hex 000400000000000000 -> memory_stream.cpp:74:17: runtime error: null pointer passed as argument 1, which is declared to never be null; #1 IO::CompressedStream::Open compressed_stream_open.cpp:125"
+   },
+   {
+    "hunt": "packfile",
+    "title": "CompressedStream::Open with blockCount 0 calls MemoryStream::Read(0, nullptr): memcpy(nullptr, src, 0) (UB)",
+    "proof": "~/fz.sh repro packfile .../crashes/packfile/pkJ_open_null_memcpy\nmemory_stream.cpp:74:17: runtime error: null pointer passed as argument 1, which is declared to never be null\n #0 MemoryStream::Read :74\n #1 CompressedStream::Open compressed_stream_open.cpp:125\n #2 ReadPackfile :482.\nHex (12 bytes): 040000000400000000000000"
+   },
+   {
+    "hunt": "packfile",
+    "title": "Block sourceOffset >= 0x80000000 becomes a negative MemoryStream cursor: wild read 2 GiB before the blob (SEGV)",
+    "proof": "~/fz.sh repro packfile .../crashes/packfile/pkK_negative_source_offset\n==ERROR: AddressSanitizer: SEGV on unknown address\n #2 IO::MemoryStream::Read memory_stream.cpp:74\n #3 IO::CompressedStream::DecompressFromSource compressed_stream_read.cpp:285.\nHex (24 bytes): 040000001000000001000000000000800000040000000000. Fuzzer-found: fuzzer_found/crash-13a299cd0f768a881d83400e0a2c12ee45fab08d."
+   },
+   {
+    "hunt": "rsc_serialize",
+    "title": "MemoryStream::Read/Write with a negative count: memcpy of size_t(-n)",
+    "proof": "scratchpad/crashes/rsc_serialize/soundbuffer-wmalength-neg-read (43 B: SoundBuffer, _length 0, _wmaLength -2). Masked build: 'AddressSanitizer: memcpy-param-overlap: memory ranges [0x0,0xfffffffffffffffe) and [...) overlap #1 IO::MemoryStream::Read memory_stream.cpp:74 #2 Audio::SoundBuffer::PlatformSerialize vtbatch7_soundbuffer_soundeffect.cpp:216 #3 SoundBuffer::Serialize :460'. The fuzzer found it independently (r1 crash-900161fe...)."
+   },
+   {
+    "hunt": "rsc_serialize",
+    "title": "MemoryStream::Read/Write call memcpy with a null buffer for a zero-length record",
+    "proof": "scratchpad/crashes/rsc_serialize/soundbuffer-read-null-zero (1 byte: 01, an empty SoundBuffer record) on fuzz_rsc_serialize_nomask: 'memory_stream.cpp:74:17: runtime error: null pointer passed as argument 1, which is declared to never be null #0 IO::MemoryStream::Read #1 Audio::SoundBuffer::PlatformSerialize vtbatch7_soundbuffer_soundeffect.cpp:216 #2 SoundBuffer::Serialize :460'. Our own writer hits the write side on a valid PCM SoundBuffer (_wmaLength 0): 'memory_stream.cpp:96:56: runtime error: null pointer passed as argument 2 #0 MemoryStream::Write #1 SoundBuffer::PlatformSerialize :216'. A well-formed seed from our writer (seed_1_0) triggers the read side."
+   }
+  ]
+ },
+ {
+  "id": "F-017",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 252,
+  "hunts": [
+   "packfile"
+  ],
+  "title": "PK-C: UTF-16 transcode reads 2*len bytes from buf860 and walks off the stack frame (\u00a776 over-read)",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Decode1 is the jump-table body 0x1800c9ff1, which ignores `end`. The caller uses `LEA EAX,[R15+R15*1]` (1800b4f23 / 1800b5d1c); \u00a794 documents it.",
+  "reachability": "formatVersion <= 2 or no-metadata packages: a string or name length in (0x820, 0x1040]. That is legal for the Read but decodes past frameBuf.",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz.sh repro packfile .../crashes/packfile/pkC1_utf16_overread_meta (fv 1, len 0x900)\n==ERROR: AddressSanitizer: stack-buffer-overflow READ\n #0 RtIO::Decode1 package_file_read.cpp:252\n #1 ReadStringUtf16 package_file_read.cpp:359.\nThe entry loop gives the same with pkC2_utf16_overread_entry: Decode1:252 from ReadPackfile:608. Fuzzer-found: fuzzer_found/crash-1906af7f485679731d89646ad378b4342b39a8e0.",
+  "root_cause": "end = buf860 + 2*len although only len bytes were read, and the buffer has 0x1040 bytes.",
+  "minimal_fix": "Use end = buf860 + len (bytes read), clamped to 0x1040, in ReadStringUtf16 and in the entry-loop copy. That is a fix.* row citing retail 0x1800b4f23 / 0x1800b5d1c.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-018",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 304,
+  "hunts": [
+   "packfile"
+  ],
+  "title": "PK-G: PATH B (formatVersion > 2) writes no terminator, so BuildStringFrom's strlen runs off the frame",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "ReadStringRaw comment: 'no terminator is written either' (1800b559f group); the entry loop has 'NO terminator is written here' at 1800b5c98.",
+  "reachability": "A formatVersion > 2 package whose string or name has no NUL inside the bytes read, so it relies on stale stack contents.",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz.sh repro packfile .../crashes/packfile/pkG_strlen_no_terminator (fv 3, len 0x1840 of 'A')\n==ERROR: AddressSanitizer: stack-buffer-overflow READ of size 1\n #0 RtIO::BuildStringFrom package_file_read.cpp:304\n #1 ReadStringRaw :388\n #2 ReadPackfile :553",
+  "root_cause": "Raw bytes are read into buf60 with no NUL appended, then strlen/memcpy treat buf60 as a C string.",
+  "minimal_fix": "After the raw Read, write buf60[min(len, 0x183f)] = 0 (fix.* row, comment naming retail 0x1800b559f / 0x1800b5c98).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-019",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 347,
+  "hunts": [
+   "packfile"
+  ],
+  "title": "PK-B2: stack-buffer-overflow WRITE into buf860 from the UTF-16 string/name reads (len > 0x1040)",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "ReadStringUtf16 1800b4eb3 group and entry loop 1800b5ca7 are retail addresses; the \u00a793 banner says it is reproduced on purpose.",
+  "reachability": "Any .pkg/.pkm with formatVersion <= 2, or no metadata, whose string or name length is > 0x1040 (buf860 = frameBuf + 0x800).",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz.sh repro packfile .../crashes/packfile/pkB2_strutf16_buf860\n==ERROR: AddressSanitizer: stack-buffer-overflow\n #1 CompressedStream::Read compressed_stream_read.cpp:448\n #2 RtIO::ReadStringUtf16 package_file_read.cpp:347.\nEntry-loop site: pkB4_entry_buf860 (no metadata, nameLen 0x1100) gives the overflow at package_file_read.cpp:600. Fuzzer-found: fuzzer_found/crash-0875314b94902cdbaa97b173a7a98adf3051a3ac, 8 bytes: 0004000000 0000ea (structured target).",
+  "root_cause": "cs->Read(len, buf860) with len unchecked except > 0. buf860 has only 0x1040 bytes before the frame ends.",
+  "minimal_fix": "Clamp or reject len > 0x1040 before the Read at :347 and :600, as a fix.* row with a comment naming retail 0x1800b4eb3 / 0x1800b5ca7.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-020",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 385,
+  "hunts": [
+   "codeql",
+   "packfile"
+  ],
+  "title": "PK-B1: stack-buffer-overflow WRITE into the frame buffer (buf60) from the raw-UTF-8 string/name reads, len only checked > 0",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Transcribed with retail addresses (ReadStringRaw 1800b562f group; entry loop 1800b5c25). The \u00a793 banner says 'Neither read is bounds-checked against the frame... Reproduced, not fixed'.",
+  "reachability": "Any .pkg/.pkm with formatVersion > 2: a metadata string or file name with length > 0x1840. Every downloaded mod is scanned at mod-list refresh.",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl -e bash -c \"~/fz.sh repro packfile /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/packfile/pkB1_strraw_buf60\"\n==ERROR: AddressSanitizer: stack-buffer-overflow ... WRITE of size 6400\n #1 IO::CompressedStream::Read compressed_stream_read.cpp:448\n #2 RtIO::ReadStringRaw package_file_read.cpp:385\n #3 IO::PackageFile::ReadPackfile package_file_read.cpp:553\n[368, 6576) 'frameBuf'.\nSecond site, the entry loop's raw arm: pkB3_entry_buf60 gives the same overflow with the call at package_file_read.cpp:596. The fuzzer also found it: fuzzer_found/crash-18d7378b2f8008893cf9258c25965e5443439433.",
+  "root_cause": "cs->Read(len, buf60) with len read straight from the file into a 0x1840-byte stack region (frameBuf). Only len > 0 is checked.",
+  "minimal_fix": "Before each Read into buf60 (lines 385 and 596), reject or clamp len > kFrameBufBytes - 1. That is a fix.* row (retail behaviour), with a comment naming retail 0x1800b562f / 0x1800b5c25.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "codeql",
+    "title": "ReadPackfile metadata string length overflows the frame buffer (ReadStringRaw / ReadStringUtf16)",
+    "proof": "~/tidy/p3/pkm_readpackfile_poc meta (metadata name length 0x2000): ASan stack-buffer-overflow WRITE of size 8192; #2 RtIO::(anonymous)::ReadStringRaw package_file_read.cpp:385; #3 IO::PackageFile::ReadPackfile :553. Log static/poc/pkm_meta.san.txt"
+   }
+  ]
+ },
+ {
+  "id": "F-021",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 596,
+  "hunts": [
+   "codeql"
+  ],
+  "title": "ReadPackfile entry name length overflows the 0x1840 stack frame buffer",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Comment: cs->Read(nameLen, buf60) at 0x1800b5c25 with only 'nameLen > 0' at 0x1800b5c29; frame buffer layout \u00a793",
+  "reachability": "any .pkm in the mods folder (Modification::RefreshList reads every *.pkm at the mod-list scan); .pkg",
+  "proof_kind": "sanitizer",
+  "proof": "~/tidy/p3/pkm_readpackfile_poc name (static/poc/pkm_readpackfile_poc.cpp: in-memory FileSystem::OpenFile/ReadFile, the real ReadPackfile, format 3, entry nameLen 0x2000): ASan stack-buffer-overflow WRITE of size 8192; #1 CompressedStream::Read compressed_stream_read.cpp:448; #2 IO::PackageFile::ReadPackfile package_file_read.cpp:596. Log static/poc/pkm_name.san.txt",
+  "root_cause": "A u32 length from the package index is used as the copy length into uint8_t frameBuf[0x1840], and only len > 0 is checked. The UTF-16 arm (:600) also reads into buf860, which has 0x1040 bytes, and then decodes 2*len.",
+  "minimal_fix": "Skip the read (or fail the package) when nameLen > the destination size (0x1840 for buf60, 0x1040 for buf860); comment it as a stack overflow fix.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-022",
+  "file": "src/engine/object/internal_class.cpp",
+  "line": 690,
+  "hunts": [
+   "codeql"
+  ],
+  "title": "InternalFactory::PersistObject indexes _persistIds with a save-supplied index and no upper bound",
+  "bug_class": "OOB-index",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "PersistObject 0x1800bff10, read arm 0x1800bff3d, MOVSXD RBX,R9D; index from SerializeInt in InternalPtr serialize (internal.cpp:246)",
+  "reachability": "shared .sav (every InternalPtr in block 1)",
+  "proof_kind": "static_only",
+  "proof": "CodeQL path: internal.cpp:246 SerializeInt(index) -> internal.cpp:252 PersistObject(..., index, ...) -> internal_class.cpp:674/676 -> :682/:690 persistIds[i], :730 _objects._data[slot]",
+  "root_cause": "The object-reference index in the save is used directly as an index into _persistIds, which is sized by the count serialized at :615, and then into _objects.",
+  "minimal_fix": "Reject index < 0 or >= _persistIds._size on the read arm (return null), with a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-023",
+  "file": "src/engine/system/string.cpp",
+  "line": 954,
+  "hunts": [
+   "text_codec"
+  ],
+  "title": "String::Serialize (plain arm) does not terminate the String: its last byte comes from the stream, so C-string consumers read past the block",
+  "bug_class": "heap-overflow",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Ghidra 0x1800c9930: the plain arm is SetLength(n-1) followed by only the SerializeCharArray (+0x18) of n bytes, with no terminator store. configuration.cpp:230 relies on 'a NUL written by every producer'",
+  "reachability": "any string in a shared .sav / mod .pkm whose stored payload does not end in 0; every consumer that walks to NUL (strlen, Filename, Set(const char*), StrCompare) then reads past the n-byte block",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl: ~/fz/string_serialize2/fuzz_string_serialize2 <scratchpad>/crashes/string_serialize/ss2_unterminated (hex 0003000080616263: length word 0x80000003, payload 'abc') -> 'AddressSanitizer: heap-buffer-overflow READ of size 4' in strlen <- CheckString (tests/fuzz/string_serialize_fuzz.cpp:112) on the String that Serialize returned. The over-read happens in the consumer; the root cause is the missing terminator in Serialize.",
+  "root_cause": "Retail's plain arm allocates length+1 bytes and fills all of them, including _data[length], from the stream. Only a well-formed writer puts the NUL there, but the String invariant (types/system/String.h, configuration.cpp detail 2) assumes it is always present.",
+  "minimal_fix": "After SerializeCharArray on the reading side, store `_data[n-1] = '\\0'` (and likewise in RtIo_SerializeStringArray's plain arm). Do it as a fix.* row with a comment, since it diverges from retail on malformed data only.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-024",
+  "file": "src/engine/ui/spritecapture_class.cpp",
+  "line": 193,
+  "hunts": [
+   "codeql"
+  ],
+  "title": "SpriteCapture sheetIndex from a resource indexes _sheets with only a < 0 check",
+  "bug_class": "OOB-index",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Comments: CMP/JGE at 1800d9664, load _sheets._data[sheetIndex] at 1800d968f",
+  "reachability": "UI sprite-capture resources in packages / mod .pkm",
+  "proof_kind": "static_only",
+  "proof": "CodeQL path: serializer_class.cpp:224 -> spritecapture_class.cpp:379 -> :373 -> :174 -> :193 `sheet = _sheets._data[sheetIndex]` with _sheets sized by a separate count n at :161",
+  "root_cause": "The entry's sheetIndex is serialized independently of the sheet count and is not checked against _sheets._size. An out-of-range index reads a wild pointer, which is then dereferenced.",
+  "minimal_fix": "Treat sheetIndex >= _sheets._size like sheetIndex < 0 (no sheet), with a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-025",
+  "file": "src/game/Component/modelcomponent.cpp",
+  "line": 94,
+  "hunts": [
+   "codeql"
+  ],
+  "title": "ModelComponent mesh group/index from the save index description arrays without an upper bound",
+  "bug_class": "OOB-index",
+  "severity": "memory-corruption",
+  "label": "unknown",
+  "label_evidence": "GetMeshFromDescription is a port-written helper (null guards, no retail address); the retail ModelComponent Persist was not decompiled to check for a bound",
+  "reachability": "shared .sav",
+  "proof_kind": "static_only",
+  "proof": "CodeQL path serializer_class.cpp:218 -> modelcomponent.cpp:155/156 (meshGroup, meshIndex) -> :169 -> :94 groupArray[meshGroup], :96 group[meshIndex]",
+  "root_cause": "The int16 indexes from the save are checked only for < 0, then index the description's mesh-group and mesh arrays.",
+  "minimal_fix": "Check against the description's group / mesh counts and return null when out of range.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-026",
+  "file": "src/game/Game/gamegrid_serialize.cpp",
+  "line": 250,
+  "hunts": [
+   "codeql"
+  ],
+  "title": "Map::Serialize reads map size and cell count independently; size*size loops walk past cells",
+  "bug_class": "OOB-index",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "Map::Serialize 0x14009f100 with SetSize 0x14001aa90; the version<2 fix-up and the FillZones 0x14009c480 / Pathfinder_Seed 0x14009e8c0 calls carry retail addresses; no count == size*size check in the transcription",
+  "reachability": "shared .sav (game-state block 1)",
+  "proof_kind": "static_only",
+  "proof": "CodeQL openba/size-taint path: serializer_class.cpp:224 (Serialize out-arg) -> gamegrid_serialize.cpp:218 (size) -> :237 -> :250 index cells.GetData()[i] for i < width*width (also :312/:320 -> action_pf_astar.cpp:995, PathSearch.h:380, ext/fast_paths/fast_search.cpp:222). cells is SetSize(count) at :225 with count read separately at :222",
+  "root_cause": "The save holds both `size` and the cell array's `count`. Every grid walk uses size*size, but the array has count elements. A save with size 512 and count 1 indexes, and in the version < 2 arm writes, past the heap array. width*width can also overflow int32.",
+  "minimal_fix": "After reading, fail the load when count != size*size or size is outside the supported map sizes (fix.* row; comment the OOB).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-027",
+  "file": "src/render/common/better_trees/natural_growth.cpp",
+  "line": 152,
+  "hunts": [
+   "clang_tidy_linux"
+  ],
+  "title": "AppendElement strncmp reads past the end of a DXBC signature chunk",
+  "bug_class": "heap-overflow",
+  "severity": "memory-corruption",
+  "label": "ext",
+  "label_evidence": "render/common/better_trees is the better_trees extension's DXBC patcher; no retail counterpart",
+  "reachability": "ISGN/OSGN chunks of shaders read from the install, or overridden by a .pkm mod's shader, when the better_trees row patches them",
+  "proof_kind": "sanitizer",
+  "proof": "wsl: cd ~/tidy/repro && clang++-19 -g -O0 -fsanitize=address,undefined isgn_strncmp.cpp -o isgn_strncmp && ./isgn_strncmp -> 'ERROR: AddressSanitizer: heap-buffer-overflow ... READ of size 9 ... #0 strncmp #1 Scan isgn_strncmp.cpp:18 ... 0 bytes after 40-byte region'. The repro copies the loop verbatim; the chunk's last name is 'TEXCOORD' with no NUL. Copy: docs/history/review_20261103/static/repro/isgn_strncmp.cpp",
+  "root_cause": "The name offset is only checked for no < d.size(). strncmp(...,\"TEXCOORD\",9) then needs 9 bytes or a NUL inside the chunk. A name that matches the 8-byte prefix right at the end of the chunk reads d[size].",
+  "minimal_fix": "Require no + 9 <= d.size(), or use memchr(d.data()+no, 0, d.size()-no) before comparing, with a comment naming the over-read.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-028",
+  "file": "src/render/dx11/imagebufferdata.cpp",
+  "line": 610,
+  "hunts": [
+   "clang_tidy_windows",
+   "rsc_serialize"
+  ],
+  "title": "DX11 backend indexes kFormatToDxgi[8] / kFormatBytes[8] with the serialized ImageBuffer::_format (out-of-bounds read)",
+  "bug_class": "OOB-index",
+  "severity": "memory-corruption",
+  "label": "retail",
+  "label_evidence": "src/render/dx11 replaces retail VideoDX11-x64.dll, and the file carries its addresses (e.g. 0x180002300 TrackImageBuffer). The tables at :212/:215 are retail's 8-entry tables; the create body at :610/:634 indexes them with the raw field. ImageBuffer::Serialize reads _format with SerializeUnsigned and never checks it (imagebuffer_vtable.cpp:384).",
+  "reachability": "Any texture .rsc in a mod .pkm, on Windows/DX11.",
+  "proof_kind": "unit_test",
+  "proof": "The DX11 backend does not build on Linux, so a model was run instead. FuzzImageBuffer::Create in tests/fuzz/rsc_serialize_fuzz.cpp receives the format exactly as RecreateFromFields hands it to the backend, and with -dx11_index it aborts on format >= 8. Input scratchpad/crashes/rsc_serialize/imagebuffer-format-8 (61 B: kind 2, format 8, level count 0). Run: ~/fz/rsc_serialize/fuzz_rsc_serialize -dx11_index imagebuffer-format-8 -> 'DX11 kFormatToDxgi[8]: index past the 8-entry table' followed by the abort. This shows an unvalidated value >= 8 reaches Create; the D3D read itself was not executed.",
+  "root_cause": "_format is a serialized uint32 with no range check before `kFormatToDxgi[ib->_format]` (:610) and `kFormatBytes[ib->_format]` (:634) in the 8-entry tables. It reads past the table, and the garbage DXGI format / pitch then goes to CreateTexture2D.",
+  "minimal_fix": "In the DX11 create, `if (static_cast<uint32_t>(ib->_format) >= 8) return false;` before indexing (or validate in ImageBuffer::Serialize), with a comment that retail does not check. The Vulkan and Metal format maps should get the same check.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "clang_tidy_windows",
+    "title": "W-1: kFormatToDxgi / kFormatBytes indexed by the streamed ImageBuffer::_format with no bound",
+    "proof": "Standalone copy scratchpad/tidy_win/repro/format_table.cpp. WSL: clang++-19 -fsanitize=undefined,address; ./format_table 9 -> 'format_table.cpp:14:17: runtime error: index 9 out of bounds for type 'const int[8]''. Windows: clang++ --target=x86_64-w64-mingw32 -fsanitize=undefined -fsanitize-trap=undefined; format_table_trap.exe 9 -> Illegal instruction rc=132, while 5 -> clean."
+   }
+  ]
+ },
+ {
+  "id": "F-029",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_registers.cpp",
+  "line": 461,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv temp register index wraps: r0x3FFFFFFF.w resizes the table to 0 and then reads and writes m_rRegs[0xFFFFFFFF]",
+  "bug_class": "heap-overflow",
+  "severity": "memory-corruption",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a third-party mod .pkm, converted by the Vulkan backend (ConvertDxbc via LoadOrConvert)",
+  "proof_kind": "fuzz_input",
+  "proof": "Command: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv_nomask /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/dxbc_spirv/getOrDeclareTemp_wrap_oob\"\nInput: crafted by scratchpad/dxbc_spirv/craft.py from our unit-test VS seed, with the first mul's dst changed to r1073741823.w (297 bytes).\nOutput:\n==ERROR: AddressSanitizer: SEGV on unknown address 0x73402a500dc4 ... READ\n#0 SsaDef::operator bool ir.h:982\n#1 RegisterFile::getOrDeclareTemp dxbc_registers.cpp:463\n#2 RegisterFile::emitStore dxbc_registers.cpp:291\n#3 Converter::storeDst dxbc_converter.cpp:3487\n... ConvertDxbc shader_convert.cpp:448",
+  "root_cause": "tempIndex = 4u*index + component is computed in uint32_t from the raw operand index. With index 0x3FFFFFFF and component w it equals 0xFFFFFFFF, so resize(tempIndex + 1u) becomes resize(0). The next lines then read m_rRegs[0xFFFFFFFF] and assign to it (an unchecked small_vector operator[], 16 GB past the storage). The index is never checked against dcl_temps.",
+  "minimal_fix": "In getOrDeclareTemp, reject (logOpError + return an empty SsaDef) any index >= the declared dcl_temps count, or above a hard cap such as 4096. Compute tempIndex in uint64_t / size_t. Add a comment naming the wrap.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-030",
+  "file": "third_party/dxbc-spirv/ir/ir_utils.cpp",
+  "line": 344,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv ir::composite writes past std::array<SsaDef,4> scalars (stack buffer overflow write)",
+  "bug_class": "stack-overflow",
+  "severity": "memory-corruption",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (25 bytes) scratchpad/crashes/dxbc_spirv/composite_stack_overflow_write, hex 45400000004a000000d7000004f20010000000000046100000.\nWith the fuzz build (STL assertions on): wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\" gives \"std::array<SsaDef,4>::operator[] Assertion '__n < this->size()' failed\" at ir_utils.cpp:344.\nWith the shipped STL behaviour (~/fz/dxbc_spirv/fuzz_dxbc_spirv_release_stl, ir_utils.cpp built without _GLIBCXX_ASSERTIONS and without -fsanitize=bounds):\n==ERROR: AddressSanitizer: stack-buffer-overflow WRITE of size 4\n#0 dxbc_spv::ir::composite ir_utils.cpp\n#1 IoMap::loadIoRegister\n[32, 48) 'scalars' (line 338) <== Memory access at offset 48 overflows this variable",
+  "root_cause": "The loop `for (auto c : mask) scalars[index++] = ...` writes one entry per set bit of the WriteMask with no bound at 4. A malformed IO load (from the converter's IoMap::loadIoRegister) passes a mask that iterates more than 4 components. The read components[swizzle.map(c)] is also unchecked.",
+  "minimal_fix": "Stop the loop at scalars.size(): `if (index >= scalars.size()) break;`, or validate the mask has at most 4 bits before the loop. Add a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-031",
+  "file": "third_party/wmadec/shim/config.h",
+  "line": 68,
+  "hunts": [
+   "xwma"
+  ],
+  "title": "wmav2 extract is built with FFmpeg's UNCHECKED bitstream reader: heap over-read past packet+64 B padding in run-level decode",
+  "bug_class": "heap-overflow",
+  "severity": "memory-corruption",
+  "label": "ext",
+  "label_evidence": "third_party/wmadec is the LGPL FFmpeg 8.1.3 extract that replaces XAudio2's xWMA decode (xwma_decode.h banner: 'XAudio2 decodes it in retail'); retail has no such code. config.h never defines CONFIG_SAFE_BITSTREAM_READER, so get_bits.h:53 makes UNCHECKED_BITSTREAM_READER = !0 = 1. Upstream configure enables the safe reader by default.",
+  "reachability": "Any SoundBuffer resource's packets: a .pkg entry or a third-party .pkm mod sound, decoded at load (DecodeXwmaJob) or by the music Stream worker (DecodeChunk).",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl: ~/fz.sh repro xwma_unsafe-equivalent: cd ~/fz/xwma && ./fuzz_xwma_unsafe min/unsafe_reader_min  (copy: scratchpad/crashes/xwma/unsafe_reader_min, 364 B; also getbits492, 278 B)\n==ERROR: AddressSanitizer: heap-buffer-overflow ... READ of size 4\n #0 get_vlc2 third_party/wmadec/ffmpeg/libavcodec/get_bits.h:657\n #1 ff_wma_run_level_decode wma.c:439\n #2 wma_decode_block wmadec.c:624\n #3 wma_decode_frame wmadec.c:806\n #4 wma_decode_superframe wmadec.c:965\n #5 wmav2_decode_packet shim/wmadec_glue.c:135\n #6 Audio::XwmaDecoder::DecodeRange xwma_decode.cpp:310\n0 bytes after 320-byte region (block_align 256 + AV_INPUT_BUFFER_PADDING_SIZE 64) allocated by wmav2_open glue.c:103.\nA second top frame, get_bits at wmadec.c:492, has the same cause. 637 of 645 crashes from the unchecked build land here. Rebuilding wmadec with -DCONFIG_SAFE_BITSTREAM_READER=1 makes every one of these inputs run clean, and 840 s of further fuzzing on that build found 0 crashes.",
+  "root_cause": "In the unchecked reader, get_vlc2/get_bits never compare the bit index with size_in_bits. The run-level loop in ff_wma_run_level_decode keeps reading until EOB or num_coefs, so a packet that never reaches EOB walks past its block_align bytes and the 64-byte padding the glue adds.",
+  "minimal_fix": "Add `#define CONFIG_SAFE_BITSTREAM_READER 1` to third_party/wmadec/shim/config.h (or a target_compile_definitions entry in third_party/wmadec/CMakeLists.txt), with a comment saying upstream builds have the safe reader on and the run-level loop relies on it.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-032",
+  "file": "src/engine/io/compressed_stream_open.cpp",
+  "line": 125,
+  "hunts": [
+   "compressed_stream",
+   "save_meta"
+  ],
+  "title": "Negative blockCount: Open reads headerSize*8 (negative, i.e. a huge size_t) bytes into a null directory",
+  "bug_class": "null-deref",
+  "severity": "crash",
+  "label": "retail",
+  "label_evidence": "compressed_stream_open.cpp:84-96 comment on 0x1800aa5cb (signed 32-bit compare, so a negative count passes); Array<Header>::SetSize 0x180024d70 leaves size = n, data null for n < 0 (measured: data=(nil) size=-1759233 cap=0)",
+  "reachability": "First 4 bytes of any package blob / save block stream.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/E_negative_count hex 0014000000feffffff00000000000000000000000000000000 -> memory_stream.cpp:74:17: runtime error: null pointer passed as argument 1; #1 IO::CompressedStream::Open compressed_stream_open.cpp:125. Without UBSan the call is memcpy(nullptr, data+4, (size_t)(-16)), a wild write. Fuzzer: run1 crash-038914e3...",
+  "root_cause": "blockCount < 0 passes `blockCount*8 > len`. SetSize stores the negative size with a null buffer, and src->Read(_headerSize*8, _headerData) passes a negative count, which MemoryStream::Read accepts (end < size) and converts to size_t.",
+  "minimal_fix": "In Open after reading blockCount: `if (blockCount < 0) return false;` (comment: retail's signed test admits it). Also reject n < 0 in MemoryStream::Read.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "save_meta",
+    "title": "Negative blockCount: Open passes the size check, SetSize(-1) leaves the header table null, then Read(-8, null) runs memcpy(null, src, 2^64-8)",
+    "proof": "scratchpad/crashes/save_meta/blockcount_neg1 (32 B) hex ffffffff00000000000000000000000000000000000000000000000000000000. Default build: UBSan 'memory_stream.cpp:74:17: null pointer passed as argument 1'; #0 MemoryStream::Read, #1 CompressedStream::Open compressed_stream_open.cpp:125, #2 LoadMetaData saveload_loadmeta.cpp:279. With MASK_DEEP=1 (nonnull check off): 'AddressSanitizer: memcpy-param-overlap: memory ranges [0x000000000000,0xfffffffffffffff8)', i.e. a wild write of 2^64-8 bytes starting at address 0. The fuzzer found this 11 times."
+   },
+   {
+    "hunt": "save_meta",
+    "title": "CompressedStream::Open ignores the header-table Read result, so a short table leaves the headers uninitialised and DecompressFromSource uses garbage offsets and sizes",
+    "proof": "scratchpad/crashes/save_meta/short_header_uninit (8 B) hex 0100000000000000: blockCount 1, len 8, so the check passes and Read(8) at cursor 4 fails. Running it gives 'ERROR: libFuzzer: timeout after 3 seconds' in CompressedStream::Read compressed_stream_read.cpp:448 <- BinaryReader ctor <- LoadMetaData:290. The header bytes are uninitialised MemAlloc memory; MSan, not run here, would flag the read itself."
+   }
+  ]
+ },
+ {
+  "id": "F-033",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 465,
+  "hunts": [
+   "packfile"
+  ],
+  "title": "PK-H: negative blobLen is sign-extended into a ~16 EB MemAlloc request",
+  "bug_class": "int-overflow-alloc",
+  "severity": "crash",
+  "label": "retail",
+  "label_evidence": "The comment `1800b47fe MOVSXD`: retail sign-extends blobLen into MemAlloc's uint64.",
+  "reachability": "Any .pkg/.pkm: the second dword after the header seek.",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz.sh repro packfile .../crashes/packfile/pkH_negative_bloblen\n==ERROR: libFuzzer: deadly signal: abort in AsanMemAlloc allocator.cpp:106 <- ReadPackfile package_file_read.cpp:465.\nHex (8 bytes): 04000000ffffffff. In the ASan heap the allocation failure aborts. In the engine allocator the request is 0xffffffffffffffff and ReadFile then reads with count 0xffffffff.",
+  "root_cause": "int32 blobLen from the file goes to MemAlloc(static_cast<uint64_t>(static_cast<int64_t>(blobLen))) with no sign or size check.",
+  "minimal_fix": "Reject blobLen <= 0 or blobLen > fi->size - cursor before MemAlloc (fix.* row citing retail 0x1800b47fe).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-034",
+  "file": "src/engine/io/text_codec.cpp",
+  "line": 211,
+  "hunts": [
+   "text_codec"
+  ],
+  "title": "DecodeOne format 1 (raw 16-bit) reads src[1] past the end of an odd-length source",
+  "bug_class": "heap-overflow",
+  "severity": "crash",
+  "label": "retail",
+  "label_evidence": "the case-1 arm 0x1800c9ff1 (text_codec.cpp:210 comment) reads both bytes with no bound check; the other arms check `end`",
+  "reachability": "API level only today. ConvertText's callers pass format 2 (ExternalSaveText) or a DetectFormat result (never 1), and SerializeStringArray hands it even-length buffers. Reachable as soon as TextFileStream is opened or written with requested format 1 and an odd length.",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl: ~/fz/text_codec2/fuzz_text_codec2 <scratchpad>/crashes/text_codec2/convert_fmt1_odd (hex 0001020041: ConvertText(src=1,dst=2) over 1 byte) -> 'AddressSanitizer: heap-buffer-overflow READ of size 1' #0 RtIo_TextCodec_DecodeOne text_codec.cpp:211:50 #1 RtIo_TextCodec_ConvertText text_codec.cpp:385. Direct form: min-crash-ff0d8af4673ea763a4ee7c84ee3bb1d6ec7f44d5 (hex f75b2100).",
+  "root_cause": "Case 1 (and case 0) of DecodeOne read their units without the `src + 2 <= end` test that case 4/5 has, and the caller loops while src < end. An odd trailing byte reads one byte past the end.",
+  "minimal_fix": "In case 1, `if (src + 2 > end) goto bad;` before the read, with a comment that retail reads unchecked and this is a bounds fix (one byte, odd tail only).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-035",
+  "file": "src/engine/save/saveload_loadmeta.cpp",
+  "line": 339,
+  "hunts": [
+   "codeql",
+   "save_meta"
+  ],
+  "title": "Unbounded mod count in LoadMetaData: Array<ModInfo>::SetSize(count) allocates count*0x20; on failure the init loop runs on null+i*0x20 (write near null); smaller counts hang",
+  "bug_class": "int-overflow-alloc",
+  "severity": "crash",
+  "label": "retail",
+  "label_evidence": "Site comment: retail 0x180034010 `kSpec_MetaEntry20` SetSize, gated only on the stream direction (0x1800c1c9a). array.cpp:2292-2293 `if (dst == nullptr) continue; // retail tests the COMPUTED address`.",
+  "reachability": "shared .sav metadata block (format version > 2)",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz/save_meta2/fuzz_save_meta2 -rss_limit_mb=0 -malloc_limit_mb=0 scratchpad/crashes/save_meta/modcount_0x70000000_record (37 B) hex aaaaaaaa1900000003000000010000800000000000000000000300000000000070bbbbbbbb -> 'array.cpp:2292:33: runtime error: applying non-zero offset 32 to null pointer'; #0 rtcoll::SetSizeCore, #1 Array::SetSize Collection.h:581, #2 LoadMetaData saveload_loadmeta.cpp:339. The next statement is spec->init(0x20), a write. The fuzzer hit this 99+45 (save_meta) and 35+24 (save_meta2) times. Count 0x10000000 instead allocates 8 GB and then hangs past 100 s (2^28 inits plus 2^29 String reads).",
+  "root_cause": "count is read with SerializeInt and passed straight to SetSize. Nothing bounds it against the bytes left in the stream, so the input chooses the allocation size, and a failed allocation leaves _data null while the loop still runs.",
+  "minimal_fix": "In LoadMetaData after reading count: `if (count < 0 || count > 0x10000) count = 0;` (fix.* row naming 0x1800c1c9a). Retail has no mod-count limit, so the 0x10000 cap needs a ruling.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "codeql",
+    "title": "Save/resource counts drive SetSize with no upper bound (mod list in LoadMetaData proven; class of ~180 count sinks)",
+    "proof": "~/tidy/p3/sav_meta_poc mods (version 3, mod count 0x7fffffff): ASan out of memory: allocator is trying to allocate 0xfffffffe0 bytes; #2 rtcoll::SetSizeCore array.cpp:2269; #4 Save::SaveLoad::LoadMetaData saveload_loadmeta.cpp:339. Log static/poc/sav_mods.san.txt. The same idiom appears in about 180 CodeQL count sinks (static/codeql_size_taint_triage.tsv, kind 'count')"
+   }
+  ]
+ },
+ {
+  "id": "F-036",
+  "file": "src/ext/derived_cache/derived_cache.cpp",
+  "line": 427,
+  "hunts": [
+   "ext_caches"
+  ],
+  "title": "DerivedCache LoadIndex accepts a record whose offset+size wraps uint64; Find / LoadIndex then resize a vector to ~2^64 and abort",
+  "bug_class": "int-overflow-alloc",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": "src/ext/derived_cache is NOT RETAIL (issue #13, COMPRESSAO.md); no retail counterpart",
+  "reachability": null,
+  "proof_kind": "fuzz_input",
+  "proof": "wsl -e bash -c \"~/fz.sh repro derived_cache /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/derived_cache/size_wrap_find\" -> terminate called after throwing an instance of 'std::length_error' what(): vector::_M_default_append; #16 Ext::DerivedCache::Store::Find derived_cache.cpp (out.resize(rec.size)) <- derived_cache_fuzz.cpp:141. Variant size_wrap_loadindex (generations differ, verifyPayloads path): #16 Store::LoadIndex derived_cache.cpp:431 (payload.resize(r.size)) <- Store::Open. Input: one record {offset 32, size 0xFFFFFFFFFFFFFFF0} with a valid RecordCheck (XXH64, forgeable). Hex of size_wrap_find (176 bytes): 0700700000004f42414443494458020000005000000005000000000000000000000000000000000000005445535401000000000000000100000002000000030000000400000000100000000000007700000000000000200000000000000 0f0ffffffffffffff000000000000000000000000000000004f424144434441540200000000000000050000000000000000000000000000005050...(32 x 50)",
+  "root_cause": "The prefix check `r.offset + r.size > static_cast<uint64_t>(datSize)` wraps when r.size is near 2^64: offset 32 + size 2^64-16 = 16 <= datSize, so the record is kept and `end += r.size` wraps to 16. Every later consumer trusts r.size: Find resizes out to r.size (std::length_error -> std::terminate in the exe), LoadIndex's verifyPayloads path does the same, Compact's `end + r.size > capBytes` wraps the same way, and _garbageBytes is computed from the wrapped end. Reachability: a damaged or planted derived.idx in the user's Documents cache folder (local cache).",
+  "minimal_fix": "At derived_cache.cpp:427-428 test without the sum: `r.size > static_cast<uint64_t>(datSize) - r.offset` (r.offset == end <= datSize is already known), with a comment that the sum wraps on a forged size.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-037",
+  "file": "src/ext/package_cache/index_codec.cpp",
+  "line": 151,
+  "hunts": [
+   "ext_caches"
+  ],
+  "title": "PackageCache::Decode accepts any tree shape: a cached payload can be a degenerate chain, so the recursive SubtreeFree overflows the stack and every lookup is O(N)",
+  "bug_class": "stack-overflow",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": "index_codec.cpp: NOT RETAIL (PKGCACHE.md). The overflowing frame is retail's recursive rtavl::SubtreeFree 0x180008340 (avl_trees.cpp:835), which is safe on the AVL-balanced trees retail builds; Decode is what admits the unbalanced shape",
+  "reachability": null,
+  "proof_kind": "fuzz_input",
+  "proof": "wsl -e bash -c \"~/fz.sh repro package_cache /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/package_cache/chain_same_400k\" (input hex 04801a0600 = CHAIN mode, N = 400000 right children of one key; the current target caps N at 2000 as a MASK, so raise the cap to reproduce) -> ==ERROR: AddressSanitizer: stack-overflow ... #0 rtavl::SubtreeFree avl_trees.cpp:839:5, #1.. rtavl::SubtreeFree avl_trees.cpp:840:5 (repeated), reached from Decode's FreeAll after InOrderStrict refuses. With increasing keys (data[4]=1) Decode accepts the chain, and the target's IndexFind loop over 16587 names ran past the 10 s libFuzzer timeout (O(N^2)).",
+  "root_cause": "Decode validates entry indices, child bits, payload size and strict in-order key order, but not the AVL shape: node height/balance are copied from the payload and depth is unbounded. A pre-order stream of right-only children builds an N-deep chain. FreeAll / the FileSystem's tree free recurse once per level (the exe's main thread has 1 MB of stack, so about 2e4 levels suffice), and IndexFind on _packfileIndex degrades to a linear walk on every file open. Reachability: the package_cache payload in the derived cache (local cache; payloadHash is XXH64, forgeable).",
+  "minimal_fix": "Track depth in Decode's Open stack entries (child depth = parent depth + 1) and refuse (FreeAll; it is still shallow at that point) when the depth exceeds 64, since an AVL tree of 2^31 nodes is under 46 high. Optionally also check that the stored height and balance match the children.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-038",
+  "file": "src/ext/resources/text_parser.cpp",
+  "line": 193,
+  "hunts": [
+   "settings_rsctext"
+  ],
+  "title": "Ext::RscText parser recurses without a depth limit: nested `T f[{` blocks overflow the stack",
+  "bug_class": "stack-overflow",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": "text_parser.cpp header: 'NOT RETAIL. A hand-written recursive-descent reader' (docs/extensions/KITFREE.md block RSCTEXT).",
+  "reachability": "Low: the parser reads only the .rsc text files embedded in the exe by tools/ext_rsc_embed.py (P0_MAP section 13). No user, mod or save input reaches it today. It would matter if the dialect were ever opened to mod files.",
+  "proof_kind": "fuzz_input",
+  "proof": "python3 -c \"import sys; sys.stdout.write('A b {' + 'T f[{'*50000)\" > deep_nesting_50000; wsl -e bash -c \"~/fz.sh repro rsc_text /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/rsc_text/deep_nesting_50000\" -> '==ERROR: AddressSanitizer: stack-overflow ... #4 Parser::Expect text_parser.cpp:123 #5 Parser::ParseBlock text_parser.cpp:149 #6 Parser::ParseField text_parser.cpp:193 #7 Parser::ParseBlock text_parser.cpp:153 ...'. The threshold under ASan with an 8 MB stack is between 2000 levels (no crash) and 5000 levels (crash), i.e. about 25 KB of text.",
+  "root_cause": "ParseBlock -> ParseField -> ParseBlock (array of { } blocks) recurses once per nesting level and has no depth cap. Each level costs 5 input bytes.",
+  "minimal_fix": "Add a depth counter in Parser: increment it in ParseBlock and fail with 'line N: blocks nested too deep' past a small limit (e.g. 64). Comment that the embedded files nest at most a few levels.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-039",
+  "file": "src/ext/stream_cache/stream_record.cpp",
+  "line": 239,
+  "hunts": [
+   "ext_caches"
+  ],
+  "title": "StreamCache Bundle::AddChunk reserves the raw u32 record count before any check: a 16-byte chunk asks for 72 x 4G bytes",
+  "bug_class": "int-overflow-alloc",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": "stream_record.cpp header: NOT RETAIL (issue #13, STREAMCACHE.md)",
+  "reachability": null,
+  "proof_kind": "fuzz_input",
+  "proof": "wsl -e bash -c \"~/fz.sh repro stream_cache /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/stream_cache/reserve_oom\" (reproduces with the target's MASK line removed) -> ==ERROR: AddressSanitizer: out of memory: allocator is trying to allocate 0x47b8000090 bytes; #4 std::vector<pair<u64,RecordView>>::reserve; #5 Ext::StreamCache::Bundle::AddChunk stream_record.cpp:239:12; #6 ReadBack stream_record.cpp:378. Found in the first 46 execs. Minimal shape (17 bytes): 00 53545243 03000000 ffffffff 00000000 (selector byte + 'STRC', version 3, count 0xFFFFFFFF, 0).",
+  "root_cause": "ChunkRecordCount returns the header's u32 count unchecked and AddChunk calls parsed.reserve(count) (72 bytes per element) before the per-record loop that would reject the chunk. In the exe, operator new throws std::bad_alloc out of ReadBack (stream_cache.cpp:192 / :393), which nothing catches, so the process terminates. Reachability: a stream-cache chunk read back from the derived cache (local cache).",
+  "minimal_fix": "Before the reserve: `if (count > (chunk.size() - kChunkHeader) / kRecordHeader) return false;` (no record is smaller than its 24-byte header), with a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-040",
+  "file": "src/render/dx11/devicedata.cpp",
+  "line": 1698,
+  "hunts": [
+   "clang_tidy_windows"
+  ],
+  "title": "W-4: display-mode loop reads modes[i] through a null buffer when the mode count grows between the two GetDisplayModeList calls",
+  "bug_class": "null-deref",
+  "severity": "crash",
+  "label": "retail",
+  "label_evidence": "Code comment at lines 1529-1531 and 1556-1561: retail's inlined Array<DXGI_MODE_DESC>::SetLength leaves a null base for n == 0 ('MemFree argument is provably the null old base'), so retail also passes NULL on the second call.",
+  "reachability": "Boot adapter enumeration (slot 1, 0x180004690) when a monitor's mode list changes between the count query and the fill (hot-plug or mode-set change). With pDesc == NULL, DXGI treats the second call as a count query and returns S_OK.",
+  "proof_kind": "sanitizer",
+  "proof": "clang-tidy clang-analyzer-core.NullDereference devicedata.cpp:1698:25 (HEAD). Standalone copy scratchpad/tidy_win/repro/modes_null.cpp (the stub returns 0 modes, then 4 with S_OK on a NULL pDesc) on WSL clang++-19 -fsanitize=undefined -> 'modes_null.cpp:17:43: runtime error: reference binding to null pointer of type 'const DXGI_MODE_DESC''.",
+  "root_cause": "The second call is made with the buffer still null when the first count was 0. A NULL pDesc makes it a count query that can report n > 0, and the loop then indexes the null buffer.",
+  "minimal_fix": "Skip the second GetDisplayModeList and the loop when modes == nullptr (or loop only while modes != nullptr), with a comment naming the null dereference.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-041",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_converter.cpp",
+  "line": 3447,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv unbounded recursion on nested relative indices (loadOperandIndex -> loadSrc -> emitLoad -> loadArrayIndex) overflows the stack",
+  "bug_class": "stack-overflow",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend; the converter runs on the loader thread)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (5089 bytes) scratchpad/crashes/dxbc_spirv/loadOperandIndex_recursion_stackoverflow.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput: ==ERROR: AddressSanitizer: stack-overflow. The stack shows 81 repetitions of each of Converter::loadOperandIndex dxbc_converter.cpp:3447, Converter::loadSrc :3344, Converter::loadSrcModified :3409, RegisterFile::emitLoad dxbc_registers.cpp:204, and RegisterFile::loadArrayIndex dxbc_registers.cpp:453.",
+  "root_cause": "An indexable-temp operand whose relative index is itself an indexable-temp operand, and so on, is converted recursively with no depth limit. The depth is bounded only by the token stream length (up to the blob size).",
+  "minimal_fix": "Cap the nesting depth of relative operand indices in the parser or in loadOperandIndex (D3D allows one level) and fail the conversion past it.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-042",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_io_map.cpp",
+  "line": 79,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv Operand::getIndex(getIndexDimensions()-1) with 0 dimensions throws std::out_of_range (uncaught, terminate)",
+  "bug_class": "OOB-index",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (21 bytes) scratchpad/crashes/dxbc_spirv/getImmediate_array_at_throw, hex 45400001004a0001005b0000032a0000013e013e01.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput:\nterminate called after throwing an instance of 'std::out_of_range' what(): array::at: __n (which is 4294967295) >= _Nm (which is 4)\n#15 Operand::getImmediate<unsigned int> dxbc_parser.h\n#16 Operand::getIndex dxbc_parser.h:828\n#17 IoMap::handleDclIndexRange dxbc_io_map.cpp:79\n#18 Converter::convertShader",
+  "root_cause": "handleDclIndexRange takes operand.getIndex(operand.getIndexDimensions() - 1u) without checking that the operand has an index. For a 0-D operand the index is 0xFFFFFFFF and std::array::at throws. Nothing on the ConvertDxbc path catches it.",
+  "minimal_fix": "Check `operand.getIndexDimensions() != 0` (and op.getImmCount()) in handleDclIndexRange and log an op error. Also, or instead, wrap the dxbc-spirv calls in ConvertDxbc in try/catch so that a malformed blob fails its conversion instead of terminating.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-043",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_resources.cpp",
+  "line": 229,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv ResourceMap::setUavFlagsForStore binds a reference to a null ResourceInfo (null deref)",
+  "bug_class": "null-deref",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (33 bytes) scratchpad/crashes/dxbc_spirv/setUavFlagsForStore_nullref, hex 4d00000000010000a8a8000106000043000103003e000101010001013e00010001.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput: dxbc_resources.cpp:229:37: runtime error: reference binding to null pointer of type 'const ResourceInfo' (in setUavFlagsForStore)",
+  "root_cause": "getResourceInfo returns null for a store to an undeclared UAV register. The only guard is dxbc_spv_assert(resource && ...), which is compiled out, and getUavFlags(builder, *resource) then dereferences null.",
+  "minimal_fix": "`if (!resource || resource->regType != RegisterType::eUav) return;` (or log an op error and fail the conversion) in place of the assert. Add a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-044",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_resources.cpp",
+  "line": 587,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv Instruction::getImm(getImmCount()-1) with no immediates reads small_vector index 0xFFFFFFFF (wild read)",
+  "bug_class": "OOB-index",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (25 bytes) scratchpad/crashes/dxbc_spirv/Instruction_getImm_oob, hex 44529c00000040000059000004468e20000100000001000000.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput:\n==ERROR: AddressSanitizer: SEGV on unknown address ... READ\n#0 dxbc_spv::dxbc::Instruction::getImm const dxbc_parser.h:1020\n#1 ResourceMap::insertResourceInfo dxbc_resources.cpp:587\n#2 ResourceMap::handleDclConstantBuffer dxbc_resources.cpp:39\n#3 Converter::convertShader dxbc_converter.cpp:37",
+  "root_cause": "In the SM5.1 arm, insertResourceInfo reads op.getImm(op.getImmCount() - 1u) behind only a dxbc_spv_assert(op.getImmCount()), which is compiled out under NDEBUG. With zero immediates the index is 0xFFFFFFFF. small_vector::at() only asserts, so it indexes far out of bounds.",
+  "minimal_fix": "Replace the assert with a real check: `if (!op.getImmCount()) { logOpError(...); return nullptr; }` (and handle a null return at the callers). Alternatively make small_vector::at bounds-check in release.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-045",
+  "file": "third_party/dxbc-spirv/ir/passes/ir_pass_function.cpp",
+  "line": 450,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv FunctionCleanupPass::determineFunctionCallDepth m_callDepth.at(callee) throws std::out_of_range (uncaught, terminate)",
+  "bug_class": "logic",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (17 bytes) scratchpad/crashes/dxbc_spirv/determineFunctionCallDepth_map_at_throw, hex 6d52000000015900000400e80200000200.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput:\nterminate called after throwing an instance of 'std::out_of_range' what(): map::at\n#15 FunctionCleanupPass::determineFunctionCallDepth ir_pass_function.cpp:450\n#16 resolveSharedTemps :22\n#17 runResolveSharedTempPass :46\n#18 ir::legalizeIr ir_legalize.cpp:10",
+  "root_cause": "A call to a function (fcall / function body index) that never got a call-depth entry reaches legalizeIr. map::at throws, and neither dxbc-spirv nor ConvertDxbc catches it.",
+  "minimal_fix": "Use find() and skip or fail on a callee with no entry, or have the converter reject a call to an undeclared function body. Optionally add try/catch around the dxbc-spirv pipeline in ConvertDxbc.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-046",
+  "file": "third_party/dxbc-spirv/spirv/spirv_builder.cpp",
+  "line": 3103,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv SpirvBuilder::emitParamLoad m_funcParamIds.at(key) throws std::out_of_range (uncaught, terminate)",
+  "bug_class": "logic",
+  "severity": "crash",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (10782 bytes) scratchpad/crashes/dxbc_spirv/emitParamLoad_unordered_map_at_throw.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput:\nterminate called after throwing an instance of 'std::out_of_range' what(): unordered_map::at\n#16 SpirvBuilder::emitParamLoad spirv_builder.cpp:3103\n#17 SpirvBuilder::emitInstruction :372\n#18 SpirvBuilder::buildSpirvBinary :30\n#19 ConvertDxbc shader_convert.cpp:481",
+  "root_cause": "The IR that legalizeIr produces from a malformed program holds a ParamLoad whose (function, param) key was never registered. The guard is only a dxbc_spv_assert, compiled out, and unordered_map::at throws.",
+  "minimal_fix": "find() with a failure path (mark the build failed) in emitParamLoad, plus try/catch around buildSpirvBinary in ConvertDxbc.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-047",
+  "file": "src/app/one_write_stdio.h",
+  "line": 70,
+  "hunts": [
+   "clang_tidy_windows"
+  ],
+  "title": "W-5: force-included one_write_stdio.h adds using-declarations to namespace std",
+  "bug_class": "UB-namespace-std",
+  "severity": "UB",
+  "label": "ext",
+  "label_evidence": "src/app log wrapper (one stdout/stderr write per line); it has no retail counterpart.",
+  "reachability": "Every TU at compile time (CMake -include). No runtime input.",
+  "proof_kind": "static_only",
+  "proof": "clang-tidy bugprone-std-namespace-modification / cert-dcl58-cpp at one_write_stdio.h:70:9, 71:9, 72:9 ('modification of 'std' namespace can result in undefined behavior'), seen in every TU through -include.",
+  "root_cause": "'namespace std { using ::BanishedOneWriteFprintf; ... }' exists so that std::fprintf(...) still resolves after the fprintf macro rewrites it. [namespace.std]/1 makes adding declarations to std undefined.",
+  "minimal_fix": "Drop the namespace std block. Make the macros expand to a token that works after 'std::', e.g. define fprintf as ::BanishedOneWriteFprintf only for unqualified use, and rewrite the few std::fprintf call sites, or provide the wrappers in a non-std namespace. Add a comment naming the [namespace.std] UB.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-048",
+  "file": "src/engine/audio/vtbatch7_soundbuffer_soundeffect.cpp",
+  "line": 245,
+  "hunts": [
+   "rsc_serialize"
+  ],
+  "title": "BinaryReader::SerializeBool stores a raw stream byte into a C++ bool (invalid bool value loads)",
+  "bug_class": "UB-invalid-bool",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "BinaryReader's scalar slots (serialize_family.cpp, retail 0x1800a8410.. shape 1) do Stream::Read(sizeof(T), &field), so any byte 0..255 lands in the field. Retail's fields are bytes tested with CMP/TEST, so this is UB only in the C++ typing (`bool _loopForever/_streamed`, `bool present` in ExternalPtrSerializeBody external_ptr_serialize.cpp:294, PackageFile::_overridable, AnimationState::_instanced, Layer::_restarted).",
+  "reachability": "Every bool field of every .rsc in a mod .pkm and every bool in a shared .sav.",
+  "proof_kind": "sanitizer",
+  "proof": "scratchpad/crashes/rsc_serialize/soundbuffer-bool-byte (83 B, _loopForever = _streamed = 0x02), run on fuzz_rsc_serialize_nomask: 'vtbatch7_soundbuffer_soundeffect.cpp:245:31: runtime error: load of value 2, which is not a valid value for type bool #0 CountSoundBufferFormat #1 SoundBuffer::Serialize :463'. The fuzzer hit it at many sites in r1 (values 2, 4, 63, 86, 132, 255), including the ExternalPtr present-flag pattern.",
+  "root_cause": "ReaderWriter::SerializeBool(bool&) is implemented as a 1-byte memcpy from the stream into the bool object. A byte other than 0 or 1 makes the object hold an invalid bool representation, and every later load is UB.",
+  "minimal_fix": "In BinaryReader::SerializeBool, read into a uint8_t and store `v = (byte != 0)`. Comment that retail keeps the raw byte and every retail consumer tests it as zero / non-zero.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-049",
+  "file": "src/engine/graphics/animationstate.cpp",
+  "line": 279,
+  "hunts": [
+   "rsc_serialize"
+  ],
+  "title": "GraphicsMesh::Node::_parent is serialized while uninitialised (indeterminate value written)",
+  "bug_class": "UB-uninit-read",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "GraphicsMesh.h:250-256: '*** LEFT UNINITIALISED BY ??0Node@ (0x180012550) *** ... ?Serialize@Node@ emits it as a DWORD scalar ... THE PORT MUST NOT ZERO IT' (a deliberate retail match).",
+  "reachability": "Writing a GraphicsMesh (resource compile / any re-serialise of nodes created by SetSize); not reached from loading.",
+  "proof_kind": "fuzz_input",
+  "proof": "The seed generator (our write path RtGraphics_SerializeMeshNodes over Rt_SetSize_18005aa30-grown nodes) writes ASan's malloc fill byte for _parent. ~/fz/rsc_serialize/corpus/seed_5_0 at offset 0x1a is 'bebe bebe' after the name 'root' (xxd output above), so the written bytes are uninitialised heap.",
+  "root_cause": "The Node default construction (array init row) does not set _parent, and the write path reads it with SerializeInt. Reading an indeterminate int is UB, and the output bytes depend on heap contents.",
+  "minimal_fix": "Ruling needed, since the header says it must stay unzeroed for faithfulness. A minimal fix is a zero in the kSpec_MeshNode init row only, with a comment that retail leaves heap garbage, plus a known_port_issues row.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-050",
+  "file": "src/engine/io/compressed_stream_open.cpp",
+  "line": 117,
+  "hunts": [
+   "codeql",
+   "compressed_stream",
+   "packfile",
+   "save_meta"
+  ],
+  "title": "Open: blockCount * 8 signed int overflow",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "compressed_stream_open.cpp:88-92 comment: retail LEA EAX,[RDX*8] at 0x1800aa5cb wraps deliberately",
+  "reachability": "First 4 bytes of any package blob / save block stream.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/F_count_mul_overflow hex 00140000000100001000000000000000000000000000000000 -> compressed_stream_open.cpp:117:41: runtime error: signed integer overflow: 268435457 * 8 cannot be represented in type 'int'. The fuzzer hit it 105 times (run1 crash-e9d135cd...)",
+  "root_cause": "int32 multiply of an attacker-chosen count; the wrapped value then lets SetSize allocate count*8 bytes (up to 2^34 with a positive count above 0x0fffffff).",
+  "minimal_fix": "Compute `static_cast<int64_t>(blockCount) * 8 > len` (and `4 + blockCount*8` likewise) in int64, keeping retail's accept/reject outcome documented in a comment.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "packfile",
+    "title": "CompressedStream::Open: blockCount * 8 (and 4 + blockCount*8) overflow int32 (UB)",
+    "proof": "~/fz.sh repro packfile .../crashes/packfile/pkI_open_blockcount_overflow\ncompressed_stream_open.cpp:117:41: runtime error: signed integer overflow: 536870913 * 8 cannot be represented in type 'int' <- ReadPackfile :482.\nHex: 04000000140000000100002000000000000000000000000000000000. The fuzzer hit it 7 times, e.g. fuzzer_found/crash-14f637797c24416c6b5eea028e1c45fdfc7b0fc7."
+   },
+   {
+    "hunt": "save_meta",
+    "title": "CompressedStream::Open `blockCount * 8` is signed overflow on an input value; the wrapped size check then passes and allocates blockCount*8 bytes",
+    "proof": "scratchpad/crashes/save_meta/blockcount_mul_overflow (32 B) hex 0100002000000000000000000000000000000000000000000000000000000000 -> 'compressed_stream_open.cpp:117:41: runtime error: signed integer overflow: 536870913 * 8 cannot be represented in type int'; #0 CompressedStream::Open, #1 LoadMetaData saveload_loadmeta.cpp:279. With the check masked (MASK_DEEP=1), the same input runs more than 115 s (a 4 GB header table, then a 2^29-iteration size walk). The fuzzer found this 25+12 times (positive and negative operands). Line 129 `4 + blockCount * 8` is the same overflow."
+   },
+   {
+    "hunt": "codeql",
+    "title": "CompressedStream::Open blockCount * 8 signed int overflow",
+    "proof": "~/tidy/p3/cs_block_poc count (blockCount 0x10000001): compressed_stream_open.cpp:117:41: runtime error: signed integer overflow: 268435457 * 8 cannot be represented in type 'int'. Log static/poc/count.ubsan.txt"
+   }
+  ]
+ },
+ {
+  "id": "F-051",
+  "file": "src/engine/io/compressed_stream_read.cpp",
+  "line": 261,
+  "hunts": [
+   "compressed_stream"
+  ],
+  "title": "Negative position: SetWindow -> DecompressFromSource(negative block) indexes _headerData[negative] and left-shifts a negative value",
+  "bug_class": "OOB-index",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Ghidra 0x1800a96c2: CMP EDX,[RCX+0x48]; JL (signed, no lower bound); 0x1800a96d9 SHL EDX,0xf; LEA RDI,[RAX+RCX*8] with a negative RCX",
+  "reachability": "CompressedStream::SetCurrentPos with a negative offset from data-driven callers (a seek offset read from a package / save); also _position wrapping past INT_MAX. Unproven in a real caller: only the direct SetWindow call was exercised.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/G_negative_pos hex 0010000000010000000c000000000004006162636400ffffffff (seek -1) -> compressed_stream_read.cpp:261:20: runtime error: left shift of negative value -1; #0 DecompressFromSource. With a null directory: crash-75f3d126... compressed_stream_read.cpp:258:36: applying non-zero offset to null pointer. 910 of about 1060 crashes in the SPIN-masked run were this site",
+  "root_cause": "blk = position >> 15 is negative for a negative position. The only test is blk >= _headerSize, so h = &_headerData[blk] reads before the array, and w->start = blk << 15 is UB.",
+  "minimal_fix": "`if (blk < 0 || blk >= _headerSize) return false;` in DecompressFromSource (comment: retail has no lower bound).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-052",
+  "file": "src/engine/io/compressed_stream_read.cpp",
+  "line": 262,
+  "hunts": [
+   "compressed_stream"
+  ],
+  "title": "Top block: int32 overflow of start + uncompressedSize and activeStart + 0x8000 with 65536 blocks",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Ghidra 0x1800a9707 ADD EAX,EDX (32-bit); SetWindow 0x1800a9acf transcription uses int32 activeStart + kWin",
+  "reachability": "A package or save stream of 2 GB or more of decoded data (a crafted 512 KB directory is enough).",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/H_top_block_overflow (557073 B: 65536 headers, the last stored with unc 0x8000; seek 0x7fff8000, Read(1)) -> compressed_stream_read.cpp:262:25: runtime error: signed integer overflow: 2147450880 + 32768 cannot be represented in type 'int'",
+  "root_cause": "Block 65535 starts at 0x7fff8000, so start + size and the window tests `activeStart + kWin` / `pos + n` overflow int32.",
+  "minimal_fix": "Reject a directory with blockCount > 0xFFFF in Open (or do the window arithmetic in int64), with a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-053",
+  "file": "src/engine/io/memory_stream.cpp",
+  "line": 68,
+  "hunts": [
+   "compressed_stream",
+   "save_meta"
+  ],
+  "title": "MemoryStream::Read 32-bit cursor + count signed overflow (huge sourceOffset)",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "memory_stream.cpp:55-63 comment: retail's LEA EAX,[RCX+RDI] 32-bit add wraps (0x1800ae964) and then memcpy reads _data + 0x7ffffff0",
+  "reachability": "Package / save block directory sourceOffset.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/D_srcoff_overflow (sourceOffset 0x7ffffff0, comp 0x100; Read(1)): memory_stream.cpp:68:57: runtime error: signed integer overflow: 2147483632 + 256 cannot be represented in type 'int32_t'; #1 DecompressFromSource :276",
+  "root_cause": "The int32 add wraps negative, the end check passes, and memcpy reads about 2 GB past the blob.",
+  "minimal_fix": "Do the bound check in int64 (the same fix as the negative-cursor finding).",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "save_meta",
+    "title": "MemoryStream::Read with a cursor taken from a block's sourceOffset: negative or near-INT_MAX cursor gives a wild read; the 32-bit `cursor + n` bound check is signed-overflow UB",
+    "proof": "(a) Wild read, fuzz-found: scratchpad/crashes/save_meta/neg_cursor_segv_fuzz (342 B), and a hand input neg_source_offset (36 B) hex 01000000000000f010000080aaaaaaaa0000000000000000000000000000000000000000 -> 'AddressSanitizer: SEGV on unknown address 0x503ff00000d0 ... caused by a READ'; #2 MemoryStream::Read memory_stream.cpp:74, #3 DecompressFromSource compressed_stream_read.cpp:276. (b) UB: scratchpad/crashes/save_meta/cursor_add_overflow (268 B, sourceOffset 0x7ffffff0, csize 0x100) -> 'memory_stream.cpp:68:57: runtime error: signed integer overflow: 2147483632 + 256 cannot be represented in type int32_t'."
+   }
+  ]
+ },
+ {
+  "id": "F-054",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 302,
+  "hunts": [
+   "clang_tidy_linux"
+  ],
+  "title": "ReadPackfile path B: BuildStringFrom scans the uninitialised stack frame when a string length is <= 0",
+  "bug_class": "uninit-read",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "The frame (frameBuf[0x1840], :487) and the BuildStringFrom / ReadStringRaw bodies carry retail addresses 0x1800b4fd3.. and 0x1800b55a2..; the comments state the frame is sized and placed as in retail and that no terminator is written",
+  "reachability": "Every .pkg and every third-party .pkm mod (Modification::RefreshList scans the mods dir)",
+  "proof_kind": "sanitizer",
+  "proof": "wsl: cd ~/tidy/repro && clang++-19 -g -O0 -fsanitize=memory -fsanitize-memory-track-origins pkg_rawstring_uninit.cpp -o pkg_rawstring_uninit && ./pkg_rawstring_uninit -> 'WARNING: MemorySanitizer: use-of-uninitialized-value #0 BuildStringFrom pkg_rawstring_uninit.cpp:12 #1 ReadPackfileFirstString ... Uninitialized value was created by an allocation of frameBuf'. The helpers are copied verbatim. Found by clang-analyzer core.UndefinedBinaryOperatorResult (:304) and core.uninitialized.Assign (:251, the entry-loop variant).",
+  "root_cause": "When formatVersion > 2 and the first metadata string's length is <= 0, nothing is read into the never-initialised frameBuf. BuildStringFrom then runs strlen over indeterminate bytes, which can also run past the 0x1840-byte frame. P0_MAP input surface section 2 already lists the related 'stale stack data' lead; this is the never-written case and is not in the F-001..F-006 ledger.",
+  "minimal_fix": "Zero-initialise frameBuf at :487 (uint8_t frameBuf[kFrameBufBytes] = {}) with a comment naming the indeterminate read. Separately, a terminator after a raw read is a fix.* row.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-055",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 515,
+  "hunts": [
+   "codeql",
+   "packfile"
+  ],
+  "title": "PK-D: icon pixel count _iconHeight * _iconWidth overflows int32 (UB)",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Retail IMUL at 1800b4d27/d37, per the comment; transcribed as int32 * int32.",
+  "reachability": "Metadata packages (header bit 31) with large icon width and height.",
+  "proof_kind": "sanitizer",
+  "proof": "~/fz.sh repro packfile .../crashes/packfile/pkD_icon_wh_overflow\npackage_file_read.cpp:515:34: runtime error: signed integer overflow: 65536 * 65536 cannot be represented in type 'int32_t'.\nHex: 0400008031000000010000000c0000000000250000000000010000000100000000000000102700000000000001000000000000010000000100",
+  "root_cause": "Two int32 fields from the file are multiplied in int32.",
+  "minimal_fix": "Compute in int64 and reject w < 0, h < 0 or w*h > INT32_MAX/4 (fix.* row); a comment names the retail IMUL 0x1800b4d37.",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "codeql",
+    "title": "ReadPackfile icon width * height signed int overflow",
+    "proof": "~/tidy/p3/pkm_readpackfile_poc icon (icon 0x10000 x 0x10000): package_file_read.cpp:515:34: runtime error: signed integer overflow: 65536 * 65536 cannot be represented in type 'int32_t'. Log static/poc/pkm_icon.san.txt"
+   }
+  ]
+ },
+ {
+  "id": "F-056",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 517,
+  "hunts": [
+   "packfile"
+  ],
+  "title": "PK-D2: icon read size _iconData._size * 4 overflows int32 (UB)",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Retail at 1800b4d56 reads `array._size * 4` (the comment: 'REAL CALL').",
+  "reachability": "Metadata packages with a negative or huge icon product that fits int32.",
+  "proof_kind": "sanitizer",
+  "proof": "~/fz.sh repro packfile .../crashes/packfile/pkD2_icon_size4_overflow (w=-1, h=0x30000000)\npackage_file_read.cpp:517:29: runtime error: signed integer overflow: -805306368 * 4 cannot be represented in type 'int'.\nHex: 0400008031000000010000000c000000000025000000000001000000010000000000000010270000000000000100000000ffffffff00000030. The fuzzer hit it 18 times.",
+  "root_cause": "SetSize accepts the (negative or large) product, then size*4 is computed in int.",
+  "minimal_fix": "Same guard as PK-D (reject w*h outside 0..INT32_MAX/4) before SetSize.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-057",
+  "file": "src/engine/io/text_codec.cpp",
+  "line": 149,
+  "hunts": [
+   "text_codec"
+  ],
+  "title": "EncodeOne: `cp - 0xD800` signed overflow for cp below INT_MIN + 0xD800 (UTF-16 arms)",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "case 4 0x1800c9c58 / case 5 0x1800c9cc2: retail's `LEA EAX,[R9-0xD800]` wraps in 32 bits (comment at text_codec.cpp:147-148)",
+  "reachability": "API only: every in-tree caller (ConvertText, TextFileStream, SerializeStringArray) passes cp >= 0 from DecodeOne",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl: UBSAN_OPTIONS=halt_on_error=1 ~/fz/text_codec2/fuzz_text_codec2 <scratchpad>/crashes/text_codec2/crash-f416790d80a4055fcee6e8d376eb13300ac48101 (hex f5000000800c: EncodeOne(cp=INT_MIN, fmt 4)) -> 'text_codec.cpp:149:42: runtime error: signed integer overflow: -2147483648 - 55296'. crash-e66f1029834b3b49e4342c80a83219e655f9b57e (hex 80020400803d00) -> same at :166:42 (fmt 5).",
+  "root_cause": "The surrogate-range test subtracts in signed int, which C++ does not wrap the way the retail LEA does.",
+  "minimal_fix": "`if (static_cast<uint32_t>(cp) - 0xD800u <= 0x7FFu)` on lines 149 and 166, with a comment that this keeps retail's wrap.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-058",
+  "file": "src/engine/io/text_codec.cpp",
+  "line": 400,
+  "hunts": [
+   "text_codec"
+  ],
+  "title": "ConvertText's int32 `produced` counter overflows when the converted text passes 2 GB",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "ConvertText 0x1800ca260: produced is EBX (32-bit ADD) in the banner's register map",
+  "reachability": "needs a source above about 1.4 GB (TextFileStream::Write of a huge buffer); the same pattern sits in text_file_stream.cpp's outBytes measuring loops (not this surface). Low.",
+  "proof_kind": "unit_test",
+  "proof": "tests/fuzz/text_codec3_fuzz.cpp (one-shot: 0x56000000 bytes of 0xFF, format 1 -> 2, dst=nullptr). wsl: ~/fz/text_codec3/fuzz_text_codec3 -rss_limit_mb=4096 -malloc_limit_mb=2048 ~/fz/text_codec3/in -> 'text_codec.cpp:400:18: runtime error: signed integer overflow: 2147483646 + 3 cannot be represented in type int32_t' #0 RtIo_TextCodec_ConvertText text_codec.cpp:400",
+  "root_cause": "The sizing counter and the `termLen + produced` check are int32, and the output can be up to 1.5x (format 1 -> UTF-8) or 2x the int32 source length.",
+  "minimal_fix": "Accumulate `produced` in int64 and saturate or fail when it exceeds INT32_MAX before returning, with a comment that retail wraps in 32 bits.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-059",
+  "file": "src/engine/io/text_codec.cpp",
+  "line": 522,
+  "hunts": [
+   "codeql"
+  ],
+  "title": "RtIo_SerializeStringArray legacy UTF-16 arm: int32 len*2-2 overflow",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "RtIo_SerializeStringArray 0x180029bb0; comment `len*2 - 2` transcribed; MemAlloc(len*2) at :518 is 64-bit",
+  "reachability": "PackageFile::Serialize, AnimatedImageDescription, DocumentTextDescription and PixelProgram resources (.pkm)",
+  "proof_kind": "static_only",
+  "proof": "CodeQL path text_codec.cpp:498 (SerializeUInt tagged) -> :501 -> :517/:518 alloc, :521 read-len, :522 `tmp + (static_cast<int32_t>(len) * 2 - 2)` overflows for len >= 0x40000000. PoC static/poc/strarray_poc.cpp built but did not finish in 200 s (2 GB SetLength plus a per-element array read)",
+  "root_cause": "A string length from a resource or save, with bit 31 clear (legacy UTF-16), is doubled in int32.",
+  "minimal_fix": "Compute the end offset in int64 (or reject len > INT32_MAX/2); comment the UB. The same pattern applies in String::Serialize (string.cpp:915).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-060",
+  "file": "src/engine/io/text_codec.cpp",
+  "line": 526,
+  "hunts": [
+   "text_codec"
+  ],
+  "title": "RtIo_SerializeStringArray: `static_cast<int32_t>(len) * 2 - 2` signed overflow for a legacy-UTF-16 length >= 0x40000000",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "text_codec.cpp banner 0x180029bb0 ('len*2 - 2'); retail computes it in a 32-bit register that wraps (Ghidra 0x1800c9930 shows the same iVar1 = local_res8[0]*2 shape for String::Serialize)",
+  "reachability": "package string tables / program name arrays (.pkg/.pkm) with a length word whose bit 31 is clear; under default limits the 2 GB MemAlloc above fails first",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl: UBSAN_OPTIONS=halt_on_error=1 ~/fz/string_serialize2/fuzz_string_serialize2 -rss_limit_mb=8192 -malloc_limit_mb=8192 <scratchpad>/crashes/string_serialize/ss3_array_wide_len_40000000 (hex 010100000040) -> 'text_codec.cpp:526:46: runtime error: signed integer overflow: 1073741824 * 2 cannot be represented in type int' #0 RtIo_SerializeStringArray text_codec.cpp:526",
+  "root_cause": "The wide-arm end pointer is computed as int32 len*2-2, which overflows once len >= 0x40000000. The allocation just above it is computed in uint64.",
+  "minimal_fix": "Compute the offset in 64 bits: `tmp + (static_cast<int64_t>(len) * 2 - 2)`. Add a comment noting that retail wraps in 32 bits and that the length cap from SS-1 makes this unreachable.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-061",
+  "file": "src/engine/save/saveload_loadmeta.cpp",
+  "line": 317,
+  "hunts": [
+   "codeql",
+   "save_meta"
+  ],
+  "title": "Save::SaveLoad::LoadMetaData thumbnail size `width*height*4` is a signed 32-bit overflow on input values; the wrapped size reaches MemAlloc and SerializeBytes",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Site comment: `MOV ESI,[RDI] ; IMUL ESI,[RBX] ; SHL ESI,0x2` then `MOVSXD RDX,ESI`, transcribed on purpose (retail 0x1800c1c3a).",
+  "reachability": "shared .sav metadata block",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/save_meta/sm1_wh_mul_overflow (49 B) hex 010000000c00000000002500aaaaaaaa1900000003000000010000000000800000000000000100000000000000bbbbbbbb -> UBSan __ubsan_handle_mul_overflow_abort in Save::SaveLoad::LoadMetaData saveload_loadmeta.cpp:317:44 (first crash of the first run). With SM-1 masked, 23+33 'deadly signal' crashes come from the ASan engine heap's abort() on MemAlloc of the sign-extended size (allocator.cpp:106 <- saveload_loadmeta.cpp:318).",
+  "root_cause": "width and height are read with SerializeInt and multiplied by 4 in int32 with no bound. A negative or wrapped product is sign-extended into the allocation, and the caller receives width/height that no longer match the buffer.",
+  "minimal_fix": "Before the product: `if (*width < 0 || *height < 0 || int64_t(*width) * *height > 0x1fffffff) { *width = *height = 0; }` (fix.* row, comment citing 0x1800c1c3a's IMUL).",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "codeql",
+    "title": "LoadMetaData thumbnail width * height * 4 signed int overflow",
+    "proof": "~/tidy/p3/sav_meta_poc thumb (static/poc/sav_meta_poc.cpp: SaveLoad with _embeddedState = crafted stored CompressedStream, BinaryReader header, width = height = 0x10000): saveload_loadmeta.cpp:317:44: runtime error: signed integer overflow: 65536 * 65536 cannot be represented in type 'int'. Log static/poc/sav_thumb.san.txt"
+   }
+  ]
+ },
+ {
+  "id": "F-062",
+  "file": "src/engine/video/imagebuffer_platform_serialize.cpp",
+  "line": 278,
+  "hunts": [
+   "rsc_serialize"
+  ],
+  "title": "ImageBuffer::PlatformSerialize: `kindAtEntry - 4` overflows for a serialized _kind of 0x80000000",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Comment at :275: retail is `LEA EAX,[R8-4] / CMP EAX,1 / JBE` (0x1800f3154 area), a wrapping 32-bit subtraction. _kind is serialized unsigned (imagebuffer_vtable.cpp:384).",
+  "reachability": "Any texture .rsc in a mod .pkm.",
+  "proof_kind": "sanitizer",
+  "proof": "scratchpad/crashes/rsc_serialize/imagebuffer-kind-intmin (57 B): 'imagebuffer_platform_serialize.cpp:278:43: runtime error: signed integer overflow: -2147483648 - 4 cannot be represented in type int #0 Video::ImageBuffer::PlatformSerialize #1 ImageBufferDoorAccess::PlatformSerialize imagebuffer_vtable.cpp:119 #2 ImageBuffer::Serialize :393'. Found by the fuzzer in r3 (crash-089904b1...).",
+  "root_cause": "int32 _kind is read raw from the stream and `kindAtEntry - 4` is computed in signed int before the cast to uint32_t.",
+  "minimal_fix": "`static_cast<uint32_t>(kindAtEntry) - 4u <= 1u`, with a comment naming retail's LEA.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-063",
+  "file": "src/ext/derived_cache/hash64.cpp",
+  "line": 75,
+  "hunts": [
+   "ext_caches"
+  ],
+  "title": "Hash64 does pointer arithmetic outside the buffer: null + 8 for (nullptr, 0), and p + 8 / p + 4 past one-past-the-end on every tail shorter than 8",
+  "bug_class": "UB-pointer-overflow",
+  "severity": "UB",
+  "label": "ext",
+  "label_evidence": "src/ext/derived_cache/hash64.cpp is our XXH64 (NOT RETAIL, COMPRESSAO.md)",
+  "reachability": null,
+  "proof_kind": "sanitizer",
+  "proof": "wsl -e bash -c \"~/fz.sh repro derived_cache /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/derived_cache/hash64_null\" (reproduces with the derived_cache target's MASK removed) -> hash64.cpp:75:14: runtime error: applying non-zero offset 8 to null pointer; #0 Ext::DerivedCache::Hash64 hash64.cpp; #1 LLVMFuzzerTestOneInput derived_cache_fuzz.cpp:114 (the harness hashed an empty std::vector's data(), size 0). Six fuzz artefacts deduped to this one site. The past-the-end form (size % 8 != 0, e.g. any name hashed with strlen in stream_record.cpp:70) is UB that UBSan does not flag for non-null pointers: static.",
+  "root_cause": "The tail loops test `p + 8 <= end` and `p + 4 <= end`, which forms a pointer up to 7 bytes beyond one-past-the-end (UB in C++ even if never dereferenced). With data == nullptr and size == 0 the expression is null + 8. Callers that can pass an empty buffer include vector .data() on empty vectors (render/vulkan, share_create, package_cache key bytes).",
+  "minimal_fix": "Compare remaining lengths instead: `while (static_cast<size_t>(end - p) >= 8)` and `if (static_cast<size_t>(end - p) >= 4)`, with a comment; with that change (nullptr, 0) also computes no out-of-range pointer.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-064",
+  "file": "src/game/Component/citizenai_executor.cpp",
+  "line": 637,
+  "hunts": [
+   "clang_tidy_linux"
+  ],
+  "title": "Placement new into unaligned uint8_t stack buffers (Transform, UI::String)",
+  "bug_class": "UB-misaligned",
+  "severity": "UB",
+  "label": "port",
+  "label_evidence": "The byte-array locals transcribe retail stack slots; retail compiled typed locals, so the missing alignas is ours. Same pattern at citizencomponent.cpp:297 (UI::String in uint8_t[16]) and eventlog_achievement.cpp:90 (UI::String in uint8_t[24])",
+  "reachability": "Every citizen executor tick with a picking component; profession life events; achievement event-log entries",
+  "proof_kind": "static_only",
+  "proof": "clang-analyzer-cplusplus.PlacementNew: 'Storage type is aligned to 1 bytes but allocated type is aligned to 4/8 bytes' at the three sites (~/tidy/out/chunk*.txt). There is no runtime trip on x86-64 SysV, whose ABI aligns local arrays of >= 16 bytes to 16; Win64 and AArch64 make no such guarantee.",
+  "root_cause": "uint8_t localXform[136] / localStr[16] / uiNameBuf[24] are used as storage for objects that need 4- or 8-byte alignment.",
+  "minimal_fix": "Add alignas(Math::Transform) / alignas(UI::String) to the three buffers, with a comment.",
+  "status": "suspected",
+  "also": []
+ },
+ {
+  "id": "F-065",
+  "file": "src/render/dx11/async_gpu_create/async_create.cpp",
+  "line": 154,
+  "hunts": [
+   "clang_tidy_windows"
+  ],
+  "title": "W-6: async_gpu_create detached workers stay blocked on g_workCv while static destructors destroy it after main returns",
+  "bug_class": "race",
+  "severity": "UB",
+  "label": "ext",
+  "label_evidence": "ext.async_gpu_create (src/ext/registry.h:136, class A, default false); there is no retail counterpart.",
+  "reachability": "Any session with ext.async_gpu_create on that reaches a clean exit after a load bracket started the workers.",
+  "proof_kind": "static_only",
+  "proof": "clang-tidy bugprone-throwing-static-initialization on g_queue (line 73) led to the read: workers are std::thread(WorkerMain).detach() (154) and loop forever in g_workCv.wait (121-128), with no join or stop. main() returns normally (src/app/main.cpp:1229), so ~condition_variable / ~mutex / ~deque run with waiters ([thread.condition.condvar]/5 UB). Repro scratchpad/tidy_win/repro/detached_cv.cpp built with GCC 16 -D_GLIBCXX_ASSERTIONS exits 0 rc=0: winpthreads does not report EBUSY, so nothing is observable on Windows today.",
+  "root_cause": "Detached worker threads outlive the static objects they wait on. There is no shutdown path.",
+  "minimal_fix": "Give the module a stop flag plus notify_all and join at Platform shutdown, or allocate g_mutex/g_workCv/g_doneCv/g_queue on the heap and never destroy them (a leaked singleton), with a comment naming the UB.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-066",
+  "file": "src/render/dx11/devicedata.cpp",
+  "line": 1303,
+  "hunts": [
+   "codeql"
+  ],
+  "title": "String::Format called with mismatched vararg types (%d/%i with uint64_t, %A with int)",
+  "bug_class": "UB-vararg-type",
+  "severity": "UB",
+  "label": "unknown",
+  "label_evidence": "devicedata.cpp:1303 '%AA' string is retail VideoDX11's message (retail); the ~43 game/Dialog sites cast to uint64_t in the port",
+  "reachability": "UI text formatting (no input control); device-creation failure path",
+  "proof_kind": "static_only",
+  "proof": "CodeQL cpp/wrong-type-format-argument, 44 hits under src/ (static/codeql_security_quality.sarif), e.g. game/Dialog/buildui.cpp:377 String::Format(\"%d\", (uint64_t)remaining); devicedata.cpp:1303 \"[%ix%i %AA]\" with int aa",
+  "root_cause": "Passing an argument whose type does not match its conversion specifier is UB. On Win64 it happens to work for 64-bit integers; '%A' reads a double where an int was passed.",
+  "minimal_fix": "Use the matching specifier (%llu or cast to int) at each site; in devicedata.cpp escape the literal ('%%AA') or pass a double, with a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-067",
+  "file": "src/render/dx11/devicedata.cpp",
+  "line": 1479,
+  "hunts": [
+   "clang_tidy_windows"
+  ],
+  "title": "W-3: array grower computes base + i before its null test (null + nonzero offset) when MemAlloc returns null",
+  "bug_class": "UB-null-pointer-arithmetic",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Code comment: 0x180005b00 Collection::Array<GraphicsInterface>::SetLength, 'Byte-for-byte the same algorithm' for the Adapter twin. The 'if (!dst) continue' is the MSVC placement-new null check after the arithmetic.",
+  "reachability": "Only if System::MemoryAllocator::MemAlloc returns null (OOM, or an armed instrument seat such as posix_memalign under asan returning null). Reached during adapter enumeration at boot.",
+  "proof_kind": "sanitizer",
+  "proof": "clang-tidy clang-analyzer-core.NullPointerArithm at devicedata.cpp:1436:39 and 1479:29 (HEAD bfe14e5fe). Standalone copy scratchpad/tidy_win/repro/grower_null.cpp on WSL clang++-19 -fsanitize=undefined -> 'grower_null.cpp:17:29: runtime error: applying non-zero offset 56 to null pointer'.",
+  "root_cause": "When the allocation fails, the copy loop forms base + i for i > 0 before the null test. That is UB, the compiler may drop the test, and the placement new then writes through null + i*stride.",
+  "minimal_fix": "Hoist the test out of the loop: if (base == nullptr) skip the copy loop (keep the count stores), with a comment naming the null-pointer-arithmetic UB. Apply to both GfxInterfaceArraySetLength (1436) and AdapterArraySetLength (1479).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-068",
+  "file": "src/render/dx11/imagebufferdata.cpp",
+  "line": 375,
+  "hunts": [
+   "clang_tidy_windows"
+  ],
+  "title": "W-2: sampler addressTable[2] / filterTable[3] stack arrays indexed by streamed _addressU/V/W and _filter",
+  "bug_class": "OOB-index",
+  "severity": "UB",
+  "label": "retail",
+  "label_evidence": "Code comment: 0x180002720 'create the sampler state'; 'Both tables are stack locals in the original and are patched before being indexed' (lines 341-347). The same shape is repeated in ext AcquirePointSampler, lines 825-830 (ext.point sampling, label ext).",
+  "reachability": "Mod .pkm or a damaged .rsc texture: imagebuffer_vtable.cpp:386-389 SerializeUnsigned(_addressU/V/W, _filter) takes any uint32. Address modes only have 0/1 and filter only 0..2.",
+  "proof_kind": "sanitizer",
+  "proof": "Standalone copy scratchpad/tidy_win/repro/sampler_table.cpp on WSL clang++-19 -fsanitize=undefined,address -> 'sampler_table.cpp:13:18: runtime error: index 3 out of bounds for type 'int[3]'' then 'AddressSanitizer: stack-buffer-overflow ... READ of size 4 ... #0 main sampler_table.cpp:13:18'.",
+  "root_cause": "The serialized enum fields are used as stack-table indices with no range check.",
+  "minimal_fix": "Clamp or refuse at the lookup (addressU/V/W >= 2, filter >= 3), with a comment naming the UB, in both the retail sampler create (lines 375-378) and AcquirePointSampler (828-830). Or validate once in ImageBuffer::Serialize.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-069",
+  "file": "src/render/vulkan/async_gpu_create/async_create.cpp",
+  "line": 43,
+  "hunts": [
+   "semgrep_variants"
+  ],
+  "title": "async_gpu_create shared state is namespace-scope, so exit() destroys the condition variable while detached workers still wait on it (UB; the process hangs at quit on glibc)",
+  "bug_class": "UB-lifetime",
+  "severity": "UB",
+  "label": "ext",
+  "label_evidence": "ext.async_gpu_create (class A, default off; src/ext/registry.h:136), a backend seam with no retail counterpart. The DX11 twin is src/render/dx11/async_gpu_create/async_create.cpp:70-73,120-124,146.",
+  "reachability": "Any run with ext.async_gpu_create on that loads one texture or buffer through the async path, followed by a normal quit (main returns). Vulkan is the Linux default backend.",
+  "proof_kind": "sanitizer",
+  "proof": "Replay at docs/history/review_20261103/static/semgrep/replays/async_create_exit.cpp: namespace-scope mutex, condition_variable and deque; two detached workers parked in g_workCv.wait; then main returns. On WSL glibc 2.39: clang++-19 -O1 async_create_exit.cpp -o ace; timeout 10 ./ace gives exit=124 (hung in exit()); the TSan build also hangs (124). On Windows (MSYS2 g++ 13) the same replay exits 0, so the UB is silent there. src/platform/common/event_std.cpp:30-42 documents the same hang ('the Linux exe hung in QUITTING on exactly that') and fixed it with heap objects that are never destroyed.",
+  "root_cause": "The workers are started with std::thread(WorkerMain).detach() and never stopped. g_mutex, g_workCv, g_doneCv and g_queue have static storage duration. When WinMain or main returns, exit() runs their destructors while workers are blocked in g_workCv.wait. Destroying a condition_variable that has blocked waiters is undefined ([thread.condition.condvar]), and glibc's pthread_cond_destroy waits for them forever.",
+  "minimal_fix": "Make the shared state immortal: put it in a struct reached through a function-local static pointer to a new-ed object that is never deleted, as in event_std.cpp and async_save_compress.cpp:93-95. Add a comment naming the UB. Apply the same change to the DX11 twin.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-070",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_io_map.cpp",
+  "line": 971,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv declareClipCullDistance shifts by 4*semanticIndex from the signature (shift exponent >= 32)",
+  "bug_class": "UB-shift",
+  "severity": "UB",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "ISGN/OSGN chunk of a DXBC blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Inputs: scratchpad/crashes/dxbc_spirv/declareClipCullDistance_shift (4941 bytes); the first hit is ~/fz/dxbc_spirv/crashes_r1/crash-12c7443c0700300e3a0e646e24a21c95994baf3c (649 bytes).\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput: dxbc_io_map.cpp:971:61: runtime error: shift exponent 1016 is too large for 32-bit type 'uint32_t'\n#0 IoMap::declareClipCullDistance :971\n#1 declareIoSysval :792\n#2 declareIoSignatureVars :702\n#3 declareIoRegisters :599",
+  "root_cause": "shift = 4u * e->getSemanticIndex() uses the ISGN/OSGN semantic index unvalidated. A clip/cull element with semantic index >= 8 shifts by 32 or more, which is UB; on x86 it wraps to the wrong element mask.",
+  "minimal_fix": "Skip or reject clip/cull signature entries with semantic index > 1 (D3D allows SV_ClipDistance0..1), or `if (shift >= 32) continue;`. Add a comment.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-071",
+  "file": "third_party/wmadec/shim/wmadec_glue.c",
+  "line": 83,
+  "hunts": [
+   "xwma"
+  ],
+  "title": "Negative sample rate reaches ff_wma_init: signed overflow (wma.c:140) and left shift of negative (wma.c:246)",
+  "bug_class": "UB-signed-overflow",
+  "severity": "UB",
+  "label": "ext",
+  "label_evidence": "The C API glue over FFmpeg has no retail counterpart (retail uses XAudio2). wmav2_open calls ff_wmav2_decoder.init directly and so skips avcodec_open2, whose `sample_rate < 0` rejection is missing here. XwmaDecoder::Open (xwma_decode.cpp:173) checks only `rate == 0`, and OpenDecoder casts the u32 to int.",
+  "reachability": "The WAVEFORMATEX nSamplesPerSec of any SoundBuffer in a .pkg or .pkm (format window bytes 4..7 >= 0x80000000). It fires in Open, before any packet is read.",
+  "proof_kind": "fuzz_input",
+  "proof": "cd ~/fz/xwma && UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ./fuzz_xwma_unsafe min/ovf140\nwma.c:140:45: runtime error: signed integer overflow: 2 * -1358185600 cannot be represented in type 'int'\n #0 ff_wma_init wma.c:140 #1 wma_decode_init wmadec.c:110 #2 wmav2_open wmadec_glue.c:110 #3 XwmaDecoder::OpenDecoder xwma_decode.cpp:151 #4 XwmaDecoder::Open :188\novf140 hex: 6101020080bb0baf4e4e4e4e4e4e4e4e4e4e4e4e4e4eff4e4e4e4e4e4e4e4e4e4e4e4e4e4eff4e4e4e4e4e4e4e4e4e4e4e4e4e4e\nshl246 (52 B): wma.c:246:59 runtime error: left shift of negative value -33506432 (also wma.c:246:71); hex 6101020080bb00fea00f0000aa00ffffffff00000000004e4e4e4e0000900900eaeaeafd104e4ef2c0ff4000000ff4004e4e4e4e",
+  "root_cause": "ff_wma_init guards only `sample_rate > 50000` and assumes avcodec_open2 has already rejected negative rates. The glue bypasses avcodec_open2, so a negative int rate reaches `channels * sample_rate` (wma.c:140) and `b << 1` (wma.c:246).",
+  "minimal_fix": "In wmav2_open, return AVERROR(EINVAL) when params->sample_rate <= 0 (or params->bit_rate <= 0), with a comment saying avcodec_open2 makes this check upstream and the glue skips it. Alternatively, reject rate > 50000 in XwmaDecoder::Open.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-072",
+  "file": "src/engine/audio/vtbatch7_soundbuffer_soundeffect.cpp",
+  "line": 212,
+  "hunts": [
+   "rsc_serialize"
+  ],
+  "title": "Uncapped serialized sizes drive allocations of up to 2^31 elements or bytes (DoS: fatal out-of-memory)",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "Each site is a transcribed retail body with an address: SoundBuffer::PlatformSerialize (MemAlloc(_length) / MemAlloc(_wmaLength)), String::Serialize retail 0x1800c9930 (string.cpp:904 SetLength(n-1)), RtIo_SerializeStringArray (text_codec.cpp:518 MemAlloc(len*2), retail 0x180029e23 area), and SetSizeCore 0x1800298f0 called with counts from PackageFile 1800b617e/1800b6240 and ImageBuffer PlatformSerialize 0x1800f3130. The game allocator calls FatalOutOfMemory on failure (allocator.cpp:438).",
+  "reachability": "Mod .pkm .rsc (PackageFile metadata, SoundBuffer, ImageBuffer, any String), shared .sav for game-state arrays.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/rsc_serialize/: soundbuffer-length-alloc (35 B) -> 'requested allocation size 0x80001000 exceeds maximum ... #1 SoundBuffer::PlatformSerialize vtbatch7_soundbuffer_soundeffect.cpp:212'; pkg-string-len-alloc (17 B, hex 00aaaaaaaa000000000000000000ffffffff) -> '#1 RtSystem::RtMemAlloc string.cpp:79 #2 String::SetLength string.cpp:120 #3 String::Serialize string.cpp:904'; pkg-count-alloc (45 B) -> 'size 0x400000ff8 ... #2 SetSizeCore array.cpp:2269 #3 IO::PackageFile::Serialize package_file_serialize.cpp:215'. The fuzzer also hit text_codec.cpp:518 (RtIo_SerializeStringArray wide string, r3 crash-16ac27...) and ImageBuffer level count (imagebuffer_platform_serialize.cpp:324, 9.4 GB request). Run with ASAN_OPTIONS=allocator_may_return_null=0:max_allocation_size_mb=256.",
+  "root_cause": "Element counts, string lengths and byte lengths are int32/uint32 values taken from the stream and used as allocation sizes with no cap against the remaining stream size. 2^31 * stride reaches 9 GB+. In the game the allocator calls FatalOutOfMemory and the process ends; in a malloc build the element loops then write through null + i*stride.",
+  "minimal_fix": "Before SetSize/MemAlloc, reject a count or length larger than the bytes left in the stream (Stream::GetSize() - GetCurrentPos()) divided by the minimum record size. Comment at each read site that retail has no cap.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-073",
+  "file": "src/engine/audio/vtbatch7_soundbuffer_soundeffect.cpp",
+  "line": 337,
+  "hunts": [
+   "xwma"
+  ],
+  "title": "DecodeXwmaJob sizes the PCM allocation from the seek table's last u32 with no cap (up to 4 GiB per sound)",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "port",
+  "label_evidence": "Decode-at-load is port-only: the comments call it 'Phase D.4 SDL-4 -- DECODE AT LOAD (not retail)'. Retail hands the xWMA packets to XAudio2 and allocates no PCM.",
+  "reachability": "A SoundBuffer in a .pkg or a third-party .pkm mod: the _wmaData seek table read by PlatformSerialize, whose last entry divided by 2*channels is TotalSamples().",
+  "proof_kind": "unit_test",
+  "proof": "Size probe (scratchpad/xwma/size_probe.cpp, built against the same archive): ~/fz/xwma/size_probe scratchpad/crashes/xwma/huge_total.bin\nopen=1 packets=1 channels=2 TotalSamples=1073741823 pcm_bytes=4294967292 (input 330 bytes)\nA 330-byte resource (one 278-byte packet, seek table {0xFFFFFFFF}) makes DecodeXwmaJob call rtcoll::MemAlloc(4294967292, 4) for one sound effect.",
+  "root_cause": "job.total = dec.TotalSamples() = seekTable[packetCount-1] / (2*channels) is used directly as the allocation size (total*channels*2). The packet count does not bound it, even though the decoder can never produce more than MaxSamplesFor(packetCount) frames.",
+  "minimal_fix": "Cap the allocation at min(TotalSamples(), MaxSamplesFor(PacketCount())) and use that as DecodePackets' outSamples, with a comment saying the seek table is untrusted and the decoder cannot emit more than that bound.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-074",
+  "file": "src/engine/io/compressed_stream_read.cpp",
+  "line": 441,
+  "hunts": [
+   "compressed_stream"
+  ],
+  "title": "Read spins forever when a read crosses the end of a short (< 32 KB) block",
+  "bug_class": "logic",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "compressed_stream_read.cpp:421-451 transcribes 0x1800aa780 with no loop bound (the section D banner keeps the spin on purpose)",
+  "reachability": "Any read past the end of a stream whose last (or any) block is short: a truncated or crafted package or save, or a reader asking for more than the stream holds.",
+  "proof_kind": "fuzz_input",
+  "proof": "scratchpad/crashes/compressed_stream/I_short_block_spin hex 0010000000010000000c0000000000040061626364010800 (block of 4 bytes, Read(8)) -> ERROR: libFuzzer: timeout; stack in IO::CompressedStream::SetWindow :304 <- Read :439. The first unmasked run found it as timeout-78941779...",
+  "root_cause": "At pos == w->end < start + 0x8000, SetWindow takes the fast path and chunk = w->end - pos = 0, so n never decreases.",
+  "minimal_fix": "In Read: `if (chunk <= 0) return false;` after computing chunk (comment: retail spins here).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-075",
+  "file": "src/engine/io/compressed_stream_read.cpp",
+  "line": 447,
+  "hunts": [
+   "packfile",
+   "save_meta"
+  ],
+  "title": "PK-A: CompressedStream::Read spins forever when a read crosses the end of a short final block",
+  "bug_class": "logic",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "The loop is transcribed with retail addresses (1800aa7a2..1800aa806, chunk = w->end - pos at 1800aa7db). SetWindow's fast path (1800a9ae7) accepts pos < start + 0x8000 even when pos >= end.",
+  "reachability": "Any .pkg/.pkm, and every CompressedStream reader, whose data ends before a field is complete: a truncated or crafted mod hangs the mod-list scan.",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz/packfile/fuzz_packfile -timeout=10 .../crashes/packfile/pkA_hang_short_block\n==ERROR: libFuzzer: timeout after 10 seconds\n IO::CompressedStream::Read compressed_stream_read.cpp:452\n IO::PackageFile::ReadPackfile package_file_read.cpp:589.\nHex (24 bytes): 0400000010000000010000000c0000000000040001000000. That is fileCount=1, then the name-length read lands at the end of a 4-byte block. The raw fuzz run recorded 74 timeouts of this kind.",
+  "root_cause": "The window is still 'active' for pos in [start, start+0x8000), but its end is start+uncompressedSize. When pos == end, chunk = 0, n never decreases and the while (n > 0) loop never exits.",
+  "minimal_fix": "In Read, `if (chunk <= 0) return false;` after computing chunk (fix.* row, comment citing retail 0x1800aa7db).",
+  "status": "confirmed",
+  "also": [
+   {
+    "hunt": "packfile",
+    "title": "CompressedStream::Read computes pos + n in int32 (UB) for a huge read count",
+    "proof": "~/fz.sh repro packfile .../crashes/packfile/pkE_preview_alloc (default 2048 MB malloc limit, so the 2 GiB preview allocation succeeds)\ncompressed_stream_read.cpp:447:17: runtime error: signed integer overflow: 41 + 2147483647 cannot be represented in type 'int'\n #0 CompressedStream::Read :447\n #1 ReadPackfile :525"
+   },
+   {
+    "hunt": "save_meta",
+    "title": "CompressedStream::Read spins forever when a read crosses the end of a short last block (chunk = window.end - pos == 0)",
+    "proof": "scratchpad/crashes/save_meta/zero_usize_block_spin (12 B) hex 010000000c00000000000000 -> 'ERROR: libFuzzer: timeout after 3 seconds', #5 IO::CompressedStream::Read compressed_stream_read.cpp:444/448, #6 BinaryReader ctor (Serializer.h:1008), LoadMetaData saveload_loadmeta.cpp:290. Most of save_meta's 91+238 timeouts are this loop: any record shorter than what the reader asks for, inside a short last block, hangs."
+   }
+  ]
+ },
+ {
+  "id": "F-076",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 523,
+  "hunts": [
+   "packfile"
+  ],
+  "title": "PK-E: icon and preview allocations sized straight from the file with no cap (1-2 GiB per package)",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "RtColl_ArraySetSize_180029630(&_previewData, *n90) at 1800b4dea and the icon SetSize at 1800b4d27 are retail calls. The comment: 'retail reads *n90 bytes, not the ARRAY's size'.",
+  "reachability": "Any metadata package; formatVersion >= 2 for the preview.",
+  "proof_kind": "fuzz_input",
+  "proof": "Run with -malloc_limit_mb=512:\n- pkE_preview_alloc: ERROR: libFuzzer: out-of-memory (malloc(2147483647)), rtcoll::MemAlloc array.cpp:188 <- SetSizeCore array.cpp:2269 <- ReadPackfile :523. Hex: 0400008035000000010000000c0000000000290000000000020000000100000000000000102700000000000001000000000000000000000000ffffff7f\n- pkE2_icon_alloc: out-of-memory (malloc(1073741824)), ReadPackfile :514. Hex: 0400008031000000010000000c0000000000250000000000010000000100000000000000102700000000000001000000000040000000400000",
+  "root_cause": "_previewByteCount and iconW*iconH come from the file and drive SetSize with no cap against the blob size.",
+  "minimal_fix": "Reject a preview or icon byte count greater than the blob's decompressed remaining size (or a sane cap). fix.* row citing retail 0x1800b4dea / 0x1800b4d27.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-077",
+  "file": "src/engine/io/package_file_read.cpp",
+  "line": 586,
+  "hunts": [
+   "packfile"
+  ],
+  "title": "PK-F: fileCount drives an unbounded entry loop (2^31 iterations, SetSizeFill per entry), so the mod scan hangs",
+  "bug_class": "logic",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "The loop is at 1800b5b99/601a, and SetSizeFill(_size+1) at 1800b5fbe is decoded in the \u00a791 banner.",
+  "reachability": "Any .pkg/.pkm; fileCount is the first field of the index.",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz/packfile/fuzz_packfile -timeout=10 .../crashes/packfile/pkF_filecount_loop (no metadata, fileCount 0x7fffffff, a 32 KB block-aligned index so reads past the data fail fast instead of PK-A)\n==ERROR: libFuzzer: timeout after 12 seconds (ReadPackfile entry loop -> CompressedStream::Read -> DecompressFromSource)",
+  "root_cause": "for (i = fileCount; i != 0; --i) is bounded only by the file. Each iteration grows _entries by one and keeps going after the stream is exhausted.",
+  "minimal_fix": "Stop the loop when a CompressedStream::Read returns false, or cap fileCount by the remaining stream bytes / 12 (fix.* row citing retail 0x1800b5b99).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-078",
+  "file": "src/engine/system/filename.cpp",
+  "line": 266,
+  "hunts": [
+   "ext_caches"
+  ],
+  "title": "Filename(const char*) never returns on some \"\\..\" names: AdjustDelimiters' outer loop re-splices to the same string forever",
+  "bug_class": "logic",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "filename.cpp:183-206: '?AdjustDelimiters@Filename@System@@AEAAXXZ retail 0x1800c6970' and 'lastDelim is initialised ONCE, at 0x1800c69b5, ABOVE the outer loop label at 0x1800c69c0 ... Transcribed as written'. A Ghidra check was attempted, but the address is not in the active program",
+  "reachability": null,
+  "proof_kind": "fuzz_input",
+  "proof": "wsl -e bash -c \"cd ~/fz/package_cache2 && ./fuzz_package_cache2 -timeout=3 /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/package_cache2/filename_adjust_hang\" -> ==ERROR: libFuzzer: timeout after 3 seconds; stack: System::Filename::AdjustDelimiters() filename.cpp:266 / :281 <- AdjustDelimiters() filename.cpp:291 <- Filename::Filename(const char*) filename.cpp:76. Input hex (9 bytes, minimised): 5c2e2e5c5c2e2e082e. package_cache_fuzz first found it 7 times through package entry names.",
+  "root_cause": "After a splice, the outer for(;;) re-scans with the stale lastDelim from the previous scan (3). For \"\\..\\x08.\" (len 5) the triple at index 0 then passes `lastDelim >= 1`, and head = SubString(0, lastDelim-1) + tail = SubString(i+3, len-1) rebuilds the identical string. The recursive call returns without change and the outer loop repeats forever, allocating three Strings per turn. Reachability: any path string that becomes a Filename, e.g. package entry names in a mod .pkm, resource references and save paths.",
+  "minimal_fix": "Behaviour retail does not have goes in a fix.* row (AGENTS.md section 2): when `spliced` equals the current string (or is not shorter), return instead of looping, with a comment naming retail 0x1800c6970's stale lastDelim.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-079",
+  "file": "src/engine/system/string.cpp",
+  "line": 904,
+  "hunts": [
+   "text_codec"
+  ],
+  "title": "String::Serialize / RtIo_SerializeStringArray: length word from the stream sizes the allocation with no cap (2 GB / 4 GB per string)",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "Ghidra 0x1800c9930 (?Serialize@String@System@@): SetLength(this, uVar5-1) and MemoryAllocator::MemAlloc(uVar6*2,4) straight from the SerializeUInt word, no bound; text_codec.cpp banner 0x180029bb0 has the same shape",
+  "reachability": "every String in a shared .sav and in .pkg/.pkm resources (string tables via RtIo_SerializeStringArray in package_file_serialize.cpp:216/223, pixel/vertex programs, UI descriptions); a 5-byte record is enough",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl: ~/fz/string_serialize2/fuzz_string_serialize2 -rss_limit_mb=4096 -malloc_limit_mb=2048 <scratchpad>/crashes/string_serialize/ss1_plain_len_7fffffff (hex 00ffffffff) -> 'ERROR: libFuzzer: out-of-memory (malloc(2147483655))' via string.cpp:79 <- :120 (SetLength) <- :904 (Serialize). ss1_wide_len_7fffffff (00ffffff7f) with -malloc_limit_mb=3000 -> 'out-of-memory (malloc(4294967294))' at string.cpp:915 (RtMemAlloc(n*2)). ss3_array_wide_len_40000000 (010100000040) -> 'out-of-memory (malloc(2147483648))' in RtIo_SerializeStringArray (text_codec.cpp:517 MemAlloc(len*2)).",
+  "root_cause": "The 31-bit length word read from the stream goes straight into SetLength(n-1) and, on the legacy arm, MemAlloc(n*2), with no check against the stream's remaining size or any cap. A hostile record asks for 2-4 GB per string, and posix_memalign/MemAlloc failure aborts.",
+  "minimal_fix": "Before the SetLength in String::Serialize and RtIo_SerializeStringArray, reject a length larger than the stream's remaining bytes (GetSize()-GetCurrentPos(), times 2 for the wide arm). Do it as a fix.* row, with a comment naming this finding, since retail has the same behaviour.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-080",
+  "file": "src/engine/system/string.cpp",
+  "line": 915,
+  "hunts": [
+   "save_meta"
+  ],
+  "title": "System::String::Serialize trusts the 31-bit length word: SetLength(n-1) up to 2 GB, the legacy UTF-16 arm RtMemAlloc(n*2) up to 4 GB, then up to 2^31 per-element failing reads (OOM / hang)",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "retail",
+  "label_evidence": "?Serialize@String@System@@ retail 0x1800c9930 (string.cpp:889 header): the length word is read via SerializeUInt with no bound and SetLength(n-1) is retail. The UTF-16 conversion arm is marked as the port's own 'spec decoder, not a transcription'.",
+  "reachability": "shared .sav metadata (description and mod names), and every String in saves and resources",
+  "proof_kind": "fuzz_input",
+  "proof": "~/fz/save_meta2/fuzz_save_meta2 scratchpad/crashes/save_meta/string_len_legacy_record (16 B) hex aaaaaaaa0800000003000000f0ffff7f -> 'ERROR: libFuzzer: out-of-memory (malloc(4294967264))', #8 RtSystem::RtMemAlloc string.cpp:79, #9 String::Serialize string.cpp:915, #10 LoadMetaData saveload_loadmeta.cpp:302. Fuzz-found variants: 16 OOMs at string.cpp:915, 11 at String::SetLength string.cpp:120, and timeouts in SerializeCharArray -> ReadArray (string.cpp:955) looping per element over a failing read.",
+  "root_cause": "The length comes straight from the input with no cap and no comparison against the bytes left in the stream.",
+  "minimal_fix": "In String::Serialize when loading: `if (n > remaining-bytes || n > 0x100000) { clear; return; }` (fix.* row; the cap needs a ruling because every save and resource string goes through this path).",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-081",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_registers.cpp",
+  "line": 110,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv handleDclFunctionBody resizes m_functionBodies to fbIndex+1 from the token (uncapped; 0xFFFFFFFF wraps to resize(0))",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob (SM5 SHEX with interfaces) in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (568 bytes) scratchpad/crashes/dxbc_spirv/handleDclFunctionBody_oom.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput: ==ERROR: libFuzzer: out-of-memory (malloc(17179869184)) at RegisterFile::handleDclFunctionBody dxbc_registers.cpp:110, from Converter::convertShader :37 and ConvertDxbc shader_convert.cpp:448. 12 artefacts.\nThe fbIndex = 0xFFFFFFFF arm (resize(0u) followed by an unchecked at() under NDEBUG, an OOB write) is static_only: it is the same pattern as the proven temp wrap and was not run.",
+  "root_cause": "fbIndex is taken from the immediate operand and used directly in resize(fbIndex + 1u) (uint32_t). There is no cap, and the +1 wraps at 0xFFFFFFFF, while small_vector::at only asserts.",
+  "minimal_fix": "Cap fbIndex (for example by the dcl_function_table / interface counts, or 1024) and fail the conversion above it; compute the size in size_t.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-082",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_registers.cpp",
+  "line": 496,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv declareLds resizes m_gRegs to regIndex+1 from the token (uncapped; 0xFFFFFFFF wraps)",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "DXBC program blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (509 bytes) scratchpad/crashes/dxbc_spirv/declareLds_oom.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput: ==ERROR: libFuzzer: out-of-memory (malloc(2147483648)) at RegisterFile::declareLds dxbc_registers.cpp:496, from handleDclTgsmStructured :95 and Converter::convertShader :37. 2 artefacts.\nThe wrap arm (regIndex 0xFFFFFFFF giving resize(0) and then m_gRegs[regIndex]) is static_only.",
+  "root_cause": "A g# (TGSM) register index is taken from the declaration and used for resize(regIndex + 1u) with no cap. A pixel or vertex program declaring TGSM is not rejected first.",
+  "minimal_fix": "Reject TGSM declarations outside compute shaders, and cap regIndex (for example at 8192) before the resize.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-083",
+  "file": "third_party/dxbc-spirv/dxbc/dxbc_signature.cpp",
+  "line": 254,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "dxbc-spirv Signature reserve(entryCount) with the raw u32 count from the chunk (uncapped allocation, 0x5000000000 bytes)",
+  "bug_class": "int-overflow-alloc",
+  "severity": "resource",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "ISGN/OSGN chunk of a DXBC blob in a .pkg or a mod .pkm (Vulkan backend)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (349 bytes) scratchpad/crashes/dxbc_spirv/Signature_entrycount_oom.\nCommand: wsl -e bash -c \"~/fz/dxbc_spirv/fuzz_dxbc_spirv <file>\"\nOutput:\n==ERROR: AddressSanitizer: out of memory: allocator is trying to allocate 0x5000000000 bytes\n#3 Signature::Signature dxbc_signature.cpp:254\n#4 IoMap::initSignature dxbc_io_map.cpp:2226\n#5 IoMap::init :25\n#6 Converter::convertShader :29\nThe site was hit 27 times across the runs.",
+  "root_cause": "m_entries.reserve(entryCount) runs on the signature header's count before any entry is read. Nothing compares it with the chunk's remaining bytes (each entry is at least 24 bytes), so std::bad_alloc or an OOM kills the process.",
+  "minimal_fix": "`if (entryCount > reader.getRemaining() / 24u) { Logger::err(...); resetOnError(); return; }` before the reserve.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-084",
+  "file": "src/game/Game/gameupdateloop_serialize.cpp",
+  "line": 1009,
+  "hunts": [
+   "clang_tidy_linux"
+  ],
+  "title": "Roundtrip check leaks both decompressed images on its error arm",
+  "bug_class": "leak",
+  "severity": "leak",
+  "label": "harness",
+  "label_evidence": "GameUpdateLoop_SaveRoundtripCheck runs only under BANISHED_SAVE_TEST=roundtrip (the resave gate); no retail counterpart",
+  "reachability": "tools/resave_gate only, when either image fails to decompress",
+  "proof_kind": "static_only",
+  "proof": "clang-analyzer-unix.Malloc: 'Potential leak of memory pointed to by a' and '... by b' at :1010 when okA or okB is false (~/tidy/out/chunk*.txt)",
+  "root_cause": "The error arm returns without std::free(a) / std::free(b) from RoundtripDecompress; it also drops fresh._data deliberately.",
+  "minimal_fix": "Call std::free(a); std::free(b); before the return on the error arm.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-085",
+  "file": "src/engine/io/settings_file.cpp",
+  "line": 102,
+  "hunts": [
+   "settings_rsctext"
+  ],
+  "title": "SettingsFile round trip loses a leading BOM in the first sorted key (Serialize writes it at file start, Parse strips it as a BOM)",
+  "bug_class": "logic",
+  "severity": "logic",
+  "label": "port",
+  "label_evidence": "settings_file.h/.cpp header: 'NOT RETAIL. Retail kept IO::Persistence's flat settings map in the registry'; the text format is ours (Phase D.4 SETTINGS).",
+  "reachability": "Local settings.cfg: a file saved with a doubled BOM (or a key whose first bytes are U+FEFF) has its first key renamed on the next WriteSettings, so the value is attached to a different key from then on.",
+  "proof_kind": "fuzz_input",
+  "proof": "wsl -e bash -c \"~/fz.sh repro settings_file /mnt/c/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/crashes/settings_file/bom_key_roundtrip\" -> 'Parse(x) (1 entries) key=efbbbf6b value=76 / Parse(Serialize(Parse(x))) (1 entries) key=6b value=76 / SettingsFile round trip mismatch' (abort at settings_file_fuzz.cpp:71 in the unmasked target). Input hex (9 bytes): efbbbfefbbbf6b3d76. Original fuzzer crash: crashes/settings_file/crash-7815eeec4924f4623f56eb7560e17a6df9755c72.",
+  "root_cause": "Parse skips EF BB BF at offset 0 (settings_file.cpp:102-106). Escape() does not escape those bytes in a key, and Serialize writes the smallest key first. A key beginning EF BB BF sorts after ASCII but is first when it is the only key or every key is >= 0xEF, so its bytes land at offset 0 and are read back as a BOM.",
+  "minimal_fix": "In Serialize, when the output would begin with EF BB BF, prefix the file with a real BOM (or an empty comment line '#\\n'). Alternatively, escape a key's leading U+FEFF (e.g. \ufeff / a new escape) in Escape(isKey, i == 0). Add a comment naming the round trip.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-086",
+  "file": "src/game/Component/boatcomponent_states.cpp",
+  "line": 223,
+  "hunts": [
+   "semgrep_variants"
+  ],
+  "title": "Boat Steer / State0Tick / State1Tick / State3Tick carry a port-only null-model guard that turns retail's crash into a boat deletion plus 'merchant lost' event",
+  "bug_class": "logic",
+  "severity": "logic",
+  "label": "port",
+  "label_evidence": "Ghidra: retail Steer 0x1400463d0 loads lVar3 = *(boat+0x30) and reads +0x158/+0x15c/+0x160 with no test. Retail State0Tick 0x140045250 reads *(boat+0x30)+0x158.. with no test. The port adds 'if (!model) return nullptr' in ModelPos (line 131, citing a 'guard note in Steer()' that does not exist), 'if (!mp) return 0' in Steer (223), and 'if (!mp) return 1' in State0Tick (443), State1Tick (478) and State3Tick (562).",
+  "reachability": "Only when a trading boat entity has no ModelComponent at +0x30. Not observed: normal boats always have one.",
+  "proof_kind": "static_only",
+  "proof": "Found by rule c03-perframe-return-literal. Trace: with model == null, port Steer returns 0, so State0Tick (boatcomponent_states.cpp:436-441) calls DeleteBoatEntity(this) and PostEventToDestination(this, 0xb) (merchant lost), then returns 1 at line 443. Retail dereferences null+0x158 in Steer and faults. Analogous fix commits that removed port-only guards: 55e77520f, 8aca9ff11, 6e56d0740 (P0 map C6).",
+  "root_cause": "Port-only null guards on the boat's model pointer (+0x30), the C6 faithfulness-drift shape. They are not marked as a standalone difference. If a null model ever occurs, the port silently deletes the boat and tells the trading post its merchant is gone, instead of exposing the upstream null.",
+  "minimal_fix": "Remove the guards in ModelPos, Steer and the three ticks, so the reads are unguarded as in retail. If the standalone really can lack a model there, keep one guard with a comment naming that difference. Per the hard rule, trace the null upstream instead of guarding.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-087",
+  "file": "src/app/main.cpp",
+  "line": 262,
+  "hunts": [
+   "clang_tidy_linux"
+  ],
+  "title": "atoi on settings.cfg and environment text (out-of-range is UB)",
+  "bug_class": "UB-int-conversion",
+  "severity": "minor",
+  "label": "ext",
+  "label_evidence": "The launcher's settings reader (getInt) and src/app/options.cpp (11 flags) are port-only boot code; another 50+ sites are in src/diag harnesses",
+  "reachability": "A user-edited settings.cfg value, or a BANISHED_* env value, that is out of range",
+  "proof_kind": "static_only",
+  "proof": "cert-err34-c: 121 hits; src/app/main.cpp:262 '*out = atoi(e->value.c_str())' reads a settings.cfg value. C says atoi's behaviour is undefined when the value cannot be represented; glibc and MSVCRT truncate in practice.",
+  "root_cause": "atoi/atof are used on user-editable text with no range handling.",
+  "minimal_fix": "Use strtol with clamping to the int range (errno/ERANGE) in getInt and in Options' integer reader, with a comment naming the UB.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-088",
+  "file": "src/game/Component/citizen_reassign_workers.cpp",
+  "line": 241,
+  "hunts": [
+   "semgrep_variants"
+  ],
+  "title": "Inert port-only g_wpcRosterOnly holds remain after PR #102 (ReassignWorkers, founding housing, AddWorker; dead extern in state8)",
+  "bug_class": "logic",
+  "severity": "minor",
+  "label": "port",
+  "label_evidence": "g_wpcRosterOnly is the standalone's own flag (workplacecomponent.cpp:98). 033dbca08 states that retail Attach 0x14012fa20 and the allocator bodies test no global. ReassignWorkers is retail 0x1400d62a0 and AddWorker is retail 0x140091130, per the code comments.",
+  "reachability": "ReassignWorkers runs on every completed path-graph drain in gameplay (citizenbehavior.cpp:363). Founding housing runs on a new game. AddWorker is reached only by the diag harness.",
+  "proof_kind": "static_only",
+  "proof": "Trace: citizen_reassign_workers.cpp:241-308 sets g_wpcRosterOnly=true around the only call worker->SetHome(targetOwner, 0) (0x1401163d0). SetHome (citizen_assignworkplace.cpp:67-125) calls only ResidenceComponent::RemoveResident / AddResident (0x14012a550 / 0x14012a710), which never reach WorkPlaceComponent::Attach / Detach, the only readers of the flag (workplacecomponent.cpp:116,214). starttown.cpp:4020-4106 is the same: a residence-only path held 'defensively'. citizen_employ_cascade.cpp:465-470 RosterGuard holds it around FindAvailableBuilding + AssignWorker, but its only caller is src/diag/builder_seat_harness.cpp:99. buildcomponent_state8.cpp:75 is an unused extern. Analogous fix: 033dbca08 removed the same hold from EvictRoster, SetMaxWorkers and PathGraph::AssignCitizens.",
+  "root_cause": "PR #102 removed the roster-only mode from three gameplay paths but left the save / set / restore of the global in two more retail bodies and in AddWorker. Today these holds have no observable effect because no reader is reached. They are still port-only state across retail bodies, the C2 shape: any future SetHome-to-workplace path would again skip the 'no workers' icon raise or clear and SendEvent(2/3).",
+  "minimal_fix": "Delete the hold and restore in ReassignWorkers and StartTown_AssignFoundingHousing, the extern declarations at citizen_reassign_workers.cpp:108, starttown.cpp:304 and buildcomponent_state8.cpp:75, and the RosterGuard in AddWorker, or move it into builder_seat_harness.cpp if that harness still needs it.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-089",
+  "file": "src/render/vulkan/spirv_combine.cpp",
+  "line": 118,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "CombineImageSamplers reads w[1] of a 1-word OpTypeSampler past the module's end",
+  "bug_class": "heap-overflow",
+  "severity": "minor",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "Only dxbc-spirv's output (ConvertDxbc with combineSamplers); no file reaches it today. The cache path does not run this pass.",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (26 bytes, hand-built) scratchpad/crashes/spirv_passes/combine_typesampler_oob, hex 000003022307000601000000000001000000000000001a000100. The module is the header plus a single OpTypeSampler with word count 1.\nCommand: wsl -e bash -c \"~/fz/spirv_passes/fuzz_spirv_passes <file>\"\nOutput:\n==ERROR: AddressSanitizer: heap-buffer-overflow READ of size 4, 0 bytes after the module block\n... std::set<unsigned>::insert from CombineImageSamplers spirv_combine.cpp:118\nThe fuzzer also hit this site (7 artefacts).",
+  "root_cause": "The index loop checks only words != 0 and at + words <= size. For OpTypeSampler it reads w[1] without checking words >= 2.",
+  "minimal_fix": "`} else if (i.op == kOpTypeSampler && i.words >= 2) {`",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-090",
+  "file": "src/render/vulkan/spirv_combine.cpp",
+  "line": 343,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "CombineImageSamplers emit copies words 0..2 of an OpEntryPoint shorter than 3 words",
+  "bug_class": "heap-overflow",
+  "severity": "minor",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "Only dxbc-spirv's output (ConvertDxbc with combineSamplers)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (134 bytes) scratchpad/crashes/spirv_passes/combine_entrypoint_oob.\nCommand: wsl -e bash -c \"~/fz/spirv_passes/fuzz_spirv_passes <file>\"\nOutput:\n==ERROR: AddressSanitizer: heap-buffer-overflow READ of size 12, 0 bytes after the module block\n__asan_memmove via the std::vector<uint32_t> inst(w, w + k) construction in CombineImageSamplers spirv_combine.cpp:343",
+  "root_cause": "k starts at 3 even when i.words < 3, so inst(w, w + k) copies past the instruction, and past the module when it is the last instruction.",
+  "minimal_fix": "`if (i.words < 3) break;` (copy it unchanged) before the scan, or clamp k to i.words.",
+  "status": "confirmed",
+  "also": []
+ },
+ {
+  "id": "F-091",
+  "file": "src/render/vulkan/spirv_combine.cpp",
+  "line": 363,
+  "hunts": [
+   "dxbc_spirv"
+  ],
+  "title": "CombineImageSamplers emit reads w[2] of an OpLoad shorter than 3 words",
+  "bug_class": "heap-overflow",
+  "severity": "minor",
+  "label": "ext",
+  "label_evidence": null,
+  "reachability": "Only dxbc-spirv's output (ConvertDxbc with combineSamplers)",
+  "proof_kind": "fuzz_input",
+  "proof": "Input (162 bytes) scratchpad/crashes/spirv_passes/combine_opload_oob.\nCommand: wsl -e bash -c \"~/fz/spirv_passes/fuzz_spirv_passes <file>\"\nOutput:\n==ERROR: AddressSanitizer: heap-buffer-overflow READ of size 4, 4 bytes after the module block\n#0 std::map::find\n#1 CombineImageSamplers spirv_combine.cpp:363",
+  "root_cause": "The emit-phase case kOpLoad reads loadVar.find(w[2]) without the i.words >= 4 test that the index phase applies.",
+  "minimal_fix": "`case kOpLoad: { if (i.words < 4) break; ...`",
+  "status": "confirmed",
+  "also": []
+ }
+]

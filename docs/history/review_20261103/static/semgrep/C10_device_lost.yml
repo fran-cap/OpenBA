@@ -1,0 +1,23 @@
+# C10. Device-lost / reset paths (5e7fef9ac, 81463507a, f1192d836, 6d5bb9f43).
+rules:
+  - id: c10-resize-result-ignored
+    languages: [cpp]
+    severity: WARNING
+    message: C10 swapchain / device resize result ignored
+    paths:
+      include: ["/src/render/", "/src/engine/", "/src/app/"]
+    pattern-regex: '(?m)^\s*(?:\w+(?:->|\.))*(?:ResizeBuffers|DeviceData_Resize|ResizeTarget)\([^;]*\);'
+  - id: c10-present-result-ignored
+    languages: [cpp]
+    severity: WARNING
+    message: C10 Present result ignored (DXGI_ERROR_DEVICE_REMOVED never reaches recovery)
+    paths:
+      include: ["/src/render/"]
+    pattern-regex: '(?m)^\s*(?:\w+(?:->|\.))+Present1?\([^;]*\);'
+  - id: c10-vk-present-result-ignored
+    languages: [cpp]
+    severity: WARNING
+    message: C10 vkQueuePresentKHR / vkAcquireNextImageKHR result ignored
+    paths:
+      include: ["/src/render/"]
+    pattern-regex: '(?m)^\s*(?:\(void\)\s*)?(?:vkQueuePresentKHR|vkAcquireNextImageKHR|vkQueueSubmit)\('

@@ -1,0 +1,23 @@
+# C16. Bare libm and std::sort in simulation code (307bc288d / e40ff4f8d MsvcLibm, 795f3d9a0 CRT qsort).
+rules:
+  - id: c16-std-sort-in-sim
+    languages: [cpp]
+    severity: WARNING
+    message: C16 std::sort family in game/engine code; retail uses the CRT qsort (equal-key order differs)
+    paths:
+      include: ["/src/game/", "/src/engine/"]
+    pattern-regex: '\bstd::(?:sort|stable_sort|partial_sort|nth_element)\('
+  - id: c16-bare-libm-in-sim
+    languages: [cpp]
+    severity: WARNING
+    message: C16 bare libm call in game/engine; MSVC's libm rounds differently (MsvcLibm)
+    paths:
+      include: ["/src/game/", "/src/engine/"]
+    pattern-regex: '(?<![\w:.>])(?:std::)?(?:sinf|cosf|tanf|powf|atan2f|expf|logf|acosf|asinf|atanf|fmodf|sqrtf)\s*\('
+  - id: c16-pointer-keyed-ordered-container
+    languages: [cpp]
+    severity: INFO
+    message: C16 ordered container keyed by a raw pointer (iteration order = address order)
+    paths:
+      include: ["/src/game/"]
+    pattern-regex: 'std::(?:set|map|multimap|multiset)<\s*(?:const\s+)?[\w:]+\s*\*\s*[,>]'

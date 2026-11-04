@@ -1,0 +1,12 @@
+# C11. Lost wake-up: a predicate wait on a request flag the other side may clear (97233ff0e).
+rules:
+  - id: c11-raise-once-then-predicate-wait
+    languages: [cpp]
+    severity: WARNING
+    message: C11 a request flag raised once, then a predicate wait; the woken side may drop the flag
+    pattern-regex: '(?s)\b(\w*(?:[Rr]equest|[Ww]ant|[Ff]lush|[Pp]ending|[Nn]eed)\w*)\s*(?:=\s*true|\.store\(\s*true[^)]*\))\s*;(?:(?!\n\}).){0,300}?\.wait\(\s*\w+\s*,\s*\['
+  - id: c11-cv-wait-survey
+    languages: [cpp]
+    severity: INFO
+    message: C11 condition-variable wait (survey)
+    pattern-regex: '\b\w+(?:\.|->)wait(?:_for|_until)?\(\s*\w+\s*[,)]'

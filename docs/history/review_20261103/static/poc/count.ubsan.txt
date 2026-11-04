@@ -1,0 +1,2 @@
+/home/uspc/openba-review/src/engine/io/compressed_stream_open.cpp:117:41: runtime error: signed integer overflow: 268435457 * 8 cannot be represented in type 'int'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /home/uspc/openba-review/src/engine/io/compressed_stream_open.cpp:117:41 
