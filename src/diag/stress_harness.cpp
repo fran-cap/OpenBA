@@ -369,8 +369,10 @@ FILE* s_compOut = nullptr;
 // worker reads it after it dequeued that command under the same lock, so the lock pair
 // orders the two. A slot past the table gets no wait sample (counted as a request).
 constexpr int kPfSlots = 8192;
-long long s_pfEnqTsc[kPfSlots];
-long long s_pfReadyTsc[kPfSlots];   // E2E SPLIT: the worker's publish stamp
+// Atomic (relaxed): a path worker reads the enqueue stamp and writes the ready
+// stamp while the main thread writes, reads and resets them (review F-279).
+std::atomic<long long> s_pfEnqTsc[kPfSlots];
+std::atomic<long long> s_pfReadyTsc[kPfSlots];   // E2E SPLIT: the worker's publish stamp
 int       s_pfEnqFrame[kPfSlots];   // E2E SPLIT: Update frame at the enqueue
 int       s_pfFrame = 0;            // E2E SPLIT: Update frames since the harness began
 // The worker's window and the main thread's e2e / queue window, under one lock taken
@@ -1886,8 +1888,8 @@ extern "C" void CharProf_End(int token, long long tscTicks) {
 // ── PFBENCH hooks (stress_harness.h). Each runs only when g_pfProfOn is set. ──────
 extern "C" void PfProf_Enqueue(int slot, int queueDepth) {
     if (slot >= 0 && slot < kPfSlots) {
-        s_pfEnqTsc[slot] = CompProf_Now();
-        s_pfReadyTsc[slot] = 0;
+        s_pfEnqTsc[slot].store(CompProf_Now(), std::memory_order_relaxed);
+        s_pfReadyTsc[slot].store(0, std::memory_order_relaxed);
         s_pfEnqFrame[slot] = s_pfFrame;
     }
     std::lock_guard<std::mutex> g(s_pfLock);
@@ -1895,18 +1897,20 @@ extern "C" void PfProf_Enqueue(int slot, int queueDepth) {
 }
 
 // The worker's publish (ready = 1 in ApplyCommand case 5; the pool and ext.fast_paths
-// share that site). Unlocked per-slot stamp, read by PfProf_Taken on the main thread
-// after it has seen the ready byte.
+// share that site). Stamped just BEFORE the ready store, so the main thread, which
+// reads it in PfProf_Taken after it has seen the ready byte, never sees it land on
+// the slot's next request (review F-279).
 extern "C" void PfProf_Ready(int slot) {
-    if (slot >= 0 && slot < kPfSlots) s_pfReadyTsc[slot] = CompProf_Now();
+    if (slot >= 0 && slot < kPfSlots) s_pfReadyTsc[slot].store(CompProf_Now(), std::memory_order_relaxed);
 }
 
 extern "C" void PfProf_Search(int slot, long long t0, long long t1, int cells, int expanded) {
     PfStats::Request r;
     r.searchTicks = t1 - t0;
     r.waitTicks   = -1;
-    if (slot >= 0 && slot < kPfSlots && s_pfEnqTsc[slot] != 0 && t0 >= s_pfEnqTsc[slot])
-        r.waitTicks = t0 - s_pfEnqTsc[slot];
+    const long long enq = (slot >= 0 && slot < kPfSlots) ? s_pfEnqTsc[slot].load(std::memory_order_relaxed) : 0;
+    if (enq != 0 && t0 >= enq)
+        r.waitTicks = t0 - enq;
     r.expanded = expanded;
     r.cells    = cells;
     std::lock_guard<std::mutex> g(s_pfLock);
@@ -1914,15 +1918,17 @@ extern "C" void PfProf_Search(int slot, long long t0, long long t1, int cells, i
 }
 
 extern "C" void PfProf_Taken(int slot) {
-    if (slot < 0 || slot >= kPfSlots || s_pfEnqTsc[slot] == 0) return;
+    if (slot < 0 || slot >= kPfSlots) return;
+    const long long enq = s_pfEnqTsc[slot].load(std::memory_order_relaxed);
+    if (enq == 0) return;
     const long long now = CompProf_Now();
-    const long long e2e = now - s_pfEnqTsc[slot];
-    const long long ready = s_pfReadyTsc[slot];
-    const long long toReady = (ready > 0 && ready >= s_pfEnqTsc[slot]) ? ready - s_pfEnqTsc[slot] : -1;
+    const long long e2e = now - enq;
+    const long long ready = s_pfReadyTsc[slot].load(std::memory_order_relaxed);
+    const long long toReady = (ready > 0 && ready >= enq) ? ready - enq : -1;
     const long long toTaken = (ready > 0 && now >= ready) ? now - ready : -1;
     const int framesCrossed = s_pfFrame - s_pfEnqFrame[slot];
-    s_pfEnqTsc[slot] = 0;   // taken: the slot is free until its next enqueue stamps it
-    s_pfReadyTsc[slot] = 0;
+    s_pfEnqTsc[slot].store(0, std::memory_order_relaxed);   // taken: free until its next enqueue stamps it
+    s_pfReadyTsc[slot].store(0, std::memory_order_relaxed);
     std::lock_guard<std::mutex> g(s_pfLock);
     s_pfMain.Taken(e2e);
     s_pfMain.TakenSplit(toReady, toTaken, framesCrossed);
