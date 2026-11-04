@@ -106,7 +106,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_summary.cpp         # ext_family_tree_test.cpp (the town summary)
   ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_picture.cpp         # ext_family_tree_test.cpp (the whole-town picture)
   ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_raster.cpp          #   the same picture as pixels (PNG)
-  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_tree_town.cpp       # ext_family_tree_nowstamp_test.cpp
+  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_tree_town.cpp       # ext_family_tree_town_test.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/drain_split/drain_split.cpp         # ext_drain_split_test.cpp (HITCH_DRAINSPLIT)
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/dxbc.cpp            # ext_better_trees_test.cpp (block FAA-CORE)
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/cutout_rewrite.cpp
