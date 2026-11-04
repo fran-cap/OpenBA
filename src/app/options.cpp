@@ -13,6 +13,7 @@
 // struct fields: nothing in the tree reads the environment by name any more.
 // ============================================================================
 #include "options.h"
+#include "clamped_atoi.h"   // ClampedAtoi: atoi without the out-of-range UB (review F-087)
 
 #include <cstdlib>
 #include <cstring>
@@ -35,7 +36,7 @@ bool On(const char* name) {
 
 int Int(const char* name, int dflt) {
     const char* v = Raw(name);
-    return v ? std::atoi(v) : dflt;
+    return v ? ClampedAtoi(v) : dflt;
 }
 
 // The stress town's defaults: set only what the caller left unset, exactly as
@@ -104,10 +105,10 @@ void OptionsInit() {
 
     // ── harness drivers: menu → game ─────────────────────────────────────────
     o.autostart       = On("BANISHED_AUTOSTART");
-    if (const char* v = Raw("BANISHED_AUTOSTART")) { const int n = std::atoi(v); if (n > 1) o.autostartFrames = n; }
+    if (const char* v = Raw("BANISHED_AUTOSTART")) { const int n = ClampedAtoi(v); if (n > 1) o.autostartFrames = n; }
     o.autostartGames  = Int("BANISHED_AUTOSTART_GAMES", 0);
     o.autoquit        = On("BANISHED_AUTOQUIT");
-    if (const char* v = Raw("BANISHED_AUTOQUIT")) { const int n = std::atoi(v); if (n > 1) o.autoquitFrames = n; }
+    if (const char* v = Raw("BANISHED_AUTOQUIT")) { const int n = ClampedAtoi(v); if (n > 1) o.autoquitFrames = n; }
     o.autoload        = On("BANISHED_AUTOLOAD");
     if (o.autoload) {
         const char* v = Raw("BANISHED_AUTOLOAD");
@@ -116,11 +117,11 @@ void OptionsInit() {
     o.autotutorial    = On("BANISHED_AUTOTUTORIAL");
     if (o.autotutorial) {
         const char* v = Raw("BANISHED_AUTOTUTORIAL");
-        if (std::strcmp(v, "1") != 0) o.autotutorialIndex = std::atoi(v);
+        if (std::strcmp(v, "1") != 0) o.autotutorialIndex = ClampedAtoi(v);
     }
     // AUTOMENU_BUTTON is "set and not 0" — "false" is not a value it ever takes.
     if (const char* v = Raw("BANISHED_AUTOMENU_BUTTON"))
-        if (std::strcmp(v, "0") != 0) o.automenuButton = std::atoi(v);
+        if (std::strcmp(v, "0") != 0) o.automenuButton = ClampedAtoi(v);
     o.automenuClicks  = Raw("BANISHED_AUTOMENU_CLICKS");
 
     // ── harness drivers: pause menu ──────────────────────────────────────────
@@ -136,13 +137,13 @@ void OptionsInit() {
     if (const char* v = Raw("BANISHED_MODAL_DRIVER")) {
         o.modalDriver = true;
         o.modalDriverRaw = v;
-        o.modalDriverAnswer = std::atoi(v);
+        o.modalDriverAnswer = ClampedAtoi(v);
         if (const char* comma = std::strchr(v, ',')) {
-            const int t = std::atoi(comma + 1);
+            const int t = ClampedAtoi(comma + 1);
             if (t > 0) o.modalDriverTicks = t;
         }
     }
-    if (const char* v = Raw("BANISHED_MODAL_ANSWER")) { o.modalAnswer = true; o.modalAnswerValue = std::atoi(v); }
+    if (const char* v = Raw("BANISHED_MODAL_ANSWER")) { o.modalAnswer = true; o.modalAnswerValue = ClampedAtoi(v); }
 
     // ── front end / save-load ────────────────────────────────────────────────
     o.menuScene       = Int("BANISHED_MENU_SCENE", -1);
@@ -192,9 +193,9 @@ void OptionsInit() {
                                                       //     cached tick list vs a fresh component scan)
     o.stressCsv       = Raw("BANISHED_STRESS_CSV");
     {   const char* v = Raw("BANISHED_STRESS_HOMEWATCH");
-        o.stressHomeWatch = v && std::atoi(v) != 0; }
+        o.stressHomeWatch = v && ClampedAtoi(v) != 0; }
     {   const char* v = Raw("BANISHED_STRESS_HITCH_MS");   // HITCH: the excess-over-median threshold
-        if (v && v[0]) o.stressHitchMs = std::atof(v);
+        if (v && v[0]) o.stressHitchMs = std::strtod(v, nullptr);   // not atof (F-087)
         if (o.stressHitchMs < 0) o.stressHitchMs = 0; }
     if (o.stressCitizens < 0) o.stressCitizens = 0;
     // stressSets < 0 is kept: |sets| sets in the spread layout (PFBENCH, stress_harness.h).
@@ -204,7 +205,7 @@ void OptionsInit() {
 
     // ── perf: profiling and frame pacing ─────────────────────────────────────
     {   const char* v = Raw("BANISHED_SAMPLE");
-        if (v && v[0] != '0') o.sample = std::atoi(v) > 1 ? std::atoi(v) : 1000; }
+        if (v && v[0] != '0') o.sample = ClampedAtoi(v) > 1 ? ClampedAtoi(v) : 1000; }
     o.streamCacheShadow = On("BANISHED_STREAMCACHE_SHADOW");
     o.fpsCap            = Raw("BANISHED_FPS_CAP");
     o.fpsHeadroom       = Raw("BANISHED_FPS_HEADROOM");

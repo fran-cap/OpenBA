@@ -270,7 +270,7 @@ haveSlot:
     entry->field_0x48[2] = param_12;
     entry->field_0x48[3] = param_13;
     entry->field_0x48[4] = param_14;
-    entry->field_0x5C = true;
+    entry->field_0x5C = 1;
     entry->alternateKey = param_19;
     TessellateDecal(iVar3, param_15, param_16, param_17);
     return iVar3;

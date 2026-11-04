@@ -39,6 +39,7 @@
 #include "system/String.h"
 #include "collection/Collection.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "Game/terrain_sidecar.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include "Component/pickingcomponent_funcs.h"   // PickingComponent_RegisterMesh (mesh-precise picking)
@@ -297,11 +298,6 @@ extern "C" void StartTown_RegisterRuntimeBuilding(ComponentEntity* entity) {
     StartTown_PickMeshProbe(entity);
 }
 
-
-// WorkPlaceComponent attach/detach roster-only mode (workplacecomponent.cpp). Set true for
-// the build-time founding-housing pass so the roster is populated WITHOUT the gameplay-time
-// Scene mesh-visual toggle (which deadlocks mid-build). See the flag's definition.
-extern bool g_wpcRosterOnly;
 
 // Apply the occupied end-state visual for a rostered house (ModelKick mode 2 + StatusIcon
 // toggle). MUST run at gameplay time (live scene). See its definition in workplacecomponent.cpp.
@@ -851,7 +847,7 @@ static int BuildDemoIndex() {
         // A start-town building is force-completed into the demo only when an
         // explicit index (>=0) is requested. (Old default 0 seeded the StorageBarn, which
         // had no haul source anyway.)
-        idx = (e && e[0]) ? std::atoi(e) : -1;
+        idx = (e && e[0]) ? ClampedAtoi(e) : -1;
     }
     return idx;
 }
@@ -2182,7 +2178,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             ComponentDescription* ptmpl = ResolveTemplateByPath("Template\\Pasture.rsc");
             int pw = 0, ph = 0;
             if (const char* xpos = std::strchr(pe, 'x')) {   // "WxH" size override
-                pw = std::atoi(pe); ph = std::atoi(xpos + 1);
+                pw = ClampedAtoi(pe);
+                ph = ClampedAtoi(xpos + 1);
             }
             if (ptmpl && (pw <= 0 || ph <= 0)) {
                 // Template-default footprint from CreatePlacedDescription (+0x44/+0x48);
@@ -2253,7 +2250,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             ComponentDescription* otmpl = ResolveTemplateByPath("Template\\Orchard.rsc");
             int ow = 0, oh = 0;
             if (const char* xpos = std::strchr(oe, 'x')) {   // "WxH" size override
-                ow = std::atoi(oe); oh = std::atoi(xpos + 1);
+                ow = ClampedAtoi(oe);
+                oh = ClampedAtoi(xpos + 1);
             }
             if (otmpl && (ow <= 0 || oh <= 0)) {
                 const CreatePlacedDescription* cpd =
@@ -2331,7 +2329,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             ComponentDescription* ttmpl = ResolveTemplateByPath("Template\\TradingPost.rsc");
             int tw = 0, th = 0;
             if (const char* xpos = std::strchr(te, 'x')) {      // "WxH" size override
-                tw = std::atoi(te); th = std::atoi(xpos + 1);
+                tw = ClampedAtoi(te);
+                th = ClampedAtoi(xpos + 1);
             }
             if (ttmpl && (tw <= 0 || th <= 0)) {
                 const CreatePlacedDescription* cpd =
@@ -2863,7 +2862,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             ComponentDescription* tmpl = ResolveTemplateByPath(tmplPath);
             int w = 0, h = 0;
             if (const char* xpos = std::strchr(ev, 'x')) {      // "WxH" size override
-                w = std::atoi(ev); h = std::atoi(xpos + 1);
+                w = ClampedAtoi(ev);
+                h = ClampedAtoi(xpos + 1);
             }
             if (tmpl && (w <= 0 || h <= 0)) {
                 const CreatePlacedDescription* cpd =
@@ -3015,7 +3015,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 ComponentDescription* htmpl = ResolveTemplateByPath("Template\\HunterLodge.rsc");
                 int hw = 0, hh = 0;
                 if (const char* xpos = std::strchr(he, 'x')) {   // "WxH" size override
-                    hw = std::atoi(he); hh = std::atoi(xpos + 1);
+                    hw = ClampedAtoi(he);
+                    hh = ClampedAtoi(xpos + 1);
                 }
                 int hRadius = 0;
                 if (htmpl) {
@@ -3069,7 +3070,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 ComponentDescription* gtmpl = ResolveTemplateByPath("Template\\GathererShelter.rsc");
                 int gw_ = 0, gh_ = 0;
                 if (const char* xpos = std::strchr(ge, 'x')) {
-                    gw_ = std::atoi(ge); gh_ = std::atoi(xpos + 1);
+                    gw_ = ClampedAtoi(ge);
+                    gh_ = ClampedAtoi(xpos + 1);
                 }
                 ComponentDescription** acceptList = nullptr;   // HerbalistDescription::_herbs
                 int acceptN = 0, gRadius = 0;
@@ -3259,7 +3261,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             ComponentDescription* ftmpl = ResolveTemplateByPath("Template\\FishermansDock.rsc");
             int fw = 0, fh = 0;
             if (const char* xpos = std::strchr(fe, 'x')) {
-                fw = std::atoi(fe); fh = std::atoi(xpos + 1);
+                fw = ClampedAtoi(fe);
+                fh = ClampedAtoi(xpos + 1);
             }
             uint32_t mask = 0;
             int radius = 0;
@@ -4014,11 +4017,8 @@ static void StartTown_AssignFoundingHousing(const std::vector<std::vector<Compon
                 tidResidence); fflush(stderr); return;
     }
 
-    // Defensive: keep any incidental WorkPlaceComponent attach in roster-only mode during the
-    // build (the residence path AssignWorkplace->a710 does no Scene op, but a family member's
-    // stale +0x248 detach could route through the c80e0 path — see g_wpcRosterOnly).
-    bool prevRosterOnly = g_wpcRosterOnly;
-    g_wpcRosterOnly = true;
+    // No roster-only hold (review F-088): SetHome (0x1401163d0) touches only the residence
+    // rosters, never WorkPlaceComponent::Attach / Detach, so there is nothing to hold.
     for (size_t f = 0; f < families.size() && f < g_foundingHouseIBPs.size(); ++f) {
         ComponentEntity* houseIBP = g_foundingHouseIBPs[f];
         if (houseIBP == nullptr) continue;
@@ -4103,7 +4103,6 @@ static void StartTown_AssignFoundingHousing(const std::vector<std::vector<Compon
                     misfiled);
         }
     }
-    g_wpcRosterOnly = prevRosterOnly;   // restore
 }
 
 // Drive the deferred occupied-house visuals once the scene is live. Called every

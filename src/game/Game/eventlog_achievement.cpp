@@ -84,7 +84,9 @@ extern "C" void EventLog_OnAchievementAwarded(int achievementId) {
     // UI::String(ExternalPtr<StringTable> = *(achievement+0x20), key), then
     // operator System::String() — the LOOKED-UP display text. This is the
     // NAME-LOOKUP UI::String ctor (0x140151300), not the index one.
-    uint8_t uiNameBuf[24] = {0};
+    // NOT RETAIL (review F-064, undefined behaviour): placement new of a UI::String needs
+    // its 8-byte alignment; retail's local was typed.
+    alignas(UI::String) uint8_t uiNameBuf[24] = {0};
     System::String titleText;
     const UI::String* uiName =
         ::new (uiNameBuf) UI::String(achievement->_stringTable, titleKey);   // Achievement+0x20

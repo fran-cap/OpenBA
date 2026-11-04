@@ -43,18 +43,34 @@
 
 namespace {
 
-const uint32_t* CrcTable() {
-    static uint32_t table[256];
-    static bool built = false;
-    if (!built) {
-        for (uint32_t i = 0; i < 256; ++i) {
-            uint32_t c = i;
-            for (int k = 0; k < 8; ++k) c = (c & 1u) ? ((c >> 1) ^ 0xEDB88320u) : (c >> 1);
-            table[i] = c;
+// NOT RETAIL (review F-148): retail's table is static data (0x1801f9080) with no
+// build step. The port used to fill a function-local array on first use behind a
+// plain `static bool built`, which two threads making their first CRC call raced on
+// (the Persistence save-info job and the ext.resources sprite load): a data race,
+// and on ARM64 a reader could see `built` before the table stores. The table is
+// now built at compile time, as retail's is: the same 256 values, no flag.
+struct CrcTableData {
+    uint32_t v[256];
+};
+
+constexpr CrcTableData BuildCrcTable() {
+    CrcTableData t{};
+    for (uint32_t i = 0; i < 256; ++i) {
+        uint32_t c = i;
+        for (int k = 0; k < 8; ++k) {
+            c = (c & 1u) ? ((c >> 1) ^ 0xEDB88320u) : (c >> 1);
         }
-        built = true;
+        t.v[i] = c;
     }
-    return table;
+    return t;
+}
+
+constexpr CrcTableData kCrcTable = BuildCrcTable();
+static_assert(kCrcTable.v[1] == 0x77073096u && kCrcTable.v[255] == 0x2D02EF8Du,
+              "the reflected CRC-32 table retail exports at 0x1801f9080");
+
+const uint32_t* CrcTable() {
+    return kCrcTable.v;
 }
 
 }  // namespace

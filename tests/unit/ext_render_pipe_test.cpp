@@ -31,6 +31,7 @@
 #include "ext/registry.h"
 
 #include <atomic>
+#include <chrono>
 #include <random>
 #include <thread>
 #include <string>
@@ -269,6 +270,7 @@ struct FakeHost {
     std::atomic<bool> emitting{false};  // the emit up to its release (pass 2 .. PostDraw)
     std::atomic<bool> drawingUi{false}; // P13_OVERLAP: the emit past its gate, up to its release
     std::atomic<bool> passTwo{false};   // P13_OVERLAP: the emit before its gate
+    std::atomic<bool> beginning{false}; // the emit short of BeginCommands (review F-158)
     int               overlapEvery = 0; // >0: every Nth gathered packet carries a snapshot (threaded)
     int               stepsBesideEmit = 0;   // steps that ran while a pass 2 was in flight
     std::mt19937      rngOverlap{11u};
@@ -305,8 +307,20 @@ struct FakeHost {
         if (p.frameIndex != ctxIndex.load()) ++errors;      // fix 2: the sequential order's index
         if (p.modelIndex != p.frameIndex) ++errors;
         const int n = emits.fetch_add(1) + 1;
+        // BeginCommands: a wait for a swap-chain image, then the live device state it reads
+        // (settingsChanged, the back-buffer size). No step may run beside this part.
+        beginning.store(true);
+        for (volatile int i = 0, k = (n * 41) % 89; i < k; i = i + 1) {}
+        beginning.store(false);
+        if (release != nullptr) release->NoteBegun();
         passTwo.store(true);
         for (volatile int i = 0, k = (n * 37) % 97; i < k; i = i + 1) {}
+        if (p.overlap) {
+            // A pass 2 long enough for a claim made at BeginCommands to land before the gate
+            // (review F-158: the steps wait for BeginCommands, then the condition variable's wake).
+            const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(50);
+            while (std::chrono::steady_clock::now() < until) {}
+        }
         passTwo.store(false);
         // packet.h's Gate: a packet with a snapshot waits here until the steps are over.
         if (p.overlap) {
@@ -385,6 +399,7 @@ Counters RunScripted(bool threaded, int frames, int loseEvery, uint32_t seed, Fa
                 CHECK(driver.State().Pending());
                 for (int i = 0; i < 64; ++i) {
                     if (host.drawingUi.load()) ++host.errors;
+                    if (host.beginning.load()) ++host.errors;   // review F-158
                     if (host.passTwo.load()) ++host.stepsBesideEmit;
                 }
             } else {
@@ -536,6 +551,7 @@ UNIT_TEST(ext_render_pipe_handoff_gate_holds_the_job_until_opened) {
         while (h.WaitJob()) {
             ++job;
             ++beforeGate;
+            h.NoteBegun();             // the emit's BeginCommands returned (review F-158)
             atGate.fetch_add(1);
             while (go.load() != job) std::this_thread::yield();
             if (!h.PassGate()) {
@@ -572,6 +588,43 @@ UNIT_TEST(ext_render_pipe_handoff_gate_holds_the_job_until_opened) {
         CHECK(!h.Busy());
         CHECK(beforeGate == i + 1);
     }
+    h.Stop();
+    t.join();
+}
+
+// Review F-158: the steps never claim an emit still short of its BeginCommands, which reads the
+// live device state (settingsChanged, the back-buffer size) a step's message pump or options
+// apply writes. ClaimSteps waits for NoteBegun; a job done without it is not claimed.
+UNIT_TEST(ext_render_pipe_handoff_claim_waits_for_begin_commands) {
+    Handoff h;
+    std::atomic<bool> begun{false};
+    std::atomic<bool> asked{false};    // the main thread's claim returned
+    std::thread t([&] {
+        int job = 0;
+        while (h.WaitJob()) {
+            ++job;
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));   // the swap-chain wait
+            if (job == 1) {
+                begun.store(true);
+                h.NoteBegun();
+                while (!asked.load()) std::this_thread::yield();   // pass 2 runs on; then the gate
+                if (!h.PassGate()) h.WaitGate();
+            }
+            h.Done();                  // job 2: done without NoteBegun
+        }
+    });
+    h.Publish();
+    const bool claimed = h.ClaimSteps();
+    asked.store(true);
+    CHECK(begun.load());               // the claim returned only after BeginCommands
+    CHECK(claimed);
+    h.OpenGate();
+    h.WaitIdle();
+    h.Publish();
+    const bool claimedUnbegun = h.ClaimSteps();
+    CHECK(!claimedUnbegun);            // done, never begun: keep the fence (nothing left to claim)
+    if (claimedUnbegun) h.OpenGate();
+    h.WaitIdle();
     h.Stop();
     t.join();
 }

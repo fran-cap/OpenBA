@@ -51,7 +51,8 @@ UNIT_TEST(ext_registry_table_shape) {
                            "firefighter_wells", "unresolved_seeds",
                            "commute_cost", "nomad_arrival", "mods_persist",
                            "save_failure_notice", "boat_reach_notice", "cancel_refund",
-                           "autotrade_free_goods", "input_fetch_room", "stranded_wade"}) {
+                           "autotrade_free_goods", "input_fetch_room", "stranded_wade",
+                           "debug_spawn_origin"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);

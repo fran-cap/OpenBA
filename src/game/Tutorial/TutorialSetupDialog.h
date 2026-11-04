@@ -63,6 +63,12 @@ public:
     void OpenHighlightDialog(char checkExisting);                  // 0x1400e2700
     void ShowListedElements();                                     // 0x1400e29f0
 
+    // OpenHighlightDialog's toolbar-cell test: the template bucket's entity count
+    // against toolbarIndex (0x1400e2805: `CMP EAX,[RDI+0x70]; JLE`).
+    // NOT RETAIL (review F-114): retail tests `count > index` only; a negative
+    // toolbarIndex from a tutorial resource read before the entity array.
+    static bool ToolbarCellInRange(int count, int index) { return index >= 0 && count > index; }
+
     // The +0x40 String. Defined in tutorialsetupdialog.cpp.
     System::String& HighlightPath();
 

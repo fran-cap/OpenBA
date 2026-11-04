@@ -106,9 +106,10 @@ void InteractComponent::Persist(IO::Stream& stream) {
         arrayBase[i].InternalBasePtr::Serialize(ser);
 
         // Validate with IsDerivedFrom
-        InteractComponent* ptr = arrayBase[i].Get();
-        if (ptr != nullptr) {
-            bool valid = ptr->IsDerivedFrom(InteractComponent::TypeId());   // slot 0x140152a98
+        // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+        // downcast to InteractComponent*; the answer is the same.
+        if (!arrayBase[i].IsNull()) {
+            bool valid = ::Object::IsDerivedFromNullSafe(arrayBase[i], InteractComponent::TypeId());   // slot 0x140152a98
             if (!valid) {
                 arrayBase[i] = nullptr;
             }

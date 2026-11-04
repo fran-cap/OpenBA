@@ -360,7 +360,7 @@ UNIT_TEST(xwma_stream_chunks_from_a_reused_buffer) {
             const uint32_t n = std::min(chunk, dec.PacketCount() - packet);
             std::copy(fx.packets + size_t(packet) * dec.BlockAlign(),
                       fx.packets + size_t(packet + n) * dec.BlockAlign(), block.begin());
-            const size_t w = dec.DecodeChunk(packet, n, block.data(), buf.data(), buf.size());
+            const size_t w = dec.DecodeChunk(packet, n, block.data(), block.size(), buf.data(), buf.size());
             got.insert(got.end(), buf.begin(), buf.begin() + std::ptrdiff_t(w));
             std::fill(block.begin(), block.end(), uint8_t(0xA5));   // the ring slot is reused
             packet += n;

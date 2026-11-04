@@ -321,8 +321,11 @@ inline void WorkBST_BST_Serialize_296b0(Head* set, Node*& root, int32_t& count, 
             // LEA R8,[RSP+0x48]): the slot is the element type, viewed as the InternalBasePtr
             // it is, as the save arm below views the node's element.
             Elem* key = nullptr;
-            reinterpret_cast<Object::InternalBasePtr*>(&key)->Serialize(*ser);   // the slot is the InternalPtr<CitizenComponent> retail serializes  // CAST-OK: elem_stride
-            if (key != nullptr && !key->IsDerivedFrom(citTid))   // 0x14002970a TEST; 0x140029715 IsDerivedFrom; CMOVZ
+            Object::InternalBasePtr* keyIbp = reinterpret_cast<Object::InternalBasePtr*>(&key);   // the slot is the InternalPtr<CitizenComponent> retail serializes  // CAST-OK: elem_stride
+            keyIbp->Serialize(*ser);
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before the
+            // slot is used as an Elem*; the answer is the same.
+            if (!keyIbp->IsNull() && !Object::IsDerivedFromNullSafe(*keyIbp, citTid))   // 0x14002970a TEST; 0x140029715 IsDerivedFrom; CMOVZ
                 key = nullptr;
             Node* out;   // the insert always writes it; retail never zeroes the slot (0x140029730)
             WorkBST_RegisterWork_1a30(set, &out, &key);
@@ -339,8 +342,10 @@ inline void WorkBST_BST_Serialize_296b0(Head* set, Node*& root, int32_t& count, 
 joined:
     while ((pIVar6 = pIVar3) != nullptr) {
         // The key is an InternalPtr retail serializes through InternalBasePtr::Serialize.
-        reinterpret_cast<Object::InternalBasePtr*>(&pIVar6->element)->Serialize(*ser);   // the element is the InternalPtr<CitizenComponent> retail serializes  // CAST-OK: elem_stride
-        if (pIVar6->element != nullptr && !pIVar6->element->IsDerivedFrom(citTid))   // 0x14002978f / 0x14002979a
+        Object::InternalBasePtr* elemIbp = reinterpret_cast<Object::InternalBasePtr*>(&pIVar6->element);   // the element is the InternalPtr<CitizenComponent> retail serializes  // CAST-OK: elem_stride
+        elemIbp->Serialize(*ser);
+        // NOT RETAIL (F-143): as the load arm, the tests run on the held Internal*.
+        if (!elemIbp->IsNull() && !Object::IsDerivedFromNullSafe(*elemIbp, citTid))   // 0x14002978f / 0x14002979a
             pIVar6->element = nullptr;
         pIVar1 = pIVar6->right;   // right child
         if (pIVar1 == nullptr) {

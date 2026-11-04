@@ -21,6 +21,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/object/expand_memo.cpp   # block SAVELOAD: the ExpandRelativePath memo
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array_destroy.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/collection/array_graphics_anim.cpp   # review_engine_ub_test.cpp (F-049): kSpec_MeshNode
   ${CMAKE_SOURCE_DIR}/src/engine/collection/linkedlist.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/introsort.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/type_reflection.cpp
@@ -29,11 +30,13 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/serializer_class.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/io/serialize_family.cpp       # decode_exact_test.cpp (issue #13): the reader's array slots
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_read.cpp #   CompressedStream::Read / SetWindow / ReadArray
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp # package_file_read_test.cpp: CompressedStream::Open
+  ${CMAKE_SOURCE_DIR}/src/engine/io/memory_stream.cpp         #   the MemoryStream it opens over
+  ${CMAKE_SOURCE_DIR}/src/engine/io/package_file_read.cpp     #   PackageFile::ReadPackfile (FileSystem faked in the test)
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
-  ${CMAKE_SOURCE_DIR}/src/engine/save/saveload_loadmeta.cpp    # save_metadata_hardening_test.cpp: LoadMetaData
-  ${CMAKE_SOURCE_DIR}/src/engine/io/memory_stream.cpp          #   its stream stack (the stubs in
-  ${CMAKE_SOURCE_DIR}/src/engine/io/compressedstream.cpp        #   io_stream_abi_stubs.cpp for these
-  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp  #   five files are gone)
+  ${CMAKE_SOURCE_DIR}/src/engine/io/text_codec.cpp             # string_codec_hardening_test.cpp: the codecs, RtIo_SerializeStringArray
+  ${CMAKE_SOURCE_DIR}/src/engine/save/saveload_loadmeta.cpp    # save_metadata_hardening_test.cpp: LoadMetaData and its stream stack
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressedstream.cpp        #   (memory_stream.cpp / compressed_stream_open.cpp: above)
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_write.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_release.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/io/encoding.cpp               #   BinaryEncoding::CreateReader
@@ -144,6 +147,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/platform/common/cursor_planes.cpp
   ${CMAKE_SOURCE_DIR}/src/platform/common/open_url.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/audio/xwma_decode.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/audio/soundbuffer_platform_serialize.cpp   # audio_sizes_test.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/audio/load_decode_batch.cpp   # block SNDPAR: the load's decode batch
   ${CMAKE_SOURCE_DIR}/src/engine/system/parallel_for.cpp   # block WGPAR: the fork-join pool
   ${CMAKE_SOURCE_DIR}/src/platform/common/cpu/topology.cpp             # parallel_for.cpp sizes its pool from Cpu::Get()
@@ -156,6 +160,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/game/Game/mapquery.cpp                  # still_terrain_test.cpp: the real Map::GetTerrainPos
   ${CMAKE_SOURCE_DIR}/src/game/Game/worldgeometry_ray.cpp          # its height: the terrain ray cast (terrain_ray_test.cpp)
   ${CMAKE_SOURCE_DIR}/src/game/Game/maparea.cpp                   # clear_area_road_test.cpp: Map::IsGroundClear / IsAreaEmpty
+  ${CMAKE_SOURCE_DIR}/src/game/Game/serialize_struct60b.cpp       # geometry_batch_raw_byte_test.cpp: the GeometryBatch ctors (F-008)
   ${CMAKE_SOURCE_DIR}/src/engine/collection/set_core.cpp          # set_ported_test.cpp: the four ported AVL cores
   ${CMAKE_SOURCE_DIR}/src/engine/collection/set_avl.cpp           #   element 0x10 (0x18000adc0 / aba0)
   ${CMAKE_SOURCE_DIR}/src/engine/collection/set_avl_e24.cpp       #   element 0x18 (0x180023170)
@@ -171,4 +176,5 @@ set(UNIT_TREE_SRCS
   # as slot probes; the test mirrors the record format and the exe logs the real writer's CRC.)
   ${CMAKE_SOURCE_DIR}/src/ext/resources/sheet_builder.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/sprite.cpp                     #   AddSpriteInfo / SetSpriteInfo
+  ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
 )

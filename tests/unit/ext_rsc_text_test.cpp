@@ -562,3 +562,31 @@ UNIT_TEST(ext_rsc_text_load_notices_are_embedded) {
         CHECK(o != nullptr && o->type == "Dialog" && o->base == "SaveLoad.rsc:modsMissing");
     }
 }
+
+// F-038 (review 2026-11-03): ParseBlock -> ParseField -> ParseBlock recursed once per
+// `T f[{` level with no cap, so 5 bytes of hostile text per level overflowed the stack.
+// The embedded files nest blocks at most 2 deep; the parser refuses past 64.
+UNIT_TEST(ext_rsc_text_nesting_depth_limit) {
+    auto nested = [](int levels) {
+        std::string s = "A b {";
+        for (int i = 0; i < levels; ++i)
+            s += "T f[{";
+        for (int i = 0; i < levels; ++i)
+            s += "}]";
+        s += "}";
+        return s;
+    };
+    std::string err;
+    File f;
+    const std::string ok = nested(63);   // 64 blocks: the object body plus 63 array elements
+    CHECK(Parse(ok.data(), ok.size(), f, err));
+    File g;
+    const std::string deep = nested(64);   // 65 blocks
+    CHECK(!Parse(deep.data(), deep.size(), g, err) && err.find("nested too deep") != std::string::npos);
+    // The fuzz input (scratchpad/crashes/rsc_text/deep_nesting_50000): "A b {" + "T f[{" x 50000.
+    std::string hostile = "A b {";
+    for (int i = 0; i < 50000; ++i)
+        hostile += "T f[{";
+    File h;
+    CHECK(!Parse(hostile.data(), hostile.size(), h, err) && err.find("nested too deep") != std::string::npos);
+}

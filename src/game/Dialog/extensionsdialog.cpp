@@ -242,7 +242,7 @@ void ExtensionsDialog::RefreshRow(int index) {
     Row& r = _rows[index];
     const Ext::Entry& e = Ext::EntryAt(r.entry);
 
-    if (::Object::IsDerivedFromNullSafe(r.check.Get(), UI::CheckElement::TypeId()))
+    if (::Object::IsDerivedFromNullSafe(r.check, UI::CheckElement::TypeId()))
         static_cast<UI::CheckElement*>(r.check.Get())->_checked = r.pending ? 1 : 0;
 
     // Enabled / disabled as the checkbox stands; a B / C row locked by the
@@ -341,7 +341,7 @@ void ExtensionsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element,
             Apply();
         } else if (id >= 1000 && id < 1000 + _rowCount) {
             Row& r = _rows[id - 1000];
-            if (::Object::IsDerivedFromNullSafe(r.check.Get(), UI::CheckElement::TypeId()))
+            if (::Object::IsDerivedFromNullSafe(r.check, UI::CheckElement::TypeId()))
                 r.pending = static_cast<UI::CheckElement*>(r.check.Get())->_checked != 0;
             else
                 r.pending = !r.pending;

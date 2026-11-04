@@ -78,6 +78,9 @@
 #include "Game/WeatherParticleGeometry.h"
 #include "Game/ProfessionList.h"
 #include "Game/Calendar.h"              // GameUpdateLoop::m_dayCounter
+#include "ext/registry.h"                 // Ext::Fix().debug_spawn_origin
+#include "ext/debug_spawn_origin/debug_spawn_origin.h"
+#include "ext/debug_spawn_origin/debug_spawn_origin_rule.h"
 #include "Game/WeatherSimulation.h"     // GameUpdateLoop::m_weather
 #include "Game/Weather.h"               // EnvironmentDescription::WeatherChoice::weather
 #include "Component/DiseaseComponent.h" // DiseaseComponent::Infect
@@ -401,6 +404,72 @@ static void Game_SpawnItemsInStorage_Impl() {
 }
 
 // ============================================================
+// Game_SpawnCitizens' new citizen (inlined in retail 0x140060380): a homeless citizen of
+// random gender and age placed at `position` and registered. Shared by the use-node path and
+// fix.debug_spawn_origin's origin path, so both make the same citizen.
+// ============================================================
+static void Game_SpawnCitizenAt(System::Random* random, const Math::Vector3* position) {
+    // Random gender
+    uint32_t gender = random->Rand(static_cast<uint32_t>(2));
+    uint32_t genderFlag = (gender != 0) ? 1 : 0;
+
+    // Load citizen template
+    System::Filename filenameBuf("Template/Citizen.rsc");
+    ::Object::External* extTemplate =
+        ::Object::ExternalFactory::_singleton->FindOrLoadAs<::Object::External>(filenameBuf);
+
+    // Determine entity description (RDI in disasm)
+    // If extTemplate is null, use null.
+    // If non-null, IsDerivedFrom check; use result (may be null).
+    ComponentDescription* entityDesc = nullptr;
+    if (extTemplate == nullptr) {
+        entityDesc = nullptr;
+    } else {
+        bool isBuildDesc = ::Object::IsDerivedFromNullSafe(extTemplate, ComponentDescription::TypeId());
+        entityDesc = isBuildDesc ? static_cast<ComponentDescription*>(extTemplate) : nullptr;
+    }
+
+    // Allocate and create entity (0x48 bytes)
+    ComponentEntity* memBlock = static_cast<ComponentEntity*>(System::MemoryAllocator::MemAlloc(0x48, 8));
+    ComponentEntity* newEntity = nullptr;
+    if (memBlock != nullptr) {
+        newEntity = ::new (memBlock) ComponentEntity(entityDesc);   // 0x1400c3720
+    }
+
+    // Find the CitizenComponent (DAT_1401c7158) on the new entity:
+    // FindComponent<CitizenComponent> inlined in retail.
+    CitizenComponent* citizen = newEntity->FindComponent<CitizenComponent>();
+
+    // Get CitizenDescription (DAT_1401c7190) from Component::_description
+    Description* citDescRaw = citizen->_description;
+    bool isCitDesc = ::Object::IsDerivedFromNullSafe(citDescRaw, CitizenDescription::TypeId());
+    CitizenDescription* citDesc = isCitDesc ? static_cast<CitizenDescription*>(citDescRaw) : nullptr;
+
+    // Get profession list from game (re-read global)
+    Profession* profList = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+
+    // Null parent InternalBasePtr
+    CitizenComponent* parentIBP = nullptr;
+
+    // Read age range from CitizenDescription (+0x50 / +0x54)
+    float minAge = citDesc->minPregnancyAge;
+    float randAge = random->RandFloat();
+    float maxAge = citDesc->maxPregnancyAge;
+    float age = randAge * (maxAge - minAge) + minAge;
+
+    citizen->Initialize(position,
+                        genderFlag, '\0',
+                        age, '\x01', parentIBP,
+                        profList);   // 0x140117080
+
+    // Register entity with entity manager
+    // Use the new entity (the InternalBasePtr value) as the entity ref
+    Object::InternalPtr<ComponentEntity> entityRef = newEntity;
+    GameUpdateLoop::_singleton->m_entityList->RegisterEntity(&entityRef,
+                                                             entityDesc->_category);   // 0x1400c48a0
+}
+
+// ============================================================
 // Game_SpawnCitizens (FUN_140060380)
 // Spawns up to 4 new citizens at buildings that have residence
 // components with available capacity. Iterates all buildings,
@@ -417,6 +486,7 @@ static void Game_SpawnCitizens_Impl() {
 
     int spawnedTotal = 0; // R13D — total citizens spawned across all buildings
     do {
+        int placedThisPass = 0;   // NOT RETAIL: fix.debug_spawn_origin's test below
         // Inner loop: scan all buildings
         int buildIdx = 0; // local_res10
         if (buildingCount > 0) {
@@ -477,71 +547,8 @@ static void Game_SpawnCitizens_Impl() {
                             }
 
                             spawnedTotal++;
-                            // Save spawnedTotal (R13D saved to stack, reused for gender)
-                            int savedSpawnedTotal = spawnedTotal;
-
-                            // Random gender
-                            uint32_t gender = random->Rand(static_cast<uint32_t>(2));
-                            uint32_t genderFlag = (gender != 0) ? 1 : 0;
-
-                            // Load citizen template
-                            System::Filename filenameBuf("Template/Citizen.rsc");
-                            ::Object::External* extTemplate =
-                                ::Object::ExternalFactory::_singleton->FindOrLoadAs<::Object::External>(filenameBuf);
-
-                            // Determine entity description (RDI in disasm)
-                            // If extTemplate is null, use null.
-                            // If non-null, IsDerivedFrom check; use result (may be null).
-                            ComponentDescription* entityDesc = nullptr;
-                            if (extTemplate == nullptr) {
-                                entityDesc = nullptr;
-                            } else {
-                                bool isBuildDesc = ::Object::IsDerivedFromNullSafe(extTemplate, ComponentDescription::TypeId());
-                                entityDesc = isBuildDesc ? static_cast<ComponentDescription*>(extTemplate) : nullptr;
-                            }
-
-                            // Allocate and create entity (0x48 bytes)
-                            ComponentEntity* memBlock = static_cast<ComponentEntity*>(System::MemoryAllocator::MemAlloc(0x48, 8));
-                            ComponentEntity* newEntity = nullptr;
-                            if (memBlock != nullptr) {
-                                newEntity = ::new (memBlock) ComponentEntity(entityDesc);   // 0x1400c3720
-                            }
-
-                            // Find the CitizenComponent (DAT_1401c7158) on the new entity:
-                            // FindComponent<CitizenComponent> inlined in retail.
-                            CitizenComponent* citizen = newEntity->FindComponent<CitizenComponent>();
-
-                            // Get CitizenDescription (DAT_1401c7190) from Component::_description
-                            Description* citDescRaw = citizen->_description;
-                            bool isCitDesc = ::Object::IsDerivedFromNullSafe(citDescRaw, CitizenDescription::TypeId());
-                            CitizenDescription* citDesc = isCitDesc ? static_cast<CitizenDescription*>(citDescRaw) : nullptr;
-
-                            // Get profession list from game (re-read global)
-                            Profession* profList = GameUpdateLoop::_singleton->m_professionList->field_0x30;
-
-                            // Null parent InternalBasePtr
-                            CitizenComponent* parentIBP = nullptr;
-
-                            // Read age range from CitizenDescription (+0x50 / +0x54)
-                            float minAge = citDesc->minPregnancyAge;
-                            float randAge = random->RandFloat();
-                            float maxAge = citDesc->maxPregnancyAge;
-                            float age = randAge * (maxAge - minAge) + minAge;
-
-                            citizen->Initialize(&spawnPos.v,
-                                                      genderFlag, '\0',
-                                                      age, '\x01', parentIBP,
-                                                      profList);   // 0x140117080
-
-                            // Register entity with entity manager
-                            // Use the new entity (the InternalBasePtr value) as the entity ref
-                            Object::InternalPtr<ComponentEntity> entityRef = newEntity;
-                            GameUpdateLoop::_singleton->m_entityList->RegisterEntity(&entityRef,
-                                                         entityDesc->_category);   // 0x1400c48a0
-
-                            // Restore spawnedTotal
-                            spawnedTotal = savedSpawnedTotal;
-
+                            Game_SpawnCitizenAt(random, &spawnPos.v);
+                            placedThisPass++;
                             spawnedHere++;
                         } // while(true) — per-building spawn loop
                     }
@@ -552,6 +559,18 @@ static void Game_SpawnCitizens_Impl() {
                 // Re-read building count (may change if entities are added)
                 buildingCount = town->field_0x00._size;
             } while (buildIdx < buildingCount);
+        }
+        // FIX debug_spawn_origin (docs/retail_bugs.md section 29): a pass that placed nobody (no
+        // storage has a use node, e.g. only stockpiles) repeats for ever in retail and the game
+        // hangs; with the row on the rest are placed by the world origin and the press ends.
+        if (Ext::DebugSpawnOrigin::PlaceAtOrigin(Ext::Fix().debug_spawn_origin, placedThisPass)) {
+            Math::Vector3 origin;
+            if (Ext::DebugSpawnOrigin::OriginSpawnPoint(&origin)) {
+                for (int i = spawnedTotal; i < Ext::DebugSpawnOrigin::kSpawnCount; i++) {
+                    Game_SpawnCitizenAt(random, &origin);
+                }
+            }
+            return;
         }
     } while (spawnedTotal < 4);
 }
@@ -852,18 +871,19 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t 
 
     switch (b) {
     // --- Resource spawn buttons ---
-    // Each calls Game_SpawnResources(citizenList, resourceFlag, count)
-    case 300:  citizenList->SpawnResources(0x400,     50);   return;  // Logs
-    case 301:  citizenList->SpawnResources(0x800,     50);   return;  // Food
-    case 302:  citizenList->SpawnResources(0x1000,    50);   return;  // Herbs
-    case 303:  citizenList->SpawnResources(0x80,      50);   return;  // Stone
-    case 304:  citizenList->SpawnResources(0x100,     50);   return;  // Iron
-    case 305:  citizenList->SpawnResources(0x200,     50);   return;  // Firewood
-    case 306:  citizenList->SpawnResources(0x20,      1000); return;  // Tool
-    case 307:  citizenList->SpawnResources(0x2000,    25);   return;  // Coat
-    case 308:  citizenList->SpawnResources(0x4000,    25);   return;  // Leather coat
-    case 309:  citizenList->SpawnResources(0x10000,   50);   return;  // Herbs2
-    case 310:  citizenList->SpawnResources(0x20000,   100);  return;  // Ale
+    // Each calls CitizenBehavior::SpawnResources(resourceFlag, count). The comments name the
+    // element OnCreated gives the id (buttonTool -> 0x131 at 0x140061d7e, and so on in order).
+    case 300:  citizenList->SpawnResources(0x400,     50);   return;  // buttonWood
+    case 301:  citizenList->SpawnResources(0x800,     50);   return;  // buttonStone
+    case 302:  citizenList->SpawnResources(0x1000,    50);   return;  // buttonIron
+    case 303:  citizenList->SpawnResources(0x80,      50);   return;  // buttonFuel
+    case 304:  citizenList->SpawnResources(0x100,     50);   return;  // buttonCoal
+    case 305:  citizenList->SpawnResources(0x200,     50);   return;  // buttonTool
+    case 306:  citizenList->SpawnResources(0x20,      1000); return;  // buttonFood
+    case 307:  citizenList->SpawnResources(0x2000,    25);   return;  // buttonHealth
+    case 308:  citizenList->SpawnResources(0x4000,    25);   return;  // buttonClothes
+    case 309:  citizenList->SpawnResources(0x10000,   50);   return;  // buttonTextile
+    case 310:  citizenList->SpawnResources(0x20000,   100);  return;  // buttonAlcohol
     case 311:  citizenList->SpawnResources(0x40000,   100);  return;  // Resource type 18
     case 312:  citizenList->SpawnResources(0x80000,   100);  return;  // Resource type 19
     case 313:  citizenList->SpawnResources(0x100000,  100);  return;  // Resource type 20

@@ -1261,7 +1261,7 @@ void ToolbarDialog::OnUpdateLayout() {
             UI::TextElement* textElem = isDerived ? static_cast<UI::TextElement*>(childElem) : nullptr;
 
             // Format speed string: "%ix" with gameSpeed value
-            System::String fmtStr = System::String::Format("%ix", (uint64_t)gameSpeed);
+            System::String fmtStr = System::String::Format("%ix", (int)gameSpeed);
 
             textElem->SetParameter(0, fmtStr);   // unguarded, as retail
         }
@@ -1278,12 +1278,6 @@ void ToolbarDialog::OnUpdateLayout() {
 // Event type 0x12 = button click, 0x16 = toolbar selection change.
 //
 // Original: 0x1400b92a0.
-
-// Diagnostic only: set while TutWave_StepExecute is running a step's Undo (slot 10)
-// loop. A toolbar command dispatched with this non-zero is being handled in the middle
-// of a tutorial step transition, before the next step's Apply has armed.
-extern "C" int g_TutUndoDepth;
-extern "C" int g_TutUndoIndex;
 
 void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t p7, void* /*userData*/) {
     // The game world and its tool manager
@@ -1676,7 +1670,7 @@ void PlayerToolManager::CenterOnEntity(UI::DialogInstance* const* dialog, Compon
     // EditTool::TypeId() (cell 0x1401c6dd8).
     EditTool* editTool = nullptr;
     if (currentTool) {
-        if (::Object::IsDerivedFromNullSafe(currentTool.Get(), EditTool::TypeId())) {
+        if (::Object::IsDerivedFromNullSafe(currentTool, EditTool::TypeId())) {
             editTool = static_cast<EditTool*>(currentTool.Get());
         }
     }
@@ -1688,7 +1682,7 @@ void PlayerToolManager::CenterOnEntity(UI::DialogInstance* const* dialog, Compon
         // Re-read current tool after mode switch
         editTool = nullptr;
         if (currentTool) {
-            if (::Object::IsDerivedFromNullSafe(currentTool.Get(), EditTool::TypeId())) {
+            if (::Object::IsDerivedFromNullSafe(currentTool, EditTool::TypeId())) {
                 editTool = static_cast<EditTool*>(currentTool.Get());
             }
         }

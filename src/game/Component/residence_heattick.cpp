@@ -9,11 +9,13 @@
 //
 // Retail logic (decompile-verified):
 //   1. heatRemaining(+0x48, System::Time int64 countdown) -= *dt, every tick.
-//   2. [audio] occupied-house chimney emitter upkeep (FUN_140002280/42960/42c60).
+//   2. [audio] occupied house whose crowd slot [1] is not playing: move the emitter
+//              to the model position and play slot [1] (0x140002280/42960/42c60).
 //   3. [mesh]  sub-part 6 when edible count > 0 (0x14012a9d0), sub-part 7 when
 //              0x14012ab00 count > 0 — via FUN_14012c3f0 on the MeshInstance.
-//   4. [abandon] occupancy==0 && storage non-empty && no pending action ->
-//              push a ClearStorage action (0x14012ead0/ec60/eb50).
+//   4. [abandon] occupancy==0 && storage non-empty && no posted work -> post a
+//              ClearStorage work (0x14012ead0/ec60); otherwise a posted work is
+//              taken back once the storage is empty (0x14012eb50).
 //   5. BURN: if worldTemp < desc->heatThreshold(+0x28) AND heatRemaining < 0
 //      AND residentSlotCount(+0x58) > 0: scan the house StorageComponent
 //      (finder 0x140006270) slots for a stack whose RawMaterialDescription
@@ -23,8 +25,7 @@
 //      (0x14012d150), bump the town per-category consumed counter
 //      (townMgr(+0xf0)+0x170 row, cat via 0x140088f90, +0xC field), break.
 //
-// STANDALONE: branch 2 (chimney audio) and 4 (abandon/ClearStorage, needs the
-// un-ported 0x140003050 finder chain) are skipped. Branch 3 is LIVE: it is NOT
+// Every branch is wired (branches 2 and 4 since review F-177). Branch 3 is NOT
 // a mesh op — 0x14012c3f0 is StatusIcon_Toggle (statusiconcomponent.cpp) and
 // 0x140002f90 is the StatusIconComponent finder (Ghidra misnames both as
 // MeshInstance ops). It CLEARS icon bit 6 (no-food) while the house has edible
@@ -37,6 +38,14 @@
 #include "Component/ResidenceComponent.h"
 #include "Component/StorageComponent.h"
 #include "Component/StatusIconComponent.h"
+#include "Component/WorkComponent.h"
+#include "Component/ModelComponent.h"
+#include "Component/AmbientEmitterComponent.h"   // what 0x140002280 returns
+#include "Work/ClearStorage.h"
+#include "audio/Audio.h"                         // Audio::Scene::SetEmitterVolume
+#include "system/MemoryAllocator.h"
+#include "Game/exe_constants.h"                  // kRdata_14017214c
+#include <new>
 #include "Component/ComponentDescription.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"   // CitizenBehavior::professionResources
@@ -71,7 +80,26 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
         heatRemaining._ticks -= dt->_ticks;
     }
 
-    // [2 (audio) and 4 (abandon) skipped — see file header.]
+    // 2. Crowd audio (0x1401299b8-0x140129aa5): an occupied house whose slot [1]
+    //    has no live effect moves its emitter to the model position and plays it.
+    //    Retail reads the emitter, the model and the audio scene unguarded.
+    {
+        AmbientEmitterComponent* em = _entity->FindComponent<AmbientEmitterComponent>();   // 0x140002280
+        if (static_cast<int>(CountResidents()) > 0 && em->slots._data[1].handle == 0) {      // 0x140129ff0, [+0x38]+0x10
+            ModelComponent* model = _entity->FindComponent<ModelComponent>();                // 0x140003f60
+            const Math::Vector3 pos = model->transform.translation;                         // +0x158..+0x160
+            em->MoveTo(pos);    // 0x140042960
+            em->PlaySlot(1);    // 0x140042c60
+            AmbientEmitterSlot* slot = &em->slots._data[1];
+            if (static_cast<uint32_t>(slot->handle) == 0) {
+                slot->volume = 1.0f;   // retail stores 0x3f800000
+            } else if (slot->volume != kRdata_14017214c) {
+                slot->volume = 1.0f;   // retail stores 0x3f800000
+                GameUpdateLoop::_singleton->m_audioScene->SetEmitterVolume(slot->handle, em->position,
+                                                                          kRdata_14017214c);   // import 0x140152a08
+            }
+        }
+    }
 
     // 3. Status-icon upkeep: while the house HAS food, clear icon bit 6
     //    (no-food); while it HAS firewood, clear bit 7 (no-firewood / cold).
@@ -84,6 +112,28 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
         if (GetFuelCount() > 0) {
             StatusIconComponent* icon = _entity->FindComponent<StatusIconComponent>();
             if (icon) icon->SetFlag(7, 0);   // 0x14012c3f0
+        }
+    }
+
+    // 4. Abandon (0x140129b27-0x140129c28): an empty house that still holds goods
+    //    posts one ClearStorage work so labourers carry them off; once the storage is
+    //    empty the posted work is taken back. Retail finds the StorageComponent
+    //    (0x140006270) and the WorkComponent (0x140003050) first and reads both
+    //    unguarded.
+    {
+        StorageComponent* storage = _entity->FindComponent<StorageComponent>();   // 0x140006270
+        WorkComponent* work = _entity->FindComponent<WorkComponent>();            // 0x140003050
+        if (CountResidents() == 0 && storage->QueryCount() != 0 && !work->IsWorkPosted()) {
+            ClearStorage* clear = nullptr;
+            void* mem = System::MemoryAllocator::MemAlloc(0x68, 8);   // 0x140129b9b
+            if (mem != nullptr) {
+                ComponentEntity* owner = _entity.Get();
+                clear = ::new (mem) ClearStorage(&owner);   // 0x1400e7450
+            }
+            Object::InternalPtr<Work> workIBP(clear);
+            work->PostWork(1, 0, &workIBP);   // 0x14012ec60
+        } else if (work->IsWorkPosted() && storage->QueryCount() == 0) {
+            work->CancelWork();   // 0x14012eb50
         }
     }
 

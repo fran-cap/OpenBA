@@ -65,8 +65,11 @@ bool SkipIfWithin(IO::Stream* stream, int32_t len) {
     if (cs == nullptr || cs->GetDirection() != IO::kReading) return false;
     const int32_t n = cs->_headerSize;
     if (n <= 0 || cs->_headerData == nullptr) return false;
-    // Every block but the last holds a full 32 KB (RangeInStream's reading of the same directory).
-    const int64_t length = static_cast<int64_t>(n - 1) * kBlockBytes + cs->_headerData[n - 1].uncompressedSize;
+    // Every block but the last holds a full 32 KB (RangeInStream's reading of the same directory, and
+    // its bound: no block holds more).
+    const int32_t lastSize = cs->_headerData[n - 1].uncompressedSize;
+    if (lastSize > kBlockBytes) return false;
+    const int64_t length = static_cast<int64_t>(n - 1) * kBlockBytes + lastSize;
     if (static_cast<int64_t>(cs->_position) + len > length) return false;
     cs->_position += len;
     return true;

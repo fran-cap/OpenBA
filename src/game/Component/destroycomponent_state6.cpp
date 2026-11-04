@@ -347,8 +347,8 @@ void DestroyComponent::RubbleStep() {
     // placed (+0x2c decalId >= 0) release and re-place it so the new state shows.
     DecalComponent* decal = FindOn<DecalComponent>(_entity.Get());   // 0x14000b630
     if (decal) {
-        if (static_cast<uint32_t>(rubbleDecalState) != decal->decalState) {
-            decal->decalState = static_cast<uint32_t>(rubbleDecalState);
+        if (rubbleDecalState != decal->decalState) {
+            decal->decalState = rubbleDecalState;
             if (decal->decalId >= 0) {
                 decal->OnRemove();
                 decal->OnAdded();

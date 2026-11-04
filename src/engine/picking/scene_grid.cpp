@@ -973,10 +973,10 @@ void GridUnthread(Scene* scene, int32_t* cellXY, uint16_t w, uint16_t h,
 // The assignment then copies both into the live entry, so after any
 // RemoveMesh the entry's `_userValue2` holds a dword of the DLL's stack frame.
 // This is the same finding Wave 5 lane D's RemoveMesh shadow surfaced
-// (reference_shadow_predicate_must_name_its_failing_term.md) and it is
-// REPRODUCED here rather than repaired: an oracle comparing those bytes fails
-// 100% of calls, and a port that zeroed them would differ from retail in a way
-// nothing on this project would ever report.
+// (reference_shadow_predicate_must_name_its_failing_term.md). The padding is
+// still left unwritten; `_userValue2` is zeroed since review F-146, because
+// copying an indeterminate int (EntryAssign) is undefined behaviour in C++. An
+// oracle comparing +0x3c still has to exclude it.
 //
 // `_nextFree` is -1 in the temporary and is immediately overwritten by the
 // free-list push, so the -1 is never observable. It is written anyway.
@@ -993,7 +993,11 @@ void GridFreeEntry(Scene* scene, uint32_t id) {
         tmp._mesh       = nullptr;
         tmp._userData   = nullptr;
         tmp._userValue  = 0;
-        // +0x3c (_userValue2) deliberately NOT written — see the banner above.
+        // NOT RETAIL (review F-146, indeterminate read): retail never writes +0x3c
+        // (_userValue2) and EntryAssign copies its stack garbage into the live entry
+        // (see the banner above). Copying an indeterminate int is undefined in C++,
+        // so it is zero here. Nothing reads the field of a freed entry.
+        tmp._userValue2 = 0;
         tmp._callback   = nullptr;
 
         EntryAssign(&scene->_entries._data[id], &tmp);   // 0x18007b590

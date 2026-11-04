@@ -14,16 +14,20 @@
 
 #include "dxbc/dxbc_container.h"
 #include "dxbc/dxbc_converter.h"
+#include "dxbc/dxbc_parser.h"
 #include "ir/ir.h"
 #include "ir/ir_builder.h"
 #include "ir/ir_legalize.h"
 #include "ir/passes/ir_pass_lower_io.h"
 #include "spirv/spirv_builder.h"
 #include "spirv/spirv_mapping.h"
+#include "util/util_bit.h"
 #include "util/util_log.h"
 
 #include <cstring>
+#include <string>
 #include <utility>
+#include <vector>
 
 #ifndef BANISHED_DXBC_SPIRV_COMMIT
 #define BANISHED_DXBC_SPIRV_COMMIT "unknown"
@@ -357,6 +361,88 @@ uint64_t LinkFingerprint(const ConvertOptions& options) {
     return Ext::DerivedCache::Hash64(bytes.data(), bytes.size()) | 1u;   // never 0 (= unlinked)
 }
 
+// Hardening (review F-029, F-030): two token-stream shapes that dxbc-spirv turns into memory
+// corruption, refused here before the converter sees the program, so third_party/dxbc-spirv stays
+// upstream. Valid programs (fxc output) hold neither, and convert unchanged.
+//   - A temp register r# at or past D3D11's 4096 (D3D11_COMMONSHADER_TEMP_REGISTER_COUNT).
+//     RegisterFile::getOrDeclareTemp indexes its table with 4 * index + component in uint32_t: for
+//     r1073741823.w that wraps to 0xFFFFFFFF, the table is resized to 0 and m_rRegs[0xFFFFFFFF] is
+//     read and written; below the wrap it allocates gigabytes. dxbc-spirv ignores dcl_temps on
+//     purpose (custom DXBC emitters exceed it), so the bound is the API's limit, not the declaration.
+//   - A double compare (deq / dge / dlt / dne) or a double-to-32-bit conversion (dtoi / dtou / dtof)
+//     writing more than 2 components. Converter::convertMaskTo64Bit doubles the component count into
+//     a read mask of up to 8 bits, and ir::composite writes one entry per bit into a
+//     std::array<SsaDef, 4> (a stack buffer overflow). D3D allows at most 2 (two doubles).
+constexpr uint32_t kMaxTempRegisters = 4096;
+
+// The operand and the relative-index operands nested in it (r0.x in cb0[r0.x + 1]), walked without
+// recursion. The visit cap is far above any real operand (at most 3 index dimensions, each nested
+// at most a level or two deep).
+bool CheckOperandTemps(const dxbc::Instruction& op, const dxbc::Operand& operand, std::string* why) {
+    std::vector<const dxbc::Operand*> pending;
+    pending.push_back(&operand);
+    uint32_t visited = 0;
+    while (!pending.empty()) {
+        const dxbc::Operand* o = pending.back();
+        pending.pop_back();
+        if (++visited > 64) {
+            SetWhy(why, "a DXBC operand nests its relative indices too deeply");
+            return false;
+        }
+        const uint32_t dims = o->getIndexDimensions();
+        if (o->getRegisterType() == dxbc::RegisterType::eTemp && dims >= 1 &&
+            o->getIndexType(0) == dxbc::IndexType::eImm32 && o->getIndex(0) >= kMaxTempRegisters) {
+            SetWhy(why, "temp register r" + std::to_string(o->getIndex(0)) + " is past the D3D11 limit of " +
+                            std::to_string(kMaxTempRegisters));
+            return false;
+        }
+        for (uint32_t d = 0; d < dims; ++d) {
+            if (dxbc::hasRelativeIndexing(o->getIndexType(d))) {
+                pending.push_back(&op.getRawOperand(o->getIndexOperand(d)));
+            }
+        }
+    }
+    return true;
+}
+
+bool CheckProgramTokens(const dxbc::Container& container, std::string* why) {
+    dxbc_spv::util::ByteReader code = container.getCodeChunk();
+    if (!code) return true;   // the converter reports a missing code chunk itself
+    dxbc::Parser parser(code);
+    if (!parser.getShaderInfo().getDwordCount()) return true;   // and an unparsable one
+    while (parser) {
+        const dxbc::Instruction op = parser.parseInstruction();
+        if (!op) break;   // and a malformed instruction
+        for (uint32_t i = 0; i < op.getDstCount(); ++i) {
+            if (!CheckOperandTemps(op, op.getDst(i), why)) return false;
+        }
+        for (uint32_t i = 0; i < op.getSrcCount(); ++i) {
+            if (!CheckOperandTemps(op, op.getSrc(i), why)) return false;
+        }
+        for (uint32_t i = 0; i < op.getExtraCount(); ++i) {
+            if (!CheckOperandTemps(op, op.getExtra(i), why)) return false;
+        }
+        switch (op.getOpToken().getOpCode()) {
+        case dxbc::OpCode::eDEq:
+        case dxbc::OpCode::eDGe:
+        case dxbc::OpCode::eDLt:
+        case dxbc::OpCode::eDNe:
+        case dxbc::OpCode::eDtoI:
+        case dxbc::OpCode::eDtoU:
+        case dxbc::OpCode::eDtoF:
+            if (op.getDstCount() >= 1 && dxbc_spv::util::popcnt(uint8_t(op.getDst(0).getWriteMask())) > 2) {
+                SetWhy(why, "opcode " + std::to_string(uint32_t(op.getOpToken().getOpCode())) +
+                                " writes more than 2 components from a 64-bit source");
+                return false;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
 const char* StageName(Stage stage) {
@@ -438,6 +524,7 @@ bool ConvertDxbc(const uint8_t* dxbc, size_t size, Stage stage, std::vector<uint
         SetWhy(why, "dxbc-spirv could not parse the container: " + logger.messages);
         return false;
     }
+    if (!CheckProgramTokens(container, why)) return false;
 
     // Semantic names ride on the IR's debug names (dxbc-spirv emits them only with
     // includeDebugNames), and the reflection and the link passes need them.

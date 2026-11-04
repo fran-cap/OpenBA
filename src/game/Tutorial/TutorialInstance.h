@@ -22,12 +22,14 @@
 #include <cstdint>
 #include "object/Internal.h"
 #include "Object/exe_type.h"
+#include "collection/Collection.h"   // StepAt
 namespace System { class Time; }
 namespace Achievement { class GoalList; }
 
 namespace UI { class DialogInstance; }
 class TutorialUI;
 class Tutorial;
+class TutorialStep;
 
 class TutorialInstance final : public Object::Internal {
     DECLARE_EXE_TYPE(TutorialInstance)
@@ -51,6 +53,23 @@ public:
     void StepExecute(const System::Time* time, const Achievement::GoalList* goals, uint64_t param4);   // B4 X7-GAME-A: RDX / R8 of FinishTutorialInstance::Update(const Time&, const GoalList&) (0x1400d7b90 tail JMP)
     void RefreshStepUI();        // 0x1400e1260: push the current step into the TutorialUI panel
     void LoadNextScenario();     // 0x1400e0d70: the tutorial finished, boot the next scenario
+
+    // The step `index` names (RefreshStepUI 0x1400e1260: `MOVSXD RDX,[RCX+0x10]; MOV RDI,[RDI+RDX*8]`).
+    // NOT RETAIL (review F-115): null when `index` is outside the steps array. Retail reads
+    // steps[currentStep] unbounded; a save can hold currentStep == steps._size (the value
+    // after the last step) or a negative value, and the read then lands outside the array.
+    static TutorialStep* StepAt(const Collection::Array<TutorialStep*>& steps, int index) {
+        if (index < 0 || index >= steps._size)
+            return nullptr;
+        return steps._data[index];
+    }
+    // LoadNextScenario's test of the scenario index against the scenario list's count
+    // (0x1400e0da6: `CMP [RDX+0x38],R14D; JL` -> return).
+    // NOT RETAIL (review F-113): retail tests `index < 0` only; an index at or past the
+    // list's count (a tutorial resource's +0x38) read past the scenario list.
+    static bool ScenarioIndexValid(int index, int count) {
+        return index >= 0 && index < count;
+    }
 };
 
 static_assert(offsetof(TutorialInstance, currentStep) == 0x10, "+0x10");

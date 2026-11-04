@@ -105,6 +105,12 @@ void ReleasePointsRange(Point* data, int count) {
 // zeroed Point (default), shrink-tail elements have their String released before the
 // buffer is (re)used or freed.
 void PointArraySetSize(Collection::Array<Point>* a, int32_t newSize) {
+    // NOT RETAIL (review F-124, undefined behaviour): a negative point count from a
+    // malformed PointList resource made retail release Strings at `old + newSize`, below the
+    // buffer (below null on a fresh list), and left the size negative. Retail has no sign
+    // check; a negative count is SetSize(0) here (review F-012 is the same clamp in
+    // rtcoll::SetSizeCore). Valid data never carries one.
+    if (newSize < 0) newSize = 0;
     int32_t oldSize = a->_size;
     if (newSize == oldSize) return;
     Point* oldData = a->_data;

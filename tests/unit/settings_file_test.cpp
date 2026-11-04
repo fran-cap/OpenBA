@@ -95,6 +95,24 @@ UNIT_TEST(settings_file_reader_skips_bom_comments_blank_lines) {
     CHECK_STREQ(e[1].value.c_str(), "2");
 }
 
+// Review F-085 (fuzz input crashes/settings_file/bom_key_roundtrip): a doubled BOM keeps
+// the second one as the first bytes of the key. Serialize then wrote that key at offset 0,
+// and the next Parse stripped it as a BOM, renaming the key from "\xEF\xBB\xBFk" to "k".
+UNIT_TEST(settings_file_bom_leading_key_round_trips) {
+    const unsigned char fuzz[] = {0xef, 0xbb, 0xbf, 0xef, 0xbb, 0xbf, 0x6b, 0x3d, 0x76};
+    const Entries e = Parse(reinterpret_cast<const char*>(fuzz), sizeof(fuzz));
+    CHECK_EQ(e.size(), size_t(1));
+    CHECK_SSTREQ(e[0].key, "\xEF\xBB\xBFk");
+    CHECK_SSTREQ(e[0].value, "v");
+    const Entries back = Parse(Serialize(e));
+    CHECK_EQ(back.size(), size_t(1));
+    CHECK_SSTREQ(back[0].key, "\xEF\xBB\xBFk");
+    CHECK_SSTREQ(back[0].value, "v");
+    CHECK(RoundTrips("\xEF\xBB\xBF", "v"));
+    // A file whose first key does not start with the BOM bytes is still written without one.
+    CHECK_SSTREQ(Serialize(Entries{Entry{"k\xEF\xBB\xBF", "v"}}), "k\xEF\xBB\xBF=v\n");
+}
+
 UNIT_TEST(settings_file_reader_accepts_crlf_and_no_final_newline) {
     const Entries e = Parse(std::string("A=1\r\nB=two words\r\nC=3"));
     CHECK_EQ(e.size(), size_t(3));

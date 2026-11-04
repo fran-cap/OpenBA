@@ -158,13 +158,13 @@ void TownHallUI::InitGraph() {
 
     UI::NumberElement** const numberPtrs[5] = { &number0, &number1, &number2, &number3, &number4 };
     for (int i = 0; i < 5; i++) {
-        System::String fmtBuf = System::String::Format("number%i", (uint64_t)i);
+        System::String fmtBuf = System::String::Format("number%i", (int)i);
         *numberPtrs[i] = static_cast<UI::NumberElement*>(_container->FindElement(fmtBuf).Get());
     }
 
     UI::LabelElement** const labelPtrs[4] = { &label0, &label1, &label2, &label3 };
     for (int i = 0; i < 4; i++) {
-        System::String fmtBuf = System::String::Format("label%i", (uint64_t)i);
+        System::String fmtBuf = System::String::Format("label%i", (int)i);
         *labelPtrs[i] = static_cast<UI::LabelElement*>(_container->FindElement(fmtBuf).Get());
     }
 
@@ -909,13 +909,13 @@ void TownHallUI::UpdateGeneral() {
 
     // Educated % (at +0xa0: retail writes it to "percentClothed")
     {
-        System::String fmtBuf = System::String::Format("%i", (uint64_t)(uint32_t)(int)(educatedPct + 0.5f));
+        System::String fmtBuf = System::String::Format("%i", (int)(uint32_t)(int)(educatedPct + 0.5f));
         percentClothed->SetParameter(0, fmtBuf);
     }
 
     // Clothed % (at +0xa8: retail writes it to "percentEducated")
     {
-        System::String fmtBuf = System::String::Format("%i", (uint64_t)(uint32_t)(int)(clothedPct + 0.5f));
+        System::String fmtBuf = System::String::Format("%i", (int)(uint32_t)(int)(clothedPct + 0.5f));
         percentEducated->SetParameter(0, fmtBuf);
     }
 
@@ -965,11 +965,11 @@ void TownHallUI::UpdateProfessions() {
 
     // Set header text parameters
     {
-        System::String fmtBuf = System::String::Format("%i", (uint64_t)yearSpan);
+        System::String fmtBuf = System::String::Format("%i", (int)yearSpan);
         limitPrevUsedHdr->SetParameter(0, fmtBuf);
     }
     {
-        System::String fmtBuf = System::String::Format("%i", (uint64_t)yearSpan);
+        System::String fmtBuf = System::String::Format("%i", (int)yearSpan);
         limitPrevProdHdr->SetParameter(0, fmtBuf);
     }
 

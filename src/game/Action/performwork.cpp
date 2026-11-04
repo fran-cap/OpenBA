@@ -84,8 +84,8 @@ void PerformWork::Persist(IO::Stream& stream) {
 
     // The working citizen (+0x20)
     workTarget.InternalBasePtr::Serialize(ser);
-    if (workTarget.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(workTarget.Get(), CitizenComponent::TypeId())) {
+    if (!workTarget.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(workTarget, CitizenComponent::TypeId())) {
             workTarget = nullptr;
         }
     }

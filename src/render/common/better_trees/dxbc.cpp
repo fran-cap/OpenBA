@@ -237,7 +237,9 @@ bool ParseProgram(const Chunk& shdr, Program* out, std::string* err) {
         } else {
             in.length = (in.token >> 24) & 0x7F;
         }
-        if (in.length == 0 || at + in.length > n) {
+        // Review F-211: `in.length > n - at`, not `at + in.length > n`: a customdata length near
+        // 2^32 wrapped the uint32 sum, passed, and moved `at` backwards (an endless loop).
+        if (in.length == 0 || in.length > n - at) {
             char b[96];
             std::snprintf(b, sizeof b, "bad instruction length %u at dword %u (opcode %u)", in.length, at,
                           in.opcode);

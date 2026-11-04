@@ -482,6 +482,12 @@ void PackedMapRelease(Platform::FileHandle h) {
     }
 }
 
+// NOT RETAIL (review F-141, signed overflow): retail's 32-bit ADD of two int32 FileInfo fields
+// wraps; in C++ an int32 sum past INT32_MAX is undefined. Formed in uint32: the same bits.
+static int32_t WrapAdd32(int32_t a, int32_t b) {
+    return static_cast<int32_t>(static_cast<uint32_t>(a) + static_cast<uint32_t>(b));
+}
+
 // ============================================================================
 // ?ReadFile@FileSystem@IO@@QEAA_NAEAUFileInfo@12@HPEAX@Z      retail 0x1800ace00
 // ============================================================================
@@ -506,7 +512,7 @@ bool FileSystem::ReadFile(RtIO::FileInfo& fiRef, int32_t n, void* dst) {
 
     RtIO::FileInfo pack = pkg->IO::PackageFile::GetFileInfo();  // 1800ace3d
 
-    const int32_t abs = fi->baseOffset + fi->cursor;         // 1800ace43/46
+    const int32_t abs = WrapAdd32(fi->baseOffset, fi->cursor);   // 1800ace43/46
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/LARGEPKM.md): fix.large_packages gives a
     // package past 2 GiB 64-bit entry offsets; every other package takes retail's int32 seek.
     bool wide = false;
@@ -519,7 +525,7 @@ bool FileSystem::ReadFile(RtIO::FileInfo& fiRef, int32_t n, void* dst) {
     } else {
         map = PackedMapFor(pack.winHandle);
         if (map != nullptr && PackedMapRead(*map, wide ? abs64 : abs, n, dst, &ok)) {
-            if (ok) fi->cursor += n;                         // 1800ace87
+            if (ok) fi->cursor = WrapAdd32(fi->cursor, n);   // 1800ace87
             return ok;
         }
         if (wide)
@@ -531,7 +537,7 @@ bool FileSystem::ReadFile(RtIO::FileInfo& fiRef, int32_t n, void* dst) {
     if (ok) {
         const int32_t before = pack.cursor;
         ok = ReadFile(pack, n, dst);                         // 1800ace7e — ITSELF
-        if (ok) fi->cursor += n;                             // 1800ace87
+        if (ok) fi->cursor = WrapAdd32(fi->cursor, n);       // 1800ace87
         // MAPREAD: a handle-path read moved the OS pointer to abs + got; once mapped
         // reads have run, the emulated pointer must follow it (an abs == -1 read with
         // the pointer still unknown leaves it unknown: the OS pointer stays true).

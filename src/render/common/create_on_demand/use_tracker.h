@@ -15,12 +15,13 @@
 //
 // UseGate: every slot that reads a companion's handles (Bind, Lock, SetData, Update, Read, the save
 // arm) runs inside Enter / Leave; Close waits until no use is in progress and holds new ones back
-// until Open. An eviction (Release + null of an object's handles) runs only between the two, so no
+// until Open (or gives up after a bound, reopened: a use can wait inside for a lock). An eviction (Release + null of an object's handles) runs only between the two, so no
 // use can read a handle that is being given back. Enter is two atomic operations on one line when
 // open; it is not re-entrant (a slot never calls another slot of a companion).
 // ============================================================================
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <thread>
@@ -82,10 +83,21 @@ public:
     void Leave() {
         _users.fetch_sub(1, std::memory_order_seq_cst);
     }
-    // One closer at a time (the sweep).
-    void Close() {
+    // One closer at a time (the sweep). True once no use is in progress (the gate stays closed until
+    // Open). A use may wait inside the gate for a lock whose holder is itself waiting to Enter (the
+    // loader's SetData for Video::Device::Lock, held by the frame thread binding): so the closer gives
+    // up after `limit`, reopens the gate and returns false (review F-133: a permanent deadlock before).
+    bool Close(std::chrono::nanoseconds limit) {
         _closed.store(true, std::memory_order_seq_cst);
-        while (_users.load(std::memory_order_seq_cst) != 0) std::this_thread::yield();
+        const auto deadline = std::chrono::steady_clock::now() + limit;
+        while (_users.load(std::memory_order_seq_cst) != 0) {
+            if (std::chrono::steady_clock::now() >= deadline) {
+                Open();
+                return false;
+            }
+            std::this_thread::yield();
+        }
+        return true;
     }
     void Open() {
         _closed.store(false, std::memory_order_seq_cst);

@@ -124,17 +124,29 @@ int32_t    FindNext(FindHandle h, FindData* out)             { return FindNextFi
 int32_t    FindClose(FindHandle h)                           { return ::FindClose(h); }
 
 void FormatLocalDateTime(const uint32_t* fileTime, bool timePart, PathChar* out) {
-    // DELIBERATELY UNINITIALISED: retail's frame writes nothing into these before
-    // the calls and ignores both BOOL results (value_types.cpp's banner).
+    // Retail's frame writes nothing into these before the calls and ignores all three
+    // results (value_types.cpp's banner).
     FILETIME local;
     SYSTEMTIME st;
     static_assert(sizeof(FILETIME) == 2 * sizeof(uint32_t), "a FILETIME is two dwords, low first");
-    FileTimeToLocalFileTime(reinterpret_cast<const FILETIME*>(fileTime), &local);  // CAST-OK: win32
-    FileTimeToSystemTime(&local, &st);
+    // NOT RETAIL (review F-152 / F-168, read of uninitialised memory): when a conversion
+    // fails (a FILETIME of 0 west of UTC, GetFileTimeStamp's failure value; or one past
+    // 0x7fffffff'ffffffff) retail formats its uninitialised SYSTEMTIME, or leaves the
+    // output unwritten, and the caller builds a WideString from it, scanning stack garbage
+    // for a terminator. Each result is tested here and a failure leaves the empty string,
+    // as the POSIX twins do. A conversion that succeeds is retail's.
+    out[0] = 0;
+    if (!FileTimeToLocalFileTime(reinterpret_cast<const FILETIME*>(fileTime), &local))  // CAST-OK: win32
+        return;
+    if (!FileTimeToSystemTime(&local, &st))
+        return;
+    int written = 0;
     if (timePart)
-        GetTimeFormatW(LOCALE_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, Wide(out), kDateTimeChars);
+        written = GetTimeFormatW(LOCALE_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, Wide(out), kDateTimeChars);
     else
-        GetDateFormatW(LOCALE_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, Wide(out), kDateTimeChars);
+        written = GetDateFormatW(LOCALE_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, Wide(out), kDateTimeChars);
+    if (written == 0)
+        out[0] = 0;
 }
 
 }  // namespace Platform

@@ -47,7 +47,7 @@ void Component::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     _entity.Object::InternalBasePtr::Serialize(ser);
-    if (_entity && !::Object::IsDerivedFromNullSafe(_entity.Get(), ComponentEntity::TypeId())) {
+    if (_entity && !::Object::IsDerivedFromNullSafe(_entity, ComponentEntity::TypeId())) {
         _entity = nullptr;
     }
 

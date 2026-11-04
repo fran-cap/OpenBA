@@ -49,6 +49,7 @@
 #include "WorkScheduler.h"           // m_tutorial's class (B.4 GAME-a)
 #include "EventLog.h"                // m_eventNotifier's class (B.4 GAME-a)
 #include "MusicPlayer.h"             // m_musicPlayer's class (B.4 GAME-a)
+#include "Game/MusicList.h"          // step 27's Find type gate (MusicList::TypeId)
 #include "Minimap.h"                 // m_imageCapture's class (B.4 GAME-a)
 #include "MapGenerator.h"            // m_mapConfig's class (B.4 GAME-a)
 #include "Game/TerrainGenerator.h"     // m_terrainConfig->_field80
@@ -994,17 +995,26 @@ void GameUpdateLoop::Load() {
         m_imageCapture = minimap;
     }
 
-    // Step 27 — MusicTracks struct (+0x80, 0x18): {idx=-1, res=null (Find deferred), 0}.
+    // Step 27 — MusicPlayer (+0x80, 0x18): {effect -1, the MusicTracks list, 0}.
+    // Retail 0x1400972a1..0x14009732e: MemAlloc(0x18, 4); Find("Game/MusicTracks.rsc")
+    // (0x1400972bb string, 0x1400972ef the Find); IsDerivedFrom(MusicList) (0x140097307),
+    // null on a mismatch; +0x00 = -1, +0x08 = the list, +0x10 = 0. Every Load does the
+    // Find, so each new game's player has its list (review F-188: the port deferred it to
+    // a once-per-process static in MusicPlayer::Update, and later games had no music).
     {
         void* mem = AllocSub<void>(0x18, 4);
         MusicPlayer* player = mem ? new (mem) MusicPlayer : nullptr;
         if (player) {
+            MusicList* list = nullptr;
+            if (::Object::ExternalFactory::_singleton) {
+                System::Filename fname("Game/MusicTracks.rsc");
+                ::Object::External* found =
+                    ::Object::ExternalFactory::_singleton->FindOrLoadAs<::Object::External>(fname);
+                if (found && ::Object::IsDerivedFromNullSafe(found, MusicList::TypeId()))
+                    list = static_cast<MusicList*>(found);
+            }
             player->effect = 0xFFFFFFFFu;         // -1
-            player->trackList = nullptr;          // MusicTrackList - DEFERRED.
-            // BLOCKER for porting MusicPlayer::Update (0x1400a40e0): that
-            // function reads *(int*)(musicPlayer[+0x08] + 0x28) as the track
-            // count with no null check, so it MUST NOT be wired until this
-            // Find("Game/MusicTracks.rsc") is done. See LANE1 report row 39.
+            player->trackList = list;
             player->field_0x10 = 0;
         }
         m_musicPlayer = player;

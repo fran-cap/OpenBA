@@ -76,3 +76,26 @@ static_assert(offsetof(ModelDescription, _meshGroupCap) == 0x2c, "ModelDescripti
 static_assert(offsetof(ModelDescription, _defaultMeshGroup) == 0x30, "ModelDescription::_defaultMeshGroup @ +0x30");
 static_assert(offsetof(ModelDescription, _defaultMeshIndex) == 0x34, "ModelDescription::_defaultMeshIndex @ +0x34");
 static_assert(offsetof(ModelDescription, _randomMeshGroup) == 0x38, "ModelDescription::_randomMeshGroup @ +0x38");
+
+// The mesh a ModelComponent's (meshGroup, meshIndex) names in a description's mesh-group
+// array: `groups[meshGroup].meshes[meshIndex]`, or null when there is none. Port-written (no
+// retail address): ModelComponent::Persist (modelcomponent.cpp) restores the mesh with it, and
+// tests/unit/review_object_index_bounds_test.cpp drives it directly.
+inline Graphics::GraphicsMesh* ModelDescriptionMesh(const ModelMeshGroup* groups, int32_t groupCount,
+                                                    int16_t meshGroup, int16_t meshIndex) {
+    if (meshIndex < 0 || meshGroup < 0)
+        return nullptr;
+    if (!groups)
+        return nullptr;   // description carries no meshes
+    // NOT RETAIL (review F-025): the two int16 fields come from the save; one at or past the
+    // description's group count or the group's mesh count reads past the array. A save that
+    // names no such mesh restores none, as for a negative field. Valid saves are in range.
+    if (meshGroup >= groupCount)
+        return nullptr;
+    if (meshIndex >= groups[meshGroup].meshCount)
+        return nullptr;
+    Graphics::GraphicsMesh** group = groups[meshGroup].meshes;
+    if (!group)
+        return nullptr;
+    return group[meshIndex];
+}

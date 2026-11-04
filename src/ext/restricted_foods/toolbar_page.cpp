@@ -239,7 +239,7 @@ void RefreshShowAll() {
 
 void RefreshRow(int index) {
     Row& r = g_rows[static_cast<size_t>(index)];
-    if (::Object::IsDerivedFromNullSafe(r.check.Get(), UI::CheckElement::TypeId())) {
+    if (::Object::IsDerivedFromNullSafe(r.check, UI::CheckElement::TypeId())) {
         static_cast<UI::CheckElement*>(r.check.Get())->_checked = r.pending ? 1 : 0;
     }
     // Red-tinted when blocked, the Mods list's white otherwise.
@@ -256,7 +256,7 @@ void BuildRows() {
     if (g_table.Get() == nullptr) {
         return;
     }
-    if (!::Object::IsDerivedFromNullSafe(g_table.Get(), UI::TableElement::TypeId())) {
+    if (!::Object::IsDerivedFromNullSafe(g_table, UI::TableElement::TypeId())) {
         std::fprintf(stderr, "[RestrictedFoods] tableRestrictedFoods is not a TableElement\n");
         return;
     }
@@ -442,7 +442,7 @@ bool PageChanged(UI::Element* /*page*/, int32_t id) {
     if (id >= kRowId && id < kRowId + static_cast<int32_t>(g_rows.size())) {
         const int index = id - kRowId;
         Row& r = g_rows[static_cast<size_t>(index)];
-        if (::Object::IsDerivedFromNullSafe(r.check.Get(), UI::CheckElement::TypeId())) {
+        if (::Object::IsDerivedFromNullSafe(r.check, UI::CheckElement::TypeId())) {
             r.pending = static_cast<UI::CheckElement*>(r.check.Get())->_checked != 0;
         } else {
             r.pending = !r.pending;

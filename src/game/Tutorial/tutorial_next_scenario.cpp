@@ -143,6 +143,15 @@ void TutorialInstance::LoadNextScenario() {
     // The scenario list is the SAME one ScenarioDialog enumerates:
     // GameContainer +0x08, its resources at +0x20.
     Object::ExternalList* scenarioList = g_gameContainer->scenarioList.Get();
+    // NOT RETAIL (review F-113): retail reads _resources[scenIdx] with no upper bound
+    // (0x1400e0dbb: MOVSXD RDX,[RDX+0x38]; MOV RCX,[RAX+0x20]; MOV RBX,[RCX+RDX*8]);
+    // an index at or past the list's count, from a tutorial resource, ends the chain here.
+    if (!ScenarioIndexValid(scenIdx, scenarioList->_count)) {
+        fprintf(stderr, "[TutNext] scenarioIndex=%d is past the %d-entry scenario list\n",
+                scenIdx, scenarioList->_count);
+        fflush(stderr);
+        return;
+    }
     Object::External* resource = scenarioList->_resources[scenIdx];
 
     Scenario* scenario = Object::IsDerivedFromNullSafe(resource, Scenario::TypeId())

@@ -111,7 +111,7 @@ public:
             handle->SetFlagsOnOff(0x10000, 0);
         }
         table_ = Object::InternalPtr<UI::Element>(FindElement(System::String("tableFamilySummary")).Get());
-        if (!::Object::IsDerivedFromNullSafe(table_.Get(), UI::TableElement::TypeId())) {
+        if (!::Object::IsDerivedFromNullSafe(table_, UI::TableElement::TypeId())) {
             std::fprintf(stderr, "[FamilyTree] tableFamilySummary is not in %s: empty window\n", kWindowRsc);
             table_ = Object::InternalPtr<UI::Element>();
             return;
