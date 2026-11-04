@@ -29,9 +29,13 @@ bool g_csInit = false;
 
 struct ArmReq { int slot; uintptr_t addr; int len; };
 
+// The thread owns the request (HwWatch_Arm may have stopped waiting for it) and frees it.
 DWORD WINAPI ArmThread(LPVOID p) {
     ArmReq* r = reinterpret_cast<ArmReq*>(p);  // CAST-OK: win32
-    if (SuspendThread(g_mainThread) == (DWORD)-1) return 1;
+    if (SuspendThread(g_mainThread) == (DWORD)-1) {
+        delete r;
+        return 1;
+    }
     CONTEXT ctx; memset(&ctx, 0, sizeof(ctx));
     ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
     if (GetThreadContext(g_mainThread, &ctx)) {
@@ -49,6 +53,7 @@ DWORD WINAPI ArmThread(LPVOID p) {
         SetThreadContext(g_mainThread, &ctx);
     }
     ResumeThread(g_mainThread);
+    delete r;
     return 0;
 }
 }  // namespace
@@ -71,9 +76,15 @@ extern "C" int HwWatch_Arm(void* addr, int len, const char* why) {
     g_slots[slot].len = len; g_slots[slot].hits = 0;
     ++g_armed;
     LeaveCriticalSection(&g_cs);
-    ArmReq req = { slot, reinterpret_cast<uintptr_t>(addr), len };  // CAST-OK: crash_walk
-    HANDLE th = CreateThread(nullptr, 0, &ArmThread, &req, 0, nullptr);
-    if (!th) return -1;
+    // On the heap, owned by the helper: the wait below gives up after 2 s (an INFINITE wait
+    // could deadlock on a teardown path holding the loader lock, which a starting thread
+    // needs), and a helper that starts later still reads the request.
+    ArmReq* req = new ArmReq{ slot, reinterpret_cast<uintptr_t>(addr), len };  // CAST-OK: crash_walk
+    HANDLE th = CreateThread(nullptr, 0, &ArmThread, req, 0, nullptr);
+    if (!th) {
+        delete req;
+        return -1;
+    }
     WaitForSingleObject(th, 2000);
     CloseHandle(th);
     std::fprintf(stderr, "[HWWATCH] armed DR%d on %p len=%d (%s)\n", slot, addr, len, why ? why : "");

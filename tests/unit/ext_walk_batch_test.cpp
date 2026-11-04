@@ -31,6 +31,7 @@
 #include "ext/walk_batch/walk_batch_rules.h"
 #include "ext/registry.h"
 #include "Game/exe_constants.h"
+#include "Action/saved_bounds.h"   // ActionBounds::WorldToCellAxis: moveto.cpp's cell (review F-160)
 #include "crt/msvc_libm.h"   // the tail's trig, the ported CRT sinf / cosf
 
 #include <cmath>
@@ -118,11 +119,8 @@ void UpdateFacing(const World& wd, Walker& k) {
 // ---- the reference: literal copies of the retail bodies --------------------------------
 int CellRef(int mapSize, float x, float y) {   // moveto.cpp WorldToCell
     float halfMap = (float)(mapSize >> 1);
-    int cx = (int)(x + halfMap), cy = (int)(y + halfMap);
-    if (cx < 0) cx = 0;
-    if (cx >= mapSize) cx = mapSize - 1;
-    if (cy < 0) cy = 0;
-    if (cy >= mapSize) cy = mapSize - 1;
+    int cx = ActionBounds::WorldToCellAxis(x + halfMap, mapSize);
+    int cy = ActionBounds::WorldToCellAxis(y + halfMap, mapSize);
     return mapSize * cy + cx;
 }
 
@@ -447,6 +445,20 @@ UNIT_TEST(ext_walk_batch_rules_match_retail) {
         for (int i = 0; i < 2000; ++i) {
             const float x = (g.Unit() - 0.5f) * (float)sz * 1.2f, y = (g.Unit() - 0.5f) * (float)sz * 1.2f;
             CHECK_EQ(Ext::WalkBatch::WorldToCell(sz, x, y), CellRef(sz, x, y));
+        }
+    // Review F-251 / F-252: a saved MoveTo::destination (or a position) outside int's range, or NaN,
+    // gives moveto.cpp's cell (WorldToCellAxis: 0 on that axis) without an undefined conversion.
+    // The values are volatile so the conversion happens at run time (UBSan's float-cast-overflow).
+    volatile float farOut = 1e10f;
+    volatile float hugeOut = 1e30f;
+    volatile float nanOut = std::nanf("");
+    volatile float infOut = INFINITY;
+    const float outs[] = { farOut, -farOut, hugeOut, -hugeOut, nanOut, infOut, -infOut, 2147483648.0f };
+    for (int sz : sizes)
+        for (float v : outs) {
+            CHECK_EQ(Ext::WalkBatch::WorldToCell(sz, v, 0.0f), CellRef(sz, v, 0.0f));
+            CHECK_EQ(Ext::WalkBatch::WorldToCell(sz, 0.0f, v), CellRef(sz, 0.0f, v));
+            CHECK_EQ(Ext::WalkBatch::WorldToCell(sz, v, v), 0);
         }
     // The terrain speed (follow clear): road bytes 1 and 9, normal 0, the rest 1.0.
     for (int t = 0; t < 256; ++t) {

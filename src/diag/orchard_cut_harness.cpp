@@ -22,6 +22,7 @@
 #include "Entity/ComponentEntity.h"   // B4: the component array by name
 #include "Entity/EntityList.h"        // B4: GameUpdateLoop::m_entityList
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -41,7 +42,7 @@ void Init() {
         return;
     }
     s_enabled = true;
-    const int v = std::atoi(env);
+    const int v = HarnessAtoi(env);
     if (v > 1) s_frame = v;
     std::fprintf(stderr, "[OrchardCut] ENABLED — will click CUT once at frame %d\n", s_frame);
     std::fflush(stderr);

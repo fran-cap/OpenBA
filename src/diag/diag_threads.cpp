@@ -11,44 +11,56 @@ namespace DiagThreads {
 namespace {
 
 struct Slot {
-    std::atomic<uint32_t> tid;   // published last; 0 = not yet written
+    std::atomic<uint32_t> tid;    // published last; 0 = not yet written
     std::atomic<char>     role;
-    std::atomic<const volatile uint32_t*> busy;
+    std::atomic<uint32_t> busy;   // bit 0 while the owner is mid-job (SetBusy)
 };
 
 Slot g_slots[kMaxThreads];           // zero-initialised (constant init)
 std::atomic<int> g_count{0};
 thread_local bool t_registered = false;
+thread_local int  t_slot       = -1;
 
+// The newest slot for `tid`: a reused id has its current owner last.
 int FindSlot(uint32_t tid) {
     const int n = g_count.load(std::memory_order_acquire);
     const int lim = n < kMaxThreads ? n : kMaxThreads;
-    for (int i = 0; i < lim; ++i)
+    for (int i = lim - 1; i >= 0; --i)
         if (g_slots[i].tid.load(std::memory_order_acquire) == tid) return i;
     return -1;
 }
 
 }  // namespace
 
-void Register(char role, const volatile uint32_t* busy) {
-    if (t_registered) return;
-    t_registered = true;
-    const uint32_t tid = Platform::CurrentThreadId();
-    // The OS reuses ids: a dead thread's slot is taken over by the new owner.
-    const int existing = FindSlot(tid);
-    if (existing >= 0) {
-        g_slots[existing].busy.store(busy, std::memory_order_release);
-        g_slots[existing].role.store(role, std::memory_order_release);
-        return;
-    }
+namespace Detail {
+
+int RegisterAs(uint32_t tid, char role) {
+    // Always a new slot, even for an id the OS reused: the sampler's cursor has
+    // passed the old one, and the old owner's pair stays whole.
     const int i = g_count.fetch_add(1, std::memory_order_acq_rel);
-    if (i >= kMaxThreads) return;
+    if (i >= kMaxThreads) return -1;
     g_slots[i].role.store(role, std::memory_order_relaxed);
-    g_slots[i].busy.store(busy, std::memory_order_relaxed);
+    g_slots[i].busy.store(0, std::memory_order_relaxed);
     g_slots[i].tid.store(tid, std::memory_order_release);
+    return i;
 }
 
-void RegisterNamed(const char* typeName, const volatile uint32_t* busy) {
+int CurrentSlot() { return t_slot; }
+
+}  // namespace Detail
+
+void Register(char role) {
+    if (t_registered) return;
+    t_registered = true;
+    t_slot = Detail::RegisterAs(Platform::CurrentThreadId(), role);
+}
+
+void SetBusy(bool busy) {
+    if (t_slot < 0) return;
+    g_slots[t_slot].busy.store(busy ? 1u : 0u, std::memory_order_relaxed);
+}
+
+void RegisterNamed(const char* typeName) {
     if (t_registered) return;
     const char* n = typeName ? typeName : "";
     char role = kOther;
@@ -58,7 +70,7 @@ void RegisterNamed(const char* typeName, const volatile uint32_t* busy) {
     else if (std::strstr(n, "PersistenceWorker")) role = kPersist;
     else if (std::strstr(n, "Stream"))            role = kAudio;    // Audio::Stream
     else if (std::strstr(n, "Loader"))            role = kLoader;   // Engine::Loader
-    Register(role, busy);
+    Register(role);
 }
 
 char RoleOf(uint32_t tid) {
@@ -89,6 +101,6 @@ int Count() {
 
 uint32_t TidAt(int i) { return g_slots[i].tid.load(std::memory_order_acquire); }
 char RoleAt(int i)    { return g_slots[i].role.load(std::memory_order_acquire); }
-const volatile uint32_t* BusyAt(int i) { return g_slots[i].busy.load(std::memory_order_acquire); }
+bool BusyAt(int i)    { return (g_slots[i].busy.load(std::memory_order_relaxed) & 1u) != 0; }
 
 }  // namespace DiagThreads

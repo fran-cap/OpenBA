@@ -24,10 +24,14 @@
 
 #include <cstdint>
 
+#include "system/thread_annotations.h"   // CAPABILITY / ACQUIRE / RELEASE (empty off clang)
+
 namespace Platform {
 
 // ---- locks ------------------------------------------------------------------
-struct alignas(8) LockStorage {
+// A capability to clang's thread-safety analysis (thread_annotations.h); the attribute changes no
+// layout. The analysis does not model recursion: a recursive re-take is stated where it happens.
+struct CAPABILITY("mutex") alignas(8) LockStorage {
     uint8_t bytes[0x28];
 };
 static_assert(sizeof(LockStorage) == 0x28, "LockStorage is the retail 0x28-byte CRITICAL_SECTION slot");
@@ -37,8 +41,8 @@ static_assert(alignof(LockStorage) == 8, "LockStorage keeps the slot's 8-byte al
 // spinCount) when spinCount != 0 (every retail lock passes 5000; the port-only
 // res_load_lock passes 0, i.e. it never set a spin count).
 void MutexInit(LockStorage* lock, uint32_t spinCount);
-void MutexLock(LockStorage* lock);      // EnterCriticalSection: recursive
-void MutexUnlock(LockStorage* lock);    // LeaveCriticalSection
+void MutexLock(LockStorage* lock) ACQUIRE(*lock);     // EnterCriticalSection: recursive
+void MutexUnlock(LockStorage* lock) RELEASE(*lock);   // LeaveCriticalSection
 void MutexDestroy(LockStorage* lock);   // DeleteCriticalSection
 
 // ---- one-time initialisation ---------------------------------------------------

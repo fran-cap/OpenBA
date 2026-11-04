@@ -149,7 +149,9 @@ namespace Audio {
 // reference_ghidra_c_output_vs_disassembly.md; the disassembly above is what
 // this body was written from.)
 // ---------------------------------------------------------------------------
-void Device::FreeChannelPlatform(int32_t index) {
+// Not analysed (clang -Wthread-safety): retail takes and releases the Stream lock on two separate
+// reads of the same test, which the analysis cannot pair.
+void Device::FreeChannelPlatform(int32_t index) NO_THREAD_SAFETY_ANALYSIS {
     if (_xaudio2 == nullptr)                          // 1800de6f6  platform down
         return;
 

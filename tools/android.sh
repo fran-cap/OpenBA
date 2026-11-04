@@ -45,7 +45,8 @@
 #   OPENBA_KEYSTORE_PASSWORD=android OPENBA_KEY_PASSWORD=android tools/android.sh sign
 #
 # The harness flags (src/app/options.h) reach the game as launch-intent string extras, which the
-# activity turns into the process environment before the native library loads:
+# activity turns into the process environment before the native library loads, beside a one-use
+# token `run` writes into the app's data folder (OpenBAActivity.java):
 #   tools/android.sh run BANISHED_AUTOSTART=1 BANISHED_AUTOQUIT=600
 # A run always force-stops first: SDL's activity ends the process's game once main returns and
 # refuses a second start in the same process.
@@ -337,6 +338,15 @@ run)
             *) echo "not a BANISHED_* flag: $kv" >&2; exit 2 ;;
         esac
     done
+    if [ ${#extras[@]} -gt 0 ]; then
+        # OpenBAActivity honours the flags only beside this one-use token: adb can write into the
+        # app's data folder, another app on the device cannot. adb must not make the folder (one it
+        # makes belongs to the shell user): the app makes it at its first start.
+        "$ADB" shell "test -d '$DATA'" || { echo "no $DATA on the device: start the app once" >&2; exit 1; }
+        token="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
+        "$ADB" shell "echo $token > '$DATA/harness_token'"
+        extras+=(-e OPENBA_HARNESS_TOKEN "$token")
+    fi
     "$ADB" shell rm -f "$DATA/standalone_boot_state.txt"
     "$ADB" shell am start -W -n "$PKG/$ACTIVITY" "${extras[@]}"
     ;;

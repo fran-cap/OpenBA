@@ -36,6 +36,7 @@
 #include "Entity/ComponentEntity.h"   // B4: the component array by name
 #include "Entity/EntityList.h"        // B4: GameUpdateLoop::m_entityList
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -55,11 +56,11 @@ void Init() {
     s_want = -1;
     const char* e = Opt().builders;
     if (!e || !e[0]) return;
-    int n = std::atoi(e);
+    int n = HarnessAtoi(e);
     if (n <= 0) return;
     s_want = n;
     if (const char* comma = std::strchr(e, ',')) {
-        int f = std::atoi(comma + 1);
+        int f = HarnessAtoi(comma + 1);
         if (f > 0) s_settle = f;
     }
 }
