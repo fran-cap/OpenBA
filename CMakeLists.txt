@@ -310,7 +310,8 @@ set(EXT_RSC_SOURCES
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FamilyTreePage.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FamilyTreeWindow.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FamilyTreeSummary.rsc
-  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ShowGridPage.rsc)
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ShowGridPage.rsc
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FpsCounterPage.rsc)
 set(EXT_RSC_GEN_DIR ${CMAKE_BINARY_DIR}/gen)
 set(EXT_RSC_GEN ${EXT_RSC_GEN_DIR}/ext_rsc_text.h)
 find_package(Python3 COMPONENTS Interpreter QUIET)

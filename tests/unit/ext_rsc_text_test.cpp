@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 15);
+    CHECK(kEmbeddedCount == 16);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -55,6 +55,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/PhoneScroll.rsc") != nullptr);
     CHECK(Embedded("Dialog/TownScreenshotPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ShowGridPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/FpsCounterPage.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -205,8 +206,8 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
     // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
-    // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning
-    CHECK(strings && strings->blocks.size() == 133);
+    // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS page
+    CHECK(strings && strings->blocks.size() == 142);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -386,6 +387,24 @@ UNIT_TEST(ext_rsc_text_element_flags) {
     CHECK(row && row->body.Find("_minWidth") == nullptr);
     const Object* label = p.Find("labelItemPriorityRow");
     CHECK(label && label->body.Find("_minWidth") == nullptr);
+}
+
+UNIT_TEST(ext_rsc_text_parse_fps_counter_page) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/FpsCounterPage.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // a page, not a dialog: the root object is pageFpsCounter
+    const Object* page = f.Find("pageFpsCounter");
+    CHECK(page && page->type == "RibbonDescription");
+    const char* const values[] = { "textFpsCounterCurrentValue", "textFpsCounterAverageValue",
+                                   "textFpsCounterMinimumValue", "textFpsCounterMaximumValue",
+                                   "textFpsCounterMeasuredValue" };
+    for (const char* name : values) {
+        const Object* v = f.Find(name);
+        CHECK(v && v->type == "TextDescription");
+    }
+    const Object* reset = f.Find("buttonFpsCounterReset");
+    CHECK(reset && reset->type == "ButtonDescription");
+    CheckKnownTypes(f, "FpsCounterPage.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_show_grid_page) {

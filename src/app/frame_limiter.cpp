@@ -239,7 +239,11 @@ void Tick() {
     Pace(true);
 }
 
+void (*g_extGameFrame)() = nullptr;
+
 void TickInGame() {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/FPSCOUNTER.md): ext.fps_counter counts the frame.
+    if (g_extGameFrame != nullptr) g_extGameFrame();
     // The common case off the phone (no flag, no settings cap): one test, no clock read.
     if (g_initialized && g_harness != HarnessCap::Fixed && g_settingsFps <= 0.0) {
         if (g_capFps != 0.0 || g_lastMenu) SetCeiling(0.0, false);

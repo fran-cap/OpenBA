@@ -75,6 +75,7 @@ const Contribution& TerrainEditPage();
 const Contribution& TownScreenshotPage();
 const Contribution& FamilyTreePage();
 const Contribution& ShowGridPage();
+const Contribution& FpsCounterPage();
 
 // The list, and the ones whose row is active for this game (into `out`; returns how many there are,
 // which may exceed `capacity`).
