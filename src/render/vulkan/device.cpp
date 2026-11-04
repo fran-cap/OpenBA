@@ -497,6 +497,14 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
     swapchainLost = r == VK_ERROR_DEVICE_LOST;
     if (r != VK_SUCCESS) {
         *why = std::string("vkCreateSwapchainKHR: ") + ResultName(r);
+        // The old chain is retired even when the create failed (the spec, vkCreateSwapchainKHR), and a
+        // retired chain cannot be an oldSwapchain again (VUID-VkSwapchainCreateInfoKHR-oldSwapchain-01933):
+        // it goes now, so the retry creates from none (review S-046). The callers waited for idle.
+        if (swapchain) {
+            DestroySwapchainObjects();
+            vkDestroySwapchainKHR(device, swapchain, nullptr);
+            swapchain = VK_NULL_HANDLE;
+        }
         return false;
     }
     DestroySwapchainObjects();
