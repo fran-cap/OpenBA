@@ -24,8 +24,7 @@
 //  * The hang dump walks every thread by SIGNAL: each other thread of the process
 //    (/proc/self/task) is sent kDumpSignal, whose handler appends a backtrace() of its
 //    own stack to standalone_hang.log and posts a semaphore; the watchdog waits up to
-//    a second per thread, and a thread that answers later writes nothing (g_dumpTarget).
-//    backtrace() is primed at Start() so the handler does not
+//    a second per thread. backtrace() is primed at Start() so the handler does not
 //    load libgcc's unwinder. Frames print as <module> + 0x<off> (<symbol>+0x<off>),
 //    the crash log's spelling; the main thread is marked.
 //  * An unattended HUNG ends the process with _exit(4) (Windows: TerminateProcess(self,
@@ -93,23 +92,13 @@ void WriteStateFile(const char* state, unsigned uptimeSec, unsigned frame,
 // ---------------------------------------------------------------------------
 // The hang dump
 // ---------------------------------------------------------------------------
-std::atomic<int> g_hangLog{-1};   // read by the dump signal's handler on other threads
+int   g_hangLog = -1;
 sem_t g_dumpDone;
 const int kDumpSignal = SIGRTMIN + 3;   // not one SDL, glibc's NPTL (32/33) or the crash handler use
 
-// The request and its answer (review F-302 / F-304 / F-307 / F-316). The watchdog stores the
-// tid it asks before the tgkill. The handler on that thread claims it (tid -> -tid), writes its
-// stack, answers (-tid -> 0) and posts. A handler on a thread not asked (its answer came past
-// the wait, which withdrew the request) writes nothing and posts nothing: a late answer no
-// longer counts as the next thread's answer, nor lands under its header.
-std::atomic<pid_t> g_dumpTarget{0};
-static_assert(std::atomic<int>::is_always_lock_free, "the handler's loads must be lock-free");
-static_assert(std::atomic<pid_t>::is_always_lock_free, "the handler's loads must be lock-free");
-
 void HangLogRaw(const char* s) {
-    const int fd = g_hangLog.load();
-    if (fd < 0 || !s) return;
-    ssize_t r = write(fd, s, std::strlen(s));
+    if (g_hangLog < 0 || !s) return;
+    ssize_t r = write(g_hangLog, s, std::strlen(s));
     (void)r;
 }
 
@@ -118,10 +107,9 @@ template <typename... Args>
 void HangLogf(const char* fmt, Args... args) {
     char buf[512];
     const int n0 = std::snprintf(buf, sizeof(buf), fmt, args...);
-    const int fd = g_hangLog.load();
-    if (n0 <= 0 || fd < 0) return;
+    if (n0 <= 0 || g_hangLog < 0) return;
     const int n = n0 > static_cast<int>(sizeof(buf)) ? static_cast<int>(sizeof(buf)) : n0;
-    ssize_t r = write(fd, buf, static_cast<size_t>(n));
+    ssize_t r = write(g_hangLog, buf, static_cast<size_t>(n));
     (void)r;
 }
 
@@ -155,32 +143,15 @@ void DumpOwnStack() {
 
 void DumpSignalHandler(int) {
     const int saved = errno;
-    const pid_t self = CurrentTid();
-    pid_t asked = self;
-    if (g_dumpTarget.compare_exchange_strong(asked, -self)) {
-        DumpOwnStack();
-        pid_t claimed = -self;
-        if (g_dumpTarget.compare_exchange_strong(claimed, 0)) sem_post(&g_dumpDone);
-    }
+    DumpOwnStack();
+    sem_post(&g_dumpDone);
     errno = saved;
-}
-
-// True when the asked thread answered within `seconds`.
-bool AwaitAnswer(int seconds) {
-    timespec deadline;
-    clock_gettime(CLOCK_REALTIME, &deadline);
-    deadline.tv_sec += seconds;
-    while (sem_timedwait(&g_dumpDone, &deadline) != 0) {
-        if (errno != EINTR) return false;
-    }
-    return true;
 }
 
 void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                    unsigned staleSec, unsigned budgetSec) {
-    g_hangLog.store(open("standalone_hang.log", O_WRONLY | O_CREAT | O_TRUNC | O_SYNC | O_CLOEXEC, 0644));
-    if (g_hangLog.load() < 0) return;
-    bool unfinished = false;   // a thread claimed its request and had not answered when the wait ended
+    g_hangLog = open("standalone_hang.log", O_WRONLY | O_CREAT | O_TRUNC | O_SYNC | O_CLOEXEC, 0644);
+    if (g_hangLog < 0) return;
 
     HangLogRaw("=== STANDALONE HANG ===\n");
     HangLogf("Phase:       %s\n", phase);
@@ -220,33 +191,23 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                 HangLogRaw("  (the watchdog itself; not interesting)\n");
                 continue;
             }
-            g_dumpTarget.store(tid);
             if (syscall(SYS_tgkill, pid, tid, kDumpSignal) != 0) {
-                const int err = errno;
-                g_dumpTarget.store(0);
-                HangLogf("  (tgkill failed, errno=%d)\n", err);
+                HangLogf("  (tgkill failed, errno=%d)\n", errno);
                 continue;
             }
-            if (AwaitAnswer(1)) continue;
-            pid_t asked = tid;
-            if (g_dumpTarget.compare_exchange_strong(asked, 0)) {
+            timespec deadline;
+            clock_gettime(CLOCK_REALTIME, &deadline);
+            deadline.tv_sec += 1;
+            if (sem_timedwait(&g_dumpDone, &deadline) != 0)
                 HangLogRaw("  (no answer within 1s: blocked with the signal masked?)\n");
-            } else if (!AwaitAnswer(5)) {
-                // The thread is still writing its stack. The next request replaces its claim,
-                // so it posts nothing; what it still writes lands further down.
-                unfinished = true;
-                HangLogRaw("  (stack unfinished after 6s: its remaining lines land below)\n");
-            }
         }
         closedir(tasks);
     }
 
     HangLogRaw("\n=== END HANG ===\n");
-    const int fd = g_hangLog.exchange(-1);
-    fsync(fd);
-    // A thread still writing its stack may hold the descriptor's number: it stays open, so the
-    // number is not reused by a file opened after this (a save, the settings) under that write.
-    if (!unfinished) close(fd);
+    fsync(g_hangLog);
+    close(g_hangLog);
+    g_hangLog = -1;
 }
 
 void* WatchdogThread(void*) {
