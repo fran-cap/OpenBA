@@ -903,3 +903,25 @@ UNIT_TEST(ext_terrain_edit_value_noise_is_smooth_and_bounded) {
         prev = v;
     }
 }
+
+// review F-245 / F-246 / F-249: a contour draw range comes from the save unchecked. The brush reads one
+// only when start + count stays inside the index array (with no int overflow) and base + any 16-bit index
+// stays a valid, non-negative int.
+UNIT_TEST(ext_terrain_edit_contour_range_fits_refuses_overflowing_ranges) {
+    using namespace Ext::TerrainEdit;
+    CHECK(ContourRangeFits(0, 0, 12, 12));
+    CHECK(ContourRangeFits(6, 100, 6, 12));
+    CHECK(ContourRangeFits(12, 0, 0, 12));
+    CHECK(!ContourRangeFits(7, 0, 6, 12));    // runs one past the indices
+    CHECK(!ContourRangeFits(-1, 0, 6, 12));
+    CHECK(!ContourRangeFits(0, -1, 6, 12));
+    CHECK(!ContourRangeFits(0, 0, -6, 12));
+    // start + count wraps negative in int: the old `start + count > size` passed it
+    CHECK(!ContourRangeFits(0x7FFFFFF0, 0, 0x20, 12));
+    CHECK(!ContourRangeFits(0x7FFFFF00, 0, 0x200, 12));
+    // base + a 16-bit index wraps negative in int: the old `v >= size` passed it
+    CHECK(!ContourRangeFits(0, 0x7FFFFFFF, 6, 12));
+    CHECK(!ContourRangeFits(0, 0x7FFFFFF5, 3, 12));
+    CHECK(ContourRangeFits(0, 0x7FFFFFFF - 0xFFFF, 6, 12));
+    CHECK(!ContourRangeFits(0, 0x7FFFFFFF - 0xFFFF + 1, 6, 12));
+}
