@@ -13,12 +13,12 @@ namespace VideoVulkan {
 namespace BootDeviceLost {
 
 namespace {
-std::atomic<const bool*> g_flag{nullptr};
+std::atomic<const std::atomic<bool>*> g_flag{nullptr};
 }  // namespace
 
 bool On() {
-    const bool* const live = g_flag.load(std::memory_order_relaxed);
-    return live != nullptr && *live;
+    const std::atomic<bool>* const live = g_flag.load(std::memory_order_relaxed);
+    return live != nullptr && live->load(std::memory_order_relaxed);
 }
 
 }  // namespace BootDeviceLost
@@ -26,7 +26,7 @@ bool On() {
 
 namespace BootDeviceLostBackend {
 
-void SetFixFlag(const bool* live) {
+void SetFixFlag(const std::atomic<bool>* live) {
     VideoVulkan::BootDeviceLost::g_flag.store(live, std::memory_order_relaxed);
 }
 
