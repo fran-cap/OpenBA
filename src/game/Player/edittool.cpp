@@ -13,6 +13,7 @@
 // Decompiled from Application-x64.exe.
 
 #include "Player/edittool_funcs.h"
+#include "Player/edittool_anchor.h"   // review F-166: the citizen fallback's display test
 #include "options.h"
 #include "EditTool.h"
 #include "Player/dragtool.h"   // Tool + DragTool (ENDGAME B.3.8 TOOL)
@@ -127,8 +128,9 @@ static uint32_t ModelComponentTypeId() {
 // static footprint / model box). Reads the origin (translation) of the entity's
 // ModelComponent world Transform — ModelComponent+0x148 is a Math::Transform (0x1C),
 // whose last 3 floats (+0x158/+0x15c/+0x160) are the world x/y/z — and projects it
-// through the camera. Returns false (caller leaves the panel at its default position)
-// if the component is missing or the point is behind the camera.
+// through the camera. Returns false (the caller then closes the panel, as retail does for
+// an entity with no screen rect) if the component is missing or the point is behind the
+// camera or off the display.
 static bool TryProjectEntityModelPos(const ComponentEntity* entityObj, float* outX, float* outY) {
     if (!entityObj) return false;
 
@@ -157,6 +159,12 @@ static bool TryProjectEntityModelPos(const ComponentEntity* entityObj, float* ou
 
     float screen[2] = { 0.0f, 0.0f };
     if (!camHolder->WorldToScreen(&worldPos, screen)) return false;
+    // NOT RETAIL (review F-166): a point off the display (or inf / NaN) is refused, as
+    // 0x1400fe960 refuses an off-display box; Update would cast it to int out of range.
+    // WorldToScreen returned 1, so the device is present.
+    const ::Video::Device* disp = ::Video::Device::_singleton;
+    if (!EditToolAnchor::OnDisplay(screen[0], screen[1], disp->backBufferWidth, disp->backBufferHeight))
+        return false;
     *outX = screen[0];
     *outY = screen[1];
     return true;
@@ -241,28 +249,10 @@ void EditTool::Update(const System::Time*, char) {
     if (entityRef == nullptr)
         return;
 
-    // Resolve lazy/weak pointer
-
-    // If the referenced info dialog was destroyed while this EditTool kept its
-    // selection — in standalone the panel's close (ToolUI CloseDialog) does NOT tear
-    // the tool down the way retail's EntityUI::Slot9 -> SetEditMode(0) does — CheckPtr
-    // marks the IBP with the -1 "dead reference" sentinel (0xffffffffffffffff). The
-    // code below dereferences it and calls GetController(-1,...), which faults deep in
-    // the Runtime. Treat a dead / non-canonical ref as "nothing selected": clear it so
-    // the per-frame tick becomes a safe no-op (line above already early-outs on 0).
-    // (Retail destroys the tool on close, so the dialog is always live there and
-    // this guard never triggers.)
-    {
-        uintptr_t resolved = reinterpret_cast<uintptr_t>(entityRef);   // CAST-OK: ptr_int (the tree's dead-reference probe)
-        if (resolved < 0x10000 || resolved > 0x00007FFFFFFFFFFFULL) {
-            entityRef = nullptr;
-            // Drop the selected-entity ref too: leaving +0x30 set blocks re-selecting
-            // the same building (EditTool::OnKey's `lastEntityRef != foundEntity`
-            // guard and d3b0's step-1 early-out both see it as still selected).
-            lastEntityRef = nullptr;
-            return;
-        }
-    }
+    // Resolve lazy/weak pointer (CheckPtr, a bare RET). Retail 0x1400fcda0 tests +0x28
+    // for null only (0x1400fcdac) and has no address-range test: the panel's close
+    // button runs EntityUI::OnElementEvent's id-1 arm, SelectTool(0), which destroys
+    // this tool, so +0x28 never outlives its dialog (review F-190).
 
     // Get ToolUI controller from dialog.
     UI::DialogInstance* dialog = entityRef;
@@ -294,18 +284,10 @@ void EditTool::Update(const System::Time*, char) {
     REPO_DIAG("[Repos] entityRef(dialog)=%p toolUIIBP=%p pageToggleIBP=%p\n",
               static_cast<void*>(dialog), static_cast<void*>(toolUI), static_cast<void*>(pageToggle));
 
-    // Standalone safety: this reposition only runs once an entity's info dialog is open, a
-    // path never exercised until GUI select landed. If either controller came back null (a
-    // missing standalone controller, or an entity whose dialog lacks a ToolUI/EntityUI), we
-    // cannot position — skip rather than deref a null IBP. The dialog still shows at its .rsc
-    // default position. Retail always has both controllers.
-    if (toolUI == nullptr || pageToggle == nullptr) {
-        REPO_DIAG("[Repos] BAIL: null controller (toolUI=%p pageToggle=%p)\n",
-                  static_cast<void*>(toolUI), static_cast<void*>(pageToggle));
-        return;
-    }
-
-    // Check the ToolUI's pinned flag (+0x40)
+    // Check the ToolUI's pinned flag (+0x40). Retail reads it with no test of the
+    // narrowed controller (0x1400fce7e MOV RAX,[RBP-0x30] / 0x1400fce82 CMP byte ptr
+    // [RAX+0x40],0), and later reads the EntityUI's +0x30 the same way (0x1400fcea0 /
+    // 0x1400fceac): every info dialog carries both controllers (review F-190).
     if (toolUI->pinned != 0) {
         // Flag is set — skip positioning
         REPO_DIAG("[Repos] BAIL: toolUI+0x40 pinned flag set\n");
@@ -418,28 +400,11 @@ void EditTool::Update(const System::Time*, char) {
     // Get UI scale factor from dialog's UI instance (dialog+0x10 = UI, UI+0xdc = scale).
     float uiScale = dialog->_ui->_uiScale;
 
-    // Apply scale and set position
+    // Apply scale and set position. Retail 0x1400fcf8e-0x1400fcfcf goes from the two
+    // DIVSS / CVTTSS2SI straight to SetUpperLeft(x, y, true): no clamp here; the edge
+    // handling is SetUpperLeft's own (review F-191).
     int scaledX = (int)((float)posX / uiScale);
     int scaledY = (int)((float)posY / uiScale);
-
-    // Keep the panel on-screen. The anchor projects to wherever the entity is, which can
-    // be near (or past) a screen edge — most visibly for citizens, whose anchor is a
-    // single projected point rather than a clamped footprint box. Clamp the upper-left to
-    // [0, screen-dialog] in UI space so the whole panel stays visible. Positions already
-    // inside the screen are unaffected, so building placement is unchanged.
-    if (uiScale > 0.0f && ::Video::Device::_singleton) {
-        const ::Video::Device* disp = ::Video::Device::_singleton;
-        int screenW = disp->backBufferWidth;
-        int screenH = disp->backBufferHeight;
-        if (screenW > 0 && screenH > 0) {
-            int maxX = (int)((float)screenW / uiScale) - dialogWidth;
-            int maxY = (int)((float)screenH / uiScale) - dialogHeight;
-            if (maxX < 0) maxX = 0;
-            if (maxY < 0) maxY = 0;
-            if (scaledX < 0) scaledX = 0; else if (scaledX > maxX) scaledX = maxX;
-            if (scaledY < 0) scaledY = 0; else if (scaledY > maxY) scaledY = maxY;
-        }
-    }
 
     REPO_DIAG("[Repos] SETPOS midX=%.1f rectTop=%.1f dlgW=%d dlgH=%d uiScale=%.3f "
               "-> scaled=(%d,%d)\n", midX, rectTop, dialogWidth,
