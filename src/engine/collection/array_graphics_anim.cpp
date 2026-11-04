@@ -41,16 +41,18 @@
 // ---------------------------------------------------------------------------
 // THE ONE THING IN HERE THAT LOOKS LIKE A TRANSCRIPTION ERROR AND IS NOT
 // ---------------------------------------------------------------------------
-// `kInitMeshNode` does NOT write +0x08 (the parent index) or +0x44, and
-// `kInitAnimLayer` does not write +0x10 (the playback speed) or +0x31..+0x37.
-// Those are retail's holes: the `else` arm of each fill loop stores exactly the
-// qwords listed beside it below and nothing more. Helpfully zeroing them would
-// be unfaithful AND would make an oracle that compared them fail 100% of calls
+// `kInitMeshNode` does NOT write +0x44, and `kInitAnimLayer` does not write
+// +0x10 (the playback speed) or +0x31..+0x37. Those are retail's holes: the
+// `else` arm of each fill loop stores exactly the qwords listed beside it below
+// and nothing more. Helpfully zeroing them would be unfaithful AND would make an
+// oracle that compared them fail 100% of calls
 // (reference_oracle_must_not_compare_unwritten_bytes.md). Every caller in this
-// cluster overwrites both fields before reading them — AnimationState::
-// PlayAnimation writes layer speed on the line after it grows the array, and
-// GetInstanceId copies the node array in over the top — which is presumably why
-// MSVC was allowed to elide the stores.
+// cluster overwrites the speed before reading it — AnimationState::
+// PlayAnimation writes it on the line after it grows the array — which is
+// presumably why MSVC was allowed to elide the stores. Retail's fill loop also
+// skips the node's parent index at +0x08; the port zeroes that one, because the
+// node write path serializes it (review F-049, the NOT RETAIL note at
+// MeshNodeInit below).
 //
 // ALLOCATOR BOUNDARY: none of its own. `MemAlloc` / `MemFree` are array.cpp's
 // two accessors, and the lane-E dependency its banner states applies here
@@ -118,7 +120,12 @@ static void IdentityTransform(Math::Transform& t) {
 }
 static void MeshNodeInit(Graphics::GraphicsMesh::Node* n) {
     n->_name._data = nullptr;         // +0x00
-    // +0x08 (the parent index) NOT written
+    // NOT RETAIL (review F-049, undefined behaviour): retail does not write +0x08 (the
+    // parent index), and Node::Serialize's write path (RtGraphics_SerializeMeshNodes) and the
+    // copy ctor then read an indeterminate int, which C++ leaves undefined; the bytes written
+    // were heap garbage. Zeroed here. Every reader sets it first (the read path serializes
+    // it in), so a loaded mesh is unchanged.
+    n->_parent = 0;                   // +0x08
     IdentityTransform(n->_local);     // +0x0c .. +0x27
     IdentityTransform(n->_bind);      // +0x28 .. +0x43
     // +0x44 NOT written
@@ -246,7 +253,7 @@ constexpr ArraySpec kSpec_MeshNode = {
     "Array<GraphicsMesh::Node>", 0x48, 8,
     &AssignMeshNode, &InitMeshNode, &DestroyMeshNodeRange, false,
     0, 0,          // the copy ctor writes +0x00..+0x44 (it skips +0x45..+0x47)
-    0x08, 0x0c,    // init skips the parent index; it ALSO skips +0x44..+0x47
+    0x44, 0x48,    // init skips +0x44..+0x47 (retail also skips the parent index: zeroed, F-049)
     0x00, 0x08 };  // the name slot is refcounted — a probe must seed it null
 
 constexpr ArraySpec kSpec_AnimState = {

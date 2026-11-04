@@ -46,7 +46,8 @@
 // Wave 9 lane N's work-scheduler probe tally (src/game/Action/action_base_complete.cpp).
 // Declared here rather than in a header: it has exactly one caller, the crash handler.
 #include <cstdio>
-#include <cstdlib>   // atoi (the harness guard)
+#include <cstdlib>
+#include "clamped_atoi.h"   // ClampedAtoi (the harness guard; review F-087)
 #include <cstdint>
 #include <cstring>
 #include <exception>
@@ -259,7 +260,7 @@ static void HarnessGuardUnattendedBoot() {
         const IO::SettingsFile::Entry* e = FindSetting(entries, name);
         if (e == nullptr)
             return false;
-        *out = atoi(e->value.c_str());
+        *out = ClampedAtoi(e->value.c_str());   // not atoi: out of range is UB (review F-087)
         return true;
     };
 

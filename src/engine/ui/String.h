@@ -29,7 +29,9 @@
 // operator System::String reads `table` UNGUARDED and forwards to
 // StringTable::GetText(int), whose own guard order (index < 0 returns empty
 // WITHOUT touching `this`) is what makes a never-assigned `{null, -1}` harmless
-// (sprite.cpp, the WAVE 10 LANE UIORACLE note). No guard is added here.
+// (sprite.cpp, the WAVE 10 LANE UIORACLE note). No guard is added here. The port
+// calls the body as the static StringTable::GetTextOf(table, index), so a null
+// table is not a member call on null (review F-009, undefined behaviour in C++).
 // ============================================================================
 
 #include <cstdint>

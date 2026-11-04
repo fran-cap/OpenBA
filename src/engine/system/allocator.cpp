@@ -355,7 +355,11 @@ bool MemoryAllocator::ExpandMemoryRangeTable() {
     ranges = static_cast<MemoryRange*>(dst);  // CAST-OK: alloc_header
     if (dst == nullptr) return false;
 
-    std::memcpy(dst, src, static_cast<size_t>(oldCap) * 0x18);
+    // NOT RETAIL (review F-003, undefined behaviour): the first table grows from capacity 0,
+    // whose `ranges` is null, and memcpy from a null pointer is undefined even for 0 bytes.
+    // Retail copies unguarded; skipping the empty copy changes no byte.
+    if (oldCap != 0)
+        std::memcpy(dst, src, static_cast<size_t>(oldCap) * 0x18);
     std::memset(static_cast<uint8_t*>(dst) + static_cast<size_t>(oldCap) * 0x18, 0,  // CAST-OK: alloc_header
                 static_cast<size_t>(rangeCapacity - oldCap) * 0x18);
     if (oldCap != 0) g_plat.release(src);

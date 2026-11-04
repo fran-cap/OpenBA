@@ -34,6 +34,7 @@
 
 
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include <new>
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -94,7 +95,7 @@ static void CreditBuildProgress(BuildComponent* bc) {
     static int rampFrames = -1;
     if (rampFrames < 0) {
         const char* e = Opt().buildDemoFrames;
-        rampFrames = (e && e[0]) ? std::atoi(e) : 600;
+        rampFrames = (e && e[0]) ? ClampedAtoi(e) : 600;
         if (rampFrames < 1) rampFrames = 600;
     }
     int inc = target / rampFrames;

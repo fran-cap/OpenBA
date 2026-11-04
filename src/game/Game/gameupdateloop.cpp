@@ -33,6 +33,7 @@
 #include "graphics/Mesh.h"          // B.3.x W0: Shutdown deletes m_skyMesh by name
 #include "sampler.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "Game/GameUpdateLoop.h"   // ENDGAME B.3.8 LOOP: the real class
 #include "Game/WorldGeometry.h"    // caller batch CB6: m_worldGeometry's class
 #include "Player/Tool.h"            // caller batch CB6: the active tool's Draw
@@ -527,7 +528,7 @@ long long g_profSimIters = 0;
 inline bool SimProfOn() {
     if (g_simProfOn < 0) {
         const char* e = Opt().simprof;
-        int n = (e && e[0] && e[0] != '0') ? std::atoi(e) : 0;
+        int n = (e && e[0] && e[0] != '0') ? ClampedAtoi(e) : 0;
         if (e && e[0] && e[0] != '0' && n <= 1) n = 120;   // "1" => default interval
         g_simProfOn = n;
         if (n) { int64_t f; Platform::PerfFrequency(&f); g_qpcFreq = f; }
@@ -593,7 +594,7 @@ int g_forceSpeed = -1;
 inline void ApplyForceSpeed(PlayerToolManager* toolManager) {
     if (g_forceSpeed < 0) {
         const char* e = Opt().forceSpeed;
-        g_forceSpeed = (e && e[0]) ? std::atoi(e) : 0;
+        g_forceSpeed = (e && e[0]) ? ClampedAtoi(e) : 0;
     }
     if (g_forceSpeed > 0 && toolManager) {
         toolManager->paused = false;               // not paused
@@ -1269,7 +1270,7 @@ post_simulation:
             // A ",ui" suffix (tools/device_sim.sh) raises the quickload bit instead: Draw's step 13 takes
             // the same shot after the interface is drawn, as retail's with-UI screenshot key does.
             static const char* const ssEnv = Opt().screenshotAt;
-            static const int32_t ssAt = ssEnv ? std::atol(ssEnv) : -1;
+            static const int32_t ssAt = ssEnv ? ClampedAtoi(ssEnv) : -1;
             static const bool ssWithUi = ssEnv != nullptr && std::strstr(ssEnv, ",ui") != nullptr;
             static int32_t ssFrame = 0;
             static bool ssFired = false;
@@ -1441,7 +1442,7 @@ void GameUpdateLoop::Draw(float alpha) {
         static int s_capArm = -2;      // -2=unread, -1=disabled, >=0 = countdown to arm
         if (s_capArm == -2) {
             const char* e = Opt().captureIngame;
-            s_capArm = (e && e[0]) ? (atoi(e) > 0 ? atoi(e) : 120) : -1;
+            s_capArm = (e && e[0]) ? (ClampedAtoi(e) > 0 ? ClampedAtoi(e) : 120) : -1;
         }
         if (s_capArm >= 0) {
             if (s_capArm == 0) {
@@ -1529,7 +1530,7 @@ void GameUpdateLoop::Draw(float alpha) {
         if (s_forceSnow < 0) {
             const char* e = Opt().forceSnow;
             s_forceSnow = (e && e[0]) ? 1 : 0;
-            if (s_forceSnow) s_snowVal = (float)atof(e);
+            if (s_forceSnow) s_snowVal = (float)std::strtod(e, nullptr);
         }
         if (s_forceSnow) {
             videoCtx->_unknown03b8.x = s_snowVal;
