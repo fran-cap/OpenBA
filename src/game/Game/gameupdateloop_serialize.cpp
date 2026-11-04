@@ -52,6 +52,7 @@
 #include "Entity/EntityList.h"
 #include "Game/PlayerToolManager.h"
 #include "Game/Minimap.h"
+#include "Game/minimap_bounds.h"   // review S-009: the counts Minimap::Serialize accepts on load
 #include "Game/WeatherSimulation.h"
 #include "Game/WeatherParticleGeometry.h"   // the effect slots' class
 #include "Game/EventLog.h"            // B4 GAME-a: the pointees the serializer reads by name
@@ -485,6 +486,19 @@ void Minimap::Serialize(IO::Stream& stream) {
     ser.Serialize(n, terrainPixels._data, nullptr);
 
     ser.Serialize(size, nullptr);
+
+    // NOT RETAIL (review S-009): retail trusts the three counts; arrays that do not hold
+    // size * size pixels each are refused before the upload reads them
+    // (MinimapBounds::PixelsCoverSize), through retail's own fatal error box, as Map::Serialize
+    // refuses a damaged map (review F-026).
+    if (!IsSaving(&stream) && !MinimapBounds::PixelsCoverSize(size, overlayPixels._size, terrainPixels._size)) {
+        fprintf(stderr, "[Minimap::Serialize] FATAL: edge %d, %d overlay / %d terrain pixels\n", size,
+                overlayPixels._size, terrainPixels._size);
+        fflush(stderr);
+        System::Error::SetText("This save's minimap is damaged and cannot be loaded.", true);
+        System::Error::Display();   // the box; _stopApplication then exits the process
+        return;
+    }
 
     if (!IsSaving(&stream)) {
         Minimap_CreateAndUpload(this);
