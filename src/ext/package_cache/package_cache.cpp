@@ -96,6 +96,9 @@ bool Restore(IO::FileSystem& fs) {
         return false;
     if (!Decode(payload, packs, fs._packfileIndex, &AddToFoldIndex)) {
         std::fprintf(stderr, "[PackageCache] the cached directory did not fit the packages: built by the loop\n");
+        // Its bytes match its record, so the store would keep it and refuse Built's Put of the
+        // same key: dropped here, so that Put replaces it (review F-241).
+        store->Forget(key);
         return false;
     }
     g_pending.valid = false;
