@@ -187,4 +187,5 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/ui/widgets_input.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
+  ${CMAKE_SOURCE_DIR}/src/game/Dialog/statusbarui.cpp             # statusbar_icon_race_test.cpp (review S-006)
 )

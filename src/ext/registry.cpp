@@ -280,6 +280,18 @@ const Entry kEntries[] = {
       "place to put them (only stockpiles); the new citizens appear near the middle of the map instead.",
       0, [](State& s) -> bool& { return s.fix.debug_spawn_origin; } },
 
+    // STATUSBAREMPTYTOWN (review S-006): the status bar's problem-icon click (StatusBarUI's handler
+    // 0x14007a120) walks the town's citizens with no count test. A click queued in one frame is
+    // dispatched in the next, after its sim tick; when that tick removed the last citizen, the walk
+    // reads the list's slot 0 past its end: the removed citizen (freed in retail by the same frame's
+    // entity drain). With the row on, the click does nothing in a town with no citizen. UI only;
+    // nothing new is saved.
+    { "statusbar_empty_town", Tier::Fix, Class::None, true,
+      "Status icons safe when the town empties",
+      "Clicking a status-bar problem icon just as the last citizen leaves or dies no longer jumps to "
+      "the citizen who is gone (in the original game, a read of freed memory).",
+      0, [](State& s) -> bool& { return s.fix.statusbar_empty_town; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).
