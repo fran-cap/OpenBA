@@ -52,7 +52,7 @@ UNIT_TEST(ext_registry_table_shape) {
                            "commute_cost", "nomad_arrival", "mods_persist",
                            "save_failure_notice", "boat_reach_notice", "cancel_refund",
                            "autotrade_free_goods", "input_fetch_room", "stranded_wade",
-                           "debug_spawn_origin"}) {
+                           "debug_spawn_origin", "statusbar_empty_town"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);

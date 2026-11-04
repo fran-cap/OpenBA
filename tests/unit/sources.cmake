@@ -189,6 +189,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/combodialog_close.cpp        # combodialog_close_test.cpp (review S-035)
   ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
+  ${CMAKE_SOURCE_DIR}/src/game/Dialog/statusbarui.cpp             # statusbar_icon_race_test.cpp (review S-006)
 )
 if(WIN32)
   # The Windows-only diagnostics a test reaches (src/diag/win is never built off Windows).

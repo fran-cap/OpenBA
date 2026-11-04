@@ -45,6 +45,7 @@
 #include "Game/WeatherSimulation.h"
 #include "Game/PlayerToolManager.h"
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "ext/registry.h"              // Ext::Fix().statusbar_empty_town
 
 // CitizenUI_UpdateIconDisplay_Impl is in the shared header Dialog/citizen_icon_helpers.h;
 // the icon group's Init (0x14006abf0) is TownHall_GroupRatingInit (Dialog/RatingGroup.h).
@@ -397,6 +398,14 @@ static void StatusBarUI_StatusIconHandler_Impl(StatusBarUI* self, uint8_t iconIn
     // The town's citizens (no test of the town or of the count: 0x14007a120)
     const CitizenBehavior* town = game->m_citizenList;
     const int citizenCount = town->citizens._size;
+    // FIX statusbar_empty_town (review S-006, NOT RETAIL): retail 0x14007a120 has no count test.
+    // A click queued in frame N is dispatched in frame N+1 by UpdateEvents, after that frame's
+    // sim tick; when the tick removed the last citizen, the walk below wraps the index to 0 and
+    // reads citizens._data[0] past _size: the removed citizen, freed in retail by the same
+    // frame's EntityList drain (use after free), and in the port centred on as it dies. With the
+    // row on, a click in a town with no citizen does nothing.
+    if (Ext::Fix().statusbar_empty_town && citizenCount <= 0)
+        return;
     const uint32_t bitMask = 1u << (iconIndex & 0x1F);
     int checked = 0;
 
