@@ -24,9 +24,11 @@
 
 #include <pthread.h>
 #include <sched.h>
+#include <signal.h>
 #include <time.h>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 
 namespace Platform {
 
@@ -54,13 +56,47 @@ void Release(ThreadObject* t) {
     }
 }
 
+// An alternate signal stack for this thread, as the crash handler installs for the main
+// thread (src/diag/posix/crash_handler_posix.cpp): a new pthread starts without one, and
+// with none a stack overflow's SIGSEGV cannot be delivered to the SA_ONSTACK handler, so the
+// process dies with no standalone_crash.log (review F-277). A thread that already has one
+// (bionic gives every thread its own) keeps it. Returns the stack to free, or null.
+constexpr size_t kAltStackSize = 64u * 1024u;
+
+void* InstallAltStack() {
+    stack_t cur{};
+    if (sigaltstack(nullptr, &cur) != 0 || (cur.ss_flags & SS_DISABLE) == 0) return nullptr;
+    void* mem = std::malloc(kAltStackSize);
+    if (mem == nullptr) return nullptr;
+    stack_t ss{};
+    ss.ss_sp = mem;
+    ss.ss_size = kAltStackSize;
+    if (sigaltstack(&ss, nullptr) != 0) {
+        std::free(mem);
+        return nullptr;
+    }
+    return mem;
+}
+
+void RemoveAltStack(void* mem) {
+    if (mem == nullptr) return;
+    stack_t off{};
+    off.ss_flags = SS_DISABLE;
+    sigaltstack(&off, nullptr);
+    std::free(mem);
+}
+
 void* Trampoline(void* p) {
     ThreadObject* t = static_cast<ThreadObject*>(p);  // CAST-OK: user_data
     pthread_mutex_lock(&t->latchLock);
     while (!t->resumed) pthread_cond_wait(&t->latchCond, &t->latchLock);
     const bool run = !t->abandoned;
     pthread_mutex_unlock(&t->latchLock);
-    if (run) t->entry(t->arg);
+    if (run) {
+        void* altStack = InstallAltStack();
+        t->entry(t->arg);
+        RemoveAltStack(altStack);
+    }
     Release(t);
     return nullptr;
 }
