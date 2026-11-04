@@ -119,8 +119,10 @@ public:
         PathResult& r = pf->results.data[static_cast<uint32_t>(job.slot)];
         r.path.SetSize(count);
         for (int i = 0; i < count; ++i) r.path._data[i] = s.path[i];
+        // [PFBENCH] e2e split: the publish stamp (stress harness only), before the
+        // release store so it is ordered with it (review F-279).
+        if (t0 != 0) PfProf_Ready(job.slot);
         __atomic_store_n(&r.ready, static_cast<uint8_t>(1), __ATOMIC_RELEASE);
-        if (t0 != 0) PfProf_Ready(job.slot);   // [PFBENCH] e2e split: publish stamp (stress harness only)
         pf->lock.Unlock();
     }
 };
