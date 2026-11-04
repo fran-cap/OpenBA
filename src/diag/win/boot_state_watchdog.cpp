@@ -69,8 +69,9 @@
 // WHAT HUNG DOES
 //  1. publishes STATE=HUNG and logs one [BootState] HUNG line to stderr;
 //  2. writes standalone_hang.log: an all-thread stack dump. Each other thread is
-//     suspended, GetThreadContext'd, walked through the exe's ONE stack walker
-//     (StandaloneWalkStack in src/diag/win/crash_handler_win.cpp, the VEH crash handler's) and resumed.
+//     suspended, GetThreadContext'd, unwound with calls that take no lock, resumed, and
+//     only then symbolized (ThreadStack::Capture, src/diag/win/thread_stack.h): the module
+//     lookups and RtlLookupFunctionEntry wait on loader locks a suspended thread can hold.
 //     Thread ids are printed and the main thread is marked;
 //  3. on an UNATTENDED run only, TerminateProcess(self, 3).
 //
@@ -89,6 +90,7 @@
 #include <cstdarg>
 
 #include "options.h"
+#include "thread_stack.h"   // ThreadStack::Capture / FormatFrame: each thread's stack
 #include "platform/common/cpu/topology.h"   // CPULIMIT: the [Cpu] facts on the RUNNING line
 
 namespace BootState {
@@ -169,9 +171,8 @@ void WriteStateFile(const char* state, unsigned uptimeSec, unsigned frame,
 // ---------------------------------------------------------------------------
 // The hang dump
 // ---------------------------------------------------------------------------
-// CRT-free output, for the same reason the crash log is: we run this with every
-// other thread SUSPENDED, and a suspended thread can be holding the CRT's file
-// lock. One handle, WriteFile, FILE_FLAG_WRITE_THROUGH.
+// CRT-free output, for the same reason the crash log is: the hung thread can be
+// holding the CRT's file lock for good. One handle, WriteFile, FILE_FLAG_WRITE_THROUGH.
 
 HANDLE g_hangLog = INVALID_HANDLE_VALUE;
 
@@ -196,11 +197,8 @@ void HangLogf(const char* fmt, ...) {
     }
 }
 
-void HangStackSink(void*, const char* line) { HangLogRaw(line); }
-
-// Suspend every other thread of this process in turn, walk it, resume it. The
-// walking thread (this one) is dumped from a captured context without any
-// suspend/resume, since it is the one running.
+// Suspend every other thread of this process in turn, walk it, resume it, then name the
+// frames' modules. This thread (the watchdog) is not dumped.
 void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                    unsigned staleSec, unsigned budgetSec) {
     g_hangLog = CreateFileA("standalone_hang.log", GENERIC_WRITE, FILE_SHARE_READ,
@@ -222,6 +220,10 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
 
     const DWORD selfTid = GetCurrentThreadId();
     const DWORD selfPid = GetCurrentProcessId();
+
+    constexpr int kHangFrames = 32;
+    ThreadStack::Frame frames[kHangFrames];
+    char line[256];
 
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snap == INVALID_HANDLE_VALUE) {
@@ -260,24 +262,22 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                 continue;
             }
 
-            if (SuspendThread(th) == (DWORD)-1) {
-                HangLogf("  (SuspendThread failed, GetLastError=%lu)\n", GetLastError());
-                CloseHandle(th);
-                continue;
-            }
-
             CONTEXT ctx{};
             ctx.ContextFlags = CONTEXT_FULL;
-            if (GetThreadContext(th, &ctx)) {
+            const ThreadStack::Result r = ThreadStack::Capture(th, ctx, frames, kHangFrames);
+            if (r.status == ThreadStack::Status::kSuspendFailed) {
+                HangLogf("  (SuspendThread failed, GetLastError=%lu)\n", r.error);
+            } else if (r.status == ThreadStack::Status::kContextFailed) {
+                HangLogf("  (GetThreadContext failed, GetLastError=%lu)\n", r.error);
+            } else {
                 HangLogf("  RIP=%016llX RSP=%016llX RBP=%016llX\n",
                          (unsigned long long)ctx.Rip, (unsigned long long)ctx.Rsp,
                          (unsigned long long)ctx.Rbp);
-                StandaloneWalkStack(&ctx, &HangStackSink, nullptr);
-            } else {
-                HangLogf("  (GetThreadContext failed, GetLastError=%lu)\n", GetLastError());
+                for (int i = 0; i < r.frames; ++i) {
+                    ThreadStack::FormatFrame(line, sizeof(line), i, frames[i].rip, frames[i].rsp);
+                    HangLogRaw(line);
+                }
             }
-
-            ResumeThread(th);
             CloseHandle(th);
         } while (Thread32Next(snap, &te));
     }

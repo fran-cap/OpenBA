@@ -12,6 +12,7 @@
 #include "hw_watch.h"
 #include "load_time.h"      // LoadTime::CounterToMs: per-sample ms since process start
 #include "options.h"
+#include "thread_stack.h"   // ThreadStack::Capture: the lock-free suspended walk
 
 static HANDLE g_mainThread = nullptr;   // from HwWatch_Init (SUSPEND_RESUME + GET_CONTEXT)
 
@@ -140,6 +141,14 @@ void WriteSamples(const std::vector<Sample>& v) {
     std::fflush(g_out);
 }
 
+// Re-reads the main thread's phase tag while it is stopped (it may have moved since).
+void ReReadTag(void* p) {
+    static_cast<Sample*>(p)->tag = (uint8_t)g_samplerTag;
+}
+
+// No RtlLookupFunctionEntry while the thread is suspended: it waits on the loader's locks,
+// which a thread stopped inside LoadLibrary / FreeLibrary holds (the 4000 Hz boot hang).
+// ThreadStack::Capture walks with calls that take no lock.
 bool TakeSample(Sample& s, const Tracked& t) {
     const bool isMain = (t.role == DiagThreads::kMain);
     s.tag = isMain ? (uint8_t)g_samplerTag : kTagNotMain;
@@ -148,30 +157,16 @@ bool TakeSample(Sample& s, const Tracked& t) {
     s.n = 0;
     LARGE_INTEGER now; QueryPerformanceCounter(&now);
     s.qpc = now.QuadPart;
-    if (SuspendThread(t.h) == (DWORD)-1) return false;
     CONTEXT ctx; std::memset(&ctx, 0, sizeof(ctx));
     ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-    bool ok = GetThreadContext(t.h, &ctx) != 0;
-    if (ok) {
-        // Re-read the tag now that the thread is stopped (it may have moved since).
-        if (isMain) s.tag = (uint8_t)g_samplerTag;
-        for (int f = 0; f < kMaxFrames && ctx.Rip; ++f) {
-            s.rip[s.n++] = ctx.Rip;
-            DWORD64 imageBase = 0;
-            PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(ctx.Rip, &imageBase, nullptr);
-            if (!fn) {
-                // leaf function: return address is at [rsp]
-                const uintptr_t* sp = reinterpret_cast<const uintptr_t*>(ctx.Rsp);  // CAST-OK: crash_walk
-                if (IsBadReadPtr(sp, sizeof(uintptr_t))) break;
-                ctx.Rip = *sp; ctx.Rsp += 8;
-                continue;
-            }
-            PVOID handlerData = nullptr; ULONG64 est = 0;
-            RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, ctx.Rip, fn, &ctx, &handlerData, &est, nullptr);
-        }
+    ThreadStack::Frame frames[kMaxFrames];
+    const ThreadStack::Result r = ThreadStack::Capture(t.h, ctx, frames, kMaxFrames,
+                                                       isMain ? &ReReadTag : nullptr, &s);
+    if (r.status != ThreadStack::Status::kOk) return false;
+    for (int f = 0; f < r.frames; ++f) {
+        s.rip[s.n++] = frames[f].rip;
     }
-    ResumeThread(t.h);
-    return ok && s.n > 0;
+    return s.n > 0;
 }
 
 // Open the threads registered since the last tick (DiagThreads, block LOADSTAMP).

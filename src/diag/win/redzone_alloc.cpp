@@ -3,6 +3,7 @@
 
 #include "redzone_alloc.h"
 #include "options.h"
+#include "thread_stack.h"           // ThreadStack::Capture: the other threads' stacks
 #include "system/MemoryAllocator.h"   // -Iruntime/types: the instrument seat
 #include "platform_sync.h"           // Platform::MutexLock / MutexUnlock on the allocator lock
 
@@ -530,46 +531,37 @@ extern "C" void StressHarness_Context(char* buf, int n);
 
 // Print the MAIN thread's stack (from another thread: suspend, read context,
 // unwind) so a watchdog detection names what the sim was executing when the
-// corrupt tag was first seen. Same unwind walk as the crash handler.
+// corrupt tag was first seen. ThreadStack::Capture walks it without taking a lock and
+// resumes it before the module lookups and the printf: each of those can wait on a
+// lock (the loader's, the CRT's stdout lock) the suspended thread holds.
 static void DumpOneThreadStack(HANDLE th, DWORD tid, const char* label) {
-    if (SuspendThread(th) == (DWORD)-1) {
-        printf("[REDZONE-HEAP] SuspendThread(%s tid=%lu) failed err=%lu\n", label, tid, GetLastError());
-        return;
-    }
+    constexpr int kFrames = 40;
+    ThreadStack::Frame frames[kFrames];
     CONTEXT ctx; memset(&ctx, 0, sizeof(ctx));
     ctx.ContextFlags = CONTEXT_FULL;
-    if (GetThreadContext(th, &ctx)) {
+    const ThreadStack::Result r = ThreadStack::Capture(th, ctx, frames, kFrames);
+    if (r.status == ThreadStack::Status::kSuspendFailed) {
+        printf("[REDZONE-HEAP] SuspendThread(%s tid=%lu) failed err=%lu\n", label, tid, r.error);
+    } else if (r.status == ThreadStack::Status::kContextFailed) {
+        printf("[REDZONE-HEAP] GetThreadContext(%s) failed err=%lu\n", label, r.error);
+    } else {
         printf("[REDZONE-HEAP] %s thread tid=%lu stack at detection:\n", label, tid);
-        for (int frame = 0; frame < 40; frame++) {
+        for (int frame = 0; frame < r.frames; frame++) {
+            const uint64_t rip = frames[frame].rip;
             HMODULE mod = nullptr;
             if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                                    GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                   (LPCSTR)(uintptr_t)ctx.Rip, &mod) && mod) {  // CAST-OK: crash_walk
+                                   (LPCSTR)(uintptr_t)rip, &mod) && mod) {  // CAST-OK: crash_walk
                 char path[MAX_PATH] = {0};
                 GetModuleFileNameA(mod, path, MAX_PATH);
                 const char* nm = strrchr(path, '\\');
                 printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%-8llX\n", frame, nm ? nm + 1 : path,
-                       (unsigned long long)((uintptr_t)ctx.Rip - (uintptr_t)mod));  // CAST-OK: crash_walk
+                       (unsigned long long)((uintptr_t)rip - (uintptr_t)mod));  // CAST-OK: crash_walk
             } else {
-                printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", frame, (void*)ctx.Rip);
+                printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", frame, (void*)(uintptr_t)rip);  // CAST-OK: crash_walk
             }
-            DWORD64 imageBase = 0;
-            PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(ctx.Rip, &imageBase, nullptr);
-            if (!fn) {
-                uintptr_t* sp = reinterpret_cast<uintptr_t*>(ctx.Rsp);  // CAST-OK: crash_walk
-                if (IsBadReadPtr(sp, sizeof(uintptr_t))) break;
-                ctx.Rip = *sp; ctx.Rsp += 8;
-                if (!ctx.Rip) break;
-                continue;
-            }
-            PVOID handlerData = nullptr; ULONG64 est = 0;
-            RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, ctx.Rip, fn, &ctx, &handlerData, &est, nullptr);
-            if (!ctx.Rip) break;
         }
-    } else {
-        printf("[REDZONE-HEAP] GetThreadContext(%s) failed err=%lu\n", label, GetLastError());
     }
-    ResumeThread(th);
 }
 
 // Every thread of the process except the caller: the corrupter may be the pathfinder

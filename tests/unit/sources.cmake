@@ -188,3 +188,9 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
 )
+if(WIN32)
+  # The Windows-only diagnostics a test reaches (src/diag/win is never built off Windows).
+  list(APPEND UNIT_TREE_SRCS
+    ${CMAKE_SOURCE_DIR}/src/diag/win/thread_stack.cpp   # thread_stack_test.cpp (review F-275, F-288, F-291, F-297)
+  )
+endif()
