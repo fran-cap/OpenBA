@@ -268,8 +268,12 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
         if (grid) {
             float factor = clampf(1.0f - (pc->distance - kClampBase) / kClampSpan, 0.0f, 1.0f);
             float halfExtent = (float)grid->size * kHalf * factor;
-            pc->target.x = clampf(pc->target.x, -halfExtent, halfExtent);
-            pc->target.y = clampf(pc->target.y, -halfExtent, halfExtent);
+            // Retail 0x1400ff451..0x1400ff4ae: Math::Vector3::Clamp(target, (-h,-h,0), (h,h,0))
+            // (Runtime 0x18007cbe0) on the whole focus, z included (R12D = 0 at +0x48 and
+            // +0x58): the look-at height is 0 after every call. A NaN x / y comes out as +h.
+            const Math::Vector3 lo(-halfExtent, -halfExtent, 0.0f);
+            const Math::Vector3 hi(halfExtent, halfExtent, 0.0f);
+            pc->target = pc->target.Clamp(lo, hi);
         }
     }
 

@@ -155,6 +155,7 @@ public:
     Vector3(const Scalar& x_, const Scalar& y_, const Scalar& z_);            // 0x180015120
     explicit Vector3(const Scalar& s);                                        // 0x180015360 (splat)
 
+    Vector3 Clamp(const Vector3& min, const Vector3& max) const;    // 0x18007cbe0
     Vector3 Cross(const Vector3& rhs) const;                        // 0x180021b10
     Scalar  Dot(const Vector3& rhs) const;                          // 0x18001dff0
     static Vector3 FromYawPitch(const Scalar& yaw, const Scalar& pitch);      // 0x1800220b0
@@ -467,6 +468,34 @@ inline Vector3 Vector3::Lerp(const Vector3& to, const Scalar& t) const {
     ret.x = this->x + tt * (to.x - this->x);
     ret.y = this->y + (to.y - this->y) * tt;
     ret.z = this->z + (to.z - this->z) * tt;
+    return ret;
+}
+
+// ?Clamp@Vector3@Math@@QEBA?AV12@AEBV12@0@Z  retail 0x18007cbe0 (RCX this, RDX ret,
+// R8 min, R9 max). All three max sides first (z, y, x), then the min sides:
+//   18007cbe0: MOVSS  XMM0,[R9+0x8]      ; max.z
+//   18007cbe6: MOVSS  XMM2,[RCX+0x8]     ; v.z
+//   18007cbeb: COMISS XMM0,XMM2
+//   18007cbee: JA     0x18007cbf3        ; max.z > v.z: keep v.z
+//   18007cbf0: MOVAPS XMM2,XMM0          ; else (also unordered) t.z = max.z
+//   ...
+//   18007cc17: MOVSS  XMM3,[R8+0x8]      ; min.z
+//   18007cc1d: COMISS XMM3,XMM2
+//   18007cc20: JA     0x18007cc25        ; min.z > t.z: result min.z
+//   18007cc22: MOVAPS XMM3,XMM2          ; else (also unordered) result t.z
+// COMISS on an unordered pair sets ZF = PF = CF = 1, so JA falls through: a NaN
+// component takes MAX at the first step and keeps it (max is ordered against min).
+// `a > b ? keep : other` is that branch exactly, NaN included. A component equal to
+// a bound comes out as the bound's own value (so v = -0.0 against max = +0.0 gives
+// +0.0). Ghidra's `max <= v ? max : v` rendering of the same code loses the NaN case.
+inline Vector3 Vector3::Clamp(const Vector3& min, const Vector3& max) const {
+    const float tz = (max.z > this->z) ? this->z : max.z;
+    const float ty = (max.y > this->y) ? this->y : max.y;
+    const float tx = (max.x > this->x) ? this->x : max.x;
+    Vector3 ret;
+    ret.x = (min.x > tx) ? min.x : tx;
+    ret.y = (min.y > ty) ? min.y : ty;
+    ret.z = (min.z > tz) ? min.z : tz;
     return ret;
 }
 
