@@ -296,6 +296,8 @@ void InitFromSettings() {
 }
 
 bool SetAndRecord(const Entry& e, bool on) {
+    // The Syncs below write seams an overlapped emit's pass 2 reads: join it first (review F-225).
+    Ext::RenderPipe::SettleBeforeStepWrite();
     const bool changedNow = SetRequested(e, on);
     Ext::DrawGather::Sync();   // a class A toggle takes effect now (no-op for every other entry)
     Ext::DrawBatch::Sync();    // on / off: the DrawItemList seam is set or cleared now
@@ -318,6 +320,9 @@ bool SetAndRecord(const Entry& e, bool on) {
 }
 
 int32_t SetValueAndRecord(const ValueKey& k, int64_t v) {
+    // A value the render thread reads, and the sun map's descriptors below: join an overlapped
+    // emit first (review S-028).
+    Ext::RenderPipe::SettleBeforeStepWrite();
     const int32_t before = Value(k);
     const int32_t stored = SetValue(k, v);
     // ext.max_shadow_size: a new size rebuilds the sun map (when the row is on and the retail combo is at

@@ -762,6 +762,11 @@ void Sync() {
 bool Installed() { return g_installed; }
 bool Threaded() { return g_handoff != nullptr; }
 
+void SettleBeforeStepWrite() {
+    if (!g_installed || g_handoff == nullptr) return;
+    g_driver.SettleOverlap(g_host);   // set only between BeforeSteps and the tail: g_host.loop is set
+}
+
 Counters TakeWindow() {
     Counters c = g_driver.TakeWindow();
     c.snapshots  = g_snapshot.built;

@@ -177,6 +177,14 @@ public:
         }
     }
 
+    // A step is about to write what the overlapped emit's pass 2 reads (review F-225, S-028: a
+    // class-A toggle's seam pointers, the sun map's descriptors): join the emit first, as a loop
+    // transition does. Nothing to do when the steps do not run beside an emit (the fence waited).
+    void SettleOverlap(Host& host) {
+        if (!_overlapping) return;
+        BeforeTransition(host);
+    }
+
     // kExtFrameTail. True: the extension was switched off -- uninstall now (the
     // render thread is idle and joined).
     bool Tail(Host& host, const TailInputs& in) {
