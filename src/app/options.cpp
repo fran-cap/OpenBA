@@ -15,6 +15,7 @@
 #include "options.h"
 #include "clamped_atoi.h"   // ClampedAtoi: atoi without the out-of-range UB (review F-087)
 
+#include <climits>
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
@@ -199,6 +200,8 @@ void OptionsInit() {
         if (o.stressHitchMs < 0) o.stressHitchMs = 0; }
     if (o.stressCitizens < 0) o.stressCitizens = 0;
     // stressSets < 0 is kept: |sets| sets in the spread layout (PFBENCH, stress_harness.h).
+    // INT_MIN has no |sets|: StressHarness_Sets and the CSV header negate it (review F-299).
+    if (o.stressSets == INT_MIN) o.stressSets = INT_MIN + 1;
     if (o.stressInterval < 60) o.stressInterval = 60;
     if (o.stressSpeed < 1) o.stressSpeed = 1;
     if (o.stressFoodMult <= 0) o.stressFoodMult = o.stressCitizens > 10 ? o.stressCitizens / 10 : 1;
