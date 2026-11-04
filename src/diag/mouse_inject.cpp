@@ -119,6 +119,7 @@
 #include <cmath>
 
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 // FULL PATHS ON PURPOSE. `engine/types/` also has a `ui/DialogInstance.h`,
 // and `-Iengine/types` precedes `-Iruntime/types` on the standalone command
 // line, so the short spelling silently picks up the WRONG header -- which
@@ -239,9 +240,9 @@ void ReadConfig() {
     if (g_cfg.stepCount == 0) return;
 
     if (const char* h = Opt().mouseHold)
-        if (int v = std::atoi(h)) g_cfg.hold = v;
+        if (int v = HarnessAtoi(h)) g_cfg.hold = v;
     if (const char* f = Opt().mouseStart)
-        if (int v = std::atoi(f)) g_cfg.startFrame = v;
+        if (int v = HarnessAtoi(f)) g_cfg.startFrame = v;
     g_cfg.trace = Opt().mouseTrace != nullptr;
 
     if (const char* ts = Opt().mouseTipStr) {
@@ -268,9 +269,11 @@ void ReadConfig() {
             g_cfg.byName = true;
             std::snprintf(g_cfg.name, sizeof(g_cfg.name), "%s", t + 1);
         } else if (t[0] == '@') {
-            int x = 0, y = 0;
-            if (std::sscanf(t + 1, "%d,%d", &x, &y) == 2) {
-                g_cfg.byCoord = true; g_cfg.coordX = x; g_cfg.coordY = y;
+            int xy[2] = {0, 0};
+            if (ScanClampedInts(t + 1, xy, 2, -kHarnessIntLimit, kHarnessIntLimit) == 2) {
+                g_cfg.byCoord = true;
+                g_cfg.coordX = xy[0];
+                g_cfg.coordY = xy[1];
             }
         } else if (!std::strcmp(t, "any")) {
             g_cfg.wantTipCapable = false;

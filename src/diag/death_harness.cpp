@@ -22,6 +22,7 @@
 // each teardown, and with BANISHED_OBJAUDIT=1 to watch the object tally.
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Game/exe_constants.h"
 #include "Entity/CitizenBehavior.h"           // B4: the town lists
 #include "Entity/ComponentEntity.h"           // B4: FindComponent<ResidenceComponent>
@@ -75,25 +76,25 @@ bool s_firedMarry  = false;
 void Init() {
     if (s_count >= 0) return;
     const char* n = Opt().killCitizens;
-    s_count = (n && n[0]) ? std::atoi(n) : 0;
+    s_count = (n && n[0]) ? HarnessAtoi(n) : 0;
     const char* f = Opt().killAtFrame;
-    if (f && f[0]) s_atFrame = std::atoi(f);
+    if (f && f[0]) s_atFrame = HarnessAtoi(f);
     const char* c = Opt().familyCensus;
-    s_censusEvery = (c && c[0]) ? std::atoi(c) : 0;
+    s_censusEvery = (c && c[0]) ? HarnessAtoi(c) : 0;
     const char* kf = Opt().killFamily;
-    s_killFamily = (kf && kf[0]) ? std::atoi(kf) : 0;
+    s_killFamily = (kf && kf[0]) ? HarnessAtoi(kf) : 0;
     const char* mh = Opt().marryHarness;
-    s_marryHarness = (mh && mh[0]) ? std::atoi(mh) : 0;
+    s_marryHarness = (mh && mh[0]) ? HarnessAtoi(mh) : 0;
     const char* bt = Opt().birthTrace;
-    s_birthTrace = (bt && bt[0]) ? std::atoi(bt) : 0;
+    s_birthTrace = (bt && bt[0]) ? HarnessAtoi(bt) : 0;
     const char* fb = Opt().forceBirth;
-    s_forceBirth = (fb && fb[0]) ? std::atoi(fb) : 0;
+    s_forceBirth = (fb && fb[0]) ? HarnessAtoi(fb) : 0;
     const char* fbf = Opt().forceBirthFrame;
-    if (fbf && fbf[0]) s_forceBirthFrame = std::atoi(fbf);
+    if (fbf && fbf[0]) s_forceBirthFrame = HarnessAtoi(fbf);
     const char* sp = Opt().spouseProbe;
-    s_spouseProbe = (sp && sp[0]) ? std::atoi(sp) : 0;
+    s_spouseProbe = (sp && sp[0]) ? HarnessAtoi(sp) : 0;
     const char* nh = Opt().nomadHarness;
-    s_nomadPeriod = (nh && nh[0]) ? std::atoi(nh) : 0;
+    s_nomadPeriod = (nh && nh[0]) ? HarnessAtoi(nh) : 0;
     if (s_spouseProbe > 0)
         std::fprintf(stderr, "[SpouseProbe] ENABLED — probing FindSpouse's age window at frame %d\n",
                      s_spouseProbe);

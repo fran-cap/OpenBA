@@ -14,6 +14,7 @@
 #include "ext/sharp_ui/sharp_sprites_data_4x.h"
 
 #include <cstring>
+#include <limits>
 #include <vector>
 
 using namespace Ext::SharpUI;
@@ -152,6 +153,67 @@ UNIT_TEST(ext_sharp_sheet_upscaled_sprite_without_art) {
         for (int x = 2; x < 4; ++x)
             CHECK(Texel(out, 8, x, y)[0] == 77 && Texel(out, 8, x, y)[3] == 255);
     CHECK(Texel(out, 8, 1, 1)[3] == 0);
+}
+
+UNIT_TEST(ext_sharp_sheet_rect_from_uvs_out_of_range) {
+    // Review F-223: a sheet's UVs come from its file unchecked. Corners far
+    // outside the sheet, or not numbers at all, clip to it; the width is taken
+    // after the clip (x1 - x0 on the raw corners overflowed int).
+    const SheetRect wide = RectFromUvs(-1953125.0f, 0.0f, 1953125.0f, 1.0f, 1024, 1024);
+    CHECK(wide.x == 0 && wide.y == 0 && wide.width == 1024 && wide.height == 1024);
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const float inf = std::numeric_limits<float>::infinity();
+    const SheetRect n = RectFromUvs(nan, 0.0f, 0.5f, 0.25f, 1024, 1024);
+    CHECK(n.x == 0 && n.width == 512 && n.height == 256);
+    const SheetRect i = RectFromUvs(0.5f, -inf, inf, 0.5f, 1024, 1024);
+    CHECK(i.x == 512 && i.y == 0 && i.width == 512 && i.height == 512);
+    const SheetRect back = RectFromUvs(0.75f, 0.75f, 0.25f, 0.25f, 1024, 1024);   // reversed: empty
+    CHECK(back.x == 768 && back.width == 0 && back.height == 0);
+}
+
+UNIT_TEST(ext_sharp_sheet_find_art_huge_record) {
+    // Review F-222: a record's width / height come from the sheet file; the
+    // size check is not an int overflow (0x40000000 * 2 wrapped to INT_MIN).
+    static const uint8_t px[4] = {};
+    const ArtSprite table[] = {{"Button", std::numeric_limits<int>::min(), 2, px}};
+    CHECK(FindArt(table, 1, "Button", 0x40000000, 1, 2) == nullptr);
+}
+
+UNIT_TEST(ext_sharp_sheet_art_needs_uvs_matching_record) {
+    // Review F-220 / F-221 / F-227: the art is matched on the record's width /
+    // height but drawn into the UV rectangle. A record whose UVs disagree with
+    // its own size keeps its own sprite (upscaled), or PlaceArt reads the art
+    // at the rectangle's size, past its end or before its start.
+    std::vector<uint8_t> art(16 * 16 * 4, 200);   // an 8 x 8 sprite's 2x art, exact size
+    const ArtSprite table[] = {{"Icon", 16, 16, art.data()}};
+    const float s = 64.0f;
+    const ScaledSprite fits = SpriteFromRecord(table, 1, "Icon", 8, 8, 8 / s, 8 / s, 16 / s, 16 / s, 64, 64, 2);
+    CHECK(fits.art == art.data());
+    CHECK(fits.rect.x == 8 && fits.rect.width == 8 && fits.rect.height == 8);
+    const ScaledSprite wide = SpriteFromRecord(table, 1, "Icon", 8, 8, 8 / s, 8 / s, 24 / s, 24 / s, 64, 64, 2);
+    CHECK(wide.art == nullptr);
+    CHECK(wide.rect.width == 16 && wide.rect.height == 16);
+    const ScaledSprite narrow = SpriteFromRecord(table, 1, "Icon", 8, 8, 8 / s, 8 / s, 12 / s, 16 / s, 64, 64, 2);
+    CHECK(narrow.art == nullptr);
+    const ScaledSprite empty = SpriteFromRecord(table, 1, "Icon", 8, 8, 8 / s, 8 / s, 8 / s, 8 / s, 64, 64, 2);
+    CHECK(empty.art == nullptr);
+    // The sheet build reads only inside the art (ASan: no read past its end).
+    auto base = Atlas(64, 64, [](int, int) { return 7; });
+    std::vector<uint8_t> out;
+    CHECK(BuildScaledSheet(base.data(), 64, 64, 2, 1, &wide, 1, out) == 0);
+    CHECK(Texel(out, 128, 16, 16)[0] == 7);   // the base sprite, upscaled
+}
+
+UNIT_TEST(ext_sharp_sheet_place_art_empty_rect) {
+    // Review F-227: an empty rectangle with a pad ring clamped the art index to
+    // -1 and read before the art. Nothing is written for it.
+    std::vector<uint8_t> art(4 * 4 * 4, 9);
+    std::vector<uint8_t> dst(8 * 8 * 4, 0);
+    PlaceArt(dst.data(), 8, 8, SheetRect{4, 4, 0, 0}, art.data(), 1);
+    bool untouched = true;
+    for (uint8_t b : dst)
+        untouched = untouched && b == 0;
+    CHECK(untouched);
 }
 
 namespace {

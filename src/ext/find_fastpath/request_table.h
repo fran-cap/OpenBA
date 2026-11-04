@@ -143,5 +143,15 @@ private:
     size_t _blockUsed = kBlock;   // the last block is full: the next small key opens one
 };
 
+// StoreRef's test (find_fastpath.cpp): does reference id `refId` get a slot in the dense id -> row
+// table, whose size is the largest id stored? `refCount` is the factory's reference table count.
+// A save's ids are 1..N, N its reference table's count (SerializeReferenceTable's write arm numbers
+// them so); an id past the count, which only a crafted save holds, is not cached and its lookups take
+// the faithful path. Review F-250, F-253: the old bound, 2^24, let one id size the table at about
+// 400 MB.
+inline bool RefIdCacheable(uint32_t refId, int32_t refCount) {
+    return refCount > 0 && refId <= static_cast<uint32_t>(refCount);
+}
+
 }  // namespace FindFastpath
 }  // namespace Ext

@@ -162,7 +162,7 @@ bool ForceSnow(float* value) {
     if (s_forceSnow < 0) {
         const char* e = Opt().forceSnow;
         s_forceSnow = (e && e[0]) ? 1 : 0;
-        if (s_forceSnow) s_snowVal = static_cast<float>(std::strtod(e, nullptr));
+        if (s_forceSnow) s_snowVal = ClampedAtof(e);   // F-087: a double beyond float range
     }
     *value = s_snowVal;
     return s_forceSnow != 0;
@@ -418,7 +418,9 @@ struct EngineOps {
     }
     // P13_OVERLAP: when the next Frame's steps claimed the gate, wait until they are over, the
     // device lock dropped meanwhile (a step that uploads takes it: P13_OVERLAP 2.5).
-    void Gate(const Packet& p) {
+    // Not analysed (clang -Wthread-safety): it drops and re-takes the device lock BeginCommands took
+    // for this job, a hold that spans calls (and threads) the analysis cannot follow.
+    void Gate(const Packet& p) NO_THREAD_SAFETY_ANALYSIS {
         if (handoff == nullptr || !p.overlap || handoff->PassGate()) return;
         Video::Device* const device = ctx->_device;
         device->Unlock();
@@ -719,6 +721,10 @@ void Hook(::Engine::MainLoop& loop, int32_t point, float alpha, float time) {
     }
     if (point == ::Engine::MainLoop::kExtBeforeTransition) {
         g_driver.BeforeTransition(g_host);   // P13_OVERLAP: nothing in flight while the loop ends
+        return;
+    }
+    if (point == ::Engine::MainLoop::kExtBeforeActivate) {
+        g_driver.BeforeActivate(g_host);   // review S-002 / S-010: nothing in flight while focus changes
         return;
     }
     GameUpdateLoop* const g = GameUpdateLoop::_singleton;

@@ -173,6 +173,9 @@ struct StripSlot {
     int32_t waterCount = -1;
     bool tried = false;                    // built (or found empty) for this key
     bool ready = false;                    // buffers live on the current device
+    // The upload failed for this key on this device: not retried every frame (review F-230), only
+    // after a new key or a device restart (OnVideoError).
+    bool failed = false;
     Strip::Mesh mesh;
     Video::VertexBuffer* vb = nullptr;     // never `delete`d: operator delete after PlatformDestruct
     Video::IndexBuffer* ib = nullptr;
@@ -261,8 +264,15 @@ StripSlot* StripFor(const WorldGeometry& geo) {
                      s->mesh.cells, static_cast<int>(s->mesh.vertices.size()),
                      static_cast<int>(s->mesh.chunks.size()));
         s->ready = false;
+        s->failed = false;
     }
-    if (!s->ready && !UploadStrip(*s)) return nullptr;
+    if (!s->ready) {
+        if (s->failed) return nullptr;
+        if (!UploadStrip(*s)) {
+            s->failed = true;
+            return nullptr;
+        }
+    }
     return s;
 }
 
@@ -432,7 +442,9 @@ void OnVideoError(const WorldGeometry& geo) {
     if (!g_anyStrip.load(std::memory_order_acquire)) return;
     const std::lock_guard<std::mutex> lock(g_stripMutex);
     StripSlot* s = FindStrip(geo);
-    if (s != nullptr) UnlinkStrip(*s);
+    if (s == nullptr) return;
+    UnlinkStrip(*s);
+    s->failed = false;   // the restarted device gets one upload
 }
 
 void Forget(const WorldGeometry& geo) {

@@ -786,7 +786,9 @@ extern "C" void RedzoneAlloc_ArmTeardownCheck() {
 }
 extern "C" void RedzoneAlloc_TeardownOp(const char* what) {
     if (!g_teardownHeapCheck) return;
-    static int depth = 0;
+    // Per thread: the callers (alloc_cutover_arm.cpp) no longer hold the allocator
+    // lock here (review F-287), and the guard is only against the walk re-entering.
+    static thread_local int depth = 0;
     if (depth) return;          // the walk itself must not re-enter
     ++depth;
     RedzoneAlloc_HeapCheck(what);

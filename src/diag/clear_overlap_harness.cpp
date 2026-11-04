@@ -34,6 +34,7 @@
 // A diagnostic only; it changes no game state beyond what the three player clicks do.
 
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Game/GameUpdateLoop.h"
 #include "Game/PlayerToolManager.h"
 #include "Game/ProfessionList.h"
@@ -113,15 +114,16 @@ void Init() {
     s_init = true;
     const char* e = Opt().clearOverlap;
     if (!e || !e[0] || std::strcmp(e, "0") == 0) return;
-    int a = 0, b = 0, c = 0, d = 0, sz = 0, hall = 1;
-    int n = std::sscanf(e, "%d,%d,%d,%d,%d,%d", &a, &b, &c, &d, &sz, &hall);
-    if (n < 1 || a <= 0) return;
-    s_start = a;
-    if (n >= 2 && b > 0) s_delay = b;
-    if (n >= 3 && c > 0) s_period = c;
-    if (n >= 4 && d > 0) s_deadline = d;
-    if (n >= 5 && sz >= 3) s_size = sz;
-    if (n >= 6) s_withHall = hall != 0;
+    // start, stockpileDelay, period, deadline, size, hall (the "%d,%d,%d,%d,%d,%d" list).
+    int v[6] = {0, 0, 0, 0, 0, 1};
+    const int n = ScanClampedInts(e, v, 6, -kHarnessIntLimit, kHarnessIntLimit);
+    if (n < 1 || v[0] <= 0) return;
+    s_start = v[0];
+    if (n >= 2 && v[1] > 0) s_delay = v[1];
+    if (n >= 3 && v[2] > 0) s_period = v[2];
+    if (n >= 4 && v[3] > 0) s_deadline = v[3];
+    if (n >= 5 && v[4] >= 3) s_size = v[4];
+    if (n >= 6) s_withHall = v[5] != 0;
     std::fprintf(stderr, "[ClearOverlap] armed: start=%d stockpileDelay=%d period=%d deadline=%d\n",
                  s_start, s_delay, s_period, s_deadline);
 }

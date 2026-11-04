@@ -244,9 +244,9 @@ std::shared_ptr<Job> StartJob(UI::SpriteSheet& sheet, SheetKind kind, int factor
         const UI::SpriteInfo& s = sheet.m_sprites._data[i];
         // The atlas position is the UVs': a compiled record's x / y are the
         // kit's pad offset (1, 1), not where the sprite sits (sheet_builder.h).
-        job->sprites[static_cast<size_t>(i)].rect = RectFromUvs(s.u0, s.v0, s.u1, s.v1, w, h);
-        const ArtSprite* art = FindArt(table, tableCount, s.name._data, s.width, s.height, factor);
-        job->sprites[static_cast<size_t>(i)].art = art != nullptr ? art->rgba : nullptr;
+        job->sprites[static_cast<size_t>(i)] =
+            SpriteFromRecord(table, tableCount, s.name._data, s.width, s.height, s.u0, s.v0, s.u1, s.v1, w, h,
+                             factor);
     }
     if (job->factor >= kCompressFrom && DerivedCache::Shared() == nullptr) DerivedCache::OpenShared();
     std::thread(RunJob, job).detach();
@@ -350,6 +350,14 @@ Graphics::MaterialInstance* ScaledSheetMaterial(UI::SpriteSheet* sheet, SheetKin
         std::fprintf(stderr, "[SharpUI] %dx %s sheet: the sheet texture is not a plain BGRA8 image "
                      "(format %d, %d x %d); retail's sheet is drawn\n", factor, KindName(kind), base->_format,
                      base->_width, base->_height);
+        g_failed.push_back(Failed{base, factor});
+        return nullptr;
+    }
+    // Finish narrows each level's byte size to an int (Array::SetSize): a copy
+    // past the texture limit is never built (review F-228).
+    if (!ScaledSheetFits(base->_width, base->_height, factor)) {
+        std::fprintf(stderr, "[SharpUI] %dx %s sheet: %d x %d is too large to copy at %dx; retail's sheet "
+                     "is drawn\n", factor, KindName(kind), base->_width, base->_height, factor);
         g_failed.push_back(Failed{base, factor});
         return nullptr;
     }

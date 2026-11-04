@@ -98,6 +98,7 @@ struct Run {
 
 Run g_run;
 Choices g_choices;
+bool g_pipeSyncOwed = false;   // GameEnded asked for the pipelined renderer again: install it at the next frame
 char g_status[160] = "Ready.";
 uint32_t g_statusEpoch = 0;   // the game (Ext::LockEpoch) the status line is about
 void (*g_statusHook)() = nullptr;
@@ -459,8 +460,19 @@ bool Start() {
                                   kMaxPixels);
     run.foot = ComputeFootprint(run.basis, run.size, zLow, zHigh, run.ppc);
     run.grid = MakeGrid(run.foot.width, run.foot.height, run.screenW, run.screenH, kMargin);
+    if (run.grid.count() == 0) {   // the screen is no larger than a tile's margins: no tile could be read
+        SetStatus("The window is too small for a town screenshot.");
+        return false;
+    }
     run.distance = static_cast<float>(run.size) + 300.0f;
-    run.rgba.assign(static_cast<size_t>(run.foot.width) * static_cast<size_t>(run.foot.height) * 4u, 0);
+    // The picture is held whole (up to kMaxPixels * 4 bytes): a refusal, not the end of the game, when it does
+    // not fit. Nothing has been changed yet, so there is nothing to put back.
+    try {
+        run.rgba.assign(static_cast<size_t>(run.foot.width) * static_cast<size_t>(run.foot.height) * 4u, 0);
+    } catch (const std::bad_alloc&) {
+        SetStatus("Not enough memory for the picture.");
+        return false;
+    }
     run.tile = 0;
     run.wait = kSettle;
     run.started = std::chrono::steady_clock::now();
@@ -509,7 +521,25 @@ void Cancel() {
     SetStatus("Screenshot cancelled.");
 }
 
+void GameEnded(const void* game) {
+    if (g_run.phase == Phase::Idle || g_run.game != game) return;
+    // The pause belonged to the game going away. The renderer is only requested here: the loop is being
+    // destroyed (or the program is quitting), not a moment to start the render thread.
+    const bool hadPipe = g_run.hadPipe;
+    g_run = Run();
+    if (hadPipe) {
+        const Ext::Entry* pipe = Ext::FindEntry("render_pipe");
+        if (pipe != nullptr) Ext::SetRequested(*pipe, true);
+        g_pipeSyncOwed = true;
+    }
+    SetStatus("The screenshot was stopped: the game ended.");
+}
+
 DrawOptions::DrawOptions() {
+    if (g_pipeSyncOwed) {   // the first frame after GameEnded: the pipelined renderer goes back in
+        g_pipeSyncOwed = false;
+        Ext::RenderPipe::Sync();
+    }
     if (g_run.phase == Phase::Idle || g_gameSettings == nullptr) return;
     m_held = true;
     m_hadStatusIcons = g_gameSettings->statusIconEnable;

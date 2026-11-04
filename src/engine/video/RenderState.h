@@ -120,6 +120,23 @@ public:
     using CullMode = uint32_t;
     using FillMode = uint32_t;
 
+    // The number of values each serialized field may take: the entries of the
+    // backend's mapping table (VideoDX11 0x1800037c0.. builds them on its stack).
+    static constexpr uint32_t kBlendFactorCount = 10;
+    static constexpr uint32_t kBlendOpCount     = 3;
+    static constexpr uint32_t kCompareFuncCount = 8;
+    static constexpr uint32_t kStencilOpCount   = 8;
+    static constexpr uint32_t kCullModeCount    = 3;
+    static constexpr uint32_t kFillModeCount    = 2;
+
+    // NOT RETAIL (UB, out-of-bounds index; review S-042): retail indexes those
+    // tables with the raw fields of the .rsc and has no check, so a corrupt or mod
+    // value reads past a table. In range, a value indexes itself; out of range it
+    // takes `fallback` (the field's constructor default).
+    static constexpr uint32_t TableIndex(uint32_t value, uint32_t count, uint32_t fallback) {
+        return value < count ? value : fallback;
+    }
+
     // ========================================================
     // Video::RenderState::AlphaBlend — 0x14 bytes. A `struct`: the mangled
     // `?Initialize@` spells `AEBUAlphaBlend@12@`, `U` and not `V`.

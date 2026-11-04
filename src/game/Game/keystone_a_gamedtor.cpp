@@ -214,7 +214,7 @@ PathfinderThread::~PathfinderThread() {
     }
     queueHead = nullptr;                  // [thread + 0x68] = 0
     queueTail = nullptr;                  // [thread + 0x60] = 0
-    queueCount = 0;                       // [thread + 0x70] = 0
+    StoreQueueCount(&queueCount, 0);      // [thread + 0x70] = 0 (NOT RETAIL: atomic, pathfinder_queue_count.h)
 
     // B6 row 50: the +0x30 lock's ~CriticalSection (0x1400a67bc / 0x1400a67c0)
     // is the member's, run by the compiler right after this body; then the
@@ -238,12 +238,12 @@ PathfinderThread::~PathfinderThread() {
 void PathfinderThread::DrainQueue() {
     for (;;) {
         lock.Lock();
-        int count = queueCount;
+        int count = LoadQueueCount(&queueCount);   // NOT RETAIL: atomic (pathfinder_queue_count.h)
         if (count > 0) {
             if (!IsWorking()) {   // the byte at +0x08, bit 0 (running)
                 Start();
             }
-            count = queueCount;
+            count = LoadQueueCount(&queueCount);
         }
         if (count == 0) break;
         ::Application::Application::_singleton->YieldToThreads();
