@@ -214,12 +214,14 @@ void ResidenceComponent::SerializeFamilies(IO::Serializer& ser, int count, Famil
 //   removes it from this roster — the loop re-reads the count until it is 0.
 // ============================================================
 void ResidenceComponent::EvictResidents() {
-    // Mesh flags 6 and 7 — clear two MeshInstance status/skin flags on the house.
-    // STANDALONE: skipped. In standalone the house's ModelComponent mesh was force-set
-    // to the completed-build variant (starttown.cpp StartTown_SpawnStructures); this
-    // SetMeshFlag op manipulates the same MeshInstance and, with our partial/inert mesh
-    // state, hides the building (it assumes the real game's fully-live mesh pipeline).
-    // The registration below (push into townMgr+0x20) is the part standalone needs.
+    // Clear the "no food" (6) and "no firewood" (7) status icons (review F-178).
+    // 0x140002f90 is FindComponent<StatusIconComponent> and 0x14012c3f0 is
+    // StatusIconComponent::SetFlag, not a mesh op (residence_heattick.cpp). Retail
+    // finds the component twice and derefs it unguarded (0x140129f1a-0x140129f68).
+    StatusIconComponent* icon = _entity->FindComponent<StatusIconComponent>();   // 0x140002f90
+    icon->SetFlag(6, 0);                                                          // 0x14012c3f0
+    icon = _entity->FindComponent<StatusIconComponent>();                         // 0x140002f90
+    icon->SetFlag(7, 0);                                                          // 0x14012c3f0
 
     // Evict each family's residents (+0x50, count +0x58, stride 0x10)
     int slotCount = residentSlots._size;
