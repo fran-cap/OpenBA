@@ -313,10 +313,9 @@ void WorkPlaceComponent::EvictRoster() {
 // bit-for-bit FUN_14012c3f0(mesh, normalState ? 0 : 1, 1), so the call below is faithful,
 // not an approximation. (Same helper the citizen paths use: it is generic over the
 // StatusIconComponent layout — mask +0xf0, scene id +0x100 — not citizen-specific.)
-// NB: this is not the only writer of +0x50. A raw field write lives at
-// buildcomponent_state1.cpp:427 (construction-site enable, no status icon), and the
-// ctor default is set in the ctor below. A grep for "SetAccepting" will miss both — see
-// the block at buildcomponent_state1.cpp for why that matters.
+// NB: the ctor default (+0x50 = 1, below) is the other writer of +0x50; a grep for
+// "SetAccepting" misses it. (BuildComponent::State1Enter's raw field write went with
+// review F-175: retail's state-1 enter does not touch the WorkPlaceComponent.)
 void WorkPlaceComponent::SetAccepting(bool accepting) {
     isAccepting = accepting ? 1 : 0;
 
