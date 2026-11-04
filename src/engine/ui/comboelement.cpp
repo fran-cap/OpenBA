@@ -206,6 +206,10 @@ ComboElement::~ComboElement() {
     if (open != nullptr) {
         Object::InternalPtr<DialogInstance> slot(open);
         open->_ui->CloseDialog(&slot);                                   // 0x180120f20
+        // NOT RETAIL (review S-035): the closed drop-down stays queued in _removedDialogs past
+        // this combo's free, and ~ComboDialog reads `_combo`; retail stores nothing here.
+        if (open->_combo == this)
+            open->_combo = nullptr;
     }
     rtcoll::RtColl_ArrayDtor_180024aa0(&_userData);
     rtcoll::RtColl_ArrayDtor_180037310(&_sprites);
