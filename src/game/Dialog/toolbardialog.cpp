@@ -1279,12 +1279,6 @@ void ToolbarDialog::OnUpdateLayout() {
 //
 // Original: 0x1400b92a0.
 
-// Diagnostic only: set while TutWave_StepExecute is running a step's Undo (slot 10)
-// loop. A toolbar command dispatched with this non-zero is being handled in the middle
-// of a tutorial step transition, before the next step's Apply has armed.
-extern "C" int g_TutUndoDepth;
-extern "C" int g_TutUndoIndex;
-
 void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t p7, void* /*userData*/) {
     // The game world and its tool manager
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;

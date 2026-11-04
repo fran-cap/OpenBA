@@ -222,16 +222,17 @@ void TutorialSetupDialog::SetAllDialogFlags(char show) {
 // ===========================================================================
 // 0x1400E24F0 — find the currently open TutorialHighlightDialog.
 //
-// Early-out: if the setup has neither a highlight target path (+0x40, an empty
-// System::String reads its length at ptr-8) nor a resolved Dialog External
+// Early-out: if the setup lacks a highlight target path (+0x40, an empty
+// System::String reads its length at ptr-8) or a resolved Dialog External
 // (+0x50), it resolves the cached External at +0x58 and gives up when that is
-// null too. Otherwise it scans the open-dialog list for one whose IsA matches
-// the TutorialHighlightDialog type id.
+// null too (0x1400e24fa: TEST RAX,RAX; JZ / CMP [RAX-8],0; JZ / CMP [RCX+0x50],0;
+// JNZ -> scan). Otherwise it scans the open-dialog list for one whose IsA
+// matches the TutorialHighlightDialog type id.
 // ===========================================================================
 Object::InternalPtr<UI::DialogInstance> TutorialSetupDialog::FindHighlightDialog() {
     bool havePath = HasText(HighlightPath());
     bool haveDialog = (highlightDialog != nullptr);
-    if (!havePath && !haveDialog) {
+    if (!havePath || !haveDialog) {
         // FUN_14001B1D0 (ResolveExternalByName_Impl).
         toolbarRef.ResolveDescription();
         if (toolbarRef.resolved == nullptr) return nullptr;
@@ -287,9 +288,10 @@ static const Object::External* TutWave_ExternalRefResolve(NamedExternalRef ref) 
 // when a highlight dialog is already open.
 // ===========================================================================
 void TutorialSetupDialog::OpenHighlightDialog(char checkExisting) {
+    // 0x1400e272a: no path, an empty path or no Dialog -> the toolbar fallback.
     bool havePath = HasText(HighlightPath());
     bool haveDialog = (highlightDialog != nullptr);
-    if (!havePath && !haveDialog) {
+    if (!havePath || !haveDialog) {
         toolbarRef.ResolveDescription();
         if (toolbarRef.resolved == nullptr) return;
     }
@@ -319,7 +321,7 @@ void TutorialSetupDialog::OpenHighlightDialog(char checkExisting) {
         int count = found ? found->element.entities._size : 0;
         int index = toolbarIndex;
 
-        if (count > index) {
+        if (TutorialSetupDialog::ToolbarCellInRange(count, index)) {
             const Object::External* key2 = TutWave_ExternalRefResolve(toolbarRef);
             TemplateBucket* found2 = BstFind(root, key2);
             if (found2 && found2->element.entities._data) {
@@ -409,27 +411,26 @@ void TutorialSetupDialog::ShowListedElements() {
 // subclass members on them directly).
 // ===========================================================================
 void TutorialInstance::RefreshStepUI() {
+    // 0x1400e126b: the Tutorial (+0x30), its steps and the step are read with no test.
     Tutorial* tutorial = tutorialDef;
-    if (!tutorial) return;
-    TutorialStep** steps = tutorial->steps._data;
-    if (!steps) return;
-    int idx = currentStep;
-    TutorialStep* step = steps[idx];
-    if (!step) return;
+    // NOT RETAIL (review F-115): StepAt refuses a currentStep outside the steps array. Retail
+    // reads steps[currentStep] unbounded, and a loaded save reaches this read before
+    // StepExecute's own `stepIndex >= stepCount` test (its first tick after a load runs here).
+    TutorialStep* step = StepAt(tutorial->steps, currentStep);
+    if (step == nullptr)
+        return;
 
     // 1. setup objects — vtable slot 8 (+0x40)
     {
         int n = step->setups.GetSize();
         TutorialSetup** data = step->setups.GetData();
-        for (int i = 0; i < n && data; ++i) {
-            TutorialSetup* obj = data[i];
-            if (!obj) continue;
-            obj->Begin();   // slot 8
+        for (int i = 0; i < n; ++i) {
+            data[i]->Begin();   // slot 8
         }
     }
 
+    // 0x1400e12b7: the TutorialUI controller (+0x20) and its elements, no test.
     TutorialUI* ui = stepUI;
-    if (!ui) return;   // no TutorialUI controller attached yet
 
     // 2/3. the two text elements
     {
@@ -441,13 +442,10 @@ void TutorialInstance::RefreshStepUI() {
         };
         for (const auto& t : texts) {
             UI::String tmp(Object::ExternalPtr<UI::StringTable>(stringTable), *t.srcString);
-            UI::Element* elem = t.elem;
-            if (!elem) continue;
-            static_cast<UI::TextElement*>(elem)->SetText(&tmp);
+            static_cast<UI::TextElement*>(t.elem)->SetText(&tmp);
         }
         for (const auto& t : texts) {
             UI::Element* elem = t.elem;
-            if (!elem) continue;
             UI::String cur = static_cast<UI::TextElement*>(elem)->GetText();
             bool valid = cur.IsValid();
             elem->SetFlagsOnOff(valid ? 0u : 1u, valid ? 1u : 0u);
@@ -455,36 +453,30 @@ void TutorialInstance::RefreshStepUI() {
     }
 
     // 4. clear + re-grow the image table
-    UI::Element* table = nullptr;
+    UI::Element* table = ui->imageTable;
     {
-        table = ui->imageTable;
-        if (table) {
-            int n = table->ChildCount();
-            table->RemoveChildren();
-            for (int i = 0; i < n; ++i) {
-                Object::InternalPtr<UI::Element> nullChild;
-                table->AddChild(&nullChild);
-            }
+        int n = table->ChildCount();
+        table->RemoveChildren();
+        for (int i = 0; i < n; ++i) {
+            Object::InternalPtr<UI::Element> nullChild;
+            table->AddChild(&nullChild);
         }
     }
 
-    // 5. images — vtable slot 9 (+0x48) builds each element
+    // 5. images — vtable slot 9 (+0x48) builds each element; the dialog is
+    // re-read per image (0x1400e149f: [[ui+0x18]+0x18]).
     {
         int n = step->images.GetSize();
         TutorialImage** data = step->images.GetData();
-        if (n > 0 && data && table) {
-            UI::DialogInstance* dlgIBP = ui->_dialog;
-            const UI::Dialog* dialog = dlgIBP ? dlgIBP->_dialog : nullptr;
-            for (int i = 0; i < n; ++i) {
-                TutorialImage* img = data[i];
-                if (!img) continue;
-                int32_t col = img->imageWidth;    // +0x28
-                int32_t row = img->imageHeight;   // +0x2C
-                Object::InternalPtr<UI::Element> retbuf;
-                // slot 9, retslot shape (RCX this, RDX ret, R8 dialog)
-                Object::InternalPtr<UI::Element>* elemPtr = img->CreateElement(&retbuf, dialog);
-                static_cast<UI::TableElement*>(table)->SetChild(elemPtr ? elemPtr : &retbuf, row, col);
-            }
+        for (int i = 0; i < n; ++i) {
+            TutorialImage* img = data[i];
+            int32_t col = img->imageWidth;    // +0x28
+            int32_t row = img->imageHeight;   // +0x2C
+            const UI::Dialog* dialog = ui->_dialog->_dialog;
+            Object::InternalPtr<UI::Element> retbuf;
+            // slot 9, retslot shape (RCX this, RDX ret, R8 dialog)
+            Object::InternalPtr<UI::Element>* elemPtr = img->CreateElement(&retbuf, dialog);
+            static_cast<UI::TableElement*>(table)->SetChild(elemPtr, row, col);
         }
     }
 }
@@ -508,27 +500,15 @@ void TutorialInstance::RefreshStepUI() {
 //       if more steps: RefreshStepUI(self)
 //       else:          <tutorial complete>  (LoadNextScenario below)
 // ===========================================================================
-extern "C" { int g_TutUndoDepth = 0; int g_TutUndoIndex = -1; }
-
 void TutorialInstance::StepExecute(const System::Time* param2, const Achievement::GoalList* param3, uint64_t param4) {
+    // 0x1400e1dcc: the Tutorial (+0x30) is read with no test.
     Tutorial* tutorial = tutorialDef;
-    if (!tutorial) {
-        // Both of retail's early returns are silent, which is fine in retail and
-        // useless here: "the tutorial never appears" looks identical whether the
-        // Tutorial definition never reached +0x30 or the dialog lookup missed.
-        // One line each, once.
-        static bool once = false;
-        if (!once) { once = true;
-            fprintf(stderr, "[Tutorial] StepExecute BAILED: tutInst+0x30 (Tutorial def) is NULL "
-                            "- FinishTutorialInstance::Slot4 never copied it from the goal\n");
-            fflush(stderr); }
-        return;
-    }
 
     if (stepDialog == nullptr) {
         UI::DialogInstance* dlg = PlayerToolManager::FindUtilityDialog(tutorial->setup);   // 0x140100270
         stepDialog = dlg;
         if (dlg == nullptr) {
+            // Retail returns silently (0x1400e1de8); one line, once, says why the panel stays empty.
             static bool once = false;
             if (!once) { once = true;
                 fprintf(stderr, "[Tutorial] StepExecute BAILED: FindDialogByControllerType found no "
@@ -562,21 +542,20 @@ void TutorialInstance::StepExecute(const System::Time* param2, const Achievement
     int stepIndex = currentStep;
     int stepCount = tutorial->steps._size;
 
-    if (stepIndex >= stepCount) return;
+    if (stepIndex >= stepCount) return;   // 0x1400e1e98: CMP EAX,[RBX+0x30]; JGE
 
-    TutorialStep** steps = tutorial->steps._data;
-    if (!steps) return;
-    TutorialStep* step = steps[stepIndex];
-    if (!step) return;
+    // NOT RETAIL (review F-115): the JGE above is signed, so a negative currentStep from a
+    // save passes it and retail reads before the steps array; StepAt refuses it.
+    TutorialStep* step = StepAt(tutorial->steps, stepIndex);
+    if (step == nullptr)
+        return;
 
     // setups: slot 9
     {
         int n = step->setups.GetSize();
         TutorialSetup** data = step->setups.GetData();
-        for (int i = 0; i < n && data; ++i) {
-            TutorialSetup* obj = data[i];
-            if (!obj) continue;
-            obj->Update(param2);   // slot 9
+        for (int i = 0; i < n; ++i) {
+            data[i]->Update(param2);   // slot 9
         }
     }
 
@@ -585,61 +564,24 @@ void TutorialInstance::StepExecute(const System::Time* param2, const Achievement
     int goalCount = step->goals.GetSize();
     {
         TutorialGoal** data = step->goals.GetData();
-        for (int i = 0; i < goalCount && data; ++i) {
-            TutorialGoal* obj = data[i];
-            if (!obj) continue;
+        for (int i = 0; i < goalCount; ++i) {
             Object::InternalPtr<TutorialInstance> selfIBP(this);
             // slot 8
-            bool ok = obj->IsComplete(param2, &selfIBP);
+            bool ok = data[i]->IsComplete(param2, &selfIBP);
             if (ok) ++passed;
         }
     }
 
-    if (goalCount == 0 || passed != goalCount) return;
+    // 0x1400e1f50: CMP R12D,[RBX+0x68]; JNZ. A step with no goals passes at once.
+    if (passed != goalCount) return;
 
-    // step complete: slot 10 on every setup, then advance.
-    //
-    // [STANDALONE DEVIATION — ordering] Retail walks this array strictly forward
-    // (0x1400E1DB0: `pvVar6 + 8` per iteration). We undo every
-    // TutorialSetupRestrictPlayer FIRST, then the rest in the original forward order.
-    // Measured reason:
-    //   TutorialSetupDialog::Slot10 (0x1400E2460) ends in UI::UserInterface::CloseDialog,
-    //   and CloseDialog calls UI::UserInterface::UpdateEvents (Runtime 0x18011FC60),
-    //   which DRAINS the queued toolbar command re-entrantly, in the middle of this
-    //   loop. Captured on stepFirstHouse2 -> stepFirstHouse3:
-    //     GoalButton bit22=1                     goal met (button pressed)
-    //     [ToolTrace] OnEvent CLICK tutUndoDepth=1 tutUndoIdx=0 ret=<UpdateEvents>
-    //     [ToolTrace] RESTRICT override groupId=<WoodHouse> -> NULL
-    //     [ToolTrace] ShowGroup CREATE toolTypeId=...(EditTool)
-    //   Setup[0] is the dialog setup; setup[1] is `disableSelect`, an all-default
-    //   TutorialSetupRestrictPlayer that holds PlayerController+0x80=1 with +0x88=NULL.
-    //   So the Wooden House command was dispatched while the OUTGOING step's "no tool"
-    //   restriction was still armed: SetEditMode (0x140102B60) forced the group to NULL
-    //   and installed an EditTool, and the placement tool — and with it the yellow target
-    //   footprint, which PlacementTool::Draw (0x1400FDCC0) section 2 only renders while a
-    //   placement tool is live — never came up.
-    //   Undoing the restriction first means that drain sees no restriction at all, which
-    //   is the same state retail's drain sees.
+    // step complete: slot 10 on every setup, once each, in index order
+    // (0x1400e1f80: MOV RCX,[RDI+RAX]; CALL [RAX+0x50]; INC ESI; LEA RDI,[RDI+8]).
     {
         int n = step->setups.GetSize();
         TutorialSetup** data = step->setups.GetData();
-        // ENDGAME B.3.8: the class's own record (was a lazy GetTypeIdByName cache).
-        const uint32_t s_restrictTid = TutorialSetupRestrictPlayer::TypeId();
-
-        for (int pass = 0; pass < 2; ++pass) {
-            for (int i = 0; i < n && data; ++i) {
-                TutorialSetup* obj = data[i];
-                if (!obj) continue;
-                uint32_t tid = obj->Type();
-                const bool isRestrict = (s_restrictTid && tid == s_restrictTid);
-                if ((pass == 0) != isRestrict) continue;
-                // g_TutUndoDepth lets the toolbar trace say out loud when a UI command
-                // is dispatched from inside this loop (see above).
-                ++g_TutUndoDepth;
-                g_TutUndoIndex = i;
-                obj->End();   // slot 10
-                --g_TutUndoDepth;
-            }
+        for (int i = 0; i < n; ++i) {
+            data[i]->End();   // slot 10
         }
     }
 
@@ -650,17 +592,14 @@ void TutorialInstance::StepExecute(const System::Time* param2, const Achievement
         return;
     }
 
-    // Tutorial finished: boot the next scenario through a fresh GameUpdateLoop.
-    //
-    // This used to be a DarkOnce stub whose comment named four unported exe
-    // functions as blockers. That comment was stale -- 0x140013A60 and
-    // 0x140013AA0 are one-line String accessors, 0x140099130 was already inline
-    // in engine_funcs.h, and 0x140098060 is a flat field-init. The port lives in
-    // tutorial_next_scenario.cpp; see its header for the full retail body.
-    //
-    // Retail also calls FUN_140101A80 first (lane 1's tutorial child-dialog
-    // opener). That one is still unported and is NOT on this path's critical
-    // line -- 0D70 replaces the whole loop, dialogs included -- so it stays out.
-    (void)param3; (void)param4;
+    // Tutorial finished: toggle the tutorial's utility dialog (closes the open
+    // tutorial window and clears its pinned-set open flag), then boot the next
+    // scenario (tutorial_next_scenario.cpp).
+    //   1400e1fbf: MOV RCX,[0x1401c3dd8]; MOV R8,[R8+0x20]; MOV RCX,[RCX+0x120]
+    //   1400e1fd6: CALL 0x140101a80   ; PlayerToolManager::ToggleUtilityDialog(setup)
+    //   1400e1fde: CALL 0x1400e0d70   ; LoadNextScenario
+    (void)param3;
+    (void)param4;
+    GameUpdateLoop::_singleton->m_toolManager->ToggleUtilityDialog(tutorialDef->setup);
     LoadNextScenario();
 }

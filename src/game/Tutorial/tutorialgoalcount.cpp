@@ -139,7 +139,7 @@ TutorialGoalCount::~TutorialGoalCount() {}
 // ============================================================
 // TutorialGoalCount::Serialize (vtable +0x28, 0x1400df900)
 // ============================================================
-// Serializes all fields. After loading (version == 0) resolves the external
+// Serializes all fields. On a read (stream direction 0) resolves the external
 // ref at +0x30.
 bool TutorialGoalCount::Serialize(IO::Stream& stream) {
     TutorialGoal::Serialize(stream);   // QUALIFIED: the base body (an empty Serializer scope)
@@ -156,9 +156,9 @@ bool TutorialGoalCount::Serialize(IO::Stream& stream) {
     // the type's name (+0x30) as String
     typeRef.name.Serialize(ser);
 
-    // If loading (serializer version == 0), resolve the external ref
-    int version = ser.GetVersion();
-    if (version == 0) {
+    // On a read, resolve the external ref: retail tests the STREAM DIRECTION, not the
+    // record version (0x1400df988: MOV RAX,[RSP+0x28]; CMP dword ptr [RAX+0x8],0; JNZ).
+    if (static_cast<int>(ser.GetDirection()) == 0) {
         typeRef.Resolve();
     }
 
