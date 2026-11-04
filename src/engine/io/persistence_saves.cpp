@@ -168,7 +168,7 @@ const char kRtPersistSaveFilenameFormat[] = "%sSave\\%s.sav";
 namespace IO {
 
 int Persistence::GetSaveCount() const {
-    int ours = (_worker._runFlags & 1u) ? 0 : _worker._saves._size;
+    int ours = _worker.IsWorking() ? 0 : _worker._saves._size;
 
     return ours;
 }
@@ -181,7 +181,7 @@ RtIo::SaveGameInfo Persistence::GetSaveInfo(int index) const {
     // out by hand.
     //
     // FAITHFUL: there is still NO bounds check on `index`.
-    if (_worker._runFlags & 1u) {
+    if (_worker.IsWorking()) {
         return RtIo::SaveGameInfo{System::DateTime{}, System::String()};
     }
     const RtIo::SaveGameInfo& e = _worker._saves._data[index];
@@ -207,7 +207,7 @@ System::Filename Persistence::GetSaveFilename(const System::String& name) const 
 
 bool Persistence::BeginDelete(const System::String& name) {
 
-    if (_worker._runFlags & 1u) return false;
+    if (_worker.IsWorking()) return false;
 
     // GetSaveFilename is retail's own member and is now ours, so this is the
     // direct member call retail's `CALL 0x1800b7c80` is. C++17 constructs the
@@ -225,7 +225,7 @@ bool Persistence::BeginDelete(const System::String& name) {
 bool Persistence::BeginLoad(const System::String& name, int blockCount,
                             const RtIo::SaveBlock* blocks) {
 
-    if (_worker._runFlags & 1u) return false;
+    if (_worker.IsWorking()) return false;
 
     // Same shape as BeginDelete above.
     System::Filename fn(GetSaveFilename(name));

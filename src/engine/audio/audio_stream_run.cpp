@@ -448,7 +448,9 @@ void Stream::Run() {
                 }
                 curSeg32 = 0; curSeg = 0; curSeg64 = 0;                 // 1800a13a6..ac
             }
-            if (_stopping != 0) {            // 1800a13af
+            // NOT RETAIL (review F-137): an atomic load; Play and StopPlatform store
+            // the byte on the main thread while this loop runs (retail: plain MOV).
+            if (__atomic_load_n(&_stopping, __ATOMIC_RELAXED) != 0) {           // 1800a13af
                 how = kExitStop; break;                                 // -> 1800a13da
             }
         }

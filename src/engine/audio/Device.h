@@ -97,6 +97,17 @@ public:
         uint32_t     userValue;   // +0x18  3rd callback argument (a handle tag)
         uint32_t     _pad1c;      // +0x1c  never written
         Callback     onComplete;  // +0x20  fired by the reap epilogue
+
+        // NOT RETAIL (review F-138): every access to `flags` goes through these.
+        // The backend's audio thread sets bit 1 (PlatformChannel::OnStreamEnd)
+        // while the main thread tests, sets and clears bits in Update, Stop,
+        // StopPlatform, OnSoundBufferDeleted and Scene::Update. Retail uses plain
+        // `TEST` / `OR` / `AND` with no lock: a data race, and a plain `|= 1` racing
+        // the callback's `|= 2` could lose a bit. Same values and the same order;
+        // the RMWs are atomic and the test is an acquire load.
+        uint32_t LoadFlags() const { return __atomic_load_n(&flags, __ATOMIC_ACQUIRE); }
+        void OrFlags(uint32_t bits) { __atomic_fetch_or(&flags, bits, __ATOMIC_ACQ_REL); }
+        void AndFlags(uint32_t mask) { __atomic_fetch_and(&flags, mask, __ATOMIC_ACQ_REL); }
     };
 
     // ------------------------------------------------------------------------

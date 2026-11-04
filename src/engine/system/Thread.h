@@ -234,6 +234,16 @@ public:
     void Start();
     void WaitForFinish();
 
+    // NOT RETAIL (review F-150, F-157, F-147): bit 0 of `_runFlags` ("mid-job"),
+    // read as an ACQUIRE load. Retail reads the word with a plain
+    // `TEST byte ptr [RCX+0x8],0x1` at every poll site, while the worker sets and
+    // clears it outside any lock (ThreadFunc): a data race under the C++ model, and
+    // on ARM64 seeing the bit clear did not order the job's stores (the save list,
+    // `_status`, the load buffers) before the reads that follow. ThreadFunc clears
+    // the bit with a RELEASE RMW, so a caller that sees it clear sees the job's
+    // results. On x86 the acquire load is the same plain MOV retail has.
+    bool IsWorking() const { return (__atomic_load_n(&_runFlags, __ATOMIC_ACQUIRE) & 1u) != 0; }
+
     // ?ThreadFunc@Thread@System@@CAIPEAX@Z   retail 0x1800ca440
     // The worker entry point handed to _beginthreadex. Retail's is `CA`, i.e.
     // PRIVATE static; it is public here because the registered door calls it

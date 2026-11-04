@@ -145,23 +145,9 @@ namespace {
 
 }  // namespace
 
-// ============================================================================
-// ATTENDANCE COUNTERS - see the note in file_stream.cpp. `calls=` is the half
-// the static door screen cannot answer, and a registered-but-never-entered body
-// looks identical to a working one without it.
-//
-// `createOk` / `createFail` and `closeRenamed` are EFFECTIVENESS counters, not
-// call counts: they say which BRANCH ran. `calls=N worked=0` is the shape that
-// means the body ran every time and always took the arm nothing covers
-// (`reference_calls_zero_can_mean_always_took_the_uncovered_branch.md`).
-// ============================================================================
-struct FsCreateCounters {
-    uint64_t createPath, createPathDirs;
-    uint64_t closeFile, platClose, closeRenamed;
-    uint64_t createFileW, platCreate, createOk, createFail;
-    uint64_t fsDtor;
-};
-FsCreateCounters g_fcc{};
+// The port-only attendance counters `g_fcc` that stood here are deleted (review
+// F-140, the same race as file_stream.cpp's): nothing read them, and CreateFileW /
+// CloseFile run on the Persistence worker and the Loader as well as the main thread.
 
 // ============================================================================
 // IO::FileSystem::CreatePath(Filename const&) const       retail 0x1800ae430
@@ -241,16 +227,6 @@ FsCreateCounters g_fcc{};
 // B.4 R-IO: the `RtIo_FileSystem_CreateFileW` / `RtIo_FileSystem_CloseFile`
 // doors are gone; every caller calls the member on `IO::FileSystem::_singleton`.
 
-// Read by file_stream_cutover_probe.cpp, which prints attendance beside the
-// door verdicts so a reader cannot see one without the other.
-void RtIoFileSystemCreateFileCounters(unsigned long long* out) {
-    out[0]=g_fcc.createPath;   out[1]=g_fcc.createPathDirs;
-    out[2]=g_fcc.createFileW;  out[3]=g_fcc.platCreate;
-    out[4]=g_fcc.createOk;     out[5]=g_fcc.createFail;
-    out[6]=g_fcc.closeFile;    out[7]=g_fcc.platClose;
-    out[8]=g_fcc.closeRenamed; out[9]=g_fcc.fsDtor;
-}
-
 }  // namespace RtIO
 
 // ============================================================================
@@ -259,8 +235,7 @@ void RtIoFileSystemCreateFileCounters(unsigned long long* out) {
 // Defined outside `namespace RtIO` because a member of `IO::X` must appear in a
 // namespace ENCLOSING the class (B34_BRIEFS section A.2); these bodies reach
 // this translation unit's `RtIO`-scoped names — the anonymous-namespace
-// helpers `WideStr`/`WideFromString`/`WideRelease`, the
-// attendance counters `g_fcc`, and the `using`-ed System names — as `RtIO::X`.
+// helpers `WideStr`/`WideFromString`/`WideRelease` and the `using`-ed System names — as `RtIO::X`.
 // Every POD is spelled `RtIO::` or `RtSystem::` and every real class `System::`
 // (B34_RULES section 7.2).
 //
@@ -268,13 +243,11 @@ void RtIoFileSystemCreateFileCounters(unsigned long long* out) {
 // of the two cross-body calls (`CloseFile` to `PlatformCloseFile`, `CreateFileW`
 // to `PlatformCreateFile`, both now member calls rather than door calls —
 // neither ever went through a resolve door). Same Win32 calls, same order, same
-// discarded results, same early-out positions, same counter bumps, same
-// destructor order.
+// discarded results, same early-out positions, same destructor order.
 namespace IO {
 
 bool FileSystem::CreatePath(const System::Filename& pathRef) const {
     const System::Filename* const path = &pathRef;
-    ++RtIO::g_fcc.createPath;
     // detail 4 — retail reads no field of `this`
 
     // Retail passes the Filename straight into String's members, which is what
@@ -282,7 +255,6 @@ bool FileSystem::CreatePath(const System::Filename& pathRef) const {
     const System::String& src = path->AsString();
     const int32_t len = src.GetLength();                    // 1800ae459
 
-    int32_t created = 0;
     for (int32_t i = 0; i < len; ++i) {                     // 1800ae467/62e
         const char c = src._data[i];                        // 1800ae473
         if (c != '\\' && c != '/') continue;                // 1800ae477/47d
@@ -295,7 +267,6 @@ bool FileSystem::CreatePath(const System::Filename& pathRef) const {
 
         const System::WideString w(dir);                    // 1800ae53f: 0x1800cab50
         Platform::DirCreate(w._data);                       // 1800ae54a CreateDirectoryW — result DISCARDED
-        ++created; ++RtIO::g_fcc.createPathDirs;
         // ~w (1800ae551..5bd), then ~dir (0x1800ae5bd): reverse declaration order.
     }
 
@@ -305,7 +276,6 @@ bool FileSystem::CreatePath(const System::Filename& pathRef) const {
 bool FileSystem::PlatformCreateFile(RtIO::FileInfo& infoRef,
                                     const System::Filename& path) {
     RtIO::FileInfo* const info = &infoRef;
-    ++RtIO::g_fcc.platCreate;
 
     // The three-character prefix retail passes to GetTempFileNameW: the .rdata
     // bytes at 0x1801557e8 are `53 00 52 00 53 00 00 00` = L"SRS" (Shining Rock
@@ -323,7 +293,6 @@ bool FileSystem::PlatformCreateFile(RtIO::FileInfo& infoRef,
     // `LEA RAX,[h-1] ; CMP RAX,-3 ; JA fail`: the unsigned `h - 1 > 2^64 - 3`
     // holds for exactly h == 0 and h == -1, i.e. NULL and INVALID_HANDLE_VALUE.
     if (h == nullptr || h == Platform::kInvalidFileHandle) { // 1800adee9..f0
-        ++RtIO::g_fcc.createFail;
         return false;                                        // 1800adffa
     }
 
@@ -348,7 +317,6 @@ bool FileSystem::PlatformCreateFile(RtIO::FileInfo& infoRef,
     // the CALLER's path -> _name1
     info->_name1 = path;                                     // 1800adfea/f1
 
-    ++RtIO::g_fcc.createOk;
     return true;                                             // 1800adff6
 }
 
@@ -370,8 +338,6 @@ bool FileSystem::PlatformCreateFile(RtIO::FileInfo& infoRef,
 // by the bool.
 // ============================================================================
 RtIO::FileInfo FileSystem::CreateFileW(const System::Filename& path) {
-    ++RtIO::g_fcc.createFileW;
-
     // FileInfo's default ctor in the hidden return slot (1800acc6c..91: the
     // four fields, the two Filename() null stores 0x180006220, then winHandle;
     // +0x04 untouched, exactly as in ??0FileStream's prologue).
@@ -408,8 +374,6 @@ RtIO::FileInfo FileSystem::CreateFileW(const System::Filename& path) {
 // ============================================================================
 void FileSystem::PlatformCloseFile(RtIO::FileInfo& infoRef) {
     RtIO::FileInfo* const info = &infoRef;
-    ++RtIO::g_fcc.platClose;
-
     if (info->winHandle == Platform::kInvalidFileHandle) return;               // 1800ae03d/41
 
     PackedMapRelease(info->winHandle);   // MAPREAD (NOT RETAIL): unmap first (FileSystem.h)
@@ -418,8 +382,6 @@ void FileSystem::PlatformCloseFile(RtIO::FileInfo& infoRef) {
 
     if (!info->_name0._data) return;                         // 1800ae059/5f
     if (RtSystem::StringLength(info->_name0._data) == 0) return;  // 1800ae065/69
-
-    ++RtIO::g_fcc.closeRenamed;
 
     // 3. delete the destination
     {
@@ -464,8 +426,6 @@ void FileSystem::PlatformCloseFile(RtIO::FileInfo& infoRef) {
 // ============================================================================
 void FileSystem::CloseFile(RtIO::FileInfo& infoRef) {
     RtIO::FileInfo* const info = &infoRef;
-    ++RtIO::g_fcc.closeFile;
-
     PlatformCloseFile(*info);                        // 1800accde
 
     // FileInfo's default ctor on the temporary (1800acce3..acd0b: the four
@@ -513,8 +473,6 @@ void FileSystem::CloseFile(RtIO::FileInfo& infoRef) {
 // declaration order (+0x10, +0x08, +0x00), which is retail's 0x1800ac720 ..
 // 0x1800ac79c, each under its own unwind state as member destructors are.
 FileSystem::~FileSystem() {
-    ++RtIO::g_fcc.fsDtor;
-
     // Step 1. The tree object is (root, count) at +0x40/+0x48; retail passes
     // its ADDRESS as `this` and the root as the node.
     ::IO::PackIndexClear(&_packfileIndex);   // NOT RETAIL (block PATHINDEX): the nodes go next
