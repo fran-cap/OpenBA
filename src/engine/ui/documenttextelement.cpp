@@ -147,8 +147,11 @@ void PlayInline(UI::UserInterface* ui, int soundIndex) {
         v.soundEffectRef = sound;
         v.startTime._ticks = start;
         v.soundType = 1;
-        scene->playGeneration += 1;
-        v.handleTag = static_cast<uint32_t>(static_cast<int32_t>(i) * 2 | (scene->playGeneration << 9));
+        // Retail's INC / SHL wrap at 32 bits: unsigned here (an int32
+        // overflow or shift is UB), as UserInterface::Play.
+        const uint32_t counter = static_cast<uint32_t>(scene->playGeneration) + 1;
+        scene->playGeneration = static_cast<int32_t>(counter);
+        v.handleTag = (static_cast<uint32_t>(i) * 2u) | (counter << 9);
         return;
     }
 }
