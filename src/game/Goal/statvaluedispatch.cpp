@@ -350,14 +350,16 @@ static uint32_t Helper_a410() {
 static uint32_t Helper_a2a0(const Object::External* ext) {
     CitizenBehavior* cb = Citizens();
     int n = cb->citizens._size;
+    // The narrowed container and its RawMaterialDescription are read with no test:
+    // `*(int*)(container + 0x30)` and, per adult, `*(int*)(prof + 0x54)`.
     const ComponentDescription* container = AsType<ComponentDescription>(ext);
-    RawMaterialDescription* prof = container ? FindSubDescription<RawMaterialDescription>(container) : nullptr;
+    RawMaterialDescription* prof = FindSubDescription<RawMaterialDescription>(container);
     int count = 0;
     for (int i = 0; i < n; i++) {
         const CitizenComponent* c = cb->citizens._data[i].Get();
         if (IsAdultNotInSchool(c)) {
             int homeId = c->field_0xA8;
-            int wantId = prof ? prof->_i54 : 0;
+            int wantId = prof->_i54;
             if (homeId == wantId) { count++; continue; }
             if (c->field_0xA8 < 0) count++;
         }
@@ -369,16 +371,16 @@ static uint32_t Helper_a2a0(const Object::External* ext) {
 static uint32_t Helper_a150(const Object::External* ext) {
     CitizenBehavior* cb = Citizens();
     int n = cb->citizens._size;
+    // No test of the container or the RawMaterialDescription: `(*(uint*)(prof + 0x5c)
+    // & 0x8000)` is read per citizen, for the states that test it.
     const ComponentDescription* container = AsType<ComponentDescription>(ext);
-    RawMaterialDescription* prof = container ? FindSubDescription<RawMaterialDescription>(container) : nullptr;
+    RawMaterialDescription* prof = FindSubDescription<RawMaterialDescription>(container);
     int count = 0;
-    uint32_t flag = prof ? prof->_flags : 0;
     for (int i = 0; i < n; i++) {
         const CitizenComponent* c = cb->citizens._data[i].Get();
         int state = c->field_0x1E0;
-        bool hi = (flag & 0x8000) != 0;
-        if ((((state - 2U) & 0xfffffffd) == 0 && hi) ||
-            ((state == 1 || state == 4) && !hi)) {
+        if ((((state - 2U) & 0xfffffffd) == 0 && (prof->_flags & 0x8000) != 0) ||
+            ((state == 1 || state == 4) && (prof->_flags & 0x8000) == 0)) {
             count++;
         }
     }
@@ -562,7 +564,7 @@ uint32_t StatGoal::CountDistinctTracked(const Object::External* ext) const {
                 const ComponentDescription* childObj = tracker->displayed._data[ci]._resource;
                 RawMaterialDescription* prof = FindSubDescription<RawMaterialDescription>(childObj);
                 uint32_t selfFlags = (uint32_t)statFlags;
-                uint32_t profFlags = prof ? prof->_flags : 0;
+                uint32_t profFlags = prof->_flags;   // +0x5c, no test
                 if ((selfFlags & profFlags) != 0) {
                     if (Avl_Insert(&dedupRoot, childObj)) distinct++;
                 }
@@ -601,8 +603,10 @@ uint32_t StatGoal::SumProductionWindow() const {
     float mul = RdataF(kRdata_1401721e4);   // 0x1401721e4
     int frac = (int)((secs / div) * mul);
     if (frac >= 0x30) frac = 0;
-    int lo = ((clock->year - statSubType) - 1) * 0x30;
-    int hi = dayOfYear * 0x30 - 0x30 + frac;
+    // NOT RETAIL (review F-165): the window ends wrap as retail's 32-bit arithmetic
+    // does instead of overflowing int (StatGoal.h).
+    int lo = ProductionWindowLo(clock->year, statSubType);
+    int hi = ProductionWindowHi(dayOfYear, frac);
     return (uint32_t)CitizenBehavior_SumSeries_0f20(cb, col, lo, hi);
 }
 
@@ -613,7 +617,7 @@ uint32_t StatGoal::SumTrackedForProfession(const Object::External* ext) const {
     WorkPlaceDescription* stockComp = nullptr;
     {   // FindSubDescription<WorkPlaceDescription> on ext
         const ComponentDescription* container = AsType<ComponentDescription>(ext);
-        stockComp = container ? FindSubDescription<WorkPlaceDescription>(container) : nullptr;
+        stockComp = FindSubDescription<WorkPlaceDescription>(container);   // no test of the container
     }
     Profession* key = stockComp->_profession0;
 
@@ -634,7 +638,7 @@ uint32_t StatGoal::SumTrackedForProfession(const Object::External* ext) const {
             if (key < node->element.key) node = node->left;
             else { if (key <= node->element.key) break; node = node->right; }
         }
-        ComponentEntity* entityRef = node ? node->element.entities._data[bi].Get() : nullptr;
+        ComponentEntity* entityRef = node->element.entities._data[bi].Get();   // no test of the node
         if (ext != nullptr) {
             if (entityRef->_description != ext) continue;
         }
@@ -645,7 +649,7 @@ uint32_t StatGoal::SumTrackedForProfession(const Object::External* ext) const {
             const ComponentDescription* childObj = tracker->displayed._data[ci]._resource;
             RawMaterialDescription* prof = FindSubDescription<RawMaterialDescription>(childObj);
             uint32_t selfFlags = (uint32_t)statFlags;
-            uint32_t profFlags = prof ? prof->_flags : 0;
+            uint32_t profFlags = prof->_flags;   // +0x5c, no test
             if ((selfFlags & profFlags) != 0) {
                 total += tracker->displayed._data[ci]._count;
             }
@@ -661,7 +665,7 @@ static uint32_t Helper_86e0(const Object::External* ext) {
     WorkPlaceDescription* stockComp = nullptr;
     {
         const ComponentDescription* container = AsType<ComponentDescription>(ext);
-        stockComp = container ? FindSubDescription<WorkPlaceDescription>(container) : nullptr;
+        stockComp = FindSubDescription<WorkPlaceDescription>(container);   // no test of the container
     }
     Profession* key = stockComp->_profession0;
 
@@ -681,7 +685,7 @@ static uint32_t Helper_86e0(const Object::External* ext) {
             if (key < node->element.key) node = node->left;
             else { if (key <= node->element.key) break; node = node->right; }
         }
-        ComponentEntity* entityRef = node ? node->element.entities._data[bi].Get() : nullptr;
+        ComponentEntity* entityRef = node->element.entities._data[bi].Get();   // no test of the node
         WorkPlaceComponent* comp = entityRef->FindComponent<WorkPlaceComponent>();
         total += comp->workers._size;
     }
@@ -726,7 +730,7 @@ static DestroyComponent* FinishedStanding(ComponentEntity* entRef) {
         done = true;
     } else {
         const BuildDescription* desc = AsType<BuildDescription>(work->_description);
-        int needed = desc ? (desc->_i30 * work->costMultiplier) : 0;
+        int needed = desc->_i30 * work->costMultiplier;   // no test of the BuildDescription narrow
         done = (needed <= work->laborProgress);
     }
     if (!done) return nullptr;
@@ -858,7 +862,7 @@ uint32_t StatGoal::SumStorageAmounts(const Object::External* ext) const {
             const StorageComponent::Item& slot = storage->storageSlots[ci];
             RawMaterialDescription* prof = FindSubDescription<RawMaterialDescription>(slot._resource);
             uint32_t selfFlags = (uint32_t)statFlags;
-            uint32_t profFlags = prof ? prof->_flags : 0;
+            uint32_t profFlags = prof->_flags;   // +0x5c, no test
             if ((selfFlags & profFlags) != 0) {
                 result += slot._count;
             }

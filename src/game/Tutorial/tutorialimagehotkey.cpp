@@ -91,9 +91,9 @@ bool TutorialImageHotKey::Serialize(IO::Stream& stream) {
     // Serialize String at +0x30
     hotkeyRef.name.Serialize(ser2);
 
-    // If loading (version == 0), resolve the hotkey string to an External ref
-    int version = ser2.GetVersion();
-    if (version == 0) {
+    // On a read, resolve the hotkey string to an External ref: retail tests the
+    // STREAM DIRECTION, not the record version (0x1400e0540: [[serializer]+8] == 0).
+    if (static_cast<int>(ser2.GetDirection()) == 0) {
         hotkeyRef.ResolveToolbar();
     }
     return true;
