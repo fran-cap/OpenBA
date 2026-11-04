@@ -460,8 +460,19 @@ bool Start() {
                                   kMaxPixels);
     run.foot = ComputeFootprint(run.basis, run.size, zLow, zHigh, run.ppc);
     run.grid = MakeGrid(run.foot.width, run.foot.height, run.screenW, run.screenH, kMargin);
+    if (run.grid.count() == 0) {   // the screen is no larger than a tile's margins: no tile could be read
+        SetStatus("The window is too small for a town screenshot.");
+        return false;
+    }
     run.distance = static_cast<float>(run.size) + 300.0f;
-    run.rgba.assign(static_cast<size_t>(run.foot.width) * static_cast<size_t>(run.foot.height) * 4u, 0);
+    // The picture is held whole (up to kMaxPixels * 4 bytes): a refusal, not the end of the game, when it does
+    // not fit. Nothing has been changed yet, so there is nothing to put back.
+    try {
+        run.rgba.assign(static_cast<size_t>(run.foot.width) * static_cast<size_t>(run.foot.height) * 4u, 0);
+    } catch (const std::bad_alloc&) {
+        SetStatus("Not enough memory for the picture.");
+        return false;
+    }
     run.tile = 0;
     run.wait = kSettle;
     run.started = std::chrono::steady_clock::now();
