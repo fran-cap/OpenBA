@@ -1553,7 +1553,9 @@ int32_t PresentFrame(::Video::Context& ctx) {
     pi.swapchainCount = 1;
     pi.pSwapchains = &swapchain;
     pi.pImageIndices = &imageIndex;
-    VkResult r = PresentQueue(pi);
+    // A failed submit (serial 0, noted as a loss: resources.cpp SubmitCommands) signalled nothing, so
+    // nothing would ever signal the present's wait: no present (review S-025).
+    VkResult r = serial != 0 ? PresentQueue(pi) : VK_ERROR_DEVICE_LOST;
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_SURFACE_LOST_KHR) {
         swapchainDirty = true;
     } else if (r == VK_ERROR_DEVICE_LOST) {
