@@ -172,7 +172,8 @@ UNIT_TEST(video_device_gained_no_vptr_and_stays_a_raw_readable_object) {
 // block with the owner-tid and depth words at PINNED offsets, because dx11 and
 // the four `Platform{Construct,Destruct}` bodies read them there. A `std::mutex`
 // or a scoped guard would move or resize this.
-UNIT_TEST(video_device_lock_is_opaque_and_pinned_rule_b5_6) {
+// Not analysed: it reads the lock's depth word (GUARDED_BY the lock) on a Device that is raw bytes.
+UNIT_TEST(video_device_lock_is_opaque_and_pinned_rule_b5_6) NO_THREAD_SAFETY_ANALYSIS {
     // The two bookkeeping words sit immediately after the block, with no
     // padding: 0x60 + 0x28 == 0x88.
     CHECK_EQ(offsetof(Dev, lock) + sizeof(Dev::lock), offsetof(Dev, lockOwnerThreadId));

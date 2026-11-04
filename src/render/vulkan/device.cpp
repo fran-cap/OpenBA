@@ -1364,7 +1364,9 @@ namespace {
 // pass is skipped: draw.cpp records only inside DrawBeginFrame / DrawEndFrame), the device lock taken as
 // for any frame; its Finish reports the loss and the recovery runs where DX11 runs it. Refusing the
 // frame instead (return false) would spin: the loop asks again and again, and no Finish ever runs.
-bool BeginLostFrame(::Video::Device* dev, ::Video::Context* ctx) {
+// (Not analysed by clang -Wthread-safety, as BeginCommands / PresentFrame: the frame's device lock is
+// taken in one call and dropped in another, on another thread under ext.render_pipe.)
+bool BeginLostFrame(::Video::Device* dev, ::Video::Context* ctx) NO_THREAD_SAFETY_ANALYSIS {
     dev->Lock();
     lostFrame = true;
     imageAcquired = false;
@@ -1380,7 +1382,8 @@ bool BeginLostFrame(::Video::Device* dev, ::Video::Context* ctx) {
 
 // Slot 1 (dx11 contextdata.cpp 0x180001650). A settings change is answered and the frame refused,
 // as retail does (Dx11_DeviceData_Resize, then `return false`); the next frame begins normally.
-bool ContextData::BeginCommands() {
+// Not analysed (clang -Wthread-safety): the device lock taken here is dropped in PresentFrame.
+bool ContextData::BeginCommands() NO_THREAD_SAFETY_ANALYSIS {
     ::Video::Context* const ctx = _owner;
     ::Video::Device* const dev = ctx->_device;
     if (!device) return false;
@@ -1505,7 +1508,8 @@ void ContextData::Finish() {
 // device lock, submit the upload batch and then the frame (resources.h: one queue, the timeline),
 // present. VK_ERROR_DEVICE_LOST from any of them, or from the frame's begin (a lost frame), is the
 // result; 0 otherwise (an out-of-date swap chain is rebuilt at the next begin, not a loss).
-int32_t PresentFrame(::Video::Context& ctx) {
+// Not analysed (clang -Wthread-safety): it drops the device lock BeginCommands took.
+int32_t PresentFrame(::Video::Context& ctx) NO_THREAD_SAFETY_ANALYSIS {
     ::Video::Device* const dev = ctx._device;
     if (lostFrame) {
         lostFrame = false;

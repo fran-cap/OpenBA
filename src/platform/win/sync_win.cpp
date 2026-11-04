@@ -39,8 +39,9 @@ void MutexInit(LockStorage* lock, uint32_t spinCount) {
     InitializeCriticalSection(Cs(lock));
     if (spinCount != 0) SetCriticalSectionSpinCount(Cs(lock), spinCount);
 }
-void MutexLock(LockStorage* lock)    { EnterCriticalSection(Cs(lock)); }
-void MutexUnlock(LockStorage* lock)  { LeaveCriticalSection(Cs(lock)); }
+// The primitives the analysis takes on trust (platform_sync.h declares what they acquire / release).
+void MutexLock(LockStorage* lock) NO_THREAD_SAFETY_ANALYSIS { EnterCriticalSection(Cs(lock)); }
+void MutexUnlock(LockStorage* lock) NO_THREAD_SAFETY_ANALYSIS { LeaveCriticalSection(Cs(lock)); }
 void MutexDestroy(LockStorage* lock) { DeleteCriticalSection(Cs(lock)); }
 
 EventHandle EventCreate(bool manualReset, bool initiallySignaled) {

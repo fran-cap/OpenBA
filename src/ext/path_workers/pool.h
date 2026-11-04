@@ -34,6 +34,8 @@
 #include <deque>
 #include <mutex>
 
+#include "system/annotated_mutex.h"   // Sys::Mutex / Sys::MutexLock (clang -Wthread-safety)
+
 namespace Ext {
 namespace PathWorkers {
 
@@ -109,13 +111,14 @@ public:
 private:
     Runner&                 runner_;
     const int               workers_;
-    std::mutex              mutex_;
+    // GUARDED_BY: checked by clang's thread-safety analysis (system/thread_annotations.h).
+    Sys::Mutex              mutex_;
     std::condition_variable work_;    // a job was queued, or Stop
     std::condition_variable idle_;    // inFlight_ reached 0
-    std::deque<Job>         queue_;
-    int                     inFlight_ = 0;
-    long long               completed_ = 0;
-    bool                    stop_ = false;
+    std::deque<Job>         queue_ GUARDED_BY(mutex_);
+    int                     inFlight_ GUARDED_BY(mutex_) = 0;
+    long long               completed_ GUARDED_BY(mutex_) = 0;
+    bool                    stop_ GUARDED_BY(mutex_) = false;
 };
 
 // The dispatcher's one decision per command (the comment at the top). `Host`

@@ -336,7 +336,8 @@ UNIT_TEST(posix_file_handles_are_fd_plus_one_and_round_trip) {
     CHECK(text[0] != 0);
 }
 
-UNIT_TEST(posix_lock_is_recursive_in_place) {
+// Not analysed: the recursive re-take is the point, and clang's thread-safety analysis does not model it.
+UNIT_TEST(posix_lock_is_recursive_in_place) NO_THREAD_SAFETY_ANALYSIS {
     Platform::LockStorage lock;
     std::memset(&lock, 0xCD, sizeof(lock));
     Platform::MutexInit(&lock, 5000);

@@ -59,8 +59,13 @@
 // lock (standalone/allocator_lock.cpp), so the worker can't race the main thread on the
 // engine free-list. Queue: tail@+0x60, head@+0x68, count@+0x70; node qwords [0]=cmd{type,arg1}
 // [1]=cmd{arg2,arg3} [2]=next(+0x10) [3]=prev(+0x18).
+// NOT RETAIL (UB fix, found by clang -Wthread-safety): the two reads of queueCount outside the lock
+// are relaxed atomic loads. Retail reads it with plain CMPs outside the critical section
+// (0x1400a6366 `CMP dword ptr [RCX+0x70],0`, 0x1400a6400 `CMP [RBX+0x70],ESI`) while an enqueuer on
+// the main thread writes it under the lock: a data race in C++. Same instruction on x86-64; a stale
+// value only under-counts (only this thread decrements), as in retail.
 void PathfinderThread::Run() {
-    int count = queueCount;
+    int count = __atomic_load_n(&queueCount, __ATOMIC_RELAXED);
     while (count > 0) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHWORKERS.md): ext.path_workers -- once per command; the
         // dispatcher drains the rest of the queue (src/ext/path_workers/path_workers.h).
@@ -79,7 +84,7 @@ void PathfinderThread::Run() {
         System::MemoryAllocator::MemFree(node);
         lock.Unlock();
         ApplyCommand(cmd);                                 // 0x1400a6430
-        count = queueCount;
+        count = __atomic_load_n(&queueCount, __ATOMIC_RELAXED);   // NOT RETAIL: atomic (above)
     }
 }
 
@@ -113,7 +118,9 @@ static void GridCtor(GridPathSearch& g, int dim) {
 } // namespace
 
 // Build + link the pathfinder. gameObj = the Map (GameUpdateLoop::m_game); dim = map width.
-extern "C" void Pathfinder_Seed(Map* game, int dim) {
+// Not analysed (clang -Wthread-safety): it writes the queue fields as retail's ctor does, before the
+// worker's first Start (the thread is parked on its start event until then).
+extern "C" void Pathfinder_Seed(Map* game, int dim) NO_THREAD_SAFETY_ANALYSIS {
     if (!game || dim <= 0) return;
     if (game->pathfinder != nullptr) return;   // already seeded
 
