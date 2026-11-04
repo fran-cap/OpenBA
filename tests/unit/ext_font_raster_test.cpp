@@ -201,6 +201,20 @@ UNIT_TEST(ext_font_raster_rejects_absent_face) {
     CHECK(!RasterizeFont(kGameFace, 1, cps, 1, out, &why));   // height out of range
 }
 
+// Review S-050 / S-051: the face file beside the exe is looked up per face. A missing face must
+// not decide the answer for the next one (the Windows rasteriser latched its first private-load
+// attempt for every face, so a missing "Segoe UI" hid FrancophilSans.ttf beside the exe).
+UNIT_TEST(ext_font_raster_private_face_lookup_is_per_face) {
+    std::string whyA;
+    std::string whyB;
+    CHECK(!FaceAvailable("NoSuchFace_S051_A", &whyA));
+    CHECK(!FaceAvailable("NoSuchFace_S051_B", &whyB));
+    // Each answer names its own face's file: the second face was looked up, not answered from
+    // the first face's attempt.
+    CHECK(whyA.find("NoSuchFace_S051_A.ttf") != std::string::npos);
+    CHECK(whyB.find("NoSuchFace_S051_B.ttf") != std::string::npos);
+}
+
 // ============================================================================
 // FREETYPE: the FreeType rasteriser, and its comparison with GDI on Windows
 // ============================================================================
