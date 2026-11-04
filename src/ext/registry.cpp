@@ -194,13 +194,14 @@ const Entry kEntries[] = {
     // MODSPERSIST (docs/retail_bugs.md section 23): retail writes the mod list to settings.cfg only at a
     // clean shutdown, so a crash after a Mods change (often the reload itself) loses it; and a change made
     // in a game is used for that game, then dropped at the next menu after every changed resource was
-    // reloaded twice. With the row on, confirming Mods writes the settings at once, and the pause menu's
-    // Mods button is greyed out (retail's own Enable(false), as for a game with flag bit 10). Not
-    // sim-visible. Nothing new is saved.
+    // reloaded twice. With the row on, confirming Mods writes the settings at once; in a game the pause
+    // menu's Mods button first shows a Yes / No warning (Dialog/Extensions.rsc:modsInGame), and a confirmed
+    // change is put in the settings too, so the next menu keeps it. Not sim-visible. Nothing new is saved.
     { "mods_persist", Tier::Fix, Class::None, true,
-      "Mod changes saved, from the main menu",
+      "Mod changes saved at once",
       "A change in the Mods window is saved as soon as you confirm it, so a crash no longer brings back "
-      "the old list; mods are changed from the main menu only (the in-game Mods button is greyed out).",
+      "the old list, and a change made during a game is kept after it. In a game the Mods button warns "
+      "first: turning off a mod the town uses can damage it.",
       0, [](State& s) -> bool& { return s.fix.mods_persist; } },
     // SAVEFAILURENOTICE (docs/retail_bugs.md section 27): a save that does not reach the disk (read-only
     // folder, Controlled Folder Access, antivirus, full disk) opens a message box naming the save folder,

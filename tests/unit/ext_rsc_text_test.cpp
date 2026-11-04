@@ -66,7 +66,7 @@ UNIT_TEST(ext_rsc_text_parse_extensions) {
         const Field* flags = dlg->body.Find("_flags");
         CHECK(flags && !flags->isArray && flags->tokens.size() == 3 && flags->tokens[1].text == "PauseGame");
         const Field* refs = dlg->body.Find("_references");
-        CHECK(refs && refs->isArray && refs->tokens.size() == 4 && refs->tokens[0].quoted);
+        CHECK(refs && refs->isArray && refs->tokens.size() == 5 && refs->tokens[0].quoted);
         const Field* tpl = dlg->body.Find("_templates");
         CHECK(tpl && tpl->isArray && tpl->tokens.size() == 1 && tpl->tokens[0].text == "entryRow");
     }
@@ -152,8 +152,8 @@ UNIT_TEST(ext_rsc_text_parse_extensions) {
     // The bases the in-game pages derive from (RestrictedFoodsPage.rsc, ItemPriorityPage.rsc) stay.
     CHECK(f.Find("entryList") && f.Find("tableList") && f.Find("tableMods"));
     // 46 + fix.save_failure_notice's box (saveFailed, noticeSaveFailed) + 2: buttonGameFiles and labelGameFiles
-    // (issue #96)
-    CHECK(f.objects.size() == 50);
+    // (issue #96) + 2: fix.mods_persist's in-game warning (modsInGame, noticeModsInGame)
+    CHECK(f.objects.size() == 52);
 }
 
 UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
@@ -205,8 +205,8 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
     // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
-    // + 1 for the touch pointer bar's Shift tip
-    CHECK(strings && strings->blocks.size() == 132);
+    // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning
+    CHECK(strings && strings->blocks.size() == 133);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;

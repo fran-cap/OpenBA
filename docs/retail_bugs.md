@@ -1055,17 +1055,22 @@ port transcribes them (`src/game/Dialog/moddialog.cpp`, `src/engine/io/modificat
 harness (`t<row>` / `q<id>` tokens): the quit to menu ran a second remount with the list read back from
 the settings.
 
-**Lever.** Write the settings when the Mods dialog is confirmed; refuse changes in a game, so the list is
-only changed from the main menu (ruled 2026-11-01).
+**Lever.** Write the settings when the Mods dialog is confirmed. A change in a game was first refused
+(ruled 2026-11-01); since issue #100 it is allowed after a warning and kept (ruled 2026-11-03): players
+turn heavy visual mods off in large late-game towns.
 
 **Fix: `fix.mods_persist` (WIRED 2026-11-01).** Two seams read the row:
 - `ModDialog::Apply` (`src/game/Dialog/moddialog.cpp`): after `SaveList`, before the reload,
   `Persistence::WriteSettings`. At the main menu `SaveList` has just put the list in the settings map, so
   the file holds the new list before the reload starts.
-- `MainMenuDialog::OnOpened` (`src/game/Dialog/mainmenudialog.cpp`), the pause menu only: the Mods button
-  is disabled with retail's own `Enable(false)`, the call retail makes for a game with flag bit 10. It shows
-  greyed out like any disabled button; no new text, no new dialog.
-Not sim-visible; nothing new is saved. Off under `/profile:faithful` (retail's behaviour, both parts).
+- `ModDialog::Apply`, in a game only: before that write, the list is also put in the settings map (the
+  same `ModEnabled_` / `ModIndex_` keys `SaveList` writes at the menu, with `_savingSettings` raised for
+  the call), so the next menu's `RefreshList` reads back the set the game runs with and remounts nothing.
+- `MainMenuDialog::OnCommand` (`src/game/Dialog/mainmenudialog.cpp`), the pause menu only: the Mods button
+  first shows a Yes / No message box (`Dialog/Extensions.rsc:modsInGame`, `src/ext/mods_persist/`): a change
+  reloads the town, and turning off a mod the town uses can damage it (section 21). No keeps the pause menu.
+  A game with flag bit 10 still greys Mods out (retail), and the Extensions button follows Mods.
+Not sim-visible; nothing new is saved. Off under `/profile:faithful` (retail's behaviour, every part).
 
 ## 24. A trading post on auto-trade gives the merchant whole stacks of goods he does not buy
 
