@@ -427,6 +427,28 @@ void AnimationState::Serialize(IO::Serializer& s) {
     if (IsReading(s)) rtcoll::Rt_SetSize_18005c8a0(&_layers, n);
     RtGraphics_SerializeAnimLayers(s, n, _layers._data);
     rw->SerializeBool(_instanced, nullptr);
+
+    // NOT RETAIL (UB, review F-098): retail reads each layer's packed handle
+    // `(instance << 8) | state` off the save and never compares it with the
+    // AnimationManager's tables, which the save restored before any entity. A
+    // handle past either table made ResetAnimationState write `--_refCount`
+    // outside `_instances` (heap overflow) and every pose read index past it.
+    // Such a layer is read as one with no shared instance (handle -1, which every
+    // reader already takes as "sample the clip"). A valid save is unchanged.
+    if (IsReading(s)) {
+        const AnimationManager* const mgr = AnimationManager::_singleton;
+        for (int32_t i = 0; i < _layers._size; ++i) {
+            Layer& layer = _layers._data[i];
+            const int32_t handle = layer._handle;
+            if (handle < 0)
+                continue;
+            const int32_t instance = (handle >> 8) & 0xff;
+            const int32_t state = handle & 0xff;
+            if (mgr == nullptr || instance >= mgr->_instances._size ||
+                state >= mgr->_instances._data[instance]._states._size)
+                layer._handle = -1;
+        }
+    }
 }
 
 // ============================================================================
@@ -513,26 +535,48 @@ void Animation::GetPoseAtTime(const System::Time& timeRef, const System::Time& d
     // Where a loop restarts, as a frame index. Zero when the clip has no loop
     // frame at all — and note that THIS is the short-circuit, not a test on the
     // looping flag: a looping clip with loopFrame == 0 restarts at frame 0.
+    //
+    // NOT RETAIL (UB, review F-121): retail converts the loop fraction with no
+    // range test and divides by `frameCount - loopStart` with no zero test. A
+    // looping clip whose loop frame is its end frame has loopStart == frameCount
+    // (IDIV by zero, the process dies); start == end makes the fraction NaN or
+    // infinite (an out-of-range float->int conversion); a loop frame before the
+    // start or past the end gives key indexes outside `_keys`. A loop start
+    // outside [0, frameCount) now holds the last frame, as a non-looping clip
+    // does. Every valid clip keeps retail's arithmetic exactly. A clip with no
+    // frames never wraps (its span is zero) and never reads a key, below.
+    bool wraps = looping != 0 && frameCount > 0;
     int32_t loopStart = 0;
     if (loopFrame != 0) {
-        loopStart = static_cast<int32_t>(
-            (static_cast<float>(loopFrame - frameFirst) /
-             static_cast<float>(frameLast - frameFirst)) * static_cast<float>(frameCount));
+        const float at = (static_cast<float>(loopFrame - frameFirst) /
+                          static_cast<float>(frameLast - frameFirst)) * static_cast<float>(frameCount);
+        if (at > -1.0f && at < static_cast<float>(frameCount))
+            loopStart = static_cast<int32_t>(at);
+        else
+            wraps = false;
     }
 
-    const float cursor = static_cast<float>(static_cast<double>(*time) * SecondsPerTick()) * rate;
+    float cursor = static_cast<float>(static_cast<double>(*time) * SecondsPerTick()) * rate;
+    // NOT RETAIL (UB, review F-121): a negative time from a save gave a negative
+    // key index, and a time past INT32_MAX frames (or a NaN rate) an out-of-range
+    // conversion. Both now sample frame 0.
+    if (!(cursor > -1.0f && cursor < 2147483648.0f))
+        cursor = 0.0f;
     const int32_t whole = static_cast<int32_t>(cursor);
 
     int32_t f0 = whole;
     if (f0 >= frameCount)
-        f0 = looping ? (loopStart + whole % (frameCount - loopStart)) : (frameCount - 1);
+        f0 = wraps ? (loopStart + whole % (frameCount - loopStart)) : (frameCount - 1);
     int32_t f1 = f0 + 1;
     if (f1 >= frameCount)
-        f1 = looping ? (f1 % (frameCount - loopStart) + loopStart) : (frameCount - 1);
+        f1 = wraps ? (f1 % (frameCount - loopStart) + loopStart) : (frameCount - 1);
 
     const float frac = cursor - static_cast<float>(whole);
 
-    if (f0 == f1 || frac == 0.0f) {
+    if (frameCount <= 0) {
+        // NOT RETAIL (UB, review F-121): a clip with no frames has no key to read
+        // (retail reads `keys - boneCount`); the pose is left as the caller had it.
+    } else if (f0 == f1 || frac == 0.0f) {
         const Math::Transform* src = keys + boneCount * f0;
         for (int32_t i = 0; i < boneCount; ++i)
             out[i] = src[i];
