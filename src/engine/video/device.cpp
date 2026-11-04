@@ -69,6 +69,7 @@
 #include <cstring>
 
 #include "video/Device.h"
+#include "video/validate_configuration.h"   // the refresh / multisample clamps (review F-130, F-156)
 #include "video/ImageBuffer.h"
 #include "video/CompanionData.h"   // ENDGAME B.3.5: Video::RenderBufferData
 #include "io/Persistence.h"        // ENDGAME B.3.9 SS1: Persistence::_singleton
@@ -248,18 +249,14 @@ void Video::Device::ValidateConfiguration(int& renderer, int& adapterIdx,
     }
     if (!exact) {
         // Otherwise take the first entry with the same integer Hz, else entry 0.
-        int pick = 0;
-        for (int i = 0; i < mode->refreshCount; ++i) {
-            const RefreshRate* r = mode->refreshData + i;
-            if (r->numerator / r->denominator == refreshNum / refreshDen) { pick = i; break; }
-            pick = 0;
-        }
+        const int pick = Video::ValidateConfig::PickRefreshByRatio(mode->refreshData, mode->refreshCount,
+                                                                   refreshNum, refreshDen);
         refreshNum = mode->refreshData[pick].numerator;
         refreshDen = mode->refreshData[pick].denominator;
     }
 
-    if (adapter->multisampleData[antialias] == 0)
-        antialias = 0;
+    antialias = Video::ValidateConfig::ClampMultisample(adapter->multisampleData, adapter->multisampleCount,
+                                                        antialias);
     if (adapter->maxFilterLevel < filter)
         filter = adapter->maxFilterLevel;
 }
