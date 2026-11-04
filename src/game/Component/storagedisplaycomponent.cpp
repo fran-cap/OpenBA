@@ -423,12 +423,10 @@ void StorageDisplayComponent::OnRemove() {
     }
 }
 
-// [9] 0x1400566a0 (`JMP 0x1400563e0`) — the NATIVE +0x48 driver. The tree's
-// body lays out the w*h pile grid (Draw) and then allocates the pile meshes
-// from the StorageComponent contents (Refresh); both early-out cheaply when
-// unchanged.
+// [9] 0x1400566a0 (`JMP 0x1400563e0`) — the NATIVE +0x48 driver: Refresh alone
+// (review F-215). The pile grid layout is slot 6 (OnAdded, at RegisterEntity) and
+// slot 11 (Slot11, post-load) only; retail slot 9 never lays it out again per tick.
 void StorageDisplayComponent::Update(const System::Time* /*time*/) {
-    StorageDisplayComponent::OnAdded();   // the slot-6 body, called directly
     Refresh();
 }
 

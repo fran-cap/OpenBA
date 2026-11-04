@@ -16,6 +16,7 @@
 #include "unit.h"
 #include "Game/WorldGeometry.h"
 
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -249,4 +250,36 @@ UNIT_TEST(terrain_ray_height_only_path_is_bit_identical) {
     CHECK_EQ(s.diverged, 0LL);
     CHECK(s.hits > 100000 && s.misses > 1000);
     CHECK(s.even > 100000 && s.odd > 100000);
+}
+
+// Review F-004 (docs/history/review_20261103): a point off the int range truncates to retail's
+// CVTTSS2SI "integer indefinite", INT_MIN, and the cell body then forms x - half, x + y and
+// x + 1 from it. Retail's 32-bit wrap is the result: the corner lands far from the ray, which
+// misses (height 0, normal untouched). The int arithmetic was signed overflow (UBSan:
+// INT_MIN - 2, INT_MIN + INT_MIN); CellQuadRay takes any cell from its callers too.
+UNIT_TEST(terrain_ray_review_ub_int_min_cell_misses) {
+    Terrain t;
+    t.Build(4, 11);
+    const float off[] = { -1e30f, 1e30f, NAN, INFINITY, -INFINITY };
+    for (float a : off) {
+        const float points[3][2] = { { a, 0.5f }, { 0.5f, a }, { a, a } };
+        for (const auto& p : points) {
+            float n[3] = { 7.0f, 8.0f, 9.0f };
+            CHECK_EQ(t.wg->HeightUnderPoint(p, n), 0.0f);
+            CHECK(n[0] == 7.0f && n[1] == 8.0f && n[2] == 9.0f);
+            CHECK_EQ(t.wg->HeightUnderPointReference(p, nullptr), 0.0f);
+        }
+    }
+    const int cells[] = { INT_MIN, INT_MIN + 1, -1, 0, INT_MAX - 1, INT_MAX };
+    const float dir[3] = { 0.0f, 0.0f, -1.0f };
+    const float origin[3] = { 0.25f, 0.25f, 100.0f };
+    const float maxT = 1000.0f;
+    for (int x : cells) {
+        for (int y : cells) {
+            if (x >= 0 && x < t.N && y >= 0 && y < t.N) continue;
+            float hit[3] = { 0.0f, 0.0f, 0.0f };
+            float tOut = 0.0f;
+            CHECK_EQ(t.wg->CellQuadRay(x, y, dir, origin, &maxT, hit, &tOut, nullptr), 0);
+        }
+    }
 }

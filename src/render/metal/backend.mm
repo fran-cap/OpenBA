@@ -1661,7 +1661,7 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
     // NOT RETAIL (ext.create_on_demand): the first bind of a deferred texture makes it; a made one pays the
     // nil test. The scope stamps the use and keeps an eviction away until the bind is done.
     CreateOnDemand::UseScope use(this);
-    if (!texture) CreateOnDemand::Ensure(this);
+    if (!CreateOnDemand::Made(&texture)) CreateOnDemand::Ensure(this);
     if (slot >= 31) return;
     bound.images[slot] = texture;
     bound.samplers[slot] = sampler;
@@ -1675,7 +1675,8 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
 }
 bool ImageBufferData::Update(void* data, int width, int height) {
     CreateOnDemand::UseScope use(this);           // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (!texture) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load
+    if (!CreateOnDemand::Made(&texture)) CreateOnDemand::Ensure(this);
     if (!texture || !data || width <= 0 || height <= 0 || width > int(texture.width) ||
         height > int(texture.height))
         return false;
@@ -1704,7 +1705,8 @@ struct DeviceLockScope {
 };
 bool ImageBufferData::Read(void* dst, int width, int height) {
     CreateOnDemand::UseScope use(this);           // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (!texture) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand), before the device lock
+    // NOT RETAIL (ext.create_on_demand), before the device lock: an acquire load
+    if (!CreateOnDemand::Made(&texture)) CreateOnDemand::Ensure(this);
     // Main thread with the render thread on: the lock keeps this whole body (it ends and commits the frame's
     // current segment and starts the next one) out of the render thread's encoding.
     DeviceLockScope deviceLock;
@@ -1791,14 +1793,14 @@ static void SerializeBuffer(Data* self, IO::Serializer* serializer, bool index) 
     // NOT RETAIL (ext.create_on_demand): no eviction while this reads `buffer`, and the save arm's deferred
     // buffer is made first.
     CreateOnDemand::UseScope use(self);
-    if (!loading && !self->buffer) CreateOnDemand::Ensure(self);
+    if (!loading && !CreateOnDemand::Made(&self->buffer)) CreateOnDemand::Ensure(self);
     serializer->Serialize(owner->dynamic, nullptr);
     serializer->Serialize(owner->size, nullptr);
     if (loading && owner->size > 0) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/CREATEONDEMAND.md): ext.create_on_demand -- a static
         // buffer read from a packed resource file is not read: its create waits for its first use, and the
         // stream skips the payload. The owner already holds the size / dynamic Create would store.
-        if (CreateOnDemand::Requested() && owner->dynamic == 0 && !self->buffer) {
+        if (CreateOnDemand::Requested() && owner->dynamic == 0 && !CreateOnDemand::Made(&self->buffer)) {
             self->cursor = 0;
             if (CreateOnDemand::DeferBuffer(self, serializer->_stream, index, uint32_t(owner->size), &self->buffer,
                                             &self->shared))
@@ -1839,7 +1841,8 @@ bool IndexBufferData::Create(uint32_t sizeBytes, uint8_t dynamic, const void* da
 }
 bool IndexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const void* src) {
     CreateOnDemand::UseScope use(this);          // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (!buffer) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load
+    if (!CreateOnDemand::Made(&buffer)) CreateOnDemand::Ensure(this);
     if (sizeBytes < 0 || offsetBytes < 0 || !buffer || size_t(offsetBytes) + sizeBytes > buffer.length ||
         (!src && sizeBytes))
         return false;
@@ -1858,7 +1861,8 @@ bool IndexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const void
 }
 void* IndexBufferData::Lock(int32_t sizeBytes, int32_t* outByteOffset) {
     CreateOnDemand::UseScope use(this);          // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (!buffer) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load
+    if (!CreateOnDemand::Made(&buffer)) CreateOnDemand::Ensure(this);
     if (!buffer || sizeBytes < 0 || size_t(sizeBytes) > buffer.length) return nullptr;
     // NOT RETAIL (ext.share_gpu_data): a shared buffer is never written; D3D11's Map fails on its
     // IMMUTABLE buffer and Lock returns null.
@@ -1884,7 +1888,8 @@ void* IndexBufferData::Lock(int32_t sizeBytes, int32_t* outByteOffset) {
 void IndexBufferData::Unlock() {}
 void IndexBufferData::Bind(void* context) {
     CreateOnDemand::UseScope use(this);          // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (!buffer) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand): before the state lock
+    // NOT RETAIL (ext.create_on_demand): before the state lock: an acquire load
+    if (!CreateOnDemand::Made(&buffer)) CreateOnDemand::Ensure(this);
     StateGuard guard(stateMutex);
     bound.index = buffer;
 }
@@ -1920,7 +1925,8 @@ bool VertexBufferData::Create(uint32_t sizeBytes, uint8_t dynamic, const void* d
 }
 bool VertexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const void* src) {
     CreateOnDemand::UseScope use(this);          // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (!buffer) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load
+    if (!CreateOnDemand::Made(&buffer)) CreateOnDemand::Ensure(this);
     if (sizeBytes < 0 || offsetBytes < 0 || !buffer || size_t(offsetBytes) + sizeBytes > buffer.length ||
         (!src && sizeBytes))
         return false;
@@ -1939,7 +1945,8 @@ bool VertexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const voi
 }
 void* VertexBufferData::Lock(int32_t sizeBytes, int32_t* outByteOffset) {
     CreateOnDemand::UseScope use(this);          // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (!buffer) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load
+    if (!CreateOnDemand::Made(&buffer)) CreateOnDemand::Ensure(this);
     if (!buffer || sizeBytes < 0 || size_t(sizeBytes) > buffer.length) return nullptr;
     // NOT RETAIL (ext.share_gpu_data): a shared buffer is never written; D3D11's Map fails on its
     // IMMUTABLE buffer and Lock returns null.
@@ -1967,7 +1974,7 @@ void VertexBufferData::Bind(void* context, uint32_t startSlot, uint32_t offsetBy
     // NOT RETAIL (ext.create_on_demand): the first bind of a deferred buffer makes it (before the state lock);
     // a made one pays the nil test. The scope stamps the use and keeps an eviction away until the bind is done.
     CreateOnDemand::UseScope use(this);
-    if (!buffer) CreateOnDemand::Ensure(this);
+    if (!CreateOnDemand::Made(&buffer)) CreateOnDemand::Ensure(this);
     if (startSlot < 31) {
         StateGuard guard(stateMutex);
         bound.vertex[startSlot] = buffer;

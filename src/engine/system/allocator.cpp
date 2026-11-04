@@ -355,7 +355,11 @@ bool MemoryAllocator::ExpandMemoryRangeTable() {
     ranges = static_cast<MemoryRange*>(dst);  // CAST-OK: alloc_header
     if (dst == nullptr) return false;
 
-    std::memcpy(dst, src, static_cast<size_t>(oldCap) * 0x18);
+    // NOT RETAIL (review F-003, undefined behaviour): the first table grows from capacity 0,
+    // whose `ranges` is null, and memcpy from a null pointer is undefined even for 0 bytes.
+    // Retail copies unguarded; skipping the empty copy changes no byte.
+    if (oldCap != 0)
+        std::memcpy(dst, src, static_cast<size_t>(oldCap) * 0x18);
     std::memset(static_cast<uint8_t*>(dst) + static_cast<size_t>(oldCap) * 0x18, 0,  // CAST-OK: alloc_header
                 static_cast<size_t>(rangeCapacity - oldCap) * 0x18);
     if (oldCap != 0) g_plat.release(src);
@@ -398,6 +402,18 @@ bool MemoryAllocator::AddNewMemoryRange(uint64_t want) {
 // --- Allocate (0x1800c6e60) ------------------------------------------------
 void* MemoryAllocator::Allocate(uint64_t size, int align) {
     if (g_largestRequestedSize < size) g_largestRequestedSize = size;
+
+    // NOT RETAIL (review F-102, size wrap): retail computes `size + 7` and `total + 8` below
+    // unchecked, so a request near 2^64 (an int -1 or a negative count sign-extended into a
+    // size) wraps to a tiny block, or to a zero `want` whose block stays on the free list and
+    // is handed out twice. No tag can describe a block past kSizeBytesMask, so such a request
+    // ends where retail's own out-of-memory path ends.
+    if (size > kSizeBytesMask) {
+        FatalOutOfMemory(
+            "Failed to allocate memory. Either too many packages (mods) are loaded, "
+            "no more memory is available, or an error has occured.", true);
+        return nullptr;
+    }
 
     const uint32_t align8 = (static_cast<uint32_t>(align) + 7u) & 0xfffffff8u;
 

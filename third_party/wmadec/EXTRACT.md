@@ -90,7 +90,7 @@ is NOT vendored; the two tables WMA uses from it are copied into `shim/aac_scale
 
 | file | stands in for | what it does |
 |---|---|---|
-| `shim/config.h` | `configure`'s generated `config.h` | `ARCH_*` 0, no asm / inline asm / SIMD, `HAVE_THREADS` 0, `CONFIG_SMALL` 1 (drops `tx.c`'s debug printer and codelet names) |
+| `shim/config.h` | `configure`'s generated `config.h` | `ARCH_*` 0, no asm / inline asm / SIMD, `HAVE_THREADS` 0, `CONFIG_SMALL` 1 (drops `tx.c`'s debug printer and codelet names), `CONFIG_SAFE_BITSTREAM_READER` 1 (upstream's default: the bit reader stops at the packet end) |
 | `shim/config_components.h` | generated `config_components.h` | `CONFIG_WMAV2_DECODER` 1, `CONFIG_WMAV1_DECODER` 0 |
 | `shim/libavutil/avconfig.h` | generated `avconfig.h` | little endian, no fast-unaligned assumption |
 | `shim/libavutil/thread.h` | `libavutil/thread.h` | `AVOnce` / `ff_thread_once` as a REAL once (Win32 `INIT_ONCE`, POSIX `pthread_once`). FFmpeg's no-threads fallback is a plain flag, and the game decodes on the loader thread and on the Stream worker at once; both can reach the lazily built sine-window and FFT tables |

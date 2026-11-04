@@ -25,6 +25,7 @@
 #include <cstring>
 #include "application/Application.h"
 #include "system/timer_internal.h"   // RtSystem::Timer* (SleepThread's tick conversion)
+#include "system/Timer.h"            // System::CounterToTicks (review F-151)
 #include "platform_thread.h"         // Platform::YieldThread
 #include "platform_time.h"           // Platform::PerfCounter
 
@@ -91,8 +92,9 @@ namespace {
 // DIFFERENCE of two readings taken inside the same call (`elapsed`), so a
 // shifted origin cancels exactly.
 int64_t QpcToEngineTicks(int64_t qpc) {
-    return (qpc - RtSystem::TimerSystemInitialTick()) * RtSystem::TimerTicksPerSecond()
-           / RtSystem::TimerSystemTicksPerSecond();
+    // review F-151: System::CounterToTicks (Timer.h), the overflow-free spelling.
+    return System::CounterToTicks(qpc - RtSystem::TimerSystemInitialTick(), RtSystem::TimerTicksPerSecond(),
+                                  RtSystem::TimerSystemTicksPerSecond());
 }
 
 }  // namespace

@@ -100,13 +100,6 @@
 #include "ext/alloc_tiebreak/alloc_tiebreak.h"   // EntityKey
 #include "ext/alloc_tiebreak/tie_key.h"       // TieKey: the scratch trees' keys
 
-// Build-time roster-only guard, shared with citizen_assign_citizens.cpp: while set,
-// the workplace/housing attach-detach helpers skip the Graphics::Scene mesh toggle
-// down to the bare roster mutation (the scene churn that can deadlock the build). We
-// hold it across each relocation's AssignWorkplace churn for the same reason the
-// AssignCitizens pass (which runs immediately after us on the same drain) holds it.
-extern bool g_wpcRosterOnly;
-
 namespace {
 
 
@@ -236,11 +229,9 @@ void PathGraph::ReassignWorkers() {
     int relocations = 0;
 
     // ---------- Phase 2: greedily consolidate ----------
-    // Hold the roster-only guard across every AssignWorkplace churn below.
+    // No roster-only hold (review F-088): retail holds nothing here, and SetHome only
+    // touches the residence rosters, never WorkPlaceComponent::Attach / Detach.
     if (!empties.empty() && !occupied.empty()) {
-        bool prevRoster = g_wpcRosterOnly;
-        g_wpcRosterOnly = true;
-
         for (auto it = occupied.begin(); it != occupied.end(); ++it) {
             ResidenceComponent* srcRes    = it->res;   // residence to (maybe) vacate (tree local_98 node)
             int                 threshold = it->cost;  // its own current cost (retail uVar13)
@@ -304,7 +295,5 @@ void PathGraph::ReassignWorkers() {
             ++relocations;
             if (empties.empty()) break;           // retail: local_b0 == 0
         }
-
-        g_wpcRosterOnly = prevRoster;
     }
 }

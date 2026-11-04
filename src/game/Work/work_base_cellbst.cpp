@@ -202,7 +202,9 @@ void WorkCellBST_Serialize_9de0(uintptr_t* root, IO::Serializer* ser) {
             Object::InternalPtr<CitizenComponent> keyIBP = nullptr;
             // The value is an InternalPtr retail serializes through InternalBasePtr::Serialize.
             keyIBP.InternalBasePtr::Serialize(*ser);
-            if (keyIBP.Get() != nullptr && !keyIBP->IsDerivedFrom(citTid))   // 0x140029e59 TEST; 0x140029e64 IsDerivedFrom; CMOVZ
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to CitizenComponent*; the answer is the same.
+            if (!keyIBP.IsNull() && !Object::IsDerivedFromNullSafe(keyIBP, citTid))   // 0x140029e59 TEST; 0x140029e64 IsDerivedFrom; CMOVZ
                 keyIBP = nullptr;
             rec.citizen = keyIBP;
             Node* out = nullptr;
@@ -222,7 +224,9 @@ joined:
         ser->Serialize(pIVar5->element.cell, nullptr);   // key @+0
         // The value is an InternalPtr retail serializes through InternalBasePtr::Serialize.
         pIVar5->element.citizen.InternalBasePtr::Serialize(*ser);
-        if (pIVar5->element.citizen != nullptr && !pIVar5->element.citizen->IsDerivedFrom(citTid))   // 0x14002a000 / 0x14002a00b
+        // NOT RETAIL (F-143): as the load arm, the tests run on the held Internal*.
+        if (!pIVar5->element.citizen.IsNull() &&
+            !Object::IsDerivedFromNullSafe(pIVar5->element.citizen, citTid))   // 0x14002a000 / 0x14002a00b
             pIVar5->element.citizen = nullptr;
         pIVar3 = pIVar5->right;   // right child
         if (pIVar3 == nullptr) {

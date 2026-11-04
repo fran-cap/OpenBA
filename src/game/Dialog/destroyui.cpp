@@ -320,7 +320,7 @@ void DestroyUI::OnUpdateLayout() {
             progressRemove->_currentValue = fillRatio;
 
             // Format and set percentage text
-            System::String strObj = System::String::Format("%i", (uint64_t)(uint32_t)(int)fillPercent);
+            System::String strObj = System::String::Format("%i", (int)(uint32_t)(int)fillPercent);
             progressRemove->SetProgressTextParameter(0, strObj);
         }
 
@@ -341,7 +341,7 @@ void DestroyUI::OnUpdateLayout() {
 
         progressDestruct->_currentValue = destroyRatio;
 
-        System::String strObj2 = System::String::Format("%i", (uint64_t)(uint32_t)(int)destroyPercent);
+        System::String strObj2 = System::String::Format("%i", (int)(uint32_t)(int)destroyPercent);
         progressDestruct->SetProgressTextParameter(0, strObj2);
 
         // --- Show/hide progress bars based on destruction state ---
@@ -389,10 +389,10 @@ void DestroyUI::OnUpdateLayout() {
         // Element slot 8 (Enable) on buttonRebuild: enabled when state != 6
         buttonRebuild->Enable(stateByte != 6);
 
-        // Retail finds the StateMachineComponent again for buttonDestroy
-        // (the result is not read)
-        (void)DestroyUI_FindStateMachine(compEntity);
-        buttonDestroy->Enable(true);
+        // Retail finds the StateMachineComponent again for buttonDestroy and runs the
+        // same test (0x140065c1d..0x140065c48: CMP CL,0x6 / SETNZ DL / CALL [RAX + 0x40])
+        int8_t destroyStateByte = DestroyUI_StateByte(DestroyUI_FindStateMachine(compEntity));
+        buttonDestroy->Enable(destroyStateByte != 6);
 
         // Show rebuild and destroy buttons
         buttonRebuild->SetFlagsOnOff(0, 1);

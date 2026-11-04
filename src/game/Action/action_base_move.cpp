@@ -20,6 +20,7 @@
 #include "Game/exe_bodies.h"       // Reimpl_MapGetTerrainPos
 #include "Game/exe_constants.h"   // kRdata_140172114
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
+#include "Action/saved_bounds.h"
 #include "Object/factory_registration.h"
 #include "system/String.h"
 #include "system/Filename.h"
@@ -382,10 +383,7 @@ bool MoveTo::PathSetup(const float* worldPos) {
     float center = static_cast<float>(width >> 1);
 
     auto clamp = [&](float f) -> int {
-        int v = static_cast<int>(f);
-        if (v < 0) v = 0;
-        if (v >= width) v = width - 1;
-        return v;
+        return ActionBounds::WorldToCellAxis(f, width);   // CVTTSS2SI, then [0, width-1]
     };
 
     int tx = clamp(center + worldPos[0]);

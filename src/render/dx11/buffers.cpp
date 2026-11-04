@@ -438,7 +438,8 @@ void GpuBuffer_Serialize(Data* self, ::IO::Serializer* serializer) {
     // NOT RETAIL (ext.create_on_demand): no eviction while this reads `buffer`, and a buffer still
     // waiting for its first use is made first.
     CreateOnDemand::UseScope use(self);
-    if (self->buffer == nullptr && SerializerStreamMode(serializer) != 0) CreateOnDemand::Ensure(self);
+    if (::CreateOnDemand::LoadPublished(self->buffer) == nullptr && SerializerStreamMode(serializer) != 0)
+        CreateOnDemand::Ensure(self);
 
     auto* owner = self->_owner;
 
@@ -594,7 +595,8 @@ bool VertexBufferData::Create(uint32_t sizeBytes, uint8_t dynamicByte, const voi
 bool VertexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const void* src) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (buffer == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(buffer) == nullptr) CreateOnDemand::Ensure(this);
     return GpuBuffer_SetData(_owner, buffer,
                              sizeBytes, offsetBytes, src, /*dstSubresource=*/0);
 }
@@ -603,7 +605,8 @@ bool VertexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const voi
 void* VertexBufferData::Lock(int32_t sizeBytes, int32_t* outByteOffset) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (buffer == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(buffer) == nullptr) CreateOnDemand::Ensure(this);
     return BufferData_Lock(this, sizeBytes, outByteOffset);
 }
 
@@ -623,7 +626,7 @@ void VertexBufferData::Bind(void* /*context, unused*/, uint32_t startSlot,
     // NOT RETAIL (ext.create_on_demand): the first use of a deferred buffer makes it; a made one
     // pays the null test. The scope stamps the use and keeps an eviction away until the bind is done.
     CreateOnDemand::UseScope use(this);
-    if (buffer == nullptr) CreateOnDemand::Ensure(this);
+    if (::CreateOnDemand::LoadPublished(buffer) == nullptr) CreateOnDemand::Ensure(this);
     // The original passes the addresses of its own R9 home slot (offset) and of
     // stack argument 5 (stride); taking the address of our parameters is the
     // same observable call.
@@ -671,7 +674,8 @@ bool IndexBufferData::Create(uint32_t sizeBytes, uint8_t dynamicByte, const void
 bool IndexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const void* src) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (buffer == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(buffer) == nullptr) CreateOnDemand::Ensure(this);
     return GpuBuffer_SetData(_owner, buffer,
                              sizeBytes, offsetBytes, src,
                              /*dstSubresource=*/static_cast<UINT>(offsetBytes));
@@ -681,7 +685,8 @@ bool IndexBufferData::SetData(int32_t sizeBytes, int32_t offsetBytes, const void
 void* IndexBufferData::Lock(int32_t sizeBytes, int32_t* outByteOffset) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (buffer == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(buffer) == nullptr) CreateOnDemand::Ensure(this);
     return BufferData_Lock(this, sizeBytes, outByteOffset);
 }
 
@@ -713,7 +718,8 @@ void IndexBufferData::Unlock() {
 void IndexBufferData::Bind(void* /*context, never read*/) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create): one relaxed load when idle
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (buffer == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(buffer) == nullptr) CreateOnDemand::Ensure(this);
     Dx11Context()->IASetIndexBuffer(buffer, DXGI_FORMAT_R16_UINT, 0);
 }
 

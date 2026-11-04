@@ -83,15 +83,16 @@ bool g_filled = false;
 // A fabricated value would make that FreeLibrary undefined; our own module
 // handle, with an extra reference taken for the purpose, makes it a harmless
 // refcount decrement on a module that is never going away.
+// Review F-213: ONE reference per call, i.e. per filled slot. The Engine shutdown
+// releases every populated slot (retail: one FreeLibrary per slot, each slot's
+// plugin loaded once), and both slots hold this handle; a cached handle took one
+// reference for two releases.
 #if defined(_WIN32)
 HMODULE SentinelModule() {
-    static HMODULE h = nullptr;
-    if (!h) {
-        wchar_t self[MAX_PATH] = {0};
-        GetModuleFileNameW(GetModuleHandleW(nullptr), self, MAX_PATH);
-        h = LoadLibraryW(self);                       // +1 ref on OpenBA.exe
-        if (!h) h = GetModuleHandleW(nullptr);        // still non-zero
-    }
+    wchar_t self[MAX_PATH] = {0};
+    GetModuleFileNameW(GetModuleHandleW(nullptr), self, MAX_PATH);
+    HMODULE h = LoadLibraryW(self);                   // +1 ref on OpenBA.exe
+    if (!h) h = GetModuleHandleW(nullptr);            // still non-zero
     return h;
 }
 #else
@@ -99,9 +100,7 @@ HMODULE SentinelModule() {
 // Platform::ReleaseLibrary (dlclose) that the shutdown makes on every slot is the
 // same harmless refcount decrement.
 void* SentinelModule() {
-    static void* h = nullptr;
-    if (!h) h = dlopen(nullptr, RTLD_NOW);
-    return h;
+    return dlopen(nullptr, RTLD_NOW);
 }
 #endif
 
@@ -147,7 +146,7 @@ void FillDx11Slot(Video::Device* device) {
     printf("[VideoInterface] DX11 slot pre-filled on Device %p: "
            "module=%p GetDeviceName=%p CreateDeviceData=%p — Runtime will not "
            "LoadLibrary VideoDX11-x64.dll\n",
-           static_cast<void*>(device), (void*)SentinelModule(),
+           static_cast<void*>(device), slot.module,
            reinterpret_cast<void*>(&Render::DeviceName),
            reinterpret_cast<void*>(&Render::CreateDeviceData));
     fflush(stdout);

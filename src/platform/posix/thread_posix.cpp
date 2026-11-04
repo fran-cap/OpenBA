@@ -106,7 +106,13 @@ bool ThreadSetNormalPriority(ThreadHandle) { return true; }
 bool ThreadSetBelowNormalPriority(ThreadHandle) { return false; }
 bool ThreadBackgroundMode(bool) { return false; }   // NOT RETAIL: platform_thread.h
 
+// NOT RETAIL (review F-132): a null handle (a failed pthread_create) fails these three
+// calls the way Win32 fails them on a null HANDLE, instead of dereferencing it.
+// System::Thread keeps retail's unchecked sequence (thread.cpp InitFields /
+// ReleaseFields), which on Windows survives a failed _beginthreadex: ResumeThread
+// returns (DWORD)-1, WaitForSingleObject WAIT_FAILED and CloseHandle FALSE.
 uint32_t ThreadResume(ThreadHandle t) {
+    if (t == nullptr) return 0xFFFFFFFFu;   // ResumeThread's failure value
     pthread_mutex_lock(&t->latchLock);
     const uint32_t previous = t->resumed ? 0u : 1u;   // ResumeThread: the previous suspend count
     t->resumed = true;
@@ -116,6 +122,7 @@ uint32_t ThreadResume(ThreadHandle t) {
 }
 
 uint32_t ThreadJoin(ThreadHandle t) {
+    if (t == nullptr) return 0xFFFFFFFFu;   // WAIT_FAILED
     if (!t->joined) {
         pthread_join(t->thread, nullptr);
         t->joined = true;
@@ -124,6 +131,7 @@ uint32_t ThreadJoin(ThreadHandle t) {
 }
 
 bool ThreadClose(ThreadHandle t) {
+    if (t == nullptr) return false;         // CloseHandle(NULL) fails
     pthread_mutex_lock(&t->latchLock);
     if (!t->resumed) {
         t->abandoned = true;

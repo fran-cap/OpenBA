@@ -503,14 +503,14 @@ void SaveLoadDialog::OnUpdateLayout() {
             buttonCancel->Enable(1);
         }
 
-        // Check selected save for delete eligibility
-        if (selectedIdx >= 0) {
-            saveLoad->GetSaveInfo(selectedIdx);
-        }
+        // Delete needs a selected row that is a real save: retail 0x1400b6a17..0x1400b6a59
+        // tests selectedIndex >= 0 (JS), then GetSaveInfo(sel).saveIndex (+0x40) >= 0 (JL);
+        // the blank "new save" row has saveIndex -1.
+        bool deleteEnabled = selectedIdx >= 0 && saveLoad->GetSaveInfo(selectedIdx).saveIndex >= 0;
 
         // buttonDelete: SetEnabled via vtable[8]
         if (buttonDelete) {
-            buttonDelete->Enable((uint64_t)(selectedIdx >= 0));
+            buttonDelete->Enable(deleteEnabled);
         }
 
         // --- Iterate save entries: show/hide selection highlighting ---

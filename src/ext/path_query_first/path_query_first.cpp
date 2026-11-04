@@ -42,7 +42,7 @@ bool RequestFirst(PathfinderThread* pf, PathTicket* ticket, int start, int goal)
     node->args.arg3 = ticket->slot;
     PushHead(pf->queueHead, pf->queueTail, pf->queueCount, node);
     pf->lock.Unlock();
-    if ((pf->_runFlags & 1) == 0) pf->Start();
+    if (!pf->IsWorking()) pf->Start();
     return true;
 }
 

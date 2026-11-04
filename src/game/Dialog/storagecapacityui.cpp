@@ -124,7 +124,7 @@ void StorageCapacityUI::OnUpdateLayout() {
     progElem->SetCurrentValue(ratio);
 
     // Format percentage string
-    System::String str = System::String::Format("%i", (uint64_t)(uint32_t)(int)displayVal);
+    System::String str = System::String::Format("%i", (int)(uint32_t)(int)displayVal);
 
     // Set on progress element
     progElem->SetProgressTextParameter(0, str);

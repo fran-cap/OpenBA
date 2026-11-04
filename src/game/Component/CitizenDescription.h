@@ -196,3 +196,16 @@ static_assert(offsetof(CitizenDescription, _pad134) == 0x134, "CitizenDescriptio
 static_assert(offsetof(CitizenDescription, _refs) == 0x138, "CitizenDescription::_refs @ +0x138");
 static_assert(offsetof(CitizenDescription, _refs) + offsetof(CitizenDescription::MeshTable, _size) == 0x140, "CitizenDescription::_refs count @ +0x140");
 static_assert(offsetof(CitizenDescription, _refs) + offsetof(CitizenDescription::MeshTable, _capacity) == 0x144, "CitizenDescription::_refs capacity @ +0x144");
+
+// The cold rate CitizenComponent::Update (0x140112e70) multiplies by:
+// `coldRate[clothingLevel]` (0x14011305d MOVSXD RAX,[RDI+0x1e4];
+// 0x140113068 MULSS XMM0,[RCX+RAX*4+0xdc]).
+inline float CitizenColdRate(const float* coldRates, int32_t clothingLevel) {
+    // NOT RETAIL (review F-162): retail reads coldRate[3] with no bound. clothingLevel is
+    // restored from the save (citizencomponent_serialize.cpp), and a level outside 0..2 reads
+    // past the array (undefined behaviour). Such a level reads level 0's rate, the level a
+    // citizen falls back to when its clothing wears out. The game writes only 0, 1 and 2.
+    if (clothingLevel < 0 || clothingLevel > 2)
+        return coldRates[0];
+    return coldRates[clothingLevel];
+}

@@ -61,7 +61,7 @@ static void EnqueueNode(PathfinderThread* self, const PathCommandArgs& cmd) {
     self->queueCount = self->queueCount + 1;
     self->queueTail = node;
     self->lock.Unlock();
-    if ((self->_runFlags & 1) == 0) {
+    if (!self->IsWorking()) {
         self->Start();
     }
 }
@@ -102,7 +102,7 @@ static int RunPathQuery(PathfinderThread* pf, int start, int goal, int passableT
         }
         ::Application::Application::_singleton->YieldToThreads();
         pf->lock.Lock();
-        if (pf->queueCount > 0 && (pf->_runFlags & 1) == 0) {
+        if (pf->queueCount > 0 && !pf->IsWorking()) {
             pf->Start();
         }
         pf->lock.Unlock();

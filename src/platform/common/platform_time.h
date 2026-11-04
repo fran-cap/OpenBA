@@ -43,6 +43,9 @@ void LocalTimeNow(LocalTime* out);
 struct WaitTimerObject;
 using WaitTimerHandle = WaitTimerObject*;
 WaitTimerHandle WaitTimerCreate();
+// Releases a WaitTimerCreate handle (CloseHandle / delete); null is a no-op. The frame limiter's
+// timer lives for the process; a short-lived timer (a test) gives its handle back here.
+void WaitTimerDestroy(WaitTimerHandle t);
 // SetWaitableTimer(t, -relative100ns) then WaitForSingleObject(t, INFINITE). Returns
 // false without waiting when the timer could not be armed.
 bool WaitTimerSleep(WaitTimerHandle t, int64_t relative100ns);

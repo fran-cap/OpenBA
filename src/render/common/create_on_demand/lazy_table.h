@@ -27,7 +27,12 @@
 //
 // DEVICE. Pause() (the device going away: exit, a device-lost recovery) stops new materializations
 // and waits for the running ones; Resume() (a device made) lets them go on. A record that meets a
-// paused table stays recorded: the next use after Resume materializes it on the new device.
+// paused table stays recorded: the next use after Resume materializes it on the new device. No
+// sweep gives anything back once Pause has returned (it re-reads the flag after the gate wait).
+//
+// PUBLICATION. Publish and Evict store the handle a use tests (`if (handle == nullptr) Ensure`) and
+// the gather's Made tests read with no lock: they go through StorePublished / LoadPublished below
+// (release / acquire), never a plain access.
 //
 // Threads: one mutex, two condition variables; nothing heavy under the mutex but an eviction's
 // releases. Ensure's fast path is one relaxed load when nothing is recorded (the backend tests its
@@ -42,6 +47,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -49,6 +55,23 @@
 #include "create_on_demand/use_tracker.h"
 
 namespace CreateOnDemand {
+
+// A companion's handle field (a plain member of a binary-laid-out class, so not a std::atomic): a
+// prefetch worker's Publish / a sweep's Evict store it while uses and the gather test it with no lock.
+// A plain access on both sides is a data race (review F-169 / F-170); these are the release store and
+// the acquire load (C++17 has no atomic_ref; GCC and Clang take the builtins on any pointer field).
+// A use that loads a non-null handle also sees every field Publish wrote before it.
+template <class T>
+inline T LoadPublished(const T& field) {
+    static_assert(std::is_pointer<T>::value || std::is_integral<T>::value, "a handle field");
+    return __atomic_load_n(&field, __ATOMIC_ACQUIRE);
+}
+
+template <class T>
+inline void StorePublished(T& field, T value) {
+    static_assert(std::is_pointer<T>::value || std::is_integral<T>::value, "a handle field");
+    __atomic_store_n(&field, value, __ATOMIC_RELEASE);
+}
 
 // What a materialization came to.
 enum class Outcome : uint8_t {
@@ -150,6 +173,9 @@ private:
         bool                    madeOnce = false;
         bool                    kept    = false;   // Keep: never evicted
     };
+
+    // How long a sweep waits at the gate for the uses in progress before it gives up (Sweep).
+    static constexpr std::chrono::milliseconds kGateWaitLimit{200};
 
     void EnsureSlow(const void* obj);
     void ForgetSlow(const void* obj);

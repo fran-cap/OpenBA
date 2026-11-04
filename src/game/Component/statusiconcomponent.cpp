@@ -372,24 +372,28 @@ static bool SI_ComponentArray(const ComponentEntity* entity, int* outCount,
 }
 
 
-// Removed-from-world handler (component vtable +0x38, idx 7). Entity teardown
-// dispatches this via MarkForRemoval (0x1400c2ea0: every component with
-// capability bit 1 — ours has 0xC2 — gets vtable+0x38 before the 0x400 bit is
-// set). Remove the icon's scene object so the renderer's draw list never holds
-// freed geometry — same crash class as the StorageDisplay pile meshes fixed
-// 2026-07-20 (demolition → Draw-phase Transform::Lerp on freed memory). Retail
-// additionally strips icons at demolition start (state-3 enter → ClearAllFlags, 0x14012c2a0) and shows flag 5;
-// this teardown-time removal is the safety net that must always run.
+// [7] 0x14012beb0 — the removed-from-world handler, dispatched by MarkForRemoval
+// (0x1400c2ea0: every component with capability bit 1 — ours has 0xC2 — gets slot 7 before
+// the 0x400 bit is set). Retail is three instructions: `CMP dword [RCX+0x100],0` /
+// `JGE 0x14012c2a0` / `RET` — while the icon is in the scene, ClearAllFlags: every set bit
+// cleared through SetFlag(bit, 0), the last one removing the geometry from the scene.
+//
+// The EMPTY MASK is the point. SetFlag lets a clear through on a marked entity (its 0x400
+// test passes on value 0), and a clear that leaves other bits set takes the add arm: with
+// the icon out of the scene it AddObject's the geometry again. The tree's old body removed
+// the scene object but left the mask as it was (bit 5, BuildDestroy, on every demolished or
+// upgraded building), so any SetFlag(n, 0) after this slot and before the removal drain
+// (a later component's slot 7 in the same MarkForRemoval walk can make one:
+// WorkPlaceComponent::ReleaseWorkers -> Detach -> SetFlag(2/3, 0), WorkComponent::CancelWork)
+// put the icon back into Graphics::Scene, and the drain then freed the component under it: a
+// pure-virtual call in the draw gather on the destroyed StatusIconGeometry
+// (docs/known_port_issues.md row 1350). With the mask emptied first, such a clear takes the
+// remove arm and adds nothing.
 void StatusIconComponent::OnRemove() {
-    // EXT SEAM (NOT RETAIL): ext.render_culling drops a deferred replay of this icon.
+    if (iconId >= 0) ClearAllFlags();   // 0x14012c2a0
+    // EXT SEAM (NOT RETAIL): ext.render_culling drops a deferred replay of this icon. After
+    // ClearAllFlags: its intermediate SetFlag calls run Tick, which can note a replay.
     Ext::RenderCulling::ForgetIcon(this);
-    if (GameUpdateLoop::_singleton == nullptr) return;
-    Graphics::Scene* scene = StatusIcon_Scene();
-    int32_t sceneId = iconId;
-    if (sceneId >= 0 && scene) {
-        scene->RemoveObject((uint32_t)sceneId);
-        iconId = -1;
-    }
 }
 
 // The CTOR half of the spawn-time init (StatusIconComponent_CtorScalars until
@@ -527,10 +531,10 @@ void StatusIconComponent::Startup() {
     // Setup(size = desc +0x28, count, constant = desc +0x30's low byte, sheet = desc +0x20)
     _geometry.Setup(desc->_scale, spriteCount, static_cast<uint8_t>(desc->_flag), spriteSheet);
 }
-// [7] TREE DIVERGENCE (retail 0x14012beb0, 15 B): the removed-from-world handler
-// above (StatusIconComponent::OnRemove) — MarkForRemoval (0x1400c2ea0) dispatches
-// it for capability bit 1 (0xc2 has it); it removes the icon's scene object so
-// the renderer never holds freed geometry.
+// [7] 0x14012beb0 (15 B): the removed-from-world handler above
+// (StatusIconComponent::OnRemove) — MarkForRemoval (0x1400c2ea0) dispatches it for
+// capability bit 1 (0xc2 has it); it empties the mask through ClearAllFlags, which takes
+// the icon's geometry out of the scene.
 // ============================================================
 // Standalone faithful port of StatusIconComponent::Tick (0x14012bbd0)
 // ============================================================

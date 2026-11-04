@@ -159,7 +159,7 @@ void ImmigrationUI::OnUpdateLayout() {
     textNone->SetFlagsOnOff((uint32_t)buildComplete, (uint32_t)!buildComplete);
 
     // Format immigration count as "%i" and set on textNomad parameter 0
-    System::String countStr = System::String::Format("%i", (uint64_t)immigCount);
+    System::String countStr = System::String::Format("%i", (int)immigCount);
     textNomad->SetParameter(0, countStr);
 
     // The save name, as parameter 1

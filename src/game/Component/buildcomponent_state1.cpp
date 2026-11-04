@@ -55,9 +55,6 @@
 #include "Entity/CitizenBehavior.h"
 #include "Game/ProfessionList.h"
 
-// town_workplace_registry.cpp — register a workplace into townMgr+0x100 (profession map).
-extern "C" void  TownRegistry_RegisterWorkplace(CitizenBehavior* townMgr, const WorkPlaceComponent* workplaceComp);
-
 // ---- Exe helpers, called directly --------------------------------------------------
 // FUN_140004740 InteractComponent_FindWorkplaceComponent(entity, retIBP) -> retIBP
 // BuildComponent_helper_7550 == 0x140017550 == Collection::Array<InternalPtr<T>>::Find(ibp) (B9 RT)
@@ -91,11 +88,6 @@ static RawMaterialDescription* BCS1_FindRawMatDesc(ComponentDescription* matEnti
     return nullptr;
 }
 
-// Natural builder-flow: construction sites are registered into the townMgr+0x100
-// profession BST under the Builder key at construction start (faithful to retail's WPC
-// OnCreate FUN_14012f520), so the tick-driven Builder pool (BuilderPool_Tick) finds them
-// via FindAvailableBuilding and seats idle laborers as Builders.
-
 // ---- Construction-demo site (harness) -------------------------------------------
 // `g_pConstructionDemoSite` is the BuildComponent of the one foundation StartTown leaves
 // unbuilt when BANISHED_BUILD_DEMO_INDEX / BANISHED_BUILD_DEMO_HOUSE ask for it; the
@@ -115,17 +107,12 @@ int BuildComponent::State1Enter(StateMachine* smNode) {
     // +0x4c = 1 (default multiplier)
     costMultiplier = 1;
 
-    // multiplier from the MultiObjectComponent (+0x58), 0x140004740
+    // multiplier from the MultiObjectComponent (+0x58), 0x140004740: copied as is
+    // (0x140108307 MOV ECX,[RAX+0x58] / 0x14010830a MOV [R14+0x4c],ECX, no test; the
+    // component's ctor sets 1, the placement tools set the piece count).
     MultiObjectComponent* multi = _entity->FindComponent<MultiObjectComponent>();
     if (multi != nullptr) {
-        // Retail: bc+0x4c = MultiObjectComponent+0x58 (the build-effort multiplier). In the
-        // standalone exe that component's lifecycle is inert so +0x58 can stay 0, which
-        // would clobber the default 1 set just above and make the state-8 build target
-        // (matComp[0x30] * mult) collapse to 0 (instant completion, no visible labor). Only
-        // adopt the value when it is a valid positive multiplier.
-        uint32_t wpMult = multi->multiCount;
-        if ((int32_t)wpMult > 0)
-            costMultiplier = static_cast<int32_t>(wpMult);
+        costMultiplier = static_cast<int32_t>(multi->multiCount);
     }
 
     // reset the site ClearAreaComponent build variant (a170 -> 8270)
@@ -241,102 +228,11 @@ int BuildComponent::State1Enter(StateMachine* smNode) {
         ::ControllerLive::RequestStateTransition(smNode, 8);
     }
 
-    // ===========================================================================
-    // WORKPLACE HAND-OFF — runs on BOTH legs of the branch above (moved out of the
-    // spawn leg 2026-08-15).
-    //
-    // This block used to live inside `if (!haveAll && instant == 0)`, i.e. only when
-    // the site had to gather materials. That is not where retail puts it: retail's
-    // WorkPlaceComponent controller runs FUN_14012f520 ("enter Builder profession")
-    // at construction START, unconditionally — it has nothing to do with materials.
-    //
-    // The consequence of the misplacement was total, not partial. An instant-built or
-    // fully-stocked site never got WPC+0x48 = Builder, so at completion
-    // WorkPlaceComponent_LeaveBuilderProfession bailed on its `key == 0` guard and
-    // never assigned the building's NATURAL profession from the description (+0x20)
-    // either. +0x48 stayed 0 for the entity's whole life, and WorkplaceUI_Startup
-    // hides the entire workplace panel when +0x48 == 0 (faithful to retail
-    // 0x140087080) — so no worker up/down spinner and no work-stopped icon on ANY
-    // workplace: orchard, crop field, fishing dock, hunter lodge, gatherer hut.
-    // Measured 2026-08-15: 23642 `[WorkPlaceUI] HIDDEN` lines, 0 shown, across 6
-    // distinct entities; `[BuildTrace] ... profession 0x0 -> 0x0` on every site.
-    // ===========================================================================
-    // *** TWO CONVENTIONS SET WPC+0x50 IN THIS CODEBASE. READ BOTH BEFORE GREPPING. ***
-    //   (a) WorkPlaceComponent_SetAccepting()  — workplacecomponent.cpp:503, the
-    //       faithful Entity_impl_fc00 (0x14012fc00) port. Sets +0x50 AND drives the
-    //       status-icon side effects (clears closed/disabled bits; raises the
-    //       "no workers" warning when the roster is empty).
-    //   (b) the `isAccepting = 1` FIELD WRITE just below — sets +0x50 only, no icon.
-    // A `grep SetAccepting` CANNOT SEE (b). That blind spot cost a wrong root-cause
-    // call on 2026-07-30 ("the only true-setter is starttown.cpp:394"). If you are
-    // auditing who makes a workplace accepting, grep for `isAccepting` / `0x50` too.
-    //
-    // Retail does NOT hand-roll this: FUN_14012f520 ("enter Builder profession",
-    // ported at destroycomponent_workerrelease.cpp:222 and registered) ends with
-    // WorkPlaceUI_helper_fb00(...) then Entity_impl_fc00(wpc, 1) — i.e. the full
-    // SetAccepting, icon included. So converting (b) to a real SetAccepting call is
-    // justifiable on faithfulness grounds; but the *properly* faithful change is to
-    // call the already-ported f520 here instead of hand-rolling a subset of it, which
-    // also brings ee60's worker release, the profession re-key, the BST register and
-    // SetMaxWorkers. That is a real behaviour change and wants its own gated task —
-    // do not do it as a drive-by while touching this comment.
-    // ---------------------------------------------------------------------------
-    // Enable the site's WorkPlaceComponent so citizens actually gather for it.
-    // GatherRawMaterials::Execute (0x1400ebe40) gates the whole haul on the site's
-    // WorkPlaceComponent (0x1401c80e0) "accepting" flag (+0x50): when 0 it returns
-    // immediately ("workplace disabled") and never searches for source storage. In
-    // retail that flag is set by the WorkPlaceComponent's own live lifecycle; in the
-    // standalone exe that component is inert, so +0x50 stays 0 and no construction
-    // haul ever runs. Set it here (construction-start) via the SAME finder GRM uses,
-    // reproducing the accepting state a live WorkPlaceComponent would hold. (The full
-    // WorkPlaceComponent_SetAccepting also drives a status-icon warning; only the
-    // gate-relevant +0x50 is reproduced here — the visual is deferred to the live WPC.)
-    {
-        WorkPlaceComponent* wpc = _entity->FindComponent<WorkPlaceComponent>();   // 0x140002e10
-        if (wpc != nullptr) {
-            wpc->isAccepting = true;
-            // 2c-B: mark the site's WorkPlaceComponent as a "Builder workplace" —
-            // WPC+0x48 = Builder marker = *(*(gw+0xb0)+0x38). Retail's construction-start
-            // handler FUN_14012f520 does this (the inert WPC controller never runs it in
-            // standalone). This keeps the seated builders consistent: the employment tick's
-            // Phase-1 housing-sync would RESET a citizen whose +0x1f0 (Builder) != its
-            // workplace's required profession (+0x48), so +0x48 must read Builder.
-            //
-            // NOTE (legacy off-path rationale): registering the site into the
-            // townMgr+0x100 profession BST makes BuildPathGraph (0x1400d70c0) produce
-            // pairs -> ProcessPaths drains -> the employment allocator (0x1400d43b0) runs
-            // its Phase-5B AssignHousing(null) churn over every idle laborer. That churn
-            // was ORIGINALLY believed to deadlock the WPC Scene mesh-visual toggle, which
-            // is why the off-path defers the SEAT to State8Enter (direct CitizenEmploy_
-            // SeatWorkersAt against the site entity) instead of registering. That deadlock
-            // was closed at its source (StatusIconComponent's ctor sets scene id -1; the
-            // allocator no longer holds g_wpcRosterOnly, row 1349), so the NATURAL register path below
-            // is default-on and verified safe: a 30s autostart run with a registered site
-            // stays hang-free and the town-hall Professions panel shows the site's real
-            // Builder capacity ("X of 3" via the CapProbe in builder_pool_driver.cpp — the
-            // same WorkPlaceComponent/WorkComponent/CalcMaxWorkers path ProfessionUI_Slot8
-            // and FindAvailableBuilding use). Seating stays deferred to State8Enter either
-            // way: seating at construction start would convert the idle Laborers that HAUL
-            // the raw materials into Builders before any hauling. Laborers haul; Builders build.
-            ProfessionList* profReg = GameUpdateLoop::_singleton ? GameUpdateLoop::_singleton->m_professionList : nullptr;
-            Profession* builderMarker = profReg ? profReg->field_0x38 : nullptr;
-            if (builderMarker != nullptr)
-                wpc->profession = builderMarker;
-            // NATURAL builder flow (BANISHED_BUILDER_NATURAL): register the site into
-            // the townMgr+0x100 profession BST keyed Builder — the step retail does at
-            // WPC OnCreate (FUN_14012f520 → AddWorkplaceToProfessionTree 0x1400895a0).
-            // This is what makes FindAvailableBuilding (0x14008d100) able to locate the
-            // site, so the tick-driven Builder pool seats idle laborers here. Capacity
-            // (WorkComponent+0x30) is computed lazily by FindAvailableBuilding via
-            // CalcMaxWorkers; accepting (WPC+0x50) was set just above. The employment
-            // allocator's AssignHousing churn (which townMgr+0x100 population activates)
-            // runs the full Attach / Detach, as retail (row 1349).
-            if (townMgr) {
-                TownRegistry_RegisterWorkplace(townMgr, wpc);
-            }
-        }
-    }
-
+    // No workplace hand-off here (review F-175): retail 0x140108290 calls neither the
+    // WorkPlaceComponent finder (0x140002e10) nor RegisterWorkplace (0x1400895a0). The
+    // site becomes a Builder workplace in the WorkPlaceComponent's own state-0 enter
+    // (0x14012ee40 -> EnterBuilderProfession 0x14012f520: profession, BST register,
+    // SetMaxWorkers and the full SetAccepting).
 
     return 1;
 }

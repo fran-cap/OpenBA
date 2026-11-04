@@ -24,11 +24,12 @@
 //    Neither survives: Video::Device::PlatformStartup -> AdjustDisplay gives the window
 //    its real style, size and place before it is shown.
 //  * The window is created HIDDEN (retail: dwStyle 0, no WS_VISIBLE: also hidden) and
-//    with the graphics-API flag Platform::Window::PrepareCreate returns (SDL_WINDOW_VULKAN
-//    on Windows and Linux, D4_RULES C5; SDL_WINDOW_METAL on Apple). On Windows that
-//    flag makes SDL load the Vulkan loader (vulkan-1.dll) when the window is created, and
-//    creation FAILS without one: a machine with D3D11 but no Vulkan runtime now fails at
-//    "failed to create window". Recorded in the SDL-B hand-in.
+//    with the graphics-API flag Platform::Window::PrepareCreate returns (the render
+//    backend's on Windows and Apple: none for DX11, SDL_WINDOW_VULKAN for Vulkan,
+//    SDL_WINDOW_METAL for Metal; SDL_WINDOW_VULKAN on Linux, D4_RULES C5). The Vulkan
+//    flag makes SDL load the Vulkan loader when the window is created, and creation
+//    FAILS without one; the DX11 build asks for no flag (review F-208), so a machine with
+//    D3D11 but no Vulkan runtime opens its window as retail's did.
 //  * UpdateWindow (a WM_PAINT for an empty update region of a hidden window) has no SDL
 //    spelling and is not made. SetCursor(NULL) is (SDL step W5): Platform::Cursor::Set
 //    with a null handle selects SDL's "no cursor" (src/platform/sdl/cursor_sdl.cpp), so

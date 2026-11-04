@@ -179,30 +179,11 @@ namespace {
 
 }  // namespace
 
-// ============================================================================
-// ATTENDANCE COUNTERS — the `calls=` half of the verification
-// ============================================================================
-// The door screen in file_stream_cutover_probe.cpp is STATIC: it proves the
-// registry answers each door, not that anything walked through one. A body that
-// is registered and never entered is indistinguishable from a working one on
-// that screen alone, and `calls=0` has four causes that invert the conclusion
-// (WAVE19_IO.md §6.5).
-//
-// These are unconditional and cheap (one increment). They are printed by the
-// cutover probe so the attendance figures sit beside the door verdicts rather
-// than in a different part of the log.
-//
-// RT_DIFF's counters would have answered the same question and were tried
-// FIRST: the old DLL-era switch makes every diffed port also run the original, and
-// the autostart route did not reach its exit inside a 900s timeout, so the
-// atexit report never printed at all. Recorded rather than dropped — "the
-// instrument existed and was too slow for this route" is a different fact from
-// "there was no instrument".
-// ============================================================================
-struct FileStreamCounters {
-    uint64_t binCtor, binDtor, fsDtor, textCtor, create, createTrue, fileInfoDtor;
-};
-FileStreamCounters g_fsc{};
+// The port-only attendance counters that stood here (`FileStreamCounters` /
+// `g_fsc`, the slot counters `g_fss` and file_stream_write.cpp's `g_fsWrite` family)
+// are deleted (review F-140). Nothing read them once the cutover probe was gone, and
+// their plain `++` ran on every IO thread (the Persistence worker, the Audio::Stream
+// worker, the Loader): a data race. Retail has no counter in any of these bodies.
 
 // ============================================================================
 // WAVE 20 LANE PROMOTE'S `BfsPromoteCounters` IS GONE — B34_RULES section 4.1
@@ -229,8 +210,6 @@ FileStreamCounters g_fsc{};
 // counters could no longer differ — the stamp helper's own body said so ("the
 // minted table is the only table now").
 //
-// `FileStreamCounters` and `SlotCounters` in this file are a DIFFERENT
-// instrument (plain per-body attendance, no vptr identity) and are untouched.
 // ============================================================================
 
 
@@ -419,8 +398,6 @@ extern "C" void RtIo_TextFileStream_SetObject(::IO::TextFileStream* self,
 // IO::FileStream::Create -- ENDGAME B.3.9 IO (W2): the member is the entry
 // point; B.4 R-IO: the body is the member's own.
 bool IO::FileStream::Create(const System::Filename& path) {
-    ++RtIO::g_fsc.create;
-
     ::IO::FileSystem::_singleton->CreatePath(path);  // 1800aa919
 
     // ---- 1800aa91e..1800aa958: this->filename = *path -------------------
@@ -443,21 +420,8 @@ bool IO::FileStream::Create(const System::Filename& path) {
     _file = ::IO::FileSystem::_singleton->CreateFileW(path);
 
     const bool ok = (_file.handle != -1);                       // 1800aa9f0
-    if (ok) ++RtIO::g_fsc.createTrue;
     return ok;
 }
-
-namespace RtIO {
-
-// Read by file_stream_cutover_probe.cpp, so the attendance figures print beside
-// the door verdicts and a reader cannot see one without the other.
-void RtIoFileStreamCounters(unsigned long long* out) {
-    out[0]=g_fsc.binCtor;  out[1]=g_fsc.binDtor;   out[2]=g_fsc.fsDtor;
-    out[3]=g_fsc.textCtor; out[4]=g_fsc.create;    out[5]=g_fsc.createTrue;
-    out[6]=g_fsc.fileInfoDtor;
-}
-
-}  // namespace RtIO
 
 // ============================================================================
 // THE VTABLE SLOT BODIES — Wave 19 lane FILE, POST-REPORT TRANCHE (see §6.16:
@@ -538,54 +502,15 @@ void RtIoFileStreamCounters(unsigned long long* out) {
 // have had to happen.
 // ============================================================================
 
-namespace RtIO {
-
-// The two Win32 slot bodies, and their attendance counters, live next door.
-extern uint64_t g_fsWrite, g_fsWriteFull, g_fsSeek, g_fsSeekPlatform;
-
-// Slot-body attendance. Same reasoning as the lifecycle block above: a static
-// door screen cannot tell a registered body from an entered one.
-struct SlotCounters {
-    uint64_t getSource, getSourceNonNull;
-    uint64_t read, getPos, getSize;
-    uint64_t open, openTrue;
-    uint64_t dtorScalar, dtorArrayAbort;
-    uint64_t copyCtor;
-};
-SlotCounters g_fss{};
-
-// ?Open@FileStream@IO@@UEAA_NAEBVFilename@System@@@Z (0x1800aac70) — slot 7,
-// and slot 7 on THIS branch is Open, not Close.
-// ENDGAME B.3.9 IO (W2): the ?Open@FileStream by-name door is gone -- its
-// callers call IO::FileStream::Open directly.
-
-// Published to the cutover probe alongside the lifecycle counters.
-void RtIoFileStreamSlotCounters(unsigned long long* out) {
-    out[0]=g_fss.getSource; out[1]=g_fss.getSourceNonNull;
-    out[2]=g_fsWrite;       out[3]=g_fsWriteFull;
-    out[4]=g_fss.read;      out[5]=g_fsSeek;
-    out[6]=g_fsSeekPlatform;out[7]=g_fss.getPos;
-    out[8]=g_fss.getSize;   out[9]=g_fss.open;
-    out[10]=g_fss.openTrue; out[11]=g_fss.dtorScalar;
-    out[12]=g_fss.dtorArrayAbort; out[13]=g_fss.copyCtor;
-}
-
-}  // namespace RtIO
-
 // ============================================================================
 // `IO::FileStream`'s member bodies — ENDGAME B.3.4 block 4 (STREAMS)
 // ============================================================================
 // A member of `IO::X` cannot be defined inside `namespace RtIO`: `IO` and
 // `RtIO` are siblings and C++ requires the definition to appear in an
 // ENCLOSING namespace (B34_BRIEFS section A.2). So the five bodies this file
-// owns open their own block here, and reach this file's helpers and counters by
-// their `RtIO::` qualification. The two Win32 slots (`Write`, `SetCurrentPos`)
+// owns open their own block here, and reach this file's helpers by their
+// `RtIO::` qualification. The two Win32 slots (`Write`, `SetCurrentPos`)
 // are in file_stream_write.cpp, next to their own `<windows.h>`.
-//
-// The attendance counters are BUMPED IN THE MEMBER, not in the door, so they
-// keep counting entries to the BODY rather than entries to the door — which is
-// what they have always measured and what makes their numbers comparable
-// across this change.
 namespace IO {
 
 // ============================================================================
@@ -600,8 +525,6 @@ namespace IO {
 // The `[RSP]` slot retail writes 0 then 1 into is the SEH unwind state for the
 // temporary, not a field of anything.
 System::String FileStream::GetSource() const {
-    ++RtIO::g_fss.getSource;
-
     System::String ret;                                   // 1800aab67: *ret = nullptr
     if (_filename._data) {                                // 1800aab6e
         // The ADD-REF, spelled exactly as retail spells it and NOT through
@@ -610,7 +533,6 @@ System::String FileStream::GetSource() const {
         // (String.h) for exactly this kind of transcription.
         ret._data = _filename._data;                           // 1800aab73
         ++RtSystem::StringRefCount(ret._data);                 // 1800aab76
-        ++RtIO::g_fss.getSourceNonNull;
     }
     return ret;                                           // 1800aab80
 }
@@ -634,7 +556,6 @@ System::String FileStream::GetSource() const {
 // `?ReadFile@FileSystem@IO@@` is already ported and registered (Wave 9 lane
 // PKG2 rung 3), so it is called DIRECTLY here rather than through a door.
 bool FileStream::Read(int len, void* buf) {
-    ++RtIO::g_fss.read;
     const bool ok = FileSystem::_singleton->ReadFile(_file, len, buf);  // 1800aac03
     return ok;
 }
@@ -656,12 +577,10 @@ bool FileStream::Read(int len, void* buf) {
 // offset were wrong these would return the wrong field on every call, on a path
 // the package loader takes thousands of times per run.
 uint32_t FileStream::GetCurrentPos() const {
-    ++RtIO::g_fss.getPos;
     return static_cast<uint32_t>(_file.cursor);            // 1800aac50
 }
 
 uint32_t FileStream::GetSize() const {
-    ++RtIO::g_fss.getSize;
     return static_cast<uint32_t>(_file.size);              // 1800aac60
 }
 
@@ -696,7 +615,6 @@ uint32_t FileStream::GetSize() const {
 // B.4 R-IO: `FileSystem::OpenFile` takes the class, as retail's signature says,
 // so `path` goes to it as it is.
 bool FileStream::Open(const System::Filename& path) {
-    ++RtIO::g_fss.open;
     // ---- 1800aac92..1800aaccc: this->filename = *path -------------------
     // `System::String::operator=` (0x1800c9810) — the short-circuit that jumps
     // past BOTH halves is the class's, and Open does not normalise either.
@@ -709,7 +627,6 @@ bool FileStream::Open(const System::Filename& path) {
     _file = FileSystem::_singleton->OpenFile(path);
 
     const bool ok = (_file.handle != -1);                 // 1800aad60
-    if (ok) ++RtIO::g_fss.openTrue;
     return ok;
 }
 
@@ -726,7 +643,6 @@ bool FileStream::Open(const System::Filename& path) {
 // Step 4 (1800aaaf6) is the `System::String` member's own destructor, which the
 // compiler runs after this body and before ~Stream (B4 X-RH).
 FileStream::~FileStream() {
-    ++RtIO::g_fsc.fsDtor;
     if (_file.handle != -1)                                       // 1800aaad5
         FileSystem::_singleton->CloseFile(_file);                 // 1800aaae6
     // 1800aaaf0 (~FileInfo 0x18000c180 on +0x20) and 1800aaaf6 (~String on
@@ -752,8 +668,6 @@ TextFileStream::TextFileStream(const System::String& type,
       _buffer(nullptr),              // 1800ba3e6  +0x70
       _bufSize(0),                   // 1800ba3ea  +0x78 (one qword with +0x7c)
       _bufCursor(0) {
-    ++RtIO::g_fsc.textCtor;
-
     void* encMem = RtSystem::RtMemAlloc(8, 4);                       // 1800ba3ee
     Encoding* enc = nullptr;
     if (encMem) enc = ::new (encMem) TextEncoding();

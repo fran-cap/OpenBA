@@ -78,7 +78,7 @@ void Init() {
         if (rtcrt::StrICmp(capEnv, "off") == 0 || rtcrt::StrICmp(capEnv, "false") == 0) {
             g_harness = HarnessCap::Off;
         } else {
-            double v = atof(capEnv);
+            double v = std::strtod(capEnv, nullptr);   // not atof: out of range is UB (review F-087)
             if (v <= 0.0) {
                 g_harness = HarnessCap::Off;   // "0" => disabled
             } else {
@@ -93,7 +93,7 @@ void Init() {
     if (refresh <= 0) refresh = 60;     // safe default if the query fails
     double headroomPct = 50.0;          // default: ceiling = refresh * 1.5
     if (const char* hrEnv = Opt().fpsHeadroom) {
-        double h = atof(hrEnv);
+        double h = std::strtod(hrEnv, nullptr);   // not atof: out of range is UB (review F-087)
         if (h >= 0.0) headroomPct = h;
     }
     g_autoFps = (double)refresh * (1.0 + headroomPct / 100.0);

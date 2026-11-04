@@ -13,6 +13,7 @@
 
 #include "Work/exe_bodies.h"
 #include "Work/ForesterWork.h"
+#include "Work/work_rules.h"   // review F-199..F-206: the shared Execute decisions
 #include "options.h"
 #include "object/TypeInfo.h"
 #include "Game/exe_bodies.h"
@@ -330,8 +331,12 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                     testCellX = cellCol + randX;
                     testCellY = cellRow + randY;
                 } while (randY * randY + randX * randX > radiusSq);
-            } while (testCellX < 0 || testCellX >= mapSize ||
-                     testCellY < 0 || testCellY >= mapSize);
+            } while (WorkRules::SampleOffMap(testCellX, testCellY, mapSize));   // Y only (0x1400eb2be)
+
+            // NOT RETAIL: retail reads the wrapped cell before cell 0 / past the last one (UB).
+            if (WorkRules::SampleCellOutsideMap(testCellX, testCellY, mapSize)) {
+                continue;
+            }
 
             uint32_t testCell = (uint32_t)(map->size) * testCellY + testCellX;
             const MapCell& cellData = map->cells.GetData()[testCell];

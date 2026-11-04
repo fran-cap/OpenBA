@@ -41,6 +41,9 @@
 #include <cstdlib>
 #include <cstring>
 
+// workplacecomponent.cpp: the roster-only mode of WorkPlaceComponent::Attach / Detach.
+extern bool g_wpcRosterOnly;
+
 namespace {
 
 int  s_want   = -2;    // -2 = env unread, -1 = disabled
@@ -95,8 +98,14 @@ extern "C" void BuilderSeat_Tick(int frameNum) {
     const uint64_t builderKey = reinterpret_cast<uintptr_t>(builder);   // the log line prints the pointer as an integer (%016llx)  // CAST-OK: ptr_int
     const int before = CountProfession(townMgr, builder);
 
+    // The roster-only hold this harness was measured with (it lived inside AddWorker until
+    // review F-088 moved it here, out of the retail body): the workplace Attach / Detach
+    // skip the status-icon and model toggles while the seats are pressed.
+    const bool prevRosterOnly = g_wpcRosterOnly;
+    g_wpcRosterOnly = true;
     for (int i = 0; i < s_want; ++i)
         townMgr->AddWorker(builder);
+    g_wpcRosterOnly = prevRosterOnly;
 
     const int after = CountProfession(townMgr, builder);
 

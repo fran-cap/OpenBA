@@ -194,7 +194,7 @@ void AchievementDialog::OnUpdateLayout() {
 
     // Format percentage: (awarded / total) * 100 + 0.5 (rounding)
     float pct = ((float)awardedCount / (float)count) * 100.0f + 0.5f;
-    System::String pctStr = System::String::Format("%i", (uint64_t)(uint32_t)(int)pct);
+    System::String pctStr = System::String::Format("%i", (int)(uint32_t)(int)pct);
 
     textComplete->SetParameter(0, pctStr);
 }
