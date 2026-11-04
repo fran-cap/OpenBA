@@ -154,12 +154,14 @@ bool CompleteTask::GetTarget(ComponentEntity** param) {
 // ============================================================
 #include "Object/factory_registration.h"
 
-// create 0x140021fc0 (inlined ctor). The tree's factory zeroed every field above
-// +0x10; kept (not a behaviour change of this step).
+// create 0x140021fc0 (inlined ctor): +0x20 / +0x28 = 0, then one qword store at +0x30
+// (140022019 MOV qword ptr [RBX + 0x30],0x7fffffff): taskIndex = 0x7FFFFFFF, the
+// "unresolved" value AbstractImpl replaces with the citizen's task, and taskParam = 0.
+// A version-0 record (Persist reads taskIndex only at version > 0) keeps it.
 CompleteTask::CompleteTask()
     : workEntity(nullptr),
       targetEntity(nullptr),
-      taskIndex(0),
+      taskIndex(0x7FFFFFFF),
       taskParam(0) {}
 
 // [3] 0x1400c5be0

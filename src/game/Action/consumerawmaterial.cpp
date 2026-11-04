@@ -299,9 +299,15 @@ ConsumeRawMaterial::~ConsumeRawMaterial() {
 // ============================================================
 // 0x1400c6440: +0x20 = *param_2 ; +0x28 = 0 ; +0x30 = 0 (one qword: count and capacity;
 // +0x38 untouched).
+// NOT RETAIL (review F-159): retail leaves the reserve flag +0x38 as the allocator left
+// it, and AddMaterial (0x1400c64e1 CMP byte ptr [RDI + 0x38],BL), CheckEntity and
+// AbstractImpl branch on it: a read of an indeterminate bool. It starts false here, the
+// value every other construction path gives it (the default ctor, and the 3-arg ctor's
+// callers in the consume-produce paths pass 0).
 ConsumeRawMaterial::ConsumeRawMaterial(ComponentEntity* const* storage)
     : _field20(*storage),
-      _field28{nullptr, 0, 0} {}
+      _field28{nullptr, 0, 0},
+      _field38(false) {}
 
 // ============================================================
 // FUN_1400c64b0 — ConsumeRawMaterial::AddMaterial (the consume-list append).

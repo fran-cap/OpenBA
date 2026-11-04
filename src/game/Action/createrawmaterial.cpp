@@ -32,6 +32,7 @@
 #include "Game/Map.h"
 #include "system/MemoryAllocator.h"       // System::MemoryAllocator::MemAlloc
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
+#include "Action/saved_bounds.h"
 #include "Component/AutoPickupComponent.h"
 #include "Component/CitizenDescription.h"
 #include "Component/ComponentDescription.h"
@@ -203,6 +204,13 @@ int  CreateRawMaterial::AbstractImpl(ActionStack* actionStack) {
     // 0x1400bef70, the xrefs of 0x1400c71a0) are ported and pass StorageComponent+0x38, and
     // Persist restores +0x40. A zero cap would loop in retail as here: that is the finding.
     int maxPerEntity = carrierVolume / unitVolume;
+
+    // NOT RETAIL (review F-106): materialCellIdx comes from the save (Persist +0x44) and the
+    // loop below reads Map::cells at it and drops the pile there; retail has no bound. An
+    // index off the map fails the action (2) before the first read.
+    if (!ActionBounds::IsMapCell(materialCellIdx, gameWorld->m_game->cells.GetSize())) {
+        return 2;
+    }
 
     // Spawn loop: create entities for all items
     while (totalItems > 0) {
