@@ -1281,15 +1281,16 @@ void TouchBound(CreateOnDemand::DrawScope& lazy, const ShaderEntry* ps, bool ind
     for (uint32_t i = 0; i < kStreams; ++i) {
         if (!((mask >> i) & 1)) continue;
         const VertexBufferData* vb = g_bound.streams[i].vb;
-        if (vb) lazy.Touch(vb, vb->store.Buffer() != VK_NULL_HANDLE);
+        if (vb) lazy.Touch(vb, vb->store.PublishedBuffer() != VK_NULL_HANDLE);
     }
-    if (indexed && g_bound.index) lazy.Touch(g_bound.index, g_bound.index->store.Buffer() != VK_NULL_HANDLE);
+    if (indexed && g_bound.index)
+        lazy.Touch(g_bound.index, g_bound.index->store.PublishedBuffer() != VK_NULL_HANDLE);
     if (!ps) return;
     for (uint32_t t = 0; t < kTextureSlots; ++t) {
         if (!((ps->reflection.textureMask >> t) & 1)) continue;
         const ImageBufferData* img = g_bound.textures[t];
         if (img == nullptr || img->mainTarget != ImageBufferData::MainTarget::None) continue;
-        lazy.Touch(img, img->image.view != VK_NULL_HANDLE);
+        lazy.Touch(img, ::CreateOnDemand::LoadPublished(img->image.view) != VK_NULL_HANDLE);
     }
 }
 

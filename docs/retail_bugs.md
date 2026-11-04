@@ -1299,3 +1299,45 @@ of `BoatComponent::SetDestination` calls `src/ext/boat_reach_notice/`, which app
 event-log entry (the trader's event type 0xd and icon, warning colour, the post's tile; the game's
 message table has no text for it, so the text is ours). A save keeps it like any other entry, as text
 and five ints, and retail reads such a save unchanged. No unit test: the row has no pure logic.
+
+## 29. The debug panel's "spawn citizens" button freezes a town whose storage has no use node
+
+**Symptom.** With a debug-menu mod loaded, pressing the debug panel's "spawn citizens" button freezes
+the game for good (the watchdog reports HUNG, exit 4) in a town whose storage list holds no building
+with a use node: a town whose only storage is stockpiles, or a modded storage built without use nodes.
+The button never returns. Reported with MegaMod's debug menu.
+
+**Retail mechanism.** The button (DebugUI id 326) calls `Game_SpawnCitizens` (`0x140060380`). It walks
+the town's storage list (CitizenBehavior `+0x00`), and for each storage with an `InteractComponent` sums
+its use nodes (the description's `_useNodes` count plus `InteractNodeCount` `0x140123070` of each
+`useLocations` child) and places one new homeless citizen per node at `NodePosition` (`0x140122e20`),
+up to four in all. An outer `do { ... } while (spawned < 4)` repeats the whole pass, the per-building
+count reset each time. When the list is non-empty but no storage has a use node, a pass places nobody,
+`spawned` stays below four and the pass repeats for ever on the main thread. An empty list returns at
+once.
+
+**Proof it is retail.** The Ghidra decompile of `0x140060380`: the outer loop's only exit is the
+`spawned < 4` test, with no count of what a pass placed; the port transcribes it
+(`src/game/Dialog/debugui.cpp`). Reproduced in the port with a diagnostic that cut the storage list to
+the stockpile before pressing 326: the main thread spun in the spawn loop until the watchdog's HUNG.
+
+**Lever.** End the press when a full pass places nobody, placing the rest somewhere a citizen can
+stand.
+
+**Ruling (2026-11-02).** The citizens left to place go close to the world origin.
+
+Fix: `fix.debug_spawn_origin` (tier 1), default on, off under `/profile:faithful`. After a pass over
+the storage list that placed nobody, `src/ext/debug_spawn_origin/` places the remaining citizens at the
+centre of the free land cell nearest the world origin, and the press ends. The world origin is the map
+centre: a world position (x, y) lies on cell (x + size / 2, y + size / 2) (DropOffRawMaterial::DropOnGround
+`0x1400c78c0`). The cell is searched in square rings out from the origin cell over the whole map; it
+must be zoned land (a terrain type `Map::FillZone` `0x14009c170` gives a zone, types 0-4 and 9-11, and a
+zone set), with no blocker, no occupant and no building footprint, so a lake or a building at the centre
+moves the point to the nearest shore. Retail's ring search `Map::FindPlacementCell` (`0x14009bd40`, used
+for dropped loads) was not reused: it gives up after seven rings, which a lake at the map centre can
+exceed. The position is the cell centre on the terrain (`Map::GetTerrainPos` `0x14009f3e0`). The
+citizens are made by the same code as on the use-node path (template, gender, age, `Initialize`,
+`RegisterEntity`); they are ordinary citizens, and nothing new is saved. The search does not ask that the cell
+joins the town: on a map whose centre is land cut off from the town the citizens start there
+(`fix.stranded_wade`, section 19, covers a citizen cut off from the town).
+Unit tests: `tests/unit/ext_debug_spawn_origin_test.cpp`.

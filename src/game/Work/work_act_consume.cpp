@@ -298,7 +298,7 @@ void WorkAct_ConsumeProduceCtor_bef70(CitizenComponent* const* citizenRef, uint3
                                                    : *reinterpret_cast<ConsumeProduceRecipe**>(0x28);   // the null-receiver read is spelled as the address it faults on.  // CAST-OK: null_receiver
         if (recBase[idx].inputCount > 0) {
             // ConsumeRawMaterial_Action_Ctor3(self, &(*param_3)) (0x1400bf446..)
-            obj = WCP_Alloc(0x38);            // LEA ECX,[RDX+0x30] => 0x38
+            obj = WCP_Alloc(sizeof(ConsumeRawMaterial));   // MOV EDX,8; LEA ECX,[RDX+0x38] => 0x40
             ConsumeRawMaterial* crmAct = nullptr;
             if (obj) {
                 ComponentEntity* inner = *entityRef;   // *param_3

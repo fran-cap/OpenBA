@@ -240,7 +240,7 @@ void PathfinderThread::DrainQueue() {
         lock.Lock();
         int count = queueCount;
         if (count > 0) {
-            if ((_runFlags & 1) == 0) {   // the byte at +0x08, bit 0 (running)
+            if (!IsWorking()) {   // the byte at +0x08, bit 0 (running)
                 Start();
             }
             count = queueCount;

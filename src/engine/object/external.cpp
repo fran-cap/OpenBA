@@ -377,19 +377,17 @@ static uint32_t GetReferenceIdRetail(const ExternalFactory* self,
 // `fn_ExternalFactory_GetPathForReferenceId` typedef carried all three and was
 // correct; it is gone with B.3.3 step 7 (callers are member calls now).
 //
-// Ordinary integer-keyed AVL descent over `_references`. On a miss retail does
+// Signed 32-bit AVL descent over `_references` (the key compares as an `int`). On a miss retail does
 // NOT leave the slot untouched — it copy-constructs from a null temporary, so
 // the caller gets a valid empty Filename. Both branches are transcribed, since
 // the empty-on-miss result is what the load path checks.
 System::Filename* RtObject_ExternalFactory_GetPathForReferenceId(const ExternalFactory* self,
                                                                  System::Filename* ret, uint32_t id) {
 
-    ReferenceSet::Node* n = self->_references._root;
-    while (n != nullptr) {
-        if (id < n->element.id)      n = n->left;
-        else if (n->element.id < id) n = n->right;
-        else                         break;
-    }
+    // 0x1800bf1f4..0x1800bf217: the descent from `_references._root` (+0x20),
+    // SIGNED compares (`JL` / `JGE`), the order the insert built the tree in
+    // (review F-172: the port compared unsigned and missed ids >= 0x80000000).
+    ReferenceSet::Node* n = ::Object::detail::ReferenceFind(self->_references._root, id);
 
     // `ret` is the hidden return slot in both arms — raw bytes, so placement.
     if (n != nullptr) {

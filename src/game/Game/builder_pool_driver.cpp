@@ -40,8 +40,9 @@
 // builders are seated the same way every other profession is, by the panel driver
 // standing in for the player on unattended runs.
 //
-// Site REGISTRATION into townMgr+0x100 (buildcomponent_state1.cpp) is unchanged and
-// still required — it is what makes a site visible to the finders behind the click.
+// Site REGISTRATION into townMgr+0x100 (WorkPlaceComponent's state-0 enter,
+// EnterBuilderProfession 0x14012f520) is what makes a site visible to the finders
+// behind the click.
 
 #include <cstdint>
 

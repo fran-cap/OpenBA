@@ -49,6 +49,13 @@
 #include "Component/StateMachineComponent.h"
 #include "Component/WorkComponent.h"
 #include "Component/WorkPlaceComponent.h"
+#include "Component/InteractComponent.h"   // NodeCount / NodePosition (0x140123070 / 0x140122e20)
+#include "Game/Map.h"
+#include "Game/PathfinderThread.h"   // SetCellTerrain (0x1400a6fe0)
+#include "Action/PathSearch.h"       // RegionGraph::MarkCellDirty (0x1400a8c90)
+#include "Game/GameUpdateLoop.h"
+#include "Game/terrain_sidecar.h"     // [terrain sidecar] NoteWrite after the +0x29 store
+#include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::NoteWrite after a cell store
 #include "Entity/ComponentEntity.h"
 
 // RPCtrlTag lives in ResourceProduceComponent.h (the member type needs it).
@@ -165,6 +172,47 @@ static char RP_State14Enter(ResourceProduceComponent* self, StateMachine* /*sm*/
 
     self->OnExitProducing();
     return 1;
+}
+
+// ── transition 2 -> 13 action — 0x14012af90 ───────────────────────────────────────
+// Stamp the building's work positions into the map (review F-179). For every
+// "create" node (kind 2) of the InteractComponent and its parts — the count re-read
+// each pass (0x14012b015: desc+0x50, plus NodeCount(2) of each +0x28 part, which is
+// NodeCount(2)'s own body) — the node's cell is retyped to 2: the walkable-zone bit
+// (old type in 0x1e0) is ORed into Map+0xa2, +0x29 = 2, the region graph is marked
+// dirty when the old type was walkable, the pathfinder is told, and the cell's
+// occupant (+0x08) is nulled. The same retype as the pasture / cemetery stampers.
+// Retail tests nothing: the InteractComponent, the map and its objects are read
+// unguarded. Dispatched through OnState, so the signature is void(data).
+static void RP_Trans2to13(ResourceProduceComponent* self) {
+    InteractComponent* interact = self->_entity->FindComponent<InteractComponent>();   // 0x140002ed0
+    Map* map = GameUpdateLoop::_singleton->m_game;                                    // +0xf8
+    for (int node = 0; node < interact->NodeCount(2); ++node) {
+        Math::Vector3 xy;
+        interact->NodePosition(&xy, 2, node, nullptr);   // 0x140122e20
+        const int dim = map->size;
+        const float half = static_cast<float>(dim >> 1);
+        int gx = static_cast<int>(xy.x + half);
+        int gy = static_cast<int>(xy.y + half);
+        if (gx < 0) gx = 0;
+        if (gx >= dim) gx = dim - 1;
+        if (gy < 0) gy = 0;
+        if (gy >= dim) gy = dim - 1;
+        const int cell = dim * gy + gx;
+
+        MapCell& rec = map->cells.GetData()[cell];
+        const uint8_t old = rec.terrainType;                             // +0x29
+        const bool wasWalk = ((1u << (old & 0x1f)) & 0x1e0u) != 0;      // old 5..8
+        map->field_0xA2 |= static_cast<uint8_t>(wasWalk);               // 0x14012b112
+        rec.terrainType = 2;
+        TerrainSidecar::NoteWrite(&rec);   // [terrain sidecar] mirror
+        CellStamp::NoteWrite(&rec);   // [AMBMEMO] cell write clock
+        if (wasWalk)
+            map->regionGraph->MarkCellDirty(cell % map->size, cell / map->size);   // +0x70, 0x1400a8c90
+        map->pathfinder->SetCellTerrain(cell, 2);                                   // +0x68, 0x1400a6fe0
+        rec.occupant = nullptr;                                                     // 0x14012b15e
+        CellStamp::NoteWrite(&rec);   // [AMBMEMO] cell write clock
+    }
 }
 
 // ── state 13 per-frame — 0x14012b190 ──────────────────────────────────────────────
@@ -285,13 +333,9 @@ static void RPCtrl_PopulateTable() {
     // ── state 2 — DEFAULT / idle ──────────────────────────────────────────────────
     TableRegisterState(t, 2, &RP_State2Enter, nullptr,
                        nullptr, nullptr);
-    // ->13 carries retail's 0x14012af90, which stamps the building's work positions
-    // into the map (terrain byte +0x29 = 2) for as many slots as the workplace wants.
-    // NOT yet ported — registered null, which ControllerLive::Dispatcher treats as a
-    // graceful no-op, exactly as the orchard table did on its first pass. The state
-    // machine still runs the real graph; only the map stamping is absent. Tracked as
-    // the next step of this wave, and the trace above will show 13 being entered.
-    TableAddTransition(t, 13, nullptr);
+    // ->13 carries retail's 0x14012af90 (14012b24e LEA RDX,[0x14012af90]), which
+    // stamps the building's work positions into the map (terrain byte +0x29 = 2).
+    TableAddTransition(t, 13, &RP_Trans2to13);
     TableAddTransition(t, 14, nullptr);
     TableAddTransition(t, 3,  nullptr);
 

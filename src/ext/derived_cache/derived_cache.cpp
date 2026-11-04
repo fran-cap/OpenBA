@@ -424,8 +424,11 @@ bool Store::LoadIndex() {
     uint64_t end = kHeaderSize;
     std::vector<uint8_t> payload;
     for (const IndexRecord& r : all) {
+        // The size is tested against the room left, not offset + size against the file: the sum
+        // wraps on a forged size near 2^64 (the record check is a plain XXH64), and every later
+        // reader trusts r.size. r.offset == end <= datSize here.
         if (r.magic != kRecordMagic || r.check != RecordCheck(r) || r.offset != end || r.size == 0 ||
-            r.offset + r.size > static_cast<uint64_t>(datSize))
+            r.size > static_cast<uint64_t>(datSize) - r.offset)
             break;
         if (verifyPayloads) {
             payload.resize(static_cast<size_t>(r.size));

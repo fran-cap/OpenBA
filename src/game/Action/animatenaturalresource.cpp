@@ -43,8 +43,8 @@ void AnimateNaturalResource::Persist(IO::Stream& stream) {
 
     // Entity ref (+0x20) with type validation
     _field20.InternalBasePtr::Serialize(ser);
-    if (_field20.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(_field20.Get(), ComponentEntity::TypeId())) {
+    if (!_field20.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
             _field20 = nullptr;
         }
     }

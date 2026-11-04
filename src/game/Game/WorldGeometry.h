@@ -99,6 +99,42 @@ public:
     void FillTerrainVertices(int colStart, int rowStart, int width, int height,
                              TerrainVertex* out) const;               // 0x1400ac880
     Math::Vector3 TerrainNormal(int col, int row) const;              // 0x1400ae270
+    // The +0x140 height-byte allocation of a loading Serialize, as retail sizes it
+    // (0x1400b05f2: IMUL EAX,EAX / MOVSXD RCX,EAX / SHL RCX,2): the int32 product g*g,
+    // sign-extended, times 4 in 64 bits. NOT RETAIL (review F-111): the product is
+    // formed in uint32 so its wrap is defined (int32 g*g overflow is UB); the bits match.
+    static int64_t HeightBytesAllocSize(int32_t gridSize) {
+        const uint32_t g     = static_cast<uint32_t>(gridSize);
+        const int32_t  cells = static_cast<int32_t>(g * g);
+        return static_cast<int64_t>(cells) * 4;
+    }
+    // NOT RETAIL (review F-112, F-111): retail has no such check. Do a loaded record's
+    // grid fields agree with each other and with the +0xD8 height count? Serialize
+    // refuses the load when they do not. Retail reads each field from the save on its
+    // own: BuildTerrainMesh sizes its scratch from vertsPerChunk (+0xD4) and
+    // FillTerrainVertices writes vertsPerSide^2 (+0xCC) records into it, the height
+    // samples index rowStride^2 (+0xD0) words of _heights, and Serialize's height-byte
+    // count g*g*4 and the mesh's vertex-buffer size are int32. What
+    // WorldGeometry::BuildTerrain (0x1400b0230) stores always passes: gridSize 2*dim,
+    // chunk 32, 33, 2*dim + 1, 33*33, (2*dim + 1)^2 words.
+    static bool LoadedTerrainIsConsistent(int32_t gridSize, int32_t chunkSize, int32_t vertsPerSide,
+                                          int32_t rowStride, int32_t vertsPerChunk, int32_t heightCount) {
+        if (gridSize <= 0 || chunkSize <= 0 || chunkSize > gridSize)
+            return false;
+        if (static_cast<int64_t>(gridSize) * gridSize * 4 > INT32_MAX)
+            return false;
+        if (vertsPerSide != chunkSize + 1)
+            return false;
+        if (static_cast<int64_t>(vertsPerSide) * vertsPerSide != vertsPerChunk)
+            return false;
+        // BuildTerrainMesh's int32 vertex-buffer size, vertsPerChunk * chunksPerSide^2 * 16.
+        const int64_t chunksPerSide = gridSize / chunkSize;
+        if (static_cast<int64_t>(vertsPerChunk) * chunksPerSide * chunksPerSide * 16 > INT32_MAX)
+            return false;
+        if (rowStride != gridSize + 1)
+            return false;
+        return static_cast<int64_t>(rowStride) * rowStride <= heightCount;
+    }
     // B.4 GAME-c: the new-game terrain build (worldgen.cpp, water_contour_mesh.cpp)
     void BuildTerrain(TerrainGenerator* generator, int sizeIndex, uint32_t seed);  // 0x1400b0230
     void BuildFromHeightfield(TerrainHeightfield* heightfield);       // 0x1400ac4b0

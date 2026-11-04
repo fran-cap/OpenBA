@@ -136,6 +136,7 @@
 #include "platform_audio.h"   // Platform::AudioWaveFormat (Phase D.4 A2 census)
 #include "audio/xwma_decode.h"  // Audio::XwmaDecoder (Phase D.4 SDL-4 decode at load)
 #include "audio/audio_pcm.h"    // Audio::RewriteFormatAsPcm
+#include "audio/audio_cvtt.h"   // Audio::CvttSd2Si64 (review F-136)
 #include "audio/load_decode_batch.h"  // block SNDPAR: the decodes of one load, in parallel
 
 #include <atomic>
@@ -199,24 +200,9 @@ Object::Base* SoundBuffer::CreateInPlaceObject(void* place) {
     return ::new (place) SoundBuffer();
 }
 
-// 0x1800e05c0 — the raw-buffer half of Serialize: two counts, a conditional
-// (re)allocate-on-read of the two owned buffers, then three raw byte streams
-// (seek table, format window, audio data), in that exact order.
-void SoundBuffer::PlatformSerialize(IO::Serializer& ser) {
-    ser._readerWriter->SerializeInt(_length, nullptr);        // +0xa0
-    ser._readerWriter->SerializeInt(_wmaLength, nullptr);     // +0xa0
-
-    if (IsReading(ser._stream)) {
-        MemFreeIfSet(_data);
-        MemFreeIfSet(_wmaData);
-        _data    = (_length    > 0) ? static_cast<uint8_t*>(rtcoll::MemAlloc(_length, 4)) : nullptr;
-        _wmaData = (_wmaLength > 0) ? static_cast<uint32_t*>(rtcoll::MemAlloc(_wmaLength, 4)) : nullptr;
-    }
-
-    ser._readerWriter->SerializeBytes(_wmaLength, _wmaData, nullptr);   // +0xc8
-    ser._readerWriter->SerializeBytes(0x28, _format, nullptr);          // +0xc8
-    ser._readerWriter->SerializeBytes(_length, _data, nullptr);         // +0xc8
-}
+// 0x1800e05c0 PlatformSerialize, the raw-buffer half of Serialize, is in
+// soundbuffer_platform_serialize.cpp (moved out so the unit build links it without
+// this file's slot bodies, which tests/unit/audio_abi_test.cpp replaces with markers).
 
 // ---------------------------------------------------------------------------
 // Phase D.4 A2 -- the format census (diag, NOT retail; SoundBuffer.h says why).
@@ -334,7 +320,8 @@ void DecodeXwmaJob(const SoundBuffer& buf, XwmaJob& job) {
         // Sized by the table's total; the RETURNED count is the PCM's length: a
         // packet the decoder rejects yields nothing (Tornado.wav's last six,
         // handins/XWMA.md A4.4 and known_port_issues row 1276), so Failed() is
-        // not fatal.
+        // not fatal. TotalSamples is capped at what the packets can decode to
+        // (review F-073: the table is untrusted).
         job.total = dec.TotalSamples();
         const uint64_t bytes = job.total * dec.Channels() * 2u;
         if (bytes > 0) {
@@ -603,7 +590,9 @@ Object::External::CompileResult SoundEffect::Compile(const System::Filename&) {
             }
             // Retail's own mixed-unit compare; see note 1 in the banner.
             if (end > static_cast<float>(running)) {                     // 1800e0a2f
-                running = static_cast<int64_t>(static_cast<double>(end) / secondsPerTick);
+                // NOT RETAIL (review F-136, undefined behaviour): CVTTSD2SI's
+                // INT64_MIN for an out-of-range end, without the C++ cast's UB.
+                running = Audio::CvttSd2Si64(static_cast<double>(end) / secondsPerTick);
                 _maxLength = running;                                    // 1800e0a44
             }
         }

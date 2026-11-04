@@ -19,7 +19,9 @@
 #include "system/MemoryAllocator.h"
 #include "pkm_names.h"
 
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <random>
 #include <string>
 #include <vector>
@@ -284,4 +286,57 @@ UNIT_TEST(package_cache_round_trip_megamod) {
     if (!why.empty())
         std::printf("  [package_cache] MegaMod: %s\n", why.c_str());
     std::printf("  [package_cache] MegaMod: %zu entries round-tripped\n", total);
+}
+
+namespace {
+
+// One package of n names, increasing under _stricmp, and a payload that hangs them all off one
+// another as right children: a chain n levels deep.
+std::vector<uint8_t> ChainPayload(uint32_t n, std::vector<TestPack>& packs) {
+    packs.assign(1, TestPack());
+    char name[32];
+    for (uint32_t i = 0; i < n; ++i) {
+        std::snprintf(name, sizeof(name), "f%06u.crs", i);
+        RtIO::PackageFileEntry e{};
+        e.name = System::Filename(name);
+        packs[0].entries.push_back(e);
+    }
+    // "PKIX", the node count (set below), one package.
+    std::vector<uint8_t> bytes = { 0x50, 0x4B, 0x49, 0x58, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00 };
+    std::memcpy(bytes.data() + 4, &n, 4);
+    for (uint32_t i = 0; i < n; ++i) {
+        const uint8_t lo = static_cast<uint8_t>(i);
+        const uint8_t hi = static_cast<uint8_t>(i >> 8);
+        const uint8_t record[21] = {
+            0x00, 0x00, 0x00, 0x00, lo, hi, 0x00, 0x00,   // key: pack 0, file i
+            0x00, 0x00, 0x00, 0x00, lo, hi, 0x00, 0x00,   // value: pack 0, file i
+            0x00, 0x00, 0x00, 0x00,                       // balance, height
+            static_cast<uint8_t>(i + 1 < n ? 0x02 : 0x00),  // children: a right one, none on the last
+        };
+        bytes.insert(bytes.end(), record, record + sizeof(record));
+    }
+    return bytes;
+}
+
+}  // namespace
+
+// Review F-037: keys, values, child bits, size and in-order key order are all valid, so Decode
+// took a chain of any length; the recursive SubtreeFree then overflows the stack on a deep enough
+// one (400,000 levels in the fuzz input) and every IndexFind walks it linearly. An AVL tree of 2^31
+// nodes is under 46 levels high, so a depth past 64 is refused.
+UNIT_TEST(package_cache_refuses_a_degenerate_chain) {
+    HeapSeat seat;
+    std::vector<TestPack> packs;
+    std::vector<uint8_t> bytes = ChainPayload(64, packs);
+    RtIO::PackfileIndexTree t{ nullptr, 0, 0 };
+    CHECK(Decode(bytes, Views(packs), t));   // 64 levels: taken
+    CHECK_EQ(t.count, 64);
+    Free(t);
+    bytes = ChainPayload(200, packs);
+    const bool ok = Decode(bytes, Views(packs), t);
+    CHECK(!ok);                              // 200 levels: refused, the tree left empty
+    CHECK(t.root == nullptr);
+    CHECK_EQ(t.count, 0);
+    if (ok)
+        Free(t);
 }

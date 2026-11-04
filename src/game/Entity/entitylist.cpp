@@ -1536,8 +1536,16 @@ void EntityList::FlushForSerialize(IO::Stream& stream) {
     if (static_cast<int>(stream.GetDirection()) == 1) {   // IO::Stream::GetDirection, retail 0x180006200
         int32_t removalCount = removalList._size;
         if (removalCount > 0) {
+            // NOT RETAIL: the nets of DrainRemovals. Retail drains at the end of Update
+            // (0x1400c434f), so this list is near empty when a save runs and the info
+            // dialogs hold a strong ref. The port's one-frame drain deferral leaves this
+            // frame's marks here, and freeing them without the nets leaves a pinned info
+            // panel, the EditTool selection and Graphics::Scene pointing at freed memory.
+            EntityList_CloseDialogsForDyingEntities();
+            EntityList_ClearToolSelectionForDyingEntities();
             for (int64_t i = 0; i < removalCount; i++) {
                 ComponentEntity* localIBP = removalList._data[i];
+                AuditDyingEntity(localIBP);
                 RemoveEntity(&localIBP);
             }
             // B.3.2: Collection::Array<T>::SetSize — retail 0x1400032e0, stride 8
@@ -1577,8 +1585,10 @@ void EntityList::Serialize(IO::Stream& stream) {
             currentIBP->Object::InternalBasePtr::Serialize(serializer);   // IAT 0x140152aa0 (0x1400c4587)
 
             // After loading, verify it's a ComponentEntity
-            if (currentIBP->Get() != nullptr) {
-                bool isDerived = ::Object::IsDerivedFromNullSafe(currentIBP->Get(), ComponentEntity::TypeId());
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to ComponentEntity*; the answer is the same.
+            if (!currentIBP->IsNull()) {
+                bool isDerived = ::Object::IsDerivedFromNullSafe(*currentIBP, ComponentEntity::TypeId());
                 if (!isDerived) {
                     *currentIBP = Object::InternalPtr<ComponentEntity>();
                 }

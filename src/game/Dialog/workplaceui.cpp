@@ -155,9 +155,9 @@ void PopulateCounts(WorkPlaceUI* self) {
                               profession->stringName);
             label->SetSprite(&sprite);
         }
-        System::String fmt1 = System::String::Format("%d", static_cast<uint64_t>(roster));
+        System::String fmt1 = System::String::Format("%d", static_cast<int>(roster));
         label->SetParameter(0, fmt1);
-        System::String fmt2 = System::String::Format("%d", static_cast<uint64_t>(capacity));
+        System::String fmt2 = System::String::Format("%d", static_cast<int>(capacity));
         label->SetParameter(1, fmt2);
     }
 
@@ -190,7 +190,7 @@ void PopulateCounts(WorkPlaceUI* self) {
                 if (citizen->profession == profession) ++assigned;
             }
         }
-        System::String fmt = System::String::Format("%d", static_cast<uint64_t>(static_cast<uint32_t>(assigned)));
+        System::String fmt = System::String::Format("%d", static_cast<int>(static_cast<uint32_t>(assigned)));
         text->SetParameter(0, fmt);
     }
 }

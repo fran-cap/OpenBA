@@ -633,7 +633,9 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     }
 
     if ((self->pickingComponent != nullptr) && (rootOnly == 0)) {
-        uint8_t localXform[136];
+        // NOT RETAIL (review F-064, undefined behaviour): a Transform constructed in a byte
+        // array needs the Transform's alignment; retail's local was typed.
+        alignas(Math::Transform) uint8_t localXform[136];
         Math::Transform* localXf = ::new (static_cast<void*>(localXform)) Math::Transform(
             self->modelComponent->transform);   // Transform copy ctor
         // Row 252 (B7 RES): retail registers no pick mesh here -- the pick id is read and

@@ -133,12 +133,20 @@ public:
     void BeforeSteps(Host& host) {
         _stepped = true;
         if (_state.DrainBeforeSteps(true)) {
-            // P13_OVERLAP: a packet with a snapshot runs on during the steps, up to its gate.
-            if (_handoff != nullptr && _held.overlap && _handoff->ClaimSteps()) {
-                _overlapping = true;
-                _claimUs = NowUs();
-                ++_counters.overlapped;
-                return;
+            // P13_OVERLAP: a packet with a snapshot runs on during the steps, up to its gate --
+            // from its BeginCommands on (review F-158): the claim's wait for it is the GPU's /
+            // display's pace, idle as the fence's is (FenceForGovernor).
+            if (_handoff != nullptr && _held.overlap) {
+                const int64_t askedUs = NowUs();
+                const bool claimed = _handoff->ClaimSteps();
+                const int64_t claimUs = NowUs();
+                _idleUs += Span(askedUs, claimUs);
+                if (claimed) {
+                    _overlapping = true;
+                    _claimUs = claimUs;
+                    ++_counters.overlapped;
+                    return;
+                }
             }
             ++_counters.drainStep;
             if (_handoff != nullptr)

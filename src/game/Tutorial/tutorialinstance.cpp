@@ -61,21 +61,19 @@ void TutorialInstance::Persist(IO::Stream& stream) {
 
     // 3. On load: adjust currentStep backwards if steps are not completed
     if (static_cast<int>(serializer.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
+        // 0x1400e1571: MOV R8,[RBX+0x30]; MOV EAX,[RBX+0x10]; CMP EAX,[R8+0x30] (no test of the Tutorial)
         Tutorial* tutDef = tutorialDef;
         int32_t step = currentStep;
+        int32_t totalSteps = tutDef->steps._size;
 
-        if (tutDef != nullptr) {
-            int32_t totalSteps = tutDef->steps._size;
-
-            // Only adjust if step is within range and positive
-            if (step < totalSteps && step > 0) {
-                // the steps array; each step's completed bool
-                while (step > 0) {
-                    TutorialStep* currentStepObj = tutDef->steps._data[step];
-                    if (currentStepObj->completed) break;
-                    step--;
-                    currentStep = step;
-                }
+        // Only adjust if step is within range and positive
+        if (step < totalSteps && step > 0) {
+            // the steps array; each step's completed bool
+            while (step > 0) {
+                TutorialStep* currentStepObj = tutDef->steps._data[step];
+                if (currentStepObj->completed) break;
+                step--;
+                currentStep = step;
             }
         }
     }

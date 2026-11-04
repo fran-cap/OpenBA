@@ -252,7 +252,7 @@ void ConsumeProduceUI::OnUpdateLayout() {
 
     // Format as integer percentage: (int)(ratio * 100.0 + 0.5)
     int percent = (int)(ratio * 100.0f + 0.5f);
-    System::String str = System::String::Format("%i", (uint64_t)(uint32_t)percent);
+    System::String str = System::String::Format("%i", (int)(uint32_t)percent);
 
     // Set on progress element
     progressRemaining->SetProgressTextParameter(0, str);

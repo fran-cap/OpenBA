@@ -22,7 +22,7 @@
 // and release).
 //
 // How. Function-like macros, so `std::fprintf(`, `::fprintf(` and `fprintf(` all reach the
-// wrapper (namespace std gets a using-declaration), while non-call spellings -- `&fprintf`,
+// wrapper (each expands to `int32_t(wrapper(...))`, below), while non-call spellings -- `&fprintf`,
 // `__attribute__((format(printf, 1, 2)))` (imgui.h, text_reader.cpp) -- are left alone.
 //
 // MinGW only: glibc already stages an unbuffered stream's printf through one buffer.
@@ -33,7 +33,9 @@
 // The real declarations first, so any later <cstdio> / <stdio.h> is a guarded no-op and
 // never sees the macros below.
 #include <cstdarg>
+#include <cstdint>
 #include <cstdio>
+#include <stdint.h>
 #include <stdio.h>
 
 __attribute__((format(gnu_printf, 2, 0)))
@@ -66,16 +68,18 @@ inline int BanishedOneWritePrintf(const char* fmt, ...) {
     return n;
 }
 
-namespace std {
-using ::BanishedOneWriteFprintf;
-using ::BanishedOneWriteVfprintf;
-using ::BanishedOneWritePrintf;
-}
+// NOT `namespace std { using ::BanishedOneWriteFprintf; ... }` (review F-047): adding a
+// declaration to namespace std is undefined behaviour ([namespace.std]). Each macro instead
+// expands to a functional cast to int32_t, a name that std, the global namespace and plain
+// lookup all have (<cstdint> / <stdint.h>, included above), so `std::fprintf(`, `::fprintf(`
+// and `fprintf(` stay valid: `std::int32_t(BanishedOneWriteFprintf(...))`. MinGW's int32_t is
+// int, so the result type is fprintf's own.
+static_assert(sizeof(int32_t) == sizeof(int) && static_cast<int32_t>(-1) < 0, "int32_t is int");
 
-#define fprintf(...)  BanishedOneWriteFprintf(__VA_ARGS__)
-#define vfprintf(...) BanishedOneWriteVfprintf(__VA_ARGS__)
+#define fprintf(...)  int32_t(BanishedOneWriteFprintf(__VA_ARGS__))
+#define vfprintf(...) int32_t(BanishedOneWriteVfprintf(__VA_ARGS__))
 #ifndef BANISHED_STRIP_LOGS
-#define printf(...)   BanishedOneWritePrintf(__VA_ARGS__)
+#define printf(...)   int32_t(BanishedOneWritePrintf(__VA_ARGS__))
 #endif
 
 #endif  // __MINGW32__ && !BANISHED_THIRD_PARTY_SOURCE

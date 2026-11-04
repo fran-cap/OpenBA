@@ -32,6 +32,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <string>
 #include <thread>
@@ -131,6 +132,10 @@ struct Counters {
     std::atomic<int> published{0};
     std::atomic<int> destroyed{0};
     std::atomic<int> evicted{0};
+    // Lifetime canary (review 2026-11-03, F-005): a record destroyed after its Counters (a
+    // LazyTable declared before the Counters it reports to) reads 0 here instead of 1.
+    std::atomic<int> alive{1};
+    ~Counters() { alive.store(0); }
 };
 
 class FakeRecord final : public Record {
@@ -138,7 +143,10 @@ public:
     FakeRecord(Counters* c, int* field, int value, std::atomic<bool>* gate = nullptr,
                Outcome outcome = Outcome::Made)
         : _c(c), _field(field), _value(value), _gate(gate), _outcome(outcome) {}
-    ~FakeRecord() override { ++_c->destroyed; }
+    ~FakeRecord() override {
+        CHECK_EQ(_c->alive.load(), 1);   // the Counters outlive every record
+        ++_c->destroyed;
+    }
     Outcome Materialize() override {
         ++_c->entered;
         if (_gate != nullptr) {
@@ -147,13 +155,16 @@ public:
         if (_outcome == Outcome::Made) ++_c->made;
         return _outcome;
     }
+    // The field is written BEFORE the counter: a test that waits on the counter from another
+    // thread (timed_sweep_on_worker) then reads the field after the worker's write, not racing
+    // it (review 2026-11-03, F-007: TSan).
     void Publish() override {
-        ++_c->published;
         *_field = _value;
+        ++_c->published;
     }
     void Evict() override {
-        ++_c->evicted;
         *_field = 0;
+        ++_c->evicted;
     }
     uint64_t Bytes() const override { return 100; }
 
@@ -333,8 +344,8 @@ UNIT_TEST(ext_create_on_demand_locator_redecodes_through_the_process_maps) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_materializes_once) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int obj = 0;
     t.Ensure(&obj);   // nothing recorded: a no-op
@@ -355,8 +366,8 @@ UNIT_TEST(ext_create_on_demand_table_materializes_once) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_forget_drops_unrun) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int a = 0;
     const int b = 0;
@@ -382,8 +393,8 @@ UNIT_TEST(ext_create_on_demand_table_forget_drops_unrun) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_use_waits_for_a_running_worker) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int obj = 0;
     std::atomic<bool> gate{false};
@@ -407,8 +418,8 @@ UNIT_TEST(ext_create_on_demand_table_use_waits_for_a_running_worker) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_pause_resume_and_retry) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int field = 0;
     const int obj = 0;
     t.Add(&obj, Fake(&c, &field, 3));
@@ -446,8 +457,8 @@ UNIT_TEST(ext_create_on_demand_table_pause_resume_and_retry) {
 // P13 (P13_MEM.md §9): the loader's wait for its prefetches returns once they are made, and at once on
 // a paused table (a device going away) with the queue still holding them.
 UNIT_TEST(ext_create_on_demand_table_drain_unless_paused) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int a = 0;
     int b = 0;
     const int objA = 0;
@@ -746,9 +757,9 @@ UNIT_TEST(ext_create_on_demand_use_stamps) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_evicts_idle_and_remakes) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(0);
     t.SetIdleLimit(2, std::chrono::milliseconds(0));
-    Counters c;
     int fa = 0;
     int fb = 0;
     const int a = 0;
@@ -783,9 +794,9 @@ UNIT_TEST(ext_create_on_demand_table_evicts_idle_and_remakes) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_kept_is_never_evicted) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
     t.SetIdleLimit(1, std::chrono::milliseconds(0));
-    Counters c;
     int fa = 0;
     int fb = 0;
     int fc = 0;
@@ -822,9 +833,9 @@ UNIT_TEST(ext_create_on_demand_table_kept_is_never_evicted) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_idle_zero_never_evicts) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(0);
     t.SetIdleLimit(0, std::chrono::milliseconds(0));
-    Counters c;
     int f = 0;
     const int a = 0;
     t.Add(&a, Fake(&c, &f, 1));
@@ -837,9 +848,9 @@ UNIT_TEST(ext_create_on_demand_table_idle_zero_never_evicts) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_eviction_waits_for_a_use_in_progress) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(0);
     t.SetIdleLimit(1, std::chrono::milliseconds(0));
-    Counters c;
     int f = 0;
     const int a = 0;
     t.Add(&a, Fake(&c, &f, 1));
@@ -868,8 +879,8 @@ UNIT_TEST(ext_create_on_demand_table_eviction_waits_for_a_use_in_progress) {
 }
 
 UNIT_TEST(ext_create_on_demand_table_timed_sweep_on_worker) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(1);
-    Counters c;
     int f = 0;
     const int a = 0;
     t.Add(&a, Fake(&c, &f, 1));
@@ -881,4 +892,129 @@ UNIT_TEST(ext_create_on_demand_table_timed_sweep_on_worker) {
     CHECK_EQ(c.evicted.load(), 1);
     CHECK_EQ(f, 0);
     CHECK(t.GetStats().sweeps >= 1);
+}
+
+// Review F-117: a block's uncompressedSize is a uint16 the package supplies; over 0x8000 it
+// overflowed RedecodeRange's 32 KB stack page (a stored block's copy) and moved the stream's end past
+// the block directory (the loop then read headers after it). Valid entries never exceed 0x8000.
+UNIT_TEST(ext_create_on_demand_redecode_refuses_an_oversized_block) {
+    // n = 1; block 0 = { sourceOffset 0x0c, compressedSize 0 (stored), uncompressedSize 0x9000 }.
+    const uint8_t head[] = {0x01, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x90};
+    std::vector<uint8_t> entry(head, head + sizeof(head));
+    entry.resize(sizeof(head) + 0x9000, 0x5a);
+    std::vector<uint8_t> out(0x9000);
+    CHECK(!RangeInStream(entry.data(), entry.size(), 0, 0x9000));
+    // The range past the first 32 KB names block 1, which the directory does not hold.
+    CHECK(!RedecodeRange(entry.data(), entry.size(), 0x8000, 0x10, out.data()));
+    CHECK(!RedecodeRange(entry.data(), entry.size(), 0, 0x9000, out.data()));
+    // A stored middle block over 0x8000 (the last one is valid): refused at that block.
+    // n = 2; block 0 = { 0x14, 0, 0x8400 }, block 1 = { 0x14, 0, 0x0010 }.
+    const uint8_t two[] = {0x02, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00,
+                           0x00, 0x84, 0x14, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00};
+    std::vector<uint8_t> mid(two, two + sizeof(two));
+    mid.resize(sizeof(two) + 0x8400, 0x33);
+    CHECK(RangeInStream(mid.data(), mid.size(), 0, 0x8010));
+    CHECK(!RedecodeRange(mid.data(), mid.size(), 0, 0x8010, out.data()));
+}
+
+// Review F-209 / F-210: a sweep that read `_paused` false and then waited at the gate for a use must
+// not give anything back once Pause() has returned (the device is going away).
+UNIT_TEST(ext_create_on_demand_table_sweep_evicts_nothing_after_pause) {
+    LazyTable t(0);
+    t.SetIdleLimit(1, std::chrono::milliseconds(0));
+    Counters c;
+    int f = 0;
+    const int a = 0;
+    t.Add(&a, Fake(&c, &f, 1));
+    t.Ensure(&a);
+    t.Sweep();   // epoch 2: not idle yet
+    t.Enter();   // a use in progress holds the sweep at the gate
+    std::thread sweeper([&] { t.Sweep(); });
+    for (int i = 0; i < 400 && t.GetStats().sweeps < 2; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));   // past the scan, closing the gate
+    t.Pause();   // returns at once: nothing materializes
+    t.Leave();
+    sweeper.join();
+    CHECK_EQ(c.evicted.load(), 0);
+    CHECK_EQ(f, 1);
+    t.Resume();
+    t.Sweep();   // with the device back the idle object goes
+    CHECK_EQ(c.evicted.load(), 1);
+}
+
+namespace {
+
+// The three parties of review F-133, on the heap: a deadlocked run leaves its threads parked forever,
+// so nothing they touch may live on the test's stack.
+struct GateDeadlockRun {
+    LazyTable            table{0};
+    std::mutex           device;   // Video::Device::Lock
+    Counters             c;
+    int                  f = 0;
+    const int            a = 0;
+    std::atomic<bool>    frameLocked{false};
+    std::atomic<bool>    frameGo{false};
+    std::atomic<bool>    loaderIn{false};
+    std::atomic<int>     done{0};
+    std::atomic<int64_t> evicted{-1};
+};
+
+}  // namespace
+
+// Review F-133: the frame thread holds the device lock and enters the gate (a Bind); the loader is
+// inside the gate (SetData's UseScope) waiting for the device lock; the sweep closes the gate and waits
+// for the loader. Each waits on the next unless the sweep gives up and reopens the gate.
+UNIT_TEST(ext_create_on_demand_table_sweep_does_not_deadlock_a_use_waiting_for_the_device) {
+    GateDeadlockRun* const r = new GateDeadlockRun();   // leaked when it deadlocks (see the struct)
+    r->table.SetIdleLimit(1, std::chrono::milliseconds(0));
+    r->table.Add(&r->a, Fake(&r->c, &r->f, 1));
+    r->table.Ensure(&r->a);
+    r->table.Sweep();   // epoch 2: not idle yet
+    std::thread frame([r] {
+        std::lock_guard<std::mutex> lock(r->device);   // ContextData::BeginCommands
+        r->frameLocked.store(true);
+        while (!r->frameGo.load()) std::this_thread::yield();
+        r->table.Enter();   // a Bind's UseScope, inside the device lock
+        r->table.Leave();
+        ++r->done;
+    });
+    while (!r->frameLocked.load()) std::this_thread::yield();
+    std::thread loader([r] {
+        r->table.Enter();   // GpuBuffer SetData's UseScope ...
+        r->loaderIn.store(true);
+        std::lock_guard<std::mutex> lock(r->device);   // ... then VideoDeviceObject()->Lock()
+        r->table.Leave();
+        ++r->done;
+    });
+    while (!r->loaderIn.load()) std::this_thread::yield();
+    std::thread sweeper([r] {
+        r->evicted.store(r->table.Sweep());
+        ++r->done;
+    });
+    for (int i = 0; i < 400 && r->table.GetStats().sweeps < 2; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));   // the sweep is closing the gate
+    r->frameGo.store(true);
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (r->done.load() < 3 && std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    CHECK_EQ(r->done.load(), 3);
+    if (r->done.load() < 3) {
+        frame.detach();
+        loader.detach();
+        sweeper.detach();
+        return;
+    }
+    frame.join();
+    loader.join();
+    sweeper.join();
+    CHECK_EQ(r->evicted.load(), int64_t(0));   // gave up: nothing given back under a held use
+    CHECK_EQ(r->f, 1);
+    CHECK_EQ(r->table.Sweep(), int64_t(1));   // the next sweep, with no use held, gives it back
+    CHECK_EQ(r->f, 0);
+    delete r;
 }

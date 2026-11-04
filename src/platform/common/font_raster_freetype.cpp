@@ -255,6 +255,13 @@ bool RasterizeFile(const char* path, const char* faceName, int32_t pixelHeight, 
     const int32_t upem = face->units_per_EM;
     int32_t ascentUnits = 0, descentUnits = 0;
     CellMetrics(face, ascentUnits, descentUnits);
+    // Review F-167: a face with no OS/2 table and zero hhea metrics has no cell; the scale below
+    // would divide by zero and convert inf / NaN to integers (undefined behaviour).
+    if (ascentUnits + descentUnits <= 0) {
+        if (why) *why = "face has no cell height";
+        FT_Done_Face(face);
+        return false;
+    }
     const double s = static_cast<double>(pixelHeight) * upem / (ascentUnits + descentUnits);
     double ppem = std::floor(s + 0.5);
     switch (options.sizing) {

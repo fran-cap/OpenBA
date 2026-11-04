@@ -77,10 +77,10 @@ void Pickup::Persist(IO::Stream& stream) {
     citizenIBP.InternalBasePtr::Serialize(serializer);
 
     // Validate the deserialized ptr against Pickup type
-    if (citizenIBP.Get() != nullptr) {
+    if (!citizenIBP.IsNull()) {
         // DAT_1401c7158 = CitizenComponent (ENDGAME B.3.9 D5: by cell, not the legacy
         // variable name "s_typeId_Pickup" -- this is not Pickup's own cell).
-        if (!Object::IsDerivedFromNullSafe(citizenIBP.Get(), CitizenComponent::TypeId())) {
+        if (!Object::IsDerivedFromNullSafe(citizenIBP, CitizenComponent::TypeId())) {
             citizenIBP = nullptr;
         }
     }

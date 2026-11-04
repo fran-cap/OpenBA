@@ -114,15 +114,20 @@ struct World {
             const int cr = row < 0 ? 0 : (row >= N ? N - 1 : row);
             return (float)(int)heights[(size_t)((int64_t)cr * N + cc)] * (1.0f / 256.0f);
         };
-        const float bx = (float)(x - half), by = (float)(y - half);
-        const float V00[3] = { bx,        by,        H(x,     y)     };
-        const float V01[3] = { bx + 1.0f, by,        H(x + 1, y)     };
-        const float V10[3] = { bx,        by + 1.0f, H(x,     y + 1) };
-        const float V11[3] = { bx + 1.0f, by + 1.0f, H(x + 1, y + 1) };
+        // The int sums wrap, as retail's ADD / SUB do (worldgeometry_ray.cpp WrapAdd / WrapSub).
+        auto wrap = [](uint32_t v) -> int { return (int)v; };
+        const float bx = (float)wrap((uint32_t)x - (uint32_t)half);
+        const float by = (float)wrap((uint32_t)y - (uint32_t)half);
+        const int x1 = wrap((uint32_t)x + 1u);
+        const int y1 = wrap((uint32_t)y + 1u);
+        const float V00[3] = { bx,        by,        H(x,  y)  };
+        const float V01[3] = { bx + 1.0f, by,        H(x1, y)  };
+        const float V10[3] = { bx,        by + 1.0f, H(x,  y1) };
+        const float V11[3] = { bx + 1.0f, by + 1.0f, H(x1, y1) };
         float maxTbuf = maxT;
         float t = 0.0f;
         bool hit;
-        if (((x + y) & 1) == 0) {
+        if ((wrap((uint32_t)x + (uint32_t)y) & 1) == 0) {
             hit = RayTri(origin, dir, &maxTbuf, V00, V01, V10, &t) != 0;
             if (hit) maxTbuf = t;
             if (RayTri(origin, dir, &maxTbuf, V01, V11, V10, &t) != 0) hit = true;

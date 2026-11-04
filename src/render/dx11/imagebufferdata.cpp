@@ -371,11 +371,15 @@ static D3D11_SAMPLER_DESC SamplerDescFor(const ::Video::ImageBuffer* ib, int dro
     const int maxAniso = device->maxAnisotropy;   // Device+0x98
     if (aniso > maxAniso) aniso = maxAniso;
 
+    // NOT RETAIL (UB, out-of-bounds index): the four serialized fields index the stack tables
+    // through ImageBuffer's clamps; retail indexes them raw (a mod .rsc with _filter 3 read past
+    // filterTable). Valid values 0..1 / 0..2 index themselves.
+    using IB = ::Video::ImageBuffer;
     D3D11_SAMPLER_DESC desc;
-    desc.Filter         = static_cast<D3D11_FILTER>(filterTable[ib->_filter]);                       // +0x44
-    desc.AddressU       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[ib->_addressU]);      // +0x38
-    desc.AddressV       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[ib->_addressV]);      // +0x3c
-    desc.AddressW       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[ib->_addressW]);      // +0x40
+    desc.Filter         = static_cast<D3D11_FILTER>(filterTable[IB::FilterTableIndex(ib->_filter)]);                    // +0x44
+    desc.AddressU       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[IB::AddressTableIndex(ib->_addressU)]);  // +0x38
+    desc.AddressV       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[IB::AddressTableIndex(ib->_addressV)]);  // +0x3c
+    desc.AddressW       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[IB::AddressTableIndex(ib->_addressW)]);  // +0x40
     desc.MipLODBias     = 0.0f;
     desc.MaxAnisotropy  = static_cast<UINT>(aniso);
     // D3D11_COMPARISON_NEVER (1) normally, D3D11_COMPARISON_LESS (2) for shadow.
@@ -583,6 +587,13 @@ bool ImageBufferData::Create(const Collection::Array<Collection::Array<uint8_t> 
         TrackImageBuffer(dd, ib);
 
     ReleaseInterfaces();
+
+    // NOT RETAIL (UB, out-of-bounds index): every create below indexes the 8-entry
+    // kFormatToDxgi / kFormatBytes with `_format`, which a .rsc carries unchecked; retail has no
+    // check and reads past the tables. Out of range fails here as a failed CreateTexture2D would
+    // (no texture, no view), as the Metal backend's create does. Formats 0..7 are unchanged.
+    if (!::Video::ImageBuffer::FormatInRange(ib->_format))
+        return false;
 
     // --- D3D11_TEXTURE2D_DESC ---------------------------------------------
     const uint32_t kind = static_cast<uint32_t>(ib->_kind);   // +0x2c, read unsigned
@@ -825,9 +836,11 @@ static ID3D11SamplerState* AcquirePointSampler(const ::Video::ImageBuffer* ib, I
     const int addressTable[2] = { D3D11_TEXTURE_ADDRESS_WRAP, D3D11_TEXTURE_ADDRESS_CLAMP };
     D3D11_SAMPLER_DESC desc;
     desc.Filter         = D3D11_FILTER_MIN_MAG_MIP_POINT;
-    desc.AddressU       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[ib->_addressU]);
-    desc.AddressV       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[ib->_addressV]);
-    desc.AddressW       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[ib->_addressW]);
+    // Through the same clamps as SamplerDescFor (an out-of-range field indexed past the table).
+    using IB = ::Video::ImageBuffer;
+    desc.AddressU       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[IB::AddressTableIndex(ib->_addressU)]);
+    desc.AddressV       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[IB::AddressTableIndex(ib->_addressV)]);
+    desc.AddressW       = static_cast<D3D11_TEXTURE_ADDRESS_MODE>(addressTable[IB::AddressTableIndex(ib->_addressW)]);
     desc.MipLODBias     = 0.0f;
     desc.MaxAnisotropy  = 0;
     desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
@@ -852,7 +865,7 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
     // NOT RETAIL (ext.create_on_demand): the first bind of a deferred texture makes it; a made one
     // pays the null test. The scope stamps the use and keeps an eviction away until the bind is done.
     CreateOnDemand::UseScope use(this);
-    if (shaderResourceView == nullptr) CreateOnDemand::Ensure(this);
+    if (::CreateOnDemand::LoadPublished(shaderResourceView) == nullptr) CreateOnDemand::Ensure(this);
     (void)context;   // never read by the original either
 
     ID3D11DeviceContext* const ctx = Dx11Context();
@@ -883,7 +896,8 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
 bool ImageBufferData::Update(void* data, int width, int height) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create): a queued create lands first
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (texture == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(texture) == nullptr) CreateOnDemand::Ensure(this);
     // NOT RETAIL: the Present lock (dx11_backend_access.h). Callers hold the
     // device lock and may be off the presenting thread (the loader's image
     // uploads, the save-info thumbnails).
@@ -916,7 +930,8 @@ bool ImageBufferData::Update(void* data, int width, int height) {
 bool ImageBufferData::Read(void* dst, int width, int height) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create): a queued create lands first
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (texture == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(texture) == nullptr) CreateOnDemand::Ensure(this);
     D3D11_TEXTURE2D_DESC desc;
     desc.Width              = static_cast<UINT>(width);
     desc.Height             = static_cast<UINT>(height);

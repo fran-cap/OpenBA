@@ -285,7 +285,7 @@ int64_t CurrentTimeTicksViaGlobals() {
                     (long long)*sysTicksPerSec);
         return 0;
     }
-    return (now - *initialTick) * *ticksPerSec / *sysTicksPerSec;
+    return ::System::CounterToTicks(now - *initialTick, *ticksPerSec, *sysTicksPerSec);  // review F-151
 }
 
 }  // namespace rtmainloop
@@ -380,7 +380,9 @@ bool Engine::MainLoop::Frame(bool skipUpdate) {
         Audio::Device* audioDevice = engine->_audioDevice;
         for (int i = 0; i < kAudioChannelCount; ++i) {
             Audio::Device::AudioChannel* chan = &audioDevice->_channels[i];
-            if ((chan->flags & 2u) == 0)
+            // NOT RETAIL (review F-138): the flag word is read and cleared atomically;
+            // the backend's audio thread sets bit 1 (Device.h, AudioChannel).
+            if ((chan->LoadFlags() & 2u) == 0)
                 continue;
 
             // PRIVATE (`AEAA`) in retail but EXPORTED, ordinal 2380; Device.h
@@ -393,7 +395,7 @@ bool Engine::MainLoop::Frame(bool skipUpdate) {
             // FreeChannelPlatform starts touching the record.
             Audio::Device::Callback onComplete = chan->onComplete;
 
-            chan->flags &= 0xFFFFFFFCu;                  // AND ~3
+            chan->AndFlags(0xFFFFFFFCu);                 // AND ~3
             chan->source = nullptr;
 
             if (onComplete) {
