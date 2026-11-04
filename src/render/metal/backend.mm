@@ -1673,22 +1673,6 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
         if (pointSampler) bound.samplers[slot] = pointSampler;
     }
 }
-bool ImageBufferData::Update(void* data, int width, int height) {
-    CreateOnDemand::UseScope use(this);           // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    // NOT RETAIL (ext.create_on_demand): an acquire load
-    if (!CreateOnDemand::Made(&texture)) CreateOnDemand::Ensure(this);
-    if (!texture || !data || width <= 0 || height <= 0 || width > int(texture.width) ||
-        height > int(texture.height))
-        return false;
-    int f = int(_owner->_format);
-    if (f < 3 || f == 7) return false;
-    // NOT RETAIL (ext.share_gpu_data, ext.compress_ao): a shared texture is never written (D3D11 refuses its
-    // IMMUTABLE one), and a BC4 texture does not hold the R8 rows the engine would write.
-    if (shared || texture.pixelFormat == MTLPixelFormatBC4_RUnorm) return false;
-    size_t row = width * (f == 3 || f == 4 ? 1 : 4);
-    [texture replaceRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0 withBytes:data bytesPerRow:row];
-    return true;
-}
 // Holds the device lock (recursive) for a scope: see NewCommands for why every user of `commands` needs it.
 struct DeviceLockScope {
     Video::Device* device;
@@ -1703,6 +1687,50 @@ struct DeviceLockScope {
         }
     }
 };
+// The rows go through a staging buffer and a blit in the command stream, as D3D11's UpdateSubresource orders the
+// write between the draws around it. A CPU replaceRegion wrote the live texture while up to kFramesInFlight
+// committed frames could still be sampling it. Mid-frame the blit goes on the frame's command buffer (draws
+// encoded before it see the old rows, later ones the new); between frames on a command buffer of its own,
+// committed at once, so it runs after the frames already queued and before the next one.
+bool ImageBufferData::Update(void* data, int width, int height) {
+    CreateOnDemand::UseScope use(this);           // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
+    // NOT RETAIL (ext.create_on_demand): an acquire load
+    if (!CreateOnDemand::Made(&texture)) CreateOnDemand::Ensure(this);
+    if (!texture || !data || width <= 0 || height <= 0 || width > int(texture.width) ||
+        height > int(texture.height))
+        return false;
+    int f = int(_owner->_format);
+    if (f < 3 || f == 7) return false;
+    // NOT RETAIL (ext.share_gpu_data, ext.compress_ao): a shared texture is never written (D3D11 refuses its
+    // IMMUTABLE one), and a BC4 texture does not hold the R8 rows the engine would write.
+    if (shared || texture.pixelFormat == MTLPixelFormatBC4_RUnorm) return false;
+    size_t row = width * (f == 3 || f == 4 ? 1 : 4);
+    @autoreleasepool {
+        DeviceLockScope deviceLock;   // `commands` and the encoder state, as in Read
+        auto staging = NewBuffer(row * height, "image-update");
+        if (!staging) {
+            return false;
+        }
+        memcpy(staging.contents, data, row * height);
+        EndEncoder();
+        auto cb = commands ? commands : [queue commandBuffer];
+        auto blit = [cb blitCommandEncoder];
+        [blit copyFromBuffer:staging
+                   sourceOffset:0
+              sourceBytesPerRow:row
+            sourceBytesPerImage:0
+                     sourceSize:MTLSizeMake(width, height, 1)
+                      toTexture:texture
+               destinationSlice:0
+               destinationLevel:0
+              destinationOrigin:MTLOriginMake(0, 0, 0)];
+        [blit endEncoding];
+        if (cb != commands) {
+            [cb commit];
+        }
+    }
+    return true;
+}
 bool ImageBufferData::Read(void* dst, int width, int height) {
     CreateOnDemand::UseScope use(this);           // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
     // NOT RETAIL (ext.create_on_demand), before the device lock: an acquire load
