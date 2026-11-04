@@ -21,7 +21,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/object/expand_memo.cpp   # block SAVELOAD: the ExpandRelativePath memo
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array_destroy.cpp
-  ${CMAKE_SOURCE_DIR}/src/engine/collection/array_graphics_anim.cpp   # review_engine_ub_test.cpp (F-049): kSpec_MeshNode
+  ${CMAKE_SOURCE_DIR}/src/engine/collection/array_graphics_anim.cpp   # review_engine_ub_test.cpp (F-049): kSpec_MeshNode; review_graphics_anim_test.cpp: Array<Layer> / <Instance>
   ${CMAKE_SOURCE_DIR}/src/engine/collection/linkedlist.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/introsort.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/type_reflection.cpp
@@ -165,6 +165,8 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/modification_avl8.cpp         #   element 8    (0x1800274c0)
   ${CMAKE_SOURCE_DIR}/src/engine/system/value_types.cpp           # random_test.cpp: the real System::Random (MT19937); the erosion tests draw from it too
   ${CMAKE_SOURCE_DIR}/src/engine/system/timer.cpp                 #   value_types.cpp's System::Time bodies call Timer::SecondsToTicks
+  ${CMAKE_SOURCE_DIR}/src/engine/graphics/animationstate.cpp         # review_graphics_anim_test.cpp (F-098, F-121)
+  ${CMAKE_SOURCE_DIR}/src/engine/graphics/wave29_lane_gfxbody.cpp    #   Animation::GetRootPoseAtTime
   ${CMAKE_SOURCE_DIR}/src/engine/io/filename_extension.cpp        # filename_test.cpp: the real Filename::GetPathExtension body
   # ext_sheet_builder_test.cpp (block RSCSPRITE, KITFREE.md): the packer and the SpriteSheet fill.
   # (The ported writer family cannot join the host build: ui_resources_abi_test.cpp and

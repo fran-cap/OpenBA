@@ -699,11 +699,23 @@ Math::Transform Animation::GetRootPoseAtTime(const System::Time& time,
 
     // The loop-start KEY INDEX. Retail short-circuits the whole fraction to 0
     // when loopFrame is zero rather than computing it.
+    //
+    // NOT RETAIL (UB, review F-121): the same unguarded arithmetic as
+    // GetPoseAtTime (animationstate.cpp): a loop frame equal to the end frame
+    // divides by `keyCount - loopKey` == 0, start == end converts a NaN or an
+    // infinity, and a loop frame outside [start, end) indexes outside `_keys`.
+    // A loop key outside [0, keyCount), or a clip with no keys, holds the last
+    // key instead of wrapping. Every valid clip keeps retail's arithmetic.
+    bool wraps = looping && keyCount > 0;
     int32_t loopKey = 0;
     if (loopFrame != 0) {
         const float num = static_cast<float>(loopFrame - frameFirst);
         const float den = static_cast<float>(frameLast - frameFirst);
-        loopKey = static_cast<int32_t>((num / den) * static_cast<float>(keyCount));
+        const float at = (num / den) * static_cast<float>(keyCount);
+        if (at > -1.0f && at < static_cast<float>(keyCount))
+            loopKey = static_cast<int32_t>(at);
+        else
+            wraps = false;
     }
 
     const double secondsPerTick = rtgfxbody29::SecondsPerTick();
@@ -711,13 +723,16 @@ Math::Transform Animation::GetRootPoseAtTime(const System::Time& time,
     // NARROW, THEN SCALE — see the banner. cvtsi2sd / mulsd / cvtpd2ps / mulss.
     float keyPos = static_cast<float>(static_cast<double>(*t0) * secondsPerTick);
     keyPos *= rate;
+    // NOT RETAIL (UB, review F-121): a negative or out-of-range time samples key 0.
+    if (!(keyPos > -1.0f && keyPos < 2147483648.0f))
+        keyPos = 0.0f;
 
     const int32_t rawKey = static_cast<int32_t>(keyPos);   // cvttss2si, truncates
 
     // Clamp or wrap the first key.
     int32_t k0 = rawKey;
     if (k0 >= keyCount) {
-        if (!looping) {
+        if (!wraps) {
             k0 = keyCount - 1;
         } else {
             k0 = loopKey + (rawKey % (keyCount - loopKey));
@@ -728,7 +743,7 @@ Math::Transform Animation::GetRootPoseAtTime(const System::Time& time,
     // after it. Retail computes `LEA R11D,[R9+1]` from the ALREADY-wrapped k0.
     int32_t k1 = k0 + 1;
     if (k1 >= keyCount) {
-        if (!looping) {
+        if (!wraps) {
             k1 = keyCount - 1;
         } else {
             k1 = loopKey + (k1 % (keyCount - loopKey));
@@ -739,7 +754,13 @@ Math::Transform Animation::GetRootPoseAtTime(const System::Time& time,
     const float frac = keyPos - static_cast<float>(rawKey);
 
     float x, y, z;
-    if (k0 == k1 || frac == 0.0f) {
+    if (keyCount <= 0) {
+        // NOT RETAIL (UB, review F-121): no key to read (retail reads
+        // `keys - perKey`); the root offset is zero.
+        x = 0.0f;
+        y = 0.0f;
+        z = 0.0f;
+    } else if (k0 == k1 || frac == 0.0f) {
         // The frame's first key (the root), its translation (+0x10).
         const Math::Vector3& e = keys[static_cast<int64_t>(perKey * k0)].translation;
         x = e.x;
