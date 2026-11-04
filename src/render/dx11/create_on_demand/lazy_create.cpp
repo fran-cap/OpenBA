@@ -103,14 +103,15 @@ public:
         return Result(ok);
     }
 
+    // Release: a use that sees the handle sees the made buffer (lazy_table.h LoadPublished).
     void Publish() override {
-        *_out = _made;
+        ::CreateOnDemand::StorePublished(*_out, _made);
     }
 
     // share_gpu_data's user is dropped before the Release, as ~VertexBufferData orders it.
     void Evict() override {
         ID3D11Buffer* const buffer = *_out;
-        *_out = nullptr;
+        ::CreateOnDemand::StorePublished(*_out, static_cast<ID3D11Buffer*>(nullptr));
         _made = nullptr;
         if (buffer == nullptr) return;
         ShareGpuData::DropBuffer(buffer);
@@ -185,9 +186,11 @@ public:
         return Result(ok);
     }
 
+    // Both with release, the view last: Bind tests the view, Update / Read the texture, so a use
+    // that sees the view also sees the texture.
     void Publish() override {
-        *_outTexture = _madeTexture;
-        *_outSrv     = _madeSrv;
+        ::CreateOnDemand::StorePublished(*_outTexture, _madeTexture);
+        ::CreateOnDemand::StorePublished(*_outSrv, _madeSrv);
     }
 
     // ImageBufferData::ReleaseInterfaces' order for these two: the share table's user first, the
@@ -195,8 +198,8 @@ public:
     void Evict() override {
         ID3D11Texture2D* const texture = *_outTexture;
         ID3D11ShaderResourceView* const srv = *_outSrv;
-        *_outTexture = nullptr;
-        *_outSrv     = nullptr;
+        ::CreateOnDemand::StorePublished(*_outTexture, static_cast<ID3D11Texture2D*>(nullptr));
+        ::CreateOnDemand::StorePublished(*_outSrv, static_cast<ID3D11ShaderResourceView*>(nullptr));
         _madeTexture = nullptr;
         _madeSrv     = nullptr;
         ShareGpuData::DropTexture(texture);
@@ -366,13 +369,18 @@ void Keep(const void* companion) {
         t->Keep(companion);
 }
 
+// The gather calls these with no gate and no lock while a worker publishes or a sweep evicts: acquire
+// loads (lazy_table.h LoadPublished).
 bool VertexBufferMade(const void* companion) {
-    return companion == nullptr || static_cast<const VideoDX11::VertexBufferData*>(companion)->buffer != nullptr;
+    return companion == nullptr ||
+           ::CreateOnDemand::LoadPublished(static_cast<const VideoDX11::VertexBufferData*>(companion)->buffer) !=
+               nullptr;
 }
 
 bool ImageMade(const void* companion) {
     return companion == nullptr ||
-           static_cast<const VideoDX11::ImageBufferData*>(companion)->shaderResourceView != nullptr;
+           ::CreateOnDemand::LoadPublished(
+               static_cast<const VideoDX11::ImageBufferData*>(companion)->shaderResourceView) != nullptr;
 }
 
 }  // namespace CreateOnDemandBackend

@@ -865,7 +865,7 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
     // NOT RETAIL (ext.create_on_demand): the first bind of a deferred texture makes it; a made one
     // pays the null test. The scope stamps the use and keeps an eviction away until the bind is done.
     CreateOnDemand::UseScope use(this);
-    if (shaderResourceView == nullptr) CreateOnDemand::Ensure(this);
+    if (::CreateOnDemand::LoadPublished(shaderResourceView) == nullptr) CreateOnDemand::Ensure(this);
     (void)context;   // never read by the original either
 
     ID3D11DeviceContext* const ctx = Dx11Context();
@@ -896,7 +896,8 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
 bool ImageBufferData::Update(void* data, int width, int height) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create): a queued create lands first
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (texture == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(texture) == nullptr) CreateOnDemand::Ensure(this);
     // NOT RETAIL: the Present lock (dx11_backend_access.h). Callers hold the
     // device lock and may be off the presenting thread (the loader's image
     // uploads, the save-info thumbnails).
@@ -929,7 +930,8 @@ bool ImageBufferData::Update(void* data, int width, int height) {
 bool ImageBufferData::Read(void* dst, int width, int height) {
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create): a queued create lands first
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): stamp, no eviction meanwhile
-    if (texture == nullptr) CreateOnDemand::Ensure(this);   // NOT RETAIL (ext.create_on_demand)
+    // NOT RETAIL (ext.create_on_demand): an acquire load, a worker may publish the handle meanwhile
+    if (::CreateOnDemand::LoadPublished(texture) == nullptr) CreateOnDemand::Ensure(this);
     D3D11_TEXTURE2D_DESC desc;
     desc.Width              = static_cast<UINT>(width);
     desc.Height             = static_cast<UINT>(height);

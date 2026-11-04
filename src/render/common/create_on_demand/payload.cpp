@@ -140,6 +140,9 @@ bool RangeInStream(const uint8_t* entry, uint64_t entrySize, int32_t pos, int32_
     // Every block but the last holds a full 32 KB, so the stream's length is the last block's end.
     BlockHeader last;
     std::memcpy(&last, entry + 4 + 8 * static_cast<uint64_t>(n - 1), 8);
+    // A block never holds more than 32 KB: a larger last block would put the stream's end past the
+    // directory's n blocks (hardening: the field is the package's).
+    if (last.uncompressedSize > kBlockBytes) return false;
     const int64_t length = static_cast<int64_t>(n - 1) * kBlockBytes + last.uncompressedSize;
     return static_cast<int64_t>(pos) + len <= length;
 }
@@ -147,12 +150,16 @@ bool RangeInStream(const uint8_t* entry, uint64_t entrySize, int32_t pos, int32_
 bool RedecodeRange(const uint8_t* entry, uint64_t entrySize, int32_t pos, int32_t len, uint8_t* dst) {
     if (!RangeInStream(entry, entrySize, pos, len)) return false;
     if (len == 0) return true;
+    const int32_t n = ReadI32(entry);
     uint8_t page[kBlockBytes];
     const int32_t first = pos >> 15;
     const int32_t last  = (pos + len - 1) >> 15;
     for (int32_t b = first; b <= last; ++b) {
+        if (b >= n) return false;
         BlockHeader h;
         std::memcpy(&h, entry + 4 + 8 * static_cast<uint64_t>(b), 8);
+        // The page holds one block: a stored block over 32 KB would overflow it (hardening).
+        if (h.uncompressedSize > kBlockBytes) return false;
         const uint32_t stored = h.compressedSize != 0 ? h.compressedSize : h.uncompressedSize;
         if (static_cast<uint64_t>(h.sourceOffset) + stored > entrySize) return false;
         const uint8_t* const src = entry + h.sourceOffset;
