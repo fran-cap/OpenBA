@@ -1207,7 +1207,8 @@ void PlantStroke(Map* map, WorldGeometry* terrain, int cell, bool strokeStart) {
     const int missing = PlantTarget(eligible, g_state.density) - existing;
     for (const int idx : PickCells(freeCells, missing, g_plantSeed)) {
         ComponentEntity* entity = PlantAt(map, idx);
-        if (entity != nullptr) g_undo.RecordPlanted(idx, reinterpret_cast<uintptr_t>(entity));
+        if (entity == nullptr) continue;
+        g_undo.RecordPlanted(idx, reinterpret_cast<uintptr_t>(entity), entity->GetGeneration());
     }
 }
 
@@ -1583,7 +1584,8 @@ bool UndoLast() {
     for (const PlantedResource& p : stroke.planted) {
         if (p.cell < 0 || p.cell >= size * size) continue;
         ComponentEntity* standing = map->cells.GetData()[p.cell].occupant.Get();
-        if (standing != nullptr && reinterpret_cast<uintptr_t>(standing) == p.entity) {
+        if (standing == nullptr) continue;
+        if (p.IsStanding(reinterpret_cast<uintptr_t>(standing), standing->GetGeneration())) {
             RemoveNaturalResource(standing);
             ++removedPlants;
         }

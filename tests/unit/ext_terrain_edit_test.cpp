@@ -356,17 +356,17 @@ UNIT_TEST(ext_terrain_edit_a_stroke_picks_the_cells_it_needs) {
 UNIT_TEST(ext_terrain_edit_undo_remembers_what_a_stroke_planted) {
     using namespace Ext::TerrainEdit;
     UndoStack u;
-    u.RecordPlanted(3, 0x1000);   // no stroke open: ignored
+    u.RecordPlanted(3, 0x1000, 1u);   // no stroke open: ignored
     u.BeginStroke();
-    u.RecordPlanted(3, 0x1000);
-    u.RecordPlanted(9, 0x2000);
+    u.RecordPlanted(3, 0x1000, 1u);
+    u.RecordPlanted(9, 0x2000, 2u);
     u.CommitStroke();
     CHECK(u.Depth() == 1);   // planted resources alone make a step
     Stroke s;
     CHECK(u.Pop(s));
     CHECK(s.planted.size() == 2);
-    CHECK(s.planted[0].cell == 3 && s.planted[0].entity == 0x1000);
-    CHECK(s.planted[1].cell == 9 && s.planted[1].entity == 0x2000);
+    CHECK(s.planted[0].cell == 3 && s.planted[0].entity == 0x1000 && s.planted[0].generation == 1u);
+    CHECK(s.planted[1].cell == 9 && s.planted[1].entity == 0x2000 && s.planted[1].generation == 2u);
     CHECK(s.heights.empty() && s.types.empty());
 }
 
