@@ -258,7 +258,14 @@ DWORD WINAPI SamplerThread(void*) {
 
 void AtExitFlush() {
     InterlockedExchange(&g_stop, 1);
-    if (g_thread) { WaitForSingleObject(g_thread, 2000); }
+    // No timeout: the sampler thread may be inside its own periodic Sampler_Flush, which
+    // swaps g_flushBuf and writes g_out outside g_lock. Flushing and closing g_out here
+    // while it runs, or letting the statics be destroyed after this handler under a live
+    // thread, crashes. The wait is bounded: the loop takes no sample once g_stop is set,
+    // its timer wait is at most 50 ms, and a flush in progress always ends.
+    if (g_thread) {
+        WaitForSingleObject(g_thread, INFINITE);
+    }
     Sampler_Flush();
     if (g_out) { std::fclose(g_out); g_out = nullptr; }
     std::fprintf(stderr, "[Sampler] done: %lld samples (%lld failed) -> standalone_samples.txt\n",
