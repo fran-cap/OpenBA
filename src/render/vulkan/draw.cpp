@@ -1445,7 +1445,17 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
     if (indexed) {
         const IndexBufferData* ib = g_bound.index;
         VkBuffer buffer = ib ? ib->store.Buffer() : VK_NULL_HANDLE;
-        if (!buffer) buffer = ZeroBuffer().buffer;   // D3D11 reads zeros from a null index buffer
+        if (!buffer) {
+            buffer = ZeroBuffer().buffer;   // D3D11 reads zeros from a null index buffer
+            // Past the zero buffer D3D11 still reads zeros, but an index fetch past the bound buffer is
+            // undefined in Vulkan without robustBufferAccess (VUID-vkCmdDrawIndexed-robustBufferAccess2-
+            // 08798). On D3D11 every index of such a draw is 0, so its triangles are degenerate and show
+            // nothing: dropped (review S-047).
+            if (static_cast<uint64_t>(first) + count > ZeroBuffer().size / sizeof(uint16_t)) {
+                ++g_frame.failedDraws;
+                return;
+            }
+        }
         if (buffer != g_frame.ibuffer) {
             vkCmdBindIndexBuffer(cb, buffer, 0, VK_INDEX_TYPE_UINT16);
             g_frame.ibuffer = buffer;
