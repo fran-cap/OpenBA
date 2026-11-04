@@ -70,7 +70,7 @@ void RemoveNaturalResource::Persist(IO::Stream& stream) {
     // The working citizen (+0x20)
     _field20.InternalBasePtr::Serialize(ser);
     if (_field20.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(_field20.Get(), CitizenComponent::TypeId())) {
+        if (!::Object::IsDerivedFromNullSafe(_field20, CitizenComponent::TypeId())) {
             _field20 = nullptr;
         }
     }
@@ -78,7 +78,7 @@ void RemoveNaturalResource::Persist(IO::Stream& stream) {
     // The natural-resource entity (+0x28)
     _field28.InternalBasePtr::Serialize(ser);
     if (_field28.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(_field28.Get(), ComponentEntity::TypeId())) {
+        if (!::Object::IsDerivedFromNullSafe(_field28, ComponentEntity::TypeId())) {
             _field28 = nullptr;
         }
     }

@@ -239,11 +239,11 @@ void WorkLeaf_BstSerializeIBPpair_29c10(EntitySet* set, IO::Serializer* ser) {
             pair.entity = nullptr;
             pair.citizen = nullptr;
             pair.entity.InternalBasePtr::Serialize(*ser);
-            if (pair.entity.Get() != nullptr && !Object::IsDerivedFromNullSafe(pair.entity.Get(), tidEntity)) {
+            if (pair.entity.InternalBasePtr::Get() != nullptr && !Object::IsDerivedFromNullSafe(pair.entity, tidEntity)) {
                 pair.entity = nullptr;
             }
             pair.citizen.InternalBasePtr::Serialize(*ser);
-            if (pair.citizen.Get() != nullptr && !Object::IsDerivedFromNullSafe(pair.citizen.Get(), tidCitizenAI)) {
+            if (pair.citizen.InternalBasePtr::Get() != nullptr && !Object::IsDerivedFromNullSafe(pair.citizen, tidCitizenAI)) {
                 pair.citizen = nullptr;
             }
             // pair {entity, citizen} laid out contiguously for the insert key.

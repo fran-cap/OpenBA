@@ -72,7 +72,7 @@ void LocationWork::Persist(IO::Stream& stream) {
 
     // Validate: if _field48 is non-null, check IsDerivedFrom
     if (_field48.Get() != nullptr) {
-        if (!Object::IsDerivedFromNullSafe(_field48.Get(), CitizenComponent::TypeId())) {
+        if (!Object::IsDerivedFromNullSafe(_field48, CitizenComponent::TypeId())) {
             _field48 = nullptr;
         }
     }

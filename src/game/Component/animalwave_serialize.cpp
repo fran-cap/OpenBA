@@ -161,7 +161,7 @@ void AnimalComponent::Persist(IO::Stream& stream) {
         Object::InternalBasePtr legacy;
         legacy.Serialize(ser);
         if (legacy.Get())
-            ::Object::IsDerivedFromNullSafe(legacy.Get(), PopulationComponent::TypeId());
+            ::Object::IsDerivedFromNullSafe(legacy, PopulationComponent::TypeId());
     }
 }
 

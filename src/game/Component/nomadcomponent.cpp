@@ -146,7 +146,7 @@ void PlayerToolManager::OnEntityRemoved(ComponentEntity* const* entity) {
                     EntityUI::TypeId()));   // DAT_1401c4f00
             EntityUI* found = nullptr;
             if (ctrl.Get() != nullptr) {
-                if (::Object::IsDerivedFromNullSafe(ctrl.Get(), EntityUI::TypeId()))
+                if (::Object::IsDerivedFromNullSafe(ctrl, EntityUI::TypeId()))
                     found = static_cast<EntityUI*>(ctrl.Get());
             }
             if (found != nullptr) {

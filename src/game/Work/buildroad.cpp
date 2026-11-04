@@ -117,7 +117,7 @@ void BuildRoad::Persist(IO::Stream& stream) {
     // Validate entity ref type after deserialize
     if (field_48.Get() != nullptr) {
         // TypeId at DAT_1401c7158 = CitizenComponent (ENDGAME B.3.9 D5: by cell).
-        bool valid = Object::IsDerivedFromNullSafe(field_48.Get(), CitizenComponent::TypeId());
+        bool valid = Object::IsDerivedFromNullSafe(field_48, CitizenComponent::TypeId());
         if (!valid) {
             field_48 = nullptr;
         }

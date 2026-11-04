@@ -178,7 +178,7 @@ void MoveTo::Persist(IO::Stream& stream) {
         ::Object::InternalBasePtr tempIBP;
         tempIBP.Serialize(ser);
         if (tempIBP.Get() != nullptr) {
-            ::Object::IsDerivedFromNullSafe(tempIBP.Get(), PopulationComponent::TypeId());
+            ::Object::IsDerivedFromNullSafe(tempIBP, PopulationComponent::TypeId());
         }
     } else {
         // Version > 0: serialize the movement profile (+0x470)

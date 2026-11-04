@@ -181,7 +181,7 @@ void MarketBst_b290(MarketWork::ClaimTree* tree, IO::Serializer* serializer) {
             // still inserts the node — a null-keyed node, not a skipped one.
             // (InternalBasePtr::Serialize on the typed slot.)
             key.InternalBasePtr::Serialize(*serializer);
-            if (key.Get() != nullptr && !Object::IsDerivedFromNullSafe(key.Get(), CitizenComponent::TypeId())) {
+            if (key.InternalBasePtr::Get() != nullptr && !Object::IsDerivedFromNullSafe(key, CitizenComponent::TypeId())) {
                 key = nullptr;
             }
 

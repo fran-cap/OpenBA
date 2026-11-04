@@ -105,7 +105,7 @@ void CreateRawMaterial::Persist(IO::Stream& stream) {
     // The working citizen (+0x28)
     sourceBuilding.InternalBasePtr::Serialize(ser);
     if (sourceBuilding.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(sourceBuilding.Get(), CitizenComponent::TypeId())) {
+        if (!::Object::IsDerivedFromNullSafe(sourceBuilding, CitizenComponent::TypeId())) {
             sourceBuilding = nullptr;
         }
     }
@@ -121,7 +121,7 @@ void CreateRawMaterial::Persist(IO::Stream& stream) {
     if (version > 0) {
         secondaryEntity.InternalBasePtr::Serialize(ser);
         if (secondaryEntity.Get() != nullptr) {
-            if (!::Object::IsDerivedFromNullSafe(secondaryEntity.Get(), ComponentEntity::TypeId())) {
+            if (!::Object::IsDerivedFromNullSafe(secondaryEntity, ComponentEntity::TypeId())) {
                 secondaryEntity = nullptr;
             }
         }
@@ -140,7 +140,7 @@ void CreateRawMaterial::Persist(IO::Stream& stream) {
     if (version > 2) {
         tertiaryEntity.InternalBasePtr::Serialize(ser);
         if (tertiaryEntity.Get() != nullptr) {
-            if (!::Object::IsDerivedFromNullSafe(tertiaryEntity.Get(), ComponentEntity::TypeId())) {
+            if (!::Object::IsDerivedFromNullSafe(tertiaryEntity, ComponentEntity::TypeId())) {
                 tertiaryEntity = nullptr;
             }
         }
