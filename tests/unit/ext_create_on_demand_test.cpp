@@ -920,9 +920,9 @@ UNIT_TEST(ext_create_on_demand_redecode_refuses_an_oversized_block) {
 // Review F-209 / F-210: a sweep that read `_paused` false and then waited at the gate for a use must
 // not give anything back once Pause() has returned (the device is going away).
 UNIT_TEST(ext_create_on_demand_table_sweep_evicts_nothing_after_pause) {
+    Counters c;   // before the table: its records report to it as the table destroys them
     LazyTable t(0);
     t.SetIdleLimit(1, std::chrono::milliseconds(0));
-    Counters c;
     int f = 0;
     const int a = 0;
     t.Add(&a, Fake(&c, &f, 1));
@@ -949,9 +949,9 @@ namespace {
 // The three parties of review F-133, on the heap: a deadlocked run leaves its threads parked forever,
 // so nothing they touch may live on the test's stack.
 struct GateDeadlockRun {
+    Counters             c;        // before the table: members die in reverse order (F-005 canary)
     LazyTable            table{0};
     std::mutex           device;   // Video::Device::Lock
-    Counters             c;
     int                  f = 0;
     const int            a = 0;
     std::atomic<bool>    frameLocked{false};
