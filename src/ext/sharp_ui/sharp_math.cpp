@@ -170,6 +170,12 @@ int PickSheetFactor(float pxPerUnitX, float pxPerUnitY, const int* factors, int 
     return factors[count - 1];
 }
 
+bool ScaledSheetFits(int32_t baseW, int32_t baseH, int factor) {
+    if (baseW <= 0 || baseH <= 0 || factor <= 0) return false;
+    return static_cast<int64_t>(baseW) * factor <= kMaxScaledSheetSide &&
+           static_cast<int64_t>(baseH) * factor <= kMaxScaledSheetSide;
+}
+
 int PickFontHeight(int baseHeight, float pxPerUnit, float density, bool* keepRetail) {
     *keepRetail = false;
     if (!(density > 1.0f)) {

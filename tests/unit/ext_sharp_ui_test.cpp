@@ -360,6 +360,23 @@ UNIT_TEST(ext_sharp_ui_pick_sheet_factor) {
     CHECK(PickSheetFactor(3.0f, 3.0f, both, 0) == 0);           // no art set
 }
 
+// Review F-228: a magnified copy is built only when each side fits a texture
+// (16384) and so every level's byte size fits the int the level array takes; a
+// base sheet's size comes from its file unbounded.
+UNIT_TEST(ext_sharp_ui_scaled_sheet_fits) {
+    using Ext::SharpUI::ScaledSheetFits;
+    CHECK(ScaledSheetFits(1024, 1024, 2));         // the game's dialog sheet
+    CHECK(ScaledSheetFits(1024, 1024, 4));
+    CHECK(ScaledSheetFits(8192, 8192, 2));
+    CHECK(ScaledSheetFits(4096, 4096, 4));         // 16384 x 16384: the limit itself
+    CHECK(!ScaledSheetFits(4097, 4096, 4));
+    CHECK(!ScaledSheetFits(12288, 12288, 2));      // 2.4 GB of BGRA8: past INT_MAX
+    CHECK(!ScaledSheetFits(16384, 16384, 2));      // exactly 4 GiB: 0 as an int
+    CHECK(!ScaledSheetFits(0x40000000, 1, 4));     // not an int overflow
+    CHECK(!ScaledSheetFits(0, 1024, 2));
+    CHECK(!ScaledSheetFits(1024, -1, 2));
+}
+
 // A dialog that moves (a panel following its entity while the camera turns)
 // must move as one picture: rounded against its own upper-left, the device-pixel
 // gap between any two of its coordinates is the same wherever the dialog sits.

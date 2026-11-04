@@ -353,6 +353,14 @@ Graphics::MaterialInstance* ScaledSheetMaterial(UI::SpriteSheet* sheet, SheetKin
         g_failed.push_back(Failed{base, factor});
         return nullptr;
     }
+    // Finish narrows each level's byte size to an int (Array::SetSize): a copy
+    // past the texture limit is never built (review F-228).
+    if (!ScaledSheetFits(base->_width, base->_height, factor)) {
+        std::fprintf(stderr, "[SharpUI] %dx %s sheet: %d x %d is too large to copy at %dx; retail's sheet "
+                     "is drawn\n", factor, KindName(kind), base->_width, base->_height, factor);
+        g_failed.push_back(Failed{base, factor});
+        return nullptr;
+    }
     // Read back once per selection (a scale change, a load, a finished job;
     // never per frame): the content decides whether an earlier build serves.
     const auto t0 = std::chrono::steady_clock::now();
