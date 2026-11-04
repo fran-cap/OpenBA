@@ -118,6 +118,15 @@ Tool* CurrentTool() {
     return game->m_toolManager->currentTool.Get();
 }
 
+// The selection `tool` belongs to (touch_pointer_math.h ToolSelection): its address and the group
+// PlayerToolManager::SelectTool made it for.
+ToolSelection SelectionOf(const Tool* tool) {
+    ToolSelection s;
+    s.tool = tool;
+    s.group = tool != nullptr ? tool->descriptionPtr : nullptr;
+    return s;
+}
+
 ToolKind KindOf(const Tool* tool) {
     if (GameUpdateLoop::_singleton == nullptr) return ToolKind::NoGame;
     if (tool == nullptr) return ToolKind::Pick;   // the manager installs the EditTool on its next update
@@ -178,7 +187,7 @@ int32_t g_barPressed = -1;
 // tool routes diagonally) and a placement tool keeps its model after a placement (PlacementTool::CreateAt's seam,
 // KeepsModel). Off again on a tap, when the tool changes or ends, or when a mouse takes the pointer back.
 bool g_shift = false;
-const Tool* g_shiftTool = nullptr;
+ToolSelection g_shiftTool;   // the selection Shift was pressed in (review F-258)
 int16_t g_prevShift = 0;
 
 LatchQueue g_queue;
@@ -198,7 +207,7 @@ bool g_haveWorld = false;
 // a drag tool's single-click state stay as they were. Another tool selected by the tap ends it (retail's
 // SelectTool clears the old tool's ghost).
 bool g_uiHold = false;
-const Tool* g_uiHoldTool = nullptr;
+ToolSelection g_uiHoldTool;   // the selection the hold began in (review F-258)
 // The same hold for the tools' cursor ray (ToolCursor), which the draw may run on the render thread: the world
 // cursor the tool keeps seeing, packed x << 16 | y (engine pixels).
 std::atomic<bool> g_rayHeld{false};
@@ -420,7 +429,7 @@ void PressButton(int32_t b) {
     }
     if (b == kShift) {
         g_shift = !g_shift;
-        g_shiftTool = CurrentTool();
+        g_shiftTool = SelectionOf(CurrentTool());
         return;
     }
     g_actions.push_back(kButtonAction[b]);
@@ -523,7 +532,7 @@ void OnFinger(const Platform::Touch::Event& e) {
             g_fingers.push_back(f);
             Finger& p = g_fingers.back();
             if (p.role == Role::Ui && g_haveWorld && (kind == ToolKind::Place || kind == ToolKind::Drag)) {
-                g_uiHoldTool = CurrentTool();
+                g_uiHoldTool = SelectionOf(CurrentTool());
                 SetUiHold(true);   // the tool's aim is kept until the cursor is back on the world
             }
             if (p.role == Role::Ui || p.role == Role::Plain) Move(p.x, p.y, true);
@@ -1033,7 +1042,8 @@ void ToolCursor(int16_t& x, int16_t& y) {
 }
 
 bool ToolAimHeld(const Tool* current) {
-    return g_uiHold && Ext().touch_pointer && g_owns && current != nullptr && current == g_uiHoldTool;
+    return g_uiHold && Ext().touch_pointer && g_owns && current != nullptr &&
+           SelectionOf(current) == g_uiHoldTool;
 }
 
 bool HoldToolAim(const Tool* current) {
@@ -1043,10 +1053,11 @@ bool HoldToolAim(const Tool* current) {
         s_frames = 0;
         return false;
     }
-    if (!Ext().touch_pointer || !g_owns || current == nullptr || current != g_uiHoldTool) {
+    const bool sameTool = current != nullptr && SelectionOf(current) == g_uiHoldTool;
+    if (!Ext().touch_pointer || !g_owns || !sameTool) {
         SetUiHold(false);   // the mouse took the pointer, the row went off, or the tap selected another tool
         std::fprintf(stderr, "[TouchPointer] tool aim hold ended after %d frame(s): %s\n", s_frames,
-                     current != g_uiHoldTool ? "another tool" : "the pointer left the fingers");
+                     !sameTool ? "another tool" : "the pointer left the fingers");
         s_frames = 0;
         return false;
     }
@@ -1085,7 +1096,8 @@ void SeedWorldAim(ToolKind kind) {
 }
 
 bool KeepsModel() {
-    return g_shift && Ext().touch_pointer && g_shiftTool != nullptr && g_shiftTool == CurrentTool();
+    return g_shift && Ext().touch_pointer && g_shiftTool.tool != nullptr &&
+           g_shiftTool == SelectionOf(CurrentTool());
 }
 
 void GameFrame() {
@@ -1093,7 +1105,8 @@ void GameFrame() {
     if (ui == nullptr) return;
     const Tool* tool = CurrentTool();
     const ToolKind kind = KindOf(tool);
-    if (g_shift && (tool != g_shiftTool || tool == nullptr || !g_owns || !Ext().touch_pointer)) {
+    const bool sameTool = SelectionOf(tool) == g_shiftTool;
+    if (g_shift && (!sameTool || tool == nullptr || !g_owns || !Ext().touch_pointer)) {
         std::fprintf(stderr, "[TouchPointer] shift off (tool changed or the pointer left)\n");
         g_shift = false;
         g_prevShift = 0;
