@@ -391,20 +391,22 @@ void ComponentEntity::Persist(IO::Stream& stream) {
             if (trace) {
                 fprintf(stderr, "[CompEnt::Ser] ent=%p comp %lld/%u begin raw=%p\n",
                         (void*)this, (long long)i, static_cast<uint32_t>(compCount),
-                        static_cast<void*>(slot->Get()));
+                        static_cast<void*>(slot->InternalBasePtr::Get()));
                 fflush(stderr);
             }
             // Serialize the InternalBasePtr
             slot->Object::InternalBasePtr::Serialize(ser);   // the base body: the Component check follows by hand
-            Component* rawAfterSer = slot->Get();   // before our IsDerivedFrom filter
-            if (trace && !rawAfterSer) {
+            // NOT RETAIL (F-143): the trace reads the held Internal* (no downcast to
+            // Component*), since the type test below has not run yet.
+            const bool rawNullAfterSer = slot->IsNull();   // before our IsDerivedFrom filter
+            if (trace && rawNullAfterSer) {
                 fprintf(stderr, "[CompEnt::Ser] ent=%p comp %lld RAW NULL from "
                         "IBP::Serialize (create failed -> stream desync!)\n",
                         (void*)this, (long long)i);
                 fflush(stderr);
             }
             if (trace) {
-                Component* c = slot->Get();
+                const ::Object::Internal* c = slot->InternalBasePtr::Get();
                 uint32_t tid = 0;
                 if (c) {
                     tid = c->Type();
@@ -490,16 +492,17 @@ void ComponentEntity::Persist(IO::Stream& stream) {
                     }
                 }
                 fprintf(stderr, "[CompEnt::Ser] ent=%p comp %lld -> %p tid=%08x (%s) pos8C=%u pos24=%u\n",
-                        (void*)this, (long long)i, static_cast<void*>(c), tid,
+                        (void*)this, (long long)i, static_cast<const void*>(c), tid,
                         c ? (::Object::GetTypeNameById(tid) ? ::Object::GetTypeNameById(tid) : "?") : "null",
                         pos, pos24);
                 fflush(stderr);
             }
             // Verify component is derived from Component base; null out if not
-            Component* comp = slot->Get();
-            if (comp != nullptr) {
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to Component*; the answer is the same.
+            if (!slot->IsNull()) {
                 {
-                    bool isDerived = ::Object::IsDerivedFromNullSafe(comp, Component::TypeId());   // cell 0x1401c72a8
+                    bool isDerived = ::Object::IsDerivedFromNullSafe(*slot, Component::TypeId());   // cell 0x1401c72a8
                     if (!isDerived) {
                         *slot = Object::InternalPtr<Component>();
                     }

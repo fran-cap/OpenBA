@@ -20,6 +20,7 @@
 
 #include <sys/stat.h>
 
+#include <map>
 #include <mutex>
 #include <string>
 
@@ -29,9 +30,13 @@ namespace Resources {
 namespace {
 
 std::mutex g_lock;
-bool g_lookedUp = false;      // the file lookup runs once per process
-std::string g_facePath;       // empty when absent
-std::string g_faceWhy;
+// Each face's file lookup, run once per process and face (review F-207: one lookup for the first
+// face asked answered every later face).
+struct FaceLookup {
+    std::string path;   // empty when absent
+    std::string why;
+};
+std::map<std::string, FaceLookup> g_faces;
 
 bool IsFile(const std::string& path) {
     struct stat st;
@@ -67,22 +72,24 @@ bool FindFaceFile(const char* face, std::string& path, std::string* why) {
 
 namespace {
 
-// The face's file, looked up once; `why` when absent.
+// The face's file, looked up once per face; `why` when absent.
 bool FacePath(const char* face, std::string& path, std::string* why) {
-    if (!g_lookedUp) {
-        g_lookedUp = true;
-        if (FreeTypeRaster::FindFaceFile(face, g_facePath, &g_faceWhy)) {
+    auto found = g_faces.find(face);
+    if (found == g_faces.end()) {
+        FaceLookup look;
+        if (FreeTypeRaster::FindFaceFile(face, look.path, &look.why)) {
             std::string family;
-            if (!FreeTypeRaster::FamilyName(g_facePath.c_str(), family, &g_faceWhy)) {
-                g_facePath.clear();
+            if (!FreeTypeRaster::FamilyName(look.path.c_str(), family, &look.why)) {
+                look.path.clear();
             } else if (family != face) {
-                g_faceWhy = g_facePath + " is '" + family + "', not " + face;
-                g_facePath.clear();
+                look.why = look.path + " is '" + family + "', not " + face;
+                look.path.clear();
             }
         }
+        found = g_faces.emplace(face, look).first;
     }
-    path = g_facePath;
-    if (path.empty() && why) *why = g_faceWhy;
+    path = found->second.path;
+    if (path.empty() && why) *why = found->second.why;
     return !path.empty();
 }
 

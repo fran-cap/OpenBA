@@ -307,11 +307,17 @@ int32_t StringTable::GetCount() const { return _entries._size; }
 //
 // AND THIS IS NOT THE "don't fix a faithful crash with a null check" case
 // (CLAUDE.md). No guard is being ADDED: retail's guards are in retail's ORDER.
-System::String StringTable::GetText(int32_t index) const {
+//
+// NOT RETAIL (review F-009, undefined behaviour): in C++ a member call through a
+// null pointer is undefined even when the body never reads `this` (only
+// -fno-delete-null-pointer-checks held it up under Clang). The body is the static
+// GetTextOf, which takes the table as a plain pointer, so `{null, -1}` reaches it
+// defined; retail's guard order and results are unchanged, and no check is added.
+System::String StringTable::GetTextOf(const StringTable* table, int32_t index) {
     System::String out;                                          // data == null
     if (index >= 0) {                                            // 0x18000256c
-        if (index < _entries._size) {                            // 0x180002573
-            char* text = _entries._data[index].text._data;             // 0x180002585
+        if (index < table->_entries._size) {                     // 0x180002573
+            char* text = table->_entries._data[index].text._data;      // 0x180002585
             if (text) {
                 RtSystem::StringRefCount(text) += 1;
                 out._data = text;
@@ -319,6 +325,10 @@ System::String StringTable::GetText(int32_t index) const {
         }
     }
     return out;
+}
+
+System::String StringTable::GetText(int32_t index) const {
+    return GetTextOf(this, index);
 }
 
 // ?GetIndexFromName@StringTable@UI@@QEBAHAEBVString@System@@@Z  retail 0x180002470
@@ -395,9 +405,10 @@ Object::ExternalPtr<StringTable> String::GetStringTable() const {
 // UNGUARDED — StringTable::GetText(int) tests `index < 0` BEFORE it touches
 // `this`, which is what makes a never-assigned `{null, -1}` harmless (the
 // WAVE 10 LANE UIORACLE note on RtUi_StringTable_GetText_Index). No null check
-// retail lacks (CLAUDE.md).
+// retail lacks (CLAUDE.md). NOT RETAIL (review F-009): the call goes through the
+// static StringTable::GetTextOf, not a member call on the possibly-null `table`.
 String::operator System::String() const {
-    return table->GetText(index);
+    return StringTable::GetTextOf(table, index);
 }
 
 }  // namespace UI

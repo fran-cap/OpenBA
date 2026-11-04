@@ -419,9 +419,10 @@ Internal* Internal::Clone() {
     // MSVC: the same AVL descent on `_types` (key at +0x00, left +0x38, right
     // +0x40), then `node+0x10` is `record.info` and `info+0x20` is the static
     // `factoryFn`, called with NO arguments. That is instruction for
-    // instruction what type_reflection.cpp's `Factory::CreateObject` does,
-    // including its unguarded `rec->info` on a missing node, so the member is
-    // called rather than the descent inlined a second time.
+    // instruction what type_reflection.cpp's `Factory::CreateObject` does, so
+    // the member is called rather than the descent inlined a second time. (Its
+    // port-only miss arm, review F-144, is unreachable here: a live object's own
+    // type is registered.)
     Base* const created = factory->CreateObject(typeId);
 
     // 0x1800bfb75 reads `?_typeInfo@Internal@Object@@` + 0x00, which is the
@@ -623,6 +624,11 @@ void InternalFactory::ResetPersistState(IO::Stream& stream) {
         _persistIds._data[i] = -1;
 }   // ~Serializer: 0x1800bfef8
 
+#endif  // !BANISHED_UNIT_TEST
+
+// PersistObject builds in the unit too (review_object_index_bounds_test.cpp): its read arm
+// reaches only the stream's direction, the two arrays and, on a miss, the Factory type tree.
+
 // ============================================================================
 // ?PersistObject@InternalFactory@Object@@QEAAPEAVInternal@2@AEAVStream@IO@@IHI@Z
 //                                                          retail 0x1800bff10
@@ -634,7 +640,9 @@ void InternalFactory::ResetPersistState(IO::Stream& stream) {
 //
 //   * THE DESCENT'S MISS ARM PRODUCES A NULL NODE AND RETAIL DEREFERENCES IT.
 //     `MOV [RSI+0xc],R15D` at address 0xc is how a save file naming an
-//     unregistered type announces itself. No guard is added (CLAUDE.md).
+//     unregistered type announces itself in retail. The port loads such a
+//     record as a null pointer instead (review F-123 / F-145, NOT RETAIL notes
+//     in the body): the dereference is undefined behaviour.
 //   * `_persistIds._data` is RE-LOADED after the factory call (0x1800bffb4 /
 //     0x1800bffbc) because the factory can have grown the table, and
 //     `_objects._data` is RE-LOADED after the Serialize (0x1800bffea) because
@@ -687,6 +695,19 @@ Internal* InternalFactory::PersistObject(IO::Stream& stream, uint32_t generation
         // `slot` stays `index`: EBX is never reassigned on this arm.
     } else {
         // ---- READ, 0x1800bff3d ---------------------------------------------
+        // NOT RETAIL (review F-022): `index` is the InternalPtr record's int from
+        // the save, and retail indexes `_persistIds` with it unchecked. An index
+        // outside the table ResetPersistState sized from the save's object count
+        // is a corrupt record (an out-of-bounds read, and on a miss a write of the
+        // new object's index past the buffer). It returns null without running
+        // Persist, so the stream is NOT kept in step: on retail's miss path the
+        // object's body follows inline, and the rest of the load parses those bytes
+        // as later fields. The InternalPtr caller stores null where the record said
+        // present. This only bounds the table access; it does not make the corrupt
+        // save load. Every index a valid save holds is in range and takes retail's
+        // path unchanged.
+        if (index < 0 || index >= _persistIds._size)
+            return nullptr;
         slot = persistIds[i];
         if (slot < 0) {
             // ---- the type-tree descent, 0x1800bff5f ------------------------
@@ -699,19 +720,38 @@ Internal* InternalFactory::PersistObject(IO::Stream& stream, uint32_t generation
                 if (node->element.typeId >= typeId) { found = node; break; }   // equal
                 node = node->right;
             }
-            // A MISS LEAVES `found` NULL AND RETAIL DEREFERENCES IT.
+            // A MISS LEAVES `found` NULL AND RETAIL DEREFERENCES IT (0x1800bff8c).
+            // NOT RETAIL (review F-123): retail has no such check. The type id is
+            // the save's; one that names no registered type is a read through
+            // null (undefined behaviour). The record loads as a null pointer:
+            // `_persistIds[i]` stays -1 and nothing is created.
+            if (found == nullptr)
+                return nullptr;
             ::Object::BaseTypeInfo* const info = found->element.record.info;   // node + 0x10
             // Zero-argument: retail leaves `info` in RCX at the call site but
             // the factory is a static that reads nothing.
             Base* const created = info->factoryFn();                  // CALL [RCX+0x20]
+            // NOT RETAIL (review F-145): retail calls IsDerivedFrom on the result
+            // unchecked (0x1800bff9f), a virtual call through null when the id names
+            // an abstract type (its factory answers null). Loads as a null pointer.
+            if (created == nullptr)
+                return nullptr;
 
             const uint32_t internalTypeId = Internal::TypeId();       // [0x1801f9c18]
             Internal* obj =                                           // 0x1800c0390
                 created->IsDerivedFrom(internalTypeId)
                                 ? static_cast<Internal*>(created)     // B10: downcast after the type test
                                 : nullptr;                            // CMOVNZ RSI,RBX
+            // NOT RETAIL (review F-123): a registered type that is not an Internal
+            // (an External resource type, say) leaves `obj` null, and retail reads
+            // [RSI+0x8] through it (0x1800bffad). The object built for it is
+            // destroyed (retail leaks it) and the record loads as a null pointer.
+            if (obj == nullptr) {
+                ::Object::Destroy(created);
+                return nullptr;
+            }
 
-            // UNGUARDED on purpose. Retail reads `_factoryIndex` (+0x08) BEFORE
+            // Retail reads `_factoryIndex` (+0x08) BEFORE
             // it writes `_generation` (+0x0c); two distinct fields, so the order
             // is unobservable, and it is kept because an unobservable order that
             // is transcribed costs nothing while one that is tidied is a
@@ -729,7 +769,5 @@ Internal* InternalFactory::PersistObject(IO::Stream& stream, uint32_t generation
     // 0x1800bffea — `_objects._data` is re-read AFTER the Serialize.
     return _objects._data[static_cast<int64_t>(slot)];
 }
-
-#endif  // !BANISHED_UNIT_TEST
 
 }  // namespace Object

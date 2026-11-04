@@ -98,6 +98,7 @@
 #include "system/MemoryAllocator.h"
 #include "system/Error.h"
 #include "video/Device.h"
+#include "video/validate_configuration.h"   // the refresh / multisample clamps (review F-130, F-156)
 #include "video/CompanionData.h"   // ENDGAME B.3.5: Video::DeviceData
 #include "application/Application.h"  // ENDGAME B.3.7 callers (K5)
 #include "../collection/set_avl.h"
@@ -149,7 +150,10 @@ using RefreshRate       = Video::Device::RefreshRate;
 // UNGUARDED INDEXING, twice, both retail's:
 //   * `adapter->multisampleData[msIdx]` at 0x1800f89ff is not bounds-checked
 //     against `multisampleCount`; the clamp that follows only maps a ZERO
-//     ENTRY to index 0, it does not constrain the index itself.
+//     ENTRY to index 0, it does not constrain the index itself. The index is
+//     settings.cfg's VideoMultisample, so the port bounds it (NOT RETAIL,
+//     review F-156, validate_configuration.h); likewise the refresh-ratio
+//     divide skips a zero denominator (review F-130).
 //   * the second pass indexes `modeData[modeIdx]` with the result of a search
 //     that can return -1 if the clamped size is somehow still absent.
 // Left unguarded per CLAUDE.md. If either faults, something upstream built an
@@ -241,22 +245,17 @@ bool Video::Device::ValidateConfiguration() {
             // 120000/1001 and 119/1 both reduce to 119 and DO. Retail's
             // arithmetic; the point of a faithful port is that ours picks the
             // same surprising entry.
-            int32_t pick = 0;
-            if (n > 0) {
-                const int32_t want = refreshN / refreshD;
-                for (int32_t i = 0; i < n; ++i) {
-                    if (mode->refreshData[i].numerator /
-                        mode->refreshData[i].denominator == want) { pick = i; break; }
-                }
-            }
+            const int32_t pick =
+                Video::ValidateConfig::PickRefreshByRatio(mode->refreshData, n, refreshN, refreshD);
             refreshN = mode->refreshData[pick].numerator;
             refreshD = mode->refreshData[pick].denominator;
         }
     }
 
     // 0x1800f89f3: a multisample index whose adapter entry is FALSE falls back
-    // to 0. The index itself is NOT range-checked — see the banner.
-    if (adapter->multisampleData[msIdx] == 0) msIdx = 0;
+    // to 0. Retail does not range-check the index; the port does (banner).
+    msIdx = Video::ValidateConfig::ClampMultisample(adapter->multisampleData, adapter->multisampleCount,
+                                                    msIdx);
 
     // 0x1800f8a07: clamp the texture filter to the adapter's maximum.
     if (filter > adapter->maxFilterLevel) filter = adapter->maxFilterLevel;

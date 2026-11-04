@@ -163,6 +163,22 @@ void RecArrayUInt(::IO::ReaderWriter* rw, int32_t n, uint32_t* data) {
     rw->SerializeUIntArray(n, data, nullptr);                    // +0x40
 }
 
+// NOT RETAIL (hardening, review F-072): retail sizes the three arrays below from the counts
+// as read, so a .pkm asking for 0x7fffffff strings or icon words ends the game in
+// FatalOutOfMemory (and a negative one destroys below the buffer). Every element takes at
+// least four bytes of the stream (a string's length word, an icon uint), so a count the
+// bytes left cannot hold is a corrupt record: it reads as 0. Valid data always fits. A
+// stream that reports no size (GetSize 0) is not capped.
+int32_t CountTheStreamCanHold(const ::IO::Stream* s, int32_t n) {
+    const int64_t size = static_cast<int64_t>(s->GetSize());
+    if (size == 0)
+        return n;
+    const int64_t left = size - static_cast<int64_t>(s->GetCurrentPos());
+    if (n < 0 || static_cast<int64_t>(n) * 4 > left)
+        return 0;
+    return n;
+}
+
 }  // namespace
 
 // ENDGAME B.3.9 IO: the ?Serialize@PackageFile slot door and its registration
@@ -211,15 +227,19 @@ bool PackageFile::Serialize(IO::Stream& streamv) {
     {
         int32_t n = _stringArray20._size;                         // 1800b6153
         RecInt(rw, &n);                                           // 1800b6167
-        if (ser._stream->_direction == rt::io::kDirectionReading)  // 1800b6171
+        if (ser._stream->_direction == rt::io::kDirectionReading) {  // 1800b6171
+            n = CountTheStreamCanHold(ser._stream, n);              // F-072, not retail
             rtcoll::RtColl_ArraySetSize_180029a80(&_stringArray20, n);  // 1800b617e
+        }
         RtIo_SerializeStringArray(&ser, n, _stringArray20._data, nullptr);  // 1800b618e
     }
     {
         int32_t m = _stringArray30._size;                         // 1800b6193
         RecInt(rw, &m);                                           // 1800b61a7
-        if (ser._stream->_direction == rt::io::kDirectionReading)  // 1800b61b1
+        if (ser._stream->_direction == rt::io::kDirectionReading) {  // 1800b61b1
+            m = CountTheStreamCanHold(ser._stream, m);              // F-072, not retail
             rtcoll::RtColl_ArraySetSize_180029a80(&_stringArray30, m);  // 1800b61be
+        }
         RtIo_SerializeStringArray(&ser, m, _stringArray30._data, nullptr);  // 1800b61ce
     }
 
@@ -230,8 +250,10 @@ bool PackageFile::Serialize(IO::Stream& streamv) {
     {
         int32_t k = _iconData._size;                                 // 1800b620f
         RecInt(rw, &k);                                           // 1800b6226
-        if (ser._stream->_direction == rt::io::kDirectionReading)  // 1800b6230
+        if (ser._stream->_direction == rt::io::kDirectionReading) {  // 1800b6230
+            k = CountTheStreamCanHold(ser._stream, k);              // F-072, not retail
             rtcoll::RtColl_ArraySetSize_180029510(&_iconData, k);       // 1800b6240
+        }
         RecArrayUInt(rw, k, _iconData._data);                          // 1800b6259
     }
 

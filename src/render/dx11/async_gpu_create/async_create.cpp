@@ -67,12 +67,21 @@ struct Job {
     ID3D11SamplerState**            outSampler;
 };
 
-std::mutex                      g_mutex;
-std::condition_variable         g_workCv;       // a job was queued
-std::condition_variable         g_doneCv;       // a job finished (Await / Drain / back-pressure)
-std::deque<Job>                 g_queue;
-std::unordered_set<const void*> g_pendingObjs;  // objects with a queued or running job
-std::set<uint64_t>              g_pendingSeqs;  // seqs of the queued and running jobs
+// NOT RETAIL (UB fix, review F-065): IMMORTAL, made at static initialisation and never destroyed. The
+// workers are detached and stay parked in g_workCv.wait for the rest of the run; as namespace-scope
+// objects, exit() destroyed this state under them, and destroying a condition variable that has
+// blocked waiters is undefined ([thread.condition.condvar]; winpthreads is silent about it, glibc
+// hangs in exit()). Same rule as src/platform/common/event_std.cpp.
+std::mutex& g_mutex = *new std::mutex;
+// a job was queued
+std::condition_variable& g_workCv = *new std::condition_variable;
+// a job finished (Await / Drain / back-pressure)
+std::condition_variable& g_doneCv = *new std::condition_variable;
+std::deque<Job>& g_queue = *new std::deque<Job>;
+// objects with a queued or running job
+std::unordered_set<const void*>& g_pendingObjs = *new std::unordered_set<const void*>;
+// seqs of the queued and running jobs
+std::set<uint64_t>& g_pendingSeqs = *new std::set<uint64_t>;
 uint64_t                        g_nextSeq   = 0;
 uint64_t                        g_bytesHeld = 0;
 int                             g_waiters   = 0;

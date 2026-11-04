@@ -203,6 +203,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <cstring>   // memcpy (BinaryReader::SerializeBool)
 
 #include "io/Serializer.h"
 #include "io/Stream.h"   // B3X W0: the stream is called by name
@@ -316,7 +317,6 @@ static bool ReadArrayFromWindows(Stream* s, int count, int32_t elemSize, void* a
     }
 
 RT_RW_READER_BODY(Char,   char)
-RT_RW_READER_BODY(Bool,   bool)
 RT_RW_READER_BODY(Float,  float)
 RT_RW_READER_BODY(UInt64, uint64_t)
 RT_RW_READER_BODY(Int64,  int64_t)
@@ -342,11 +342,45 @@ RT_RW_WRITER_BODY(SChar,  signed char)
 #undef RT_RW_READER_BODY
 #undef RT_RW_WRITER_BODY
 
+// The reader's bool pair: shape 1 / shape 3 like the others, except for one store.
+// NOT RETAIL: retail reads the stream byte straight into the field, so any value
+// 0..255 lands there, and every retail consumer tests it as zero / non-zero. In
+// C++ a bool object holding a byte other than 0 or 1 is an invalid value and
+// loading it is undefined behaviour (review F-048: a mod .rsc or a shared .sav
+// with a flag byte of 2 reached it). The byte is read as retail reads it and
+// stored as `byte != 0`: the same truth value every consumer sees, and the same
+// stream position. A failed read leaves the field as it was, as retail's does.
+void BinaryReader::SerializeBool(bool& v, const char* name) {
+    (void)name;                     // CLOBBERED by retail before use
+    uint8_t byte;
+    std::memcpy(&byte, &v, 1);
+    stream->Read(1, &byte);         // +0x18
+    v = (byte != 0);
+}
+void BinaryReader::SerializeBoolArray(int count, bool* arr, const char* name) {
+    (void)name;                     // dropped, not forwarded
+    if (count <= 0) return;
+    if (ReadArrayFromWindows(stream, count, 1, arr)) {
+        // NOT RETAIL: the batched copy (exact perf body, above) writes raw bytes
+        // into the bools; normalise them as the scalar slot does (F-048).
+        uint8_t* const bytes = reinterpret_cast<uint8_t*>(arr);   // CAST-OK: byte_io
+        for (int32_t i = 0; i < count; ++i)
+            bytes[i] = (bytes[i] != 0) ? 1u : 0u;
+        return;
+    }
+    for (int32_t i = 0; i < count; ++i)
+        this->SerializeBool(arr[i], nullptr);
+}
+
 // ?Skip@BinaryReader@IO@@UEAAXXZ   0x1800a83f0
 // word20 + word24 is the ONE-PAST-THE-END position of the current record, so
 // Skip is "abandon the rest of this record and jump to the next".
 void BinaryReader::Skip() {
-    const int32_t end = word24 + word20;
+    // NOT RETAIL in spelling only (review F-142, signed overflow): word20 is the record
+    // length read from the stream, and retail's 32-bit ADD wraps; in int the same add is
+    // undefined, so it runs in uint32_t. Same position.
+    const int32_t end = static_cast<int32_t>(static_cast<uint32_t>(word24) +
+                                             static_cast<uint32_t>(word20));
     stream->SetCurrentPos(end);   // +0x20
 }
 

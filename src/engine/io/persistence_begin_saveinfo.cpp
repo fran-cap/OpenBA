@@ -69,7 +69,7 @@ namespace IO {
 
 bool Persistence::BeginGetSaveGameInfo(const System::String& name, int count) {
 
-    if (_worker._runFlags & 1u) return false;
+    if (_worker.IsWorking()) return false;
 
     // C++17 constructs GetSaveFilename's result STRAIGHT INTO `fn`.
     // `AsString()` is the same eight bytes (Filename IS a String,

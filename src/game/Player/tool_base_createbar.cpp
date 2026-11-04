@@ -198,7 +198,7 @@ void BuildRequirementUI::SetSizeMultiplier(uint32_t param_8) {
         int mult = static_cast<int>(field_0x38);
         int val = counts._data[i] * mult;
 
-        System::String s = System::String::Format("%i", static_cast<uint64_t>(static_cast<uint32_t>(val)));
+        System::String s = System::String::Format("%i", static_cast<int>(static_cast<uint32_t>(val)));
 
         UI::Element** elemArr = labels._data;
         UI::Element* elem = nullptr;
@@ -300,11 +300,11 @@ void PlayerToolManager::UpdateCreateBar(int param_2, int param_3,
         System::String fmtBuf;                         // System::String from Format
         if (param_7 == 0) {
             fmtBuf = System::String::Format("%ix%i",
-                                 static_cast<uint64_t>(static_cast<uint32_t>(param_2)),
-                                 static_cast<uint64_t>(static_cast<uint32_t>(param_3)));
+                                 static_cast<int>(static_cast<uint32_t>(param_2)),
+                                 static_cast<int>(static_cast<uint32_t>(param_3)));
         } else {
             fmtBuf = System::String::Format("%i",
-                                 static_cast<uint64_t>(static_cast<uint32_t>(param_2)));
+                                 static_cast<int>(static_cast<uint32_t>(param_2)));
         }
         ctrl->SetSizeText(&fmtBuf);
         ctrl->SetSizeMultiplier(static_cast<uint32_t>(param_8));

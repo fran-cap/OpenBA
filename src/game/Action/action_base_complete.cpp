@@ -260,10 +260,10 @@ void CitizenComponent::HideTool() {
     ModelComponent* model = character->modelComponent.Get();
     model->meshInstance.Detach(&meshInstance);
 
-    if (GameUpdateLoop::_singleton) {
-        Graphics::Scene* scene = GameUpdateLoop::_singleton->m_graphicsScene;
-        scene->RemoveObject(static_cast<uint32_t>(toolSceneId));
-    }
+    // 0x14011773e MOV RCX,[0x1401c3dd8]; MOV RCX,[RCX + 0x60]; CALL Scene::RemoveObject,
+    // with no test of the world.
+    Graphics::Scene* scene = GameUpdateLoop::_singleton->m_graphicsScene;
+    scene->RemoveObject(static_cast<uint32_t>(toolSceneId));
     toolId = -1;          // one qword store of -1 in retail (H7)
     toolSceneId = -1;
 }
@@ -369,8 +369,10 @@ void CitizenComponent::ShowTool(int toolId) {
 
     // attach the tool geometry to the model's "tool" node
     // LEFT: MeshInstance::_mesh (Runtime) is an untyped ExternalPtr handle.
+    // 0x140117620 MOV RBX,[RAX + 0xe8]; 0x140117647 CALL GetNodeIndexFromName (RCX = RBX),
+    // with no test of the mesh.
     const Graphics::GraphicsMesh* graphicsMesh = model->meshInstance._mesh.Get();
-    int nodeIdx = graphicsMesh ? graphicsMesh->GetNodeIndexFromName("tool") : -1;
+    int nodeIdx = graphicsMesh->GetNodeIndexFromName("tool");
     model->meshInstance.Attach(tool, nodeIdx);
 
     // MeshInstance::Update(time=0) via slot 1, unconditionally as retail
@@ -381,14 +383,12 @@ void CitizenComponent::ShowTool(int toolId) {
         static_cast<Graphics::Geometry*>(tool)->Update(timeVal);
     }
 
-    // add to scene + record object id
-    if (GameUpdateLoop::_singleton) {
-        Graphics::Scene* scene = GameUpdateLoop::_singleton->m_graphicsScene;
-        uint32_t objId = scene->AddObject(tool);
-        this->toolId = toolId;
-        toolSceneId = static_cast<int32_t>(objId);
-        SceneWatch_Note(objId, tool, "ShowTool 0x1401173b0");
-    }
+    // add to scene + record object id (0x14011768b..0x1401176aa, no test of the world)
+    Graphics::Scene* scene = GameUpdateLoop::_singleton->m_graphicsScene;
+    uint32_t objId = scene->AddObject(tool);
+    this->toolId = toolId;
+    toolSceneId = static_cast<int32_t>(objId);
+    SceneWatch_Note(objId, tool, "ShowTool 0x1401173b0");
 }
 
 // ===========================================================================

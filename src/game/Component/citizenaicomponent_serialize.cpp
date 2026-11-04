@@ -67,7 +67,9 @@ void CitizenAIComponent::Persist(IO::Stream& stream) {
     citizen.Object::InternalBasePtr::Serialize(*s);
     if (citizen) {
         uint32_t tid = CitizenAISer_TidCitizenComponent();
-        if (tid && !citizen->IsDerivedFrom(tid))
+        // NOT RETAIL (F-143): the type test runs on the held Internal*, before any
+        // downcast (`citizen->` was one); the answer is the same.
+        if (tid && !::Object::IsDerivedFromNullSafe(citizen, tid))
             citizen = nullptr;
     }
 

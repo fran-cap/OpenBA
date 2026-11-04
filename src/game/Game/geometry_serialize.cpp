@@ -57,6 +57,7 @@
 #include <new>               // ENDGAME B.3.4a closing: placement-new of IO::Serializer
 #include <cstdint>
 #include <cstdio>
+#include "system/Error.h"   // NOT RETAIL (review F-112): a damaged terrain record is retail's fatal error box
 
 // Heap-overflow checkpoint (standalone diagnostic; no-op when
 // BANISHED_REDZONE is unset). Localizes which Geometry::Serialize step trips a
@@ -186,6 +187,24 @@ void WorldGeometry::Serialize(IO::Stream& stream) {
 
     RZ_CHECK("geom 04d0 after step3 (+0xD8 uint16 heightmap arr)");
 
+    // NOT RETAIL (review F-112, F-111): a terrain record whose grid fields disagree with
+    // each other or with the height count (WorldGeometry::LoadedTerrainIsConsistent) is
+    // refused here, before BuildTerrainMesh and the +0x140 allocation size anything from
+    // them, through retail's own fatal error box (SetText(.., true) + Display: the box,
+    // then exit), as Map::Serialize refuses a damaged map. Retail builds the mesh from
+    // the raw fields and overruns its vertex scratch and the height array.
+    if (IsLoading(serializer) &&
+        !LoadedTerrainIsConsistent(_gridSize, _chunkSize, _fieldCC, _fieldD0, _chunkIndexStride,
+                                   local_count)) {
+        fprintf(stderr,
+                "[WorldGeometry::Serialize] FATAL: terrain grid %d chunk %d %d stride %d %d, %d heights\n",
+                _gridSize, _chunkSize, _fieldCC, _fieldD0, _chunkIndexStride, local_count);
+        fflush(stderr);
+        System::Error::SetText("This save's terrain is damaged and cannot be loaded.", true);
+        System::Error::Display();   // the box; _stopApplication then exits the process
+        return;
+    }
+
     // ---- Step 4: the terrain material at +0xF8 (0x140007140). ----
     ::Object::SerializeExternal<Graphics::MaterialInstance>(serializer, _terrainMaterial);
 
@@ -193,17 +212,23 @@ void WorldGeometry::Serialize(IO::Stream& stream) {
     // On loading: build the mesh first (0x1400ac1e0), then allocate the buffer,
     // then read the bytes. On saving: write from the existing pointer. The test is
     // the stream's own direction (`*(int*)(stream + 8) == 0`).
+    // Retail sizes the allocation in 64 bits (0x1400b05f2..0x1400b05fc: IMUL EAX,EAX /
+    // MOVSXD RCX,EAX / SHL RCX,2) and the byte count it serializes in 32 bits
+    // (0x1400b061e..0x1400b0628: IMUL EDX,EDX / SHL EDX,2), and stores the allocation at
+    // +0x140 unconditionally (0x1400b060b). NOT RETAIL (review F-111): both products are
+    // formed without int32 overflow (UB); the load check above keeps g*g*4 in range.
     int gridSize  = _gridSize;
-    int byteCount = gridSize * gridSize * 4;
+    int byteCount = static_cast<int>(static_cast<uint32_t>(HeightBytesAllocSize(gridSize)));
     uint8_t* heightBuf = nullptr;
     const bool streamLoading = (static_cast<int>(stream.GetDirection()) == 0);
 
     if (streamLoading) {
         BuildTerrainMesh();   // 0x1400ac1e0
-        if (System::MemoryAllocator::_singleton && byteCount > 0) {
-            heightBuf = static_cast<uint8_t*>(System::MemoryAllocator::MemAlloc(byteCount, 4));
-            _heightBytes = heightBuf;
+        if (System::MemoryAllocator::_singleton) {
+            const uint64_t allocSize = static_cast<uint64_t>(HeightBytesAllocSize(gridSize));
+            heightBuf = static_cast<uint8_t*>(System::MemoryAllocator::MemAlloc(allocSize, 4));
         }
+        _heightBytes = heightBuf;   // 0x1400b060b: stored whatever the size
     } else {
         heightBuf = _heightBytes;
     }

@@ -14,6 +14,7 @@
 #include "video/Context.h"
 #include "video/Device.h"   // ENDGAME B.3.9 SS2: Video::Device / Configuration::_singleton
 #include "options.h"
+#include "log_redirect.h"   // RedirectLogStream (review F-135)
 #include "io/settings_file.h"     // Phase D.4 SETTINGS E.4: the harness guard
 #include "io/settings_store.h"    //   and DumpVideoSettings read settings.cfg
 #include "runtime_init.h"
@@ -46,7 +47,8 @@
 // Wave 9 lane N's work-scheduler probe tally (src/game/Action/action_base_complete.cpp).
 // Declared here rather than in a header: it has exactly one caller, the crash handler.
 #include <cstdio>
-#include <cstdlib>   // atoi (the harness guard)
+#include <cstdlib>
+#include "clamped_atoi.h"   // ClampedAtoi (the harness guard; review F-087)
 #include <cstdint>
 #include <cstring>
 #include <exception>
@@ -259,7 +261,7 @@ static void HarnessGuardUnattendedBoot() {
         const IO::SettingsFile::Entry* e = FindSetting(entries, name);
         if (e == nullptr)
             return false;
-        *out = atoi(e->value.c_str());
+        *out = ClampedAtoi(e->value.c_str());   // not atoi: out of range is UB (review F-087)
         return true;
     };
 
@@ -371,6 +373,7 @@ static bool RunFactorySelfTest(const char* typeName,
     if (expected.typeId == 0xFFFFFFFFu || actualType != expected.typeId) {
         printf("[SelfTest %s] FAIL: type id 0x%08x != expected 0x%08x (the class's record)\n",
                typeName, actualType, expected.typeId);
+        delete obj;
         return false;
     }
     printf("[SelfTest %s]   type id OK (0x%08x)\n", typeName, actualType);
@@ -395,13 +398,14 @@ static bool RunFactorySelfTest(const char* typeName,
             allOk = false;
         }
     }
+    // The object goes back through its virtual dtor and the root operator delete, as every
+    // factory-made object does (review 2026-11-03, F-010: LSan saw the 0x80-byte StatGoal
+    // leaked here). A freshly constructed StatGoal owns nothing else.
+    delete obj;
     if (!allOk) return false;
 
     printf("[SelfTest %s] PASS (sizeof=%zu, %zu fields verified)\n",
            typeName, expectedSize, fieldCount);
-    // Object intentionally leaked — one-shot startup test, OS reclaims at exit.
-    // Calling the dtor would require the full Goal::~Goal/String chain to be
-    // valid, which is out of scope for the factory test.
     return true;
 }
 
@@ -978,10 +982,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR lpCmdLine, int) {
     // The working directory the logs below are opened in (platform_app.h: Android moves to its
     // data folder; every other platform runs where it was launched).
     Platform::App::EnterRunDirectory();
-    freopen("standalone_debug.log", "w", stdout);
-    freopen("standalone_error.log", "w", stderr);
+    // Review F-135: a log that cannot be opened (an unwritable run directory) leaves its stream
+    // as it was instead of closed (log_redirect.h).
+    const bool debugLog = RedirectLogStream("standalone_debug.log", "w", stdout);
+    const bool errorLog = RedirectLogStream("standalone_error.log", "w", stderr);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+    if (!debugLog || !errorLog)
+        fprintf(stderr, "[Log] cannot open %s in the run directory\n",
+                !debugLog ? "standalone_debug.log" : "standalone_error.log");
     LoadTime::Stamp("main");   // NOT RETAIL: print-only (the logs are open)
 
     // ENDGAME C.3: the ONE read of the environment. Every BANISHED_* flag lands
@@ -1154,10 +1163,15 @@ int main(int argc, char** argv) {
     // The working directory the logs below are opened in (platform_app.h: Android moves to its
     // data folder; every other platform runs where it was launched).
     Platform::App::EnterRunDirectory();
-    freopen("standalone_debug.log", "w", stdout);
-    freopen("standalone_error.log", "w", stderr);
+    // Review F-135: a log that cannot be opened (an unwritable run directory) leaves its stream
+    // as it was instead of closed (log_redirect.h).
+    const bool debugLog = RedirectLogStream("standalone_debug.log", "w", stdout);
+    const bool errorLog = RedirectLogStream("standalone_error.log", "w", stderr);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+    if (!debugLog || !errorLog)
+        fprintf(stderr, "[Log] cannot open %s in the run directory\n",
+                !debugLog ? "standalone_debug.log" : "standalone_error.log");
     LoadTime::Stamp("main");   // NOT RETAIL: print-only (the logs are open)
 
     // The one environment read, then the user-dir override, before Cpu::Boot reads

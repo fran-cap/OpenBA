@@ -69,6 +69,13 @@
 #define CONFIG_HARDCODED_TABLES 0
 #define CONFIG_MEMORY_POISONING 0
 #define CONFIG_FTRAPV 0
+/* The checked bitstream reader, as upstream `configure` enables it by default
+ * (--disable-safe-bitstream-reader turns it off). get_bits.h makes
+ * UNCHECKED_BITSTREAM_READER = !CONFIG_SAFE_BITSTREAM_READER, and wmadec relies
+ * on the check: ff_wma_run_level_decode reads until EOB or num_coefs, so a packet
+ * that never reaches EOB walked past its 64 bytes of padding without it
+ * (review F-031). */
+#define CONFIG_SAFE_BITSTREAM_READER 1
 
 #define ASSERT_LEVEL 0
 

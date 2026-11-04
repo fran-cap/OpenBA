@@ -273,6 +273,13 @@ public:
     Internal* operator->() const { return _ptr; }
     Internal& operator*()  const { return *_ptr; }
     explicit operator bool() const { return _ptr != nullptr; }
+    // The null test on the held Internal*, with no downcast. NOT RETAIL (review
+    // F-143): `InternalPtr<T>` hides `Get()` with a static_cast to T*, so
+    // `field.Get() != nullptr` on a save-loaded field casts an object that may not
+    // be a T before the type test that exists to catch it, which is undefined
+    // behaviour. A field read from a save is null-tested with this, then type-tested
+    // with `IsDerivedFromNullSafe(field, id)`. Retail compares the raw qword.
+    bool IsNull() const { return _ptr == nullptr; }
     bool operator==(const InternalBasePtr& o) const { return _ptr == o._ptr; }
     bool operator!=(const InternalBasePtr& o) const { return _ptr != o._ptr; }
 
@@ -338,6 +345,11 @@ static_assert(std::is_trivially_destructible<InternalBasePtr>::value,
 // `_typeInfo` static (ENDGAME B.3 step 3, decision 4) the type id is supplied
 // by the caller, exactly as the C thunks read it through the name door.
 // ============================================================
+
+// The type test on a pointer field's held Internal* (review F-143); defined below
+// `class Internal`, where the class is complete.
+inline bool IsDerivedFromNullSafe(const InternalBasePtr& p, uint32_t typeId);
+
 template <class T>
 class InternalPtr : public InternalBasePtr {
 public:
@@ -375,8 +387,12 @@ public:
     // A caller whose retail cell is NOT T's spells it with the two-argument form.
     void Serialize(::IO::Serializer& ser) {
         InternalBasePtr::Serialize(ser);
-        T* obj = Get();
-        if (obj != nullptr && !obj->IsDerivedFrom(T::TypeId()))
+        // NOT RETAIL (review F-143): the test runs on the held Internal*, before any
+        // downcast. Retail has no C++ cast; the port's `Get()` here was a
+        // static_cast to T* of an object that is not a T whenever the test is about
+        // to fail (a save naming another Internal type), which is undefined
+        // behaviour. The answer is the same.
+        if (!IsNull() && !IsDerivedFromNullSafe(*this, T::TypeId()))
             _ptr = nullptr;   // retail nulls the element on a type mismatch
     }
 
@@ -558,6 +574,17 @@ inline void InternalBasePtr::DeletePtr() {
 static_assert(offsetof(Internal, _factoryIndex) == 0x08, "Internal::_factoryIndex at +0x08");
 static_assert(offsetof(Internal, _generation)   == 0x0c, "Internal::_generation at +0x0c");
 
+// `IsDerivedFromNullSafe` over a pointer FIELD: the type test runs on the held
+// Internal*, before any downcast. NOT RETAIL (review F-143): the game's type tests
+// of an `InternalPtr<T>` read from a save were spelled `IsDerivedFromNullSafe(
+// field.Get(), id)`, and `InternalPtr<T>::Get()` is a static_cast to T*; on an
+// object that is not a T (the case the test exists to catch) that cast is
+// undefined behaviour. Retail tests the Internal* with no C++ cast at all. The
+// answer is the same.
+inline bool IsDerivedFromNullSafe(const InternalBasePtr& p, uint32_t typeId) {
+    return IsDerivedFromNullSafe(static_cast<const Base*>(p.Get()), typeId);
+}
+
 // ============================================================
 // Object::InternalFactory — 0x9e8 bytes (0x9e4 of fields, alignof 8).
 //
@@ -617,12 +644,12 @@ public:
 #if !defined(BANISHED_UNIT_TEST)
     // ?ResetPersistState@InternalFactory@Object@@QEAAXAEAVStream@IO@@@Z 0x1800bfe40
     void ResetPersistState(IO::Stream& stream);
+#endif
 
     // ?PersistObject@InternalFactory@Object@@QEAAPEAVInternal@2@AEAVStream@IO@@IHI@Z
     //                                                      0x1800bff10
     Internal* PersistObject(IO::Stream& stream, uint32_t generation, int index,
                             uint32_t typeId);
-#endif
 
     Collection::Array<Internal*>&       GetObjects()          { return _objects; }
     const Collection::Array<Internal*>& GetObjects() const    { return _objects; }

@@ -72,16 +72,26 @@ public:
     }
 
     // The load's seeded static buffer: IMMUTABLE on DX11 (companions.cpp BufferStore::immutable).
+    // The handle a use tests goes last, with release: a use that sees it sees the rest (lazy_table.h).
     void Publish() override {
-        _store->gpu = _made;
+        _store->gpu.allocation = _made.allocation;
+        _store->gpu.mapped = _made.mapped;
+        _store->gpu.size = _made.size;
         _store->shared = _shared;
         _store->immutable = true;
+        ::CreateOnDemand::StorePublished(_store->gpu.buffer, _made.buffer);
         _made = GpuBuffer{};
         _shared = false;
     }
 
+    // The handle is nulled with release first (the gather reads it with no gate); the copy is released.
     void Evict() override {
-        ReleaseBuffer(&_store->gpu, &_store->shared);
+        GpuBuffer gone = _store->gpu;
+        ::CreateOnDemand::StorePublished(_store->gpu.buffer, static_cast<VkBuffer>(VK_NULL_HANDLE));
+        _store->gpu.allocation = nullptr;
+        _store->gpu.mapped = nullptr;
+        _store->gpu.size = 0;
+        ReleaseBuffer(&gone, &_store->shared);
     }
 
     uint64_t Bytes() const override {
@@ -124,20 +134,42 @@ public:
         return Result(ok);
     }
 
+    // The view (the handle a use tests) goes last, with release: a use that sees it sees the rest.
     void Publish() override {
-        _image->image = _made;
+        GpuImage& to = _image->image;
+        to.image = _made.image;
+        to.allocation = _made.allocation;
+        to.format = _made.format;
+        to.aspect = _made.aspect;
+        to.width = _made.width;
+        to.height = _made.height;
+        to.mips = _made.mips;
+        to.layers = _made.layers;
         _image->shared = _info.shared;
         _image->bc4 = _info.bc4;
         _image->state.image = _made.image;
         _image->state.aspect = _made.aspect;
         _image->state.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        ::CreateOnDemand::StorePublished(to.view, _made.view);
         _made = GpuImage{};
         _info = TextureMade{};
     }
 
-    // The samplers stay (made at load, as retail makes them).
+    // The samplers stay (made at load, as retail makes them). The view is nulled with release first
+    // (the gather reads it with no gate); the copy is released.
     void Evict() override {
-        ReleaseImage(&_image->image, &_image->shared);
+        GpuImage& from = _image->image;
+        GpuImage gone = from;
+        ::CreateOnDemand::StorePublished(from.view, static_cast<VkImageView>(VK_NULL_HANDLE));
+        from.image = VK_NULL_HANDLE;
+        from.allocation = nullptr;
+        from.format = VK_FORMAT_UNDEFINED;
+        from.aspect = 0;
+        from.width = 0;
+        from.height = 0;
+        from.mips = 0;
+        from.layers = 0;
+        ReleaseImage(&gone, &_image->shared);
         _image->state = ImageState{};
     }
 
@@ -315,15 +347,18 @@ void Keep(const void* companion) {
     }
 }
 
+// The gather calls these with no gate and no lock while a worker publishes or a sweep evicts: acquire
+// loads (lazy_table.h LoadPublished).
 bool VertexBufferMade(const void* companion) {
     return companion == nullptr ||
-           static_cast<const VideoVulkan::VertexBufferData*>(companion)->store.Buffer() != VK_NULL_HANDLE;
+           static_cast<const VideoVulkan::VertexBufferData*>(companion)->store.PublishedBuffer() != VK_NULL_HANDLE;
 }
 
 // The image's sampled view is the made object.
 bool ImageMade(const void* companion) {
     if (companion == nullptr) return true;
-    return static_cast<const VideoVulkan::ImageBufferData*>(companion)->image.view != VK_NULL_HANDLE;
+    const VideoVulkan::ImageBufferData* const image = static_cast<const VideoVulkan::ImageBufferData*>(companion);
+    return ::CreateOnDemand::LoadPublished(image->image.view) != VK_NULL_HANDLE;
 }
 
 }  // namespace CreateOnDemandBackend

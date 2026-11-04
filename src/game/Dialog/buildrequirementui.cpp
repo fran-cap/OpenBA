@@ -206,7 +206,7 @@ void BuildRequirementUI::OnCreated() {
 
     // Find first label element using format "labelBuild%i"
     {
-        System::String fmtBuf = System::String::Format("labelBuild%i", (uint64_t)(uint32_t)labels._size);
+        System::String fmtBuf = System::String::Format("labelBuild%i", (int)(uint32_t)labels._size);
         UI::Element* labelElem = _dialog->FindElement(fmtBuf).Get();
 
         while (labelElem) {
@@ -227,7 +227,7 @@ void BuildRequirementUI::OnCreated() {
             labels._data[newCount - 1] = wrappedElem;
 
             // Find next label
-            fmtBuf = System::String::Format("labelBuild%i", (uint64_t)newCount);
+            fmtBuf = System::String::Format("labelBuild%i", (int)newCount);
             labelElem = _dialog->FindElement(fmtBuf).Get();
         }
     }
@@ -281,7 +281,7 @@ void BuildRequirementUI::OnCreated() {
             }
 
             // Format count as "%i" and set as text parameter 0
-            System::String countStr = System::String::Format("%i", (uint64_t)(uint32_t)entry.quantity);
+            System::String countStr = System::String::Format("%i", (int)(uint32_t)entry.quantity);
             label->SetParameter(0, countStr);
 
             // Show the label

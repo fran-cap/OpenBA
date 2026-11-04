@@ -14,8 +14,9 @@
 // src/engine/object/internal_class.cpp is registry-free under
 // -DBANISHED_UNIT_TEST: its allocator seam is malloc, its `Rand` is a hook this
 // file installs, and `InternalFactory::Get()` answers a factory this file owns.
-// `ResetPersistState` and `PersistObject` are compiled OUT there — they need a
-// live `IO::Stream` and the Factory type tree — so they are not covered.
+// `ResetPersistState` is compiled OUT there (it needs a live `IO::Stream`), so it
+// is not covered; `PersistObject`'s read-arm bounds are driven by
+// review_object_index_bounds_test.cpp.
 //
 // What only a live boot can prove, called out in the step's report:
 //   * that the registered `RtObject_Internal_Ctor`/`_Dtor` shims, which still

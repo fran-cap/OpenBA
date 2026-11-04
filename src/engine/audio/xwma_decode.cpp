@@ -194,7 +194,16 @@ bool XwmaDecoder::Open(const uint8_t* format, const uint8_t* packets, size_t byt
 
 uint64_t XwmaDecoder::TotalSamples() const {
     if (!IsOpen()) return 0;
-    return _seekTable[_packetCount - 1] / (2u * _channels);
+    const uint64_t table = _seekTable[_packetCount - 1] / (2u * _channels);
+    // NOT RETAIL (hardening, review F-073): the seek table is resource data and
+    // its last entry is not checked against the packets; decode at load sizes its
+    // PCM allocation from this value, so {0xffffffff} asked for 4 GiB for one
+    // 278-byte packet. A pass from packet 0 cannot yield more than its packets
+    // decode to (a superframe's 15 frames per packet plus the two drained
+    // frames, MaxSamplesFor's bound), so the total is capped there. A shipped
+    // table is far below the cap.
+    const uint64_t bound = (static_cast<uint64_t>(_packetCount) * 15u + 2u) * _frameLength;
+    return table < bound ? table : bound;
 }
 
 uint64_t XwmaDecoder::SeekSamples(uint32_t packet) const {
@@ -277,8 +286,18 @@ size_t XwmaDecoder::DecodePackets(uint32_t firstPacket, uint32_t packetCount,
 }
 
 size_t XwmaDecoder::DecodeChunk(uint32_t firstPacket, uint32_t packetCount, const uint8_t* chunk,
-                                int16_t* out, size_t outSamples) {
+                                size_t chunkBytes, int16_t* out, size_t outSamples) {
     if (chunk == nullptr && packetCount != 0) return 0;
+    // Hardening (review F-096 / F-097): the packets are read at the format's
+    // nBlockAlign, the caller's chunk holds chunkBytes. The Stream worker's ring
+    // slot is 16 fixed 0x8b6-byte packets; a track with a larger nBlockAlign read
+    // past it. The packets DecodeRange would read (packetCount clipped to the
+    // table, as there) must fit, or nothing is decoded.
+    if (IsOpen() && firstPacket < _packetCount) {
+        const uint32_t left = _packetCount - firstPacket;
+        const uint32_t n = packetCount < left ? packetCount : left;
+        if (static_cast<uint64_t>(n) * _blockAlign > chunkBytes) return 0;
+    }
     return DecodeRange(firstPacket, packetCount, chunk, out, outSamples);
 }
 

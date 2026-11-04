@@ -19,6 +19,7 @@
 #include <set>
 #include <string>
 #include "options.h"
+#include "append_format.h"   // Diag::AppendFormat: the census lines' bounded builder
 #include "graphics/Geometry.h"   // Graphics::Geometry::AddDrawItems (B3X W0)
 #include "graphics/Mesh.h"       // RtGraphics_MeshInstance_AddDrawItems (B3R W2-RES)
 #include "Component/ModelComponent.h"   // the owner's meshGroup / meshIndex
@@ -714,11 +715,13 @@ void SceneWatch_LodCensus(Graphics::Scene* scene, const Graphics::Camera* camera
             MeshInfo& info = kv.second;
             if (info.dumped) continue;
             info.dumped = true;
+            // Diag::AppendFormat clamps the offset at a cut-off field: `off += snprintf(...)`
+            // stepped past buf and the next call wrapped `sizeof(buf) - off` (review F-011).
             char buf[512]; int off = 0;
             for (int k = 0; k < info.levels && k < 8; ++k)
-                off += std::snprintf(buf + off, sizeof(buf) - off,
-                                     "%sL%d{d=%.1f tris=%d vb=%p ib=%p}", k ? " " : "", k,
-                                     info.dist[k], info.tris[k], info.vb[k], info.ib[k]);
+                off = Diag::AppendFormat(buf, sizeof(buf), off,
+                                         "%sL%d{d=%.1f tris=%d vb=%p ib=%p}", k ? " " : "", k,
+                                         info.dist[k], info.tris[k], info.vb[k], info.ib[k]);
             if (info.levels == 0) std::snprintf(buf, sizeof(buf), "-");
             bool sane = info.levels >= 1 && info.levels <= 8;
             for (int k = 0; sane && k < info.levels && k < 8; ++k) {
@@ -732,9 +735,9 @@ void SceneWatch_LodCensus(Graphics::Scene* scene, const Graphics::Camera* camera
             auto vit = s_variants.find(kv.first);
             if (vit != s_variants.end())
                 for (int k = 0; k < vit->second.n; ++k)
-                    vo += std::snprintf(vb2 + vo, sizeof(vb2) - vo, "%s(%d,%d)x%d",
-                                        k ? "," : "", vit->second.vi[k], vit->second.mv[k],
-                                        vit->second.count[k]);
+                    vo = Diag::AppendFormat(vb2, sizeof(vb2), vo, "%s(%d,%d)x%d",
+                                            k ? "," : "", vit->second.vi[k], vit->second.mv[k],
+                                            vit->second.count[k]);
             std::fprintf(stderr, "[LodCensus]   mesh=%p variants(vi,mv)=[%s]\n", kv.first, vb2);
             std::fprintf(stderr, "[LodCensus] mesh=%p levels=%d instances=%d %s%s%s\n",
                          kv.first, info.levels, info.instances, buf,

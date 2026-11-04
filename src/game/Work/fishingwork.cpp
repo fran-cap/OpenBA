@@ -18,6 +18,7 @@
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Work/FishingWork.h"
+#include "Work/work_rules.h"   // review F-199..F-206: the shared Execute decisions
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/exe_constants.h"   // kRdata_* (B3R Leftovers: the .rdata constants)
@@ -268,11 +269,12 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                         targetX = citizenGridY + rx;
                         targetY = citizenGridX + ry;
                     } while (radiusSq < ry * ry + rx * rx);
-                } while (targetY < 0 || targetY >= cMapSize);
-                // Note: X bounds not checked matches original (negative X fails terrain check)
+                } while (WorkRules::SampleOffMap(targetX, targetY, cMapSize));   // Y only (0x1400ea39a)
 
-                // Clamp X for safety when accessing grid data
-                if (targetX < 0 || targetX >= cMapSize) {
+                // NOT RETAIL: an X off the map reads the wrapped-row cell, as retail does; only
+                // the cell before cell 0 / past the last one, retail's out-of-bounds read (UB),
+                // is rejected as a failed attempt.
+                if (WorkRules::SampleCellOutsideMap(targetX, targetY, cMapSize)) {
                     attemptCount++;
                     continue;
                 }
@@ -654,9 +656,10 @@ void FishingWork::Persist(IO::Stream& stream) {
             ibpPtr->InternalBasePtr::Serialize(serializer);
 
             // Validate: if the ptr is non-null and not derived from expected type, null it
-            CitizenComponent* ptrVal = ibpPtr->Get();
-            if (ptrVal != nullptr) {
-                if (!Object::IsDerivedFromNullSafe(ptrVal, CitizenComponent::TypeId())) {
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to CitizenComponent*; the answer is the same.
+            if (!ibpPtr->IsNull()) {
+                if (!Object::IsDerivedFromNullSafe(*ibpPtr, CitizenComponent::TypeId())) {
                     *ibpPtr = nullptr;
                 }
             }
