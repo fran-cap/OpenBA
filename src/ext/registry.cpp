@@ -267,6 +267,18 @@ const Entry kEntries[] = {
       "room for, instead of hauling a full load to a nearly full building and carrying it back again.",
       0, [](State& s) -> bool& { return s.fix.input_fetch_room; } },
 
+    // DEBUGSPAWNORIGIN (docs/retail_bugs.md section 29): the debug panel's "spawn citizens" button
+    // (Game_SpawnCitizens 0x140060380) places its four citizens on the use nodes of the town's storage
+    // buildings and repeats its pass until four are placed; a town whose storages have no use node (only
+    // stockpiles) loops for ever and the game hangs. With the row on, a pass that places nobody places the
+    // rest at the free land cell nearest the world origin (the map centre). Debug panel only; nothing new
+    // is saved (the citizens are ordinary citizens).
+    { "debug_spawn_origin", Tier::Fix, Class::None, true,
+      "Debug spawn does not hang",
+      "The debug panel's spawn-citizens button no longer freezes the game in a town whose storage has no "
+      "place to put them (only stockpiles); the new citizens appear near the middle of the map instead.",
+      0, [](State& s) -> bool& { return s.fix.debug_spawn_origin; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).
