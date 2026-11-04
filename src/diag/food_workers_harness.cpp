@@ -27,6 +27,7 @@
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Object/factory_registration.h"   // ::Object::GetTypeIdByName
 #include "Component/exe_bodies.h"   // AttendanceComponent_GetJobHostComponent (0x140002e10)
 #include "Work/exe_bodies.h"        // WorkBase_FindComponent_3050 (0x140003050)
@@ -80,7 +81,7 @@ void Init() {
         std::fflush(stderr);
         return;
     }
-    s_count = std::atoi(env);
+    s_count = HarnessAtoi(env);
     if (s_count <= 0) s_count = 1;
     std::fprintf(stderr, "[FoodWorkers] ENABLED (BANISHED_FOOD_WORKERS=\"%s\") — seat %d "
                  "worker(s) per food building, re-checked every %d frames from frame %d\n",
