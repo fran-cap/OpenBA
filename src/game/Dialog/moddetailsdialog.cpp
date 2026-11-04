@@ -184,7 +184,7 @@ void ModDetailsDialog::OnOpened() {
         // ?GetVersionString@Configuration@System@@ is a by-value static; its door
         // placement-constructed the result over this (empty) local.
         System::String versionStr = System::Configuration::GetVersionString((uint32_t)mod.i18, false);
-        System::String formatted = System::String::Format("%i (%s)", (uint64_t)(uint32_t)mod.i1c,
+        System::String formatted = System::String::Format("%i (%s)", (int)(uint32_t)mod.i1c,
                          versionStr._data);
         textVersion->SetParameter(0, formatted);
     }

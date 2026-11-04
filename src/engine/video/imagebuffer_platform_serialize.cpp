@@ -275,7 +275,9 @@ void ImageBuffer::PlatformSerialize(IO::Serializer& ser) {
     // ---- the generated / rendered arm --------------------------------------
     // `LEA EAX,[R8-4] / CMP EAX,1 / JBE` — an UNSIGNED compare, so this is
     // exactly kind == 4 || kind == 5, i.e. IsGenerated() || IsRendered().
-    if (static_cast<uint32_t>(kindAtEntry - 4) <= 1u) {
+    // NOT RETAIL (UB, signed overflow): the subtraction is unsigned
+    // (KindIsGeneratedOrRendered); `kindAtEntry - 4` in int overflowed for 0x80000000.
+    if (KindIsGeneratedOrRendered(kindAtEntry)) {
         if (stream->GetDirection() != IO::kReading) {  // 0x1800f32d5: saving
             return;
         }

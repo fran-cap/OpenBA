@@ -320,7 +320,7 @@ void DestroyUI::OnUpdateLayout() {
             progressRemove->_currentValue = fillRatio;
 
             // Format and set percentage text
-            System::String strObj = System::String::Format("%i", (uint64_t)(uint32_t)(int)fillPercent);
+            System::String strObj = System::String::Format("%i", (int)(uint32_t)(int)fillPercent);
             progressRemove->SetProgressTextParameter(0, strObj);
         }
 
@@ -341,7 +341,7 @@ void DestroyUI::OnUpdateLayout() {
 
         progressDestruct->_currentValue = destroyRatio;
 
-        System::String strObj2 = System::String::Format("%i", (uint64_t)(uint32_t)(int)destroyPercent);
+        System::String strObj2 = System::String::Format("%i", (int)(uint32_t)(int)destroyPercent);
         progressDestruct->SetProgressTextParameter(0, strObj2);
 
         // --- Show/hide progress bars based on destruction state ---

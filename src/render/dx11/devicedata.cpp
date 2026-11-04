@@ -1289,7 +1289,11 @@ bool DeviceData::CreateDevice() {
             "VideoDX11: Failed to create a valid depth buffer format "
             "DXGI_FORMAT_D24_UNORM_S8_UINT [%ix%i %AA]!",
             dev->backBufferWidth,
-            dev->backBufferHeight, aa);
+            dev->backBufferHeight,
+            // NOT RETAIL (UB, vararg type): retail's text has `%A` (a hex double) where the
+            // colour-buffer message has `%ixAA`, and passes the int; the int is passed as the
+            // double `%A` reads. The format text is retail's.
+            static_cast<double>(aa));
         System::Error::SetText(msg._data, false);
         return false;
     }
@@ -1432,9 +1436,14 @@ void GfxInterfaceArraySetLength(::Video::Device* dev, int newCount,
 
     GraphicsInterface* base = *dataP;
     int i = (oldBase == base) ? oldCount : 0;
+    // NOT RETAIL (UB, null-pointer arithmetic): retail forms `base + i` and then tests it for
+    // null (MSVC's placement-new check); with a failed MemAlloc that is null + i, which is
+    // undefined and lets the compiler drop the test. The test is made once, on `base`: the same
+    // answer for every element.
+    if (base == nullptr)
+        i = newCount;
     for (; i < newCount; ++i) {
         GraphicsInterface* dst = base + i;
-        if (!dst) continue;
         const GraphicsInterface* src = (i < oldCount) ? (oldBase + i) : proto;
         ::new (static_cast<void*>(dst)) GraphicsInterface(*src);   // 0x18000ce10
     }
@@ -1475,9 +1484,12 @@ void AdapterArraySetLength(GraphicsInterface* gi, int newCount,
 
     Adapter* base = gi->adapterData;
     int i = (oldBase == base) ? oldCount : 0;
+    // NOT RETAIL (UB, null-pointer arithmetic): as GfxInterfaceArraySetLength, the per-element
+    // null test on `base + i` is made once on `base`.
+    if (base == nullptr)
+        i = newCount;
     for (; i < newCount; ++i) {
         Adapter* dst = base + i;
-        if (!dst) continue;
         const Adapter* src = (i < oldCount) ? (oldBase + i) : proto;
         ::new (static_cast<void*>(dst)) Adapter(*src);   // 0x18000cc70
     }
@@ -1692,8 +1704,12 @@ static bool EnumerateDxgiInterfaceInto(::Video::Device* dev, const char* interfa
                     modes = static_cast<DXGI_MODE_DESC*>(
                         System::MemoryAllocator::MemAlloc(static_cast<size_t>(modeCount) * sizeof(DXGI_MODE_DESC), 4));
 
+                // NOT RETAIL (UB, null dereference): with a first count of 0 `modes` stays
+                // null, the second call is then a count query, and a mode list that grew in
+                // between (hot-plug, a mode change) returns n > 0 with S_OK; retail then reads
+                // modes[0] through null. The loop runs only over a buffer; the call is as retail.
                 if (output->GetDisplayModeList(static_cast<DXGI_FORMAT>(28), 0,
-                                               &modeCount, modes) == 0) {
+                                               &modeCount, modes) == 0 && modes != nullptr) {
                     for (UINT i = 0; i < modeCount; ++i) {
                         const DXGI_MODE_DESC& m = modes[i];
                         if (m.Width < 800) continue;

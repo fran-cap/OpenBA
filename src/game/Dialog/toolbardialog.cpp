@@ -1261,7 +1261,7 @@ void ToolbarDialog::OnUpdateLayout() {
             UI::TextElement* textElem = isDerived ? static_cast<UI::TextElement*>(childElem) : nullptr;
 
             // Format speed string: "%ix" with gameSpeed value
-            System::String fmtStr = System::String::Format("%ix", (uint64_t)gameSpeed);
+            System::String fmtStr = System::String::Format("%ix", (int)gameSpeed);
 
             textElem->SetParameter(0, fmtStr);   // unguarded, as retail
         }

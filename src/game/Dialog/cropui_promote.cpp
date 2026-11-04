@@ -160,7 +160,7 @@ void CropUI::OnUpdateLayout() {
     int percent = static_cast<int>(maturity * 100.0f + 0.5f);
     {
         System::String textStr = System::String::Format("%i",
-                         static_cast<uint64_t>(static_cast<uint32_t>(percent)));
+                         static_cast<int>(static_cast<uint32_t>(percent)));
         yieldElem->SetProgressTextParameter(0, textStr);
     }
 
