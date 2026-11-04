@@ -71,6 +71,9 @@ static int OverstockPct() {          // -1 = disabled
         const char* e = Opt().marketOverstock;
         if (!e || !*e || e[0] == '0') { v = -1; }
         else { int n = HarnessAtoi(e); v = (n > 100) ? n : 260; }
+        // At most 1000x the want: the need computation casts targetSat * want *
+        // capacity to int, out of range (undefined) for a huge percent (review F-284).
+        if (v > 100000) v = 100000;
     }
     return v;
 }
