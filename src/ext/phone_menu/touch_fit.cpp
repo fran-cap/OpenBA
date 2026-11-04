@@ -290,9 +290,14 @@ const UI::DialogInstance* FitOwner(const UI::DialogInstance* d) {
 // not concerned (TabElement sizes itself by every page, shown or not).
 
 // The elements whose minimum width is held, so it is given back with the row off (their description's)
-// and forgotten when the dialog closes.
+// and forgotten when the dialog closes. The UserInterface and the description are recorded with the
+// dialog (as touch_size.cpp's Seen does): a closed dialog is freed at the end of its UI update, so its
+// record is told apart from an open one without reading the dialog (review F-254), and a new dialog at a
+// freed one's address is not mistaken for it.
 struct Held {
+    const UI::UserInterface* ui = nullptr;
     const UI::DialogInstance* dialog = nullptr;
+    const UI::Dialog* description = nullptr;
     UI::Element* element = nullptr;
 };
 constexpr int32_t kMaxHeld = 8;
@@ -365,7 +370,9 @@ int32_t HoldHiddenListWidth(const UI::DialogInstance* d) {
             if (h.element == parent || (held == nullptr && h.element == nullptr)) held = &h;
         }
         if (held == nullptr) continue;   // more than kMaxHeld: that dialog widens as before
+        held->ui = d->_ui;
         held->dialog = d;
+        held->description = d->_dialog;
         held->element = parent;
         parent->_minWidth = shown;
         parent->SetNeedsSizeCalc();
@@ -376,16 +383,28 @@ int32_t HoldHiddenListWidth(const UI::DialogInstance* d) {
     return changes;
 }
 
+// True when `e` is `root` or below it (pointers compared only).
+bool InTree(const UI::Element* root, const UI::Element* e) {
+    if (root == nullptr) return false;
+    if (root == e) return true;
+    for (int32_t i = 0; i < root->_children._size; ++i) {
+        if (InTree(root->_children._data[i], e)) return true;
+    }
+    return false;
+}
+
 // Once a frame per UserInterface: a closed dialog's records go; with the row off, a held element's own
-// minimum comes back.
+// minimum comes back. Only an open dialog is read: the record's dialog must be in `ui`'s list (a pointer
+// compare), with the description it had and the held element still in its tree.
 int32_t ReleaseHeld(const UI::UserInterface* ui, bool on) {
     int32_t changes = 0;
     for (Held& h : g_held) {
-        if (h.dialog == nullptr || h.dialog->_ui != ui) continue;
+        if (h.dialog == nullptr || h.ui != ui) continue;
         bool open = false;
         for (auto* node = ui->_dialogs._head; node != nullptr && !open; node = node->next) {
             open = node->element == h.dialog;
         }
+        open = open && h.dialog->_dialog == h.description && InTree(h.dialog->_root.Get(), h.element);
         if (open && on) continue;
         if (open && h.element->_minWidth != h.element->_description->_minWidth) {
             h.element->_minWidth = h.element->_description->_minWidth;
