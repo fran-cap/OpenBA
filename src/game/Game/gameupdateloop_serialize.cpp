@@ -445,7 +445,9 @@ void PlayerToolManager::Serialize(IO::Stream& stream) {
         if (!IsSaving(&stream)) {
             cameraViews.SetSize(count);   // 0x14002e000
         }
-        for (uint32_t i = 0; i < (uint32_t)count; i++) {
+        // Retail 0x140102a19..0x140102a25: MOV EAX,[count] / TEST EAX,EAX / JLE past the
+        // loop / MOV EDI,EAX: a signed count, so a save's count <= 0 runs no element.
+        for (int i = 0; i < count; i++) {
             PlayerCameraView& e = cameraViews[i];
             // ?Serialize@Vector3@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x1800150e0
             e.position.Serialize(ser);
