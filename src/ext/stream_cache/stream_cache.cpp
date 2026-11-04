@@ -460,8 +460,9 @@ bool AltLocate(IO::Stream* stream, int32_t len, ::CreateOnDemand::Locator* out) 
 bool AltSkip(IO::Stream* stream, int32_t len) {
     SegmentStream* const ss = dynamic_cast<SegmentStream*>(stream);
     if (ss == nullptr) return false;
-    ss->Skip(len);
-    return true;
+    // Within the record's total, or nothing done (SkipIfWithin then reads the bytes). A Skip after
+    // AltLocate always passes: RangeInStream checked the same position and length.
+    return ss->SkipWithin(len);
 }
 
 }  // namespace

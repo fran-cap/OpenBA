@@ -417,27 +417,40 @@ bool Store::LoadIndex() {
     }
     _generation = dh.reserved[0];
     const uint64_t count = (static_cast<uint64_t>(idxSize) - kHeaderSize) / sizeof(IndexRecord);
-    std::vector<IndexRecord> all(static_cast<size_t>(count));
-    if (count != 0 && !ReadAt(_idx, kHeaderSize, all.data(), count * sizeof(IndexRecord))) return false;
+    // Read in bounded chunks, never sized by the file's length (review F-240): a valid header over a
+    // huge or sparse tail made one allocation of the whole length (std::bad_alloc at every boot).
+    // Every kept record backs at least one byte of derived.dat, so the kept list stays bounded.
+    constexpr uint64_t kChunkRecords = 4096;
+    std::vector<IndexRecord> chunk;
     std::vector<IndexRecord> records;
-    records.reserve(all.size());
     uint64_t end = kHeaderSize;
     std::vector<uint8_t> payload;
-    for (const IndexRecord& r : all) {
-        // The size is tested against the room left, not offset + size against the file: the sum
-        // wraps on a forged size near 2^64 (the record check is a plain XXH64), and every later
-        // reader trusts r.size. r.offset == end <= datSize here.
-        if (r.magic != kRecordMagic || r.check != RecordCheck(r) || r.offset != end || r.size == 0 ||
-            r.size > static_cast<uint64_t>(datSize) - r.offset)
-            break;
-        if (verifyPayloads) {
-            payload.resize(static_cast<size_t>(r.size));
-            if (!ReadAt(_dat, r.offset, payload.data(), r.size) ||
-                Hash64(payload.data(), payload.size()) != r.payloadHash)
+    bool damaged = false;
+    for (uint64_t first = 0; first < count && !damaged; first += kChunkRecords) {
+        const uint64_t n = count - first < kChunkRecords ? count - first : kChunkRecords;
+        chunk.resize(static_cast<size_t>(n));
+        if (!ReadAt(_idx, kHeaderSize + first * sizeof(IndexRecord), chunk.data(), n * sizeof(IndexRecord)))
+            return false;
+        for (const IndexRecord& r : chunk) {
+            // The size is tested against the room left, not offset + size against the file: the sum
+            // wraps on a forged size near 2^64 (the record check is a plain XXH64), and every later
+            // reader trusts r.size. r.offset == end <= datSize here.
+            if (r.magic != kRecordMagic || r.check != RecordCheck(r) || r.offset != end || r.size == 0 ||
+                r.size > static_cast<uint64_t>(datSize) - r.offset) {
+                damaged = true;
                 break;
+            }
+            if (verifyPayloads) {
+                payload.resize(static_cast<size_t>(r.size));
+                if (!ReadAt(_dat, r.offset, payload.data(), r.size) ||
+                    Hash64(payload.data(), payload.size()) != r.payloadHash) {
+                    damaged = true;
+                    break;
+                }
+            }
+            records.push_back(r);
+            end += r.size;
         }
-        records.push_back(r);
-        end += r.size;
     }
     const uint64_t indexEnd = kHeaderSize + records.size() * sizeof(IndexRecord);
     if (_readOnly) {
@@ -458,7 +471,7 @@ bool Store::LoadIndex() {
         ih.reserved[0] = _generation;
         if (!WriteAt(_idx, 0, &ih, sizeof(ih))) return false;
     }
-    if (records.size() != all.size() || static_cast<uint64_t>(datSize) != end ||
+    if (records.size() != count || static_cast<uint64_t>(datSize) != end ||
         static_cast<uint64_t>(idxSize) != indexEnd) {
         if (!verifyPayloads)
             std::fprintf(stderr, "[DerivedCache] dropped a damaged tail: kept %llu of %llu entries\n",

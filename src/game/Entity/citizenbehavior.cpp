@@ -510,8 +510,9 @@ void PathGraph::BuildPathGraph() {
             int entityCell = -1;
             entityCell = EntityAnchorCell(&entityIBP, nullptr);   // 0x140087fb0
 
-            // Get entity's region ID
-            int entityRegion = cells[(int64_t)(uint32_t)entityCell].regionId;
+            // Get entity's region ID. The index is sign-extended, as retail's
+            // MOVSXD R11,EAX at 0x1400d732a does on EntityAnchorCell's result.
+            int entityRegion = cells[(int64_t)entityCell].regionId;
             ++dbgEntities;
             if (entityRegion >= 0) ++dbgEntRegionOk;
 

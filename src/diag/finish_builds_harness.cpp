@@ -36,6 +36,7 @@
 #include "Entity/ComponentEntity.h"   // B4: the component array by name
 #include "Entity/EntityList.h"        // B4: GameUpdateLoop::m_entityList
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -49,7 +50,7 @@ void Init() {
     if (s_interval != -2) return;
     const char* e = Opt().finishBuilds;
     if (!e || !e[0] || e[0] == '0') { s_interval = -1; return; }
-    const int v = std::atoi(e);
+    const int v = HarnessAtoi(e);
     s_interval = (v > 1) ? v : 600;
     std::fprintf(stderr, "[FinishBuilds] armed: every %d frames, stamp pending state 2 on "
                          "every unbuilt structure (test fixture, stands in for builders "

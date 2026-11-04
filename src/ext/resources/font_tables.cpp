@@ -43,10 +43,17 @@ bool ParseVariantPath(const char* path, VariantPath& out) {
         if (StartsWith(rest, kKitFonts[k].name) && rest[n] == '_' && n > kitLen) { kit = k; kitLen = n; }
     }
     if (kit < 0) return false;
+    // MakeVariantNames' own spelling only (review F-239): 1-3 digits, no sign, blank or leading
+    // zero. strtol took "_032" / "_+32" (and, with a 64-bit long, wrapped "_4294967328") to 32,
+    // so an alias resolved to the canonical object and Provide re-pathed and re-added it.
     const char* num = rest + kitLen + 1;
-    char* end = nullptr;
-    const int32_t px = static_cast<int32_t>(std::strtol(num, &end, 10));
-    if (end == num || px <= 0 || px > 999) return false;
+    const char* end = num;
+    int32_t px = 0;
+    while (*end >= '0' && *end <= '9' && end - num < 4) {
+        px = px * 10 + (*end - '0');
+        ++end;
+    }
+    if (end == num || num[0] == '0' || end - num > 3) return false;
     const char* tail = isSheet ? "Sheet.rsc" : ".rsc";
     if (std::strcmp(end, tail) != 0) return false;
     if (isSheet && ident != "resource") return false;

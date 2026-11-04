@@ -1044,3 +1044,40 @@ UNIT_TEST(ext_family_tree_picture_raster_needs_a_font_or_says_so) {
     // nobody to draw
     CHECK(!RenderPictureRaster(Tree(), BuildPictureLayout(Tree(), false), PictureOptions(), fonts, r));
 }
+
+// Review F-261 / F-265: a save-tail header whose nextId Add can never reach (or zero) is refused. Taken as
+// it was, nextId 0xFFFFFFFF made the next Add wrap to id 0 and then repeat ids already in use, and the next
+// save no longer decoded.
+UNIT_TEST(ext_family_tree_codec_refuses_a_next_id_add_cannot_reach) {
+    const auto header = [](uint32_t nextId) {
+        std::vector<uint8_t> b;
+        for (int k = 0; k < 4; ++k) b.push_back(static_cast<uint8_t>(nextId >> (8 * k)));
+        for (int k = 0; k < 4; ++k) b.push_back(0);   // count 0
+        b.push_back(0);                               // version 2: no job names
+        return b;
+    };
+    Tree t;
+    for (const uint32_t bad : {0u, kMaxPeople + 2, 0x80000000u, 0xFFFFFFFFu}) {
+        const std::vector<uint8_t> b = header(bad);
+        CHECK(!t.Decode(b.data(), b.size()));
+    }
+    // the largest nextId a full table writes still loads
+    const std::vector<uint8_t> top = header(kMaxPeople + 1);
+    CHECK(t.Decode(top.data(), top.size()));
+    CHECK_EQ(t.NextId(), kMaxPeople + 1);
+    // one person (id 1) under nextId 0xFFFFFFFF: refused, so Add never hands out 0 or a second id 1
+    Tree one;
+    one.Add("A", 0, false, 1, 20, 0, 0);
+    std::vector<uint8_t> bytes;
+    one.Encode(bytes);
+    bytes[0] = bytes[1] = bytes[2] = bytes[3] = 0xff;
+    Tree back;
+    CHECK(!back.Decode(bytes.data(), bytes.size()));
+    const uint32_t a = back.Add("B", 0, false, 2, 20, 0, 0);
+    const uint32_t b = back.Add("C", 0, false, 3, 20, 0, 0);
+    CHECK(a != 0u && b != 0u && a != b);
+    std::vector<uint8_t> again;
+    back.Encode(again);
+    Tree reread;
+    CHECK(reread.Decode(again.data(), again.size()));
+}

@@ -748,8 +748,11 @@ void PathfinderThread::ApplyCommand(const PathCommandArgs& cmd) {
                 lVar4 = lVar5;
             } while (lVar5 < iVar2);
         }
+        // [PFBENCH] e2e split: the publish stamp (stress harness only, NOT RETAIL), taken
+        // before the ready store so a late stamp cannot land on the slot's next request
+        // (review F-279).
+        if (g_pfProfOn) PfProf_Ready(slot);
         results.data[slot].ready = 1;
-        if (g_pfProfOn) PfProf_Ready(slot);   // [PFBENCH] e2e split: publish stamp (stress harness only)
         return;
     }
     case Ext::PathQueryFirst::kCommand:

@@ -69,6 +69,7 @@
 #include "object/External.h"
 #include "system/String.h"
 #include "picking/PickingMesh.h"
+#include "picking/pickingmesh_bounds.h"   // review S-015, S-016: the indices a resource carries
 #include "system/string_internal.h"
 
 namespace {
@@ -168,6 +169,9 @@ void SerializeSubMeshesBody(IO::Serializer* ser, int32_t count, SubMesh* base) {
         SubMesh* s = &base[i];
         s->_name.Serialize(*ser);
         rw->SerializeInt(s->_parent, nullptr);
+        // NOT RETAIL (review S-015): a parent outside the mesh's sub-meshes becomes the root
+        // (PickingMeshBounds::SavedParent); Scene::AddMesh indexes with it unchecked.
+        if (reading) s->_parent = PickingMeshBounds::SavedParent(s->_parent, count);
         rw->SerializeFloatArray(4, &s->_local.rotation.x, nullptr);
         rw->SerializeFloatArray(3, &s->_local.translation.x, nullptr);
         rw->SerializeFloatArray(3, &s->_aabb.min.x, nullptr);
@@ -186,6 +190,18 @@ void SerializeSubMeshesBody(IO::Serializer* ser, int32_t count, SubMesh* base) {
             rw->SerializeFloatArray(3, &s->_normals._data[v].x, nullptr);
 
         SerializeTrianglesBody(&s->_triangles, ser);
+        // NOT RETAIL (review S-016): a sub-mesh whose triangles name a vertex it does not have
+        // keeps no triangles (PickingMeshBounds::TriangleInRange); Scene::Intersect reads the
+        // vertices at those indices unchecked on every pick. The stream is already past them.
+        if (reading) {
+            for (int32_t t = 0; t < s->_triangles._size; ++t) {
+                const Triangle& tri = s->_triangles._data[t];
+                if (!PickingMeshBounds::TriangleInRange(tri.i0, tri.i1, tri.i2, s->_vertices._size)) {
+                    TriArraySetSize(&s->_triangles, 0);
+                    break;
+                }
+            }
+        }
 
         int32_t uvCount = s->_uvs._size;
         rw->SerializeInt(uvCount, nullptr);

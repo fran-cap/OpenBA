@@ -103,7 +103,19 @@ const RasterFont* Rasterised(int32_t kit, int32_t px, const std::vector<int32_t>
     Cache& c = G();
     const auto key = std::make_pair(kit, px);
     auto it = c.fonts.find(key);
-    if (it != c.fonts.end()) { fromCache = true; return &it->second; }
+    if (it != c.fonts.end()) {
+        // A hit only for the same codepoint list (review F-231 / F-235): a mod reload can bring a
+        // base font with another glyph set, and BuildVariant indexes glyphs by the base's sprite
+        // count.
+        bool same = it->second.glyphs.size() == cps.size();
+        for (size_t i = 0; same && i < cps.size(); ++i)
+            same = it->second.glyphs[i].codepoint == cps[i];
+        if (same) {
+            fromCache = true;
+            return &it->second;
+        }
+        c.fonts.erase(it);
+    }
     fromCache = false;
     RasterFont rf;
     std::string why;

@@ -162,7 +162,7 @@ bool ForceSnow(float* value) {
     if (s_forceSnow < 0) {
         const char* e = Opt().forceSnow;
         s_forceSnow = (e && e[0]) ? 1 : 0;
-        if (s_forceSnow) s_snowVal = static_cast<float>(std::strtod(e, nullptr));
+        if (s_forceSnow) s_snowVal = ClampedAtof(e);   // F-087: a double beyond float range
     }
     *value = s_snowVal;
     return s_forceSnow != 0;
@@ -719,6 +719,10 @@ void Hook(::Engine::MainLoop& loop, int32_t point, float alpha, float time) {
     }
     if (point == ::Engine::MainLoop::kExtBeforeTransition) {
         g_driver.BeforeTransition(g_host);   // P13_OVERLAP: nothing in flight while the loop ends
+        return;
+    }
+    if (point == ::Engine::MainLoop::kExtBeforeActivate) {
+        g_driver.BeforeActivate(g_host);   // review S-002 / S-010: nothing in flight while focus changes
         return;
     }
     GameUpdateLoop* const g = GameUpdateLoop::_singleton;

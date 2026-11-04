@@ -18,6 +18,7 @@
 #include <cstring>
 
 #include "Game/exe_constants.h"   // kRdata_* (the exe .rdata floats the bodies read)
+#include "Action/saved_bounds.h"   // ActionBounds::WorldToCellAxis (moveto.cpp's cell, review F-160)
 
 namespace Ext {
 namespace WalkBatch {
@@ -29,14 +30,14 @@ inline float RdataBits(uint32_t bits) {
 }
 
 // MoveTo::Execute's WorldToCell (moveto.cpp:115-129): clamp each axis to [0, size-1].
+// NOT RETAIL (review F-251, F-252): each axis goes through ActionBounds::WorldToCellAxis, as
+// moveto.cpp's does since F-160: a saved destination or position outside int's range, or NaN, is
+// not converted (undefined in C++) and gives cell 0 on that axis, CVTTSS2SI's answer after the
+// clamp. Every in-range value converts as before.
 inline int WorldToCell(int mapSize, float worldX, float worldY) {
     const float halfMap = static_cast<float>(mapSize >> 1);
-    int cellX = static_cast<int>(worldX + halfMap);
-    int cellY = static_cast<int>(worldY + halfMap);
-    if (cellX < 0) cellX = 0;
-    if (cellX >= mapSize) cellX = mapSize - 1;
-    if (cellY < 0) cellY = 0;
-    if (cellY >= mapSize) cellY = mapSize - 1;
+    const int cellX = ActionBounds::WorldToCellAxis(worldX + halfMap, mapSize);
+    const int cellY = ActionBounds::WorldToCellAxis(worldY + halfMap, mapSize);
     return mapSize * cellY + cellX;
 }
 

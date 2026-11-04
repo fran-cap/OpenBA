@@ -98,6 +98,7 @@ struct Run {
 
 Run g_run;
 Choices g_choices;
+bool g_pipeSyncOwed = false;   // GameEnded asked for the pipelined renderer again: install it at the next frame
 char g_status[160] = "Ready.";
 uint32_t g_statusEpoch = 0;   // the game (Ext::LockEpoch) the status line is about
 void (*g_statusHook)() = nullptr;
@@ -509,7 +510,25 @@ void Cancel() {
     SetStatus("Screenshot cancelled.");
 }
 
+void GameEnded(const void* game) {
+    if (g_run.phase == Phase::Idle || g_run.game != game) return;
+    // The pause belonged to the game going away. The renderer is only requested here: the loop is being
+    // destroyed (or the program is quitting), not a moment to start the render thread.
+    const bool hadPipe = g_run.hadPipe;
+    g_run = Run();
+    if (hadPipe) {
+        const Ext::Entry* pipe = Ext::FindEntry("render_pipe");
+        if (pipe != nullptr) Ext::SetRequested(*pipe, true);
+        g_pipeSyncOwed = true;
+    }
+    SetStatus("The screenshot was stopped: the game ended.");
+}
+
 DrawOptions::DrawOptions() {
+    if (g_pipeSyncOwed) {   // the first frame after GameEnded: the pipelined renderer goes back in
+        g_pipeSyncOwed = false;
+        Ext::RenderPipe::Sync();
+    }
     if (g_run.phase == Phase::Idle || g_gameSettings == nullptr) return;
     m_held = true;
     m_hadStatusIcons = g_gameSettings->statusIconEnable;
