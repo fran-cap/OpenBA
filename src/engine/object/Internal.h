@@ -617,12 +617,12 @@ public:
 #if !defined(BANISHED_UNIT_TEST)
     // ?ResetPersistState@InternalFactory@Object@@QEAAXAEAVStream@IO@@@Z 0x1800bfe40
     void ResetPersistState(IO::Stream& stream);
+#endif
 
     // ?PersistObject@InternalFactory@Object@@QEAAPEAVInternal@2@AEAVStream@IO@@IHI@Z
     //                                                      0x1800bff10
     Internal* PersistObject(IO::Stream& stream, uint32_t generation, int index,
                             uint32_t typeId);
-#endif
 
     Collection::Array<Internal*>&       GetObjects()          { return _objects; }
     const Collection::Array<Internal*>& GetObjects() const    { return _objects; }
