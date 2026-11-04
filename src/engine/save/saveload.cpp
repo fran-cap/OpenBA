@@ -398,6 +398,19 @@ void RtSaveDetail::ArraySaveInfoDtor(Save::SaveLoad::SaveInfoArray* arr) {
 // The ??1SaveLoad DOOR keeps its body (the class declares no destructor: see
 // SaveLoad.h's banner — nothing destroys a SaveLoad in C++).
 void RtSave_SaveLoad_Dtor(SaveLoad* self) {
+    // NOT RETAIL (review S-004): wait for the persistence job in flight before anything is
+    // freed. Retail ??1SaveLoad (0x1800c3c90) frees _embeddedState._data (+0x30) below while a
+    // SaveJob may still read it as blocks[0] (UpdateSaveTail lends it; SaveJob's CRC and
+    // FileWrite loop in persistence_worker.cpp): MainMenuDialog::ReturnToMenu (0x1400b4790)
+    // and the quit (GameUpdateLoop::Shutdown, before Persistence ends) both destroy the
+    // SaveLoad with no wait, a use-after-free on the worker thread. hFinished is manual-reset
+    // and every enqueue resets it, so this returns at once when no job runs.
+    if (::IO::Persistence* persistence = PersistenceSingleton()) {
+        if (persistence->_worker.IsWorking()) {
+            persistence->_worker.WaitForFinish();
+        }
+    }
+
     // MOV qword ptr [0x1801fc6f0],0x0 -- unconditional, and it happens FIRST,
     // before anything can fault. Retail clears the singleton even when `this`
     // is not the singleton; that is what the bytes do.
