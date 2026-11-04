@@ -266,9 +266,16 @@ void Save::SaveLoad::LoadMetaData(System::String& description, void** pixels,
     // at 0x1800c1b95, after the Open call), and is transcribed with the same
     // second read. 0x18008a290 is memmove, not memcpy (src/engine/system/error.cpp).
     cmsObj->_memoryStream.Open(static_cast<int>(_embeddedState._size));   // ENDGAME B.3.9 IO: the member
-    std::memmove(cmsObj->_memoryStream._data,
-                 _embeddedState._data,
-                 _embeddedState._size);
+    // NOT RETAIL (review S-032): the copy is skipped when there is nothing to copy. memmove
+    // with a null source is undefined behaviour even for 0 bytes, and UpdateList state 3 can
+    // skip SetupLoad / BeginLoad while state 4 still calls here, leaving _embeddedState
+    // {nullptr, 0} (the stores at the end of the previous call). Retail's second read of
+    // _size is kept.
+    if (_embeddedState._size != 0) {
+        std::memmove(cmsObj->_memoryStream._data,
+                     _embeddedState._data,
+                     _embeddedState._size);
+    }
 
     // ---- 0x1800c1bb5 : CompressedStream::Open(cms, cms._memoryStream, 1) ---
     // Retail calls the base directly with the embedded stream and a window count
