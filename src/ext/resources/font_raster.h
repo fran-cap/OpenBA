@@ -71,7 +71,7 @@ bool FaceAvailable(const char* face, std::string* why);
 
 // The faces a text picture (the family tree's) tries, the likeliest first, and how many. Each platform's
 // rasterizer says what it does best: Windows asks GDI for installed faces, so a system face leads; the
-// others look up one face file per process, so the game's own face (kGameFace) leads there.
+// others look up face files (each face once per process), so the game's own face (kGameFace) leads there.
 const char* const* DefaultFaces(size_t& count);
 
 }  // namespace Resources
