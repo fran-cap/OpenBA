@@ -44,4 +44,68 @@ inline int32_t RoundRobin(Size size, int32_t cursor, int32_t toProcess, Visit vi
     return idx;
 }
 
+// The category byte (+0x1F) of an entity that sits in no bucket (RegisterEntity's
+// category 6, index 0xFFFFFF).
+constexpr int32_t kNoBucket = 6;
+constexpr int32_t kBucketCount = 5;
+
+// The time sums of EntityList::Update: `accumulatedTime += time` (0x1400c40b6) and the
+// per-entity `delta = currentTime - _lastUpdateTime` (0x1400c4227). Retail's ADD / SUB wrap.
+// NOT RETAIL (review S-038): both operands come from the save (System::Time::Serialize, a raw
+// int64), and a signed overflow is undefined behaviour in C++; the sums go through uint64_t,
+// which wraps as retail's instructions do. Every result is the same bits.
+constexpr int64_t AddTicks(int64_t a, int64_t b) {
+    return static_cast<int64_t>(static_cast<uint64_t>(a) + static_cast<uint64_t>(b));
+}
+constexpr int64_t TicksSince(int64_t now, int64_t then) {
+    return static_cast<int64_t>(static_cast<uint64_t>(now) - static_cast<uint64_t>(then));
+}
+
+// NOT RETAIL (review S-007): EntityList::Serialize stores each entity's saved master index
+// (+0x18), bucket index (+0x1C low 24 bits) and bucket id (+0x1F) unchecked (retail
+// 0x1400c46b9..0x1400c46dd), and RemoveEntity (0x1400c38e0) then writes buckets[id]._data[idx]
+// and masterArray._data[_entityId] with them. A loaded list is accepted only when every
+// master slot holds an entity whose fields name that slot and the bucket entry that holds it,
+// and every bucket entry is an entity whose fields name that entry: the state RegisterEntity
+// and RemoveEntity keep. `master(i)` and `bucket(b, i)` return the entity (null for none);
+// `bucketSize(b)` the entry count of bucket b. Entity has _entityId and _handle.
+template <class Entity, class Master, class BucketSize, class Bucket>
+inline bool PlacementsConsistent(int32_t masterCount, Master master, BucketSize bucketSize, Bucket bucket) {
+    for (int32_t i = 0; i < masterCount; ++i) {
+        const Entity* e = master(i);
+        if (e == nullptr || e->_entityId != i) {
+            return false;
+        }
+        const int32_t id = static_cast<int8_t>(e->_handle >> 24);
+        if (id == kNoBucket) {
+            continue;
+        }
+        if (id < 0 || id >= kBucketCount) {
+            return false;
+        }
+        const int32_t idx = IndexOf(e->_handle);
+        if (idx < 0 || idx >= bucketSize(id) || bucket(id, idx) != e) {
+            return false;
+        }
+    }
+    // Every bucket entry is a listed entity that names this entry (none in category 6, none
+    // twice, none outside the master array).
+    for (int32_t b = 0; b < kBucketCount; ++b) {
+        const int32_t n = bucketSize(b);
+        for (int32_t i = 0; i < n; ++i) {
+            const Entity* e = bucket(b, i);
+            if (e == nullptr) {
+                return false;
+            }
+            if (static_cast<int8_t>(e->_handle >> 24) != b || IndexOf(e->_handle) != i) {
+                return false;
+            }
+            if (e->_entityId < 0 || e->_entityId >= masterCount || master(e->_entityId) != e) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 } // namespace EntityListBucket

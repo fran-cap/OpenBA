@@ -28,6 +28,7 @@
 #include "Component/NaturalResourceDescription.h"
 #include "Component/StateMachineComponent.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "object/TypeInfo.h"
 #include "object/VSlot.h"       // Object::SlotAddressOf
 #include <cstdint>
@@ -55,7 +56,7 @@ void Init() {
         std::fflush(stderr);
         return;
     }
-    s_mode = std::atoi(e);
+    s_mode = HarnessAtoi(e);
     if (s_mode <= 0) s_mode = 1;
     std::fprintf(stderr, "[CropStart] ENABLED mode=%d — switch demo crop fields on%s\n",
                  s_mode, s_mode >= 2 ? " and post the plant command" : "");

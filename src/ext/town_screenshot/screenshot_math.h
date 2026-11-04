@@ -138,11 +138,14 @@ struct TileGrid {
     int count() const { return cols * rows; }
 };
 
+// No tiles (count() == 0) when the screen is no larger than the two margins on a side: a tile's middle would
+// start past the screen's last row or column, outside the frame ReadTile reads back (Start refuses it).
 inline TileGrid MakeGrid(int imageW, int imageH, int screenW, int screenH, int margin) {
     TileGrid g;
     g.margin = margin;
     g.payloadW = std::max(1, screenW - 2 * margin);
     g.payloadH = std::max(1, screenH - 2 * margin);
+    if (screenW <= 2 * margin || screenH <= 2 * margin) return g;
     g.cols = (imageW + g.payloadW - 1) / g.payloadW;
     g.rows = (imageH + g.payloadH - 1) / g.payloadH;
     return g;

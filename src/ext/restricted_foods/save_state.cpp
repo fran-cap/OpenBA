@@ -8,15 +8,16 @@
 // longer has simply matches nothing.
 //
 // Wire format v1 (little-endian):
-//   u32  count
+//   u32  count       0..kMaxItems
 //   count x {
 //     u8   kind        1 = a blocked food (the only kind in v1)
 //     u32  length      1..kMaxPathBytes
 //     u8   path[length]  the template path, bytes 0x20..0xFF, no NUL
 //   }
 // Decode accepts exactly what Encode writes and refuses the payload (the save is damaged) on a cut-short
-// or over-long payload, an unknown kind, an empty, over-long or control-character path, or a path listed
-// twice (compared without case). A refused payload changes nothing: the old list stays.
+// or over-long payload, a list longer than kMaxItems, an unknown kind, an empty, over-long or
+// control-character path, or a path listed twice (compared without case). A refused payload changes
+// nothing: the old list stays.
 //
 // Standard C++ only: tests/unit/ext_restricted_foods_test.cpp links this file
 // with restricted_foods.cpp and savetail.cpp.
@@ -37,6 +38,9 @@ namespace {
 constexpr uint8_t  kKindBlockedFood = 1;
 constexpr uint32_t kMaxPathBytes    = 1024;
 constexpr size_t   kMinEntryBytes   = 1 + 4 + 1;   // kind + length + a one-byte path
+// A longer list than any town's materials is damage (as item_priority's). The cap also bounds the duplicate
+// check below, which compares each path with every earlier one (review F-243, F-248).
+constexpr uint32_t kMaxItems        = 4096;
 
 bool PathIsValid(const std::string& path) {
     if (path.empty() || path.size() > kMaxPathBytes) {
@@ -78,7 +82,7 @@ bool Decode(const uint8_t* bytes, size_t size, int32_t savedVersion) {
     if (!r.U32(count)) {
         return false;
     }
-    if (count > r.left / kMinEntryBytes) {
+    if (count > kMaxItems || count > r.left / kMinEntryBytes) {
         return false;
     }
     std::vector<std::string> paths;

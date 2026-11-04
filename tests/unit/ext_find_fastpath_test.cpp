@@ -60,3 +60,19 @@ UNIT_TEST(ext_find_fastpath_request_table_matches_a_map) {
     CHECK(t.Find("dialog/x", 8, gen) == nullptr);
     CHECK(t.Find("Dialog/x", 8, gen + 1) == nullptr);
 }
+
+// Review F-250 / F-253: StoreRef sized its id-indexed table by a reference id read from the save,
+// bounded only at 2^24 (about 400 MB of 24-byte entries for one crafted id). A save's ids are
+// 1..N, N its reference table's count (SerializeReferenceTable's write arm); nothing past N is
+// cached, so the table never outgrows the save that filled it.
+UNIT_TEST(ext_find_fastpath_ref_table_is_bounded_by_the_reference_count) {
+    using Ext::FindFastpath::RefIdCacheable;
+    CHECK(RefIdCacheable(1, 3));
+    CHECK(RefIdCacheable(3, 3));
+    CHECK(!RefIdCacheable(4, 3));
+    CHECK(!RefIdCacheable(1u << 24, 3));
+    CHECK(!RefIdCacheable(1u << 24, 1 << 20));
+    CHECK(!RefIdCacheable(0xFFFFFFFEu, 0x7FFFFFFF));
+    CHECK(!RefIdCacheable(1, 0));
+    CHECK(!RefIdCacheable(1, -5));
+}

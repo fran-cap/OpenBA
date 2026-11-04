@@ -356,17 +356,17 @@ UNIT_TEST(ext_terrain_edit_a_stroke_picks_the_cells_it_needs) {
 UNIT_TEST(ext_terrain_edit_undo_remembers_what_a_stroke_planted) {
     using namespace Ext::TerrainEdit;
     UndoStack u;
-    u.RecordPlanted(3, 0x1000);   // no stroke open: ignored
+    u.RecordPlanted(3, 0x1000, 1u);   // no stroke open: ignored
     u.BeginStroke();
-    u.RecordPlanted(3, 0x1000);
-    u.RecordPlanted(9, 0x2000);
+    u.RecordPlanted(3, 0x1000, 1u);
+    u.RecordPlanted(9, 0x2000, 2u);
     u.CommitStroke();
     CHECK(u.Depth() == 1);   // planted resources alone make a step
     Stroke s;
     CHECK(u.Pop(s));
     CHECK(s.planted.size() == 2);
-    CHECK(s.planted[0].cell == 3 && s.planted[0].entity == 0x1000);
-    CHECK(s.planted[1].cell == 9 && s.planted[1].entity == 0x2000);
+    CHECK(s.planted[0].cell == 3 && s.planted[0].entity == 0x1000 && s.planted[0].generation == 1u);
+    CHECK(s.planted[1].cell == 9 && s.planted[1].entity == 0x2000 && s.planted[1].generation == 2u);
     CHECK(s.heights.empty() && s.types.empty());
 }
 
@@ -902,4 +902,26 @@ UNIT_TEST(ext_terrain_edit_value_noise_is_smooth_and_bounded) {
         CHECK(std::fabs(v - prev) < 0.3f);
         prev = v;
     }
+}
+
+// review F-245 / F-246 / F-249: a contour draw range comes from the save unchecked. The brush reads one
+// only when start + count stays inside the index array (with no int overflow) and base + any 16-bit index
+// stays a valid, non-negative int.
+UNIT_TEST(ext_terrain_edit_contour_range_fits_refuses_overflowing_ranges) {
+    using namespace Ext::TerrainEdit;
+    CHECK(ContourRangeFits(0, 0, 12, 12));
+    CHECK(ContourRangeFits(6, 100, 6, 12));
+    CHECK(ContourRangeFits(12, 0, 0, 12));
+    CHECK(!ContourRangeFits(7, 0, 6, 12));    // runs one past the indices
+    CHECK(!ContourRangeFits(-1, 0, 6, 12));
+    CHECK(!ContourRangeFits(0, -1, 6, 12));
+    CHECK(!ContourRangeFits(0, 0, -6, 12));
+    // start + count wraps negative in int: the old `start + count > size` passed it
+    CHECK(!ContourRangeFits(0x7FFFFFF0, 0, 0x20, 12));
+    CHECK(!ContourRangeFits(0x7FFFFF00, 0, 0x200, 12));
+    // base + a 16-bit index wraps negative in int: the old `v >= size` passed it
+    CHECK(!ContourRangeFits(0, 0x7FFFFFFF, 6, 12));
+    CHECK(!ContourRangeFits(0, 0x7FFFFFF5, 3, 12));
+    CHECK(ContourRangeFits(0, 0x7FFFFFFF - 0xFFFF, 6, 12));
+    CHECK(!ContourRangeFits(0, 0x7FFFFFFF - 0xFFFF + 1, 6, 12));
 }

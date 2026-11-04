@@ -18,6 +18,7 @@ using Platform::Window::ClientRectToOuter;
 using Platform::Window::FrameBorders;
 using Platform::Window::OuterToClient;
 using Platform::Window::RectTouchesAnyDisplay;
+using Platform::Window::UsableFrameMeasurement;
 
 namespace {
 
@@ -236,4 +237,23 @@ UNIT_TEST(display_geometry_fit_client_at_the_int_limits) {
     Platform::Window::FitClientToUsable(0, 25, 1920, 1050, frame, &x, &y, &w, &h);
     CHECK_EQ(x, 0);
     CHECK_EQ(y, 25 + 1050 - 600);
+}
+
+// A frame measured while a minimised 2560 x 1440 window is being restored: the outer rect
+// is still the iconic 160 x 28, so each pair of sides sums to minus the missing size.
+// Taken as the frame, it turned the fullscreen branch's SetWindowPos(2560 x 1440) into a
+// 4960 x 2852 client area. It must be refused, and a real frame kept.
+UNIT_TEST(display_geometry_frame_measured_mid_restore_is_refused) {
+    const FrameBorders midRestore{-706, -1200, -706, -1200};
+    int32_t cx = 0, cy = 0, cw = 0, ch = 0;
+    OuterToClient(0, 0, 2560, 1440, midRestore, &cx, &cy, &cw, &ch);
+    CHECK_EQ(cw, 4960);
+    CHECK_EQ(ch, 2852);
+    CHECK(!UsableFrameMeasurement(midRestore, false));
+    CHECK(!UsableFrameMeasurement(midRestore, true));
+    CHECK(!UsableFrameMeasurement(FrameBorders{31, 8, 8, -1}, true));
+
+    CHECK(UsableFrameMeasurement(kFrame, true));
+    CHECK(UsableFrameMeasurement(FrameBorders{0, 0, 0, 0}, false));   // borderless: empty frame
+    CHECK(!UsableFrameMeasurement(FrameBorders{0, 0, 0, 0}, true));   // framed but not applied yet
 }

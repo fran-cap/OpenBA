@@ -369,6 +369,7 @@ struct FakeHost {
     void OverlapSwitch(const Ext::RenderPipe::OverlapGovernor&) { ++switches; }
     int publishes = 0;
     int switches  = 0;
+    int activates = 0;   // WM_ACTIVATE joins (review S-002 / S-010)
 };
 
 // One scripted run of `frames` Frames. Returns the window counters summed.
@@ -409,6 +410,18 @@ Counters RunScripted(bool threaded, int frames, int loseEvery, uint32_t seed, Fa
                 CHECK(!host.emitting.load());
                 if (!threaded || !driver.TailInFlight()) CHECK(!handoff.Busy());
                 if (host.tailing.load()) ++host.stepsInTail;
+            }
+            if (r == 5) {
+                // Review S-002 / S-010: the steps' pump dispatches a WM_ACTIVATE. Its handlers
+                // (the FSE refocus Context::Reset, DeviceData_OnActivate's swap-chain Resize)
+                // write what the emit uses: the render thread is joined first.
+                driver.BeforeActivate(host);
+                CHECK(!driver.State().Pending());
+                if (threaded) CHECK(!handoff.Busy());
+                CHECK(!driver.Overlapping());
+                CHECK(!driver.TailInFlight());
+                CHECK(host.inFlight.load() == 0);
+                ++host.activates;
             }
             if (r == 3) {
                 // A step ends the loop: MainLoop::Update joins before Shutdown / delete.
@@ -532,6 +545,7 @@ UNIT_TEST(ext_render_pipe_threaded_100k_frames_keep_the_ownership_rules) {
     // Every gathered packet was emitted (none left, none lost): emits == pipelined.
     CHECK(c.emits == c.pipelined);
     (void)host.stepsInTail;            // timing-dependent: the overlap itself is proven by the handoff test
+    CHECK(host.activates > 0);         // review S-002 / S-010: activations joined the render thread
 }
 
 // P13_OVERLAP: the gate. Unclaimed, the job goes straight through it. Claimed before the job

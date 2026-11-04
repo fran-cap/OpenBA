@@ -25,6 +25,7 @@
 // are (Geometry::_attached / _attachParent, WorldGeometry's terrain arrays).
 // ============================================================================
 #include "ext/render_pipe/snapshot.h"
+#include "ext/render_pipe/snapshot_table.h"
 
 #include <algorithm>
 #include <atomic>
@@ -123,56 +124,6 @@ struct StateEntry {
     size_t                         offset = 0;
 };
 
-// An open-addressing table from a live pointer to an index, cleared by generation.
-class PointerTable {
-public:
-    void Reset(size_t expected) {
-        size_t want = 64;
-        while (want < expected * 2) want *= 2;
-        if (_slots.size() < want) {
-            _slots.assign(want, Slot{});
-            _gen = 0;
-        }
-        ++_gen;
-        if (_gen == 0) {   // wrapped: clear once
-            for (Slot& s : _slots) s.gen = 0;
-            _gen = 1;
-        }
-    }
-    // The index stored for `key`, or -1; `insert` >= 0 stores it when absent.
-    int32_t Find(const void* key, int32_t insert) {
-        const size_t mask = _slots.size() - 1;
-        size_t i = Mix(key) & mask;
-        for (;;) {
-            Slot& s = _slots[i];
-            if (s.gen != _gen) {
-                if (insert >= 0) {
-                    s.gen   = _gen;
-                    s.key   = key;
-                    s.index = insert;
-                }
-                return -1;
-            }
-            if (s.key == key) return s.index;
-            i = (i + 1) & mask;
-        }
-    }
-    size_t Capacity() const { return _slots.size(); }
-
-private:
-    static size_t Mix(const void* p) {
-        const uint64_t h = static_cast<uint64_t>(std::hash<const void*>{}(p));
-        return static_cast<size_t>((h >> 4) * 0x9E3779B97F4A7C15ull >> 16);
-    }
-    struct Slot {
-        const void* key   = nullptr;
-        int32_t     index = 0;
-        uint32_t    gen   = 0;
-    };
-    std::vector<Slot> _slots;
-    uint32_t          _gen = 0;
-};
-
 // The builder's scratch, kept across frames (main thread only).
 struct Builder {
     std::vector<Entry>      entries;
@@ -189,10 +140,6 @@ struct Builder {
     const WorldGeometry*    world   = nullptr;
 };
 Builder g_builder;
-
-constexpr uint32_t kModeMask  = 0xE000u;   // WorldGeometry::Draw's mode bits of the item key
-constexpr uint32_t kModeDecal = 0x2000u;
-constexpr uint32_t kModeRoad  = 0x4000u;
 
 const InstancedAnimationState* LiveInstancedState(const MeshInstance& mi) {
     const int32_t handle = mi._animation._layers._data[mi._animation._layers._size - 1]._handle;
@@ -515,8 +462,8 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
                 }
                 if (typeid(*g) == typeid(WorldGeometry)) {
                     const uint32_t key = item._arg5;
+                    if (!WorldItemCopied(key)) continue;   // the live object (2.2)
                     const uint32_t mode = key & kModeMask;
-                    if (mode != kModeDecal && mode != kModeRoad) continue;   // the live object (2.2)
                     const char* why = nullptr;
                     if (Admit(b, g, bytes, &why) < 0) {
                         result.refused = why;
@@ -563,7 +510,13 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
             for (int32_t k = 0; k < list._size; ++k) {
                 Graphics::RendererDrawItem& item = list._data[k];
                 const int32_t index = b.geometries.Find(item._geometry, -1);
-                if (index >= 0) item._geometry = b.entries[static_cast<size_t>(index)].copy;
+                if (index < 0) continue;
+                // A WorldGeometry's other modes keep the live object, as pass A left them
+                // (review F-219: they bound the copy's embedded buffers, and ext.better_water
+                // took a strip slot per arena address).
+                const Entry& e = b.entries[static_cast<size_t>(index)];
+                if (e.kind == Kind::WorldBatches && !WorldItemCopied(item._arg5)) continue;
+                item._geometry = e.copy;
             }
         }
     }

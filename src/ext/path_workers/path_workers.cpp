@@ -119,8 +119,10 @@ public:
         PathResult& r = pf->results.data[static_cast<uint32_t>(job.slot)];
         r.path.SetSize(count);
         for (int i = 0; i < count; ++i) r.path._data[i] = s.path[i];
+        // [PFBENCH] e2e split: the publish stamp (stress harness only), before the
+        // release store so it is ordered with it (review F-279).
+        if (t0 != 0) PfProf_Ready(job.slot);
         __atomic_store_n(&r.ready, static_cast<uint8_t>(1), __ATOMIC_RELEASE);
-        if (t0 != 0) PfProf_Ready(job.slot);   // [PFBENCH] e2e split: publish stamp (stress harness only)
         pf->lock.Unlock();
     }
 };
@@ -247,7 +249,7 @@ void SelectForGame() {
 void Dispatch(PathfinderThread& pf) {
     State* st = PoolFor(pf);
     GameHost host{pf};
-    while (__atomic_load_n(&pf.queueCount, __ATOMIC_RELAXED) > 0) {
+    while (LoadQueueCount(&pf.queueCount) > 0) {
         // Run 0x1400a6360's pop, statement for statement (pathfinder_seed.cpp).
         pf.lock.Lock();
         PathCommand* node = pf.queueHead;
@@ -258,7 +260,7 @@ void Dispatch(PathfinderThread& pf) {
         if (node->prev != nullptr) node->prev->next = node->next;
         node->next = nullptr;
         node->prev = nullptr;
-        pf.queueCount = pf.queueCount - 1;
+        StoreQueueCount(&pf.queueCount, LoadQueueCount(&pf.queueCount) - 1);
         System::MemoryAllocator::MemFree(node);
         pf.lock.Unlock();
 

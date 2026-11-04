@@ -22,6 +22,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Entity/CitizenBehavior.h"   // B4: m_citizenList / professionResources
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -42,7 +43,7 @@ void Init() {
     s_init = true;
     const char* e = Opt().foodStock;
     if (!e || !e[0] || std::strcmp(e, "0") == 0) return;
-    s_period = std::atoi(e);
+    s_period = HarnessAtoi(e);
     if (s_period <= 1) s_period = 600;
     std::fprintf(stderr, "[FoodStock] ENABLED — town stock census every %d frames\n", s_period);
     std::fflush(stderr);

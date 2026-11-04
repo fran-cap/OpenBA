@@ -48,6 +48,7 @@
 // its own static_assert, not assume this comment's gap is empty.
 // ============================================================================
 
+#include <atomic>
 #include <cstdint>
 #include <cstddef>
 #include <type_traits>   // B.3.4 PACKAGE+FS: the "IO::Persistence has no vptr" pins
@@ -404,7 +405,9 @@ public:
     // (set by src/ext/registry_boot.cpp to the row's live bool; DESIGN.md hook rule 5). While it
     // reads true, SaveJob writes `<name>.tmp` and replaces the save with it only after every byte
     // is written, so a failed write leaves the previous save as it was. Retail writes in place.
-    static const bool* _extFixSaveTemp;
+    // The row's atomic (Ext::LiveFix): SaveJob reads it on the worker thread while the Extensions
+    // dialog may write the row on the main thread (review F-262).
+    static const std::atomic<bool>* _extFixSaveTemp;
 
     // B.4 R-IO: the String and the three arrays are the real classes. Their
     // member destructors ARE the four releases 0x1800b7740 makes: members die

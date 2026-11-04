@@ -17,6 +17,7 @@
 #include "audio/load_decode_batch.h"
 
 #include "system/parallel_for.h"
+#include "system/annotated_mutex.h"   // Sys::Mutex / Sys::MutexLock (clang -Wthread-safety)
 
 #include <algorithm>
 #include <condition_variable>
@@ -107,10 +108,12 @@ struct Job {
     State    state;
 };
 
+// GUARDED_BY: checked by clang's thread-safety analysis (system/thread_annotations.h). A Job's `state`
+// is also Registry::m's, which the attribute cannot name from Job (every access below holds it).
 struct Registry {
-    std::mutex m;
+    Sys::Mutex m;
     std::condition_variable changed;
-    std::unordered_map<const void*, Job*> jobs;   // queued and not yet finished
+    std::unordered_map<const void*, Job*> jobs GUARDED_BY(m);   // queued and not yet finished
 };
 
 Registry& Reg() {
@@ -136,17 +139,19 @@ void RunFinish(Job* j) {
 
 // The job is in the registry, in `kQueued` or `kDecoded`, and `lk` holds Registry::m. Take it
 // to the end (decode if not yet, finish, erase); returns with `lk` held again.
-void Complete(std::unique_lock<std::mutex>& lk, Registry& reg, Job* j) {
+// REQUIRES is checked at the callers; the body is not analysed: it drops and re-takes the caller's
+// lock through `lk`, which clang's analysis does not follow through a reference.
+void Complete(Sys::MutexLock& lk, Registry& reg, Job* j) REQUIRES(reg.m) NO_THREAD_SAFETY_ANALYSIS {
     if (j->state == State::kQueued) {
         j->state = State::kDecoding;
-        lk.unlock();
+        lk.Unlock();
         RunDecode(j);
-        lk.lock();
+        lk.Lock();
     }
     j->state = State::kFinishing;
-    lk.unlock();
+    lk.Unlock();
     RunFinish(j);
-    lk.lock();
+    lk.Lock();
     reg.jobs.erase(j->item);
     detail::g_queued.fetch_sub(1, std::memory_order_release);
     reg.changed.notify_all();
@@ -156,13 +161,13 @@ void Complete(std::unique_lock<std::mutex>& lk, Registry& reg, Job* j) {
 void TryDecode(Job* j) {
     Registry& reg = Reg();
     {
-        std::lock_guard<std::mutex> lk(reg.m);
+        Sys::MutexLock lk(reg.m);
         if (j->state != State::kQueued) return;   // an Await owns it (it is still in the map)
         j->state = State::kDecoding;
     }
     RunDecode(j);
     {
-        std::lock_guard<std::mutex> lk(reg.m);
+        Sys::MutexLock lk(reg.m);
         j->state = State::kDecoded;
     }
     reg.changed.notify_all();
@@ -171,12 +176,12 @@ void TryDecode(Job* j) {
 // The serial pass, per job in queue order: finish it unless an Await already did.
 void FinishInOrder(Job* j) {
     Registry& reg = Reg();
-    std::unique_lock<std::mutex> lk(reg.m);
+    Sys::MutexLock lk(reg.m);
     for (;;) {
         const auto it = reg.jobs.find(j->item);
         if (it == reg.jobs.end() || it->second != j) return;   // an Await finished it
         if (j->state == State::kDecoding || j->state == State::kFinishing) {
-            reg.changed.wait(lk);                              // an Await is running it
+            reg.changed.wait(lk.Native());                     // an Await is running it
             continue;
         }
         Complete(lk, reg, j);
@@ -221,7 +226,7 @@ bool Defer(void* item, void* result, uint64_t cost, JobFn decode, JobFn finish) 
     Job* j = new Job{item, result, cost, decode, finish, ReadFpEnv(), State::kQueued};
     Registry& reg = Reg();
     {
-        std::lock_guard<std::mutex> lk(reg.m);
+        Sys::MutexLock lk(reg.m);
         if (!reg.jobs.emplace(item, j).second) {   // already queued: decode now instead
             delete j;
             return false;
@@ -236,13 +241,13 @@ namespace detail {
 
 void AwaitSlow(const void* item) {
     Registry& reg = Reg();
-    std::unique_lock<std::mutex> lk(reg.m);
+    Sys::MutexLock lk(reg.m);
     for (;;) {
         const auto it = reg.jobs.find(item);
         if (it == reg.jobs.end()) return;          // finished (or never queued)
         Job* const j = it->second;
         if (j->state == State::kDecoding || j->state == State::kFinishing) {
-            reg.changed.wait(lk);                  // another thread is running it
+            reg.changed.wait(lk.Native());         // another thread is running it
             continue;
         }
         Complete(lk, reg, j);                      // queued or decoded: finish it here

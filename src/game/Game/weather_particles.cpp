@@ -39,6 +39,11 @@
 #include "graphics/Camera.h"    // ENDGAME B.3.5 batch K1 — Graphics::Renderer
 #include "graphics/Material.h"  // Graphics::MaterialInstance
 #include "Game/exe_bodies.h"   // B3R STORAGE: g_gameSettings
+#include "Entity/ComponentEntity.h"               // ComponentEntity(ComponentDescription*) (0x1400c3720)
+#include "Entity/EntityList.h"                    // EntityList::RegisterEntity (0x1400c48a0)
+#include "Component/ComponentDescription.h"       // ComponentDescription::_category (+0x20)
+#include "Component/AmbientEmitterComponent.h"    // the effect entity's emitter
+#include "audio/Audio.h"                          // Audio::Scene::SetEmitterVolume
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "math/Math.h"
@@ -313,8 +318,8 @@ void WeatherParticleGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
 // WeatherEffect_SetEnabled — port of ComponentEntity_impl_42c0(sim, slot, enable).
 // Enables/disables one weather effect slot (0/1). ENABLE creates a particle
 // Geometry from the envRes descriptor and adds it to the Graphics scene;
-// DISABLE flags it to fade out. Audio-emitter spawn (the +8 template) is
-// EXCLUDED per scope — the visible particle half is fully wired.
+// DISABLE flags it to fade out. ENABLE also registers the effect's ambient-sound
+// entity from the choice's +8 template (emitters[slot], +0x60).
 //   sim   = weather sim struct (gameWorld+0x130)
 //   slot  = 0 or 1
 //   enable= build effect if 1, fade out if 0
@@ -361,8 +366,39 @@ void WeatherSimulation::SetEffectEnabled(int slot, bool enable) {
             scene->AddGlobalObject(geo);
     }
     field_0x10 = 0;   // sim state = active
-    // NOTE: the audio ambient entity (entry+8 template) is intentionally not
-    // spawned here — audio is out of scope for this task.
+
+    // The effect's ambient-sound entity, from the choice's +8 template: a copy of it
+    // is registered, its emitter moved to the origin and slot 0 silenced; Update
+    // raises the volume with the effect's intensity and retires it with the effect.
+    ComponentDescription* audioTemplate = arrayBase[slot].description;   // +8
+    if (audioTemplate != nullptr) {
+        void* entityMem = System::MemoryAllocator::MemAlloc(0x48, 8);
+        ComponentEntity* entity = nullptr;
+        if (entityMem != nullptr) {
+            entity = ::new (entityMem) ComponentEntity(audioTemplate);   // 0x1400c3720
+        }
+        emitters[slot] = entity;   // +0x60
+        ::Object::InternalPtr<ComponentEntity> ibp(emitters[slot]);
+        GameUpdateLoop::_singleton->m_entityList->RegisterEntity(
+            &ibp, static_cast<int>(audioTemplate->_category));   // 0x1400c48a0, template +0x20
+        AmbientEmitterComponent* emitter = emitters[slot]->FindComponent<AmbientEmitterComponent>();
+        emitter->MoveTo(Math::Vector3(0.0f, 0.0f, 0.0f));   // 0x140042960
+        SetEmitterVolume(slot, 0.0f);
+    }
+}
+
+// The inlined emitter-volume block of 0x1400942c0 and 0x1400944e0: retail reads the
+// component and its slot array with no test.
+void WeatherSimulation::SetEmitterVolume(int slot, float volume) {
+    AmbientEmitterComponent* emitter = emitters[slot]->FindComponent<AmbientEmitterComponent>();
+    AmbientEmitterSlot* entry = emitter->slots._data;   // +0x38, slot 0
+    if (entry->handle == 0) {
+        entry->volume = volume;
+    } else if (entry->volume != volume) {
+        entry->volume = volume;
+        GameUpdateLoop::_singleton->m_audioScene->SetEmitterVolume(entry->handle, emitter->position,
+                                                                   volume);
+    }
 }
 
 // The C entry gameupdateloop_serialize.cpp calls. The null test is the old body's.

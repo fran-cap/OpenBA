@@ -77,10 +77,21 @@
 // lives in `src/app/res_load_lock.cpp`.
 // ============================================================================
 
+#include "system/thread_annotations.h"
+
+// THE CAPABILITY. `ResLoad` names the lock to clang's thread-safety analysis
+// (system/thread_annotations.h): code that needs it held says REQUIRES(ResLoad),
+// and a caller that does not hold it fails the BANISHED_THREAD_SAFETY build. It
+// is a token, never read or written: the lock itself is the Platform lock in
+// res_load_lock.cpp. The analysis does not model recursion; nothing re-takes
+// the lock within one analysed function.
+struct CAPABILITY("mutex") ResLoadCapability {};
+extern ResLoadCapability ResLoad;
+
 // Acquire / release the resource-loader lock. Recursive on one thread.
 // Both are no-ops when BANISHED_NO_FOL_LOCK is set.
-void ResLoadLockAcquire();
-void ResLoadLockRelease();
+void ResLoadLockAcquire() ACQUIRE(ResLoad);
+void ResLoadLockRelease() RELEASE(ResLoad);
 
 // True when the lock is armed (i.e. BANISHED_NO_FOL_LOCK is NOT set). For
 // diagnostics only — never branch behaviour on it.
@@ -88,9 +99,9 @@ bool ResLoadLockArmed();
 
 // RAII form. Use this in ported bodies; the manual pair is for the C-shaped
 // detour wrappers.
-struct ResLoadGuard {
-    ResLoadGuard()  { ResLoadLockAcquire(); }
-    ~ResLoadGuard() { ResLoadLockRelease(); }
+struct SCOPED_CAPABILITY ResLoadGuard {
+    ResLoadGuard() ACQUIRE(ResLoad) { ResLoadLockAcquire(); }
+    ~ResLoadGuard() RELEASE() { ResLoadLockRelease(); }
     ResLoadGuard(const ResLoadGuard&) = delete;
     ResLoadGuard& operator=(const ResLoadGuard&) = delete;
 };
