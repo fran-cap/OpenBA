@@ -1,0 +1,20 @@
+# C8. 32-bit offsets and truncated formatting (74faba8e2 package offsets, e319c926c Out::Add 1024).
+rules:
+  - id: c08-32bit-stream-offset
+    languages: [cpp]
+    severity: INFO
+    message: C8 a stream / file position held in 32 bits
+    paths:
+      include: ["/src/engine/", "/src/ext/", "/src/game/"]
+    pattern-regex: '\b(?:u?int32_t|int|unsigned(?: int)?|long|DWORD)\s+\w+\s*=\s*(?:static_cast<[^>]+>\()?[\w.>-]*(?:Tell|GetPosition|GetFilePosition|ftell|SetFilePointer|GetFileSize|GetStreamSize)\('
+    # Collection GetSize() / String GetLength() are int in retail too; they are not offsets.
+  - id: c08-snprintf-return-as-length
+    languages: [cpp]
+    severity: WARNING
+    message: C8 snprintf return value accumulated as an offset without clamping (truncation walks past the buffer)
+    pattern-regex: '\b\w+\s*\+=\s*(?:std::)?v?snprintf\(\s*\w+\s*\+\s*\w+\s*,'
+  - id: c08-snprintf-return-used
+    languages: [cpp]
+    severity: INFO
+    message: C8 snprintf return value stored (check it is clamped before use as a length)
+    pattern-regex: '\b(?:int|size_t|auto)\s+\w+\s*=\s*(?:std::)?v?snprintf\('

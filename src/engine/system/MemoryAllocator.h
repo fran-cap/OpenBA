@@ -383,6 +383,20 @@ public:
 // Allocate/Free members), so an allocation is instrumented exactly once.
 // No flag of its own (B3R_RULES R9).
 // ---------------------------------------------------------------------------
+// BANISHED_ASAN_HEAP: 1 in an AddressSanitizer build (CMakeLists.txt BANISHED_SANITIZE=asan|fuzz),
+// where allocator.cpp arms the seat from the start with the C heap so ASan sees engine allocations.
+#if defined(__SANITIZE_ADDRESS__)
+#define BANISHED_ASAN_ON 1
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define BANISHED_ASAN_ON 1
+#endif
+#endif
+#if defined(BANISHED_ASAN_ON) && !defined(_WIN32)
+#define BANISHED_ASAN_HEAP 1
+#else
+#define BANISHED_ASAN_HEAP 0
+#endif
 struct MemoryAllocatorInstrument {
     void* (*memAlloc)(uint64_t size, int align);
     void  (*memFree)(void* p);

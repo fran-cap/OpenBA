@@ -56,16 +56,10 @@ Save::SaveLoad::SaveInfo::SaveInfo(const SaveInfo&) { UnlinkedBody("Save::SaveLo
 Save::SaveLoad::ModInfo::ModInfo(const ModInfo&) { UnlinkedBody("Save::SaveLoad::ModInfo::ModInfo(const ModInfo&)"); }
 Save::SaveLoad::ModInfo::~ModInfo() { UnlinkedBody("Save::SaveLoad::ModInfo::~ModInfo"); }
 
-// B.4 Y RT: `Graphics::GraphicsMesh::_nodes` is `NodeArray`, whose row kSpec_MeshNode (and
-// kSpec_AnimLayer / kSpec_InterpTransform beside it) lives in
-// src/engine/collection/array_graphics_anim.cpp. That file is linked since review F-049
-// (review_engine_ub_test.cpp drives kSpec_MeshNode's init row). Its three element copy
-// constructors live in src/engine/graphics/animationstate.cpp, which is not linked (it pulls in
-// the graphics serializers); no test copies a node, state or instance element, so each aborts
-// if one ever does.
-extern "C" void* RtGraphics_MeshNode_CopyCtor(void*, const void*) { UnlinkedBody("RtGraphics_MeshNode_CopyCtor"); }
-extern "C" void* RtGraphics_AnimState_CopyCtor(void*, const void*) { UnlinkedBody("RtGraphics_AnimState_CopyCtor"); }
-extern "C" void* RtGraphics_AnimInstance_CopyCtor(void*, const void*) { UnlinkedBody("RtGraphics_AnimInstance_CopyCtor"); }
+// `rtcoll::gfxanim::kSpec_MeshNode`, `kSpec_AnimLayer` and `kSpec_InterpTransform` are the
+// REAL rows: src/engine/collection/array_graphics_anim.cpp is linked (with
+// src/engine/graphics/animationstate.cpp, whose element copy ctors it names) since
+// review_graphics_anim_test.cpp sizes and frees layer and instance arrays.
 
 // ============================================================================
 // System::Random is the REAL class now (2026-10-17): src/engine/system/value_types.cpp
@@ -105,5 +99,63 @@ GameUpdateLoop* GameUpdateLoop::_singleton = nullptr;
 int32_t Picking::Scene::Intersect(const Math::Vector3&, const Math::Vector3&, const Math::Scalar&,
                                   Math::Vector3&, Math::Vector3&) const {
     UnlinkedBody("Picking::Scene::Intersect");
+}
+
+// ============================================================================
+// Review group graphics-anim (tests/unit/review_graphics_anim_test.cpp, F-098 / F-121):
+// src/engine/graphics/animationstate.cpp is linked so the test reads a real
+// AnimationState::Serialize and samples the real Animation::GetPoseAtTime. Three of its
+// neighbours live in files the unit does not link:
+//  * AnimationManager::_singleton (animation.cpp): the class static; the test points it
+//    at a record it builds and restores it after.
+//  * Object::ExternalPtrSerializeBody (external_ptr_serialize.cpp, which needs the
+//    ExternalFactory): only retail's first arm is reproduced, the visit-kind stream
+//    (Encoding kind 3) with a null pointer, which returns false and writes nothing
+//    (0x1800042ce). Any other arm aborts.
+//  * rtpickgrid::TransformArrayAssign (scene_grid.cpp): never reached by the test.
+//  * RtGraphics_Renderer_DrawItemSort (wave27_lane_gfxbig.cpp): named by
+//    Renderer::EndDrawGroup in wave29_lane_gfxbody.cpp, which is linked for
+//    Animation::GetRootPoseAtTime; no test ends a draw group.
+// ============================================================================
+#include "graphics/AnimationManager.h"
+#include "object/External.h"
+#include "io/Serializer.h"
+#include "io/Stream.h"
+#include "picking/scene_grid.h"
+Graphics::AnimationManager* Graphics::AnimationManager::_singleton = nullptr;
+bool Object::ExternalPtrSerializeBody(Object::External* cur, IO::Serializer& ser,
+                                      const Object::BaseTypeInfo&, Object::External*&) {
+    if (ser._stream->_encoding->GetKind() == 3 && cur == nullptr)
+        return false;
+    UnlinkedBody("Object::ExternalPtrSerializeBody (factory arms)");
+}
+rtpickgrid::TransformArray* rtpickgrid::TransformArrayAssign(TransformArray*, const TransformArray*) {
+    UnlinkedBody("rtpickgrid::TransformArrayAssign");
+}
+#include "graphics/Scene.h"
+extern "C" void RtGraphics_Renderer_DrawItemSort(Graphics::RendererDrawItem*, int32_t, void*) {
+    UnlinkedBody("RtGraphics_Renderer_DrawItemSort");
+}
+
+// ============================================================================
+// Review F-092..F-094 (tests/unit/achievement_update_bounds_test.cpp):
+// src/engine/achievement/achievement_update.cpp is linked so the test drives the
+// real AchievementManager::Update over fields it builds by hand. Update's gate reads
+// `IO::FileSystem::_singleton` (the class static; package_file_read_test.cpp defines it for the
+// unit: the test points it at a zeroed record and restores it after).
+// The three members below live in achievement_manager.cpp and achievement_state.cpp,
+// which the unit does not link (other tests stub that file's members with markers);
+// none is reached by the test's states, and each stub aborts if one is.
+// ============================================================================
+#include "io/FileSystem.h"
+#include "achievement/AchievementManager.h"
+void Achievement::AchievementInstance::Update(const System::Time&) {
+    UnlinkedBody("Achievement::AchievementInstance::Update");
+}
+bool Achievement::AchievementInstance::IsMet() const {
+    UnlinkedBody("Achievement::AchievementInstance::IsMet");
+}
+bool Achievement::AchievementManager::SetAchievementMet(int) {
+    UnlinkedBody("Achievement::AchievementManager::SetAchievementMet");
 }
 

@@ -1,0 +1,17 @@
+# C12. Thread lifetime (9cef01ce1 destructor join touched the freed SaveLoad; 087901674 menu-loop hook).
+rules:
+  - id: c12-join-in-destructor
+    languages: [cpp]
+    severity: WARNING
+    message: C12 thread joined in a destructor; check what the thread body still reads
+    pattern-regex: '(?m)^\S[^\n]*~\w+\(\)\s*(?:noexcept\s*)?\{[^\n]*\n(?:(?!\}\n)[^\n]*\n){0,40}?[^\n]*\.join\(\)'
+  - id: c12-detached-thread
+    languages: [cpp]
+    severity: WARNING
+    message: C12 detached thread; nothing bounds its lifetime against what it captures
+    pattern-regex: '\.detach\(\)\s*;'
+  - id: c12-thread-captures-this
+    languages: [cpp]
+    severity: INFO
+    message: C12 std::thread capturing this
+    pattern-regex: 'std::thread\s*[\w(]*\s*\(\s*\[[^\]]*\bthis\b'

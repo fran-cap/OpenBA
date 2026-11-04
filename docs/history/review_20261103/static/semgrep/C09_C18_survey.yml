@@ -1,0 +1,54 @@
+# Survey rules for C9, C13, C14, C15, C17, C18.
+rules:
+  - id: c09-clearstate
+    languages: [cpp]
+    severity: INFO
+    message: C9 ClearState() behind a state cache (787df69c4)
+    paths:
+      include: ["/src/render/"]
+    pattern-regex: '\bClearState\(\)'
+  - id: c09-om-get-backup
+    languages: [cpp]
+    severity: WARNING
+    message: "C9 OMGet*/RSGet*/PSGet* backup: every out-param must be Released (228bfc24b leaked the DSV)"
+    paths:
+      include: ["/src/render/"]
+    pattern-regex: '\b(?:OMGetRenderTargets|OMGetDepthStencilState|OMGetBlendState|RSGetState|PSGetShaderResources|PSGetSamplers|VSGetConstantBuffers|PSGetConstantBuffers|IAGetInputLayout|IAGetVertexBuffers|IAGetIndexBuffer)\('
+  - id: c13-deepcopy-running-cursor
+    languages: [cpp]
+    severity: INFO
+    message: C13 snapshot DeepCopy at a running cursor rather than a recorded offset (ddd862312)
+    paths:
+      include: ["/src/ext/render_pipe/"]
+    pattern-regex: 'DeepCopy\w*\([^;]*,\s*at\s*\)'
+  - id: c15-setupperleft-scaled
+    languages: [cpp]
+    severity: INFO
+    message: C15 SetUpperLeft(.., true) / SetPosition(.., true) scales again (f5cf2c2ac)
+    paths:
+      include: ["/src/game/", "/src/engine/", "/src/ext/"]
+    pattern-regex: '\b(?:SetUpperLeft|SetPosition|SetSize)\([^;]*(?:_uiScale|GetScale\(\)|uiScale)[^;]*,\s*true\s*\)'
+  - id: c17-win32-ifdef-in-core
+    languages: [cpp]
+    severity: INFO
+    message: C17 _WIN32 conditional in app/game/engine (platform seam belongs in src/platform)
+    paths:
+      include: ["/src/app/", "/src/game/", "/src/engine/"]
+    pattern-regex: '(?m)^\s*#\s*if(?:def|ndef)?\s+(?:!?\s*defined\s*\(\s*)?_WIN32'
+  - id: c17-used-without-retain
+    languages: [cpp]
+    severity: INFO
+    message: "C17 __attribute__((used)) without retain (875b0a9cb: --gc-sections drops it)"
+    pattern-regex: '__attribute__\(\(\s*used\s*\)\)'
+  - id: c17-null-this-test
+    languages: [cpp]
+    severity: WARNING
+    message: C17 null-this test (UB; clang hoists loads above it)
+    pattern-regex: '\bthis\s*==\s*(?:nullptr|NULL|0)\b|\b!this\b'
+  - id: c18-append-find-untested
+    languages: [cpp]
+    severity: INFO
+    message: C18 a find-only resolve appended untested (4a3ee9210)
+    paths:
+      include: ["/src/game/"]
+    pattern-regex: '\b(?:Append|Add|push_back)\(\s*\w*Find\w*\('

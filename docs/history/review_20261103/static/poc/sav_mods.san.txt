@@ -1,0 +1,15 @@
+=================================================================
+==135048==ERROR: AddressSanitizer: out of memory: allocator is trying to allocate 0xfffffffe0 bytes
+    #0 0x559041587663 in malloc (/home/uspc/tidy/p3/sav_meta_poc+0xff663) (BuildId: 8b91cdb8165ce2d3e59f044310f5b498397dc471)
+    #1 0x5590415e0a43 in rtcoll::MemAlloc(unsigned long, int) /home/uspc/openba-review/src/engine/collection/array.cpp:188:12
+    #2 0x5590415e0a43 in rtcoll::SetSizeCore(Collection::Array<unsigned char, Collection::DefaultAllocator, Collection::DefaultSpec<unsigned char>>*, int, unsigned char const*, rtcoll::ArraySpec const*) /home/uspc/openba-review/src/engine/collection/array.cpp:2269:13
+    #3 0x5590415d03f6 in Collection::Array<unsigned char, Collection::DefaultAllocator, Collection::ExplicitSpec<&rtcoll::kSpec_MetaEntry20>>::SetSize(int) /home/uspc/openba-review/src/engine/save/../collection/Collection.h:581:5
+    #4 0x5590415d03f6 in Save::SaveLoad::LoadMetaData(System::String&, void**, int&, int&, int&, Collection::Array<Save::SaveLoad::ModInfo, Collection::DefaultAllocator, Collection::DefaultSpec<Save::SaveLoad::ModInfo>>&) /home/uspc/openba-review/src/engine/save/saveload_loadmeta.cpp:339:68
+    #5 0x5590415cb709 in main /home/uspc/tidy/p3/sav_meta_poc.cpp:46:9
+    #6 0x783818c2a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #7 0x783818c2a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #8 0x5590414e7834 in _start (/home/uspc/tidy/p3/sav_meta_poc+0x5f834) (BuildId: 8b91cdb8165ce2d3e59f044310f5b498397dc471)
+
+==135048==HINT: if you don't care about these errors you may set allocator_may_return_null=1
+SUMMARY: AddressSanitizer: out-of-memory (/home/uspc/tidy/p3/sav_meta_poc+0xff663) (BuildId: 8b91cdb8165ce2d3e59f044310f5b498397dc471) in malloc
+==135048==ABORTING

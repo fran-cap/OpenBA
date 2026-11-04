@@ -1,0 +1,40 @@
+=================================================================
+==25164==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x52d00001c400 at pc 0x5e6aad6c6432 bp 0x7ffd452ebf10 sp 0x7ffd452eb6d0
+WRITE of size 36864 at 0x52d00001c400 thread T0
+    #0 0x5e6aad6c6431 in __asan_memcpy (/home/uspc/tidy/p3/cs_block_poc+0xfc431) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef)
+    #1 0x5e6aad70d166 in BlobStream::Read(int, void*) /home/uspc/tidy/p3/cs_block_poc.cpp:25:9
+    #2 0x5e6aad735f0c in IO::CompressedStream::DecompressFromSource(int) /home/uspc/openba-review/src/engine/io/compressed_stream_read.cpp:285:14
+    #3 0x5e6aad7380ef in IO::CompressedStream::Read(int, void*) /home/uspc/openba-review/src/engine/io/compressed_stream_read.cpp:439:14
+    #4 0x5e6aad70c4da in main /home/uspc/tidy/p3/cs_block_poc.cpp:58:31
+    #5 0x7d0af4a2a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #6 0x7d0af4a2a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #7 0x5e6aad628834 in _start (/home/uspc/tidy/p3/cs_block_poc+0x5e834) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef)
+
+0x52d00001c400 is located 0 bytes after 32768-byte region [0x52d000014400,0x52d00001c400)
+allocated by thread T0 here:
+    #0 0x5e6aad6c916b in posix_memalign (/home/uspc/tidy/p3/cs_block_poc+0xff16b) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef)
+    #1 0x5e6aad73bf04 in (anonymous namespace)::AsanMemAlloc(unsigned long, int) /home/uspc/openba-review/src/engine/system/allocator.cpp:105:9
+    #2 0x5e6aad70db9e in IO::CompressedStream::SetWindowCount(int) /home/uspc/openba-review/src/engine/io/compressed_stream_open.cpp:67:52
+    #3 0x5e6aad70ddf1 in IO::CompressedStream::Open(IO::Stream&, int) /home/uspc/openba-review/src/engine/io/compressed_stream_open.cpp:105:5
+    #4 0x5e6aad70c4a9 in main /home/uspc/tidy/p3/cs_block_poc.cpp:55:47
+    #5 0x7d0af4a2a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #6 0x7d0af4a2a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #7 0x5e6aad628834 in _start (/home/uspc/tidy/p3/cs_block_poc+0x5e834) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow (/home/uspc/tidy/p3/cs_block_poc+0xfc431) (BuildId: 15673cb46f2a8cbf1b2b6cffe1a940efe88d55ef) in __asan_memcpy
+Shadow bytes around the buggy address:
+  0x52d00001c180: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x52d00001c200: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x52d00001c280: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x52d00001c300: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x52d00001c380: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x52d00001c400:[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x52d00001c480: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x52d00001c500: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x52d00001c580: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x52d00001c600: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x52d00001c680: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa

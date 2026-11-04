@@ -21,7 +21,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/object/expand_memo.cpp   # block SAVELOAD: the ExpandRelativePath memo
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/array_destroy.cpp
-  ${CMAKE_SOURCE_DIR}/src/engine/collection/array_graphics_anim.cpp   # review_engine_ub_test.cpp (F-049): kSpec_MeshNode
+  ${CMAKE_SOURCE_DIR}/src/engine/collection/array_graphics_anim.cpp   # review_engine_ub_test.cpp (F-049): kSpec_MeshNode; review_graphics_anim_test.cpp: Array<Layer> / <Instance>
   ${CMAKE_SOURCE_DIR}/src/engine/collection/linkedlist.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collection/introsort.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/type_reflection.cpp
@@ -30,7 +30,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/serializer_class.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/io/serialize_family.cpp       # decode_exact_test.cpp (issue #13): the reader's array slots
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_read.cpp #   CompressedStream::Read / SetWindow / ReadArray
-  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp # package_file_read_test.cpp: CompressedStream::Open
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp # package_file_read_test.cpp, compressed_stream_bounds_test.cpp: Open
   ${CMAKE_SOURCE_DIR}/src/engine/io/memory_stream.cpp         #   the MemoryStream it opens over
   ${CMAKE_SOURCE_DIR}/src/engine/io/package_file_read.cpp     #   PackageFile::ReadPackfile (FileSystem faked in the test)
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
@@ -47,6 +47,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/audio/audio_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collision2d/collision2d_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/achievement/achievement_type_records.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/achievement/achievement_update.cpp   # achievement_update_bounds_test.cpp (review F-092..F-094)
   ${CMAKE_SOURCE_DIR}/src/engine/video/video_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/graphics/graphics_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/root_operator_delete.cpp
@@ -169,6 +170,8 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/modification_avl8.cpp         #   element 8    (0x1800274c0)
   ${CMAKE_SOURCE_DIR}/src/engine/system/value_types.cpp           # random_test.cpp: the real System::Random (MT19937); the erosion tests draw from it too
   ${CMAKE_SOURCE_DIR}/src/engine/system/timer.cpp                 #   value_types.cpp's System::Time bodies call Timer::SecondsToTicks
+  ${CMAKE_SOURCE_DIR}/src/engine/graphics/animationstate.cpp         # review_graphics_anim_test.cpp (F-098, F-121)
+  ${CMAKE_SOURCE_DIR}/src/engine/graphics/wave29_lane_gfxbody.cpp    #   Animation::GetRootPoseAtTime
   ${CMAKE_SOURCE_DIR}/src/engine/io/filename_extension.cpp        # filename_test.cpp: the real Filename::GetPathExtension body
   # ext_sheet_builder_test.cpp (block RSCSPRITE, KITFREE.md): the packer and the SpriteSheet fill.
   # (The ported writer family cannot join the host build: ui_resources_abi_test.cpp and
@@ -176,5 +179,10 @@ set(UNIT_TREE_SRCS
   # as slot probes; the test mirrors the record format and the exe logs the real writer's CRC.)
   ${CMAKE_SOURCE_DIR}/src/ext/resources/sheet_builder.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/sprite.cpp                     #   AddSpriteInfo / SetSpriteInfo
+  # ui_engine_review_test.cpp: UpdateEvents / CleanRemovedDialogs / Play, ComboElement::UpdateText,
+  # DocumentTextElement::GetNextItem (the bodies they call but do not own: ui_engine_review_stubs.cpp)
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/userinterface.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/widgets_input.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
 )

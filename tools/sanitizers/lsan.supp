@@ -1,0 +1,10 @@
+# LeakSanitizer suppressions for the checking builds (CMakeLists.txt BANISHED_SANITIZE).
+# One line per library or function that leaks by design, with the reason. Driver / system
+# libraries only: a leak in our own code is a finding, never a suppression.
+leak:libvulkan
+leak:libvulkan_lvp
+leak:libvulkan_dzn
+leak:libLLVM
+leak:libdbus
+leak:libX11
+leak:libwayland

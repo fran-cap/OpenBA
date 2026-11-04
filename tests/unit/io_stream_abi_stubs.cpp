@@ -62,7 +62,8 @@ namespace IO {
 // Retail slot 0 is the class's own virtual destructor (B3X W1; ENDGAME B.3.9 IO).
 // The six slot bodies are the real ones: memory_stream.cpp stands on Stream.h
 // alone and is linked (tests/unit/sources.cmake) for package_file_read_test.cpp
-// and save_metadata_hardening_test.cpp (with Open / Create in compressedstream.cpp).
+// and compressed_stream_bounds_test.cpp, and save_metadata_hardening_test.cpp (with Open /
+// Create in compressedstream.cpp).
 
 // ---- IO::FileStream (src/engine/io/file_stream.cpp + file_stream_write.cpp) --
 // Slot 0 is PURE on this class, so there is nothing to stub for it.
