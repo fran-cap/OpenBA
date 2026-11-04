@@ -117,6 +117,12 @@ bool InitLocked(id<MTLDevice> device) {
     const float vertices[18] = { -1, 1, 0, 1, 0, 0, 3, 1, 0, 1, 2, 0, -1, -3, 0, 1, 0, 2 };
     state.triangle = [device newBufferWithBytes:vertices length:sizeof(vertices) options:MTLResourceStorageModeShared];
     state.constantRing = [device newBufferWithLength:kSlotBytes * kRingSlots options:MTLResourceStorageModeShared];
+    if (!state.triangle || !state.constantRing) {
+        // An allocation failed (nil): the pass stays not ready for this device (Ready() answers no) instead of
+        // writing its constants through a nil ring's NULL contents on the first AO frame.
+        std::fprintf(stderr, "[MetalPasses] ASSAO buffers failed to allocate\n");
+        return false;
+    }
     state.constantNext = 0;
     state.ready = true;
     std::fprintf(stderr, "[MetalPasses] ASSAO shaders converted and loaded\n");

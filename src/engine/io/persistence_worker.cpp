@@ -332,7 +332,10 @@ extern "C" void RtIo_PersistenceWorker_EnqueueLoad(IO::PersistenceWorker* w, con
     w->_command = 1;
     w->_status  = 0;
 
-    w->_blockPtrs.~Array();                           // 0x180024aa0
+    // NOT RETAIL (spelling only): retail runs the ~Array body (0x180024aa0) on the
+    // live member; an explicit destructor call would end its lifetime ([basic.life])
+    // before the SetSize below. DestroyAndFree is that same ClearCallback body.
+    w->_blockPtrs.DestroyAndFree();                   // 0x180024aa0
     w->_blockPtrs.SetSize(w->_blockDescs._size);      // 0x18002a9d0
 
     void** slots = w->_blockPtrs._data;
@@ -417,8 +420,10 @@ extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, con
     w->_status  = 0;
     w->_command = 0;
 
-    w->_blockDescs.~Array();   // 0x18002a930
-    w->_blockPtrs.~Array();    // 0x180024aa0
+    // NOT RETAIL (spelling only): the ~Array bodies run on the live members, as
+    // DestroyAndFree, so their lifetime does not end before the SetSize calls below.
+    w->_blockDescs.DestroyAndFree();   // 0x18002a930
+    w->_blockPtrs.DestroyAndFree();    // 0x180024aa0
 
     // The 12-byte header at Persistence+0x54..0x5f -- BATCH 8 named these three
     // fields (`fileHeader`/`magic`/`crc`, Persistence.h) from the SAVE job and
@@ -563,7 +568,7 @@ IO::PersistenceWorker::~PersistenceWorker() {
 // actually promises — status ends at 1 or 2, never left at whatever it was —
 // which catches a body that returns without touching it at all.
 // ============================================================================
-const bool* IO::PersistenceWorker::_extFixSaveTemp = nullptr;   // fix.save_failure_notice seam
+const std::atomic<bool>* IO::PersistenceWorker::_extFixSaveTemp = nullptr;   // fix.save_failure_notice seam
 
 void IO::PersistenceWorker::SaveJob() {
 
@@ -574,7 +579,7 @@ void IO::PersistenceWorker::SaveJob() {
     // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice writes
     // `<name>.tmp` and moves it over the save below, once every byte is written.
     // Read once: the whole job takes one path.
-    const bool viaTemp = _extFixSaveTemp != nullptr && *_extFixSaveTemp;
+    const bool viaTemp = _extFixSaveTemp != nullptr && _extFixSaveTemp->load(std::memory_order_relaxed);
     std::string tempName;
     if (viaTemp) {
         tempName = _pendingFilename._data != nullptr ? _pendingFilename._data : "";
@@ -651,6 +656,11 @@ void IO::PersistenceWorker::SaveJob() {
             const System::WideString saveWide(savePath);
             if (wroteAll) wroteAll = Platform::FileReplace(tempWide._data, saveWide._data) != 0;
             if (!wroteAll) Platform::FileDelete(tempWide._data);
+        } else if (wroteAll) {
+            // Retail's full-write success arm closes the file before it stores 1
+            // (0x1800b6e00: `if (handle != -1) CloseFile(...); *(this + 0x38) = 1;`);
+            // the failure arms store 2 and leave the close to the tail below.
+            if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
         }
         // NOT RETAIL (review F-147): release stores. fix.save_failure_notice polls
         // `_status` while this job runs (SaveLoad::UpdateSave), so a plain store
@@ -660,13 +670,12 @@ void IO::PersistenceWorker::SaveJob() {
         __atomic_store_n(&_status, 2, __ATOMIC_RELEASE);
     }
 
-    // Retail's ONE close-if-still-open check sits here, UNCONDITIONALLY,
-    // after the success/failure branches above rather than inside either of
-    // them: a failed Create left the handle at -1 (never opened) and this is
-    // a no-op; a full write success already matches (nothing above closed it
-    // yet, so this is where retail's real close happens); a short write
-    // leaves the handle open for this same check to close. One site, not
-    // three, exactly as FUN_1800b6e00's tail reads.
+    // Retail's tail close-if-still-open check, UNCONDITIONALLY, after the
+    // success/failure branches: a failed Create left the handle at -1 (never
+    // opened) and this is a no-op; a full write success was already closed in
+    // its arm above (retail closes there, then stores 1: review F-237), so
+    // this is a no-op too; a short write leaves the handle open for this
+    // check to close, as FUN_1800b6e00's tail reads.
     if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
     // ~bfs is retail's ~BinaryFileStream.
 }

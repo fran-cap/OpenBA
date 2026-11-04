@@ -11,6 +11,7 @@
 // address only resolves when reg_pasture_live.cpp registered it).
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Component/PastureComponent.h"
 #include "Entity/CitizenBehavior.h"   // B4: the town pasture registry
 #include "Component/exe_bodies.h"   // Pasture_FillAllPastures (0x140060290)
@@ -31,7 +32,7 @@ static void PastureTendHarness_Tick(int frameNum) {
         const char* e = Opt().pastureTend;
         if (!e || !e[0] || e[0] == '0') s_interval = -1;
         else {
-            int v = std::atoi(e);
+            int v = HarnessAtoi(e);
             s_interval = (v > 1) ? v : 300;
             fprintf(stderr, "[PastureTend] armed: msg-0 every %d frames\n", s_interval);
         }
@@ -80,7 +81,7 @@ static void PastureProduceHarness_Tick(int frameNum) {
         const char* e = Opt().pastureProduce;
         if (!e || !e[0] || e[0] == '0') s_interval = -1;
         else {
-            int v = std::atoi(e);
+            int v = HarnessAtoi(e);
             s_interval = (v > 1) ? v : 300;
             fprintf(stderr, "[PastureProduce] armed: +8 accumulator every %d frames\n",
                     s_interval);
@@ -111,7 +112,7 @@ extern "C" void PastureFillHarness_Tick(int frameNum) {
         const char* e = Opt().pastureFill;
         if (!e || !e[0] || e[0] == '0') s_fillFrame = -1;
         else {
-            int v = std::atoi(e);
+            int v = HarnessAtoi(e);
             s_fillFrame = (v > 1) ? v : 900;
             fprintf(stderr, "[PastureFill] armed: fill pastures from frame %d, re-run "
                     "every %d frames (retail body only touches TYPED pastures and stops "

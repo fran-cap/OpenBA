@@ -96,6 +96,7 @@
 // former `VideoRenderState` mirror (B5_RULES D8 in spirit: no second view of a
 // Runtime class).
 #include "video/RenderState.h"
+#include "depth_bias.h"   // src/render/common: the bias MULSS + CVTTSS2SI (0x180003827-0x18000384b)
 
 namespace VideoDX11 {
 namespace {
@@ -222,12 +223,26 @@ static const D3D11_FILL_MODE kFillMode[2] = {
     D3D11_FILL_WIREFRAME,  // 1 -> 2   (== Video::RenderState::IsWireframe)
 };
 
+// The fields index these tables through RenderState::TableIndex (review S-042), with its counts.
+static_assert(sizeof kBlendFactor / sizeof kBlendFactor[0] == ::Video::RenderState::kBlendFactorCount,
+              "kBlendFactor");
+static_assert(sizeof kBlendOp / sizeof kBlendOp[0] == ::Video::RenderState::kBlendOpCount,
+              "kBlendOp");
+static_assert(sizeof kCompareFunc / sizeof kCompareFunc[0] == ::Video::RenderState::kCompareFuncCount,
+              "kCompareFunc");
+static_assert(sizeof kStencilOp / sizeof kStencilOp[0] == ::Video::RenderState::kStencilOpCount,
+              "kStencilOp");
+static_assert(sizeof kCullMode / sizeof kCullMode[0] == ::Video::RenderState::kCullModeCount,
+              "kCullMode");
+static_assert(sizeof kFillMode / sizeof kFillMode[0] == ::Video::RenderState::kFillModeCount,
+              "kFillMode");
+
 // Depth-bias scale factors, read as float constants by the original:
 //   0x180018c5c = 0x4B7FFFFF = 16777215.0f  (2^24 - 1: the D24 depth range,
 //                                            matching the D24_UNORM_S8_UINT
 //                                            depth buffer this backend creates)
 //   0x180018c58 = 0x45800000 = 4096.0f
-static const float kDepthBiasScale       = 16777215.0f;  // MULSS @ 0x180003843
+// The first is Render::kDepthBiasScale (MULSS @ 0x180003843), applied by Render::DepthBiasUnits.
 static const float kSlopeScaledBiasScale = 4096.0f;      // MULSS @ 0x18000387d
 
 // The D3D11 desc structs must be exactly the shapes the original hard-codes.
@@ -331,6 +346,24 @@ bool RenderStateData::Create() {
     }
     ID3D11Device* dev = Dx11Device();   // == dd->d3dDevice, re-walked
     const ::Video::RenderState* rs = _owner;   // B5 RES: the real class, typed
+    // NOT RETAIL (UB, out-of-bounds index; review S-042): retail 0x1800037c0.. indexes its
+    // stack tables with the raw serialized fields, so a corrupt or mod .rsc value read past a
+    // table. In range a field indexes itself (byte-identical); out of range it takes its
+    // constructor default (RenderState.h).
+    using RS = ::Video::RenderState;
+    const uint32_t srcBlend        = RS::TableIndex(rs->_alphaBlend.srcBlend, RS::kBlendFactorCount, 1);
+    const uint32_t dstBlend        = RS::TableIndex(rs->_alphaBlend.dstBlend, RS::kBlendFactorCount, 0);
+    const uint32_t blendOp         = RS::TableIndex(rs->_alphaBlend.blendOp, RS::kBlendOpCount, 0);
+    const uint32_t fillMode        = RS::TableIndex(rs->_fillMode, RS::kFillModeCount, 0);
+    const uint32_t cullMode        = RS::TableIndex(rs->_cullMode, RS::kCullModeCount, 1);
+    const uint32_t depthFunc       = RS::TableIndex(rs->_depth.func, RS::kCompareFuncCount, 4);
+    const uint32_t stencilFunc     = RS::TableIndex(rs->_stencil.func, RS::kCompareFuncCount, 0);
+    const uint32_t failOp          = RS::TableIndex(rs->_stencil.failOp, RS::kStencilOpCount, 0);
+    const uint32_t depthFailOp     = RS::TableIndex(rs->_stencil.depthFailOp, RS::kStencilOpCount, 0);
+    const uint32_t passOp          = RS::TableIndex(rs->_stencil.passOp, RS::kStencilOpCount, 0);
+    const uint32_t backFailOp      = RS::TableIndex(rs->_stencil.backFailOp, RS::kStencilOpCount, 0);
+    const uint32_t backDepthFailOp = RS::TableIndex(rs->_stencil.backDepthFailOp, RS::kStencilOpCount, 0);
+    const uint32_t backPassOp      = RS::TableIndex(rs->_stencil.backPassOp, RS::kStencilOpCount, 0);
 
     // ---- D3D11_BLEND_DESC ------------------------------------------------
     // memset 0x108 (@0x180003821), then nine explicit fields. Everything the
@@ -342,15 +375,15 @@ bool RenderStateData::Create() {
     blendDesc.AlphaToCoverageEnable  = FALSE;                      // [RBP-0x20].lo, 0x180003905
     blendDesc.IndependentBlendEnable = FALSE;                      // [RBP-0x20].hi, 0x180003905
     blendDesc.RenderTarget[0].BlendEnable    = (rs->_alphaBlend.enabled != 0);             // RS+0x20, 0x18000390b
-    blendDesc.RenderTarget[0].SrcBlend       = kBlendFactor[rs->_alphaBlend.srcBlend];  // RS+0x24, 0x180003914
-    blendDesc.RenderTarget[0].DestBlend      = kBlendFactor[rs->_alphaBlend.dstBlend];  // RS+0x28, 0x18000391f
-    blendDesc.RenderTarget[0].BlendOp        = kBlendOp[rs->_alphaBlend.blendOp];       // RS+0x2c, 0x18000392a
+    blendDesc.RenderTarget[0].SrcBlend       = kBlendFactor[srcBlend];                  // RS+0x24, 0x180003914
+    blendDesc.RenderTarget[0].DestBlend      = kBlendFactor[dstBlend];                  // RS+0x28, 0x18000391f
+    blendDesc.RenderTarget[0].BlendOp        = kBlendOp[blendOp];                       // RS+0x2c, 0x18000392a
     // Alpha blending is NOT separately configurable: the alpha triplet reads
     // the very same three RenderState fields (0x180003935 / 0x180003940 /
     // 0x18000394b re-load RS+0x24, +0x28, +0x2c).
-    blendDesc.RenderTarget[0].SrcBlendAlpha  = kBlendFactor[rs->_alphaBlend.srcBlend];
-    blendDesc.RenderTarget[0].DestBlendAlpha = kBlendFactor[rs->_alphaBlend.dstBlend];
-    blendDesc.RenderTarget[0].BlendOpAlpha   = kBlendOp[rs->_alphaBlend.blendOp];
+    blendDesc.RenderTarget[0].SrcBlendAlpha  = kBlendFactor[srcBlend];
+    blendDesc.RenderTarget[0].DestBlendAlpha = kBlendFactor[dstBlend];
+    blendDesc.RenderTarget[0].BlendOpAlpha   = kBlendOp[blendOp];
     // movzx eax,byte [rdi+0x30]; and al,0xf   @ 0x180003956 — low nibble only,
     // i.e. the four D3D11_COLOR_WRITE_ENABLE_{RED,GREEN,BLUE,ALPHA} bits.
     blendDesc.RenderTarget[0].RenderTargetWriteMask =
@@ -360,13 +393,15 @@ bool RenderStateData::Create() {
     // Fully written, no memset in the original (all ten fields are assigned).
     D3D11_RASTERIZER_DESC rasterDesc;
     std::memset(&rasterDesc, 0, sizeof(rasterDesc));
-    rasterDesc.FillMode              = kFillMode[rs->_fillMode];  // RS+0x6c, 0x1800037d3
-    rasterDesc.CullMode              = kCullMode[rs->_cullMode];  // RS+0x68, 0x180003801
+    rasterDesc.FillMode              = kFillMode[fillMode];       // RS+0x6c, 0x1800037d3
+    rasterDesc.CullMode              = kCullMode[cullMode];       // RS+0x68, 0x180003801
     rasterDesc.FrontCounterClockwise = FALSE;                     // hard 0,   0x180003805
     // cvttss2si of (RS+0x3c * 16777215.0f) — truncation toward zero, matching
-    // the C float->int conversion the original compiled to.
+    // the C float->int conversion the original compiled to. Render::DepthBiasUnits
+    // gives CVTTSS2SI's INT_MIN for an out-of-range product (NOT RETAIL there: the
+    // plain cast is undefined).
     rasterDesc.DepthBias             =
-        static_cast<INT>(rs->_depth.bias * kDepthBiasScale);      // 0x180003827-0x18000384b
+        Render::DepthBiasUnits(rs->_depth.bias);                  // 0x180003827-0x18000384b
     rasterDesc.DepthBiasClamp        = 0.0f;                      // xorps,    0x18000385e
     rasterDesc.SlopeScaledDepthBias  =
         rs->_depth.slopeBias * kSlopeScaledBiasScale;             // 0x180003863-0x180003885
@@ -386,16 +421,16 @@ bool RenderStateData::Create() {
     dsDesc.DepthWriteMask = rs->_depth.write
                                 ? D3D11_DEPTH_WRITE_MASK_ALL
                                 : D3D11_DEPTH_WRITE_MASK_ZERO;    // RS+0x35, 0x18000396d
-    dsDesc.DepthFunc      = kCompareFunc[rs->_depth.func];        // RS+0x38, 0x180003977
+    dsDesc.DepthFunc      = kCompareFunc[depthFunc];              // RS+0x38, 0x180003977
     dsDesc.StencilEnable  = (rs->_stencil.enabled != 0);          // RS+0x44, 0x180003983
     // `mov word [RSP+0x30], 0xffff` @ 0x180003986 sets both masks at once.
     dsDesc.StencilReadMask  = 0xFF;
     dsDesc.StencilWriteMask = 0xFF;
 
-    dsDesc.FrontFace.StencilFailOp      = kStencilOp[rs->_stencil.failOp];      // RS+0x50
-    dsDesc.FrontFace.StencilDepthFailOp = kStencilOp[rs->_stencil.depthFailOp]; // RS+0x54
-    dsDesc.FrontFace.StencilPassOp      = kStencilOp[rs->_stencil.passOp];      // RS+0x58
-    dsDesc.FrontFace.StencilFunc        = kCompareFunc[rs->_stencil.func];      // RS+0x48
+    dsDesc.FrontFace.StencilFailOp      = kStencilOp[failOp];                   // RS+0x50
+    dsDesc.FrontFace.StencilDepthFailOp = kStencilOp[depthFailOp];              // RS+0x54
+    dsDesc.FrontFace.StencilPassOp      = kStencilOp[passOp];                   // RS+0x58
+    dsDesc.FrontFace.StencilFunc        = kCompareFunc[stencilFunc];            // RS+0x48
 
     if (!rs->_stencil.twoSided) {
         // RS+0x45 == 0 -> the fixed back face at 0x1800039ca-0x1800039e2.
@@ -404,15 +439,15 @@ bool RenderStateData::Create() {
         dsDesc.BackFace.StencilPassOp      = D3D11_STENCIL_OP_KEEP;   // 1
         dsDesc.BackFace.StencilFunc        = D3D11_COMPARISON_ALWAYS; // 8
     } else {
-        dsDesc.BackFace.StencilFailOp      = kStencilOp[rs->_stencil.backFailOp];      // RS+0x5c
-        dsDesc.BackFace.StencilDepthFailOp = kStencilOp[rs->_stencil.backDepthFailOp]; // RS+0x60
-        dsDesc.BackFace.StencilPassOp      = kStencilOp[rs->_stencil.backPassOp];      // RS+0x64
+        dsDesc.BackFace.StencilFailOp      = kStencilOp[backFailOp];                   // RS+0x5c
+        dsDesc.BackFace.StencilDepthFailOp = kStencilOp[backDepthFailOp];              // RS+0x60
+        dsDesc.BackFace.StencilPassOp      = kStencilOp[backPassOp];                   // RS+0x64
         // NOT a typo and NOT a bug: the back face re-reads RS+0x48
         // (0x180003a10, the same field the front face used). Video::RenderState
         // simply has one stencil compare function — RenderState::Serialize
         // (0x1800f4c90 -> Stencil::Serialize 0x1800f48e0) shows a single int at
         // +0x48 for the whole Stencil sub-struct.
-        dsDesc.BackFace.StencilFunc        = kCompareFunc[rs->_stencil.func];
+        dsDesc.BackFace.StencilFunc        = kCompareFunc[stencilFunc];
     }
 
     // ---- create, in the original's order ---------------------------------

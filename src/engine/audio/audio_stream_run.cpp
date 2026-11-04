@@ -252,7 +252,9 @@ RunSummary g_summary;
 // ============================================================================
 namespace Audio {
 
-void Stream::Run() {
+// Not analysed (clang -Wthread-safety): retail's bail exits leave the Stream lock held and release
+// it after the loop on `how`, which the analysis cannot follow.
+void Stream::Run() NO_THREAD_SAFETY_ANALYSIS {
     ++g_calls;
 
     // `?_singleton@Device@Audio@@` (0x1801fe760), one load.

@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "Game/pathfinder_queue_count.h"
+
 namespace Ext {
 namespace PathQueryFirst {
 
@@ -42,7 +44,8 @@ void WriteSettings(const Settings& in, Grid* grid) {
 
 // Links `node` in at the head of the worker's list (the end the worker pops next). The list
 // is PathCommand's: `next` points toward the tail, `prev` toward the head. The caller holds
-// the queue lock.
+// the queue lock. `count` is PathfinderThread::queueCount, which the worker reads outside the
+// lock: its write is atomic (Game/pathfinder_queue_count.h).
 template <class Node>
 void PushHead(Node*& head, Node*& tail, int32_t& count, Node* node) {
     node->prev = nullptr;
@@ -53,7 +56,7 @@ void PushHead(Node*& head, Node*& tail, int32_t& count, Node* node) {
         head->prev = node;
     }
     head = node;
-    count = count + 1;
+    StoreQueueCount(&count, LoadQueueCount(&count) + 1);
 }
 
 // Runs `search` with `query`'s settings on `grid`, then writes the grid's own settings back,

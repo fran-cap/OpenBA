@@ -26,6 +26,7 @@
 
 #include "ext/derived_cache/derived_cache.h"   // the SPIR-V cache's store (OpenShared)
 #include "texture_quality/texture_quality.h"   // P4: ext.texture_quality's DropFor
+#include "depth_bias.h"                        // src/render/common: the RenderState depth bias in D24 units
 #include "io/Serializer.h"
 #include "video/Buffers.h"
 #include "video/ConstantBuffer.h"   // ConstantBuffer::_uploadIndex
@@ -897,7 +898,7 @@ bool RenderStateData::Create() {
     }
     s.polygonMode = Pick(kFill, rs->_fillMode, VK_POLYGON_MODE_FILL);
     s.cullMode = Pick(kCull, rs->_cullMode, VK_CULL_MODE_BACK_BIT);
-    s.depthBias = static_cast<int32_t>(rs->_depth.bias * 16777215.0f);
+    s.depthBias = Render::DepthBiasUnits(rs->_depth.bias);
     s.slopeBias = rs->_depth.slopeBias * 4096.0f;
     s.depthTest = rs->_depth.test != 0;
     s.depthWrite = rs->_depth.write != 0;

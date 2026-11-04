@@ -43,6 +43,10 @@ namespace FoundationPiles {
 
 namespace {
 
+// One stderr line per relocated pile, for the first few only (AGENTS.md §3).
+int s_logged = 0;
+constexpr int kLogCap = 16;
+
 // The scheduler's Pickup work for a pile's work id: the trees[0] descent Pickup::Execute
 // inlines (Pickup_FindTypeWork, 0x1400f33b0).
 Pickup* FindPickupWork(WorkScheduler* scheduler, int workId) {
@@ -198,9 +202,12 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
     citizen->field_0xB0 = 0;
     if (target10 == citizen->profession && pickup->field_20 >= 0) citizen->happinessFlags |= 0x20000;
 
-    std::fprintf(stderr, "[FoundationPiles] pile %p (%d) at %d,%d -> %d,%d (site %d,%d %dx%d)\n",
-                 static_cast<void*>(pile), raw->quantity, pileCell % size, pileCell / size, target % size,
-                 target / size, r.x0, r.y0, r.w, r.h);
+    if (s_logged < kLogCap) {
+        ++s_logged;
+        std::fprintf(stderr, "[FoundationPiles] pile %p (%d) at %d,%d -> %d,%d (site %d,%d %dx%d)\n",
+                     static_cast<void*>(pile), raw->quantity, pileCell % size, pileCell / size, target % size,
+                     target / size, r.x0, r.y0, r.w, r.h);
+    }
     return 2;
 }
 

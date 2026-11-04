@@ -113,6 +113,11 @@ static_assert(offsetof(ComboDialog, _list)         == 0xb8, "_list @ +0xb8");
 static_assert(offsetof(ComboDialog, _parentDialog) == 0xc0, "_parentDialog @ +0xc0");
 static_assert(offsetof(ComboDialog, _combo)        == 0xc8, "_combo @ +0xc8");
 
+// NOT RETAIL (review S-035): UserInterface::CloseDialog calls this on the first close of a
+// dialog. For a ComboDialog whose combo's `_openDialog` still names it, it clears that
+// back-pointer while the combo is certainly alive (combodialog_close.cpp has the argument).
+void ForgetClosingComboDialog(DialogInstance* dialog);
+
 }  // namespace UI
 
 // ==== B3R RT-UI: the operator new body (ui/combodialog_ctor.cpp), called by name ====

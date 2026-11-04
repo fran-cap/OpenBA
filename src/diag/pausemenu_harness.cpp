@@ -43,6 +43,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/PlayerToolManager.h" // B4: PlayerToolManager::OpenPauseMenu (0x140101ce0)
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "pausemenu_harness.h"   // the two entry points this file defines
 #include "mod_click_guard.h"     // ModDialogClickRowInRange (review F-295)
 #include <cstdint>
@@ -158,7 +159,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 // and click its button <id> at once (5 = Quit to Main Menu).
                 PlayerToolManager* eui = entityUI ? entityUI : gameWorld->m_toolManager;   // +0x120
                 UI::DialogInstance* pause = eui->OpenPauseMenu();
-                int id = std::atoi(tok + 1);
+                int id = HarnessAtoi(tok + 1);
                 std::fprintf(stderr, "[PauseMenu] CLICKS: pause menu=%p id=%d (frame %d)\n",
                              static_cast<void*>(pause), id, frameNum);
                 if (pause) {
@@ -170,7 +171,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 // A bare <id> token sends the event alone, which leaves the box, and so the
                 // mod, as it was.
                 ModDialog* dlg = ModDialog_LastOpened();
-                int row = std::atoi(tok + 1);
+                int row = HarnessAtoi(tok + 1);
                 int rows = dlg ? dlg->entries.GetSize() : 0;
                 std::fprintf(stderr, "[PauseMenu] CLICKS: ModDialog=%p toggle row %d of %d\n",
                              static_cast<void*>(dlg), row, rows);
@@ -184,7 +185,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 }
             } else if (tok[0] == 'd') {
                 ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
-                int id = std::atoi(tok + 1);
+                int id = HarnessAtoi(tok + 1);
                 std::fprintf(stderr, "[PauseMenu] CLICKS: ModDetailsDialog=%p id=%d\n", static_cast<void*>(dlg), id);
                 if (dlg) {
                     // UI::DialogInstance::OnElementEvent (retail slot 8, +0x40).
@@ -197,7 +198,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 }
             } else {
                 ModDialog* dlg = ModDialog_LastOpened();
-                int id = std::atoi(tok);
+                int id = HarnessAtoi(tok);
                 std::fprintf(stderr, "[PauseMenu] CLICKS: ModDialog=%p id=%d\n", static_cast<void*>(dlg), id);
                 // A per-row id must name a row the dialog built, and for move up / down a
                 // neighbour row too: the real UI cannot send anything else, and ModDialog

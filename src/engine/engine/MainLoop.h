@@ -264,10 +264,15 @@ public:
     // and Update at a third (docs/android/P13_OVERLAP.md):
     //   kExtBeforeTransition  before the loop transition's Shutdown and delete (the
     //                    render thread is joined: nothing it reads is freed under it).
+    // and the window-message observer (src/app/main.cpp) at a fourth (review S-002 / S-010):
+    //   kExtBeforeActivate  before the pump dispatches a WM_ACTIVATE (the render thread is
+    //                    joined: the activation handlers rebuild the swap chain and reset
+    //                    the context it draws with).
     // Null: Frame is retail's body plus the two null tests, Update plus one.
     static constexpr int32_t kExtBeforeSteps      = 0;
     static constexpr int32_t kExtFrameTail        = 1;
     static constexpr int32_t kExtBeforeTransition = 2;
+    static constexpr int32_t kExtBeforeActivate   = 3;
     using ExtFrameFn = void (*)(MainLoop& loop, int32_t point, float alpha, float time);
     static ExtFrameFn _extFrame;   // defined in mainloop_frame.cpp
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md, HITCH_BGSAVE.md): ext.background_save's video-error barrier.

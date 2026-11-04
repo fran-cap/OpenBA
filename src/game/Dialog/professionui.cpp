@@ -380,54 +380,51 @@ void ProfessionUI::OnOpened() {
                 newNode->height = 0;
                 *bstRootPtr = newNode;
             }
+            professionIndexCount = professionIndexCount + 1;   // 0x14007712d, the root arm's JMP
         } else {
-            // BST insert + rebalance
+            // BST insert + rebalance, in retail's order (0x140077068..0x14007712d): walk
+            // first, allocate only at the null child, rebalance from the parent walked to
+            // ([RSP+0x38]), then count. An equal key (JNC 0x140077131) allocates nothing,
+            // rebalances nothing and does not count.
             ProfNode* current = existingRoot;
-            ProfNode* newNode = static_cast<ProfNode*>(System::MemoryAllocator::MemAlloc(0x30, 8));
-            if (newNode) {
-                newNode->key = profDesc;
-                newNode->index = bstIndex;
-                newNode->_pad0C = 0;
-                newNode->parent = nullptr;
-                newNode->left = nullptr;
-                newNode->right = nullptr;
-                newNode->balance = 0;   // one dword store over balance / height
-                newNode->height = 0;
-
-                bool inserted = false;
-                while (!inserted) {
-                    Profession* curKey = current->key;
-                    if (profDesc > curKey) {
-                        ProfNode* right = current->right;
-                        if (right == nullptr) {
-                            newNode->parent = current;
-                            current->right = newNode;
-                            inserted = true;
-                        } else {
-                            current = right;
-                        }
-                    } else if (profDesc < curKey) {
-                        ProfNode* left = current->left;
-                        if (left == nullptr) {
-                            newNode->parent = current;
-                            current->left = newNode;
-                            inserted = true;
-                        } else {
-                            current = left;
-                        }
+            bool duplicate = false;
+            ProfNode** childSlot = nullptr;
+            while (childSlot == nullptr && !duplicate) {
+                Profession* curKey = current->key;
+                if (profDesc < curKey) {
+                    if (current->left == nullptr) {
+                        childSlot = &current->left;    // 0x1400770e4, node + 0x18
                     } else {
-                        // Duplicate key
-                        System::MemoryAllocator::MemFree(newNode);
-                        inserted = true;
+                        current = current->left;
                     }
-                }
-                if (newNode->parent != nullptr) {
-                    ProfNode* nodePtr = newNode;
-                    BSTRebalance_Impl(&professionIndexRoot, &nodePtr);
+                } else if (curKey < profDesc) {
+                    if (current->right == nullptr) {
+                        childSlot = &current->right;   // 0x1400770a7, node + 0x20
+                    } else {
+                        current = current->right;
+                    }
+                } else {
+                    duplicate = true;                  // 0x14007707b JNC 0x140077131
                 }
             }
+            if (!duplicate) {
+                ProfNode* newNode = static_cast<ProfNode*>(System::MemoryAllocator::MemAlloc(0x30, 8));
+                if (newNode) {
+                    newNode->key = profDesc;
+                    newNode->index = bstIndex;
+                    newNode->_pad0C = 0;
+                    newNode->parent = current;
+                    newNode->left = nullptr;
+                    newNode->right = nullptr;
+                    newNode->balance = 0;   // one dword store over balance / height
+                    newNode->height = 0;
+                }
+                *childSlot = newNode;
+                ProfNode* rebalanceFrom = current;   // [RSP+0x38], the parent
+                BSTRebalance_Impl(&professionIndexRoot, &rebalanceFrom);   // 0x140013480
+                professionIndexCount = professionIndexCount + 1;            // 0x14007712d
+            }
         }
-        professionIndexCount = professionIndexCount + 1;
 
         // Set text, sprite, tooltip on text/label element from profession description
         UI::String uiStr(profDesc->stringTable,

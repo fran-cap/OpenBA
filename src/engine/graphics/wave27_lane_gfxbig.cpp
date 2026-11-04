@@ -120,6 +120,7 @@
 #include "graphics/Scene.h"   // ENDGAME B.3.5 caller batch: Graphics::Scene
 #include "graphics/Light.h"   // B3X W0: Light::DrawShadowMap / DrawLight by name
 #include "graphics/Material.h"
+#include "graphics/material_binding_bounds.h"   // review S-003: the bindings BuildParameters appends
 #include "video/Context.h"
 #include "video/Device.h"          // B.4: Video::RenderBuffer::width / height
 #include "video/ImageBuffer.h"     // B.4: Video::ImageBuffer::_kind
@@ -650,6 +651,18 @@ void MaterialInstance::BuildParameters() {
             // the material's arrays; transcribed unhoisted for that reason.
             v.shaderSlot = rtgfxbig::PassPixelProgram(this, pass)->_textures._data[i].dest;
 
+            // NOT RETAIL (review S-003): a binding Setup cannot apply is not appended
+            // (material_binding_bounds.h). Retail appends it unchecked.
+            static_assert(sizeof(Video::Context::_imageBuffers) ==
+                              MaterialBindingBounds::kTextureSlots * sizeof(void*),
+                          "S-003: the texture slot bound is Context::_imageBuffers");
+            static_assert(sizeof(Video::Context::PixelConstantStaging::material) ==
+                              MaterialBindingBounds::kConstantSlots * 4 * sizeof(float),
+                          "S-003: the constant slot bound is PixelConstantStaging::material");
+            if (!MaterialBindingBounds::IsTextureBinding(v.sourceIndex, v.shaderSlot)) {
+                continue;
+            }
+
             // `_parameters._data` is RE-READ here (MOV RSI,[RBP] at 0x180103563)
             // rather than kept from the top of the pass loop.
             RtGraphics::MaterialParameterSet* const set = &_parameters[pass];
@@ -676,6 +689,11 @@ void MaterialInstance::BuildParameters() {
             }
 
             v.shaderSlot = rtgfxbig::PassPixelProgram(this, pass)->_constants._data[i].dest;
+
+            // NOT RETAIL (review S-003): as in the textures arm.
+            if (!MaterialBindingBounds::IsConstantBinding(v.sourceIndex, v.shaderSlot)) {
+                continue;
+            }
 
             RtGraphics::MaterialParameterSet* const set = &_parameters[pass];
             // retail 0x1801037ec, kSpec_Binding8 — trait-equivalent, same as

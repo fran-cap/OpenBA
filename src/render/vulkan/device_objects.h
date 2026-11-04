@@ -90,6 +90,8 @@ bool DeviceLost();
 
 // first time), waits for it, and begins the next command buffer of the same frame, which it returns.
 // The frame's final submit (Finish) then carries only the rest. Recording thread, inside a frame.
+// VK_NULL_HANDLE when no next command buffer could be allocated: nothing was submitted, the frame
+// records on in the one it has.
 VkCommandBuffer SubmitFrameSoFar();
 
 // A shader module over `spirv`. VK_NULL_HANDLE with a message in *why when there is no live device

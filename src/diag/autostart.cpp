@@ -7,6 +7,7 @@
 #include "autostart.h"
 #include "mod_click_guard.h"   // ModDialogClickRowInRange (review F-294)
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -332,17 +333,17 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
 
         if (tok[0] == 'm') {
             UI::DialogInstance* mainMenu = menuDLT->_dialogInstance;
-            int id = std::atoi(tok + 1);
+            int id = HarnessAtoi(tok + 1);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: MainMenuDialog=%p id=%d\n", (void*)mainMenu, id);
             if (mainMenu) InjectClick(mainMenu, kMsg_ButtonClick, id);
         } else if (tok[0] == 'd') {
             ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
-            int id = std::atoi(tok + 1);
+            int id = HarnessAtoi(tok + 1);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: ModDetailsDialog=%p id=%d\n", dlg, id);
             if (dlg) InjectClick(dlg, kMsg_ButtonClick, id);
         } else {
             ModDialog* dlg = ModDialog_LastOpened();
-            int id = std::atoi(tok);
+            int id = HarnessAtoi(tok);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: ModDialog=%p id=%d\n", static_cast<void*>(dlg), id);
             // A fabricated click on a per-row id (1000..5999: row = id % 1000)
             // must name a row the dialog actually built. The real UI cannot

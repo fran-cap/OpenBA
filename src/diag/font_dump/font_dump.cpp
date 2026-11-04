@@ -24,6 +24,7 @@
 #include "ext/resources/font_raster.h"
 #include "ext/resources/font_tables.h"
 #include "kit_font_reader.h"
+#include "app/clamped_atoi.h"   // review F-087: checked parse of the size argument
 
 #include <cstdint>
 #include <cstdio>
@@ -121,7 +122,7 @@ int main(int argc, char** argv) {
     int32_t kit = -1;
     for (int32_t k = 0; k < kKitFontCount; ++k) if (std::strcmp(argv[1], kKitFonts[k].name) == 0) kit = k;
     if (kit < 0) { std::fprintf(stderr, "font_dump: unknown kit font %s\n", argv[1]); return 2; }
-    const int32_t px = std::atoi(argv[2]);
+    const int32_t px = HarnessAtoi(argv[2]);
     const std::string winData = argv[3], outDir = argv[4];
     const VariantNames names = MakeVariantNames(kit, px);
     const std::string crsName = px == kKitFonts[kit].height ? std::string(kKitFonts[kit].name) : names.file;
