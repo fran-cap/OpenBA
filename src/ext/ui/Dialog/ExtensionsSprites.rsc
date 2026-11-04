@@ -9,7 +9,7 @@ SpriteSheet resource
 	String _materialName = "ExtensionsSpritesMaterial.rsc";
 	String _imageName = "Build/ExtensionsSprites.png";
 	int _imageWidth = 512;		// 512 since 2026-10-18: 256 x 256 held 28 sprites (the 29th did not fit)
-	int _imageHeight = 512;
+	int _imageHeight = 1024;	// 1024 since 2026-11-04: 512 x 512 held 115 sprites (the 116th did not fit)
 	bool _padForFiltering = true;
 
 	Sprite _sprites
