@@ -88,8 +88,13 @@ public class OpenBAActivity extends SDLActivity {
             return;
         }
         publishShortcut();
-        if (!harness && !GameFiles.hasGameData(this)) {
-            Log.i(TAG, "game files: no data0.pkg in WinData, the first-run screen is shown");
+        // A copy started from "Game files" (its own task) may still run when the icon is tapped: the
+        // game waits on the same screen, which starts it when the copy ends, and never opens a
+        // WinData that is being replaced.
+        final boolean copying = GameFilesJob.isCopyingPackages();
+        if (!harness && (copying || !GameFiles.hasGameData(this))) {
+            Log.i(TAG, copying ? "game files: a copy is running, the game starts when it ends"
+                               : "game files: no data0.pkg in WinData, the first-run screen is shown");
             mFirstRun = new GameFilesScreen(this, GameFilesScreen.Mode.FIRST_RUN, this::startGameAfterFirstRun);
             setContentView(mFirstRun.view());
         }

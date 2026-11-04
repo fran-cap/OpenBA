@@ -493,6 +493,12 @@ final class GameFilesScreen implements GameFilesJob.Listener {
             setStatus("", false);
             return true;
         }
+        // The game may have started while the picker was open: refresh()'s lock is checked again.
+        if (mMode == Mode.MANAGE && GameFilesJob.isPackageCopy(kind) && gameRunning()) {
+            setStatus("The game is running: quit it to replace the game files.", true);
+            refresh();
+            return true;
+        }
         if (GameFilesJob.start(mActivity, kind, uri) == null) {
             setStatus("Busy: wait for the copy that is running.", true);
             return true;
@@ -539,6 +545,12 @@ final class GameFilesScreen implements GameFilesJob.Listener {
         refresh();
         if (!job.succeeded) {
             setStatus(job.message, !job.cancelled);
+            // The game's start waited here for a copy run from "Game files" (OpenBAActivity.onCreate):
+            // the copy failed or was cancelled, WinData is as it was and holds data0.pkg, so it starts.
+            if (mMode == Mode.FIRST_RUN && GameFilesJob.isPackageCopy(job.kind)
+                && GameFiles.hasGameData(mActivity)) {
+                mHost.onGameFilesInstalled();
+            }
             return;
         }
         switch (job.kind) {
