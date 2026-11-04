@@ -11,8 +11,13 @@ namespace CitizenListBounds {
 
 // NOT RETAIL (review S-008): the cell comes from the save (CitizenBehavior::Serialize, the
 // +0x130 pairs' low int) and retail hands `cell % edge`, `cell / edge` to AddCellEntry with no
-// test; its record index `(edge >> 3) * (y >> 3) + (x >> 3)` then reads, writes and frees
-// through a record outside the grid. A cell is filed only when that record is in the grid.
+// test; AddCellEntry then reads, writes and frees through record `side * (y >> 3) + (x >> 3)`.
+// The test is exactly that record's bound, so every cell retail files inside the grid is still
+// filed the same way. An edge that is not a multiple of 8 is valid data (the terrain size table
+// is moddable): a cell in its last partial column (x >> 3 == side) aliases into the first
+// record of the next bucket row, which is inside the grid, and is filed there as retail does.
+// Only the last partial row (y >> 3 == side) and the partial column of the last full row fall
+// past the grid. An edge of 0 divides by zero; a negative one indexes nothing.
 constexpr bool IsResidenceCell(int32_t cell, int32_t mapEdge) {
     if (mapEdge <= 0 || cell < 0) {
         return false;
@@ -20,10 +25,11 @@ constexpr bool IsResidenceCell(int32_t cell, int32_t mapEdge) {
     if (static_cast<int64_t>(cell) >= static_cast<int64_t>(mapEdge) * mapEdge) {
         return false;
     }
-    const int32_t side = mapEdge >> 3;
-    const int32_t x = cell % mapEdge;
-    const int32_t y = cell / mapEdge;
-    return (x >> 3) < side && (y >> 3) < side;
+    const int64_t side = mapEdge >> 3;
+    const int64_t x = cell % mapEdge;
+    const int64_t y = cell / mapEdge;
+    const int64_t record = side * (y >> 3) + (x >> 3);
+    return record < side * side;
 }
 
 }  // namespace CitizenListBounds
