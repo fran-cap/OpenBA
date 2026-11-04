@@ -32,6 +32,13 @@ struct FrameBorders {
 // AdjustWindowRect's arithmetic: grow a client rect by the frame, in place.
 void ClientRectToOuter(Rect* inOut, const FrameBorders& b);
 
+// Can a measured frame stand for the window's frame? Every side must be >= 0, and a framed
+// window's frame must not be empty (a frame read before the window system applied the
+// style). A negative side is what a measurement taken while a minimised window is being
+// restored gives: the outer rect is still the iconic 160 x 28 while the client is already
+// the full size, so the "frame" is minus the client size.
+bool UsableFrameMeasurement(const FrameBorders& b, bool framed);
+
 // SetWindowPos's arithmetic, reversed: the client rect an outer rect at (x, y), w x h
 // leaves inside a frame `b`.
 void OuterToClient(int32_t x, int32_t y, int32_t w, int32_t h, const FrameBorders& b,
