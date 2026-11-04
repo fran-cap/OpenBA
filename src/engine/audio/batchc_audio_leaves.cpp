@@ -44,6 +44,7 @@
 #include "audio/Device.h"
 #include "audio/SoundBuffer.h"
 #include "system/MemoryAllocator.h"
+#include "platform_sync.h"   // fix.stream_free_wait: the Stream's wake / finished events
 
 // ENDGAME B.3.7 block B4: this file's private copy of `AudioChannel` and its
 // `ChannelAt` / `FreeChannelPlatform` forward declaration are gone — the
@@ -83,11 +84,27 @@ void MemFree(void* p) { System::MemoryAllocator::MemFree(p); }
 // ############################################################################
 namespace Audio {
 
+const bool* Device::_extFixStreamFreeWait = nullptr;   // fix.stream_free_wait seam
+
 void Device::OnSoundBufferDeleted(const SoundBuffer* buffer) {
     for (int i = 0; i < 64; ++i) {              // `CMP EDI,0x40 ; JL` at 0x1800de154
         AudioChannel* ch = &_channels[i];
         if (ch->source != buffer) continue;
         if ((ch->LoadFlags() & 1u) == 0) continue;   // atomic: AudioChannel (review F-138)
+
+        // FIX stream_free_wait (review S-027, NOT RETAIL): retail 0x1800de0e0 frees the voice and
+        // returns, and ~SoundBuffer (0x1800e03b0) then frees `_wmaData`, while the stream worker may
+        // still be in Stream::Run between its ReadFile and its next lock, reading that seek table
+        // (0x1800a1230 `MOV ECX,[R10+RDX]`): a use after free. With the row on, the channel the
+        // stream is playing has its pass stopped and finished first: Stream::Play's own drain
+        // (0x1800a0d2d / 0x1800a0d38 / 0x1800a0d45). `_hFinished` is reset by the Play that started
+        // the pass and set when that pass has left Run, so a pass not yet started is waited for too.
+        if (_extFixStreamFreeWait != nullptr && *_extFixStreamFreeWait && buffer->IsStreamed() &&
+            _stream._channel == i) {
+            __atomic_store_n(&_stream._stopping, uint8_t{1}, __ATOMIC_RELAXED);
+            Platform::EventSet(_stream._wakeEvent);
+            Platform::EventWait(_stream._hFinished, Platform::kInfinite);
+        }
 
         ch->OrFlags(2u);
         FreeChannelPlatform(i);

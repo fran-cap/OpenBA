@@ -84,6 +84,7 @@ struct Fixes {
     bool input_fetch_room  = true;   // docs/retail_bugs.md §25, src/ext/input_fetch_room/: sim-visible, a production worker's input fetch fits the workplace's free room
     bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home's zone (else his lost home's, the hall's, a storage's) whose walk there was refused wades back
     bool debug_spawn_origin = true;  // docs/retail_bugs.md §29, src/ext/debug_spawn_origin/: the debug panel's spawn-citizens button places its citizens by the world origin when no storage has a use node, instead of hanging
+    bool stream_free_wait  = true;   // review S-027 (engine seam Audio::Device::_extFixStreamFreeWait): a streamed sound freed while its stream pass runs waits for the pass, so the worker reads no freed seek table
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
