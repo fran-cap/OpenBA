@@ -187,6 +187,11 @@ void MenuDialogLoopT::Startup() {
     printf("[MenuDLT::Startup] DialogLoopT::Startup returned, m_dialogInstance=%p\n",
            _dialogInstance);
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARP_SPRITES.md): ext.sharp_ui builds the magnified
+    // sheets the menu draws (the Extensions sheet exists from here) before its first frame.
+    if (Ext::Ext().sharp_ui)
+        Ext::SharpUI::PrewarmAndWait();
+
     // The container's cursors, sprite sheet and UI sounds were filled at boot by
     // GameContainer_Init 0x140099db0 (InnerLoaderLoop::Load), as in retail; the tree's
     // on-demand copies (EnsureCursorsLoaded / StandaloneEnsureSpriteSheetLoaded /

@@ -129,5 +129,16 @@ bool Twin2xPath(const char* path, char* out, size_t cap);
 // layout unit on both axes): its texels are then closer to the screen's.
 bool WantTwin2x(float pxPerUnitX, float pxPerUnitY);
 
+// The factor of the magnified sheet copy (sharp_scaled.h) to draw `pxPerUnit`
+// device pixels per layout unit from: 0 (retail's sheet) unless WantTwin2x;
+// else the smallest of `factors` (ascending) at or above the larger axis's
+// ratio, so the copy is never magnified while a bigger one exists; the largest
+// above them all. `pxPerUnit` is already in back-buffer pixels: the slider, the
+// window density and the render scale are all in it, and nothing else counts
+// (the Windows exe is DPI-unaware, as retail: display scaling never reaches the
+// back buffer). Ties go to the smaller factor (2.0 exactly is the 2x sheet,
+// texel for pixel).
+int PickSheetFactor(float pxPerUnitX, float pxPerUnitY, const int* factors, int count);
+
 }  // namespace SharpUI
 }  // namespace Ext

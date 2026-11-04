@@ -340,6 +340,26 @@ UNIT_TEST(ext_sharp_ui_twin_path) {
     CHECK(!Ext::SharpUI::WantTwin2x(0.6667f, 0.6667f));
 }
 
+// The sheet copy's factor: none at or below one device pixel per unit, then the
+// smallest factor that is not magnified, the largest beyond them all.
+UNIT_TEST(ext_sharp_ui_pick_sheet_factor) {
+    using Ext::SharpUI::PickSheetFactor;
+    const int both[] = {2, 4};
+    const int two[] = {2};
+    CHECK(PickSheetFactor(1.0f, 1.0f, both, 2) == 0);           // slider 100
+    CHECK(PickSheetFactor(0.6667f, 0.6667f, both, 2) == 0);     // slider 150: shrunk
+    CHECK(PickSheetFactor(1.3333f, 1.3333f, both, 2) == 2);     // slider 75
+    CHECK(PickSheetFactor(2.0f, 2.0f, both, 2) == 2);           // slider 50: texel for pixel
+    CHECK(PickSheetFactor(2.0005f, 1.9995f, both, 2) == 2);     // the tolerance
+    CHECK(PickSheetFactor(2.6667f, 2.6667f, both, 2) == 4);     // Retina at slider 75
+    CHECK(PickSheetFactor(1.9f, 2.2f, both, 2) == 4);           // the larger axis decides
+    CHECK(PickSheetFactor(4.0f, 4.0f, both, 2) == 4);
+    CHECK(PickSheetFactor(5.5f, 5.5f, both, 2) == 4);           // beyond: the largest
+    CHECK(PickSheetFactor(2.6667f, 2.6667f, two, 1) == 2);      // a 2x-only sheet
+    CHECK(PickSheetFactor(1.3333f, 1.0f, both, 2) == 0);        // one axis not magnified
+    CHECK(PickSheetFactor(3.0f, 3.0f, both, 0) == 0);           // no art set
+}
+
 // A dialog that moves (a panel following its entity while the camera turns)
 // must move as one picture: rounded against its own upper-left, the device-pixel
 // gap between any two of its coordinates is the same wherever the dialog sits.

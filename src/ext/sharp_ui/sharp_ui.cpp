@@ -6,7 +6,12 @@
 // ============================================================================
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/sharp_ui/sharp_math.h"
+#include "ext/sharp_ui/sharp_scaled.h"
 #include "platform/common/platform_window_hooks.h"   // GamePixelDensity
+#include "platform/common/display_density.h"         // UiScaleRatio: the boot prewarm's UI scale
+#include "Game/GameSettings.h"                       // g_gameSettings->uiScale (the boot prewarm)
+#include "Game/exe_bodies.h"                         // g_gameSettings
+#include "ext/registry.h"                            // Val().sharp_ui_icons
 #include "ext/resources/Resources.h"   // HasProvider: the in-exe font variants (KITFREE)
 
 #include <cstdint>
@@ -54,6 +59,7 @@ struct State {
     bool     valid = false;
     float    scale = 0.0f;
     int32_t  bbW = 0, bbH = 0;
+    int32_t  icons = -1;   // ext.sharp_ui_icons the selection was made with
     int32_t  generation = 0;
     // The selection.
     UI::SharpSheetSwap swaps[kMaxSwaps];
@@ -61,6 +67,7 @@ struct State {
     int32_t            swapCount = 0;
     char               fontText[kFontCount][32];   // the trace's "Font->32" parts
     int32_t            twin2x = 0;
+    int32_t            scaled = 0;   // the dialog sheet's factor (sharp_scaled.h), 0 = retail's
     // Engage detection: the context frame of the last wrapped draw.
     bool     drewBefore = false;
     int32_t  lastFrame = 0;
@@ -117,6 +124,7 @@ UI::SharpSheetSwap* NewSwap() {
     Twin& t = g.twins[g.swapCount];
     t.twinSprite.clear();
     t.place.clear();
+    g.swaps[g.swapCount] = UI::SharpSheetSwap{};
     return &g.swaps[g.swapCount];
 }
 
@@ -263,14 +271,43 @@ void SelectTwins2x() {
     }
 }
 
+// The sheets we have art for (sharp_scaled.h: the game's dialog sheet, our
+// Extensions sheet) drawn from their copy at `factor`: our art over the sheet
+// upscaled, the base UVs. A deployed twin wins.
+void SelectScaledSheets(int factor) {
+    Object::ExternalFactory* const f = Object::ExternalFactory::_singleton;
+    if (f == nullptr || factor < 2) return;
+    for (UI::SpriteSheet* s = f->FindNextAs<UI::SpriteSheet>(UI::SpriteSheet::TypeId(), nullptr);
+         s != nullptr; s = f->FindNextAs<UI::SpriteSheet>(UI::SpriteSheet::TypeId(), s)) {
+        if (AlreadySwapped(s)) continue;
+        const System::Filename path = s->GetPath();
+        const SheetKind kind = KindOfSheet(path._data);
+        if (kind == SheetKind::None) continue;
+        Graphics::MaterialInstance* const material = ScaledSheetMaterial(s, kind, factor);
+        if (material == nullptr) continue;
+        UI::SharpSheetSwap* const swap = NewSwap();
+        if (swap == nullptr) return;
+        swap->base     = s;
+        swap->count    = s->m_sprites._size;
+        swap->material = material;
+        ++g.swapCount;
+        g.scaled = factor;
+    }
+}
+
 void Select(const DrawChoice& c) {
     g.swapCount = 0;
     g.twin2x = 0;
+    g.scaled = 0;
     for (int k = 0; k < kFontCount; ++k) {
         if (c.snap) SelectFont(k, c.pxPerUnitY);
         else std::snprintf(g.fontText[k], 32, "%s->retail(frame)", kFontNames[k]);
     }
-    if (c.snap && WantTwin2x(c.pxPerUnitX, c.pxPerUnitY)) SelectTwins2x();
+    // The sprite sheets only at "Text + icons" (ext.sharp_ui_icons, the Enhanced tab's Sharp UI).
+    const bool icons = Val().sharp_ui_icons != 0;
+    if (icons && c.snap && WantTwin2x(c.pxPerUnitX, c.pxPerUnitY)) SelectTwins2x();
+    if (icons && c.snap) SelectScaledSheets(PickSheetScale(c.pxPerUnitX, c.pxPerUnitY));
+    DropSeenJobs();
 }
 
 }  // namespace
@@ -288,8 +325,11 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
     g.drewBefore = true;
     g.lastFrame = frame;
 
-    const bool scaleChanged = !g.valid || ui._uiScale != g.scale || bbW != g.bbW || bbH != g.bbH;
-    if (scaleChanged || generation != g.generation) {
+    const bool scaleChanged = !g.valid || ui._uiScale != g.scale || bbW != g.bbW || bbH != g.bbH ||
+                              Val().sharp_ui_icons != g.icons;
+    // A sheet copy finished on its worker (sharp_scaled.h): select again to install it.
+    const bool built = ScaledSheetJobFinished();
+    if (scaleChanged || generation != g.generation || built) {
         // The factory's Clean (a loop change) frees what it evicts and bumps
         // the generation: every pointer in the selection is re-resolved.
         Select(c);
@@ -297,14 +337,15 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
         g.scale = ui._uiScale;
         g.bbW = bbW;
         g.bbH = bbH;
+        g.icons = Val().sharp_ui_icons;
         g.generation = FactoryGeneration();   // after our own loads
     }
 
     // TRACE FIRST (EYECAM §11): which path ran, once per engage / scale change.
     if (engaged || scaleChanged) {
-        std::fprintf(stderr, "[SharpUI] on scale=%.4f px/unit=%.4f fonts: %s %s %s %s 2x=%d\n",
+        std::fprintf(stderr, "[SharpUI] on scale=%.4f px/unit=%.4f fonts: %s %s %s %s 2x=%d sheet=%d\n",
                      static_cast<double>(ui._uiScale), static_cast<double>(c.pxPerUnitY),
-                     g.fontText[0], g.fontText[1], g.fontText[2], g.fontText[3], g.twin2x);
+                     g.fontText[0], g.fontText[1], g.fontText[2], g.fontText[3], g.twin2x, g.scaled);
     }
 
     UI::SharpDraw sharp;
@@ -332,6 +373,23 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
         context._imageBufferDirty |= kAllImageSlots;
         context._dirty |= RtVideo::kDirtyImageBuffers;
     }
+}
+
+void Prewarm() {
+    if (Val().sharp_ui_icons == 0 || g_gameSettings == nullptr) return;
+    int32_t bbW, bbH;
+    BackBuffer(bbW, bbH);
+    if (bbW <= 0 || bbH <= 0) return;
+    // The scale the menu will draw at: GameContainer::ApplyKeyMapToUI's (MenuDLT::Startup).
+    const float uiScale = Platform::Display::UiScaleRatio(g_gameSettings->uiScale);
+    const DrawChoice c = ChooseDraw(uiScale, bbW, bbH);
+    if (!c.snap) return;
+    PrewarmScaledSheets(PickSheetScale(c.pxPerUnitX, c.pxPerUnitY));
+}
+
+void PrewarmAndWait() {
+    Prewarm();
+    WaitForScaledSheets(2000);
 }
 
 }  // namespace SharpUI
