@@ -472,6 +472,8 @@ bool DecodeState(const uint8_t* bytes, size_t size, int32_t savedFormatVersion) 
 void ResetState() {
     Town().Clear();
     if (g_onTreeReplaced) g_onTreeReplaced();
+    // a game took or dropped the lock: the seams that fire before its first frame follow its row
+    SelectForGame();
 }
 }  // namespace
 

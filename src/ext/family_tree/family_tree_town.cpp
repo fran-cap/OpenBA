@@ -265,9 +265,12 @@ int32_t NowStamp() {
     return static_cast<int32_t>(stamp);
 }
 
-void BeginFrame() {
+namespace {
+// g_on takes the row's value: going off forgets the citizens and the panels' buttons, going on installs the
+// codec's hooks and binds on the next frame.
+void Select(bool on) {
     const bool was = g_on;
-    g_on = ::Ext::Ext().family_tree;
+    g_on = on;
     if (!g_on) {
         if (was) {
             ForgetAll();
@@ -280,6 +283,16 @@ void BeginFrame() {
         g_onTreeReplaced = [] { ForgetAll(); s_needBind = true; };
         s_needBind = true;
     }
+}
+}  // namespace
+
+void SelectForGame() {
+    Select(::Ext::Locked() && ::Ext::Ext().family_tree);
+}
+
+void BeginFrame() {
+    Select(::Ext::Ext().family_tree);
+    if (!g_on) return;
     if (s_needBind) {
         s_needBind = false;
         Bind();

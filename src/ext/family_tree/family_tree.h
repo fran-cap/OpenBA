@@ -204,6 +204,9 @@ const SaveTail::StateCodec& Codec();
 extern bool g_on;                // this frame: ext.family_tree (the game's locked value)
 // GameUpdateLoop::Update, once per frame: binds after a load, sweeps now and then
 void BeginFrame();
+// The codec's reset, when a game takes the lock (GameUpdateLoop::Load, before its start town's citizens
+// are made) or drops it: g_on follows that game's row (off with no game), not the game before's last frame.
+void SelectForGame();
 
 void OnCreatedSlow(CitizenComponent* citizen, CitizenComponent* parent);
 void OnMarriedSlow(CitizenComponent* a, CitizenComponent* b);
