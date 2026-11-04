@@ -27,6 +27,7 @@
 #include "sampler.h"
 #include <vector>
 #include "Entity/EntityList.h"
+#include "Entity/entitylist_bucket.h"   // the bucket round robin and bucket index
 #include "Entity/ComponentEntity.h"
 #include "Entity/tick_list.h"      // [PerfX WALKCACHE] the slot-8 walk, retail and cached
 #include "object/TypeInfo.h"
@@ -889,96 +890,78 @@ template <int kWalk>
 
     for (int bucket = 0; bucket < 5; bucket++) {
         UpdateBucket* bkt = &buckets[bucket];
-        int32_t count = bkt->_size;
-        if (count == 0) continue;
+        if (bkt->_size == 0) continue;
 
-        uint32_t toProcess = processCount[bucket];
-        uint32_t cursorVal = cursor[bucket];
-        if ((int32_t)cursorVal >= count) cursorVal = 0;
+        // The walk, the cursor clamp and the wrap: EntityListBucket::RoundRobin
+        // (Entity/entitylist_bucket.h). The bucket count is read once, as retail does.
+        auto bucketSize = [bkt] { return bkt->_size; };
+        auto tickEntry = [&](int64_t idx) {
+            // Re-read bucket data pointer each iteration (may be reallocated)
+            Object::InternalPtr<ComponentEntity>* arrBase = bkt->_data;
 
-        uint32_t startIdx = cursorVal;
-        uint32_t idx = startIdx;
-        uint32_t processed = 0;
+            // Read entity IBP and CheckPtr
+            ComponentEntity* entIBP = arrBase[idx].Get();
+            if (prof) ++g_elProfBucketVisits;
 
-        if ((int32_t)toProcess > 0) {
-            do {
-                // Re-read bucket data pointer each iteration (may be reallocated)
-                Object::InternalPtr<ComponentEntity>* arrBase = bkt->_data;
+            // Check not deleted (bit 10)
+            if (!((entIBP->_entityFlags >> 10) & 1)) {
+                // +0x20 is the entity's last-update System::Time (Serialize below
+                // writes it through Time::Serialize)
+                int64_t delta = currentTime - entIBP->_lastUpdateTime._ticks;
 
-                // Read entity IBP and CheckPtr
-                ComponentEntity* entIBP = arrBase[idx].Get();
-                if (prof) ++g_elProfBucketVisits;
+                if (delta > 0) {
+                    if (prof) ++g_elProfBucketTicked;
+                    ComponentEntity* ent = entIBP;
 
-                // Check not deleted (bit 10)
-                if (!((entIBP->_entityFlags >> 10) & 1)) {
-                    // +0x20 is the entity's last-update System::Time (Serialize below
-                    // writes it through Time::Serialize)
-                    int64_t delta = currentTime - entIBP->_lastUpdateTime._ticks;
+                    // Check entity has "needs bucket update" flag (bit 3)
+                    // and is not deleted (bit 10)
+                    if ((ent->_entityFlags & 0x8) != 0 &&
+                        (ent->_entityFlags & 0x400) == 0) {
 
-                    if (delta > 0) {
-                        if (prof) ++g_elProfBucketTicked;
-                        ComponentEntity* ent = entIBP;
+                        int32_t compCount = ent->_components._size;
+                        System::Time deltaTime = { delta };
 
-                        // Check entity has "needs bucket update" flag (bit 3)
-                        // and is not deleted (bit 10)
-                        if ((ent->_entityFlags & 0x8) != 0 &&
-                            (ent->_entityFlags & 0x400) == 0) {
+                        for (int64_t ci = 0; ci < compCount; ci++) {
+                            // Read component IBP and CheckPtr
+                            Component* comp = ent->_components[ci].Get();
 
-                            int32_t compCount = ent->_components._size;
-                            System::Time deltaTime = { delta };
+                            // Component flags at byte +0x20, bit 3 = "needs Update tick"
+                            // Verified from disassembly: MOV ECX,[RAX+0x20]; SHR ECX,3
+                            if ((comp->_flags >> 3) & 1) {
 
-                            for (int64_t ci = 0; ci < compCount; ci++) {
-                                // Read component IBP and CheckPtr
-                                Component* comp = ent->_components[ci].Get();
-
-                                // Component flags at byte +0x20, bit 3 = "needs Update tick"
-                                // Verified from disassembly: MOV ECX,[RAX+0x20]; SHR ECX,3
-                                if ((comp->_flags >> 3) & 1) {
-
-                                    // Component slot 9 (+0x48) Update, by name.
-                                    if (g_compProfOn) {
-                                        // [STRESS] per-component-type Update cost. Keyed by
-                                        // vtable, so the only per-call cost is two QPC reads.
-                                        const int slot = CompProf_Begin(comp);
-                                        const long long q0 = CompProf_Now();
-                                        comp->Update(&deltaTime);
-                                        CompProf_End(slot, CompProf_Now() - q0);
-                                    } else {
-                                        comp->Update(&deltaTime);
-                                    }
+                                // Component slot 9 (+0x48) Update, by name.
+                                if (g_compProfOn) {
+                                    // [STRESS] per-component-type Update cost. Keyed by
+                                    // vtable, so the only per-call cost is two QPC reads.
+                                    const int slot = CompProf_Begin(comp);
+                                    const long long q0 = CompProf_Now();
+                                    comp->Update(&deltaTime);
+                                    CompProf_End(slot, CompProf_Now() - q0);
+                                } else {
+                                    comp->Update(&deltaTime);
                                 }
-
-                                // Reload self pointer (matches original: param_1 = local_res8)
-                                // The entity list pointer is stored in GameUpdateLoop and
-                                // component updates may cause reallocation. In the original,
-                                // param_1 is reloaded from a local. We just re-read current time.
-                                currentTime = accumulatedTime._ticks;
-
-                                // Check if entity deleted during component update
-                                if (ent->_entityFlags & 0x400) break;
                             }
+
+                            // Reload self pointer (matches original: param_1 = local_res8)
+                            // The entity list pointer is stored in GameUpdateLoop and
+                            // component updates may cause reallocation. In the original,
+                            // param_1 is reloaded from a local. We just re-read current time.
+                            currentTime = accumulatedTime._ticks;
+
+                            // Check if entity deleted during component update
+                            if (ent->_entityFlags & 0x400) break;
                         }
-
-                        // Update entity timestamp
-                        entIBP->_lastUpdateTime._ticks = currentTime;
                     }
-                }
 
-                // Advance cursor with wrap-around
-                idx++;
-                processed++;
-                cursorVal++;
-                // Re-read count (array may have changed size)
-                count = bkt->_size;
-                if ((int64_t)idx >= count) {
-                    idx = 0;
-                    cursorVal = 0;
+                    // Update entity timestamp
+                    entIBP->_lastUpdateTime._ticks = currentTime;
                 }
-            } while (idx != startIdx && (int32_t)processed < (int32_t)toProcess);
-        }
+            }
+        };
 
-        // Save cursor position
-        cursor[bucket] = cursorVal;
+        // Walk, then save the cursor position
+        cursor[bucket] = EntityListBucket::RoundRobin(bucketSize, cursor[bucket], processCount[bucket],
+                                                      tickEntry);
     }
     if (prof) { Platform::PerfCounter(&pq1); g_elProfBucketTicks += pq1 - pq0; }
 
@@ -1416,12 +1399,12 @@ void EntityList::RemoveEntity(ComponentEntity** entityIBP) {
         UpdateBucket* bucket = &buckets[bucketIdx];
 
         // Last element index in bucket
-        uint32_t lastIdx = bucket->_size - 1;
+        int32_t lastIdx = bucket->_size - 1;
 
         entity = *entityIBP;
 
         // Entity's index within bucket (low 24 bits of +0x1C)
-        uint32_t entityBucketIdx = (entity->_handle << 8) >> 8;
+        int32_t entityBucketIdx = EntityListBucket::IndexOf(entity->_handle);
 
         if (lastIdx != entityBucketIdx) {
             // Swap last element into removed element's slot
@@ -1608,7 +1591,7 @@ void EntityList::Serialize(IO::Stream& stream) {
             int32_t masterIdxField = masterArray._data[entityIdx]->_entityId;
 
             // Read bucket index (low 24 bits of entity+0x1C)
-            int32_t bucketIdxField = static_cast<int32_t>((masterArray._data[entityIdx]->_handle << 8) >> 8);
+            int32_t bucketIdxField = EntityListBucket::IndexOf(masterArray._data[entityIdx]->_handle);
 
             // Read bucket ID from entity+0x1F (the category byte of _handle)
             int32_t bucketId = (int32_t)static_cast<int8_t>(masterArray._data[entityIdx]->_handle >> 24);
