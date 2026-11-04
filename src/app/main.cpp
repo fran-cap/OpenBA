@@ -14,6 +14,7 @@
 #include "video/Context.h"
 #include "video/Device.h"   // ENDGAME B.3.9 SS2: Video::Device / Configuration::_singleton
 #include "options.h"
+#include "log_redirect.h"   // RedirectLogStream (review F-135)
 #include "io/settings_file.h"     // Phase D.4 SETTINGS E.4: the harness guard
 #include "io/settings_store.h"    //   and DumpVideoSettings read settings.cfg
 #include "runtime_init.h"
@@ -981,10 +982,15 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR lpCmdLine, int) {
     // The working directory the logs below are opened in (platform_app.h: Android moves to its
     // data folder; every other platform runs where it was launched).
     Platform::App::EnterRunDirectory();
-    freopen("standalone_debug.log", "w", stdout);
-    freopen("standalone_error.log", "w", stderr);
+    // Review F-135: a log that cannot be opened (an unwritable run directory) leaves its stream
+    // as it was instead of closed (log_redirect.h).
+    const bool debugLog = RedirectLogStream("standalone_debug.log", "w", stdout);
+    const bool errorLog = RedirectLogStream("standalone_error.log", "w", stderr);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+    if (!debugLog || !errorLog)
+        fprintf(stderr, "[Log] cannot open %s in the run directory\n",
+                !debugLog ? "standalone_debug.log" : "standalone_error.log");
     LoadTime::Stamp("main");   // NOT RETAIL: print-only (the logs are open)
 
     // ENDGAME C.3: the ONE read of the environment. Every BANISHED_* flag lands
@@ -1157,10 +1163,15 @@ int main(int argc, char** argv) {
     // The working directory the logs below are opened in (platform_app.h: Android moves to its
     // data folder; every other platform runs where it was launched).
     Platform::App::EnterRunDirectory();
-    freopen("standalone_debug.log", "w", stdout);
-    freopen("standalone_error.log", "w", stderr);
+    // Review F-135: a log that cannot be opened (an unwritable run directory) leaves its stream
+    // as it was instead of closed (log_redirect.h).
+    const bool debugLog = RedirectLogStream("standalone_debug.log", "w", stdout);
+    const bool errorLog = RedirectLogStream("standalone_error.log", "w", stderr);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
+    if (!debugLog || !errorLog)
+        fprintf(stderr, "[Log] cannot open %s in the run directory\n",
+                !debugLog ? "standalone_debug.log" : "standalone_error.log");
     LoadTime::Stamp("main");   // NOT RETAIL: print-only (the logs are open)
 
     // The one environment read, then the user-dir override, before Cpu::Boot reads

@@ -131,6 +131,7 @@
 // ENDGAME B.3.5 block D2 / B35_FILEMAP §3f: the real `Video::Device` and its four
 // nested value types, replacing this file's four local name-and-layout mirrors.
 #include "video/Device.h"
+#include "video/refresh_rate_at.h"   // Video::RefreshRateAt (review F-171)
 // B5 DEV-A: the `Video::DeviceData` base `VideoDX11::DeviceData` derives from.
 #include "video/CompanionData.h"
 #include "application/Application.h"   // -Iruntime/types: ENDGAME B.3.7 callers (K5)
@@ -447,10 +448,10 @@ void FillSwapChainDesc(DeviceData* self, DXGI_SWAP_CHAIN_DESC* desc) {
 
     // ENDGAME B.3.5: `mode` is the real `Video::Device::DisplayMode` now, so its
     // refresh array is already typed and the cast is gone.
-    const RefreshRate* rates = mode.refreshData;
-    const int rateIndex = dev->refreshRateIndex;
-    desc->BufferDesc.RefreshRate.Numerator   = static_cast<UINT>(rates[rateIndex].numerator);
-    desc->BufferDesc.RefreshRate.Denominator = static_cast<UINT>(rates[rateIndex].denominator);
+    // Review F-171: RefreshRateAt bounds the index to this mode's list (refresh_rate_at.h).
+    const RefreshRate rate = Video::RefreshRateAt(mode, dev->refreshRateIndex);
+    desc->BufferDesc.RefreshRate.Numerator   = static_cast<UINT>(rate.numerator);
+    desc->BufferDesc.RefreshRate.Denominator = static_cast<UINT>(rate.denominator);
 
     desc->BufferDesc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;   // 0x57
     desc->BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
@@ -829,14 +830,14 @@ int DeviceData_Resize(DeviceData* self) {
     RememberGoodSize(dev->backBufferWidth,
                      dev->backBufferHeight);
 
-    const RefreshRate* rates = mode.refreshData;   // ENDGAME B.3.5: typed, no cast
-    const int rateIndex = dev->refreshRateIndex;
+    // Review F-171: RefreshRateAt bounds the index to this mode's list (refresh_rate_at.h).
+    const RefreshRate rate = Video::RefreshRateAt(mode, dev->refreshRateIndex);
 
     DXGI_MODE_DESC target;
     target.Width                   = static_cast<UINT>(dev->backBufferWidth);
     target.Height                  = static_cast<UINT>(dev->backBufferHeight);
-    target.RefreshRate.Numerator   = static_cast<UINT>(rates[rateIndex].numerator);
-    target.RefreshRate.Denominator = static_cast<UINT>(rates[rateIndex].denominator);
+    target.RefreshRate.Numerator   = static_cast<UINT>(rate.numerator);
+    target.RefreshRate.Denominator = static_cast<UINT>(rate.denominator);
     target.Format                  = static_cast<DXGI_FORMAT>(28);  // sic — see quirks
     target.ScanlineOrdering        = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
     target.Scaling                 = DXGI_MODE_SCALING_UNSPECIFIED;
