@@ -246,6 +246,11 @@ static void RenameBuffer(id<MTLBuffer> __strong& buffer, bool preserve) {
             InvalidateExpanded(fresh);
         } else {
             fresh = NewBuffer(previous.length, "rename");
+            if (!fresh) {
+                // The allocation failed (nil): keep the busy buffer and write it in place. A frame still in flight
+                // may show the new contents early; a nil buffer would take a NULL write and lose the binding.
+                return;
+            }
         }
         if (preserve) {
             memcpy(fresh.contents, previous.contents, previous.length);
