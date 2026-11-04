@@ -3,10 +3,13 @@
 // ============================================================================
 // The Windows half of src/platform/common/platform_window_hooks.h. Retail has no step of
 // its own at these spots, so every body is the identity (or does nothing): the window is
-// created with the Vulkan flag and placed exactly as retail's SetWindowPos placed it.
+// created with the render backend's graphics-API flag (none for DX11, Vulkan for Vulkan) and
+// placed exactly as retail's SetWindowPos placed it.
 // ============================================================================
 
 #include "platform_window_hooks.h"
+
+#include "render_backend.h"   // Render::GraphicsWindowFlags
 
 #include <SDL3/SDL_video.h>
 
@@ -16,7 +19,11 @@ namespace Window {
 uint64_t PrepareCreate(int32_t* width, int32_t* height) {
     (void)width;
     (void)height;
-    return SDL_WINDOW_VULKAN;
+    // Review F-208: the backend's flag. Retail's window (Application::PlatformStartup
+    // 0x18009fc10: RegisterClassW, CreateWindowExW) needs no graphics API; SDL_WINDOW_VULKAN
+    // makes SDL_CreateWindow load vulkan-1.dll and fail without it, which the DX11 build
+    // never uses.
+    return Render::GraphicsWindowFlags();
 }
 
 void ConfigureBackgroundWindow(SDL_Window* window) {
