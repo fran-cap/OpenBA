@@ -225,8 +225,8 @@ void WorldGeometry::Serialize(IO::Stream& stream) {
     if (streamLoading) {
         BuildTerrainMesh();   // 0x1400ac1e0
         if (System::MemoryAllocator::_singleton) {
-            heightBuf = static_cast<uint8_t*>(
-                System::MemoryAllocator::MemAlloc(static_cast<uint64_t>(HeightBytesAllocSize(gridSize)), 4));
+            const uint64_t allocSize = static_cast<uint64_t>(HeightBytesAllocSize(gridSize));
+            heightBuf = static_cast<uint8_t*>(System::MemoryAllocator::MemAlloc(allocSize, 4));
         }
         _heightBytes = heightBuf;   // 0x1400b060b: stored whatever the size
     } else {

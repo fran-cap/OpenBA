@@ -89,13 +89,6 @@ inline float clampf(float v, float lo, float hi) {
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
-// One component of Math::Vector3::Clamp(const Vector3& min, const Vector3& max)
-// (Runtime 0x18007cbe0): the max bound first, then the min bound.
-inline float Vector3ClampComponent(float v, float lo, float hi) {
-    const float t = (hi <= v) ? hi : v;
-    return (lo <= t) ? t : lo;
-}
-
 // KeyMap accessor (the triple-deref exref pattern, same as inputbindings.cpp):
 // Input::Configuration's first field.
 inline const Input::KeyMap* CamKeyMap() {
@@ -276,12 +269,11 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
             float factor = clampf(1.0f - (pc->distance - kClampBase) / kClampSpan, 0.0f, 1.0f);
             float halfExtent = (float)grid->size * kHalf * factor;
             // Retail 0x1400ff451..0x1400ff4ae: Math::Vector3::Clamp(target, (-h,-h,0), (h,h,0))
-            // (Runtime 0x18007cbe0) on the whole focus, z included: the look-at height is
-            // 0 after every call. Per component it keeps `max <= v ? max : v`, then
-            // `min <= t ? t : min` (a NaN component comes out as min).
-            pc->target.x = Vector3ClampComponent(pc->target.x, -halfExtent, halfExtent);
-            pc->target.y = Vector3ClampComponent(pc->target.y, -halfExtent, halfExtent);
-            pc->target.z = Vector3ClampComponent(pc->target.z, 0.0f, 0.0f);
+            // (Runtime 0x18007cbe0) on the whole focus, z included (R12D = 0 at +0x48 and
+            // +0x58): the look-at height is 0 after every call. A NaN x / y comes out as +h.
+            const Math::Vector3 lo(-halfExtent, -halfExtent, 0.0f);
+            const Math::Vector3 hi(halfExtent, halfExtent, 0.0f);
+            pc->target = pc->target.Clamp(lo, hi);
         }
     }
 

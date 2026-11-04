@@ -114,8 +114,9 @@ public:
     // own: BuildTerrainMesh sizes its scratch from vertsPerChunk (+0xD4) and
     // FillTerrainVertices writes vertsPerSide^2 (+0xCC) records into it, the height
     // samples index rowStride^2 (+0xD0) words of _heights, and Serialize's height-byte
-    // count g*g*4 and the mesh's vertex-buffer size are int32. What WorldGeometry::BuildTerrain (0x1400b0230) stores
-    // always passes: gridSize 2*dim, chunk 32, 33, 2*dim + 1, 33*33, (2*dim + 1)^2 words.
+    // count g*g*4 and the mesh's vertex-buffer size are int32. What
+    // WorldGeometry::BuildTerrain (0x1400b0230) stores always passes: gridSize 2*dim,
+    // chunk 32, 33, 2*dim + 1, 33*33, (2*dim + 1)^2 words.
     static bool LoadedTerrainIsConsistent(int32_t gridSize, int32_t chunkSize, int32_t vertsPerSide,
                                           int32_t rowStride, int32_t vertsPerChunk, int32_t heightCount) {
         if (gridSize <= 0 || chunkSize <= 0 || chunkSize > gridSize)
