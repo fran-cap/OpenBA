@@ -152,6 +152,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/audio/xwma_decode.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/audio/soundbuffer_platform_serialize.cpp   # audio_sizes_test.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/audio/load_decode_batch.cpp   # block SNDPAR: the load's decode batch
+  ${CMAKE_SOURCE_DIR}/src/engine/audio/audio_device_buffer_deleted.cpp   # stream_free_wait_test.cpp (review S-027)
   ${CMAKE_SOURCE_DIR}/src/engine/system/parallel_for.cpp   # block WGPAR: the fork-join pool
   ${CMAKE_SOURCE_DIR}/src/platform/common/cpu/topology.cpp             # parallel_for.cpp sizes its pool from Cpu::Get()
   ${CMAKE_SOURCE_DIR}/src/platform/win/cpu_win.cpp
