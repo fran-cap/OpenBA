@@ -332,7 +332,10 @@ extern "C" void RtIo_PersistenceWorker_EnqueueLoad(IO::PersistenceWorker* w, con
     w->_command = 1;
     w->_status  = 0;
 
-    w->_blockPtrs.~Array();                           // 0x180024aa0
+    // NOT RETAIL (spelling only): retail runs the ~Array body (0x180024aa0) on the
+    // live member; an explicit destructor call would end its lifetime ([basic.life])
+    // before the SetSize below. DestroyAndFree is that same ClearCallback body.
+    w->_blockPtrs.DestroyAndFree();                   // 0x180024aa0
     w->_blockPtrs.SetSize(w->_blockDescs._size);      // 0x18002a9d0
 
     void** slots = w->_blockPtrs._data;
@@ -417,8 +420,10 @@ extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, con
     w->_status  = 0;
     w->_command = 0;
 
-    w->_blockDescs.~Array();   // 0x18002a930
-    w->_blockPtrs.~Array();    // 0x180024aa0
+    // NOT RETAIL (spelling only): the ~Array bodies run on the live members, as
+    // DestroyAndFree, so their lifetime does not end before the SetSize calls below.
+    w->_blockDescs.DestroyAndFree();   // 0x18002a930
+    w->_blockPtrs.DestroyAndFree();    // 0x180024aa0
 
     // The 12-byte header at Persistence+0x54..0x5f -- BATCH 8 named these three
     // fields (`fileHeader`/`magic`/`crc`, Persistence.h) from the SAVE job and
