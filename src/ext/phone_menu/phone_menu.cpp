@@ -22,6 +22,7 @@
 
 #include "ext/phone_menu/phone_menu.h"
 #include "ext/phone_menu/phone_math.h"
+#include "ext/phone_menu/dialog_records.h"   // the menus' records (review F-257)
 #include "ext/phone_menu/loading_screen.h"   // PlaceLoading (P9)
 #include "ext/phone_menu/touch_fit.h"
 #include "ext/dialog_position_drift/dialog_position_drift.h"   // fix.dialog_position_drift (P11c)
@@ -37,6 +38,7 @@
 
 #include "object/External.h"
 #include "system/Filename.h"
+#include "ui/Dialog.h"   // UI::Dialog's resource path (the menus' records)
 #include "ui/DialogInstance.h"
 #include "ui/Font.h"
 #include "ui/LabelElement.h"
@@ -54,12 +56,13 @@ namespace {
 
 // The descriptions of the dialogs the row moves, once each has been opened: the main menu
 // (Dialog/MainMenu.rsc), the pause menu (Dialog/Pause.rsc) and the version line
-// (Dialog/BuildId.rsc). Resources live for the run, so a recorded pointer stays valid; written
+// (Dialog/BuildId.rsc). They are evicted between a menu and a game and loaded again at a new
+// address, so each record is the address with its path (dialog_records.h, review F-257); written
 // on the main thread, read by the draw as well.
 constexpr int kMaxDialogs = 3;
-std::atomic<const UI::Dialog*> g_menus[kMaxDialogs] = {};
-std::atomic<const UI::Dialog*> g_pauses[kMaxDialogs] = {};
-std::atomic<const UI::Dialog*> g_buildIds[kMaxDialogs] = {};
+DialogRecords<kMaxDialogs> g_menus;
+DialogRecords<kMaxDialogs> g_pauses;
+DialogRecords<kMaxDialogs> g_buildIds;
 
 // This frame's facts, written by the menu's layout and read by the version line's, which
 // UserInterface::Update lays out after it (the version line is the menu's child dialog, added
@@ -69,24 +72,14 @@ bool g_versionAside = false;
 bool g_versionLow = false;    // P9: the backdrop's bottom border is drawn, the version line sits in it
 int32_t g_versionWidth = -1;
 
-void Record(std::atomic<const UI::Dialog*>* set, const UI::Dialog* dialog) {
+void Record(DialogRecords<kMaxDialogs>& set, const UI::Dialog* dialog) {
     if (dialog == nullptr) return;
-    for (int i = 0; i < kMaxDialogs; ++i) {
-        const UI::Dialog* cur = set[i].load(std::memory_order_relaxed);
-        if (cur == dialog) return;
-        if (cur == nullptr) {
-            set[i].store(dialog, std::memory_order_relaxed);
-            return;
-        }
-    }
+    set.Record(dialog, dialog->_path._data);
 }
 
-bool In(const std::atomic<const UI::Dialog*>* set, const UI::Dialog* dialog) {
+bool In(const DialogRecords<kMaxDialogs>& set, const UI::Dialog* dialog) {
     if (dialog == nullptr) return false;
-    for (int i = 0; i < kMaxDialogs; ++i) {
-        if (set[i].load(std::memory_order_relaxed) == dialog) return true;
-    }
-    return false;
+    return set.Has(dialog, dialog->_path._data);
 }
 
 void Store(const Rect& r, int32_t* rect) {
