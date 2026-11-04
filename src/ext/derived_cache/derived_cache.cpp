@@ -794,7 +794,7 @@ bool Store::Find(const Key& key, std::vector<uint8_t>& out) {
 
 void Store::Forget(const Key& key) {
     if (!_open || _disabled.load(std::memory_order_acquire)) return;
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     const IndexRecord* r = Lookup(key);
     if (r == nullptr) return;
     // The record goes as a payload whose bytes did not match it does (Find): its bytes become
