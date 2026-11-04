@@ -377,7 +377,7 @@ static uint32_t GetReferenceIdRetail(const ExternalFactory* self,
 // `fn_ExternalFactory_GetPathForReferenceId` typedef carried all three and was
 // correct; it is gone with B.3.3 step 7 (callers are member calls now).
 //
-// Ordinary integer-keyed AVL descent over `_references`. On a miss retail does
+// Signed 32-bit AVL descent over `_references` (the key compares as an `int`). On a miss retail does
 // NOT leave the slot untouched — it copy-constructs from a null temporary, so
 // the caller gets a valid empty Filename. Both branches are transcribed, since
 // the empty-on-miss result is what the load path checks.
