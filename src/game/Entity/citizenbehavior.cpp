@@ -18,7 +18,6 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "Game/exe_constants.h"   // kRdata_*
-#include "Game/force_work.h"   // ForceWork::Readable — CollectStats stale-entry guard
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -537,9 +536,8 @@ void PathGraph::BuildPathGraph() {
 
                     if (found) continue;
 
-                    // Add pair to pairs array
-                    // Each pair is {int entityCell, int buildingCell} = 8 bytes
-                    PathCellPair pairData = { entityCell, buildingCell };
+                    // Add pair to pairs array: {max, min} of the two cells (8 bytes)
+                    PathCellPair pairData = MakePathCellPair(entityCell, buildingCell);
                     int curPairCount = (int)pg->m_pairCount;
                     int newPairCount = curPairCount + 1;
 
@@ -1007,11 +1005,6 @@ void CitizenBehavior::CheckThresholds(const System::Time* deltaTime) {
 //
 // Original: FUN_14008a730
 void CitizenBehavior::CollectStats() {
-    // The per-citizen SA-guard below is VirtualQuery-backed (~80 us/syscall). All
-    // citizens live in a couple of engine-heap arenas, so let the probe cache those
-    // regions for the duration of this pass â€” nothing is unmapped while it runs.
-    ForceWork::ResetReadableCache();
-
     // -- Phase 1: Iterate all citizens, accumulate counters --
     // Field names are CitizenComponent.h's (W0-H1). The tree's local names are kept
     // where the header names the field differently: `happinessSum` sums +0x50
@@ -1030,33 +1023,6 @@ void CitizenBehavior::CollectStats() {
 
     for (int i = 0; i < citizenCount; i++) {
         CitizenComponent* c = citizenArray[i].Get();
-
-        // SA-guard: skip an entry that is not a readable citizen. Retail's array holds
-        // only live citizens, so this can only trip on a standalone list-integrity bug
-        // â€” the town citizen list (self+0xA0/+0xA8) has no verified unregister when a
-        // citizen entity is freed, and CheckPtr is an empty function in the shipping
-        // Runtime, so it cannot null a stale weak ref. Observed live: an entry whose
-        // +0x288 CitizenDescription read back as 0x760, so `descPtr + 0x44` faulted at
-        // 0x7a4 (ACCESS_VIOLATION in CollectStats, 2026-07-21 and again 2026-07-24).
-        // CollectStats only AVERAGES â€” dropping a dead entry changes a statistic, never
-        // simulation state, which is much cheaper than aborting the process. The stale
-        // entry itself is the real bug; the log names it so it can be root-caused.
-        const bool guardFailed =
-            !ForceWork::Readable(c, 0x28C) ||
-            !ForceWork::Readable(c->description, 0x11C);
-        if (guardFailed) {
-            static int s_reported = 0;
-            if (s_reported++ < 20) {
-                std::fprintf(stderr, "[CollectStats] SKIP stale citizen[%d/%d]=%p desc=%p "
-                             "â€” entry in the town citizen list is not live (list-integrity "
-                             "bug: citizen freed without unregistering)\n",
-                             i, citizenCount, static_cast<void*>(c),
-                             ForceWork::Readable(c, 0x28C)
-                                 ? static_cast<void*>(c->description) : nullptr);
-                std::fflush(stderr);
-            }
-            continue;
-        }
 
         // Read citizen fields
         float age = c->age;
@@ -1141,10 +1107,7 @@ void CitizenBehavior::CollectStats() {
             healthPct = static_cast<int>(
                 ((healthSum / fCount) / maxHealth) * 100.0f);
         }
-        if (adults > 0) {
-            educatedPct = static_cast<int>(
-                (static_cast<float>(educated) / static_cast<float>(adults)) * 100.0f);
-        }
+        educatedPct = EducatedPercent(educated, adults);
         workingPct = static_cast<int>(
             (static_cast<float>(working) / fCount) * 100.0f);
     }

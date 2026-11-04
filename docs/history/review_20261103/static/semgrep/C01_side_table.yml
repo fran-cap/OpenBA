@@ -1,0 +1,18 @@
+# C1. Side table outlives the entity it indexes (pre-fix shape: ddd862312, e319c926c, f9178b6a0).
+# A namespace-scope / static container keyed by (or holding) an entity, component, UI element or
+# scene pointer. Triage: does every OnRemove / world teardown / row-off erase the entry (Forget*)?
+rules:
+  - id: c01-static-container-of-entity-pointers
+    languages: [cpp]
+    severity: WARNING
+    message: C1 side table of entity/component/UI pointers; check a Forget* on OnRemove and on world change
+    paths:
+      include: ["/src/ext/", "/src/game/", "/src/render/", "/src/engine/"]
+    pattern-regex: '(?m)^(?:static\s+|inline\s+)?(?:std::)?(?:unordered_map|map|set|unordered_set|vector|multimap)<[^;\n]*\b(?:\w*Entity|\w*Component|CitizenUI|\w*Element|\w*Dialog\w*|\w*UI)\s*\*[^;\n]*>\s+[sg]_\w+'
+  - id: c01-container-keyed-by-entity-pointer
+    languages: [cpp]
+    severity: INFO
+    message: C1 container keyed by an entity/component pointer (member or local); check removal
+    paths:
+      include: ["/src/ext/", "/src/render/"]
+    pattern-regex: '(?:unordered_map|std::map|unordered_set|std::set)<\s*(?:const\s+)?(?:\w*Entity|\w*Component|CitizenUI|UI::Element)\s*\*'

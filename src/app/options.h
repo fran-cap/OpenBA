@@ -195,6 +195,10 @@ struct Options {
     const char* forceDeviceLost      = nullptr;// BANISHED_FORCE_DEVICE_LOST — src/render/dx11/contextdata.cpp; "bgsave" =
                                                //   on the first Present after a background save starts (src/diag/device_lost_drive.h);
                                                //   the Vulkan reader is src/render/vulkan/device.cpp (VK_ERROR_DEVICE_LOST)
+    bool        d3dDebug             = false;  // BANISHED_D3D_DEBUG — src/render/dx11/d3d_debug.cpp: the D3D11 debug layer
+                                               //   (D3D11_CREATE_DEVICE_DEBUG) and its info queue drained to stderr after
+                                               //   each Present; set by hand for the review campaign's GPU pass
+                                               //   (docs/history/review_20261103/README.md, P6)
     const char* screenshotAt         = nullptr;// BANISHED_SCREENSHOT_AT=<frame>[,ui] — gameupdateloop.cpp; ",ui" takes retail's
                                                //   with-interface shot (the quickload bit) instead of the scene-only
                                                //   one; tools/device_sim.sh sets it

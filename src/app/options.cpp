@@ -258,6 +258,7 @@ void OptionsInit() {
     o.forceForesterWork      = Raw("BANISHED_FORCE_FORESTERWORK");
     o.forceSnow              = Raw("BANISHED_FORCE_SNOW");
     o.forceDeviceLost        = Raw("BANISHED_FORCE_DEVICE_LOST");
+    o.d3dDebug               = On("BANISHED_D3D_DEBUG");
     o.screenshotAt           = Raw("BANISHED_SCREENSHOT_AT");
     o.showroom               = Raw("BANISHED_SHOWROOM");
     o.captureIngame          = Raw("BANISHED_CAPTURE_INGAME");

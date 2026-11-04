@@ -1,0 +1,24 @@
+# C2. Port-only mode flag held across a retail body (pre-fix shape: 033dbca08 g_wpcRosterOnly,
+# 8342d8678 DemoGateSkip): save the global, set it, call retail bodies, restore it.
+rules:
+  - id: c02-global-mode-hold
+    languages: [cpp]
+    severity: WARNING
+    message: C2 port-only global held across calls (save, set, restore)
+    paths:
+      include: ["/src/game/", "/src/engine/"]
+    pattern-regex: '(?s)\b(?:const\s+)?bool\s+\w+\s*=\s*(g_\w+)\s*;\s*\n\s*\1\s*=\s*true\s*;'
+  - id: c02-global-mode-raii
+    languages: [cpp]
+    severity: WARNING
+    message: C2 RAII guard that toggles a global
+    paths:
+      include: ["/src/game/", "/src/engine/"]
+    pattern-regex: '\w+\(\)\s*\{\s*prev\s*=\s*(g_\w+)\s*;\s*\1\s*=\s*true'
+  - id: c02-global-mode-name
+    languages: [cpp]
+    severity: INFO
+    message: C2 port-only mode global (Only/Skip/Hold/Gate) written true
+    paths:
+      include: ["/src/game/", "/src/engine/"]
+    pattern-regex: '\bg_[A-Za-z]*(?:Only|Skip|Hold|Gate)\b\s*=\s*(?:true|1)\b'

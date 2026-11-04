@@ -503,9 +503,12 @@ void DialogInstance::AddController(uint32_t typeId, Object::Base* dataSource,
         }
 
         // ---- the GroupElement gate ---------------------------------------
-        // `insertion` may be null here; retail calls IsDerivedFrom on it anyway.
+        // `insertion` may be null here; retail calls IsDerivedFrom on it anyway
+        // (0x180113545 with RCX = 0). NOT RETAIL: a name the layout lacks is a
+        // member call through null (UB, a fault in retail); null is tested first.
         Element* const target =
-            insertion->IsDerivedFrom(UI::GroupElement::TypeId()) ? insertion : nullptr;
+            (insertion != nullptr && insertion->IsDerivedFrom(UI::GroupElement::TypeId()))
+                ? insertion : nullptr;
 
         // ---- phase 2: build the element through a UI::Dialog temporary ----
         alignas(16) uint8_t tmpDialog[0x90];
@@ -522,17 +525,23 @@ void DialogInstance::AddController(uint32_t typeId, Object::Base* dataSource,
 
         if (newEl) newEl->_parent = target;   // 0x1801135fc
 
-        // 0x180113603: unguarded on `target`; Element::_children through the
-        // kSpec_Fill8Z row (see the door's banner).
-        rtcoll::AsArray<&rtcoll::kSpec_Fill8Z>(&target->_children)
-            ->SetSizeFill(target->_children._size + 1, &newEl);
+        // 0x180113603: unguarded on `target` in retail; Element::_children
+        // through the kSpec_Fill8Z row (see the door's banner).
+        // NOT RETAIL: with no GroupElement under that name (a .rsc or mod
+        // layout that lacks it) retail dereferences the null target here and
+        // in the walk below (UB, a fault). The element is left unparented
+        // instead; the controller below still receives it.
+        if (target != nullptr) {
+            rtcoll::AsArray<&rtcoll::kSpec_Fill8Z>(&target->_children)
+                ->SetSizeFill(target->_children._size + 1, &newEl);
 
-        // 0x180113620: a DO-WHILE — a null target faults here.
-        Element* walk = target;
-        do {
-            walk->_flags |= kElementNeedsSizeCalc;
-            walk = walk->_parent;
-        } while (walk);
+            // 0x180113620: a DO-WHILE (retail faults here on a null target).
+            Element* walk = target;
+            do {
+                walk->_flags |= kElementNeedsSizeCalc;
+                walk = walk->_parent;
+            } while (walk);
+        }
 
         tmpDlg->UI::Dialog::~Dialog();
     }

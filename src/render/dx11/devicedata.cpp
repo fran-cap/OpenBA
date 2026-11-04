@@ -116,6 +116,8 @@
 #include "share_gpu_data/share_create.h"     // NOT RETAIL: ext.share_gpu_data
 #include "create_on_demand/lazy_create.h"    // NOT RETAIL: ext.create_on_demand
 #include "VideoDX11Data.h"
+#include "d3d_debug.h"                       // NOT RETAIL: BANISHED_D3D_DEBUG
+#include "options.h"
 
 #include <windows.h>
 #include <d3d11.h>
@@ -1228,7 +1230,16 @@ bool DeviceData::CreateDevice() {
         D3D_FEATURE_LEVEL_10_0,   // 0xa000
     };
     D3D_FEATURE_LEVEL granted = static_cast<D3D_FEATURE_LEVEL>(0);
-    if (createDevice(adapter, static_cast<D3D_DRIVER_TYPE>(0), nullptr, 0,
+    // NOT RETAIL: BANISHED_D3D_DEBUG asks for the debug layer (retail passes 0); without the
+    // SDK layers installed that create fails, and the retail call below runs as before.
+    bool created = false;
+    if (Opt().d3dDebug) {
+        created = createDevice(adapter, static_cast<D3D_DRIVER_TYPE>(0), nullptr, D3D11_CREATE_DEVICE_DEBUG,
+                               levels, 3, D3D11_SDK_VERSION, &d3dDevice, &granted, &d3dContext) == 0;
+        D3dDebug::Attach(created ? d3dDevice : nullptr);
+    }
+    if (!created &&
+        createDevice(adapter, static_cast<D3D_DRIVER_TYPE>(0), nullptr, 0,
                      levels, 3, D3D11_SDK_VERSION,
                      &d3dDevice, &granted, &d3dContext) != 0) {
         System::Error::SetText("VideoDX11: Could not initialize the DX11 device! "

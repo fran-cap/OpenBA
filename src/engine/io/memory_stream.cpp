@@ -61,16 +61,27 @@ namespace IO {
 // that overflows int32, because retail's sum WRAPS and then compares small.
 // The offset arithmetic that follows really is 64-bit, so the two widths are
 // transcribed separately rather than unified.
+//
+// NOT RETAIL (review F-016 / F-053, UB + plain hardening): that wrap is signed
+// overflow, and retail's test also admits a negative cursor (a block
+// sourceOffset >= 0x80000000) and a negative count, which memcpy then takes as
+// a read before the buffer or a 2^64-byte copy. All three are rejected and the
+// sum is taken in 64 bits; a zero count skips the memcpy, whose buffer may be
+// null (UB even for 0 bytes). For a cursor in [0, size] and a count >= 0 that
+// fits, the outcome is retail's.
 bool MemoryStream::Read(int count, void* dst) {
 
     const int64_t cursor = static_cast<int32_t>(_cursor);        // 1800ae95d MOVSXD
     const int64_t n      = count;                                // 1800ae961 MOVSXD
-    const int32_t end    = static_cast<int32_t>(cursor) +
-                           static_cast<int32_t>(n);              // 1800ae964 LEA (32-bit)
+    if (cursor < 0 || n < 0)                                     // NOT RETAIL (F-016)
+        return false;
+    const int64_t end    = cursor + n;                           // 1800ae964 LEA (64-bit here, F-053)
 
     if (end > static_cast<int32_t>(_size)) {                     // 1800ae96a CMP/JG
         return false;                                            // 1800ae991
     }
+    if (n == 0)                                                  // NOT RETAIL (UB): memcpy(nullptr, p, 0)
+        return true;
     std::memcpy(dst, static_cast<const uint8_t*>(_data) + cursor,  // CAST-OK: byte_io
                 static_cast<size_t>(n));                         // 1800ae97c
     _cursor += static_cast<uint32_t>(n);                         // 1800ae981
@@ -83,16 +94,20 @@ bool MemoryStream::Read(int count, void* dst) {
 // Byte-for-byte the same body as Read with the memcpy operands swapped —
 // including the same 32-bit signed bound check, and including the fact that it
 // will NOT grow the buffer: a write past _size fails rather than reallocating.
+// NOT RETAIL: the same three rejections and the zero-count skip as Read (F-016 / F-053).
 bool MemoryStream::Write(int count, const void* src) {
 
     const int64_t cursor = static_cast<int32_t>(_cursor);        // 1800ae8fd
     const int64_t n      = count;                                // 1800ae901
-    const int32_t end    = static_cast<int32_t>(cursor) +
-                           static_cast<int32_t>(n);              // 1800ae904
+    if (cursor < 0 || n < 0)                                     // NOT RETAIL (F-016)
+        return false;
+    const int64_t end    = cursor + n;                           // 1800ae904 (64-bit here, F-053)
 
     if (end > static_cast<int32_t>(_size)) {                     // 1800ae90a
         return false;                                            // 1800ae92e
     }
+    if (n == 0)                                                  // NOT RETAIL (UB): memcpy(p, nullptr, 0)
+        return true;
     std::memcpy(static_cast<uint8_t*>(_data) + cursor, src,  // CAST-OK: byte_io
                 static_cast<size_t>(n));                         // 1800ae919
     _cursor += static_cast<uint32_t>(n);                         // 1800ae91e

@@ -30,7 +30,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/serializer_class.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/io/serialize_family.cpp       # decode_exact_test.cpp (issue #13): the reader's array slots
   ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_read.cpp #   CompressedStream::Read / SetWindow / ReadArray
-  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp # package_file_read_test.cpp: CompressedStream::Open
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_open.cpp # package_file_read_test.cpp, compressed_stream_bounds_test.cpp: Open
   ${CMAKE_SOURCE_DIR}/src/engine/io/memory_stream.cpp         #   the MemoryStream it opens over
   ${CMAKE_SOURCE_DIR}/src/engine/io/package_file_read.cpp     #   PackageFile::ReadPackfile (FileSystem faked in the test)
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
@@ -42,6 +42,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/audio/audio_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/collision2d/collision2d_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/achievement/achievement_type_records.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/achievement/achievement_update.cpp   # achievement_update_bounds_test.cpp (review F-092..F-094)
   ${CMAKE_SOURCE_DIR}/src/engine/video/video_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/graphics/graphics_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/object/root_operator_delete.cpp
@@ -173,5 +174,10 @@ set(UNIT_TREE_SRCS
   # as slot probes; the test mirrors the record format and the exe logs the real writer's CRC.)
   ${CMAKE_SOURCE_DIR}/src/ext/resources/sheet_builder.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/sprite.cpp                     #   AddSpriteInfo / SetSpriteInfo
+  # ui_engine_review_test.cpp: UpdateEvents / CleanRemovedDialogs / Play, ComboElement::UpdateText,
+  # DocumentTextElement::GetNextItem (the bodies they call but do not own: ui_engine_review_stubs.cpp)
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/userinterface.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/widgets_input.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
 )

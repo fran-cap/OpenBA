@@ -123,16 +123,38 @@ static_assert(offsetof(PopulationSummary, educatedCount)    == 0x14, "");
 // ============================================================
 // PathCellPair — one element of PathGraph::m_pairs (stride 8, align 4)
 // ============================================================
-// BuildPathGraph 0x1400d70c0 appends {entity cell, building cell} with
+// BuildPathGraph 0x1400d70c0 appends {max, min} of (entity cell, building cell) with
 // MemAlloc(cap * 8, 4); ProcessPaths 0x1400d6f00 reads the two ints as grid cells.
 struct PathCellPair {
-    int32_t  cellA;           // +0x00: the profession entity's anchor cell
-    int32_t  cellB;           // +0x04: the residence's anchor cell
+    int32_t  cellA;           // +0x00: the larger of the two anchor cells
+    int32_t  cellB;           // +0x04: the smaller
 };
 static_assert(sizeof(PathCellPair) == 0x08, "PathCellPair size");
 static_assert(alignof(PathCellPair) == 4, "PathCellPair align (MemAlloc(.., 4))");
 static_assert(offsetof(PathCellPair, cellA) == 0x00, "");
 static_assert(offsetof(PathCellPair, cellB) == 0x04, "");
+
+// The pair BuildPathGraph appends for one (profession entity, residence) cell pair: the
+// larger cell first. 0x1400d73d3 / 0x1400d73d7 store {entityCell, buildingCell}, then
+// 0x1400d73de CMP R11D,R10D / JGE and 0x1400d73e3 / 0x1400d73e7 swap them.
+inline PathCellPair MakePathCellPair(int32_t entityCell, int32_t buildingCell) {
+    if (entityCell < buildingCell) {
+        return PathCellPair{ buildingCell, entityCell };
+    }
+    return PathCellPair{ entityCell, buildingCell };
+}
+
+// CollectStats' educated sample: educated adults as a percentage of the adults
+// (0x14008a98b DIVSS, 0x14008a9ba MULSS by 100.0f, 0x14008a9c5 CVTTSS2SI).
+inline int32_t EducatedPercent(int32_t educated, int32_t adults) {
+    if (adults > 0) {
+        return static_cast<int32_t>((static_cast<float>(educated) / static_cast<float>(adults)) * 100.0f);
+    }
+    // NOT RETAIL: the zero test. With no adult, educated is 0 too and retail divides 0 by 0
+    // unguarded; CVTTSS2SI of the NaN stores the integer indefinite 0x80000000. The C++
+    // conversion of a NaN is undefined behaviour, so the value is written explicitly.
+    return INT32_MIN;
+}
 
 // ============================================================
 // PathCostNode — a node of the PathGraph distance cache (m_bstRoot)

@@ -248,7 +248,9 @@ int IO::CompressedStream::GetAvailableWindow() {
 // Fill the ACTIVE window from block `blk` of the source stream.
 bool IO::CompressedStream::DecompressFromSource(int blk) {
 
-    if (blk >= _headerSize) return false;               // 1800a96c2  JL continues
+    // NOT RETAIL (review F-051, UB): retail has no lower bound, so a negative
+    // position (a seek to -1) reads _headerData[-1] and shifts a negative value.
+    if (blk < 0 || blk >= _headerSize) return false;    // 1800a96c2  JL continues
 
     // Retail's `_alloca(0x8020)` (0x1800a96b7 via 0x180095060, the stack probe).
     // The extra 0x20 is MSVC's home space for the calls below, not part of the
@@ -257,6 +259,16 @@ bool IO::CompressedStream::DecompressFromSource(int blk) {
 
     const RtIo::Header* const h = &_headerData[blk];    // 1800a96ec
     RtIo::Window* const w = &_windowData[_activeWindow];   // 1800a96f0..fc
+
+    // NOT RETAIL (review F-013 / F-014 / F-015, plain hardening): retail trusts
+    // the directory's two u16 sizes. compressedSize > 0x8000 is read into the
+    // 0x8000-byte scratch above (a stack overflow), a STORED uncompressedSize
+    // > 0x8000 into the 0x8000-byte window (a heap overflow), and any
+    // uncompressedSize > 0x8000 puts the window's end past its buffer, which
+    // Read then copies from. No block of a valid stream exceeds 0x8000 either
+    // way, so this rejects only a corrupt directory, before the window is
+    // claimed (it stays free, start / end -1, as for blk >= _headerSize).
+    if (h->compressedSize > RtIo::kWin || h->uncompressedSize > RtIo::kWin) return false;
 
     w->start = blk << 15;                               // 1800a96d9 / 1800a9700
     w->end   = w->start + h->uncompressedSize;          // 1800a9703 / 1800a9709
@@ -444,7 +456,19 @@ bool CompressedStream::Read(int n, void* dst) {
             &_windowData[_activeWindow];                // 1800aa7bf
         int32_t chunk = n;                              // 1800aa7c3  ESI = EBP
         const int32_t pos = _position;                  // 1800aa7d5
-        if (pos + n > w->end) chunk = w->end - pos;     // 1800aa7db/7df/7e1
+        // NOT RETAIL (review F-075, UB): `pos + n` in int64; retail's int32 sum
+        // overflows for a huge count and then copies all n bytes.
+        if (static_cast<int64_t>(pos) + n > w->end) chunk = w->end - pos;   // 1800aa7db/7df/7e1
+        // NOT RETAIL (review F-074 / F-075 / F-015, plain hardening): at the end
+        // of a short (< 0x8000) block the window is still active but chunk is 0,
+        // so retail spins here forever; past that end inside the window it is
+        // negative and memcpy takes it as 2^64 - n. Either is a read past the
+        // end of the stream (or of a corrupt block): it fails, as a read past a
+        // full last block does in SetWindow.
+        if (chunk <= 0) {
+            if (_extReadTap != nullptr) _extReadTap(*this, tapPos, tapN, dst, false);
+            return false;
+        }
         std::memcpy(out, w->buffer + (pos - w->start),
                     static_cast<size_t>(chunk));        // 1800aa7e3..f7
         _position += chunk;                             // 1800aa7fc

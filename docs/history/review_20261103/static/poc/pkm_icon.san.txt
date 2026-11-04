@@ -1,0 +1,2 @@
+/home/uspc/openba-review/src/engine/io/package_file_read.cpp:515:34: runtime error: signed integer overflow: 65536 * 65536 cannot be represented in type 'int32_t' (aka 'int')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /home/uspc/openba-review/src/engine/io/package_file_read.cpp:515:34 

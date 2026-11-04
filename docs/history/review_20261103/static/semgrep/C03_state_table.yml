@@ -1,0 +1,14 @@
+# C3. State-table mismatches (90482e4c8 state 0x15 null handlers, 9a2539420 PerFrame returned 1).
+rules:
+  - id: c03-null-state-registration
+    languages: [cpp]
+    severity: WARNING
+    message: C3 state registered with no handlers; check retail's populator
+    pattern: TableRegisterState($T, $ID, nullptr, nullptr, nullptr, nullptr)
+  - id: c03-perframe-return-literal
+    languages: [cpp]
+    severity: INFO
+    message: C3 a State*PerFrame / Update / Tick body returns a literal; compare with retail
+    paths:
+      include: ["/src/game/Component/"]
+    pattern-regex: '(?m)^\S[^\n]*\bState\w*(?:PerFrame|Update|Tick)\b\([^;{]*\)\s*(?:const\s*)?\{[^\n]*\n(?:(?!\}\n)[^\n]*\n){0,80}?[^\n]*\breturn\s+(?:[0-9]+|true|false)\s*;'

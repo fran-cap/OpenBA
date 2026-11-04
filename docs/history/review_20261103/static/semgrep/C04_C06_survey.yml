@@ -1,0 +1,38 @@
+# Survey rules for the classes that need a retail comparison per hit (counted, sampled, not
+# triaged one by one): C4 unwired slots, C5 wrong element / type, C6 port-only guards.
+rules:
+  - id: c04-slot-forwards-to-sibling-slot
+    languages: [cpp]
+    severity: INFO
+    message: C4 a slot override whose body only forwards to another slot of the same object (9d22dc510)
+    paths:
+      include: ["/src/game/"]
+    pattern-regex: '(?m)^\S[^\n]*::On\w+\([^)]*\)\s*\{\s*\n?\s*(?:return\s+)?(?:this->)?On\w+\([^;]*\);\s*\n?\s*\}'
+  - id: c05-statemachine-as-type-test
+    languages: [cpp]
+    severity: INFO
+    message: C5 FindComponent<StateMachineComponent> used as a type test (015266447)
+    paths:
+      include: ["/src/game/"]
+    pattern-regex: 'if\s*\(\s*!?\s*[\w>.-]*FindComponent<StateMachineComponent>\(\)'
+  - id: c05-getchild-index-in-loop
+    languages: [cpp]
+    severity: INFO
+    message: C5 child index taken straight from the loop counter (1142711b6 used i for 2*i)
+    paths:
+      include: ["/src/game/Dialog/", "/src/ext/"]
+    pattern-regex: 'GetChild\w*\(\s*i\s*\)'
+  - id: c06-null-return-at-entry
+    languages: [cpp]
+    severity: INFO
+    message: C6 an early null return at body entry (port-only guard candidate; retail derefs unguarded)
+    paths:
+      include: ["/src/game/"]
+    pattern-regex: '(?m)^\S[^\n]*::\w+\([^;{]*\)\s*(?:const\s*)?\{\s*\n\s*if\s*\(\s*!\s*\w+\s*\)\s*return\b'
+  - id: c06-tries-cap
+    languages: [cpp]
+    severity: INFO
+    message: C6 a tries / iteration cap (ad242fb09 removed two)
+    paths:
+      include: ["/src/game/"]
+    pattern-regex: '\b(?:kMax\w*Tries|kMaxIter\w*|100000)\b'

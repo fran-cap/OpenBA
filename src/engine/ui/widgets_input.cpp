@@ -559,8 +559,12 @@ void ComboElement::UpdateText() {
     // redundant after an exact-type FindElementType and is transcribed anyway.
     // It is NOT redundant on the short-circuit path above, where `start` was
     // matched on its own virtual Type().
-    if (!found->IsDerivedFrom(labelType)) return;
+    // NOT RETAIL: retail calls IsDerivedFrom first (0x18011223d) and tests
+    // for null after it (0x18011224f), so a fifth child that holds no label
+    // (a malformed or modded combo layout) is a member call through null (UB,
+    // and a fault in retail). The null test runs first here.
     if (found == nullptr) return;
+    if (!found->IsDerivedFrom(labelType)) return;
     LabelElement* label = static_cast<LabelElement*>(found);
 
     // ---- the STRING half (0x180112258-0x1801122a5) -------------------------

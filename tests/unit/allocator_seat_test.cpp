@@ -56,7 +56,9 @@ void HookFreeB(void* p) { ++g_freeCallsB; g_lastFreed = p; }
 
 UNIT_TEST(memalloc_reads_the_instrument_seat_per_call) {
     System::MemoryAllocatorInstrument& seat = System::g_memoryAllocatorInstrument;
-    CHECK(seat.memAlloc == nullptr);
+    // The ASan build arms the seat at startup (BANISHED_ASAN_HEAP): restored at the end.
+    const System::MemoryAllocatorInstrument saved = seat;
+    CHECK(BANISHED_ASAN_HEAP || seat.memAlloc == nullptr);
 
     // A pointer to the static, taken before anything is armed (a caller that
     // cached it keeps it).
@@ -77,12 +79,14 @@ UNIT_TEST(memalloc_reads_the_instrument_seat_per_call) {
     CHECK_EQ(g_allocCallsB, 1);
     CHECK_EQ(g_lastAlign, 4);
 
-    seat.memAlloc = nullptr;
+    seat = saved;
 }
 
 UNIT_TEST(memfree_reads_the_instrument_seat_per_call) {
     System::MemoryAllocatorInstrument& seat = System::g_memoryAllocatorInstrument;
-    CHECK(seat.memFree == nullptr);
+    // The ASan build arms the seat at startup (BANISHED_ASAN_HEAP): restored at the end.
+    const System::MemoryAllocatorInstrument saved = seat;
+    CHECK(BANISHED_ASAN_HEAP || seat.memFree == nullptr);
 
     void (*const memFree)(void*) = &System::MemoryAllocator::MemFree;
 
@@ -108,5 +112,5 @@ UNIT_TEST(memfree_reads_the_instrument_seat_per_call) {
     CHECK_EQ(g_freeCallsB, 2);
     CHECK(g_lastFreed == nullptr);
 
-    seat.memFree = nullptr;
+    seat = saved;
 }

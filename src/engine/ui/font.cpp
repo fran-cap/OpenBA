@@ -144,7 +144,9 @@ int32_t MeasureLiteral(const UI::Font& font, const char* text, int32_t bytes) {
             const int32_t glyph = font._charToGlyph._data[cp];
             if (glyph != 0xffff && glyph != -1 && glyph >= 0) {      // 180117a5c..a6f
                 const UI::SpriteSheet* sheet = font._spriteSheet.Get();
-                if (glyph < sheet->m_sprites._size) {
+                // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
+                // the font resource and may be shorter (heap out-of-bounds read).
+                if (glyph < sheet->m_sprites._size && glyph < font._glyphs._size) {
                     const UI::Font::Kerning& e = font._glyphs._data[glyph];
                     total += e._postAdvance + e._preAdvance + kern;  // 180117a81..a89
                     kern = e._postKern;                              // 180117a8c
@@ -409,7 +411,9 @@ int32_t Font::ComputeLineLayout(const char* text, int32_t count, int32_t startX,
                 const int32_t glyph = _charToGlyph._data[cp];
                 if (glyph != 0xffff && glyph != -1 && glyph >= 0) {  // 180116d1e..d35
                     const SpriteSheet* sheet = _spriteSheet.Get();
-                    if (glyph < sheet->m_sprites._size) {
+                    // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
+                    // the font resource and may be shorter (heap out-of-bounds read).
+                    if (glyph < sheet->m_sprites._size && glyph < _glyphs._size) {
                         const SpriteInfo* sprites = sheet->m_sprites._data;
                         const Kerning& e = _glyphs._data[glyph];     // 180116d52
                         // The sprite record's +0x20 (SpriteInfo::height).
@@ -498,7 +502,9 @@ int32_t Font::ComputeCharacterPosition(const System::String& text, int32_t count
                 const int32_t glyph = _charToGlyph._data[cp];
                 if (glyph != 0xffff && glyph != -1 && glyph >= 0) {  // 180116f6b..f79
                     const SpriteSheet* sheet = _spriteSheet.Get();
-                    if (glyph < sheet->m_sprites._size) {
+                    // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
+                    // the font resource and may be shorter (heap out-of-bounds read).
+                    if (glyph < sheet->m_sprites._size && glyph < _glyphs._size) {
                         const Kerning& e = _glyphs._data[glyph];     // 180116f87
                         total += e._postAdvance + e._preAdvance + kern;
                         kern = e._postKern;
@@ -650,7 +656,9 @@ void Font::ComputeStringLayout(const System::String& text, bool multiline,
             const int32_t glyph = _charToGlyph._data[cp];
             if (glyph != 0xffff && glyph != -1 && glyph >= 0) {      // 1801172e3..fa
                 const SpriteSheet* sheet = _spriteSheet.Get();
-                if (glyph < sheet->m_sprites._size) {
+                // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
+                // the font resource and may be shorter (heap out-of-bounds read).
+                if (glyph < sheet->m_sprites._size && glyph < _glyphs._size) {
                     const Kerning& e = _glyphs._data[glyph];         // 180117310
                     const int32_t advance =
                         e._postAdvance + e._preAdvance + pendingKern;

@@ -1,0 +1,19 @@
+# C7. Wrong width / overload through a cast (5a8dd770b, f4fda68f8, ccd12b63f, 086c29946).
+rules:
+  - id: c07-serialize-through-cast
+    languages: [cpp]
+    severity: WARNING
+    message: C7 Serialize through a cast; retail picks the overload by the field's own type
+    pattern-regex: '\bSerialize\(\s*(?:\*\s*)?(?:reinterpret_cast|static_cast)<[^>]+>\s*\('
+  - id: c07-reinterpret-ref-scalar
+    languages: [cpp]
+    severity: INFO
+    message: C7 reinterpret_cast to a scalar reference
+    paths:
+      include: ["/src/game/", "/src/engine/"]
+    pattern-regex: 'reinterpret_cast<(?:const\s+)?(?:int|unsigned(?: int)?|u?int(?:8|16|32|64)_t|short|char|signed char|float|double)\s*&>'
+  - id: c07-rdata-narrowing
+    languages: [cpp]
+    severity: INFO
+    message: C7 rdata constant read through a cast of a different width
+    pattern-regex: 'static_cast<u?int(?:8|16|32)_t>\(kRdata_\w+\)'

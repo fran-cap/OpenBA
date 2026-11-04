@@ -1,0 +1,2 @@
+/home/uspc/openba-review/src/engine/save/saveload_loadmeta.cpp:317:44: runtime error: signed integer overflow: 65536 * 65536 cannot be represented in type 'int'
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /home/uspc/openba-review/src/engine/save/saveload_loadmeta.cpp:317:44 

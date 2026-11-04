@@ -39,6 +39,8 @@
 #include "ui/AnimatedImageElement.h"
 #include "system/Timer.h"   // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
 
+#include <cmath>
+
 using namespace rtuielem;
 
 namespace {
@@ -103,17 +105,37 @@ void AnimatedImageElement::Update(const System::Time& time, UserInterface* ui,
 
     _accumTicks += time._ticks;                             // 1800cb2c2  System::Time's ticks
 
+    // NOT RETAIL: with no frames retail converts NaN (0 / 0 * 0) to int and
+    // reads the empty array (UB). Nothing to show: return.
+    if (_frames._size <= 0) return;
+
     float elapsed = static_cast<float>(static_cast<double>(_accumTicks) * spt);
     const float period = static_cast<float>(_frames._size) /   // 1800cb2da
                          static_cast<float>(_framesPerSecond);
 
     if (elapsed >= period) {
         elapsed = elapsed - period;
+        // Hardening (not in retail): retail wraps once, so a tick longer than
+        // two periods (a resource fps far above 60 x the frame count) leaves
+        // the clock past the period for good.
+        if (period > 0.0f && elapsed >= period) elapsed = std::fmod(elapsed, period);
         _accumTicks = static_cast<int64_t>(static_cast<double>(elapsed) / spt);
     }
 
-    const int frame = static_cast<int>((elapsed / period) *
-                                       static_cast<float>(_frames._size));   // 1800cb318
+    // NOT RETAIL: retail truncates the position unchecked (1800cb32b) and
+    // indexes `_frames` with it; a position at or past the frame count, a
+    // negative one (negative fps) or NaN is an out-of-bounds read / a float
+    // to int conversion out of range (UB). It is clamped to the frames.
+    const float position = (elapsed / period) *
+                           static_cast<float>(_frames._size);   // 1800cb318
+    int frame;
+    if (!(position >= 0.0f)) {
+        frame = 0;
+    } else if (position >= static_cast<float>(_frames._size)) {
+        frame = _frames._size - 1;
+    } else {
+        frame = static_cast<int>(position);
+    }
 
     const Sprite next = _frames._data[frame];                  // 1800cb33c  MOVUPS
 

@@ -60,6 +60,13 @@ if [ -n "$BACKEND" ]; then
   B="$B-$BACKEND"
   BACKEND_CMAKE="-DBANISHED_RENDER_BACKEND=$BACKEND"
 fi
+# The checking builds (CMakeLists.txt BANISHED_SANITIZE, docs/reference/checking_builds.md): env
+# BANISHED_SANITIZE=check|asan|ubsan|tsan|fuzz keys its own build directory, build/cmake-<flavour>[-<backend>]-<sanitize>.
+SANITIZE="${BANISHED_SANITIZE:-none}"
+if [ "$SANITIZE" != none ]; then
+  B="$B-$SANITIZE"
+  BACKEND_CMAKE="$BACKEND_CMAKE -DBANISHED_SANITIZE=$SANITIZE"
+fi
 EXE="$B/OpenBA$EXT"
 # THE GATE RUNS FAITHFUL (docs/extensions/DESIGN.md §3 "Gates"): every fix and extension off for
 # this one run, through the exe's own command line (retail's `/key:value` parser, System::Configuration),
