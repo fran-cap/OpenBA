@@ -212,12 +212,27 @@ UploadBatch* OpenBatchLocked() {
         auto pi = Make<VkCommandPoolCreateInfo>(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
         pi.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
         pi.queueFamilyIndex = LiveGraphicsFamily();
-        vkCreateCommandPool(Dev(), &pi, nullptr, &b->pool);
-        auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
-        ai.commandPool = b->pool;
-        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        ai.commandBufferCount = 1;
-        vkAllocateCommandBuffers(Dev(), &ai, &b->cb);
+        VkResult r = vkCreateCommandPool(Dev(), &pi, nullptr, &b->pool);
+        if (r == VK_SUCCESS) {
+            auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
+            ai.commandPool = b->pool;
+            ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            ai.commandBufferCount = 1;
+            r = vkAllocateCommandBuffers(Dev(), &ai, &b->cb);
+        }
+        if (r != VK_SUCCESS) {
+            // Out of memory (review S-024): no batch, the upload is dropped (its caller is told). Only
+            // the first few are logged: while memory stays short, every upload lands here.
+            NoteResult(r, "upload batch");
+            static int s_logged = 0;
+            if (s_logged < 8) {
+                ++s_logged;
+                std::fprintf(stderr, "[Vulkan] upload batch: %s\n", ResultName(r));
+            }
+            if (b->pool) vkDestroyCommandPool(Dev(), b->pool, nullptr);
+            delete b;
+            return nullptr;
+        }
     }
     auto bi = Make<VkCommandBufferBeginInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -505,6 +520,9 @@ void RetireSignalledLocked() {
 // The 1.1 path's SubmitCommands (g_queueLock held): vkQueueSubmit signalling the serial's own fence. A
 // caller's fence is signalled by an empty submit right after it (vkQueueSubmit takes one fence; an empty
 // submit's fence signals once everything submitted before it completed).
+// Every failure is noted as a device loss (review S-025): a submit that fails out of memory signals
+// nothing, so the frame slot's fence would never signal and the slot's next fence wait never return;
+// the device-lost recovery rebuilds the frames and their sync objects instead.
 uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait, VkSemaphore signal,
                           VkFence fence, uint64_t serial) {
     VkFence serialFence = VK_NULL_HANDLE;
@@ -520,6 +538,7 @@ uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait,
         const VkResult r = vkCreateFence(Dev(), &fi, nullptr, &serialFence);
         if (r != VK_SUCCESS) {
             std::fprintf(stderr, "[Vulkan] serial fence: %s\n", ResultName(r));
+            NoteResult(VK_ERROR_DEVICE_LOST, "vkCreateFence (serial fence)");
             return 0;
         }
     }
@@ -535,7 +554,7 @@ uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait,
     VkResult r = vkQueueSubmit(LiveQueue(), 1, &si, serialFence);
     if (r != VK_SUCCESS) {
         std::fprintf(stderr, "[Vulkan] vkQueueSubmit: %s\n", ResultName(r));
-        NoteResult(r, "vkQueueSubmit");
+        NoteResult(VK_ERROR_DEVICE_LOST, "vkQueueSubmit");
         std::lock_guard<std::mutex> guard(g_fenceLock);
         g_freeFences.push_back(serialFence);
         return 0;
@@ -548,7 +567,7 @@ uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait,
         r = vkQueueSubmit(LiveQueue(), 0, nullptr, fence);
         if (r != VK_SUCCESS) {
             std::fprintf(stderr, "[Vulkan] vkQueueSubmit (fence): %s\n", ResultName(r));
-            NoteResult(r, "vkQueueSubmit");
+            NoteResult(VK_ERROR_DEVICE_LOST, "vkQueueSubmit (fence)");
         }
     }
     return serial;
@@ -588,7 +607,9 @@ uint64_t SubmitCommands(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait, V
     const VkResult r = vkQueueSubmit2(LiveQueue(), 1, &si, fence);
     if (r != VK_SUCCESS) {
         std::fprintf(stderr, "[Vulkan] vkQueueSubmit2: %s\n", ResultName(r));
-        NoteResult(r, "vkQueueSubmit2");   // P4: a lost device enters the recovery at the frame's Finish
+        // P4: a lost device enters the recovery at the frame's Finish. Any other failure too (review
+        // S-025): it signalled nothing, and the frame slot's fence wait would never return.
+        NoteResult(VK_ERROR_DEVICE_LOST, "vkQueueSubmit2");
         return 0;
     }
     g_lastSerial = serial;
@@ -676,7 +697,11 @@ void CollectRetired() {
 
 void Retire(std::function<void()> destroy) {
     RetireEntry e;
-    e.frame = FramesSubmitted();
+    // One frame later than the frame being recorded: a worker's upload batch opened after the
+    // current frame's FlushUploads (and before its NoteFrameSubmitted) is submitted with the NEXT
+    // frame's FlushUploads, so the copy into this object is only covered once that frame completed
+    // (review S-013).
+    e.frame = FramesSubmitted() + 1;
     e.destroy = std::move(destroy);
     std::lock_guard<std::mutex> guard(g_retireLock);
     g_retired.push_back(std::move(e));
@@ -696,6 +721,11 @@ bool CreateStaticBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const void*
     }
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) {
+        DestroyBufferNow(out);
+        if (why) *why = "no upload command buffer";
+        return false;
+    }
     vkCmdFillBuffer(b->cb, out->buffer, 0, VK_WHOLE_SIZE, 0);
     // A SetData later in the same batch copies over the fill (synchronization validation: write after
     // write): the fill lands first.
@@ -713,6 +743,7 @@ void UploadBuffer(const GpuBuffer& dst, VkDeviceSize offset, const void* data, V
     if (!dst.buffer || !data || size == 0) return;
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) return;
     VkBuffer staging = VK_NULL_HANDLE;
     VkDeviceSize at = 0;
     uint8_t* p = StageLocked(b, size, 16, &staging, &at);
@@ -740,6 +771,10 @@ bool ReadBuffer(const GpuBuffer& src, void* dst, VkDeviceSize size) {
     {
         std::lock_guard<std::mutex> guard(g_uploadLock);
         UploadBatch* b = OpenBatchLocked();
+        if (!b) {
+            DestroyBufferNow(&readback);
+            return false;
+        }
         // Earlier copies in this batch (the buffer's own upload) land before the read.
         MemoryBarrier(b->cb, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
                       VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT);
@@ -860,6 +895,7 @@ void UploadImage(const GpuImage& image, const ImageRegion* regions, size_t regio
     if (!image.image || regionCount == 0) return;
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) return;
     VkBuffer staging = VK_NULL_HANDLE;
     VkDeviceSize at = 0;
     uint8_t* p = StageLocked(b, size, 16, &staging, &at);
@@ -893,6 +929,7 @@ void ClearImage(const GpuImage& image) {
     if (!image.image) return;
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) return;
     const VkImageLayout from = Initialized(image.image) ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                          : VK_IMAGE_LAYOUT_UNDEFINED;
     ImageBarrier(b->cb, image, from, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, kReadStages, 0,

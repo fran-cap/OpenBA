@@ -43,6 +43,7 @@
 #include "Object/factory_registration.h"
 #include "Player/edittool_funcs.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -78,7 +79,7 @@ void Init() {
     const char* e = Opt().autoStaff;
     if (e && e[0]) {
         if (e[0] == '0') { s_interval = -1; return; }
-        const int v = std::atoi(e);
+        const int v = HarnessAtoi(e);
         s_interval = (v > 1) ? v : kIntervalDflt;
     } else {
         // No explicit request: stand in for the player only when nobody is at the

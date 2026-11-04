@@ -32,9 +32,10 @@
 //
 // THE RETIRE QUEUE (PLAN.md §4.4, Metal's retire pool). A buffer, image or pipeline the engine
 // releases may still be referenced by the frame being recorded or by frames in flight. Retire()
-// tags the destroy with the index of the frame being recorded and runs it once that frame's submit
-// completed (CollectRetired, every BeginCommands after the frame-slot wait); ResourcesShutdown runs
-// the rest after the device went idle.
+// tags the destroy with the index of the frame after the one being recorded and runs it once that
+// frame's submit completed (CollectRetired, every BeginCommands after the frame-slot wait): an upload
+// batch a worker opened between a frame's FlushUploads and its NoteFrameSubmitted is only submitted
+// with the next frame. ResourcesShutdown runs the rest after the device went idle.
 // ============================================================================
 #include "vk_mem.h"
 
@@ -74,7 +75,7 @@ uint64_t FramesCompleted();
 void NoteFrameSubmitted(uint64_t serial);
 // Runs every retired destroy whose frame completed. BeginCommands, after the frame-slot wait.
 void CollectRetired();
-// Runs `destroy` once the frame being recorded now has completed on the GPU. Any thread.
+// Runs `destroy` once the frame after the one being recorded now has completed on the GPU. Any thread.
 void Retire(std::function<void()> destroy);
 
 // ---- buffers ---------------------------------------------------------------------------------------

@@ -15,6 +15,7 @@
 #include "Entity/EntityList.h"
 #include "Component/ComponentDescription.h"
 #include "Component/RawMaterialComponent.h"
+#include "Component/RawMaterialDescription.h"
 #include "object/Internal.h"
 #include "system/MemoryAllocator.h"
 #include "system/Value.h"   // System::Random
@@ -51,6 +52,10 @@ int PlaceOverflow(ComponentDescription* material, int weight, int remaining, int
     if (gw == nullptr || material == nullptr || remaining <= 0) return remaining;
     Map* map = gw->m_game;
     if (map == nullptr) return remaining;
+    // A material whose template has no RawMaterialDescription (a mod's) builds an entity with no
+    // RawMaterialComponent: there is no pile to lay, and the entity built to find that out was
+    // leaked (review F-244). The remainder stays discarded, as in retail.
+    if (material->FindDescription<RawMaterialDescription>() == nullptr) return remaining;
 
     const int before = remaining;
     int piles = 0;
@@ -68,7 +73,7 @@ int PlaceOverflow(ComponentDescription* material, int weight, int remaining, int
         ComponentEntity* pile = ::new (mem) ComponentEntity(material);
         Object::InternalPtr<ComponentEntity> hold(pile);
         RawMaterialComponent* raw = pile->FindComponent<RawMaterialComponent>();
-        if (raw == nullptr) break;
+        if (raw == nullptr) break;   // unreachable: checked on the description above
         const int yaw = gw->m_random->RandTol(2);
         raw->PositionRawMaterial(cell, static_cast<float>(yaw) * kRdata_140172204);
         raw->quantity = count;

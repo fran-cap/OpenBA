@@ -68,6 +68,18 @@ UNIT_TEST(ext_font_variant_path_grammar) {
     CHECK(!ParseVariantPath("Build/SharpFont_32.rsc", vp));
     CHECK(!ParseVariantPath("Font/SharpFont_.rsc", vp));
     CHECK(!ParseVariantPath(nullptr, vp));
+    // Review F-239: only MakeVariantNames' own spelling of the size. strtol took a sign, blanks
+    // and leading zeros (and, with a 64-bit long, wrapped 4294967328 to 32), so an alias path
+    // parsed to the canonical variant and the provide seam re-pathed and re-added that object.
+    CHECK(!ParseVariantPath("Font/SharpFont_032.rsc", vp));
+    CHECK(!ParseVariantPath("Font/SharpFont_+32.rsc", vp));
+    CHECK(!ParseVariantPath("Font/SharpFont_ 32.rsc", vp));
+    CHECK(!ParseVariantPath("Font/SharpFont_-32.rsc", vp));
+    CHECK(!ParseVariantPath("Font/SharpFont_4294967328.rsc", vp));
+    CHECK(!ParseVariantPath("Font/SharpFont_1000.rsc", vp));
+    CHECK(!ParseVariantPath("Build/SharpFont_012Sheet.rsc", vp));
+    CHECK(ParseVariantPath("Font/SharpFont_999.rsc", vp) && vp.px == 999);
+    CHECK(ParseVariantPath("Font/SharpFont_1.rsc", vp) && vp.px == 1);
 
     const VariantNames n = MakeVariantNames(0, 32);
     CHECK_STREQ(n.file.c_str(), "SharpFont_32");
@@ -199,6 +211,20 @@ UNIT_TEST(ext_font_raster_rejects_absent_face) {
     CHECK(out.glyphs.empty());
     CHECK(!why.empty());
     CHECK(!RasterizeFont(kGameFace, 1, cps, 1, out, &why));   // height out of range
+}
+
+// Review S-050 / S-051: the face file beside the exe is looked up per face. A missing face must
+// not decide the answer for the next one (the Windows rasteriser latched its first private-load
+// attempt for every face, so a missing "Segoe UI" hid FrancophilSans.ttf beside the exe).
+UNIT_TEST(ext_font_raster_private_face_lookup_is_per_face) {
+    std::string whyA;
+    std::string whyB;
+    CHECK(!FaceAvailable("NoSuchFace_S051_A", &whyA));
+    CHECK(!FaceAvailable("NoSuchFace_S051_B", &whyB));
+    // Each answer names its own face's file: the second face was looked up, not answered from
+    // the first face's attempt.
+    CHECK(whyA.find("NoSuchFace_S051_A.ttf") != std::string::npos);
+    CHECK(whyB.find("NoSuchFace_S051_B.ttf") != std::string::npos);
 }
 
 // ============================================================================

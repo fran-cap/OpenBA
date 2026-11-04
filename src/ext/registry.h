@@ -41,6 +41,7 @@
 // ============================================================================
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -309,6 +310,17 @@ State Resolve(Lookup lookup, void* ctx, const char* commandLineProfile, LoadRepo
 const Fixes&      Fix();
 const Extensions& Ext();
 const Values&     Val();
+
+// The fix rows a thread other than the main one reads (the persistence worker's save job, the
+// renderer's device recovery), as atomics that follow the row: Install, SetRequested and
+// UnlockForGame store them after they write the row. The plain bools in Fix() are written by the
+// Extensions dialog on the main thread and are read there only (review F-262: a worker reading the
+// plain bool through a pointer raced the dialog's write).
+struct LiveFixes {
+    std::atomic<bool> save_failure_notice{Fixes().save_failure_notice};
+    std::atomic<bool> boot_device_lost{Fixes().boot_device_lost};
+};
+const LiveFixes& LiveFix();
 
 // A valued key's live value, and the menu's write: clamps, stores it as both
 // requested and active (class A: never locked) and returns the stored value.

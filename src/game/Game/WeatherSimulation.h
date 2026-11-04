@@ -88,6 +88,11 @@ public:
     // B.4 GAME-c (bodies in weather_sim.cpp / weather_particles.cpp)
     void Update(const System::Time* time);              // 0x1400944e0 (the per-tick sim)
     void SetEffectEnabled(int slot, bool enable);       // 0x1400942c0
+    // The block retail inlines in both functions above (NOT RETAIL as a function;
+    // SetEffectEnabled passes 0, Update the effect's +0xC0 intensity): emitters[slot]'s
+    // AmbientEmitterComponent slot 0 takes `volume`, and a playing one is re-voiced
+    // through the world Audio::Scene. Body in weather_particles.cpp.
+    void SetEmitterVolume(int slot, float volume);
     // Per rendered frame (GameUpdateLoop::Draw): lighting, fog, sun and the four
     // terrain weather floats (bodies in weather_sun.cpp).
     void DrawUpdate(Video::Context& context);                     // 0x1400938d0

@@ -29,6 +29,7 @@ void* MapTable(size_t bytes) {
 #include <cstdlib>
 
 #include "options.h"
+#include "alloc_stats_table.h"   // the block table (insert / find / backward-shift erase)
 
 namespace {
 
@@ -57,7 +58,7 @@ uint64_t g_lastReportMs = 0;
 // Open-addressing table: ptr -> (size, caller). Sized for ~1M live blocks and
 // carved out of its own VirtualAlloc reservation, independent of both the engine
 // heap and the CRT heap.
-struct BlockRec { void* ptr; uint64_t size; void* caller; void* ctx; };
+using AllocStatsTable::BlockRec;
 }  // namespace
 // Set by callers (GenericArrayResize) right before MemAlloc so the block table can
 // remember WHICH array header owns a buffer; cleared after the call.
@@ -72,11 +73,7 @@ struct CallerRec { void* caller; uint64_t liveBytes; uint64_t liveCount; uint64_
 const size_t kCallerSlots = 4096;
 CallerRec* g_callers = nullptr;
 
-inline size_t HashPtr(void* p) {
-    uint64_t x = reinterpret_cast<uint64_t>(p) >> 4;  // CAST-OK: hash
-    x *= 0x9E3779B97F4A7C15ull; x ^= x >> 29;
-    return static_cast<size_t>(x);
-}
+inline size_t HashPtr(void* p) { return AllocStatsTable::HashPtr(p); }
 
 CallerRec* FindCaller(void* caller, bool create) {
     if (!g_callers) return nullptr;
@@ -103,10 +100,9 @@ void StatsRecordAlloc(void* p, uint64_t size, void* caller) {
         cr->liveBytes += size; cr->liveCount++; cr->totalCount++;
     }
     if (!g_blocks) return;
-    size_t i = HashPtr(p) & (kBlkSlots - 1);
-    for (size_t probe = 0; probe < 32; probe++) {
-        BlockRec& b = g_blocks[(i + probe) & (kBlkSlots - 1)];
-        if (!b.ptr) { b.ptr = p; b.size = size; b.caller = caller; b.ctx = g_allocStatsCtx; g_blkInserts++; return; }
+    if (AllocStatsTable::Insert(g_blocks, kBlkSlots - 1, BlockRec{p, size, caller, g_allocStatsCtx})) {
+        g_blkInserts++;
+        return;
     }
     g_blkEvicted++;   // table full at this bucket — this block won't be matched on free
 }
@@ -114,21 +110,20 @@ void StatsRecordAlloc(void* p, uint64_t size, void* caller) {
 void StatsRecordFree(void* p) {
     if (!p || !g_blocks) return;
     g_freeCount++;
-    size_t i = HashPtr(p) & (kBlkSlots - 1);
-    for (size_t probe = 0; probe < 32; probe++) {
-        BlockRec& b = g_blocks[(i + probe) & (kBlkSlots - 1)];
-        if (b.ptr == p) {
-            g_liveBytes -= (b.size <= g_liveBytes ? b.size : g_liveBytes);
-            if (CallerRec* cr = FindCaller(b.caller, false)) {
-                cr->liveBytes -= (b.size <= cr->liveBytes ? b.size : cr->liveBytes);
-                if (cr->liveCount) cr->liveCount--;
-            }
-            b.ptr = nullptr; b.size = 0; b.caller = nullptr; b.ctx = nullptr;
-            return;
-        }
-        if (!b.ptr) break;      // not tracked (allocated before stats armed)
+    const ptrdiff_t at = AllocStatsTable::Find(g_blocks, kBlkSlots - 1, p);
+    if (at < 0) {
+        g_freeUnknown++;        // not tracked (allocated before stats armed)
+        return;
     }
-    g_freeUnknown++;
+    const BlockRec& b = g_blocks[at];
+    g_liveBytes -= (b.size <= g_liveBytes ? b.size : g_liveBytes);
+    if (CallerRec* cr = FindCaller(b.caller, false)) {
+        cr->liveBytes -= (b.size <= cr->liveBytes ? b.size : cr->liveBytes);
+        if (cr->liveCount) cr->liveCount--;
+    }
+    // Backward-shift erase, not a plain clear: a cleared slot cut the probe chain and
+    // left the rest of it unreachable (review F-278).
+    AllocStatsTable::Erase(g_blocks, kBlkSlots - 1, static_cast<size_t>(at));
 }
 
 // Emit a report at most every ~2s. Called with the allocator CS held.
@@ -173,14 +168,13 @@ void StatsMaybeReport() {
 // overflowing block when the redzone shim is not installed (watch-only mode).
 extern "C" int AllocStats_Lookup(void* userPtr, uint64_t* outSize, void** outCaller, void** outCtx) {
     if (!g_blocks || !userPtr) return 0;
-    size_t i = HashPtr(userPtr) & (kBlkSlots - 1);
-    for (size_t probe = 0; probe < 32; probe++) {
-        BlockRec& b = g_blocks[(i + probe) & (kBlkSlots - 1)];
-        if (b.ptr == userPtr) { if (outSize) *outSize = b.size; if (outCaller) *outCaller = b.caller;
-                                if (outCtx) *outCtx = b.ctx; return 1; }
-        if (!b.ptr) break;
-    }
-    return 0;
+    const ptrdiff_t at = AllocStatsTable::Find(g_blocks, kBlkSlots - 1, userPtr);
+    if (at < 0) return 0;
+    const BlockRec& b = g_blocks[at];
+    if (outSize) *outSize = b.size;
+    if (outCaller) *outCaller = b.caller;
+    if (outCtx) *outCtx = b.ctx;
+    return 1;
 }
 
 // Record one allocation / one free in the ALLOCSTATS tables. Exported so the

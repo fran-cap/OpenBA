@@ -46,6 +46,10 @@ bool Start();
 bool TakeViewScreenshot();
 // Stops a screenshot being taken and puts everything back.
 void Cancel();
+// The GameUpdateLoop `game` is being destroyed: a screenshot it was taking ends with it (left unfinished by
+// leaving the game, it would otherwise outlive it, and with the row off in the next game nothing would end it).
+// The pipelined renderer is asked for again here and installed at the next game's first frame.
+void GameEnded(const void* game);
 // True from Start until the screenshot is written or stopped: GameUpdateLoop::Draw hands the scene to
 // DrawScene.
 bool Active();

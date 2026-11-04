@@ -57,6 +57,11 @@ DrawChoice ChooseDraw(float uiScale, int32_t backBufferWidth, int32_t backBuffer
 
 // ---- font variants ---------------------------------------------------------
 constexpr int kVariantCoarseFrom = 40;
+// The largest base height that has variants (FontLarge is 48). A font's
+// _lineHeight comes from its file unchecked (review F-229): a larger base gets
+// none, so every function below keeps the retail font for it, and the thirds
+// arithmetic (at most 8 x base) never nears INT_MAX.
+constexpr int kMaxFontBaseHeight = 512;
 int VariantLow(int baseHeight);    // round(baseHeight * 2 / 3)
 int VariantHigh(int baseHeight);   // round(baseHeight * 4 / 3)
 int VariantStep(int baseHeight);   // 1, or 2 from kVariantCoarseFrom
@@ -139,6 +144,17 @@ bool WantTwin2x(float pxPerUnitX, float pxPerUnitY);
 // back buffer). Ties go to the smaller factor (2.0 exactly is the 2x sheet,
 // texel for pixel).
 int PickSheetFactor(float pxPerUnitX, float pxPerUnitY, const int* factors, int count);
+
+// The largest side of a magnified sheet copy: D3D11's 2D texture limit
+// (D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION). At this size one BGRA8 level is
+// 1 GiB, so every level's byte size fits the int the engine's level array takes.
+constexpr int64_t kMaxScaledSheetSide = 16384;
+
+// True when a `baseW x baseH` sheet can be copied at `factor`: both sides
+// positive and each, times `factor`, at most kMaxScaledSheetSide. A sheet's size
+// comes from its file unbounded (review F-228); past this the copy is not built
+// and retail's sheet is drawn.
+bool ScaledSheetFits(int32_t baseW, int32_t baseH, int factor);
 
 }  // namespace SharpUI
 }  // namespace Ext
