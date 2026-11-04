@@ -309,7 +309,8 @@ const Entry kEntries[] = {
 
     { "sharp_ui", Tier::Extension, Class::A, true,
       "Sharp UI",
-      "Crisp text and sprites at any UI scale. Layout is unchanged.",
+      "Crisp text at any UI scale; with icons (the Enhanced tab's Sharp UI), crisp menu sprites too. "
+      "Layout is unchanged.",
       0, [](State& s) -> bool& { return s.ext.sharp_ui; } },
 
     { "fast_paths", Tier::Extension, Class::B, false,
@@ -801,6 +802,10 @@ const ValueKey kValueKeys[] = {
     // the row). Fancy adds the shore strip on the bank side of the waterline.
     { "better_water_mode", "better_water", 1, 2, 1,
       [](State& s) -> int32_t& { return s.val.better_water_mode; }, nullptr, 0 },
+    // SHARP_SPRITES.md: Sharp UI's level, the Enhanced tab's "Sharp UI" Text / Text + icons (Off is the row).
+    // 0 = the text only (scale-matched fonts, whole-pixel quads); 1 = also the magnified sprite sheets.
+    { "sharp_ui_icons", "sharp_ui", 0, 1, 0,
+      [](State& s) -> int32_t& { return s.val.sharp_ui_icons; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));

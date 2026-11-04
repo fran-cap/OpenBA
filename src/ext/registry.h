@@ -198,6 +198,7 @@ struct Values {
     int32_t derived_cache_mb = 4096; // ext.derived_cache_mb 256..65536 (owner compress_ao, the cache's first user): the derived-data cache's cap in MB (COMPRESSAO.md)
     int32_t natural_tree_growth = 1; // ext.natural_tree_growth 0..1 (owner better_trees): per-tree autumn colour, leaf fall, regrowth and green variation while the row is on (NATURAL_GROWTH.md)
     int32_t phone_menu_safe_margin = 3375; // ext.phone_menu_safe_margin 0 | 2000 | 3375 | 4500 | 6000 (owner phone_menu): the safe-area inset in thousandths of a percent of the screen height (3375 = 3.375 %, the margin it always had: phone_math.h kSafeMarginFraction), 0 = none (a tablet without cut-outs; issue #96, handins/PHONEMENU.md)
+    int32_t sharp_ui_icons = 0; // ext.sharp_ui_icons 0..1 (owner sharp_ui): 1 = the dialog and Extensions sheets drawn from their magnified copies with our art (SHARP_SPRITES.md); 0 = the text only (the default, the user 2026-11-04)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
 

@@ -8,6 +8,10 @@
 #include "ext/sharp_ui/sharp_math.h"
 #include "ext/sharp_ui/sharp_scaled.h"
 #include "platform/common/platform_window_hooks.h"   // GamePixelDensity
+#include "platform/common/display_density.h"         // UiScaleRatio: the boot prewarm's UI scale
+#include "Game/GameSettings.h"                       // g_gameSettings->uiScale (the boot prewarm)
+#include "Game/exe_bodies.h"                         // g_gameSettings
+#include "ext/registry.h"                            // Val().sharp_ui_icons
 #include "ext/resources/Resources.h"   // HasProvider: the in-exe font variants (KITFREE)
 
 #include <cstdint>
@@ -55,6 +59,7 @@ struct State {
     bool     valid = false;
     float    scale = 0.0f;
     int32_t  bbW = 0, bbH = 0;
+    int32_t  icons = -1;   // ext.sharp_ui_icons the selection was made with
     int32_t  generation = 0;
     // The selection.
     UI::SharpSheetSwap swaps[kMaxSwaps];
@@ -266,18 +271,20 @@ void SelectTwins2x() {
     }
 }
 
-// The dialog sheet drawn from its copy at `factor` (sharp_scaled.h): our art
-// over the player's own sheet upscaled, the base UVs. A deployed twin wins.
-void SelectScaledSheet(int factor) {
+// The sheets we have art for (sharp_scaled.h: the game's dialog sheet, our
+// Extensions sheet) drawn from their copy at `factor`: our art over the sheet
+// upscaled, the base UVs. A deployed twin wins.
+void SelectScaledSheets(int factor) {
     Object::ExternalFactory* const f = Object::ExternalFactory::_singleton;
     if (f == nullptr || factor < 2) return;
     for (UI::SpriteSheet* s = f->FindNextAs<UI::SpriteSheet>(UI::SpriteSheet::TypeId(), nullptr);
          s != nullptr; s = f->FindNextAs<UI::SpriteSheet>(UI::SpriteSheet::TypeId(), s)) {
         if (AlreadySwapped(s)) continue;
         const System::Filename path = s->GetPath();
-        if (!IsDialogSheet(path._data)) continue;
-        Graphics::MaterialInstance* const material = ScaledSheetMaterial(s, factor);
-        if (material == nullptr) return;
+        const SheetKind kind = KindOfSheet(path._data);
+        if (kind == SheetKind::None) continue;
+        Graphics::MaterialInstance* const material = ScaledSheetMaterial(s, kind, factor);
+        if (material == nullptr) continue;
         UI::SharpSheetSwap* const swap = NewSwap();
         if (swap == nullptr) return;
         swap->base     = s;
@@ -285,7 +292,6 @@ void SelectScaledSheet(int factor) {
         swap->material = material;
         ++g.swapCount;
         g.scaled = factor;
-        return;
     }
 }
 
@@ -297,8 +303,11 @@ void Select(const DrawChoice& c) {
         if (c.snap) SelectFont(k, c.pxPerUnitY);
         else std::snprintf(g.fontText[k], 32, "%s->retail(frame)", kFontNames[k]);
     }
-    if (c.snap && WantTwin2x(c.pxPerUnitX, c.pxPerUnitY)) SelectTwins2x();
-    if (c.snap) SelectScaledSheet(PickSheetScale(c.pxPerUnitX, c.pxPerUnitY));
+    // The sprite sheets only at "Text + icons" (ext.sharp_ui_icons, the Enhanced tab's Sharp UI).
+    const bool icons = Val().sharp_ui_icons != 0;
+    if (icons && c.snap && WantTwin2x(c.pxPerUnitX, c.pxPerUnitY)) SelectTwins2x();
+    if (icons && c.snap) SelectScaledSheets(PickSheetScale(c.pxPerUnitX, c.pxPerUnitY));
+    DropSeenJobs();
 }
 
 }  // namespace
@@ -316,8 +325,11 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
     g.drewBefore = true;
     g.lastFrame = frame;
 
-    const bool scaleChanged = !g.valid || ui._uiScale != g.scale || bbW != g.bbW || bbH != g.bbH;
-    if (scaleChanged || generation != g.generation) {
+    const bool scaleChanged = !g.valid || ui._uiScale != g.scale || bbW != g.bbW || bbH != g.bbH ||
+                              Val().sharp_ui_icons != g.icons;
+    // A sheet copy finished on its worker (sharp_scaled.h): select again to install it.
+    const bool built = ScaledSheetJobFinished();
+    if (scaleChanged || generation != g.generation || built) {
         // The factory's Clean (a loop change) frees what it evicts and bumps
         // the generation: every pointer in the selection is re-resolved.
         Select(c);
@@ -325,6 +337,7 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
         g.scale = ui._uiScale;
         g.bbW = bbW;
         g.bbH = bbH;
+        g.icons = Val().sharp_ui_icons;
         g.generation = FactoryGeneration();   // after our own loads
     }
 
@@ -360,6 +373,23 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
         context._imageBufferDirty |= kAllImageSlots;
         context._dirty |= RtVideo::kDirtyImageBuffers;
     }
+}
+
+void Prewarm() {
+    if (Val().sharp_ui_icons == 0 || g_gameSettings == nullptr) return;
+    int32_t bbW, bbH;
+    BackBuffer(bbW, bbH);
+    if (bbW <= 0 || bbH <= 0) return;
+    // The scale the menu will draw at: GameContainer::ApplyKeyMapToUI's (MenuDLT::Startup).
+    const float uiScale = Platform::Display::UiScaleRatio(g_gameSettings->uiScale);
+    const DrawChoice c = ChooseDraw(uiScale, bbW, bbH);
+    if (!c.snap) return;
+    PrewarmScaledSheets(PickSheetScale(c.pxPerUnitX, c.pxPerUnitY));
+}
+
+void PrewarmAndWait() {
+    Prewarm();
+    WaitForScaledSheets(2000);
 }
 
 }  // namespace SharpUI
