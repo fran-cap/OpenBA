@@ -59,6 +59,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   ends the edit, as Enter does on a PC; what the game's own US keyboard table has is what can be typed.
 
 **Fixes**
+- Mods during a game (issue #100): the pause menu's Mods button works again, and so does Extensions beside it. It
+  first asks whether to go on: a change reloads the town, and turning off a mod the town uses (one that adds
+  buildings, resources or items) can damage it, so save first. A change made in a game is now kept, where the
+  original game quietly brought back the old mod list at the next main menu (`fix.mods_persist`).
 - `fix.ui_scale_layout` (on): the building's name shown while placing it now sits by the ghost on a touch
   screen. Retail scales that label's position by the UI scale twice, so at any scale but 100 % it floated far
   from the building (`docs/retail_bugs.md` section 5; issue #96).

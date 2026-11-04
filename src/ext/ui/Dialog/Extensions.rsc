@@ -27,7 +27,7 @@ Dialog resource		// the dialog object: Dialog/Extensions.rsc
 	ElementDescription _templates [ "entryRow" ]			// GetTemplate(0): one per registry entry
 
 	// Built along with the dialog (as SaveLoad.rsc lists its own notices); DoLoad shows them.
-	External _references [ "extensionNotInBuild" "extensionNewer" "extensionTurnedOff" "saveFailed" ]
+	External _references [ "extensionNotInBuild" "extensionNewer" "extensionTurnedOff" "saveFailed" "modsInGame" ]
 }
 
 GroupDescription dialogRoot
@@ -324,3 +324,18 @@ TextDescription noticeNotInBuild : "notice" { String _text = "ExtensionNotInBuil
 TextDescription noticeNewer      : "notice" { String _text = "ExtensionNewer"; }
 TextDescription noticeTurnedOff  : "notice" { String _text = "ExtensionTurnedOff"; }
 TextDescription noticeSaveFailed : "notice" { String _text = "SaveFailed"; }
+
+// fix.mods_persist (docs/retail_bugs.md §23): the pause menu's Mods button asks first. The same
+// MessageBox base with Yes and No showing; src/ext/mods_persist shows it modally (Yes = open Mods).
+Dialog modsInGame : "SaveLoad.rsc:modsMissing"
+{
+	ElementDescription _rootElement = "MessageBox.rsc:main";
+	ElementOverride _override
+	[
+		{ String _name = "text"; ElementDescription _element = "noticeModsInGame"; }
+		{ String _name = "buttonOk"; }
+		{ String _name = "buttonCancel"; }
+	]
+}
+
+TextDescription noticeModsInGame : "notice" { String _text = "ModsInGame"; }
