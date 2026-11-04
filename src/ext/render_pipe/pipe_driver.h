@@ -46,7 +46,8 @@
 // sun and the camera are written; the emit's tail may still run). Handoff::WaitIdle
 // opens the gate too. An emit already past its gate is fenced as before. Before MainLoop::Update ends the loop
 // (kExtBeforeTransition) the render thread is joined, so no step frees what the
-// emit still reads.
+// emit still reads; so it is before the pump dispatches a WM_ACTIVATE (kExtBeforeActivate),
+// whose handlers rebuild the swap chain and reset the context the emit uses.
 //
 // The snapshot is taken only when it pays (overlap_governor.h, P13_OVERLAP section
 // 10): every Frame tail feeds the governor the fence wait the snapshot removes (the
@@ -176,6 +177,13 @@ public:
             Join(host, false);
         }
     }
+
+    // kExtBeforeActivate (review S-002 / S-010): the pump inside the steps is about to dispatch a
+    // WM_ACTIVATE. Its handlers write what the emit uses with no lock: the FSE refocus
+    // Context::Reset (src/app/main.cpp) and DeviceData_OnActivate's swap-chain Resize (ClearState,
+    // the colour buffer's release, ResizeBuffers). An overlapped emit (P13_OVERLAP) or a fenced
+    // tail may be running beside the steps: join the render thread first, as a transition does.
+    void BeforeActivate(Host& host) { BeforeTransition(host); }
 
     // kExtFrameTail. True: the extension was switched off -- uninstall now (the
     // render thread is idle and joined).

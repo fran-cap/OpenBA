@@ -721,6 +721,10 @@ void Hook(::Engine::MainLoop& loop, int32_t point, float alpha, float time) {
         g_driver.BeforeTransition(g_host);   // P13_OVERLAP: nothing in flight while the loop ends
         return;
     }
+    if (point == ::Engine::MainLoop::kExtBeforeActivate) {
+        g_driver.BeforeActivate(g_host);   // review S-002 / S-010: nothing in flight while focus changes
+        return;
+    }
     GameUpdateLoop* const g = GameUpdateLoop::_singleton;
     g_host.game   = g;
     g_host.alpha  = alpha;
