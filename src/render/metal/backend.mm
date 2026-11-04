@@ -4,6 +4,7 @@
 #include "retire_pool.h"
 #include "shader_cache.h"
 #include "inline_bytes.h"
+#include "draw_bounds.h"
 #include "device_support.h"
 #include "platform/common/platform_window_hooks.h"
 #include "system/Error.h"
@@ -540,10 +541,12 @@ static void Draw(Video::Context* ctx, int primitive, int count, int instances, b
                 continue;
             }
             size_t begin = bound.vertexOffsets[slot];
-            if (begin >= source.length) {
-                continue;   // an offset past the end has nothing to expand (and would underflow the count)
+            // Nothing to expand for an offset past the end, or for a layout offset that puts the UChar4 outside
+            // the vertex (the layout comes from the resource; draw_bounds.h). The draw goes on with slot 7 unbound.
+            size_t n = WidenCount(source.length, begin, stride, a.offset);
+            if (!n) {
+                continue;
             }
-            size_t n = (source.length - begin) / stride;
             std::string key;
             auto address = source.gpuAddress;
             Key(key, address);
@@ -573,6 +576,9 @@ static void Draw(Video::Context* ctx, int primitive, int count, int instances, b
             int32_t* dst = inlineStorage;
             if (!inlineBytes) {
                 expanded = NewBuffer(expandedBytes, "expanded-vertex");
+                if (!expanded) {
+                    continue;   // the allocation failed (nil): no expansion this draw, as for the other skips
+                }
                 dst = static_cast<int32_t*>(expanded.contents);
             }
             memset(dst, 0, expandedBytes);
@@ -598,8 +604,10 @@ static void Draw(Video::Context* ctx, int primitive, int count, int instances, b
         }
         MTLPrimitiveType type = primitive == 2 ? MTLPrimitiveTypeLine : MTLPrimitiveTypeTriangle;
         if (indexed) {
-            NSUInteger offset = NSUInteger(ctx->_indexOffset) + NSUInteger(start) * 2;
-            if (indexBuffer && offset + NSUInteger(count) * 2 <= indexBuffer.length) {
+            // The start index, count and index-buffer offset come from mesh records: a negative one is refused
+            // instead of wrapping the unsigned sum back inside the buffer (draw_bounds.h).
+            size_t offset = 0;
+            if (indexBuffer && IndexRange(ctx->_indexOffset, start, count, indexBuffer.length, &offset)) {
                 [enc drawIndexedPrimitives:type
                                 indexCount:count
                                  indexType:MTLIndexTypeUInt16
