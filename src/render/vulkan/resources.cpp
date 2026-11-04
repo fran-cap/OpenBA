@@ -505,6 +505,9 @@ void RetireSignalledLocked() {
 // The 1.1 path's SubmitCommands (g_queueLock held): vkQueueSubmit signalling the serial's own fence. A
 // caller's fence is signalled by an empty submit right after it (vkQueueSubmit takes one fence; an empty
 // submit's fence signals once everything submitted before it completed).
+// Every failure is noted as a device loss (review S-025): a submit that fails out of memory signals
+// nothing, so the frame slot's fence would never signal and the slot's next fence wait never return;
+// the device-lost recovery rebuilds the frames and their sync objects instead.
 uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait, VkSemaphore signal,
                           VkFence fence, uint64_t serial) {
     VkFence serialFence = VK_NULL_HANDLE;
@@ -520,6 +523,7 @@ uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait,
         const VkResult r = vkCreateFence(Dev(), &fi, nullptr, &serialFence);
         if (r != VK_SUCCESS) {
             std::fprintf(stderr, "[Vulkan] serial fence: %s\n", ResultName(r));
+            NoteResult(VK_ERROR_DEVICE_LOST, "vkCreateFence (serial fence)");
             return 0;
         }
     }
@@ -535,7 +539,7 @@ uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait,
     VkResult r = vkQueueSubmit(LiveQueue(), 1, &si, serialFence);
     if (r != VK_SUCCESS) {
         std::fprintf(stderr, "[Vulkan] vkQueueSubmit: %s\n", ResultName(r));
-        NoteResult(r, "vkQueueSubmit");
+        NoteResult(VK_ERROR_DEVICE_LOST, "vkQueueSubmit");
         std::lock_guard<std::mutex> guard(g_fenceLock);
         g_freeFences.push_back(serialFence);
         return 0;
@@ -548,7 +552,7 @@ uint64_t SubmitCommands11(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait,
         r = vkQueueSubmit(LiveQueue(), 0, nullptr, fence);
         if (r != VK_SUCCESS) {
             std::fprintf(stderr, "[Vulkan] vkQueueSubmit (fence): %s\n", ResultName(r));
-            NoteResult(r, "vkQueueSubmit");
+            NoteResult(VK_ERROR_DEVICE_LOST, "vkQueueSubmit (fence)");
         }
     }
     return serial;
@@ -588,7 +592,9 @@ uint64_t SubmitCommands(VkCommandBuffer cb, const VkSemaphoreSubmitInfo* wait, V
     const VkResult r = vkQueueSubmit2(LiveQueue(), 1, &si, fence);
     if (r != VK_SUCCESS) {
         std::fprintf(stderr, "[Vulkan] vkQueueSubmit2: %s\n", ResultName(r));
-        NoteResult(r, "vkQueueSubmit2");   // P4: a lost device enters the recovery at the frame's Finish
+        // P4: a lost device enters the recovery at the frame's Finish. Any other failure too (review
+        // S-025): it signalled nothing, and the frame slot's fence wait would never return.
+        NoteResult(VK_ERROR_DEVICE_LOST, "vkQueueSubmit2");
         return 0;
     }
     g_lastSerial = serial;
