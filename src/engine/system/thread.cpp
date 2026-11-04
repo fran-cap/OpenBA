@@ -121,12 +121,13 @@ System::CriticalSection::~CriticalSection() {
 namespace System {
 
 // 0x18000c700  ?Lock@CriticalSection@System@@QEAAXXZ
-void CriticalSection::Lock() {
+// (Not analysed: the capability is the object, the primitive takes its _storage bytes.)
+void CriticalSection::Lock() NO_THREAD_SAFETY_ANALYSIS {
     Platform::MutexLock(&_storage);      // EnterCriticalSection
 }
 
 // 0x18000c6f0  ?Unlock@CriticalSection@System@@QEAAXXZ
-void CriticalSection::Unlock() {
+void CriticalSection::Unlock() NO_THREAD_SAFETY_ANALYSIS {
     Platform::MutexUnlock(&_storage);    // LeaveCriticalSection
 }
 

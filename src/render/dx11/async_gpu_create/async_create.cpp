@@ -21,6 +21,7 @@
 #include "share_gpu_data/share_create.h"   // NOT RETAIL: ext.share_gpu_data (the create-or-share)
 #include "compress_ao/bc4_create.h"        // NOT RETAIL: ext.compress_ao (the conversion on the worker)
 #include "system/MemoryAllocator.h"
+#include "system/annotated_mutex.h"   // Sys::Mutex / Sys::MutexLock (clang -Wthread-safety)
 
 #include <algorithm>
 #include <condition_variable>
@@ -72,20 +73,22 @@ struct Job {
 // objects, exit() destroyed this state under them, and destroying a condition variable that has
 // blocked waiters is undefined ([thread.condition.condvar]; winpthreads is silent about it, glibc
 // hangs in exit()). Same rule as src/platform/common/event_std.cpp.
-std::mutex& g_mutex = *new std::mutex;
+// GUARDED_BY: clang's thread-safety analysis (system/thread_annotations.h), as the Vulkan twin. Only a
+// clang build of this backend checks it (the Linux check builds Vulkan, so this file is GCC's alone).
+Sys::Mutex& g_mutex = *new Sys::Mutex;
 // a job was queued
 std::condition_variable& g_workCv = *new std::condition_variable;
 // a job finished (Await / Drain / back-pressure)
 std::condition_variable& g_doneCv = *new std::condition_variable;
-std::deque<Job>& g_queue = *new std::deque<Job>;
+std::deque<Job>& g_queue GUARDED_BY(g_mutex) = *new std::deque<Job>;
 // objects with a queued or running job
-std::unordered_set<const void*>& g_pendingObjs = *new std::unordered_set<const void*>;
+std::unordered_set<const void*>& g_pendingObjs GUARDED_BY(g_mutex) = *new std::unordered_set<const void*>;
 // seqs of the queued and running jobs
-std::set<uint64_t>& g_pendingSeqs = *new std::set<uint64_t>;
-uint64_t                        g_nextSeq   = 0;
-uint64_t                        g_bytesHeld = 0;
-int                             g_waiters   = 0;
-int                             g_workers   = 0;
+std::set<uint64_t>& g_pendingSeqs GUARDED_BY(g_mutex) = *new std::set<uint64_t>;
+uint64_t                        g_nextSeq GUARDED_BY(g_mutex)   = 0;
+uint64_t                        g_bytesHeld GUARDED_BY(g_mutex) = 0;
+int                             g_waiters GUARDED_BY(g_mutex)   = 0;
+int                             g_workers GUARDED_BY(g_mutex)   = 0;
 
 std::atomic<bool> g_requested{false};
 std::atomic<int>  g_driverConcurrent{-1};   // -1 = not queried yet (no device seen)
@@ -129,14 +132,14 @@ void WorkerMain() {
     for (;;) {
         Job j;
         {
-            std::unique_lock<std::mutex> lock(g_mutex);
-            g_workCv.wait(lock, [] { return !g_queue.empty(); });
+            Sys::MutexLock lock(g_mutex);
+            g_workCv.wait(lock.Native(), []() REQUIRES(g_mutex) { return !g_queue.empty(); });
             j = g_queue.front();
             g_queue.pop_front();
         }
         Run(j);
         {
-            std::lock_guard<std::mutex> lock(g_mutex);
+            Sys::MutexLock lock(g_mutex);
             g_pendingObjs.erase(j.obj);
             g_pendingSeqs.erase(j.seq);
             g_bytesHeld -= j.bytes;
@@ -156,7 +159,7 @@ int WorkerCount() {
 }
 
 void Push(Job& j) {
-    std::unique_lock<std::mutex> lock(g_mutex);
+    Sys::MutexLock lock(g_mutex);
     if (g_workers == 0) {
         g_workers = WorkerCount();
         for (int i = 0; i < g_workers; ++i) {
@@ -167,7 +170,8 @@ void Push(Job& j) {
     // Back-pressure: wait for room unless nothing is held (one oversized job always goes through).
     if (g_bytesHeld != 0 && g_bytesHeld + j.bytes > kMaxBytesInFlight) {
         ++g_waiters;
-        g_doneCv.wait(lock, [&] { return g_bytesHeld == 0 || g_bytesHeld + j.bytes <= kMaxBytesInFlight; });
+        g_doneCv.wait(lock.Native(),
+                      [&]() REQUIRES(g_mutex) { return g_bytesHeld == 0 || g_bytesHeld + j.bytes <= kMaxBytesInFlight; });
         --g_waiters;
     }
     j.seq = g_nextSeq++;
@@ -212,18 +216,19 @@ bool Deferring() {
 
 void Drain() {
     if (g_pending.load(std::memory_order_acquire) == 0) return;
-    std::unique_lock<std::mutex> lock(g_mutex);
+    Sys::MutexLock lock(g_mutex);
     const uint64_t ticket = g_nextSeq;
     ++g_waiters;
-    g_doneCv.wait(lock, [&] { return g_pendingSeqs.empty() || *g_pendingSeqs.begin() >= ticket; });
+    g_doneCv.wait(lock.Native(),
+                  [&]() REQUIRES(g_mutex) { return g_pendingSeqs.empty() || *g_pendingSeqs.begin() >= ticket; });
     --g_waiters;
 }
 
 void AwaitSlow(const void* obj) {
-    std::unique_lock<std::mutex> lock(g_mutex);
+    Sys::MutexLock lock(g_mutex);
     if (g_pendingObjs.find(obj) == g_pendingObjs.end()) return;
     ++g_waiters;
-    g_doneCv.wait(lock, [&] { return g_pendingObjs.find(obj) == g_pendingObjs.end(); });
+    g_doneCv.wait(lock.Native(), [&]() REQUIRES(g_mutex) { return g_pendingObjs.find(obj) == g_pendingObjs.end(); });
     --g_waiters;
 }
 

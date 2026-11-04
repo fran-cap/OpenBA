@@ -418,7 +418,9 @@ struct EngineOps {
     }
     // P13_OVERLAP: when the next Frame's steps claimed the gate, wait until they are over, the
     // device lock dropped meanwhile (a step that uploads takes it: P13_OVERLAP 2.5).
-    void Gate(const Packet& p) {
+    // Not analysed (clang -Wthread-safety): it drops and re-takes the device lock BeginCommands took
+    // for this job, a hold that spans calls (and threads) the analysis cannot follow.
+    void Gate(const Packet& p) NO_THREAD_SAFETY_ANALYSIS {
         if (handoff == nullptr || !p.overlap || handoff->PassGate()) return;
         Video::Device* const device = ctx->_device;
         device->Unlock();
