@@ -247,7 +247,7 @@ void SelectForGame() {
 void Dispatch(PathfinderThread& pf) {
     State* st = PoolFor(pf);
     GameHost host{pf};
-    while (__atomic_load_n(&pf.queueCount, __ATOMIC_RELAXED) > 0) {
+    while (LoadQueueCount(&pf.queueCount) > 0) {
         // Run 0x1400a6360's pop, statement for statement (pathfinder_seed.cpp).
         pf.lock.Lock();
         PathCommand* node = pf.queueHead;
@@ -258,7 +258,7 @@ void Dispatch(PathfinderThread& pf) {
         if (node->prev != nullptr) node->prev->next = node->next;
         node->next = nullptr;
         node->prev = nullptr;
-        pf.queueCount = pf.queueCount - 1;
+        StoreQueueCount(&pf.queueCount, LoadQueueCount(&pf.queueCount) - 1);
         System::MemoryAllocator::MemFree(node);
         pf.lock.Unlock();
 

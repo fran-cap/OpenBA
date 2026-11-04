@@ -783,7 +783,7 @@ static void EnqueueNode(PathfinderThread* self, const PathCommandArgs& cmd) {
         self->queueTail->next = node;
         node->prev = self->queueTail;
     }
-    self->queueCount = self->queueCount + 1;
+    StoreQueueCount(&self->queueCount, LoadQueueCount(&self->queueCount) + 1);   // NOT RETAIL: atomic (pathfinder_queue_count.h)
     self->queueTail = node;
     self->lock.Unlock();
     if (!self->IsWorking()) {
@@ -873,8 +873,8 @@ PathTicket* PathfinderThread::RequestPath(PathTicket* ticket, int start, int goa
     local.arg2 = goal;
     local.arg3 = iVar1;
     // [PFBENCH] stress harness only: stamp the slot's enqueue time and the depth of the
-    // queue it lands behind (an unlocked relaxed read; the count is only reported).
-    if (g_pfProfOn) PfProf_Enqueue(iVar1, __atomic_load_n(&queueCount, __ATOMIC_RELAXED));
+    // queue it lands behind (an unlocked atomic read; the count is only reported).
+    if (g_pfProfOn) PfProf_Enqueue(iVar1, LoadQueueCount(&queueCount));
     if (runInline == 0) {
         EnqueueNode(this, local);
     } else {

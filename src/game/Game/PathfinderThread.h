@@ -49,6 +49,7 @@
 #include <type_traits>
 #include "system/Thread.h"
 #include "Action/PathSearch.h"
+#include "Game/pathfinder_queue_count.h"
 
 class PathfinderThread final : public System::Thread {
 public:
@@ -91,6 +92,8 @@ public:
     uint8_t      runInline;                // +0x5C
     uint8_t      _pad5D[3];                // +0x5D
     // The queue is `lock`'s (clang -Wthread-safety, system/thread_annotations.h; no layout change).
+    // queueCount is also read outside the lock by Run: every access is LoadQueueCount /
+    // StoreQueueCount (Game/pathfinder_queue_count.h, NOT RETAIL: UB fix).
     // `results` is not: the main thread alone grows it (AllocResult, under `lock` against the
     // worker) and reads it unlocked, as retail does; the worker's case-5 write is row 961's kept race.
     PathCommand* queueTail GUARDED_BY(lock);   // +0x60
