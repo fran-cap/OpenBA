@@ -37,6 +37,7 @@
 #include "io/Stream.h"
 #include "io/FileStream.h"
 #include "io/PackageFile.h"
+#include "io/FileSystem.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -61,7 +62,8 @@ namespace IO {
 // Retail slot 0 is the class's own virtual destructor (B3X W1; ENDGAME B.3.9 IO).
 // The six slot bodies are the real ones: memory_stream.cpp stands on Stream.h
 // alone and is linked (tests/unit/sources.cmake) for package_file_read_test.cpp
-// and compressed_stream_bounds_test.cpp.
+// and compressed_stream_bounds_test.cpp, and save_metadata_hardening_test.cpp (with Open /
+// Create in compressedstream.cpp).
 
 // ---- IO::FileStream (src/engine/io/file_stream.cpp + file_stream_write.cpp) --
 // Slot 0 is PURE on this class, so there is nothing to stub for it.
@@ -89,38 +91,17 @@ TextFileStream::TextFileStream(const System::String&, const System::String&, int
       _activeEncoding(6), _buffer(nullptr), _bufSize(0), _bufCursor(0) {}
 TextFileStream::~TextFileStream() {}
 
-// ---- IO::CompressedStream (compressed_stream_{write,read}.cpp) -------------
-// Slot 0 is PURE on CompressedStream and inline on CompressedFileStream /
-// CompressedMemoryStream (B.3.9 IO), so none of them needs one.
-bool     CompressedStream::Write(int, const void*) { StubReached("CompressedStream::Write"); }
-// CompressedStream::Read is the real body (compressed_stream_read.cpp, linked for
-// decode_exact_test.cpp); so are SetWindow / GetAvailableWindow / DecompressFromSource.
-// The write path they reach only when WRITING stays a stub, and the ext hook is null.
-void     CompressedStream::CompressWindow(int)     { StubReached("CompressedStream::CompressWindow"); }
-CompressedStream::ExtAsyncCompressFn CompressedStream::_extAsyncCompress = nullptr;
-bool     CompressedStream::SetCurrentPos(int)      { StubReached("CompressedStream::SetCurrentPos"); }
-uint32_t CompressedStream::GetCurrentPos() const   { StubReached("CompressedStream::GetCurrentPos"); }
-uint32_t CompressedStream::GetSize() const         { StubReached("CompressedStream::GetSize"); }
-void     CompressedStream::Close()                 { StubReached("CompressedStream::Close"); }
-void     CompressedStream::PreCommit()             { StubReached("CompressedStream::PreCommit"); }
-
-// ---- the two subclasses' overrides ----------------------------------------
-void CompressedMemoryStream::Close()     { StubReached("CompressedMemoryStream::Close"); }
-void CompressedMemoryStream::PreCommit() { StubReached("CompressedMemoryStream::PreCommit"); }
-void CompressedFileStream::Close()       { StubReached("CompressedFileStream::Close"); }
-
-// ENDGAME B.3.9 IO: the two out-of-line destructors (compressed_stream_release.cpp,
-// file_stream.cpp) stand on Release / Commit / the FileSystem singleton and the
-// port registry. No probe writes a header, opens a file or grows an array, so
-// the host bodies have nothing to release; ~Stream still frees the encoding.
-CompressedStream::~CompressedStream() {}
+// ---- IO::CompressedStream / CompressedMemoryStream -------------------------
+// The real bodies are linked (compressed_stream_{open,read,write,release}.cpp and
+// compressedstream.cpp, since save_metadata_hardening_test.cpp drives
+// LoadMetaData). CompressedFileStream's destructor stands on file_stream.cpp (the
+// FileSystem singleton and the port registry); no probe opens a file, so its host
+// body has nothing to release.
 CompressedFileStream::~CompressedFileStream() {}
-// ENDGAME B.3.9 IO (W2): CompressedMemoryStream is concrete; its destructor
-// (the Close guard + Commit, the member's virtual Close) and the two
-// non-virtual Open / Create live in compressedstream.cpp on the port registry.
-CompressedMemoryStream::~CompressedMemoryStream() {}
-bool CompressedMemoryStream::Open()   { StubReached("CompressedMemoryStream::Open"); }
-bool CompressedMemoryStream::Create() { StubReached("CompressedMemoryStream::Create"); }
+
+// compressed_stream_write.cpp's CompressedFileStream::Close reaches the FileSystem
+// singleton and FileSystem::CloseFile (filesystem.cpp, not linked): both come from
+// package_file_read_test.cpp's in-memory FileSystem fake; no metadata test closes a file.
 
 // ---- IO::TextFileStream (src/engine/io/text_file_stream.cpp) ----------
 // Slot 0 is PURE on this class. Slots 1 and 7 are FileStream's, above. What is

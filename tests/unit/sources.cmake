@@ -35,6 +35,11 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/package_file_read.cpp     #   PackageFile::ReadPackfile (FileSystem faked in the test)
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
   ${CMAKE_SOURCE_DIR}/src/engine/io/text_codec.cpp             # string_codec_hardening_test.cpp: the codecs, RtIo_SerializeStringArray
+  ${CMAKE_SOURCE_DIR}/src/engine/save/saveload_loadmeta.cpp    # save_metadata_hardening_test.cpp: LoadMetaData and its stream stack
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressedstream.cpp        #   (memory_stream.cpp / compressed_stream_open.cpp: above)
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_write.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/io/compressed_stream_release.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/io/encoding.cpp               #   BinaryEncoding::CreateReader
   ${CMAKE_SOURCE_DIR}/src/engine/system/crc.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/picking/picking_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/pathfinding/pathfinding_type_records.cpp

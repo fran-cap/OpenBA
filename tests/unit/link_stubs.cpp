@@ -159,13 +159,3 @@ bool Achievement::AchievementManager::SetAchievementMet(int) {
     UnlinkedBody("Achievement::AchievementManager::SetAchievementMet");
 }
 
-// ============================================================================
-// package_file_read_test.cpp: src/engine/io/package_file_read.cpp is linked so the
-// test drives the real ReadPackfile. Its teardown names CompressedStream::Commit
-// (compressed_stream_write.cpp, not linked) behind `_direction == 1`, which a read
-// never sets (CompressedStream::Open stores 0); the stub aborts if it is reached.
-// ============================================================================
-#include "io/Stream.h"
-void IO::CompressedStream::Commit() {
-    UnlinkedBody("IO::CompressedStream::Commit");
-}

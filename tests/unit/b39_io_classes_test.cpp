@@ -66,14 +66,14 @@ void CheckRecordedDelete() {
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// Host stand-ins for the encodings' factory bodies (src/engine/io/encoding.cpp
-// and encoding_visitor_text.cpp). CreateReader is each class's key function, so
-// defining the pair here is what emits the three vtables into the test binary.
-// The tests never call them: a factory allocates through the MemoryAllocator.
+// Host stand-ins for the text and visitor encodings' factory bodies
+// (src/engine/io/encoding_visitor_text.cpp). CreateReader is each class's key
+// function, so defining the pair here is what emits the two vtables into the test
+// binary. The tests never call them. BinaryEncoding's real pair
+// (src/engine/io/encoding.cpp) is linked since save_metadata_hardening_test.cpp
+// reads a record through it.
 // ---------------------------------------------------------------------------
 namespace IO {
-ReaderWriter* BinaryEncoding::CreateReader(Serializer&, int)  { return nullptr; }
-ReaderWriter* BinaryEncoding::CreateWriter(Serializer&, int)  { return nullptr; }
 ReaderWriter* TextEncoding::CreateReader(Serializer&, int)    { return nullptr; }
 ReaderWriter* TextEncoding::CreateWriter(Serializer&, int)    { return nullptr; }
 ReaderWriter* VisitorEncoding::CreateReader(Serializer&, int) { return nullptr; }
