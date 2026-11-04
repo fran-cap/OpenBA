@@ -186,5 +186,6 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/ui/userinterface.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/widgets_input.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/combodialog_close.cpp        # combodialog_close_test.cpp (review S-035)
   ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
 )

@@ -154,17 +154,8 @@ Object::Base* ComboDialog::CreateInPlaceObject(void* place) {
 }
 
 // ??1ComboDialog@UI@@UEAA@XZ 0x180111cd0 — restamp + ~DialogInstance, both
-// the compiler's; retail's body is empty.
-// NOT RETAIL (review S-035): retail 0x180111cd0 (`LEA RAX,[0x1801590e0]; MOV [RCX],RAX;
-// ADD RSP,0x38; JMP 0x180114d40`) leaves the combo's `_openDialog` naming this dialog. When the
-// dialog that hosts the combo is closed while the drop-down is open, CloseDialog closes this child
-// first and CleanRemovedDialogs deletes it before the parent; the parent's element teardown then
-// runs ~ComboElement, which reads `_openDialog->_ui` from the freed dialog (use after free). The
-// back-pointer is cleared here. `_combo` is live: ~ComboElement clears it when the combo goes first.
-ComboDialog::~ComboDialog() {
-    if (_combo != nullptr && _combo->_openDialog == this)
-        _combo->_openDialog = nullptr;
-}
+// the compiler's; the empty body is retail's.
+ComboDialog::~ComboDialog() {}
 
 // ?OnUpdateLayout@ComboDialog@UI@@UEAAXXZ   0x180111cb0 — a tail JMP into
 // SetUpperLeft at the combo element's (left, bottom).
