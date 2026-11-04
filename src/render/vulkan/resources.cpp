@@ -676,7 +676,11 @@ void CollectRetired() {
 
 void Retire(std::function<void()> destroy) {
     RetireEntry e;
-    e.frame = FramesSubmitted();
+    // One frame later than the frame being recorded: a worker's upload batch opened after the
+    // current frame's FlushUploads (and before its NoteFrameSubmitted) is submitted with the NEXT
+    // frame's FlushUploads, so the copy into this object is only covered once that frame completed
+    // (review S-013).
+    e.frame = FramesSubmitted() + 1;
     e.destroy = std::move(destroy);
     std::lock_guard<std::mutex> guard(g_retireLock);
     g_retired.push_back(std::move(e));
