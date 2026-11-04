@@ -75,6 +75,15 @@ StringTable resource
 		{ String _name = "ShowGridHueLabel";			String _text = "Hue"; }
 		{ String _name = "ShowGridSaturationLabel";		String _text = "Color"; }
 		{ String _name = "ShowGridWidthLabel";			String _text = "Width"; }
+		{ String _name = "FpsCounterTab";			String _text = "FPS"; }
+		{ String _name = "FpsCounterCurrentLabel";			String _text = "Current"; }
+		{ String _name = "FpsCounterAverageLabel";			String _text = "Average"; }
+		{ String _name = "FpsCounterMinimumLabel";			String _text = "Minimum"; }
+		{ String _name = "FpsCounterMaximumLabel";			String _text = "Maximum"; }
+		{ String _name = "FpsCounterMeasuredLabel";			String _text = "Measured for"; }
+		{ String _name = "FpsCounterValue";			String _text = "@0"; }
+		{ String _name = "FpsCounterReset";			String _text = "Reset"; }
+		{ String _name = "FpsCounterResetTip";			String _text = "Starts the count over."; }
 		{ String _name = "TerrainEditTab";				String _text = "Terrain"; }
 		{ String _name = "TerrainEditHint";				String _text = "Pick a brush, then hold the left mouse button over the map."; }
 		{ String _name = "TerrainEditHint2";			String _text = "Lower digs lakes; Flatten levels ground to build on; Mountain raises peaks."; }

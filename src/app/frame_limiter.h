@@ -53,6 +53,10 @@ void TickInGame();
 // applies). Main thread. Takes effect at the next Tick / TickInGame.
 void SetSettingsCap(double fps);
 
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/FPSCOUNTER.md): null by default. While set (ext.fps_counter,
+// src/ext/fps_counter/), TickInGame calls it first, once per drawn game frame, before any pacing. Main thread.
+extern void (*g_extGameFrame)();
+
 // Most recent measured frame rate (frames/sec), updated ~once per second.
 // 0 until enough frames have elapsed. Intended for HUD/log readout.
 double GetFps();

@@ -615,6 +615,14 @@ const Entry kEntries[] = {
       "Show grid",
       "Draws a grid over the map so you can see where the tiles are while planning where to build.",
       0, [](State& s) -> bool& { return s.ext.show_grid; } },
+    // FPSCOUNTER (docs/extensions/handins/FPSCOUNTER.md): the frame rate the game draws at (current, average,
+    // minimum, maximum) on an FPS page of the extension window. Class A: it only counts frames, nothing saved,
+    // live. OFF by default: the page brings the toolbar's extension button, which is the player's call.
+    { "fps_counter", Tier::Extension, Class::A, false,
+      "FPS counter",
+      "Adds an FPS page to the extension window (the toolbar's Reports group) with the current, average, "
+      "minimum and maximum frame rate.",
+      0, [](State& s) -> bool& { return s.ext.fps_counter; } },
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a
