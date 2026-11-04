@@ -28,12 +28,18 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <new>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "ext/derived_cache/derived_cache.h"
 #include "ext/derived_cache/hash64.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <winioctl.h>
+#endif
 
 namespace fs = std::filesystem;
 using namespace Ext::DerivedCache;
@@ -844,4 +850,58 @@ UNIT_TEST(ext_derived_cache_hash64_tails_stay_in_the_buffer) {
         roomy.resize(64);
         CHECK_EQ(Hash64(tail.data(), tail.size()), Hash64(roomy.data(), len));
     }
+}
+
+namespace {
+
+// Grows `p` to `size` bytes without writing them: a sparse file (POSIX truncate is sparse by itself;
+// NTFS needs the flag first, or the length is allocated on disk).
+bool GrowSparse(const fs::path& p, uint64_t size) {
+#if defined(_WIN32)
+    HANDLE h = CreateFileW(p.wstring().c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+    DWORD got = 0;
+    LARGE_INTEGER at;
+    at.QuadPart = static_cast<LONGLONG>(size);
+    const bool ok = DeviceIoControl(h, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, &got, nullptr) != 0 &&
+                    SetFilePointerEx(h, at, nullptr, FILE_BEGIN) != 0 && SetEndOfFile(h) != 0;
+    CloseHandle(h);
+    return ok;
+#else
+    std::error_code ec;
+    fs::resize_file(p, size, ec);
+    return !ec;
+#endif
+}
+
+}  // namespace
+
+// Review F-240: LoadIndex sized one vector from derived.idx's length before it had validated a
+// record. A valid header followed by a huge (sparse) tail made it allocate the whole length:
+// std::bad_alloc, uncaught, at every boot while a cache consumer is on. The records are now read in
+// bounded chunks and the zero tail is a damaged tail: dropped, the entry before it kept.
+UNIT_TEST(ext_derived_cache_huge_sparse_index_is_a_damaged_tail) {
+    TempDir t;
+    const std::vector<uint8_t> a = Payload(100, 4);
+    {
+        Store s;
+        CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+        s.Put(MakeKey(1), a);
+    }
+    CHECK(GrowSparse(t.File("derived.idx"), 1ull << 40));   // 1 TiB of zero records
+    bool threw = false;
+    try {
+        Store s;
+        CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+        CHECK_EQ(s.GetStats().entries, 1ull);
+        std::vector<uint8_t> out;
+        CHECK(s.Find(MakeKey(1), out));
+        CHECK(out == a);
+        CHECK_EQ(s.BytesOnDisk(), 32ull + a.size() + 32ull + sizeof(IndexRecord));
+    } catch (const std::bad_alloc&) {
+        threw = true;
+    }
+    CHECK(!threw);
 }
