@@ -656,6 +656,11 @@ void IO::PersistenceWorker::SaveJob() {
             const System::WideString saveWide(savePath);
             if (wroteAll) wroteAll = Platform::FileReplace(tempWide._data, saveWide._data) != 0;
             if (!wroteAll) Platform::FileDelete(tempWide._data);
+        } else if (wroteAll) {
+            // Retail's full-write success arm closes the file before it stores 1
+            // (0x1800b6e00: `if (handle != -1) CloseFile(...); *(this + 0x38) = 1;`);
+            // the failure arms store 2 and leave the close to the tail below.
+            if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
         }
         // NOT RETAIL (review F-147): release stores. fix.save_failure_notice polls
         // `_status` while this job runs (SaveLoad::UpdateSave), so a plain store
@@ -665,13 +670,12 @@ void IO::PersistenceWorker::SaveJob() {
         __atomic_store_n(&_status, 2, __ATOMIC_RELEASE);
     }
 
-    // Retail's ONE close-if-still-open check sits here, UNCONDITIONALLY,
-    // after the success/failure branches above rather than inside either of
-    // them: a failed Create left the handle at -1 (never opened) and this is
-    // a no-op; a full write success already matches (nothing above closed it
-    // yet, so this is where retail's real close happens); a short write
-    // leaves the handle open for this same check to close. One site, not
-    // three, exactly as FUN_1800b6e00's tail reads.
+    // Retail's tail close-if-still-open check, UNCONDITIONALLY, after the
+    // success/failure branches: a failed Create left the handle at -1 (never
+    // opened) and this is a no-op; a full write success was already closed in
+    // its arm above (retail closes there, then stores 1: review F-237), so
+    // this is a no-op too; a short write leaves the handle open for this
+    // check to close, as FUN_1800b6e00's tail reads.
     if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
     // ~bfs is retail's ~BinaryFileStream.
 }

@@ -17,10 +17,11 @@
 using namespace RtObject;
 
 namespace {
-const char* Find(const char* p, bool app) {
+// The suite is one thread: the ResLoad lock the memo REQUIRES is not taken here.
+const char* Find(const char* p, bool app) NO_THREAD_SAFETY_ANALYSIS {
     return ExpandMemoFind(p, static_cast<int>(std::string(p).size()), app);
 }
-void Store(const char* p, bool app, const char* r) {
+void Store(const char* p, bool app, const char* r) NO_THREAD_SAFETY_ANALYSIS {
     ExpandMemoStore(p, static_cast<int>(std::string(p).size()), app, r, static_cast<int>(std::string(r).size()));
 }
 bool Is(const char* got, const char* want) {

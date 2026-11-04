@@ -724,6 +724,21 @@ bool DecodeEntry(const std::vector<uint8_t>& payload, std::vector<uint32_t>* spi
         out.extraPairs.push_back(p);
     }
     if (!GetElements(r, &out.inputs) || !GetElements(r, &out.outputs)) return false;
+    // A cache entry is checked only by unkeyed hashes, so a foreign or forged one decodes here. The
+    // draw and pipeline code index 32-entry binding arrays with these fields and shift 32-bit masks
+    // by them: an out-of-range reflection is a miss (reconverted, the entry replaced), never decoded
+    // (review S-014).
+    if ((out.constantBufferMask >> kMaxConstantBuffers) != 0 || (out.textureMask >> kMaxTextures) != 0 ||
+        (out.samplerMask >> kMaxSamplers) != 0 || (out.textureCubeMask >> kMaxTextures) != 0) {
+        return false;
+    }
+    for (uint8_t s : out.textureSampler) {
+        if (s != kNoSampler && s >= kMaxSamplers) return false;
+    }
+    for (const CombinedPair& p : out.extraPairs) {
+        if (p.binding < BindingOfSampler(0) || p.binding >= BindingOfSampler(kMaxSamplers)) return false;
+        if (p.texture >= kMaxTextures || p.sampler >= kMaxSamplers) return false;
+    }
     const uint32_t words = r.U32();
     if (!r.ok || payload.size() - r.at != static_cast<size_t>(words) * 4) return false;
     std::vector<uint32_t> code(words);

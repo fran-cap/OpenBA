@@ -18,6 +18,11 @@ void ClientRectToOuter(Rect* r, const FrameBorders& b) {
     r->bottom += b.bottom;
 }
 
+bool UsableFrameMeasurement(const FrameBorders& b, bool framed) {
+    if (b.top < 0 || b.left < 0 || b.bottom < 0 || b.right < 0) return false;
+    return !framed || (b.top | b.left | b.bottom | b.right) != 0;
+}
+
 void OuterToClient(int32_t x, int32_t y, int32_t w, int32_t h, const FrameBorders& b,
                    int32_t* clientX, int32_t* clientY, int32_t* clientW, int32_t* clientH) {
     *clientX = x + b.left;
