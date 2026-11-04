@@ -38,16 +38,16 @@ void SendComponentMessage::Persist(IO::Stream& stream) {
 
     // Target entity ref (+0x20) with type validation
     _field20.InternalBasePtr::Serialize(ser);
-    if (_field20.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(_field20.Get(), ComponentEntity::TypeId())) {
+    if (!_field20.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
             _field20 = nullptr;
         }
     }
 
     // Source entity ref (+0x28) with type validation
     _field28.InternalBasePtr::Serialize(ser);
-    if (_field28.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(_field28.Get(), ComponentEntity::TypeId())) {
+    if (!_field28.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_field28, ComponentEntity::TypeId())) {
             _field28 = nullptr;
         }
     }

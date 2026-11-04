@@ -656,9 +656,10 @@ void FishingWork::Persist(IO::Stream& stream) {
             ibpPtr->InternalBasePtr::Serialize(serializer);
 
             // Validate: if the ptr is non-null and not derived from expected type, null it
-            CitizenComponent* ptrVal = ibpPtr->Get();
-            if (ptrVal != nullptr) {
-                if (!Object::IsDerivedFromNullSafe(ptrVal, CitizenComponent::TypeId())) {
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to CitizenComponent*; the answer is the same.
+            if (!ibpPtr->IsNull()) {
+                if (!Object::IsDerivedFromNullSafe(*ibpPtr, CitizenComponent::TypeId())) {
                     *ibpPtr = nullptr;
                 }
             }

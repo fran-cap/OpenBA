@@ -175,10 +175,11 @@ void MultiObjectComponent::Persist(IO::Stream& stream) {
             // ComponentEntity::TypeId() (Persist 0x140125880, at 0x140125936). The tree read 0x1401c72e8 instead -- the NAME
             // field (+8) of Description's record, whose only retail reader is Description's
             // TypeName slot 0x140031c60 -- which is unregistered, so the check never ran.
-            ComponentEntity* ptr = ibp.Get();
-            if (ptr != nullptr) {
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to ComponentEntity*; the answer is the same.
+            if (!ibp.IsNull()) {
                 // slot 0x140152a98 = ?IsDerivedFrom@Base@Object@@QEBA_NI@Z
-                if (!ptr->IsDerivedFrom(ComponentEntity::TypeId())) {
+                if (!::Object::IsDerivedFromNullSafe(ibp, ComponentEntity::TypeId())) {
                     ibp = nullptr;
                 }
             }

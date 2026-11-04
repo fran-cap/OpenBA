@@ -172,15 +172,16 @@ static void GameGrid_SerializeCellArray_ac10(IO::Serializer* serializer, int32_t
     MapCell* elem = cells;
     for (int32_t i = 0; i < count; ++i) {
         elem->blocker.Object::InternalBasePtr::Serialize(*serializer);
-        ComponentEntity* refA = elem->blocker.Get();
-        if (refA != nullptr && !::Object::IsDerivedFromNullSafe(refA, ComponentEntity::TypeId())) {
+        // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+        // downcast to ComponentEntity*; the answer is the same.
+        if (!elem->blocker.IsNull() && !::Object::IsDerivedFromNullSafe(elem->blocker, ComponentEntity::TypeId())) {
             elem->blocker = nullptr;
             CellStamp::NoteWrite(elem);   // [AMBMEMO] cell write clock
         }
 
         elem->occupant.Object::InternalBasePtr::Serialize(*serializer);
-        ComponentEntity* refB = elem->occupant.Get();
-        if (refB != nullptr && !::Object::IsDerivedFromNullSafe(refB, ComponentEntity::TypeId())) {
+        // NOT RETAIL (F-143): as for the blocker above.
+        if (!elem->occupant.IsNull() && !::Object::IsDerivedFromNullSafe(elem->occupant, ComponentEntity::TypeId())) {
             elem->occupant = nullptr;
             CellStamp::NoteWrite(elem);   // [AMBMEMO] cell write clock
         }

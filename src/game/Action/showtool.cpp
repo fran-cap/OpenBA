@@ -63,8 +63,8 @@ void ShowTool::Persist(IO::Stream& stream) {
 
     IO::Serializer ser(stream, 0);
     _field20.InternalBasePtr::Serialize(ser);
-    if (_field20.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(_field20.Get(), CitizenComponent::TypeId())) {   // cell 0x1401c7158
+    if (!_field20.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_field20, CitizenComponent::TypeId())) {   // cell 0x1401c7158
             _field20 = nullptr;
         }
     }

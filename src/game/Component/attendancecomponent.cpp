@@ -315,8 +315,10 @@ void AttendanceComponent::Persist(IO::Stream& stream) {
     Object::InternalPtr<CitizenComponent>* q = queue._data;
     for (int32_t i = 0; i < count && q; ++i, ++q) {
         q->InternalBasePtr::Serialize(ser);
-        if (q->Get() == nullptr) continue;
-        if (!::Object::IsDerivedFromNullSafe(q->Get(), CitizenComponent::TypeId()))
+        // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+        // downcast to CitizenComponent*; the answer is the same.
+        if (q->IsNull()) continue;
+        if (!::Object::IsDerivedFromNullSafe(*q, CitizenComponent::TypeId()))
             *q = nullptr;
     }
 }

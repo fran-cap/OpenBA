@@ -140,8 +140,10 @@ void MoveTo::Persist(IO::Stream& stream) {
 
     // The moving character (+0x28)
     character.InternalBasePtr::Serialize(ser);
-    if (character.Get() != nullptr) {
-        bool valid = character->IsDerivedFrom(CharacterComponent::TypeId());
+    // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+    // downcast to CharacterComponent*; the answer is the same.
+    if (!character.IsNull()) {
+        bool valid = ::Object::IsDerivedFromNullSafe(character, CharacterComponent::TypeId());
         if (!valid) {
             character = nullptr;
         }
@@ -184,7 +186,7 @@ void MoveTo::Persist(IO::Stream& stream) {
         ::Object::InternalBasePtr tempIBP;
         tempIBP.Serialize(ser);
         if (tempIBP.Get() != nullptr) {
-            ::Object::IsDerivedFromNullSafe(tempIBP.Get(), PopulationComponent::TypeId());
+            ::Object::IsDerivedFromNullSafe(tempIBP, PopulationComponent::TypeId());
         }
     } else {
         // Version > 0: serialize the movement profile (+0x470)

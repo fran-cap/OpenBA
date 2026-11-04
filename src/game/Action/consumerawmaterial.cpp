@@ -68,8 +68,8 @@ void ConsumeRawMaterial::Persist(IO::Stream& stream) {
 
     // Serialize target entity (+0x20) with ComponentEntity type check
     _field20.InternalBasePtr::Serialize(ser);
-    if (_field20.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(_field20.Get(), ComponentEntity::TypeId())) {
+    if (!_field20.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
             _field20 = nullptr;
         }
     }

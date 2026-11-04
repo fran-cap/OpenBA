@@ -47,16 +47,16 @@ void CompleteTask::Persist(IO::Stream& stream) {
 
     // Work citizen ref (+0x20) with type validation.
     workEntity.InternalBasePtr::Serialize(ser);
-    if (workEntity.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(workEntity.Get(), CitizenComponent::TypeId())) {
+    if (!workEntity.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(workEntity, CitizenComponent::TypeId())) {
             workEntity = nullptr;
         }
     }
 
     // Target entity ref (+0x28) with type validation
     targetEntity.InternalBasePtr::Serialize(ser);
-    if (targetEntity.Get() != nullptr) {
-        if (!::Object::IsDerivedFromNullSafe(targetEntity.Get(), ComponentEntity::TypeId())) {
+    if (!targetEntity.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(targetEntity, ComponentEntity::TypeId())) {
             targetEntity = nullptr;
         }
     }

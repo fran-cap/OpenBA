@@ -1670,7 +1670,7 @@ void PlayerToolManager::CenterOnEntity(UI::DialogInstance* const* dialog, Compon
     // EditTool::TypeId() (cell 0x1401c6dd8).
     EditTool* editTool = nullptr;
     if (currentTool) {
-        if (::Object::IsDerivedFromNullSafe(currentTool.Get(), EditTool::TypeId())) {
+        if (::Object::IsDerivedFromNullSafe(currentTool, EditTool::TypeId())) {
             editTool = static_cast<EditTool*>(currentTool.Get());
         }
     }
@@ -1682,7 +1682,7 @@ void PlayerToolManager::CenterOnEntity(UI::DialogInstance* const* dialog, Compon
         // Re-read current tool after mode switch
         editTool = nullptr;
         if (currentTool) {
-            if (::Object::IsDerivedFromNullSafe(currentTool.Get(), EditTool::TypeId())) {
+            if (::Object::IsDerivedFromNullSafe(currentTool, EditTool::TypeId())) {
                 editTool = static_cast<EditTool*>(currentTool.Get());
             }
         }
