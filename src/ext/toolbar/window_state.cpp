@@ -48,6 +48,12 @@ bool Decode(const uint8_t* bytes, size_t size, int32_t savedVersion) {
     if (!r.AtEnd() || !ValidPageId(s.page)) {
         return false;
     }
+    // Hostile-save hardening (review F-259). The window writes only drag positions (int16 mouse
+    // coordinates times the UI scale, never below 0); a position far outside that range would overflow
+    // `w + x` / `h + y` in DialogInstance::SetUpperLeft's faithful clamp when the window reopens.
+    if (s.x < 0 || s.y < 0 || s.x > (1 << 20) || s.y > (1 << 20)) {
+        return false;
+    }
     s.open = *open == 1;
     g_window = s;   // nothing applied before the whole payload read
     return true;
