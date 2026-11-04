@@ -83,7 +83,10 @@ static inline const Input::KeyMap* GetKeyMap() {
 //   - KeyMap::Pressed(0, 0x14) = rotate clockwise: increment rotation,
 //     wrap from 4 to 0
 //
-// Rotation value stored at rotationSetting(+0x50)->rotation (+0x10).
+// Rotation value stored at rotationSetting(+0x50)->rotation (+0x10), read with no null
+// test (0x1400dcc1f MOV RAX,[RBX] / 0x1400dcc25 DEC dword ptr [RAX+0x10]; the CW arm at
+// 0x1400dcc77 / 0x1400dcc7d): Startup always resolves it, since SelectTool creates the
+// RotationSetting GetSettingType names (review F-217).
 // Always returns 1 (event consumed).
 // Original: 0x1400dcbe0
 // DragTool::OnKey is our own port (dragtool.cpp) — called by symbol (a direct call
@@ -100,7 +103,6 @@ char FencedTool::OnKey(char key) {
     bool rotLeft = keyMap->Pressed(0, 0x13);
     if (rotLeft) {
         RotationSetting* rotSetting = rotationSetting;
-        if (!rotSetting) return 0;   // SA guard: no RotationSetting wired
         rotSetting->rotation = rotSetting->rotation - 1;
 
         if (rotationSetting->rotation < 0) {
@@ -111,8 +113,7 @@ char FencedTool::OnKey(char key) {
         bool rotRight = keyMap->Pressed(0, 0x14);
         if (rotRight) {
             RotationSetting* rotSetting = rotationSetting;
-            if (!rotSetting) return 0;   // SA guard: no RotationSetting wired
-            rotSetting->rotation = rotSetting->rotation + 1;
+                rotSetting->rotation = rotSetting->rotation + 1;
 
             if (rotationSetting->rotation > 3) {
                 rotationSetting->rotation = 0;
