@@ -326,3 +326,35 @@ UNIT_TEST(ext_restricted_foods_g_on_follows_the_row_and_the_list) {
     CHECK(!g_on);
     ResetState();
 }
+
+// Review F-243 / F-248. The codec compares every path with every earlier one (the duplicate check), so a
+// hostile save of N distinct paths (8 bytes each) makes the load do N^2/2 string compares: 60,000 entries
+// took 4.3 s, a few MB of tail tens of minutes. The list is capped at 4096 entries, as item_priority's:
+// a longer list than any town's materials is damage. The cap itself still decodes.
+UNIT_TEST(ext_restricted_foods_state_codec_refuses_a_list_past_the_cap) {
+    const Ext::SaveTail::StateCodec* c = TheCodec();
+    CHECK(c != nullptr);
+    if (!c) {
+        return;
+    }
+    const uint32_t kCap = 4096;
+    std::vector<std::pair<uint8_t, std::string>> entries;
+    for (uint32_t i = 0; i <= kCap; ++i) {
+        std::string path(3, '\0');
+        path[0] = static_cast<char>(0x80 + (i % 128));
+        path[1] = static_cast<char>(0x80 + ((i / 128) % 128));
+        path[2] = static_cast<char>(0x80 + ((i / (128 * 128)) % 128));
+        entries.emplace_back(static_cast<uint8_t>(1), path);
+    }
+    ResetState();
+    CHECK(SetPathBlocked(kWheat, true));
+    const std::vector<uint8_t> over = Payload(kCap + 1, entries);
+    CHECK(!c->decode(over.data(), over.size(), 1));
+    // refused: the old list stays
+    CHECK(BlockedPaths() == std::vector<std::string>{ kWheat });
+    entries.pop_back();
+    const std::vector<uint8_t> at = Payload(kCap, entries);
+    CHECK(c->decode(at.data(), at.size(), 1));
+    CHECK(BlockedPaths().size() == kCap);
+    c->reset();
+}

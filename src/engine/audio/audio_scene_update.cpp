@@ -536,19 +536,31 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                             if (k < 0x40) freeSlot = k;
                         }
                         if (freeSlot >= 0) {
+                            // NOT RETAIL (review S-026): retail stores `source` after PlayPlatform
+                            // returns (1800dfb3e after the CALL at 1800dfb17), and for a streamed
+                            // buffer PlayPlatform has already woken the stream worker
+                            // (Stream::Play's SetEvent, reached at 1800de9e4). Stream::Run reads
+                            // `_channels[slot].source` with no lock, a data race in which the worker
+                            // can read null and leave the track silent. The store is made before the
+                            // call, so the wake orders it; the slot's old value is put back when
+                            // PlayPlatform fails, as retail stores nothing then.
+                            Device::AudioChannel* const s = &device->_channels[freeSlot];
+                            SoundBuffer* const previousSource = s->source;
+                            s->source = bufferRef;
                             if (device->PlayPlatform(
                                     freeSlot,
                                     Object::ExternalPtr<SoundBuffer>(bufferRef),
                                     ch->startTime,
                                     mix, pitch, vThird)) {                // 1800dfb17
                                 ++g_samplesPlaced;
-                                Device::AudioChannel* const s = &device->_channels[freeSlot];
                                 s->OrFlags(1u);                           // 1800dfb39 (atomic, review F-138)
-                                s->source = bufferRef;                    // 1800dfb3e
+                                // 1800dfb3e: `source = bufferRef`, stored above (S-026).
                                 s->onComplete = &Scene::OnSoundEnded;     // 1800dfb4a
                                 s->userData = this;                       // 1800dfb4f
                                 s->userValue = tag;                       // 1800dfb58
                                 placed = s;                               // 1800dfb64
+                            } else {
+                                s->source = previousSource;
                             }
                             // PlayPlatform false -> placed stays null (1800dfb27)
                         } else {

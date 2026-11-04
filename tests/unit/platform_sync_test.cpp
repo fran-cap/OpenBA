@@ -177,7 +177,8 @@ UNIT_TEST(platform_thread_create_suspended_resume_join) {
     CHECK(Platform::ThreadClose(t));
 }
 
-UNIT_TEST(platform_mutex_is_recursive_and_excludes_other_threads) {
+// Not analysed: the recursive re-take is the point, and clang's thread-safety analysis does not model it.
+UNIT_TEST(platform_mutex_is_recursive_and_excludes_other_threads) NO_THREAD_SAFETY_ANALYSIS {
     Platform::LockStorage lock;
     Platform::MutexInit(&lock, 5000);
     Platform::MutexLock(&lock);

@@ -50,12 +50,15 @@ inline Platform::LockStorage* AllocCs(MemoryAllocator* self) {
     return &self->lock;
 }
 
-// The composed body: lock, the teardown check, the RAW member Allocate (which
-// never consults the instrument seat), the stats record, unlock.
+// The composed body: the teardown check, lock, the RAW member Allocate (which
+// never consults the instrument seat), the stats record, unlock. The teardown
+// check runs BEFORE the allocator lock (review F-287): it takes the redzone
+// g_mutex and then the allocator lock, the order the redzone watchdog and the
+// shim use, so taking the allocator lock first here was an ABBA deadlock.
 void* ComposedAllocate(MemoryAllocator* self, uint64_t size, int align, void* caller) {
     Platform::LockStorage* cs = AllocCs(self);
-    Platform::MutexLock(cs);
     RedzoneAlloc_TeardownOp("teardown-alloc");
+    Platform::MutexLock(cs);
     void* r = self->Allocate(size, align);
     AllocStats_RecordAlloc(r, size, caller);
     Platform::MutexUnlock(cs);
@@ -65,8 +68,8 @@ void* ComposedAllocate(MemoryAllocator* self, uint64_t size, int align, void* ca
 void SwapFree(MemoryAllocator* self, void* p) {
     if (!p) return;                       // retail's TEST RDX,RDX; JZ
     Platform::LockStorage* cs = AllocCs(self);
+    RedzoneAlloc_TeardownOp("teardown-free");   // before the lock: see ComposedAllocate
     Platform::MutexLock(cs);
-    RedzoneAlloc_TeardownOp("teardown-free");
     AllocStats_RecordFree(p);
     self->Free(p);                        // RAW member: never the instrument seat
     Platform::MutexUnlock(cs);

@@ -13,7 +13,7 @@ Pool::Pool(Runner& runner, int workers)
 
 void Pool::Submit(const Job& job) {
     {
-        std::lock_guard<std::mutex> lk(mutex_);
+        Sys::MutexLock lk(mutex_);
         if (stop_) return;
         queue_.push_back(job);
         ++inFlight_;
@@ -22,12 +22,12 @@ void Pool::Submit(const Job& job) {
 }
 
 void Pool::Barrier() {
-    std::unique_lock<std::mutex> lk(mutex_);
-    idle_.wait(lk, [this] { return inFlight_ == 0; });
+    Sys::MutexLock lk(mutex_);
+    idle_.wait(lk.Native(), [this]() REQUIRES(mutex_) { return inFlight_ == 0; });
 }
 
 int Pool::InFlight() {
-    std::lock_guard<std::mutex> lk(mutex_);
+    Sys::MutexLock lk(mutex_);
     return inFlight_;
 }
 
@@ -35,8 +35,8 @@ void Pool::WorkerMain(int worker) {
     for (;;) {
         Job job;
         {
-            std::unique_lock<std::mutex> lk(mutex_);
-            work_.wait(lk, [this] { return stop_ || !queue_.empty(); });
+            Sys::MutexLock lk(mutex_);
+            work_.wait(lk.Native(), [this]() REQUIRES(mutex_) { return stop_ || !queue_.empty(); });
             if (queue_.empty()) return;   // stopped and drained
             job = queue_.front();
             queue_.pop_front();
@@ -44,7 +44,7 @@ void Pool::WorkerMain(int worker) {
         runner_.RunJob(worker, job);
         bool idle;
         {
-            std::lock_guard<std::mutex> lk(mutex_);
+            Sys::MutexLock lk(mutex_);
             ++completed_;
             idle = --inFlight_ == 0;
         }
@@ -54,14 +54,14 @@ void Pool::WorkerMain(int worker) {
 
 void Pool::Stop() {
     {
-        std::lock_guard<std::mutex> lk(mutex_);
+        Sys::MutexLock lk(mutex_);
         stop_ = true;
     }
     work_.notify_all();
 }
 
 long long Pool::Completed() {
-    std::lock_guard<std::mutex> lk(mutex_);
+    Sys::MutexLock lk(mutex_);
     return completed_;
 }
 

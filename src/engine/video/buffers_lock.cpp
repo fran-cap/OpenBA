@@ -70,14 +70,16 @@
 // `deviceSingleton` is the ADDRESS OF the exported `?_singleton@Device@Video@@`
 // slot, not the Device itself — the re-read above is the whole reason it is
 // passed as a slot pointer and not as an already-loaded `Device*`.
-void RtVideoDeviceLock(Video::Device** deviceSingleton) {
+// The four bodies are the lock's primitives: Device.h declares what each acquires / releases, and
+// clang's thread-safety analysis takes them on trust (it cannot equate the re-read `d` with the slot).
+void RtVideoDeviceLock(Video::Device** deviceSingleton) NO_THREAD_SAFETY_ANALYSIS {
     Video::Device* d = *deviceSingleton;
     Platform::MutexLock(&d->lock);                    // EnterCriticalSection
     d->lockOwnerThreadId = Platform::CurrentThreadId();   // GetCurrentThreadId
     d->lockRecursionCount += 1;
 }
 
-void RtVideoDeviceUnlock(Video::Device** deviceSingleton) {
+void RtVideoDeviceUnlock(Video::Device** deviceSingleton) NO_THREAD_SAFETY_ANALYSIS {
     Video::Device* d = *deviceSingleton;   // retail re-reads
     d->lockRecursionCount -= 1;
     if (d->lockRecursionCount == 0)
@@ -120,14 +122,14 @@ void RtVideoDeviceUnlock(Video::Device** deviceSingleton) {
 // Note the predicate: retail tests the ZF from the DEC (depth != 0), which is
 // the same as comparing the decremented value with zero. Reproduced as such.
 // ============================================================================
-void RtVideoDeviceLockThis(Video::Device* d) {
+void RtVideoDeviceLockThis(Video::Device* d) NO_THREAD_SAFETY_ANALYSIS {
     Platform::MutexLock(&d->lock);                    // EnterCriticalSection
     uint32_t tid = Platform::CurrentThreadId();       // GetCurrentThreadId
     d->lockRecursionCount += 1;
     d->lockOwnerThreadId = tid;
 }
 
-void RtVideoDeviceUnlockThis(Video::Device* d) {
+void RtVideoDeviceUnlockThis(Video::Device* d) NO_THREAD_SAFETY_ANALYSIS {
     d->lockRecursionCount -= 1;
     if (d->lockRecursionCount == 0)
         d->lockOwnerThreadId = 0xFFFFFFFFu;

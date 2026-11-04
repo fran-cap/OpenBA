@@ -289,7 +289,11 @@ extern "C" ::Object::External* RtObject_External_Load(const System::Filename* pa
         // Retail does NOT initialise this slot before the call: on a read the
         // serializer fills it, on a write it emits whatever is there. Left
         // uninitialised for the same reason the stream is.
-        int32_t magic;
+        // NOT RETAIL (review S-031): initialised. A resource whose payload ends before the
+        // four bytes leaves the read unwritten (CompressedStream::Read returns false), and the
+        // compare below would read an indeterminate int (undefined behaviour). 0 is never
+        // kCompiledMagic, so a short read takes the bad-magic exit; a full read overwrites it.
+        int32_t magic = 0;
         SerInt(rw, &magic);
         if (magic != kCompiledMagic) {
             ++g_lc.badMagic;
@@ -369,7 +373,10 @@ extern "C" ::Object::External* RtObject_External_Load(const System::Filename* pa
 
             if (!bad) {
                 // ---- 1800bc767..1800bc78a -----------------------------------
-                int32_t version;
+                // NOT RETAIL (review S-031): initialised, as `magic` above (retail's slot
+                // [RSP+0x30] is never stored before the call). No type's GetFileVersion is -1,
+                // so a short read takes the bad-version exit.
+                int32_t version = -1;
                 SerInt(rw, &version);
                 const int32_t objVersion =          // slot 3 +0x18
                     obj->GetFileVersion();

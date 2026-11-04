@@ -36,6 +36,10 @@
 namespace Ext { namespace CreateOnDemand {
 
 bool ReadLevels(IO::Serializer& ser, Video::ImageBuffer& image, int32_t count, Video::ImageBuffer::LevelArray& levels) {
+    // An earlier image's levels its Create never took (it returned early) go now, whatever this
+    // read does (review F-233): the entry is keyed by address alone, so an image built where that
+    // one was freed would otherwise take them in its own Create.
+    ::CreateOnDemand::ThreadPendingLevels().Clear();
     // The images ImageBufferData::Create turns into a texture from their levels.
     if (count <= 0 || image._kind != 2 || image.Width() == 0 || image.Height() == 0) return false;
     // ext.texture_quality: 0 unless the run drops levels and this image qualifies.

@@ -180,7 +180,18 @@ bool WriteWhole(const std::u16string& path, const void* data, size_t size) {
     bool ok = size == 0 || (Platform::FileWrite(h, data, static_cast<uint32_t>(size), &wrote) != 0 &&
                             wrote == static_cast<uint32_t>(size));
     Platform::FileClose(h);
-    ok = ok && Platform::FileReplace(tmp.c_str(), path.c_str()) != 0;
+    // Windows: MoveFileExW cannot replace a file another process holds open without
+    // FILE_SHARE_DELETE (a virus scanner, the search indexer, a plain fopen reader); the hold is
+    // usually brief. The replace is tried again for about 100 ms before the write is given up: a
+    // given-up derived.used write loses the session's stamps (the writer has cleared _usedDirty).
+    // POSIX rename replaces an open file, so the first try succeeds there.
+    if (ok) {
+        ok = Platform::FileReplace(tmp.c_str(), path.c_str()) != 0;
+        for (int retry = 0; !ok && retry < 20; ++retry) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            ok = Platform::FileReplace(tmp.c_str(), path.c_str()) != 0;
+        }
+    }
     if (!ok) Platform::FileDelete(tmp.c_str());
     return ok;
 }
@@ -264,7 +275,8 @@ Store::~Store() {
     Close();
 }
 
-Store::OpenStatus Store::Open(const std::string& dir, uint64_t capBytes) {
+// Not analysed: no other thread reaches the store until Open returns (derived_cache.h, THE LOCKS).
+Store::OpenStatus Store::Open(const std::string& dir, uint64_t capBytes) NO_THREAD_SAFETY_ANALYSIS {
     Close();
     _dir = dir;
     _cap = capBytes;
@@ -320,7 +332,7 @@ Store::OpenStatus Store::Open(const std::string& dir, uint64_t capBytes) {
 
 // The lock is another instance's: read what it has stored, write nothing (derived_cache.h, "A
 // SECOND INSTANCE"). A clear request is the holder's to carry out.
-Store::OpenStatus Store::OpenReadOnly(const std::string& dir) {
+Store::OpenStatus Store::OpenReadOnly(const std::string& dir) NO_THREAD_SAFETY_ANALYSIS {   // Open's
     _readOnly = true;
     _dat = Platform::FileOpenReadShared(FilePath(dir, "derived.dat").c_str());
     _idx = Platform::FileOpenReadShared(FilePath(dir, "derived.idx").c_str());
@@ -341,7 +353,7 @@ Store::OpenStatus Store::OpenReadOnly(const std::string& dir) {
     return OpenStatus::ReadOnly;
 }
 
-void Store::ResetFiles() {
+void Store::ResetFiles() NO_THREAD_SAFETY_ANALYSIS {   // Open's (LoadIndex)
     ++_generation;
     Platform::FileTruncate(_dat, 0);
     Platform::FileTruncate(_idx, 0);
@@ -356,7 +368,7 @@ void Store::ResetFiles() {
 // A rewrite that stopped between its two replaces (a crash, a kill) left the new derived.dat beside
 // the old derived.idx; its new index is still derived.idx.new. Finish the rewrite when that file is
 // the data file's generation. The holder only.
-bool Store::FinishInterruptedRewrite(uint64_t datGeneration) {
+bool Store::FinishInterruptedRewrite(uint64_t datGeneration) NO_THREAD_SAFETY_ANALYSIS {   // Open's
     const std::u16string idxNew = FilePath(_dir, "derived.idx.new");
     std::vector<uint8_t> head;
     Platform::FileHandle h = Platform::FileOpenReadShared(idxNew.c_str());
@@ -378,7 +390,7 @@ bool Store::FinishInterruptedRewrite(uint64_t datGeneration) {
 
 // The longest valid prefix of the index; both files truncated to it (the holder). A rewrite the
 // files need (past the cap, superseded copies) is left to the writer thread (NeedsCompact).
-bool Store::LoadIndex() {
+bool Store::LoadIndex() NO_THREAD_SAFETY_ANALYSIS {   // Open's
     _records.clear();
     int64_t datSize = Platform::FileSize64(_dat);
     int64_t idxSize = Platform::FileSize64(_idx);
@@ -417,27 +429,40 @@ bool Store::LoadIndex() {
     }
     _generation = dh.reserved[0];
     const uint64_t count = (static_cast<uint64_t>(idxSize) - kHeaderSize) / sizeof(IndexRecord);
-    std::vector<IndexRecord> all(static_cast<size_t>(count));
-    if (count != 0 && !ReadAt(_idx, kHeaderSize, all.data(), count * sizeof(IndexRecord))) return false;
+    // Read in bounded chunks, never sized by the file's length (review F-240): a valid header over a
+    // huge or sparse tail made one allocation of the whole length (std::bad_alloc at every boot).
+    // Every kept record backs at least one byte of derived.dat, so the kept list stays bounded.
+    constexpr uint64_t kChunkRecords = 4096;
+    std::vector<IndexRecord> chunk;
     std::vector<IndexRecord> records;
-    records.reserve(all.size());
     uint64_t end = kHeaderSize;
     std::vector<uint8_t> payload;
-    for (const IndexRecord& r : all) {
-        // The size is tested against the room left, not offset + size against the file: the sum
-        // wraps on a forged size near 2^64 (the record check is a plain XXH64), and every later
-        // reader trusts r.size. r.offset == end <= datSize here.
-        if (r.magic != kRecordMagic || r.check != RecordCheck(r) || r.offset != end || r.size == 0 ||
-            r.size > static_cast<uint64_t>(datSize) - r.offset)
-            break;
-        if (verifyPayloads) {
-            payload.resize(static_cast<size_t>(r.size));
-            if (!ReadAt(_dat, r.offset, payload.data(), r.size) ||
-                Hash64(payload.data(), payload.size()) != r.payloadHash)
+    bool damaged = false;
+    for (uint64_t first = 0; first < count && !damaged; first += kChunkRecords) {
+        const uint64_t n = count - first < kChunkRecords ? count - first : kChunkRecords;
+        chunk.resize(static_cast<size_t>(n));
+        if (!ReadAt(_idx, kHeaderSize + first * sizeof(IndexRecord), chunk.data(), n * sizeof(IndexRecord)))
+            return false;
+        for (const IndexRecord& r : chunk) {
+            // The size is tested against the room left, not offset + size against the file: the sum
+            // wraps on a forged size near 2^64 (the record check is a plain XXH64), and every later
+            // reader trusts r.size. r.offset == end <= datSize here.
+            if (r.magic != kRecordMagic || r.check != RecordCheck(r) || r.offset != end || r.size == 0 ||
+                r.size > static_cast<uint64_t>(datSize) - r.offset) {
+                damaged = true;
                 break;
+            }
+            if (verifyPayloads) {
+                payload.resize(static_cast<size_t>(r.size));
+                if (!ReadAt(_dat, r.offset, payload.data(), r.size) ||
+                    Hash64(payload.data(), payload.size()) != r.payloadHash) {
+                    damaged = true;
+                    break;
+                }
+            }
+            records.push_back(r);
+            end += r.size;
         }
-        records.push_back(r);
-        end += r.size;
     }
     const uint64_t indexEnd = kHeaderSize + records.size() * sizeof(IndexRecord);
     if (_readOnly) {
@@ -458,7 +483,7 @@ bool Store::LoadIndex() {
         ih.reserved[0] = _generation;
         if (!WriteAt(_idx, 0, &ih, sizeof(ih))) return false;
     }
-    if (records.size() != all.size() || static_cast<uint64_t>(datSize) != end ||
+    if (records.size() != count || static_cast<uint64_t>(datSize) != end ||
         static_cast<uint64_t>(idxSize) != indexEnd) {
         if (!verifyPayloads)
             std::fprintf(stderr, "[DerivedCache] dropped a damaged tail: kept %llu of %llu entries\n",
@@ -516,7 +541,7 @@ bool Store::Compact() {
     bool evict = false;
     uint64_t generation = 0;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         if (!NeedsCompact()) return false;
         evict = EvictWanted();
         records.reserve(_records.size());
@@ -586,7 +611,7 @@ bool Store::Compact() {
             break;
         }
         {
-            std::lock_guard<std::mutex> lock(_mutex);
+            Sys::MutexLock lock(_mutex);
             if (_queuedBytes > kMaxQueued / 2) {
                 std::fprintf(stderr, "[DerivedCache] the rewrite gives way to new entries: it runs again later\n");
                 ok = false;
@@ -596,7 +621,7 @@ bool Store::Compact() {
         payload.resize(static_cast<size_t>(r.size));
         bool read;
         {
-            std::lock_guard<std::mutex> files(_fileMutex);
+            Sys::MutexLock files(_fileMutex);
             read = ReadAt(_dat, r.offset, payload.data(), r.size);
         }
         if (!read || Hash64(payload.data(), payload.size()) != r.payloadHash) {
@@ -622,7 +647,7 @@ bool Store::Compact() {
     const std::u16string dat = FilePath(_dir, "derived.dat");
     const std::u16string idx = FilePath(_dir, "derived.idx");
     // The swap: no Find reads meanwhile (it holds _fileMutex across its lookup and copy).
-    std::lock_guard<std::mutex> files(_fileMutex);
+    Sys::MutexLock files(_fileMutex);
     Platform::FileMapClose(&_map);
     CloseHandle(_dat);
     CloseHandle(_idx);
@@ -635,7 +660,7 @@ bool Store::Compact() {
     const bool idxReplaced = datReplaced && Platform::FileReplace(idxNew.c_str(), idx.c_str()) != 0;
     _dat = Platform::FileOpenWriteShared(dat.c_str(), true);
     _idx = Platform::FileOpenWriteShared(idx.c_str(), false);
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     if (!Valid(_dat) || !Valid(_idx) || (datReplaced && !idxReplaced)) {
         // A new data file beside the old index (or no files): nothing more this run. The next Open
         // finishes the rewrite from derived.idx.new, or keeps the prefix whose bytes match.
@@ -682,17 +707,22 @@ void Store::Close() {
     if (_writer.joinable()) {
         _closing.store(true, std::memory_order_release);   // a rewrite in progress gives up
         {
-            std::lock_guard<std::mutex> lock(_mutex);
+            Sys::MutexLock lock(_mutex);
             _stop = true;
         }
         _cv.notify_all();
         _writer.join();
     }
-    Platform::FileMapClose(&_map);
-    CloseHandle(_dat);
-    CloseHandle(_idx);
+    {
+        // Uncontended (the writer is joined and Close is the store's last call); taken so the
+        // handles keep their one lock.
+        Sys::MutexLock files(_fileMutex);
+        Platform::FileMapClose(&_map);
+        CloseHandle(_dat);
+        CloseHandle(_idx);
+    }
     CloseHandle(_lock);
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     _records.clear();
     _stamps.clear();
     _session          = 0;
@@ -731,9 +761,9 @@ bool Store::Find(const Key& key, std::vector<uint8_t>& out) {
         // Held across the lookup and the copy: the writer's rewrite swaps the files and the records
         // under it, so an offset found here is read from the file it belongs to. It also keeps the
         // mapping until the copy is done.
-        std::lock_guard<std::mutex> files(_fileMutex);
+        Sys::MutexLock files(_fileMutex);
         {
-            std::lock_guard<std::mutex> lock(_mutex);
+            Sys::MutexLock lock(_mutex);
             _lastActivity = std::chrono::steady_clock::now();
             const IndexRecord* r = Lookup(key);
             if (r == nullptr) {
@@ -750,7 +780,7 @@ bool Store::Find(const Key& key, std::vector<uint8_t>& out) {
             ok = ReadAt(_dat, rec.offset, out.data(), rec.size);
     }
     ok = ok && Hash64(out.data(), out.size()) == rec.payloadHash;
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     if (!ok) {
         // A payload the OS never wrote (a power loss after its record): forget it; the caller
         // derives it again and Put stores it anew. (A rewrite since the read has already dropped it.)
@@ -775,19 +805,20 @@ bool Store::Find(const Key& key, std::vector<uint8_t>& out) {
 
 void Store::Put(const Key& key, std::vector<uint8_t> payload) {
     if (!_open || _readOnly || _disabled.load(std::memory_order_acquire) || payload.empty()) return;
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     if (_stats.writeFailed) return;
     _lastActivity = std::chrono::steady_clock::now();
-    _cv.wait(lock, [&] { return _queuedBytes == 0 || _queuedBytes + payload.size() <= kMaxQueued; });
+    _cv.wait(lock.Native(),
+             [&]() REQUIRES(_mutex) { return _queuedBytes == 0 || _queuedBytes + payload.size() <= kMaxQueued; });
     _queuedBytes += payload.size();
     _queue.push_back(Pending{ key, std::move(payload) });
-    lock.unlock();
+    lock.Unlock();
     _cv.notify_all();
 }
 
 void Store::Flush() {
     if (!_open || _readOnly) return;
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     for (;;) {
         if (_stop || (_queue.empty() && !_writing && !_usedDirty && !_compactNow)) return;
         // Asked again on every wake. A Find on another thread stamps a key the moment after the
@@ -796,14 +827,14 @@ void Store::Flush() {
         // docs/extensions/handins/CACHEFIX.md). Each key is stamped once a session, so this ends.
         _flushRequested = true;
         _cv.notify_all();
-        _cv.wait(lock);
+        _cv.wait(lock.Native());
     }
 }
 
 void Store::RequestFlush() {
     if (!_open || _readOnly) return;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         _flushRequested = true;
         _compactArmed   = true;
     }
@@ -813,20 +844,20 @@ void Store::RequestFlush() {
 void Store::RequestCompact() {
     if (!_open || _readOnly) return;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         _compactNow = true;
     }
     _cv.notify_all();
 }
 
 void Store::ReleaseMapping() {
-    std::lock_guard<std::mutex> files(_fileMutex);
+    Sys::MutexLock files(_fileMutex);
     Platform::FileMapClose(&_map);
 }
 
 void Store::Disable() {
     _disabled.store(true, std::memory_order_release);
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     for (const Pending& p : _queue)
         _queuedBytes -= p.payload.size();   // a payload the writer holds is subtracted by the writer
     _queue.clear();
@@ -835,7 +866,7 @@ void Store::Disable() {
 }
 
 Stats Store::GetStats() const {
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     Stats s = _stats;
     s.entries   = _records.size();
     s.dataBytes = _dataEnd;
@@ -843,7 +874,7 @@ Stats Store::GetStats() const {
 }
 
 uint64_t Store::BytesOnDisk() const {
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     return _open ? _dataEnd + _indexEnd : 0;
 }
 
@@ -853,15 +884,15 @@ uint64_t Store::BytesOnDisk() const {
 // empty: at once after RequestCompact, otherwise once per run after the quiet spell, once a load's
 // end (RequestFlush) was seen.
 void Store::WriterMain() {
-    std::unique_lock<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     for (;;) {
         if (!_queue.empty()) {
             Pending p = std::move(_queue.front());
             _queue.pop_front();
             _writing = true;
-            lock.unlock();
+            lock.Unlock();
             WriteOne(p);
-            lock.lock();
+            lock.Lock();
             _queuedBytes -= p.payload.size();
             _writing = false;
             _cv.notify_all();
@@ -872,9 +903,9 @@ void Store::WriterMain() {
         if (_usedDirty && (_flushRequested || _stop || quiet)) {
             _writing = true;
             const bool write = !_disabled.load(std::memory_order_acquire);
-            lock.unlock();
+            lock.Unlock();
             if (write) WriteUsedList();
-            lock.lock();
+            lock.Lock();
             // WriteUsedList cleared _usedDirty when it took its snapshot; a stamp made while the file
             // was being written set it again and must stay set (clearing it here lost those stamps:
             // the flaky eviction test). Only a disabled store, which writes nothing, clears it here.
@@ -900,14 +931,14 @@ void Store::WriterMain() {
         const bool waiting = wanted && _compactArmed && !_compactDone;
         if (wanted && (_compactNow || (waiting && quiet))) {
             _writing = true;
-            lock.unlock();
+            lock.Unlock();
             // Background mode (Windows: low I/O and memory priority) for the rewrite only: the
             // appends are on the loader's path once the queue fills, and must not be starved.
             Platform::ThreadBackgroundMode(true);
             // The evicted entries' stamps go with them (derived.used lists the live entries only).
             if (Compact() && !_disabled.load(std::memory_order_acquire)) WriteUsedList();
             Platform::ThreadBackgroundMode(false);
-            lock.lock();
+            lock.Lock();
             _writing     = false;
             _compactNow  = false;
             // Given way to new entries: the next quiet spell tries again. Otherwise once is enough.
@@ -920,9 +951,9 @@ void Store::WriterMain() {
         _flushRequested = false;
         _cv.notify_all();
         if (waiting || (_usedDirty && !disabled))
-            _cv.wait_until(lock, deadline);
+            _cv.wait_until(lock.Native(), deadline);
         else
-            _cv.wait(lock);
+            _cv.wait(lock.Native());
     }
 }
 
@@ -932,7 +963,7 @@ void Store::WriteOne(Pending& p) {
     uint64_t at = 0;
     uint64_t indexAt = 0;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         if (_stats.writeFailed || Lookup(p.key) != nullptr) return;
         if (_dataEnd + size > _cap) {
             ++_stats.refusedFull;
@@ -953,7 +984,7 @@ void Store::WriteOne(Pending& p) {
     const IndexRecord rec = MakeRecord(p.key, at, size, payloadHash);
     bool ok;
     {
-        std::lock_guard<std::mutex> files(_fileMutex);
+        Sys::MutexLock files(_fileMutex);
         ok = WriteAt(_dat, at, p.payload.data(), size) && WriteAt(_idx, indexAt, &rec, sizeof(rec));
         if (!ok) {
             // Best effort: the next Open drops whatever tail is left anyway.
@@ -961,7 +992,7 @@ void Store::WriteOne(Pending& p) {
             Platform::FileTruncate(_idx, static_cast<int64_t>(indexAt));
         }
     }
-    std::lock_guard<std::mutex> lock(_mutex);
+    Sys::MutexLock lock(_mutex);
     if (!ok) {
         _stats.writeFailed = true;
         std::fprintf(stderr, "[DerivedCache] a write failed (is the disk full?): the cache stores nothing more "
@@ -991,7 +1022,7 @@ void Store::WriteStampsNow() {
 
 // The stamps and the session counter of the sessions before (derived.used). A file that is missing
 // or not in this format is no stamps: session 1, every entry as old as the oldest.
-void Store::ReadUsedList() {
+void Store::ReadUsedList() NO_THREAD_SAFETY_ANALYSIS {   // Open's
     _stamps.clear();
     _session     = 1;
     _lastRefusedBytes = 0;
@@ -1013,10 +1044,10 @@ void Store::ReadUsedList() {
 }
 
 void Store::WriteUsedList() {
-    std::lock_guard<std::mutex> file(_usedFileMutex);   // the writer and WriteStampsNow share the .tmp
+    Sys::MutexLock file(_usedFileMutex);   // the writer and WriteStampsNow share the .tmp
     std::vector<uint8_t> bytes;
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        Sys::MutexLock lock(_mutex);
         _usedDirty = false;
         // Every entry the index still holds that a session stamped, this one's and the earlier ones'
         // merged; an evicted entry's stamp goes with it.

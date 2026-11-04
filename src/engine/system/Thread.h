@@ -18,6 +18,7 @@
 
 #include "platform_sync.h"     // Platform::LockStorage, Platform::EventHandle
 #include "platform_thread.h"   // Platform::ThreadHandle
+#include "system/thread_annotations.h"   // CAPABILITY on CriticalSection
 
 
 // ----------------------------------------------------------------------------
@@ -150,7 +151,8 @@ namespace System {
 // ----------------------------------------------------------------------------
 // System::CriticalSection — 0x28 bytes, NO vtable.
 // ----------------------------------------------------------------------------
-class CriticalSection {
+// A capability to clang's thread-safety analysis (system/thread_annotations.h): no layout change.
+class CAPABILITY("mutex") CriticalSection {
 public:
     // B6 row 50: the REAL ctor and dtor. Its one holder, the exe's
     // PathfinderThread (+0x30), constructs and destroys it as a member, as
@@ -168,8 +170,8 @@ public:
     // ?Unlock@CriticalSection@System@@QEAAXXZ   retail 0x18000c6f0
     // One Platform:: call each (EnterCriticalSection / LeaveCriticalSection on
     // Windows); bodies in src/engine/system/thread.cpp.
-    void Lock();
-    void Unlock();
+    void Lock() ACQUIRE();
+    void Unlock() RELEASE();
 
     // ---- the 0x28 bytes ----------------------------------------------------
     // PUBLIC for the same reason the (deleted) `IO::Registry`'s fields were: `offsetof` on

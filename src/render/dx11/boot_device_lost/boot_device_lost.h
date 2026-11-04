@@ -12,14 +12,14 @@
 namespace VideoDX11 {
 
 // The row's live bool, null until the boot sets it (and under the faithful profile it reads false).
-extern std::atomic<const bool*> g_extBootDeviceLost;
+extern std::atomic<const std::atomic<bool>*> g_extBootDeviceLost;
 
 namespace BootDeviceLost {
 
 // True while the row is on.
 inline bool On() {
-    const bool* const live = g_extBootDeviceLost.load(std::memory_order_relaxed);
-    return live != nullptr && *live;
+    const std::atomic<bool>* const live = g_extBootDeviceLost.load(std::memory_order_relaxed);
+    return live != nullptr && live->load(std::memory_order_relaxed);
 }
 
 }  // namespace BootDeviceLost

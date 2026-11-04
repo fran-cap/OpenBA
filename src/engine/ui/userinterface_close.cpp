@@ -146,6 +146,7 @@
 #include "ui/UserInterface.h"
 #include "ui/DialogInstance.h"
 #include "ui/ToolTipDialog.h"
+#include "ui/ComboDialog.h"   // review S-035: ForgetClosingComboDialog
 #include "audio/Audio.h"
 // ENDGAME B.3.6 block E: element_common.h carries the file-scope `Module` /
 // `ResolveAddr` declaration this file used to spell (the address door lives in
@@ -292,6 +293,11 @@ void UI::UserInterface::CloseDialog(Object::InternalPtr<DialogInstance>* dialog)
                 if (*p == want) return;                           // 0x180120fc6
         }
     }
+
+    // NOT RETAIL (review S-035): a drop-down closed by any caller other than its own four
+    // close sites leaves its combo's `_openDialog` naming it after CleanRemovedDialogs frees
+    // it. Cleared here, on the first close, while the combo is alive (combodialog_close.cpp).
+    ForgetClosingComboDialog(dlg);
 
     // ---- Block D, 0x180120fd6..0x180120ff1 -------------------------------
     // Find the dialog in the live `_dialogs` list (+0x00).

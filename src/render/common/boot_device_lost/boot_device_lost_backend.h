@@ -13,10 +13,13 @@
 // same recovery from the failed reset.
 // ============================================================================
 
+#include <atomic>
+
 namespace BootDeviceLostBackend {
 
-// The row's live bool (registry_boot.cpp, main thread, once at boot; the menu toggle is read
-// through it). Null, or false: retail's behaviour.
-void SetFixFlag(const bool* live);
+// The row's live atomic (Ext::LiveFix, set by registry_boot.cpp on the main thread once at boot;
+// the menu toggle is read through it, from the render thread under ext.render_pipe: review
+// F-262). Null, or false: retail's behaviour.
+void SetFixFlag(const std::atomic<bool>* live);
 
 }  // namespace BootDeviceLostBackend

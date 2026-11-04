@@ -32,7 +32,7 @@ bool RequestFirst(PathfinderThread* pf, PathTicket* ticket, int start, int goal)
     pf->AllocResult(ticket);   // 0x1400a6240, as RequestPath claims its slot
     // [PFBENCH] stress harness only: stamp the slot as RequestPath does, so the wait and end-to-end
     // figures of this query are measured from this request, not from the slot's previous use.
-    if (g_pfProfOn) PfProf_Enqueue(ticket->slot, __atomic_load_n(&pf->queueCount, __ATOMIC_RELAXED));
+    if (g_pfProfOn) PfProf_Enqueue(ticket->slot, LoadQueueCount(&pf->queueCount));
     pf->lock.Lock();
     Capture(*pf, &s_query);
     PathCommand* node = static_cast<PathCommand*>(System::MemoryAllocator::MemAlloc(0x20, 8));

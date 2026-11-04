@@ -350,6 +350,9 @@ bool Tree::Decode(const uint8_t* bytes, size_t size, int version) {
     if (!r.U32(nextId) || !r.U32(count) || count > kMaxPeople || count > r.left / minPerson) {
         return false;
     }
+    // Ids come only from Add, which starts at 1 and stops at kMaxPeople people, so a save never holds a
+    // nextId of 0 or past kMaxPeople + 1. One that does would make Add wrap to id 0 and repeat ids in use.
+    if (nextId == 0 || nextId > kMaxPeople + 1) return false;
     std::vector<Person> people;
     people.reserve(count);
     uint32_t last = 0;

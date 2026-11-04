@@ -17,9 +17,16 @@
 // load_time.cpp's static initialiser. Registration never fails the caller: past
 // kMaxThreads entries it is dropped.
 //
-// Lock-free: an append-only array of {tid, role}; the tid is published last
+// Lock-free: an append-only array of {tid, role, busy}; the tid is published last
 // (release), a reader skips a slot whose tid is still 0. No allocation, no
-// constructor (constant-initialised), so it is safe before main.
+// constructor (constant-initialised), so it is safe before main. A thread id the OS
+// hands out again gets a NEW slot (review F-293): the sampler reads the roster with
+// a cursor that only moves forward, so an in-place update behind it was never seen
+// and its role / busy pair could be read half-written.
+//
+// The busy bit lives in the slot, not in the thread's object (review S-034): the
+// sampler used to keep a pointer to System::Thread::_runFlags and read it after the
+// object could have been freed. A thread sets its own bit with SetBusy.
 // ============================================================================
 #pragma once
 
@@ -39,17 +46,20 @@ constexpr char kCull       = 'C';   // ext.gather_threads cull helper
 constexpr char kParallel   = 'J';   // System::Parallel fork-join worker (block WGPAR)
 constexpr char kOther      = 'T';   // a System::Thread of another type
 
-constexpr int kMaxThreads = 256;
+// Every registration takes a slot (a reused thread id too); past the last one a
+// registration is dropped.
+constexpr int kMaxThreads = 1024;
 
-// Register the calling thread under `role` (idempotent per thread). `busy`, when
-// given, is a word whose bit 0 is set while the thread is mid-job (System::Thread's
-// _runFlags): the sampler samples such a thread for the whole job, waits included.
-void Register(char role, const volatile uint32_t* busy = nullptr);
+// Register the calling thread under `role` (idempotent per thread).
+void Register(char role);
 // The same, the role read from a System::Thread subclass's type name
 // (typeid(*thread).name(), mangled or not).
-void RegisterNamed(const char* typeName, const volatile uint32_t* busy = nullptr);
+void RegisterNamed(const char* typeName);
+// Mark the calling thread mid-job (true) or idle (false): the sampler samples a busy
+// thread for the whole job, waits included. A no-op on an unregistered thread.
+void SetBusy(bool busy);
 
-// The role registered for `tid`, or 0.
+// The role registered for `tid` (its newest owner), or 0.
 char RoleOf(uint32_t tid);
 // "main", "loader", "persist", "audio", "pathfinder", "path", "render", "cull", "parallel",
 // "thread".
@@ -60,6 +70,13 @@ const char* RoleName(char role);
 int Count();
 uint32_t TidAt(int i);
 char RoleAt(int i);
-const volatile uint32_t* BusyAt(int i);   // null when the thread registered none
+bool BusyAt(int i);   // the slot's busy bit (SetBusy); false for a thread that never set it
+
+// For tests/unit only: register `tid` under `role` from the calling thread without
+// marking it registered, and the calling thread's slot (-1 when it has none).
+namespace Detail {
+int RegisterAs(uint32_t tid, char role);
+int CurrentSlot();
+}  // namespace Detail
 
 }  // namespace DiagThreads
