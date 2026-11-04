@@ -371,6 +371,7 @@ static bool RunFactorySelfTest(const char* typeName,
     if (expected.typeId == 0xFFFFFFFFu || actualType != expected.typeId) {
         printf("[SelfTest %s] FAIL: type id 0x%08x != expected 0x%08x (the class's record)\n",
                typeName, actualType, expected.typeId);
+        delete obj;
         return false;
     }
     printf("[SelfTest %s]   type id OK (0x%08x)\n", typeName, actualType);
@@ -395,13 +396,14 @@ static bool RunFactorySelfTest(const char* typeName,
             allOk = false;
         }
     }
+    // The object goes back through its virtual dtor and the root operator delete, as every
+    // factory-made object does (review 2026-11-03, F-010: LSan saw the 0x80-byte StatGoal
+    // leaked here). A freshly constructed StatGoal owns nothing else.
+    delete obj;
     if (!allOk) return false;
 
     printf("[SelfTest %s] PASS (sizeof=%zu, %zu fields verified)\n",
            typeName, expectedSize, fieldCount);
-    // Object intentionally leaked — one-shot startup test, OS reclaims at exit.
-    // Calling the dtor would require the full Goal::~Goal/String chain to be
-    // valid, which is out of scope for the factory test.
     return true;
 }
 

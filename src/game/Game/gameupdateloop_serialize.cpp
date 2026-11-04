@@ -1010,6 +1010,10 @@ extern "C" void GameUpdateLoop_SaveRoundtripCheck(GameUpdateLoop* self, Save::Sa
         fprintf(stderr, "[Roundtrip] RESULT=ERROR decompress loaded=%d resaved=%d\n", okA, okB);
         fflush(stderr);
         fresh._data = nullptr;   // not freed on this arm (the probe's behaviour before)
+        // Both raw images go back on this arm too (review 2026-11-03, F-084: clang-analyzer
+        // unix.Malloc); a failed Open left its pointer null, and free(nullptr) is a no-op.
+        std::free(a);
+        std::free(b);
         return;
     }
     RoundtripDump("standalone_roundtrip_loaded.bin",  a, an);

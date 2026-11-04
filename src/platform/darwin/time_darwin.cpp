@@ -82,6 +82,8 @@ struct WaitTimerObject {
 
 WaitTimerHandle WaitTimerCreate() { return new WaitTimerObject(); }
 
+void WaitTimerDestroy(WaitTimerHandle t) { delete t; }
+
 bool WaitTimerSleep(WaitTimerHandle t, int64_t relative100ns) {
     if (t == nullptr) return false;
     if (relative100ns <= 0) return true;

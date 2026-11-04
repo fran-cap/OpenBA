@@ -53,6 +53,9 @@ WaitTimerHandle WaitTimerCreate() {
     }
     return static_cast<WaitTimerHandle>(t);  // CAST-OK: win32
 }
+void WaitTimerDestroy(WaitTimerHandle t) {
+    if (t != nullptr) CloseHandle(static_cast<HANDLE>(t));   // CAST-OK: win32
+}
 bool WaitTimerSleep(WaitTimerHandle t, int64_t relative100ns) {
     LARGE_INTEGER due;
     due.QuadPart = -relative100ns;   // negative = relative
