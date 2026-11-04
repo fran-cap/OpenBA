@@ -899,3 +899,46 @@ UNIT_TEST(ext_stream_cache_bundle_refuses_a_count_past_the_chunk) {
     CHECK(!b.AddChunk(chunk));
     CHECK_EQ(b.Records(), static_cast<size_t>(0));
 }
+
+// Review phase 2: a record whose directory claims 0x10000 blocks with a full last block describes a
+// 0x80000000-byte stream, one past what an int32 position can hold. AddChunk accepted it (and a
+// segment ending at 0x80000000), so a SegmentStream read of that segment advanced its int32 _pos
+// past INT32_MAX: signed overflow at segment_stream.cpp `_pos += n` (and `_pos += len` in Skip).
+UNIT_TEST(ext_stream_cache_bundle_refuses_a_total_past_int32) {
+    const uint32_t n = 0x10000;
+    std::vector<uint8_t> chunk;
+    BeginChunk(chunk);
+    const size_t rec = chunk.size();
+    chunk.resize(rec + kRecordHeader + static_cast<size_t>(n) * 8 + 2 * 8 + 8, 0);
+    const uint64_t offset = 7;
+    const uint32_t size   = 4 + n * 8;
+    const uint32_t total  = 0x80000000u;
+    const uint32_t segs   = 2;
+    std::memcpy(chunk.data() + rec, &offset, 8);
+    std::memcpy(chunk.data() + rec + 8, &size, 4);
+    std::memcpy(chunk.data() + rec + 12, &total, 4);
+    std::memcpy(chunk.data() + rec + 16, &segs, 4);
+    std::memcpy(chunk.data() + rec + 20, &n, 4);
+    const uint16_t full = 0x8000;
+    std::memcpy(chunk.data() + rec + kRecordHeader + static_cast<size_t>(n - 1) * 8 + 6, &full, 2);
+    const size_t table = rec + kRecordHeader + static_cast<size_t>(n) * 8;
+    const uint32_t seg[4] = {0, 4, 0x7FFFFFFCu, 4};   // [0,4) and [0x7FFFFFFC, 0x80000000)
+    std::memcpy(chunk.data() + table, seg, sizeof(seg));
+    EndChunk(chunk, 1);
+    EntryId id;
+    id.offset = offset;
+    id.size   = size;
+    Bundle b;
+    const bool added = b.AddChunk(chunk);
+    if (added) {
+        const RecordView* v = b.Find(id);
+        CHECK(v != nullptr);
+        SegmentStream ss(v, nullptr, 7, nullptr, nullptr);
+        uint8_t out[4];
+        CHECK(ss.Read(4, out));
+        ss.Skip(0x7FFFFFF8);
+        CHECK_EQ(ss.GetCurrentPos(), 0x7FFFFFFCu);
+        CHECK(ss.Read(4, out));   // _pos += 4: 0x7FFFFFFC + 4 overflows int32
+    }
+    CHECK(!added);
+}
