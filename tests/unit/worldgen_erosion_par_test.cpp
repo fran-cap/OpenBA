@@ -80,6 +80,13 @@ WgErosionTuning Tuning(int lookahead, int stepCap) {
     return t;
 }
 
+// The same with the commit waiting for every droplet's speculation (WgErosionTuning::forceSpec):
+// the slow paths are taken whatever the scheduler does.
+WgErosionTuning Forced(WgErosionTuning t) {
+    t.forceSpec = true;
+    return t;
+}
+
 // Totals over every run of a test, to check the slow paths were taken.
 struct Totals {
     long long spec = 0, conflicts = 0, overflows = 0, unspeculated = 0, cellChecks = 0, solo = 0;
@@ -226,7 +233,13 @@ UNIT_TEST(erosion_par_special_values_match_sequential) {
 }
 
 UNIT_TEST(erosion_par_stress_forced_conflicts_and_overflows) {
-    Totals tot;
+    // `tot` adds up the runs the scheduler times: on a loaded 3-core runner the commit can run nearly
+    // every droplet itself before the woken workers claim one, so their slow-path counts prove
+    // nothing either way; those runs check the equality only. The coverage is counted on `forced`,
+    // where the commit waits for each droplet's speculation (Forced), started before the droplet
+    // ahead of it was committed: a speculation on a tiny grid conflicts, one with step cap 1 / 2
+    // overflows, and conflict-heavy blocks go SOLO, on any machine.
+    Totals tot, forced;
     // dim 2 / 3 / 4: every droplet starts within a cell or two of every other -- nearly every
     // speculation in a window conflicts.
     const std::vector<WgErosionTuning> wide = {Tuning(127, 1024), Tuning(32, 1), Tuning(8, 2), Tuning(1, 1024)};
@@ -254,10 +267,19 @@ UNIT_TEST(erosion_par_stress_forced_conflicts_and_overflows) {
         const std::vector<WgErosionTuning> t = {Tuning(1 + r.Below(127), 1 + r.Below(64))};
         CHECK(AllMatch(dim, Noise(dim, 900 + round, 40.0f, 10.0f), 7000u + round, 10000, t, &tot));
     }
-    CHECK(tot.conflicts > 1000);
-    CHECK(tot.overflows > 1000);
-    CHECK(tot.spec > 0);
-    CHECK(tot.solo > 0);
+    const std::vector<WgErosionTuning> wideForced = {Forced(Tuning(127, 1024)), Forced(Tuning(32, 1)),
+                                                     Forced(Tuning(8, 2)), Forced(Tuning(1, 1024))};
+    CHECK(AllMatch(2, {5.0f, 4.0f, 6.0f, 3.0f, 9.0f, 2.0f, 7.0f, 1.0f, 8.0f}, 3u, 5000, wideForced, &forced));
+    CHECK(AllMatch(3, Noise(3, 5, 10.0f, -1.0f), 4u, 5000, wideForced, &forced));
+    CHECK(AllMatch(96, Ramp(96, 1, 3.0f, 1.0f), 8u, 3000, {Forced(Tuning(16, 1))}, &forced));
+    std::fprintf(stderr, "  timed: spec %lld conflicts %lld overflows %lld unspeculated %lld solo %lld\n", tot.spec,
+                 tot.conflicts, tot.overflows, tot.unspeculated, tot.solo);
+    std::fprintf(stderr, "  forced: spec %lld conflicts %lld overflows %lld unspeculated %lld solo %lld\n",
+                 forced.spec, forced.conflicts, forced.overflows, forced.unspeculated, forced.solo);
+    CHECK(forced.conflicts > 1000);
+    CHECK(forced.overflows > 1000);
+    CHECK(forced.spec > 0);
+    CHECK(forced.solo > 0);
     System::Parallel::Shutdown();
 }
 

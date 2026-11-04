@@ -21,6 +21,12 @@ struct WgErosionTuning {
     int minParallel;   // fewer droplets than this run the sequential body
     int speculators;   // speculating workers, at most the pool's (0 = all of them)
     int gap;           // speculators leave droplets < committed + gap to the commit (it runs them)
+    // Unit tests only: the commit leaves no droplet to itself outside SOLO -- it waits for a
+    // speculator to claim and finish droplet j, and for droplet j + 1's speculation to finish before
+    // it commits j, so that speculation started before j was in the heightmap. The slow paths
+    // (conflicts, overflows, SOLO) are then taken whatever the scheduler does. Needs gap 0 (ignored
+    // otherwise) and a pool call that is not nested (every role on its own thread).
+    bool forceSpec = false;
 };
 
 constexpr int kWgErosionRing = 256;   // droplet slots (lookahead < half of this)

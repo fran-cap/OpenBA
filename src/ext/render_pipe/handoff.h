@@ -7,6 +7,13 @@
 // Standard C++ only (std::mutex / std::condition_variable / std::atomic, as
 // src/ext/path_workers/pool.h): the unit test drives it with a std::thread.
 //
+// SENT MESSAGES (review F-224). The main thread owns the window; the render thread's
+// Present (DXGI in exclusive fullscreen) or a BeginCommands that resizes may SEND it a
+// message, which completes only once the main thread runs it. So the main thread's waits
+// (ClaimSteps, WaitIdle, WaitReleased) wake every millisecond to run the sent messages
+// (Platform::DispatchSentMessages, never a posted one) where the platform has them, and
+// park on the plain condition variable where it does not.
+//
 // ONE job slot. The main thread writes the job (the packet, held by the caller)
 // and then Publish()es it; the render thread blocks in WaitJob() until a job or
 // Stop() arrives, runs it, writes its result (held by the caller) and calls
@@ -75,6 +82,7 @@
 #include <mutex>
 
 #include "system/annotated_mutex.h"   // Sys::Mutex / Sys::MutexLock (clang -Wthread-safety)
+#include "platform_thread.h"   // Platform::DispatchSentMessages (review F-224)
 
 namespace Ext {
 namespace RenderPipe {
@@ -104,7 +112,7 @@ public:
     // fence.
     bool ClaimSteps() {
         Sys::MutexLock lk(_m);
-        _idle.wait(lk.Native(), [this]() REQUIRES(_m) {
+        MainWait(lk, [this]() REQUIRES(_m) {
             return _begunUs.load(std::memory_order_relaxed) != 0 || _passed ||
                    !_busy.load(std::memory_order_acquire);
         });
@@ -132,7 +140,7 @@ public:
         if (!_busy.load(std::memory_order_acquire)) return false;
         OpenGate();
         Sys::MutexLock lk(_m);
-        _idle.wait(lk.Native(), [this]() REQUIRES(_m) { return !_busy.load(std::memory_order_acquire); });
+        MainWait(lk, [this]() REQUIRES(_m) { return !_busy.load(std::memory_order_acquire); });
         return true;
     }
 
@@ -140,7 +148,7 @@ public:
     bool WaitReleased() {
         if (_released.load(std::memory_order_acquire)) return false;
         Sys::MutexLock lk(_m);
-        _idle.wait(lk.Native(), [this]() REQUIRES(_m) { return _released.load(std::memory_order_acquire); });
+        MainWait(lk, [this]() REQUIRES(_m) { return _released.load(std::memory_order_acquire); });
         return true;
     }
 
@@ -226,6 +234,25 @@ public:
     }
 
 private:
+    // The main thread's wait on _idle until `done` (lk held): see SENT MESSAGES in the banner.
+    // The lock is dropped while the window procedures run (review F-224), so the analysis is off here.
+    template <class Done>
+    void MainWait(Sys::MutexLock& lk, Done done) NO_THREAD_SAFETY_ANALYSIS {
+        if (done()) return;
+        lk.Unlock();
+        const bool sent = Platform::DispatchSentMessages();
+        lk.Lock();
+        if (!sent) {
+            _idle.wait(lk.Native(), done);
+            return;
+        }
+        while (!_idle.wait_for(lk.Native(), std::chrono::milliseconds(1), done)) {
+            lk.Unlock();
+            Platform::DispatchSentMessages();
+            lk.Lock();
+        }
+    }
+
     // GUARDED_BY: checked by clang's thread-safety analysis (system/thread_annotations.h). The three
     // atomics are the lock-free fast paths of the ordering banner, not guarded.
     Sys::Mutex              _m;
