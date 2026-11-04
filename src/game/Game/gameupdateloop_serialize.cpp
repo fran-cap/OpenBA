@@ -211,9 +211,8 @@ void EventLog::Serialize(IO::Stream& stream) {
 // serialized via the already-ported 0x1400194a0); +0x10/+0x14 ints; +0x18
 // float; +0x1c Vector4; +0x2c,+0x30,+0x44,+0x48 floats; +0x4c int; +0x50
 // {geo*}[count at +0x58] active-effect slots. On load an active slot is
-// re-created via the ported WeatherEffect_SetEnabled(sim, i, 1) — NOTE: the
-// retail create (FUN_1400942c0) also spawns the effect's ambient-audio entity;
-// that half is not in the port yet (audio ambience will be silent after load).
+// re-created via the ported WeatherEffect_SetEnabled(sim, i, 1), which also
+// spawns the effect's ambient-audio entity, as retail's 0x1400942c0 does.
 // Then each active geo's +0xc4 (intensity) and +0xc0 floats round-trip.
 void WeatherSimulation::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
