@@ -42,9 +42,12 @@
 #include <execinfo.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/syscall.h>
+#include <time.h>
 #include <ucontext.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -178,10 +181,22 @@ bool Readable(const void* p, size_t n) {
 }
 
 void CrashHandler(int sig, siginfo_t* si, void* ucv) {
-    // Re-entry (a fault inside the dump) ends the process at once.
-    static volatile sig_atomic_t inHandler = 0;
-    if (inHandler) _exit(3);
-    inHandler = 1;
+    // One dump at a time, owned by the first thread in (review F-290). Re-entry on that
+    // thread (a fault inside the dump) ends the process at once. Another thread that faults
+    // meanwhile waits for the dump, which ends the process with _exit(3) itself; the wait is
+    // bounded so a dump stuck on a lock the waiter holds still exits.
+    static std::atomic<long> dumpingTid{0};
+    const long self = syscall(SYS_gettid);
+    long expected = 0;
+    if (!dumpingTid.compare_exchange_strong(expected, self)) {
+        if (expected != self) {
+            for (int i = 0; i < 50; ++i) {
+                timespec pauseFor{0, 100 * 1000 * 1000};
+                nanosleep(&pauseFor, nullptr);
+            }
+        }
+        _exit(3);
+    }
 
     const ucontext_t* uc = static_cast<const ucontext_t*>(ucv);  // CAST-OK: posix (sigaction's void* is the ucontext_t)
     const greg_t* g = uc->uc_mcontext.gregs;
@@ -302,7 +317,9 @@ void CrashHandler_Install() {
     void* warm[1];
     backtrace(warm, 1);
 
-    // An alternate stack, so a stack overflow's SIGSEGV still has room to log.
+    // An alternate stack, so a stack overflow's SIGSEGV still has room to log. This one is
+    // the main thread's; each Platform:: thread installs its own (src/platform/posix/
+    // thread_posix.cpp), since a new pthread starts without one.
     static char altStack[64 * 1024];
     stack_t ss{};
     ss.ss_sp = altStack;
