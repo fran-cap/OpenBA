@@ -56,6 +56,13 @@ final class GameFiles {
         return lower.endsWith(PACKAGE_SUFFIX) || lower.endsWith(MOD_SUFFIX);
     }
 
+    // A name that is one file in its folder: no separator, no NUL, not "." or "..". A folder copy names
+    // its files by the DocumentsProvider's display name, which is free text ("../WinData/x.pkg").
+    static boolean isPlainFileName(String name) {
+        return name != null && !name.isEmpty() && !name.equals(".") && !name.equals("..")
+            && name.indexOf('/') < 0 && name.indexOf('\\') < 0 && name.indexOf('\0') < 0;
+    }
+
     static boolean isBasePackageName(String name) {
         return name != null && name.equalsIgnoreCase(BASE_PACKAGE);
     }

@@ -338,7 +338,9 @@ final class GameFilesJob {
         }
         final List<Doc> packages = new ArrayList<>();
         for (Doc d : found) {
-            if (!d.folder && GameFiles.isPackageName(d.name)) {
+            // The provider's display name becomes the staged file's name: one that is not a plain
+            // file name ("../WinData/x.pkg", "a/b.pkg") would be written outside the staging folder.
+            if (!d.folder && GameFiles.isPackageName(d.name) && GameFiles.isPlainFileName(d.name)) {
                 packages.add(d);
                 bytesTotal += d.size;
             }
