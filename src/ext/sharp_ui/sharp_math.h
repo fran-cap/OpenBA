@@ -140,5 +140,16 @@ bool WantTwin2x(float pxPerUnitX, float pxPerUnitY);
 // texel for pixel).
 int PickSheetFactor(float pxPerUnitX, float pxPerUnitY, const int* factors, int count);
 
+// The largest side of a magnified sheet copy: D3D11's 2D texture limit
+// (D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION). At this size one BGRA8 level is
+// 1 GiB, so every level's byte size fits the int the engine's level array takes.
+constexpr int64_t kMaxScaledSheetSide = 16384;
+
+// True when a `baseW x baseH` sheet can be copied at `factor`: both sides
+// positive and each, times `factor`, at most kMaxScaledSheetSide. A sheet's size
+// comes from its file unbounded (review F-228); past this the copy is not built
+// and retail's sheet is drawn.
+bool ScaledSheetFits(int32_t baseW, int32_t baseH, int factor);
+
 }  // namespace SharpUI
 }  // namespace Ext
