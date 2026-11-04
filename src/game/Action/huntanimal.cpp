@@ -96,7 +96,7 @@ void HuntAnimal::Persist(IO::Stream& stream) {
 
     // The HuntComponent (+0x20)
     _field20.InternalBasePtr::Serialize(ser);
-    if (_field20.Get() != nullptr) {
+    if (!_field20.IsNull()) {
         if (!::Object::IsDerivedFromNullSafe(_field20, HuntComponent::TypeId())) {
             _field20 = nullptr;
         }
@@ -104,7 +104,7 @@ void HuntAnimal::Persist(IO::Stream& stream) {
 
     // The hunting citizen (+0x28)
     _field28.InternalBasePtr::Serialize(ser);
-    if (_field28.Get() != nullptr) {
+    if (!_field28.IsNull()) {
         if (!::Object::IsDerivedFromNullSafe(_field28, CitizenComponent::TypeId())) {
             _field28 = nullptr;
         }

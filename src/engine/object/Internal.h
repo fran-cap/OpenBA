@@ -273,6 +273,13 @@ public:
     Internal* operator->() const { return _ptr; }
     Internal& operator*()  const { return *_ptr; }
     explicit operator bool() const { return _ptr != nullptr; }
+    // The null test on the held Internal*, with no downcast. NOT RETAIL (review
+    // F-143): `InternalPtr<T>` hides `Get()` with a static_cast to T*, so
+    // `field.Get() != nullptr` on a save-loaded field casts an object that may not
+    // be a T before the type test that exists to catch it, which is undefined
+    // behaviour. A field read from a save is null-tested with this, then type-tested
+    // with `IsDerivedFromNullSafe(field, id)`. Retail compares the raw qword.
+    bool IsNull() const { return _ptr == nullptr; }
     bool operator==(const InternalBasePtr& o) const { return _ptr == o._ptr; }
     bool operator!=(const InternalBasePtr& o) const { return _ptr != o._ptr; }
 
@@ -385,7 +392,7 @@ public:
         // static_cast to T* of an object that is not a T whenever the test is about
         // to fail (a save naming another Internal type), which is undefined
         // behaviour. The answer is the same.
-        if (InternalBasePtr::Get() != nullptr && !IsDerivedFromNullSafe(*this, T::TypeId()))
+        if (!IsNull() && !IsDerivedFromNullSafe(*this, T::TypeId()))
             _ptr = nullptr;   // retail nulls the element on a type mismatch
     }
 

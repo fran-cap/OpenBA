@@ -400,7 +400,7 @@ static void IbpTree_Serialize_e470(TrackedEntityNode** root, int32_t* countField
         while (cur->left) cur = cur->left;
         while (cur) {
             cur->key.InternalBasePtr::Serialize(*serializer);   // InternalBasePtr::Serialize (0x14002e470)
-            if (cur->key.InternalBasePtr::Get() && !::Object::IsDerivedFromNullSafe(cur->key, s_tidCompEnt))   // 0x14002e6cf: no type-id test (row 1164)
+            if (!cur->key.IsNull() && !::Object::IsDerivedFromNullSafe(cur->key, s_tidCompEnt))   // 0x14002e6cf: no type-id test (row 1164)
                 cur->key = nullptr;
             serializer->Serialize(cur->x, nullptr);
             serializer->Serialize(cur->y, nullptr);
@@ -676,7 +676,7 @@ void GameUpdateLoop::SerializeAllHead(IO::Stream& stream, SerializeScope& scope)
     m_scenarioInstance.Object::InternalBasePtr::Serialize(ser);
     // 0x140095bef-0x140095c0e: retail's own null test, then IsDerivedFrom and a
     // null store; no test of the type id (row 1247).
-    if (m_scenarioInstance.InternalBasePtr::Get() != nullptr &&
+    if (!m_scenarioInstance.IsNull() &&
         !::Object::IsDerivedFromNullSafe(m_scenarioInstance, Achievement::AchievementInstance::TypeId()))
         m_scenarioInstance = nullptr;
 

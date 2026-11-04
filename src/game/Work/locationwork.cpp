@@ -71,7 +71,7 @@ void LocationWork::Persist(IO::Stream& stream) {
     _field48.InternalBasePtr::Serialize(serializer);
 
     // Validate: if _field48 is non-null, check IsDerivedFrom
-    if (_field48.Get() != nullptr) {
+    if (!_field48.IsNull()) {
         if (!Object::IsDerivedFromNullSafe(_field48, CitizenComponent::TypeId())) {
             _field48 = nullptr;
         }

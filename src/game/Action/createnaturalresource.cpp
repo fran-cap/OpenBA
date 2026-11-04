@@ -63,7 +63,7 @@ void CreateNaturalResource::Persist(IO::Stream& stream) {
     int version = ser.GetVersion();
     if (version > 0) {
         parentEntity.InternalBasePtr::Serialize(ser);
-        if (parentEntity.Get() != nullptr) {
+        if (!parentEntity.IsNull()) {
             if (!::Object::IsDerivedFromNullSafe(parentEntity, ComponentEntity::TypeId())) {
                 parentEntity = nullptr;
             }

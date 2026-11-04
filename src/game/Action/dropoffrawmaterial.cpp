@@ -70,7 +70,7 @@ void DropOffRawMaterial::Persist(IO::Stream& stream) {
 
     // The carrying citizen (+0x30)
     _field30.InternalBasePtr::Serialize(ser);
-    if (_field30.Get() != nullptr) {
+    if (!_field30.IsNull()) {
         if (!::Object::IsDerivedFromNullSafe(_field30, CitizenComponent::TypeId())) {
             _field30 = nullptr;
         }
@@ -78,7 +78,7 @@ void DropOffRawMaterial::Persist(IO::Stream& stream) {
 
     // The destination entity (+0x38)
     _field38.InternalBasePtr::Serialize(ser);
-    if (_field38.Get() != nullptr) {
+    if (!_field38.IsNull()) {
         if (!::Object::IsDerivedFromNullSafe(_field38, ComponentEntity::TypeId())) {
             _field38 = nullptr;
         }

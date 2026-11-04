@@ -77,3 +77,114 @@ UNIT_TEST(review_object_external_internal_ptr_type_test_on_null) {
     ::Object::InternalBasePtr empty;
     CHECK(::Object::IsDerivedFromNullSafe(empty, 0x1234u) == false);
 }
+
+// ---------------------------------------------------------------------------
+// F-143 with a wrong-type object. A save names a live Internal of another type in
+// an `InternalPtr<T>` field; the load path null-tests the field, then type-tests it
+// and nulls it on a mismatch. Both tests run on the held Internal*: `IsNull()` and
+// `IsDerivedFromNullSafe(const InternalBasePtr&, id)` never instantiate
+// `InternalPtr<T>::Get()` (the static_cast to T*), which on this object would be
+// undefined behaviour. Before the fix the null test was spelled `field.Get() !=
+// nullptr` at 26 load sites and `IsNull()` did not exist.
+// ---------------------------------------------------------------------------
+namespace Object {
+namespace detail {
+extern InternalFactory* g_unitInternalFactory;
+}  // namespace detail
+}  // namespace Object
+
+namespace {
+
+struct InternalFactoryScope {
+    ::Object::InternalFactory  factory;
+    ::Object::InternalFactory* saved;
+    InternalFactoryScope() : factory(), saved(::Object::detail::g_unitInternalFactory) {
+        ::Object::detail::g_unitInternalFactory = &factory;
+    }
+    ~InternalFactoryScope() { ::Object::detail::g_unitInternalFactory = saved; }
+};
+
+struct TypeFactoryScope {
+    ::Object::Factory* saved;
+    explicit TypeFactoryScope(::Object::Factory* f) : saved(::Object::Factory::_singleton) {
+        ::Object::Factory::_singleton = f;
+    }
+    ~TypeFactoryScope() { ::Object::Factory::_singleton = saved; }
+};
+
+// Two unrelated Internal types under one root. `Type()` answers the CRC the local
+// records register, the way DECLARE_TYPE's override answers its own record.
+class ReviewWrongT : public ::Object::Internal {
+public:
+    const char* TypeName() const override { return "ReviewWrongT"; }
+    uint32_t Type() const override { return ::Object::TypeNameCRC("ReviewWrongT"); }
+};
+class ReviewWrongU : public ::Object::Internal {
+public:
+    const char* TypeName() const override { return "ReviewWrongU"; }
+    uint32_t Type() const override { return ::Object::TypeNameCRC("ReviewWrongU"); }
+};
+
+// Never defined: an `InternalPtr` to it cannot instantiate `Get()`, so a path that
+// compiles on it has no downcast.
+class ReviewNeverDefined;
+
+// The load sites' shape (completetask.cpp, pickup.cpp, ...): null test, type test,
+// null the field on a mismatch.
+template <class T>
+void ValidateLoadedField(::Object::InternalPtr<T>& field, uint32_t typeId) {
+    if (!field.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(field, typeId)) {
+            field = ::Object::InternalPtr<T>();
+        }
+    }
+}
+
+}  // namespace
+
+UNIT_TEST(review_object_external_internal_ptr_type_test_on_wrong_type) {
+    ChainScope chain;
+    ::Object::Factory types;
+    ::Object::BaseTypeInfo root("ReviewF143Root", nullptr, nullptr, &CountingFactory, &CountingInPlace);
+    ::Object::BaseTypeInfo t("ReviewWrongT", "ReviewF143Root", nullptr, &CountingFactory, &CountingInPlace);
+    ::Object::BaseTypeInfo u("ReviewWrongU", "ReviewF143Root", nullptr, &CountingFactory, &CountingInPlace);
+    types.Startup();
+    TypeFactoryScope typeScope(&types);
+    InternalFactoryScope internals;
+
+    const uint32_t tidRoot = ::Object::TypeNameCRC("ReviewF143Root");
+    const uint32_t tidT    = ::Object::TypeNameCRC("ReviewWrongT");
+    const uint32_t tidU    = ::Object::TypeNameCRC("ReviewWrongU");
+
+    ReviewWrongT rightObject;
+    ReviewWrongU wrongObject;
+
+    // A field of type T holding a U: what a save that names the wrong type loads.
+    ::Object::InternalPtr<ReviewWrongT> field;
+    static_cast<::Object::InternalBasePtr&>(field) = ::Object::InternalBasePtr(&wrongObject);
+    CHECK(!field.IsNull());
+    CHECK(::Object::IsDerivedFromNullSafe(field, tidT) == false);
+    CHECK(::Object::IsDerivedFromNullSafe(field, tidU) == true);
+    CHECK(::Object::IsDerivedFromNullSafe(field, tidRoot) == true);
+    ValidateLoadedField(field, tidT);
+    CHECK(field.IsNull());
+
+    // The right type survives the same load-site test.
+    ::Object::InternalPtr<ReviewWrongT> good(&rightObject);
+    ValidateLoadedField(good, tidT);
+    CHECK(!good.IsNull());
+    CHECK(good.Get() == &rightObject);
+
+    // A null field stays null and never reaches the type test.
+    ::Object::InternalPtr<ReviewWrongT> empty;
+    ValidateLoadedField(empty, tidT);
+    CHECK(empty.IsNull());
+
+    // The same path on a field whose T is incomplete: it compiles, so neither the
+    // null test nor the type test downcasts.
+    ::Object::InternalPtr<ReviewNeverDefined> opaque;
+    static_cast<::Object::InternalBasePtr&>(opaque) = ::Object::InternalBasePtr(&wrongObject);
+    CHECK(!opaque.IsNull());
+    ValidateLoadedField(opaque, tidT);
+    CHECK(opaque.IsNull());
+}
