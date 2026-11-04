@@ -661,9 +661,15 @@ bool CreateFrames(std::string* why) {
         f.commands = f.first;
         VkFenceCreateInfo fi = Make<VkFenceCreateInfo>(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO);
         fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        vkCreateFence(device, &fi, nullptr, &f.done);
+        if (vkCreateFence(device, &fi, nullptr, &f.done) != VK_SUCCESS) {
+            *why = "vkCreateFence failed";
+            return false;
+        }
         VkSemaphoreCreateInfo si = Make<VkSemaphoreCreateInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
-        vkCreateSemaphore(device, &si, nullptr, &f.imageAvailable);
+        if (vkCreateSemaphore(device, &si, nullptr, &f.imageAvailable) != VK_SUCCESS) {
+            *why = "vkCreateSemaphore failed";
+            return false;
+        }
     }
     return true;
 }
@@ -724,6 +730,22 @@ uint32_t MainSampleCount() {
 
 VkCommandBuffer SubmitFrameSoFar() {
     Frame& f = frames[frameSlot];
+    // The continuation first (review S-024): with none to be had, nothing is submitted and the frame
+    // records on in the command buffer it has.
+    if (f.extraUsed == f.extra.size()) {
+        auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
+        ai.commandPool = f.pool;
+        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        ai.commandBufferCount = 1;
+        VkCommandBuffer cb = VK_NULL_HANDLE;
+        const VkResult r = vkAllocateCommandBuffers(device, &ai, &cb);
+        if (r != VK_SUCCESS) {
+            NoteResult(r, "vkAllocateCommandBuffers (frame continuation)");
+            std::fprintf(stderr, "[Vulkan] frame continuation: %s\n", ResultName(r));
+            return VK_NULL_HANDLE;
+        }
+        f.extra.push_back(cb);
+    }
     vkEndCommandBuffer(f.commands);
     FlushUploads();
     VkSemaphoreSubmitInfo wait = Make<VkSemaphoreSubmitInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO);
@@ -733,15 +755,6 @@ VkCommandBuffer SubmitFrameSoFar() {
                                            VK_NULL_HANDLE);
     f.acquireWaited = true;
     WaitSerial(serial);
-    if (f.extraUsed == f.extra.size()) {
-        auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
-        ai.commandPool = f.pool;
-        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        ai.commandBufferCount = 1;
-        VkCommandBuffer cb = VK_NULL_HANDLE;
-        vkAllocateCommandBuffers(device, &ai, &cb);
-        f.extra.push_back(cb);
-    }
     f.commands = f.extra[f.extraUsed++];
     VkCommandBufferBeginInfo bi = Make<VkCommandBufferBeginInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
