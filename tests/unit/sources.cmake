@@ -164,4 +164,9 @@ set(UNIT_TREE_SRCS
   # as slot probes; the test mirrors the record format and the exe logs the real writer's CRC.)
   ${CMAKE_SOURCE_DIR}/src/ext/resources/sheet_builder.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/sprite.cpp                     #   AddSpriteInfo / SetSpriteInfo
+  # ui_engine_review_test.cpp: UpdateEvents / CleanRemovedDialogs / Play, ComboElement::UpdateText,
+  # DocumentTextElement::GetNextItem (the bodies they call but do not own: ui_engine_review_stubs.cpp)
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/userinterface.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/widgets_input.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
 )

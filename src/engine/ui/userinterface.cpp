@@ -685,8 +685,11 @@ void UI::UserInterface::Play(int32_t id) {
     slot.startTime._ticks = ticks;                                // +0x10
     slot.soundType      = 1;                                      // +0x08
 
-    const int32_t counter = ++scene->playGeneration;              // +0x08
-    slot.handleTag = static_cast<uint32_t>((index * 2) | (counter << 9));   // +0x68
+    // `INC dword [R10+8] ; SHL ECX,9`: both wrap at 32 bits, so the counter
+    // and the shift are unsigned here (an int32 overflow or shift is UB).
+    const uint32_t counter = static_cast<uint32_t>(scene->playGeneration) + 1;   // +0x08
+    scene->playGeneration = static_cast<int32_t>(counter);
+    slot.handleTag = (static_cast<uint32_t>(index) * 2u) | (counter << 9);   // +0x68
 
 }
 
@@ -998,8 +1001,11 @@ void RemoveEventsForDialog(Collection::Array<UI::Event>& events, void* dlg) {
 
 void UI::UserInterface::CleanRemovedDialogs() {
     using Node = Collection::LinkedList<DialogInstancePtr>::Node;
-    const int32_t removedCount = _removedDialogs._size;
-    for (int32_t i = 0; i < removedCount; ++i) {
+    // The bound is re-read every iteration (0x18011f951 `CMP EBP,[RDI+0x20]`):
+    // a dialog destructor below may queue another dialog (CloseDialog's
+    // PushRemovedUnlessPresent), and retail unlinks and deletes it in this
+    // same drain.
+    for (int32_t i = 0; i < _removedDialogs._size; ++i) {
         void* want = _removedDialogs._data[i];
 
         for (Node* node = _dialogs._head; node; node = node->next) {
@@ -1017,15 +1023,17 @@ void UI::UserInterface::CleanRemovedDialogs() {
 
         RemoveEventsForDialog(_events, want);
 
-        // RE-READ, exactly as UiDtorBody's own phase 1 does, in case any of
-        // the above moved the array (it does not, but the re-read is free and
-        // keeps this body honest against retail's own instruction order).
         // (A null `_data` here faults on the element load exactly as the
         // tree's `*(nullptr)` read did.)
         DialogInstance* const dlg = _removedDialogs._data[i];
         const uint32_t flags = dlg->_flags;   // trap (a): read before the null test
         if (((~static_cast<uint8_t>(flags >> 5)) & 1) != 0 && dlg != nullptr) {
             delete dlg;
+            // NOT RETAIL: retail stores the null through the base it loaded
+            // BEFORE the delete (0x18011f920 `MOV RBX,[RDI+0x18]`, 0x18011f947
+            // `MOV [RBX+R14],R15`). When the destructor's queued dialog grew
+            // the array, that is a write into the freed buffer (use after
+            // free); the base is re-read here so the store lands in the live one.
             _removedDialogs._data[i] = nullptr;
         }
     }
@@ -1048,10 +1056,13 @@ void UI::UserInterface::UpdateEvents() {
     if (_dragDropActive != 0) return;
     _dragDropActive = 1;
 
-    const int32_t count = _events._size;
-    Event* const data = _events._data;
-    for (int32_t i = 0; i < count; ++i) {
-        const Event& ev = data[i];
+    // The base and the bound are re-read every iteration (0x18011fc90
+    // `MOV RDX,[RBX+0x48]`, 0x18011fcdb `CMP EDI,[RBX+0x50]`): a handler may
+    // post an event (CloseDialog's drag-cancel arm), which can grow the array,
+    // and retail delivers it in this same drain. The record is copied out
+    // before the call, as retail loads every field before it.
+    for (int32_t i = 0; i < _events._size; ++i) {
+        const Event ev = _events._data[i];
         // The fresh stack copy of the event's element, passed BY ADDRESS
         // (RULE B6-11: slot 8's InternalPtr<Element> argument is a hidden
         // pointer to the caller's temporary).

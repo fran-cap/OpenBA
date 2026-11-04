@@ -508,7 +508,14 @@ bool DocumentTextElement::GetNextItem(DocumentItem& item) {
                 _textPos = pos;                  // 1800ce0e0
                 if (pos == len) return false;                  // 1800ce0e6
                 const char d = text[pos];                      // 1800ce0f2
-                if (d >= '0' && d <= '9')                      // 1800ce0f6 / 1800ce0fc
+                // NOT RETAIL: retail stores any digit (1800ce105), and every
+                // later `_fonts._data[_fontIndex]` / `_colors._data[_colorIndex]`
+                // reads past the description's own slots when the digit is not
+                // below their count (a heap out-of-bounds read, then a wild
+                // Font*). ModDetails formats raw mod names into this markup. A
+                // digit past the slots is swallowed like a non-digit.
+                const int32_t slots = (sel == 'f') ? _fonts._size : _colors._size;
+                if (d >= '0' && d <= '9' && d - '0' < slots)   // 1800ce0f6 / 1800ce0fc
                     field = d - '0';                          // 1800ce105
                 _textPos = pos + 1;              // 1800ce10e
             } else if (sel == 'j' || sel == 'v') {             // 1800ce15a / 1800ce204
@@ -606,6 +613,11 @@ bool DocumentTextElement::GetNextItem(DocumentItem& item) {
                         FlushRow(this);                        // 1800cec49..1800cec78
                     ++_textPos;                  // 1800cec7e
 
+                    // NOT RETAIL: retail indexes the frame table with the font
+                    // slot unchecked (1800cec84); a font slot with no bullet
+                    // frame reads past the table (heap out-of-bounds). The
+                    // escape is abandoned instead.
+                    if (_fontIndex >= _frameTable._size) break;
                     const UI::Sprite& entry = _frameTable._data[_fontIndex];   // 1800cec84
                     const int32_t sprite = entry.spriteIndex;
 
@@ -809,7 +821,11 @@ bool DocumentTextElement::GetNextItem(DocumentItem& item) {
                     _sourceText.SubString(first, ws - 1);       // 1800ceb4c
                 _textPos = ws;                    // 1800ceb55
 
-                const SpriteSheet* sheet = _sheets._data[slot];
+                // NOT RETAIL: retail loads `_sheets[slot]` unchecked (1800ceb65);
+                // a slot past the description's sheets is a heap out-of-bounds
+                // read and a wild SpriteSheet*. It is treated as a null sheet,
+                // which abandons the escape as retail does for one.
+                const SpriteSheet* sheet = (slot < _sheets._size) ? _sheets._data[slot] : nullptr;
                 int32_t sprite = -1;
                 if (sheet != nullptr) {                         // 1800ceb69
                     sprite = sheet->GetSpriteIndexFromName(name);
