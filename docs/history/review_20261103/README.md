@@ -52,7 +52,7 @@ Round 3 (fix PRs and merge):
 | P2 | WSL ASan+UBSan and TSan: unit suite, then a Linux game route | ASan+UBSan survey: 1812 tests 0 fail, F-002..F-006; TSan survey: 1812 / 0 fail, 1 race (F-007, harness); Linux in-game ASan+UBSan (newgame route, lavapipe, 380 s, clean exit, 0 Vulkan validation messages): F-002/F-003 reached in play, new F-008..F-010 |
 | P3 | clang-tidy, Clang Static Analyzer / CodeChecker, CodeQL, Semgrep: baselines | done: baselines in `static/` (clang-tidy Linux 964 TUs, Windows-only code, CodeQL security-and-quality + a size-taint query, Semgrep variant rules for C1-C18); 29 findings |
 | P4 | libFuzzer targets for the input surface (P0 ranks 1-8) | done: 23 targets in `tests/fuzz/`, ~20 min each; 77 crash findings (after merge with static: F-011..F-091, 81 unique); savetail and settings clean |
-| P5 | Thread-safety annotations on the eight structures P0 names | phase 2: #161 (open), one race found (F-324) |
+| P5 | Thread-safety annotations on the eight structures P0 names | phase 2: #161 (open), one race found (F-324): `PathfinderThread::Run` read `queueCount` outside the lock (retail 0x1400a6366 / 0x1400a6400); every access to `queueCount` is now an acquire load or a release store (`pathfinder_queue_count.h`) |
 | P6 | GPU: Vulkan validation (sync, GPU-AV, best practices), DX11 debug device | Vulkan sync+BP 2.5 min in game: 0 errors, 0 SYNC-HAZARD, 11 best-practice warnings; GPU-AV 7 min: 0 errors; DX11 debug layer (`BANISHED_D3D_DEBUG`, new) 4.4 min: 0 corruption / 0 error, warnings id 351 x3.17M (VS cb slot 3: 64 B bound, 3328 B declared), 3146081 x20.8k (PS writes an unbound RTV 0, also Vulkan BP), 391 x5 (input layout UINT vs int32). Logs in the session scratchpad (p6_*.log). Swapchain edge cases (resize / minimise / alt-tab): phase 2 GPU track (#163). Not run: AMD / Intel |
 | P7 | Mull on serializer / collections / math / text codec | phase 2: #162 (open), 33 unit tests for the surviving mutants |
 | P8 | Scoped agent sweeps: hotspot module x bug class, variant analysis | done: 71 sweeps (game x drift/lifetime/UB, engine x UB/lifetime/errors/concurrency, render x GPU lifetime/swapchain/layout, platform x SDL/errors, fix.* rows); 195 raw, 9 refuted; F-092..F-217 (126 confirmed: 60 port drift proven by Ghidra diff, 53 retail, 13 ext), S-002..S-055 suspected; `findings_p8.json` |
@@ -366,8 +366,12 @@ retail data; a report written by hand, last section). Partial: F-087 (`src/app` 
 Phase 2 ran on origin/main `fa150cf7f`: five tracks, the sweeps the first wave left (default-off
 extensions, `src/diag`, Android, Metal) and the triage of S-001..S-055. Its findings are in
 `findings_phase2.json` (`confirmed`: F-218..F-328; `suspected`: S-056..S-066; `triage`: the
-S-002..S-055 verdicts with their proofs). Proof artefacts named there (`scratchpad/phase2/proofs/...`)
-are in the session scratchpad, not the tree. None of the F-218..F-328 fixes is merged: apart from the
+S-002..S-055 verdicts with their proofs). Each `triage` entry carries its final `status` (the outcome
+table below); `verdict` is the first-pass static verdict, and `proof_run` is the build proof that settled
+the eleven `needs_build_proof` verdicts (S-004, S-006, S-011, S-017, S-027, S-040, S-044, S-045, S-047,
+S-054, S-055). Session paths read `scratchpad/` and worktree paths `<worktree>`; tool paths such as the
+Vulkan SDK, the toolchain and the game install are left as written. Proof artefacts named there
+(`scratchpad/phase2/proofs/...`) are in the session scratchpad, not the tree. None of the F-218..F-328 fixes is merged: apart from the
 three a track PR carries, they are the third fix wave ("wave 3"), under the same rulings (4, 8, 9).
 
 | Track | PR | Branch | State | Findings |
