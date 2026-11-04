@@ -666,6 +666,10 @@ if(TARGET OpenBA)   # absent when the backend is not ready on this host (dx11 of
   add_dependencies(OpenBA ext-rsc-text openba-build-info)
 endif()
 add_dependencies(unit ext-rsc-text)
+# tests/unit/screen_keyboard_race_test.cpp compiles src/platform/android/input_android.cpp with the
+# SDL calls it makes stubbed: SDL's headers only, on that one source (`unit` links no SDL).
+set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/unit/screen_keyboard_race_test.cpp
+  PROPERTIES INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/third_party/SDL/include)
 target_include_directories(unit PRIVATE ${BANISHED_INCLUDES} ${CMAKE_SOURCE_DIR}/tests/unit)
 # -Og in every flavour (it was -O0): the suite runs ~2x faster (77 s -> 37 s as one process, Linux) for
 # ~10% more compile time, every test passing; the tests run optimised code, closer to the shipped -O2 /

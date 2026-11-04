@@ -113,8 +113,12 @@ bool SDLCALL WatchScreenKeyboard(void* /*userdata*/, SDL_Event* e) {
             PushScreenKey(static_cast<uint16_t>(sc), g_virtualShift);
         }
     } else if (e->type == SDL_EVENT_SCREEN_KEYBOARD_HIDDEN) {
-        if (!g_textEntry.load()) return true;   // hidden because the box let go
+        // The test of g_textEntry is under g_mutex, as the key arm's is: TextEntryChanged(false)
+        // stores false before it takes g_mutex to clear the queue, so a Return pushed here
+        // either precedes that clear or sees false. Tested outside the lock, the push could
+        // follow the clear and reach a game binding with no box active (review F-309).
         std::lock_guard<std::mutex> lock(g_mutex);
+        if (!g_textEntry.load()) return true;   // hidden because the box let go
         PushScreenKey(SDL_SCANCODE_RETURN, false);
     }
     return true;
