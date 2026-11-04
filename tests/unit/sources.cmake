@@ -33,6 +33,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/io/memory_stream.cpp         #   the MemoryStream it opens over
   ${CMAKE_SOURCE_DIR}/src/engine/io/package_file_read.cpp     #   PackageFile::ReadPackfile (FileSystem faked in the test)
   ${CMAKE_SOURCE_DIR}/src/engine/system/compression.cpp        #   Compress / Decompress
+  ${CMAKE_SOURCE_DIR}/src/engine/io/text_codec.cpp             # string_codec_hardening_test.cpp: the codecs, RtIo_SerializeStringArray
   ${CMAKE_SOURCE_DIR}/src/engine/system/crc.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/picking/picking_type_records.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/pathfinding/pathfinding_type_records.cpp
