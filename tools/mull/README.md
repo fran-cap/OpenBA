@@ -21,7 +21,10 @@ writing tests for them.
 | string | `src/engine/system/string.cpp` | string, filename, review_engine_ub, string_codec_hardening, mull_gaps_string |
 
 Every `UNIT_TEST` in a module's test files is passed to `unit` as a `--filter`. `unit` ORs
-repeated filters (`tests/unit/main.cpp`).
+repeated filters (`tests/unit/main.cpp`). Only a `UNIT_TEST(name)` at column 0 is picked up: an
+indented one, or a test declared through another macro, is left out of the selection. `--filter`
+is a substring match, so a name that is a prefix of other test names selects those tests too.
+An unknown module name stops `run.sh` with exit 2 before anything runs.
 
 ## Setup (Ubuntu 24.04 / WSL)
 
@@ -52,8 +55,14 @@ tools/mull/run.sh survivors serializer   # the surviving mutants, path:line:col:
 ```
 
 `MULL_WORKERS` (default `nproc`), `MULL_TIMEOUT` (ms per test run, default 60000), `BUILD_JOBS`
-and `MULL_BUILD_DIR` (default `build/mull`) adjust the run. The plugin reads `mull.yml` when each
-file is compiled. After `mull.yml` changes, delete `build/mull` and build again. Reports go to
+and `MULL_BUILD_DIR` (default `build/mull`) adjust the run. `MULL_EXCLUDE` leaves test files out of
+`tests_for` (space-separated names). The baseline without the `mull_gaps_*` cases is:
+
+```bash
+MULL_EXCLUDE="mull_gaps_string_test mull_gaps_math_test mull_gaps_serializer_test" tools/mull/run.sh run
+```
+
+The plugin reads `mull.yml` when each file is compiled. After `mull.yml` changes, delete `build/mull` and build again. Reports go to
 `build/mull/mull-report/`: `<module>.sqlite`, the IDE-style `<module>.txt` of survivors, and the
 runner's log.
 

@@ -10,7 +10,8 @@
 #
 # MODULE is serializer, collections, math or string. Run from the repository root. Environment:
 # MULL_WORKERS (default: nproc), MULL_TIMEOUT (ms per test run, default 60000), BUILD_JOBS (default 8),
-# MULL_BUILD_DIR (default build/mull).
+# MULL_BUILD_DIR (default build/mull), MULL_EXCLUDE (test files left out of tests_for, space-separated,
+# e.g. "mull_gaps_string_test mull_gaps_math_test mull_gaps_serializer_test" for the before-gaps baseline).
 set -u
 cd "$(dirname "$0")/../.." || exit 1
 
@@ -21,6 +22,7 @@ B=${MULL_BUILD_DIR:-build/mull}
 JOBS=${BUILD_JOBS:-8}
 WORKERS=${MULL_WORKERS:-$(nproc)}
 TIMEOUT=${MULL_TIMEOUT:-60000}
+EXCLUDE=" ${MULL_EXCLUDE:-} "
 REPORTS=$B/mull-report
 
 # The tests each module is measured with: the test files whose subject is that module's code. Every
@@ -53,6 +55,7 @@ filters_for() {
   local f
   for f in $(tests_for "$1"); do
     [ -f "tests/unit/$f.cpp" ] || continue
+    case "$EXCLUDE" in *" $f "*) continue ;; esac
     sed -n 's/^UNIT_TEST(\([A-Za-z0-9_]*\)).*/--filter \1/p' "tests/unit/$f.cpp"
   done
 }
@@ -113,18 +116,29 @@ survivors() {
   done
 }
 
+# An unknown name would select no --filter (mull-runner then runs the whole suite) and an empty
+# files_for regex (summary.py then counts every path): reject it before anything runs.
+check_modules() {
+  local m
+  for m in "$@"; do
+    tests_for "$m" >/dev/null || exit 2
+  done
+}
+
 cmd=${1:-}
 shift || true
 case "$cmd" in
   build) build ;;
   run)
     [ $# -eq 0 ] && set -- serializer collections math string
+    check_modules "$@"
     for m in "$@"; do run_module "$m"; done
     census
     summary ;;
   summary) summary ;;
   survivors)
     [ $# -eq 0 ] && set -- serializer collections math string
+    check_modules "$@"
     survivors "$@" ;;
-  *) sed -n '2,13p' "$0"; exit 2 ;;
+  *) sed -n '2,14p' "$0"; exit 2 ;;
 esac
