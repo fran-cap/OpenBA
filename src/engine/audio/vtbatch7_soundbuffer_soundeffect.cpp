@@ -136,6 +136,7 @@
 #include "platform_audio.h"   // Platform::AudioWaveFormat (Phase D.4 A2 census)
 #include "audio/xwma_decode.h"  // Audio::XwmaDecoder (Phase D.4 SDL-4 decode at load)
 #include "audio/audio_pcm.h"    // Audio::RewriteFormatAsPcm
+#include "audio/audio_cvtt.h"   // Audio::CvttSd2Si64 (review F-136)
 #include "audio/load_decode_batch.h"  // block SNDPAR: the decodes of one load, in parallel
 
 #include <atomic>
@@ -589,7 +590,9 @@ Object::External::CompileResult SoundEffect::Compile(const System::Filename&) {
             }
             // Retail's own mixed-unit compare; see note 1 in the banner.
             if (end > static_cast<float>(running)) {                     // 1800e0a2f
-                running = static_cast<int64_t>(static_cast<double>(end) / secondsPerTick);
+                // NOT RETAIL (review F-136, undefined behaviour): CVTTSD2SI's
+                // INT64_MIN for an out-of-range end, without the C++ cast's UB.
+                running = Audio::CvttSd2Si64(static_cast<double>(end) / secondsPerTick);
                 _maxLength = running;                                    // 1800e0a44
             }
         }

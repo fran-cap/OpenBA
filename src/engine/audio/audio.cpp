@@ -81,6 +81,7 @@
 #include "audio/Device.h"
 #include "audio/SoundEffect.h"
 #include "system/Value.h"         // System::Time
+#include "audio/audio_cvtt.h"     // Audio::CvttSd2Si64 (review F-136)
 
 // The EffectSlot bulk serialize, this directory's own body at 0x180052640
 // (audio_effectslot_serialize.cpp). Called directly (B.3.7).
@@ -460,9 +461,12 @@ int32_t Scene::FindFree3DEffect(Object::ExternalPtr<SoundEffect> effect,
     if (declared != 0) {
         const float kTwenty = 20.0f;                 // 0x41A00000 @ 0x180161700
         const float seconds = static_cast<float>(declared) / kTwenty;
+        // NOT RETAIL (review F-136, undefined behaviour): CvttSd2Si64 is the
+        // CVTTSD2SI below without the C++ cast's UB for a huge _maxLength; it
+        // gives the instruction's INT64_MIN, as retail does.
         if (seconds > static_cast<float>(window))    // COMISS/JBE: ordered, strictly greater
-            window = static_cast<int64_t>(static_cast<double>(seconds) /
-                                          RtSystem::TimerSecondsPerTick());
+            window = Audio::CvttSd2Si64(static_cast<double>(seconds) /
+                                        RtSystem::TimerSecondsPerTick());
     }
 
     const float radius = fx->_radius;                         // MOVSS XMM3,[RDX+0x20]

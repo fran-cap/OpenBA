@@ -116,8 +116,10 @@ public:
     // [firstPacket, firstPacket + packetCount), BlockAlign() bytes each (the
     // Stream worker's Block::packets). Only the call's own packets are read, and
     // only during the call: the buffer may be reused as soon as it returns.
+    // chunkBytes is the chunk's size: a call whose packets do not fit in it
+    // decodes nothing and returns 0 (review F-096 / F-097).
     size_t DecodeChunk(uint32_t firstPacket, uint32_t packetCount, const uint8_t* chunk,
-                       int16_t* out, size_t outSamples);
+                       size_t chunkBytes, int16_t* out, size_t outSamples);
 
     // The packet a call continuing the current pass starts at (0 before any).
     uint32_t NextPacket() const { return _nextPacket; }
