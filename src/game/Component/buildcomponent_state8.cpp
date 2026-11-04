@@ -60,6 +60,8 @@
 #include "system/MemoryAllocator.h"
 
 #include "Component/BuildComponent.h"
+#include "Component/DecalComponent.h"
+#include "Game/exe_constants.h"   // kRdata_14017214c
 #include "Component/ModelComponent.h"
 #include "Component/StatusIconComponent.h"
 #include "Component/StorageComponent.h"
@@ -229,6 +231,19 @@ char BuildComponent::State1Update(StateMachine* sm) {
 // See docs/history/notes/BRIDGE_HIGHLIGHT_DIALOG_BRIEF.md.
 // ==================================================================================
 char BuildComponent::State8Enter(StateMachine* sm) {
+    // The footprint decal goes opaque (0x140107b1e-0x140107b79, review F-176): when the
+    // site has a DecalComponent whose alpha is not 1.0 and whose decal is live, remove it
+    // (slot 7), set the alpha to 1.0 and add it again (slot 6). The same body as
+    // DecalComponent::OnEvent(1), inlined at the head of this handler.
+    if (_entity->FindComponent<DecalComponent>() != nullptr) {    // 0x14000b630
+        DecalComponent* decal = _entity->FindComponent<DecalComponent>();   // 0x14000b630
+        if (!(decal->decalScale == kRdata_14017214c) && decal->decalId >= 0) {
+            decal->OnRemove();          // [RAX+0x38]
+            decal->decalScale = 1.0f;   // retail stores 0x3f800000
+            decal->OnAdded();           // [RAX+0x30]
+        }
+    }
+
     uint8_t instant = 0;
     if (GameUpdateLoop::_singleton != nullptr)
         instant = GameUpdateLoop::_singleton->m_gameFlags & 1;
@@ -463,7 +478,8 @@ void BuildComponent::State8Finalize() {
 
     // No decal event here: retail 0x140107ff0 (and the 8->2 action 0x1401075e0 that
     // calls it) sends none. The footprint decal went opaque at ClearArea state 2
-    // (DecalComponent::OnEvent(1), 0x1401177f0); D.4 RESIDUE dropped the tree's call.
+    // (DecalComponent::OnEvent(1), 0x1401177f0) and again at the head of State8Enter
+    // (0x140107ae0); D.4 RESIDUE dropped the tree's call.
 
     StorageComponent* storage = _entity->FindComponent<StorageComponent>();
     if (storage == nullptr) return;
