@@ -298,11 +298,6 @@ extern "C" void StartTown_RegisterRuntimeBuilding(ComponentEntity* entity) {
 }
 
 
-// WorkPlaceComponent attach/detach roster-only mode (workplacecomponent.cpp). Set true for
-// the build-time founding-housing pass so the roster is populated WITHOUT the gameplay-time
-// Scene mesh-visual toggle (which deadlocks mid-build). See the flag's definition.
-extern bool g_wpcRosterOnly;
-
 // Apply the occupied end-state visual for a rostered house (ModelKick mode 2 + StatusIcon
 // toggle). MUST run at gameplay time (live scene). See its definition in workplacecomponent.cpp.
 
@@ -4014,11 +4009,8 @@ static void StartTown_AssignFoundingHousing(const std::vector<std::vector<Compon
                 tidResidence); fflush(stderr); return;
     }
 
-    // Defensive: keep any incidental WorkPlaceComponent attach in roster-only mode during the
-    // build (the residence path AssignWorkplace->a710 does no Scene op, but a family member's
-    // stale +0x248 detach could route through the c80e0 path — see g_wpcRosterOnly).
-    bool prevRosterOnly = g_wpcRosterOnly;
-    g_wpcRosterOnly = true;
+    // No roster-only hold (review F-088): SetHome (0x1401163d0) touches only the residence
+    // rosters, never WorkPlaceComponent::Attach / Detach, so there is nothing to hold.
     for (size_t f = 0; f < families.size() && f < g_foundingHouseIBPs.size(); ++f) {
         ComponentEntity* houseIBP = g_foundingHouseIBPs[f];
         if (houseIBP == nullptr) continue;
@@ -4103,7 +4095,6 @@ static void StartTown_AssignFoundingHousing(const std::vector<std::vector<Compon
                     misfiled);
         }
     }
-    g_wpcRosterOnly = prevRosterOnly;   // restore
 }
 
 // Drive the deferred occupied-house visuals once the scene is live. Called every

@@ -85,7 +85,8 @@
 // the eviction loop dispatches between (0x14010ffc0 CitizenComp_sub_ffc0 / 0x140110470
 // CitizenComp_sub_0470), and AssignHousing (0x140111ee0 CitizenComp_AssignHousing).
 
-// Build-time roster-only mode (set by StartTown_AssignFoundingHousing). When true,
+// NOT RETAIL. Roster-only mode, set today only by src/diag/builder_seat_harness.cpp around
+// its AddWorker loop (no game path sets it since review F-088). When true,
 // Attach/Detach do ONLY the occupant-roster list mutation (+0x58/+0x60) and skip the
 // gameplay-time Scene mesh-visual toggle (ModelKick + FUN_14012c3f0). The founding-housing
 // shim runs during the StartTown world-BUILD, but the mesh toggle calls Graphics::Scene::
