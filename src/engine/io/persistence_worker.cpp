@@ -568,7 +568,7 @@ IO::PersistenceWorker::~PersistenceWorker() {
 // actually promises — status ends at 1 or 2, never left at whatever it was —
 // which catches a body that returns without touching it at all.
 // ============================================================================
-const bool* IO::PersistenceWorker::_extFixSaveTemp = nullptr;   // fix.save_failure_notice seam
+const std::atomic<bool>* IO::PersistenceWorker::_extFixSaveTemp = nullptr;   // fix.save_failure_notice seam
 
 void IO::PersistenceWorker::SaveJob() {
 
@@ -579,7 +579,7 @@ void IO::PersistenceWorker::SaveJob() {
     // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice writes
     // `<name>.tmp` and moves it over the save below, once every byte is written.
     // Read once: the whole job takes one path.
-    const bool viaTemp = _extFixSaveTemp != nullptr && *_extFixSaveTemp;
+    const bool viaTemp = _extFixSaveTemp != nullptr && _extFixSaveTemp->load(std::memory_order_relaxed);
     std::string tempName;
     if (viaTemp) {
         tempName = _pendingFilename._data != nullptr ? _pendingFilename._data : "";

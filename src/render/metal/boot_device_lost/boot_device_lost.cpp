@@ -11,7 +11,7 @@
 
 namespace BootDeviceLostBackend {
 
-void SetFixFlag(const bool* /*live*/) {
+void SetFixFlag(const std::atomic<bool>* /*live*/) {
 }
 
 }  // namespace BootDeviceLostBackend
