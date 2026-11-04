@@ -633,7 +633,10 @@ void GameUpdateLoop::SerializeAllHead(IO::Stream& stream, SerializeScope& scope)
             if (refCount > 0 && refCount < (1 << 20)) {
                 extFactory->EnableReferenceMode(false);
                 int loaded = 0, missing = 0;
-                for (int id = 0; id < refCount; ++id) {
+                // SerializeReferenceTable numbers the table from ONE (its write path,
+                // 1800bcdf4), so the ids a save holds are 1..refCount; id 0 is never
+                // in the map and starting there would skip the last resource.
+                for (int id = 1; id <= refCount; ++id) {
                     void* fname[1] = { nullptr };
                     System::Filename* path = ::new (static_cast<void*>(fname)) System::Filename(
                         extFactory->GetPathForReferenceId((unsigned int)id));

@@ -5,6 +5,7 @@
 
 
 #include "autostart.h"
+#include "mod_click_guard.h"   // ModDialogClickRowInRange (review F-294)
 #include "options.h"
 #include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdio>
@@ -349,15 +350,17 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
             // deliver such a click without the element, but this driver can,
             // and with no .pkm installed (WinData/_mods_off holds them) the
             // entry array count at +0xC0 is 0 and the row handler faults reading
-            // its entry. Mirror WaitLoadDialog's saveCount gate: skip loudly.
+            // its entry. Mirror WaitLoadDialog's saveCount gate: skip loudly. Move up
+            // on row 0 and move down on the last row name a neighbour row that does
+            // not exist either (review F-294; mod_click_guard.h).
             ModDialog* modDlg = dlg;
             if (dlg && id >= 1000 && id < 6000) {
                 const int rows = modDlg->entries.GetSize();   // +0xC0, entries' count
                 const int row  = id % 1000;
-                if (row >= rows) {
+                if (!ModDialogClickRowInRange(id, rows)) {
                     fprintf(stderr, "[AutoStart] WARN: AUTOMENU_CLICKS token %d names row %d "
-                                    "but the ModDialog has %d row(s) -- skipped (are any "
-                                    ".pkm files installed in WinData?)\n", id, row, rows);
+                                    "(or its neighbour) but the ModDialog has %d row(s) -- skipped "
+                                    "(are any .pkm files installed in WinData?)\n", id, row, rows);
                     dlg = nullptr;
                 }
             }

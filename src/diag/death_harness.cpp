@@ -736,6 +736,24 @@ CitizenComponent* s_widow = nullptr;
 void SpouseOrganic(int frameNum) {
     Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
     if (!TownList(&list, &n, &townMgr)) return;
+    if (s_organicStage == 1 || s_organicStage == 2) {
+        // The pair is held across up to 3600 frames: either one may have died and been
+        // freed since. Read them only while both are still in the town list (review F-273).
+        bool widowerLive = false;
+        bool widowLive = false;
+        for (int i = 0; i < n; i++) {
+            const CitizenComponent* c = list[i].Get();
+            if (c == s_widower) widowerLive = true;
+            if (c == s_widow) widowLive = true;
+        }
+        if (!widowerLive || !widowLive) {
+            std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: citizen gone (widower %s, widow %s)\n",
+                         frameNum, widowerLive ? "here" : "gone", widowLive ? "here" : "gone");
+            std::fflush(stderr);
+            s_organicStage = 3;
+            return;
+        }
+    }
     if (s_organicStage == 0) {
         CitizenComponent* wifeOfA = nullptr;
         CitizenComponent* husbandOfB = nullptr;
@@ -816,7 +834,6 @@ void SpouseOrganic(int frameNum) {
 // Needs a town CanAccept passes: population >= desc+0x28 (8 in the shipped data) and the
 // required buildings, and a town hall to carry the ImmigrationComponent: the stress town is
 // the one town that founds one (tools/harness_route.sh immigration).
-ImmigrationComponent* s_hall = nullptr;
 int  s_answered     = 0;      // groups answered so far (0: none, 1: allowed, 2: denied)
 int  s_arrivedPolls = 0;      // consecutive polls with the whole group at the hall
 int  s_answerGroup  = 0;      // the group size the last answer was given for
@@ -879,15 +896,14 @@ void NomadHarness(int frameNum) {
     if (!gw || !gw->m_citizenList || !gw->m_entityList) return;
     if (s_answered >= 3) return;
     CitizenBehavior* townMgr = gw->m_citizenList;
-    if (!s_hall) {
-        s_hall = FindTownHall(gw);
-        if (!s_hall) {
-            std::fprintf(stderr, "[NomadHarness] frame %d: no town hall in the world yet\n", frameNum);
-            std::fflush(stderr);
-            return;
-        }
+    // Looked up on every poll, never cached: the hall can be demolished and freed, and
+    // a new world builds a new one (review F-273).
+    ImmigrationComponent* imm = FindTownHall(gw);
+    if (!imm) {
+        std::fprintf(stderr, "[NomadHarness] frame %d: no town hall in the world yet\n", frameNum);
+        std::fflush(stderr);
+        return;
     }
-    ImmigrationComponent* imm = s_hall;
     const ImmigrationDescription* desc = static_cast<const ImmigrationDescription*>(imm->_description);
     StateMachineComponent* smc = imm->_entity->FindComponent<StateMachineComponent>();
     const float secs = gw->m_dayCounter->yearTime.AsSeconds();   // +0x128

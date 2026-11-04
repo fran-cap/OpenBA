@@ -178,6 +178,14 @@ public:
         }
     }
 
+    // A step is about to write what the overlapped emit's pass 2 reads (review F-225, S-028: a
+    // class-A toggle's seam pointers, the sun map's descriptors): join the emit first, as a loop
+    // transition does. Nothing to do when the steps do not run beside an emit (the fence waited).
+    void SettleOverlap(Host& host) {
+        if (!_overlapping) return;
+        BeforeTransition(host);
+    }
+
     // kExtBeforeActivate (review S-002 / S-010): the pump inside the steps is about to dispatch a
     // WM_ACTIVATE. Its handlers write what the emit uses with no lock: the FSE refocus
     // Context::Reset (src/app/main.cpp) and DeviceData_OnActivate's swap-chain Resize (ClearState,

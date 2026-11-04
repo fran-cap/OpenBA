@@ -51,4 +51,11 @@ void SleepMs(uint32_t ms);                      // Sleep
 // where 0xFFFFFFFF means "no owner"); an impl never returns 0xFFFFFFFF.
 uint32_t CurrentThreadId();
 
+// NOT RETAIL (ext.render_pipe, review F-224): run the window procedures of the messages other
+// threads SENT to the calling thread's windows, taking no posted message, and return true. A
+// thread parked in a plain wait never runs them, so their sender blocks until it wakes.
+// Windows: PeekMessageW(&m, nullptr, 0, 0, PM_NOREMOVE | PM_QS_SENDMESSAGE). POSIX: there are
+// no cross-thread sent messages: a no-op that returns false (the caller waits without polling).
+bool DispatchSentMessages();
+
 }  // namespace Platform

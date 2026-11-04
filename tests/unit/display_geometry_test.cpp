@@ -182,6 +182,63 @@ UNIT_TEST(display_geometry_resolution_list_never_empty_and_no_duplicates) {
     CHECK_EQ(n, 3);
 }
 
+// The macOS opening placement (window_darwin.cpp) at density 1: one usable display at 0,25
+// 1920 x 1050 points, a 28-point title bar. WindowX / WindowY come from settings.cfg.
+UNIT_TEST(display_geometry_saved_origin_on_display) {
+    const Rect disp = R(0, 25, 1920, 1075);
+    CHECK(Platform::Window::SavedOriginOnDisplay(100, 100, 800, 600, 28, disp));
+    CHECK(!Platform::Window::SavedOriginOnDisplay(5000, 100, 800, 600, 28, disp));   // off every display
+    CHECK(!Platform::Window::SavedOriginOnDisplay(100, 40, 800, 600, 28, disp));     // title bar above the top
+}
+
+// Review F-319 / F-323: an origin near the int limits (px + cw, py + ch, py - top past INT_MAX or
+// INT_MIN) is simply not on the display. Under -fsanitize=signed-integer-overflow the old int sums trap.
+UNIT_TEST(display_geometry_saved_origin_at_the_int_limits_is_not_placed) {
+    const Rect disp = R(0, 25, 1920, 1075);
+    CHECK(!Platform::Window::SavedOriginOnDisplay(2147483008, 0, 800, 600, 28, disp));
+    CHECK(!Platform::Window::SavedOriginOnDisplay(0, 2147483008, 800, 600, 28, disp));
+    CHECK(!Platform::Window::SavedOriginOnDisplay(0, INT32_MIN, 800, 600, 28, disp));
+    CHECK(!Platform::Window::SavedOriginOnDisplay(INT32_MIN, 100, 800, 600, 28, disp));
+}
+
+UNIT_TEST(display_geometry_fit_client_to_usable) {
+    const FrameBorders frame{28, 0, 0, 0};
+    int32_t x = 100, y = 100, w = 800, h = 600;
+    Platform::Window::FitClientToUsable(0, 25, 1920, 1050, frame, &x, &y, &w, &h);
+    CHECK_EQ(x, 100);
+    CHECK_EQ(y, 100);
+    CHECK_EQ(w, 800);
+    CHECK_EQ(h, 600);
+    x = 1500;
+    y = 900;
+    w = 4000;
+    h = 3000;
+    Platform::Window::FitClientToUsable(0, 25, 1920, 1050, frame, &x, &y, &w, &h);
+    CHECK_EQ(w, 1920);
+    CHECK_EQ(h, 1022);
+    CHECK_EQ(x, 0);
+    CHECK_EQ(y, 53);
+}
+
+// Review F-323: a client rect at the int limits slides onto the screen like any other off-screen one.
+UNIT_TEST(display_geometry_fit_client_at_the_int_limits) {
+    const FrameBorders frame{28, 0, 0, 0};
+    int32_t x = 2147483000, y = 100, w = 800, h = 600;
+    Platform::Window::FitClientToUsable(0, 25, 1920, 1050, frame, &x, &y, &w, &h);
+    CHECK_EQ(x, 1920 - 800);
+    CHECK_EQ(y, 100);
+    x = 100;
+    y = INT32_MIN;
+    Platform::Window::FitClientToUsable(0, 25, 1920, 1050, frame, &x, &y, &w, &h);
+    CHECK_EQ(x, 100);
+    CHECK_EQ(y, 25 + 28);
+    x = INT32_MIN;
+    y = INT32_MAX;
+    Platform::Window::FitClientToUsable(0, 25, 1920, 1050, frame, &x, &y, &w, &h);
+    CHECK_EQ(x, 0);
+    CHECK_EQ(y, 25 + 1050 - 600);
+}
+
 // A frame measured while a minimised 2560 x 1440 window is being restored: the outer rect
 // is still the iconic 160 x 28, so each pair of sides sums to minus the missing size.
 // Taken as the frame, it turned the fullscreen branch's SetWindowPos(2560 x 1440) into a

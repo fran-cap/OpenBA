@@ -767,8 +767,12 @@ UNIT_TEST(ext_derived_cache_stamps_of_a_reader_only_session_reach_the_disk) {
         Store s;   // session 3: Find only, no flush: the quiet spell writes them
         CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
         CHECK(s.Find(MakeKey(2), out));
+        // UsedStamp's std::ifstream opens derived.used without FILE_SHARE_DELETE, so on Windows a
+        // poll that overlaps the writer's replace makes it fail once (WriteWhole tries again). The
+        // deadline is generous for a loaded CI runner; the write is due 100 ms after the Find.
         bool written = false;
-        for (int i = 0; i < 100 && !written; ++i) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (!written && std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             written = UsedStamp(t, MakeKey(2)) == 3;
         }
@@ -783,6 +787,32 @@ UNIT_TEST(ext_derived_cache_stamps_of_a_reader_only_session_reach_the_disk) {
         s.WriteStampsNow();
         CHECK_EQ(UsedStamp(t, MakeKey(3)), 4ll);
     }
+}
+
+// Another process reading derived.used without FILE_SHARE_DELETE (a virus scanner, the indexer, a
+// plain fopen) while the stamps are written: on Windows the replace fails until it lets go, and the
+// write tries again rather than dropping the session's stamps. (POSIX rename replaces an open file.)
+UNIT_TEST(ext_derived_cache_stamps_survive_a_brief_reader_of_the_used_file) {
+    TempDir t;
+    {
+        Store w;
+        CHECK(w.Open(t.Path(), kBig) == Store::OpenStatus::Opened);   // session 1 stores 1
+        w.Put(MakeKey(1), Payload(100, 1));
+    }
+    CHECK_EQ(UsedStamp(t, MakeKey(1)), 1ll);
+    std::vector<uint8_t> out;
+    Store s;   // session 2: Find only, then the exit hook's call while derived.used is held open
+    CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+    CHECK(s.Find(MakeKey(1), out));
+    std::ifstream held(t.File("derived.used"), std::ios::binary);
+    CHECK(held.is_open());
+    std::thread release([&held] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        held.close();
+    });
+    s.WriteStampsNow();
+    release.join();
+    CHECK_EQ(UsedStamp(t, MakeKey(1)), 2ll);
 }
 
 UNIT_TEST(ext_derived_cache_unknown_format_starts_empty) {

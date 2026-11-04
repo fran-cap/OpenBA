@@ -28,6 +28,12 @@ namespace RenderPipe {
 void Sync();
 bool Installed();
 
+// Main thread, inside the fixed steps, before a write the in-flight emit reads (review F-225,
+// S-028): a class-A toggle's seams (SetAndRecord), the sun map's descriptors and the video
+// settings (the Options apply). When the steps run beside an emit (P13_OVERLAP), that emit is
+// joined first; otherwise, or when not installed, nothing happens.
+void SettleBeforeStepWrite();
+
 // Per CSV window, for the [Stress::pipe] line (src/diag/stress_harness.cpp).
 struct Counters {
     uint64_t pipelined   = 0;   // frames whose first half ran pipelined (a packet was held)

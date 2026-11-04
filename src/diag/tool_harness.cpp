@@ -995,10 +995,13 @@ void ArmFingerTap(int frameNum) {
         fprintf(stderr, "[ToolHarness] BANISHED_FINGER_TAP=\"%s\" not <fx>,<fy>[,<frames>[,<hold>]]; no tap\n", e);
         return;
     }
-    s_ft_hold = hold > 0 ? hold : 1;
+    // Both capped at 2^20 frames (about five hours): FingerTapTick adds 1 to the hold
+    // and the step to the frame, which overflowed for a value near INT_MAX (review F-301).
+    const int kMaxFrames = 1 << 20;
+    s_ft_hold = hold > 0 ? (hold < kMaxFrames ? hold : kMaxFrames) : 1;
     s_ft_x = fx;
     s_ft_y = fy;
-    s_ft_frame = frameNum + (delay > 0 ? delay : 1);
+    s_ft_frame = frameNum + (delay > 0 ? (delay < kMaxFrames ? delay : kMaxFrames) : 1);
     s_ft_step = 0;
     fprintf(stderr, "[ToolHarness] finger tap armed at %.3f,%.3f for frame %d, held %d frame(s)\n", fx, fy,
             s_ft_frame, s_ft_hold);
@@ -1105,6 +1108,7 @@ int      s_mr_fireFrame  = 0;
 // Pinned-panel residual-risk observer state (see FirePinPanel).
 bool     s_pin_fired     = false;
 UI::DialogController* s_pin_ctrl = nullptr;  // EntityUI controller (its +0x28 = datasource IBP)
+UI::DialogInstance* s_pin_dialog = nullptr;  // the dialog that owns s_pin_ctrl; compared, never read
 ComponentEntity* s_pin_entity    = nullptr;  // the marked-then-freed house entity ptr
 int      s_pin_fireFrame = 0;
 
@@ -1272,6 +1276,7 @@ void FirePinPanel(PlayerToolManager* entityUI) {
            cntBefore, rl->_size);
 
     s_pin_ctrl      = entCtrl;
+    s_pin_dialog    = dialog;
     s_pin_entity    = local;
     s_pin_fired     = true;
 }
@@ -3429,12 +3434,24 @@ void PanelCloseTick(PlayerToolManager* toolManager, int frameNum) {
         UI::DialogInstance* dialog = s_pc_dialog;
         Object::InternalPtr<UI::DialogInstance> dialogRef(dialog);
         const bool openBefore = ui->IsDialogOpen(&dialogRef);
+        // A panel that closed on its own before the scheduled click has been freed
+        // by CleanRemovedDialogs: nothing below may read it (review F-272).
+        if (!openBefore) {
+            fprintf(stderr, "[ToolHarness][panelclose] FAILED: the panel closed before the click "
+                    "(dialog=%p)\n", static_cast<void*>(dialog));
+            return;
+        }
+        // The EditTool that opened the panel is read only while it is still the
+        // current tool; a replaced tool may already be freed.
+        Tool* toolBefore = toolManager->currentTool.Get();
+        EditTool* editBefore = toolBefore == s_pc_tool ? s_pc_tool : nullptr;
         System::String closeName("buttonClose");
         Object::InternalPtr<UI::Element> closeButton = dialog->FindElement(closeName);
         fprintf(stderr, "[ToolHarness][panelclose] frame %d: dialog=%p open=%d buttonClose=%p "
                 "EditTool=%p selected=%p\n", frameNum, static_cast<void*>(dialog),
                 openBefore ? 1 : 0, static_cast<void*>(closeButton.Get()),
-                static_cast<void*>(s_pc_tool), static_cast<void*>(s_pc_tool->lastEntityRef));
+                static_cast<void*>(s_pc_tool),
+                editBefore ? static_cast<void*>(editBefore->lastEntityRef) : nullptr);
         if (!closeButton.Get()) {
             fprintf(stderr, "[ToolHarness][panelclose] FAILED: the panel has no buttonClose\n");
             return;
@@ -3496,6 +3513,23 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
     if (s_pin_fired && s_pin_ctrl) {
         int rel = frameNum - s_pin_fireFrame;
         if (rel >= 0 && rel <= 14) {
+            GameUpdateLoop* gw = GetGW();
+            EntityList* el = gw ? gw->m_entityList : nullptr;
+            int cnt = el ? el->removalList._size : -1;
+            // The drain closes the panel (EntityList_CloseDialogsForDyingEntities) and
+            // CleanRemovedDialogs frees it with its controllers. Once the dialog has
+            // left the open list, s_pin_ctrl points into freed memory: stop here. The
+            // check compares pointers only (review F-269).
+            Object::InternalPtr<UI::DialogInstance> dialogRef(s_pin_dialog);
+            UI::UserInterface* ui = gw ? gw->m_userInterface : nullptr;
+            if (!ui || !ui->IsDialogOpen(&dialogRef)) {
+                fprintf(stderr, "[PinPanel] +%2d frames: removalCount=%d dialog %p closed and freed "
+                        "-- probe stops\n", rel, cnt, static_cast<void*>(s_pin_dialog));
+                s_pin_ctrl   = nullptr;
+                s_pin_dialog = nullptr;
+            }
+        }
+        if (s_pin_ctrl && rel >= 0 && rel <= 14) {
             GameUpdateLoop* gw = GetGW();
             EntityList* el = gw ? gw->m_entityList : nullptr;
             int cnt = el ? el->removalList._size : -1;
