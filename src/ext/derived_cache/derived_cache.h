@@ -159,6 +159,9 @@ public:
 
     // The payload stored under `key`, verified against its record. false = a miss (`out` cleared).
     bool Find(const Key& key, std::vector<uint8_t>& out);
+    // Drops the record stored under `key`: a payload whose bytes match their record but which the
+    // consumer refuses (ext.package_cache's Decode), so the consumer's next Put replaces it.
+    void Forget(const Key& key);
     // Queues `payload` under `key` (taken by move). Dropped when disabled, after a failed write, or
     // when the key is already stored.
     void Put(const Key& key, std::vector<uint8_t> payload);

@@ -178,6 +178,14 @@ bool Decode(const std::vector<uint8_t>& payload, const std::vector<PackView>& pa
             FreeAll(tree);
             return false;
         }
+        // The value is an entry of the key's own path (review F-241): Encode writes it so, and a
+        // value naming another entry would resolve the key to that other file.
+        const char* const keyName = packs[keyPack].entries[keyFile].name._data;
+        const char* const valueName = packs[valuePack].entries[valueFile].name._data;
+        if (rtcrt::StrICmp(keyName, valueName) != 0) {
+            FreeAll(tree);
+            return false;
+        }
 
         Node* parent = nullptr;
         bool asLeft = false;

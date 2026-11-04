@@ -19,6 +19,7 @@
 #include "system/MemoryAllocator.h"
 #include "pkm_names.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -257,6 +258,10 @@ UNIT_TEST(package_cache_refuses_a_payload_that_does_not_fit) {
     CHECK(refused(bad, views));
     bad = bytes;
     bad[12 + 20] = 0;                                                  // the root claims no children
+    CHECK(refused(bad, views));
+    // Review F-241: the root's value names the next node's entry, another path than its key.
+    bad = bytes;
+    std::copy(bad.begin() + 12 + 21, bad.begin() + 12 + 29, bad.begin() + 12 + 8);
     CHECK(refused(bad, views));
 
     // A key that is not an entry's buffer is not encoded.

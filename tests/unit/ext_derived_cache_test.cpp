@@ -845,3 +845,34 @@ UNIT_TEST(ext_derived_cache_hash64_tails_stay_in_the_buffer) {
         CHECK_EQ(Hash64(tail.data(), tail.size()), Hash64(roomy.data(), len));
     }
 }
+
+// Review F-241: a payload whose bytes match its record but which its consumer refuses
+// (ext.package_cache's Decode) was never replaced: Put drops a key already stored, so every boot
+// fetched, hashed and refused it again. Forget drops the key's record; the next Put stores anew,
+// and the next Open serves the new copy.
+UNIT_TEST(ext_derived_cache_forget_lets_a_refused_payload_be_replaced) {
+    TempDir t;
+    const std::vector<uint8_t> bad  = Payload(64, 5);
+    const std::vector<uint8_t> good = Payload(80, 6);
+    {
+        Store s;
+        CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+        s.Put(MakeKey(1), bad);
+        s.Flush();
+        std::vector<uint8_t> out;
+        CHECK(s.Find(MakeKey(1), out));
+        CHECK(out == bad);
+        s.Forget(MakeKey(1));
+        CHECK(!s.Find(MakeKey(1), out));
+        s.Put(MakeKey(1), good);
+        s.Flush();
+        CHECK(s.Find(MakeKey(1), out));
+        CHECK(out == good);
+    }
+    Store s;
+    CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+    std::vector<uint8_t> out;
+    CHECK(s.Find(MakeKey(1), out));
+    CHECK(out == good);
+    CHECK_EQ(s.GetStats().entries, 1ull);
+}

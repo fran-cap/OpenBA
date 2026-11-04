@@ -773,6 +773,25 @@ bool Store::Find(const Key& key, std::vector<uint8_t>& out) {
     return true;
 }
 
+void Store::Forget(const Key& key) {
+    if (!_open || _disabled.load(std::memory_order_acquire)) return;
+    std::lock_guard<std::mutex> lock(_mutex);
+    const IndexRecord* r = Lookup(key);
+    if (r == nullptr) return;
+    // The record goes as a payload whose bytes did not match it does (Find): its bytes become
+    // garbage, the next rewrite drops them, and a later Put of the key is stored.
+    const uint64_t offset = r->offset;
+    const uint64_t size   = r->size;
+    auto range = _records.equal_range(key.sourceHash);
+    for (auto it = range.first; it != range.second; ++it) {
+        if (it->second.offset == offset) {
+            _records.erase(it);
+            if (!_readOnly) _garbageBytes += size;
+            break;
+        }
+    }
+}
+
 void Store::Put(const Key& key, std::vector<uint8_t> payload) {
     if (!_open || _readOnly || _disabled.load(std::memory_order_acquire) || payload.empty()) return;
     std::unique_lock<std::mutex> lock(_mutex);
