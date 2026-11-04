@@ -27,8 +27,9 @@
 //    a second per thread. backtrace() is primed at Start() so the handler does not
 //    load libgcc's unwinder. Frames print as <module> + 0x<off> (<symbol>+0x<off>),
 //    the crash log's spelling; the main thread is marked. Only the thread being asked
-//    may write or answer (g_dumpTarget): one that answers after its second is over
-//    drops its lines and its post, so it is never counted for the next thread, and the
+//    may write or answer (g_dumpTarget, tested again just before each line is written):
+//    one whose second ran out, even while it was stalled inside dladdr(), drops its
+//    remaining lines and its post, so it is never counted for the next thread, and the
 //    log descriptor is never closed under a handler still running (review F-276,
 //    F-292, F-298).
 //  * An unattended HUNG ends the process with _exit(4) (Windows: TerminateProcess(self,
@@ -99,11 +100,18 @@ void WriteStateFile(const char* state, unsigned uptimeSec, unsigned frame,
 std::atomic<int> g_hangLog{-1};   // read by the handlers: lock-free, so signal-safe
 sem_t g_dumpDone;
 const int kDumpSignal = SIGRTMIN + 3;   // not one SDL, glibc's NPTL (32/33) or the crash handler use
-// The thread asked for its stack, 0 when none is. A handler writes only while it is the
-// target, and the one answer belongs to whoever clears it first: the handler when it is
-// done, or the watchdog when the second runs out. A late handler therefore neither writes
-// under the next thread's header nor leaves a post that satisfies the next wait.
+// The thread asked for its stack, 0 when none is. A handler tests it immediately before
+// each write() (after dladdr(), which takes the loader lock and can block past the wait),
+// so a line is written only while its thread is the target; what remains is the gap
+// between that load and the write, which holds no blocking call. The one answer belongs
+// to whoever clears the target first: the handler when it is done, or the watchdog when
+// the second runs out. A late handler therefore neither writes under the next thread's
+// header nor leaves a post that satisfies the next wait. (A handler still stalled when a
+// later dump asks the same thread again passes the test and answers for it: its lines
+// are that thread's own, from the earlier signal.)
 std::atomic<pid_t> g_dumpTarget{0};
+static_assert(std::atomic<int>::is_always_lock_free, "the handler's loads must be lock-free");
+static_assert(std::atomic<pid_t>::is_always_lock_free, "the handler's loads must be lock-free");
 // Handlers between entry and return. The watchdog closes the log only when none is, so
 // no late write can reach a reused descriptor.
 std::atomic<int> g_dumpHandlers{0};
@@ -153,6 +161,7 @@ void DumpOwnStack(pid_t self) {
         } else {
             std::snprintf(line, sizeof(line), "  #%-2d ???                    @ %p\n", i, frames[i]);
         }
+        if (g_dumpTarget.load() != self) return;   // it stopped waiting while dladdr() ran
         HangLogRaw(line);
     }
 }
@@ -216,8 +225,9 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
             }
             g_dumpTarget.store(tid);
             if (syscall(SYS_tgkill, pid, tid, kDumpSignal) != 0) {
+                const int err = errno;
                 g_dumpTarget.store(0);
-                HangLogf("  (tgkill failed, errno=%d)\n", errno);
+                HangLogf("  (tgkill failed, errno=%d)\n", err);
                 continue;
             }
             timespec deadline;
