@@ -99,10 +99,8 @@ TextFileStream::~TextFileStream() {}
 CompressedFileStream::~CompressedFileStream() {}
 
 // compressed_stream_write.cpp's CompressedFileStream::Close reaches the FileSystem
-// singleton (filesystem.cpp, on Win32 and the package system): null here, and the
-// close itself aborts if a test ever reaches it.
-FileSystem* FileSystem::_singleton = nullptr;
-void FileSystem::CloseFile(RtIO::FileInfo&) { StubReached("FileSystem::CloseFile"); }
+// singleton and FileSystem::CloseFile (filesystem.cpp, not linked): both come from
+// package_file_read_test.cpp's in-memory FileSystem fake; no metadata test closes a file.
 
 // ---- IO::TextFileStream (src/engine/io/text_file_stream.cpp) ----------
 // Slot 0 is PURE on this class. Slots 1 and 7 are FileStream's, above. What is
