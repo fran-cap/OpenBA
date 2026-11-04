@@ -322,8 +322,18 @@ void ImageBuffer::PlatformSerialize(IO::Serializer& ser) {
     // 0x1800f31a8 RE-READS ser->stream rather than reusing the pointer it
     // loaded at entry. Reproduced — `ser._stream`, not the `stream` local above.
     // retail 0x180053f00 — kSpec_InnerArrayU8; see the banner.
-    if (ser._stream->GetDirection() == IO::kReading)
+    if (ser._stream->GetDirection() == IO::kReading) {
+        // NOT RETAIL (hardening, review F-072): retail sizes the level array from the
+        // count as read, so a malformed .rsc asking for 2^31 levels ends the game in
+        // FatalOutOfMemory. Every level carries at least its four-byte length word, so a
+        // count the bytes left cannot hold (or a negative one) reads as 0 levels. Valid
+        // data always fits; a stream that reports no size (GetSize 0) is not capped.
+        const int64_t size = static_cast<int64_t>(ser._stream->GetSize());
+        const int64_t left = size - static_cast<int64_t>(ser._stream->GetCurrentPos());
+        if (size != 0 && (count < 0 || static_cast<int64_t>(count) * 4 > left))
+            count = 0;
         rtcoll::AsArray<&rtcoll::kSpec_InnerArrayU8>(&levels)->SetSize(count);
+    }
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/CREATEONDEMAND.md): ext.create_on_demand -- on a
     // read, the extension's level reader may take the blobs (ImageBuffer.h). Null: retail's read.

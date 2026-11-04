@@ -376,7 +376,11 @@ void BinaryReader::SerializeBoolArray(int count, bool* arr, const char* name) {
 // word20 + word24 is the ONE-PAST-THE-END position of the current record, so
 // Skip is "abandon the rest of this record and jump to the next".
 void BinaryReader::Skip() {
-    const int32_t end = word24 + word20;
+    // NOT RETAIL in spelling only (review F-142, signed overflow): word20 is the record
+    // length read from the stream, and retail's 32-bit ADD wraps; in int the same add is
+    // undefined, so it runs in uint32_t. Same position.
+    const int32_t end = static_cast<int32_t>(static_cast<uint32_t>(word24) +
+                                             static_cast<uint32_t>(word20));
     stream->SetCurrentPos(end);   // +0x20
 }
 

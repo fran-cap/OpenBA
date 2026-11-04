@@ -285,7 +285,7 @@ int64_t CurrentTimeTicksViaGlobals() {
                     (long long)*sysTicksPerSec);
         return 0;
     }
-    return (now - *initialTick) * *ticksPerSec / *sysTicksPerSec;
+    return ::System::CounterToTicks(now - *initialTick, *ticksPerSec, *sysTicksPerSec);  // review F-151
 }
 
 }  // namespace rtmainloop

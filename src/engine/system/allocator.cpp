@@ -403,6 +403,18 @@ bool MemoryAllocator::AddNewMemoryRange(uint64_t want) {
 void* MemoryAllocator::Allocate(uint64_t size, int align) {
     if (g_largestRequestedSize < size) g_largestRequestedSize = size;
 
+    // NOT RETAIL (review F-102, size wrap): retail computes `size + 7` and `total + 8` below
+    // unchecked, so a request near 2^64 (an int -1 or a negative count sign-extended into a
+    // size) wraps to a tiny block, or to a zero `want` whose block stays on the free list and
+    // is handed out twice. No tag can describe a block past kSizeBytesMask, so such a request
+    // ends where retail's own out-of-memory path ends.
+    if (size > kSizeBytesMask) {
+        FatalOutOfMemory(
+            "Failed to allocate memory. Either too many packages (mods) are loaded, "
+            "no more memory is available, or an error has occured.", true);
+        return nullptr;
+    }
+
     const uint32_t align8 = (static_cast<uint32_t>(align) + 7u) & 0xfffffff8u;
 
     // CDQE: (align8 - 8) is SIGN-extended before the add. align == 0 subtracts 8.

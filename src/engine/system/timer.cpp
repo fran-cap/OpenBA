@@ -290,7 +290,7 @@ int64_t System::Timer::CurrentTimeTicks() {
     EnsurePlatform();
     int64_t now = 0;
     Platform::PerfCounter(&now);
-    return (now - _systemInitialTick) * _ticksPerSecond / _systemTicksPerSecond;
+    return CounterToTicks(now - _systemInitialTick, _ticksPerSecond, _systemTicksPerSecond);  // F-151
 }
 
 // ?CurrentTime@Timer@System@@SAMXZ  retail 0x1800ca760
@@ -301,7 +301,7 @@ float System::Timer::CurrentTime() {
     EnsurePlatform();
     int64_t now = 0;
     Platform::PerfCounter(&now);
-    int64_t ticks = (now - _systemInitialTick) * _ticksPerSecond / _systemTicksPerSecond;
+    int64_t ticks = CounterToTicks(now - _systemInitialTick, _ticksPerSecond, _systemTicksPerSecond);  // F-151
     return static_cast<float>(static_cast<double>(ticks) * _secondsPerTick);
 }
 
