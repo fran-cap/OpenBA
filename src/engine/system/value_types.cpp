@@ -224,6 +224,12 @@ void System::Random::NextGroup() {
 void System::Random::Serialize(::IO::Serializer& s) {
     s.Serialize(_index, nullptr);   // slot +0x98, the uint overload
     s.Serialize(0x270, _mt, nullptr);   // (0x40 = uint-array door)
+    // NOT RETAIL (review F-126, out-of-bounds read): retail 0x1800c7cf0 takes _index from
+    // the save unchecked, and Rand only wraps it when it reaches exactly 0x270, so a stored
+    // 0x270 or more reads past _mt on every draw. Such an index restarts the state block
+    // (the twist runs on the next draw); every index a valid save holds is below 0x270.
+    if (_index >= 0x270u)
+        _index = 0;
 }
 
 // ============================================================
@@ -409,7 +415,9 @@ static System::String* RtSystem_DateTime_FormatPart(const System::DateTime* self
     // dwords ARE the FILETIME, low first, and the primitive reads them in place.
     static_assert(sizeof(System::DateTime) == 2 * sizeof(uint32_t),
                   "System::DateTime IS a FILETIME -- Value.h's layout pin");
-    Platform::PathChar buf[Platform::kDateTimeChars];   // 0x100 WCHARs, retail's [RSP+0x50] scratch -- also uninitialised
+    // 0x100 WCHARs, retail's [RSP+0x50] scratch -- uninitialised; since review F-152 the
+    // Windows FormatLocalDateTime writes an empty string into it when the conversion fails.
+    Platform::PathChar buf[Platform::kDateTimeChars];
     // FileTimeToLocalFileTime + FileTimeToSystemTime, then GetTimeFormatW(0x400, 2)
     // or GetDateFormatW(0x400, 1) into buf, 0x100 WCHARs.
     Platform::FormatLocalDateTime(&self->_lowDateTime, timePart, buf);

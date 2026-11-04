@@ -545,16 +545,26 @@ uint32_t Factory::GetTypeIdForFileExtension(const char* extension) const {
 // ?CreateObject@Factory@Object@@QEBAPEAVBase@2@IPEAX@Z   retail 0x1800c0aa0
 //
 // A tail-jump through BaseTypeInfo+0x20 (+0x28 for the in-place overload).
-// Faithful: retail's `MOV RCX,[RAX+0x10]` at 0x1800c0b03 runs on a null RAX and
-// faults. No guard.
+// Retail's `MOV RCX,[RAX+0x10]` at 0x1800c0b03 runs on a null RAX when the id is
+// not registered (the descent's miss arm, 0x1800c0b01 `XOR EAX,EAX`).
 Base* Factory::CreateObject(uint32_t typeId) const {
     const TypeSet::Node* n = _types.Find(typeId);
+    // NOT RETAIL (review F-144): retail has no such check. An id that names no
+    // registered type (callers pass ids read from resources and saves) leaves `n`
+    // null, and `&n->element.record` is a null member access (undefined
+    // behaviour); retail then faults reading address 0x10. The miss creates
+    // nothing. Every registered id takes retail's path unchanged.
+    if (n == nullptr)
+        return nullptr;
     const TypeRecord* rec = &n->element.record;
     return rec->info->factoryFn();
 }
 
 Base* Factory::CreateObject(uint32_t typeId, void* storage) const {
     const TypeSet::Node* n = _types.Find(typeId);
+    // NOT RETAIL (review F-144): the same miss as above, retail 0x1800c0aa0.
+    if (n == nullptr)
+        return nullptr;
     const TypeRecord* rec = &n->element.record;
     return rec->info->inPlaceFactoryFn(storage);
 }

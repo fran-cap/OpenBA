@@ -50,6 +50,7 @@
 #include "Game/MenuDialogLoopT.h"       // ENDGAME B.3.8 LOOP
 #include "stall_debug.h"
 #include "boot_state_watchdog.h"
+#include "log_redirect.h"   // RedirectLogStream (src/app, review F-135)
 #include "Object/factory_registration.h"   // Object::VerifyExeTypeInfos (ENDGAME B.3.9 RF)
 #include "object/TypeInfo.h"               // Object::BaseTypeInfo::_firstTypeInfo (the dump)
 #include <cstdio>
@@ -339,8 +340,9 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
     // that WinMain freopen()'d (cause TBD — Engine::Startup itself doesn't call
     // AllocConsole/FreeConsole/SetStdHandle/freopen per Ghidra). Re-redirect
     // them so subsequent printf reaches the log.
-    freopen("standalone_debug.log", "a", stdout);
-    freopen("standalone_error.log", "a", stderr);
+    // Review F-135: on failure the stream stays as it was, not closed (log_redirect.h).
+    RedirectLogStream("standalone_debug.log", "a", stdout);
+    RedirectLogStream("standalone_error.log", "a", stderr);
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
     printf("[GameMain] Engine::Startup returned %u\n", ok);

@@ -675,7 +675,13 @@ uint32_t CompressedStream::GetSize() const {
     if (nHdr != 0) {                                     // 1800aa892/95  TEST/JZ
         const RtIo::CompressedStreamHeader* const h = s->_headerData;
         const int32_t last = h[nHdr - 1].uncompressedSize;   // 1800aa89b  [RCX+R10*8-2]
-        int32_t total = (nHdr << 15) - RtIo::kCompressedStreamWindowSize + last;  // 1800aa8a1/a5/ac
+        // NOT RETAIL in spelling only (review F-139, signed overflow): retail's SHL / LEA /
+        // ADD are 32-bit and wrap for a directory of 65536 blocks or more; the same
+        // arithmetic in int is undefined, so it runs in uint32_t. Same result bits.
+        int32_t total = static_cast<int32_t>(
+            (static_cast<uint32_t>(nHdr) << 15) -
+            static_cast<uint32_t>(RtIo::kCompressedStreamWindowSize) +
+            static_cast<uint32_t>(last));                    // 1800aa8a1/a5/ac
         if (total < best) total = best;                      // 1800aa8af/b1  CMOVG
         best = total;
     }

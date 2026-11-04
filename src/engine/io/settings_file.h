@@ -11,7 +11,8 @@
 // FORMAT. One `key=value` entry per line.
 //   Write: LF line ends, no BOM, a final newline, entries sorted by strcmp on
 //          the (unescaped) key — the map's own in-order walk, so the file is
-//          deterministic.
+//          deterministic. The one BOM written is in front of a first key that
+//          itself begins with the BOM bytes, so the reader does not eat them.
 //   Read:  a leading UTF-8 BOM is skipped; CRLF is accepted; blank lines and
 //          lines whose first non-blank character is `#` are skipped; a line
 //          with no unescaped `=` is skipped; the key / value split is the FIRST

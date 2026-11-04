@@ -14,6 +14,7 @@
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Work/PlantArea.h"
+#include "Work/work_rules.h"   // review F-199..F-206: the shared Execute decisions
 #include "object/Internal.h"
 #include "object/TypeInfo.h"
 #include "Game/exe_bodies.h"
@@ -121,7 +122,7 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
         workComp->workState = maxWorkers;
     }
 
-    if (treeCount >= workComp->workState) {
+    if (WorkRules::OverWorkerCap(treeCount, workComp->workState)) {   // 0x1400f407e CMP; JLE
         return 1;
     }
 
@@ -168,6 +169,10 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
                     pairedAvailable = true;
                 }
             }
+
+            // Unpaired: the slot COUNT is the pair's second index (0x1400f41e3 MOV EBX,R8D), which
+            // OnCancel / OnComplete skip; i+1 there re-offered and unclaimed slot i+1.
+            pairedIdx = WorkRules::PlantAreaPairedSlot(i, fieldCellCount, pairedAvailable);
 
             // The map cell of the field slot
             int srcCellIdx = crop->slots._data[i].cell;

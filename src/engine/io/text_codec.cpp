@@ -146,7 +146,10 @@ extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, int32_t fmt)
         case 4: {                                                  // 0x1800c9c58
             // `LEA EAX,[R9-0xD800] / CMP EAX,0x7FF / JBE` — the whole
             // D800..DFFF block, as ONE unsigned range test.
-            if (static_cast<uint32_t>(cp - 0xD800) <= 0x7FF) return 0;
+            // NOT RETAIL (review 2026-11-03 F-057, UB): `cp - 0xD800` in int32 overflows
+            // for cp < INT_MIN + 0xD800; the subtraction is done unsigned, which is the
+            // 32-bit wrap retail's LEA gives, so every cp answers as before.
+            if (static_cast<uint32_t>(cp) - 0xD800u <= 0x7FFu) return 0;
             if (cp < 0x10000) {       // JL back into case 1's store
                 d[0] = static_cast<uint8_t>(cp);
                 d[1] = static_cast<uint8_t>(cp >> 8);
@@ -163,7 +166,8 @@ extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, int32_t fmt)
         }
 
         case 5: {                                                  // 0x1800c9cc2
-            if (static_cast<uint32_t>(cp - 0xD800) <= 0x7FF) return 0;
+            // NOT RETAIL (F-057): unsigned, as in case 4.
+            if (static_cast<uint32_t>(cp) - 0xD800u <= 0x7FFu) return 0;
             if (cp < 0x10000) {
                 d[1] = static_cast<uint8_t>(cp);
                 d[0] = static_cast<uint8_t>(cp >> 8);
@@ -208,6 +212,10 @@ extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
             return 1;
 
         case 1:                                                    // 0x1800c9ff1
+            // NOT RETAIL (review 2026-11-03 F-034, heap over-read): retail reads both
+            // bytes unchecked, so an odd-length source reads one byte past `end`. A
+            // lone trailing byte is malformed here, as a short unit is in case 4 / 5.
+            if (end - src < 2) goto bad;
             *cp = src[0] | (static_cast<int32_t>(src[1]) << 8);
             return 2;
 
@@ -260,7 +268,7 @@ extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
 
         case 4:                                                    // 0x1800ca0e8
         case 5: {
-            if (src + 2 > end) goto bad;          // `JA`, not `JAE`
+            if (end - src < 2) goto bad;          // `JA`, not `JAE`
             // The ENDIANNESS comes from ECX, the table index from arg5.
             const uint16_t w = (fmtEcx == 4)
                 ? static_cast<uint16_t>((src[1] << 8) | src[0])
@@ -358,7 +366,11 @@ extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetec
                                               uint8_t* const dst, int32_t dstCap) {
     const uint8_t* const srcEnd = src + srcLen;
 
-    int32_t produced = 0;                                   // EBX
+    // NOT RETAIL (review 2026-11-03 F-058, UB): retail counts in EBX and wraps once the
+    // output passes 2 GB (a source above about 1.4 GB); int32 overflow is UB here. The
+    // count is kept in 64 bits and the return saturates at INT32_MAX. Below 2 GB every
+    // comparison and the return are retail's.
+    int64_t produced = 0;                                   // EBX
     int32_t fmt = srcFmt;                                   // EBP
 
     // 0x1800ca289 — detect when asked to, OR when the id is the magic 6.
@@ -435,7 +447,9 @@ extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetec
             std::memcpy(out, buf, static_cast<size_t>(termLen));
     }
 
-    return produced;
+    if (produced > INT32_MAX)                               // NOT RETAIL (F-058)
+        return INT32_MAX;
+    return static_cast<int32_t>(produced);
 }
 
 // ============================================================================
@@ -502,6 +516,21 @@ extern "C" void RtIo_SerializeStringArray(::IO::Serializer* ser, int32_t count,
 
         const bool reading = (ser->_stream->_direction == rt::io::kDirectionReading);
 
+        // NOT RETAIL (hardening, review 2026-11-03 F-079): retail sizes the String and
+        // the UTF-16 temporary straight from the length word (2 GB / 4 GB from a 5-byte
+        // record). A length the rest of a binary stream cannot hold leaves this String
+        // empty and reads nothing for it; a well-formed table always fits, and a
+        // non-binary reading stream is never capped (IO::StringLengthExceedsStream).
+        if (reading && len != 0) {
+            const uint64_t need = wasWide ? static_cast<uint64_t>(len) * 2
+                                          : static_cast<uint64_t>(len);
+            if (::IO::StringLengthExceedsStream(*ser->_stream, need)) {
+                ::System::StringPrivateAccess::Release(*slot);
+                slot->_data = nullptr;
+                continue;
+            }
+        }
+
         if (reading && len != 0)
             ::System::StringPrivateAccess::SetLength(*slot,
                                                      static_cast<int>(len) - 1);   // 0x1800c8220
@@ -510,6 +539,11 @@ extern "C" void RtIo_SerializeStringArray(::IO::Serializer* ser, int32_t count,
             // ---- PLAIN: the payload is bytes --------------------- 0x180029e23
             ser->_readerWriter->SerializeCharArray(
                 static_cast<int32_t>(len), slot->_data, nullptr);  // +0x18
+            // NOT RETAIL (review 2026-11-03 F-023, heap over-read): the last of the
+            // len bytes is the terminator only when the writer put a NUL there; retail
+            // never stores one. A well-formed record already has it.
+            if (reading && len != 0)
+                slot->_data[len - 1] = 0;
             continue;
         }
 
@@ -522,8 +556,11 @@ extern "C" void RtIo_SerializeStringArray(::IO::Serializer* ser, int32_t count,
             reinterpret_cast<uint16_t*>(tmp), nullptr);            // +0x50  // CAST-OK: byte_io
 
         // `len*2 - 2`: the trailing NUL code unit is not transcoded.
+        // NOT RETAIL (review 2026-11-03 F-059 / F-060, UB): retail doubles len in a
+        // 32-bit register, which overflows int32 for len >= 0x40000000; the offset is
+        // computed in 64 bits, the same value for every len below that.
         const uint8_t* const wideEnd =
-            tmp + (static_cast<int32_t>(len) * 2 - 2);
+            tmp + (static_cast<int64_t>(len) * 2 - 2);
 
         // PASS 1 — measure.                                        0x180029d00
         int32_t utf8Len = 0;

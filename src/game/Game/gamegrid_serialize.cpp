@@ -52,7 +52,9 @@
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch B
 #include "io/Stream.h"      // ENDGAME B.3.4 callers batch H: IO::Stream::GetDirection
 #include <cstdint>
+#include <cstdio>
 #include <new>
+#include "system/Error.h"   // NOT RETAIL (review F-026): a damaged map record is retail's fatal error box
 #include "object/Internal.h"   // ENDGAME B.3.4 caller batch G
 #include "Entity/ComponentEntity.h"
 #include "Game/exe_bodies.h"
@@ -170,15 +172,16 @@ static void GameGrid_SerializeCellArray_ac10(IO::Serializer* serializer, int32_t
     MapCell* elem = cells;
     for (int32_t i = 0; i < count; ++i) {
         elem->blocker.Object::InternalBasePtr::Serialize(*serializer);
-        ComponentEntity* refA = elem->blocker.Get();
-        if (refA != nullptr && !::Object::IsDerivedFromNullSafe(refA, ComponentEntity::TypeId())) {
+        // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+        // downcast to ComponentEntity*; the answer is the same.
+        if (!elem->blocker.IsNull() && !::Object::IsDerivedFromNullSafe(elem->blocker, ComponentEntity::TypeId())) {
             elem->blocker = nullptr;
             CellStamp::NoteWrite(elem);   // [AMBMEMO] cell write clock
         }
 
         elem->occupant.Object::InternalBasePtr::Serialize(*serializer);
-        ComponentEntity* refB = elem->occupant.Get();
-        if (refB != nullptr && !::Object::IsDerivedFromNullSafe(refB, ComponentEntity::TypeId())) {
+        // NOT RETAIL (F-143): as for the blocker above.
+        if (!elem->occupant.IsNull() && !::Object::IsDerivedFromNullSafe(elem->occupant, ComponentEntity::TypeId())) {
             elem->occupant = nullptr;
             CellStamp::NoteWrite(elem);   // [AMBMEMO] cell write clock
         }
@@ -222,6 +225,18 @@ void Map::Serialize(IO::Stream& stream) {
     serializer.Serialize(count, nullptr);
 
     bool isSaving = static_cast<int>(stream.GetDirection()) != 0;   // IO::Stream::GetDirection, retail 0x180006200
+    // NOT RETAIL (review F-026): a map record whose cell array does not cover its edge
+    // (Map::CellsCoverSize) is refused here, before the cells are allocated, through retail's
+    // own fatal error box (System::Error::SetText(.., true) + Display: the box, then exit), as
+    // gameupdateloop_serialize.cpp refuses a save it cannot load. The load cannot continue: the
+    // game's cell walks, cell indexes and divisions all take `size` as the edge.
+    if (!isSaving && !CellsCoverSize(size, count)) {
+        fprintf(stderr, "[Map::Serialize] FATAL: map edge %d, %d cells\n", size, count);
+        fflush(stderr);
+        System::Error::SetText("This save's map is damaged and cannot be loaded.", true);
+        System::Error::Display();   // the box; _stopApplication then exits the process
+        return;
+    }
     if (!isSaving) {
         cells.SetSize(count);   // 0x14001aa90
     }

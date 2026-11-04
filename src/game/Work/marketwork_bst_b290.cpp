@@ -181,7 +181,7 @@ void MarketBst_b290(MarketWork::ClaimTree* tree, IO::Serializer* serializer) {
             // still inserts the node — a null-keyed node, not a skipped one.
             // (InternalBasePtr::Serialize on the typed slot.)
             key.InternalBasePtr::Serialize(*serializer);
-            if (key.Get() != nullptr && !Object::IsDerivedFromNullSafe(key.Get(), CitizenComponent::TypeId())) {
+            if (!key.IsNull() && !Object::IsDerivedFromNullSafe(key, CitizenComponent::TypeId())) {
                 key = nullptr;
             }
 
@@ -253,8 +253,10 @@ void MarketBst_b290(MarketWork::ClaimTree* tree, IO::Serializer* serializer) {
             // derives from the expected type. This MUTATES the live tree on save —
             // faithful, and deliberate in retail (it is how stale refs get culled).
             node->element.citizen.InternalBasePtr::Serialize(*serializer);
-            CitizenComponent* key = node->element.citizen.Get();
-            if (key != nullptr && !Object::IsDerivedFromNullSafe(key, CitizenComponent::TypeId())) {
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to CitizenComponent*; the answer is the same.
+            if (!node->element.citizen.IsNull() &&
+                !Object::IsDerivedFromNullSafe(node->element.citizen, CitizenComponent::TypeId())) {
                 node->element.citizen = nullptr;
             }
 

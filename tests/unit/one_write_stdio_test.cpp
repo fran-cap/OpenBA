@@ -7,6 +7,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <string>
+#include <type_traits>
 
 #if defined(__MINGW32__)
 #include <fcntl.h>
@@ -94,6 +95,33 @@ UNIT_TEST(one_write_stdio_other_streams_are_untouched) {
     char buf[32] = {};
     CHECK(std::fgets(buf, sizeof(buf), f) != nullptr);
     CHECK_STREQ(buf, "5-five\n");
+    std::fclose(f);
+}
+
+// Review F-047: the macros expand to `int32_t(wrapper(...))` rather than adding the wrappers to
+// namespace std (undefined behaviour). The three call spellings in the tree must each compile
+// and return fprintf's int; a "simplified" macro that drops the int32_t breaks this file.
+UNIT_TEST(one_write_stdio_call_spellings_reach_the_wrapper) {
+#ifndef fprintf
+    CHECK(!"one_write_stdio.h is not force-included");
+    return;
+#endif
+    FILE* f = std::tmpfile();
+    CHECK(f != nullptr);
+    if (!f) return;
+    const auto qualified = std::fprintf(f, "%d", 12);
+    const auto global = ::fprintf(f, "%s", "ab");
+    const auto plain = fprintf(f, "%c", 'z');
+    static_assert(std::is_same<decltype(std::fprintf(f, "")), int>::value, "std::fprintf is int");
+    static_assert(std::is_same<decltype(::fprintf(f, "")), int>::value, "::fprintf is int");
+    static_assert(std::is_same<decltype(fprintf(f, "")), int>::value, "fprintf is int");
+    CHECK_EQ(qualified, 2);
+    CHECK_EQ(global, 2);
+    CHECK_EQ(plain, 1);
+    std::rewind(f);
+    char buf[16] = {};
+    CHECK(std::fgets(buf, sizeof(buf), f) != nullptr);
+    CHECK_STREQ(buf, "12abz");
     std::fclose(f);
 }
 #endif

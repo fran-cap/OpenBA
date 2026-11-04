@@ -14,6 +14,7 @@
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Work/HuntWork.h"
+#include "Work/work_rules.h"   // review F-199..F-206: the shared Execute decisions
 #include "object/Internal.h"
 #include "object/TypeInfo.h"
 #include "Game/exe_bodies.h"
@@ -200,7 +201,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
         matDesc->workState = maxWorkers;
     }
 
-    if (huntCount >= matDesc->workState) {
+    if (WorkRules::OverWorkerCap(huntCount, matDesc->workState)) {   // 0x1400ef196 CMP; JLE
         return 1;
     }
 

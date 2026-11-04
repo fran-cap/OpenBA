@@ -43,6 +43,7 @@
 #include "graphics/Camera.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "Component/controller_state_table.h"
 #include <cstdint>
 #include <cstdio>
@@ -59,6 +60,8 @@
 #include "system/MemoryAllocator.h"
 
 #include "Component/BuildComponent.h"
+#include "Component/DecalComponent.h"
+#include "Game/exe_constants.h"   // kRdata_14017214c
 #include "Component/ModelComponent.h"
 #include "Component/StatusIconComponent.h"
 #include "Component/StorageComponent.h"
@@ -70,9 +73,6 @@ extern "C" void* g_pConstructionDemoSite;                            // the seed
 extern "C" void* g_pBuildStructureWork = nullptr;                    // 2c-B probe: last spawned build work
 // BuildStructure_CreateInPlace (0x1400e5a90) and BuildStructure_CreateInPlaceFull
 // (0x1400e59c0), buildstructure.cpp, are declared in Work/exe_bodies.h.
-// workplacecomponent.cpp — roster-only mode: the WPC attach/detach (fa20/f7e0 reimpl) skips the
-// Scene mesh-visual toggle, so seating a Builder does NOT swap the site's build mesh.
-extern bool g_wpcRosterOnly;
 
 // ---- demo-force gate -------------------------------------------------------------
 // Brick-2a plumbing harness: fake the citizen half so the state chain can be validated
@@ -175,14 +175,9 @@ static BuildDescription* BC8_MatComp(BuildComponent* bc) {
 }
 static int BC8_Target(BuildComponent* bc, BuildDescription* matComp) {
     if (!matComp) return 0;
-    // target = base build effort (matComp+0x30) * multiplier (bc+0x4c). The multiplier is
-    // MultiObjectComponent+0x58 (0 when that component is inert in the standalone exe);
-    // clamp to the retail default of 1 so the target never collapses to 0 (which would
-    // instant-complete the build with no visible labor). See buildcomponent_state1.cpp for
-    // the source clamp.
-    int mult = bc->costMultiplier;
-    if (mult <= 0) mult = 1;
-    return matComp->_i30 * mult;
+    // target = base build effort (matComp+0x30) * multiplier (bc+0x4c), no clamp
+    // (0x140107bb5 MOV EAX,[RBX+0x30] / 0x140107bb8 IMUL EAX,[R15+0x4c]; review F-175).
+    return matComp->_i30 * bc->costMultiplier;
 }
 
 // Ensure the construction mesh list (+0x58 / count +0x60) is populated.
@@ -236,6 +231,19 @@ char BuildComponent::State1Update(StateMachine* sm) {
 // See docs/history/notes/BRIDGE_HIGHLIGHT_DIALOG_BRIEF.md.
 // ==================================================================================
 char BuildComponent::State8Enter(StateMachine* sm) {
+    // The footprint decal goes opaque (0x140107b1e-0x140107b79, review F-176): when the
+    // site has a DecalComponent whose alpha is not 1.0 and whose decal is live, remove it
+    // (slot 7), set the alpha to 1.0 and add it again (slot 6). The same body as
+    // DecalComponent::OnEvent(1), inlined at the head of this handler.
+    if (_entity->FindComponent<DecalComponent>() != nullptr) {    // 0x14000b630
+        DecalComponent* decal = _entity->FindComponent<DecalComponent>();   // 0x14000b630
+        if (!(decal->decalScale == kRdata_14017214c) && decal->decalId >= 0) {
+            decal->OnRemove();          // [RAX+0x38]
+            decal->decalScale = 1.0f;   // retail stores 0x3f800000
+            decal->OnAdded();           // [RAX+0x30]
+        }
+    }
+
     uint8_t instant = 0;
     if (GameUpdateLoop::_singleton != nullptr)
         instant = GameUpdateLoop::_singleton->m_gameFlags & 1;
@@ -354,7 +362,7 @@ char BuildComponent::State8Update(StateMachine* sm) {
         static int rampFrames = -1;
         if (rampFrames < 0) {
             const char* e = Opt().buildDemoFrames;
-            rampFrames = (e && e[0]) ? std::atoi(e) : 600;
+            rampFrames = (e && e[0]) ? ClampedAtoi(e) : 600;
             if (rampFrames < 1) rampFrames = 600;
         }
         // Demo mode ALWAYS ramps over rampFrames. The real target (matComp[0x30] *
@@ -470,7 +478,8 @@ void BuildComponent::State8Finalize() {
 
     // No decal event here: retail 0x140107ff0 (and the 8->2 action 0x1401075e0 that
     // calls it) sends none. The footprint decal went opaque at ClearArea state 2
-    // (DecalComponent::OnEvent(1), 0x1401177f0); D.4 RESIDUE dropped the tree's call.
+    // (DecalComponent::OnEvent(1), 0x1401177f0) and again at the head of State8Enter
+    // (0x140107ae0); D.4 RESIDUE dropped the tree's call.
 
     StorageComponent* storage = _entity->FindComponent<StorageComponent>();
     if (storage == nullptr) return;

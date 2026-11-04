@@ -251,10 +251,9 @@ public:
         // the qword at +0x00 and then the qword at +0x0c, so +0x08..+0x0b keeps
         // whatever the allocator returned. `?Serialize@Node@` emits it as a
         // DWORD scalar and `MeshInstance::UpdateHierarchy` indexes `_nodes` with
-        // it. THE PORT MUST NOT ZERO IT — same finding, same rule, as
-        // `EdgeMeshInstance::_followed` (Mesh.h's banner): a default ctor that
-        // differed from retail's on a field a copy ctor propagates breaks
-        // PLAN section 4.1 decision 5.
+        // it. NOT RETAIL (review F-049): the array's init row (MeshNodeInit,
+        // array_graphics_anim.cpp) zeroes it, since serializing or copying an
+        // indeterminate int is undefined behaviour; every reader sets it first.
         int32_t   _parent;            // +0x08
         ::Transform _local;           // +0x0c .. +0x27  ctor: identity
         ::Transform _bind;     // +0x28 .. +0x43  ctor: identity; see above

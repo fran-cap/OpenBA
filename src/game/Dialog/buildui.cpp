@@ -210,7 +210,7 @@ void BuildUI::OnCreated() {
         // / its type-id didn't resolve. Retail always has it; guard the deref so a
         // partial panel (no capacity number) beats a crash.
         int capacity = smComp ? (int)smComp->clearState : 0;
-        System::String capStr = System::String::Format("%d", (uint64_t)(uint32_t)capacity);
+        System::String capStr = System::String::Format("%d", (int)(uint32_t)capacity);
         textTotal->SetParameter(1, capStr);
     }
 
@@ -259,7 +259,7 @@ void BuildUI::OnCreated() {
             int multiplier = posComp->costMultiplier;
             {
                 System::String reqStr =
-                    System::String::Format("%d", (uint64_t)(uint32_t)(entryCount * multiplier));
+                    System::String::Format("%d", (int)(uint32_t)(entryCount * multiplier));
                 rowTextTotal->SetParameter(1, reqStr);
             }
 
@@ -296,7 +296,7 @@ void BuildUI::OnCreated() {
             int totalCount = resourceComp->_i30;
             int multiplier = posComp->costMultiplier;
             System::String totStr =
-                System::String::Format("%d", (uint64_t)(uint32_t)(totalCount * multiplier));
+                System::String::Format("%d", (int)(uint32_t)(totalCount * multiplier));
             rowTextTotal->SetParameter(1, totStr);
         } else {
             // Empty row: clear text and sprite (blanks table rows beyond the material
@@ -374,7 +374,7 @@ void BuildUI::OnUpdateLayout() {
 
     // Update header textTotal param 0 with remaining count
     {
-        System::String remStr = System::String::Format("%d", (uint64_t)remaining);
+        System::String remStr = System::String::Format("%d", (int)remaining);
         textTotal->SetParameter(0, remStr);
     }
 
@@ -423,7 +423,7 @@ void BuildUI::OnUpdateLayout() {
 
             // Update row textTotal param 0 with delivered count
             {
-                System::String delStr = System::String::Format("%d", delivered);
+                System::String delStr = System::String::Format("%d", static_cast<int>(delivered));
                 rows[i].total->SetParameter(0, delStr);
             }
 
@@ -436,7 +436,7 @@ void BuildUI::OnUpdateLayout() {
         // Update the total row (at index = rowTotal in the array)
         {
             System::String rowStr =
-                System::String::Format("%d", (uint64_t)(uint32_t)posComp->laborProgress);
+                System::String::Format("%d", (int)(uint32_t)posComp->laborProgress);
             rows[rowTotal].total->SetParameter(0, rowStr);
         }
 
@@ -455,7 +455,7 @@ void BuildUI::OnUpdateLayout() {
 
     // Update progress bar
     progress->_currentValue = ratio;
-    System::String pctStr = System::String::Format("%d", (uint64_t)(uint32_t)percent);
+    System::String pctStr = System::String::Format("%d", (int)(uint32_t)percent);
     progress->SetProgressTextParameter(0, pctStr);
 }
 

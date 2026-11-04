@@ -432,6 +432,24 @@ def draw_wade(px):
     ])
 
 
+def draw_spawn_origin(px):
+    # two figures standing on a cross-hair (new citizens placed at the map centre)
+    _paint(px, [
+        ".....++.....",
+        ".....++.....",
+        "..#..++..#..",
+        ".###.++.###.",
+        "..#..++..#..",
+        "++#++++++#++",
+        "+###++++###+",
+        ".#.#.++.#.#.",
+        ".#.#.++.#.#.",
+        ".....++.....",
+        ".....++.....",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -456,4 +474,5 @@ ICONS = {
     "autotrade_free_goods": ("fix", draw_coin_crossed),   # a crate kept back beside a coin
     "input_fetch_room": ("fix", draw_load_fits),     # a short load into a nearly full bin
     "stranded_wade": ("fix", draw_wade),             # a figure in the water, a house on the bank
+    "debug_spawn_origin": ("fix", draw_spawn_origin),   # two figures on a cross-hair
 }

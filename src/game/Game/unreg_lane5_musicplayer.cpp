@@ -22,36 +22,14 @@
 // a music-track selector: pick a track whose [monthLo..monthHi] and
 // [moodLo..moodHi] windows both contain the current month and the town mood.
 //
-// WHY IT WAS HELD BACK — and why that blocker is now gone
-// -------------------------------------------------------
-// gameupdateloop_load.cpp step 27 builds the MusicPlayer struct at
-// GameUpdateLoop+0x80 with `+0x08 MusicTrackList* = nullptr (Find deferred)`
-// and carries a comment naming this exact function as blocked, because the
-// retail body reads `*(int*)(musicPlayer[+0x08] + 0x28)` (the track count) with
-// NO null check — wiring it against a null +0x08 is an instant read-of-0x28.
-//
-// That premise held when the comment was written but no longer does: MusicList
-// (the "Game/MusicTracks.rsc" resource type) has since been fully ported —
-// factory, 9-slot vtable @0x14015ee40, faithful Serialize, REGISTER_TYPE — in
-// src/game/Game/musiclist.cpp, and RegisterMusicListVtable() is called from
-// standalone/address_registry.cpp:1797. So the resource is loadable today.
-//
-// DEVIATION FROM RETAIL (deliberate, documented)
-// ----------------------------------------------
-// Retail does the Find once, in GameUpdateLoop::Load. Doing it there means
-// editing gameupdateloop_load.cpp, which this lane must not touch (six lanes
-// share one tree). Instead this file does the SAME FindOrLoad lazily, once, on
-// the first Update where +0x08 is still null, and caches the result in +0x08 —
-// which is exactly the field retail's Load would have filled. Nothing else in
-// the tree reads +0x08, so a first-frame load is observationally equivalent to
-// a load-time one. **If the integrator prefers it in Load, move the
-// EnsureTrackList() body into step 27 and delete it here; the rest of this file
-// is unchanged either way.**
-//
-// GATE: DEFAULT-ON as of the lane D close-out (2026-09-06); BANISHED_LIVE_MUSIC=0
-// is the kill-switch. It was opt-in because the authoring lane could not build or
-// run the game and the port was therefore UNPROVEN. It is proven now -- see the
-// measured PLAY line quoted above.
+// THE TRACK LIST (+0x08)
+// ----------------------
+// The retail body reads `*(int*)(musicPlayer[+0x08] + 0x28)` (the track count)
+// with NO null check. GameUpdateLoop::Load step 27 (gameupdateloop_load.cpp) fills
+// +0x08 with the "Game/MusicTracks.rsc" MusicList on every Load, as retail
+// 0x1400972bb..0x140097321 does. (Review F-188: the Find used to be deferred to a
+// once-per-process static here, so every game after the first had no list and no
+// music.)
 //
 // FAITHFULNESS NOTE (an unguarded deref left in on purpose)
 // ---------------------------------------------------------
@@ -69,7 +47,7 @@
 // -----------------------------------------------
 // MusicPlayer (GameUpdateLoop+0x80, 0x18 bytes, MemAlloc'd by Load step 27):
 //   +0x00 uint32  currentEffectHandle   (seeded -1)
-//   +0x08 MusicList*                    (seeded null — see EnsureTrackList)
+//   +0x08 MusicList*                    (Load step 27's Find)
 //   +0x10 uint64  lastTrackExternalPtr  (seeded 0)
 // MusicList (src/game/Game/musiclist.cpp): +0x20 data, +0x28 count, stride 0x18
 //   entry +0x00 ExternalPtr<SoundEffect>   +0x08 float moodLo   +0x0c float moodHi
@@ -118,40 +96,13 @@ constexpr float kMonthsPerYear     = 12.0f;     // DAT_1401721b8
 // proved this function reaches the mixer:
 //     [MusicPlayer] MusicTracks.rsc -> 00000271db93d780 tracks=15
 //     [MusicPlayer] PLAY track=12/15 ext=271db912ee8 scene=00000271db7aa138 -> handle=1536
-// (autostart new game, standalone_error.log:2565-2566). The lazy EnsureTrackList Find
-// resolved, all 15 tracks parsed, the month/mood filter selected one and
+// (autostart new game, standalone_error.log:2565-2566). The MusicTracks.rsc Find (then
+// a lazy one here, now Load step 27) resolved, all 15 tracks parsed, the month/mood filter selected one and
 // Audio::Scene::PlayEffect returned a live handle.
 
 // DWORD_1401c7190 is CitizenDescription's type-id cell (Table 1).
 uint32_t CitizenDescriptionTypeId() {
     return CitizenDescription::TypeId();
-}
-
-// See the DEVIATION note in the file header. Retail's GameUpdateLoop::Load
-// fills musicPlayer+0x08; ours defers it, so fill it here on first use.
-void EnsureTrackList(MusicPlayer* mp) {
-    if (mp->trackList) return;
-    static bool attempted = false;
-    if (attempted) return;              // one shot — never re-hit the loader
-    attempted = true;
-
-    if (!::Object::ExternalFactory::_singleton) {
-        fprintf(stderr, "[MusicPlayer] SKIP — factory unavailable (factory=%p)\n",
-                ::Object::ExternalFactory::_singleton);
-        fflush(stderr);
-        return;
-    }
-
-    System::Filename fname("Game/MusicTracks.rsc");
-    // ENDGAME B.3.3 step 6A: member call on the real Object::ExternalFactory.
-    // The resource is the MusicList.
-    MusicList* list = ::Object::ExternalFactory::_singleton
-            ->FindOrLoadAs<MusicList>(fname);
-    mp->trackList = list;
-
-    fprintf(stderr, "[MusicPlayer] MusicTracks.rsc -> %p tracks=%d\n", static_cast<void*>(list),
-            list ? list->_entries._size : -1);
-    fflush(stderr);
 }
 
 } // namespace
@@ -171,9 +122,8 @@ void MusicPlayer::Update() {
     if (!audioScene) return;
     if (audioScene->IsEffectPlaying(mp->effect)) return;
 
-    EnsureTrackList(mp);
     MusicList* trackList = mp->trackList;
-    if (!trackList) return;   // deviation-only guard: retail's Load guaranteed it
+    if (!trackList) return;   // port-only guard: retail reads the count unguarded (see the file header)
 
     // --- Town mood: average health and happiness over the citizen list, -----
     // each normalised by the corresponding max on citizen[0]'s description.

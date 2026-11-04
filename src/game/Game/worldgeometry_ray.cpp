@@ -47,6 +47,18 @@ static inline int TruncCvttss2si(float f) {
     return static_cast<int>(f);
 }
 
+// NOT RETAIL (review F-004, undefined behaviour): the cell math below (x - half, x + 1, x + y)
+// takes TruncCvttss2si's INT_MIN for a point off the int range, and CellQuadRay any cell its
+// callers pass, so a signed int ADD / SUB can overflow, which C++ leaves undefined. Retail has
+// no check: its 32-bit ADD / SUB wrap. These form the sum in uint32_t and convert back (modular
+// in GCC and Clang), the bits retail's instructions give; in-range values are unchanged.
+static inline int WrapAdd(int a, int b) {
+    return static_cast<int>(static_cast<uint32_t>(a) + static_cast<uint32_t>(b));
+}
+static inline int WrapSub(int a, int b) {
+    return static_cast<int>(static_cast<uint32_t>(a) - static_cast<uint32_t>(b));
+}
+
 } // namespace
 
 // [COPY-PINNED begin] tests/unit/copy_drift_test.cpp pins the text from here to the end
@@ -133,15 +145,18 @@ static int RayTestCell(WorldGeometry* geo, int x, int y, const float* dir, const
         return static_cast<float>(static_cast<int>(hm[cr * lW + cc])) * hscale;
     };
 
-    float bx = static_cast<float>(x - half);   // base world X (cell corner)
-    float by = static_cast<float>(y - half);   // base world Y
+    // The int sums wrap as retail's do (WrapAdd / WrapSub: NOT RETAIL, review F-004).
+    float bx = static_cast<float>(WrapSub(x, half));   // base world X (cell corner)
+    float by = static_cast<float>(WrapSub(y, half));   // base world Y
+    const int x1 = WrapAdd(x, 1);
+    const int y1 = WrapAdd(y, 1);
 
     // The 4 quad corners as CONTIGUOUS Vector3 {x,y,z}: aa810 reads each as a Vector3.
     // z = corner height.
-    float V00[3] = { bx,      by,      H(x,     y)     };  // (x,   y)
-    float V01[3] = { bx + uv, by,      H(x + 1, y)     };  // (x+1, y)
-    float V10[3] = { bx,      by + uv, H(x,     y + 1) };  // (x,   y+1)
-    float V11[3] = { bx + uv, by + uv, H(x + 1, y + 1) };  // (x+1, y+1)
+    float V00[3] = { bx,      by,      H(x,  y)  };  // (x,   y)
+    float V01[3] = { bx + uv, by,      H(x1, y)  };  // (x+1, y)
+    float V10[3] = { bx,      by + uv, H(x,  y1) };  // (x,   y+1)
+    float V11[3] = { bx + uv, by + uv, H(x1, y1) };  // (x+1, y+1)
 
     float maxTbuf[1] = { *maxT };
     float tOut[1] = { 0.0f };
@@ -149,7 +164,7 @@ static int RayTestCell(WorldGeometry* geo, int x, int y, const float* dir, const
     // Split the quad into two triangles by (x+y) parity, ray-test each (aa810). aa810's
     // first argument (RCX) is never read.
     bool hit;
-    if (((x + y) & 1) == 0) {
+    if ((WrapAdd(x, y) & 1) == 0) {
         uint64_t r = Pf_RayTriIntersect_aa810(nullptr, origin, dir, maxTbuf, V00, V01, V10, tOut, outNormal);
         hit = (static_cast<char>(r) != 0);
         if (hit) maxTbuf[0] = tOut[0];

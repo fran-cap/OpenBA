@@ -107,6 +107,10 @@ public:
     // The two GetText overloads — non-virtual, THE DOOR DECIDES THE OVERLOAD.
     // Both are RETSLOT in retail; plain by-value returns here.
     System::String GetText(int32_t index) const;                    // 0x180002550
+    // NOT RETAIL (review F-009): the body of GetText(int), static so that
+    // UI::String{null, -1} (operator System::String) reaches it without a member
+    // call on a null table, which C++ leaves undefined. Retail's guard order.
+    static System::String GetTextOf(const StringTable* table, int32_t index);
     System::String GetText(const System::String& name) const;       // 0x1800025b0
     int32_t GetIndexFromName(const System::String& name) const;     // 0x180002470
 

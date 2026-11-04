@@ -49,6 +49,7 @@
 #include "device_lost_drive.h"                     // BANISHED_FORCE_DEVICE_LOST=bgsave (src/diag)
 
 #include "app/options.h"
+#include "app/clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "boot_window.h"   // BootWindow::ArmDeferredShow (src/app): the deferred first show
 #include "stall_debug.h"   // StallDebug::Mark (src/diag): the boot timeline
 #include "platform/common/cursor_image.h"            // Platform::Cursor::SetFromTexels
@@ -607,7 +608,7 @@ bool ForceDeviceLostThisPresent() {
     static bool fired = false;
     if (wanted == -2) {
         const char* v = Opt().forceDeviceLost;
-        wanted = DeviceLostDrive::Armed() ? -3 : (v && *v) ? std::atoi(v) : -1;
+        wanted = DeviceLostDrive::Armed() ? -3 : (v && *v) ? ClampedAtoi(v) : -1;
         if (wanted > 0) {
             std::fprintf(stderr, "[DeviceLost] ARMED: a synthetic VK_ERROR_DEVICE_LOST will be injected on present "
                                  "#%d (Vulkan)\n", wanted);

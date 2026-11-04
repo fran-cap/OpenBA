@@ -18,12 +18,18 @@ enum class HarnessCap {
     Fixed,   // a number > 0 (harnessFps)
 };
 
+// The lowest ceiling that is paced (review F-134). Below it, freq / fps and the 100 ns sleep arithmetic
+// leave int64_t on a 1 GHz counter.
+constexpr double kMinCeilingFps = 0.01;
+
 // The ceiling one loop is paced to, in fps; 0 = the loop is not paced. `autoFps` is the menu's
 // automatic ceiling (> 0), `settingsFps` the settings cap (0 = none), `menu` true for the menu loop.
 inline double ResolveCeiling(HarnessCap harness, double harnessFps, double autoFps, double settingsFps,
                              bool menu) {
     if (harness == HarnessCap::Off) return 0.0;
-    if (harness == HarnessCap::Fixed) return harnessFps;
+    // Below kMinCeilingFps, or NaN, BANISHED_FPS_CAP paces nothing (review F-134, undefined behaviour:
+    // the int64_t conversions in SetCeiling and the product in WaitUntil leave their range).
+    if (harness == HarnessCap::Fixed) return harnessFps >= kMinCeilingFps ? harnessFps : 0.0;
     if (settingsFps > 0.0) {
         if (menu && autoFps > 0.0 && autoFps < settingsFps) return autoFps;
         return settingsFps;

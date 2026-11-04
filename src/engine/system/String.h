@@ -192,8 +192,20 @@ public:
     String operator+=(char c);                      // ??YString@System@@QEAA?AV01@D@Z       0x1800c89e0
 
     // ---- statics -----------------------------------------------------------
+    // Format is vsnprintf: each argument has its conversion's type. NOT RETAIL (UB, vararg
+    // type): the game's `%d` / `%i` callers pass `int`; the port passed retail's zero-extended
+    // 64-bit register as a uint64_t, which `%d` does not read. The printed low 32 bits are the same.
     static String Format(const char* fmt, ...);        // ?Format@..@SA?AV12@PEBDZZ         0x1800c9730
-    static String FormatIndexed(const char* fmt, ...); // ?FormatIndexed@..@SA?AV12@PEBDZZ  0x1800c8b40
+    // ?FormatIndexed@..@SA?AV12@PEBDZZ  0x1800c8b40. NOT RETAIL (review F-125, vararg
+    // over-read): retail is `(const char* fmt, ...)` and reads as many `const char*` varargs
+    // as the highest '@n' in fmt asks for, and fmt is string-table text a mod can supply.
+    // A template keeps every call site's spelling and passes the argument count; an '@n'
+    // past the arguments given reads an empty String.
+    template <typename... Args>
+    static String FormatIndexed(const char* fmt, Args... args) {
+        const char* const argv[] = {static_cast<const char*>(args)..., nullptr};
+        return FormatIndexedList(fmt, argv, static_cast<int>(sizeof...(Args)));
+    }
     static int    FormatParamCount(const char* fmt);   // ?FormatParamCount@..@SAHPEBD@Z    0x1800c8d20
     static String FormatParamList(const String& fmt,
                                   const String* params); // ?FormatParamList@..             0x1800c8dc0
@@ -201,11 +213,12 @@ public:
     static int    ToInteger(const char* s);            // ?ToInteger@String@System@@SAHPEBD@Z 0x18003f620
     static int    StrCompare(const char* a, const char* b); // ?StrCompare@..@SAHPEBD0@Z    0x1800c98a0
 
-    // The two varargs entry points have no va_list twin in retail (there is no
-    // such export). These carry the bodies so that `Format` and the transitional
+    // Format's varargs entry point has no va_list twin in retail (there is no
+    // such export). This carries the body so that `Format` and the transitional
     // `RtSystem_String_Format` shim are the same code and not two transcriptions.
     static String FormatV(const char* fmt, va_list ap);
-    static String FormatIndexedV(const char* fmt, va_list ap);
+    // FormatIndexed's body over the `argc` arguments its caller passed (see above).
+    static String FormatIndexedList(const char* fmt, const char* const* argv, int argc);
 
     // ---- serialization -----------------------------------------------------
     void Serialize(IO::Serializer& serializer);     // ?Serialize@..@QEAAXAEAVSerializer@IO@@@Z 0x1800c9930

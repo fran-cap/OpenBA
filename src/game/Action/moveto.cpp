@@ -35,6 +35,7 @@
 #include "Work/exe_bodies.h"     // WorkImpl_Sqrtf_132010
 #include "Game/exe_constants.h"  // kRdata_*
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
+#include "Action/saved_bounds.h"
 #include "math/Math.h"
 #include <cstdio>
 #include <cstdint>
@@ -112,21 +113,13 @@ inline float RdataF(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); 
 // DAT_14017214c = 1.0f (g_fUVScale, used for animation params)
 
 // ============================================================
-// Helper: clamp int to [0, mapSize-1]
-// ============================================================
-static inline int ClampCell(int val, int mapSize) {
-    if (val < 0) return 0;
-    if (val >= mapSize) return mapSize - 1;
-    return val;
-}
-
-// ============================================================
-// Helper: world position to clamped cell index
+// Helper: world position to clamped cell index (each axis: CVTTSS2SI, clamp to
+// [0, mapSize-1]; ActionBounds::WorldToCellAxis)
 // ============================================================
 static inline int WorldToCell(int mapSize, float worldX, float worldY) {
     float halfMap = (float)(mapSize >> 1);
-    int cellX = ClampCell((int)(worldX + halfMap), mapSize);
-    int cellY = ClampCell((int)(worldY + halfMap), mapSize);
+    int cellX = ActionBounds::WorldToCellAxis(worldX + halfMap, mapSize);
+    int cellY = ActionBounds::WorldToCellAxis(worldY + halfMap, mapSize);
     return mapSize * cellY + cellX;
 }
 
@@ -147,8 +140,10 @@ void MoveTo::Persist(IO::Stream& stream) {
 
     // The moving character (+0x28)
     character.InternalBasePtr::Serialize(ser);
-    if (character.Get() != nullptr) {
-        bool valid = character->IsDerivedFrom(CharacterComponent::TypeId());
+    // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+    // downcast to CharacterComponent*; the answer is the same.
+    if (!character.IsNull()) {
+        bool valid = ::Object::IsDerivedFromNullSafe(character, CharacterComponent::TypeId());
         if (!valid) {
             character = nullptr;
         }
@@ -159,10 +154,23 @@ void MoveTo::Persist(IO::Stream& stream) {
 
     // Path node count (+0x64) and current index (+0x60) as ints
     ser.Serialize(pathCount, nullptr);
+    // NOT RETAIL (review F-107): retail 0x1400c8ec0 reads pathCount ints into path[0x100]
+    // with no compare. A saved count past the array keeps the first 0x100 and reads the rest
+    // into a scratch int, so the stream stays where retail leaves it; a negative one is 0.
+    // A hostile count near 0x7FFFFFFF costs one scalar read per excess node through EOF (a
+    // stall, not a fault); that keeps the stream position retail's read would reach.
+    int32_t excessNodes = ActionBounds::ClampSavedPathCount(pathCount);
     ser.Serialize(pathIndex, nullptr);
+    // NOT RETAIL (review F-107): Execute reads path[pathIndex] for any pathIndex other than
+    // -1 below pathCount; a saved index below -1 is -1 (no path yet).
+    pathIndex = ActionBounds::SavedPathIndex(pathIndex);
 
     // Path node array (+0x68), count from +0x64
     ser.Serialize(pathCount, path, nullptr);
+    for (int32_t i = 0; i < excessNodes; i++) {
+        int32_t discarded = 0;
+        ser.Serialize(discarded, nullptr);
+    }
 
     // Destination position (+0x38) as Vector3
     destination.Serialize(ser);
@@ -178,7 +186,7 @@ void MoveTo::Persist(IO::Stream& stream) {
         ::Object::InternalBasePtr tempIBP;
         tempIBP.Serialize(ser);
         if (tempIBP.Get() != nullptr) {
-            ::Object::IsDerivedFromNullSafe(tempIBP.Get(), PopulationComponent::TypeId());
+            ::Object::IsDerivedFromNullSafe(tempIBP, PopulationComponent::TypeId());
         }
     } else {
         // Version > 0: serialize the movement profile (+0x470)

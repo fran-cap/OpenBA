@@ -366,7 +366,7 @@ void BindCell(size_t k) {
             }
         }
     }
-    if (::Object::IsDerivedFromNullSafe(cell.check.Get(), UI::CheckElement::TypeId())) {
+    if (::Object::IsDerivedFromNullSafe(cell.check, UI::CheckElement::TypeId())) {
         static_cast<UI::CheckElement*>(cell.check.Get())->_checked = r.rank != kUnranked ? 1 : 0;
     }
     if (cell.rankText.Get() != nullptr) {

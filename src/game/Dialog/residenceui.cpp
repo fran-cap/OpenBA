@@ -321,7 +321,7 @@ void ResidenceUI::OnUpdateLayout() {
 
                     // Set age text: (int)(age * 5.0f) formatted as "%i"
                     int ageYears = (int)(citizen->age * ageMul);
-                    System::String ageStr = System::String::Format("%i", (uint64_t)(uint32_t)ageYears);
+                    System::String ageStr = System::String::Format("%i", (int)(uint32_t)ageYears);
                     UI::TextElement* textAge = row.textAge;
                     if (textAge) textAge->SetParameter(0, ageStr);
 

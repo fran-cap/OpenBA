@@ -339,8 +339,11 @@ static void IbpTree_Serialize_e470(TrackedEntityNode** root, int32_t* countField
             int a = 0, b = 0;
             bool used = false;
             keyPtr.Object::InternalBasePtr::Serialize(*serializer);
-            ComponentEntity* key = keyPtr.Get();
-            if (key && !::Object::IsDerivedFromNullSafe(key, s_tidCompEnt)) key = nullptr;   // 0x14002e4dd: no type-id test (row 1164)
+            // NOT RETAIL (F-143): null and type tests on the held Internal*; the
+            // ComponentEntity* is taken only once they pass. The answer is the same.
+            ComponentEntity* key = nullptr;
+            if (!keyPtr.IsNull() && ::Object::IsDerivedFromNullSafe(keyPtr, s_tidCompEnt))   // 0x14002e4dd: no type-id test (row 1164)
+                key = keyPtr.Get();
             serializer->Serialize(a, nullptr);
             serializer->Serialize(b, nullptr);
             serializer->Serialize(used, nullptr);
@@ -400,7 +403,7 @@ static void IbpTree_Serialize_e470(TrackedEntityNode** root, int32_t* countField
         while (cur->left) cur = cur->left;
         while (cur) {
             cur->key.InternalBasePtr::Serialize(*serializer);   // InternalBasePtr::Serialize (0x14002e470)
-            if (cur->key.Get() && !::Object::IsDerivedFromNullSafe(cur->key.Get(), s_tidCompEnt))   // 0x14002e6cf: no type-id test (row 1164)
+            if (!cur->key.IsNull() && !::Object::IsDerivedFromNullSafe(cur->key, s_tidCompEnt))   // 0x14002e6cf: no type-id test (row 1164)
                 cur->key = nullptr;
             serializer->Serialize(cur->x, nullptr);
             serializer->Serialize(cur->y, nullptr);
@@ -445,7 +448,9 @@ void PlayerToolManager::Serialize(IO::Stream& stream) {
         if (!IsSaving(&stream)) {
             cameraViews.SetSize(count);   // 0x14002e000
         }
-        for (uint32_t i = 0; i < (uint32_t)count; i++) {
+        // Retail 0x140102a19..0x140102a25: MOV EAX,[count] / TEST EAX,EAX / JLE past the
+        // loop / MOV EDI,EAX: a signed count, so a save's count <= 0 runs no element.
+        for (int i = 0; i < count; i++) {
             PlayerCameraView& e = cameraViews[i];
             // ?Serialize@Vector3@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x1800150e0
             e.position.Serialize(ser);
@@ -676,8 +681,8 @@ void GameUpdateLoop::SerializeAllHead(IO::Stream& stream, SerializeScope& scope)
     m_scenarioInstance.Object::InternalBasePtr::Serialize(ser);
     // 0x140095bef-0x140095c0e: retail's own null test, then IsDerivedFrom and a
     // null store; no test of the type id (row 1247).
-    if (m_scenarioInstance.Get() != nullptr &&
-        !::Object::IsDerivedFromNullSafe(m_scenarioInstance.Get(), Achievement::AchievementInstance::TypeId()))
+    if (!m_scenarioInstance.IsNull() &&
+        !::Object::IsDerivedFromNullSafe(m_scenarioInstance, Achievement::AchievementInstance::TypeId()))
         m_scenarioInstance = nullptr;
 
     // 0x140095c19-0x140095c26: AchievementManager::Persist, no test of the
@@ -1010,6 +1015,10 @@ extern "C" void GameUpdateLoop_SaveRoundtripCheck(GameUpdateLoop* self, Save::Sa
         fprintf(stderr, "[Roundtrip] RESULT=ERROR decompress loaded=%d resaved=%d\n", okA, okB);
         fflush(stderr);
         fresh._data = nullptr;   // not freed on this arm (the probe's behaviour before)
+        // Both raw images go back on this arm too (review 2026-11-03, F-084: clang-analyzer
+        // unix.Malloc); a failed Open left its pointer null, and free(nullptr) is a no-op.
+        std::free(a);
+        std::free(b);
         return;
     }
     RoundtripDump("standalone_roundtrip_loaded.bin",  a, an);

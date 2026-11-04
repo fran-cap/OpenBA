@@ -159,6 +159,47 @@ public:
     using FilterMode  = int32_t;
     using AddressMode = int32_t;
 
+    // The value counts of the serialized enum fields, and the table indexes the
+    // backends derive from them. All five fields are read from a .rsc with
+    // `SerializeUnsigned` and never range-checked in retail.
+    static constexpr uint32_t kFormatCount      = 8;   // the DX11 8-entry DXGI / bytes tables
+    static constexpr uint32_t kAddressModeCount = 2;   // WRAP, CLAMP
+    static constexpr uint32_t kFilterModeCount  = 3;   // POINT, LINEAR, ANISOTROPIC
+
+    // `kind == 4 || kind == 5` (IsGenerated() || IsRendered()) on a raw `_kind`:
+    // retail's `LEA EAX,[R8-4] / CMP EAX,1 / JBE` (0x1800f3154), a wrapping
+    // 32-bit subtraction and an unsigned compare.
+    // NOT RETAIL (UB, signed overflow): `kind - 4` in int overflows for a
+    // serialized kind of 0x80000000; the subtraction is made unsigned, which is
+    // the wrap retail's LEA performs. Same answer for every kind.
+    static constexpr bool KindIsGeneratedOrRendered(Usage kind) {
+        return static_cast<uint32_t>(kind) - 4u <= 1u;
+    }
+
+    // NOT RETAIL (UB, out-of-bounds index): retail indexes the DX11 format tables
+    // with the raw `_format` and has no check. True for every retail format 0..7.
+    static constexpr bool FormatInRange(Format format) {
+        return static_cast<uint32_t>(format) < kFormatCount;
+    }
+
+    // NOT RETAIL (UB, out-of-bounds index): retail indexes the sampler's 2-entry
+    // address table with the raw field and has no check. 0 and 1 index
+    // themselves; any other value takes its low bit, as the Vulkan backend does.
+    static constexpr int32_t AddressTableIndex(AddressMode mode) {
+        return static_cast<int32_t>(static_cast<uint32_t>(mode) & 1u);
+    }
+
+    // NOT RETAIL (UB, out-of-bounds index): retail indexes the sampler's 3-entry
+    // filter table with the raw field and has no check. 0..2 index themselves;
+    // any other value is clamped into 0..2, as the Vulkan backend does.
+    static constexpr int32_t FilterTableIndex(FilterMode filter) {
+        if (filter < 0)
+            return 0;
+        if (filter > 2)
+            return 2;
+        return filter;
+    }
+
     // The `Collection::Array<Collection::Array<uint8_t>>` of per-mip-level pixel
     // blobs that `Create` and `PlatformCreate` take
     // (`PEAV?$Array@V?$Array@E@Collection@@@Collection@@` in the mangling).

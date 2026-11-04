@@ -2,7 +2,7 @@
 // Clean reimplementation of DecalComponent lifecycle methods.
 //
 // DecalComponent (0x38 bytes) manages ground decals for buildings (shadows, footprints).
-// Fields: +0x28=decalState (uint32), +0x2C=decalId (int32, -1=none), +0x30=decalScale (float, 1.0)
+// Fields: +0x28=decalState (int32), +0x2C=decalId (int32, -1=none), +0x30=decalScale (float, 1.0)
 //
 // Vtable at 0x140162fd0. Non-trivial overrides:
 //   [3] Persist  (0x14011b820) -- serializes decalScale and decalState
@@ -154,7 +154,8 @@ void DecalComponent::Persist(IO::Stream& stream) {
     // Serialize decalScale (float at +0x30)
     ser.Serialize(decalScale, nullptr);
 
-    // Version-gated: if version > 0, also serialize decalState
+    // Version-gated: if version > 0, also serialize decalState, through the int door
+    // (0x14011b882 CALL [0x140152ac8], Serialize(int&)).
     if (ser.GetVersion() > 0) {
         ser.Serialize(decalState, nullptr);
     }
@@ -212,17 +213,18 @@ void DecalComponent::OnAdded() {
     WorldGeometry* decalSys = GameUpdateLoop::_singleton->m_worldGeometry;
 
     // material = DecalDescription material-array[decalState].
-    Graphics::MaterialInstance* material = decalDesc->_materials[decalState];
+    Graphics::MaterialInstance* material =
+        DecalStateMaterial(decalDesc->_materials, decalDesc->_materialCount, decalState);
 
     bool     tiledFlag = decalDesc->_tiled;
     bool     p19       = decalDesc->_flagB;
     float    p10       = decalDesc->_sizeB;
-    int alpha = static_cast<int>(decalScale * 255.0f);   // DAT_14017222c = 255.0f
+    const uint8_t alpha = DecalAlphaByte(decalScale);   // DAT_14017222c = 255.0f
 
     // AddDecal 0x1400b0d80 (was its TradeWork_impl_0d80 forwarder; its dead param_18 is gone).
     int id = decalSys->AddDecal(minX, minY,
         width - 1 + minX, height - 1 + minY,
-        static_cast<uint8_t>(alpha), rotation,
+        alpha, rotation,
         material,
         tiledFlag, p10,
         uv.u0, uv.v0, uv.u1, uv.v1,

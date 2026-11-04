@@ -150,9 +150,10 @@ void ConsumeProduce::Persist(IO::Stream& stream) {
         // and these refs are citizens in the overwhelming majority, so clearing them would
         // destroy live state — strictly worse than skipping a check we cannot perform.
         // Same both-pointer-and-value shape as completetask.cpp's reader.
-        CitizenComponent* ptr = ibpArray[i].Get();
-        if (ptr != nullptr) {
-            bool valid = Object::IsDerivedFromNullSafe(ptr, CitizenComponent::TypeId());  // DAT_1401c7158
+        // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+        // downcast to CitizenComponent*; the answer is the same.
+        if (!ibpArray[i].IsNull()) {
+            bool valid = Object::IsDerivedFromNullSafe(ibpArray[i], CitizenComponent::TypeId());  // DAT_1401c7158
             if (!valid) {
                 ibpArray[i] = nullptr;  // null out invalid refs
             }

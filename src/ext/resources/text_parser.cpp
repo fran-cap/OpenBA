@@ -145,14 +145,25 @@ private:
         return ParseBlock(o.body, err);
     }
 
+    // Hardening (review F-038): ParseBlock -> ParseField -> ParseBlock recurses once per
+    // `T f[{` level, 5 bytes of text each, so unbounded nesting overflowed the stack.
+    // The embedded files nest blocks at most 2 deep; anything past kMaxDepth is refused.
+    static constexpr int kMaxDepth = 64;
+
     bool ParseBlock(Block& b, std::string& err) {
+        if (_depth >= kMaxDepth) {
+            err = Where() + "blocks nested too deep";
+            return false;
+        }
         if (!Expect(T::Punct, "{", err)) return false;
+        ++_depth;
         while (!(_tok.kind == T::Punct && _tok.text == "}")) {
             if (_tok.kind == T::End) { err = Where() + "unexpected end of file inside a block"; return false; }
             Field f;
             if (!ParseField(f, err)) return false;
             b.fields.push_back(f);
         }
+        --_depth;
         return Advance(err);   // over the '}'
     }
 
@@ -206,6 +217,7 @@ private:
 
     Lexer _lex;
     Tok   _tok{T::End, "", 1};
+    int   _depth = 0;   // blocks open (F-038)
 };
 
 }  // namespace

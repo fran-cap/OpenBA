@@ -113,19 +113,19 @@ static void SerializeSlots(IO::Serializer& ser, int count, OrchardSlot* slot) {
         // LEFT: InternalBasePtr has no typed view of a bare pointer member.
         slot->tree.InternalBasePtr::Serialize(ser);
         if (slot->tree != nullptr &&
-            !(::Object::IsDerivedFromNullSafe(slot->tree.Get(), ComponentEntity::TypeId())))
+            !(::Object::IsDerivedFromNullSafe(slot->tree, ComponentEntity::TypeId())))
             slot->tree = nullptr;
 
         // LEFT: as above.
         slot->resource.InternalBasePtr::Serialize(ser);
         if (slot->resource != nullptr &&
-            !(::Object::IsDerivedFromNullSafe(slot->resource.Get(), NaturalResourceComponent::TypeId())))
+            !(::Object::IsDerivedFromNullSafe(slot->resource, NaturalResourceComponent::TypeId())))
             slot->resource = nullptr;
 
         // LEFT: as above.
         slot->fruit.InternalBasePtr::Serialize(ser);
         if (slot->fruit != nullptr &&
-            !(::Object::IsDerivedFromNullSafe(slot->fruit.Get(), FruitComponent::TypeId())))
+            !(::Object::IsDerivedFromNullSafe(slot->fruit, FruitComponent::TypeId())))
             slot->fruit = nullptr;
 
         ser.Serialize(slot->picked, nullptr);

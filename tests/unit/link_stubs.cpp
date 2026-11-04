@@ -136,3 +136,14 @@ rtpickgrid::TransformArray* rtpickgrid::TransformArrayAssign(TransformArray*, co
 extern "C" void RtGraphics_Renderer_DrawItemSort(Graphics::RendererDrawItem*, int32_t, void*) {
     UnlinkedBody("RtGraphics_Renderer_DrawItemSort");
 }
+
+// ============================================================================
+// package_file_read_test.cpp: src/engine/io/package_file_read.cpp is linked so the
+// test drives the real ReadPackfile. Its teardown names CompressedStream::Commit
+// (compressed_stream_write.cpp, not linked) behind `_direction == 1`, which a read
+// never sets (CompressedStream::Open stores 0); the stub aborts if it is reached.
+// ============================================================================
+#include "io/Stream.h"
+void IO::CompressedStream::Commit() {
+    UnlinkedBody("IO::CompressedStream::Commit");
+}

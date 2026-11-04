@@ -81,15 +81,15 @@ public:
     }
 
     void Publish() override {
-        *_out       = _made;
-        *_outShared = _shared;
+        *_outShared = _shared;   // before the handle: a use that sees it sees the flag
+        CreateOnDemand::StorePublished(_out, _made);
     }
 
     // share_gpu_data's user is dropped before the strong member lets go (the destructor's order,
     // share_create.h); ARC releases the buffer with the nil store.
     void Evict() override {
         id<MTLBuffer> const buffer = *_out;
-        *_out       = nil;
+        CreateOnDemand::StorePublished(_out, nil);
         *_outShared = false;
         _made       = nil;
         _shared     = false;
@@ -154,15 +154,15 @@ public:
     }
 
     void Publish() override {
-        *_out       = _made;
-        *_outShared = _shared;
+        *_outShared = _shared;   // before the handle: a use that sees it sees the flag
+        CreateOnDemand::StorePublished(_out, _made);
     }
 
     // As the buffer's: the share table's user first, then the strong member lets the texture go. The
     // sampler stays (made at load, as retail makes it).
     void Evict() override {
         id<MTLTexture> const texture = *_out;
-        *_out       = nil;
+        CreateOnDemand::StorePublished(_out, nil);
         *_outShared = false;
         _made       = nil;
         _shared     = false;
@@ -346,12 +346,14 @@ void Keep(const void* companion) {
 }
 
 bool VertexBufferMade(const void* companion) {
-    return companion == nullptr || static_cast<const VideoMetal::VertexBufferData*>(companion)->buffer != nil;
+    return companion == nullptr ||
+           VideoMetal::CreateOnDemand::Made(&static_cast<const VideoMetal::VertexBufferData*>(companion)->buffer);
 }
 
 // A Metal texture has no separate view: the texture is the made object.
 bool ImageMade(const void* companion) {
-    return companion == nullptr || static_cast<const VideoMetal::ImageBufferData*>(companion)->texture != nil;
+    return companion == nullptr ||
+           VideoMetal::CreateOnDemand::Made(&static_cast<const VideoMetal::ImageBufferData*>(companion)->texture);
 }
 
 }  // namespace CreateOnDemandBackend

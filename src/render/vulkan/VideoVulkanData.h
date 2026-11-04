@@ -20,6 +20,7 @@
 #include "resources.h"
 #include "shader_convert.h"
 #include "video/CompanionData.h"
+#include "create_on_demand/lazy_table.h"   // LoadPublished: ext.create_on_demand's published handles
 
 #include <cstdint>
 #include <vector>
@@ -132,6 +133,11 @@ struct BufferStore {
     bool shared = false;
     VkBuffer Buffer() const {
         return dynamic ? (current >= 0 ? versions[current].buffer.buffer : VK_NULL_HANDLE) : gpu.buffer;
+    }
+    // ext.create_on_demand: Buffer() with the static handle read by an acquire load, for the tests
+    // a prefetch worker's Publish may race (create_on_demand/lazy_table.h LoadPublished).
+    VkBuffer PublishedBuffer() const {
+        return dynamic ? Buffer() : ::CreateOnDemand::LoadPublished(gpu.buffer);
     }
 };
 

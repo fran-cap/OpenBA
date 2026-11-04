@@ -747,7 +747,7 @@ void LoaderLoopAdvance(Engine::LoaderLoop* self, const System::Time& time) {
         // `testb $1,0x1801fe7c0` — _loader._thread.runFlags bit 0, the
         // still-running flag. NOT a "finished" field on the loop itself.
         const bool stillRunning =
-            loader && (loader->_runFlags & 1u) != 0;
+            loader && loader->IsWorking();
         if (!stillRunning && self->_elapsedTicks >= self->_delayTicks) {
             if (Engine::MainLoop* ml = MainLoopSingleton())
                 ml->_nextLoop = self->_nextLoop;

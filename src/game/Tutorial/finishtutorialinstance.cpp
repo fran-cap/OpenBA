@@ -123,24 +123,20 @@ void FinishTutorialInstance::Startup() {
     _field20 = newObj;
 
     // Step 5: IsDerivedFrom check on self+0x18 (goal pointer) against FinishTutorialGoal
+    // (0x1400d7b2d: CALL IsDerivedFrom; XOR EDI,EDI; CMOVNZ RDI,RBX).
     const Achievement::Goal* goalObj = _goal.Get();
     const FinishTutorialGoal* ftGoal = nullptr;
-    if (goalObj) {
-        bool isDerived = Object::IsDerivedFromNullSafe(goalObj, FinishTutorialGoal::TypeId());
-        if (isDerived) {
-            ftGoal = static_cast<const FinishTutorialGoal*>(goalObj);
-        }
+    bool isDerived = Object::IsDerivedFromNullSafe(goalObj, FinishTutorialGoal::TypeId());
+    if (isDerived) {
+        ftGoal = static_cast<const FinishTutorialGoal*>(goalObj);
     }
 
-    // Step 6: CheckPtr on self+0x20, then copy goal fields to tutInst
-
+    // Step 6: CheckPtr on self+0x20, then copy goal fields to tutInst, with no
+    // test of either (0x1400d7b44: MOV RDX,[RSI]; MOV RAX,[RDI+0x30];
+    // MOV [RDX+0x30],RAX; MOV dword ptr [RDX+0x10],0).
     TutorialInstance* tutInst = _field20.Get();
-    if (tutInst && ftGoal) {
-        // Copy the tutorial definition reference
-        tutInst->tutorialDef = ftGoal->_field30;
-        // Reset current step to 0
-        tutInst->currentStep = 0;
-    }
+    tutInst->tutorialDef = ftGoal->_field30;
+    tutInst->currentStep = 0;
 
     { if (s_logStartup.fetch_add(1) == 0) {
         std::fprintf(stderr, "[FinTutInst] Slot4 INIT self=%p tutInst=%p goalObj=%p ftGoal=%p "
@@ -155,21 +151,12 @@ void FinishTutorialInstance::Startup() {
     if (GameUpdateLoop::_singleton != nullptr) {
         PlayerToolManager* treeRoot = GameUpdateLoop::_singleton->m_toolManager;
 
-        // The tutorial's setup description (tutDef +0x20)
+        // The tutorial's setup description (tutDef +0x20; 0x1400d7b6b: no test)
         Tutorial* tutDef = tutInst->tutorialDef;
-        ComponentDescription* tutorialId = nullptr;
-        if (tutDef) {
-            tutorialId = tutDef->setup;
-        }
+        ComponentDescription* tutorialId = tutDef->setup;
 
-        // The device's back-buffer width (+0x04) - 0x1d0
-        int widthParam = 0;
-        {
-            Video::Device* singletonObj = ::Video::Device::_singleton;
-            if (singletonObj) {
-                widthParam = singletonObj->backBufferWidth - 0x1d0;
-            }
-        }
+        // The device's back-buffer width (+0x04) - 0x1d0 (0x1400d7b60: no test)
+        int widthParam = ::Video::Device::_singleton->backBufferWidth - 0x1d0;
 
         treeRoot->TutorialTreeInsert(tutorialId, p3, static_cast<uint32_t>(widthParam));   // 0x1401001f0
     }
@@ -202,10 +189,8 @@ void FinishTutorialInstance::Update(const System::Time& time, const Achievement:
         std::fprintf(stderr, "[FinTutInst] Slot5 TICK self=%p tutInst=%p\n",
                 static_cast<void*>(self), static_cast<void*>(tutInst)); std::fflush(stderr); } }
 
-    // Delegate to the tutorial step execution helper
-    if (tutInst) {
-        tutInst->StepExecute(p2, p3, 0);   // 0x1400e1db0
-    }
+    // Delegate to the tutorial step execution helper (0x1400d7a50: tail JMP, no test)
+    tutInst->StepExecute(p2, p3, 0);   // 0x1400e1db0
 }
 
 // ============================================================
@@ -218,13 +203,10 @@ void FinishTutorialInstance::Update(const System::Time& time, const Achievement:
 //   vs tutorialInst->+0x10 (current step)
 // Returns: currentStep >= totalSteps
 Achievement::Goal::GoalState FinishTutorialInstance::CheckGoalState() const {
-    // Read the TutorialInstance pointer
+    // Read the TutorialInstance pointer and its tutorial definition, with no test
+    // (0x1400d7bb0: MOV RDX,[RBX]; MOV RCX,[RDX+0x30]; MOV ECX,[RCX+0x30]).
     const TutorialInstance* tutInst = _field20.Get();
-    if (tutInst == nullptr) return static_cast<Achievement::Goal::GoalState>(0);
-
-    // Read the tutorial definition
     const Tutorial* tutDef = tutInst->tutorialDef;
-    if (tutDef == nullptr) return static_cast<Achievement::Goal::GoalState>(0);
 
     // Compare: totalSteps <= currentStep
     int totalSteps = tutDef->steps._size;

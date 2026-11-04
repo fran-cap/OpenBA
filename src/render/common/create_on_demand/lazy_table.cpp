@@ -229,10 +229,20 @@ int64_t LazyTable::Sweep() {
     // the table's mutex (no materialization publishes meanwhile) and give back each candidate still
     // made and still idle.
     const uint64_t t0 = NowNs();
-    _gate.Close();
+    // A use that does not leave within the bound may be waiting for a lock whose holder waits at the
+    // gate (use_tracker.h): this sweep gives up (the gate reopened) and the next epoch tries again.
+    if (!_gate.Close(kGateWaitLimit)) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _stats.evictNs += NowNs() - t0;
+        return 0;
+    }
     int64_t evicted = 0;
     {
         std::lock_guard<std::mutex> lock(_mutex);
+        // Pause() may have returned while this waited at the gate (review F-209 / F-210): the device is
+        // going away and nothing is given back on it. Pause sets the flag under this mutex, so an
+        // eviction that did not see it finished before Pause returned.
+        if (_paused) candidates.clear();
         for (const void* obj : candidates) {
             auto it = _entries.find(obj);
             if (it == _entries.end()) continue;

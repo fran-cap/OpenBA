@@ -284,6 +284,24 @@ void Filename::AdjustDelimiters() {
         if (!collapse)
             return;
 
+        // NOT RETAIL (hardening, review F-078): retail 0x1800c6970 has no such
+        // check. A splice from the current scan has lastDelim < i and shortens
+        // the path. Only the STALE lastDelim of an earlier scan (see the note
+        // above) can sit at or past i + 3, and then the splice is no shorter:
+        // at i + 3 it rebuilds the same string and the outer loop repeats it
+        // forever ("\..\\..\x08.", "\..\a\..\b"); past it, it copies a segment
+        // twice, usually growing without end ("\..a\\..aa"), and with
+        // lastDelim > len the head SubString reads past the buffer. Such a
+        // splice is refused and the path is left as the scan found it. Splices
+        // that shorten, i.e. every ".." of a real path, are unchanged. Over all
+        // 2.39M strings of length <= 13 on { a \ . }, a model of this loop
+        // matches retail on every input retail finishes, except 36 that hold a
+        // doubled '\' and a "..." segment (retail duplicates a segment, then
+        // collapses it); the 16,047 that hang in retail now return.
+        // tests/unit/filename_adjust_hang_test.cpp.
+        if (lastDelim >= i + 3)
+            return;
+
         String tail    = AsString().SubString(i + 3, len - 1);
         String head    = AsString().SubString(0, lastDelim - 1);
         String spliced = head + tail;

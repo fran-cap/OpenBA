@@ -99,8 +99,9 @@ void ImmigrationComponent::Persist(IO::Stream& stream) {
     Object::InternalPtr<ComponentEntity>* element = group._data;
     for (int64_t remaining = arrayCount; remaining > 0; --remaining, ++element) {
         element->InternalBasePtr::Serialize(ser);
-        ComponentEntity* obj = element->Get();
-        if (obj != nullptr && !::Object::IsDerivedFromNullSafe(obj, ComponentEntity::TypeId()))
+        // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+        // downcast to ComponentEntity*; the answer is the same.
+        if (!element->IsNull() && !::Object::IsDerivedFromNullSafe(*element, ComponentEntity::TypeId()))
             *element = nullptr;
     }
     waitTimer.Serialize(ser);
