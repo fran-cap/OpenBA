@@ -64,11 +64,6 @@ namespace RtIO {
 
 using RtIo::FileStream;
 
-// Attendance for the two bodies in this file; published to the cutover probe
-// through file_stream.cpp's block so every slot's count prints in one place.
-uint64_t g_fsWrite = 0, g_fsWriteFull = 0;
-uint64_t g_fsSeek = 0, g_fsSeekPlatform = 0;
-
 // (Wave 20 lane PROMOTE's vptr-identity counter used to be declared here and
 // called from both bodies below. It died WHOLE with `IO::BinaryFileStream` —
 // B34_RULES section 4.1, and file_stream.cpp says why.)
@@ -108,8 +103,6 @@ namespace IO {
 // THE CURSOR IS ADVANCED UNCONDITIONALLY, before the comparison (0x1800aabcc),
 // so it moves even on the short-write path.
 bool FileStream::Write(int len, const void* buf) {
-    ++RtIO::g_fsWrite;
-
     uint32_t written = 0;                                       // 1800aabb8
     Platform::FileWrite(_file.winHandle,      // 1800aaba5: [RCX+0x38]
                         buf, static_cast<uint32_t>(len), &written);  // 1800aabc1 WriteFile
@@ -117,7 +110,6 @@ bool FileStream::Write(int len, const void* buf) {
     _file.cursor += static_cast<int32_t>(written);              // 1800aabcc: ADD [RBX+0x2c]
 
     const bool ok = (static_cast<int32_t>(written) == len);     // 1800aabd5
-    if (ok) ++RtIO::g_fsWriteFull;
     return ok;
 }
 
@@ -141,8 +133,6 @@ bool FileStream::Write(int len, const void* buf) {
 // `SetFilePointer(h, pos, nullptr, FILE_BEGIN)` — `FILE_BEGIN` is 0 and arrives
 // as `XOR R9D,R9D` at 0x1800aac2d, the high-order-word pointer as `XOR R8D,R8D`.
 bool FileStream::SetCurrentPos(int pos) {
-    ++RtIO::g_fsSeek;
-
     _file.cursor = pos;                                  // 1800aac1c — BEFORE the branch
 
     // Unsigned: -1 and -2 take the Win32 path, a packed descriptor does not.
@@ -150,7 +140,6 @@ bool FileStream::SetCurrentPos(int pos) {
         return true;                                     // 1800aac21
     }
 
-    ++RtIO::g_fsSeekPlatform;
     const uint32_t got = Platform::FileSeek32(
         _file.winHandle,        // 1800aac29
         pos);                                             // 1800aac33 SetFilePointer(.., NULL, FILE_BEGIN)

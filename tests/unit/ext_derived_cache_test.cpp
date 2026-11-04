@@ -796,3 +796,52 @@ UNIT_TEST(ext_derived_cache_unknown_format_starts_empty) {
     CHECK_EQ(s.GetStats().entries, 0ull);
     CHECK_EQ(s.BytesOnDisk(), 64ull);
 }
+
+// Review F-036: a record whose size wraps offset + size past 2^64. Offset 32 + size 2^64 - 16 is
+// 16, under the data file's size, so LoadIndex kept the record and Find resized its output to
+// 2^64 - 16 bytes (std::length_error, uncaught). The record check is a plain XXH64 of the record,
+// so a damaged or planted derived.idx can carry a valid one. The record is now a damaged tail.
+UNIT_TEST(ext_derived_cache_wrapping_record_size_is_dropped) {
+    TempDir t;
+    {
+        Store s;
+        CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+        s.Put(MakeKey(1), Payload(32, 10));
+    }
+    {
+        std::fstream f(t.File("derived.idx"), std::ios::binary | std::ios::in | std::ios::out);
+        IndexRecord r;
+        f.seekg(32);
+        f.read(reinterpret_cast<char*>(&r), sizeof(r));   // CAST-OK: test file bytes
+        CHECK_EQ(r.offset, 32ull);
+        const uint8_t size[8] = { 0xF0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };   // 2^64 - 16
+        std::memcpy(&r.size, size, sizeof(size));
+        r.check = Hash64(&r, offsetof(IndexRecord, check));
+        f.seekp(32);
+        f.write(reinterpret_cast<const char*>(&r), sizeof(r));   // CAST-OK: test file bytes
+    }
+    Store s;
+    CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+    CHECK_EQ(s.GetStats().entries, 0ull);
+    std::vector<uint8_t> out;
+    CHECK(!s.Find(MakeKey(1), out));
+    CHECK(out.empty());
+    CHECK_EQ(s.BytesOnDisk(), 64ull);
+}
+
+// Review F-063: Hash64's tail loops formed p + 8 / p + 4 past one-past-the-end (and nullptr + 8
+// for an empty buffer). The values are XXH64's, at the very end of an exact-size allocation and
+// for (nullptr, 0).
+UNIT_TEST(ext_derived_cache_hash64_tails_stay_in_the_buffer) {
+    CHECK_EQ(Hash64(nullptr, 0), 0xEF46DB3751D8E999ull);
+    const char* s = "Nobody inspects the spammish repetition";   // 39 bytes: 32 + 4 + 3
+    const size_t n = std::strlen(s);
+    std::vector<uint8_t> exact(s, s + n);
+    CHECK_EQ(Hash64(exact.data(), exact.size()), 0xFBCEA83C8A378BF1ull);
+    for (size_t len = 1; len < 8; ++len) {
+        std::vector<uint8_t> tail(exact.end() - static_cast<std::ptrdiff_t>(len), exact.end());
+        std::vector<uint8_t> roomy(tail);
+        roomy.resize(64);
+        CHECK_EQ(Hash64(tail.data(), tail.size()), Hash64(roomy.data(), len));
+    }
+}

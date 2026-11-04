@@ -205,7 +205,7 @@ void SerializeBuffer(Data* self, IO::Serializer* serializer, VkBufferUsageFlags 
     // waiting for its first use is made first (the save arm).
     CreateOnDemand::UseScope use(self);
     const bool loading = static_cast<int>(serializer->GetDirection()) == 0;
-    if (!loading && self->store.Buffer() == VK_NULL_HANDLE) CreateOnDemand::Ensure(self);
+    if (!loading && self->store.PublishedBuffer() == VK_NULL_HANDLE) CreateOnDemand::Ensure(self);
     auto* owner = self->_owner;
     serializer->Serialize(owner->dynamic, nullptr);
     serializer->Serialize(owner->size, nullptr);
@@ -214,7 +214,8 @@ void SerializeBuffer(Data* self, IO::Serializer* serializer, VkBufferUsageFlags 
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/CREATEONDEMAND.md): ext.create_on_demand -- a static
         // buffer read from a packed resource file is not read: its create waits for its first use and the
         // stream skips the payload. The owner already holds the size / dynamic Create would store.
-        if (CreateOnDemand::Requested() && owner->dynamic == 0 && self->store.Buffer() == VK_NULL_HANDLE) {
+        if (CreateOnDemand::Requested() && owner->dynamic == 0 &&
+            self->store.PublishedBuffer() == VK_NULL_HANDLE) {
             const bool index = (usage & VK_BUFFER_USAGE_INDEX_BUFFER_BIT) != 0;
             if (CreateOnDemand::DeferBuffer(self, serializer->_stream, index, static_cast<uint32_t>(owner->size), usage,
                                             &self->store)) {
@@ -508,7 +509,7 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
     // NOT RETAIL (ext.create_on_demand): the first bind of a deferred texture makes it (the draw makes
     // it again after an eviction: draw.cpp); a made one pays the null test.
     CreateOnDemand::UseScope use(this);
-    if (!image.view) CreateOnDemand::Ensure(this);
+    if (!::CreateOnDemand::LoadPublished(image.view)) CreateOnDemand::Ensure(this);
     DrawSetTexture(slot, this);
 }
 
@@ -517,7 +518,7 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
 bool ImageBufferData::Update(void* data, int width, int height) {
     AsyncCreate::Await(this);                      // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);            // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (!image.view) CreateOnDemand::Ensure(this);
+    if (!::CreateOnDemand::LoadPublished(image.view)) CreateOnDemand::Ensure(this);
     // NOT RETAIL (ext.share_gpu_data, ext.compress_ao): a shared image is never written (D3D11 refuses
     // its IMMUTABLE texture), and a BC4 image does not hold the R8 rows the engine would write (the Metal
     // backend's answer).
@@ -542,7 +543,7 @@ bool ImageBufferData::Update(void* data, int width, int height) {
 bool ImageBufferData::Read(void* dst, int width, int height) {
     AsyncCreate::Await(this);                      // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);            // NOT RETAIL (ext.create_on_demand): no eviction meanwhile
-    if (!image.view) CreateOnDemand::Ensure(this);
+    if (!::CreateOnDemand::LoadPublished(image.view)) CreateOnDemand::Ensure(this);
     Video::Device* const dev = Video::Device::_singleton;
     dev->Lock();
     const bool ok = DrawReadImage(this, dst, width, height);
@@ -580,7 +581,7 @@ void IndexBufferData::Bind(void* context) {
     (void)context;
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): made at its first bind
-    if (store.Buffer() == VK_NULL_HANDLE) CreateOnDemand::Ensure(this);
+    if (store.PublishedBuffer() == VK_NULL_HANDLE) CreateOnDemand::Ensure(this);
     DrawSetIndexBuffer(this);
 }
 
@@ -617,7 +618,7 @@ void VertexBufferData::Bind(void* context, uint32_t startSlot, uint32_t offsetBy
     (void)context;
     AsyncCreate::Await(this);   // NOT RETAIL (ext.async_gpu_create)
     CreateOnDemand::UseScope use(this);   // NOT RETAIL (ext.create_on_demand): made at its first bind
-    if (store.Buffer() == VK_NULL_HANDLE) CreateOnDemand::Ensure(this);
+    if (store.PublishedBuffer() == VK_NULL_HANDLE) CreateOnDemand::Ensure(this);
     DrawSetVertexStream(startSlot, this, offsetBytes, strideBytes);
 }
 

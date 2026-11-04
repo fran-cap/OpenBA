@@ -786,7 +786,7 @@ static void EnqueueNode(PathfinderThread* self, const PathCommandArgs& cmd) {
     self->queueCount = self->queueCount + 1;
     self->queueTail = node;
     self->lock.Unlock();
-    if ((self->_runFlags & 1) == 0) {
+    if (!self->IsWorking()) {
         self->Start();
     }
 }

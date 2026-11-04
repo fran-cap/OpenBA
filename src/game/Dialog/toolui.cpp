@@ -371,21 +371,9 @@ void ToolUI::OnUpdate(const System::Time& /*time*/) {
     if (Input::Configuration::_singleton == nullptr
         || GameUpdateLoop::_singleton == nullptr) return;
 
-    // --- Standalone drag-enable for entity / citizen info panels ---------------
-    // Retail arms the entity panel's title-bar drag through EntityUI's per-frame
-    // input handler (exe 0x140066AD0 EntityUI::Slot8), which UNCONDITIONALLY sets
-    // this ToolUI controller's pinOnDrag = 1 every frame. In standalone that
-    // EntityUI input slot is not dispatched per frame, so pinOnDrag is never set
-    // and the entity/citizen panel can never arm a drag. Utility dialogs are
-    // unaffected: they drag via the borderTitle handle (pinned, set in OnCreated)
-    // and their datasource is a ComponentDescription, not a ComponentEntity.
-    //
-    // Scope it DIALOG-side — "does this dialog carry an EntityUI controller?" via
-    // GetController — never by type-checking the datasource entity (a datasource
-    // mid-teardown has a nulled class-info; crashed live 2026-07-20).
-    bool entityDialog = ToolUI_DialogHasEntityUI(_dialog);
-    if (entityDialog)
-        pinOnDrag = 1;
+    // Retail starts at the pending-drag test: it never writes pinOnDrag (+0x4C) here.
+    // An entity panel's pinOnDrag is set every frame by EntityUI::OnUpdate (slot 8,
+    // 0x140066ad0).
 
     // Pending drag: check mouse movement threshold
     if (isDragPending != 0) {
@@ -438,15 +426,16 @@ void ToolUI::OnUpdate(const System::Time& /*time*/) {
             node->y = newY;
         }
 
-        // If entity is a ComponentEntity, update via SelectEntity.
-        // Same landmine as the drag-arm block above: IsDerivedFrom on a datasource
-        // whose entity is mid-teardown reads nulled class-info. Only reachable
-        // mid-drag, but a demolition can complete during a drag — gate on the
-        // dialog-side entityDialog fact (so description datasources are never
-        // probed) and on SA_DialogEntityAlive (weak-ref null / 0x400 marked), which
-        // is only meaningful/safe once we know the datasource is an entity.
+        // If the datasource is a ComponentEntity, track its panel position: retail
+        // IsDerivedFrom(_dataSource, ComponentEntity) && _dataSource != null.
+        // NOT RETAIL: the dialog-side EntityUI test and SA_DialogEntityAlive (weak-ref
+        // null / 0x400 marked) run first. IsDerivedFrom on a datasource whose entity is
+        // mid-teardown reads a nulled class-info (AV live 2026-07-20, see
+        // ToolUI_DialogHasEntityUI); a demolition can complete during a drag, and what
+        // leaves such a datasource on an open panel is not found yet. For a live entity
+        // or a description datasource the outcome is retail's.
         Object::Base* dataSource = _dataSource;
-        bool isEntity = entityDialog && dataSource != nullptr &&
+        bool isEntity = ToolUI_DialogHasEntityUI(_dialog) && dataSource != nullptr &&
                         SA_DialogEntityAlive(this) &&
                         ::Object::IsDerivedFromNullSafe(dataSource, ComponentEntity::TypeId());
         if (isEntity && dataSource != nullptr) {

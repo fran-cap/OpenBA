@@ -56,44 +56,16 @@ Save::SaveLoad::SaveInfo::SaveInfo(const SaveInfo&) { UnlinkedBody("Save::SaveLo
 Save::SaveLoad::ModInfo::ModInfo(const ModInfo&) { UnlinkedBody("Save::SaveLoad::ModInfo::ModInfo(const ModInfo&)"); }
 Save::SaveLoad::ModInfo::~ModInfo() { UnlinkedBody("Save::SaveLoad::ModInfo::~ModInfo"); }
 
-// B.4 Y RT: `Graphics::GraphicsMesh::_nodes` is `NodeArray`, whose ~Array names
-// the hand-derived row `rtcoll::gfxanim::kSpec_MeshNode`
-// (src/engine/collection/array_graphics_anim.cpp, not linked into the unit build:
-// it pulls in the graphics element copy ctors). The GraphicsMesh probe's inline
-// ctor references it from its cleanup path only; no test sizes or destroys a
-// node array, so the row's operations abort if one ever does.
-namespace {
-void UnlinkedNodeAssign(uint8_t*, const uint8_t*) { UnlinkedBody("kSpec_MeshNode assign"); }
-void UnlinkedNodeInit(uint8_t*) { UnlinkedBody("kSpec_MeshNode init"); }
-void UnlinkedNodeDestroy(void*, uint8_t*, int) { UnlinkedBody("kSpec_MeshNode destroy"); }
-}  // namespace
-namespace rtcoll { namespace gfxanim {
-const ArraySpec kSpec_MeshNode = {
-    "Array<GraphicsMesh::Node> (unit stub)", 0x48, 8,
-    &UnlinkedNodeAssign, &UnlinkedNodeInit, &UnlinkedNodeDestroy, false,
-    0, 0, 0, 0, 0, 0 };
-} }  // namespace rtcoll::gfxanim
-
-// B.4 Z MIRROR2 GFX: `Graphics::AnimationState::_layers` (MeshInstance::_animation)
-// is on the hand-derived row `kSpec_AnimLayer`, same file, same reason. Its
-// destroy step is null in the real row too (J1 only), so a MeshInstance probe's
-// ~Array frees exactly as the real build does; assign / init abort.
-namespace {
-void UnlinkedLayerAssign(uint8_t*, const uint8_t*) { UnlinkedBody("kSpec_AnimLayer assign"); }
-void UnlinkedLayerInit(uint8_t*) { UnlinkedBody("kSpec_AnimLayer init"); }
-}  // namespace
-namespace rtcoll { namespace gfxanim {
-const ArraySpec kSpec_AnimLayer = {
-    "Array<Graphics::AnimationState::Layer> (unit stub)", 0x38, 8,
-    &UnlinkedLayerAssign, &UnlinkedLayerInit, nullptr, true,
-    0, 0, 0, 0, 0, 0 };
-// `MeshInstance::_nodes` / `InstancedAnimationState::_nodes`: kSpec_InterpTransform,
-// likewise (real row: stride 0x38, alignment 4, no destroy step).
-const ArraySpec kSpec_InterpTransform = {
-    "Array<Graphics::InterpolatedState<Math::Transform>> (unit stub)", 0x38, 4,
-    &UnlinkedLayerAssign, &UnlinkedLayerInit, nullptr, true,
-    0, 0, 0, 0, 0, 0 };
-} }  // namespace rtcoll::gfxanim
+// B.4 Y RT: `Graphics::GraphicsMesh::_nodes` is `NodeArray`, whose row kSpec_MeshNode (and
+// kSpec_AnimLayer / kSpec_InterpTransform beside it) lives in
+// src/engine/collection/array_graphics_anim.cpp. That file is linked since review F-049
+// (review_engine_ub_test.cpp drives kSpec_MeshNode's init row). Its three element copy
+// constructors live in src/engine/graphics/animationstate.cpp, which is not linked (it pulls in
+// the graphics serializers); no test copies a node, state or instance element, so each aborts
+// if one ever does.
+extern "C" void* RtGraphics_MeshNode_CopyCtor(void*, const void*) { UnlinkedBody("RtGraphics_MeshNode_CopyCtor"); }
+extern "C" void* RtGraphics_AnimState_CopyCtor(void*, const void*) { UnlinkedBody("RtGraphics_AnimState_CopyCtor"); }
+extern "C" void* RtGraphics_AnimInstance_CopyCtor(void*, const void*) { UnlinkedBody("RtGraphics_AnimInstance_CopyCtor"); }
 
 // ============================================================================
 // System::Random is the REAL class now (2026-10-17): src/engine/system/value_types.cpp
@@ -144,8 +116,7 @@ int32_t Picking::Scene::Intersect(const Math::Vector3&, const Math::Vector3&, co
 // The three members below live in achievement_manager.cpp and achievement_state.cpp,
 // which the unit does not link (other tests stub that file's members with markers);
 // none is reached by the test's states, and each stub aborts if one is.
-// ============================================================================
-#include "io/FileSystem.h"
+// =====================================================================#include "io/FileSystem.h"
 #include "achievement/AchievementManager.h"
 IO::FileSystem* IO::FileSystem::_singleton = nullptr;
 void Achievement::AchievementInstance::Update(const System::Time&) {
@@ -156,4 +127,13 @@ bool Achievement::AchievementInstance::IsMet() const {
 }
 bool Achievement::AchievementManager::SetAchievementMet(int) {
     UnlinkedBody("Achievement::AchievementManager::SetAchievementMet");
+=======
+// package_file_read_test.cpp: src/engine/io/package_file_read.cpp is linked so the
+// test drives the real ReadPackfile. Its teardown names CompressedStream::Commit
+// (compressed_stream_write.cpp, not linked) behind `_direction == 1`, which a read
+// never sets (CompressedStream::Open stores 0); the stub aborts if it is reached.
+// ============================================================================
+#include "io/Stream.h"
+void IO::CompressedStream::Commit() {
+    UnlinkedBody("IO::CompressedStream::Commit");
 }

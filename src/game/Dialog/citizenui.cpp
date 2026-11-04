@@ -443,10 +443,11 @@ void CitizenUI::OnUpdateLayout() {
         buttonProfession->Enable(profEnabled);   // Element slot 8 Enable (vtable+0x40)
     }
 
-    // --- Home button virtual call ---
+    // --- Home button enabled state ---
+    // Enabled if the citizen has a home: retail 0x140064f52 CMP [citizen + 0x238],0 /
+    // SETNZ DL, then CALL [R8 + 0x40] on buttonHome.
     if (buttonHome) {
-        // Original passes result of CheckPtr on the citizen (always true if we got here)
-        buttonHome->Enable(true);   // Element slot 8 Enable (vtable+0x40)
+        buttonHome->Enable(ai->home.Get() != nullptr);   // Element slot 8 Enable (vtable+0x40)
     }
 
     // --- textNameIs: set name parameter ---

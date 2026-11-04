@@ -126,7 +126,7 @@ void TradeWork::SerializeAssignments(IO::Serializer& ser) {
             // Validate the deserialized object against CitizenComponent (DWORD_1401c7158,
             // ENDGAME B.3.9 D5: by cell, read directly).
             if (rec.citizen != nullptr &&
-                !Object::IsDerivedFromNullSafe(rec.citizen.Get(), CitizenComponent::TypeId())) {
+                !Object::IsDerivedFromNullSafe(rec.citizen, CitizenComponent::TypeId())) {
                 rec.citizen = nullptr;
             }
             ser.Serialize(rec.quantity, nullptr);
@@ -150,7 +150,7 @@ void TradeWork::SerializeAssignments(IO::Serializer& ser) {
             // Serialize this node's citizen (+0x00), quantity (+0x10), resource (+0x08).
             node->value.citizen.InternalBasePtr::Serialize(ser);
             if (node->value.citizen != nullptr &&
-                !Object::IsDerivedFromNullSafe(node->value.citizen.Get(), CitizenComponent::TypeId())) {
+                !Object::IsDerivedFromNullSafe(node->value.citizen, CitizenComponent::TypeId())) {
                 node->value.citizen = nullptr;
             }
             ser.Serialize(node->value.quantity, nullptr);

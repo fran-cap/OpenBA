@@ -77,7 +77,7 @@ namespace {
 template <class T>
 void SerializeValidatedIBP(Object::InternalPtr<T>& field, IO::Serializer& ser, uint32_t tid) {
     field.InternalBasePtr::Serialize(ser);
-    if (field && tid && !::Object::IsDerivedFromNullSafe(field.Get(), tid))
+    if (field && tid && !::Object::IsDerivedFromNullSafe(field, tid))
         field = nullptr;
 }
 

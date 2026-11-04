@@ -15,6 +15,7 @@
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Work/TendArea.h"
+#include "Work/work_rules.h"   // review F-199..F-206: the shared Execute decisions
 #include "object/Internal.h"
 #include "object/TypeInfo.h"
 #include "Game/exe_bodies.h"
@@ -98,7 +99,7 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
         workComp->workState = maxWorkers;
     }
 
-    if (currentWorkers >= workComp->workState) {
+    if (WorkRules::OverWorkerCap(currentWorkers, workComp->workState)) {   // 0x1400f54ed CMP; JLE
         return 1;  // At capacity, no work
     }
 

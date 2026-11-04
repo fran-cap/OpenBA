@@ -91,7 +91,17 @@ bool CombineImageSamplers(std::vector<uint32_t>* spirv, uint32_t set, ShaderRefl
             SetWhy(why, "combine: malformed instruction stream");
             return false;
         }
-        insts.push_back(Inst{at, Op(m[at]), words});
+        // Hardening (review F-089, F-090, F-091): the instructions this pass reads at fixed operands,
+        // shorter than the grammar's minimum (OpTypeSampler 2 words, OpEntryPoint and OpLoad 4), are
+        // refused here; the reads below ran past the instruction, and past the module when it was
+        // the last one. dxbc-spirv never emits them.
+        const uint32_t op = Op(m[at]);
+        if ((op == kOpTypeSampler && words < 2) || (op == kOpEntryPoint && words < 4) ||
+            (op == kOpLoad && words < 4)) {
+            SetWhy(why, "combine: a short instruction (opcode " + std::to_string(op) + ")");
+            return false;
+        }
+        insts.push_back(Inst{at, op, words});
         at += words;
     }
     std::map<uint32_t, uint32_t> imageDim;          // OpTypeImage id -> Dim

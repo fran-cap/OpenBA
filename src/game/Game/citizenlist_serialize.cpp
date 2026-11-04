@@ -209,9 +209,10 @@ void SerializeIBPArray(CitizenIbpList<T>& list, IO::Serializer* serializer, uint
     for (int32_t i = 0; i < count; ++i) {
         Object::InternalPtr<T>* elem = &arr[i];
         elem->Object::InternalBasePtr::Serialize(*serializer);   // 0x140152aa0 on the element (0x14008f7f8)
-        T* val = elem->Get();
-        if (val != nullptr) {
-            if (!::Object::IsDerivedFromNullSafe(val, typeId)) {
+        // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+        // downcast to T*; the answer is the same.
+        if (!elem->IsNull()) {
+            if (!::Object::IsDerivedFromNullSafe(*elem, typeId)) {
                 *elem = nullptr;
             }
         }

@@ -468,6 +468,27 @@ UNIT_TEST(ext_natural_growth_vertex_refusals) {
     CHECK(!NgRewrite::Transform(Analyse(junk), &out));
 }
 
+// Review F-027: an OSGN whose TEXCOORD name is the chunk's last 8 bytes, with no NUL. AppendElement's
+// strncmp(name, "TEXCOORD", 9) read the byte past the chunk to find the terminator. The chunk is
+// padded to 4 MiB so Transform's copy of it is a fresh, zero-filled block on every host: before the
+// hardening that zero ended the name and the element matched; now the unterminated name is no match
+// and the rewrite is refused.
+UNIT_TEST(ext_natural_growth_unterminated_signature_name) {
+    NgRewrite::Match m = Analyse(VertexBlob(VsShape::Colour));
+    CHECK(m.kind == NgRewrite::Kind::BillboardColour);
+    Dxbc::Chunk* osgn = m.cont.Find(Dxbc::FourCC('O', 'S', 'G', 'N'));
+    CHECK(osgn != nullptr);
+    std::vector<uint8_t>& d = osgn->data;
+    d.resize(d.size() + (4u << 20), 0xAA);   // filler, no name points into it
+    const uint32_t at = static_cast<uint32_t>(d.size());
+    const uint8_t kName[8] = {0x54, 0x45, 0x58, 0x43, 0x4F, 0x4F, 0x52, 0x44};   // "TEXCOORD", no NUL
+    d.insert(d.end(), kName, kName + 8);
+    std::memcpy(d.data() + 8 + 24 * 1, &at, 4);   // both TEXCOORD elements (o1, o2) name it
+    std::memcpy(d.data() + 8 + 24 * 2, &at, 4);
+    std::vector<uint8_t> out;
+    CHECK(!NgRewrite::Transform(m, &out));
+}
+
 UNIT_TEST(ext_natural_growth_pixel_colour_match_and_meaning) {
     const std::vector<uint8_t> blob = PixelBlob(PsShape::Colour);
     const NgRewrite::Match m = Analyse(blob);

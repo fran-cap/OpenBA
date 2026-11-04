@@ -48,6 +48,20 @@ public:
     // helper; the ones that read a StatGoal field are the members below.
     uint32_t StatValue(uint32_t statType, const Object::External* ext) const;
 
+    // SumProductionWindow's (0x1400d8c50) window ends, in the 48-per-year series
+    // slots: lo = ((year - statSubType) - 1) * 0x30, hi = year * 0x30 - 0x30 + frac.
+    // Retail: `MOV EAX,[RDI]; SUB EAX,[RBP+0x7c]; DEC EAX; LEA R8D,[RAX+RAX*2]; SHL R8D,4`
+    // and `LEA R9D,[RBX+RBX*2]; SHL R9D,4; ADD R9D,-0x30`, 32-bit wrapping arithmetic.
+    // NOT RETAIL (review F-165): done in uint32_t and cast back, so a statSubType from an
+    // achievement resource (or a year from a save) far enough out to wrap gives retail's
+    // wrapped value instead of int32 signed overflow (undefined behaviour in C++).
+    static constexpr int32_t ProductionWindowLo(int32_t year, int32_t yearsBack) {
+        return static_cast<int32_t>((static_cast<uint32_t>(year) - static_cast<uint32_t>(yearsBack) - 1u) * 0x30u);
+    }
+    static constexpr int32_t ProductionWindowHi(int32_t year, int32_t frac) {
+        return static_cast<int32_t>(static_cast<uint32_t>(year) * 0x30u - 0x30u + static_cast<uint32_t>(frac));
+    }
+
 private:
     uint32_t SumStorageAmounts(const Object::External* ext) const;        // 0x1400d9650
     uint32_t CountDistinctTracked(const Object::External* ext) const;     // 0x1400d8d70

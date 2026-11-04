@@ -39,12 +39,18 @@ struct Job {
     std::function<void()> run;
 };
 
-std::mutex g_mutex;
-std::condition_variable g_workCv;   // a job was queued
-std::condition_variable g_doneCv;   // a job finished (Await / Drain / back-pressure)
-std::deque<Job> g_queue;
-std::unordered_set<const void*> g_pendingObjs;
-std::set<uint64_t> g_pendingSeqs;
+// NOT RETAIL (UB fix, review F-069): IMMORTAL, made at static initialisation and never destroyed. The
+// workers are detached and stay parked in g_workCv.wait for the rest of the run; as namespace-scope
+// objects, exit() destroyed this state under them, and destroying a condition variable that has
+// blocked waiters is undefined ([thread.condition.condvar]): glibc's pthread_cond_destroy waits for
+// them forever, so the process hung in exit(). Same rule as src/platform/common/event_std.cpp.
+std::mutex& g_mutex = *new std::mutex;
+std::condition_variable& g_workCv = *new std::condition_variable;  // a job was queued
+// a job finished (Await / Drain / back-pressure)
+std::condition_variable& g_doneCv = *new std::condition_variable;
+std::deque<Job>& g_queue = *new std::deque<Job>;
+std::unordered_set<const void*>& g_pendingObjs = *new std::unordered_set<const void*>;
+std::set<uint64_t>& g_pendingSeqs = *new std::set<uint64_t>;
 uint64_t g_nextSeq = 0;
 uint64_t g_bytesHeld = 0;
 int g_waiters = 0;

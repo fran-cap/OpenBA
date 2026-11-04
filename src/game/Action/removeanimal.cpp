@@ -65,9 +65,10 @@ void RemoveAnimal::Persist(IO::Stream& stream) {
 
     // Type-check: a loaded ref that is not a ComponentEntity is cleared
     // (0x1400ca8d8 TEST / 0x1400ca8e1 MOV EDX,[0x1401c5d70] / 0x1400ca8f1 store 0).
-    ComponentEntity* entityRef = _field20.Get();
-    if (entityRef != nullptr) {
-        if (!entityRef->IsDerivedFrom(ComponentEntity::TypeId())) {
+    // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+    // downcast to ComponentEntity*; the answer is the same.
+    if (!_field20.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
             _field20 = nullptr;
         }
     }

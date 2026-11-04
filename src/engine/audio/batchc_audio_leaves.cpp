@@ -87,13 +87,13 @@ void Device::OnSoundBufferDeleted(const SoundBuffer* buffer) {
     for (int i = 0; i < 64; ++i) {              // `CMP EDI,0x40 ; JL` at 0x1800de154
         AudioChannel* ch = &_channels[i];
         if (ch->source != buffer) continue;
-        if ((ch->flags & 1u) == 0) continue;
+        if ((ch->LoadFlags() & 1u) == 0) continue;   // atomic: AudioChannel (review F-138)
 
-        ch->flags |= 2u;
+        ch->OrFlags(2u);
         FreeChannelPlatform(i);
 
         Callback cb = ch->onComplete;           // read BEFORE the clears
-        ch->flags &= 0xFFFFFFFCu;
+        ch->AndFlags(0xFFFFFFFCu);
         ch->source = nullptr;
         if (cb)
             cb(ch, ch->userData, ch->userValue);  // `this` is the CHANNEL

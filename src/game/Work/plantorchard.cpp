@@ -17,6 +17,7 @@
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Work/PlantOrchard.h"
+#include "Work/work_rules.h"   // review F-199..F-206: the shared Execute decisions
 #include "object/Internal.h"
 #include "object/TypeInfo.h"
 #include "Game/exe_bodies.h"
@@ -115,7 +116,7 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
         int maxWorkers = workComp->CalcMaxWorkers();
         workComp->workState = maxWorkers;
     }
-    if (treeCount >= workComp->workState) {
+    if (WorkRules::OverWorkerCap(treeCount, workComp->workState)) {   // 0x1400f4b70 CMP; JLE
         return 1;
     }
 

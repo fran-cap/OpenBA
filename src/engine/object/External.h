@@ -866,13 +866,18 @@ inline ResourceSet::Node* ResourceSuccessor(ResourceSet::Node* n) {
     return p;
 }
 // The reference tree descends on a plain integer compare, not on `_stricmp` —
-// the one Set family in this engine that does (reference_set.h's banner).
+// the one Set family in this engine that does (reference_set.h's banner). The
+// compare is SIGNED 32-bit, as retail's insert (0x18002d1d7, reference_set.cpp)
+// and retail's lookup (GetPathForReferenceId 0x1800bf1d0: `CMP R8D,EAX; JL` /
+// `CMP EAX,R8D; JGE`) order the key (review F-172).
 inline ReferenceSet::Node* ReferenceFind(ReferenceSet::Node* root, uint32_t id) {
+    const int32_t key = static_cast<int32_t>(id);
     ReferenceSet::Node* n = root;
     while (n != nullptr) {
-        if (id < n->element.id)      n = n->left;
-        else if (n->element.id < id) n = n->right;
-        else                         return n;
+        const int32_t nodeKey = static_cast<int32_t>(n->element.id);
+        if (key < nodeKey)      n = n->left;    // JL  -> +0x18
+        else if (nodeKey < key) n = n->right;   //        +0x20
+        else                    return n;       // JGE -> found
     }
     return nullptr;
 }

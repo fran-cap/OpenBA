@@ -135,4 +135,16 @@ public:
     static double  _systemSecondsPerTick;   // ?_systemSecondsPerTick@Timer@System@@0NA  0x1801fe740
 };
 
+// `elapsed * ticksPerSecond / counterPerSecond`, the engine-tick conversion retail spells
+// IMUL / CQO / IDIV in CurrentTimeTicks (0x1800ca8f0), CurrentTime (0x1800ca760) and the
+// MainLoop / SleepThread copies of it. NOT RETAIL (review F-151, signed overflow): the
+// product passes INT64_MAX after about 10.7 days of a 10 MHz counter, which retail's IMUL
+// wraps and C++ leaves undefined. Split at the counter's whole seconds, the quotient is
+// the same as retail's for every elapsed count that does not overflow.
+inline int64_t CounterToTicks(int64_t elapsed, int64_t ticksPerSecond, int64_t counterPerSecond) {
+    const int64_t whole = elapsed / counterPerSecond;
+    const int64_t rest = elapsed % counterPerSecond;
+    return whole * ticksPerSecond + rest * ticksPerSecond / counterPerSecond;
+}
+
 }  // namespace System

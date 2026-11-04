@@ -376,7 +376,7 @@ void Save::SaveLoad::UpdateLoadFromFile() {
         block = fresh->SetupLoad();
 
         ::IO::Persistence* persistence = PersistenceSingleton();
-        if ((persistence->_worker._runFlags & 1) == 0) {
+        if (!persistence->_worker.IsWorking()) {
             // GetSaveFilename's by-value Filename is born in retail's hidden
             // slot; the worker enqueue (0x1800b7460) takes the EMBEDDED
             // worker at Persistence+0x10; the Filename is released right
@@ -794,7 +794,7 @@ void Save::SaveLoad::UpdateLoad() {
 
         const SaveInfo& nameRow = _saves._data[_selectedIndex];
         ::IO::Persistence* persistence = PersistenceSingleton();
-        if ((persistence->_worker._runFlags & 1) == 0) {
+        if (!persistence->_worker.IsWorking()) {
             // THREE arguments (see note 1 in the banner): the hidden slot is
             // `filename`, the name the row's. Released as its destructor.
             System::Filename filename = persistence->GetSaveFilename(nameRow.name);
@@ -996,7 +996,9 @@ void Save::SaveLoad::UpdateSave() {
         // runs; EnqueueSave cleared it) and report it before the machine resets.
         if (_extFixSaveResult != nullptr && *_extFixSaveResult && _extSaveResult != nullptr) {
             const ::IO::Persistence* persistence = PersistenceSingleton();
-            const int32_t status = *static_cast<const volatile int32_t*>(&persistence->_worker._status);
+            // An acquire load, paired with SaveJob's release store (review F-147): a
+            // volatile read of a word the worker writes is still a data race.
+            const int32_t status = __atomic_load_n(&persistence->_worker._status, __ATOMIC_ACQUIRE);
             if (g_extSaveQueued && status == 0) return;
             _extSaveResult(g_extSaveQueued && status == 1);
         }
@@ -1070,7 +1072,7 @@ void Save::SaveLoad::UpdateSaveTail() {
 
     ::IO::Persistence* persistence = PersistenceSingleton();
     g_extSaveQueued = false;   // NOT RETAIL: fix.save_failure_notice's state-2 read
-    if ((persistence->_worker._runFlags & 1) == 0) {
+    if (!persistence->_worker.IsWorking()) {
         System::Filename filename = persistence->GetSaveFilename(_string20);
         RtIo_PersistenceWorker_EnqueueSave(&persistence->_worker,
                                            &filename.AsString(), 2, blocks);
@@ -1430,7 +1432,7 @@ void Save::SaveLoad::UpdateList() {
         // registered address door.
         RtSaveDetail::ArraySaveInfoDtor(&_saves);
 
-        if ((persistence->_worker._runFlags & 1) == 0) {
+        if (!persistence->_worker.IsWorking()) {
             // retail 0x18002ac40 — see the banner on
             // `rtcoll::RtColl_ArrayDtorElem_18002ac40` above for why this is a
             // direct call by name rather than a member call. Its receiver is
@@ -1601,7 +1603,7 @@ void Save::SaveLoad::UpdateList() {
     // ---- state 3 -----------------------------------------------------------
     if (progress == 3) {
         // The guard is INSIDE the state; the transition is not. See point 2.
-        if ((persistence->_worker._runFlags & 1) == 0 && persistence->_worker._status == 1) {
+        if (!persistence->_worker.IsWorking() && persistence->_worker._status == 1) {
             RtIo::SaveBlock block{};
             // `ADD RCX,0x28` — the EMBEDDED SavedState, not the heap one at
             // +0x40 that UpdateSave allocates. Hidden return slot in RDX.
@@ -1621,7 +1623,7 @@ void Save::SaveLoad::UpdateList() {
         SaveInfo&     row = _saves._data[at];
 
 
-        if ((persistence->_worker._runFlags & 1) == 0 && persistence->_worker._status == 1) {
+        if (!persistence->_worker.IsWorking() && persistence->_worker._status == 1) {
             // --- the metadata arrived ---
             void*       pixels      = nullptr;
             int         w = 0, h = 0, field44 = 0;

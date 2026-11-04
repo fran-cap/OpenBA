@@ -209,7 +209,7 @@ void Device::PlatformChannel::OnVoiceProcessingPassEnd() {}
 // would not restore the behaviour, it would skip it (CLAUDE.md, "Don't 'fix' a
 // faithful crash with a null check").
 void Device::PlatformChannel::OnStreamEnd() {
-    channel->flags |= kChannelFinished;
+    channel->OrFlags(kChannelFinished);   // NOT RETAIL (review F-138): atomic RMW
 }
 
 // ---- slot 3  0x180050210 ---------------------------------------------------

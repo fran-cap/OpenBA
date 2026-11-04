@@ -505,6 +505,14 @@ extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, con
 // this body with its own base-vptr store. The fields are read through the
 // Persistence POD view, as every job body here reads them.
 IO::PersistenceWorker::~PersistenceWorker() {
+    // NOT RETAIL (review F-101): wait for the job in flight before the members die.
+    // Retail frees the four members below and only then (in the base destructor)
+    // signals hStop and joins the worker, so a quit while a save, load or save-list
+    // job runs leaves the job reading (LoadJob: writing) freed tables: a
+    // use-after-free. hFinished is manual-reset and every enqueue resets it, so this
+    // returns at once when no job runs and otherwise when the current one ends.
+    WaitForFinish();
+
     // B.4 R-IO: the four releases are the members' destructors, which the
     // compiler runs after this (empty) body in reverse declaration order --
     //   _saves       worker+0x70  0x18002ac40 (the hand-derived
@@ -644,9 +652,12 @@ void IO::PersistenceWorker::SaveJob() {
             if (wroteAll) wroteAll = Platform::FileReplace(tempWide._data, saveWide._data) != 0;
             if (!wroteAll) Platform::FileDelete(tempWide._data);
         }
-        _status = wroteAll ? 1 : 2;
+        // NOT RETAIL (review F-147): release stores. fix.save_failure_notice polls
+        // `_status` while this job runs (SaveLoad::UpdateSave), so a plain store
+        // is a data race; the release orders the file work before the value.
+        __atomic_store_n(&_status, wroteAll ? 1 : 2, __ATOMIC_RELEASE);
     } else {
-        _status = 2;
+        __atomic_store_n(&_status, 2, __ATOMIC_RELEASE);
     }
 
     // Retail's ONE close-if-still-open check sits here, UNCONDITIONALLY,

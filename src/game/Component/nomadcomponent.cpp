@@ -146,7 +146,7 @@ void PlayerToolManager::OnEntityRemoved(ComponentEntity* const* entity) {
                     EntityUI::TypeId()));   // DAT_1401c4f00
             EntityUI* found = nullptr;
             if (ctrl.Get() != nullptr) {
-                if (::Object::IsDerivedFromNullSafe(ctrl.Get(), EntityUI::TypeId()))
+                if (::Object::IsDerivedFromNullSafe(ctrl, EntityUI::TypeId()))
                     found = static_cast<EntityUI*>(ctrl.Get());
             }
             if (found != nullptr) {
@@ -242,9 +242,11 @@ void NomadComponent::Persist(IO::Stream& stream) {
     // ComponentEntity::TypeId() (Persist 0x14004fc40, at 0x14004fca5). The tree read 0x1401c72e8 instead -- the NAME
     // field (+8) of Description's record, whose only retail reader is Description's
     // TypeName slot 0x140031c60 -- which is unregistered, so the check never ran.
-    if (hall != nullptr) {
+    // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+    // downcast to ComponentEntity* (`hall->` was one); the answer is the same.
+    if (!hall.IsNull()) {
         // slot 0x140152a98 = ?IsDerivedFrom@Base@Object@@QEBA_NI@Z
-        if (!hall->IsDerivedFrom(ComponentEntity::TypeId())) {
+        if (!::Object::IsDerivedFromNullSafe(hall, ComponentEntity::TypeId())) {
             hall = nullptr;
         }
     }

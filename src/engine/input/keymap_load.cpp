@@ -90,6 +90,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include "input/Input.h"
+#include "input/binding_value.h"   // the slot store (review F-099, F-100)
 #include "io/Persistence.h"
 #include "system/string_internal.h"
 
@@ -270,17 +271,10 @@ void KeyMap::Load() {
                 // (0x180006c80). C++'s reverse declaration order is that order.
             }
 
-            if (value >= 0) {
-                b->device[slot]  = static_cast<uint8_t>((value >> 8) & 0xFF);
-                b->inputId[slot] = static_cast<uint8_t>(value & 0xFF);
-                ++written;
-            } else if (value == -1) {
-                b->device[slot]  = 0xFF;   // retail stores R14B, the low byte of -1
-                b->inputId[slot] = 0;
-                ++written;
-            }
-            // value == -2: the key was absent (or the binding is not
-            // exclusive). Retail writes nothing; neither do we.
+            // value >= 0 / -1 stores the slot (binding_value.h); value == -2:
+            // the key was absent (or the binding is not exclusive). Retail
+            // writes nothing; neither do we.
+            if (StoreBindingValue(b, slot, value)) ++written;
         }
     }
 

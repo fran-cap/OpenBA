@@ -211,6 +211,7 @@
 #include "rt_libm.h"                 // RtCrt_Powf
 #include "platform_audio.h"          // Platform::AudioVoice* (Phase D.4 A1)
 #include "audio/audio_pcm.h"         // Audio::XwmaPcmPlayBegin (Phase D.4 SDL-4)
+#include "audio/audio_cvtt.h"        // Audio::CvttSd2Si64 / CvttSs2Si32 / LoopRemainderTicks
 
 namespace {
 
@@ -270,9 +271,14 @@ void ComputePlayPosition(const Audio::SoundBuffer* buf, int64_t nowTicks,
     const double spt = SecondsPerTick();
     const float loopDurationSeconds = buf->_durationSeconds;
     const double loopDurationTicksD = static_cast<double>(loopDurationSeconds) / spt;
-    const int64_t loopDurationTicks = static_cast<int64_t>(loopDurationTicksD);  // CVTTSD2SI
+    // NOT RETAIL (review F-118, undefined behaviour): CvttSd2Si64 is CVTTSD2SI's
+    // result without the C++ cast's UB for a huge / inf / NaN duration, and
+    // LoopRemainderTicks adds the zero test retail lacks (a 0-length sound is #DE
+    // there); both are audio/audio_cvtt.h.
+    const int64_t loopDurationTicks = Audio::CvttSd2Si64(loopDurationTicksD);  // CVTTSD2SI
 
-    const int64_t remainderTicks = nowTicks % loopDurationTicks;  // CQO; IDIV R8, no zero test (1800de871)
+    // CQO; IDIV R8 (1800de871)
+    const int64_t remainderTicks = Audio::LoopRemainderTicks(nowTicks, loopDurationTicks);
     const double secondsInLoopD = static_cast<double>(remainderTicks) * spt;
     const float secondsInLoop = static_cast<float>(secondsInLoopD);  // CVTPD2PS
 
@@ -285,7 +291,9 @@ void ComputePlayPosition(const Audio::SoundBuffer* buf, int64_t nowTicks,
     const uint32_t bytesPerSecond = bitsPerSecondAllCh >> 3;     // logical shift
 
     const float bytePosF = secondsInLoop * static_cast<float>(static_cast<int32_t>(bytesPerSecond));
-    const int32_t bytePos = static_cast<int32_t>(bytePosF);  // CVTTSS2SI, truncate
+    // NOT RETAIL (review F-118): CVTTSS2SI's INT32_MIN for an out-of-range
+    // position, without the C++ cast's UB.
+    const int32_t bytePos = Audio::CvttSs2Si32(bytePosF);  // CVTTSS2SI, truncate
 
     uint32_t playBegin = 0;
     const int64_t segByteLen = static_cast<int32_t>(buf->_wmaLength);

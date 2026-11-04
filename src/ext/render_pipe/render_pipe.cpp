@@ -120,6 +120,7 @@
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/ambient_occlusion/ambient_occlusion.h"   // AOCORE: the AO arm, recorded into the packet
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "renderdoc_integration.h"
 #include "scene_watch.h"
 #include "stress_harness.h"   // g_verifyOn / StressHarness_Verify, the pipe draw brackets
@@ -161,7 +162,7 @@ bool ForceSnow(float* value) {
     if (s_forceSnow < 0) {
         const char* e = Opt().forceSnow;
         s_forceSnow = (e && e[0]) ? 1 : 0;
-        if (s_forceSnow) s_snowVal = static_cast<float>(std::atof(e));
+        if (s_forceSnow) s_snowVal = static_cast<float>(std::strtod(e, nullptr));
     }
     *value = s_snowVal;
     return s_forceSnow != 0;

@@ -15,6 +15,7 @@
 #include "Action/exe_bodies.h"   // the B4 FORWARD ctor door
 #include "Game/Map.h"   // Map::FinishRoadCell 0x14009c640
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch C
+#include "Action/saved_bounds.h"
 #include <cstdio>
 #include <cstdint>
 #include <new>
@@ -46,7 +47,15 @@ void CompleteRoad::Persist(IO::Stream& stream) {
 
 int CompleteRoad::AbstractImpl(ActionStack* actionStack) {                     // [4] 0x1400c5850
     (void)actionStack;
-    GameUpdateLoop::_singleton->m_game->FinishRoadCell(roadTileIndex, roadDirection, roadType);   // 0x14009c640
+    Map* map = GameUpdateLoop::_singleton->m_game;
+    // NOT RETAIL (review F-105): roadTileIndex comes from the save (Persist +0x20) and
+    // FinishRoadCell writes the cell it names; retail 0x14009c640 has no bound. An index off
+    // the map drops the action (return 0, as the completed road) instead of writing past
+    // Map::cells.
+    if (!ActionBounds::IsMapCell(roadTileIndex, map->cells.GetSize())) {
+        return 0;
+    }
+    map->FinishRoadCell(roadTileIndex, roadDirection, roadType);   // 0x14009c640
     return 0;
 }
 

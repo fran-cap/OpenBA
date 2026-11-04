@@ -104,7 +104,7 @@ void PickingComponent::Persist(IO::Stream& stream) {
     // TypeName slot 0x140031c60 -- which is unregistered, so the check never ran.
     if (userData != nullptr) {
         // ?IsDerivedFrom@Base@Object@@ (import slot 0x140152a98)
-        if (!Object::IsDerivedFromNullSafe(userData.Get(), ComponentEntity::TypeId())) {
+        if (!Object::IsDerivedFromNullSafe(userData, ComponentEntity::TypeId())) {
             userData = nullptr;
         }
     }

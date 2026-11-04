@@ -226,21 +226,11 @@ void BuildComponent::FillModelLists() {
     if (wp != nullptr) {
         MultiObjectComponent* wp2 = static_cast<MultiObjectComponent*>(
             BC_FindComponentByType(_entity.Get(), s_tid_MultiObj));
-        // Retail: bc+0x4c = MultiObjectComponent+0x58 (the build-effort multiplier). In the
-        // standalone exe the lifecycle is inert, so +0x58 can stay 0 — which
-        // would clobber the default 1 set above and collapse the build target
-        // (matComp[0x30] * bc[0x4c]) to 0. Two downstream failures follow: (1) BC8_Target has
-        // to clamp it back to 1 for the mesh ramp, and (2) BuildComplete_Impl (the EntityUI
-        // page-routing predicate, retail 0x140109390) reads `totalRequired * bc[0x4c] <=
-        // bc[0x48]` == `0 <= 0` and reports the build COMPLETE the instant materials arrive
-        // (1->8) — flipping the dialog from the build page to the operational page while the
-        // building is still under construction (labor not yet done). Only adopt the
-        // value when it's a valid positive multiplier (same clamp State1Enter applies); keep
-        // the default 1 otherwise, so the target stays matComp[0x30] and routing stays "under
-        // construction" until the labor accumulator (bc+0x48) actually reaches it.
-        int wpMult = (int)wp2->multiCount;
-        if (wpMult > 0)
-            costMultiplier = wpMult;
+        // Retail: bc+0x4c = MultiObjectComponent+0x58 (the build-effort multiplier), copied
+        // with no test (the decompile's `*(int*)(param_1+0x4c) = (int)local_res8[0xb]`).
+        // The component's ctor sets 1 and the placement tools set the piece count (review
+        // F-175: the old clamp dated from when the component was an inert stub).
+        costMultiplier = static_cast<int>(wp2->multiCount);
     }
 
 }

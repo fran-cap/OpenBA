@@ -48,18 +48,23 @@
 //            render: WaitJob returns false, Run returns, ~Thread joins
 //   gate     P13_OVERLAP (docs/android/P13_OVERLAP.md). Open by default: a job
 //            whose main thread does not step goes straight through.
-//            main, before steps beside the job: ClaimSteps locks; if the job is
-//            not past its gate, gate = false (true returned) -- else false, and
-//            the caller keeps THE FENCE. main, the steps over: OpenGate locks;
+//            main, before steps beside the job: ClaimSteps locks and waits until
+//            the job's BeginCommands returned (NoteBegun), it passed its gate or it
+//            is done; if it is not past its gate, gate = false (true returned) --
+//            else false, and the caller keeps THE FENCE. Review F-158:
+//            BeginCommands reads live device state a step writes (the message
+//            pump's SizeWindow, the options apply: Device::settingsChanged and the
+//            back-buffer size), and a set flag makes it resize the swap chain and
+//            the window from the render thread; no step runs before it returned. main, the steps over: OpenGate locks;
 //            gate = true; notify. render: WaitGate locks, waits for gate, marks
 //            itself past it -> every step write happens-before the rest of the
 //            job, and no step runs beside it. WaitIdle opens it first: a main
 //            thread that waits for the job has stopped stepping.
 //   governor P13_OVERLAP section 10 (overlap_governor.h): two timestamps, steady
 //            clock us. PassGate records when the job parked (read by OpenGate
-//            under the lock); NoteBegun, when its BeginCommands returned (an
-//            atomic stored before Release / PassGate, read after WaitReleased /
-//            OpenGate, whose locks order it). Measures only: nothing waits on them.
+//            under the lock); NoteBegun, when its BeginCommands returned (stored
+//            under the lock, read after WaitReleased / OpenGate, whose locks order
+//            it). ClaimSteps waits for NoteBegun (above); the rest only measure.
 // ============================================================================
 #pragma once
 
@@ -91,10 +96,16 @@ public:
         _work.notify_one();
     }
 
-    // P13_OVERLAP: steps are about to run beside the job. True: it had not reached its gate and
-    // now waits there until OpenGate. False: it is past its gate (or done) -- keep the fence.
+    // P13_OVERLAP: steps are about to run beside the job. Waits until its BeginCommands returned
+    // (review F-158: that op reads device state the steps write). True: it had not reached its
+    // gate and now waits there until OpenGate. False: it is past its gate (or done) -- keep the
+    // fence.
     bool ClaimSteps() {
-        std::lock_guard<std::mutex> lk(_m);
+        std::unique_lock<std::mutex> lk(_m);
+        _idle.wait(lk, [this] {
+            return _begunUs.load(std::memory_order_relaxed) != 0 || _passed ||
+                   !_busy.load(std::memory_order_acquire);
+        });
         if (_passed || !_busy.load(std::memory_order_acquire)) return false;
         _gate = false;
         return true;
@@ -181,11 +192,16 @@ public:
     }
 
     // The job's BeginCommands returned: what it waited for until here (a free swap-chain image,
-    // a frame in flight) was the GPU or the display, not its own work.
+    // a frame in flight) was the GPU or the display, not its own work. Under the lock and
+    // notified: a ClaimSteps waits for it (review F-158).
     void NoteBegun() {
-        _begunUs.store(std::chrono::duration_cast<std::chrono::microseconds>(
-                           std::chrono::steady_clock::now().time_since_epoch()).count(),
-                       std::memory_order_relaxed);
+        const int64_t now = std::chrono::duration_cast<std::chrono::microseconds>(
+                                std::chrono::steady_clock::now().time_since_epoch()).count();
+        {
+            std::lock_guard<std::mutex> lk(_m);
+            _begunUs.store(now != 0 ? now : 1, std::memory_order_relaxed);
+        }
+        _idle.notify_one();
     }
 
     // The part of the job the fence waits for is complete; the rest may still run.

@@ -316,29 +316,54 @@ extern "C" ::Object::External* RtObject_External_Load(const System::Filename* pa
                     else break;                                        // 1800bc72a
                 }
 
-                // FAITHFUL FAULT ON A MISS. 1800bc73b puts ZERO in RCX and
-                // 1800bc73e dereferences it. Read through a volatile pointer so
-                // the compiler cannot decide the null path is unreachable and
-                // delete the surrounding code -- the deref has to actually
-                // happen, because that fault IS how a missing registration
-                // reports itself (type_system.cpp, "NO ADDED NULL GUARDS").
-                const ::Object::BaseTypeInfo* const volatile* infoSlot =
-                    &n->element.record.info;                      // n + 0x10
-                const ::Object::BaseTypeInfo* info = *infoSlot;
+                // A MISS: 1800bc73b puts ZERO in RCX and 1800bc73e dereferences
+                // it, so in retail a type id that names no registered type faults
+                // the loader.
+                // NOT RETAIL (review F-122 / F-144): retail has no such check. The
+                // type id is the resource file's second dword; one the Factory does
+                // not hold leaves `n` null, and the read through it is undefined
+                // behaviour. Such a file takes the bad-type exit (1800bc845) and
+                // Load returns null, as for a type that is not an External.
+                ::Object::Base* created = nullptr;
+                if (n == nullptr) {
+                    bad = true;
+                } else {
+                    const ::Object::BaseTypeInfo* info = n->element.record.info;   // n + 0x10
+                    created = info->factoryFn();                  // 1800bc742
+                    ++g_lc.created;
+                }
 
-                ::Object::Base* const created = info->factoryFn();   // 1800bc742
-                obj = static_cast<::Object::External*>(created);   // the record's type is an External (no checked downcast in retail)
-                ++g_lc.created;
+                // NOT RETAIL (review F-145): retail calls IsDerivedFrom on the
+                // factory's result (1800bc751) before its null test (1800bc75e), so
+                // an id naming an abstract type (whose factory answers null) is a
+                // virtual call through null. The null result takes the same
+                // bad-type exit first.
+                if (!bad && created == nullptr) {
+                    bad = true;
+                }
 
                 // `External::TypeId()` (0x180029350): the record's +0x00,
                 // through the Object accessor slot (external_class.cpp,
                 // ENDGAME B.3.9 OBJ D6 step 1) -- no lazy RT_DATA_SLOT cache
                 // on the loader thread.
-                const bool isExternal =                           // 0x1800c0390
-                    created->IsDerivedFrom(::Object::External::TypeId());   // `obj` IS `created`
-                if (!isExternal || obj == nullptr) {              // 1800bc758/761
+                if (!bad) {
+                    const bool isExternal =                       // 0x1800c0390
+                        created->IsDerivedFrom(::Object::External::TypeId());
+                    if (isExternal) {
+                        // The downcast after the type test. NOT RETAIL (review
+                        // F-122): the port cast before the test, which is an invalid
+                        // downcast (undefined behaviour) on the bad arm; retail has
+                        // no C++ cast at all.
+                        obj = static_cast<::Object::External*>(created);
+                    } else {
+                        // NOT RETAIL (review F-122): retail leaks the object it built
+                        // for a type that is not an External. It is destroyed here.
+                        ::Object::Destroy(created);
+                        bad = true;
+                    }
+                }
+                if (bad) {                                        // 1800bc758/761
                     ++g_lc.notAnExternal;
-                    bad = true;
                 }
             }
 

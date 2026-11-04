@@ -49,6 +49,22 @@ inline bool Requested() {
     return g_table.load(std::memory_order_relaxed) != nullptr;
 }
 
+// A companion's strong handle member, which a prefetch worker's Publish and a sweep's Evict store
+// while uses and the gather test it with no lock (review F-170; lazy_table.h LoadPublished). `field`
+// is the member's address. Made: an acquire load of its bits, non-nil.
+inline bool Made(const void* field) {
+    return ::CreateOnDemand::LoadPublished(*static_cast<void* const*>(field)) != nullptr;
+}
+
+// Stores `value` in the strong member at `field` with release: the member's reference moves in with
+// the bits, and the one it held before is released.
+inline void StorePublished(void* field, id value) {
+    void* const raw = (__bridge_retained void*)value;
+    void* const old = __atomic_exchange_n(static_cast<void**>(field), raw, __ATOMIC_ACQ_REL);
+    id released = (__bridge_transfer id)old;
+    (void)released;
+}
+
 // Before a use of a companion whose handle is nil: make it now (or wait for the worker making it).
 inline void Ensure(const void* obj) {
     if (::CreateOnDemand::LazyTable* const t = g_table.load(std::memory_order_relaxed)) {

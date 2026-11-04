@@ -884,3 +884,18 @@ UNIT_TEST(ext_stream_cache_package_identity) {
     CHECK(warm.AddChunk(*find(copy)));
     CHECK(warm.Find(Id(116)) != nullptr);   // warm again
 }
+
+// Review F-039: a 16-byte chunk whose header claims 0xFFFFFFFF records. AddChunk reserved the raw
+// count (72 bytes each, about 309 GB) before the per-record loop could refuse it: std::bad_alloc
+// out of ReadBack, which nothing catches. The fuzz input, without its selector byte.
+UNIT_TEST(ext_stream_cache_bundle_refuses_a_count_past_the_chunk) {
+    const std::vector<uint8_t> chunk = {
+        0x53, 0x54, 0x52, 0x43,   // 'STRC'
+        0x03, 0x00, 0x00, 0x00,   // version 3
+        0xFF, 0xFF, 0xFF, 0xFF,   // record count
+        0x00, 0x00, 0x00, 0x00,
+    };
+    Bundle b;
+    CHECK(!b.AddChunk(chunk));
+    CHECK_EQ(b.Records(), static_cast<size_t>(0));
+}

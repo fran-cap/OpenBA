@@ -133,17 +133,20 @@ namespace Audio {
 void Stream::Play(int32_t channel, int32_t bytePosition) {
     ++g_calls;
 
-    const bool midPass = (_runFlags & 1u) != 0;                            // 1800a0d1f
+    // NOT RETAIL (review F-137): the bit test and the two `_stopping` stores are
+    // atomic; retail's are plain accesses to fields the stream worker reads and
+    // writes (ThreadFunc, Run's loop tail), a data race. Same values, same order.
+    const bool midPass = IsWorking();                                      // 1800a0d1f
     if (midPass) {
         ++g_drained;
-        _stopping = 1;                                                     // 1800a0d2d
+        __atomic_store_n(&_stopping, uint8_t{1}, __ATOMIC_RELAXED);        // 1800a0d2d
         Platform::EventSet(_wakeEvent);                                    // 1800a0d38  SetEvent
         Platform::EventWait(_hFinished, Platform::kInfinite);              // 1800a0d45
     }
 
     rtcoll::RtColl_ArraySetSize_18000c300(&_buffers);                     // 1800a0d4f
 
-    _stopping = 0;                                                         // 1800a0d58
+    __atomic_store_n(&_stopping, uint8_t{0}, __ATOMIC_RELAXED);            // 1800a0d58
     _channel = channel;                                                    // 1800a0d5f
     _bytePosition = bytePosition;                                          // 1800a0d62
     Platform::EventReset(_hFinished);                                      // 1800a0d65

@@ -168,7 +168,7 @@ conflict_done:
             // placement-constructed the result over this (empty) local.
             System::String buildStr = System::Configuration::GetVersionString(versionMajor, false);
 
-            System::String formatted = System::String::Format("%i (%s)", (uint64_t)versionMinor, buildStr._data);
+            System::String formatted = System::String::Format("%i (%s)", (int)versionMinor, buildStr._data);
 
             static_cast<UI::TextElement*>(entry.textModVersion.Get())->SetParameter(0, formatted);
         }

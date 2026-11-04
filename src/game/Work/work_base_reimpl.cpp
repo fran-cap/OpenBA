@@ -151,12 +151,12 @@ void Work::Persist(IO::Stream& stream) {
     // it; the tree validates with IsDerivedFromNullSafe below).
     field_10.Object::InternalBasePtr::Serialize(ser);
     if (field_10) {
-        if (!Object::IsDerivedFromNullSafe(field_10.Get(), ComponentEntity::TypeId()))
+        if (!Object::IsDerivedFromNullSafe(field_10, ComponentEntity::TypeId()))
             field_10 = nullptr;
     }
     field_18.Object::InternalBasePtr::Serialize(ser);
     if (field_18) {
-        if (!Object::IsDerivedFromNullSafe(field_18.Get(), WorkComponent::TypeId()))
+        if (!Object::IsDerivedFromNullSafe(field_18, WorkComponent::TypeId()))
             field_18 = nullptr;
     }
     ser.Serialize(field_20, nullptr);

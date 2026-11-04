@@ -91,7 +91,12 @@ struct GeometryBatch {
     bool     field_0x44;                           // +0x44 (Serialize bool)
     uint8_t  _pad45[3];                            // +0x45
     float    field_0x48[5];                        // +0x48 .. +0x58 (Serialize float x5)
-    bool     field_0x5C;                           // +0x5C (Serialize bool)
+    // NOT RETAIL (type only, review F-008): retail's +0x5C is a raw byte. The default
+    // constructor leaves it as found and RebuildRoadMesh never sets it, so the copy
+    // constructor 0x14001f5e0 copies whatever byte the heap held (UBSan saw 64); typed
+    // `bool`, that copy was a load of an invalid bool value (UB). A uint8_t copies the
+    // byte exactly as retail does; Serialize still goes through the bool slot (+0x78).
+    uint8_t  field_0x5C;                           // +0x5C (Serialize bool, raw byte)
     bool     alternateKey;                         // +0x5D (version >= 2) decal draw key 3 instead of 1
     uint8_t  _pad5E[2];                            // +0x5E
 };

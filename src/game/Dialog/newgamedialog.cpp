@@ -29,6 +29,7 @@
 #include "Dialog/MainMenuDialog.h"
 #include "Dialog/ui_dialogs.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "Dialog/dialog_exe_helpers.h"
 #include "ui/DialogInstance.h"
 #include "Game/game.h"   // B3R STORAGE: g_gameContainer
@@ -330,7 +331,7 @@ static void SelectStartConditionOverride(NewGameDialog* self) {
             target = i;
     }
     if (numeric) {
-        int idx = std::atoi(want);
+        int idx = ClampedAtoi(want);
         if (idx >= 0 && idx < count) target = idx;
     }
     if (target >= 0) {
