@@ -1530,7 +1530,7 @@ void GameUpdateLoop::Draw(float alpha) {
         if (s_forceSnow < 0) {
             const char* e = Opt().forceSnow;
             s_forceSnow = (e && e[0]) ? 1 : 0;
-            if (s_forceSnow) s_snowVal = (float)std::strtod(e, nullptr);
+            if (s_forceSnow) s_snowVal = ClampedAtof(e);   // F-087: a double beyond float range
         }
         if (s_forceSnow) {
             videoCtx->_unknown03b8.x = s_snowVal;

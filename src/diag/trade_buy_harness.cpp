@@ -38,6 +38,7 @@
 #include "Entity/CitizenBehavior.h"   // B4: m_citizenList fields
 #include "Component/ComponentDescription.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Object/factory_registration.h"
 #include <cstdint>
 #include <cstdio>
@@ -83,9 +84,9 @@ void Init() {
     if (s_interval != -2) return;
     const char* e = Opt().tradeSell;
     if (!e || !e[0] || e[0] == '0') { s_interval = -1; return; }
-    const int v = std::atoi(e);
+    const int v = HarnessAtoi(e);
     s_interval = (v > 1) ? v : 1200;
-    if (const char* r = Opt().tradeSellPerRow) s_perRow = std::atoi(r);
+    if (const char* r = Opt().tradeSellPerRow) s_perRow = HarnessAtoi(r);
     std::fprintf(stderr, "[TradeSell] armed: every %d frames, per-row cap %d "
                          "(0 = sell the whole row)\n", s_interval, s_perRow);
     std::fflush(stderr);
@@ -235,7 +236,7 @@ void TradeWatchAutoTrade(int frameNum, TradeComponent* post) {
 void TradeWatch(int frameNum) {
     if (s_watchPeriod == -2) {
         const char* e = Opt().tradeWatch;
-        s_watchPeriod = (e && e[0] && e[0] != '0') ? std::atoi(e) : -1;
+        s_watchPeriod = (e && e[0] && e[0] != '0') ? HarnessAtoi(e) : -1;
         s_watchAutoTrade = e && std::strstr(e, ",autotrade") != nullptr;
         if (s_watchPeriod > 0) {
             std::fprintf(stderr, "[TradeWatch] armed: every %d frames\n", s_watchPeriod);
@@ -426,7 +427,7 @@ extern "C" void TradeSellHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         // the founding-house food seed uses. It stands in for the hauling, not for the
         // trade: the sale itself still goes through the ported checkout on the next tick.
         int seedQty = 0;
-        if (const char* sq = Opt().tradeSellSeed) seedQty = std::atoi(sq);
+        if (const char* sq = Opt().tradeSellSeed) seedQty = HarnessAtoi(sq);
         int seeded = 0;
         if (seedQty > 0) {
             // Seed the TRADE stock, not the post's StorageComponent.

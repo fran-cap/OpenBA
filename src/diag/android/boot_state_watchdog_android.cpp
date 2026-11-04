@@ -26,6 +26,7 @@
 #include "signal_context_android.h"   // SignalContext: the pc / lr / frame pointer by ABI
 
 #include "options.h"
+#include "app/clamped_atoi.h"   // review F-087: checked parse of /proc text
 #include "platform/common/cpu/topology.h"   // CPULIMIT: the [Cpu] facts on the RUNNING line
 
 #include <dirent.h>
@@ -191,7 +192,7 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
     } else {
         while (dirent* e = readdir(tasks)) {
             if (e->d_name[0] < '0' || e->d_name[0] > '9') continue;
-            const pid_t tid = static_cast<pid_t>(std::atoi(e->d_name));
+            const pid_t tid = static_cast<pid_t>(ClampedAtoi(e->d_name));
             const bool isMain = tid == g_mainTid;
             const bool isSelf = tid == selfTid;
             char comm[64] = {0};

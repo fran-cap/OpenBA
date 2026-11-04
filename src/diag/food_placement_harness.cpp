@@ -36,6 +36,7 @@
 #include "Entity/ComponentEntity.h"   // B4: the component array by name
 #include "Entity/EntityList.h"        // B4: GameUpdateLoop::m_entityList
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Object/factory_registration.h"
 #include "object/TypeInfo.h"   // Object::Base::TypeName (B3X W0)
 #include "object/VSlot.h"      // Object::CompilerSlotOf
@@ -146,7 +147,7 @@ void Init() {
     if (!e || !e[0] || std::strcmp(e, "0") == 0) return;
     std::snprintf(s_want, sizeof(s_want), "%s", e);
     if (const char* f = Opt().foodPlaceFrame) {
-        int v = std::atoi(f);
+        int v = HarnessAtoi(f);
         if (v > 0) s_fireFrame = v;
     }
     std::fprintf(stderr, "[FoodPlace] ENABLED target=\"%s\" fireFrame=%d\n", s_want, s_fireFrame);

@@ -13,6 +13,7 @@
 // judgement here — the .sav content is verified outside the process.
 
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -50,7 +51,7 @@ int TriggerFrame() {
             rtcrt::StrICmp(e, "roundtrip") == 0) {   // the in-process gate, not a frame trigger
             s = -1;                       // off
         } else {
-            int v = std::atoi(e);
+            int v = HarnessAtoi(e);
             s = (v > 1) ? v : 900;        // "1"/non-numeric = default frame
         }
     }
