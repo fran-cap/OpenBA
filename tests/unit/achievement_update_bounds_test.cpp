@@ -35,11 +35,12 @@ using Achievement::AchievementManager;
 // `_userPackFilenames.size` (+0x38), and an unmodded game has zero.
 struct NoPackFileSystem {
     alignas(IO::FileSystem) unsigned char bytes[sizeof(IO::FileSystem)];
+    IO::FileSystem* saved = IO::FileSystem::_singleton;   // package_file_read_test points it at its own
     NoPackFileSystem() {
         std::memset(bytes, 0, sizeof(bytes));
         IO::FileSystem::_singleton = reinterpret_cast<IO::FileSystem*>(bytes);
     }
-    ~NoPackFileSystem() { IO::FileSystem::_singleton = nullptr; }
+    ~NoPackFileSystem() { IO::FileSystem::_singleton = saved; }
 };
 
 struct RawManager {

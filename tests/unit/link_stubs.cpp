@@ -111,14 +111,14 @@ int32_t Picking::Scene::Intersect(const Math::Vector3&, const Math::Vector3&, co
 // Review F-092..F-094 (tests/unit/achievement_update_bounds_test.cpp):
 // src/engine/achievement/achievement_update.cpp is linked so the test drives the
 // real AchievementManager::Update over fields it builds by hand. Update's gate reads
-// `IO::FileSystem::_singleton` (the class static, defined in filesystem.cpp, which
-// the unit does not link: the test points it at a zeroed record and clears it after).
+// `IO::FileSystem::_singleton` (the class static; package_file_read_test.cpp defines it for the
+// unit: the test points it at a zeroed record and restores it after).
 // The three members below live in achievement_manager.cpp and achievement_state.cpp,
 // which the unit does not link (other tests stub that file's members with markers);
 // none is reached by the test's states, and each stub aborts if one is.
-// =====================================================================#include "io/FileSystem.h"
+// ============================================================================
+#include "io/FileSystem.h"
 #include "achievement/AchievementManager.h"
-IO::FileSystem* IO::FileSystem::_singleton = nullptr;
 void Achievement::AchievementInstance::Update(const System::Time&) {
     UnlinkedBody("Achievement::AchievementInstance::Update");
 }
@@ -127,7 +127,9 @@ bool Achievement::AchievementInstance::IsMet() const {
 }
 bool Achievement::AchievementManager::SetAchievementMet(int) {
     UnlinkedBody("Achievement::AchievementManager::SetAchievementMet");
-=======
+}
+
+// ============================================================================
 // package_file_read_test.cpp: src/engine/io/package_file_read.cpp is linked so the
 // test drives the real ReadPackfile. Its teardown names CompressedStream::Commit
 // (compressed_stream_write.cpp, not linked) behind `_direction == 1`, which a read
