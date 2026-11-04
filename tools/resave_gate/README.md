@@ -11,6 +11,14 @@ Run it under `tools/game_dir_lock.sh` (or a dir from `tools/game_dirs.sh`). It n
 golden was cut against md5 `68f99e06e6cdce6c17a8fb06e867b2c8`, a copy of the 2026-09-12
 autosave; copy any save to that name and delete the golden to start over). Exit 0 is PASS.
 
+## The golden was re-cut on 2026-11-03 (review F-186, PR #135) -- same fixture
+Golden md5 `971aaec2cf95f5f730bb1cd1a4fa8428` -> `4986645d9649c3e4a6bc9d8aed9f5b03` (23,453,453 bytes, size
+unchanged, the same `Gate.sav`). WHY: `EntityList::Serialize` (retail 0x1400c462c) sign-extends the 24-bit bucket
+index in `_handle` (`SHL ECX,8 / SAR ECX,8`); the port zero-extended it, so every entity with bucket index -1
+saved `FF FF FF 00` where retail saves `FF FF FF FF`. The whole diff is 3,334 single-byte `00 -> FF` runs in
+that field (offsets 13,833,058..14,380,719, 20 / 40-byte entity-record strides); nothing else moved. The old
+golden carried the port's bytes. Reproduced on two runs before the re-cut.
+
 ## The class C golden: GateRestrictedFoods (2026-10-21, block EXTHOSTS)
 
 DESIGN.md's Gates ask every shipped class C extension for its own golden. `GateRestrictedFoods.sav`
