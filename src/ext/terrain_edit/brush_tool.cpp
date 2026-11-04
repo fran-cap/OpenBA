@@ -302,7 +302,7 @@ void ScanWaterQuads(const WorldGeometry* terrain) {
         const int start = ranges[r].values[0];
         const int base = ranges[r].values[1];
         const int count = ranges[r].values[3];
-        if (start < 0 || base < 0 || start + count > terrain->_contourIndices.size) continue;
+        if (!Ext::TerrainEdit::ContourRangeFits(start, base, count, terrain->_contourIndices.size)) continue;
         for (int k = 0; k + 5 < count; k += 6) {
             // taken out
             if (idx[start + k] == idx[start + k + 1] && idx[start + k] == idx[start + k + 2]) continue;
@@ -337,7 +337,8 @@ void ScanWaterQuads(const WorldGeometry* terrain) {
         const int start = rivers[r].values[0];
         const int base = rivers[r].values[1];
         const int count = rivers[r].values[3];
-        if (start < 0 || base < 0 || start + count > terrain->_contourIndices.size || count < 6) continue;
+        if (!Ext::TerrainEdit::ContourRangeFits(start, base, count, terrain->_contourIndices.size)) continue;
+        if (count < 6) continue;
         if (base + idx[start] >= terrain->_contourVertices.size) continue;
         if (verts[base + idx[start]].normal[3] != Ext::TerrainEdit::kEditMarker) continue;
         for (int k = 0; k + 5 < count; k += 6) {
@@ -401,7 +402,7 @@ RiverCover GatherRiverCover(const WorldGeometry* terrain, float x0, float y0, fl
         const int start = rivers[r].values[0];
         const int base = rivers[r].values[1];
         const int count = rivers[r].values[3];
-        if (start < 0 || base < 0 || start + count > terrain->_contourIndices.size) continue;
+        if (!Ext::TerrainEdit::ContourRangeFits(start, base, count, terrain->_contourIndices.size)) continue;
         for (int k = 0; k + 2 < count; k += 3) {
             int v[3];
             for (int j = 0; j < 3; ++j) v[j] = base + idx[start + k + j];
@@ -450,7 +451,7 @@ std::vector<Ext::TerrainEdit::UvAnchor> GatherUvAnchors(const WorldGeometry* ter
         const int start = rivers[r].values[0];
         const int base = rivers[r].values[1];
         const int count = rivers[r].values[3];
-        if (start < 0 || base < 0 || start + count > terrain->_contourIndices.size) continue;
+        if (!Ext::TerrainEdit::ContourRangeFits(start, base, count, terrain->_contourIndices.size)) continue;
         for (int k = 0; k + 2 < count; k += 3) {
             int v[3];
             for (int j = 0; j < 3; ++j) v[j] = base + idx[start + k + j];
@@ -498,7 +499,7 @@ bool NearestRiver(const WorldGeometry* terrain, int col, int row, float reach,
         const int start = rivers[r].values[0];
         const int base = rivers[r].values[1];
         const int count = rivers[r].values[3];
-        if (start < 0 || base < 0 || start + count > terrain->_contourIndices.size) continue;
+        if (!Ext::TerrainEdit::ContourRangeFits(start, base, count, terrain->_contourIndices.size)) continue;
         for (int k = 0; k + 2 < count; k += 3) {
             int v[3];
             for (int j = 0; j < 3; ++j) v[j] = base + idx[start + k + j];
