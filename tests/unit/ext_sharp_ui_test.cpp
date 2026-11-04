@@ -398,3 +398,23 @@ UNIT_TEST(ext_sharp_ui_snap_moves_whole) {
         CHECK(std::fabs((q.x2 - q.x1) - (q0.x2 - q0.x1)) * px < 1e-3f);
     }
 }
+
+// Review F-229: a font's _lineHeight comes from its file unchecked, and a mod
+// font can carry the FrancophilSans face. A base height past kMaxFontBaseHeight
+// has no variants: the retail font, never an int overflow in the thirds
+// arithmetic, never a walk over millions of candidate heights.
+UNIT_TEST(ext_sharp_ui_huge_font_height) {
+    using namespace Ext::SharpUI;
+    CHECK(kMaxFontBaseHeight >= 64);   // FontLarge (48) and room above it
+    bool keep = false;
+    CHECK(PickFontHeight(300000000, 1.5f, 1.0f, &keep) == 300000000 && keep);
+    CHECK(PickFontHeight(300000000, 1.25f, 1.0f, &keep) == 300000000);
+    CHECK(PickFontHeight(300000000, 2.0f, 2.0f, &keep) == 300000000 && keep);
+    CHECK(PickFontHeight(200000000, 1.5f, 2.0f, &keep) == 200000000 && keep);
+    CHECK(PickVariantHeight(100000000, 1.25f) == 100000000);
+    CHECK(PickRetinaVariantHeight(160000000, 2.5f) == 160000000);
+    CHECK(!IsVariantHeight(100000000, 100000001));
+    CHECK(!IsRetinaVariantHeight(300000000, 400000000));
+    CHECK(VariantCount(100000000) == 0);
+    CHECK(VariantCount(kMaxFontBaseHeight) > 0);   // the cap itself still has its variants
+}

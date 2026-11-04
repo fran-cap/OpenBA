@@ -57,6 +57,11 @@ DrawChoice ChooseDraw(float uiScale, int32_t backBufferWidth, int32_t backBuffer
 
 // ---- font variants ---------------------------------------------------------
 constexpr int kVariantCoarseFrom = 40;
+// The largest base height that has variants (FontLarge is 48). A font's
+// _lineHeight comes from its file unchecked (review F-229): a larger base gets
+// none, so every function below keeps the retail font for it, and the thirds
+// arithmetic (at most 8 x base) never nears INT_MAX.
+constexpr int kMaxFontBaseHeight = 512;
 int VariantLow(int baseHeight);    // round(baseHeight * 2 / 3)
 int VariantHigh(int baseHeight);   // round(baseHeight * 4 / 3)
 int VariantStep(int baseHeight);   // 1, or 2 from kVariantCoarseFrom
