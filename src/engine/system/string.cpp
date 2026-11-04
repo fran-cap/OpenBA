@@ -731,7 +731,7 @@ String String::FormatParamList(const String& fmt, const String* params) {
     return ret;
 }
 
-String String::FormatIndexedV(const char* fmt, va_list ap) {
+String String::FormatIndexedList(const char* fmt, const char* const* argv, int argc) {
     String ret;
     if (fmt == nullptr)
         return ret;
@@ -746,11 +746,15 @@ String String::FormatIndexedV(const char* fmt, va_list ap) {
     StringArray params{nullptr, 0, 0};
     StringArray_SetCountFromEmpty(&params, paramCount);
 
-    for (int i = 0; i < paramCount; ++i) {
+    // NOT RETAIL (review F-125, vararg over-read): retail reads `paramCount` varargs
+    // whatever its caller passed. Only the `argc` passed are read; the slots past them keep
+    // the empty String SetCountFromEmpty put there.
+    const int readCount = (argc < paramCount) ? argc : paramCount;
+    for (int i = 0; i < readCount; ++i) {
         // Retail walks the register home slots forward from the format
         // string's; every vararg is a `const char*`.
         String tmp;
-        tmp.Set(va_arg(ap, const char*));
+        tmp.Set(argv[i]);
         params.data[i] = tmp;
     }
 
@@ -761,14 +765,6 @@ String String::FormatIndexedV(const char* fmt, va_list ap) {
     StringArray_DestroyRange(params.data, params.count);
     if (params.data != nullptr)
         RtMemFree(params.data);
-    return ret;
-}
-
-String String::FormatIndexed(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    String ret = FormatIndexedV(fmt, ap);
-    va_end(ap);
     return ret;
 }
 
@@ -805,22 +801,25 @@ String String::FormatIndexed(const char* fmt, ...) {
 // UTF-8 continuation byte terminates it the same way it does in the DLL.
 //
 // No overflow handling and no errno: past INT_MAX retail simply wraps, and so
-// do we.
+// do we. NOT RETAIL in spelling only (review F-149, signed overflow): the
+// accumulator is a uint32_t, because the same wrap on an `int` is undefined in
+// C++. Same 32 bits as retail's LEA chain for every input.
 int String::ToInteger(const char* s) {
-    int result = 0;
+    uint32_t result = 0;
     if (s != nullptr) {
         const char* p = s;
         while (*p == ' ' || *p == '\t') ++p;
-        int sign = 1;
-        if (*p == '-') { sign = -1; ++p; }
+        bool negative = false;
+        if (*p == '-') { negative = true; ++p; }
         else if (*p == '+') { ++p; }
         while (static_cast<signed char>(*p) >= '0' && static_cast<signed char>(*p) <= '9') {
-            result = result * 10 + (static_cast<int>(static_cast<signed char>(*p)) - '0');
+            result = result * 10u + static_cast<uint32_t>(static_cast<signed char>(*p) - '0');
             ++p;
         }
-        result *= sign;
+        if (negative)
+            result = 0u - result;
     }
-    return result;
+    return static_cast<int>(result);
 }
 
 // ============================================================

@@ -151,9 +151,9 @@ int32_t    FindClose(FindHandle h);                               // FindClose
 // GetDateFormatW(LOCALE_USER_DEFAULT, DATE_SHORTDATE), into `out` (kDateTimeChars
 // PathChars, the unit WideString holds). `fileTime` points at the two dwords of a
 // FILETIME (low first): System::DateTime's own storage. Retail ignores both
-// conversion results and formats uninitialised stack on failure; the Windows
-// body keeps that (its locals are not zeroed). A POSIX impl: localtime_r +
-// strftime("%x" / "%H:%M").
+// conversion results and formats uninitialised stack on failure; every body here
+// writes the empty string into `out` when the conversion fails (NOT RETAIL, review
+// F-152 / F-168). A POSIX impl: localtime_r + strftime("%x" / "%H:%M").
 constexpr uint32_t kDateTimeChars = 0x100;
 void FormatLocalDateTime(const uint32_t* fileTime, bool timePart, PathChar* out);
 
