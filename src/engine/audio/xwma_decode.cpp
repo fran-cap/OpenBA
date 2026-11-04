@@ -277,8 +277,18 @@ size_t XwmaDecoder::DecodePackets(uint32_t firstPacket, uint32_t packetCount,
 }
 
 size_t XwmaDecoder::DecodeChunk(uint32_t firstPacket, uint32_t packetCount, const uint8_t* chunk,
-                                int16_t* out, size_t outSamples) {
+                                size_t chunkBytes, int16_t* out, size_t outSamples) {
     if (chunk == nullptr && packetCount != 0) return 0;
+    // Hardening (review F-096 / F-097): the packets are read at the format's
+    // nBlockAlign, the caller's chunk holds chunkBytes. The Stream worker's ring
+    // slot is 16 fixed 0x8b6-byte packets; a track with a larger nBlockAlign read
+    // past it. The packets DecodeRange would read (packetCount clipped to the
+    // table, as there) must fit, or nothing is decoded.
+    if (IsOpen() && firstPacket < _packetCount) {
+        const uint32_t left = _packetCount - firstPacket;
+        const uint32_t n = packetCount < left ? packetCount : left;
+        if (static_cast<uint64_t>(n) * _blockAlign > chunkBytes) return 0;
+    }
     return DecodeRange(firstPacket, packetCount, chunk, out, outSamples);
 }
 

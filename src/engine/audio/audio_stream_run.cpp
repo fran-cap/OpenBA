@@ -329,8 +329,14 @@ void Stream::Run() {
         // be played by SDL at all, so the pass is skipped (the file is still
         // closed below).
         XwmaDecoder decoder;
+        // Hardening (review F-096 / F-097): the ring slot holds 16 packets of
+        // retail's fixed 0x8b6 bytes (XAudio2 read nPackets * 0x8b6 bytes, never
+        // a stride); the decoder strides by the format's nBlockAlign. A track
+        // whose nBlockAlign is not 0x8b6 (the only size retail's fixed stride plays)
+        // read past the slot or decoded the wrong byte ranges; it is undecodable.
         const bool decodable = decoder.Open(buf->_format, nullptr, 0, segTable,
-                                            static_cast<uint32_t>(segCount));
+                                            static_cast<uint32_t>(segCount)) &&
+                               decoder.BlockAlign() == static_cast<uint32_t>(kPacketBytes);
         if (!decodable) ++g_undecodable;
         const size_t pcmSlotSamples = decodable ? decoder.MaxSamplesFor(kPacketsPerSlot) : 0u;
         const uint32_t pcmChannels = decoder.Channels();
@@ -385,7 +391,7 @@ void Stream::Run() {
             int16_t* const pcm = PcmSlot(slotIndex);
             const size_t pcmSamples = decoder.DecodeChunk(
                 static_cast<uint32_t>(curSeg32), static_cast<uint32_t>(nPackets),
-                block->packets, pcm, pcmSlotSamples);
+                block->packets, sizeof(block->packets), pcm, pcmSlotSamples);
 
             // ---- wait until the voice has fewer than 3 buffers queued ------
             Platform::MutexLock(lock);                                 // 1800a124b
