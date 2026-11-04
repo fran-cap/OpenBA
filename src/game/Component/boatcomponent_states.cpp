@@ -127,8 +127,11 @@ const float kApproach   = kRdata_1401721f4;           // state 0 -> 1 range (squ
 int NextRoutePoint(BoatComponent* boat, const Math::Vector3* ref);
 
 // The model's world position: the translation of its transform (+0x148 + 0x10).
+// Retail reads it with no test at every call site (Steer 0x140046401, State0Tick
+// 0x14004531e, State1Tick 0x140045011, State3Tick 0x140044d42): the boat's ModelComponent
+// (+0x30) is latched by State0Enter from the boat template and saved with the boat, so a
+// null here is an upstream defect, not a state to survive (review F-086).
 inline const Math::Vector3* ModelPos(ModelComponent* model) {
-    if (!model) return nullptr;                     // see the guard note in Steer()
     return &model->transform.translation;
 }
 
@@ -219,9 +222,7 @@ void DeleteBoatEntity(BoatComponent* boat) {
 // transcription slip: state 0 steers by direction only, state 1 hands the mover an
 // explicit target and speed.
 char BoatComponent::Steer() {
-    const Math::Vector3* mp = ModelPos(model.Get());
-    if (!mp) return 0;
-    const Math::Vector3 modelPos = *mp;
+    const Math::Vector3 modelPos = *ModelPos(model.Get());   // 0x140046401, no test
     const Math::Vector3* wp = &waypoint;
 
     char ok = 1;
@@ -439,8 +440,7 @@ char BoatComponent::State0Tick(StateMachine* smV) {
         PostEventToDestination(this, 0xb);
     }
 
-    const Math::Vector3* mp = ModelPos(model.Get());
-    if (!mp) return 1;
+    const Math::Vector3* mp = ModelPos(model.Get());   // 0x14004531e, no test
     const Math::Vector3* dockPos = &dockPosition;
     const Math::Vector3 d(mp->x - dockPos->x, mp->y - dockPos->y, mp->z - dockPos->z);
     const float dist2 = d.Dot(d).v;
@@ -474,8 +474,7 @@ char BoatComponent::State1Enter() {
 // JA take-max` then `COMISS min,XMM6; JBE keep`, i.e. high clamp to 0x14017214c and low
 // clamp to 0x14017210c. Ghidra renders this as nonsense involving `DAT_1401720ec * 0.0`.
 char BoatComponent::State1Tick(StateMachine* smV) {
-    const Math::Vector3* mp = ModelPos(model.Get());
-    if (!mp) return 1;
+    const Math::Vector3* mp = ModelPos(model.Get());   // 0x140045011, no test
     const Math::Vector3* dockPos = &dockPosition;
     const Math::Vector3 d(dockPos->x - mp->x, dockPos->y - mp->y, dockPos->z - mp->z);
     Math::Scalar distS;
@@ -558,9 +557,7 @@ char BoatComponent::State3Enter() {
 // The second call overwrites the first length, so the gate is the boat -> waypoint distance.
 // Offsets are from the function's start.
 char BoatComponent::State3Tick(StateMachine* smV) {
-    const Math::Vector3* mp = ModelPos(model.Get());
-    if (!mp) return 1;
-    const Math::Vector3 modelPos = *mp;
+    const Math::Vector3 modelPos = *ModelPos(model.Get());   // 0x140044d42, no test
     const Math::Vector3* dockPos = &dockPosition;
     const Math::Vector3* wp      = &waypoint;
 
