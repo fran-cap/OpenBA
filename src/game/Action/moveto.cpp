@@ -155,6 +155,8 @@ void MoveTo::Persist(IO::Stream& stream) {
     // NOT RETAIL (review F-107): retail 0x1400c8ec0 reads pathCount ints into path[0x100]
     // with no compare. A saved count past the array keeps the first 0x100 and reads the rest
     // into a scratch int, so the stream stays where retail leaves it; a negative one is 0.
+    // A hostile count near 0x7FFFFFFF costs one scalar read per excess node through EOF (a
+    // stall, not a fault); that keeps the stream position retail's read would reach.
     int32_t excessNodes = ActionBounds::ClampSavedPathCount(pathCount);
     ser.Serialize(pathIndex, nullptr);
     // NOT RETAIL (review F-107): Execute reads path[pathIndex] for any pathIndex other than
