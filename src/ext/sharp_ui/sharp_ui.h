@@ -15,7 +15,11 @@
 //      SHARP-SPACING.md); the base font still lays out every string, so
 //      wrapping, widths and hit-testing are unchanged;
 //   2. a sprite sheet `X.rsc` with a deployed `X2x.rsc` twin is drawn from
-//      the twin while the UI is magnified (none ships: SHARPUI.md §12);
+//      the twin while the UI is magnified (none ships: SHARPUI.md §12); the
+//      game's dialog sheet (Dialog/SpriteSheet.rsc) is otherwise drawn from a
+//      copy twice its size BUILT AT LOAD from the player's own sheet, with our
+//      art for the menu chrome and icons over it (sharp_scaled.h,
+//      sharp_sheet.h; docs/extensions/handins/SHARP_SPRITES.md);
 //   3. every axis-aligned UI quad's corners land on whole device pixels;
 //   4. at an integer ratio >= 2 (unreachable from the 75-150% slider) pixel-
 //      exact batches are point-sampled.
@@ -31,8 +35,11 @@
 // the back buffer changes:
 //   [SharpUI] on scale=<_uiScale> px/unit=<r> fonts: Font-><px> FontSmall-><px>
 //             FontMedium-><px> FontLarge-><px> 2x=<twins in force>
+//             sheet=<the dialog sheet's built factor, 0 = retail's>
 //   (<px> is the variant drawn; "native" = the retail font at ratio 1,
 //    "retail(<why>)" = the retail font because no variant could be used)
+//   and once per built copy of the dialog sheet:
+//   [SharpUI] 2x sheet built: <w> x <h>, <n> of <count> sprites from our art, <ms> ms
 // ============================================================================
 #pragma once
 

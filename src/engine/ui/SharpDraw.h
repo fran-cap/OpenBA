@@ -38,6 +38,8 @@
 #include <cmath>
 #include <cstdint>
 
+namespace Graphics { class MaterialInstance; }
+
 namespace UI {
 
 class SpriteSheet;
@@ -94,12 +96,17 @@ constexpr float kSharpRunTolerance = 1.0f;
 // A sheet drawn from its twin (see the banner). `twinSprite` and `place` (when
 // set) have `count` entries, indexed by the BASE sprite index; a twin index < 0
 // draws nothing (zero UVs, as retail's negative index does).
+// A SCALED sheet (ext/sharp_ui/sharp_sheet.h: the base atlas rebuilt at a whole
+// multiple, every rectangle the base one times the factor) has no twin sheet:
+// `material` is set, `twin` and `twinSprite` are null, and the batch keeps the
+// BASE sheet's UVs, drawing from `material` instead of the sheet's own.
 struct SharpSheetSwap {
     const SpriteSheet*     base;
     const SpriteSheet*     twin;
     const int32_t*         twinSprite;
     const SharpGlyphPlace* place;   // null: retail's quad (a 2x sprite twin)
     int32_t                count;
+    Graphics::MaterialInstance* material = nullptr;   // non-null: a scaled sheet (base UVs)
 };
 
 struct SharpDraw {

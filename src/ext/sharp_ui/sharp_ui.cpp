@@ -6,6 +6,7 @@
 // ============================================================================
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/sharp_ui/sharp_math.h"
+#include "ext/sharp_ui/sharp_scaled.h"
 #include "platform/common/platform_window_hooks.h"   // GamePixelDensity
 #include "ext/resources/Resources.h"   // HasProvider: the in-exe font variants (KITFREE)
 
@@ -61,6 +62,7 @@ struct State {
     int32_t            swapCount = 0;
     char               fontText[kFontCount][32];   // the trace's "Font->32" parts
     int32_t            twin2x = 0;
+    int32_t            scaled = 0;   // the dialog sheet's factor (sharp_scaled.h), 0 = retail's
     // Engage detection: the context frame of the last wrapped draw.
     bool     drewBefore = false;
     int32_t  lastFrame = 0;
@@ -117,6 +119,7 @@ UI::SharpSheetSwap* NewSwap() {
     Twin& t = g.twins[g.swapCount];
     t.twinSprite.clear();
     t.place.clear();
+    g.swaps[g.swapCount] = UI::SharpSheetSwap{};
     return &g.swaps[g.swapCount];
 }
 
@@ -263,14 +266,39 @@ void SelectTwins2x() {
     }
 }
 
+// The dialog sheet drawn from its copy at `factor` (sharp_scaled.h): our art
+// over the player's own sheet upscaled, the base UVs. A deployed twin wins.
+void SelectScaledSheet(int factor) {
+    Object::ExternalFactory* const f = Object::ExternalFactory::_singleton;
+    if (f == nullptr || factor < 2) return;
+    for (UI::SpriteSheet* s = f->FindNextAs<UI::SpriteSheet>(UI::SpriteSheet::TypeId(), nullptr);
+         s != nullptr; s = f->FindNextAs<UI::SpriteSheet>(UI::SpriteSheet::TypeId(), s)) {
+        if (AlreadySwapped(s)) continue;
+        const System::Filename path = s->GetPath();
+        if (!IsDialogSheet(path._data)) continue;
+        Graphics::MaterialInstance* const material = ScaledSheetMaterial(s, factor);
+        if (material == nullptr) return;
+        UI::SharpSheetSwap* const swap = NewSwap();
+        if (swap == nullptr) return;
+        swap->base     = s;
+        swap->count    = s->m_sprites._size;
+        swap->material = material;
+        ++g.swapCount;
+        g.scaled = factor;
+        return;
+    }
+}
+
 void Select(const DrawChoice& c) {
     g.swapCount = 0;
     g.twin2x = 0;
+    g.scaled = 0;
     for (int k = 0; k < kFontCount; ++k) {
         if (c.snap) SelectFont(k, c.pxPerUnitY);
         else std::snprintf(g.fontText[k], 32, "%s->retail(frame)", kFontNames[k]);
     }
     if (c.snap && WantTwin2x(c.pxPerUnitX, c.pxPerUnitY)) SelectTwins2x();
+    if (c.snap) SelectScaledSheet(PickSheetScale(c.pxPerUnitX, c.pxPerUnitY));
 }
 
 }  // namespace
@@ -302,9 +330,9 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
 
     // TRACE FIRST (EYECAM §11): which path ran, once per engage / scale change.
     if (engaged || scaleChanged) {
-        std::fprintf(stderr, "[SharpUI] on scale=%.4f px/unit=%.4f fonts: %s %s %s %s 2x=%d\n",
+        std::fprintf(stderr, "[SharpUI] on scale=%.4f px/unit=%.4f fonts: %s %s %s %s 2x=%d sheet=%d\n",
                      static_cast<double>(ui._uiScale), static_cast<double>(c.pxPerUnitY),
-                     g.fontText[0], g.fontText[1], g.fontText[2], g.fontText[3], g.twin2x);
+                     g.fontText[0], g.fontText[1], g.fontText[2], g.fontText[3], g.twin2x, g.scaled);
     }
 
     UI::SharpDraw sharp;

@@ -75,6 +75,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/package_cache/index_codec.cpp      # ext_package_cache_test.cpp (PKGCACHE)
   ${CMAKE_SOURCE_DIR}/src/ext/menu_entry/fingerprint.cpp         # ext_menu_entry_test.cpp (MENUENTRY)
   ${CMAKE_SOURCE_DIR}/src/ext/sharp_ui/sharp_math.cpp
+  ${CMAKE_SOURCE_DIR}/src/ext/sharp_ui/sharp_sheet.cpp   # ext_sharp_sheet_test.cpp (SHARP_SPRITES)
   ${CMAKE_SOURCE_DIR}/src/ext/phone_menu/phone_math.cpp   # ext_phone_menu_test.cpp (PHONEMENU)
   ${CMAKE_SOURCE_DIR}/src/ext/phone_menu/touch_math.cpp   # ext_phone_touch_test.cpp (PHONEMENU, P9)
   ${CMAKE_SOURCE_DIR}/src/ext/phone_menu/size_math.cpp    # ext_phone_size_test.cpp (PHONEMENU, P11)
