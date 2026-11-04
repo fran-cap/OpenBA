@@ -100,16 +100,16 @@ is in README's Legal section. One fix on the way: ext.sharp_ui tested the disk f
 before loading it (`LooseCompiledExists`), so the provider was never asked; it now also accepts
 `Ext::Resources::HasProvider`. Hand-ins: RSCTEXT.md, RSCSPRITE.md, RSCFONT.md.
 
-## 7. The Extensions sprite sheet is 512 x 512 (since 2026-10-18)
+## 7. The Extensions sprite sheet is 512 x 1024 (since 2026-11-04)
 
-256 x 256 held 28 sprites: the 48 x 48 entry icons take 50 x 50 with the pad ring, and the 29th
+512 x 512 held 115 sprites and refused the 116th, so the height was doubled. Before that, 256 x 256 held 28 sprites: the 48 x 48 entry icons take 50 x 50 with the pad ring, and the 29th
 failed `ext_sheet_pack_fits_pads_and_records`. The size is named once, by `_imageWidth` /
 `_imageHeight` in `src/ext/ui/Dialog/ExtensionsSprites.rsc`. `tools/ext_sprites_bake.py` copies it
 into `ext_sprites_data.h` (`kSheetWidth` / `kSheetHeight`), and the provider and the unit test read it
-from there; the test pins 512 so a silent change is caught. The kit compiles the same 512 x 512 sheet,
+from there; the test pins 512 x 1024 so a silent change is caught. The kit compiles the same sheet,
 so the cross-check needs no new expectation. On screen nothing moves: a row icon's size comes from
-`Mod.rsc:imageIcon`, and the uvs are pixel edges over the sheet size. The sheet now has room for
-about 90 entry icons. `ext.sharp_ui`'s 2x twins match sprites by name, not by position or sheet size,
+`Mod.rsc:imageIcon`, and the uvs are pixel edges over the sheet size. The 512 x 512 sheet had room for
+about 90 entry icons; this one has about twice that. `ext.sharp_ui`'s 2x twins match sprites by name, not by position or sheet size,
 and none is provided for this sheet.
 
 **Adding an entry icon:**

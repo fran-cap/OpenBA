@@ -180,5 +180,25 @@ StringTable resource
 		// the Extensions dialog's two tabs (Extensions.rsc:tabCaptionOptional / tabCaptionDefault)
 		{ String _name = "ExtensionsTabOptional";	String _text = "Optional"; }
 		{ String _name = "ExtensionsTabDefault";		String _text = "Default"; }
+
+		// ext.building_finder's page in it (BuildingFinderPage.rsc); the rows' texts are set by the controller through FinderParam
+		{ String _name = "FinderTab";				String _text = "Find Buildings"; }
+		{ String _name = "FinderHint";			String _text = "Press a name to place it. + adds it to your favorites."; }
+		{ String _name = "FinderParam";			String _text = "@0"; }
+		{ String _name = "FinderSearch";			String _text = "Find:"; }
+		{ String _name = "FinderSearchTip";		String _text = "Type part of a name, or of the group a building is in (Housing, Farm). Every word you type must match. Click the box, type, and press Enter or click away when done."; }
+		{ String _name = "FinderClear";			String _text = "Clear"; }
+		{ String _name = "FinderClearTip";		String _text = "Empty the search box to see every building."; }
+		{ String _name = "FinderOpenFav";			String _text = "Open Favorites Window"; }
+		{ String _name = "FinderOpenFavTip";		String _text = "Open the favorites in a small window that stays beside the map while you place buildings. The hotkey button beside this one sets the key that opens or closes it on the map."; }
+		{ String _name = "FinderKeyTip";			String _text = "Change the key that opens or closes the favorites window on the map. Press this button, then the new key; Esc cancels. The key is kept in settings.cfg."; }
+		{ String _name = "FavoritesWindowTitle";	String _text = "Favorite Buildings"; }
+		{ String _name = "FavoritesOpenPage";		String _text = "Open Find Buildings"; }
+		{ String _name = "FavoritesClear";			String _text = "Clear All"; }
+		{ String _name = "FavoritesClearSure";		String _text = "Sure? Clear All"; }
+		{ String _name = "FavoritesClearTip";		String _text = "Take every building out of the favorites. Press it twice: the first press asks, the second clears the list."; }
+		{ String _name = "FavoritesOpenPageTip";	String _text = "Open the Find Buildings page of the extensions window, where you search for buildings and press + to add them here."; }
+		{ String _name = "FinderPickTip";		String _text = "Start placing this building, as the toolbar's button does. A building whose limit is reached cannot be placed."; }
+		{ String _name = "FinderStarTip";		String _text = "+ adds the building to your favorites; - takes it out. The favorites window shows them; the list is kept in building_favorites.txt, beside settings.cfg."; }
 	]
 }

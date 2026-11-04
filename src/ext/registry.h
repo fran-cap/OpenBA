@@ -98,6 +98,8 @@ struct Extensions {
     bool no_fog = false;       // class A: src/ext/no_fog/ (docs/extensions/handins/NOFOG.md)
     bool show_grid = false;    // class A: src/ext/show_grid/ (docs/extensions/handins/SHOWGRID.md)
     bool fps_counter = false;  // class A: src/ext/fps_counter/, FrameLimiter::g_extGameFrame (docs/extensions/handins/FPSCOUNTER.md)
+    // class A: src/ext/building_finder/ (docs/extensions/handins/BUILDINGFINDER.md)
+    bool building_finder = false;
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
     bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 + steady tilt
     bool high_limits = false;   // class B: src/ext/high_limits/ (docs/extensions/handins/HIGHLIMITS.md)
