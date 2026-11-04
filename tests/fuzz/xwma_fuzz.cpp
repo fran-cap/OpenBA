@@ -33,9 +33,29 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace {
+
+// DecodeChunk gained a chunk byte count (PR #140, review F-096 / F-097). Call whichever
+// signature the tree has, so this target builds before and after that change merges.
+template <typename D, typename = void>
+struct HasChunkBytes : std::false_type {};
+template <typename D>
+struct HasChunkBytes<D, std::void_t<decltype(std::declval<D&>().DecodeChunk(
+                             uint32_t{}, uint32_t{}, static_cast<const uint8_t*>(nullptr), size_t{},
+                             static_cast<int16_t*>(nullptr), size_t{}))>> : std::true_type {};
+
+template <typename D>
+size_t DecodeChunkAny(D& dec, uint32_t first, uint32_t count, const uint8_t* block, size_t blockBytes,
+                      int16_t* out, size_t outSamples) {
+    if constexpr (HasChunkBytes<D>::value)
+        return dec.DecodeChunk(first, count, block, blockBytes, out, outSamples);
+    else
+        return dec.DecodeChunk(first, count, block, out, outSamples);
+}
 
 uint32_t ReadU32(const uint8_t* p) {
     return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24);
@@ -125,11 +145,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if ((mode & 2) != 0 && outSamples > 5)
                 outSamples = 5;
             std::vector<int16_t> pcm(outSamples * dec.Channels());
-            dec.DecodeChunk(next, n, block.data(), pcm.data(), outSamples);
+            DecodeChunkAny(dec, next, n, block.data(), block.size(), pcm.data(), outSamples);
             next = dec.NextPacket();
         }
         std::vector<int16_t> tail(64 * dec.Channels());
-        dec.DecodeChunk(dec.NextPacket(), 0, nullptr, tail.data(), 64);
+        DecodeChunkAny(dec, dec.NextPacket(), 0, nullptr, 0, tail.data(), 64);
     }
 
     std::free(packets);
