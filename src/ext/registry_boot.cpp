@@ -145,13 +145,13 @@ void InitFromSettings() {
     ::UI::SliderElement::_extFixDragClamp = &Fix().slider_drag_clamp;
     ::UI::ScrollElement::_extFixDragClamp = &Fix().slider_drag_clamp;
     // fix.save_failure_notice: the save job's temporary file, and state 2's status read + notice.
-    ::IO::PersistenceWorker::_extFixSaveTemp = &Fix().save_failure_notice;
+    ::IO::PersistenceWorker::_extFixSaveTemp = &LiveFix().save_failure_notice;   // the worker thread reads it
     ::Save::SaveLoad::_extFixSaveResult = &Fix().save_failure_notice;
     ::Save::SaveLoad::_extSaveResult = &Ext::SaveFailureNotice::OnSaveResult;
     // fix.boot_device_lost: one row, two seams -- the engine's SaveLoad-walk skip and the
     // renderer backend's recovery of a reset that failed on a removed device.
     ::Engine::MainLoop::_extFixBootDeviceLost = &Fix().boot_device_lost;
-    BootDeviceLostBackend::SetFixFlag(&Fix().boot_device_lost);
+    BootDeviceLostBackend::SetFixFlag(&LiveFix().boot_device_lost);   // the render thread reads it
     // fix.large_packages: the IO::FileSystem::_extPackagesMounted seam (null under the faithful
     // profile). The boot's .pkg mount ran inside Engine::Startup, before this; every mods mount runs it.
     LargePackages::Sync();

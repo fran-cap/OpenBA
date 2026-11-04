@@ -497,6 +497,14 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
     swapchainLost = r == VK_ERROR_DEVICE_LOST;
     if (r != VK_SUCCESS) {
         *why = std::string("vkCreateSwapchainKHR: ") + ResultName(r);
+        // The old chain is retired even when the create failed (the spec, vkCreateSwapchainKHR), and a
+        // retired chain cannot be an oldSwapchain again (VUID-VkSwapchainCreateInfoKHR-oldSwapchain-01933):
+        // it goes now, so the retry creates from none (review S-046). The callers waited for idle.
+        if (swapchain) {
+            DestroySwapchainObjects();
+            vkDestroySwapchainKHR(device, swapchain, nullptr);
+            swapchain = VK_NULL_HANDLE;
+        }
         return false;
     }
     DestroySwapchainObjects();
@@ -661,9 +669,15 @@ bool CreateFrames(std::string* why) {
         f.commands = f.first;
         VkFenceCreateInfo fi = Make<VkFenceCreateInfo>(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO);
         fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-        vkCreateFence(device, &fi, nullptr, &f.done);
+        if (vkCreateFence(device, &fi, nullptr, &f.done) != VK_SUCCESS) {
+            *why = "vkCreateFence failed";
+            return false;
+        }
         VkSemaphoreCreateInfo si = Make<VkSemaphoreCreateInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
-        vkCreateSemaphore(device, &si, nullptr, &f.imageAvailable);
+        if (vkCreateSemaphore(device, &si, nullptr, &f.imageAvailable) != VK_SUCCESS) {
+            *why = "vkCreateSemaphore failed";
+            return false;
+        }
     }
     return true;
 }
@@ -724,6 +738,22 @@ uint32_t MainSampleCount() {
 
 VkCommandBuffer SubmitFrameSoFar() {
     Frame& f = frames[frameSlot];
+    // The continuation first (review S-024): with none to be had, nothing is submitted and the frame
+    // records on in the command buffer it has.
+    if (f.extraUsed == f.extra.size()) {
+        auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
+        ai.commandPool = f.pool;
+        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        ai.commandBufferCount = 1;
+        VkCommandBuffer cb = VK_NULL_HANDLE;
+        const VkResult r = vkAllocateCommandBuffers(device, &ai, &cb);
+        if (r != VK_SUCCESS) {
+            NoteResult(r, "vkAllocateCommandBuffers (frame continuation)");
+            std::fprintf(stderr, "[Vulkan] frame continuation: %s\n", ResultName(r));
+            return VK_NULL_HANDLE;
+        }
+        f.extra.push_back(cb);
+    }
     vkEndCommandBuffer(f.commands);
     FlushUploads();
     VkSemaphoreSubmitInfo wait = Make<VkSemaphoreSubmitInfo>(VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO);
@@ -733,15 +763,6 @@ VkCommandBuffer SubmitFrameSoFar() {
                                            VK_NULL_HANDLE);
     f.acquireWaited = true;
     WaitSerial(serial);
-    if (f.extraUsed == f.extra.size()) {
-        auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
-        ai.commandPool = f.pool;
-        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        ai.commandBufferCount = 1;
-        VkCommandBuffer cb = VK_NULL_HANDLE;
-        vkAllocateCommandBuffers(device, &ai, &cb);
-        f.extra.push_back(cb);
-    }
     f.commands = f.extra[f.extraUsed++];
     VkCommandBufferBeginInfo bi = Make<VkCommandBufferBeginInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -1540,7 +1561,9 @@ int32_t PresentFrame(::Video::Context& ctx) {
     pi.swapchainCount = 1;
     pi.pSwapchains = &swapchain;
     pi.pImageIndices = &imageIndex;
-    VkResult r = PresentQueue(pi);
+    // A failed submit (serial 0, noted as a loss: resources.cpp SubmitCommands) signalled nothing, so
+    // nothing would ever signal the present's wait: no present (review S-025).
+    VkResult r = serial != 0 ? PresentQueue(pi) : VK_ERROR_DEVICE_LOST;
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR || r == VK_ERROR_SURFACE_LOST_KHR) {
         swapchainDirty = true;
     } else if (r == VK_ERROR_DEVICE_LOST) {

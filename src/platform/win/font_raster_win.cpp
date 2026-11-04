@@ -23,6 +23,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <string>
 
@@ -32,8 +33,13 @@ namespace Resources {
 namespace {
 
 std::mutex g_lock;              // GDI objects are per thread; the private-load state is shared
-bool g_privateTried = false;    // AddFontResourceEx attempted once per process
-bool g_privateLoaded = false;
+
+// One face's private load (AddFontResourceEx), attempted once per process.
+struct PrivateFace {
+    bool        loaded = false;
+    std::string why;            // why it is not loaded
+};
+std::map<std::wstring, PrivateFace> g_privateFaces;   // by the face asked for; under g_lock
 
 void ToWide(const char* s, wchar_t* out, int cap) {
     const int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, out, cap);
@@ -72,24 +78,39 @@ HFONT SelectFace(HDC dc, const wchar_t* face, int pixelHeight, std::string* got)
 
 // `<exe dir>/<face>.ttf`, loaded privately for this process (the release
 // package ships it there; a user may also drop it beside the exe).
-bool LoadPrivateFace(const wchar_t* face, std::string* why) {
-    if (g_privateTried) return g_privateLoaded;
-    g_privateTried = true;
+PrivateFace TryPrivateFace(const wchar_t* face) {
+    PrivateFace r;
     wchar_t path[MAX_PATH] = {};
     const DWORD n = GetModuleFileNameW(nullptr, path, MAX_PATH);
-    if (n == 0 || n >= MAX_PATH) { if (why) *why = "exe path unknown"; return false; }
+    if (n == 0 || n >= MAX_PATH) {
+        r.why = "exe path unknown";
+        return r;
+    }
     wchar_t* slash = wcsrchr(path, L'\\');
-    if (slash == nullptr) { if (why) *why = "exe path has no directory"; return false; }
+    if (slash == nullptr) {
+        r.why = "exe path has no directory";
+        return r;
+    }
     slash[1] = 0;
     wcsncat(path, face, MAX_PATH - wcslen(path) - 1);
     wcsncat(path, L".ttf", MAX_PATH - wcslen(path) - 1);
     if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) {
-        if (why) *why = "not installed and no " + FromWide(path);
-        return false;
+        r.why = "not installed and no " + FromWide(path);
+        return r;
     }
-    g_privateLoaded = AddFontResourceExW(path, FR_PRIVATE, nullptr) > 0;
-    if (!g_privateLoaded && why) *why = "AddFontResourceEx failed on " + FromWide(path);
-    return g_privateLoaded;
+    r.loaded = AddFontResourceExW(path, FR_PRIVATE, nullptr) > 0;
+    if (!r.loaded) r.why = "AddFontResourceEx failed on " + FromWide(path);
+    return r;
+}
+
+// The private load of `face`, attempted once per face (review S-050 / S-051: one
+// attempt used to answer for every face, so a missing "Segoe UI" hid the
+// FrancophilSans.ttf beside the exe). The caller holds g_lock.
+bool LoadPrivateFace(const wchar_t* face, std::string* why) {
+    auto it = g_privateFaces.find(face);
+    if (it == g_privateFaces.end()) it = g_privateFaces.emplace(face, TryPrivateFace(face)).first;
+    if (!it->second.loaded && why) *why = it->second.why;
+    return it->second.loaded;
 }
 
 // The face selected into `dc` at `pixelHeight`: installed, else the private file.

@@ -25,11 +25,10 @@
 //     impl_42c0 effect enable/disable (2x/tick)        — ported (WeatherEffect_SetEnabled)
 //     Part 6  precipitation entity spawn               — ported (geometry)
 //
-//   The one piece still out of scope is the per-effect ambient AUDIO emitter
-//   (the entry+8 audio template + Audio::Scene registration): audio was skipped
-//   for the whole weather task. The visible falling rain/snow does not depend on
-//   it. See weather_particles.cpp (particle geometry) and weather_sun.cpp (the
-//   day-cycle lighting these effects tint).
+//   Each effect also owns an ambient-sound entity (the choice's +8 template,
+//   emitters +0x60): SetEffectEnabled registers it, Part 1 sets its volume and
+//   retires it. See weather_particles.cpp (particle geometry) and weather_sun.cpp
+//   (the day-cycle lighting these effects tint).
 //
 // Weather sim struct (gameWorld+0x130, 0x78 bytes; ctor FUN_140093f60,
 // env-bind FUN_140093e30):
@@ -250,7 +249,8 @@ void WeatherSimulation::Update(const System::Time* time) {
     // --- Part 1: tick + cull the active weather effects. For each live effect,
     //     run its particle Update (vtable +0x08); if it has faded out (intensity
     //     0) or weather is disabled, remove it from the Graphics scene and
-    //     destroy it. (Per-effect audio emitter volume is out of scope.) ---
+    //     destroy it. Its sound entity (emitters[i]) takes the effect's intensity
+    //     as volume, and is retired with it. ---
     {
         int cnt = effects.GetSize();
         Graphics::Geometry** activeArray = effects._data;
@@ -260,6 +260,10 @@ void WeatherSimulation::Update(const System::Time* time) {
                 if (!geo) continue;
                 // Geometry slot 1: the particle Update(time).
                 geo->Update(*time);
+                // The effect's sound follows its intensity (+0xC0).
+                if (emitters[i] != nullptr) {
+                    SetEmitterVolume(i, EffectIntensity(geo));
+                }
                 float intensity = EffectIntensity(geo);
                 if (intensity == 0.0f || weatherSetting == 0) {
                     {
@@ -270,7 +274,18 @@ void WeatherSimulation::Update(const System::Time* time) {
                     // Geometry slot 0: the scalar deleting dtor, free = 1.
                     delete geo;
                     activeArray[i] = nullptr;
-                    // (audio IBP slot +0x60[i] stays null — no audio spawned)
+                    // The effect's sound entity is marked for removal (unless it
+                    // already is, flags bit 10) and queued on the removal list
+                    // (+0xD0), then its slot is cleared.
+                    if (emitters[i] != nullptr) {
+                        ComponentEntity* entity = emitters[i];
+                        EntityList* entityList = gw->m_entityList;
+                        if (((entity->_entityFlags >> 10) & 1) == 0) {
+                            entity->MarkForRemoval();   // 0x1400c2ea0
+                            entityList->removalList.SetSize(entityList->removalList._size + 1, entity);
+                        }
+                        emitters[i] = nullptr;
+                    }
                 }
             }
         }

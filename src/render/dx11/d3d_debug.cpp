@@ -31,6 +31,12 @@ void PrintCounts() {
 }  // namespace
 
 void D3dDebug::Attach(ID3D11Device* device) {
+    // A device re-create (device lost, OnVideoRestart) attaches again. The previous queue holds a
+    // reference to the previous device: release it, and register the exit totals only once.
+    if (g_queue != nullptr) {
+        g_queue->Release();
+        g_queue = nullptr;
+    }
     if (device == nullptr) {
         std::fprintf(stderr, "[D3D11] BANISHED_D3D_DEBUG: the debug-layer device create failed "
                              "(SDK layers missing?); running without it\n");
@@ -43,7 +49,11 @@ void D3dDebug::Attach(ID3D11Device* device) {
     }
     g_queue->SetMessageCountLimit(4096);
     std::fprintf(stderr, "[D3D11] BANISHED_D3D_DEBUG: debug layer on, info queue attached\n");
-    std::atexit(PrintCounts);
+    static bool s_countsAtExit = false;
+    if (!s_countsAtExit) {
+        s_countsAtExit = true;
+        std::atexit(PrintCounts);
+    }
 }
 
 void D3dDebug::Drain() {

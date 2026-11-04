@@ -34,10 +34,18 @@ struct KilledQuad {
 };
 
 // A resource a stroke planted: the cell and the entity that stands on it (compared, never dereferenced, so it
-// stays standard C++).
+// stays standard C++). The address alone is no identity: the allocator hands a freed 0x48 block to the next
+// entity, so a forester's sapling on the cell of a chopped planted tree can have the tree's address (review
+// F-242). The entity's generation (Object::Internal::_generation, drawn at its birth) tells them apart.
 struct PlantedResource {
     int       cell;
     uintptr_t entity;
+    uint32_t  generation;
+
+    // Whether the occupant `address` of generation `occupantGeneration` is still this resource.
+    bool IsStanding(uintptr_t address, uint32_t occupantGeneration) const {
+        return address != 0 && address == entity && occupantGeneration == generation;
+    }
 };
 
 // One frame of a stroke as it was painted: the cell under the cursor and the brush settings of that frame.
@@ -123,8 +131,8 @@ public:
         if (_open) _current.types.emplace(cell, before);
     }
 
-    void RecordPlanted(int cell, uintptr_t entity) {
-        if (_open) _current.planted.push_back(PlantedResource{ cell, entity });
+    void RecordPlanted(int cell, uintptr_t entity, uint32_t generation) {
+        if (_open) _current.planted.push_back(PlantedResource{ cell, entity, generation });
     }
 
     void RecordWrittenType(int cell, uint8_t after) {
