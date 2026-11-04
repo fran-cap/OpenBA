@@ -9,7 +9,7 @@
 //   1. every sprite rectangle of the base atlas (with its filtering pad ring)
 //      is upscaled bilinearly into the same rectangle times `scale`, sampling
 //      only inside that rectangle, so no neighbour bleeds in;
-//   2. the sprites we have art for (sharp_sprites_data.h: our own drawing and
+//   2. the sprites we have art for (sharp_sprites_data_<N>x.h: our own drawing and
 //      third-party icons, matched by sprite NAME, exactly `scale` x the base
 //      sprite's size) are written over their rectangle, and the pad ring
 //      around it is refilled from the art's own edge, `pad * scale` wide.
@@ -18,11 +18,9 @@
 // Nothing here ships retail pixels: the base atlas is read back from the
 // player's install at run time.
 //
-// The factor is a parameter: 2 is what ships (the 75-150 % slider gives at
-// most 1.33 device pixels per unit). A 4x art set (Retina, density 2: px/unit
-// up to ~2.67; ext.phone_menu: ratio up to 4) is a second sharp_sprites_data
-// header baked with `--scale 4` and a pick of the factor in sharp_ui.cpp
-// (PickSheetScale); nothing here changes.
+// The factor is a parameter: the art is baked at 2 and 4 (one generated header
+// per factor, tools/sharp_sprites/pack.py --scale N); the factor is picked in
+// sharp_scaled.cpp. Nothing here depends on it.
 //
 // Standard C++ only: tests/unit/ext_sharp_sheet_test.cpp includes it.
 // ============================================================================
@@ -35,7 +33,7 @@ namespace Ext {
 namespace SharpUI {
 
 // One sprite of our art: its sheet NAME and straight RGBA8 pixels, row-major,
-// top-down, `width * height * 4` bytes (sharp_sprites_data.h).
+// top-down, `width * height * 4` bytes (sharp_sprites_data_<N>x.h).
 struct ArtSprite {
     const char*    name;
     int            width;

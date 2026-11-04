@@ -4,12 +4,14 @@
 // src/ext/sharp_ui/sharp_sheet.{h,cpp}: the rect scaling, the name + size match
 // of our art, the per-sprite upscale (no neighbour bleed), the art placement
 // with its pad ring and the RGBA -> BGRA swap, at factors 2 and 4. Plus the
-// generated art table (sharp_sprites_data.h): every sprite sized as a whole
-// multiple, every name unique.
+// generated art tables (sharp_sprites_data_2x.h / _4x.h, the game sheet's and
+// ours): every sprite sized as a whole multiple, every name unique, the two
+// factors covering the same names.
 // ============================================================================
 #include "unit.h"
 #include "ext/sharp_ui/sharp_sheet.h"
-#include "ext/sharp_ui/sharp_sprites_data.h"
+#include "ext/sharp_ui/sharp_sprites_data_2x.h"
+#include "ext/sharp_ui/sharp_sprites_data_4x.h"
 
 #include <cstring>
 #include <vector>
@@ -152,14 +154,53 @@ UNIT_TEST(ext_sharp_sheet_upscaled_sprite_without_art) {
     CHECK(Texel(out, 8, 1, 1)[3] == 0);
 }
 
-UNIT_TEST(ext_sharp_sheet_art_table) {
-    using namespace Ext::SharpUI::SpritesData;
-    CHECK(kScale == 2);
-    CHECK(kSpriteCount > 200);
-    for (int i = 0; i < kSpriteCount; ++i) {
-        const ArtSprite& a = kSprites[i];
+namespace {
+
+// Every sprite of `table` sized as a whole multiple of `scale`, with pixels,
+// every name unique.
+void CheckArtTable(const ArtSprite* table, int count, int scale) {
+    for (int i = 0; i < count; ++i) {
+        const ArtSprite& a = table[i];
         CHECK(a.width > 0 && a.height > 0 && a.rgba != nullptr);
-        CHECK(a.width % kScale == 0 && a.height % kScale == 0);
-        for (int j = i + 1; j < kSpriteCount; ++j) CHECK(std::strcmp(a.name, kSprites[j].name) != 0);
+        CHECK(a.width % scale == 0 && a.height % scale == 0);
+        for (int j = i + 1; j < count; ++j)
+            CHECK(std::strcmp(a.name, table[j].name) != 0);
     }
+}
+
+// Every name of `a` is in `b`, at the same base size.
+void CheckSameSprites(const ArtSprite* a, int countA, int scaleA, const ArtSprite* b, int countB,
+                      int scaleB) {
+    CHECK(countA == countB);
+    for (int i = 0; i < countA; ++i) {
+        const ArtSprite* other =
+            FindArt(b, countB, a[i].name, a[i].width / scaleA, a[i].height / scaleA, scaleB);
+        CHECK(other != nullptr);
+    }
+}
+
+}  // namespace
+
+UNIT_TEST(ext_sharp_sheet_art_table) {
+    CHECK(SpritesData2x::kScale == 2);
+    CHECK(SpritesData4x::kScale == 4);
+    CHECK(SpritesData2x::kSpriteCount > 200);
+    CheckArtTable(SpritesData2x::kSprites, SpritesData2x::kSpriteCount, 2);
+    CheckArtTable(SpritesData4x::kSprites, SpritesData4x::kSpriteCount, 4);
+    CheckSameSprites(SpritesData2x::kSprites, SpritesData2x::kSpriteCount, 2,
+                     SpritesData4x::kSprites, SpritesData4x::kSpriteCount, 4);
+}
+
+UNIT_TEST(ext_sharp_sheet_ext_art_table) {
+    CHECK(SpritesData2x::kExtSpriteCount == 3);
+    CheckArtTable(SpritesData2x::kExtSprites, SpritesData2x::kExtSpriteCount, 2);
+    CheckArtTable(SpritesData4x::kExtSprites, SpritesData4x::kExtSpriteCount, 4);
+    CheckSameSprites(SpritesData2x::kExtSprites, SpritesData2x::kExtSpriteCount, 2,
+                     SpritesData4x::kExtSprites, SpritesData4x::kExtSpriteCount, 4);
+    // The sheet's names (ExtensionsSprites.rsc) at their 1x sizes.
+    const ArtSprite* ext = SpritesData4x::kExtSprites;
+    const int n = SpritesData4x::kExtSpriteCount;
+    CHECK(FindArt(ext, n, "ExtensionsIcon", 16, 16, 4) != nullptr);
+    CHECK(FindArt(ext, n, "ToolbarExtensions", 32, 32, 4) != nullptr);
+    CHECK(FindArt(ext, n, "GameFilesIcon", 16, 16, 4) != nullptr);
 }

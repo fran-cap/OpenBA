@@ -11,7 +11,7 @@ pinned versions and the CC BY attribution; it ships with every release package.
 | `lucide/` | Lucide (Lucide Contributors) | ISC | `lucide/LICENSE` | `lucide-icons/lucide` `1980e3d59b0fa1a2aeb566d5902b25ee98204001` |
 | `bootstrap-icons/` | Bootstrap Icons (The Bootstrap Authors) | MIT | `bootstrap-icons/LICENSE` | npm `bootstrap-icons@1.13.2` |
 | `game-icons/` | game-icons.net: `lorc/` by Lorc, `delapouite/` by Delapouite | CC BY 3.0 | `game-icons/license.txt` | `game-icons/icons` `82d948812bfe3f269ef8f731dcdb07b08160edc4` |
-| `own/` | ours: the OverviewTab eyelid, the ProductionTab spiral, the Adult / Child figure | GPL-3.0 (the project's) | `LICENSE` at the root | generated |
+| `own/` | ours: the OverviewTab eyelid, the ProductionTab spiral, the Adult / Child figure, the Options gears, the OptionsGraphics brush | GPL-3.0 (the project's) | `LICENSE` at the root | generated |
 
 The files are copied unchanged from the pinned versions; the bake recolours, combines, cuts and mirrors
 them in memory (`tools/sharp_sprites/bake.py`, `build_specs()`).

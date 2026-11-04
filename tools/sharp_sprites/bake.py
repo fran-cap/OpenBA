@@ -8,7 +8,7 @@ usage: python -I tools/sharp_sprites/bake.py [--scale N] [--out DIR]
            re-measure: rewrite measurements.json from the mod kit's sprite PNGs (maintainer only)
 
 The icons are third-party SVGs (Phosphor, Tabler, Lucide, Bootstrap Icons -- MIT / ISC; game-icons.net --
-CC BY 3.0; each file under svg/ keeps its set's licence, svg/LICENSES.md) plus three shapes of our own
+CC BY 3.0; each file under svg/ keeps its set's licence, svg/LICENSES.md) plus four shapes of our own
 (svg/own/, written by this script), combined and recoloured by the rules in build_specs() and rendered with
 resvg. Nothing is traced or copied from the game.
 
@@ -275,6 +275,90 @@ def gen_figure():
     return out
 
 
+def gear_path(cx, cy, teeth, root, tip, phase, root_frac=0.56, tip_frac=0.30, hole=0.0):
+    """One spur gear as a closed polygon (+ a hub hole subpath, evenodd): `teeth` trapezoid teeth from
+    radius `root` to `tip`, the first centred on angle `phase` (degrees, screen y down). A tooth's base
+    spans root_frac of the tooth period, its flat top tip_frac; the root between teeth is an arc."""
+    period = 2 * math.pi / teeth
+    pts = []
+    for k in range(teeth):
+        a = math.radians(phase) + k * period
+        hb, ht = root_frac * period / 2, tip_frac * period / 2
+        pts += [(root, a - hb), (tip, a - ht), (tip, a + ht), (root, a + hb)]
+        gap = period - 2 * hb
+        for j in range(1, 6):  # the root arc up to the next tooth
+            pts.append((root, a + hb + gap * j / 6))
+    d = "M" + " L".join("%.3f,%.3f" % (cx + r * math.cos(a), cy + r * math.sin(a)) for r, a in pts) + " Z"
+    if hole > 0:
+        d += " M%.3f,%.3f a%g,%g 0 1,0 %g,0 a%g,%g 0 1,0 %g,0 Z" % (
+            cx - hole, cy, hole, hole, 2 * hole, hole, hole, -2 * hole)
+    return d
+
+
+GEARS = dict(big_teeth=8, small_teeth=6, module=2.25, depth=3.4, clearance=0.8, big_hole=2.8, small_hole=1.6,
+             root_frac=0.60, tip_frac=0.36)
+
+
+def gen_brush(width, bristle_h, gap, ferrule_w, ferrule_h, neck_w, handle_w, handle_h, round_r):
+    """Our own OptionsGraphics art: an upright flat paint brush (the retail sprite's subject, standing, as
+    tall as its glyph box; Phosphor's broad brush is squat and drew at half the height). Top to bottom:
+    the bristle block `width` wide with rounded top corners, a transparent `gap`, the ferrule, a neck
+    tapering to the handle, the handle with a round end. Units are free: bake.py fits the bbox."""
+    cx = width / 2
+    r = round_r
+    y = 0.0
+    d = ("M0,%.3f Q0,0 %.3f,0 L%.3f,0 Q%.3f,0 %.3f,%.3f L%.3f,%.3f L0,%.3f Z "
+         % (r, r, width - r, width, width, r, width, bristle_h, bristle_h))
+    y = bristle_h + gap
+    fx0, fx1 = cx - ferrule_w / 2, cx + ferrule_w / 2
+    nx0, nx1 = cx - neck_w / 2, cx + neck_w / 2
+    hx0, hx1 = cx - handle_w / 2, cx + handle_w / 2
+    y1 = y + ferrule_h
+    y2 = y1 + (ferrule_w - neck_w)  # the neck's taper, 45 degrees
+    y3 = y2 + handle_h
+    d += ("M%.3f,%.3f L%.3f,%.3f L%.3f,%.3f L%.3f,%.3f L%.3f,%.3f L%.3f,%.3f "
+          "A%.3f,%.3f 0 0,1 %.3f,%.3f L%.3f,%.3f L%.3f,%.3f L%.3f,%.3f Z"
+          % (fx0, y, fx1, y, fx1, y1, nx1, y2, hx1, y2, hx1, y3,
+             handle_w / 2, handle_w / 2, hx0, y3, hx0, y2, nx0, y2, fx0, y1))
+    h = y3 + handle_w / 2
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %.3f %.3f" fill="currentColor">'
+           '<path d="%s"/></svg>' % (width, h, d))
+    GEN.mkdir(exist_ok=True)
+    out = GEN / "brush.svg"
+    out.write_text(svg, encoding="utf-8")
+    return out
+
+
+BRUSH = dict(width=8.0, bristle_h=8.4, gap=0.7, ferrule_w=7.0, ferrule_h=2.2, neck_w=2.6, handle_w=2.6,
+             handle_h=3.4, round_r=1.0)
+
+# Lucide circle-play's triangle (its first path), drawn filled as well as stroked.
+PLAY_TRIANGLE = ("M9 9.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997A1 1 0 0 1 9 14.996z")
+
+
+def gen_gears(big_teeth, small_teeth, module, depth, clearance, big_hole, small_hole, root_frac, tip_frac):
+    """Our own Options art: a big and a small spur gear meshed on the down-right diagonal (big upper left,
+    small lower right, as the retail sprite places them). Pitch radius = module * teeth / 2 for both, so
+    the tooth pitch matches; the centres are the two pitch radii + `clearance` apart, a big tooth points
+    at the small gear and a small-gear gap faces it. Teeth `depth` deep (half outside the pitch circle),
+    a hub hole in each. Units are free: bake.py fits the drawn bbox into the retail glyph box."""
+    rb, rs = module * big_teeth / 2, module * small_teeth / 2
+    dist = rb + rs + clearance
+    cb = rb + depth / 2 + 0.5
+    cs = cb + dist / math.sqrt(2)
+    small_period = 360.0 / small_teeth
+    d = (gear_path(cb, cb, big_teeth, rb - depth / 2, rb + depth / 2, 45.0, root_frac, tip_frac, big_hole) + " " +
+         gear_path(cs, cs, small_teeth, rs - depth / 2, rs + depth / 2, 225.0 + small_period / 2,
+                   root_frac, tip_frac, small_hole))
+    size = cs + rs + depth / 2 + 0.5
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %.3f %.3f" fill="currentColor">'
+           '<path fill-rule="evenodd" d="%s"/></svg>' % (size, size, d))
+    GEN.mkdir(exist_ok=True)
+    out = GEN / "gears.svg"
+    out.write_text(svg, encoding="utf-8")
+    return out
+
+
 # ---------------------------------------------------------------------------------------------- svg parsing
 def load_svg(path):
     txt = pathlib.Path(path).read_text(encoding="utf-8")
@@ -518,10 +602,19 @@ def build_specs():
     spec["ButtonIcons/LoadGame"] = [{"parts": [Part(fo, layers=[{"colour": WHITE, "select": [0], "cut": [flap_hole]}])],
                                      "ops": ["ruling 27: back panel solid (folder-open-fill outer subpath, hole filled)",
                                              "front flap hollow: folder-open-bold's flap interior (subpath 2) cut out"]}]
-    spec["ButtonIcons/Scenario"] = [{"parts": [white_part(S("lucide/icons/circle-play.svg"))]}]
-    for sp, rel in [("ButtonIcons/NomadTab", "delapouite/camping-tent"), ("ButtonIcons/Options", "lorc/gears"),
+    spec["ButtonIcons/Scenario"] = [{"parts": [Part(S("lucide/icons/circle-play.svg"), layers=[
+        {"colour": WHITE}, {"colour": WHITE, "d": PLAY_TRIANGLE}])],
+        "ops": ["the play triangle filled (the user, 2026-11-04): Lucide's own triangle path as a solid layer"]}]
+    spec["ButtonIcons/OptionsGraphics"] = [{"parts": [white_part(gen_brush(**BRUSH))],
+                                            "ops": ["our own upright flat brush (gen_brush, BRUSH): Phosphor's "
+                                                    "broad brush fitted at half the glyph height"]}]
+    for sp, rel in [("ButtonIcons/NomadTab", "delapouite/camping-tent"),
                     ("ButtonIcons/StorageTab", "delapouite/ball-pyramid")]:
         spec[sp] = [{"parts": [white_part(S("game-icons/%s.svg" % rel))]}]
+    spec["ButtonIcons/Options"] = [{"parts": [white_part(gen_gears(**GEARS))],
+                                    "ops": ["own parametric art: %(big_teeth)d- and %(small_teeth)d-tooth spur gears "
+                                            "meshed on the diagonal, module %(module)g, depth %(depth)g, hub holes "
+                                            "r %(big_hole)g / %(small_hole)g" % GEARS]}]
     spec["ButtonIcons/ButtonCenter"] = [{"parts": [white_part(S("tabler/icons/outline/target.svg"))]}]
     spec["ButtonIcons/OverviewTab"] = [{"parts": [
         Part(S(PH + "fill/eye-fill.svg"), layers=[{"colour": WHITE, "clip": [("poly", eye_clip())]}]),
@@ -676,7 +769,6 @@ DEFAULTS = [
     ("ButtonIcons/Map", "phosphor/assets/fill/compass-rose-fill.svg"),
     ("ButtonIcons/NewGame", "phosphor/assets/fill/file-fill.svg"),
     ("ButtonIcons/OptionsGame", "phosphor/assets/fill/joystick-fill.svg"),
-    ("ButtonIcons/OptionsGraphics", "phosphor/assets/fill/paint-brush-broad-fill.svg"),
     ("ButtonIcons/OptionsInput", "phosphor/assets/fill/hand-pointing-fill.svg"),
     ("ButtonIcons/OptionsSound", "phosphor/assets/fill/speaker-simple-low-fill.svg"),
     ("ButtonIcons/OrderTab", "phosphor/assets/fill/shopping-cart-fill.svg"),
