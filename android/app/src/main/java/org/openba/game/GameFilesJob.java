@@ -17,6 +17,8 @@
 //
 // Every copy is staged: the files are written into a folder beside WinData and moved into it only
 // when every one of them arrived, so a cancel, a failure or a wrong folder leaves WinData as it was.
+// A process killed during the final moves (or a package that cannot be moved back after a failure)
+// leaves the replaced packages in WinData.replaced: the next copy moves them back first.
 // Archives: java.util.zip only (no new dependency); .7z and .rar would need one and are not read.
 package org.openba.game;
 
@@ -81,6 +83,10 @@ final class GameFilesJob {
 
     private static GameFilesJob sCurrent;
     private static Listener sListener;
+    // The first-run screen while the game's start waits for a package copy (OpenBAActivity.onCreate).
+    // The copy may run from "Game files" (a task of its own), whose screen can hold the listener and
+    // take the result (clearFinished): the waiter is told that a package copy ended all the same.
+    private static Listener sCopyWaiter;
     private static final Handler sMain = new Handler(Looper.getMainLooper());
 
     private final Context mApp;
@@ -103,6 +109,15 @@ final class GameFilesJob {
         return sCurrent != null && !sCurrent.finished;
     }
 
+    // True while a package copy runs: WinData is about to change, so the game does not start yet.
+    static boolean isCopyingPackages() {
+        return isRunning() && isPackageCopy(sCurrent.kind);
+    }
+
+    static boolean isPackageCopy(Kind kind) {
+        return kind == Kind.COPY_FOLDER || kind == Kind.COPY_ARCHIVE;
+    }
+
     static void setListener(Listener listener) {
         sListener = listener;
     }
@@ -110,6 +125,16 @@ final class GameFilesJob {
     static void clearListener(Listener listener) {
         if (sListener == listener) {
             sListener = null;
+        }
+    }
+
+    static void setCopyWaiter(Listener waiter) {
+        sCopyWaiter = waiter;
+    }
+
+    static void clearCopyWaiter(Listener waiter) {
+        if (sCopyWaiter == waiter) {
+            sCopyWaiter = null;
         }
     }
 
@@ -168,8 +193,13 @@ final class GameFilesJob {
                        + ", " + bytesDone + " bytes in " + (finishedAt - startedAt) + " ms: " + message);
         sMain.post(() -> {
             finished = true;
-            if (sListener != null) {
-                sListener.onFinished(this);
+            final Listener listener = sListener;
+            if (listener != null) {
+                listener.onFinished(this);
+            }
+            final Listener waiter = sCopyWaiter;
+            if (waiter != null && waiter != listener && isPackageCopy(kind)) {
+                waiter.onFinished(this);
             }
         });
     }
@@ -234,9 +264,17 @@ final class GameFilesJob {
         }
     }
 
-    // Moves every file of `staged` into WinData (a same-name package is replaced), then removes the
-    // staging folder. Renames inside one file system: quick, and nothing is half-written in WinData.
+    // Moves every file of `staged` into WinData (a same-name package is replaced). All or nothing: the
+    // packages it replaces are first moved aside into WinData.replaced, then the new ones in; on a
+    // failure the new ones are removed and the old ones moved back, so WinData is as it was. Renames
+    // inside one file system: quick, and nothing is half-written in WinData.
     private void installStaged(File staged) throws IOException {
+        // The running game opens WinData's packages (the Mods page reads every .pkm again). The screen
+        // greys its buttons while the game runs, but the game can start during a long copy (from its
+        // icon: GameFilesActivity is a task of its own), so the lock is checked again at the move.
+        if (OpenBAActivity.gameRunning()) {
+            throw new IOException("the game is running: quit it, then copy the game files again");
+        }
         final File winData = GameFiles.winDataDir(mApp);
         if (winData == null) {
             throw new IOException("the app's data folder is not available");
@@ -245,14 +283,69 @@ final class GameFilesJob {
         if (files == null) {
             throw new IOException("cannot list " + staged);
         }
-        for (File f : files) {
-            final File target = new File(winData, f.getName());
-            if (target.exists() && !target.delete()) {
-                throw new IOException("cannot replace " + target.getName());
+        restoreReplaced(winData);
+        final File aside = stagingDir("WinData.replaced");
+        final List<File> movedAside = new ArrayList<>();
+        final List<File> movedIn = new ArrayList<>();
+        try {
+            for (File f : files) {
+                final File target = new File(winData, f.getName());
+                if (!target.exists()) {
+                    continue;
+                }
+                final File old = new File(aside, f.getName());
+                // A folder of a package's name is refused, as before: only packages are replaced.
+                if (target.isDirectory() || !target.renameTo(old)) {
+                    throw new IOException("cannot replace " + target.getName());
+                }
+                movedAside.add(old);
             }
-            if (!f.renameTo(target)) {
-                throw new IOException("cannot move " + f.getName() + " into WinData");
+            for (File f : files) {
+                final File target = new File(winData, f.getName());
+                if (!f.renameTo(target)) {
+                    throw new IOException("cannot move " + f.getName() + " into WinData");
+                }
+                movedIn.add(target);
             }
+        } catch (IOException e) {
+            for (File f : movedIn) {
+                f.delete();
+            }
+            boolean restored = true;
+            for (File old : movedAside) {
+                if (!old.renameTo(new File(winData, old.getName()))) {
+                    Log.w(TAG, "game files: cannot move " + old.getName() + " back into WinData");
+                    restored = false;
+                }
+            }
+            // A package that could not go back stays in WinData.replaced: the next copy moves it back
+            // first (restoreReplaced).
+            if (restored) {
+                GameFiles.deleteTree(aside);
+            }
+            throw e;
+        }
+        GameFiles.deleteTree(aside);
+    }
+
+    // Moves what an earlier copy left in WinData.replaced (a package it could not move back, or the
+    // process killed between installStaged's two loops) back into WinData where WinData has no file
+    // of its name, before stagingDir empties that folder: an old package is never deleted unseen.
+    private void restoreReplaced(File winData) throws IOException {
+        final File data = GameFiles.dataDir(mApp);
+        final File[] left = data != null ? new File(data, "WinData.replaced").listFiles() : null;
+        if (left == null) {
+            return;
+        }
+        for (File old : left) {
+            final File target = new File(winData, old.getName());
+            if (target.exists()) {
+                continue;
+            }
+            if (!old.renameTo(target)) {
+                throw new IOException("cannot move " + old.getName() + " back into WinData");
+            }
+            Log.i(TAG, "game files: " + old.getName() + " moved back into WinData from WinData.replaced");
         }
     }
 
