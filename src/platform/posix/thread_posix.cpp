@@ -159,4 +159,6 @@ uint32_t CurrentThreadId() {
     return t_threadId;
 }
 
+bool DispatchSentMessages() { return false; }   // NOT RETAIL: platform_thread.h (review F-224)
+
 }  // namespace Platform
