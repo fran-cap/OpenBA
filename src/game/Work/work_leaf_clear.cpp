@@ -263,14 +263,15 @@ void WorkLeaf_BstSerializeIBPpair_29c10(EntitySet* set, IO::Serializer* ser) {
         while (node != nullptr) {
             // IBP A at node+0x00
             node->element.entity.InternalBasePtr::Serialize(*ser);
-            ComponentEntity* a = node->element.entity.Get();
-            if (a != nullptr && !Object::IsDerivedFromNullSafe(a, tidEntity)) {
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast; the answer is the same.
+            if (!node->element.entity.IsNull() && !Object::IsDerivedFromNullSafe(node->element.entity, tidEntity)) {
                 node->element.entity = nullptr;
             }
             // IBP B at node+0x08
             node->element.citizen.InternalBasePtr::Serialize(*ser);
-            CitizenComponent* b = node->element.citizen.Get();
-            if (b != nullptr && !Object::IsDerivedFromNullSafe(b, tidCitizenAI)) {
+            // NOT RETAIL (F-143): as for IBP A.
+            if (!node->element.citizen.IsNull() && !Object::IsDerivedFromNullSafe(node->element.citizen, tidCitizenAI)) {
                 node->element.citizen = nullptr;
             }
             // in-order successor

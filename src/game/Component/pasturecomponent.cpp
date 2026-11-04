@@ -272,9 +272,10 @@ void PastureComponent::Persist(IO::Stream& stream) {
     if (count > 0 && entry) {
         for (int64_t i = 0; i < count; i++, entry++) {
             entry->InternalBasePtr::Serialize(ser);
-            LivestockComponent* obj = entry->Get();
-            if (obj != nullptr) {
-                if (!obj->IsDerivedFrom(LivestockComponent::TypeId())) {
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to LivestockComponent*; the answer is the same.
+            if (!entry->IsNull()) {
+                if (!::Object::IsDerivedFromNullSafe(*entry, LivestockComponent::TypeId())) {
                     *entry = nullptr;
                 }
             }

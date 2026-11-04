@@ -1577,8 +1577,10 @@ void EntityList::Serialize(IO::Stream& stream) {
             currentIBP->Object::InternalBasePtr::Serialize(serializer);   // IAT 0x140152aa0 (0x1400c4587)
 
             // After loading, verify it's a ComponentEntity
-            if (currentIBP->Get() != nullptr) {
-                bool isDerived = ::Object::IsDerivedFromNullSafe(currentIBP->Get(), ComponentEntity::TypeId());
+            // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
+            // downcast to ComponentEntity*; the answer is the same.
+            if (!currentIBP->IsNull()) {
+                bool isDerived = ::Object::IsDerivedFromNullSafe(*currentIBP, ComponentEntity::TypeId());
                 if (!isDerived) {
                     *currentIBP = Object::InternalPtr<ComponentEntity>();
                 }

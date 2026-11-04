@@ -339,8 +339,11 @@ static void IbpTree_Serialize_e470(TrackedEntityNode** root, int32_t* countField
             int a = 0, b = 0;
             bool used = false;
             keyPtr.Object::InternalBasePtr::Serialize(*serializer);
-            ComponentEntity* key = keyPtr.Get();
-            if (key && !::Object::IsDerivedFromNullSafe(key, s_tidCompEnt)) key = nullptr;   // 0x14002e4dd: no type-id test (row 1164)
+            // NOT RETAIL (F-143): null and type tests on the held Internal*; the
+            // ComponentEntity* is taken only once they pass. The answer is the same.
+            ComponentEntity* key = nullptr;
+            if (!keyPtr.IsNull() && ::Object::IsDerivedFromNullSafe(keyPtr, s_tidCompEnt))   // 0x14002e4dd: no type-id test (row 1164)
+                key = keyPtr.Get();
             serializer->Serialize(a, nullptr);
             serializer->Serialize(b, nullptr);
             serializer->Serialize(used, nullptr);
