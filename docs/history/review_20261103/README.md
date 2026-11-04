@@ -37,10 +37,11 @@ Round 3 (fix PRs and merge):
     and #145 collided in the `tests/unit` link stubs (duplicate FileSystem fakes, the Commit stub),
     resolved at merge; #124 and #139 carry the same F-116 hunk byte for byte, so either merges alone;
     #134 and #135 touch different hunks of `entitylist.cpp`; #149 split F-208 into #150 and F-158 into
-    #151 so each is gated alone. Recorded on the merged main (4266c2d08): gate PASS, unit 1974 / 0
-    fail, resave md5 `4986645d` (the #135 golden).
+    #151 so each is gated alone. The maintainer-side final check on the merged main (4266c2d08),
+    recorded in the review session: gate PASS, unit 1974 / 0 fail, resave md5 `4986645d` == the #135
+    re-cut.
 12. The `src/diag` atoi / atof calls (the F-087 sites #122 left, 73 of them) belong to the harness
-    track of phase 2, not to this wave.
+    track of phase 2, not to this wave (#160, which closes F-087 as F-328).
 
 ## Phases
 
@@ -51,12 +52,12 @@ Round 3 (fix PRs and merge):
 | P2 | WSL ASan+UBSan and TSan: unit suite, then a Linux game route | ASan+UBSan survey: 1812 tests 0 fail, F-002..F-006; TSan survey: 1812 / 0 fail, 1 race (F-007, harness); Linux in-game ASan+UBSan (newgame route, lavapipe, 380 s, clean exit, 0 Vulkan validation messages): F-002/F-003 reached in play, new F-008..F-010 |
 | P3 | clang-tidy, Clang Static Analyzer / CodeChecker, CodeQL, Semgrep: baselines | done: baselines in `static/` (clang-tidy Linux 964 TUs, Windows-only code, CodeQL security-and-quality + a size-taint query, Semgrep variant rules for C1-C18); 29 findings |
 | P4 | libFuzzer targets for the input surface (P0 ranks 1-8) | done: 23 targets in `tests/fuzz/`, ~20 min each; 77 crash findings (after merge with static: F-011..F-091, 81 unique); savetail and settings clean |
-| P5 | Thread-safety annotations on the eight structures P0 names | running (phase 2) |
-| P6 | GPU: Vulkan validation (sync, GPU-AV, best practices), DX11 debug device | Vulkan sync+BP 2.5 min in game: 0 errors, 0 SYNC-HAZARD, 11 best-practice warnings; GPU-AV 7 min: 0 errors; DX11 debug layer (`BANISHED_D3D_DEBUG`, new) 4.4 min: 0 corruption / 0 error, warnings id 351 x3.17M (VS cb slot 3: 64 B bound, 3328 B declared), 3146081 x20.8k (PS writes an unbound RTV 0, also Vulkan BP), 391 x5 (input layout UINT vs int32). Logs in the session scratchpad (p6_*.log). Not run: swapchain edge cases (resize / minimise / alt-tab), AMD / Intel |
-| P7 | Mull on serializer / collections / math / text codec | running (phase 2) |
+| P5 | Thread-safety annotations on the eight structures P0 names | phase 2: #161 (open), one race found (F-324) |
+| P6 | GPU: Vulkan validation (sync, GPU-AV, best practices), DX11 debug device | Vulkan sync+BP 2.5 min in game: 0 errors, 0 SYNC-HAZARD, 11 best-practice warnings; GPU-AV 7 min: 0 errors; DX11 debug layer (`BANISHED_D3D_DEBUG`, new) 4.4 min: 0 corruption / 0 error, warnings id 351 x3.17M (VS cb slot 3: 64 B bound, 3328 B declared), 3146081 x20.8k (PS writes an unbound RTV 0, also Vulkan BP), 391 x5 (input layout UINT vs int32). Logs in the session scratchpad (p6_*.log). Swapchain edge cases (resize / minimise / alt-tab): phase 2 GPU track (#163). Not run: AMD / Intel |
+| P7 | Mull on serializer / collections / math / text codec | phase 2: #162 (open), 33 unit tests for the surviving mutants |
 | P8 | Scoped agent sweeps: hotspot module x bug class, variant analysis | done: 71 sweeps (game x drift/lifetime/UB, engine x UB/lifetime/errors/concurrency, render x GPU lifetime/swapchain/layout, platform x SDL/errors, fix.* rows); 195 raw, 9 refuted; F-092..F-217 (126 confirmed: 60 port drift proven by Ghidra diff, 53 retail, 13 ext), S-002..S-055 suspected; `findings_p8.json` |
 | P9 | Fix PRs: one PR per root-cause site, with its failing test | done: 48 fix PRs merged (#104..#151 without #116, and #154), map below. 206 findings fixed, F-087 partial (`src/diag` left), 10 dxbc-spirv findings upstream only (F-041..F-046, F-070, F-081..F-083) |
-| Phase 2 | Consolidation docs; P5; P7; swapchain GPU runs and the S-001 parity check; default-off ext, `src/diag`, Android and Metal sweeps; triage of S-001..S-055; the harness without atoi / atof | running |
+| Phase 2 | Consolidation docs; P5; P7; swapchain GPU runs and the S-001 parity check; default-off ext, `src/diag`, Android and Metal sweeps; triage of S-001..S-055; the harness without atoi / atof | sweeps and triage done: F-218..F-328, S-056..S-066 (section "Phase 2"); tracks #159..#163 open |
 
 ## Build plumbing
 
@@ -246,7 +247,7 @@ are in "Suspected".
 | F-169 | `src/render/dx11/create_on_demand/lazy_create.cpp:107` ext.create_on_demand: Publish writes the companion's buffer / SRV field on a prefetch worker while VertexBufferMade / ImageMade and the slot fast paths read the same plain field with no synchronisation (data race, UB) | data race on GPU handle publication (deferred creation) / UB | ext | sanitizer (P8 src/render/dx11 gpu_lifetime): Repro: C:/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/p8/src_render_dx11_gpu_lifetime/cod_publish_race.cpp. It links the real src/render/commo... | fixed | #146 |
 | F-170 | `src/render/dx11/create_on_demand/lazy_create.cpp:369` create_on_demand: a deferred object's GPU handle is read without synchronisation as the 'made' test while a prefetch worker's Record::Publish writes it under the table mutex | C12 ownership across threads / data race (unsynchronised publication) / UB | ext | sanitizer (P8 src/ext concurrency): TSan, two standalone repros linking the real src/render/common/create_on_demand/lazy_table.cpp and use_tracker.cpp (clang++-19 -fsanitize=thread). (1) cod_gather_race.cpp copies PrefetchGathered: `if ... | fixed | #146 |
 | F-171 | `src/render/dx11/devicedata.cpp:840` Swap-chain rebuild reads refreshData[refreshRateIndex] of a different display mode after an Options resolution change (heap out-of-bounds read) | out-of-bounds read / stale index across display-mode change / UB | retail | sanitizer (P8 src/render/dx11 swapchain): Repro file: C:/Users/USPC/AppData/Local/Temp/claude/f1762c107073ce1b/9ab6db73-5aa8-4544-a435-76b2cbc4daf1/scratchpad/p8/src_render_dx11_swapchain/refresh_index.cpp. Built with `~/fz.sh build dx11sc_re... | fixed | #149 |
-| F-172 | `src/engine/object/external.cpp:389` GetPathForReferenceId descends the reference tree with UNSIGNED compares; retail and our InsertCore order it SIGNED, so ids >= 0x80000000 are not found | signedness divergence (tree ordering mismatch) / logic | port | unit_test (P8 src/engine/object ub): GHIDRA-DIFF: retail GetPathForReferenceId 0x1800bf1d0:  1800bf201: MOV EAX,dword ptr [RBX]  1800bf203: CMP R8D,EAX  1800bf206: JL 0x1800bf213      ; signed -> left  1800bf208: CMP EAX,R8D  1800bf20b: ... | fixed | #144 |
+| F-172 | `src/engine/object/external.cpp:389` GetPathForReferenceId descends the reference tree with UNSIGNED compares; retail and the port's InsertCore order it SIGNED, so ids >= 0x80000000 are not found | signedness divergence (tree ordering mismatch) / logic | port | unit_test (P8 src/engine/object ub): GHIDRA-DIFF: retail GetPathForReferenceId 0x1800bf1d0:  1800bf201: MOV EAX,dword ptr [RBX]  1800bf203: CMP R8D,EAX  1800bf206: JL 0x1800bf213      ; signed -> left  1800bf208: CMP EAX,R8D  1800bf20b: ... | fixed | #144 |
 | F-173 | `src/engine/ui/userinterface.cpp:1001` CleanRemovedDialogs caches the _removedDialogs count, where retail re-reads it every iteration, and stores the null through the re-read array base, where retail uses the base loaded before the delete | C1/C12 ownership: dialog queued for removal during the drain is dropped (never unlinked or freed) / logic | port | static_only (P8 src/engine/ui lifetime): GHIDRA-DIFF: retail 0x18011f790: `18011f7bb CMP dword ptr [RCX+0x20],R15D ; JLE ...` (entry) ... `18011f920 MOV RBX,qword ptr [RDI+0x18] ; 18011f924 MOV RAX,[RBX+R14] ; ... 18011f93d MOV RAX,[RAX] ; M... | fixed | #138 |
 | F-174 | `src/game/Action/completetask.cpp:162` CompleteTask's factory ctor sets taskIndex to 0; retail sets the 'unresolved' sentinel 0x7FFFFFFF, so a version-0 CompleteTask loaded from a save completes or reassigns scheduler task 0 | C2/C5 wrong default state (port-only ctor value replacing a retail store) / logic | port | static_only (P8 src/game/Action drift): GHIDRA-DIFF: retail CompleteTask create factory 0x140021fc0:   140021ffe: XOR EAX,EAX   140022000: MOV qword ptr [RBX + 0x10],RAX   140022004: MOV byte ptr [RBX + 0x18],AL   140022007: LEA RCX,[0x1401... | fixed | #139 |
 | F-175 | `src/game/Component/buildcomponent_state1.cpp:297` BuildComponent::State1Enter carries a port-only workplace hand-off (isAccepting / profession / BST register) and clamps the MultiObject cost multiplier that retail copies unconditionally | C2 port-only state writes / C6 port-only cap / logic | port | static_only (P8 src/game/Component drift): GHIDRA-DIFF: retail BuildComponent_State1Enter 0x140108290:   1401082bd: MOV dword ptr [RCX+0x4c],0x1   1401082d6: CALL 0x140004740            ; FindComponent<MultiObjectComponent>   1401082df: JZ 0x1... | fixed | #127 |
@@ -301,11 +302,13 @@ package and image counts in #147; F-116: the same hunk in #124 and #139); a PR t
 another PR's finding is not listed for it. #103 (the sanitizer builds, fuzz targets and this ledger)
 fixes nothing and is left out. Retail findings are listed in `docs/retail_bugs.md` section 30, the
 port findings in `docs/known_port_issues.md` rows 1351..1415 (F-064, still SUSPECTED, is fixed by
-#122 but has no row).
+#122 but has no row). Neither file lists the other labels: ext (29, plus the 12 `third_party/dxbc-spirv`
+findings of the last section), harness (5: F-005, F-007, F-010, F-011, F-084) and unknown (2: F-025,
+F-066); their record is this ledger.
 
 Not fixed in OpenBA: F-041..F-046, F-070, F-081..F-083 (`third_party/dxbc-spirv`, none reached by
 retail data; a report written by hand, last section). Partial: F-087 (`src/app` in #122; the
-`src/diag` atoi / atof calls are the harness track).
+`src/diag` atoi / atof calls are the harness track, #160, open).
 
 | PR | Merge | Title | Findings |
 |---|---|---|---|
@@ -358,9 +361,231 @@ retail data; a report written by hand, last section). Partial: F-087 (`src/app` 
 | #151 | `658442ad2` | fix: P13_OVERLAP claims the steps only after the emit's BeginCommands returned | F-158 |
 | #154 | `b4c414f97` | test: create_on_demand sweep tests declare their Counters before the LazyTable (F-005 canary after #121 + #146) | F-005 |
 
+## Phase 2
+
+Phase 2 ran on origin/main `fa150cf7f`: five tracks, the sweeps the first wave left (default-off
+extensions, `src/diag`, Android, Metal) and the triage of S-001..S-055. Its findings are in
+`findings_phase2.json` (`confirmed`: F-218..F-328; `suspected`: S-056..S-066; `triage`: the
+S-002..S-055 verdicts with their proofs). Proof artefacts named there (`scratchpad/phase2/proofs/...`)
+are in the session scratchpad, not the tree. None of the F-218..F-328 fixes is merged: apart from the
+three a track PR carries, they are the third fix wave ("wave 3"), under the same rulings (4, 8, 9).
+
+| Track | PR | Branch | State | Findings |
+|---|---|---|---|---|
+| Consolidation docs (ledger, `docs/retail_bugs.md` section 30, `docs/known_port_issues.md` rows 1351..1415, this section) | #159 | `docs/review-consolidation` | open | none |
+| Harness readers without atoi / atof / sscanf (ruling 12) | #160 | `fix/review-diag-parse` | open | F-328; closes F-087 |
+| P5: clang thread-safety annotations on the eight P0 structures (`BANISHED_THREAD_SAFETY`, clang only) | #161 | `build/thread-safety-annotations` | open | F-324 (PathfinderThread `queueCount`); S-061 |
+| P7: Mull on the serializer, collection, math and string cores (`tools/mull/`), 33 unit tests for the survivors | #162 | `test/mull-gaps` | open | none |
+| GPU: swapchain edge cases (resize, minimise, alt-tab, device lost) and the S-001 parity check | #163 | `fix/fullscreen-restore-frame` | open | F-326; F-325 (S-001), F-327, S-062..S-065 |
+| Sweeps: default-off ext (render, io-async, sim, perf-threads, ui), `src/diag`, Android, Metal | none | none | done | F-218..F-323, S-056..S-060 |
+| Triage of S-002..S-055 | none | none | done | table below |
+
+The 111 confirmed findings by label: ext 57, harness 40, port 11, retail 3. By proof: 71 static
+traces, 20 failing unit tests, 14 sanitizer reports, and 6 Ghidra diffs, run logs or mixed proofs
+(F-237 and the five track rows).
+
+### S-001: resolved, retail behaviour (F-325)
+
+The DX11 debug layer's id 351 (VS constant buffer slot 3 bound at 64 B where the shader declares
+3328 B) is what retail does. In `VideoDX11-x64.dll`: ConstantBufferData::Create `0x180001300` builds
+a banked buffer ladder with `ByteWidth = [R8+0x20]*(i+1)` (`IMUL ECX,ESI`); Bind `0x180001460` picks
+the rung `[rsp+0x70] / [R11+0x20] - 1` and calls VSSetConstantBuffers only when the rung changes, then
+UpdateSubresource; BindTransforms `0x180001c40` sizes the upload as `[ctx+0x20] SHL 6` from
+`ctx+0x10d8` into the buffer at `ctx+0x2050`. The port's `buffers.cpp:851-876`, the Create ladder and
+`contextdata.cpp:852` match instruction for instruction. The slot is `tc_` (`transform[52]`, 208
+registers, 3328 B, bank stride 0x40); runs log rungs of 64 / 192 / 512 / 640 / 1216 B. On Vulkan,
+`companions.cpp:651` copies only the rung bytes into the ring while the descriptor range is always
+`kConstantBufferRange` (16384, `pipelines.h:96`, `draw.cpp:923`): a read past the rung is in range and
+defined, and returns stale ring bytes where D3D11 returns zeros. Validation reports 0 errors. No fix.
+
+### F-218..F-328
+
+Label and severity are the triage verdict's; "Proof" is the strongest proof on record (a failing
+test or a sanitizer run where one was made, else the verdict's proof kind).
+
+| ID | Title | Label | Severity | Where | Proof | State |
+|---|---|---|---|---|---|---|
+| F-218 | render_pipe snapshot: the instanced-state table is fixed at 128 slots and never grows, so the 129th distinct instanced pose in one packet spins forever on the main thread | ext | crash | `src/ext/render_pipe/snapshot.cpp:496` | static_reasoning | fix in wave 3 |
+| F-219 | render_pipe snapshot re-points the WorldGeometry's chunk/water/run/strip items at the arena copy, against its own design; better_water then allocates a strip slot (with GPU buffers) per arena address until all 4 are taken, and never frees them | ext | resource | `src/ext/render_pipe/snapshot.cpp:565` | static_reasoning | fix in wave 3 |
+| F-220 | sharp_ui: the art is matched by SpriteInfo width/height but placed into the UV-derived rectangle, so a sheet whose UV span differs from its width/height reads past the art's RGBA buffer | ext | memory | `src/ext/sharp_ui/sharp_scaled.cpp:318` | static_reasoning | fix in wave 3 |
+| F-221 | ext.sharp_ui PlaceArt reads the extension's art with the UV-derived rectangle's stride and size, but FindArt matched the art by the record's width/height: heap/global buffer over-read | ext | memory | `src/ext/sharp_ui/sharp_sheet.cpp:97` | static_reasoning | fix in wave 3 |
+| F-222 | ext.sharp_ui FindArt: `baseW * scale` signed int overflow on a sprite record's width/height from the sheet file | ext | UB | `src/ext/sharp_ui/sharp_sheet.cpp:48` | static_reasoning | fix in wave 3 |
+| F-223 | ext.sharp_ui RectFromUvs: `x1 - x0` / `y1 - y0` signed overflow for out-of-range UVs (and lround of NaN/inf) | ext | UB | `src/ext/sharp_ui/sharp_sheet.cpp:28` | static_reasoning | fix in wave 3 |
+| F-224 | ext.render_pipe: the window-owning main thread blocks in plain condition-variable waits while the render thread calls IDXGISwapChain::Present. In exclusive fullscreen, DXGI may send window messages synchronously from Present, so the frame can deadlock | ext | race | `src/ext/render_pipe/handoff.h:129` | unit_test | fix in wave 3 |
+| F-225 | With P13 overlap engaged, class-A Sync hooks write plain function-pointer seams (Renderer::_extDrawItemList, MaterialInstance::_extAfterSetup) on the main thread while the render thread's pass 2 reads them: a data race (UB) on non-atomic statics | ext | UB | `src/ext/draw_batch/draw_batch.cpp:476` | sanitizer | fix in wave 3 |
+| F-226 | Options Apply raises Device::settingsChanged under the faithful profile through the max_shadow_res seam, so a full video restart is followed by an extra swap-chain Resize | ext | off-switch | `src/game/Dialog/optionsdialog.cpp:1007` | static_reasoning | fix in wave 3 |
+| F-227 | ext.sharp_ui PlaceArt reads the extension's baked art using the sprite's UV-derived rect, while FindArt matched the art on the record's width/height: a sheet whose UVs disagree with its record reads past the art array | ext | memory | `src/ext/sharp_ui/sharp_sheet.cpp:95` | static_reasoning | fix in wave 3 |
+| F-228 | ext.sharp_ui Finish narrows the built atlas / BC3 level size (size_t) to int for Array::SetSize, then memcpys the full size_t length: a big enough mod sheet overflows the level buffer | ext | memory | `src/ext/sharp_ui/sharp_scaled.cpp:279` | static_reasoning | fix in wave 3 |
+| F-229 | ext.sharp_ui font-variant arithmetic overflows int for a mod font that claims the FrancophilSans face with a huge _lineHeight | ext | UB | `src/ext/sharp_ui/sharp_math.cpp:51` | static_reasoning | fix in wave 3 |
+| F-230 | ext.better_water retries the strip buffer upload and writes a stderr line every frame when the device refuses the buffers | ext | resource | `src/ext/better_water/better_water.cpp:225` | static_reasoning | fix in wave 3 |
+| F-231 | Font raster cache is keyed by (kit, px) only: rebuilding a variant after a mod change indexes rf->glyphs past its end | ext | memory | `src/ext/resources/font_provider.cpp:160` | static_reasoning | fix in wave 3 |
+| F-232 | BackgroundSave::Join polls PersistenceWorker::_status through a volatile cast; the S-033 fix (atomic acquire) was applied to saveload_update.cpp but not to this sibling | ext | race | `src/ext/background_save/background_save.cpp:322` | sanitizer | fix in wave 3 |
+| F-233 | create_on_demand ReadLevels leaves a stale pending.image key: a later image at the same address on the same thread takes another texture's level locators | ext | logic | `src/ext/create_on_demand/level_source.cpp:99` | static_reasoning | fix in wave 3 |
+| F-234 | StreamCache SegmentStream::Read / Skip advance the int32 _pos with a plain signed add; a crafted cached record lets a read end at 0x80000000 (signed overflow) | ext | UB | `src/ext/stream_cache/segment_stream.cpp:130` | sanitizer | fix in wave 3 |
+| F-235 | Sharp-font glyph cache is keyed by (kit, px) only; a rebuild over a base font with more sprites indexes the cached RasterFont past its end | ext | memory | `src/ext/resources/font_provider.cpp:160` | unit_test | fix in wave 3 |
+| F-236 | background_save calls PlayerToolManager::UpdateCamera on a raw byte copy of a polymorphic object that was never constructed | ext | UB | `src/ext/background_save/background_save.cpp:299` | static_reasoning | fix in wave 3 |
+| F-237 | With fix.save_failure_notice OFF, SaveJob publishes status 1 before it closes the save file; retail closes first, then stores 1 | port | minor | `src/engine/io/persistence_worker.cpp:658` | static_ghidra_diff | fix in wave 3 |
+| F-238 | BackgroundSave::Join polls the persistence worker's _status with a volatile plain read while the worker stores it atomically (the F-147 pattern, not fixed at this site) | ext | race | `src/ext/background_save/background_save.cpp:322` | static_reasoning | fix in wave 3 |
+| F-239 | Font variant provider accepts non-canonical pixel spellings ("_032", "+32", on LP64 "_4294967328") and returns the already-registered canonical object, which the provide seam then re-paths and re-Adds under the alias | ext | logic | `src/ext/resources/font_tables.cpp:48` | static_reasoning | fix in wave 3 |
+| F-240 | DerivedCache::LoadIndex sizes a vector from derived.idx's file size before validating a single record: an oversized or sparse index aborts every boot | ext | resource | `src/ext/derived_cache/derived_cache.cpp:420` | static_reasoning | fix in wave 3 |
+| F-241 | PackageCache::Decode does not check that a node's value entry names the same path as its key (nor the node count), and a payload Decode refuses is never replaced | ext | minor | `src/ext/package_cache/index_codec.cpp:176` | static_reasoning | fix in wave 3 |
+| F-242 | ext.terrain_edit: Undo removes a planted resource by comparing raw entity addresses, so a different entity later allocated at the same address on that cell is removed (ABA) | ext | logic | `src/ext/terrain_edit/brush_tool.cpp:1586` | unit_test | fix in wave 3 |
+| F-243 | fix/ext.restricted_foods save-tail Decode has no cap on the entry count and a quadratic duplicate check, so a crafted save hangs the load | ext | resource | `src/ext/restricted_foods/save_state.cpp:96` | unit_test | fix in wave 3 |
+| F-244 | fix.cancel_refund: a ComponentEntity built for an overflow pile is leaked when its material has no RawMaterialComponent | ext | minor | `src/ext/cancel_refund/cancel_refund.cpp:71` | static_reasoning | fix in wave 3 |
+| F-245 | ext.terrain_edit: signed overflow in `start + count` lets a saved water draw range read past _contourIndices | ext | memory | `src/ext/terrain_edit/brush_tool.cpp:305` | static_reasoning | fix in wave 3 |
+| F-246 | ext.terrain_edit: `base + idx[...]` can overflow negative and pass the `v >= size` check, so verts[] is read at a negative index | ext | memory | `src/ext/terrain_edit/brush_tool.cpp:407` | static_reasoning | fix in wave 3 |
+| F-247 | fix.foundation_piles writes one uncapped stderr line per pile it moves, in shipped builds | ext | minor | `src/ext/foundation_piles/foundation_piles.cpp:201` | static_reasoning | fix in wave 3 |
+| F-248 | restricted_foods save-tail Decode has no list cap and checks for duplicates in O(n^2): a crafted save blocks the load for minutes to hours | ext | resource | `src/ext/restricted_foods/save_state.cpp:96` | static_reasoning | fix in wave 3 |
+| F-249 | terrain_edit water-mesh scans overflow int on save-loaded contour ranges (start+count, base+idx) and read verts/idx out of bounds | ext | memory | `src/ext/terrain_edit/brush_tool.cpp:404` | sanitizer | fix in wave 3 |
+| F-250 | find_fastpath StoreRef sizes its ref table by a reference id taken from the save: one id near 2^24 allocates about 400 MB | ext | resource | `src/ext/find_fastpath/find_fastpath.cpp:204` | static_reasoning | fix in wave 3 |
+| F-251 | ext.walk_batch WorldToCell keeps the raw float->int cast that F-160 fixed in moveto.cpp: UB for a saved out-of-range / NaN MoveTo destination or position | ext | UB | `src/ext/walk_batch/walk_batch_rules.h:125` | static_reasoning | fix in wave 3 |
+| F-252 | ext.walk_batch WorldToCell still converts an out-of-range or NaN world coordinate to int without a guard (F-160 fix not carried into the ext's copy) | ext | UB | `src/ext/walk_batch/walk_batch_rules.h:34` | static_reasoning | fix in wave 3 |
+| F-253 | ext.find_fastpath StoreRef resizes its ref table to a save-supplied reference id (up to 2^24+1 entries, about 400 MB) from one 4-byte field | ext | resource | `src/ext/find_fastpath/find_fastpath.cpp:204` | static_reasoning | fix in wave 3 |
+| F-254 | phone_menu ReleaseHeld reads a closed dialog after it was freed (h.dialog->_ui), and with address reuse it can write through a freed element | ext | memory | `src/ext/phone_menu/touch_fit.cpp:384` | static_reasoning | fix in wave 3 |
+| F-255 | Town screenshot ReadTile reads past the read-back buffer when the back buffer is 64 px or less on a side | ext | memory | `src/ext/town_screenshot/town_screenshot.cpp:326` | unit_test | fix in wave 3 |
+| F-256 | Family picture layout recurses once per generation or marriage through std::function lambdas; a crafted save tree overflows the stack | ext | crash | `src/ext/family_tree/family_picture.cpp:309` | unit_test | fix in wave 3 |
+| F-257 | phone_menu keys the menus, the version line and the loading screens on Dialog resource addresses it assumes live for the whole run; the loops' Clean evicts them | ext | logic | `src/ext/phone_menu/phone_menu.cpp:60` | static_reasoning | fix in wave 3 |
+| F-258 | The Shift toggle and the UI hold identify the tool by raw Tool* address; a replacement tool at a reused address inherits them | ext | minor | `src/ext/touch_pointer/touch_pointer.cpp:423` | static_reasoning | fix in wave 3 |
+| F-259 | Toolbar window record from a save accepts any int32 x/y; SetUpperLeft then overflows on w + x | ext | UB | `src/ext/toolbar/window_state.cpp:45` | unit_test | fix in wave 3 |
+| F-260 | FamilyTree NowStamp and AgeYears turn save-derived calendar and age values into int with no range check | ext | UB | `src/ext/family_tree/family_tree_town.cpp:252` | unit_test | fix in wave 3 |
+| F-261 | FamilyTree Decode accepts nextId = 0xFFFFFFFF; the next Add wraps nextId_ to 0, after which ids repeat and the game's own next save no longer decodes | ext | save-format | `src/ext/family_tree/family_tree.cpp:27` | static_reasoning | fix in wave 3 |
+| F-262 | fix.* row bools are handed to cross-thread readers as plain `const bool*` while the Extensions dialog writes them live on the main thread (fix.save_failure_notice read by the persistence worker; fix.boot_device_lost read by the backend) | ext | race | `src/ext/registry_boot.cpp:148` | sanitizer | fix in wave 3 |
+| F-263 | ext.town_screenshot: a screenshot run abandoned by leaving the game keeps running into the next game with the row off: status icons and weather are turned off every frame and render_pipe stays switched off | ext | off-switch | `src/ext/town_screenshot/town_screenshot.cpp:512` | static_reasoning | fix in wave 3 |
+| F-264 | ext.family_tree: g_on is latched per frame, so the next game's load (StartTown citizens) runs OnCreatedSlow with the row already off | ext | minor | `src/ext/family_tree/family_tree_town.cpp:260` | static_reasoning | fix in wave 3 |
+| F-265 | FamilyTree::Decode accepts nextId = 0xFFFFFFFF from a save, so Tree::Add later wraps and hands out id 0 and then duplicates of ids already in use | ext | logic | `src/ext/family_tree/family_tree.cpp:359` | static_reasoning | fix in wave 3 |
+| F-266 | BuildPictureLayout recurses once per generation or spouse link through std::function lambdas; a deep chain from a save overflows the main-thread stack | ext | crash | `src/ext/family_tree/family_picture.cpp:234` | static_reasoning | fix in wave 3 |
+| F-267 | Town screenshot ReadTile reads past the frame copy when the back buffer is 64 px tall or less (tile margin larger than the screen) | ext | memory | `src/ext/town_screenshot/town_screenshot.cpp:326` | static_reasoning | fix in wave 3 |
+| F-268 | Town screenshot allocates its picture (up to 256 MB) with vector::assign and does not catch std::bad_alloc; low memory terminates the game | ext | resource | `src/ext/town_screenshot/town_screenshot.cpp:463` | unit_test | fix in wave 3 |
+| F-269 | pinpanel probe reads the EntityUI controller after the drain has closed and freed its dialog | harness | memory | `src/diag/tool_harness.cpp:3487` | static_reasoning | fix in wave 3 |
+| F-270 | MouseInject PostUpdate dereferences a target element and dialog that the UI Update in between may have freed | harness | memory | `src/diag/mouse_inject.cpp:847` | sanitizer | fix in wave 3 |
+| F-271 | Pause-menu harness probes liveness by reading the vtable word of a possibly freed dialog, then calls a virtual on it | harness | memory | `src/diag/pausemenu_harness.cpp:283` | static_reasoning | fix in wave 3 |
+| F-272 | panelclose route calls FindElement on the held dialog without checking that it is still open | harness | memory | `src/diag/tool_harness.cpp:3416` | sanitizer | fix in wave 3 |
+| F-273 | SpouseOrganic dereferences raw CitizenComponent pointers held for up to 3600 frames | harness | memory | `src/diag/death_harness.cpp:773` | sanitizer | fix in wave 3 |
+| F-274 | Sampler exit flush runs concurrently with a still-running sampler thread when the 2 s join times out | harness | race | `src/diag/win/sampler.cpp:257` | unit_test | fix in wave 3 |
+| F-275 | Windows hang dump and the redzone thread dump call loader-lock APIs while the target thread is suspended | harness | resource | `src/diag/win/boot_state_watchdog.cpp:275` | unit_test | fix in wave 3 |
+| F-276 | POSIX/Android hang dump closes the log fd while a slow signal handler may still be writing to it | harness | race | `src/diag/posix/boot_state_watchdog_posix.cpp:201` | unit_test | fix in wave 3 |
+| F-277 | Linux crash handler installs the alternate signal stack on the main thread only | harness | minor | `src/diag/posix/crash_handler_posix.cpp:310` | static_reasoning | fix in wave 3 |
+| F-278 | ALLOCSTATS block table deletes by clearing the slot, which breaks linear-probe chains and inflates live bytes | harness | logic | `src/diag/alloc_stats.cpp:126` | static_reasoning | fix in wave 3 |
+| F-279 | PFBENCH stamp arrays are written by path workers after the ready publish and read or reset without sync by the main thread | harness | race | `src/diag/stress_harness.cpp:1901` | sanitizer | fix in wave 3 |
+| F-280 | HwWatch_Arm passes a stack ArmReq to a helper thread and returns after a 2 s timeout without knowing whether the thread has read it | harness | minor | `src/diag/win/hw_watch.cpp:77` | static_reasoning | fix in wave 3 |
+| F-281 | Redzone PrintEntry dumps 16 canary bytes even when the redzone pad is 8 bytes | harness | minor | `src/diag/win/redzone_alloc.cpp:134` | static_reasoning | fix in wave 3 |
+| F-282 | MouseInject SolveRaw: out-of-range double->int32 cast and signed overflow on base + d for a large target coordinate or a sub-1 UI scale | harness | UB | `src/diag/mouse_inject.cpp:365` | static_reasoning | fix in wave 3 |
+| F-283 | font_dump compares kit glyph rows with unchecked int32 subtraction/addition and std::abs (signed overflow on a crafted or corrupt .crs) | harness | UB | `src/diag/font_dump/font_dump.cpp:151` | static_reasoning | fix in wave 3 |
+| F-284 | MarketOverstock: float->int overflow in the need computation for a large BANISHED_MARKET_OVERSTOCK percent | harness | minor | `src/diag/market_overstock_harness.cpp:256` | static_reasoning | fix in wave 3 |
+| F-285 | Redzone PrintEntry dumps 16 canary bytes when the tail pad is only 8, reading 8 bytes past the shimmed allocation | harness | minor | `src/diag/win/redzone_alloc.cpp:130` | static_reasoning | fix in wave 3 |
+| F-286 | HwWatch_Arm hands a stack ArmReq to a thread it waits on with a 2 s timeout; on timeout the thread reads a dead stack frame | harness | race | `src/diag/win/hw_watch.cpp:75` | static_reasoning | fix in wave 3 |
+| F-287 | Lock-order inversion (ABBA): with the teardown heap check armed, the main thread holds the allocator lock and waits for g_mutex while the redzone watchdog holds g_mutex and waits for the allocator lock | harness | race | `src/diag/alloc_cutover_arm.cpp:58` | static_reasoning | fix in wave 3 |
+| F-288 | The redzone watchdog's thread dump calls printf (the CRT stdout lock) and loader APIs while the target thread is suspended, so the dump can deadlock and leave that thread suspended for good | harness | race | `src/diag/win/redzone_alloc.cpp:542` | static_reasoning | fix in wave 3 |
+| F-289 | The sampler's AtExitFlush waits only 2 s for the sampler thread, then runs Sampler_Flush and fclose(g_out) concurrently with the sampler thread's own WriteSamples(g_flushBuf) | harness | race | `src/diag/win/sampler.cpp:257` | unit_test | fix in wave 3 |
+| F-290 | POSIX, Darwin and Android crash handlers: a second thread that faults while the first is still dumping _exit(3)s at once and truncates the first thread's crash log | harness | race | `src/diag/posix/crash_handler_posix.cpp:183` | static_reasoning | fix in wave 3 |
+| F-291 | The Windows sampler unwinds the suspended thread's stack (RtlLookupFunctionEntry / RtlVirtualUnwind) before resuming it, which can block on a loader lock the suspended thread holds; this matches the recorded 4000 Hz boot hang | harness | race | `src/diag/win/sampler.cpp:161` | unit_test | fix in wave 3 |
+| F-292 | POSIX hang dump: a reply that arrives after the 1 s timeout is counted for the next thread, and its handler can write stack lines into a reused fd such as the next standalone_boot_state.txt | harness | race | `src/diag/posix/boot_state_watchdog_posix.cpp:201` | sanitizer | fix in wave 3 |
+| F-293 | DiagThreads: when a thread id is reused, the slot is updated in place behind the sampler's g_seenRegistered cursor, so the new thread is never sampled and role and busy are published as a torn pair | harness | logic | `src/diag/diag_threads.cpp:103` | static_reasoning | fix in wave 3 |
+| F-294 | AUTOMENU_CLICKS row guard misses the move-up / move-down neighbour index: token 2000 (row 0) or 3000+last row passes the guard and Modification::Swap indexes _mods[-1] / _mods[count] | harness | memory | `src/diag/autostart.cpp:353` | static_reasoning | fix in wave 3 |
+| F-295 | PAUSEMENU_CLICKS bare <id> token reaches ModDialog::ToggleMod / Swap / ShowDetails with no row bound (the guard autostart.cpp has is missing here) | harness | memory | `src/diag/pausemenu_harness.cpp:188` | static_reasoning | fix in wave 3 |
+| F-296 | MouseInject::PostUpdate dereferences the target element and dialog after UserInterface::Update may have deleted them | harness | memory | `src/diag/mouse_inject.cpp:847` | static_reasoning | fix in wave 3 |
+| F-297 | Windows hang watchdog walks suspended threads through loader-lock / function-table-lock APIs, so a hang held under the loader lock deadlocks the watchdog and the unattended run never exits 4 | harness | race | `src/diag/win/boot_state_watchdog.cpp:275` | unit_test | fix in wave 3 |
+| F-298 | POSIX/Android hang dump: a late per-thread answer is consumed by the next thread's wait and can write into a closed or reused fd | harness | race | `src/diag/posix/boot_state_watchdog_posix.cpp:201` | static_reasoning | fix in wave 3 |
+| F-299 | BANISHED_STRESS_SETS=-2147483648 negates INT_MIN (signed overflow) | harness | UB | `src/diag/stress_harness.cpp:1591` | static_reasoning | fix in wave 3 |
+| F-300 | BANISHED_REDZONE_PAD near INT_MAX overflows `redzonePad + 7` (signed overflow) | harness | UB | `src/diag/win/redzone_alloc.cpp:337` | static_reasoning | fix in wave 3 |
+| F-301 | BANISHED_FINGER_TAP hold = INT_MAX overflows `s_ft_hold + 1` on every tick | harness | minor | `src/diag/tool_harness.cpp:991` | static_reasoning | fix in wave 3 |
+| F-302 | Hang dump: a thread that answers kDumpSignal after the 1 s timeout posts the shared semaphore late (shifting every later thread's wait) and its handler can write to g_hangLog after WriteHangDump closed it, i.e. into whatever file next reuses that fd number | harness | race | `src/diag/android/boot_state_watchdog_android.cpp:219` | static_reasoning | fix in wave 3 |
+| F-303 | SAF folder copy writes each package to new File(staged, d.name) with the provider's COLUMN_DISPLAY_NAME checked only by suffix: a name holding '/' or '..' escapes the staging folder | port | minor | `android/app/src/main/java/org/openba/game/GameFilesJob.java:355` | unit_test | fix in wave 3 |
+| F-304 | Hang dump: a thread that answers the dump signal after the 1 s timeout posts the semaphore late and writes through g_hangLog with no synchronisation, after the watchdog may have closed the fd (the fd number can be reused) | harness | race | `src/diag/android/boot_state_watchdog_android.cpp:219` | sanitizer | fix in wave 3 |
+| F-305 | Screen keyboard: a keyboard-hidden event raised by a previous box's SDL_StopTextInput can arrive after the next box's TextEntryChanged(true) and inject a Return that ends the new box's edit; the g_textEntry check and the push are also not atomic | port | race | `src/platform/android/input_android.cpp:116` | unit_test | fix in wave 3 |
+| F-306 | Android crash handler's re-entry guard is process-wide: a second thread that faults while the first is still dumping calls _exit(3), cutting off the dump and the debuggerd tombstone | harness | race | `src/diag/android/crash_handler_android.cpp:294` | static_reasoning | fix in wave 3 |
+| F-307 | Hang dump's 1-second sem_timedwait loses step with late answers: a stale sem_post makes later threads' stacks print under the wrong thread header, and the handler reads g_hangLog (a plain int) while the watchdog closes it | harness | race | `src/diag/android/boot_state_watchdog_android.cpp:219` | sanitizer | fix in wave 3 |
+| F-308 | Game-files copy can replace WinData packages while the game is starting and reading them: the 'game is running' lock is checked only when the screen refreshes, never at install time | port | race | `android/app/src/main/java/org/openba/game/GameFilesJob.java:248` | unit_test | fix in wave 3 |
+| F-309 | Screen-keyboard watch can queue a stale Return after the edit box has let go (or into the next box): it tests g_textEntry outside g_mutex, and a keyboard-hidden event from an earlier StopTextInput arrives on the UI thread late | port | logic | `src/platform/android/input_android.cpp:116` | unit_test | fix in wave 3 |
+| F-310 | Exported launcher activity turns any caller's BANISHED_* intent extras into harness flags (autoload, kill, save-test, user dir), and a hostile Bundle crashes onCreate | ext | logic | `android/app/src/main/java/org/openba/game/OpenBAActivity.java:262` | static_reasoning | fix in wave 3 |
+| F-311 | Zip import has no bound on the bytes it writes: the free-space check uses the compressed archive size (packages), and the saves import has no check at all | ext | resource | `android/app/src/main/java/org/openba/game/GameFilesJob.java:431` | static_reasoning | fix in wave 3 |
+| F-312 | installStaged deletes each WinData package before renaming its replacement in; a failure mid-loop leaves WinData with mixed or missing packages and the finally block then deletes the staged copies | ext | logic | `android/app/src/main/java/org/openba/game/GameFilesJob.java:250` | static_reasoning | fix in wave 3 |
+| F-313 | The game can start while a Game files package copy is still installing: the 'game is running' lock is checked only when the screen refreshes, and OpenBAActivity never checks for a running job | ext | race | `android/app/src/main/java/org/openba/game/GameFilesScreen.java:496` | unit_test | fix in wave 3 |
+| F-314 | Folder copy writes to new File(staged, displayName) with a provider-supplied COLUMN_DISPLAY_NAME: '../' escapes the staging folder (e.g. straight into WinData, bypassing staging) | ext | minor | `android/app/src/main/java/org/openba/game/GameFilesJob.java:355` | static_reasoning | fix in wave 3 |
+| F-315 | Phone-seed key matching differs from the settings parser: a key written with blanks, after a BOM or indented is 'missing', so the seed appends a line that overrides the player's value (last wins) | ext | minor | `src/platform/android/phone_seed.h:216` | static_reasoning | fix in wave 3 |
+| F-316 | Hang dump: a thread that answers the dump signal after the 1 s timeout posts a stale semaphore, writes concurrently with later threads, and can write after close() into a reused fd; dladdr runs inside the signal handler | harness | race | `src/diag/android/boot_state_watchdog_android.cpp:219` | static_reasoning | fix in wave 3 |
+| F-317 | A render pipeline that fails to compile is never remembered: every draw with that state recompiles it synchronously on the render thread and prints an uncapped stderr line | ext | resource | `src/render/metal/pipeline_cache.h:343` | static_reasoning | fix in wave 3 |
+| F-318 | RenderStateData::Bind converts the serialized depth bias to int with no range check (float-cast-overflow UB) | retail | UB | `src/render/metal/backend.mm:2206` | static_reasoning | fix in wave 3 |
+| F-319 | ApplyInitialWindowGeometry overflows int on a saved VideoWindowX/Y near INT_MAX (signed overflow UB) on a 1x display | port | UB | `src/platform/darwin/window_darwin.cpp:149` | static_reasoning | fix in wave 3 |
+| F-320 | Int4 vertex widening reads the source buffer at an unchecked layout offset (host out-of-bounds read) | port | memory | `src/render/metal/backend.mm:582` | sanitizer | fix in wave 3 |
+| F-321 | Indexed-draw bounds check is defeated by a negative start index or index offset (unsigned wrap) | port | minor | `src/render/metal/backend.mm:601` | static_reasoning | fix in wave 3 |
+| F-322 | Metal Int4 vertex expansion reads the source vertex buffer at a layout offset that is never checked against the stride or the buffer length (CPU heap out-of-bounds read) | port | memory | `src/render/metal/backend.mm:582` | static_reasoning | fix in wave 3 |
+| F-323 | ApplyInitialWindowGeometry adds the window size and title-bar height to the settings.cfg WindowX/WindowY values without overflow checks (signed overflow UB at density 1) | port | UB | `src/platform/darwin/window_darwin.cpp:149` | sanitizer | fix in wave 3 |
+| F-324 | PathfinderThread::Run reads queueCount outside the pathfinder lock while enqueuers write it under the lock (data race, UB; retail-shaped) | retail | low | `src/game/Game/pathfinder_seed.cpp:63` | clang diagnostic + precise interleaving + Ghidra quote | fixed in #161 (open) |
+| F-325 | S-001 refuted: VS cb slot 3 (tc_ TransformConstants) bound at the 64-byte rung against a 3328-byte declaration is retail behaviour | retail | info | `src/render/dx11/buffers.cpp:862` | ghidra diff | retail behaviour, no fix (S-001) |
+| F-326 | Fullscreen minimise+restore leaves a 4960x2852 client on a 2560x1440 display (SDL seam takes a negative frame measured mid-restore) | port | medium | `src/platform/sdl/display_sdl.cpp:73` | unit test + run repro | fixed in #163 (open) |
+| F-327 | BANISHED_D3D_DEBUG: D3dDebug::Attach on the re-created device leaks the old ID3D11InfoQueue (and with it the old device) and registers atexit twice | harness | low | `src/render/dx11/d3d_debug.cpp:33` | run log + code | fix in wave 3 |
+| F-328 | F-087 remainder: atoi/atof/sscanf %d %f on BANISHED_* text in src/diag and two other harness readers (UB when the value is out of range) | harness | minor | `src/diag/tool_harness.cpp:1332` | failing-input unit test (static finding F-087) | fixed in #160 (open) |
+
+### S-002..S-055 triage
+
+Outcome: 42 confirmed, 3 refuted (S-012, S-041, S-045), 3 duplicates (S-029, S-033, S-049) and 6
+still suspected (S-011, S-017, S-040, S-044, S-054, S-055). The confirmed ones keep their S-* id and
+are fixed in wave 3 with the F-218..F-328 rows. Label is the triage verdict's (S-034 moved from ext
+to harness).
+
+| ID | Label | Outcome | Why |
+|---|---|---|---|
+| S-002 | ext | confirmed | ForceVideoContextReset runs from the pump inside the steps with no lock, while ClaimSteps lets the render thread keep emitting with the same Context (static trace) |
+| S-003 | retail | confirmed | FindTexture / FindConstant return -1 on a missing name and BuildParameters stores it and the shader `dest` slot unchecked; Setup indexes and writes with both (static trace, mod data only) |
+| S-004 | retail | confirmed | ASan heap-use-after-free, 3 of 3: ~SaveLoad (retail 0x1800c3c90, no wait) frees the embedded state the worker still uses |
+| S-005 | retail | confirmed | Persist loads cellIndex raw and AbstractImpl indexes Map::cells with it; the sibling sites F-105 / F-106 were bounded, this one was not |
+| S-006 | retail | confirmed | Failing unit test on the corrected route (a click queued in frame N, dispatched after frame N+1's tick removed the last citizen); the empty-town route in the lead is refuted |
+| S-007 | retail | confirmed | The per-entity master index, bucket index and bucket id are read from the save unchecked and RemoveEntity writes through them (static trace) |
+| S-008 | retail | confirmed | CitizenBehavior::Serialize reads the residence cells raw and PostLoad files them into the coarse grid unbounded (static trace) |
+| S-009 | retail | confirmed | Minimap::Serialize reads the edge size apart from the two pixel arrays; ClearTerrain and the repaint use size*size (static trace; not F-026, a different function) |
+| S-010 | ext | confirmed | WM_ACTIVATE reaches DeviceData_OnActivate from the pump inside the steps while the render thread is in EndCommands / Present (static trace; #151 does not cover it) |
+| S-011 | ext | still suspected | Depends on whether `useResource` retains; Metal cannot be built or run on this bed |
+| S-012 | ext | refuted | Closed on main by #151 (F-158): ClaimSteps now waits for BeginCommands, so the watch cannot run inside the window |
+| S-013 | ext | confirmed | An upload recorded between FlushUploads and NoteFrameSubmitted is stamped with the wrong serial and can be retired while the GPU still uses it (static trace) |
+| S-014 | ext | confirmed | The derived cache checks only unkeyed hashes, and DecodeEntry accepts any binding / texture byte that StageImages then indexes with (static trace) |
+| S-015 | retail | confirmed | SubMesh::_parent is read from the PickingMesh stream and AddMesh indexes the transform scratch with it unchecked (static trace) |
+| S-016 | retail | confirmed | Triangle indices are raw u16 from the file and Intersect reads verts[] with them unchecked (static trace) |
+| S-017 | port | still suspected | The address latches are never cleared (code read); no failure observed, the game run did not happen |
+| S-018 | port | confirmed | Saves write ids 1..N and PreloadRefs loops 0..N-1, so the last id is never preloaded (static trace of both paths) |
+| S-019 | port | confirmed | A minimised window gives a 0x0 back buffer, and the fix.boot_device_lost recovery then fails CreateDevice into the fatal box (static trace) |
+| S-020 | ext | confirmed | NewBuffer returns nil on failure and RenameBuffer copies into the result unchecked (static trace) |
+| S-021 | ext | confirmed | The Int4 expansion memsets and writes through `expanded.contents` with no nil test (static trace) |
+| S-022 | ext | confirmed | InitLocked sets `ready` without testing the constant ring allocation; WriteConstants copies into nil contents (static trace) |
+| S-023 | port | confirmed | BeginCommands takes the lost-device arm before the background / minimise test, so recovery runs CreateDevice with no surface and stops the application (static trace) |
+| S-024 | ext | confirmed | vkCreateCommandPool / vkAllocateCommandBuffers results are discarded; null handles reach vkBeginCommandBuffer (static trace, OOM only) |
+| S-025 | ext | confirmed | A failed vkQueueSubmit2 leaves the reset fence unsignalled and the next wait on that slot is UINT64_MAX (static trace) |
+| S-026 | retail | confirmed | `source` is stored after PlayPlatform has already started the stream, as a plain store the worker reads (static trace with retail addresses) |
+| S-027 | retail | confirmed | ASan heap-use-after-free in the real Stream::Run with the interleaving forced |
+| S-028 | ext | confirmed | ExtRequestMaxShadowResSync rewrites the sun map targets during the overlapped steps while pass 2 reads them; F-158's fix orders only BeginCommands (static trace) |
+| S-029 | port | duplicate | F-140: the same port-only counter family, removed by #148 |
+| S-030 | port | confirmed | Five sites call `~Array()` on live members and then SetSize / read them (static trace) |
+| S-031 | retail | confirmed | `magic` and `version` stay uninitialised when the read fails and are then compared (static trace) |
+| S-032 | retail | confirmed | State 4 runs LoadMetaData on an empty embedded state when state 3 skipped BeginLoad: memmove from null with n == 0 (static trace) |
+| S-033 | ext | duplicate | F-147: the same `_status` hand-off, fixed by #148 with an acquire load |
+| S-034 | harness | confirmed | The DiagThreads registry keeps &_runFlags of a freed Thread and the sampler can read it; #148 made the flag atomic but not the lifetime (static trace) |
+| S-035 | retail | confirmed | ~ComboDialog (0x180111cd0) never clears `_openDialog` and ~ComboElement (0x180112490) closes it again (Ghidra checked) |
+| S-036 | port | confirmed | The duplicate-key arm frees the node and then reads `newNode->parent` and bumps the count; retail 0x140076ca0 differs (Ghidra) |
+| S-037 | port | confirmed | Zero extension where retail BuildPathGraph 0x1400d70c0 uses MOVSXD (Ghidra) |
+| S-038 | retail | confirmed | Both times are raw int64 from the save and the delta is a plain signed subtraction (static trace) |
+| S-039 | port | confirmed | BuildRoutes destroys three member arrays and keeps using them; nothing re-creates them (static trace) |
+| S-040 | retail | still suspected | Shipped data answers one of the open questions; no freed-entity read seen in a run, a test or a sanitizer |
+| S-041 | ext | refuted | The vendored SDL's SDL_GetWindowProperties is safe off the main thread here (props created on the main thread first) |
+| S-042 | retail | confirmed | RenderState fields are serialized unchecked and index the DX11 blend / compare / stencil / cull / fill tables (static trace) |
+| S-043 | retail | confirmed | The element format is serialized unchecked and indexes the 9-entry kElementFormat (static trace) |
+| S-044 | ext | still suspected | Shape 2 (the render_pipe race) is F-158 and fixed; shape 1 (a request lost while minimised) has a failing model test only, Metal not buildable here |
+| S-045 | ext | refuted | A Vulkan validation run shows no VUID-vkDestroySemaphore error at the rebuild, and a positive control shows the layer would catch it |
+| S-046 | ext | confirmed | A failed vkCreateSwapchainKHR leaves the retired handle in `swapchain` and every retry passes it as oldSwapchain (spec valid-usage) |
+| S-047 | ext | confirmed | Khronos validation report on a standalone repro of the 64 KiB zero index buffer past 32768 indices |
+| S-048 | port | confirmed | Retail SetEffectEnabled 0x1400942c0 spawns the ambient-audio entity and Update retires it; the port dropped both arms (Ghidra diff) |
+| S-049 | ext | duplicate | F-207: the same FacePath cache, fixed by #149 |
+| S-050 | ext | confirmed | `g_privateTried` / `g_privateLoaded` are process-wide, so the first face decides every later one (static trace) |
+| S-051 | ext | confirmed | The same latch as S-050 seen from the bundled FrancophilSans.ttf: a failed earlier face blocks it (static trace; one fix covers both) |
+| S-052 | port | confirmed | Retail DeviceData::Resize 0x180004340 has only the IsWindowVisible early-out; the port's IsIconic early-out skips SetFullscreenState(FALSE) (Ghidra) |
+| S-053 | ext | confirmed | ImageBufferData::Update calls replaceRegion on the live shared texture with no wait, rename or blit (static trace) |
+| S-054 | port | still suspected | A failing model test shows the eviction order; the engine path that reaches it is not observed and Metal is not buildable here |
+| S-055 | ext | still suspected | The uncapped fprintf in the completion handler is real (code read), but a GPU fault cannot be produced on this bed |
+
 ## Suspected (no proof yet)
 
-Untouched by the fix wave; their triage is a phase 2 item.
+S-001..S-055 were untouched by the fix wave; phase 2 triaged them (outcome in "Phase 2"
+above: S-001 is retail behaviour, S-011, S-017, S-040, S-044, S-054 and S-055 stay suspected).
+S-056..S-066 are new in phase 2.
 
 | ID | Where | Lead | Source |
 |---|---|---|---|
@@ -419,6 +644,17 @@ Untouched by the fix wave; their triage is a phase 2 item.
 | S-053 | `src/render/metal/backend.mm:1688` | ImageBufferData::Update writes a texture in place with replaceRegion while up to 3 in-flight frames still sample it (no versioning/staging) (ext, logic) | P8 src/render/metal gpu_lifetime |
 | S-054 | `src/render/metal/backend.mm:2135` | Pipeline fast cache evicts an owner's address BEFORE the object dies; a pipeline inserted after the eviction survives address reuse (stale blend/layout/function) (ext, logic) | P8 src/render/metal gpu_lifetime |
 | S-055 | `src/render/metal/backend.mm:784` | Metal command-buffer error handler writes an uncapped stderr line every frame once the GPU faults or the queue is refused (no device-lost route, per-frame log spam in shipped builds) (ext, resource) | P8 src/render/metal swapchain |
+| S-056 | `src/diag/autostart.cpp:252` | AUTOSTART_GAMES rearm compares the new main menu with the freed old one by address and can wait for ever (harness, logic) | phase 2 diag-harness.memory-lifetime |
+| S-057 | `android/app/src/main/java/org/openba/game/GameFilesJob.java:250` | A package copy started from the Game files screen while the game is not running keeps going after the player starts the game from the icon; installStaged then deletes and renames WinData packages underneath the booting or running game (port, logic) | phase 2 android.memory-lifetime |
+| S-058 | `src/render/metal/backend.mm:525` | A vertex stream that the pipeline's vertex descriptor fetches can be left unbound: a nil bound.vertex slot or a skipped int4 expansion still draws, and Metal has no D3D11-style zero read for an unbound slot (ext, UB) | phase 2 metal.memory-lifetime |
+| S-059 | `src/render/metal/backend.mm:1421` | AttachColorBuffer / AttachDepthBuffer write the frame thread's mainColor / mainDepth / msaaSamples statics and the alias's strong `texture` field from the loader thread without the device lock, racing RebuildMainTargets / ApplyEngineSettingsChange (port, race) | phase 2 metal.concurrency |
+| S-060 | `src/render/metal/pipeline_cache.h:178` | pipelines.txt warm-up trusts every numeric field of a cached record and never checks the record against its key: a malformed cache can abort pipeline creation at boot or bind a pipeline built from a different descriptor (port, crash) | phase 2 metal.input-errors |
+| S-061 | `tests/unit/review_system_misc_test.cpp:179` | unit sysmisc_timer_ticks_after_eleven_days fails in the full clang-19 check suite (pre-existing, order-dependent) (harness, low (test flake)) | phase 2 track:p5-thread-safety |
+| S-062 | `src/render/dx11/contextdata.cpp:543` | DX11 device-lost round trip leaves +223 handles / +105 MB that are not reclaimed (Vulkan: +8 handles) (unknown, low) | phase 2 track:gpu |
+| S-063 | `src/render/dx11/devicedata.cpp:740` | DX11 minimised: the main loop spins ~3M iterations/s (BeginCommands fails every iteration; only SwitchToThread between) (unknown, low) | phase 2 track:gpu |
+| S-064 | `src/render/vulkan/pipelines.cpp:889` | Vulkan pipeline-cache faithful gate reads Ext::CurrentProfile() before /profile:faithful is applied (port, low) | phase 2 track:gpu |
+| S-065 | `src/render/dx11/devicedata.cpp:917` | Harness artefact: a synthetic WM_ACTIVATE(WA_INACTIVE) posted to a foreground exclusive-fullscreen window leaves it minimised and hidden (unknown, info) | phase 2 track:gpu |
+| S-066 | `tests/unit/review_system_misc_test.cpp:179` | sysmisc_timer_ticks_after_eleven_days fails under WSL clang-19 UBSan (unknown, minor; the same test as S-061) | phase 2 track:diag-atoi |
 
 ## Upstream: third_party/dxbc-spirv (for a report written by hand)
 

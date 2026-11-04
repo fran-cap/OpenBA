@@ -1361,10 +1361,13 @@ F-003, F-009, F-049, F-159).
 `findings_p3p4.json`, `findings_p8.json`) quotes the retail address and the instructions, and the PR
 body quotes them again next to the fix.
 
-**Proof it is retail.** Each row was found by a sanitizer, a fuzz input or a static path, and its
-`retail` label was given only after the retail body was read in Ghidra and found to do the same thing
-(no bound, no zero test, the same plain load or store). A finding where the port differed from retail is
-a `docs/known_port_issues.md` row instead (rows 1351..1415).
+**Proof it is retail.** Each row was found by a sanitizer, a fuzz input or a static path. Most
+`retail` labels were given after the retail body was read in Ghidra and found to do the same thing (no
+bound, no zero test, the same plain load or store), with three exceptions: F-001 is retail with a port
+widening on top (Copy8 reads 8 bytes where retail reads 1), F-009 is a retail idiom (`UI::String{null,
+-1}`) rather than one body compared instruction for instruction, and F-004 is labelled from the code's
+shape only and is not verified in Ghidra. A finding where the port differed from retail is a
+`docs/known_port_issues.md` row instead (rows 1351..1415).
 
 **Lever.** Campaign rulings 4 and 8: every instance of undefined behaviour gets a minimal fix with a
 `NOT RETAIL (review F-xxx)` comment, and hostile input that is not undefined behaviour (a hang, a giant
@@ -1380,7 +1383,7 @@ hostile value before the hang or the allocation.
 | F-001 | `src/engine/system/compression.cpp:312` | Decompress has no source-end bound on literal runs and match bytes (heap over-read; the port's Copy8 widens it to 8 bytes) | UB: minimal fix (#106) |
 | F-002 | `src/engine/system/compression.cpp:335` | Decompress match copy `op[k - dist]` wraps its unsigned index (pointer overflow) | UB: minimal fix (#106) |
 | F-003 | `src/engine/system/allocator.cpp:381` | ExpandMemoryRangeTable calls `memcpy(dst, nullptr, 0)` on the first range table | UB: minimal fix (#122) |
-| F-004 | `src/game/Game/worldgeometry_ray.cpp:136-152` | RayTestCell forms cell indexes from an out-of-range float in int32 (`INT_MIN - 2`, `INT_MIN + INT_MIN`) | UB: minimal fix (#122) |
+| F-004 | `src/game/Game/worldgeometry_ray.cpp:136-152` | RayTestCell forms cell indexes from an out-of-range float in int32 (`INT_MIN - 2`, `INT_MIN + INT_MIN`); retail label not verified in Ghidra | UB: minimal fix (#122) |
 | F-009 | `src/engine/ui/sprite.cpp:310/400` | StringTable::GetText is called through `UI::String{null, -1}`: member call on a null `this` | UB: minimal fix (#122) |
 | F-012 | `src/engine/collection/array.cpp:2312` | Negative serialized array count: SetSizeCore destroys -n elements at old + n*stride (wild pointer free/release) | UB: minimal fix (#108) |
 | F-013 | `src/engine/io/compressed_stream_read.cpp:276` | DecompressFromSource reads a u16 compressedSize (up to 0xFFFF) into a 0x8000-byte stack scratch | UB: minimal fix (#106) |
