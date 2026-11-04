@@ -38,4 +38,10 @@ bool YieldThread()          { return SwitchToThread() != FALSE; }
 void SleepMs(uint32_t ms)   { Sleep(ms); }
 uint32_t CurrentThreadId()  { return GetCurrentThreadId(); }
 
+bool DispatchSentMessages() {   // NOT RETAIL: platform_thread.h (review F-224)
+    MSG m;
+    PeekMessageW(&m, nullptr, 0, 0, PM_NOREMOVE | PM_QS_SENDMESSAGE);
+    return true;
+}
+
 }  // namespace Platform
