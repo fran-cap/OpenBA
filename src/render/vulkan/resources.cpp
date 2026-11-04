@@ -212,12 +212,27 @@ UploadBatch* OpenBatchLocked() {
         auto pi = Make<VkCommandPoolCreateInfo>(VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
         pi.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
         pi.queueFamilyIndex = LiveGraphicsFamily();
-        vkCreateCommandPool(Dev(), &pi, nullptr, &b->pool);
-        auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
-        ai.commandPool = b->pool;
-        ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        ai.commandBufferCount = 1;
-        vkAllocateCommandBuffers(Dev(), &ai, &b->cb);
+        VkResult r = vkCreateCommandPool(Dev(), &pi, nullptr, &b->pool);
+        if (r == VK_SUCCESS) {
+            auto ai = Make<VkCommandBufferAllocateInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO);
+            ai.commandPool = b->pool;
+            ai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+            ai.commandBufferCount = 1;
+            r = vkAllocateCommandBuffers(Dev(), &ai, &b->cb);
+        }
+        if (r != VK_SUCCESS) {
+            // Out of memory (review S-024): no batch, the upload is dropped (its caller is told). Only
+            // the first few are logged: while memory stays short, every upload lands here.
+            NoteResult(r, "upload batch");
+            static int s_logged = 0;
+            if (s_logged < 8) {
+                ++s_logged;
+                std::fprintf(stderr, "[Vulkan] upload batch: %s\n", ResultName(r));
+            }
+            if (b->pool) vkDestroyCommandPool(Dev(), b->pool, nullptr);
+            delete b;
+            return nullptr;
+        }
     }
     auto bi = Make<VkCommandBufferBeginInfo>(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
     bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -696,6 +711,11 @@ bool CreateStaticBuffer(VkDeviceSize size, VkBufferUsageFlags usage, const void*
     }
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) {
+        DestroyBufferNow(out);
+        if (why) *why = "no upload command buffer";
+        return false;
+    }
     vkCmdFillBuffer(b->cb, out->buffer, 0, VK_WHOLE_SIZE, 0);
     // A SetData later in the same batch copies over the fill (synchronization validation: write after
     // write): the fill lands first.
@@ -713,6 +733,7 @@ void UploadBuffer(const GpuBuffer& dst, VkDeviceSize offset, const void* data, V
     if (!dst.buffer || !data || size == 0) return;
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) return;
     VkBuffer staging = VK_NULL_HANDLE;
     VkDeviceSize at = 0;
     uint8_t* p = StageLocked(b, size, 16, &staging, &at);
@@ -740,6 +761,10 @@ bool ReadBuffer(const GpuBuffer& src, void* dst, VkDeviceSize size) {
     {
         std::lock_guard<std::mutex> guard(g_uploadLock);
         UploadBatch* b = OpenBatchLocked();
+        if (!b) {
+            DestroyBufferNow(&readback);
+            return false;
+        }
         // Earlier copies in this batch (the buffer's own upload) land before the read.
         MemoryBarrier(b->cb, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,
                       VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_READ_BIT);
@@ -860,6 +885,7 @@ void UploadImage(const GpuImage& image, const ImageRegion* regions, size_t regio
     if (!image.image || regionCount == 0) return;
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) return;
     VkBuffer staging = VK_NULL_HANDLE;
     VkDeviceSize at = 0;
     uint8_t* p = StageLocked(b, size, 16, &staging, &at);
@@ -893,6 +919,7 @@ void ClearImage(const GpuImage& image) {
     if (!image.image) return;
     std::lock_guard<std::mutex> guard(g_uploadLock);
     UploadBatch* b = OpenBatchLocked();
+    if (!b) return;
     const VkImageLayout from = Initialized(image.image) ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                          : VK_IMAGE_LAYOUT_UNDEFINED;
     ImageBarrier(b->cb, image, from, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, kReadStages, 0,

@@ -1804,7 +1804,14 @@ bool DrawReadImage(ImageBufferData* image, void* dst, int width, int height) {
         vkCmdCopyImageToBuffer(cb, image->image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, readback.buffer, 1,
                                &region);
         CmdPipelineBarrier2(cb, hostDep);
-        g_frame.target.cb = SubmitFrameSoFar();
+        const VkCommandBuffer next = SubmitFrameSoFar();
+        if (!next) {
+            // Nothing was submitted (review S-024): the copy stays in this frame's commands, so the
+            // read-back buffer goes with the frame.
+            RetireBuffer(&readback);
+            return false;
+        }
+        g_frame.target.cb = next;
         ResetCommandState();
         g_discard.Note(StructureToken(&image->state, 'Q'));
         ++g_frame.reads;
