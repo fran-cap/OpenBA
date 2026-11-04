@@ -29,6 +29,7 @@
 #include "ext/phone_menu/phone_menu.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): the menu safe area
 #include "platform/common/platform_app.h"   // EXT SEAM (NOT RETAIL, issue #96): Platform::App::OpenGameFilesScreen
 #include "ext/registry.h"                // Ext::Fix().mods_persist
+#include "ext/mods_persist/mods_in_game_warning.h"   // fix.mods_persist: the in-game Mods warning
 #include "Dialog/NewGameDialog.h"
 #include "Dialog/MapParamsDialog.h"
 #include "Dialog/AchievementDialog.h"
@@ -486,11 +487,9 @@ void MainMenuDialog::OnOpened() {
         // Game flag bit 10 disables Save and Mod (retail re-reads it per button).
         if (((game->m_gameFlags >> 10) & 1) != 0 && buttonSave) buttonSave->Enable(false);
         if (((game->m_gameFlags >> 10) & 1) != 0 && buttonMod)  buttonMod->Enable(false);
-        // FIX mods_persist (docs/retail_bugs.md section 23): retail lets the player change mods in a
-        // game, then drops the change at the next menu (Loader::Load re-reads the list) after
-        // reloading every changed resource twice. With the row on, Mods is greyed out in the pause
-        // menu, as retail does for a game with flag bit 10; the list is changed from the main menu.
-        if (Ext::Fix().mods_persist && buttonMod) buttonMod->Enable(false);
+        // FIX mods_persist (docs/retail_bugs.md section 23): Mods stays usable in a game. The button
+        // asks first (OnCommand, kButton_Mod), and ModDialog::Apply keeps the change where retail
+        // dropped it at the next menu.
     }
 
     // --- 4. the BuildId child dialog (version + build id overlay) ---
@@ -668,6 +667,9 @@ void MainMenuDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
     case kButton_Mod:
         // ModDialog/ModDetailsDialog live in src/game/Dialog/mod_dialog_vtables.cpp.
         // Default-on since 2026-09-05 (BANISHED_LIVE_MODDIALOG=0 is the kill-switch).
+        // FIX mods_persist (docs/retail_bugs.md section 23), NOT RETAIL: in a game, a Yes / No
+        // warning first (a change reloads the town; turning off a mod it uses can damage it).
+        if (game != nullptr && Ext::Fix().mods_persist && !Ext::ModsInGameWarning::Confirm(_ui)) break;
         printf("[MainMenuDialog::OnCommand] -> OpenMods (ModDialog)\n");
         ModDialog_OpenFromMainMenu(this);
         break;

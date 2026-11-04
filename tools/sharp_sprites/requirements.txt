@@ -1,0 +1,7 @@
+# tools/sharp_sprites/ (bake.py, chrome.py, pack.py) -- maintainer tools, not a build dependency:
+# the baked art (src/ext/sharp_ui/art/) and the generated header are committed.
+#   python -m venv .venv-sharp && .venv-sharp/Scripts/python -m pip install -r tools/sharp_sprites/requirements.txt
+resvg_py==0.5.0
+svgelements==1.9.6
+pillow==13.0.0
+numpy==2.5.4

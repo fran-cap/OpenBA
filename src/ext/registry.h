@@ -76,7 +76,7 @@ struct Fixes {
     bool unresolved_seeds  = true;   // docs/retail_bugs.md §21, src/ext/unresolved_seeds/: no null in the town's agriculture list (start town, load)
     bool commute_cost      = true;   // docs/retail_bugs.md §6, src/ext/commute_cost/: sim-visible, a region pair's first commute query answers its cost, not 0
     bool nomad_arrival     = true;   // docs/retail_bugs.md §22, src/ext/nomad_arrival/: sim-visible, a nomad counts as arrived only near the town hall, else retries once and leaves
-    bool mods_persist      = true;   // docs/retail_bugs.md §23: the mod list is written to settings.cfg when Mods is confirmed, and Mods is greyed out in a game
+    bool mods_persist      = true;   // docs/retail_bugs.md §23: the mod list is written to settings.cfg when Mods is confirmed (in a game too, after a warning)
     bool boat_reach_notice = true;   // docs/retail_bugs.md §28, src/ext/boat_reach_notice/: an event-log line when a merchant boat finds no water route to a trading post's dock
     bool save_failure_notice = true; // docs/retail_bugs.md §27, src/ext/save_failure_notice/: a failed save says so, and keeps the previous save (engine seams PersistenceWorker::_extFixSaveTemp, SaveLoad::_extFixSaveResult)
     bool cancel_refund     = true;   // docs/retail_bugs.md §26, src/ext/cancel_refund/: sim-visible, a cancelled site's materials that do not fit on its footprint are laid around it, not discarded
@@ -199,6 +199,7 @@ struct Values {
     int32_t derived_cache_mb = 4096; // ext.derived_cache_mb 256..65536 (owner compress_ao, the cache's first user): the derived-data cache's cap in MB (COMPRESSAO.md)
     int32_t natural_tree_growth = 1; // ext.natural_tree_growth 0..1 (owner better_trees): per-tree autumn colour, leaf fall, regrowth and green variation while the row is on (NATURAL_GROWTH.md)
     int32_t phone_menu_safe_margin = 3375; // ext.phone_menu_safe_margin 0 | 2000 | 3375 | 4500 | 6000 (owner phone_menu): the safe-area inset in thousandths of a percent of the screen height (3375 = 3.375 %, the margin it always had: phone_math.h kSafeMarginFraction), 0 = none (a tablet without cut-outs; issue #96, handins/PHONEMENU.md)
+    int32_t sharp_ui_icons = 0; // ext.sharp_ui_icons 0..1 (owner sharp_ui): 1 = the dialog and Extensions sheets drawn from their magnified copies with our art (SHARP_SPRITES.md); 0 = the text only (the default, the user 2026-11-04)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
 

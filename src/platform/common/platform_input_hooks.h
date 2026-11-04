@@ -11,7 +11,8 @@
 //                                              layer, the Option-click remap and the window
 //                                              chord of src/platform/common/mac_keymap.h.
 //   android/input_android.cpp                  replaces input_posix.cpp on Android: the
-//                                              rotate drag's cursor return (P8).
+//                                              rotate drag's cursor return (P8) and the
+//                                              screen keyboard (issue #100).
 // D4_RULES C1: namespace `Platform`, free functions, NO OS / SDL header here; the SDL types
 // are only forward-declared.
 // ============================================================================
@@ -51,6 +52,17 @@ bool ConsumePumpEvent(const SDL_Event& event);
 // motion after the release then snapped the cursor across the screen. False elsewhere: SDL puts
 // the system cursor where its own position moved to, as before.
 bool RotateDragReturnsCursor();
+
+// Issue #100: a text box gained (true) or lost (false) the keyboard (SetTextEntryActive,
+// platform_input.h). Android shows the screen keyboard while it is true and hides it after.
+// Nothing elsewhere: a desktop types on its own keyboard, and SDL's text input stays off there.
+void TextEntryChanged(bool active);
+
+// Issue #100: the last step of ReadKeyboard, on its success path. `dik` holds the 256 DIK bytes
+// read from SDL's key state; the platform may add keys SDL's state never showed. Android: the
+// screen keyboard's keys, one per poll with a released poll between two (SDL sends each one's
+// press and release together, so the state never holds it at a poll). Nothing elsewhere.
+void AddScreenKeys(uint8_t dik[256]);
 
 }  // namespace Input
 }  // namespace Platform

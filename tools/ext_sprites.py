@@ -4,7 +4,8 @@
 Writes src/ext/ui/Dialog/Sprite/Extensions/{ExtensionsIcon,OptionsEnhanced,TierFix,TierA,TierB,TierC}.png, 16 x 16
 RGBA like the Mods button's "Mod" sprite (the kit's Dialog/Sprite/ButtonIcons/Scenario.png). The
 PNGs are committed; rerun this only to regenerate the placeholder art. The user replaces the PNGs
-with real art later (tools/ext_resources.sh recompiles them into the sprite sheet).
+with real art later (tools/ext_resources.sh recompiles them into the sprite sheet). Also writes the 2x / 4x
+ExtensionsIcon, Toolbar_extensions and GameFilesIcon for ext.sharp_ui (SHARP_SPRITES below).
 
 usage: python tools/ext_sprites.py        (from the repo root; needs Pillow)
 """
@@ -54,16 +55,19 @@ def icon(size=W):
     return img
 
 
-def game_files_icon():
+def game_files_icon(size=W):
     """ext.phone_menu's "Game files" menu button (issue #96): a floppy disk, white with
     antialiased alpha and no outline like icon(): the body with its top-right corner cut, the shutter
-    slot near the top and the label window at the bottom cut out. Drawn at 8x, box-filtered down."""
+    slot near the top and the label window at the bottom cut out. The geometry is in 16 px units, drawn
+    at `size` (16 by default; 32 / 64 for ext.sharp_ui's magnified sheets) at 8x, box-filtered down."""
     S = 8
+    W = H = size
+    k = S * size / 16.0                                      # samples per 16 px design unit
     big = Image.new("L", (W * S, H * S), 0)
     px = big.load()
     for y in range(H * S):
         for x in range(W * S):
-            fx, fy = (x + 0.5) / S, (y + 0.5) / S
+            fx, fy = (x + 0.5) / k, (y + 0.5) / k
             on = 1.0 <= fx <= 15.0 and 1.0 <= fy <= 15.0
             if fx - fy > 11.0:                               # the cut top-right corner
                 on = False
@@ -195,6 +199,18 @@ def glyph_sprites():
     return found
 
 
+# ext.sharp_ui's magnified sheets (docs/extensions/handins/SHARP_SPRITES.md): the parametric icons drawn
+# natively at 2 and 4 x their size into src/ext/sharp_ui/art/<N>x/Extensions/; tools/sharp_sprites/pack.py
+# packs them as kExtSprites under the sheet's sprite names (ExtensionsSprites.rsc).
+SHARP_OUT = os.path.join("src", "ext", "sharp_ui", "art")
+SHARP_FACTORS = (2, 4)
+SHARP_SPRITES = [  # (png name, draw(size), 1x size)
+    ("ExtensionsIcon", icon, 16),
+    ("Toolbar_extensions", icon, 32),
+    ("GameFilesIcon", game_files_icon, 16),
+]
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     icon().save(os.path.join(OUT, "ExtensionsIcon.png"))
@@ -215,6 +231,12 @@ def main():
     for glyph_id, draw in sorted(glyphs.items()):
         draw().save(os.path.join(OUT, "Glyph_%s.png" % glyph_id))
     print("wrote %d sprites to %s" % (7 + len(icons) + len(glyphs), OUT))
+    for factor in SHARP_FACTORS:
+        out = os.path.join(SHARP_OUT, "%dx" % factor, "Extensions")
+        os.makedirs(out, exist_ok=True)
+        for name, draw, size in SHARP_SPRITES:
+            draw(size * factor).save(os.path.join(out, name + ".png"))
+        print("wrote %d sprites to %s" % (len(SHARP_SPRITES), out))
 
 
 if __name__ == "__main__":

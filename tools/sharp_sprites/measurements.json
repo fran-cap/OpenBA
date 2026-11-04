@@ -1,0 +1,720 @@
+{
+ "_bbox[\"ButtonIcons/Achievement\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/AgriTab\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/ArrowDown\"]": [
+  2,
+  6,
+  14,
+  12
+ ],
+ "_bbox[\"ButtonIcons/ArrowDownLine\"]": [
+  2,
+  4,
+  14,
+  13
+ ],
+ "_bbox[\"ButtonIcons/ArrowDownSmall\"]": [
+  0,
+  2,
+  8,
+  7
+ ],
+ "_bbox[\"ButtonIcons/ArrowLeft\"]": [
+  4,
+  2,
+  10,
+  14
+ ],
+ "_bbox[\"ButtonIcons/ArrowLeftSmall\"]": [
+  1,
+  0,
+  6,
+  8
+ ],
+ "_bbox[\"ButtonIcons/ArrowRight\"]": [
+  6,
+  2,
+  12,
+  14
+ ],
+ "_bbox[\"ButtonIcons/ArrowRightSmall\"]": [
+  2,
+  0,
+  7,
+  8
+ ],
+ "_bbox[\"ButtonIcons/ArrowUp\"]": [
+  2,
+  4,
+  14,
+  10
+ ],
+ "_bbox[\"ButtonIcons/ArrowUpSmall\"]": [
+  0,
+  1,
+  8,
+  6
+ ],
+ "_bbox[\"ButtonIcons/ButtonCenter\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/ButtonPin\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/Close\"]": [
+  1,
+  1,
+  15,
+  15
+ ],
+ "_bbox[\"ButtonIcons/GenderFemale\"]": [
+  2,
+  0,
+  14,
+  16
+ ],
+ "_bbox[\"ButtonIcons/GenderMale\"]": [
+  0,
+  1,
+  15,
+  16
+ ],
+ "_bbox[\"ButtonIcons/Goal\"]": [
+  0,
+  0,
+  15,
+  16
+ ],
+ "_bbox[\"ButtonIcons/GoalFail\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/GoalSuccess\"]": [
+  1,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/GraphsTab\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/LimitsTab\"]": [
+  0,
+  4,
+  16,
+  13
+ ],
+ "_bbox[\"ButtonIcons/LoadGame\"]": [
+  0,
+  3,
+  16,
+  14
+ ],
+ "_bbox[\"ButtonIcons/Map\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/Minus\"]": [
+  0,
+  6,
+  16,
+  10
+ ],
+ "_bbox[\"ButtonIcons/NewGame\"]": [
+  3,
+  1,
+  13,
+  15
+ ],
+ "_bbox[\"ButtonIcons/NomadTab\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/Options\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/OptionsGame\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/OptionsGraphics\"]": [
+  4,
+  0,
+  12,
+  16
+ ],
+ "_bbox[\"ButtonIcons/OptionsInput\"]": [
+  1,
+  0,
+  14,
+  16
+ ],
+ "_bbox[\"ButtonIcons/OptionsSound\"]": [
+  0,
+  1,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/OrderTab\"]": [
+  0,
+  1,
+  16,
+  15
+ ],
+ "_bbox[\"ButtonIcons/OverviewTab\"]": [
+  0,
+  4,
+  16,
+  13
+ ],
+ "_bbox[\"ButtonIcons/Pause\"]": [
+  0,
+  0,
+  8,
+  8
+ ],
+ "_bbox[\"ButtonIcons/Play\"]": [
+  1,
+  0,
+  7,
+  8
+ ],
+ "_bbox[\"ButtonIcons/Plus\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/ProductionTab\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/PurchaseTab\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/QuitGame\"]": [
+  1,
+  1,
+  15,
+  15
+ ],
+ "_bbox[\"ButtonIcons/ResidenceTab\"]": [
+  0,
+  1,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/ResumeGame\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/ReturnMenu\"]": [
+  0,
+  0,
+  16,
+  15
+ ],
+ "_bbox[\"ButtonIcons/SaveGame\"]": [
+  1,
+  1,
+  15,
+  15
+ ],
+ "_bbox[\"ButtonIcons/Scenario\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ButtonIcons/SimpleCheck\"]": [
+  1,
+  1,
+  15,
+  15
+ ],
+ "_bbox[\"ButtonIcons/StorageTab\"]": [
+  1,
+  2,
+  16,
+  15
+ ],
+ "_bbox[\"ButtonIcons/TradeTab\"]": [
+  0,
+  2,
+  16,
+  13
+ ],
+ "_bbox[\"ButtonIcons/Tutorial\"]": [
+  3,
+  0,
+  12,
+  16
+ ],
+ "_bbox[\"ImageStatus/HeartBorder\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ImageStatus/HeartFilled\"]": [
+  0,
+  0,
+  16,
+  15
+ ],
+ "_bbox[\"ImageStatus/StarBorder\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"ImageStatus/StarFilled\"]": [
+  1,
+  2,
+  15,
+  15
+ ],
+ "_bbox[\"Misc/Arrow\"]": [
+  0,
+  0,
+  64,
+  64
+ ],
+ "_bbox[\"Misc/Bullet\"]": [
+  1,
+  8,
+  9,
+  16
+ ],
+ "_bbox[\"Misc/BulletLarge\"]": [
+  1,
+  18,
+  13,
+  30
+ ],
+ "_bbox[\"Misc/BulletMedium\"]": [
+  2,
+  7,
+  7,
+  12
+ ],
+ "_bbox[\"Misc/BulletSmall\"]": [
+  1,
+  4,
+  6,
+  9
+ ],
+ "_bbox[\"Misc/Lock\"]": [
+  2,
+  0,
+  14,
+  16
+ ],
+ "_bbox[\"Misc/Search\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"StatusBar/AdultIcon\"]": [
+  1,
+  0,
+  6,
+  16
+ ],
+ "_bbox[\"StatusBar/ChildIcon\"]": [
+  0,
+  4,
+  5,
+  16
+ ],
+ "_bbox[\"StatusBar/CloudyIcon\"]": [
+  1,
+  2,
+  15,
+  16
+ ],
+ "_bbox[\"StatusBar/PartlySunnyIcon\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"StatusBar/RainIcon\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"StatusBar/SnowIcon\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"StatusBar/SunnyIcon\"]": [
+  0,
+  0,
+  16,
+  16
+ ],
+ "_bbox[\"StatusBar/TemperatureIcon\"]": [
+  0,
+  1,
+  5,
+  16
+ ],
+ "_ink[\"ButtonIcons/Plus\"]": 112.0,
+ "_sample[\"ButtonIcons/GoalFail\", [0, 0, 16, 16], \"GoalFail/0\"]": "#db1b1e",
+ "_sample[\"ButtonIcons/GoalSuccess\", [0, 0, 16, 16], \"GoalSuccess/0\"]": "#01af02",
+ "_sample[\"ImageStatus/HeartBorder\", [0, 0, 16, 16], \"Heart/border\"]": "#010202",
+ "_sample[\"ImageStatus/HeartFilled\", [2, 3, 14, 9], \"Heart/red\"]": "#cd0401",
+ "_sample[\"ImageStatus/StarBorder\", [0, 0, 16, 16], \"Star/border\"]": "#010201",
+ "_sample[\"ImageStatus/StarFilled\", [3, 6, 13, 11], \"Star/gold\"]": "#f4cb4f",
+ "_sample[\"Misc/Arrow\", [20, 20, 30, 30], \"Arrow/gold\"]": "#f5cc52",
+ "_sample[\"StatusBar/AdultIcon\", [2, 12, 5, 16], \"Adult/feet\"]": "#231e24",
+ "_sample[\"StatusBar/AdultIcon\", [2, 3, 5, 7], \"Adult/tunic\"]": "#7e4623",
+ "_sample[\"StatusBar/AdultIcon\", [2, 8, 5, 11], \"Adult/legs\"]": "#726c53",
+ "_sample[\"StatusBar/AdultIcon\", [3, 0, 5, 2], \"Adult/head\"]": "#795c44",
+ "_sample[\"StatusBar/ChildIcon\", [2, 10, 4, 12], \"Child/legs\"]": "#716a53",
+ "_sample[\"StatusBar/ChildIcon\", [2, 13, 4, 16], \"Child/feet\"]": "#271e22",
+ "_sample[\"StatusBar/ChildIcon\", [2, 4, 4, 6], \"Child/head\"]": "#64503d",
+ "_sample[\"StatusBar/ChildIcon\", [2, 6, 4, 9], \"Child/tunic\"]": "#7f3f1e",
+ "_sample[\"StatusBar/CloudyIcon\", [3, 8, 13, 13], \"Cloudy/cloud\"]": "#e6eaea",
+ "_sample[\"StatusBar/PartlySunnyIcon\", [2, 9, 9, 13], \"PartlySunny/cloud\"]": "#eaeae7",
+ "_sample[\"StatusBar/PartlySunnyIcon\", [8, 2, 13, 6], \"PartlySunny/sun\"]": "#e4d701",
+ "_sample[\"StatusBar/RainIcon\", [1, 12, 15, 16], \"Rain/rain\"]": "#6db5fe",
+ "_sample[\"StatusBar/RainIcon\", [3, 4, 13, 9], \"Rain/cloud\"]": "#c1c1c0",
+ "_sample[\"StatusBar/SnowIcon\", [0, 11, 16, 16], \"Snow/snow\"]": "#f0f0f1",
+ "_sample[\"StatusBar/SnowIcon\", [3, 4, 13, 9], \"Snow/cloud\"]": "#bebdbd",
+ "_sample[\"StatusBar/SunnyIcon\", [0, 6, 3, 9], \"Sunny/rays\"]": "#ea9f01",
+ "_sample[\"StatusBar/SunnyIcon\", [3, 7, 4, 9], \"Sunny/innerglow\"]": "#e5a802",
+ "_sample[\"StatusBar/SunnyIcon\", [6, 6, 10, 10], \"Sunny/disc\"]": "#e8d801",
+ "_sample[\"StatusBar/TemperatureIcon\", [1, 1, 4, 8], \"Temp/tube\"]": "#e7e2e0",
+ "_sample[\"StatusBar/TemperatureIcon\", [1, 12, 4, 15], \"Temp/bulb\"]": "#b11916",
+ "_sample_lum[\"Misc/Arrow\", 0, 30, \"Arrow/shadow\"]": "#020201",
+ "_sample_lum[\"Misc/Arrow\", 50, 150, \"Arrow/shade\"]": "#796329",
+ "_sample_rgba[\"ImageStatus/HeartBorder\", [3, 3, 13, 8], \"Heart/interior\"]": [
+  "#ca0702",
+  0.1450980392156863
+ ],
+ "_sample_rgba[\"ImageStatus/StarBorder\", [6, 7, 11, 10], \"Star/interior\"]": [
+  "#fded10",
+  0.15294117647058825
+ ],
+ "_size[\"ButtonIcons/Achievement\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/AgriTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ArrowDown\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ArrowDownLine\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ArrowDownSmall\"]": [
+  8,
+  8
+ ],
+ "_size[\"ButtonIcons/ArrowLeft\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ArrowLeftSmall\"]": [
+  8,
+  8
+ ],
+ "_size[\"ButtonIcons/ArrowRight\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ArrowRightSmall\"]": [
+  8,
+  8
+ ],
+ "_size[\"ButtonIcons/ArrowUp\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ArrowUpSmall\"]": [
+  8,
+  8
+ ],
+ "_size[\"ButtonIcons/ButtonCenter\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ButtonPin\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Close\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/GenderFemale\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/GenderMale\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Goal\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/GoalFail\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/GoalSuccess\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/GraphsTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/LimitsTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/LoadGame\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Map\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Minus\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/NewGame\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/NomadTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Options\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/OptionsGame\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/OptionsGraphics\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/OptionsInput\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/OptionsSound\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/OrderTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/OverviewTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Pause\"]": [
+  8,
+  8
+ ],
+ "_size[\"ButtonIcons/Play\"]": [
+  8,
+  8
+ ],
+ "_size[\"ButtonIcons/Plus\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ProductionTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/PurchaseTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/QuitGame\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ResidenceTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ResumeGame\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/ReturnMenu\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/SaveGame\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Scenario\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/SimpleCheck\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/StorageTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/TradeTab\"]": [
+  16,
+  16
+ ],
+ "_size[\"ButtonIcons/Tutorial\"]": [
+  16,
+  16
+ ],
+ "_size[\"ImageStatus/HeartBorder\"]": [
+  16,
+  16
+ ],
+ "_size[\"ImageStatus/HeartFilled\"]": [
+  16,
+  16
+ ],
+ "_size[\"ImageStatus/HeartHalf\"]": [
+  16,
+  16
+ ],
+ "_size[\"ImageStatus/StarBorder\"]": [
+  16,
+  16
+ ],
+ "_size[\"ImageStatus/StarFilled\"]": [
+  16,
+  16
+ ],
+ "_size[\"ImageStatus/StarHalf\"]": [
+  16,
+  16
+ ],
+ "_size[\"Misc/Arrow\"]": [
+  64,
+  64
+ ],
+ "_size[\"Misc/Bullet\"]": [
+  14,
+  24
+ ],
+ "_size[\"Misc/BulletLarge\"]": [
+  18,
+  48
+ ],
+ "_size[\"Misc/BulletMedium\"]": [
+  13,
+  18
+ ],
+ "_size[\"Misc/BulletSmall\"]": [
+  10,
+  14
+ ],
+ "_size[\"Misc/Lock\"]": [
+  16,
+  16
+ ],
+ "_size[\"Misc/Search\"]": [
+  16,
+  16
+ ],
+ "_size[\"StatusBar/AdultIcon\"]": [
+  6,
+  16
+ ],
+ "_size[\"StatusBar/ChildIcon\"]": [
+  6,
+  16
+ ],
+ "_size[\"StatusBar/CloudyIcon\"]": [
+  16,
+  16
+ ],
+ "_size[\"StatusBar/PartlySunnyIcon\"]": [
+  16,
+  16
+ ],
+ "_size[\"StatusBar/RainIcon\"]": [
+  16,
+  16
+ ],
+ "_size[\"StatusBar/SnowIcon\"]": [
+  16,
+  16
+ ],
+ "_size[\"StatusBar/SunnyIcon\"]": [
+  16,
+  16
+ ],
+ "_size[\"StatusBar/TemperatureIcon\"]": [
+  6,
+  16
+ ],
+ "_weight[\"ButtonIcons/Minus\", \"minus\"]": 4.0,
+ "_weight[\"ButtonIcons/Plus\", \"plus\"]": 4.0
+}

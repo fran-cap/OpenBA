@@ -54,6 +54,8 @@
 #include "platform_time.h"     // Platform::PerfCounter / PerfFrequency
 #include "system/Timer.h"   // ENDGAME B.3.9 SS2: System::Timer::_ticksPerSecond
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
+#include "ext/registry.h"           // Ext::Ext().sharp_ui (the boot prewarm seam)
+#include "ext/sharp_ui/sharp_ui.h"  // Ext::SharpUI::Prewarm
 #include "ext/registry.h"                     // EXT SEAM (NOT RETAIL, docs/extensions/handins/SPLASH.md): Ext::Ext().quick_screens
 #include "ext/phone_menu/loading_screen.h"   // EXT SEAM (P9): LoadingUiScale
 #include "ext/quick_screens/quick_screens.h"  // EXT SEAM (NOT RETAIL, docs/extensions/handins/SPLASH.md): Ext::QuickScreens::SplashWorkDone
@@ -319,6 +321,11 @@ bool GameLoadDialogLoopT::Update(const System::Time& time) {
     // DialogLoaderLoopT::Update @ 0x1800daf20.
 
     _ui.Update(time);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARP_SPRITES.md): ext.sharp_ui starts the workers of its
+    // magnified sprite sheets while the splash shows, so the menu's first frame finds them built.
+    if (Ext::Ext().sharp_ui)
+        Ext::SharpUI::Prewarm();
 
     // Run the deferred MenuScene load, once, on the first frame where this
     // splash has actually revealed. RunGameMain only Arm()s it — running

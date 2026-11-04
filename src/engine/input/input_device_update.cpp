@@ -612,6 +612,9 @@ void Device::Update(const System::Time& time) {
     // event pump, and the frame pumps AFTER this poll; DirectInput / GetAsyncKeyState
     // were live here. Pumping first keeps every key on the tick retail saw it
     // (src/platform/sdl/input_sdl.cpp). The events are still dispatched at the pump.
+    // Issue #100, also not retail: whether a text box holds the keyboard (the latch
+    // UI::EditElement raises with focus), so a platform with a screen keyboard can show it.
+    Platform::Input::SetTextEntryActive(::Input::Configuration::_singleton->_keyMap->_suspendCount > 0);
     Platform::Input::Poll();
 
     State keyboardScratch[kKeyboardInputCount];

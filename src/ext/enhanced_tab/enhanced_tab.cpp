@@ -36,9 +36,35 @@ UI::ElementDescription* LoadDescription(const char* path) {
     return d;
 }
 
+// The "Touch screen" group's rows (EnhancedOptions.rsc): the header, then label + control per row.
+constexpr const char* kTouchGroup[] = {
+    "textTouchGroup",
+    "textTouchMode",          "comboTouchMode",
+    "textTouchPad",           "comboTouchPad",
+    "textTouchCameraButtons", "comboTouchCameraButtons",
+    "textTouchActionBar",     "comboTouchActionBar",
+    "textTouchPointer",       "comboTouchPointer",
+    "textPhoneSafeMargin",    "comboPhoneSafeMargin",
+};
+
+// Without ext.touch_mode the touch rows do nothing, so the group is hidden (the user, 2026-11-04); the
+// row is turned on from the Extensions dialog ("Touch controls"), and the group shows at the next open.
+// A hidden cell takes no room: TableElement::GetRowHeight skips it, so the row collapses.
+void HideTouchGroupUnlessOn(UI::Element* page) {
+    if (Ext().touch_mode) return;
+    int hidden = 0;
+    for (const char* name : kTouchGroup) {
+        UI::Element* e = FindElement<UI::Element>(page, name);
+        if (e == nullptr) continue;
+        e->Hide(true);
+        ++hidden;
+    }
+    std::fprintf(stderr, "[EnhancedTab] touch controls off: the Touch screen group hidden (%d elements)\n", hidden);
+}
+
 const Contribution* const* Contributions(int* n) {
     static const Contribution* const list[] = {
-        &AmbientOcclusionEntry(), &BetterTreesEntry(), &BetterWaterEntry(), &MaxShadowResEntry(), &SeamlessLoopsEntry(),
+        &AmbientOcclusionEntry(), &BetterTreesEntry(), &BetterWaterEntry(), &SharpUiEntry(), &MaxShadowResEntry(), &SeamlessLoopsEntry(),
         &TextureQualityEntry(), &RenderScaleEntry(), &FpsCapEntry(), &TouchModeEntry(), &TouchPointerEntry(),
         &PhoneMenuEntry(), &DerivedCacheEntry(),
     };
@@ -86,6 +112,7 @@ bool Open(const void* dialog, UI::TabElement* tabs) {
     int n = 0;
     const Contribution* const* list = Contributions(&n);
     for (int i = 0; i < n; ++i) list[i]->open(root);
+    HideTouchGroupUnlessOn(root);
     std::fprintf(stderr, "[EnhancedTab] Enhanced tab added: tabs=%d entries=%d\n", tabs->_tabCount, n);
     return true;
 }

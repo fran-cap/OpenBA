@@ -1,0 +1,1776 @@
+[
+ {
+  "name": "GoalFail",
+  "art": "ButtonIcons/GoalFail"
+ },
+ {
+  "name": "GoalSuccess",
+  "art": "ButtonIcons/GoalSuccess"
+ },
+ {
+  "name": "SmallPlay",
+  "art": "ButtonIcons/Play"
+ },
+ {
+  "name": "SmallPause",
+  "art": "ButtonIcons/Pause"
+ },
+ {
+  "name": "ArrowDown",
+  "art": "ButtonIcons/ArrowDown"
+ },
+ {
+  "name": "ArrowLeft",
+  "art": "ButtonIcons/ArrowLeft"
+ },
+ {
+  "name": "ArrowRight",
+  "art": "ButtonIcons/ArrowRight"
+ },
+ {
+  "name": "ArrowRightThin",
+  "art": "ButtonIcons/ArrowRight",
+  "rect": [
+   4,
+   0,
+   8,
+   16
+  ]
+ },
+ {
+  "name": "ArrowUp",
+  "art": "ButtonIcons/ArrowUp"
+ },
+ {
+  "name": "ArrowDownLine",
+  "art": "ButtonIcons/ArrowDownLine"
+ },
+ {
+  "name": "ArrowDownSmall",
+  "art": "ButtonIcons/ArrowDownSmall"
+ },
+ {
+  "name": "ArrowLeftSmall",
+  "art": "ButtonIcons/ArrowLeftSmall"
+ },
+ {
+  "name": "ArrowRightSmall",
+  "art": "ButtonIcons/ArrowRightSmall"
+ },
+ {
+  "name": "ArrowUpSmall",
+  "art": "ButtonIcons/ArrowUpSmall"
+ },
+ {
+  "name": "Lock",
+  "art": "Misc/Lock"
+ },
+ {
+  "name": "Search",
+  "art": "Misc/Search"
+ },
+ {
+  "name": "Minus",
+  "art": "ButtonIcons/Minus"
+ },
+ {
+  "name": "Plus",
+  "art": "ButtonIcons/Plus"
+ },
+ {
+  "name": "SimpleCheck",
+  "art": "ButtonIcons/SimpleCheck"
+ },
+ {
+  "name": "ToolClose",
+  "art": "ButtonIcons/Close"
+ },
+ {
+  "name": "ToolPin",
+  "art": "ButtonIcons/ButtonPin"
+ },
+ {
+  "name": "ToolCenter",
+  "art": "ButtonIcons/ButtonCenter"
+ },
+ {
+  "name": "GenderFemale",
+  "art": "ButtonIcons/GenderFemale"
+ },
+ {
+  "name": "GenderMale",
+  "art": "ButtonIcons/GenderMale"
+ },
+ {
+  "name": "StorageTab",
+  "art": "ButtonIcons/StorageTab"
+ },
+ {
+  "name": "ResidenceTab",
+  "art": "ButtonIcons/ResidenceTab"
+ },
+ {
+  "name": "LimitsTab",
+  "art": "ButtonIcons/LimitsTab"
+ },
+ {
+  "name": "GraphsTab",
+  "art": "ButtonIcons/GraphsTab"
+ },
+ {
+  "name": "OverviewTab",
+  "art": "ButtonIcons/OverviewTab"
+ },
+ {
+  "name": "ProductionTab",
+  "art": "ButtonIcons/ProductionTab"
+ },
+ {
+  "name": "AgriTab",
+  "art": "ButtonIcons/AgriTab"
+ },
+ {
+  "name": "TradeTab",
+  "art": "ButtonIcons/TradeTab"
+ },
+ {
+  "name": "OrderTab",
+  "art": "ButtonIcons/OrderTab"
+ },
+ {
+  "name": "PurchaseTab",
+  "art": "ButtonIcons/PurchaseTab"
+ },
+ {
+  "name": "NomadTab",
+  "art": "ButtonIcons/NomadTab"
+ },
+ {
+  "name": "DialogUpperLeft",
+  "art": "Borders/Dialog",
+  "rect": [
+   0,
+   0,
+   8,
+   8
+  ]
+ },
+ {
+  "name": "DialogUpperCenter",
+  "art": "Borders/Dialog",
+  "rect": [
+   8,
+   0,
+   1,
+   8
+  ]
+ },
+ {
+  "name": "DialogUpperRight",
+  "art": "Borders/Dialog",
+  "rect": [
+   12,
+   0,
+   8,
+   8
+  ]
+ },
+ {
+  "name": "DialogMidLeft",
+  "art": "Borders/Dialog",
+  "rect": [
+   0,
+   8,
+   8,
+   1
+  ]
+ },
+ {
+  "name": "DialogMidCenter",
+  "art": "Borders/Dialog",
+  "rect": [
+   8,
+   8,
+   8,
+   1
+  ]
+ },
+ {
+  "name": "DialogMidRight",
+  "art": "Borders/Dialog",
+  "rect": [
+   12,
+   8,
+   8,
+   1
+  ]
+ },
+ {
+  "name": "DialogLowerLeft",
+  "art": "Borders/Dialog",
+  "rect": [
+   0,
+   13,
+   8,
+   8
+  ]
+ },
+ {
+  "name": "DialogLowerCenter",
+  "art": "Borders/Dialog",
+  "rect": [
+   8,
+   13,
+   1,
+   8
+  ]
+ },
+ {
+  "name": "DialogLowerRight",
+  "art": "Borders/Dialog",
+  "rect": [
+   12,
+   13,
+   8,
+   8
+  ]
+ },
+ {
+  "name": "ToolTipUpperLeft",
+  "art": "Borders/ToolTip",
+  "rect": [
+   0,
+   0,
+   3,
+   3
+  ]
+ },
+ {
+  "name": "ToolTipUpperCenter",
+  "art": "Borders/ToolTip",
+  "rect": [
+   3,
+   0,
+   2,
+   3
+  ]
+ },
+ {
+  "name": "ToolTipUpperRight",
+  "art": "Borders/ToolTip",
+  "rect": [
+   5,
+   0,
+   3,
+   3
+  ]
+ },
+ {
+  "name": "ToolTipMidLeft",
+  "art": "Borders/ToolTip",
+  "rect": [
+   0,
+   3,
+   3,
+   2
+  ]
+ },
+ {
+  "name": "ToolTipMidCenter",
+  "art": "Borders/ToolTip",
+  "rect": [
+   3,
+   3,
+   3,
+   2
+  ]
+ },
+ {
+  "name": "ToolTipMidRight",
+  "art": "Borders/ToolTip",
+  "rect": [
+   5,
+   3,
+   3,
+   2
+  ]
+ },
+ {
+  "name": "ToolTipLowerLeft",
+  "art": "Borders/ToolTip",
+  "rect": [
+   0,
+   5,
+   3,
+   3
+  ]
+ },
+ {
+  "name": "ToolTipLowerCenter",
+  "art": "Borders/ToolTip",
+  "rect": [
+   3,
+   5,
+   2,
+   3
+  ]
+ },
+ {
+  "name": "ToolTipLowerRight",
+  "art": "Borders/ToolTip",
+  "rect": [
+   5,
+   5,
+   3,
+   3
+  ]
+ },
+ {
+  "name": "SaveUpperLeft",
+  "art": "Borders/Save",
+  "rect": [
+   0,
+   0,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "SaveUpperCenter",
+  "art": "Borders/Save",
+  "rect": [
+   10,
+   0,
+   1,
+   9
+  ]
+ },
+ {
+  "name": "SaveUpperRight",
+  "art": "Borders/Save",
+  "rect": [
+   171,
+   0,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "SaveMidLeft",
+  "art": "Borders/Save",
+  "rect": [
+   0,
+   10,
+   9,
+   1
+  ]
+ },
+ {
+  "name": "SaveMidCenter",
+  "art": "Borders/Save",
+  "rect": [
+   10,
+   10,
+   9,
+   1
+  ]
+ },
+ {
+  "name": "SaveMidRight",
+  "art": "Borders/Save",
+  "rect": [
+   171,
+   10,
+   9,
+   1
+  ]
+ },
+ {
+  "name": "SaveLowerLeft",
+  "art": "Borders/Save",
+  "rect": [
+   0,
+   127,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "SaveLowerCenter",
+  "art": "Borders/Save",
+  "rect": [
+   10,
+   127,
+   1,
+   9
+  ]
+ },
+ {
+  "name": "SaveLowerRight",
+  "art": "Borders/Save",
+  "rect": [
+   171,
+   127,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "SaveHUpperLeft",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   0,
+   0,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "SaveHUpperCenter",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   10,
+   0,
+   1,
+   9
+  ]
+ },
+ {
+  "name": "SaveHUpperRight",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   171,
+   0,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "SaveHMidLeft",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   0,
+   10,
+   9,
+   1
+  ]
+ },
+ {
+  "name": "SaveHMidCenter",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   10,
+   10,
+   9,
+   1
+  ]
+ },
+ {
+  "name": "SaveHMidRight",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   171,
+   10,
+   9,
+   1
+  ]
+ },
+ {
+  "name": "SaveHLowerLeft",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   0,
+   127,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "SaveHLowerCenter",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   10,
+   127,
+   1,
+   9
+  ]
+ },
+ {
+  "name": "SaveHLowerRight",
+  "art": "Borders/SaveHighlight",
+  "rect": [
+   171,
+   127,
+   9,
+   9
+  ]
+ },
+ {
+  "name": "DarkUpperLeft",
+  "art": "Borders/Dark",
+  "rect": [
+   0,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "DarkUpperCenter",
+  "art": "Borders/Dark",
+  "rect": [
+   4,
+   0,
+   1,
+   4
+  ]
+ },
+ {
+  "name": "DarkUpperRight",
+  "art": "Borders/Dark",
+  "rect": [
+   12,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "DarkMidLeft",
+  "art": "Borders/Dark",
+  "rect": [
+   0,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "DarkMidCenter",
+  "art": "Borders/Dark",
+  "rect": [
+   4,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "DarkMidRight",
+  "art": "Borders/Dark",
+  "rect": [
+   12,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "DarkLowerLeft",
+  "art": "Borders/Dark",
+  "rect": [
+   0,
+   12,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "DarkLowerCenter",
+  "art": "Borders/Dark",
+  "rect": [
+   4,
+   12,
+   1,
+   4
+  ]
+ },
+ {
+  "name": "DarkLowerRight",
+  "art": "Borders/Dark",
+  "rect": [
+   12,
+   12,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "RaisedUpperLeft",
+  "art": "Borders/Raised",
+  "rect": [
+   0,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "RaisedUpperCenter",
+  "art": "Borders/Raised",
+  "rect": [
+   4,
+   0,
+   1,
+   4
+  ]
+ },
+ {
+  "name": "RaisedUpperRight",
+  "art": "Borders/Raised",
+  "rect": [
+   12,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "RaisedMidLeft",
+  "art": "Borders/Raised",
+  "rect": [
+   0,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "RaisedMidCenter",
+  "art": "Borders/Raised",
+  "rect": [
+   4,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "RaisedMidRight",
+  "art": "Borders/Raised",
+  "rect": [
+   12,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "RaisedLowerLeft",
+  "art": "Borders/Raised",
+  "rect": [
+   0,
+   12,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "RaisedLowerCenter",
+  "art": "Borders/Raised",
+  "rect": [
+   4,
+   12,
+   1,
+   4
+  ]
+ },
+ {
+  "name": "RaisedLowerRight",
+  "art": "Borders/Raised",
+  "rect": [
+   12,
+   12,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "SunkenUpperLeft",
+  "art": "Borders/Sunken",
+  "rect": [
+   0,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "SunkenUpperCenter",
+  "art": "Borders/Sunken",
+  "rect": [
+   4,
+   0,
+   1,
+   4
+  ]
+ },
+ {
+  "name": "SunkenUpperRight",
+  "art": "Borders/Sunken",
+  "rect": [
+   12,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "SunkenMidLeft",
+  "art": "Borders/Sunken",
+  "rect": [
+   0,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "SunkenMidCenter",
+  "art": "Borders/Sunken",
+  "rect": [
+   4,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "SunkenMidRight",
+  "art": "Borders/Sunken",
+  "rect": [
+   12,
+   4,
+   4,
+   1
+  ]
+ },
+ {
+  "name": "SunkenLowerLeft",
+  "art": "Borders/Sunken",
+  "rect": [
+   0,
+   12,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "SunkenLowerCenter",
+  "art": "Borders/Sunken",
+  "rect": [
+   4,
+   12,
+   1,
+   4
+  ]
+ },
+ {
+  "name": "SunkenLowerRight",
+  "art": "Borders/Sunken",
+  "rect": [
+   12,
+   12,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "SunkenMidLeftTab",
+  "art": "Borders/Sunken",
+  "rect": [
+   0,
+   4,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "TabStart",
+  "art": "Borders/Tab",
+  "rect": [
+   0,
+   0,
+   1,
+   10
+  ]
+ },
+ {
+  "name": "TabMid",
+  "art": "Borders/Tab",
+  "rect": [
+   1,
+   0,
+   1,
+   10
+  ]
+ },
+ {
+  "name": "TabEnd",
+  "art": "Borders/Tab",
+  "rect": [
+   3,
+   0,
+   1,
+   10
+  ]
+ },
+ {
+  "name": "ButtonUpperLeftEn",
+  "art": "Borders/Button",
+  "rect": [
+   0,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperCenterEn",
+  "art": "Borders/Button",
+  "rect": [
+   4,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperRightEn",
+  "art": "Borders/Button",
+  "rect": [
+   12,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonMidLeftEn",
+  "art": "Borders/Button",
+  "rect": [
+   0,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidCenterEn",
+  "art": "Borders/Button",
+  "rect": [
+   4,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidRightEn",
+  "art": "Borders/Button",
+  "rect": [
+   12,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonLowerLeftEn",
+  "art": "Borders/Button",
+  "rect": [
+   0,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerCenterEn",
+  "art": "Borders/Button",
+  "rect": [
+   4,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerRightEn",
+  "art": "Borders/Button",
+  "rect": [
+   12,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperLeftDi",
+  "art": "Borders/Button",
+  "rect": [
+   20,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperCenterDi",
+  "art": "Borders/Button",
+  "rect": [
+   24,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperRightDi",
+  "art": "Borders/Button",
+  "rect": [
+   32,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonMidLeftDi",
+  "art": "Borders/Button",
+  "rect": [
+   20,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidCenterDi",
+  "art": "Borders/Button",
+  "rect": [
+   24,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidRightDi",
+  "art": "Borders/Button",
+  "rect": [
+   32,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonLowerLeftDi",
+  "art": "Borders/Button",
+  "rect": [
+   20,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerCenterDi",
+  "art": "Borders/Button",
+  "rect": [
+   24,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerRightDi",
+  "art": "Borders/Button",
+  "rect": [
+   32,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperLeftHi",
+  "art": "Borders/Button",
+  "rect": [
+   40,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperCenterHi",
+  "art": "Borders/Button",
+  "rect": [
+   44,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperRightHi",
+  "art": "Borders/Button",
+  "rect": [
+   52,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonMidLeftHi",
+  "art": "Borders/Button",
+  "rect": [
+   40,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidCenterHi",
+  "art": "Borders/Button",
+  "rect": [
+   44,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidRightHi",
+  "art": "Borders/Button",
+  "rect": [
+   52,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonLowerLeftHi",
+  "art": "Borders/Button",
+  "rect": [
+   40,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerCenterHi",
+  "art": "Borders/Button",
+  "rect": [
+   44,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerRightHi",
+  "art": "Borders/Button",
+  "rect": [
+   52,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperLeftPr",
+  "art": "Borders/Button",
+  "rect": [
+   60,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperCenterPr",
+  "art": "Borders/Button",
+  "rect": [
+   64,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonUpperRightPr",
+  "art": "Borders/Button",
+  "rect": [
+   72,
+   0,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonMidLeftPr",
+  "art": "Borders/Button",
+  "rect": [
+   60,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidCenterPr",
+  "art": "Borders/Button",
+  "rect": [
+   64,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonMidRightPr",
+  "art": "Borders/Button",
+  "rect": [
+   72,
+   4,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ButtonLowerLeftPr",
+  "art": "Borders/Button",
+  "rect": [
+   60,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerCenterPr",
+  "art": "Borders/Button",
+  "rect": [
+   64,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "ButtonLowerRightPr",
+  "art": "Borders/Button",
+  "rect": [
+   72,
+   20,
+   4,
+   4
+  ]
+ },
+ {
+  "name": "HScrollBarStart",
+  "art": "Scroll/HScrollBar",
+  "rect": [
+   0,
+   0,
+   7,
+   12
+  ]
+ },
+ {
+  "name": "HScrollBarMid",
+  "art": "Scroll/HScrollBar",
+  "rect": [
+   7,
+   0,
+   2,
+   12
+  ]
+ },
+ {
+  "name": "HScrollBarEnd",
+  "art": "Scroll/HScrollBar",
+  "rect": [
+   9,
+   0,
+   7,
+   12
+  ]
+ },
+ {
+  "name": "HScrollHighStart",
+  "art": "Scroll/HScrollHigh",
+  "rect": [
+   0,
+   0,
+   7,
+   12
+  ]
+ },
+ {
+  "name": "HScrollHighMid",
+  "art": "Scroll/HScrollHigh",
+  "rect": [
+   7,
+   0,
+   2,
+   12
+  ]
+ },
+ {
+  "name": "HScrollHighEnd",
+  "art": "Scroll/HScrollHigh",
+  "rect": [
+   9,
+   0,
+   7,
+   12
+  ]
+ },
+ {
+  "name": "HScrollBackStart",
+  "art": "Scroll/HScrollBack",
+  "rect": [
+   0,
+   0,
+   7,
+   12
+  ]
+ },
+ {
+  "name": "HScrollBackMid",
+  "art": "Scroll/HScrollBack",
+  "rect": [
+   7,
+   0,
+   2,
+   12
+  ]
+ },
+ {
+  "name": "HScrollBackEnd",
+  "art": "Scroll/HScrollBack",
+  "rect": [
+   9,
+   0,
+   7,
+   12
+  ]
+ },
+ {
+  "name": "VScrollBarStart",
+  "art": "Scroll/VScrollBar",
+  "rect": [
+   0,
+   0,
+   12,
+   7
+  ]
+ },
+ {
+  "name": "VScrollBarMid",
+  "art": "Scroll/VScrollBar",
+  "rect": [
+   0,
+   7,
+   12,
+   2
+  ]
+ },
+ {
+  "name": "VScrollBarEnd",
+  "art": "Scroll/VScrollBar",
+  "rect": [
+   0,
+   9,
+   12,
+   7
+  ]
+ },
+ {
+  "name": "VScrollHighStart",
+  "art": "Scroll/VScrollHigh",
+  "rect": [
+   0,
+   0,
+   12,
+   7
+  ]
+ },
+ {
+  "name": "VScrollHighMid",
+  "art": "Scroll/VScrollHigh",
+  "rect": [
+   0,
+   7,
+   12,
+   2
+  ]
+ },
+ {
+  "name": "VScrollHighEnd",
+  "art": "Scroll/VScrollHigh",
+  "rect": [
+   0,
+   9,
+   12,
+   7
+  ]
+ },
+ {
+  "name": "VScrollBackStart",
+  "art": "Scroll/VScrollBack",
+  "rect": [
+   0,
+   0,
+   12,
+   7
+  ]
+ },
+ {
+  "name": "VScrollBackMid",
+  "art": "Scroll/VScrollBack",
+  "rect": [
+   0,
+   7,
+   12,
+   2
+  ]
+ },
+ {
+  "name": "VScrollBackEnd",
+  "art": "Scroll/VScrollBack",
+  "rect": [
+   0,
+   9,
+   12,
+   7
+  ]
+ },
+ {
+  "name": "ProgressBackgroundStart",
+  "art": "Progress/ScrollBackground",
+  "rect": [
+   0,
+   0,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ProgressBackgroundMid",
+  "art": "Progress/ScrollBackground",
+  "rect": [
+   4,
+   0,
+   1,
+   16
+  ]
+ },
+ {
+  "name": "ProgressBackgroundEnd",
+  "art": "Progress/ScrollBackground",
+  "rect": [
+   12,
+   0,
+   4,
+   16
+  ]
+ },
+ {
+  "name": "ProgressStart",
+  "art": "Progress/Scroll",
+  "rect": [
+   0,
+   0,
+   6,
+   16
+  ]
+ },
+ {
+  "name": "ProgressMid",
+  "art": "Progress/Scroll",
+  "rect": [
+   6,
+   0,
+   1,
+   16
+  ]
+ },
+ {
+  "name": "ProgressEnd",
+  "art": "Progress/Scroll",
+  "rect": [
+   10,
+   0,
+   6,
+   16
+  ]
+ },
+ {
+  "name": "SliderStart",
+  "art": "Slider/SliderBackground",
+  "rect": [
+   0,
+   0,
+   6,
+   16
+  ]
+ },
+ {
+  "name": "SliderMid",
+  "art": "Slider/SliderBackground",
+  "rect": [
+   6,
+   0,
+   1,
+   16
+  ]
+ },
+ {
+  "name": "SliderEnd",
+  "art": "Slider/SliderBackground",
+  "rect": [
+   10,
+   0,
+   6,
+   16
+  ]
+ },
+ {
+  "name": "Slider",
+  "art": "Slider/Slider"
+ },
+ {
+  "name": "SliderHighlight",
+  "art": "Slider/SliderHighlight"
+ },
+ {
+  "name": "KeyUpperLeft",
+  "art": "Borders/Key",
+  "rect": [
+   0,
+   0,
+   12,
+   12
+  ]
+ },
+ {
+  "name": "KeyUpperCenter",
+  "art": "Borders/Key",
+  "rect": [
+   12,
+   0,
+   24,
+   12
+  ]
+ },
+ {
+  "name": "KeyUpperRight",
+  "art": "Borders/Key",
+  "rect": [
+   36,
+   0,
+   12,
+   12
+  ]
+ },
+ {
+  "name": "KeyMidLeft",
+  "art": "Borders/Key",
+  "rect": [
+   0,
+   12,
+   12,
+   24
+  ]
+ },
+ {
+  "name": "KeyMidCenter",
+  "art": "Borders/Key",
+  "rect": [
+   12,
+   12,
+   1,
+   1
+  ]
+ },
+ {
+  "name": "KeyMidRight",
+  "art": "Borders/Key",
+  "rect": [
+   36,
+   12,
+   12,
+   24
+  ]
+ },
+ {
+  "name": "KeyLowerLeft",
+  "art": "Borders/Key",
+  "rect": [
+   0,
+   36,
+   12,
+   12
+  ]
+ },
+ {
+  "name": "KeyLowerCenter",
+  "art": "Borders/Key",
+  "rect": [
+   12,
+   36,
+   24,
+   12
+  ]
+ },
+ {
+  "name": "KeyLowerRight",
+  "art": "Borders/Key",
+  "rect": [
+   36,
+   36,
+   12,
+   12
+  ]
+ },
+ {
+  "name": "GlowUpperLeft",
+  "art": "Borders/Glow",
+  "rect": [
+   0,
+   0,
+   14,
+   14
+  ]
+ },
+ {
+  "name": "GlowUpperCenter",
+  "art": "Borders/Glow",
+  "rect": [
+   14,
+   0,
+   36,
+   14
+  ]
+ },
+ {
+  "name": "GlowUpperRight",
+  "art": "Borders/Glow",
+  "rect": [
+   50,
+   0,
+   14,
+   14
+  ]
+ },
+ {
+  "name": "GlowMidLeft",
+  "art": "Borders/Glow",
+  "rect": [
+   0,
+   14,
+   14,
+   36
+  ]
+ },
+ {
+  "name": "GlowMidCenter",
+  "art": "Borders/Glow",
+  "rect": [
+   14,
+   14,
+   1,
+   1
+  ]
+ },
+ {
+  "name": "GlowMidRight",
+  "art": "Borders/Glow",
+  "rect": [
+   50,
+   14,
+   14,
+   36
+  ]
+ },
+ {
+  "name": "GlowLowerLeft",
+  "art": "Borders/Glow",
+  "rect": [
+   0,
+   50,
+   14,
+   14
+  ]
+ },
+ {
+  "name": "GlowLowerCenter",
+  "art": "Borders/Glow",
+  "rect": [
+   14,
+   50,
+   36,
+   14
+  ]
+ },
+ {
+  "name": "GlowLowerRight",
+  "art": "Borders/Glow",
+  "rect": [
+   50,
+   50,
+   14,
+   14
+  ]
+ },
+ {
+  "name": "TutorialArrow",
+  "art": "Misc/Arrow"
+ },
+ {
+  "name": "BulletSmall",
+  "art": "Misc/BulletSmall"
+ },
+ {
+  "name": "BulletMedium",
+  "art": "Misc/BulletMedium"
+ },
+ {
+  "name": "Bullet",
+  "art": "Misc/Bullet"
+ },
+ {
+  "name": "BulletLarge",
+  "art": "Misc/BulletLarge"
+ },
+ {
+  "name": "NewGame",
+  "art": "ButtonIcons/NewGame"
+ },
+ {
+  "name": "LoadGame",
+  "art": "ButtonIcons/LoadGame"
+ },
+ {
+  "name": "Options",
+  "art": "ButtonIcons/Options"
+ },
+ {
+  "name": "QuitGame",
+  "art": "ButtonIcons/QuitGame"
+ },
+ {
+  "name": "SaveGame",
+  "art": "ButtonIcons/SaveGame"
+ },
+ {
+  "name": "ResumeGame",
+  "art": "ButtonIcons/ResumeGame"
+ },
+ {
+  "name": "ReturnMenu",
+  "art": "ButtonIcons/ReturnMenu"
+ },
+ {
+  "name": "Achievement",
+  "art": "ButtonIcons/Achievement"
+ },
+ {
+  "name": "Mod",
+  "art": "ButtonIcons/Scenario"
+ },
+ {
+  "name": "Goal",
+  "art": "ButtonIcons/Goal"
+ },
+ {
+  "name": "Map",
+  "art": "ButtonIcons/Map"
+ },
+ {
+  "name": "Tutorial",
+  "art": "ButtonIcons/Tutorial"
+ },
+ {
+  "name": "OptionsGraphics",
+  "art": "ButtonIcons/OptionsGraphics"
+ },
+ {
+  "name": "OptionsSound",
+  "art": "ButtonIcons/OptionsSound"
+ },
+ {
+  "name": "OptionsInput",
+  "art": "ButtonIcons/OptionsInput"
+ },
+ {
+  "name": "OptionsGame",
+  "art": "ButtonIcons/OptionsGame"
+ },
+ {
+  "name": "HeartBorder",
+  "art": "ImageStatus/HeartBorder"
+ },
+ {
+  "name": "HeartHalf",
+  "art": "ImageStatus/HeartHalf"
+ },
+ {
+  "name": "HeartFilled",
+  "art": "ImageStatus/HeartFilled"
+ },
+ {
+  "name": "StarBorder",
+  "art": "ImageStatus/StarBorder"
+ },
+ {
+  "name": "StarHalf",
+  "art": "ImageStatus/StarHalf"
+ },
+ {
+  "name": "StarFilled",
+  "art": "ImageStatus/StarFilled"
+ },
+ {
+  "name": "TemperatureIcon",
+  "art": "StatusBar/TemperatureIcon"
+ },
+ {
+  "name": "AdultIcon",
+  "art": "StatusBar/AdultIcon"
+ },
+ {
+  "name": "ChildIcon",
+  "art": "StatusBar/ChildIcon"
+ },
+ {
+  "name": "SunnyIcon",
+  "art": "StatusBar/SunnyIcon"
+ },
+ {
+  "name": "PartlySunnyIcon",
+  "art": "StatusBar/PartlySunnyIcon"
+ },
+ {
+  "name": "CloudyIcon",
+  "art": "StatusBar/CloudyIcon"
+ },
+ {
+  "name": "RainIcon",
+  "art": "StatusBar/RainIcon"
+ },
+ {
+  "name": "SnowIcon",
+  "art": "StatusBar/SnowIcon"
+ }
+]

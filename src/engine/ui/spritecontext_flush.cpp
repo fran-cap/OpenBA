@@ -380,6 +380,8 @@ void SpriteContext::Flush() {
     if (swap == nullptr)
         current->m_field30
             ->Setup(*ctx, 0);
+    else if (swap->material != nullptr)
+        swap->material->Setup(*ctx, 0);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARP_SPRITES.md): ext.sharp_ui, the scaled sheet's material
     else
         swap->twin->m_field30->Setup(*ctx, 0);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, the twin's material
 
@@ -442,9 +444,9 @@ void SpriteContext::Flush() {
                 const SpriteInfo& info = sheet->m_sprites._data[idx];
                 u0 = info.u0; v0 = info.v0; u1 = info.u1; v1 = info.v1;
             }
-            if (swap != nullptr && idx >= 0) {
+            if (swap != nullptr && idx >= 0 && swap->twinSprite != nullptr) {
                 // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, the UVs of the twin's
-                // sprite; one with no twin draws nothing (zero UVs).
+                // sprite; one with no twin draws nothing (zero UVs). A scaled sheet (no table) keeps the base UVs.
                 const int32_t t = idx < swap->count ? swap->twinSprite[idx] : -1;
                 u0 = v0 = u1 = v1 = kZero;
                 if (t >= 0) {

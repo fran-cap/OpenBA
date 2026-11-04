@@ -172,6 +172,8 @@ StringTable resource
 
 		// fix.save_failure_notice's message box (Extensions.rsc:saveFailed): @0 the save folder
 		{ String _name = "SaveFailed";				String _text = "The game could not be saved.~n~nThe save folder could not be written:~n@0~n~nCheck that the folder is not read-only, that Windows Controlled Folder Access or an antivirus is not blocking the game, and that the disk has free space. The previous save of that name was kept."; }
+		// fix.mods_persist's in-game warning (Extensions.rsc:modsInGame): Yes opens the Mods window
+		{ String _name = "ModsInGame";				String _text = "Mods are safest to change from the main menu.~n~nChanging them during a game reloads this town with the new mods. Turning off a mod the town uses, such as one that adds buildings, resources or items, can damage the town or crash the game. Save first.~n~nOpen the Mods window anyway?"; }
 
 		{ String _name = "ExtensionTurnedOff";		String _text ="The following extension is turned off, but this save was made with it.~n~n@0 [@1]~nSaved with extension version @2~n~nA save keeps the extensions it was made with, so it will be turned on for this game. Do you still want to load the save game?"; }
 

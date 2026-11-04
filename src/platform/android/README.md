@@ -23,7 +23,7 @@ replacement rule is the darwin one (`src/platform/darwin/README.md`) with the su
 | `file_android.cpp` | `posix/file_posix.cpp` | `ExecutablePath` is `<data>/OpenBA` (the game directory is the data folder); `FileCreateTemp` uses `<data>/tmp`. |
 | `settings_android.cpp` | `posix/settings_posix.cpp` | `DocumentsDir` is `<data>/Documents`. |
 | `window_android.cpp` | `posix/window_posix.cpp` | `PrepareCreate` adds `SDL_WINDOW_FULLSCREEN` (immersive mode); `RenderScale` / `SetRenderScale` (the live render scale), `RenderScaleAdjustable` and `FixedDisplaySurface` are true. |
-| `input_android.cpp` | `posix/input_posix.cpp` | `RotateDragReturnsCursor` is true: after the camera-rotate drag SDL's cursor goes back where the drag began, where Android shows the pointer when its capture ends (P8). |
+| `input_android.cpp` | `posix/input_posix.cpp` | `RotateDragReturnsCursor` is true: after the camera-rotate drag SDL's cursor goes back where the drag began, where Android shows the pointer when its capture ends (P8). Issue #100: the screen keyboard, shown while a text box has the keyboard (`TextEntryChanged`), its keys fed to the poller one per poll (`AddScreenKeys`); hiding it ends the edit as Return. |
 | `font_raster_android.cpp` | `posix/font_raster_posix.cpp` | `FindFaceFile` looks for `<face>.ttf` in the data folder only (the game directory; no exe directory, user or system font folder holds it on Android). |
 | `display_size_android.cpp` | `posix/display_size_posix.cpp` | `PhysicalScreenInches` asks the activity (`OpenBAActivity.physicalDisplay`, JNI) for the display's pixels and xdpi / ydpi; the first run's seed picks the tablet defaults by it (issue #96). |
 | `android_paths.h` | — | `Platform::Android::DataDir()` for the twins above. |

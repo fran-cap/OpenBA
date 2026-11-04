@@ -161,6 +161,15 @@ bool WantTwin2x(float pxPerUnitX, float pxPerUnitY) {
     return pxPerUnitX > 1.0f + kIntegerTolerance && pxPerUnitY > 1.0f + kIntegerTolerance;
 }
 
+int PickSheetFactor(float pxPerUnitX, float pxPerUnitY, const int* factors, int count) {
+    if (count <= 0 || !WantTwin2x(pxPerUnitX, pxPerUnitY)) return 0;
+    const float px = pxPerUnitX > pxPerUnitY ? pxPerUnitX : pxPerUnitY;
+    for (int i = 0; i < count; ++i) {
+        if (px <= static_cast<float>(factors[i]) + kIntegerTolerance) return factors[i];
+    }
+    return factors[count - 1];
+}
+
 int PickFontHeight(int baseHeight, float pxPerUnit, float density, bool* keepRetail) {
     *keepRetail = false;
     if (!(density > 1.0f)) {

@@ -194,13 +194,14 @@ const Entry kEntries[] = {
     // MODSPERSIST (docs/retail_bugs.md section 23): retail writes the mod list to settings.cfg only at a
     // clean shutdown, so a crash after a Mods change (often the reload itself) loses it; and a change made
     // in a game is used for that game, then dropped at the next menu after every changed resource was
-    // reloaded twice. With the row on, confirming Mods writes the settings at once, and the pause menu's
-    // Mods button is greyed out (retail's own Enable(false), as for a game with flag bit 10). Not
-    // sim-visible. Nothing new is saved.
+    // reloaded twice. With the row on, confirming Mods writes the settings at once; in a game the pause
+    // menu's Mods button first shows a Yes / No warning (Dialog/Extensions.rsc:modsInGame), and a confirmed
+    // change is put in the settings too, so the next menu keeps it. Not sim-visible. Nothing new is saved.
     { "mods_persist", Tier::Fix, Class::None, true,
-      "Mod changes saved, from the main menu",
+      "Mod changes saved at once",
       "A change in the Mods window is saved as soon as you confirm it, so a crash no longer brings back "
-      "the old list; mods are changed from the main menu only (the in-game Mods button is greyed out).",
+      "the old list, and a change made during a game is kept after it. In a game the Mods button warns "
+      "first: turning off a mod the town uses can damage it.",
       0, [](State& s) -> bool& { return s.fix.mods_persist; } },
     // SAVEFAILURENOTICE (docs/retail_bugs.md section 27): a save that does not reach the disk (read-only
     // folder, Controlled Folder Access, antivirus, full disk) opens a message box naming the save folder,
@@ -309,7 +310,8 @@ const Entry kEntries[] = {
 
     { "sharp_ui", Tier::Extension, Class::A, true,
       "Sharp UI",
-      "Crisp text and sprites at any UI scale. Layout is unchanged.",
+      "Crisp text at any UI scale; with icons (the Enhanced tab's Sharp UI), crisp menu sprites too. "
+      "Layout is unchanged.",
       0, [](State& s) -> bool& { return s.ext.sharp_ui; } },
 
     { "fast_paths", Tier::Extension, Class::B, false,
@@ -809,6 +811,10 @@ const ValueKey kValueKeys[] = {
     // the row). Fancy adds the shore strip on the bank side of the waterline.
     { "better_water_mode", "better_water", 1, 2, 1,
       [](State& s) -> int32_t& { return s.val.better_water_mode; }, nullptr, 0 },
+    // SHARP_SPRITES.md: Sharp UI's level, the Enhanced tab's "Sharp UI" Text / Text + icons (Off is the row).
+    // 0 = the text only (scale-matched fonts, whole-pixel quads); 1 = also the magnified sprite sheets.
+    { "sharp_ui_icons", "sharp_ui", 0, 1, 0,
+      [](State& s) -> int32_t& { return s.val.sharp_ui_icons; }, nullptr, 0 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));
