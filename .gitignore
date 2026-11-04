@@ -46,6 +46,8 @@ docs/history/runtime_port/runtime_hash_index.json
 !images/**
 # the extension resources' sprite sources (tools/ext_resources.sh compiles them; build/ext_resources/ is ignored with build/)
 !src/ext/ui/**/*.png
+# ext.sharp_ui's magnified-sheet art (our own: tools/sharp_sprites/bake.py + chrome.py)
+!src/ext/sharp_ui/art/**/*.png
 !android/app/src/main/res/mipmap-*/ic_launcher.png
 standalone/*.png
 
