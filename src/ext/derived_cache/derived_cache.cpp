@@ -180,7 +180,18 @@ bool WriteWhole(const std::u16string& path, const void* data, size_t size) {
     bool ok = size == 0 || (Platform::FileWrite(h, data, static_cast<uint32_t>(size), &wrote) != 0 &&
                             wrote == static_cast<uint32_t>(size));
     Platform::FileClose(h);
-    ok = ok && Platform::FileReplace(tmp.c_str(), path.c_str()) != 0;
+    // Windows: MoveFileExW cannot replace a file another process holds open without
+    // FILE_SHARE_DELETE (a virus scanner, the search indexer, a plain fopen reader); the hold is
+    // usually brief. The replace is tried again for about 100 ms before the write is given up: a
+    // given-up derived.used write loses the session's stamps (the writer has cleared _usedDirty).
+    // POSIX rename replaces an open file, so the first try succeeds there.
+    if (ok) {
+        ok = Platform::FileReplace(tmp.c_str(), path.c_str()) != 0;
+        for (int retry = 0; !ok && retry < 20; ++retry) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+            ok = Platform::FileReplace(tmp.c_str(), path.c_str()) != 0;
+        }
+    }
     if (!ok) Platform::FileDelete(tmp.c_str());
     return ok;
 }
