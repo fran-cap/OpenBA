@@ -11,6 +11,8 @@
 //     after the resume instead faults: the target unmaps dbghelp.dll under the unwinder.)
 //   * the walk is right: a target parked two known calls deep reports both return
 //     addresses, in order, with RSPs on its stack.
+//   * the hang dump ends while another thread holds the loader lock for good (review F-297),
+//     and ModuleAt names an image the way the loader does, without it.
 // ============================================================================
 #if defined(_WIN32)
 
@@ -22,7 +24,9 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace {
 
@@ -126,7 +130,7 @@ UNIT_TEST(thread_stack_capture_does_not_deadlock_on_the_loader) {
     CHECK(s.captures > 100);
 }
 
-UNIT_TEST(thread_stack_capture_unwinds_the_copied_stack) {
+UNIT_TEST(thread_stack_capture_unwinds_a_parked_thread) {
     Parked p;
     p.ready = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     p.release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
@@ -164,6 +168,145 @@ UNIT_TEST(thread_stack_capture_unwinds_the_copied_stack) {
     CloseHandle(th);
     CloseHandle(p.ready);
     CloseHandle(p.release);
+}
+
+// ----------------------------------------------------------------------------
+// The hang dump against a loader lock held for good (review F-297): a main thread spinning
+// inside DllMain owns LdrpLoaderLock and never lets go. Here a "main" thread takes it with
+// ntdll's LdrLockLoaderLock and spins; another thread runs the hang dump's body
+// (DumpOtherThreads) into a buffer. Naming the frames with GetModuleHandleExA /
+// GetModuleFileNameA blocks on that lock, so the dump never ends; a dump not finished
+// after 5 s counts as a deadlock, and the test then lets the spinner unlock to break it.
+// ----------------------------------------------------------------------------
+namespace {
+
+typedef LONG(NTAPI* LdrLockLoaderLockFn)(ULONG flags, ULONG* state, ULONG_PTR* cookie);
+typedef LONG(NTAPI* LdrUnlockLoaderLockFn)(ULONG flags, ULONG_PTR cookie);
+
+struct LoaderHold {
+    LdrLockLoaderLockFn lock = nullptr;
+    LdrUnlockLoaderLockFn unlock = nullptr;
+    HANDLE held = nullptr;      // set once the spinner owns the loader lock
+    HANDLE go = nullptr;        // starts the dump
+    HANDLE dumped = nullptr;    // set when DumpOtherThreads returned
+    volatile LONG release = 0;  // the spinner unlocks and returns
+    DWORD spinnerTid = 0;
+    char out[64 * 1024];
+    size_t outLen = 0;
+};
+
+__attribute__((noinline)) void SpinHoldingLoaderLock(LoaderHold* h) {
+    while (!h->release) {
+        YieldProcessor();
+    }
+    __asm__ volatile("" ::: "memory");
+}
+
+DWORD WINAPI LoaderLockSpinner(void* p) {
+    LoaderHold* h = static_cast<LoaderHold*>(p);
+    ULONG_PTR cookie = 0;
+    if (h->lock(0, nullptr, &cookie) < 0) {
+        SetEvent(h->held);
+        return 1;
+    }
+    SetEvent(h->held);
+    SpinHoldingLoaderLock(h);
+    h->unlock(0, cookie);
+    return 0;
+}
+
+void AppendLine(void* user, const char* line) {
+    LoaderHold* h = static_cast<LoaderHold*>(user);
+    const size_t n = std::strlen(line);
+    if (h->outLen + n + 1 > sizeof(h->out)) return;
+    std::memcpy(h->out + h->outLen, line, n);
+    h->outLen += n;
+    h->out[h->outLen] = '\0';
+}
+
+DWORD WINAPI HangDumper(void* p) {
+    LoaderHold* h = static_cast<LoaderHold*>(p);
+    WaitForSingleObject(h->go, INFINITE);
+    ThreadStack::DumpOtherThreads(h->spinnerTid, &AppendLine, h);
+    SetEvent(h->dumped);
+    return 0;
+}
+
+}  // namespace
+
+UNIT_TEST(thread_stack_hang_dump_completes_while_the_loader_lock_is_held) {
+    static LoaderHold h;   // 64 KB: not on the test's stack
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    h.lock = reinterpret_cast<LdrLockLoaderLockFn>(  // CAST-OK: win32
+        reinterpret_cast<void*>(GetProcAddress(ntdll, "LdrLockLoaderLock")));  // CAST-OK: win32
+    h.unlock = reinterpret_cast<LdrUnlockLoaderLockFn>(  // CAST-OK: win32
+        reinterpret_cast<void*>(GetProcAddress(ntdll, "LdrUnlockLoaderLock")));  // CAST-OK: win32
+    CHECK(h.lock != nullptr && h.unlock != nullptr);
+    if (!h.lock || !h.unlock) return;
+    h.held = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    h.go = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    h.dumped = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    h.release = 0;
+    h.outLen = 0;
+    h.out[0] = '\0';
+
+    // Both threads exist before the lock is taken: thread start and exit wait on it.
+    HANDLE dumper = CreateThread(nullptr, 0, &HangDumper, &h, 0, nullptr);
+    HANDLE spinner = CreateThread(nullptr, 0, &LoaderLockSpinner, &h, CREATE_SUSPENDED, &h.spinnerTid);
+    CHECK(dumper != nullptr && spinner != nullptr);
+    if (!dumper || !spinner) return;
+    Sleep(100);   // the dumper has finished starting
+    ResumeThread(spinner);
+    WaitForSingleObject(h.held, INFINITE);
+    Sleep(50);    // the spinner is in its loop
+
+    SetEvent(h.go);
+    const bool deadlock = WaitForSingleObject(h.dumped, 5000) == WAIT_TIMEOUT;
+    InterlockedExchange(&h.release, 1);   // unlocks: a blocked dump then finishes
+    WaitForSingleObject(h.dumped, 10000);
+    WaitForSingleObject(spinner, 10000);
+    WaitForSingleObject(dumper, 10000);
+    CloseHandle(spinner);
+    CloseHandle(dumper);
+    CloseHandle(h.held);
+    CloseHandle(h.go);
+    CloseHandle(h.dumped);
+
+    std::printf("  hang dump with the loader lock held: deadlock=%d, %zu bytes\n", (int)deadlock, h.outLen);
+    CHECK(!deadlock);
+    // The spinner is reported as the main thread, with frames named by module.
+    const char* mainAt = std::strstr(h.out, "[MAIN THREAD]");
+    CHECK(mainAt != nullptr);
+    if (!mainAt) return;
+    const char* next = std::strstr(mainAt, "\n--- thread ");
+    const size_t sectionLen = next ? (size_t)(next - mainAt) : std::strlen(mainAt);
+    const std::string section(mainAt, sectionLen);
+    CHECK(section.find("RIP=") != std::string::npos);
+    CHECK(section.find(".exe") != std::string::npos);   // SpinHoldingLoaderLock: the unit exe
+    CHECK(section.find(" + 0x") != std::string::npos);
+}
+
+// ModuleAt names the image an address is in without the loader: the same base and file
+// name the loader reports.
+UNIT_TEST(thread_stack_module_at_names_the_image) {
+    uint64_t base = 0;
+    char name[MAX_PATH];
+    const uint64_t here = reinterpret_cast<uintptr_t>(&SpinHoldingLoaderLock);  // CAST-OK: crash_walk
+    CHECK(ThreadStack::ModuleAt(here, &base, name, sizeof(name)));
+    CHECK_EQ(base, (uint64_t)reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)));  // CAST-OK: crash_walk
+    char path[MAX_PATH] = { 0 };
+    GetModuleFileNameA(nullptr, path, MAX_PATH);
+    const char* slash = std::strrchr(path, '\\');
+    const char* expected = slash ? slash + 1 : path;
+    std::printf("  ModuleAt: %s (loader: %s)\n", name, expected);
+    CHECK(_stricmp(name, expected) == 0);
+    // Heap memory is in no image.
+    uint64_t heapBase = 0;
+    char heapName[8];
+    void* heap = std::malloc(64);
+    CHECK(!ThreadStack::ModuleAt(reinterpret_cast<uintptr_t>(heap), &heapBase, heapName,  // CAST-OK: crash_walk
+                                 sizeof(heapName)));
+    std::free(heap);
 }
 
 #endif  // _WIN32

@@ -12,9 +12,20 @@
 // So Capture unwinds while the thread is stopped, with calls that take no lock: VirtualQuery
 // names the image a RIP is in, its own exception directory gives the RUNTIME_FUNCTION
 // (binary search, the lookup RtlLookupFunctionEntry does under its lock), and
-// RtlVirtualUnwind steps the frame. It reports raw frames; the caller symbolizes them
-// (FormatFrame: module lookups) after Capture has resumed the thread. Dynamic function
-// tables (RtlAddFunctionTable code) are not searched: a frame there ends the walk.
+// RtlVirtualUnwind steps the frame. It reports raw frames; the caller names them
+// (FormatFrame) after Capture has resumed the thread. Dynamic function tables
+// (RtlAddFunctionTable code) are not searched: a frame there ends the walk.
+//
+// Naming a frame takes no loader lock either, resumed or not (ModuleAt): a thread that
+// never lets go of LdrpLoaderLock, one spinning inside DllMain for example, would block
+// GetModuleHandleExA / GetModuleFileNameA for good and the hang dump would never reach
+// "=== END HANG ===" or the exit 4 (review F-297). VirtualQuery gives the image base, and
+// K32GetMappedFileNameW (a query of the mapping, not of the loader's list) its file name.
+//
+// One race is left, for diagnostics only: FindFunction and RtlVirtualUnwind read another
+// module's headers and .pdata without the loader's lock, so a THIRD thread (not the one
+// suspended) doing the final FreeLibrary of that module between the VirtualQuery and the
+// reads faults the walker: a crash log and exit 3 in place of a hang log.
 // The crash handler walks its own faulting thread and keeps StandaloneWalkStack
 // (crash_handler_win.cpp).
 #pragma once
@@ -45,8 +56,18 @@ struct Result {
 Result Capture(HANDLE th, CONTEXT& ctx, Frame* frames, int maxFrames,
                void (*whileSuspended)(void* user) = nullptr, void* user = nullptr);
 
-// "  #N  <module> + 0xOFF  (RIP=... RSP=...)\n", the crash log's and the hang log's frame line.
-// Looks the module up: never while a thread is suspended.
+// The image `address` is in: its base and the base name of the file it is mapped from
+// ("?" when the name cannot be read). False: not in an image. No loader lock.
+bool ModuleAt(uint64_t address, uint64_t* base, char* name, size_t nameLen);
+
+// "  #N  <module> + 0xOFF  (RIP=... RSP=...)\n", the crash log's and the hang log's frame line
+// (ModuleAt: no loader lock). Never while a thread is suspended: snprintf may take a CRT lock.
 void FormatFrame(char* line, size_t lineLen, int frame, uint64_t rip, uint64_t rsp);
+
+// The hang dump's body: every other thread of the process, captured in turn (Capture) and
+// written to `sink` line by line with FormatFrame; `mainTid` is marked [MAIN THREAD]. Takes
+// no loader lock (review F-297): it completes while another thread holds LdrpLoaderLock.
+typedef void (*LineSink)(void* user, const char* line);
+void DumpOtherThreads(DWORD mainTid, LineSink sink, void* user);
 
 }  // namespace ThreadStack

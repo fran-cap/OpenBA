@@ -501,16 +501,11 @@ void RZOut(const char* fmt, ...) {
 // owning class. Engine objects store their vtable pointer at +0x00, so dumping
 // the preceding block's first qword and resolving it names the overflower.
 void PrintModOff(const char* label, uint64_t addr) {
-    HMODULE mod = nullptr;
-    if (addr && GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                   (LPCSTR)addr, &mod) && mod) {  // CAST-OK: crash_walk
-        char path[MAX_PATH] = {0};
-        GetModuleFileNameA(mod, path, MAX_PATH);
-        const char* nm = strrchr(path, '\\');
-        RZOut("[REDZONE-HEAP]   %s = %s+0x%llX\n",
-               label, nm ? nm + 1 : path,
-               (unsigned long long)(addr - (uintptr_t)mod));  // CAST-OK: crash_walk
+    uint64_t base = 0;
+    char name[MAX_PATH];
+    // ThreadStack::ModuleAt: no loader lock (review F-297).
+    if (addr && ThreadStack::ModuleAt(addr, &base, name, sizeof(name))) {
+        RZOut("[REDZONE-HEAP]   %s = %s+0x%llX\n", label, name, (unsigned long long)(addr - base));
     } else {
         RZOut("[REDZONE-HEAP]   %s = 0x%016llx (not in a module)\n",
                label, (unsigned long long)addr);
@@ -532,8 +527,9 @@ extern "C" void StressHarness_Context(char* buf, int n);
 // Print the MAIN thread's stack (from another thread: suspend, read context,
 // unwind) so a watchdog detection names what the sim was executing when the
 // corrupt tag was first seen. ThreadStack::Capture walks it without taking a lock and
-// resumes it before the module lookups and the printf: each of those can wait on a
-// lock (the loader's, the CRT's stdout lock) the suspended thread holds.
+// resumes it before the module lookups and the printf: the printf can wait on a CRT
+// lock the suspended thread holds. The module lookups (ThreadStack::ModuleAt) take no
+// loader lock, so a thread that holds it for good does not stop the report either.
 static void DumpOneThreadStack(HANDLE th, DWORD tid, const char* label) {
     constexpr int kFrames = 40;
     ThreadStack::Frame frames[kFrames];
@@ -548,15 +544,12 @@ static void DumpOneThreadStack(HANDLE th, DWORD tid, const char* label) {
         printf("[REDZONE-HEAP] %s thread tid=%lu stack at detection:\n", label, tid);
         for (int frame = 0; frame < r.frames; frame++) {
             const uint64_t rip = frames[frame].rip;
-            HMODULE mod = nullptr;
-            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                   (LPCSTR)(uintptr_t)rip, &mod) && mod) {  // CAST-OK: crash_walk
-                char path[MAX_PATH] = {0};
-                GetModuleFileNameA(mod, path, MAX_PATH);
-                const char* nm = strrchr(path, '\\');
-                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%-8llX\n", frame, nm ? nm + 1 : path,
-                       (unsigned long long)((uintptr_t)rip - (uintptr_t)mod));  // CAST-OK: crash_walk
+            uint64_t base = 0;
+            char name[MAX_PATH];
+            // ModuleAt, not GetModuleHandleExA: no loader lock (thread_stack.h, review F-297).
+            if (ThreadStack::ModuleAt(rip, &base, name, sizeof(name))) {
+                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%-8llX\n", frame, name,
+                       (unsigned long long)(rip - base));
             } else {
                 printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", frame, (void*)(uintptr_t)rip);  // CAST-OK: crash_walk
             }
@@ -574,16 +567,14 @@ static void DumpMainThreadStack() {
         void* bt[32];
         USHORT n = CaptureStackBackTrace(0, 32, bt, nullptr);
         for (USHORT i = 0; i < n; ++i) {
-            HMODULE mod = nullptr;
-            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                   (LPCSTR)bt[i], &mod) && mod) {  // CAST-OK: crash_walk
-                char path[MAX_PATH] = {0};
-                GetModuleFileNameA(mod, path, MAX_PATH);
-                const char* nm = strrchr(path, '\\');
-                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%llX\n", i, nm ? nm + 1 : path,
-                       (unsigned long long)((uintptr_t)bt[i] - (uintptr_t)mod));  // CAST-OK: crash_walk
-            } else printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", i, bt[i]);
+            const uint64_t rip = (uintptr_t)bt[i];  // CAST-OK: crash_walk
+            uint64_t base = 0;
+            char name[MAX_PATH];
+            if (ThreadStack::ModuleAt(rip, &base, name, sizeof(name))) {
+                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%llX\n", i, name, (unsigned long long)(rip - base));
+            } else {
+                printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", i, bt[i]);
+            }
         }
     }
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
