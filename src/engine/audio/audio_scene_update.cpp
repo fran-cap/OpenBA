@@ -531,7 +531,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                         if (device) {
                             int32_t k = 0;
                             for (; k < 0x40; ++k) {                       // 1800dfadf
-                                if ((device->_channels[k].flags & 1) == 0) break;   // 1800dfad0
+                                if ((device->_channels[k].LoadFlags() & 1) == 0) break;   // 1800dfad0
                             }
                             if (k < 0x40) freeSlot = k;
                         }
@@ -543,7 +543,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                                     mix, pitch, vThird)) {                // 1800dfb17
                                 ++g_samplesPlaced;
                                 Device::AudioChannel* const s = &device->_channels[freeSlot];
-                                s->flags |= 1u;                           // 1800dfb39
+                                s->OrFlags(1u);                           // 1800dfb39 (atomic, review F-138)
                                 s->source = bufferRef;                    // 1800dfb3e
                                 s->onComplete = &Scene::OnSoundEnded;     // 1800dfb4a
                                 s->userData = this;                       // 1800dfb4f
