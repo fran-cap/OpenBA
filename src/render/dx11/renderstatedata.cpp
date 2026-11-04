@@ -96,6 +96,7 @@
 // former `VideoRenderState` mirror (B5_RULES D8 in spirit: no second view of a
 // Runtime class).
 #include "video/RenderState.h"
+#include "depth_bias.h"   // src/render/common: the bias MULSS + CVTTSS2SI (0x180003827-0x18000384b)
 
 namespace VideoDX11 {
 namespace {
@@ -227,7 +228,7 @@ static const D3D11_FILL_MODE kFillMode[2] = {
 //                                            matching the D24_UNORM_S8_UINT
 //                                            depth buffer this backend creates)
 //   0x180018c58 = 0x45800000 = 4096.0f
-static const float kDepthBiasScale       = 16777215.0f;  // MULSS @ 0x180003843
+// The first is Render::kDepthBiasScale (MULSS @ 0x180003843), applied by Render::DepthBiasUnits.
 static const float kSlopeScaledBiasScale = 4096.0f;      // MULSS @ 0x18000387d
 
 // The D3D11 desc structs must be exactly the shapes the original hard-codes.
@@ -364,9 +365,11 @@ bool RenderStateData::Create() {
     rasterDesc.CullMode              = kCullMode[rs->_cullMode];  // RS+0x68, 0x180003801
     rasterDesc.FrontCounterClockwise = FALSE;                     // hard 0,   0x180003805
     // cvttss2si of (RS+0x3c * 16777215.0f) — truncation toward zero, matching
-    // the C float->int conversion the original compiled to.
+    // the C float->int conversion the original compiled to. Render::DepthBiasUnits
+    // gives CVTTSS2SI's INT_MIN for an out-of-range product (NOT RETAIL there: the
+    // plain cast is undefined).
     rasterDesc.DepthBias             =
-        static_cast<INT>(rs->_depth.bias * kDepthBiasScale);      // 0x180003827-0x18000384b
+        Render::DepthBiasUnits(rs->_depth.bias);                  // 0x180003827-0x18000384b
     rasterDesc.DepthBiasClamp        = 0.0f;                      // xorps,    0x18000385e
     rasterDesc.SlopeScaledDepthBias  =
         rs->_depth.slopeBias * kSlopeScaledBiasScale;             // 0x180003863-0x180003885

@@ -15,6 +15,7 @@
 #include "share_gpu_data/share_create.h"
 #include "create_on_demand/lazy_create.h"
 #include "seeded_create.h"
+#include "depth_bias.h"
 #include "video/Device.h"
 #include "platform/common/cursor_image.h"
 #include "video/Buffers.h"
@@ -2203,7 +2204,7 @@ void RenderStateData::Bind(void* context) {
     bound.fill = _owner->_fillMode ? MTLTriangleFillModeLines : MTLTriangleFillModeFill;
     // Match DX11 RenderStateData: engine bias is normalized to D24 units,
     // and slope bias is stored in 1/4096 units. Metal also takes rasterizer units.
-    bound.bias = float(int(_owner->_depth.bias * 16777215.0f));
+    bound.bias = float(Render::DepthBiasUnits(_owner->_depth.bias));
     bound.slopeBias = _owner->_depth.slopeBias * 4096.0f;
     bound.stencilReference = _owner->_stencil.reference;
 }
