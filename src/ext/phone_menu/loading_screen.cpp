@@ -13,6 +13,7 @@
 
 #include "ext/phone_menu/loading_screen.h"
 #include "ext/phone_menu/loading_math.h"
+#include "ext/phone_menu/dialog_records.h"   // the loading screens' records (review F-257)
 #include "ext/registry.h"
 
 #include <atomic>
@@ -32,8 +33,10 @@ namespace PhoneMenu {
 
 namespace {
 
+// The loading screens' descriptions, by address and path (dialog_records.h): they are evicted and
+// loaded again at new addresses like the menus' (review F-257).
 constexpr int kMaxLoading = 4;
-std::atomic<const UI::Dialog*> g_loading[kMaxLoading] = {};
+DialogRecords<kMaxLoading> g_loading;
 
 // The menus' overlay, kept loaded by KeepMenuOverlay (main thread) and read by the draw: published
 // sprite first, sheet last, so a reader that sees the sheet sees its sprite.
@@ -42,10 +45,10 @@ std::atomic<UI::SpriteSheet*> g_overlaySheet{nullptr};
 bool g_overlayTried = false;   // main thread
 
 // Descriptions seen at a layout and found not to be a loading screen (main thread only): the
-// tree walk runs once per description, not per frame. A full table only costs the walk again.
+// tree walk runs once per description, not per frame. A ring by address and path, so a loading
+// screen loaded at an address another description had is still recognised.
 constexpr int kMaxOther = 32;
-const UI::Dialog* g_other[kMaxOther] = {};
-int g_otherCount = 0;
+DialogRecords<kMaxOther> g_other;
 
 bool Has(const UI::Element* e, const char* name, int depth) {
     if (e == nullptr || depth > 6) return false;
@@ -57,38 +60,24 @@ bool Has(const UI::Element* e, const char* name, int depth) {
 }
 
 bool Recorded(const UI::Dialog* d) {
-    for (int i = 0; i < kMaxLoading; ++i) {
-        if (g_loading[i].load(std::memory_order_relaxed) == d) return true;
-    }
-    return false;
-}
-
-void Record(const UI::Dialog* d) {
-    for (int i = 0; i < kMaxLoading; ++i) {
-        const UI::Dialog* cur = g_loading[i].load(std::memory_order_relaxed);
-        if (cur == d) return;
-        if (cur == nullptr) {
-            g_loading[i].store(d, std::memory_order_relaxed);
-            return;
-        }
-    }
+    if (d == nullptr) return false;
+    return g_loading.Has(d, d->_path._data);
 }
 
 // Main thread, at a layout: is `dialog` a loading screen? Recorded the first time it is.
 bool Recognise(const UI::DialogInstance* dialog) {
     const UI::Dialog* d = dialog->_dialog;
     if (d == nullptr) return false;
-    if (Recorded(d)) return true;
-    for (int i = 0; i < g_otherCount; ++i) {
-        if (g_other[i] == d) return false;
-    }
+    const char* const path = d->_path._data;
+    if (g_loading.Has(d, path)) return true;
+    if (g_other.Has(d, path)) return false;
     const UI::Element* root = dialog->_root.Get();
     if (root == nullptr) return false;   // not built yet: asked again at the next layout
     if (Has(root, "loadingImage", 0)) {
-        Record(d);
+        g_loading.Record(d, path);
         return true;
     }
-    if (g_otherCount < kMaxOther) g_other[g_otherCount++] = d;
+    g_other.Record(d, path);
     return false;
 }
 

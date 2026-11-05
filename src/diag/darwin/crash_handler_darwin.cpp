@@ -274,7 +274,9 @@ void CrashHandler_Install() {
     void* warm[1];
     backtrace(warm, 1);
 
-    // An alternate stack, so a stack overflow's SIGSEGV still has room to log.
+    // An alternate stack, so a stack overflow's SIGSEGV still has room to log. This one is
+    // the main thread's; each Platform:: thread installs its own (src/platform/posix/
+    // thread_posix.cpp), since a new pthread starts without one.
     static char altStack[64 * 1024];
     stack_t ss{};
     ss.ss_sp = altStack;

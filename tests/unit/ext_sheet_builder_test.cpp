@@ -248,11 +248,12 @@ UI::SpriteSheet* PathStandIn(const char* path) {
 // ---------------------------------------------------------------------------
 UNIT_TEST(ext_sheet_pack_fits_pads_and_records) {
     SheetLayout l;
-    // The size the .rsc names (and the bake copied); 512 x 512 since 2026-10-18.
+    // The size the .rsc names (and the bake copied); 512 x 512 since 2026-10-18, 512 x 1024 since
+    // 2026-11-04 (the 116th sprite did not fit).
     const int W = Ext::Resources::SpritesData::kSheetWidth;
     const int H = Ext::Resources::SpritesData::kSheetHeight;
     CHECK_EQ(W, 512);
-    CHECK_EQ(H, 512);
+    CHECK_EQ(H, 1024);
     CHECK(Ext::Resources::PackSheet(ExtSpec(), Bitmaps(), BitmapCount(), l));
     CHECK_EQ(l.width, W);
     CHECK_EQ(l.height, H);

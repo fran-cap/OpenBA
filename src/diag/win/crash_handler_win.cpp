@@ -14,6 +14,7 @@
 #include "boot_state_watchdog.h"      // StackLineSink, StandaloneWalkStack's declaration
 #include "hw_watch.h"                 // HwWatch_Armed / HwWatch_OnSingleStep
 #include "redzone_alloc.h"            // RedzoneAlloc_SetDumpSink / RedzoneAlloc_HeapDump
+#include "thread_stack.h"             // ThreadStack::FormatFrame: the frame line the hang dump shares
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::_singleton (the crash dump's cell)
 
 #include <cstdarg>
@@ -44,36 +45,20 @@ static void CrashLogf(const char* fmt, ...);
 // frame: <module>!<offset>. No symbol names — Banished ships stripped — but
 // module+offset is what we'd paste into Ghidra anyway.
 //
-// THE ONE STACK WALKER IN THE EXE. The crash handler below and the hang
-// detector in boot_state_watchdog.cpp both go through here; the walker takes a
-// line sink instead of writing to the crash log directly so there is exactly
-// one copy of the unwind logic to keep right. The hang path passes a sink that
-// writes to standalone_hang.log, and it walks OTHER threads' contexts, which is
-// why the CONTEXT is copied (RtlVirtualUnwind mutates it) and why nothing here
-// touches a CRT FILE*: the hang dump runs with those threads SUSPENDED, and a
-// suspended thread can be holding the CRT's file lock.
+// The crash handler's walker: it unwinds the faulting thread's own CONTEXT in place, on a
+// stack nobody else is changing. Another thread's stack -- the hang dump in
+// boot_state_watchdog.cpp, the redzone watchdog's dump, the sampler -- goes through
+// ThreadStack::Capture (thread_stack.h) instead: the module lookups and
+// RtlLookupFunctionEntry wait on loader locks a SUSPENDED thread can hold, so that thread is
+// walked without them and symbolized once resumed. Both print ThreadStack::FormatFrame's
+// frame line. The walker takes a line sink instead of writing to the crash log directly, and the
+// CONTEXT is copied (RtlVirtualUnwind mutates it).
 extern "C" void StandaloneWalkStack(CONTEXT* origCtx, StackLineSink sink, void* user) {
     CONTEXT ctx = *origCtx;
     char line[256];
 
     for (int frame = 0; frame < 32; frame++) {
-        HMODULE mod = nullptr;
-        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                               (LPCSTR)(uintptr_t)ctx.Rip, &mod) && mod) {  // CAST-OK: crash_walk
-            char path[MAX_PATH] = {0};
-            GetModuleFileNameA(mod, path, MAX_PATH);
-            const char* nm = strrchr(path, '\\');
-            uintptr_t off = (uintptr_t)ctx.Rip - (uintptr_t)mod;  // CAST-OK: crash_walk
-            snprintf(line, sizeof(line),
-                     "  #%-2d %-22s + 0x%-8llX  (RIP=%016llX RSP=%016llX)\n",
-                     frame, nm ? nm + 1 : path, (unsigned long long)off,
-                     (unsigned long long)ctx.Rip, (unsigned long long)ctx.Rsp);
-        } else {
-            snprintf(line, sizeof(line),
-                     "  #%-2d ???                    @ %p          (RSP=%016llX)\n",
-                     frame, (void*)ctx.Rip, (unsigned long long)ctx.Rsp);
-        }
+        ThreadStack::FormatFrame(line, sizeof(line), frame, ctx.Rip, ctx.Rsp);
         sink(user, line);
 
         DWORD64 imageBase = 0;

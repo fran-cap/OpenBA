@@ -85,18 +85,8 @@ void FitToUsableScreen(SDL_Window* window, const FrameBorders& frame, int32_t* c
     SDL_Rect u{ 0, 0, 0, 0 };
     if (!SDL_GetDisplayUsableBounds(SDL_GetDisplayForWindow(window), &u)) return;
     if (u.w <= 0 || u.h <= 0) return;
-    const int32_t maxW = u.w - frame.left - frame.right;
-    const int32_t maxH = u.h - frame.top - frame.bottom;
-    if (maxW > 0 && *clientW > maxW) *clientW = maxW;
-    if (maxH > 0 && *clientH > maxH) *clientH = maxH;
-    if (*clientY - frame.top < u.y) *clientY = u.y + frame.top;
-    if (*clientY + *clientH + frame.bottom > u.y + u.h) {
-        *clientY = u.y + u.h - *clientH - frame.bottom;
-    }
-    if (*clientX - frame.left < u.x) *clientX = u.x + frame.left;
-    if (*clientX + *clientW + frame.right > u.x + u.w) {
-        *clientX = u.x + u.w - *clientW - frame.right;
-    }
+    // display_geometry.h: the arithmetic, overflow-free at the int limits (unit-tested).
+    FitClientToUsable(u.x, u.y, u.w, u.h, frame, clientX, clientY, clientW, clientH);
 }
 
 // ============================================================================
@@ -146,9 +136,10 @@ void ApplyInitialWindowGeometry(SDL_Window* window, int savedX, int savedY, int 
                 SDL_Rect b;
                 if (!SDL_GetDisplayUsableBounds(ids[i], &b)) continue;
                 // The title bar (top points above the client origin) must also be on screen.
-                const Platform::Rect win{ px, py - top, px + cw, py + ch };
+                // SavedOriginOnDisplay (display_geometry.h) does the sums without int overflow:
+                // WindowX / WindowY are settings.cfg values and can sit at the int limits.
                 const Platform::Rect disp{ b.x, b.y, b.x + b.w, b.y + b.h };
-                placed = RectTouchesAnyDisplay(win, &disp, 1) && py - top >= b.y;
+                placed = SavedOriginOnDisplay(px, py, cw, ch, top, disp);
             }
             SDL_free(ids);
         }
