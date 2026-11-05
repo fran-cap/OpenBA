@@ -202,6 +202,9 @@ struct Frame {
     // Issue #253: the AO pass has sampled this frame's main depth (DrawAoBegin). When it is the only
     // reader, the main-depth passes after it may discard depth again (THE DEPTH DISCARD).
     bool aoDepthRead = false;
+    // Issue #253: the AO apply runs in the main target's pass, which DrawAoEnd leaves open for the
+    // Blended draws (DrawAoBeginApply).
+    bool aoApplyInMain = false;
     VkPipeline pipeline = VK_NULL_HANDLE;
     bool viewportSet = false;
     VkViewport viewport{};
@@ -236,6 +239,7 @@ struct Frame {
     uint32_t resolves = 0;
     uint32_t reads = 0;
     uint32_t failedDraws = 0;
+    uint32_t aoPasses = 0;        // issue #253: the AO stage's own passes (DrawNoteAoPass)
     VkDeviceSize ringBytes = 0;
 };
 Frame g_frame;
@@ -1637,12 +1641,12 @@ void DrawLogFrame(uint64_t frame, const Video::Context* context) {
     TakeUploadStats(&uploadBytes, &batches);
     std::fprintf(stderr,
                  "[Vulkan] frame=%llu draws=%d triangles=%d vertices=%d objects=%d | passes=%u (other targets %u) "
-                 "resolves=%u reads=%u sets=%u pushes=%u pixel binds=%u depth %u/%u discarded (%u mispredicted) ring=%lluB failed=%u | "
+                 "resolves=%u reads=%u sets=%u pushes=%u pixel binds=%u depth %u/%u discarded (%u mispredicted) ao=%u ring=%lluB failed=%u | "
                  "pipelines +%u built +%u warmed %u failed | uploads %llu KB in %u batch(es)\n",
                  static_cast<unsigned long long>(frame), context->_drawsSubmitted, context->_trianglesSubmitted,
                  context->_verticesSubmitted, context->_objectsSubmitted, g_frame.passes, g_frame.targetPasses,
                  g_frame.resolves, g_frame.reads, g_frame.setsAllocated, g_frame.pushes, g_frame.pixelBinds,
-                 g_frame.depthDiscards, g_frame.depthPasses, g_discard.Mispredicts(),
+                 g_frame.depthDiscards, g_frame.depthPasses, g_discard.Mispredicts(), g_frame.aoPasses,
                  static_cast<unsigned long long>(g_frame.ringBytes), g_frame.failedDraws, built, warmed, failed, static_cast<unsigned long long>(uploadBytes >> 10),
                  batches);
 }
@@ -2117,17 +2121,39 @@ uint64_t DrawFrameIndex() {
     return g_frame.active ? g_frame.index : ~0ull;
 }
 
-bool DrawAoBeginApply() {
+bool DrawAoBeginApply(VkFormat* depthFormat, VkFormat* stencilFormat) {
+    *depthFormat = VK_FORMAT_UNDEFINED;
+    *stencilFormat = VK_FORMAT_UNDEFINED;
     if (!g_frame.active) return false;
+    // Issue #253: the render buffer bound at the AO seam is the one the Blended draws go to next. When
+    // it is the main target (colour and depth), the apply begins that pass (BeginPass moves the main
+    // depth back to its attachment layout and LOADs it, as the first Blended draw's pass did) and the
+    // pass stays open after DrawAoEnd. Anything that would have ended the Blended pass before its first
+    // draw (a target switch, a clear) ends this one the same way.
     Target t;
-    MainColorInto(&t);
+    const bool inMain = ResolveTarget(g_bound.target, &t) && t.main && t.color && t.depth == &g_main.depthState;
+    if (!inMain) {
+        t = Target{};
+        MainColorInto(&t);
+    }
     g_clear = PendingClear{};
-    return BeginPass(t);
+    if (!BeginPass(t)) return false;
+    g_frame.aoApplyInMain = inMain;
+    if (inMain) {
+        *depthFormat = t.depthFormat;
+        if (t.depth->aspect & VK_IMAGE_ASPECT_STENCIL_BIT) *stencilFormat = t.depthFormat;
+    }
+    return true;
 }
 
 void DrawAoEnd() {
-    EndPass();
+    if (!g_frame.aoApplyInMain) EndPass();
+    g_frame.aoApplyInMain = false;
     ResetCommandState();
+}
+
+void DrawNoteAoPass() {
+    ++g_frame.aoPasses;
 }
 
 }  // namespace VideoVulkan

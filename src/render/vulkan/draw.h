@@ -155,10 +155,18 @@ struct AoTargets {
 // the same bracket (DrawAoBegin, its own pass, DrawAoEnd). False, nothing done, outside a frame or
 // while the depth is not readable (the frames between the request and the remake).
 bool DrawAoBegin(AoTargets* out);
-// A pass on the main colour alone (LOAD, no depth; resolved like every main pass), for the AO apply.
-bool DrawAoBeginApply();
-// After the AO pass: its pass ends and the command buffer's bound pipeline, sets, viewport, scissor and
-// vertex buffers are forgotten, so the next engine draw binds everything again (dx11's StateBackup).
+// The pass of the AO apply, on the main colour (LOAD; resolved like every main pass). Issue #253: when
+// the bound render buffer is the main target (colour and depth: the Blended list's pass), the pass is
+// that one, with the main depth attached and LOADed, and DrawAoEnd leaves it open for the Blended draws
+// (one full-resolution colour store and load fewer; identical pixels, the apply's depth test is off).
+// Otherwise the main colour alone, as before. `*depthFormat` / `*stencilFormat`: the pass's depth and
+// stencil attachment formats (VK_FORMAT_UNDEFINED when none), which the apply's pipeline must match.
+bool DrawAoBeginApply(VkFormat* depthFormat, VkFormat* stencilFormat);
+// After the AO pass: the command buffer's bound pipeline, sets, viewport, scissor and vertex buffers
+// are forgotten, so the next engine draw binds everything again (dx11's StateBackup). Its pass ends,
+// except the apply's pass on the main target (DrawAoBeginApply), which the next engine draw continues.
 void DrawAoEnd();
+// A pass the AO stage records itself (its own targets, not the apply): counted for the frame line.
+void DrawNoteAoPass();
 
 }  // namespace VideoVulkan
