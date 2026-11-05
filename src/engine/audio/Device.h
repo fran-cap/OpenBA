@@ -175,6 +175,11 @@ public:
     // Its minted storage row is RETIRED (ENDGAME B.3.9 ENG W2: no reader was
     // left but the redirect). PUBLIC: foreign files read it directly.
     static Device* _singleton;
+    // FIX SEAM (fix.stream_free_wait, NOT RETAIL; DESIGN.md hook rule 5): null by default, the
+    // game side points it at the fix's bool. While it reads true, OnSoundBufferDeleted waits for
+    // the stream worker's pass over a streamed buffer before the buffer is freed (review S-027).
+    // src/engine never includes src/ext. Defined in audio_device_buffer_deleted.cpp.
+    static const bool* _extFixStreamFreeWait;
     void SetChannelVolume(AudioChannel* channel, float volume);                    // 0x1800de1b0
     AudioChannel* Play(Object::ExternalPtr<SoundBuffer> buffer, const System::Time& start,
                        float volume, float pitch, float unused, Callback onComplete,

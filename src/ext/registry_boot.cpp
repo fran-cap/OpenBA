@@ -63,6 +63,7 @@
 #include "ui/ScrollElement.h"   // the fix.slider_drag_clamp seam, scroll-bar half
 #include "engine/MainLoop.h"     // the fix.boot_device_lost seam (DESIGN.md hook rule 5)
 #include "boot_device_lost/boot_device_lost_backend.h"   // fix.boot_device_lost: the backend half
+#include "audio/Device.h"        // the fix.stream_free_wait seam (DESIGN.md hook rule 5)
 #include "Game/WorldGeometry.h"  // the ext.terrain_batch seam (DESIGN.md hook rule 5)
 
 namespace Ext {
@@ -152,6 +153,8 @@ void InitFromSettings() {
     // renderer backend's recovery of a reset that failed on a removed device.
     ::Engine::MainLoop::_extFixBootDeviceLost = &Fix().boot_device_lost;
     BootDeviceLostBackend::SetFixFlag(&LiveFix().boot_device_lost);   // the render thread reads it
+    // fix.stream_free_wait: OnSoundBufferDeleted's wait for the stream pass (review S-027).
+    ::Audio::Device::_extFixStreamFreeWait = &Fix().stream_free_wait;
     // fix.large_packages: the IO::FileSystem::_extPackagesMounted seam (null under the faithful
     // profile). The boot's .pkg mount ran inside Engine::Startup, before this; every mods mount runs it.
     LargePackages::Sync();

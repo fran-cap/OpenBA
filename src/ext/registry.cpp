@@ -291,6 +291,16 @@ const Entry kEntries[] = {
       "Clicking a status-bar problem icon just as the last citizen leaves or dies no longer jumps to "
       "the citizen who is gone (in the original game, a read of freed memory).",
       0, [](State& s) -> bool& { return s.fix.statusbar_empty_town; } },
+    // STREAMFREEWAIT (review S-027): Audio::Device::OnSoundBufferDeleted (0x1800de0e0) frees a streamed
+    // buffer's voice and returns, and ~SoundBuffer frees the seek table the stream worker may still be
+    // reading between its ReadFile and its next lock (Stream::Run 0x1800a0f60): a use after free. With
+    // the row on, the stream's pass over that channel is stopped and waited for first, Stream::Play's
+    // own drain. Engine seam Audio::Device::_extFixStreamFreeWait. Nothing in the sim; nothing saved.
+    { "stream_free_wait", Tier::Fix, Class::None, true,
+      "No crash when streamed music is unloaded",
+      "When a streamed sound such as music is unloaded while it plays, the game first lets the music "
+      "streaming thread stop, so that thread never reads the freed sound.",
+      0, [](State& s) -> bool& { return s.fix.stream_free_wait; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

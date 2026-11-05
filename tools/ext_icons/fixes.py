@@ -450,6 +450,24 @@ def draw_spawn_origin(px):
     ])
 
 
+def draw_stream_wait(px):
+    # a music note beside a pause sign (the streamed music stops before it is freed)
+    _paint(px, [
+        "....####....",
+        "....#..#....",
+        "....#..#....",
+        "....#..#....",
+        "....#..#....",
+        "..###.###...",
+        ".########...",
+        ".###.###....",
+        "............",
+        ".......++.++",
+        ".......++.++",
+        ".......++.++",
+    ])
+
+
 def draw_empty_status(px):
     # a "!" status icon in a box over an empty bench (a problem-icon click with no citizen left)
     _paint(px, [
@@ -494,4 +512,5 @@ ICONS = {
     "stranded_wade": ("fix", draw_wade),             # a figure in the water, a house on the bank
     "debug_spawn_origin": ("fix", draw_spawn_origin),   # two figures on a cross-hair
     "statusbar_empty_town": ("fix", draw_empty_status),   # a "!" status icon over an empty bench
+    "stream_free_wait": ("fix", draw_stream_wait),   # a music note beside a pause sign
 }
