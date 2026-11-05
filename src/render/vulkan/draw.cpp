@@ -14,6 +14,7 @@
 #include "present.h"
 #include "pipelines.h"
 #include "resources.h"
+#include "shader_rewrites.h"   // issue #253: Rewrites::DrawBloom (natural growth's copy without the blossom)
 #include "vulkan11.h"
 #include "create_on_demand/lazy_create.h"   // P4: ext.create_on_demand's use gate around a draw
 
@@ -236,6 +237,10 @@ struct Frame {
     uint32_t resolves = 0;
     uint32_t reads = 0;
     uint32_t failedDraws = 0;
+    // Issue #253: draws of a natural-growth pixel copy that has a twin without the blossom, and how many of
+    // them drew the twin (Rewrites::DrawBloom false).
+    uint32_t bloomDraws = 0;
+    uint32_t noBloomDraws = 0;
     VkDeviceSize ringBytes = 0;
 };
 Frame g_frame;
@@ -1329,11 +1334,20 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
     const ShaderEntry* ps = psp ? psp->shaders[psp->boundPermutation] : nullptr;
     StateBlock state = g_bound.state ? g_bound.state->block : DefaultState();
     // NATURAL_GROWTH.md: a natural-growth pixel copy runs only beside a natural-growth vertex shader.
+    // Issue #253: its twin without the blossom where no tree of the draw can flower (the same pixels).
     if (psp && psp->rewritten && (!psp->rewritten->naturalGrowth || (vs && vs->naturalGrowth))) {
+        const ShaderEntry* xf = psp->rewritten;
+        if (psp->rewrittenNoBloom) {
+            ++g_frame.bloomDraws;
+            if (!Rewrites::DrawBloom()) {
+                xf = psp->rewrittenNoBloom;
+                ++g_frame.noBloomDraws;
+            }
+        }
         if (!psp->coverage) {
-            ps = psp->rewritten;
+            ps = xf;
         } else if (!state.blendEnable) {
-            ps = psp->rewritten;
+            ps = xf;
             state = CoverageClone(state);
         }
     }
@@ -1638,13 +1652,14 @@ void DrawLogFrame(uint64_t frame, const Video::Context* context) {
     std::fprintf(stderr,
                  "[Vulkan] frame=%llu draws=%d triangles=%d vertices=%d objects=%d | passes=%u (other targets %u) "
                  "resolves=%u reads=%u sets=%u pushes=%u pixel binds=%u depth %u/%u discarded (%u mispredicted) ring=%lluB failed=%u | "
-                 "pipelines +%u built +%u warmed %u failed | uploads %llu KB in %u batch(es)\n",
+                 "pipelines +%u built +%u warmed %u failed | uploads %llu KB in %u batch(es) | "
+                 "no-blossom %u/%u canopy draws\n",
                  static_cast<unsigned long long>(frame), context->_drawsSubmitted, context->_trianglesSubmitted,
                  context->_verticesSubmitted, context->_objectsSubmitted, g_frame.passes, g_frame.targetPasses,
                  g_frame.resolves, g_frame.reads, g_frame.setsAllocated, g_frame.pushes, g_frame.pixelBinds,
                  g_frame.depthDiscards, g_frame.depthPasses, g_discard.Mispredicts(),
                  static_cast<unsigned long long>(g_frame.ringBytes), g_frame.failedDraws, built, warmed, failed, static_cast<unsigned long long>(uploadBytes >> 10),
-                 batches);
+                 batches, g_frame.noBloomDraws, g_frame.bloomDraws);
 }
 
 void DrawTargetsChanged() {

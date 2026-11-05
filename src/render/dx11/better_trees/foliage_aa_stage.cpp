@@ -485,6 +485,12 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
                  static_cast<double>(d.noiseScale), naturalGrowth ? 1 : 0, s.reqGen, mode > 0 ? ": seam set" : (seamWasSet ? ": off at the next pixel bind" : ""));
 }
 
+// Issue #253: DX11 keeps the billboard colour copy with the blossom on every draw (no copy without it is
+// made here), which draws the same pixels: the hint is ignored.
+void SetDrawBloom(bool bloom) {
+    (void)bloom;
+}
+
 #if BANISHED_TWEAK_OVERLAY
 TweakStats Stats() {
     using namespace VideoDX11;

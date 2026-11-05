@@ -844,6 +844,8 @@ void VertexProgramData::Bind(void* context, int permutation) {
 
 PixelProgramData::~PixelProgramData() {
     Rewrites::PixelDestroyed(this);   // NOT RETAIL (P4)
+    ReleaseShader(rewrittenNoBloom);   // issue #253: the copy without the blossom the last Bind chose
+    rewrittenNoBloom = nullptr;
     DestroyProgram(this);
 }
 
@@ -858,8 +860,10 @@ void PixelProgramData::Bind(void* context, int permutation) {
     BindProgram(this, permutation);
     // EXT SEAM (NOT RETAIL, P4): foliage_aa's copy (shader_rewrites.h).
     ReleaseShader(rewritten);
+    ReleaseShader(rewrittenNoBloom);
     coverage = false;
-    rewritten = Rewrites::Active() ? Rewrites::BindPixel(this, boundPermutation, &coverage) : nullptr;
+    rewrittenNoBloom = nullptr;
+    rewritten = Rewrites::Active() ? Rewrites::BindPixel(this, boundPermutation, &coverage, &rewrittenNoBloom) : nullptr;
     DrawSetPixelProgram(this);
 }
 

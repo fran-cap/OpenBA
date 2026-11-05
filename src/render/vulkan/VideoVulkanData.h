@@ -238,6 +238,9 @@ public:
     // needs the A2C clone of a non-blending state (draw.cpp).
     ShaderEntry* rewritten = nullptr;
     bool coverage = false;
+    // Issue #253: `rewritten` made without natural growth's blossom (one reference held), or null; the draw
+    // uses it while Rewrites::DrawBloom() is false.
+    ShaderEntry* rewrittenNoBloom = nullptr;
 };
 
 class RenderStateData final : public Video::RenderStateData {

@@ -37,9 +37,14 @@ bool Active();
 
 // VertexProgramData::Bind / PixelProgramData::Bind, after the permutation is chosen: the copy the draw
 // uses for it (one registry reference, the caller's), or null for the retail program. `coverage`: the
-// copy needs the A2C clone of a non-blending state (and must not run under a blending one).
+// copy needs the A2C clone of a non-blending state (and must not run under a blending one). `noBloom`
+// (issue #253): the same copy made without natural growth's blossom (one reference, the caller's), or null.
 ShaderEntry* BindVertex(VertexProgramData* p, int permutation);
-ShaderEntry* BindPixel(PixelProgramData* p, int permutation, bool* coverage);
+ShaderEntry* BindPixel(PixelProgramData* p, int permutation, bool* coverage, ShaderEntry** noBloom);
+
+// Issue #253: false while the calling thread's draws can show no blossom (FaaBackend::SetDrawBloom): a
+// draw then uses the pixel copy's `noBloom` twin when it has one (the same pixels, a shorter shader).
+bool DrawBloom();
 
 // PlatformCreate succeeded / the program is going away.
 void VertexCreated(VertexProgramData* p);

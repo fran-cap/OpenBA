@@ -59,6 +59,12 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
     VideoMetal::TreePasses::SetFoliage(mode, fillK, fillFloor, dither, mode > 0 && naturalGrowth);
 }
 
+// Issue #253: Metal keeps the billboard colour copy with the blossom on every draw, which draws the same
+// pixels: the hint is ignored.
+void SetDrawBloom(bool bloom) {
+    (void)bloom;
+}
+
 }  // namespace FaaBackend
 
 namespace BbsBackend {
