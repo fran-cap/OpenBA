@@ -149,6 +149,12 @@ struct Counters {
     uint64_t fusedWalks   = 0;   // shadow gathers that walked both groups in one traversal
     uint64_t fusedServed  = 0;   // main gathers handed that walk's list (no walk of their own)
     uint64_t fusedUnused  = 0;   // fused lists dropped unused (pass 1 ended, or a newer fused walk)
+    // DISPATCHPAR (issue #253, ext.gather_threads): the fused gather's two dispatches on the pool.
+    uint64_t dispatchPar       = 0;   // fused gathers whose two dispatches ran as pool tasks
+    uint64_t dispatchHelper    = 0;   // ... tasks a helper ran (of two per gather)
+    uint64_t dispatchWaitTicks = 0;   // the main thread's join wait, QPC ticks
+    uint64_t dispatchCuts      = 0;   // list entries the tasks left to the main thread (not ParSafe)
+    uint64_t dispatchStale     = 0;   // main gathers that found the copied renderer state changed (must stay 0)
 };
 
 }  // namespace DrawGather

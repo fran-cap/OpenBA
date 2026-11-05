@@ -476,6 +476,8 @@ public:
     // gathered instance (the view's, a shadow pass's), a frame or more before the render thread binds
     // it. The extension tests one handle and queues the instance's creates only when they are not made
     // (a first sight the placement did not prefetch, an object given back by the idle eviction).
+    // Called from ext.gather_threads' helpers too (src/ext/draw_gather/draw_gather.cpp DISPATCHPAR), two
+    // at a time: an installed body is thread-safe (create_on_demand's is a lock-free test and a locked queue).
     static void (*_extLevelGathered)(const MeshInstance& instance, int32_t level);
     // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md §2.3, DESIGN.md hook rule 5): ext.render_pipe's
     // frozen copies. Null by default and under the faithful profile. Consulted only on the instanced

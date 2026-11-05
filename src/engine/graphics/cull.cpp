@@ -398,13 +398,11 @@ static void RtGraphics_Scene_CullStackPushChildren(CullStack* self, uint32_t mas
 // door that takes pointers; the SOURCE of each copy is now a named member.
 // ############################################################################
 
-// GATHERPF: the COMPPROF `gather` row's counters (gather_prefetch.h). Main thread;
-// the harness reads and resets them once per window.
-uint64_t g_gatherVisible[kGatherShaderSlots]   = {};
-uint64_t g_gatherDrawItems[kGatherShaderSlots] = {};   // incremented by Renderer::AddDrawItem (wave9_lane_gfx.cpp)
-uint64_t g_lodMulti[kGatherShaderSlots]        = {};   // issue #253: bumped by MeshInstance::AddDrawItems (mesh.cpp)
-uint64_t g_lodFallback[kGatherShaderSlots]     = {};
-uint64_t g_lodLevelItems[kGatherShaderSlots][kLodLevelSlots] = {};
+// GATHERPF: the COMPPROF `gather` row's counters (gather_prefetch.h has which thread
+// writes a slot); the harness reads and resets them once per window. `drawItems` is
+// bumped by Renderer::AddDrawItem (wave9_lane_gfx.cpp), the `lod*` fields by
+// MeshInstance::AddDrawItems (mesh.cpp, issue #253).
+GatherSlotCounters g_gatherSlots[kGatherShaderSlots] = {};
 
 namespace Graphics {
 
@@ -591,7 +589,7 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
     ++g_frustumCullPasses;
     FrustumCull_CountSite(kFrustumCullSiteScene, boxesTested);   // CULLROUTE: the per-site breakdown
     // GATHERPF: the COMPPROF `gather` row, split by the group's shader (issue #253)
-    g_gatherVisible[shaderSlot] += static_cast<uint64_t>(list.size);
+    g_gatherSlots[shaderSlot].visible += static_cast<uint64_t>(list.size);
 
     if (list.data != nullptr) System::MemoryAllocator::MemFree(list.data);
 }

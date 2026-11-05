@@ -1029,8 +1029,8 @@ void GatherReport(FILE* o) {
     uint64_t visible = 0;
     uint64_t items   = 0;
     for (int s = 0; s < kGatherShaderSlots; ++s) {
-        visible += g_gatherVisible[s];
-        items += g_gatherDrawItems[s];
+        visible += g_gatherSlots[s].visible;
+        items += g_gatherSlots[s].drawItems;
     }
     std::fprintf(o, "[COMPPROF]   gather (faithful walk): visible/frame=%.0f  draw items appended/frame=%.0f "
                     "(%.2f/visible)  passes/frame=%.2f\n",
@@ -1040,13 +1040,14 @@ void GatherReport(FILE* o) {
                  (double)g_frustumCullPasses / n);
     static const char* const kShaderNames[kGatherShaderSlots] = { "main", "shadow", "refl", "other" };
     for (int s = 0; s < kGatherShaderSlots; ++s) {
-        const uint64_t  multi = g_lodMulti[s];
-        const uint64_t* lv    = g_lodLevelItems[s];
+        const GatherSlotCounters& c = g_gatherSlots[s];
+        const uint64_t  multi = c.lodMulti;
+        const uint64_t* lv    = c.lodLevelItems;
         std::fprintf(o, "[COMPPROF]   gather/%-6s visible/frame=%.0f  draw items/frame=%.0f  lod: multi/frame=%.0f "
                         "fallback/frame=%.0f (%.1f%%)  lists/frame L0=%.0f L1=%.0f L2=%.0f L3+=%.0f\n",
-                     kShaderNames[s], (double)g_gatherVisible[s] / n, (double)g_gatherDrawItems[s] / n,
-                     (double)multi / n, (double)g_lodFallback[s] / n,
-                     multi ? 100.0 * (double)g_lodFallback[s] / (double)multi : 0.0,
+                     kShaderNames[s], (double)c.visible / n, (double)c.drawItems / n,
+                     (double)multi / n, (double)c.lodFallback / n,
+                     multi ? 100.0 * (double)c.lodFallback / (double)multi : 0.0,
                      (double)lv[0] / n, (double)lv[1] / n, (double)lv[2] / n, (double)lv[3] / n);
     }
     // Issue #253: ext.draw_batch's instancing batches by shader (counted at COMPPROF >= 2,
@@ -1162,13 +1163,8 @@ void CompProfReport(int frame) {
     g_elProfTreeNodes = g_elProfBucketVisits = g_elProfBucketTicked = 0;
     g_frustumCullBoxes = g_frustumCullPasses = 0;
     for (int s = 0; s < kFrustumCullSiteCount; ++s) g_frustumCullSiteBoxes[s] = g_frustumCullSiteCalls[s] = 0;   // CULLROUTE
-    for (int s = 0; s < kGatherShaderSlots; ++s) {   // GATHERPF (split by shader, issue #253)
-        g_gatherVisible[s]   = 0;
-        g_gatherDrawItems[s] = 0;
-        g_lodMulti[s]        = 0;
-        g_lodFallback[s]     = 0;
-        for (int l = 0; l < kLodLevelSlots; ++l) g_lodLevelItems[s][l] = 0;
-    }
+    for (int s = 0; s < kGatherShaderSlots; ++s)   // GATHERPF (split by shader, issue #253)
+        g_gatherSlots[s] = GatherSlotCounters{};
 }
 
 // ── staffing pass ────────────────────────────────────────────────────────────
@@ -1623,6 +1619,14 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          Ext::DrawGather::ParallelHelpers(), g.parWakes / df, g.parPasses / df, g.parTasks / df,
                          g.parTasks / pp, g.parTasks ? 100.0 * g.parHelper / g.parTasks : 0.0,
                          waitUs / df, waitUs / pp, static_cast<unsigned long long>(g.parSideGrew));
+            // DISPATCHPAR (issue #253): the fused gather's two dispatches as pool tasks.
+            const double dp = g.dispatchPar ? static_cast<double>(g.dispatchPar) : 1.0;
+            std::fprintf(stderr, "[Stress::gather] dispatch_par per frame: fused=%.2f helperTasks=%.2f (of 2/fused) "
+                                 "cuts=%.1f joinWait=%.1fus (%.2fus/fused) | window: stale=%llu\n",
+                         g.dispatchPar / df, g.dispatchHelper / df, g.dispatchCuts / df,
+                         1000.0 * QpcMs(static_cast<long long>(g.dispatchWaitTicks)) / df,
+                         1000.0 * QpcMs(static_cast<long long>(g.dispatchWaitTicks)) / dp,
+                         static_cast<unsigned long long>(g.dispatchStale));
         }
     }
     // RENDERPIPE (ext.render_pipe, docs/extensions/handins/RENDERPIPE0.md): printed only

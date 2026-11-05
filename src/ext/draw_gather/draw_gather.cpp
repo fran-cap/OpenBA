@@ -26,15 +26,20 @@
 // virtual call per geometry, so the same draw items, sort keys, transforms and
 // bone sets); the COMPPROF=4 shadows `DrawGather` (the list against retail's
 // reads) and `DrawGatherSide` (each record used against the live box) check it.
+// With ext.gather_threads on, the fused gather's two dispatches run as two pool tasks
+// (DISPATCHPAR, dispatch_par.h); `DrawDispatchShadow` / `DrawDispatchMain` check each
+// group's items against the serial dispatch at its own point of the frame.
 // Nothing here is read by the sim or the pick scene (Picking::Scene is a
 // different class), nothing is serialized.
 // ============================================================================
 #include "ext/draw_gather/draw_gather.h"
 #include "ext/draw_gather/gather_walk.h"
+#include "ext/draw_gather/dispatch_par.h"   // DISPATCHPAR: the two dispatches' order-keeping half
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <vector>
 
 #include "rt_libm.h"
@@ -46,6 +51,7 @@
 #include "graphics/Material.h"   // P13: MaterialInstance::_shaderClass (kDispatchMaterials)
 #include "graphics/Mesh.h"       // P13: MeshInstance::_materials (kDispatchMaterials)
 #include "graphics/Scene.h"
+#include "graphics/gather_prefetch.h"   // DISPATCHPAR: g_gatherSlots (the verify puts them back)
 #include "graphics/scene_ext.h"
 #include "graphics/scene_grid.h"   // rtgfxgrid::GridReindex, Clean's re-index
 #include "ext/registry.h"
@@ -53,6 +59,7 @@
 #include "platform/common/cpu/roster.h"      // CULLPAR: Cpu::CullHelpers
 #include "platform/common/cpu/topology.h"    // CULLPAR: Cpu::Get().physical
 #include "stress_harness.h"        // g_verifyOn / StressHarness_Verify (COMPPROF=4 shadows)
+#include "system/MemoryAllocator.h"   // DISPATCHPAR: the pass lists' buffers (DrawItemArrayResize's allocator)
 
 namespace Ext {
 namespace DrawGather {
@@ -62,6 +69,7 @@ namespace {
 using Graphics::Geometry;
 using Graphics::Renderer;
 using Graphics::RendererDrawGroup;
+using Graphics::RendererDrawItem;
 using Graphics::Scene;
 using Graphics::SceneNode;
 
@@ -336,6 +344,10 @@ struct MainStash {
     uint64_t               logGen     = 0;
     Frame                  f;
     std::vector<Geometry*> list;
+    // DISPATCHPAR: the list was dispatched into g_dispatch[depth]'s main task, for draw group
+    // `preGroup`; the main gather replays it instead of dispatching it.
+    bool                   pre        = false;
+    int32_t                preGroup   = -1;
 };
 MainStash             g_stash;
 std::vector<FusedHit> g_hits;
@@ -361,7 +373,7 @@ void FillFrame(Frame& f, const RendererDrawGroup& g, int32_t rendererDetail) {
 // globals loop), when that group has no shadow pass and its cull frustum is this
 // group's draw-camera frustum -- the sun's case (draw camera = draw group 0's). A
 // spot light's group (draw camera = its own) does not qualify.
-bool MainFrameFor(const Renderer& r, const Frame& shadow, Frame& m) {
+bool MainFrameFor(const Renderer& r, const Frame& shadow, Frame& m, int32_t& group) {
     const int32_t si = r._currentSceneGroup;
     if (si < 0 || si >= r._sceneGroups._size) return false;
     const int32_t gi = r._sceneGroups._data[si]._drawGroupIndex;
@@ -369,12 +381,288 @@ bool MainFrameFor(const Renderer& r, const Frame& shadow, Frame& m) {
     const RendererDrawGroup& g = r._drawGroups._data[gi];
     if (g._shader == 1) return false;
     FillFrame(m, g, r._detailId);
+    group = gi;
     return SamePlanes(shadow.shadow, m.cull);
 }
 
 void DropStash() {
     if (g_stash.valid) ++g_counters.fusedUnused;
     g_stash.valid = false;
+}
+
+// ===========================================================================
+// The dispatch's prefetches (one place: the serial loop and the pool tasks run the same).
+// ===========================================================================
+// `list` may move if a nested gather grows g_lists: the serial loop hands it afresh.
+inline void DispatchPrefetch(Geometry* const* list, int32_t i, int32_t n, [[maybe_unused]] const void* meshVt) {
+    if (i + kDispatchAhead < n) {
+        const Geometry* ahead = list[i + kDispatchAhead];
+        __builtin_prefetch(ahead);                         // vptr, _detailId
+        __builtin_prefetch(&ahead->_worldBounds);          // the LOD box
+        __builtin_prefetch(&ahead->_opacity);              // opacity pair, transform
+        __builtin_prefetch(&ahead->_transform._previous);
+        __builtin_prefetch(ahead + 1);                     // a MeshInstance's mesh / materials / animation
+    }
+    if constexpr (kDispatchMaterials) {
+        // i+3: the vptr and `_materials` lines are the ones named at i+4.
+        if (i + 3 < n) {
+            const Geometry* g3 = list[i + 3];
+            if (*reinterpret_cast<const void* const*>(g3) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
+                const auto* mi = static_cast<const Graphics::MeshInstance*>(g3);
+                if (mi->_materials._data != nullptr) __builtin_prefetch(mi->_materials._data);
+            }
+        }
+        // i+2: the array line named at i+3; the MaterialInstances AddDrawItem reads.
+        if (i + 2 < n) {
+            const Geometry* g2 = list[i + 2];
+            if (*reinterpret_cast<const void* const*>(g2) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
+                const auto* mi = static_cast<const Graphics::MeshInstance*>(g2);
+                const int32_t count = mi->_materials._size < kDispatchMaterialCount ? mi->_materials._size
+                                                                                    : kDispatchMaterialCount;
+                for (int32_t k = 0; k < count; ++k) {
+                    const Graphics::MaterialInstance* m = mi->_materials._data[k].Get();
+                    if (m != nullptr) __builtin_prefetch(&m->_shaderClass);
+                }
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// DISPATCHPAR (issue #253) -- ext.gather_threads: the fused gather's two dispatches,
+// the shadow group's and the main group's, as two tasks on the helper pool.
+// ===========================================================================
+// dispatch_par.h has the order argument. Each task dispatches into a stand-in Renderer
+// (its `proxy`): `_drawGroups` holds one group whose header (render buffer, both
+// cameras, shader, pass mask) is a copy of the real group's, `_currentDrawGroup` is 0,
+// and `_alphaT` / `_frameIndex` / `_shaderDetail` / `_detailId` are the real renderer's.
+// `_sceneGroups` is empty and `_drawables` unused.
+//
+// What a task runs (ParSafe): exact MeshInstances with a mesh and no null material and no
+// material with a rendered texture. MeshInstance::AddDrawItems (mesh.cpp, retail
+// 0x180100f20) reads the instance, its mesh and materials, the renderer's `_alphaT` and the
+// current group's camera position and `_shader`, bumps its group's g_gatherSlots slot
+// (gather_prefetch.h: the shadow group's and the main group's slots differ, each on its
+// own line) and calls the `_extLevelGathered` seam (Mesh.h: thread-safe, a locked queue),
+// then Renderer::AddDrawItem (wave9_lane_gfx.cpp, 0x1801057b0) per triangle list, which
+// reads the group header and the material, appends to the group's pass list
+// (DrawItemArrayResize: the locked allocator) and bumps the same slot; its one other path,
+// MaterialInstance::RenderTextures (a nested scene draw on the real renderer), runs only for
+// a material with a rendered texture, which ParSafe leaves to the main thread. Every other
+// Geometry (lights: AddLight writes the renderer's drawables; particles, edge meshes, the
+// world geometry, status icons) is a cut, dispatched live on the main thread at its place.
+//
+// The main group's items are made at the shadow gather, before the rest of the main
+// group's globals and before the shadow list's cuts, rather than at the main gather. The
+// inputs they read are not written in between: the instances, meshes and materials as
+// for the fused walk itself (FUSED above: the dispatches in between are const
+// AddDrawItems calls), and the renderer state the task copied, which the main gather
+// compares before it replays (PreStillValid; otherwise it dispatches as before). The
+// COMPPROF=4 shadows dispatch every safe item again, serially on the real renderer at the
+// replay's point, and compare the items field by field (the two pads AddDrawItem never
+// writes are not compared: they are stack bytes in retail too).
+struct alignas(128) DispatchTask {
+    Renderer*                     proxy = nullptr;   // made at the first use; freed by ReleaseDispatch only
+    const Scene*                  scene = nullptr;
+    const std::vector<Geometry*>* list  = nullptr;   // valid during the pool pass only
+    const void*                   meshVt = nullptr;
+    std::vector<DispatchCut>      cuts;
+    int32_t                       ends[kDispatchPasses] = {};
+};
+struct DispatchPair {
+    DispatchTask task[2];   // 0 = the shadow group, 1 = the main group
+};
+// One pair per nesting depth (a cut's nested gather can be fused too); boxed so a pair
+// stays put while a deeper one is added.
+std::vector<std::unique_ptr<DispatchPair>> g_dispatch;
+
+// Main thread, outside any Renderer::Draw (a row toggle): the pairs and their stand-ins freed.
+void ReleaseDispatch() {
+    for (std::unique_ptr<DispatchPair>& d : g_dispatch) {
+        if (!d) continue;
+        for (DispatchTask& t : d->task) {
+            delete t.proxy;
+            t.proxy = nullptr;
+        }
+    }
+    g_dispatch.clear();
+}
+
+bool ParSafe(const Geometry* geo, const void* meshVt) {
+    if (*reinterpret_cast<const void* const*>(geo) != meshVt) return false;  // CAST-OK: vslot (exact MeshInstance)
+    const auto* mi = static_cast<const Graphics::MeshInstance*>(geo);
+    if (mi->_mesh.Get() == nullptr) return false;
+    for (int32_t k = 0; k < mi->_materials._size; ++k) {
+        const Graphics::MaterialInstance* m = mi->_materials._data[k].Get();
+        if (m == nullptr || m->_hasRenderedTexture != 0) return false;
+    }
+    return true;
+}
+
+// Main thread, before the pool pass: the stand-in for draw group `group` of `r`.
+void ArmProxy(DispatchTask& t, const Renderer& r, int32_t group) {
+    if (t.proxy == nullptr) t.proxy = new Renderer();
+    Renderer& p = *t.proxy;
+    const RendererDrawGroup& g = r._drawGroups._data[group];
+    if (p._drawGroups._size == 0) {
+        p.Graphics::Renderer::BeginDrawGroup(g._renderBuffer, g._camera, g._cullCamera, g._shader,
+                                             g._materialTypeFlags);
+    } else {
+        RendererDrawGroup& pg = p._drawGroups._data[0];
+        pg._renderBuffer      = g._renderBuffer;
+        pg._camera            = g._camera;
+        pg._cullCamera        = g._cullCamera;
+        pg._shader            = g._shader;
+        pg._materialTypeFlags = g._materialTypeFlags;
+        for (int k = 0; k < kDispatchPasses; ++k) pg._items[k]._size = 0;   // the buffers are kept
+    }
+    p._currentDrawGroup = 0;
+    p._alphaT           = r._alphaT;
+    p._frameIndex       = r._frameIndex;
+    p._shaderDetail     = r._shaderDetail;
+    p._detailId         = r._detailId;
+}
+
+void RunTask(DispatchTask& t) {
+    Geometry* const* const list = t.list->data();
+    const int32_t n = static_cast<int32_t>(t.list->size());
+    Renderer& p = *t.proxy;
+    Collection::Array<RendererDrawItem>* const items = p._drawGroups._data[0]._items;
+    const void* const meshVt = t.meshVt;
+    RunDispatchTask(
+        n,
+        [&](int32_t i) {
+            DispatchPrefetch(list, i, n, meshVt);
+            return ParSafe(list[i], meshVt);
+        },
+        [&](int32_t i) { list[i]->AddDrawItems(*t.scene, p); },   // VIRTUAL, slot 3
+        [&](int k) { return items[k]._size; }, t.cuts, t.ends);
+}
+
+void DispatchTaskFn(void* ctx, int32_t task, int32_t /*worker*/) {
+    RunTask(static_cast<DispatchPair*>(ctx)->task[task]);
+}
+
+// Appends `count` items to a pass list. The list's buffer comes from the allocator
+// DrawItemArrayResize uses (its free is the list's own); the capacity it leaves is not
+// retail's growth rule, which no reader sees.
+void AppendItems(Collection::Array<RendererDrawItem>& dst, const RendererDrawItem* src, int32_t count) {
+    const int32_t old  = dst._size;
+    const int32_t need = old + count;
+    if (need > dst._capacity) {
+        const int32_t cap = need + need / 2;
+        auto* data = static_cast<RendererDrawItem*>(
+            System::MemoryAllocator::MemAlloc(static_cast<uint64_t>(cap) * sizeof(RendererDrawItem), 8));
+        if (old > 0) std::memcpy(data, dst._data, static_cast<size_t>(old) * sizeof(RendererDrawItem));
+        if (dst._data != nullptr) System::MemoryAllocator::MemFree(dst._data);
+        dst._data     = data;
+        dst._capacity = cap;
+    }
+    std::memcpy(dst._data + old, src, static_cast<size_t>(count) * sizeof(RendererDrawItem));
+    dst._size = need;
+}
+
+// The task's items into the renderer's current group, in the serial order; the cuts
+// dispatched live (list entries read afresh from g_lists: a cut's nested gather can grow it).
+void ReplayTask(const DispatchTask& t, const Scene& scene, Renderer& r, int32_t depth) {
+    const RendererDrawGroup& pg = t.proxy->_drawGroups._data[0];
+    ReplayDispatch(
+        t.cuts, t.ends,
+        [&](int k, int32_t first, int32_t count) {
+            AppendItems(r._drawGroups._data[r._currentDrawGroup]._items[k], pg._items[k]._data + first, count);
+        },
+        [&](int32_t index) {
+            Geometry* geo = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(index)];
+            geo->AddDrawItems(scene, r);                   // VIRTUAL, slot 3
+        });
+}
+
+bool SameItem(const RendererDrawItem& a, const RendererDrawItem& b) {
+    return a._geometry == b._geometry && a._material == b._material && a._instance == b._instance &&
+           a._flags == b._flags && a._arg5 == b._arg5 &&
+           std::memcmp(&a._sortKey, &b._sortKey, sizeof(float)) == 0 && a._arg8 == b._arg8 &&
+           a._userData == b._userData && a._arg10 == b._arg10;
+}
+
+// COMPPROF=4: every safe entry of g_lists[depth] dispatched again, serially, on the real
+// renderer's current group, against the task's items; the lists and the counters slot are
+// put back. Detail: (pass << 60) | (count mismatch ? 1 << 59 : 0) | first differing item.
+void VerifyDispatch(const char* what, const DispatchTask& t, const Scene& scene, Renderer& r, int32_t depth) {
+    RendererDrawGroup& g = r._drawGroups._data[r._currentDrawGroup];
+    const int slot = GatherShaderSlot(g._shader);
+    const GatherSlotCounters saved = g_gatherSlots[slot];
+    int32_t base[kDispatchPasses];
+    for (int k = 0; k < kDispatchPasses; ++k) base[k] = g._items[k]._size;
+    const std::vector<Geometry*>& list = g_lists[static_cast<size_t>(depth)];
+    for (Geometry* geo : list) {
+        if (ParSafe(geo, t.meshVt)) geo->AddDrawItems(scene, r);   // VIRTUAL, slot 3 (never a nested gather)
+    }
+    RendererDrawGroup& gg = r._drawGroups._data[r._currentDrawGroup];
+    const RendererDrawGroup& pg = t.proxy->_drawGroups._data[0];
+    bool same = true;
+    long long detail = 0;
+    for (int k = 0; k < kDispatchPasses && same; ++k) {
+        const int32_t refCount = gg._items[k]._size - base[k];
+        const int32_t parCount = pg._items[k]._size;
+        int32_t i = 0;
+        while (i < refCount && i < parCount && SameItem(gg._items[k]._data[base[k] + i], pg._items[k]._data[i])) ++i;
+        if (refCount != parCount || i != refCount) {
+            same = false;
+            detail = (static_cast<long long>(k) << 60) | (refCount != parCount ? (1ll << 59) : 0) | i;
+        }
+    }
+    for (int k = 0; k < kDispatchPasses; ++k) gg._items[k]._size = base[k];
+    g_gatherSlots[slot] = saved;
+    StressHarness_Verify(what, same, detail);
+}
+
+// The fused shadow gather's dispatch: both lists on the pool, then the shadow list's items
+// into the current (shadow) group. The main list's wait in g_dispatch[depth] for the main
+// gather (g_stash.pre).
+void ParDispatchFused(const Scene& scene, Renderer& r, int32_t depth, int32_t mainGroup, bool verify) {
+    if (static_cast<int32_t>(g_dispatch.size()) <= depth) g_dispatch.resize(static_cast<size_t>(depth) + 1);
+    if (!g_dispatch[static_cast<size_t>(depth)]) g_dispatch[static_cast<size_t>(depth)] = std::make_unique<DispatchPair>();
+    DispatchPair& d = *g_dispatch[static_cast<size_t>(depth)];
+    const void* const meshVt = Object::ClassVptr<Graphics::MeshInstance>::Get();
+    DispatchTask& shadow = d.task[0];
+    DispatchTask& main   = d.task[1];
+    ArmProxy(shadow, r, r._currentDrawGroup);
+    shadow.scene  = &scene;
+    shadow.list   = &g_lists[static_cast<size_t>(depth)];
+    shadow.meshVt = meshVt;
+    ArmProxy(main, r, mainGroup);
+    main.scene  = &scene;
+    main.list   = &g_stash.list;
+    main.meshVt = meshVt;
+    // Before anything that can nest: a fused gather nested in a cut below overwrites the stash.
+    g_stash.pre      = true;
+    g_stash.preGroup = mainGroup;
+
+    g_pool->Publish(&DispatchTaskFn, &d, 2);
+    const Ext::GatherThreads::HelperPool::PassResult pr = g_pool->Finish();
+    shadow.list = nullptr;
+    main.list   = nullptr;
+    ++g_counters.dispatchPar;
+    g_counters.dispatchHelper   += static_cast<uint64_t>(pr.tasks - pr.callerTasks);
+    g_counters.dispatchWaitTicks += static_cast<uint64_t>(pr.waitTicks);
+    g_counters.dispatchCuts     += shadow.cuts.size() + main.cuts.size();
+
+    ReplayTask(shadow, scene, r, depth);
+    if (verify) VerifyDispatch("DrawDispatchShadow", shadow, scene, r, depth);
+}
+
+// The main gather, handed a pre-dispatched list: the renderer state the task copied is
+// still the renderer's.
+bool PreStillValid(const Renderer& r, int32_t depth) {
+    if (r._currentDrawGroup != g_stash.preGroup) return false;
+    if (static_cast<int32_t>(g_dispatch.size()) <= depth || !g_dispatch[static_cast<size_t>(depth)]) return false;
+    const Renderer& p = *g_dispatch[static_cast<size_t>(depth)]->task[1].proxy;
+    const RendererDrawGroup& g  = r._drawGroups._data[r._currentDrawGroup];
+    const RendererDrawGroup& pg = p._drawGroups._data[0];
+    return g._shader == pg._shader && g._materialTypeFlags == pg._materialTypeFlags &&
+           std::memcmp(&g._camera._cameraToWorld.translation, &pg._camera._cameraToWorld.translation,
+                       sizeof(g._camera._cameraToWorld.translation)) == 0 &&
+           std::memcmp(&r._alphaT, &p._alphaT, sizeof(float)) == 0;
 }
 
 // Scene::_extDrawPass1End: Renderer::Draw's pass 1 is over (no gather follows in
@@ -418,6 +706,7 @@ void SyncThreads() {
         } else {
             g_par  = ParWalk{};                        // the slots' memory released
             g_fpar = FusedParWalk{};
+            ReleaseDispatch();                         // DISPATCHPAR: the pairs and their stand-ins
         }
         std::fprintf(stderr, "[GatherThreads] %d helper thread(s) on %d physical cores%s\n",
                      g_pool != nullptr ? g_pool->Helpers() : 0, physical,
@@ -450,6 +739,9 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
 
     const bool verify = g_verifyOn != 0;
     bool fused = false;   // FUSED: this list came out of a fused walk
+    bool fusedShadow = false;   // DISPATCHPAR: ... and this is its shadow gather
+    bool replay = false;        // DISPATCHPAR: ... and this is its main gather, the list already dispatched
+    int32_t mainGroup = -1;
     Frame fm;
     if (g_stash.valid && g_stash.scene == self && g_stash.renderer == renderer && g_stash.depth == depth &&
         g_stash.frameIndex == renderer->_frameIndex && g_stash.cleanGen == g_cleanGen &&
@@ -459,7 +751,11 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
         g_stash.valid = false;
         fused = true;
         ++g_counters.fusedServed;
-    } else if (!f.notShadow && MainFrameFor(*renderer, f, fm)) {
+        if (g_stash.pre) {
+            replay = PreStillValid(*renderer, depth);
+            if (!replay) ++g_counters.dispatchStale;
+        }
+    } else if (!f.notShadow && MainFrameFor(*renderer, f, fm, mainGroup)) {
         // FUSED: the shadow group, with the main group's walk in the same traversal.
         DropStash();
         g_hits.clear();
@@ -500,8 +796,11 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
         g_stash.cleanGen   = g_cleanGen;
         g_stash.logGen     = g_logGen;
         g_stash.f          = fm;
+        g_stash.pre        = false;   // DISPATCHPAR: ParDispatchFused sets it
+        g_stash.preGroup   = -1;
         f.boxes += fm.boxes;   // the stress report's per-site count: both groups' tests, here
         fused = true;
+        fusedShadow = true;
         ++g_counters.fusedWalks;
     } else if (__builtin_expect(g_parHelpers > 0, 0)) {
         ParallelGather(self, f, side, verify, list);   // CULLPAR: ext.gather_threads
@@ -532,43 +831,28 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
     }
     FrustumCull_CountSite(kFrustumCullSiteExtDrawGather, f.boxes);   // CULLROUTE: once per gather
 
+    // DISPATCHPAR (ext.gather_threads): the fused gather's two dispatches on the pool; the
+    // main gather that follows replays the main group's.
+    if (fusedShadow && g_parHelpers > 0) {
+        ParDispatchFused(*self, *renderer, depth, mainGroup, verify);
+        --g_depth;
+        return;
+    }
+    if (replay) {
+        const DispatchTask& t = g_dispatch[static_cast<size_t>(depth)]->task[1];
+        ReplayTask(t, *self, *renderer, depth);
+        if (verify) VerifyDispatch("DrawDispatchMain", t, *self, *renderer, depth);
+        --g_depth;
+        return;
+    }
+
     // The dispatch: retail's virtual slot 3 over the list, in order.
     const int32_t n = static_cast<int32_t>(list.size());
     [[maybe_unused]] const void* meshVt = nullptr;
     if constexpr (kDispatchMaterials) meshVt = Object::ClassVptr<Graphics::MeshInstance>::Get();
     for (int32_t i = 0; i < n; ++i) {
-        if (i + kDispatchAhead < n) {
-            const Geometry* ahead = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i + kDispatchAhead)];
-            __builtin_prefetch(ahead);                         // vptr, _detailId
-            __builtin_prefetch(&ahead->_worldBounds);          // the LOD box
-            __builtin_prefetch(&ahead->_opacity);              // opacity pair, transform
-            __builtin_prefetch(&ahead->_transform._previous);
-            __builtin_prefetch(ahead + 1);                     // a MeshInstance's mesh / materials / animation
-        }
-        if constexpr (kDispatchMaterials) {
-            // i+3: the vptr and `_materials` lines are the ones named at i+4.
-            if (i + 3 < n) {
-                const Geometry* g3 = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i + 3)];
-                if (*reinterpret_cast<const void* const*>(g3) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
-                    const auto* mi = static_cast<const Graphics::MeshInstance*>(g3);
-                    if (mi->_materials._data != nullptr) __builtin_prefetch(mi->_materials._data);
-                }
-            }
-            // i+2: the array line named at i+3; the MaterialInstances AddDrawItem reads.
-            if (i + 2 < n) {
-                const Geometry* g2 = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i + 2)];
-                if (*reinterpret_cast<const void* const*>(g2) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
-                    const auto* mi = static_cast<const Graphics::MeshInstance*>(g2);
-                    const int32_t count = mi->_materials._size < kDispatchMaterialCount ? mi->_materials._size
-                                                                                        : kDispatchMaterialCount;
-                    for (int32_t k = 0; k < count; ++k) {
-                        const Graphics::MaterialInstance* m = mi->_materials._data[k].Get();
-                        if (m != nullptr) __builtin_prefetch(&m->_shaderClass);
-                    }
-                }
-            }
-        }
         // `list` may move if a nested gather grows g_lists: index it afresh.
+        DispatchPrefetch(g_lists[static_cast<size_t>(depth)].data(), i, n, meshVt);
         Geometry* geo = g_lists[static_cast<size_t>(depth)][static_cast<size_t>(i)];
         geo->AddDrawItems(*self, *renderer);                   // VIRTUAL, slot 3
     }
@@ -589,6 +873,7 @@ void SyncSeams(bool want) {
         Scene::_extAddLog       = nullptr;
         g_sides.ForgetAll();
         g_stash = MainStash{};                     // FUSED: no kept list, its memory released
+        ReleaseDispatch();                         // DISPATCHPAR: the pairs and their stand-ins
         std::vector<FusedHit>().swap(g_hits);
         std::vector<std::vector<Geometry*>>().swap(g_lists);
     }

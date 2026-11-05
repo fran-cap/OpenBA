@@ -1604,8 +1604,6 @@ namespace {
 // one-shot NULL announcement went with the guard, per the block brief's "a
 // file-local cache whose last caller you converted goes with its guard".
 
-uint64_t g_addDrawItemsMesh   = 0;   // MeshInstance calls entered
-uint64_t g_addDrawItemsMeshQ  = 0;   // ... items actually queued
 uint64_t g_addDrawItemsEdge   = 0;
 uint64_t g_addDrawItemsEdgeQ  = 0;
 
@@ -2157,7 +2155,6 @@ Math::Matrix* MeshInstance::GetInstanceTransform(Math::Matrix* ret, int packed,
 // ---------------------------------------------------------------------------
 void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
     (void)scene;                      // RDX is overwritten at 0x180100f65
-    ++g_addDrawItemsMesh;
 
     const GraphicsMesh* const mesh = GetMesh().Get();          // 180100f32
     const float alpha = renderer._alphaT;                      // Renderer::_alphaT
@@ -2203,8 +2200,8 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
                 break;
             }
         }
-        ++g_lodMulti[shaderSlot];
-        if (!found) ++g_lodFallback[shaderSlot];               // past the last switch: level 0
+        ++g_gatherSlots[shaderSlot].lodMulti;
+        if (!found) ++g_gatherSlots[shaderSlot].lodFallback;               // past the last switch: level 0
         // The `TEST EDX,EDX ; JS` that follows is unreachable — see the door.
     }
 
@@ -2215,7 +2212,7 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
     if (_extLevelGathered != nullptr) _extLevelGathered(*this, level);
     const int32_t listCount = levels[level]._triangleLists._size;
     if (listCount <= 0) return;                                // 1801010c0
-    g_lodLevelItems[shaderSlot][level < kLodLevelSlots ? level : kLodLevelSlots - 1] +=   // issue #253
+    g_gatherSlots[shaderSlot].lodLevelItems[level < kLodLevelSlots ? level : kLodLevelSlots - 1] +=   // issue #253
         static_cast<uint64_t>(listCount);
 
     const uint16_t packedLevel = static_cast<uint16_t>(
@@ -2256,7 +2253,6 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
         renderer.Graphics::Renderer::AddDrawItem(
                 static_cast<const Geometry*>(this), material, arg4, arg5,
             0.0f, arg7, arg8, meshNow, arg10);                 // 18010119e
-        ++g_addDrawItemsMeshQ;
     }
 }
 
