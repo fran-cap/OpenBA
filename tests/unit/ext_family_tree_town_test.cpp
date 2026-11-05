@@ -19,8 +19,7 @@
 #include "Game/PlayerToolManager.h"
 void Ext::FamilyTree::CitizenButtonsForget() {
 }
-void PlayerToolManager::CenterOnEntity(UI::DialogInstance* const*, ComponentEntity* const*) {
-}
+// PlayerToolManager::CenterOnEntity: statusbar_icon_race_test.cpp defines the unit's one stand-in.
 
 namespace {
 struct LoopWithCalendar {
