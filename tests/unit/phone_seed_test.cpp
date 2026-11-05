@@ -38,3 +38,17 @@ UNIT_TEST(phone_seed_reads_crlf_and_a_last_line_without_newline) {
     CHECK(MissingSeedLines("ext.fps_cap_rate=30\n", kSeed) ==
           "GameEdgeScroll=false\nVideoRenderScale=50\next.fps_cap=1\n");
 }
+
+UNIT_TEST(phone_seed_reads_keys_as_the_settings_parser_does) {
+    using Platform::Android::MissingSeedLines;
+    // review F-315: a key the settings parser reads is present, whatever its spelling on disk.
+    // Before the fix each of these appended a seed line, which then overrode the player's value
+    // (the parser keeps the LAST value of a duplicate key).
+    CHECK(MissingSeedLines("VideoRenderScale = 75\n", "VideoRenderScale=50\n").empty());
+    CHECK(MissingSeedLines("  VideoRenderScale=75\n", "VideoRenderScale=50\n").empty());
+    CHECK(MissingSeedLines("\t VideoRenderScale\t=75\r\n", "VideoRenderScale=50\n").empty());
+    CHECK(MissingSeedLines("\xEF\xBB\xBFVideoRenderScale=75\n", "VideoRenderScale=50\n").empty());
+    // A comment line names no key: the seed line is still added.
+    CHECK(MissingSeedLines("# VideoRenderScale=75\n", "VideoRenderScale=50\n") == "VideoRenderScale=50\n");
+    CHECK(MissingSeedLines("#VideoRenderScale=75\n", "VideoRenderScale=50\n") == "VideoRenderScale=50\n");
+}

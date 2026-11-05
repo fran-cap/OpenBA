@@ -9,28 +9,28 @@
 // Issue #96: a tablet's seed is the phone's with a few values changed (WithSeedOverrides).
 // ============================================================================
 
+#include "io/settings_file.h"   // IO::SettingsFile::Parse: the keys the game reads
+
 #include <cstddef>
 #include <string>
 
 namespace Platform {
 namespace Android {
 
-// The "key=value\n" lines of `seed` whose key is not the key of any line of `existing` (a key is a
-// line's text before its '='; '\r' is ignored). In `seed`'s order, each ending in '\n'.
+// The "key=value\n" lines of `seed` whose key is not a key of `existing` (a seed line's key is its
+// text before its '='). In `seed`'s order, each ending in '\n'. The keys of `existing` are the ones
+// the settings parser reads (a BOM, blanks around the key, comments, escapes, CRLF): a key spelled
+// another way on disk is still the player's, and an appended line would override it, since the
+// parser keeps the last value of a duplicate key (review F-315).
 inline std::string MissingSeedLines(const std::string& existing, const char* seed) {
     auto keyOf = [](const std::string& line) {
         const size_t eq = line.find('=');
         return eq == std::string::npos ? std::string() : line.substr(0, eq);
     };
+    const IO::SettingsFile::Entries entries = IO::SettingsFile::Parse(existing);
     auto hasKey = [&](const std::string& key) {
-        size_t start = 0;
-        while (start < existing.size()) {
-            size_t end = existing.find('\n', start);
-            if (end == std::string::npos) end = existing.size();
-            std::string line = existing.substr(start, end - start);
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-            if (keyOf(line) == key) return true;
-            start = end + 1;
+        for (const IO::SettingsFile::Entry& e : entries) {
+            if (e.key == key) return true;
         }
         return false;
     };
