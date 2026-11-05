@@ -55,6 +55,8 @@
 #include "../collection/array_internal.h"
 #include "graphics/Camera.h"   // rtgfxd::RtGraphics_Camera_CopyCtor
 #include "graphics/Scene.h"    // rtgfxd::RtGfxd_SceneArraySetSizeFill
+#include "graphics/SunLight.h"      // ext.staggered_passes: SunLight::_extShadowFitView (eye camera)
+#include "graphics/stagger_hold.h"  // ext.staggered_passes: the reflection hold
 
 // ENDGAME B.3.5 block C — the three real classes. The `RtGraphics::*` PODs are
 // no longer used by this file at all; `FrameCopyImageBuffer.h`'s stays for
@@ -606,6 +608,22 @@ void GroupArraySetSize(void* arrayHdr, int n, const void* fill) {
 
 namespace Graphics {
 
+// NOT RETAIL (ext.staggered_passes, graphics/stagger_hold.h): null = retail.
+const int32_t* ReflectionImageBuffer::_extStaggerEvery = nullptr;
+
+namespace {
+
+// NOT RETAIL (ext.staggered_passes): the reflection's last real render. Main thread; one
+// state for the one water reflection a map has (a second image only refreshes more often:
+// its key differs).
+StaggerHold::State g_reflectionHold;
+
+// The view may move by this fraction of its height above the water plane before the held
+// image renders again (0.2 %: well under a pixel's worth of the reflection's shift).
+constexpr float kReflectionMoveFraction = 0.002f;
+
+}  // namespace
+
 void ReflectionImageBuffer::Render(Renderer& rend, const Scene& scene,
                                    const Camera& cam, int32_t generation) const {
     // `?Render@` is `UEBA` — CONST — and the body's last act WRITES `_generation`
@@ -613,6 +631,38 @@ void ReflectionImageBuffer::Render(Renderer& rend, const Scene& scene,
     const ReflectionImageBuffer* const p = this;
 
     if (p->_generation == generation) return;      // CMP [RCX+0x68],ESI / JZ
+
+    // EXT SEAM (NOT RETAIL, issue #253): ext.staggered_passes' reflection hold. A held frame
+    // appends no scene entry, so pass 1 gathers nothing for it and pass 2 never binds or
+    // clears the target: the water samples the image the last real render left. The
+    // generation is latched as retail's tail does, so the frame asks once.
+    if (_extStaggerEvery != nullptr) {
+        StaggerHold::View now;
+        StaggerHold::FillView(now, &cam._cameraToWorld, &cam._projection);
+        StaggerHold::Key key;
+        key.a     = &scene;
+        key.b     = p->_target;
+        key.c     = ::Video::Configuration::_singleton->reflectionDetail;
+        key.epoch = StaggerHold::Epoch();
+        const Math::Vector3& eye = cam._cameraToWorld.translation;
+        float height = p->_planeX * eye.x + p->_planeY * eye.y + p->_planeZ * eye.z - p->_planeD;
+        if (height < 0.0f) height = -height;
+        // ext.eye_camera's draw (its shadow-fit view is set for that one Draw) always renders,
+        // and the next game frame renders again.
+        const bool eyeDraw = SunLight::_extShadowFitView != nullptr;
+        if (!eyeDraw && StaggerHold::ShouldHold(g_reflectionHold, *_extStaggerEvery,
+                                                StaggerHold::kReflectionPhase, generation, key, now,
+                                                height * kReflectionMoveFraction)) {
+            p->_generation = generation;
+            ++StaggerHold::g_counters.reflectionHeld;
+            return;
+        }
+        ++StaggerHold::g_counters.reflectionRendered;
+        if (eyeDraw)
+            g_reflectionHold.valid = false;
+        else
+            StaggerHold::Latch(g_reflectionHold, generation, key, now);
+    }
 
     // ---- the reflection transform (three rows + translation) ----------------
     const float nx = p->_planeX, ny = p->_planeY, nz = p->_planeZ, d = p->_planeD;

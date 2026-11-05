@@ -68,6 +68,11 @@ struct Packet {
     bool                 aoOn = false;
     Graphics::ExtAoFrame ao   = {};
 
+    // ---- ext.staggered_passes (issue #253): pass 1 held the sun's shadow map -------
+    // MainHalf records SunLight::ExtTakeShadowHeld after pass 1; pass 2 hands it to
+    // SunLight::ExtShadowHoldEmit on the thread that emits, so DrawShadowMap keeps the map.
+    bool shadowHeld = false;
+
     // ---- P13_OVERLAP (docs/android/P13_OVERLAP.md) -------------------------
     // The items point at frozen copies (snapshot.h): the emit up to Pass2 reads
     // nothing the steps write, and the Gate holds the rest until they are over.

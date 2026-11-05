@@ -263,6 +263,15 @@ public:
     void Render(Renderer& renderer, const Scene& scene, const Camera& camera,
                 int32_t generation) const override;
 
+    // EXT SEAM (NOT RETAIL, issue #253): the engine end of ext.staggered_passes' reflection hold
+    // (graphics/stagger_hold.h). Null by default and while the row is off (retail: the image is
+    // rendered every frame); otherwise src/ext/staggered_passes/ points it at
+    // ext.staggered_passes_reflection (1, 2, 4 or 8). While it points at N > 1, Render may skip
+    // appending its scene entry for up to N - 1 frames on a still view, and the water samples the
+    // image the last real render left. A data pointer; the hold state lives in
+    // imagebuffer_derived.cpp, outside the pinned layout. Main thread.
+    static const int32_t* _extStaggerEvery;
+
 public:
     // TypeId, the factory pair and the two literals: DECLARE_TYPE / DEFINE_TYPE's.
     static void*         operator new(size_t size);             // ??2 — reached by name

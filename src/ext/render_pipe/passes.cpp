@@ -30,6 +30,7 @@
 #include "graphics/Light.h"
 #include "graphics/Scene.h"
 #include "graphics/skin_memo.h"
+#include "graphics/SunLight.h"   // ext.staggered_passes: SunLight::ExtShadowHoldEmit
 #include "video/Context.h"
 #include "video/Device.h"   // Video::RenderBuffer::width / height
 
@@ -95,8 +96,10 @@ void Pass1(Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float al
     if (Graphics::Scene::_extDrawPass1End != nullptr) Graphics::Scene::_extDrawPass1End();
 }
 
-void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao) {
+void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao, bool shadowHeld) {
     const SkinMemo::Scope skinMemoScope;   // fix 6: pass 2's memo, opened around pass 2 only
+    // ext.staggered_passes: the packet's "pass 1 held the sun map", for DrawShadowMap on this thread.
+    Graphics::SunLight::ExtShadowHoldEmit(shadowHeld);
 
     for (int64_t si = static_cast<int32_t>(r._sceneGroups._size) - 1; si >= 0; --si) {
         RendererSceneEntry* const e = r._sceneGroups._data + si;
@@ -150,6 +153,7 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao)
                 Graphics::ExtAoAfterOpaque(context, *ao, *e);
         }
     }
+    Graphics::SunLight::ExtShadowHoldEmit(false);
 }
 
 }  // namespace RenderPipe
