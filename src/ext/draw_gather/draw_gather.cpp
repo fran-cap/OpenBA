@@ -27,8 +27,8 @@
 // bone sets); the COMPPROF=4 shadows `DrawGather` (the list against retail's
 // reads) and `DrawGatherSide` (each record used against the live box) check it.
 // With ext.gather_threads on, the fused gather's two dispatches run as two pool tasks
-// (DISPATCHPAR, dispatch_par.h); `DrawDispatchShadow` / `DrawDispatchMain` check each
-// group's items against the serial dispatch at its own point of the frame.
+// (DISPATCHPAR, dispatch_par.h); `DrawDispatchJoined` checks each group's whole pre-sort
+// pass lists against a serial dispatch of the same list at its own point of the frame.
 // Nothing here is read by the sim or the pick scene (Picking::Scene is a
 // different class), nothing is serialized.
 // ============================================================================
@@ -407,7 +407,8 @@ inline void DispatchPrefetch(Geometry* const* list, int32_t i, int32_t n, [[mayb
         // i+3: the vptr and `_materials` lines are the ones named at i+4.
         if (i + 3 < n) {
             const Geometry* g3 = list[i + 3];
-            if (*reinterpret_cast<const void* const*>(g3) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
+            // The vptr picks the stage.
+            if (*reinterpret_cast<const void* const*>(g3) == meshVt) {  // CAST-OK: vslot
                 const auto* mi = static_cast<const Graphics::MeshInstance*>(g3);
                 if (mi->_materials._data != nullptr) __builtin_prefetch(mi->_materials._data);
             }
@@ -415,7 +416,8 @@ inline void DispatchPrefetch(Geometry* const* list, int32_t i, int32_t n, [[mayb
         // i+2: the array line named at i+3; the MaterialInstances AddDrawItem reads.
         if (i + 2 < n) {
             const Geometry* g2 = list[i + 2];
-            if (*reinterpret_cast<const void* const*>(g2) == meshVt) {  // CAST-OK: vslot (the vptr picks the stage)
+            // The vptr picks the stage.
+            if (*reinterpret_cast<const void* const*>(g2) == meshVt) {  // CAST-OK: vslot
                 const auto* mi = static_cast<const Graphics::MeshInstance*>(g2);
                 const int32_t count = mi->_materials._size < kDispatchMaterialCount ? mi->_materials._size
                                                                                     : kDispatchMaterialCount;
@@ -458,9 +460,8 @@ inline void DispatchPrefetch(Geometry* const* list, int32_t i, int32_t n, [[mayb
 // for the fused walk itself (FUSED above: the dispatches in between are const
 // AddDrawItems calls), and the renderer state the task copied, which the main gather
 // compares before it replays (PreStillValid; otherwise it dispatches as before). The
-// COMPPROF=4 shadows dispatch every safe item again, serially on the real renderer at the
-// replay's point, and compare the items field by field (the two pads AddDrawItem never
-// writes are not compared: they are stack bytes in retail too).
+// COMPPROF=4 shadow `DrawDispatchJoined` (ReplayVerified, below) checks the joined pass
+// lists against a serial dispatch.
 struct alignas(128) DispatchTask {
     Renderer*                     proxy = nullptr;   // made at the first use; freed by ReleaseDispatch only
     const Scene*                  scene = nullptr;
@@ -489,7 +490,8 @@ void ReleaseDispatch() {
 }
 
 bool ParSafe(const Geometry* geo, const void* meshVt) {
-    if (*reinterpret_cast<const void* const*>(geo) != meshVt) return false;  // CAST-OK: vslot (exact MeshInstance)
+    // An exact MeshInstance only.
+    if (*reinterpret_cast<const void* const*>(geo) != meshVt) return false;  // CAST-OK: vslot
     const auto* mi = static_cast<const Graphics::MeshInstance*>(geo);
     if (mi->_mesh.Get() == nullptr) return false;
     for (int32_t k = 0; k < mi->_materials._size; ++k) {
@@ -577,6 +579,7 @@ void ReplayTask(const DispatchTask& t, const Scene& scene, Renderer& r, int32_t 
         });
 }
 
+// The two pads AddDrawItem never writes are not compared: they are stack bytes in retail too.
 bool SameItem(const RendererDrawItem& a, const RendererDrawItem& b) {
     return a._geometry == b._geometry && a._material == b._material && a._instance == b._instance &&
            a._flags == b._flags && a._arg5 == b._arg5 &&
@@ -584,36 +587,110 @@ bool SameItem(const RendererDrawItem& a, const RendererDrawItem& b) {
            a._userData == b._userData && a._arg10 == b._arg10;
 }
 
-// COMPPROF=4: every safe entry of g_lists[depth] dispatched again, serially, on the real
-// renderer's current group, against the task's items; the lists and the counters slot are
-// put back. Detail: (pass << 60) | (count mismatch ? 1 << 59 : 0) | first differing item.
-void VerifyDispatch(const char* what, const DispatchTask& t, const Scene& scene, Renderer& r, int32_t depth) {
-    RendererDrawGroup& g = r._drawGroups._data[r._currentDrawGroup];
-    const int slot = GatherShaderSlot(g._shader);
-    const GatherSlotCounters saved = g_gatherSlots[slot];
+// ===========================================================================
+// COMPPROF=4: `DrawDispatchJoined`, the replay against the serial dispatch.
+// ===========================================================================
+// A gather is the last thing that fills its draw group before the group's sort
+// (Renderer::Draw's pass 1, render_pipe's Pass1, SunLight / SpotLight::AddDrawItems:
+// AddCulledDrawItems, then the sort), so the group's three pass lists at the replay's end
+// are the joined pre-sort lists: the items made before the gather, the buffered items and
+// the cuts' items.
+//
+// The reference is the serial dispatch on the real renderer at this gather's point: every
+// entry of the visible list, in list order, AddDrawItems on the current group. A cut runs
+// there, once (a cut can add a light, open a nested draw group or draw a rendered texture,
+// so it cannot run twice), and the span it appended to each pass is recorded. The safe
+// entries run a second time (the task ran them once); their g_gatherSlots counts are put
+// back. The lists are then copied whole, cut back to their size at the gather's start and
+// refilled by the new path: ReplayDispatch appends the task's buffered items and, at each
+// cut, that cut's recorded span. The copy and the refilled lists are compared item by item
+// over their whole length, so the interleaving of buffered items and cuts is checked, not
+// only the safe items. The lists keep the new path's items, as without the check.
+//
+// For the shadow group the reference is its full serial order at the shadow gather, each
+// cut in its place; for the main group it is the serial dispatch at the main gather, where
+// retail dispatches it. Detail: (pass << 60) | (count mismatch ? 1 << 59 : 0)
+// | (main group ? 1 << 58 : 0) | first differing item.
+struct CutSpan {
+    int32_t first[kDispatchPasses] = {};
+    int32_t end[kDispatchPasses]   = {};
+};
+std::vector<RendererDrawItem> g_joinedRef[kDispatchPasses];   // COMPPROF=4 scratch
+std::vector<CutSpan>          g_joinedCuts;
+
+void ReplayVerified(const DispatchTask& t, const Scene& scene, Renderer& r, int32_t depth, bool mainGroup) {
+    const int slot = GatherShaderSlot(r._drawGroups._data[r._currentDrawGroup]._shader);
     int32_t base[kDispatchPasses];
-    for (int k = 0; k < kDispatchPasses; ++k) base[k] = g._items[k]._size;
-    const std::vector<Geometry*>& list = g_lists[static_cast<size_t>(depth)];
-    for (Geometry* geo : list) {
-        if (ParSafe(geo, t.meshVt)) geo->AddDrawItems(scene, r);   // VIRTUAL, slot 3 (never a nested gather)
+    for (int k = 0; k < kDispatchPasses; ++k) {
+        base[k] = r._drawGroups._data[r._currentDrawGroup]._items[k]._size;
     }
-    RendererDrawGroup& gg = r._drawGroups._data[r._currentDrawGroup];
+
+    // The serial dispatch. g_lists, its entry and the draw group are read afresh: a cut's
+    // nested gather can grow g_lists, a cut's BeginDrawGroup can grow _drawGroups.
+    g_joinedCuts.clear();
+    size_t nextCut = 0;
+    const size_t n = g_lists[static_cast<size_t>(depth)].size();
+    for (size_t i = 0; i < n; ++i) {
+        Geometry* geo = g_lists[static_cast<size_t>(depth)][i];
+        const bool cut = nextCut < t.cuts.size() && static_cast<size_t>(t.cuts[nextCut].index) == i;
+        if (!cut) {
+            const GatherSlotCounters saved = g_gatherSlots[slot];
+            geo->AddDrawItems(scene, r);                   // VIRTUAL, slot 3
+            g_gatherSlots[slot] = saved;
+            continue;
+        }
+        ++nextCut;
+        CutSpan span;
+        for (int k = 0; k < kDispatchPasses; ++k) {
+            span.first[k] = r._drawGroups._data[r._currentDrawGroup]._items[k]._size;
+        }
+        geo->AddDrawItems(scene, r);                       // VIRTUAL, slot 3 (the cut's one run)
+        for (int k = 0; k < kDispatchPasses; ++k) {
+            span.end[k] = r._drawGroups._data[r._currentDrawGroup]._items[k]._size;
+        }
+        g_joinedCuts.push_back(span);
+    }
+
+    // The reference copied whole, the lists back to the gather's start, the new path's refill.
+    RendererDrawGroup& g = r._drawGroups._data[r._currentDrawGroup];
+    for (int k = 0; k < kDispatchPasses; ++k) {
+        const Collection::Array<RendererDrawItem>& list = g._items[k];
+        g_joinedRef[k].assign(list._data, list._data + list._size);
+        g._items[k]._size = base[k];
+    }
     const RendererDrawGroup& pg = t.proxy->_drawGroups._data[0];
-    bool same = true;
+    size_t cutOrdinal = 0;
+    ReplayDispatch(
+        t.cuts, t.ends,
+        [&](int k, int32_t first, int32_t count) {
+            AppendItems(g._items[k], pg._items[k]._data + first, count);
+        },
+        [&](int32_t /*index*/) {
+            if (cutOrdinal >= g_joinedCuts.size()) return;   // counted as a mismatch below
+            const CutSpan& span = g_joinedCuts[cutOrdinal];
+            ++cutOrdinal;
+            for (int k = 0; k < kDispatchPasses; ++k) {
+                const int32_t count = span.end[k] - span.first[k];
+                if (count > 0) AppendItems(g._items[k], g_joinedRef[k].data() + span.first[k], count);
+            }
+        });
+
+    // A cut the serial pass did not meet in the task's order counts as a mismatch (detail 0).
+    bool same = nextCut == t.cuts.size() && cutOrdinal == g_joinedCuts.size();
     long long detail = 0;
     for (int k = 0; k < kDispatchPasses && same; ++k) {
-        const int32_t refCount = gg._items[k]._size - base[k];
-        const int32_t parCount = pg._items[k]._size;
+        const int32_t refCount = static_cast<int32_t>(g_joinedRef[k].size());
+        const int32_t newCount = g._items[k]._size;
+        const RendererDrawItem* const ref = g_joinedRef[k].data();
         int32_t i = 0;
-        while (i < refCount && i < parCount && SameItem(gg._items[k]._data[base[k] + i], pg._items[k]._data[i])) ++i;
-        if (refCount != parCount || i != refCount) {
+        while (i < refCount && i < newCount && SameItem(ref[i], g._items[k]._data[i])) ++i;
+        if (refCount != newCount || i != refCount) {
             same = false;
-            detail = (static_cast<long long>(k) << 60) | (refCount != parCount ? (1ll << 59) : 0) | i;
+            detail = (static_cast<long long>(k) << 60) | (refCount != newCount ? (1ll << 59) : 0) |
+                     (mainGroup ? (1ll << 58) : 0) | i;
         }
     }
-    for (int k = 0; k < kDispatchPasses; ++k) gg._items[k]._size = base[k];
-    g_gatherSlots[slot] = saved;
-    StressHarness_Verify(what, same, detail);
+    StressHarness_Verify("DrawDispatchJoined", same, detail);
 }
 
 // The fused shadow gather's dispatch: both lists on the pool, then the shadow list's items
@@ -621,8 +698,9 @@ void VerifyDispatch(const char* what, const DispatchTask& t, const Scene& scene,
 // gather (g_stash.pre).
 void ParDispatchFused(const Scene& scene, Renderer& r, int32_t depth, int32_t mainGroup, bool verify) {
     if (static_cast<int32_t>(g_dispatch.size()) <= depth) g_dispatch.resize(static_cast<size_t>(depth) + 1);
-    if (!g_dispatch[static_cast<size_t>(depth)]) g_dispatch[static_cast<size_t>(depth)] = std::make_unique<DispatchPair>();
-    DispatchPair& d = *g_dispatch[static_cast<size_t>(depth)];
+    std::unique_ptr<DispatchPair>& pair = g_dispatch[static_cast<size_t>(depth)];
+    if (!pair) pair = std::make_unique<DispatchPair>();
+    DispatchPair& d = *pair;
     const void* const meshVt = Object::ClassVptr<Graphics::MeshInstance>::Get();
     DispatchTask& shadow = d.task[0];
     DispatchTask& main   = d.task[1];
@@ -647,15 +725,21 @@ void ParDispatchFused(const Scene& scene, Renderer& r, int32_t depth, int32_t ma
     g_counters.dispatchWaitTicks += static_cast<uint64_t>(pr.waitTicks);
     g_counters.dispatchCuts     += shadow.cuts.size() + main.cuts.size();
 
-    ReplayTask(shadow, scene, r, depth);
-    if (verify) VerifyDispatch("DrawDispatchShadow", shadow, scene, r, depth);
+    // COMPPROF=4: DrawDispatchJoined dispatches the shadow list serially, cuts in place, and
+    // checks the shadow group's whole pre-sort lists against it (ReplayVerified).
+    if (verify) {
+        ReplayVerified(shadow, scene, r, depth, false);
+    } else {
+        ReplayTask(shadow, scene, r, depth);
+    }
 }
 
 // The main gather, handed a pre-dispatched list: the renderer state the task copied is
 // still the renderer's.
 bool PreStillValid(const Renderer& r, int32_t depth) {
     if (r._currentDrawGroup != g_stash.preGroup) return false;
-    if (static_cast<int32_t>(g_dispatch.size()) <= depth || !g_dispatch[static_cast<size_t>(depth)]) return false;
+    if (static_cast<int32_t>(g_dispatch.size()) <= depth) return false;
+    if (!g_dispatch[static_cast<size_t>(depth)]) return false;
     const Renderer& p = *g_dispatch[static_cast<size_t>(depth)]->task[1].proxy;
     const RendererDrawGroup& g  = r._drawGroups._data[r._currentDrawGroup];
     const RendererDrawGroup& pg = p._drawGroups._data[0];
@@ -840,8 +924,11 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
     }
     if (replay) {
         const DispatchTask& t = g_dispatch[static_cast<size_t>(depth)]->task[1];
-        ReplayTask(t, *self, *renderer, depth);
-        if (verify) VerifyDispatch("DrawDispatchMain", t, *self, *renderer, depth);
+        if (verify) {
+            ReplayVerified(t, *self, *renderer, depth, true);   // COMPPROF=4: DrawDispatchJoined
+        } else {
+            ReplayTask(t, *self, *renderer, depth);
+        }
         --g_depth;
         return;
     }

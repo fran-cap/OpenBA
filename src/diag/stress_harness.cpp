@@ -1630,7 +1630,9 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
         }
     }
     // RENDERPIPE (ext.render_pipe, docs/extensions/handins/RENDERPIPE0.md): printed only
-    // while the extension is installed or counted something.
+    // while the extension is installed or counted something. The pass-1 split: with
+    // ext.gather_threads' DISPATCHPAR on, the main group's dispatch runs at the shadow gather
+    // and is counted in the shadow slot, so an A/B against it must compare total pass-1 time.
     {
         if (Ext::RenderPipe::Installed() || rp.pipelined != 0 || rp.emits != 0) {
             std::fprintf(stderr, "[Stress::pipe] render_pipe=%d thread=%d draw main=%.3fms packet=%.3fms emit=%.3fms "
