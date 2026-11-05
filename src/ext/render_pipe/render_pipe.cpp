@@ -506,6 +506,10 @@ struct SnapshotCounters {
     uint64_t refused = 0;
     uint64_t us      = 0;
     uint64_t bytes   = 0;
+    uint64_t copies  = 0;   // issue #253: geometries copied
+    uint64_t items   = 0;   //   draw items walked
+    uint64_t reused  = 0;   //   of which at a geometry already copied
+    uint64_t kept    = 0;   //   of which at the live object (WorldGeometry modes)
 };
 SnapshotCounters g_snapshot;
 Handoff*         g_handoff = nullptr;   // non-null: the render thread is up
@@ -556,9 +560,11 @@ struct EngineHost {
     void Freeze(Packet& next, Graphics::Renderer& r, GameUpdateLoop& g) {
         const uint64_t live = verify ? HashFrame(r, g.m_sunLight, false) : 0;
         const int64_t t0 = NowUs();
-        const SnapshotResult s = BuildSnapshot(next.slot, r, Ext::Ext().terrain_edit);
+        const SnapshotResult s = BuildSnapshot(next.slot, r, Ext::Ext().terrain_edit, verify);
         const int64_t us = NowUs() - t0;
         g_snapshot.us += static_cast<uint64_t>(us);
+        // Issue #253: the lean builder against the reference one, on the same items.
+        if (s.checked) StressHarness_Verify("RenderPipeSnapshotLean", s.mismatch == 0, static_cast<long long>(s.mismatch));
         if (!s.ok) {
             ++g_snapshot.refused;
             NoteRefusal(s.refused);
@@ -566,6 +572,10 @@ struct EngineHost {
         }
         ++g_snapshot.built;
         g_snapshot.bytes += s.bytes;
+        g_snapshot.copies += s.geometries;
+        g_snapshot.items  += s.items;
+        g_snapshot.reused += s.reused;
+        g_snapshot.kept   += s.kept;
         next.overlap = true;
         next.copyUs  = us;
         if (verify) {
@@ -780,6 +790,10 @@ Counters TakeWindow() {
     c.refused    = g_snapshot.refused;
     c.snapshotUs = g_snapshot.us;
     c.snapshotKB = g_snapshot.bytes / 1024;
+    c.snapshotCopies = g_snapshot.copies;
+    c.snapshotItems  = g_snapshot.items;
+    c.snapshotReused = g_snapshot.reused;
+    c.snapshotKept   = g_snapshot.kept;
     g_snapshot = SnapshotCounters{};
     return c;
 }

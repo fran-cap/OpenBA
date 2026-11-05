@@ -1627,6 +1627,7 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                                  "sequential=%llu emits=%llu waits=%llu (fence %llu) recoveries=%llu "
                                  "drains step=%llu other=%llu discarded=%llu idle writes=%llu skips=%llu "
                                  "| overlap: steps=%llu snapshots=%llu refused=%llu copy=%.3fms %lluKB/packet "
+                                 "copied=%llu items=%llu reused=%llu kept=%llu /packet "
                                  "governor=%s removable=%lldus idle=%lldus (without the copies %lldus) "
                                  "| split pass1 main/shadow/refl=%.3f/%.3f/%.3fms emit shadow/refl/main=%.3f/%.3f/%.3fms\n",
                          Ext::RenderPipe::Installed() ? 1 : 0, Ext::RenderPipe::Threaded() ? 1 : 0,
@@ -1643,6 +1644,10 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          static_cast<unsigned long long>(rp.refused),
                          rp.snapshots > 0 ? static_cast<double>(rp.snapshotUs) / 1000.0 / static_cast<double>(rp.snapshots) : 0.0,
                          static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotKB / rp.snapshots : 0),
+                         static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotCopies / rp.snapshots : 0),
+                         static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotItems / rp.snapshots : 0),
+                         static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotReused / rp.snapshots : 0),
+                         static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotKept / rp.snapshots : 0),
                          rp.governorOn ? "on" : "off", static_cast<long long>(rp.governorRemovableUs),
                          static_cast<long long>(rp.governorIdleUs), static_cast<long long>(rp.governorIdleWithoutUs),
                          split[PassSplit::kP1Main], split[PassSplit::kP1Shadow], split[PassSplit::kP1Refl],

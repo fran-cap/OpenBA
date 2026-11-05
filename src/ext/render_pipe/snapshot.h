@@ -39,10 +39,20 @@ struct SnapshotResult {
     uint32_t    geometries = 0;         // distinct geometries copied
     uint64_t    bytes      = 0;         // arena bytes written
     const char* refused    = nullptr;   // !ok: why (a type name, or the reason)
+    // Issue #253: the draw items pass A walked, how many found their geometry already copied
+    // (no second copy, no type test) and how many kept the live object (WorldGeometry modes).
+    uint32_t    items      = 0;
+    uint32_t    reused     = 0;
+    uint32_t    kept       = 0;
+    // COMPPROF=4 (`verify`): the lean builder was checked against the reference one.
+    bool        checked    = false;
+    uint32_t    mismatch   = 0;         // bits: 1 result, 2 arena bytes, 4 item pointers
 };
 
-// Main thread, `r` being Renderer slot `slot` right after pass 1.
-SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEdit);
+// Main thread, `r` being Renderer slot `slot` right after pass 1. `verify` (COMPPROF=4) also
+// runs the reference builder (the pre-#253 one: a table probe per item in pass A and pass C)
+// on the same items and compares its result, arena bytes and item pointers with the lean one's.
+SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEdit, bool verify);
 
 // MeshInstance::_extInstancedState: the frozen record of a copy (decided by its address:
 // it lies in a slot's arena), null for anything else.
