@@ -1657,8 +1657,7 @@ void DrawLogFrame(uint64_t frame, const Video::Context* context) {
                  "[Vulkan] frame=%llu draws=%d triangles=%d vertices=%d objects=%d | passes=%u (other targets %u) "
                  "resolves=%u reads=%u sets=%u pushes=%u pixel binds=%u depth %u/%u discarded (%u mispredicted) ao=%u ring=%lluB failed=%u | "
                  "pipelines +%u built +%u warmed %u failed | uploads %llu KB in %u batch(es) | "
-                 "no-blossom %u/%u canopy draws
-",
+                 "no-blossom %u/%u canopy draws\n",
                  static_cast<unsigned long long>(frame), context->_drawsSubmitted, context->_trianglesSubmitted,
                  context->_verticesSubmitted, context->_objectsSubmitted, g_frame.passes, g_frame.targetPasses,
                  g_frame.resolves, g_frame.reads, g_frame.setsAllocated, g_frame.pushes, g_frame.pixelBinds,
