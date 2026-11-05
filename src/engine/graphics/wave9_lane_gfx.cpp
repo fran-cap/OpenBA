@@ -397,7 +397,9 @@ void Renderer::AddDrawItem(const Geometry* geometry, const MaterialInstance* mat
     Collection::Array<RendererDrawItem>* list = &group->_items[pass];
     const int32_t oldSize = list->_size;
     DrawItemArrayResize(list, oldSize + 1, &rec);
-    ++g_gatherDrawItems;   // GATHERPF (NOT RETAIL): the COMPPROF `gather` row's appended-item count
+    // GATHERPF (NOT RETAIL): the COMPPROF `gather` row's appended-item count, split by the
+    // group's shader (issue #253; `shader` is already >= 0 here)
+    ++g_gatherDrawItems[GatherShaderSlot(static_cast<int32_t>(shader))];
 
     // The render-to-texture pre-pass. `_hasRenderedTexture` is +0x25, the byte
     // BuildParameters sets when any bound texture's +0x2c == 5. The entry's

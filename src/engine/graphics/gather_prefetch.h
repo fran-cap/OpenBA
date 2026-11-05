@@ -78,6 +78,25 @@ inline constexpr bool kDispatchMaterials = true;
 // call; draw items once per append in AddDrawItem. (The per-cell and per-ring-object
 // counts were removed by CLEANUP: a memory add per ring object in the walk; their
 // numbers are in GATHERPF.md's Results.)
-extern uint64_t g_gatherVisible;      // visible-list entries dispatched (slot 3 calls)
-extern uint64_t g_gatherDrawItems;    // draw items appended to the current group's three
-                                      // pass lists during the dispatch phase
+//
+// Issue #253: every counter is split by the current draw group's `_shader` (the slot
+// GatherShaderSlot picks: 0 main, 1 shadow, 2 reflection, 3 any other value), so the
+// report can tell the scene groups apart. The report sums the slots for the totals.
+constexpr int kGatherShaderSlots = 4;
+
+inline int GatherShaderSlot(int32_t shader) {
+    return (shader >= 0 && shader < kGatherShaderSlots - 1) ? static_cast<int>(shader) : kGatherShaderSlots - 1;
+}
+
+extern uint64_t g_gatherVisible[kGatherShaderSlots];     // visible-list entries dispatched (slot 3 calls)
+extern uint64_t g_gatherDrawItems[kGatherShaderSlots];   // draw items appended to the current group's three
+                                                         // pass lists during the dispatch phase
+
+// Issue #253: MeshInstance::AddDrawItems' LOD pick (mesh.cpp), bumped once per call.
+// `multi` = calls whose mesh has more than one detail level; `fallback` = those whose
+// level loop found no level (past the last switch distance), so retail draws level 0;
+// `levelItems` = triangle lists queued per chosen level (index 3 = level 3 and up).
+constexpr int kLodLevelSlots = 4;
+extern uint64_t g_lodMulti[kGatherShaderSlots];
+extern uint64_t g_lodFallback[kGatherShaderSlots];
+extern uint64_t g_lodLevelItems[kGatherShaderSlots][kLodLevelSlots];
