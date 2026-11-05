@@ -12,10 +12,13 @@
 //   ASSAO Draw              UpdateConstants(pass 0), PrepareDepths, GenerateSSAO (4 deinterleaved
 //                           passes, each a generate and its blurs), then the Apply: a pass on the main
 //                           colour (draw.cpp DrawAoBeginApply) multiplying the AO term into it
-//                           (blend colour ZERO / SRC_COLOR, alpha ZERO / SRC_ALPHA; no depth)
+//                           (blend colour ZERO / SRC_COLOR, alpha ZERO / SRC_ALPHA; depth test off).
+//                           Issue #253: when the bound target is the main one, that pass is the
+//                           Blended list's, with the main depth attached (LOAD) but never tested
 //   draw.cpp DrawAoEnd      the engine's cached command-buffer state is forgotten: its next draw
-//                           rebinds pipeline, sets, viewport, scissor and buffers, and begins its pass
-//                           with the main depth back in its attachment layout (LOAD)
+//                           rebinds pipeline, sets, viewport, scissor and buffers, and continues the
+//                           apply's pass (or begins its own with the main depth back in its attachment
+//                           layout, LOAD)
 // Each ASSAO step is ASSAODX11.cpp's, in its order: the same pixel shaders for the same quality levels,
 // the same targets (four half-size R16F depth chains with four mips, a full-size RGBA8 normals UAV, two
 // half-size RG8 ping-pong targets, a four-layer RG8 results array), the same samplers (point clamp,
@@ -464,6 +467,8 @@ struct PipelineShape {
     VkFormat formats[4] = {};
     uint32_t samples = 1;
     bool multiply = false;
+    VkFormat depth = VK_FORMAT_UNDEFINED;     // the apply in the main pass (draw.cpp DrawAoBeginApply)
+    VkFormat stencil = VK_FORMAT_UNDEFINED;
 };
 
 uint64_t ShapeKey(const PipelineShape& s) {
@@ -479,6 +484,8 @@ uint64_t ShapeKey(const PipelineShape& s) {
         mix(static_cast<uint64_t>(f));
     mix(s.samples);
     mix(s.multiply ? 1 : 0);
+    mix(static_cast<uint64_t>(s.depth));
+    mix(static_cast<uint64_t>(s.stencil));
     return h;
 }
 
@@ -567,6 +574,8 @@ VkPipeline PipelineFor(const PipelineShape& s) {
     auto ri = Make<VkPipelineRenderingCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO);
     ri.colorAttachmentCount = s.colorCount;
     ri.pColorAttachmentFormats = s.formats;
+    ri.depthAttachmentFormat = s.depth;
+    ri.stencilAttachmentFormat = s.stencil;
 
     auto pi = Make<VkGraphicsPipelineCreateInfo>(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
     pi.pNext = &ri;
@@ -745,6 +754,8 @@ struct DrawDesc {
     uint32_t samples = 1;
     bool multiply = false;
     bool mainPass = false;         // the apply: draw.cpp's pass on the main colour is already begun
+    VkFormat depth = VK_FORMAT_UNDEFINED;     // that pass's depth / stencil formats (none: VK_FORMAT_UNDEFINED)
+    VkFormat stencil = VK_FORMAT_UNDEFINED;
 };
 
 bool Draw(VkCommandBuffer cb, SlotState& slot, const DrawDesc& d) {
@@ -756,6 +767,8 @@ bool Draw(VkCommandBuffer cb, SlotState& slot, const DrawDesc& d) {
         shape.formats[i] = d.formats[i];
     shape.samples = d.samples;
     shape.multiply = d.multiply;
+    shape.depth = d.depth;
+    shape.stencil = d.stencil;
     const VkPipeline pipeline = PipelineFor(shape);
     if (!pipeline) return false;
 
@@ -836,6 +849,7 @@ bool Draw(VkCommandBuffer cb, SlotState& slot, const DrawDesc& d) {
         ri.colorAttachmentCount = d.colorCount;
         ri.pColorAttachments = colors;
         vkCmdBeginRendering(cb, &ri);
+        DrawNoteAoPass();
     }
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     // The engine's Y flip (draw.cpp): a negative-height viewport keeps D3D's orientation.
@@ -1031,8 +1045,8 @@ bool Apply(SlotState& slot, const AoTargets& t, const Graphics::ExtAoFrame& f, V
     std::vector<VkImageMemoryBarrier2> barriers;
     MoveAll(g.results, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
     FlushBarriers(t.cb, &barriers);
-    if (!DrawAoBeginApply()) return false;
     DrawDesc d;
+    if (!DrawAoBeginApply(&d.depth, &d.stencil)) return false;
     d.mainPass = true;
     d.formats[0] = t.colorFormat;
     d.colorCount = 1;
