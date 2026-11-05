@@ -229,8 +229,14 @@ void FaaCurrent() {
 // then the edge dither on the result, on the cutout programs only), one registry reference, or null for
 // retail. `*cov`: the copy writes coverage. `bloom` false: natural growth's copy without the blossom (issue
 // #253). `*bloomKind` (may be null): the blob is a natural-growth billboard colour shader (that variant exists).
-ShaderEntry* FaaCopy(const uint8_t* blob, size_t size, int i, bool bloom, bool* cov, bool* bloomKind) {
+// `*steps` (may be null): which rewrites the copy carries (kStepCutout | kStepDither), so a twin can be held to
+// the same ones as its primary.
+constexpr unsigned kStepCutout = 1u;
+constexpr unsigned kStepDither = 2u;
+ShaderEntry* FaaCopy(const uint8_t* blob, size_t size, int i, bool bloom, bool* cov, bool* bloomKind,
+                     unsigned* steps = nullptr) {
     *cov = false;
+    if (steps != nullptr) *steps = 0;
     // NATURAL_GROWTH.md: natural growth first (it keeps the cutout's grammar).
     std::vector<uint8_t> grown;
     NgRewrite::Kind kind = NgRewrite::Kind::None;
@@ -255,6 +261,7 @@ ShaderEntry* FaaCopy(const uint8_t* blob, size_t size, int i, bool bloom, bool* 
             cur = std::move(cut);
             changed = true;
             *cov = g_faa.opt.coverage;
+            if (steps != nullptr) *steps |= kStepCutout;
             if (g_logged.insert("ft" + std::to_string(g_faa.gen) + ":" + hash).second) {
                 std::fprintf(stderr, "[FoliageAA] transformed %s v%d gen %u%s%s: %zu B -> %zu B\n", hash.c_str(), i,
                              g_faa.gen, g_faa.opt.coverage ? " coverage" : "",
@@ -275,6 +282,7 @@ ShaderEntry* FaaCopy(const uint8_t* blob, size_t size, int i, bool bloom, bool* 
             if (BbsDither::Transform(dm, &dithered, g_faa.dither)) {
                 cur = std::move(dithered);
                 changed = true;
+                if (steps != nullptr) *steps |= kStepDither;
             } else {
                 ++g_faa.createFailed;
                 std::fprintf(stderr, "[FoliageAA] dither of %s v%d FAILED its self-check: kept the cutout / "
@@ -310,15 +318,20 @@ Copies& FaaBuild(PixelProgramData* p) {
         const size_t size = static_cast<size_t>(b.GetSize());
         ++g_faa.blobsSeen;
         bool bloomKind = false;
-        c.xf[i] = FaaCopy(blob, size, i, true, &c.cov[i], &bloomKind);
+        unsigned steps = 0;
+        c.xf[i] = FaaCopy(blob, size, i, true, &c.cov[i], &bloomKind, &steps);
         if (c.xf[i] == nullptr) continue;
         any = true;
         ++g_faa.blobsTransformed;
         if (!bloomKind) continue;
         bool cov = false;
-        c.noBloom[i] = FaaCopy(blob, size, i, false, &cov, nullptr);
-        // the variant draws instead of xf: it must be a natural-growth copy with the same coverage
-        if (c.noBloom[i] != nullptr && (!c.noBloom[i]->naturalGrowth || cov != c.cov[i])) {
+        unsigned twinSteps = 0;
+        c.noBloom[i] = FaaCopy(blob, size, i, false, &cov, nullptr, &twinSteps);
+        // the variant draws instead of xf: it must be a natural-growth copy with the same coverage and the same
+        // cutout / dither rewrites on top (review of the issue #253 batch: a step that applied to one copy only
+        // would draw different pixels)
+        if (c.noBloom[i] != nullptr &&
+            (!c.noBloom[i]->naturalGrowth || cov != c.cov[i] || twinSteps != steps)) {
             ReleaseShader(c.noBloom[i]);
             c.noBloom[i] = nullptr;
         }
