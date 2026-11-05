@@ -198,6 +198,10 @@ struct Frame {
     // THE READABLE DEPTH (draw.h) as requested when the frame began: the main targets are (re)made with
     // it, so a request that changes mid-frame takes effect at the next frame, never between two passes.
     bool readableWanted = false;
+    uint32_t readableBits = 0;    // the readers behind readableWanted (draw.h kDepthReader*)
+    // Issue #253: the AO pass has sampled this frame's main depth (DrawAoBegin). When it is the only
+    // reader, the main-depth passes after it may discard depth again (THE DEPTH DISCARD).
+    bool aoDepthRead = false;
     VkPipeline pipeline = VK_NULL_HANDLE;
     bool viewportSet = false;
     VkViewport viewport{};
@@ -619,7 +623,8 @@ bool BeginPass(const Target& t) {
         const bool loads = depth.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD ||
                            (hasStencil && stencil.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD);
         bool missed = false;
-        const bool discard = g_discard.MainDepthPass(loads, !g_frame.readableWanted, &missed);
+        const bool aoOnlyDone = g_frame.readableBits == kDepthReaderAo && g_frame.aoDepthRead;
+        const bool discard = g_discard.MainDepthPass(loads, !g_frame.readableWanted || aoOnlyDone, &missed);
         if (missed) {
             depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
             depth.clearValue.depthStencil.depth = 1.0f;
@@ -1542,7 +1547,9 @@ void DrawBeginFrame(const FrameTarget& target) {
     g_frame.lastPipeline = lastPipeline;
     g_frame.lastPair = lastPair;
     g_frame.lastValid = lastValid;
-    g_frame.readableWanted = g_readableRequested.load() != 0;
+    g_frame.readableBits = g_readableRequested.load();
+    g_frame.readableWanted = g_frame.readableBits != 0;
+    g_frame.aoDepthRead = false;
     g_clear = PendingClear{};
     g_discard.BeginFrame();
     g_swap.image = target.image;
@@ -2102,6 +2109,7 @@ bool DrawAoBegin(AoTargets* out) {
     out->samples = g_main.samples;
     out->msrtss = g_main.samples > 1 && g_main.msrtss;
     out->colorFormat = SwapchainFormat();
+    g_frame.aoDepthRead = true;
     return true;
 }
 

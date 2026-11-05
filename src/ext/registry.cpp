@@ -733,7 +733,9 @@ constexpr int32_t kTouchPointerLifts[] = { 0, 80, 120, 160, 200, 240 };
 constexpr int32_t kTouchPointerPickRadii[] = { 0, 25, 50, 75, 100 };
 
 const ValueKey kValueKeys[] = {
-    { "ao_quality", "ambient_occlusion", 1, 3, 2,
+    // 4 = ASSAO Lowest (half density, the phone tier; issue #253), appended after High so a stored
+    // 1..3 keeps its meaning. The Enhanced tab lists it second (Off / Lowest / Low / Medium / High).
+    { "ao_quality", "ambient_occlusion", 1, 4, 2,
       [](State& s) -> int32_t& { return s.val.ao_quality; }, nullptr, 0 },
     { "ao_opacity", "ambient_occlusion", 0, 30, 20,
       [](State& s) -> int32_t& { return s.val.ao_opacity; }, nullptr, 0 },

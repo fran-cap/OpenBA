@@ -33,7 +33,8 @@ void GameProjection(float n, float f, float sx, float sy, float m[16]) {
 UNIT_TEST(ext_ambient_occlusion_tier_table) {
     Ext::AmbientOcclusion::AoMath::Tier t{};
     CHECK(!Ext::AmbientOcclusion::AoMath::TierFor(0, false, t));
-    CHECK(!Ext::AmbientOcclusion::AoMath::TierFor(4, false, t));
+    CHECK(!Ext::AmbientOcclusion::AoMath::TierFor(5, false, t));
+    CHECK(Ext::AmbientOcclusion::AoMath::TierFor(4, false, t) && t.qualityLevel == Ext::AmbientOcclusion::AoMath::kAssaoLowest && t.blurPassCount == 1);
     CHECK(!Ext::AmbientOcclusion::AoMath::TierFor(-1, false, t));
     CHECK(Ext::AmbientOcclusion::AoMath::TierFor(1, false, t) && t.qualityLevel == Ext::AmbientOcclusion::AoMath::kAssaoLow && t.blurPassCount == 1);
     CHECK(Ext::AmbientOcclusion::AoMath::TierFor(1, true, t) && t.qualityLevel == Ext::AmbientOcclusion::AoMath::kAssaoLowest);

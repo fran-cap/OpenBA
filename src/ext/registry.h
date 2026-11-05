@@ -172,7 +172,7 @@ struct Extensions {
 // feature itself costs). The initialisers are the boot-less defaults and must
 // equal the table's `defaultValue` (the unit tests check it).
 struct Values {
-    int32_t ao_quality = 2;     // ext.ao_quality  1..3   (owner ambient_occlusion): Low / Medium / High
+    int32_t ao_quality = 2;     // ext.ao_quality  1..4   (owner ambient_occlusion): Low / Medium / High / Lowest (4: appended so 1..3 keep their meaning; issue #253)
     int32_t ao_opacity = 20;    // ext.ao_opacity  0..30 percent (owner ambient_occlusion): the apply's strength; the user's look 2026-10-14: 20 is the max that reads well, 30 the ceiling
     int32_t foliage_aa_mode = 2; // ext.foliage_aa_mode 1..2 (owner better_trees): 1 smooth edges, 2 + distance fill (FOLIAGE_AA.md §1 ruling 4)
     int32_t max_shadow_size = 4096; // ext.max_shadow_size 4096 | 8192 (owner max_shadow_res): the sun map at High (FAA-SHADOW2)

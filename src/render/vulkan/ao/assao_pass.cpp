@@ -859,6 +859,12 @@ VkRect2D Rect(uint32_t width, uint32_t height) {
     return VkRect2D{ { 0, 0 }, { width, height } };
 }
 
+// Issue #253: a single-sampled main depth (1x, or the tiler's MSAA, whose depth image holds sample 0)
+// is read by PrepareDepths straight through its sampled view. The 1x resolve is a plain Load copy
+// (ao_depth_resolve.hlsl PSResolveDepth1x) and R32F holds the D24 / D32 value exactly, so skipping it
+// changes no pixel; it saves a full-resolution pass, its barrier and its write on the phone.
+bool DirectDepth(const AoTargets& t) { return t.samples <= 1 || t.msrtss; }
+
 // ao_pass.cpp's DepthResolve::Run: sample 0 of the multisampled depth, or a 1x copy, into the R32F target.
 bool ResolveDepth(VkCommandBuffer cb, SlotState& slot, const AoTargets& t) {
     std::vector<VkImageMemoryBarrier2> barriers;
@@ -879,13 +885,15 @@ bool ResolveDepth(VkCommandBuffer cb, SlotState& slot, const AoTargets& t) {
     return Draw(cb, slot, d);
 }
 
-// ASSAODX11.cpp PrepareDepths with generateNormals (NormalSRV null).
-bool PrepareDepths(VkCommandBuffer cb, SlotState& slot, const Graphics::ExtAoFrame& f, VkDeviceSize constants) {
+// ASSAODX11.cpp PrepareDepths with generateNormals (NormalSRV null). `depth` is the R32F resolve, or
+// the main depth's own sampled view when that is already single-sampled (DirectDepth).
+bool PrepareDepths(VkCommandBuffer cb, SlotState& slot, const Graphics::ExtAoFrame& f, VkDeviceSize constants,
+                   VkImageView depth, bool resolved) {
     std::vector<VkImageMemoryBarrier2> barriers;
-    MoveAll(g.depthResolved, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
+    if (resolved) MoveAll(g.depthResolved, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
     MoveAll(g.normals, VK_IMAGE_LAYOUT_GENERAL, &barriers);
     DrawDesc d;
-    d.textures[0] = g.depthResolved.gpu.view;
+    d.textures[0] = depth;
     d.uav = g.normals.gpu.view;
     d.area = { g.halfWidth, g.halfHeight };
     d.viewportWidth = static_cast<float>(g.halfWidth);
@@ -1227,10 +1235,12 @@ void AfterOpaque(Video::Context& context, const Graphics::ExtAoFrame& frame, con
         ClearTargets(cb);
         g.requiresClear = false;
     }
-    bool ok = ResolveDepth(cb, slot, t);
+    const bool direct = DirectDepth(t);
+    bool ok = direct || ResolveDepth(cb, slot, t);
     // ASSAODX11.cpp Draw: UpdateConstants(pass 0), PrepareDepths, GenerateSSAO, Apply.
     const VkDeviceSize first = ok ? WriteConstants(slot, MakeConstants(projection, fogged, 0)) : ~0ull;
-    ok = ok && first != ~0ull && PrepareDepths(cb, slot, fogged, first);
+    ok = ok && first != ~0ull &&
+         PrepareDepths(cb, slot, fogged, first, direct ? t.depthView : g.depthResolved.gpu.view, !direct);
     const VkDeviceSize last = ok ? GenerateSsao(cb, slot, projection, fogged) : ~0ull;
     ok = ok && last != ~0ull && Apply(slot, t, fogged, last);
     if (!ok) LogOnce(2, "a step of the pass failed (logged above): this frame has no AO");

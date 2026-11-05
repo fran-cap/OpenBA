@@ -3,7 +3,7 @@
 // ============================================================================
 // NOT RETAIL. params.h is the contract with AOCORE. The values live in the
 // registry (src/ext/registry.h, "VALUED KEYS"): the bool row
-// `ext.ambient_occlusion` and the two valued keys `ext.ao_quality` (1..3) and
+// `ext.ambient_occlusion` and the two valued keys `ext.ao_quality` (1..4) and
 // `ext.ao_opacity` (0..30). This file only maps them to Params and back:
 //
 //   Current().quality = row on ? ext.ao_quality : 0      (0 = off, params.h)
@@ -13,7 +13,7 @@
 //   p.quality <= 0   the row goes OFF; ext.ao_quality keeps its stored tier, so
 //                    turning the row back on (here or in the Extensions dialog)
 //                    restores it
-//   p.quality >= 1   ext.ao_quality = clamp(p.quality, 1, 3), the row goes ON
+//   p.quality >= 1   ext.ao_quality = clamp(p.quality, 1, 4), the row goes ON (4 = Lowest)
 //   p.opacity        ext.ao_opacity = clamp(p.opacity, 0, 30)
 // The row is written through the registry's own SetAndRecord (so its Sync
 // hooks fire: AOCORE's Ext::AmbientOcclusion::Sync rebuilds the readable depth on a

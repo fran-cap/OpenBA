@@ -41,6 +41,7 @@ StringTable aoQualityLevels
 	Entry _strings
 	[
 		{ String _name = "Level0";		String _text = "Off";		}
+		{ String _name = "Level4";		String _text = "Lowest";	}
 		{ String _name = "Level1";		String _text = "Low";		}
 		{ String _name = "Level2";		String _text = "Medium";	}
 		{ String _name = "Level3";		String _text = "High";		}
