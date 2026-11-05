@@ -311,8 +311,9 @@ public:
     static ExtCulledGatherFn _extCulledGather;
     static SceneAddLog*      _extAddLog;
     // CULLPAR (ext.gather_threads): called by Renderer::Draw once its pass 1 (cull and
-    // collect, every gather of the frame) is over; parks the gather helpers. Null
-    // unless the helper pool exists (one null test per Renderer::Draw).
+    // collect, every gather of the frame) is over; parks the gather helpers and drops
+    // ext.draw_gather's untaken fused list (issue #253). Null unless ext.draw_gather is
+    // installed (one null test per Renderer::Draw).
     using ExtDrawPass1EndFn = void (*)();
     static ExtDrawPass1EndFn _extDrawPass1End;
 

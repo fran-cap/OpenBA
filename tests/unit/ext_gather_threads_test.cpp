@@ -320,6 +320,122 @@ UNIT_TEST(ext_gather_threads_parallel_walk_equals_sequential) {
     CHECK(nonEmpty >= 300);    // and the frusta let objects through
 }
 
+// ---------------------------------------------------------------------------
+// FUSED (issue #253): the shadow group's and the main group's walks in one traversal.
+// ---------------------------------------------------------------------------
+// Each group's list out of FusedWalk + FusedSplit is byte for byte that group's own
+// sequential walk (retail's reads); the parallel fused walk's hits are the sequential
+// fused walk's for 0..3 helpers, with the same counters, box tests and side array.
+UNIT_TEST(ext_gather_threads_fused_walk_equals_two_walks) {
+    int cases = 0, bothNonEmpty = 0, withTasks = 0;
+    for (int helpers = 0; helpers <= 3; ++helpers) {
+        HelperPool pool(helpers);
+        std::mt19937 rng(7300u + static_cast<unsigned>(helpers));
+        Ext::DrawGather::FusedParWalk par;
+        par.pool = &pool;
+        for (int c = 0; c < 250; ++c) {
+            World w;
+            BuildWorld(w, rng);
+            Ext::DrawGather::Frame fa, fb;
+            RandomFrame(fa, rng);
+            RandomFrame(fb, rng);
+            if (c % 4 != 3) {
+                fa.notShadow = false;              // the sun's group ...
+                fb.notShadow = true;               // ... and the main group, mostly
+            }
+            if (c % 7 == 0) fb.cull = fa.shadow;   // the sun case: B's cull frustum is A's draw frustum
+            FrustumCull_Prepare(&fb.cull, &fb.cullPlanes);
+
+            // The references: each group's own walk, retail's reads.
+            Ext::DrawGather::Frame ra = fa, rb = fb;
+            std::vector<Graphics::Geometry*> refA, refB;
+            Ext::DrawGather::RetailTest rta{ ra };
+            Ext::DrawGather::Walk(w.scene(), ra, refA, rta);
+            Ext::DrawGather::RetailTest rtb{ rb };
+            Ext::DrawGather::Walk(w.scene(), rb, refB, rtb);
+
+            SideArray sideSeq, sidePar;
+            RandomSide(sideSeq, w, rng);
+            sidePar = sideSeq;
+
+            // The sequential fused walk.
+            Ext::DrawGather::Frame sa = fa, sb = fb;
+            std::vector<Ext::DrawGather::FusedHit> hitsSeq;
+            Ext::DrawGather::TaskStats seqStats;
+            Ext::DrawGather::FusedBoxTest test{ sa, sb, sideSeq, true, seqStats };
+            Ext::DrawGather::FusedWalk(w.scene(), sa, sb, hitsSeq, test);
+            std::vector<Graphics::Geometry*> gotA, gotB;
+            Ext::DrawGather::FusedSplit(sa, sb, hitsSeq, gotA, gotB);
+            CHECK(gotA == refA);
+            CHECK(gotB == refB);
+            CHECK(seqStats.sideMismatches == 0);
+
+            // The parallel fused walk.
+            Ext::DrawGather::Frame pa = fa, pb = fb;
+            std::vector<Ext::DrawGather::FusedHit> hitsPar;
+            if (c % 5 != 4) pool.Wake();
+            const Ext::DrawGather::ParPassResult r =
+                Ext::DrawGather::FusedParGather(par, w.scene(), pa, pb, sidePar, true, hitsPar);
+            if (c % 3 == 2) pool.Park();
+            CHECK(hitsPar.size() == hitsSeq.size());
+            bool sameHits = hitsPar.size() == hitsSeq.size();
+            for (size_t i = 0; sameHits && i < hitsPar.size(); ++i)
+                sameHits = hitsPar[i].geo == hitsSeq[i].geo && hitsPar[i].bits == hitsSeq[i].bits;
+            CHECK(sameHits);
+            CHECK(r.stats.nodesTested == seqStats.nodesTested);
+            CHECK(r.stats.refreshes == seqStats.refreshes);
+            CHECK(r.stats.sideChecks == seqStats.sideChecks);
+            CHECK(r.stats.sideMismatches == 0);
+            CHECK(pa.boxes == sa.boxes);
+            CHECK(pb.boxes == sb.boxes);
+            CHECK(!r.sideGrew);
+            CHECK(SameSide(sidePar, sideSeq, w));
+            ++cases;
+            if (!refA.empty() && !refB.empty()) ++bothNonEmpty;
+            if (r.tasks > 1) ++withTasks;
+        }
+        pool.Park();
+    }
+    CHECK(cases == 1000);
+    CHECK(bothNonEmpty >= 200);   // both groups do get objects
+    CHECK(withTasks >= 300);      // and the walks reach the frontier
+}
+
+UNIT_TEST(ext_gather_threads_fused_same_walk) {
+    std::mt19937 rng(515);
+    Ext::DrawGather::Frame a;
+    RandomFrame(a, rng);
+    a.notShadow = true;
+    Ext::DrawGather::Frame b = a;
+    b.boxes = 77;                                  // counters are not inputs
+    b.cullVerify = !a.cullVerify;
+    CHECK(Ext::DrawGather::SameWalk(a, b));
+    b.shadow.planes[2].x += 1.0f;                  // unread without a shadow pass
+    CHECK(Ext::DrawGather::SameWalk(a, b));
+    a.notShadow = false;
+    b.notShadow = false;
+    CHECK(!Ext::DrawGather::SameWalk(a, b));       // read with one
+    b = a;
+    b.passMask ^= 1u;
+    CHECK(!Ext::DrawGather::SameWalk(a, b));
+    b = a;
+    b.rendererDetail += 1;
+    CHECK(!Ext::DrawGather::SameWalk(a, b));
+    b = a;
+    b.notShadow = !a.notShadow;
+    CHECK(!Ext::DrawGather::SameWalk(a, b));
+    b = a;
+    b.cull.planes[5].w = -b.cull.planes[5].w - 1.0f;
+    CHECK(!Ext::DrawGather::SameWalk(a, b));
+    b = a;
+    b.cull.isOrthographic = !a.cull.isOrthographic;
+    CHECK(!Ext::DrawGather::SameWalk(a, b));
+    b = a;
+    b.cull.planes[0].x = -0.0f;                    // bits, not values: -0 is not +0
+    a.cull.planes[0].x = 0.0f;
+    CHECK(!Ext::DrawGather::SameWalk(a, b));
+}
+
 UNIT_TEST(ext_gather_threads_side_array_never_grows_during_a_parallel_walk) {
     std::mt19937 rng(4242);
     HelperPool pool(2);

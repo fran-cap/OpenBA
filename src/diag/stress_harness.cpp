@@ -1594,12 +1594,14 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
             const double df = s_drawN > 0 ? static_cast<double>(s_drawN) : 1.0;
             std::fprintf(stderr, "[Stress::gather] draw_gather=%d per frame: gathers=%.1f nodes=%.0f visible=%.0f "
                                  "(main/shadow/refl/other %.0f/%.0f/%.0f/%.0f) "
-                                 "geoTouched=%.0f (%.1f%% of nodes) refreshes=%.1f cleans=%.1f | window: logged=%llu rebuilds=%llu\n",
+                                 "geoTouched=%.0f (%.1f%% of nodes) refreshes=%.1f cleans=%.1f "
+                                 "fused walks/served/unused %.2f/%.2f/%.2f | window: logged=%llu rebuilds=%llu\n",
                          Ext::DrawGather::Installed() ? 1 : 0, g.gathers / df, g.nodesTested / df, g.visible / df,
                          g.visibleByShader[0] / df, g.visibleByShader[1] / df, g.visibleByShader[2] / df,
                          g.visibleByShader[3] / df,
                          g.geoTouched / df, g.nodesTested ? 100.0 * g.geoTouched / g.nodesTested : 0.0,
                          g.refreshes / df, g.cleans / df,
+                         g.fusedWalks / df, g.fusedServed / df, g.fusedUnused / df,   // issue #253 (FUSED)
                          static_cast<unsigned long long>(g.logged), static_cast<unsigned long long>(g.rebuilds));
         }
         // CULLPAR (ext.gather_threads, docs/extensions/handins/CULLPAR.md): the parallel walk's
