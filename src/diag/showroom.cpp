@@ -567,8 +567,15 @@ extern "C" bool Showroom_Tick() {
     ++s.frame;
     if (Bench()) {
         // No shots and no end: one line once the forest's height can be read, then nothing.
+        // A month line sets the calendar once, there (the bench's season: a winter start
+        // draws the deciduous trees bare; at speed 1 a bench run stays inside that month).
         if (!s.benchLogged && s.frame >= kBenchHeightFrames) {
             s.benchLogged = true;
+            if (!s.months.empty()) {
+                SetMonth(s.months.front());
+                s.monthSet = true;
+                s.lastMonth = s.months.front();
+            }
             if (!s.forestPlanted) {
                 std::fprintf(stderr, "[Showroom] bench: no forest stands, the camera is not pinned\n");
             } else {

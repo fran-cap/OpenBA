@@ -14,7 +14,9 @@ runs measure nothing).
 Line forms (`src/diag/showroom_list.h`): `Template\X.rsc` (a building), `tree <species>`,
 `month <m>`, `months <m1> <m2> ...`, `forest <species|mixed> <columns> <rows> <spacing>`,
 `bench <dist> [yaw] [sweep]`; `#` starts a comment. A month is a float: 0 is the start
-of Early Spring, one month is 300 s of year time.
+of Early Spring, one month is 300 s of year time. With a `bench` line, the first month line sets the calendar
+once when the bench starts (for example `month 4.5`, mid-summer: a run's start in winter draws the oaks
+and birches bare); at speed 1 a bench run stays inside that month.
 
 ## Forest bench
 
