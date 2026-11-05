@@ -320,6 +320,10 @@ int32_t SunLight::ExtTweakSunMapSize() { return g_tweakSunMapSize.load(std::memo
 #endif
 
 void SunLight::ExtRequestMaxShadowResSync() {
+    // NOT RETAIL (review F-226): the faithful profile leaves the seam null, and then this does
+    // nothing -- retail's OptionsDialog::ApplyVideoSettings (0x140071e10) writes no
+    // Device::settingsChanged; its ApplyChangedSettings / Startup decide the rebuild.
+    if (_extMaxShadowRes == nullptr) return;
     if (g_extSunLight != nullptr) g_extSunLight->ExtSyncMaxShadowRes(true);
     else if (Video::Device::_singleton != nullptr) Video::Device::_singleton->settingsChanged = 1;
 }

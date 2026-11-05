@@ -350,6 +350,9 @@ bool Tree::Decode(const uint8_t* bytes, size_t size, int version) {
     if (!r.U32(nextId) || !r.U32(count) || count > kMaxPeople || count > r.left / minPerson) {
         return false;
     }
+    // Ids come only from Add, which starts at 1 and stops at kMaxPeople people, so a save never holds a
+    // nextId of 0 or past kMaxPeople + 1. One that does would make Add wrap to id 0 and repeat ids in use.
+    if (nextId == 0 || nextId > kMaxPeople + 1) return false;
     std::vector<Person> people;
     people.reserve(count);
     uint32_t last = 0;
@@ -472,6 +475,8 @@ bool DecodeState(const uint8_t* bytes, size_t size, int32_t savedFormatVersion) 
 void ResetState() {
     Town().Clear();
     if (g_onTreeReplaced) g_onTreeReplaced();
+    // a game took or dropped the lock: the seams that fire before its first frame follow its row
+    SelectForGame();
 }
 }  // namespace
 

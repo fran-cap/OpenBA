@@ -42,10 +42,13 @@
 #include <dlfcn.h>
 #include <execinfo.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <signal.h>
 #include <sys/ucontext.h>
+#include <time.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -175,11 +178,33 @@ const char* SignalName(int sig) {
     }
 }
 
+// The thread writing the crash dump (pthread_threadid_np), 0 while none is. Lock-free, so the
+// handler may use it.
+std::atomic<uint64_t> g_dumpOwner{0};
+static_assert(std::atomic<uint64_t>::is_always_lock_free, "the crash handler's owner must be lock-free");
+
+// A thread that faults while another writes the dump parks here: the dump ends in the owner's
+// _exit(3). The wait is bounded (10 s), in case the dump itself waits on this thread (a lock it
+// holds); then the process ends as before.
+void ParkWhileAnotherThreadDumps() {
+    for (int i = 0; i < 100; ++i) {
+        timespec ts{0, 100 * 1000 * 1000};
+        nanosleep(&ts, nullptr);
+    }
+    _exit(3);
+}
+
 void CrashHandler(int sig, siginfo_t* si, void* ucv) {
-    // Re-entry (a fault inside the dump) ends the process at once.
-    static volatile sig_atomic_t inHandler = 0;
-    if (inHandler) _exit(3);
-    inHandler = 1;
+    // Re-entry on the dumping thread (a fault inside the dump) ends the process at once. A fault
+    // on another thread meanwhile waits for the dump instead: a process-wide flag sent it to
+    // _exit(3) too, which cut the dump short (review F-306).
+    uint64_t self = 0;
+    pthread_threadid_np(nullptr, &self);
+    uint64_t owner = 0;
+    if (!g_dumpOwner.compare_exchange_strong(owner, self)) {
+        if (owner == self) _exit(3);
+        ParkWhileAnotherThreadDumps();
+    }
 
     const ucontext_t* uc = static_cast<const ucontext_t*>(ucv);  // CAST-OK: posix (sigaction's void* is the ucontext_t)
     const auto& regs = uc->uc_mcontext->__ss;
@@ -249,7 +274,9 @@ void CrashHandler_Install() {
     void* warm[1];
     backtrace(warm, 1);
 
-    // An alternate stack, so a stack overflow's SIGSEGV still has room to log.
+    // An alternate stack, so a stack overflow's SIGSEGV still has room to log. This one is
+    // the main thread's; each Platform:: thread installs its own (src/platform/posix/
+    // thread_posix.cpp), since a new pthread starts without one.
     static char altStack[64 * 1024];
     stack_t ss{};
     ss.ss_sp = altStack;

@@ -45,6 +45,7 @@
 #include "Object/factory_registration.h"
 #include "Player/edittool_funcs.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "object/TypeInfo.h"   // Object::IsDerivedFromNullSafe
 #include "ui/UserInterface.h"
 #include "ui/DialogInstance.h"   // ENDGAME B.3.6 UI callers (K4)
@@ -71,9 +72,9 @@ void PanelHoldClick(int frameNum) {
             if (colon && colon - c < 63) {
                 std::memcpy(s_ctrl, c, static_cast<size_t>(colon - c));
                 s_ctrl[colon - c] = 0;
-                s_id = std::atoi(colon + 1);
+                s_id = HarnessAtoi(colon + 1);
                 const char* ev = Opt().panelHoldClickEvery;
-                s_every = (ev && ev[0]) ? std::atoi(ev) : 300;
+                s_every = (ev && ev[0]) ? HarnessAtoi(ev) : 300;
                 if (s_every < 1) s_every = 300;
             }
         }
@@ -169,7 +170,7 @@ extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         s_want = Opt().panelHold;
         if (!s_want || !s_want[0]) { s_at = -1; return; }
         const char* f = Opt().panelHoldFrame;
-        s_at = (f && f[0]) ? std::atoi(f) : 3000;
+        s_at = (f && f[0]) ? HarnessAtoi(f) : 3000;
         if (s_at < 1) s_at = 3000;
     }
     if (s_done) PanelHoldClick(frameNum);

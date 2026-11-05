@@ -106,6 +106,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_summary.cpp         # ext_family_tree_test.cpp (the town summary)
   ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_picture.cpp         # ext_family_tree_test.cpp (the whole-town picture)
   ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_raster.cpp          #   the same picture as pixels (PNG)
+  ${CMAKE_SOURCE_DIR}/src/ext/family_tree/family_tree_town.cpp       # ext_family_tree_town_test.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/drain_split/drain_split.cpp         # ext_drain_split_test.cpp (HITCH_DRAINSPLIT)
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/dxbc.cpp            # ext_better_trees_test.cpp (block FAA-CORE)
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/cutout_rewrite.cpp
@@ -152,6 +153,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/audio/xwma_decode.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/audio/soundbuffer_platform_serialize.cpp   # audio_sizes_test.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/audio/load_decode_batch.cpp   # block SNDPAR: the load's decode batch
+  ${CMAKE_SOURCE_DIR}/src/engine/audio/audio_device_buffer_deleted.cpp   # stream_free_wait_test.cpp (review S-027)
   ${CMAKE_SOURCE_DIR}/src/engine/system/parallel_for.cpp   # block WGPAR: the fork-join pool
   ${CMAKE_SOURCE_DIR}/src/platform/common/cpu/topology.cpp             # parallel_for.cpp sizes its pool from Cpu::Get()
   ${CMAKE_SOURCE_DIR}/src/platform/win/cpu_win.cpp
@@ -186,5 +188,14 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/engine/ui/userinterface.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/widgets_input.cpp
   ${CMAKE_SOURCE_DIR}/src/engine/ui/documenttext.cpp
+  ${CMAKE_SOURCE_DIR}/src/engine/ui/combodialog_close.cpp        # combodialog_close_test.cpp (review S-035)
   ${CMAKE_SOURCE_DIR}/src/game/Dialog/eventnotify_remove.cpp      # eventnotify_remove_test.cpp: the ribbon entry removal (0x140011670)
+  ${CMAKE_SOURCE_DIR}/src/game/Dialog/statusbarui.cpp             # statusbar_icon_race_test.cpp (review S-006)
 )
+if(WIN32)
+  # The Windows-only diagnostics a test reaches (src/diag/win is never built off Windows).
+  list(APPEND UNIT_TREE_SRCS
+    ${CMAKE_SOURCE_DIR}/src/diag/win/hw_watch.cpp   # hw_watch_arm_test.cpp (review F-280, F-286)
+    ${CMAKE_SOURCE_DIR}/src/diag/win/thread_stack.cpp   # thread_stack_test.cpp (review F-275, F-288, F-291, F-297)
+  )
+endif()

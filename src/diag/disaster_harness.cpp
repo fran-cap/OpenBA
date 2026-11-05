@@ -99,6 +99,7 @@
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Object/factory_registration.h"
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include "Dialog/ui_panels.h"          // DebugUI, DebugUI_Slot9
@@ -153,7 +154,7 @@ bool s_initialized    = false;
 
 int ParseInt(const char* v, int dflt) {
     if (!v || !v[0]) return dflt;
-    return std::atoi(v);
+    return HarnessAtoi(v);
 }
 
 void Init() {
@@ -164,7 +165,7 @@ void Init() {
     for (int i = 0; i < ARM_COUNT; ++i) {
         Arm& a = s_arms[i];
         const char* e = Opt().disasterCount[a.armIndex];
-        a.count = (e && e[0] && e[0] != '0') ? std::atoi(e) : 0;
+        a.count = (e && e[0] && e[0] != '0') ? HarnessAtoi(e) : 0;
         if (a.count <= 0) { a.count = 0; continue; }
         a.frame  = ParseInt(Opt().disasterFrame[a.armIndex],  2400);
         if (a.frame  < 1) a.frame  = 1;

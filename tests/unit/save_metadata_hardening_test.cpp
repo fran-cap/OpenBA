@@ -207,3 +207,35 @@ UNIT_TEST(save_meta_negative_mod_count_is_empty) {
     CHECK_EQ(r.version, 3);
     CHECK_EQ(r.modCount, 0);
 }
+
+// review S-032: UpdateList state 4 can call LoadMetaData with no load issued, while
+// `_embeddedState` is still {nullptr, 0} from the previous call's closing stores. The copy
+// into the stream is then skipped (memmove with a null source is undefined even for 0 bytes);
+// the empty stream fails every read and the record comes back empty, and the state stays
+// {nullptr, 0}. GCC declares memmove nonnull_if_nonzero, so no sanitizer flags the old call:
+// this test pins the path, it cannot show the undefined copy.
+UNIT_TEST(save_meta_empty_embedded_state_review_s032) {
+    SeatScope seat;
+    alignas(16) static unsigned char slMem[sizeof(SaveLoad)];
+    std::memset(slMem, 0, sizeof slMem);
+    SaveLoad* sl = reinterpret_cast<SaveLoad*>(slMem);
+    CHECK(sl->_embeddedState._data == nullptr);
+    CHECK_EQ(sl->_embeddedState._size, 0u);
+
+    alignas(16) unsigned char modsMem[sizeof(Collection::Array<ModInfo>)];
+    std::memset(modsMem, 0, sizeof modsMem);
+    auto* mods = reinterpret_cast<Collection::Array<ModInfo>*>(modsMem);
+    int width = -1;
+    int height = -1;
+    int version = -1;
+    {
+        System::String desc;
+        void* pixels = nullptr;
+        sl->LoadMetaData(desc, &pixels, width, height, version, *mods);
+        System::MemoryAllocator::MemFree(pixels);
+    }
+    CHECK(sl->_embeddedState._data == nullptr);
+    CHECK_EQ(sl->_embeddedState._size, 0u);
+    CHECK_EQ(mods->_size, 0);
+    System::MemoryAllocator::MemFree(mods->_data);
+}

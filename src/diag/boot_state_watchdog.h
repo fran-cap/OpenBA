@@ -47,12 +47,13 @@ extern "C" void BootState_MarkFrame();
 extern "C" void BootState_MarkQuitting();
 
 // ---------------------------------------------------------------------------
-// The exe's ONE stack walker, defined in src/diag/win/crash_handler_win.cpp next
-// to the VEH crash handler that has always used it. Declared here because the hang dump
-// reuses it rather than growing a second copy of the unwind logic.
+// The crash handler's stack walker, defined in src/diag/win/crash_handler_win.cpp next
+// to the VEH crash handler that uses it: it walks the calling thread's own CONTEXT.
+// Another thread's stack (the hang dump) goes through ThreadStack::Capture
+// (src/diag/win/thread_stack.h), which walks it without a lock and resumes it before the
+// module lookups.
 //
-// `origCtx` is not modified (the walker copies it). The sink must not touch a
-// CRT FILE*: the hang dump calls this with other threads SUSPENDED.
+// `origCtx` is not modified (the walker copies it).
 // ---------------------------------------------------------------------------
 struct _CONTEXT;
 typedef void (*StackLineSink)(void* user, const char* line);

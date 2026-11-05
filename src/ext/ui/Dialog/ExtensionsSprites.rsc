@@ -9,7 +9,7 @@ SpriteSheet resource
 	String _materialName = "ExtensionsSpritesMaterial.rsc";
 	String _imageName = "Build/ExtensionsSprites.png";
 	int _imageWidth = 512;		// 512 since 2026-10-18: 256 x 256 held 28 sprites (the 29th did not fit)
-	int _imageHeight = 512;
+	int _imageHeight = 1024;	// 1024 since 2026-11-04: 512 x 512 held 115 sprites (the 116th did not fit)
 	bool _padForFiltering = true;
 
 	Sprite _sprites
@@ -50,6 +50,8 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_input_fetch_room";	String _source = "Sprite/Extensions/Entry_input_fetch_room.png"; }
 		{ String _name = "ExtensionsEntry_stranded_wade";	String _source = "Sprite/Extensions/Entry_stranded_wade.png"; }
 		{ String _name = "ExtensionsEntry_debug_spawn_origin";	String _source = "Sprite/Extensions/Entry_debug_spawn_origin.png"; }
+		{ String _name = "ExtensionsEntry_statusbar_empty_town";	String _source = "Sprite/Extensions/Entry_statusbar_empty_town.png"; }
+		{ String _name = "ExtensionsEntry_stream_free_wait";	String _source = "Sprite/Extensions/Entry_stream_free_wait.png"; }
 		{ String _name = "ExtensionsEntry_eye_camera";	String _source = "Sprite/Extensions/Entry_eye_camera.png"; }
 		{ String _name = "ExtensionsEntry_sharp_ui";	String _source = "Sprite/Extensions/Entry_sharp_ui.png"; }
 		{ String _name = "ExtensionsEntry_fast_paths";	String _source = "Sprite/Extensions/Entry_fast_paths.png"; }

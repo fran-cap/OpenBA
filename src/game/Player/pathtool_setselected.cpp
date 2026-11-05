@@ -326,10 +326,13 @@ void PathTool::BuildRoutes() {
 
     // Reset the three output arrays: each is "MemFree the buffer, zero _data, zero
     // the _size/_capacity qword" — the Collection::Array<T>::~Array body for a
-    // trivially destructible T — the dtor itself, in place.
-    routes.~Array();
-    points.~Array();
-    segments.~Array();
+    // trivially destructible T.
+    // NOT RETAIL (spelling only): retail inlines that body; the port runs it as
+    // DestroyAndFree, not an explicit `~Array()`, which would end the members'
+    // lifetime ([basic.life]) before PushRoute and the SetSize calls below use them.
+    routes.DestroyAndFree();
+    points.DestroyAndFree();
+    segments.DestroyAndFree();
 
     PathRoute entry;   // scratch route entry pushed via 6ba0 (garbage tail OK; count=0)
 

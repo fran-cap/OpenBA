@@ -10,10 +10,14 @@
 //    the game reads its BANISHED_* flags once at boot from the environment (src/app/options.cpp,
 //    the one getenv in the tree; src/app/options.h is the inventory). The sanctioned source on
 //    Android is the launch intent: every string extra whose key starts with BANISHED_ becomes that
-//    environment variable before the native library is loaded, e.g.
-//        adb shell am start -n <package>/org.openba.game.OpenBAActivity -e BANISHED_AUTOSTART 1
-//    Variables left from an earlier launch in the same process are cleared first, so a launch
-//    from the icon (no extras) runs with none. Nothing else sets the environment.
+//    environment variable before the native library is loaded, when the intent also carries the
+//    harness token (OPENBA_HARNESS_TOKEN, the text of the one-use file harness_token in the data
+//    folder, which adb can write and another app cannot). tools/android.sh run does both:
+//        tools/android.sh run BANISHED_AUTOSTART=1
+//    The activity is exported (the launcher starts it), so without the token any app could load
+//    and change the player's saves through the flags. Variables left from an earlier launch in the
+//    same process are cleared first, so a launch from the icon (no extras) runs with none. Nothing
+//    else sets the environment.
 //
 //  * The surface is OpenBASurface: SDL's, with the captured mouse's buttons and motion passed on
 //    (a camera-rotate drag's middle-button release was lost; OpenBASurface.java has the defect).
@@ -60,7 +64,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.security.MessageDigest;
 import java.util.Collections;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLSurface;
@@ -68,6 +77,10 @@ import org.libsdl.app.SDLSurface;
 public class OpenBAActivity extends SDLActivity {
     private static final String TAG = "OpenBA";
     private static final String FLAG_PREFIX = "BANISHED_";
+    // The harness launch's credential (tools/android.sh run): an extra, and the file in the data folder
+    // holding the same text.
+    private static final String HARNESS_TOKEN_EXTRA = "OPENBA_HARNESS_TOKEN";
+    private static final String HARNESS_TOKEN_FILE = "harness_token";
     // The apk's font assets (android/app/build.gradle: tools/release/fonts), copied as they are.
     private static final String[] FONT_ASSETS = {
         "FrancophilSans.ttf", "FrancophilSans-Bold.ttf", "FrancophilSans_README.txt",
@@ -88,8 +101,13 @@ public class OpenBAActivity extends SDLActivity {
             return;
         }
         publishShortcut();
-        if (!harness && !GameFiles.hasGameData(this)) {
-            Log.i(TAG, "game files: no data0.pkg in WinData, the first-run screen is shown");
+        // A copy started from "Game files" (its own task) may still run when the icon is tapped: the
+        // game waits on the same screen, which starts it when the copy ends, and never opens a
+        // WinData that is being replaced.
+        final boolean copying = GameFilesJob.isCopyingPackages();
+        if (!harness && (copying || !GameFiles.hasGameData(this))) {
+            Log.i(TAG, copying ? "game files: a copy is running, the game starts when it ends"
+                               : "game files: no data0.pkg in WinData, the first-run screen is shown");
             mFirstRun = new GameFilesScreen(this, GameFilesScreen.Mode.FIRST_RUN, this::startGameAfterFirstRun);
             setContentView(mFirstRun.view());
         }
@@ -242,8 +260,8 @@ public class OpenBAActivity extends SDLActivity {
         }
     }
 
-    // True when the intent carried a BANISHED_* extra (a harness launch).
-    private static boolean applyLaunchEnvironment(Intent intent) {
+    // True when the intent carried a BANISHED_* extra (a harness launch) and the harness token.
+    private boolean applyLaunchEnvironment(Intent intent) {
         try {
             for (String entry : Os.environ()) {
                 final int eq = entry.indexOf('=');
@@ -258,23 +276,61 @@ public class OpenBAActivity extends SDLActivity {
         if (extras == null) {
             return false;
         }
-        boolean any = false;
-        for (String key : extras.keySet()) {
-            if (!key.startsWith(FLAG_PREFIX)) {
-                continue;
+        // The activity is exported (it is the launcher's): any app can start it with any extras. The
+        // flags load and change saves (BANISHED_AUTOLOAD, BANISHED_SAVE_TEST, ...), so they are taken
+        // only from the harness. A Bundle is unparcelled at its first read, and an extra of a class
+        // the app does not have throws there: such an intent is a launch without flags.
+        final Map<String, String> flags = new TreeMap<>();
+        final String token;
+        try {
+            for (String key : extras.keySet()) {
+                final Object value = key.startsWith(FLAG_PREFIX) ? extras.get(key) : null;
+                if (value != null) {
+                    flags.put(key, String.valueOf(value));
+                }
             }
-            final Object value = extras.get(key);
-            if (value == null) {
-                continue;
-            }
-            any = true;
+            token = extras.getString(HARNESS_TOKEN_EXTRA);
+        } catch (RuntimeException e) {
+            Log.w(TAG, "launch extras ignored: " + e);
+            return false;
+        }
+        if (flags.isEmpty()) {
+            return false;
+        }
+        if (!harnessTokenMatches(token)) {
+            Log.w(TAG, "launch extras ignored: no harness token (tools/android.sh run passes it)");
+            return false;
+        }
+        for (Map.Entry<String, String> flag : flags.entrySet()) {
             try {
-                Os.setenv(key, String.valueOf(value), true);
-                Log.i(TAG, "launch environment " + key + "=" + value);
+                Os.setenv(flag.getKey(), flag.getValue(), true);
+                Log.i(TAG, "launch environment " + flag.getKey() + "=" + flag.getValue());
             } catch (ErrnoException e) {
-                Log.w(TAG, "setenv " + key + " failed: " + e);
+                Log.w(TAG, "setenv " + flag.getKey() + " failed: " + e);
             }
         }
-        return any;
+        return true;
+    }
+
+    // tools/android.sh run writes a fresh random token into the data folder, where adb can write and
+    // another app cannot, and passes the same token as an extra. The file is used once.
+    private boolean harnessTokenMatches(String token) {
+        final File dir = getExternalFilesDir(null);
+        if (token == null || token.isEmpty() || dir == null) {
+            return false;
+        }
+        final File file = new File(dir, HARNESS_TOKEN_FILE);
+        final byte[] expected;
+        try {
+            expected = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8)
+                           .trim()
+                           .getBytes(StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return false;
+        }
+        if (!file.delete()) {
+            Log.w(TAG, "harness token: " + file + " not removed");
+        }
+        return expected.length > 0 && MessageDigest.isEqual(expected, token.getBytes(StandardCharsets.UTF_8));
     }
 }

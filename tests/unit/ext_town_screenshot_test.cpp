@@ -12,6 +12,7 @@
 #include "io/settings_file.h"
 
 #include <cmath>
+#include <cstdio>
 #include <string>
 
 namespace {
@@ -127,8 +128,35 @@ UNIT_TEST(ext_town_screenshot_tiles_cover_the_picture_without_gaps) {
     // a picture that is exactly one payload wide is one column
     CHECK(MakeGrid(1792, 889, 1920, 1017, 64).count() == 1);
     CHECK(MakeGrid(1793, 889, 1920, 1017, 64).cols == 2);
-    // a screen smaller than the margins still makes progress
+    // a screen no larger than the margins makes no tiles: Start refuses it (review F-255, F-267)
+    CHECK(MakeGrid(100, 100, 100, 100, 64).count() == 0);
     CHECK(MakeGrid(100, 100, 100, 100, 64).payloadW == 1);
+}
+
+// ReadTile (town_screenshot.cpp) reads pixels[(py + margin) * width + (px + margin)] for py < payloadH and
+// px < payloadW from a read-back buffer of width * height words. For every tile a grid has, each read lies
+// inside that buffer and inside its own row (review F-255, F-267: a back buffer 64 px tall read past the end).
+UNIT_TEST(ext_town_screenshot_tile_reads_stay_inside_the_back_buffer) {
+    using namespace Ext::TownScreenshot;
+    const int sizes[][2] = {{1920, 1017}, {100, 100}, {128, 1017}, {129, 129}, {1920, 128},
+                            {200, 64}, {200, 40}, {60, 40}, {64, 64}, {60, 1017}};
+    for (const auto& s : sizes) {
+        const int width = s[0];
+        const int height = s[1];
+        const TileGrid g = MakeGrid(4000, 4000, width, height, 64);
+        if (g.count() == 0) continue;   // no tile is read
+        const int64_t words = static_cast<int64_t>(width) * height;
+        const int64_t last =
+            static_cast<int64_t>(g.payloadH - 1 + g.margin) * width + (g.payloadW - 1 + g.margin);
+        if (last >= words || g.payloadW - 1 + g.margin >= width) {
+            std::printf("  back buffer %dx%d: last read index %lld, buffer words %lld\n", width, height,
+                        static_cast<long long>(last), static_cast<long long>(words));
+        }
+        CHECK(last < words);
+        CHECK(g.payloadW - 1 + g.margin < width);   // the column stays in its row
+    }
+    // a screen one pixel larger than the margins on both sides makes one-pixel tiles
+    CHECK(MakeGrid(10, 10, 129, 129, 64).count() == 100);
 }
 
 // The tile centre puts the tile's middle on the right part of the picture: the world point it looks at

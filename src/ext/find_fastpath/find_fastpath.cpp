@@ -192,8 +192,7 @@ void* FindRef(ExternalFactory& f, uint32_t refId) {
 }
 
 void StoreRef(ExternalFactory& f, uint32_t refId, const char* request, int len) {
-    (void)f;
-    if (refId > (1u << 24))
+    if (!RefIdCacheable(refId, static_cast<int32_t>(f._references._count)))
         return;
     ResLoadGuard guard;
     Tables& t = T();

@@ -2,7 +2,9 @@
 
 
 #include "redzone_alloc.h"
+#include "redzone_canary.h"            // RedzoneCanary::PadBytes / FormatHead
 #include "options.h"
+#include "thread_stack.h"           // ThreadStack::Capture: the other threads' stacks
 #include "system/MemoryAllocator.h"   // -Iruntime/types: the instrument seat
 #include "platform_sync.h"           // Platform::MutexLock / MutexUnlock on the allocator lock
 
@@ -127,11 +129,10 @@ void PrintEntry(const char* why, void* userPtr, const Entry& e) {
            "overflow bytes [%d..%d] of %zu\n",
            why, userPtr, e.reqSize, e.reqSize, e.seq,
            firstBad, lastBad, g_pad);
-    // Dump the canary's first 16 bytes — the overflow payload identifies the writer.
-    RZBoth("[REDZONE]   canary head: %02x %02x %02x %02x %02x %02x %02x %02x "
-           "%02x %02x %02x %02x %02x %02x %02x %02x\n",
-           c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7],
-           c[8], c[9], c[10], c[11], c[12], c[13], c[14], c[15]);
+    // Dump the canary's first bytes (at most 16, never past the pad) — the overflow
+    // payload identifies the writer.
+    char head[96];
+    if (RedzoneCanary::FormatHead(head, sizeof(head), c, g_pad)) RZBoth("%s", head);
     // First user qword = vtable for engine objects; names the corrupted block's type.
     if (!IsBadReadPtr(userPtr, 8))
         RZBoth("[REDZONE]   user+0 qword: 0x%016llx\n",
@@ -334,7 +335,7 @@ void RedzoneAlloc_Install() {
     g_realFree  = &RtAllocInstrument_MemFree;
     g_exeBase   = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));  // CAST-OK: crash_walk
     if (Opt().redzoneScan > 0) g_scanEvery = (uint32_t)Opt().redzoneScan;
-    if (Opt().redzonePad > 0) g_pad = (size_t)((Opt().redzonePad + 7) & ~7);  // 8-byte multiple
+    g_pad = RedzoneCanary::PadBytes(Opt().redzonePad);  // 8-byte multiple, 0 = off
     if (Opt().redzoneWatchMs != -1) {
         g_watchIntervalMs = Opt().redzoneWatchMs;  // 0 = tight spin
     }
@@ -500,16 +501,11 @@ void RZOut(const char* fmt, ...) {
 // owning class. Engine objects store their vtable pointer at +0x00, so dumping
 // the preceding block's first qword and resolving it names the overflower.
 void PrintModOff(const char* label, uint64_t addr) {
-    HMODULE mod = nullptr;
-    if (addr && GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                   (LPCSTR)addr, &mod) && mod) {  // CAST-OK: crash_walk
-        char path[MAX_PATH] = {0};
-        GetModuleFileNameA(mod, path, MAX_PATH);
-        const char* nm = strrchr(path, '\\');
-        RZOut("[REDZONE-HEAP]   %s = %s+0x%llX\n",
-               label, nm ? nm + 1 : path,
-               (unsigned long long)(addr - (uintptr_t)mod));  // CAST-OK: crash_walk
+    uint64_t base = 0;
+    char name[MAX_PATH];
+    // ThreadStack::ModuleAt: no loader lock (review F-297).
+    if (addr && ThreadStack::ModuleAt(addr, &base, name, sizeof(name))) {
+        RZOut("[REDZONE-HEAP]   %s = %s+0x%llX\n", label, name, (unsigned long long)(addr - base));
     } else {
         RZOut("[REDZONE-HEAP]   %s = 0x%016llx (not in a module)\n",
                label, (unsigned long long)addr);
@@ -530,46 +526,35 @@ extern "C" void StressHarness_Context(char* buf, int n);
 
 // Print the MAIN thread's stack (from another thread: suspend, read context,
 // unwind) so a watchdog detection names what the sim was executing when the
-// corrupt tag was first seen. Same unwind walk as the crash handler.
+// corrupt tag was first seen. ThreadStack::Capture walks it without taking a lock and
+// resumes it before the module lookups and the printf: the printf can wait on a CRT
+// lock the suspended thread holds. The module lookups (ThreadStack::ModuleAt) take no
+// loader lock, so a thread that holds it for good does not stop the report either.
 static void DumpOneThreadStack(HANDLE th, DWORD tid, const char* label) {
-    if (SuspendThread(th) == (DWORD)-1) {
-        printf("[REDZONE-HEAP] SuspendThread(%s tid=%lu) failed err=%lu\n", label, tid, GetLastError());
-        return;
-    }
+    constexpr int kFrames = 40;
+    ThreadStack::Frame frames[kFrames];
     CONTEXT ctx; memset(&ctx, 0, sizeof(ctx));
     ctx.ContextFlags = CONTEXT_FULL;
-    if (GetThreadContext(th, &ctx)) {
-        printf("[REDZONE-HEAP] %s thread tid=%lu stack at detection:\n", label, tid);
-        for (int frame = 0; frame < 40; frame++) {
-            HMODULE mod = nullptr;
-            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                   (LPCSTR)(uintptr_t)ctx.Rip, &mod) && mod) {  // CAST-OK: crash_walk
-                char path[MAX_PATH] = {0};
-                GetModuleFileNameA(mod, path, MAX_PATH);
-                const char* nm = strrchr(path, '\\');
-                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%-8llX\n", frame, nm ? nm + 1 : path,
-                       (unsigned long long)((uintptr_t)ctx.Rip - (uintptr_t)mod));  // CAST-OK: crash_walk
-            } else {
-                printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", frame, (void*)ctx.Rip);
-            }
-            DWORD64 imageBase = 0;
-            PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(ctx.Rip, &imageBase, nullptr);
-            if (!fn) {
-                uintptr_t* sp = reinterpret_cast<uintptr_t*>(ctx.Rsp);  // CAST-OK: crash_walk
-                if (IsBadReadPtr(sp, sizeof(uintptr_t))) break;
-                ctx.Rip = *sp; ctx.Rsp += 8;
-                if (!ctx.Rip) break;
-                continue;
-            }
-            PVOID handlerData = nullptr; ULONG64 est = 0;
-            RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, ctx.Rip, fn, &ctx, &handlerData, &est, nullptr);
-            if (!ctx.Rip) break;
-        }
+    const ThreadStack::Result r = ThreadStack::Capture(th, ctx, frames, kFrames);
+    if (r.status == ThreadStack::Status::kSuspendFailed) {
+        printf("[REDZONE-HEAP] SuspendThread(%s tid=%lu) failed err=%lu\n", label, tid, r.error);
+    } else if (r.status == ThreadStack::Status::kContextFailed) {
+        printf("[REDZONE-HEAP] GetThreadContext(%s) failed err=%lu\n", label, r.error);
     } else {
-        printf("[REDZONE-HEAP] GetThreadContext(%s) failed err=%lu\n", label, GetLastError());
+        printf("[REDZONE-HEAP] %s thread tid=%lu stack at detection:\n", label, tid);
+        for (int frame = 0; frame < r.frames; frame++) {
+            const uint64_t rip = frames[frame].rip;
+            uint64_t base = 0;
+            char name[MAX_PATH];
+            // ModuleAt, not GetModuleHandleExA: no loader lock (thread_stack.h, review F-297).
+            if (ThreadStack::ModuleAt(rip, &base, name, sizeof(name))) {
+                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%-8llX\n", frame, name,
+                       (unsigned long long)(rip - base));
+            } else {
+                printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", frame, (void*)(uintptr_t)rip);  // CAST-OK: crash_walk
+            }
+        }
     }
-    ResumeThread(th);
 }
 
 // Every thread of the process except the caller: the corrupter may be the pathfinder
@@ -582,16 +567,14 @@ static void DumpMainThreadStack() {
         void* bt[32];
         USHORT n = CaptureStackBackTrace(0, 32, bt, nullptr);
         for (USHORT i = 0; i < n; ++i) {
-            HMODULE mod = nullptr;
-            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                                   GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                                   (LPCSTR)bt[i], &mod) && mod) {  // CAST-OK: crash_walk
-                char path[MAX_PATH] = {0};
-                GetModuleFileNameA(mod, path, MAX_PATH);
-                const char* nm = strrchr(path, '\\');
-                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%llX\n", i, nm ? nm + 1 : path,
-                       (unsigned long long)((uintptr_t)bt[i] - (uintptr_t)mod));  // CAST-OK: crash_walk
-            } else printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", i, bt[i]);
+            const uint64_t rip = (uintptr_t)bt[i];  // CAST-OK: crash_walk
+            uint64_t base = 0;
+            char name[MAX_PATH];
+            if (ThreadStack::ModuleAt(rip, &base, name, sizeof(name))) {
+                printf("[REDZONE-HEAP]   #%-2d %-18s + 0x%llX\n", i, name, (unsigned long long)(rip - base));
+            } else {
+                printf("[REDZONE-HEAP]   #%-2d ??? @ %p\n", i, bt[i]);
+            }
         }
     }
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
@@ -803,7 +786,9 @@ extern "C" void RedzoneAlloc_ArmTeardownCheck() {
 }
 extern "C" void RedzoneAlloc_TeardownOp(const char* what) {
     if (!g_teardownHeapCheck) return;
-    static int depth = 0;
+    // Per thread: the callers (alloc_cutover_arm.cpp) no longer hold the allocator
+    // lock here (review F-287), and the guard is only against the walk re-entering.
+    static thread_local int depth = 0;
     if (depth) return;          // the walk itself must not re-enter
     ++depth;
     RedzoneAlloc_HeapCheck(what);

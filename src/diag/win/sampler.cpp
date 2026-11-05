@@ -12,6 +12,7 @@
 #include "hw_watch.h"
 #include "load_time.h"      // LoadTime::CounterToMs: per-sample ms since process start
 #include "options.h"
+#include "thread_stack.h"   // ThreadStack::Capture: the lock-free suspended walk
 
 static HANDLE g_mainThread = nullptr;   // from HwWatch_Init (SUSPEND_RESUME + GET_CONTEXT)
 
@@ -32,7 +33,7 @@ struct Sample {
 // thread registered in DiagThreads (opened here, on the sampler thread).
 struct Tracked {
     uint32_t tid; char role; HANDLE h; bool ownHandle;
-    const volatile uint32_t* busy;   // bit 0 = mid-job (System::Thread::_runFlags), or null
+    int slot;                        // DiagThreads slot (its busy bit), or -1
     ULONG64 lastCycles;
     bool dead;
 };
@@ -140,6 +141,14 @@ void WriteSamples(const std::vector<Sample>& v) {
     std::fflush(g_out);
 }
 
+// Re-reads the main thread's phase tag while it is stopped (it may have moved since).
+void ReReadTag(void* p) {
+    static_cast<Sample*>(p)->tag = (uint8_t)g_samplerTag;
+}
+
+// No RtlLookupFunctionEntry while the thread is suspended: it waits on the loader's locks,
+// which a thread stopped inside LoadLibrary / FreeLibrary holds (the 4000 Hz boot hang).
+// ThreadStack::Capture walks with calls that take no lock.
 bool TakeSample(Sample& s, const Tracked& t) {
     const bool isMain = (t.role == DiagThreads::kMain);
     s.tag = isMain ? (uint8_t)g_samplerTag : kTagNotMain;
@@ -148,30 +157,16 @@ bool TakeSample(Sample& s, const Tracked& t) {
     s.n = 0;
     LARGE_INTEGER now; QueryPerformanceCounter(&now);
     s.qpc = now.QuadPart;
-    if (SuspendThread(t.h) == (DWORD)-1) return false;
     CONTEXT ctx; std::memset(&ctx, 0, sizeof(ctx));
     ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-    bool ok = GetThreadContext(t.h, &ctx) != 0;
-    if (ok) {
-        // Re-read the tag now that the thread is stopped (it may have moved since).
-        if (isMain) s.tag = (uint8_t)g_samplerTag;
-        for (int f = 0; f < kMaxFrames && ctx.Rip; ++f) {
-            s.rip[s.n++] = ctx.Rip;
-            DWORD64 imageBase = 0;
-            PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(ctx.Rip, &imageBase, nullptr);
-            if (!fn) {
-                // leaf function: return address is at [rsp]
-                const uintptr_t* sp = reinterpret_cast<const uintptr_t*>(ctx.Rsp);  // CAST-OK: crash_walk
-                if (IsBadReadPtr(sp, sizeof(uintptr_t))) break;
-                ctx.Rip = *sp; ctx.Rsp += 8;
-                continue;
-            }
-            PVOID handlerData = nullptr; ULONG64 est = 0;
-            RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, ctx.Rip, fn, &ctx, &handlerData, &est, nullptr);
-        }
+    ThreadStack::Frame frames[kMaxFrames];
+    const ThreadStack::Result r = ThreadStack::Capture(t.h, ctx, frames, kMaxFrames,
+                                                       isMain ? &ReReadTag : nullptr, &s);
+    if (r.status != ThreadStack::Status::kOk) return false;
+    for (int f = 0; f < r.frames; ++f) {
+        s.rip[s.n++] = frames[f].rip;
     }
-    ResumeThread(t.h);
-    return ok && s.n > 0;
+    return s.n > 0;
 }
 
 // Open the threads registered since the last tick (DiagThreads, block LOADSTAMP).
@@ -181,18 +176,22 @@ void RefreshTracked() {
         const uint32_t tid = DiagThreads::TidAt(g_seenRegistered);
         if (tid == 0) return;   // still being written: look again next tick
         const char role = DiagThreads::RoleAt(g_seenRegistered);
-        const volatile uint32_t* busy = DiagThreads::BusyAt(g_seenRegistered);
+        const int slot = g_seenRegistered;
         ++g_seenRegistered;
         if (role == DiagThreads::kMain) continue;   // HwWatch's handle is already tracked
-        bool known = false;
+        // A new slot for a tid already tracked means the OS reused the id: the old
+        // thread has exited (ids are unique among live threads), so its handle is
+        // closed and the new owner gets its own (review F-293).
         for (Tracked& t : g_tracked) {
-            if (t.tid == tid && !t.dead) { t.role = role; t.busy = busy; known = true; break; }
+            if (t.tid == tid && !t.dead && t.role != DiagThreads::kMain) {
+                t.dead = true;
+                if (t.ownHandle) CloseHandle(t.h);
+            }
         }
-        if (known) continue;
         HANDLE h = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION | SYNCHRONIZE,
                               FALSE, tid);
         if (!h) continue;
-        g_tracked.push_back(Tracked{ tid, role, h, true, busy, 0, false });
+        g_tracked.push_back(Tracked{ tid, role, h, true, slot, 0, false });
     }
 }
 
@@ -211,7 +210,7 @@ bool WantSample(Tracked& t) {
     QueryThreadCycleTime(t.h, &cycles);
     const bool ran = cycles != t.lastCycles;
     t.lastCycles = cycles;
-    return ran || (t.busy && (*t.busy & 1u) != 0);
+    return ran || (t.slot >= 0 && DiagThreads::BusyAt(t.slot));
 }
 
 DWORD WINAPI SamplerThread(void*) {
@@ -254,7 +253,14 @@ DWORD WINAPI SamplerThread(void*) {
 
 void AtExitFlush() {
     InterlockedExchange(&g_stop, 1);
-    if (g_thread) { WaitForSingleObject(g_thread, 2000); }
+    // No timeout: the sampler thread may be inside its own periodic Sampler_Flush, which
+    // swaps g_flushBuf and writes g_out outside g_lock. Flushing and closing g_out here
+    // while it runs, or letting the statics be destroyed after this handler under a live
+    // thread, crashes. The wait is bounded: the loop takes no sample once g_stop is set,
+    // its timer wait is at most 50 ms, and a flush in progress always ends.
+    if (g_thread) {
+        WaitForSingleObject(g_thread, INFINITE);
+    }
     Sampler_Flush();
     if (g_out) { std::fclose(g_out); g_out = nullptr; }
     std::fprintf(stderr, "[Sampler] done: %lld samples (%lld failed) -> standalone_samples.txt\n",
@@ -280,7 +286,7 @@ void Sampler_Init() {
     g_samples.reserve(1 << 16);
     g_tracked.reserve(64);
     g_tracked.push_back(Tracked{ GetThreadId(g_mainThread), DiagThreads::kMain, g_mainThread,
-                                 false, nullptr, 0, false });
+                                 false, -1, 0, false });
     AddMod(nullptr, 'E', false);   // engine DLLs are added at the first flush (loaded later)
     std::fprintf(stderr, "[Sampler] on: %d Hz\n", g_hz);
     g_thread = CreateThread(nullptr, 0, SamplerThread, nullptr, 0, nullptr);

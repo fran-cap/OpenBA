@@ -63,6 +63,7 @@
 #include "ui/ScrollElement.h"   // the fix.slider_drag_clamp seam, scroll-bar half
 #include "engine/MainLoop.h"     // the fix.boot_device_lost seam (DESIGN.md hook rule 5)
 #include "boot_device_lost/boot_device_lost_backend.h"   // fix.boot_device_lost: the backend half
+#include "audio/Device.h"        // the fix.stream_free_wait seam (DESIGN.md hook rule 5)
 #include "Game/WorldGeometry.h"  // the ext.terrain_batch seam (DESIGN.md hook rule 5)
 
 namespace Ext {
@@ -145,13 +146,15 @@ void InitFromSettings() {
     ::UI::SliderElement::_extFixDragClamp = &Fix().slider_drag_clamp;
     ::UI::ScrollElement::_extFixDragClamp = &Fix().slider_drag_clamp;
     // fix.save_failure_notice: the save job's temporary file, and state 2's status read + notice.
-    ::IO::PersistenceWorker::_extFixSaveTemp = &Fix().save_failure_notice;
+    ::IO::PersistenceWorker::_extFixSaveTemp = &LiveFix().save_failure_notice;   // the worker thread reads it
     ::Save::SaveLoad::_extFixSaveResult = &Fix().save_failure_notice;
     ::Save::SaveLoad::_extSaveResult = &Ext::SaveFailureNotice::OnSaveResult;
     // fix.boot_device_lost: one row, two seams -- the engine's SaveLoad-walk skip and the
     // renderer backend's recovery of a reset that failed on a removed device.
     ::Engine::MainLoop::_extFixBootDeviceLost = &Fix().boot_device_lost;
-    BootDeviceLostBackend::SetFixFlag(&Fix().boot_device_lost);
+    BootDeviceLostBackend::SetFixFlag(&LiveFix().boot_device_lost);   // the render thread reads it
+    // fix.stream_free_wait: OnSoundBufferDeleted's wait for the stream pass (review S-027).
+    ::Audio::Device::_extFixStreamFreeWait = &Fix().stream_free_wait;
     // fix.large_packages: the IO::FileSystem::_extPackagesMounted seam (null under the faithful
     // profile). The boot's .pkg mount ran inside Engine::Startup, before this; every mods mount runs it.
     LargePackages::Sync();
@@ -296,6 +299,8 @@ void InitFromSettings() {
 }
 
 bool SetAndRecord(const Entry& e, bool on) {
+    // The Syncs below write seams an overlapped emit's pass 2 reads: join it first (review F-225).
+    Ext::RenderPipe::SettleBeforeStepWrite();
     const bool changedNow = SetRequested(e, on);
     Ext::DrawGather::Sync();   // a class A toggle takes effect now (no-op for every other entry)
     Ext::DrawBatch::Sync();    // on / off: the DrawItemList seam is set or cleared now
@@ -318,6 +323,9 @@ bool SetAndRecord(const Entry& e, bool on) {
 }
 
 int32_t SetValueAndRecord(const ValueKey& k, int64_t v) {
+    // A value the render thread reads, and the sun map's descriptors below: join an overlapped
+    // emit first (review S-028).
+    Ext::RenderPipe::SettleBeforeStepWrite();
     const int32_t before = Value(k);
     const int32_t stored = SetValue(k, v);
     // ext.max_shadow_size: a new size rebuilds the sun map (when the row is on and the retail combo is at

@@ -1,8 +1,9 @@
 // ============================================================================
 // src/engine/audio/batchc_audio_leaves.cpp — BATCH C
 //   ??1SoundBuffer@Audio@@UEAA@XZ                   retail 0x1800e03b0  ord 679
-//   ?OnSoundBufferDeleted@Device@Audio@@QEAAXPEBVSoundBuffer@2@@Z
-//                                                   retail 0x1800de0e0  ord 3282
+//   (?OnSoundBufferDeleted@Device@Audio@@, retail 0x1800de0e0, the device callback
+//   this destructor opens with, is in audio_device_buffer_deleted.cpp: its own file
+//   so the unit host links it without this file's ~SoundBuffer, review S-027.)
 // ============================================================================
 //
 // The two halves of "a sound buffer goes away": the destructor, and the device
@@ -11,31 +12,8 @@
 // elemSize 0x80) reaching the DLL's body; that row now lands here, which is the
 // intent (ResolveAddr is registry-first).
 //
-// Both read from the shipped retail DLL's DISASSEMBLY. Both export names read
-// back out of the export directory by VA with pefile.
-//
-// ---------------------------------------------------------------------------
-// THE CHANNEL TABLE IS NOT RE-DERIVED HERE
-// ---------------------------------------------------------------------------
-// `Audio::Device::AudioChannel` — 0x28 bytes, 64 of them at Device+0x00 — was
-// pinned by src/engine/audio/audio_device.cpp (Wave 9 lane IOA) from THREE
-// independent functions: `Device::Update`'s loop, `Device::Stop`'s
-// pointer-to-index division by 0x28, and `Device::StopPlatform`. This file
-// reproduces that layout locally (it must, to static_assert it) and its own
-// reap epilogue is the SAME five instructions those two carry — which is the
-// cross-check that the reading is right, not a coincidence.
-//
-// ---------------------------------------------------------------------------
-// TWO THINGS THE DECOMPILER WOULD GET WRONG
-// ---------------------------------------------------------------------------
-// 1. `OnSoundBufferDeleted`'s completion callback is invoked with the CHANNEL
-//    RECORD as `this` (RSI, which walks in step with the loop), NOT with the
-//    Device. At channel 0 the two coincide, which is exactly how a wrong
-//    reading would survive testing.
-// 2. The reap order is load-bearing and matches `Device::Update` exactly:
-//    `onComplete` is read BEFORE the flag/source clears and the callback's 2nd
-//    and 3rd arguments AFTER them; the `&= ~3` clears bits 0 AND 1 though only
-//    bit 0 was tested here (Update tests bit 1).
+// Read from the shipped retail DLL's DISASSEMBLY; the export name read back
+// out of the export directory by VA with pefile.
 // ============================================================================
 
 #include <cstddef>
@@ -58,49 +36,6 @@ namespace {
 void MemFree(void* p) { System::MemoryAllocator::MemFree(p); }
 
 }  // namespace
-
-// ############################################################################
-// Audio::Device::OnSoundBufferDeleted(const SoundBuffer*)
-// retail 0x1800de0e0, ordinal 3282
-// ############################################################################
-//
-//   for (i = 0; i < 0x40; ++i) {
-//       ch = this + i*0x28;
-//       if (ch->source != buffer) continue;
-//       if ((ch->flags & 1) == 0) continue;        // not a live playback
-//       ch->flags |= 2;                            // mark it finished ...
-//       FreeChannelPlatform(this, i);              // ... then release the voice
-//       cb = ch->onComplete;                       // read BEFORE the clears
-//       ch->flags &= ~3;
-//       ch->source = nullptr;
-//       if (cb) cb(ch, ch->userData, ch->userValue);   // `this` is the CHANNEL
-//   }
-//
-// ORACLE: NONE, for `Device::Update`'s reason — this fires stored completion
-// callbacks and releases a COM voice. A replay is a second side effect, not a
-// comparison. the diff oracle records how many calls matched a channel at all;
-// the overwhelming majority of SoundBuffer deletions match none.
-// ############################################################################
-namespace Audio {
-
-void Device::OnSoundBufferDeleted(const SoundBuffer* buffer) {
-    for (int i = 0; i < 64; ++i) {              // `CMP EDI,0x40 ; JL` at 0x1800de154
-        AudioChannel* ch = &_channels[i];
-        if (ch->source != buffer) continue;
-        if ((ch->LoadFlags() & 1u) == 0) continue;   // atomic: AudioChannel (review F-138)
-
-        ch->OrFlags(2u);
-        FreeChannelPlatform(i);
-
-        Callback cb = ch->onComplete;           // read BEFORE the clears
-        ch->AndFlags(0xFFFFFFFCu);
-        ch->source = nullptr;
-        if (cb)
-            cb(ch, ch->userData, ch->userValue);  // `this` is the CHANNEL
-    }
-}
-
-}  // namespace Audio
 
 // ############################################################################
 // Audio::SoundBuffer::~SoundBuffer

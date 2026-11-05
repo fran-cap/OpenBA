@@ -225,15 +225,31 @@ PictureLayout BuildPictureLayout(const Tree& tree, bool livingOnly, const Pictur
             }
     std::vector<int> state(static_cast<size_t>(n), 0);   // 0 not reached, 1 being walked, 2 done
     std::vector<std::vector<char>> kept(static_cast<size_t>(n));
-    const std::function<void(int)> walkDown = [&](int v) {
-        state[static_cast<size_t>(v)] = 1;
-        kept[static_cast<size_t>(v)].assign(below[static_cast<size_t>(v)].size(), 1);
-        for (size_t k = 0; k < below[static_cast<size_t>(v)].size(); ++k) {
+    // Every walk over the clusters runs on an explicit stack: a tree from the save tail can chain thousands
+    // of generations or marriages (up to kPictureMaxPeople), and one call frame each would overflow the
+    // caller's stack. The visit order is that of a recursive walk, so the picture is the same.
+    // (cluster, the next link of below[] to look at)
+    std::vector<std::pair<int, size_t>> down;
+    const auto walkDown = [&](int top) {
+        const auto enter = [&](int v) {
+            state[static_cast<size_t>(v)] = 1;
+            kept[static_cast<size_t>(v)].assign(below[static_cast<size_t>(v)].size(), 1);
+            down.emplace_back(v, 0);
+        };
+        enter(top);
+        while (!down.empty()) {
+            const int v = down.back().first;
+            const size_t k = down.back().second;
+            if (k == below[static_cast<size_t>(v)].size()) {
+                state[static_cast<size_t>(v)] = 2;
+                down.pop_back();
+                continue;
+            }
+            ++down.back().second;
             const int w = below[static_cast<size_t>(v)][k];
             if (state[static_cast<size_t>(w)] == 1) kept[static_cast<size_t>(v)][k] = 0;
-            else if (state[static_cast<size_t>(w)] == 0) walkDown(w);
+            else if (state[static_cast<size_t>(w)] == 0) enter(w);
         }
-        state[static_cast<size_t>(v)] = 2;
     };
     for (const int pass : {0, 1})
         for (int v = 0; v < n; ++v)
@@ -288,13 +304,25 @@ PictureLayout BuildPictureLayout(const Tree& tree, bool livingOnly, const Pictur
         }
         Cluster c;
         std::set<int> seen;
-        std::function<void(int)> walk = [&](int v) {
-            seen.insert(v);
-            c.members.push_back(v);
-            for (const int w : spouses[static_cast<size_t>(v)])
-                if (seen.find(w) == seen.end()) walk(w);
-        };
-        walk(start);
+        // the chain from `start` along the marriages, depth first: (person, the next spouse to look at)
+        std::vector<std::pair<int, size_t>> walk;
+        seen.insert(start);
+        c.members.push_back(start);
+        walk.emplace_back(start, 0);
+        while (!walk.empty()) {
+            const int v = walk.back().first;
+            const size_t k = walk.back().second;
+            if (k == spouses[static_cast<size_t>(v)].size()) {
+                walk.pop_back();
+                continue;
+            }
+            ++walk.back().second;
+            const int w = spouses[static_cast<size_t>(v)][k];
+            if (seen.find(w) != seen.end()) continue;
+            seen.insert(w);
+            c.members.push_back(w);
+            walk.emplace_back(w, 0);
+        }
         c.gen = gen[static_cast<size_t>(start)];
         for (size_t k = 0; k < c.members.size(); ++k) {
             c.w += BoxWidthFor(*person[static_cast<size_t>(c.members[k])],
@@ -306,15 +334,35 @@ PictureLayout BuildPictureLayout(const Tree& tree, bool livingOnly, const Pictur
 
     // the forest: a cluster hangs under the first cluster of the walk that has a child of its own
     std::vector<int> roots;
-    std::function<void(int)> hang = [&](int ci) {
-        for (const int member : std::vector<int>(clusters[static_cast<size_t>(ci)].members)) {
-            for (const int child : children[static_cast<size_t>(member)]) {
-                const int cc = clusterOf[static_cast<size_t>(child)];
-                if (clusters[static_cast<size_t>(cc)].visited) continue;
-                clusters[static_cast<size_t>(cc)].visited = true;
-                clusters[static_cast<size_t>(ci)].kids.push_back(cc);
-                hang(cc);
+    // (cluster, member index, that member's next child index)
+    struct HangFrame {
+        int ci;
+        size_t member;
+        size_t child;
+    };
+    std::vector<HangFrame> hanging;
+    const auto hang = [&](int top) {
+        hanging.push_back({top, 0, 0});
+        while (!hanging.empty()) {
+            HangFrame& f = hanging.back();
+            const std::vector<int>& members = clusters[static_cast<size_t>(f.ci)].members;
+            if (f.member == members.size()) {
+                hanging.pop_back();
+                continue;
             }
+            const std::vector<int>& kidsOf = children[static_cast<size_t>(members[f.member])];
+            if (f.child == kidsOf.size()) {
+                ++f.member;
+                f.child = 0;
+                continue;
+            }
+            const int ci = f.ci;
+            const int cc = clusterOf[static_cast<size_t>(kidsOf[f.child])];
+            ++f.child;
+            if (clusters[static_cast<size_t>(cc)].visited) continue;
+            clusters[static_cast<size_t>(cc)].visited = true;
+            clusters[static_cast<size_t>(ci)].kids.push_back(cc);
+            hanging.push_back({cc, 0, 0});
         }
     };
     for (size_t ci = 0; ci < clusters.size(); ++ci) {
@@ -324,59 +372,81 @@ PictureLayout BuildPictureLayout(const Tree& tree, bool livingOnly, const Pictur
         hang(static_cast<int>(ci));
     }
 
-    // widths, then places
-    std::function<void(int)> measure = [&](int ci) {
-        Cluster& c = clusters[static_cast<size_t>(ci)];
-        c.kidsW = 0;
-        for (size_t k = 0; k < c.kids.size(); ++k) {
-            measure(c.kids[k]);
-            c.kidsW += clusters[static_cast<size_t>(c.kids[k])].subtreeW;
-            if (k > 0) c.kidsW += kPictureSiblingGap;
-        }
-        c.subtreeW = std::max(c.w, c.kidsW);
+    // widths, then places. `order` is one root's tree, every cluster before its kids.
+    std::vector<int> order;
+    const auto treeOf = [&](int root) {
+        order.clear();
+        order.push_back(root);
+        for (size_t i = 0; i < order.size(); ++i)
+            for (const int kid : clusters[static_cast<size_t>(order[i])].kids) order.push_back(kid);
     };
-    // returns the cluster's center
-    std::function<int(int, int)> place = [&](int ci, int left) {
-        Cluster& c = clusters[static_cast<size_t>(ci)];
-        int center = left + c.subtreeW / 2;
-        if (!c.kids.empty()) {
-            int at = left + (c.subtreeW - c.kidsW) / 2;
-            int first = 0, last = 0;
+    // the kids before the cluster: their widths add up to its own
+    const auto measure = [&]() {
+        for (size_t i = order.size(); i-- > 0;) {
+            Cluster& c = clusters[static_cast<size_t>(order[i])];
+            c.kidsW = 0;
             for (size_t k = 0; k < c.kids.size(); ++k) {
-                const int kc = place(c.kids[k], at);
-                if (k == 0) first = kc;
-                last = kc;
-                at += clusters[static_cast<size_t>(c.kids[k])].subtreeW + kPictureSiblingGap;
+                c.kidsW += clusters[static_cast<size_t>(c.kids[k])].subtreeW;
+                if (k > 0) c.kidsW += kPictureSiblingGap;
             }
-            center = (first + last) / 2;
+            c.subtreeW = std::max(c.w, c.kidsW);
         }
-        c.x = std::max(left, std::min(center - c.w / 2, left + c.subtreeW - c.w));
-        return c.x + c.w / 2;
+    };
+    // Each cluster's left edge comes from its parent's, then its place from its kids' centers.
+    std::vector<int> leftOf(clusters.size(), 0);
+    std::vector<int> centerOf(clusters.size(), 0);
+    const auto place = [&](int left) {
+        leftOf[static_cast<size_t>(order.front())] = left;
+        for (const int ci : order) {
+            const Cluster& c = clusters[static_cast<size_t>(ci)];
+            int at = leftOf[static_cast<size_t>(ci)] + (c.subtreeW - c.kidsW) / 2;
+            for (const int kid : c.kids) {
+                leftOf[static_cast<size_t>(kid)] = at;
+                at += clusters[static_cast<size_t>(kid)].subtreeW + kPictureSiblingGap;
+            }
+        }
+        for (size_t i = order.size(); i-- > 0;) {
+            const int ci = order[i];
+            Cluster& c = clusters[static_cast<size_t>(ci)];
+            const int cl = leftOf[static_cast<size_t>(ci)];
+            int center = cl + c.subtreeW / 2;
+            if (!c.kids.empty()) {
+                const int first = centerOf[static_cast<size_t>(c.kids.front())];
+                const int last = centerOf[static_cast<size_t>(c.kids.back())];
+                center = (first + last) / 2;
+            }
+            c.x = std::max(cl, std::min(center - c.w / 2, cl + c.subtreeW - c.w));
+            centerOf[static_cast<size_t>(ci)] = c.x + c.w / 2;
+        }
     };
     // The roots stand side by side in a band. A root that would pass kPictureBandWidth starts the next band,
     // below the deepest row so far with one empty row between: its clusters' rows move down by the band's
     // first row.
     int trueGens = 0;
     for (const Cluster& c : clusters) trueGens = std::max(trueGens, c.gen + 1);
-    std::function<int(int, int)> lift = [&](int ci, int rows) {
-        Cluster& c = clusters[static_cast<size_t>(ci)];
-        c.gen += rows;
-        int deepest = c.gen;
-        for (const int kid : c.kids) deepest = std::max(deepest, lift(kid, rows));
+    // moves the tree down by `rows`; returns its deepest row
+    const auto lift = [&](int rows) {
+        int deepest = clusters[static_cast<size_t>(order.front())].gen + rows;
+        for (const int ci : order) {
+            Cluster& c = clusters[static_cast<size_t>(ci)];
+            c.gen += rows;
+            deepest = std::max(deepest, c.gen);
+        }
         return deepest;
     };
     int left = kPictureMargin;
     int bandRow = 0;       // the row the current band starts at
     int deepestRow = 0;    // the deepest row of any band so far
     for (const int r : roots) {
-        measure(r);
+        treeOf(r);
+        measure();
         const int rootWidth = clusters[static_cast<size_t>(r)].subtreeW;
         if (left > kPictureMargin && left + rootWidth > kPictureBandWidth) {
             bandRow = deepestRow + 2;
             left = kPictureMargin;
         }
-        place(r, left);
-        deepestRow = std::max(deepestRow, lift(r, bandRow));
+        place(left);
+        deepestRow = std::max(deepestRow, lift(bandRow));
         left += rootWidth + 3 * kPictureSiblingGap;
     }
 

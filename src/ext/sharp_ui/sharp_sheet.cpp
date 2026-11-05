@@ -18,14 +18,25 @@ int Clamp(int v, int lo, int hi) {
     return v;
 }
 
+// A UV corner in whole texels, clipped to [0, size]. NOT RETAIL: the UVs come
+// from the sheet file unchecked (review F-223); a corner outside the sheet, or
+// not a number, is clipped before lround and before any int arithmetic, so the
+// width below cannot overflow. A UV inside the sheet rounds as before.
+int CornerFromUv(float uv, int size) {
+    const float t = uv * static_cast<float>(size);
+    if (!(t > 0.0f)) return 0;
+    if (t >= static_cast<float>(size)) return size;
+    return static_cast<int>(std::lround(t));
+}
+
 }  // namespace
 
 SheetRect RectFromUvs(float u0, float v0, float u1, float v1, int sheetW, int sheetH) {
-    const int x0 = static_cast<int>(std::lround(u0 * static_cast<float>(sheetW)));
-    const int y0 = static_cast<int>(std::lround(v0 * static_cast<float>(sheetH)));
-    const int x1 = static_cast<int>(std::lround(u1 * static_cast<float>(sheetW)));
-    const int y1 = static_cast<int>(std::lround(v1 * static_cast<float>(sheetH)));
-    return SheetRect{Clamp(x0, 0, sheetW), Clamp(y0, 0, sheetH), Clamp(x1 - x0, 0, sheetW), Clamp(y1 - y0, 0, sheetH)};
+    const int x0 = CornerFromUv(u0, sheetW);
+    const int y0 = CornerFromUv(v0, sheetH);
+    const int x1 = CornerFromUv(u1, sheetW);
+    const int y1 = CornerFromUv(v1, sheetH);
+    return SheetRect{x0, y0, x1 > x0 ? x1 - x0 : 0, y1 > y0 ? y1 - y0 : 0};
 }
 
 SheetRect ScaleRect(const SheetRect& r, int scale) {
@@ -45,10 +56,28 @@ const ArtSprite* FindArt(const ArtSprite* table, int count, const char* name, in
     if (name == nullptr) return nullptr;
     for (int i = 0; i < count; ++i) {
         if (std::strcmp(table[i].name, name) != 0) continue;
-        if (table[i].width != baseW * scale || table[i].height != baseH * scale) return nullptr;
+        // NOT RETAIL: baseW / baseH are the sheet record's, unbounded from its
+        // file (review F-222); compared in 64 bits so the product cannot overflow.
+        if (table[i].width != static_cast<int64_t>(baseW) * scale ||
+            table[i].height != static_cast<int64_t>(baseH) * scale)
+            return nullptr;
         return &table[i];
     }
     return nullptr;
+}
+
+ScaledSprite SpriteFromRecord(const ArtSprite* table, int count, const char* name, int recordW, int recordH,
+                              float u0, float v0, float u1, float v1, int sheetW, int sheetH, int scale) {
+    ScaledSprite sprite;
+    sprite.rect = RectFromUvs(u0, v0, u1, v1, sheetW, sheetH);
+    // PlaceArt reads the art at the rectangle's size, and FindArt matched it on
+    // the record's: a record whose UVs disagree with its own width / height (a
+    // modded or broken sheet; review F-220 / F-221 / F-227) keeps its own
+    // sprite, upscaled, rather than reading past our art.
+    const bool uvsMatchRecord = sprite.rect.width == recordW && sprite.rect.height == recordH;
+    const ArtSprite* art = uvsMatchRecord ? FindArt(table, count, name, recordW, recordH, scale) : nullptr;
+    sprite.art = art != nullptr ? art->rgba : nullptr;
+    return sprite;
 }
 
 void UpscaleRect(const uint8_t* src, int srcW, uint8_t* dst, const SheetRect& from, int scale) {
@@ -87,6 +116,7 @@ void UpscaleRect(const uint8_t* src, int srcW, uint8_t* dst, const SheetRect& fr
 }
 
 void PlaceArt(uint8_t* dst, int dstW, int dstH, const SheetRect& r, const uint8_t* rgba, int ring) {
+    if (r.width <= 0 || r.height <= 0) return;   // no art texel to read (review F-227)
     const SheetRect p = PadRect(r, ring, dstW, dstH);
     for (int y = p.y; y < p.y + p.height; ++y) {
         const int ay = Clamp(y - r.y, 0, r.height - 1);

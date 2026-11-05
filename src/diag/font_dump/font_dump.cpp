@@ -24,6 +24,7 @@
 #include "ext/resources/font_raster.h"
 #include "ext/resources/font_tables.h"
 #include "kit_font_reader.h"
+#include "app/clamped_atoi.h"   // review F-087: checked parse of the size argument
 
 #include <cstdint>
 #include <cstdio>
@@ -121,7 +122,7 @@ int main(int argc, char** argv) {
     int32_t kit = -1;
     for (int32_t k = 0; k < kKitFontCount; ++k) if (std::strcmp(argv[1], kKitFonts[k].name) == 0) kit = k;
     if (kit < 0) { std::fprintf(stderr, "font_dump: unknown kit font %s\n", argv[1]); return 2; }
-    const int32_t px = std::atoi(argv[2]);
+    const int32_t px = HarnessAtoi(argv[2]);
     const std::string winData = argv[3], outDir = argv[4];
     const VariantNames names = MakeVariantNames(kit, px);
     const std::string crsName = px == kKitFonts[kit].height ? std::string(kKitFonts[kit].name) : names.file;
@@ -148,9 +149,14 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < cps.size(); ++i) {
         const KitFont::GlyphRow& k = oracle.glyphs[i];
         const RasterGlyph& g = ours.glyphs[i];
-        const int32_t d = std::abs(k.preAdvance - g.preAdvance) + std::abs(k.postKern - g.postKern) +
-                          std::abs(k.postAdvance - g.postAdvance) + std::abs(k.offsetY - g.offsetY);
-        const bool advanceSame = k.preAdvance + k.postKern + k.postAdvance == g.preAdvance + g.postKern + g.postAdvance;
+        // In 64 bits: the kit row comes unchecked from the .crs, and a value near 2^31
+        // overflowed the int32 differences and sums (review F-283).
+        const int64_t d = std::llabs(int64_t{k.preAdvance} - g.preAdvance) +
+                          std::llabs(int64_t{k.postKern} - g.postKern) +
+                          std::llabs(int64_t{k.postAdvance} - g.postAdvance) +
+                          std::llabs(int64_t{k.offsetY} - g.offsetY);
+        const bool advanceSame = int64_t{k.preAdvance} + k.postKern + k.postAdvance ==
+                                 int64_t{g.preAdvance} + g.postKern + g.postAdvance;
         if (d == 0) ++exact; else if (d <= 2 && advanceSame && k.offsetY == g.offsetY) ++off1; else ++worse;
         if (d != 0)
             std::printf("%4d | %4d %4d %4d %4d | %4d %4d %4d %4d  %dx%d%s\n", cps[i], k.preAdvance, k.postKern, k.postAdvance, k.offsetY,

@@ -43,7 +43,9 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/PlayerToolManager.h" // B4: PlayerToolManager::OpenPauseMenu (0x140101ce0)
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "pausemenu_harness.h"   // the two entry points this file defines
+#include "mod_click_guard.h"     // ModDialogClickRowInRange (review F-295)
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -69,7 +71,6 @@ int   s_clickedAt  = 0;
 void* s_forWorld   = nullptr;  // the GameUpdateLoop this arming belongs to
 int   s_worldSeenAt = 0;       // frame we first saw that GameUpdateLoop
 UI::DialogInstance* s_dialog = nullptr;  // the pause menu the opener handed back
-void* s_vtable     = nullptr;  // its vtable at open time (liveness check before we click)
 char  s_clicks[256] = {0};     // BANISHED_PAUSEMENU_CLICKS, consumed in place
 char* s_clickCursor = nullptr;
 int   s_lastTokenAt = 0;
@@ -114,6 +115,18 @@ int DialogListIndex(UI::UserInterface* ui, void* dlg, int* outCount) {
 
 int Paused(UI::UserInterface* ui) { return (int)ui->PausesGame(); }
 
+// Whether `dlg` is still owned by the UI: in the open list, or still pending in
+// the add list. Compares pointers only and never reads the dialog, which may have
+// been freed by CleanRemovedDialogs (review F-271: the old probe read its vtable
+// word through the dangling pointer).
+bool DialogLive(UI::UserInterface* ui, UI::DialogInstance* dlg) {
+    if (!ui || !dlg) return false;
+    Object::InternalPtr<UI::DialogInstance> ref(dlg);
+    if (ui->IsDialogOpen(&ref)) return true;
+    int cnt = 0;
+    return DialogListIndex(ui, dlg, &cnt) >= 0;
+}
+
 }  // namespace
 
 // The tool manager (gameupdateloop.cpp hands its `m_toolManager`; its local
@@ -146,7 +159,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 // and click its button <id> at once (5 = Quit to Main Menu).
                 PlayerToolManager* eui = entityUI ? entityUI : gameWorld->m_toolManager;   // +0x120
                 UI::DialogInstance* pause = eui->OpenPauseMenu();
-                int id = std::atoi(tok + 1);
+                int id = HarnessAtoi(tok + 1);
                 std::fprintf(stderr, "[PauseMenu] CLICKS: pause menu=%p id=%d (frame %d)\n",
                              static_cast<void*>(pause), id, frameNum);
                 if (pause) {
@@ -158,7 +171,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 // A bare <id> token sends the event alone, which leaves the box, and so the
                 // mod, as it was.
                 ModDialog* dlg = ModDialog_LastOpened();
-                int row = std::atoi(tok + 1);
+                int row = HarnessAtoi(tok + 1);
                 int rows = dlg ? dlg->entries.GetSize() : 0;
                 std::fprintf(stderr, "[PauseMenu] CLICKS: ModDialog=%p toggle row %d of %d\n",
                              static_cast<void*>(dlg), row, rows);
@@ -172,7 +185,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 }
             } else if (tok[0] == 'd') {
                 ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
-                int id = std::atoi(tok + 1);
+                int id = HarnessAtoi(tok + 1);
                 std::fprintf(stderr, "[PauseMenu] CLICKS: ModDetailsDialog=%p id=%d\n", static_cast<void*>(dlg), id);
                 if (dlg) {
                     // UI::DialogInstance::OnElementEvent (retail slot 8, +0x40).
@@ -185,8 +198,16 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 }
             } else {
                 ModDialog* dlg = ModDialog_LastOpened();
-                int id = std::atoi(tok);
+                int id = HarnessAtoi(tok);
                 std::fprintf(stderr, "[PauseMenu] CLICKS: ModDialog=%p id=%d\n", static_cast<void*>(dlg), id);
+                // A per-row id must name a row the dialog built, and for move up / down a
+                // neighbour row too: the real UI cannot send anything else, and ModDialog
+                // indexes the row unchecked, as retail does (review F-295).
+                if (dlg && !ModDialogClickRowInRange(id, dlg->entries.GetSize())) {
+                    std::fprintf(stderr, "[PauseMenu] CLICKS: id %d names no row (or no neighbour row) "
+                                         "of the %d -- skipped\n", id, dlg->entries.GetSize());
+                    dlg = nullptr;
+                }
                 if (dlg) {
                     // The four trailing arguments (0 / 0 / 0 / nullptr, as the
                     // old raw call already passed) are the harness's choice:
@@ -212,7 +233,6 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         s_opened      = false;
         s_clicked     = false;
         s_dialog      = nullptr;
-        s_vtable      = nullptr;
         s_clickedAt   = 0;
         std::fprintf(stderr, "[PauseMenu] new world %p at frame %d - rearmed\n",
                      static_cast<void*>(gameWorld), frameNum);
@@ -252,14 +272,11 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
             s_clicked = true;
             return;
         }
-        // The dialog's vtable word (three reads), compared later to tell a live
-        // dialog from a destroyed one: a liveness probe, it has no name.
-        s_vtable = *reinterpret_cast<void**>(s_dialog);   // CAST-OK: crash_walk
         int cnt = 0;
         int idx = DialogListIndex(ui, s_dialog, &cnt);
-        std::fprintf(stderr, "[PauseMenu] pause dialog=%p vtable=%p (UI array index=%d of %d) "
+        std::fprintf(stderr, "[PauseMenu] pause dialog=%p (UI array index=%d of %d) "
                              "pausesGame=%d\n",
-                     s_dialog, s_vtable, idx, cnt, Paused(ui));
+                     static_cast<void*>(s_dialog), idx, cnt, Paused(ui));
         return;
     }
 
@@ -270,9 +287,8 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
             int c = 0;
             int i = DialogListIndex(ui, s_dialog, &c);
             std::fprintf(stderr, "[PauseMenu] frame %d - still up? UI array index=%d of %d "
-                                 "vtableIntact=%d pausesGame=%d\n",
-                         frameNum, i, c,
-                         (int)(*reinterpret_cast<void**>(s_dialog) == s_vtable), Paused(ui));   // CAST-OK: crash_walk
+                                 "live=%d pausesGame=%d\n",
+                         frameNum, i, c, (int)DialogLive(ui, s_dialog), Paused(ui));
         }
         return;
     }
@@ -280,18 +296,18 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
 
     int cnt = 0;
     int idx = DialogListIndex(ui, s_dialog, &cnt);
-    void* nowVtable = *reinterpret_cast<void**>(s_dialog);   // CAST-OK: crash_walk
-    std::fprintf(stderr, "[PauseMenu] frame %d - dialog=%p vtable=%p (was %p) "
+    const bool live = DialogLive(ui, s_dialog);
+    std::fprintf(stderr, "[PauseMenu] frame %d - dialog=%p live=%d "
                          "UI array index=%d of %d pausesGame=%d\n",
-                 frameNum, s_dialog, nowVtable, s_vtable, idx, cnt, Paused(ui));
+                 frameNum, static_cast<void*>(s_dialog), (int)live, idx, cnt, Paused(ui));
     s_clicked = true;
-    if (nowVtable != s_vtable) {
-        std::fprintf(stderr, "[PauseMenu] click aborted - the dialog's vtable changed, "
-                             "so the object was destroyed under us\n");
+    if (!live) {
+        std::fprintf(stderr, "[PauseMenu] click aborted - the dialog left the UI's lists, "
+                             "so it was closed and freed\n");
         return;
     }
-    // The vptr is intact (whole-vptr compare above), so the object is still the
-    // MainMenuDialog the opener built: UI::DialogInstance::OnElementEvent, by
+    // The UI still holds the dialog, so it is the MainMenuDialog the opener
+    // built: UI::DialogInstance::OnElementEvent, by
     // name (retail slot 8, +0x40). The trailing ints / userData were never set
     // by the old raw 4-argument call; the by-name call passes 0 / nullptr. The
     // four trailing arguments are the harness's choice: retail has no such caller.
