@@ -1,12 +1,15 @@
-// tests/unit/ext_family_tree_town_test.cpp -- ext.family_tree's game side (review F-260): NowStamp reads a
+// tests/unit/ext_family_tree_town_test.cpp -- ext.family_tree's game side. Review F-260: NowStamp reads a
 // save-derived Calendar (year, yearTime) and AgeYears a save-derived citizen age with no range check. A year
 // above 178956970 overflowed `year * 12` (int32), and a yearTime or an age past INT_MAX was a float->int
-// conversion out of range (UB) before the clamp.
+// conversion out of range (UB) before the clamp. Review F-264: the seams follow the row of the game that
+// holds the lock from the moment it takes it, not the last frame of the game before.
 #include "unit.h"
 #include "ext/family_tree/family_tree.h"
 #include "Component/CitizenComponent.h"
 #include "Game/Calendar.h"
 #include "Game/GameUpdateLoop.h"
+#include "ext/registry.h"
+#include "ext/savetail.h"
 
 #include <climits>
 #include <cstdint>
@@ -14,7 +17,7 @@
 #include <cstring>
 #include <limits>
 
-// family_tree_town.cpp's two outside references that the unit tree does not link (never reached here).
+// family_tree_town.cpp's two outside references that the unit tree does not link (no panel or camera here).
 #include "Entity/ComponentEntity.h"
 #include "Game/PlayerToolManager.h"
 void Ext::FamilyTree::CitizenButtonsForget() {
@@ -99,4 +102,53 @@ UNIT_TEST(ext_family_tree_ageyears_out_of_range) {
     CHECK_EQ(JoinedAgeOf(std::numeric_limits<float>::quiet_NaN()), 0);
     CHECK_EQ(JoinedAgeOf(-3.0f), 0);
     CHECK_EQ(JoinedAgeOf(4.1f), 20);
+}
+
+namespace {
+// What GameUpdateLoop::Load runs before the start town's citizens are made (gameupdateloop_load.cpp: the
+// class lock, then every class C codec's reset), and ~GameUpdateLoop when the game ends.
+void TakeLock(const void* game) {
+    Ext::LockForGame(game);
+    Ext::SaveTail::ResetAllState();
+}
+}  // namespace
+
+// Review F-264: game A plays with the row on; back at the menu the player turns it off and starts game B. The
+// start town's citizens of B are made before B's first frame, and the seams must already be off; in reverse,
+// a game with the row on records its founders at creation.
+UNIT_TEST(ext_family_tree_seams_follow_the_row_of_the_game_that_took_the_lock) {
+    const Ext::Entry* row = Ext::FindEntry("family_tree");
+    CHECK(row != nullptr);
+    if (row == nullptr) return;
+    const int gameA = 0;
+    const int gameB = 0;
+    Ext::SetRequested(*row, true);
+    TakeLock(&gameA);
+    Ext::FamilyTree::BeginFrame();
+    CHECK(Ext::FamilyTree::g_on);
+    Ext::UnlockForGame(&gameA);
+    // row off, game B: its founders are made before its first frame
+    Ext::SetRequested(*row, false);
+    TakeLock(&gameB);
+    SavedCitizen founderB(4.0f);
+    Ext::FamilyTree::OnCreated(founderB.Citizen(), nullptr);
+    CHECK(!Ext::FamilyTree::g_on);
+    CHECK_EQ(Ext::FamilyTree::Town().Size(), 0u);
+    CHECK_EQ(Ext::FamilyTree::PersonOfCitizen(founderB.Citizen()), 0u);
+    Ext::FamilyTree::BeginFrame();
+    Ext::UnlockForGame(&gameB);
+    // row on again, game A: its founders are recorded when they are made
+    Ext::SetRequested(*row, true);
+    TakeLock(&gameA);
+    SavedCitizen founderA(4.0f);
+    Ext::FamilyTree::OnCreated(founderA.Citizen(), nullptr);
+    CHECK(Ext::FamilyTree::g_on);
+    CHECK_EQ(Ext::FamilyTree::Town().Size(), 1u);
+    CHECK(Ext::FamilyTree::PersonOfCitizen(founderA.Citizen()) != 0u);
+    // the game ends: no game, no row
+    Ext::UnlockForGame(&gameA);
+    CHECK(!Ext::FamilyTree::g_on);
+    CHECK_EQ(Ext::FamilyTree::PersonOfCitizen(founderA.Citizen()), 0u);
+    Ext::SetRequested(*row, false);
+    Ext::FamilyTree::Town().Clear();
 }
