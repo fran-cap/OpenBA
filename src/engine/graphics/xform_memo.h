@@ -60,13 +60,24 @@ inline uint64_t HashKey(const void* geometry, int32_t packed, uint32_t t) {
     return h * 0x9E3779B97F4A7C15ull;
 }
 
-// A fixed, direct-mapped slot table: slot = the hash's top kSlotBits bits, each
-// slot one key, its epoch and its matrix. A slot is live only when its epoch is
-// the current one, so a scope change empties the table with no clear. A
-// different key hashing to a live slot EVICTS it (the next request for the
-// evicted key recomputes; counted). kSlots x 88 bytes, allocated on first use.
-inline constexpr int32_t kSlotBits = 13;
+// A fixed slot table with a short linear probe: a key's HOME slot is the
+// hash's top kSlotBits bits and it lives in one of the kProbe slots from there
+// (wrapping), each slot one key, its epoch and its matrix. A slot is live only
+// when its epoch is the current one, so a scope change empties the table with
+// no clear. Nothing is removed inside an epoch, so a live key always sits ahead
+// of the first non-live slot of its window and a lookup stops there. A miss
+// fills that first non-live slot; only when all kProbe are live does it
+// EVICT the home slot's key (the next request for the evicted key recomputes;
+// counted). kSlots x 88 bytes, allocated on first use.
+//
+// Sizing (issue #253, COMPPROF=4 stress town, 2026-11-05): ~25k requests per
+// Renderer::Draw. The old direct-mapped 8192 slots evicted ~12.8k keys per
+// frame at town,130 sweep (hits 23.6%) and ~18k at town,200 (hits 7.4%);
+// 1 << 15 slots with an 8-slot probe hold the ~9k / ~12.5k distinct keys with
+// ~11 / ~120 evictions per frame (hits 60% / 48.6%).
+inline constexpr int32_t kSlotBits = 15;
 inline constexpr int32_t kSlots    = 1 << kSlotBits;
+inline constexpr int32_t kProbe    = 8;
 
 class Table {
 public:
@@ -80,20 +91,26 @@ public:
 
     int32_t SlotOf(uint64_t h) const { return static_cast<int32_t>(h >> (64 - kSlotBits)); }
 
-    // The stored matrix when slot `s` holds the key in `epoch`, else nullptr.
-    const Math::Matrix* Find(int32_t s, const void* geometry, int32_t packed, uint32_t t,
-                             uint64_t epoch) const {
+    // The stored matrix when the key is live in `epoch` in the probe window of
+    // `home`, else nullptr with `*place` = the slot a miss claims (the window's
+    // first slot not live in `epoch`, or `home` when all kProbe are live) and
+    // `*evicts` = whether claiming it drops another live key.
+    const Math::Matrix* Find(int32_t home, const void* geometry, int32_t packed, uint32_t t,
+                             uint64_t epoch, int32_t* place, bool* evicts) const {
+        *place = home;
+        *evicts = false;
         if (_slots.empty()) return nullptr;
-        const Slot& slot = _slots[static_cast<size_t>(s)];
-        if (slot.epoch != epoch) return nullptr;
-        if (slot.geometry != geometry) return nullptr;
-        if (slot.packed != packed) return nullptr;
-        if (slot.t != t) return nullptr;
-        return &slot.m;
-    }
-    // True when filling slot `s` in `epoch` evicts another live key.
-    bool Occupied(int32_t s, uint64_t epoch) const {
-        return !_slots.empty() && _slots[static_cast<size_t>(s)].epoch == epoch;
+        for (int32_t k = 0; k < kProbe; ++k) {
+            const int32_t s = (home + k) & (kSlots - 1);
+            const Slot& slot = _slots[static_cast<size_t>(s)];
+            if (slot.epoch != epoch) {
+                *place = s;
+                return nullptr;
+            }
+            if (slot.geometry == geometry && slot.packed == packed && slot.t == t) return &slot.m;
+        }
+        *evicts = true;
+        return nullptr;
     }
     // Claim slot `s` for the key; returns its matrix for the producer to fill.
     Math::Matrix* Claim(int32_t s, const void* geometry, int32_t packed, uint32_t t, uint64_t epoch) {

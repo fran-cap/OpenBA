@@ -8,7 +8,7 @@
 // (the pointer-key hazard across frames). World A always runs the producer (a
 // stand-in for MeshInstance::GetInstanceTransform: a pure function of the
 // instance bytes, the packed level|list and t). World B runs the memo exactly
-// as XformMemo::Transform does (SlotOf, Find, Occupied, Claim) with one epoch
+// as XformMemo::Transform does (SlotOf, Find, Claim) with one epoch
 // per scope. Writes happen only between scopes; every request's 64 bytes must
 // match bit for bit. A broken variant that writes an instance inside a scope
 // must diverge (the test can tell).
@@ -78,12 +78,14 @@ Stats Run(uint64_t seed, bool writeInsideScope, int frames) {
                 Math::Matrix ref;
                 Produce(pool[i], packed, tb, &ref);
 
-                const int32_t s = table.SlotOf(XformMemo::HashKey(&pool[i], packed, tb));
-                const Math::Matrix* got = table.Find(s, &pool[i], packed, tb, epoch);
+                const int32_t home = table.SlotOf(XformMemo::HashKey(&pool[i], packed, tb));
+                int32_t s = home;
+                bool evicts = false;
+                const Math::Matrix* got = table.Find(home, &pool[i], packed, tb, epoch, &s, &evicts);
                 if (got != nullptr) {
                     ++st.hits;
                 } else {
-                    if (table.Occupied(s, epoch)) ++st.evictions;
+                    if (evicts) ++st.evictions;
                     Math::Matrix* out = table.Claim(s, &pool[i], packed, tb, epoch);
                     Produce(pool[i], packed, tb, out);
                     got = out;
@@ -106,18 +108,59 @@ UNIT_TEST(xform_memo_table_slots_and_epochs) {
     const uint32_t t = XformMemo::Bits(0.5f);
     const int32_t s = table.SlotOf(XformMemo::HashKey(&a, 3, t));
     CHECK(s >= 0 && s < XformMemo::kSlots);
-    CHECK(table.Find(s, &a, 3, t, 1) == nullptr);   // empty before first use
-    CHECK(!table.Occupied(s, 1));
-    Math::Matrix* m = table.Claim(s, &a, 3, t, 1);
+    int32_t place = -1;
+    bool evicts = true;
+    CHECK(table.Find(s, &a, 3, t, 1, &place, &evicts) == nullptr);   // empty before first use
+    CHECK(place == s);
+    CHECK(!evicts);
+    Math::Matrix* m = table.Claim(place, &a, 3, t, 1);
     m->m[0] = 42.0f;
-    CHECK(table.Find(s, &a, 3, t, 1) == m);
-    CHECK(table.Occupied(s, 1));
-    CHECK(table.Find(s, &a, 3, t, 2) == nullptr);   // a new epoch empties the table
-    CHECK(!table.Occupied(s, 2));
-    CHECK(table.Find(s, &b, 3, t, 1) == nullptr);   // every key field is compared
-    CHECK(table.Find(s, &a, 4, t, 1) == nullptr);
-    CHECK(table.Find(s, &a, 3, XformMemo::Bits(0.25f), 1) == nullptr);
+    CHECK(table.Find(s, &a, 3, t, 1, &place, &evicts) == m);
+    CHECK(table.Find(s, &a, 3, t, 2, &place, &evicts) == nullptr);   // a new epoch empties the table
+    CHECK(place == s);
+    CHECK(table.Find(s, &b, 3, t, 1, &place, &evicts) == nullptr);   // every key field is compared
+    CHECK(place == ((s + 1) & (XformMemo::kSlots - 1)));               // the next slot of the window
+    CHECK(!evicts);
+    CHECK(table.Find(s, &a, 4, t, 1, &place, &evicts) == nullptr);
+    CHECK(table.Find(s, &a, 3, XformMemo::Bits(0.25f), 1, &place, &evicts) == nullptr);
     CHECK(XformMemo::Bits(-0.0f) != XformMemo::Bits(0.0f));   // keyed by bits, not by value
+}
+
+// The probe window: kProbe keys sharing one home slot all stay findable, at the
+// table's wrap-around too; the next one evicts the home slot's key only.
+UNIT_TEST(xform_memo_table_probe_window) {
+    XformMemo::Table table;
+    static int keys[XformMemo::kProbe + 1];
+    const uint32_t t = XformMemo::Bits(1.0f);
+    const int32_t homes[2] = { 100, XformMemo::kSlots - 3 };
+    for (int h = 0; h < 2; ++h) {
+        const int32_t home = homes[h];
+        const uint64_t epoch = 10 + static_cast<uint64_t>(h);
+        for (int k = 0; k < XformMemo::kProbe; ++k) {
+            int32_t place = -1;
+            bool evicts = true;
+            CHECK(table.Find(home, &keys[k], 0, t, epoch, &place, &evicts) == nullptr);
+            CHECK(place == ((home + k) & (XformMemo::kSlots - 1)));
+            CHECK(!evicts);
+            table.Claim(place, &keys[k], 0, t, epoch)->m[0] = static_cast<float>(k);
+        }
+        for (int k = 0; k < XformMemo::kProbe; ++k) {
+            int32_t place = -1;
+            bool evicts = true;
+            const Math::Matrix* got = table.Find(home, &keys[k], 0, t, epoch, &place, &evicts);
+            CHECK(got != nullptr && got->m[0] == static_cast<float>(k));
+        }
+        int32_t place = -1;
+        bool evicts = false;
+        const int last = XformMemo::kProbe;
+        CHECK(table.Find(home, &keys[last], 0, t, epoch, &place, &evicts) == nullptr);
+        CHECK(evicts);
+        CHECK(place == home);
+        table.Claim(place, &keys[last], 0, t, epoch);
+        CHECK(table.Find(home, &keys[0], 0, t, epoch, &place, &evicts) == nullptr);   // the evicted key
+        CHECK(table.Find(home, &keys[1], 0, t, epoch, &place, &evicts) != nullptr);   // the rest stay
+        CHECK(table.Find(home, &keys[last], 0, t, epoch, &place, &evicts) != nullptr);
+    }
 }
 
 UNIT_TEST(xform_memo_two_renderers_bit_identical) {

@@ -42,9 +42,11 @@ const Math::Matrix* Transform(const Graphics::Geometry& geometry, int32_t packed
     ++g_calls;
     const uint32_t tb = Bits(t);
     const uint64_t epoch = SkinMemo::g_epoch;
-    const int32_t s = g_table.SlotOf(HashKey(&geometry, packed, tb));
+    const int32_t home = g_table.SlotOf(HashKey(&geometry, packed, tb));
+    int32_t s = home;
+    bool evicts = false;
 
-    if (const Math::Matrix* const hit = g_table.Find(s, &geometry, packed, tb, epoch)) {
+    if (const Math::Matrix* const hit = g_table.Find(home, &geometry, packed, tb, epoch, &s, &evicts)) {
         ++g_hits;
         if (g_verify) {
             // XformMemo: the virtual call on the live inputs, all 64 bytes
@@ -58,7 +60,7 @@ const Math::Matrix* Transform(const Graphics::Geometry& geometry, int32_t packed
     }
 
     ++g_misses;
-    if (g_table.Occupied(s, epoch)) ++g_evictions;
+    if (evicts) ++g_evictions;
     Math::Matrix* const out = g_table.Claim(s, &geometry, packed, tb, epoch);
     return geometry.GetInstanceTransform(out, packed, t);
 }
