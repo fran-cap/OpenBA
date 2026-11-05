@@ -30,6 +30,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "graphics/gather_prefetch.h"   // issue #253: kGatherShaderSlots (the per-shader split)
+
 namespace Ext {
 namespace DrawGather {
 
@@ -130,6 +132,7 @@ struct Counters {
     uint64_t gathers      = 0;   // replaced AddCulledDrawItems calls
     uint64_t nodesTested  = 0;   // grid nodes visited in surviving cells (records read)
     uint64_t visible      = 0;   // pushed onto the visible list (= AddDrawItems dispatches)
+    uint64_t visibleByShader[kGatherShaderSlots] = {};   // issue #253: `visible` by the group's shader
     uint64_t geoTouched   = 0;   // nodes whose Geometry the walk had to read (live flags / refresh)
     uint64_t refreshes    = 0;   // per-node full record refreshes (gather or Clean)
     uint64_t cleans       = 0;   // replaced Scene::Clean calls

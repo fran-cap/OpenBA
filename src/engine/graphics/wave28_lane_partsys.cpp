@@ -146,6 +146,7 @@
 #include "graphics/ParticleInstance.h"
 // ENDGAME B.3.5 block E: the real `Graphics::SunLight` (and `Light`).
 #include "graphics/SunLight.h"
+#include "graphics/pass_split.h"   // issue #253: the stress harness's per-group CPU split
 #include "math/Math.h"
 #include "graphics/Camera.h"    // ENDGAME B.3.5 caller batch: Renderer, Camera
 #include "graphics/Scene.h"     // ENDGAME B.3.5 caller batch: Graphics::Scene
@@ -899,6 +900,9 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
     // the retail combo (a rebuild is requested when it differs).
     if (_extMaxShadowRes != nullptr) ExtSyncMaxShadowRes(false);   // record + log; never a raise here
 
+    // NOT RETAIL (issue #253, counters only): the shadow group's share of pass 1.
+    const int64_t splitT0 = PassSplit::Begin();
+
     // ENDGAME B.3.5 caller batch: all six by-name doors here are DEFINED members
     // today and every receiver is a real class in this body's own signature, so
     // all six are member calls and the six `using` typedefs above them are gone.
@@ -931,6 +935,7 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
     }
 
     rendererRef.Graphics::Renderer::EndDrawGroup(group);
+    PassSplit::EndSun(splitT0);   // issue #253
 }
 
 }  // namespace Graphics

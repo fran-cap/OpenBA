@@ -400,8 +400,11 @@ static void RtGraphics_Scene_CullStackPushChildren(CullStack* self, uint32_t mas
 
 // GATHERPF: the COMPPROF `gather` row's counters (gather_prefetch.h). Main thread;
 // the harness reads and resets them once per window.
-uint64_t g_gatherVisible      = 0;
-uint64_t g_gatherDrawItems    = 0;   // incremented by Renderer::AddDrawItem (wave9_lane_gfx.cpp)
+uint64_t g_gatherVisible[kGatherShaderSlots]   = {};
+uint64_t g_gatherDrawItems[kGatherShaderSlots] = {};   // incremented by Renderer::AddDrawItem (wave9_lane_gfx.cpp)
+uint64_t g_lodMulti[kGatherShaderSlots]        = {};   // issue #253: bumped by MeshInstance::AddDrawItems (mesh.cpp)
+uint64_t g_lodFallback[kGatherShaderSlots]     = {};
+uint64_t g_lodLevelItems[kGatherShaderSlots][kLodLevelSlots] = {};
 
 namespace Graphics {
 
@@ -461,6 +464,7 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
     // `shader != 1` means "no shadow pass": objects go straight into the list
     // and the second frustum is never consulted.
     const bool notShadow = (g->_shader != 1);
+    const int  shaderSlot = GatherShaderSlot(g->_shader);   // issue #253: the `gather` row's split
 
     while (st.top >= 0) {
         const int32_t t    = st.top;
@@ -586,7 +590,8 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
     g_frustumCullBoxes += boxesTested;   // FRUSTUMCULL: the stress report's counter (once per call)
     ++g_frustumCullPasses;
     FrustumCull_CountSite(kFrustumCullSiteScene, boxesTested);   // CULLROUTE: the per-site breakdown
-    g_gatherVisible += static_cast<uint64_t>(list.size);   // GATHERPF: the COMPPROF `gather` row
+    // GATHERPF: the COMPPROF `gather` row, split by the group's shader (issue #253)
+    g_gatherVisible[shaderSlot] += static_cast<uint64_t>(list.size);
 
     if (list.data != nullptr) System::MemoryAllocator::MemFree(list.data);
 }

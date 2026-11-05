@@ -73,6 +73,8 @@
 #include "volume/frustum_cull.h"   // FRUSTUMCULL: the scene cull counters and its COMPPROF=4 shadow hook
 #include "graphics/gather_prefetch.h"   // GATHERPF: the faithful gather's counters (the `gather` row)
 #include "graphics/skin_memo.h"    // SKINMEMO: the bone memo counters (/skin row) and its COMPPROF=4 shadow hook
+#include "graphics/pass_split.h"   // issue #253: the per-scene-group CPU split ([Stress::pipe])
+#include "ext/draw_batch/draw_batch.h"   // issue #253: the instancing batch counters (COMPPROF >= 2)
 #include "ext/draw_gather/draw_gather.h"   // DRAWGATHER: the [Stress::gather] counters
 #include "ext/render_pipe/render_pipe.h"   // RENDERPIPE: the [Stress::pipe] counters
 #include "platform/common/cpu/topology.h"             // CPULIMIT: the '# cpu' meta line
@@ -184,8 +186,10 @@ void Resolve() {
             DrawSort::g_verify = 1;
         }
         SkinMemo::g_prof = cp >= 1 ? 1 : 0;   // SKINMEMO: the /skin row's RDTSC split and the still census
+        Ext::DrawBatch::SetCounting(cp >= 2);   // issue #253: the per-shader instancing rows
     }
     g_pfProfOn   = 1;   // PFBENCH: the pathfinding columns are part of every stress row
+    PassSplit::g_on = 1;   // issue #253: the [Stress::pipe] line's per-group split
     if (Opt().stressCsv) {
         std::strncpy(s_csvPath, Opt().stressCsv, sizeof(s_csvPath) - 1);
         s_csvPath[sizeof(s_csvPath) - 1] = 0;
@@ -232,6 +236,7 @@ void PipeWindowReset() {
     s_pipeMainSum = 0; s_pipeMainN = 0;
     s_pipePacketTicks.store(0, std::memory_order_relaxed); s_pipePacketN.store(0, std::memory_order_relaxed);
     s_pipeEmitTicks.store(0, std::memory_order_relaxed);   s_pipeEmitN.store(0, std::memory_order_relaxed);
+    for (int k = 0; k < PassSplit::kSlots; ++k) PassSplit::g_ticks[k].store(0, std::memory_order_relaxed);   // issue #253
 }
 long long s_simIters = 0;
 std::vector<float> s_updSamples;   // per-Update ms, for p95
@@ -991,14 +996,56 @@ void DrawSortReport(FILE* o) {
 // GATHERPF: per DRAW frame of the window. `visible` = slot-3 dispatches (the visible list),
 // `draw items` = Renderer::AddDrawItem appends (every caller; all of them are reached from
 // the gather's dispatch).
+//
+// Issue #253: the same counts by the group's shader (main = 0, shadow = 1, refl = 2, other),
+// and MeshInstance::AddDrawItems' LOD pick: `multi` = calls on a mesh with more than one
+// detail level, `fallback` = those past the last switch distance (retail draws level 0),
+// `lists L0/L1/L2/L3+` = triangle lists queued per chosen level. The LOD and draw-item
+// counts cover both gathers; `visible` is the faithful walk's (ext.draw_gather's split is
+// on its [Stress::gather] line).
 void GatherReport(FILE* o) {
     const double n = s_interval > 0 ? (double)s_interval : 1.0;
+    uint64_t visible = 0;
+    uint64_t items   = 0;
+    for (int s = 0; s < kGatherShaderSlots; ++s) {
+        visible += g_gatherVisible[s];
+        items += g_gatherDrawItems[s];
+    }
     std::fprintf(o, "[COMPPROF]   gather (faithful walk): visible/frame=%.0f  draw items appended/frame=%.0f "
                     "(%.2f/visible)  passes/frame=%.2f\n",
-                 (double)g_gatherVisible / n,
-                 (double)g_gatherDrawItems / n,
-                 g_gatherVisible ? (double)g_gatherDrawItems / (double)g_gatherVisible : 0.0,
+                 (double)visible / n,
+                 (double)items / n,
+                 visible ? (double)items / (double)visible : 0.0,
                  (double)g_frustumCullPasses / n);
+    static const char* const kShaderNames[kGatherShaderSlots] = { "main", "shadow", "refl", "other" };
+    for (int s = 0; s < kGatherShaderSlots; ++s) {
+        const uint64_t  multi = g_lodMulti[s];
+        const uint64_t* lv    = g_lodLevelItems[s];
+        std::fprintf(o, "[COMPPROF]   gather/%-6s visible/frame=%.0f  draw items/frame=%.0f  lod: multi/frame=%.0f "
+                        "fallback/frame=%.0f (%.1f%%)  lists/frame L0=%.0f L1=%.0f L2=%.0f L3+=%.0f\n",
+                     kShaderNames[s], (double)g_gatherVisible[s] / n, (double)g_gatherDrawItems[s] / n,
+                     (double)multi / n, (double)g_lodFallback[s] / n,
+                     multi ? 100.0 * (double)g_lodFallback[s] / (double)multi : 0.0,
+                     (double)lv[0] / n, (double)lv[1] / n, (double)lv[2] / n, (double)lv[3] / n);
+    }
+    // Issue #253: ext.draw_batch's instancing batches by shader (counted at COMPPROF >= 2,
+    // per draw frame of the window): `singles` = items with _arg8 <= 1, `batches` /
+    // `instances` = the _arg8 > 1 batches and the items they drew, `size` = batches of 1 /
+    // 2-8 / 9-32 / 33+, `ended by` = what closed each batch.
+    Ext::DrawBatch::BatchCounters bc[Ext::DrawBatch::kBatchShaderSlots];
+    Ext::DrawBatch::TakeWindow(bc);
+    for (int s = 0; s < Ext::DrawBatch::kBatchShaderSlots; ++s) {
+        const Ext::DrawBatch::BatchCounters& b = bc[s];
+        if (b.lists == 0) continue;
+        std::fprintf(o, "[COMPPROF]   draw batch/%-6s lists/frame=%.1f  singles=%.0f  batches=%.0f  instances=%.0f "
+                        "(%.1f/batch)  size 1/2-8/9-32/33+=%.0f/%.0f/%.0f/%.0f  ended by end/cap/instance/arg5/"
+                        "userData/arg10=%.0f/%.0f/%.0f/%.0f/%.0f/%.0f\n",
+                     kShaderNames[s], (double)b.lists / n, (double)b.singles / n, (double)b.batches / n,
+                     (double)b.instances / n, b.batches ? (double)b.instances / (double)b.batches : 0.0,
+                     (double)b.sizes[0] / n, (double)b.sizes[1] / n, (double)b.sizes[2] / n, (double)b.sizes[3] / n,
+                     (double)b.breaks[0] / n, (double)b.breaks[1] / n, (double)b.breaks[2] / n,
+                     (double)b.breaks[3] / n, (double)b.breaks[4] / n, (double)b.breaks[5] / n);
+    }
 }
 
 void CompProfReport(int frame) {
@@ -1086,7 +1133,13 @@ void CompProfReport(int frame) {
     g_elProfTreeNodes = g_elProfBucketVisits = g_elProfBucketTicked = 0;
     g_frustumCullBoxes = g_frustumCullPasses = 0;
     for (int s = 0; s < kFrustumCullSiteCount; ++s) g_frustumCullSiteBoxes[s] = g_frustumCullSiteCalls[s] = 0;   // CULLROUTE
-    g_gatherVisible = g_gatherDrawItems = 0;   // GATHERPF
+    for (int s = 0; s < kGatherShaderSlots; ++s) {   // GATHERPF (split by shader, issue #253)
+        g_gatherVisible[s]   = 0;
+        g_gatherDrawItems[s] = 0;
+        g_lodMulti[s]        = 0;
+        g_lodFallback[s]     = 0;
+        for (int l = 0; l < kLodLevelSlots; ++l) g_lodLevelItems[s][l] = 0;
+    }
 }
 
 // ── staffing pass ────────────────────────────────────────────────────────────
@@ -1420,6 +1473,13 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
     // RENDERPIPE-1: the hand-off waits (us per draw frame of the window) and the packet
     // latency (hand-off -> Present done, mean us); 0 in the sequential split.
     const Ext::RenderPipe::Counters rp = Ext::RenderPipe::TakeWindow();
+    // Issue #253: the per-scene-group split, ms per pipelined frame (pass 1) and per emit.
+    double split[PassSplit::kSlots];
+    for (int k = 0; k < PassSplit::kSlots; ++k) {
+        const double ms = QpcMs(PassSplit::g_ticks[k].exchange(0, std::memory_order_relaxed));
+        const int    per = k < PassSplit::kP2Shadow ? s_pipeMainN : pipeEmitN;
+        split[k] = per > 0 ? ms / per : 0.0;
+    }
     const double pipeWaitUs    = s_drawN ? static_cast<double>(rp.waitUs) / s_drawN : 0.0;
     const double pipeLatencyUs = rp.latencyN ? static_cast<double>(rp.latencyUs) / rp.latencyN : 0.0;
     double frameMean = 0;
@@ -1511,8 +1571,11 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
         if (Ext::DrawGather::Installed() || g.gathers != 0) {
             const double df = s_drawN > 0 ? static_cast<double>(s_drawN) : 1.0;
             std::fprintf(stderr, "[Stress::gather] draw_gather=%d per frame: gathers=%.1f nodes=%.0f visible=%.0f "
+                                 "(main/shadow/refl/other %.0f/%.0f/%.0f/%.0f) "
                                  "geoTouched=%.0f (%.1f%% of nodes) refreshes=%.1f cleans=%.1f | window: logged=%llu rebuilds=%llu\n",
                          Ext::DrawGather::Installed() ? 1 : 0, g.gathers / df, g.nodesTested / df, g.visible / df,
+                         g.visibleByShader[0] / df, g.visibleByShader[1] / df, g.visibleByShader[2] / df,
+                         g.visibleByShader[3] / df,
                          g.geoTouched / df, g.nodesTested ? 100.0 * g.geoTouched / g.nodesTested : 0.0,
                          g.refreshes / df, g.cleans / df,
                          static_cast<unsigned long long>(g.logged), static_cast<unsigned long long>(g.rebuilds));
@@ -1540,7 +1603,8 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                                  "sequential=%llu emits=%llu waits=%llu (fence %llu) recoveries=%llu "
                                  "drains step=%llu other=%llu discarded=%llu idle writes=%llu skips=%llu "
                                  "| overlap: steps=%llu snapshots=%llu refused=%llu copy=%.3fms %lluKB/packet "
-                                 "governor=%s removable=%lldus idle=%lldus (without the copies %lldus)\n",
+                                 "governor=%s removable=%lldus idle=%lldus (without the copies %lldus) "
+                                 "| split pass1 main/shadow/refl=%.3f/%.3f/%.3fms emit shadow/refl/main=%.3f/%.3f/%.3fms\n",
                          Ext::RenderPipe::Installed() ? 1 : 0, Ext::RenderPipe::Threaded() ? 1 : 0,
                          pipeMain, pipePacket, pipeEmit,
                          pipeMain + pipePacket > 0 ? 100.0 * pipeMain / (pipeMain + pipePacket) : 0.0,
@@ -1556,7 +1620,9 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          rp.snapshots > 0 ? static_cast<double>(rp.snapshotUs) / 1000.0 / static_cast<double>(rp.snapshots) : 0.0,
                          static_cast<unsigned long long>(rp.snapshots > 0 ? rp.snapshotKB / rp.snapshots : 0),
                          rp.governorOn ? "on" : "off", static_cast<long long>(rp.governorRemovableUs),
-                         static_cast<long long>(rp.governorIdleUs), static_cast<long long>(rp.governorIdleWithoutUs));
+                         static_cast<long long>(rp.governorIdleUs), static_cast<long long>(rp.governorIdleWithoutUs),
+                         split[PassSplit::kP1Main], split[PassSplit::kP1Shadow], split[PassSplit::kP1Refl],
+                         split[PassSplit::kP2Shadow], split[PassSplit::kP2Refl], split[PassSplit::kP2Main]);
         }
     }
     (void)frame;

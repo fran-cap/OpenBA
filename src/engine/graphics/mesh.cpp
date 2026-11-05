@@ -141,6 +141,7 @@
 #include "collection/Collection.h"    // rtcoll:: the array instantiations
 #include "math/Math.h"                // Math::Quaternion::Lerp
 #include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
+#include "graphics/gather_prefetch.h"   // issue #253: the LOD pick counters (the COMPPROF `gather` row)
 
 using RtGraphics::EdgeVertex;
 using RtGraphics::TriangleVertex;
@@ -2163,6 +2164,8 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
 
     int32_t level = 0;                                         // r15d
     const int32_t levelCount = mesh->_detailLevels._size;      // 180100f57
+    // Issue #253 (NOT RETAIL, counters only): the group's shader slot for the LOD row.
+    const int shaderSlot = GatherShaderSlot(renderer._drawGroups._data[renderer._currentDrawGroup]._shader);
 
     if (levelCount > 1) {                                      // 180100f5b  JLE
         // The current draw group's view position: its camera's world
@@ -2191,10 +2194,17 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
 
         const GraphicsMesh::DetailLevel* const lvl =
             mesh->_detailLevels._data;
+        bool found = false;                                    // issue #253: counters only
         for (int32_t i = 0; i < levelCount; ++i) {             // 180101070
             const float d = lvl[i]._distance;
-            if (d * d > distSq) { level = i; break; }          // COMISS / JA
+            if (d * d > distSq) {                              // COMISS / JA
+                level = i;
+                found = true;
+                break;
+            }
         }
+        ++g_lodMulti[shaderSlot];
+        if (!found) ++g_lodFallback[shaderSlot];               // past the last switch: level 0
         // The `TEST EDX,EDX ; JS` that follows is unreachable — see the door.
     }
 
@@ -2205,6 +2215,8 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
     if (_extLevelGathered != nullptr) _extLevelGathered(*this, level);
     const int32_t listCount = levels[level]._triangleLists._size;
     if (listCount <= 0) return;                                // 1801010c0
+    g_lodLevelItems[shaderSlot][level < kLodLevelSlots ? level : kLodLevelSlots - 1] +=   // issue #253
+        static_cast<uint64_t>(listCount);
 
     const uint16_t packedLevel = static_cast<uint16_t>(
         static_cast<uint16_t>(level) << 12);                   // SHL $0xc,%r15w

@@ -389,6 +389,7 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
         Walk(self, f, list, test);
     }
     g_counters.visible += list.size();
+    g_counters.visibleByShader[GatherShaderSlot(g->_shader)] += list.size();   // issue #253
 
     if (verify) {
         // COMPPROF=4: retail's reads, the same walk, into a scratch list.

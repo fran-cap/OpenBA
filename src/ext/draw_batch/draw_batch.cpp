@@ -57,9 +57,11 @@
 #include "ext/draw_batch/batch_fill.h"
 #include "ext/registry.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 #include <typeinfo>
 
 namespace Ext {
@@ -87,6 +89,19 @@ constexpr int32_t  kSmokeSlots  = 52;       // Context::_transforms[52], the VS'
 constexpr int64_t  kInstanceAhead = 4;
 
 bool g_installed = false;
+
+// Issue #253: the stress harness's batch counters (draw_batch.h). Folded under the lock
+// once per DrawItemList call, only while g_counting is set.
+std::atomic<bool> g_counting{ false };
+std::mutex        g_countLock;
+BatchCounters     g_window[kBatchShaderSlots];
+
+int BatchSizeSlot(int32_t n) {
+    if (n <= 1) return 0;
+    if (n <= 8) return 1;
+    if (n <= 32) return 2;
+    return 3;
+}
 
 // ---------------------------------------------------------------------------
 // The geometry classes a run can take, by dynamic type. typeid(*g) is one load through the
@@ -385,6 +400,9 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
         return;
     }
 
+    const bool counting = g_counting.load(std::memory_order_relaxed);   // issue #253
+    BatchCounters tally;
+
     int32_t emitted = 0;
     int64_t i = 0;
     while (i < count) {
@@ -418,6 +436,7 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
                 const int32_t base = emitted - slotIndex;
 
                 batchCount = 0;
+                int breakReason = 0;   // issue #253: the counters' break slot (0 = list end)
                 for (;;) {
                     const RendererDrawItem& cur = items._data[itemIndex];
                     // A hint only (never faults, changes nothing): the vptr, the transform pair, _mesh /
@@ -439,18 +458,38 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
 
                     ++slotIndex;
                     if (base + slotIndex >= count) break;
-                    if (batchCount >= item._arg8) break;
+                    if (batchCount >= item._arg8) {
+                        breakReason = 1;
+                        break;
+                    }
 
                     const RendererDrawItem& nxt = items._data[itemIndex];
-                    if (nxt._instance != item._instance) break;
-                    if (nxt._arg5 != item._arg5) break;
-                    if (nxt._userData != item._userData) break;
-                    if (nxt._arg10 != item._arg10) break;
+                    if (nxt._instance != item._instance) {
+                        breakReason = 2;
+                        break;
+                    }
+                    if (nxt._arg5 != item._arg5) {
+                        breakReason = 3;
+                        break;
+                    }
+                    if (nxt._userData != item._userData) {
+                        breakReason = 4;
+                        break;
+                    }
+                    if (nxt._arg10 != item._arg10) {
+                        breakReason = 5;
+                        break;
+                    }
                 }
                 step = batchCount;
+                ++tally.batches;
+                tally.instances += static_cast<uint64_t>(batchCount);
+                ++tally.sizes[BatchSizeSlot(batchCount)];
+                ++tally.breaks[breakReason];
             } else {
                 batchCount = 1;
                 step = 1;
+                ++tally.singles;
             }
 
             item._geometry->Draw(
@@ -465,6 +504,18 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
 
         emitted += step;
         i += step;
+    }
+
+    if (counting) {
+        const int s = (shaderIndex >= 0 && shaderIndex < kBatchShaderSlots - 1) ? shaderIndex : kBatchShaderSlots - 1;
+        const std::lock_guard<std::mutex> lock(g_countLock);
+        BatchCounters& w = g_window[s];
+        ++w.lists;
+        w.singles += tally.singles;
+        w.batches += tally.batches;
+        w.instances += tally.instances;
+        for (int k = 0; k < kBatchSizeSlots; ++k) w.sizes[k] += tally.sizes[k];
+        for (int k = 0; k < kBatchBreakSlots; ++k) w.breaks[k] += tally.breaks[k];
     }
 }
 
@@ -481,6 +532,16 @@ void Sync() {
 }
 
 bool Installed() { return g_installed; }
+
+void SetCounting(bool on) { g_counting.store(on, std::memory_order_relaxed); }
+
+void TakeWindow(BatchCounters* out) {
+    const std::lock_guard<std::mutex> lock(g_countLock);
+    for (int s = 0; s < kBatchShaderSlots; ++s) {
+        out[s] = g_window[s];
+        g_window[s] = BatchCounters{};
+    }
+}
 
 }  // namespace DrawBatch
 }  // namespace Ext
