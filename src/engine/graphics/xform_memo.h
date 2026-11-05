@@ -19,7 +19,7 @@
 // shadow map, the main lists, each light, and the reflection when its level
 // matches.
 //
-// The memo: a direct-mapped slot table keyed on (Geometry*, packed, t bits),
+// The memo: a slot table (home slot plus a short linear probe) keyed on (Geometry*, packed, t bits),
 // each slot holding the 64-byte matrix the call returned. It shares SkinMemo's
 // scope and epoch (`SkinMemo::Scope` around `Renderer::Draw`, or around pass 2
 // under ext.render_pipe), so no entry outlives the draw it was computed in.
@@ -70,11 +70,8 @@ inline uint64_t HashKey(const void* geometry, int32_t packed, uint32_t t) {
 // EVICT the home slot's key (the next request for the evicted key recomputes;
 // counted). kSlots x 88 bytes, allocated on first use.
 //
-// Sizing (issue #253, COMPPROF=4 stress town, 2026-11-05): ~25k requests per
-// Renderer::Draw. The old direct-mapped 8192 slots evicted ~12.8k keys per
-// frame at town,130 sweep (hits 23.6%) and ~18k at town,200 (hits 7.4%);
-// 1 << 15 slots with an 8-slot probe hold the ~9k / ~12.5k distinct keys with
-// ~11 / ~120 evictions per frame (hits 60% / 48.6%).
+// Sized to hold a far-zoom forest's distinct keys per Renderer::Draw with few
+// evictions (the measurements: docs/android/I253_RENDER.md).
 inline constexpr int32_t kSlotBits = 15;
 inline constexpr int32_t kSlots    = 1 << kSlotBits;
 inline constexpr int32_t kProbe    = 8;

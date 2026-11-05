@@ -55,3 +55,10 @@ switch distance is 0% at both zooms. Far-zoom batches average 42.6 instances and
 | fused shadow + main walk in ext.draw_gather; per-Draw instance-transform memo; lean render_pipe snapshot builder; falling-leaves scan window | identical (COMPPROF=4: DrawGatherFused, XformMemo, DrawGatherSide 0 mismatches) | not resolvable on the S25 (below the run-to-run noise); kept by ruling |
 | natural growth's pixel copy without the blossom outside the bloom window | identical | not testable in the stress town: it starts in spring, inside the window |
 | stress counters (LOD fallback, per-shader gather and batch rows, per-group CPU split) | harness only | - |
+
+## 4. XformMemo sizing (perf/i253-lodonce)
+
+COMPPROF=4 stress town on the desktop, about 25k transform requests per Renderer::Draw. The direct-mapped
+8192-slot table evicted about 12.8k keys per frame at `town,130,0,sweep` (hits 23.6%) and about 18k at
+`town,200` (hits 7.4%). 1 << 15 slots with an 8-slot linear probe hold the ~9k / ~12.5k distinct keys with
+about 11 / 120 evictions per frame (hits 60% / 48.6%); the table grows from ~720 KB to ~2.9 MB.
