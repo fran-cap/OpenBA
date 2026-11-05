@@ -73,6 +73,7 @@
 #include "volume/frustum_cull.h"   // FRUSTUMCULL: the scene cull counters and its COMPPROF=4 shadow hook
 #include "graphics/gather_prefetch.h"   // GATHERPF: the faithful gather's counters (the `gather` row)
 #include "graphics/skin_memo.h"    // SKINMEMO: the bone memo counters (/skin row) and its COMPPROF=4 shadow hook
+#include "graphics/xform_memo.h"   // XFORMMEMO: the instance-transform memo counters (/xform row) and its shadow hook
 #include "ext/draw_gather/draw_gather.h"   // DRAWGATHER: the [Stress::gather] counters
 #include "ext/render_pipe/render_pipe.h"   // RENDERPIPE: the [Stress::pipe] counters
 #include "platform/common/cpu/topology.h"             // CPULIMIT: the '# cpu' meta line
@@ -179,6 +180,9 @@ void Resolve() {
             // SKINMEMO: every memo hit recomputed with the faithful GetBones, all `count` matrices compared
             SkinMemo::g_report = [](bool ok, long long detail) { StressHarness_Verify("SkinBones", ok, detail); };
             SkinMemo::g_verify = 1;
+            // XFORMMEMO: every memo hit recomputed with the virtual GetInstanceTransform, 64 bytes compared
+            XformMemo::g_report = [](bool ok, long long detail) { StressHarness_Verify("XformMemo", ok, detail); };
+            XformMemo::g_verify = 1;
             // DRAWSORT: the draw-item sort's shadow (retail's sort on a copy, whole arrays compared)
             DrawSort::g_report = [](bool ok, long long detail) { StressHarness_Verify("DrawItemSort", ok, detail); };
             DrawSort::g_verify = 1;
@@ -900,6 +904,21 @@ void SkinMemoReport(FILE* o) {
                  hitMs, g_hits ? 1e6 * TscMs((long long)g_hitTicks) / (double)g_hits : 0.0,
                  savedMs);
 }
+// XFORMMEMO (graphics/xform_memo.h, issue #253): the instance transforms the instancing loops asked
+// for inside Renderer::Draw, how many the memo answered, the distinct keys and evictions.
+void XformMemoReport(FILE* o) {
+    using namespace XformMemo;
+    if (g_calls == 0 && g_declines == 0) return;
+    const double n = (double)s_interval;
+    std::fprintf(o, "[COMPPROF]   /xform instance-transform memo (XFORMMEMO) requests/frame=%8.1f hits=%8.1f (%5.1f%%) "
+                    "keys/frame=%8.1f evictions/frame=%.1f declines/frame=%.1f\n",
+                 (double)g_calls / n, (double)g_hits / n, g_calls ? 100.0 * (double)g_hits / (double)g_calls : 0.0,
+                 (double)g_misses / n, (double)g_evictions / n, (double)g_declines / n);
+}
+void XformMemoReset() {
+    using namespace XformMemo;
+    g_calls = g_hits = g_misses = g_evictions = g_declines = 0;
+}
 void SkinMemoReset() {
     using namespace SkinMemo;
     g_calls = g_callsInstanced = g_hits = g_hitsInstanced = g_misses = g_missesInstanced = 0;
@@ -1073,6 +1092,7 @@ void CompProfReport(int frame) {
         StillTerrainReport(o);
         PartReport(o);
         SkinMemoReport(o);
+        XformMemoReport(o);
         std::fflush(o);
     }
     s_charWin.Reset();
@@ -1080,6 +1100,7 @@ void CompProfReport(int frame) {
     s_tzWin.Reset(); s_tzEpoch0 = StillTerrain::g_epoch; s_tzFloor0 = StillTerrain::g_floor;
     s_partWin.Reset();
     SkinMemoReset();
+    XformMemoReset();
     Ext::WalkBatch::g_profTicks = 0; Ext::WalkBatch::g_profCalls = 0;   // WALKBATCH: the /char walkbatch row's window
     for (int i = 0; i < kCompSlots; ++i) { s_comp[i].ticks = 0; s_comp[i].calls = 0; }
     g_elProfDrainTicks = g_elProfPreTicks = g_elProfTreeTicks = g_elProfBucketTicks = 0;
