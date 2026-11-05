@@ -145,13 +145,13 @@ void InitFromSettings() {
     ::UI::SliderElement::_extFixDragClamp = &Fix().slider_drag_clamp;
     ::UI::ScrollElement::_extFixDragClamp = &Fix().slider_drag_clamp;
     // fix.save_failure_notice: the save job's temporary file, and state 2's status read + notice.
-    ::IO::PersistenceWorker::_extFixSaveTemp = &Fix().save_failure_notice;
+    ::IO::PersistenceWorker::_extFixSaveTemp = &LiveFix().save_failure_notice;   // the worker thread reads it
     ::Save::SaveLoad::_extFixSaveResult = &Fix().save_failure_notice;
     ::Save::SaveLoad::_extSaveResult = &Ext::SaveFailureNotice::OnSaveResult;
     // fix.boot_device_lost: one row, two seams -- the engine's SaveLoad-walk skip and the
     // renderer backend's recovery of a reset that failed on a removed device.
     ::Engine::MainLoop::_extFixBootDeviceLost = &Fix().boot_device_lost;
-    BootDeviceLostBackend::SetFixFlag(&Fix().boot_device_lost);
+    BootDeviceLostBackend::SetFixFlag(&LiveFix().boot_device_lost);   // the render thread reads it
     // fix.large_packages: the IO::FileSystem::_extPackagesMounted seam (null under the faithful
     // profile). The boot's .pkg mount ran inside Engine::Startup, before this; every mods mount runs it.
     LargePackages::Sync();
@@ -296,6 +296,8 @@ void InitFromSettings() {
 }
 
 bool SetAndRecord(const Entry& e, bool on) {
+    // The Syncs below write seams an overlapped emit's pass 2 reads: join it first (review F-225).
+    Ext::RenderPipe::SettleBeforeStepWrite();
     const bool changedNow = SetRequested(e, on);
     Ext::DrawGather::Sync();   // a class A toggle takes effect now (no-op for every other entry)
     Ext::DrawBatch::Sync();    // on / off: the DrawItemList seam is set or cleared now
@@ -318,6 +320,9 @@ bool SetAndRecord(const Entry& e, bool on) {
 }
 
 int32_t SetValueAndRecord(const ValueKey& k, int64_t v) {
+    // A value the render thread reads, and the sun map's descriptors below: join an overlapped
+    // emit first (review S-028).
+    Ext::RenderPipe::SettleBeforeStepWrite();
     const int32_t before = Value(k);
     const int32_t stored = SetValue(k, v);
     // ext.max_shadow_size: a new size rebuilds the sun map (when the row is on and the retail combo is at

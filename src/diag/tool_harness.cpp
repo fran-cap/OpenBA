@@ -18,6 +18,7 @@
 
 #include "tool_harness.h"
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "math/Math.h"
 #include "ui/UserInterface.h"
 #include "object/Internal.h"
@@ -309,12 +310,15 @@ void FirePlacementTool(int centerRowIn, int centerColIn) {
         centerCol = centerColIn;
     }
     if (const char* pc = Opt().placementCell) {
-        int r = 0, c = 0;
-        if (std::sscanf(pc, "%d,%d", &r, &c) == 2) { centerRow = r; centerCol = c; }
+        int rc[2] = {0, 0};
+        if (ScanClampedInts(pc, rc, 2, -kHarnessIntLimit, kHarnessIntLimit) == 2) {
+            centerRow = rc[0];
+            centerCol = rc[1];
+        }
     }
     int maxR = 24;
     if (const char* mr = Opt().placementRadius) {
-        int v = std::atoi(mr); if (v > 0) maxR = v;
+        int v = HarnessAtoi(mr); if (v > 0) maxR = v;
     }
     int placed = 0, usedRow = -1, usedCol = -1, tried = 0;
     for (int r = 0; r <= maxR && !placed; ++r) {
@@ -509,9 +513,9 @@ void FireRoadTool(PlayerToolManager* entityUI) {
     }
 
     int wantRuns = 1;
-    if (const char* rr = Opt().roadRuns) { int v = std::atoi(rr); if (v > 0) wantRuns = v; }
+    if (const char* rr = Opt().roadRuns) { int v = HarnessAtoi(rr); if (v > 0) wantRuns = v; }
     int runLen = 5;
-    if (const char* rl = Opt().roadLen) { int v = std::atoi(rl); if (v > 0) runLen = v; }
+    if (const char* rl = Opt().roadLen) { int v = HarnessAtoi(rl); if (v > 0) runLen = v; }
     int laid = 0, tiles = 0;
     for (int run = 0; run < wantRuns; ++run) {
         const int kRun = runLen;
@@ -661,9 +665,9 @@ void FirePastureTool(PlayerToolManager* entityUI) {
     // this port reported NO GRAVE. One 8x8 fenced cemetery already yields graves;
     // Tombstone wants 400 of them, so the area has to be repeatable and bigger.
     int fencedRuns = 1;
-    if (const char* fr = Opt().fencedRuns) { int v = std::atoi(fr); if (v > 0) fencedRuns = v; }
+    if (const char* fr = Opt().fencedRuns) { int v = HarnessAtoi(fr); if (v > 0) fencedRuns = v; }
     int fencedSide = 8;
-    if (const char* fs = Opt().fencedSide) { int v = std::atoi(fs); if (v > 0) fencedSide = v; }
+    if (const char* fs = Opt().fencedSide) { int v = HarnessAtoi(fs); if (v > 0) fencedSide = v; }
     int fencedPlaced = 0;
     // Site the areas around the TOWN, not the map centre. Two things depend on it:
     // Cemetery_FindNearestWithSlot needs ValidateCell(0xe1f) region reachability from
@@ -973,15 +977,31 @@ void ArmFingerTap(int frameNum) {
     float fy = 0.5f;
     int delay = 30;
     int hold = 1;
-    const int n = std::sscanf(e, "%f,%f,%d,%d", &fx, &fy, &delay, &hold);
+    // "%f,%f,%d,%d", read with the checked scanners (review F-087).
+    const char* p = e;
+    int n = 0;
+    if (ScanClampedFloat(p, &fx)) {
+        n = 1;
+        if (ScanLiteral(p, ',') && ScanClampedFloat(p, &fy)) {
+            n = 2;
+            if (ScanLiteral(p, ',') && ScanClampedInt(p, &delay, -kHarnessIntLimit, kHarnessIntLimit)) {
+                n = 3;
+                if (ScanLiteral(p, ',') && ScanClampedInt(p, &hold, -kHarnessIntLimit, kHarnessIntLimit))
+                    n = 4;
+            }
+        }
+    }
     if (n < 2) {
         fprintf(stderr, "[ToolHarness] BANISHED_FINGER_TAP=\"%s\" not <fx>,<fy>[,<frames>[,<hold>]]; no tap\n", e);
         return;
     }
-    s_ft_hold = hold > 0 ? hold : 1;
+    // Both capped at 2^20 frames (about five hours): FingerTapTick adds 1 to the hold
+    // and the step to the frame, which overflowed for a value near INT_MAX (review F-301).
+    const int kMaxFrames = 1 << 20;
+    s_ft_hold = hold > 0 ? (hold < kMaxFrames ? hold : kMaxFrames) : 1;
     s_ft_x = fx;
     s_ft_y = fy;
-    s_ft_frame = frameNum + (delay > 0 ? delay : 1);
+    s_ft_frame = frameNum + (delay > 0 ? (delay < kMaxFrames ? delay : kMaxFrames) : 1);
     s_ft_step = 0;
     fprintf(stderr, "[ToolHarness] finger tap armed at %.3f,%.3f for frame %d, held %d frame(s)\n", fx, fy,
             s_ft_frame, s_ft_hold);
@@ -1088,6 +1108,7 @@ int      s_mr_fireFrame  = 0;
 // Pinned-panel residual-risk observer state (see FirePinPanel).
 bool     s_pin_fired     = false;
 UI::DialogController* s_pin_ctrl = nullptr;  // EntityUI controller (its +0x28 = datasource IBP)
+UI::DialogInstance* s_pin_dialog = nullptr;  // the dialog that owns s_pin_ctrl; compared, never read
 ComponentEntity* s_pin_entity    = nullptr;  // the marked-then-freed house entity ptr
 int      s_pin_fireFrame = 0;
 
@@ -1255,6 +1276,7 @@ void FirePinPanel(PlayerToolManager* entityUI) {
            cntBefore, rl->_size);
 
     s_pin_ctrl      = entCtrl;
+    s_pin_dialog    = dialog;
     s_pin_entity    = local;
     s_pin_fired     = true;
 }
@@ -1329,7 +1351,7 @@ static void DlgSettings_InstallBuffer(ComponentEntity* entity, int idx) {
     if (!entity || !System::MemoryAllocator::_singleton) return;   // B3R: read live (was the g_pMemAllocSingleton snapshot)
     const char* e = Opt().dlgSettingsRoute;
     if (!e || !*e || std::strcmp(e, "0") == 0) return;
-    int bytes = std::atoi(e);
+    int bytes = HarnessAtoi(e);
     if (bytes <= 1) bytes = 256;
 
     // The same walk src/game/Dialog/edittool_select.cpp:93 does. It lives in an
@@ -1395,7 +1417,7 @@ void FireHousePanel(PlayerToolManager* entityUI) {
     // picks a specific one instead.
     int houses = StartTown_GetFoundingHouseCount();
     int want = -1;
-    if (const char* e = Opt().housePanelIndex) want = std::atoi(e);
+    if (const char* e = Opt().housePanelIndex) want = HarnessAtoi(e);
     ComponentEntity* house = nullptr; int opened = 0; int pickedIdx = -1;
     for (int i = 0; i < houses && !opened; ++i) {
         if (want >= 0 && i != want) continue;
@@ -1494,7 +1516,7 @@ static void FireUIComponentCensus() {
     int entities = 0, compsWalked = 0, withUI = 0, withBuffer = 0, shown = 0;
     int maxShow = 40;
     if (const char* m = Opt().uiCompCensusShow) {
-        int v = std::atoi(m); if (v >= 0) maxShow = v;
+        int v = HarnessAtoi(m); if (v >= 0) maxShow = v;
     }
 
     for (int i = 0; i < en && arr; ++i) {
@@ -1743,7 +1765,7 @@ void FirePasturePanel(PlayerToolManager* entityUI) {
     // This is the REAL UI path end-to-end; it retires AUTOTYPE for testing.
     const char* selEnv = Opt().pasturePanelSelect;
     if (selEnv && *selEnv && dialog) {
-        int wantItem = std::atoi(selEnv);
+        int wantItem = HarnessAtoi(selEnv);
         uint32_t tidPUI = PastureUI::TypeId();
         UI::DialogController** ctrlArr = dialog->_controllers.GetData();
         int cnt = dialog->_controllers.GetSize();
@@ -1898,7 +1920,7 @@ void FireOrchardPanel(PlayerToolManager* entityUI) {
     // OrchardUI slot 9 (SelectResourceUI::Slot9), which dispatches Slot11.
     const char* selEnv = Opt().orchardPanelSelect;
     if (selEnv && *selEnv) {
-        int wantItem = std::atoi(selEnv);
+        int wantItem = HarnessAtoi(selEnv);
         if (combo && items > 0) {
             if (wantItem >= items) wantItem = items - 1;
             combo->SetCurrentItem(wantItem);
@@ -2311,19 +2333,19 @@ int          s_up_openFrame  = 0;
 
 int UpgradeWaitFrames() {
     const char* e = Opt().upgradeWaitFrames;
-    int n = (e && e[0]) ? std::atoi(e) : 36000;
+    int n = (e && e[0]) ? HarnessAtoi(e) : 36000;
     return n < 60 ? 36000 : n;
 }
 // BANISHED_UPGRADE_FORCE_FRAME — see the note at the UP_WAIT_BUILT force branch.
 // 0/unset = normal behaviour (wait for the build to finish).
 int ForceUpgradeFrame() {
     const char* e = Opt().upgradeForceFrame;
-    int n = (e && e[0]) ? std::atoi(e) : 0;
+    int n = (e && e[0]) ? HarnessAtoi(e) : 0;
     return n > 0 ? n : 0;
 }
 int UpgradeClickDelay() {
     const char* e = Opt().upgradeClickDelay;
-    int n = (e && e[0]) ? std::atoi(e) : 15;
+    int n = (e && e[0]) ? HarnessAtoi(e) : 15;
     return n < 1 ? 15 : n;
 }
 
@@ -2755,18 +2777,18 @@ void BridgeCommit(DragTool* tool, int startCell, int endCell);
 int BridgeDragFrames() {
     const char* e = Opt().bridgeDragFrames;
     if (!e || !e[0]) return 0;
-    int n = std::atoi(e);
+    int n = HarnessAtoi(e);
     return (n > 0) ? n : 0;
 }
 
 int BridgePollPeriod() {
     const char* e = Opt().bridgePoll;
-    int n = (e && e[0]) ? std::atoi(e) : 600;
+    int n = (e && e[0]) ? HarnessAtoi(e) : 600;
     return n < 30 ? 600 : n;
 }
 int BridgeWaitFrames() {
     const char* e = Opt().bridgeWaitFrames;
-    int n = (e && e[0]) ? std::atoi(e) : 60000;
+    int n = (e && e[0]) ? HarnessAtoi(e) : 60000;
     return n < 600 ? 60000 : n;
 }
 
@@ -2933,7 +2955,7 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
     const int kMaxAttempts = 400;
     int  wantLongest = 0;
     if (const char* e = Opt().bridgeLongest) {
-        const int v = std::atoi(e);
+        const int v = HarnessAtoi(e);
         if (v > 0) wantLongest = v;
     }
     const int kMaxBody = wantLongest ? 200 : 24;
@@ -3093,7 +3115,7 @@ void BridgeCommit(DragTool* tool, int startCell, int endCell) {
 int BridgeSelectDelay() {
     const char* e = Opt().bridgeSelect;
     if (!e || !e[0] || std::strcmp(e, "0") == 0 || std::strcmp(e, "false") == 0) return -1;
-    int n = std::atoi(e);
+    int n = HarnessAtoi(e);
     return (n > 1) ? n : 120;
 }
 
@@ -3412,12 +3434,24 @@ void PanelCloseTick(PlayerToolManager* toolManager, int frameNum) {
         UI::DialogInstance* dialog = s_pc_dialog;
         Object::InternalPtr<UI::DialogInstance> dialogRef(dialog);
         const bool openBefore = ui->IsDialogOpen(&dialogRef);
+        // A panel that closed on its own before the scheduled click has been freed
+        // by CleanRemovedDialogs: nothing below may read it (review F-272).
+        if (!openBefore) {
+            fprintf(stderr, "[ToolHarness][panelclose] FAILED: the panel closed before the click "
+                    "(dialog=%p)\n", static_cast<void*>(dialog));
+            return;
+        }
+        // The EditTool that opened the panel is read only while it is still the
+        // current tool; a replaced tool may already be freed.
+        Tool* toolBefore = toolManager->currentTool.Get();
+        EditTool* editBefore = toolBefore == s_pc_tool ? s_pc_tool : nullptr;
         System::String closeName("buttonClose");
         Object::InternalPtr<UI::Element> closeButton = dialog->FindElement(closeName);
         fprintf(stderr, "[ToolHarness][panelclose] frame %d: dialog=%p open=%d buttonClose=%p "
                 "EditTool=%p selected=%p\n", frameNum, static_cast<void*>(dialog),
                 openBefore ? 1 : 0, static_cast<void*>(closeButton.Get()),
-                static_cast<void*>(s_pc_tool), static_cast<void*>(s_pc_tool->lastEntityRef));
+                static_cast<void*>(s_pc_tool),
+                editBefore ? static_cast<void*>(editBefore->lastEntityRef) : nullptr);
         if (!closeButton.Get()) {
             fprintf(stderr, "[ToolHarness][panelclose] FAILED: the panel has no buttonClose\n");
             return;
@@ -3479,6 +3513,23 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
     if (s_pin_fired && s_pin_ctrl) {
         int rel = frameNum - s_pin_fireFrame;
         if (rel >= 0 && rel <= 14) {
+            GameUpdateLoop* gw = GetGW();
+            EntityList* el = gw ? gw->m_entityList : nullptr;
+            int cnt = el ? el->removalList._size : -1;
+            // The drain closes the panel (EntityList_CloseDialogsForDyingEntities) and
+            // CleanRemovedDialogs frees it with its controllers. Once the dialog has
+            // left the open list, s_pin_ctrl points into freed memory: stop here. The
+            // check compares pointers only (review F-269).
+            Object::InternalPtr<UI::DialogInstance> dialogRef(s_pin_dialog);
+            UI::UserInterface* ui = gw ? gw->m_userInterface : nullptr;
+            if (!ui || !ui->IsDialogOpen(&dialogRef)) {
+                fprintf(stderr, "[PinPanel] +%2d frames: removalCount=%d dialog %p closed and freed "
+                        "-- probe stops\n", rel, cnt, static_cast<void*>(s_pin_dialog));
+                s_pin_ctrl   = nullptr;
+                s_pin_dialog = nullptr;
+            }
+        }
+        if (s_pin_ctrl && rel >= 0 && rel <= 14) {
             GameUpdateLoop* gw = GetGW();
             EntityList* el = gw ? gw->m_entityList : nullptr;
             int cnt = el ? el->removalList._size : -1;
@@ -3589,7 +3640,7 @@ extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum) {
         FirePastureTool(entityUI);
         int delay = 240;
         if (const char* d = Opt().pastureFullDelay) {
-            int v = std::atoi(d); if (v > 0) delay = v;
+            int v = HarnessAtoi(d); if (v > 0) delay = v;
         }
         s_pf_panelFrame = frameNum + delay;
         fprintf(stderr, "[ToolHarness][pasturefull] tool fired; panel scheduled for frame %d\n",

@@ -32,6 +32,13 @@ struct FrameBorders {
 // AdjustWindowRect's arithmetic: grow a client rect by the frame, in place.
 void ClientRectToOuter(Rect* inOut, const FrameBorders& b);
 
+// Can a measured frame stand for the window's frame? Every side must be >= 0, and a framed
+// window's frame must not be empty (a frame read before the window system applied the
+// style). A negative side is what a measurement taken while a minimised window is being
+// restored gives: the outer rect is still the iconic 160 x 28 while the client is already
+// the full size, so the "frame" is minus the client size.
+bool UsableFrameMeasurement(const FrameBorders& b, bool framed);
+
 // SetWindowPos's arithmetic, reversed: the client rect an outer rect at (x, y), w x h
 // leaves inside a frame `b`.
 void OuterToClient(int32_t x, int32_t y, int32_t w, int32_t h, const FrameBorders& b,
@@ -83,6 +90,20 @@ constexpr int32_t kDefaultWindowPointsH = 720;
 void InitialWindowPoints(int32_t savedPxW, int32_t savedPxH, int32_t videoW, int32_t videoH,
                          float density, int32_t maxW, int32_t maxH,
                          int32_t* outW, int32_t* outH);
+
+// The saved-origin test of the opening placement (window_darwin.cpp ApplyInitialWindowGeometry),
+// in POINTS: a cw x ch client at (x, y), with a title bar `top` points above it, opens there when
+// it shares area with `display` and the title bar is not above the display's top. The origin is
+// settings.cfg WindowX / WindowY, so it can be any int.
+bool SavedOriginOnDisplay(int32_t x, int32_t y, int32_t cw, int32_t ch, int32_t top,
+                          const Rect& display);
+
+// FitToUsableScreen's arithmetic (window_darwin.cpp), in POINTS: clamp a client of *w x *h at
+// (*x, *y) inside a frame `frame` to the usable area ux, uy, uw x uh (size first, then slide the
+// window so its title bar and bottom edge are on screen). The client rect comes from the engine's
+// SetWindowPos, which can carry any int.
+void FitClientToUsable(int32_t ux, int32_t uy, int32_t uw, int32_t uh, const FrameBorders& frame,
+                       int32_t* x, int32_t* y, int32_t* w, int32_t* h);
 
 
 // ---------------------------------------------------------------------------

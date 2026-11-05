@@ -1,0 +1,60 @@
+=================================================================
+==21625==ERROR: AddressSanitizer: heap-use-after-free on address 0x511000000050 at pc 0x000000510d21 bp 0x7ffe68dc70d0 sp 0x7ffe68dc70c8
+READ of size 8 at 0x511000000050 thread T0
+    #0 0x000000510d20 in UI::ComboElement::~ComboElement() /home/uspc/s035_tree_pr248base/src/engine/ui/comboelement.cpp:208:15
+    #1 0x0000005118dd in (anonymous namespace)::DeleteCombo(UI::ComboElement*) /mnt/c/code/GIT/untitled_rev_eng_project/.claude/worktrees/wf_a43f0edb-db0-15/docs/history/review_20261103/static/poc/s035/s035_combo.cpp:94:30
+    #2 0x0000005118dd in main /mnt/c/code/GIT/untitled_rev_eng_project/.claude/worktrees/wf_a43f0edb-db0-15/docs/history/review_20261103/static/poc/s035/s035_combo.cpp:115:9
+    #3 0x7b4d25e2a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7b4d25e2a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #5 0x00000042b474 in _start (/home/uspc/s035_obj_pr248base/s035_combo+0x42b474) (BuildId: 6453cabcbd636ddb2db4741054384e27eabd3be8)
+
+0x511000000050 is located 16 bytes inside of 208-byte region [0x511000000040,0x511000000110)
+freed by thread T0 here:
+    #0 0x0000004cb00a in free (/home/uspc/s035_obj_pr248base/s035_combo+0x4cb00a) (BuildId: 6453cabcbd636ddb2db4741054384e27eabd3be8)
+    #1 0x0000005118d5 in (anonymous namespace)::DeleteDropDown(UI::ComboDialog*) /mnt/c/code/GIT/untitled_rev_eng_project/.claude/worktrees/wf_a43f0edb-db0-15/docs/history/review_20261103/static/poc/s035/s035_combo.cpp:91:5
+    #2 0x0000005118d5 in main /mnt/c/code/GIT/untitled_rev_eng_project/.claude/worktrees/wf_a43f0edb-db0-15/docs/history/review_20261103/static/poc/s035/s035_combo.cpp:114:9
+    #3 0x7b4d25e2a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #4 0x7b4d25e2a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #5 0x00000042b474 in _start (/home/uspc/s035_obj_pr248base/s035_combo+0x42b474) (BuildId: 6453cabcbd636ddb2db4741054384e27eabd3be8)
+
+previously allocated by thread T0 here:
+    #0 0x0000004cb2a3 in malloc (/home/uspc/s035_obj_pr248base/s035_combo+0x4cb2a3) (BuildId: 6453cabcbd636ddb2db4741054384e27eabd3be8)
+    #1 0x000000511546 in main /mnt/c/code/GIT/untitled_rev_eng_project/.claude/worktrees/wf_a43f0edb-db0-15/docs/history/review_20261103/static/poc/s035/s035_combo.cpp:105:24
+    #2 0x7b4d25e2a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+    #3 0x7b4d25e2a28a in __libc_start_main csu/../csu/libc-start.c:360:3
+    #4 0x00000042b474 in _start (/home/uspc/s035_obj_pr248base/s035_combo+0x42b474) (BuildId: 6453cabcbd636ddb2db4741054384e27eabd3be8)
+
+SUMMARY: AddressSanitizer: heap-use-after-free /home/uspc/s035_tree_pr248base/src/engine/ui/comboelement.cpp:208:15 in UI::ComboElement::~ComboElement()
+Shadow bytes around the buggy address:
+  0x510ffffffd80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x510ffffffe00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x510ffffffe80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x510fffffff00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x510fffffff80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x511000000000: fa fa fa fa fa fa fa fa fd fd[fd]fd fd fd fd fd
+  0x511000000080: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd
+  0x511000000100: fd fd fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x511000000180: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x511000000200: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x511000000280: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==21625==ABORTING
+EXIT=1

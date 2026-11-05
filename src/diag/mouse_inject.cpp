@@ -112,6 +112,7 @@
 #include "mouse_inject.h"
 #include "input/Device.h"   // ENDGAME B.3.9 SS2: Input::Device::_singleton
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -119,6 +120,7 @@
 #include <cmath>
 
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 // FULL PATHS ON PURPOSE. `engine/types/` also has a `ui/DialogInstance.h`,
 // and `-Iengine/types` precedes `-Iruntime/types` on the standalone command
 // line, so the short spelling silently picks up the WRONG header -- which
@@ -239,9 +241,9 @@ void ReadConfig() {
     if (g_cfg.stepCount == 0) return;
 
     if (const char* h = Opt().mouseHold)
-        if (int v = std::atoi(h)) g_cfg.hold = v;
+        if (int v = HarnessAtoi(h)) g_cfg.hold = v;
     if (const char* f = Opt().mouseStart)
-        if (int v = std::atoi(f)) g_cfg.startFrame = v;
+        if (int v = HarnessAtoi(f)) g_cfg.startFrame = v;
     g_cfg.trace = Opt().mouseTrace != nullptr;
 
     if (const char* ts = Opt().mouseTipStr) {
@@ -268,9 +270,11 @@ void ReadConfig() {
             g_cfg.byName = true;
             std::snprintf(g_cfg.name, sizeof(g_cfg.name), "%s", t + 1);
         } else if (t[0] == '@') {
-            int x = 0, y = 0;
-            if (std::sscanf(t + 1, "%d,%d", &x, &y) == 2) {
-                g_cfg.byCoord = true; g_cfg.coordX = x; g_cfg.coordY = y;
+            int xy[2] = {0, 0};
+            if (ScanClampedInts(t + 1, xy, 2, -kHarnessIntLimit, kHarnessIntLimit) == 2) {
+                g_cfg.byCoord = true;
+                g_cfg.coordX = xy[0];
+                g_cfg.coordY = xy[1];
             }
         } else if (!std::strcmp(t, "any")) {
             g_cfg.wantTipCapable = false;
@@ -361,7 +365,11 @@ int32_t Forward(int16_t raw, float scale) {
 // Returns the raw value; *exact is whether the forward evaluation hit `want`.
 int16_t SolveRaw(int32_t want, float scale, bool* exact) {
     if (!(scale > 0.0f)) { *exact = (want == 0); return 0; }
-    const double guess = static_cast<double>(want) / static_cast<double>(scale);
+    // Clamped just outside int16: any raw value out there is rejected below anyway,
+    // and the clamp keeps the cast and `base + d` defined for a huge
+    // BANISHED_MOUSE_TARGET coordinate or a tiny UI scale (review F-282).
+    const double guess = std::clamp(static_cast<double>(want) / static_cast<double>(scale),
+                                    -32770.0, 32770.0);
     int32_t base = static_cast<int32_t>(std::floor(guess));
     int16_t best = 0;
     int32_t bestErr = INT32_MAX;
@@ -696,6 +704,26 @@ bool g_done       = false;
 UI::Element* g_lastTarget = nullptr;   // handed from PreUpdate to PostUpdate
 UI::DialogInstance* g_lastDlg = nullptr;
 
+// True when `elem` sits in the element tree of `dlg` and `dlg` is still in the
+// open-dialog list. Compares pointers on the way down and reads only live nodes.
+bool ElementInTree(UI::Element* node, const UI::Element* elem) {
+    if (!node) return false;
+    if (node == elem) return true;
+    for (int32_t i = 0; i < node->_children._size; ++i) {
+        if (ElementInTree(node->_children._data[i], elem)) return true;
+    }
+    return false;
+}
+
+bool TargetStillLive(UI::UserInterface* ui, UI::DialogInstance* dlg, const UI::Element* elem) {
+    using ListNode = Collection::LinkedList<UI::DialogInstancePtr>::Node;
+    for (ListNode* n = ui->_dialogs._head; n; n = n->next) {
+        if (n->element != dlg) continue;
+        return ElementInTree(dlg->_root.Get(), elem);
+    }
+    return false;
+}
+
 void PrintStepBoundary(const char* what) {
     printf("[MouseInject] frame=%d step=%d/%d %s | S1=%llu S2=%llu S3=%llu S4=%llu S5=%llu\n",
            g_frame, g_stepIndex, g_cfg.stepCount, what,
@@ -841,6 +869,15 @@ void PostUpdate(UI::UserInterface* ui) {
     ReadConfig();
     if (!g_cfg.armed || !ui) return;
     if (!g_lastTarget) return;
+    // UserInterface::Update ran between PreUpdate and here, and may have closed
+    // and freed the dialog (CleanRemovedDialogs) or dropped the element from its
+    // tree. Read through the two pointers only when both are still reachable
+    // (review F-270 / F-296).
+    if (!TargetStillLive(ui, g_lastDlg, g_lastTarget)) {
+        g_lastTarget = nullptr;
+        g_lastDlg    = nullptr;
+        return;
+    }
 
     // Retail has now run. These three reads are the whole difference between
     // "we wrote some bytes" and "the game hovered the thing we aimed at".

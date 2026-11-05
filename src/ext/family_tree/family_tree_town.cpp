@@ -5,6 +5,7 @@
 #include "ext/family_tree/family_tree.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -45,8 +46,11 @@ std::string NameOf(const CitizenComponent* c) {
 }
 
 int AgeYears(const CitizenComponent* c) {
-    const int y = static_cast<int>(c->age * kAgeToYears);
-    return y < 0 ? 0 : y;
+    // NOT RETAIL: the age comes from the save unchecked; clamped before the cast (UB otherwise), NaN reads 0
+    const float years = c->age * kAgeToYears;
+    if (!(years > 0.0f)) return 0;
+    if (years >= 2147483648.0f) return INT32_MAX;
+    return static_cast<int>(years);
 }
 
 uint32_t IdOf(const CitizenComponent* c) {
@@ -249,10 +253,16 @@ int32_t NowStamp() {
     if (g == nullptr || g->m_dayCounter == nullptr) return -1;
     Calendar* cal = g->m_dayCounter;
     // EventLog::SeasonString's month
-    int month = static_cast<int>(cal->yearTime.AsSeconds() / 3600.0f * 12.0f);
-    if (month < 0) month = 0;
-    if (month > 11) month = 11;
-    return cal->year * 12 + month;
+    // NOT RETAIL: year and yearTime come from the save unchecked. The month is clamped before the cast (NaN
+    // reads as 0) and the stamp is summed in 64 bits and saturated, so neither cast nor `year * 12` is UB.
+    float months = cal->yearTime.AsSeconds() / 3600.0f * 12.0f;
+    if (!(months > 0.0f)) months = 0.0f;
+    if (months > 11.0f) months = 11.0f;
+    const int month = static_cast<int>(months);
+    const int64_t stamp = static_cast<int64_t>(cal->year) * 12 + month;
+    if (stamp > INT32_MAX) return INT32_MAX;
+    if (stamp < INT32_MIN) return INT32_MIN;
+    return static_cast<int32_t>(stamp);
 }
 
 void BeginFrame() {

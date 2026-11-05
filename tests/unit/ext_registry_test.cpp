@@ -52,7 +52,7 @@ UNIT_TEST(ext_registry_table_shape) {
                            "commute_cost", "nomad_arrival", "mods_persist",
                            "save_failure_notice", "boat_reach_notice", "cancel_refund",
                            "autotrade_free_goods", "input_fetch_room", "stranded_wade",
-                           "debug_spawn_origin"}) {
+                           "debug_spawn_origin", "statusbar_empty_town"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);
@@ -374,4 +374,30 @@ UNIT_TEST(ext_registry_duplicate_key_last_line_wins) {
     s = ResolveText("profile=faithful\nprofile=all\n", nullptr, &r);
     CHECK(r.profile == Ext::Profile::All);
     CHECK(s.fix.icon_slide && s.ext.unit_b && s.ext.unit_c);
+}
+
+// Review F-262: the fix rows another thread reads (the save job, the renderer's recovery) are read
+// through Ext::LiveFix()'s atomics, which follow every write of the row: Install, the dialog's
+// SetRequested (live under a game's lock, fixes are never locked) and UnlockForGame.
+UNIT_TEST(ext_registry_live_fixes_follow_the_rows) {
+    const std::memory_order r = std::memory_order_relaxed;
+    Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
+    CHECK(Ext::LiveFix().save_failure_notice.load(r) == Ext::Fix().save_failure_notice);
+    CHECK(Ext::LiveFix().boot_device_lost.load(r) == Ext::Fix().boot_device_lost);
+    const Ext::State off = ResolveText("fix.save_failure_notice=0\nfix.boot_device_lost=0\n");
+    Ext::Install(off, Ext::Profile::PerEntry, false);
+    CHECK(!Ext::LiveFix().save_failure_notice.load(r));
+    CHECK(!Ext::LiveFix().boot_device_lost.load(r));
+    int owner = 0;
+    Ext::LockForGame(&owner);
+    CHECK(Ext::SetRequested(E("save_failure_notice"), true));
+    CHECK(Ext::LiveFix().save_failure_notice.load(r));
+    CHECK(!Ext::LiveFix().boot_device_lost.load(r));
+    CHECK(Ext::SetRequested(E("boot_device_lost"), true));
+    CHECK(Ext::LiveFix().boot_device_lost.load(r));
+    CHECK(Ext::SetRequested(E("save_failure_notice"), false));
+    Ext::UnlockForGame(&owner);
+    CHECK(!Ext::LiveFix().save_failure_notice.load(r));
+    CHECK(Ext::LiveFix().boot_device_lost.load(r));
+    Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
 }

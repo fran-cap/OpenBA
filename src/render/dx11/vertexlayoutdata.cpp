@@ -61,7 +61,7 @@ namespace VideoDX11 {
 //
 // The original indexes this table with the raw int32 from the element and does
 // not range-check it. We keep the table verbatim (spelling the DXGI names for
-// readability) and keep the lack of a check — see the note in the loop.
+// readability); the port checks the formats before the loop (review S-043).
 static const DXGI_FORMAT kElementFormat[9] = {
     DXGI_FORMAT_R32G32B32A32_FLOAT,   // 0x02
     DXGI_FORMAT_R32G32B32_FLOAT,      // 0x06
@@ -189,9 +189,26 @@ void VertexLayoutData::PlatformCreate() {
     const Video::VertexLayout::Element* elems =
         owner->_elements.GetData();   // B.3.2: was a cast off a void*
 
+    // NOT RETAIL (UB, out-of-bounds index; review S-043): retail 0x180003ff0 indexes its
+    // 9-entry table with the raw format of each element, so a format >= 9 (or negative) from
+    // a corrupt or mod MeshLayout .rsc read past it. Such a layout is refused the way an empty
+    // signature is: no input layout is created. Every retail format is 0..8 and passes.
     for (int i = 0; i < count; ++i) {
-        // No range check on `format` — the original indexes its 9-entry table
-        // with the raw int32 from the element. Reproduced.
+        if (!Video::VertexLayout::FormatInRange(elems[i].format)) {
+            static bool s_said = false;
+            if (!s_said) {
+                s_said = true;
+                fprintf(stderr, "[Dx11] VertexLayoutData::PlatformCreate: element %d has format %d "
+                                "(0..8 are valid); no input layout\n",
+                        i, static_cast<int>(elems[i].format));
+            }
+            return;
+        }
+    }
+
+    for (int i = 0; i < count; ++i) {
+        // `format` was checked above (NOT RETAIL, review S-043); the original
+        // indexes its 9-entry table with the raw int32 from the element.
         descs[i].SemanticName         = "TEXCOORD";
         descs[i].SemanticIndex        = static_cast<UINT>(
                                             static_cast<uint8_t>(i));

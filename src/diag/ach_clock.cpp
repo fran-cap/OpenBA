@@ -39,6 +39,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Game/Calendar.h"         // B4: GameUpdateLoop::m_dayCounter
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -57,7 +58,7 @@ extern "C" float AchClock_TimeScale() {
     if (s_timeScale < 0.0f) {
         s_timeScale = 1.0f;
         if (const char* e = Opt().achTimeScale) {
-            const float v = (float)std::atof(e);
+            const float v = ClampedAtof(e);
             if (v > 0.0f) s_timeScale = v;
         }
         if (s_timeScale != 1.0f) {
@@ -74,11 +75,11 @@ extern "C" void AchClock_Tick(int frameNum) {
     if (s_yearBoost < 0) {
         s_yearBoost = 0;
         if (const char* e = Opt().achYearBoost) {
-            const int v = std::atoi(e);
+            const int v = HarnessAtoi(e);
             if (v > 0) s_yearBoost = v;
         }
         if (const char* e = Opt().achYearMax) {
-            const int v = std::atoi(e);
+            const int v = HarnessAtoi(e);
             if (v > 0) s_yearMax = v;
         }
         if (s_yearBoost > 0) {

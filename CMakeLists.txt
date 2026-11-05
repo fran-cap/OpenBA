@@ -120,6 +120,19 @@ endif()
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   list(APPEND BANISHED_CXX_FLAGS -fno-delete-null-pointer-checks)
 endif()
+# BANISHED_THREAD_SAFETY=ON (clang only): clang's thread-safety analysis over the annotations of
+# src/engine/system/thread_annotations.h, a broken lock contract failing the build. OpenBA and unit.
+# GCC and MSVC ignore the annotations (the macros are empty there), so the option has nothing to
+# check on them. The Linux check: CMAKE_EXTRA="-DBANISHED_THREAD_SAFETY=ON" with clang.
+option(BANISHED_THREAD_SAFETY "clang: -Wthread-safety, a lock contract broken is an error" OFF)
+set(THREAD_SAFETY_FLAGS)
+if(BANISHED_THREAD_SAFETY)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "BANISHED_THREAD_SAFETY needs clang (got ${CMAKE_CXX_COMPILER_ID})")
+  endif()
+  set(THREAD_SAFETY_FLAGS -Wthread-safety -Werror=thread-safety-analysis)
+  list(APPEND BANISHED_CXX_FLAGS ${THREAD_SAFETY_FLAGS})
+endif()
 # (SHELL: keeps each `-include <file>` pair whole: CMake de-duplicates repeated option tokens,
 # which with two force-includes drops the second `-include` and leaves its path a bare input.)
 set(BANISHED_STRIP_LOGS -DBANISHED_STRIP_LOGS "SHELL:-include ${CMAKE_SOURCE_DIR}/src/app/log_strip.h")
@@ -666,6 +679,10 @@ if(TARGET OpenBA)   # absent when the backend is not ready on this host (dx11 of
   add_dependencies(OpenBA ext-rsc-text openba-build-info)
 endif()
 add_dependencies(unit ext-rsc-text)
+# tests/unit/screen_keyboard_race_test.cpp compiles src/platform/android/input_android.cpp with the
+# SDL calls it makes stubbed: SDL's headers only, on that one source (`unit` links no SDL).
+set_source_files_properties(${CMAKE_SOURCE_DIR}/tests/unit/screen_keyboard_race_test.cpp
+  PROPERTIES INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/third_party/SDL/include)
 target_include_directories(unit PRIVATE ${BANISHED_INCLUDES} ${CMAKE_SOURCE_DIR}/tests/unit)
 # -Og in every flavour (it was -O0): the suite runs ~2x faster (77 s -> 37 s as one process, Linux) for
 # ~10% more compile time, every test passing; the tests run optimised code, closer to the shipped -O2 /
@@ -675,7 +692,7 @@ target_compile_options(unit PRIVATE
   -fexceptions -fno-strict-aliasing ${BANISHED_LIFETIME_DSE_FLAG} -ffp-contract=off -Wall -Wextra -Wno-invalid-offsetof
   -g -Og -D_DEBUG -DBANISHED_UNIT_TEST ${BANISHED_PORTABLE_FLAGS} ${BANISHED_ONE_WRITE_STDIO})
 # The checking builds reach the suite too (BANISHED_SANITIZE, above).
-target_compile_options(unit PRIVATE ${SANITIZE_FLAGS})
+target_compile_options(unit PRIVATE ${SANITIZE_FLAGS} ${THREAD_SAFETY_FLAGS})
 target_link_options(unit PRIVATE ${SANITIZE_LINK})
 # Except these, -O0: under clang they call a base class's D2 destructor by its mangled name
 # (RT_ASM_LABEL, "Clang with the Itanium ABI traps in abstract-base D1"). The base destructors are

@@ -280,6 +280,18 @@ const Entry kEntries[] = {
       "place to put them (only stockpiles); the new citizens appear near the middle of the map instead.",
       0, [](State& s) -> bool& { return s.fix.debug_spawn_origin; } },
 
+    // STATUSBAREMPTYTOWN (review S-006): the status bar's problem-icon click (StatusBarUI's handler
+    // 0x14007a120) walks the town's citizens with no count test. A click queued in one frame is
+    // dispatched in the next, after its sim tick; when that tick removed the last citizen, the walk
+    // reads the list's slot 0 past its end: the removed citizen (freed in retail by the same frame's
+    // entity drain). With the row on, the click does nothing in a town with no citizen. UI only;
+    // nothing new is saved.
+    { "statusbar_empty_town", Tier::Fix, Class::None, true,
+      "Status icons safe when the town empties",
+      "Clicking a status-bar problem icon just as the last citizen leaves or dies no longer jumps to "
+      "the citizen who is gone (in the original game, a read of freed memory).",
+      0, [](State& s) -> bool& { return s.fix.statusbar_empty_town; } },
+
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
     // formatVersion (>= 1). The id is [a-z0-9_]+ (the unit tests check every row).
@@ -975,6 +987,18 @@ State Resolve(Lookup lookup, void* ctx, const char* commandLineProfile, LoadRepo
 }
 
 const Fixes&      Fix() { return g_active.fix; }
+
+namespace {
+LiveFixes g_live;
+
+// After every write of g_active's fix rows (main thread).
+void PublishLiveFixes() {
+    g_live.save_failure_notice.store(g_active.fix.save_failure_notice, std::memory_order_relaxed);
+    g_live.boot_device_lost.store(g_active.fix.boot_device_lost, std::memory_order_relaxed);
+}
+}  // namespace
+
+const LiveFixes& LiveFix() { return g_live; }
 const Extensions& Ext() { return g_active.ext; }
 const Values&     Val() { return g_active.val; }
 
@@ -993,6 +1017,7 @@ bool Active(const Entry& e)    { return e.slot(g_active); }
 void Install(const State& requested, Profile profile, bool profileFromCommandLine) {
     g_requested = requested;
     g_active = requested;
+    PublishLiveFixes();
     g_profile = profile;
     g_profileFromCommandLine = profileFromCommandLine;
     g_lockOwner = nullptr;
@@ -1010,6 +1035,7 @@ bool SetRequested(const Entry& e, bool on) {
     if (EntryLocked(e)) return false;   // waits for the next LockForGame
     const bool changed = e.slot(g_active) != on;
     e.slot(g_active) = on;
+    PublishLiveFixes();
     return changed;
 }
 
@@ -1059,6 +1085,7 @@ void UnlockForGame(const void* owner) {
     // Back at the menu nothing holds the lock: the active state is the request.
     for (const Entry& e : kEntries)
         e.slot(g_active) = e.slot(g_requested);
+    PublishLiveFixes();
 }
 
 bool Locked() { return g_lockOwner != nullptr; }

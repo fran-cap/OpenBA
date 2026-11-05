@@ -69,8 +69,10 @@
 // WHAT HUNG DOES
 //  1. publishes STATE=HUNG and logs one [BootState] HUNG line to stderr;
 //  2. writes standalone_hang.log: an all-thread stack dump. Each other thread is
-//     suspended, GetThreadContext'd, walked through the exe's ONE stack walker
-//     (StandaloneWalkStack in src/diag/win/crash_handler_win.cpp, the VEH crash handler's) and resumed.
+//     suspended, GetThreadContext'd, unwound with calls that take no lock, resumed, and
+//     only then named (ThreadStack::DumpOtherThreads, src/diag/win/thread_stack.h), and no
+//     step takes a loader lock: RtlLookupFunctionEntry and GetModuleHandleExA wait on locks a
+//     suspended thread, or a main thread hung inside DllMain, can hold for good.
 //     Thread ids are printed and the main thread is marked;
 //  3. on an UNATTENDED run only, TerminateProcess(self, 3).
 //
@@ -82,13 +84,14 @@
 #include "boot_state_watchdog.h"
 
 #include <windows.h>
-#include <tlhelp32.h>
+#include <io.h>          // _get_osfhandle: the HUNG line goes to stderr's handle
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <cstdarg>
 
 #include "options.h"
+#include "thread_stack.h"   // ThreadStack::Capture / FormatFrame: each thread's stack
 #include "platform/common/cpu/topology.h"   // CPULIMIT: the [Cpu] facts on the RUNNING line
 
 namespace BootState {
@@ -169,9 +172,8 @@ void WriteStateFile(const char* state, unsigned uptimeSec, unsigned frame,
 // ---------------------------------------------------------------------------
 // The hang dump
 // ---------------------------------------------------------------------------
-// CRT-free output, for the same reason the crash log is: we run this with every
-// other thread SUSPENDED, and a suspended thread can be holding the CRT's file
-// lock. One handle, WriteFile, FILE_FLAG_WRITE_THROUGH.
+// CRT-free output, for the same reason the crash log is: the hung thread can be
+// holding the CRT's file lock for good. One handle, WriteFile, FILE_FLAG_WRITE_THROUGH.
 
 HANDLE g_hangLog = INVALID_HANDLE_VALUE;
 
@@ -196,11 +198,29 @@ void HangLogf(const char* fmt, ...) {
     }
 }
 
-void HangStackSink(void*, const char* line) { HangLogRaw(line); }
+// One line to stderr (standalone_error.log) without the stream's FILE lock: WriteFile on the
+// handle under stderr's descriptor. _fileno / _get_osfhandle read the CRT's tables and lock
+// nothing. stderr is unbuffered (main.cpp), so nothing is queued ahead of this line.
+void StderrRaw(const char* s) {
+    const int fd = _fileno(stderr);
+    if (fd < 0) return;
+    const HANDLE h = reinterpret_cast<HANDLE>(_get_osfhandle(fd));  // CAST-OK: win32
+    if (h == INVALID_HANDLE_VALUE || h == reinterpret_cast<HANDLE>(-2)) return;  // CAST-OK: win32 (no console)
+    DWORD len = 0;
+    while (s[len]) ++len;
+    DWORD wrote = 0;
+    WriteFile(h, s, len, &wrote, nullptr);
+}
 
-// Suspend every other thread of this process in turn, walk it, resume it. The
-// walking thread (this one) is dumped from a captured context without any
-// suspend/resume, since it is the one running.
+void HangLogLine(void*, const char* line) {
+    HangLogRaw(line);
+}
+
+// Suspend every other thread of this process in turn, walk it, resume it, then name the
+// frames' modules (ThreadStack::DumpOtherThreads). This thread (the watchdog) is not dumped.
+// Nothing here takes the loader lock, which a main thread hung inside DllMain holds for
+// good (review F-297): CreateFileA, WriteFile, the toolhelp thread list, Capture and
+// ThreadStack::ModuleAt are system calls on this process, and TerminateProcess follows.
 void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                    unsigned staleSec, unsigned budgetSec) {
     g_hangLog = CreateFileA("standalone_hang.log", GENERIC_WRITE, FILE_SHARE_READ,
@@ -220,68 +240,7 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                "means an unanswered in-game modal, not a deadlock (see\n"
                "src/diag/win/boot_state_watchdog.cpp).\n\n");
 
-    const DWORD selfTid = GetCurrentThreadId();
-    const DWORD selfPid = GetCurrentProcessId();
-
-    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
-    if (snap == INVALID_HANDLE_VALUE) {
-        HangLogRaw("(CreateToolhelp32Snapshot failed -- no thread list)\n");
-        CloseHandle(g_hangLog);
-        g_hangLog = INVALID_HANDLE_VALUE;
-        return;
-    }
-
-    THREADENTRY32 te{};
-    te.dwSize = sizeof(te);
-    if (Thread32First(snap, &te)) {
-        do {
-            if (te.dwSize < FIELD_OFFSET(THREADENTRY32, th32ThreadID) + sizeof(DWORD))
-                continue;
-            if (te.th32OwnerProcessID != selfPid) continue;
-
-            const bool isMain = (te.th32ThreadID == g_mainThreadId);
-            const bool isSelf = (te.th32ThreadID == selfTid);
-
-            HangLogf("\n--- thread %u%s%s ---\n",
-                     static_cast<uint32_t>(te.th32ThreadID),
-                     isMain ? "  [MAIN THREAD]" : "",
-                     isSelf ? "  [watchdog -- this thread]" : "");
-
-            if (isSelf) {
-                HangLogRaw("  (the watchdog itself; not interesting)\n");
-                continue;
-            }
-
-            HANDLE th = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT |
-                                   THREAD_QUERY_INFORMATION,
-                                   FALSE, te.th32ThreadID);
-            if (!th) {
-                HangLogf("  (OpenThread failed, GetLastError=%lu)\n", GetLastError());
-                continue;
-            }
-
-            if (SuspendThread(th) == (DWORD)-1) {
-                HangLogf("  (SuspendThread failed, GetLastError=%lu)\n", GetLastError());
-                CloseHandle(th);
-                continue;
-            }
-
-            CONTEXT ctx{};
-            ctx.ContextFlags = CONTEXT_FULL;
-            if (GetThreadContext(th, &ctx)) {
-                HangLogf("  RIP=%016llX RSP=%016llX RBP=%016llX\n",
-                         (unsigned long long)ctx.Rip, (unsigned long long)ctx.Rsp,
-                         (unsigned long long)ctx.Rbp);
-                StandaloneWalkStack(&ctx, &HangStackSink, nullptr);
-            } else {
-                HangLogf("  (GetThreadContext failed, GetLastError=%lu)\n", GetLastError());
-            }
-
-            ResumeThread(th);
-            CloseHandle(th);
-        } while (Thread32Next(snap, &te));
-    }
-    CloseHandle(snap);
+    ThreadStack::DumpOtherThreads(g_mainThreadId, &HangLogLine, nullptr);
 
     HangLogRaw("\n=== END HANG ===\n");
     FlushFileBuffers(g_hangLog);
@@ -336,16 +295,19 @@ DWORD WINAPI WatchdogThread(LPVOID) {
 
         if (hung && !hungReported) {
             hungReported = true;
-            // stderr BEFORE any suspension: the main thread may hold the CRT's
-            // file lock, and this must not be the line that deadlocks us.
-            std::fprintf(stderr,
+            // Straight to stderr's file handle, not through the CRT stream: the main thread
+            // may be hung holding stderr's FILE lock (a blocked write to a full pipe), and
+            // fprintf / fflush would then stop the watchdog before the dump and the exit 4
+            // (review F-297).
+            char hungLine[384];
+            std::snprintf(hungLine, sizeof(hungLine),
                 "[BootState] HUNG in %s after %us -- the main loop has not completed a "
                 "frame for %us (budget %us, frame=%d). Writing standalone_hang.log "
-                "(all-thread stacks).%s\n",
+                "(all-thread stacks).%s\r\n",
                 phase, uptimeSec, staleSec, budget, static_cast<int32_t>(frame),
                 Opt().unattendedBoot ? " Unattended run: terminating with exit code 4."
                                      : " Attended run: NOT terminating.");
-            std::fflush(stderr);
+            StderrRaw(hungLine);
 
             WriteHangDump(phase, uptimeSec, (unsigned)frame, staleSec, budget);
 

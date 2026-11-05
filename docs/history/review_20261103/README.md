@@ -26,7 +26,7 @@ rank, bug-class taxonomy C1-C18, input surface, concurrency, GPU / platform).
 | P2 | WSL ASan+UBSan and TSan: unit suite, then a Linux game route | ASan+UBSan survey: 1812 tests 0 fail, F-002..F-006; TSan survey: 1812 / 0 fail, 1 race (F-007, harness); Linux in-game ASan+UBSan (newgame route, lavapipe, 380 s, clean exit, 0 Vulkan validation messages): F-002/F-003 reached in play, new F-008..F-010 |
 | P3 | clang-tidy, Clang Static Analyzer / CodeChecker, CodeQL, Semgrep: baselines | done: baselines in `static/` (clang-tidy Linux 964 TUs, Windows-only code, CodeQL security-and-quality + a size-taint query, Semgrep variant rules for C1-C18); 29 findings |
 | P4 | libFuzzer targets for the input surface (P0 ranks 1-8) | done: 23 targets in `tests/fuzz/`, ~20 min each; 77 crash findings (after merge with static: F-011..F-091, 81 unique); savetail and settings clean |
-| P5 | Thread-safety annotations on the eight structures P0 names | |
+| P5 | Thread-safety annotations on the eight structures P0 names | done: `src/engine/system/thread_annotations.h` + `annotated_mutex.h`, `BANISHED_THREAD_SAFETY` (clang); WSL clang-19 OpenBA + unit: 0 diagnostics. 1 race found and fixed: `PathfinderThread::Run` read `queueCount` outside the lock (retail 0x1400a6366 / 0x1400a6400), now a relaxed atomic load |
 | P6 | GPU: Vulkan validation (sync, GPU-AV, best practices), DX11 debug device | Vulkan sync+BP 2.5 min in game: 0 errors, 0 SYNC-HAZARD, 11 best-practice warnings; GPU-AV 7 min: 0 errors; DX11 debug layer (`BANISHED_D3D_DEBUG`, new) 4.4 min: 0 corruption / 0 error, warnings id 351 x3.17M (VS cb slot 3: 64 B bound, 3328 B declared), 3146081 x20.8k (PS writes an unbound RTV 0, also Vulkan BP), 391 x5 (input layout UINT vs int32). Logs in the session scratchpad (p6_*.log). Not run: swapchain edge cases (resize / minimise / alt-tab), AMD / Intel |
 | P7 | Mull on serializer / collections / math / text codec | |
 | P8 | Scoped agent sweeps: hotspot module x bug class, variant analysis | done: 71 sweeps (game x drift/lifetime/UB, engine x UB/lifetime/errors/concurrency, render x GPU lifetime/swapchain/layout, platform x SDL/errors, fix.* rows); 195 raw, 9 refuted; F-092..F-217 (126 confirmed: 60 port drift proven by Ghidra diff, 53 retail, 13 ext), S-002..S-055 suspected; `findings_p8.json` |
@@ -39,6 +39,18 @@ rank, bug-class taxonomy C1-C18, input surface, concurrency, GPU / platform).
 Under `asan` / `fuzz` the engine heap's instrument seat routes MemAlloc / MemFree to
 `posix_memalign` / `free` (`src/engine/system/allocator.cpp`), so ASan sees every engine
 allocation. UBSan runs without `vptr` and `alignment` (the type headers reinterpret memory).
+
+`BANISHED_THREAD_SAFETY=ON` (clang only, any flavour) adds `-Wthread-safety
+-Werror=thread-safety-analysis` to OpenBA and unit; the annotations are empty macros elsewhere
+(`src/engine/system/thread_annotations.h`). The Linux check:
+`CMAKE_EXTRA_MORE=-DBANISHED_THREAD_SAFETY=ON ~/lx_san.sh check build` on a fresh build directory.
+Checked by the Linux (Vulkan) build only: the DX11 and Metal backends carry the annotations
+unchecked, and their device-lock hand-offs (`contextdata.cpp`, `backend.mm`) are not yet marked.
+What the analysis cannot follow is marked `NO_THREAD_SAFETY_ANALYSIS` with the reason beside it:
+the device lock held from BeginCommands to PresentFrame (and moved across threads by
+ext.render_pipe), retail's conditional Stream-lock exits (`Stream::Run`, `FreeChannelPlatform`),
+a `Sys::MutexLock` dropped and re-taken through a reference (`RunClaimed`, `Complete`), the
+derived cache's Open phase, and the pathfinder's ctor stores.
 
 ## Findings
 

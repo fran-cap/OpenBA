@@ -83,5 +83,15 @@ void SegmentStream::Skip(int32_t len) {
     _pos += len;
 }
 
+bool SegmentStream::SkipWithin(int32_t len) {
+    // Hostile-cache hardening (review F-234): ext.texture_quality's SkipIfWithin hands over a size it
+    // read from the record's own bytes. Bounded by the record's total, which AddChunk keeps within
+    // INT32_MAX, so the Skip add cannot overflow; a valid size always lies within the stream.
+    if (len < 0) return false;
+    if (static_cast<int64_t>(GetCurrentPos()) + len > static_cast<int64_t>(_record->total)) return false;
+    Skip(len);
+    return true;
+}
+
 }  // namespace StreamCache
 }  // namespace Ext

@@ -525,6 +525,7 @@ struct ErodeJob {
     std::vector<std::vector<ErodeWrite>> scratch; // per speculator role: the overlay (every store)
     int             speculators;
     int             gap;
+    bool            forceSpec;   // WgErosionTuning::forceSpec (unit tests): see WaitSpeculated
     std::vector<ErodeFootprint> foot;          // commit-local, kWgErosionRing
     std::vector<uint8_t>        mark;          // commit-local, per cell: read by the droplet validated
     alignas(64) std::atomic<int> committed{0};   // droplets < committed are in the heightmap
@@ -602,6 +603,18 @@ struct ErodeJob {
         f.nw = s.nw;
     }
 
+    // forceSpec (unit tests): wait until a speculator has claimed droplet j and finished it. A
+    // speculator claims every droplet in turn (gap 0) and never waits on the commit, so this ends.
+    void WaitSpeculated(int j) {
+        const ErodeSlot& s = slots[j % kWgErosionRing];
+        int spins = 0;
+        for (;;) {
+            const uint64_t cur = s.state.load(std::memory_order_acquire);
+            if (cur == SlotState(j, kDone) || cur == SlotState(j, kFail)) return;
+            SpinPause(spins);
+        }
+    }
+
     // SOLO. Where droplets keep conflicting (long droplets on a steep converging slope: the
     // ramp of the tests and the bench) speculation costs more than it saves: the commit validates
     // long footprints and then re-runs the droplet anyway. Per block of kSoloBlock droplets the
@@ -640,6 +653,7 @@ struct ErodeJob {
                 __builtin_prefetch(n.writes + 24);
             }
             ErodeSlot& s = slots[j % kWgErosionRing];
+            if (forceSpec && !soloNow) WaitSpeculated(j);
             uint64_t cur = s.state.load(std::memory_order_acquire);
             if (cur == SlotState(j, kFree) &&
                 s.state.compare_exchange_strong(cur, SlotState(j, kTaken), std::memory_order_acq_rel)) {
@@ -662,6 +676,9 @@ struct ErodeJob {
                     RunLive(j, s);
                 }
             }
+            // forceSpec: droplet j + 1 (drawn above) was speculated before j was committed, so its
+            // validation always checks j's footprint.
+            if (forceSpec && !soloNow && j + 1 < iters) WaitSpeculated(j + 1);
             committed.store(j + 1, std::memory_order_release);
             if (soloNow) ++st.solo;
             if (j + 1 == blockEnd) {
@@ -787,6 +804,7 @@ void wg_f390_erosion_tuned(TerrainHeightfield* hfv, const WgErosionTuning& tunin
     job.lookahead = tuning.lookahead < 1 ? 1 : (tuning.lookahead > kMaxLookahead ? kMaxLookahead : tuning.lookahead);
     job.cap       = tuning.stepCap < 1 ? 1 : tuning.stepCap;
     job.gap       = tuning.gap < 0 ? 0 : (tuning.gap > job.lookahead ? job.lookahead : tuning.gap);
+    job.forceSpec = tuning.forceSpec && job.gap == 0;   // with a gap the commit runs droplets itself
     const size_t cells = size_t(job.edge) * size_t(job.edge);
     job.slots = std::vector<ErodeSlot>(kWgErosionRing);
     job.foot.assign(kWgErosionRing, ErodeFootprint{});

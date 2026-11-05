@@ -28,12 +28,18 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <new>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "ext/derived_cache/derived_cache.h"
 #include "ext/derived_cache/hash64.h"
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <winioctl.h>
+#endif
 
 namespace fs = std::filesystem;
 using namespace Ext::DerivedCache;
@@ -761,8 +767,12 @@ UNIT_TEST(ext_derived_cache_stamps_of_a_reader_only_session_reach_the_disk) {
         Store s;   // session 3: Find only, no flush: the quiet spell writes them
         CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
         CHECK(s.Find(MakeKey(2), out));
+        // UsedStamp's std::ifstream opens derived.used without FILE_SHARE_DELETE, so on Windows a
+        // poll that overlaps the writer's replace makes it fail once (WriteWhole tries again). The
+        // deadline is generous for a loaded CI runner; the write is due 100 ms after the Find.
         bool written = false;
-        for (int i = 0; i < 100 && !written; ++i) {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+        while (!written && std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(20));
             written = UsedStamp(t, MakeKey(2)) == 3;
         }
@@ -777,6 +787,32 @@ UNIT_TEST(ext_derived_cache_stamps_of_a_reader_only_session_reach_the_disk) {
         s.WriteStampsNow();
         CHECK_EQ(UsedStamp(t, MakeKey(3)), 4ll);
     }
+}
+
+// Another process reading derived.used without FILE_SHARE_DELETE (a virus scanner, the indexer, a
+// plain fopen) while the stamps are written: on Windows the replace fails until it lets go, and the
+// write tries again rather than dropping the session's stamps. (POSIX rename replaces an open file.)
+UNIT_TEST(ext_derived_cache_stamps_survive_a_brief_reader_of_the_used_file) {
+    TempDir t;
+    {
+        Store w;
+        CHECK(w.Open(t.Path(), kBig) == Store::OpenStatus::Opened);   // session 1 stores 1
+        w.Put(MakeKey(1), Payload(100, 1));
+    }
+    CHECK_EQ(UsedStamp(t, MakeKey(1)), 1ll);
+    std::vector<uint8_t> out;
+    Store s;   // session 2: Find only, then the exit hook's call while derived.used is held open
+    CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+    CHECK(s.Find(MakeKey(1), out));
+    std::ifstream held(t.File("derived.used"), std::ios::binary);
+    CHECK(held.is_open());
+    std::thread release([&held] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        held.close();
+    });
+    s.WriteStampsNow();
+    release.join();
+    CHECK_EQ(UsedStamp(t, MakeKey(1)), 2ll);
 }
 
 UNIT_TEST(ext_derived_cache_unknown_format_starts_empty) {
@@ -844,4 +880,89 @@ UNIT_TEST(ext_derived_cache_hash64_tails_stay_in_the_buffer) {
         roomy.resize(64);
         CHECK_EQ(Hash64(tail.data(), tail.size()), Hash64(roomy.data(), len));
     }
+}
+
+// Review F-241: a payload whose bytes match its record but which its consumer refuses
+// (ext.package_cache's Decode) was never replaced: Put drops a key already stored, so every boot
+// fetched, hashed and refused it again. Forget drops the key's record; the next Put stores anew,
+// and the next Open serves the new copy.
+UNIT_TEST(ext_derived_cache_forget_lets_a_refused_payload_be_replaced) {
+    TempDir t;
+    const std::vector<uint8_t> bad  = Payload(64, 5);
+    const std::vector<uint8_t> good = Payload(80, 6);
+    {
+        Store s;
+        CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+        s.Put(MakeKey(1), bad);
+        s.Flush();
+        std::vector<uint8_t> out;
+        CHECK(s.Find(MakeKey(1), out));
+        CHECK(out == bad);
+        s.Forget(MakeKey(1));
+        CHECK(!s.Find(MakeKey(1), out));
+        s.Put(MakeKey(1), good);
+        s.Flush();
+        CHECK(s.Find(MakeKey(1), out));
+        CHECK(out == good);
+    }
+    Store s;
+    CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+    std::vector<uint8_t> out;
+    CHECK(s.Find(MakeKey(1), out));
+    CHECK(out == good);
+    CHECK_EQ(s.GetStats().entries, 1ull);
+}
+
+namespace {
+
+// Grows `p` to `size` bytes without writing them: a sparse file (POSIX truncate is sparse by itself;
+// NTFS needs the flag first, or the length is allocated on disk).
+bool GrowSparse(const fs::path& p, uint64_t size) {
+#if defined(_WIN32)
+    HANDLE h = CreateFileW(p.wstring().c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+    DWORD got = 0;
+    LARGE_INTEGER at;
+    at.QuadPart = static_cast<LONGLONG>(size);
+    const bool ok = DeviceIoControl(h, FSCTL_SET_SPARSE, nullptr, 0, nullptr, 0, &got, nullptr) != 0 &&
+                    SetFilePointerEx(h, at, nullptr, FILE_BEGIN) != 0 && SetEndOfFile(h) != 0;
+    CloseHandle(h);
+    return ok;
+#else
+    std::error_code ec;
+    fs::resize_file(p, size, ec);
+    return !ec;
+#endif
+}
+
+}  // namespace
+
+// Review F-240: LoadIndex sized one vector from derived.idx's length before it had validated a
+// record. A valid header followed by a huge (sparse) tail made it allocate the whole length:
+// std::bad_alloc, uncaught, at every boot while a cache consumer is on. The records are now read in
+// bounded chunks and the zero tail is a damaged tail: dropped, the entry before it kept.
+UNIT_TEST(ext_derived_cache_huge_sparse_index_is_a_damaged_tail) {
+    TempDir t;
+    const std::vector<uint8_t> a = Payload(100, 4);
+    {
+        Store s;
+        CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+        s.Put(MakeKey(1), a);
+    }
+    CHECK(GrowSparse(t.File("derived.idx"), 1ull << 40));   // 1 TiB of zero records
+    bool threw = false;
+    try {
+        Store s;
+        CHECK(s.Open(t.Path(), kBig) == Store::OpenStatus::Opened);
+        CHECK_EQ(s.GetStats().entries, 1ull);
+        std::vector<uint8_t> out;
+        CHECK(s.Find(MakeKey(1), out));
+        CHECK(out == a);
+        CHECK_EQ(s.BytesOnDisk(), 32ull + a.size() + 32ull + sizeof(IndexRecord));
+    } catch (const std::bad_alloc&) {
+        threw = true;
+    }
+    CHECK(!threw);
 }

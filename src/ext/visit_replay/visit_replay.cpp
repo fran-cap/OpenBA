@@ -166,7 +166,7 @@ void DropAll(DropWhy why) {
 }
 
 // Settles a sweep's erases (with the lock held), counting a store it empties.
-void SettleLocked() {
+void SettleLocked() REQUIRES(ResLoad) {
     if (Store().HasPending() && Store().Settle()) {
         g_c.drops.fetch_add(1, std::memory_order_relaxed);
         g_dropsBy[kDropSettle].fetch_add(1, std::memory_order_relaxed);
@@ -187,7 +187,7 @@ class Walk {
 public:
     Walk(ExternalFactory& f, std::vector<const void*>* collect) : _f(f), _collect(collect) {}
 
-    void Run(uint32_t off, uint32_t cnt) {
+    void Run(uint32_t off, uint32_t cnt) REQUIRES(ResLoad) {
         _stack.push_back(Level{off, cnt, 0, false});
         ++_rows;
         while (!_stack.empty()) {
@@ -231,7 +231,7 @@ private:
     // Copies what is left of every record still read in place, then releases
     // the lock: the call that follows may record (the pool grows or moves) or
     // drop the store.
-    void LetGo() {
+    void LetGo() RELEASE(ResLoad) {
         for (Level& l : _stack) {
             if (l.owned)
                 continue;
@@ -257,7 +257,8 @@ private:
 // Replays `row`'s record (found at off/cnt with the lock held); leaves the lock
 // held. A non-recording frame keeps a full Add made from here out of an
 // enclosing visit's record.
-void RunRecord(ExternalFactory& f, uint32_t off, uint32_t cnt, std::vector<const void*>* collect) {
+void RunRecord(ExternalFactory& f, uint32_t off, uint32_t cnt, std::vector<const void*>* collect)
+    REQUIRES(ResLoad) {
     ThreadState& t = Tls();
     t.frames.push_back(Frame{nullptr, t.scratch.size(), 0, 0, false, false, false});
     Walk walk(f, collect);
@@ -315,7 +316,7 @@ void ShadowCompare(const void* row, const uintptr_t* fresh, size_t freshCount) {
 
 // A, then the undo; false = the engine runs B (the real visit) next. Entered
 // and left with the lock held.
-bool Shadow(ExternalFactory& f, uint32_t off, uint32_t cnt) {
+bool Shadow(ExternalFactory& f, uint32_t off, uint32_t cnt) REQUIRES(ResLoad) {
     ThreadState& t = Tls();
     t.shadowOld.assign(Store().Pool() + off, Store().Pool() + off + cnt);
     const uint64_t miss0 = g_missEpoch.load(std::memory_order_relaxed);
