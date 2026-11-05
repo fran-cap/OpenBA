@@ -46,7 +46,9 @@ amplitude of 0. Retail's pixel shaders never read that w (`dcl_input_ps linear v
 **The pixel side** (`edge_dither.{h,cpp}`, namespace `BbsDither`): a ps_4_x program whose `sample_c` /
 `sample_c_lz` instructions take their compare value straight from one input register S (retail: `v3.z`, nine
 PCF taps, some through temp offsets of `v3`) and whose first plain `sample` reads its coordinates from an
-input U (the diffuse texcoord, `v1.xy`). Emitted before the first instruction, in two new temps T and N:
+input U (the diffuse texcoord, `v1.xy`). Emitted (issue #253) right after the program's last discard -- the cutout's,
+the fill floor's or the coverage path's -- so an alpha-tested fragment never runs it (before the first read of S
+if one came earlier; before the first instruction in a program without a discard), in two new temps T and N:
 
     mov T, vS
     mul N.xy, vU.xy, noiseScale ; round_ni N.xy ; dp2 N.x, N.xy, (12.9898, 78.233)

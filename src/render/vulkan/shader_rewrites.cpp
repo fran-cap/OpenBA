@@ -280,6 +280,11 @@ ShaderEntry* FaaCopy(const uint8_t* blob, size_t size, int i, bool bloom, bool* 
         if (dm.matched) {
             std::vector<uint8_t> dithered;
             if (BbsDither::Transform(dm, &dithered, g_faa.dither)) {
+                if (g_logged.insert("fd" + std::to_string(g_faa.gen) + ":" + hash).second) {
+                    std::fprintf(stderr, "[FoliageAA] dithered %s v%d gen %u: %zu B -> %zu B (block at %d: %s)\n",
+                                 hash.c_str(), i, g_faa.gen, cur.size(), dithered.size(), dm.insertAt,
+                                 BbsDither::PlacementName(dm));
+                }
                 cur = std::move(dithered);
                 changed = true;
                 if (steps != nullptr) *steps |= kStepDither;

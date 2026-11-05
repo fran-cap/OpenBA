@@ -254,10 +254,11 @@ Program& Build(State& s, PixelProgramData* p) {
                     std::snprintf(key, sizeof key, "d%u:", s.gen);
                     if (s.loggedHashes.insert(key + hash).second)
                         std::fprintf(stderr, "[FoliageAA] dithered %s v%d gen %u: %zu B -> %zu B (shadow v%u.%c, uv v%u, "
-                                             "noise %.2f scale %.0f%s)\n",
+                                             "noise %.2f scale %.0f%s, block at %d: %s)\n",
                                      hash.c_str(), i, s.gen, before, curSize, dm.shadowIn, "xyzw"[dm.shadowComp & 3],
                                      dm.uvIn, static_cast<double>(s.dither.noise),
-                                     static_cast<double>(s.dither.noiseScale), cut.empty() ? "" : ", after the cutout");
+                                     static_cast<double>(s.dither.noiseScale), cut.empty() ? "" : ", after the cutout",
+                                     dm.insertAt, BbsDither::PlacementName(dm));
                 } else {
                     ++s.createFailed;
                     std::fprintf(stderr, "[FoliageAA] dither of %s v%d FAILED its self-check: kept the cutout / retail\n",
