@@ -764,10 +764,10 @@ void TradeUI::RefreshBuyTable()
 // and the inner edit element reached through **(spinner+0xa0). That inner write is the
 // half the Element base setter never performs, so a matching inner id is a value only
 // the faithful call can produce -- the difference between "we tagged something" and
-// "we tagged what retail tags". One line per family (row 0 only) under
-// BANISHED_TRADEUI_EVENTDIAG; every branch prints, including a MISMATCH.
+// "we tagged what retail tags". One line per family and dialog (row 0 only; the callers pass every row, so
+// the other rows return here); every branch of row 0 prints, including a MISMATCH.
 static void TradeUI_ReportSpinnerTag(const char* family, int idx, UI::SpinnerElement* spinner, int id) {
-    (void)idx;
+    if (idx != 0) return;
     if (!spinner) {
         fprintf(stderr, "[TradeSpinnerTag] %s row0 id=%d spinner=NULL -- nothing tagged\n",
                 family, id);
