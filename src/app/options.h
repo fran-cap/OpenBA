@@ -204,6 +204,7 @@ struct Options {
                                                //   one; tools/device_sim.sh sets it
     const char* showroom             = nullptr;// BANISHED_SHOWROOM=<template list> — src/diag/showroom.cpp; set by the
                                                //   issue #13 showroom run script (scratchpad showroom/run.sh)
+                                               //   and the forest bench (tools/showroom/README.md)
     const char* captureIngame        = nullptr;// BANISHED_CAPTURE_INGAME — gameupdateloop.cpp
     const char* achIgnoreMods        = nullptr;// BANISHED_ACH_IGNORE_MODS — gameupdateloop.cpp achievements
     const char* treeGuards           = nullptr;// BANISHED_TREE_GUARDS — src/game/Entity/entitylist.cpp
