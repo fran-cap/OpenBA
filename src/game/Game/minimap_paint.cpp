@@ -60,6 +60,7 @@
 #include "Game/Minimap.h"
 #include "Game/WorldGeometry.h"
 #include "graphics/SunLight.h"
+#include "graphics/stagger_hold.h"   // ext.staggered_passes: the capture invalidates held targets
 #include "Game/exe_constants.h"   // kRdata_14017214c
 
 // B.4 GAME-b: the painter is Minimap::PaintTerrain and reads the minimap, the
@@ -208,7 +209,12 @@ void Minimap::PaintTerrain(Video::Context& context, Graphics::Geometry* worldGeo
     scene.AddGlobalObject(worldGeom);
     scene.AddGlobalObject(sunLight);
     scene.Clean();
+    // NOT RETAIL (ext.staggered_passes, graphics/stagger_hold.h): this draw renders the water's
+    // reflection image with the top-down camera and no reflected scene, so no target the game
+    // frame holds may be reused across it.
+    Graphics::StaggerHold::Invalidate();
     renderer.Draw(context, 0.0f, scene, *camera);
+    Graphics::StaggerHold::Invalidate();
     scene.RemoveGlobalObject(sunLight);
     scene.RemoveGlobalObject(worldGeom);
 

@@ -704,6 +704,18 @@ const Entry kEntries[] = {
       "two fingers move, zoom and turn the view, and a tap selects the nearest person or building. For "
       "phones and touch screens.",
       0, [](State& s) -> bool& { return s.ext.touch_pointer; } },
+    // Issue #253 (graphics/stagger_hold.h): the sun's shadow map and the water's reflection may each keep
+    // last frame's image on a near-still view, rendering at least every ext.staggered_passes_shadow /
+    // _reflection frames (2: one frame held at most, the two passes on alternate frames) and at once on a
+    // turn, a move past a small tolerance, a zoom, a settings change or a target rebuild. Class A: frames
+    // only, nothing saved, live. OFF by default: a held frame lags moving shadows and reflections by a
+    // frame, ruled acceptable but the player's call.
+    { "staggered_passes", Tier::Extension, Class::A, false,
+      "Staggered shadow and reflection",
+      "Renders the shadows and the water's reflection every other frame while the view is still, on "
+      "alternate frames: a higher frame rate on slower devices; moving shadows and reflections may "
+      "trail by a frame.",
+      0, [](State& s) -> bool& { return s.ext.staggered_passes; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.
@@ -731,6 +743,8 @@ constexpr int32_t kTouchCameraButtonScales[] = { 0, 15, 20, 25, 35, 50, 75, 100,
 constexpr int32_t kPhoneSafeMargins[] = { 0, 2000, 3375, 4500, 6000 };
 constexpr int32_t kTouchPointerLifts[] = { 0, 80, 120, 160, 200, 240 };
 constexpr int32_t kTouchPointerPickRadii[] = { 0, 25, 50, 75, 100 };
+constexpr int32_t kStaggerShadowEvery[] = { 1, 2, 3, 4 };
+constexpr int32_t kStaggerReflectionEvery[] = { 1, 2, 4, 8 };
 
 const ValueKey kValueKeys[] = {
     // 4 = ASSAO Lowest (half density, the phone tier; issue #253), appended after High so a stored
@@ -839,6 +853,13 @@ const ValueKey kValueKeys[] = {
     // 0 = the text only (scale-matched fonts, whole-pixel quads); 1 = also the magnified sprite sheets.
     { "sharp_ui_icons", "sharp_ui", 0, 1, 0,
       [](State& s) -> int32_t& { return s.val.sharp_ui_icons; }, nullptr, 0 },
+    // Issue #253: the most frames the shadow map / the reflection may go between renders while the row
+    // staggered_passes is on (1 = every frame, as retail). 2 is the ruled default; settings.cfg only. Any
+    // other number reads as 2 (discrete keys).
+    { "staggered_passes_shadow", "staggered_passes", 1, 4, 2,
+      [](State& s) -> int32_t& { return s.val.staggered_passes_shadow; }, kStaggerShadowEvery, 4 },
+    { "staggered_passes_reflection", "staggered_passes", 1, 8, 2,
+      [](State& s) -> int32_t& { return s.val.staggered_passes_reflection; }, kStaggerReflectionEvery, 4 },
 };
 
 constexpr int kValueKeyCount = static_cast<int>(sizeof(kValueKeys) / sizeof(kValueKeys[0]));

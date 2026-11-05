@@ -78,6 +78,7 @@
 #include "graphics/xform_memo.h"   // XFORMMEMO: the instance-transform memo counters (/xform row) and its shadow hook
 #include "ext/draw_gather/draw_gather.h"   // DRAWGATHER: the [Stress::gather] counters
 #include "ext/render_pipe/render_pipe.h"   // RENDERPIPE: the [Stress::pipe] counters
+#include "graphics/stagger_hold.h"         // ext.staggered_passes: the [Stress::stagger] counters
 #include "platform/common/cpu/topology.h"             // CPULIMIT: the '# cpu' meta line
 #include "ext/walk_batch/walk_batch.h"   // WALKBATCH: the /char walkbatch row's counters
 #include "ext/spread_warmth/spread_warmth.h"   // HITCH_PFBURST: the [Stress::warmth] counters
@@ -1644,6 +1645,23 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          static_cast<long long>(rp.governorIdleUs), static_cast<long long>(rp.governorIdleWithoutUs),
                          split[PassSplit::kP1Main], split[PassSplit::kP1Shadow], split[PassSplit::kP1Refl],
                          split[PassSplit::kP2Shadow], split[PassSplit::kP2Refl], split[PassSplit::kP2Main]);
+        }
+    }
+    // ext.staggered_passes (issue #253, graphics/stagger_hold.h): the window's held / rendered
+    // decisions per pass. Printed only while the row counted something.
+    {
+        const Graphics::StaggerHold::Counters sc = Graphics::StaggerHold::TakeWindow();
+        const uint64_t shadowAll = sc.shadowHeld + sc.shadowRendered;
+        const uint64_t reflAll   = sc.reflectionHeld + sc.reflectionRendered;
+        if (shadowAll != 0 || reflAll != 0) {
+            std::fprintf(stderr, "[Stress::stagger] shadow held=%llu rendered=%llu (%.1f%% held) | "
+                                 "reflection held=%llu rendered=%llu (%.1f%% held)\n",
+                         static_cast<unsigned long long>(sc.shadowHeld),
+                         static_cast<unsigned long long>(sc.shadowRendered),
+                         shadowAll ? 100.0 * static_cast<double>(sc.shadowHeld) / static_cast<double>(shadowAll) : 0.0,
+                         static_cast<unsigned long long>(sc.reflectionHeld),
+                         static_cast<unsigned long long>(sc.reflectionRendered),
+                         reflAll ? 100.0 * static_cast<double>(sc.reflectionHeld) / static_cast<double>(reflAll) : 0.0);
         }
     }
     (void)frame;

@@ -113,6 +113,7 @@
 #include "video/Buffers.h"
 #include "video/Device.h"
 #include "video/ImageBuffer.h"
+#include "graphics/stagger_hold.h"   // ext.staggered_passes: a rebuild invalidates held targets (NOT RETAIL)
 
 using Video::Device;
 using Video::RenderBuffer;
@@ -509,6 +510,9 @@ void Video::Device::RecreateDynamic() {
     Video::VertexBuffer::RecreateDynamic();
     Video::ImageBuffer::RecreateDynamic();
     Video::RenderBuffer::RecreateDynamic();
+    // NOT RETAIL (ext.staggered_passes, graphics/stagger_hold.h): the render targets were
+    // re-made empty, so a held shadow map or reflection renders at its next use.
+    Graphics::StaggerHold::Invalidate();
 }
 
 void Video::Device::ReleaseDynamic() {

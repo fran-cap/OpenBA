@@ -119,6 +119,7 @@
 #include "graphics/skin_memo.h"   // SKINMEMO: Renderer::Draw opens the bone memo's scope
 #include "graphics/Scene.h"   // ENDGAME B.3.5 caller batch: Graphics::Scene
 #include "graphics/Light.h"   // B3X W0: Light::DrawShadowMap / DrawLight by name
+#include "graphics/SunLight.h"   // ext.staggered_passes: the shadow hold's emit flag (NOT RETAIL)
 #include "graphics/Material.h"
 #include "graphics/material_binding_bounds.h"   // review S-003: the bindings BuildParameters appends
 #include "video/Context.h"
@@ -1049,6 +1050,10 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
     // park (graphics/Scene.h). Null unless the helper pool exists.
     if (Scene::_extDrawPass1End != nullptr) Scene::_extDrawPass1End();
 
+    // EXT SEAM (NOT RETAIL, issue #253): ext.staggered_passes. Pass 1 just decided whether the
+    // sun holds its map; this thread emits the same frame (false unless the row is on).
+    SunLight::ExtShadowHoldEmit(SunLight::ExtTakeShadowHeld());
+
     // ---------------- PASS 2: emit, BACKWARD ------------------------------
     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion (renderer_ext_ao.h), read once
     // per frame; null (retail) unless the game's draw armed it for this call.
@@ -1123,6 +1128,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
                 ExtAoAfterOpaque(context, *extAo, *e);
         }
     }
+    SunLight::ExtShadowHoldEmit(false);   // NOT RETAIL (ext.staggered_passes): this frame's emit is over
 }
 
 // NOT RETAIL: the ext.ambient_occlusion seam (Camera.h, renderer_ext_ao.h).

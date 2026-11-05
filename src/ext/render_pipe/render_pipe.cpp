@@ -294,6 +294,7 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     // Step 7, pass 1 (passes.cpp), with the main-owned frame index (fix 2).
     Pass1(r, loop._context->_defaultRenderBuffer, alpha, p.frameIndex, *g.m_graphicsScene,
           g.m_playerController->camera);
+    p.shadowHeld = Graphics::SunLight::ExtTakeShadowHeld();   // ext.staggered_passes (packet.h)
     SceneWatch_DrawItemCensus(&r);   // [diag]
 
     // Step 8: SaveLoad::Draw's receiver and material.
@@ -414,7 +415,7 @@ struct EngineOps {
                                  (static_cast<long long>(r._frameIndex) << 32) |
                                      static_cast<long long>(static_cast<uint32_t>(ctx->_frameIndex)));
         }
-        Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr);
+        Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr, p.shadowHeld);
     }
     // P13_OVERLAP: when the next Frame's steps claimed the gate, wait until they are over, the
     // device lock dropped meanwhile (a step that uploads takes it: P13_OVERLAP 2.5).
