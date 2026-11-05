@@ -45,6 +45,7 @@
 #include "graphics/Camera.h"
 #include "graphics/Material.h"
 #include "graphics/InterpolatedState.h"
+#include "graphics/xform_memo.h"   // XFORMMEMO: the instance-transform memo
 #include "video/Context.h"
 #include "video/Buffers.h"
 #include "video/VideoProgram.h"
@@ -452,8 +453,11 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
                     ++batchCount;
                     ++itemIndex;
 
-                    const Math::Matrix* const m =
-                        cur._geometry->GetInstanceTransform(&view, cur._arg5, renderer._alphaT);
+                    // XFORMMEMO (graphics/xform_memo.h): the same matrix, computed once per
+                    // (instance, list, t) per Renderer::Draw.
+                    const Math::Matrix* const m = XformMemo::kEnabled
+                        ? XformMemo::Transform(*cur._geometry, cur._arg5, renderer._alphaT, &view)
+                        : cur._geometry->GetInstanceTransform(&view, cur._arg5, renderer._alphaT);
                     context.SetTransform(slotIndex, *m);
 
                     ++slotIndex;

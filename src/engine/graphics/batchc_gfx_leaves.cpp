@@ -100,6 +100,7 @@
 #include "graphics/Light.h"          // Graphics::SpotLight -- block GC
 #include "graphics/Material.h"
 #include "graphics/Mesh.h"
+#include "graphics/xform_memo.h"     // XFORMMEMO: the instance-transform memo (DrawItemList)
 #include "io/Serializer.h"
 #include "io/Stream.h"                  // B.4: IO::Stream::_encoding / _direction
 #include "video/CompanionData.h"        // B.4: Video::{Index,Vertex}BufferData::Serialize
@@ -776,8 +777,11 @@ void Renderer::DrawItemList(Video::Context& context, int groupIndex, int listInd
                     // Geometry slot 6 `GetInstanceTransform`, by name (B3X W0).
                     // Its hidden return slot is `view` -- the stack matrix is
                     // the storage, exactly as the raw call passed it.
-                    const Math::Matrix* const m =
-                        cur._geometry->GetInstanceTransform(&view, cur._arg5, _alphaT);
+                    // XFORMMEMO (NOT RETAIL, graphics/xform_memo.h): the same matrix,
+                    // computed once per (instance, list, t) per Renderer::Draw.
+                    const Math::Matrix* const m = XformMemo::kEnabled
+                        ? XformMemo::Transform(*cur._geometry, cur._arg5, _alphaT, &view)
+                        : cur._geometry->GetInstanceTransform(&view, cur._arg5, _alphaT);
                     context.SetTransform(slotIndex, *m);
 
                     ++slotIndex;
