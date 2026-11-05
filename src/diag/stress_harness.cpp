@@ -75,6 +75,7 @@
 #include "graphics/skin_memo.h"    // SKINMEMO: the bone memo counters (/skin row) and its COMPPROF=4 shadow hook
 #include "graphics/pass_split.h"   // issue #253: the per-scene-group CPU split ([Stress::pipe])
 #include "ext/draw_batch/draw_batch.h"   // issue #253: the instancing batch counters (COMPPROF >= 2)
+#include "draw_batch/instance_bank.h"    // issue #253: the backend's instance cap (src/render/common)
 #include "graphics/xform_memo.h"   // XFORMMEMO: the instance-transform memo counters (/xform row) and its shadow hook
 #include "ext/draw_gather/draw_gather.h"   // DRAWGATHER: the [Stress::gather] counters
 #include "ext/render_pipe/render_pipe.h"   // RENDERPIPE: the [Stress::pipe] counters
@@ -1051,7 +1052,9 @@ void GatherReport(FILE* o) {
     // Issue #253: ext.draw_batch's instancing batches by shader (counted at COMPPROF >= 2,
     // per draw frame of the window): `singles` = items with _arg8 <= 1, `batches` /
     // `instances` = the _arg8 > 1 batches and the items they drew, `size` = batches of 1 /
-    // 2-8 / 9-32 / 33+, `ended by` = what closed each batch.
+    // 2-8 / 9-32 / 33+, `ended by` = what closed each batch (`seam`: a wide batch stopped at a
+    // retail cut it may not cross), `at cap 52/104/208/988` = the batches the same lists take
+    // at those caps (wide batches, batch_fill.h; the backend's own cap is `cap`).
     Ext::DrawBatch::BatchCounters bc[Ext::DrawBatch::kBatchShaderSlots];
     Ext::DrawBatch::TakeWindow(bc);
     for (int s = 0; s < Ext::DrawBatch::kBatchShaderSlots; ++s) {
@@ -1059,12 +1062,16 @@ void GatherReport(FILE* o) {
         if (b.lists == 0) continue;
         std::fprintf(o, "[COMPPROF]   draw batch/%-6s lists/frame=%.1f  singles=%.0f  batches=%.0f  instances=%.0f "
                         "(%.1f/batch)  size 1/2-8/9-32/33+=%.0f/%.0f/%.0f/%.0f  ended by end/cap/instance/arg5/"
-                        "userData/arg10=%.0f/%.0f/%.0f/%.0f/%.0f/%.0f\n",
+                        "userData/arg10/seam=%.0f/%.0f/%.0f/%.0f/%.0f/%.0f/%.0f  cap=%d  at cap 52/104/208/988="
+                        "%.0f/%.0f/%.0f/%.0f\n",
                      kShaderNames[s], (double)b.lists / n, (double)b.singles / n, (double)b.batches / n,
                      (double)b.instances / n, b.batches ? (double)b.instances / (double)b.batches : 0.0,
                      (double)b.sizes[0] / n, (double)b.sizes[1] / n, (double)b.sizes[2] / n, (double)b.sizes[3] / n,
                      (double)b.breaks[0] / n, (double)b.breaks[1] / n, (double)b.breaks[2] / n,
-                     (double)b.breaks[3] / n, (double)b.breaks[4] / n, (double)b.breaks[5] / n);
+                     (double)b.breaks[3] / n, (double)b.breaks[4] / n, (double)b.breaks[5] / n,
+                     (double)b.breaks[6] / n, InstanceBank::Cap(),
+                     (double)b.wideSim[0] / n, (double)b.wideSim[1] / n, (double)b.wideSim[2] / n,
+                     (double)b.wideSim[3] / n);
     }
 }
 

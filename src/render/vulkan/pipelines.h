@@ -91,9 +91,9 @@ bool PushDescriptors();
 // The pair's layouts on the push path (cached; the pointer stays valid until PipelinesShutdown; null
 // when the pixel stage declares more bindings than maxPushDescriptors). `ps` may be null.
 const PairLayout* PairLayoutFor(const Shaders::ShaderReflection& vs, const Shaders::ShaderReflection* ps);
-// The range of every constant-buffer descriptor: the largest constant buffer a retail shader declares
-// fits (D3D10 allows 64 KB; the game's largest is the 52-instance transform bank, 3328 bytes).
-constexpr uint32_t kConstantBufferRange = 16384;
+// The range of every constant-buffer descriptor is instance_bank.h ConstantBufferRange(): 16 KiB, which
+// the largest constant buffer a retail shader declares fits (D3D10 allows 64 KB; the game's largest is
+// the 52-instance transform bank, 3328 bytes), or the wide transform bank when issue #253's cap needs more.
 
 // ---- the shader registry -----------------------------------------------------------------------------
 struct ShaderEntry {

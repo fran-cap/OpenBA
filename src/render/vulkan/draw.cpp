@@ -11,6 +11,7 @@
 #include "depth_discard.h"
 #include "device_objects.h"
 #include "draw.h"
+#include "instance_bank.h"   // issue #253: the wide transform bank, ConstantBufferRange
 #include "present.h"
 #include "pipelines.h"
 #include "resources.h"
@@ -750,7 +751,7 @@ void PrepareTextures(const ShaderEntry* ps) {
 bool RingAlloc(VkDeviceSize size, VkBuffer* buffer, VkDeviceSize* offset, uint8_t** mapped) {
     SlotResources& s = g_slots[g_frame.target.slot];
     const VkDeviceSize align = std::max<VkDeviceSize>(LiveProperties().limits.minUniformBufferOffsetAlignment, 256);
-    const VkDeviceSize need = std::max<VkDeviceSize>(size, kConstantBufferRange);
+    const VkDeviceSize need = std::max<VkDeviceSize>(size, ConstantBufferRange());
     for (;;) {
         if (s.chunk < s.ring.size()) {
             const VkDeviceSize at = (s.offset + align - 1) / align * align;
@@ -934,7 +935,7 @@ VkDescriptorSet StageSet(Shaders::Stage stage, const Shaders::ShaderReflection* 
     uint32_t n = 0;
     for (uint32_t b = 0; b < kCbSlots; ++b) {
         if (!key.cb[b]) continue;
-        buffers[b] = { key.cb[b], key.cbOffset[b], kConstantBufferRange };
+        buffers[b] = { key.cb[b], key.cbOffset[b], ConstantBufferRange() };
         writes[n] = Make<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);
         writes[n].dstSet = set;
         writes[n].dstBinding = Shaders::BindingOfConstantBuffer(b);
@@ -1006,7 +1007,7 @@ bool BindPixelSet(VkCommandBuffer cb, const PairLayout& pair, const PushedValue*
                 if (types[i] == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
                     buffers[i].buffer = reinterpret_cast<VkBuffer>(values[i].a);   // CAST-OK: the handle stored above
                     buffers[i].offset = 0;
-                    buffers[i].range = kConstantBufferRange;
+                    buffers[i].range = ConstantBufferRange();
                     writes[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                     writes[i].pBufferInfo = &buffers[i];
                 } else {
@@ -1100,7 +1101,7 @@ bool PushPixelSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sha
         if (types[i] == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
             buffers[i].buffer = reinterpret_cast<VkBuffer>(values[i].a);   // CAST-OK: the handle stored above
             buffers[i].offset = values[i].b;
-            buffers[i].range = kConstantBufferRange;
+            buffers[i].range = ConstantBufferRange();
             writes[i].pBufferInfo = &buffers[i];
         } else {
             images[i].sampler = reinterpret_cast<VkSampler>(values[i].b);       // CAST-OK: as above
@@ -1152,7 +1153,7 @@ bool BindVertexSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sh
                 if (!key.cb[b]) continue;
                 buffers[b].buffer = key.cb[b];
                 buffers[b].offset = 0;
-                buffers[b].range = kConstantBufferRange;
+                buffers[b].range = ConstantBufferRange();
                 writes[w] = Make<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);
                 writes[w].dstSet = set;
                 writes[w].dstBinding = Shaders::BindingOfConstantBuffer(b);
@@ -1944,7 +1945,15 @@ void ContextData::BindScissor() {
 // bones on the live count), exactly as dx11.
 void ContextData::BindTransforms() {
     ::Video::Context* ctx = _owner;
-    if (ctx->_dirty & 0x4000) ctx->_transformConstants.Bind(*ctx, ctx->_transforms, 0, ctx->_transformCount << 6);
+    if (ctx->_transformCount > kRetailTransformSlots) {
+        // NOT RETAIL (issue #253, instance_bank.h): a batch wider than the Context's bank. Slots 52.. are
+        // in wideBank already; the Context's 0..51 go in front and the whole bank is uploaded, at every
+        // such bind (dirty or not: the copy the ring holds is only as long as the last bind's count).
+        std::memcpy(wideBank.data(), ctx->_transforms, sizeof(ctx->_transforms));
+        ctx->_transformConstants.Bind(*ctx, wideBank.data(), 0, ctx->_transformCount << 6);
+    } else if (ctx->_dirty & 0x4000) {
+        ctx->_transformConstants.Bind(*ctx, ctx->_transforms, 0, ctx->_transformCount << 6);
+    }
     ctx = _owner;
     if (ctx->_unknown0024 > 0) ctx->_boneConstants.Bind(*ctx, ctx->_boneAndProjectionStaging, 0, 0x0cc0);
 }

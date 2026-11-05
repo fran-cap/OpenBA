@@ -16,6 +16,7 @@
 #include "better_trees/billboard_shadow_backend.h"
 #include "async_gpu_create/async_gpu_create_backend.h"
 #include "draw_batch/smoke_vs_backend.h"
+#include "draw_batch/instance_bank.h"
 #include "ext/render_pipe/finish_split.h"
 #include "graphics/renderer_ext_ao.h"
 #include "passes/assao_pass.h"
@@ -111,6 +112,22 @@ bool Rewritten(const Video::VertexProgram* vp) {
 }
 
 }  // namespace SmokeVsBackend
+
+// ext.draw_batch, issue #253 (wide instancing batches): the Metal transform bank stays retail's 52 slots,
+// so the backend answers "not supported": Cap() is 52 and the extension never asks for a wide slot.
+namespace InstanceBank {
+
+int32_t Cap() {
+    return 52;
+}
+
+void SetWide(Video::Context& context, int32_t slot, const Math::Matrix& m) {
+    (void)context;
+    (void)slot;
+    (void)m;
+}
+
+}  // namespace InstanceBank
 
 namespace Ext {
 namespace RenderPipe {

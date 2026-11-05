@@ -192,4 +192,38 @@ BANISHED_CAMERA_PIN=town,130 STRESS_EXT_VALUES=max_shadow_size=4096 \
   - Only the in-game binding path (the stage) is unexercised. The first run's `[DrawBatch] rewrote`
     line confirms it.
 - `docs/runtime_port/STATUS.md` has no row yet (the coordinator's file).
-- Idea C (wide instancing) was not in scope.
+- Idea C (wide instancing) was not in scope of this hand-in; section 8 has it.
+
+## 8. Idea C: wide instancing batches (issue #253, Vulkan only)
+
+What pins retail's batch at 52:
+- the mesh level's `_maxInstances` (`GraphicsMesh::DetailLevel` +0xa8, from the game data), handed to
+  `AddDrawItem` as `_arg8` (`src/engine/graphics/mesh.cpp` `MeshInstance::AddDrawItems`) and tested by the
+  batch loop (`batchc_gfx_leaves.cpp` DrawItemList, this extension's copy in `draw_batch.cpp`);
+- `Video::Context::_transforms[52]` (`src/engine/video/Context.h`, +0x10d8, 0xd00 bytes; retail layout, so it
+  cannot grow) and the `TransformConstants` buffer `AssignConstants` declares as `transforms[52]`
+  (`constant_buffer.cpp`, 208 float4, bank stride 0x40);
+- `ContextData::GetMaxDynamicInstances` returns retail's literal 52 (DX11 and Vulkan) - only the dynamic-vertex
+  writers ask it, not the batch loop.
+Not a limit: the vertex shaders index the bank dynamically by the instance id, and dxbc-spirv declares every
+dynamically indexed constant buffer at D3D's full 4096 float4 (`dxbc_resources.cpp` handleDclConstantBuffer),
+so the SPIR-V needs no rewrite. On Vulkan the descriptor range was 16 KiB (256 matrices).
+
+The change: `InstanceBank::Cap()` (`src/render/common/draw_batch/instance_bank.h`) is 52 on DX11 / Metal and
+`kVulkanInstanceCap` on Vulkan (`src/render/vulkan/instance_bank.h`, a multiple of 52, at most 988 = 19 x 52 in
+64 KiB, clamped to `maxUniformBufferRange`). The batch loop goes past a retail cut only where the retail batch
+starting there would draw the same instances with the same state (`batch_fill.h` `ContinuesPastCut`: an exact
+`MeshInstance` head and cut item with a rigid list, no render texture, the same join keys, `_arg8` and opacity
+pair, and a retail batch of at least two there); slots 52.. go to the Vulkan `ContextData::wideBank` and
+`BindTransforms` uploads the whole bank; every constant-buffer descriptor's range becomes
+`max(16 KiB, cap x 64)`. At `kVulkanInstanceCap = 52` the path is today's: the cut test fails at once and the
+range stays 16 KiB. Skinned instanced lists (`_f14 < 0`, citizens) and particles keep retail's batches.
+
+Checks: COMPPROF=4 `DrawBatchWide` expands every list as drawn and with retail's batches and compares, per
+item, how it was drawn, the head's state and the slot's transform. The COMPPROF `draw batch` rows carry the
+`seam` break and `at cap 52/104/208/988`, the draws the same lists take at those caps (from the retail
+batch chains, whatever the build's cap). Windows, RTX 5080, Vulkan debug with validation, stress town 3000
+frames: `DrawBatchWide` 0 mismatches at 52 and 988 (default zoom and zoom 200); no validation error (the one
+warning, a depth-only pass's unused `SV_Target`, is the same at 52). Far zoom (`town,200`), per frame:
+main 362 / 222 / 151 / 94 draws at 52 / 104 / 208 / 988, shadow 358 / 218 / 147 / 90, refl 312 / 173 / 103 /
+46, for about 15.9 k instances per pass. Timing is the phone bench's (`docs/android/I253_RENDER.md`).

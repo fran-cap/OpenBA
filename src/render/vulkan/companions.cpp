@@ -18,6 +18,7 @@
 #include "VideoVulkanData.h"
 #include "device_objects.h"
 #include "draw.h"
+#include "instance_bank.h"                         // issue #253: ConstantBufferRange
 #include "vulkan11.h"                            // ForgetImageView
 #include "seeded_create.h"                       // P4: the seeded creates (compress_ao, share_gpu_data)
 #include "async_gpu_create/async_create.h"       // P4: ext.async_gpu_create
@@ -655,9 +656,9 @@ void ConstantBufferData::Bind(void* context, const void* srcData, int32_t first,
     const Video::ConstantBuffer* owner = _owner;
     int32_t bytes = owner->_registerCount << 4;
     if (owner->_banked && owner->_bankStride > 0) bytes = owner->_bankStride * (sizeBytes / owner->_bankStride);
-    if (bytes > static_cast<int32_t>(kConstantBufferRange)) {
-        LogOnce(4, "a constant buffer larger than the descriptor range is cut to it (pipelines.h kConstantBufferRange)");
-        bytes = static_cast<int32_t>(kConstantBufferRange);
+    if (bytes > static_cast<int32_t>(ConstantBufferRange())) {
+        LogOnce(4, "a constant buffer larger than the descriptor range is cut to it (instance_bank.h ConstantBufferRange)");
+        bytes = static_cast<int32_t>(ConstantBufferRange());
     }
     if (bytes < 0) bytes = 0;
     const auto* src = static_cast<const uint8_t*>(srcData);

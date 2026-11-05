@@ -53,6 +53,49 @@ struct Span {
 int64_t FillRun(const Span* spans, int32_t count, int32_t stride, uint8_t* vb, uint16_t* ib);
 
 // ---------------------------------------------------------------------------
+// Issue #253: wide instancing batches (src/render/common/draw_batch/instance_bank.h).
+// ---------------------------------------------------------------------------
+// Retail's batch loop (DrawItemList, 0x180105240) joins the items after a head while they have the head's
+// _instance, _arg5, _userData and _arg10, at most the head's _arg8 (52 in the game's data), not past the
+// list's end. The head alone decides the draw's state: Setup of its material instance, its geometry's
+// Draw (MeshInstance::Draw: its opacity pair for the colour, its mesh's buffers and image for _arg5's
+// list) and SetSharedInstanceData; each joined item adds only its instance transform. A wide batch
+// continues past a retail cut only where the retail batch starting there would be drawn the same way:
+//   * the head and the cut item are MeshInstances (exact type) whose list is rigid (TriangleList::_f14
+//     >= 0: SetSharedInstanceData writes nothing) and whose instance has no render texture;
+//   * the cut item has the head's join keys, _arg8 and opacity pair (bit for bit);
+//   * the item after it joins too, so the retail batch there is an instanced draw of at least two (a
+//     batch of one is MeshInstance::Draw's pass-1 arm, which builds its transform itself).
+// The wide cap is a multiple of the head's _arg8, so every wide batch ends where a retail batch ends.
+constexpr int32_t kRetailInstanceSlots = 52;   // Video::Context::_transforms[52]
+
+struct InstanceKey {
+    const void* instance    = nullptr;   // RendererDrawItem::_instance
+    uint32_t    arg5        = 0;
+    const void* userData    = nullptr;   // the GraphicsMesh
+    uint32_t    arg10       = 0;
+    int32_t     arg8        = 0;
+    uint32_t    opacity     = 0;         // Geometry::_opacity / _opacityPrev, as bits
+    uint32_t    opacityPrev = 0;
+    bool        wideOk      = false;     // an exact MeshInstance, rigid list, no render texture
+};
+
+// Retail's join test: the next item joins the head's batch.
+bool JoinsBatch(const InstanceKey& head, const InstanceKey& next);
+
+// The most items a batch with this head may take: `arg8` itself unless the head is the bank's full 52
+// and the backend holds more, then the largest multiple of 52 within `backendCap`.
+int32_t WideBatchCap(int32_t arg8, int32_t backendCap);
+
+// At a retail cut (the batch holds a multiple of the head's _arg8 items and the cut item exists): true
+// when the batch may take the cut item and go on. `afterCut` is the item after it, null past the list's end.
+bool ContinuesPastCut(const InstanceKey& head, const InstanceKey& cut, const InstanceKey* afterCut);
+
+// The draws a chain of `retailBatches` consecutive retail batches that may all join becomes under a cap
+// of `perWide` retail batches per draw (the stress rows' expected batch counts at other caps).
+int64_t WideBatchesOfChain(int64_t retailBatches, int32_t perWide);
+
+// ---------------------------------------------------------------------------
 // Idea B: the particle vertices of one emitter instance in a merged smoke run.
 // ---------------------------------------------------------------------------
 // ParticleInstance::Draw's 0x34-byte vertex (wave27_lane_gfxpart.cpp, part C), with the dword at
