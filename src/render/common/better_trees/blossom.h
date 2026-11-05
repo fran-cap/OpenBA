@@ -120,6 +120,15 @@ uint32_t Fnv1a(const std::string& s);
 // the stamp present (time.y >= 0.5) or not.
 void VertexOut(const NgRewrite::TreeTerms& t, float months, bool stamped, float z, float w, float out[4]);
 
+// Issue #253: whether ANY tree of a draw under the code `z` can flower at `months` (VertexOut's arguments,
+// the tree aside). False means every tree's cov is exactly 0, so the blossom mask is 0, l' == l and k == 0:
+// the pixel copy without the blossom (NgRewrite::Transform's bloom = false) draws the same pixels. Exact by a
+// margin: a tree's offset |j| <= kJitter + 2 kGroveShift, and b > 0 needs |x| < kHalfWidth, so a draw whose
+// wrapped distance from the peak is at least kHalfWidth + kJitter + 2 kGroveShift + kBloomMargin cannot
+// flower (the margin covers the GPU's float wrap and sine). No code (z = 0) or no stamp: false.
+constexpr float kBloomMargin = 1e-3f;
+bool CanBloom(float months, bool stamped, float z);
+
 struct PixelTerms {
     float lossCut;   // l' (the season mad's loss)
     float amount;    // k (the colour lerp, move included)

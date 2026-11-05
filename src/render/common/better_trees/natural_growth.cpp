@@ -758,11 +758,12 @@ void EmitBloomMask(Writer& w, const Match& m) {
     w.Ins(Op::Mov, [&] { E::TempDst(t, R, 2); E::TempSrc(t, U, E::Rep(1)); });
 }
 
-bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {
+bool TransformPixel(const Match& m, std::vector<uint8_t>* out, bool bloom) {
     const Dxbc::Program& p = m.prog;
     const uint32_t X = m.temps, Y = m.temps + 1, Z = m.temps + 2;
     const uint32_t rA = p.instrs[static_cast<size_t>(m.sampleIdx)].operands[0].index[0];
     const bool bb = m.kind == Kind::BillboardColour;
+    const bool bloomed = bb && bloom;   // issue #253: the blossom's mask and lerp (Transform's `bloom`)
     const uint32_t N = m.newReg, M = m.moveReg;
     Writer w;
     w.t.reserve(p.tokens.size() + 192);
@@ -775,7 +776,7 @@ bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {
         if (in.isDecl) {
             const size_t at = t.size();
             t.insert(t.end(), src, src + in.length);
-            if (in.opcode == Op::DclTemps) t[at + 1] = m.temps + (bb ? 8 : 1);
+            if (in.opcode == Op::DclTemps) t[at + 1] = m.temps + (bloomed ? 8 : (bb ? 3 : 1));
             if (!bb && ii == m.dclIdx) t[at + 1] |= 0xFu << 4;   // dcl_input_ps vD.xyzw
             if (bb && ii == m.lastDclIn) {
                 for (uint32_t r = N; r <= N + 1; ++r) {   // the terms, the blossom
@@ -789,10 +790,15 @@ bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {
             continue;
         }
         if (bb && ii == m.seasonMadIdx) {
-            // the blossom mask, then the season mad reads -l' (R.w): -l where nothing flowers
-            EmitBloomMask(w, m);
+            // the blossom mask, then the season mad reads -l' (R.w): -l where nothing flowers; without the
+            // blossom it reads -l (vN.y) itself
             std::vector<uint32_t> repl;
-            E::TempSrc(repl, m.temps + 6, E::Rep(3), 1);   // -l' instead of -userPosition.z
+            if (bloomed) {
+                EmitBloomMask(w, m);
+                E::TempSrc(repl, m.temps + 6, E::Rep(3), 1);   // -l' instead of -userPosition.z
+            } else {
+                InputSrc(repl, N, E::Rep(1), 1);   // -l instead of -userPosition.z
+            }
             w.ReEmit(p, in, 1, repl);
             continue;
         }
@@ -833,7 +839,7 @@ bool TransformPixel(const Match& m, std::vector<uint8_t>* out) {
             w.Ins(Op::Mad, [&] { E::TempDst(t, X, 7); E::TempSrc(t, X, E::Rep(0)); E::Imm4(t, k[0], k[1], k[2], 0.0f);
                                  E::Imm4(t, 1.0f, 1.0f, 1.0f, 0.0f); });
             w.Ins(Op::Mul, [&] { E::TempDst(t, rA, 7); E::TempSrc(t, rA, XYZX); E::TempSrc(t, X, XYZX); });
-            if (bb) {
+            if (bloomed) {
                 // the blossom: rA.rgb = lerp(rA.rgb, vN2.rgb * bright (R.y), k (R.x))
                 const uint32_t R = m.temps + 6;
                 w.Ins(Op::Mul, [&] { E::TempDst(t, X, 7); InputSrc(t, N + 1, XYZX); E::TempSrc(t, R, E::Rep(1)); });
@@ -881,11 +887,11 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
     if (m->kind != Kind::None) m->why.clear();
 }
 
-bool Transform(const Match& m, std::vector<uint8_t>* out, const Curves& c) {
+bool Transform(const Match& m, std::vector<uint8_t>* out, const Curves& c, bool bloom) {
     if (m.kind == Kind::None) return false;
     if (m.vertex) return TransformVertex(m, c, out);
     if (m.kind == Kind::BillboardDepth) return false;   // a vertex-only kind
-    return TransformPixel(m, out);
+    return TransformPixel(m, out, bloom);
 }
 
 TreeTerms TermsOf(float x, float y) {

@@ -41,6 +41,9 @@ namespace {
 
 struct Copies {
     ShaderEntry* xf[kPermutationCount] = {};       // the rewritten permutations (null: retail)
+    // Issue #253: foliage_aa's copy of a natural-growth billboard colour permutation made without the blossom
+    // (NgRewrite::Transform bloom = false), drawn instead of xf where no tree of the draw can flower.
+    ShaderEntry* noBloom[kPermutationCount] = {};
     ShaderEntry* retail[kPermutationCount] = {};   // what they were made beside (a re-create is detected)
     bool cov[kPermutationCount] = {};               // the copy writes coverage (foliage_aa)
 };
@@ -111,6 +114,10 @@ void ReleaseCopies(Copies& c) {
         ReleaseShader(x);
         x = nullptr;
     }
+    for (ShaderEntry*& x : c.noBloom) {
+        ReleaseShader(x);
+        x = nullptr;
+    }
     for (bool& b : c.cov) b = false;
 }
 
@@ -124,18 +131,22 @@ void ReleaseAll(CopyMap& map) {
 // else it is converted (through the user's derived-data cache: our transform of their own bytecode)
 // and made a module. Null with *why on failure.
 // NATURAL_GROWTH.md: natural growth on (`blob`, `size`) when it matches, into `out`; the caller then reads `out`.
-bool Grow(const uint8_t* blob, size_t size, std::vector<uint8_t>* out, const char* tag, int i) {
+// `bloom` false: the copy without the blossom (issue #253; NgRewrite::Transform). `kind` (may be null): the match.
+bool Grow(const uint8_t* blob, size_t size, std::vector<uint8_t>* out, const char* tag, int i, bool bloom = true,
+          NgRewrite::Kind* kind = nullptr) {
     NgRewrite::Match nm;
     NgRewrite::Analyse(blob, size, &nm);
+    if (kind != nullptr) *kind = nm.kind;
     if (nm.kind == NgRewrite::Kind::None) return false;
     const std::string hash = HashName(nm.cont.checksum);
-    if (!NgRewrite::Transform(nm, out)) {
-        std::fprintf(stderr, "[NaturalGrowth] %s rewrite of %s v%d FAILED its self-check: kept retail\n", tag, hash.c_str(), i);
+    if (!NgRewrite::Transform(nm, out, NgRewrite::kCurves, bloom)) {
+        std::fprintf(stderr, "[NaturalGrowth] %s rewrite of %s v%d%s FAILED its self-check: kept retail\n", tag,
+                     hash.c_str(), i, bloom ? "" : " (no blossom)");
         return false;
     }
-    if (g_logged.insert("ng" + hash).second) {
-        std::fprintf(stderr, "[NaturalGrowth] rewrote %s v%d (%s): %zu B -> %zu B (Vulkan)\n", hash.c_str(), i,
-                     NgRewrite::KindName(nm.kind), size, out->size());
+    if (g_logged.insert((bloom ? "ng" : "ngnb") + hash).second) {
+        std::fprintf(stderr, "[NaturalGrowth] rewrote %s v%d (%s%s): %zu B -> %zu B (Vulkan)\n", hash.c_str(), i,
+                     NgRewrite::KindName(nm.kind), bloom ? "" : ", no blossom", size, out->size());
     }
     return true;
 }
@@ -214,8 +225,78 @@ void FaaCurrent() {
     }
 }
 
-// Under g_mu: this program's copies, made now from its own byte code (foliage_aa_stage.cpp Build: the
-// cutout where it matches, then the edge dither on the result, on the cutout programs only).
+// Under g_mu: the copy of one permutation's blob (foliage_aa_stage.cpp Build: the cutout where it matches,
+// then the edge dither on the result, on the cutout programs only), one registry reference, or null for
+// retail. `*cov`: the copy writes coverage. `bloom` false: natural growth's copy without the blossom (issue
+// #253). `*bloomKind` (may be null): the blob is a natural-growth billboard colour shader (that variant exists).
+ShaderEntry* FaaCopy(const uint8_t* blob, size_t size, int i, bool bloom, bool* cov, bool* bloomKind) {
+    *cov = false;
+    // NATURAL_GROWTH.md: natural growth first (it keeps the cutout's grammar).
+    std::vector<uint8_t> grown;
+    NgRewrite::Kind kind = NgRewrite::Kind::None;
+    const bool ng = g_faa.ng && Grow(blob, size, &grown, "pixel", i, bloom, &kind);
+    if (bloomKind != nullptr) *bloomKind = ng && kind == NgRewrite::Kind::BillboardColour;
+    if (ng) {
+        blob = grown.data();
+        size = grown.size();
+    }
+    FaaRewrite::Match m;
+    FaaRewrite::Analyse(blob, size, &m);
+    const std::string hash = m.container ? HashName(m.cont.checksum) : std::string("(no container)");
+    std::vector<uint8_t> cur(blob, blob + size);
+    bool changed = ng;
+    if (!m.colour) {
+        if ((m.discards > 0 || !m.program) && g_logged.insert("fu" + hash).second) {
+            std::fprintf(stderr, "[FoliageAA] untouched %s v%d (%zu B): %s\n", hash.c_str(), i, size, m.why.c_str());
+        }
+    } else {
+        std::vector<uint8_t> cut;
+        if (FaaRewrite::Transform(m, g_faa.opt, &cut)) {
+            cur = std::move(cut);
+            changed = true;
+            *cov = g_faa.opt.coverage;
+            if (g_logged.insert("ft" + std::to_string(g_faa.gen) + ":" + hash).second) {
+                std::fprintf(stderr, "[FoliageAA] transformed %s v%d gen %u%s%s: %zu B -> %zu B\n", hash.c_str(), i,
+                             g_faa.gen, g_faa.opt.coverage ? " coverage" : "",
+                             g_faa.opt.fillK > 0.0f ? " fill" : "", size, cur.size());
+            }
+        } else if (g_faa.opt.coverage || g_faa.opt.fillK > 0.0f) {
+            ++g_faa.createFailed;
+            std::fprintf(stderr, "[FoliageAA] transform of %s v%d FAILED its self-check: kept %s\n",
+                         hash.c_str(), i, ng ? "natural growth alone" : "retail");
+            if (!ng) return nullptr;
+        }
+    }
+    if (g_faa.dither.noise > 0.0f && m.colour) {
+        BbsDither::Match dm;
+        BbsDither::Analyse(cur.data(), cur.size(), &dm);
+        if (dm.matched) {
+            std::vector<uint8_t> dithered;
+            if (BbsDither::Transform(dm, &dithered, g_faa.dither)) {
+                cur = std::move(dithered);
+                changed = true;
+            } else {
+                ++g_faa.createFailed;
+                std::fprintf(stderr, "[FoliageAA] dither of %s v%d FAILED its self-check: kept the cutout / "
+                                     "retail\n", hash.c_str(), i);
+            }
+        }
+    }
+    if (!changed) return nullptr;
+    std::string why;
+    ShaderEntry* const e = EntryOf(cur, Shaders::Stage::Pixel, &why);
+    if (e != nullptr && ng) e->naturalGrowth = true;
+    if (e == nullptr) {
+        *cov = false;
+        ++g_faa.createFailed;
+        std::fprintf(stderr, "[FoliageAA] the copy of %s v%d did not convert (%s): kept retail\n", hash.c_str(), i,
+                     why.c_str());
+    }
+    return e;
+}
+
+// Under g_mu: this program's copies, made now from its own byte code (FaaCopy per permutation; a natural-growth
+// billboard colour permutation also gets its copy without the blossom, issue #253).
 Copies& FaaBuild(PixelProgramData* p) {
     Copies& c = g_faa.programs[p];
     ReleaseCopies(c);
@@ -226,70 +307,21 @@ Copies& FaaBuild(PixelProgramData* p) {
         if (i >= owner->_byteCode.GetSize() || p->shaders[i] == nullptr) continue;
         const Collection::Array<uint8_t>& b = owner->_byteCode.GetData()[i];
         const uint8_t* blob = b.GetData();
-        size_t size = static_cast<size_t>(b.GetSize());
+        const size_t size = static_cast<size_t>(b.GetSize());
         ++g_faa.blobsSeen;
-        // NATURAL_GROWTH.md: natural growth first (it keeps the cutout's grammar).
-        std::vector<uint8_t> grown;
-        const bool ng = g_faa.ng && Grow(blob, size, &grown, "pixel", i);
-        if (ng) {
-            blob = grown.data();
-            size = grown.size();
-        }
-        FaaRewrite::Match m;
-        FaaRewrite::Analyse(blob, size, &m);
-        const std::string hash = m.container ? HashName(m.cont.checksum) : std::string("(no container)");
-        std::vector<uint8_t> cur(blob, blob + size);
-        bool changed = ng;
-        if (!m.colour) {
-            if ((m.discards > 0 || !m.program) && g_logged.insert("fu" + hash).second) {
-                std::fprintf(stderr, "[FoliageAA] untouched %s v%d (%zu B): %s\n", hash.c_str(), i, size, m.why.c_str());
-            }
-        } else {
-            std::vector<uint8_t> cut;
-            if (FaaRewrite::Transform(m, g_faa.opt, &cut)) {
-                cur = std::move(cut);
-                changed = true;
-                c.cov[i] = g_faa.opt.coverage;
-                if (g_logged.insert("ft" + std::to_string(g_faa.gen) + ":" + hash).second) {
-                    std::fprintf(stderr, "[FoliageAA] transformed %s v%d gen %u%s%s: %zu B -> %zu B\n", hash.c_str(), i,
-                                 g_faa.gen, g_faa.opt.coverage ? " coverage" : "",
-                                 g_faa.opt.fillK > 0.0f ? " fill" : "", size, cur.size());
-                }
-            } else if (g_faa.opt.coverage || g_faa.opt.fillK > 0.0f) {
-                ++g_faa.createFailed;
-                std::fprintf(stderr, "[FoliageAA] transform of %s v%d FAILED its self-check: kept %s\n",
-                             hash.c_str(), i, ng ? "natural growth alone" : "retail");
-                if (!ng) continue;
-            }
-        }
-        if (g_faa.dither.noise > 0.0f && m.colour) {
-            BbsDither::Match dm;
-            BbsDither::Analyse(cur.data(), cur.size(), &dm);
-            if (dm.matched) {
-                std::vector<uint8_t> dithered;
-                if (BbsDither::Transform(dm, &dithered, g_faa.dither)) {
-                    cur = std::move(dithered);
-                    changed = true;
-                } else {
-                    ++g_faa.createFailed;
-                    std::fprintf(stderr, "[FoliageAA] dither of %s v%d FAILED its self-check: kept the cutout / "
-                                         "retail\n", hash.c_str(), i);
-                }
-            }
-        }
-        if (!changed) continue;
-        std::string why;
-        c.xf[i] = EntryOf(cur, Shaders::Stage::Pixel, &why);
-        if (c.xf[i] != nullptr && ng) c.xf[i]->naturalGrowth = true;
-        if (c.xf[i] == nullptr) {
-            c.cov[i] = false;
-            ++g_faa.createFailed;
-            std::fprintf(stderr, "[FoliageAA] the copy of %s v%d did not convert (%s): kept retail\n", hash.c_str(), i,
-                         why.c_str());
-            continue;
-        }
+        bool bloomKind = false;
+        c.xf[i] = FaaCopy(blob, size, i, true, &c.cov[i], &bloomKind);
+        if (c.xf[i] == nullptr) continue;
         any = true;
         ++g_faa.blobsTransformed;
+        if (!bloomKind) continue;
+        bool cov = false;
+        c.noBloom[i] = FaaCopy(blob, size, i, false, &cov, nullptr);
+        // the variant draws instead of xf: it must be a natural-growth copy with the same coverage
+        if (c.noBloom[i] != nullptr && (!c.noBloom[i]->naturalGrowth || cov != c.cov[i])) {
+            ReleaseShader(c.noBloom[i]);
+            c.noBloom[i] = nullptr;
+        }
     }
     if (any) ++g_faa.programsTransformed;
     return c;
@@ -438,8 +470,9 @@ ShaderEntry* BindVertex(VertexProgramData* p, int permutation) {
     return xf != nullptr ? AcquireShader(xf->hash) : nullptr;
 }
 
-ShaderEntry* BindPixel(PixelProgramData* p, int permutation, bool* coverage) {
+ShaderEntry* BindPixel(PixelProgramData* p, int permutation, bool* coverage, ShaderEntry** noBloom) {
     *coverage = false;
+    *noBloom = nullptr;
     std::lock_guard<std::mutex> lock(g_mu);
     FaaCurrent();
     if (g_faa.mode == 0) {
@@ -454,7 +487,16 @@ ShaderEntry* BindPixel(PixelProgramData* p, int permutation, bool* coverage) {
     if (xf == nullptr) return nullptr;
     if (++g_faa.xfBinds == 1) std::fprintf(stderr, "[FoliageAA] first transformed bind of gen %u\n", g_faa.gen);
     *coverage = c->cov[permutation];
+    if (ShaderEntry* const nb = c->noBloom[permutation]) *noBloom = AcquireShader(nb->hash);
     return AcquireShader(xf->hash);
+}
+
+namespace {
+thread_local bool t_drawBloom = true;   // FaaBackend::SetDrawBloom, per draw thread
+}  // namespace
+
+bool DrawBloom() {
+    return t_drawBloom;
 }
 
 void VertexCreated(VertexProgramData* p) {
@@ -544,6 +586,12 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
     std::fprintf(stderr, "[FoliageAA] request mode %d k %.3f floor %.3f dither %.2f/%.0f (gen %u)\n", mode,
                  static_cast<double>(fillK), static_cast<double>(fillFloor), static_cast<double>(d.noise),
                  static_cast<double>(d.noiseScale), g_faa.reqGen);
+}
+
+// Issue #253: the calling (draw) thread's next draws use the copy without the blossom while `bloom` is
+// false (draw.cpp IssueDraw reads Rewrites::DrawBloom).
+void SetDrawBloom(bool bloom) {
+    VideoVulkan::Rewrites::t_drawBloom = bloom;
 }
 
 #if BANISHED_TWEAK_OVERLAY

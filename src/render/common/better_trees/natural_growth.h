@@ -138,7 +138,11 @@ void Analyse(const uint8_t* blob, size_t size, Match* m);
 
 // The transformed blob (fresh checksum, self-checked: it re-parses, its checksum verifies, the
 // instruction count is the expected one). False when `m` did not match or the check failed.
-bool Transform(const Match& m, std::vector<uint8_t>* out, const Curves& c = kCurves);
+// `bloom` false (issue #253; a BillboardColour pixel shader only, ignored on every other kind): the copy
+// without the blossom mask and lerp (blossom.h) -- the season mad reads -l as before the blossom, 3 temps
+// instead of 8. Same ISGN, so it pairs with the same vertex copy, and the same pixels wherever the vertex
+// copy writes cov = 0 (Blossom::CanBloom false for the draw).
+bool Transform(const Match& m, std::vector<uint8_t>* out, const Curves& c = kCurves, bool bloom = true);
 
 // ---- the CPU mirror (unit tests; phase 2's falling leaves use the same terms) ---------------------
 struct TreeTerms {
