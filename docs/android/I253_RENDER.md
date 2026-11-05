@@ -49,7 +49,7 @@ switch distance is 0% at both zooms. Far-zoom batches average 42.6 instances and
 
 | change | output | measured |
 |---|---|---|
-| `ext.staggered_passes` (shadow and reflection every 2nd frame, alternating, held map sampled with its own sun matrix; refresh on view change) | changes the image (one frame of lag on moving casters); row default OFF | reflections everything 210 -> 254 fps, CPU work per frame -30%; Shadows High 233 -> 256 fps, -26%. Ruled imperceptible on the phone while panning |
+| `ext.staggered_passes` (shadow and reflection every 2nd frame, alternating, held map sampled with its own sun matrix; refresh on view change) | changes the image (one frame of lag on moving casters); row default OFF on a desktop, ON in the Android first-run defaults (`kPhoneSettings`) | reflections everything 210 -> 254 fps, CPU work per frame -30%; Shadows High 233 -> 256 fps, -26%. Ruled imperceptible on the phone while panning |
 | AO: 1x depth read directly, post-AO pass discards depth, apply folded into the Blended main pass | identical | AO Medium 212.8 -> 223.6 fps |
 | AO Lowest tier (`ext.ao_quality=4`, ASSAO quality -1) | new tier | 239.2 fps (Medium 223.6, off 257.8) |
 | fused shadow + main walk in ext.draw_gather; per-Draw instance-transform memo; lean render_pipe snapshot builder; falling-leaves scan window | identical (COMPPROF=4: DrawGatherFused, XformMemo, DrawGatherSide 0 mismatches) | not resolvable on the S25 (below the run-to-run noise); kept by ruling |

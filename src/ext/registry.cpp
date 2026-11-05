@@ -708,8 +708,9 @@ const Entry kEntries[] = {
     // last frame's image on a near-still view, rendering at least every ext.staggered_passes_shadow /
     // _reflection frames (2: one frame held at most, the two passes on alternate frames) and at once on a
     // turn, a move past a small tolerance, a zoom, a settings change or a target rebuild. Class A: frames
-    // only, nothing saved, live. OFF by default: a held frame lags moving shadows and reflections by a
-    // frame, ruled acceptable but the player's call.
+    // only, nothing saved, live. OFF by default on a desktop: a held frame lags moving shadows and
+    // reflections by a frame, ruled acceptable but the player's call. The Android first run turns it on
+    // (src/platform/android/app_android.cpp kPhoneSettings, ruled 2026-11-05).
     { "staggered_passes", Tier::Extension, Class::A, false,
       "Staggered shadow and reflection",
       "Renders the shadows and the water's reflection every other frame while the view is still, on "
