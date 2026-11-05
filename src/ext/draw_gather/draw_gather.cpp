@@ -18,7 +18,9 @@
 //                record for record), the same frusta, the same per-cell masks;
 //                per object the test reads the side record first (NodeVisible),
 //                then the same virtual AddDrawItems over the visible list in
-//                its order, with a prefetch kDispatchAhead geometries on.
+//                its order, with a prefetch kDispatchAhead geometries on. The sun's
+//                shadow gather also walks the main group (FUSED, issue #253) and
+//                hands its list to the main gather that follows.
 //
 // The presentation is identical by construction (same list, same order, same
 // virtual call per geometry, so the same draw items, sort keys, transforms and
@@ -99,6 +101,10 @@ Graphics::SceneAddLog g_addLog;      // static storage: never freed, so a racing
 SceneSides            g_sides;
 Counters              g_counters;
 bool                  g_installed = false;
+// FUSED (issue #253): bumped by every Clean and by every drain that invalidated a record
+// (or overflowed); a fused list is served only while neither has moved.
+uint64_t              g_cleanGen = 0;
+uint64_t              g_logGen   = 0;
 
 // Every id AddObject logged: that node's record is not to be trusted. An
 // overflow forgets every record of every scene.
@@ -107,12 +113,14 @@ void DrainLog() {
     g_addLog.Drain(
         [](const Graphics::SceneAddLog::Entry& e) {
             ++g_counters.logged;
+            ++g_logGen;
             if (SideArray* s = g_sides.Find(e.scene)) s->Invalidate(static_cast<int32_t>(e.id));
         },
         [&overflow](bool o) { overflow = o; });
     if (overflow) {
         g_sides.ForgetAll();
         ++g_counters.rebuilds;
+        ++g_logGen;
     }
 }
 
@@ -132,6 +140,7 @@ void ExtClean(Scene& scene) {
     DrainLog();
     SideArray& side = g_sides.Acquire(&scene);
     ++g_counters.cleans;
+    ++g_cleanGen;   // FUSED: no list walked before this Clean is served after it
 
     int32_t count = scene._grid._nodes.GetSize();
     int32_t i = 0;
@@ -264,6 +273,7 @@ int32_t                             g_depth = 0;
 // teardown). Main thread only.
 Ext::GatherThreads::HelperPool* g_pool = nullptr;
 ParWalk     g_par;
+FusedParWalk g_fpar;   // FUSED (issue #253): the fused walk's plan and slots, on the same pool
 // > 0: the gather walks in parallel. Written by SyncThreads only (boot and every
 // class A toggle: the only points where the row or the count can change), read once
 // per gather pass, never inside the walk.
@@ -298,10 +308,80 @@ __attribute__((noinline)) void ParallelGather(const Scene* self, const Frame& f,
     }
 }
 
+// ===========================================================================
+// FUSED (issue #253) -- the shadow group's walk also walks the main group's.
+// ===========================================================================
+// SunLight::AddDrawItems opens the shadow group inside the main group's globals loop
+// (draw camera = draw group 0's camera, cull camera = the sun's, shader 1) and gathers
+// it; the main group's own gather follows once the globals are done. The shadow
+// gather builds the main group's Frame the way that later gather will (MainFrameFor),
+// walks both in one traversal (gather_walk.h FusedWalk), dispatches the shadow list
+// and keeps the main list here. The main gather builds its Frame as always and takes
+// the kept list only when it is that walk's (SameWalk on every input the walk reads)
+// over the same scene, renderer, nesting depth and frame, with no Clean and no
+// invalidating add-log drain since; otherwise it walks as before. The kept list is
+// what its own walk would have produced: the grid, the boxes and the flags are not
+// written between the two gathers (the dispatches in between are const AddDrawItems
+// calls), and Clean / AddObject, the writers, move the generations. The dispatch of
+// each list is untouched (same list, same point of the frame), so the draw items are.
+// The COMPPROF=4 `DrawGatherFused` shadow checks each fused list against retail's
+// reads (RetailTest) at its own gather. Main thread only.
+struct MainStash {
+    bool                   valid      = false;
+    const Scene*           scene      = nullptr;
+    const Renderer*        renderer   = nullptr;
+    int32_t                depth      = 0;
+    int32_t                frameIndex = 0;
+    uint64_t               cleanGen   = 0;
+    uint64_t               logGen     = 0;
+    Frame                  f;
+    std::vector<Geometry*> list;
+};
+MainStash             g_stash;
+std::vector<FusedHit> g_hits;
+
+// The Frame ExtCulledGather builds for group `g` (one place, so the two agree).
+void FillFrame(Frame& f, const RendererDrawGroup& g, int32_t rendererDetail) {
+    f.passMask       = g._materialTypeFlags;
+    f.rendererDetail = rendererDetail;
+    RtVolume_Frustum_MulTransform3(&g._cullCamera._frustum, &f.cull, &g._cullCamera._cameraToWorld);
+    f.extX = f.cull.planes[0].x;
+    f.extY = f.cull.planes[0].y;
+    f.extZ = f.cull.planes[0].z;
+    RtVolume_Frustum_MulTransform3(&g._camera._frustum, &f.shadow, &g._camera._cameraToWorld);
+    f.notShadow = (g._shader != 1);
+    FrustumCull_Prepare(&f.cull, &f.cullPlanes);      // CULLROUTE: after both frusta's last writer
+    FrustumCull_Prepare(&f.shadow, &f.shadowPlanes);
+    f.cullVerify = g_frustumCullVerify != 0;
+    f.boxes = 0;
+}
+
+// For a shadow gather (`shadow.notShadow` false): the Frame of the group the current
+// scene entry opened (Renderer::Draw writes its index into the entry before the
+// globals loop), when that group has no shadow pass and its cull frustum is this
+// group's draw-camera frustum -- the sun's case (draw camera = draw group 0's). A
+// spot light's group (draw camera = its own) does not qualify.
+bool MainFrameFor(const Renderer& r, const Frame& shadow, Frame& m) {
+    const int32_t si = r._currentSceneGroup;
+    if (si < 0 || si >= r._sceneGroups._size) return false;
+    const int32_t gi = r._sceneGroups._data[si]._drawGroupIndex;
+    if (gi < 0 || gi >= r._drawGroups._size || gi == r._currentDrawGroup) return false;
+    const RendererDrawGroup& g = r._drawGroups._data[gi];
+    if (g._shader == 1) return false;
+    FillFrame(m, g, r._detailId);
+    return SamePlanes(shadow.shadow, m.cull);
+}
+
+void DropStash() {
+    if (g_stash.valid) ++g_counters.fusedUnused;
+    g_stash.valid = false;
+}
+
 // Scene::_extDrawPass1End: Renderer::Draw's pass 1 is over (no gather follows in
-// this frame). The spin ends here.
+// this frame). The spin ends here, and a fused list nobody took is dropped.
 void ExtDrawPass1End() {
     if (g_pool != nullptr) g_pool->Park();
+    DropStash();
 }
 
 // Matches the pool to the rows. Main thread, outside any Renderer::Draw.
@@ -322,8 +402,9 @@ void SyncThreads() {
     if (helpers != have) {
         Scene::_extDrawPass1End = nullptr;
         delete g_pool;                                 // parks, stops and joins
-        g_pool     = nullptr;
-        g_par.pool = nullptr;
+        g_pool      = nullptr;
+        g_par.pool  = nullptr;
+        g_fpar.pool = nullptr;
         if (helpers > 0) {
             g_pool = new Ext::GatherThreads::HelperPool(helpers);
             if (g_pool->Helpers() == 0) {
@@ -332,10 +413,11 @@ void SyncThreads() {
             }
         }
         if (g_pool != nullptr) {
-            g_par.pool              = g_pool;
-            Scene::_extDrawPass1End = &ExtDrawPass1End;
+            g_par.pool  = g_pool;
+            g_fpar.pool = g_pool;
         } else {
-            g_par = ParWalk{};                         // the slots' memory released
+            g_par  = ParWalk{};                        // the slots' memory released
+            g_fpar = FusedParWalk{};
         }
         std::fprintf(stderr, "[GatherThreads] %d helper thread(s) on %d physical cores%s\n",
                      g_pool != nullptr ? g_pool->Helpers() : 0, physical,
@@ -359,18 +441,7 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
     const RendererDrawGroup* g = &renderer->_drawGroups[renderer->_currentDrawGroup];
 
     Frame f;
-    f.passMask       = g->_materialTypeFlags;
-    f.rendererDetail = renderer->_detailId;
-    RtVolume_Frustum_MulTransform3(&g->_cullCamera._frustum, &f.cull, &g->_cullCamera._cameraToWorld);
-    f.extX = f.cull.planes[0].x;
-    f.extY = f.cull.planes[0].y;
-    f.extZ = f.cull.planes[0].z;
-    RtVolume_Frustum_MulTransform3(&g->_camera._frustum, &f.shadow, &g->_camera._cameraToWorld);
-    f.notShadow = (g->_shader != 1);
-    FrustumCull_Prepare(&f.cull, &f.cullPlanes);      // CULLROUTE: after both frusta's last writer
-    FrustumCull_Prepare(&f.shadow, &f.shadowPlanes);
-    f.cullVerify = g_frustumCullVerify != 0;
-    f.boxes = 0;
+    FillFrame(f, *g, renderer->_detailId);
 
     const int32_t depth = g_depth++;
     if (static_cast<int32_t>(g_lists.size()) <= depth) g_lists.resize(static_cast<size_t>(depth) + 1);
@@ -378,7 +449,61 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
     list.clear();
 
     const bool verify = g_verifyOn != 0;
-    if (__builtin_expect(g_parHelpers > 0, 0)) {
+    bool fused = false;   // FUSED: this list came out of a fused walk
+    Frame fm;
+    if (g_stash.valid && g_stash.scene == self && g_stash.renderer == renderer && g_stash.depth == depth &&
+        g_stash.frameIndex == renderer->_frameIndex && g_stash.cleanGen == g_cleanGen &&
+        g_stash.logGen == g_logGen && SameWalk(g_stash.f, f)) {
+        // FUSED: the main group, walked by the shadow gather just before.
+        list.swap(g_stash.list);
+        g_stash.valid = false;
+        fused = true;
+        ++g_counters.fusedServed;
+    } else if (!f.notShadow && MainFrameFor(*renderer, f, fm)) {
+        // FUSED: the shadow group, with the main group's walk in the same traversal.
+        DropStash();
+        g_hits.clear();
+        TaskStats stats;
+        if (__builtin_expect(g_parHelpers > 0, 0)) {
+            if (!g_pool->Awake()) {
+                g_pool->Wake();
+                ++g_counters.parWakes;
+            }
+            const ParPassResult r = FusedParGather(g_fpar, self, f, fm, side, verify, g_hits);
+            stats = r.stats;
+            g_counters.parPasses    += 1;
+            g_counters.parTasks     += static_cast<uint64_t>(r.tasks);
+            g_counters.parHelper    += static_cast<uint64_t>(r.helperTasks);
+            g_counters.parWaitTicks += static_cast<uint64_t>(r.waitTicks);
+            if (r.sideGrew) ++g_counters.parSideGrew;
+        } else {
+            FusedBoxTest test{ f, fm, side, verify, stats };
+            FusedWalk(self, f, fm, g_hits, test);
+        }
+        g_counters.nodesTested += stats.nodesTested;
+        g_counters.refreshes   += stats.refreshes;
+        g_counters.geoTouched  += g_hits.size();
+        if (verify) {
+            // COMPPROF=4: the DrawGatherSide checks the walk recorded, one call per check.
+            for (uint64_t k = stats.sideMismatches; k < stats.sideChecks; ++k)
+                StressHarness_Verify("DrawGatherSide", true, 0);
+            for (uint64_t k = 0; k < stats.sideMismatches; ++k)
+                StressHarness_Verify("DrawGatherSide", false, k < 4 ? stats.sideDetail[k] : 0);
+        }
+        g_stash.list.clear();
+        FusedSplit(f, fm, g_hits, list, g_stash.list);
+        g_stash.valid      = true;
+        g_stash.scene      = self;
+        g_stash.renderer   = renderer;
+        g_stash.depth      = depth;
+        g_stash.frameIndex = renderer->_frameIndex;
+        g_stash.cleanGen   = g_cleanGen;
+        g_stash.logGen     = g_logGen;
+        g_stash.f          = fm;
+        f.boxes += fm.boxes;   // the stress report's per-site count: both groups' tests, here
+        fused = true;
+        ++g_counters.fusedWalks;
+    } else if (__builtin_expect(g_parHelpers > 0, 0)) {
         ParallelGather(self, f, side, verify, list);   // CULLPAR: ext.gather_threads
     } else if constexpr (kLiveAfterWalk) {
         SideBoxTest test{ f, side, verify };
@@ -401,7 +526,7 @@ void ExtCulledGather(const Scene& scene, Renderer& rendererRef) {
         while (firstDiff < ref.size() && firstDiff < list.size() && ref[firstDiff] == list[firstDiff])
             ++firstDiff;
         const bool same = ref.size() == list.size() && firstDiff == ref.size();
-        StressHarness_Verify("DrawGather", same,
+        StressHarness_Verify(fused ? "DrawGatherFused" : "DrawGather", same,
                              same ? 0 : (static_cast<long long>(ref.size()) << 32) |
                                             static_cast<long long>(firstDiff));
     }
@@ -463,6 +588,8 @@ void SyncSeams(bool want) {
         Scene::_extClean        = nullptr;
         Scene::_extAddLog       = nullptr;
         g_sides.ForgetAll();
+        g_stash = MainStash{};                     // FUSED: no kept list, its memory released
+        std::vector<FusedHit>().swap(g_hits);
         std::vector<std::vector<Geometry*>>().swap(g_lists);
     }
     g_installed = want;
@@ -474,6 +601,9 @@ void Sync() {
     const bool want = Ext::Ext().draw_gather;
     if (want != g_installed) SyncSeams(want);
     SyncThreads();   // CULLPAR: ext.gather_threads follows both rows
+    // The pass-1 end parks the helpers and drops an untaken fused list (FUSED): installed
+    // whenever the extension is (Sync runs outside any Renderer::Draw).
+    Scene::_extDrawPass1End = (g_installed || g_pool != nullptr) ? &ExtDrawPass1End : nullptr;
 }
 
 bool Installed() { return g_installed; }

@@ -145,6 +145,10 @@ struct Counters {
     uint64_t parWaitTicks = 0;   // the main thread's join wait, QPC ticks (sum over passes)
     uint64_t parWakes     = 0;   // pool wakes (one per frame that gathered)
     uint64_t parSideGrew  = 0;   // passes whose side array changed size during the walk (must stay 0)
+    // FUSED (issue #253): the shadow group's walk that also walked the main group's.
+    uint64_t fusedWalks   = 0;   // shadow gathers that walked both groups in one traversal
+    uint64_t fusedServed  = 0;   // main gathers handed that walk's list (no walk of their own)
+    uint64_t fusedUnused  = 0;   // fused lists dropped unused (pass 1 ended, or a newer fused walk)
 };
 
 }  // namespace DrawGather
