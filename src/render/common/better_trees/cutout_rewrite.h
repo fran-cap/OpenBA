@@ -31,7 +31,9 @@
 //   no fill + coverage: `mov P.x, rA.c` before the add (in four programs the add overwrites rA.c).
 //   coverage (Options::coverage, the MSAA-on path): the discard is dropped and
 //       P.x = saturate((P.x - cut) / max(fwidth(P.x), 1e-4) + 0.5)    (Golus' sharpened alpha)
-//       replaces the `mov o0.w, l(0)` by `mov o0.w, P.x` (the coverage for alpha-to-coverage).
+//       replaces the `mov o0.w, l(0)` by `mov o0.w, P.x` (the coverage for alpha-to-coverage);
+//       `discard_z P.x` right after (issue #253): a fragment of coverage 0 writes no sample anyway,
+//       so it is dropped instead of shaded (the same image).
 //   no coverage (MSAA off, §6.6): the discard stays, o0.w stays 0; only the fill applies.
 // Then the container fix-ups (instruction lengths, dcl_temps, chunk sizes, the checksum) and a
 // self-check: the result must re-parse and round-trip byte-identical with a valid checksum.

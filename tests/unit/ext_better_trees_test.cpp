@@ -926,10 +926,10 @@ UNIT_TEST(ext_better_trees_cutout_emit_coverage_all_detail_variants) {
             CHECK(FaaRewrite::Transform(m, FaaRewrite::OptionsFor(1, 0.25f, true), &out));
             const FaaRewrite::Match t = Analyse(out);
             CHECK(t.program && t.identity && t.checksum);
-            CHECK_EQ(t.discards, 0);                   // dropped
+            CHECK_EQ(t.discards, 1);                   // retail's dropped, discard_z P.x (issue #253)
             CHECK_EQ(TempsOf(t), s.temps + 1);         // P only
             CHECK_EQ(static_cast<int>(t.prog.instrs.size()),
-                     static_cast<int>(m.prog.instrs.size()) - 1 + 1 + 7);   // - discard + save + sharpen
+                     static_cast<int>(m.prog.instrs.size()) - 1 + 1 + 7 + 1);   // - discard + save + sharpen + discard_z
             const Dxbc::Instr* o = MovO0w(t);
             CHECK(o != nullptr && o->operands[1].type == OT::Temp && o->operands[1].index[0] == s.temps);
             // the alpha is saved to P.x right before the retail add, from rA.c (r0.w)
@@ -940,6 +940,10 @@ UNIT_TEST(ext_better_trees_cutout_emit_coverage_all_detail_variants) {
             // the sharpen ends with add_sat P.x, P.x, l(0.5)
             const Dxbc::Instr& last = t.prog.instrs[static_cast<size_t>(m.iDiscard) + 1 + 6];
             CHECK(last.opcode == Op::Add && last.Saturate() && last.operands[2].ImmF(0) == 0.5f);
+            // issue #253: then discard_z P.x (a fragment of coverage 0 is dropped)
+            const Dxbc::Instr& dz = t.prog.instrs[static_cast<size_t>(m.iDiscard) + 1 + 7];
+            CHECK(dz.opcode == Op::Discard && !dz.TestNonZero());
+            CHECK(dz.operands[0].type == OT::Temp && dz.operands[0].index[0] == s.temps && dz.operands[0].Swz(0) == 0);
             CHECK_EQ(CountOp(t, Op::DerivRtx), 1);
             CHECK_EQ(CountOp(t, Op::DerivRty), 1);
             CHECK_EQ(CountOp(t, Op::ResInfo), 0);      // no fill in mode 1
@@ -966,7 +970,7 @@ UNIT_TEST(ext_better_trees_cutout_emit_fill_with_and_without_coverage) {
         CHECK(FaaRewrite::Transform(m, FaaRewrite::OptionsFor(2, 0.25f, true), &out));
         const FaaRewrite::Match t = Analyse(out);
         CHECK(t.program && t.identity && t.checksum);
-        CHECK_EQ(t.discards, 0);
+        CHECK_EQ(t.discards, 1);   // discard_z P.x
         CHECK_EQ(TempsOf(t), s.temps + 3);
         CHECK_EQ(CountOp(t, Op::ResInfo), 1);
         CHECK_EQ(CountOp(t, Op::Log), 1);
@@ -1040,7 +1044,7 @@ UNIT_TEST(ext_better_trees_cutout_emit_fill_floor) {
             CHECK_EQ(CountOp(t, Op::MovC), 1);
             CHECK_EQ(TempsOf(t), TempsOf(p));              // no new temp: M is the lod scratch
             CHECK_EQ(t.prog.instrs.size(), p.prog.instrs.size() + 3);
-            CHECK_EQ(t.discards, msaa ? 0 : 2);
+            CHECK_EQ(t.discards, msaa ? 1 : 2);
             CHECK_EQ(CountOp(t, Op::And), msaa ? 1 : 0);
             // the two follow the k mad, in order, and read the alpha the retail add read (rA.c)
             int iMadK = -1;

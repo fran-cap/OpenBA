@@ -317,11 +317,19 @@ bool Transform(const Match& m, const Options& o, std::vector<uint8_t>* out) {
         }
         if (ii == m.iDiscard) {
             if (o.coverage) {
-                EmitSharpen(e, P, m.cut);   // the discard is dropped
+                EmitSharpen(e, P, m.cut);   // retail's discard is dropped
                 // the floor also gates the coverage: under alpha to coverage the ramp still covers
                 // an unfilled texel under the floor where fwidth is wide (the distance) -- M.x is the
                 // fill's `rA.c >= floor` mask (all ones / zero), untouched by retail's code after it
                 if (fill && o.fillFloor > 0.0f) e.Op3(Op::And, P, kX, P, Enc::Rep(0), M, Enc::Rep(0));
+                // issue #253: `discard_z P.x` -- a fragment whose coverage is exactly 0 covers no sample
+                // (alpha to coverage of 0 is an empty mask: no colour, depth or stencil write), so it
+                // leaves the same image discarded, and the GPU may drop it before the rest of the program
+                // (the shadow taps, the lighting) as under retail's discard (dxbc-spirv: a demote, so the
+                // derivatives later in the program stay defined). Only the texels with coverage run on.
+                e.Begin();
+                Enc::TempSrc(t, P, Enc::Rep(0));
+                e.End(Op::Discard);
             } else {
                 copy();
                 if (fill && o.fillFloor > 0.0f) {   // MSAA off: discard_z M.x (under the floor)
