@@ -18,6 +18,11 @@ void ClientRectToOuter(Rect* r, const FrameBorders& b) {
     r->bottom += b.bottom;
 }
 
+bool UsableFrameMeasurement(const FrameBorders& b, bool framed) {
+    if (b.top < 0 || b.left < 0 || b.bottom < 0 || b.right < 0) return false;
+    return !framed || (b.top | b.left | b.bottom | b.right) != 0;
+}
+
 void OuterToClient(int32_t x, int32_t y, int32_t w, int32_t h, const FrameBorders& b,
                    int32_t* clientX, int32_t* clientY, int32_t* clientW, int32_t* clientH) {
     *clientX = x + b.left;
@@ -88,6 +93,36 @@ void InitialWindowPoints(int32_t savedPxW, int32_t savedPxH, int32_t videoW, int
     if (maxH > 0 && h > maxH) h = maxH;
     *outW = w;
     *outH = h;
+}
+
+// NOT RETAIL (port-only macOS code, review F-319 / F-323): the comparisons run in int64_t. The
+// origin is a settings.cfg / engine value and can sit at the int limits, where the int sums
+// overflowed (undefined).
+bool SavedOriginOnDisplay(int32_t x, int32_t y, int32_t cw, int32_t ch, int32_t top,
+                          const Rect& display) {
+    const int64_t left = x;
+    const int64_t titleTop = int64_t(y) - top;
+    const int64_t right = int64_t(x) + cw;
+    const int64_t bottom = int64_t(y) + ch;
+    if (right <= left || bottom <= titleTop) return false;
+    return left < display.right && display.left < right && titleTop < display.bottom &&
+           display.top < bottom && titleTop >= display.top;
+}
+
+void FitClientToUsable(int32_t ux, int32_t uy, int32_t uw, int32_t uh, const FrameBorders& frame,
+                       int32_t* x, int32_t* y, int32_t* w, int32_t* h) {
+    const int32_t maxW = uw - frame.left - frame.right;
+    const int32_t maxH = uh - frame.top - frame.bottom;
+    if (maxW > 0 && *w > maxW) *w = maxW;
+    if (maxH > 0 && *h > maxH) *h = maxH;
+    if (int64_t(*y) - frame.top < uy) *y = uy + frame.top;
+    if (int64_t(*y) + *h + frame.bottom > int64_t(uy) + uh) {
+        *y = uy + uh - *h - frame.bottom;
+    }
+    if (int64_t(*x) - frame.left < ux) *x = ux + frame.left;
+    if (int64_t(*x) + *w + frame.right > int64_t(ux) + uw) {
+        *x = ux + uw - *w - frame.right;
+    }
 }
 
 

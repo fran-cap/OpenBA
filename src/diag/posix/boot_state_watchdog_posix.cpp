@@ -26,13 +26,19 @@
 //    own stack to standalone_hang.log and posts a semaphore; the watchdog waits up to
 //    a second per thread. backtrace() is primed at Start() so the handler does not
 //    load libgcc's unwinder. Frames print as <module> + 0x<off> (<symbol>+0x<off>),
-//    the crash log's spelling; the main thread is marked.
+//    the crash log's spelling; the main thread is marked. Only the thread being asked
+//    may write or answer (g_dumpTarget, tested again just before each line is written):
+//    one whose second ran out, even while it was stalled inside dladdr(), drops its
+//    remaining lines and its post, so it is never counted for the next thread, and the
+//    log descriptor is never closed under a handler still running (review F-276,
+//    F-292, F-298).
 //  * An unattended HUNG ends the process with _exit(4) (Windows: TerminateProcess(self,
 //    4)).
 
 #include "boot_state_watchdog.h"
 
 #include "options.h"
+#include "app/clamped_atoi.h"   // review F-087: checked parse of /proc text
 #include "platform/common/cpu/topology.h"   // CPULIMIT: the [Cpu] facts on the RUNNING line
 
 #include <dirent.h>
@@ -92,13 +98,29 @@ void WriteStateFile(const char* state, unsigned uptimeSec, unsigned frame,
 // ---------------------------------------------------------------------------
 // The hang dump
 // ---------------------------------------------------------------------------
-int   g_hangLog = -1;
+std::atomic<int> g_hangLog{-1};   // read by the handlers: lock-free, so signal-safe
 sem_t g_dumpDone;
 const int kDumpSignal = SIGRTMIN + 3;   // not one SDL, glibc's NPTL (32/33) or the crash handler use
+// The thread asked for its stack, 0 when none is. A handler tests it immediately before
+// each write() (after dladdr(), which takes the loader lock and can block past the wait),
+// so a line is written only while its thread is the target; what remains is the gap
+// between that load and the write, which holds no blocking call. The one answer belongs
+// to whoever clears the target first: the handler when it is done, or the watchdog when
+// the second runs out. A late handler therefore neither writes under the next thread's
+// header nor leaves a post that satisfies the next wait. (A handler still stalled when a
+// later dump asks the same thread again passes the test and answers for it: its lines
+// are that thread's own, from the earlier signal.)
+std::atomic<pid_t> g_dumpTarget{0};
+static_assert(std::atomic<int>::is_always_lock_free, "the handler's loads must be lock-free");
+static_assert(std::atomic<pid_t>::is_always_lock_free, "the handler's loads must be lock-free");
+// Handlers between entry and return. The watchdog closes the log only when none is, so
+// no late write can reach a reused descriptor.
+std::atomic<int> g_dumpHandlers{0};
 
 void HangLogRaw(const char* s) {
-    if (g_hangLog < 0 || !s) return;
-    ssize_t r = write(g_hangLog, s, std::strlen(s));
+    const int fd = g_hangLog.load();
+    if (fd < 0 || !s) return;
+    ssize_t r = write(fd, s, std::strlen(s));
     (void)r;
 }
 
@@ -107,18 +129,21 @@ template <typename... Args>
 void HangLogf(const char* fmt, Args... args) {
     char buf[512];
     const int n0 = std::snprintf(buf, sizeof(buf), fmt, args...);
-    if (n0 <= 0 || g_hangLog < 0) return;
+    const int fd = g_hangLog.load();
+    if (n0 <= 0 || fd < 0) return;
     const int n = n0 > static_cast<int>(sizeof(buf)) ? static_cast<int>(sizeof(buf)) : n0;
-    ssize_t r = write(g_hangLog, buf, static_cast<size_t>(n));
+    ssize_t r = write(fd, buf, static_cast<size_t>(n));
     (void)r;
 }
 
-// This thread's own stack, one line per frame.
-void DumpOwnStack() {
+// This thread's own stack, one line per frame, while the dump still waits for it.
+void DumpOwnStack(pid_t self) {
     void* frames[40];
     const int n = backtrace(frames, 40);
     char line[256];
     for (int i = 0; i < n; ++i) {
+        if (g_dumpTarget.load() != self) return;   // the watchdog stopped waiting
+
         Dl_info info;
         if (dladdr(frames[i], &info) != 0 && info.dli_fname != nullptr) {
             const char* nm = std::strrchr(info.dli_fname, '/');
@@ -137,21 +162,29 @@ void DumpOwnStack() {
         } else {
             std::snprintf(line, sizeof(line), "  #%-2d ???                    @ %p\n", i, frames[i]);
         }
+        if (g_dumpTarget.load() != self) return;   // it stopped waiting while dladdr() ran
         HangLogRaw(line);
     }
 }
 
 void DumpSignalHandler(int) {
     const int saved = errno;
-    DumpOwnStack();
-    sem_post(&g_dumpDone);
+    g_dumpHandlers.fetch_add(1);
+    const pid_t self = CurrentTid();
+    if (g_dumpTarget.load() == self) {
+        DumpOwnStack(self);
+        pid_t expected = self;
+        if (g_dumpTarget.compare_exchange_strong(expected, 0)) sem_post(&g_dumpDone);
+    }
+    g_dumpHandlers.fetch_sub(1);
     errno = saved;
 }
 
 void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                    unsigned staleSec, unsigned budgetSec) {
-    g_hangLog = open("standalone_hang.log", O_WRONLY | O_CREAT | O_TRUNC | O_SYNC | O_CLOEXEC, 0644);
-    if (g_hangLog < 0) return;
+    const int hangLog = open("standalone_hang.log", O_WRONLY | O_CREAT | O_TRUNC | O_SYNC | O_CLOEXEC, 0644);
+    if (hangLog < 0) return;
+    g_hangLog.store(hangLog);
 
     HangLogRaw("=== STANDALONE HANG ===\n");
     HangLogf("Phase:       %s\n", phase);
@@ -173,7 +206,7 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
     } else {
         while (dirent* e = readdir(tasks)) {
             if (e->d_name[0] < '0' || e->d_name[0] > '9') continue;
-            const pid_t tid = static_cast<pid_t>(std::atoi(e->d_name));
+            const pid_t tid = static_cast<pid_t>(ClampedAtoi(e->d_name));
             const bool isMain = tid == g_mainTid;
             const bool isSelf = tid == selfTid;
             char comm[64] = {0};
@@ -191,23 +224,42 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
                 HangLogRaw("  (the watchdog itself; not interesting)\n");
                 continue;
             }
+            g_dumpTarget.store(tid);
             if (syscall(SYS_tgkill, pid, tid, kDumpSignal) != 0) {
-                HangLogf("  (tgkill failed, errno=%d)\n", errno);
+                const int err = errno;
+                g_dumpTarget.store(0);
+                HangLogf("  (tgkill failed, errno=%d)\n", err);
                 continue;
             }
             timespec deadline;
             clock_gettime(CLOCK_REALTIME, &deadline);
             deadline.tv_sec += 1;
-            if (sem_timedwait(&g_dumpDone, &deadline) != 0)
-                HangLogRaw("  (no answer within 1s: blocked with the signal masked?)\n");
+            int waited;
+            do {
+                waited = sem_timedwait(&g_dumpDone, &deadline);
+            } while (waited != 0 && errno == EINTR);
+            if (waited != 0) {
+                pid_t expected = tid;
+                if (g_dumpTarget.compare_exchange_strong(expected, 0)) {
+                    HangLogRaw("  (no answer within 1s: blocked with the signal masked?)\n");
+                } else {
+                    // The handler finished as the second ran out: take its post now, so it
+                    // is not left for the next thread.
+                    while (sem_wait(&g_dumpDone) != 0 && errno == EINTR) {
+                    }
+                }
+            }
         }
         closedir(tasks);
     }
 
     HangLogRaw("\n=== END HANG ===\n");
-    fsync(g_hangLog);
-    close(g_hangLog);
-    g_hangLog = -1;
+    fsync(hangLog);
+    g_hangLog.store(-1);
+    // A handler still running may have read the descriptor before the store above: leave
+    // it open (one descriptor per dump) rather than let that handler's next write land in
+    // whatever reuses the number, such as the next standalone_boot_state.txt.
+    if (g_dumpHandlers.load() == 0) close(hangLog);
 }
 
 void* WatchdogThread(void*) {

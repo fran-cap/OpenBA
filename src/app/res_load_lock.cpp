@@ -58,12 +58,15 @@ inline void EnsureInit() {
 
 }  // namespace
 
-void ResLoadLockAcquire() {
+ResLoadCapability ResLoad;   // the analysis's token (res_load_lock.h); empty, never read
+
+// Not analysed: the capability is the ResLoad token, the lock taken is g_resCS (or none, unarmed).
+void ResLoadLockAcquire() NO_THREAD_SAFETY_ANALYSIS {
     EnsureInit();
     if (g_armed) Platform::MutexLock(&g_resCS);     // EnterCriticalSection
 }
 
-void ResLoadLockRelease() {
+void ResLoadLockRelease() NO_THREAD_SAFETY_ANALYSIS {
     // No EnsureInit: a release without a matching acquire is a bug, and
     // initializing here would hide it behind a Leave on a fresh CS.
     if (g_armed) Platform::MutexUnlock(&g_resCS);   // LeaveCriticalSection

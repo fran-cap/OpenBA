@@ -66,7 +66,6 @@ struct Pool;
 struct Worker {
     Pool*                  pool   = nullptr;
     Platform::ThreadHandle thread = nullptr;
-    volatile uint32_t      busy   = 0;   // bit 0 while running a job (the sampler's busy word)
     uint64_t               startEpoch = 0;   // the pool's epoch when Start built this thread
 };
 
@@ -107,7 +106,7 @@ struct Pool {
 
     static unsigned int ThreadMain(void* arg) {
         Worker* self = static_cast<Worker*>(arg);   // the thread entry's void* context  // CAST-OK: user_data
-        DiagThreads::Register(DiagThreads::kParallel, &self->busy);
+        DiagThreads::Register(DiagThreads::kParallel);
         tl_inParallel = true;
         self->pool->Loop(self);
         return 0;
@@ -127,10 +126,10 @@ struct Pool {
                 if (quit) return;
                 seen = epoch;
             }
-            self->busy = 1;
+            DiagThreads::SetBusy(true);   // the sampler's busy bit (review S-034)
             WriteFpState(csr);
             RunChunks();
-            self->busy = 0;
+            DiagThreads::SetBusy(false);
             {
                 std::lock_guard<std::mutex> lk(m);
                 ++checkedIn;
@@ -153,7 +152,6 @@ struct Pool {
         for (int i = 0; i < n; ++i) {
             Worker& wk = w[i];
             wk.pool = this;
-            wk.busy = 0;
             wk.startEpoch = now;
             wk.thread = Platform::ThreadCreateSuspended(&Pool::ThreadMain, &wk, kWorkerStack);
             if (wk.thread == nullptr) break;   // run with the ones we have

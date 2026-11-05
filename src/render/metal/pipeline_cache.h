@@ -348,6 +348,12 @@ static id<MTLRenderPipelineState> CachedPipeline(MTLRenderPipelineDescriptor* d,
     if (error) {
         fprintf(stderr, "[Metal] pipeline: %s\n", error.localizedDescription.UTF8String);
     }
+    if (!state) {
+        // A descriptor Metal rejects is not kept in pipelines.txt: the next launch would replay it and fail again.
+        std::lock_guard<std::recursive_mutex> guard(pipelineMetadataMutex);
+        [pipelineRecords removeObjectForKey:@(nativeKey.c_str())];
+        pipelineRecordsDirty = true;
+    }
     std::lock_guard<std::mutex> entryGuard(entry->mutex);
     entry->state = state;
     return state;

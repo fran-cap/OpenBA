@@ -87,6 +87,7 @@
 #include <vector>
 
 #include "platform_file.h"
+#include "system/annotated_mutex.h"   // Sys::Mutex: std::mutex the thread-safety analysis can check
 
 namespace Ext {
 namespace DerivedCache {
@@ -159,6 +160,9 @@ public:
 
     // The payload stored under `key`, verified against its record. false = a miss (`out` cleared).
     bool Find(const Key& key, std::vector<uint8_t>& out);
+    // Drops the record stored under `key`: a payload whose bytes match their record but which the
+    // consumer refuses (ext.package_cache's Decode), so the consumer's next Put replaces it.
+    void Forget(const Key& key);
     // Queues `payload` under `key` (taken by move). Dropped when disabled, after a failed write, or
     // when the key is already stored.
     void Put(const Key& key, std::vector<uint8_t> payload);
@@ -191,22 +195,28 @@ private:
         std::vector<uint8_t> payload;
     };
 
+    // THE LOCKS, as clang's thread-safety analysis checks them (system/thread_annotations.h): the
+    // fields below say which lock is theirs. Open and its helpers (OpenReadOnly, LoadIndex,
+    // FinishInterruptedRewrite, ResetFiles, ReadUsedList) run before the writer thread starts and
+    // before the store answers any call (_open is false until Open's end), so no other thread can
+    // reach the fields they set: they are not analysed (NO_THREAD_SAFETY_ANALYSIS in the .cpp).
     OpenStatus OpenReadOnly(const std::string& dir);
     bool LoadIndex();
     bool FinishInterruptedRewrite(uint64_t datGeneration);
-    bool Compact();                     // the writer thread; true when it rewrote the files
-    bool NeedsCompact() const;          // under _mutex
-    bool EvictWanted() const;           // under _mutex
-    uint64_t RefusedBytes() const;      // under _mutex
+    // the writer thread; true when it rewrote the files
+    bool Compact() EXCLUDES(_mutex, _fileMutex);
+    bool NeedsCompact() const REQUIRES(_mutex);
+    bool EvictWanted() const REQUIRES(_mutex);
+    uint64_t RefusedBytes() const REQUIRES(_mutex);
     void ReadUsedList();
-    void Stamp(uint64_t id);   // under _mutex
+    void Stamp(uint64_t id) REQUIRES(_mutex);
     void ResetFiles();
-    void WriterMain();
-    void WriteOne(Pending& p);
-    void WriteUsedList();
+    void WriterMain() EXCLUDES(_mutex);
+    void WriteOne(Pending& p) EXCLUDES(_mutex, _fileMutex);
+    void WriteUsedList() EXCLUDES(_mutex, _usedFileMutex);
     bool ReadAt(Platform::FileHandle h, uint64_t offset, void* dst, uint64_t size);
     bool WriteAt(Platform::FileHandle h, uint64_t offset, const void* src, uint64_t size);
-    const IndexRecord* Lookup(const Key& key) const;   // under _mutex
+    const IndexRecord* Lookup(const Key& key) const REQUIRES(_mutex);
 
     std::string _dir;
     uint64_t    _cap  = 0;
@@ -214,38 +224,39 @@ private:
     bool        _readOnly = false;   // the lock is another instance's (OpenStatus::ReadOnly)
 
     Platform::FileHandle  _lock = Platform::kInvalidFileHandle;
-    Platform::FileHandle  _dat  = Platform::kInvalidFileHandle;
-    Platform::FileHandle  _idx  = Platform::kInvalidFileHandle;
-    Platform::FileMapping _map;     // derived.dat as it was at Open (until ReleaseMapping / Close)
-    std::mutex            _usedFileMutex;   // derived.used's writes (the writer, WriteStampsNow)
-    std::mutex            _fileMutex;   // the two handles, their file positions, and the mapping; taken
-                                        // before _mutex when both are held
+    Platform::FileHandle  _dat GUARDED_BY(_fileMutex) = Platform::kInvalidFileHandle;
+    Platform::FileHandle  _idx GUARDED_BY(_fileMutex) = Platform::kInvalidFileHandle;
+    // derived.dat as it was at Open (until ReleaseMapping / Close)
+    Platform::FileMapping _map GUARDED_BY(_fileMutex);
+    Sys::Mutex _usedFileMutex ACQUIRED_BEFORE(_mutex);   // derived.used's writes (the writer, WriteStampsNow)
+    Sys::Mutex _fileMutex ACQUIRED_BEFORE(_mutex);       // the two handles, their file positions, and the
+                                                         // mapping; taken before _mutex when both are held
 
-    mutable std::mutex                             _mutex;   // everything below
+    mutable Sys::Mutex                             _mutex;   // everything below
     std::condition_variable                        _cv;
-    std::unordered_multimap<uint64_t, IndexRecord> _records;   // by sourceHash
-    std::unordered_map<uint64_t, uint32_t>         _stamps;    // KeyId() -> the session that last used it
-    uint32_t                                       _session = 0;       // this Open's session number
-    uint64_t                                       _lastRefusedBytes = 0;   // the bytes the previous session refused
-    std::deque<Pending>                            _queue;
-    uint64_t _queuedBytes = 0;
-    uint64_t _dataEnd     = 0;
-    uint64_t _indexEnd    = 0;
-    uint64_t _generation  = 0;   // the files' (both headers)
-    uint64_t _garbageBytes = 0;  // payload bytes in derived.dat no record serves (superseded, bad)
-    uint64_t _layout      = 0;   // bumped when a rewrite moves the records (Find's erase checks it)
-    std::chrono::steady_clock::time_point _lastActivity;   // the last Find / Put
-    bool     _usedDirty   = false;
-    bool     _writing     = false;   // the writer is writing a payload or the keep list
-    bool     _flushRequested = false; // a Flush waits: the writer rewrites the keep list
-    bool     _stop        = false;
-    bool     _loggedFull  = false;
-    bool     _compactArmed = false;  // a load's end was seen (RequestFlush)
-    bool     _compactNow   = false;  // RequestCompact
-    bool     _compactDone  = false;  // the quiet-spell rewrite ran this run
+    std::unordered_multimap<uint64_t, IndexRecord> _records GUARDED_BY(_mutex);   // by sourceHash
+    std::unordered_map<uint64_t, uint32_t>         _stamps GUARDED_BY(_mutex);    // KeyId() -> the session that last used it
+    uint32_t _session GUARDED_BY(_mutex) = 0;                // this Open's session number
+    uint64_t _lastRefusedBytes GUARDED_BY(_mutex) = 0;       // the bytes the previous session refused
+    std::deque<Pending> _queue GUARDED_BY(_mutex);
+    uint64_t _queuedBytes GUARDED_BY(_mutex) = 0;
+    uint64_t _dataEnd GUARDED_BY(_mutex) = 0;
+    uint64_t _indexEnd GUARDED_BY(_mutex) = 0;
+    uint64_t _generation GUARDED_BY(_mutex) = 0;     // the files' (both headers)
+    uint64_t _garbageBytes GUARDED_BY(_mutex) = 0;   // payload bytes in derived.dat no record serves (superseded, bad)
+    uint64_t _layout GUARDED_BY(_mutex) = 0;         // bumped when a rewrite moves the records (Find's erase checks it)
+    std::chrono::steady_clock::time_point _lastActivity GUARDED_BY(_mutex);   // the last Find / Put
+    bool     _usedDirty GUARDED_BY(_mutex) = false;
+    bool     _writing GUARDED_BY(_mutex) = false;          // the writer is writing a payload or the keep list
+    bool     _flushRequested GUARDED_BY(_mutex) = false;   // a Flush waits: the writer rewrites the keep list
+    bool     _stop GUARDED_BY(_mutex) = false;
+    bool     _loggedFull GUARDED_BY(_mutex) = false;
+    bool     _compactArmed GUARDED_BY(_mutex) = false;   // a load's end was seen (RequestFlush)
+    bool     _compactNow GUARDED_BY(_mutex) = false;     // RequestCompact
+    bool     _compactDone GUARDED_BY(_mutex) = false;    // the quiet-spell rewrite ran this run
     std::atomic<bool> _disabled{false};
     std::atomic<bool> _closing{false};   // Close: a rewrite in progress gives up
-    Stats    _stats;
+    Stats    _stats GUARDED_BY(_mutex);
     std::thread _writer;
 };
 

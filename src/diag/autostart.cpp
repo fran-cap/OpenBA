@@ -5,7 +5,9 @@
 
 
 #include "autostart.h"
+#include "mod_click_guard.h"   // ModDialogClickRowInRange (review F-294)
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -331,32 +333,34 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
 
         if (tok[0] == 'm') {
             UI::DialogInstance* mainMenu = menuDLT->_dialogInstance;
-            int id = std::atoi(tok + 1);
+            int id = HarnessAtoi(tok + 1);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: MainMenuDialog=%p id=%d\n", (void*)mainMenu, id);
             if (mainMenu) InjectClick(mainMenu, kMsg_ButtonClick, id);
         } else if (tok[0] == 'd') {
             ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
-            int id = std::atoi(tok + 1);
+            int id = HarnessAtoi(tok + 1);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: ModDetailsDialog=%p id=%d\n", dlg, id);
             if (dlg) InjectClick(dlg, kMsg_ButtonClick, id);
         } else {
             ModDialog* dlg = ModDialog_LastOpened();
-            int id = std::atoi(tok);
+            int id = HarnessAtoi(tok);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: ModDialog=%p id=%d\n", static_cast<void*>(dlg), id);
             // A fabricated click on a per-row id (1000..5999: row = id % 1000)
             // must name a row the dialog actually built. The real UI cannot
             // deliver such a click without the element, but this driver can,
             // and with no .pkm installed (WinData/_mods_off holds them) the
             // entry array count at +0xC0 is 0 and the row handler faults reading
-            // its entry. Mirror WaitLoadDialog's saveCount gate: skip loudly.
+            // its entry. Mirror WaitLoadDialog's saveCount gate: skip loudly. Move up
+            // on row 0 and move down on the last row name a neighbour row that does
+            // not exist either (review F-294; mod_click_guard.h).
             ModDialog* modDlg = dlg;
             if (dlg && id >= 1000 && id < 6000) {
                 const int rows = modDlg->entries.GetSize();   // +0xC0, entries' count
                 const int row  = id % 1000;
-                if (row >= rows) {
+                if (!ModDialogClickRowInRange(id, rows)) {
                     fprintf(stderr, "[AutoStart] WARN: AUTOMENU_CLICKS token %d names row %d "
-                                    "but the ModDialog has %d row(s) -- skipped (are any "
-                                    ".pkm files installed in WinData?)\n", id, row, rows);
+                                    "(or its neighbour) but the ModDialog has %d row(s) -- skipped "
+                                    "(are any .pkm files installed in WinData?)\n", id, row, rows);
                     dlg = nullptr;
                 }
             }

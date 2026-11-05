@@ -733,13 +733,24 @@ int DeviceData_Resize(DeviceData* self) {
     if (!Platform::Window::IsVisible(dev->windowHandle) && !BootWindow::IsPending())
         return 0;
 
-    // A minimized window has a 0x0 client rect, and IsWindowVisible() is still
-    // TRUE for it — so retail cheerfully latches that 0x0 the first time the
-    // player minimizes. Treat it like the not-visible case: leave
-    // kResetPending set and rebuild when the window comes back. Doing this
-    // before the guard below also stops us fighting a deliberate minimize.
-    if (Platform::Window::IsIconic(dev->windowHandle))
+    // NOT RETAIL: a minimized window has a 0x0 client rect, and IsWindowVisible()
+    // is still TRUE for it — so retail (0x180004340 tests IsWindowVisible only)
+    // cheerfully latches that 0x0 the first time the player minimizes. Treat it
+    // like the not-visible case: leave kResetPending set and rebuild when the
+    // window comes back. Doing this before the guard below also stops us fighting
+    // a deliberate minimize.
+    if (Platform::Window::IsIconic(dev->windowHandle)) {
+        // Review S-052: retail's reset ends in SetFullscreenState(cfg->fullscreen)
+        // (0x1800044af), which is how a focus loss (OnActivate: cfg->fullscreen = 0)
+        // leaves exclusive mode. The rebuild waits for the restore; leaving exclusive
+        // mode does not. The restore's reset sets it again from cfg->fullscreen.
+        BOOL exclusive = FALSE;
+        IDXGISwapChain* const sc = self->swapChain;
+        if (ConfigOf()->fullscreen == 0 && sc != nullptr &&
+            sc->GetFullscreenState(&exclusive, nullptr) == 0 && exclusive)
+            sc->SetFullscreenState(FALSE, nullptr);
         return 0;
+    }
 
     ID3D11DeviceContext* ctx = self->d3dContext;
     ctx->OMSetRenderTargets(0, nullptr, nullptr);

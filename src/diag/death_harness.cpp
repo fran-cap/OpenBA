@@ -22,6 +22,7 @@
 // each teardown, and with BANISHED_OBJAUDIT=1 to watch the object tally.
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Game/exe_constants.h"
 #include "Entity/CitizenBehavior.h"           // B4: the town lists
 #include "Entity/ComponentEntity.h"           // B4: FindComponent<ResidenceComponent>
@@ -75,25 +76,25 @@ bool s_firedMarry  = false;
 void Init() {
     if (s_count >= 0) return;
     const char* n = Opt().killCitizens;
-    s_count = (n && n[0]) ? std::atoi(n) : 0;
+    s_count = (n && n[0]) ? HarnessAtoi(n) : 0;
     const char* f = Opt().killAtFrame;
-    if (f && f[0]) s_atFrame = std::atoi(f);
+    if (f && f[0]) s_atFrame = HarnessAtoi(f);
     const char* c = Opt().familyCensus;
-    s_censusEvery = (c && c[0]) ? std::atoi(c) : 0;
+    s_censusEvery = (c && c[0]) ? HarnessAtoi(c) : 0;
     const char* kf = Opt().killFamily;
-    s_killFamily = (kf && kf[0]) ? std::atoi(kf) : 0;
+    s_killFamily = (kf && kf[0]) ? HarnessAtoi(kf) : 0;
     const char* mh = Opt().marryHarness;
-    s_marryHarness = (mh && mh[0]) ? std::atoi(mh) : 0;
+    s_marryHarness = (mh && mh[0]) ? HarnessAtoi(mh) : 0;
     const char* bt = Opt().birthTrace;
-    s_birthTrace = (bt && bt[0]) ? std::atoi(bt) : 0;
+    s_birthTrace = (bt && bt[0]) ? HarnessAtoi(bt) : 0;
     const char* fb = Opt().forceBirth;
-    s_forceBirth = (fb && fb[0]) ? std::atoi(fb) : 0;
+    s_forceBirth = (fb && fb[0]) ? HarnessAtoi(fb) : 0;
     const char* fbf = Opt().forceBirthFrame;
-    if (fbf && fbf[0]) s_forceBirthFrame = std::atoi(fbf);
+    if (fbf && fbf[0]) s_forceBirthFrame = HarnessAtoi(fbf);
     const char* sp = Opt().spouseProbe;
-    s_spouseProbe = (sp && sp[0]) ? std::atoi(sp) : 0;
+    s_spouseProbe = (sp && sp[0]) ? HarnessAtoi(sp) : 0;
     const char* nh = Opt().nomadHarness;
-    s_nomadPeriod = (nh && nh[0]) ? std::atoi(nh) : 0;
+    s_nomadPeriod = (nh && nh[0]) ? HarnessAtoi(nh) : 0;
     if (s_spouseProbe > 0)
         std::fprintf(stderr, "[SpouseProbe] ENABLED — probing FindSpouse's age window at frame %d\n",
                      s_spouseProbe);
@@ -735,6 +736,24 @@ CitizenComponent* s_widow = nullptr;
 void SpouseOrganic(int frameNum) {
     Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
     if (!TownList(&list, &n, &townMgr)) return;
+    if (s_organicStage == 1 || s_organicStage == 2) {
+        // The pair is held across up to 3600 frames: either one may have died and been
+        // freed since. Read them only while both are still in the town list (review F-273).
+        bool widowerLive = false;
+        bool widowLive = false;
+        for (int i = 0; i < n; i++) {
+            const CitizenComponent* c = list[i].Get();
+            if (c == s_widower) widowerLive = true;
+            if (c == s_widow) widowLive = true;
+        }
+        if (!widowerLive || !widowLive) {
+            std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: citizen gone (widower %s, widow %s)\n",
+                         frameNum, widowerLive ? "here" : "gone", widowLive ? "here" : "gone");
+            std::fflush(stderr);
+            s_organicStage = 3;
+            return;
+        }
+    }
     if (s_organicStage == 0) {
         CitizenComponent* wifeOfA = nullptr;
         CitizenComponent* husbandOfB = nullptr;
@@ -815,7 +834,6 @@ void SpouseOrganic(int frameNum) {
 // Needs a town CanAccept passes: population >= desc+0x28 (8 in the shipped data) and the
 // required buildings, and a town hall to carry the ImmigrationComponent: the stress town is
 // the one town that founds one (tools/harness_route.sh immigration).
-ImmigrationComponent* s_hall = nullptr;
 int  s_answered     = 0;      // groups answered so far (0: none, 1: allowed, 2: denied)
 int  s_arrivedPolls = 0;      // consecutive polls with the whole group at the hall
 int  s_answerGroup  = 0;      // the group size the last answer was given for
@@ -878,15 +896,14 @@ void NomadHarness(int frameNum) {
     if (!gw || !gw->m_citizenList || !gw->m_entityList) return;
     if (s_answered >= 3) return;
     CitizenBehavior* townMgr = gw->m_citizenList;
-    if (!s_hall) {
-        s_hall = FindTownHall(gw);
-        if (!s_hall) {
-            std::fprintf(stderr, "[NomadHarness] frame %d: no town hall in the world yet\n", frameNum);
-            std::fflush(stderr);
-            return;
-        }
+    // Looked up on every poll, never cached: the hall can be demolished and freed, and
+    // a new world builds a new one (review F-273).
+    ImmigrationComponent* imm = FindTownHall(gw);
+    if (!imm) {
+        std::fprintf(stderr, "[NomadHarness] frame %d: no town hall in the world yet\n", frameNum);
+        std::fflush(stderr);
+        return;
     }
-    ImmigrationComponent* imm = s_hall;
     const ImmigrationDescription* desc = static_cast<const ImmigrationDescription*>(imm->_description);
     StateMachineComponent* smc = imm->_entity->FindComponent<StateMachineComponent>();
     const float secs = gw->m_dayCounter->yearTime.AsSeconds();   // +0x128

@@ -135,6 +135,17 @@ inline bool PointInTriangle(float px, float py, const float x[3], const float y[
     return !(neg && pos);
 }
 
+// Whether the brush may walk a contour draw range {start, base, count} over an index array of indexCount
+// entries. NOT RETAIL: the ranges are loaded from the save unchecked (SerializeDrawRanges) and retail only
+// hands them to the GPU; the brush reads them on the CPU. A range is read only when its indices lie inside
+// the array (summed in 64 bits) and its base leaves room for any 16-bit index, so that neither
+// `start + k` nor `base + idx[..]` can overflow an int (a hostile save read far outside both arrays).
+inline bool ContourRangeFits(int start, int base, int count, int indexCount) {
+    if (start < 0 || base < 0 || count < 0) return false;
+    if (base > INT32_MAX - 0xFFFF) return false;
+    return static_cast<int64_t>(start) + count <= indexCount;
+}
+
 struct WaterPatch {
     std::vector<WaterVertex> vertices;
     std::vector<uint16_t>    indices;   // relative to the patch's first vertex

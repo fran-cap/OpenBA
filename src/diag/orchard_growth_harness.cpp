@@ -40,6 +40,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Object/factory_registration.h"   // ::Object::GetTypeIdByName
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -68,7 +69,7 @@ bool Enabled() {
         s_state = 0;
         return false;
     }
-    const double v = std::atof(e);
+    const double v = ClampedAtof(e);
     if (v > 1.0) s_step = static_cast<float>(v / 100.0);
     s_state = 1;
     std::fprintf(stderr, "[OrchardGrow] ENABLED (BANISHED_ORCHARD_GROW=\"%s\") — advancing tree "

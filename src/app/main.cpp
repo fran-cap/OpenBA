@@ -679,6 +679,13 @@ static void WndMsgObserver([[maybe_unused]] void* hwnd, uint32_t message, uint64
                (unsigned)((lParam >> 16) & 0xFFFF));
         fflush(stdout);
     }
+    // EXT SEAM (NOT RETAIL, review S-002 / S-010): ext.render_pipe joins its render thread before
+    // a WM_ACTIVATE reaches the reset below and the engine's DeviceData_OnActivate, which rebuild
+    // the swap chain and reset the Video::Context an overlapped emit may be drawing with. The pump
+    // runs inside the steps, which an emit may run beside. Null while the extension is off.
+    ::Engine::MainLoop* const loop = ::Engine::MainLoop::_singleton;
+    if (message == 0x0006 /*WM_ACTIVATE*/ && ::Engine::MainLoop::_extFrame != nullptr && loop != nullptr)
+        ::Engine::MainLoop::_extFrame(*loop, ::Engine::MainLoop::kExtBeforeActivate, 0.0f, 0.0f);
     if (const char* name = WMNameForFocus(message)) {
         printf("[WndMsg] %-20s hwnd=%p w=%llx l=%llx\n",
                name, hwnd,

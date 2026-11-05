@@ -41,6 +41,7 @@
 // ============================================================================
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -84,6 +85,7 @@ struct Fixes {
     bool input_fetch_room  = true;   // docs/retail_bugs.md §25, src/ext/input_fetch_room/: sim-visible, a production worker's input fetch fits the workplace's free room
     bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home's zone (else his lost home's, the hall's, a storage's) whose walk there was refused wades back
     bool debug_spawn_origin = true;  // docs/retail_bugs.md §29, src/ext/debug_spawn_origin/: the debug panel's spawn-citizens button places its citizens by the world origin when no storage has a use node, instead of hanging
+    bool statusbar_empty_town = true;   // review S-006, src/game/Dialog/statusbarui.cpp: a status-bar icon click dispatched after the last citizen left does nothing, instead of reading the removed citizen past the list's end
     bool stream_free_wait  = true;   // review S-027 (engine seam Audio::Device::_extFixStreamFreeWait): a streamed sound freed while its stream pass runs waits for the pass, so the worker reads no freed seek table
 };
 
@@ -310,6 +312,17 @@ State Resolve(Lookup lookup, void* ctx, const char* commandLineProfile, LoadRepo
 const Fixes&      Fix();
 const Extensions& Ext();
 const Values&     Val();
+
+// The fix rows a thread other than the main one reads (the persistence worker's save job, the
+// renderer's device recovery), as atomics that follow the row: Install, SetRequested and
+// UnlockForGame store them after they write the row. The plain bools in Fix() are written by the
+// Extensions dialog on the main thread and are read there only (review F-262: a worker reading the
+// plain bool through a pointer raced the dialog's write).
+struct LiveFixes {
+    std::atomic<bool> save_failure_notice{Fixes().save_failure_notice};
+    std::atomic<bool> boot_device_lost{Fixes().boot_device_lost};
+};
+const LiveFixes& LiveFix();
 
 // A valued key's live value, and the menu's write: clamps, stores it as both
 // requested and active (class A: never locked) and returns the stored value.

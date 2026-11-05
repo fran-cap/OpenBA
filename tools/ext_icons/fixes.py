@@ -468,6 +468,24 @@ def draw_stream_wait(px):
     ])
 
 
+def draw_empty_status(px):
+    # a "!" status icon in a box over an empty bench (a problem-icon click with no citizen left)
+    _paint(px, [
+        "..########..",
+        "..#++++++#..",
+        "..#+++#++#..",
+        "..#+++#++#..",
+        "..#++++++#..",
+        "..#+++#++#..",
+        "..########..",
+        "............",
+        "............",
+        "############",
+        ".#........#.",
+        ".#........#.",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -493,5 +511,6 @@ ICONS = {
     "input_fetch_room": ("fix", draw_load_fits),     # a short load into a nearly full bin
     "stranded_wade": ("fix", draw_wade),             # a figure in the water, a house on the bank
     "debug_spawn_origin": ("fix", draw_spawn_origin),   # two figures on a cross-hair
+    "statusbar_empty_town": ("fix", draw_empty_status),   # a "!" status icon over an empty bench
     "stream_free_wait": ("fix", draw_stream_wait),   # a music note beside a pause sign
 }

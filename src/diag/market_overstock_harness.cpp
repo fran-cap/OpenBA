@@ -46,6 +46,7 @@
 
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "options.h"
+#include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "Object/factory_registration.h"
 #include "Component/MarketComponent.h"
 #include "Component/MarketDescription.h"
@@ -69,20 +70,23 @@ static int OverstockPct() {          // -1 = disabled
     if (v == -2) {
         const char* e = Opt().marketOverstock;
         if (!e || !*e || e[0] == '0') { v = -1; }
-        else { int n = atoi(e); v = (n > 100) ? n : 260; }
+        else { int n = HarnessAtoi(e); v = (n > 100) ? n : 260; }
+        // At most 1000x the want: the need computation casts targetSat * want *
+        // capacity to int, out of range (undefined) for a huge percent (review F-284).
+        if (v > 100000) v = 100000;
     }
     return v;
 }
 static int OverstockFrame() {
     static int v = -1;
     if (v < 0) { const char* e = Opt().marketOverstockFrame;
-                 v = (e && *e) ? atoi(e) : 2400; if (v < 1) v = 1; }
+                 v = (e && *e) ? HarnessAtoi(e) : 2400; if (v < 1) v = 1; }
     return v;
 }
 static int OverstockPeriod() {
     static int v = -1;
     if (v < 0) { const char* e = Opt().marketOverstockPeriod;
-                 v = (e && *e) ? atoi(e) : 0; if (v < 0) v = 0; }
+                 v = (e && *e) ? HarnessAtoi(e) : 0; if (v < 0) v = 0; }
     return v;
 }
 

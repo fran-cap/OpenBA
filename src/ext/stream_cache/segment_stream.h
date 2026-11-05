@@ -49,6 +49,10 @@ public:
 
     // Past a payload the renderer reads later (CreateOnDemand::Skip's shape).
     void Skip(int32_t len);
+    // Skip only when the `len` bytes lie ahead of the position within the record's total
+    // (CreateOnDemand::SkipIfWithin's contract); false: nothing done. ext.create_on_demand's
+    // g_altSkip over this stream.
+    bool SkipWithin(int32_t len);
 
     const RecordView*     Record() const { return _record; }
     Platform::FileHandle  Package() const { return _package; }
