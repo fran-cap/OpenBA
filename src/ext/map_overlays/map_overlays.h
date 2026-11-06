@@ -18,6 +18,8 @@ namespace Ext { namespace SaveTail { struct StateCodec; } }
 namespace Video { class Context; }
 class RawMaterialDescription;
 class MapUI;
+class ComponentDescription;
+class ComponentEntity;
 
 namespace Ext {
 namespace MapOverlays {
@@ -37,6 +39,11 @@ void BeginFrame();
 // tile is computed here. `count` is in items, as the inventory counts them.
 void OnProduced(const RawMaterialDescription* material, float worldX, float worldZ, int count);
 void OnConsumed(const RawMaterialDescription* material, float worldX, float worldZ, int count);
+// The same for the seams that hold an entity and an item template (what StorageComponent stores): the site is
+// the entity's MapComponent footprint centre, the material item->FindDescription<RawMaterialDescription>();
+// nothing is counted when either is missing.
+void OnProducedAt(const ComponentDescription* item, const ComponentEntity* site, int count);
+void OnConsumedAt(const ComponentDescription* item, const ComponentEntity* site, int count);
 // A citizen entered a new tile (the movement seam; MAPOVERLAYS.md §4 for the cost rule).
 void OnStep(int tileX, int tileZ);
 
