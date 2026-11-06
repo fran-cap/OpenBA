@@ -8,17 +8,21 @@
 // (UIDescription::AddControllers, toolui.cpp). Nothing of that is copied, edited or moved. While the row is
 // on, the seam after AddControllers calls AddMapWindowTabs, which injects the overlay tabs by the same
 // mechanism: DialogInstance::AddController with type 0 (element only, retail's own "no controller" arm)
-// puts tabMapOverlays at userGroup1, the next group of StandardDialog's page, under the map. A controller of
-// ours (not a reflected type: built here, never by the factory) is placed in the dialog's controller list,
+// puts ribbonMapOverlays at userGroup1, the next group of StandardDialog's page, under the map. A controller
+// of ours (not a reflected type: built here, never by the factory) is placed in the dialog's controller list,
 // so the dialog updates it every frame and deletes it with the window.
 //
-// The map keeps its place and shows in every tab: an overlay is drawn over MapUI's own image (the render
-// side, MapWindowUpdate), so a tab only adds its controls under the map. The first tab, Map, has an empty
+// The map keeps its place and shows in every view: an overlay is drawn over MapUI's own image (the render
+// side, MapWindowUpdate), so a view only adds its controls under the map. The first view, Map, has an empty
 // page and selects View::Map: retail's map with no overlay (MapWindowUpdate puts retail's sprite back).
 //
-// THE CONTROLS are read once a frame (no element events are needed, so none of our ids reaches ToolUI's or
-// MapUI's handlers; they still get ids of their own, away from ToolUI's 0 / 1 and MapUI's 1000). Every change
-// becomes one SetSelection. Per view the window remembers what was picked (category, item, kind, months);
+// THE WIDTH: no wider than retail's window. Eight one-word tabs in one row are wider than the map, so the views
+// are two rows of four tab buttons (MapOverlays.rsc); the shown one is marked by its caption's colour, and only
+// its page is shown (the others are hidden, so they take no room in the pages group).
+//
+// THE CONTROLS are read once a frame; only the view buttons are heard as element events (msg 0x12 with our
+// ids, away from ToolUI's 0 / 1 and MapUI's 1000; every control has an id of ours). Every change becomes one
+// SetSelection. Per view the window remembers what was picked (category, item, kind, months);
 // the scale and the terrain check box are one setting for every view.
 //
 // THE RESOURCE PICKER. Categories are RawMaterialDescription::_flags masks: All, Food (the edible bit) and
@@ -38,7 +42,6 @@
 #include "ui/CheckElement.h"
 #include "ui/ComboElement.h"
 #include "ui/SliderElement.h"
-#include "ui/TabElement.h"
 #include "ui/ElementDescription.h"
 #include "ui/Element.h"
 #include "ui/DialogController.h"
@@ -80,46 +83,34 @@ namespace MapOverlays {
 
 namespace {
 
-constexpr const char* kTabsRsc      = "Dialog/MapOverlays.rsc:tabMapOverlays";
-constexpr const char* kTabButtonRsc = "Dialog/MapOverlays.rsc:tabButtonMapOverlays";
-constexpr const char* kInsertAt     = "userGroup1";   // StandardDialog.rsc: the group under userGroup0 (the map)
+constexpr const char* kColumnRsc = "Dialog/MapOverlays.rsc:ribbonMapOverlays";
+constexpr const char* kInsertAt  = "userGroup1";   // StandardDialog.rsc: the group under userGroup0 (the map)
 
 constexpr int32_t kIdBase = 7300;      // our elements' ids: kIdBase + 16 * tab + n (ToolUI uses 0 / 1, MapUI 1000)
 constexpr int kScaleSteps = 10;        // the scale slider: 0 (Fine, Selection.scale 0) .. 10 (Coarse, 1)
 constexpr int kViewCount = static_cast<int>(View::Count);
 
-// What a tab shows, in View order (overlay_core.h): its page, its caption and tooltip keys.
-enum class PageKind : uint8_t { Map, Resource, Kind, Traffic };
+// The view buttons' frame and caption tints (0xAARRGGBB): the shown view's (untinted), and the others' (dimmed).
+constexpr uint32_t kCaptionShown = 0xffffffffu;
+constexpr uint32_t kCaptionOther = 0xff8c867eu;
+
+// What a view button shows, in View order (overlay_core.h; MapOverlays.rsc lists the pages in the same order):
+// its caption and tooltip keys.
 struct TabSpec {
     View view;
-    PageKind page;
     const char* caption;
     const char* tip;
 };
 constexpr TabSpec kTabs[kViewCount] = {
-    { View::Map,         PageKind::Map,      "MapOverlaysTabMap",         "MapOverlaysTabMapTip" },
-    { View::Production,  PageKind::Resource, "MapOverlaysTabProduction",  "MapOverlaysTabProductionTip" },
-    { View::Consumption, PageKind::Resource, "MapOverlaysTabConsumption", "MapOverlaysTabConsumptionTip" },
-    { View::Stock,       PageKind::Resource, "MapOverlaysTabStock",       "MapOverlaysTabStockTip" },
-    { View::Services,    PageKind::Kind,     "MapOverlaysTabServices",    "MapOverlaysTabServicesTip" },
-    { View::Traffic,     PageKind::Traffic,  "MapOverlaysTabTraffic",     "MapOverlaysTabTrafficTip" },
-    { View::Citizens,    PageKind::Kind,     "MapOverlaysTabCitizens",    "MapOverlaysTabCitizensTip" },
-    { View::Natural,     PageKind::Kind,     "MapOverlaysTabNatural",     "MapOverlaysTabNaturalTip" },
+    { View::Map,         "MapOverlaysTabMap",         "MapOverlaysTabMapTip" },
+    { View::Production,  "MapOverlaysTabProduction",  "MapOverlaysTabProductionTip" },
+    { View::Consumption, "MapOverlaysTabConsumption", "MapOverlaysTabConsumptionTip" },
+    { View::Stock,       "MapOverlaysTabStock",       "MapOverlaysTabStockTip" },
+    { View::Services,    "MapOverlaysTabServices",    "MapOverlaysTabServicesTip" },
+    { View::Traffic,     "MapOverlaysTabTraffic",     "MapOverlaysTabTrafficTip" },
+    { View::Citizens,    "MapOverlaysTabCitizens",    "MapOverlaysTabCitizensTip" },
+    { View::Natural,     "MapOverlaysTabNatural",     "MapOverlaysTabNaturalTip" },
 };
-
-const char* PageRsc(PageKind kind) {
-    switch (kind) {
-    case PageKind::Resource:
-        return "Dialog/MapOverlays.rsc:pageMapOverlaysResource";
-    case PageKind::Kind:
-        return "Dialog/MapOverlays.rsc:pageMapOverlaysKind";
-    case PageKind::Traffic:
-        return "Dialog/MapOverlays.rsc:pageMapOverlaysTraffic";
-    case PageKind::Map:
-    default:
-        return "Dialog/MapOverlays.rsc:pageMapOverlaysMap";
-    }
-}
 
 // The kind combos' items, in the enums' order (overlay_core.h).
 constexpr const char* kServiceKeys[] = {
@@ -430,6 +421,9 @@ int RoundSlider(const UI::SliderElement* slider, int lo, int hi) {
 struct Page {
     const TabSpec* spec = nullptr;
     UI::Element* root = nullptr;
+    UI::Element* button = nullptr;    // its view button, the button's frame and its caption
+    UI::Element* frame = nullptr;
+    UI::Element* caption = nullptr;
     UI::ComboElement* category = nullptr;
     UI::ComboElement* resource = nullptr;
     UI::ComboElement* kind = nullptr;
@@ -458,8 +452,10 @@ public:
         }
     }
 
-    bool Build(UI::TabElement* tabs);
+    bool Build(UI::Element* column);
     void OnUpdate(const System::Time& time) override;
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id, int32_t c, int32_t d,
+                        int32_t e, void* userData) override;
 
 private:
     void BuildPage(Page& page, int tab);
@@ -469,64 +465,65 @@ private:
     void UpdateLegend(Page& page, const Selection& s);
 
     MapUI* _map = nullptr;            // the window's MapUI (deleted after this controller)
-    UI::TabElement* _tabs = nullptr;  // owned by the dialog's element tree
-    std::vector<Page> _pages;
+    std::vector<Page> _pages;         // their elements are owned by the dialog's element tree
     std::vector<Material> _materials;
     std::vector<Category> _categories;
+    int32_t _wantedTab = 0;           // the view button last pressed
     int32_t _shownTab = -1;
-    int32_t _stripWidth = 0;          // the tab strip's width the pages were last widened to
     float _legendValue = -1.0f;       // the legend text last written, and for which view / kind
     int _legendView = -1;
     int _legendKind = -1;
 };
 
-bool MapWindowController::Build(UI::TabElement* tabs) {
-    _tabs = tabs;
-    UI::ElementDescription* button = LoadDescription(kTabButtonRsc);
-    if (button == nullptr) {
+bool MapWindowController::Build(UI::Element* column) {
+    UI::Element* rows[2] = {
+        column->FindElement(System::String("rowMapOverlaysTabs1")).Get(),
+        column->FindElement(System::String("rowMapOverlaysTabs2")).Get(),
+    };
+    UI::Element* pages = column->FindElement(System::String("groupMapOverlaysPages")).Get();
+    if (rows[0] == nullptr || rows[1] == nullptr || pages == nullptr || pages->ChildCount() != kViewCount ||
+        rows[0]->ChildCount() + rows[1]->ChildCount() != kViewCount) {
+        std::fprintf(stderr, "[MapOverlays] MapOverlays.rsc is not two rows of view buttons over %d pages\n",
+                     kViewCount);
         return false;
     }
     _materials = CollectMaterials();
     _categories = CollectCategories(_materials);
 
+    const int firstRow = rows[0]->ChildCount();
     for (int tab = 0; tab < kViewCount; ++tab) {
         const TabSpec& spec = kTabs[tab];
-        UI::ElementDescription* content = LoadDescription(PageRsc(spec.page));
-        if (content == nullptr) {
-            return false;
-        }
-        Object::InternalPtr<UI::Element> root =
-            tabs->AddTab(Object::ExternalPtr<UI::ElementDescription>(button),
-                         Object::ExternalPtr<UI::ElementDescription>(content));
-        if (root.Get() == nullptr) {
-            std::fprintf(stderr, "[MapOverlays] AddTab failed for tab %d\n", tab);
-            return false;
-        }
-        // The tab's button is the child just before its page (TabElement.h: button at 3 + 2i).
-        const int index = tabs->_tabCount - 1;
-        UI::Element** kids = tabs->_children.GetData();
-        const int nKids = tabs->_children.GetSize();
-        if (3 + 2 * index < nKids && kids[3 + 2 * index] != nullptr) {
-            UI::Element* tabButton = kids[3 + 2 * index];
-            tabButton->SetElementId(kIdBase + 16 * tab);
-            tabButton->SetToolTip(Toolbar::OurString(spec.tip));
-            const int nb = tabButton->ChildCount();
-            for (int k = 0; k < nb; ++k) {
-                Toolbar::SetTableText(tabButton->Child(k).Get(), spec.caption);
-            }
-        }
+        UI::Element* row = tab < firstRow ? rows[0] : rows[1];
+        const int inRow = tab < firstRow ? tab : tab - firstRow;
         Page page;
         page.spec = &spec;
-        page.root = root.Get();
+        page.root = pages->Child(tab).Get();
+        page.button = row->Child(inRow).Get();
+        if (page.root == nullptr || page.button == nullptr) {
+            return false;
+        }
+        page.button->SetElementId(kIdBase + 16 * tab);
+        page.button->SetToolTip(Toolbar::OurString(spec.tip));
+        // The button's children: its border (the raised frame) and its caption text.
+        const int nb = page.button->ChildCount();
+        for (int k = 0; k < nb; ++k) {
+            UI::Element* child = page.button->Child(k).Get();
+            if (::Object::IsDerivedFromNullSafe(child, UI::TextElement::TypeId())) {
+                page.caption = child;
+                Toolbar::SetTableText(child, spec.caption);
+            } else if (child != nullptr && page.frame == nullptr) {
+                page.frame = child;
+            }
+        }
         _pages.push_back(page);
         BuildPage(_pages.back(), tab);
     }
 
     // The window opens on the view that shows (a reopened window keeps it; a new town starts on Map).
     const int current = static_cast<int>(CurrentSelection().view);
-    tabs->SetActiveTab(current >= 0 && current < kViewCount ? current : 0);
-    ShowTab(tabs->GetActiveTab());
-    std::fprintf(stderr, "[MapOverlays] map window: %d tabs, %d materials, %d categories\n", kViewCount,
+    _wantedTab = current >= 0 && current < kViewCount ? current : 0;
+    ShowTab(_wantedTab);
+    std::fprintf(stderr, "[MapOverlays] map window: %d views, %d materials, %d categories\n", kViewCount,
                  static_cast<int>(_materials.size()), static_cast<int>(_categories.size()));
     return true;
 }
@@ -578,6 +575,10 @@ void MapWindowController::BuildPage(Page& page, int tab) {
         }
         page.kind->SetCurrentItem(memory.kind < count ? memory.kind : 0);
         page.kindItem = page.kind->GetCurrentItem();
+    }
+    // Stock is an instant view: no months.
+    if (page.monthsRow != nullptr && page.spec->view == View::Stock) {
+        page.monthsRow->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
     if (page.months != nullptr) {
         page.months->SetElementId(ids + 4);
@@ -638,23 +639,21 @@ void MapWindowController::FillResources(Page& page, uint32_t categoryFlags, cons
 void MapWindowController::ShowTab(int tab) {
     _shownTab = tab;
     _legendValue = -1.0f;
-    // The tab frame is as tall as its tallest page, shown or not (TabElement::ComputeSize): every other page's
-    // rows are hidden, so the Map tab is retail's map over the tab strip, and each overlay tab only as tall as
-    // its own controls. Stock is an instant view: no months.
+    // Only the shown view's page; a hidden page takes no room in the pages group (GroupElement::ComputeSize),
+    // so the Map view is retail's map over the view buttons. The shown view's caption is bright.
     for (size_t i = 0; i < _pages.size(); ++i) {
         Page& p = _pages[i];
-        const int n = p.root->ChildCount();
-        for (int k = 0; k < n; ++k) {
-            UI::Element* row = p.root->Child(k).Get();
-            if (row == nullptr) {
-                continue;
-            }
-            const bool shown = static_cast<int>(i) == tab && !(row == p.monthsRow && p.spec->view == View::Stock);
-            if (shown) {
-                row->SetFlagsOnOff(0, UI::kElementFlagHidden);
-            } else {
-                row->SetFlagsOnOff(UI::kElementFlagHidden, 0);
-            }
+        const bool shown = static_cast<int>(i) == tab;
+        if (shown) {
+            p.root->SetFlagsOnOff(0, UI::kElementFlagHidden);
+        } else {
+            p.root->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        }
+        if (p.frame != nullptr) {
+            p.frame->SetColor(shown ? kCaptionShown : kCaptionOther);
+        }
+        if (p.caption != nullptr) {
+            p.caption->SetColor(shown ? kCaptionShown : kCaptionOther);
         }
     }
     if (tab < 0 || tab >= static_cast<int>(_pages.size())) {
@@ -730,8 +729,22 @@ void MapWindowController::UpdateLegend(Page& page, const Selection& s) {
     page.legendMax->SetParameter(0, System::String(FormatValue(value).c_str()));
 }
 
+// A view button was pressed (its click, msg 0x12, with the id Build gave it).
+void MapWindowController::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg, int32_t id,
+                                         int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (msg != 0x12) {
+        return;
+    }
+    for (int tab = 0; tab < static_cast<int>(_pages.size()); ++tab) {
+        if (id == kIdBase + 16 * tab) {
+            _wantedTab = tab;
+            return;
+        }
+    }
+}
+
 void MapWindowController::OnUpdate(const System::Time& /*time*/) {
-    if (_tabs == nullptr || _map == nullptr) {
+    if (_pages.empty() || _map == nullptr) {
         return;
     }
     if (g_memoryTown != LockEpoch()) {
@@ -739,18 +752,7 @@ void MapWindowController::OnUpdate(const System::Time& /*time*/) {
         g_memoryTown = LockEpoch();
         g_memory = std::array<ViewMemory, kViewCount>();
     }
-    // The tab frame's width counts its pages, not its strip (TabElement::ComputeSize): once the strip is
-    // measured, every page is made at least as wide, so the strip stays inside the window's border.
-    if (_tabs->_tabBarWidth > _stripWidth) {
-        _stripWidth = _tabs->_tabBarWidth;
-        for (Page& p : _pages) {
-            p.root->_minWidth = _stripWidth;
-            for (UI::Element* walk = p.root; walk != nullptr; walk = walk->_parent) {
-                walk->_flags |= UI::kElementFlagNeedsSizeCalc;
-            }
-        }
-    }
-    const int32_t tab = _tabs->GetActiveTab();
+    const int32_t tab = _wantedTab;
     if (tab != _shownTab) {
         ShowTab(tab);
     }
@@ -787,16 +789,16 @@ void AddMapWindowTabs(UI::DialogInstance* dialog, Object::Base* dataSource) {
 
     // The element, the way UIDescription::AddControllers injects Map.rsc:content: AddController with type 0 is
     // retail's "element only" arm (dialog_create.cpp).
-    UI::ElementDescription* tabsDesc = LoadDescription(kTabsRsc);
-    if (tabsDesc == nullptr) {
+    UI::ElementDescription* columnDesc = LoadDescription(kColumnRsc);
+    if (columnDesc == nullptr) {
         return;
     }
     dialog->AddController(0, dataSource, Object::ExternalPtr<UI::DialogControllerConfig>(),
-                          Object::ExternalPtr<UI::ElementDescription>(tabsDesc), System::String(kInsertAt));
-    UI::Element* tabsElement = dialog->FindElement(System::String("tabMapOverlays")).Get();
-    if (!::Object::IsDerivedFromNullSafe(tabsElement, UI::TabElement::TypeId())) {
-        std::fprintf(stderr, "[MapOverlays] the map window has no %s group for the tabs (%p): retail's window\n",
-                     kInsertAt, static_cast<void*>(tabsElement));
+                          Object::ExternalPtr<UI::ElementDescription>(columnDesc), System::String(kInsertAt));
+    UI::Element* column = dialog->FindElement(System::String("ribbonMapOverlays")).Get();
+    if (column == nullptr || column->_parent == nullptr) {
+        std::fprintf(stderr, "[MapOverlays] the map window has no %s group for the views (%p): retail's window\n",
+                     kInsertAt, static_cast<void*>(column));
         return;
     }
 
@@ -807,8 +809,8 @@ void AddMapWindowTabs(UI::DialogInstance* dialog, Object::Base* dataSource) {
     MapWindowController* controller = ::new (mem) MapWindowController(map);
     controller->_dialog = dialog;
     controller->_dataSource = dataSource;
-    controller->_container = tabsElement;
-    if (!controller->Build(static_cast<UI::TabElement*>(tabsElement))) {
+    controller->_container = column;
+    if (!controller->Build(column)) {
         std::fprintf(stderr, "[MapOverlays] the overlay tabs did not build: the map window has the map only\n");
     }
 

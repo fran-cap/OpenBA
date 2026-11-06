@@ -221,8 +221,6 @@ StringTable resource
 		{ String _name = "MapOverlaysResourceLabel";		String _text = "Item"; }
 		{ String _name = "MapOverlaysKindLabel";			String _text = "Show"; }
 		{ String _name = "MapOverlaysMonthsLabel";		String _text = "Months"; }
-		{ String _name = "MapOverlaysScaleLabel";		String _text = "Scale"; }
-		{ String _name = "MapOverlaysLegendLabel";		String _text = "Legend"; }
 		{ String _name = "MapOverlaysFine";				String _text = "Fine"; }
 		{ String _name = "MapOverlaysCoarse";			String _text = "Coarse"; }
 		{ String _name = "MapOverlaysLegendZero";		String _text = "0"; }
