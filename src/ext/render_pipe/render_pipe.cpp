@@ -117,6 +117,7 @@
 #include "ext/eye_camera/eye_camera.h"
 #include "ext/touch_pointer/touch_pointer.h"   // ToolAimHeld: the tool flag (P11b)
 #include "ext/show_grid/show_grid.h"   // the grid, drawn under the tool (step 11)
+#include "ext/map_overlays/map_overlays.h"   // the heat map, drawn under the grid (step 11)
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/ambient_occlusion/ambient_occlusion.h"   // AOCORE: the AO arm, recorded into the packet
 #include "options.h"
@@ -456,6 +457,10 @@ struct EngineOps {
         const char toolFlag = (hasInput || pauseCheck) ? 1 : 0;
         // ext.show_grid (docs/extensions/handins/SHOWGRID.md): GameUpdateLoop::Draw's same seam, under the
         // tool, with or without one. Row off: nothing.
+        // ext.map_overlays (docs/extensions/handins/MAPOVERLAYS.md): GameUpdateLoop::Draw's same seam, the heat
+        // map under the grid. Row off: one test.
+        if (Ext::MapOverlays::g_on)
+            Ext::MapOverlays::DrawOnTerrain(ctx);
         if (Ext::Ext().show_grid && Ext::ShowGrid::Shown())
             Ext::ShowGrid::Draw(ctx);
         if (tool != nullptr) tool->Draw(ctx, toolFlag);
