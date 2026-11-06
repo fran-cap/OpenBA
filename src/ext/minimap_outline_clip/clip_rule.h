@@ -13,8 +13,25 @@
 // ============================================================================
 #pragma once
 
+#include <cmath>
+
 namespace Ext {
 namespace MinimapOutlineClip {
+
+// The rect the sprite cull keeps a line's endpoints in, in the element's own units (origin `ex`, `ey`), whole
+// units only: SpriteContext::SetScissor stores the scissor divided by the UI scale and truncated, and
+// AddSpriteDraw tests the endpoints against it multiplied back (retail 0x18011c92f..0x18011c9a1). At a UI
+// scale that does not divide the window's position exactly (0.37: 489 -> 1321 -> 488.77, 681 -> 680.43) that
+// rect is up to one unit inside the element's, so a side clipped to the element's right or bottom edge as
+// its FIRST endpoint (x1 > right) was still culled whole. The window's position moves with the layout (the
+// overlay views' controls widen it), which is why one view lost the side and another kept it.
+inline void CullRect(int scissorX, int scissorY, int scissorW, int scissorH, float scale, int ex, int ey,
+                     float& left, float& top, float& right, float& bottom) {
+    left = std::ceil(static_cast<float>(scissorX) * scale) - static_cast<float>(ex);
+    top = std::ceil(static_cast<float>(scissorY) * scale) - static_cast<float>(ey);
+    right = std::floor(static_cast<float>(scissorX + scissorW) * scale) - static_cast<float>(ex);
+    bottom = std::floor(static_cast<float>(scissorY + scissorH) * scale) - static_cast<float>(ey);
+}
 
 // Clips the segment (x0, y0) - (x1, y1) to [left, right] x [top, bottom] in place. False when no part of it
 // is inside (the endpoints are then unchanged).

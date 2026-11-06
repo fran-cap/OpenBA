@@ -191,13 +191,19 @@ void FrustumOutlineElement::Draw(UI::SpriteContext& context, uint8_t alpha) cons
     // AddLines in the other arm.
     if (::Ext::Fix().minimap_outline_clip) {
         static const int kSides[4][2] = { { 0, 1 }, { 1, 3 }, { 2, 3 }, { 2, 0 } };
+        // the rect the cull reads after the scissor's scale round trip, not the element's own
+        float left = 0.0f;
+        float top = 0.0f;
+        float right = 0.0f;
+        float bottom = 0.0f;
+        ::Ext::MinimapOutlineClip::CullRect(sc->_scissorX, sc->_scissorY, sc->_scissorW, sc->_scissorH, sc->_scale,
+                                            ex, ey, left, top, right, bottom);
         for (const auto& side : kSides) {
             float x0 = pts[side[0] * 3 + 0];
             float y0 = pts[side[0] * 3 + 1];
             float x1 = pts[side[1] * 3 + 0];
             float y1 = pts[side[1] * 3 + 1];
-            if (::Ext::MinimapOutlineClip::ClipSegment(x0, y0, x1, y1, 0.0f, 0.0f, (float)width,
-                                                      (float)height)) {
+            if (::Ext::MinimapOutlineClip::ClipSegment(x0, y0, x1, y1, left, top, right, bottom)) {
                 sc->AddLine(_lineSprite, (int)x0 + ex, (int)y0 + ey, (int)x1 + ex, (int)y1 + ey, color);
             }
         }
