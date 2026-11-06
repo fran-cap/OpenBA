@@ -133,6 +133,19 @@ void VertexOut(const NgRewrite::TreeTerms& t, float months, bool stamped, float 
     out[3] = cov;
 }
 
+bool CanBloom(float months, bool stamped, float z) {
+    // decode z as VertexOut (the shader's order)
+    const float q   = std::floor(z * (1.0f / 64.0f));
+    const float rem = q * -64.0f + z;
+    const float s   = std::floor(rem * (1.0f / 16.0f));
+    const float pk1 = s * -16.0f + rem;   // peak + 1
+    if (!stamped || pk1 < 0.5f) return false;
+    // the draw's distance from the peak with no tree offset, wrapped to [-6, 6)
+    float x = months - pk1;
+    x = Frc(x * (1.0f / 12.0f) + 7.0f / 12.0f) * 12.0f - 6.0f;
+    return std::fabs(x) < kHalfWidth + kJitter + 2.0f * kGroveShift + kBloomMargin;
+}
+
 namespace {
 
 // One layer's blob at (u, v): its mask and its brightness (EmitBloomLayer's arithmetic).

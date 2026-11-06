@@ -57,6 +57,7 @@ namespace {
 using LeafFall::Vertex;
 
 constexpr int   kScanSlices  = 16;      // the whole map in 16 frames
+constexpr float kScanFrom    = 5.8f;    // months: the scan starts this far ahead of the autumn (LeavesFrame)
 constexpr float kRadius      = 45.0f;   // trees dropping leaves: within this of where the camera looks
 constexpr float kMaxHeight   = 110.0f;  // above this over the ground the leaves are sub-pixel: none drop
 constexpr float kBound       = 1024.0f; // WeatherParticleGeometry's bounds
@@ -300,7 +301,11 @@ void LeavesFrame(GameUpdateLoop& game) {
         return;
     }
     const float months = game.m_dayCounter->yearTime.AsSeconds() / 300.0f;   // NgRewrite::kMonthSeconds
-    ScanSlice(game.m_game);
+    // The map scan only runs from just before the autumn (issue #253: outside it the slice cost a
+    // FindComponent per occupied cell every frame for leaves nobody draws). Its kScanSlices frames
+    // finish long before month 6.0, so the tree list the autumn reads is the one it read before.
+    if (months >= kScanFrom && months <= 9.5f) ScanSlice(game.m_game);
+    else if (game.m_game != g.map) ScanSlice(game.m_game);   // a new map still clears the old one's trees
     // nothing to do outside the autumn (the first tree starts at fallStart - autumnSpread * 0.8): the
     // geometry leaves the scene, so the rest of the year draws exactly as without the part
     if (months < 6.0f || months > 9.5f) {

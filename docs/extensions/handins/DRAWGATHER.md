@@ -118,6 +118,7 @@ picture; the game itself plays exactly the same." Field `Ext::Extensions::draw_g
 |---|---|---|
 | `DrawGather` | every gather also runs the same walk with retail's per-object reads (`RetailTest`: flags, detail, box from the Geometry, retail's order) into a scratch list and compares the two Geometry sequences: count and every element in order; detail = retail's count in the high 32 bits, the first differing index in the low. The dispatch is the same virtual call over the same sequence, so equal lists are equal draw items (record, sort key, transform, bones) | 0 |
 | `DrawGatherSide` | every record the gather trusts (valid) compared bit for bit with the live `_worldBounds`; detail = node id | 0 |
+| `DrawGatherFused` | issue #253: `DrawGather`'s check on a list that came out of a fused walk (section 10): the shadow group's at its gather, the main group's at the main gather that took it; a run where it counts 0 checks never fused | 0 |
 
 ## 5. The counter
 
@@ -209,3 +210,23 @@ Draw -6% in both towns, fps +5..+7%; sim columns unmoved. Above section 7's pred
 (the other 60% rejected from the side record alone), ~350-415 record refreshes per frame, 0 rebuilds.
 Shadows (COMPPROF=4, heavy): `DrawGather` 98,421 gathers / 0 mismatches (count and order of the visible
 list), `DrawGatherSide` 957,525,021 record checks / 0 mismatches. Class A, default OFF, live toggle.
+
+## 10. The fused walk (issue #253)
+
+`SunLight::AddDrawItems` gathers the shadow group (draw camera = draw group 0's, cull camera = the
+sun's, shader 1) inside the main group's globals loop; the main group's own gather follows. Both walk
+the same quadtree in the same pre-order, so `ExtCulledGather` walks them together at the shadow gather
+(`gather_walk.h` `FusedWalk` / `FusedParGather` on the gather_threads pool): a stack record carries
+both groups' masks and a live bit per group, each cell gets each live group's own tests, each object
+the box half of each live group's test from the one side record, and `FusedSplit` the live half
+(flags / detail) from one read of the Geometry. The shadow list is dispatched at once; the main list
+is kept and handed to the main gather when that gather's own `Frame` is the one the shadow gather
+built for it (`MainFrameFor`, compared by `SameWalk` on every input the walk reads) over the same
+scene, renderer, nesting depth and frame index, with no `Clean` and no invalidating add-log drain in
+between. Anything else walks as before; an untaken list is dropped at the end of pass 1
+(`Scene::_extDrawPass1End`, installed whenever the extension is). Each list is the one its own walk
+gives (unit test `ext_gather_threads_fused_walk_equals_two_walks`, against retail's reads, 0..3
+helpers), dispatched at the same point, so the draw items are unchanged. Part of `ext.draw_gather`
+(no switch of its own): the retail gather is the extension off. The counter line gains
+`fused walks/served/unused` per frame (expected 1 / 1 / 0 with the sun drawing its map, 0 / 0 / 0 on
+an `ext.staggered_passes` held frame).

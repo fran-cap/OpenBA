@@ -29,7 +29,9 @@
 #include "graphics/Geometry.h"
 #include "graphics/Light.h"
 #include "graphics/Scene.h"
+#include "graphics/pass_split.h"   // issue #253: the stress harness's per-group CPU split
 #include "graphics/skin_memo.h"
+#include "graphics/SunLight.h"   // ext.staggered_passes: SunLight::ExtShadowHoldEmit
 #include "video/Context.h"
 #include "video/Device.h"   // Video::RenderBuffer::width / height
 
@@ -55,6 +57,9 @@ void Pass1(Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float al
     if (r._sceneGroups._size > 0) {
         do {
             RendererSceneEntry* const e = r._sceneGroups._data + r._currentSceneGroup;
+            const int     splitSlot = PassSplit::P1Slot(e->_shader);   // issue #253 (counters only)
+            const int64_t splitT0   = PassSplit::Begin();
+            PassSplit::g_p1Group = splitT0 != 0 ? splitSlot : -1;
 
             r._shaderDetail = e->_shaderDetail;
             r._detailId     = e->_detailId;
@@ -85,6 +90,9 @@ void Pass1(Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float al
                 }
             }
 
+            PassSplit::End(splitSlot, splitT0);   // issue #253
+            PassSplit::g_p1Group = -1;
+
             ++r._currentSceneGroup;
             r._currentDrawGroup = nextGroup;
         } while (r._currentSceneGroup < r._sceneGroups._size);
@@ -95,8 +103,10 @@ void Pass1(Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float al
     if (Graphics::Scene::_extDrawPass1End != nullptr) Graphics::Scene::_extDrawPass1End();
 }
 
-void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao) {
+void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao, bool shadowHeld) {
     const SkinMemo::Scope skinMemoScope;   // fix 6: pass 2's memo, opened around pass 2 only
+    // ext.staggered_passes: the packet's "pass 1 held the sun map", for DrawShadowMap on this thread.
+    Graphics::SunLight::ExtShadowHoldEmit(shadowHeld);
 
     for (int64_t si = static_cast<int32_t>(r._sceneGroups._size) - 1; si >= 0; --si) {
         RendererSceneEntry* const e = r._sceneGroups._data + si;
@@ -105,11 +115,13 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao)
         context._dirty |= 0xc0;
         context._shaderDetail = e->_shaderDetail;
 
+        const int64_t shadowT0 = PassSplit::Begin();   // issue #253 (counters only)
         for (int32_t j = 0; j < e->_drawableIds._size; ++j) {
             const int32_t id = e->_drawableIds._data[j];
             RendererDrawable& d = r._drawables._data[id];
             d._object->DrawShadowMap(context, r, d._value, 1);
         }
+        PassSplit::End(PassSplit::kP2Shadow, shadowT0);
 
         context.SetRenderBuffer(e->_renderBuffer);
 
@@ -137,6 +149,7 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao)
 
         context.Clear(6, 0x1184d6u, 1.0f, 0);
 
+        const int64_t lightT0 = PassSplit::Begin();   // issue #253 (counters only)
         for (int32_t k = 0; k < 3; ++k) {
             for (int32_t j = 0; j < e->_drawableIds._size; ++j) {
                 const int32_t id = e->_drawableIds._data[j];
@@ -149,7 +162,9 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao)
                 e->_renderBuffer == context._defaultRenderBuffer)
                 Graphics::ExtAoAfterOpaque(context, *ao, *e);
         }
+        PassSplit::End(PassSplit::P2Slot(e->_shader), lightT0);
     }
+    Graphics::SunLight::ExtShadowHoldEmit(false);
 }
 
 }  // namespace RenderPipe

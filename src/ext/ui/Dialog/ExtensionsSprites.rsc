@@ -84,6 +84,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_item_priority";	String _source = "Sprite/Extensions/Entry_item_priority.png"; }
 		{ String _name = "ExtensionsEntry_family_tree";	String _source = "Sprite/Extensions/Entry_family_tree.png"; }
 		{ String _name = "ExtensionsEntry_terrain_edit";	String _source = "Sprite/Extensions/Entry_terrain_edit.png"; }
+		{ String _name = "ExtensionsEntry_staggered_passes";	String _source = "Sprite/Extensions/Entry_staggered_passes.png"; }
 		{ String _name = "ExtensionsGlyph_town_screenshot_view";	String _source = "Sprite/Extensions/Glyph_town_screenshot_view.png"; }
 		{ String _name = "ExtensionsGlyph_town_screenshot_take";	String _source = "Sprite/Extensions/Glyph_town_screenshot_take.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_raise";	String _source = "Sprite/Extensions/Glyph_terrain_raise.png"; }

@@ -622,10 +622,23 @@ void SunLight::DrawLight(Video::Context& context, Renderer& renderer,
 
 namespace Graphics {
 
+namespace {
+// NOT RETAIL (ext.staggered_passes): the emitting thread's "this frame holds the map".
+thread_local bool g_extShadowHoldEmit = false;
+}  // namespace
+
+void SunLight::ExtShadowHoldEmit(bool held) { g_extShadowHoldEmit = held; }
+
 void SunLight::DrawShadowMap(Video::Context& context, Renderer& renderer,
                              int a4, int a5) const {
     // THE WHOLE BODY IS BEHIND `renderer->_shaderDetail != 0` (+0x3c).
     if (renderer._shaderDetail == 0)
+        return;
+
+    // EXT SEAM (NOT RETAIL, issue #253): ext.staggered_passes holds the map this frame (its
+    // shadow group is empty): no clear, no redraw; DrawLight samples last frame's map with
+    // the sun camera it was rendered with (SunLight.h).
+    if (g_extShadowHoldEmit)
         return;
 
     context.SetRenderBuffer(_renderBuffer);          // inlined in retail

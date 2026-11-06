@@ -11,10 +11,15 @@
 // instance's own path and its textures' paths. The answer is kept per material instance, per thread (the
 // render pipe draws on its own thread), with the material and first texture it was computed from, so a
 // freed instance whose address is reused is recomputed. Each new name set is logged once to stderr.
+//
+// Issue #253: each Setup also tells the backend whether this draw can show any blossom (Blossom::CanBloom
+// on the code and the season stamp in gc.time.y); where it cannot, a backend may draw the billboard colour
+// copy made without the blossom, which draws the same pixels (FaaBackend::SetDrawBloom).
 // ============================================================================
 #include "ext/better_trees/better_trees.h"
 
 #include "better_trees/blossom.h"   // src/render/common/better_trees: the table, the packing (pure)
+#include "better_trees/foliage_aa_backend.h"   // src/render/common/better_trees: FaaBackend::SetDrawBloom
 #include "graphics/Material.h"
 #include "object/External.h"
 #include "video/Context.h"
@@ -94,6 +99,9 @@ void AfterSetup(const Graphics::MaterialInstance& mi, Video::Context& context) {
         it = codes.insert_or_assign(&mi, Compute(mi)).first;
     }
     const Code& c = it->second;
+    // Issue #253: the vertex copy's own stamp test and months (natural_growth.h THE DAY)
+    const float stamp = context._time.y;
+    FaaBackend::SetDrawBloom(Blossom::CanBloom(stamp - NgRewrite::kStampBase, stamp >= 0.5f, c.z));
     if (context._time.z == c.z && context._time.w == c.w) return;
     context._time.z = c.z;
     context._time.w = c.w;

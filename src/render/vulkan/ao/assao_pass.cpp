@@ -12,10 +12,13 @@
 //   ASSAO Draw              UpdateConstants(pass 0), PrepareDepths, GenerateSSAO (4 deinterleaved
 //                           passes, each a generate and its blurs), then the Apply: a pass on the main
 //                           colour (draw.cpp DrawAoBeginApply) multiplying the AO term into it
-//                           (blend colour ZERO / SRC_COLOR, alpha ZERO / SRC_ALPHA; no depth)
+//                           (blend colour ZERO / SRC_COLOR, alpha ZERO / SRC_ALPHA; depth test off).
+//                           Issue #253: when the bound target is the main one, that pass is the
+//                           Blended list's, with the main depth attached (LOAD) but never tested
 //   draw.cpp DrawAoEnd      the engine's cached command-buffer state is forgotten: its next draw
-//                           rebinds pipeline, sets, viewport, scissor and buffers, and begins its pass
-//                           with the main depth back in its attachment layout (LOAD)
+//                           rebinds pipeline, sets, viewport, scissor and buffers, and continues the
+//                           apply's pass (or begins its own with the main depth back in its attachment
+//                           layout, LOAD)
 // Each ASSAO step is ASSAODX11.cpp's, in its order: the same pixel shaders for the same quality levels,
 // the same targets (four half-size R16F depth chains with four mips, a full-size RGBA8 normals UAV, two
 // half-size RG8 ping-pong targets, a four-layer RG8 results array), the same samplers (point clamp,
@@ -464,6 +467,8 @@ struct PipelineShape {
     VkFormat formats[4] = {};
     uint32_t samples = 1;
     bool multiply = false;
+    VkFormat depth = VK_FORMAT_UNDEFINED;     // the apply in the main pass (draw.cpp DrawAoBeginApply)
+    VkFormat stencil = VK_FORMAT_UNDEFINED;
 };
 
 uint64_t ShapeKey(const PipelineShape& s) {
@@ -479,6 +484,8 @@ uint64_t ShapeKey(const PipelineShape& s) {
         mix(static_cast<uint64_t>(f));
     mix(s.samples);
     mix(s.multiply ? 1 : 0);
+    mix(static_cast<uint64_t>(s.depth));
+    mix(static_cast<uint64_t>(s.stencil));
     return h;
 }
 
@@ -567,6 +574,8 @@ VkPipeline PipelineFor(const PipelineShape& s) {
     auto ri = Make<VkPipelineRenderingCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO);
     ri.colorAttachmentCount = s.colorCount;
     ri.pColorAttachmentFormats = s.formats;
+    ri.depthAttachmentFormat = s.depth;
+    ri.stencilAttachmentFormat = s.stencil;
 
     auto pi = Make<VkGraphicsPipelineCreateInfo>(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
     pi.pNext = &ri;
@@ -745,6 +754,8 @@ struct DrawDesc {
     uint32_t samples = 1;
     bool multiply = false;
     bool mainPass = false;         // the apply: draw.cpp's pass on the main colour is already begun
+    VkFormat depth = VK_FORMAT_UNDEFINED;     // that pass's depth / stencil formats (none: VK_FORMAT_UNDEFINED)
+    VkFormat stencil = VK_FORMAT_UNDEFINED;
 };
 
 bool Draw(VkCommandBuffer cb, SlotState& slot, const DrawDesc& d) {
@@ -756,6 +767,8 @@ bool Draw(VkCommandBuffer cb, SlotState& slot, const DrawDesc& d) {
         shape.formats[i] = d.formats[i];
     shape.samples = d.samples;
     shape.multiply = d.multiply;
+    shape.depth = d.depth;
+    shape.stencil = d.stencil;
     const VkPipeline pipeline = PipelineFor(shape);
     if (!pipeline) return false;
 
@@ -836,6 +849,7 @@ bool Draw(VkCommandBuffer cb, SlotState& slot, const DrawDesc& d) {
         ri.colorAttachmentCount = d.colorCount;
         ri.pColorAttachments = colors;
         vkCmdBeginRendering(cb, &ri);
+        DrawNoteAoPass();
     }
     vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
     // The engine's Y flip (draw.cpp): a negative-height viewport keeps D3D's orientation.
@@ -859,6 +873,12 @@ VkRect2D Rect(uint32_t width, uint32_t height) {
     return VkRect2D{ { 0, 0 }, { width, height } };
 }
 
+// Issue #253: a single-sampled main depth (1x, or the tiler's MSAA, whose depth image holds sample 0)
+// is read by PrepareDepths straight through its sampled view. The 1x resolve is a plain Load copy
+// (ao_depth_resolve.hlsl PSResolveDepth1x) and R32F holds the D24 / D32 value exactly, so skipping it
+// changes no pixel; it saves a full-resolution pass, its barrier and its write on the phone.
+bool DirectDepth(const AoTargets& t) { return t.samples <= 1 || t.msrtss; }
+
 // ao_pass.cpp's DepthResolve::Run: sample 0 of the multisampled depth, or a 1x copy, into the R32F target.
 bool ResolveDepth(VkCommandBuffer cb, SlotState& slot, const AoTargets& t) {
     std::vector<VkImageMemoryBarrier2> barriers;
@@ -879,13 +899,15 @@ bool ResolveDepth(VkCommandBuffer cb, SlotState& slot, const AoTargets& t) {
     return Draw(cb, slot, d);
 }
 
-// ASSAODX11.cpp PrepareDepths with generateNormals (NormalSRV null).
-bool PrepareDepths(VkCommandBuffer cb, SlotState& slot, const Graphics::ExtAoFrame& f, VkDeviceSize constants) {
+// ASSAODX11.cpp PrepareDepths with generateNormals (NormalSRV null). `depth` is the R32F resolve, or
+// the main depth's own sampled view when that is already single-sampled (DirectDepth).
+bool PrepareDepths(VkCommandBuffer cb, SlotState& slot, const Graphics::ExtAoFrame& f, VkDeviceSize constants,
+                   VkImageView depth, bool resolved) {
     std::vector<VkImageMemoryBarrier2> barriers;
-    MoveAll(g.depthResolved, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
+    if (resolved) MoveAll(g.depthResolved, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
     MoveAll(g.normals, VK_IMAGE_LAYOUT_GENERAL, &barriers);
     DrawDesc d;
-    d.textures[0] = g.depthResolved.gpu.view;
+    d.textures[0] = depth;
     d.uav = g.normals.gpu.view;
     d.area = { g.halfWidth, g.halfHeight };
     d.viewportWidth = static_cast<float>(g.halfWidth);
@@ -1023,8 +1045,8 @@ bool Apply(SlotState& slot, const AoTargets& t, const Graphics::ExtAoFrame& f, V
     std::vector<VkImageMemoryBarrier2> barriers;
     MoveAll(g.results, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
     FlushBarriers(t.cb, &barriers);
-    if (!DrawAoBeginApply()) return false;
     DrawDesc d;
+    if (!DrawAoBeginApply(&d.depth, &d.stencil)) return false;
     d.mainPass = true;
     d.formats[0] = t.colorFormat;
     d.colorCount = 1;
@@ -1227,10 +1249,12 @@ void AfterOpaque(Video::Context& context, const Graphics::ExtAoFrame& frame, con
         ClearTargets(cb);
         g.requiresClear = false;
     }
-    bool ok = ResolveDepth(cb, slot, t);
+    const bool direct = DirectDepth(t);
+    bool ok = direct || ResolveDepth(cb, slot, t);
     // ASSAODX11.cpp Draw: UpdateConstants(pass 0), PrepareDepths, GenerateSSAO, Apply.
     const VkDeviceSize first = ok ? WriteConstants(slot, MakeConstants(projection, fogged, 0)) : ~0ull;
-    ok = ok && first != ~0ull && PrepareDepths(cb, slot, fogged, first);
+    ok = ok && first != ~0ull &&
+         PrepareDepths(cb, slot, fogged, first, direct ? t.depthView : g.depthResolved.gpu.view, !direct);
     const VkDeviceSize last = ok ? GenerateSsao(cb, slot, projection, fogged) : ~0ull;
     ok = ok && last != ~0ull && Apply(slot, t, fogged, last);
     if (!ok) LogOnce(2, "a step of the pass failed (logged above): this frame has no AO");

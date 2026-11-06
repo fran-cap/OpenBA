@@ -396,8 +396,8 @@ void DrawPanels(const Snapshot& s) {
         ImGui::Text("row %s, pass %s", s.rowRequested[RowIndex("ambient_occlusion")] ? "on" : "off",
                     s.aoEnabled ? "enabled" : "inactive");
         int tier = s.aoQuality;
-        const char* const kTiers[] = {"(0)", "1 Low", "2 Medium", "3 High"};
-        if (ImGui::SliderInt("quality (ext.ao_quality)", &tier, 1, 3, kTiers[tier >= 0 && tier <= 3 ? tier : 0]))
+        const char* const kTiers[] = {"(0)", "1 Low", "2 Medium", "3 High", "4 Lowest"};
+        if (ImGui::SliderInt("quality (ext.ao_quality)", &tier, 1, 4, kTiers[tier >= 0 && tier <= 4 ? tier : 0]))
             Queue(Act::Value, "ao_quality", tier);
         int strength = s.aoOpacity;
         if (ImGui::SliderInt("strength (ext.ao_opacity)", &strength, 0, 30)) Queue(Act::Value, "ao_opacity", strength);

@@ -80,13 +80,15 @@ UNIT_TEST(ext_registry_table_shape) {
         // fps_cap is class A but caps a desktop's game, retail's uncapped: OFF; the Android first run turns it on (P8).
         // touch_mode is class A but puts camera controls over a desktop's game: OFF; the Android first run turns it on.
         // touch_pointer is class A but takes a touch screen's fingers from the mouse: OFF; the Android first run turns it on.
+        // staggered_passes is class A but lets shadows and reflections trail by a frame: the player's call, OFF (issue #253).
         if (e.tier == Ext::Tier::Extension && std::strncmp(e.id, "unit_", 5) != 0)
             CHECK(e.defaultOn == (e.cls == Ext::Class::A && std::strcmp(e.id, "eye_camera") != 0 &&
                                   std::strcmp(e.id, "no_fog") != 0 && std::strcmp(e.id, "show_grid") != 0 &&
                                   std::strcmp(e.id, "fps_counter") != 0 &&
                                   std::strcmp(e.id, "texture_quality") != 0 &&
                                   std::strcmp(e.id, "phone_menu") != 0 && std::strcmp(e.id, "fps_cap") != 0 &&
-                                  std::strcmp(e.id, "touch_mode") != 0 && std::strcmp(e.id, "touch_pointer") != 0));
+                                  std::strcmp(e.id, "touch_mode") != 0 && std::strcmp(e.id, "touch_pointer") != 0 &&
+                                  std::strcmp(e.id, "staggered_passes") != 0));
     }
     CHECK(!Ext::ValidId("a.b"));
     CHECK(!Ext::ValidId("Abc"));

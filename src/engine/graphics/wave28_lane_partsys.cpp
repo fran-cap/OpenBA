@@ -146,6 +146,9 @@
 #include "graphics/ParticleInstance.h"
 // ENDGAME B.3.5 block E: the real `Graphics::SunLight` (and `Light`).
 #include "graphics/SunLight.h"
+#include "graphics/pass_split.h"   // issue #253: the stress harness's per-group CPU split
+#include "graphics/stagger_hold.h"   // ext.staggered_passes: the shadow hold (NOT RETAIL)
+#include "video/ImageBuffer.h"       // ext.staggered_passes: the map's Width() in the hold key
 #include "math/Math.h"
 #include "graphics/Camera.h"    // ENDGAME B.3.5 caller batch: Renderer, Camera
 #include "graphics/Scene.h"     // ENDGAME B.3.5 caller batch: Graphics::Scene
@@ -869,6 +872,31 @@ namespace Graphics {
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): ext.eye_camera's shadow-fit view (SunLight.h has the contract).
 const Camera* SunLight::_extShadowFitView = nullptr;
 
+// NOT RETAIL (ext.staggered_passes, graphics/stagger_hold.h): null = retail.
+const int32_t* SunLight::_extStaggerEvery = nullptr;
+
+namespace {
+
+// NOT RETAIL (ext.staggered_passes): the shadow map's last real render (main thread), the sun
+// camera it was rendered with, and whether the current Draw held it.
+StaggerHold::State g_shadowHold;
+alignas(Camera) unsigned char g_heldSunCameraBytes[sizeof(Camera)];
+bool g_shadowHeldThisDraw = false;
+// The view may move by this fraction of the shadow box's width before the map renders again
+// (0.5 %: the box is fitted to the view frustum, so the uncovered strip at its leading edge
+// stays a fraction of a percent of the box).
+constexpr float kShadowMoveFraction = 0.005f;
+
+const Camera& HeldSunCamera() { return *reinterpret_cast<const Camera*>(g_heldSunCameraBytes); }
+
+}  // namespace
+
+bool SunLight::ExtTakeShadowHeld() {
+    const bool held = g_shadowHeldThisDraw;
+    g_shadowHeldThisDraw = false;
+    return held;
+}
+
 namespace {
 
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): ext.eye_camera -- retail's GetSunCamera, fitted to
@@ -899,6 +927,9 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
     // the retail combo (a rebuild is requested when it differs).
     if (_extMaxShadowRes != nullptr) ExtSyncMaxShadowRes(false);   // record + log; never a raise here
 
+    // NOT RETAIL (issue #253, counters only): the shadow group's share of pass 1.
+    const int64_t splitT0 = PassSplit::Begin();
+
     // ENDGAME B.3.5 caller batch: all six by-name doors here are DEFINED members
     // today and every receiver is a real class in this body's own signature, so
     // all six are member calls and the six `using` typedefs above them are gone.
@@ -906,6 +937,45 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
     //   AddGlobalDrawItems / AddCulledDrawItems   -> Graphics::Scene
     //   GetSunCamera                              -> Graphics::SunLight, RETSLOT
     rendererRef.Graphics::Renderer::AddLight(this);
+
+    // EXT SEAM (NOT RETAIL, issue #253): ext.staggered_passes' shadow hold (SunLight.h). Only
+    // the group that draws the map (shaderDetail != 0: the main scene; the reflection's sun
+    // gathers no casters) and never for ext.eye_camera's view. A held frame opens the shadow
+    // group with the sun camera the map was rendered with, so DrawLight samples it with the
+    // matching matrix, and gathers nothing: DrawShadowMap keeps the map (ExtShadowHoldEmit).
+    StaggerHold::View now;
+    StaggerHold::Key key;
+    bool latch = false;
+    if (_extStaggerEvery != nullptr && rendererRef._shaderDetail != 0) {
+        const ::Graphics::Camera& view = rendererRef._drawGroups._data[0]._camera;
+        StaggerHold::FillView(now, &view._cameraToWorld, &view._projection);
+        key.a     = &sceneRef;
+        key.b     = _depthTarget;
+        key.c     = rendererRef._shaderDetail;
+        key.d     = (_depthTarget->Width() << 4) | (rendererRef._detailId & 0xf);
+        key.epoch = StaggerHold::Epoch();
+        // The box half-width is the sun frustum's side plane distance (GetSunCamera's `w`).
+        float halfWidth = HeldSunCamera()._frustum.planes[2].w;
+        if (halfWidth < 0.0f) halfWidth = -halfWidth;
+        const bool eyeDraw = _extShadowFitView != nullptr;
+        if (!eyeDraw && StaggerHold::ShouldHold(g_shadowHold, *_extStaggerEvery, StaggerHold::kShadowPhase,
+                                                rendererRef._frameIndex, key, now,
+                                                2.0f * halfWidth * kShadowMoveFraction)) {
+            g_shadowHeldThisDraw = true;
+            ++StaggerHold::g_counters.shadowHeld;
+            const int heldGroup = rendererRef.Graphics::Renderer::BeginDrawGroup(
+                _renderBuffer, view, HeldSunCamera(), 1, 1u);
+            rendererRef.Graphics::Renderer::EndDrawGroup(heldGroup);
+            PassSplit::EndSun(splitT0);   // issue #253: a held frame's (small) shadow share
+            return;
+        }
+        g_shadowHeldThisDraw = false;
+        ++StaggerHold::g_counters.shadowRendered;
+        if (eyeDraw)
+            g_shadowHold.valid = false;
+        else
+            latch = true;   // after the sun camera below is made
+    }
 
     // `GetSunCamera` is a HIDDEN-RETSLOT member (B5-12): the one 0xd8
     // `Graphics::Camera` retail reserves at RSP+0x30 is this local, built from
@@ -919,6 +989,13 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
             ? ExtShadowFitSunCamera(*this, rendererRef, *_extShadowFitView)
             : this->::Graphics::SunLight::GetSunCamera(rendererRef);
 
+    // EXT SEAM (NOT RETAIL, issue #253): ext.staggered_passes keeps the camera this map is
+    // rendered with, for the frames that hold it.
+    if (latch) {
+        new (g_heldSunCameraBytes) ::Graphics::Camera(sunCamera);
+        StaggerHold::Latch(g_shadowHold, rendererRef._frameIndex, key, now);
+    }
+
     // Draw group ZERO's camera (`renderer+0x10` data, +0x08).
     const ::Graphics::Camera& sceneCam = rendererRef._drawGroups._data[0]._camera;
     const int group = rendererRef.Graphics::Renderer::BeginDrawGroup(
@@ -931,6 +1008,7 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
     }
 
     rendererRef.Graphics::Renderer::EndDrawGroup(group);
+    PassSplit::EndSun(splitT0);   // issue #253
 }
 
 }  // namespace Graphics

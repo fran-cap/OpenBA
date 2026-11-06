@@ -101,7 +101,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
 
     const Dxbc::Program& p = m->prog;
     const size_t n = p.instrs.size();
-    int  lastReal = -1, rets = 0;
+    int  lastReal = -1, rets = 0, lastDiscard = -1;
     int  shadowIn = -1, shadowComp = -1, uvIn = -1;
     uint32_t uvSwz = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -115,6 +115,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
         if (IsFlowControl(in.opcode)) { Refuse(m, "flow control"); return; }
         // (extended opcode tokens -- the sample instructions' resource dim / return type -- are copied as they are)
         if (in.opcode == Op::Ret) ++rets;
+        if (in.opcode == Op::Discard) lastDiscard = static_cast<int>(i);
         lastReal = static_cast<int>(i);
         if (in.opcode == Op::SampleC || in.opcode == Op::SampleCLz) {
             m->candidate = true;
@@ -166,6 +167,24 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
         if (provided < 0) { Refuse(m, "no ISGN element for the shadow input"); return; }
         if ((provided & 0x8) == 0) { Refuse(m, "the vertex stage does not write the shadow input's w (ISGN)"); return; }
     }
+    // THE PLACEMENT (edge_dither.h): after the last discard when every read of S follows it, else right
+    // before the first read of S; a program without a discard keeps the block before its first instruction.
+    for (size_t i = 0; i < n && m->firstShadowRead < 0; ++i) {
+        const Dxbc::Instr& in = p.instrs[i];
+        if (in.isDecl) continue;
+        for (const Dxbc::Operand& o : in.operands) {
+            if (o.type == OT::Input && o.index[0] == static_cast<uint32_t>(shadowIn)) {
+                m->firstShadowRead = static_cast<int>(i);
+                break;
+            }
+        }
+    }
+    m->insertAt = m->firstInstr;
+    if (lastDiscard >= 0) {
+        m->insertAt = lastDiscard + 1;
+        if (m->firstShadowRead >= 0 && m->firstShadowRead < m->insertAt) m->insertAt = m->firstShadowRead;
+    }
+    m->lastDiscard = lastDiscard;
     m->shadowIn   = static_cast<uint32_t>(shadowIn);
     m->shadowComp = static_cast<uint32_t>(shadowComp);
     m->uvIn       = static_cast<uint32_t>(uvIn);
@@ -199,6 +218,12 @@ bool WidenInputSignature(Dxbc::Container& c, uint32_t reg) {
 
 }  // namespace
 
+const char* PlacementName(const Match& m) {
+    if (m.lastDiscard < 0) return "first instruction";
+    if (m.insertAt == m.lastDiscard + 1) return "after the discard";
+    return "before the first read of S";
+}
+
 bool Transform(const Match& m, std::vector<uint8_t>* out, const BbsRewrite::Params& k) {
     if (!m.matched) return false;
     namespace E = Dxbc::Enc;
@@ -226,7 +251,7 @@ bool Transform(const Match& m, std::vector<uint8_t>* out, const BbsRewrite::Para
             if (static_cast<int>(i) == m.dclIdx) t[at + 1] |= 0xFu << 4;   // dcl_input_ps vS.xyzw
             continue;
         }
-        if (static_cast<int>(i) == m.firstInstr) {
+        if (static_cast<int>(i) == m.insertAt) {
             ins(Op::Mov, [&] { E::TempDst(t, T, 0xF); InputSrc(t, S, XYZW); });
             ins(Op::Mul, [&] { E::TempDst(t, N, 3); InputSrc(t, U, m.uvSwizzle); E::Imm4(t, k.noiseScale, k.noiseScale, 0.0f, 0.0f); });
             ins(kRoundNi, [&] { E::TempDst(t, N, 3); E::TempSrc(t, N, XY); });

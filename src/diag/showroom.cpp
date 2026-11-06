@@ -51,6 +51,13 @@ constexpr float kWideYaw = 45.0f;
 constexpr float kWideFit = 0.9f;
 constexpr float kWideMargin = 18.0f;
 constexpr float kWideDistMax = 220.0f;
+// The forest's shot (screenshot sequence only): heading; the distance is the wide shot's rule.
+constexpr float kForestYaw = 45.0f;
+// The bench's heading when its line gives none.
+constexpr float kBenchYaw = 45.0f;
+// Bench frames before the forest centre's height is read off its tree's world box (Scene::Clean
+// has filled it in by then); the focus sits at height 0 until then.
+constexpr int kBenchHeightFrames = 30;
 // Bare ground kept around the bounding box of the placed buildings, in tiles.
 constexpr int kAreaMargin = 8;
 constexpr const char* kOutDir = "showroom";
@@ -74,8 +81,10 @@ struct Focus {
     float dist = 40.0f;
 };
 
-// One screenshot: which entry (kWide = the whole tree grid), from which heading, at which month.
+// One screenshot: which entry (kWide = the whole tree grid, kForest = the forest), from which
+// heading, at which month.
 constexpr int kWide = -1;
+constexpr int kForest = -2;
 struct Shot {
     int entry = kWide;
     int view = 0;
@@ -108,6 +117,12 @@ struct State {
     int areaY0 = 0;
     int areaX1 = 0;
     int areaY1 = 0;
+    ShowroomList::Forest forest;   // the forest line (forest.set false: none)
+    ShowroomList::Bench bench;     // the bench line (bench.set false: the screenshot sequence)
+    bool forestPlanted = false;    // at least one forest tree stands
+    Focus forestFocus;             // the forest's centre (z from forestBounds) and its shot distance
+    const float* forestBounds = nullptr;   // the world box of the tree nearest the centre
+    bool benchLogged = false;
 };
 
 State& S() {
@@ -147,8 +162,19 @@ void Load() {
         s.entries.push_back(e);
     }
     s.months = list.months;
-    std::fprintf(stderr, "[Showroom] list %s: %zu entries (%d trees), %zu months\n", file, s.entries.size(),
+    s.forest = list.forest;
+    s.bench = list.bench;
+    std::fprintf(stderr, "[Showroom] list %s: %zu entries (%d trees), %zu months", file, s.entries.size(),
                  trees, s.months.size());
+    if (s.forest.set) {
+        std::fprintf(stderr, ", forest %s %dx%d spacing %d", s.forest.species.c_str(), s.forest.columns,
+                     s.forest.rows, s.forest.spacing);
+    }
+    if (s.bench.set) {
+        const float yaw = s.bench.hasYaw ? s.bench.yaw : kBenchYaw;
+        std::fprintf(stderr, ", bench dist %.1f yaw %.1f%s", s.bench.dist, yaw, s.bench.sweep ? " sweep" : "");
+    }
+    std::fprintf(stderr, "\n");
 }
 
 // The file the retail grab will write next: <save dir>Screenshots\Screenshot<N>.bmp for
@@ -180,6 +206,9 @@ void MoveShot(const std::string& from) {
     const char* name = "wide";
     if (shot.entry == kWide) {
         std::snprintf(to, sizeof(to), "%s\\%swide_y%03d.bmp", kOutDir, prefix, (int)s.yaw);
+    } else if (shot.entry == kForest) {
+        name = "forest";
+        std::snprintf(to, sizeof(to), "%s\\%sforest_y%03d.bmp", kOutDir, prefix, (int)s.yaw);
     } else {
         name = s.entries[shot.entry].name.c_str();
         std::snprintf(to, sizeof(to), "%s\\%s%02d_%s_y%03d.bmp", kOutDir, prefix, shot.entry, name,
@@ -258,8 +287,20 @@ Focus FrameWide() {
     return f;
 }
 
+// The forest's centre: its height from the centre tree's world box once that is filled in (a box
+// still empty or absurd keeps height 0).
+Focus FrameForest() {
+    const State& s = S();
+    Focus f = s.forestFocus;
+    if (s.forestBounds) {
+        const float* b = s.forestBounds;
+        if (b[3] > b[0] && b[5] >= b[2] && b[2] > -1000.0f && b[5] < 1000.0f) f.z = b[2];
+    }
+    return f;
+}
+
 // Every shot, in order: per month (or once, when the list has none) each placed entry from
-// its headings, then the wide shot of the tree grid when a tree stands.
+// its headings, then the wide shot of the tree grid when a tree stands, then the forest.
 void BuildShots() {
     State& s = S();
     bool anyTree = false;
@@ -286,6 +327,11 @@ void BuildShots() {
             Shot wide = base;
             wide.entry = kWide;
             s.shots.push_back(wide);
+        }
+        if (s.forestPlanted) {
+            Shot forest = base;
+            forest.entry = kForest;
+            s.shots.push_back(forest);
         }
     }
     std::fprintf(stderr, "[Showroom] %zu shots over %zu month pass(es)\n", s.shots.size(), passes);
@@ -356,6 +402,14 @@ void NextShot() {
         Enter(Phase::Frame);
         return;
     }
+    if (shot.entry == kForest) {
+        s.yaw = kForestYaw;
+        s.focus = FrameForest();
+        std::fprintf(stderr, "[Showroom] framing forest yaw=%.0f focus=(%.1f,%.1f,%.1f) dist=%.1f\n", s.yaw,
+                     s.focus.x, s.focus.y, s.focus.z, s.focus.dist);
+        Enter(Phase::Frame);
+        return;
+    }
     const Entry& e = s.entries[shot.entry];
     s.yaw = kYaws[shot.view];
     s.focus = FrameFor(e);
@@ -369,11 +423,16 @@ void NextShot() {
     Enter(Phase::Frame);
 }
 
+// A bench line: the camera stays on the forest's centre; nothing pauses, shoots or quits.
+bool Bench() {
+    return S().bench.set;
+}
+
 }  // namespace
 
 extern "C" bool Showroom_Enabled() {
     Load();
-    return !S().entries.empty();
+    return !S().entries.empty() || S().forest.set;
 }
 
 extern "C" int Showroom_Count() {
@@ -433,14 +492,102 @@ extern "C" bool Showroom_InArea(int x, int y) {
     return s.hasArea && x >= s.areaX0 && x <= s.areaX1 && y >= s.areaY0 && y <= s.areaY1;
 }
 
+extern "C" bool Showroom_Forest(const char** species, int* columns, int* rows, int* spacing) {
+    Load();
+    const State& s = S();
+    if (!s.forest.set) return false;
+    *species = s.forest.species.c_str();
+    *columns = s.forest.columns;
+    *rows = s.forest.rows;
+    *spacing = s.forest.spacing;
+    return true;
+}
+
+extern "C" void Showroom_NoteForest(int x0, int y0, int x1, int y1, int mapDim, int columns, int rows,
+                                    int planted, const char* tally, const float* centreBounds) {
+    State& s = S();
+    const ShowroomList::Forest& want = s.forest;
+    if (planted <= 0) {
+        std::fprintf(stderr, "[Showroom] forest %s %dx%d spacing %d: NOT planted (%s)\n", want.species.c_str(),
+                     want.columns, want.rows, want.spacing, tally ? tally : "?");
+        return;
+    }
+    s.forestPlanted = true;
+    s.forestBounds = centreBounds;
+    // Tile centres in world units: world = cell + 0.5 - mapDim/2 (as Showroom_NotePlaced).
+    const float half = (float)(mapDim >> 1);
+    const float wx0 = (float)x0 + 0.5f - half;
+    const float wy0 = (float)y0 + 0.5f - half;
+    const float wx1 = (float)x1 + 0.5f - half;
+    const float wy1 = (float)y1 + 0.5f - half;
+    s.forestFocus.x = (wx0 + wx1) * 0.5f;
+    s.forestFocus.y = (wy0 + wy1) * 0.5f;
+    s.forestFocus.z = 0.0f;
+    const float dx = wx1 - wx0;
+    const float dy = wy1 - wy0;
+    float dist = kWideFit * std::sqrt(dx * dx + dy * dy) + kWideMargin;
+    if (dist < kDistMin) dist = kDistMin;
+    if (dist > kWideDistMax) dist = kWideDistMax;
+    s.forestFocus.dist = dist;
+    std::fprintf(stderr,
+                 "[Showroom] forest %s: planted %d of %dx%d (asked %dx%d) spacing %d [%s] tiles (%d,%d)-(%d,%d) "
+                 "centre world (%.1f,%.1f) bounds world (%.1f,%.1f)-(%.1f,%.1f)\n",
+                 want.species.c_str(), planted, columns, rows, want.columns, want.rows, want.spacing,
+                 tally ? tally : "", x0, y0, x1, y1, s.forestFocus.x, s.forestFocus.y, wx0, wy0, wx1, wy1);
+    // The scatter keeps the forest's rectangle and the margin around it bare.
+    const int ax0 = x0 - kAreaMargin;
+    const int ay0 = y0 - kAreaMargin;
+    const int ax1 = x1 + kAreaMargin;
+    const int ay1 = y1 + kAreaMargin;
+    if (!s.hasArea) {
+        s.hasArea = true;
+        s.areaX0 = ax0;
+        s.areaY0 = ay0;
+        s.areaX1 = ax1;
+        s.areaY1 = ay1;
+    } else {
+        s.areaX0 = ax0 < s.areaX0 ? ax0 : s.areaX0;
+        s.areaY0 = ay0 < s.areaY0 ? ay0 : s.areaY0;
+        s.areaX1 = ax1 > s.areaX1 ? ax1 : s.areaX1;
+        s.areaY1 = ay1 > s.areaY1 ? ay1 : s.areaY1;
+    }
+}
+
+extern "C" bool Showroom_BenchSweep() {
+    return Showroom_Enabled() && Bench() && S().bench.sweep && S().forestPlanted;
+}
+
 extern "C" bool Showroom_WantsPause() {
-    return Showroom_Enabled() && S().phase != Phase::Done;
+    return Showroom_Enabled() && !Bench() && S().phase != Phase::Done;
 }
 
 extern "C" bool Showroom_Tick() {
     if (!Showroom_Enabled()) return false;
     State& s = S();
     ++s.frame;
+    if (Bench()) {
+        // No shots and no end: one line once the forest's height can be read, then nothing.
+        // A month line sets the calendar once, there (the bench's season: a winter start
+        // draws the deciduous trees bare; at speed 1 a bench run stays inside that month).
+        if (!s.benchLogged && s.frame >= kBenchHeightFrames) {
+            s.benchLogged = true;
+            if (!s.months.empty()) {
+                SetMonth(s.months.front());
+                s.monthSet = true;
+                s.lastMonth = s.months.front();
+            }
+            if (!s.forestPlanted) {
+                std::fprintf(stderr, "[Showroom] bench: no forest stands, the camera is not pinned\n");
+            } else {
+                const Focus f = FrameForest();
+                std::fprintf(stderr,
+                             "[Showroom] bench focus=(%.1f,%.1f,%.1f) dist=%.1f yaw=%.1f%s (unpaused, no shots)\n", f.x,
+                             f.y, f.z, s.bench.dist, s.bench.hasYaw ? s.bench.yaw : kBenchYaw,
+                             s.bench.sweep ? " sweep" : "");
+            }
+        }
+        return false;
+    }
     const int inPhase = s.frame - s.phaseStart;
     switch (s.phase) {
     case Phase::Settle:
@@ -480,6 +627,16 @@ extern "C" bool Showroom_Tick() {
 extern "C" bool Showroom_CameraFocus(float* x, float* y, float* z, float* dist, float* yaw) {
     if (!Showroom_Enabled()) return false;
     const State& s = S();
+    if (Bench()) {
+        if (!s.forestPlanted) return false;
+        const Focus f = FrameForest();
+        *x = f.x;
+        *y = f.y;
+        *z = f.z;
+        *dist = s.bench.dist;
+        *yaw = s.bench.hasYaw ? s.bench.yaw : kBenchYaw;
+        return true;
+    }
     if (s.shot < 0 || s.phase == Phase::Settle || s.phase == Phase::Done) return false;
     *x = s.focus.x;
     *y = s.focus.y;

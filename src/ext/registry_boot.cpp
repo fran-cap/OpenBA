@@ -24,6 +24,7 @@
 #include "ext/menu_entry/menu_entry.h"             // ext.menu_entry: the mod scan and remount seams
 #include "ext/phone_menu/phone_menu.h"             // ext.phone_menu: the menu safe area and backdrop seam
 #include "ext/fps_cap/fps_cap.h"                     // ext.fps_cap: the frame limiter's settings cap
+#include "ext/staggered_passes/staggered_passes.h"   // ext.staggered_passes: the shadow / reflection hold seams
 #include "ext/fps_counter/fps_counter.h"             // ext.fps_counter: the frame limiter's game-frame seam
 #include "ext/touch_pointer/touch_pointer.h"         // ext.touch_pointer: the Input::Device::_extAfterUpdate seam
 #include "ext/decode_ahead/decode_ahead.h"       // ext.decode_ahead: the CompressedStream decode seam
@@ -187,6 +188,8 @@ void InitFromSettings() {
     Ext::PhoneMenu::KeepVSyncOnFixedSurface();
     // ext.fps_cap (class A, live): the frame limiter's settings cap (src/app/frame_limiter.h).
     Ext::FpsCap::Sync();
+    // ext.staggered_passes (class A, live): the SunLight / ReflectionImageBuffer hold seams (issue #253).
+    Ext::StaggeredPasses::Sync();
     // ext.fps_counter (class A, live): FrameLimiter::g_extGameFrame (src/app/frame_limiter.h).
     Ext::FpsCounter::Sync();
     // ext.touch_pointer (class A, live): the Input::Device::_extAfterUpdate seam (P11_TOUCH_POINTER.md).
@@ -311,6 +314,7 @@ bool SetAndRecord(const Entry& e, bool on) {
     Ext::AsyncGpuCreate::Sync();     // on / off: from the next load the loader opens
     Ext::FpsCap::Sync();             // on / off: the frame limiter's ceiling from the next frame
     Ext::FpsCounter::Sync();         // on: counting from the next game frame (sums reset); off: the seam cleared
+    Ext::StaggeredPasses::Sync();    // on / off: the hold seams set or cleared, every held target renders next frame
     // ext.max_shadow_res: the sun map is rebuilt through Device::settingsChanged, raised HERE (main thread,
     // between frames) so render_pipe runs the resize sequentially; see SunLight.h (FAA-MENU).
     if (changedNow && std::strcmp(e.id, "max_shadow_res") == 0) ::Graphics::SunLight::ExtRequestMaxShadowResSync();
@@ -335,6 +339,8 @@ int32_t SetValueAndRecord(const ValueKey& k, int64_t v) {
     if (::IO::Persistence* p = ::IO::Persistence::_singleton)
         p->Set(KeyPrefix(Tier::Extension), k.id, static_cast<int>(stored));   // "ext.<id>" = "%i"
     if (std::strcmp(k.id, "fps_cap_rate") == 0) Ext::FpsCap::Sync();   // live: the next frame's ceiling
+    // ext.staggered_passes_*: live (the seams read the value); a held target renders next frame.
+    if (std::strncmp(k.id, "staggered_passes_", 17) == 0) Ext::StaggeredPasses::Sync();
     std::fprintf(stderr, "[Ext] %s=%d\n", SettingsKey(k).c_str(), stored);
     return stored;
 }

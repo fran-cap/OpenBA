@@ -9,9 +9,16 @@
 //                               pear, plum, chestnut, pecan, walnut; matched case-insensitively)
 //   month <m>                   shoot every item at month m too
 //   months <m1> <m2> ...        the same for several months
+//   forest <species|mixed> <columns> <rows> <spacing>
+//                               a grid of fully grown trees, <spacing> tiles apart (1..6), up to
+//                               kForestMaxSide trees a side; mixed cycles oak, birch and pine
+//   bench <dist> [yaw] [sweep]  no screenshots: pin the camera on the forest's centre at <dist>
+//                               (and heading <yaw>, degrees) for the rest of the run, unpaused;
+//                               `sweep` moves it as BANISHED_CAMERA_PIN's ,sweep does
 // A month is a float: 0 is the start of Early Spring, one month is 300 s of year time, the year
 // is 12 months. Months are kept in list order (a repeat is kept too). A list with no month line
-// shoots once, at the time the new game starts with.
+// shoots once, at the time the new game starts with. One forest line and one bench line at most
+// (a second one is an error and is ignored).
 #pragma once
 
 #include <cstdlib>
@@ -26,9 +33,32 @@ struct Item {
     std::string name;      // building: "X"; tree: "tree_<species>" (logs and file names)
 };
 
+// The most trees a forest side may hold, and the spacing range in tiles.
+constexpr int kForestMaxSide = 200;
+constexpr int kForestMinSpacing = 1;
+constexpr int kForestMaxSpacing = 6;
+
+struct Forest {
+    bool set = false;
+    std::string species;   // lower case: "mixed", or one species ("oak")
+    int columns = 0;
+    int rows = 0;
+    int spacing = 0;       // tiles between neighbouring trees
+};
+
+struct Bench {
+    bool set = false;
+    float dist = 0.0f;
+    bool hasYaw = false;
+    float yaw = 0.0f;      // degrees
+    bool sweep = false;
+};
+
 struct List {
     std::vector<Item> items;
     std::vector<float> months;
+    Forest forest;
+    Bench bench;
     std::vector<std::string> errors;   // one per line that could not be read, with its number
 };
 
@@ -71,6 +101,87 @@ inline bool ParseMonth(const std::string& word, float* out) {
     return true;
 }
 
+// A whole integer word in [lo, hi].
+inline bool ParseInt(const std::string& word, int lo, int hi, int* out) {
+    if (word.empty()) return false;
+    const char* begin = word.c_str();
+    char* end = nullptr;
+    const long value = std::strtol(begin, &end, 10);
+    if (end == begin || *end != '\0') return false;
+    if (value < lo || value > hi) return false;
+    *out = static_cast<int>(value);
+    return true;
+}
+
+// A whole float word in [lo, hi].
+inline bool ParseFloat(const std::string& word, float lo, float hi, float* out) {
+    if (word.empty()) return false;
+    const char* begin = word.c_str();
+    char* end = nullptr;
+    const float value = std::strtof(begin, &end);
+    if (end == begin || *end != '\0') return false;
+    if (!(value >= lo) || !(value <= hi)) return false;
+    *out = value;
+    return true;
+}
+
+// "forest <species|mixed> <columns> <rows> <spacing>".
+inline void ParseForest(const std::vector<std::string>& words, const std::string& where, List* list) {
+    if (list->forest.set) {
+        list->errors.push_back(where + "a second 'forest' line");
+        return;
+    }
+    if (words.size() != 5) {
+        list->errors.push_back(where + "'forest' takes <species|mixed> <columns> <rows> <spacing>");
+        return;
+    }
+    Forest forest;
+    forest.species = Lower(words[1]);
+    if (!ParseInt(words[2], 1, kForestMaxSide, &forest.columns) ||
+        !ParseInt(words[3], 1, kForestMaxSide, &forest.rows)) {
+        list->errors.push_back(where + "forest columns and rows are 1.." + std::to_string(kForestMaxSide));
+        return;
+    }
+    if (!ParseInt(words[4], kForestMinSpacing, kForestMaxSpacing, &forest.spacing)) {
+        list->errors.push_back(where + "forest spacing is " + std::to_string(kForestMinSpacing) + ".." +
+                               std::to_string(kForestMaxSpacing) + " tiles");
+        return;
+    }
+    forest.set = true;
+    list->forest = forest;
+}
+
+// "bench <dist> [yaw] [sweep]".
+inline void ParseBench(const std::vector<std::string>& words, const std::string& where, List* list) {
+    if (list->bench.set) {
+        list->errors.push_back(where + "a second 'bench' line");
+        return;
+    }
+    std::vector<std::string> args(words.begin() + 1, words.end());
+    Bench bench;
+    if (!args.empty() && Lower(args.back()) == "sweep") {
+        bench.sweep = true;
+        args.pop_back();
+    }
+    if (args.empty() || args.size() > 2) {
+        list->errors.push_back(where + "'bench' takes <dist> [yaw] [sweep]");
+        return;
+    }
+    if (!ParseFloat(args[0], 1.0f, 1000.0f, &bench.dist)) {
+        list->errors.push_back(where + "bad bench distance '" + args[0] + "' (1..1000)");
+        return;
+    }
+    if (args.size() == 2) {
+        if (!ParseFloat(args[1], -3600.0f, 3600.0f, &bench.yaw)) {
+            list->errors.push_back(where + "bad bench yaw '" + args[1] + "'");
+            return;
+        }
+        bench.hasYaw = true;
+    }
+    bench.set = true;
+    list->bench = bench;
+}
+
 // Reads one line (lineNo for the error text) into `list`.
 inline void ParseLine(const std::string& raw, int lineNo, List* list) {
     std::string text = raw;
@@ -93,6 +204,14 @@ inline void ParseLine(const std::string& raw, int lineNo, List* list) {
         item.path = Lower(words[1]);
         item.name = "tree_" + item.path;
         list->items.push_back(item);
+        return;
+    }
+    if (keyword == "forest") {
+        ParseForest(words, where, list);
+        return;
+    }
+    if (keyword == "bench") {
+        ParseBench(words, where, list);
         return;
     }
     if (keyword == "month" || keyword == "months") {

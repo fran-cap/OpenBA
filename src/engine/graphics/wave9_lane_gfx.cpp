@@ -40,7 +40,7 @@
 #include "graphics/GeneratedImageBuffer.h"
 #include "graphics/Material.h"
 #include "graphics/Scene.h"
-#include "graphics/gather_prefetch.h"   // GATHERPF: g_gatherDrawItems (the COMPPROF gather row)
+#include "graphics/gather_prefetch.h"   // GATHERPF: g_gatherSlots (the COMPPROF gather row)
 #include "object/TypeInfo.h"          // Object::Base::IsDerivedFrom
 #include "system/MemoryAllocator.h"
 #include "video/ImageBuffer.h"     // B.4: Video::ImageBuffer::_kind
@@ -397,7 +397,9 @@ void Renderer::AddDrawItem(const Geometry* geometry, const MaterialInstance* mat
     Collection::Array<RendererDrawItem>* list = &group->_items[pass];
     const int32_t oldSize = list->_size;
     DrawItemArrayResize(list, oldSize + 1, &rec);
-    ++g_gatherDrawItems;   // GATHERPF (NOT RETAIL): the COMPPROF `gather` row's appended-item count
+    // GATHERPF (NOT RETAIL): the COMPPROF `gather` row's appended-item count, split by the
+    // group's shader (issue #253; `shader` is already >= 0 here)
+    ++g_gatherSlots[GatherShaderSlot(static_cast<int32_t>(shader))].drawItems;
 
     // The render-to-texture pre-pass. `_hasRenderedTexture` is +0x25, the byte
     // BuildParameters sets when any bound texture's +0x2c == 5. The entry's

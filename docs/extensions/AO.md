@@ -122,7 +122,8 @@ src/game/Dialog/               the menu work (shape decided by the spike, §6.3)
   past a far distance (`FadeOutFrom` / `FadeOutTo`). Buildings are a few units tall; start at
   ~0.5-1x a building's height at street level.
 - **Tiers**: Off / Low = ASSAO Low (6) / Medium = Medium (10) / High = High (24). Lowest (half-res, 3)
-  is the fallback if Low measures too dear on the stress town.
+  is the fallback if Low measures too dear on the stress town. Since issue #253 Lowest is a menu tier
+  for phones (Off / Lowest / Low / Medium / High), stored as `ext.ao_quality=4` so 1-3 keep their meaning.
 - **Settings**: `ext.ambient_occlusion` (the bool row, checkbox in the Extensions dialog as today)
   plus two VALUED keys, `ext.ao_quality` (1-3) and `ext.ao_opacity` (0-100), through a small generic
   "valued key" addition to the registry (the first one; do it once, properly: parse / clamp /

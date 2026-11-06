@@ -35,11 +35,24 @@
 //   - Known limit: the game is paused, so only what reads the calendar directly (the shader
 //     season stamp, the weather's season step) follows the month; snow build-up and fruit
 //     ripening are sim state and stay where the new game started.
+//
+// Forest and bench (issue #253, a repeatable "screen full of trees" GPU bench view):
+//   - "forest <species|mixed> <columns> <rows> <spacing>" plants a grid of fully grown trees
+//     through the same route as "tree" (world-gen's per-cell placement, so the forest is real
+//     game trees to every renderer path), a quarter map east of the town; the siting moves or
+//     shrinks the grid deterministically when it would cross water, buildings or the map edge.
+//     One "[Showroom] forest" line says what was planted; in the screenshot sequence the
+//     forest adds one shot per month pass, showroom/[m<month>_]forest_y045.bmp.
+//   - "bench <dist> [yaw] [sweep]" replaces the screenshot sequence: the game is not paused,
+//     no shot is taken and the showroom never ends the run; the camera stays on the forest's
+//     centre at <dist> for the whole run (with `sweep`, moving as BANISHED_CAMERA_PIN's
+//     ,sweep does). Run it under BANISHED_STRESS=1: the stress town builds as usual, its
+//     [Stress] windows and its quit after BANISHED_STRESS_FRAMES are the bench's clock.
 #pragma once
 
 extern "C" {
 
-bool        Showroom_Enabled();          // the flag is set and the list has entries
+bool        Showroom_Enabled();          // the flag is set and the list has entries or a forest
 int         Showroom_Count();
 const char* Showroom_Path(int index);    // "Template\X.rsc", or a tree's species ("oak")
 const char* Showroom_Name(int index);    // "X" / "tree_oak", for logs and file names
@@ -55,6 +68,20 @@ void Showroom_NotePlaced(int index, bool placed, int tileX, int tileY, int w, in
 // starttown.cpp's resource scatter: true for a cell inside the showroom rectangle (every
 // placed footprint plus its free ring), which the scatter leaves bare.
 bool Showroom_InArea(int x, int y);
+
+// The "forest" line: false when the list has none; otherwise its species ("mixed" or one
+// species, lower case), grid and spacing in tiles.
+bool Showroom_Forest(const char** species, int* columns, int* rows, int* spacing);
+
+// starttown.cpp, once after planting the forest: its tile bounds (inclusive), the grid it
+// planted, how many trees stand, the species tally text for the log, and the world box of the
+// tree nearest the centre (as for Showroom_NotePlaced; null when none stands). Extends the bare
+// rectangle over the forest and logs the "[Showroom] forest" line.
+void Showroom_NoteForest(int x0, int y0, int x1, int y1, int mapDim, int columns, int rows, int planted,
+                         const char* tally, const float* centreBounds);
+
+// camera_input.cpp: a "bench ... sweep" line moves the pinned camera around the forest.
+bool Showroom_BenchSweep();
 
 // GameUpdateLoop::Update, once per frame: drives the sequence. Returns true on the frame
 // a screenshot should be requested (the caller raises the TakeScreenshot request bit).

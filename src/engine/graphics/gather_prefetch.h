@@ -74,10 +74,39 @@ inline constexpr bool kDispatchMaterials = true;
 }  // namespace Graphics
 
 // ---- the counters (cull.cpp; COMPPROF >= 1 prints them as the `gather` row) --
-// Main thread only, reset by the harness per window. `visible` is added once per
-// call; draw items once per append in AddDrawItem. (The per-cell and per-ring-object
-// counts were removed by CLEANUP: a memory add per ring object in the walk; their
-// numbers are in GATHERPF.md's Results.)
-extern uint64_t g_gatherVisible;      // visible-list entries dispatched (slot 3 calls)
-extern uint64_t g_gatherDrawItems;    // draw items appended to the current group's three
-                                      // pass lists during the dispatch phase
+// Reset by the harness per window. `visible` is added once per call; draw items once
+// per append in AddDrawItem. (The per-cell and per-ring-object counts were removed by
+// CLEANUP: a memory add per ring object in the walk; their numbers are in GATHERPF.md's
+// Results.)
+//
+// Issue #253: every counter is split by the current draw group's `_shader` (the slot
+// GatherShaderSlot picks: 0 main, 1 shadow, 2 reflection, 3 any other value), so the
+// report can tell the scene groups apart. The report sums the slots for the totals.
+// A slot is written by one thread at a time: the main thread, except during
+// ext.gather_threads' fused dispatch (src/ext/draw_gather/dispatch_par.h), where the
+// shadow group's slot and the main group's slot (never the same slot) are each written
+// by the one task that dispatches that group. Each slot has a cache line of its own
+// (128 bytes, Apple's line size), so those two tasks never write the same line.
+constexpr int kGatherShaderSlots = 4;
+
+inline int GatherShaderSlot(int32_t shader) {
+    return (shader >= 0 && shader < kGatherShaderSlots - 1) ? static_cast<int>(shader) : kGatherShaderSlots - 1;
+}
+
+// Issue #253: MeshInstance::AddDrawItems' LOD pick (mesh.cpp), bumped once per call.
+// `lodMulti` = calls whose mesh has more than one detail level; `lodFallback` = those whose
+// level loop found no level (past the last switch distance), so retail draws level 0;
+// `lodLevelItems` = triangle lists queued per chosen level (index 3 = level 3 and up).
+constexpr int kLodLevelSlots = 4;
+
+struct alignas(128) GatherSlotCounters {
+    uint64_t visible;                         // visible-list entries dispatched (slot 3 calls)
+    uint64_t drawItems;                       // draw items appended to the current group's three
+                                              // pass lists during the dispatch phase
+    uint64_t lodMulti;
+    uint64_t lodFallback;
+    uint64_t lodLevelItems[kLodLevelSlots];
+};
+static_assert(sizeof(GatherSlotCounters) == 128, "one slot per 128-byte line");
+
+extern GatherSlotCounters g_gatherSlots[kGatherShaderSlots];

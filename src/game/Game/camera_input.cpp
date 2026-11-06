@@ -372,7 +372,7 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
         }
     }
     // BANISHED_SHOWROOM (src/diag/showroom.h): the pin follows the showroom's shot sequence,
-    // one placed building at a time.
+    // one placed building at a time, or stays on the forest under a bench line.
     {
         float focusX = 0.0f;
         float focusY = 0.0f;
@@ -387,6 +387,9 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
             s_pinDist = focusDist;
             s_pinYaw = focusYaw;
             s_pinHasYaw = true;
+            // A "bench ... sweep" line moves the camera around the forest centre as ,sweep does.
+            if (Showroom_BenchSweep())
+                s_sweep = true;
         }
     }
     if (s_pin) {

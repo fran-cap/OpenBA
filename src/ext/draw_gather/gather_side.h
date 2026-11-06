@@ -30,6 +30,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "graphics/gather_prefetch.h"   // issue #253: kGatherShaderSlots (the per-shader split)
+
 namespace Ext {
 namespace DrawGather {
 
@@ -130,6 +132,7 @@ struct Counters {
     uint64_t gathers      = 0;   // replaced AddCulledDrawItems calls
     uint64_t nodesTested  = 0;   // grid nodes visited in surviving cells (records read)
     uint64_t visible      = 0;   // pushed onto the visible list (= AddDrawItems dispatches)
+    uint64_t visibleByShader[kGatherShaderSlots] = {};   // issue #253: `visible` by the group's shader
     uint64_t geoTouched   = 0;   // nodes whose Geometry the walk had to read (live flags / refresh)
     uint64_t refreshes    = 0;   // per-node full record refreshes (gather or Clean)
     uint64_t cleans       = 0;   // replaced Scene::Clean calls
@@ -142,6 +145,16 @@ struct Counters {
     uint64_t parWaitTicks = 0;   // the main thread's join wait, QPC ticks (sum over passes)
     uint64_t parWakes     = 0;   // pool wakes (one per frame that gathered)
     uint64_t parSideGrew  = 0;   // passes whose side array changed size during the walk (must stay 0)
+    // FUSED (issue #253): the shadow group's walk that also walked the main group's.
+    uint64_t fusedWalks   = 0;   // shadow gathers that walked both groups in one traversal
+    uint64_t fusedServed  = 0;   // main gathers handed that walk's list (no walk of their own)
+    uint64_t fusedUnused  = 0;   // fused lists dropped unused (pass 1 ended, or a newer fused walk)
+    // DISPATCHPAR (issue #253, ext.gather_threads): the fused gather's two dispatches on the pool.
+    uint64_t dispatchPar       = 0;   // fused gathers whose two dispatches ran as pool tasks
+    uint64_t dispatchHelper    = 0;   // ... tasks a helper ran (of two per gather)
+    uint64_t dispatchWaitTicks = 0;   // the main thread's join wait, QPC ticks
+    uint64_t dispatchCuts      = 0;   // list entries the tasks left to the main thread (not ParSafe)
+    uint64_t dispatchStale     = 0;   // main gathers that found the copied renderer state changed (must stay 0)
 };
 
 }  // namespace DrawGather

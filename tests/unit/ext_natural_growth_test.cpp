@@ -949,3 +949,146 @@ UNIT_TEST(ext_blossom_pixel_match_and_meaning) {
     CHECK(prev > 0.99f);
     CHECK(worstStep <= Blossom::kShare * Blossom::kFade / 100.0f + 1e-4f);
 }
+
+// ---- issue #253: the billboard colour copy without the blossom ------------------------------------
+namespace {
+
+bool SameBits(float a, float b) {
+    uint32_t x, y;
+    std::memcpy(&x, &a, 4);
+    std::memcpy(&y, &b, 4);
+    return x == y;
+}
+
+}  // namespace
+
+UNIT_TEST(ext_blossom_can_bloom_window) {
+    // Wherever CanBloom is false, no tree of the draw flowers: cov is exactly 0, so the pixel terms are
+    // l' == l (bit for bit) and k == 0. Every species, the whole year, a spread of trees.
+    const float uvs[3][2] = {{0.31f, 0.47f}, {0.52f, 0.13f}, {0.88f, 0.71f}};
+    for (const char* n : {"x|plum", "x|cherry", "x|peach", "x|pear", "x|apple", "x|birch", "x|oak", "x|pecan",
+                          "x|walnut", "x|chestnut"}) {
+        const Blossom::Species sp = Named(n);
+        float z, w;
+        Blossom::Pack(sp, &z, &w);
+        int closed = 0, open = 0, flowered = 0;
+        for (int step = 0; step < 1200; ++step) {
+            const float months = static_cast<float>(step) * 0.01f;
+            const bool can = Blossom::CanBloom(months, true, z);
+            if (can) {
+                ++open;
+            } else {
+                ++closed;
+            }
+            for (int i = 0; i < 48; ++i) {
+                const float x = 37.0f * static_cast<float>(i % 8) + 1013.0f * static_cast<float>(i / 8);
+                const float y = 71.0f * static_cast<float>(i / 8) + 7.5f * static_cast<float>(i);
+                float n2[4];
+                Blossom::VertexOut(NgRewrite::TermsOf(x, y), months, true, z, w, n2);
+                if (n2[3] != 0.0f) ++flowered;
+                if (can) continue;
+                CHECK(n2[3] == 0.0f);
+                for (const auto& uv : uvs) {
+                    for (float l : {0.0f, 0.37f, 1.0f}) {
+                        for (float aa : {0.0f, 0.6f, 1.0f}) {
+                            const Blossom::PixelTerms p = Blossom::Pixel(uv[0], uv[1], n2, l, 1.0f, aa);
+                            CHECK(SameBits(p.lossCut, l));
+                            CHECK(p.amount == 0.0f);
+                        }
+                    }
+                }
+            }
+        }
+        CHECK(flowered > 0);              // the window is not empty ...
+        CHECK(closed > 1200 * 85 / 100);  // ... and closed for most of the year (2 * 0.551 months of 12)
+        CHECK(open > 0);
+    }
+    // no code, no stamp: closed
+    CHECK(!Blossom::CanBloom(1.0f, true, 0.0f));
+    const Blossom::Species plum = Named("x|plum");
+    float z, w;
+    Blossom::Pack(plum, &z, &w);
+    CHECK(!Blossom::CanBloom(plum.peak + 1.0f, false, z));
+}
+
+UNIT_TEST(ext_blossom_no_bloom_variant_identical) {
+    const std::vector<uint8_t> blob = PixelBlob(PsShape::Colour);
+    const NgRewrite::Match m = Analyse(blob);
+    CHECK(m.kind == NgRewrite::Kind::BillboardColour);
+    std::vector<uint8_t> full, lean;
+    CHECK(NgRewrite::Transform(m, &full));
+    CHECK(NgRewrite::Transform(m, &lean, NgRewrite::kCurves, false));   // self-checked like the full one
+    CHECK(lean.size() < full.size());
+    // the same interface: both new inputs declared, so it pairs with the same vertex copy
+    for (uint32_t reg : {3u, 4u}) {
+        const SigOut a = SigAt(full, Dxbc::FourCC('I', 'S', 'G', 'N'), reg);
+        const SigOut b = SigAt(lean, Dxbc::FourCC('I', 'S', 'G', 'N'), reg);
+        CHECK(a.mask == 0xF && a.mask == b.mask && a.rw == b.rw && a.semIx == b.semIx && a.name == b.name);
+    }
+    // the variant on every other kind is the full copy (bloom is a billboard colour pixel term only)
+    {
+        const NgRewrite::Match fm = Analyse(PixelBlob(PsShape::Foliage));
+        std::vector<uint8_t> a, b;
+        CHECK(NgRewrite::Transform(fm, &a));
+        CHECK(NgRewrite::Transform(fm, &b, NgRewrite::kCurves, false));
+        CHECK(a == b);
+    }
+    // cov 0 (no tree of the draw flowers): the two copies give the same bits, colour and alpha
+    const float covs[2] = {0.0f, -0.0f};   // a catkin species' 0 is negative
+    int runs = 0;
+    for (float cov : covs) {
+        for (int i = 0; i < 64; ++i) {
+            const float u = 0.02f + 0.96f * static_cast<float>(i % 8) / 8.0f;
+            const float v = 0.03f + 0.95f * static_cast<float>(i / 8) / 8.0f;
+            for (float l : {0.0f, 0.35f, 1.0f}) {
+                for (float move : {1.0f, 0.4f, 0.0f}) {
+                    for (float deriv : {0.0f, 0.1f, 0.5f}) {
+                        const float leaf[4] = {u, v, 0.15f, 0.9f};   // the stand-in sample returns its coordinates
+                        Vm a;
+                        std::memcpy(a.v[1], leaf, sizeof leaf);
+                        a.v[2][3] = move;
+                        a.v[3][0] = 0.4f;   // c
+                        a.v[3][1] = l;
+                        a.v[3][2] = 0.7f;   // hue
+                        a.v[3][3] = -0.3f;  // t
+                        a.v[4][0] = 0.96f;
+                        a.v[4][1] = 0.90f;
+                        a.v[4][2] = 0.92f;
+                        a.v[4][3] = cov;
+                        a.deriv = deriv;
+                        Vm b = a;
+                        CHECK(Run(a, full));
+                        CHECK(Run(b, lean));
+                        CHECK(SameBits(a.r[2][0], b.r[2][0]));   // the alpha before the cut
+                        for (int c = 0; c < 4; ++c) CHECK(SameBits(a.o[0][c], b.o[0][c]));
+                        ++runs;
+                    }
+                }
+            }
+        }
+    }
+    CHECK(runs == 2 * 64 * 27);
+    // in flower the full copy differs (the variant is only for draws CanBloom rules out)
+    {
+        Vm a;
+        const float leaf[4] = {0.5f, 0.5f, 0.15f, 0.9f};
+        std::memcpy(a.v[1], leaf, sizeof leaf);
+        a.v[2][3] = 1.0f;
+        a.v[3][1] = 1.0f;
+        a.v[4][0] = 0.96f;
+        a.v[4][1] = 0.90f;
+        a.v[4][2] = 0.92f;
+        a.v[4][3] = 0.8f;
+        int differ = 0;
+        for (int i = 0; i < 256; ++i) {
+            Vm x = a;
+            x.v[1][0] = static_cast<float>(i % 16) / 16.0f;
+            x.v[1][1] = static_cast<float>(i / 16) / 16.0f;
+            Vm y = x;
+            CHECK(Run(x, full));
+            CHECK(Run(y, lean));
+            if (!SameBits(x.r[2][0], y.r[2][0])) ++differ;
+        }
+        CHECK(differ > 0);
+    }
+}

@@ -254,10 +254,11 @@ Program& Build(State& s, PixelProgramData* p) {
                     std::snprintf(key, sizeof key, "d%u:", s.gen);
                     if (s.loggedHashes.insert(key + hash).second)
                         std::fprintf(stderr, "[FoliageAA] dithered %s v%d gen %u: %zu B -> %zu B (shadow v%u.%c, uv v%u, "
-                                             "noise %.2f scale %.0f%s)\n",
+                                             "noise %.2f scale %.0f%s, block at %d: %s)\n",
                                      hash.c_str(), i, s.gen, before, curSize, dm.shadowIn, "xyzw"[dm.shadowComp & 3],
                                      dm.uvIn, static_cast<double>(s.dither.noise),
-                                     static_cast<double>(s.dither.noiseScale), cut.empty() ? "" : ", after the cutout");
+                                     static_cast<double>(s.dither.noiseScale), cut.empty() ? "" : ", after the cutout",
+                                     dm.insertAt, BbsDither::PlacementName(dm));
                 } else {
                     ++s.createFailed;
                     std::fprintf(stderr, "[FoliageAA] dither of %s v%d FAILED its self-check: kept the cutout / retail\n",
@@ -483,6 +484,12 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
     std::fprintf(stderr, "[FoliageAA] request mode %d k %.3f floor %.3f dither %.2f/%.0f natural growth %d (gen %u)%s\n",
                  mode, static_cast<double>(fillK), static_cast<double>(fillFloor), static_cast<double>(d.noise),
                  static_cast<double>(d.noiseScale), naturalGrowth ? 1 : 0, s.reqGen, mode > 0 ? ": seam set" : (seamWasSet ? ": off at the next pixel bind" : ""));
+}
+
+// Issue #253: DX11 keeps the billboard colour copy with the blossom on every draw (no copy without it is
+// made here), which draws the same pixels: the hint is ignored.
+void SetDrawBloom(bool bloom) {
+    (void)bloom;
 }
 
 #if BANISHED_TWEAK_OVERLAY

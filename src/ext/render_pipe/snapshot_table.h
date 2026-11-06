@@ -9,6 +9,8 @@
 //                   generation (the builder's geometries and instanced states)
 //   WorldItemCopied which WorldGeometry draw items go to the arena copy: the decal / road
 //                   modes; every other mode keeps the live object (P13_OVERLAP 2.2)
+//   LastEntry       the lean builder's previous-item entry (issue #253): an item at the same
+//                   geometry takes it without a table probe
 // ============================================================================
 #pragma once
 
@@ -73,6 +75,12 @@ public:
         }
     }
     size_t Capacity() const { return _slots.size(); }
+    // A hint (issue #253): the line `key`'s probe starts on. always_inline: GCC classes an
+    // out-of-line helper whose only effect is a prefetch as pure and deletes its call (cull.cpp).
+    [[gnu::always_inline]] inline void Prefetch(const void* key) const {
+        if (_slots.empty()) return;
+        __builtin_prefetch(&_slots[Mix(key) & (_slots.size() - 1)]);
+    }
 
 private:
     // Twice the slots, this generation's keys placed again (the others dropped).
@@ -100,6 +108,25 @@ private:
     std::vector<Slot> _slots;
     uint32_t          _gen   = 0;
     size_t            _count = 0;   // keys of this generation
+};
+
+// Issue #253: the lean builder's route for one draw item, recorded in pass A and replayed by
+// pass C in the same walk order (no second table probe). kKeepLive: the item keeps its live
+// geometry (a WorldGeometry mode other than decal / road).
+constexpr int32_t kKeepLive = -1;
+
+// The entry of the item walked last, when the next item may reuse it without a probe: only an
+// entry pass A would take as it stands (not the WorldGeometry, whose items each mark a batch).
+struct LastEntry {
+    const void* key   = nullptr;
+    int32_t     index = kKeepLive;
+
+    bool Hit(const void* k) const { return k != nullptr && k == key; }
+    void Set(const void* k, int32_t i) {
+        key   = k;
+        index = i;
+    }
+    void Clear() { Set(nullptr, kKeepLive); }
 };
 
 }  // namespace RenderPipe

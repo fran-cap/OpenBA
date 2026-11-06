@@ -22,6 +22,10 @@
 // any helper count and any timing. Tasks run on the helpers and on the main thread
 // (HelperPool); each has a private stack, output vector and counters, summed after
 // the join.
+//
+// THE FUSED WALK (issue #253, at the end of this file): two groups' walks (the sun's
+// shadow group and the main group) in one traversal, sequential and parallel; each
+// group's list is its own walk's (DRAWGATHER.md section 10).
 // ============================================================================
 #pragma once
 
@@ -285,6 +289,7 @@ struct RetailTest {
 };
 
 
+
 // ===========================================================================
 // CULLPAR -- the parallel walk (ext.gather_threads).
 // ===========================================================================
@@ -539,6 +544,360 @@ ParPassResult ParGather(ParWalk& p, const Scene* self, const Frame& f, SideArray
         }
     }
     for (int w = 0; w < helpers; ++w) f.boxes += p.frames[w].f.boxes;
+    r.sideGrew = side.Size() != sideSize;
+    return r;
+}
+
+// ===========================================================================
+// FUSED (issue #253) -- two groups' walks in one traversal.
+// ===========================================================================
+// The sun's shadow group (Frame A) and the main group (Frame B) walk the same quadtree
+// in the same pre-order (CullStackPushChildren fixes it); each separate walk visits a
+// subset of the cells, in that order, and within a cell the same chain in the same
+// order. The fused walk visits the union: a record carries both groups' masks and a
+// LIVE bit per group (clear below a cell that group's walk would have popped), each
+// cell's tests are each group's own tests on that group's frame, in its order, and an
+// object visited for a live group gets that group's per-object test. So the objects
+// group G accepts, in walk order, are exactly G's separate walk's list. The per-object
+// test is retail's `flagsOK && detailOK && boxOK` (pure; any order): the walk makes the
+// box halves from the side record (one record load for both groups) and FusedSplit
+// the live halves, reading each Geometry once for both groups.
+
+// One fused survivor: bit 0 = group A's box test passed, bit 1 = group B's.
+struct FusedHit {
+    Geometry* geo;
+    uint32_t  bits;
+};
+
+// Per stack slot, beside the CullStack record (which carries group A's packed mask):
+// group B's packed mask and the live groups.
+struct FusedExtra {
+    uint32_t maskB;
+    uint32_t live;
+};
+
+constexpr uint32_t kFusedRootLive = 3u;
+constexpr size_t   kFusedLiveAhead = 16;
+
+// One cell's frustum tests for one group, as WalkStack makes them; false = the group's
+// walk pops this cell. `shadowMask` is WalkStack's carried value: 0x3f for a group with
+// no shadow pass (it is never reassigned there), else the cell's own result.
+inline bool CellMasks(const Frame& f, const CullStack* st, const CullRecord& r, uint32_t packed,
+                      uint32_t& cullMask, uint32_t& shadowMask) {
+    cullMask = packed & 0xffffu;
+    if (cullMask != 0) {
+        const Box b = NodeBoxCull(st, r);
+        cullMask = Contains(f, &f.cullPlanes, &b, cullMask);
+        if (cullMask == 0x40) return false;
+    }
+    shadowMask = 0x3f;
+    if (!f.notShadow) {
+        shadowMask = packed >> 16;
+        if (shadowMask != 0) {
+            const Box b = NodeBoxShadow(st, r);
+            shadowMask = Contains(f, &f.shadowPlanes, &b, shadowMask);
+        }
+    }
+    return true;
+}
+
+// The box halves of both groups' per-object tests, from the side record (SideBoxTest's
+// upkeep and DrawGatherSide check, with private counters as TaskSideTest's).
+struct FusedBoxTest {
+    const Frame& fa;
+    const Frame& fb;
+    SideArray&   side;
+    bool         verify;
+    TaskStats&   s;
+    uint32_t operator()(int32_t cur, const Geometry* geo, uint32_t live, uint32_t cmA, uint32_t smA,
+                        uint32_t cmB, uint32_t smB) {
+        ++s.nodesTested;
+        if (!side.Valid(cur, geo)) {
+            float box[6];
+            std::memcpy(box, &geo->_worldBounds, sizeof(box));
+            side.Store(cur, geo, box, geo->_materialTypeFlags, geo->_detailId);
+            ++s.refreshes;
+        } else if (verify) {
+            const bool same = std::memcmp(side.At(cur).box, &geo->_worldBounds, sizeof(float) * 6) == 0;
+            ++s.sideChecks;
+            if (!same) {
+                if (s.sideMismatches < 4) s.sideDetail[s.sideMismatches] = cur;
+                ++s.sideMismatches;
+            }
+        }
+        Box wb;
+        std::memcpy(&wb, side.At(cur).box, sizeof(wb));
+        uint32_t bits = 0;
+        if ((live & 1u) != 0 && BoxPasses(fa, wb, cmA, smA)) bits |= 1u;
+        if ((live & 2u) != 0 && BoxPasses(fb, wb, cmB, smB)) bits |= 2u;
+        return bits;
+    }
+};
+
+// The fused loop over a prepared stack; `extra[k]` belongs to `st.rec[k]`.
+template <class Test>
+void FusedWalkStack(const Scene* self, const Frame& fa, const Frame& fb, CullStack& st, FusedExtra* extra,
+                    std::vector<FusedHit>& out, Test& test) {
+    while (st.top >= 0) {
+        const int32_t t    = st.top;
+        const int32_t cell = st.rec[t].node;
+
+        if (self->_grid._cellCounts._data[cell] < 1) {
+            st.top -= 1;
+            continue;
+        }
+
+        uint32_t live = extra[t].live;
+        uint32_t cmA = 0;
+        uint32_t smA = 0;
+        uint32_t cmB = 0;
+        uint32_t smB = 0;
+        if ((live & 1u) != 0 && !CellMasks(fa, &st, st.rec[t], st.rec[t].mask, cmA, smA)) live &= ~1u;
+        if ((live & 2u) != 0 && !CellMasks(fb, &st, st.rec[t], extra[t].maskB, cmB, smB)) live &= ~2u;
+        if (live == 0) {
+            st.top -= 1;
+            continue;
+        }
+
+        const int32_t head = self->_grid._cellHeads._data[cell];
+        if (head >= 0) {
+            int32_t cur = head;
+            do {
+                const SceneNode& node = self->_grid._nodes._data[cur];
+                Geometry* const  geo  = node._object;
+                const uint32_t   bits = test(cur, geo, live, cmA, smA, cmB, smB);
+                if (bits != 0) out.push_back(FusedHit{ geo, bits });
+                cur = node._next;
+            } while (cur != head);
+        }
+
+        // The children land in slots t..st.top (none at a leaf): theirs is this cell's B mask.
+        CullStackPushChildren(&st, (smA << 16) | cmA);
+        for (int32_t k = t; k <= st.top; ++k) extra[k] = FusedExtra{ (smB << 16) | cmB, live };
+    }
+}
+
+template <class Test>
+void FusedWalk(const Scene* self, const Frame& fa, const Frame& fb, std::vector<FusedHit>& out, Test& test) {
+    CullStack  st;
+    FusedExtra extra[256];
+    CullStackInit(&st, self, kMinZBias, kMaxZBias);
+    extra[0] = FusedExtra{ 0x003f003fu, kFusedRootLive };
+    FusedWalkStack(self, fa, fb, st, extra, out, test);
+}
+
+// The live halves: each survivor's Geometry read once, its flags / detail tested against
+// each group whose box test it passed; both lists keep the walk's order.
+inline void FusedSplit(const Frame& fa, const Frame& fb, const std::vector<FusedHit>& hits,
+                       std::vector<Geometry*>& outA, std::vector<Geometry*>& outB) {
+    const size_t n = hits.size();
+    for (size_t i = 0; i < n; ++i) {
+        if (i + kFusedLiveAhead < n) {
+            const Geometry* ahead = hits[i + kFusedLiveAhead].geo;
+            __builtin_prefetch(&ahead->_detailId);
+            __builtin_prefetch(&ahead->_materialTypeFlags);
+        }
+        Geometry* const geo    = hits[i].geo;
+        const uint32_t  flags  = geo->_materialTypeFlags;
+        const int32_t   detail = geo->_detailId;
+        if ((hits[i].bits & 1u) != 0 && (flags & fa.passMask) != 0 && detail <= fa.rendererDetail)
+            outA.push_back(geo);
+        if ((hits[i].bits & 2u) != 0 && (flags & fb.passMask) != 0 && detail <= fb.rendererDetail)
+            outB.push_back(geo);
+    }
+}
+
+// Two walks are the same walk: the inputs Walk reads from its Frame (the cull frustum and,
+// with a shadow pass, the shadow frustum and the caster extension, which comes from the
+// cull frustum), bit for bit.
+inline bool SamePlanes(const ::Frustum& a, const ::Frustum& b) {
+    return std::memcmp(a.planes, b.planes, sizeof(a.planes)) == 0 && a.isOrthographic == b.isOrthographic;
+}
+inline bool SameWalk(const Frame& a, const Frame& b) {
+    if (a.passMask != b.passMask || a.rendererDetail != b.rendererDetail || a.notShadow != b.notShadow)
+        return false;
+    if (!SamePlanes(a.cull, b.cull)) return false;
+    return a.notShadow || SamePlanes(a.shadow, b.shadow);
+}
+
+// ---------------------------------------------------------------------------
+// The fused walk on the helpers: ParGather's plan / tasks / plan-order concatenation,
+// with FusedWalkStack's records. The same hits as FusedWalk for any helper count and
+// any timing (a task is a function of its root record and extra, and of data nobody
+// writes during the walk).
+// ---------------------------------------------------------------------------
+struct FusedSegment {
+    int32_t  task;          // >= 0: the task; -1: the interior cell below
+    int32_t  cell;
+    uint32_t live;
+    uint32_t cmA, smA, cmB, smB;
+    int32_t  begin, end;    // the interior cell's hits in FusedParWalk::interior
+};
+
+struct FusedRoot {
+    CullRecord rec;
+    FusedExtra extra;
+};
+
+struct alignas(64) FusedHelperFrames {
+    Frame a;
+    Frame b;
+};
+
+struct alignas(64) FusedTaskSlot {
+    std::vector<FusedHit> out;
+    TaskStats             s;
+};
+
+// Main thread only, except what a running task reads (the pass fields, its root) and
+// writes (its slot, its helper's frames), as ParWalk.
+struct FusedParWalk {
+    Ext::GatherThreads::HelperPool* pool = nullptr;
+    std::vector<FusedRoot>     roots;
+    std::vector<FusedSegment>  plan;
+    std::vector<FusedHit>      interior;
+    std::vector<FusedTaskSlot> slots;
+    FusedHelperFrames          frames[Cpu::kMaxCullHelpers];
+    const Scene*               scene  = nullptr;
+    const Frame*               fa     = nullptr;
+    const Frame*               fb     = nullptr;
+    SideArray*                 side   = nullptr;
+    bool                       verify = false;
+};
+
+void FusedParRunTask(void* ctx, int32_t task, int32_t worker) {
+    FusedParWalk& p = *static_cast<FusedParWalk*>(ctx);   // HelperPool::TaskFn's void* context  // CAST-OK: user_data
+    const Frame& fa = worker == 0 ? *p.fa : p.frames[worker - 1].a;
+    const Frame& fb = worker == 0 ? *p.fb : p.frames[worker - 1].b;
+    FusedTaskSlot& slot = p.slots[static_cast<size_t>(task)];
+    slot.out.clear();
+    slot.s = TaskStats{};
+    FusedBoxTest test{ fa, fb, *p.side, p.verify, slot.s };
+    CullStack  st;
+    FusedExtra extra[256];
+    CullStackInit(&st, p.scene, kMinZBias, kMaxZBias);
+    const FusedRoot& root = p.roots[static_cast<size_t>(task)];
+    st.rec[0] = root.rec;
+    extra[0]  = root.extra;
+    FusedWalkStack(p.scene, fa, fb, st, extra, slot.out, test);
+}
+
+// ParPlan's loop with FusedWalkStack's cell step.
+void FusedParPlan(FusedParWalk& p, const Scene* self, const Frame& fa, const Frame& fb) {
+    p.roots.clear();
+    p.plan.clear();
+
+    CullStack  st;
+    FusedExtra extra[256];
+    CullStackInit(&st, self, kMinZBias, kMaxZBias);
+    extra[0] = FusedExtra{ 0x003f003fu, kFusedRootLive };
+
+    while (st.top >= 0) {
+        const int32_t t    = st.top;
+        const int32_t cell = st.rec[t].node;
+
+        if (self->_grid._cellCounts._data[cell] < 1) {
+            st.top -= 1;
+            continue;
+        }
+        if (st.rec[t].depth == kTopDepth) {
+            p.plan.push_back(FusedSegment{ static_cast<int32_t>(p.roots.size()), cell, 0, 0, 0, 0, 0, 0, 0 });
+            p.roots.push_back(FusedRoot{ st.rec[t], extra[t] });
+            st.top -= 1;
+            continue;
+        }
+
+        uint32_t live = extra[t].live;
+        uint32_t cmA = 0;
+        uint32_t smA = 0;
+        uint32_t cmB = 0;
+        uint32_t smB = 0;
+        if ((live & 1u) != 0 && !CellMasks(fa, &st, st.rec[t], st.rec[t].mask, cmA, smA)) live &= ~1u;
+        if ((live & 2u) != 0 && !CellMasks(fb, &st, st.rec[t], extra[t].maskB, cmB, smB)) live &= ~2u;
+        if (live == 0) {
+            st.top -= 1;
+            continue;
+        }
+
+        p.plan.push_back(FusedSegment{ -1, cell, live, cmA, smA, cmB, smB, 0, 0 });
+        CullStackPushChildren(&st, (smA << 16) | cmA);
+        for (int32_t k = t; k <= st.top; ++k) extra[k] = FusedExtra{ (smB << 16) | cmB, live };
+    }
+}
+
+// The fused walk of one gather pass on the pool, appended to `out`: the same hits as
+// FusedWalk(self, fa, fb, out, FusedBoxTest).
+ParPassResult FusedParGather(FusedParWalk& p, const Scene* self, const Frame& fa, const Frame& fb,
+                             SideArray& side, bool verify, std::vector<FusedHit>& out) {
+    ParPassResult r;
+    side.Reserve(self->_grid._nodes.GetSize());
+    const int32_t sideSize = side.Size();
+
+    FusedParPlan(p, self, fa, fb);
+
+    const int32_t nTasks = static_cast<int32_t>(p.roots.size());
+    if (static_cast<int32_t>(p.slots.size()) < nTasks) p.slots.resize(static_cast<size_t>(nTasks));
+    p.scene  = self;
+    p.fa     = &fa;
+    p.fb     = &fb;
+    p.side   = &side;
+    p.verify = verify;
+    const int helpers = p.pool != nullptr ? p.pool->Helpers() : 0;
+    for (int w = 0; w < helpers; ++w) {
+        p.frames[w].a            = fa;
+        p.frames[w].a.boxes      = 0;
+        p.frames[w].a.cullVerify = false;
+        p.frames[w].b            = fb;
+        p.frames[w].b.boxes      = 0;
+        p.frames[w].b.cullVerify = false;
+    }
+    if (nTasks > 0 && p.pool != nullptr) p.pool->Publish(&FusedParRunTask, &p, nTasks);
+
+    p.interior.clear();
+    {
+        FusedBoxTest test{ fa, fb, side, verify, r.stats };
+        for (FusedSegment& s : p.plan) {
+            if (s.task >= 0) continue;
+            s.begin = static_cast<int32_t>(p.interior.size());
+            const int32_t head = self->_grid._cellHeads._data[s.cell];
+            if (head >= 0) {
+                int32_t cur = head;
+                do {
+                    const SceneNode& node = self->_grid._nodes._data[cur];
+                    Geometry* const  geo  = node._object;
+                    const uint32_t   bits = test(cur, geo, s.live, s.cmA, s.smA, s.cmB, s.smB);
+                    if (bits != 0) p.interior.push_back(FusedHit{ geo, bits });
+                    cur = node._next;
+                } while (cur != head);
+            }
+            s.end = static_cast<int32_t>(p.interior.size());
+        }
+    }
+
+    if (nTasks > 0) {
+        if (p.pool != nullptr) {
+            const Ext::GatherThreads::HelperPool::PassResult pr = p.pool->Finish();
+            r.helperTasks = pr.tasks - pr.callerTasks;
+            r.waitTicks   = pr.waitTicks;
+        } else {
+            for (int32_t t = 0; t < nTasks; ++t) FusedParRunTask(&p, t, 0);
+        }
+    }
+    r.tasks = nTasks;
+
+    for (const FusedSegment& s : p.plan) {
+        if (s.task < 0) {
+            out.insert(out.end(), p.interior.begin() + s.begin, p.interior.begin() + s.end);
+        } else {
+            const FusedTaskSlot& slot = p.slots[static_cast<size_t>(s.task)];
+            out.insert(out.end(), slot.out.begin(), slot.out.end());
+            AddStats(r.stats, slot.s);
+        }
+    }
+    for (int w = 0; w < helpers; ++w) {
+        fa.boxes += p.frames[w].a.boxes;
+        fb.boxes += p.frames[w].b.boxes;
+    }
     r.sideGrew = side.Size() != sideSize;
     return r;
 }

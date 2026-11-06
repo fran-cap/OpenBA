@@ -20,6 +20,7 @@ bool TierFor(int quality, bool lowIsLowest, Tier& out) {
     case 1: out = {lowIsLowest ? kAssaoLowest : kAssaoLow, 1}; return true;
     case 2: out = {kAssaoMedium, 2}; return true;
     case 3: out = {kAssaoHigh, 2}; return true;
+    case 4: out = {kAssaoLowest, 1}; return true;
     default: return false;
     }
 }

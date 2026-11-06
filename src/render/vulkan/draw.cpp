@@ -11,9 +11,11 @@
 #include "depth_discard.h"
 #include "device_objects.h"
 #include "draw.h"
+#include "instance_bank.h"   // issue #253: the wide transform bank, ConstantBufferRange
 #include "present.h"
 #include "pipelines.h"
 #include "resources.h"
+#include "shader_rewrites.h"   // issue #253: Rewrites::DrawBloom (natural growth's copy without the blossom)
 #include "vulkan11.h"
 #include "create_on_demand/lazy_create.h"   // P4: ext.create_on_demand's use gate around a draw
 
@@ -198,6 +200,13 @@ struct Frame {
     // THE READABLE DEPTH (draw.h) as requested when the frame began: the main targets are (re)made with
     // it, so a request that changes mid-frame takes effect at the next frame, never between two passes.
     bool readableWanted = false;
+    uint32_t readableBits = 0;    // the readers behind readableWanted (draw.h kDepthReader*)
+    // Issue #253: the AO pass has sampled this frame's main depth (DrawAoBegin). When it is the only
+    // reader, the main-depth passes after it may discard depth again (THE DEPTH DISCARD).
+    bool aoDepthRead = false;
+    // Issue #253: the AO apply runs in the main target's pass, which DrawAoEnd leaves open for the
+    // Blended draws (DrawAoBeginApply).
+    bool aoApplyInMain = false;
     VkPipeline pipeline = VK_NULL_HANDLE;
     bool viewportSet = false;
     VkViewport viewport{};
@@ -232,6 +241,11 @@ struct Frame {
     uint32_t resolves = 0;
     uint32_t reads = 0;
     uint32_t failedDraws = 0;
+    uint32_t aoPasses = 0;        // issue #253: the AO stage's own passes (DrawNoteAoPass)
+    // Issue #253: draws of a natural-growth pixel copy that has a twin without the blossom, and how many of
+    // them drew the twin (Rewrites::DrawBloom false).
+    uint32_t bloomDraws = 0;
+    uint32_t noBloomDraws = 0;
     VkDeviceSize ringBytes = 0;
 };
 Frame g_frame;
@@ -619,7 +633,8 @@ bool BeginPass(const Target& t) {
         const bool loads = depth.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD ||
                            (hasStencil && stencil.loadOp == VK_ATTACHMENT_LOAD_OP_LOAD);
         bool missed = false;
-        const bool discard = g_discard.MainDepthPass(loads, !g_frame.readableWanted, &missed);
+        const bool aoOnlyDone = g_frame.readableBits == kDepthReaderAo && g_frame.aoDepthRead;
+        const bool discard = g_discard.MainDepthPass(loads, !g_frame.readableWanted || aoOnlyDone, &missed);
         if (missed) {
             depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
             depth.clearValue.depthStencil.depth = 1.0f;
@@ -736,7 +751,7 @@ void PrepareTextures(const ShaderEntry* ps) {
 bool RingAlloc(VkDeviceSize size, VkBuffer* buffer, VkDeviceSize* offset, uint8_t** mapped) {
     SlotResources& s = g_slots[g_frame.target.slot];
     const VkDeviceSize align = std::max<VkDeviceSize>(LiveProperties().limits.minUniformBufferOffsetAlignment, 256);
-    const VkDeviceSize need = std::max<VkDeviceSize>(size, kConstantBufferRange);
+    const VkDeviceSize need = std::max<VkDeviceSize>(size, ConstantBufferRange());
     for (;;) {
         if (s.chunk < s.ring.size()) {
             const VkDeviceSize at = (s.offset + align - 1) / align * align;
@@ -920,7 +935,7 @@ VkDescriptorSet StageSet(Shaders::Stage stage, const Shaders::ShaderReflection* 
     uint32_t n = 0;
     for (uint32_t b = 0; b < kCbSlots; ++b) {
         if (!key.cb[b]) continue;
-        buffers[b] = { key.cb[b], key.cbOffset[b], kConstantBufferRange };
+        buffers[b] = { key.cb[b], key.cbOffset[b], ConstantBufferRange() };
         writes[n] = Make<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);
         writes[n].dstSet = set;
         writes[n].dstBinding = Shaders::BindingOfConstantBuffer(b);
@@ -992,7 +1007,7 @@ bool BindPixelSet(VkCommandBuffer cb, const PairLayout& pair, const PushedValue*
                 if (types[i] == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
                     buffers[i].buffer = reinterpret_cast<VkBuffer>(values[i].a);   // CAST-OK: the handle stored above
                     buffers[i].offset = 0;
-                    buffers[i].range = kConstantBufferRange;
+                    buffers[i].range = ConstantBufferRange();
                     writes[i].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
                     writes[i].pBufferInfo = &buffers[i];
                 } else {
@@ -1086,7 +1101,7 @@ bool PushPixelSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sha
         if (types[i] == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
             buffers[i].buffer = reinterpret_cast<VkBuffer>(values[i].a);   // CAST-OK: the handle stored above
             buffers[i].offset = values[i].b;
-            buffers[i].range = kConstantBufferRange;
+            buffers[i].range = ConstantBufferRange();
             writes[i].pBufferInfo = &buffers[i];
         } else {
             images[i].sampler = reinterpret_cast<VkSampler>(values[i].b);       // CAST-OK: as above
@@ -1138,7 +1153,7 @@ bool BindVertexSet(VkCommandBuffer cb, const PairLayout& pair, const Shaders::Sh
                 if (!key.cb[b]) continue;
                 buffers[b].buffer = key.cb[b];
                 buffers[b].offset = 0;
-                buffers[b].range = kConstantBufferRange;
+                buffers[b].range = ConstantBufferRange();
                 writes[w] = Make<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);
                 writes[w].dstSet = set;
                 writes[w].dstBinding = Shaders::BindingOfConstantBuffer(b);
@@ -1324,11 +1339,20 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
     const ShaderEntry* ps = psp ? psp->shaders[psp->boundPermutation] : nullptr;
     StateBlock state = g_bound.state ? g_bound.state->block : DefaultState();
     // NATURAL_GROWTH.md: a natural-growth pixel copy runs only beside a natural-growth vertex shader.
+    // Issue #253: its twin without the blossom where no tree of the draw can flower (the same pixels).
     if (psp && psp->rewritten && (!psp->rewritten->naturalGrowth || (vs && vs->naturalGrowth))) {
+        const ShaderEntry* xf = psp->rewritten;
+        if (psp->rewrittenNoBloom) {
+            ++g_frame.bloomDraws;
+            if (!Rewrites::DrawBloom()) {
+                xf = psp->rewrittenNoBloom;
+                ++g_frame.noBloomDraws;
+            }
+        }
         if (!psp->coverage) {
-            ps = psp->rewritten;
+            ps = xf;
         } else if (!state.blendEnable) {
-            ps = psp->rewritten;
+            ps = xf;
             state = CoverageClone(state);
         }
     }
@@ -1542,7 +1566,9 @@ void DrawBeginFrame(const FrameTarget& target) {
     g_frame.lastPipeline = lastPipeline;
     g_frame.lastPair = lastPair;
     g_frame.lastValid = lastValid;
-    g_frame.readableWanted = g_readableRequested.load() != 0;
+    g_frame.readableBits = g_readableRequested.load();
+    g_frame.readableWanted = g_frame.readableBits != 0;
+    g_frame.aoDepthRead = false;
     g_clear = PendingClear{};
     g_discard.BeginFrame();
     g_swap.image = target.image;
@@ -1630,14 +1656,15 @@ void DrawLogFrame(uint64_t frame, const Video::Context* context) {
     TakeUploadStats(&uploadBytes, &batches);
     std::fprintf(stderr,
                  "[Vulkan] frame=%llu draws=%d triangles=%d vertices=%d objects=%d | passes=%u (other targets %u) "
-                 "resolves=%u reads=%u sets=%u pushes=%u pixel binds=%u depth %u/%u discarded (%u mispredicted) ring=%lluB failed=%u | "
-                 "pipelines +%u built +%u warmed %u failed | uploads %llu KB in %u batch(es)\n",
+                 "resolves=%u reads=%u sets=%u pushes=%u pixel binds=%u depth %u/%u discarded (%u mispredicted) ao=%u ring=%lluB failed=%u | "
+                 "pipelines +%u built +%u warmed %u failed | uploads %llu KB in %u batch(es) | "
+                 "no-blossom %u/%u canopy draws\n",
                  static_cast<unsigned long long>(frame), context->_drawsSubmitted, context->_trianglesSubmitted,
                  context->_verticesSubmitted, context->_objectsSubmitted, g_frame.passes, g_frame.targetPasses,
                  g_frame.resolves, g_frame.reads, g_frame.setsAllocated, g_frame.pushes, g_frame.pixelBinds,
-                 g_frame.depthDiscards, g_frame.depthPasses, g_discard.Mispredicts(),
+                 g_frame.depthDiscards, g_frame.depthPasses, g_discard.Mispredicts(), g_frame.aoPasses,
                  static_cast<unsigned long long>(g_frame.ringBytes), g_frame.failedDraws, built, warmed, failed, static_cast<unsigned long long>(uploadBytes >> 10),
-                 batches);
+                 batches, g_frame.noBloomDraws, g_frame.bloomDraws);
 }
 
 void DrawTargetsChanged() {
@@ -1918,7 +1945,15 @@ void ContextData::BindScissor() {
 // bones on the live count), exactly as dx11.
 void ContextData::BindTransforms() {
     ::Video::Context* ctx = _owner;
-    if (ctx->_dirty & 0x4000) ctx->_transformConstants.Bind(*ctx, ctx->_transforms, 0, ctx->_transformCount << 6);
+    if (ctx->_transformCount > kRetailTransformSlots) {
+        // NOT RETAIL (issue #253, instance_bank.h): a batch wider than the Context's bank. Slots 52.. are
+        // in wideBank already; the Context's 0..51 go in front and the whole bank is uploaded, at every
+        // such bind (dirty or not: the copy the ring holds is only as long as the last bind's count).
+        std::memcpy(wideBank.data(), ctx->_transforms, sizeof(ctx->_transforms));
+        ctx->_transformConstants.Bind(*ctx, wideBank.data(), 0, ctx->_transformCount << 6);
+    } else if (ctx->_dirty & 0x4000) {
+        ctx->_transformConstants.Bind(*ctx, ctx->_transforms, 0, ctx->_transformCount << 6);
+    }
     ctx = _owner;
     if (ctx->_unknown0024 > 0) ctx->_boneConstants.Bind(*ctx, ctx->_boneAndProjectionStaging, 0, 0x0cc0);
 }
@@ -2102,6 +2137,7 @@ bool DrawAoBegin(AoTargets* out) {
     out->samples = g_main.samples;
     out->msrtss = g_main.samples > 1 && g_main.msrtss;
     out->colorFormat = SwapchainFormat();
+    g_frame.aoDepthRead = true;
     return true;
 }
 
@@ -2109,17 +2145,39 @@ uint64_t DrawFrameIndex() {
     return g_frame.active ? g_frame.index : ~0ull;
 }
 
-bool DrawAoBeginApply() {
+bool DrawAoBeginApply(VkFormat* depthFormat, VkFormat* stencilFormat) {
+    *depthFormat = VK_FORMAT_UNDEFINED;
+    *stencilFormat = VK_FORMAT_UNDEFINED;
     if (!g_frame.active) return false;
+    // Issue #253: the render buffer bound at the AO seam is the one the Blended draws go to next. When
+    // it is the main target (colour and depth), the apply begins that pass (BeginPass moves the main
+    // depth back to its attachment layout and LOADs it, as the first Blended draw's pass did) and the
+    // pass stays open after DrawAoEnd. Anything that would have ended the Blended pass before its first
+    // draw (a target switch, a clear) ends this one the same way.
     Target t;
-    MainColorInto(&t);
+    const bool inMain = ResolveTarget(g_bound.target, &t) && t.main && t.color && t.depth == &g_main.depthState;
+    if (!inMain) {
+        t = Target{};
+        MainColorInto(&t);
+    }
     g_clear = PendingClear{};
-    return BeginPass(t);
+    if (!BeginPass(t)) return false;
+    g_frame.aoApplyInMain = inMain;
+    if (inMain) {
+        *depthFormat = t.depthFormat;
+        if (t.depth->aspect & VK_IMAGE_ASPECT_STENCIL_BIT) *stencilFormat = t.depthFormat;
+    }
+    return true;
 }
 
 void DrawAoEnd() {
-    EndPass();
+    if (!g_frame.aoApplyInMain) EndPass();
+    g_frame.aoApplyInMain = false;
     ResetCommandState();
+}
+
+void DrawNoteAoPass() {
+    ++g_frame.aoPasses;
 }
 
 }  // namespace VideoVulkan

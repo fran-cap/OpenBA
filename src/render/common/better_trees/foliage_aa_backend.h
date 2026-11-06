@@ -29,6 +29,13 @@ namespace FaaBackend {
 void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither = nullptr,
              bool naturalGrowth = false);
 
+// Issue #253: whether the calling thread's next draws can show natural growth's blossom
+// (Ext::BetterTrees' MaterialInstance::Setup hook, Blossom::CanBloom on the draw's code and the season).
+// False lets a backend draw a billboard colour copy made without the blossom, the same pixels and a
+// shorter shader. Vulkan does (shader_rewrites.cpp); DX11 and Metal always draw the copy with the blossom
+// and ignore the call, which is the same image at the full cost.
+void SetDrawBloom(bool bloom);
+
 #if BANISHED_TWEAK_OVERLAY
 // The debug tweak overlay's stats line (debug flavour only): the applied generation's counters,
 // read under the stage's mutex (any thread).

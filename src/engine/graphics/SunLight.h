@@ -179,6 +179,23 @@ public:
     // the device cannot create falls back to 4096 (one stderr line; the key is left as set).
     static const int32_t* _extMaxShadowSize;
 
+    // EXT SEAM (NOT RETAIL, issue #253): the engine end of ext.staggered_passes' shadow hold
+    // (graphics/stagger_hold.h). Null by default and while the row is off (retail: the map is
+    // rendered every frame); otherwise src/ext/staggered_passes/ points it at
+    // ext.staggered_passes_shadow (1 .. 4). While it points at N > 1, AddDrawItems may hold the
+    // map for up to N - 1 frames on a near-still view: it still adds the light and opens the
+    // shadow draw group, with the sun camera the held map was rendered with as its cull camera
+    // (DrawLight builds the sampling matrix from it), and gathers no casters. Main thread.
+    static const int32_t* _extStaggerEvery;
+    // Main thread: whether the Draw whose pass 1 just ran held the map, and reset. The pass-2
+    // side passes it to ExtShadowHoldEmit: the faithful Renderer::Draw directly, ext.render_pipe
+    // through its Packet (the render thread may still be emitting the previous frame).
+    static bool ExtTakeShadowHeld();
+    // The thread running pass 2: true while the frame being emitted holds the map, so
+    // DrawShadowMap neither clears nor redraws it. Thread-local: render_pipe emits on its own
+    // thread while the main thread runs the next pass 1.
+    static void ExtShadowHoldEmit(bool held);
+
     // NOT RETAIL (ext.max_shadow_res): the row's toggle, called by the registry between frames on the
     // main thread. Runs the same descriptor rewrite + Device::settingsChanged as the per-frame sync
     // below, so the rebuild is the one the next frame decision already treats as sequential. Left to

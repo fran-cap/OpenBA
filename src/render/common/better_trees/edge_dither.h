@@ -22,7 +22,7 @@
 // plain `sample` reads its coordinates from another input register U (the diffuse texcoord; retail:
 // v1.xy). S's `dcl_input_ps` must exist (its mask grows to xyzw) and the ISGN chunk must list S.
 //
-// THE EMIT (`Transform`), before the first instruction, in two new temps T (= S's copy) and N:
+// THE EMIT (`Transform`), at THE PLACEMENT below, in two new temps T (= S's copy) and N:
 //     mov T, vS
 //     mul N.xy, vU.xy, noiseScale ; round_ni N.xy ; dp2 N.x, N.xy, (12.9898, 78.233)
 //     sincos N.x, null, N.x ; mul N.x, N.x, 43758.5453 ; frc N.x ; add N.x, N.x, -0.5      h - 0.5
@@ -30,6 +30,22 @@
 //     mul N.x, N.x, N.y ; mad T.c, N.x, noise, T.c                                             c = the compare component
 // then every read of vS in the program is pointed at T. 13 instructions, `dcl_temps` + 2, the
 // dcl_input_ps of S and its ISGN read mask widened to xyzw; every other token is the user's own.
+// THE PLACEMENT (issue #253). In a cutout program (the only ones the stages dither) the block goes right
+// after the last discard -- retail's discard_nz, the fill floor's discard_z, or the coverage path's
+// discard_z of the sharpened alpha -- so a fragment the alpha test drops (about 96% of a leaf card's
+// fragments at town zoom on Windows) never runs it. The block reads only vS and vU and writes only T and N,
+// which nothing before it reads, so moving it changes no value: the same pixels. Every read of S is
+// pointed at T, so the block must come before the first of them: in the installed leaf programs all nine
+// shadow taps follow the discard (the block lands after it); a program that read S before its last discard
+// would get the block right before that read instead. A program with no discard keeps the block before its
+// first instruction.
+// The early-out is the GPU's: D3D's discard keeps a dropped lane's quad derivatives defined, and dxbc-spirv
+// lowers it to OpDemoteToHelperInvocation (third_party/dxbc-spirv/dxbc/dxbc_converter.cpp handleDiscard; the
+// Vulkan 1.1 path's DowngradeSpirv turns that into OpKill), so a dropped lane may still run on as a helper;
+// what is skipped is a quad (or wave) whose every lane was dropped -- most of a leaf card's empty area. A
+// terminate (OpTerminateInvocation) per program would be wrong here: after the shadow taps (sample_c_lz,
+// explicit lod) every leaf program takes the AO map with a plain `sample` of v1.zw, an implicit lod whose
+// derivatives need the dropped lanes as helpers.
 //
 // THREE GUARDS (the first look arm dithered the terrain and the buildings black): the stage applies this
 // to the cutout programs only (foliage_aa_stage.cpp Build); the ISGN element of S must say the vertex
@@ -63,7 +79,10 @@ struct Match {
     uint32_t        uvIn       = 0;   // U
     uint32_t        uvSwizzle  = 0;   // U's xy as the sample reads them (an 8-bit swizzle, xy used)
     int             dclIdx     = -1;  // the dcl_input_ps of S
-    int             firstInstr = -1;  // where the block goes
+    int             firstInstr = -1;       // the first instruction
+    int             lastDiscard = -1;      // the last discard (the cutout's, the fill floor's, the coverage's)
+    int             firstShadowRead = -1;  // the first instruction that reads S
+    int             insertAt = -1;         // where the block goes (THE PLACEMENT)
 };
 
 void Analyse(const uint8_t* blob, size_t size, Match* m);
@@ -71,6 +90,10 @@ void Analyse(const uint8_t* blob, size_t size, Match* m);
 // The transformed blob (fresh checksum). False when `m` did not match, the ISGN element of S is
 // missing, or the copy fails its own re-parse (then nothing is used). Uses p.noise / p.noiseScale.
 bool Transform(const Match& m, std::vector<uint8_t>* out, const BbsRewrite::Params& p);
+
+// THE PLACEMENT the match chose, for the stages' log lines: "after the discard", "before the first read of S"
+// (a read of S precedes the last discard) or "first instruction" (no discard).
+const char* PlacementName(const Match& m);
 
 constexpr float kHashU = 12.9898f, kHashV = 78.233f, kHashMul = 43758.5453f;
 constexpr float kExtentLimit = 0.1f;   // -w past this is not an extent

@@ -30,7 +30,7 @@ never here.
 |---|---|---|---|---|
 | 0 Faithful | retail's behaviour | retail's | -- | here, and only here |
 | 1 Fix | a retail bug corrected at its faithful lever | retail's, unchanged | **ON** | boot/stress/quit only |
-| 2 Extension | a feature retail never had | by class (below) | **class A ON, B / C OFF** (ruled 2026-10-18; `eye_camera` is class A but OFF: it changes how the game is played; so is `no_fog`: it changes how the map looks; so is `phone_menu`: it moves the desktop menu, and the Android first run turns it on; so is `fps_cap`: it caps a desktop's game, which retail leaves uncapped, and the Android first run turns it on at 60) | boot/stress/quit only |
+| 2 Extension | a feature retail never had | by class (below) | **class A ON, B / C OFF** (ruled 2026-10-18; `eye_camera` is class A but OFF: it changes how the game is played; so is `no_fog`: it changes how the map looks; so is `phone_menu`: it moves the desktop menu, and the Android first run turns it on; so is `fps_cap`: it caps a desktop's game, which retail leaves uncapped, and the Android first run turns it on at 60; so is `staggered_passes`: it lets shadows and reflections trail by a frame) | boot/stress/quit only |
 
 A **fix** is one branch at the one site `retail_bugs.md` names as the lever, retail's path kept
 in the other arm. It never changes what is serialized. It may change sim outcomes (that is the

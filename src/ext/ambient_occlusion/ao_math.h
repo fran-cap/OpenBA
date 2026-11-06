@@ -17,9 +17,9 @@ namespace AmbientOcclusion {
 namespace AoMath {
 
 // ---------------------------------------------------------------------------
-// Tiers (AO.md §3): the menu's quality 1 / 2 / 3 -> ASSAO Low / Medium / High.
-// ASSAO's Lowest (-1: half resolution, checkerboard) is the fallback for Low
-// if Low measures too dear on the stress town; kLowIsLowest selects it.
+// Tiers (AO.md §3): the menu's quality 1 / 2 / 3 -> ASSAO Low / Medium / High,
+// and 4 -> ASSAO Lowest (-1: half density, checkerboard; the phone tier, issue
+// #253). kLowIsLowest would also send quality 1 to Lowest (the AOCORE fallback).
 // ---------------------------------------------------------------------------
 constexpr int kAssaoLowest = -1;
 constexpr int kAssaoLow    = 0;
@@ -31,7 +31,7 @@ struct Tier {
     int32_t qualityLevel;    // ASSAO QualityLevel
     int32_t blurPassCount;   // ASSAO BlurPassCount (Low / Lowest: ASSAO runs one non-smart blur)
 };
-// False for quality 0 (off) and anything outside 1..3 (`out` untouched).
+// False for quality 0 (off) and anything outside 1..4 (`out` untouched).
 bool TierFor(int quality, bool lowIsLowest, Tier& out);
 
 // ---------------------------------------------------------------------------

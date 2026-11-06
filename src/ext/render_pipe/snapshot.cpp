@@ -138,6 +138,7 @@ struct Builder {
     std::vector<size_t>     roadAt;
     uint32_t                markGen = 0;
     const WorldGeometry*    world   = nullptr;
+    std::vector<int32_t>    itemEntry;   // the lean builder: per draw item in walk order, its entry
 };
 Builder g_builder;
 
@@ -415,15 +416,9 @@ void CopyEntry(Entry& e, const Builder& b, unsigned char* base) {
     }
 }
 
-}  // namespace
-
-SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEdit) {
-    SnapshotResult result;
-    if (terrainEdit) {
-        result.refused = "ext.terrain_edit";
-        return result;
-    }
-    Builder& b = g_builder;
+// The per-packet reset and the drawables rule, shared by both builders. Returns false with
+// `result.refused` set when a drawable is not the sun.
+bool BeginBuild(Builder& b, const Graphics::Renderer& r, SnapshotResult& result, size_t& itemCount) {
     b.entries.clear();
     b.states.clear();
     b.world = nullptr;
@@ -433,9 +428,7 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
         std::fill(b.roadMark.begin(), b.roadMark.end(), 0u);
         b.markGen = 1;
     }
-
-    // ---- pass A: admit every drawn geometry, count the bytes ------------------
-    size_t itemCount = 0;
+    itemCount = 0;
     for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
         for (const auto& list : r._drawGroups._data[gi]._items) itemCount += static_cast<size_t>(list._size);
     }
@@ -446,10 +439,66 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
         const Graphics::Light* const light = r._drawables._data[i]._object;
         if (light == nullptr || typeid(*light) != typeid(Graphics::SunLight)) {
             result.refused = light != nullptr ? typeid(*light).name() : "a null drawable";
-            return result;
+            return false;
         }
     }
+    return true;
+}
 
+// How far ahead pass A / pass B hint the lines they will read (items, entries).
+constexpr int32_t kItemAhead  = 8;
+constexpr size_t  kEntryAhead = 4;
+
+// Pass B, shared by both builders: the arena, then the copies, then the edge meshes at
+// their followed mesh's copy. Returns the arena's base.
+unsigned char* CopyAll(Builder& b, int32_t slot, size_t bytes) {
+    Arena& arena = g_arenas[slot & 1];
+    arena.Clear();   // nothing of the slot is a copy until its items point at the new ones
+    if (arena.capacity < bytes) {
+        const size_t grown = bytes + bytes / 2 + 4096;
+        arena.storage.reset(new unsigned char[grown]);
+        arena.capacity = grown;
+    }
+    unsigned char* const base = arena.Base();
+    for (StateEntry& s : b.states) CopyState(s, base);
+    const size_t n = b.entries.size();
+    for (size_t i = 0; i < n; ++i) {
+        // Hints only (issue #253): pass A read the object's sizes, not the arrays the copy
+        // reads; the entry ahead's arrays start on these lines.
+        if (i + kEntryAhead < n && b.entries[i + kEntryAhead].kind == Kind::Mesh) {
+            const auto* const ahead = static_cast<const MeshInstance*>(b.entries[i + kEntryAhead].live);
+            __builtin_prefetch(ahead->_materials._data);
+            __builtin_prefetch(ahead->_animation._layers._data);
+            __builtin_prefetch(ahead->_nodes._data);
+        }
+        CopyEntry(b.entries[i], b, base);
+    }
+    // An edge mesh follows its mesh's copy.
+    for (Entry& e : b.entries) {
+        if (e.kind != Kind::Edge) continue;
+        auto* const edge = static_cast<Graphics::EdgeMeshInstance*>(e.copy);
+        if (edge->_followed == nullptr) continue;
+        const int32_t followed = b.geometries.Find(edge->_followed, -1);
+        edge->_followed = static_cast<MeshInstance*>(b.entries[static_cast<size_t>(followed)].copy);
+    }
+    return base;
+}
+
+void Publish(int32_t slot, unsigned char* base, size_t bytes) {
+    Arena& arena = g_arenas[slot & 1];
+    arena.begin.store(base, std::memory_order_relaxed);
+    arena.end.store(base + bytes, std::memory_order_relaxed);
+}
+
+// The reference builder: the snapshot as it was built up to issue #253. Pass A tests every
+// item's type and probes the table for it, pass C probes again. COMPPROF=4 runs it after the
+// lean one on the same items and compares (VerifiedBuild).
+SnapshotResult BuildReference(Builder& b, int32_t slot, Graphics::Renderer& r) {
+    SnapshotResult result;
+    size_t itemCount = 0;
+    if (!BeginBuild(b, r, result, itemCount)) return result;
+
+    // ---- pass A: admit every drawn geometry, count the bytes ------------------
     size_t bytes = 0;
     for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
         for (const auto& list : r._drawGroups._data[gi]._items) {
@@ -485,24 +534,7 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
     }
 
     // ---- pass B: the arena, then the copies ---------------------------------
-    Arena& arena = g_arenas[slot & 1];
-    arena.Clear();   // nothing of the slot is a copy until its items point at the new ones
-    if (arena.capacity < bytes) {
-        const size_t grown = bytes + bytes / 2 + 4096;
-        arena.storage.reset(new unsigned char[grown]);
-        arena.capacity = grown;
-    }
-    unsigned char* const base = arena.Base();
-    for (StateEntry& s : b.states) CopyState(s, base);
-    for (Entry& e : b.entries) CopyEntry(e, b, base);
-    // An edge mesh follows its mesh's copy.
-    for (Entry& e : b.entries) {
-        if (e.kind != Kind::Edge) continue;
-        auto* const edge = static_cast<Graphics::EdgeMeshInstance*>(e.copy);
-        if (edge->_followed == nullptr) continue;
-        const int32_t followed = b.geometries.Find(edge->_followed, -1);
-        edge->_followed = static_cast<MeshInstance*>(b.entries[static_cast<size_t>(followed)].copy);
-    }
+    unsigned char* const base = CopyAll(b, slot, bytes);
 
     // ---- pass C: every item at its copy -------------------------------------
     for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
@@ -521,13 +553,194 @@ SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEd
         }
     }
 
-    arena.begin.store(base, std::memory_order_relaxed);
-    arena.end.store(base + bytes, std::memory_order_relaxed);
-
+    Publish(slot, base, bytes);
     result.ok         = true;
     result.geometries = static_cast<uint32_t>(b.entries.size());
     result.bytes      = bytes;
     return result;
+}
+
+// The lean builder (issue #253). The same admissions in the same order, so the same entries,
+// offsets and bytes; what it drops is repeated work per draw item:
+//   * an item whose geometry is already an entry (other than the WorldGeometry) takes that
+//     entry after one table probe -- none when it is the previous item's -- and its object
+//     is not read (the reference's type test loaded every item's vptr and, off a match,
+//     compared type names);
+//   * pass A records each item's entry (Builder::itemEntry, in walk order), so pass C
+//     re-points the items without probing the table again;
+//   * the probe of the item kItemAhead on, and the arrays of the entry kEntryAhead on, are
+//     hinted (prefetch).
+// A WorldGeometry item, and an item whose geometry is not yet an entry, run the reference's
+// steps unchanged.
+SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
+    SnapshotResult result;
+    size_t itemCount = 0;
+    if (!BeginBuild(b, r, result, itemCount)) return result;
+    if (b.itemEntry.size() < itemCount) b.itemEntry.resize(itemCount);
+
+    // ---- pass A: admit every drawn geometry, count the bytes, record each item's entry ----
+    size_t   bytes  = 0;
+    size_t   walked = 0;
+    uint32_t reused = 0;
+    uint32_t kept   = 0;
+    LastEntry last;
+    for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
+        for (const auto& list : r._drawGroups._data[gi]._items) {
+            for (int32_t k = 0; k < list._size; ++k) {
+                if (k + kItemAhead < list._size) b.geometries.Prefetch(list._data[k + kItemAhead]._geometry);
+                const Graphics::RendererDrawItem& item = list._data[k];
+                const Geometry* const g = item._geometry;
+                const size_t at = walked++;
+                if (g == nullptr) {
+                    result.refused = "a null geometry";
+                    return result;
+                }
+                if (last.Hit(g)) {
+                    b.itemEntry[at] = last.index;
+                    ++reused;
+                    continue;
+                }
+                const int32_t known = b.geometries.Find(g, -1);
+                if (known >= 0 && b.entries[static_cast<size_t>(known)].kind != Kind::WorldBatches) {
+                    b.itemEntry[at] = known;
+                    last.Set(g, known);
+                    ++reused;
+                    continue;
+                }
+                if (typeid(*g) == typeid(WorldGeometry)) {
+                    last.Clear();
+                    const uint32_t key = item._arg5;
+                    if (!WorldItemCopied(key)) {   // the live object (2.2)
+                        b.itemEntry[at] = kKeepLive;
+                        ++kept;
+                        continue;
+                    }
+                    const uint32_t mode = key & kModeMask;
+                    const char* why = nullptr;
+                    const int32_t index = Admit(b, g, bytes, &why);
+                    if (index < 0) {
+                        result.refused = why;
+                        return result;
+                    }
+                    if (!MarkBatch(b, mode, key, bytes)) {
+                        result.refused = "a decal / road key out of range";
+                        return result;
+                    }
+                    if (known >= 0) ++reused;
+                    b.itemEntry[at] = index;
+                    continue;
+                }
+                const char* why = nullptr;
+                const int32_t index = Admit(b, g, bytes, &why);
+                if (index < 0) {
+                    result.refused = why;
+                    return result;
+                }
+                b.itemEntry[at] = index;
+                last.Set(g, index);
+            }
+        }
+    }
+
+    // ---- pass B: the arena, then the copies ---------------------------------
+    unsigned char* const base = CopyAll(b, slot, bytes);
+
+    // ---- pass C: every item at its copy, from the entry pass A recorded ------
+    // The reference probed the table for the item's live geometry: the same entry, and
+    // kKeepLive exactly where it skipped (a WorldGeometry item of another mode, review F-219).
+    size_t replayed = 0;
+    for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
+        for (auto& list : r._drawGroups._data[gi]._items) {
+            for (int32_t k = 0; k < list._size; ++k) {
+                const int32_t index = b.itemEntry[replayed++];
+                if (index == kKeepLive) continue;
+                list._data[k]._geometry = b.entries[static_cast<size_t>(index)].copy;
+            }
+        }
+    }
+
+    Publish(slot, base, bytes);
+    result.ok         = true;
+    result.geometries = static_cast<uint32_t>(b.entries.size());
+    result.bytes      = bytes;
+    result.items      = static_cast<uint32_t>(walked);
+    result.reused     = reused;
+    result.kept       = kept;
+    return result;
+}
+
+// COMPPROF=4's scratch (main thread only): the items' geometries before and after a build,
+// the lean builder's arena bytes, and the reference builder's own scratch.
+struct VerifyScratch {
+    std::vector<const Geometry*> before;
+    std::vector<const Geometry*> lean;
+    std::vector<const Geometry*> reference;
+    std::vector<unsigned char>   arena;
+    Builder                      builder;
+};
+VerifyScratch g_verify;
+
+void SaveItems(const Graphics::Renderer& r, std::vector<const Geometry*>& out) {
+    out.clear();
+    for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
+        for (const auto& list : r._drawGroups._data[gi]._items) {
+            for (int32_t k = 0; k < list._size; ++k) out.push_back(list._data[k]._geometry);
+        }
+    }
+}
+
+// The lean build, then the items back at their live geometries and the reference build on
+// them into the same arena (same base: the lean build grew it to the bytes both count). The
+// packet keeps the reference's copies; the result carries the bits of what differed.
+SnapshotResult VerifiedBuild(int32_t slot, Graphics::Renderer& r) {
+    VerifyScratch& v = g_verify;
+    SaveItems(r, v.before);
+    const SnapshotResult lean = BuildLean(g_builder, slot, r);
+    SaveItems(r, v.lean);
+    const unsigned char* const leanBase = g_arenas[slot & 1].Base();
+    if (lean.ok) v.arena.assign(leanBase, leanBase + lean.bytes);
+
+    size_t at = 0;
+    for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
+        for (auto& list : r._drawGroups._data[gi]._items) {
+            for (int32_t k = 0; k < list._size; ++k) list._data[k]._geometry = v.before[at++];
+        }
+    }
+    SnapshotResult ref = BuildReference(v.builder, slot, r);
+    SaveItems(r, v.reference);
+
+    uint32_t mismatch = 0;
+    const bool sameRefusal = lean.refused == ref.refused ||
+                             (lean.refused != nullptr && ref.refused != nullptr &&
+                              std::strcmp(lean.refused, ref.refused) == 0);
+    if (lean.ok != ref.ok || lean.geometries != ref.geometries || lean.bytes != ref.bytes || !sameRefusal) {
+        mismatch |= 1u;
+    }
+    const unsigned char* const refBase = g_arenas[slot & 1].Base();
+    if (lean.ok && ref.ok) {
+        const bool sameBytes = refBase == leanBase && lean.bytes == ref.bytes &&
+                               (ref.bytes == 0 || std::memcmp(v.arena.data(), refBase, ref.bytes) == 0);
+        if (!sameBytes) mismatch |= 2u;
+    }
+    if (v.lean != v.reference) mismatch |= 4u;
+
+    ref.items    = lean.items;
+    ref.reused   = lean.reused;
+    ref.kept     = lean.kept;
+    ref.checked  = true;
+    ref.mismatch = mismatch;
+    return ref;
+}
+
+}  // namespace
+
+SnapshotResult BuildSnapshot(int32_t slot, Graphics::Renderer& r, bool terrainEdit, bool verify) {
+    if (terrainEdit) {
+        SnapshotResult result;
+        result.refused = "ext.terrain_edit";
+        return result;
+    }
+    return verify ? VerifiedBuild(slot, r) : BuildLean(g_builder, slot, r);
 }
 
 // The seam is installed only while a packet with copies is in flight (render_pipe.cpp

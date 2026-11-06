@@ -43,5 +43,33 @@ int64_t FillRun(const Span* spans, int32_t count, int32_t stride, uint8_t* vb, u
     return written;
 }
 
+bool JoinsBatch(const InstanceKey& head, const InstanceKey& next) {
+    if (next.instance != head.instance) return false;
+    if (next.arg5 != head.arg5) return false;
+    if (next.userData != head.userData) return false;
+    return next.arg10 == head.arg10;
+}
+
+int32_t WideBatchCap(int32_t arg8, int32_t backendCap) {
+    if (arg8 != kRetailInstanceSlots) return arg8;
+    if (backendCap <= arg8) return arg8;
+    return backendCap / arg8 * arg8;
+}
+
+bool ContinuesPastCut(const InstanceKey& head, const InstanceKey& cut, const InstanceKey* afterCut) {
+    if (!head.wideOk || !cut.wideOk) return false;
+    if (!JoinsBatch(head, cut)) return false;
+    if (cut.arg8 != head.arg8) return false;
+    if (cut.opacity != head.opacity || cut.opacityPrev != head.opacityPrev) return false;
+    if (afterCut == nullptr) return false;
+    return JoinsBatch(cut, *afterCut);
+}
+
+int64_t WideBatchesOfChain(int64_t retailBatches, int32_t perWide) {
+    if (retailBatches <= 0) return 0;
+    if (perWide <= 1) return retailBatches;
+    return (retailBatches + perWide - 1) / perWide;
+}
+
 }  // namespace DrawBatch
 }  // namespace Ext

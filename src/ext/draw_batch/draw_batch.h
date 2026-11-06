@@ -25,5 +25,28 @@ namespace DrawBatch {
 void Sync();
 bool Installed();
 
+// Issue #253 (stress harness only): the copy's instancing batches by shaderIndex (0 main,
+// 1 shadow, 2 reflection, 3 any other), tallied in locals and folded once per DrawItemList
+// call while counting is on (the harness turns it on at BANISHED_STRESS_COMPPROF >= 2).
+// Merged decal / road / smoke runs are not counted here.
+constexpr int kBatchShaderSlots = 4;
+constexpr int kBatchSizeSlots   = 4;   // batches of 1, 2-8, 9-32, 33+ items
+constexpr int kBatchBreakSlots  = 7;   // list end, cap, instance, _arg5, _userData, _arg10, wide seam
+// Issue #253: the instancing draws the same lists would take at caps of 52, 104, 208 and 988 instances
+// (wide batches, batch_fill.h ContinuesPastCut), whatever the backend's cap.
+constexpr int kWideSimSlots     = 4;
+struct BatchCounters {
+    uint64_t lists     = 0;   // DrawItemList calls with items
+    uint64_t singles   = 0;   // drawn items with _arg8 <= 1 (one draw each)
+    uint64_t batches   = 0;   // instancing batches (_arg8 > 1)
+    uint64_t instances = 0;   // items those batches drew
+    uint64_t sizes[kBatchSizeSlots]   = {};
+    uint64_t breaks[kBatchBreakSlots] = {};
+    uint64_t wideSim[kWideSimSlots]   = {};
+};
+void SetCounting(bool on);
+// Copies the window into out[kBatchShaderSlots] and zeroes it.
+void TakeWindow(BatchCounters* out);
+
 }  // namespace DrawBatch
 }  // namespace Ext

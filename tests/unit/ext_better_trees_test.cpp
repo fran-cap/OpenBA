@@ -428,7 +428,9 @@ constexpr uint32_t kDclInputPs = 98, kSampleCLz = 71;
 // A synthetic ps_4_0 in the SHAPE of a billboard colour program: a diffuse sample from v1.xy, a
 // shadow compare from v3.z (two taps, one through a temp offset), the compare value written out.
 // `shape` 0 = that; 1 = no sample_c (a depth variant); 2 = the compare value comes through a temp
-// only; 3 = the texcoord sample reads a temp (no input uv); 4 = flow control.
+// only; 3 = the texcoord sample reads a temp (no input uv); 4 = flow control; 5 = a cutout (issue #253: the
+// cutout's add / lt / discard_nz and a fill-floor discard_z between the sample and the taps); 6 = that cutout
+// with the temp tap's `mov r1.xyz, v3` before the add (a read of the shadow input ahead of the discard).
 Tokens DitherProgram(int shape) {
     Tokens t;
     auto dclInput = [&](uint32_t reg, uint32_t mask) {
@@ -446,9 +448,48 @@ Tokens DitherProgram(int shape) {
       if (shape == 3) Swz(t, OT::Temp, 2, Enc::Swizzle(0, 1, 0, 0)); else Swz(t, OT::Input, 1, Enc::Swizzle(0, 1, 0, 0));
       Swz(t, OT::Resource, 0, kXYZW); t.push_back(Comp4(0, 0, OT::Sampler, 1) & ~3u); t.push_back(0); i.End(Op::Sample); }
     if (shape == 4) { Ins i(t); i.End(21 /* endif */); }
+    auto copyV3 = [&] {   // mov r1.xyz, v3.xyzx
+        Ins i(t);
+        Dst(t, OT::Temp, 1, 7);
+        Swz(t, OT::Input, 3, Enc::Swizzle(0, 1, 2, 0));
+        i.End(Op::Mov);
+    };
+    if (shape == 6) copyV3();
+    if (shape == 5 || shape == 6) {
+        // add r2.x, r0.w, l(-0.5) ; lt r2.x, r2.x, l(0) ; discard_nz r2.x ; discard_z r2.y   (the cutout, the floor)
+        {
+            Ins i(t);
+            Dst(t, OT::Temp, 2, 1);
+            t.push_back(Comp4(2, 3, OT::Temp, 1));
+            t.push_back(0);
+            Enc::ImmScalar(t, -0.5f);
+            i.End(Op::Add);
+        }
+        {
+            Ins i(t);
+            Dst(t, OT::Temp, 2, 1);
+            t.push_back(Comp4(2, 0, OT::Temp, 1));
+            t.push_back(2);
+            Enc::ImmScalar(t, 0.0f);
+            i.End(Op::Lt);
+        }
+        {
+            Ins i(t);
+            t.push_back(Comp4(2, 0, OT::Temp, 1));
+            t.push_back(2);
+            i.End(Op::Discard);
+            t[i.at] |= 1u << 18;   // _nz
+        }
+        {
+            Ins i(t);
+            t.push_back(Comp4(2, 1, OT::Temp, 1));
+            t.push_back(2);
+            i.End(Op::Discard);
+        }
+    }
     if (shape != 1) {
         // 1: mov r1.xyz, v3.xyzx             2: sample_c_lz r1.w, r1.xyxx, t5, s5, r1.z   (a tap through a temp)
-        { Ins i(t); Dst(t, OT::Temp, 1, 7); Swz(t, OT::Input, 3, Enc::Swizzle(0, 1, 2, 0)); i.End(Op::Mov); }
+        if (shape != 6) copyV3();
         { Ins i(t); Dst(t, OT::Temp, 1, 8); Swz(t, OT::Temp, 1, Enc::Swizzle(0, 1, 0, 0)); Swz(t, OT::Resource, 5, Enc::Rep(0));
           t.push_back(Comp4(0, 0, OT::Sampler, 1) & ~3u); t.push_back(5);
           t.push_back(Comp4(2, 2, OT::Temp, 1)); t.push_back(1); i.End(kSampleCLz); }
@@ -568,6 +609,100 @@ UNIT_TEST(ext_better_trees_dither_match_and_meaning) {
         CHECK(std::fabs(a.o[0][0] - a.v[3][2]) < 1e-6f);
         if (amp == 0.0f) CHECK(std::fabs(c.o[0][0] - a.v[3][2]) < 1e-6f);
         else CHECK(std::fabs(c.o[0][0] - a.v[3][2]) > 1e-4f || std::fabs(h - 0.5f) < 1e-3f);
+    }
+}
+
+// Issue #253, THE PLACEMENT (edge_dither.h): in a cutout program the block goes right after the last discard
+// (so an alpha-tested fragment never runs it), or right before the first read of S when one precedes the
+// discard; the emitted program is otherwise token for token the old one: the user's instructions in their
+// order with S's reads pointed at T, and the same 13 instructions as the block of a program without a discard.
+UNIT_TEST(ext_better_trees_dither_cutout_placement) {
+    BbsRewrite::Params k = BbsRewrite::kDefaultParams;
+    k.noise = 0.6f;
+    k.noiseScale = 32.0f;
+    // the block of the discard-free program, before its first instruction: the reference
+    const std::vector<uint8_t> b0 = DitherBlob(0);
+    BbsDither::Match m0;
+    BbsDither::Analyse(b0.data(), b0.size(), &m0);
+    CHECK(m0.matched);
+    CHECK_EQ(m0.lastDiscard, -1);
+    CHECK_EQ(m0.insertAt, m0.firstInstr);
+    CHECK_STREQ(BbsDither::PlacementName(m0), "first instruction");
+    std::vector<uint8_t> o0;
+    CHECK(BbsDither::Transform(m0, &o0, k));
+    BbsDither::Match r0;
+    BbsDither::Analyse(o0.data(), o0.size(), &r0);
+    CHECK(r0.program);
+    const auto blockOf = [](const Dxbc::Program& p, int at) {
+        const Dxbc::Instr& first = p.instrs[static_cast<size_t>(at)];
+        const Dxbc::Instr& last  = p.instrs[static_cast<size_t>(at) + 12];
+        return Tokens(p.tokens.begin() + first.offset, p.tokens.begin() + last.offset + last.length);
+    };
+    const Tokens block = blockOf(r0.prog, m0.firstInstr);
+    for (int shape = 5; shape <= 6; ++shape) {
+        const std::vector<uint8_t> b = DitherBlob(shape);
+        BbsDither::Match m;
+        BbsDither::Analyse(b.data(), b.size(), &m);
+        CHECK(m.matched);
+        if (!m.matched) continue;
+        const std::vector<Dxbc::Instr>& in = m.prog.instrs;
+        CHECK(in[static_cast<size_t>(m.lastDiscard)].opcode == Op::Discard);
+        CHECK(in[static_cast<size_t>(m.lastDiscard) - 1].opcode == Op::Discard);
+        if (shape == 5) {
+            CHECK_EQ(m.insertAt, m.lastDiscard + 1);   // after the floor's discard_z
+            CHECK_EQ(m.firstShadowRead, m.insertAt);
+            CHECK_STREQ(BbsDither::PlacementName(m), "after the discard");
+        } else {
+            CHECK_EQ(m.insertAt, m.firstShadowRead);   // the mov of v3 ahead of the add
+            CHECK(m.insertAt < m.lastDiscard);
+            CHECK(in[static_cast<size_t>(m.insertAt)].opcode == Op::Mov);
+            CHECK_STREQ(BbsDither::PlacementName(m), "before the first read of S");
+        }
+        std::vector<uint8_t> out;
+        CHECK(BbsDither::Transform(m, &out, k));
+        BbsDither::Match r;
+        BbsDither::Analyse(out.data(), out.size(), &r);
+        CHECK(r.program);
+        CHECK_EQ(r.prog.instrs.size(), in.size() + 13);
+        if (r.prog.instrs.size() != in.size() + 13) continue;
+        // the block: the reference's 13 instructions, token for token, at insertAt
+        CHECK(blockOf(r.prog, m.insertAt) == block);
+        // everything else: the input's own instructions in order, with dcl_temps + 2, dcl_input_ps v3.xyzw and
+        // every v3 read pointed at r<temps> -- nothing moved, nothing else touched
+        const uint32_t T = m.temps;
+        Tokens want;
+        for (size_t i = 0; i < in.size(); ++i) {
+            const Dxbc::Instr& x = in[i];
+            const size_t at = want.size();
+            want.insert(want.end(), m.prog.tokens.begin() + x.offset, m.prog.tokens.begin() + x.offset + x.length);
+            if (x.opcode == Op::DclTemps) want[at + 1] = T + 2;
+            if (x.isDecl && x.opcode == kDclInputPs && m.prog.tokens[x.offset + 2] == 3) want[at + 1] |= 0xFu << 4;
+            if (x.isDecl) continue;
+            for (const Dxbc::Operand& o : x.operands) {
+                if (o.type != OT::Input || o.index[0] != 3) continue;
+                uint32_t* ot = want.data() + at + (o.offset - x.offset);
+                ot[0] = (ot[0] & ~(0xFFu << 12)) | (OT::Temp << 12);
+                ot[1] = T;   // the synthetic operands carry no extended token
+            }
+        }
+        Tokens got;
+        for (size_t i = 0; i < r.prog.instrs.size(); ++i) {
+            const int ii = static_cast<int>(i);
+            if (ii >= m.insertAt && ii < m.insertAt + 13) continue;
+            const Dxbc::Instr& x = r.prog.instrs[i];
+            got.insert(got.end(), r.prog.tokens.begin() + x.offset, r.prog.tokens.begin() + x.offset + x.length);
+        }
+        CHECK(got == want);
+        // no read of v3 outside the block, and no read of T before the block
+        for (size_t i = 0; i < r.prog.instrs.size(); ++i) {
+            const int ii = static_cast<int>(i);
+            if (r.prog.instrs[i].isDecl) continue;
+            if (ii >= m.insertAt && ii < m.insertAt + 13) continue;
+            for (const Dxbc::Operand& o : r.prog.instrs[i].operands) {
+                CHECK(!(o.type == OT::Input && o.index[0] == 3));
+                if (o.type == OT::Temp && o.index[0] == T) CHECK(ii > m.insertAt);
+            }
+        }
     }
 }
 
@@ -926,10 +1061,10 @@ UNIT_TEST(ext_better_trees_cutout_emit_coverage_all_detail_variants) {
             CHECK(FaaRewrite::Transform(m, FaaRewrite::OptionsFor(1, 0.25f, true), &out));
             const FaaRewrite::Match t = Analyse(out);
             CHECK(t.program && t.identity && t.checksum);
-            CHECK_EQ(t.discards, 0);                   // dropped
+            CHECK_EQ(t.discards, 1);                   // retail's dropped, discard_z P.x (issue #253)
             CHECK_EQ(TempsOf(t), s.temps + 1);         // P only
             CHECK_EQ(static_cast<int>(t.prog.instrs.size()),
-                     static_cast<int>(m.prog.instrs.size()) - 1 + 1 + 7);   // - discard + save + sharpen
+                     static_cast<int>(m.prog.instrs.size()) - 1 + 1 + 7 + 1);   // - discard + save + sharpen + discard_z
             const Dxbc::Instr* o = MovO0w(t);
             CHECK(o != nullptr && o->operands[1].type == OT::Temp && o->operands[1].index[0] == s.temps);
             // the alpha is saved to P.x right before the retail add, from rA.c (r0.w)
@@ -940,6 +1075,10 @@ UNIT_TEST(ext_better_trees_cutout_emit_coverage_all_detail_variants) {
             // the sharpen ends with add_sat P.x, P.x, l(0.5)
             const Dxbc::Instr& last = t.prog.instrs[static_cast<size_t>(m.iDiscard) + 1 + 6];
             CHECK(last.opcode == Op::Add && last.Saturate() && last.operands[2].ImmF(0) == 0.5f);
+            // issue #253: then discard_z P.x (a fragment of coverage 0 is dropped)
+            const Dxbc::Instr& dz = t.prog.instrs[static_cast<size_t>(m.iDiscard) + 1 + 7];
+            CHECK(dz.opcode == Op::Discard && !dz.TestNonZero());
+            CHECK(dz.operands[0].type == OT::Temp && dz.operands[0].index[0] == s.temps && dz.operands[0].Swz(0) == 0);
             CHECK_EQ(CountOp(t, Op::DerivRtx), 1);
             CHECK_EQ(CountOp(t, Op::DerivRty), 1);
             CHECK_EQ(CountOp(t, Op::ResInfo), 0);      // no fill in mode 1
@@ -966,7 +1105,7 @@ UNIT_TEST(ext_better_trees_cutout_emit_fill_with_and_without_coverage) {
         CHECK(FaaRewrite::Transform(m, FaaRewrite::OptionsFor(2, 0.25f, true), &out));
         const FaaRewrite::Match t = Analyse(out);
         CHECK(t.program && t.identity && t.checksum);
-        CHECK_EQ(t.discards, 0);
+        CHECK_EQ(t.discards, 1);   // discard_z P.x
         CHECK_EQ(TempsOf(t), s.temps + 3);
         CHECK_EQ(CountOp(t, Op::ResInfo), 1);
         CHECK_EQ(CountOp(t, Op::Log), 1);
@@ -1040,7 +1179,7 @@ UNIT_TEST(ext_better_trees_cutout_emit_fill_floor) {
             CHECK_EQ(CountOp(t, Op::MovC), 1);
             CHECK_EQ(TempsOf(t), TempsOf(p));              // no new temp: M is the lod scratch
             CHECK_EQ(t.prog.instrs.size(), p.prog.instrs.size() + 3);
-            CHECK_EQ(t.discards, msaa ? 0 : 2);
+            CHECK_EQ(t.discards, msaa ? 1 : 2);
             CHECK_EQ(CountOp(t, Op::And), msaa ? 1 : 0);
             // the two follow the k mad, in order, and read the alpha the retail add read (rA.c)
             int iMadK = -1;

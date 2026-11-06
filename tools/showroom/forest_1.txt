@@ -1,0 +1,4 @@
+# issue #253 forest bench: 60x60 mixed trees 1 tile apart, camera pinned at 130
+forest mixed 60 60 1
+bench 130
+month 4.5

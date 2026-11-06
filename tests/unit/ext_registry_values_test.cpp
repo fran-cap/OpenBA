@@ -1,7 +1,7 @@
 // ============================================================================
 // tests/unit/ext_registry_values_test.cpp -- the registry's VALUED KEYS (block AOMENU)
 // ============================================================================
-// src/ext/registry.{h,cpp} on their own: the table (ext.ao_quality 1..3 default
+// src/ext/registry.{h,cpp} on their own: the table (ext.ao_quality 1..4 default
 // 2, ext.ao_opacity 0..30 default 20), ParseValue (well-formed numbers are
 // clamped, anything else is malformed = the default), Resolve over a settings
 // text (absent / clamped / malformed / the profile rule: faithful and all leave
@@ -51,13 +51,20 @@ UNIT_TEST(ext_values_table_shape) {
     // (ext_create_on_demand_test.cpp), texture_quality_drop (ext_texture_quality_test.cpp), fps_cap_rate
     // (ext_fps_cap_test.cpp), touch_mode_toolbar_scale / _zoom_min (ext_touch_mode_test.cpp),
     // touch_pointer_lift / _pick_radius / _tap_twice (ext_touch_pointer_test.cpp)
-    CHECK_EQ(Ext::ValueKeyCount(), 26);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
+    CHECK_EQ(Ext::ValueKeyCount(), 28);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
+                                          // + staggered_passes_shadow / _reflection (issue #253, checked below)
     CHECK_EQ(K("sharp_ui_icons").minValue, 0);
     CHECK_EQ(K("sharp_ui_icons").maxValue, 1);
     CHECK_EQ(K("sharp_ui_icons").defaultValue, 0);
+    // Issue #253: discrete, 2 by default (the ruling), 1 = every frame as retail.
+    CHECK_EQ(K("staggered_passes_shadow").defaultValue, 2);
+    CHECK_EQ(K("staggered_passes_shadow").choiceCount, 4);
+    CHECK_EQ(K("staggered_passes_reflection").defaultValue, 2);
+    CHECK_EQ(K("staggered_passes_reflection").maxValue, 8);
+    CHECK_STREQ(K("staggered_passes_reflection").owner, "staggered_passes");
     const Ext::ValueKey& q = K("ao_quality");
     const Ext::ValueKey& o = K("ao_opacity");
-    CHECK_EQ(q.minValue, 1); CHECK_EQ(q.maxValue, 3); CHECK_EQ(q.defaultValue, 2);
+    CHECK_EQ(q.minValue, 1); CHECK_EQ(q.maxValue, 4); CHECK_EQ(q.defaultValue, 2);
     CHECK_EQ(o.minValue, 0); CHECK_EQ(o.maxValue, 30); CHECK_EQ(o.defaultValue, 20);
     CHECK_STREQ(Ext::SettingsKey(q).c_str(), "ext.ao_quality");
     CHECK_STREQ(Ext::SettingsKey(o).c_str(), "ext.ao_opacity");
@@ -101,7 +108,8 @@ UNIT_TEST(ext_values_parse_and_clamp) {
     CHECK_EQ(Ext::ParseValue(q, "1", ok), 1); CHECK(ok);
     CHECK_EQ(Ext::ParseValue(q, "3", ok), 3); CHECK(ok);
     CHECK_EQ(Ext::ParseValue(q, "0", ok), 1); CHECK(ok);      // below: clamped up
-    CHECK_EQ(Ext::ParseValue(q, "7", ok), 3); CHECK(ok);      // above: clamped down
+    CHECK_EQ(Ext::ParseValue(q, "4", ok), 4); CHECK(ok);      // Lowest (issue #253)
+    CHECK_EQ(Ext::ParseValue(q, "7", ok), 4); CHECK(ok);      // above: clamped down
     CHECK_EQ(Ext::ParseValue(q, "-5", ok), 1); CHECK(ok);
     CHECK_EQ(Ext::ParseValue(o, "15", ok), 15); CHECK(ok);
     CHECK_EQ(Ext::ParseValue(o, "55", ok), 30); CHECK(ok);     // above the 30 ceiling: clamped
@@ -139,7 +147,7 @@ UNIT_TEST(ext_values_resolve) {
     CHECK_EQ(r.clampedValues, 0);
     // Out of range: clamped and counted; malformed: default and counted.
     s = ResolveText("ext.ao_quality=9\next.ao_opacity=lots\n", nullptr, &r);
-    CHECK_EQ(s.val.ao_quality, 3);
+    CHECK_EQ(s.val.ao_quality, 4);
     CHECK_EQ(s.val.ao_opacity, 20);
     CHECK_EQ(r.clampedValues, 1);
     CHECK_EQ(r.malformedValues, 1);

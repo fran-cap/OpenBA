@@ -134,6 +134,9 @@ void MirrorThread() {
 // Both are rows of Options > Enhanced (Render scale, Frame rate cap). P10 (ruled 2026-10-26): the touch
 // controls on, the toolbar at 200 % shrunk to fit beside them (ext.touch_mode, docs/android/TOUCH_MODE.md).
 // P11 (ruled 2026-10-26): the fingers drive the tools (ext.touch_pointer, docs/android/P11_TOUCH_POINTER.md).
+// Issue #253 (ruled 2026-11-05): the shadow map and the water's reflection on alternate frames while the
+// view is still (ext.staggered_passes, docs/android/I253_RENDER.md §3); it stays a row of Options >
+// Extensions, and an existing phone gets it on its next start unless its file already has the key.
 const char kPhoneSettings[] =
     "GameEdgeScroll=false\n"
     "VideoRenderScale=50\n"
@@ -149,7 +152,8 @@ const char kPhoneSettings[] =
     "ext.fps_cap_rate=60\n"
     "ext.touch_mode=1\n"
     "ext.touch_mode_toolbar_scale=200\n"
-    "ext.touch_pointer=1\n";
+    "ext.touch_pointer=1\n"
+    "ext.staggered_passes=1\n";
 
 // P13 (ruled 2026-10-28, docs/android/P13_MEM.md §6): a low-memory phone (Platform::Memory: total RAM
 // below 6.5 GiB) also loads its textures at Half (ext.texture_quality; Options > Enhanced > Texture

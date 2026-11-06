@@ -153,6 +153,7 @@ struct Extensions {
     bool fps_cap = false; // class A, live: src/ext/fps_cap/, FrameLimiter::SetSettingsCap (src/app/frame_limiter.h; docs/android/P8_INPUT_OPTIONS.md)
     bool touch_mode = false; // class A, live: src/ext/touch_mode/, seam UI::UserInterface::_extDialogScale + ext.phone_menu's place hook + PlayerToolManager::UpdateCamera (docs/android/TOUCH_MODE.md)
     bool touch_pointer = false; // class A, live: src/ext/touch_pointer/, seams Input::Device::_extAfterUpdate + Platform::Touch::SetSink + ext.touch_mode's camera hold and place hook (docs/android/P11_TOUCH_POINTER.md)
+    bool staggered_passes = false; // class A, live: src/ext/staggered_passes/, seams Graphics::SunLight::_extStaggerEvery + Graphics::ReflectionImageBuffer::_extStaggerEvery (graphics/stagger_hold.h; issue #253)
 #ifdef BANISHED_UNIT_TEST
     // tests/unit/ext_registry_test.cpp only: one extension per class, so the
     // lock semantics are tested before a real extension exists. Not in the exe.
@@ -172,7 +173,7 @@ struct Extensions {
 // feature itself costs). The initialisers are the boot-less defaults and must
 // equal the table's `defaultValue` (the unit tests check it).
 struct Values {
-    int32_t ao_quality = 2;     // ext.ao_quality  1..3   (owner ambient_occlusion): Low / Medium / High
+    int32_t ao_quality = 2;     // ext.ao_quality  1..4   (owner ambient_occlusion): Low / Medium / High / Lowest (4: appended so 1..3 keep their meaning; issue #253)
     int32_t ao_opacity = 20;    // ext.ao_opacity  0..30 percent (owner ambient_occlusion): the apply's strength; the user's look 2026-10-14: 20 is the max that reads well, 30 the ceiling
     int32_t foliage_aa_mode = 2; // ext.foliage_aa_mode 1..2 (owner better_trees): 1 smooth edges, 2 + distance fill (FOLIAGE_AA.md §1 ruling 4)
     int32_t max_shadow_size = 4096; // ext.max_shadow_size 4096 | 8192 (owner max_shadow_res): the sun map at High (FAA-SHADOW2)
@@ -202,6 +203,8 @@ struct Values {
     int32_t derived_cache_mb = 4096; // ext.derived_cache_mb 256..65536 (owner compress_ao, the cache's first user): the derived-data cache's cap in MB (COMPRESSAO.md)
     int32_t natural_tree_growth = 1; // ext.natural_tree_growth 0..1 (owner better_trees): per-tree autumn colour, leaf fall, regrowth and green variation while the row is on (NATURAL_GROWTH.md)
     int32_t phone_menu_safe_margin = 3375; // ext.phone_menu_safe_margin 0 | 2000 | 3375 | 4500 | 6000 (owner phone_menu): the safe-area inset in thousandths of a percent of the screen height (3375 = 3.375 %, the margin it always had: phone_math.h kSafeMarginFraction), 0 = none (a tablet without cut-outs; issue #96, handins/PHONEMENU.md)
+    int32_t staggered_passes_shadow = 2; // ext.staggered_passes_shadow 1 | 2 | 3 | 4 (owner staggered_passes): the sun's shadow map renders at least every N frames on a near-still view (1 = every frame, as retail); 2 is the ruled default (issue #253)
+    int32_t staggered_passes_reflection = 2; // ext.staggered_passes_reflection 1 | 2 | 4 | 8 (owner staggered_passes): the water's reflection image renders at least every N frames on a near-still view (1 = every frame); 2 is the ruled default (issue #253)
     int32_t sharp_ui_icons = 0; // ext.sharp_ui_icons 0..1 (owner sharp_ui): 1 = the dialog and Extensions sheets drawn from their magnified copies with our art (SHARP_SPRITES.md); 0 = the text only (the default, the user 2026-11-04)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
