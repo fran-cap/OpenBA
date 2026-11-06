@@ -59,6 +59,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/BuildingFinderPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FavoritesWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/FullscreenMode.rsc") != nullptr);
+    CHECK(Embedded("Dialog/MapOverlays.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -448,6 +449,25 @@ UNIT_TEST(ext_rsc_text_parse_fullscreen_mode) {
     // element descriptions only, so it is not run on this file).
     const Object* items = f.Find("fullscreenModeItems");
     CHECK(items && items->type == "StringTable");
+}
+
+// ext.map_overlays's tabs in the map window: the tab frame map_window.cpp injects at userGroup1, its tab
+// button, the four pages and the names the controller looks up in them.
+UNIT_TEST(ext_rsc_text_parse_map_overlays) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/MapOverlays.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // not a dialog: retail's map window hosts it
+    const Object* tabs = f.Find("tabMapOverlays");
+    CHECK(tabs && tabs->type == "TabDescription");
+    const Object* button = f.Find("tabButtonMapOverlays");
+    CHECK(button && button->type == "ButtonDescription");
+    CHECK(f.Find("pageMapOverlaysMap") && f.Find("pageMapOverlaysResource") && f.Find("pageMapOverlaysKind") &&
+          f.Find("pageMapOverlaysTraffic"));
+    CHECK(f.Find("comboMapOverlaysCategory") && f.Find("comboMapOverlaysResource") &&
+          f.Find("comboMapOverlaysKind") && f.Find("rowMapOverlaysMonths") && f.Find("sliderMapOverlaysMonths") &&
+          f.Find("sliderMapOverlaysScale") && f.Find("ribbonMapOverlaysRamp") &&
+          f.Find("textMapOverlaysLegendMax") && f.Find("checkMapOverlaysTerrain"));
+    CheckKnownTypes(f, "MapOverlays.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_show_grid_page) {
