@@ -277,6 +277,7 @@ void MapUI::OnCreated() {
     // Setup overlay image (with blend, element "imageOverlay")
     SetupImage(imageCapture->overlayImage, &overlaySpriteSheet, &overlayMaterial,
                '\x01', "imageOverlay");
+    Ext::MapOverlays::g_tmpMap = this;   // TMP: render stub
 }
 
 // ============================================================
