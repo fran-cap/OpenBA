@@ -435,6 +435,19 @@ bool ScaledSheetJobFinished() {
     return any;
 }
 
+void DropScaledSheets() {
+    if (!g_built.empty()) {
+        std::fprintf(stderr, "[SharpUI] video device going away: %d sheet cop%s dropped, rebuilt on the new device\n",
+                     static_cast<int>(g_built.size()), g_built.size() == 1 ? "y" : "ies");
+    }
+    for (const Built& b : g_built) {
+        delete b.material;   // the material holds the texture: it goes first
+        delete b.texture;
+    }
+    g_built.clear();
+    g_failed.clear();
+}
+
 void DropSeenJobs() {
     for (size_t i = 0; i < g_jobs.size();) {
         if (g_jobs[i]->seen)

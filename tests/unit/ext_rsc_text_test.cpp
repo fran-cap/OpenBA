@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 18);
+    CHECK(kEmbeddedCount == 19);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -58,6 +58,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/FpsCounterPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/BuildingFinderPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FavoritesWindow.rsc") != nullptr);
+    CHECK(Embedded("Dialog/FullscreenMode.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -430,6 +431,23 @@ UNIT_TEST(ext_rsc_text_parse_favorites_window) {
     CHECK(w.Find("dialogRoot") && w.Find("tableFavoritesWindow") && w.Find("textFavoritesWindowNote"));
     CHECK(w.Find("buttonFavoriteIcon") && w.Find("imageFavoriteIcon") && w.Find("buttonFavoritesOpenPage"));
     CheckKnownTypes(w, "FavoritesWindow.rsc");
+}
+
+// ext.fullscreen_mode's Video tab cell: the group fullscreen_mode.cpp TakeCell expects, combo first, the
+// checkbox's slot second.
+UNIT_TEST(ext_rsc_text_parse_fullscreen_mode) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/FullscreenMode.rsc", f));
+    const Object* cell = f.Find("fullscreenModeCell");
+    CHECK(cell && cell->type == "GroupDescription");
+    const Object* combo = f.Find("comboFullscreenMode");
+    CHECK(combo && combo->type == "ComboDescription");
+    const Object* slot = f.Find("fullscreenModeSlot");
+    CHECK(slot && slot->type == "GroupDescription");
+    // The combo's items: a StringTable, as EnhancedOptions.rsc's combos (CheckKnownTypes lists the
+    // element descriptions only, so it is not run on this file).
+    const Object* items = f.Find("fullscreenModeItems");
+    CHECK(items && items->type == "StringTable");
 }
 
 UNIT_TEST(ext_rsc_text_parse_show_grid_page) {

@@ -41,6 +41,8 @@
 #include "ext/save_failure_notice/save_failure_notice.h"   // fix.save_failure_notice: the save job / SaveLoad seams
 #include "ext/resources/text_provider.h"        // the Extensions dialog / Enhanced tab resources from the exe's text (KITFREE)
 #include "rsc_text_check.h"                      // src/diag: the kit cross-check, /rsccheck:1 on the command line
+#include "ext/sharp_ui/sharp_ui.h"            // ext.sharp_ui: MainLoop::_extVideoLost drops its sheet copies
+#include "ext/resources/sheet_builder.h"        // the providers' sheet textures: MainLoop::_extVideoRestored
 #include "ext/resources/font_provider.h"         // KITFREE RSCFONT: ext.sharp_ui's font variants, provided at run time
 #include "ext/resources/ext_sprites.h"           // KITFREE: the Extensions sprite sheet provider
 
@@ -119,6 +121,19 @@ int EngineExtraMods(EngineRecord* out, int capacity) {
 
 }  // namespace
 
+namespace {
+// Engine::MainLoop::_extVideoLost: every extension's run-time video objects the restart cannot reload.
+void VideoLost() {
+    SharpUI::OnVideoLost();      // the sheet copies (a red dialog after a display change)
+    BetterWater::OnVideoLost();  // the shore programs and twins (a GPU hang after a display change)
+}
+}  // namespace
+
+State ResolveFromSettings() {
+    LoadReport report;
+    return Resolve(&PersistenceLookup, nullptr, CommandLineProfile().c_str(), &report);
+}
+
 void InitFromSettings() {
     const std::string cmd = CommandLineProfile();
     LoadReport report;
@@ -153,6 +168,10 @@ void InitFromSettings() {
     // fix.boot_device_lost: one row, two seams -- the engine's SaveLoad-walk skip and the
     // renderer backend's recovery of a reset that failed on a removed device.
     ::Engine::MainLoop::_extFixBootDeviceLost = &Fix().boot_device_lost;
+    // Video objects made at run time across a device restart (MainLoop.h): set whatever the rows; with
+    // nothing built (the rows off, the faithful profile) each hook does nothing.
+    ::Engine::MainLoop::_extVideoLost = &VideoLost;
+    ::Engine::MainLoop::_extVideoRestored = &Resources::RestoreSheetTextures;
     BootDeviceLostBackend::SetFixFlag(&LiveFix().boot_device_lost);   // the render thread reads it
     // fix.stream_free_wait: OnSoundBufferDeleted's wait for the stream pass (review S-027).
     ::Audio::Device::_extFixStreamFreeWait = &Fix().stream_free_wait;

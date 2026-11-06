@@ -49,6 +49,7 @@
 #include "object/External.h"   // ENDGAME B.3.3 step 6A
 #include "io/Persistence.h"   // ENDGAME B.3.4 caller batch P
 #include "ext/enhanced_tab/enhanced_tab.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): the Enhanced tab
+#include "ext/fullscreen_mode/fullscreen_mode.h"   // EXT SEAM (NOT RETAIL): the Video tab's Off / Exclusive / Borderless
 #include "graphics/SunLight.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAA-MENU.md): ExtRequestMaxShadowResSync
 #include "ext/phone_menu/phone_menu.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): UI scale minimum
 #include "ext/render_pipe/render_pipe.h"   // EXT SEAM (NOT RETAIL, review S-028): SettleBeforeStepWrite
@@ -649,6 +650,10 @@ void OptionsDialog::OnOpened() {
     // (Android) disables the Video rows that change nothing there and keeps VSync on; retail elsewhere.
     Ext::PhoneMenu::FitVideoRows(this->comboResolution, this->comboRefresh, this->checkFullscreen,
                                  this->checkVSync);
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): ext.fullscreen_mode puts the combo
+    // Off / Exclusive / Borderless in the Fullscreen checkbox's cell (the checkbox kept, hidden). Retail
+    // elsewhere, and on a renderer without an exclusive mode.
+    Ext::FullscreenMode::OpenVideoRow(this, this->checkFullscreen);
 
     // --- Input bind list (prime suspect for the per-frame KeyMap::Pressed crash) ---
     if (s_enableInputList) {
@@ -747,6 +752,7 @@ void OptionsDialog::OnOpened() {
 // No-op shutdown; nothing to clean up.
 void OptionsDialog::OnClosed() {
     Ext::EnhancedTab::Close(this);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): forget the Enhanced tab's elements
+    Ext::FullscreenMode::CloseVideoRow(this);   // EXT SEAM (NOT RETAIL): forget the Video tab's combo
 }
 
 // ============================================================
@@ -940,6 +946,11 @@ void OptionsDialog::ApplyVideoSettings() {
     int newShadowQ = comboShadowQuality->_currentItem;
     int newReflQ = comboReflectionQuality->_currentItem;
 
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): ext.fullscreen_mode's combo writes
+    // its choice into the hidden checkbox read below; Exclusive <-> Borderless keeps VideoFullscreen at 1,
+    // so the "nothing changed" test also asks whether that choice changed. False without the row.
+    const bool fullscreenModeChanged = Ext::FullscreenMode::ReadVideoRow(this);
+
     // Fullscreen / VSync checkboxes
     uint8_t newFullscreen = checkFullscreen->_checked;
     uint8_t newVsync = checkVSync->_checked;
@@ -953,7 +964,8 @@ void OptionsDialog::ApplyVideoSettings() {
     if (!rendererChanged) {
         // Same renderer — check if resolution/antialias/fullscreen match
         if (oldWidth == newWidth && oldHeight == newHeight &&
-            oldAntialias == newAntialias && oldFullscreen == newFullscreen) {
+            oldAntialias == newAntialias && oldFullscreen == newFullscreen &&
+            !fullscreenModeChanged) {
             if (!adapterChanged) {
                 // Same adapter — check all remaining settings
                 if (oldRefreshN == newRefreshN && oldRefreshD == newRefreshD &&
@@ -986,6 +998,10 @@ void OptionsDialog::ApplyVideoSettings() {
         vidDev->ReleaseDynamic();
         vidDev->Shutdown();
     }
+
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): ext.fullscreen_borderless follows the
+    // combo before the reset below reads it (DX11's swap chain and window size).
+    Ext::FullscreenMode::CommitVideoRow(this);
 
     // Write new settings to video config
     vidCfg->interfaceIndex = newRenderer;
@@ -1044,6 +1060,7 @@ void OptionsDialog::ApplyVideoSettings() {
         vidCfg->shadowScalar = oldShadowRes;
         vidCfg->shaderDetail = oldShadowQ;
         vidCfg->reflectionDetail = oldReflQ;
+        Ext::FullscreenMode::RollbackVideoRow(this);   // EXT SEAM (NOT RETAIL): the borderless choice too
     }
 }
 

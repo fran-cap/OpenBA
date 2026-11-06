@@ -375,6 +375,11 @@ void Draw(UI::UserInterface& ui, Video::Context& context) {
     }
 }
 
+void OnVideoLost() {
+    DropScaledSheets();
+    g.valid = false;   // the swaps named the dropped materials: select again before the next draw
+}
+
 void Prewarm() {
     if (Val().sharp_ui_icons == 0 || g_gameSettings == nullptr) return;
     int32_t bbW, bbH;

@@ -12,6 +12,8 @@
 #include "ext/resources/sheet_builder.h"
 
 #include <cstdio>
+#include <string>
+#include <vector>
 
 #include "graphics/Material.h"
 #include "object/External.h"
@@ -32,9 +34,75 @@ T* NewObject(const char* what) {
     return static_cast<T*>(b);
 }
 
+// The textures BuildSheetObjects made, with what made them (RestoreSheetTextures). The spec's two names
+// point into the record's own strings.
+struct Kept {
+    Video::ImageBuffer* texture = nullptr;
+    SheetSpec           spec;
+    std::string         imageName;
+    std::string         materialName;
+    SheetLayout         layout;
+};
+std::vector<Kept> g_kept;
+
+void Keep(Video::ImageBuffer* texture, const SheetSpec& spec, const SheetLayout& layout) {
+    Kept k;
+    k.texture = texture;
+    k.spec = spec;
+    k.imageName = spec.imageName != nullptr ? spec.imageName : "";
+    k.materialName = spec.materialName != nullptr ? spec.materialName : "";
+    k.layout = layout;
+    for (Kept& old : g_kept) {
+        if (old.texture == texture) {   // an address reused by a later build: the later one is kept
+            old = std::move(k);
+            return;
+        }
+    }
+    g_kept.push_back(std::move(k));
+}
+
+void Forget(const Video::ImageBuffer* texture) {
+    for (size_t i = 0; i < g_kept.size(); ++i) {
+        if (g_kept[i].texture == texture) {
+            g_kept.erase(g_kept.begin() + static_cast<std::ptrdiff_t>(i));
+            return;
+        }
+    }
+}
+
 }  // namespace
 
+void RestoreSheetTextures() {
+    Object::ExternalFactory* const factory = Object::ExternalFactory::_singleton;
+    if (factory == nullptr || g_kept.empty()) return;
+    int restored = 0;
+    int failed = 0;
+    for (Video::ImageBuffer* t = factory->FindNextAs<Video::ImageBuffer>(Video::ImageBuffer::TypeId(), nullptr);
+         t != nullptr; t = factory->FindNextAs<Video::ImageBuffer>(Video::ImageBuffer::TypeId(), t)) {
+        if (t->_width != 0) continue;   // reloaded from a file, or not one of ours
+        for (Kept& k : g_kept) {
+            if (k.texture != t) continue;
+            k.spec.imageName = k.imageName.c_str();
+            k.spec.materialName = k.materialName.c_str();
+            // The reload left the object as its constructor did, with its path: the fields again, then the
+            // texture (Create needs the levels; FillImageBuffer alone makes nothing on the device).
+            const System::Filename path = t->_path;
+            FillImageBuffer(*t, k.spec, k.layout);
+            t->_path = path;
+            if (CreateTexture(*t, k.spec, k.layout)) {
+                ++restored;
+            } else {
+                ++failed;
+            }
+            break;
+        }
+    }
+    std::fprintf(stderr, "[ExtRes] video device restart: %d provided texture(s) made again, %d failed (%d kept)\n",
+                 restored, failed, static_cast<int>(g_kept.size()));
+}
+
 void DestroySheetObjects(SheetObjects& o) {
+    Forget(o.texture);
     // Reverse build order; the virtual destructors and the classes' own
     // operator delete (MemFree) take each one back.
     delete o.sheet;
@@ -82,6 +150,7 @@ SheetObjects BuildSheetObjects(const SheetSpec& spec, const SheetBitmap* bitmaps
         DestroySheetObjects(o);
         return o;
     }
+    Keep(o.texture, spec, layout);
     FillMaterialInstance(*o.material, base, textureSlot, o.texture);
     FillSpriteSheet(*o.sheet, spec, bitmaps, count, layout, o.material);
     return o;

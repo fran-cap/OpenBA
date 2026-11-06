@@ -156,6 +156,7 @@ struct Extensions {
     bool touch_mode = false; // class A, live: src/ext/touch_mode/, seam UI::UserInterface::_extDialogScale + ext.phone_menu's place hook + PlayerToolManager::UpdateCamera (docs/android/TOUCH_MODE.md)
     bool touch_pointer = false; // class A, live: src/ext/touch_pointer/, seams Input::Device::_extAfterUpdate + Platform::Touch::SetSink + ext.touch_mode's camera hold and place hook (docs/android/P11_TOUCH_POINTER.md)
     bool staggered_passes = false; // class A, live: src/ext/staggered_passes/, seams Graphics::SunLight::_extStaggerEvery + Graphics::ReflectionImageBuffer::_extStaggerEvery (graphics/stagger_hold.h; issue #253)
+    bool fullscreen_mode = true; // class A, next video reset: src/ext/fullscreen_mode/, the Options Video tab's Fullscreen cell + the DX11 swap chain's seams (src/render/dx11/devicedata.cpp)
 #ifdef BANISHED_UNIT_TEST
     // tests/unit/ext_registry_test.cpp only: one extension per class, so the
     // lock semantics are tested before a real extension exists. Not in the exe.
@@ -183,6 +184,7 @@ struct Values {
     int32_t create_on_demand_idle_min = 0; // ext.create_on_demand_idle_min 0..120 (owner create_on_demand): minutes unused before a made object is given back, 0 = never, the default until re-makes are prefetched (CREATEONDEMAND.md section 7)
     int32_t texture_quality_drop = 0; // ext.texture_quality_drop 0..1 (owner texture_quality): the top mip levels a qualifying texture is made without, 0 = Full (the default: the row or profile=all alone drops nothing), 1 = Half; an older 2 (Quarter, removed by ruling) clamps to 1; read once at boot (TEXQUALITY.md)
     int32_t fps_cap_rate = 60; // ext.fps_cap_rate 30 | 60 | 90 | 120 (owner fps_cap): the menu's and the game's frame-rate ceiling while the row is on; 60 is the phone's ruled default (docs/android/P8_INPUT_OPTIONS.md)
+    int32_t fullscreen_borderless = 0; // ext.fullscreen_borderless 0..1 (owner fullscreen_mode): with VideoFullscreen on, 0 = exclusive (retail's DXGI mode switch), 1 = borderless (a windowed swap chain in a popup over the whole monitor, at the desktop's size)
     int32_t touch_mode_toolbar_scale = 200; // ext.touch_mode_toolbar_scale 100 | 125 | 150 | 175 | 200 (owner touch_mode): the in-game toolbar's own scale in percent, shrunk to fit beside the control cluster (docs/android/TOUCH_MODE.md)
     int32_t touch_mode_pad_scale = 100; // ext.touch_mode_pad_scale 0 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): the camera pad cluster's size in percent of its own (a cell of 0.11 of the short edge), 0 = the cluster hidden; 100 = the size it always had (issue #96, docs/android/TOUCH_MODE.md section 5)
     int32_t touch_mode_action_bar_scale = 100; // ext.touch_mode_action_bar_scale 25 | 30 | 35 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): ext.touch_pointer's placement bar (place / rotate / flip / cancel) in percent of the cluster's 100 % cell, whatever the pad's own scale; 100 = the size it always had (issue #96)
@@ -343,6 +345,10 @@ bool Active(const Entry& e);
 // Replace both the requested and the active state (boot; the unit tests).
 // Clears the lock.
 void Install(const State& requested, Profile profile, bool profileFromCommandLine);
+// True once Install has run (InitFromSettings at boot, after Engine::Startup). Before it the active
+// State is the table's defaults, not settings.cfg's: a seam that runs inside Engine::Startup reads
+// ResolveFromSettings instead (ext.fullscreen_mode's DX11 device creation).
+bool Installed();
 
 Profile CurrentProfile();
 // True when the profile came from the command line (`/profile:...`): the gate.
@@ -453,6 +459,9 @@ int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion);
 // Engine::Startup (which ran Persistence::ReadSettings). One `[Ext]` line per
 // entry goes to stderr (standalone_error.log).
 void InitFromSettings();
+// The State InitFromSettings resolves (the settings map and the command line's /profile), resolved now
+// and installed nowhere: for a seam that runs before it (Installed() false).
+State ResolveFromSettings();
 
 // The dialog's write-back: SetRequested, then the entry's `fix.<id>` /
 // `ext.<id>` into the settings map (Persistence::Set, "%i"). The caller

@@ -134,5 +134,6 @@ SpriteSheet resource
 		{ String _name = "TreeGap";	String _source = "Sprite/Extensions/TreeGap.png"; }
 		{ String _name = "TreeGapStem";	String _source = "Sprite/Extensions/TreeGapStem.png"; }
 		{ String _name = "GameFilesIcon";		String _source = "Sprite/Extensions/GameFilesIcon.png"; }	// ext.phone_menu's Game files menu button (issue #96)
+		{ String _name = "ExtensionsEntry_fullscreen_mode";	String _source = "Sprite/Extensions/Entry_fullscreen_mode.png"; }
 	]
 }

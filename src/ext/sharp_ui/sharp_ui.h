@@ -66,5 +66,10 @@ void Prewarm();
 // Prewarm once more and wait for the builds (at most 2 s), so the menu's first frame draws every copy.
 void PrewarmAndWait();
 
+// Engine::MainLoop::_extVideoLost (set at boot, src/ext/registry_boot.cpp): the video device is going
+// away. The sheet copies are dropped (sharp_scaled.h DropScaledSheets) and the selection is made again
+// at the next Draw, which starts their rebuild on the new device (retail's sheet drawn meanwhile).
+void OnVideoLost();
+
 }  // namespace SharpUI
 }  // namespace Ext
