@@ -19,8 +19,9 @@
 // material, the solid column of its atlas, an identity transform,
 // one 0x18-byte vertex stream, with a copy of the overlay's render state that tests depth (so a roof, a
 // tree or a hill in front hides the picture) and writes none. The triangles (overlay_render_math.h) cover
-// the tiles the screen's nine sample rays hit, on a grid coarse enough to stay under kMaxCells quads; they
-// are built again only when the box, the step, the image or the ground under the box changes.
+// the cells the camera's frustum sees between the map's lowest and highest ground, on a grid coarse enough to
+// stay under kMaxCells quads; they are built again only when those cells, the step, the image or the ground
+// changes.
 //
 // THREADS. With ext.render_pipe the ground draw (DrawOnTerrain) runs on the render thread's pass 2. It never calls
 // Image(): RenderFrame (main thread, the end of BeginFrame) copies the image into a snapshot under a mutex
@@ -56,14 +57,16 @@
 #include "Dialog/MapUI.h"
 #include "Game/GameUpdateLoop.h"
 #include "Game/Map.h"
-#include "Game/PlayerController.h"
 #include "Game/WorldGeometry.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <mutex>
 #include <new>
+#include <utility>
 #include <vector>
 
 namespace Ext {
@@ -145,7 +148,6 @@ void Upload(MapPicture& p) {
 // ---- the terrain -------------------------------------------------------------------------------------------
 
 constexpr int kTerrainOpacity = 80;            // percent of the ramp's alpha: the ground stays readable
-constexpr float kMaxRayDistance = 400.0f;      // the pick's own limit (tool_base_ray.cpp)
 constexpr int kVerticesPerDraw = 6 * 8192;     // one BeginVertices: 1.2 MB of the context's 8 MB stream
 
 // The snapshot RenderFrame takes and the draw reads (THREADS above).
@@ -168,13 +170,20 @@ std::atomic<bool> g_terrainShown{false};
 // main thread does not draw).
 struct TerrainCache {
     std::vector<TerrainVertex> vertices;
-    TileBox box;
+    CellRows rows;
+    CoarseGrid grid;
     int step = 0;
     int mapSize = 0;
     uint32_t version = 0;
     uint64_t groundHash = 0;
     bool built = false;
     bool reportedFailure = false;
+    // the heightmap's summary (GroundOf)
+    const int16_t* heights = nullptr;
+    int heightsDim = 0;
+    uint64_t heightsHash = 0;
+    float groundLow = 0.0f;
+    float groundHigh = 0.0f;
 };
 
 TerrainCache& Cache() {
@@ -182,38 +191,19 @@ TerrainCache& Cache() {
     return *cache;
 }
 
-// The ray through the screen point (u, v): ext.show_grid's RayAt (the mouse ray's construction,
-// PlayerRay_GetMouseRay_1005a0, with the point given instead of the cursor).
-void RayAt(const Graphics::Camera& camera, float u, float v, float* origin, float* dir) {
-    Math::Transform3 xform = camera._cameraToWorld;
-    ::Frustum frustum(camera.GetFrustum());
-    Math::Vector3 zero((Math::Scalar(0.0f)));
-    const Math::Vector3 o = xform.operator*(zero);
-    origin[0] = o.x;
-    origin[1] = o.y;
-    origin[2] = o.z;
-    Math::Vector3 screenDir;
-    Math::Vector3 dirOut;
-    screenDir = *RtVolume_Frustum_GetScreenDirection(&frustum, &dirOut, u, v);
-    const Math::Vector3 d = xform.Rotate(screenDir);
-    dir[0] = d.x;
-    dir[1] = d.y;
-    dir[2] = d.z;
-}
-
-// The tile the ray through (u, v) lands on, or -1 when it hits no terrain.
-int CellAt(const Graphics::Camera& camera, WorldGeometry* terrain, int mapSize, float u, float v) {
-    float origin[3] = {0.0f, 0.0f, 0.0f};
-    float dir[3] = {0.0f, 0.0f, 0.0f};
-    RayAt(camera, u, v, origin, dir);
-    float maxDist = kMaxRayDistance;
-    float hit[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    float scratch[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
-    if (terrain->TerrainMarch(origin, dir, &maxDist, hit, scratch) == 0) return -1;
-    const int col = static_cast<int>(hit[0] + static_cast<float>(mapSize >> 1));
-    const int row = static_cast<int>(hit[1] + static_cast<float>(mapSize >> 1));
-    if (col < 0 || row < 0 || col >= mapSize || row >= mapSize) return -1;
-    return mapSize * row + col;
+// The camera's frustum corners (Volume::Frustum::GetCorners' order) in tile coordinates: world minus the world
+// position of tile vertex 0.
+void FrustumCorners(const Graphics::Camera& camera, float originX, float originY, Point3 (&out)[8]) {
+    const ::Frustum frustum(camera.GetFrustum());
+    Math::Vector3 local[8];
+    RtVolume_Frustum_GetCorners(&frustum, local);
+    const Math::Transform3& xform = camera._cameraToWorld;
+    for (int i = 0; i < 8; ++i) {
+        const Math::Vector3 w = xform.operator*(local[i]);
+        out[i].x = w.x - originX;
+        out[i].y = w.y - originY;
+        out[i].z = w.z;
+    }
 }
 
 // The ground at vertex (vc, vr): the heightmap's int16 / 256, clamped to the heightmap (show_grid's Ground).
@@ -237,17 +227,41 @@ struct Ground {
     }
 };
 
-// A number that changes with the ground under the box, read on the cell grid's vertices only (at most
-// kMaxCells-ish reads a frame).
-uint64_t GroundHash(const TileBox& box, int step, const Ground& ground) {
-    uint64_t hash = 1469598103934665603ull;   // FNV-1a
-    for (int r = box.row0; r <= box.row1 + 1; r += step) {
-        for (int c = box.col0; c <= box.col1 + 1; c += step) {
-            hash ^= static_cast<uint64_t>(static_cast<uint16_t>(ground.Raw(c, r)));
-            hash *= 1099511628211ull;
+// A number that changes with any height of the heightmap (four FNV-style lanes over its 64-bit words, so the
+// multiplies do not wait on one another: a few hundred microseconds a frame on the largest map at most).
+uint64_t HeightsHash(const int16_t* heights, size_t count) {
+    const unsigned char* bytes = reinterpret_cast<const unsigned char*>(heights);
+    const size_t size = count * sizeof(int16_t);
+    uint64_t lane[4] = {1469598103934665603ull, 1099511628211ull, 7809847782465536322ull, 14695981039346656037ull};
+    size_t at = 0;
+    for (; at + 32 <= size; at += 32) {
+        for (int k = 0; k < 4; ++k) {
+            uint64_t word = 0;
+            std::memcpy(&word, bytes + at + 8 * k, sizeof(word));
+            lane[k] = (lane[k] ^ word) * 1099511628211ull;
         }
     }
-    return hash;
+    for (; at < size; ++at) lane[0] = (lane[0] ^ bytes[at]) * 1099511628211ull;
+    return lane[0] ^ (lane[1] * 31u) ^ (lane[2] * 961u) ^ (lane[3] * 29791u);
+}
+
+// The heightmap's hash and its lowest and highest ground, worked out again only when the hash changes.
+void GroundOf(const WorldGeometry& terrain, TerrainCache& cache) {
+    const int dim = terrain._fieldD0;
+    const size_t count = static_cast<size_t>(dim) * static_cast<size_t>(dim);
+    const uint64_t hash = HeightsHash(terrain._heights.data, count);
+    if (cache.heights == terrain._heights.data && cache.heightsDim == dim && cache.heightsHash == hash) return;
+    cache.heights = terrain._heights.data;
+    cache.heightsDim = dim;
+    cache.heightsHash = hash;
+    int16_t low = terrain._heights.data[0];
+    int16_t high = low;
+    for (size_t i = 1; i < count; ++i) {
+        low = std::min(low, terrain._heights.data[i]);
+        high = std::max(high, terrain._heights.data[i]);
+    }
+    cache.groundLow = static_cast<float>(low) * (1.0f / 256.0f);
+    cache.groundHigh = static_cast<float>(high) * (1.0f / 256.0f);
 }
 
 // The overlay material's render state with the depth test on and depth writes off: show_grid's GridState
@@ -397,46 +411,46 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
     const WorldGeometry* terrain = game->m_worldGeometry;
     if (terrain->_heights.data == nullptr || terrain->_fieldD0 <= 0) return;
 
-    static const float kPoints[][2] = {
-        {0.001f, 0.001f}, {0.999f, 0.001f}, {0.001f, 0.999f}, {0.999f, 0.999f}, {0.5f, 0.001f},
-        {0.5f, 0.999f},   {0.001f, 0.5f},   {0.999f, 0.5f},   {0.5f, 0.5f},
-    };
-    constexpr int kCount = static_cast<int>(sizeof(kPoints) / sizeof(kPoints[0]));
-    int cols[kCount];
-    int rows[kCount];
-    int n = 0;
-    for (int i = 0; i < kCount; ++i) {
-        const int cell = CellAt(camera, game->m_worldGeometry, mapSize, kPoints[i][0], kPoints[i][1]);
-        if (cell < 0) continue;
-        cols[n] = cell % mapSize;
-        rows[n] = cell / mapSize;
-        ++n;
-    }
-    const TileBox box = TileBoxOf(cols, rows, n, mapSize);
-    if (!box.Valid()) return;
-    const int step = StepFor(box);
-
     const int base = (terrain->_gridSize - terrain->_fieldC4) >> 1;
+    const float center = static_cast<float>(terrain->_gridSize >> 1);
+    const float origin = static_cast<float>(base) - center;
     Ground ground;
     ground.base = base;
     ground.dim = terrain->_fieldD0;
     ground.heights = terrain->_heights.data;
-    const uint64_t groundHash = GroundHash(box, step, ground) ^ static_cast<uint64_t>(base);
 
     TerrainCache& cache = Cache();
+    GroundOf(*terrain, cache);
+
+    // what the screen sees of the ground (overlay_render_math.h), and the cells it overlaps
+    Point3 corners[8];
+    FrustumCorners(camera, origin, origin, corners);
+    const Footprint footprint = FootprintOf(corners, cache.groundLow, cache.groundHigh + kTerrainLift);
+    if (!footprint.Valid()) return;
+    const int step = StepFor(footprint, mapSize, cache.step);
+    CellRows rows;
+    CellRowsOf(footprint, mapSize, step, kTerrainMargin, rows);
+    const uint64_t groundHash = cache.heightsHash ^ static_cast<uint64_t>(base);
+
     Snapshot& s = Snap();
     {
         std::lock_guard<std::mutex> guard(s.lock);
         if (!s.valid) return;
-        const bool same = cache.built && SameTileBox(box, cache.box) && step == cache.step &&
-                          mapSize == cache.mapSize && s.version == cache.version &&
-                          groundHash == cache.groundHash;
+        if (step > 1) {
+            if (cache.grid.Step() != step || cache.grid.MapSize() != mapSize) {
+                cache.grid.Reset(step, mapSize);
+            } else {
+                if (s.version != cache.version) cache.grid.InvalidateColors();
+                if (groundHash != cache.groundHash) cache.grid.InvalidateHeights();
+            }
+        }
+        const bool same = cache.built && step == cache.step && mapSize == cache.mapSize &&
+                          s.version == cache.version && groundHash == cache.groundHash &&
+                          SameCellRows(rows, cache.rows);
         if (!same) {
-            const float center = static_cast<float>(terrain->_gridSize >> 1);
-            const float origin = static_cast<float>(base) - center;
-            BuildTerrainVertices(box, step, mapSize, origin, origin, s.pixels, s.size, kTerrainOpacity, ground,
-                                 cache.vertices);
-            cache.box = box;
+            BuildTerrainVertices(rows, mapSize, origin, origin, s.pixels, s.size, kTerrainOpacity, ground,
+                                 cache.grid, cache.vertices);
+            cache.rows = std::move(rows);
             cache.step = step;
             cache.mapSize = mapSize;
             cache.version = s.version;
