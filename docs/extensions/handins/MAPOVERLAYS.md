@@ -74,7 +74,7 @@ and has no seam.
 | `Component/buildcomponent_state8.cpp` (build complete, refund loop (a)) | each storage slot of a finished site | consumed | the construction materials, at the building. This is when retail tallies them |
 | movement: `Action/action_base_move.cpp` `MoveTo::UpdateFacing` | a waypoint reached (`pathIndex > 1`; `path[0]` is the start cell) | `OnStep` | one footstep at `path[pathIndex - 1]`. Faithful `MoveTo::Execute` case 2, `ext.walk_batch`'s and `ext.walk_batch_grid`'s batched `Step` (both call the real `UpdateFacing`) and `ext.fast_paths` (the same per-cell path format) all pass here. Every `MoveTo` walker is counted: citizens, nomads and traders on foot |
 | `GameUpdateLoop::Update` | `BeginFrame` | | |
-| the two tool-draw seams (beside `Ext::ShowGrid::Draw`) | `DrawOnTerrain` | | |
+| `Renderer::Draw` pass 2 and ext.render_pipe's copy, after the opaque list of the main scene (`Renderer::_extGroundDraw`, armed by `GameUpdateLoop::Draw` step 7 through `Ext::GroundDraw`, `src/ext/ground_draw.h`) | `DrawOnTerrain` | | |
 | the map window | the overlay tabs | | |
 
 Not hooked: demolition refunds (`destroycomponent_states.cpp`, piles of a demolished building's materials).
@@ -88,7 +88,7 @@ returns. `OnStep` sits in `UpdateFacing`, which runs once per tile a walker cros
 no test in the per-character tick (`CharacterComponent_MoveTick_1094c0`) or in the copy-pinned bodies of the
 move tick or `MoveTo::Execute`.
 | `GameUpdateLoop::Update` | `BeginFrame` |
-| the two tool-draw seams (beside `Ext::ShowGrid::Draw`) | `DrawOnTerrain` |
+| `Renderer::Draw` pass 2 and ext.render_pipe's copy (`Renderer::_extGroundDraw`, `src/ext/ground_draw.h`) | `DrawOnTerrain` |
 | the map window | the overlay tabs |
 
 **Cost rule for `OnStep`.** It runs per citizen per tile crossed. The body is an index computation and a

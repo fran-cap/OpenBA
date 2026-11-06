@@ -16,6 +16,7 @@
 
 namespace Ext { namespace SaveTail { struct StateCodec; } }
 namespace Video { class Context; }
+namespace Graphics { class Camera; }
 class RawMaterialDescription;
 class MapUI;
 class ComponentDescription;
@@ -75,8 +76,9 @@ void MapWindowClosed(MapUI& map);
 // Main thread, every frame, at the end of BeginFrame: snapshots Image() for the terrain draw, which may run
 // on the render thread (ext.render_pipe) and never calls Image() itself.
 void RenderFrame();
-// The terrain: called from the two tool-draw seams beside Ext::ShowGrid::Draw, while onTerrain is set.
-void DrawOnTerrain(Video::Context* context);
+// The terrain: from Graphics::Renderer's ground draw (src/ext/ground_draw.h), between the opaque and the
+// blended lists of the main scene, with that scene's camera, while the row is on.
+void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera);
 
 // A new game or a load: selection back to View::Map, onTerrain off; the history comes from the save (or empty).
 void OnGameStart();

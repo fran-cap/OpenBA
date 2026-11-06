@@ -12,14 +12,17 @@
 // selection, or the window closing, puts retail's sprite back (MapUI::overlaySpriteSheet) before ~MapUI
 // deletes its sheets.
 //
-// THE TERRAIN. Drawn the way ext.show_grid draws its grid (and the game its tile overlay, retail
-// 0x1401008c0): the Terrain/Selection.rsc material, the solid column of its atlas, an identity transform,
+// THE TERRAIN. Drawn from the ground-draw seam (src/ext/ground_draw.h): inside Renderer::Draw, after the opaque
+// list of the main scene and before the blended one, with the scene's camera, so the water, the particles and
+// the status icons (pass 1, which write no depth) draw over the picture as over the ground. Drawn the way
+// ext.show_grid draws its grid (and the game its tile overlay, retail 0x1401008c0): the Terrain/Selection.rsc
+// material, the solid column of its atlas, an identity transform,
 // one 0x18-byte vertex stream, with a copy of the overlay's render state that tests depth (so a roof, a
 // tree or a hill in front hides the picture) and writes none. The triangles (overlay_render_math.h) cover
 // the tiles the screen's nine sample rays hit, on a grid coarse enough to stay under kMaxCells quads; they
 // are built again only when the box, the step, the image or the ground under the box changes.
 //
-// THREADS. With ext.render_pipe the tool draw (DrawOnTerrain) runs on the render thread. It never calls
+// THREADS. With ext.render_pipe the ground draw (DrawOnTerrain) runs on the render thread's pass 2. It never calls
 // Image(): RenderFrame (main thread, the end of BeginFrame) copies the image into a snapshot under a mutex
 // when its version changes, and the draw reads only the snapshot.
 //
@@ -273,7 +276,8 @@ const Video::RenderState* TerrainState(const Graphics::MaterialInstance* instanc
     return ours;
 }
 
-void DrawVertices(Video::Context* context, const std::vector<TerrainVertex>& vertices) {
+void DrawVertices(Video::Context& ctx, const Graphics::Camera& camera, const std::vector<TerrainVertex>& vertices) {
+    Video::Context* context = &ctx;
     const Graphics::MaterialInstance* material = nullptr;
     System::Filename name("Terrain/Selection.rsc");
     ::Object::ExternalFactory* factory = ::Object::ExternalFactory::_singleton;
@@ -287,6 +291,9 @@ void DrawVertices(Video::Context* context, const std::vector<TerrainVertex>& ver
         context->_dirty |= RtVideo::kDirtyRenderState;
         context->_renderState = state;
     }
+    // The scene's camera, as Renderer::DrawItemList sets it for each list (the lists after us set their own).
+    const Math::Matrix view = camera._cameraToWorld.AsMatrix();
+    context->SetCamera(view, camera._projection);
     Math::Matrix identity = Math::Matrix::Identity();
     context->SetTransform(0, identity);
     const size_t total = vertices.size();
@@ -381,16 +388,14 @@ void RenderFrame() {
     g_terrainShown.store(true, std::memory_order_relaxed);
 }
 
-void DrawOnTerrain(Video::Context* context) {
+void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
     if (!g_terrainShown.load(std::memory_order_relaxed)) return;
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
     if (game == nullptr || game->m_game == nullptr || game->m_worldGeometry == nullptr) return;
-    if (game->m_playerController == nullptr) return;
     const int mapSize = game->m_game->size;
     if (mapSize <= 0) return;
     const WorldGeometry* terrain = game->m_worldGeometry;
     if (terrain->_heights.data == nullptr || terrain->_fieldD0 <= 0) return;
-    const Graphics::Camera& camera = game->m_playerController->camera;
 
     static const float kPoints[][2] = {
         {0.001f, 0.001f}, {0.999f, 0.001f}, {0.001f, 0.999f}, {0.999f, 0.999f}, {0.5f, 0.001f},
@@ -440,7 +445,7 @@ void DrawOnTerrain(Video::Context* context) {
         }
     }
     if (cache.vertices.empty()) return;
-    DrawVertices(context, cache.vertices);
+    DrawVertices(context, camera, cache.vertices);
 }
 
 // ---- the device ------------------------------------------------------------------------------------------
