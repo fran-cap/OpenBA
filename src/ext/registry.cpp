@@ -727,6 +727,17 @@ const Entry kEntries[] = {
       "alternate frames: a higher frame rate on slower devices; moving shadows and reflections may "
       "trail by a frame.",
       0, [](State& s) -> bool& { return s.ext.staggered_passes; } },
+    // FULLSCREENMODE (src/ext/fullscreen_mode/fullscreen_mode.h): the Options dialog's Video tab shows one
+    // "Fullscreen" combo Off / Exclusive / Borderless in place of retail's checkbox, and the DX11 renderer
+    // gains a borderless fullscreen (a windowed swap chain in a popup over the monitor, at the desktop's
+    // size; alt-tab leaves it on screen). Class A: the window only, nothing saved in a town. ON by default:
+    // with ext.fullscreen_borderless at 0 the combo's Exclusive is retail's checkbox ticked, so nothing changes
+    // until the player picks Borderless. Offered only by a renderer with an exclusive mode (DX11).
+    { "fullscreen_mode", Tier::Extension, Class::A, true,
+      "Fullscreen mode",
+      "The Video tab's Fullscreen setting becomes Off / Exclusive / Borderless. Borderless covers the "
+      "screen at the desktop's resolution and stays on screen when you switch to another window.",
+      0, [](State& s) -> bool& { return s.ext.fullscreen_mode; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.
@@ -801,6 +812,10 @@ const ValueKey kValueKeys[] = {
     // default. Any other number reads as 60 (a discrete key).
     { "fps_cap_rate", "fps_cap", 30, 120, 60,
       [](State& s) -> int32_t& { return s.val.fps_cap_rate; }, kFpsCapRates, 4 },
+    // FULLSCREENMODE: what VideoFullscreen=1 means while the row fullscreen_mode is on: 0 = exclusive (retail's),
+    // 1 = borderless. A range key.
+    { "fullscreen_borderless", "fullscreen_mode", 0, 1, 0,
+      [](State& s) -> int32_t& { return s.val.fullscreen_borderless; }, nullptr, 0 },
     // SHOWGRID: the grid lines' hue in degrees (read every frame, so a settings.cfg edit shows at the next
     // start). A range key.
     { "show_grid_hue", "show_grid", 0, 359, 0,
@@ -886,6 +901,7 @@ const void* g_lockOwner = nullptr;
 uint32_t g_lockEpoch = 0;   // LockEpoch(): bumped by Install / LockForGame* / UnlockForGame
 bool g_keepRequestNext = false;   // KeepRequestOnNextLock(): the next LockForGame is an in-game B / C change
 bool g_lockKeepsRequest = false;  // LockKeepsRequest(): the lock held now is that reload's
+bool g_installed = false;         // Installed(): Install has run
 
 }  // namespace
 
@@ -1068,7 +1084,10 @@ void Install(const State& requested, Profile profile, bool profileFromCommandLin
     ++g_lockEpoch;
     g_keepRequestNext = false;
     g_lockKeepsRequest = false;
+    g_installed = true;
 }
+
+bool Installed() { return g_installed; }
 
 Profile CurrentProfile() { return g_profile; }
 

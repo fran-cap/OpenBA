@@ -137,5 +137,13 @@ SheetObjects BuildSheetObjects(const SheetSpec& spec, const SheetBitmap* bitmaps
 // Destroys objects BuildSheetObjects made that were never handed to the factory.
 void DestroySheetObjects(SheetObjects& objects);
 
+// A video device restart (Engine::MainLoop::OnVideoError / OnVideoRestart: a renderer or display change,
+// a lost device) destroys every ImageBuffer, constructs it again in place and reloads it from its
+// compiled file. A sheet's texture has none, so it came back empty: a provided font drew no text and
+// our sprite sheet no icons. BuildSheetObjects keeps each texture it made with its atlas;
+// RestoreSheetTextures (MainLoop::_extVideoRestored, after the reload) creates every kept texture that is
+// still alive and came back empty again, in place, on the new device. Main thread.
+void RestoreSheetTextures();
+
 }  // namespace Resources
 }  // namespace Ext

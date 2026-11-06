@@ -59,6 +59,11 @@ bool BootedExclusiveFullscreen() {
     return false;
 }
 
+// Fullscreen here is always SDL's popup window over the monitor: no display mode switch.
+bool SupportsExclusiveFullscreen() {
+    return false;
+}
+
 const char* PlaceholderDeviceName() {
     return "Vulkan (compatibility slot)";
 }

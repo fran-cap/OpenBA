@@ -66,6 +66,12 @@ void DrawStrip(const WorldGeometry& geo, Video::Context& context);
 // The device half of the geometry's strip buffers goes with the device (WorldGeometry::OnVideoError);
 // the next DrawStrip makes it again. Forget frees the strip with its geometry (~WorldGeometry).
 void OnVideoError(const WorldGeometry& geo);
+// Engine::MainLoop::_extVideoLost (set at boot, src/ext/registry_boot.cpp): the video device is going away.
+// The shore pixel programs and the twins are made at run time (no path), so the restart's walk destroys
+// them and cannot reload them; kept, the next draw bound a dead program on the new device and the GPU
+// hung (a TDR, then DXGI_ERROR_DEVICE_REMOVED at the next read back). Both caches are forgotten here and
+// made again at the next draw. The old objects stay with the factory, as a replaced twin always has.
+void OnVideoLost();
 void Forget(const WorldGeometry& geo);
 
 // ---- Fancy: contact foam ----------------------------------------------------------------------

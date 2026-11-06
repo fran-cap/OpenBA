@@ -418,6 +418,8 @@ const ArraySpec kSpec_VideoResource = {           // 0x18004f620
 // ORACLE: shadow. Replay is invalid — see §5.
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md, HITCH_BGSAVE.md): ext.background_save's barrier, null by default (MainLoop.h).
 Engine::MainLoop::ExtVideoErrorBarrierFn Engine::MainLoop::_extVideoErrorBarrier = nullptr;
+Engine::MainLoop::ExtVideoLostFn Engine::MainLoop::_extVideoLost = nullptr;
+Engine::MainLoop::ExtVideoLostFn Engine::MainLoop::_extVideoRestored = nullptr;
 const bool* Engine::MainLoop::_extFixBootDeviceLost = nullptr;   // fix.boot_device_lost seam
 
 namespace {
@@ -435,6 +437,9 @@ void Engine::MainLoop::OnVideoError() {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVESNAP.md, HITCH_BGSAVE.md): ext.background_save -- wait for a background save's worker before anything below runs.
     // Null: retail's body plus one null test.
     if (_extVideoErrorBarrier != nullptr) _extVideoErrorBarrier();
+    // EXT SEAM (NOT RETAIL, MainLoop.h _extVideoLost): the extensions drop the run-time video objects
+    // the walk below could only destroy and never reload. Null: retail's body plus one null test.
+    if (_extVideoLost != nullptr) _extVideoLost();
 
     // ---- 1. the ten type ids -------------------------------------------------
     // THE ONE DELIBERATE REORDERING IN THIS FILE, DECLARED RATHER THAN HIDDEN.
@@ -729,6 +734,10 @@ void Engine::MainLoop::OnVideoRestart() {
             // `compiled` releases here — retail's 0x1800dc4fe, now ~Filename.
         }
     }
+
+    // EXT SEAM (NOT RETAIL, MainLoop.h _extVideoRestored): the run-time textures step 6 could not reload
+    // from a file are made again in place. Null: retail's body plus one null test.
+    if (_extVideoRestored != nullptr) _extVideoRestored();
 
     // ---- 7: drop the record -------------------------------------------------------
     // kSpec_VideoResource's destroy arm takes raw element storage.

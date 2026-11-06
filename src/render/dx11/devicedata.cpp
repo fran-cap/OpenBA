@@ -115,6 +115,7 @@
 #include "async_gpu_create/async_create.h"   // NOT RETAIL: ext.async_gpu_create
 #include "share_gpu_data/share_create.h"     // NOT RETAIL: ext.share_gpu_data
 #include "create_on_demand/lazy_create.h"    // NOT RETAIL: ext.create_on_demand
+#include "ext/fullscreen_mode/fullscreen_mode.h"   // NOT RETAIL: ext.fullscreen_mode's borderless fullscreen
 #include "VideoDX11Data.h"
 #include "d3d_debug.h"                       // NOT RETAIL: BANISHED_D3D_DEBUG
 #include "options.h"
@@ -466,6 +467,9 @@ void FillSwapChainDesc(DeviceData* self, DXGI_SWAP_CHAIN_DESC* desc) {
     desc->BufferCount  = 2;
     desc->OutputWindow = WindowOf(dev);
     desc->Windowed     = (cfg->fullscreen == 0) ? TRUE : FALSE;
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): borderless is a windowed swap chain
+    // in the fullscreen popup AdjustDisplay makes.
+    if (Ext::FullscreenMode::Borderless()) desc->Windowed = TRUE;
     desc->SwapEffect   = DXGI_SWAP_EFFECT_DISCARD;
     desc->Flags        = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;      // 2
 
@@ -718,6 +722,7 @@ void TraceContainingOutput(IDXGISwapChain* sc) {
 // in the shipped code (`MOV dword ptr [RSP+0x60],0x1c` at 0x18000441d) and is
 // reproduced verbatim — see the quirks list.
 // ============================================================
+
 int DeviceData_Resize(DeviceData* self) {
     ::Video::Device* dev = self->_owner;
     ++g_resizeTraceCalls;
@@ -779,9 +784,23 @@ int DeviceData_Resize(DeviceData* self) {
     ::new (static_cast<void*>(&mode))
         DisplayMode(dev->GetDisplayMode(dev->displayModeIndex));
 
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): borderless leaves an exclusive
+    // swap chain BEFORE AdjustDisplay places the popup (leaving exclusive mode restores the desktop's
+    // mode and the window DXGI took over; retail's SetFullscreenState below comes after the resize), and
+    // takes the monitor's size, not the display mode's: the desktop is never switched.
+    const bool borderless = Ext::FullscreenMode::Borderless();
+    if (borderless) {
+        BOOL exclusive = FALSE;
+        if (self->swapChain != nullptr &&
+            self->swapChain->GetFullscreenState(&exclusive, nullptr) == 0 && exclusive)
+            self->swapChain->SetFullscreenState(FALSE, nullptr);
+    }
+
     if (cfg->fullscreen != 0 && self->wasFullscreen == 0) {
         dev->backBufferWidth  = mode.width;
         dev->backBufferHeight = mode.height;
+        if (borderless)
+            Ext::FullscreenMode::DesktopSize(dev->monitor, &dev->backBufferWidth, &dev->backBufferHeight);
     }
 
     // AdjustDisplay's windowed branch re-reads GetClientRect and writes the
@@ -880,7 +899,7 @@ int DeviceData_Resize(DeviceData* self) {
                           static_cast<UINT>(dev->backBufferHeight),
                           DXGI_FORMAT_B8G8R8A8_UNORM,
                           DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH) == 0 &&
-        sc->SetFullscreenState(cfg->fullscreen != 0 ? TRUE : FALSE,
+        sc->SetFullscreenState(cfg->fullscreen != 0 && !borderless ? TRUE : FALSE,
                                nullptr) == 0 &&
         CreateColorBuffer(self) &&
         CreateDepthBuffer(self)) {
@@ -932,6 +951,11 @@ int DeviceData_OnActivate(void* /*hwnd*/, uint32_t /*msg*/,
     DeviceData* dd = Dx11DeviceData();
 
     if (cfg->fullscreen == 0 && dd->wasFullscreen == 0)
+        return 1;
+
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): a borderless window has no
+    // exclusive mode to lose; it stays as it is when another window takes the focus.
+    if (dd->wasFullscreen == 0 && Ext::FullscreenMode::Borderless())
         return 1;
 
     if (static_cast<unsigned short>(wParam) == 0) {      // WA_INACTIVE
@@ -1225,6 +1249,16 @@ bool DeviceData::CreateDevice() {
     DXGI_OUTPUT_DESC od;
     output->GetDesc(&od);
     dev->monitor = od.Monitor;
+
+    // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): a borderless boot covers the output's
+    // desktop rect, whatever display mode step 4 picked.
+    if (Ext::FullscreenMode::Borderless()) {
+        const RECT& dr = od.DesktopCoordinates;
+        if (dr.right > dr.left && dr.bottom > dr.top) {
+            dev->backBufferWidth  = dr.right - dr.left;
+            dev->backBufferHeight = dr.bottom - dr.top;
+        }
+    }
 
     // 8 — settle the window, which may rewrite Device+0x04/+0x08.
     dev->AdjustDisplay();

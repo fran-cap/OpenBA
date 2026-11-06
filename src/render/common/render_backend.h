@@ -49,6 +49,12 @@ uint64_t GraphicsWindowFlags();
 void DumpSwapChainState(const char* tag);
 bool BootedExclusiveFullscreen();
 
+// Whether this backend has an exclusive fullscreen (a display mode switch) beside its borderless
+// one. DX11 does (DXGI SetFullscreenState); a backend whose fullscreen is always a popup window
+// over the monitor (Vulkan and Metal under SDL) answers false. ext.fullscreen_mode offers its
+// Off / Exclusive / Borderless combo only where this is true (src/ext/fullscreen_mode/).
+bool SupportsExclusiveFullscreen();
+
 // ---- the second slot (dllSlots[kInterfaceDX9]) ------------------------------------
 // The cutover-only placeholder that keeps one GraphicsInterface entry per slot
 // (B5_RULES D5; src/render/dx11/dx9_placeholder.cpp has the invariant).

@@ -67,5 +67,13 @@ void WaitForScaledSheets(int capMs);
 // finished during the selection is kept for the next poll.
 void DropSeenJobs();
 
+// The video device is going away (Engine::MainLoop::OnVideoError: a renderer or display change in the
+// Options dialog, a lost device). Every copy built so far is deleted while its device still lives, and
+// the failures are forgotten (they named sheets the restart reloads): a copy is a texture made at run
+// time, which the engine's restart cannot reload by path, and the content key alone would hand the dead
+// copy back for the reloaded sheet. Builds still on a worker are kept (CPU data; finished on the new
+// device). Main thread.
+void DropScaledSheets();
+
 }  // namespace SharpUI
 }  // namespace Ext

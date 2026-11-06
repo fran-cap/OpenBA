@@ -281,6 +281,18 @@ public:
     // Externals and the loop releases the terrain and minimap images the worker serialises).
     using ExtVideoErrorBarrierFn = void (*)();
     static ExtVideoErrorBarrierFn _extVideoErrorBarrier;   // defined in mainloop_video.cpp
+    // EXT SEAMS (NOT RETAIL, src/ext/registry_boot.cpp VideoLost / VideoRestored): video objects made at
+    // run time. OnVideoError destroys every video External and OnVideoRestart reloads each BY PATH, from
+    // its compiled file; an object an extension built at run time has none, so it came back empty (no
+    // text, no icons) or kept a dead device's state (a red dialog, a GPU hang). Null by default.
+    //   _extVideoLost      OnVideoError, after the barrier, before the walk: the owners drop what they
+    //                      rebuild themselves later (ext.sharp_ui's sheet copies, ext.better_water's
+    //                      shore programs).
+    //   _extVideoRestored  OnVideoRestart, after the reload: the owners fill their objects again in place
+    //                      (the resource providers' sheet textures, src/ext/resources/sheet_builder.h).
+    using ExtVideoLostFn = void (*)();
+    static ExtVideoLostFn _extVideoLost;       // defined in mainloop_video.cpp
+    static ExtVideoLostFn _extVideoRestored;   // defined in mainloop_video.cpp
     // FIX SEAM (NOT RETAIL, docs/retail_bugs.md section 10): fix.boot_device_lost. Null by default
     // (src/ext/registry_boot.cpp points it at the live bool). While it reads true, OnVideoError and
     // OnVideoRestart skip the Save::SaveLoad walks when no SaveLoad exists yet (a device loss before

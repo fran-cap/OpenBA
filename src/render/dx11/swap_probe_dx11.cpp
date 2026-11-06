@@ -87,6 +87,12 @@ void DumpSwapChainState(const char* tag) {
     fflush(stdout);
 }
 
+// DXGI's SetFullscreenState is the exclusive mode; a windowed swap chain in a popup is the
+// borderless one (ext.fullscreen_mode, src/render/dx11/devicedata.cpp).
+bool SupportsExclusiveFullscreen() {
+    return true;
+}
+
 bool BootedExclusiveFullscreen() {
     if (!::Video::Device::_singleton) return false;
     ::Video::Device* device = ::Video::Device::_singleton;

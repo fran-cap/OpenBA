@@ -447,6 +447,15 @@ void OnVideoError(const WorldGeometry& geo) {
     s->failed = false;   // the restarted device gets one upload
 }
 
+void OnVideoLost() {
+    for (int k = 0; k < kKinds; ++k) {
+        g_shorePixel[k] = nullptr;
+        g_shorePixelTried[k] = false;
+    }
+    for (Twin& t : g_twins) t = Twin{};
+    g_nextSlot = 0;
+}
+
 void Forget(const WorldGeometry& geo) {
     if (!g_anyStrip.load(std::memory_order_acquire)) return;
     const std::lock_guard<std::mutex> lock(g_stripMutex);
