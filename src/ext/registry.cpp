@@ -309,6 +309,16 @@ const Entry kEntries[] = {
       "When a streamed sound such as music is unloaded while it plays, the game first lets the music "
       "streaming thread stop, so that thread never reads the freed sound.",
       0, [](State& s) -> bool& { return s.fix.stream_free_wait; } },
+    // DECALFOGORDER (docs/retail_bugs.md section 32): the terrain decal pixel programs (Decal.ps and its
+    // heirs) fog the decal colour, then tint it toward the underwater colour, so a decal below the water
+    // line (a bridge's, a dock's) shows as a dark band through fog. With the row on, the installed
+    // programs are rewritten at load to tint first, then fog, as the model programs do
+    // (src/render/common/decal_fog/; never a shipped copy, DESIGN.md rule 7). Render only; nothing saved.
+    { "decal_fog_order", Tier::Fix, Class::None, true,
+      "Bridges fade into fog",
+      "The dark ground marking under a bridge or dock over water fades into fog like everything else, "
+      "instead of showing as a sharp dark band through it. Takes effect at the next start.",
+      0, [](State& s) -> bool& { return s.fix.decal_fog_order; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
@@ -1072,6 +1082,7 @@ LiveFixes g_live;
 void PublishLiveFixes() {
     g_live.save_failure_notice.store(g_active.fix.save_failure_notice, std::memory_order_relaxed);
     g_live.boot_device_lost.store(g_active.fix.boot_device_lost, std::memory_order_relaxed);
+    g_live.decal_fog_order.store(g_active.fix.decal_fog_order, std::memory_order_relaxed);
 }
 }  // namespace
 

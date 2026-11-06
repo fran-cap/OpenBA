@@ -67,6 +67,7 @@
 #include "ui/ScrollElement.h"   // the fix.slider_drag_clamp seam, scroll-bar half
 #include "engine/MainLoop.h"     // the fix.boot_device_lost seam (DESIGN.md hook rule 5)
 #include "boot_device_lost/boot_device_lost_backend.h"   // fix.boot_device_lost: the backend half
+#include "decal_fog/decal_fog_backend.h"                  // fix.decal_fog_order: the backend half
 #include "audio/Device.h"        // the fix.stream_free_wait seam (DESIGN.md hook rule 5)
 #include "Game/WorldGeometry.h"  // the ext.terrain_batch seam (DESIGN.md hook rule 5)
 
@@ -180,6 +181,11 @@ void InitFromSettings() {
     ::Engine::MainLoop::_extVideoLost = &VideoLost;
     ::Engine::MainLoop::_extVideoRestored = &VideoRestored;
     BootDeviceLostBackend::SetFixFlag(&LiveFix().boot_device_lost);   // the render thread reads it
+    // fix.decal_fog_order: the backend rewrites the decal pixel programs as they load (the loader threads
+    // read the atomic); a backend that cannot says so.
+    DecalFogBackend::SetFixFlag(&LiveFix().decal_fog_order);
+    if (!DecalFogBackend::Supported())
+        std::fprintf(stderr, "[Ext] fix.decal_fog_order: not supported by this renderer; the decal programs stay retail's\n");
     // fix.stream_free_wait: OnSoundBufferDeleted's wait for the stream pass (review S-027).
     ::Audio::Device::_extFixStreamFreeWait = &Fix().stream_free_wait;
     // fix.large_packages: the IO::FileSystem::_extPackagesMounted seam (null under the faithful

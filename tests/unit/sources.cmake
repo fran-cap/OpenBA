@@ -126,6 +126,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/draw_gather/gather_side.cpp
   ${CMAKE_SOURCE_DIR}/src/ext/draw_batch/batch_fill.cpp   # ext_draw_batch_test.cpp (DRAWBATCH)
   ${CMAKE_SOURCE_DIR}/src/render/common/draw_batch/smoke_vs_rewrite.cpp   # ext_draw_batch_test.cpp (DRAWBATCH, Idea B)
+  ${CMAKE_SOURCE_DIR}/src/render/common/decal_fog/decal_fog_rewrite.cpp   # ext_decal_fog_test.cpp (fix.decal_fog_order)
   ${CMAKE_SOURCE_DIR}/src/ext/gather_threads/gather_threads.cpp
   ${CMAKE_SOURCE_DIR}/src/diag/diag_threads.cpp   # gather_threads.cpp registers its helpers (block LOADSTAMP)
   ${CMAKE_SOURCE_DIR}/src/platform/win/settings_win.cpp

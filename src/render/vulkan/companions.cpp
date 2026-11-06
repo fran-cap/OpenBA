@@ -28,6 +28,7 @@
 #include "ext/derived_cache/derived_cache.h"   // the SPIR-V cache's store (OpenShared)
 #include "texture_quality/texture_quality.h"   // P4: ext.texture_quality's DropFor
 #include "depth_bias.h"                        // src/render/common: the RenderState depth bias in D24 units
+#include "decal_fog/decal_fog_backend.h"           // fix.decal_fog_order: the corrected decal pixel programs
 #include "io/Serializer.h"
 #include "video/Buffers.h"
 #include "video/ConstantBuffer.h"   // ConstantBuffer::_uploadIndex
@@ -43,6 +44,7 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace VideoVulkan {
 
@@ -753,7 +755,14 @@ bool CreateProgram(Data* self, Shaders::Stage stage) {
         // ext.draw_batch's particle VS rewrite make their copies from these same bytes, converted the same
         // way into a second registry entry per permutation (shader_rewrites.h, after this loop).
         const uint8_t* bytes = blob.GetData();
-        const size_t size = static_cast<size_t>(blob.GetSize());
+        size_t size = static_cast<size_t>(blob.GetSize());
+        // EXT SEAM (NOT RETAIL, docs/retail_bugs.md section 32): fix.decal_fog_order -- a decal pixel
+        // program's corrected copy (tint, then fog) is converted instead of retail's bytes when the row is on.
+        std::vector<uint8_t> fixedCopy;
+        if (stage == Shaders::Stage::Pixel && DecalFogBackend::FixedCopy(bytes, size, &fixedCopy)) {
+            bytes = fixedCopy.data();
+            size = fixedCopy.size();
+        }
         const uint64_t hash = ShaderHash(bytes, size, stage);
         ReleaseShader(self->shaders[i]);   // a second PlatformCreate replaces, it does not leak
         self->shaders[i] = AcquireShader(hash);

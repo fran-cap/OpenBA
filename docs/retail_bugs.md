@@ -1559,4 +1559,24 @@ They are retail's compiled programs from the install, so a fix would rewrite the
 (the FOLIAGE_AA bytecode-rewriter pattern, `docs/extensions/DESIGN.md` §3 rule 7), never ship a changed
 copy.
 
-**Fix.** None yet. Left as retail.
+**Fix.** `fix.decal_fog_order` (default ON, render only, takes effect at the next start; nothing is
+saved). As each pixel program loads, `src/render/common/decal_fog/decal_fog_rewrite.{h,cpp}` reads the
+installed DXBC and matches the flawed tail by structure, not by bytes: exactly one underwater tint
+(`add U.xyz, -F, l(0.025, 0.123, 0.19, *)`), directly after the fog lerp `mad F.xyz, f, D, L` and
+followed by `mov_sat u, v#.c` and `mad o#.xyz, u, U, F` (the tint writes the colour output, so it comes
+after the fog); f's last writer is `min_sat f, *, cbN[r].w` and D's a `mad D, -X, Y, cbN[r].xyz` on the
+same constant row (the fog amount, and the fog colour minus the lit colour); no flow control, and nothing
+after the tint reads what the four instructions wrote. Those four become six in two new temps:
+`T = lerp(L, tint, u)`, then `lerp(T, L + D, f)` (L + D is the fog colour retail's own lerp ends at), and
+the container is re-emitted with a fresh checksum, re-parsed and checked before use. Anything that does
+not match, or a copy the device refuses, keeps retail's bytes. On the installed game the rewrite takes
+20 permutations, four each of five programs (`Decal`, `DecalDamage`, two tiled-decal programs and
+`TiledSnowDecal`, told apart by their `_diffuse_` / `_tiles_` / `_damage_` / `_snow_` bindings); the eight
+other programs with the tint (the model and terrain programs) tint into a temp before fogging and are
+left alone. DX11 creates the shader from the copy (`PixelProgramData::PlatformCreate`), Vulkan converts
+the copy to SPIR-V (`companions.cpp` `CreateProgram`), Metal answers not supported
+(`DecalFogBackend::Supported`). Seen in game with the fog forced thick (near 0, far 60), the same bridge
+harness and pin as above: row off, the dark band; row on, the bridge's decal fades into the fog with
+the rest of the scene; without the forced fog, the shadow under the bridge is unchanged. Unit tests:
+`tests/unit/ext_decal_fog_test.cpp` (synthetic programs in two register layouts, evaluated before and
+after).

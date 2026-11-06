@@ -62,6 +62,10 @@
 #include "better_trees/foliage_aa_stage.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTER-TREES.md, FAA-CORE.md): ext.better_trees' foliage_aa stage, VideoDX11::g_extFoliageAA
 #include "better_trees/billboard_shadow_stage.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTER-TREES.md, TS-CORE.md): ext.better_trees' billboard_shadow stage, VideoDX11::g_extBillboardShadow
 #include "draw_batch/smoke_vs_stage.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/DRAWBATCH.md): ext.draw_batch's particle VS stage, VideoDX11::g_extDrawBatchVs
+#include "decal_fog/decal_fog_backend.h"   // EXT SEAM (NOT RETAIL, docs/retail_bugs.md section 32): fix.decal_fog_order's corrected decal programs
+
+#include <cstdio>
+#include <vector>
 
 namespace VideoDX11 {
 
@@ -230,6 +234,17 @@ bool PixelProgramData::PlatformCreate() {
         // `Collection::Array<Collection::Array<uint8_t>>`; the element read that
         // needed a cast off a `void*` is now `operator[]`.
         const RtByteCodeBlob* blobs = owner->_byteCode.GetData();
+        // EXT SEAM (NOT RETAIL, docs/retail_bugs.md section 32): fix.decal_fog_order -- a decal program's
+        // corrected copy (tint, then fog) when the row is on; retail's bytes otherwise, or when the copy
+        // is refused by the device.
+        std::vector<uint8_t> fixedCopy;
+        if (DecalFogBackend::FixedCopy(blobs[i].GetData(), static_cast<size_t>(blobs[i].GetSize()), &fixedCopy)) {
+            const HRESULT fixedHr = device->CreatePixelShader(fixedCopy.data(), fixedCopy.size(), nullptr, &variants[i]);
+            if (fixedHr == 0) continue;
+            std::fprintf(stderr, "[DecalFog] CreatePixelShader of the corrected copy failed hr=0x%08lx: kept retail\n",
+                         static_cast<unsigned long>(fixedHr));
+            variants[i] = nullptr;
+        }
         HRESULT hr = device->CreatePixelShader(
             blobs[i].GetData(),
             static_cast<SIZE_T>(blobs[i].GetSize()),
