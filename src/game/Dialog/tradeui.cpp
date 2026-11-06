@@ -759,33 +759,6 @@ void TradeUI::RefreshBuyTable()
     }
 }
 
-// Positive readback for the SpinnerElement::SetElementId tagging below. The override
-// (Runtime 0x1800d7e10) writes the id into TWO places: the spinner's own Element+0x88
-// and the inner edit element reached through **(spinner+0xa0). That inner write is the
-// half the Element base setter never performs, so a matching inner id is a value only
-// the faithful call can produce -- the difference between "we tagged something" and
-// "we tagged what retail tags". One line per family (row 0 only) under
-// BANISHED_TRADEUI_EVENTDIAG; every branch prints, including a MISMATCH.
-static void TradeUI_ReportSpinnerTag(const char* family, int idx, UI::SpinnerElement* spinner, int id) {
-    (void)idx;
-    if (!spinner) {
-        fprintf(stderr, "[TradeSpinnerTag] %s row0 id=%d spinner=NULL -- nothing tagged\n",
-                family, id);
-        fflush(stderr);
-        return;
-    }
-    int own = spinner->_elementId;
-    UI::Element** innerPtr = spinner->_children._data;
-    UI::Element* inner = innerPtr ? *innerPtr : nullptr;
-    int innerId = inner ? inner->_elementId : -1;
-    fprintf(stderr,
-            "[TradeSpinnerTag] %s row0 id=%d spinner=%p own(+0x88)=%d inner=%p "
-            "inner(+0x88)=%d %s\n",
-            family, id, static_cast<void*>(spinner), own, static_cast<void*>(inner), innerId,
-            (own == id && inner && innerId == id) ? "OK" : "MISMATCH");
-    fflush(stderr);
-}
-
 // [4] 0x140084dd0
 void TradeUI::OnCreated() {
     // Slot 4 is idempotent-guarded for the same reason ProfessionUI's Slot5 is: a second
@@ -884,7 +857,6 @@ void TradeUI::OnCreated() {
         // both halves of the widget answer to the same id. Faithful, verified at the four
         // retail call sites (EDX = base+0x3e8 / +0x7d0 / +0xbb8 / +0xfa0).
         if (spinner) spinner->SetElementId(baseId + 1000);
-        TradeUI_ReportSpinnerTag("purchase", row, spinner, baseId + 1000);
 
         // Build 0x20-byte entry {up, down, label, spinner} and push to the
         // order-entries array at +0x90.
@@ -958,7 +930,6 @@ void TradeUI::OnCreated() {
         // and on its inner edit element at *(spinner+0xa0). Retail call site 0x140085d40,
         // EDX = i + 0x7d0. See the tablePurchase loop above.
         e1->SetElementId(i + 2000);
-        TradeUI_ReportSpinnerTag("storage", i, e1, i + 2000);
 
         // Build 0x18-byte entry {e0, e1, e2} and push to the storage-entries array
         // at +0x80.
@@ -994,7 +965,6 @@ void TradeUI::OnCreated() {
         // child(3) is a SpinnerElement (the "SliderElement" naming is the same mislabel
         // reg_element_typeids.cpp:36 documents). Retail call site 0x14008614e, EDX = i+0xbb8.
         sliderElem->SetElementId(i + 3000);
-        TradeUI_ReportSpinnerTag("sell", i, sliderElem, i + 3000);
 
         // Build 0x20-byte entry {child1, child0, child2, child3} and push to the
         // sell-entries array at +0x60.
@@ -1032,7 +1002,6 @@ void TradeUI::OnCreated() {
         // child(3) is a SpinnerElement (same mislabel as the sell loop).
         // Retail call site 0x14008653e, EDX = i + 0xfa0.
         sliderElem->SetElementId(i + 4000);
-        TradeUI_ReportSpinnerTag("buy", i, sliderElem, i + 4000);
 
         // Build 0x20-byte entry {child1, child2, child3, child0} and push to the
         // buy-entries array at +0x70.
