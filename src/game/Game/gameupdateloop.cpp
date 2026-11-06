@@ -149,6 +149,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ext.touch_pointer, Draw step 11 (ToolAimHeld)
 #include "ext/show_grid/show_grid.h"   // EXT SEAM (NOT RETAIL, SHOWGRID.md): ext.show_grid, Draw step 11
 #include "ext/map_overlays/map_overlays.h"   // ext.map_overlays: the heat map on the ground (step 11)
+namespace Ext { namespace MapOverlays { void TmpTick(); } }   // TMP: render stub
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
 #include "Component/AmbientEnvironmentComponent.h"   // AMBMEMO: ReportMemo at teardown
@@ -657,6 +658,7 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     }
 
     s_frameNum++;
+    Ext::MapOverlays::TmpTick();   // TMP: render stub (render_stub_tmp.cpp)
 
     // [SIMPROF] whole-Update stamp + deterministic speed override (both diagnostic-only)
     const bool simProf = SimProfOn();
