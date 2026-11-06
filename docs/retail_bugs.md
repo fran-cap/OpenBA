@@ -1518,3 +1518,45 @@ and 2-0 are missing.
 clipped to the minimap rect (Liang-Barsky, `src/ext/minimap_outline_clip/clip_rule.h`) and a side wholly
 off the map is not drawn; retail's four AddLines in the other arm. Unit tests:
 `tests/unit/ext_minimap_outline_clip_test.cpp`.
+
+## 32. A terrain decal under the water level keeps its dark underwater tint through the fog
+
+**Symptom.** In thick fog the whole view is washed grey, but a dark blue-grey band stays sharp along a
+bridge (and, more faintly, at docks and other buildings that lay a ground decal over water cells). It
+is the bridge's ground decal where it lies below the water level: the dark tint is not fogged, so it
+shows through the fogged water drawn over it. Without fog the same band reads as a shadow under the
+bridge and nobody notices.
+
+**Retail mechanism.** The bridge templates carry a `DecalDescription` (`Template/WoodBridge.rsc`:
+`Terrain/TiledDecals/StorageYardMaterial.rsc`, `_tiled`, `_initialAlpha = 0.5`), drawn in the Blended
+list with the terrain decal programs (`Material/TerrainTiledSnowDecal`, the pixel program
+`TerrainMaterial.srsl:TiledSnowDecal_ps`, which inherits `Decal.ps`). `Decal.ps` lights and fogs the
+decal colour first (`ComputeLighting`, whose last step is `lerp(lighting, fogColor, min(fog, fogMax))`)
+and only then tints it toward the underwater colour,
+`output.color.xyz = lerp(output.color.xyz, float3(0.025, 0.123, 0.19), saturate(underWaterAmount))`.
+Below the water level the underwater amount is 1, so the fogged colour is replaced by the constant dark
+blue: the fog never reaches it. The model programs do it the other way round (`OpaqueMaterial.srsl`
+`SnowWater.ps` tints in its `colormodifier`, before `ComputeLighting`), so the bridge's posts in the
+water fog correctly. The river and lake programs then draw over the decal and mix the frame copy back
+in by the frame alpha (`lerp(frameBuffer.xyz, lighting, frameBuffer.w)`), and the frame copy holds the
+unfogged tint.
+
+**Proof it is retail.** The pixel program is the retail one, read from the install. In a RenderDoc
+capture of a faithful run its DXBC fogs at instructions 40-42 (`mad ... _pc_.fogColor`,
+`min_sat r0.w, v2.z, _pc_.fogColor.w`, `mad`) and applies the underwater lerp after it at 43-45
+(`add r1.xyz, -r0.xyz, l(0.025, 0.123, 0.190)`, `mov_sat r0.w, v1.z`, `mad o0.xyz ...`). Seen in game
+2026-11-06 under `/profile:faithful` (every fix and extension off), with the fog forced thick (near 0,
+far 60) and a 117-cell wood bridge built by the tool harness (`BANISHED_TOOL_HARNESS=bridge
+BANISHED_BRIDGE_LONGEST=6 BANISHED_FINISH_BUILDS=200`, seed 12345). The faithful frame and the
+frame with the user's extension set (ambient occlusion, better water, shadow resolution, render
+culling and the rest) are the same. Pixel history at one pixel of the band: the terrain writes the
+fogged grey 0.725 (event 709), the bridge's tiled decal darkens it to (0.57, 0.59, 0.60) (event 1049,
+the last draw before the frame copy), and the water leaves (0.64, 0.65, 0.66) (event 1070).
+
+**Lever.** The decal pixel programs (`Decal.ps` and the programs that inherit it: `DecalDamage`,
+`TiledDecal`, `TiledDecalTunnel`, `TiledSnowDecal`): tint first, then fog, as the model programs do.
+They are retail's compiled programs from the install, so a fix would rewrite the installed DXBC at load
+(the FOLIAGE_AA bytecode-rewriter pattern, `docs/extensions/DESIGN.md` §3 rule 7), never ship a changed
+copy.
+
+**Fix.** None yet. Left as retail.
