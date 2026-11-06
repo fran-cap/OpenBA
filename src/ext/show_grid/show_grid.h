@@ -9,13 +9,15 @@
 // ============================================================================
 
 namespace Video { class Context; }
+namespace Graphics { class Camera; }
 
 namespace Ext {
 namespace ShowGrid {
 
-// Called from the two tool-draw seams (GameUpdateLoop::Draw, ext.render_pipe's ToolDraw) while the row is on,
-// with the world camera set, before the tool and the UI are drawn.
-void Draw(Video::Context* context);
+// Called from the ground draw (src/ext/ground_draw.h: inside Renderer::Draw, after the opaque list of the main
+// scene) while the row is on and the box checked, with that scene's camera set on the context and passed as
+// `camera`. The tool and the UI draw later, over the grid.
+void Draw(Video::Context* context, const Graphics::Camera& camera);
 
 // Whether the grid is drawn: the Grid page's check box. Runtime only (no value key, nothing in settings.cfg):
 // the row on does not show it, the box does.

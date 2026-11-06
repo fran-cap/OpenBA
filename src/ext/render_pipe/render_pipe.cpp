@@ -116,8 +116,7 @@
 #include "platform/common/cpu/topology.h"    // Cpu::Get().physical
 #include "ext/eye_camera/eye_camera.h"
 #include "ext/touch_pointer/touch_pointer.h"   // ToolAimHeld: the tool flag (P11b)
-#include "ext/show_grid/show_grid.h"   // the grid, drawn under the tool (step 11)
-#include "ext/map_overlays/map_overlays.h"   // the heat map, drawn under the grid (step 11)
+#include "ext/ground_draw.h"   // the ground draw (ext.map_overlays, ext.show_grid), carried to pass 2 in the packet
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/ambient_occlusion/ambient_occlusion.h"   // AOCORE: the AO arm, recorded into the packet
 #include "options.h"
@@ -317,6 +316,8 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     p.sharpUi = Ext::Ext().sharp_ui;
     // Step 7's ext.ambient_occlusion arm (GameUpdateLoop::Draw), as a value for pass 2.
     p.aoOn = Ext::AmbientOcclusion::Enabled() && Ext::AmbientOcclusion::BuildFrame(*g.m_playerController, p.ao);
+    // Step 7's ground draw arm (GameUpdateLoop::Draw, MAPOVERLAYS), as a value for pass 2.
+    p.groundDraw = Ext::GroundDraw();
 
     StressHarness_PipeMainEnd();   // [STRESS] draw main ms
 }
@@ -416,7 +417,7 @@ struct EngineOps {
                                  (static_cast<long long>(r._frameIndex) << 32) |
                                      static_cast<long long>(static_cast<uint32_t>(ctx->_frameIndex)));
         }
-        Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr, p.shadowHeld);
+        Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr, p.groundDraw, p.shadowHeld);
     }
     // P13_OVERLAP: when the next Frame's steps claimed the gate, wait until they are over, the
     // device lock dropped meanwhile (a step that uploads takes it: P13_OVERLAP 2.5).
@@ -455,14 +456,6 @@ struct EngineOps {
         if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
             hasInput = false;
         const char toolFlag = (hasInput || pauseCheck) ? 1 : 0;
-        // ext.show_grid (docs/extensions/handins/SHOWGRID.md): GameUpdateLoop::Draw's same seam, under the
-        // tool, with or without one. Row off: nothing.
-        // ext.map_overlays (docs/extensions/handins/MAPOVERLAYS.md): GameUpdateLoop::Draw's same seam, the heat
-        // map under the grid. Row off: one test.
-        if (Ext::MapOverlays::g_on)
-            Ext::MapOverlays::DrawOnTerrain(ctx);
-        if (Ext::Ext().show_grid && Ext::ShowGrid::Shown())
-            Ext::ShowGrid::Draw(ctx);
         if (tool != nullptr) tool->Draw(ctx, toolFlag);
     }
     void UIDraw(const Packet& p) {

@@ -25,7 +25,6 @@
 #include "object/External.h"
 #include "Game/GameUpdateLoop.h"
 #include "Game/Map.h"
-#include "Game/PlayerController.h"
 #include "Game/WorldGeometry.h"
 
 #include <atomic>
@@ -169,7 +168,7 @@ void DrawTriangles(Video::Context* context, const std::vector<LineVertex>& trian
 
 namespace {
 // Runtime only: no value key, nothing in settings.cfg or a save. Atomic: the page writes it on the main thread
-// and ext.render_pipe's ToolDraw reads it on the render thread.
+// and ext.render_pipe's pass 2 reads it on the render thread (the ground draw).
 std::atomic<bool> g_shown{false};
 }
 
@@ -179,15 +178,13 @@ void SetShown(bool shown) { g_shown.store(shown, std::memory_order_relaxed); }
 
 void OnGameStart() { g_shown.store(false, std::memory_order_relaxed); }
 
-void Draw(Video::Context* context) {
+void Draw(Video::Context* context, const Graphics::Camera& camera) {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
     if (game == nullptr || game->m_game == nullptr || game->m_worldGeometry == nullptr) return;
-    if (game->m_playerController == nullptr) return;
     const int mapSize = game->m_game->size;
     if (mapSize <= 0) return;
     const WorldGeometry* terrain = game->m_worldGeometry;
     if (terrain->_heights.data == nullptr || terrain->_fieldD0 <= 0) return;
-    const Graphics::Camera& camera = game->m_playerController->camera;
 
     static const float kPoints[][2] = {
         {0.001f, 0.001f}, {0.999f, 0.001f}, {0.001f, 0.999f}, {0.999f, 0.999f}, {0.5f, 0.001f},

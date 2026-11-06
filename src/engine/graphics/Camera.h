@@ -662,6 +662,15 @@ public:
     // layout below is unchanged.
     static const ExtAoFrame* _extAo;
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): a draw ON the ground, between the Opaque
+    // and the Blended lists of the main scene entry (after ext.ambient_occlusion's pass), so what lies on the
+    // ground lies under what pass 1 draws over it: the water, the particles and the status icons. Called with
+    // the entry's camera. Null always, except for the span of the game's own Draw call while a ground draw is
+    // on (GameUpdateLoop::Draw step 7 arms and disarms it; the render-thread copy of the loop carries the
+    // pointer in its packet instead).
+    using ExtGroundDrawFn = void (*)(Video::Context& context, const Camera& camera);
+    static ExtGroundDrawFn _extGroundDraw;
+
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/DRAWBATCH.md): ext.draw_batch's replacement of
     // DrawItemList (src/ext/draw_batch/). Null by default: DrawItemList tests it once per call (one
     // test per pass list, never per item) and otherwise runs retail's body unchanged. Set and
