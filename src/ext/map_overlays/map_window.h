@@ -14,9 +14,9 @@ namespace Ext {
 namespace MapOverlays {
 
 // A StandardDialog-based utility window was built. When it holds a MapUI (the UtilityMap tool's window), the
-// overlay tabs are injected under retail's map content the way the UIDescription injects that content: one
-// element (Dialog/MapOverlays.rsc:ribbonMapOverlays) at the next user group (userGroup1), and a controller of
-// ours that the dialog owns and deletes. Any other window is left as it is.
+// overlay views are injected beside retail's map content the way the UIDescription injects that content: one
+// element (Dialog/MapOverlays.rsc:ribbonMapOverlays) in the same group (userGroup0), the map content moved into
+// its first cell, and a controller of ours that the dialog owns and deletes. Any other window is left as it is.
 void AddMapWindowTabs(UI::DialogInstance* dialog, Object::Base* dataSource);
 
 }  // namespace MapOverlays

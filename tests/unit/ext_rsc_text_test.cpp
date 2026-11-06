@@ -451,15 +451,15 @@ UNIT_TEST(ext_rsc_text_parse_fullscreen_mode) {
     CHECK(items && items->type == "StringTable");
 }
 
-// ext.map_overlays's views in the map window: the column map_window.cpp injects at userGroup1, its two rows of
-// view buttons, the pages group, the four page kinds and the names the controller looks up in them.
+// ext.map_overlays's views in the map window: the row map_window.cpp injects at userGroup0, the map's cell, the
+// column of view buttons, the pages group, the four page kinds and the names the controller looks up in them.
 UNIT_TEST(ext_rsc_text_parse_map_overlays) {
     File f;
     CHECK(ParseEmbedded("Dialog/MapOverlays.rsc", f));
     CHECK(f.Find("resource") == nullptr);   // not a dialog: retail's map window hosts it
     const Object* column = f.Find("ribbonMapOverlays");
     CHECK(column && column->type == "RibbonDescription");
-    CHECK(f.Find("rowMapOverlaysTabs1") && f.Find("rowMapOverlaysTabs2"));
+    CHECK(f.Find("groupMapOverlaysMapSlot") && f.Find("columnMapOverlaysViews"));
     const Object* button = f.Find("buttonMapOverlaysTab");
     CHECK(button && button->type == "ButtonDescription");
     const Object* pages = f.Find("groupMapOverlaysPages");
