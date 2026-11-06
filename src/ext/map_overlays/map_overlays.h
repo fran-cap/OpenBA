@@ -17,6 +17,7 @@
 namespace Ext { namespace SaveTail { struct StateCodec; } }
 namespace Video { class Context; }
 class RawMaterialDescription;
+class MapUI;
 
 namespace Ext {
 namespace MapOverlays {
@@ -57,8 +58,15 @@ float LegendMax();
 bool BuildInstantTiles(const Selection& s, int size, std::vector<float>& out);
 
 // ---- the renderers (overlay_render.cpp) --------------------------------------------------------------------
-// The minimap: the overlay drawn over MapUI's map image while an overlay tab is active.
-void MapWindowUpdate();
+// The minimap: the overlay drawn over MapUI's map image while an overlay tab is active. Called by the map
+// window's controller (map_window.cpp) every UI update while the window is open; a View::Map selection
+// (Image() size 0) puts retail's sprite back on imageOverlay.
+void MapWindowUpdate(MapUI& map);
+// Before the MapUI is destroyed: retail's sprite back on imageOverlay before ~MapUI deletes the sheets.
+void MapWindowClosed(MapUI& map);
+// Main thread, every frame, at the end of BeginFrame: snapshots Image() for the terrain draw, which may run
+// on the render thread (ext.render_pipe) and never calls Image() itself.
+void RenderFrame();
 // The terrain: called from the two tool-draw seams beside Ext::ShowGrid::Draw, while onTerrain is set.
 void DrawOnTerrain(Video::Context* context);
 
