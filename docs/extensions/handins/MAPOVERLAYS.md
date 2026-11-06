@@ -101,16 +101,19 @@ full colour is a high percentile of the non-zero tiles. The ramp is transparent 
 green, yellow to red. The image is rebuilt at most once a second while a view shows, at once on a change of
 selection; the minimap and the terrain upload only when its version changes.
 
-## 6. Files and owners (the agent team)
+## 6. Files
 
-| file | owner |
+| file | what it holds |
 |---|---|
-| `overlay_core.h`, `map_overlays.h`, `overlay_math.h`, this file §1-§3, §5 | coordinator (the contract; changes go through the coordinator) |
-| `overlay_core.cpp`, `save_state.cpp`, `map_overlays_town.cpp`, registry row, `state_codecs.cpp`, unit tests of core + codec | history |
-| the seams in `src/game` (§4 table) | hooks |
-| `overlay_math.cpp`, `overlay_view.cpp`, `overlay_views.cpp`, unit tests of math | views |
-| `src/ext/ui/Dialog/MapOverlays*.rsc`, strings, the map window tabs and controller (`map_window.cpp`) | UI |
-| `overlay_render.cpp`, the draw seams | render |
+| `overlay_core.h` / `.cpp` | the History (sites, resource table, month buckets, traffic grid) and its wire format; standard C++ |
+| `save_state.cpp` | the class C codec and `Town()` |
+| `map_overlays.h`, `map_overlays_town.cpp` | the game-side seams: `g_on`, `BeginFrame`, the flow and footstep entry points, site resolution |
+| `overlay_math.h` / `.cpp` | blur, range, colour ramp; standard C++ |
+| `overlay_view.cpp`, `overlay_views.cpp`, `overlay_views_internal.h` | the selection, the image build, the instant views |
+| `map_window.h` / `.cpp`, `src/ext/ui/Dialog/MapOverlays.rsc` | the map window's view buttons and controls (injected beside retail's map content) |
+| `overlay_render.h` / `.cpp`, `overlay_render_math.h` | the minimap image (rows flipped to retail's order) and the terrain picture |
+| `src/ext/ground_draw.h` / `.cpp` | arms `Graphics::Renderer::_extGroundDraw` for the heat map and `ext.show_grid` |
+| `src/ext/minimap_outline_clip/clip_rule.h` | `fix.minimap_outline_clip` (retail bug 31) |
 
 ## 7. Verification
 
