@@ -353,7 +353,14 @@ void MapWindowUpdate(MapUI& map) {
     if (!p.uploaded || p.version != version) {
         const size_t count = static_cast<size_t>(size) * static_cast<size_t>(size);
         p.pixels.resize(count);
-        for (size_t i = 0; i < count; ++i) p.pixels[i] = TexturePixel(image[i]);
+        // The texture is upside down against the tiles (MinimapTextureIndex): rows are flipped here.
+        for (int row = 0; row < size; ++row) {
+            const uint32_t* src = image.data() + static_cast<size_t>(row) * static_cast<size_t>(size);
+            uint32_t* dst = p.pixels.data() + MinimapTextureIndex(0, row, size);
+            for (int col = 0; col < size; ++col) {
+                dst[col] = TexturePixel(src[col]);
+            }
+        }
         p.version = version;
         Upload(p);
     }

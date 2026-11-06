@@ -247,6 +247,14 @@ inline uint32_t TexturePixel(uint32_t abgr) {
     return (abgr & 0xFF00FF00u) | ((abgr & 0xFFu) << 16) | ((abgr >> 16) & 0xFFu);
 }
 
+// Where tile (col, row) of an overlay image lands in the map window's texture. The minimap's texture holds
+// the map upside down: tile row 0 is the texture's LAST row, as retail paints Minimap::overlayPixels
+// (Minimap::ClearTerrain, mapcomponent.cpp: index (width - y - row - 1) * width + x) over the top-down
+// terrain capture. The overlay image is tile order (row * size + col), so the upload flips the rows.
+inline size_t MinimapTextureIndex(int col, int row, int size) {
+    return static_cast<size_t>(size - 1 - row) * static_cast<size_t>(size) + static_cast<size_t>(col);
+}
+
 // The pixel of tile (col, row) in an image `imageSize` a side over a map `mapSize` a side (the image is the
 // map's size in the normal case; another size is scaled, nearest). 0 outside.
 inline uint32_t PixelAt(const std::vector<uint32_t>& image, int imageSize, int mapSize, int col, int row) {

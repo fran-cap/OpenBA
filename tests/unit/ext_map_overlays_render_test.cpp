@@ -158,6 +158,22 @@ UNIT_TEST(ext_map_overlays_render_colour_is_swizzled_and_scaled) {
     CHECK(TexturePixel(0x80332211u) == 0x80112233u);
 }
 
+// The minimap texture is upside down against the tiles, as retail's overlayPixels
+// (Minimap::ClearTerrain: (width - y - 1) * width + x): tile row 0 is the texture's last row.
+UNIT_TEST(ext_map_overlays_render_minimap_texture_flips_the_rows) {
+    const int size = 8;
+    CHECK(MinimapTextureIndex(0, 0, size) == static_cast<size_t>(7 * size));
+    CHECK(MinimapTextureIndex(3, 0, size) == static_cast<size_t>(7 * size + 3));
+    CHECK(MinimapTextureIndex(5, 7, size) == 5u);
+    // retail's own paint of a 1x1 footprint at (x, y) lands on the same index
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            const size_t retail = static_cast<size_t>((size - y - 0 - 1) * size + x);
+            CHECK(MinimapTextureIndex(x, y, size) == retail);
+        }
+    }
+}
+
 UNIT_TEST(ext_map_overlays_render_exact_step_draws_only_coloured_tiles) {
     const int size = 16;
     std::vector<uint32_t> image(size * size, 0u);
