@@ -150,7 +150,6 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/sharp_ui/sharp_ui.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, Draw step 12
 #include "ext/ambient_occlusion/ambient_occlusion.h"     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, Draw step 7
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ext.touch_pointer, Draw step 11 (ToolAimHeld)
-#include "ext/show_grid/show_grid.h"   // EXT SEAM (NOT RETAIL, SHOWGRID.md): ext.show_grid, Draw step 11
 #include "ext/ground_draw.h"   // EXT SEAM (NOT RETAIL, MAPOVERLAYS.md): the ground draw, Draw step 7
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
@@ -1595,9 +1594,10 @@ void GameUpdateLoop::Draw(float alpha) {
         // arms Graphics::Renderer::_extAo for this one Draw (the game's main scene
         // only: the menu backdrop and the minimap never come through here).
         const bool aoArmed = Ext::AmbientOcclusion::Enabled() && Ext::AmbientOcclusion::Arm(*m_playerController);
-        // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays arms the ground draw
-        // (Graphics::Renderer::_extGroundDraw) for this one Draw: its heat map lies on the ground, under the
-        // water, the particles and the status icons. Row off: null.
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md, SHOWGRID.md): ext.map_overlays and
+        // ext.show_grid arm the ground draw (Graphics::Renderer::_extGroundDraw) for this one Draw: the heat
+        // map and the tile grid lie on the ground, under the water, the particles and the status icons. Both
+        // rows off: null.
         Graphics::Renderer::_extGroundDraw = Ext::GroundDraw();
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): while
         // ext.eye_camera follows a citizen, the same Renderer::Draw with the
@@ -1684,10 +1684,6 @@ void GameUpdateLoop::Draw(float alpha) {
         if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
             hasInput = false;
         uint64_t drawFlag = (hasInput || pauseCheck) ? 1 : 0;
-        // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHOWGRID.md): ext.show_grid draws its tile grid under
-        // the tool, whether or not one is selected. Row off: nothing.
-        if (Ext::Ext().show_grid && Ext::ShowGrid::Shown())
-            Ext::ShowGrid::Draw(videoCtx);
         if (tool) {
             // Caller batch CB6: slot 8 (vtable +0x40) `Tool::Draw(context, active)`.
             // The receiver is PROVED by its only writer, Toolbar_ShowGroup_Impl

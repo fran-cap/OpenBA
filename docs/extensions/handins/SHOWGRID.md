@@ -51,11 +51,15 @@ no hotkey.
 
 ## 3. The seams
 
-Three. Two draw seams, one line each behind `Ext::Ext().show_grid` and the check box, both before the tool draw (step 11),
-so the tool's own tiles and a building ghost draw over the grid:
+Three. The draw is the ground draw (`src/ext/ground_draw.h`, `Graphics::Renderer::_extGroundDraw`), behind
+`Ext::Ext().show_grid` and the check box: inside `Renderer::Draw` pass 2, after the opaque list of the main scene and
+before the blended one, with the scene's camera, after ext.map_overlays' heat map. So the water, the particles and the
+status icons (blended, no depth write) draw over the grid, as over the ground, and the tool's own tiles and a building
+ghost (step 11) still do. The grid was drawn in the tool-draw seam (step 11) before, after the whole scene, and its
+lines crossed the status icons.
 
-- `GameUpdateLoop::Draw` (`src/game/Game/gameupdateloop.cpp`), the normal path;
-- `ext.render_pipe`'s draw (`src/ext/render_pipe/render_pipe.cpp`), the same place when that pipe runs the frame.
+- `GameUpdateLoop::Draw` (`src/game/Game/gameupdateloop.cpp`) step 7 arms the seam for its one `Renderer::Draw`;
+- `ext.render_pipe` (`src/ext/render_pipe/render_pipe.cpp`) carries the same pointer in its packet to its pass 2.
 
 The third is in `GameUpdateLoop::Load` (`gameupdateloop_load.cpp`), after the class lock: `OnGameStart` (see section 1).
 
@@ -67,9 +71,9 @@ The icon is `tools/ext_icons/showgrid.py` (`Entry_show_grid.png`, `ExtensionsSpr
 - No hotkey and nothing on the Enhanced tab: the Grid tab of the extension window holds the check box and the sliders.
   It is the first class A row with a tab there (a page may belong to a row of any class: DESIGN.md, surfaces).
 - A steep slope can hide a line segment that lies inside the hill by less than the 0.03 tile lift.
-- The grid is not in `ext.town_screenshot`'s pictures, nor in the game's own screenshot (the Take View Screenshot button):
-  the town screenshot draws the scene at `GameUpdateLoop::Draw` step 7, and the game's screenshot is read back at step 9,
-  both before the grid's step 11. Both were tried with the grid on. A change to those steps would show it.
+- The grid is part of the scene since it moved to the ground draw, so it is in `ext.town_screenshot`'s pictures (each
+  tile's box from that tile's camera; a tile wider than `kMaxTiles` has none) and in the game's own screenshot (the Take
+  View Screenshot button, step 9). Not yet tried with the grid on.
 - Performance was judged by eye in a game, not measured.
 
 ## 5. Tests
