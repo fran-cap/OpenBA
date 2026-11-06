@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 16);
+    CHECK(kEmbeddedCount == 18);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -56,6 +56,8 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/TownScreenshotPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ShowGridPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FpsCounterPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/BuildingFinderPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/FavoritesWindow.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -206,8 +208,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // note), + 4 for the picture's outline check box and the Show in town button (each with its tip), + 2 for
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
     // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
-    // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS page
-    CHECK(strings && strings->blocks.size() == 142);
+    // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS
+    // page, + 18 for the Find Buildings page and its favorites window
+    CHECK(strings && strings->blocks.size() == 142 + 18);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -405,6 +408,28 @@ UNIT_TEST(ext_rsc_text_parse_fps_counter_page) {
     const Object* reset = f.Find("buttonFpsCounterReset");
     CHECK(reset && reset->type == "ButtonDescription");
     CheckKnownTypes(f, "FpsCounterPage.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_building_finder_page) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/BuildingFinderPage.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // a page, not a dialog: the root object is pageBuildingFinder
+    const Object* page = f.Find("pageBuildingFinder");
+    CHECK(page && page->type == "RibbonDescription");
+    const Object* search = f.Find("editFinderSearch");
+    CHECK(search && search->type == "EditDescription");
+    CHECK(f.Find("tableFinderAll") && f.Find("ribbonFinderCell") && f.Find("buttonFinderOpenFav"));
+    CHECK(f.Find("buttonFinderKey") && f.Find("textFinderKey"));
+    CHECK(f.Find("buttonFinderPick") && f.Find("buttonFinderStar") && f.Find("buttonFinderClear"));
+    CheckKnownTypes(f, "BuildingFinderPage.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_favorites_window) {
+    File w;
+    CHECK(ParseEmbedded("Dialog/FavoritesWindow.rsc", w));
+    CHECK(w.Find("dialogRoot") && w.Find("tableFavoritesWindow") && w.Find("textFavoritesWindowNote"));
+    CHECK(w.Find("buttonFavoriteIcon") && w.Find("imageFavoriteIcon") && w.Find("buttonFavoritesOpenPage"));
+    CheckKnownTypes(w, "FavoritesWindow.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_show_grid_page) {

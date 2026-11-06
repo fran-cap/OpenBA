@@ -159,6 +159,13 @@ static TemplateBucket* Toolbar_FindTemplateNode(const CitizenBehavior* town, con
     return nullptr;
 }
 
+// The town's count of a template: the size of its +0x160 node's entity list (0 with no node). The toolbar's
+// ShowGroup and FocusEntity buttons test it, and so does the Find Buildings page (ext.building_finder).
+int32_t Toolbar_BuiltCount(const CitizenBehavior* town, const void* tmpl) {
+    const TemplateBucket* node = Toolbar_FindTemplateNode(town, tmpl);
+    return node != nullptr ? node->element.entities._size : 0;
+}
+
 // Toolbar_FindEntity (FUN_140088d40)
 // BST search: walks the town's +0x160 tree for the template, returns its
 // index-th entity, or null.
@@ -238,11 +245,7 @@ void ToolbarDialog::UpdateButtons() {
             if (matchedComponent == nullptr || matchedComponent->_val0 < 0) {
                 enabled = true;
             } else {
-                // The town's count of the template
-                int entityCount = 0;
-                TemplateBucket* node = Toolbar_FindTemplateNode(town, typeId);
-                if (node != nullptr) entityCount = node->element.entities._size;
-                enabled = entityCount < matchedComponent->_val0;
+                enabled = Toolbar_BuiltCount(town, typeId) < matchedComponent->_val0;
             }
 
             // Set button enabled (Element slot 8)
@@ -255,12 +258,7 @@ void ToolbarDialog::UpdateButtons() {
             UI::Element* elem = buttonElements[i];
             if (!elem) continue;
 
-            // The town's count of the template
-            int entityCount = 0;
-            TemplateBucket* node = Toolbar_FindTemplateNode(town, typeId);
-            if (node != nullptr) entityCount = node->element.entities._size;
-
-            bool enabled = entityCount > 0;
+            bool enabled = Toolbar_BuiltCount(town, typeId) > 0;
             elem->Enable(enabled);
         }
     }

@@ -647,6 +647,16 @@ const Entry kEntries[] = {
       "Adds an FPS page to the extension window (the toolbar's Reports group) with the current, average, "
       "minimum and maximum frame rate.",
       0, [](State& s) -> bool& { return s.ext.fps_counter; } },
+    // BUILDINGFINDER (docs/extensions/handins/BUILDINGFINDER.md): a Find Buildings page in the extension
+    // window: a search box over every building the toolbar can place (the ones the town cannot build now
+    // too), and a favorites list the player keeps in a text file beside settings.cfg, shown in its own small
+    // window. Class A: it keeps no state in the game and nothing in the simulation reads it. OFF by default:
+    // it adds a tab to the extension window.
+    { "building_finder", Tier::Extension, Class::A, false,
+      "Building finder",
+      "Adds a Find Buildings page to the extension window: search every building by name, and keep a list of "
+      "favorites you can start placing with one click.",
+      0, [](State& s) -> bool& { return s.ext.building_finder; } },
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a

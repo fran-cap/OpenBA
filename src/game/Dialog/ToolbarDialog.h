@@ -26,6 +26,7 @@
 #include "collection/Collection.h"
 
 class Toolbar;   // Game/Toolbar.h
+class CitizenBehavior;   // Entity/CitizenBehavior.h
 namespace UI { class RadioElement; class Element; }
 
 class ToolbarDialog final : public UI::DialogInstance {
@@ -80,4 +81,8 @@ static_assert(offsetof(ToolbarDialog, currentSpeedIndex) == 0xF4, "ToolbarDialog
 static_assert(offsetof(ToolbarDialog, speedValues) == 0xF8, "ToolbarDialog +0xf8");
 static_assert(sizeof(ToolbarDialog) == 0x108, "ToolbarDialog is 0x108 (create 0x140021710)");
 static_assert(alignof(ToolbarDialog) == 8, "ToolbarDialog is qword-aligned");
+
+// How many entities the town has built from `tmpl` (a toolbar item's template): the count the toolbar's own
+// buttons test against a ToolbarDescription's limit. 0 for a template the town has none of.
+int32_t Toolbar_BuiltCount(const CitizenBehavior* town, const void* tmpl);
 
