@@ -114,9 +114,31 @@ selection; the minimap and the terrain upload only when its version changes.
 
 ## 7. Verification
 
-- `tools/build.sh unit`: core, codec (round trip, every malformed case), math.
-- Faithful gate (`tools/build.sh run`) and resave check: zero bytes with the row off.
-- Row on: a town played a year, saved, reloaded: the views read the same.
-- A save with a mod's resource loads without the mod: the path stays in the table and matches nothing.
-- Stress run faithful vs row on (DESIGN.md hook rule 6).
-- No game content: the window is our own `.rsc`; retail's map content is used by reference.
+The plan, and what each item showed on the merged tree (2026-11-06):
+
+| check | result |
+|---|---|
+| `tools/build.sh unit` (core, codec round trip and every malformed case, math, render math, the minimap row flip, the outline clip) | 2229 tests, 0 failures |
+| Faithful gate (`tools/build.sh run`) | town reached, no crash, no map_overlays line in either log |
+| `tools/resave_gate/resave_gate.sh Gate` (row off: zero bytes) | PASS, resave == golden |
+| Row on, stress town: save at frame 5500, reload | encode and decode summaries identical (289 sites, 9 resources, 352,992 steps) |
+| Row on save loaded with the row off | the extension notice, the row locked on from the save's manifest, plays on |
+| Stress run, every extension off vs `ext.map_overlays` alone (no view open) | sim 0.263 vs 0.263 ms per iteration (row means); draw CPU 1.09 vs 1.10 ms. fps not comparable: an fps limiter was running |
+| By hand (the user), DX11, a real save (Elysium) with better_camera / eye_camera on | every view, the pickers, the sliders, terrain on / off, rotate and zoom: no defect left |
+
+**The stress town cannot show production**: its gatherers, field, orchard and dock produce next to
+nothing and its food is added to the barns by the harness (`src/diag/stress_harness.cpp`), which is no
+work and correctly counts as nothing produced. Use a real town for Production.
+
+**Found while testing, outside the extension:**
+- `RawMaterialFlags` bits 7+ were toolkit-order guesses; the installed templates give Wood 0x400, Stone
+  0x800, Iron 0x1000, Tool 0x200, Health 0x2000, Clothing 0x4000, Textile 0x10000, Alcohol 0x20000
+  (`RawMaterialDescription.h`).
+- Retail bug 31 (the minimap's camera outline loses a side when a corner is off the map): `fix.minimap_outline_clip`,
+  which clips each side to the sprite cull's own rect (the scissor goes through the UI scale and is truncated).
+- Retail bug 32 (a ground decal's underwater tint is applied after the fog): written up, fixed in a separate change.
+- `ext.show_grid` drew over the status icons for the same reason as this extension did; both now draw in the
+  ground pass (`Graphics::Renderer::_extGroundDraw`).
+
+No game content: the window is our own `.rsc`; retail's map content is used by reference (moved into the
+side-by-side row at run time, never copied).
