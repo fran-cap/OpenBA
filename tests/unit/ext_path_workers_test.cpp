@@ -5,7 +5,7 @@
 // drives the same WorkerMain from System::Thread). The mock pathfinder below is
 // retail's worker reduced to what the protocol touches: a flag byte per cell,
 // the parameter record commands 0 / 1 / 4 write (ApplyCommand 0x1400a6430's
-// cases), and a result table. The search is Ext::FastPaths::Searcher -- at scale 1
+// cases), and a result table. The search is GridSearch::Searcher -- at scale 1
 // it is retail's search (ext_fast_paths_test proves it), and with the real
 // scale it reads the present-type mask, so the ext.fast_paths composition
 // (the mask taken at dispatch) is exercised too.
@@ -21,7 +21,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/path_workers/pool.h"
-#include "ext/fast_paths/fast_search.h"
+#include "Action/grid_search.h"
 
 #include <atomic>
 #include <cstdint>
@@ -72,7 +72,7 @@ struct MockGrid {
         p.manhattan = manhattan;
         p.respectBlocked = respectBlocked;
         p.fast = fast ? 1 : 0;
-        p.presentTypes = fast ? Ext::FastPaths::PresentTypes(cells.data(), static_cast<int>(cells.size())) : 0u;
+        p.presentTypes = fast ? GridSearch::PresentTypes(cells.data(), static_cast<int>(cells.size())) : 0u;
         return p;
     }
 };
@@ -84,9 +84,9 @@ struct Result {
 };
 
 // The search one request runs: retail's at scale 1, ext.fast_paths' when `fast`.
-int Search(Ext::FastPaths::Searcher& s, const Params& p, int width, const uint8_t* cells,
+int Search(GridSearch::Searcher& s, const Params& p, int width, const uint8_t* cells,
            int start, int goal, int32_t* out) {
-    Ext::FastPaths::SearchInput in;
+    GridSearch::SearchInput in;
     in.width = width;
     in.cellFlags = cells;
     in.stepCost = p.stepCost;
@@ -96,10 +96,10 @@ int Search(Ext::FastPaths::Searcher& s, const Params& p, int width, const uint8_
     in.respectBlocked = p.respectBlocked != 0;
     in.start = start;
     in.goal = goal;
-    in.heuristicScale = p.fast ? Ext::FastPaths::HeuristicScale(p.stepCost, p.passableTypes, p.presentTypes) : 1;
+    in.heuristicScale = p.fast ? GridSearch::HeuristicScale(p.stepCost, p.passableTypes, p.presentTypes) : 1;
     if (in.heuristicScale < 0) return -1;
-    const Ext::FastPaths::SearchResult r = s.Run(in, out);
-    return r.status == Ext::FastPaths::Status::Unsupported ? -1 : r.count;
+    const GridSearch::SearchResult r = s.Run(in, out);
+    return r.status == GridSearch::Status::Unsupported ? -1 : r.count;
 }
 
 uint64_t Checksum(const std::vector<uint8_t>& v) {
@@ -161,8 +161,8 @@ Case MakeCase(std::mt19937& rng) {
 std::vector<Result> RunSerial(const Case& c) {
     MockGrid g = c.start;
     std::vector<Result> out(static_cast<size_t>(c.slots));
-    Ext::FastPaths::Searcher s;
-    std::vector<int32_t> buf(Ext::FastPaths::kPathCap);
+    GridSearch::Searcher s;
+    std::vector<int32_t> buf(GridSearch::kPathCap);
     for (const Command& cmd : c.commands) {
         if (cmd.type != 5) { g.Apply(cmd); continue; }
         const Params p = g.Snapshot(c.fast);
@@ -188,14 +188,14 @@ class TestRunner final : public Ext::PathWorkers::Runner {
 public:
     explicit TestRunner(int workers) {
         for (int i = 0; i < workers; ++i) {
-            searchers.emplace_back(new Ext::FastPaths::Searcher());
-            buffers.emplace_back(Ext::FastPaths::kPathCap);
+            searchers.emplace_back(new GridSearch::Searcher());
+            buffers.emplace_back(GridSearch::kPathCap);
         }
     }
     PoolCase* pc = nullptr;   // swapped only while the pool is idle
     std::atomic<int> running{0};
     std::atomic<int64_t> gridChangedUnderJob{0};
-    std::vector<std::unique_ptr<Ext::FastPaths::Searcher>> searchers;
+    std::vector<std::unique_ptr<GridSearch::Searcher>> searchers;
     std::vector<std::vector<int32_t>> buffers;
     unsigned shake = 0;       // > 0: yield now and then, to vary completion order
 

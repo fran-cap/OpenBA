@@ -1,7 +1,8 @@
 // ============================================================================
 // src/ext/fast_paths/fast_paths.h -- ext.fast_paths (class B, default OFF)
 // ============================================================================
-// NOT RETAIL. The game glue around fast_search.h: the once-per-game selection,
+// NOT RETAIL. The game glue around the grid search (src/game/Action/grid_search.h,
+// run at the extension's heuristic scale): the once-per-game selection,
 // the case-5 dispatch, the per-type cell counts the heuristic scale needs, and
 // the shadow check the stress harness compares the two searches with.
 // docs/extensions/handins/FASTPATHS.md is the hand-in.
@@ -30,6 +31,8 @@
 // ============================================================================
 #pragma once
 
+#include "Action/grid_search.h"   // GridSearch::Searcher (RunWith)
+
 #include <atomic>
 #include <cstdint>
 
@@ -39,7 +42,7 @@ namespace Ext {
 namespace FastPaths {
 
 enum : uint8_t {
-    kModeFast   = 1,   // the game runs fast_search (ext.fast_paths on)
+    kModeFast   = 1,   // the game runs the scaled grid search (ext.fast_paths on)
     kModeShadow = 2,   // the stress harness compares both searches per request
 };
 // 0 = retail's line. Written by SelectForGame / SetShadowArmed (the loader /
@@ -61,7 +64,7 @@ void SetShadowArmed(bool armed);
 
 // Command 5 when Engaged(): fills `path` and returns the count exactly as
 // GridPathSearch::Run 0x14001ce00 would (retail's own Run when ext.fast_paths
-// is off for this game, or when fast_search reports Unsupported), then, in
+// is off for this game, or when the grid search reports Unsupported), then, in
 // shadow mode, calls FastPaths_ShadowHook.
 int Run(GridPathSearch& grid, int start, int goal, int32_t* path);
 
@@ -82,8 +85,6 @@ void NoteCellTerrain(uint8_t oldFlags, int newType);
 // pool worker searches with its OWN Searcher on that mask. The single-worker
 // Run above is untouched.
 // ---------------------------------------------------------------------------
-class Searcher;
-
 inline bool FastSelected() { return (g_mode.load(std::memory_order_relaxed) & kModeFast) != 0; }
 
 // The terrain types the grid holds now (bit t, t < 32): the dispatcher's
@@ -92,10 +93,10 @@ inline bool FastSelected() { return (g_mode.load(std::memory_order_relaxed) & kM
 uint32_t PresentTypesNow(const GridPathSearch& grid);
 
 // Command 5 on a pool worker: the fast search on `searcher` with the mask the
-// dispatcher took, or retail's grid.Run on `grid` (the worker's own copy) when
+// dispatcher took, or retail's grid.RunAvl on `grid` (the worker's own copy) when
 // the fast search reports Unsupported (logged once per game). `*expanded` gets
 // LastRunExpanded's figure. The shadow check does not run here (PATHWORKERS.md).
-int RunWith(Searcher& searcher, GridPathSearch& grid, int start, int goal, int32_t* path,
+int RunWith(GridSearch::Searcher& searcher, GridPathSearch& grid, int start, int goal, int32_t* path,
             uint32_t presentTypes, int* expanded);
 
 // ---------------------------------------------------------------------------
@@ -111,15 +112,15 @@ struct ShadowResult {
     int     retailCount = 0, ourCount = 0;       // Run's return values
     int64_t retailCost = -1, ourCost = -1;       // g of the goal, -1 = no path
     bool    sameCells = false;                   // same count and same cells
-    bool    ourUnsupported = false;              // fast_search refused (ours = retail's)
+    bool    ourUnsupported = false;              // the grid search refused (ours = retail's)
     int     retailExpanded = 0, ourExpanded = 0; // cells closed
     int     retailInserted = 0, ourInserted = 0; // relaxations (PathSearch::sequence)
     int32_t scale = 0;                           // the heuristic scale used
     long long retailTicks = 0, ourTicks = 0;     // RDTSC ticks of each search (the harness's unit)
 };
 
-// Runs retail's GridPathSearch::Run and fast_search on the request, on their
-// own path buffers (retail's search state is left as its own run leaves it;
+// Runs retail's AVL GridPathSearch::RunAvl and the scaled grid search on the
+// request, on their own path buffers (retail's search state is left as its own run leaves it;
 // nothing in it outlives a request). Worker thread only. Retail's expansion
 // count is read after its run from the node stamps (closedStamp == generation),
 // outside the timed span.
