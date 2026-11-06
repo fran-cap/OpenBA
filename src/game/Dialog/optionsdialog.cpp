@@ -647,8 +647,8 @@ void OptionsDialog::OnOpened() {
         if (inputCfg) SetCheckState(this->checkSoftwareMouse, inputCfg->_mouseDisplay);
     }
     // EXT SEAM (NOT RETAIL, docs/android/P8_INPUT_OPTIONS.md): ext.phone_menu on a fixed surface
-    // (Android) disables the Video rows that change nothing there and keeps VSync on; retail elsewhere.
-    Ext::PhoneMenu::FitVideoRows(this->comboResolution, this->comboRefresh, this->checkFullscreen,
+    // (Android) hides the Video rows that change nothing there and keeps VSync on; retail elsewhere.
+    Ext::PhoneMenu::FitVideoRows(this, this->comboResolution, this->comboRefresh, this->checkFullscreen,
                                  this->checkVSync);
     // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): ext.fullscreen_mode puts the combo
     // Off / Exclusive / Borderless in the Fullscreen checkbox's cell (the checkbox kept, hidden). Retail

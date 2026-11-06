@@ -41,6 +41,7 @@ namespace UI {
 class CheckElement;
 class ComboElement;
 class Dialog;
+class DialogInstance;
 }
 
 namespace Ext {
@@ -84,11 +85,12 @@ bool FixedVideoRows();
 // at the first frame), so a MAILBOX swap chain never renders frames the panel never shows.
 void KeepVSyncOnFixedSurface();
 
-// OptionsDialog::OnOpened, after retail filled the Video tab: with FixedVideoRows, the Resolution and
-// Refresh rate combos and the Fullscreen and VSync checks are disabled, VSync shown ticked (Apply then
-// reads values that change nothing, VSync on). Any argument may be null. Retail's rows elsewhere.
-void FitVideoRows(UI::ComboElement* resolution, UI::ComboElement* refresh, UI::CheckElement* fullscreen,
-                  UI::CheckElement* vsync);
+// OptionsDialog::OnOpened, after retail filled the Video tab: with FixedVideoRows, the Resolution,
+// Refresh rate, VSync and Fullscreen rows are hidden with their labels (found in `dialog` by their
+// Options.rsc names) and the controls disabled, VSync ticked (Apply then reads values that change
+// nothing, VSync on). Any argument may be null. Retail's rows elsewhere.
+void FitVideoRows(UI::DialogInstance* dialog, UI::ComboElement* resolution, UI::ComboElement* refresh,
+                  UI::CheckElement* fullscreen, UI::CheckElement* vsync);
 
 }  // namespace PhoneMenu
 }  // namespace Ext
