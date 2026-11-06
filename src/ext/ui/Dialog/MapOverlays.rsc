@@ -28,10 +28,11 @@ GroupDescription groupMapOverlaysMapSlot
 	Alignment _alignment = TopLeft;
 }
 
-// Map, Made, Used, Stock, Services, Traffic, Homes, Nature, top to bottom, all one width.
+// Map, Made, Used, Stock, Services, Traffic, Homes, Nature, top to bottom, all one width; the top pad lines the first
+// button up with the minimap (Map.rsc:content pads its image by 2), clear of the title bar.
 RibbonDescription columnMapOverlaysViews
 {
-	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 1;
+	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 1; int _topPad = 2;
 	ElementDescription _elements
 	[
 		"buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab"
