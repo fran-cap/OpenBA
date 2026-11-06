@@ -79,7 +79,7 @@ struct MapPicture {
     int size = 0;
     uint32_t version = 0;
     bool uploaded = false;
-    std::vector<uint32_t> pixels;   // what the texture holds: refilled from here after a device restart
+    std::vector<uint32_t> pixels;   // what the texture holds (TexturePixel order): refilled from here after a restart
 };
 
 MapPicture& Picture() {
@@ -330,7 +330,9 @@ void MapWindowUpdate(MapUI& map) {
         p.size = size;
     }
     if (!p.uploaded || p.version != version) {
-        p.pixels.assign(image.begin(), image.begin() + static_cast<std::ptrdiff_t>(size) * size);
+        const size_t count = static_cast<size_t>(size) * static_cast<size_t>(size);
+        p.pixels.resize(count);
+        for (size_t i = 0; i < count; ++i) p.pixels[i] = TexturePixel(image[i]);
         p.version = version;
         Upload(p);
     }

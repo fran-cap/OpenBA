@@ -96,6 +96,12 @@ inline uint32_t VertexColor(uint32_t abgr, int opacityPercent) {
     return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
+// An overlay pixel (0xAABBGGRR) as the map window's texture holds it: the minimap images are format 5,
+// DXGI_FORMAT_B8G8R8A8_UNORM (imagebufferdata.cpp's kFormatToDxgi), so a uint32 there reads 0xAARRGGBB.
+inline uint32_t TexturePixel(uint32_t abgr) {
+    return (abgr & 0xFF00FF00u) | ((abgr & 0xFFu) << 16) | ((abgr >> 16) & 0xFFu);
+}
+
 // The pixel of tile (col, row) in an image `imageSize` a side over a map `mapSize` a side (the image is the
 // map's size in the normal case; another size is scaled, nearest). 0 outside.
 inline uint32_t PixelAt(const std::vector<uint32_t>& image, int imageSize, int mapSize, int col, int row) {

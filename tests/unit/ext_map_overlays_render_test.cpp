@@ -60,6 +60,9 @@ UNIT_TEST(ext_map_overlays_render_colour_is_swizzled_and_scaled) {
     CHECK(VertexColor(0x80332211u, 100) == 0x80112233u);
     CHECK((VertexColor(kRedOpaque, 50) >> 24) == 127u);
     CHECK(VertexColor(0x00FFFFFFu, 100) >> 24 == 0u);
+    // the map window's texture (B8G8R8A8): red and blue trade places, alpha and green stay
+    CHECK(TexturePixel(kRedOpaque) == 0xFFFF0000u);
+    CHECK(TexturePixel(0x80332211u) == 0x80112233u);
 }
 
 UNIT_TEST(ext_map_overlays_render_exact_step_draws_only_coloured_tiles) {
