@@ -17,6 +17,9 @@
 namespace Ext { namespace SaveTail { struct StateCodec; } }
 namespace Video { class Context; }
 class RawMaterialDescription;
+class MapUI;
+class ComponentDescription;
+class ComponentEntity;
 
 namespace Ext {
 namespace MapOverlays {
@@ -36,6 +39,11 @@ void BeginFrame();
 // tile is computed here. `count` is in items, as the inventory counts them.
 void OnProduced(const RawMaterialDescription* material, float worldX, float worldZ, int count);
 void OnConsumed(const RawMaterialDescription* material, float worldX, float worldZ, int count);
+// The same for the seams that hold an entity and an item template (what StorageComponent stores): the site is
+// the entity's MapComponent footprint centre, the material item->FindDescription<RawMaterialDescription>();
+// nothing is counted when either is missing.
+void OnProducedAt(const ComponentDescription* item, const ComponentEntity* site, int count);
+void OnConsumedAt(const ComponentDescription* item, const ComponentEntity* site, int count);
 // A citizen entered a new tile (the movement seam; MAPOVERLAYS.md §4 for the cost rule).
 void OnStep(int tileX, int tileZ);
 
@@ -57,8 +65,15 @@ float LegendMax();
 bool BuildInstantTiles(const Selection& s, int size, std::vector<float>& out);
 
 // ---- the renderers (overlay_render.cpp) --------------------------------------------------------------------
-// The minimap: the overlay drawn over MapUI's map image while an overlay tab is active.
-void MapWindowUpdate();
+// The minimap: the overlay drawn over MapUI's map image while an overlay tab is active. Called by the map
+// window's controller (map_window.cpp) every UI update while the window is open; a View::Map selection
+// (Image() size 0) puts retail's sprite back on imageOverlay.
+void MapWindowUpdate(MapUI& map);
+// Before the MapUI is destroyed: retail's sprite back on imageOverlay before ~MapUI deletes the sheets.
+void MapWindowClosed(MapUI& map);
+// Main thread, every frame, at the end of BeginFrame: snapshots Image() for the terrain draw, which may run
+// on the render thread (ext.render_pipe) and never calls Image() itself.
+void RenderFrame();
 // The terrain: called from the two tool-draw seams beside Ext::ShowGrid::Draw, while onTerrain is set.
 void DrawOnTerrain(Video::Context* context);
 
