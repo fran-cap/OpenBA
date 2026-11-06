@@ -14,10 +14,10 @@
 //   VSync         the one live row: on = FIFO (the panel's 120 Hz paces the frames), off = MAILBOX
 //                 (frames rendered as fast as the GPU goes, most never shown).
 // The owner's ruling (2026-10-25) offered two ways: drop the meaningless rows, or let the
-// Enhanced rows override them. Dropped (disabled) here: the rows that change nothing take no input (the
-// combos grey; retail's check sprite has no disabled look, a tap does nothing),
-// and VSync is kept on, so FIFO holds the panel's rate and the Frame rate cap (ext.fps_cap) is the
-// one control below it; the two can never both be choices. Render scale is the Enhanced tab's.
+// Enhanced rows override them. Dropped here: first disabled (round 2), then hidden with their labels
+// (issue #259: a greyed row still reads as a setting), and VSync is kept on, so FIFO holds the panel's
+// rate and the Frame rate cap (ext.fps_cap) is the one control below it; the two can never
+// both be choices. Render scale is the Enhanced tab's.
 
 #include "ext/phone_menu/phone_menu.h"
 
@@ -26,6 +26,8 @@
 #include "platform_window_hooks.h"   // Platform::Window::FixedDisplaySurface
 #include "ui/CheckElement.h"
 #include "ui/ComboElement.h"
+#include "ui/DialogInstance.h"
+#include "system/String.h"
 #include "video/Device.h"
 
 #include <cstdio>
@@ -49,18 +51,34 @@ void KeepVSyncOnFixedSurface() {
                          "below the panel's is the Frame rate cap)\n");
 }
 
-void FitVideoRows(UI::ComboElement* resolution, UI::ComboElement* refresh, UI::CheckElement* fullscreen,
-                  UI::CheckElement* vsync) {
-    if (!FixedVideoRows()) return;
-    if (resolution != nullptr) resolution->Enable(false);
-    if (refresh != nullptr) refresh->Enable(false);
-    if (fullscreen != nullptr) fullscreen->Enable(false);
-    if (vsync != nullptr) {
-        vsync->_checked = 1;
-        vsync->Enable(false);
+namespace {
+
+// One Video row hidden: its control and the label in the cell to its left (Options.rsc
+// graphicsOptionsShort). A hidden cell is skipped by TableElement::GetRowHeight, so the row takes no
+// height and no spacing: the rows below it move up. The control is also disabled (no focus reaches it).
+void HideRow(UI::DialogInstance* dialog, UI::Element* control, const char* label) {
+    if (control != nullptr) {
+        control->Enable(false);
+        control->Hide(true);
     }
-    std::fprintf(stderr, "[PhoneMenu] fixed surface: Resolution, Refresh rate, Fullscreen and VSync (on) "
-                         "disabled in Options > Video\n");
+    if (dialog == nullptr) return;
+    const System::String name(label);
+    if (UI::Element* text = dialog->FindElement(name).Get()) text->Hide(true);
+}
+
+}  // namespace
+
+void FitVideoRows(UI::DialogInstance* dialog, UI::ComboElement* resolution, UI::ComboElement* refresh,
+                  UI::CheckElement* fullscreen, UI::CheckElement* vsync) {
+    if (!FixedVideoRows()) return;
+    // VSync stays on (read by Apply from the hidden check): FIFO at the panel's rate.
+    if (vsync != nullptr) vsync->_checked = 1;
+    HideRow(dialog, resolution, "textResolution");
+    HideRow(dialog, refresh, "textRefresh");
+    HideRow(dialog, vsync, "textVSync");
+    HideRow(dialog, fullscreen, "textFullscreen");
+    std::fprintf(stderr, "[PhoneMenu] fixed surface: Resolution, Refresh rate, VSync (on) and Fullscreen "
+                         "hidden in Options > Video\n");
 }
 
 }  // namespace PhoneMenu
