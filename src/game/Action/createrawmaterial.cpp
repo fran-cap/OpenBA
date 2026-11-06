@@ -49,6 +49,7 @@
 #include "Component/RawMaterialDescription.h"
 #include "Component/RawMaterialComponent.h"
 #include "Component/WorkPlaceDescription.h"
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ============================================================
 // Helpers, called by name (B3R)
@@ -212,6 +213,8 @@ int  CreateRawMaterial::AbstractImpl(ActionStack* actionStack) {
         return 2;
     }
 
+    const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above the loop
+
     // Spawn loop: create entities for all items
     while (totalItems > 0) {
         int batchSize = totalItems;
@@ -284,6 +287,10 @@ int  CreateRawMaterial::AbstractImpl(ActionStack* actionStack) {
             gameWorld->m_citizenList->CountProducedMaterial(   // 0x140088ef0
                 &sourceIBP,
                 placeNearFlag, descEntity, batchSize);
+            if (mapOverlays) {
+                // ext.map_overlays: produced by work, at the workplace (the pile when there is none)
+                Ext::MapOverlays::OnProducedAt(descEntity, sourceIBP != nullptr ? sourceIBP : entityIBP, batchSize);
+            }
 
             // Register entity with entity list
             Object::InternalPtr<ComponentEntity> entityRef = entityIBP;

@@ -36,6 +36,7 @@
 #include "Entity/CitizenBehavior.h"
 #include "Game/Map.h"
 #include "ext/registry.h"             // Ext::Fix().tavern_counter
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ============================================================
 // Helpers, called by name (B3R)
@@ -486,6 +487,10 @@ void HappinessComponent::OnMessage(int message, void* /*data*/, uint32_t /*arg0*
         if ((desc->_goodsFlags & rawMat->_flags) != 0 && item->_count - item->_reserve >= 1) {
             // FIX tavern_counter: the corrected arm loads the material before the subtract;
             // the faithful arm re-reads the row after it, as retail does (0x14004a8e6).
+            if (Ext::MapOverlays::g_on) {
+                // ext.map_overlays: one good spent (ale and the like), at the building; read before the subtract
+                Ext::MapOverlays::OnConsumedAt(item->_resource, _entity.Get(), 1);
+            }
             const ComponentDescription* spent;
             if (fixTavernCounter) {
                 spent = item->_resource;

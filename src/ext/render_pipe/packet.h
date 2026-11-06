@@ -23,7 +23,7 @@
 
 class GameUpdateLoop;
 class Tool;
-namespace Graphics { class Renderer; class Material; }
+namespace Graphics { class Renderer; class Material; class Camera; }
 namespace Save { class SaveLoad; }
 
 namespace Ext {
@@ -67,6 +67,10 @@ struct Packet {
     // render thread never reads the main thread's static.
     bool                 aoOn = false;
     Graphics::ExtAoFrame ao   = {};
+
+    // ---- the ground draw (MAPOVERLAYS): what GameUpdateLoop::Draw step 7 would arm the static -------------
+    // Renderer::_extGroundDraw with, carried by value; pass 2 (passes.cpp) calls it. Null = none.
+    void (*groundDraw)(Video::Context&, const Graphics::Camera&) = nullptr;
 
     // ---- ext.staggered_passes (issue #253): pass 1 held the sun's shadow map -------
     // MainHalf records SunLight::ExtTakeShadowHeld after pass 1; pass 2 hands it to

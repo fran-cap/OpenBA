@@ -468,6 +468,24 @@ def draw_stream_wait(px):
     ])
 
 
+def draw_outline_clip(px):
+    # a map frame with the camera trapezoid whole, its far side cut at the frame's edge
+    _paint(px, [
+        "############",
+        "#..........#",
+        "#++++++++++#",
+        "#.+......+.#",
+        "#..+....+..#",
+        "#...+..+...#",
+        "#...++++...#",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "#..........#",
+        "############",
+    ])
+
+
 def draw_empty_status(px):
     # a "!" status icon in a box over an empty bench (a problem-icon click with no citizen left)
     _paint(px, [
@@ -513,4 +531,5 @@ ICONS = {
     "debug_spawn_origin": ("fix", draw_spawn_origin),   # two figures on a cross-hair
     "statusbar_empty_town": ("fix", draw_empty_status),   # a "!" status icon over an empty bench
     "stream_free_wait": ("fix", draw_stream_wait),   # a music note beside a pause sign
+    "minimap_outline_clip": ("fix", draw_outline_clip),   # a map frame with a whole camera trapezoid
 }

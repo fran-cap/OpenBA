@@ -53,6 +53,8 @@
 #include "Game/PlayerToolManager.h"
 #include "Player/Tool.h"
 #include "Player/EditTool.h"
+#include "ext/map_overlays/map_overlays.h"   // ext.map_overlays (NOT RETAIL): g_on
+#include "ext/map_overlays/map_window.h"     // ext.map_overlays (NOT RETAIL): the map window's overlay tabs
 
 // src/game/Object/factory_registration.cpp
 
@@ -306,6 +308,11 @@ void ToolUI::OnCreated() {
 
         // Register sub-controllers from UIDescription
         uiDesc->AddControllers(&_dialog, _dataSource);
+
+        // ext.map_overlays: the overlay views beside retail's map content, injected the same way (NOT RETAIL;
+        // only the window that now holds a MapUI gets them).
+        if (Ext::MapOverlays::g_on)
+            Ext::MapOverlays::AddMapWindowTabs(_dialog, _dataSource);
     }
 }
 

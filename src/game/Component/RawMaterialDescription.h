@@ -48,16 +48,21 @@ namespace RawMaterialFlags {
     constexpr uint32_t DietGroup3 = 0x00000010;
     constexpr uint32_t Edible     = 0x00000020;  // bit 5 — EDIBLE master flag (verified)
     constexpr uint32_t Fuel       = 0x00000040;  // bit 6 — FIREWOOD (verified)
-    // Bits 7+ — names below are UNVERIFIED toolkit-order guesses shifted to match
-    // the recovered anchors; treat with caution until each is binary-confirmed.
-    constexpr uint32_t Wood       = 0x00000080;  // bit 7  (CountResources entry +0x60)
-    constexpr uint32_t Stone      = 0x00000100;  // bit 8
-    constexpr uint32_t Iron       = 0x00000200;  // bit 9  (ef40 cat2)
-    constexpr uint32_t Tool       = 0x00000400;  // bit 10 \  0x1c40 (bits 6,10,11,12)
-    constexpr uint32_t Health     = 0x00000800;  // bit 11  } = the "durable goods"
-    constexpr uint32_t Clothing   = 0x00001000;  // bit 12 /  notify-summary split
-    constexpr uint32_t Alcohol    = 0x00002000;  // bit 13 (ef40 cat3)
-    // bit 14 (0x4000): ef40 cat4 / start-seed mask member (tools or clothing class)
+    // Bits 7+ — read from the installed game's templates (RawMaterialDescription::_flags dumped in game,
+    // 2026-11-06, MAPOVERLAYS.md §2) and consistent with the ef40 category map above (cat2 = bit 9 = tools,
+    // cat3 = bit 13 = herbs, cat4 = bit 14 = coats). The old toolkit-order guesses (Wood 0x80, Stone 0x100,
+    // Iron 0x200, ...) were wrong. Firewood is 0xc0 and coal 0x140: bits 7 and 8 are set on those fuels only;
+    // their meaning is not known.
+    constexpr uint32_t FuelBit7   = 0x00000080;  // bit 7  (firewood 0xc0)
+    constexpr uint32_t FuelBit8   = 0x00000100;  // bit 8  (coal 0x140)
+    constexpr uint32_t Tool       = 0x00000200;  // bit 9  tool, steel tool (ef40 cat2)
+    constexpr uint32_t Wood       = 0x00000400;  // bit 10 logs
+    constexpr uint32_t Stone      = 0x00000800;  // bit 11
+    constexpr uint32_t Iron       = 0x00001000;  // bit 12
+    constexpr uint32_t Health     = 0x00002000;  // bit 13 herbs (ef40 cat3)
+    constexpr uint32_t Clothing   = 0x00004000;  // bit 14 coats; the winter coat is 0xc000 (ef40 cat4)
+    constexpr uint32_t Textile    = 0x00010000;  // bit 16 leather, wool
+    constexpr uint32_t Alcohol    = 0x00020000;  // bit 17 ale
     // Custom flags continue upward (modding).
 }
 

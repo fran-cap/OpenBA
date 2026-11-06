@@ -43,6 +43,7 @@
 #include "rsc_text_check.h"                      // src/diag: the kit cross-check, /rsccheck:1 on the command line
 #include "ext/sharp_ui/sharp_ui.h"            // ext.sharp_ui: MainLoop::_extVideoLost drops its sheet copies
 #include "ext/resources/sheet_builder.h"        // the providers' sheet textures: MainLoop::_extVideoRestored
+#include "ext/map_overlays/overlay_render.h"    // ext.map_overlays: the map window's image across a device restart
 #include "ext/resources/font_provider.h"         // KITFREE RSCFONT: ext.sharp_ui's font variants, provided at run time
 #include "ext/resources/ext_sprites.h"           // KITFREE: the Extensions sprite sheet provider
 
@@ -126,6 +127,12 @@ namespace {
 void VideoLost() {
     SharpUI::OnVideoLost();      // the sheet copies (a red dialog after a display change)
     BetterWater::OnVideoLost();  // the shore programs and twins (a GPU hang after a display change)
+    MapOverlays::OnVideoLost();  // the map window's overlay image
+}
+// Engine::MainLoop::_extVideoRestored: the same objects made again, after the reload.
+void VideoRestored() {
+    Resources::RestoreSheetTextures();
+    MapOverlays::OnVideoRestored();
 }
 }  // namespace
 
@@ -171,7 +178,7 @@ void InitFromSettings() {
     // Video objects made at run time across a device restart (MainLoop.h): set whatever the rows; with
     // nothing built (the rows off, the faithful profile) each hook does nothing.
     ::Engine::MainLoop::_extVideoLost = &VideoLost;
-    ::Engine::MainLoop::_extVideoRestored = &Resources::RestoreSheetTextures;
+    ::Engine::MainLoop::_extVideoRestored = &VideoRestored;
     BootDeviceLostBackend::SetFixFlag(&LiveFix().boot_device_lost);   // the render thread reads it
     // fix.stream_free_wait: OnSoundBufferDeleted's wait for the stream pass (review S-027).
     ::Audio::Device::_extFixStreamFreeWait = &Fix().stream_free_wait;

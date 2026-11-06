@@ -68,6 +68,7 @@
 #include "Game/exe_constants.h"
 #include "Game/terrain_sidecar.h"     // [terrain sidecar] NoteWrite after the +0x29 store
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::NoteWrite after a cell store
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ============================================================
 // Helpers
@@ -407,6 +408,7 @@ void PastureProduce(PastureComponent* self) {
         w->m_citizenList->professionResources._data[static_cast<int>(lsDesc->_type)];       // +0x170, +0x28
     const bool full = row.currentCount >= row.maxCount;                                       // SETGE, kept in [rbp+0x7f]
 
+    const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above the loop
     while (self->production > rawDesc->_lowCreateCount) {
         self->production -= rawDesc->_lowCreateCount;
         if (full) continue;
@@ -480,6 +482,10 @@ void PastureProduce(PastureComponent* self) {
         const int idx = static_cast<int>(ResourceCategory(produced));
         if (idx >= 0)
             town->professionResources._data[idx]._field10 += perUnit;
+        if (mapOverlays) {
+            // ext.map_overlays: livestock produce (wool, milk, eggs), at the pasture
+            Ext::MapOverlays::OnProducedAt(produced, pastureEntity, perUnit);
+        }
 
         w->m_entityList->RegisterEntity(&entRef, produced->_category);   // 0x1400c48a0
 

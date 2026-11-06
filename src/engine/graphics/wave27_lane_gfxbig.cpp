@@ -1058,6 +1058,9 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion (renderer_ext_ao.h), read once
     // per frame; null (retail) unless the game's draw armed it for this call.
     const ExtAoFrame* const extAo = _extAo;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): the ground draw (Camera.h), read once per
+    // frame; null (retail) unless the game's draw armed it for this call.
+    const ExtGroundDrawFn extGround = _extGroundDraw;
     for (int64_t si = static_cast<int32_t>(_sceneGroups._size) - 1; si >= 0; --si) {
         // `_data` is RE-READ at the top of every iteration (MOV RBP,[RDI] at
         // 0x180104d60) while the byte offset is carried in RBX and decremented.
@@ -1126,6 +1129,11 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
             if (k == 0 && extAo != nullptr && e->_shader == 0 &&
                 e->_renderBuffer == context._defaultRenderBuffer)
                 ExtAoAfterOpaque(context, *extAo, *e);
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): the ground draw, at the same point
+            // of the same entry, after the AO pass.
+            if (k == 0 && extGround != nullptr && e->_shader == 0 &&
+                e->_renderBuffer == context._defaultRenderBuffer)
+                extGround(context, e->_camera);
         }
     }
     SunLight::ExtShadowHoldEmit(false);   // NOT RETAIL (ext.staggered_passes): this frame's emit is over
@@ -1133,5 +1141,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
 
 // NOT RETAIL: the ext.ambient_occlusion seam (Camera.h, renderer_ext_ao.h).
 const ExtAoFrame* Renderer::_extAo = nullptr;
+// NOT RETAIL: the ground-draw seam (Camera.h).
+Renderer::ExtGroundDrawFn Renderer::_extGroundDraw = nullptr;
 
 }  // namespace Graphics

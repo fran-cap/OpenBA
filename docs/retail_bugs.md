@@ -1483,3 +1483,80 @@ hostile value before the hang or the allocation.
 | F-165 | `src/game/Goal/statvaluedispatch.cpp:604` | StatGoal::SumProductionWindow: ((year - statSubType) - 1) * 0x30 is int32 signed overflow for out-of-range serialized statSubType | UB: minimal fix (#132) |
 | F-168 | `src/platform/win/file_win.cpp:130` | FormatLocalDateTime ignores both conversion results, so a failed FILETIME conversion leaves the 0x100-wchar buffer uninitialised and WideString(buf) reads it (indeterminate read, possible over-read past the buffer) | UB: minimal fix (#147) |
 | F-171 | `src/render/dx11/devicedata.cpp:840` | Swap-chain rebuild reads refreshData[refreshRateIndex] of a different display mode after an Options resolution change (heap out-of-bounds read) | UB: minimal fix (#149) |
+
+## 31. The minimap's camera outline loses a side when a corner lies off the map
+
+**Symptom.** With the map window open, the yellow camera trapezoid misses one or two of its lines
+(usually the far edge or a far side) whenever a corner of the camera's ground footprint lies left of
+or above the minimap. In retail this happens with the camera near the map's left or top edge at the
+far zooms; with `ext.better_camera` (zoom up to 200 at the near tilt) the far corners lie well beyond
+the map in most views, so the far edge and a side are missing almost all the time at the far zooms.
+
+**Retail mechanism.** `FrustumOutlineElement::Draw` (`0x14006be90`) projects the frustum's four far
+corners onto z = 0 (`0x14006c5b0`) and draws the four sides with `SpriteContext::AddLine`
+(`0x18011cbe0`), always in the order 0-1, 1-3, 2-3, 2-0, inside a scissor set to the minimap rect.
+AddLine stores the two endpoints in the sprite record's x1, y1, x2, y2 and `AddSpriteDraw`'s scissor
+cull (`0x18011c920..0x18011c9a1`) treats them as a rectangle's min and max corners: it drops the record
+when `scissorX * scale > x2` (`0x18011c949 COMISS / JA 0x18011c9b4`), when `x1 > (scissorX + W) *
+scale` (`0x18011c966`), and the same for y. A line drawn from right to left whose second endpoint lies
+left of the scissor (or bottom to top, above it) is culled whole, although most of it is inside.
+
+**Proof it is retail.** The disassembly above (Runtime-x64.dll), which `SpriteContext::AddSpriteDraw`
+(`src/engine/ui/spritecontext.cpp`) and `FrustumOutlineElement::Draw`
+(`src/game/Component/frustumoutlineelement.cpp`) transcribe. Seen in game 2026-11-06 under
+`/profile:faithful` (every extension off) at retail's maximum zoom 130, camera pinned near the left
+map edge (`BANISHED_CAMERA_PIN=-160,-60,130,120`): corner 1 projects to x = -267 (the map spans -192 ..
+192) and the side 0-1, drawn toward it, is missing while the other three are drawn. In the town
+centre at zoom 130 all four corners are on the map and the outline is whole. With
+`ext.better_camera` at zoom 200 (yaw 30) two corners project to (-431, 93) and (144, 425): sides 0-1
+and 2-0 are missing.
+
+**Lever.** Clip each side to the minimap rect before AddLine, in
+`FrustumOutlineElement::Draw`; the cull itself is shared by every sprite and stays.
+
+**Fix.** `fix.minimap_outline_clip` (default ON, UI only, nothing saved): with the row on, each side is
+clipped to the minimap rect (Liang-Barsky, `src/ext/minimap_outline_clip/clip_rule.h`) and a side wholly
+off the map is not drawn; retail's four AddLines in the other arm. Unit tests:
+`tests/unit/ext_minimap_outline_clip_test.cpp`.
+
+## 32. A terrain decal under the water level keeps its dark underwater tint through the fog
+
+**Symptom.** In thick fog the whole view is washed grey, but a dark blue-grey band stays sharp along a
+bridge (and, more faintly, at docks and other buildings that lay a ground decal over water cells). It
+is the bridge's ground decal where it lies below the water level: the dark tint is not fogged, so it
+shows through the fogged water drawn over it. Without fog the same band reads as a shadow under the
+bridge and nobody notices.
+
+**Retail mechanism.** The bridge templates carry a `DecalDescription` (`Template/WoodBridge.rsc`:
+`Terrain/TiledDecals/StorageYardMaterial.rsc`, `_tiled`, `_initialAlpha = 0.5`), drawn in the Blended
+list with the terrain decal programs (`Material/TerrainTiledSnowDecal`, the pixel program
+`TerrainMaterial.srsl:TiledSnowDecal_ps`, which inherits `Decal.ps`). `Decal.ps` lights and fogs the
+decal colour first (`ComputeLighting`, whose last step is `lerp(lighting, fogColor, min(fog, fogMax))`)
+and only then tints it toward the underwater colour,
+`output.color.xyz = lerp(output.color.xyz, float3(0.025, 0.123, 0.19), saturate(underWaterAmount))`.
+Below the water level the underwater amount is 1, so the fogged colour is replaced by the constant dark
+blue: the fog never reaches it. The model programs do it the other way round (`OpaqueMaterial.srsl`
+`SnowWater.ps` tints in its `colormodifier`, before `ComputeLighting`), so the bridge's posts in the
+water fog correctly. The river and lake programs then draw over the decal and mix the frame copy back
+in by the frame alpha (`lerp(frameBuffer.xyz, lighting, frameBuffer.w)`), and the frame copy holds the
+unfogged tint.
+
+**Proof it is retail.** The pixel program is the retail one, read from the install. In a RenderDoc
+capture of a faithful run its DXBC fogs at instructions 40-42 (`mad ... _pc_.fogColor`,
+`min_sat r0.w, v2.z, _pc_.fogColor.w`, `mad`) and applies the underwater lerp after it at 43-45
+(`add r1.xyz, -r0.xyz, l(0.025, 0.123, 0.190)`, `mov_sat r0.w, v1.z`, `mad o0.xyz ...`). Seen in game
+2026-11-06 under `/profile:faithful` (every fix and extension off), with the fog forced thick (near 0,
+far 60) and a 117-cell wood bridge built by the tool harness (`BANISHED_TOOL_HARNESS=bridge
+BANISHED_BRIDGE_LONGEST=6 BANISHED_FINISH_BUILDS=200`, seed 12345). The faithful frame and the
+frame with the user's extension set (ambient occlusion, better water, shadow resolution, render
+culling and the rest) are the same. Pixel history at one pixel of the band: the terrain writes the
+fogged grey 0.725 (event 709), the bridge's tiled decal darkens it to (0.57, 0.59, 0.60) (event 1049,
+the last draw before the frame copy), and the water leaves (0.64, 0.65, 0.66) (event 1070).
+
+**Lever.** The decal pixel programs (`Decal.ps` and the programs that inherit it: `DecalDamage`,
+`TiledDecal`, `TiledDecalTunnel`, `TiledSnowDecal`): tint first, then fog, as the model programs do.
+They are retail's compiled programs from the install, so a fix would rewrite the installed DXBC at load
+(the FOLIAGE_AA bytecode-rewriter pattern, `docs/extensions/DESIGN.md` §3 rule 7), never ship a changed
+copy.
+
+**Fix.** None yet. Left as retail.
