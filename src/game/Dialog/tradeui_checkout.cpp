@@ -90,6 +90,7 @@
 #include "Component/StorageComponent.h"
 #include "Component/ComponentDescription.h"
 #include "ui/NumberElement.h"
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ── Cross-module reimpls this calls ──────────────────────────────────────────
 // 0x140091e60 RawMaterialComponent_RegisterRawMaterial: Component/exe_bodies.h.
@@ -231,6 +232,7 @@ void TradeUI::OnTradeButton() {
     // moved, not that the handler was entered.
     int soldRows = 0, soldUnits = 0, boughtRows = 0, boughtUnits = 0;
     const int creditBefore = town->field_0x1AC;
+    const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above both loops
 
     // ── Phase 1: sell rows ───────────────────────────────────────────────────
     // _sellItems (+0x30, stride 0x20): resource +0x00, pending quantity +0x18.
@@ -245,6 +247,10 @@ void TradeUI::OnTradeButton() {
             ComponentDescription* resEntity = _sellItems[i].resource;
 
             storage->SubtractItem(resEntity, qty);   // 0x14012d150
+            if (mapOverlays) {
+                // ext.map_overlays: sold to the merchant, at the trading post
+                Ext::MapOverlays::OnConsumedAt(resEntity, entity, qty);
+            }
 
             // Credit the town's per-category produced-goods tally.
             //   town->professionResources (+0x170): the category array, running total at +0x0c
@@ -287,6 +293,10 @@ void TradeUI::OnTradeButton() {
             // material available to the town.
             if (FindComponentByTypeId(bought, RawMaterialDescription::TypeId())) {
                 storage->AddItem(bought, qty);   // 0x14012d000
+                if (mapOverlays) {
+                    // ext.map_overlays: bought from the merchant, at the trading post
+                    Ext::MapOverlays::OnProducedAt(bought, entity, qty);
+                }
                 town->RegisterRawMaterial(bought);   // 0x140091e60
             }
             // Natural resource (crop / orchard seed): availability only.

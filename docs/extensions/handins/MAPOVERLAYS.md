@@ -52,10 +52,41 @@ table; the history is then empty and the game plays on.
 
 One test of `Ext::MapOverlays::g_on` each, above any loop. With the row off: one load and a not-taken branch.
 
-| seam | event |
-|---|---|
-| (hooks agent fills this table: every place an item is created into an inventory by work, and every place one is destroyed by use) | |
-| movement: a citizen enters a new tile | `OnStep` |
+The flow seams are where retail itself counts production (`CitizenBehavior::CountProducedMaterial`
+0x140088ef0 and its inlined copy in the pasture, the `+0x170[cat]._field10` tally) and consumption (the
+`+0x170[cat].+0x0C` tally), plus the trade purchases retail registers but does not tally. An item moved between
+storages (pickup, drop-off, a storage absorbing a pile, the market, the move on a reassignment) is not a flow
+and has no seam.
+
+| seam | event | flow | what is counted, and the site |
+|---|---|---|---|
+| `Action/createrawmaterial.cpp` `CreateRawMaterial::AbstractImpl` | each pile spawned by work, beside `CountProducedMaterial` | produced | the pile's items. The site is the workplace (`+0x30`); a pile with no workplace counts at its own tile. Covers gatherers and orchards (0x1400bb7b0), fishing (0x1400beae0), every `ConsumeProduce` output, mines and quarries included (0x1400bef70), and hunted or slaughtered animals: meat, leather (0x1400bbea0, from the hunter and the pasture) |
+| `Action/action_base_cnr.cpp` `NaturalResourceComponent::RemoveResource` | a natural resource removed, beside `CountProducedMaterial` | produced | its yield. The site is the citizen's workplace, or the pile's tile when there is none. Covers crop fields, foresters, herbalists, clearing by labourers (logs, stone, iron, food), and a resource whose fall animation ends with no worker |
+| `Component/pasturecomponent_states.cpp` (pasture produce) | each produce pile, beside the inlined tally | produced | wool, milk, eggs: `_lowCreateCount` per pile, at the pasture |
+| `Dialog/tradeui_checkout.cpp` (checkout) | buy row, raw material, `AddItem` | produced | the units bought, at the trading post. Retail does not tally a purchase as production; the overlay does, so imports show where they enter |
+| `Dialog/tradeui_checkout.cpp` (checkout) | sell row, `SubtractItem` | consumed | the units sold, at the trading post (retail tallies them as consumed) |
+| `Component/tradecomponent_dock.cpp` `TradeComponent::AutoTrade` | the delivery loop, `AddItem` | produced | auto-trade purchases, at the trading post (as the checkout) |
+| `Component/tradecomponent_dock.cpp` `TradeComponent::AutoTrade` | the payment loop, beside the `+0x0C` tally | consumed | one unit per sale, at the trading post |
+| `Action/consumerawmaterial.cpp` `ConsumeRawMaterial::AbstractImpl` | each material, beside the `+0x0C` tally | consumed | workshop inputs, tools, clothing, herbs, road stone. The site is the holder's MapComponent (a workshop, a home or a storage); an item a citizen carries counts where the citizen stands (`OnConsumed`) |
+| `Component/citizencomponent.cpp` `CitizenComponent::EatFrom` | each unit eaten | consumed | one food, at the home, or at the storage when the citizen eats straight from one |
+| `Component/happinesscomponent.cpp` `HappinessComponent::OnMessage` | a good spent by a happiness building | consumed | one unit (ale and the like), at the building. The material is read before the subtract, so the overlay counts the spent good under both arms of `fix.tavern_counter` |
+| `Component/residence_heattick.cpp` (the burn branch) | one fuel burned | consumed | firewood or coal, at the home |
+| `Component/buildcomponent_state8.cpp` (build complete, refund loop (a)) | each storage slot of a finished site | consumed | the construction materials, at the building. This is when retail tallies them |
+| movement: `Action/action_base_move.cpp` `MoveTo::UpdateFacing` | a waypoint reached (`pathIndex > 1`; `path[0]` is the start cell) | `OnStep` | one footstep at `path[pathIndex - 1]`. Faithful `MoveTo::Execute` case 2, `ext.walk_batch`'s and `ext.walk_batch_grid`'s batched `Step` (both call the real `UpdateFacing`) and `ext.fast_paths` (the same per-cell path format) all pass here. Every `MoveTo` walker is counted: citizens, nomads and traders on foot |
+| `GameUpdateLoop::Update` | `BeginFrame` | | |
+| the two tool-draw seams (beside `Ext::ShowGrid::Draw`) | `DrawOnTerrain` | | |
+| the map window | the overlay tabs | | |
+
+Not hooked: demolition refunds (`destroycomponent_states.cpp`, piles of a demolished building's materials).
+Retail does not tally them, and they return materials already counted as consumed. Game-start stock
+(`starttown.cpp`, `town_storage_seed.cpp`, `game.cpp`) and the harness seeding are not work.
+
+**Placement in the hot paths.** The pile loop (`CreateRawMaterial`), the pasture loop, `ConsumeRawMaterial`,
+`EatFrom`, the build refund loop and the two trade functions read `g_on` once into a local above their
+loop. `HappinessComponent::OnMessage` and the burn branch test it inside a branch that runs once and then
+returns. `OnStep` sits in `UpdateFacing`, which runs once per tile a walker crosses, never per tick: there is
+no test in the per-character tick (`CharacterComponent_MoveTick_1094c0`) or in the copy-pinned bodies of the
+move tick or `MoveTo::Execute`.
 | `GameUpdateLoop::Update` | `BeginFrame` |
 | the two tool-draw seams (beside `Ext::ShowGrid::Draw`) | `DrawOnTerrain` |
 | the map window | the overlay tabs |

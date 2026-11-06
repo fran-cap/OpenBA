@@ -68,6 +68,7 @@
 #include "Component/WorkComponent.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 extern "C" void* g_pConstructionDemoSite;                            // the seeded foundation
 extern "C" void* g_pBuildStructureWork = nullptr;                    // 2c-B probe: last spawned build work
@@ -489,6 +490,7 @@ void BuildComponent::State8Finalize() {
         townMgr = GameUpdateLoop::_singleton->m_citizenList;
 
     // (a) refund leftover storage slots to town stock (townMgr+0x170; entry idx*0x20+0xc).
+    const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above the loop
     int slotCount = storage->storageSlots._size;
     for (int k = 0; k < slotCount; ++k) {
         StorageComponent::Item* slotArr = storage->storageSlots._data;
@@ -503,6 +505,10 @@ void BuildComponent::State8Finalize() {
                 int* pStock = &stockBase[resIdx].field_0x0C;
                 *pStock += count;
             }
+        }
+        if (mapOverlays) {
+            // ext.map_overlays: the materials a finished building was built with, at the building
+            Ext::MapOverlays::OnConsumedAt(matType, _entity.Get(), count);
         }
     }
 
