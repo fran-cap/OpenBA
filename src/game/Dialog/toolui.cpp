@@ -309,7 +309,7 @@ void ToolUI::OnCreated() {
         // Register sub-controllers from UIDescription
         uiDesc->AddControllers(&_dialog, _dataSource);
 
-        // ext.map_overlays: the overlay tabs under retail's map content, injected the same way (NOT RETAIL;
+        // ext.map_overlays: the overlay views beside retail's map content, injected the same way (NOT RETAIL;
         // only the window that now holds a MapUI gets them).
         if (Ext::MapOverlays::g_on)
             Ext::MapOverlays::AddMapWindowTabs(_dialog, _dataSource);

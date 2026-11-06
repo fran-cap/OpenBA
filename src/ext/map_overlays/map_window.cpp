@@ -8,22 +8,26 @@
 // (UIDescription::AddControllers, toolui.cpp). Nothing of that is copied, edited or moved. While the row is
 // on, the seam after AddControllers calls AddMapWindowTabs, which injects the overlay tabs by the same
 // mechanism: DialogInstance::AddController with type 0 (element only, retail's own "no controller" arm)
-// puts ribbonMapOverlays at userGroup1, the next group of StandardDialog's page, under the map. A controller
-// of ours (not a reflected type: built here, never by the factory) is placed in the dialog's controller list,
-// so the dialog updates it every frame and deletes it with the window.
+// puts ribbonMapOverlays into the same group, userGroup0. A controller of ours (not a reflected type: built
+// here, never by the factory) is placed in the dialog's controller list, so the dialog updates it every frame
+// and deletes it with the window.
 //
-// The map keeps its place and shows in every view: an overlay is drawn over MapUI's own image (the render
-// side, MapWindowUpdate), so a view only adds its controls under the map. The first view, Map, has an empty
-// page and selects View::Map: retail's map with no overlay (MapWindowUpdate puts retail's sprite back).
+// THE LAYOUT: one row, as tall as the map. Retail's map content element (MapUI's container, built from
+// Map.rsc:content by the UIDescription) is moved into the row's first cell: only its parent changes, so MapUI's
+// pointers to its images stay valid and the file is untouched. Beside it, a column of eight view buttons, then
+// the shown view's controls (MapOverlays.rsc). The shown view's button is untinted and the others dimmed; only
+// its page is shown (the others are hidden and take no room). The map shows in every view: an overlay is drawn
+// over MapUI's own image (MapWindowUpdate). The first view, Map, has an empty page and selects View::Map: the
+// map and the button column, no controls (MapWindowUpdate puts retail's sprite back).
 //
-// THE WIDTH: no wider than retail's window. Eight one-word tabs in one row are wider than the map, so the views
-// are two rows of four tab buttons (MapOverlays.rsc); the shown one is marked by its caption's colour, and only
-// its page is shown (the others are hidden, so they take no room in the pages group).
+// THE SCALE SLIDER, per view (each view keeps its own value): Made, Used and Stock 1..5, from the old slider's
+// middle to its coarsest (Selection.scale 0.5 + (v - 1) * 0.125; default 3); Traffic and the rest 0..10
+// (Selection.scale v / 10; default 5), fine enough to tell the roads apart.
 //
 // THE CONTROLS are read once a frame; only the view buttons are heard as element events (msg 0x12 with our
 // ids, away from ToolUI's 0 / 1 and MapUI's 1000; every control has an id of ours). Every change becomes one
-// SetSelection. Per view the window remembers what was picked (category, item, kind, months);
-// the scale and the terrain check box are one setting for every view.
+// SetSelection. Per view the window remembers what was picked (category, item, kind, months, scale); the
+// terrain check box is one setting for every view.
 //
 // THE RESOURCE PICKER. Categories are RawMaterialDescription::_flags masks: All, Food (the edible bit) and
 // Fuel (the fuel bit), then the trading post's resource groups (TradeDescription::_pairs: retail's own flag
@@ -84,10 +88,11 @@ namespace MapOverlays {
 namespace {
 
 constexpr const char* kColumnRsc = "Dialog/MapOverlays.rsc:ribbonMapOverlays";
-constexpr const char* kInsertAt  = "userGroup1";   // StandardDialog.rsc: the group under userGroup0 (the map)
+constexpr const char* kInsertAt  = "userGroup0";   // StandardDialog.rsc: the group the map content is in
 
 constexpr int32_t kIdBase = 7300;      // our elements' ids: kIdBase + 16 * tab + n (ToolUI uses 0 / 1, MapUI 1000)
-constexpr int kScaleSteps = 10;        // the scale slider: 0 (Fine, Selection.scale 0) .. 10 (Coarse, 1)
+constexpr int kScaleSteps = 10;        // the fine scale slider: 0 (Fine, Selection.scale 0) .. 10 (Coarse, 1)
+constexpr int kFlowScaleSteps = 5;     // Made / Used / Stock: 1 (Selection.scale 0.5) .. 5 (1)
 constexpr int kViewCount = static_cast<int>(View::Count);
 
 // The view buttons' frame and caption tints (0xAARRGGBB): the shown view's (untinted), and the others' (dimmed).
@@ -136,7 +141,33 @@ struct ViewMemory {
     std::string resourcePath;
     uint8_t kind = 0;
     int months = kMonths;
+    int scaleStep = -1;   // the scale slider's value; -1 = the view's default (ScaleDefault)
 };
+
+// The flow views' slider starts at the old slider's middle: their sites are buildings, a coarse blur reads best.
+bool CoarseScale(View view) {
+    return view == View::Production || view == View::Consumption || view == View::Stock;
+}
+
+int ScaleMin(View view) {
+    return CoarseScale(view) ? 1 : 0;
+}
+
+int ScaleMax(View view) {
+    return CoarseScale(view) ? kFlowScaleSteps : kScaleSteps;
+}
+
+int ScaleDefault(View view) {
+    return CoarseScale(view) ? 3 : kScaleSteps / 2;
+}
+
+// The slider's value as Selection::scale (overlay_math.h's 0..1).
+float ScaleOf(View view, int step) {
+    if (CoarseScale(view)) {
+        return 0.5f + static_cast<float>(step - 1) * 0.125f;
+    }
+    return static_cast<float>(step) / static_cast<float>(kScaleSteps);
+}
 std::array<ViewMemory, kViewCount> g_memory;
 uint32_t g_memoryTown = ~0u;   // the lock epoch g_memory belongs to
 
@@ -476,29 +507,23 @@ private:
 };
 
 bool MapWindowController::Build(UI::Element* column) {
-    UI::Element* rows[2] = {
-        column->FindElement(System::String("rowMapOverlaysTabs1")).Get(),
-        column->FindElement(System::String("rowMapOverlaysTabs2")).Get(),
-    };
+    UI::Element* buttons = column->FindElement(System::String("columnMapOverlaysViews")).Get();
     UI::Element* pages = column->FindElement(System::String("groupMapOverlaysPages")).Get();
-    if (rows[0] == nullptr || rows[1] == nullptr || pages == nullptr || pages->ChildCount() != kViewCount ||
-        rows[0]->ChildCount() + rows[1]->ChildCount() != kViewCount) {
-        std::fprintf(stderr, "[MapOverlays] MapOverlays.rsc is not two rows of view buttons over %d pages\n",
-                     kViewCount);
+    if (buttons == nullptr || pages == nullptr || pages->ChildCount() != kViewCount ||
+        buttons->ChildCount() != kViewCount) {
+        std::fprintf(stderr, "[MapOverlays] MapOverlays.rsc is not a column of %d view buttons and %d pages\n",
+                     kViewCount, kViewCount);
         return false;
     }
     _materials = CollectMaterials();
     _categories = CollectCategories(_materials);
 
-    const int firstRow = rows[0]->ChildCount();
     for (int tab = 0; tab < kViewCount; ++tab) {
         const TabSpec& spec = kTabs[tab];
-        UI::Element* row = tab < firstRow ? rows[0] : rows[1];
-        const int inRow = tab < firstRow ? tab : tab - firstRow;
         Page page;
         page.spec = &spec;
         page.root = pages->Child(tab).Get();
-        page.button = row->Child(inRow).Get();
+        page.button = buttons->Child(tab).Get();
         if (page.root == nullptr || page.button == nullptr) {
             return false;
         }
@@ -589,9 +614,12 @@ void MapWindowController::BuildPage(Page& page, int tab) {
     }
     if (page.scale != nullptr) {
         page.scale->SetElementId(ids + 5);
-        page.scale->_minimum = 0.0f;
-        page.scale->_maximum = static_cast<float>(kScaleSteps);
-        page.scale->_steps = kScaleSteps;
+        const View view = page.spec->view;
+        const int step = memory.scaleStep >= 0 ? memory.scaleStep : ScaleDefault(view);
+        page.scale->_minimum = static_cast<float>(ScaleMin(view));
+        page.scale->_maximum = static_cast<float>(ScaleMax(view));
+        page.scale->_steps = ScaleMax(view) - ScaleMin(view);
+        page.scale->_value = static_cast<float>(std::max(ScaleMin(view), std::min(ScaleMax(view), step)));
     }
     if (page.terrain != nullptr) {
         page.terrain->SetElementId(ids + 6);
@@ -661,9 +689,6 @@ void MapWindowController::ShowTab(int tab) {
     }
     Page& page = _pages[static_cast<size_t>(tab)];
     const Selection& current = CurrentSelection();
-    if (page.scale != nullptr) {
-        page.scale->_value = current.scale * static_cast<float>(kScaleSteps);
-    }
     if (page.terrain != nullptr) {
         page.terrain->_checked = current.onTerrain ? 1 : 0;
     }
@@ -705,7 +730,8 @@ void MapWindowController::ReadPage(Page& page, Selection& s) {
     s.kind = memory.kind;
     s.months = memory.months;
     if (page.scale != nullptr) {
-        s.scale = static_cast<float>(RoundSlider(page.scale, 0, kScaleSteps)) / static_cast<float>(kScaleSteps);
+        memory.scaleStep = RoundSlider(page.scale, ScaleMin(s.view), ScaleMax(s.view));
+        s.scale = ScaleOf(s.view, memory.scaleStep);
     }
     if (page.terrain != nullptr) {
         s.onTerrain = page.terrain->_checked != 0;
@@ -770,6 +796,39 @@ void MapWindowController::OnUpdate(const System::Time& /*time*/) {
     }
 }
 
+// The map beside the views: retail's map content (MapUI's container, which the UIDescription put in the same
+// group as the row) moves into the row's first cell. Only its parent changes. When it is not where it is
+// expected (a mod's layout), it stays, and the row sits over it as in any group.
+void MoveMapIntoRow(UI::Element* content, UI::Element* row) {
+    UI::Element* slot = row->FindElement(System::String("groupMapOverlaysMapSlot")).Get();
+    UI::Element* group = row->_parent;
+    if (content == nullptr || slot == nullptr || content->_parent != group) {
+        std::fprintf(stderr, "[MapOverlays] the map content is not beside the views (%p in %p): left where it is\n",
+                     static_cast<void*>(content), static_cast<void*>(content != nullptr ? content->_parent : nullptr));
+        return;
+    }
+    Collection::Array<UI::Element*>& from = group->_children;
+    int32_t at = -1;
+    for (int32_t i = 0; i < from._size; ++i) {
+        if (from._data[i] == content) {
+            at = i;
+            break;
+        }
+    }
+    if (at < 0) {
+        return;
+    }
+    for (int32_t i = at; i + 1 < from._size; ++i) {
+        from._data[i] = from._data[i + 1];
+    }
+    from._size -= 1;
+    slot->_children.SetSize(slot->_children._size + 1, content);
+    content->_parent = slot;
+    for (UI::Element* walk = slot; walk != nullptr; walk = walk->_parent) {
+        walk->_flags |= UI::kElementFlagNeedsSizeCalc;
+    }
+}
+
 }  // namespace
 
 void AddMapWindowTabs(UI::DialogInstance* dialog, Object::Base* dataSource) {
@@ -801,6 +860,7 @@ void AddMapWindowTabs(UI::DialogInstance* dialog, Object::Base* dataSource) {
                      kInsertAt, static_cast<void*>(column));
         return;
     }
+    MoveMapIntoRow(map->_container, column);
 
     void* mem = System::MemoryAllocator::MemAlloc(sizeof(MapWindowController), 8);
     if (mem == nullptr) {

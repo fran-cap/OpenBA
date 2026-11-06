@@ -1,45 +1,40 @@
-// Dialog/MapOverlays.rsc -- ext.map_overlays's tabs in the map window (NOT RETAIL; authored for this port, src/ext).
+// Dialog/MapOverlays.rsc -- ext.map_overlays's views in the map window (NOT RETAIL; authored for this port, src/ext).
 //
 // docs/extensions/handins/MAPOVERLAYS.md, src/ext/map_overlays/map_window.cpp. The map window is retail's: the UtilityMap
 // tool's StandardDialog.rsc with Dialog/Map.rsc:content (MapUI) injected at userGroup0 by its UIDescription. Nothing of it
-// is copied or edited here. While the row is on, ToolUI::OnCreated injects one more element the same way, at the next user
-// group (userGroup1, under the map): ribbonMapOverlays below. The map itself stays where retail puts it and shows in every
-// view; an overlay view only adds its controls under it and the heat map over it.
+// is copied or edited here. While the row is on, ToolUI::OnCreated injects one more element the same way into the same
+// group: ribbonMapOverlays below, one row of three cells. The controller then moves retail's map content (the element
+// MapUI built, by reference) into the first cell, so the window reads left to right: the map at full size, the column of
+// view buttons, the shown view's controls. The window is as tall as the map; on the Map view the controls are hidden and
+// only the button column stands beside the map.
 //
-// THE WIDTH. Everything here fits the map's own width (Map.rsc:content, 192 + its border), so the window is as wide as
-// retail's. Eight one-word tabs in one row do not fit it: the views are two rows of four tab buttons (the Mods dialog's
-// tab button), the shown one marked by its caption's colour (the controller), and the controls are stacked narrow.
-//
-// Controller: src/ext/map_overlays/map_window.cpp. It looks up, by name: ribbonMapOverlays, rowMapOverlaysTabs1 and
-// rowMapOverlaysTabs2 (their children are the eight buttons, in view order), groupMapOverlaysPages (its children are
-// the eight pages, in view order), and in each page comboMapOverlaysCategory, comboMapOverlaysResource,
+// Controller: src/ext/map_overlays/map_window.cpp. It looks up, by name: ribbonMapOverlays, groupMapOverlaysMapSlot (the
+// map's cell), columnMapOverlaysViews (its children are the eight buttons, in view order), groupMapOverlaysPages (its
+// children are the eight pages, in view order), and in each page comboMapOverlaysCategory, comboMapOverlaysResource,
 // comboMapOverlaysKind, rowMapOverlaysMonths, sliderMapOverlaysMonths, sliderMapOverlaysScale, ribbonMapOverlaysRamp
 // (its children are the swatches), textMapOverlaysLegendMax, checkMapOverlaysTerrain. Texts:
 // Dialog/ExtensionsStringTable.rsc (the MapOverlays* keys).
 
-// The column under the map: the two rows of view buttons, then the shown view's controls.
+// The row: the map's cell, the view buttons, the shown view's controls.
 RibbonDescription ribbonMapOverlays
 {
-	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 2; int _topPad = 3;
-	ElementDescription _elements [ "rowMapOverlaysTabs1" "rowMapOverlaysTabs2" "groupMapOverlaysPages" ]
+	Alignment _alignment = TopLeft; int _cellPad = 4;
+	ElementDescription _elements [ "groupMapOverlaysMapSlot" "columnMapOverlaysViews" "groupMapOverlaysPages" ]
 }
 
-// Map, Made, Used, Stock.
-RibbonDescription rowMapOverlaysTabs1
+// The map's cell: empty in the file; the controller moves retail's Map.rsc:content element into it.
+GroupDescription groupMapOverlaysMapSlot
 {
-	Alignment _alignment = MidLeft; int _cellPad = 2;
+	Alignment _alignment = TopLeft;
+}
+
+// Map, Made, Used, Stock, Services, Traffic, Homes, Nature, top to bottom, all one width.
+RibbonDescription columnMapOverlaysViews
+{
+	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 1;
 	ElementDescription _elements
 	[
 		"buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab"
-	]
-}
-
-// Services, Traffic, Homes, Nature.
-RibbonDescription rowMapOverlaysTabs2
-{
-	Alignment _alignment = MidLeft; int _cellPad = 2;
-	ElementDescription _elements
-	[
 		"buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab"
 	]
 }
@@ -47,6 +42,7 @@ RibbonDescription rowMapOverlaysTabs2
 // Every view's button: the Mods dialog's tab button, with a caption the controller replaces.
 ButtonDescription buttonMapOverlaysTab : "Mod.rsc:buttonMod"
 {
+	Flags _flags = ExpandWidth;
 	ElementDescription _content = "tabCaptionMapOverlays";
 }
 
@@ -59,7 +55,7 @@ TextDescription tabCaptionMapOverlays : "Mod.rsc:labelMod"
 // One page per view, in view order (overlay_core.h View): the controller shows the shown view's and hides the rest.
 GroupDescription groupMapOverlaysPages
 {
-	Alignment _alignment = TopLeft;
+	Alignment _alignment = TopLeft; int _topPad = 2;
 	ElementDescription _elements
 	[
 		"pageMapOverlaysMap" "pageMapOverlaysResource" "pageMapOverlaysResource" "pageMapOverlaysResource"
