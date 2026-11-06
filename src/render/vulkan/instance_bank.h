@@ -21,7 +21,8 @@
 
 namespace VideoVulkan {
 
-constexpr int32_t kVulkanInstanceCap = 52;
+// 208 (four retail batches, 13 KiB): the S25 forest bench winner (docs/android/I253_RENDER.md §3).
+constexpr int32_t kVulkanInstanceCap = 208;
 
 constexpr int32_t kRetailTransformSlots = 52;      // Context::_transforms[52] (Context.h kTransformSlots)
 constexpr int32_t kTransformBytes       = 64;      // one float4x4
