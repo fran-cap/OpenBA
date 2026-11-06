@@ -905,6 +905,15 @@ it.
 - Port that mechanism; then remove the deferral and the remaining guards, one `behaviour:`
   commit each, gated on the new-game, tool_removal and pinpanel routes plus resave x5.
 
+### 2.17 Perf targets after GRIDSEARCH (profiled 2026-11-06)
+
+`docs/extensions/handins/PROFILE_20261106.md` ranks them from a sampled stress pass on main `f140911f4`: (1) the idle
+work search's per-search candidate AVL (`Helper_sub_8000`, ~10% of the spread town's sim update; check first whether
+the sim heap's allocation sequence is observable), (2) two-phase parallel movement (the move tick is 31% of the
+update; class B), (3) the crowding check with it, (4) the shadow pass on the draw side. The pathfinder is off the
+list (its worker is 89% idle). Measurement note: every stress run pays the draw-sort census (~11% of the main
+thread, `DrawSort::g_profOn` at COMPPROF >= 1), which play never runs.
+
 ## 3. Rules that hold (do not relax)
 
 - CLAUDE.md's hard rules: no null guard on a faithful crash (find what handed us the null); no `getenv`, flags through
