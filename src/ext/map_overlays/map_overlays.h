@@ -51,8 +51,9 @@ void OnStep(int tileX, int tileZ);
 const Selection& CurrentSelection();
 void SetSelection(const Selection& s);   // the UI; marks the image stale
 
-// The colourised, blurred overlay for the current selection: size*size RGBA (0xAABBGGRR, the minimap
-// overlay's pixel order), alpha 0 where the value is 0. Rebuilt lazily: at most every kRebuildFrames frames
+// The colourised, blurred overlay for the current selection: size*size RGBA, 0xAABBGGRR. That is NOT the
+// minimap images' order (B8G8R8A8, a uint32 reads 0xAARRGGBB) nor the terrain vertex colour's (ARGB): the
+// renderers convert. Alpha 0 where the value is 0. Rebuilt lazily: at most every kRebuildFrames frames
 // while a view is showing, at once after SetSelection. `version` changes whenever the pixels change, so the
 // renderers upload only then. Empty (size 0) for View::Map or with g_on false.
 constexpr int kRebuildFrames = 60;

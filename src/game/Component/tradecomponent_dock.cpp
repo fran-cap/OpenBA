@@ -86,6 +86,7 @@
 #include "Work/exe_bodies.h"     // WorkBase_TreeNodeFree_e320
 #include "ext/registry.h"        // Ext::Fix().autotrade_free_goods
 #include "ext/autotrade_free_goods/autotrade_free_goods_rule.h"   // fix.autotrade_free_goods
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 namespace {
 
@@ -409,6 +410,7 @@ void TradeComponent::AutoTrade() {
 
     int volume = storage->QueryCount();   // 0x14012cf10
     const int volumeCap = storage->capacity;
+    const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above the loops
 
     const int orderCount = buyOrders._size;
     for (int o = 0; o < orderCount; ++o) {
@@ -508,6 +510,10 @@ void TradeComponent::AutoTrade() {
                     if (cat >= 0) {
                         townMgr->professionResources._data[cat].field_0x0C += 1;
                     }
+                    if (mapOverlays) {
+                        // ext.map_overlays: one unit sold by auto-trade, at the trading post
+                        Ext::MapOverlays::OnConsumedAt(resource, _entity.Get(), 1);
+                    }
 
                     // Take the unit out of storage, by identity. An entry that reaches
                     // zero is erased and the tail shifted down.
@@ -549,6 +555,10 @@ void TradeComponent::AutoTrade() {
         const int units = n->quantity;
         townMgr->RegisterRawMaterial(good);   // 0x140091e60
         storage->AddItem(good, units);   // 0x14012d000
+        if (mapOverlays) {
+            // ext.map_overlays: bought by auto-trade, at the trading post
+            Ext::MapOverlays::OnProducedAt(good, _entity.Get(), units);
+        }
         delivered += units;
         ++deliveredLines;
     }

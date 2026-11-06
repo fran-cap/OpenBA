@@ -58,6 +58,7 @@
 #include "Entity/CitizenBehavior.h"
 #include "Entity/EntityList.h"
 #include "Game/Map.h"
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ============================================================
 // Exe sub-helpers and constants (shared by this batch), called by name (B3R).
@@ -396,6 +397,10 @@ void NaturalResourceComponent::RemoveResource(ComponentEntity* const* citizenIBP
     // register, in retail's order.
     ComponentEntity* regIBP = *citizenIBP;
     gameWorld->m_citizenList->CountProducedMaterial(&regIBP, harvestFlag, d->_building, amount);   // 0x140088ef0
+    if (Ext::MapOverlays::g_on) {
+        // ext.map_overlays: a natural resource cut, mined or harvested, at the workplace (the pile when none)
+        Ext::MapOverlays::OnProducedAt(d->_building, regIBP != nullptr ? regIBP : newEntity, amount);
+    }
 
     Object::InternalPtr<ComponentEntity> listIBP = newEntity;
     gameWorld->m_entityList->RegisterEntity(&listIBP,   // 0x1400c48a0
