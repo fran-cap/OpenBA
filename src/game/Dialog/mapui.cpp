@@ -36,6 +36,8 @@
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
 #include "Component/exe_bodies.h"   // B3R: FrustumOutline_ProjectCorners
 #include "Game/exe_constants.h"   // B3R: kRdata_*
+#include "ext/map_overlays/map_overlays.h"   // TMP: render stub
+namespace Ext { namespace MapOverlays { extern MapUI* g_tmpMap; } }   // TMP: render stub
 
 
 // ============================================================
@@ -275,6 +277,7 @@ void MapUI::OnCreated() {
     // Setup overlay image (with blend, element "imageOverlay")
     SetupImage(imageCapture->overlayImage, &overlaySpriteSheet, &overlayMaterial,
                '\x01', "imageOverlay");
+    Ext::MapOverlays::g_tmpMap = this;   // TMP: render stub
 }
 
 // ============================================================
@@ -309,6 +312,10 @@ void MapUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t ms
 // before the material it draws with), then tail-jumps to ~DialogController
 // ([0x1401515c8]). NoiseUI's dtor spells its three the same way.
 MapUI::~MapUI() {
+    if (Ext::MapOverlays::g_tmpMap == this) {   // TMP: render stub
+        Ext::MapOverlays::MapWindowClosed(*this);
+        Ext::MapOverlays::g_tmpMap = nullptr;
+    }
     delete mapSpriteSheet;       // +0x38
     delete mapMaterial;          // +0x30
     delete overlaySpriteSheet;   // +0x48
