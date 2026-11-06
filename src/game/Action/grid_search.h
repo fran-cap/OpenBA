@@ -1,33 +1,25 @@
 // ============================================================================
-// src/ext/fast_paths/fast_search.h -- ext.fast_paths: the grid search itself
+// src/game/Action/grid_search.h -- the grid A* (GridPathSearch::Run 0x14001ce00)
 // ============================================================================
-// NOT RETAIL. Standard C++ only (the unit tests link fast_search.cpp alone).
-// docs/extensions/handins/PATHRESEARCH.md §4.1 is the spec; FASTPATHS.md the
-// hand-in.
+// FAITHFUL PERF WORK (docs/extensions/handins/GRIDSEARCH.md). Standard C++ only:
+// the unit tests link grid_search.cpp alone.
 //
-// The search the worker runs for a path request (command 5) in place of
-// retail's GridPathSearch::Run 0x14001ce00 / FindPath 0x14001d040
-// (src/game/Action/action_pf_astar.cpp). It takes the SAME inputs retail's
-// search reads from the worker's GridPathSearch -- the square grid's width, the
-// per-cell flag bytes (terrain type bits 0-6, blocked bit 7), the 32 step costs,
-// the passable-type mask, the three search flags, start and goal -- and writes
-// the SAME output: the path's cells, start first, at most kPathCap of them, and
-// the count (0 = no path). Everything is retail's except four things (§4.1):
+// The search the pathfinder worker runs for a path request (command 5,
+// PathfinderThread::ApplyCommand 0x1400a6430). With heuristicScale 1 it is
+// retail's GridPathSearch::Run / FindPath 0x14001d040 / Relax 0x14001d320 /
+// Neighbour 0x1400a5ec0 / Heuristic 0x1400a6030 (action_pf_astar.cpp,
+// action_pf_geom.cpp) over a bucket open set instead of the AVL PathOpenSet:
+// the same pops in the same order, so the same path, count, cost, expansions,
+// `search.sequence` and `search.open.count`. ext.fast_paths
+// (src/ext/fast_paths/) runs the same search with a larger scale.
 //
-//   (a) the heuristic is retail's octile / Manhattan / Chebyshev distance at
-//       unit cost MULTIPLIED by `heuristicScale` (the cheapest step cost the
-//       search can pay; Ext::FastPaths::HeuristicScale computes it). Paths keep
-//       retail's cost exactly; among equal-cost routes the cells may differ.
-//       With heuristicScale 1 the search IS retail's (same pops, same cells).
-//   (b) the open set is a circular bucket queue indexed by f, one LIFO stack
-//       per bucket, stale entries skipped on pop: retail's (f asc, seq desc)
-//       order, without the AVL tree.
-//   (c) neighbours by offset from the expanded cell's (x, y): one division
-//       per expansion instead of ~48.
-//   (d) its own scratch, structure-of-arrays (g, parent, seq, mark), outside
-//       retail's pinned PathfinderThread layout.
+// It reads what retail's search reads from the worker's GridPathSearch -- the
+// square grid's width, the per-cell flag bytes (terrain type bits 0-6, blocked
+// bit 7), the 32 step costs, the passable-type mask, the three search flags,
+// start and goal -- and writes retail's output: the path's cells, start first,
+// at most kPathCap of them, and the count (0 = no path).
 //
-// THE RETAIL RULES REPRODUCED (each mirrored line is cited in fast_search.cpp):
+// THE RETAIL RULES REPRODUCED (each mirrored line is cited in grid_search.cpp):
 //   R1  moves: 4 (allowDiagonal 0) or 8 neighbours, in Neighbour 0x1400a5ec0's
 //       direction order 0..7, bounds-checked, no corner-cut test
 //   R2  a neighbour is walkable when (respectBlocked == 0 or its bit 7 is clear)
@@ -51,8 +43,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace Ext {
-namespace FastPaths {
+namespace GridSearch {
 
 constexpr int kPathCap   = 0x4000;   // Run 0x14001ce00: the 64 KB path buffer, 0x4000 cells
 constexpr int kStepCosts = 0x20;     // GridPathSearch::stepCost[0x20] (+0x50..+0xD0)
@@ -67,10 +58,10 @@ struct SearchInput {
     bool           respectBlocked = false;// (+0xD6) bit 7 makes a cell unwalkable
     int            start = 0;
     int            goal = 0;
-    // The multiplier on retail's unit-cost heuristic. 1 = retail's heuristic
-    // (identical cells); HeuristicScale() = the extension's. Must not exceed
+    // The multiplier on retail's unit-cost heuristic. 1 = retail's search
+    // (identical cells); ext.fast_paths passes HeuristicScale(). Must not exceed
     // the cheapest step cost of any cell the search can enter (consistency,
-    // see fast_search.cpp); a violation the search notices is Unsupported.
+    // see grid_search.cpp); a violation the search notices is Unsupported.
     int32_t        heuristicScale = 1;
 };
 
@@ -80,7 +71,7 @@ enum class Status : uint8_t {
     Unsupported,   // inputs outside what this search reproduces (a passable cell
                    // whose type indexes past stepCost[0x20], a negative cost, a
                    // too-wide f range, a heuristic the costs make inconsistent):
-                   // the caller must run retail's search instead. Nothing was
+                   // the caller must run retail's AVL search instead. Nothing was
                    // written to `path` that the caller may use.
 };
 
@@ -90,6 +81,7 @@ struct SearchResult {
     int64_t cost = -1;        // g of the goal (sum of the step costs), -1 unless Found
     int     expanded = 0;     // cells popped and closed (the goal's pop not counted)
     int     inserted = 0;     // relaxations: retail's PathSearch::sequence after the run
+    int     openLeft = 0;     // retail's PathOpenSet::count after the run (the goal included)
 };
 
 // The cheapest step cost the search can pay: min stepCost[t] over the types t
@@ -110,23 +102,32 @@ public:
     // Retail's Run(start, goal, path): `path` may be null (R9).
     SearchResult Run(const SearchInput& in, int32_t* path);
 
-private:
+    // Bytes of scratch held (the cell array, the bucket heads, the entry pool).
+    size_t ScratchBytes() const;
+
+    // One cell's search state, 8 bytes. `tag` = (generation << 5) | (state << 3)
+    // | the direction (Neighbour's 0..7) the cell was reached in from its parent.
+    // Valid only where tag >> 5 is this search's generation.
+    struct CellState {
+        int32_t  g;
+        uint32_t tag;
+    };
     struct Entry {            // one bucket-stack entry
         int32_t cell;
-        int32_t seq;          // the cell's seq when pushed: stale when it moved on
+        int32_t g;            // the cell's g when pushed: stale once the cell's g moved on
         int32_t next;         // the entry below it in its bucket, -1 = bottom
     };
-    void Prepare(int cellCount, int bucketCount);
 
-    // (d) SoA scratch, cellCount entries each, valid where mark_ >> 2 == gen_.
-    std::vector<int32_t>  g_;
-    std::vector<int32_t>  parent_;
-    std::vector<int32_t>  seq_;
-    std::vector<uint32_t> mark_;    // (gen << 2) | state: 1 open, 2 closed, 0 neither
-    std::vector<int32_t>  head_;    // bucket f & (size-1) -> top entry, -1 = empty
-    std::vector<Entry>    entries_;
-    uint32_t              gen_ = 0;
+private:
+    void Prepare(int cellCount, int bucketCount);
+    template <int kMode>
+    SearchResult RunMode(const SearchInput& in, int32_t* path, const int32_t* cost, int buckets,
+                         uint32_t span);
+
+    std::vector<CellState> cells_;
+    std::vector<int32_t>   head_;     // bucket f & (size-1) -> top entry, -1 = empty
+    std::vector<Entry>     entries_;
+    uint32_t               gen_ = 0;
 };
 
-}  // namespace FastPaths
-}  // namespace Ext
+}  // namespace GridSearch

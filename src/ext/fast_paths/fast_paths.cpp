@@ -17,7 +17,7 @@
 // ============================================================================
 #include "ext/fast_paths/fast_paths.h"
 #include "stress_harness.h"   // StressHarness_PathShadow (block PFBENCH; src/diag)
-#include "ext/fast_paths/fast_search.h"
+#include "Action/grid_search.h"
 #include "ext/registry.h"
 
 #include "Action/PathSearch.h"   // GridPathSearch (the worker's search, PathfinderThread +0x78)
@@ -28,6 +28,14 @@
 
 namespace Ext {
 namespace FastPaths {
+
+using GridSearch::HeuristicScale;
+using GridSearch::kPathCap;
+using GridSearch::kStepCosts;
+using GridSearch::Searcher;
+using GridSearch::SearchInput;
+using GridSearch::SearchResult;
+using GridSearch::Status;
 
 std::atomic<uint8_t> g_mode{0};
 
@@ -133,7 +141,7 @@ int Run(GridPathSearch& grid, int start, int goal, int32_t* path) {
                              start, goal);
                 std::fflush(stderr);
             }
-            count = grid.Run(start, goal, path);   // 0x14001ce00
+            count = grid.RunAvl(start, goal, path);   // retail's 0x14001ce00 (the AVL body)
             w.lastExpanded = grid.search.sequence - grid.search.open.count;
         } else {
             count = r.count;
@@ -164,7 +172,8 @@ int RunWith(Searcher& searcher, GridPathSearch& grid, int start, int goal, int32
                      start, goal);
         std::fflush(stderr);
     }
-    const int count = grid.Run(start, goal, path);   // 0x14001ce00, on the pool worker's own grid
+    // Retail's 0x14001ce00 (the AVL body), on the pool worker's own grid.
+    const int count = grid.RunAvl(start, goal, path);
     *expanded = grid.search.sequence - grid.search.open.count;
     return count;
 }
@@ -182,7 +191,7 @@ ShadowResult Shadow(const Request& req) {
     static thread_local std::vector<int32_t> retailPath(kPathCap), ourPath(kPathCap);
 
     long long t0 = Ticks();
-    out.retailCount = grid.Run(req.start, req.goal, retailPath.data());   // 0x14001ce00
+    out.retailCount = grid.RunAvl(req.start, req.goal, retailPath.data());   // retail's 0x14001ce00 (the AVL body)
     out.retailTicks = Ticks() - t0;
     out.retailInserted = grid.search.sequence;
     if (out.retailCount > 0) out.retailCost = grid.search.nodes.data[req.goal].gCost;

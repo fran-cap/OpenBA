@@ -334,7 +334,14 @@ struct GridPathSearch {
     // action_pf_astar.cpp. FindPath returns retail's RAX: bit 0 = found, the upper
     // bytes whatever the last write left (the caller tests the low byte only).
     uint64_t FindPath(int start, int goal);                   // 0x14001d040
-    int      Run(int start, int goal, int32_t* path);          // 0x14001ce00, path cap 0x4000
+    // 0x14001ce00, path cap 0x4000. GRIDSEARCH: the production body runs the bucket search
+    // (grid_search.h) and writes retail's `search.sequence` / `search.open.count`; retail's
+    // AVL body is RunAvl, run by Run when the bucket search reports Unsupported, by
+    // ext.fast_paths (its fallback and shadow) and by the COMPPROF=4 shadow VerifyRun.
+    int      Run(int start, int goal, int32_t* path);
+    int      RunAvl(int start, int goal, int32_t* path);       // retail's 0x14001ce00, verbatim
+    // NOT RETAIL (action_pf_astar.cpp): Run's g_verifyOn shadow, RunAvl vs the bucket search.
+    void     VerifyRun(int start, int goal, int count, const int32_t* path);
 };
 static_assert(sizeof(GridPathSearch) == 0xE8, "GridPathSearch is 0xE8 (PathfinderThread +0x78..+0x160)");
 static_assert(offsetof(GridPathSearch, _padD7) == 0xD7, "GridPathSearch::_padD7");

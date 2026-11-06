@@ -16,7 +16,7 @@
 // pathfinder's own array, shared read-only: only commands 2 / 3 write it, and
 // they wait for the pool to be idle first. The parameter fields are copied from
 // the job's snapshot before each search. With ext.fast_paths also selected,
-// each worker has its own Ext::FastPaths::Searcher too.
+// each worker has its own GridSearch::Searcher too.
 //
 // THE PUBLISH (RunJob) is the extension's own, under the pathfinder's lock:
 // size the slot's path, copy the cells, store `ready` (release), unlock. Retail's
@@ -29,7 +29,7 @@
 #include "ext/path_workers/path_workers.h"
 #include "ext/path_workers/pool.h"
 #include "ext/fast_paths/fast_paths.h"
-#include "ext/fast_paths/fast_search.h"
+#include "Action/grid_search.h"
 #include "ext/registry.h"
 #include "platform/common/cpu/roster.h"     // Cpu::PathWorkers (block CPULIMIT)
 #include "platform/common/cpu/topology.h"   // Cpu::Get().physical
@@ -63,7 +63,7 @@ constexpr int kPathCap = 0x4000;   // ApplyCommand's 0x10000-byte path buffer (0
 // One pool worker's search state.
 struct Scratch {
     GridPathSearch       grid;   // retail's search record, this worker's own
-    Ext::FastPaths::Searcher  fast;   // ext.fast_paths' scratch, this worker's own
+    GridSearch::Searcher  fast;   // ext.fast_paths' scratch, this worker's own
     std::vector<int32_t> path;   // the 0x4000-cell result buffer
 
     Scratch(const GridPathSearch& shared) : grid(), path(kPathCap) {

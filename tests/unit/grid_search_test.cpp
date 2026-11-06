@@ -1,7 +1,8 @@
 // ============================================================================
-// tests/unit/ext_fast_paths_test.cpp -- ext.fast_paths against retail's search
+// tests/unit/grid_search_test.cpp -- the grid search against retail's
 // ============================================================================
-// src/ext/fast_paths/fast_search.{h,cpp} on its own. The reference below is a
+// src/game/Action/grid_search.{h,cpp} on its own: the faithful grid search
+// (GridPathSearch::Run, scale 1) and ext.fast_paths' (the real scale). The reference below is a
 // port of retail's grid search -- GridPathSearch::Run 0x14001ce00, FindPath
 // 0x14001d040, PathSearch::Relax 0x14001d320, Neighbour 0x1400a5ec0, Heuristic
 // 0x1400a6030 (src/game/Action/action_pf_astar.cpp, action_pf_geom.cpp) --
@@ -9,8 +10,9 @@
 // seq desc) and the same generation stamps. (The real GridPathSearch cannot be
 // linked here: its bodies pull in the Map, the thread and the pools.)
 //
-//   (i)   heuristic scale 1: the fast search returns retail's cells, count,
-//         cost, expansions and relaxations exactly (the (f, LIFO) claim)
+//   (i)   heuristic scale 1: the search returns retail's cells, count, cost,
+//         expansions, relaxations and open-set count exactly (the (f, LIFO)
+//         claim; GridPathSearch::Run's production body)
 //   (ii)  the real scale: the same found / not found and exactly retail's
 //         cost; expansions fewer or equal (the per-case count is reported)
 //   (iii) no-path cases agree
@@ -18,7 +20,7 @@
 // Thousands of seeded random grids.
 // ============================================================================
 #include "unit.h"
-#include "ext/fast_paths/fast_search.h"
+#include "Action/grid_search.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -131,10 +133,10 @@ struct RefSearch {
         if (path == nullptr) return len;
         int c = goal;
         for (int i = len - 1; i >= 0; --i) {
-            if (i < Ext::FastPaths::kPathCap) path[i] = c;
+            if (i < GridSearch::kPathCap) path[i] = c;
             c = nodes[c].parent;
         }
-        return len > Ext::FastPaths::kPathCap ? Ext::FastPaths::kPathCap : len;
+        return len > GridSearch::kPathCap ? GridSearch::kPathCap : len;
     }
 };
 
@@ -158,14 +160,14 @@ void FillCosts(int profile, int32_t* cost) {
         { 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
         { 10, 10, 10, 10, 10, 10, 10, 5, 1, 5, 10 },
     };
-    for (int t = 0; t < Ext::FastPaths::kStepCosts; ++t) cost[t] = 1;
+    for (int t = 0; t < GridSearch::kStepCosts; ++t) cost[t] = 1;
     for (int t = 0; t < 11; ++t) cost[t] = kP[profile][t];
 }
 
 struct Case {
     int width = 0;
     std::vector<uint8_t> flags;
-    int32_t cost[Ext::FastPaths::kStepCosts] = {};
+    int32_t cost[GridSearch::kStepCosts] = {};
     uint32_t passable = 0;
     bool diag = true, manh = false, blocked = false;
     int start = 0, goal = 0;
@@ -220,8 +222,8 @@ Case MakeCase(Rng& r, int width, int wallPercent, int profile) {
     return c;
 }
 
-Ext::FastPaths::SearchInput InputOf(const Case& c, int32_t scale) {
-    Ext::FastPaths::SearchInput in;
+GridSearch::SearchInput InputOf(const Case& c, int32_t scale) {
+    GridSearch::SearchInput in;
     in.width = c.width;
     in.cellFlags = c.flags.data();
     in.stepCost = c.cost;
@@ -248,8 +250,8 @@ RefSearch RefOf(const Case& c) {
 }
 
 int32_t RealScale(const Case& c) {
-    return Ext::FastPaths::HeuristicScale(c.cost, c.passable,
-                                     Ext::FastPaths::PresentTypes(c.flags.data(), c.width * c.width));
+    return GridSearch::HeuristicScale(c.cost, c.passable,
+                                     GridSearch::PresentTypes(c.flags.data(), c.width * c.width));
 }
 
 struct Totals {
@@ -257,25 +259,26 @@ struct Totals {
     int64_t refExpanded = 0, ourExpanded = 0, moreExpanded = 0, sameCells = 0;
 };
 
-const int kSizes[] = { 3, 8, 16, 31, 48, 64 };
+const int kSizes[] = { 3, 8, 16, 31, 48, 64, 97, 128 };
 
 }  // namespace
 
 // (i) scale 1: identical to retail, every field.
-UNIT_TEST(ext_fast_paths_scale1_identical_to_retail) {
+UNIT_TEST(grid_search_scale1_identical_to_retail) {
     Rng r(1234);
-    Ext::FastPaths::Searcher fast;
+    GridSearch::Searcher fast;
     Totals t;
-    std::vector<int32_t> a(Ext::FastPaths::kPathCap), b(Ext::FastPaths::kPathCap);
+    std::vector<int32_t> a(GridSearch::kPathCap), b(GridSearch::kPathCap);
     for (int iter = 0; iter < 4000; ++iter) {
-        const int w = kSizes[r.Below(6)];
+        const int w = kSizes[r.Below(8)];
         Case c = MakeCase(r, w, r.Chance(30) ? r.Below(35) : 0, r.Below(4));
         RefSearch ref = RefOf(c);
         const int refCount = ref.Run(c.start, c.goal, a.data());
-        const Ext::FastPaths::SearchResult res = fast.Run(InputOf(c, 1), b.data());
+        const GridSearch::SearchResult res = fast.Run(InputOf(c, 1), b.data());
         ++t.cases;
-        bool ok = res.status != Ext::FastPaths::Status::Unsupported && res.count == refCount &&
-                  res.expanded == ref.expanded && res.inserted == ref.sequence;
+        bool ok = res.status != GridSearch::Status::Unsupported && res.count == refCount &&
+                  res.expanded == ref.expanded && res.inserted == ref.sequence &&
+                  res.openLeft == static_cast<int>(ref.open.size());
         for (int i = 0; ok && i < refCount; ++i) ok = a[i] == b[i];
         if (ok && refCount > 0) ok = res.cost == ref.nodes[c.goal].gCost;
         if (refCount > 0) ++t.found; else ++t.notFound;
@@ -297,20 +300,20 @@ UNIT_TEST(ext_fast_paths_scale1_identical_to_retail) {
 // (ii) + (iii) the real scale: retail's cost exactly, fewer expansions.
 UNIT_TEST(ext_fast_paths_real_scale_keeps_cost) {
     Rng r(98765);
-    Ext::FastPaths::Searcher fast;
+    GridSearch::Searcher fast;
     Totals t, citizens, bigCitizens;
-    std::vector<int32_t> a(Ext::FastPaths::kPathCap), b(Ext::FastPaths::kPathCap);
+    std::vector<int32_t> a(GridSearch::kPathCap), b(GridSearch::kPathCap);
     for (int iter = 0; iter < 4000; ++iter) {
-        const int w = kSizes[r.Below(6)];
+        const int w = kSizes[r.Below(8)];
         const int profile = r.Below(4);
         Case c = MakeCase(r, w, r.Chance(30) ? r.Below(35) : 0, profile);
         RefSearch ref = RefOf(c);
         const int refCount = ref.Run(c.start, c.goal, a.data());
         const int32_t scale = RealScale(c);
-        const Ext::FastPaths::SearchResult res = fast.Run(InputOf(c, scale), b.data());
+        const GridSearch::SearchResult res = fast.Run(InputOf(c, scale), b.data());
         ++t.cases;
-        bool ok = res.status != Ext::FastPaths::Status::Unsupported;
-        ok = ok && (refCount > 0) == (res.status == Ext::FastPaths::Status::Found);
+        bool ok = res.status != GridSearch::Status::Unsupported;
+        ok = ok && (refCount > 0) == (res.status == GridSearch::Status::Found);
         if (ok && refCount > 0) {
             ok = res.cost == ref.nodes[c.goal].gCost && res.count > 0 &&
                  b[0] == c.start && b[res.count - 1] == c.goal;
@@ -372,7 +375,7 @@ UNIT_TEST(ext_fast_paths_real_scale_keeps_cost) {
 // reachable from the start is closed once).
 UNIT_TEST(ext_fast_paths_no_path_agrees) {
     Rng r(555);
-    Ext::FastPaths::Searcher fast;
+    GridSearch::Searcher fast;
     int64_t bad = 0, cases = 0;
     for (int iter = 0; iter < 500; ++iter) {
         const int w = 8 + r.Below(40);
@@ -386,11 +389,11 @@ UNIT_TEST(ext_fast_paths_no_path_agrees) {
         c.passable = 0xe1fu | (1u << (c.flags[c.start] & 0x1f)) | (1u << (c.flags[c.goal] & 0x1f));
         RefSearch ref = RefOf(c);
         const int refCount = ref.Run(c.start, c.goal, nullptr);
-        const Ext::FastPaths::SearchResult s1 = fast.Run(InputOf(c, 1), nullptr);
-        const Ext::FastPaths::SearchResult sr = fast.Run(InputOf(c, RealScale(c)), nullptr);
+        const GridSearch::SearchResult s1 = fast.Run(InputOf(c, 1), nullptr);
+        const GridSearch::SearchResult sr = fast.Run(InputOf(c, RealScale(c)), nullptr);
         ++cases;
-        if (refCount != 0 || s1.status != Ext::FastPaths::Status::NotFound ||
-            sr.status != Ext::FastPaths::Status::NotFound || s1.count != 0 || sr.count != 0 ||
+        if (refCount != 0 || s1.status != GridSearch::Status::NotFound ||
+            sr.status != GridSearch::Status::NotFound || s1.count != 0 || sr.count != 0 ||
             s1.expanded != ref.expanded || sr.expanded != ref.expanded)
             ++bad;
     }
@@ -419,21 +422,21 @@ UNIT_TEST(ext_fast_paths_path_cap_clamp) {
         c.start = 0;
         c.goal = (w - 2) * w + (((w - 2) / 2) % 2 == 0 ? 0 : w - 1);
         RefSearch ref = RefOf(c);
-        std::vector<int32_t> a(Ext::FastPaths::kPathCap), b(Ext::FastPaths::kPathCap), d(Ext::FastPaths::kPathCap);
+        std::vector<int32_t> a(GridSearch::kPathCap), b(GridSearch::kPathCap), d(GridSearch::kPathCap);
         const int refCount = ref.Run(c.start, c.goal, a.data());
         const int refLen = RefOf(c).Run(c.start, c.goal, nullptr);
-        Ext::FastPaths::Searcher fast;
-        const Ext::FastPaths::SearchResult s1 = fast.Run(InputOf(c, 1), b.data());
-        const Ext::FastPaths::SearchResult sr = fast.Run(InputOf(c, RealScale(c)), d.data());
-        const Ext::FastPaths::SearchResult sn = fast.Run(InputOf(c, RealScale(c)), nullptr);
-        CHECK(refLen > Ext::FastPaths::kPathCap);
-        CHECK_EQ(refCount, Ext::FastPaths::kPathCap);
-        CHECK_EQ(s1.count, Ext::FastPaths::kPathCap);
-        CHECK_EQ(sr.count, Ext::FastPaths::kPathCap);
+        GridSearch::Searcher fast;
+        const GridSearch::SearchResult s1 = fast.Run(InputOf(c, 1), b.data());
+        const GridSearch::SearchResult sr = fast.Run(InputOf(c, RealScale(c)), d.data());
+        const GridSearch::SearchResult sn = fast.Run(InputOf(c, RealScale(c)), nullptr);
+        CHECK(refLen > GridSearch::kPathCap);
+        CHECK_EQ(refCount, GridSearch::kPathCap);
+        CHECK_EQ(s1.count, GridSearch::kPathCap);
+        CHECK_EQ(sr.count, GridSearch::kPathCap);
         CHECK_EQ(sn.count, refLen);
         CHECK_EQ(sr.cost, static_cast<int64_t>(ref.nodes[c.goal].gCost));
         bool same1 = true;
-        for (int i = 0; i < Ext::FastPaths::kPathCap; ++i) same1 = same1 && a[i] == b[i];
+        for (int i = 0; i < GridSearch::kPathCap; ++i) same1 = same1 && a[i] == b[i];
         CHECK(same1);
         CHECK_EQ(d[0], c.start);
     }
@@ -448,23 +451,23 @@ UNIT_TEST(ext_fast_paths_unsupported_inputs) {
     c.passable = 0xe1fu;
     c.start = 0;
     c.goal = 63;
-    Ext::FastPaths::Searcher fast;
+    GridSearch::Searcher fast;
     // A passable cell whose type (& 0x7f) indexes past stepCost[0x20]: retail
     // reads the bytes after the table; we do not guess them.
     c.flags[9] = 0x22;   // type 34: & 0x1f = 2, passable
-    CHECK(fast.Run(InputOf(c, 1), nullptr).status == Ext::FastPaths::Status::Unsupported);
+    CHECK(fast.Run(InputOf(c, 1), nullptr).status == GridSearch::Status::Unsupported);
     c.flags[9] = 2;
     // A negative step cost on a passable type.
     c.cost[2] = -1;
-    CHECK(fast.Run(InputOf(c, 1), nullptr).status == Ext::FastPaths::Status::Unsupported);
+    CHECK(fast.Run(InputOf(c, 1), nullptr).status == GridSearch::Status::Unsupported);
     c.cost[2] = 4;
-    CHECK(fast.Run(InputOf(c, 1), nullptr).status == Ext::FastPaths::Status::Found);
+    CHECK(fast.Run(InputOf(c, 1), nullptr).status == GridSearch::Status::Found);
     // The scale: min over passable AND present types.
-    CHECK_EQ(Ext::FastPaths::HeuristicScale(c.cost, 0xe1fu, ~0u), 1);           // type 11 costs 1
-    CHECK_EQ(Ext::FastPaths::HeuristicScale(c.cost, 0xe1fu, 1u << 2), 4);       // ground only
-    CHECK_EQ(Ext::FastPaths::HeuristicScale(c.cost, 0xe1fu, (1u << 2) | 1u), 3);   // + a road
-    CHECK_EQ(Ext::FastPaths::HeuristicScale(c.cost, 0x0u, ~0u), 0);
-    CHECK_EQ(Ext::FastPaths::PresentTypes(c.flags.data(), 64), 1u << 2);
+    CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0xe1fu, ~0u), 1);           // type 11 costs 1
+    CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0xe1fu, 1u << 2), 4);       // ground only
+    CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0xe1fu, (1u << 2) | 1u), 3);   // + a road
+    CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0x0u, ~0u), 0);
+    CHECK_EQ(GridSearch::PresentTypes(c.flags.data(), 64), 1u << 2);
 }
 
 // The regime PATHRESEARCH §1.6 reasons about: citizens (profile 0, mask 0xe1f,
@@ -472,7 +475,7 @@ UNIT_TEST(ext_fast_paths_unsupported_inputs) {
 // trips of every length. Retail's cost exactly; the expansion ratio printed.
 UNIT_TEST(ext_fast_paths_open_ground_expansions) {
     Rng r(4242);
-    Ext::FastPaths::Searcher fast;
+    GridSearch::Searcher fast;
     int64_t bad = 0, cases = 0, refExp = 0, ourExp = 0, roadCases = 0, roadRef = 0, roadOur = 0;
     for (int iter = 0; iter < 300; ++iter) {
         const int w = 128;
@@ -492,9 +495,9 @@ UNIT_TEST(ext_fast_paths_open_ground_expansions) {
         c.goal = r.Below(w * w);
         RefSearch ref = RefOf(c);
         const int refCount = ref.Run(c.start, c.goal, nullptr);
-        const Ext::FastPaths::SearchResult res = fast.Run(InputOf(c, RealScale(c)), nullptr);
+        const GridSearch::SearchResult res = fast.Run(InputOf(c, RealScale(c)), nullptr);
         ++cases;
-        if (refCount == 0 || res.status != Ext::FastPaths::Status::Found || res.count != refCount ||
+        if (refCount == 0 || res.status != GridSearch::Status::Found || res.count != refCount ||
             res.cost != ref.nodes[c.goal].gCost)
             ++bad;
         if (roads) { ++roadCases; roadRef += ref.expanded; roadOur += res.expanded; }
