@@ -211,8 +211,8 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
     // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
     // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS
-    // page, + 18 for the Find Buildings page and its favorites window, + 54 for the map window's overlay tabs
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 54);
+    // page, + 18 for the Find Buildings page and its favorites window, + 52 for the map window's overlay views
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -451,16 +451,19 @@ UNIT_TEST(ext_rsc_text_parse_fullscreen_mode) {
     CHECK(items && items->type == "StringTable");
 }
 
-// ext.map_overlays's tabs in the map window: the tab frame map_window.cpp injects at userGroup1, its tab
-// button, the four pages and the names the controller looks up in them.
+// ext.map_overlays's views in the map window: the column map_window.cpp injects at userGroup1, its two rows of
+// view buttons, the pages group, the four page kinds and the names the controller looks up in them.
 UNIT_TEST(ext_rsc_text_parse_map_overlays) {
     File f;
     CHECK(ParseEmbedded("Dialog/MapOverlays.rsc", f));
     CHECK(f.Find("resource") == nullptr);   // not a dialog: retail's map window hosts it
-    const Object* tabs = f.Find("tabMapOverlays");
-    CHECK(tabs && tabs->type == "TabDescription");
-    const Object* button = f.Find("tabButtonMapOverlays");
+    const Object* column = f.Find("ribbonMapOverlays");
+    CHECK(column && column->type == "RibbonDescription");
+    CHECK(f.Find("rowMapOverlaysTabs1") && f.Find("rowMapOverlaysTabs2"));
+    const Object* button = f.Find("buttonMapOverlaysTab");
     CHECK(button && button->type == "ButtonDescription");
+    const Object* pages = f.Find("groupMapOverlaysPages");
+    CHECK(pages && pages->type == "GroupDescription");
     CHECK(f.Find("pageMapOverlaysMap") && f.Find("pageMapOverlaysResource") && f.Find("pageMapOverlaysKind") &&
           f.Find("pageMapOverlaysTraffic"));
     CHECK(f.Find("comboMapOverlaysCategory") && f.Find("comboMapOverlaysResource") &&
