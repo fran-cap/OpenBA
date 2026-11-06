@@ -90,6 +90,7 @@
 // class C extension's state
 #include "ext/savetail.h"
 #include "ext/show_grid/show_grid.h"   // EXT SEAM (NOT RETAIL, SHOWGRID.md): Ext::ShowGrid::OnGameStart
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): Ext::MapOverlays::OnGameStart
 #include "ext/fast_paths/fast_paths.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FASTPATHS.md): Ext::FastPaths::SelectForGame
 #include "ext/path_workers/path_workers.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHWORKERS.md): Ext::PathWorkers::SelectForGame
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
@@ -744,6 +745,9 @@ void GameUpdateLoop::Load() {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHOWGRID.md): ext.show_grid (class A) starts every
     // game with its grid hidden.
     Ext::ShowGrid::OnGameStart();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays (class C) starts every
+    // game on retail's map; its history was emptied by the reset above (a load's tail record refills it)
+    Ext::MapOverlays::OnGameStart();
     // ext.fast_paths (class B) reads the lock here; final for a new game, a
     // load's manifest replaces it in SaveRestore and the second call below
     // re-reads it (src/ext/fast_paths/fast_paths.h).

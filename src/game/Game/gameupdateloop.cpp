@@ -68,6 +68,9 @@
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C),
 // Ext::FamilyTree::BeginFrame
 #include "ext/family_tree/family_tree.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays (class C),
+// Ext::MapOverlays::BeginFrame
+#include "ext/map_overlays/map_overlays.h"
 #include "ext/spread_warmth/spread_warmth.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_PFBURST.md): ext.spread_warmth (class B), Ext::SpreadWarmth::BeginFrame
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md):
 // ext.restricted_foods (class C), Ext::RestrictedFoods::BeginFrame
@@ -677,6 +680,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (C) read once per frame,
     // the load bind and the sweep
     Ext::FamilyTree::BeginFrame();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays (C) read once per frame,
+    // the map size and the month of the history
+    Ext::MapOverlays::BeginFrame();
     Ext::SpreadWarmth::BeginFrame();         // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_PFBURST.md): ext.spread_warmth (B) read once per frame, its budget reset
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): ext.restricted_foods (C) read once per frame
     Ext::RestrictedFoods::BeginFrame();

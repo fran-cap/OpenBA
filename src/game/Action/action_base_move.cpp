@@ -42,6 +42,7 @@
 #include "Game/WorkScheduler.h"
 #include "Game/WorkSchedulerNodes.h"   // WorkSchedulerIdNode (the id trees' node)
 #include "stress_harness.h"   // PFBENCH: g_pfProfOn / PfProf_Taken (stress harness only)
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ============================================================
 // Locally-resolved dispatch-slot / math helpers
@@ -100,6 +101,11 @@ void MoveTo::UpdateFacing() {
     int targetCell = path[curIdx];
 
     int gridW = grid->size;
+    if (Ext::MapOverlays::g_on && curIdx > 1) {
+        // ext.map_overlays: a footstep, the waypoint just reached (path[0] is the start cell, not entered)
+        const int reached = path[curIdx - 1];
+        Ext::MapOverlays::OnStep(reached % gridW, reached / gridW);
+    }
     float center = static_cast<float>(gridW >> 1) - halfCell;
     float inGrid[3];
     inGrid[0] = static_cast<float>(targetCell % gridW) - center;  // local_58

@@ -61,6 +61,7 @@
 #include <cstring>
 #include "Component/exe_bodies.h"
 #include "Action/exe_bodies.h"      // ActRm_StorageSubtract_d150, ActRm_GetResourceCategory_88f90
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
 
 // ---- exe helpers, by retail address ----------------------------------------
 //   0x140006270 FindComponent<StorageComponent> (the REAL storage finder; NOT the
@@ -191,6 +192,10 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
             heatRemaining = t;
 
             store->SubtractItem(stack, 1);   // 0x14012d150 (ActRm_StorageSubtract_d150's body)
+            if (Ext::MapOverlays::g_on) {
+                // ext.map_overlays: one fuel burned, at the home (the branch returns: once per burn)
+                Ext::MapOverlays::OnConsumedAt(stack, _entity.Get(), 1);
+            }
 
             CitizenBehavior* townMgr = GameUpdateLoop::_singleton->m_citizenList;
             if (townMgr) {
