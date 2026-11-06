@@ -133,6 +133,9 @@ struct Extensions {
     // class C: src/ext/family_tree/ (docs/extensions/handins/FAMILYTREE.md); the town's births, marriages and
     // deaths
     bool family_tree = false;
+    // class C: src/ext/map_overlays/ (docs/extensions/handins/MAPOVERLAYS.md); data views in the map window,
+    // the production / consumption / traffic history kept in the save
+    bool map_overlays = false;
     bool spread_warmth = false; // class B: src/ext/spread_warmth/ (docs/extensions/handins/HITCH_PFBURST.md)
     bool async_save_compress = false; // class A: src/ext/async_save_compress/, seam IO::CompressedStream::_extAsyncCompress (docs/extensions/handins/HITCH_SAVE.md)
     bool drain_split = false; // class B: src/ext/drain_split/ (docs/extensions/handins/HITCH_DRAINSPLIT.md)

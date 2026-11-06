@@ -475,6 +475,15 @@ const Entry kEntries[] = {
       "Records who is born to whom, who marries and who dies, and shows each citizen's family on the Family "
       "page in a game. The record is kept in the save.",
       2, [](State& s) -> bool& { return s.ext.family_tree; } },
+    // MAPOVERLAYS (docs/extensions/handins/MAPOVERLAYS.md): SimCity-style data views beside the map window's
+    // map (production, consumption, stock, services, traffic, citizens, natural resources). Class C: the last
+    // year's production, consumption and traffic history is the town's own state, kept in the save's tail
+    // (src/ext/map_overlays/save_state.cpp).
+    { "map_overlays", Tier::Extension, Class::C, false,
+      "Map data views",
+      "Adds views to the map window that show where goods are produced, consumed and stored, where services "
+      "reach and where citizens walk. The last year's history is kept in the save.",
+      1, [](State& s) -> bool& { return s.ext.map_overlays; } },
     // HITCH_PFBURST (docs/extensions/handins/HITCH_PFBURST.md): a per-frame budget of the cold
     // citizens' warm-house scans (one region path search per residence), so a cold spell at high
     // speed spreads its scans over a few frames instead of one 10-20 ms frame.

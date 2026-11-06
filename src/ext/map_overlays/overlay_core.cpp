@@ -97,13 +97,8 @@ uint16_t History::FindResource(const std::string& path) const {
     if (path.empty() || path.size() > kMaxPathBytes) {
         return kNoResource;
     }
-    const std::string key = Fold(path);
-    for (size_t i = 0; i < folded_.size(); ++i) {
-        if (folded_[i] == key) {
-            return static_cast<uint16_t>(i);
-        }
-    }
-    return kNoResource;
+    const auto it = folded_.find(Fold(path));
+    return it == folded_.end() ? kNoResource : it->second;
 }
 
 uint16_t History::ResourceIndex(const std::string& path) {
@@ -114,9 +109,10 @@ uint16_t History::ResourceIndex(const std::string& path) {
     if (path.empty() || path.size() > kMaxPathBytes || resources_.size() >= kMaxResources) {
         return kNoResource;
     }
+    const uint16_t index = static_cast<uint16_t>(resources_.size());
     resources_.push_back(path);
-    folded_.push_back(Fold(path));
-    return static_cast<uint16_t>(resources_.size() - 1);
+    folded_.emplace(Fold(path), index);
+    return index;
 }
 
 void History::ClearMonthBucket(int bucket) {
@@ -412,8 +408,8 @@ bool History::Decode(const uint8_t* data, size_t size) {
         if (h.FindResource(path) != kNoResource) {
             return false;   // a path listed twice (compared without case)
         }
+        h.folded_.emplace(Fold(path), static_cast<uint16_t>(h.resources_.size()));
         h.resources_.push_back(path);
-        h.folded_.push_back(Fold(path));
     }
     uint32_t siteCount = 0;
     if (!r.U32(siteCount) || siteCount > r.left / kSiteBytes) {

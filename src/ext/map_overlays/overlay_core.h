@@ -27,6 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Ext {
@@ -147,7 +148,7 @@ private:
     int32_t bucketStamp_[kMonths] = {};
     int32_t trafficStamp_[kTrafficBuckets] = {};
     std::vector<std::string> resources_;
-    std::vector<std::string> folded_;      // resources_ in lower case, for the case-insensitive lookup
+    std::unordered_map<std::string, uint16_t> folded_;   // lower-case path -> index (case-insensitive lookup)
     std::vector<Site> sites_;              // sorted by (z, x)
     std::vector<uint16_t> traffic_;        // cells^2 * kTrafficBuckets
 };
