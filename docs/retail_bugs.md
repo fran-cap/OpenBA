@@ -1483,3 +1483,38 @@ hostile value before the hang or the allocation.
 | F-165 | `src/game/Goal/statvaluedispatch.cpp:604` | StatGoal::SumProductionWindow: ((year - statSubType) - 1) * 0x30 is int32 signed overflow for out-of-range serialized statSubType | UB: minimal fix (#132) |
 | F-168 | `src/platform/win/file_win.cpp:130` | FormatLocalDateTime ignores both conversion results, so a failed FILETIME conversion leaves the 0x100-wchar buffer uninitialised and WideString(buf) reads it (indeterminate read, possible over-read past the buffer) | UB: minimal fix (#147) |
 | F-171 | `src/render/dx11/devicedata.cpp:840` | Swap-chain rebuild reads refreshData[refreshRateIndex] of a different display mode after an Options resolution change (heap out-of-bounds read) | UB: minimal fix (#149) |
+
+## 31. The minimap's camera outline loses a side when a corner lies off the map
+
+**Symptom.** With the map window open, the yellow camera trapezoid misses one or two of its lines
+(usually the far edge or a far side) whenever a corner of the camera's ground footprint lies left of
+or above the minimap. In retail this happens with the camera near the map's left or top edge at the
+far zooms; with `ext.better_camera` (zoom up to 200 at the near tilt) the far corners lie well beyond
+the map in most views, so the far edge and a side are missing almost all the time at the far zooms.
+
+**Retail mechanism.** `FrustumOutlineElement::Draw` (`0x14006be90`) projects the frustum's four far
+corners onto z = 0 (`0x14006c5b0`) and draws the four sides with `SpriteContext::AddLine`
+(`0x18011cbe0`), always in the order 0-1, 1-3, 2-3, 2-0, inside a scissor set to the minimap rect.
+AddLine stores the two endpoints in the sprite record's x1, y1, x2, y2 and `AddSpriteDraw`'s scissor
+cull (`0x18011c920..0x18011c9a1`) treats them as a rectangle's min and max corners: it drops the record
+when `scissorX * scale > x2` (`0x18011c949 COMISS / JA 0x18011c9b4`), when `x1 > (scissorX + W) *
+scale` (`0x18011c966`), and the same for y. A line drawn from right to left whose second endpoint lies
+left of the scissor (or bottom to top, above it) is culled whole, although most of it is inside.
+
+**Proof it is retail.** The disassembly above (Runtime-x64.dll), which `SpriteContext::AddSpriteDraw`
+(`src/engine/ui/spritecontext.cpp`) and `FrustumOutlineElement::Draw`
+(`src/game/Component/frustumoutlineelement.cpp`) transcribe. Seen in game 2026-11-06 under
+`/profile:faithful` (every extension off) at retail's maximum zoom 130, camera pinned near the left
+map edge (`BANISHED_CAMERA_PIN=-160,-60,130,120`): corner 1 projects to x = -267 (the map spans -192 ..
+192) and the side 0-1, drawn toward it, is missing while the other three are drawn. In the town
+centre at zoom 130 all four corners are on the map and the outline is whole. With
+`ext.better_camera` at zoom 200 (yaw 30) two corners project to (-431, 93) and (144, 425): sides 0-1
+and 2-0 are missing.
+
+**Lever.** Clip each side to the minimap rect before AddLine, in
+`FrustumOutlineElement::Draw`; the cull itself is shared by every sprite and stays.
+
+**Fix.** `fix.minimap_outline_clip` (default ON, UI only, nothing saved): with the row on, each side is
+clipped to the minimap rect (Liang-Barsky, `src/ext/minimap_outline_clip/clip_rule.h`) and a side wholly
+off the map is not drawn; retail's four AddLines in the other arm. Unit tests:
+`tests/unit/ext_minimap_outline_clip_test.cpp`.

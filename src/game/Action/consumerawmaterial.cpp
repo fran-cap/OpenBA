@@ -42,6 +42,25 @@
 #include "object/Internal.h"   // ENDGAME B.3.4 caller batch G
 #include "Entity/ComponentEntity.h"
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
+#include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
+#include "Component/CitizenComponent.h"        // ext.map_overlays: a carrier's position
+#include "Component/CharacterComponent.h"
+#include "Component/ModelComponent.h"
+#include "Component/RawMaterialDescription.h"
+
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays. An item a citizen
+// carries is used up where the citizen stands; any other holder (a workshop, a home, a storage, a build
+// site) is the site.
+static void MapOverlaysConsumed(const ComponentEntity* holder, const ComponentDescription* item, int count) {
+    const CitizenComponent* carrier = holder->FindComponent<CitizenComponent>();
+    if (carrier == nullptr) {
+        Ext::MapOverlays::OnConsumedAt(item, holder, count);
+        return;
+    }
+    const RawMaterialDescription* material = item->FindDescription<RawMaterialDescription>();
+    const Math::Vector3& at = carrier->character->modelComponent->transform.translation;
+    Ext::MapOverlays::OnConsumed(material, at.x, at.y, count);
+}
 
 // ============================================================
 // Helpers, called by name (B3R)
@@ -144,6 +163,8 @@ int  ConsumeRawMaterial::AbstractImpl(ActionStack* actionStack) {
         return 0;
     }
 
+    const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above the loop
+
     do {
         Entry* matEntry = &_field28.data[matIdx];
         int requestedCount = matEntry->count;
@@ -196,6 +217,10 @@ int  ConsumeRawMaterial::AbstractImpl(ActionStack* actionStack) {
         int categoryIndex = ResourceCategory(matEntry->material);   // 0x140088f90
         if (categoryIndex >= 0) {
             town->professionResources._data[categoryIndex].field_0x0C += consumedCount;
+        }
+        if (mapOverlays) {
+            // ext.map_overlays: used up (a workshop input, a tool, clothing, an herb, road stone)
+            MapOverlaysConsumed(_field20.Get(), matEntry->material, consumedCount);
         }
 
         matIdx++;

@@ -200,5 +200,58 @@ StringTable resource
 		{ String _name = "FavoritesOpenPageTip";	String _text = "Open the Find Buildings page of the extensions window, where you search for buildings and press + to add them here."; }
 		{ String _name = "FinderPickTip";		String _text = "Start placing this building, as the toolbar's button does. A building whose limit is reached cannot be placed."; }
 		{ String _name = "FinderStarTip";		String _text = "+ adds the building to your favorites; - takes it out. The favorites window shows them; the list is kept in building_favorites.txt, beside settings.cfg."; }
+		// ext.map_overlays: the tabs of the map window (MapOverlays.rsc)
+		{ String _name = "MapOverlaysTabMap";			String _text = "Map"; }
+		{ String _name = "MapOverlaysTabProduction";	String _text = "Made"; }
+		{ String _name = "MapOverlaysTabConsumption";	String _text = "Used"; }
+		{ String _name = "MapOverlaysTabStock";			String _text = "Stock"; }
+		{ String _name = "MapOverlaysTabServices";		String _text = "Services"; }
+		{ String _name = "MapOverlaysTabTraffic";		String _text = "Traffic"; }
+		{ String _name = "MapOverlaysTabCitizens";		String _text = "Homes"; }
+		{ String _name = "MapOverlaysTabNatural";		String _text = "Nature"; }
+		{ String _name = "MapOverlaysTabMapTip";			String _text = "The map as the game draws it, with no overlay."; }
+		{ String _name = "MapOverlaysTabProductionTip";	String _text = "Where goods were made: the items produced on each spot over the last months."; }
+		{ String _name = "MapOverlaysTabConsumptionTip";	String _text = "Where goods were used: eaten, burned, worked into other goods or built with, over the last months."; }
+		{ String _name = "MapOverlaysTabStockTip";		String _text = "Where goods are now: storage, stockpiles, markets and homes."; }
+		{ String _name = "MapOverlaysTabServicesTip";	String _text = "Where a service reaches: brighter where several buildings of the kind overlap."; }
+		{ String _name = "MapOverlaysTabTrafficTip";		String _text = "Where citizens walk: footsteps over the last months."; }
+		{ String _name = "MapOverlaysTabCitizensTip";	String _text = "How homes fare: the residents' happiness, health, food, warmth or age."; }
+		{ String _name = "MapOverlaysTabNaturalTip";		String _text = "Where the natural resources are: trees, stone, iron, wildlife and fish."; }
+		{ String _name = "MapOverlaysCategoryLabel";		String _text = "Goods"; }
+		{ String _name = "MapOverlaysResourceLabel";		String _text = "Item"; }
+		{ String _name = "MapOverlaysKindLabel";			String _text = "Show"; }
+		{ String _name = "MapOverlaysMonthsLabel";		String _text = "Months"; }
+		{ String _name = "MapOverlaysFine";				String _text = "Fine"; }
+		{ String _name = "MapOverlaysCoarse";			String _text = "Coarse"; }
+		{ String _name = "MapOverlaysLegendZero";		String _text = "0"; }
+		{ String _name = "MapOverlaysParam";				String _text = "@0"; }
+		{ String _name = "MapOverlaysTerrain";			String _text = "Show overlay on terrain"; }
+		{ String _name = "MapOverlaysTerrainTip";		String _text = "Draws the same colours on the ground."; }
+		{ String _name = "MapOverlaysAllGoods";			String _text = "All goods"; }
+		{ String _name = "MapOverlaysFood";				String _text = "Food"; }
+		{ String _name = "MapOverlaysFuel";				String _text = "Fuel"; }
+		{ String _name = "MapOverlaysOther";				String _text = "Other"; }
+		{ String _name = "MapOverlaysAllOf";				String _text = "All of them"; }
+		{ String _name = "MapOverlaysUnitItems";			String _text = "@0 items"; }
+		{ String _name = "MapOverlaysUnitSteps";			String _text = "@0 steps"; }
+		{ String _name = "MapOverlaysUnitPercent";		String _text = "@0 %"; }
+		{ String _name = "MapOverlaysUnitCount";			String _text = "@0"; }
+		{ String _name = "MapOverlaysServiceMarket";		String _text = "Market"; }
+		{ String _name = "MapOverlaysServiceWell";		String _text = "Well"; }
+		{ String _name = "MapOverlaysServiceHerbalist";	String _text = "Health"; }
+		{ String _name = "MapOverlaysServiceChapel";		String _text = "Chapel"; }
+		{ String _name = "MapOverlaysServiceSchool";		String _text = "School"; }
+		{ String _name = "MapOverlaysServiceTavern";		String _text = "Tavern"; }
+		{ String _name = "MapOverlaysServiceTownHall";	String _text = "Town Hall"; }
+		{ String _name = "MapOverlaysCitizenHappiness";	String _text = "Happiness"; }
+		{ String _name = "MapOverlaysCitizenHealth";		String _text = "Health"; }
+		{ String _name = "MapOverlaysCitizenFood";		String _text = "Food"; }
+		{ String _name = "MapOverlaysCitizenWarmth";		String _text = "Warmth"; }
+		{ String _name = "MapOverlaysCitizenAge";		String _text = "Age"; }
+		{ String _name = "MapOverlaysNaturalTrees";		String _text = "Trees"; }
+		{ String _name = "MapOverlaysNaturalStone";		String _text = "Stone"; }
+		{ String _name = "MapOverlaysNaturalIron";		String _text = "Iron"; }
+		{ String _name = "MapOverlaysNaturalWildlife";	String _text = "Wildlife"; }
+		{ String _name = "MapOverlaysNaturalFish";		String _text = "Fish"; }
 	]
 }

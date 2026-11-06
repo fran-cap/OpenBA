@@ -19,9 +19,10 @@ namespace RenderPipe {
 void Pass1(Graphics::Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float alpha,
            int32_t frameIndex, const Graphics::Scene& sceneRef, const Graphics::Camera& cameraRef);
 // `ao`: ext.ambient_occlusion's frame record (the packet's), null = no AO pass.
+// `ground`: the ground draw (Graphics::Renderer::ExtGroundDrawFn, the packet's), null = none.
 // `shadowHeld`: ext.staggered_passes' decision for this frame (the packet's), false = retail.
 void Pass2(Graphics::Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao,
-           bool shadowHeld = false);
+           void (*ground)(Video::Context&, const Graphics::Camera&), bool shadowHeld = false);
 
 // shadow.cpp (COMPPROF=4): a hash of the renderer's lists (pads masked) and of
 // the state their items reference that pass 2 reads -- each item's Geometry

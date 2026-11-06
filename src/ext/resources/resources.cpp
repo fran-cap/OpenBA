@@ -261,6 +261,7 @@ void InitText() {
     Register("Dialog/BuildingFinderPage", &ProvideText, nullptr);
     Register("Dialog/FavoritesWindow", &ProvideText, nullptr);
     Register("Dialog/FullscreenMode", &ProvideText, nullptr);
+    Register("Dialog/MapOverlays", &ProvideText, nullptr);
 }
 
 int TextObjectCount() {

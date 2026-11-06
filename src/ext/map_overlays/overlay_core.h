@@ -27,6 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Ext {
@@ -136,11 +137,18 @@ private:
         std::vector<Cell> cells;
     };
     // Owned by the core implementation (overlay_core.cpp); the layout is private and may change.
+    int TrafficCells() const { return (mapSize_ + kTrafficCell - 1) / kTrafficCell; }
+    void ClearMonthBucket(int bucket);
+    void ClearTrafficBucket(int bucket);
+    void DropEmptyCells();
     int mapSize_ = 0;
     int32_t now_ = kNoStamp;
+    int trafficBucket_ = -1;               // the season bucket of now_; -1 before the first AdvanceTo
+    // the stamp each bucket holds; a bucket whose stamp is not the one the window expects is cleared
     int32_t bucketStamp_[kMonths] = {};
     int32_t trafficStamp_[kTrafficBuckets] = {};
     std::vector<std::string> resources_;
+    std::unordered_map<std::string, uint16_t> folded_;   // lower-case path -> index (case-insensitive lookup)
     std::vector<Site> sites_;              // sorted by (z, x)
     std::vector<uint16_t> traffic_;        // cells^2 * kTrafficBuckets
 };

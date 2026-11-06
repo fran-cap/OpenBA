@@ -10,6 +10,7 @@
 // compare. `version` moves only when the pixels change, so the renderers upload only then.
 // ============================================================================
 #include "ext/map_overlays/map_overlays.h"
+#include "ext/registry.h"   // Ext::Ext() (OnGameStart reads the lock)
 #include "ext/map_overlays/overlay_math.h"
 #include "ext/map_overlays/overlay_views_internal.h"
 
@@ -143,6 +144,9 @@ float LegendMax() {
 }
 
 void OnGameStart() {
+    // The lock is taken just before (GameUpdateLoop::Load): set g_on now, not at the first BeginFrame, so a map
+    // window that a load reopens before that frame gets its tabs.
+    g_on = ::Ext::Ext().map_overlays;
     s_selection = Selection();
     s_stale = true;
     s_lastFrame = 0;

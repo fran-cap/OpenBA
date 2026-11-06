@@ -86,6 +86,7 @@ struct Fixes {
     bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home's zone (else his lost home's, the hall's, a storage's) whose walk there was refused wades back
     bool debug_spawn_origin = true;  // docs/retail_bugs.md §29, src/ext/debug_spawn_origin/: the debug panel's spawn-citizens button places its citizens by the world origin when no storage has a use node, instead of hanging
     bool statusbar_empty_town = true;   // review S-006, src/game/Dialog/statusbarui.cpp: a status-bar icon click dispatched after the last citizen left does nothing, instead of reading the removed citizen past the list's end
+    bool minimap_outline_clip = true;   // docs/retail_bugs.md §31, src/ext/minimap_outline_clip/: UI only, the minimap's camera outline keeps every side when a corner lies off the map
     bool stream_free_wait  = true;   // review S-027 (engine seam Audio::Device::_extFixStreamFreeWait): a streamed sound freed while its stream pass runs waits for the pass, so the worker reads no freed seek table
 };
 
@@ -133,6 +134,9 @@ struct Extensions {
     // class C: src/ext/family_tree/ (docs/extensions/handins/FAMILYTREE.md); the town's births, marriages and
     // deaths
     bool family_tree = false;
+    // class C: src/ext/map_overlays/ (docs/extensions/handins/MAPOVERLAYS.md); data views in the map window,
+    // the production / consumption / traffic history kept in the save
+    bool map_overlays = false;
     bool spread_warmth = false; // class B: src/ext/spread_warmth/ (docs/extensions/handins/HITCH_PFBURST.md)
     bool async_save_compress = false; // class A: src/ext/async_save_compress/, seam IO::CompressedStream::_extAsyncCompress (docs/extensions/handins/HITCH_SAVE.md)
     bool drain_split = false; // class B: src/ext/drain_split/ (docs/extensions/handins/HITCH_DRAINSPLIT.md)
