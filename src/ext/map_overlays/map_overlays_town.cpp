@@ -7,9 +7,10 @@
 // WORLD -> TILE. The game's own mapping (DropOffRawMaterial::DropOnGround, action_pf_roots_drop.cpp, and
 // EntityAnchorCell, action_pf_road.cpp): translation.x and translation.y are the two horizontal axes, and
 // tile = (int)(w + (size >> 1)), clamped to the map edge as retail clamps it.
-// An entity's site is its MapComponent footprint centre, tileX0 + (tileX1 >> 1), tileY0 + (tileY1 >> 1)
-// (the footprint is x, y, w, h: EntityAnchorCell's fallback arm); an entity with no MapComponent falls back
-// to its ModelComponent's translation.
+// An entity's site (OnProducedAt / OnConsumedAt): a citizen with a workplace counts at that building; then
+// the entity's MapComponent footprint centre, tileX0 + (tileX1 >> 1), tileY0 + (tileY1 >> 1) (the footprint
+// is x, y, w, h: EntityAnchorCell's fallback arm); else its translation (a pile's ModelComponent, a walking
+// citizen's CharacterComponent::modelComponent, as DropOnGround reads it).
 //
 // THE MONTH STAMP is ext.family_tree's (FamilyTree::NowStamp: year * 12 + EventLog::SeasonString's month).
 // ============================================================================
@@ -18,6 +19,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "Component/CharacterComponent.h"
+#include "Component/CitizenComponent.h"
 #include "Component/ComponentDescription.h"
 #include "Component/MapComponent.h"
 #include "Component/ModelComponent.h"
@@ -103,14 +106,28 @@ void AddAtEntity(Flow flow, const ComponentDescription* item, const ComponentEnt
     if (material == nullptr) {
         return;
     }
-    const MapComponent* footprint = site->FindComponent<MapComponent>();
+    // a citizen counts at its workplace (the harvester at its lodge), a citizen with none where it stands
+    const ComponentEntity* place = site;
+    const ModelComponent* model = nullptr;
+    const CitizenComponent* citizen = site->FindComponent<CitizenComponent>();
+    if (citizen != nullptr) {
+        const ComponentEntity* work = citizen->workplace.Get();
+        if (work != nullptr) {
+            place = work;
+        } else if (citizen->character.Get() != nullptr) {
+            model = citizen->character.Get()->modelComponent.Get();
+        }
+    }
+    const MapComponent* footprint = place->FindComponent<MapComponent>();
     if (footprint != nullptr && footprint->tileX0 >= 0 && footprint->tileY0 >= 0) {
         const int x = footprint->tileX0 + (static_cast<int>(footprint->tileX1) >> 1);
         const int z = footprint->tileY0 + (static_cast<int>(footprint->tileY1) >> 1);
         AddAtTile(flow, material, x, z, count);
         return;
     }
-    const ModelComponent* model = site->FindComponent<ModelComponent>();
+    if (model == nullptr) {
+        model = place->FindComponent<ModelComponent>();
+    }
     if (model != nullptr) {
         AddAtWorld(flow, material, model->transform.translation.x, model->transform.translation.y, count);
     }
