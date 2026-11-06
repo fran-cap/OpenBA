@@ -504,6 +504,24 @@ def draw_empty_status(px):
     ])
 
 
+def draw_bridge_fog(px):
+    # a bridge over water lines, haze dots across it (the decal under a bridge fades into fog)
+    _paint(px, [
+        "............",
+        "#.#.#.#.#.#.",
+        "............",
+        "############",
+        "############",
+        ".##......##.",
+        ".#........#.",
+        ".#........#.",
+        "++++++++++++",
+        "............",
+        "..++++++++..",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -532,4 +550,5 @@ ICONS = {
     "statusbar_empty_town": ("fix", draw_empty_status),   # a "!" status icon over an empty bench
     "stream_free_wait": ("fix", draw_stream_wait),   # a music note beside a pause sign
     "minimap_outline_clip": ("fix", draw_outline_clip),   # a map frame with a whole camera trapezoid
+    "decal_fog_order": ("fix", draw_bridge_fog),     # a bridge over water under haze dots
 }

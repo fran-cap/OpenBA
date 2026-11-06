@@ -88,6 +88,7 @@ struct Fixes {
     bool statusbar_empty_town = true;   // review S-006, src/game/Dialog/statusbarui.cpp: a status-bar icon click dispatched after the last citizen left does nothing, instead of reading the removed citizen past the list's end
     bool minimap_outline_clip = true;   // docs/retail_bugs.md §31, src/ext/minimap_outline_clip/: UI only, the minimap's camera outline keeps every side when a corner lies off the map
     bool stream_free_wait  = true;   // review S-027 (engine seam Audio::Device::_extFixStreamFreeWait): a streamed sound freed while its stream pass runs waits for the pass, so the worker reads no freed seek table
+    bool decal_fog_order   = true;   // docs/retail_bugs.md §32, src/render/common/decal_fog/ (backend seam DecalFogBackend::SetFixFlag): render only, next start; the decal pixel programs tint, then fog
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
@@ -332,6 +333,7 @@ const Values&     Val();
 struct LiveFixes {
     std::atomic<bool> save_failure_notice{Fixes().save_failure_notice};
     std::atomic<bool> boot_device_lost{Fixes().boot_device_lost};
+    std::atomic<bool> decal_fog_order{Fixes().decal_fog_order};   // the loader threads read it
 };
 const LiveFixes& LiveFix();
 
