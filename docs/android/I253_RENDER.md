@@ -56,6 +56,23 @@ switch distance is 0% at both zooms. Far-zoom batches average 42.6 instances and
 | natural growth's pixel copy without the blossom outside the bloom window | identical | not testable in the stress town: it starts in spring, inside the window |
 | stress counters (LOD fallback, per-shader gather and batch rows, per-group CPU split) | harness only | - |
 
+### 3.1 Forest bench round (2026-11-05): kept and dropped
+
+S25, the showroom forest bench (`tools/showroom/forest_2.txt`, `bench` line: a planted forest under a pinned,
+unpaused camera). Instruction and cycle counts are the render thread's; fps at half resolution unless noted.
+
+| change | verdict | S25 forest bench | why |
+|---|---|---|---|
+| wide instancing batches on Vulkan, `kVulkanInstanceCap = 208` (perf/i253-instcap) | KEPT | render thread -10% instructions, -10-20% cycles; fps +2-4% | fewer draws; Vulkan only, DX11 and Metal keep 52 (known_port_issues 1417) |
+| XformMemo 1 << 15 slots, 8-slot probe (perf/i253-lodonce, §4) | KEPT | render thread -6..13% instructions; fps 0 | less CPU per frame, identical image |
+| pass-1 shadow and main dispatch as two pool tasks (perf/i253-pass1par) | KEPT | ~1-6 M instructions per frame move to a helper; fps 0 | kept for weaker CPUs, where the render thread is the limit |
+| Better Trees C (coverage-0 discard under MSAA) + D (edge dither after the cutout's discard) | KEPT | +5-6% with 2x MSAA; 0 without | identical image, less fragment work |
+| Better Trees A (sincos-free dither hash) and B (per-draw sized fill copies) | DROPPED | not separated from C + D | ruled out 2026-11-05: A changes the dapple, B adds a per-draw shader copy path on Vulkan only |
+| coverage-threshold cut, `ext.foliage_msaa_cut` | DROPPED | 2-3% on a desktop GPU | every rasterised fragment still launches; not worth a row |
+| canopy sort (front to back inside a batch) | DROPPED | no gain | more render-thread work |
+| snapshot reuse (perf/i253-snapreuse) | DROPPED | fps 0 | no measurable gain for the added state |
+| leaf-card half-area shrink (experiment) | NOT BUILT | +9% with 2x MSAA; 0 without | changes the look; the trimmed-card plan in `I253_FOLIAGE_RESEARCH.md` gets the same area without it |
+
 ## 4. XformMemo sizing (perf/i253-lodonce)
 
 COMPPROF=4 stress town on the desktop, about 25k transform requests per Renderer::Draw. The direct-mapped
