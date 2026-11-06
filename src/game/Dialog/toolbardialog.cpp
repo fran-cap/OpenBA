@@ -55,6 +55,7 @@
 #include "Game/PlayerToolManager.h"
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): the extension window's toolbar button
 #include "ext/toolbar/toolbar.h"
+#include "ext/dynamic_professions/dynamic_professions.h"
 #include "Game/PlayerController.h"
 #include "Game/Map.h"
 #include "Entity/CitizenBehavior.h"
@@ -517,6 +518,16 @@ UI::DialogInstance* PlayerToolManager::ToggleUtilityDialog(ComponentDescription*
 
     if (uiDescItem == nullptr) {
         return nullptr;
+    }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/DYNAMICPROFESSIONS.md): ext.dynamic_professions (A) opens
+    // its own window in place of retail's Professions window (and closes it again on the next press)
+    if (Ext::DynamicProfessions::Handles(uiDescItem)) {
+        bool declined = false;
+        UI::DialogInstance* opened = Ext::DynamicProfessions::Toggle(userInterface, declined);
+        if (!declined) {
+            return opened;
+        }
     }
 
     // Step 3: Create a new DialogInstance from the UIDescription's resource

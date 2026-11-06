@@ -183,11 +183,11 @@ void ContainerElement::ComputeSize() {
 
     const int32_t reqH = _requestedHeight;
     int32_t clampedH = reqH;
-    if (_clampHeight != 0 && reqH > 0 && reqH > snapH) clampedH = snapH;
+    if (_allowShrinkHeight != 0 && reqH > 0 && reqH > snapH) clampedH = snapH;
 
     const int32_t reqW = _requestedWidth;
     int32_t clampedW = reqW;
-    if (_clampWidth != 0 && reqW > 0 && reqW > snapW) clampedW = snapW;
+    if (_allowShrinkWidth != 0 && reqW > 0 && reqW > snapW) clampedW = snapW;
 
     const int32_t clipW = (reqW > 0) ? (clampedW - barAGap - barAW) : _layoutWidth;
     const int32_t clipH = (reqH > 0) ? (clampedH - barBGap - barBH) : _layoutHeight;

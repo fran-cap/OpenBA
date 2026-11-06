@@ -253,5 +253,9 @@ StringTable resource
 		{ String _name = "MapOverlaysNaturalIron";		String _text = "Iron"; }
 		{ String _name = "MapOverlaysNaturalWildlife";	String _text = "Wildlife"; }
 		{ String _name = "MapOverlaysNaturalFish";		String _text = "Fish"; }
+		{ String _name = "ProfessionsWindowTitle";	String _text = "Professions"; }
+		{ String _name = "ProfessionsOneColumnTip";	String _text = "Show one column"; }
+		{ String _name = "ProfessionsTwoColumnsTip";	String _text = "Show two columns"; }
+		{ String _name = "ProfessionsGrip";	String _text = "......"; }
 	]
 }

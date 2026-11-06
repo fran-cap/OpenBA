@@ -711,6 +711,17 @@ const Entry kEntries[] = {
       "Adds a Find Buildings page to the extension window: search every building by name, and keep a list of "
       "favorites you can start placing with one click.",
       0, [](State& s) -> bool& { return s.ext.building_finder; } },
+    // DYNAMICPROFESSIONS (docs/extensions/handins/DYNAMICPROFESSIONS.md): the toolbar's Professions button
+    // opens a window that lists only the professions the town can use (the laborer and the builder always,
+    // then every profession with a workplace built or a citizen in it), in place of retail's list of all of
+    // them. Class A: it only reads the town and moves citizens between professions with retail's own calls;
+    // nothing is kept.
+    // OFF by default: it replaces a window the player knows.
+    { "dynamic_professions", Tier::Extension, Class::A, false,
+      "Dynamic professions",
+      "Replaces the Professions window with one that lists only the professions your town can use: the "
+      "laborer and builder, and any profession with a workplace built or a citizen working at it.",
+      0, [](State& s) -> bool& { return s.ext.dynamic_professions; } },
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a

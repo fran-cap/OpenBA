@@ -64,8 +64,8 @@ public:
     ContainerDescription() : ElementDescription() {
         _requestedWidth  = 0x64;
         _requestedHeight = 0x64;
-        _clampWidth      = 0;          // one WORD store with +0x71
-        _clampHeight     = 0;
+        _allowShrinkWidth      = 0;          // one WORD store with +0x71
+        _allowShrinkHeight     = 0;
         _barSize         = 0;
         _partDescs[0]    = nullptr;
         _partDescs[1]    = nullptr;
@@ -109,8 +109,8 @@ public:
     // then +0x70/+0x71 — see containerdescription.cpp.
     int32_t  _requestedWidth;     // +0x68  ctor 0x64; -> ContainerElement::_requestedWidth (+0xc0)
     int32_t  _requestedHeight;    // +0x6c  ctor 0x64; -> ContainerElement::_requestedHeight (+0xc4)
-    bool     _clampWidth;         // +0x70  kScalarBool (B4: retail's type); -> ContainerElement +0xcc (BYTE)
-    bool     _clampHeight;        // +0x71  kScalarBool; -> ContainerElement +0xcd (BYTE)
+    bool     _allowShrinkWidth;   // +0x70  kScalarBool (B4: retail's type); -> ContainerElement +0xcc (BYTE)
+    bool     _allowShrinkHeight;        // +0x71  kScalarBool; -> ContainerElement +0xcd (BYTE)
     uint8_t  _pad72[2];           // +0x72  written by nothing
     int32_t  _barSize;            // +0x74  kScalarInt; -> ContainerElement::_barSize (+0xc8)
     // ExternalPtr<UI::ElementDescription> x3 (0x180038f90 each). CreateInstance
@@ -126,8 +126,8 @@ static_assert(alignof(ContainerDescription) == 8, "UI::ContainerDescription alig
 static_assert(offsetof(ContainerDescription, _requestedWidth) == sizeof(ElementDescription), "");
 static_assert(offsetof(ContainerDescription, _requestedWidth)  == 0x68, "");
 static_assert(offsetof(ContainerDescription, _requestedHeight) == 0x6c, "");
-static_assert(offsetof(ContainerDescription, _clampWidth)      == 0x70, "");
-static_assert(offsetof(ContainerDescription, _clampHeight)     == 0x71, "");
+static_assert(offsetof(ContainerDescription, _allowShrinkWidth)      == 0x70, "");
+static_assert(offsetof(ContainerDescription, _allowShrinkHeight)     == 0x71, "");
 static_assert(offsetof(ContainerDescription, _barSize)         == 0x74, "");
 static_assert(offsetof(ContainerDescription, _partDescs)       == 0x78, "");
 

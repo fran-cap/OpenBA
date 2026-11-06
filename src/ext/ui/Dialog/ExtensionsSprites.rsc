@@ -84,6 +84,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_show_grid";	String _source = "Sprite/Extensions/Entry_show_grid.png"; }
 		{ String _name = "ExtensionsEntry_fps_counter";	String _source = "Sprite/Extensions/Entry_fps_counter.png"; }
 		{ String _name = "ExtensionsEntry_building_finder";	String _source = "Sprite/Extensions/Entry_building_finder.png"; }
+		{ String _name = "ExtensionsEntry_dynamic_professions";	String _source = "Sprite/Extensions/Entry_dynamic_professions.png"; }
 		{ String _name = "ExtensionsEntry_tool_names";	String _source = "Sprite/Extensions/Entry_tool_names.png"; }
 		{ String _name = "ExtensionsEntry_high_limits";	String _source = "Sprite/Extensions/Entry_high_limits.png"; }
 		{ String _name = "ExtensionsEntry_restricted_foods";	String _source = "Sprite/Extensions/Entry_restricted_foods.png"; }
@@ -101,6 +102,8 @@ SpriteSheet resource
 		{ String _name = "ExtensionsGlyph_terrain_smooth";	String _source = "Sprite/Extensions/Glyph_terrain_smooth.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_undo";	String _source = "Sprite/Extensions/Glyph_terrain_undo.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_redo";	String _source = "Sprite/Extensions/Glyph_terrain_redo.png"; }
+		{ String _name = "ExtensionsGlyph_professions_one_column";	String _source = "Sprite/Extensions/Glyph_professions_one_column.png"; }
+		{ String _name = "ExtensionsGlyph_professions_two_columns";	String _source = "Sprite/Extensions/Glyph_professions_two_columns.png"; }
 		{ String _name = "ExtensionsGlyph_terrain_plant";	String _source = "Sprite/Extensions/Glyph_terrain_plant.png"; }
 		{ String _name = "ExtensionsGlyph_pointer_shift";	String _source = "Sprite/Extensions/Glyph_pointer_shift.png"; }	// ext.touch_pointer's Shift toggle (TouchPointer.rsc)
 		{ String _name = "ToolbarExtensions";	String _source = "Sprite/Extensions/Toolbar_extensions.png"; }	// the toolbar's one extension button (ExtensionsWindow.rsc, src/ext/toolbar)
