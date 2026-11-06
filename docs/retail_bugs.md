@@ -1512,5 +1512,9 @@ centre at zoom 130 all four corners are on the map and the outline is whole. Wit
 and 2-0 are missing.
 
 **Lever.** Clip each side to the minimap rect before AddLine, in
-`FrustumOutlineElement::Draw`; the cull itself is shared by every sprite and stays. Not done: a
-`fix.*` row if wanted.
+`FrustumOutlineElement::Draw`; the cull itself is shared by every sprite and stays.
+
+**Fix.** `fix.minimap_outline_clip` (default ON, UI only, nothing saved): with the row on, each side is
+clipped to the minimap rect (Liang-Barsky, `src/ext/minimap_outline_clip/clip_rule.h`) and a side wholly
+off the map is not drawn; retail's four AddLines in the other arm. Unit tests:
+`tests/unit/ext_minimap_outline_clip_test.cpp`.

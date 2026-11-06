@@ -291,6 +291,14 @@ const Entry kEntries[] = {
       "Clicking a status-bar problem icon just as the last citizen leaves or dies no longer jumps to "
       "the citizen who is gone (in the original game, a read of freed memory).",
       0, [](State& s) -> bool& { return s.fix.statusbar_empty_town; } },
+    // MINIMAPOUTLINECLIP (docs/retail_bugs.md section 31): FrustumOutlineElement::Draw clips each side of the
+    // minimap's camera outline to the minimap rect before AddLine, so the sprite cull (which reads a line's
+    // endpoints as a rectangle's corners) no longer drops a side drawn toward a corner off the map. UI only.
+    { "minimap_outline_clip", Tier::Fix, Class::None, true,
+      "Whole camera outline on the map",
+      "The yellow outline of the camera's view on the map keeps all four sides when part of the view lies "
+      "past the edge of the map, instead of losing one or two.",
+      0, [](State& s) -> bool& { return s.fix.minimap_outline_clip; } },
     // STREAMFREEWAIT (review S-027): Audio::Device::OnSoundBufferDeleted (0x1800de0e0) frees a streamed
     // buffer's voice and returns, and ~SoundBuffer frees the seek table the stream worker may still be
     // reading between its ReadFile and its next lock (Stream::Run 0x1800a0f60): a use after free. With

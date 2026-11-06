@@ -86,6 +86,7 @@ struct Fixes {
     bool stranded_wade     = true;   // docs/retail_bugs.md §19, src/ext/stranded_wade/: sim-visible, a citizen cut off from his home's zone (else his lost home's, the hall's, a storage's) whose walk there was refused wades back
     bool debug_spawn_origin = true;  // docs/retail_bugs.md §29, src/ext/debug_spawn_origin/: the debug panel's spawn-citizens button places its citizens by the world origin when no storage has a use node, instead of hanging
     bool statusbar_empty_town = true;   // review S-006, src/game/Dialog/statusbarui.cpp: a status-bar icon click dispatched after the last citizen left does nothing, instead of reading the removed citizen past the list's end
+    bool minimap_outline_clip = true;   // docs/retail_bugs.md §31, src/ext/minimap_outline_clip/: UI only, the minimap's camera outline keeps every side when a corner lies off the map
     bool stream_free_wait  = true;   // review S-027 (engine seam Audio::Device::_extFixStreamFreeWait): a streamed sound freed while its stream pass runs waits for the pass, so the worker reads no freed seek table
 };
 
