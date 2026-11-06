@@ -93,6 +93,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/ext/high_limits/high_limits.cpp             # ext_high_limits_test.cpp (HIGHLIMITS)
   ${CMAKE_SOURCE_DIR}/src/ext/restricted_foods/restricted_foods.cpp            # ext_restricted_foods_test.cpp (RESTRICTEDFOODS)
   ${CMAKE_SOURCE_DIR}/src/ext/restricted_foods/save_state.cpp             #   its class C codec
+  ${CMAKE_SOURCE_DIR}/src/ext/map_overlays/overlay_math.cpp               # ext_map_overlays_math_test.cpp (MAPOVERLAYS)
   ${CMAKE_SOURCE_DIR}/src/ext/toolbar/toolbar.cpp                    # ext_toolbar_test.cpp (the page list; the page is stubbed there)
   ${CMAKE_SOURCE_DIR}/src/ext/item_priority/item_priority.cpp         # ext_item_priority_test.cpp (ITEMPRIO)
   ${CMAKE_SOURCE_DIR}/src/ext/item_priority/save_state.cpp            #   its class C codec
