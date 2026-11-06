@@ -223,10 +223,13 @@ SliderDescription sliderMapOverlaysScale : "Options.rsc:sliderUI"
 	ElementDescription _number = "Options.rsc:number";
 }
 
-// One step of the ramp: the map's own white image (Map.rsc:imageMap, by reference), small, tinted by the controller.
-ImageDescription imageMapOverlaysSwatch : "Map.rsc:imageMap"
+// One step of the ramp: the game's plain white sprite (the one Map.rsc's images use, by reference), stretched to
+// a small box and tinted by the controller.
+ImageDescription imageMapOverlaysSwatch
 {
-	int _width = 12; int _height = 10;
+	Flags _flags = ExpandWidth | ExpandHeight;
+	int _minWidth = 12; int _minHeight = 10;
+	SpriteSheet _spriteSheet = "SpriteSheet.rsc"; String _spriteName = "White";
 }
 
 CheckDescription checkMapOverlaysTerrain : "Extensions.rsc:checkLoaded"

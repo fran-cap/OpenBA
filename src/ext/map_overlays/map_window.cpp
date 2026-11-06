@@ -474,6 +474,7 @@ private:
     std::vector<Material> _materials;
     std::vector<Category> _categories;
     int32_t _shownTab = -1;
+    int32_t _stripWidth = 0;          // the tab strip's width the pages were last widened to
     float _legendValue = -1.0f;       // the legend text last written, and for which view / kind
     int _legendView = -1;
     int _legendKind = -1;
@@ -524,7 +525,7 @@ bool MapWindowController::Build(UI::TabElement* tabs) {
     // The window opens on the view that shows (a reopened window keeps it; a new town starts on Map).
     const int current = static_cast<int>(CurrentSelection().view);
     tabs->SetActiveTab(current >= 0 && current < kViewCount ? current : 0);
-    _shownTab = -1;   // OnUpdate shows it
+    ShowTab(tabs->GetActiveTab());
     std::fprintf(stderr, "[MapOverlays] map window: %d tabs, %d materials, %d categories\n", kViewCount,
                  static_cast<int>(_materials.size()), static_cast<int>(_categories.size()));
     return true;
@@ -577,10 +578,6 @@ void MapWindowController::BuildPage(Page& page, int tab) {
         }
         page.kind->SetCurrentItem(memory.kind < count ? memory.kind : 0);
         page.kindItem = page.kind->GetCurrentItem();
-    }
-    // Stock is an instant view: no months.
-    if (page.monthsRow != nullptr && page.spec->view == View::Stock) {
-        page.monthsRow->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
     if (page.months != nullptr) {
         page.months->SetElementId(ids + 4);
@@ -641,6 +638,25 @@ void MapWindowController::FillResources(Page& page, uint32_t categoryFlags, cons
 void MapWindowController::ShowTab(int tab) {
     _shownTab = tab;
     _legendValue = -1.0f;
+    // The tab frame is as tall as its tallest page, shown or not (TabElement::ComputeSize): every other page's
+    // rows are hidden, so the Map tab is retail's map over the tab strip, and each overlay tab only as tall as
+    // its own controls. Stock is an instant view: no months.
+    for (size_t i = 0; i < _pages.size(); ++i) {
+        Page& p = _pages[i];
+        const int n = p.root->ChildCount();
+        for (int k = 0; k < n; ++k) {
+            UI::Element* row = p.root->Child(k).Get();
+            if (row == nullptr) {
+                continue;
+            }
+            const bool shown = static_cast<int>(i) == tab && !(row == p.monthsRow && p.spec->view == View::Stock);
+            if (shown) {
+                row->SetFlagsOnOff(0, UI::kElementFlagHidden);
+            } else {
+                row->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+            }
+        }
+    }
     if (tab < 0 || tab >= static_cast<int>(_pages.size())) {
         return;
     }
@@ -722,6 +738,17 @@ void MapWindowController::OnUpdate(const System::Time& /*time*/) {
         // a new town while the window stayed open: the memory of the last one does not apply
         g_memoryTown = LockEpoch();
         g_memory = std::array<ViewMemory, kViewCount>();
+    }
+    // The tab frame's width counts its pages, not its strip (TabElement::ComputeSize): once the strip is
+    // measured, every page is made at least as wide, so the strip stays inside the window's border.
+    if (_tabs->_tabBarWidth > _stripWidth) {
+        _stripWidth = _tabs->_tabBarWidth;
+        for (Page& p : _pages) {
+            p.root->_minWidth = _stripWidth;
+            for (UI::Element* walk = p.root; walk != nullptr; walk = walk->_parent) {
+                walk->_flags |= UI::kElementFlagNeedsSizeCalc;
+            }
+        }
     }
     const int32_t tab = _tabs->GetActiveTab();
     if (tab != _shownTab) {

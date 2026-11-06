@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 19);
+    CHECK(kEmbeddedCount == 20);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -211,8 +211,8 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
     // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
     // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS
-    // page, + 18 for the Find Buildings page and its favorites window
-    CHECK(strings && strings->blocks.size() == 142 + 18);
+    // page, + 18 for the Find Buildings page and its favorites window, + 54 for the map window's overlay tabs
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 54);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
