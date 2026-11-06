@@ -200,6 +200,14 @@ UNIT_TEST(ext_sharp_ui_variant_pick) {
         // ext.phone_menu's 25 % at 1x (ratio 4): beyond the compiled range, retail's quads.
         CHECK(Ext::SharpUI::PickFontHeight(24, 4.0f, 1.0f, &keep) == 24 && keep);
         CHECK(Ext::SharpUI::PickFontHeight(24, 1.0f, 1.0f, &keep) == 24 && !keep);
+        // Render scale Quarter, UI 42 (_uiScale 42 / 25 = 1.68, ratio 0.595): below the compiled
+        // range, retail's quads, not 24-px glyphs on 14-px advances.
+        CHECK(Ext::SharpUI::PickFontHeight(24, 1.0f / 1.68f, 1.0f, &keep) == 24 && keep);
+        // Quarter, UI 100 (ratio 0.25) and Half, UI 100 (ratio 0.5): likewise for every font.
+        for (int base : {14, 18, 24, 48}) {
+            CHECK(Ext::SharpUI::PickFontHeight(base, 0.25f, 1.0f, &keep) == base && keep);
+            CHECK(Ext::SharpUI::PickFontHeight(base, 0.5f, 1.0f, &keep) == base && keep);
+        }
     }
 
     char path[64];

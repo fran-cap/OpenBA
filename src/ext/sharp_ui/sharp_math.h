@@ -97,14 +97,17 @@ int PickRetinaVariantHeight(int baseHeight, float pxPerUnit);
 // (half size, letter-spaced by the layout advances).
 bool NativePickFitsRatio(int baseHeight, float pxPerUnit);
 
-// The highest device-pixel ratio retail's slider reaches (75 %, 1 / 0.75) plus a hair.
+// The highest device-pixel ratio retail's slider reaches (75 %, 1 / 0.75) plus a hair, and the
+// lowest (150 %, 1 / 1.5) less one.
 constexpr float kRetailRatioMax = 4.0f / 3.0f + 0.01f;
+constexpr float kRetailRatioMin = 2.0f / 3.0f - 0.01f;
 
 // The font height SelectFont draws with, and whether to keep retail's scaled
 // quads instead ("retail(range)"). At `density` <= 1 (every window that is not
 // high-density: Windows, Linux, non-Retina) this is exactly PickVariantHeight,
 // i.e. upstream's selection, and keeps retail only for a ratio outside the
-// compiled range (reached only below the slider's retail 75 %, ext.phone_menu).
+// compiled range (reached only below the slider's retail 75 %, ext.phone_menu,
+// or with a render scale under Full, which multiplies _uiScale).
 // Only above 1 do the Retina variants apply.
 int PickFontHeight(int baseHeight, float pxPerUnit, float density, bool* keepRetail);
 

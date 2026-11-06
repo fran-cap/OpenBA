@@ -20,6 +20,7 @@
 #include "ext/enhanced_tab/enhanced_tab.h"
 
 #include "platform_window_hooks.h"   // Platform::Window::RenderScale / RenderScaleAdjustable / SetRenderScale
+#include "platform_window.h"         // Platform::Window::GetClientRect: the back buffer at the new render scale
 #include "platform/common/ui_render_scale.h"   // UiPercentFromRatio / UiScaleRatioAt (P9)
 #include "io/Persistence.h"
 #include "ui/ComboElement.h"
@@ -61,6 +62,26 @@ UI::UserInterface* DialogUi(UI::Element* e) {
     return nullptr;
 }
 
+// The back buffer's new size, published at once as retail's Device::SizeWindow (0x1800f7d20) does
+// for a resized window: the size now, the rebuild (settingsChanged) at the next frame. Without it the
+// UI scale below changed while the back buffer kept the old size until that rebuild, and the layout
+// passes of this update ran in a space the size of neither (Quarter -> Full: 585 x 0.42 = 245 units
+// wide where both sides are 982), clamping the open dialog into the top-left corner for the first
+// frame drawn at the new size. SizeWindow itself returns early in fullscreen (the phone), so the
+// size is written here. The backend's rebuild then finds the size it wants already in place: the
+// window is not resized (it does not change), the swap chain and the targets are.
+void PublishBackBufferSize() {
+    Video::Device* const dev = Video::Device::_singleton;
+    if (dev == nullptr) return;
+    Platform::Rect rc;
+    Platform::Window::GetClientRect(nullptr, &rc);
+    const int32_t w = rc.right - rc.left;
+    const int32_t h = rc.bottom - rc.top;
+    if (w <= 0 || h <= 0) return;   // minimised: the rebuild reads the size itself
+    dev->backBufferWidth  = w;
+    dev->backBufferHeight = h;
+}
+
 void Open(UI::Element* page) {
     g_combo = FindElement<UI::ComboElement>(page, "comboRenderScale");
     g_ui = DialogUi(page);
@@ -83,6 +104,7 @@ void Apply() {
     const int before = CurrentPercent();
     const bool changed = percent != before;
     Platform::Window::SetRenderScale(percent);
+    if (changed) PublishBackBufferSize();
     if (changed && g_ui != nullptr) {
         // P9: the same UI scale setting at the new render scale (ui_render_scale.h).
         const float was = g_ui->_uiScale;

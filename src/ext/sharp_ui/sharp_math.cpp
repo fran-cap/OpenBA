@@ -187,11 +187,15 @@ bool ScaledSheetFits(int32_t baseW, int32_t baseH, int factor) {
 int PickFontHeight(int baseHeight, float pxPerUnit, float density, bool* keepRetail) {
     *keepRetail = false;
     if (!(density > 1.0f)) {
-        // Above the slider's retail range at 1x (ext.phone_menu's slider below 75 %, a ratio up
-        // to 4): retail's scaled quads, not the base glyphs at their own pixel size spaced by the
-        // magnified advances. Inside retail's 75..150 % the selection is upstream's, unchanged.
+        // Outside the slider's retail range at 1x, on either side: retail's scaled quads, not the
+        // base glyphs at their own pixel size spaced by the layout's advances. Above it
+        // (ext.phone_menu's slider below 75 %, a ratio up to 4) the text came out small and
+        // letter-spaced; below it (a render scale under Full, where _uiScale is the UI percent over
+        // the render percent: UI 42 at Quarter is ratio 0.595) the glyphs overlapped. Inside
+        // retail's 75..150 % the selection is upstream's, unchanged.
         const int pick = PickVariantHeight(baseHeight, pxPerUnit);
-        if (pxPerUnit > kRetailRatioMax && pick == baseHeight && !NativePickFitsRatio(baseHeight, pxPerUnit))
+        if ((pxPerUnit > kRetailRatioMax || pxPerUnit < kRetailRatioMin) && pick == baseHeight &&
+            !NativePickFitsRatio(baseHeight, pxPerUnit))
             *keepRetail = true;
         return pick;
     }
