@@ -366,7 +366,9 @@ std::vector<int> FavoriteItems(int& missing, int maxRows) {
 // against the ToolbarDescription's limit), read from the town's per-template tree.
 int BuiltOf(const Item& it) {
     const GameUpdateLoop* game = GameUpdateLoop::_singleton;
-    return game == nullptr ? 0 : Toolbar_BuiltCount(game->m_citizenList, it.tmpl);
+    // no town (no game running): the helper, like retail's UpdateButtons, reads the town unguarded
+    if (game == nullptr || game->m_citizenList == nullptr) return 0;
+    return Toolbar_BuiltCount(game->m_citizenList, it.tmpl);
 }
 
 std::string RowText(const Item& it, bool withGroup, bool compact) {

@@ -162,7 +162,6 @@ static TemplateBucket* Toolbar_FindTemplateNode(const CitizenBehavior* town, con
 // The town's count of a template: the size of its +0x160 node's entity list (0 with no node). The toolbar's
 // ShowGroup and FocusEntity buttons test it, and so does the Find Buildings page (ext.building_finder).
 int32_t Toolbar_BuiltCount(const CitizenBehavior* town, const void* tmpl) {
-    if (town == nullptr) return 0;
     const TemplateBucket* node = Toolbar_FindTemplateNode(town, tmpl);
     return node != nullptr ? node->element.entities._size : 0;
 }

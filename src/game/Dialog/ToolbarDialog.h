@@ -83,6 +83,6 @@ static_assert(sizeof(ToolbarDialog) == 0x108, "ToolbarDialog is 0x108 (create 0x
 static_assert(alignof(ToolbarDialog) == 8, "ToolbarDialog is qword-aligned");
 
 // How many entities the town has built from `tmpl` (a toolbar item's template): the count the toolbar's own
-// buttons test against a ToolbarDescription's limit. 0 for a template the town has none of, or no town.
+// buttons test against a ToolbarDescription's limit. 0 for a template the town has none of.
 int32_t Toolbar_BuiltCount(const CitizenBehavior* town, const void* tmpl);
 
