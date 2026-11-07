@@ -22,6 +22,8 @@
 #include "ext/ambient_occlusion/ao_math.h"
 #include "ext/better_trees/better_trees.h"
 #include "better_trees/receiver_rewrite.h"
+#include "ext/winter_ice/winter_ice.h"      // ext.winter_ice's look (WINTERICE)
+#include "ext/winter_ice/open_mask.h"       // ...and the boat channel's default width
 #include "ext/better_water/shore_params.h"   // ext.better_water's look (BETTERWATER)   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
 
 namespace Ext {
@@ -52,6 +54,18 @@ struct Water {
     BetterWater::StripParams strip;
     BetterWater::ContactParams contact;   // Fancy's contact foam look, read by DrawShore every water range   // Fancy's shore strip look, read by DrawStrip once per frame
 };
+// ext.winter_ice (WINTERICE): the ice program's look, read by DrawIce every lake range, and a preview
+// that replaces the fronts the weather made (and the snow cover the ice program reads), so the ice can
+// be judged in any season. The preview is drawing only: nothing is saved, the sim never sees it.
+struct Ice {
+    WinterIce::IceParams p;     // freeze / thaw / offsetX / offsetY are the pass's own; the rest is the look
+    WinterIce::IceEdge edge;    // the open-water edge's noise
+    bool  preview = false;      // the fronts below instead of the weather's
+    float freeze  = 1.75f;      // the preview's freeze front (>= ice_model.h kFrozen, 1.65: the whole lake)
+    float thaw    = 0.0f;       // the preview's thaw front
+    float snow    = -1.0f;      // the preview's snow cover 0..1; < 0 = the weather's
+    WinterIce::ChannelShape channel;   // the boat channel's width, centre pull and smoothing (a new mask)
+};
 struct Bbs {
     BbsRewrite::Params p = BbsRewrite::kDefaultParams;   // ext.better_trees' basis / margin / jitter / noise / noiseScale (TS-TWEAK)
 };
@@ -64,6 +78,8 @@ Bbs  BbsValues();
 void SetBbs(const Bbs& v);
 Water WaterValues();
 void  SetWater(const Water& v);
+Ice   IceValues();
+void  SetIce(const Ice& v);
 
 }  // namespace Tweak
 }  // namespace Ext

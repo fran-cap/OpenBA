@@ -443,6 +443,16 @@ const Entry kEntries[] = {
       "Better trees",
       "Smooth leaf edges (MSAA), tree shading that no longer turns with the view, leaf-scale shadow dapple.",
       0, [](State& s) -> bool& { return s.ext.better_trees; } },
+    // WINTERICE (docs/extensions/handins/WINTERICE.md): water freezes in winter -- ice from the banks inward
+    // while it is below 32 F, the shallow sides thawing first in spring, open water round buildings in the
+    // water and along the trade boats' channel. Drawn as one more pass over each water range with our own
+    // pixel program. Class A: drawing only, nothing saved; OFF by default like no_fog, as it changes how
+    // the map looks.
+    { "winter_ice", Tier::Extension, Class::A, true,
+      "Winter ice",
+      "Lakes and rivers freeze over in cold winters: ice grows from the banks inward and melts from the "
+      "sides in spring. The trade boats' channel stays open.",
+      0, [](State& s) -> bool& { return s.ext.winter_ice; } },
     // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at 4096 when the retail
     // Shadow Resolution combo is at High; Medium / Low keep their retail sizes.
     { "max_shadow_res", Tier::Extension, Class::A, true,

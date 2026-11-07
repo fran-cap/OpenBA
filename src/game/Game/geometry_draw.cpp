@@ -44,6 +44,7 @@
 #include "ext/render_culling/render_culling.h"
 #include "ext/terrain_batch/terrain_batch.h"   // ext.terrain_batch: the row merge + the shadow chunk cull
 #include "ext/better_water/better_water.h"     // ext.better_water: the shore pass after a water range
+#include "ext/winter_ice/winter_ice.h"         // ext.winter_ice: the ice pass after a water range
 #include "object/Internal.h"   // Object::detail::InternalMemFree
 #include <atomic>
 #include <cstdint>
@@ -455,6 +456,11 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
                 mode == 0x8000 ? Ext::BetterWater::Kind::Lake : Ext::BetterWater::Kind::River;
             Ext::BetterWater::DrawShore(context, kind, range.values[1], range.values[2], range.values[0],
                                         range.values[3]);
+        }
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md): ext.winter_ice draws a water range
+        // (0x6000 rivers, 0x8000 lakes) once more with its ice pixel program while there is ice.
+        if (Ext::WinterIce::Drawing(*this)) {
+            Ext::WinterIce::DrawIce(context, range.values[1], range.values[2], range.values[0], range.values[3]);
         }
     };
 

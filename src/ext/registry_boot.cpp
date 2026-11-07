@@ -57,6 +57,7 @@
 #include "graphics/SunLight.h"  // the ext.max_shadow_res seam (DESIGN.md hook rule 5)
 #include "graphics/FrameCopyImageBuffer.h"   // the ext.better_water scene depth seam (DESIGN.md hook rule 5)
 #include "ext/better_water/better_water.h"
+#include "ext/winter_ice/winter_ice.h"
 #include "io/Persistence.h"
 #include "save/SaveLoad.h"      // the pseudo-mod seam Save::SaveLoad::_extExtraMods (DESIGN.md hook rule 5)
 #include "system/Configuration.h"
@@ -129,11 +130,13 @@ void VideoLost() {
     SharpUI::OnVideoLost();      // the sheet copies (a red dialog after a display change)
     BetterWater::OnVideoLost();  // the shore programs and twins (a GPU hang after a display change)
     MapOverlays::OnVideoLost();  // the map window's overlay image
+    WinterIce::OnVideoLost();    // the ice textures and the ice program's twins
 }
 // Engine::MainLoop::_extVideoRestored: the same objects made again, after the reload.
 void VideoRestored() {
     Resources::RestoreSheetTextures();
     MapOverlays::OnVideoRestored();
+    WinterIce::OnVideoRestored();
 }
 }  // namespace
 

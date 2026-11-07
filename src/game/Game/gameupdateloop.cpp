@@ -86,6 +86,7 @@
 // ext.building_finder (class A), Ext::BuildingFinder::BeginFrame
 #include "ext/building_finder/building_finder.h"
 #include "ext/drain_split/drain_split.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (class B), Ext::DrainSplit::BeginFrame
+#include "ext/winter_ice/winter_ice.h"         // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md): ext.winter_ice (class A), Ext::WinterIce::BeginFrame
 #include "Game/terrain_sidecar.h" // the terrain-type mirror's teardown (faithful perf work)
 #include <cstdio>
 #include <cstring>
@@ -691,6 +692,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/BUILDINGFINDER.md): ext.building_finder (A) reads its
     // hotkey once per frame
     Ext::BuildingFinder::BeginFrame(m_userInterface);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md): ext.winter_ice (A) advances the lake ice
+    // from the calendar and the temperature, keeps its textures and the open-water mask
+    Ext::WinterIce::BeginFrame();
     Ext::DrainSplit::BeginFrame();           // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (B) read once per frame, the owed half's frame count
 
     // [EVENTS] RETIRED: the BANISHED_LIVE_EVENTS resource-shortage scanner used to
