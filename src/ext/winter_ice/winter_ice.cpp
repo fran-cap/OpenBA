@@ -490,9 +490,40 @@ void SendWalkSet(Map& map, const std::vector<uint8_t>& set, bool frozen) {
                  count, frozen ? "open to walkers" : "back to water");
 }
 
-// The town's walk set onto the map (the freeze, or the first frame after a load). False when the set does
-// not fit the map (a damaged save): the town is then not walkable.
-bool ApplyWalk(Map& map, IceTown& town) {
+// The ice-surface record (walk_type.h THE SURFACE): one depth per walk cell, kept from the freeze until no ice
+// is left. The depth is the ice model's (ice_model.h): 0 at the waterline, 1 about kDepthUnit below it; a
+// deeper cell takes the middle of the deep water's patch noise (1 + kDeepSpread / 2), as the drawing does.
+constexpr float kWaterline = -0.75f;   // GetUnderWaterAmount's 0 (ext/better_water/shore_strip.h)
+constexpr float kDepthUnit = 1.5f;     // world units per depth unit (the frame copy's alpha)
+std::vector<float> g_surfaceDepth;
+
+void DropSurface() {
+    WalkOnIce::g_surface = nullptr;
+    WalkOnIce::g_surfaceBase = nullptr;
+    WalkOnIce::g_surfaceCount = 0;
+    WalkOnIce::g_surfaceThaw = 0.0f;
+    g_surfaceDepth.clear();
+}
+
+void TakeSurface(const Map& map, const WorldGeometry& geo, const std::vector<uint8_t>& set) {
+    DropSurface();
+    g_surfaceDepth.assign(set.size(), -1.0f);
+    for (size_t i = 0; i < set.size(); ++i) {
+        if (set[i] == 0) continue;
+        float depth = (kWaterline - CellHeight(geo, static_cast<int>(i), map.size)) / kDepthUnit;
+        if (depth < 0.0f) depth = 0.0f;
+        if (depth >= 1.0f) depth = 1.0f + kDeepSpread * 0.5f;
+        g_surfaceDepth[i] = depth;
+    }
+    WalkOnIce::g_surfaceBase = map.cells.GetData();
+    WalkOnIce::g_surfaceCount = static_cast<int>(g_surfaceDepth.size());
+    WalkOnIce::g_surfaceThaw = 0.0f;
+    WalkOnIce::g_surface = g_surfaceDepth.data();
+}
+
+// The town's walk set onto the map (the freeze, or the first frame after a load), and its ice surface. False
+// when the set does not fit the map (a damaged save): the town is then not walkable.
+bool ApplyWalk(Map& map, const WorldGeometry& geo, IceTown& town) {
     const size_t cells = static_cast<size_t>(map.size) * static_cast<size_t>(map.size);
     if (map.size != town.walkEdge || town.walkSet.size() != cells || map.cells.GetSize() < static_cast<int>(cells) ||
         map.pathfinder == nullptr || map.regionGraph == nullptr) {
@@ -502,10 +533,12 @@ bool ApplyWalk(Map& map, IceTown& town) {
     WalkOnIce::g_count = static_cast<int>(cells);
     WalkOnIce::g_frozen = town.walkSet.data();
     SendWalkSet(map, town.walkSet, true);
+    TakeSurface(map, geo, town.walkSet);
     return true;
 }
 
-// The walk set off the map (the thaw). The seam lets go first, so the rebuilds read water again.
+// The walk set off the map (the thaw). The seam lets go first, so the rebuilds read water again. The ice
+// surface stays (UpdateWalk lets it go with the last of the ice).
 void RemoveWalk(Map& map, IceTown& town) {
     WalkOnIce::g_frozen = nullptr;
     WalkOnIce::g_base = nullptr;
@@ -522,6 +555,9 @@ void RemoveWalk(Map& map, IceTown& town) {
 // A seam set taken for another cell array (a new game, a load) is forgotten without a word to the
 // pathfinder: that map's worker and zones went with it.
 void ForgetStaleWalk(const Map* map) {
+    if (WalkOnIce::g_surface != nullptr && (map == nullptr || WalkOnIce::g_surfaceBase != map->cells.GetData())) {
+        DropSurface();
+    }
     if (WalkOnIce::g_frozen == nullptr) return;
     if (map == nullptr || WalkOnIce::g_base != map->cells.GetData() || WalkOnIce::g_frozen != Town().walkSet.data()) {
         WalkOnIce::g_frozen = nullptr;
@@ -542,20 +578,25 @@ void UpdateWalk(GameUpdateLoop& game, IceTown& town, bool walkOn, bool flip) {
         town.walkSet = TakeWalkSet(*map, *game.m_worldGeometry);
         town.walkEdge = map->size;
         town.walkable = true;
-        if (!ApplyWalk(*map, town)) {
+        if (!ApplyWalk(*map, *game.m_worldGeometry, town)) {
             town.walkable = false;
             town.walkSet.clear();
         }
-        return;
-    }
-    if (flip && !want && town.walkable) {
+    } else if (flip && !want && town.walkable) {
         RemoveWalk(*map, town);
-        return;
-    }
-    if (walkOn && town.walkable && WalkOnIce::g_frozen == nullptr && !ApplyWalk(*map, town)) {
+    } else if (walkOn && town.walkable && WalkOnIce::g_frozen == nullptr &&
+               !ApplyWalk(*map, *game.m_worldGeometry, town)) {
         std::fprintf(stderr, "[WalkOnIce] the saved walk set does not fit the map: the lake stays water\n");
         town.walkable = false;
         town.walkSet.clear();
+    }
+    // The ice surface follows the thaw front out from the banks, and goes with the last of the ice.
+    if (WalkOnIce::g_surface != nullptr) {
+        if (!town.known || !HasIce(town.ice)) {
+            DropSurface();
+        } else {
+            WalkOnIce::g_surfaceThaw = town.walkable ? 0.0f : town.ice.thaw;
+        }
     }
 }
 
@@ -691,6 +732,7 @@ void Tick(double seconds) {
         town.known = false;   // a new game or a load (ResetAllState emptied the state), another weather
     }
     if (!town.known) {
+        DropSurface();   // ext.walk_on_ice: a surface taken for another town
         town.ice = Guess(temperature);
         town.known = true;
         town.weather = game->m_weather;

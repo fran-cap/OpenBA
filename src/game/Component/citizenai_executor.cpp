@@ -580,8 +580,8 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     // on a frozen lake cell on the ice, not on the lake bed: the tail's terrain height (the branch above,
     // taken on the last iteration of a walker that is not description-pinned) raised to the ice's top. Placed
     // after the pinned region so the literal copies (copy_drift_test.cpp) stay the faithful tail; it runs
-    // before the transform reaches the Geometry. One null test while no lake is walkable.
-    if (Ext::WalkOnIce::g_frozen != nullptr && rootOnly == 0 && !blockedHandled &&
+    // before the transform reaches the Geometry. One null test while no lake holds walkable ice.
+    if (Ext::WalkOnIce::g_surface != nullptr && rootOnly == 0 && !blockedHandled &&
         !self->characterDescription->_b3c) {
         float& z = model->transform.translation.z;
         z = Ext::WalkOnIce::OnIce(*gameWorld, pos[0], pos[1], z);

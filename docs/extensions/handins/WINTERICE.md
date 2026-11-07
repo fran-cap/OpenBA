@@ -210,6 +210,15 @@ without it.
 5. **The thaw.** Walking ends at the first thaw, while the drawn ice still lags: a citizen mid-crossing
    finishes on the ice they see (`MoveTo::Execute` never re-checks a stored path); one left standing in water
    takes retail's water-endpoint bypass in `RequestPath` and wades out (`fix.stranded_wade`'s case).
+   DONE: the height has its own record, the **surface** (`walk_type.h`), one depth per walk cell taken at
+   the freeze (the cell's height below the waterline -0.75 in the model's depth units of 1.5; a deep cell
+   at 1 + `kDeepSpread` / 2). It outlives the walk set: after the thaw a walker stays on the ice where the
+   thaw front has not reached its cell's depth and wades where it has, and the record goes with the last
+   of the ice (`HasIce` false), a new town or another map. Drawing only, not saved: a load during the
+   melt puts walkers on that lake at retail's height. Stress town, speed 10: walkers on the former ice
+   fell from about 137 per frame at the thaw to none about 14,400 ticks later (crossings planned before
+   the thaw, finishing); the walkers held on the ice followed the thaw front down to none; afterwards
+   0 to 5 per frame stand on rim cells by the bank, where retail lets walkers wade, and animals.
 6. **Verify:** unit, a winter crossing in game (the showroom bench, section 4's lake on seed 12345),
    gate and resave with the row off (faithful untouched) and on.
 

@@ -151,6 +151,10 @@ namespace WalkOnIce {
 const uint8_t* g_frozen = nullptr;
 const MapCell* g_base = nullptr;
 int g_count = 0;
+const float* g_surface = nullptr;
+const MapCell* g_surfaceBase = nullptr;
+int g_surfaceCount = 0;
+float g_surfaceThaw = 0.0f;
 }  // namespace WalkOnIce
 
 namespace WinterIce {

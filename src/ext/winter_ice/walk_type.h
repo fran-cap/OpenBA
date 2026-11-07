@@ -37,20 +37,30 @@ extern int g_count;
 // ext/better_water/shore_strip.h kWaterTop).
 inline constexpr float kIceTopZ = -0.75f + 12.0f / 256.0f;
 
-// A walker's height on a frozen cell (WINTERICE.md 5.3 step 4): `z` is the height retail's move tick gives it
-// (CharacterComponent_MoveTick_1094c0: the terrain, floored at the description's +0x44), the lake bed under
-// the ice; on a frozen cell it is raised to the ice. (x, y) is the world position; the cell is the one
-// Map::GetTerrainPos 0x14009f3e0 picks (clamped to the map).
+// THE SURFACE (WINTERICE.md 5.3 steps 4 and 5): where a walker is drawn standing on the ice. Taken with the
+// walk set at the freeze, one float per cell: the cell's depth in the ice model's units (ice_model.h; -1 = not
+// a walk cell). It outlives the walk set: pathing closes on the first thaw, while the drawn ice melts from
+// the banks over the next weeks, so a walker still out on the lake stays on the ice wherever the thaw front
+// has not reached its cell's depth, and wades (retail's height) where it has. Dropped once no ice is left.
+// Drawing only: the height is the model's, no sim reads it. Null = none (faithful: one null test per walker).
+extern const float* g_surface;       // g_surfaceCount depths, indexed like the cell array g_surfaceBase
+extern const MapCell* g_surfaceBase;
+extern int g_surfaceCount;
+extern float g_surfaceThaw;          // the thaw front (0 while the lake is walkable)
+
+// A walker's height (`z`: what retail's move tick gives it, CharacterComponent_MoveTick_1094c0: the terrain,
+// floored at the description's +0x44, the lake bed under the ice), raised to the ice where the surface says
+// there is ice under (x, y) (world position; the cell Map::GetTerrainPos 0x14009f3e0 picks, clamped).
 inline float OnIce(const Map& map, float x, float y, float z) {
-    const uint8_t* frozen = g_frozen;
-    if (frozen == nullptr || map.cells.GetData() != g_base) return z;
+    const float* surface = g_surface;
+    if (surface == nullptr || map.cells.GetData() != g_surfaceBase) return z;
     const int dim = map.size;
     int ix = static_cast<int>(x + static_cast<float>(dim >> 1));
     int iy = static_cast<int>(y + static_cast<float>(dim >> 1));
     ix = ix < 0 ? 0 : (ix >= dim ? dim - 1 : ix);
     iy = iy < 0 ? 0 : (iy >= dim ? dim - 1 : iy);
     const int64_t i = static_cast<int64_t>(dim) * iy + ix;
-    if (i < 0 || i >= g_count || frozen[i] == 0) return z;
+    if (i < 0 || i >= g_surfaceCount || !(surface[i] > g_surfaceThaw)) return z;
     return z < kIceTopZ ? kIceTopZ : z;
 }
 
