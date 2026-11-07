@@ -117,17 +117,76 @@ A bridge writes a land type into its cells, so it does not count.
 - Not yet run: Vulkan, Metal, Android; the thaw sequence over real game time; the menu after leaving a
   winter game (the logic is in, not exercised); a device restart with ice showing.
 
-## 5. Phase 2: walkable ice (PARKED by the user, 2026-11-06)
+## 5. Phase 2: walkable ice (`ext.walk_on_ice`, PLANNED)
 
-A class C row of its own (`ext.walk_on_ice`, owner `winter_ice`) that saves the two fronts and makes
-lake cells walkable while `Solid()` (`ice_model.h`). Ruled with the user, 2026-11-06:
+A class C row of its own, `ext.walk_on_ice` (display "Walk on ice", owner `winter_ice`), **OFF by
+default** (the B / C rule). Citizens and animals may cross a frozen lake while it is solid from bank to
+bank. Ruled with the user, 2026-11-06 and 2026-11-07:
 
-- Rivers freeze too (revised 2026-11-06), the boat channel drawn open. Whether citizens may walk the
-  river ice and the channel is phase 2's call; the channel is drawing only in phase 1.
-- Terrain types are not rewritten (boat routes use mask 0x380, fishing tests its terrain mask, and the
-  types are saved): while frozen the zone flood (`Map::FillZones`) and `Map::RequestPath`'s mask treat
-  the lake cells as land, and the region graph floods across them. One re-flood at freeze, one at thaw.
-- Walking ends on the first warm day while the drawn ice lags behind it, so a citizen mid-crossing
-  finishes on ice (`MoveTo::Execute` never re-checks a stored path); one left on the wrong bank is
-  `fix.stranded_wade`'s case.
-- The water in front of a fishing dock stays open (the mask of section 3), so fishing goes on.
+- **Timing:** walkable only while the whole lake is solid (`Solid()`, `ice_model.h`): never while the
+  banks are icing over in early winter, never once the spring thaw has started. So two flips a winter:
+  one at freeze, one at the first thaw.
+- **Lakes only, never rivers** (2026-11-07). Rivers ice over in the drawing but stay a barrier: bridges
+  keep their winter value.
+- **Terrain types are not rewritten.** Boat routes use mask 0x380, fishing tests its terrain mask,
+  placement reads the type, and the types are saved; none of them may see the ice.
+- The water round a building in the water (fishing dock, trading post) and the boat channel stay open
+  and are never walkable (the mask of section 3), so fishing and trade go on.
+
+### 5.1 Which cells
+
+A cell is walkable ice while the ice is solid when all of these hold:
+
+- its terrain type is water (7 / 8);
+- it lies under a **lake** quad of the water mesh: `WorldGeometry::_contourRangesB` (mode 0x8000, one
+  heightmap quad per cell, `BuildWaterShores`), and under no **river** strip (`_contourRangesA`, mode
+  0x6000, `BuildWaterBodies`). Both stay in memory after the build and after a load (ext.terrain_edit
+  reads them the same way). A cell under both counts as river: the ruling wins over a wider lake;
+- its open-mask value is below one half (no dock hole, no boat channel).
+
+The set is computed in the game tick at the flip, never from the drawing's mask, whose rebuild is timed
+by frames.
+
+### 5.2 The seam: frozen cells read as type 9
+
+The citizen walk mask 0xe1f is written at about 25 call sites, but whether a cell can be walked is read
+from its terrain type in only a few shared places. While the lake is walkable those places read a
+frozen cell as **type 9**, retail's bridge-cell type: in 0xe1f (citizens walk it) and in the boats' 0x380
+(boats sail it), so "walk over, sail under" is exactly what retail already does under every bridge and
+a boat route recomputed in mid-winter always exists. Profile 0's step cost for 9 is 3, a bridge's or a
+road's (grass: 4); boats pay 5 instead of deep water's 1 off the open channel.
+
+| Reader | Where |
+|---|---|
+| zone flood | `Map::FillZones` / `Map::FillZone` (`action_pf_roots_road.cpp`, `action_pf_astar.cpp`) |
+| region graph flood | `Walkable()` in `action_pf_region.cpp` (six call sites) |
+| walk test | `Map::RequestPath` (`action_base_move.cpp`), `Map::ValidateCell` (`work_base_reimpl.cpp`), the route query's 0xe07 test (`action_pf_roots_route.cpp`) |
+| the worker's grid | `PathfinderThread::SetCellTerrain`, sent for each flipped cell |
+
+`MapCell::terrainType` and the terrain side-car keep the water type, so `MoveTo`'s speed read, fishing,
+placement, roads, saves and both ice passes see water. At each flip, per changed cell: `field_0xA2`
+(zones stale), `regionGraph->MarkCellDirty`, `SetCellTerrain` with 9 (freeze) or the real type (thaw);
+retail's lazy rebuilds do the rest, and `PathDistance` (job choice) sees the shortcut. The readers take
+the frozen bit from a side array keyed like the side-car, selected once per game (DESIGN.md rule 3);
+with the row off they read the type as today.
+
+### 5.3 Build order
+
+1. **The ice in the game tick.** `BeginFrame` steps the fronts once per frame from the calendar change
+   (frame-rate dependent: fine for a drawing, not for the sim). The step moves to the sim loop, after
+   `WeatherSimulation::Update` (`gameupdateloop.cpp` step 3e), with the tick's own time; the drawing
+   reads the same state. With only `winter_ice` on nothing changes for the player.
+2. **The row and its save.** `ext.walk_on_ice` in the registry, a class C codec (`src/ext/savetail.h`)
+   carrying the two fronts and the walkable flag, its own resave golden. Without it a load restarts
+   from `Guess(temperature)` and the lake could open on a different day than in an unbroken game.
+3. **The cell set and the flips** (5.1, 5.2), with a unit test of the set on a made-up map.
+4. **Height.** `GetTerrainPos` answers the heightmap, the lake bed under the ice: a walker on a frozen
+   cell is held at the water surface in the character's position update (not in `GetTerrainPos`
+   itself, or items dropped on the ice would float after the thaw).
+5. **The thaw.** Walking ends at the first thaw, while the drawn ice still lags: a citizen mid-crossing
+   finishes on the ice they see (`MoveTo::Execute` never re-checks a stored path); one left standing in water
+   takes retail's water-endpoint bypass in `RequestPath` and wades out (`fix.stranded_wade`'s case).
+6. **Verify:** unit, a winter crossing in game (the showroom bench, section 4's lake on seed 12345),
+   gate and resave with the row off (faithful untouched) and on.
+
+Animals share the zones, so deer and herds cross too: accepted, not special-cased.
