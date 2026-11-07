@@ -92,9 +92,9 @@ constexpr int kProbeFrames = 10;       // how often the town is read again
 
 // The shape the window's code relies on (retail's Profession.rsc:professionRow): the name label, the
 // spinner with its number edit, "of", the worker slots, the goto arrow. A mod that rebuilds Profession.rsc
-// may not keep it, so it is checked once on a throwaway row before any of its children are touched.
-enum { kShapeUnknown = 0, kShapeOk = 1, kShapeOdd = 2 };
-int g_rowShape = kShapeUnknown;
+// may not keep it, so it is checked on a throwaway row, at every open, before any of its children are
+// touched. Not cached: applying a mod change reloads the game's resources in the same run
+// (ModDialog::Apply -> CloseAndReload), so an answer from before a reload can be stale either way.
 
 bool RowIsRetails(const UI::ElementDescription* rowDesc, const UI::Dialog* dialog) {
     if (rowDesc == nullptr) return false;
@@ -213,10 +213,7 @@ public:
         }
         // the row's description is the table's own template item (Profession.rsc:professionRow)
         rowDesc_ = table->Child(0).Get()->_description;
-        if (g_rowShape == kShapeUnknown) {
-            g_rowShape = RowIsRetails(rowDesc_, dialog_) ? kShapeOk : kShapeOdd;
-        }
-        if (g_rowShape != kShapeOk) {
+        if (!RowIsRetails(rowDesc_, dialog_)) {
             // a mod rebuilt Profession.rsc: Toggle closes this window and retail's opens instead
             declined_ = true;
             return;
@@ -735,7 +732,7 @@ public:
 }  // namespace
 
 bool Handles(const UIDescription* ui) {
-    if (ui == nullptr || !::Ext::Ext().dynamic_professions || g_rowShape == kShapeOdd) return false;
+    if (ui == nullptr || !::Ext::Ext().dynamic_professions) return false;
     for (int i = 0; i < ui->_entryCount; ++i) {
         if (static_cast<uint32_t>(ui->_entries[i].type) != ProfessionUI::TypeId()) continue;
         // only retail's own layout (Dialog/Profession.rsc:content): MegaMod's sized variants

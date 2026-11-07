@@ -8,8 +8,7 @@
 //     (ContainerDescription::CreateInstance 0x1800ccb90); the clip region (UI::ClipRegionElement) holds
 //     the content as its child 0 and measures it (`_innerWidth` / `_innerHeight`). The container's height
 //     is its `_requestedHeight` when that is positive (shrunk to the content when `_allowShrinkHeight` is
-//     set),
-//     the content's otherwise; the clip region gets what is left after the bars (ContainerElement::
+//     set), the content's otherwise; the clip region gets what is left after the bars (ContainerElement::
 //     ComputeSize 0x1800cc850). So a list is capped by writing its instance's `_requestedHeight`, and
 //     the scroll bar, its thumb and the wheel follow by themselves.
 //   * Element owns its children by raw pointer (`_children`, deleted by RemoveChildren 0x180115570) and
