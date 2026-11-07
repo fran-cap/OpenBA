@@ -218,7 +218,7 @@ void RemovalTool::Draw(Video::Context* ctx, char param3) {
     if (param3 == '\0') {
         int startCell, endCell;
 
-        if (dragState == '\0') {
+        if (dragState == DragState::Idle) {
             // Not dragging — pick cell under cursor
             int cell = PlayerRay_ScreenToCell_101270(nullptr);
             startCell = cell;

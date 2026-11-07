@@ -886,8 +886,11 @@ template <int kWalk>
     if (prof) { Platform::PerfCounter(&pq1); g_elProfTreeTicks += pq1 - pq0; pq0 = pq1; }
 
     // Step 4: 5-bucket round-robin
-    g_samplerTag = 8;   // [Sampler] sub-tag: bucket (slot-9) ticks; restored to 4 at the end
-    struct BucketTagReset { ~BucketTagReset() { g_samplerTag = 4; } } bucketTagReset;
+    g_samplerTag = static_cast<int>(SamplerTag::EntityListBuckets);   // [Sampler] sub-tag: bucket (slot-9) ticks
+    // the tag goes back to EntityList at the end
+    struct BucketTagReset {
+        ~BucketTagReset() { g_samplerTag = static_cast<int>(SamplerTag::EntityList); }
+    } bucketTagReset;
     int64_t currentTime = accumulatedTime._ticks;
 
     for (int bucket = 0; bucket < 5; bucket++) {

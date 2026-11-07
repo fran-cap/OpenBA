@@ -70,7 +70,7 @@ public:
     using CitizenRefList = Collection::Array<Object::InternalPtr<CitizenComponent>, Collection::DefaultAllocator,
                                              Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
     CitizenRefList field_58;     // +0x58 (count +0x60, capacity +0x64)
-    // +0x68: per output position state (Persist's int-array overload); grows through
+    // +0x68: per output position WorkSpotState (Persist's int-array overload); grows through
     // 0x1400021d0 (stride 4, the new tail left as found): Array<int32_t>'s trait row.
     Collection::Array<int32_t> field_68;   // +0x68 (count +0x70, capacity +0x74)
 };

@@ -64,7 +64,7 @@ public:
     using CitizenRefList = Collection::Array<Object::InternalPtr<CitizenComponent>, Collection::DefaultAllocator,
                                              Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
     CitizenRefList citizenRefs;  // +0x48 (count +0x50, capacity +0x54)
-    // +0x58: per-spot state (0=avail, 1=assigned, 2=done); grows through 0x1400021d0
+    // +0x58: per-spot WorkSpotState (0 Available, 1 InUse, 2 NeedsReset); grows through 0x1400021d0
     // (stride 4, the new tail left as found): Array<int32_t>'s trait row.
     Collection::Array<int32_t> spotStates;   // +0x58 (count +0x60, capacity +0x64)
     int32_t  retryCount;         // +0x68: retry counter for fishing spot search

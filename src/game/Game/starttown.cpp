@@ -95,6 +95,7 @@
 
 #include "Component/SpawnComponent.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"   // BuildingState::Built (the +0x52 stamp)
 #include "Component/StorageComponent.h"
 #include "Component/StorageLocationComponent.h"
 #include "Component/WorkPlaceComponent.h"
@@ -2110,7 +2111,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             if (StartTown_InstantBuildPath()) {
                 /* deferred: see the post-RegisterEntity fallback */
             } else if (bsComp) {
-                bsComp->stateMachine.pendingState = 2;  // built/complete (build state graph state 2)
+                bsComp->stateMachine.pendingState = StateByte(BuildingState::Built);  // build state graph state 2
                 fprintf(stderr, "[startTown::struct] [%d] stamped StateMachineComponent+0x52=2 (built)\n",
                         logIndex);
                 fflush(stderr);
@@ -2176,8 +2177,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
             int cur = smPost ? smPost->stateMachine.currentInput : -1;
             int pend = smPost ? smPost->stateMachine.pendingState : -1;
             int delivered = bcPost ? bcPost->laborProgress : -1;
-            if (smPost && cur != 2 && pend != 2) {
-                smPost->stateMachine.pendingState = 2;
+            if (smPost && cur != SmId(BuildingState::Built) && pend != SmId(BuildingState::Built)) {
+                smPost->stateMachine.pendingState = StateByte(BuildingState::Built);
                 fprintf(stderr, "[startTown::struct] [%d] instant-path FALLBACK: state(+0x50)=%d "
                         "pending(+0x52)=%d -> stamped pending 2 (buildComp=%p)\n",
                         logIndex, cur, pend, bcPost);

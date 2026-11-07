@@ -763,7 +763,7 @@ static bool StopForMissingGameData(const char* cmdLine) {
     const std::string detail = std::string(GameData::VerdictName(r.verdict)) + " " + r.folder;
     fprintf(stderr, "[BootState] NO_GAME_DATA %s (exit code %d)\n", detail.c_str(),
             GameData::kExitNoGameData);
-    BootState::SetExitState("NO_GAME_DATA", detail.c_str());
+    BootState::SetExitState(BootState::BootStateName(BootState::BootStateId::NoGameData), detail.c_str());
     if (!Opt().unattendedBoot) {
         const std::string text = GameData::MessageText(r, Platform::App::MissingGameDataHelp());
         // The label is padded: SDL's Android box sizes the button to its text, and a bare "OK" is a

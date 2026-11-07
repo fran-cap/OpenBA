@@ -34,6 +34,7 @@
 #include "Component/ImmigrationComponent.h"   // the nomad harness: the town hall's controller
 #include "Component/ImmigrationDescription.h" //   its thresholds and month window
 #include "Component/StateMachineComponent.h"  //   the node the answer events go through
+#include "Component/BuildingState.h"          //   the answer event ids (BuildingEvent)
 #include "Entity/EntityList.h"                //   the master entity array (town hall scan)
 #include "Game/Calendar.h"                    //   the month of the year
 #include <cmath>
@@ -728,7 +729,13 @@ void SpouseProbe(int frameNum) {
 // may marry them (the candidate is beyond the window older for him, younger for her).
 // Then it sets her age inside the window, and the pair must marry within 1800 frames.
 // Every marriage itself is the game's own Update -> FindSpouse.
-int s_organicStage = 0;       // 0 not started, 1 apart, 2 inside the window, 3 done
+enum class OrganicStage : int {
+    NotStarted   = 0,  // picks two founding couples and widows them
+    Apart        = 1,  // her age beyond the window: the pair must not marry for 1800 frames
+    InsideWindow = 2,  // her age inside the window: the pair must marry within 1800 frames
+    Done         = 3,  // PASS or any FAIL; the tick runs the stage only below this
+};
+OrganicStage s_organicStage = OrganicStage::NotStarted;
 int s_organicFrame = 0;
 CitizenComponent* s_widower = nullptr;
 CitizenComponent* s_widow = nullptr;
@@ -736,7 +743,7 @@ CitizenComponent* s_widow = nullptr;
 void SpouseOrganic(int frameNum) {
     Object::InternalPtr<CitizenComponent>* list; int n; CitizenBehavior* townMgr;
     if (!TownList(&list, &n, &townMgr)) return;
-    if (s_organicStage == 1 || s_organicStage == 2) {
+    if (s_organicStage == OrganicStage::Apart || s_organicStage == OrganicStage::InsideWindow) {
         // The pair is held across up to 3600 frames: either one may have died and been
         // freed since. Read them only while both are still in the town list (review F-273).
         bool widowerLive = false;
@@ -750,11 +757,11 @@ void SpouseOrganic(int frameNum) {
             std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: citizen gone (widower %s, widow %s)\n",
                          frameNum, widowerLive ? "here" : "gone", widowLive ? "here" : "gone");
             std::fflush(stderr);
-            s_organicStage = 3;
+            s_organicStage = OrganicStage::Done;
             return;
         }
     }
-    if (s_organicStage == 0) {
+    if (s_organicStage == OrganicStage::NotStarted) {
         CitizenComponent* wifeOfA = nullptr;
         CitizenComponent* husbandOfB = nullptr;
         for (int i = 0; i < n; i++) {
@@ -774,7 +781,7 @@ void SpouseOrganic(int frameNum) {
             std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: no two founding couples to widow\n",
                          frameNum);
             std::fflush(stderr);
-            s_organicStage = 3;
+            s_organicStage = OrganicStage::Done;
             return;
         }
         wifeOfA->HandleLifeEvent(3, nullptr);                      // 0x140116dd0
@@ -786,35 +793,35 @@ void SpouseOrganic(int frameNum) {
                      frameNum, static_cast<void*>(s_widower), s_widower->age,
                      static_cast<void*>(s_widow), s_widow->age, w,
                      static_cast<void*>(s_widower->spouse.Get()), static_cast<void*>(s_widow->spouse.Get()));
-        s_organicStage = 1;
+        s_organicStage = OrganicStage::Apart;
         s_organicFrame = frameNum;
-    } else if (s_organicStage == 1) {
+    } else if (s_organicStage == OrganicStage::Apart) {
         if (s_widower->spouse != nullptr || s_widow->spouse != nullptr) {
             std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: married beyond the window (spouses "
                          "%p / %p, ages %.2f / %.2f)\n", frameNum,
                          static_cast<void*>(s_widower->spouse.Get()), static_cast<void*>(s_widow->spouse.Get()),
                          s_widower->age, s_widow->age);
-            s_organicStage = 3;
+            s_organicStage = OrganicStage::Done;
         } else if (frameNum - s_organicFrame >= 1800) {
             const float w = s_widower->description->_f4c;
             std::fprintf(stderr, "[SpouseOrganic] beyond ok frame %d: no marriage in %d frames at a gap "
                          "of %.2f (window %.2f); setting her age inside it\n", frameNum,
                          frameNum - s_organicFrame, s_widow->age - s_widower->age, w);
             s_widow->age = s_widower->age + w * 0.5f;
-            s_organicStage = 2;
+            s_organicStage = OrganicStage::InsideWindow;
             s_organicFrame = frameNum;
         }
-    } else if (s_organicStage == 2) {
+    } else if (s_organicStage == OrganicStage::InsideWindow) {
         if (s_widower->spouse.Get() == s_widow && s_widow->spouse.Get() == s_widower) {
             std::fprintf(stderr, "[SpouseOrganic] PASS frame %d: married inside the window after %d "
                          "frames (ages %.2f / %.2f)\n", frameNum, frameNum - s_organicFrame,
                          s_widower->age, s_widow->age);
-            s_organicStage = 3;
+            s_organicStage = OrganicStage::Done;
         } else if (frameNum - s_organicFrame >= 1800) {
             std::fprintf(stderr, "[SpouseOrganic] FAIL frame %d: not married inside the window "
                          "(spouses %p / %p)\n", frameNum, static_cast<void*>(s_widower->spouse.Get()),
                          static_cast<void*>(s_widow->spouse.Get()));
-            s_organicStage = 3;
+            s_organicStage = OrganicStage::Done;
         }
     }
     std::fflush(stderr);
@@ -834,7 +841,15 @@ void SpouseOrganic(int frameNum) {
 // Needs a town CanAccept passes: population >= desc+0x28 (8 in the shipped data) and the
 // required buildings, and a town hall to carry the ImmigrationComponent: the stress town is
 // the one town that founds one (tools/harness_route.sh immigration).
-int  s_answered     = 0;      // groups answered so far (0: none, 1: allowed, 2: denied)
+// The answers given so far, advanced by one per answer; Failed is reached only by a failed check.
+// The ordered compares (>= Denied, >= Failed) rely on the numeric order.
+enum class NomadAnswerStage : int {
+    None    = 0,  // waiting for the first group at the hall
+    Allowed = 1,  // the first group was allowed (event 7); waiting for the second
+    Denied  = 2,  // the second group was denied (event 8): stop driving, still verify
+    Failed  = 3,  // a check failed: stop driving
+};
+NomadAnswerStage s_answered = NomadAnswerStage::None;   // answers so far; Failed after a failed check
 int  s_arrivedPolls = 0;      // consecutive polls with the whole group at the hall
 int  s_answerGroup  = 0;      // the group size the last answer was given for
 int  s_admittedBefore = 0;    // townMgr+0x1b0 before the last answer
@@ -870,7 +885,7 @@ void VerifyAnswer(int frameNum, ImmigrationComponent* imm, CitizenBehavior* town
         if (c->profession == nullptr) nullProfession++;           // +0x1f0
     }
     bool ok;
-    if (s_answered == 1) {
+    if (s_answered == NomadAnswerStage::Allowed) {
         ok = imm->group._size == 0 && admitted == s_answerGroup && added >= s_answerGroup &&
              nullProfession == 0;
         std::fprintf(stderr, "[NomadHarness] %s frame %d: ALLOW of %d -> admitted(+0x1b0) +%d, "
@@ -887,14 +902,14 @@ void VerifyAnswer(int frameNum, ImmigrationComponent* imm, CitizenBehavior* town
             std::fprintf(stderr, "[NomadHarness] PASS frame %d: one group allowed, one denied\n",
                          frameNum);
     }
-    if (!ok) s_answered = 3;                                      // stop driving
+    if (!ok) s_answered = NomadAnswerStage::Failed;               // stop driving
     std::fflush(stderr);
 }
 
 void NomadHarness(int frameNum) {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     if (!gw || !gw->m_citizenList || !gw->m_entityList) return;
-    if (s_answered >= 3) return;
+    if (s_answered >= NomadAnswerStage::Failed) return;
     CitizenBehavior* townMgr = gw->m_citizenList;
     // Looked up on every poll, never cached: the hall can be demolished and freed, and
     // a new world builds a new one (review F-273).
@@ -909,7 +924,7 @@ void NomadHarness(int frameNum) {
     const float secs = gw->m_dayCounter->yearTime.AsSeconds();   // +0x128
     const int month = static_cast<int>((secs / 3600.0f) * 12.0f);
     if (s_verifyPending) VerifyAnswer(frameNum, imm, townMgr);
-    if (s_answered >= 2) return;
+    if (s_answered >= NomadAnswerStage::Denied) return;
     const bool arrived = imm->group._size > 0 && imm->arrivedCount == imm->group._size;
     std::fprintf(stderr, "[NomadHarness] frame %d: month %d (arrive %d..%d, leave %d) pop %d "
                  "(min %d) canAccept %d state[%d] pending %d wait(+0x48) %lld group %d arrived %d\n",
@@ -922,7 +937,7 @@ void NomadHarness(int frameNum) {
         std::fprintf(stderr, "[NomadHarness]   cut the wait to one tick\n");
     }
     // The answer goes in once the whole group has stood at the hall for a full poll, so
-    // the 0x10 -> 0x11 transition OnArrived requested has run.
+    // the 0x10 -> 0x11 (ImmigrationArriving -> ImmigrationAnswer) transition OnArrived requested has run.
     s_arrivedPolls = arrived ? s_arrivedPolls + 1 : 0;
     if (s_arrivedPolls >= 2 && smc->stateMachine.pendingState < 0) {
         s_beforeAnswer.clear();
@@ -930,10 +945,12 @@ void NomadHarness(int frameNum) {
             s_beforeAnswer.insert(townMgr->citizens._data[i].Get());
         s_answerGroup = imm->group._size;
         s_admittedBefore = townMgr->field_0x1B0;
-        s_answered++;
-        const int eventId = (s_answered == 1) ? 7 : 8;
+        s_answered = static_cast<NomadAnswerStage>(static_cast<int>(s_answered) + 1);
+        const int eventId = (s_answered == NomadAnswerStage::Allowed) ? SmId(BuildingEvent::AllowImmigrants)
+                                                                      : SmId(BuildingEvent::DenyImmigrants);
         std::fprintf(stderr, "[NomadHarness] frame %d: group of %d at the hall -> %s (event %d)\n",
-                     frameNum, s_answerGroup, eventId == 7 ? "ALLOW" : "DENY", eventId);
+                     frameNum, s_answerGroup,
+                     eventId == SmId(BuildingEvent::AllowImmigrants) ? "ALLOW" : "DENY", eventId);
         PostHallEvent(imm, eventId);
         s_arrivedPolls = 0;
         s_verifyPending = true;
@@ -949,7 +966,8 @@ extern "C" void CitizenDeathHarness_Tick(int frameNum) {
         s_firedProbe = true;
         SpouseProbe(frameNum);
     }
-    if (s_firedProbe && s_organicStage < 3 && frameNum >= s_spouseProbe + 600 && (frameNum % 60) == 0)
+    if (s_firedProbe && s_organicStage < OrganicStage::Done && frameNum >= s_spouseProbe + 600 &&
+        (frameNum % 60) == 0)
         SpouseOrganic(frameNum);
 
     if (s_nomadPeriod > 0 && frameNum > 0 && (frameNum % s_nomadPeriod) == 0)

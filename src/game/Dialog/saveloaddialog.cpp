@@ -389,7 +389,7 @@ void SaveLoadDialog::PopulateFileList() {
 // Sets cancel button's shortcut key (ButtonElement::_keyIndex = 8).
 // Sets refresh flag (+0xBB = 1) to trigger file list population.
 // Copies the container's SaveLoadEmpty sprite (+0xB8) to the SaveLoad singleton.
-// Calls SetMinOperationTime(0.75f) and SetOperation(1, mode).
+// Calls SetMinOperationTime(0.75f) and SetOperation(kOpList, mode).
 
 void SaveLoadDialog::OnOpened() {
     // --- Find all named elements ---
@@ -431,9 +431,9 @@ void SaveLoadDialog::OnOpened() {
     if (Ext::Ext().quick_screens) timeVal._ticks = Ext::QuickScreens::kNoMinOperationTime;
     ::Save::SaveLoad::_singleton->SetMinOperationTime(timeVal);
 
-    // --- Start operation: 1 (list/scan), param = -2 or -3 based on mode ---
+    // --- Start operation: kOpList (list/scan), param = -2 or -3 based on mode ---
     int opParam = -2 - (int)(mode != 0);
-    ::Save::SaveLoad::_singleton->SetOperation(static_cast<Save::SaveLoad::Operation>(1), opParam);
+    ::Save::SaveLoad::_singleton->SetOperation(Save::SaveLoad::kOpList, opParam);
 }
 
 // ============================================================
@@ -442,9 +442,9 @@ void SaveLoadDialog::OnOpened() {
 // Original: 0x1400b6880
 //
 // Two main states:
-// 1. Operation active (op != 0) OR any flag set: Show loading page (page 0),
+// 1. Operation active (op != kOpNone) OR any flag set: Show loading page (page 0),
 //    rotate loading spinner, show/hide text based on operation type.
-// 2. Idle (op == 0, no flags): Show main page (page 1), enable/disable buttons,
+// 2. Idle (op == kOpNone, no flags): Show main page (page 1), enable/disable buttons,
 //    iterate save entries to show/hide selection highlights.
 
 void SaveLoadDialog::OnUpdateLayout() {
@@ -464,7 +464,7 @@ void SaveLoadDialog::OnUpdateLayout() {
     // buttonLoad (+0x148): visible in load mode
     if (buttonLoad) buttonLoad->SetFlagsOnOff(isLoadMode, 0);
 
-    int operation = saveLoad->GetOperation();
+    Save::SaveLoad::Operation operation = saveLoad->GetOperation();
 
     // Check if any operation is in progress or any deferred flag is set
     bool anyFlagsSet = (refreshFlag != 0) ||
@@ -472,7 +472,7 @@ void SaveLoadDialog::OnUpdateLayout() {
                        (loadFlag != 0) ||
                        (deleteFlag != 0);
 
-    if (operation == 0 && !anyFlagsSet) {
+    if (operation == Save::SaveLoad::kOpNone && !anyFlagsSet) {
         // --- IDLE STATE: show main page, update buttons and entry list ---
         if (mainPage) mainPage->SetActivePage(1);
 
@@ -553,19 +553,19 @@ void SaveLoadDialog::OnUpdateLayout() {
     }
 
     // --- Show/hide status text based on operation type ---
-    // Operation types: 1 = listing, 2 = saving, 4 = deleting
-    if (operation == 1) {
+    // Operation types: kOpList = listing, kOpLoad = loading, kOpSave = saving
+    if (operation == Save::SaveLoad::kOpList) {
         // Listing: show textPleaseWait, hide textLoading, hide textSaving
         if (textPleaseWait) textPleaseWait->SetFlagsOnOff(0, UI::kElementFlagHidden);
         if (textLoading) textLoading->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         if (textSaving) textSaving->SetFlagsOnOff(UI::kElementFlagHidden, 0);
-    } else if (operation == 2) {
-        // Saving: hide textPleaseWait, show textLoading, hide textSaving
+    } else if (operation == Save::SaveLoad::kOpLoad) {
+        // Loading: hide textPleaseWait, show textLoading, hide textSaving
         if (textPleaseWait) textPleaseWait->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         if (textLoading) textLoading->SetFlagsOnOff(0, UI::kElementFlagHidden);
         if (textSaving) textSaving->SetFlagsOnOff(UI::kElementFlagHidden, 0);
-    } else if (operation == 4) {
-        // Deleting: hide textPleaseWait, hide textLoading, show textSaving
+    } else if (operation == Save::SaveLoad::kOpSave) {
+        // Saving: hide textPleaseWait, hide textLoading, show textSaving
         if (textPleaseWait) textPleaseWait->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         if (textLoading) textLoading->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         if (textSaving) textSaving->SetFlagsOnOff(0, UI::kElementFlagHidden);
@@ -582,7 +582,7 @@ void SaveLoadDialog::OnUpdateLayout() {
 // Phase 1 — While Save::SaveLoad operation is non-zero (file I/O in progress):
 //   Accumulate rotation angle at +0xC8 (180 deg/sec from time param).
 //
-// Phase 2 — When operation reaches 0 (I/O complete), process one deferred flag:
+// Phase 2 — When operation reaches kOpNone (I/O complete), process one deferred flag:
 //
 //   deleteFlag (+0xBC): delete completed.
 //     Set refreshFlag, clear deleteFlag (one word store in retail), start re-list operation.
@@ -607,15 +607,15 @@ void SaveLoadDialog::OnUpdate(const System::Time& time) {
     Save::SaveLoad* saveLoad = ::Save::SaveLoad::_singleton;
 
     // Phase 1: accumulate spinner rotation while I/O is in progress
-    int operation = saveLoad->GetOperation();
-    if (operation != 0) {
+    Save::SaveLoad::Operation operation = saveLoad->GetOperation();
+    if (operation != Save::SaveLoad::kOpNone) {
         float elapsed = time.AsSeconds();
         rotation += elapsed * 180.0f;
     }
 
     // Re-check — may have just completed this frame
     operation = saveLoad->GetOperation();
-    if (operation != 0) return;
+    if (operation != Save::SaveLoad::kOpNone) return;
 
     // Phase 2: I/O complete, process one deferred flag (priority order matches original)
 
@@ -623,7 +623,7 @@ void SaveLoadDialog::OnUpdate(const System::Time& time) {
     if (deleteFlag != 0) {
         refreshFlag = 1;   // retail: one word store at +0xBB (refresh 1, delete 0)
         deleteFlag = 0;
-        saveLoad->SetOperation(static_cast<Save::SaveLoad::Operation>(1), -2 - (int)(mode != 0));
+        saveLoad->SetOperation(Save::SaveLoad::kOpList, -2 - (int)(mode != 0));
         return;
     }
 
@@ -786,7 +786,7 @@ static int SaveLoad_ShowConfirmDialog(SaveLoadDialog* self, const char* rscPath)
 // DoDelete (0x1400b5e50): Show confirmDelete dialog, then trigger delete operation.
 // ============================================================
 // Shows "Dialog/SaveLoad.rsc:confirmDelete" dialog.
-// If user confirms (result == 2): sets deleteFlag (+0xBC = 1), starts operation 5.
+// If user confirms (result == 2): sets deleteFlag (+0xBC = 1), starts operation kOpDelete.
 // Original: 0x1400b5e50.
 
 void SaveLoadDialog::DoDelete() {
@@ -794,7 +794,7 @@ void SaveLoadDialog::DoDelete() {
     if (result == 2) {
         deleteFlag = 1;
         Save::SaveLoad* saveLoad = ::Save::SaveLoad::_singleton;
-        saveLoad->SetOperation(static_cast<Save::SaveLoad::Operation>(5), selectedIndex);
+        saveLoad->SetOperation(Save::SaveLoad::kOpDelete, selectedIndex);
     }
 }
 
@@ -806,7 +806,7 @@ void SaveLoadDialog::DoDelete() {
 //   shows "Dialog/SaveLoad.rsc:confirmSave" dialog; if not confirmed, returns.
 // Sets saveFlag (+0xB9 = 1), copies the running game's save name
 //   (GameUpdateLoop::m_saveName, +0x28), calls SetSaveName, then
-//   SetOperation(4, selectedIndex).
+//   SetOperation(kOpSave, selectedIndex).
 // Original: 0x1400b5fd0.
 
 void SaveLoadDialog::DoSave() {
@@ -838,8 +838,8 @@ void SaveLoadDialog::DoSave() {
     System::String saveName(game->m_saveName);
     saveLoad->SetSaveName(saveName, 2);
 
-    // Start save operation (4 = save, with selected slot index)
-    saveLoad->SetOperation(static_cast<Save::SaveLoad::Operation>(4), selectedIdx);
+    // Start save operation (kOpSave, with selected slot index)
+    saveLoad->SetOperation(Save::SaveLoad::kOpSave, selectedIdx);
 }
 
 // ============================================================
@@ -853,7 +853,7 @@ void SaveLoadDialog::DoSave() {
 //   ("modsOutOfDate", "modsVersion", "modsChanged", or "modsMissing") with
 //   mod name/version info set as TextElement parameters.
 //   If user declines any warning, returns without loading.
-// Sets loadFlag (+0xBA = 1), starts operation 2 (load) with selected index.
+// Sets loadFlag (+0xBA = 1), starts operation kOpLoad with selected index.
 // Original: 0x1400b61e0.
 
 void SaveLoadDialog::DoLoad() {
@@ -1078,7 +1078,7 @@ void SaveLoadDialog::DoLoad() {
     // All checks passed — trigger load operation
     LoadTime::Stamp("load.click");   // NOT RETAIL: print-only
     loadFlag = 1;
-    saveLoad->SetOperation(static_cast<Save::SaveLoad::Operation>(2), selectedIdx);
+    saveLoad->SetOperation(Save::SaveLoad::kOpLoad, selectedIdx);
 }
 
 // ============================================================

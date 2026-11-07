@@ -16,7 +16,17 @@ namespace {
 MenuDialogLoopT* g_menuDltSelf = nullptr;
 MenuDialogLoopT* g_armedSelf = nullptr;
 MenuDialogLoopT_PhaseBState g_state{};
-bool   g_busy = false;
+
+// The loader's PhaseB state (NOT RETAIL; port-only chunking of MenuDLT::Load PhaseA).
+// "Armed" (Arm() called, Init not yet run) is not a value here: it is
+// g_armedSelf != nullptr, and RunArmedInit clears it before Init can make the
+// loader Busy. bool-backed so the storage and code stay those of the old flag.
+enum class LoaderState : bool {
+    Idle = false,   // never started, or the last load finished / bailed out
+    Busy = true,    // Init found PhaseB work; Tick has not finished it yet
+};
+
+LoaderState g_loaderState = LoaderState::Idle;
 int    g_tickCount = 0;
 double g_initStartMs = 0.0;
 double g_chunkSumMs = 0.0;
@@ -30,18 +40,18 @@ void Init(MenuDialogLoopT* menuDltSelf) {
         std::fflush(stdout);
         return;
     }
-    if (g_busy && g_menuDltSelf == menuDltSelf) {
+    if (g_loaderState != LoaderState::Idle && g_menuDltSelf == menuDltSelf) {
         // Idempotent — same loop already initialized.
         return;
     }
-    if (g_busy) {
+    if (g_loaderState != LoaderState::Idle) {
         printf("[ChunkedSceneLoader] Init: WARN: prior load still busy "
                     "(self=%p, new=%p) — overwriting\n",
                     (void*)g_menuDltSelf, (void*)menuDltSelf);
     }
 
     g_menuDltSelf  = menuDltSelf;
-    g_busy         = false;
+    g_loaderState  = LoaderState::Idle;
     g_tickCount    = 0;
     g_chunkSumMs   = 0.0;
     g_chunkMaxMs   = 0.0;
@@ -61,7 +71,7 @@ void Init(MenuDialogLoopT* menuDltSelf) {
         printf("[ChunkedSceneLoader] Init: LoadSceneA1 returned false — no "
                     "scene background; skipping PhaseB\n");
         std::fflush(stdout);
-        g_busy = false;
+        g_loaderState = LoaderState::Idle;
         return;
     }
 
@@ -76,12 +86,12 @@ void Init(MenuDialogLoopT* menuDltSelf) {
                     g_state.totalCount);
         std::fflush(stdout);
         menuDltSelf->LoadSceneA3();
-        g_busy = false;
+        g_loaderState = LoaderState::Idle;
         return;
     }
 
     LoadTime::Stamp("menu.scene.b");   // NOT RETAIL: print-only (chunked PhaseB starts)
-    g_busy = true;
+    g_loaderState = LoaderState::Busy;
     printf("[ChunkedSceneLoader] Init: ready — PhaseB has %d elements to "
                 "process (chunked across Update ticks)\n",
                 g_state.totalCount);
@@ -107,7 +117,7 @@ void RunArmedInit() {
 }
 
 int Tick(int maxElements) {
-    if (!g_busy) return 0;
+    if (g_loaderState == LoaderState::Idle) return 0;
 
     double startMs = StallDebug::NowMs();
     int processed = g_state.TickChunk(maxElements);
@@ -144,14 +154,14 @@ int Tick(int maxElements) {
                     g_tickCount, g_chunkSumMs, g_chunkMaxMs, totalMs,
                     g_state.totalCount);
         std::fflush(stdout);
-        g_busy = false;
+        g_loaderState = LoaderState::Idle;
     }
 
     return processed;
 }
 
 bool IsBusy() {
-    return g_busy;
+    return g_loaderState != LoaderState::Idle;
 }
 
 }  // namespace ChunkedSceneLoader

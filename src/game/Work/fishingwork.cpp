@@ -160,8 +160,8 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
         return 1;
     }
 
-    // Find first available fishing spot (state == 0)
-    // Also reset spots that were marked as state 2 if the map cell is now empty
+    // Find first available fishing spot (WorkSpotState::Available)
+    // Also reset spots that were marked as state 2 (NeedsReset) if the map cell is now empty
     int spotCount = spotStates._size;    // +0x60
     int32_t* spotStates = this->spotStates._data;  // +0x58
     // The world map
@@ -181,18 +181,18 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             int cy = ClampToMap((int)(spotPos.v.y + (float)half), mapSize);
             int cellIdx = mapSize * cy + cx;
 
-            // If spot state is 2 (waiting for reset) and map cell is empty, reset to 0
+            // If the spot is NeedsReset and its map cell is empty, return it to Available
             int* spotState = &spotStates[i];
-            if (*spotState == 2) {
+            if (static_cast<WorkSpotState>(*spotState) == WorkSpotState::NeedsReset) {
                 MapCell* mapEntryBase = map->cells.GetData();
                 const ComponentEntity* occupant = mapEntryBase[cellIdx].occupant.Get();   // +0x08
                 if (occupant == nullptr) {
-                    *spotState = 0;
+                    *spotState = static_cast<int32_t>(WorkSpotState::Available);
                 }
             }
 
             // Pick first free spot
-            if (freeSpot < 0 && *spotState == 0) {
+            if (freeSpot < 0 && static_cast<WorkSpotState>(*spotState) == WorkSpotState::Available) {
                 freeSpot = i;
                 freeSpotMapCell = cellIdx;
             }
@@ -311,8 +311,8 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                     fishingDesc->_fish,
                     uvScale, freeSpotMapCell, spotInfo);
 
-                // Mark spot as in-use (state = 1)
-                spotStates[freeSpot] = 1;
+                // Mark spot as InUse
+                spotStates[freeSpot] = static_cast<int32_t>(WorkSpotState::InUse);
 
                 // Finalize: push action, set citizen slot
                 int priority = field_20;  // +0x20
@@ -323,7 +323,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
 
                 ce->statusFlags |= Bits(CitizenStatus::TaskDone);
                 ce->field_0x30 = priority;
-                ce->field_0xB0 = 0;
+                ce->lastErrand = CitizenErrand::None;
 
                 if (actionVal == ce->profession && priority >= 0) {
                     ce->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
@@ -349,7 +349,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
 
                 ce->statusFlags |= Bits(CitizenStatus::TaskDone);
                 ce->field_0x30 = priority;
-                ce->field_0xB0 = 0;
+                ce->lastErrand = CitizenErrand::None;
 
                 if (actionVal == ce->profession && priority >= 0) {
                     ce->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
@@ -513,7 +513,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
 // Slot9/Validate (0x1400e9c30)
 // Validates all fishing work assignments. Iterates citizen slots,
 // checks each via Work::CanStartWork. Invalid citizens are cleared,
-// orphaned spots are marked for reset (state 1 -> 2).
+// orphaned spots are marked for reset (state 1 InUse -> 2 NeedsReset).
 //
 // Returns: 1 = all valid (or no citizens), 0 = some invalid
 // ============================================================
@@ -605,10 +605,10 @@ int FishingWork::Validate() {
             }
 
             if (!spotOccupied) {
-                // If spot was in-use (state 1), mark for reset (state 2)
+                // If spot was InUse, mark it NeedsReset
                 int* state = &spotStates[s];
-                if (*state == 1) {
-                    *state = 2;
+                if (static_cast<WorkSpotState>(*state) == WorkSpotState::InUse) {
+                    *state = static_cast<int32_t>(WorkSpotState::NeedsReset);
                 }
             }
         }
@@ -693,7 +693,7 @@ void FishingWork::Persist(IO::Stream& stream) {
 // ============================================================
 // Slot6 (0x1400e9eb0)
 // Called when a citizen completes fishing work at a spot.
-// Clears the citizen IBP slot and marks the spot state as 2 (done)
+// Clears the citizen IBP slot and marks the spot state as 2 (NeedsReset, done)
 // if the high bit flag is set in param_4.
 //
 // param_4 encoding: bits[3:0] = citizen slot index,
@@ -710,7 +710,7 @@ int FishingWork::OnComplete(CitizenComponent** param2, ComponentEntity** param3,
     uint32_t citizenSlot = param4 & 0xf;
     citizenRefs[citizenSlot] = nullptr;
 
-    // If bit 15 is set, mark the spot state as 2 (done/needs reset)
+    // If bit 15 is set, mark the spot state as 2 (NeedsReset)
     if ((param4 >> 15) & 1) {
         uint32_t spotIdx = (param4 >> 4) & 0xf;
         // TEARDOWN_WILD_WRITE.md: same unbounded retail store (0x1400e9eb0) as
@@ -724,7 +724,7 @@ int FishingWork::OnComplete(CitizenComponent** param2, ComponentEntity** param3,
                 citizenSlot, citizenRefs._size);
             RedzoneAlloc_PrintBacktrace("FishingWork::Slot6");
         }
-        spotStates[spotIdx] = 2;
+        spotStates[spotIdx] = static_cast<int32_t>(WorkSpotState::NeedsReset);
     }
 
     return 0;

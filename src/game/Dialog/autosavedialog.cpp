@@ -119,7 +119,7 @@ void AutoSaveDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*
 // Triggered by OnElementEvent on timer event 0x13. If the game is not paused and
 // not in the bit-10 "blocked" state, and no save/load operation is already in
 // progress, kicks off an autosave: 1s min-display time, the container's
-// SaveLoadEmpty sprite, the localized "Autosave" name, then SetOperation(4, -4).
+// SaveLoadEmpty sprite, the localized "Autosave" name, then SetOperation(kOpSave, -4).
 
 // 0x140099d40: the localized "Autosave" name — UI::String over the container's
 // globalNames string table (+0xD8).
@@ -141,10 +141,10 @@ void AutoSaveDialog::Autosave() {
     uint32_t gwFlags = GameUpdateLoop::_singleton->m_gameFlags;
     if ((gwFlags >> 10) & 1) { AsBail("gameWorld+0xd0 bit10 set", (int32_t)gwFlags); return; }
 
-    // Only when no operation is already in progress (Operation::None == 0).
+    // Only when no operation is already in progress (kOpNone).
     Save::SaveLoad* saveLoad = ::Save::SaveLoad::_singleton;
-    { int op = saveLoad->GetOperation();
-      if (op != 0) { AsBail("SaveLoad busy, Operation", (int32_t)op); return; } }
+    { Save::SaveLoad::Operation op = saveLoad->GetOperation();
+      if (op != Save::SaveLoad::kOpNone) { AsBail("SaveLoad busy, Operation", (int32_t)op); return; } }
 
     // Min operation-display time = 1.0s.
     System::Time minTime;
@@ -159,24 +159,24 @@ void AutoSaveDialog::Autosave() {
     System::String sysStr = AutosaveName(g_gameContainer);
     saveLoad->SetSaveName(sysStr, 2);
 
-    // Kick off the save operation (Operation 4, param -4).
+    // Kick off the save operation (kOpSave, param -4).
     saveLoad->SetOperation(Save::SaveLoad::kOpSave, -4);
 }
 
 // [6] AutoSaveDialog::OnUpdateLayout (0x14005DFC0) — Draw
-// Checks SaveLoad operation type. If operation==4 (load), shows load indicator
-// and hides save indicator; otherwise shows save and hides load.
+// Checks SaveLoad operation type. If operation==kOpSave (save), flips the indicators
+// one way; any other operation flips them the other way.
 // Applies rotation to the visible indicator.
 void AutoSaveDialog::OnUpdateLayout() {
     Save::SaveLoad* saveLoad = ::Save::SaveLoad::_singleton;
     if (!saveLoad)
         return;
 
-    int operation = saveLoad->GetOperation();
+    Save::SaveLoad::Operation operation = saveLoad->GetOperation();
 
-    // operation==4 means "load"; otherwise it's a save
-    uint32_t hideFlags = (uint32_t)(operation != 4);
-    uint32_t showFlags = (uint32_t)(operation == 4);
+    // kOpSave is the save; any other operation flips the flags the other way
+    uint32_t hideFlags = (uint32_t)(operation != Save::SaveLoad::kOpSave);
+    uint32_t showFlags = (uint32_t)(operation == Save::SaveLoad::kOpSave);
 
     if (savingImage) {
         savingImage->SetFlagsOnOff(hideFlags, showFlags);

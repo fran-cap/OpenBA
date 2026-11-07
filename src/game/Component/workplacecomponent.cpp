@@ -340,7 +340,10 @@ void WorkPlaceComponent::SetAccepting(bool accepting) {
         mesh->SetFlag(0, '\0');
     } else {
         // (a) raise the closed indicator, keyed on the owner's state machine state.
-        bool normalState = ((state & 0xf6) == 0) && (state != 9);
+        // Retail's bit test: (state & 0xf6) == 0 && state != 9 is state in {ClearSite (0),
+        // GatherMaterials (1), Construct (8)}, the not-yet-built states. Kept as the mask:
+        // three explicit enumerator tests compile to different code.
+        bool normalState = ((state & 0xf6) == 0) && (state != StateByte(BuildingState::Plant));
         mesh->SetFlag(normalState ? 0 : 1, '\x01');
     }
 
@@ -620,18 +623,18 @@ static void WorkPlaceComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = WPCCtrlDispatch::table;
     if (t.count != 0) return;  // idempotent
-    TableRegisterState(t, 0, &WPC_EnterConstructionState,
+    TableRegisterState(t, BuildingState::ClearSite, &WPC_EnterConstructionState,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 1, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 2, &WPC_EnterBuiltStateNode,
+    TableAddTransition(t, BuildingState::GatherMaterials, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Built, &WPC_EnterBuiltStateNode,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 3, &WPC_EnterDemolishState,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Demolish, &WPC_EnterDemolishState,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
 }
 static const bool s_wpcStateTableBuilt = (WorkPlaceComponent_PopulateStateTable(), true);
 

@@ -158,7 +158,7 @@ public:
     void          OnRemove() override;                                  // [7]  0x14005c190
     uint32_t      CommandMask(int command) override;                    // [13] 0x14005c140
     void          Command(int command) override;                        // [14] 0x14005c000
-    int         GetDefaultState() const override { return 2; }          // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }       // [17] 0x14000dba0
 
     // ---- non-virtual members (retail addresses; B.4 COMP-f) ----
@@ -174,15 +174,15 @@ public:
     void  AddPurchaseOrder(ComponentDescription* resource, int8_t addFlag);   // 0x140059490 toggle `resource` in the docked merchant's order
     int   GetResourcePrice(const ComponentDescription* resource) const;  // 0x14005a520
     // The controller's state handlers (table 0x14005c650; RCX = this).
-    char EnterIdle();                                                   // 0x14005abd0 state 2 enter
-    char TickIdle(StateMachine* sm, const System::Time* deltaTime);                         // 0x14005aa60 state 2 per-frame
-    char EnterInbound();                                                // 0x14005aa50 state 0x12 enter
-    char OnMerchantDocked(StateMachine* sm);                                    // 0x14005a850 state 0x12 event 9
-    char OnMerchantLost(StateMachine* sm);                                      // 0x14005a9c0 state 0x12 event 0xb
-    char EnterDocked();                                                 // 0x14005a800 state 0x13 enter
+    char EnterIdle();                                                   // 0x14005abd0 state 2 Built enter
+    char TickIdle(StateMachine* sm, const System::Time* deltaTime);                         // 0x14005aa60 state 2 Built per-frame
+    char EnterInbound();                                                // 0x14005aa50 state 0x12 MerchantInbound enter
+    char OnMerchantDocked(StateMachine* sm);                                    // 0x14005a850 state 0x12 event 9 MerchantDocked
+    char OnMerchantLost(StateMachine* sm);                                      // 0x14005a9c0 state 0x12 event 0xb MerchantLost
+    char EnterDocked();                                                 // 0x14005a800 state 0x13 MerchantDocked enter
     char TickDocked(StateMachine* sm, const System::Time* deltaTime);                       // 0x14005a780 state 0x13 per-frame
     char LeaveDocked();                                                 // 0x14005a6d0 state 0x13 update
-    char Teardown();                                                    // 0x14005b160 transition 3
+    char Teardown();                                                    // 0x14005b160 transition 3 Demolish
 
     // PUBLIC while unconverted readers (TradeUI, the trade harness) read them.
     int32_t  tradeState;        // +0x28 auto-trade mode: 1 on arrival, 2 on departure (Persist int&)

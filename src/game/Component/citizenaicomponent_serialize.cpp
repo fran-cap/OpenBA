@@ -73,14 +73,14 @@ void CitizenAIComponent::Persist(IO::Stream& stream) {
             citizen = nullptr;
     }
 
-    s->Serialize(queuedState, nullptr);
+    s->Serialize(reinterpret_cast<int32_t&>(queuedState), nullptr);
 
     int version = s->GetVersion();
     if (version < 5) {
         for (int i = 0; i < 14; ++i)
             timers[i].Serialize(*s);
-        RtSystem_Time_Ctor(&timers[14], 0.0f);
-        RtSystem_Time_Ctor(&timers[15], 0.0f);
+        RtSystem_Time_Ctor(&timers[static_cast<int32_t>(CitizenAIState::EatUrgent)], 0.0f);
+        RtSystem_Time_Ctor(&timers[static_cast<int32_t>(CitizenAIState::WarmUrgent)], 0.0f);
     } else {
         for (int i = 0; i < 16; ++i)
             timers[i].Serialize(*s);
@@ -92,7 +92,7 @@ void CitizenAIComponent::Persist(IO::Stream& stream) {
         s->Serialize(seekingWarmth, nullptr);
     }
     version = s->GetVersion();
-    if (version > 1) s->Serialize(state, nullptr);
+    if (version > 1) s->Serialize(reinterpret_cast<int32_t&>(state), nullptr);
     version = s->GetVersion();
     if (version > 2) leisureTimer.Serialize(*s);   // System::Time (X-G1-1b)
     version = s->GetVersion();

@@ -35,6 +35,7 @@
 #include "Component/WorkPlaceComponent.h"
 #include "Game/Map.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"   // BuildingState / BuildingEvent (CommandMask, Command)
 
 // ============================================================
 // Helpers, called directly (B.3R)
@@ -65,9 +66,9 @@
 
 // Reimpl of FUN_14011aa20 (validate field-tile entity refs: drop stale/dead refs)
 // Iterates the +0x58 array (stride 0x20, count at +0x60). For each "assigned"
-// entry (state==1 at +0x4) it looks up the world entity by id; if it is gone, not
+// entry (state Growing at +0x4) it looks up the world entity by id; if it is gone, not
 // a ComponentEntity, or its build-state component link no longer matches, the
-// entry is reset to state 2 with null IBPs.
+// entry is reset to Done with null IBPs.
 void CropFieldComponent::ValidateEntityRefs() {
     if (GameUpdateLoop::_singleton == nullptr) return;
     const Map* map = GameUpdateLoop::_singleton->m_game;   // +0xf8
@@ -76,7 +77,7 @@ void CropFieldComponent::ValidateEntityRefs() {
     CropSlot* arr = slots._data;
     for (int i = 0; i < count; i++) {
         CropSlot* entry = &arr[i];
-        if (entry->state != 1) continue;
+        if (static_cast<CropSlotState>(entry->state) != CropSlotState::Growing) continue;
 
         int id = entry->cell;
         ComponentEntity* obj = map->cells.GetData()[(int64_t)id].occupant.Get();   // cell +0x08
@@ -90,8 +91,8 @@ void CropFieldComponent::ValidateEntityRefs() {
         }
         if (keep) continue;
 
-        // Stale: reset entry to state 2 and null the two IBP slots.
-        entry->state = 2;
+        // Stale: reset entry to Done and null the two IBP slots.
+        entry->state = static_cast<int32_t>(CropSlotState::Done);
         entry->entity = ::Object::InternalPtr<ComponentEntity>(nullptr);
         entry->resource = ::Object::InternalPtr<NaturalResourceComponent>(nullptr);
     }
@@ -243,8 +244,8 @@ void CropFieldComponent::Startup() { cropDescription = nullptr; }
 // Decides which of the crop-field panel's three buttons are enabled. Unlike the
 // ResourceProduce family's slot 13 (which ignores its argument and returns a mask),
 // this one IS a per-command query:
-//   cmd 0 (plant)   enabled when the SM sits in state 2  AND the field has slots
-//   cmd 1 (harvest) enabled when the SM sits in state 10 AND the field has slots
+//   cmd 0 (plant)   enabled when the SM sits in state 2 (Built) AND the field has slots
+//   cmd 1 (harvest) enabled when the SM sits in state 10 (Tend) AND the field has slots
 //   cmd 2 (toggle)  returns a two-bit value: bit 1 = currently on (+0x48), bit 0 =
 //                   selectable at all (has slots). Retail computes it as
 //                   `-(+0x48 != 0) & 2 | hasSlots`, i.e. a MASK, not a boolean — the
@@ -264,8 +265,8 @@ uint32_t CropFieldComponent::CommandMask(int command) {
     const bool hasSlots = (cropDescription != nullptr);
 
     switch (command) {
-        case 0:  return (cur == 2  && hasSlots) ? 1 : 0;
-        case 1:  return (cur == 10 && hasSlots) ? 1 : 0;
+        case 0:  return (cur == StateByte(BuildingState::Built) && hasSlots) ? 1 : 0;
+        case 1:  return (cur == StateByte(BuildingState::Tend)  && hasSlots) ? 1 : 0;
         case 2:  return static_cast<uint8_t>(
                      (workEnabled ? 2 : 0) |
                      (hasSlots ? 1 : 0));
@@ -302,7 +303,7 @@ void CropFieldComponent::Command(int command) {
     ControllerComponent::Controller* node = sm->current;
     if (!node) return;
     const int curIdx  = sm->activeState;   // +0x51
-    const int eventId = (command == 0) ? 3 : 4;
+    const int eventId = (command == 0) ? SmId(BuildingEvent::Plant) : SmId(BuildingEvent::Harvest);
     node->PostEvent(sm, curIdx, eventId);
 }
 // ── slot 15 — OnMessage — retail 0x14011ab50 ──────────────────────────────────────
@@ -310,7 +311,7 @@ void CropFieldComponent::Command(int command) {
 // of the field's grid (self+0x58, stride 0x20, indexed by the 4th argument):
 //
 //   msg 0 — PLANT BOUND. The PlantArea work has just created the crop entity on this
-//           slot's cell, so bind it: state (+0x04) = 1 "growing", stash the entity at
+//           slot's cell, so bind it: state (+0x04) = 1 Growing, stash the entity at
 //           +0x08 and its NaturalResource component at +0x10, then copy the slot's
 //           plant-mark byte (+0x18) into that component's +0x2d. This is what moves a
 //           slot from "empty" to "growing", which is in turn what the state-9
@@ -341,7 +342,7 @@ void CropFieldComponent::OnMessage(int message, void* /*data*/, uint32_t arg0, u
 
     if (message == 0) {
         NaturalResourceComponent* nr = entity->FindComponent<NaturalResourceComponent>();   // 0x1400052c0
-        slot->state    = 1;          // growing
+        slot->state    = static_cast<int32_t>(CropSlotState::Growing);
         slot->entity   = entity;
         slot->resource = nr;
         // +0x2d NaturalResourceComponent::harvestable: a byte copy (both bool).

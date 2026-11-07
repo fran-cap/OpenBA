@@ -14,7 +14,7 @@
 
 #include <cstdio>
 
-volatile int g_samplerTag = 0;
+volatile int g_samplerTag = static_cast<int>(SamplerTag::OutsideUpdate);
 
 void Sampler_Init() {
     if (Opt().sample > 0) {

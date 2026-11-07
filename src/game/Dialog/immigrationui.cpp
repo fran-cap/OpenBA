@@ -19,6 +19,7 @@
 #include "ui/TextElement.h"  // ENDGAME B.3.6 UI callers round 2 (K3)
 #include "Component/ImmigrationComponent.h"   // X::TypeId() (B.3.8 callers)
 #include "Component/StateMachineComponent.h"   // X::TypeId() (B.3.8 callers)
+#include "Component/BuildingState.h"
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.8 callers)
 
 // Helper: the named element under the panel's root
@@ -138,7 +139,7 @@ void ImmigrationUI::OnUpdateLayout() {
     // The StateMachineComponent on the component's entity
     StateMachineComponent* buildState = immigrationui_sa::FindStateMachine(immigComp->_entity.Get());
 
-    // Check build state: byte at +0x52, if negative use +0x50, compare to 0x11.
+    // Check build state: byte at +0x52, if negative use +0x50, compare to 0x11 (ImmigrationAnswer).
     // Guard the sub-entity's BuildState too (unbuilt/absent nomad camp in SA).
     bool buildComplete = false;
     if (buildState != nullptr) {
@@ -146,7 +147,7 @@ void ImmigrationUI::OnUpdateLayout() {
         if (state < 0) {
             state = buildState->stateMachine.currentInput;
         }
-        buildComplete = (state == 0x11);
+        buildComplete = (state == StateByte(BuildingState::ImmigrationAnswer));
     }
 
     // Enable/disable the buttons (Element slot 8)
@@ -184,12 +185,12 @@ void ImmigrationUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/
 
     if (msg != UI::EventId::Activated) return;
 
-    // Determine action mode: 7 = allow, 8 = deny
+    // Determine action mode: AllowImmigrants (7) or DenyImmigrants (8)
     int mode;
     if (id == 39000) {
-        mode = 7;
+        mode = SmId(BuildingEvent::AllowImmigrants);
     } else if (id == 0x9859) {
-        mode = 8;
+        mode = SmId(BuildingEvent::DenyImmigrants);
     } else {
         return;
     }

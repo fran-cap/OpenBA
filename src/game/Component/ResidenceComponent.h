@@ -67,7 +67,7 @@ public:
     void          Persist(IO::Stream& stream) override;                 // [3]  0x14012a170
     void          Startup() override;                             // [4]  0x14012a120
     void          OnRemove() override;                            // [7]  0x14012a0e0
-    int         GetDefaultState() const override { return 2; }  // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }  // [17] 0x140004080
 
     // The family roster (non-virtual members; receiver RCX = this, fields +0x50/+0x58).
@@ -80,9 +80,9 @@ public:
     void SetFamilyCount(int newCount);                     // 0x140037ad0 Array<Family>::SetSize on residentSlots
 
     // State handlers (the controller's table, 0x14012a350).
-    char     EnterBuilt();                                            // 0x140129de0 state 2 enter
-    char     EnterDemolish();                                         // 0x140129920 state 3 enter
-    char     HeatTick(const System::Time* dt);                            // 0x140129970 state 2 per-frame (residence_heattick.cpp)
+    char     EnterBuilt();                                            // 0x140129de0 state Built enter
+    char     EnterDemolish();                                         // 0x140129920 state Demolish enter
+    char     HeatTick(const System::Time* dt);                            // 0x140129970 state Built per-frame (residence_heattick.cpp)
     bool     CheckHeating();                                          // 0x14012ac30 desc +0x28 <= the weather value, or fuel time left (+0x48 > 0)
     // The owner's StorageComponent units (count - reserved) of one material class; RCX
     // is the residence (HeatTick 0x140129aab MOV RCX,RSI; the Gather states hand the

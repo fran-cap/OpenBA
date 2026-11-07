@@ -24,7 +24,8 @@
 //   citizen = *self. citizen+0x238 = workplace entity, +0x10 = own entity IBP, +0x18 = description
 //   (CitizenDescription, +0xd8 = gather-rate scalar), +0x278 = CharacterComponent (+0x68 =
 //   ModelComponent transform, +0x158/+0x15c/+0x160 = world pos). Success epilogue writes the
-//   action-state flags to *self (+0x54 |= 4, +0x30 = -1, +0xb0 = 0 then +0xb0 = stateNum) and
+//   action-state flags to *self (+0x54 |= 4, +0x30 = -1, +0xb0 lastErrand = None then
+//   GatherFood / GatherFuel) and
 //   returns CONCAT71(cz>>8, 1). Cooldown-fail stamps Time(rate * mult) into the CitizenAIComponent
 //   timer (Gather: param_1+0x70; Gather2: param_1+0x78) and returns ...&0xff00. The
 //   found-but-empty branch (resource count 0) runs the MeshInstance "hide" render branch on the
@@ -362,7 +363,7 @@ uint64_t CitizenAIComponent::State_GatherResources() {
             // (ValidateAndEnterState), so the upper bits of r carry no value.
             citizen->LongTermPlan();
             uint64_t r = 0;
-            queuedState = 6;
+            queuedState = CitizenAIState::GatherFood;
             return (r & 0xffffffffffffff00ULL) | 1;
         }
 
@@ -392,7 +393,7 @@ uint64_t CitizenAIComponent::State_GatherResources() {
         if (found == nullptr) {
             // ---- cooldown + status-icon branch ----
             int64_t stamp = CooldownStamp(citizen.Get(), kMultEmpty);
-            timers[6]._ticks = stamp;
+            timers[static_cast<int32_t>(CitizenAIState::GatherFood)]._ticks = stamp;
             citizen->happinessFlags |= 4;
             // 0x14010bef5..0x14010c05b: the home's residence food count (0x140008090 finder,
             // CALL 0x14012a9d0 at 0x14010bf33); at zero, StatusIconComponent::SetFlag(6, 1)
@@ -434,14 +435,14 @@ uint64_t CitizenAIComponent::State_GatherResources() {
         // 5) set citizen action-state flags + return 1
         citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizen->field_0x30 = -1;
-        citizen->field_0xB0 = 0;
-        citizen->field_0xB0 = 1;
+        citizen->lastErrand = CitizenErrand::None;
+        citizen->lastErrand = CitizenErrand::GatherFood;
         return 1;  // CONCAT71(citizen >> 8, 1): the caller reads the low byte
     }
 
     // ---- no reachable home: cooldown(_fd8 * 75.0) -> timers[6] ----
     int64_t stamp = CooldownStamp(citizen.Get(), kMultInvalid);
-    timers[6]._ticks = stamp;
+    timers[static_cast<int32_t>(CitizenAIState::GatherFood)]._ticks = stamp;
     return static_cast<uint64_t>(stamp) & 0xffffffffffffff00ULL;
 }
 
@@ -466,7 +467,7 @@ uint64_t CitizenAIComponent::State_GatherResources2() {
             // (ValidateAndEnterState), so the upper bits of r carry no value.
             citizen->LongTermPlan();
             uint64_t r = 0;
-            queuedState = 7;
+            queuedState = CitizenAIState::GatherFuel;
             return (r & 0xffffffffffffff00ULL) | 1;
         }
 
@@ -505,7 +506,7 @@ uint64_t CitizenAIComponent::State_GatherResources2() {
             // ---- cooldown + status-icon branch ----
             citizen->happinessFlags |= 4;
             int64_t stamp = CooldownStamp(citizen.Get(), kMultEmpty);
-            timers[7]._ticks = stamp;
+            timers[static_cast<int32_t>(CitizenAIState::GatherFuel)]._ticks = stamp;
             // GatherResources2's twin of the block above: the fuel count (CALL 0x14012ab00 at
             // 0x14010b682); at zero, StatusIconComponent::SetFlag(7, 1) inlined (bit 0x80).
             if (citizen->home != nullptr) {
@@ -557,14 +558,14 @@ uint64_t CitizenAIComponent::State_GatherResources2() {
         // ---- set citizen action-state flags + return 1 ----
         citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizen->field_0x30 = -1;
-        citizen->field_0xB0 = 0;
-        citizen->field_0xB0 = 2;
+        citizen->lastErrand = CitizenErrand::None;
+        citizen->lastErrand = CitizenErrand::GatherFuel;
         return 1;  // CONCAT71(citizen >> 8, 1): the caller reads the low byte
     }
 
     // ---- no reachable home: cooldown(_fd8 * 75.0) -> timers[7] ----
     int64_t stamp = CooldownStamp(citizen.Get(), kMultInvalid);
-    timers[7]._ticks = stamp;
+    timers[static_cast<int32_t>(CitizenAIState::GatherFuel)]._ticks = stamp;
     return static_cast<uint64_t>(stamp) & 0xffffffffffffff00ULL;
 }
 

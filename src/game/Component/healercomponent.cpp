@@ -120,15 +120,15 @@ static void HealerComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = HealerCtrlDispatch::table;
     if (t.count != 0) return;                      // idempotent
-    TableRegisterState(t, 2, &Healer_StateBuiltEnter,
+    TableRegisterState(t, BuildingState::Built, &Healer_StateBuiltEnter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 13, nullptr);
-    TableRegisterState(t, 3, &Healer_StateDemolishEnter,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Producing, nullptr);
+    TableRegisterState(t, BuildingState::Demolish, &Healer_StateDemolishEnter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
 }
 static const bool s_healerStateTableBuilt = (HealerComponent_PopulateStateTable(), true);
 

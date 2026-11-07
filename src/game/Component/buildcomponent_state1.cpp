@@ -225,7 +225,7 @@ int BuildComponent::State1Enter(StateMachine* smNode) {
         // spawner clears the bit. State8Enter's instant branch is what snaps the meshes to
         // their final frame and stamps +0x48 = target. See StartTown_SpawnStructures and
         // docs/history/notes/BRIDGE_HIGHLIGHT_DIALOG_BRIEF.md.
-        ::ControllerLive::RequestStateTransition(smNode, 8);
+        ::ControllerLive::RequestStateTransition(smNode, BuildingState::Construct);
     }
 
     // No workplace hand-off here (review F-175): retail 0x140108290 calls neither the

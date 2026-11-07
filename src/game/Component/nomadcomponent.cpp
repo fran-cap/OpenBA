@@ -186,7 +186,7 @@ void PlayerToolManager::OnEntityRemoved(ComponentEntity* const* entity) {
 #include "Component/NomadComponent.h"
 
 // The nomad walk-in/loiter/walk-out state machine (nomadcomponent_states.cpp).
-// Node at +0x58 (slot 17 0x140009060), default state 0 (slot 16 0x140003730). The
+// Node at +0x58 (slot 17 0x140009060), default state 0 WalkIn (slot 16 0x140003730). The
 // state table is built ONCE at static-init time, as retail's static initializer
 // does (B38 D6/D7).
 extern "C" void NomadCtrl_PopulateTable();

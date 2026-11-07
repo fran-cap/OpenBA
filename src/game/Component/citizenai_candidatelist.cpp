@@ -230,12 +230,12 @@ int CitizenComponent::CarryCount() {
 //   uVar15 = old count + 1        (new count)
 //   if (uVar15 == uVar7) return;  // overflow guard (never true for these ranges)
 // The triple to append is {id, prio, 0}.
-static void AppendCandidate(StateCandidateList* L, int id, int prio) {
+static void AppendCandidate(StateCandidateList* L, CitizenAIState id, int prio) {
     uint32_t uVar7  = (uint32_t)L->count;                     // old count
     uint32_t uVar15 = (uint32_t)(L->count + 1);               // new count
     if (uVar15 == uVar7) return;                              // (int)+1==same -> overflow
 
-    StateCandidate local_38 = { id, prio, 0 };
+    StateCandidate local_38 = { static_cast<int32_t>(id), prio, 0 };
 
     StateCandidate* pvVar13 = L->data;                        // old buffer
     L->count = (int32_t)uVar15;                               // store new count
@@ -285,7 +285,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
         cz = citizen.Get();
         if (cz->careBuilding != nullptr) {
             // Single candidate {5 (Work), 6, 0}, no shuffle/sort (function returns).
-            AppendCandidate(outList, 5, 6);
+            AppendCandidate(outList, CitizenAIState::SeekCare, 6);
             return;
         }
     }
@@ -295,7 +295,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
     {
         float fv = cz->hunger;
         float* pf = &cz->description->_fcc;
-        if (*pf <= fv && fv != *pf) AppendCandidate(outList, 0xe, 7);
+        if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::EatUrgent, 7);
     }
 
     // --- coldness (id 0xf, prio 7) : desc _fec ---
@@ -303,7 +303,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
     {
         float fv = cz->coldness;
         float* pf = &cz->description->_fec;
-        if (*pf <= fv && fv != *pf) AppendCandidate(outList, 0xf, 7);
+        if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::WarmUrgent, 7);
     }
 
     // --- hunger-other (id 0, prio 6) : desc _fc8 ---
@@ -311,7 +311,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
     {
         float fv = cz->hunger;
         float* pf = &cz->description->_fc8;
-        if (*pf <= fv && fv != *pf) AppendCandidate(outList, 0, 6);
+        if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::Eat, 6);
     }
 
     // --- coldness-other (id 1, prio 6) : desc _fe8 ---
@@ -319,7 +319,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
     {
         float fv = cz->coldness;
         float* pf = &cz->description->_fe8;
-        if (*pf <= fv && fv != *pf) AppendCandidate(outList, 1, 6);
+        if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::Warm, 6);
     }
 
     // --- main branch: HEALTHY (no disease) vs SICK ---
@@ -327,11 +327,11 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
     if (cz->disease == nullptr) {
         // FindHousing (id 2, prio 7) if CanFindHousing
         char canHouse = citizen->CanFindHousing();
-        if (canHouse != '\0') AppendCandidate(outList, 2, 7);
+        if (canHouse != '\0') AppendCandidate(outList, CitizenAIState::FindHousing, 7);
 
         // "Education" (id 3, prio 3) if clothingLevel == 0
         cz = citizen.Get();
-        if (cz->clothingLevel == 0) AppendCandidate(outList, 3, 3);
+        if (cz->clothingLevel == 0) AppendCandidate(outList, CitizenAIState::GetClothing, 3);
 
         // GrowUp (id 4, prio 3) if desc _f74 is in (health, ..] and (statusFlags>>9 & 1)==0
         cz = citizen.Get();
@@ -340,12 +340,12 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
             float work50 = cz->health;
             if ((work50 <= fv && fv != work50) &&
                 ((cz->statusFlags & Bits(CitizenStatus::UsedHealthItem)) == 0)) {
-                AppendCandidate(outList, 4, 3);
+                AppendCandidate(outList, CitizenAIState::GetHealthItem, 3);
             }
         }
     } else {
         // Sick: state 5 (id 5, prio 6) -- go to the care building
-        AppendCandidate(outList, 5, 6);
+        AppendCandidate(outList, CitizenAIState::SeekCare, 6);
     }
 
     // --- param3 short-circuit: skip leisure/age block ---
@@ -382,7 +382,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
             if (leisureTimer.AsSeconds() > c172254) leisure = true;
         }
         // id 0xc both ways; only the priority differs (2 when tripped, 0 otherwise).
-        AppendCandidate(outList, 0xc, leisure ? 2 : 0);
+        AppendCandidate(outList, CitizenAIState::Leisure, leisure ? 2 : 0);
     }
 
     // --- age / work-need block ---
@@ -396,21 +396,21 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
             // not at school
             cz = citizen.Get();
             if (cz->disease == nullptr) {
-                AppendCandidate(outList, 0xb, 0);   // Wander (id 0xb, prio 0)
+                AppendCandidate(outList, CitizenAIState::Wander, 0);   // Wander (id 0xb, prio 0)
             }
 
             // GatherResources (id 6, prio 4) if !HasSufficientResources
             int hsr = citizen->HasSufficientResources();
-            if ((char)hsr == '\0') AppendCandidate(outList, 6, 4);
+            if ((char)hsr == '\0') AppendCandidate(outList, CitizenAIState::GatherFood, 4);
 
             // GatherResources2 (id 7, prio 4) if !HasSufficientResources2
             int hsr2 = citizen->HasSufficientResources2();
-            if ((char)hsr2 == '\0') AppendCandidate(outList, 7, 4);
+            if ((char)hsr2 == '\0') AppendCandidate(outList, CitizenAIState::GatherFuel, 4);
             // (if hsr2 != 0, original goes to the shuffle/sort tail = LAB_14010f144)
         } else {
             // at school: FindWork (id 10, prio 2) only while healthy
             if (citizen->disease == nullptr) {
-                AppendCandidate(outList, 10, 2);
+                AppendCandidate(outList, CitizenAIState::AttendSchool, 2);
             }
         }
     } else {
@@ -424,14 +424,14 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
                 cz = citizen.Get();
                 if (cz->spouse != nullptr) {
                     CitizenComponent* resv = citizen->spouse.Get();
-                    if (resv->field_0xB0 == 1) reserved6 = true;  // skip to LAB_14010e8e7
+                    if (resv->lastErrand == CitizenErrand::GatherFood) reserved6 = true;  // skip to LAB_14010e8e7
                 }
                 if (!reserved6) {
                     cz = citizen.Get();
                     float fv = cz->hunger;
                     float* pf = &cz->description->_fcc;
                     int prio = (*pf <= fv && fv != *pf) ? 6 : 4;
-                    AppendCandidate(outList, 6, prio);
+                    AppendCandidate(outList, CitizenAIState::GatherFood, prio);
                 }
             }
 
@@ -442,14 +442,14 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
                 cz = citizen.Get();
                 if (cz->spouse != nullptr) {
                     CitizenComponent* resv = citizen->spouse.Get();
-                    if (resv->field_0xB0 == 2) reserved7 = true;  // skip to LAB_14010ea39
+                    if (resv->lastErrand == CitizenErrand::GatherFuel) reserved7 = true;  // skip to LAB_14010ea39
                 }
                 if (!reserved7) {
                     cz = citizen.Get();
                     float fv = cz->coldness;
                     float* pf = &cz->description->_fec;
                     int prio = (*pf <= fv && fv != *pf) ? 6 : 4;
-                    AppendCandidate(outList, 7, prio);
+                    AppendCandidate(outList, CitizenAIState::GatherFuel, prio);
                 }
             }
         }
@@ -459,10 +459,10 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
         if (cz->disease == nullptr) {   // else -> LAB_14010f144 (shuffle/sort)
             // SeekHappiness (id 8, prio 5) if field_0xAC < 1
             cz = citizen.Get();
-            if (cz->field_0xAC < 1) AppendCandidate(outList, 8, 5);
+            if (cz->field_0xAC < 1) AppendCandidate(outList, CitizenAIState::GetTool, 5);
 
             // Idle (id 9, prio 2)  -- unconditional
-            AppendCandidate(outList, 9, 2);
+            AppendCandidate(outList, CitizenAIState::Idle, 2);
 
             // LongTermPlan (id 0xd) only if the citizen carries something
             int happy = citizen->CarryCount();
@@ -474,7 +474,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
                 RtSystem_Time_Ctor(&timeBuf, c172234);
                 int64_t acc = dataC8._ticks;
                 ltpPrio = (timeBuf._ticks < acc) ? 3 : 1;
-                AppendCandidate(outList, 0xd, ltpPrio);
+                AppendCandidate(outList, CitizenAIState::LongTermPlan, ltpPrio);
             }
 
         }
@@ -519,27 +519,36 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
 // ported). Case 0xd runs the CitizenComponent's LongTermPlan.
 // ============================================================
 
-int CitizenAIComponent::ValidateAndEnterState(int id) {
+int CitizenAIComponent::ValidateAndEnterState(CitizenAIState id) {
     // Cooldown gate: timers[id] < 1
-    if (timers[id]._ticks < 1) {
+    if (timers[static_cast<int32_t>(id)]._ticks < 1) {
         uint64_t r = 0;
         switch (id) {
-            case 0:  case 0xe: r = State_AdultTransition(); break;  // 0x14010cd80 EAT/GetFood (Ghidra "AdultTransition"=MISNOMER; +0x44=hunger, drains via msg2->EatFromStorage 0x1401152e0)
-            case 1:  case 0xf: r = State_ElderTransition(); break;  // 0x14010d2c0 WARM (Ghidra "ElderTransition"=MISNOMER; +0x48=coldness)
-            case 2:            r = State_FindHousing(); break;      // 0x14010b340
-            case 3:            r = State_Education(); break;        // 0x14010c360
-            case 4:            r = State_GrowUp(); break;           // 0x14010c890
-            case 5:            r = State_Work(); break;             // 0x14010d790
-            case 6:            r = State_GatherResources(); break;  // 0x14010bc90
-            case 7:            r = State_GatherResources2(); break; // 0x14010b3e0
-            case 8:            r = State_SeekHappiness(); break;    // 0x14010c580
-            case 9:            r = State_Idle(); break;             // 0x14010b2d0
-            case 10:           r = State_FindWork(); break;         // 0x14010d560
-            case 0xb:
+            case CitizenAIState::Eat:
+            case CitizenAIState::EatUrgent:
+                // 0x14010cd80 EAT/GetFood (Ghidra "AdultTransition"=MISNOMER; +0x44=hunger, drains via
+                // msg2->EatFromStorage 0x1401152e0)
+                r = State_AdultTransition();
+                break;
+            case CitizenAIState::Warm:
+            case CitizenAIState::WarmUrgent:
+                // 0x14010d2c0 WARM (Ghidra "ElderTransition"=MISNOMER; +0x48=coldness)
+                r = State_ElderTransition();
+                break;
+            case CitizenAIState::FindHousing:   r = State_FindHousing(); break;      // 0x14010b340
+            case CitizenAIState::GetClothing:   r = State_Education(); break;        // 0x14010c360
+            case CitizenAIState::GetHealthItem: r = State_GrowUp(); break;           // 0x14010c890
+            case CitizenAIState::SeekCare:      r = State_Work(); break;             // 0x14010d790
+            case CitizenAIState::GatherFood:    r = State_GatherResources(); break;  // 0x14010bc90
+            case CitizenAIState::GatherFuel:    r = State_GatherResources2(); break; // 0x14010b3e0
+            case CitizenAIState::GetTool:       r = State_SeekHappiness(); break;    // 0x14010c580
+            case CitizenAIState::Idle:          r = State_Idle(); break;             // 0x14010b2d0
+            case CitizenAIState::AttendSchool:  r = State_FindWork(); break;         // 0x14010d560
+            case CitizenAIState::Wander:
                 // 0x14010a2b0 Wander: returns a bool in the low byte.
                 return State_Wander() ? 1 : 0;
-            case 0xc:          r = State_Leisure(); break;          // 0x14010a560
-            case 0xd: {
+            case CitizenAIState::Leisure:       r = State_Leisure(); break;          // 0x14010a560
+            case CitizenAIState::LongTermPlan: {
                 // 0x140115e60 LongTermPlan: CheckPtr(citizen); citizen->LongTermPlan();
                 // the original returns CONCAT71(.., 1) -> low byte always 1.
                 citizen->LongTermPlan();

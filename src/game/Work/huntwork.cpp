@@ -351,7 +351,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     GetTarget(&workEnt);
 
     citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizenEnt->field_0xB0 = 0;
+    citizenEnt->lastErrand = CitizenErrand::None;
     citizenEnt->field_0x30 = priority;
 
     if (workEnt == citizenEnt->profession && priority >= 0) {

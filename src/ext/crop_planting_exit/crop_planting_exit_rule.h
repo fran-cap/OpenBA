@@ -5,12 +5,12 @@
 // tests/unit/ext_crop_planting_exit_test.cpp links it without the world. The state-9 half of
 // the row is a gated request in CropFieldComponent::State9PerFrame and needs no rule here.
 //
-// A crop field plants in state 9 (CropFieldComponent::State9PerFrame, retail 0x14011a1e0) and
-// leaves it two ways, both of which retail can miss:
+// A crop field plants in state 9 (BuildingState::Plant; CropFieldComponent::State9PerFrame,
+// retail 0x14011a1e0) and leaves it two ways, both of which retail can miss:
 //
-// 1. Every slot done (no crop left growing): the handler requests 21 (the re-clear), but the
-//    populator (0x14011b150) gives state 9 the transitions {3, 10} only, so the request is
-//    dropped and the field stays in state 9. The row lets the request through.
+// 1. Every slot done (no crop left growing): the handler requests 21 (BuildingState::Reclear),
+//    but the populator (0x14011b150) gives state 9 the transitions {3, 10} (Demolish, Tend) only,
+//    so the request is dropped and the field stays in state 9. The row lets the request through.
 //
 // 2. A slot no worker can reach: PlantArea::Execute (0x1400f4010) offers every slot still to
 //    plant, skips one whose access cell the citizen cannot reach (Map::FindCell 0x14009ccf0 /

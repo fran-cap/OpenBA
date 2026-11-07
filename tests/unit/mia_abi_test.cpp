@@ -25,6 +25,7 @@
 #include "unit.h"
 #include "slot_check.h"
 
+#include "Component/BuildingState.h"
 #include "Component/AbsorbResourceComponent.h"
 #include "Component/AttendanceComponent.h"
 #include "Component/BoatComponent.h"
@@ -154,17 +155,17 @@ UNIT_TEST(mia_controller_member_raw_dispatch) {
     auto& t = Dispatch::table;
     const auto saved = t;   // empty in the host test (no static init linked)
     t = {};
-    ::ControllerLive::TableRegisterState(t, 2, &MiaEnterHandler,
+    ::ControllerLive::TableRegisterState(t, BuildingState::Built, &MiaEnterHandler,
                                          nullptr, nullptr, nullptr);
-    ::ControllerLive::TableAddTransition(t, 3, nullptr);
+    ::ControllerLive::TableAddTransition(t, BuildingState::Demolish, nullptr);
 
     alignas(8) unsigned char owner[0x48] = {};
     Ctl node(reinterpret_cast<Component*>(owner));
     void** vt = *reinterpret_cast<void***>(&node);
-    CHECK_EQ(reinterpret_cast<int (*)(void*, int)>(vt[0])(&node, 2), 0);          // FindState
-    int desired = 3;
+    CHECK_EQ(reinterpret_cast<int (*)(void*, int)>(vt[0])(&node, SmId(BuildingState::Built)), 0);   // FindState
+    int desired = SmId(BuildingState::Demolish);
     CHECK_EQ(reinterpret_cast<int (*)(void*, int, int*)>(vt[1])(&node, 0, &desired), 0);
-    desired = 7;                                                                  // not a transition of state 2
+    desired = SmId(BuildingState::Rubble);                                        // not a transition of Built
     CHECK_EQ(reinterpret_cast<int (*)(void*, int, int*)>(vt[1])(&node, 0, &desired), -1);
     CHECK_EQ(desired, -1);                                                        // retail miss arm
     int smToken = 0;

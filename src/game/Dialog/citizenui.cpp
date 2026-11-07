@@ -467,10 +467,10 @@ void CitizenUI::OnUpdateLayout() {
 
     // Read the action index (CitizenAIComponent::state) -- unguarded, as retail
     // (0x140064fd6): every citizen carries one.
-    int actionIndex = aiComp->state;
+    int actionIndex = static_cast<int32_t>(aiComp->state);
 
-    // Special case: if action is 9 (idle/searching), check if citizen has a home tile
-    if (actionIndex == 9) {
+    // Special case: if action is Idle (idle/searching), check if citizen has a home tile
+    if (actionIndex == static_cast<int32_t>(CitizenAIState::Idle)) {
         Work* homeWork = nullptr;
         int homeTile = ai->field_0x30;
         if (homeTile >= 0) {

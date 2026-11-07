@@ -75,6 +75,19 @@ static_assert(sizeof(WorkCitizenSetNode) == 0x28, "citizen set node: MemAlloc(0x
 static_assert(sizeof(WorkEntitySetNode) == 0x30, "entity set node: MemAlloc(0x30) in 0x140029b40");
 static_assert(sizeof(WorkCellSetNode) == 0x30, "cell set node: MemAlloc(0x30)");
 
+// The per-spot state of a work with fixed positions: one int32 per spot in
+// FishingWork::spotStates (+0x58) and ConsumeProduce::field_68 (+0x68). Both arrays stay
+// Collection::Array<int32_t> (the 0x1400021d0 trait row, Persist's int-array overload);
+// the enum only names the values retail stores. The cycle: Execute claims an Available
+// spot (InUse); OnComplete, or Validate for a spot no citizen holds, marks it NeedsReset;
+// Execute returns it to Available once the spot's map cell has no occupant.
+enum class WorkSpotState : int32_t {
+    Available  = 0,   // free; the create path zero-fills every spot
+    InUse      = 1,   // claimed by the citizen sent there
+    NeedsReset = 2,   // done or abandoned, held until the map cell is clear
+};
+static_assert(sizeof(WorkSpotState) == sizeof(int32_t), "WorkSpotState is one spot-array element");
+
 
 class Work : public Object::Internal {
     DECLARE_EXE_TYPE(Work)

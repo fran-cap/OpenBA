@@ -250,7 +250,7 @@ void RoadTool::Draw(Video::Context* context, char param3) {
     if (param3 == '\0') {
         uint32_t startCell, endCell;
 
-        if (dragState == '\0') {
+        if (dragState == DragState::Idle) {
             int cell = PlayerRay_ScreenToCell_101270(nullptr);
             startCell = (uint32_t)cell;
             endCell   = (uint32_t)cell;

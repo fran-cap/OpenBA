@@ -144,7 +144,7 @@ int PastureComponent::FindOldestLivestock() const {
 // RCX is a ResourceProduceComponent (+0x48 produceFlag; the address sits among its
 // bodies; its header is COMP-e's, so this stays free). Sets produceFlag = 1, finds the
 // entity's StateMachineComponent (0x140003ea0), then if its state (the pending state,
-// or the input when none is pending) is not 0x0e: when the active state is negative,
+// or the input when none is pending) is not 0x0e (Paused): when the active state is negative,
 // tick the machine with a zero Time (StateMachine::Tick 0x1400a9660, useAlt 0, run 0),
 // then ask the current controller node for the transition from the active state
 // (Controller slot 1 FindTransition, 0x14012b3a4 `CALL [RAX+0x8]`, out int = 0x0e by
@@ -157,9 +157,9 @@ void ResourceProduceComponent::RequestProduce() {
 
     char state = sm.pendingState;
     if (state < 0) state = sm.currentInput;
-    if (state == 0x0e) return;
+    if (state == StateByte(BuildingState::Paused)) return;
 
-    int outVal = 0x0e; // local_res8[0]
+    int outVal = SmId(BuildingState::Paused); // local_res8[0]
 
     // If the active state is negative, tick the SM with a zero Time first.
     if (sm.activeState < 0) {

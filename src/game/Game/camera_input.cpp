@@ -111,6 +111,13 @@ inline bool ScreenSize(int& w, int& h) {
     return true;
 }
 
+// The BANISHED_CAMERA_PIN harness's pin state (NOT RETAIL, harness only: the values are free).
+enum class CameraPinState : int {
+    Unresolved = -1,   // the option is not parsed yet, or a "town" pin waits for the spawn tile
+    Off        = 0,    // no pin: the option is empty or matches neither form
+    Pinned     = 1,    // x,y[,dist[,yaw]], the resolved town tile, or the showroom focus
+};
+
 } // namespace
 
 } // namespace Game
@@ -316,16 +323,16 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // the zoom target (+0x3C) swings 25 around the pinned distance and the manual pitch (+0x44)
     // sweeps 0..1, so the pitch target (+0x40) and the smoothed distance and pitch follow. A
     // camera that never stops, for the save-while-moving checks.
-    static int s_pin = -1;
+    static CameraPinState s_pin = CameraPinState::Unresolved;
     static float s_pinX = 0, s_pinY = 0, s_pinDist = 40.0f;
     static float s_pinZ = 0.0f;   // focus height; only the showroom sets it
     static bool s_pinHasYaw = false;
     static float s_pinYaw = 0.0f;
     static bool s_sweep = false;
     static float s_sweepT = 0.0f;
-    if (s_pin < 0) {
+    if (static_cast<int>(s_pin) < 0) {   // Unresolved (a sign test: == Unresolved compiles differently)
         const char* e = Opt().cameraPin;
-        s_pin = 0;
+        s_pin = CameraPinState::Off;
         if (e && e[0]) {
             s_sweep = std::strstr(e, ",sweep") != nullptr;
             // "%f,%f,%f,%f", read with the checked scanner (review F-087: sscanf's %f is
@@ -337,7 +344,7 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
                 s_pinY = pin[1];
                 if (got >= 3)
                     s_pinDist = pin[2];
-                s_pin = 1;
+                s_pin = CameraPinState::Pinned;
                 if (got >= 4) {
                     s_pinYaw = pin[3];
                     s_pinHasYaw = true;
@@ -363,12 +370,13 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
                             s_pinYaw = town[1];
                             s_pinHasYaw = true;
                         }
-                        s_pin = 1;
+                        s_pin = CameraPinState::Pinned;
                         std::fprintf(stderr, "[CameraPin] town tile=(%d,%d) dim=%d -> world (%.1f,%.1f) dist=%.0f\n",
                                      tx, ty, dim, s_pinX, s_pinY, s_pinDist);
                     }
                 }
-                if (!s_pin) s_pin = -1;   // not ready yet — retry next tick
+                if (s_pin == CameraPinState::Off)
+                    s_pin = CameraPinState::Unresolved;   // not ready yet — retry next tick
             }
         }
     }
@@ -381,7 +389,7 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
         float focusDist = 0.0f;
         float focusYaw = 0.0f;
         if (Showroom_CameraFocus(&focusX, &focusY, &focusZ, &focusDist, &focusYaw)) {
-            s_pin = 1;
+            s_pin = CameraPinState::Pinned;
             s_pinX = focusX;
             s_pinY = focusY;
             s_pinZ = focusZ;
@@ -393,7 +401,7 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
                 s_sweep = true;
         }
     }
-    if (s_pin) {
+    if (s_pin != CameraPinState::Off) {
         pc->target.x = s_pinX;
         pc->target.y = s_pinY;
         pc->target.z = s_pinZ;

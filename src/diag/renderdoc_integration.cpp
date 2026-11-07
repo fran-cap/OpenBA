@@ -21,6 +21,7 @@
 #include <dlfcn.h>
 #define RENDERDOC_CC
 #endif
+#include <cstdint>
 #include <cstdio>
 
 namespace {
@@ -114,8 +115,14 @@ using pRENDERDOC_GetAPI =
 
 RENDERDOC_API_1_4_0* g_api = nullptr;
 unsigned int g_frameCount = 0;
-bool g_capturePending = false;
-bool g_captureInFlight = false;
+// One capture at a time: TriggerCapture queues it (Pending), the next OnFrame starts it
+// (InFlight), the OnFrame after that ends it (Idle). Plain, not atomic, as the two bools were.
+enum class CaptureState : uint8_t {
+    Idle,      // no capture queued or running
+    Pending,   // requested; StartFrameCapture on the next OnFrame
+    InFlight,  // started; EndFrameCapture on the next OnFrame
+};
+CaptureState g_captureState = CaptureState::Idle;
 int g_captureCountdown = -1;  // <0 = inactive; counts down each OnFrame to 0
 
 }  // anonymous namespace
@@ -192,11 +199,11 @@ bool IsAttached() {
 
 void TriggerCapture() {
     if (!g_api) return;
-    if (g_capturePending || g_captureInFlight) {
+    if (g_captureState != CaptureState::Idle) {
         // Already queued or actively capturing — don't double-trigger.
         return;
     }
-    g_capturePending = true;
+    g_captureState = CaptureState::Pending;
     printf("[RenderDoc] capture requested (frame=%u)\n", g_frameCount);
     fflush(stdout);
 }
@@ -206,7 +213,7 @@ void RequestCaptureInFrames(int n) {
     if (n < 0) n = 0;
     // Only (re)arm if not already armed/capturing, so repeated Apply clicks
     // don't keep pushing the capture out.
-    if (g_captureCountdown < 0 && !g_capturePending && !g_captureInFlight) {
+    if (g_captureCountdown < 0 && g_captureState == CaptureState::Idle) {
         g_captureCountdown = n;
         printf("[RenderDoc] capture armed for %d frames from now (frame=%u)\n",
                n, g_frameCount);
@@ -230,7 +237,7 @@ void OnFrame() {
         }
     }
 
-    if (g_captureInFlight) {
+    if (g_captureState == CaptureState::InFlight) {
         // Frame N+1: end the capture.
         // device=NULL + wndHandle=NULL means "all devices, all windows".
         unsigned int nCaptures = 0;
@@ -242,10 +249,10 @@ void OnFrame() {
         printf("[RenderDoc] capture ended (success=%u, total saved=%u). "
                "Open in RenderDoc UI to inspect.\n", nCaptures, total);
         fflush(stdout);
-        g_captureInFlight = false;
+        g_captureState = CaptureState::Idle;
     }
 
-    if (g_capturePending) {
+    if (g_captureState == CaptureState::Pending) {
         // Frame N: begin the capture. Will record everything until
         // EndFrameCapture next OnFrame.
         if (g_api->StartFrameCapture) {
@@ -253,8 +260,7 @@ void OnFrame() {
         }
         printf("[RenderDoc] capture started (frame=%u)\n", g_frameCount);
         fflush(stdout);
-        g_capturePending = false;
-        g_captureInFlight = true;
+        g_captureState = CaptureState::InFlight;
     }
 
     ++g_frameCount;

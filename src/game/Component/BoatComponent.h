@@ -41,6 +41,22 @@ class CharacterComponent;   // Component/CharacterComponent.h
 
 struct BoatCtrlTag { using Owner = class BoatComponent; };   // the handlers' receiver (controller_state_table.h)
 
+// The boat controller's state ids (table 0x140158f40, built by BoatCtrl_PopulateTable). The table API
+// takes the enum (the controller_state_table.h overloads); GetDefaultState returns SmId(BoatState::X).
+enum class BoatState : int32_t {
+    Outbound      = 0,   // follow the route to the dock (0x1400453f0 / 0x140045250); the default state
+    FinalApproach = 1,   // drive straight at the dock position (0x140045150 / 0x140044ff0)
+    Docked        = 2,   // enter 0x140044f70 posts the merchant-docked event to the trading post
+    Departing     = 3,   // retrace the route outward (0x140044ec0 / 0x140044d10)
+    Gone          = 4,   // delete the boat once the route runs out (0x140044cd0 / 0x140044c40)
+};
+
+// The boat controller's event ids (Controller::PostEvent takes int: static_cast<int>(BoatEvent::X)).
+enum class BoatEvent : int32_t {
+    Depart = 0,   // state 2 only, 0x140044f00 -> Departing; posted by TradeComponent::LeaveDocked
+    Abort  = 1,   // states 0/1/2, 0x140045670 -> Gone; posted by BoatComponent::SetDestination(nullptr)
+};
+
 class InteractComponent;
 namespace System { class String; }
 // 0x140123880 Entity::FindAttachPoint (body: boatcomponent_route.cpp): a named attach point ("boat" for a
@@ -60,7 +76,7 @@ public:
     // 0x140046770
     ~BoatComponent() override;                                    // [0]  0x140003970
     void          Persist(IO::Stream& stream) override;                 // [3]  0x1400465d0
-    int         GetDefaultState() const override { return 0; }  // [16] 0x140003730
+    int         GetDefaultState() const override { return SmId(BoatState::Outbound); }  // [16] 0x140003730
     Controller* GetController() override { return &_controller; }  // [17] 0x140003720
 
     // ---- non-virtual members (retail addresses) ----

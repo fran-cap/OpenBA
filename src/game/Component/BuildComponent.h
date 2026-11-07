@@ -74,7 +74,7 @@ public:
     void          Slot11() override {}                            // [11] 0x140108d70 `RET 0` (own)
     void          OnMessage(int message, void* data,
                             uint32_t arg0, uint32_t arg1) override;  // [15] 0x140108710
-    int         GetDefaultState() const override { return 1; }  // [16] 0x14002f2f0
+    int         GetDefaultState() const override { return SmId(BuildingState::GatherMaterials); }  // [16] 0x14002f2f0
     Controller* GetController() override { return &_controller; }  // [17] 0x140004080
     // 0x140109390 (B4 DLG-a; defined in Dialog/entityui.cpp): the description's
     // +0x30 cost times costMultiplier <= laborProgress (`CMP [RDI+0x48],EDX; SETGE`).

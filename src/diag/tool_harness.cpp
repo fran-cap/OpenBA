@@ -193,7 +193,7 @@ void FireRemovalTool(PlayerToolManager* entityUI) {
 
     // Wire fields: entityUI, dragging state, a cell rectangle around centre.
     rt->dialogPtr = entityUI;
-    rt->dragState   = 1;   // the one word store 1 is dragState=1, singleClick=0 (H7: two stores)
+    rt->dragState   = DragState::Dragging;   // retail's one word store 1 = Dragging + singleClick 0 (H7: two)
     rt->singleClick = 0;
     const int startCell = Cell(124, 124);
     const int endCell   = Cell(131, 131);                  // 8x8 selection
@@ -2764,7 +2764,7 @@ int         s_br_armFrame  = 0;
 int         s_br_lastPoll  = 0;
 bool        s_br_dumped    = false;
 bool        s_br_selected  = false;   // BANISHED_BRIDGE_SELECT fired yet?
-// BANISHED_BRIDGE_DRAG_FRAMES=N — hold the tool in the DRAGGING state (+0x28=1) over the
+// BANISHED_BRIDGE_DRAG_FRAMES=N — hold the tool in the DRAGGING state (+0x28=1 Dragging) over the
 // chosen span for N frames before committing, so BridgeTool::Draw (slot 8, the red/green
 // preview ported in bridgetool_draw.cpp) renders the multi-cell drag path rather than only
 // the single-cell hover the harness would otherwise produce.
@@ -3051,7 +3051,7 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
 
     // Optionally hold the drag open first so slot 8 (Draw) renders the span preview.
     if (BridgeDragFrames() > 0) {
-        bridge->dragState = 1;                               // dragState = dragging
+        bridge->dragState = DragState::Dragging;
         bridge->startCell = startCell;
         bridge->endCell   = endCell;
         s_br_tool = drag; s_br_dragStart = startCell; s_br_dragEnd = endCell;
@@ -3067,7 +3067,7 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
 
 // DragTool::CalcPath (retail [13], +0x68) — the commit a drag-release makes.
 void BridgeCommit(DragTool* tool, int startCell, int endCell) {
-    tool->dragState = 0;                                     // drag released
+    tool->dragState = DragState::Idle;                       // drag released
     const PickSnapshot pickBefore = s_br_pickCheck ? PickTakeSnapshot() : PickSnapshot();
     bool placed = tool->CalcPath(startCell, endCell);
     fprintf(stderr, "[ToolHarness][bridge] CalcPath (commit) -> %d; master=%p segments=%d\n",

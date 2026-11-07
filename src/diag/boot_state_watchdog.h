@@ -6,7 +6,48 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace BootState {
+
+// The states a run publishes (STATE= in standalone_boot_state.txt, the [BootState] stderr lines).
+// Not retail: the numbers are this file's own. The SPELLINGS are the external contract that
+// tools/boot_state.sh, tools/android_boot_state.sh and agents' greps parse, so BootStateName must
+// keep them byte for byte. Shared by the four platform twins (src/diag/<platform>/).
+enum class BootStateId : uint8_t {
+    None          = 0,   // no state published yet (the watchdog loop's first lastState)
+    Booting       = 1,   // Start() until MarkStartupComplete()
+    Running       = 2,   // Engine::Startup returned (MarkStartupComplete)
+    Quitting      = 3,   // MainLoop::Run returned (BootState_MarkQuitting): the teardown budget
+    Hung          = 4,   // the frame counter stalled past the phase's budget
+    BlockedDialog = 5,   // Windows only: a modal Win32 dialog (#32770) is open
+    Exited        = 6,   // Stop() on a clean shutdown
+    NoGameData    = 7,   // src/app/main.cpp: the game-data check stopped the boot
+};
+
+// The published spelling of a state. A constant table lookup: async-signal-safe for the posix /
+// android hang handlers.
+constexpr const char* BootStateName(BootStateId id) {
+    switch (id) {
+    case BootStateId::Booting:
+        return "BOOTING";
+    case BootStateId::Running:
+        return "RUNNING";
+    case BootStateId::Quitting:
+        return "QUITTING";
+    case BootStateId::Hung:
+        return "HUNG";
+    case BootStateId::BlockedDialog:
+        return "BLOCKED_DIALOG";
+    case BootStateId::Exited:
+        return "EXITED";
+    case BootStateId::NoGameData:
+        return "NO_GAME_DATA";
+    case BootStateId::None:
+        break;
+    }
+    return "";
+}
 
 // Start the watchdog thread. Call as early in WinMain as possible -- the dialog we most
 // need to catch opens inside Engine::Startup, so this must already be running by then.

@@ -185,6 +185,33 @@ public:
     };
 
     // ========================================================================
+    // Save::SaveLoad::Progress — the step of the running Operation, `_progress`
+    // (+0x18, a dword). Each UpdateXxx (saveload_update.cpp) reads it once and
+    // walks its own chain of `if (progress == N)` arms, so one value means a
+    // different step per Operation: the enumerators below are per-operation
+    // aliases of the same retail numbers. 0 is the first arm of every
+    // operation (SetOperation stores it, every finish arm puts it back). The
+    // VALUES are retail's; the NAMES are OURS, from what each arm does.
+    // ========================================================================
+    enum class Progress : uint32_t {
+        Start              = 0,      // every operation's first arm
+        DeleteFinish       = 1,      // UpdateDelete: clear the operation
+        LoadFileEnqueue    = 1,      // UpdateLoadFromFile: allocate the SavedState, EnqueueLoad
+        LoadFileFinish     = 2,      // UpdateLoadFromFile: clear the operation
+        LoadApply          = 1,      // UpdateLoad: disable the mods, apply, EnqueueLoad
+        LoadFinish         = 2,      // UpdateLoad: min-time gate, clear the operation
+        SaveSerialize      = 1,      // UpdateSave: wait for the capture, SaveMetaData, SaveRestore
+        SaveFinish         = 2,      // UpdateSave: min-time gate, free the SavedState, clear
+        ListBuildRows      = 1,      // UpdateList: build the SaveInfo rows, cursor = 0
+        ListNextRow        = 2,      // UpdateList: skip blank rows, BeginGetSaveGameInfo
+        ListLoadRowInfo    = 3,      // UpdateList: BeginLoad on the row when the worker is done
+        ListReadRowMeta    = 4,      // UpdateList: LoadMetaData + thumbnail, ++cursor
+        ListFinish         = 5,      // UpdateList: min-time gate, clear the operation
+        // NOT RETAIL: ext.background_save waits here while a worker serialises (kExtProgressSerializing).
+        SaveExtSerializing = 0x100,
+    };
+
+    // ========================================================================
     // Save::SaveLoad::ModInfo — 0x20 bytes, one per mod recorded in a save file.
     // ------------------------------------------------------------------------
     // The NAME comes from the mangled signature of ?LoadMetaData@SaveLoad@Save@@…,
@@ -419,7 +446,7 @@ public:
     // exactly where retail's call returns. false: retail's call, unchanged.
     static bool (*_extSaveStart)(SavedState* state);
     static bool (*_extSavePoll)();
-    static constexpr uint32_t kExtProgressSerializing = 0x100;
+    static constexpr Progress kExtProgressSerializing = Progress::SaveExtSerializing;
     // EXT SEAM (NOT RETAIL, docs/retail_bugs.md §27): fix.save_failure_notice, both null by
     // default (set by src/ext/save_failure_notice). Retail's state 2 never reads the persistence
     // worker's status. While `*_extFixSaveResult` is true, state 2 waits (after the spinner time)
@@ -469,7 +496,7 @@ public:
     uint32_t    pad04;             // +0x04
     int64_t     _elapsed;          // +0x08  Time ticks; Update adds the frame delta, SetOperation zeroes it
     int64_t     _minOperationTime; // +0x10  Time; SetMinOperationTime copies 8 bytes here
-    uint32_t    _progress;         // +0x18  zeroed by SetOperation; NOT zeroed by the ctor
+    Progress    _progress;         // +0x18  zeroed by SetOperation; NOT zeroed by the ctor
     uint32_t    pad1c;             // +0x1c
     // The two Strings are real `System::String`s (B.4 R-IO). SaveLoad has NO
     // C++ constructor or destructor that could run them: construction and
@@ -538,6 +565,7 @@ static_assert(offsetof(SaveLoad, _operation)        == 0x00, "SaveLoad._operatio
 static_assert(offsetof(SaveLoad, _elapsed)          == 0x08, "SaveLoad._elapsed @ 0x08");
 static_assert(offsetof(SaveLoad, _minOperationTime) == 0x10, "SaveLoad._minOperationTime @ 0x10");
 static_assert(offsetof(SaveLoad, _progress)         == 0x18, "SaveLoad._progress @ 0x18");
+static_assert(sizeof(SaveLoad::Progress) == 4, "SaveLoad._progress is a dword (uint32_t)");
 static_assert(offsetof(SaveLoad, _string20)         == 0x20, "SaveLoad._string20 @ 0x20");
 static_assert(offsetof(SaveLoad, _embeddedState)    == 0x28, "SaveLoad._embeddedState @ 0x28");
 static_assert(offsetof(SaveLoad, _embeddedState) + offsetof(SavedState, _data) == 0x30,

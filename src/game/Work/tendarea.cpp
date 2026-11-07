@@ -204,7 +204,7 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
 
     citEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
     citEnt->field_0x30 = priority;
-    citEnt->field_0xB0 = 0;
+    citEnt->lastErrand = CitizenErrand::None;
 
     if (workEnt == citEnt->profession && priority >= 0) {
         citEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

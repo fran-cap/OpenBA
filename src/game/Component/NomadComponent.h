@@ -38,6 +38,20 @@ class CitizenComponent;
 
 struct NomadCtrlTag { using Owner = class NomadComponent; };   // the handlers' receiver (controller_state_table.h)
 
+// The nomad clone's state table (nomadcomponent_states.cpp). The ids are retail's; the clone is its own
+// entity, so these are separate from the town hall's immigration ids. At run time they live in the
+// StateMachine's int8_t bytes (+0x08..+0x0A), which stay untyped (shared by every controller).
+enum class NomadState : int32_t {
+    WalkIn  = 0,   // enter 0x14004faf0, tick 0x14004f9c0; the default state (slot 16 0x140003730)
+    Loiter  = 1,   // enter LAB_14004f9b0, tick 0x14004f600
+    WalkOut = 2,   // enter 0x14004f5e0, tick 0x14004f530
+};
+
+enum class NomadEvent : int32_t {
+    Destroy = 0,   // 0x14004f420: converted to a citizen (ImmigrationComponent's accept path)
+    Leave   = 1,   // 0x14004f4a0: -> WalkOut (ImmigrationComponent's dismiss 0x14004d300)
+};
+
 class NomadComponent final : public ControllerComponent {
     DECLARE_EXE_TYPE(NomadComponent)
 
@@ -50,7 +64,7 @@ public:
     ~NomadComponent() override;                                   // [0]  0x140009230
     void          Persist(IO::Stream& stream) override;                 // [3]  0x14004fc40
     void          OnRemove() override;                            // [7]  0x14004fd20
-    int         GetDefaultState() const override { return 0; }  // [16] 0x140003730
+    int         GetDefaultState() const override { return SmId(NomadState::WalkIn); }  // [16] 0x140003730
     Controller* GetController() override { return &_controller; }  // [17] 0x140009060
 
     // ---- non-virtual members (retail addresses) ----
@@ -60,12 +74,12 @@ public:
                                        int gender, char isChild); // 0x1400501a0
     void MoveTo(Math::Vector3* dest);                             // 0x14004fb60
     // The state table's handlers (the controller hands them this component).
-    char EnterWalkIn();                                           // 0x14004faf0 state 0
+    char EnterWalkIn();                                           // 0x14004faf0 state WalkIn
     char TickWalkIn(StateMachine* sm);                                    // 0x14004f9c0
-    char OnLeave(StateMachine* sm);                                       // 0x14004f4a0 event 1
-    char TickLoiter(const System::Time* time);                                 // 0x14004f600 state 1
-    char OnDestroy();                                             // 0x14004f420 event 0
-    char EnterWalkOut();                                          // 0x14004f5e0 state 2
+    char OnLeave(StateMachine* sm);                                       // 0x14004f4a0 event Leave
+    char TickLoiter(const System::Time* time);                                 // 0x14004f600 state Loiter
+    char OnDestroy();                                             // 0x14004f420 event Destroy
+    char EnterWalkOut();                                          // 0x14004f5e0 state WalkOut
     char TickWalkOut();                                           // 0x14004f530
 
     // PUBLIC while the ported bodies read them (B38 decision 1). Types from Persist

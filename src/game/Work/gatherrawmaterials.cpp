@@ -387,7 +387,7 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
 
                 citizenFinal->statusFlags |= Bits(CitizenStatus::TaskDone);
                 citizenFinal->field_0x30 = priority;
-                citizenFinal->field_0xB0 = 0;
+                citizenFinal->lastErrand = CitizenErrand::None;
 
                 if (workEntity == citizenFinal->profession && priority >= 0) {
                     citizenFinal->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

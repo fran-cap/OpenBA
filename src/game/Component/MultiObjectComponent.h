@@ -56,11 +56,11 @@ public:
     void          Persist(IO::Stream& stream) override;                       // [3]  0x140125880
     void          OnRemove() override;                                  // [7]  0x1401257c0 mark every child for removal
     void          OnEvent(int eventId) override;                        // [12] 0x140125490
-    int         GetDefaultState() const override { return 2; }          // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }          // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }       // [17] 0x140004080
 
     // ---- non-virtual members (retail addresses) ----
-    char EnterState2();                                                 // 0x140125560 state 2 enter
+    char EnterState2();                                                 // 0x140125560 state Built enter
 
     // PUBLIC while the ported bodies read them (B38 decision 1). Types from Persist
     // 0x140125880 (int count +0x50 with the +0x48 IBP array, each validated against

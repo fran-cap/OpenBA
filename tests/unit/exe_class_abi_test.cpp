@@ -183,9 +183,9 @@ char  EnterHandler(Component* data, ::StateMachine* sm) { g_seenData = data; g_s
 UNIT_TEST(exe_controller_member_raw_dispatch) {
     auto& t = TestDispatch::table;
     t = {};
-    ::ControllerLive::TableRegisterState(t, 2, &EnterHandler,
+    ::ControllerLive::TableRegisterState(t, BuildingState::Built, &EnterHandler,
                                          nullptr, nullptr, nullptr);
-    ::ControllerLive::TableAddTransition(t, 3, nullptr);
+    ::ControllerLive::TableAddTransition(t, BuildingState::Demolish, nullptr);
 
     alignas(8) unsigned char owner[0x48] = {};
     TestCtl node(reinterpret_cast<Component*>(owner));
@@ -196,12 +196,12 @@ UNIT_TEST(exe_controller_member_raw_dispatch) {
 
     void** vt = *reinterpret_cast<void***>(&node);
     // slot 0 (+0x00) FindState(node, id)
-    CHECK_EQ(reinterpret_cast<int (*)(void*, int)>(vt[0])(&node, 2), 0);
+    CHECK_EQ(reinterpret_cast<int (*)(void*, int)>(vt[0])(&node, SmId(BuildingState::Built)), 0);
     CHECK_EQ(reinterpret_cast<int (*)(void*, int)>(vt[0])(&node, 9), -1);
     // slot 1 (+0x08) FindTransition(node, stateIndex, int* desired)
-    int desired = 3;
+    int desired = SmId(BuildingState::Demolish);
     CHECK_EQ(reinterpret_cast<int (*)(void*, int, int*)>(vt[1])(&node, 0, &desired), 0);
-    CHECK_EQ(desired, 3);                                   // a hit leaves *desired alone
+    CHECK_EQ(desired, SmId(BuildingState::Demolish));       // a hit leaves *desired alone
     desired = 42;                                           // a miss writes -1 (retail 0x140010103)
     CHECK_EQ(reinterpret_cast<int (*)(void*, int, int*)>(vt[1])(&node, 0, &desired), -1);
     CHECK_EQ(desired, -1);

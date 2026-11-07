@@ -30,6 +30,7 @@
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.8 callers)
 #include "Component/DestroyComponent.h"       // B4 DLG-a: by-name reads
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"
 #include "Component/StorageComponent.h"
 #include "Component/ComponentDescription.h"
 #include "Dialog/exe_bodies.h"   // SA_DialogEntityAlive
@@ -60,7 +61,7 @@ static int8_t DestroyUI_StateByte(const StateMachineComponent* buildState) {
 // ============================================================
 // DestroyComponent_CanReclaim (0x14011e690)
 // ============================================================
-// Returns true if the StateMachine's state byte is 6 (damaged) or 7.
+// Returns true if the StateMachine's state byte is 6 (Collapse) or 7 (Rubble).
 static bool DestroyComponent_CanReclaim_Impl(DestroyComponent* destroyComp)
 {
     if (!destroyComp) return false;
@@ -71,10 +72,10 @@ static bool DestroyComponent_CanReclaim_Impl(DestroyComponent* destroyComp)
 
     int8_t stateByte = DestroyUI_StateByte(buildState);
 
-    if (stateByte != 6) {
+    if (stateByte != StateByte(BuildingState::Collapse)) {
         // Check again (second pass from decompile)
         stateByte = DestroyUI_StateByte(buildState);
-        if (stateByte != 7) return false;
+        if (stateByte != StateByte(BuildingState::Rubble)) return false;
     }
     return true;
 }
@@ -139,7 +140,7 @@ static void DestroyComponent_Reclaim_Impl(DestroyComponent* destroyComp)
 
     int8_t stateFrom = buildState->stateMachine.activeState;
     ControllerComponent::Controller* node = buildState->stateMachine.current;
-    node->PostEvent(&buildState->stateMachine, (int)stateFrom, 0);
+    node->PostEvent(&buildState->stateMachine, (int)stateFrom, SmId(BuildingEvent::Cancel));
 
     // Also call the component's slot 4 — the "Reclaim" notification
     destroyComp->Startup();
@@ -152,7 +153,7 @@ static void DestroyComponent_Rebuild_Impl(DestroyComponent* destroyComp)
 
     int8_t stateFrom = buildState->stateMachine.activeState;
     ControllerComponent::Controller* node = buildState->stateMachine.current;
-    node->PostEvent(&buildState->stateMachine, (int)stateFrom, 0);
+    node->PostEvent(&buildState->stateMachine, (int)stateFrom, SmId(BuildingEvent::Rebuild));
 }
 
 static void DestroyComponent_Destroy_Impl(DestroyComponent* destroyComp)
@@ -162,7 +163,7 @@ static void DestroyComponent_Destroy_Impl(DestroyComponent* destroyComp)
 
     int8_t stateFrom = buildState->stateMachine.activeState;
     ControllerComponent::Controller* node = buildState->stateMachine.current;
-    node->PostEvent(&buildState->stateMachine, (int)stateFrom, 1);
+    node->PostEvent(&buildState->stateMachine, (int)stateFrom, SmId(BuildingEvent::Remove));
 }
 
 // ============================================================
@@ -386,13 +387,13 @@ void DestroyUI::OnUpdateLayout() {
         // Read state byte: prefer +0x52, fall back to +0x50 if negative
         int8_t stateByte = DestroyUI_StateByte(buildState);
 
-        // Element slot 8 (Enable) on buttonRebuild: enabled when state != 6
-        buttonRebuild->Enable(stateByte != 6);
+        // Element slot 8 (Enable) on buttonRebuild: enabled when state != Collapse
+        buttonRebuild->Enable(stateByte != StateByte(BuildingState::Collapse));
 
         // Retail finds the StateMachineComponent again for buttonDestroy and runs the
         // same test (0x140065c1d..0x140065c48: CMP CL,0x6 / SETNZ DL / CALL [RAX + 0x40])
         int8_t destroyStateByte = DestroyUI_StateByte(DestroyUI_FindStateMachine(compEntity));
-        buttonDestroy->Enable(destroyStateByte != 6);
+        buttonDestroy->Enable(destroyStateByte != StateByte(BuildingState::Collapse));
 
         // Show rebuild and destroy buttons
         buttonRebuild->SetFlagsOnOff(0, UI::kElementFlagHidden);

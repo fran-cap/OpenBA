@@ -5,7 +5,7 @@
 // Vtable at 0x14015ae90, read from the BYTES:
 //   [ 3] 0x14005cfa0  Shutdown/Serialize — two empty serializer blocks
 //   [ 7] 0x14005cf60  OnRemove           — UNregister the water source
-//   [16] 0x1400026c0  GetDefaultState    — return 2
+//   [16] 0x1400026c0  GetDefaultState    — return 2 (BuildingState::Built)
 //   [17] 0x140004080  CreateState        — self + 0x28
 // Slots 16/17 are the same two functions ResidenceComponent uses, i.e. this is a
 // state-machine controller whose default state is 2.
@@ -327,14 +327,14 @@ static void WellComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = WellCtrlDispatch::table;
     if (t.count != 0) return;                      // idempotent
-    TableRegisterState(t, 2, &WellComponent_EnterBuiltState,
+    TableRegisterState(t, BuildingState::Built, &WellComponent_EnterBuiltState,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 3, &WellComponent_EnterDemolishState,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Demolish, &WellComponent_EnterDemolishState,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
 }
 static const bool s_wellStateTableBuilt = (WellComponent_PopulateStateTable(), true);
 

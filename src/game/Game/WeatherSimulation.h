@@ -57,11 +57,23 @@ using WeatherEffectArray  = Collection::Array<Graphics::Geometry*, Collection::D
 using WeatherEmitterArray = Collection::Array<ComponentEntity*, Collection::DefaultAllocator,
                                               Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
 
+// +0x10: the sky the climate roll picked for this keyframe (WeatherTypeStateMachine,
+// FUN_1400935f0, walks 0..3 against ClimateGenerator::_climateData[month * 4 + type]). The
+// status bar shows one icon per value (rain, cloudy, partly sunny, sunny; Rain below
+// freezing shows the snow icon). Only Rain enables the precipitation effects and the
+// ambient spawn roll; SetEffectEnabled / the debug UI write Rain on show, Sunny on hide.
+enum class WeatherType : int32_t {
+    Rain        = 0,   // raises field_0x14 by one per roll
+    Cloudy      = 1,
+    PartlySunny = 2,
+    Sunny       = 3,   // the roll's last value; lowers field_0x14 by one
+};
+
 class WeatherSimulation {
 public:
     EnvironmentDescription* environment;     // +0x00 ExternalPtr ("Environment/Environment.rsc")
     ClimateGenerator*       climate;         // +0x08 ExternalPtr (GameUpdateLoop::m_climateConfig)
-    int32_t                 field_0x10;      // +0x10 (Serialize int); non-zero stops snow and the disaster roll
+    WeatherType             weatherType;     // +0x10 (Serialize int); non-Rain stops snow and the disaster roll
     int32_t                 field_0x14;      // +0x14 ctor 4 (Serialize int)
     float                   temperature;     // +0x18 (Serialize float); CitizenComponent::Update's cold test
     Math::Vector4           field_0x1C;      // +0x1C (Vector4::Serialize); ctor zero (0x140093fa3 / 0x140093fa7)
@@ -104,7 +116,8 @@ public:
 static_assert(sizeof(WeatherSimulation) == 0x78, "WeatherSimulation is 0x78 (Load MemAlloc(0x78, 8))");
 static_assert(offsetof(WeatherSimulation, environment) == 0x00, "WeatherSimulation::environment @ +0x00");
 static_assert(offsetof(WeatherSimulation, climate) == 0x08, "WeatherSimulation::climate @ +0x08");
-static_assert(offsetof(WeatherSimulation, field_0x10) == 0x10, "WeatherSimulation +0x10");
+static_assert(sizeof(WeatherType) == 4, "WeatherType is the int32_t at +0x10");
+static_assert(offsetof(WeatherSimulation, weatherType) == 0x10, "WeatherSimulation::weatherType @ +0x10");
 static_assert(offsetof(WeatherSimulation, field_0x14) == 0x14, "WeatherSimulation +0x14");
 static_assert(offsetof(WeatherSimulation, temperature) == 0x18, "WeatherSimulation::temperature @ +0x18");
 static_assert(offsetof(WeatherSimulation, field_0x1C) == 0x1C, "WeatherSimulation +0x1C");

@@ -320,8 +320,8 @@ void StatusBarUI::OnUpdateLayout() {
 
     // --- Update weather icons ---
     // Weather check uses displayTemp (after conversion), compared to freezing F
-    int weatherType = weather->field_0x10;
-    if (displayTemp <= kFreezingF && weatherType == 0) {
+    int weatherType = static_cast<int32_t>(weather->weatherType);
+    if (displayTemp <= kFreezingF && weatherType == static_cast<int32_t>(WeatherType::Rain)) {
         weatherType = 4;  // snow
     }
 

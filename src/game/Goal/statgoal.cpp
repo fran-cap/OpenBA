@@ -126,7 +126,7 @@ void StatGoal::Destruct() { this->~StatGoal(); }
 // 2. If comparisonType is odd, the same for statB; else fixedValue (+0x3c)
 // 3. Switch on comparisonType (even/odd pairs share the comparison):
 //    0,1 = EQ; 2,3 = NE; 4,5 = LT; 6,7 = LE; 8,9 = GT; 10,11 = GE
-// 4. requireOtherGoalsMet: comparisonMet ? 2 : 1, otherwise comparisonMet ? 1 : 0
+// 4. requireOtherGoalsMet: comparisonMet ? kFailed : kMet, otherwise comparisonMet ? kMet : kNotMet
 
 // Operand computation, split out unchanged so a diagnostic can read the two
 // numbers the comparison is about to use. Retail has no such split; the
@@ -180,9 +180,9 @@ Achievement::Goal::GoalState StatGoal::CheckGoalState() const {
 
     // Apply requireOtherGoalsMet modifier
     if (requireOtherGoalsMet) {
-        return static_cast<GoalState>(comparisonMet ? 2 : 1);
+        return comparisonMet ? kFailed : kMet;
     }
-    return static_cast<GoalState>(comparisonMet ? 1 : 0);
+    return comparisonMet ? kMet : kNotMet;
 }
 
 // ============================================================

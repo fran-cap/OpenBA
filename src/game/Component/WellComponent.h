@@ -55,7 +55,7 @@ public:
     ~WellComponent() override = default;                          // [0]  0x14000fe50
     void          Persist(IO::Stream& stream) override;                 // [3]  0x14005cfa0
     void          OnRemove() override;                            // [7]  0x14005cf60
-    int           GetDefaultState() const override { return 2; }  // [16] 0x1400026c0
+    int           GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller*   GetController() override { return &_controller; }  // [17] 0x140004080
 
     // The controller's state handlers (table 0x14014bc20; RCX = this).

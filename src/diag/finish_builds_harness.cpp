@@ -33,6 +33,7 @@
 #include "Object/factory_registration.h"
 #include "Component/BuildComponent.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"
 #include "Entity/ComponentEntity.h"   // B4: the component array by name
 #include "Entity/EntityList.h"        // B4: GameUpdateLoop::m_entityList
 #include "options.h"
@@ -98,7 +99,10 @@ extern "C" void FinishBuildsHarness_Tick(int frameNum) {
         if (!sm) continue;
         const int cur  = sm->stateMachine.currentInput;    // +0x50
         const int pend = sm->stateMachine.pendingState;    // +0x52
-        if (cur == 2 || pend == 2) { ++alreadyBuilt; continue; }
+        if (cur == SmId(BuildingState::Built) || pend == SmId(BuildingState::Built)) {
+            ++alreadyBuilt;
+            continue;
+        }
 
         // Drive the BuildComponent's OWN completion rather than poking the state.
         // Stamping pending = 2 works for a start-town structure the placer spawns
@@ -111,14 +115,14 @@ extern "C" void FinishBuildsHarness_Tick(int frameNum) {
         //   state 1  -> request 8 (materials treated as delivered)
         //   state 8  -> stamp progress at the target, which is what State8Update's own
         //               completion test reads before it requests 8->2
-        if (cur == 8) {
+        if (cur == SmId(BuildingState::Construct)) {
             // bc+0x48 is progress, bc+0x4c the build multiplier. State8Update completes
             // on progress >= target; a saturated progress satisfies that whatever the
             // target works out to, and the transition is still made by retail code.
             bc->laborProgress = 0x40000000;            // +0x48
             ++stamped;
         } else {
-            sm->stateMachine.pendingState = 8;         // +0x52
+            sm->stateMachine.pendingState = StateByte(BuildingState::Construct);   // +0x52
             ++stamped;
         }
     }

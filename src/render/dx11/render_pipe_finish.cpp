@@ -44,12 +44,15 @@ namespace {
 
 // contextdata.cpp's ForceDeviceLostThisFrame, with this file's own count (see the banner).
 bool ForceDeviceLostThisPacket() {
-    static int  wanted = -2;      // -2 = not yet read, -1 = disabled, -3 = on request (`bgsave`)
+    // A DeviceLostDrive::Wanted mode, or > 0: the packet Present # to inject on.
+    static int  wanted = static_cast<int>(DeviceLostDrive::Wanted::NotRead);
     static long frame  = 0;
     static bool fired  = false;
-    if (wanted == -2) {
+    if (wanted == static_cast<int>(DeviceLostDrive::Wanted::NotRead)) {
         const char* v = Opt().forceDeviceLost;
-        wanted = DeviceLostDrive::Armed() ? -3 : (v && *v) ? ClampedAtoi(v) : -1;
+        wanted = DeviceLostDrive::Armed() ? static_cast<int>(DeviceLostDrive::Wanted::OnRequest)
+                 : (v && *v)               ? ClampedAtoi(v)
+                                           : static_cast<int>(DeviceLostDrive::Wanted::Disabled);
         if (wanted > 0)
             std::fprintf(stderr,
                 "[DeviceLost] ARMED (render thread): a synthetic DXGI_ERROR_DEVICE_RESET will be "
@@ -57,7 +60,7 @@ bool ForceDeviceLostThisPacket() {
     }
     ++frame;
     // BANISHED_FORCE_DEVICE_LOST=bgsave (src/diag/device_lost_drive.h): once, on request.
-    if (wanted == -3) {
+    if (wanted == static_cast<int>(DeviceLostDrive::Wanted::OnRequest)) {
         if (fired || !DeviceLostDrive::TakeRequest()) return false;
         fired = true;
         return true;

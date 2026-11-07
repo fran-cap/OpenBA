@@ -493,10 +493,10 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 Profession* workIBP = nullptr;
                 Profession* workEntity2 = *GetTarget(&workIBP);
 
-                // Set fields on citizen: +0x30 = workId, +0x54 |= 4, +0xb0 = 0
+                // Set fields on citizen: +0x30 = workId, +0x54 |= 4, +0xb0 lastErrand = None
                 citizenObj->field_0x30 = workId;
                 citizenObj->statusFlags |= Bits(CitizenStatus::TaskDone);
-                citizenObj->field_0xB0 = 0;
+                citizenObj->lastErrand = CitizenErrand::None;
 
                 // If the work's profession matches the citizen's (+0x1f0) and workId >= 0, set flag
                 if (workEntity2 == citizenObj->profession && workId >= 0) {
@@ -591,7 +591,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
 
                 citizenObj->field_0x30 = workIdSaved;
                 citizenObj->statusFlags |= Bits(CitizenStatus::TaskDone);
-                citizenObj->field_0xB0 = 0;
+                citizenObj->lastErrand = CitizenErrand::None;
 
                 if (workEntity2 == citizenObj->profession && workIdSaved >= 0) {
                     citizenObj->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

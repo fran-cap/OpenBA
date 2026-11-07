@@ -51,7 +51,7 @@ public:
     void          Startup() override;                             // [4]  0x14011db00
     void          OnMessage(int message, void* data,
                             uint32_t arg0, uint32_t arg1) override;  // [15] 0x14011daf0
-    int         GetDefaultState() const override { return 4; }  // [16] 0x140033c00
+    int         GetDefaultState() const override { return SmId(BuildingState::HaulAway); }  // [16] 0x140033c00
     Controller* GetController() override { return &_controller; }  // [17] 0x140004080
 
     // ---- non-virtual members (retail addresses; RCX = this) ----

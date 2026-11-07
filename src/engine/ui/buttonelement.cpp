@@ -102,7 +102,7 @@ void ButtonElement::ComputeSize() {
     Element* label = _children._data[kChildLabel];
     if (label != nullptr) label->GetPaddedSize(_layoutWidth, _layoutHeight);
 
-    Element* bg = _children._data[_state];
+    Element* bg = _children._data[static_cast<int32_t>(_state)];
     if (bg != nullptr) {
         int w = 0, h = 0;
         PaddedSizeInline(bg, &w, &h);
@@ -130,7 +130,7 @@ void ButtonElement::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h) {
     if (label != nullptr)
         label->ComputeLayout(_layoutLeft, _layoutTop, _layoutRight, _layoutBottom);
 
-    Element* bg = _children._data[_state];
+    Element* bg = _children._data[static_cast<int32_t>(_state)];
     if (bg != nullptr)
         bg->ComputeLayout(_layoutLeft, _layoutTop, _layoutRight, _layoutBottom);
 }
@@ -146,7 +146,7 @@ void ButtonElement::Draw(SpriteContext& context, uint8_t alpha) const {
 
     alpha = DimAlpha(this, alpha);
 
-    const Element* bg = _children._data[_state];
+    const Element* bg = _children._data[static_cast<int32_t>(_state)];
     if (bg != nullptr) bg->Draw(context, alpha);
 
     const Element* label = _children._data[kChildLabel];
@@ -166,14 +166,14 @@ void ButtonElement::Draw(SpriteContext& context, uint8_t alpha) const {
 //   _flags &= ~bit22                                 (was-activated, cleared)
 //   if (state.mouseDown && (_flags & bit17))         bit17 == "mouse is over"
 //        _flags |= bit21                             bit21 == "press started here"
-//   _state = disabled ? 1
-//          : (bit17 && bit21 && state.mouseHeld) ? 3
-//          : bit17 ? 2 : 0                           ... and `colour` follows it
+//   _state = disabled ? 1 (Disabled)
+//          : (bit17 && bit21 && state.mouseHeld) ? 3 (Pressed)
+//          : bit17 ? 2 (Hovered) : 0 (Normal)        ... and `colour` follows it
 //   if (_state != prev) { SetNeedsSizeCalc(this);
 //                         _children[_state]->ComputeLayout(rect) }
 //   if (_children[4]) _children[4]->SetColor(colour)
 //   if (!(_flags & bit17)) _flags &= ~bit21
-//   if (_state != 1) {                               (not disabled)
+//   if (_state != 1) {                               (not Disabled)
 //        if (state.mouseDown && bit17 && bit21)  UserInterface::Play(ui, 4)
 //        if ((state.mouseUp && bit17 && bit21) || (_key >= 0 && KeyMap::Pressed(...))) {
 //             _flags &= ~bit21 ; _flags |= bit22
@@ -202,7 +202,7 @@ void ButtonElement::Update(const System::Time& time, UserInterface* ui,
     uint32_t flags = _flags;
     if ((flags & UI::kElementFlagHidden) != 0) return;
 
-    const int prevState = _state;
+    const ButtonState prevState = _state;
     StoreFlags(this, flags & ~kElementFlagWasActivated);
 
     if (state.buttonPressed != 0) {
@@ -214,22 +214,22 @@ void ButtonElement::Update(const System::Time& time, UserInterface* ui,
     flags = _flags;
     if ((flags & UI::kElementFlagAnyDisabled) != 0) {
         colour = _stateColor[1];
-        _state = 1;
+        _state = ButtonState::Disabled;
     } else if ((flags & kElementFlagHovered) != 0 && (flags & kElementFlagPressed) != 0 &&
                state.leftDown != 0) {
         colour = _stateColor[3];
-        _state = 3;
+        _state = ButtonState::Pressed;
     } else if ((flags & kElementFlagHovered) != 0) {
         colour = _stateColor[2];
-        _state = 2;
+        _state = ButtonState::Hovered;
     } else {
         colour = _stateColor[0];
-        _state = 0;
+        _state = ButtonState::Normal;
     }
 
     if (_state != prevState) {
         rtuielem::SetNeedsSizeCalc(this);
-        Element* bg = _children._data[_state];
+        Element* bg = _children._data[static_cast<int32_t>(_state)];
         bg->ComputeLayout(_layoutLeft, _layoutTop, _layoutRight, _layoutBottom);
     }
 
@@ -239,7 +239,7 @@ void ButtonElement::Update(const System::Time& time, UserInterface* ui,
     flags = _flags;
     if ((flags & kElementFlagHovered) == 0) StoreFlags(this, flags & ~kElementFlagPressed);
 
-    if (_state == 1) return;
+    if (_state == ButtonState::Disabled) return;
 
     if (state.buttonPressed != 0) {
         const uint32_t f = _flags;

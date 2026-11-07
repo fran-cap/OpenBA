@@ -61,11 +61,21 @@ extern "C" ModDetailsDialog* ModDetailsDialog_LastOpened();
 
 namespace {
 
+// One forward progression per world: WaitOpen -> Open -> Clicked -> FeedingClicks -> Done.
+// A new world rearms Open / Clicked back to WaitOpen; FeedingClicks survives a world reload.
+// Done = the click sequence ran out (s_openFrame is 0 too): never rearmed.
+enum class Stage : uint8_t {
+    WaitOpen,        // menu not opened on this world yet
+    Open,            // menu opened, waiting s_quitDelay frames to click
+    Clicked,         // button clicked (or the open / click failed): aftermath only
+    FeedingClicks,   // BANISHED_PAUSEMENU_CLICKS token feed in progress
+    Done,            // token feed finished, harness disarmed
+};
+
 int   s_openFrame  = -1;   // -1 = env not read yet, 0 = disabled
 int   s_quitDelay  = 120;
 int   s_buttonId   = 6;    // kButton_Quit
-bool  s_opened     = false;
-bool  s_clicked    = false;
+Stage s_stage      = Stage::WaitOpen;
 int   s_openedAt   = 0;
 int   s_clickedAt  = 0;
 void* s_forWorld   = nullptr;  // the GameUpdateLoop this arming belongs to
@@ -74,7 +84,6 @@ UI::DialogInstance* s_dialog = nullptr;  // the pause menu the opener handed bac
 char  s_clicks[256] = {0};     // BANISHED_PAUSEMENU_CLICKS, consumed in place
 char* s_clickCursor = nullptr;
 int   s_lastTokenAt = 0;
-bool  s_feeding     = false;   // token feed in progress: survives a world reload
 
 void Init() {
     if (s_openFrame >= 0) return;
@@ -145,7 +154,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
     // from when this world first appeared: GameUpdateLoop's s_frameNum is a process
     // counter that never resets, so an absolute "open at frame 800" would fire
     // instantly on game two.
-    if (s_feeding) {
+    if (s_stage == Stage::FeedingClicks) {
         if (s_clickCursor && frameNum >= s_lastTokenAt + 60) {
             s_lastTokenAt = frameNum;
             char* tok = s_clickCursor;
@@ -220,7 +229,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
             }
             if (!s_clickCursor) {
                 std::fprintf(stderr, "[PauseMenu] CLICKS: sequence done - harness disarmed\n");
-                s_feeding   = false;
+                s_stage     = Stage::Done;
                 s_openFrame = 0;   // never rearm, even if the click reloaded the world
             }
         }
@@ -230,15 +239,14 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
     if (gameWorld != s_forWorld) {
         s_forWorld    = gameWorld;
         s_worldSeenAt = frameNum;
-        s_opened      = false;
-        s_clicked     = false;
+        s_stage       = Stage::WaitOpen;
         s_dialog      = nullptr;
         s_clickedAt   = 0;
         std::fprintf(stderr, "[PauseMenu] new world %p at frame %d - rearmed\n",
                      static_cast<void*>(gameWorld), frameNum);
     }
 
-    if (s_clicked) {
+    if (s_stage == Stage::Clicked) {
         // Aftermath, once. For a non-Quit button this is the real proof the menu
         // is live rather than merely present: Resume (id 1) must take PausesGame
         // back to 0, i.e. the simulation starts ticking again.
@@ -248,14 +256,14 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         }
         // Hand the follow-up clicks to the feeder at the top of this function,
         // which keeps running across the world reload an in-game mods Ok triggers.
-        if (s_clickCursor && s_clickedAt && !s_feeding) {
-            s_feeding     = true;
+        if (s_clickCursor && s_clickedAt) {
+            s_stage       = Stage::FeedingClicks;
             s_lastTokenAt = s_clickedAt;
         }
         return;
     }
 
-    if (!s_opened) {
+    if (s_stage == Stage::WaitOpen) {
         if (frameNum - s_worldSeenAt < s_openFrame) return;
         // Retail passes gameWorld+0x120 (the EntityUI). GameUpdateLoop hands us the
         // same pointer as m_toolManager; fall back to the world field if it is null.
@@ -264,12 +272,12 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         std::fprintf(stderr, "[PauseMenu] frame %d - opening (entityUI=%p ui=%p pausesGame=%d)\n",
                      frameNum, eui, static_cast<void*>(ui), Paused(ui));
         s_dialog   = eui->OpenPauseMenu();
-        s_opened   = true;
+        s_stage    = Stage::Open;
         s_openedAt = frameNum;
         if (!s_dialog) {
             std::fprintf(stderr, "[PauseMenu] OPEN FAILED - no dialog was built "
                                  "(Pause.rsc load or MemAlloc failed)\n");
-            s_clicked = true;
+            s_stage = Stage::Clicked;
             return;
         }
         int cnt = 0;
@@ -300,7 +308,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
     std::fprintf(stderr, "[PauseMenu] frame %d - dialog=%p live=%d "
                          "UI array index=%d of %d pausesGame=%d\n",
                  frameNum, static_cast<void*>(s_dialog), (int)live, idx, cnt, Paused(ui));
-    s_clicked = true;
+    s_stage = Stage::Clicked;
     if (!live) {
         std::fprintf(stderr, "[PauseMenu] click aborted - the dialog left the UI's lists, "
                              "so it was closed and freed\n");
@@ -325,7 +333,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
 // later and clicks Quit Game (id 6) after the usual delay.
 extern "C" void PauseMenuHarness_QuitGame() {
     Init();
-    if (s_opened || s_clicked || s_feeding) return;
+    if (s_stage != Stage::WaitOpen) return;
     s_openFrame = 1;
     s_buttonId  = 6;   // kButton_Quit
     s_forWorld  = nullptr;

@@ -190,11 +190,11 @@ void FollowDialog::OnUpdateLayout() {
     CitizenAIComponent* aiComp = ai->_entity->FindComponent<CitizenAIComponent>();
 
     // The AI state is the action index -- unguarded, as retail (0x140069121).
-    int actionIndex = aiComp->state;
+    int actionIndex = static_cast<int32_t>(aiComp->state);
 
-    // Special case: action 9 (idle/searching for home)
+    // Special case: action Idle (idle/searching for home)
     // Check if citizen's home tile entity has a different profession — if so, show index 0x10
-    if (actionIndex == 9) {
+    if (actionIndex == static_cast<int32_t>(CitizenAIState::Idle)) {
         Work* homeRef = nullptr;
         int homeTile = ai->field_0x30;
         if (homeTile >= 0) {

@@ -281,20 +281,20 @@ static void BuildComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = BuildCtrlDispatch::table;
     if (t.count != 0) return;  // idempotent
-    // state 1: enter=State1Enter (spawner); per-frame=State1Update (materials -> req 8).
-    TableRegisterState(t, 1, &BuildState1Enter,
+    // state 1 GatherMaterials: enter=State1Enter (spawner); per-frame=State1Update (materials -> req 8).
+    TableRegisterState(t, BuildingState::GatherMaterials, &BuildState1Enter,
                        nullptr, &BuildState1Update, nullptr);
-    TableAddTransition(t, 8, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    // state 8: enter=State8Enter (mesh reset); per-frame=State8Update (progress -> frames,
+    TableAddTransition(t, BuildingState::Construct, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    // state 8 Construct: enter=State8Enter (mesh reset); per-frame=State8Update (progress -> frames,
     //          complete -> req 2); exit-transition=State8OneShot; 8->2 action=Finalize.
-    TableRegisterState(t, 8, &BuildState8Enter,
+    TableRegisterState(t, BuildingState::Construct, &BuildState8Enter,
                        nullptr, &BuildState8Update,
                        &BuildState8OneShot);
-    TableAddTransition(t, 2, &BuildState8To2Action);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 2, nullptr, nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
+    TableAddTransition(t, BuildingState::Built, &BuildState8To2Action);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Built, nullptr, nullptr, nullptr, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
 }
 static const bool s_buildStateTableBuilt = (BuildComponent_PopulateStateTable(), true);
 

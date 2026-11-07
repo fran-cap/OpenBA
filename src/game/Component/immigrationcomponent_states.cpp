@@ -378,7 +378,7 @@ void ImmigrationComponent::Dismiss() {
     int n = group._size;
     Object::InternalPtr<ComponentEntity>* arr = group._data;
     for (int i = 0; i < n; ++i) {
-        PostEventToEntity(arr[i].Get(), 1);
+        PostEventToEntity(arr[i].Get(), SmId(NomadEvent::Leave));
     }
     if (arr) System::MemoryAllocator::MemFree(arr);
     group._data = nullptr;
@@ -463,7 +463,7 @@ void ImmigrationComponent::Accept() {
         NomadComponent* nomad = ent->FindComponent<NomadComponent>();
         CitizenComponent* cit = nullptr;
         nomad->ConvertToCitizen(&cit, parent, gender, child);   // 0x1400501a0 (unguarded, as the tree's)
-        PostEventToEntity(nomadAt(i), 0);
+        PostEventToEntity(nomadAt(i), SmId(NomadEvent::Destroy));
         return cit;
     };
 
@@ -502,11 +502,11 @@ void ImmigrationComponent::Accept() {
 
 // state 2 IDLE — enter 0x14004d290 (returns 0), tick 0x14004d220 (returns 1)
 char ImmigrationComponent::EnterIdle(StateMachine* sm) {
-    if (CanAccept()) ::ControllerLive::RequestStateTransition(sm, 0xf);
+    if (CanAccept()) ::ControllerLive::RequestStateTransition(sm, BuildingState::ImmigrationWaiting);
     return 0;
 }
 char ImmigrationComponent::TickIdle(StateMachine* sm) {
-    if (CanAccept()) ::ControllerLive::RequestStateTransition(sm, 0xf);
+    if (CanAccept()) ::ControllerLive::RequestStateTransition(sm, BuildingState::ImmigrationWaiting);
     return 1;
 }
 
@@ -531,7 +531,8 @@ char ImmigrationComponent::TickWaiting(StateMachine* sm, const System::Time* tim
     bool inSeason = (desc->_arrivalMonthFirst <= month && month <= desc->_arrivalMonthLast);
     if (waitTimer._ticks < 1 && inSeason) {
         bool ok = CanAccept();
-        ::ControllerLive::RequestStateTransition(sm, ok ? 0x10 : 2);
+        ::ControllerLive::RequestStateTransition(
+            sm, ok ? BuildingState::ImmigrationArriving : BuildingState::Built);
     }
     return 1;
 }
@@ -555,7 +556,8 @@ char ImmigrationComponent::TickArriving() {
 // event 6 0x14004cff0: a nomad reached the hall
 char ImmigrationComponent::OnArrived(StateMachine* sm) {
     int32_t arrived = ++arrivedCount;
-    if (arrived == group._size) ::ControllerLive::RequestStateTransition(sm, 0x11);
+    if (arrived == group._size)
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::ImmigrationAnswer);
     return 1;
 }
 // transition 0x10/0x11 -> 3 handler 0x14004cd00: dismiss on the way out
@@ -576,20 +578,20 @@ char ImmigrationComponent::TickAnswer(StateMachine* sm) {
     ImmigrationDescription* desc = ImmDesc(this);
     if (desc->_leaveMonth <= MonthOfYear(gw)) {
         Dismiss();   // 0x14004d300
-        ::ControllerLive::RequestStateTransition(sm, 2);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Built);
     }
     return 1;
 }
 // event 7 0x14004cd90: ALLOW
 char ImmigrationComponent::OnAllow(StateMachine* sm) {
     Accept();   // 0x14004d450
-    ::ControllerLive::RequestStateTransition(sm, 2);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Built);
     return 1;
 }
 // event 8 0x14004cd20: DENY
 char ImmigrationComponent::OnDeny(StateMachine* sm) {
     Dismiss();   // 0x14004d300
-    ::ControllerLive::RequestStateTransition(sm, 2);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Built);
     return 1;
 }
 
@@ -629,32 +631,32 @@ extern "C" void ImmigrationCtrl_PopulateTable() {
     auto& t = ImmigrationDispatch::table;
     if (t.count != 0) return;
     // sub_7ba0(id, ENTER, p3, p4, TICK) -> {id, enter@+0x08, trans38@+0x18}
-    TableRegisterState(t, 2, &ImmEnterIdle, nullptr,
+    TableRegisterState(t, BuildingState::Built, &ImmEnterIdle, nullptr,
                        &ImmTickIdle, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 0xf, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::ImmigrationWaiting, nullptr);
 
-    TableRegisterState(t, 0xf, &ImmEnterWaiting, nullptr,
+    TableRegisterState(t, BuildingState::ImmigrationWaiting, &ImmEnterWaiting, nullptr,
                        &ImmTickWaiting, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 0x10, nullptr);
-    TableAddTransition(t, 2, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::ImmigrationArriving, nullptr);
+    TableAddTransition(t, BuildingState::Built, nullptr);
 
-    TableRegisterState(t, 0x10, &ImmEnterArriving, nullptr,
+    TableRegisterState(t, BuildingState::ImmigrationArriving, &ImmEnterArriving, nullptr,
                        &ImmTickArriving, nullptr);
-    TableAddTransition(t, 3, &ImmOnLeaveGroup);
-    TableAddTransition(t, 0x11, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, &ImmOnLeaveGroup);
+    TableAddTransition(t, BuildingState::ImmigrationAnswer, nullptr);
     // NOT RETAIL: fix.nomad_arrival's way back to idle when every member of the group gave up
     // (docs/retail_bugs.md §22, nomadcomponent_states.cpp NomadLeaveHall). Retail lists {3, 0x11}.
     // The table is built before settings are read, so the entry is always here and only the
     // row makes the request. Appended last, so the indices of 3 and 0x11 are retail's.
-    TableAddTransition(t, 2, nullptr);
-    TableAddEvent(t, 6, &ImmOnArrived);
+    TableAddTransition(t, BuildingState::Built, nullptr);
+    TableAddEvent(t, BuildingEvent::ImmigrantsArrived, &ImmOnArrived);
 
-    TableRegisterState(t, 0x11, &ImmEnterAnswer, nullptr,
+    TableRegisterState(t, BuildingState::ImmigrationAnswer, &ImmEnterAnswer, nullptr,
                        &ImmTickAnswer, nullptr);
-    TableAddTransition(t, 3, &ImmOnLeaveGroup);
-    TableAddTransition(t, 2, nullptr);
-    TableAddEvent(t, 7, &ImmOnAllow);
-    TableAddEvent(t, 8, &ImmOnDeny);
+    TableAddTransition(t, BuildingState::Demolish, &ImmOnLeaveGroup);
+    TableAddTransition(t, BuildingState::Built, nullptr);
+    TableAddEvent(t, BuildingEvent::AllowImmigrants, &ImmOnAllow);
+    TableAddEvent(t, BuildingEvent::DenyImmigrants, &ImmOnDeny);
 }

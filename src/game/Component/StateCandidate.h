@@ -11,7 +11,7 @@
 // TransitionState 0x14010db90 reads id at +0 with stride 3 ints). (Moved from
 // citizenai_candidatelist.cpp: TransitionState reads it too.)
 struct StateCandidate {
-    int32_t id;         // +0x00 CitizenAI state id
+    int32_t id;         // +0x00 CitizenAI state id (a CitizenAIState value; kept int32_t)
     int32_t priority;   // +0x04 sort key (descending)
     int32_t unused;     // +0x08 always 0
 };

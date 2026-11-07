@@ -104,7 +104,7 @@ void BridgeTool::Draw(Video::Context* context, char skip) {
 
     // ---- 1. Resolve the span being previewed -------------------------------
     int startCell, endCell;
-    if (dragState == '\0') {
+    if (dragState == DragState::Idle) {
         // Not dragging: preview the single cell under the cursor.
         startCell = PlayerRay_ScreenToCell_101270(this);
         endCell   = startCell;

@@ -125,8 +125,8 @@ void BuildingGoal::Destruct() { this->~BuildingGoal(); }
 // in the world's building BST (game+0xF0+0x160), counts matches.
 //
 // Returns:
-//   requireAll mode (+0x30 != 0): 1 if ALL types matched, 0 otherwise
-//   requireAny mode (+0x30 == 0): 1 if NO types matched, 2 if SOME matched
+//   requireAll mode (+0x30 != 0): kMet if ALL types matched, kNotMet otherwise
+//   requireAny mode (+0x30 == 0): kMet if NO types matched, kFailed if SOME matched
 Achievement::Goal::GoalState BuildingGoal::CheckGoalState() const {
     CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;
 
@@ -176,19 +176,19 @@ Achievement::Goal::GoalState BuildingGoal::CheckGoalState() const {
     if (_field30) {
         // requireAll mode
         if (matchCount == entryCount) {
-            return static_cast<GoalState>(1);  // all matched — goal complete
+            return kMet;  // all matched — goal complete
         }
-        return static_cast<GoalState>(0);
+        return kNotMet;
     }
 
     // requireAny mode
     if (matchCount == 0) {
-        return static_cast<GoalState>(1);      // none matched
+        return kMet;      // none matched
     }
     if (matchCount > 0) {
-        return static_cast<GoalState>(2);      // some matched
+        return kFailed;   // some matched
     }
-    return static_cast<GoalState>(0);
+    return kNotMet;
 }
 
 // ============================================================

@@ -71,7 +71,7 @@ void Pickup::Persist(IO::Stream& stream) {
     IO::Serializer serializer(stream, 2);
 
     // Serialize the int status at +0x48
-    serializer.Serialize(status, nullptr);
+    serializer.Serialize(reinterpret_cast<int&>(status), nullptr);
 
     // Serialize InternalBasePtr at +0x50 (the typed slot serialized through its base)
     citizenIBP.InternalBasePtr::Serialize(serializer);
@@ -101,7 +101,7 @@ void Pickup::Persist(IO::Stream& stream) {
 // reading the vtable bytes at 0x140161810: [4]=0x1400f2f00, [5]=0x1400f38f0.
 //
 // WHAT IT DOES (plain terms): when this Pickup work is still unclaimed
-// (status==0), a laborer runs it to claim the pile and start hauling:
+// (status == Unassigned), a laborer runs it to claim the pile and start hauling:
 //   1. Look up the target pile's RawMaterialComponent (0x1400223c0) and its
 //      RawMaterialDescription (IsDerivedFrom vs DAT_1401c7cb8).
 //   2. Compute the citizen's free carry capacity: StorageComponent+0x38 minus
@@ -119,12 +119,12 @@ void Pickup::Persist(IO::Stream& stream) {
 //   6. For each candidate that still fits in the remaining capacity: convert its
 //      access cell to a world position and dispatch PerformWork (0x1400c0ad0) --
 //      THIS is what actually makes the citizen walk over and haul the pile --
-//      then mark that per-type Pickup work claimed (+0x48=1, +0x50=citizen).
-//   7. Stamp the citizen (+0x30 = work type id, +0x54 |= 4, +0xb0 = 0, and
+//      then mark that per-type Pickup work claimed (+0x48=1 Assigned, +0x50=citizen).
+//   7. Stamp the citizen (+0x30 = work type id, +0x54 |= 4, +0xb0 = 0 lastErrand None, and
 //      +0x88 |= 0x20000 when the work targets the citizen's own workplace).
 //
 // Returns 0/1/2 as an int (never bool -- trampoline bug class #7): 1 = no work
-// available (also the early-out when status != 0), 2 = work dispatched OR the
+// available (also the early-out when status != Unassigned), 2 = work dispatched OR the
 // citizen is full and must re-plan, 0 = nothing dispatched this tick.
 //
 // The candidate record is 32 bytes; layout recovered from the stores at
@@ -236,7 +236,7 @@ static Work* Pickup_FindTypeWork(WorkScheduler* scheduler, int typeId) {
 // ============================================================
 int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     // 0x1400f2f37: CMP [RCX+0x48],0 -> anything but "unassigned" means no work.
-    if (status != 0) return 1;
+    if (status != PickupStatus::Unassigned) return 1;
 
     // g_pGameWorldSingleton is STORAGE (B3R): its pointer test stays.
     if (!GameUpdateLoop::_singleton) {
@@ -455,7 +455,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
         Work* wRaw = Pickup_FindTypeWork(scheduler, p->typeId);
         Pickup* claimed = Object::IsDerivedFromNullSafe(wRaw, tidPickup)
             ? static_cast<Pickup*>(wRaw) : nullptr;
-        claimed->status = 1;
+        claimed->status = PickupStatus::Assigned;
         claimed->citizenIBP = *citizenRef;
     }
 
@@ -470,7 +470,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
 
     citEntity->field_0x30 = workTypeId;
     citEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citEntity->field_0xB0 = 0;
+    citEntity->lastErrand = CitizenErrand::None;
     if (targetOut == citEntity->profession && workTypeId >= 0) {
         citEntity->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
@@ -487,15 +487,15 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
 // workplace during an active pickup.
 //
 // Algorithm:
-// 1. If status == 0, return false (no active work)
+// 1. If status == Unassigned, return false (no active work)
 // 2. If citizenIBP is null, return false
 // 3. Check if citizen's current profession matches citizenIBP's
 // 4. If different: cancel old work, re-run Slot4 for both entities
 // 5. Return false (keep executing)
 // ============================================================
 int Pickup::Slot5(CitizenComponent** citizenSlot, System::Time* param3) {
-    // Check status != 0 and citizenIBP != null
-    if (status == 0 || citizenIBP.Get() == nullptr) {
+    // Check status != Unassigned and citizenIBP != null
+    if (status == PickupStatus::Unassigned || citizenIBP.Get() == nullptr) {
         return 0;
     }
 
@@ -534,33 +534,33 @@ int Pickup::Slot5(CitizenComponent** citizenSlot, System::Time* param3) {
 
 // ============================================================
 // Pickup::Slot6 / OnComplete (0x1400f2ec0)
-// Resets citizenIBP to null, sets status to 2 (completing).
+// Resets citizenIBP to null, sets status to 2 (Completing).
 // Returns false.
 // ============================================================
 int Pickup::OnComplete(CitizenComponent** /*arg1*/, ComponentEntity** /*arg2*/, int /*arg3*/) {
     citizenIBP = nullptr;   // ??0InternalBasePtr(nullptr)
-    status = 2;
+    status = PickupStatus::Completing;
     return false;
 }
 
 
 // ============================================================
 // Pickup::Slot7 / OnCancel (0x1400f2e80)
-// Resets citizenIBP to null, sets status to 0 (unassigned).
+// Resets citizenIBP to null, sets status to 0 (Unassigned).
 // ============================================================
 int Pickup::OnCancel(CitizenComponent** /*arg1*/, ComponentEntity** /*arg2*/, int /*arg3*/) {
     citizenIBP = nullptr;   // ??0InternalBasePtr(nullptr)
-    status = 0;
+    status = PickupStatus::Unassigned;
     return 0;
 }
 
 
 // ============================================================
 // Pickup::Slot8 / CancelAll (0x1400f39f0)
-// If status == 1 (assigned), cancels the citizen's active work.
+// If status == Assigned, cancels the citizen's active work.
 // ============================================================
 int Pickup::Cleanup() {
-    if (status == 1) {
+    if (status == PickupStatus::Assigned) {
         CitizenComponent* citizenEntity = citizenIBP.Get();
 
         citizenEntity->character->actionStack.Clear();
@@ -572,7 +572,7 @@ int Pickup::Cleanup() {
 // ============================================================
 // Pickup::Slot9 / Validate (0x1400f2e20)
 // Validates the assigned citizen entity.
-// If invalid, resets citizenIBP to null and status to 0.
+// If invalid, resets citizenIBP to null and status to 0 (Unassigned).
 // Returns true if valid (or no citizen assigned).
 // ============================================================
 int Pickup::Validate() {
@@ -589,7 +589,7 @@ int Pickup::Validate() {
     if (!valid) {
         // Entity no longer valid -- reset
         citizenIBP = nullptr;   // ??0InternalBasePtr(nullptr)
-        status = 0;
+        status = PickupStatus::Unassigned;
         return false;
     }
 
@@ -652,7 +652,7 @@ void Pickup::Slot12(int /*version*/) {
 
 // Ctor 0x1400f3c00: `??0Internal`, the Work base fields, the leaf fields zeroed (the
 // two stamps are the compiler's).
-Pickup::Pickup() : Work(), status(0), citizenIBP(nullptr), candidateList(nullptr) {
+Pickup::Pickup() : Work(), status(PickupStatus::Unassigned), citizenIBP(nullptr), candidateList(nullptr) {
 }
 
 // ============================================================

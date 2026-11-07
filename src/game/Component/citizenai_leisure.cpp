@@ -17,7 +17,7 @@
 // B.4 W1 COMP-b: Leisure is a CitizenAIComponent member; `citizen` is the sibling
 //   CitizenComponent (its _description = CitizenDescription, IsDerivedFrom 0x1c7190; home;
 //   character->modelComponent whose transform +0x158/+0x15c/+0x160 = world pos, raw).
-//   Success epilogue writes field_0x30 = -1, statusFlags |= 4, field_0xB0 = 0 and
+//   Success epilogue writes field_0x30 = -1, statusFlags |= 4, lastErrand = None and
 //   leisureTimer = 0, then returns 1.
 //
 // GameUpdateLoop: m_game (+0xf8) = the Map (size, cells: MapCell stride 0x30),
@@ -721,7 +721,7 @@ LAB_14010ae8a:
 
             citizen->field_0x30 = -1;
             citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-            citizen->field_0xB0 = 0;
+            citizen->lastErrand = CitizenErrand::None;
             leisureTimer._ticks = 0;
             uVar41 = 1;
         }

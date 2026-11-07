@@ -98,8 +98,10 @@ constexpr double kMouseHideSeconds = 3.0;
 // Polls the release over a dialog is held before the cursor goes back to the world (the Ui lift).
 constexpr int32_t kReleaseHoldPolls = 3;
 
-// ButtonElement (ButtonElement.h): state 3 = pressed (its fourth state child), child 4 = the label.
-constexpr int32_t kButtonPressedState = 3;
+// ButtonElement (ButtonElement.h): ButtonState::Pressed (3) also indexes its fourth state child and
+// its pressed colour; child 4 = the label.
+using ButtonState = UI::ButtonElement::ButtonState;
+constexpr int32_t kButtonPressedChild = static_cast<int32_t>(ButtonState::Pressed);
 constexpr int32_t kButtonLabelChild = 4;
 constexpr float kGlyphFraction = 0.5f;
 // A button's glyph row fits this much of its width (the art's bevel and a margin outside the glyphs).
@@ -471,7 +473,7 @@ void AimLift(const Finger& f, ToolKind kind, double now) {
     }
     if (kind == ToolKind::Drag) {
         const DragTool* drag = static_cast<const DragTool*>(CurrentTool());
-        if (drag != nullptr && drag->dragState == 0) {
+        if (drag != nullptr && drag->dragState == DragState::Idle) {
             std::fprintf(stderr, "[TouchPointer] drag tool: start at %.0f,%.0f (single-click mode)\n",
                          g_queue.Last().x, g_queue.Last().y);
             ClickAtParked();
@@ -918,14 +920,14 @@ public:
         UI::Element* e = FindElement(System::String(kButtons[pressed])).Get();
         if (!::Object::IsDerivedFromNullSafe(e, UI::ButtonElement::TypeId())) return;
         UI::ButtonElement* button = static_cast<UI::ButtonElement*>(e);
-        if (button->_state == kButtonPressedState) return;
-        button->_state = kButtonPressedState;
+        if (button->_state == ButtonState::Pressed) return;
+        button->_state = ButtonState::Pressed;
         button->SetNeedsSizeCalc();
-        if (UI::Element* art = button->_children._data[kButtonPressedState]) {
+        if (UI::Element* art = button->_children._data[kButtonPressedChild]) {
             art->ComputeLayout(button->_layoutLeft, button->_layoutTop, button->_layoutRight, button->_layoutBottom);
         }
         if (UI::Element* label = button->_children._data[kButtonLabelChild]) {
-            label->SetColor(button->_stateColor[kButtonPressedState]);
+            label->SetColor(button->_stateColor[kButtonPressedChild]);
         }
     }
 

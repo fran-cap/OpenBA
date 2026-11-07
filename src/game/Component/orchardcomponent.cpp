@@ -20,6 +20,7 @@
 #include "Component/FruitDescription.h"
 #include "Component/OrchardDescription.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"
 #include "Component/WorkComponent.h"
 #include "Component/WorkPlaceComponent.h"
 #include "system/Value.h"
@@ -108,7 +109,7 @@ static void SerializeSlots(IO::Serializer& ser, int count, OrchardSlot* slot) {
     if (count <= 0) return;
     for (int i = 0; i < count; ++i, ++slot) {
         ser.Serialize(slot->tile, nullptr);
-        ser.Serialize(slot->state, nullptr);
+        ser.Serialize(reinterpret_cast<int32_t&>(slot->state), nullptr);
 
         // LEFT: InternalBasePtr has no typed view of a bare pointer member.
         slot->tree.InternalBasePtr::Serialize(ser);
@@ -140,7 +141,7 @@ void OrchardComponent::ValidateRefs() {
     const int count = slotCount;
     for (int i = 0; i < count; ++i) {
         OrchardSlot& slot = slots[i];
-        if (slot.state != 1) continue;
+        if (slot.state != OrchardSlotState::Planted) continue;
 
         const int32_t tile = slot.tile;
         ComponentEntity* live = cells[tile].occupant.Get();   // the entity standing on the cell
@@ -169,8 +170,8 @@ void OrchardComponent::ValidateRefs() {
                 std::fflush(stderr);
             }
         }
-        // Stale -> mark removed (kind=2) and null the 3 IBP slots.
-        slot.state    = 2;
+        // Stale -> mark removed (Hole, kind=2) and null the 3 IBP slots.
+        slot.state    = OrchardSlotState::Hole;
         slot.tree     = nullptr;
         slot.resource = nullptr;
         slot.fruit    = nullptr;
@@ -221,9 +222,9 @@ float OrchardComponent::GetGrowth() const {
         if (entity->FindComponent<NaturalResourceComponent>() == nullptr) continue;   // 0x1400052c0
 
         if (entity != slot.tree.Get()) continue;
-        if (slot.state != 1) continue;
+        if (slot.state != OrchardSlotState::Planted) continue;
 
-        if (!slot.fruit) continue;   // SA: retail derefs unguarded; state 1 implies it
+        if (!slot.fruit) continue;   // SA: retail derefs unguarded; state 1 (Planted) implies it
         float g = slot.fruit->ripeness;
         if (g > maxGrowth) g = maxGrowth;
         total += g;
@@ -246,8 +247,8 @@ float OrchardComponent::GetGrowth() const {
 //
 //   msg 0 "planted"  — read the tile the slot points at, take the entity standing on it,
 //                      and bind {entity, NaturalResourceComponent, FruitComponent} into the
-//                      slot with state 1. If ANY of the three is missing the slot goes to
-//                      state 2 (removed/unusable) instead — retail's own failure branch.
+//                      slot with state 1 (Planted). If ANY of the three is missing the slot goes to
+//                      state 2 (Hole: removed/unusable) instead — retail's own failure branch.
 //   msg 1 "harvested" — flag the slot (picked) and reset the fruit component's yield
 //                      (+0x30 = 0, +0x34 = 1).
 //   msg 2 "boost"    — advance the tree's fruit growth by the orchard description's rate.
@@ -311,8 +312,9 @@ int OrchardPlantedCount(const OrchardComponent* s) {
     const OrchardSlot* slots = s->slots;
     int n = 0;
     for (int i = 0; slots && i < count; ++i) {
-        const int st = slots[i].state;
-        if (st != 0 && st == 1) ++n;      // retail's redundant pair, kept verbatim
+        const OrchardSlotState st = slots[i].state;
+        // retail's redundant pair, kept verbatim
+        if (st != OrchardSlotState::Empty && st == OrchardSlotState::Planted) ++n;
     }
     return n;
 }
@@ -356,8 +358,9 @@ void TraceCanCommand(int cmdId, int curState, int planted, int slotCount, bool h
     const char* why = "enabled";
     if (result == 0) {
         if (!hasType)                    why = "no tree type selected";
-        else if (cmdId == 1 && curState != 10) why = "not in state 10 (tend) — harvest only "
-                                                     "offered on a grown orchard";
+        else if (cmdId == 1 && curState != SmId(BuildingState::Tend))
+                                         why = "not in state 10 (tend) — harvest only "
+                                               "offered on a grown orchard";
         else if (cmdId == 1)             why = "already harvested this year (+0x4c == curYear)";
         else if (cmdId == 3 && planted == 0)   why = "nothing planted";
         else if (cmdId == 3)             why = "already clearing (state 20)";
@@ -489,7 +492,7 @@ uint32_t OrchardComponent::CommandMask(int cmdId) {
         break;
     }
     case 1: {
-        if (curState != 10) break;
+        if (curState != SmId(BuildingState::Tend)) break;
         if (lastHarvestYear == OrchardYearOrZero()) break;
         result = hasType ? 1 : 0;
         break;
@@ -500,7 +503,7 @@ uint32_t OrchardComponent::CommandMask(int cmdId) {
             (hasType ? 1u : 0u));
         break;
     case 3:
-        result = (planted > 0 && curState != 20) ? 1 : 0;
+        result = (planted > 0 && curState != SmId(BuildingState::OrchardClear)) ? 1 : 0;
         break;
     default:
         break;
@@ -522,9 +525,9 @@ void OrchardComponent::Command(int cmdId) {
 
     int eventId;
     switch (cmdId) {
-    case 0: eventId = 3; break;
-    case 1: eventId = 4; break;
-    case 3: eventId = 5; break;
+    case 0: eventId = SmId(BuildingEvent::Plant); break;
+    case 1: eventId = SmId(BuildingEvent::Harvest); break;
+    case 3: eventId = SmId(BuildingEvent::Clear); break;
     case 2: {
         // Toggle the master switch and mirror it onto the workplace. Retail returns here:
         // no event is posted for this command.
@@ -582,25 +585,26 @@ void OrchardComponent::OnMessage(int msgId, void* /*srcEntityRef*/, uint32_t slo
         FruitComponent* fruit = entity->FindComponent<FruitComponent>();   // 0x14000a0b0
 
         {   // msg 0 is the ONLY writer of the slot's {entity, natRes, fruit} triple, and its
-            // two outcomes — bound (state 1) and unusable (state 2) — are indistinguishable
+            // two outcomes — bound (state 1 Planted) and unusable (state 2 Hole) — are indistinguishable
             // from the slot histogram alone. Say which of the three came back null.
             if (s_orchardMsg0Traced.fetch_add(1, std::memory_order_relaxed) < 8) {
                 std::fprintf(stderr, "[OrchardMsg]   msg0 slot=%u tile=%d -> entity=%p "
                              "natRes=%p fruit=%p => state %d\n", slotIdx, (int)slot.tile,
                              static_cast<void*>(entity), static_cast<void*>(natRes),
                              static_cast<void*>(fruit),
-                             (entity && natRes && fruit) ? 1 : 2);
+                             static_cast<int>((entity && natRes && fruit) ? OrchardSlotState::Planted
+                                                                          : OrchardSlotState::Hole));
                 std::fflush(stderr);
             }
         }
         if (entity != nullptr && natRes != nullptr && fruit != nullptr) {
-            slot.state    = 1;          // planted
+            slot.state    = OrchardSlotState::Planted;
             slot.tree     = entity;
             slot.resource = natRes;
             slot.fruit    = fruit;
             return;
         }
-        slot.state = 2;                 // unusable
+        slot.state = OrchardSlotState::Hole;   // unusable
         return;
     }
 

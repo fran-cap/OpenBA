@@ -64,6 +64,7 @@
 #include "Component/ComponentDescription.h"
 #include "Component/RawMaterialDescription.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/StateMachineComponent.h"   // X::TypeId() (B.3.9 CG2)
+#include "Component/BuildingState.h"
 #include "Component/ComponentDescription.h"   // X::TypeId() (B.3.9 CG2)
 #include "Component/SelectDescription.h"   // X::TypeId() (B.3.9 CG2)
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
@@ -377,7 +378,7 @@ void TradeUI::RefreshSellTable()
         int8_t state52 = buildStateComp->stateMachine.pendingState;
         int8_t stateVal = state52;
         if (state52 < 0) stateVal = buildStateComp->stateMachine.currentInput;
-        tradeActive = (stateVal == 0x13);
+        tradeActive = (stateVal == StateByte(BuildingState::MerchantDocked));
     }
 
     // Populate sell table cells
@@ -1058,7 +1059,7 @@ void TradeUI::OnCreated() {
 // resource entity: +0x28 = component array ptr, +0x30 = component count
 //   component value at +0x48 (identified by vtable+0x10 returning TypeId_RawMaterialDescription)
 // merchant state check: BuildState component, byte at +0x52 (or +0x50 if negative)
-//   0x13 = merchant arrived (enables dismiss button)
+//   0x13 = BuildingState::MerchantDocked (enables dismiss button)
 // storage capacity: StorageComponent+0x38 vs StorageComponent_QueryCount
 //   bStorageFull = capacity < storageCount + (buyTotal - sellTotal)
 
@@ -1163,7 +1164,7 @@ void TradeUI::OnUpdateLayout() {
     // State byte at +0x52 (primary), +0x50 (fallback if negative)
     int8_t stateByte = buildState->stateMachine.pendingState;
     if (stateByte < 0) stateByte = buildState->stateMachine.currentInput;
-    bool merchantArrived = (stateByte == 0x13);
+    bool merchantArrived = (stateByte == StateByte(BuildingState::MerchantDocked));
 
     // --- Enable/disable buttonDismiss (enabled when merchant is present) ---
     _buttonDismiss->Enable(merchantArrived);
@@ -1599,11 +1600,11 @@ void TradeUI::OnDismissButton() {
     // Read merchant state byte from +0x51 (sign-extended, no fallback)
     int8_t stateByte = buildState->stateMachine.activeState;
 
-    // Post event 10 to the current controller node (dismiss notification):
+    // Post event 10 (MerchantDismissed) to the current controller node:
     // Controller slot 2, PostEvent(stateMachine, stateIndex, eventId), with the
     // state machine at +0x48 and the state byte at +0x51 (0x1400819a9..0x1400819c2).
     ControllerComponent::Controller* node = buildState->stateMachine.current;
-    node->PostEvent(&buildState->stateMachine, stateByte, 10);
+    node->PostEvent(&buildState->stateMachine, stateByte, SmId(BuildingEvent::MerchantDismissed));
 
     // Refresh display and tables
     RefreshDisplay();
@@ -1748,10 +1749,10 @@ void TradeUI::RefreshSellSpinnerValues() {
     // Check merchant state: find the state machine
     StateMachineComponent* bsComp = entity->FindComponent<StateMachineComponent>();
 
-    // Byte at +0x52 (fallback +0x50 if negative) compared to 0x13 (merchant arrived).
+    // Byte at +0x52 (fallback +0x50 if negative) compared to 0x13 (BuildingState::MerchantDocked).
     int8_t stateByte = bsComp->stateMachine.pendingState;
     if (stateByte < 0) stateByte = bsComp->stateMachine.currentInput;
-    bool merchantArrived = (stateByte == 0x13);
+    bool merchantArrived = (stateByte == StateByte(BuildingState::MerchantDocked));
 
     if (sellCount > 0) {
         for (int i = 0; i < sellCount; i++) {

@@ -597,7 +597,7 @@ System::String Save::SaveLoad::GenerateSaveName() const {
 void Save::SaveLoad::SetOperation(Operation op, int index) {
     _operation         = op;
     const int64_t zero = ZeroTime();   // retail computes this BEFORE the two stores below
-    _progress          = 0;
+    _progress          = Progress::Start;
     _selectedIndex     = index;
     _elapsed           = zero;
 }

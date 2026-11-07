@@ -59,7 +59,7 @@ public:
     void          Update(const System::Time* time) override;                    // [9]  0x140044370
     uint32_t      CommandMask(int command) override;              // [13] 0x140043f10
     void          Command(int command) override;                  // [14] 0x140043e80
-    int         GetDefaultState() const override { return 2; }  // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }  // [17] 0x1400026b0
 
     // ---- non-virtual members (retail addresses) ----

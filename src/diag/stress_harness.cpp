@@ -633,7 +633,7 @@ void LogHomeLoss(CitizenComponent* cz, const char* where) {
                          "partner258=%p ring260=%p elder208=%p target228=%p depth=%d\n",
                  s_worldFrame, where, (void*)cz, Readable(name) ? name : "?",
                  cz->age, adultAge, cz->hunger,
-                 (int32_t)cz->field_0xB0, cz->statusFlags,
+                 static_cast<int32_t>(cz->lastErrand), cz->statusFlags,
                  cz->happinessFlags,
                  prof,
                  (void*)cz->workplace.Get(), (void*)cz->spouse.Get(),

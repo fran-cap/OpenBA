@@ -34,6 +34,13 @@
 #include "Player/Tool.h"
 #include "Object/exe_type.h"   // DECLARE_EXE_TYPE (ENDGAME B.3.9 RF)
 
+// DragTool::dragState (+0x28). Retail stores only these two values; singleClick (+0x29) is a
+// separate 0/1 flag that only means something while Dragging (released on the start cell).
+enum class DragState : uint8_t {
+    Idle     = 0,   // no drag in progress
+    Dragging = 1,   // start cell picked, end cell follows the cursor
+};
+
 class DragTool : public Tool {
     DECLARE_EXE_TYPE(DragTool)
 
@@ -54,7 +61,7 @@ public:
                            int* out1, int* out2, int* out3) = 0;       // [14] pure
 
     // ---- the 0x10 bytes DragTool adds, retail order -------------------------
-    uint8_t  dragState;     // +0x28 0 = idle, 1 = dragging
+    DragState dragState;    // +0x28 Idle / Dragging
     uint8_t  singleClick;   // +0x29 1 = released on the start cell (confirm on next click)
     uint8_t  _pad2A[2];     // +0x2a never written by retail (zeroed here)
     int32_t  startCell;     // +0x2c -1 = invalid
@@ -62,7 +69,7 @@ public:
     int32_t  lastEndCell;   // +0x34 change detection for the tick sound
 
 protected:
-    DragTool() : dragState(0), singleClick(0), _pad2A{0, 0},
+    DragTool() : dragState(DragState::Idle), singleClick(0), _pad2A{0, 0},
                  startCell(-1), endCell(-1), lastEndCell(-1) {}
 };
 
@@ -70,6 +77,7 @@ protected:
 static_assert(sizeof(DragTool) == 0x38, "DragTool is 0x38 bytes");
 static_assert(offsetof(DragTool, _pad2A) == 0x2A, "DragTool::_pad2A");
 static_assert(alignof(DragTool) == 8, "DragTool is 8-aligned");
+static_assert(sizeof(DragState) == 1, "DragState is the +0x28 byte");
 static_assert(offsetof(DragTool, dragState)   == 0x28, "DragTool +0x28 dragState (word store 0x1400fb8cb)");
 static_assert(offsetof(DragTool, singleClick) == 0x29, "DragTool +0x29 singleClick");
 static_assert(offsetof(DragTool, startCell)   == 0x2c, "DragTool +0x2c startCell (qword -1 at 0x1400fb8cf)");

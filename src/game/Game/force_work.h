@@ -42,6 +42,14 @@ constexpr int kEntCompCnt = 0x38;   // int32 component count
 constexpr int kCharCompOff  = 0x278;
 constexpr int kActionTopOff = 0x60;
 
+// A harness's one-time dependency check (a latch: it never returns to Unchecked). Until it
+// reads Usable the harness stays report-only and never drives its Work.
+enum class DepsCheck : int {
+    Unchecked = -1,   // the check has not run yet
+    Unusable  = 0,    // a dependency (sub-fn / type id / component) is missing: report only
+    Usable    = 1,    // every dependency resolved: the harness drives
+};
+
 // ---- crash-safe memory probes (VirtualQuery-backed) -------------------------
 bool Readable(const void* p, size_t n);   // LEFT: void* is a raw address (diagnostic probe), not an object: VirtualQuery readable-range check
 bool Executable(const void* p);   // LEFT: void* is a raw address (diagnostic probe), not an object: VirtualQuery executable check

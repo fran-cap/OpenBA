@@ -98,6 +98,20 @@ enum class CitizenStatus : uint32_t {
 };
 OPENBA_ENUM_FLAGS(CitizenStatus)
 
+// CitizenComponent::lastErrand (+0xB0): the kind of the last task the citizen finished.
+// No retail name; the names come from the writers. The two gather handlers store it on
+// success (retail's own two stores, `= 0` then the value): GatherResources 0x14010bc90
+// (AI state 6, food, driven by hunger) stores GatherFood and GatherResources2 0x14010b3e0
+// (AI state 7, fuel, driven by coldness) stores GatherFuel. Every other state handler's or
+// Work body's success epilogue stores None. The only reader is the candidate list builder
+// (citizenai_candidatelist.cpp): a spouse whose last errand was GatherFood / GatherFuel
+// keeps the citizen from offering candidate 6 / 7.
+enum class CitizenErrand : uint32_t {
+    None       = 0,   // ctor; every non-gather task completion
+    GatherFood = 1,   // GatherResources 0x14010bc90 (AI state 6) succeeded
+    GatherFuel = 2,   // GatherResources2 0x14010b3e0 (AI state 7) succeeded
+};
+
 class Disease;
 class Profession;
 class AttendanceComponent;
@@ -232,7 +246,7 @@ public:
                                    //       the happiness update compares its count (+0xA0) with desc+0xA8/+0xAC
     int32_t  field_0xA8;          // +0xA8 int, ctor -1; serialized (version > 0)
     int32_t  field_0xAC;           // +0xAC int, ctor 0; serialized
-    uint32_t field_0xB0;           // +0xB0 uint (Encoding slot 0x98), ctor 0
+    CitizenErrand lastErrand;      // +0xB0 uint (Encoding slot 0x98), ctor 0 (None)
     uint8_t  _padB4[4];            // +0xB4
 
     Graphics::MeshInstance meshInstance; // +0xB8 the carried tool / item mesh (ctor 0x140114808,
@@ -298,7 +312,8 @@ static_assert(sizeof(Collection::Array<ComponentDescription*>) == 0x10, "+0x98 A
 static_assert(sizeof(Graphics::MeshInstance) == 0x120, "+0xB8 MeshInstance ends at +0x1D8");
 static_assert(offsetof(CitizenComponent, field_0xA8)           == 0xA8,  "");
 static_assert(offsetof(CitizenComponent, field_0xAC)           == 0xAC,  "");
-static_assert(offsetof(CitizenComponent, field_0xB0)           == 0xB0,  "");
+static_assert(offsetof(CitizenComponent, lastErrand)           == 0xB0,  "");
+static_assert(sizeof(CitizenErrand) == 4, "+0xB0 lastErrand is a 4-byte uint");
 static_assert(offsetof(CitizenComponent, _padB4)               == 0xB4,  "");
 static_assert(offsetof(CitizenComponent, meshInstance)         == 0xB8,  "");
 static_assert(offsetof(CitizenComponent, toolId)               == 0x1D8, "");

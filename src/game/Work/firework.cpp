@@ -201,7 +201,7 @@ int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     // Set citizen flags
     citizenVal->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizenVal->field_0x30 = priority;
-    citizenVal->field_0xB0 = 0;
+    citizenVal->lastErrand = CitizenErrand::None;
 
     if (targetVal == citizenVal->profession && priority >= 0) {
         citizenVal->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

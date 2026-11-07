@@ -160,7 +160,7 @@ void FencedTool::Update(const System::Time* /*param2*/, char param3) {
     // Initialize local offset vector to {0, 0, 0}
     float offset[3] = {0.0f, 0.0f, 0.0f};
 
-    if (param3 != 0 && dragState != 0) {
+    if (param3 != 0 && dragState != DragState::Idle) {
         // Placement parameters — outputs from the anchor calc
         uint32_t outParam2 = 0;
         uint32_t outParam3 = 0;
@@ -441,7 +441,7 @@ void FencedTool::Draw(Video::Context* context, char param3) {
     if (param3 != '\0') return;
 
     int startCell, endCell;
-    if (dragState != 0) {
+    if (dragState != DragState::Idle) {
         startCell = this->startCell;
         endCell   = this->endCell;
     } else {

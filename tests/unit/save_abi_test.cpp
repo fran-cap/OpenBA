@@ -237,7 +237,7 @@ UNIT_TEST(save_inline_accessors_are_retail_bodies) {
     sl->_saveState = state;
 
     CHECK_EQ(sl->GetSaveCount(), 2);                                   // +0x58
-    CHECK_EQ((int)sl->GetOperation(), 4);                              // +0x00
+    CHECK_EQ((int)sl->GetOperation(), (int)SaveLoad::kOpSave);         // +0x00
     CHECK(sl->GetSaveState() == state);                                // +0x40
     CHECK(&sl->GetSaveInfo(1) ==
           reinterpret_cast<const SaveInfo*>(rows + 2 * sizeof(SaveInfo)));

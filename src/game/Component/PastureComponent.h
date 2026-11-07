@@ -64,7 +64,7 @@ public:
     void          Command(int command) override;                        // [14] 0x140127a60
     void          OnMessage(int message, void* data,
                             uint32_t arg0, uint32_t arg1) override;     // [15] 0x140127720
-    int         GetDefaultState() const override { return 2; }          // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }          // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }       // [17] 0x140036770
 
     // ---- non-virtual members (retail addresses; pasturecomponent*.cpp) ----
@@ -75,9 +75,9 @@ public:
     void SpawnLivestock(AnimalComponent* const* parent);           // 0x140128670
     int  FindOldestLivestock() const;                              // 0x140128350 the oldest cullable animal's index, -1 if none
     // The state table's handlers (the controller hands them this component).
-    char EnterOperational();                                       // 0x1401270c0 state 2
+    char EnterOperational();                                       // 0x1401270c0 state Built
     char TickOperational();                                        // 0x1401267e0
-    char EnterTeardown();                                          // 0x140126e40 state 3
+    char EnterTeardown();                                          // 0x140126e40 state Demolish
 
     // PUBLIC while the ported bodies read them (B38 decision 1). Types from Persist
     // 0x140127f40 (ExternalPtr +0x28; the +0x30 InternalPtr array validated against

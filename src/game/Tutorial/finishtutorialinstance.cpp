@@ -212,7 +212,7 @@ Achievement::Goal::GoalState FinishTutorialInstance::CheckGoalState() const {
     int totalSteps = tutDef->steps._size;
     int currentStep = tutInst->currentStep;
 
-    return static_cast<Achievement::Goal::GoalState>((totalSteps <= currentStep) ? 1 : 0);
+    return (totalSteps <= currentStep) ? Achievement::Goal::kMet : Achievement::Goal::kNotMet;
 }
 
 // ============================================================

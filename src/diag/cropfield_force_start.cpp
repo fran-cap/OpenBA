@@ -27,6 +27,7 @@
 #include "Component/CropFieldComponent.h"
 #include "Component/NaturalResourceDescription.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"
 #include "options.h"
 #include "clamped_atoi.h"     // review F-087: checked parse of BANISHED_* text
 #include "object/TypeInfo.h"
@@ -187,7 +188,9 @@ void Fire(int frame) {
                      frame, (void*)comp, (unsigned)before,
                      (unsigned)c->hasCrop,                                // +0x49
                      c->slots._size);                                     // +0x60
-        if (s_mode >= 2) PostNodeEvent(static_cast<StateMachineComponent*>(FindComp(ent, tidSM)), 3);
+        if (s_mode >= 2)
+            PostNodeEvent(static_cast<StateMachineComponent*>(FindComp(ent, tidSM)),
+                          SmId(BuildingEvent::Plant));
         std::fflush(stderr);
     }
     if (found == 0) {

@@ -171,7 +171,7 @@ char OrchardComponent::EnterIdle() {
 // ============================================================
 char OrchardComponent::TickIdle(StateMachine* sm) {
     if (enabled)
-        OrchardRequestState(sm, 9);
+        OrchardRequestState(sm, SmId(BuildingState::Plant));
     return 1;
 }
 
@@ -227,7 +227,7 @@ char OrchardComponent::EnterPlanting() {
             slot.resource = nullptr;
             slot.fruit    = nullptr;
             slot.tree     = nullptr;
-            slot.state    = 0;
+            slot.state    = OrchardSlotState::Empty;
             colOff += spacingX;
         }
         curY += spacingY;
@@ -255,7 +255,7 @@ char OrchardComponent::EnterPlanting() {
 
 // ============================================================
 // state 9 TRANS38 (per-frame) — retail 0x140050f90
-// When every slot has reached state 1 (planted), deactivate the workplace and move to
+// When every slot has reached state 1 (Planted), deactivate the workplace and move to
 // state 10.
 //
 // ⚠ FAITHFUL LANDMINE, deliberately preserved: the test is `planted == slotCount`,
@@ -269,14 +269,15 @@ char OrchardComponent::TickPlanting(StateMachine* sm) {
     const int count = slotCount;
     int planted = 0;
     for (int i = 0; i < count; ++i) {
-        const int st = slots[i].state;
-        if (st != 0 && st == 1) ++planted;   // retail's redundant pair, kept verbatim
+        const OrchardSlotState st = slots[i].state;
+        // retail's redundant pair, kept verbatim
+        if (st != OrchardSlotState::Empty && st == OrchardSlotState::Planted) ++planted;
     }
     if (planted != count) return 1;
 
     WorkComponent* wc = _entity->FindComponent<WorkComponent>();   // 0x140003050
     wc->CancelWork();   // 0x14012eb50
-    OrchardRequestState(sm, 10);
+    OrchardRequestState(sm, SmId(BuildingState::Tend));
     return 1;
 }
 
@@ -315,7 +316,7 @@ int OrchardCurrentYear() {
     return cal ? cal->year : 0;
 }
 
-// Slots whose state is 2 are HOLES — a tile the planter could not use (msg 0 failed to
+// Slots whose state is 2 (Hole) are HOLES — a tile the planter could not use (msg 0 failed to
 // bind, or the tree was later removed). Retail writes the scan as
 // `if ((v != 0) && (v != 1) && (v == 2))`, a switch artefact that means simply `v == 2`.
 int OrchardHoleCount(const OrchardComponent* s) {
@@ -324,7 +325,7 @@ int OrchardHoleCount(const OrchardComponent* s) {
     if (!slots) return 0;
     int holes = 0;
     for (int i = 0; i < count; ++i)
-        if (slots[i].state == 2)
+        if (slots[i].state == OrchardSlotState::Hole)
             ++holes;
     return holes;
 }
@@ -364,7 +365,7 @@ bool OrchardHasWork(ComponentEntity* entity) {
 // TryHarvest calls it directly as well, as retail's per-frame does.
 // ============================================================
 char OrchardComponent::OnHarvestEvent(StateMachine* sm) {
-    OrchardRequestState(sm, 11);
+    OrchardRequestState(sm, SmId(BuildingState::Harvest));
 
     const int count = slotCount;
     for (int i = 0; slots && i < count; ++i)
@@ -381,7 +382,7 @@ char OrchardComponent::OnHarvestEvent(StateMachine* sm) {
 // enabled-switch gate that state 2's per-frame tests.
 // ============================================================
 char OrchardComponent::OnPlantEvent(StateMachine* sm) {
-    OrchardRequestState(sm, 9);
+    OrchardRequestState(sm, SmId(BuildingState::Plant));
     return 1;
 }
 
@@ -401,16 +402,18 @@ char OrchardComponent::OnClearEvent(StateMachine* sm) {
         if (s_n++ < 8) {
             StateMachine* machine = sm;
             const int beforeIdx = sm ? static_cast<int>(machine->activeState) : -99;
-            OrchardRequestState(sm, 20);
+            OrchardRequestState(sm, SmId(BuildingState::OrchardClear));
             std::fprintf(stderr, "[Orchard20] event 5 (cut): from table idx %d -> requested "
                          "state %d (accepted=%d)\n", beforeIdx,
                          sm ? static_cast<int>(static_cast<uint8_t>(machine->pendingState)) : -99,
-                         sm ? static_cast<int>(static_cast<uint8_t>(machine->pendingState) == 20) : 0);
+                         sm ? static_cast<int>(static_cast<uint8_t>(machine->pendingState) ==
+                                               SmId(BuildingState::OrchardClear))
+                            : 0);
             std::fflush(stderr);
             return 1;
         }
     }
-    OrchardRequestState(sm, 20);
+    OrchardRequestState(sm, SmId(BuildingState::OrchardClear));
     return 1;
 }
 
@@ -460,7 +463,7 @@ char OrchardComponent::EnterTending(StateMachine* sm) {
         }
     }
     if (holes > 0) {
-        OrchardRequestState(sm, 12);
+        OrchardRequestState(sm, SmId(BuildingState::Replant));
         return 1;
     }
     OrchardPostTendArea(_entity.Get());
@@ -495,7 +498,8 @@ char OrchardComponent::TickTending(StateMachine* sm) {
     ValidateRefs();
     if (TryHarvest(sm) != 0) return 1;
 
-    if (OrchardHoleCount(this) > 0) OrchardRequestState(sm, 12);   // no return — faithful
+    // no return — faithful
+    if (OrchardHoleCount(this) > 0) OrchardRequestState(sm, SmId(BuildingState::Replant));
 
     const int m = OrchardCurrentMonth();
     const bool inSeason = (static_cast<unsigned>(m - 1) < 11u) &&
@@ -582,7 +586,7 @@ char OrchardComponent::TickReplanting(StateMachine* sm) {
     if (slotCount > 0 && OrchardHoleCount(this) != 0)
         return 1;                                   // holes remain — stay in 12
 
-    OrchardRequestState(sm, 10);
+    OrchardRequestState(sm, SmId(BuildingState::Tend));
     return 1;
 }
 
@@ -628,7 +632,7 @@ char OrchardComponent::EnterHarvesting() {
 
 // ============================================================
 // state 11 TRANS38 (per-frame) — retail 0x140050650
-// The harvest-complete latch: count slots that still hold a tree (state == 1) against
+// The harvest-complete latch: count slots that still hold a tree (state == 1, Planted) against
 // slots already picked. Once picked >= live, release the work slot and go back to
 // tending.
 //
@@ -642,8 +646,9 @@ char OrchardComponent::TickHarvesting(StateMachine* sm) {
     const int count = slotCount;
     int liveCount = 0, doneCount = 0;
     for (int i = 0; slots && i < count; ++i) {
-        const int st = slots[i].state;
-        if (st != 0 && st == 1) ++liveCount;        // retail's redundant pair, kept verbatim
+        const OrchardSlotState st = slots[i].state;
+        // retail's redundant pair, kept verbatim
+        if (st != OrchardSlotState::Empty && st == OrchardSlotState::Planted) ++liveCount;
     }
     for (int i = 0; slots && i < count; ++i)
         if (slots[i].picked)
@@ -664,7 +669,7 @@ char OrchardComponent::TickHarvesting(StateMachine* sm) {
     // scan. Note the release is unconditional — no HasWorkSlot test.
     WorkComponent* wc = _entity->FindComponent<WorkComponent>();   // 0x140003050
     wc->CancelWork();   // 0x14012eb50
-    OrchardRequestState(sm, 10);
+    OrchardRequestState(sm, SmId(BuildingState::Tend));
     return 1;
 }
 
@@ -800,7 +805,7 @@ char OrchardComponent::TickClearing(StateMachine* sm) {
             std::fflush(stderr);
         }
     }
-    if (done) OrchardRequestState(sm, 9);
+    if (done) OrchardRequestState(sm, SmId(BuildingState::Plant));
     return 1;
 }
 
@@ -839,11 +844,11 @@ static void OrchardCtrl_PopulateTable() {
     // enter    0x140051530  deactivate the workplace
     // trans38  0x1400514c0  if enabled -> request state 9   (the idle->plant trigger)
     // event 3  0x140051450  unconditional request of state 9  (the panel's plant cmd)
-    TableRegisterState(t, 2, &OrchEnterIdle, nullptr,
+    TableRegisterState(t, BuildingState::Built, &OrchEnterIdle, nullptr,
                        &OrchTickIdle, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 9, nullptr);
-    TableAddEvent(t, 3, &OrchOnPlant);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Plant, nullptr);
+    TableAddEvent(t, BuildingEvent::Plant, &OrchOnPlant);
 
     // ── state 9 — PLANT GRID ──────────────────────────────────────────────────────
     // enter    0x140051070  PlantOrchard_impl_1070: activates the workplace, reads the
@@ -852,64 +857,64 @@ static void OrchardCtrl_PopulateTable() {
     //                       a PlantOrchard work carrying treeType
     // trans38  0x140050f90  when every slot reaches state 1 -> request state 10
     // event 5  0x1400513e0  -> request state 20
-    TableRegisterState(t, 9, &OrchEnterPlanting, nullptr,
+    TableRegisterState(t, BuildingState::Plant, &OrchEnterPlanting, nullptr,
                        &OrchTickPlanting, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 10, nullptr);
-    TableAddTransition(t, 20, nullptr);
-    TableAddEvent(t, 5, &OrchOnClear);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Tend, nullptr);
+    TableAddTransition(t, BuildingState::OrchardClear, nullptr);
+    TableAddEvent(t, BuildingEvent::Clear, &OrchOnClear);
 
     // ── state 10 — TEND / IDLE-GROWN ──────────────────────────────────────────────
     // enter    0x140050e30  hole -> state 12, else post a TendArea work
     // update   0x140050ba0  deactivate the workplace if active
     // trans38  0x140050c00  TryHarvest; hole -> 12; seasonal TendArea re-post
     // event 5  0x1400513e0 -> state 20 ; event 4  0x140050900 -> state 11
-    TableRegisterState(t, 10, &OrchEnterTending, nullptr,
+    TableRegisterState(t, BuildingState::Tend, &OrchEnterTending, nullptr,
                        &OrchTickTending,
                        &OrchUpdateTending);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 12, nullptr);
-    TableAddTransition(t, 11, nullptr);
-    TableAddTransition(t, 20, nullptr);
-    TableAddEvent(t, 5, &OrchOnClear);
-    TableAddEvent(t, 4, &OrchOnHarvest);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Replant, nullptr);
+    TableAddTransition(t, BuildingState::Harvest, nullptr);
+    TableAddTransition(t, BuildingState::OrchardClear, nullptr);
+    TableAddEvent(t, BuildingEvent::Clear, &OrchOnClear);
+    TableAddEvent(t, BuildingEvent::Harvest, &OrchOnHarvest);
 
     // ── state 12 — REPLANT GAPS ───────────────────────────────────────────────────
     // enter    0x140050ae0  PlantOrchard_impl_0ae0: post a PlantOrchard for the holes
     // update   0x1400509b0  (state 10's update body)
     // trans38  0x140050a10  TryHarvest; no holes left -> request state 10
     // event 5  0x1400513e0 -> state 20 ; event 4  0x140050900 -> state 11
-    TableRegisterState(t, 12, &OrchEnterReplanting, nullptr,
+    TableRegisterState(t, BuildingState::Replant, &OrchEnterReplanting, nullptr,
                        &OrchTickReplanting,
                        &OrchUpdateTending);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 10, nullptr);
-    TableAddTransition(t, 11, nullptr);
-    TableAddTransition(t, 20, nullptr);
-    TableAddEvent(t, 5, &OrchOnClear);
-    TableAddEvent(t, 4, &OrchOnHarvest);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Tend, nullptr);
+    TableAddTransition(t, BuildingState::Harvest, nullptr);
+    TableAddTransition(t, BuildingState::OrchardClear, nullptr);
+    TableAddEvent(t, BuildingEvent::Clear, &OrchOnClear);
+    TableAddEvent(t, BuildingEvent::Harvest, &OrchOnHarvest);
 
     // ── state 11 — HARVEST ────────────────────────────────────────────────────────
     // enter    0x140050800  HarvestOrchard_impl_0800: post a HarvestOrchard work, then
     //                       stamp the footprint cells with treeType
     // trans38  0x140050650  harvest-complete latch -> request state 10
     // event 5  0x1400513e0 -> state 20
-    TableRegisterState(t, 11, &OrchEnterHarvesting, nullptr,
+    TableRegisterState(t, BuildingState::Harvest, &OrchEnterHarvesting, nullptr,
                        &OrchTickHarvesting, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 10, nullptr);
-    TableAddTransition(t, 20, nullptr);
-    TableAddEvent(t, 5, &OrchOnClear);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Tend, nullptr);
+    TableAddTransition(t, BuildingState::OrchardClear, nullptr);
+    TableAddEvent(t, BuildingEvent::Clear, &OrchOnClear);
 
     // ── state 20 (0x14) — CLEAR ───────────────────────────────────────────────────
     // enter    0x1400504e0  ClearArea_impl_04e0: post a ClearArea work at prio 0x401
     // update   0x1400503e0  deactivate the workplace
     // trans38  0x140050430  when the footprint tests clear -> request state 9
-    TableRegisterState(t, 20, &OrchEnterClearing, nullptr,
+    TableRegisterState(t, BuildingState::OrchardClear, &OrchEnterClearing, nullptr,
                        &OrchTickClearing,
                        &OrchUpdateClearing);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 9, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Plant, nullptr);
 
     // State 3 is the shared teardown/"stop" id every state can transition to. Retail
     // registers NO body for it in this table — it is a transition target only, so it

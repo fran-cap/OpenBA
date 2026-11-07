@@ -34,20 +34,20 @@
 //                   point, face along it, play animation 1
 //     update  5190  retail dead code (see the note on the port) — kept faithful
 //     trans30 5250  per-frame: steer (63d0); if the destination died, delete the boat
-//                   and post event 0xb to the post; on arrival -> state 1
-//     event 1 5670  -> state 4
+//                   and post event 0xb to the post; on arrival -> state 1 (FinalApproach)
+//     event 1 5670  Abort -> state 4 (Gone)
 //   state 1  FINAL APPROACH — drive straight at the dock position
 //     enter   5150  play animation 2
-//     trans30 4ff0  per-frame: move toward +0x40; within range -> state 2
-//     event 1 5670  -> state 4
+//     trans30 4ff0  per-frame: move toward +0x40; within range -> state 2 (Docked)
+//     event 1 5670  Abort -> state 4 (Gone)
 //   state 2  DOCKED
 //     enter   4f70  stop the mover AND ***POST EVENT 9 TO THE TRADING POST*** — this
 //                   single call is what unblocks layer 3
-//     event 0 4f00  -> state 3
-//     event 1 5670  -> state 4
+//     event 0 4f00  Depart -> state 3 (Departing)
+//     event 1 5670  Abort -> state 4 (Gone)
 //   state 3  DEPARTING — retrace the route outward
 //     enter   4ec0  play animation 3
-//     trans30 4d10  per-frame: steer toward +0x50; within 0x140172180 of it -> state 4
+//     trans30 4d10  per-frame: steer toward +0x50; within 0x140172180 of it -> state 4 (Gone)
 //   state 4  GONE
 //     enter   4cd0  play animation 1
 //     trans30 4c40  per-frame: once 63d0 runs out of route, delete the boat entity
@@ -144,7 +144,7 @@ inline const Math::Vector3* ModelPos(ModelComponent* model) {
 // asking, and it matters here because a boat handler can fire on the very tick the
 // machine entered its state.
 // The state machine is the one the handler received (controller_state_table.h).
-void RequestTransition(StateMachine* sm, int desiredStateId) {
+void RequestTransition(StateMachine* sm, BoatState desiredState) {
     if (!sm) return;
     if (sm->activeState < 0) {
         System::Time zeroTime{0};
@@ -152,7 +152,7 @@ void RequestTransition(StateMachine* sm, int desiredStateId) {
         // The time argument is the ADDRESS of the Time (retail passes it by reference).
         sm->Tick(&zeroTime, 0, 0);   // 0x1400a9660
     }
-    ::ControllerLive::RequestStateTransition(sm, desiredStateId);
+    ::ControllerLive::RequestStateTransition(sm, static_cast<int>(desiredState));
 }
 
 // Post an event to the DESTINATION entity's StateMachineComponent — the boat's only
@@ -437,7 +437,7 @@ char BoatComponent::State0Update() {
 char BoatComponent::State0Tick(StateMachine* smV) {
     if (!Steer()) {
         DeleteBoatEntity(this);
-        PostEventToDestination(this, 0xb);
+        PostEventToDestination(this, SmId(BuildingEvent::MerchantLost));
     }
 
     const Math::Vector3* mp = ModelPos(model.Get());   // 0x14004531e, no test
@@ -446,7 +446,7 @@ char BoatComponent::State0Tick(StateMachine* smV) {
     const float dist2 = d.Dot(d).v;
 
     if (kApproach > dist2) {
-        RequestTransition(smV, 1);
+        RequestTransition(smV, BoatState::FinalApproach);
     }
     return 1;
 }
@@ -495,7 +495,7 @@ char BoatComponent::State1Tick(StateMachine* smV) {
         chr->DriveToward(&dockPosition, dockHeading, speed);
 
     if (kDockRange > dist) {
-        RequestTransition(smV, 2);
+        RequestTransition(smV, BoatState::Docked);
     }
     return 1;
 }
@@ -512,7 +512,7 @@ char BoatComponent::State2Enter() {
     if (CharacterComponent* chr = character.Get())
         chr->SetAnimation(0, kSpeedBase, 0.0f);
 
-    PostEventToDestination(this, 9);
+    PostEventToDestination(this, SmId(BuildingEvent::MerchantDocked));
     return 1;
 }
 
@@ -521,7 +521,7 @@ char BoatComponent::State2Enter() {
 // ============================================================
 // Reads nothing of its receiver: stays free (B1).
 extern "C" char BoatCtrl_State2_Event0(BoatComponent* /*self*/, StateMachine* smV) {
-    RequestTransition(smV, 3);
+    RequestTransition(smV, BoatState::Departing);
     return 1;
 }
 
@@ -530,7 +530,7 @@ extern "C" char BoatCtrl_State2_Event0(BoatComponent* /*self*/, StateMachine* sm
 // ============================================================
 // Reads nothing of its receiver: stays free (B1).
 extern "C" char BoatCtrl_Event1_Abort(BoatComponent* /*self*/, StateMachine* smV) {
-    RequestTransition(smV, 4);
+    RequestTransition(smV, BoatState::Gone);
     return 1;
 }
 
@@ -579,7 +579,7 @@ char BoatComponent::State3Tick(StateMachine* smV) {
     }
 
     if (kArrive > gate) {
-        RequestTransition(smV, 4);
+        RequestTransition(smV, BoatState::Gone);
     }
     return 1;
 }
@@ -628,43 +628,43 @@ extern "C" void BoatCtrl_PopulateTable() {
     using namespace ::ControllerLive;
 
     // TableRegisterState(t, id, enter, trans30, trans38, update)
-    // state 0 — outbound along the route
-    TableRegisterState(t, 0,
+    // state 0 Outbound — along the route
+    TableRegisterState(t, BoatState::Outbound,
         &BoatState0Enter,    // 53f0
         &BoatState0Tick,     // 5250  (R9)
         nullptr,                                      // retail: always 0
         &BoatState0Update);  // 5190  (R8)
-    TableAddTransition(t, 1, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddEvent(t, 1, &BoatCtrl_Event1_Abort);   // 5670
+    TableAddTransition(t, BoatState::FinalApproach, nullptr);
+    TableAddTransition(t, BoatState::Gone, nullptr);
+    TableAddEvent(t, BoatEvent::Abort, &BoatCtrl_Event1_Abort);   // 5670
 
-    // state 1 — final approach
-    TableRegisterState(t, 1,
+    // state 1 FinalApproach
+    TableRegisterState(t, BoatState::FinalApproach,
         &BoatState1Enter,    // 5150
         &BoatState1Tick,     // 4ff0
         nullptr, nullptr);
-    TableAddTransition(t, 2, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddEvent(t, 1, &BoatCtrl_Event1_Abort);
+    TableAddTransition(t, BoatState::Docked, nullptr);
+    TableAddTransition(t, BoatState::Gone, nullptr);
+    TableAddEvent(t, BoatEvent::Abort, &BoatCtrl_Event1_Abort);
 
-    // state 2 — docked (posts event 9 to the post on entry)
-    TableRegisterState(t, 2,
+    // state 2 Docked (posts event 9 MerchantDocked to the post on entry)
+    TableRegisterState(t, BoatState::Docked,
         &BoatState2Enter,    // 4f70
         nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddEvent(t, 0, &BoatCtrl_State2_Event0);  // 4f00
-    TableAddEvent(t, 1, &BoatCtrl_Event1_Abort);
+    TableAddTransition(t, BoatState::Departing, nullptr);
+    TableAddTransition(t, BoatState::Gone, nullptr);
+    TableAddEvent(t, BoatEvent::Depart, &BoatCtrl_State2_Event0);  // 4f00
+    TableAddEvent(t, BoatEvent::Abort, &BoatCtrl_Event1_Abort);
 
-    // state 3 — departing
-    TableRegisterState(t, 3,
+    // state 3 Departing
+    TableRegisterState(t, BoatState::Departing,
         &BoatState3Enter,    // 4ec0
         &BoatState3Tick,     // 4d10
         nullptr, nullptr);
-    TableAddTransition(t, 4, nullptr);
+    TableAddTransition(t, BoatState::Gone, nullptr);
 
-    // state 4 — gone
-    TableRegisterState(t, 4,
+    // state 4 Gone
+    TableRegisterState(t, BoatState::Gone,
         &BoatState4Enter,    // 4cd0
         &BoatState4Tick,     // 4c40
         nullptr, nullptr);

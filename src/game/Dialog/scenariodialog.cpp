@@ -346,17 +346,19 @@ void ScenarioDialog::LoadSelected() {
         }   // (matches retail's early release of the data-directory temp)
 
         // Run SaveLoad::Update loop until operation completes
-        int operation = saveLoad->GetOperation();
-        printf("[ScenarioDialog::LoadSelected] SAVED SCENARIO: entering SaveLoad loop, initial operation=%d\n", operation);
+        Save::SaveLoad::Operation operation = saveLoad->GetOperation();
+        printf("[ScenarioDialog::LoadSelected] SAVED SCENARIO: entering SaveLoad loop, initial operation=%d\n",
+               static_cast<int>(operation));
         int loopCount = 0;
-        while (operation != 0) {
+        while (operation != Save::SaveLoad::kOpNone) {
             System::Time zeroTime;
             RtSystem_Time_Ctor(&zeroTime, 0.0f);
             saveLoad->Update(zeroTime);
             operation = saveLoad->GetOperation();
             loopCount++;
             if (loopCount % 100 == 0) {
-                printf("[ScenarioDialog::LoadSelected] SaveLoad loop iteration %d, operation=%d\n", loopCount, operation);
+                printf("[ScenarioDialog::LoadSelected] SaveLoad loop iteration %d, operation=%d\n", loopCount,
+                       static_cast<int>(operation));
             }
         }
         printf("[ScenarioDialog::LoadSelected] SaveLoad loop done after %d iterations\n", loopCount);

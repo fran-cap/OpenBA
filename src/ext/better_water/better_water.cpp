@@ -165,17 +165,23 @@ const Video::VideoProgram* TwinFor(const Video::VideoProgram* water, Kind kind) 
 // ext.terrain_batch keeps its run index buffer). The game has at most two geometries alive (the menu
 // backdrop's and the town's); four slots leave room. Built and drawn on the drawing thread; the
 // geometry's destructor and OnVideoError reach it from the main thread, hence the mutex.
+// The strip's lifecycle for its current key on the current device.
+enum class StripState : uint8_t {
+    Unbuilt,       // not built yet for any key
+    NeedsUpload,   // built (or found empty) for this key; buffers not live on the current device
+    Ready,         // buffers live on the current device
+    // The upload failed for this key on this device: not retried every frame (review F-230), only
+    // after a new key or a device restart (OnVideoError).
+    UploadFailed,
+};
+
 struct StripSlot {
     const WorldGeometry* owner = nullptr;
     // What the strip was built from: a reload or the terrain brush changes one of them.
     const void* heights = nullptr;
     const void* waterVertices = nullptr;
     int32_t waterCount = -1;
-    bool tried = false;                    // built (or found empty) for this key
-    bool ready = false;                    // buffers live on the current device
-    // The upload failed for this key on this device: not retried every frame (review F-230), only
-    // after a new key or a device restart (OnVideoError).
-    bool failed = false;
+    StripState state = StripState::Unbuilt;
     Strip::Mesh mesh;
     Video::VertexBuffer* vb = nullptr;     // never `delete`d: operator delete after PlatformDestruct
     Video::IndexBuffer* ib = nullptr;
@@ -202,7 +208,7 @@ void UnlinkStrip(StripSlot& s) {
         s.ib->PlatformDestruct();
     }
     s.linked = false;
-    s.ready = false;
+    if (s.state == StripState::Ready) s.state = StripState::NeedsUpload;
 }
 
 // The strip's buffers on the current device, from its mesh. False when there is nothing to draw.
@@ -229,7 +235,7 @@ bool UploadStrip(StripSlot& s) {
                      ibytes);
         return false;
     }
-    s.ready = true;
+    s.state = StripState::Ready;
     return true;
 }
 
@@ -253,23 +259,21 @@ StripSlot* StripFor(const WorldGeometry& geo) {
     }
     const bool same =
         s->heights == heights && s->waterVertices == waterVertices && s->waterCount == waterCount;
-    if (!same || !s->tried) {
+    if (!same || s->state == StripState::Unbuilt) {
         s->heights = heights;
         s->waterVertices = waterVertices;
         s->waterCount = waterCount;
-        s->tried = true;
+        s->state = StripState::NeedsUpload;
         Strip::Build(geo._heights.data, geo._fieldD0, geo._gridSize >> 1,
                      reinterpret_cast<const Strip::Vertex*>(geo._contourVertices.data), waterCount, s->mesh);
         std::fprintf(stderr, "[BetterWater] strip built: %d cells, %d vertices, %d chunk(s)\n",
                      s->mesh.cells, static_cast<int>(s->mesh.vertices.size()),
                      static_cast<int>(s->mesh.chunks.size()));
-        s->ready = false;
-        s->failed = false;
     }
-    if (!s->ready) {
-        if (s->failed) return nullptr;
+    if (s->state != StripState::Ready) {
+        if (s->state == StripState::UploadFailed) return nullptr;
         if (!UploadStrip(*s)) {
-            s->failed = true;
+            s->state = StripState::UploadFailed;
             return nullptr;
         }
     }
@@ -444,7 +448,8 @@ void OnVideoError(const WorldGeometry& geo) {
     StripSlot* s = FindStrip(geo);
     if (s == nullptr) return;
     UnlinkStrip(*s);
-    s->failed = false;   // the restarted device gets one upload
+    // The restarted device gets one upload.
+    if (s->state != StripState::Unbuilt) s->state = StripState::NeedsUpload;
 }
 
 void OnVideoLost() {

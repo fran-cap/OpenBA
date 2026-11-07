@@ -265,7 +265,7 @@ static int FinalizeAction(BuildRoad* self, CitizenComponent** entityIBP, int pri
 
     citizenEntity->field_0x30 = priority;
     citizenEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizenEntity->field_0xB0 = 0;
+    citizenEntity->lastErrand = CitizenErrand::None;
 
     if (actionPtr == citizenEntity->profession && priority >= 0) {
         citizenEntity->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

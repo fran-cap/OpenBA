@@ -59,8 +59,10 @@ constexpr const char* kControlNames[kControlCount] = {"pad", "rotate left", "rot
 constexpr float kGlyphFraction = 0.5f;
 constexpr int32_t kFrameInset = 6;
 
-// ButtonElement (ButtonElement.h): state 3 = pressed (its fourth state child), child 4 = the label.
-constexpr int32_t kButtonPressedState = 3;
+// ButtonElement (ButtonElement.h): ButtonState::Pressed (3) also indexes its fourth state child and
+// its pressed colour; child 4 = the label.
+using ButtonState = UI::ButtonElement::ButtonState;
+constexpr int32_t kButtonPressedChild = static_cast<int32_t>(ButtonState::Pressed);
 constexpr int32_t kButtonLabelChild = 4;
 
 const UI::Dialog* g_toolbarDesc = nullptr;   // Dialog/Toolbar.rsc, the toolbar's and every sub-toolbar's
@@ -225,15 +227,15 @@ public:
             UI::Element* e = FindElement(System::String(kButtons[i])).Get();
             if (!::Object::IsDerivedFromNullSafe(e, UI::ButtonElement::TypeId())) continue;
             UI::ButtonElement* button = static_cast<UI::ButtonElement*>(e);
-            if (button->_state == kButtonPressedState) continue;
-            button->_state = kButtonPressedState;
+            if (button->_state == ButtonState::Pressed) continue;
+            button->_state = ButtonState::Pressed;
             button->SetNeedsSizeCalc();
-            if (UI::Element* art = button->_children._data[kButtonPressedState]) {
+            if (UI::Element* art = button->_children._data[kButtonPressedChild]) {
                 art->ComputeLayout(button->_layoutLeft, button->_layoutTop, button->_layoutRight,
                                    button->_layoutBottom);
             }
             if (UI::Element* label = button->_children._data[kButtonLabelChild]) {
-                label->SetColor(button->_stateColor[kButtonPressedState]);
+                label->SetColor(button->_stateColor[kButtonPressedChild]);
             }
         }
     }

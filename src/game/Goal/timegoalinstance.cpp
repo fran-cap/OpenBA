@@ -97,7 +97,7 @@ Achievement::Goal::GoalState TimeGoalInstance::CheckGoalState() const {
 
     // Compare against required time
     float requiredSeconds = (float)(timeGoal->requiredYears * 0xe10);
-    return static_cast<Achievement::Goal::GoalState>((requiredSeconds <= elapsedSeconds) ? 1 : 0);
+    return (requiredSeconds <= elapsedSeconds) ? Achievement::Goal::kMet : Achievement::Goal::kNotMet;
 }
 
 // create 0x140026670: MemAlloc(0x28, 8), then the (inlined) ctor.

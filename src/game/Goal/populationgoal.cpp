@@ -61,22 +61,22 @@ void PopulationGoal::Destruct() { this->~PopulationGoal(); }
 //       return *(int*)(*(int64_t*)(g_pGameWorldSingleton+0xF0) + 0xA8) >= targetPop;
 //   return false;
 Achievement::Goal::GoalState PopulationGoal::CheckGoalState() const {
-    if (GameUpdateLoop::_singleton == nullptr) return static_cast<GoalState>(0);
+    if (GameUpdateLoop::_singleton == nullptr) return kNotMet;
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
-    if (gameWorld == nullptr) return static_cast<GoalState>(0);
+    if (gameWorld == nullptr) return kNotMet;
 
     // Check IsRunning — Engine::UpdateLoop::IsRunning (import slot 0x140152850),
     // non-virtual. The door's null-`this` test is covered by the check above.
     bool running = gameWorld->IsRunning();
-    if (!running) return static_cast<GoalState>(0);
+    if (!running) return kNotMet;
 
     // The citizen list at game+0xF0
     CitizenBehavior* worldData = gameWorld->m_citizenList;
-    if (worldData == nullptr) return static_cast<GoalState>(0);
+    if (worldData == nullptr) return kNotMet;
 
     // Compare the citizen count (+0xA8) against targetPop
     int currentPop = worldData->citizens._size;
-    return static_cast<GoalState>((currentPop >= targetPop) ? 1 : 0);
+    return (currentPop >= targetPop) ? kMet : kNotMet;
 }
 
 // ============================================================

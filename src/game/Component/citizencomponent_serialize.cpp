@@ -211,7 +211,7 @@ void CitizenComponent::Persist(IO::Stream& stream) {
     // it. The previous MeshInstance-dispatch call fed a raw uint's address as
     // a MeshInstance "this" and corrupted the round-trip from +0xb0 onward
     // (wrong citizen clothing after load was the visible symptom).
-    s->Serialize(field_0xB0, nullptr);
+    s->Serialize(reinterpret_cast<uint32_t&>(lastErrand), nullptr);
 
     s->Serialize(field_0x30, nullptr);
 

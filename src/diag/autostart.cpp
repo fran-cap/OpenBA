@@ -150,7 +150,7 @@ void Init() {
 
     // BANISHED_AUTOLOAD drives menu -> Load -> select save -> Load click, the
     // full retail load-from-save path (SaveLoadDialog list scan, DoLoad,
-    // SetOperation(2), loader-loop chain, GameUpdateLoop::Load restore branch).
+    // SetOperation(2 kOpLoad), loader-loop chain, GameUpdateLoop::Load restore branch).
     // Value: a save NAME to load ("Auto", "Save0", ...); "1" defaults to the
     // autosave "Auto". (Save/load wave 2026-08-27.)
     if (Opt().autoload) {

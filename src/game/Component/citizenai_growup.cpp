@@ -23,7 +23,7 @@
 //   g_pGameWorldSingleton (DAT_1401c3dd8): +0xf0 = entity-list pair, +0xf8 = map-grid
 //     (int* dim at [0]), +0xd8 = Random.
 //
-//   GrowUp success epilogue (both branches): *self → +0x30=-1, +0x54|=4, +0xb0=0,
+//   GrowUp success epilogue (both branches): *self → +0x30=-1, +0x54|=4, +0xb0=0 (lastErrand None),
 //     stamp Time(DAT_1401721fc * desc_walktime) into citizen+0x60, return 1.
 //   GrowUp early/adult branch (age > _maxAge 15.0): tail-call LongTermPlan, set
 //     param_1+0x2c = 4 (next-state), return 1.
@@ -431,7 +431,7 @@ void CitizenComponent::LongTermPlan() {
         // commit the action-state flags on the citizen and run the executor.
         field_0x30 = -1;
         statusFlags |= Bits(CitizenStatus::TaskDone);
-        field_0xB0 = 0;
+        lastErrand = CitizenErrand::None;
 
         System::Time timeStamp{};
         RtSystem_Time_Ctor(&timeStamp, 0.0f);
@@ -474,7 +474,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
         // Citizen's own storage is non-empty (QueryCount >= 1) → defer to LongTermPlan
         // (the haul-to-storage leg) and queue next state 4. (decompile `else`).
         citizen->LongTermPlan();
-        queuedState = 4;
+        queuedState = CitizenAIState::GetHealthItem;
         return 1;  // low byte 1
     }
 
@@ -482,7 +482,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
     // find the best food source via dd30, then scan its storage for an eatable item.
     System::Time cd{};
     RtSystem_Time_Ctor(&cd, s_walkScale);
-    timers[4] = cd;
+    timers[static_cast<int32_t>(CitizenAIState::GetHealthItem)] = cd;
 
     ComponentEntity* resEntity = citizen->home.Get();
     uint32_t bGoal;
@@ -610,7 +610,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
                     CitizenComponent* cz = citizen.Get();
                     cz->statusFlags |= Bits(CitizenStatus::TaskDone);
                     cz->field_0x30 = -1;
-                    cz->field_0xB0 = 0;
+                    cz->lastErrand = CitizenErrand::None;
 
                     // walk-time-scaled cooldown: desc = cz->_description, require
                     // CitizenDescription (DWORD_1401c7190); wt = foodInterval * DAT_1401721fc.
@@ -622,7 +622,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
                     }
                     System::Time cd2{};
                     RtSystem_Time_Ctor(&cd2, wt * s_walkScale);
-                    timers[4] = cd2;
+                    timers[static_cast<int32_t>(CitizenAIState::GetHealthItem)] = cd2;
 
                     return 1;  // low byte 1
                 }

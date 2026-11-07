@@ -61,7 +61,7 @@ void RunArmedInit();
 
 // Process up to maxElements elements of the chunked PhaseB loop. When the
 // chunk function reports done, runs LoadSceneA3 (particles, ~5ms) and clears
-// the busy flag. Returns the number of elements processed this call.
+// the busy flag (back to LoaderState::Idle). Returns the number of elements processed this call.
 int Tick(int maxElements);
 
 // True while Init has run but Tick hasn't yet finished the iteration.

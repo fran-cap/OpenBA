@@ -125,11 +125,19 @@ struct Frame {
     bool shadowRoot;
 };
 
+// The shadow check's phase on this thread (debug exe): None -> Replay -> None when inconclusive,
+// None -> Replay -> RealVisit -> None when checked.
+enum class ShadowPhase : int {
+    None = 0,       // no shadow active
+    Replay = 1,     // the replay (A)
+    RealVisit = 2,  // the real visit (B)
+};
+
 struct ThreadState {
     std::vector<Frame> frames;
     std::vector<uintptr_t> scratch;
     // the shadow (debug exe)
-    int shadowPhase = 0;          // 0 none, 1 the replay (A), 2 the real visit (B)
+    ShadowPhase shadowPhase = ShadowPhase::None;
     bool shadowPending = false;   // the next visitBegin is B's root
     std::vector<const void*> collect;
     std::vector<const void*> shadowA;
@@ -322,9 +330,9 @@ bool Shadow(ExternalFactory& f, uint32_t off, uint32_t cnt) REQUIRES(ResLoad) {
     const uint64_t miss0 = g_missEpoch.load(std::memory_order_relaxed);
     const uint64_t drop0 = g_dropEpoch.load(std::memory_order_relaxed);
     t.collect.clear();
-    t.shadowPhase = 1;
+    t.shadowPhase = ShadowPhase::Replay;
     RunRecord(f, off, cnt, &t.collect);
-    t.shadowPhase = 0;
+    t.shadowPhase = ShadowPhase::None;
     t.shadowA.swap(t.collect);
     t.collect.clear();
     if (g_missEpoch.load(std::memory_order_relaxed) != miss0 || g_dropEpoch.load(std::memory_order_relaxed) != drop0) {
@@ -334,7 +342,7 @@ bool Shadow(ExternalFactory& f, uint32_t off, uint32_t cnt) REQUIRES(ResLoad) {
     const uint32_t bit = BitOf(f);
     for (const void* r : t.shadowA)
         rtresset::Elem(NodeOf(r))->usageMask &= ~bit;
-    t.shadowPhase = 2;
+    t.shadowPhase = ShadowPhase::RealVisit;
     t.shadowPending = true;
     return false;
 }
@@ -344,7 +352,7 @@ bool Shadow(ExternalFactory& f, uint32_t off, uint32_t cnt) REQUIRES(ResLoad) {
 
 void Edge(ExternalFactory& f, void* row, External* external, bool viaAdd) {
     ThreadState& t = Tls();
-    if (t.shadowPhase != 0 && (rtresset::Elem(NodeOf(row))->usageMask & BitOf(f)) == 0)
+    if (t.shadowPhase != ShadowPhase::None && (rtresset::Elem(NodeOf(row))->usageMask & BitOf(f)) == 0)
         t.collect.push_back(row);
     if (t.frames.empty())
         return;
@@ -360,7 +368,7 @@ void Edge(ExternalFactory& f, void* row, External* external, bool viaAdd) {
 
 bool Replay(ExternalFactory& f, void* row, External* external) {
     ThreadState& t = Tls();
-    if (t.shadowPhase == 2)
+    if (t.shadowPhase == ShadowPhase::RealVisit)
         return false;   // the shadow's real visit
     if (!Recordable(f) || external != rtresset::Elem(NodeOf(row))->external)
         return false;
@@ -371,10 +379,10 @@ bool Replay(ExternalFactory& f, void* row, External* external) {
     if (!Store().Find(row, &off, &cnt))
         return false;
 #if OPENBA_VISITREPLAY_CHECK
-    if (t.shadowPhase == 0)
+    if (t.shadowPhase == ShadowPhase::None)
         return Shadow(f, off, cnt);
 #endif
-    RunRecord(f, off, cnt, t.shadowPhase != 0 ? &t.collect : nullptr);
+    RunRecord(f, off, cnt, t.shadowPhase != ShadowPhase::None ? &t.collect : nullptr);
     return true;
 }
 
@@ -400,7 +408,7 @@ void VisitEnd(ExternalFactory& f, void* row) {
 #if OPENBA_VISITREPLAY_CHECK
     if (fr.shadowRoot) {
         ShadowCompare(row, edges, count);
-        t.shadowPhase = 0;
+        t.shadowPhase = ShadowPhase::None;
         t.collect.clear();
     }
 #endif

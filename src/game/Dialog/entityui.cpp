@@ -64,6 +64,7 @@
 #include "Component/CreateRemovalDescription.h"
 #include "Component/CreateFencedDescription.h"
 #include "Component/UIComponent.h"
+#include "Component/BuildingState.h"
 #include "application/Application.h"   // Application::IsPaused (Update)
 #include "Game/GameSettings.h"          // g_gameSettings->autoPause (Update)
 #include "showroom.h"                   // HARNESS: Showroom_Enabled (Update, the paused arm)
@@ -403,7 +404,7 @@ void EntityUI::OnUpdateLayout() {
     }
 
     if (posComp == nullptr && destroyComp == nullptr) {
-        if (smComp == nullptr || pageIdx != 0) {
+        if (smComp == nullptr || pageIdx != SmId(BuildingState::ClearSite)) {
             // Get default page from entity's description
             UIDescription* descResult = GetDescPage_Impl(entity->_description);
             pageIdx = descResult ? descResult->_valHead : 2;
@@ -412,7 +413,8 @@ void EntityUI::OnUpdateLayout() {
         }
     } else {
         // Build/destroy in progress — sequential checks matching original flow
-        if (pageIdx >= 3 && pageIdx <= 7) {
+        // The demolition states, Demolish (3) .. Rubble (7), show page 3
+        if (pageIdx >= SmId(BuildingState::Demolish) && pageIdx <= SmId(BuildingState::Rubble)) {
             pageIdx = 3;
         } else {
             // Check 2: if posComp exists, verify build is complete
@@ -424,7 +426,7 @@ void EntityUI::OnUpdateLayout() {
                 }
             }
             // Check 3: if not redirected to page 2 and pageIdx != 0, get desc page
-            if (!gotoPage2 && pageIdx != 0) {
+            if (!gotoPage2 && pageIdx != SmId(BuildingState::ClearSite)) {
                 UIDescription* descResult = GetDescPage_Impl(entity->_description);
 
                 UI::PageElement* pagesElem = pages;

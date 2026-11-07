@@ -156,18 +156,18 @@ extern "C" bool StartTown_ForcePushConstructionWork(CitizenComponent* citizen) {
     }
 
     if (!s_buildPhase) {
-        // ---- PHASE GATHER (state 1) ----
+        // ---- PHASE GATHER (state 1, BuildingState::GatherMaterials) ----
         // One-time readiness gate: refuse to drive until every GatherRawMaterials::Execute
         // dependency resolves, else Execute would null-deref a sub-fn / type-id.
-        static int s_verified = -1;   // -1 unchecked, 0 unusable, 1 usable
-        if (s_verified < 0) {
+        static ForceWork::DepsCheck s_verified = ForceWork::DepsCheck::Unchecked;
+        if (static_cast<int>(s_verified) < 0) {   // DepsCheck::Unchecked
             bool ok = GatherRawMaterials_DepsReady();
-            s_verified = ok ? 1 : 0;
+            s_verified = ok ? ForceWork::DepsCheck::Usable : ForceWork::DepsCheck::Unusable;
             fprintf(stderr, "[ForceConstruct] site=%p depsReady=%d -> %s\n", site, (int)ok,
-                    s_verified ? "will drive" : "report-only (deps missing)");
+                    s_verified == ForceWork::DepsCheck::Usable ? "will drive" : "report-only (deps missing)");
             fflush(stderr);
         }
-        if (s_verified != 1) return true;
+        if (s_verified != ForceWork::DepsCheck::Usable) return true;
 
         // Construct the site GatherRawMaterials ONCE and keep it (its per-material slot arrays
         // @+0x48/+0x58 must survive across drives). Faithful site ctor seeds the slots.
@@ -190,17 +190,17 @@ extern "C" bool StartTown_ForcePushConstructionWork(CitizenComponent* citizen) {
         return true;
     }
 
-    // ---- PHASE BUILD (state 8) ----
+    // ---- PHASE BUILD (state 8, BuildingState::Construct) ----
     // One-time readiness gate for BuildStructure::Execute (shares the engine_funcs globals).
-    static int s_buildVerified = -1;
-    if (s_buildVerified < 0) {
+    static ForceWork::DepsCheck s_buildVerified = ForceWork::DepsCheck::Unchecked;
+    if (static_cast<int>(s_buildVerified) < 0) {   // DepsCheck::Unchecked
         bool ok = BuildStructure_DepsReady();
-        s_buildVerified = ok ? 1 : 0;
+        s_buildVerified = ok ? ForceWork::DepsCheck::Usable : ForceWork::DepsCheck::Unusable;
         fprintf(stderr, "[ForceBuild] site=%p depsReady=%d -> %s\n", site, (int)ok,
-                s_buildVerified ? "will drive" : "report-only (deps missing)");
+                s_buildVerified == ForceWork::DepsCheck::Usable ? "will drive" : "report-only (deps missing)");
         fflush(stderr);
     }
-    if (s_buildVerified != 1) return true;
+    if (s_buildVerified != ForceWork::DepsCheck::Usable) return true;
 
     // Construct the site BuildStructure ONCE (its build-position byte array @+0x50/+0x58 must
     // survive across drives). The faithful full ctor sizes it from the site footprint.

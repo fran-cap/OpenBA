@@ -535,15 +535,15 @@ static void ResidenceComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = ResidenceCtrlDispatch::table;
     if (t.count != 0) return;  // idempotent
-    TableRegisterState(t, 2, &ResidenceEnterBuilt,
+    TableRegisterState(t, BuildingState::Built, &ResidenceEnterBuilt,
                        nullptr, &ResidenceHeatTick,
                        nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 3, &ResidenceEnterDemolish,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Demolish, &ResidenceEnterDemolish,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
 }
 static const bool s_residenceStateTableBuilt = (ResidenceComponent_PopulateStateTable(), true);
 
