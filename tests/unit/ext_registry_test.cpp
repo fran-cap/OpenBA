@@ -108,6 +108,12 @@ UNIT_TEST(ext_registry_table_shape) {
     CHECK(Ext::EntryAt(Ext::EntryCount() - 1).tier == Ext::Tier::Extension);
 }
 
+// The Extensions dialog has Ext::kMaxEntries rows and drops the entries past them: the table must fit
+// (it outgrew the dialog's former 64 rows at 90 entries, and the newest default-on rows went missing).
+UNIT_TEST(ext_registry_fits_the_extensions_dialog) {
+    CHECK(Ext::EntryCount() <= Ext::kMaxEntries);
+}
+
 UNIT_TEST(ext_registry_absent_keys_take_defaults) {
     Ext::LoadReport r;
     const Ext::State s = ResolveText("", nullptr, &r);

@@ -58,6 +58,7 @@
 #include "graphics/FrameCopyImageBuffer.h"   // the ext.better_water scene depth seam (DESIGN.md hook rule 5)
 #include "ext/better_water/better_water.h"
 #include "ext/winter_ice/winter_ice.h"
+#include "ext/better_clouds/better_clouds.h"
 #include "io/Persistence.h"
 #include "save/SaveLoad.h"      // the pseudo-mod seam Save::SaveLoad::_extExtraMods (DESIGN.md hook rule 5)
 #include "system/Configuration.h"
@@ -131,12 +132,14 @@ void VideoLost() {
     BetterWater::OnVideoLost();  // the shore programs and twins (a GPU hang after a display change)
     MapOverlays::OnVideoLost();  // the map window's overlay image
     WinterIce::OnVideoLost();    // the ice textures and the ice program's twins
+    BetterClouds::OnVideoLost(); // the sky's own programs back, our programs and twins forgotten, the noise released
 }
 // Engine::MainLoop::_extVideoRestored: the same objects made again, after the reload.
 void VideoRestored() {
     Resources::RestoreSheetTextures();
     MapOverlays::OnVideoRestored();
     WinterIce::OnVideoRestored();
+    BetterClouds::OnVideoRestored();
 }
 }  // namespace
 

@@ -87,6 +87,7 @@
 #include "ext/building_finder/building_finder.h"
 #include "ext/drain_split/drain_split.h"       // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (class B), Ext::DrainSplit::BeginFrame
 #include "ext/winter_ice/winter_ice.h"         // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md): ext.winter_ice (class A), Ext::WinterIce::BeginFrame
+#include "ext/better_clouds/better_clouds.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): ext.better_clouds (class A), Advance / BeginFrame / Forget
 #include "Game/terrain_sidecar.h" // the terrain-type mirror's teardown (faithful perf work)
 #include <cstdio>
 #include <cstring>
@@ -695,6 +696,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md): ext.winter_ice (A) advances the lake ice
     // from the calendar and the temperature, keeps its textures and the open-water mask
     Ext::WinterIce::BeginFrame();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): ext.better_clouds (A) points the sky
+    // material's passes at the cloud programs while the row is on, publishes the frame's cloud constants
+    Ext::BetterClouds::BeginFrame();
     Ext::DrainSplit::BeginFrame();           // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (B) read once per frame, the owed half's frame count
 
     // [EVENTS] RETIRED: the BANISHED_LIVE_EVENTS resource-shortage scanner used to
@@ -900,6 +904,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
         if (speedMultiplier > 0) {
             // Accumulate game time
             m_gameTime += time->_ticks;
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): ext.better_clouds' clouds move at
+            // the game's speed (the frame time times the simulation steps below, capped at 3x)
+            Ext::BetterClouds::Advance(*time, speedMultiplier);
             TRACE("[GameUpdateLoop::Update] gameTime updated to %lld\n", (long long)m_gameTime);
         }
 
@@ -2147,6 +2154,9 @@ void GameUpdateLoop::Shutdown() {
         gs->RemoveGlobalObject(m_worldGeometry);
         gs->RemoveGlobalObject(m_sunLight);
         gs->RemoveGlobalObject(m_skyMesh);
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): ext.better_clouds puts the sky
+        // material's own programs back before the world (and the material with it) can go.
+        Ext::BetterClouds::Forget();
         // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): natural tree growth's falling leaves.
         Ext::BetterTrees::LeavesShutdown(gs);
     }

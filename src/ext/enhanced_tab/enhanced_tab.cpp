@@ -64,7 +64,7 @@ void HideTouchGroupUnlessOn(UI::Element* page) {
 
 const Contribution* const* Contributions(int* n) {
     static const Contribution* const list[] = {
-        &AmbientOcclusionEntry(), &BetterTreesEntry(), &BetterWaterEntry(), &WinterIceEntry(), &SharpUiEntry(),
+        &AmbientOcclusionEntry(), &BetterTreesEntry(), &BetterWaterEntry(), &WinterIceEntry(), &BetterCloudsEntry(), &SharpUiEntry(),
         &MaxShadowResEntry(), &SeamlessLoopsEntry(),
         &TextureQualityEntry(), &RenderScaleEntry(), &FpsCapEntry(), &TouchModeEntry(), &TouchPointerEntry(),
         &PhoneMenuEntry(), &DerivedCacheEntry(),

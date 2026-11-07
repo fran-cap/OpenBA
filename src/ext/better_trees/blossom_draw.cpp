@@ -17,6 +17,7 @@
 // copy made without the blossom, which draws the same pixels (FaaBackend::SetDrawBloom).
 // ============================================================================
 #include "ext/better_trees/better_trees.h"
+#include "ext/material_setup.h"
 
 #include "better_trees/blossom.h"   // src/render/common/better_trees: the table, the packing (pure)
 #include "better_trees/foliage_aa_backend.h"   // src/render/common/better_trees: FaaBackend::SetDrawBloom
@@ -111,7 +112,8 @@ void AfterSetup(const Graphics::MaterialInstance& mi, Video::Context& context) {
 }  // namespace
 
 void SyncBlossom(bool on) {
-    Graphics::MaterialInstance::_extAfterSetup = on ? &AfterSetup : nullptr;
+    // Shared with ext.better_clouds (src/ext/material_setup.h).
+    MaterialSetup::SetBlossom(on ? &AfterSetup : nullptr);
 }
 
 }  // namespace BetterTrees

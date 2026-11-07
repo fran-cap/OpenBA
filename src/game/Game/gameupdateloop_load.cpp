@@ -91,6 +91,7 @@
 #include "ext/savetail.h"
 #include "ext/show_grid/show_grid.h"   // EXT SEAM (NOT RETAIL, SHOWGRID.md): Ext::ShowGrid::OnGameStart
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): Ext::MapOverlays::OnGameStart
+#include "ext/better_clouds/better_clouds.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): Ext::BetterClouds::SkyLoaded
 #include "ext/fast_paths/fast_paths.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FASTPATHS.md): Ext::FastPaths::SelectForGame
 #include "ext/path_workers/path_workers.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PATHWORKERS.md): Ext::PathWorkers::SelectForGame
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
@@ -1027,6 +1028,9 @@ void GameUpdateLoop::Load() {
     // Step 28 — SkyMesh MeshInstance (+0x108): the sky `_clear_` dome (helper above).
     LoadTime::Stamp("gul.skymesh");   // NOT RETAIL: print-only (steps 28-30)
     BuildSkyMesh_Step28(this);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): ext.better_clouds remembers the
+    // sky's materials and bakes its noise once; its per-frame call swaps their passes while the row is on.
+    Ext::BetterClouds::SkyLoaded(m_skyMesh);
 
     // Step 29 — Seasons/Events StringTables. Fill the +0x138 event-log struct's
     // StringTable slots: +0x00 = events (message templates, indexed by eventType),

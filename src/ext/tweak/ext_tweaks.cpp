@@ -16,6 +16,7 @@ Faa        g_faa;
 Bbs        g_bbs;
 Water      g_water;
 Ice        g_ice;
+BetterClouds::Look g_clouds;
 }  // namespace
 
 Ao AoValues() {
@@ -66,6 +67,16 @@ Ice IceValues() {
 void SetIce(const Ice& v) {
     std::lock_guard<std::mutex> lock(g_mu);
     g_ice = v;
+}
+
+BetterClouds::Look CloudsValues() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_clouds;
+}
+
+void SetClouds(const BetterClouds::Look& v) {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_clouds = v;
 }
 
 }  // namespace Tweak

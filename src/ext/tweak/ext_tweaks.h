@@ -23,6 +23,7 @@
 #include "ext/better_trees/better_trees.h"
 #include "better_trees/receiver_rewrite.h"
 #include "ext/winter_ice/winter_ice.h"      // ext.winter_ice's look (WINTERICE)
+#include "ext/better_clouds/cloud_params.h" // ext.better_clouds' look (BETTERCLOUDS)
 #include "ext/winter_ice/open_mask.h"       // ...and the boat channel's default width
 #include "ext/better_water/shore_params.h"   // ext.better_water's look (BETTERWATER)   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
 
@@ -80,6 +81,9 @@ Water WaterValues();
 void  SetWater(const Water& v);
 Ice   IceValues();
 void  SetIce(const Ice& v);
+// ext.better_clouds (BETTERCLOUDS): the sky program's look and the wind's speed, read by BeginFrame.
+BetterClouds::Look CloudsValues();
+void  SetClouds(const BetterClouds::Look& v);
 
 }  // namespace Tweak
 }  // namespace Ext
