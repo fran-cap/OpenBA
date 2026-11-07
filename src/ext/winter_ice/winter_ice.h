@@ -84,9 +84,17 @@ struct ChannelShape {
 // The row (ext.winter_ice), as the Extensions dialog leaves it.
 bool Enabled();
 
-// Main thread, once per frame (GameUpdateLoop's ext block): reads the row, advances the ice from the
-// calendar and the temperature, keeps the textures and the open-water mask.
+// Main thread, once per frame (GameUpdateLoop's ext block): reads the row, starts a town's ice from a
+// guess (ice_model.h Guess), keeps the textures and the open-water mask. Sets g_tick while the row is
+// on and the town's weather has run.
 void BeginFrame();
+
+// The game tick's seam (GameUpdateLoop::Update, right after WeatherSimulation::Update):
+// `if (g_tick) Tick(time->AsSeconds())`. One step of the fronts by the iteration's own time at the
+// temperature it left, so the ice moves with the sim (pause and game speed included), not with the frame
+// rate (WINTERICE.md 5.3).
+extern bool g_tick;
+void Tick(double seconds);
 
 // Drawing thread: true when `geo`'s water ranges get the ice pass this frame: the row is on, there is
 // ice, the textures exist, and `geo` is the town's own world, whose per-frame call (BeginFrame) ran

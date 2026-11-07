@@ -395,7 +395,12 @@ bool g_on = false;
 IceState g_ice;
 bool g_haveTown = false;
 const void* g_townWeather = nullptr;
-double g_lastSeconds = 0.0;   // game seconds since year 0 at the last frame
+double g_lastSeconds = 0.0;   // game seconds since year 0 at the last tick (or guess)
+
+// The calendar as game seconds since year 0 (pause and game speed honoured).
+double CalendarSeconds(const Calendar& cal) {
+    return static_cast<double>(cal.year) * cal.yearLength.AsSeconds() + cal.yearTime.AsSeconds();
+}
 
 // What the draw reads.
 std::atomic<bool> g_drawing{false};
@@ -498,7 +503,19 @@ const Video::VideoProgram* TwinFor(const Video::VideoProgram* water) {
 
 }  // namespace
 
+bool g_tick = false;
+
 bool Enabled() { return Ext::Ext().winter_ice; }
+
+void Tick(double seconds) {
+    GameUpdateLoop* game = GameUpdateLoop::_singleton;
+    if (!g_haveTown || game == nullptr || game->m_weather == nullptr || game->m_dayCounter == nullptr ||
+        game->m_weather != g_townWeather || game->m_weather->seasonStep < 0) {
+        return;
+    }
+    Step(g_ice, game->m_weather->temperature, static_cast<float>(seconds));
+    g_lastSeconds = CalendarSeconds(*game->m_dayCounter);
+}
 
 bool Drawing(const WorldGeometry& geo) {
     if (!g_drawing.load(std::memory_order_relaxed)) return false;
@@ -516,6 +533,7 @@ void BeginFrame() {
         game->m_game == nullptr) {
         g_drawing.store(false, std::memory_order_relaxed);
         g_haveTown = false;   // the row turned back on, or the next town, starts from a guess
+        g_tick = false;
         return;
     }
 
@@ -524,26 +542,25 @@ void BeginFrame() {
     if (game->m_weather->seasonStep < 0) {
         g_drawing.store(false, std::memory_order_relaxed);
         g_haveTown = false;
+        g_tick = false;
         return;
     }
 
-    // The ice, from the game time that passed since the last frame (nothing while paused). A step
-    // back in time or a long jump is a different town or a load: start again from a guess.
+    // The game tick steps the ice (Tick) and leaves g_lastSeconds at the calendar it reached, so between
+    // two frames the calendar moves on its own only under a load or a new town: a step back in time or a
+    // long jump starts again from a guess.
     const Calendar& cal = *game->m_dayCounter;
     const float temperature = game->m_weather->temperature;
-    const double length = cal.yearLength.AsSeconds();
-    const double now = static_cast<double>(cal.year) * length + cal.yearTime.AsSeconds();
-    const double step = now - g_lastSeconds;
+    const double step = CalendarSeconds(cal) - g_lastSeconds;
     if (!g_haveTown || g_townWeather != game->m_weather || step < 0.0 || step > kMaxStepSeconds) {
         g_ice = Guess(temperature);
         g_haveTown = true;
         g_townWeather = game->m_weather;
         g_scanCountdown = 0;
+        g_lastSeconds = CalendarSeconds(cal);
         std::fprintf(stderr, "[WinterIce] town: %.1f F, freeze %.2f\n", temperature, g_ice.freeze);
-    } else {
-        Step(g_ice, temperature, static_cast<float>(step));
     }
-    g_lastSeconds = now;
+    g_tick = true;   // the game tick steps the fronts from here on
 
     // What is drawn: the weather's ice, or the debug overlay's preview fronts (drawing only).
     IceState shown = g_ice;
