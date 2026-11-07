@@ -19,7 +19,7 @@
 #include "ext/winter_ice/winter_ice.h"
 #include "ext/winter_ice/ice_model.h"
 #include "ext/winter_ice/open_mask.h"
-#include "ext/winter_ice/boat_channel.h"
+#include "ext/boat_lane/boat_lane.h"
 #include "ext/winter_ice/ice_texture_data.h"
 
 #include "ext/registry.h"
@@ -251,12 +251,25 @@ constexpr float kUnderwater = -0.25f;
 
 // The boats' way for one trading post, as retail builds it (BoatComponent::SetDestination 0x1400456e0):
 // the polyline's first point in the map -> the dock's "boat" attach point -> the polyline's last point in
-// the map, the two legs through the water (boat_channel.h). When either leg finds no water, retail keeps
-// the polyline alone, and so does the channel. True when the legs were found.
+// the map, the two legs through the water (ext/boat_lane/boat_lane.h). When either leg finds no water,
+// retail keeps the polyline alone, and so does the channel. True when the legs were found.
+//
+// With ext.boat_lane on (class B: the town's locked value) the boats sail the lane, so the channel is
+// that lane exactly (BoatLane's fixed shape; the overlay's pull and smoothing do not apply). Off, the
+// boats sail the game's legs: the lane is the look (the overlay's shape) and a narrow cut follows the
+// game's legs, so a boat is never seen on the ice.
 bool AddPostChannel(ComponentEntity* post, const Map& map, const std::vector<float>& line,
                     const ChannelShape& shape, std::vector<OpenStamp>& stamps) {
+    const bool boatsOnLane = Ext::Ext().boat_lane;
     const float halfWidth = shape.halfWidth;
-    const int stride = static_cast<int>(shape.smoothing + 0.5f);
+    const float pull = boatsOnLane ? BoatLane::kLanePull : shape.centrePull;
+    const int smoothing = boatsOnLane ? BoatLane::kLaneSmoothing : static_cast<int>(shape.smoothing + 0.5f);
+    // The polyline alone, as the boats sail it when the legs fail: as it is under ext.boat_lane (the
+    // boats take its points), smoothed for the look otherwise.
+    auto polylineOnly = [&]() {
+        AddChannel(boatsOnLane ? line : BoatLane::SmoothLine(line, smoothing), stamps, halfWidth);
+        return false;
+    };
     const int32_t size = map.size;
     const float half = static_cast<float>(size >> 1);
     float dock[3] = {0.0f, 0.0f, 0.0f};
@@ -265,10 +278,8 @@ bool AddPostChannel(ComponentEntity* post, const Map& map, const std::vector<flo
     InteractComponent* interact = post->FindComponent<InteractComponent>();
     const bool haveDock = interact != nullptr && BoatRoute_FindAttachPoint(interact, &boat, dock, &yaw);
     // The polyline's first and last points inside the map (BoatLine keeps one point either side).
-    if (!haveDock || line.size() < 6) {
-        AddChannel(SmoothLine(line, stride), stamps, halfWidth);
-        return false;
-    }
+    if (!haveDock || line.size() < 6) return polylineOnly();
+    // (int)(coord) clamped: retail's ToTileClamped on cell coordinates (world + the half edge).
     auto tile = [&](float x, float y) {
         int cx = static_cast<int>(x);
         int cy = static_cast<int>(y);
@@ -283,30 +294,23 @@ bool AddPostChannel(ComponentEntity* post, const Map& map, const std::vector<flo
     std::vector<uint8_t> types(static_cast<size_t>(size) * static_cast<size_t>(size));
     const MapCell* cells = map.cells.GetData();
     for (size_t i = 0; i < types.size(); ++i) types[i] = cells[i].terrainType;
-    // Whether the boats reach the dock is the game's rule (no centre pull: a leg found or not); the
-    // channel's own lane then keeps to the middle of the water.
-    const std::vector<int> boatIn = BoatWaterPath(types.data(), size, entry, dockCell);
-    const std::vector<int> boatOut = BoatWaterPath(types.data(), size, dockCell, exit);
-    if (boatIn.empty() || boatOut.empty()) {
-        AddChannel(SmoothLine(line, stride), stamps, halfWidth);
-        return false;
+    BoatLane::LaneLegs legs;
+    if (!BoatLane::Legs(types.data(), size, entry, dockCell, exit, pull, smoothing, legs)) return polylineOnly();
+    if (!boatsOnLane) {
+        AddChannel(BoatLane::CellPathLine(BoatLane::BoatWaterPath(types.data(), size, entry, dockCell), size), stamps,
+                   kBoatCut);
+        AddChannel(BoatLane::CellPathLine(BoatLane::BoatWaterPath(types.data(), size, dockCell, exit), size), stamps,
+                   kBoatCut);
     }
-    // The boats themselves sail the game's legs, which may hug a bank outside the lane: a narrow cut
-    // along them, so a boat is never seen on the ice.
-    AddChannel(CellPathLine(boatIn, size), stamps, kBoatCut);
-    AddChannel(CellPathLine(boatOut, size), stamps, kBoatCut);
-    const std::vector<float> bank = BankDistance(types.data(), size);
-    const std::vector<int> in = BoatWaterPath(types.data(), size, entry, dockCell, bank.data(), shape.centrePull);
-    const std::vector<int> out = BoatWaterPath(types.data(), size, dockCell, exit, bank.data(), shape.centrePull);
-    // Each leg as one curve, from the map's edge (the polyline point outside) to the dock and back out.
+    // In from the polyline's last point before the map (the boats skip its first point inside), and out
+    // to its first point beyond the map.
     std::vector<float> legIn = {line[0], line[1]};
-    const std::vector<float> inCells = CellPathLine(in, size);
-    legIn.insert(legIn.end(), inCells.begin(), inCells.end());
-    std::vector<float> legOut = CellPathLine(out, size);
+    legIn.insert(legIn.end(), legs.in.begin(), legs.in.end());
+    std::vector<float> legOut = legs.out;
     legOut.push_back(line[last + 2]);
     legOut.push_back(line[last + 3]);
-    AddChannel(SmoothLine(legIn, stride), stamps, halfWidth);
-    AddChannel(SmoothLine(legOut, stride), stamps, halfWidth);
+    AddChannel(legIn, stamps, halfWidth);
+    AddChannel(legOut, stamps, halfWidth);
     return true;
 }
 

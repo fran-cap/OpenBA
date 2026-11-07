@@ -13,6 +13,7 @@
 | Ext A | Eye-level camera | Follow a citizen at eye level (replaces overhead follow). |
 | Ext B | Better camera | Zoom in much closer and out much farther (6 to 200 instead of 20 to 130) and keep the camera tilt when zoomed out instead of flattening to top-down. Off by default; locked for the game and recorded in saves. |
 | Ext B | Higher limit values | Lets the limit boxes in the Town Hall, the Limits window and the production buildings take values up to 999,999,999 (retail stops at 999,999), typed or with the arrows. Off by default; locked for the game and recorded in saves. |
+| Ext B | Boat lane | Trade boats sail a smooth lane down the middle of rivers and lakes instead of hugging the cheapest bank in grid steps; the same lane Winter ice keeps open. |
 | Ext A | Sharp UI | Scale text with UI so it remains sharp. Note this requires the release TTF files be installed |
 | Ext A | Skip unseen work | Skip offscreen animations, particles to save cycles. |
 | Ext A | Faster scene gathering | Skips animations/pathing of gathering offscreen objects. |
@@ -24,6 +25,7 @@
 | Ext A | Ambient occlusion | Screen-space AO. |
 | Ext A | Better trees | Smoothes leaf edges, adds ability to adjust tree billboard shadows.|
 | Ext A | Better water | A soft shore edge on rivers and lakes: the bed darkens under the shallows and a thin line runs along the waterline, white on the outside of bends. Plain (every backend, the default); Fancy adds a wet bank, a foam fringe and foam round piers and bridge feet (DX11, Vulkan). |
+| Ext A | Winter ice | Lakes and rivers freeze over in cold winters: ice grows from the banks inward and melts from the sides in spring, with open water round docks, trading posts and bridges and along the trade boats' lane. |
 | Ext A | Max shadow resolution | Adjustable shadow max resolution. |
 | Ext A | Seamless ambient loops | When loops (ambient) end cleanly cycle into the next one. |
 | Ext A | Background save compression | Compresses the save on a worker thread; identical save files. |

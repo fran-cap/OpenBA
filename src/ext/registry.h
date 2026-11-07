@@ -122,6 +122,7 @@ struct Extensions {
     bool seamless_loops = false; // class A, next start: src/ext/seamless_loops/ (docs/extensions/handins/SEAMLESS.md)
     bool better_water = false; // class A, live: src/ext/better_water/, seam WorldGeometry's water-range draw (docs/extensions/handins/BETTERWATER.md)
     bool better_trees = false; // class A: src/ext/better_trees/ (docs/extensions/handins/BETTER-TREES.md): smooth leaf edges + stable tree shading + edge dapple
+    bool boat_lane = false;    // class B: src/ext/boat_lane/, seam BoatComponent::SetDestination (docs/extensions/handins/BOATLANE.md)
     bool winter_ice = true;    // class A, live: src/ext/winter_ice/, seam WorldGeometry's lake-range draw (docs/extensions/handins/WINTERICE.md)
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten

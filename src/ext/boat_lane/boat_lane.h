@@ -1,29 +1,28 @@
 // ============================================================================
-// src/ext/winter_ice/boat_channel.h -- the trade boats' way through the water, for the open channel (pure)
+// src/ext/boat_lane/boat_lane.h -- the trade boats' lane through the water (pure)
 // ============================================================================
-// NOT RETAIL. docs/extensions/handins/WINTERICE.md. Plain arithmetic, no engine include (unit test:
-// tests/unit/ext_winter_ice_test.cpp).
+// NOT RETAIL. docs/extensions/handins/BOATLANE.md. Plain arithmetic, no engine include (unit tests:
+// tests/unit/ext_boat_lane_test.cpp, tests/unit/ext_winter_ice_test.cpp).
 //
 // Retail's boat route (BoatComponent::SetDestination 0x1400456e0) is the world's polyline 0 up to the
 // map, then two A* legs through the water grid (BoatRoute_FindWaterPath 0x1400a6a30: passable types 7, 8
 // and 9, mask 0x380; step costs 5 for 7 and 9, 1 for deep water 8), map entry -> dock and dock -> map
-// exit, then the polyline out again. The legs keep to the deep water, which is why the polyline's own
-// line does not match where the boats sail.
+// exit, then the polyline out again. The legs keep to the cheapest water and turn in grid steps.
 //
-// The game's search runs on the pathfinder worker with shared step costs; a drawing-only extension must
-// not touch it. This is our own search over the same rules as GridPathSearch::FindPath (0x14001d040)
-// with BoatRoute_FindWaterPath's flags (diagonal on, blocked cells not respected): eight neighbours, a
-// step costing 10 straight / 14 diagonal times the type's cost, and a neighbour -- the goal included --
-// taken only when its type is passable (GridPathSearch::Neighbour 0x1400a5ec0). So a dock attach point
-// on land finds no path, retail's route keeps the polyline alone, and so does the channel (the user's
-// report: a land goal let the first version cut through a bend the boats sail round). Ties may break
-// differently than the game's A* breaks them; the costs are the same.
+// THE LANE. The same two legs, found under GridPathSearch::FindPath's rules (0x14001d040, with
+// BoatRoute_FindWaterPath's flags: diagonal on, blocked cells not respected): eight neighbours, a step
+// costing 10 straight / 14 diagonal times the type's cost, a neighbour -- the goal included -- taken only
+// when its type is passable (GridPathSearch::Neighbour 0x1400a5ec0). Whether the legs exist is that rule
+// alone. The lane then adds a pull towards the middle of the water (a step `d` cells from land costs
+// centrePull * 25 / d^2 more: the square keeps the lane off the inside of a wide bend, where a gentler
+// pull lost to the shorter way round, the user's report) and is a Catmull-Rom spline through every few
+// cells, so it reads as a lane a
+// boat keeps, not a staircase.
 //
-// THE LOOK, NOT THE BOAT (the user's ruling): the game's legs hug whichever bank is cheapest and turn
-// in grid steps. The channel instead takes the same legs with a pull towards the middle of the water
-// (a step near a bank costs more, by `centrePull` over the distance to the nearest land) and is drawn
-// as a Catmull-Rom spline through every few cells of the path (`SmoothLine`), so it reads as a lane a
-// boat would keep, not a staircase. The ends and the success rule stay the game's.
+// Two users, one answer: ext.boat_lane (class B) sails the boats along it, and ext.winter_ice keeps it
+// open in the ice. Both call Legs() with kLanePull / kLaneSmoothing, so with ext.boat_lane on the boats
+// and the open channel are the same line. Deterministic: integer costs, a fixed neighbour order, ties
+// broken by cell index.
 // ============================================================================
 #pragma once
 
@@ -35,7 +34,7 @@
 #include <vector>
 
 namespace Ext {
-namespace WinterIce {
+namespace BoatLane {
 
 // BoatRoute_FindWaterPath's step cost of a terrain type (kCost[], types 7 / 8 / 9 of mask 0x380);
 // 0 = not passable.
@@ -88,9 +87,13 @@ inline std::vector<float> BankDistance(const uint8_t* types, int size) {
 // them or `to` is not water (the game's goal must pass the type test). `from` may be any type (the
 // game seeds the start without testing it). `types` holds size * size terrain types. With `bank`
 // (BankDistance) and a `centrePull` above 0, a step into a cell `d` cells from land costs
-// centrePull * 4 / d times more on top of the game's cost: the path keeps to the middle of the water.
+// centrePull * 25 / d^2 times more on top of the game's cost: the path keeps to the middle of the water.
+// With `shared` (size * size, non-zero on cells another leg already takes), a step onto such a cell
+// costs kShareCost tenths of its price: a second leg runs in the first one's channel until it must part.
+inline constexpr int kShareCost = 3;
 inline std::vector<int> BoatWaterPath(const uint8_t* types, int size, int from, int to,
-                                      const float* bank = nullptr, float centrePull = 0.0f) {
+                                      const float* bank = nullptr, float centrePull = 0.0f,
+                                      const uint8_t* shared = nullptr) {
     std::vector<int> path;
     const int count = size * size;
     if (size <= 0 || from < 0 || to < 0 || from >= count || to >= count) return path;
@@ -121,8 +124,9 @@ inline std::vector<int> BoatWaterPath(const uint8_t* types, int size, int from, 
             int step = cost * (k < 4 ? 10 : 14);
             if (bank != nullptr && centrePull > 0.0f) {
                 const float away = bank[next] < 1.0f ? 1.0f : bank[next];
-                step += static_cast<int>(static_cast<float>(k < 4 ? 10 : 14) * centrePull * 4.0f / away + 0.5f);
+                step += static_cast<int>(static_cast<float>(k < 4 ? 10 : 14) * centrePull * 25.0f / (away * away) + 0.5f);
             }
+            if (shared != nullptr && shared[next] != 0) step = step * kShareCost / 10 + 1;
             const int d = top.first + step;
             if (d < dist[static_cast<size_t>(next)]) {
                 dist[static_cast<size_t>(next)] = d;
@@ -195,5 +199,46 @@ inline std::vector<float> SmoothLine(const std::vector<float>& xy, int stride, i
     return out;
 }
 
-}  // namespace WinterIce
+// The lane's shape, shared by the boats and the ice (the user's tuned set, 2026-11-06).
+inline constexpr float kLanePull = 1.0f;
+inline constexpr int kLaneSmoothing = 4;
+
+// The two legs of the lane, in cell coordinates (x, y pairs; a cell's centre is its index + 0.5).
+struct LaneLegs {
+    std::vector<float> in;    // map entry -> dock
+    std::vector<float> out;   // dock -> map exit
+};
+
+// The lane from `entry` to `dock` and on to `exit` (cells, row * size + col). False, and `legs` left
+// empty, when the game's own legs do not exist (retail then keeps the polyline alone).
+inline bool Legs(const uint8_t* types, int size, int entry, int dock, int exit, float centrePull, int smoothing,
+                 LaneLegs& legs) {
+    legs.in.clear();
+    legs.out.clear();
+    if (BoatWaterPath(types, size, entry, dock).empty() || BoatWaterPath(types, size, dock, exit).empty())
+        return false;
+    const std::vector<float> bank = BankDistance(types, size);
+    const std::vector<int> in = BoatWaterPath(types, size, entry, dock, bank.data(), centrePull);
+    // The way out keeps to the way in's channel (the in leg's cells and their neighbours) as long as it
+    // can: one channel where the boats come and go the same way, a fork only where their map edges part.
+    std::vector<uint8_t> shared(static_cast<size_t>(size) * static_cast<size_t>(size), 0);
+    for (const int c : in) {
+        const int cx = c % size;
+        const int cy = c / size;
+        for (int dy = -1; dy <= 1; ++dy) {
+            for (int dx = -1; dx <= 1; ++dx) {
+                const int x = cx + dx;
+                const int y = cy + dy;
+                if (x >= 0 && y >= 0 && x < size && y < size) shared[static_cast<size_t>(y * size + x)] = 1;
+            }
+        }
+    }
+    const std::vector<int> out = BoatWaterPath(types, size, dock, exit, bank.data(), centrePull, shared.data());
+    if (in.empty() || out.empty()) return false;
+    legs.in = SmoothLine(CellPathLine(in, size), smoothing);
+    legs.out = SmoothLine(CellPathLine(out, size), smoothing);
+    return true;
+}
+
+}  // namespace BoatLane
 }  // namespace Ext

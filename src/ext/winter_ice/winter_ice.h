@@ -73,7 +73,7 @@ struct IceEdge {
 // The boat channel's shape (a new mask when it changes).
 struct ChannelShape {
     float halfWidth  = 1.46f;   // cells either side of the line (open_mask.h kChannelFull)
-    float centrePull = 1.0f;    // how hard the route keeps to the middle of the water (boat_channel.h)
+    float centrePull = 1.0f;    // how hard the route keeps to the middle of the water (ext/boat_lane/boat_lane.h)
     float smoothing  = 4.0f;    // cells between the spline's keys (below 2: the cell path itself)
     bool operator==(const ChannelShape& o) const {
         return halfWidth == o.halfWidth && centrePull == o.centrePull && smoothing == o.smoothing;

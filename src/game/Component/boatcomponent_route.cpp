@@ -77,6 +77,7 @@
 #include "system/MemoryAllocator.h"
 #include "ext/registry.h"                          // Ext::Fix().boat_reach_notice
 #include "ext/boat_reach_notice/boat_reach_notice.h"
+#include "ext/boat_lane/boat_lane_route.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BOATLANE.md): ext.boat_lane
 
 // ── Leaves, called directly ──────────────────────────────────────────────────────
 //   0x140003ea0 PlayerPath_FindComponent_3ea0      0x140002ed0 WorkBase_FindComponent_2ed0
@@ -417,7 +418,20 @@ void BoatComponent::SetDestination(const Object::InternalPtr<ComponentEntity>* d
     // for someone else's gap.
 
     // BOTH legs or NEITHER — retail's gate at 140045e60.
-    if (nIn > 0 && nOut > 0) {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BOATLANE.md): ext.boat_lane. Retail's gate decides
+    // whether the legs exist; with the row on, the lane through the middle of the water takes the place
+    // of the legs' cells (the line ext.winter_ice keeps open), snapped to the terrain as retail's are.
+    std::vector<float> lane;
+    if (nIn > 0 && nOut > 0 && Ext::Ext().boat_lane &&
+        Ext::BoatLane::RoutePoints(*terrain, mapSize * entryTy + entryTx, mapSize * destTy + destTx,
+                                   mapSize * exitTy + exitTx, lane)) {
+        for (size_t i = 0; i + 1 < lane.size(); i += 2) {
+            float lanePos[3] = {lane[i], lane[i + 1], 0.0f};
+            float snapped[3] = {0.0f, 0.0f, 0.0f};
+            terrain->GetTerrainPos(snapped, lanePos, '\0', nullptr);   // 0x14009f3e0
+            AppendRoutePoint(this, snapped);
+        }
+    } else if (nIn > 0 && nOut > 0) {
         const float bias = static_cast<float>(terrain->size >> 1) - kRdata_140172114;
         for (int pass = 0; pass < 2; ++pass) {
             const int* cells = pass == 0 ? s_cellsIn : s_cellsOut;
