@@ -70,7 +70,7 @@ using detail::g_open;
 // The rows and keys the overlay touches (registry ids, registry.cpp's tables).
 // ---------------------------------------------------------------------------
 constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
-                                 "eye_camera"};
+                                 "eye_camera", "winter_ice"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
 constexpr int kKeyCount = static_cast<int>(sizeof(kKeys) / sizeof(kKeys[0]));
@@ -119,6 +119,7 @@ Ext::Tweak::Ao  g_uiAo;
 Ext::Tweak::Faa g_uiFaa;
 Ext::Tweak::Bbs g_uiBbs;
 Ext::Tweak::Water g_uiWater;
+Ext::Tweak::Ice g_uiIce;
 bool            g_uiLoaded = false;
 
 void Queue(Act kind, const char* id, int value) {
@@ -392,6 +393,52 @@ void DrawPanels(const Snapshot& s) {
                     cf.width, cf.strength, cf.ringRadius, cf.ringStrength, cf.breakupScale, cf.breakup, cf.opacity);
     }
 
+    // ext.winter_ice (WINTERICE): the ice program's look, live (Ext::WinterIce::IceParams, read by DrawIce
+    // every lake range), and a preview of the fronts and the snow cover so the ice can be judged in any
+    // season. Depths in frame-alpha units: 0 = the bank, 1 = about 1.5 world units down.
+    if (ImGui::CollapsingHeader("Winter ice", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::WinterIce::IceParams& p = g_uiIce.p;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("winter_ice")] ? "on" : "off (tick winter_ice under Rows)");
+        ImGui::SeparatorText("preview (drawing only; replaces the weather's ice)");
+        changed |= ImGui::Checkbox("preview", &g_uiIce.preview);
+        changed |= ImGui::SliderFloat("freeze front (1..1.65 = the middle closes)", &g_uiIce.freeze, 0.0f, 1.75f, "%.2f");
+        changed |= ImGui::SliderFloat("thaw front (sides open)", &g_uiIce.thaw, 0.0f, 1.65f, "%.2f");
+        changed |= ImGui::SliderFloat("snow cover (-1 = the weather's)", &g_uiIce.snow, -1.0f, 1.0f, "%.2f");
+        ImGui::SeparatorText("look");
+        changed |= ImGui::SliderFloat("texture tile (world units)", &p.tile, 2.0f, 40.0f, "%.1f");
+        changed |= ImGui::SliderFloat("normal strength", &p.normal, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::SliderFloat("inner layer depth", &p.inner, 0.0f, 1.5f, "%.2f");
+        changed |= ImGui::SliderFloat("frost haze", &p.frost, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("sheen (reflection)", &p.reflect, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::ColorEdit3("thin ice colour", &p.thinR);
+        changed |= ImGui::SliderFloat("front wander (depth)", &p.edgeAmp, 0.0f, 0.4f, "%.3f");
+        changed |= ImGui::SliderFloat("boat channel half width (cells)", &g_uiIce.channel.halfWidth, 0.5f, 6.0f, "%.2f");
+        changed |= ImGui::SliderFloat("boat channel centre pull", &g_uiIce.channel.centrePull, 0.0f, 4.0f, "%.2f");
+        changed |= ImGui::SliderFloat("boat channel smoothing (cells per key)", &g_uiIce.channel.smoothing, 1.0f, 12.0f, "%.1f");
+        changed |= ImGui::SliderFloat("open edge softness", &p.edgeSoft, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("open edge wobble", &g_uiIce.edge.wobble, 0.0f, 1.5f, "%.2f");
+        changed |= ImGui::SliderFloat("open edge wobble size (cells)", &g_uiIce.edge.wobbleSize, 0.5f, 12.0f, "%.2f");
+        changed |= ImGui::SliderFloat("open edge grain", &g_uiIce.edge.grain, 0.0f, 1.0f, "%.2f");
+        ImGui::SeparatorText("snow (times the snow cover)");
+        changed |= ImGui::SliderFloat("snow banked at the shore", &p.bankSnow, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::SliderFloat("snow patches on the ice", &p.dusting, 0.0f, 2.0f, "%.2f");
+        if (changed) Ext::Tweak::SetIce(g_uiIce);
+        if (ImGui::Button("ice defaults")) {
+            g_uiIce = Ext::Tweak::Ice{};
+            Ext::Tweak::SetIce(g_uiIce);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/winter_ice/winter_ice.h (IceParams):");
+        ImGui::Text("bankSnow %.2f tile %.1f edgeAmp %.3f thin %.3f/%.3f/%.3f reflect %.2f", p.bankSnow, p.tile,
+                    p.edgeAmp, p.thinR, p.thinG, p.thinB, p.reflect);
+        ImGui::Text("frost %.2f normal %.2f inner %.2f dusting %.2f",
+                    p.frost, p.normal, p.inner, p.dusting);
+        ImGui::Text("channel width %.2f pull %.2f smoothing %.1f  edge soft %.2f wobble %.2f size %.2f grain %.2f",
+                    g_uiIce.channel.halfWidth, g_uiIce.channel.centrePull, g_uiIce.channel.smoothing, p.edgeSoft,
+                    g_uiIce.edge.wobble, g_uiIce.edge.wobbleSize, g_uiIce.edge.grain);
+    }
+
     if (ImGui::CollapsingHeader("Ambient occlusion")) {
         ImGui::Text("row %s, pass %s", s.rowRequested[RowIndex("ambient_occlusion")] ? "on" : "off",
                     s.aoEnabled ? "enabled" : "inactive");
@@ -588,6 +635,7 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
         g_uiFaa = Ext::Tweak::FaaValues();
         g_uiBbs = Ext::Tweak::BbsValues();
         g_uiWater = Ext::Tweak::WaterValues();
+        g_uiIce = Ext::Tweak::IceValues();
         g_uiLoaded = true;
     }
 

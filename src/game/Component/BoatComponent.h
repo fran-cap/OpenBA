@@ -41,6 +41,14 @@ class CharacterComponent;   // Component/CharacterComponent.h
 
 struct BoatCtrlTag { using Owner = class BoatComponent; };   // the handlers' receiver (controller_state_table.h)
 
+class InteractComponent;
+namespace System { class String; }
+// 0x140123880 Entity::FindAttachPoint (body: boatcomponent_route.cpp): a named attach point ("boat" for a
+// trading post's dock) of `comp` or one of its child use locations, in world position and heading.
+// False when none carries the name. Also read by ext.winter_ice (the boats' open channel).
+extern "C" bool BoatRoute_FindAttachPoint(InteractComponent* comp, const System::String* nameStr, float* outPos,
+                                          float* outYaw);
+
 class BoatComponent final : public ControllerComponent {
     DECLARE_EXE_TYPE(BoatComponent)
 

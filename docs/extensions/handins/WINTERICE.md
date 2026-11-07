@@ -1,0 +1,133 @@
+# WINTERICE -- `ext.winter_ice`: water freezes in winter
+
+`ext.winter_ice`, display "Winter ice", class A, **ON by default** (the standing class A rule; the user's
+ruling 2026-11-06). Phase 1 of the frozen-water feature: the look only. Phase 2 (walkable ice) is section 5.
+
+## 1. What the player sees
+
+- While the temperature stays below 32 F the lakes and rivers ice over: first in the shallows along the
+  bank, then over the deep middle, which closes in drifting patches. In spring the shallow sides open
+  first and the middle goes last.
+- Open water stays round any building standing in the water: a fishing dock, a trading post, a bridge.
+- While the town has a trading post, the trade boats' channel stays open along the way the boats sail
+  (`boat_channel.h`): retail's route (`BoatComponent::SetDestination` 0x1400456e0) is the world's
+  polyline 0 up to the map, then two A* legs through the water (map entry -> the dock's "boat" attach
+  point -> map exit; passable types 7 / 8 / 9, step costs 5 / 1 / 5, so the boats keep to deep water),
+  then the polyline out. The extension runs its own search under `GridPathSearch::FindPath`'s rules
+  (8 neighbours, 10 straight / 14 diagonal times the type cost, the goal tested like any neighbour):
+  the game's runs on the pathfinder worker with shared step costs, which a drawing-only row must not
+  touch. A dock attach point on land is no goal, so the legs fail and the channel is the polyline alone,
+  as retail's route is (the user's report: the first search accepted a land goal and cut through a bend
+  the boats sail round). The mask log line says which way each trading post's channel was built.
+  The lane is the look, not the boat (the user's ruling): once the game's rule says the legs exist, the
+  channel's own legs take a pull towards the middle of the water (`BankDistance`, a step `d` cells from
+  land costs `centrePull * 4 / d` more) and are drawn as a Catmull-Rom spline through every few cells
+  (`SmoothLine`). The boats still sail the game's legs, which may hug a bank outside the lane, so a
+  narrow cut (`kBoatCut`, 0.75 cells) follows those legs too and a boat is never seen on ice. The user
+  wants the boats to sail the lane itself: a separate row, class B (it changes travel time, so the
+  sim), sharing the lane function; with it on, the lane and the route are one line.
+  Overlay sliders: channel width / centre pull / smoothing; open edge softness / wobble / wobble size /
+  grain, the user's set as the defaults (1.46 / 1.0 / 4; 0.33 / 0.52 / 2.24 / 0.33). `IceEdge` rides in b0 userPosition.yzw for the pass's draw; the shader reads the mask's size
+  with GetDimensions, freeing mc1.z for the softness. Drawing only: the boats and the citizens go where they
+  always did (the user's ruling, 2026-11-06: gameplay fun over realism). Without a trading post the
+  rivers freeze over too.
+- While the ground is snowy, snow banks against the shore and lies in patches on thick ice.
+
+## 2. The model (`src/ext/winter_ice/ice_model.h`, pure)
+
+The game's temperature is in degrees F, recomputed every tick (`WeatherSimulation::Update` 0x1400944e0);
+32 is retail's own freezing point (`kRdata_1401721d0`). The ice is two fronts in the water's depth
+units (the frame copy's alpha: 0 at the bank, 1 about 1.5 world units down):
+
+| Front | Meaning | Moves with |
+|---|---|---|
+| `freeze` | ice from the bank down to this depth; 1 .. `kFrozen` (1.65) closes the deep middle; past it the whole lake | cold: degree-seconds below 32 / `freezeDegreeSeconds` (1500) |
+| `thaw` | open water from the bank down to this depth | warmth above 32 / `thawDegreeSeconds` (1200), once there is ice; shrinks again in a cold snap |
+
+Every deep pixel reads depth 1, so the ice program adds a broad noise of up to `kDeepSpread` (0.5) to
+the deep water's depth: the middle closes, and in spring opens, in drifting patches while the front runs
+from 1 to `kFrozen`, rather than all at once (the user's report: the 0.9 -> 1 snap). Ice lies between
+the two fronts. When `thaw` reaches `min(freeze, kFrozen)` the water is open and both reset. On
+the Fair climate (a winter low near 20 F) the banks ice within days of the first frost, the lake
+closes about a month in, and the thaw takes a few weeks. Game time comes from the calendar
+(`year * yearLength + yearTime`), so pause and game speed are honoured. A step back in time or one
+over 30 s (a load, a new town, a calendar jump) restarts from `Guess(temperature)`. A new game's
+weather has not run until its first update (`seasonStep` -1, temperature 0), so nothing starts then.
+
+## 3. The pass
+
+| File | What |
+|---|---|
+| `src/ext/winter_ice/winter_ice.{h,cpp}` | the row, `BeginFrame` (main thread), `DrawIce` (drawing thread), the textures and the twin |
+| `src/ext/winter_ice/ice_model.h`, `open_mask.h` | the fronts; the open-water mask (pure, unit-tested) |
+| `src/ext/winter_ice/ice_texture_data.h` | the ice textures, generated by `tools/ice_texture_bake.py` |
+| `src/render/common/winter_ice/ice_overlay.hlsl` | the ice pixel program (ps_4_0) |
+| `src/render/common/winter_ice/ice_overlay_ps.h` | its DXBC, generated by `tools/water_shaders.py` and checked in |
+| `tests/unit/ext_winter_ice_test.cpp` | the model, the mask, the program's container and inputs, the row |
+| `src/ext/tweak/ext_tweaks.h` (`Tweak::Ice`), `src/diag/win/tweak_overlay.cpp` | debug flavour only: the "Winter ice" panel (Alt+F10) moves `IceParams` live and previews the fronts and the snow cover in any season (drawing only, never the sim); it prints the set to copy back into `winter_ice.h` |
+
+**THE SEAMS.** `WorldGeometry`'s contour-range draw (`geometry_draw.cpp`, modes 0x6000 rivers and the
+coast, 0x8000 lakes): after retail's `DrawIndexed` and ext.better_water's shore pass,
+`if (Drawing(*this)) DrawIce(...)`, one relaxed load per water range on the faithful path. `Drawing`
+answers only for the town's own `WorldGeometry` and only while the town's `BeginFrame` ran in the last
+second: the main menu's backdrop worlds draw through the same seam with no town loop, and once showed
+the last town's ice (the user's report). `GameUpdateLoop`'s per-frame ext
+block calls `BeginFrame`. `Engine::MainLoop::_extVideoLost` / `_extVideoRestored` (`registry_boot.cpp`)
+release our textures and make them again from their kept levels.
+
+**THE PROGRAM** draws through a twin of the River / Lake `VideoProgram` (its vertex layout, vertex program
+and render state, our pixel program), as ext.better_water does. It reads the frame copy (t1), the planar
+reflection (t2) and the highlight cube (t3) the water draw bound, and our textures for its draw alone:
+t4 the ice surface (rgb colour, a roughness), t6 the detail (rg normal, b displacement), t7 the
+open-water mask. b0 gives the light, ambient and fog colours and the snow cover (`userPosition.x`,
+`saturate(32 - T)`). The look is `IceParams` (b1; the defaults are the user's overlay set of 2026-11-06).
+The river mesh's uv runs across and along the channel, so the world position is the view direction
+(TEXCOORD2 = world - camera) plus `Context::_cameraPosition`, folded with the map's half edge into
+`offsetX / offsetY`: cells = `viewDir.xy + offset`, the mask at `cells / size`. The photograph's repeat is
+broken by blending two samplings (the second turned 37 degrees and scaled by 0.71) by a broad noise,
+and by broad light / dark patches.
+
+**THE TEXTURES.** ambientCG "Ice003" (CC0, `THIRD_PARTY_NOTICES.md`), resized to 256 x 256 by the bake
+script; the full mip chain is built at load (box filter), wrapped, anisotropic. The open-water mask is
+one BGRA8 texel per map cell (`open_mask.h`), rebuilt when the set of blocked water cells or of trading
+post cells changes (scanned about once a second while there is ice). A building in the water is a cell with
+an `occupant` (where a building's footprint writes itself; the first version read `blocker` only and
+found no dock) or a `blocker` that is either water typed (a dock's own cells, terrain 7 / 8) or under
+the waterline by its height (the mean of its four heightmap corners below `Map::ClassifyTerrain`'s
+-0.25: a bridge writes a land type into its cells). The open-water edge is broken twice in the shader,
+a broad wobble a few cells across and a fine grain, so a bridge's row of discs does not read as a ruled
+strip (the user's report). A trading post is any building with a
+`TradeComponent`, found over its whole footprint, so a boat moored at the dock never hides it (the
+user's report: the channel vanished when spring came, the trade boats' season). The channel's open half width is
+`open_mask.h kChannelFull` (1.46 cells, the user's set; the overlay's "boat channel half width" moves it and rebuilds
+the mask at once), closing over `kChannelEdge` (2) cells past it.
+A bridge writes a land type into its cells, so it does not count.
+
+## 4. Verified
+
+- Unit: `tools/build.sh unit`, 2244 / 0 (2026-11-06).
+- In game (functional dir, DX11 debug build, seed 12345, the lake at 108.9, 114.7): a solid lake in
+  deep winter (month 10.5, 21.6 F) with the snow rim at the bank; the river and its feeder streams
+  open; a spring start reads 35-36 F and draws no ice.
+- After the user's review (rivers, deep patches, anti-tiling): unit 2245 / 0; the same seed in deep
+  winter shows the river and the lake frozen as one sheet, no visible repeat at overview zoom.
+- Third round (route, cutouts, menu): unit 2248 / 0; the community save CF_Elysium with the ice forced
+  on (a local hack, reverted) shows the channel along the river to the trading post with a boat moored
+  in it, open water round both fishing docks on the lake and round the bridge.
+- Not yet run: Vulkan, Metal, Android; the thaw sequence over real game time; the menu after leaving a
+  winter game (the logic is in, not exercised); a device restart with ice showing.
+
+## 5. Phase 2: walkable ice (PARKED by the user, 2026-11-06)
+
+A class C row of its own (`ext.walk_on_ice`, owner `winter_ice`) that saves the two fronts and makes
+lake cells walkable while `Solid()` (`ice_model.h`). Ruled with the user, 2026-11-06:
+
+- Rivers freeze too (revised 2026-11-06), the boat channel drawn open. Whether citizens may walk the
+  river ice and the channel is phase 2's call; the channel is drawing only in phase 1.
+- Terrain types are not rewritten (boat routes use mask 0x380, fishing tests its terrain mask, and the
+  types are saved): while frozen the zone flood (`Map::FillZones`) and `Map::RequestPath`'s mask treat
+  the lake cells as land, and the region graph floods across them. One re-flood at freeze, one at thaw.
+- Walking ends on the first warm day while the drawn ice lags behind it, so a citizen mid-crossing
+  finishes on ice (`MoveTo::Execute` never re-checks a stored path); one left on the wrong bank is
+  `fix.stranded_wade`'s case.
+- The water in front of a fishing dock stays open (the mask of section 3), so fishing goes on.

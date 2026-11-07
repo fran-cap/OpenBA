@@ -5,7 +5,8 @@ The exe has no runtime shader compiler, so the shore overlay's pixel program is 
 twice (river and, with WATER_LAKE, lake: their uv sets scroll differently), and written as
 `src/render/common/better_water/shore_overlay_{river,lake}_ps.h` (`/Fh`, `const uint8_t
 g_bw_PSShoreRiver[]` / `g_bw_PSShoreLake[]`); Fancy's shore strip program likewise as `shore_strip_ps.h`
-(`g_bw_PSShoreStrip`), and its contact foam as `shore_contact_{river,lake}_ps.h`. fxc's BYTE rewritten so shared code needs no Win32 typedef). Every backend
+(`g_bw_PSShoreStrip`), and its contact foam as `shore_contact_{river,lake}_ps.h`; ext.winter_ice's lake ice as `src/render/common/winter_ice/ice_overlay_ps.h`
+(`g_wi_PSIceOverlay`, docs/extensions/handins/WINTERICE.md). fxc's BYTE rewritten so shared code needs no Win32 typedef). Every backend
 takes the DXBC (docs/extensions/handins/BETTERWATER.md). The tools/ao_shaders.py pattern.
 
     python -I tools/water_shaders.py [--fxc PATH] [--check]
@@ -23,6 +24,7 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WATER_DIR = os.path.join(REPO, "src", "render", "common", "better_water")
+ICE_DIR = os.path.join(REPO, "src", "render", "common", "winter_ice")
 
 # (source, entry, profile, variable, header, defines). ps_4_0: the profile retail's own water programs
 # use, so the overlay runs wherever the water does.
@@ -32,6 +34,8 @@ SHADERS = [
     ("shore_strip.hlsl", "PSShoreStrip", "ps_4_0", "g_bw_PSShoreStrip", "shore_strip_ps.h", []),
     ("shore_contact.hlsl", "PSShoreContact", "ps_4_0", "g_bw_PSContactRiver", "shore_contact_river_ps.h", []),
     ("shore_contact.hlsl", "PSShoreContact", "ps_4_0", "g_bw_PSContactLake", "shore_contact_lake_ps.h", ["WATER_LAKE=1"]),
+    # ext.winter_ice's lake ice (docs/extensions/handins/WINTERICE.md): lakes only, so one variant.
+    ("winter_ice/ice_overlay.hlsl", "PSIceOverlay", "ps_4_0", "g_wi_PSIceOverlay", "winter_ice/ice_overlay_ps.h", []),
 ]
 FLAGS = ["/O3", "/WX", "/Ges"]
 
@@ -57,6 +61,13 @@ def blob_size(header_text):
     return len(re.findall(r"\b\d+\b", body))
 
 
+def source_path(name):
+    """A source or header name relative to better_water/, or under a `winter_ice/` prefix to winter_ice/."""
+    if name.startswith("winter_ice/"):
+        return os.path.join(ICE_DIR, name[len("winter_ice/"):])
+    return os.path.join(WATER_DIR, name)
+
+
 def retype_header(path, source):
     with open(path, "r", encoding="ascii", errors="replace") as f:
         text = f.read()
@@ -77,22 +88,23 @@ def main():
         a.fxc = find_fxc()
         if a.fxc is None:
             sys.exit("fxc.exe not found: put it on PATH, install a Windows 10 SDK, or pass --fxc PATH")
-    out_dir = tempfile.mkdtemp() if a.check else WATER_DIR
+    tmp_dir = tempfile.mkdtemp() if a.check else None
     fails = 0
     for src, entry, profile, var, header, defines in SHADERS:
-        out_h = os.path.join(out_dir, header)
+        out_h = os.path.join(tmp_dir, os.path.basename(header)) if tmp_dir else source_path(header)
         cmd = [a.fxc, "/nologo", "/T", profile, "/E", entry, "/Vn", var, "/Fh", out_h]
         cmd += FLAGS
         for d in defines:
             cmd += ["/D", d]
-        cmd.append(os.path.join(WATER_DIR, src))
+        cmd.append(source_path(src))
         r = subprocess.run(cmd, capture_output=True, text=True)
         log = (r.stdout + r.stderr).strip()
         if r.returncode != 0:
             fails += 1
             print("FAIL %-24s %s %s\n%s" % (entry, profile, src, log))
             continue
-        retype_header(out_h, "src/render/common/better_water/" + src)
+        rel = os.path.relpath(source_path(src), REPO).replace(os.sep, "/")
+        retype_header(out_h, rel)
         with open(out_h, "r", encoding="ascii", errors="replace") as f:
             n = blob_size(f.read())
         print("ok   %-24s %s %6d bytes -> %s" % (var, profile, n, out_h))
