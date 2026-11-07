@@ -123,7 +123,7 @@ extern "C" void OrchardGrowthHarness_Tick(int frameNum) {
 
         for (int s = 0; s < count; ++s) {
             OrchardSlot& slot = slots[s];                        // stride 0x28
-            if (slot.state != 1) continue;  // only planted+bound   (+0x04)
+            if (slot.state != OrchardSlotState::Planted) continue;  // only planted+bound   (+0x04)
             ++slotsSeen;
 
             NaturalResourceComponent* natRes = slot.resource.Get();   // +0x10

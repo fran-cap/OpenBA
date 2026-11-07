@@ -40,6 +40,7 @@
 #include "Component/TradeComponent.h"
 #include "Component/WorkPlaceComponent.h"
 #include "Game/Map.h"
+#include "Component/BuildingState.h"
 
 // ============================================================
 // Exe-internal helpers, called by name:
@@ -445,7 +446,8 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
     // Case 10: Built building count by type
     // --------------------------------------------------------
     // Gets the template's bucket count, then for each of its entities finds the
-    // StateMachineComponent and counts a reported state != 0.
+    // StateMachineComponent and counts a reported state other than
+    // BuildingState::ClearSite (0).
     case 10: {
         const ComponentDescription* typePtr = ResolveTypePtr<ComponentDescription>(typeRef);
         CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;
@@ -472,7 +474,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
             if (checkFlag < 0) {
                 checkFlag = buildState->stateMachine.currentInput;
             }
-            if (checkFlag != 0) {
+            if (checkFlag != StateByte(BuildingState::ClearSite)) {
                 occupied++;
             }
         }

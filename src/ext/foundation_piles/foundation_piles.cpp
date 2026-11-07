@@ -118,7 +118,7 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
     if (gw->m_citizenList->HasStorageFor(pile->_description, raw->quantity)) return 0;
 
     Pickup* pickup = FindPickupWork(gw->m_tutorial, workComp->workId);
-    if (pickup == nullptr || pickup->status != 0) return 0;   // another citizen has it
+    if (pickup == nullptr || pickup->status != PickupStatus::Unassigned) return 0;   // another citizen has it
 
     // An empty-handed citizen with room for the pile: the drop spills everything the
     // citizen carries, so it must carry only this pile.
@@ -194,13 +194,13 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
     WorkAct_PerformWorkCtor9_c0ad0(&who, static_cast<uint32_t>(pickup->field_20), &pileRef, pilePos, pileCell, 0);
 
     // Claim and stamp as Pickup::Execute does after its dispatch (0x1400f2f00).
-    pickup->status = 1;
+    pickup->status = PickupStatus::Assigned;
     pickup->citizenIBP = citizen;
     Profession* target10 = nullptr;
     pickup->GetTarget(&target10);
     citizen->field_0x30 = pickup->field_20;
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizen->field_0xB0 = 0;
+    citizen->lastErrand = CitizenErrand::None;
     if (target10 == citizen->profession && pickup->field_20 >= 0) {
         citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }

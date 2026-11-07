@@ -425,9 +425,9 @@ void FireComponent::SpreadToNeighbors() {
             FireDescription* nDesc = FireDesc(neighbourFire);
 
             float chance = nDesc->spreadChance;
-            // Half the chance while the game is at its slowest speed step.
-            const WeatherSimulation* speedObj = gw->m_weather;   // +0x130
-            if (speedObj && speedObj->field_0x10 == 0) chance *= kRdata_140172114;
+            // Half the chance while it is raining.
+            const WeatherSimulation* weather = gw->m_weather;   // +0x130
+            if (weather && weather->weatherType == WeatherType::Rain) chance *= kRdata_140172114;
             // Half it again once the brigade is visibly winning here.
             if (nDesc->bucketsToOut / 5 < bucketsApplied - bucketsAtSpread)
                 chance *= kRdata_140172114;

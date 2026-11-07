@@ -334,7 +334,7 @@ void WeatherSimulation::SetEffectEnabled(int slot, bool enable) {
         if (g) {
             // The effects are WeatherParticleGeometry (built below and by 0x1400942c0).
             static_cast<WeatherParticleGeometry*>(g)->_fadeDirection = -1.0f;   // +0xC4
-            field_0x10 = 3;   // sim state = fading
+            weatherType = WeatherType::Sunny;
         }
         return;
     }
@@ -365,7 +365,7 @@ void WeatherSimulation::SetEffectEnabled(int slot, bool enable) {
         if (scene)
             scene->AddGlobalObject(geo);
     }
-    field_0x10 = 0;   // sim state = active
+    weatherType = WeatherType::Rain;
 
     // The effect's ambient-sound entity, from the choice's +8 template: a copy of it
     // is registered, its emitter moved to the origin and slot 0 silenced; Update

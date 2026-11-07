@@ -77,12 +77,22 @@ namespace UI {
 
 class ButtonElement : public Element {
 public:
+    // The +0xc4 `_state` machine. Values are retail's: Update (0x1801110b0) recomputes it each
+    // call (Disabled > Pressed > Hovered > Normal), and the value is also the index of the
+    // per-state background child (`_children[0..3]`) and of `_stateColor[0..3]`.
+    enum class ButtonState : int32_t {
+        Normal   = 0,   // store 0x1801111ce
+        Disabled = 1,   // store 0x18011117e
+        Hovered  = 2,   // store 0x1801111bc
+        Pressed  = 3,   // store 0x1801111a6
+    };
+
     // ??0ButtonElement@UI@@QEAA@XZ 0x180110c40 — the REAL constructor: CALL
     // ??0Element (Element()), then `MOV dword [+0xc0],-1 ; MOV dword [+0xc4],0`.
     // The four colours (+0xc8..+0xd4) are NOT written.
     ButtonElement() : Element() {
         _keyIndex = -1;
-        _state    = 0;
+        _state    = ButtonState::Normal;
     }
 
     // ---- the twelve slots, in measured order ------------------------------
@@ -134,7 +144,7 @@ public:
     int32_t  _keyIndex;       // +0xc0  ctor -1 (0x180110c40). The shortcut Update
                               //        hands `Input::KeyMap::Pressed` (0x1800a7a80)
                               //        at 0x1801112d4; < 0 means "no key".
-    int32_t  _state;          // +0xc4  ctor 0. 0 normal, 1 disabled, 2 hovered,
+    ButtonState _state;       // +0xc4  ctor 0. 0 normal, 1 disabled, 2 hovered,
                               //        3 pressed (Update's stores 0x1801111ce /
                               //        0x18011117e / 0x1801111bc / 0x1801111a6),
                               //        and the index of the child Draw/ComputeLayout
@@ -154,6 +164,7 @@ static_assert(offsetof(ButtonElement, _keyIndex) == sizeof(Element),
 static_assert(offsetof(ButtonElement, _keyIndex)   == 0xc0, "");
 static_assert(offsetof(ButtonElement, _state)      == 0xc4, "");
 static_assert(offsetof(ButtonElement, _stateColor) == 0xc8, "");
+static_assert(sizeof(ButtonElement::ButtonState) == sizeof(int32_t), "_state stays a dword");
 static_assert(std::has_virtual_destructor<ButtonElement>::value, "B3X W1: the normal-virtual cutover");
 static_assert(!std::is_abstract<ButtonElement>::value, "B39 D1: concrete");
 

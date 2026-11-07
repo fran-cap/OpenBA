@@ -965,7 +965,8 @@ UNIT_TEST(b39_uia_button_family_ctors_make_retails_stores) {
         UI::CheckElement* e = ::new (buf) UI::CheckElement();
         CHECK_EQ(e->_alignment, 3);
         CHECK_EQ(e->_keyIndex, -1);
-        CHECK_EQ(e->_state, 0);
+        CHECK_EQ(static_cast<int32_t>(e->_state),
+                 static_cast<int32_t>(UI::ButtonElement::ButtonState::Normal));
         for (int i = 0; i < 4; ++i) CHECK_EQ(e->_stateColor[i], 0xCDCDCDCDu);   // NOT written
         CHECK_EQ((int)e->_checked, 0);
         CHECK_EQ((int)e->_padD9[0], 0xCD);

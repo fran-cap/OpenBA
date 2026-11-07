@@ -977,7 +977,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             GetTarget(&tgtVal);                     // 0x1400f0e03 MOV RAX,[RAX]
             citizen3->field_0x30   = pathTypeAfter;
             citizen3->statusFlags |= Bits(CitizenStatus::TaskDone);
-            citizen3->field_0xB0   = 0;
+            citizen3->lastErrand   = CitizenErrand::None;
             if (tgtVal == citizen3->profession && pathTypeAfter >= 0) {
                 citizen3->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
             }
@@ -1282,7 +1282,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             GetTarget(&tgtVal2);
             citizen5->field_0x30   = pathType2;
             citizen5->statusFlags |= Bits(CitizenStatus::TaskDone);
-            citizen5->field_0xB0   = 0;
+            citizen5->lastErrand   = CitizenErrand::None;
             if (tgtVal2 == citizen5->profession && pathType2 >= 0) {
                 citizen5->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
             }

@@ -3,7 +3,7 @@
 // > 1 overrides the trigger frame, default 900 ≈ 15s in-game) drives the REAL
 // retail autosave path at the trigger frame: AutoSaveDialog::Autosave — the ported
 // FUN_14005dec0 — which does SetMinOperationTime(1.0s) + SetSaveSprite +
-// SetSaveName("Autosave",2) + SetOperation(4,-4). The engine's
+// SetSaveName("Autosave",2) + SetOperation(kOpSave,-4). The engine's
 // Save::SaveLoad::UpdateSave then calls the current loop's vtable +0x38
 // (SaveRestore) to fill the SavedState and async-writes <SaveDir>/Auto.sav.
 //
@@ -41,6 +41,15 @@
 #include <vector>
 
 namespace {
+
+// SaveLoadHarness_Tick's own step machine (harness only; no retail counterpart).
+enum class SaveTestState : int {
+    Armed      = 0,   // waiting for the trigger frame, then invokes AutoSaveDialog::Autosave
+    Refused    = 1,   // no AutoSaveDialog, or the trigger left op 0: retry every 120 frames
+    Saving     = 2,   // the save operation is running; waits for op 0
+    Done       = 3,   // terminal: no repeat interval
+    RepeatWait = 4,   // BANISHED_SAVE_TEST_REPEAT: waits for the next trigger frame, then re-arms
+};
 
 int TriggerFrame() {
     static int s = -2;
@@ -164,7 +173,7 @@ extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
     const int trigger = TriggerFrame();
     if (trigger < 0) return;
 
-    static int  s_state = 0;      // 0=armed, 1=waiting for op!=0, 2=op running, 3=done
+    static SaveTestState s_state = SaveTestState::Armed;
     static int  s_lastOp = -999;
     static int  s_triggeredFrame = 0;
 
@@ -179,7 +188,7 @@ extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
     const Save::SaveLoad* saveLoad = ::Save::SaveLoad::_singleton;
     if (!saveLoad) return;
 
-    if (s_state == 0) {
+    if (s_state == SaveTestState::Armed) {
         if (frameNum < trigger) return;
         DumpSaveDir("pre-save");
 
@@ -198,7 +207,7 @@ extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
         if (!autoSave) {
             fprintf(stderr, "[SaveTest] frame %d: no AutoSaveDialog open; not triggered\n", frameNum);
             fflush(stderr);
-            s_state = 1;
+            s_state = SaveTestState::Refused;
             return;
         }
 
@@ -207,17 +216,17 @@ extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
         fflush(stderr);
         autoSave->Autosave();
 
-        int op = saveLoad->GetOperation();
+        const Save::SaveLoad::Operation op = saveLoad->GetOperation();
         fprintf(stderr, "[SaveTest] handler returned; GetOperation()=%d "
                         "(4=save expected; 0=trigger was refused)\n", op);
         fflush(stderr);
         s_triggeredFrame = frameNum;
         s_lastOp = op;
-        s_state = (op != 0) ? 2 : 1;
+        s_state = (op != Save::SaveLoad::kOpNone) ? SaveTestState::Saving : SaveTestState::Refused;
         return;
     }
 
-    int op = saveLoad->GetOperation();
+    Save::SaveLoad::Operation op = saveLoad->GetOperation();
     if (op != s_lastOp) {
         fprintf(stderr, "[SaveTest] frame %d: operation %d -> %d\n",
                 frameNum, s_lastOp, op);
@@ -225,22 +234,23 @@ extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
         s_lastOp = op;
     }
 
-    if (s_state == 1) {
+    if (s_state == SaveTestState::Refused) {
         // Trigger was refused (paused / blocked / op busy). Retry every 120 frames.
         if ((frameNum - s_triggeredFrame) % 120 == 0) {
-            s_state = 0;
+            s_state = SaveTestState::Armed;
         }
         return;
     }
 
-    if (s_state == 2) {
+    if (s_state == SaveTestState::Saving) {
         static int s_identityFor = -1;   // the trigger frame whose save was hashed
-        if (op == Save::SaveLoad::kOpSave && saveLoad->_progress == 2 && saveLoad->_saveState != nullptr &&
+        if (op == Save::SaveLoad::kOpSave && saveLoad->_progress == Save::SaveLoad::Progress::SaveFinish &&
+            saveLoad->_saveState != nullptr &&
             s_identityFor != s_triggeredFrame && !Opt().stress) {
             s_identityFor = s_triggeredFrame;
             LogSavedStateIdentity(frameNum);
         }
-        if (op == 0) {
+        if (op == Save::SaveLoad::kOpNone) {
             fprintf(stderr, "[SaveTest] frame %d: SAVE OPERATION COMPLETE "
                             "(%d frames elapsed)\n",
                     frameNum, frameNum - s_triggeredFrame);
@@ -255,9 +265,9 @@ extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
             }
             if (s_repeat > 0) {
                 s_triggeredFrame = frameNum + s_repeat;
-                s_state = 4;
+                s_state = SaveTestState::RepeatWait;
             } else {
-                s_state = 3;
+                s_state = SaveTestState::Done;
             }
         } else if ((frameNum - s_triggeredFrame) % 300 == 0) {
             fprintf(stderr, "[SaveTest] frame %d: still saving (op=%d)\n",
@@ -267,11 +277,11 @@ extern "C" void SaveLoadHarness_Tick(GameUpdateLoop* gul, int frameNum) {
         return;
     }
 
-    if (s_state == 4) {
+    if (s_state == SaveTestState::RepeatWait) {
         if (frameNum >= s_triggeredFrame) {
             fprintf(stderr, "[SaveTest] frame %d: re-arming (repeat save)\n", frameNum);
             fflush(stderr);
-            s_state = 0;
+            s_state = SaveTestState::Armed;
         }
         return;
     }

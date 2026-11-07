@@ -61,7 +61,7 @@ public:
     void        Persist(IO::Stream& stream) override;                     // [3]  0x14012b4a0
     uint32_t    CommandMask(int command) override;                  // [13] 0x14012b520
     void        Command(int command) override;                      // [14] 0x14012b5a0
-    int         GetDefaultState() const override { return 2; }      // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }      // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }   // [17] 0x140004080
     // [18] pure: mint the building's Work, hand it back through `out` (an
     // InternalBasePtr slot) and return `out`. Retail RCX = this, RDX = out.
@@ -74,8 +74,8 @@ public:
 
     // PUBLIC while the ported bodies read them at raw offsets (B38 decision 1).
     StateController _controller;   // +0x28 the shared RP controller (D6)
-    // +0x48 the panel's pause latch: state 2 enter picks 14 (paused) when it is
-    // set, 13 (producing) when clear; serialized as a bool by Persist.
+    // +0x48 the panel's pause latch: Built enter picks Paused (14) when it is
+    // set, Producing (13) when clear; serialized as a bool by Persist.
     bool            produceFlag;   // +0x48
     uint8_t         _pad49[7];     // +0x49 never written by the ctor
 

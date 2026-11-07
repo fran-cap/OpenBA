@@ -65,7 +65,7 @@ public:
     ~WorkPlaceComponent() override;                                     // [0]  0x14003a220
     void          Persist(IO::Stream& stream) override;                       // [3]  0x14012f120
     void          OnRemove() override;                                  // [7]  0x14012f090
-    int         GetDefaultState() const override { return 0; }          // [16] 0x140003730
+    int         GetDefaultState() const override { return SmId(BuildingState::ClearSite); }  // [16] 0x140003730
     Controller* GetController() override { return &_controller; }       // [17] 0x140004080
     // Defined in destroycomponent_workerrelease.cpp (B4 COMP-c).
     void SetMaxWorkers(int newMax);                                     // 0x14012fb00

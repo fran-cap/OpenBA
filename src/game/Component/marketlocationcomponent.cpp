@@ -80,14 +80,14 @@ static void MarketLocationComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = MarketLocationCtrlDispatch::table;
     if (t.count != 0) return;                      // idempotent
-    TableRegisterState(t, 2, &MarketLoc_State2Enter,
+    TableRegisterState(t, BuildingState::Built, &MarketLoc_State2Enter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 3, &MarketLoc_State3Enter,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Demolish, &MarketLoc_State3Enter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
 }
 static const bool s_marketLocationStateTableBuilt = (MarketLocationComponent_PopulateStateTable(), true);
 

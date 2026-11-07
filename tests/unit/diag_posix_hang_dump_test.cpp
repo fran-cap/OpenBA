@@ -215,7 +215,7 @@ UNIT_TEST(diag_posix_hang_dump_late_answer_is_not_counted_for_the_next_thread) {
     while (g_hdReady.load() < 2)
         usleep(1000);
 
-    BootState::WriteHangDump("RUNNING", 30, 7, 21, 20);
+    BootState::WriteHangDump(BootState::BootStateName(BootState::BootStateId::Running), 30, 7, 21, 20);
     while (g_hdLateAnswered.load() == 0)
         usleep(1000);
     g_hdReleaseMasked.store(1);
@@ -262,7 +262,7 @@ UNIT_TEST(diag_posix_hang_dump_handler_stalled_in_dladdr_writes_no_late_line) {
     while (g_hdReady.load() < 2)
         usleep(1000);
 
-    BootState::WriteHangDump("RUNNING", 30, 7, 21, 20);
+    BootState::WriteHangDump(BootState::BootStateName(BootState::BootStateId::Running), 30, 7, 21, 20);
     while (g_hdStallState.load() != 2)
         usleep(1000);
     while (BootState::g_dumpHandlers.load() != 0)

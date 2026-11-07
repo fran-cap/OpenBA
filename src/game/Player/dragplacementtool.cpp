@@ -289,7 +289,7 @@ void DragPlacementTool::Draw(Video::Context* context, char param3) {
         int startCell, endCell;
 
         // Get start/end cells based on drag state
-        if (dragState == 0) {
+        if (dragState == DragState::Idle) {
             // Not dragging: use ScreenToCell for both
             int cell = PlayerRay_ScreenToCell_101270(nullptr);
             startCell = cell;

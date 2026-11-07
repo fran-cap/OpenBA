@@ -262,11 +262,23 @@ const char* PrimName(Prim p) {
     }
 }
 
+// Where a Frame stands inside its current slot: a slot answers several Serialize
+// asks in turn. Head is the first ask (String: the length; Ext: the present
+// bool; ExtArray / Records: the count). Value 1 is the next ask and its meaning
+// depends on FieldDesc::kind, hence the aliases.
+enum class SlotPhase : int {
+    Head          = 0,
+    StringChars   = 1,  // K::String: the chars slot
+    ExtPathLength = 1,  // K::Ext, pointer present: the path String's length
+    ArrayElements = 1,  // K::ExtArray / K::Records: element frames pushed (never read back)
+    ExtPathChars  = 2,  // K::Ext: the path String's chars
+};
+
 struct Frame {
     const FieldDesc*  fields;
     int               count;
     int               idx;
-    int               phase;
+    SlotPhase         phase;
     const Block*      ovr;        // the text block overriding this frame's fields (null: none)
     bool              isExtElem;  // an ExtArray element: `fields` is the one implicit Ext slot
     const Token*      extTok;     // ... and its override, or null
@@ -308,7 +320,7 @@ public:
             if (!_stack.empty()) {
                 Frame& p = _stack.back();
                 if (++p.elem < p.elemCount) { Fail("Serialize ended inside the array '%s'", p.fields[p.idx].name); return false; }
-                p.idx++; p.phase = 0;
+                p.idx++; p.phase = SlotPhase::Head;
             }
         }
         return true;
@@ -454,7 +466,7 @@ private:
                 if (_stack.empty()) { Fail("a Serialize slot after the schema's last field"); return; }
                 Frame& parent = _stack.back();
                 if (++parent.elem < parent.elemCount) PushElement(parent);
-                else { parent.idx++; parent.phase = 0; }
+                else { parent.idx++; parent.phase = SlotPhase::Head; }
                 continue;
             }
             const FieldDesc& d = f.fields[f.idx];
@@ -507,7 +519,7 @@ private:
                 // slot, so "the current length" would hand back freed memory. The
                 // keep answer is a ZERO length (bit 31 set): the engine then
                 // skips SetLength and asks for zero chars, and the string stays.
-                if (f.phase == 0) {
+                if (f.phase == SlotPhase::Head) {
                     if (!Expect(p, Prim::UInt, d, slot)) return;
                     _pending.clear(); _pendingSet = false;
                     if (const Token* t = Scalar(Override(f, d), d, true)) {
@@ -516,12 +528,12 @@ private:
                     *static_cast<uint32_t*>(v) = _pendingSet
                         ? (static_cast<uint32_t>(_pending.size() + 1) | System::String::kSerializedUtf8Flag)
                         : System::String::kSerializedUtf8Flag;
-                    f.phase = 1;
+                    f.phase = SlotPhase::StringChars;
                     return;
                 }
                 if (!Expect(p, Prim::Chars, d, slot)) return;
                 if (!TakeChars(d, v, count)) return;
-                f.idx++; f.phase = 0;
+                f.idx++; f.phase = SlotPhase::Head;
                 return;
             }
             case K::Ext: {
@@ -533,7 +545,7 @@ private:
                     tok = &o->tokens[0];
                 }
                 if (_clearArrays) tok = nullptr;
-                if (f.phase == 0) {
+                if (f.phase == SlotPhase::Head) {
                     if (!Expect(p, Prim::Bool, d, slot)) return;
                     if (tok != nullptr) *static_cast<bool*>(v) = true;
                     f.extPresent = *static_cast<bool*>(v);
@@ -542,23 +554,23 @@ private:
                     // An absent pointer is the one bool: the engine asks nothing
                     // more for it, so the slot is complete now (not at the next
                     // call, which may never come when it is the last slot).
-                    if (!f.extPresent) { f.idx++; f.phase = 0; }
-                    else f.phase = 1;
+                    if (!f.extPresent) { f.idx++; f.phase = SlotPhase::Head; }
+                    else f.phase = SlotPhase::ExtPathLength;
                     return;
                 }
-                if (f.phase == 1) {
+                if (f.phase == SlotPhase::ExtPathLength) {
                     // The path String: the same keep rule as K::String (a zero
                     // length leaves `path = cur->GetPath()` as the engine built it).
                     if (!Expect(p, Prim::UInt, d, slot)) return;
                     *static_cast<uint32_t*>(v) = _pendingSet
                         ? (static_cast<uint32_t>(_pending.size() + 1) | System::String::kSerializedUtf8Flag)
                         : System::String::kSerializedUtf8Flag;
-                    f.phase = 2;
+                    f.phase = SlotPhase::ExtPathChars;
                     return;
                 }
                 if (!Expect(p, Prim::Chars, d, slot)) return;
                 if (!TakeChars(d, v, count)) return;
-                f.idx++; f.phase = 0;
+                f.idx++; f.phase = SlotPhase::Head;
                 return;
             }
             case K::ExtArray:
@@ -574,8 +586,8 @@ private:
                 }
                 f.elemCount = *static_cast<int32_t*>(v);
                 f.elem = 0;
-                if (f.elemCount > 0) { f.phase = 1; PushElement(f); }
-                else { f.idx++; f.phase = 0; }
+                if (f.elemCount > 0) { f.phase = SlotPhase::ArrayElements; PushElement(f); }
+                else { f.idx++; f.phase = SlotPhase::Head; }
                 return;
             }
             }

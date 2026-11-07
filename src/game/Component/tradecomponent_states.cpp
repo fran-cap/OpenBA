@@ -265,7 +265,7 @@ char TradeComponent::TickDocked(StateMachine* sm, const System::Time* deltaTime)
     const int64_t dt = deltaTime ? deltaTime->_ticks : 0;
     merchantTimer._ticks -= dt;
     if (merchantTimer._ticks < 1 && !tradeFlag) {
-        ::ControllerLive::RequestStateTransition(sm, 2);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Built);
     }
     return 1;
 }
@@ -300,7 +300,7 @@ char TradeComponent::OnMerchantDocked(StateMachine* sm) {
         gw->m_eventNotifier->AddEvent(0xd, 2, &entityIBP);
     }
 
-    ::ControllerLive::RequestStateTransition(sm, 0x13);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::MerchantDocked);
     std::fprintf(stderr, "[TradeCtrl] event 9: MERCHANT DOCKED comp=%p -> state 0x13\n",
                  static_cast<void*>(this));
     std::fflush(stderr);
@@ -314,7 +314,7 @@ char TradeComponent::OnMerchantDocked(StateMachine* sm) {
 // and go back to idle.
 char TradeComponent::OnMerchantLost(StateMachine* sm) {
     merchant = nullptr;
-    ::ControllerLive::RequestStateTransition(sm, 2);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Built);
     return 1;
 }
 
@@ -328,7 +328,7 @@ char TradeComponent::OnMerchantLost(StateMachine* sm) {
 // node slot +0x30, not +0x38) and param4 = 1 (the `bVar2 = true` that is cleared
 // after one pass). So retail 0x14005b240 is, in full:
 //
-//   local = 2;                                   // the desired state
+//   local = 2;                                   // the desired state (Built)
 //   if (sm[+9] < 0) StateMachine_Tick(sm, Time(0), 0, 0);   // drain a pending enter
 //   i = node->slot08(node, sm[+9], &local);
 //   if (i >= 0) { sm[+0xb] = i; sm[+0xa] = local; }         // == RequestStateTransition(sm, 2)
@@ -345,7 +345,7 @@ char TradeComponent::OnMerchantLost(StateMachine* sm) {
 // builds Time(0.0f) at [RSP+0x38] (0x14005b2a5) and passes it in R8 to node slot +0x30
 // (0x14005b3cc-0x14005b3d7), run flag SIL = 1 (0x14005b2b4) cleared after one pass.
 static char TradeCtrl_Event0A_Dismissed(TradeComponent* /*self*/, StateMachine* smV) {
-    ::ControllerLive::RequestStateTransition(smV, 2);
+    ::ControllerLive::RequestStateTransition(smV, BuildingState::Built);
     System::Time t0 = {0};
     RtSystem_Time_Ctor(&t0, 0.0f);
     smV->Tick(&t0, 0, 1);
@@ -401,7 +401,7 @@ char TradeComponent::TickIdle(StateMachine* smV, const System::Time* deltaTime) 
         // 0x14005ab6b-0x14005ab87: `LEA RDX,[RSP+0x60]` -- the ADDRESS of the stack Time(0).
         smV->Tick(&zeroTime, 0, 0);   // 0x1400a9660
     }
-    ::ControllerLive::RequestStateTransition(smV, 0x12);
+    ::ControllerLive::RequestStateTransition(smV, BuildingState::MerchantInbound);
     return 0;
 }
 
@@ -464,34 +464,34 @@ static void TradeCtrl_PopulateTable() {
     if (t.count != 0) return;
     using namespace ::ControllerLive;
 
-    // state 2 — idle / waiting for the next merchant
-    TableRegisterState(t, 2,
+    // state 2 (Built) — idle / waiting for the next merchant
+    TableRegisterState(t, BuildingState::Built,
         &TradeCtrl_State2_Enter,   // +0x08 enter  (abd0)
         nullptr,                                            // +0x10 trans30 (retail: 0)
         &TradeCtrl_State2_Tick,    // +0x18 trans38 (aa60)
         nullptr);                                           // +0x20 update  (retail: 0)
-    TableAddTransition(t, 3, &TradeCtrl_Teardown);   // b160
-    TableAddTransition(t, 0x12, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, &TradeCtrl_Teardown);   // b160
+    TableAddTransition(t, BuildingState::MerchantInbound, nullptr);
 
-    // state 0x12 — merchant inbound
-    TableRegisterState(t, 0x12,
+    // state 0x12 (MerchantInbound) — merchant inbound
+    TableRegisterState(t, BuildingState::MerchantInbound,
         &TradeCtrl_State12_Enter,  // aa50
         nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, &TradeCtrl_Teardown);   // b160
-    TableAddTransition(t, 0x13, nullptr);
-    TableAddTransition(t, 2, nullptr);
-    TableAddEvent(t, 9, &TradeCtrl_Event09_MerchantDocked);  // a850
-    TableAddEvent(t, 0xb, &TradeCtrl_Event0B_MerchantLost);
+    TableAddTransition(t, BuildingState::Demolish, &TradeCtrl_Teardown);   // b160
+    TableAddTransition(t, BuildingState::MerchantDocked, nullptr);
+    TableAddTransition(t, BuildingState::Built, nullptr);
+    TableAddEvent(t, BuildingEvent::MerchantDocked, &TradeCtrl_Event09_MerchantDocked);  // a850
+    TableAddEvent(t, BuildingEvent::MerchantLost, &TradeCtrl_Event0B_MerchantLost);
 
-    // state 0x13 — merchant docked
-    TableRegisterState(t, 0x13,
+    // state 0x13 (MerchantDocked) — merchant docked
+    TableRegisterState(t, BuildingState::MerchantDocked,
         &TradeCtrl_State13_Enter,  // a800  (layer 3)
         nullptr,                                            // retail: 0
         &TradeCtrl_State13_Tick,   // a780
         &TradeCtrl_State13_Update);// a6d0  (layer 3)
-    TableAddTransition(t, 3, &TradeCtrl_Teardown);   // b160
-    TableAddTransition(t, 2, nullptr);
-    TableAddEvent(t, 0xa, &TradeCtrl_Event0A_Dismissed);  // 0x14005b240
+    TableAddTransition(t, BuildingState::Demolish, &TradeCtrl_Teardown);   // b160
+    TableAddTransition(t, BuildingState::Built, nullptr);
+    TableAddEvent(t, BuildingEvent::MerchantDismissed, &TradeCtrl_Event0A_Dismissed);  // 0x14005b240
 
     std::fprintf(stderr, "[TradeCtrl] table built: %d states (2, 0x12, 0x13)\n", t.count);
     std::fflush(stderr);

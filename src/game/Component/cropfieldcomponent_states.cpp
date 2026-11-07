@@ -125,7 +125,7 @@ void CropFieldComponent::PushAccepting() {
 // ── Slot array layout (self+0x58, stride 0x20, count self+0x60): CropSlot ─────────
 // Recovered from the state-9 enter fill loop and every consumer below:
 //   +0x00 int   cellIndex      map cell this slot covers
-//   +0x04 int   state          0 = empty, 1 = growing, 2 = done/harvested
+//   +0x04 int   state          CropSlotState: 0 Empty, 1 Growing, 2 Done (done/harvested)
 //   +0x08 IBP                  (zeroed at plant)
 //   +0x10 IBP                  the planted NaturalResource; its +0x28 is growth 0..1
 //   +0x18 byte  plantHere      whether this cell gets a crop (spacing + shuffle)
@@ -259,12 +259,12 @@ void CF_ReleaseWorkSlot(CropFieldComponent* comp) {
 }
 
 // Count slots in a given state.
-int CountSlots(CropFieldComponent* comp, int state) {
+int CountSlots(CropFieldComponent* comp, CropSlotState state) {
     int n = 0;
     const int total = comp->slots._size;
     for (int i = 0; i < total; ++i) {
         CropSlot* s = comp->slots._data ? &comp->slots._data[i] : nullptr;
-        if (s && s->state == state) ++n;
+        if (s && static_cast<CropSlotState>(s->state) == state) ++n;
     }
     return n;
 }
@@ -272,7 +272,7 @@ int CountSlots(CropFieldComponent* comp, int state) {
 }  // namespace
 
 // retail 0x14011b410 — mean crop maturity: average of min(growth, 1.0) over slots in
-// state 1, divided by the TOTAL slot count (not by the number of growing slots, so a
+// state Growing, divided by the TOTAL slot count (not by the number of growing slots, so a
 // half-planted field can never read ripe).
 float CropFieldComponent::Maturity() {
     const int total = slots._size;
@@ -282,7 +282,7 @@ float CropFieldComponent::Maturity() {
     float sum = 0.0f;
     for (int i = 0; i < total; ++i) {
         CropSlot* s = slots._data ? &slots._data[i] : nullptr;
-        if (!s || s->state != 1) continue;
+        if (!s || static_cast<CropSlotState>(s->state) != CropSlotState::Growing) continue;
         NaturalResourceComponent* nr = s->resource.Get();
         if (!nr) continue;
         float g = nr->resourceScale;
@@ -303,7 +303,7 @@ char CropFieldComponent::State2Enter() {
 // Publish accepting, then request state 9.
 char CropFieldComponent::Event3Plant(StateMachine* sm) {
     PushAccepting();
-    ::ControllerLive::RequestStateTransition(sm, 9);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Plant);
     return 1;
 }
 
@@ -373,7 +373,7 @@ char CropFieldComponent::State9Enter() {
             s->cell = (row + oy) * mapW + col + ox;
             s->resource = ::Object::InternalPtr<NaturalResourceComponent>(nullptr);
             s->entity = ::Object::InternalPtr<ComponentEntity>(nullptr);
-            s->state = 0;
+            s->state = static_cast<int32_t>(CropSlotState::Empty);
         }
     }
 
@@ -438,16 +438,16 @@ char CropFieldComponent::State9Enter() {
 char CropFieldComponent::State9PerFrame(StateMachine* sm) {
     ValidateEntityRefs();
     const int total   = slots._size;
-    const int growing = CountSlots(this, 1);
-    const int done    = CountSlots(this, 2);
+    const int growing = CountSlots(this, CropSlotState::Growing);
+    const int done    = CountSlots(this, CropSlotState::Done);
 
     if (done == total) {
         CF_ReleaseWorkSlot(this);
         if (Ext::Fix().crop_planting_exit)
-            ::ControllerLive::RequestStateTransition(sm, 21);
+            ::ControllerLive::RequestStateTransition(sm, BuildingState::Reclear);
     } else if (growing + done == total) {
         CF_ReleaseWorkSlot(this);
-        ::ControllerLive::RequestStateTransition(sm, 10);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Tend);
     }
     return 1;
 }
@@ -468,7 +468,7 @@ char CropFieldComponent::State10Update() {
 // ── event 4 on state 10 — 0x140119f00 — the panel's HARVEST command ───────────────
 // It reads no field of the component (RCX unused): it stays a free function (B1).
 static char CropField_Event4Harvest(CropFieldComponent* /*self*/, StateMachine* sm) {
-    ::ControllerLive::RequestStateTransition(sm, 11);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Harvest);
     return 1;
 }
 
@@ -484,8 +484,8 @@ char CropFieldComponent::State10PerFrame(StateMachine* sm) {
     ValidateEntityRefs();
 
     const int total = slots._size;
-    if (CountSlots(this, 2) == total)
-        ::ControllerLive::RequestStateTransition(sm, 21);
+    if (CountSlots(this, CropSlotState::Done) == total)
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Reclear);
 
     if (!workEnabled) return 1;
     if (!hasCrop) return 1;
@@ -522,9 +522,9 @@ char CropFieldComponent::State11Enter() {
 // When every slot reads done, release the work slot and go to 21.
 char CropFieldComponent::State11PerFrame(StateMachine* sm) {
     ValidateEntityRefs();
-    if (CountSlots(this, 2) == slots._size) {
+    if (CountSlots(this, CropSlotState::Done) == slots._size) {
         CF_ReleaseWorkSlot(this);
-        ::ControllerLive::RequestStateTransition(sm, 21);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Reclear);
     }
     return 1;
 }
@@ -553,42 +553,42 @@ static void CropFieldCtrl_PopulateTable() {
     // Slot 16 (GetDefaultState) is the shared 0x1400026c0 = `MOV EAX,2; RET`, so this
     // is where a new field starts. enter 0x14011a920 / trans38 0x14011a860; the event-3
     // body 0x14011a7b0 is the panel's plant command, mirroring the orchard's event 3.
-    TableRegisterState(t, 2, &CropField_State2Enter, nullptr,
+    TableRegisterState(t, BuildingState::Built, &CropField_State2Enter, nullptr,
                        &CropField_State2PerFrame, nullptr);
-    TableAddTransition(t, 3,  nullptr);
-    TableAddTransition(t, 9,  nullptr);
-    TableAddEvent(t, 3, &CropField_Event3Plant);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Plant, nullptr);
+    TableAddEvent(t, BuildingEvent::Plant, &CropField_Event3Plant);
 
     // ── state 9 — PLANT ───────────────────────────────────────────────────────────
     // enter 0x14011a310 / trans38 0x14011a1e0.
-    TableRegisterState(t, 9, &CropField_State9Enter, nullptr,
+    TableRegisterState(t, BuildingState::Plant, &CropField_State9Enter, nullptr,
                        &CropField_State9PerFrame, nullptr);
-    TableAddTransition(t, 3,  nullptr);
-    TableAddTransition(t, 10, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Tend, nullptr);
     // NOT RETAIL: fix.crop_planting_exit's re-clear (docs/retail_bugs.md section 11). Retail lists
     // {3, 10} only. The table is built at static init, before settings, so the entry is always
     // here and State9PerFrame makes the request only with the row on. Appended last, so the
     // indices of 3 and 10 (the transition index a save carries) are retail's.
-    TableAddTransition(t, 21, nullptr);
+    TableAddTransition(t, BuildingState::Reclear, nullptr);
 
     // ── state 10 — TEND / GROW ────────────────────────────────────────────────────
     // The only state with an UPDATE handler (0x140119f70) as well as a per-frame
     // trans38 (0x140119fd0); enter 0x14011a100. Event 4 (0x140119f00) is the harvest
     // command, and 21 is the clear/cut target.
-    TableRegisterState(t, 10, &CropField_State10Enter, nullptr,
+    TableRegisterState(t, BuildingState::Tend, &CropField_State10Enter, nullptr,
                        &CropField_State10PerFrame,
                        &CropField_State10Update);
-    TableAddTransition(t, 3,  nullptr);
-    TableAddTransition(t, 21, nullptr);
-    TableAddTransition(t, 11, nullptr);
-    TableAddEvent(t, 4, &CropField_Event4Harvest);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Reclear, nullptr);
+    TableAddTransition(t, BuildingState::Harvest, nullptr);
+    TableAddEvent(t, BuildingEvent::Harvest, &CropField_Event4Harvest);
 
     // ── state 11 — HARVEST ────────────────────────────────────────────────────────
     // enter 0x140119e60 / trans38 0x140119d80.
-    TableRegisterState(t, 11, &CropField_State11Enter, nullptr,
+    TableRegisterState(t, BuildingState::Harvest, &CropField_State11Enter, nullptr,
                        &CropField_State11PerFrame, nullptr);
-    TableAddTransition(t, 3,  nullptr);
-    TableAddTransition(t, 21, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableAddTransition(t, BuildingState::Reclear, nullptr);
 }
 
 // Built ONCE at static-init time, as retail's populator 0x14011b150 does (B38 D6/D7).

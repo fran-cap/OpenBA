@@ -126,7 +126,7 @@ static void AssignWorkToEntity(HerbalistWork* self, CitizenComponent** citizenIB
 
     // Set citizen flags
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizen->field_0xB0 = 0;
+    citizen->lastErrand = CitizenErrand::None;
     citizen->field_0x30 = priority;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0,
@@ -427,7 +427,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
 
         citizenEnt2->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizenEnt2->field_0x30 = priority;
-        citizenEnt2->field_0xB0 = 0;
+        citizenEnt2->lastErrand = CitizenErrand::None;
 
         if (workEnt == citizenEnt2->profession && priority >= 0) {
             citizenEnt2->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

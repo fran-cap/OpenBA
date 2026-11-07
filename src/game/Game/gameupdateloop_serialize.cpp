@@ -221,7 +221,7 @@ void WeatherSimulation::Serialize(IO::Stream& stream) {
     ::Object::SerializeExternal<EnvironmentDescription>(ser, environment);   // 0x1400192a0
     ::Object::SerializeExternal<ClimateGenerator>(ser, climate);      // 0x1400194a0
 
-    ser.Serialize(field_0x10, nullptr);
+    ser.Serialize(reinterpret_cast<int32_t&>(weatherType), nullptr);
     ser.Serialize(field_0x14, nullptr);
     ser.Serialize(temperature, nullptr);
     // ?Serialize@Vector4@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x18001d360

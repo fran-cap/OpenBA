@@ -22,6 +22,7 @@
 #include "Component/sm_memo.h"
 #include "Component/ControllerComponent.h"     // the Controller node interface
 #include "Component/StateMachineComponent.h"   // StateMachine (the real Tick)
+#include "Component/BuildingState.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -266,11 +267,11 @@ void BuildWorld(World& w, int nMachines) {
         std::vector<const Table*> chain;
         int def = 0;
         switch (i % 5) {
-        case 0: chain = {&t.clearArea, &t.build, &t.workplace, &t.destroy}; def = 0; break;
-        case 1: chain = {&t.build, &t.residence, &t.destroy}; def = 1; break;
+        case 0: chain = {&t.clearArea, &t.build, &t.workplace, &t.destroy}; def = SmId(BuildingState::ClearSite); break;
+        case 1: chain = {&t.build, &t.residence, &t.destroy}; def = SmId(BuildingState::GatherMaterials); break;
         case 2: chain = {&t.boat}; def = (i / 5) % 2 ? 2 : 0; break;
-        case 3: chain = {&t.workplace, &t.build, &t.residence, &t.destroy}; def = 2; break;
-        default: chain = {&t.clearArea, &t.residence, &t.destroy}; def = 0x15; break;
+        case 3: chain = {&t.workplace, &t.build, &t.residence, &t.destroy}; def = SmId(BuildingState::Built); break;
+        default: chain = {&t.clearArea, &t.residence, &t.destroy}; def = SmId(BuildingState::Reclear); break;
         }
         for (const Table* tb : chain) {
             w.nodes.emplace_back(nodeId++, tb);

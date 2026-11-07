@@ -260,7 +260,7 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
 
 void* WatchdogThread(void*) {
     pthread_setname_np("BootState");   // Darwin names the calling thread
-    const char* lastState = "";
+    const char* lastState = BootStateName(BootStateId::None);
     uint32_t lastFrame = 0xFFFFFFFFu;
     uint64_t lastMoveMs = NowMs();
     bool hungReported = false;
@@ -277,18 +277,20 @@ void* WatchdogThread(void*) {
             lastMoveMs = now;
             hungReported = false;
         }
-        if (quitting && std::strcmp(lastState, "QUITTING") != 0 &&
-            std::strcmp(lastState, "HUNG") != 0) {
+        if (quitting && std::strcmp(lastState, BootStateName(BootStateId::Quitting)) != 0 &&
+            std::strcmp(lastState, BootStateName(BootStateId::Hung)) != 0) {
             lastMoveMs = now;
             hungReported = false;
         }
         const unsigned staleSec = static_cast<unsigned>((now - lastMoveMs) / 1000);
 
-        const char* phase = quitting ? "QUITTING"
-                                     : (g_startupComplete.load() ? "RUNNING" : "BOOTING");
+        const char* phase = quitting
+            ? BootStateName(BootStateId::Quitting)
+            : (g_startupComplete.load() ? BootStateName(BootStateId::Running)
+                                        : BootStateName(BootStateId::Booting));
         const unsigned budget = quitting ? kHungQuittingSec : kHungRunningSec;
         const bool hung = staleSec >= budget;
-        const char* state = hung ? "HUNG" : phase;
+        const char* state = hung ? BootStateName(BootStateId::Hung) : phase;
 
         WriteStateFile(state, uptimeSec, frame, staleSec, hung ? phase : "-");
 
@@ -313,7 +315,7 @@ void* WatchdogThread(void*) {
         }
 
         const bool changed = (std::strcmp(state, lastState) != 0);
-        if (changed && std::strcmp(state, "RUNNING") == 0) {
+        if (changed && std::strcmp(state, BootStateName(BootStateId::Running)) == 0) {
             // CPULIMIT: the process mask and core counts ride on the RUNNING line, so
             // every run (and every stress A/B leg) proves its sys.cpu_limit.
             char cpu[192];
@@ -322,7 +324,7 @@ void* WatchdogThread(void*) {
                          uptimeSec, cpu);
             std::fflush(stderr);
         }
-        if (changed && std::strcmp(state, "QUITTING") == 0) {
+        if (changed && std::strcmp(state, BootStateName(BootStateId::Quitting)) == 0) {
             std::fprintf(stderr,
                          "[BootState] QUITTING at %us after %d frames "
                          "(teardown budget %us)\n",
@@ -338,7 +340,7 @@ void* WatchdogThread(void*) {
 
 // The line Stop() writes: EXITED / clean-shutdown unless SetExitState named another
 // (boot_state_watchdog.h).
-char g_exitState[32]   = "EXITED";
+char g_exitState[32]   = "EXITED";   // BootStateName(BootStateId::Exited)
 char g_exitDetail[512] = "clean-shutdown";
 
 }  // namespace
@@ -355,7 +357,7 @@ void Start() {
     if (g_threadStarted) return;
     g_startMs = NowMs();
     g_mainThread = CurrentThread();   // Start() is called from main
-    WriteStateFile("BOOTING", 0, 0, 0, "-");
+    WriteStateFile(BootStateName(BootStateId::Booting), 0, 0, 0, "-");
 
     const int rc = pthread_create(&g_thread, nullptr, &WatchdogThread, nullptr);
     if (rc != 0) {

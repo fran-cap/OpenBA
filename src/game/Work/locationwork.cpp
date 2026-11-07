@@ -174,7 +174,7 @@ int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     // Set citizen flags
     citEntPost->statusFlags |= Bits(CitizenStatus::TaskDone);
     citEntPost->field_0x30 = priority;
-    citEntPost->field_0xB0 = 0;
+    citEntPost->lastErrand = CitizenErrand::None;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0, set
     // the owned flag

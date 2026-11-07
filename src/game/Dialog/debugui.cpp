@@ -103,7 +103,7 @@ static int DebugUI_GetMonthFromTime_Impl(const Calendar* weatherMgr) {
 
 // The weather simulation (GameUpdateLoop +0x130, 0x78 bytes; Game/WeatherSimulation.h):
 // +0x00 the ExternalPtr<EnvironmentDescription> (the Environment.rsc keyframe
-// table), +0x10 an int state, +0x50 the per-weather particle geometries.
+// table), +0x10 the WeatherType (weatherType), +0x50 the per-weather particle geometries.
 
 // DebugUI::SetDayLighting (FUN_140061780)
 // Reads one month's lighting keyframe from the environment, writes the sliders.
@@ -270,8 +270,8 @@ void DebugUI::OnWeatherComboChanged() {
                 Graphics::Scene* graphicsScene = world->m_graphicsScene;
                 graphicsScene->AddGlobalObject(geometryArray[i]);
 
-                // Reset state to 0 (showing)
-                drawMgr->field_0x10 = 0;
+                // Showing: the weather is Rain
+                drawMgr->weatherType = WeatherType::Rain;
 
                 // 0x1400609a4-0x140060b4f: an entry with a sound template (the
                 // WeatherChoice's description) gets its sound entity: built from the
@@ -310,8 +310,8 @@ void DebugUI::OnWeatherComboChanged() {
             if (geometry != nullptr) {
                 // Fade direction -1.0f (0xbf800000) to hide
                 geometry->_fadeDirection = -1.0f;
-                // Set state to 3 (hiding)
-                drawMgr->field_0x10 = 3;
+                // Hiding: the weather is Sunny
+                drawMgr->weatherType = WeatherType::Sunny;
             }
         }
     }

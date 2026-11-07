@@ -149,9 +149,9 @@ Video::Device** DeviceSingletonSlot() {
 
 // ENDGAME B.3.7 B2: the body is the member (it was `UpdateDeleteBody(self, out)`).
 void Save::SaveLoad::UpdateDelete() {
-    const uint32_t progress = _progress;
+    const Progress progress = _progress;
 
-    if (progress == 0) {
+    if (progress == Progress::Start) {
         // `CMP RAX,qword ptr [RSI+RBP*0x1+0x38]` / `JZ` — when the slot already
         // holds this exact pointer, retail skips BOTH halves of the idiom, so
         // the refcount is not bumped and not dropped: String::operator=
@@ -160,15 +160,15 @@ void Save::SaveLoad::UpdateDelete() {
 
         PersistenceSingleton()->BeginDelete(_string20);
 
-        _progress = 1;
+        _progress = Progress::DeleteFinish;
         return;
     }
 
-    if (progress == 1) {
+    if (progress == Progress::DeleteFinish) {
         // Transcribed in retail's store order (0x1800c2e15 .. 0x1800c2e2e):
         // operation, progress, selectedIndex, then the converted time last.
         _operation     = kOpNone;
-        _progress      = 0;
+        _progress      = Progress::Start;
         _selectedIndex = -1;
         _elapsed       = ZeroTime();
     }
@@ -345,17 +345,17 @@ using NameGetterFn    = const char** (*)(const SaveLoad* self, const char** ret)
 
 // ENDGAME B.3.7 B2: the body is the member (it was `UpdateLoadFromFileBody(self, out)`).
 void Save::SaveLoad::UpdateLoadFromFile() {
-    const uint32_t progress = _progress;
+    const Progress progress = _progress;
 
-    if (progress == 0) {
+    if (progress == Progress::Start) {
         // `LEA R8D,[RAX+0x2]` with RAX known zero on this path — the constant
         // is 2, spelled that way by the compiler to reuse a zeroed register.
         PersistenceSingleton()->BeginGetSaveGameInfo(_saveName, 2);
-        _progress = 1;
+        _progress = Progress::LoadFileEnqueue;
         return;
     }
 
-    if (progress == 1) {
+    if (progress == Progress::LoadFileEnqueue) {
         // `LEA ECX,[RAX+0xf]` with RAX == 1 on this path: the size is 0x10.
         SavedState* fresh = static_cast<SavedState*>(MemAlloc(0x10, 4));
         if (fresh != nullptr) {
@@ -386,17 +386,17 @@ void Save::SaveLoad::UpdateLoadFromFile() {
                                                &filename.AsString(), 1, &block);
         }
 
-        _progress = 2;
+        _progress = Progress::LoadFileFinish;
         return;
     }
 
-    if (progress == 2) {
+    if (progress == Progress::LoadFileFinish) {
         // Retail's store order at 0x1800c2651..0x1800c2672: operation, elapsed,
         // progress, selectedIndex — note this is NOT UpdateDelete's order,
         // which puts elapsed last. Both are transcribed as written.
         _operation     = kOpNone;
         _elapsed       = ZeroTime();
-        _progress      = 0;
+        _progress      = Progress::Start;
         _selectedIndex = -1;
     }
 }
@@ -597,7 +597,7 @@ namespace {
 //
 // ----------------------------------------------------------------------------
 // RUN EVIDENCE, 2026-09-09, three runs on the BANISHED_AUTOLOAD=Auto route
-// (menu -> Load -> select "Auto" -> Load click -> SetOperation(2), i.e. the
+// (menu -> Load -> select "Auto" -> Load click -> SetOperation(2 kOpLoad), i.e. the
 // retail load path, not a synthetic driver).
 //
 //   1. ORACLE ON  (the old DLL-era switch)
@@ -652,9 +652,9 @@ static bool s_ioDoneStamped = false;
 // ENDGAME B.3.7 B2: the body is the member (it was `UpdateLoadBody(self, out)`).
 
 void Save::SaveLoad::UpdateLoad() {
-    const uint32_t progress = _progress;
+    const Progress progress = _progress;
 
-    if (progress == 0) {
+    if (progress == Progress::Start) {
         ::IO::Persistence* persistence = PersistenceSingleton();
         const SaveInfo& row = _saves._data[_selectedIndex];   // MOVSXD: sign-extended
         // `MOV R8D,0x2` — spelled as a plain immediate here, where
@@ -662,11 +662,11 @@ void Save::SaveLoad::UpdateLoad() {
         // Same 2.
         LoadTime::Stamp("save.info");   // NOT RETAIL: print-only
         persistence->BeginGetSaveGameInfo(row.name, 2);
-        _progress = 1;
+        _progress = Progress::LoadApply;
         return;
     }
 
-    if (progress == 1) {
+    if (progress == Progress::LoadApply) {
         ::IO::Modification* mods = RtSaveDetail::ModificationSingleton();
 
         // (a) Disable everything, then mark the list dirty. The dirty store is
@@ -802,11 +802,11 @@ void Save::SaveLoad::UpdateLoad() {
                                                &filename.AsString(), 1, &block);
         }
 
-        _progress = 2;
+        _progress = Progress::LoadFinish;
         return;
     }
 
-    if (progress == 2) {
+    if (progress == Progress::LoadFinish) {
         // The minimum-operation-time gate, which UpdateDelete and
         // UpdateLoadFromFile do NOT have: `MOV RAX,[RCX+0x10]` /
         // `CMP [RCX+8],RAX` / `JLE`, i.e. proceed only while
@@ -819,7 +819,7 @@ void Save::SaveLoad::UpdateLoad() {
         // selectedIndex — UpdateLoadFromFile's order, not UpdateDelete's.
         _operation     = kOpNone;
         _elapsed       = ZeroTime();
-        _progress      = 0;
+        _progress      = Progress::Start;
         _selectedIndex = -1;
     }
 }
@@ -875,9 +875,9 @@ static bool g_extSaveQueued = false;
 
 // ENDGAME B.3.7 B2: the body is the member (it was `UpdateSaveBody(self, out)`).
 void Save::SaveLoad::UpdateSave() {
-    const uint32_t progress = _progress;
+    const Progress progress = _progress;
 
-    if (progress == 0) {
+    if (progress == Progress::Start) {
         // A BYTE store (`MOV byte ptr [RBX+0x7c],1`), matching the ctor's byte
         // store of 0 into the same field — the upper three bytes of
         // _captureFlags are never written by anything in this class.
@@ -889,11 +889,11 @@ void Save::SaveLoad::UpdateSave() {
         // Sprite::Width / Sprite::Height (0x180030bf0 / 0x180030c10), inlined.
         _captureWidth  = _saveSprite.Width();
         _captureHeight = _saveSprite.Height();
-        _progress = 1;
+        _progress = Progress::SaveSerialize;
         return;
     }
 
-    if (progress == 1) {
+    if (progress == Progress::SaveSerialize) {
         // The capture has not landed yet — retail simply returns and retries
         // next tick. This is the handshake with Draw(), which is the function
         // that fills _capturePixels and which this project holds back.
@@ -983,7 +983,7 @@ void Save::SaveLoad::UpdateSave() {
         return;
     }
 
-    if (progress == 2) {
+    if (progress == Progress::SaveFinish) {
         // THE MINIMUM-OPERATION-TIME GATE, which UpdateDelete and
         // UpdateLoadFromFile do not have: `CMP [RBX+0x8],[RBX+0x10]` / `JLE`,
         // i.e. proceed only while _elapsed > _minOperationTime. It exists so a
@@ -1022,7 +1022,7 @@ void Save::SaveLoad::UpdateSave() {
 
         _operation     = kOpNone;
         _elapsed       = ZeroTime();
-        _progress      = 0;
+        _progress      = Progress::Start;
         _selectedIndex = -1;
     }
 }
@@ -1081,7 +1081,7 @@ void Save::SaveLoad::UpdateSaveTail() {
         g_extSaveQueued = true;
     }
 
-    _progress = 2;
+    _progress = Progress::SaveFinish;
 }
 
 namespace {
@@ -1265,7 +1265,7 @@ using LoadMetaDataFn = void (*)(SaveLoad* self, const char** description,
 //
 // 2. STATE 3 ADVANCES EVEN WHEN IT DOES NOTHING. Its two-part guard
 //    (`!(persistence[0x18] & 1) && persistence[0x48] == 1`) sits INSIDE the
-//    state, and `_progress = 4` is written outside it (0x1800c2251). So a tick
+//    state, and `_progress = 4` (ListReadRowMeta) is written outside it (0x1800c2251). So a tick
 //    that arrives while the worker is busy skips the load and still advances,
 //    and state 4's identical guard is what turns that into the "no metadata"
 //    arm. The two guards are not redundant; they are how a busy worker degrades
@@ -1425,10 +1425,10 @@ void Save::SaveLoad::UpdateList() {
     // though Ghidra's C re-materialises `IO::Persistence::_singleton` inside
     // states 3 and 4.
     ::IO::Persistence* const persistence = PersistenceSingleton();
-    const uint32_t progress = _progress;
+    const Progress progress = _progress;
 
     // ---- state 0 -----------------------------------------------------------
-    if (progress == 0) {
+    if (progress == Progress::Start) {
         // 0x1800329c0, Array<SaveInfo>::~Array — ENDGAME B.3.7 B2: the
         // transcription (saveload.cpp) called directly, not through its
         // registered address door.
@@ -1469,12 +1469,12 @@ void Save::SaveLoad::UpdateList() {
             Platform::EventSet(persistence->_worker._hStart);        // SetEvent
         }
 
-        _progress = 1;
+        _progress = Progress::ListBuildRows;
         return;
     }
 
     // ---- state 1 -----------------------------------------------------------
-    if (progress == 1) {
+    if (progress == Progress::ListBuildRows) {
         // The "new save" slot, pushed FIRST so it lands at index 0 — which is
         // what makes the sort's base+0x58 shift below able to exclude it.
         if (_selectedIndex == -2) {
@@ -1568,12 +1568,12 @@ void Save::SaveLoad::UpdateList() {
         }
 
         field38   = 0;   // the metadata cursor
-        _progress = 2;
+        _progress = Progress::ListNextRow;
         return;
     }
 
     // ---- state 2 -----------------------------------------------------------
-    if (progress == 2) {
+    if (progress == Progress::ListNextRow) {
         const int32_t count = _saves._size;
         if (static_cast<int32_t>(field38) < count) {
             const SaveInfo* base = _saves._data;
@@ -1590,7 +1590,7 @@ void Save::SaveLoad::UpdateList() {
 
         const int32_t at = static_cast<int32_t>(field38);
         if (at == count) {
-            _progress = 5;   // list complete
+            _progress = Progress::ListFinish;   // list complete
             return;
         }
 
@@ -1598,12 +1598,12 @@ void Save::SaveLoad::UpdateList() {
         // `MOV R8D,0x2` — the same `2` UpdateLoadFromFile passes, spelled there
         // as `LEA R8D,[RAX+0x2]` off a zeroed register.
         persistence->BeginGetSaveGameInfo(row.name, 2);
-        _progress = 3;
+        _progress = Progress::ListLoadRowInfo;
         return;
     }
 
     // ---- state 3 -----------------------------------------------------------
-    if (progress == 3) {
+    if (progress == Progress::ListLoadRowInfo) {
         // The guard is INSIDE the state; the transition is not. See point 2.
         if (!persistence->_worker.IsWorking() &&
             persistence->_worker._status == static_cast<int32_t>(::IO::PersistenceWorker::Status::Done)) {
@@ -1616,12 +1616,12 @@ void Save::SaveLoad::UpdateList() {
             const SaveInfo& row = _saves._data[static_cast<int32_t>(field38)];
             persistence->BeginLoad(row.name, 1, &block);
         }
-        _progress = 4;
+        _progress = Progress::ListReadRowMeta;
         return;
     }
 
     // ---- state 4 -----------------------------------------------------------
-    if (progress == 4) {
+    if (progress == Progress::ListReadRowMeta) {
         const int32_t at  = static_cast<int32_t>(field38);
         SaveInfo&     row = _saves._data[at];
 
@@ -1694,12 +1694,12 @@ void Save::SaveLoad::UpdateList() {
         }
 
         field38 = field38 + 1;   // next row
-        _progress = 2;
+        _progress = Progress::ListNextRow;
         return;
     }
 
     // ---- state 5 -----------------------------------------------------------
-    if (progress == 5) {
+    if (progress == Progress::ListFinish) {
         // The minimum-operation-time gate, the same one UpdateSave has and
         // UpdateDelete/UpdateLoadFromFile do not: `CMP [RCX+8],RAX / JLE`.
         if (_elapsed <= _minOperationTime) return;
@@ -1709,7 +1709,7 @@ void Save::SaveLoad::UpdateList() {
         // NOT UpdateDelete's.
         _operation     = kOpNone;
         _elapsed       = ZeroTime();
-        _progress      = 0;
+        _progress      = Progress::Start;
         _selectedIndex = -1;
     }
 }

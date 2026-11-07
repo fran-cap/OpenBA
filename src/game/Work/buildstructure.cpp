@@ -488,7 +488,7 @@ int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*conte
 
                     bldgEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
                     bldgEntity->field_0x30 = priority;
-                    bldgEntity->field_0xB0 = 0;
+                    bldgEntity->lastErrand = CitizenErrand::None;
 
                     if (targetVal == bldgEntity->profession && priority >= 0) {
                         bldgEntity->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

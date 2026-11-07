@@ -44,6 +44,13 @@ constexpr uint64_t kMaxBytesInFlight = 256ull << 20;
 
 enum class JobKind : uint8_t { Buffer, Texture };
 
+// What the driver answered to D3D11_FEATURE_THREADING, asked once on the first armed bracket.
+enum class DriverThreading : int {
+    NotQueried = -1,   // no device seen yet
+    Serial     = 0,    // no concurrent creates: they stay on the loader
+    Concurrent = 1,    // DriverConcurrentCreates: creates run on the workers
+};
+
 struct Job {
     JobKind       kind;
     uint64_t      seq;     // the Push order; Drain waits for every seq below its ticket
@@ -91,7 +98,7 @@ int                             g_waiters GUARDED_BY(g_mutex)   = 0;
 int                             g_workers GUARDED_BY(g_mutex)   = 0;
 
 std::atomic<bool> g_requested{false};
-std::atomic<int>  g_driverConcurrent{-1};   // -1 = not queried yet (no device seen)
+std::atomic<DriverThreading> g_driverThreading{DriverThreading::NotQueried};
 
 thread_local bool t_deferring = false;
 
@@ -188,21 +195,24 @@ void Push(Job& j) {
 void Begin() {
     t_deferring = false;
     if (!g_requested.load(std::memory_order_acquire)) return;
-    if (g_driverConcurrent.load(std::memory_order_acquire) < 0) {
+    // NotQueried is the only negative value; a sign test keeps the code the int latch compiled to.
+    if (static_cast<int>(g_driverThreading.load(std::memory_order_acquire)) < 0) {
         // The first armed bracket: ask the driver once. A device recreated after a loss is on the
         // same adapter and driver, so the answer stands for the run.
         ID3D11Device* const dev = Dx11Device();
         if (dev == nullptr) return;
         D3D11_FEATURE_DATA_THREADING th = {};
         const HRESULT hr = dev->CheckFeatureSupport(D3D11_FEATURE_THREADING, &th, sizeof(th));
-        const int concurrent = (hr == 0 && th.DriverConcurrentCreates) ? 1 : 0;
-        g_driverConcurrent.store(concurrent, std::memory_order_release);
+        const DriverThreading threading = (hr == 0 && th.DriverConcurrentCreates) ? DriverThreading::Concurrent
+                                                                                 : DriverThreading::Serial;
+        g_driverThreading.store(threading, std::memory_order_release);
         std::fprintf(stderr, "[AsyncGpuCreate] driver threading: hr=0x%08lx DriverConcurrentCreates=%d "
                              "DriverCommandLists=%d -> %s\n",
                      static_cast<unsigned long>(hr), th.DriverConcurrentCreates, th.DriverCommandLists,
-                     concurrent ? "creates on workers" : "creates stay on the loader (serial fallback)");
+                     threading == DriverThreading::Concurrent ? "creates on workers"
+                                                              : "creates stay on the loader (serial fallback)");
     }
-    t_deferring = g_driverConcurrent.load(std::memory_order_acquire) == 1;
+    t_deferring = g_driverThreading.load(std::memory_order_acquire) == DriverThreading::Concurrent;
 }
 
 void End() {
@@ -282,7 +292,8 @@ void Request(bool on) {
 }
 
 bool Supported() {
-    return VideoDX11::AsyncCreate::g_driverConcurrent.load(std::memory_order_acquire) == 1;
+    return VideoDX11::AsyncCreate::g_driverThreading.load(std::memory_order_acquire) ==
+           VideoDX11::AsyncCreate::DriverThreading::Concurrent;
 }
 
 }  // namespace AsyncGpuCreateBackend

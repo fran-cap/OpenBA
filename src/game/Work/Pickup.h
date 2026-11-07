@@ -31,6 +31,14 @@
 class CitizenComponent;
 class Profession;
 
+// Pickup::status (+0x48): who holds the pile. Execute (0x1400f2f00) claims an Unassigned
+// pickup (-> Assigned), OnComplete (0x1400f2ec0) sets Completing, OnCancel (0x1400f2e80) and
+// a Validate (0x1400f2e20) failure return it to Unassigned. Values are retail's.
+enum class PickupStatus : int32_t {
+    Unassigned = 0,
+    Assigned   = 1,
+    Completing = 2,
+};
 
 class Pickup final : public Work {
     DECLARE_EXE_TYPE(Pickup)
@@ -52,7 +60,7 @@ public:
     void  Slot12(int version) override;                             // [12] 0x1400f3a70
 
     // --- Pickup fields (+0x48) ---
-    int32_t  status;             // +0x48: 0=unassigned, 1=assigned, 2=completing (Persist
+    PickupStatus status;         // +0x48: PickupStatus, int32_t (Persist
                                  //        0x1400f3aa0 Serialize(int&))
     uint8_t  _pad4C[4];          // +0x4C: padding
     Object::InternalPtr<CitizenComponent> citizenIBP; // +0x50 (Persist validates the
@@ -65,5 +73,6 @@ static_assert(sizeof(Pickup) == 0x60, "Pickup is 0x60 (retail create MemAlloc)")
 static_assert(offsetof(Pickup, _pad4C) == 0x4C, "Pickup::_pad4C");
 static_assert(alignof(Pickup) == 8, "Pickup is 8-aligned");
 static_assert(offsetof(Pickup, status) == 0x48, "Pickup +0x48");
+static_assert(sizeof(PickupStatus) == 4, "Pickup::status is an int32_t");
 static_assert(offsetof(Pickup, citizenIBP) == 0x50, "Pickup +0x50");
 static_assert(offsetof(Pickup, candidateList) == 0x58, "Pickup +0x58");

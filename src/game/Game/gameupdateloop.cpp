@@ -518,6 +518,8 @@ enum SimPhase {
     kPhPairCache = 0, kPhAnimation, kPhEntityList, kPhWeather,
     kPhCitizenList, kPhPostSim, kPhWholeUpdate, kPhCount
 };
+static_assert(static_cast<int>(SamplerTag::PairCache) + kPhPostSim == static_cast<int>(SamplerTag::PostSim),
+              "SamplerTag phase tags are PairCache + SimPhase");
 const char* const kPhaseName[kPhCount] = {
     "PairCache", "Animation", "EntityList", "Weather",
     "CitizenList", "PostSim(UI/cam/audio)", "TOTAL Update"
@@ -556,11 +558,11 @@ inline double QpcMs(long long ticks) {
 struct PhaseTimer {
     int ph; long long t0; bool on;
     explicit PhaseTimer(int p) : ph(p), t0(0), on(SimProfOn()) {
-        g_samplerTag = 2 + p;   // [Sampler] phase tag (src/diag/sampler.h)
+        g_samplerTag = static_cast<int>(SamplerTag::PairCache) + p;   // [Sampler] phase tag: PairCache + SimPhase
         if (on) t0 = QpcNow();
     }
     ~PhaseTimer() {
-        g_samplerTag = 1;
+        g_samplerTag = static_cast<int>(SamplerTag::UpdateNoPhase);
         if (!on || !g_qpcFreq) return;
         const double s = (double)(QpcNow() - t0) / (double)g_qpcFreq;
         g_phSec[ph] += s;
@@ -666,8 +668,12 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // [SIMPROF] whole-Update stamp + deterministic speed override (both diagnostic-only)
     const bool simProf = SimProfOn();
     const long long frameT0 = simProf ? QpcNow() : 0;
-    g_samplerTag = 1;   // [Sampler] inside Update
-    struct SamplerTagReset { ~SamplerTagReset() { g_samplerTag = 0; } } samplerTagReset;
+    g_samplerTag = static_cast<int>(SamplerTag::UpdateNoPhase);   // [Sampler] inside Update
+    struct SamplerTagReset {
+        ~SamplerTagReset() {
+            g_samplerTag = static_cast<int>(SamplerTag::OutsideUpdate);
+        }
+    } samplerTagReset;
     ApplyForceSpeed(m_toolManager);
     // [SHOWROOM] hold the world paused while the showroom frames and shoots its buildings,
     // so every shot sees the same season, weather and sun.

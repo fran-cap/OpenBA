@@ -268,14 +268,14 @@ static void CemeteryComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = CemeteryCtrlDispatch::table;
     if (t.count != 0) return;                      // idempotent
-    TableRegisterState(t, 2, &CemeteryEnterBuilt,
+    TableRegisterState(t, BuildingState::Built, &CemeteryEnterBuilt,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 3, &CemeteryEnterDemolish,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Demolish, &CemeteryEnterDemolish,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
 }
 static const bool s_cemeteryStateTableBuilt = (CemeteryComponent_PopulateStateTable(), true);
 

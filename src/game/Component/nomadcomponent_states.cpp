@@ -9,15 +9,15 @@
 //   state 0  WALK IN     enter faf0 : MoveTo(meeting point +0x3c)
 //                        tick  f9c0 : once the action stack is idle (arrived): if the
 //                                     hall reference (+0x28) is gone, destroy self;
-//                                     else post event 6 (ARRIVED) to the hall's SM, -> 1
-//                        transitions -> {1}          event 1 f4a0 : LEAVE -> 2
+//                                     else post event 6 (ARRIVED) to the hall's SM, -> 1 (Loiter)
+//                        transitions -> {1}          event 1 f4a0 : LEAVE -> 2 (WalkOut)
 //   state 1  LOITER      enter LAB_f9b0 : `mov al,1; ret`
 //                        tick  f600 : when idle, count the wander timer (+0x48) down;
 //                                     expired -> re-arm 30 + rand*15 s and MoveTo a
 //                                     random walkable cell within 8 of the meeting point
 //                        transitions -> {2}
 //                        event 0 f420 : DESTROY (converted to a citizen)
-//                        event 1 f4a0 : LEAVE -> 2
+//                        event 1 f4a0 : LEAVE -> 2 (WalkOut)
 //   state 2  WALK OUT    enter f5e0 : MoveTo(spawn point +0x30)
 //                        tick  f530 : once idle (back at the edge), destroy self
 //
@@ -114,10 +114,10 @@ void NomadLeaveHall(NomadComponent* nomad) {
         StateMachineComponent* smc = hallEntity->FindComponent<StateMachineComponent>();
         switch (Ext::NomadArrival::AfterGiveUp(imm->arrivedCount, kept)) {
         case Ext::NomadArrival::HallStep::AllArrived:
-            ::ControllerLive::RequestStateTransition(&smc->stateMachine, 0x11);
+            ::ControllerLive::RequestStateTransition(&smc->stateMachine, BuildingState::ImmigrationAnswer);
             break;
         case Ext::NomadArrival::HallStep::Empty:
-            ::ControllerLive::RequestStateTransition(&smc->stateMachine, 2);
+            ::ControllerLive::RequestStateTransition(&smc->stateMachine, BuildingState::Built);
             break;
         case Ext::NomadArrival::HallStep::None:
             break;
@@ -189,12 +189,12 @@ void NomadComponent::MoveTo(Math::Vector3* dest) {
 // State handlers (the controller hands them this component and its StateMachine)
 // ============================================================
 
-// state 0 enter 0x14004faf0: walk to the meeting point
+// state 0 (WalkIn) enter 0x14004faf0: walk to the meeting point
 char NomadComponent::EnterWalkIn() {
     MoveTo(&meetPoint);   // 0x14004fb60
     return 1;
 }
-// state 0 tick 0x14004f9c0: arrived -> tell the hall (event 6) -> state 1
+// state 0 (WalkIn) tick 0x14004f9c0: arrived -> tell the hall (ImmigrantsArrived, event 6) -> Loiter
 char NomadComponent::TickWalkIn(StateMachine* sm) {
     if (!Idle(this)) return 1;
     GameUpdateLoop* gw = GW();
@@ -212,19 +212,19 @@ char NomadComponent::TickWalkIn(StateMachine* sm) {
         if (node) {
             // node = the controller member the StateMachineComponent linked (D6); slot 2.
             node->PostEvent(
-                &smc->stateMachine, smc->stateMachine.activeState, 6);
+                &smc->stateMachine, smc->stateMachine.activeState, SmId(BuildingEvent::ImmigrantsArrived));
         }
     }
-    ::ControllerLive::RequestStateTransition(sm, 1);
+    ::ControllerLive::RequestStateTransition(sm, NomadState::Loiter);
     return 1;
 }
-// event 1 0x14004f4a0: LEAVE -> state 2, forget the hall
+// event 1 (Leave) 0x14004f4a0: LEAVE -> WalkOut, forget the hall
 char NomadComponent::OnLeave(StateMachine* sm) {
-    ::ControllerLive::RequestStateTransition(sm, 2);
+    ::ControllerLive::RequestStateTransition(sm, NomadState::WalkOut);
     hall = nullptr;   // a null InternalBasePtr
     return 1;
 }
-// state 1 tick 0x14004f600: loiter around the meeting point
+// state 1 (Loiter) tick 0x14004f600: loiter around the meeting point
 char NomadComponent::TickLoiter(const System::Time* time) {
     if (!Idle(this)) return 1;
     wanderTimer._ticks -= time ? time->_ticks : 0;
@@ -277,19 +277,19 @@ char NomadComponent::TickLoiter(const System::Time* time) {
     }
     return 1;
 }
-// event 0 0x14004f420: DESTROY (the nomad became a citizen)
+// event 0 (Destroy) 0x14004f420: DESTROY (the nomad became a citizen)
 char NomadComponent::OnDestroy() {
     GameUpdateLoop* gw = GW();
     ComponentEntity* ibp = _entity.Get();
     if (gw && ibp) Entities(gw)->QueueDestroy(&ibp);   // 0x1400c49d0
     return 1;
 }
-// state 2 enter 0x14004f5e0: walk back to the spawn point
+// state 2 (WalkOut) enter 0x14004f5e0: walk back to the spawn point
 char NomadComponent::EnterWalkOut() {
     MoveTo(&spawnPoint);   // 0x14004fb60
     return 1;
 }
-// state 2 tick 0x14004f530: back at the edge -> destroy
+// state 2 (WalkOut) tick 0x14004f530: back at the edge -> destroy
 char NomadComponent::TickWalkOut() {
     if (!Idle(this)) return 1;
     GameUpdateLoop* gw = GW();
@@ -323,17 +323,17 @@ extern "C" void NomadCtrl_PopulateTable() {
     using namespace ::ControllerLive;
     auto& t = NomadDispatch::table;
     if (t.count != 0) return;
-    TableRegisterState(t, 0, &NomadEnterWalkIn, nullptr,
+    TableRegisterState(t, NomadState::WalkIn, &NomadEnterWalkIn, nullptr,
                        &NomadTickWalkIn, nullptr);
-    TableAddTransition(t, 1, nullptr);
-    TableAddEvent(t, 1, &NomadOnLeave);
+    TableAddTransition(t, NomadState::Loiter, nullptr);
+    TableAddEvent(t, NomadEvent::Leave, &NomadOnLeave);
 
-    TableRegisterState(t, 1, &NomadEnterLoiter, nullptr,
+    TableRegisterState(t, NomadState::Loiter, &NomadEnterLoiter, nullptr,
                        &NomadTickLoiter, nullptr);
-    TableAddTransition(t, 2, nullptr);
-    TableAddEvent(t, 0, &NomadOnDestroy);
-    TableAddEvent(t, 1, &NomadOnLeave);
+    TableAddTransition(t, NomadState::WalkOut, nullptr);
+    TableAddEvent(t, NomadEvent::Destroy, &NomadOnDestroy);
+    TableAddEvent(t, NomadEvent::Leave, &NomadOnLeave);
 
-    TableRegisterState(t, 2, &NomadEnterWalkOut, nullptr,
+    TableRegisterState(t, NomadState::WalkOut, &NomadEnterWalkOut, nullptr,
                        &NomadTickWalkOut, nullptr);
 }

@@ -2304,7 +2304,7 @@ CitizenComponent::CitizenComponent()
       field_0x60{0}, disease(nullptr), field_0x70{0}, field_0x78{0}, happiness(0),
       field_0x84(0), happinessFlags(0), _pad8C{}, happinessTimer{0},
       consumedTypes(),
-      field_0xA8(-1), field_0xAC(0), field_0xB0(0), _padB4{},
+      field_0xA8(-1), field_0xAC(0), lastErrand(CitizenErrand::None), _padB4{},
       meshInstance(), toolId(-1), toolSceneId(-1), field_0x1E0(4), clothingLevel(0),
       clothingTimer{0}, profession(nullptr), pendingProfession(nullptr),
       field_0x200{0}, school(nullptr), education(0), _pad214{}, schoolTime{0},

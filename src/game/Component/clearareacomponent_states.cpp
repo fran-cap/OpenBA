@@ -273,7 +273,7 @@ char ClearAreaComponent::State0Enter(StateMachine* sm) {
     // (_clearGround, Map::IsGroundClear): the Remove Roads marker (Template/Clear.rsc on a
     // road cell) is exactly that case.
     if (IsDone()) {
-        ::ControllerLive::RequestStateTransition(sm, 1);   // finish: 0 -> 1
+        ::ControllerLive::RequestStateTransition(sm, SmId(BuildingState::GatherMaterials));   // finish: 0 -> 1
         return 1;
     }
 
@@ -330,7 +330,7 @@ char ClearAreaComponent::State0Enter(StateMachine* sm) {
 //   while it was being cleared, and they had to be hauled off first.
 char ClearAreaComponent::State0PerFrame(StateMachine* sm) {
     if (IsDone()) {
-        ::ControllerLive::RequestStateTransition(sm, 1);
+        ::ControllerLive::RequestStateTransition(sm, SmId(BuildingState::GatherMaterials));
     }
     return 0;
 }
@@ -400,7 +400,7 @@ void ClearAreaComponent::FinishClear() {
 // ============================================================
 char ClearAreaComponent::State1Enter(StateMachine* sm) {
     FinishClear();
-    ::ControllerLive::RequestStateTransition(sm, 2);   // 1 -> 2
+    ::ControllerLive::RequestStateTransition(sm, SmId(BuildingState::Built));   // 1 -> 2
     return 1;
 }
 
@@ -445,28 +445,28 @@ extern "C" void ClearAreaCtrl_PopulateTable() {
     if (t.count != 0) return;   // idempotent
     // state 0: enter=State0Enter (dispatch harvest), update=State0Update (stop slot),
     //          per-frame=State0PerFrame (finish when clear). transitions -> {1, 3}.
-    TableRegisterState(t, 0, &CA_State0Enter,
+    TableRegisterState(t, BuildingState::ClearSite, &CA_State0Enter,
                        nullptr, &CA_State0PerFrame,
                        &CA_State0Update);
-    TableAddTransition(t, 1, nullptr);
-    TableAddTransition(t, 3, nullptr);
+    TableAddTransition(t, BuildingState::GatherMaterials, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
     // state 0x15: enter 0x1401177e0 JMP 0x140117960, per-frame 0x1401177d0 JMP
     //             0x1401178f0, update 0x140117770 = a second copy of 0x140117890.
     //             transitions -> {1, 3}.
-    TableRegisterState(t, 0x15, &CA_State0Enter,
+    TableRegisterState(t, BuildingState::Reclear, &CA_State0Enter,
                        nullptr, &CA_State0PerFrame,
                        &CA_State0Update);
-    TableAddTransition(t, 1, nullptr);
-    TableAddTransition(t, 3, nullptr);
+    TableAddTransition(t, BuildingState::GatherMaterials, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
     // state 1: model-finalize on entry (helper_7820: 8270 + request 1->2) -> {2, 3}.
-    TableRegisterState(t, 1, &CA_State1Enter,
+    TableRegisterState(t, BuildingState::GatherMaterials, &CA_State1Enter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 2, nullptr);
-    TableAddTransition(t, 3, nullptr);
+    TableAddTransition(t, BuildingState::Built, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
     // state 2: model-finalize on entry (helper_77f0: broadcast event 1) -> {3}.
-    TableRegisterState(t, 2, &CA_State2Enter,
+    TableRegisterState(t, BuildingState::Built, &CA_State2Enter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
 }
 
 // ============================================================

@@ -81,7 +81,7 @@ static void EnsureCallees();
 // CitizenAIComponent::Update (vtable slot [9], 0x14010f3e0) -- the body
 // ============================================================
 // Main citizen AI tick. RDX = pointer to the elapsed System::Time (int64 ticks).
-// timers[14] / timers[15] (+0xB0 / +0xB8) are the cooldowns of states 0xe / 0xf.
+// timers[14] / timers[15] (+0xB0 / +0xB8) are the cooldowns of EatUrgent / WarmUrgent (0xe / 0xf).
 void CitizenAIComponent::Decide(const System::Time* time) {
     int64_t dt = time->_ticks;
 
@@ -108,10 +108,11 @@ void CitizenAIComponent::Decide(const System::Time* time) {
     // --- Phase 4: the seeking flags ---
     uint8_t hungerFlag = seekingFood;
     uint8_t thirstFlag = seekingWarmth;
-    int aiState = state;
+    CitizenAIState aiState = state;
 
     bool isInNeedState = false;
-    if ((hungerFlag != 0 && aiState == 0x0E) || (thirstFlag != 0 && aiState == 0x0F)) {
+    if ((hungerFlag != 0 && aiState == CitizenAIState::EatUrgent) ||
+        (thirstFlag != 0 && aiState == CitizenAIState::WarmUrgent)) {
         isInNeedState = true;
     }
 
@@ -121,8 +122,8 @@ void CitizenAIComponent::Decide(const System::Time* time) {
     float* pHungerThresh = &citizenData->description->_fcc;
 
     if (health <= *pHungerThresh || health == *pHungerThresh || isInNeedState ||
-        ((uint32_t)(aiState - 0x0E) < 2) ||
-        timers[14]._ticks > 0) {
+        ((uint32_t)(static_cast<int32_t>(aiState) - static_cast<int32_t>(CitizenAIState::EatUrgent)) < 2) ||
+        timers[static_cast<int32_t>(CitizenAIState::EatUrgent)]._ticks > 0) {
         // Not hungry enough to transition, or in special state
         if (hungerFlag != 0) {
             citizenData = citizen.Get();
@@ -151,7 +152,7 @@ void CitizenAIComponent::Decide(const System::Time* time) {
 
         if (*pHungerThresh <= health && health != *pHungerThresh) {
             TransitionState(1);
-            seekingFood = (state == 0x0E) ? 1 : 0;
+            seekingFood = (state == CitizenAIState::EatUrgent) ? 1 : 0;
         }
     }
 
@@ -163,12 +164,12 @@ void CitizenAIComponent::Decide(const System::Time* time) {
     // Re-read flags (may have been modified above)
     thirstFlag = seekingWarmth;
     aiState = state;
-    isInNeedState = ((seekingFood != 0 && aiState == 0x0E) ||
-                     (thirstFlag != 0 && aiState == 0x0F));
+    isInNeedState = ((seekingFood != 0 && aiState == CitizenAIState::EatUrgent) ||
+                     (thirstFlag != 0 && aiState == CitizenAIState::WarmUrgent));
 
     if (hydration <= *pThirstThresh || hydration == *pThirstThresh || isInNeedState ||
-        ((uint32_t)(aiState - 0x0E) < 2) ||
-        timers[15]._ticks > 0) {
+        ((uint32_t)(static_cast<int32_t>(aiState) - static_cast<int32_t>(CitizenAIState::EatUrgent)) < 2) ||
+        timers[static_cast<int32_t>(CitizenAIState::WarmUrgent)]._ticks > 0) {
         // Not cold enough or in special state
         if (thirstFlag != 0) {
             citizenData = citizen.Get();
@@ -182,13 +183,13 @@ void CitizenAIComponent::Decide(const System::Time* time) {
     } else {
         // Cold: transition to the warming state
         TransitionState(1);
-        seekingWarmth = (state == 0x0F) ? 1 : 0;
+        seekingWarmth = (state == CitizenAIState::WarmUrgent) ? 1 : 0;
     }
 
     // --- Phase 7: housing check ---
     if (seekingFood == 0 && seekingWarmth == 0) {
         char canFindHouse = citizen->CanFindHousing();
-        if (canFindHouse != 0 && state != 2) {
+        if (canFindHouse != 0 && state != CitizenAIState::FindHousing) {
             TransitionState(1);
         }
     }
@@ -345,12 +346,12 @@ void CitizenAIComponent::TransitionState(char param) {
     // home's zone (homeless: the town hall's) whose walk there was refused on the zone mismatch wades
     // home (or to the town hall) instead of asking for the refused walk again (src/ext/stranded_wade/).
     if (Ext::Fix().stranded_wade && Ext::StrandedWade::Rescue(this)) return;
-    int queued = queuedState;
+    CitizenAIState queued = queuedState;
     char ok = 0;
-    if (queued >= 0) {
+    if (static_cast<int32_t>(queued) >= 0) {
         ok = ValidateAndEnterState(queued);
     }
-    if (queued < 0 || ok == '\0') {
+    if (static_cast<int32_t>(queued) < 0 || ok == '\0') {
         int idx = 0;
         StateCandidateList list = {nullptr, 0, 0};  // {ptr, count, capacity}
         BuildCandidateStateList(&list, param);
@@ -359,9 +360,9 @@ void CitizenAIComponent::TransitionState(char param) {
         StateCandidate* p = arr;
         if (0 < n) {
             do {
-                ValidateAndEnterState(p->id);
+                ValidateAndEnterState(static_cast<CitizenAIState>(p->id));
                 if (0 < citizen->character->actionStack.current + 1) {
-                    state = arr[idx].id;
+                    state = static_cast<CitizenAIState>(arr[idx].id);
                     break;
                 }
                 idx++;
@@ -371,7 +372,7 @@ void CitizenAIComponent::TransitionState(char param) {
         System::MemoryAllocator::MemFree(arr);
     } else {
         state = queuedState;
-        queuedState = -1;
+        queuedState = CitizenAIState::None;
     }
 }
 
@@ -438,14 +439,15 @@ static std::atomic<int> s_caiForceWorkLog{0};   // the [ForceWork] trace cap (ha
 // +0x28 = 0xc (state, 0x14010fba0) and +0x2c = -1 (queued state, 0x14010fba7)
 // are the ctor's own stores.
 CitizenAIComponent::CitizenAIComponent()
-    : state(0xc), queuedState(-1), seekingFood(false), seekingWarmth(false), _pad32{},
+    : state(CitizenAIState::Leisure), queuedState(CitizenAIState::None), seekingFood(false),
+      seekingWarmth(false), _pad32{},
       citizen(nullptr), timers{}, leisureTimer{0}, dataC8{0} {
     OrFlagsInCtor(0x89);
 }
 
 // [4] Startup 0x14010f920: +0x38 = FindComponent<CitizenComponent> (0x140009790,
 // cell 0x1401c7158) on the owner, read unguarded. The ctor 0x14010fb70 holds every
-// other initial value (state 0xc, queuedState -1, the two seeking flags 0).
+// other initial value (state 0xc Leisure, queuedState -1 None, the two seeking flags 0).
 void CitizenAIComponent::Startup() {
     citizen = _entity->FindComponent<CitizenComponent>();
 }

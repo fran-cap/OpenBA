@@ -34,7 +34,7 @@
 // env-bind FUN_140093e30):
 //   +0x00 envRes (Environment weather descriptors; loaded from Environment.rsc)
 //   +0x08 climateGen (ClimateGenerator resource; real, set by NewGameDialog)
-//   +0x10 state    +0x14 intensityLevel (0..5)
+//   +0x10 weatherType (WeatherType)    +0x14 intensityLevel (0..5)
 //   +0x18 temperature (accumulated by Part 3)
 //   +0x1c snowCoverage   +0x20 seasonalFadeA   +0x24 seasonalFadeB
 //   +0x28 activeWeatherIntensity   (the four terrain-shader params)
@@ -165,19 +165,19 @@ void WeatherTypeStateMachine(WeatherSimulation* w, GameUpdateLoop* gw, float sec
     }
 
     float randf = rng->RandFloat();
-    w->field_0x10 = 0;
+    w->weatherType = WeatherType::Rain;
     do {
-        int type = w->field_0x10;
+        int type = static_cast<int32_t>(w->weatherType);
         int month = (kf + ((kf >> 31) & 3)) >> 2;
         // ClimateGenerator +0x44: 48 floats, four per month.
         float thresh = w->field_0x44 + c->_climateData[(size_t)(month * 4 + type)];
         if (randf < thresh) break;
-        w->field_0x10 = type + 1;
-    } while (w->field_0x10 < 3);
+        w->weatherType = static_cast<WeatherType>(type + 1);
+    } while (static_cast<int32_t>(w->weatherType) < static_cast<int32_t>(WeatherType::Sunny));
 
-    int idx = w->field_0x10;
-    if (idx == 0) w->field_0x14 += 1;
-    else if (idx == 3) w->field_0x14 -= 1;
+    WeatherType idx = w->weatherType;
+    if (idx == WeatherType::Rain) w->field_0x14 += 1;
+    else if (idx == WeatherType::Sunny) w->field_0x14 -= 1;
     if (w->field_0x14 > 5) w->field_0x14 = 5;
     else if (w->field_0x14 < 0) w->field_0x14 = 0;
 }
@@ -222,7 +222,7 @@ RtUtility::PerlinNoise NewWeatherNoise() {
 // {+0x14 = 4, +0x18 = 0}, three qword zeroes over +0x1C..+0x33, the noise,
 // then +0x44..+0x77 (the two Arrays' four zero qwords and the time) after it.
 WeatherSimulation::WeatherSimulation()
-    : environment(nullptr), climate(nullptr), field_0x10(0), field_0x14(4), temperature(0.0f),
+    : environment(nullptr), climate(nullptr), weatherType(WeatherType::Rain), field_0x14(4), temperature(0.0f),
       field_0x1C(), field_0x2C(0.0f), field_0x30(0.0f),
       noise(NewWeatherNoise()),
       field_0x44(0.0f), field_0x48(0.0f), seasonStep(-1),
@@ -368,13 +368,13 @@ void WeatherSimulation::Update(const System::Time* time) {
 
     // --- Effect enable/disable (impl_42c0 loop). Two slots: 0 = warm precip
     //     (rain), 1 = cold precip (snow). Enable the slot whose temperature
-    //     condition matches when weather is on and the sim is idle (state 0).
-    //     State (+0x10) is re-read each iteration since SetEffectEnabled mutates it. ---
+    //     condition matches when weather is on and the weather is Rain.
+    //     The weather type (+0x10) is re-read each iteration since SetEffectEnabled mutates it. ---
     {
         bool cold = temperature <= kColdThresh;   // temp <= 34
         for (int slot = 0; slot < 2; ++slot) {
-            int state = field_0x10;
-            int enable = (weatherSetting != 0 && state == 0 &&
+            WeatherType state = weatherType;
+            int enable = (weatherSetting != 0 && state == WeatherType::Rain &&
                           ((cold ? 1 : 0) == slot)) ? 1 : 0;
             SetEffectEnabled(slot, enable != 0);
         }
@@ -386,14 +386,14 @@ void WeatherSimulation::Update(const System::Time* time) {
 
     // --- Part 6: ambient-spawn chance (FUN_1400a9290). Spawns the ambient-audio
     //     environment entity (the environment's +0x20 template) — the biome
-    //     wind/nature bed — when the roll fires in warm clear weather. ---
+    //     wind/nature bed — when the roll fires in warm Rain weather. ---
     {
         ClimateGenerator* c = climate;
         uint32_t disasterBits = gw->m_gameFlags;
         System::Random* rng = gw->m_random;
 
         if (temperature > kColdThresh &&
-            field_0x10 == 0 &&
+            weatherType == WeatherType::Rain &&
             ((disasterBits >> 7) & 1) == 0 && c && rng) {
             if (SpawnChance(&disasterTime, c->_field108, c->_field10C, rng)) {   // climate +0x108 / +0x10C
                 SpawnAmbientEntity(this, gw);

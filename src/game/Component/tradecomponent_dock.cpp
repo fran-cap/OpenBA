@@ -1,5 +1,5 @@
 // src/game/Component/tradecomponent_dock.cpp
-// TradeComponent controller wave, LAYER 3 — the DOCKED state (0x13).
+// TradeComponent controller wave, LAYER 3 — the DOCKED state (0x13, BuildingState::MerchantDocked).
 //
 // Layer 1 (tradecomponent_states.cpp) built the machine and the idle state; layer 2
 // (boatcomponent_route.cpp) made the merchant arrive. This file is what happens once
@@ -73,6 +73,7 @@
 #include "Component/RawMaterialDescription.h"
 #include "Component/StorageComponent.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BoatComponent.h"   // BoatEvent::Depart
 #include "Entity/ComponentEntity.h"   // ComponentEntity::FindComponent<T>
 #include "Entity/CitizenBehavior.h"
 #include <cstdint>
@@ -613,9 +614,11 @@ char TradeComponent::LeaveDocked() {
     // Retail 0x14005a6d0 derefs the chain unguarded (CheckPtr, then `[[sm+0x48]]+0x10`): a
     // merchant boat always carries a StateMachineComponent (B6 G3: the tree's null arm is
     // gone). Node vtable slot 2 (+0x10) is PostEvent(node, sm, curStateIdx, eventId); the
-    // current index is the machine's activeState (smComp+0x51). Event 0 is "you are released".
+    // current index is the machine's activeState (smComp+0x51). Event 0 (BoatEvent::Depart) is
+    // "you are released".
     ControllerComponent::Controller* node = smComp->stateMachine.current;
-    node->PostEvent(&smComp->stateMachine, smComp->stateMachine.activeState, 0);
+    node->PostEvent(&smComp->stateMachine, smComp->stateMachine.activeState,
+                    static_cast<int>(BoatEvent::Depart));
 
     merchant = nullptr;
 

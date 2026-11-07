@@ -223,14 +223,14 @@ extern "C" void AttendanceCtrl_PopulateTable() {
     if (t.count != 0) return;   // idempotent, like the retail Setup guard
 
     // sub_28b0(2, LocationWork_Ctor, .., .., sub_3c30) — enter + per-frame, no update.
-    TableRegisterState(t, 2, &Attendance_State2Enter,
+    TableRegisterState(t, BuildingState::Built, &Attendance_State2Enter,
                        nullptr, &Attendance_State2Frame, nullptr);
-    TableAddTransition(t, 3, nullptr);          // sub_29d0(3)
+    TableAddTransition(t, BuildingState::Demolish, nullptr);      // sub_29d0(3)
 
     // sub_28b0(3, helper_3bd0, .., .., 0) — enter only.
-    TableRegisterState(t, 3, &Attendance_State3Enter,
+    TableRegisterState(t, BuildingState::Demolish, &Attendance_State3Enter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);          // sub_29d0(6)
-    TableAddTransition(t, 4, nullptr);          // sub_29d0(4)
-    TableAddTransition(t, 5, nullptr);          // sub_29d0(5)
+    TableAddTransition(t, BuildingState::Collapse, nullptr);      // sub_29d0(6)
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);      // sub_29d0(4)
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);   // sub_29d0(5)
 }

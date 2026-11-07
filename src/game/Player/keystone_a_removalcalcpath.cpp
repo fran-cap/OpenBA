@@ -194,7 +194,7 @@ void DestroyComponent::PostDestroyEvent() {
     InitTypeIds();
     StateMachineComponent* machine = _entity->FindComponent<StateMachineComponent>();
     StateMachine& sm = machine->stateMachine;   // no test (0x14011e4d0)
-    sm.current->PostEvent(&sm, sm.activeState, 1);
+    sm.current->PostEvent(&sm, sm.activeState, SmId(BuildingEvent::Remove));
 }
 
 // ============================================================
@@ -251,7 +251,7 @@ static void SM_RunPhase(StateMachine* sm, const System::Time* timeOutSlot) {
             }
             int it = sm->activeState;
             Controller* p = sm->current;
-            sm->pendingState = -1;      // one 0xffff word store in retail (H7)
+            sm->pendingState = StateByte(BuildingState::None);   // one 0xffff word store in retail (H7)
             sm->transitionState = -1;
             // FIX(lead 2026-07-20, bug-class #6): slot +0x18 is
             // Enter(node, sm, idx) — idx rides R8D, dropped by the decompile.
@@ -303,18 +303,18 @@ void DestroyComponent::RunStateMachine() {
     StateMachineComponent* st0 = _entity->FindComponent<StateMachineComponent>();
     int8_t cVar5 = st0->stateMachine.pendingState;
     if (cVar5 < 0) cVar5 = st0->stateMachine.currentInput;
-    if (cVar5 == 6) return;
+    if (cVar5 == StateByte(BuildingState::Collapse)) return;
 
     StateMachineComponent* st1 = _entity->FindComponent<StateMachineComponent>();
     cVar5 = st1->stateMachine.pendingState;
     if (cVar5 < 0) cVar5 = st1->stateMachine.currentInput;
     // FIX(lead-verify vs disasm 0x14011e01a JZ 0x14011e3b1): the 2nd ==6 exit calls e4d0.
-    if (cVar5 == 6) { PostDestroyEvent(); return; }
+    if (cVar5 == StateByte(BuildingState::Collapse)) { PostDestroyEvent(); return; }
 
     cVar5 = st1->stateMachine.pendingState;
     if (cVar5 < 0) cVar5 = st1->stateMachine.currentInput;
     // FIX(lead-verify vs disasm 0x14011e03c JZ 0x14011e3b1): the ==7 exit calls e4d0.
-    if (cVar5 == 7) { PostDestroyEvent(); return; }
+    if (cVar5 == StateByte(BuildingState::Rubble)) { PostDestroyEvent(); return; }
 
     // ---- main tick path ----
     StateMachineComponent* machine = _entity->FindComponent<StateMachineComponent>();
@@ -326,7 +326,7 @@ void DestroyComponent::RunStateMachine() {
     SM_RunPhase(sm, &timeOutSlot);
 
     // ---- between-phase: choose transition + kick Tick ----
-    outState = 3;  // outState seed
+    outState = SmId(BuildingState::Demolish);  // outState seed
     if (sm->activeState < 0) {
         System::Time timeBuf = {0};
         RtSystem_Time_Ctor(&timeBuf, 0.0f);
@@ -748,7 +748,8 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
                                     // the current node's slot 2 (+0x10): PostEvent(&machine, active, 0)
                                     ControllerComponent::Controller* head = machine->stateMachine.current;
                                     head->PostEvent(&machine->stateMachine,
-                                                    machine->stateMachine.activeState, 0);
+                                                    machine->stateMachine.activeState,
+                                                    SmId(BuildingEvent::Cancel));
                                 }
                             }
                         }

@@ -43,7 +43,7 @@ public:
     // 0x140117f40
     ~ClearAreaComponent() override;                               // [0]  0x1400310c0
     void          Persist(IO::Stream& stream) override;                 // [3]  0x140117ec0
-    int         GetDefaultState() const override { return 0; }  // [16] 0x140003730
+    int         GetDefaultState() const override { return SmId(BuildingState::ClearSite); }  // [16] 0x140003730
     Controller* GetController() override { return &_controller; }  // [17] 0x140004080
 
     // ---- non-virtual members (retail addresses; RCX = this) ----

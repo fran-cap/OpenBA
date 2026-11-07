@@ -44,6 +44,7 @@
 #include "Component/ConsumeProduceComponent.h"
 #include "Component/InteractComponent.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"
 #include "Component/ComponentDescription.h"
 #include "Entity/ComponentEntity.h"
 
@@ -113,7 +114,7 @@ W* AllocWork(int size) {
             // Zero the kind-2 slot array the ctor allocates (retail's trailing loop).
             const int cnt = work->spotStates._size;
             int32_t* slots = work->spotStates._data;
-            if (slots) for (int i = 0; i < cnt; ++i) slots[i] = 0;
+            if (slots) for (int i = 0; i < cnt; ++i) slots[i] = static_cast<int32_t>(WorkSpotState::Available);
         }
     }
     return WrapIBP(out, work);
@@ -183,7 +184,7 @@ W* AllocWork(int size) {
         StateMachineComponent* sm = entity->FindComponent<StateMachineComponent>();   // 0x140003ea0
         char st = sm->stateMachine.pendingState;
         if (st < 0) st = sm->stateMachine.currentInput;
-        if (st != 14 && !self->plantTrees && !self->cutTrees) {
+        if (st != StateByte(BuildingState::Paused) && !self->plantTrees && !self->cutTrees) {
             // retail: one word store of 0x101 over +0x50 / +0x51
             self->plantTrees = true;
             self->cutTrees = true;
@@ -292,7 +293,7 @@ static ConsumeProduce* ConsumeProduceAction_Ctor(ConsumeProduce* work, Component
             work->field_68.SetSize(n2);
             const int cnt = work->field_68._size;
             int32_t* slots = work->field_68._data;
-            if (slots) for (int i = 0; i < cnt; ++i) slots[i] = 0;
+            if (slots) for (int i = 0; i < cnt; ++i) slots[i] = static_cast<int32_t>(WorkSpotState::Available);
         }
     }
     return work;

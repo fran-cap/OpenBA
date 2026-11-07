@@ -52,6 +52,7 @@
 #include "Game/Profession.h"
 #include "Game/TerrainGenerator.h"
 #include "Game/ClimateGenerator.h"
+#include "Component/BuildingState.h"
 
 // Float constants used by 0x1400d8c50 (season-progress weighting): the .rdata
 // cells 0x14017225c (3600.0f) and 0x1401721e4 (48.0f), exe_constants.h.
@@ -88,10 +89,10 @@ static T* FindSubDescription(const ComponentDescription* desc) {
 // The state byte the state machine reports: the pending state, or the last
 // input when nothing is pending (`MOVZX [RCX+0x52]; TEST; JNS; MOVZX [RCX+0x50]`,
 // 0x14011e740).
-static inline int8_t ReportedState(const StateMachineComponent* sm) {
+static inline BuildingState ReportedState(const StateMachineComponent* sm) {
     int8_t c = sm->stateMachine.pendingState;
     if (c < 0) c = sm->stateMachine.currentInput;
-    return c;
+    return static_cast<BuildingState>(c);
 }
 
 // The CitizenBehavior entity-bucket trees: Goal/goal_exe_helpers.h.
@@ -260,12 +261,13 @@ static bool Avl_Insert(DedupNode** root, const ComponentDescription* key) {
 
 // 0x14011e710 — a DestroyComponent member in retail (COMP's class; kept
 // file-local, typed): the owning entity's StateMachineComponent
-// (FindComponent<StateMachineComponent>, 0x140003ea0) reports state 3, 4 or 5.
+// (FindComponent<StateMachineComponent>, 0x140003ea0) reports Demolish, HaulAway or Deconstruct
+// (states 3, 4 or 5).
 static int DestroyComponent_InState345_e710(const DestroyComponent* destroy) {
     StateMachineComponent* sm = destroy->_entity->FindComponent<StateMachineComponent>();
-    if (ReportedState(sm) != 3) {
-        if (ReportedState(sm) != 4) {
-            if (ReportedState(sm) != 5) return 0;
+    if (ReportedState(sm) != BuildingState::Demolish) {
+        if (ReportedState(sm) != BuildingState::HaulAway) {
+            if (ReportedState(sm) != BuildingState::Deconstruct) return 0;
         }
     }
     return 1;
@@ -719,8 +721,8 @@ static uint32_t Helper_85f0(const Object::External* ext) {
 
 // The common head of 0x1400d81b0 and 0x1400d7cf0: the bucket entity is
 // finished (no BuildComponent, or the description's cost times costMultiplier
-// <= laborProgress) and its DestroyComponent's entity reports neither state 6
-// nor 7 (then again not 6). Returns the DestroyComponent, or null to skip.
+// <= laborProgress) and its DestroyComponent's entity reports neither Collapse
+// (6) nor Rubble (7) (then again not Collapse). Returns the DestroyComponent, or null to skip.
 static DestroyComponent* FinishedStanding(ComponentEntity* entRef) {
     BuildComponent* work = entRef->FindComponent<BuildComponent>();
     DestroyComponent* destroy = entRef->FindComponent<DestroyComponent>();
@@ -735,14 +737,14 @@ static DestroyComponent* FinishedStanding(ComponentEntity* entRef) {
     }
     if (!done) return nullptr;
 
-    // the destroy component's entity: skip state 6 or 7.
+    // the destroy component's entity: skip Collapse (6) or Rubble (7).
     StateMachineComponent* cat = destroy->_entity->FindComponent<StateMachineComponent>();
-    if (ReportedState(cat) == 6) return nullptr;
-    if (ReportedState(cat) == 7) return nullptr;
+    if (ReportedState(cat) == BuildingState::Collapse) return nullptr;
+    if (ReportedState(cat) == BuildingState::Rubble) return nullptr;
 
-    // second state fetch (local_50) — skip if 6.
+    // second state fetch (local_50) — skip if Collapse.
     StateMachineComponent* cat2 = destroy->_entity->FindComponent<StateMachineComponent>();
-    if (ReportedState(cat2) == 6) return nullptr;
+    if (ReportedState(cat2) == BuildingState::Collapse) return nullptr;
     return destroy;
 }
 

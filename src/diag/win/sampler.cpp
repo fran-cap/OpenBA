@@ -16,13 +16,14 @@
 
 static HANDLE g_mainThread = nullptr;   // from HwWatch_Init (SUSPEND_RESUME + GET_CONTEXT)
 
-volatile int g_samplerTag = 0;
+volatile int g_samplerTag = static_cast<int>(SamplerTag::OutsideUpdate);
 
 namespace {
 
 constexpr int kMaxFrames = 20;
 
-constexpr uint8_t kTagNotMain = 99;   // g_samplerTag is the main thread's phase only
+// g_samplerTag is the main thread's phase only
+constexpr uint8_t kTagNotMain = static_cast<uint8_t>(SamplerTag::NotMainThread);
 
 struct Sample {
     uint8_t tag; uint8_t n; char role; uint32_t tid; int64_t qpc;

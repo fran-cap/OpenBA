@@ -326,7 +326,8 @@ void BoatComponent::SetDestination(const Object::InternalPtr<ComponentEntity>* d
         StateMachineComponent* state = _entity->FindComponent<StateMachineComponent>();   // 0x140003ea0
         StateMachine* ownerSlot = &state->stateMachine;
         ControllerComponent::Controller* owner = ownerSlot->current;
-        owner->PostEvent(ownerSlot, static_cast<int>(state->stateMachine.activeState), 1);
+        owner->PostEvent(ownerSlot, static_cast<int>(state->stateMachine.activeState),
+                         static_cast<int>(BoatEvent::Abort));
         return;
     }
 

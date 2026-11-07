@@ -239,7 +239,7 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
         // Update citizen state
         citizenPtr->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizenPtr->field_0x30 = pathType;
-        citizenPtr->field_0xB0 = 0;
+        citizenPtr->lastErrand = CitizenErrand::None;
 
         if (resultVal == citizenPtr->profession && pathType >= 0) {
             citizenPtr->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;

@@ -3,8 +3,8 @@
 // FireComponent::Ignite / ::Extinguish drive, plus the demolition gate they check.
 //
 //   0x14011e690  FireComponent_IsBeingDemolished  — abort gate for Ignite
-//   0x14011e7b0  FireComponent_helper_e7b0        — begin burning  (SM state 3)
-//   0x14011ea10  FireComponent_helper_ea10        — stop burning   (SM state 7)
+//   0x14011e7b0  FireComponent_helper_e7b0        — begin burning  (SM state 3, Demolish)
+//   0x14011ea10  FireComponent_helper_ea10        — stop burning   (SM state 7, Rubble)
 //
 // ⚠ SHARED WITH THE TORNADO LANE. The tornado building-damage arm reaches
 // 0x14011e7b0 / 0x14011ea10 as well. They are ported ONCE,
@@ -101,7 +101,7 @@ void ForceSMState(ComponentEntity* owner, int targetState, const char* /*who*/) 
 // ============================================================
 // param_1 = the DestroyComponent. Finds the entity's StateMachineComponent and
 // returns true when the effective state (pending +0x52 if >= 0, else current
-// +0x50) is 6 or 7. Ignite aborts on true: a building on its way down does not
+// +0x50) is 6 (Collapse) or 7 (Rubble). Ignite aborts on true: a building on its way down does not
 // catch fire.
 bool DestroyComponent::IsBeingDemolished() {
     StateMachineComponent* L =
@@ -109,10 +109,10 @@ bool DestroyComponent::IsBeingDemolished() {
     // 0x14011e6bb-0x14011e6c0: [RCX+0x52] read with no test (B7 RES, with row 922).
     int8_t s = L->stateMachine.pendingState;                  // +0x52
     if (s < 0) s = L->stateMachine.currentInput;             // +0x50
-    if (s == 6) return true;
+    if (s == StateByte(BuildingState::Collapse)) return true;
     s = L->stateMachine.pendingState;
     if (s < 0) s = L->stateMachine.currentInput;
-    return s == 7;
+    return s == StateByte(BuildingState::Rubble);
 }
 
 // ============================================================
@@ -122,7 +122,7 @@ bool DestroyComponent::IsBeingDemolished() {
 // Returns false — without touching anything — when the building is not finished
 // (its BuildComponent's +0x48 progress word is still 0). Otherwise stamps the
 // DestroyComponent's burning flag (+0x50 = 1) and burn duration (+0x48), then
-// drives the entity's state machine to state 3 (BURNING).
+// drives the entity's state machine to state 3 (Demolish).
 bool DestroyComponent::BeginBurning(const System::Time* time) {
     // Unfinished-construction gate.
     {
@@ -137,15 +137,15 @@ bool DestroyComponent::BeginBurning(const System::Time* time) {
     burning = true;
     burnTime._ticks = time->_ticks;   // 0x14011e802: MOV RAX,[RSI], no test (B7 RES)
 
-    ForceSMState(_entity.Get(), 3, "begin");
+    ForceSMState(_entity.Get(), SmId(BuildingState::Demolish), "begin");
     return true;
 }
 
 // ============================================================
 // FUN_14011ea10 — stop burning.
 // ============================================================
-// param_1 = the DestroyComponent. Drives the entity's state machine to state 7.
+// param_1 = the DestroyComponent. Drives the entity's state machine to state 7 (Rubble).
 // Note it does NOT clear +0x50 / +0x48; the state-7 handler owns that.
 void DestroyComponent::StopBurning() {
-    ForceSMState(_entity.Get(), 7, "stop");
+    ForceSMState(_entity.Get(), SmId(BuildingState::Rubble), "stop");
 }

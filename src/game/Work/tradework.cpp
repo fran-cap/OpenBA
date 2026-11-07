@@ -154,7 +154,7 @@ int TradeWork::CommitAssignment(CitizenComponent* const* citizenRef, ComponentDe
 
     citizen->field_0x30 = taskId;
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizen->field_0xB0 = 0;
+    citizen->lastErrand = CitizenErrand::None;
     if (target == citizen->profession && taskId >= 0)
         citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
 

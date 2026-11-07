@@ -41,6 +41,7 @@
 #include "video/ImageBuffer.h"
 
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
 
 namespace {
@@ -91,11 +92,17 @@ struct Key {
     }
 };
 
+// Where the copy stands for `key`. Ready implies Made.
+enum class CopyPhase : uint8_t {
+    Empty,    // nothing made
+    Failed,   // making the objects for `key` failed: wait for the key to change
+    Made,     // the objects for `key` exist
+    Ready,    // made, and a Copy() ran into them: Image() may hand them out
+};
+
 struct CopyState {
     Key                       key;
-    bool                      made    = false;   // the objects for `key` exist
-    bool                      failed  = false;   // making them for `key` failed: wait for the key to change
-    bool                      ready   = false;   // a Copy() ran into them: Image() may hand them out
+    CopyPhase                 phase   = CopyPhase::Empty;
     ID3D11Texture2D*          texture = nullptr; // the CopyResource destination (typeless, key's samples)
     ID3D11ShaderResourceView* view    = nullptr; // on `texture` (TEXTURE2D or TEXTURE2DMS)
     AoStage::DepthResolve     resolve{"SceneDepth"};   // MSAA only: `texture` -> 1x R32_FLOAT
@@ -128,14 +135,13 @@ void ReleaseAll() {
     g_copy.resolve.Release();
     Rel(g_copy.view);
     Rel(g_copy.texture);
-    g_copy.key    = Key{};
-    g_copy.made   = false;
-    g_copy.failed = false;
-    g_copy.ready  = false;
+    g_copy.key   = Key{};
+    g_copy.phase = CopyPhase::Empty;
 }
 
 bool Make(ID3D11Device* dev, const Key& key) {
-    if (g_copy.made || g_copy.key.device != nullptr) ReleaseAll();
+    const bool made = g_copy.phase == CopyPhase::Made || g_copy.phase == CopyPhase::Ready;
+    if (made || g_copy.key.device != nullptr) ReleaseAll();
     g_copy.key = key;
     DXGI_FORMAT texFormat = DXGI_FORMAT_UNKNOWN;
     DXGI_FORMAT viewFormat = DXGI_FORMAT_UNKNOWN;
@@ -173,11 +179,12 @@ bool Make(ID3D11Device* dev, const Key& key) {
                  static_cast<unsigned long>(hr));
     if (!ok) {
         ReleaseAll();
-        g_copy.key    = key;
-        g_copy.failed = true;
+        g_copy.key   = key;
+        g_copy.phase = CopyPhase::Failed;
         return false;
     }
-    g_copy.made = true;
+    // A Failed phase kept above (its key had no device, so nothing was released) stays Failed.
+    if (g_copy.phase == CopyPhase::Empty) g_copy.phase = CopyPhase::Made;
     return true;
 }
 
@@ -276,8 +283,8 @@ void CopyLocked() {
     if (!CopyFormatsFor(desc.Format, texFormat, viewFormat)) {
         if (!(g_copy.key == key)) {
             ReleaseAll();
-            g_copy.key    = key;
-            g_copy.failed = true;
+            g_copy.key   = key;
+            g_copy.phase = CopyPhase::Failed;
             std::fprintf(stderr, "[SceneDepth] bound depth format %d is not a D24S8 / D32 family: no copy\n",
                          static_cast<int>(desc.Format));
         }
@@ -291,7 +298,7 @@ void CopyLocked() {
             g_copy.image = static_cast<::Video::ImageBuffer*>(::Video::ImageBuffer::CreateNewObject());
         Make(dev, key);
     }
-    if (g_copy.failed || g_copy.image == nullptr) {
+    if (g_copy.phase == CopyPhase::Failed || g_copy.image == nullptr) {
         depth->Release();
         return;
     }
@@ -307,7 +314,7 @@ void CopyLocked() {
     Expose(exposed);
     g_copy.image->_width  = static_cast<int32_t>(key.width);
     g_copy.image->_height = static_cast<int32_t>(key.height);
-    g_copy.ready = true;
+    g_copy.phase = CopyPhase::Ready;
 }
 
 }  // namespace
@@ -340,7 +347,7 @@ void Copy(void* /*context: the depth is the one bound on the immediate context*/
 }
 
 const Video::ImageBuffer* Image() {
-    if (!g_requested.load() || !g_copy.ready || g_copy.image == nullptr) return nullptr;
+    if (!g_requested.load() || g_copy.phase != CopyPhase::Ready || g_copy.image == nullptr) return nullptr;
     // A device restart since the last Copy(): the copy belongs to the old device until the next one.
     if (g_copy.key.device != LiveDevice()) return nullptr;
     return g_copy.image;

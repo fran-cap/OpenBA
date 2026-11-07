@@ -42,7 +42,7 @@ public:
     // The removal hook: the owner leaves the town's storage-location list
     // (CitizenBehavior +0x00), the list the state-2 enter appended it to.
     void          OnRemove() override;                                  // [7]  0x14012d270
-    int         GetDefaultState() const override { return 2; }          // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }       // [17] 0x140004080
 
     // B4 WORK-b; body in Work/pickup_gate.cpp: the description's accept mask, else the

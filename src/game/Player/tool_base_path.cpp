@@ -38,6 +38,7 @@
 #include <cstdlib>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "Component/DestroyComponent.h"
+#include "Component/BuildingState.h"
 #include "Component/StateMachineComponent.h"
 #include "Component/CreateDragDescription.h"
 #include "Player/exe_bodies.h"
@@ -70,16 +71,16 @@ static int8_t RequestedState(const StateMachineComponent* machine) {
 // FUN_14011e710 — DestroyComponent::InRemovalState ("is removable child" check).
 // CheckPtr(this+0x10), FindComponent<StateMachineComponent> (0x140003ea0) on the
 // owning entity, then reads the state byte (+0x52, fallback +0x50 when negative)
-// and returns 1 iff it is 3, 4, or 5. No null check on the found component:
-// retail has none. B4 PLAYER: a DestroyComponent member (it reads the component's
+// and returns 1 iff it is 3, 4, or 5 (Demolish, HaulAway, Deconstruct). No null check on
+// the found component: retail has none. B4 PLAYER: a DestroyComponent member (it reads the component's
 // owner, +0x10).
 // ============================================================
 bool DestroyComponent::InRemovalState() {
     StateMachineComponent* machine = _entity->FindComponent<StateMachineComponent>();
 
-    if (RequestedState(machine) != 3) {
-        if (RequestedState(machine) != 4) {
-            if (RequestedState(machine) != 5) return false;
+    if (RequestedState(machine) != StateByte(BuildingState::Demolish)) {
+        if (RequestedState(machine) != StateByte(BuildingState::HaulAway)) {
+            if (RequestedState(machine) != StateByte(BuildingState::Deconstruct)) return false;
         }
     }
     return true;
@@ -163,7 +164,7 @@ bool Map::TestPlacement(int param_2, int param_3, uint32_t param_4,
 // present and its description differs from the description's +0x38 template,
 // finds the DestroyComponent (0x140005780) and the StateMachineComponent
 // (0x140003ea0), then reads the state byte (+0x52 / +0x50 fallback) and returns 1
-// when the state is not 3/4/5.
+// when the state is not 3/4/5 (Demolish / HaulAway / Deconstruct).
 // ============================================================
 uint64_t RemovalTool::CanRemoveBuilding(ComponentEntity* const* param_2) {
     if (removalDesc->_b41 && (*param_2 != nullptr)) {
@@ -174,9 +175,9 @@ uint64_t RemovalTool::CanRemoveBuilding(ComponentEntity* const* param_2) {
             StateMachineComponent* machine = (*param_2)->FindComponent<StateMachineComponent>();
 
             if (destroy != nullptr) {
-                if (RequestedState(machine) != 3) {
-                    if (RequestedState(machine) != 4) {
-                        if (RequestedState(machine) != 5) {
+                if (RequestedState(machine) != StateByte(BuildingState::Demolish)) {
+                    if (RequestedState(machine) != StateByte(BuildingState::HaulAway)) {
+                        if (RequestedState(machine) != StateByte(BuildingState::Deconstruct)) {
                             return 1;
                         }
                     }

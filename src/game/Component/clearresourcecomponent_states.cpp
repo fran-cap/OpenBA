@@ -136,7 +136,7 @@ extern "C" void ClearResourceCtrl_PopulateTable() {
     auto& t = ClearResourceDispatch::table;
     if (t.count != 0) return;   // idempotent
     // The whole class: state 2, enter = sub_8560 (destroy the job), -> {3}.
-    TableRegisterState(t, 2, &ClearResource_State2Enter,
+    TableRegisterState(t, BuildingState::Built, &ClearResource_State2Enter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
 }

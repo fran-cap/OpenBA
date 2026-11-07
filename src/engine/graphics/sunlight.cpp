@@ -281,24 +281,28 @@ constexpr int32_t kSunMapLargeSize  = 0x2000;   // ext.max_shadow_size 8192
 // FL 10_0 at least: D3D10_REQ_TEXTURE2D_U_OR_V_DIMENSION = 8192, 16384 at FL 11_0),
 // the memory may not. So the first time 8192 is asked for, a throwaway depth image
 // of the map's exact descriptor is created through the engine's own ImageBuffer and
-// deleted again; its Create result decides for the rest of the process. -1 unknown,
-// 0 failed (4096 is used), 1 fits.
-int g_largeSunMapFits = -1;
+// deleted again; its Create result decides for the rest of the process.
+enum class SunMapProbe : int {
+    Unknown    = -1,   // not probed yet
+    DoesNotFit = 0,    // the probe failed: 4096 is used
+    Fits       = 1,
+};
+SunMapProbe g_largeSunMapFits = SunMapProbe::Unknown;
 
 bool LargeSunMapFits(bool mayProbe) {
-    if (g_largeSunMapFits < 0 && mayProbe && Video::Device::_singleton != nullptr &&
+    if (static_cast<int>(g_largeSunMapFits) < 0 && mayProbe && Video::Device::_singleton != nullptr &&
         Video::Device::_singleton->deviceData != nullptr) {
         Video::ImageBuffer* const probe = NewImageBuffer();
         const bool ok = probe != nullptr &&
                         probe->Create(0, 1, 7, Video::ImageBuffer::kShadowMap, kSunMapLargeSize,
                                       kSunMapLargeSize, 1, 1, 1, 1, nullptr);
         DeleteImageBuffer(probe);
-        g_largeSunMapFits = ok ? 1 : 0;
+        g_largeSunMapFits = ok ? SunMapProbe::Fits : SunMapProbe::DoesNotFit;
         if (!ok)
             std::fprintf(stderr, "[ShadowRes] an 8192x8192 sun map could not be created on this device: "
                                  "using 4096 (ext.max_shadow_size=8192 left as set)\n");
     }
-    return g_largeSunMapFits != 0;   // unknown and not probing: the caller only compares
+    return g_largeSunMapFits != SunMapProbe::DoesNotFit;   // unknown and not probing: the caller only compares
 }
 
 // The raw size the three Create sites pass. Faithful: one null test. `mayProbe`: the caller

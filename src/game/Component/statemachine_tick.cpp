@@ -8,6 +8,7 @@
 
 #include "Component/ControllerComponent.h"
 #include "Component/StateMachineComponent.h"
+#include "Component/BuildingState.h"
 #include "system/Value.h"
 #include <cstdint>
 
@@ -64,7 +65,7 @@ void StateMachine::Tick(const System::Time* time, char useAlt, char run) {
             int iVar5 = activeState;
             Controller* node = current;
             // retail stores 0xffff as one word over +0x0A / +0x0B (H7: two stores)
-            pendingState = -1;
+            pendingState = StateByte(BuildingState::None);
             transitionState = -1;
             while (((iVar5 < 0 || node->Enter(this, iVar5) == '\0') &&
                     ((node = NodeParent(node)) != nullptr))) {

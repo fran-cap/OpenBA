@@ -87,7 +87,7 @@ public:
     UI::TextElement* numberStatusJob = nullptr;       // +0x190
     UI::TextElement* numberStatusTool = nullptr;      // +0x198
     UI::TextElement* numberStatusDisease = nullptr;   // +0x1A0
-    // +0x1A8..+0x1C8: WeatherSimulation::field_0x10 0..3, 4 = snow
+    // +0x1A8..+0x1C8: WeatherSimulation::weatherType 0..3, 4 = snow
     UI::Element*     imageRain = nullptr;             // +0x1A8 0
     UI::Element*     imageCloudy = nullptr;           // +0x1B0 1
     UI::Element*     imagePartlySunny = nullptr;      // +0x1B8 2

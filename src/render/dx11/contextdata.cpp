@@ -353,24 +353,27 @@ const GUID kIID_ID3D11Texture2D =
 
 // Returns true exactly once, on the Nth ContextData::Finish call.
 bool ForceDeviceLostThisFrame() {
-    static int  wanted = -2;      // -2 = not yet read, -1 = disabled, -3 = on request (`bgsave`)
+    // A DeviceLostDrive::Wanted mode, or > 0: the Present # to inject on.
+    static int  wanted = static_cast<int>(DeviceLostDrive::Wanted::NotRead);
     static long frame  = 0;
     static bool fired  = false;
-    if (wanted == -2) {
+    if (wanted == static_cast<int>(DeviceLostDrive::Wanted::NotRead)) {
         const char* v = Opt().forceDeviceLost;
-        wanted = DeviceLostDrive::Armed() ? -3 : (v && *v) ? ClampedAtoi(v) : -1;
+        wanted = DeviceLostDrive::Armed() ? static_cast<int>(DeviceLostDrive::Wanted::OnRequest)
+                 : (v && *v)               ? ClampedAtoi(v)
+                                           : static_cast<int>(DeviceLostDrive::Wanted::Disabled);
         if (wanted > 0)
             std::fprintf(stderr,
                 "[DeviceLost] ARMED: a synthetic DXGI_ERROR_DEVICE_RESET will be "
                 "injected on Present #%d (PLAN 5.5 forced device-lost drive)\n",
                 wanted);
-        if (wanted == -3)
+        if (wanted == static_cast<int>(DeviceLostDrive::Wanted::OnRequest))
             std::fprintf(stderr, "[DeviceLost] ARMED: a synthetic DXGI_ERROR_DEVICE_RESET will be "
                                  "injected on the first Present after a background save starts\n");
     }
     ++frame;
     // BANISHED_FORCE_DEVICE_LOST=bgsave (src/diag/device_lost_drive.h): once, on request.
-    if (wanted == -3) {
+    if (wanted == static_cast<int>(DeviceLostDrive::Wanted::OnRequest)) {
         if (fired || !DeviceLostDrive::TakeRequest()) return false;
         fired = true;
         return true;

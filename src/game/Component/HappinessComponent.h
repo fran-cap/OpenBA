@@ -48,7 +48,7 @@ public:
     // message 0: spend one stored good that meets _goodsFlags (the tavern's ale)
     void          OnMessage(int message, void* data,
                             uint32_t arg0, uint32_t arg1) override;  // [15] 0x14004a780
-    int         GetDefaultState() const override { return 2; }  // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }  // [17] 0x140005be0
 
     // ---- non-virtual members (retail addresses; RCX = this) ----
@@ -57,9 +57,9 @@ public:
     void  Register();                                             // 0x14004a4f0
     void  Unregister();                                           // 0x14004a4a0
     // state handlers (the controller hands them its owner, node+0x18)
-    char  StateBuiltEnter();                                      // 0x14004a9f0 (states 2, 13)
-    char  StateBuiltPerFrame();                                   // 0x14004a9a0 (states 2, 13)
-    char  StateDemolishEnter();                                   // 0x14004a940 (state 3)
+    char  StateBuiltEnter();                                      // 0x14004a9f0 (states Built, Producing)
+    char  StateBuiltPerFrame();                                   // 0x14004a9a0 (states Built, Producing)
+    char  StateDemolishEnter();                                   // 0x14004a940 (state Demolish)
 
     // PUBLIC while the ported bodies read them by name (B38 decision 1).
     bool            registered;    // +0x28 on the town's happiness list (Persist 0x14004aa80: Serialize(bool&))

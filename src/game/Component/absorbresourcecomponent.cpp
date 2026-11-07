@@ -131,7 +131,7 @@ static void AbsorbResourceComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = AbsorbResourceCtrlDispatch::table;
     if (t.count != 0) return;                      // idempotent
-    TableRegisterState(t, 0, nullptr, nullptr,
+    TableRegisterState(t, BuildingState::ClearSite, nullptr, nullptr,
                        &AbsorbResourceState0Tick, nullptr);
 }
 static const bool s_absorbResourceStateTableBuilt = (AbsorbResourceComponent_PopulateStateTable(), true);

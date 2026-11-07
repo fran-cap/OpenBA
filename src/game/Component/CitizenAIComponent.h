@@ -43,6 +43,31 @@ static_assert(offsetof(StateCandidateList, data) == 0x0, "");
 static_assert(offsetof(StateCandidateList, count) == 0x8, "");
 static_assert(offsetof(StateCandidateList, capacity) == 0xc, "");
 
+// The decision states (CitizenAIComponent::state / queuedState, StateCandidate::id, the
+// timers[] index). Values are retail's: ValidateAndEnterState 0x14010f1f0 switches on them
+// and BuildCandidateStateList 0x14010dca0 appends them. Named from behaviour; the handler
+// names in the class below are Ghidra's (several are misnomers), kept with their addresses.
+enum class CitizenAIState : int32_t {
+    None          = -1,    // queuedState only: nothing queued (ctor, reset after TransitionState)
+    Eat           = 0,     // State_AdultTransition 0x14010cd80 (misnomer): hunger above desc _fc8
+    Warm          = 1,     // State_ElderTransition 0x14010d2c0 (misnomer): coldness above desc _fe8
+    FindHousing   = 2,     // State_FindHousing 0x14010b340
+    GetClothing   = 3,     // State_Education 0x14010c360 (misnomer): clothingLevel == 0, finder category 4
+    GetHealthItem = 4,     // State_GrowUp 0x14010c890 (misnomer): health below desc _f74, finder category 3
+    SeekCare      = 5,     // State_Work 0x14010d790 (misnomer): sick, go to the care building
+    GatherFood    = 6,     // State_GatherResources 0x14010bc90: !HasSufficientResources
+    GatherFuel    = 7,     // State_GatherResources2 0x14010b3e0: !HasSufficientResources2
+    GetTool       = 8,     // State_SeekHappiness 0x14010c580 (misnomer): field_0xAC < 1, finder category 2
+    Idle          = 9,     // State_Idle 0x14010b2d0
+    AttendSchool  = 10,    // State_FindWork 0x14010d560 (misnomer): walk to the school
+    Wander        = 11,    // State_Wander 0x14010a2b0: a child not at school
+    Leisure       = 12,    // State_Leisure 0x14010a560 (the ctor's initial state)
+    LongTermPlan  = 13,    // CitizenComponent::LongTermPlan 0x140115e60: carrying something
+    EatUrgent     = 14,    // the Eat handler at priority 7 (hunger above desc _fcc); save version 5
+    WarmUrgent    = 15,    // the Warm handler at priority 7 (coldness above desc _fec); save version 5
+};
+static_assert(sizeof(CitizenAIState) == 4, "CitizenAIState is stored as an int32_t");
+
 class CitizenAIComponent final : public Component {
     DECLARE_EXE_TYPE(CitizenAIComponent)
 
@@ -64,7 +89,7 @@ public:
     void     CheckEducation();                                    // 0x14010f7a0
     void     CheckAge();                                          // 0x14010f890
     void     BuildCandidateStateList(StateCandidateList* outList, char needsOnly); // 0x14010dca0
-    int      ValidateAndEnterState(int state);                    // 0x14010f1f0
+    int      ValidateAndEnterState(CitizenAIState state);         // 0x14010f1f0
     uint64_t CanReachHome();                                      // 0x14010db20 (tree: "helper_db20")
     // The state handlers ValidateAndEnterState dispatches (Ghidra's names; several
     // are misnomers, see the comments at the switch).
@@ -84,10 +109,10 @@ public:
 
     // PUBLIC while the ported bodies read them (B38 decision 1).
     // Fields (B.4 W1 COMP-b) from the ctor 0x14010fb70 and Persist 0x14010f960.
-    int32_t  state;              // +0x28 int (serialized, version > 1), ctor 0xc: the state
-                                 //       TransitionState entered
-    int32_t  queuedState;        // +0x2C int (serialized first), ctor -1: tried before the
-                                 //       candidate list, then reset to -1
+    CitizenAIState state;        // +0x28 int (serialized, version > 1), ctor Leisure (0xc): the
+                                 //       state TransitionState entered
+    CitizenAIState queuedState;  // +0x2C int (serialized first), ctor None (-1): tried before the
+                                 //       candidate list, then reset to None
     bool     seekingFood;        // +0x30 bool (version > 0), ctor 0 (one word store with +0x31):
                                  //       Decide sets it when the hunger transition enters state 0xe
     bool     seekingWarmth;      // +0x31 bool (version > 0): the same for coldness and state 0xf
@@ -115,6 +140,8 @@ static_assert(sizeof(CitizenAIComponent) == 0xD0, "CitizenAIComponent is 0xd0 (c
 static_assert(alignof(CitizenAIComponent) == 8, "CitizenAIComponent alignment");
 static_assert(offsetof(CitizenAIComponent, state)         == 0x28, "");
 static_assert(offsetof(CitizenAIComponent, queuedState)   == 0x2C, "");
+static_assert(sizeof(CitizenAIComponent::state) == 4, "state is an int32_t");
+static_assert(sizeof(CitizenAIComponent::queuedState) == 4, "queuedState is an int32_t");
 static_assert(offsetof(CitizenAIComponent, seekingFood)   == 0x30, "");
 static_assert(offsetof(CitizenAIComponent, seekingWarmth) == 0x31, "");
 static_assert(offsetof(CitizenAIComponent, _pad32)        == 0x32, "");

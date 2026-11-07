@@ -213,7 +213,7 @@ char BuildComponent::State1Update(StateMachine* sm) {
     }
     if (haveAll) {
         BC8_StopWorker(this);
-        ::ControllerLive::RequestStateTransition(sm, 8);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Construct);
     }
     return 1;
 }
@@ -334,7 +334,7 @@ char BuildComponent::State8Enter(StateMachine* sm) {
                 pickingComponents[i].Get()->RefreshMesh();  // lane D: deref the IBP -- retail takes the PickingComponent, not its slot
             }
         }
-        ::ControllerLive::RequestStateTransition(sm, 2);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Built);
     }
     return 1;
 }
@@ -425,7 +425,7 @@ char BuildComponent::State8Update(StateMachine* sm) {
                 pickingComponents[i].Get()->RefreshMesh();  // lane D: deref the IBP -- retail takes the PickingComponent, not its slot
             }
         }
-        ::ControllerLive::RequestStateTransition(sm, 2);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Built);
     }
     return 1;
 }

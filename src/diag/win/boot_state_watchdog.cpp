@@ -249,7 +249,7 @@ void WriteHangDump(const char* phase, unsigned uptimeSec, unsigned frame,
 }
 
 DWORD WINAPI WatchdogThread(LPVOID) {
-    const char* lastState = "";
+    const char* lastState = BootStateName(BootStateId::None);
     unsigned    blockedTicks = 0;
     LONG        lastFrame    = -1;
     DWORD       lastMoveTick = GetTickCount();
@@ -270,8 +270,8 @@ DWORD WINAPI WatchdogThread(LPVOID) {
             lastMoveTick = now;
             hungReported = false;
         }
-        if (quitting && std::strcmp(lastState, "QUITTING") != 0 &&
-            std::strcmp(lastState, "HUNG") != 0) {
+        if (quitting && std::strcmp(lastState, BootStateName(BootStateId::Quitting)) != 0 &&
+            std::strcmp(lastState, BootStateName(BootStateId::Hung)) != 0) {
             lastMoveTick = now;
             hungReported = false;
         }
@@ -283,12 +283,14 @@ DWORD WINAPI WatchdogThread(LPVOID) {
         // A modal Win32 dialog is a BLOCKED boot, not a hang, and it is tested
         // first so it keeps its own verdict and its own instructions.
         const char* phase = quitting
-            ? "QUITTING"
-            : (InterlockedCompareExchange(&g_startupComplete, 0, 0) ? "RUNNING" : "BOOTING");
+            ? BootStateName(BootStateId::Quitting)
+            : (InterlockedCompareExchange(&g_startupComplete, 0, 0) ? BootStateName(BootStateId::Running)
+                                                                    : BootStateName(BootStateId::Booting));
         const unsigned budget = quitting ? kHungQuittingSec : kHungRunningSec;
         const bool hung = !blocked && (staleSec >= budget);
 
-        const char* state = blocked ? "BLOCKED_DIALOG" : (hung ? "HUNG" : phase);
+        const char* state = blocked ? BootStateName(BootStateId::BlockedDialog)
+                                    : (hung ? BootStateName(BootStateId::Hung) : phase);
 
         WriteStateFile(state, uptimeSec, (unsigned)frame, staleSec,
                        blocked ? title : (hung ? phase : "-"));
@@ -333,7 +335,7 @@ DWORD WINAPI WatchdogThread(LPVOID) {
             }
             ++blockedTicks;
         } else {
-            if (changed && std::strcmp(state, "RUNNING") == 0) {
+            if (changed && std::strcmp(state, BootStateName(BootStateId::Running)) == 0) {
                 // CPULIMIT: the process mask and core counts ride on the RUNNING line, so
                 // every run (and every stress A/B leg) proves its sys.cpu_limit.
                 char cpu[192];
@@ -342,7 +344,7 @@ DWORD WINAPI WatchdogThread(LPVOID) {
                              uptimeSec, cpu);
                 std::fflush(stderr);
             }
-            if (changed && std::strcmp(state, "QUITTING") == 0) {
+            if (changed && std::strcmp(state, BootStateName(BootStateId::Quitting)) == 0) {
                 std::fprintf(stderr, "[BootState] QUITTING at %us after %d frames "
                                      "(teardown budget %us)\n",
                              uptimeSec, static_cast<int32_t>(frame), kHungQuittingSec);
@@ -364,7 +366,7 @@ DWORD WINAPI WatchdogThread(LPVOID) {
 
 // The line Stop() writes: EXITED / clean-shutdown unless SetExitState named another
 // (boot_state_watchdog.h).
-char g_exitState[32]   = "EXITED";
+char g_exitState[32]   = "EXITED";   // BootStateName(BootStateId::Exited)
 char g_exitDetail[512] = "clean-shutdown";
 
 }  // namespace
@@ -383,7 +385,7 @@ void Start() {
     g_mainThreadId = GetCurrentThreadId();   // Start() is called from WinMain
     // Publish BOOTING immediately: a run that dies before the first tick should still
     // leave a file saying it got this far, rather than none at all.
-    WriteStateFile("BOOTING", 0, 0, 0, "-");
+    WriteStateFile(BootStateName(BootStateId::Booting), 0, 0, 0, "-");
     g_thread = CreateThread(nullptr, 0, &WatchdogThread, nullptr, 0, nullptr);
     if (!g_thread) {
         std::fprintf(stderr, "[BootState] WARNING: watchdog thread failed to start "

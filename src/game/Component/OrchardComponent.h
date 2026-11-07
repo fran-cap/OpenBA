@@ -38,11 +38,20 @@ class ComponentDescription;
 
 struct OrchardCtrlTag { using Owner = class OrchardComponent; };   // the handlers' receiver (controller_state_table.h)
 
+// OrchardSlot::state (+0x04). Values are retail's: the grid is laid out Empty, the msg-0 bind sets
+// Planted (tree + resource + fruit bound) or Hole (unusable), and ValidateRefs demotes a stale
+// Planted slot to Hole. OrchardHoleCount counts the Holes for the replant.
+enum class OrchardSlotState : int32_t {
+    Empty   = 0,
+    Planted = 1,
+    Hole    = 2,
+};
+
 // One tree position of the orchard, stride 0x28 (Array element of +0x50; resized by
 // 0x140009f80, serialized by 0x14000a230 as int, int, three InternalPtrs, bool).
 struct OrchardSlot {
     int32_t                   tile;       // +0x00 cell index into the Map's cell array
-    int32_t                   state;      // +0x04 0 empty, 1 planted (bound), 2 hole
+    OrchardSlotState          state;      // +0x04 empty / planted (bound) / hole
     Object::InternalPtr<ComponentEntity>          tree;       // +0x08 the tree on the cell
     Object::InternalPtr<NaturalResourceComponent> resource;   // +0x10
     Object::InternalPtr<FruitComponent>           fruit;      // +0x18
@@ -53,6 +62,7 @@ static_assert(sizeof(OrchardSlot) == 0x28, "OrchardSlot stride 0x28 (0x140009f80
 static_assert(offsetof(OrchardSlot, tile) == 0x0, "OrchardSlot::tile");
 static_assert(offsetof(OrchardSlot, _pad21) == 0x21, "OrchardSlot::_pad21");
 static_assert(offsetof(OrchardSlot, state) == 0x04, "OrchardSlot +0x04");
+static_assert(sizeof(OrchardSlotState) == 4, "OrchardSlot::state is an int32_t");
 static_assert(offsetof(OrchardSlot, tree) == 0x08, "OrchardSlot +0x08");
 static_assert(offsetof(OrchardSlot, resource) == 0x10, "OrchardSlot +0x10");
 static_assert(offsetof(OrchardSlot, fruit) == 0x18, "OrchardSlot +0x18");
@@ -74,7 +84,7 @@ public:
     void          Command(int command) override;                        // [14] 0x140051ba0
     void          OnMessage(int message, void* data,
                             uint32_t arg0, uint32_t arg1) override;     // [15] 0x140051990
-    int         GetDefaultState() const override { return 2; }          // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }          // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }       // [17] 0x140004080
 
     // ---- non-virtual members (retail addresses; orchardcomponent*.cpp) ----
@@ -82,22 +92,22 @@ public:
     void  ValidateRefs();                               // 0x140051830
     float GetGrowth() const;                            // 0x140051640
     // The state table's handlers (the controller hands them this component).
-    char EnterIdle();                                   // 0x140051530 state 2
+    char EnterIdle();                                   // 0x140051530 state Built
     char TickIdle(StateMachine* sm);                            // 0x1400514c0
-    char OnPlantEvent(StateMachine* sm);                        // 0x140051450 event 3
-    char EnterPlanting();                               // 0x140051070 state 9
+    char OnPlantEvent(StateMachine* sm);                        // 0x140051450 event Plant
+    char EnterPlanting();                               // 0x140051070 state Plant
     char TickPlanting(StateMachine* sm);                        // 0x140050f90
-    char OnHarvestEvent(StateMachine* sm);                      // 0x140050900 event 4
-    char OnClearEvent(StateMachine* sm);                        // 0x1400513e0 event 5
+    char OnHarvestEvent(StateMachine* sm);                      // 0x140050900 event Harvest
+    char OnClearEvent(StateMachine* sm);                        // 0x1400513e0 event Clear
     char TryHarvest(StateMachine* sm);                          // 0x140051580
-    char EnterTending(StateMachine* sm);                        // 0x140050e30 state 10
-    char UpdateTending();                               // 0x140050ba0 (state 12's 0x1400509b0 is the same body)
+    char EnterTending(StateMachine* sm);                        // 0x140050e30 state Tend
+    char UpdateTending();                               // 0x140050ba0 (Replant's 0x1400509b0 is the same body)
     char TickTending(StateMachine* sm);                         // 0x140050c00
-    char EnterReplanting();                             // 0x140050ae0 state 12
+    char EnterReplanting();                             // 0x140050ae0 state Replant
     char TickReplanting(StateMachine* sm);                      // 0x140050a10
-    char EnterHarvesting();                             // 0x140050800 state 11
+    char EnterHarvesting();                             // 0x140050800 state Harvest
     char TickHarvesting(StateMachine* sm);                      // 0x140050650
-    char EnterClearing();                               // 0x1400504e0 state 20
+    char EnterClearing();                               // 0x1400504e0 state OrchardClear
     char UpdateClearing();                              // 0x1400503e0
     char TickClearing(StateMachine* sm);                        // 0x140050430
 

@@ -23,9 +23,9 @@
 //   if saveName is empty:
 //       GameUpdateLoop(0x160) ctor'd with the scenario's worldgen params
 //   else:
-//       SaveLoad::SetOperation(3,0); SetSaveName(saveName, 2);
+//       SaveLoad::SetOperation(kOpLoadFromFile,0); SetSaveName(saveName, 2);
 //       swap Persistence+0x90 to the DATA directory, pump SaveLoad::Update
-//       until GetOperation()==0, restore Persistence+0x90;
+//       until GetOperation()==kOpNone, restore Persistence+0x90;
 //       GameUpdateLoop ctor'd from SaveLoad::GetSaveState()
 //   then GameLoadDialogLoopT(0xb60) -> LoaderLoop(0x48) -> publish on the
 //   GAME WORLD singleton (cursor + fade on its UI at +0x98, next loop at +0xC8).
@@ -220,7 +220,7 @@ void TutorialInstance::LoadNextScenario() {
         }
 
         Save::SaveLoad* saveLoad = ::Save::SaveLoad::_singleton;
-        saveLoad->SetOperation(static_cast<Save::SaveLoad::Operation>(3), 0);
+        saveLoad->SetOperation(Save::SaveLoad::kOpLoadFromFile, 0);
         saveLoad->SetSaveName(saveNameStr, 2);
 
         // Tutorial saves live inside WinData/*.pkg, so Persistence+0x90 must
@@ -234,13 +234,13 @@ void TutorialInstance::LoadNextScenario() {
         System::Filename dataDirBuf(fileSystem->GetDataDirectory());
         ::IO::Persistence::_singleton->_savePath = dataDirBuf.AsString();
 
-        int operation = static_cast<int>(saveLoad->GetOperation());
+        Save::SaveLoad::Operation operation = saveLoad->GetOperation();
         int loopCount = 0;
-        while (operation != 0) {
+        while (operation != Save::SaveLoad::kOpNone) {
             System::Time zeroTime{};
             RtSystem_Time_Ctor(&zeroTime, 0.0f);
             saveLoad->Update(zeroTime);
-            operation = static_cast<int>(saveLoad->GetOperation());
+            operation = saveLoad->GetOperation();
             ++loopCount;
         }
         fprintf(stderr, "[TutNext] SaveLoad pump finished after %d iterations\n", loopCount);

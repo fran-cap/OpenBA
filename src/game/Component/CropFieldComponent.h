@@ -41,13 +41,21 @@ namespace IO { class Serializer; }
 
 struct CropFieldCtrlTag { using Owner = class CropFieldComponent; };   // the handlers' receiver (controller_state_table.h)
 
+// CropSlot::state (+0x04). Values fixed by retail; the field stays int32_t.
+enum class CropSlotState : int32_t {
+    Empty   = 0,   // no crop on the cell (state 9 enter resets every slot here)
+    Growing = 1,   // a plant is bound (OnMessage message 0)
+    Done    = 2,   // finished for this cycle: closed off by MarkPlantSlots, or a stale/harvested crop
+};
+static_assert(sizeof(CropSlotState) == sizeof(int32_t), "CropSlotState is stored in an int32_t");
+
 // One cell of the field's slot grid (0x20 bytes). Persist 0x14011ae70's element
 // helper 0x1400336c0 serializes int, int, InternalBasePtr (IsDerivedFrom
 // ComponentEntity 0x1401c5d70), InternalBasePtr (IsDerivedFrom
 // NaturalResourceComponent 0x1401c7b30), bool.
 struct CropSlot {
     int32_t cell;                                            // +0x00 map cell index
-    int32_t state;                                           // +0x04 0 empty, 1 growing, 2 done
+    int32_t state;                                           // +0x04 CropSlotState (raw int32_t)
     Object::InternalPtr<ComponentEntity>          entity;    // +0x08 the planted entity
     Object::InternalPtr<NaturalResourceComponent> resource;  // +0x10 its natural resource
     bool    plantHere;                                       // +0x18 this cell gets a crop
@@ -99,13 +107,13 @@ public:
     void          Command(int command) override;                        // [14] 0x14011acc0
     void          OnMessage(int message, void* data,
                             uint32_t arg0, uint32_t arg1) override;     // [15] 0x14011ab50
-    int         GetDefaultState() const override { return 2; }          // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }       // [17] 0x140004080
 
     // ---- non-virtual members (retail addresses; RCX = this) ----
     void  ValidateEntityRefs();                                         // 0x14011aa20
     float Maturity();                                                   // 0x14011b410
-    void  MarkPlantSlots();                                             // 0x14011b390 (state 9: empty slots -> 2; work_leaf_clear.cpp)
+    void  MarkPlantSlots();                                             // 0x14011b390 (Plant: empty slots -> Done; work_leaf_clear.cpp)
     void  PushAccepting();   // the WorkPlaceComponent accepting push 0x14011a920 / 0x14011a7b0 share
     // The state handlers of the controller's table (RCX = [node+0x18] = this).
     char  State2Enter();                                                // 0x14011a920

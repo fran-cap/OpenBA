@@ -233,7 +233,7 @@ void DumpOrchards(int frameNum) {
         if (slots && slotCount > 0) {
             for (int s = 0; s < slotCount; ++s) {
                 const OrchardSlot& slot = slots[s];              // stride 0x28
-                int32_t state = slot.state;                      // +0x04
+                int32_t state = static_cast<int32_t>(slot.state); // +0x04
                 if (state >= -1 && state < kStateBuckets - 1) stateHist[state + 1]++;
                 else ++otherStates;
                 if (slot.tree != nullptr) ++nonNullEntity;       // +0x08

@@ -56,6 +56,8 @@
 #include "Component/ControllerComponent.h"   // ControllerComponent::Controller (the node)
 #include "Component/StateMachineComponent.h" // StateMachine (the machine the handlers receive)
 #include "Component/sm_memo.h"               // SMMEMO: the trans30 handler count
+#include "Component/BuildingState.h"         // BuildingState / BuildingEvent (the table ids)
+#include <type_traits>
 
 namespace ControllerLive {
 
@@ -175,6 +177,27 @@ inline void TableAddEvent(StateTable<Owner>& t, int eventId,
     ev.eventId = eventId;
     ev.handler = handler;
     ++e.eventCount;
+}
+// Enum spellings of the three populators (BuildingState / BuildingEvent, or a Boat /
+// Nomad enum): forward the retail value to the int versions above. A plain int argument
+// still picks the int version (the template drops out for a non-enum E).
+template <class Owner, class E, typename std::enable_if<std::is_enum<E>::value, int>::type = 0>
+inline void TableRegisterState(StateTable<Owner>& t, E id,
+                               typename StateHandlers<Owner>::Enter enterH,
+                               typename StateHandlers<Owner>::Tick trans30H,
+                               typename StateHandlers<Owner>::Tick trans38H,
+                               typename StateHandlers<Owner>::Update updateH) {
+    TableRegisterState(t, static_cast<int>(id), enterH, trans30H, trans38H, updateH);
+}
+template <class Owner, class E, typename std::enable_if<std::is_enum<E>::value, int>::type = 0>
+inline void TableAddTransition(StateTable<Owner>& t, E targetId,
+                               typename StateHandlers<Owner>::Transition handler) {
+    TableAddTransition(t, static_cast<int>(targetId), handler);
+}
+template <class Owner, class E, typename std::enable_if<std::is_enum<E>::value, int>::type = 0>
+inline void TableAddEvent(StateTable<Owner>& t, E eventId,
+                          typename StateHandlers<Owner>::Event handler) {
+    TableAddEvent(t, static_cast<int>(eventId), handler);
 }
 // The real Step search: first entry whose id == input, else -1 (orig 0x14002f6d0).
 template <class Owner>
@@ -362,6 +385,12 @@ inline void RequestStateTransition(::StateMachine* m, int desiredStateId) {
         m->transitionState = static_cast<int8_t>(idx);
         m->pendingState = static_cast<int8_t>(desired);
     }
+}
+
+// Enum spelling of RequestStateTransition (BuildingState, or a Boat / Nomad enum).
+template <class E, typename std::enable_if<std::is_enum<E>::value, int>::type = 0>
+inline void RequestStateTransition(::StateMachine* m, E desiredState) {
+    RequestStateTransition(m, static_cast<int>(desiredState));
 }
 
 }  // namespace ControllerLive

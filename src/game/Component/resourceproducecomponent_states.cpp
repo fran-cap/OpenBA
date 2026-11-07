@@ -80,7 +80,7 @@ using RPDispatch = ::ControllerLive::Dispatcher<RPCtrlTag>;
 // (the panel's pause bit), zeroed by ResourceProduceComponent_Ctor.
 static char RP_State2Enter(ResourceProduceComponent* self, StateMachine* sm) {
     const bool paused = self->produceFlag;
-    const int target = paused ? 14 : 13;
+    const int target = paused ? SmId(BuildingState::Paused) : SmId(BuildingState::Producing);
     ::ControllerLive::RequestStateTransition(sm, target);
     return 0;
 }
@@ -106,7 +106,7 @@ static char RP_State13Enter(ResourceProduceComponent* self, StateMachine* sm) {
     // and "bounced to paused" are distinguishable.
 
     if (rp->produceFlag) {
-        ::ControllerLive::RequestStateTransition(sm, 14);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Paused);
         return 1;
     }
 
@@ -235,7 +235,7 @@ static char RP_Event3Pause(ResourceProduceComponent* /*self*/, StateMachine* sm)
     // producing workplace: state 14 calls SetAccepting(false), which raises the
     // "work is disabled at this location" sign AND evicts the roster. Trace the
     // poster — an unasked-for pause is the whole bug.
-    ::ControllerLive::RequestStateTransition(sm, 14);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Paused);
     return 1;
 }
 
@@ -245,7 +245,7 @@ static char RP_Event3Pause(ResourceProduceComponent* /*self*/, StateMachine* sm)
 static char RP_Event3Resume(ResourceProduceComponent* self, StateMachine* sm) {
     const bool paused = self->produceFlag;
     if (!paused) {
-        ::ControllerLive::RequestStateTransition(sm, 13);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Producing);
     }
     return 1;
 }
@@ -271,9 +271,10 @@ uint32_t ResourceProduceComponent::CommandMask(int /*command*/) {
     int8_t cur = smc->stateMachine.pendingState;
     if (cur < 0) cur = smc->stateMachine.currentInput;
 
-    uint8_t mask = (cur != 14) ? 2 : 0;
+    uint8_t mask = (cur != StateByte(BuildingState::Paused)) ? 2 : 0;
     if (!produceFlag)
-        mask |= (static_cast<uint32_t>(cur - 13) < 2u) ? 1 : 0;
+        // Producing or Paused (13 / 14): retail's unsigned range test.
+        mask |= (static_cast<uint32_t>(cur - StateByte(BuildingState::Producing)) < 2u) ? 1 : 0;
     return mask;
 }
 
@@ -311,7 +312,7 @@ void ResourceProduceComponent::Command(int /*command*/) {
     if (node) {
         // node = the controller member the StateMachineComponent linked (D6); slot 2.
         const int curIdx = sm.activeState;
-        node->PostEvent(&sm, curIdx, 0);
+        node->PostEvent(&sm, curIdx, SmId(BuildingEvent::TogglePause));
     }
 
     // Force an immediate StateMachineComponent tick (its vtable slot 8) with Time(0).
@@ -331,33 +332,33 @@ static void RPCtrl_PopulateTable() {
     if (t.count != 0) return;                       // idempotent
 
     // ── state 2 — DEFAULT / idle ──────────────────────────────────────────────────
-    TableRegisterState(t, 2, &RP_State2Enter, nullptr,
+    TableRegisterState(t, BuildingState::Built, &RP_State2Enter, nullptr,
                        nullptr, nullptr);
     // ->13 carries retail's 0x14012af90 (14012b24e LEA RDX,[0x14012af90]), which
     // stamps the building's work positions into the map (terrain byte +0x29 = 2).
-    TableAddTransition(t, 13, &RP_Trans2to13);
-    TableAddTransition(t, 14, nullptr);
-    TableAddTransition(t, 3,  nullptr);
+    TableAddTransition(t, BuildingState::Producing, &RP_Trans2to13);
+    TableAddTransition(t, BuildingState::Paused, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
 
     // ── state 13 — PRODUCING ──────────────────────────────────────────────────────
-    TableRegisterState(t, 13, &RP_State13Enter, nullptr,
+    TableRegisterState(t, BuildingState::Producing, &RP_State13Enter, nullptr,
                        &RP_State13PerFrame, nullptr);
-    TableAddTransition(t, 14, nullptr);
-    TableAddTransition(t, 3,  &RP_Trans13to3);
+    TableAddTransition(t, BuildingState::Paused, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, &RP_Trans13to3);
     // Event id 0, NOT 3 — retail's registrar 0x140037f90 hardcodes 0 and discards the id
     // argument (see the byte listing on ResourceProduceComponent_Command above). Slot 14
     // posts 0, so registering 3 here meant PostEvent's linear scan never matched and the
     // work pause button did nothing.
-    TableAddEvent(t, 0, &RP_Event3Pause);
+    TableAddEvent(t, BuildingEvent::TogglePause, &RP_Event3Pause);
 
     // ── state 14 — PAUSED / not accepting ─────────────────────────────────────────
-    TableRegisterState(t, 14, &RP_State14Enter, nullptr,
+    TableRegisterState(t, BuildingState::Paused, &RP_State14Enter, nullptr,
                        nullptr, nullptr);
-    TableAddTransition(t, 13, nullptr);
-    TableAddTransition(t, 3,  nullptr);
+    TableAddTransition(t, BuildingState::Producing, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
     // Event id 0 for the same reason as the pause handler above. State 13 maps 0 -> Pause
     // and state 14 maps 0 -> Resume, so the single posted event toggles.
-    TableAddEvent(t, 0, &RP_Event3Resume);
+    TableAddEvent(t, BuildingEvent::TogglePause, &RP_Event3Resume);
 }
 
 // Built ONCE at static-init time, as retail's ResourceProduceDescription setup does

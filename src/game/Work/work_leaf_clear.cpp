@@ -38,6 +38,7 @@
 #include "Entity/ComponentEntity.h"       // ENDGAME B.3.9 D5: ComponentEntity::TypeId()
 #include "Component/CitizenComponent.h"   // ENDGAME B.3.9 D5: CitizenComponent::TypeId()
 #include "Component/CropFieldComponent.h"
+#include "Component/BuildingState.h"
 #include "Component/StateMachineComponent.h"
 #include "Work/Work.h"          // WorkEntityAssignment / WorkEntitySetNode
 #include "Game/Map.h"
@@ -58,8 +59,8 @@
 // RCX is the field's CropFieldComponent (its +0x10 entity, +0x58 slot grid; the
 // address sits among CropFieldComponent's bodies): a member of that class.
 // Reads the entity's StateMachineComponent state byte (the pending state, or the
-// input when none is pending). If state == 0x09 AND the field has slots, every slot
-// whose state is 0 (empty) becomes 2 (mark the plant slot pending).
+// input when none is pending). If state == 9 (BuildingState::Plant) AND the field has
+// slots, every Empty slot becomes Done (mark the plant slot pending).
 // Closure: 0x140003ea0 (FindComponent<StateMachineComponent>). SAFE.
 void CropFieldComponent::MarkPlantSlots() {
     StateMachineComponent* machine = _entity->FindComponent<StateMachineComponent>();   // 0x140003ea0
@@ -68,10 +69,12 @@ void CropFieldComponent::MarkPlantSlots() {
     if (state < 0) state = machine->stateMachine.currentInput;
 
     int count = slots._size;
-    if (state == '\t' && count > 0) {
+    if (state == StateByte(BuildingState::Plant) && count > 0) {
         CropSlot* slots = this->slots._data;
         for (int i = 0; i < count; i++) {
-            if (slots[i].state == 0) slots[i].state = 2;
+            if (static_cast<CropSlotState>(slots[i].state) == CropSlotState::Empty) {
+                slots[i].state = static_cast<int32_t>(CropSlotState::Done);
+            }
         }
     }
 }

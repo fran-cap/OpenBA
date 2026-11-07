@@ -102,9 +102,9 @@ static void MultiObjectComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = MultiObjectCtrlDispatch::table;
     if (t.count != 0) return;                      // idempotent
-    TableRegisterState(t, 2, &MultiObjectEnterState2,
+    TableRegisterState(t, BuildingState::Built, &MultiObjectEnterState2,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 3, nullptr);
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
 }
 static const bool s_multiObjectStateTableBuilt = (MultiObjectComponent_PopulateStateTable(), true);
 

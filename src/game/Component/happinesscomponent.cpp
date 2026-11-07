@@ -385,17 +385,17 @@ static void HappinessComponent_PopulateStateTable() {
     using namespace ::ControllerLive;
     auto& t = HappinessCtrlDispatch::table;
     if (t.count != 0) return;                      // idempotent
-    TableRegisterState(t, 2, &Happiness_StateBuiltEnter,
+    TableRegisterState(t, BuildingState::Built, &Happiness_StateBuiltEnter,
                        nullptr, &Happiness_StateBuiltPerFrame, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 13, &Happiness_StateBuiltEnter,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Producing, &Happiness_StateBuiltEnter,
                        nullptr, &Happiness_StateBuiltPerFrame, nullptr);
-    TableAddTransition(t, 3, nullptr);
-    TableRegisterState(t, 3, &Happiness_StateDemolishEnter,
+    TableAddTransition(t, BuildingState::Demolish, nullptr);
+    TableRegisterState(t, BuildingState::Demolish, &Happiness_StateDemolishEnter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 6, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
 }
 static const bool s_happinessStateTableBuilt = (HappinessComponent_PopulateStateTable(), true);
 

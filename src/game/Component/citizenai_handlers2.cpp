@@ -141,7 +141,7 @@ uint64_t CitizenAIComponent::State_Education() {
     // cooldown stamp: Time(DAT_1721fc) -> timers[3]
     System::Time timeStamp{};
     RtSystem_Time_Ctor(&timeStamp, kRdata_1401721fc);
-    timers[3] = timeStamp;
+    timers[static_cast<int32_t>(CitizenAIState::GetClothing)] = timeStamp;
 
     if (citizen->clothingLevel != 0) {
         return 0;  // low byte 0 (retail's RAX carries the citizen pointer above it)
@@ -195,7 +195,7 @@ uint64_t CitizenAIComponent::State_Education() {
     CitizenAI_PerformWorkCtor10_bccb0(&ibpHolder, &foundEntity, dest, local_res8);
 
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizen->field_0xB0 = 0;
+    citizen->lastErrand = CitizenErrand::None;
     citizen->field_0x30 = -1;
 
     return 1;  // CONCAT71(.., 1) -> low byte 1
@@ -215,7 +215,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
 
     System::Time timeStamp{};
     RtSystem_Time_Ctor(&timeStamp, kRdata_1401721fc);
-    timers[8] = timeStamp;
+    timers[static_cast<int32_t>(CitizenAIState::GetTool)] = timeStamp;
 
     if (0 < citizen->field_0xAC) {
         return 0;  // low byte 0
@@ -313,7 +313,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
     CitizenAI_PerformWorkCtor5_bd070(&ibpHolder, &foundEntity, dest, local_res8);
 
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizen->field_0xB0 = 0;
+    citizen->lastErrand = CitizenErrand::None;
     citizen->field_0x30 = -1;
 
     return 1;
@@ -379,7 +379,7 @@ uint64_t CitizenAIComponent::State_FindWork() {
 
         citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizen->field_0x30 = -1;
-        citizen->field_0xB0 = 0;
+        citizen->lastErrand = CitizenErrand::None;
 
         return 1;
     }

@@ -50,7 +50,7 @@ public:
     void          Startup() override {}                           // [4]  0x1400475b0 `RET 0` (own)
     void          OnAdded() override;                             // [6]  0x140047200
     void          OnRemove() override;                            // [7]  0x1400471c0
-    int         GetDefaultState() const override { return 2; }  // [16] 0x1400026c0
+    int         GetDefaultState() const override { return SmId(BuildingState::Built); }  // [16] 0x1400026c0
     Controller* GetController() override { return &_controller; }  // [17] 0x140004080
 
     // ---- non-virtual members (retail addresses) ----

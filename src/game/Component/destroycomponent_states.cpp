@@ -474,7 +474,7 @@ char DestroyComponent::State3Enter(StateMachine* sm) {
     StatusIconComponent* icon = FindOn<StatusIconComponent>(_entity.Get());
     if (icon) icon->ClearAllFlags();
 
-    int nextState = !burning ? 4 : 6;
+    BuildingState nextState = !burning ? BuildingState::HaulAway : BuildingState::Collapse;
     ::ControllerLive::RequestStateTransition(sm, nextState);
 
     // Not burning: the "being demolished or upgraded" icon (BuildingIconSpriteSheet BuildDestroy = flag 5) goes on after the state
@@ -521,7 +521,7 @@ char DestroyComponent::State4Enter(StateMachine* sm) {
     // (partially-built building has nothing to haul) -> straight to state 5.
     if (StorageEmpty() ||
         (prod && Yard_Delivered(prod) < Yard_Required(prod))) {
-        ::ControllerLive::RequestStateTransition(sm, 5);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Deconstruct);
         // Retail 0x14011cfd0 reaches its single `return uVar3 & 0xffffffffffffff00`
         // from this branch too (LAB_14011d139 sets uVar3 = 0 first) — AL is zero, so
         // the enter walk continues to the sibling controllers. Same stop-bit rule as
@@ -556,7 +556,7 @@ char DestroyComponent::State4Tick(StateMachine* sm) {
     if (!StorageEmpty()) return 1;
     WorkComponent* yard = FindOn<WorkComponent>(_entity.Get());
     if (!Destroy_ReclaimPending_ea20(yard)) {
-        ::ControllerLive::RequestStateTransition(sm, 5);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Deconstruct);
         if (yard) yard->CancelWork();
     }
     return 1;
@@ -847,7 +847,7 @@ char DestroyComponent::State7Rebuild(StateMachine* sm) {
     // Retail runs a nested Tick(Time(0)) first when smc[0x51] < 0; ControllerLive's
     // RequestStateTransition bounds-checks the index instead, so a not-yet-settled
     // machine simply defers the request by one tick. See the note on that helper.
-    ::ControllerLive::RequestStateTransition(sm, 5);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Deconstruct);
     return 1;
 }
 
@@ -863,7 +863,7 @@ char DestroyComponent::State7Remove(StateMachine* sm) {
     BuildComponent* prod = FindOn<BuildComponent>(entity);
     if (prod) hasBuildComponent = true;
 
-    ::ControllerLive::RequestStateTransition(sm, 5);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Deconstruct);
     return 1;
 }
 
@@ -878,7 +878,7 @@ char DestroyComponent::State7Remove(StateMachine* sm) {
 // registration exists in dd00, so the handler does too. It reads no field of the
 // component (RCX unused): it stays a free function (B1).
 extern "C" char Destroy_State6Event2_ToRubble_d390(DestroyComponent* /*data*/, StateMachine* sm) {
-    ::ControllerLive::RequestStateTransition(sm, 7);
+    ::ControllerLive::RequestStateTransition(sm, BuildingState::Rubble);
     return 1;
 }
 
@@ -911,14 +911,14 @@ char DestroyComponent::CancelDemolition(StateMachine* sm) {
     if (burning) {
         WorkPlaceComponent* wp = FindOn<WorkPlaceComponent>(entity);
         if (wp) wp->LeaveBuilderProfession();
-        ::ControllerLive::RequestStateTransition(sm, 7);
+        ::ControllerLive::RequestStateTransition(sm, BuildingState::Rubble);
         return 1;
     }
 
-    int next;
+    BuildingState next;
     if (!build) {
         // No build yard: nothing was under construction, go straight back to state 2.
-        next = 2;
+        next = BuildingState::Built;
     } else {
         // Pick the resume state from how far the model got. The variant source is the
         // MultiObjectComponent's (+0x48) first child entity when there is one — the
@@ -935,13 +935,13 @@ char DestroyComponent::CancelDemolition(StateMachine* sm) {
                                           ? static_cast<ModelDescription*>(obj) : nullptr;
 
         if (modelVariant < 0) {
-            next = 0;                       // no mesh chosen yet — back to the start
+            next = BuildingState::ClearSite;   // no mesh chosen yet — back to the start
         } else {
             // group[variantIdx] is a ModelMeshGroup (0x18 bytes); +0x10 is its mesh
             // COUNT (+0x08 the mesh array destroycomponent_state6.cpp walks).
             const ModelMeshGroup* groups = modelDesc->_meshGroups;
             int meshCount = groups[variantIdx].meshCount;
-            next = (modelVariant == meshCount - 1) ? 2 : 8;
+            next = (modelVariant == meshCount - 1) ? BuildingState::Built : BuildingState::Construct;
         }
     }
 
@@ -983,42 +983,42 @@ extern "C" void DestroyCtrl_PopulateTable() {
     auto& t = DestroyDispatch::table;
     if (t.count != 0) return;   // idempotent
 
-    TableRegisterState(t, 3, &DestroyState3Enter,
+    TableRegisterState(t, BuildingState::Demolish, &DestroyState3Enter,
                        nullptr, nullptr, nullptr);
-    TableAddTransition(t, 4, nullptr);
-    TableAddTransition(t, 6, nullptr);
+    TableAddTransition(t, BuildingState::HaulAway, nullptr);
+    TableAddTransition(t, BuildingState::Collapse, nullptr);
 
     // sub_3e50(6, A=d4d0, B=d400, D=d490): A -> enter, B -> update, D -> trans38.
-    TableRegisterState(t, 6, &DestroyState6Enter,
+    TableRegisterState(t, BuildingState::Collapse, &DestroyState6Enter,
                        nullptr, &DestroyState6Tick,
                        &DestroyState6Update);
-    TableAddTransition(t, 7, nullptr);
+    TableAddTransition(t, BuildingState::Rubble, nullptr);
     // sub_4020(2, d390) — state 6's only event.
-    TableAddEvent(t, 2, &Destroy_State6Event2_ToRubble_d390);
+    TableAddEvent(t, BuildingEvent::ToRubble, &Destroy_State6Event2_ToRubble_d390);
 
-    TableRegisterState(t, 7, nullptr, nullptr, nullptr, nullptr);
-    TableAddTransition(t, 0, nullptr);
-    TableAddTransition(t, 8, nullptr);
-    TableAddTransition(t, 5, nullptr);
+    TableRegisterState(t, BuildingState::Rubble, nullptr, nullptr, nullptr, nullptr);
+    TableAddTransition(t, BuildingState::ClearSite, nullptr);
+    TableAddTransition(t, BuildingState::Construct, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
     // sub_4020(0, d2a0) / sub_4020(1, d1a0) — the destroyed-building panel's
     // Rebuild/Reclaim and Remove buttons. Registration order matches dd00.
-    TableAddEvent(t, 0, &DestroyState7Rebuild);
-    TableAddEvent(t, 1, &DestroyState7Remove);
+    TableAddEvent(t, BuildingEvent::Rebuild, &DestroyState7Rebuild);
+    TableAddEvent(t, BuildingEvent::Remove, &DestroyState7Remove);
 
-    TableRegisterState(t, 4, &DestroyState4Enter,
+    TableRegisterState(t, BuildingState::HaulAway, &DestroyState4Enter,
                        nullptr, &DestroyState4Tick,
                        nullptr);
-    TableAddTransition(t, 5, nullptr);
-    TableAddTransition(t, 2, nullptr);
+    TableAddTransition(t, BuildingState::Deconstruct, nullptr);
+    TableAddTransition(t, BuildingState::Built, nullptr);
     // sub_4020(0, bcc0) — cancel, registered on state 4 AND state 5.
-    TableAddEvent(t, 0, &DestroyCancel);
+    TableAddEvent(t, BuildingEvent::Cancel, &DestroyCancel);
 
-    TableRegisterState(t, 5, &DestroyState5Enter,
+    TableRegisterState(t, BuildingState::Deconstruct, &DestroyState5Enter,
                        nullptr, &DestroyState5Tick,
                        nullptr);
-    TableAddTransition(t, 0, nullptr);
-    TableAddTransition(t, 2, nullptr);
-    TableAddTransition(t, 8, nullptr);
-    TableAddTransition(t, 7, nullptr);
-    TableAddEvent(t, 0, &DestroyCancel);
+    TableAddTransition(t, BuildingState::ClearSite, nullptr);
+    TableAddTransition(t, BuildingState::Built, nullptr);
+    TableAddTransition(t, BuildingState::Construct, nullptr);
+    TableAddTransition(t, BuildingState::Rubble, nullptr);
+    TableAddEvent(t, BuildingEvent::Cancel, &DestroyCancel);
 }

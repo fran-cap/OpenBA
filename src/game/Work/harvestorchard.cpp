@@ -317,7 +317,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 
                                 citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
                                 citizenEnt->field_0x30 = priority;
-                                citizenEnt->field_0xB0 = 0;
+                                citizenEnt->lastErrand = CitizenErrand::None;
 
                                 if (workEnt == citizenEnt->profession && priority >= 0) {
                                     citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
