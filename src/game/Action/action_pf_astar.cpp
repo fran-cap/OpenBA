@@ -40,6 +40,7 @@
 #include <cstdint>
 #include <cstdio>    // [FLOODDIAG] diagnostic reporting
 #include <cstdlib>
+#include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 // Ghidra decompile uses `uint`/`ushort` for the unsigned grid-index math; alias them
 // so the literal transcription below matches the decompile token-for-token.
@@ -1063,13 +1064,13 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
         iVar13 = iVar12 * iVar4;
         iVar12 = (iVar4 + 1) * iVar12 + -1;
         if ((lVar14c->zone == 0) &&
-            ((1 << (lVar14c->terrainType & 0x1f) & 0xe1fU) != 0)) {
+            ((1 << (Ext::WalkOnIce::TypeOf(*lVar14c) & 0x1f) & 0xe1fU) != 0)) {
             iVar7 = uVar8 - 1;
             uVar10 = uVar8;
             if (iVar13 <= iVar7) {
                 pbVar11 = lVar14c - 1;
                 do {
-                    if ((1 << (pbVar11->terrainType & 0x1f) & 0xe1fU) == 0) break;
+                    if ((1 << (Ext::WalkOnIce::TypeOf(*pbVar11) & 0x1f) & 0xe1fU) == 0) break;
                     iVar7 = iVar7 + -1;
                     uVar10 = uVar10 - 1;
                     pbVar11 = pbVar11 - 1;
@@ -1080,7 +1081,7 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
                 pbVar11 = lVar14c + 1;
                 do {
                     uVar8 = static_cast<uint>(uVar9);
-                    if ((1 << (pbVar11->terrainType & 0x1f) & 0xe1fU) == 0) break;
+                    if ((1 << (Ext::WalkOnIce::TypeOf(*pbVar11) & 0x1f) & 0xe1fU) == 0) break;
                     iVar7 = iVar7 + 1;
                     uVar8 = uVar8 + 1;
                     uVar9 = static_cast<uint64_t>(uVar8);
@@ -1109,7 +1110,7 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
                     local_res20.cell = uVar3 - size;
                     const MapCell* c = &cells.GetData()[local_res20.cell];
                     if ((c->zone == 0) &&
-                        ((1 << (c->terrainType & 0x1f) & 0xe1fU) != 0)) {
+                        ((1 << (Ext::WalkOnIce::TypeOf(*c) & 0x1f) & 0xe1fU) != 0)) {
                         puVar5 = cellQueue.NewNode(&local_res20);   // 0x14001a9b0
                         if (cellQueue.tail == nullptr) {
                             cellQueue.head = puVar5;
@@ -1127,7 +1128,7 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
                     local_res20.cell = size + uVar10;
                     const MapCell* c = &cells.GetData()[local_res20.cell];
                     if ((c->zone == 0) &&
-                        ((1 << (c->terrainType & 0x1f) & 0xe1fU) != 0)) {
+                        ((1 << (Ext::WalkOnIce::TypeOf(*c) & 0x1f) & 0xe1fU) != 0)) {
                         puVar5 = cellQueue.NewNode(&local_res20);   // 0x14001a9b0
                         if (cellQueue.tail == nullptr) {
                             cellQueue.head = puVar5;

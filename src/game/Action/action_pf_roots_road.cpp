@@ -34,6 +34,7 @@
 #include "cell_trace.h"   // red square: BANISHED_CELL_TRACE (src/diag/cell_trace.h)
 #include "ext/registry.h"   // Ext::Fix().terrain_resort
 #include "ext/terrain_resort/terrain_resort.h"   // fix.terrain_resort (docs/extensions/handins/TERRAINRESORT.md)
+#include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 typedef unsigned int  uint;
 typedef unsigned short ushort;
@@ -83,7 +84,7 @@ void Map::FillZones() {
         uVar2 = 0;
         if (0 < lVar4) {
             do {
-                if (((1 << (cells.GetData()[uVar5].terrainType & 0x1f) & 0xe1fU) != 0) &&
+                if (((1 << (Ext::WalkOnIce::TypeOf(cells.GetData()[uVar5]) & 0x1f) & 0xe1fU) != 0) &&
                     (static_cast<short>(cells.GetData()[uVar5].zone) == 0)) {
                     FillZone(static_cast<uint32_t>(static_cast<int>(uVar2)), static_cast<uint16_t>(sVar6));   // 0x14009c170
                     sVar6 = sVar6 + 1;

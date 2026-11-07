@@ -41,6 +41,7 @@
 #include "Component/MapComponent.h"                  // B4 WORK-c: Work::InitFromEntity
 #include "Action/Action.h"
 #include "Game/Map.h"                                // B4 WORK-c: Map, MapCell
+#include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 
 // (FUN_140002ed0 = ComponentEntity::FindComponent<InteractComponent>(): its B4 FORWARD
@@ -240,8 +241,8 @@ uint64_t Map::ValidateCell(uint32_t pathType, uint32_t destCell, int srcCell) {
     const MapCell& recSrc  = cells.GetData()[srcCell];
     const MapCell& recDest = cells.GetData()[static_cast<int>(destCell)];
 
-    uint32_t typeSrc  = 1u << (recSrc.terrainType & 0x1f);
-    uint32_t typeDest = 1u << (recDest.terrainType & 0x1f);
+    uint32_t typeSrc  = 1u << (Ext::WalkOnIce::TypeOf(recSrc) & 0x1f);
+    uint32_t typeDest = 1u << (Ext::WalkOnIce::TypeOf(recDest) & 0x1f);
     uint32_t combined = typeDest | typeSrc;
     uint64_t ret = combined;
 

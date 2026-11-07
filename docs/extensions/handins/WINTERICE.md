@@ -144,8 +144,17 @@ A cell is walkable ice while the ice is solid when all of these hold:
   reads them the same way). A cell under both counts as river: the ruling wins over a wider lake;
 - its open-mask value is below one half (no dock hole, no boat channel).
 
-The set is computed in the game tick at the flip, never from the drawing's mask, whose rebuild is timed
-by frames.
+In code (`src/ext/winter_ice/walk_cells.h`, pure): a lake cell is one whose centre lies in a lake
+triangle; a river cell one whose centre lies in a river triangle, widened by `kRiverMargin` (1) cell, since
+the strip is narrower than the water it runs in. The lake quads leave out a shallow rim (a cell whose
+centre is under water while no corner reaches the quads' -0.75), so the set spreads from the lake cells
+at most `kRimReach` (2) steps, 4-way, through water cells that are neither river nor open: a walker
+steps from the bank onto the ice, and the cap keeps the set from creeping up a river's banks.
+
+The set is taken in the game tick at the freeze, with the default channel shape (the debug overlay's
+sliders never reach the sim), never from the drawing's mask, whose rebuild is timed by frames. It is
+**saved** with the fronts (ice_town.h, as runs of cells), not taken again on load: a dock or a trading
+post built during the winter would give a reloaded town another set.
 
 ### 5.2 The seam: frozen cells read as type 9
 
@@ -166,9 +175,15 @@ road's (grass: 4); boats pay 5 instead of deep water's 1 off the open channel.
 `MapCell::terrainType` and the terrain side-car keep the water type, so `MoveTo`'s speed read, fishing,
 placement, roads, saves and both ice passes see water. At each flip, per changed cell: `field_0xA2`
 (zones stale), `regionGraph->MarkCellDirty`, `SetCellTerrain` with 9 (freeze) or the real type (thaw);
-retail's lazy rebuilds do the rest, and `PathDistance` (job choice) sees the shortcut. The readers take
-the frozen bit from a side array keyed like the side-car, selected once per game (DESIGN.md rule 3);
-with the row off they read the type as today.
+retail's lazy rebuilds do the rest, and `PathDistance` (job choice) sees the shortcut.
+
+The readers call `Ext::WalkOnIce::TypeOf(cell)` (`src/ext/winter_ice/walk_type.h`): with no walkable lake
+its set pointer is null and the read costs one load and a null test (the faithful path); otherwise the
+cell's index in the array the set was taken for picks 9 or the real type. The flood fills read it per
+cell, but they run only when the zones or a region block are stale. The seam lets go of the set before
+the save tail's reset or decode replaces it (a load's own zone flood reads through it), and a loaded
+town's set goes back on its map in `BeginFrame`, before the frame's first game tick, so no walker paths
+without it.
 
 ### 5.3 Build order
 
@@ -179,7 +194,10 @@ with the row off they read the type as today.
 2. **The row and its save.** `ext.walk_on_ice` in the registry, a class C codec (`src/ext/savetail.h`)
    carrying the two fronts and the walkable flag, its own resave golden. Without it a load restarts
    from `Guess(temperature)` and the lake could open on a different day than in an unbroken game.
-3. **The cell set and the flips** (5.1, 5.2), with a unit test of the set on a made-up map.
+3. **The cell set and the flips** (5.1, 5.2), with a unit test of the set on a made-up map. DONE: on seed
+   12345 at speed 10 the freeze opened 9820 lake cells; a path from bank to bank across the widest lake
+   row went from 161 cells (round) to 98 (across) and back to 159 after the thaw; citizens stepped onto
+   the ice while it held.
 4. **Height.** `GetTerrainPos` answers the heightmap, the lake bed under the ice: a walker on a frozen
    cell is held at the water surface in the character's position update (not in `GetTerrainPos`
    itself, or items dropped on the ice would float after the thaw).

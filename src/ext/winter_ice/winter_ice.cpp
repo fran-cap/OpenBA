@@ -19,6 +19,8 @@
 #include "ext/winter_ice/winter_ice.h"
 #include "ext/winter_ice/ice_model.h"
 #include "ext/winter_ice/ice_town.h"
+#include "ext/winter_ice/walk_cells.h"
+#include "ext/winter_ice/walk_type.h"
 #include "ext/winter_ice/open_mask.h"
 #include "ext/boat_lane/boat_lane.h"
 #include "ext/winter_ice/ice_texture_data.h"
@@ -33,6 +35,7 @@
 #include "Game/GameUpdateLoop.h"
 #include "Game/Calendar.h"
 #include "Game/Map.h"
+#include "Game/PathfinderThread.h"   // ext.walk_on_ice: SetCellTerrain
 #include "Game/WeatherSimulation.h"
 #include "Game/WorldGeometry.h"       // _contourOutlines: the trade boats' polyline
 #include "Entity/ComponentEntity.h"   // MapCell::blocker.Get()
@@ -315,13 +318,10 @@ bool AddPostChannel(ComponentEntity* post, const Map& map, const std::vector<flo
     return true;
 }
 
-// The water cells under a building and the trading posts of the map; a new mask when they changed (or
-// the map's size, or the channel's width).
-void ScanMap(const Map& map, const WorldGeometry* geo) {
+// The water cells under a building and the trading posts of the map. `map` covers size * size cells.
+void CollectBuildings(const Map& map, const WorldGeometry& geo, std::vector<int>& blocked,
+                      std::vector<TradePost>& posts) {
     const int32_t size = map.size;
-    if (size <= 0 || map.cells.GetSize() < size * size || geo == nullptr) return;
-    std::vector<int> blocked;
-    std::vector<TradePost> posts;
     const MapCell* cells = map.cells.GetData();
     const ComponentEntity* lastEntity = nullptr;
     bool lastIsPost = false;
@@ -332,7 +332,7 @@ void ScanMap(const Map& map, const WorldGeometry* geo) {
         ComponentEntity* building = cells[i].occupant.Get();
         if (building == nullptr) building = cells[i].blocker.Get();
         if (building == nullptr) continue;
-        if (IsWater(cells[i].terrainType) || CellHeight(*geo, i, size) < kUnderwater) blocked.push_back(i);
+        if (IsWater(cells[i].terrainType) || CellHeight(geo, i, size) < kUnderwater) blocked.push_back(i);
         if (building != lastEntity) {
             lastEntity = building;
             lastIsPost = building->FindComponent<TradeComponent>() != nullptr;
@@ -343,6 +343,33 @@ void ScanMap(const Map& map, const WorldGeometry* geo) {
             }
         }
     }
+}
+
+// The open-water mask's stamps for these buildings: a disc round every blocked water cell, and while there
+// is a trading post the boats' channel of `shape`.
+std::vector<OpenStamp> OpenStamps(const Map& map, const WorldGeometry* geo, const std::vector<int>& blocked,
+                                  const std::vector<TradePost>& posts, const ChannelShape& shape,
+                                  int* channelPoints, int* waterLegs) {
+    std::vector<OpenStamp> stamps;
+    for (const int index : blocked) stamps.push_back(BuildingStamp(index, map.size));
+    if (!posts.empty()) {
+        const std::vector<float> line = BoatLine(geo, map.size);
+        if (channelPoints != nullptr) *channelPoints = static_cast<int>(line.size() / 2);
+        for (const TradePost& post : posts) {
+            if (AddPostChannel(post.post, map, line, shape, stamps) && waterLegs != nullptr) ++*waterLegs;
+        }
+    }
+    return stamps;
+}
+
+// The drawing's open-water mask: a new one when the blocked cells or the trading posts changed (or the
+// map's size, or the channel's shape).
+void ScanMap(const Map& map, const WorldGeometry* geo) {
+    const int32_t size = map.size;
+    if (size <= 0 || map.cells.GetSize() < size * size || geo == nullptr) return;
+    std::vector<int> blocked;
+    std::vector<TradePost> posts;
+    CollectBuildings(map, *geo, blocked, posts);
     std::vector<const void*> postKey;
     for (const TradePost& post : posts) postKey.push_back(post.post);
     const ChannelShape shape = CurrentChannel();
@@ -350,17 +377,9 @@ void ScanMap(const Map& map, const WorldGeometry* geo) {
         g_mask.load(std::memory_order_relaxed) != nullptr)
         return;
 
-    std::vector<OpenStamp> stamps;
-    for (const int index : blocked) stamps.push_back(BuildingStamp(index, size));
     int channelPoints = 0;
     int waterLegs = 0;   // trading posts whose channel follows the two water legs (the rest: the polyline)
-    if (!posts.empty()) {
-        const std::vector<float> line = BoatLine(geo, size);
-        channelPoints = static_cast<int>(line.size() / 2);
-        for (const TradePost& post : posts) {
-            if (AddPostChannel(post.post, map, line, shape, stamps)) ++waterLegs;
-        }
-    }
+    const std::vector<OpenStamp> stamps = OpenStamps(map, geo, blocked, posts, shape, &channelPoints, &waterLegs);
 
     std::vector<uint8_t> open;
     BuildOpenMask(stamps, size, open);
@@ -400,6 +419,144 @@ const void* g_scanWeather = nullptr;    // the town the open-water mask was last
 // The calendar as game seconds since year 0 (pause and game speed honoured).
 double CalendarSeconds(const Calendar& cal) {
     return static_cast<double>(cal.year) * cal.yearLength.AsSeconds() + cal.yearTime.AsSeconds();
+}
+
+// ---- ext.walk_on_ice (main thread; WINTERICE.md 5.1 / 5.2) ------------------------------------------
+
+// The triangles of a set of contour ranges (WorldGeometry::_contourRangesA / B) in cell coordinates: a
+// vertex's position is (col - size/2, row - size/2) times 48 (WorldGeometryElements.h TerrainVertex).
+template <typename Ranges>
+std::vector<float> RangeTriangles(const WorldGeometry& geo, const Ranges& ranges, int32_t size) {
+    std::vector<float> tris;
+    const TerrainVertex* verts = geo._contourVertices.data;
+    const uint16_t* idx = geo._contourIndices.data;
+    if (verts == nullptr || idx == nullptr || ranges.data == nullptr) return tris;
+    const float half = static_cast<float>(size >> 1);
+    for (int r = 0; r < ranges.size; ++r) {
+        const int start = ranges.data[r].values[0];
+        const int base = ranges.data[r].values[1];
+        const int count = ranges.data[r].values[3];
+        if (start < 0 || base < 0 || count < 0 || start + count > geo._contourIndices.size) continue;
+        for (int k = 0; k + 2 < count; k += 3) {
+            bool ok = true;
+            float xy[6];
+            for (int c = 0; c < 3; ++c) {
+                const int v = base + idx[start + k + c];
+                if (v >= geo._contourVertices.size) {
+                    ok = false;
+                    break;
+                }
+                xy[c * 2] = static_cast<float>(verts[v].position[0]) / 48.0f + half;
+                xy[c * 2 + 1] = static_cast<float>(verts[v].position[1]) / 48.0f + half;
+            }
+            if (ok) tris.insert(tris.end(), xy, xy + 6);
+        }
+    }
+    return tris;
+}
+
+// The walk set of the map as it stands: the lakes of the water mesh, less the rivers and the open water
+// (the drawing's mask with the default channel shape: the debug overlay's sliders never reach the sim).
+std::vector<uint8_t> TakeWalkSet(const Map& map, const WorldGeometry& geo) {
+    const int32_t size = map.size;
+    std::vector<int> blocked;
+    std::vector<TradePost> posts;
+    CollectBuildings(map, geo, blocked, posts);
+    std::vector<uint8_t> open;
+    BuildOpenMask(OpenStamps(map, &geo, blocked, posts, ChannelShape{}, nullptr, nullptr), size, open);
+    std::vector<uint8_t> types(static_cast<size_t>(size) * static_cast<size_t>(size));
+    const MapCell* cells = map.cells.GetData();
+    for (size_t i = 0; i < types.size(); ++i) types[i] = cells[i].terrainType;
+    return WalkCells(size, types.data(), RangeTriangles(geo, geo._contourRangesB, size),
+                     RangeTriangles(geo, geo._contourRangesA, size), open);
+}
+
+// Each set cell to the pathfinder as `frozen` ? type 9 : its own type, its region block dirty, the zones
+// stale: retail's own lazy rebuilds (FillZones, the region graph) then see the cells as walk_type.h reads
+// them.
+void SendWalkSet(Map& map, const std::vector<uint8_t>& set, bool frozen) {
+    const int32_t size = map.size;
+    const MapCell* cells = map.cells.GetData();
+    int count = 0;
+    for (size_t i = 0; i < set.size(); ++i) {
+        if (set[i] == 0) continue;
+        const int cell = static_cast<int>(i);
+        map.regionGraph->MarkCellDirty(cell % size, cell / size);   // 0x1400a8c90
+        map.pathfinder->SetCellTerrain(cell, frozen ? WalkOnIce::kFrozenType : cells[i].terrainType);   // 0x1400a6fe0
+        ++count;
+    }
+    map.field_0xA2 = 1;   // the zones go stale (as Map::SetTerrainType 0x14009f2f0 marks them)
+    std::fprintf(stderr, "[WalkOnIce] %s: %d lake cell(s) %s\n", frozen ? "frozen solid" : "thaw",
+                 count, frozen ? "open to walkers" : "back to water");
+}
+
+// The town's walk set onto the map (the freeze, or the first frame after a load). False when the set does
+// not fit the map (a damaged save): the town is then not walkable.
+bool ApplyWalk(Map& map, IceTown& town) {
+    const size_t cells = static_cast<size_t>(map.size) * static_cast<size_t>(map.size);
+    if (map.size != town.walkEdge || town.walkSet.size() != cells || map.cells.GetSize() < static_cast<int>(cells) ||
+        map.pathfinder == nullptr || map.regionGraph == nullptr) {
+        return false;
+    }
+    WalkOnIce::g_base = map.cells.GetData();
+    WalkOnIce::g_count = static_cast<int>(cells);
+    WalkOnIce::g_frozen = town.walkSet.data();
+    SendWalkSet(map, town.walkSet, true);
+    return true;
+}
+
+// The walk set off the map (the thaw). The seam lets go first, so the rebuilds read water again.
+void RemoveWalk(Map& map, IceTown& town) {
+    WalkOnIce::g_frozen = nullptr;
+    WalkOnIce::g_base = nullptr;
+    WalkOnIce::g_count = 0;
+    if (town.walkSet.size() == static_cast<size_t>(map.size) * static_cast<size_t>(map.size) &&
+        map.pathfinder != nullptr && map.regionGraph != nullptr) {
+        SendWalkSet(map, town.walkSet, false);
+    }
+    town.walkable = false;
+    town.walkEdge = 0;
+    town.walkSet.clear();
+}
+
+// A seam set taken for another cell array (a new game, a load) is forgotten without a word to the
+// pathfinder: that map's worker and zones went with it.
+void ForgetStaleWalk(const Map* map) {
+    if (WalkOnIce::g_frozen == nullptr) return;
+    if (map == nullptr || WalkOnIce::g_base != map->cells.GetData() || WalkOnIce::g_frozen != Town().walkSet.data()) {
+        WalkOnIce::g_frozen = nullptr;
+        WalkOnIce::g_base = nullptr;
+        WalkOnIce::g_count = 0;
+    }
+}
+
+
+// What a game tick (and the frame, for a load) does about walking: open the lake at the freeze, close it at
+// the first thaw, put a loaded town's set back on its map.
+void UpdateWalk(GameUpdateLoop& game, IceTown& town, bool walkOn, bool flip) {
+    Map* map = game.m_game;
+    ForgetStaleWalk(map);
+    if (map == nullptr || game.m_worldGeometry == nullptr) return;
+    const bool want = walkOn && town.known && Solid(town.ice);
+    if (flip && want && !town.walkable) {
+        town.walkSet = TakeWalkSet(*map, *game.m_worldGeometry);
+        town.walkEdge = map->size;
+        town.walkable = true;
+        if (!ApplyWalk(*map, town)) {
+            town.walkable = false;
+            town.walkSet.clear();
+        }
+        return;
+    }
+    if (flip && !want && town.walkable) {
+        RemoveWalk(*map, town);
+        return;
+    }
+    if (walkOn && town.walkable && WalkOnIce::g_frozen == nullptr && !ApplyWalk(*map, town)) {
+        std::fprintf(stderr, "[WalkOnIce] the saved walk set does not fit the map: the lake stays water\n");
+        town.walkable = false;
+        town.walkSet.clear();
+    }
 }
 
 // What the draw reads.
@@ -542,6 +699,8 @@ void Tick(double seconds) {
         Step(town.ice, temperature, static_cast<float>(seconds));
     }
     g_lastSeconds = now;
+    // ext.walk_on_ice: the lake opens to walkers on the tick it is solid and closes on the first thaw.
+    UpdateWalk(*game, town, WalkEnabled(), true);
 }
 
 bool Drawing(const WorldGeometry& geo) {
@@ -561,6 +720,9 @@ void BeginFrame() {
     // The game tick keeps the ice while either row is on: the walk row's ice is the town's state and must
     // not stop when the drawing is turned off.
     g_tick = town && (g_on || WalkEnabled());
+    // A loaded town's walk set goes back on its map here, before the frame's first game tick, so no walker
+    // asks for a path without it (the unbroken game had it on).
+    if (town) UpdateWalk(*game, Town(), WalkEnabled(), false);
     const IceTown& townIce = Town();
     if (!g_on || !town || !townIce.known || townIce.weather != game->m_weather) {
         g_drawing.store(false, std::memory_order_relaxed);

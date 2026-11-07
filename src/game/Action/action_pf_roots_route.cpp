@@ -80,6 +80,7 @@
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"   // CitizenBehavior::field_0x00 / field_0x10 (PickBestDropTarget)
 #include "stress_harness.h"   // PFBENCH: PfMainTimer (ph_pathdistance_ms; stress harness only)
+#include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 namespace {
 
@@ -203,15 +204,15 @@ int Component::FindBestAdjacentCell(uint32_t param_2, float* param_3) const {
                         if ((-1 < iVar13) && (iVar13 < map->size)) {
                             uint32_t uVar14 = map->size * iVar5 + iVar13;
                             int64_t lVar10b = (int64_t)(int)uVar14;
-                            if ((1 << (map->cells.GetData()[lVar10b].terrainType & 0x1f) & 0xe07U) != 0) {
+                            if ((1 << (Ext::WalkOnIce::TypeOf(map->cells.GetData()[lVar10b]) & 0x1f) & 0xe07U) != 0) {
                                 // 0x14009c480, RCX only (Ghidra's uVar18 carried its phantom
                                 // 3rd argument and is gone with it)
                                 map->FillZones();
                                 const MapCell* cells = map->cells.GetData();
                                 const MapCell& goal = cells[(int64_t)(int)param_2];
                                 const MapCell& cell = cells[lVar10b];
-                                uint32_t uVar17 = 1 << (goal.terrainType & 0x1f);
-                                uint32_t uVar7 = 1 << (cell.terrainType & 0x1f);
+                                uint32_t uVar17 = 1 << (Ext::WalkOnIce::TypeOf(goal) & 0x1f);
+                                uint32_t uVar7 = 1 << (Ext::WalkOnIce::TypeOf(cell) & 0x1f);
                                 uint32_t uVar11 = uVar7 | uVar17;
                                 uint32_t uVar12 = uVar11 | 0xe1f;
                                 if ((((uVar12 & uVar7) != 0) && ((uVar12 & uVar17) != 0)) &&
