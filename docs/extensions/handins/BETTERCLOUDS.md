@@ -89,10 +89,16 @@ A full-screen pass at the ground-draw seam (`Graphics::Renderer::_extGroundDraw`
 between the opaque and the blended lists of the main scene, before the map overlay and the grid), so it
 darkens the ground, the trees and the buildings, and the water and everything blended draw over it.
 
-- **The contract**: `src/render/common/better_clouds/cloud_shadow_backend.h` (`Supported`, `Draw`, the
-  40-float `Frame`). DX11 draws it (`src/render/dx11/better_clouds/cloud_shadow.cpp`); Vulkan and Metal
-  answer not supported, so Fancy there draws the sky's clouds alone.
-- **The depth**: the bound depth copied whole with `CopyResource` (better_water's scene-depth method: no
+- **The contract**: `src/render/common/better_clouds/cloud_shadow_backend.h` (`Supported`, `Request`,
+  `Draw`, the 40-float `Frame`). DX11 and Vulkan draw it (`src/render/{dx11,vulkan}/better_clouds/
+  cloud_shadow.cpp`); Metal answers not supported, so Fancy there draws the sky's clouds alone.
+- **Vulkan**: in draw.cpp's AO bracket (`DrawAoBegin` / `DrawAoEnd`), with a reader bit of its own on the
+  readable main depth (`kDepthReaderClouds`, asked for through `Request` while Fancy draws). The depth is
+  first copied to a 1x R32F image in a pass of its own (AO's resolve programs: sample 0 of an MSAA depth,
+  a copy of a 1x or tiler-MSAA one), because the apply's pass, `DrawAoBeginApply`, has the main depth
+  attached when it is the main target. The apply multiplies RGB only, as on DX11. Checked on Windows
+  (RTX 5080, 1x, validation on: no message from the pass); MSAA and the S25 path are not yet run.
+- **The depth (DX11)**: the bound depth copied whole with `CopyResource` (better_water's scene-depth method: no
   readable-depth rebuild), MSAA resolved to 1x R32F by AO's resolve. Every binding is saved and put back
   (`src/render/dx11/ao/ao_state_backup.h`, moved out of `ao_pass.cpp` for this second user).
 - **The program** (`cloud_shadow.hlsl`, `g_bc_PSCloudShadow`): each opaque pixel's world position from

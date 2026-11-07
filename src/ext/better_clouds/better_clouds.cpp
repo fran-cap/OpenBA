@@ -21,7 +21,7 @@
 #include "ext/tweak/ext_tweaks.h"   // the debug overlay's live Look
 #endif
 
-#include "better_clouds/cloud_shadow_backend.h"   // src/render/common: Fancy's pass (DX11; elsewhere unsupported)
+#include "better_clouds/cloud_shadow_backend.h"   // src/render/common: Fancy's pass (DX11, Vulkan; Metal unsupported)
 #include "better_clouds/cloud_sky_cheap_ps.h"   // src/render/common: g_bc_PSCloudSkyCheap (tools/water_shaders.py)
 #include "better_clouds/cloud_sky_ps.h"         // src/render/common: g_bc_PSCloudSky
 
@@ -318,8 +318,9 @@ void DrawShadows(Video::Context& context, const Graphics::Camera& camera) {
 bool Enabled() { return Ext::Ext().better_clouds; }
 
 GroundFn ShadowDraw() {
-    if (!g_active.load(std::memory_order_acquire) || !g_swapped) return nullptr;
-    if (Ext::Val().better_clouds_mode < 2 || !CloudShadowBackend::Supported()) return nullptr;
+    const bool wanted = g_active.load(std::memory_order_acquire) && g_swapped && Ext::Val().better_clouds_mode >= 2;
+    CloudShadowBackend::Request(wanted);
+    if (!wanted || !CloudShadowBackend::Supported()) return nullptr;
     return &DrawShadows;
 }
 
@@ -379,6 +380,7 @@ void BeginFrame() {
 }
 
 void Forget() {
+    CloudShadowBackend::Request(false);   // the ground draw is not armed again until the next world
     if (!g_active.load(std::memory_order_acquire)) return;
     const std::lock_guard<std::mutex> lock(g_skyMutex);
     if (g_swapped) {

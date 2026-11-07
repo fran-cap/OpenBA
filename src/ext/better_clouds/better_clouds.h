@@ -11,7 +11,7 @@
 //
 // THE MODE (ext.better_clouds_mode): 1 On, the sky; 2 Fancy, the sky and the clouds' shadows on the
 // ground (a full-screen pass at the ground-draw seam: src/render/common/better_clouds/
-// cloud_shadow_backend.h; DX11 only so far). The Enhanced tab's "Better clouds" combo: Off / On / Fancy.
+// cloud_shadow_backend.h; DX11 and Vulkan, Metal not yet). The Enhanced tab's "Better clouds" combo: Off / On / Fancy.
 //
 // HOW. For each pass of the sky material that has a vertex program, a twin VideoProgram of ours keeps
 // the pass's vertex layout, vertex program and render state (the user's installed ones) and takes our

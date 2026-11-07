@@ -37,6 +37,11 @@ static_assert(sizeof(Frame) == 40 * sizeof(float), "the program's constant buffe
 // The backend can draw the pass on the live device. Any thread; false before the device exists.
 bool Supported();
 
+// The extension wants the pass (Fancy, the clouds drawing). Main thread, idempotent, every frame the
+// ground draw is armed and once more with false when it stops. A backend whose pass reads a depth it
+// must ask for (Vulkan: draw.h THE READABLE DEPTH) asks here; off releases what the pass holds.
+void Request(bool on);
+
 // The pass (drawing thread, the ground-draw seam). `noise` is the sky's noise texture (an engine image
 // the backend reads through its own companion). A no-op when unsupported or when no depth is bound.
 void Draw(Video::Context& context, const Video::ImageBuffer* noise, const Frame& frame);

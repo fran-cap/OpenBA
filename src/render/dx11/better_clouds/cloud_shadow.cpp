@@ -265,6 +265,9 @@ bool Supported() {
     return d != nullptr && d->GetFeatureLevel() >= D3D_FEATURE_LEVEL_11_0;
 }
 
+// The copy reads the bound depth through no view: nothing to ask for.
+void Request(bool /*on*/) {}
+
 void Draw(Video::Context& /*context: the pass binds on the immediate context*/, const Video::ImageBuffer* noise,
           const Frame& frame) {
     if (noise == nullptr || noise->_data == nullptr || !Supported()) return;

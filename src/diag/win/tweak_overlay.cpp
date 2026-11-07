@@ -453,7 +453,7 @@ void DrawPanels(const Snapshot& s) {
         changed |= ImGui::SliderFloat("layer scale (smaller = bigger clouds)", &c.scale, 0.05f, 1.0f, "%.3f");
         changed |= ImGui::SliderFloat("wind speed (x)", &c.speed, 0.0f, 5.0f, "%.2f");
         changed |= ImGui::SliderFloat("morph (shapes change as they travel)", &c.morph, 0.0f, 1.0f, "%.2f");
-        ImGui::SeparatorText("Fancy: shadows on the ground (mode 2, DX11)");
+        ImGui::SeparatorText("Fancy: shadows on the ground (mode 2, DX11 / Vulkan)");
         changed |= ImGui::SliderFloat("shadow strength", &c.shadowStrength, 0.0f, 0.8f, "%.2f");
         changed |= ImGui::SliderFloat("shadow scale (tiles per unit)", &c.shadowScale, 0.001f, 0.03f, "%.4f");
         changed |= ImGui::SliderFloat("cloud height (sun slant)", &c.shadowHeight, 0.0f, 200.0f, "%.0f");
