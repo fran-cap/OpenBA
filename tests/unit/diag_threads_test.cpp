@@ -13,6 +13,11 @@
 
 UNIT_TEST(diag_threads_reused_tid_gets_a_new_slot) {
     const uint32_t tid = 0x7ffffff1u;   // no real thread has it
+    // The roster is append-only and per process: in a worker that already ran enough threaded tests
+    // every slot is taken, and the test's two registrations cannot land (seen on the macOS runner,
+    // whose 3 workers x 24 chunks put this test late in a thread-heavy chunk).
+    if (DiagThreads::Count() > DiagThreads::kMaxThreads - 2)
+        UNIT_SKIP("the roster is full in this worker: earlier tests' threads took every slot");
     const int first = DiagThreads::Detail::RegisterAs(tid, DiagThreads::kLoader);
     CHECK(first >= 0);
     const int countAfterFirst = DiagThreads::Count();
