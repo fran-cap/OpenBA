@@ -200,7 +200,13 @@ without it.
    the ice while it held.
 4. **Height.** `GetTerrainPos` answers the heightmap, the lake bed under the ice: a walker on a frozen
    cell is held at the water surface in the character's position update (not in `GetTerrainPos`
-   itself, or items dropped on the ice would float after the thaw).
+   itself, or items dropped on the ice would float after the thaw). DONE: `Ext::WalkOnIce::OnIce`
+   (`walk_type.h`) raises the move tick's height (`CharacterComponent_MoveTick_1094c0`, the terrain floored
+   at the description's +0x44) to `kIceTopZ`, the water surface (-0.75 + 12 / 256, ext.better_water's
+   `kWaterTop`), on a frozen cell. It sits just after the tail's `[COPY-PINNED]` region, so the unit tests'
+   literal copies stay the faithful tail, and before the transform reaches the Geometry. Every walker,
+   animals included, takes this tail. Seen in the stress town in deep winter: citizens drawn on the ice,
+   carrying goods across the lake.
 5. **The thaw.** Walking ends at the first thaw, while the drawn ice still lags: a citizen mid-crossing
    finishes on the ice they see (`MoveTo::Execute` never re-checks a stored path); one left standing in water
    takes retail's water-endpoint bypass in `RequestPath` and wades out (`fix.stranded_wade`'s case).
