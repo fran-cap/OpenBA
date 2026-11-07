@@ -82,3 +82,52 @@ UNIT_TEST(ext_boat_lane_row_is_class_b_default_off) {
     CHECK(!row->defaultOn);         // the B / C rule (the user's ruling, 2026-11-06)
     CHECK(row->formatVersion >= 1); // class B: in the save manifest
 }
+
+// The way out keeps to the way in's channel: entering and leaving by the same edge, the two legs are
+// one line (each the other reversed, near enough), not two lanes side by side.
+UNIT_TEST(ext_boat_lane_legs_share_one_channel) {
+    const int size = 24;
+    std::vector<uint8_t> types(size * size, 2);
+    for (int y = 4; y <= 19; ++y) {
+        for (int x = 0; x < size; ++x) types[y * size + x] = 8;   // a wide lake, rows 4..19
+    }
+    types[3 * size + 20] = 7;                                        // the dock, on the top shore
+    LaneLegs legs;
+    // In at the left edge's middle, out at the left edge two cells lower.
+    CHECK(Legs(types.data(), size, 11 * size + 0, 3 * size + 20, 13 * size + 0, kLanePull, kLaneSmoothing, legs));
+    // Every point of the way out lies within two cells of some point of the way in.
+    float worst = 0.0f;
+    for (size_t i = 0; i + 1 < legs.out.size(); i += 2) {
+        float best = 1.0e9f;
+        for (size_t j = 0; j + 1 < legs.in.size(); j += 2) {
+            const float dx = legs.out[i] - legs.in[j];
+            const float dy = legs.out[i + 1] - legs.in[j + 1];
+            const float d = dx * dx + dy * dy;
+            best = d < best ? d : best;
+        }
+        worst = best > worst ? best : worst;
+    }
+    CHECK(worst <= 4.0f);
+}
+
+// Round a bend the lane keeps to the middle, not the inside corner: an L-shaped river 7 cells wide.
+UNIT_TEST(ext_boat_lane_keeps_the_middle_round_a_bend) {
+    const int size = 24;
+    std::vector<uint8_t> types(size * size, 2);
+    for (int y = 2; y <= 8; ++y) {
+        for (int x = 0; x <= 8; ++x) types[y * size + x] = 8;        // the arm along the top, rows 2..8
+    }
+    for (int y = 2; y < size; ++y) {
+        for (int x = 2; x <= 8; ++x) types[y * size + x] = 8;        // the arm down, columns 2..8
+    }
+    const std::vector<float> bank = BankDistance(types.data(), size);
+    // From the top arm's right end to the bottom of the down arm, both on the middle line (row / col 5).
+    const std::vector<int> path = BoatWaterPath(types.data(), size, 5 * size + 8, 23 * size + 5, bank.data(), kLanePull);
+    CHECK(!path.empty());
+    // The inside corner is the cell (8, 8); the lane passes no closer than two cells to it.
+    for (const int c : path) {
+        const int dx = c % size - 8;
+        const int dy = c / size - 8;
+        CHECK(dx * dx + dy * dy >= 4);
+    }
+}

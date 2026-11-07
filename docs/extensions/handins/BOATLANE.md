@@ -32,7 +32,12 @@ to the terrain the same way. Retail's gate, steps 1 and 3, the dock heading and
   (0x14001d040): eight neighbours, 10 straight / 14 diagonal times the type's cost, a neighbour (the
   goal included) taken only when its type is passable (`GridPathSearch::Neighbour` 0x1400a5ec0).
 - The lane's legs add a pull towards the middle of the water: `BankDistance` (a 10 / 14 chamfer to the
-  nearest impassable cell), and a step into a cell `d` cells from land costs `kLanePull * 4 / d` more.
+  nearest impassable cell), and a step into a cell `d` cells from land costs `kLanePull * 25 / d^2`
+  more. The square keeps the lane off the inside of a wide bend (the user's report: with `4 / d` the
+  shorter way round won and the lane hugged the inner bank).
+- The way out keeps to the way in's channel: a step onto a cell of the in leg (or a neighbour of one)
+  costs `kShareCost` (3) tenths. Where the boats come and go by the same edge the legs are one channel;
+  they fork only where their map edges part (the user's report: two lanes side by side across a lake).
 - Each leg is a Catmull-Rom spline through every `kLaneSmoothing` (4) cells of its path, six segments
   per span; the ends stay on the entry, dock and exit cells' centres.
 - Deterministic: integer costs, a fixed neighbour order, ties broken by cell index. The shape is fixed
