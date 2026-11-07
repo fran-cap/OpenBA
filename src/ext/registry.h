@@ -254,6 +254,11 @@ struct Entry {
 
 // The table, in menu order: every fix, then every extension.
 int EntryCount();
+// The most entries the Extensions dialog has rows for (src/game/Dialog/ExtensionsDialog.h). The table
+// must stay within it: the dialog drops the rows past it (it was 64 until the table outgrew it and the
+// newest default-on rows, Winter ice among them, went missing from the dialog). The unit tests
+// check EntryCount() against it.
+constexpr int kMaxEntries = 256;
 const Entry& EntryAt(int index);
 const Entry* FindEntry(const char* id);   // by id alone; null when unknown
 

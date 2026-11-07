@@ -36,6 +36,7 @@
 #include <cstdint>
 #include "ui/DialogInstance.h"
 #include "object/Internal.h"
+#include "ext/registry.h"   // Ext::kMaxEntries: one row per entry
 
 class MainMenuDialog;                                   // Dialog/MainMenuDialog.h
 
@@ -63,7 +64,8 @@ private:
         Object::InternalPtr<UI::Element> state;      // textState: the lock state
         Object::InternalPtr<UI::Element> border;     // the row's border (colour)
     };
-    static constexpr int kMaxRows = 64;
+    // One row per registry entry (Ext::kMaxEntries, which the unit tests hold the table to).
+    static constexpr int kMaxRows = Ext::kMaxEntries;
 
     void RefreshRow(int index);
     void Apply();
