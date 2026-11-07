@@ -338,6 +338,15 @@ const Entry kEntries[] = {
       "Zoom in much closer and out much farther, and keep the camera's tilt when zoomed out "
       "instead of flattening to top-down.",
       1, [](State& s) -> bool& { return s.ext.better_camera; } },
+    // RECIPESKIP (docs/extensions/handins/RECIPESKIP.md): a workshop set to every recipe stops, in retail, as
+    // soon as ONE recipe's material is at its limit. With the row on that recipe is left out of the draw and
+    // the building only stops when every recipe is at its limit. Class B: no serialized state, but the
+    // town's production differs from retail's, so it is locked for the game and recorded in the save.
+    { "recipe_skip", Tier::Extension, Class::B, false,
+      "Skip recipes at their limit",
+      "A workshop that makes every recipe in turn keeps working on the others when one recipe's limit "
+      "is reached, instead of stopping.",
+      1, [](State& s) -> bool& { return s.ext.recipe_skip; } },
     // HIGHLIMITS (docs/extensions/handins/HIGHLIMITS.md): the limit spinners of the Town Hall, the Limits
     // window and the production buildings take values up to 999,999,999 and 9 typed digits instead of
     // 999,999 and 6. Class B: no serialized state, but a limit above 999,999 is a value the faithful
