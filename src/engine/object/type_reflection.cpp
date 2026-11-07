@@ -207,7 +207,7 @@ BaseTypeInfo::BaseTypeInfo(const char* nameIn, const char* parentNameIn,
     name             = nameIn;
     parentName       = parentNameIn;
     factoryFn        = factory;
-    typeId           = 0xFFFFFFFFu;
+    typeId           = kInvalidTypeId;
     _pad04           = 0;
     fileExtension    = fileExtensionIn;
     inPlaceFactoryFn = inPlace;

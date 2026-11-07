@@ -109,7 +109,7 @@ char ClearResourceComponent::State2Enter() {
 
     // Idempotence guard (bit 0x400 of the entity flags) — see the header note: this is
     // what keeps the sibling `destroy` controller from double-pushing the entity.
-    if (((entity->_entityFlags >> 10) & 1) != 0) {
+    if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0) {
         return 1;
     }
 

@@ -93,7 +93,7 @@ void QueueEvent(UI::SliderElement* self, UI::UserInterface* ui,
     UI::UserInterface::Event ev;
     ev.dialog   = dialog->Get();
     ev.element  = self;
-    ev.eventId  = 0x17;
+    ev.eventId  = UI::EventId::SliderChanged;
     ev.arg14    = self->_elementId;
     ev.arg18    = state.mouseX;
     ev.arg1C    = state.mouseY;
@@ -108,7 +108,7 @@ namespace UI {
 
 // [4] 0x1800d7380
 void SliderElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     const int32_t k = SpriteScale();   // EXT SEAM: 1 = retail
     const int32_t trackW = (_trackStart.Width() + _trackMiddle.Width() + _trackEnd.Width()) * k;
@@ -131,7 +131,7 @@ void SliderElement::ComputeSize() {
     if (spriteH < thumbH) spriteH = thumbH;
     if (height  < spriteH) height = spriteH;
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutHeight = height;
 }
 
@@ -152,17 +152,21 @@ void SliderElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     const int32_t ah = (bottom - _bottomPad) - py;
     const int32_t aw = (right  - _rightPad)  - px;
 
-    if ((_flags & kFlagStretchY) != 0) h = ah;
+    if ((_flags & UI::kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 2: case 5: case 8:
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
             px = (right - _rightPad) - aw;
             break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutTop    = py;
@@ -195,7 +199,7 @@ void SliderElement::Draw(SpriteContext& context, uint8_t alpha) const {
         _border->Draw(context, alpha);
 
     const uint32_t raw = _color;
-    if ((_flags & kFlagDimColor) != 0) alpha >>= 1;
+    if ((_flags & UI::kElementFlagDimColor) != 0) alpha >>= 1;
     const uint32_t c = ModulateColor(raw, alpha);
 
     const int32_t left   = _layoutLeft;
@@ -266,7 +270,7 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
 
     const int32_t mx = state.mouseX;
     const int32_t my = state.mouseY;
-    const bool live  = state.buttonPressed != 0 && (_flags & kFlagInteractive) != 0;
+    const bool live  = state.buttonPressed != 0 && (_flags & UI::kElementFlagHovered) != 0;
 
     if (mx < pos || pos + thumbW < mx ||
         my < _layoutTop || _layoutTop + thumbH < my) {
@@ -289,7 +293,7 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
         _hovered = 1;
         if (live) {
             _dragAnchor = _value;
-            SetFlags(this, _flags | kFlagDragging);
+            SetFlags(this, _flags | UI::kElementFlagPressed);
             static_cast<UI::UserInterface*>(ui)->Play(4);
         }
     }
@@ -300,7 +304,7 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
                     _layoutBottom + 0x20 < my);
 
     const uint32_t flags = _flags;
-    if ((flags & kFlagDragging) != 0 && !isNear) {
+    if ((flags & UI::kElementFlagPressed) != 0 && !isNear) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/SLIDERCLAMP.md): fix.slider_drag_clamp -- a drag
         // off the band is treated as on it: the thumb keeps following the pointer (clamped below) and a
         // release there keeps the value. Off / null = retail's snap back to the anchor.
@@ -314,13 +318,13 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
     }
 
     bool doDrag = true;
-    if ((flags & kFlagDragging) != 0 && state.b04 != 0) {       // +0x04: the release
-        SetFlags(this, flags & ~kFlagDragging);
+    if ((flags & UI::kElementFlagPressed) != 0 && state.b04 != 0) {       // +0x04: the release
+        SetFlags(this, flags & ~UI::kElementFlagPressed);
         if (isNear) static_cast<UI::UserInterface*>(ui)->Play(5);
         else        doDrag = false;
     }
 
-    if (doDrag && isNear && (_flags & kFlagDragging) != 0) {
+    if (doDrag && isNear && (_flags & UI::kElementFlagPressed) != 0) {
         const int32_t w = _thumb.Width() * k;
         const int32_t span = (_layoutRight + ((w >> 1) + margin) * -2) - _layoutLeft;
         const float v = _dragAnchor

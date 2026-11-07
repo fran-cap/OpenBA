@@ -133,8 +133,8 @@ void ZeroMapCell(MapCell* d) {
     d->field_0x1C = {};                 // +0x1C..+0x24 zero (retail: one qword 0 and one byte 0)
     d->zone = 0;                        // +0x26..+0x29 zero
     d->footprintCount = 0;
-    d->terrainType = 0;
-    d->field_0x2A = 0xff;               // +0x2A = 0xff
+    d->terrainType = PathType{};
+    d->field_0x2A = MapCell::kNoRoadBatch;   // +0x2A = 0xff
     d->field_0x2B = 0;                  // +0x2B..+0x2D = 0
     d->field_0x2C = 0;
     d->floorCount = 0;
@@ -202,7 +202,7 @@ static void GameGrid_SerializeCellArray_ac10(IO::Serializer* serializer, int32_t
         }
 
         serializer->Serialize(elem->footprintCount, nullptr);
-        serializer->Serialize(elem->terrainType, nullptr);
+        serializer->Serialize(reinterpret_cast<uint8_t&>(elem->terrainType), nullptr);   // the uchar door
         serializer->Serialize(elem->field_0x2A, nullptr);
         serializer->Serialize(elem->field_0x2B, nullptr);
         serializer->Serialize(elem->field_0x2C, nullptr);
@@ -263,7 +263,7 @@ void Map::Serialize(IO::Stream& stream) {
                     bool occupied = CheckCellTerrain(i) != 0;   // 0x14009cb00
                     if (!occupied) {
                         int cls = ClassifyTerrain(i);   // 0x14009e2c0
-                        e->terrainType = static_cast<uint8_t>(cls);
+                        e->terrainType = static_cast<PathType>(cls);
                     }
                 }
                 // Faithful to retail: the width*width bound is re-read from
@@ -284,8 +284,9 @@ void Map::Serialize(IO::Stream& stream) {
                 }
 
                 if (e->footprintCount == 0) {
-                    uint8_t mask = static_cast<uint8_t>(1u << (e->terrainType & 0x1f));
-                    if ((mask & 2) == 0 && (mask & 1) == 0 && e->field_0x2A == 0xff) {
+                    uint8_t mask = static_cast<uint8_t>(Bits(PathBitOf(e->terrainType)));
+                    if ((mask & Bits(PathBits::Fast)) == 0 && (mask & Bits(PathBits::Faster)) == 0 &&
+                        e->field_0x2A == MapCell::kNoRoadBatch) {
                         // Walk the AVL tree rooted at +0xe8 for key == i (the
                         // 0x28 AvlNode28 of Action/PathAvl.h: key +0, left +0x10,
                         // right +0x18).

@@ -60,7 +60,7 @@ constexpr int kChildLabel = 4;
 struct Event {
     void*    dialog;      // +0x00  the InternalPtr<DialogInstance> value
     void*    element;     // +0x08
-    int32_t  kind;        // +0x10
+    UI::EventId kind;     // +0x10
     int32_t  elementId;   // +0x14
     int32_t  x;           // +0x18
     int32_t  y;           // +0x1c
@@ -69,14 +69,6 @@ struct Event {
     uint64_t tail;        // +0x28
 };
 static_assert(sizeof(Event) == 0x30, "UI event record stride");
-
-constexpr int32_t kEventActivated = 0x12;
-
-// Element::_flags bits this class reads that Element.h does not name: bit 17
-// is "the mouse is over" (Element::Update's BTS 0x11), bit 21 "a press started
-// here", bit 22 is kElementFlagWasActivated.
-constexpr uint32_t kFlagHover        = 0x00020000u;
-constexpr uint32_t kFlagPressStarted = 0x00200000u;
 
 }  // namespace
 
@@ -102,7 +94,7 @@ namespace UI {
 // check — a ButtonElement always has five children because ButtonDescription
 // builds them.
 void ButtonElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     _layoutWidth  = 0;                                     // one qword store over
     _layoutHeight = 0;                                     // +0x60 and +0x64
@@ -121,7 +113,7 @@ void ButtonElement::ComputeSize() {
     if (_layoutWidth  < _minWidth)  _layoutWidth  = _minWidth;
     if (_layoutHeight < _minHeight) _layoutHeight = _minHeight;
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // ============================================================================
@@ -208,26 +200,26 @@ void ButtonElement::Update(const System::Time& time, UserInterface* ui,
     Element::Update(time, ui, &dlgCopy, state);
 
     uint32_t flags = _flags;
-    if ((flags & kFlagHidden) != 0) return;
+    if ((flags & UI::kElementFlagHidden) != 0) return;
 
     const int prevState = _state;
     StoreFlags(this, flags & ~kElementFlagWasActivated);
 
     if (state.buttonPressed != 0) {
         const uint32_t f = _flags;
-        if ((f & kFlagHover) != 0) StoreFlags(this, f | kFlagPressStarted);
+        if ((f & kElementFlagHovered) != 0) StoreFlags(this, f | kElementFlagPressed);
     }
 
     uint32_t colour;
     flags = _flags;
-    if ((flags & kFlagDisabledMask) != 0) {
+    if ((flags & UI::kElementFlagAnyDisabled) != 0) {
         colour = _stateColor[1];
         _state = 1;
-    } else if ((flags & kFlagHover) != 0 && (flags & kFlagPressStarted) != 0 &&
+    } else if ((flags & kElementFlagHovered) != 0 && (flags & kElementFlagPressed) != 0 &&
                state.leftDown != 0) {
         colour = _stateColor[3];
         _state = 3;
-    } else if ((flags & kFlagHover) != 0) {
+    } else if ((flags & kElementFlagHovered) != 0) {
         colour = _stateColor[2];
         _state = 2;
     } else {
@@ -245,20 +237,20 @@ void ButtonElement::Update(const System::Time& time, UserInterface* ui,
     if (label != nullptr) label->SetColor(colour);
 
     flags = _flags;
-    if ((flags & kFlagHover) == 0) StoreFlags(this, flags & ~kFlagPressStarted);
+    if ((flags & kElementFlagHovered) == 0) StoreFlags(this, flags & ~kElementFlagPressed);
 
     if (_state == 1) return;
 
     if (state.buttonPressed != 0) {
         const uint32_t f = _flags;
-        if ((f & kFlagHover) != 0 && (f & kFlagPressStarted) != 0)
+        if ((f & kElementFlagHovered) != 0 && (f & kElementFlagPressed) != 0)
             static_cast<UI::UserInterface*>(ui)->Play(4);
     }
 
     bool fire = false;
     if (state.b04 != 0) {
         const uint32_t f = _flags;
-        if ((f & kFlagHover) != 0 && (f & kFlagPressStarted) != 0) fire = true;
+        if ((f & kElementFlagHovered) != 0 && (f & kElementFlagPressed) != 0) fire = true;
     }
     if (!fire) {
         const int32_t key = _keyIndex;
@@ -266,13 +258,13 @@ void ButtonElement::Update(const System::Time& time, UserInterface* ui,
         if (!state.config->Pressed(0, key)) return;
     }
 
-    StoreFlags(this, _flags & ~kFlagPressStarted);
+    StoreFlags(this, _flags & ~kElementFlagPressed);
     StoreFlags(this, _flags |  kElementFlagWasActivated);
 
     ::Event ev;                                // this file's record, not UI::Event
     ev.dialog    = dialog->Get();
     ev.element   = this;
-    ev.kind      = kEventActivated;
+    ev.kind      = EventId::Activated;
     ev.elementId = _elementId;
     ev.x         = state.mouseX;
     ev.y         = state.mouseY;
@@ -293,7 +285,7 @@ void ButtonElement::Enable(bool enable) {
     Element::Enable(enable);
 
     Element* label = _children._data[kChildLabel];
-    if (label != nullptr && (_flags & kFlagDisabledMask) != 0)
+    if (label != nullptr && (_flags & UI::kElementFlagAnyDisabled) != 0)
         label->SetColor(_stateColor[1]);
 }
 

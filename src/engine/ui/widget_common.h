@@ -39,21 +39,7 @@
 
 namespace rtui {
 
-// Element::_flags bits used by these bodies (names from Element.h).
-constexpr uint32_t kFlagHidden        = 0x00000001;
-constexpr uint32_t kFlagStretchX      = 0x00000004;
-constexpr uint32_t kFlagStretchY      = 0x00000008;
-constexpr uint32_t kFlagSizeToScreenH = 0x00000010;   // height <- screen height
-constexpr uint32_t kFlagSizeToScreenW = 0x00000020;   // width  <- screen width
-constexpr uint32_t kFlagDimColor      = 0x00040000;
-constexpr uint32_t kFlagInteractive   = 0x00020000;   // bit 17, tested by every
-                                                      // widget Update before it
-                                                      // will react to the mouse
-constexpr uint32_t kFlagWasActivated  = 0x00400000;   // bit 22
-constexpr uint32_t kFlagDragging      = 0x00200000;   // bit 21, set while a
-                                                      // slider/scroll thumb is
-                                                      // being dragged
-constexpr uint32_t kFlagNeedsSizeCalc = 0x08000000;
+// (The Element::_flags bits are Element.h's UI::kElementFlag* names.)
 
 // ---------------------------------------------------------------------------
 // Element::SetNeedsSizeCalc (0x180035470), inlined everywhere.
@@ -63,14 +49,14 @@ constexpr uint32_t kFlagNeedsSizeCalc = 0x08000000;
 // ---------------------------------------------------------------------------
 inline void DirtyWalk(::UI::Element* e) {
     for (::UI::Element* n = e; n != nullptr; n = n->_parent)
-        n->_flags |= kFlagNeedsSizeCalc;
+        n->_flags |= UI::kElementFlagNeedsSizeCalc;
 }
 
 // Set/clear flag bits with retail's "only walk when bit 0 changed" guard.
 inline void SetFlags(::UI::Element* e, uint32_t nf) {
     const uint32_t of = e->_flags;
     e->_flags = nf;
-    if (((nf ^ of) & kFlagHidden) != 0) DirtyWalk(e);
+    if (((nf ^ of) & UI::kElementFlagHidden) != 0) DirtyWalk(e);
 }
 
 // ---------------------------------------------------------------------------
@@ -134,11 +120,11 @@ inline void InlineGetPaddedSize(::UI::Element* child, int32_t* w, int32_t* h) {
     int32_t ch = child->_layoutHeight + child->_topPad  + child->_bottomPad;
     if (cw < child->_minWidth)  cw = child->_minWidth;
     if (ch < child->_minHeight) ch = child->_minHeight;
-    if ((flags & (kFlagSizeToScreenW | kFlagSizeToScreenH)) != 0) {
+    if ((flags & (UI::kElementFlagSizeToScreenW | UI::kElementFlagSizeToScreenH)) != 0) {
         const float scale = RootUiScale(child);
-        if ((flags & kFlagSizeToScreenW) != 0)
+        if ((flags & UI::kElementFlagSizeToScreenW) != 0)
             cw = static_cast<int32_t>(static_cast<float>(ScreenWidth()) * scale);
-        if ((flags & kFlagSizeToScreenH) != 0)
+        if ((flags & UI::kElementFlagSizeToScreenH) != 0)
             ch = static_cast<int32_t>(static_cast<float>(ScreenHeight()) * scale);
     }
     *w = cw;
@@ -171,12 +157,5 @@ inline void InlineGetPaddedSize(::UI::Element* child, int32_t* w, int32_t* h) {
 
 }  // namespace rtui
 
-// The flag bits above are the header's, not a second opinion.
 #include "ui/Element.h"
-static_assert(rtui::kFlagHidden        == UI::kElementFlagHidden, "");
-static_assert(rtui::kFlagNeedsSizeCalc == UI::kElementFlagNeedsSizeCalc, "");
-static_assert(rtui::kFlagDimColor      == UI::kElementFlagDimColor, "");
-static_assert(rtui::kFlagSizeToScreenH == UI::kElementFlagSizeToScreenH, "");
-static_assert(rtui::kFlagSizeToScreenW == UI::kElementFlagSizeToScreenW, "");
-static_assert(rtui::kFlagWasActivated  == UI::kElementFlagWasActivated, "");
 static_assert(sizeof(UI::Element) == 0xC0, "the fourteen widgets all start their own fields at +0xC0");

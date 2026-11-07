@@ -384,7 +384,7 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
         const ::Object::BaseTypeInfo* const head = ::Object::BaseTypeInfo::_firstTypeInfo;
         int n = 0, withId = 0;
         for (const ::Object::BaseTypeInfo* p = head; p && n < 1000; p = p->next, n++) {
-            if (p->typeId != 0xFFFFFFFF) withId++;
+            if (p->typeId != ::Object::kInvalidTypeId) withId++;
         }
         printf("[GameMain] Post-Startup _firstTypeInfo: %d entries, %d have non-FF typeId\n",
                n, withId);

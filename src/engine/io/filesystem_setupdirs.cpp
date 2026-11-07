@@ -332,7 +332,7 @@ void FileSystem::SetupDirectories() {
         // of this full-expression.
         RtIO::FileInfo fi = OpenFile(System::Filename(cmdPath));
 
-        if (fi.handle != -1) {
+        if (fi.handle != RtIO::FileInfo::kHandleNone) {
             const int size = static_cast<int>(static_cast<uint32_t>(fi.size));
             const int n    = size + 1;
             char* buf = static_cast<char*>(  // LEFT: an alloc result; the tier-I shape does not match the RtMemAlloc spelling

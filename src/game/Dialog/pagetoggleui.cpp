@@ -164,7 +164,7 @@ void PageToggleUI::OnUpdateLayout() {
 
 // Slot9: On checkbox toggle event, switch between page 0 and page 4.
 // [9] 0x140075710
-void PageToggleUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4,
+void PageToggleUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                   int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (!pagetoggleui_sa::Ready()) return;
     // Standalone-only precondition: Slot7/Slot9 run before Slot4 has populated
@@ -172,7 +172,7 @@ void PageToggleUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
     // populated this is retail verbatim.
     if (!checkBox || !pages) return;
 
-    if (param3 == 0x12 && param4 == 700) {
+    if (param3 == UI::EventId::Activated && param4 == 700) {
         // The checkbox state (CheckElement::_checked, +0xd8)
         char checkState = static_cast<char>(checkBox->_checked);
         if (checkState == 0) {

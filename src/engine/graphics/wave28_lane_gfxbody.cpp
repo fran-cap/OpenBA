@@ -517,7 +517,10 @@ namespace {
 // (stride 0x48) by `handle & 0xff`, and the state's `_rootOffset` (+0x18).
 inline const Math::Vector3& StaticRootVector(int32_t handle) {
     const Graphics::AnimationManager* const mgr = Graphics::AnimationManager::_singleton;
-    const int32_t gi = static_cast<int32_t>((static_cast<int64_t>(handle) >> 8) & 0xff);
+    using Graphics::AnimationManager;
+    const int32_t gi = static_cast<int32_t>(
+        (static_cast<int64_t>(handle) >> AnimationManager::kHandleIndexBits) &
+        AnimationManager::kHandleIndexMask);
     const int32_t si = static_cast<int32_t>(static_cast<uint8_t>(handle));
     return mgr->_instances._data[gi]._states._data[si]._rootOffset;
 }

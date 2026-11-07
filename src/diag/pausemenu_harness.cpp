@@ -163,7 +163,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                 std::fprintf(stderr, "[PauseMenu] CLICKS: pause menu=%p id=%d (frame %d)\n",
                              static_cast<void*>(pause), id, frameNum);
                 if (pause) {
-                    pause->OnElementEvent(nullptr, 0x12, id, 0, 0, 0, nullptr);
+                    pause->OnElementEvent(nullptr, UI::EventId::Activated, id, 0, 0, 0, nullptr);
                 }
             } else if (tok[0] == 't') {
                 // t<row>: what a real click on a row's checkbox does -- the CheckElement flips
@@ -180,8 +180,8 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                     box->_checked = box->_checked ? 0 : 1;
                     std::fprintf(stderr, "[PauseMenu] CLICKS: row %d box now %d\n", row, (int)box->_checked);
                     Object::InternalPtr<UI::Element> nullElem;
-                    static_cast<UI::DialogInstance*>(dlg)->OnElementEvent(&nullElem, 0x12, 1000 + row, 0, 0, 0,
-                                                                          nullptr);
+                    static_cast<UI::DialogInstance*>(dlg)->OnElementEvent(&nullElem, UI::EventId::Activated,
+                                                                          1000 + row, 0, 0, 0, nullptr);
                 }
             } else if (tok[0] == 'd') {
                 ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
@@ -194,7 +194,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                     // four trailing arguments are the harness's choice: retail
                     // has no such caller.
                     static_cast<UI::DialogInstance*>(dlg)->OnElementEvent(   // through the base slot (an upcast)
-                        nullptr, 0x12, id, 0, 0, 0, nullptr);
+                        nullptr, UI::EventId::Activated, id, 0, 0, 0, nullptr);
                 }
             } else {
                 ModDialog* dlg = ModDialog_LastOpened();
@@ -215,7 +215,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
                     Object::InternalPtr<UI::Element> nullElem;   // null; InternalPtr's ctor / dtor are trivial
                     static_cast<UI::DialogInstance*>(dlg)->OnElementEvent(   // through the base slot (an upcast)
                         &nullElem,
-                        0x12, id, 0, 0, 0, nullptr);
+                        UI::EventId::Activated, id, 0, 0, 0, nullptr);
                 }
             }
             if (!s_clickCursor) {
@@ -313,7 +313,7 @@ extern "C" void PauseMenuHarness_Tick(PlayerToolManager* entityUI, int frameNum)
     // four trailing arguments are the harness's choice: retail has no such caller.
     std::fprintf(stderr, "[PauseMenu] dispatching OnCommand(msg=0x12, id=%d)\n", s_buttonId);
     s_dialog->OnElementEvent(
-        nullptr, 0x12, s_buttonId, 0, 0, 0, nullptr);
+        nullptr, UI::EventId::Activated, s_buttonId, 0, 0, 0, nullptr);
 
     s_clickedAt = frameNum;
     std::fprintf(stderr, "[PauseMenu] OnCommand returned\n");

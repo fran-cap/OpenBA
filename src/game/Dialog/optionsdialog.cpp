@@ -1171,9 +1171,9 @@ void OptionsDialog::OnCancel() {
 // OnEvent (0x140072f20): Handle options changes
 // ============================================================
 
-void OptionsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+void OptionsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
 
-    if (eventType == 0x12) {
+    if (eventType == UI::EventId::Activated) {
         // --- Button click ---
         if (eventData == kButton_Ok) {
             OnOk();
@@ -1209,7 +1209,7 @@ void OptionsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, in
         return;
     }
 
-    if (eventType == 0x14) {
+    if (eventType == UI::EventId::SelectionChanged) {
         // --- Combo selection change (the item data are indices: ptr_int) ---
         if (eventData == kCombo_Renderer) {
             int curItem = this->comboRenderer->_currentItem;
@@ -1286,7 +1286,7 @@ void OptionsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, in
         return;
     }
 
-    if (eventType == 0x17) {
+    if (eventType == UI::EventId::SliderChanged) {
         // --- Slider value change ---
         ::Audio::Configuration* audioCfg = ::Audio::Configuration::_singleton;
         if (!audioCfg) return;

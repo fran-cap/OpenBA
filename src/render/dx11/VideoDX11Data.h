@@ -247,7 +247,7 @@ public:
     bool BeginCommands() override;                                          // [ 1] 0x180001650
     void EndCommands() override;                                            // [ 2] 0x180001720
     void Finish() override;                                                 // [ 3] 0x1800017c0  Present + device-lost
-    void Clear(unsigned flags, unsigned color,
+    void Clear(::Video::ClearFlags flags, unsigned color,
                float depth, int stencil) override;                          // [ 4] 0x180001920
     void BindRenderBuffer() override;                                       // [ 5] 0x180001ad0
     void BindViewport() override;                                           // [ 6] 0x180001b60

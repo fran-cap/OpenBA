@@ -280,7 +280,7 @@ void WeatherSimulation::Update(const System::Time* time) {
                     if (emitters[i] != nullptr) {
                         ComponentEntity* entity = emitters[i];
                         EntityList* entityList = gw->m_entityList;
-                        if (((entity->_entityFlags >> 10) & 1) == 0) {
+                        if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                             entity->MarkForRemoval();   // 0x1400c2ea0
                             entityList->removalList.SetSize(entityList->removalList._size + 1, entity);
                         }

@@ -278,7 +278,7 @@ VkFormat ImageFormat(int format) {
 SamplerDesc SamplerFor(const Video::ImageBuffer* ib, bool point, int droppedLevels) {
     static const uint8_t kAddress[2] = { VK_SAMPLER_ADDRESS_MODE_REPEAT, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE };
     int aniso = Video::Configuration::_singleton ? Video::Configuration::_singleton->textureFilter : 0;
-    const bool comparison = ((ib->_flags >> 6) & 1) != 0;
+    const bool comparison = (ib->_flags & Video::ImageBuffer::kShadowMap) != 0;
     // filter entry: 0 point, 1 min/mag linear mip point, 2 anisotropic (as patched below).
     enum Kind { Point, LinearMipPoint, LinearAll, Anisotropic, CompareLinear };
     Kind table[3] = { Point, LinearMipPoint, Anisotropic };
@@ -307,7 +307,9 @@ SamplerDesc SamplerFor(const Video::ImageBuffer* ib, bool point, int droppedLeve
     d.addressU = kAddress[ib->_addressU & 1];
     d.addressV = kAddress[ib->_addressV & 1];
     d.addressW = kAddress[ib->_addressW & 1];
-    d.maxLod = (ib->_flags & 1) ? static_cast<float>(ib->GetLevelCount() - droppedLevels) - 1.0f : 0.0f;
+    d.maxLod = (ib->_flags & Video::ImageBuffer::kMipmaps)
+                   ? static_cast<float>(ib->GetLevelCount() - droppedLevels) - 1.0f
+                   : 0.0f;
     return d;
 }
 

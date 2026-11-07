@@ -230,7 +230,7 @@ int Map::CalcDistance(uint32_t cellA, uint32_t cellB) {
 // Caller: bool fn(Map* map, uint32_t pathType, uint32_t destCell, int srcCell)
 //   (low byte of the returned uint64 is the bool; the WorldGrid_ValidateCell int-variant
 //    callers read the low 32 bits).
-uint64_t Map::ValidateCell(uint32_t pathType, uint32_t destCell, int srcCell) {
+uint64_t Map::ValidateCell(PathBits passFlags, uint32_t destCell, int srcCell) {
     // 0x1400a00f0 tests neither cell: FillZones, then [RCX+0x80] indexed by both
     // (B9 RES row 1120 dropped the port's range test; its route, a FindComponent<MapComponent>
     // with an unfilled type id, no longer exists).
@@ -241,14 +241,14 @@ uint64_t Map::ValidateCell(uint32_t pathType, uint32_t destCell, int srcCell) {
     const MapCell& recSrc  = cells.GetData()[srcCell];
     const MapCell& recDest = cells.GetData()[static_cast<int>(destCell)];
 
-    uint32_t typeSrc  = 1u << (Ext::WalkOnIce::TypeOf(recSrc) & 0x1f);
-    uint32_t typeDest = 1u << (Ext::WalkOnIce::TypeOf(recDest) & 0x1f);
-    uint32_t combined = typeDest | typeSrc;
-    uint64_t ret = combined;
+    PathBits typeSrc  = PathBitOf(Ext::WalkOnIce::TypeOf(recSrc));
+    PathBits typeDest = PathBitOf(Ext::WalkOnIce::TypeOf(recDest));
+    PathBits combined = typeDest | typeSrc;
+    uint64_t ret = Bits(combined);
 
-    uint32_t mask = pathType | combined;
-    if ((mask & typeDest) && (mask & typeSrc)) {
-        if (mask & 0x1e0u) return (ret & 0xffffffffffffff00ull) | 1u;
+    PathBits mask = passFlags | combined;
+    if (Any(mask & typeDest) && Any(mask & typeSrc)) {
+        if (Any(mask & PathBits::Zoneless)) return (ret & 0xffffffffffffff00ull) | 1u;
         uint16_t regionDest = recDest.zone;
         if (regionDest != 0) {
             uint16_t regionSrc = recSrc.zone;

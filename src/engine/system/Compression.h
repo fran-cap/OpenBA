@@ -81,6 +81,15 @@ namespace System {
 
 class Compression {
 public:
+    // The LZF-shaped format (compression.cpp): a control byte below kMaxLiteralRun
+    // starts a literal run of control + 1 bytes (a full run's control is
+    // kMaxLiteralRun - 1, written into the slot kMaxLiteralRun + 1 bytes back),
+    // else a match; offsets stay below kMaxOffset, a match is at most
+    // kMaxMatchLength long. The hash table is kHashTableBytes.
+    static constexpr uint32_t kMaxLiteralRun  = 0x20;      // 32 literals per run
+    static constexpr uint32_t kMaxOffset      = 0x2000;    // the 13-bit match window
+    static constexpr uint32_t kMaxMatchLength = 0x108;     // 264
+    static constexpr uint32_t kHashTableBytes = 0x40000;   // 65536 uint32 slots
     // ??0Compression@System@@QEAA@XZ                  retail 0x1800c41a0
     // Allocates the 0x40000-byte hash table through the MemoryAllocator door
     // and zeroes it. NOT null-checked: retail stores the result and memsets it

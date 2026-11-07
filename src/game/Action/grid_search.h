@@ -48,6 +48,13 @@ namespace GridSearch {
 constexpr int kPathCap   = 0x4000;   // Run 0x14001ce00: the 64 KB path buffer, 0x4000 cells
 constexpr int kStepCosts = 0x20;     // GridPathSearch::stepCost[0x20] (+0x50..+0xD0)
 
+// The per-cell byte of GridPathSearch::cellFlags (+0xE0). PathfinderThread::ApplyCommand
+// (0x1400a6430) command 2 writes the type and keeps bit 7; command 3 writes bit 7 and
+// keeps the type.
+constexpr uint8_t kCellTypeMask  = 0x7f;   // bits 0-6: the terrain type, FindPath's stepCost index
+constexpr uint8_t kCellBlocked   = 0x80;   // bit 7: unwalkable while respectBlocked (Neighbour 0x1400a5ec0)
+constexpr int     kCellTypeCount = 0x80;   // the values the type field holds (a per-type table's size)
+
 struct SearchInput {
     int            width = 0;             // the grid is width x width (GridPathSearch +0xD8)
     const uint8_t* cellFlags = nullptr;   // width*width bytes (+0xE0): type bits 0-6, blocked bit 7

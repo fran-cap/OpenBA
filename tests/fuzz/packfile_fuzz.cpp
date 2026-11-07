@@ -58,7 +58,7 @@ RtIO::FileInfo IO::FileSystem::OpenFile(const System::Filename&) {
     Platform::FileHandle h = Platform::FileOpenRead(g_tmpPath.c_str());
     if (h == nullptr || h == Platform::kInvalidFileHandle)
         return fi;   // handle -1: ReadPackfile returns false
-    fi.handle     = -2;
+    fi.handle     = RtIO::FileInfo::kHandleLoose;
     fi.winHandle  = h;
     fi.size       = static_cast<int32_t>(Platform::FileSize(h));
     fi.cursor     = 0;

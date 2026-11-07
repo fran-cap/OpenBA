@@ -42,6 +42,7 @@
 #include "Dialog/ExtensionsDialog.h"
 #include "Dialog/MainMenuDialog.h"
 #include "Dialog/MessageDialog.h"
+#include "Dialog/ModDialog.h"   // ModDialog::kRowTint* (the Mods list row colours)
 #include "ext/registry.h"
 #include "options.h"
 #include "rsc_text_check.h"   // src/diag: the KITFREE cross-check at menu time (NOT RETAIL)
@@ -257,7 +258,8 @@ void ExtensionsDialog::RefreshRow(int index) {
     SetTableText(r.state.Get(), state);
 
     // ModDialog's colours: green enabled, white disabled.
-    if (r.border.Get() != nullptr) r.border->SetColor(r.pending ? 0x20c0ffc0u : 0x10ffffffu);
+    if (r.border.Get() != nullptr)
+        r.border->SetColor(r.pending ? ModDialog::kRowTintEnabled : ModDialog::kRowTintIdle);
 }
 
 void ExtensionsDialog::Close() {
@@ -331,9 +333,9 @@ void ExtensionsDialog::Apply() {
     Close();
 }
 
-void ExtensionsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg,
+void ExtensionsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg,
                                       int32_t id, int32_t c, int32_t d, int32_t e, void* userData) {
-    if (msg == 0x12) {
+    if (msg == UI::EventId::Activated) {
         printf("[ExtDialog] click id=%d\n", id);
         if (id == 100) {
             Close();                                  // nothing applied

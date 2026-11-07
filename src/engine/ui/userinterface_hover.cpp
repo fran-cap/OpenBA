@@ -200,7 +200,7 @@ void UI::UserInterface::EndDragDrop() {
     Event rec;                              // deliberately NOT zeroed
     rec.dialog    = _dragDropDialog;        // 0x180120afa / 0x180120b04
     rec.element   = nullptr;                // 0x180120b21
-    rec.eventId   = 0xe;                    // 0x180120b26  drag-drop CANCEL
+    rec.eventId   = UI::EventId::DragDropCancel;  // 0x180120b26  drag-drop CANCEL
     rec.arg14     = -1;                     // 0x180120b2e
     rec.arg18     = 0;                      // 0x180120b36 } one QWORD
     rec.arg1C     = 0;                      //             }
@@ -262,7 +262,7 @@ void UI::DialogInstance::EndHover(UserInterface* ui) {
         UserInterface::Event rec;                   // deliberately NOT zeroed
         rec.dialog    = this;                       // 0x180113d2b
         rec.element   = nullptr;                    // 0x180113d45
-        rec.eventId   = 0x11;                       // 0x180113d39 (a QWORD store,
+        rec.eventId   = UI::EventId::HoverEnd;      // 0x180113d39 (a QWORD store,
         rec.arg14     = 0;                          //   covering +0x10 AND +0x14)
         rec.arg18     = 0;                          // 0x180113d4a } one QWORD
         rec.arg1C     = 0;                          //             }
@@ -318,10 +318,10 @@ void UI::UserInterface::BeginToolTip(Object::InternalPtr<DialogInstance>* dialog
     UserInterface* const self = this;
 
     Element* const elem = element->Get();                              // 0x18012088e
-    if (elem->_toolTipDialog == nullptr)      { ++g_tipRejected; return; }  // +0x40
-    if (elem->_toolTip.table == nullptr)      { ++g_tipRejected; return; }  // +0x48
-    if (elem->_toolTip.index < 0)             { ++g_tipRejected; return; }  // +0x50
-    if ((elem->_flags & 0x800000u) != 0)      { ++g_tipRejected; return; }  // +0x34
+    if (elem->_toolTipDialog == nullptr)            { ++g_tipRejected; return; }  // +0x40
+    if (elem->_toolTip.table == nullptr)            { ++g_tipRejected; return; }  // +0x48
+    if (elem->_toolTip.index < 0)                   { ++g_tipRejected; return; }  // +0x50
+    if ((elem->_flags & kElementFlagDisabled) != 0) { ++g_tipRejected; return; }  // +0x34
 
     // --- close whatever tooltip is already up (always, see the quirk above) --
     if (self->_toolTipDialog != nullptr) {                            // 0x1801208be

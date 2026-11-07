@@ -104,10 +104,10 @@ bool TutorialGoalButton::IsComplete(const System::Time* /*time*/, void* /*instan
 
     if (invertCheck) {
         // Bit 23 NOT set = success
-        return ((~(flags >> 23)) & 1) != 0;
+        return (flags & UI::kElementFlagDisabled) == 0;
     }
     // Bit 22 set = success
-    return ((flags >> 22) & 1) != 0;
+    return (flags & UI::kElementFlagWasActivated) != 0;
 }
 
 // ============================================================

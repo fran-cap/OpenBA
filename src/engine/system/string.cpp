@@ -891,11 +891,11 @@ void String::Serialize(::IO::Serializer& serializer) {
     // Length INCLUDING the terminator, with bit 31 as the "UTF-8 payload"
     // flag. On save this is what goes out; on load the call overwrites it.
     uint32_t n = _data ? static_cast<uint32_t>(StringLength(_data) + 1) : 0u;
-    n |= 0x80000000u;
+    n |= kSerializedUtf8Flag;
     rw->SerializeUInt(n, nullptr);                       // +0x98
 
     const bool legacyWide = ((n >> 31) & 1u) == 0u;
-    n &= 0x7fffffffu;
+    n &= kSerializedLengthMask;
 
     // Stream +0x08: 0 = loading/decode, non-zero = saving/encode.
     const bool loading = (serializer._stream->_direction == 0);

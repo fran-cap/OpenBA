@@ -186,11 +186,6 @@
 
 namespace Audio {
 
-// The bit slot 2 raises. `audio_device.cpp`'s `Update` tests `flags & 2` as
-// "finished, reap me" and its reap clears bits 0 and 1 (`and $0xfffffffc`).
-// This is the WRITER of that bit; the two were read independently.
-static const uint32_t kChannelFinished = 0x2u;
-
 // ---- slot 0  0x180050200 ---------------------------------------------------
 // IXAudio2VoiceCallback::OnVoiceProcessingPassStart(UINT32 BytesRequired)
 // retail: `ret` -- RCX and EDX never read.
@@ -209,7 +204,10 @@ void Device::PlatformChannel::OnVoiceProcessingPassEnd() {}
 // would not restore the behaviour, it would skip it (CLAUDE.md, "Don't 'fix' a
 // faithful crash with a null check").
 void Device::PlatformChannel::OnStreamEnd() {
-    channel->OrFlags(kChannelFinished);   // NOT RETAIL (review F-138): atomic RMW
+    // ChannelFlags::Finished (0x2): `audio_device.cpp`'s `Update` tests it as
+    // "finished, reap me" and its reap clears bits 0 and 1 (`and $0xfffffffc`).
+    // This is the WRITER of that bit; the two were read independently.
+    channel->OrFlags(Bits(ChannelFlags::Finished));   // NOT RETAIL (review F-138): atomic RMW
 }
 
 // ---- slot 3  0x180050210 ---------------------------------------------------

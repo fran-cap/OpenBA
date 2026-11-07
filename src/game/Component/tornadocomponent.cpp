@@ -184,7 +184,7 @@ TornadoDescription* TornadoDesc(TornadoComponent* self) {
     // only latch a real id — otherwise the sentinel gets cached forever. (The
     // unchecked answer on an unregistered id is the tree's.)
     const uint32_t typeId = TornadoDescription::TypeId();
-    if (typeId == 0 || typeId == 0xFFFFFFFFu) return static_cast<TornadoDescription*>(obj);
+    if (typeId == 0 || typeId == Object::kInvalidTypeId) return static_cast<TornadoDescription*>(obj);
     return Object::IsDerivedFromNullSafe(obj, typeId) ? static_cast<TornadoDescription*>(obj) : nullptr;
 }
 
@@ -419,7 +419,7 @@ static void Tornado_StrikeEntityCounted(int64_t unusedFirstArg, ComponentEntity*
         // pending-destroy array at entityList+0xd0 / count +0xd8.
         if (entityMgr && ibp != nullptr) {
             const uint32_t f = ibp->_entityFlags;
-            if (((f >> 10) & 1) == 0) {
+            if ((f & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                 ibp->MarkForRemoval();
                 entityMgr->removalList
                     .SetSize(entityMgr->removalList._size + 1, ibp);
@@ -595,7 +595,7 @@ void ParticleComponent::FadeOutEmitter(int index) {
     Description* obj = _description;
     const uint32_t typeId = ParticleDescription::TypeId();
     Description* descObj = obj;
-    if (typeId != 0 && typeId != 0xFFFFFFFFu)
+    if (typeId != 0 && typeId != Object::kInvalidTypeId)
         descObj = Object::IsDerivedFromNullSafe(obj, typeId) ? obj : nullptr;
     ParticleDescription* desc = static_cast<ParticleDescription*>(descObj);
 
@@ -825,7 +825,7 @@ void TornadoComponent::Tick(const System::Time* time) {
         EntityList* entityMgr = gw->m_entityList;
         if (entity != nullptr) {
             const uint32_t f = entity->_entityFlags;
-            if (((f >> 10) & 1) == 0) {
+            if ((f & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                 entity->MarkForRemoval();
                 entityMgr->removalList
                     .SetSize(entityMgr->removalList._size + 1, entity);

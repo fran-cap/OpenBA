@@ -160,7 +160,7 @@ void Minimap::PaintTerrain(Video::Context& context, Graphics::Geometry* worldGeo
     context.SetViewport(viewport);
 
     const float clearDepth = kRdata_14017214c;   // DAT_14017214c == 1.0
-    context.Clear(1, 0xff000000, clearDepth, 0);
+    context.Clear(Video::ClearFlags::Color, System::kColorBlack, clearDepth, 0);
 
     // Redirect rendering to the off-screen buffer (saving the current + default).
     const Video::RenderBuffer* savedRenderBuffer = context._renderBuffer;
@@ -178,7 +178,7 @@ void Minimap::PaintTerrain(Video::Context& context, Graphics::Geometry* worldGeo
 
     context.SetDefaultRenderBuffer(renderBuffer);
     context.SetRenderBuffer(renderBuffer);
-    context.Clear(7, 0xffff00ff, clearDepth, 0);
+    context.Clear(Video::ClearFlags::All, 0xffff00ff, clearDepth, 0);
 
     // Fog + context flags matching the retail minimap render setup.
     const Math::Vector4 fogColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -193,7 +193,7 @@ void Minimap::PaintTerrain(Video::Context& context, Graphics::Geometry* worldGeo
     row.y = 0.0f;         // +0x28c
     row.z = clearDepth;   // +0x290
     row.w = 0.0f;         // +0x294
-    context._dirty |= 0x10800;
+    context._dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     renderer._shaderDetail = 0;   // +0x3c (SetShaderDetail's field)
 

@@ -55,7 +55,7 @@ namespace UI {
 // [4] ?ComputeSize@RibbonElement@UI@@UEAAXXZ   0x1800d6190
 // ---------------------------------------------------------------------------
 void RibbonElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     if (_extentsCount != _children.GetSize())
         rtcoll::RtColl_ArraySetSize_18002fea0(&_extentsData, _children.GetSize());
@@ -67,7 +67,7 @@ void RibbonElement::ComputeSize() {
         _extentsData[i] = 0;
 
         Element* child = _children.GetData()[i];
-        if (child == nullptr || (child->_flags & kFlagHidden) != 0) continue;
+        if (child == nullptr || (child->_flags & UI::kElementFlagHidden) != 0) continue;
 
         int32_t w = 0, h = 0;
         InlineGetPaddedSize(child, &w, &h);
@@ -97,7 +97,7 @@ void RibbonElement::ComputeSize() {
     if (_vertical == 0) maxW = totalGap + sumW;
     _layoutWidth = maxW;
     if (_vertical != 0) maxH = totalGap + sumH;
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutHeight = maxH;
 }
 
@@ -122,17 +122,27 @@ void RibbonElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     const int32_t aw = (right  - _rightPad)  - px;
     const int32_t ah = (bottom - _bottomPad) - py;
 
-    if ((_flags & kFlagStretchX) != 0) w = aw;
-    if ((_flags & kFlagStretchY) != 0) h = ah;
+    if ((_flags & UI::kElementFlagAlignArg1) != 0) w = aw;
+    if ((_flags & UI::kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 1: case 4: case 7: px = ((aw >> 1) - (w >> 1)) + px; break;
-        case 2: case 5: case 8: px = (right - _rightPad) - w; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            px = ((aw >> 1) - (w >> 1)) + px;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            px = (right - _rightPad) - w;
+            break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutLeft   = px;
@@ -145,7 +155,7 @@ void RibbonElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     for (int32_t i = 0; i < n; ++i) {
         const int32_t extent = _extentsData[i];
         Element* child = _children.GetData()[i];
-        if (child == nullptr || (child->_flags & kFlagHidden) != 0) continue;
+        if (child == nullptr || (child->_flags & UI::kElementFlagHidden) != 0) continue;
 
         int32_t cw = 0, ch = 0;
         InlineGetPaddedSize(child, &cw, &ch);
@@ -156,12 +166,12 @@ void RibbonElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
 
         if (!vertical) {
             int32_t end = _layoutLeft + extent + cursor;
-            if ((_flags & kFlagStretchX) != 0 && last)
+            if ((_flags & UI::kElementFlagAlignArg1) != 0 && last)
                 end = _layoutRight;
             child->ComputeLayout(_layoutLeft + cursor, _layoutTop, end, _layoutBottom);   // slot 5
         } else {
             int32_t end = _layoutTop + extent + cursor;
-            if ((_flags & kFlagStretchY) != 0 && last)
+            if ((_flags & UI::kElementFlagAlignArg2) != 0 && last)
                 end = _layoutBottom;
             child->ComputeLayout(_layoutLeft, _layoutTop + cursor, _layoutRight, end);    // slot 5
         }
@@ -178,12 +188,12 @@ void RibbonElement::Draw(SpriteContext& context, uint8_t alpha) const {
     if (_border != nullptr)
         _border->Draw(context, alpha);
 
-    if ((_flags & kFlagDimColor) != 0) alpha >>= 1;
+    if ((_flags & UI::kElementFlagDimColor) != 0) alpha >>= 1;
 
     const int32_t n = _children.GetSize();
     for (int32_t i = 0; i < n; ++i) {
         const Element* child = _children.GetData()[i];
-        if (child != nullptr && (child->_flags & kFlagHidden) == 0)
+        if (child != nullptr && (child->_flags & UI::kElementFlagHidden) == 0)
             child->Draw(context, alpha);   // slot 6
     }
 }

@@ -260,8 +260,8 @@ void StorageUI::OnUpdateLayout() {
             row.numberCount->SetValue(static_cast<int32_t>(count));
 
             // Show both elements (flags: hide=0, show=1)
-            row.labelStorage->SetFlagsOnOff(0, 1);
-            row.numberCount->SetFlagsOnOff(0, 1);
+            row.labelStorage->SetFlagsOnOff(0, UI::kElementFlagHidden);
+            row.numberCount->SetFlagsOnOff(0, UI::kElementFlagHidden);
 
             rowIdx++;
         }
@@ -271,8 +271,8 @@ void StorageUI::OnUpdateLayout() {
     int totalRows = rows.GetSize();
     for (int i = rowIdx; i < totalRows; i++) {
         // Hide both elements (flags: hide=1, show=0)
-        rows[i].labelStorage->SetFlagsOnOff(1, 0);
-        rows[i].numberCount->SetFlagsOnOff(1, 0);
+        rows[i].labelStorage->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        rows[i].numberCount->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
 
     // Free temp sorted items array

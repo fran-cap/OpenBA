@@ -15,11 +15,14 @@ namespace TerrainResort {
 
 namespace {
 
+static_assert(kNoRoad == MapCell::kNoRoadBatch, "the rule's road byte is MapCell's no-road value");
+
 bool CellShouldHeal(Map* map, int index) {
     const MapCell& cell = map->cells.GetData()[index];
-    if (cell.terrainType != kTypeSteep) return false;   // most cells: skip the terrain query
+    // Most cells: skip the terrain query.
+    if (static_cast<uint8_t>(cell.terrainType) != kTypeSteep) return false;
     CellView view;
-    view.terrainType    = cell.terrainType;
+    view.terrainType    = static_cast<uint8_t>(cell.terrainType);
     view.footprintCount = cell.footprintCount;
     view.road           = cell.field_0x2A;
     view.blocked        = cell.blocker.Get() != nullptr;
@@ -51,7 +54,7 @@ int HealAllOnLoad(Map* map) {
     for (int index = 0; index < count; ++index) {
         if (CellShouldHeal(map, index)) {
             // 2 and 10 are both in the walkable set 0xe1f: no zone or region change.
-            map->cells.GetData()[index].terrainType = kTypeBuildable;
+            map->cells.GetData()[index].terrainType = static_cast<PathType>(kTypeBuildable);
             ++healed;
         }
     }

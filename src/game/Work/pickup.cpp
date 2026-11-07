@@ -305,9 +305,9 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     if (!townMgr->HasStorageFor(field_10->_description, amount))
         return 1;
 
-    const int selfAccess = grid->FindCell(selfCell, citizenCell, 0xe07);
+    const int selfAccess = grid->FindCell(selfCell, citizenCell, PathBits::Access);
     if (selfAccess < 0) return 1;
-    if (!grid->ValidateCell(0xe1f, static_cast<uint64_t>(static_cast<uint32_t>(selfAccess)),
+    if (!grid->ValidateCell(PathBits::Walk, static_cast<uint64_t>(static_cast<uint32_t>(selfAccess)),
                           static_cast<uint32_t>(citizenCell)))
         return 1;
 
@@ -380,9 +380,9 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
             ComponentDescription* nDesc = occIBP->_description;
             if (!static_cast<char>(dstStorageIBP->CanAdd(nDesc, 1))) continue;   // 0x14012cd80; the door read AL
 
-            const int nAccess = grid->FindCell(nCell, citizenCell, 0xe07);
+            const int nAccess = grid->FindCell(nCell, citizenCell, PathBits::Access);
             if (nAccess < 0) continue;
-            if (!grid->ValidateCell(0xe1f,
+            if (!grid->ValidateCell(PathBits::Walk,
                                   static_cast<uint64_t>(static_cast<uint32_t>(nAccess)),
                                   static_cast<uint32_t>(citizenCell)))
                 continue;
@@ -469,10 +469,10 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     GetTarget(&targetOut);   // slot 10, virtual in retail
 
     citEntity->field_0x30 = workTypeId;
-    citEntity->statusFlags |= 4;
+    citEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
     citEntity->field_0xB0 = 0;
     if (targetOut == citEntity->profession && workTypeId >= 0) {
-        citEntity->happinessFlags |= 0x20000;
+        citEntity->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     // first still set => nothing was dispatched => 0; else 2.

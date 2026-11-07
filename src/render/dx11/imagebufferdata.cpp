@@ -349,7 +349,7 @@ static D3D11_SAMPLER_DESC SamplerDescFor(const ::Video::ImageBuffer* ib, int dro
     // Configuration+0x28 (B.3.9 VID: the class static; B5 RES: the named member).
     int aniso = ::Video::Configuration::_singleton->textureFilter;
     const uint32_t flags = ib->_flags;
-    const bool comparison = ((flags >> 6) & 1) != 0;
+    const bool comparison = (flags & ::Video::ImageBuffer::kShadowMap) != 0;
 
     if (comparison) {
         // Shadow sampler: the LINEAR entry becomes the comparison filter and
@@ -418,7 +418,10 @@ ImageBufferData::~ImageBufferData() {
     ::Video::ImageBuffer* const ib = _owner;
 
     // Untrack. Note bits 4|5|6 = 0x70 here, unlike slot 3 which only tests bit 6.
-    if (ib->IsGenerated() || (ib->_flags & 0x70) != 0 || ib->IsRendered())
+    constexpr uint32_t kTrackedFlags = ::Video::ImageBuffer::kAliasedColor |
+                                       ::Video::ImageBuffer::kAliasedDepth |
+                                       ::Video::ImageBuffer::kShadowMap;
+    if (ib->IsGenerated() || (ib->_flags & kTrackedFlags) != 0 || ib->IsRendered())
         UntrackImageBuffer(Dx11DeviceData(), ib);
 
     ReleaseInterfaces();
@@ -450,7 +453,7 @@ void ImageBufferData::AttachColorBuffer() {
     ib->_addressV  = 1;      // +0x3c addressV = CLAMP
     ib->_addressU  = 1;      // +0x38 addressU = CLAMP
     ib->_filter    = 0;      // +0x44 filter   = POINT
-    ib->_flags     = 0x10;   // +0x34 flags: bit4 -> tracked for device reset
+    ib->_flags     = ::Video::ImageBuffer::kAliasedColor;   // +0x34 flags: bit4 -> tracked for device reset
 
     ID3D11Device* const dev = Dx11Device();
     // DeviceData::colorBuffer is the `ID3D11Texture2D*` at +0x38.
@@ -482,7 +485,7 @@ void ImageBufferData::AttachDepthBuffer() {
     ib->_addressV  = 1;
     ib->_addressU  = 1;
     ib->_filter    = 0;
-    ib->_flags     = 0x20;   // flags: bit5 -> tracked for device reset
+    ib->_flags     = ::Video::ImageBuffer::kAliasedDepth;   // flags: bit5 -> tracked for device reset
 
     ID3D11Device* const dev = Dx11Device();
     // DeviceData::depthBuffer is the `ID3D11Texture2D*` at +0x30.
@@ -583,7 +586,7 @@ bool ImageBufferData::Create(const Collection::Array<Collection::Array<uint8_t> 
     DeviceData* const dd = Dx11DeviceData();
 
     // Add to the reset registry. Only bit 6 here (the dtor also honours 4 and 5).
-    if (ib->IsGenerated() || ib->IsRendered() || ((ib->_flags >> 6) & 1) != 0)
+    if (ib->IsGenerated() || ib->IsRendered() || (ib->_flags & ::Video::ImageBuffer::kShadowMap) != 0)
         TrackImageBuffer(dd, ib);
 
     ReleaseInterfaces();
@@ -616,7 +619,7 @@ bool ImageBufferData::Create(const Collection::Array<Collection::Array<uint8_t> 
     desc.Width  = static_cast<UINT>(width >> drop);
     desc.Height = static_cast<UINT>(height >> drop);
     // flags bit0 set (mipmapped) -> 0 = "generate the full chain".
-    desc.MipLevels = static_cast<UINT>((~static_cast<uint8_t>(ib->_flags)) & 1);
+    desc.MipLevels = static_cast<UINT>((~static_cast<uint8_t>(ib->_flags)) & ::Video::ImageBuffer::kMipmaps);
     desc.ArraySize = (ib->_dimension == 0) ? 1 : 6;   // 6 = cube faces
     desc.Format = static_cast<DXGI_FORMAT>(kFormatToDxgi[ib->_format]);
     desc.SampleDesc.Count   = 1;   // textures are never multisampled here
@@ -849,7 +852,9 @@ static ID3D11SamplerState* AcquirePointSampler(const ::Video::ImageBuffer* ib, I
     desc.BorderColor[2] = 0.0f;
     desc.BorderColor[3] = 0.0f;
     desc.MinLOD         = 0.0f;
-    desc.MaxLOD         = (ib->_flags & 1) ? (static_cast<float>(ib->GetLevelCount()) - 1.0f) : 0.0f;
+    desc.MaxLOD         = (ib->_flags & ::Video::ImageBuffer::kMipmaps)
+                              ? (static_cast<float>(ib->GetLevelCount()) - 1.0f)
+                              : 0.0f;
     if (made != nullptr) {
         D3D11_SAMPLER_DESC creation;
         made->GetDesc(&creation);
@@ -874,7 +879,8 @@ void ImageBufferData::Bind(void* context, unsigned slot) {
     // takes retail's two lines below untouched. Set only inside a UI pass drawn
     // at an integer ratio >= 2 (Ext::SharpUI::Draw); a comparison (shadow) image
     // keeps its own sampler regardless.
-    if (::Video::ImageBufferData::_extPointSampling && ((_owner->_flags >> 6) & 1) == 0) {
+    if (::Video::ImageBufferData::_extPointSampling &&
+        (_owner->_flags & ::Video::ImageBuffer::kShadowMap) == 0) {
         if (ID3D11SamplerState* point = AcquirePointSampler(_owner, sampler)) {
             ctx->PSSetSamplers(slot, 1, &point);
             point->Release();

@@ -57,8 +57,10 @@ PoseArray(const Graphics::MeshInstance& m) {
         const int32_t handle =
             m._animation._layers._data[m._animation._layers._size - 1]._handle;
         const Graphics::AnimationManager::Instance& inst =
-            Graphics::AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
-        return inst._states._data[handle & 0xff]._nodes._data;
+            Graphics::AnimationManager::_singleton->_instances._data[
+                (handle >> Graphics::AnimationManager::kHandleIndexBits) &
+                Graphics::AnimationManager::kHandleIndexMask];
+        return inst._states._data[handle & Graphics::AnimationManager::kHandleIndexMask]._nodes._data;
     }
     return m._nodes._data;
 }

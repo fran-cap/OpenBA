@@ -81,14 +81,14 @@ namespace UI {
 // ---------------------------------------------------------------------------
 void ScrollElement::ComputeSize() {
     const uint32_t flags = _flags;
-    if ((flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     if (_vertical != 0) {
         _layoutWidth = _trackStart.Width();
         const int32_t h = _trackStart.Height()
                         + _trackMiddle.Height()
                         + _trackEnd.Height();
-        _flags = flags & ~kFlagNeedsSizeCalc;
+        _flags = flags & ~UI::kElementFlagNeedsSizeCalc;
         _layoutHeight = h;
         return;
     }
@@ -97,7 +97,7 @@ void ScrollElement::ComputeSize() {
                  + _trackMiddle.Width()
                  + _trackEnd.Width();
     _layoutHeight = _trackStart.Height();
-    _flags = flags & ~kFlagNeedsSizeCalc;
+    _flags = flags & ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,8 +116,8 @@ void ScrollElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     int32_t w = _layoutWidth;
     int32_t h = _layoutHeight;
 
-    const bool stretchY = !(vertical == 0 && (_flags & kFlagStretchY) == 0);
-    const bool stretchX =  (vertical == 0 || (_flags & kFlagStretchX) != 0);
+    const bool stretchY = !(vertical == 0 && (_flags & UI::kElementFlagAlignArg2) == 0);
+    const bool stretchX =  (vertical == 0 || (_flags & UI::kElementFlagAlignArg1) != 0);
 
     const int32_t align = _alignment;
     if (right  < w + x) x = right  - w;
@@ -132,13 +132,23 @@ void ScrollElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     if (stretchY) h = ah;
 
     switch (align) {
-        case 1: case 4: case 7: px = ((aw >> 1) - (w >> 1)) + px; break;
-        case 2: case 5: case 8: px = (right - _rightPad) - w; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            px = ((aw >> 1) - (w >> 1)) + px;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            px = (right - _rightPad) - w;
+            break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutRight  = px + w;
@@ -158,7 +168,7 @@ void ScrollElement::Draw(SpriteContext& context, uint8_t alpha) const {
         border->Draw(context, alpha);
 
     uint32_t raw = _color;
-    if ((_flags & kFlagDimColor) != 0) alpha >>= 1;
+    if ((_flags & UI::kElementFlagDimColor) != 0) alpha >>= 1;
     const uint32_t trackColor = ModulateColor(raw, alpha);
 
     const int32_t left   = _layoutLeft;
@@ -191,7 +201,7 @@ void ScrollElement::Draw(SpriteContext& context, uint8_t alpha) const {
     context.AddSprite(_trackEnd, ex0, ey0, ex1, ey1, trackColor);
 
     raw = _barColor;
-    if ((_flags & kFlagDimColor) != 0) alpha >>= 1;
+    if ((_flags & UI::kElementFlagDimColor) != 0) alpha >>= 1;
     const uint32_t barColor = ModulateColor(raw, alpha);
 
     int32_t bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
@@ -199,7 +209,7 @@ void ScrollElement::Draw(SpriteContext& context, uint8_t alpha) const {
 
     // The thumb uses the HOT set while the element is interactive and the
     // scroll actually has range.
-    const bool hot = (_flags & kFlagInteractive) != 0 && _maxValue > 0.0f;
+    const bool hot = (_flags & UI::kElementFlagHovered) != 0 && _maxValue > 0.0f;
     // Each thumb slice is a 0x10-byte UI::Sprite copied to the stack (two
     // qword loads), exactly as Draw does.
     const UI::Sprite s0 = hot ? _hotStart  : _thumbStart;
@@ -239,7 +249,7 @@ void ScrollElement::Update(const System::Time& time, UserInterface* ui,
         return;
     }
 
-    if (state.buttonPressed != 0 && (_flags & kFlagInteractive) != 0) {
+    if (state.buttonPressed != 0 && (_flags & UI::kElementFlagHovered) != 0) {
         int32_t bx0 = 0, by0 = 0, bx1 = 0, by1 = 0;
         GetBarLayout(bx0, by0, bx1, by1);                 // 0x18011a2d0
 
@@ -260,7 +270,7 @@ void ScrollElement::Update(const System::Time& time, UserInterface* ui,
             }
         } else {
             _dragAnchor = _currentValue;
-            SetFlags(this, _flags | kFlagDragging);
+            SetFlags(this, _flags | UI::kElementFlagPressed);
             played = true;
         }
 
@@ -281,16 +291,16 @@ void ScrollElement::Update(const System::Time& time, UserInterface* ui,
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/SLIDERCLAMP.md): fix.slider_drag_clamp -- a drag
     // off the band is treated as on it: the thumb keeps following the pointer (clamped in the drag
     // arm) and a release there keeps the value. Off / null = retail's snap back to the anchor below.
-    if ((flags & kFlagDragging) != 0 && !isNear && _extFixDragClamp != nullptr && *_extFixDragClamp) {
+    if ((flags & UI::kElementFlagPressed) != 0 && !isNear && _extFixDragClamp != nullptr && *_extFixDragClamp) {
         isNear = true;
     }
-    if ((flags & kFlagDragging) == 0 || isNear) {
-        if ((flags & kFlagDragging) != 0 && state.b04 != 0) {
-            SetFlags(this, flags & ~kFlagDragging);
+    if ((flags & UI::kElementFlagPressed) == 0 || isNear) {
+        if ((flags & UI::kElementFlagPressed) != 0 && state.b04 != 0) {
+            SetFlags(this, flags & ~UI::kElementFlagPressed);
             if (!isNear) return;
             static_cast<UI::UserInterface*>(ui)->Play(5);
         }
-        if (isNear && (_flags & kFlagDragging) != 0) {
+        if (isNear && (_flags & UI::kElementFlagPressed) != 0) {
             _currentValue = _dragValue;
             const bool vertical = _vertical != 0;
             const int32_t span = vertical ? (_layoutBottom - _layoutTop)

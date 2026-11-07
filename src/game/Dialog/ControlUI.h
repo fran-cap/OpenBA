@@ -32,7 +32,7 @@ public:
     ~ControlUI() override = default;                              // [0] 0x140010e20
     void OnCreated() override;   // [4] 0x14005f9b0
     void OnUpdateLayout() override;   // [7] 0x14005f870
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x14005f7f0
 
     // ---- fields (B4 DLG-a; OnCreated 0x14005f9b0 fills both) --------

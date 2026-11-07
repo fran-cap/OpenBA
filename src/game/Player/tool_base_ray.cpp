@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <cmath>
 #include "input/Input.h"       // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "video/Device.h"   // ENDGAME B.3.9 SS2: Video::Device::_singleton
 #include "Player/exe_bodies.h"
 #include "Player/PlacementTool.h"
@@ -206,8 +207,8 @@ extern "C" uint8_t PlayerRay_GetMouseRay_1005a0(const void* /*param_1*/, float* 
         GameUpdateLoop::_singleton ? GameUpdateLoop::_singleton->m_playerController : nullptr;
     if (!keyMap || !display || !controller) return 0;
 
-    short mouseX = keyMap->GetValue(0, 0);
-    short mouseY = keyMap->GetValue(0, 1);
+    short mouseX = keyMap->GetValue(0, ToUnderlying(GameKey::MouseX));
+    short mouseY = keyMap->GetValue(0, ToUnderlying(GameKey::MouseY));
     // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md §5): while a finger presses a dialog, ext.touch_pointer keeps
     // the aiming tool's ray on the aim (the cursor is on the dialog for the click). Row off: retail's cursor.
     if (Ext::Ext().touch_pointer)

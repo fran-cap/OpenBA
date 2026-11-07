@@ -125,14 +125,15 @@ bool Hook(Engine::LoaderLoop& /*loop*/, int32_t point, const System::Time* time)
     // kExtDraw: DialogLoaderLoopT::Draw's body over our UI (loops.cpp).
     Engine::MainLoop* ml = Engine::MainLoop::_singleton;
     Video::Context* ctx = ml->_context;
-    ctx->_contextData->Clear(7u, 0u, 1.0f, 0);
+    ctx->_contextData->Clear(Video::ClearFlags::Color | Video::ClearFlags::Depth | Video::ClearFlags::Stencil,
+                             0u, 1.0f, 0);
 
     const float secs = System::Timer::TicksToSeconds(g_elapsedTicks);
     ctx->_time.x = secs;
     ctx->_time.y = 0.0f;
     ctx->_time.z = 0.0f;
     ctx->_time.w = 0.0f;
-    ctx->_dirty |= 0x800u;
+    ctx->_dirty |= RtVideo::kDirtyGlobalConstants;
     ctx->_unknown03b8.x = secs;
     ctx->_unknown03b8.y = 0.0f;
     ctx->_unknown03b8.z = 0.0f;
@@ -142,7 +143,7 @@ bool Hook(Engine::LoaderLoop& /*loop*/, int32_t point, const System::Time* time)
     staging.y = 0.0f;
     staging.z = 0.0f;
     staging.w = 0.0f;
-    ctx->_dirty |= 0x10800u;
+    ctx->_dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     g_ui->Draw(*ctx);
     return true;

@@ -79,6 +79,9 @@ using rt::system::kTagThisFree;
 using rt::system::kTagPrevHiMask;
 using rt::system::kSizeBytesMask;
 using rt::system::kThisFreeShl2;
+using rt::system::kTagPrevSizeShift;
+using rt::system::kLinkDeltaHiMask;
+using rt::system::kFreeListBinCount;
 
 // ?_singleton@MemoryAllocator@System@@0PEAV12@EA (0x1801fc718): BSS in retail,
 // zero until the ctor below runs (B3R W0-SM M1: was the mint's storage cell).
@@ -168,7 +171,7 @@ void SetPrevTagInfo(uint8_t* next, const uint8_t* prev) {
     Tag(next) |= kTagPrevFree;
     uint64_t v = Tag(next);
     if ((TagC(prev) & kTagSizeMask) < 5) {
-        uint64_t enc = static_cast<uint64_t>((next - prev) >> 2) << 41;
+        uint64_t enc = static_cast<uint64_t>((next - prev) >> 2) << kTagPrevSizeShift;
         Tag(next) = ((enc ^ v) & kTagPrevSizeMask) ^ v;
     } else {
         *reinterpret_cast<int64_t*>(next - 8) = next - prev;  // CAST-OK: alloc_header
@@ -231,7 +234,7 @@ FreeTag* MemoryAllocator::GetFreeTagForSize(uint64_t want) {
     int bin = GetBinForSize(want);
     if (bin < minBin) bin = minBin;
 
-    for (; bin < 0xc0; ++bin) {
+    for (; bin < kFreeListBinCount; ++bin) {
         uint8_t* cur = reinterpret_cast<uint8_t*>(freeLists[bin]);  // CAST-OK: alloc_header
         if (cur == nullptr) continue;
         for (;;) {
@@ -258,18 +261,18 @@ void MemoryAllocator::LinkFreeTag(MemoryTag* tagp) {
 
     if (*head == nullptr) {
         Node(node) = 0;
-        Tag(tag) &= 0x00003fffffffffffull;          // clear the prev-link high bits
+        Tag(tag) &= ~kTagPrevHiMask;          // clear the prev-link high bits
         if (bin < minBin) minBin = bin;
     } else {
         uint8_t* oldHead = reinterpret_cast<uint8_t*>(*head);  // CAST-OK: alloc_header
         Node(node) = static_cast<uint64_t>(oldHead - node) & kTagSizeMask;
-        Tag(tag) &= 0x00003fffffffffffull;
+        Tag(tag) &= ~kTagPrevHiMask;
 
         uint64_t back = static_cast<uint64_t>(node - oldHead);
         Node(oldHead) &= kTagSizeMask;
         Node(oldHead) |= back << 41;
-        Tag(oldHead - 8) &= 0x00003fffffffffffull;
-        Tag(oldHead - 8) |= (back & 0xffffffffff800000ull) << 23;
+        Tag(oldHead - 8) &= ~kTagPrevHiMask;
+        Tag(oldHead - 8) |= (back & kLinkDeltaHiMask) << 23;
     }
     *head = AsNode(node);
     freeTagCount++;
@@ -286,7 +289,7 @@ void MemoryAllocator::UnlinkFreeTag(FreeTag* nodep, FreeTag* /*unused*/) {
     const uint64_t nodev = Node(node);
 
     uint64_t pdelta = (static_cast<uint64_t>(static_cast<int64_t>(tagv) >> 23) &
-                       0xffffffffff800000ull) | (nodev >> 41);
+                       kLinkDeltaHiMask) | (nodev >> 41);
     uint8_t* prev = pdelta ? node + static_cast<int64_t>(pdelta) : nullptr;
 
     int64_t ndelta = static_cast<int64_t>(nodev << 23) >> 23;
@@ -298,26 +301,26 @@ void MemoryAllocator::UnlinkFreeTag(FreeTag* nodep, FreeTag* /*unused*/) {
         } else {
             freeLists[bin] = AsNode(next);
             Node(next) &= kTagSizeMask;
-            Tag(next - 8) &= 0x00003fffffffffffull;
+            Tag(next - 8) &= ~kTagPrevHiMask;
         }
     } else {
-        Node(prev) &= 0xfffffe0000000000ull;        // drop prev's next field
+        Node(prev) &= ~kTagSizeMask;        // drop prev's next field
         if (next != nullptr) {
             Node(prev) |= static_cast<uint64_t>(next - prev) & kTagSizeMask;
             uint64_t back = static_cast<uint64_t>(prev - next);
             Node(next) &= kTagSizeMask;
             Node(next) |= back << 41;
-            Tag(next - 8) &= 0x00003fffffffffffull;
-            Tag(next - 8) |= (back & 0xffffffffff800000ull) << 23;
+            Tag(next - 8) &= ~kTagPrevHiMask;
+            Tag(next - 8) |= (back & kLinkDeltaHiMask) << 23;
         }
     }
 
     Node(node) = 0;
-    Tag(node - 8) &= 0x00003fffffffffffull;
+    Tag(node - 8) &= ~kTagPrevHiMask;
 
     int cursor = minBin;
     if (bin == cursor && freeLists[bin] == nullptr) {
-        while (cursor < 0xc0 && freeLists[minBin] == nullptr) {
+        while (cursor < kFreeListBinCount && freeLists[minBin] == nullptr) {
             cursor = minBin + 1;
             minBin = cursor;
         }
@@ -411,9 +414,9 @@ bool MemoryAllocator::AddNewMemoryRange(uint64_t want) {
         range->end = base + size;
         CommitToPage(range, base + 0x10);
         Tag(base) = (((size & kSizeBytesMask) | kThisFreeShl2) >> 2) |
-                    (Tag(base) & 0xffffe00000000000ull);
+                    (Tag(base) & (kTagPrevHiMask | kTagThisFree));
         Node(base + 8) = 0;
-        Tag(base) &= 0x00003fffffffffffull;
+        Tag(base) &= ~kTagPrevHiMask;
         LinkFreeTag(AsTag(base));
         totalReserved += size;
     } else {
@@ -479,7 +482,7 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
                   static_cast<int32_t>(static_cast<uint32_t>(reinterpret_cast<uint64_t>(user)));  // CAST-OK: alloc_header
 
     if (pad == 0) {
-        Tag(tag) &= 0xffffc1ffffffffffull;   // clear prevSize, PREV_FREE, THIS_FREE
+        Tag(tag) &= ~(kTagPrevSizeMask | kTagPrevFree | kTagThisFree);   // clear prevSize, PREV_FREE, THIS_FREE
     } else {
         const uint64_t orig     = Tag(tag);
         const uint64_t origBytes = (orig & kTagSizeMask) * 4;
@@ -487,7 +490,7 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
 
         // The head of the block becomes a `pad`-byte free block …
         Tag(tag) = (((static_cast<uint64_t>(padS) & kSizeBytesMask) | kThisFreeShl2) >> 2) |
-                   (orig & 0xffffe00000000000ull);
+                   (orig & (kTagPrevHiMask | kTagThisFree));
         LinkFreeTag(AsTag(tag));
 
         // … and the aligned remainder becomes the block we hand out.
@@ -517,7 +520,7 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
 
         uint8_t* rem = tag + nq * 4;
         uint64_t remBytes = (sizeQ * 4 - (Tag(tag) & kTagSizeMask) * 4) & kSizeBytesMask;
-        Tag(rem) = ((remBytes | kThisFreeShl2) >> 2) | (Tag(rem) & 0xffffe00000000000ull);
+        Tag(rem) = ((remBytes | kThisFreeShl2) >> 2) | (Tag(rem) & (kTagPrevHiMask | kTagThisFree));
 
         uint8_t* next = rem + (Tag(rem) & kTagSizeMask) * 4;
         if (next != range->end) {
@@ -526,7 +529,7 @@ void* MemoryAllocator::Allocate(uint64_t size, int align) {
                 uint64_t s = nextv | kTagPrevFree;
                 Tag(next) = s;
                 if ((Tag(rem) & kTagSizeMask) < 5) {
-                    uint64_t enc = static_cast<uint64_t>((next - rem) >> 2) << 41;
+                    uint64_t enc = static_cast<uint64_t>((next - rem) >> 2) << kTagPrevSizeShift;
                     Tag(next) = ((enc ^ s) & kTagPrevSizeMask) ^ s;
                 } else {
                     *reinterpret_cast<int64_t*>(next - 8) = next - rem;  // CAST-OK: alloc_header
@@ -603,7 +606,7 @@ void MemoryAllocator::Free(void* p) {
             uint64_t s = nv | kTagPrevFree;
             Tag(next) = s;
             if ((Tag(blk) & kTagSizeMask) < 5) {
-                uint64_t enc = static_cast<uint64_t>((next - blk) >> 2) << 41;
+                uint64_t enc = static_cast<uint64_t>((next - blk) >> 2) << kTagPrevSizeShift;
                 Tag(next) = ((enc ^ s) & kTagPrevSizeMask) ^ s;
             } else {
                 *reinterpret_cast<int64_t*>(next - 8) = next - blk;  // CAST-OK: alloc_header
@@ -620,7 +623,7 @@ void MemoryAllocator::Free(void* p) {
                     uint64_t s = n2 | kTagPrevFree;
                     Tag(next) = s;
                     if ((Tag(blk) & kTagSizeMask) < 5) {
-                        uint64_t enc = static_cast<uint64_t>((next - blk) >> 2) << 41;
+                        uint64_t enc = static_cast<uint64_t>((next - blk) >> 2) << kTagPrevSizeShift;
                         Tag(next) = ((enc ^ s) & kTagPrevSizeMask) ^ s;
                     } else {
                         *reinterpret_cast<int64_t*>(next - 8) = next - blk;  // CAST-OK: alloc_header
@@ -634,7 +637,7 @@ void MemoryAllocator::Free(void* p) {
     if (blk + (Tag(blk) & kTagSizeMask) * 4 == range->end)
         ReleaseToPage(range, blk + 0x10);
 
-    Tag(blk) = (Tag(blk) & 0xffffe1ffffffffffull) | kTagThisFree;
+    Tag(blk) = (Tag(blk) & ~(kTagPrevSizeMask | kTagPrevFree)) | kTagThisFree;
     LinkFreeTag(AsTag(blk));
 }
 
@@ -714,7 +717,7 @@ void Construct(MemoryAllocator* self) {
     self->minRangeSize = 0;
     self->maxTotalSize = 0;
     self->totalReserved = 0;
-    self->minBin = 0xbf;
+    self->minBin = kFreeListBinCount - 1;
     self->allocatedBytes = 0;
     self->allocCount = 0;
     self->freeTagCount = 0;

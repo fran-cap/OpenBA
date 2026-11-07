@@ -141,10 +141,8 @@
 //  * bit **0x8000** is the MATERIAL constants (+0x208 -> the buffer at +0x298).
 //  * bit **0x1000** uploads +0x3f8 len 0x20 — `_inverseScale` and `_color` —
 //    into the buffer at +0x1fc0, which Context.h calls `_instanceConstants`.
-//    Context.h's enum calls this bit `kDirtyMaterialConstants`; by the buffer it
-//    actually feeds it is the INSTANCE constants. The enum name is left alone
-//    (renaming it is a change to a file three other lanes include) but the
-//    disagreement is recorded here, and this file does not use that name.
+//    Context.h's enum calls this bit `kDirtyInstanceConstants` (formerly the
+//    misnamed `kDirtyMaterialConstants`, which is now 0x8000).
 //
 // ** The 0x4000 arm is NOT a plain bit test. ** 0x1800ef0f5 reads
 //
@@ -289,41 +287,41 @@ void Video::Context::BindResources() {
     //   (b) retail reloads `[RBX+0x2160]` at each companion arm; `cd` is loaded
     //       once here. No arm writes +0x2160 — the field is set by the ctor and
     //       by ?PlatformConstruct@, neither of which this function reaches.
-    if (_dirty & 0x1u)
+    if (_dirty & RtVideo::kDirtyRenderBuffer)
         cd->BindRenderBuffer();
 
     // --- 0x00002 textures ---------------------------------------------------
     // A direct member call: retail's `CALL 0x1800ef330` at 0x1800ef08a is a near
     // call to its own sibling body.
-    if (_dirty & 0x2u)
+    if (_dirty & RtVideo::kDirtyImageBuffers)
         this->Video::Context::BindTextures();
 
     const int32_t detail = _shaderDetail;
 
     // --- 0x00040 vertex program --------------------------------------------
-    if (_dirty & 0x40u)
+    if (_dirty & RtVideo::kDirtyVertexProgram)
         _vertexProgram->_data->Bind(this, detail);
 
     // --- 0x00080 pixel program ---------------------------------------------
-    if (_dirty & 0x80u)
+    if (_dirty & RtVideo::kDirtyPixelProgram)
         _pixelProgram->_data->Bind(this, detail);
 
     // --- 0x00100 video program ---------------------------------------------
     // NOTE THE COMPANION OFFSET: +0x40, not +0x50. A VideoProgram's backend
     // companion sits one qword earlier than a Vertex/PixelProgram's; the typed
     // `VideoProgram::_data` says so.
-    if (_dirty & 0x100u) {
+    if (_dirty & RtVideo::kDirtyVideoProgram) {
         // +0x200 is `_videoProgram`, the first qword of `_pixelConstantStaging`.
         const VideoProgram* p = _pixelConstantStaging.videoProgram;
         p->_data->Bind(this, detail);
     }
 
     // --- 0x04000 transforms, OR a live transform count ----------------------
-    if ((_dirty & 0x4000u) || _transformCount > 0 || _unknown0024 > 0)
+    if ((_dirty & RtVideo::kDirtyTransformConstants) || _transformCount > 0 || _unknown0024 > 0)
         cd->BindTransforms();
 
     // --- 0x00008 the sixteen vertex streams ---------------------------------
-    if (_dirty & 0x8u) {
+    if (_dirty & RtVideo::kDirtyVertexBuffers) {
         uint32_t mask = 1;
         for (int32_t i = 0; i < 16; ++i, mask = (mask << 1) | (mask >> 31)) {
             if ((_vertexBufferDirty & mask) == 0) continue;
@@ -348,11 +346,11 @@ void Video::Context::BindResources() {
 
     // --- 0x00004 vertex layout ----------------------------------------------
     // Retail binds the layout AFTER the streams.
-    if (_dirty & 0x4u)
+    if (_dirty & RtVideo::kDirtyVertexLayout)
         _vertexLayout->_data->Bind(this);
 
     // --- 0x00010 index buffer -----------------------------------------------
-    if (_dirty & 0x10u) {
+    if (_dirty & RtVideo::kDirtyIndexBuffer) {
         const IndexBuffer* ib = _indexBuffer;
         if (ib) {
             // The Context argument retail loads into RDX at 0x1800ef1e2 and
@@ -364,13 +362,13 @@ void Video::Context::BindResources() {
     }
 
     // --- 0x00020 render state -----------------------------------------------
-    if (_dirty & 0x20u)
+    if (_dirty & RtVideo::kDirtyRenderState)
         _renderState->_data->Bind(this);
 
     // --- 0x00200 viewport / 0x00400 scissor ---------------------------------
-    if (_dirty & 0x200u)
+    if (_dirty & RtVideo::kDirtyViewport)
         cd->BindViewport();
-    if (_dirty & 0x400u)
+    if (_dirty & RtVideo::kDirtyScissor)
         cd->BindScissor();
 
     // --- the five constant-buffer uploads -----------------------------------
@@ -381,11 +379,11 @@ void Video::Context::BindResources() {
     // +0x328 is `_viewProjection`, +0x3f8 `_inverseScale`, +0x1dd8 `_lightStaging`.
     struct Upload { uint32_t bit; Video::ConstantBuffer* buf; const void* src; int32_t len; };
     const Upload kUploads[5] = {
-        { 0x00800u, &_globalConstants,   &_viewProjection,                      kGlobalBytes   },
-        { 0x01000u, &_instanceConstants, &_inverseScale,                        kInstanceBytes },
-        { 0x02000u, &_lightConstants,    &_lightStaging,                        kLightBytes    },
-        { 0x08000u, &_materialConstants, _pixelConstantStaging.material,       kMaterialBytes },
-        { 0x10000u, &_pixelConstants,    _pixelConstantStaging.pixel,          kPixelBytes    },
+        { RtVideo::kDirtyGlobalConstants,   &_globalConstants,   &_viewProjection,                kGlobalBytes   },
+        { RtVideo::kDirtyInstanceConstants, &_instanceConstants, &_inverseScale,                  kInstanceBytes },
+        { RtVideo::kDirtyLightConstants,    &_lightConstants,    &_lightStaging,                  kLightBytes    },
+        { RtVideo::kDirtyMaterialConstants, &_materialConstants, _pixelConstantStaging.material, kMaterialBytes },
+        { RtVideo::kDirtyPixelConstants,    &_pixelConstants,    _pixelConstantStaging.pixel,    kPixelBytes    },
     };
     for (const Upload& u : kUploads) {
         if ((_dirty & u.bit) == 0) continue;

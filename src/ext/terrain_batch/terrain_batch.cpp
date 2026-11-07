@@ -90,7 +90,7 @@ void Unlink(Slot& s) {
 // buffer or its offset differs).
 void BindIndexBuffer(Video::Context& context, const Video::IndexBuffer* ib) {
     if (context._indexBuffer != ib || context._indexOffset != 0) {
-        context._dirty |= 0x10;
+        context._dirty |= RtVideo::kDirtyIndexBuffer;
         context._indexBuffer = ib;
         context._indexOffset = 0;
     }
@@ -165,15 +165,17 @@ void AddChunkItems(const WorldGeometry& geo, Graphics::Renderer& renderer,
             const float ymax = ymin + chunkSizeF;
             const ::Box box = { { xmin, ymin, zMin }, { xmax, ymax, zMax } };
 
-            uint32_t r = FrustumCull_Test(&localPlanes, &box, 0x3F, cullVerify);
-            bool keep = r != 0x40;
+            uint32_t r =
+                FrustumCull_Test(&localPlanes, &box, static_cast<uint32_t>(FrustumPlanes::All), cullVerify);
+            bool keep = r != static_cast<uint32_t>(FrustumPlanes::Outside);
             if (keep && shadow && sweep) {
                 const Aabb chunk = { { xmin, ymin, zMin }, { xmax, ymax, zMax } };
                 Aabb reach;
                 if (CasterSweepBox(chunk, light, margin, reach)) {
                     const ::Box reachBox = { { reach.min[0], reach.min[1], reach.min[2] },
                                              { reach.max[0], reach.max[1], reach.max[2] } };
-                    keep = FrustumCull_Test(&viewPlanes, &reachBox, 0x3F, cullVerify) != 0x40;
+                    keep = FrustumCull_Test(&viewPlanes, &reachBox, static_cast<uint32_t>(FrustumPlanes::All),
+                                            cullVerify) != static_cast<uint32_t>(FrustumPlanes::Outside);
                 }
             }
             visible[static_cast<size_t>(j)] = keep ? 1 : 0;

@@ -123,8 +123,8 @@ int32_t HeuristicScale(const int32_t* stepCost, uint32_t passableTypes, uint32_t
 }
 
 uint32_t PresentTypes(const uint8_t* cellFlags, int cellCount) {
-    bool seen[0x80] = {};
-    for (int i = 0; i < cellCount; ++i) seen[cellFlags[i] & 0x7f] = true;
+    bool seen[kCellTypeCount] = {};
+    for (int i = 0; i < cellCount; ++i) seen[cellFlags[i] & kCellTypeMask] = true;
     uint32_t mask = 0;
     for (int t = 0; t < kStepCosts; ++t)
         if (seen[t]) mask |= 1u << t;
@@ -171,14 +171,14 @@ SearchResult Searcher::Run(const SearchInput& in, int32_t* path) {
     int32_t maxCost = 0;
     for (int b = 0; b < 256; ++b) {
         int32_t c;
-        if (in.respectBlocked && (b & 0x80) != 0) {
+        if (in.respectBlocked && (b & kCellBlocked) != 0) {
             c = kWall;
         } else if (((in.passableTypes >> (b & 0x1f)) & 1u) == 0) {
             c = kWall;
-        } else if ((b & 0x7f) >= kStepCosts) {
+        } else if ((b & kCellTypeMask) >= kStepCosts) {
             c = kOffTable;
         } else {
-            c = in.stepCost[b & 0x7f];
+            c = in.stepCost[b & kCellTypeMask];
             if (c < 0) {
                 out.status = Status::Unsupported;
                 return out;

@@ -248,10 +248,11 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
 
                     // Check pathfinding from cell to citizen
                     int srcCellIdx = cropField->slots._data[i].cell;
-                    int nearestCell = mapGrid->FindCell(srcCellIdx, citizenGridCell, 0xe0f);
+                    int nearestCell =
+                        mapGrid->FindCell(srcCellIdx, citizenGridCell, PathBits::Walk & ~PathBits::Obstacle);
 
                     if (nearestCell >= 0) {
-                        uint64_t canPath = (uint64_t)static_cast<uint8_t>(mapGrid->ValidateCell(0xe1f, citizenGridCell, nearestCell));   // the bool door read AL
+                        uint64_t canPath = (uint64_t)static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the bool door read AL
                         if ((char)canPath != 0) {
                             // Check NaturalResourceComponent on entity
                             // natRes must be contiguous: the action ctor 0x1400c1530
@@ -318,12 +319,12 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                                 Profession* workEnt = nullptr;
                                 GetTarget(&workEnt);
 
-                                citizenEnt->statusFlags |= 4;
+                                citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
                                 citizenEnt->field_0x30 = priority;
                                 citizenEnt->field_0xB0 = 0;
 
                                 if (workEnt == citizenEnt->profession && priority >= 0) {
-                                    citizenEnt->happinessFlags |= 0x20000;
+                                    citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                                 }
 
                                 // Insert {cell, citizen} into the claim tree (the helper

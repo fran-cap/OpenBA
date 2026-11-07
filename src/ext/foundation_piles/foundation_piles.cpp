@@ -130,9 +130,9 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
     const int size = map->size;
     const int citizenCell = CitizenCell(map, citizen);
     const int pileCell = pickup->field_28;
-    const int pileAccess = map->FindCell(pileCell, citizenCell, 0xe07);
+    const int pileAccess = map->FindCell(pileCell, citizenCell, PathBits::Access);
     if (pileAccess < 0) return 0;
-    if (!map->ValidateCell(0xe1f, static_cast<uint32_t>(pileAccess), citizenCell)) return 0;
+    if (!map->ValidateCell(PathBits::Walk, static_cast<uint32_t>(pileAccess), citizenCell)) return 0;
 
     MapComponent* mc = site->FindComponent<MapComponent>();
     Rect r;
@@ -147,8 +147,8 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
     ComponentEntity* allow = nullptr;
     auto accept = [&](int col, int row) -> bool {
         const int cell = row * size + col;
-        if (map->FindPlacementCell(cell, '\0', &allow, 0) != cell) return false;
-        return map->ValidateCell(0xe1f, static_cast<uint32_t>(cell), citizenCell) != 0;
+        if (map->FindPlacementCell(cell, '\0', &allow, PathBits{}) != cell) return false;
+        return map->ValidateCell(PathBits::Walk, static_cast<uint32_t>(cell), citizenCell) != 0;
     };
     const int target = ChooseDropCell(r, pileCell % size, pileCell / size, size, RingsFor(r, 6), accept);
     if (target < 0) return 0;
@@ -165,7 +165,8 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
         if (mem) {
             ComponentEntity* noDestination = nullptr;   // -> SpillAllStorage -> DropOnGround
             CitizenComponent* who = citizen;
-            drop = new (mem) DropOffRawMaterial(&who, &noDestination, nullptr, 0xffffffff, false);
+            drop = new (mem)
+                DropOffRawMaterial(&who, &noDestination, nullptr, DropOffRawMaterial::kAllUnits, false);
         }
         Object::InternalPtr<Action> ibp = drop;
         ActionStackPush(stack, &ibp);
@@ -177,8 +178,8 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
         Action* walk = nullptr;
         if (mem) {
             CharacterComponent* family = citizen->_entity->FindComponent<CharacterComponent>();
-            const uint8_t type = map->cells.GetData()[target].terrainType;
-            const uint32_t mask = (1u << (type & 0x1f)) | 0xe1fu;
+            const PathType type = map->cells.GetData()[target].terrainType;
+            const PathBits mask = PathBitOf(type) | PathBits::Walk;
             // pathType 4: the haul chain's "carrying" walk (0x1400c0f61 CMOVNZ).
             walk = new (mem) MoveTo(&family, 4, 0, dropPos, mask, 0, kRdata_140172280);
         }
@@ -198,9 +199,11 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
     Profession* target10 = nullptr;
     pickup->GetTarget(&target10);
     citizen->field_0x30 = pickup->field_20;
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0xB0 = 0;
-    if (target10 == citizen->profession && pickup->field_20 >= 0) citizen->happinessFlags |= 0x20000;
+    if (target10 == citizen->profession && pickup->field_20 >= 0) {
+        citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
+    }
 
     if (s_logged < kLogCap) {
         ++s_logged;

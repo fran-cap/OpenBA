@@ -54,7 +54,7 @@ namespace UI {
 // BOTTOM-row pair against a mixed pair. That is what 0x180110276..0x1801102e2
 // computes and it is transcribed rather than normalised.
 void BorderElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     const int tlW = SpriteW(_topLeft);
     const int trW = SpriteW(_topRight);
@@ -73,7 +73,7 @@ void BorderElement::ComputeSize() {
     if (h < blH + tlH) h = blH + tlH;
 
     _layoutWidth = w;
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutHeight = h;
 }
 

@@ -220,7 +220,7 @@ void WorkAct_PerformWorkCopyCtor_ba9f0(CitizenComponent* const* citizenRef, uint
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0 // 0x1400012d0
         // 0x1400bae37: LEA R8D,[R9+4] (R9=0) → pathType=4 (Faster); [RSP+0x28]=0xe1f; [RSP+0x30]=0; XMM=speed
-        mv1 = new (obj) MoveTo(&family, 4, 0, pos5, 0xe1f, 0, speed);
+        mv1 = new (obj) MoveTo(&family, 4, 0, pos5, PathBits::Walk, 0, speed);
     }
     ibpA = mv1;
     WAP_Append(list, &ibpA);
@@ -266,7 +266,7 @@ void WorkAct_PerformWorkCopyCtor_ba9f0(CitizenComponent* const* citizenRef, uint
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
         // 0x1400bb041: LEA R8D,[R9+1] (R9=0) → pathType=1 (Slow); dest=pos3 ([RBP+0x67]); XMM6=speed
-        mv2 = new (obj) MoveTo(&family, 1, 0, pos3, 0xe1f, 0, speed);
+        mv2 = new (obj) MoveTo(&family, 1, 0, pos3, PathBits::Walk, 0, speed);
     }
     ibpA = mv2;
     WAP_Append(list, &ibpA);
@@ -403,7 +403,7 @@ void WorkAct_PerformWorkCtor_bffd0(CitizenComponent* const* citizenRef, uint32_t
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
         // 0x1400c031d: LEA R8D,[R9+2] (R9=0) → pathType=2 (Fast); dest=param_3 (R13 at entry); XMM8=speed
-        mv1 = new (obj) MoveTo(&family, 2, 0, destination, 0xe1f, 0, speed);
+        mv1 = new (obj) MoveTo(&family, 2, 0, destination, PathBits::Walk, 0, speed);
     }
     ibpA = mv1;
     WAP_Append(list, &ibpA);
@@ -482,7 +482,7 @@ void WorkAct_PerformWorkCtor_bffd0(CitizenComponent* const* citizenRef, uint32_t
             if (countPositive) pathType = 4; // Faster
             CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
             // 0x1400c0631: R8D=R13D=pathType ; dest=[RBP+0x7f]=param_10 ; XMM8=speed ; [RSP+0x28]=0xe1f
-            mv2 = new (obj) MoveTo(&family, pathType, 0, pos10, 0xe1f, 0, speed);
+            mv2 = new (obj) MoveTo(&family, pathType, 0, pos10, PathBits::Walk, 0, speed);
         }
         ibpA = mv2;
         WAP_Append(list, &ibpA);

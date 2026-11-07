@@ -123,6 +123,7 @@
 #include "ui/UserInterface.h"
 #include "ui/Element.h"     // B3X W0: the root's Contains by name
 #include "input/Device.h"   // ENDGAME B.3.9 SS1: Input::Device::_singleton
+#include "system/EnumFlags.h"   // ToUnderlying: a MouseInput as a _mouse index
 #include "ui/ListElement.h"
 
 // ############################################################################
@@ -181,20 +182,21 @@ void ComboDialog::OnUpdate(const System::Time& /*time*/) {
     const ::Input::Device* dev = ::Input::Device::_singleton;
     if (dev == nullptr) return;   // pre-existing; retail derefs it unconditionally
 
+    using MouseInput = ::Input::Device::MouseInput;
     const float scale = _ui->_uiScale;
-    const int16_t rawMx = dev->_mouse[0].value;
-    const int16_t rawMy = dev->_mouse[1].value;
+    const int16_t rawMx = dev->_mouse[ToUnderlying(MouseInput::X)].value;
+    const int16_t rawMy = dev->_mouse[ToUnderlying(MouseInput::Y)].value;
     const int32_t mx = static_cast<int32_t>(static_cast<float>(rawMx) * scale);
     const int32_t my = static_cast<int32_t>(static_cast<float>(rawMy) * scale);
 
-    const bool anyButtonDown = dev->_mouse[4].pressed != 0 ||
-                               dev->_mouse[5].pressed != 0 ||
-                               dev->_mouse[6].pressed != 0;
+    const bool anyButtonDown = dev->_mouse[ToUnderlying(MouseInput::Left)].pressed != 0 ||
+                               dev->_mouse[ToUnderlying(MouseInput::Right)].pressed != 0 ||
+                               dev->_mouse[ToUnderlying(MouseInput::Middle)].pressed != 0;
     if (!anyButtonDown) return;                                          // 180111c33
 
-    if ((_flags & 0x4) == 0) {                                           // 180111c3f
+    if ((_flags & kDialogFlagNoMouseCapture) == 0) {                     // 180111c3f
         Element* const root = _root.Get();
-        if (_flags & 0x8) {                                              // 180111c47
+        if (_flags & kDialogFlagPerElementCapture) {                     // 180111c47
             if (root->Contains(mx, my, _ui))                             // Element slot 9
                 return;                                                  // 180111c55
         } else {
@@ -213,9 +215,9 @@ void ComboDialog::OnUpdate(const System::Time& /*time*/) {
 //      0x180111af0 — a list pick: set the combo's item, click, forward the
 // event to the dialog that owns the combo, close.
 void ComboDialog::OnElementEvent(Object::InternalPtr<Element>* /*element*/,
-                                 int32_t evt, int32_t stage, int32_t value,
+                                 UI::EventId evt, int32_t stage, int32_t value,
                                  int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (evt != 0x14 || stage != 0) return;                                  // 180111af4/180111b05
+    if (evt != UI::EventId::SelectionChanged || stage != 0) return;   // 180111af4/180111b05
 
     ComboElement* const combo = _combo;
     combo->SetCurrentItem(value);                                           // 180111b25
@@ -226,7 +228,7 @@ void ComboDialog::OnElementEvent(Object::InternalPtr<Element>* /*element*/,
     // *** SLOT 0x40 on `_parentDialog`, i.e. DialogInstance slot 8 — see the
     // file banner. The handle is re-read into a local whose ADDRESS is passed.
     Object::InternalPtr<Element> local(_combo);
-    _parentDialog->OnElementEvent(&local, 0x14, combo->_elementId,
+    _parentDialog->OnElementEvent(&local, UI::EventId::SelectionChanged, combo->_elementId,
                                   value, 0, 0, nullptr);                    // 180111b8a
 
     if (combo->_openDialog != nullptr) combo->_openDialog = nullptr;        // 180111ba2

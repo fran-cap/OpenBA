@@ -2052,7 +2052,7 @@ void MeshInstance::SetMesh(Object::ExternalPtr<GraphicsMesh> mesh) {
         _localBounds.max.x = m->_aabb.max.x;
         _localBounds.max.y = m->_aabb.max.y;
         _localBounds.max.z = m->_aabb.max.z;
-        _dirtyFlags |= 2u;
+        _dirtyFlags |= RtGraphics::kDirtyBounds;
     }
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/CREATEONDEMAND.md): ext.create_on_demand queues

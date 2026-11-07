@@ -313,7 +313,7 @@ static CullStack* RtGraphics_Scene_CullStackInit(CullStack* self, const Scene* s
     r.halfX = h; r.halfY = h; r.halfZ = 0.0f;
     r.node  = 0;
     r.depth = 0;
-    r.mask  = 0x003f003fu;                       // both 6-plane masks, all set
+    r.mask  = kFrustumAllPlanesBoth;             // both 6-plane masks, all set
     return self;
 }
 
@@ -454,14 +454,14 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
     GeomList list = { nullptr, 0, 0 };
     ReserveVisibleList(&list);
 
-    uint32_t shadowMask = 0x3f;
+    uint32_t shadowMask = Bits(FrustumPlanes::All);
 
     CullStack st;
     RtGraphics_Scene_CullStackInit(&st, self, kMinZBias, kMaxZBias);
 
     // `shader != 1` means "no shadow pass": objects go straight into the list
     // and the second frustum is never consulted.
-    const bool notShadow = (g->_shader != 1);
+    const bool notShadow = (g->_shader != static_cast<int32_t>(MaterialPass::Depth));
     const int  shaderSlot = GatherShaderSlot(g->_shader);   // issue #253: the `gather` row's split
 
     while (st.top >= 0) {
@@ -478,7 +478,7 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
         if (cullMask != 0) {
             const Box b = NodeBoxCull(&st, st.rec[t]);
             cullMask = contains(&cullPlanes, &b, cullMask);
-            if (cullMask == 0x40) {                        // entirely outside
+            if (cullMask == Bits(FrustumPlanes::Outside)) {   // entirely outside
                 st.top -= 1;
                 continue;
             }
@@ -511,7 +511,7 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
                         Box b = geo->_worldBounds;
                         r = contains(&cullPlanes, &b, cullMask);
                     }
-                    if (r != 0x40) {
+                    if (r != Bits(FrustumPlanes::Outside)) {
                         if (notShadow) {
                             PushVisible(&list, geo);
                         } else {
@@ -551,7 +551,7 @@ void Scene::AddCulledDrawItems(Renderer& rendererRef) const {
                             if (ex <= b.min.x) b.min.x = ex;
 
                             if (shadowMask == 0 ||
-                                contains(&shadowPlanes, &b, shadowMask) != 0x40) {
+                                contains(&shadowPlanes, &b, shadowMask) != Bits(FrustumPlanes::Outside)) {
                                 PushVisible(&list, geo);
                             }
                         }

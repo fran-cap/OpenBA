@@ -160,7 +160,7 @@ void MapUI::SetupImage(Video::ImageBuffer* imageBuffer, UI::SpriteSheet** sprite
 
     // If blend mode, set flags and element ID
     if (useBlend != '\0') {
-        imageElem->SetFlagsOnOff(0x10000, 0);
+        imageElem->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
         imageElem->SetElementId(1000);
     }
 }
@@ -287,9 +287,9 @@ void MapUI::OnCreated() {
 // calculates relative click position, and moves the camera.
 
 // [9] 0x14006c9e0
-void MapUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id,
+void MapUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id,
                            int32_t clickX, int32_t clickY, int32_t /*e*/, void* /*userData*/) {
-    if (msg != 2 || id != 1000) return;
+    if (msg != UI::EventId::LeftPress || id != 1000) return;
 
     // The clicked element's layout position and size
     UI::Element* elem = element->Get();

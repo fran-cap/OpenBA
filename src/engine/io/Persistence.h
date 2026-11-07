@@ -78,6 +78,18 @@ static_assert(offsetof(BlockDesc, size)   == 0x08, "BlockDesc.size @ 0x08");
 static_assert(sizeof(BlockDesc) == 0xc, "the +0x60 array strides 0xc");
 static_assert(offsetof(BlockDesc, id) == 0x0, "BlockDesc::id");
 
+// The save-file container header (the Persistence worker writes it, the save-info
+// job checks it): u32 fileHeader = blockCount << 16 | version; version 2 adds a
+// magic and a CRC dword; then blockCount BlockDesc rows; the CRC runs over the
+// rows, then the blocks in kSaveCrcChunkBytes chunks.
+constexpr uint32_t kSaveFileVersion   = 2;             // the header version that carries magic + crc
+constexpr uint32_t kSaveFileMagic     = 0x80808080u;   // version 2's magic dword
+constexpr uint32_t kSaveHeaderBytesV1 = 4;             // fileHeader alone
+constexpr uint32_t kSaveHeaderBytesV2 = 0xC;           // fileHeader + magic + crc
+constexpr uint32_t kBlockDescBytes    = 0xC;           // one BlockDesc row on disk
+constexpr uint32_t kSaveCrcChunkBytes = 0x8000;        // the CRC chunk / read buffer
+static_assert(kBlockDescBytes == sizeof(BlockDesc), "the on-disk row is the struct");
+
 // The `RtIo::Persistence` POD mirror that stood here was deleted by B.4 wave X
 // (X7-RT): `IO::Persistence` below holds the worker and the String as typed
 // members. Its per-offset evidence, kept (Persistence-relative offsets; the
@@ -381,12 +393,21 @@ class Persistence;
 // `_hFinished` (+0x38, the "done" event).
 class PersistenceWorker : public System::Thread {
 public:
+    // `_status`, the job result `?GetStatus@` (0x1800b7c40) returns as a plain int (no
+    // retail enum): the values are the stores the five jobs and the request paths make.
+    enum class Status : int32_t {
+        Pending = 0,   // a request was issued and the job has not finished (every request stores it)
+        Done    = 1,   // the job succeeded; also the ctor's value
+        Failed  = 2,   // the file could not be opened, read, written or deleted
+        BadFile = 3,   // GetSaveInfoJob: the file is not a save of the requested shape
+    };
+
     // The inlined worker half of ??0Persistence 0x1800b8020 (see the banner).
     // The members' own ctors are retail's stores: String() nulls +0x30,
     // Array() zeroes each {data, size, capacity} triple.
     PersistenceWorker()
         : System::Thread(0x10000),
-          _pendingFilename(), _status(1), _command(0), _blockCount(0),
+          _pendingFilename(), _status(static_cast<int32_t>(Status::Done)), _command(0), _blockCount(0),
           _blockDescs(), _blockPtrs(), _saves() {}
 
     // slot 0  +0x00  0x1800b7260 -- a five-way jump on `_command`; every arm a

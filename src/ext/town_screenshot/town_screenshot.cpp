@@ -310,7 +310,7 @@ void ReadTile(Run& r) {
     Graphics::FrameCopyImageBuffer* copy =
         static_cast<Graphics::FrameCopyImageBuffer*>(System::MemoryAllocator::MemAlloc(0x88, 8));
     ::new (copy) Graphics::FrameCopyImageBuffer();
-    copy->Create(0, 4, 5, 0x100u, width, height, 1, 1, 1, 1, nullptr);
+    copy->Create(0, 4, 5, Video::ImageBuffer::kViewportSize, width, height, 1, 1, 1, 1, nullptr);
     static_cast<const Graphics::FrameCopyImageBuffer*>(copy)->Generate(mainLoop->_context, 1);
     unsigned int* pixels = static_cast<unsigned int*>(
         System::MemoryAllocator::MemAlloc(static_cast<uint64_t>(static_cast<int64_t>(height) * width) << 2, 4));

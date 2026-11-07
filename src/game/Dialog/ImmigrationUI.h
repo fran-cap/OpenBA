@@ -31,7 +31,7 @@ public:
     ~ImmigrationUI() override = default;                          // [0] 0x140011fd0
     void OnCreated() override;   // [4] 0x14006b330
     void OnUpdateLayout() override;   // [7] 0x14006b130
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x14006b300
 
     // ---- fields (OnCreated 0x14006b330 finds them) ------------------------

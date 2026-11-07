@@ -30,6 +30,7 @@
 // that used to sit in this file (head[0x38] + device + platformData) is gone —
 // see the alias below.
 #include "ConstantBuffer.h"
+#include "ClearFlags.h"           // Video::ClearFlags (slot 4's first argument)
 #include "../object/Internal.h"   // Object::detail::InternalMemFree (the slot-0 bodies)
 // B5 RES: `Collection::Array<T>` for `ImageBufferData::Create`'s level array.
 // Three template parameters, two defaulted, so it cannot be forward-declared
@@ -306,7 +307,7 @@ public:
     virtual bool BeginCommands() { detail::CompanionPureCall(); }                            // [ 1]
     virtual void EndCommands() { detail::CompanionPureCall(); }                              // [ 2]
     virtual void Finish() { detail::CompanionPureCall(); }                                   // [ 3]
-    virtual void Clear(unsigned flags, unsigned color,
+    virtual void Clear(ClearFlags flags, unsigned color,
                        float depth, int stencil) { detail::CompanionPureCall(); }            // [ 4]
     virtual void BindRenderBuffer() { detail::CompanionPureCall(); }                         // [ 5]
     virtual void BindViewport() { detail::CompanionPureCall(); }                             // [ 6]

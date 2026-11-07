@@ -899,7 +899,7 @@ bool AnimationState::Update(const System::Time& timeRef,
         // `MOV ECX,[R14+RAX+0xc]` at 0x1800fde2c) rather than reused from L.
         const int32_t handle = _layers._data[li]._handle;
         if (handle >= 0) {
-            const uint32_t gi = static_cast<uint32_t>(handle >> 8) & 0xFFu;  // SAR then MOVZX CL
+            const uint32_t gi = AnimationManager::HandleInstance(handle);    // SAR then MOVZX CL
             // LEFT (B9): the two null tests (the singleton, then its instance
             // buffer) are the tree's; retail reads both unguarded. Kept, not
             // extended -- their removal is NEXT_SESSION §0.2's.
@@ -972,7 +972,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
     this->Graphics::Renderer::AddScene(
         &sceneRef,
         static_cast<const Video::RenderBuffer*>(context._defaultRenderBuffer),
-        cameraRef, _shaderDetail, 0x40, 0, 0x8007u);
+        cameraRef, _shaderDetail, 0x40, static_cast<int32_t>(MaterialPass::Normal), Bits(kMainScenePassMask));
 
     // ---------------- PASS 1: cull and collect ----------------------------
     _currentSceneGroup = 0;
@@ -1067,7 +1067,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
         RendererSceneEntry* const e = _sceneGroups._data + si;
 
         _shaderDetail = e->_shaderDetail;
-        context._dirty |= 0xc0;                     // OR [RSI+0x10],0xc0
+        context._dirty |= RtVideo::kDirtyVertexProgram | RtVideo::kDirtyPixelProgram;   // OR [RSI+0x10],0xc0
         context._shaderDetail = e->_shaderDetail;   // MOV [RSI+0xc],EAX
 
         // Slot 9 on every drawable the entry names. 5th argument is a literal 1.
@@ -1101,7 +1101,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
             const int32_t w = rb->width, h = rb->height;
             if (!(context._scissor.x == 0 && context._scissor.y == 0 &&
                   context._scissor.width == w && context._scissor.height == h)) {
-                context._dirty |= 0x400;
+                context._dirty |= RtVideo::kDirtyScissor;
                 context._scissor.x = 0;             // x and y: retail's one 8-byte store
                 context._scissor.y = 0;
                 context._scissor.width = w;
@@ -1114,7 +1114,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
         // 0x180104e85); the 1.0f depth is XMM6, loaded once at 0x180104d3d from
         // [0x18016169c], whose four bytes were READ (00 00 80 3f) rather than
         // assumed (reference_crt_coefficients_must_be_lifted_not_retyped.md).
-        context.Clear(6, 0x1184d6u, 1.0f, 0);
+        context.Clear(Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0x1184d6u, 1.0f, 0);
 
         // Three passes x every drawable. Slot 10.
         for (int32_t k = 0; k < 3; ++k) {
@@ -1126,12 +1126,14 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
             }
             // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, between the Opaque and
             // the Blended lists of the MAIN entry only (the reflection is shader 2).
-            if (k == 0 && extAo != nullptr && e->_shader == 0 &&
+            if (k == 0 && extAo != nullptr &&
+                e->_shader == static_cast<int32_t>(MaterialPass::Normal) &&
                 e->_renderBuffer == context._defaultRenderBuffer)
                 ExtAoAfterOpaque(context, *extAo, *e);
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): the ground draw, at the same point
             // of the same entry, after the AO pass.
-            if (k == 0 && extGround != nullptr && e->_shader == 0 &&
+            if (k == 0 && extGround != nullptr &&
+                e->_shader == static_cast<int32_t>(MaterialPass::Normal) &&
                 e->_renderBuffer == context._defaultRenderBuffer)
                 extGround(context, e->_camera);
         }

@@ -70,7 +70,6 @@ constexpr int32_t kWrap = 0;
 constexpr int32_t kClamp = 1;
 constexpr int32_t kLinear = 1;
 constexpr int32_t kAnisotropic = 2;
-constexpr uint32_t kMipmapped = 1u;   // ImageBuffer::_flags bit 0: the levels are a full chain
 
 // One of our textures: the image and the levels it was made from (kept for a device restart).
 struct Texture {
@@ -174,7 +173,9 @@ void RetireMask(Mask* m) {
     }
 }
 
-bool IsWater(uint8_t terrainType) { return terrainType == 7 || terrainType == 8; }
+bool IsWater(PathType terrainType) {
+    return terrainType == PathType::Water || terrainType == PathType::DeepWater;
+}
 
 // The blocked water cells of the map; a new mask when they changed (or the map's size did).
 // The in-map stretch of the trade boats' polyline (WorldGeometry::_contourOutlines record 0, world
@@ -297,7 +298,7 @@ bool AddPostChannel(ComponentEntity* post, const Map& map, const std::vector<flo
     const int dockCell = tile(dock[0] + half, dock[1] + half);
     std::vector<uint8_t> types(static_cast<size_t>(size) * static_cast<size_t>(size));
     const MapCell* cells = map.cells.GetData();
-    for (size_t i = 0; i < types.size(); ++i) types[i] = cells[i].terrainType;
+    for (size_t i = 0; i < types.size(); ++i) types[i] = static_cast<uint8_t>(cells[i].terrainType);
     BoatLane::LaneLegs legs;
     if (!BoatLane::Legs(types.data(), size, entry, dockCell, exit, pull, smoothing, legs)) return polylineOnly();
     if (!boatsOnLane) {
@@ -466,7 +467,7 @@ std::vector<uint8_t> TakeWalkSet(const Map& map, const WorldGeometry& geo) {
     BuildOpenMask(OpenStamps(map, &geo, blocked, posts, ChannelShape{}, nullptr, nullptr), size, open);
     std::vector<uint8_t> types(static_cast<size_t>(size) * static_cast<size_t>(size));
     const MapCell* cells = map.cells.GetData();
-    for (size_t i = 0; i < types.size(); ++i) types[i] = cells[i].terrainType;
+    for (size_t i = 0; i < types.size(); ++i) types[i] = static_cast<uint8_t>(cells[i].terrainType);
     return WalkCells(size, types.data(), RangeTriangles(geo, geo._contourRangesB, size),
                      RangeTriangles(geo, geo._contourRangesA, size), open);
 }
@@ -482,7 +483,8 @@ void SendWalkSet(Map& map, const std::vector<uint8_t>& set, bool frozen) {
         if (set[i] == 0) continue;
         const int cell = static_cast<int>(i);
         map.regionGraph->MarkCellDirty(cell % size, cell / size);   // 0x1400a8c90
-        map.pathfinder->SetCellTerrain(cell, frozen ? WalkOnIce::kFrozenType : cells[i].terrainType);   // 0x1400a6fe0
+        map.pathfinder->SetCellTerrain(   // 0x1400a6fe0
+            cell, static_cast<int>(frozen ? WalkOnIce::kFrozenType : cells[i].terrainType));
         ++count;
     }
     map.field_0xA2 = 1;   // the zones go stale (as Map::SetTerrainType 0x14009f2f0 marks them)
@@ -789,10 +791,10 @@ void BeginFrame() {
     const bool ice = HasIce(shown);
     if (ice && !g_texturesTried && Video::Device::_singleton != nullptr) {
         g_texturesTried = true;
-        if (!MakeTexture(g_surface, MipChain(kIceSurface, kIceTextureSize), kIceTextureSize, kMipmapped,
-                         kAnisotropic, kWrap, "ice surface") ||
-            !MakeTexture(g_detail, MipChain(kIceDetail, kIceTextureSize), kIceTextureSize, kMipmapped,
-                         kAnisotropic, kWrap, "ice detail")) {
+        if (!MakeTexture(g_surface, MipChain(kIceSurface, kIceTextureSize), kIceTextureSize,
+                         Video::ImageBuffer::kMipmaps, kAnisotropic, kWrap, "ice surface") ||
+            !MakeTexture(g_detail, MipChain(kIceDetail, kIceTextureSize), kIceTextureSize,
+                         Video::ImageBuffer::kMipmaps, kAnisotropic, kWrap, "ice detail")) {
             delete g_surface.image;
             g_surface.image = nullptr;
         } else {
@@ -841,7 +843,7 @@ void DrawIce(Video::Context& context, int32_t a, int32_t b, int32_t c, int32_t d
     std::memcpy(saved, context._pixelConstantStaging.material, sizeof(saved));
     static_assert(sizeof(params) == sizeof(saved), "IceParams fills the material staging");
     std::memcpy(context._pixelConstantStaging.material, &params, sizeof(saved));
-    context._dirty |= 0x8000u;
+    context._dirty |= RtVideo::kDirtyMaterialConstants;
 
     // Our textures in slots no water material uses, put back after.
     const Video::ImageBuffer* slot4 = context._imageBuffers[4];
@@ -862,18 +864,18 @@ void DrawIce(Video::Context& context, int32_t a, int32_t b, int32_t c, int32_t d
     const Ext::Tweak::Ice tweak = Ext::Tweak::IceValues();
     if (tweak.preview && tweak.snow >= 0.0f) context._pixelConstantStaging.pixel[4].x = tweak.snow;
 #endif
-    context._dirty |= 0x10800u;
+    context._dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     twin->SetupShaders(context);
     context.DrawIndexed(0, a, b, c, d, 1);
 
     context._pixelConstantStaging.pixel[4] = savedUser;
-    context._dirty |= 0x10800u;
+    context._dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
     context.SetImageBuffer(slot4, 4);
     context.SetImageBuffer(slot6, 6);
     context.SetImageBuffer(slot7, 7);
     std::memcpy(context._pixelConstantStaging.material, saved, sizeof(saved));
-    context._dirty |= 0x8000u;
+    context._dirty |= RtVideo::kDirtyMaterialConstants;
     water->SetupShaders(context);
 }
 

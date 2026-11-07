@@ -111,7 +111,7 @@ GoalInstance::~GoalInstance() {}
 bool GoalInstance::IsMet() const { return (_flags & kFlagMet) != 0; }
 
 // ?HasFailed@GoalInstance@Achievement@@QEBA_NXZ  retail 0x18009eec0 — bit 1.
-bool GoalInstance::HasFailed() const { return ((_flags >> 1) & 1u) != 0; }
+bool GoalInstance::HasFailed() const { return (_flags & kFlagFailed) != 0; }
 
 // ============================================================================
 // void GoalInstance::Update(const System::Time&, const GoalList&) — SLOT 5
@@ -125,13 +125,13 @@ bool GoalInstance::HasFailed() const { return ((_flags >> 1) & 1u) != 0; }
 // LATCHES: once set, the entry test makes every later Update a no-op.
 // ============================================================================
 void GoalInstance::Update(const System::Time& /*time*/, const GoalList& /*list*/) {
-    if (((_flags >> 1) & 1u) != 0)
+    if ((_flags & kFlagFailed) != 0)
         return;
 
     const Goal::GoalState state = CheckGoalState();
 
     if (state == Goal::kMet)    { _flags |= kFlagMet;  return; }
-    if (state == Goal::kNotMet) { _flags &= 0xfffffffeu; return; }
+    if (state == Goal::kNotMet) { _flags &= ~kFlagMet; return; }
     if (state == Goal::kFailed) { _flags |= kFlagFailed; }
 }
 

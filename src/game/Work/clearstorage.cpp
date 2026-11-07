@@ -180,7 +180,7 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
 
         // Check if path is possible
         uint32_t workTypeId = (uint32_t)field_28;
-        if (!gridDataPtr->ValidateCell(0xe1f, srcCell, workTypeId)) {
+        if (!gridDataPtr->ValidateCell(PathBits::Walk, srcCell, workTypeId)) {
             return 1;
         }
 
@@ -237,12 +237,12 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
         Profession* resultVal = *GetTarget(&entityRefOut);
 
         // Update citizen state
-        citizenPtr->statusFlags |= 4;
+        citizenPtr->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizenPtr->field_0x30 = pathType;
         citizenPtr->field_0xB0 = 0;
 
         if (resultVal == citizenPtr->profession && pathType >= 0) {
-            citizenPtr->happinessFlags |= 0x20000;
+            citizenPtr->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
         }
 
         // Register work with citizen AI (the tree helpers take the root as uintptr_t*)

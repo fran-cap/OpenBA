@@ -142,7 +142,8 @@ void WorkAct_HuntWorkCtor_bbbc0(CitizenComponent* const* citizenIBP, uint32_t wo
             CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
             float speed = kRdata_140172280;  // -1.0f
             // MoveTo(self, family, Slow=1, 0, param_4, 0xe1f, 0, speed)  (disasm R8D=1, [RSP+0x28]=0xe1f)
-            mainAction = new (obj) MoveTo(&family, 1 /*Slow; disasm LEA R8D,[R9+1]*/, 0, worldPos, 0xe1f, 0, speed);
+            mainAction = new (obj) MoveTo(&family, 1 /*Slow; disasm LEA R8D,[R9+1]*/, 0, worldPos,
+                                          PathBits::Walk, 0, speed);
         }
     } else {
         // disasm 0x1400bbd98..0x1400bbdf4 (alloc 0x48,8)
@@ -312,7 +313,7 @@ void WorkAct_ShowToolCtor3_bdd20(CitizenComponent** citizenRef, uint32_t workId,
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
         float speed = kRdata_140172280;  // XMM0=[0x140172280]=-1.0
         // MoveTo(self, family, Fastest=3, 0, param_5, 0xe1f, 0, speed)  (disasm R8D=3, [RSP+0x28]=0xe1f)
-        mv = new (obj) MoveTo(&family, 3 /*Fastest; disasm LEA R8D,[R9+3]*/, 0, destination, 0xe1f, 0, speed);
+        mv = new (obj) MoveTo(&family, 3 /*Fastest; disasm LEA R8D,[R9+3]*/, 0, destination, PathBits::Walk, 0, speed);
     }
     ibpA = mv;
     WAH_Append(&character->actionStack, &ibpA);  // inlined grow-and-append in disasm

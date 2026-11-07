@@ -505,7 +505,7 @@ std::vector<Cell> FillIconTable(UI::Element* tableElement, const std::vector<int
             cell->SetUserData(it.tmpl);
             cell->SetToolTip(
                 UI::String(Object::ExternalPtr<UI::StringTable>(desc->_stringTable), desc->_str3));
-            cell->SetFlagsOnOff(0x10000, 0);
+            cell->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
         } else {
             // Valid tip text first (a tooltip needs one to be shown at all), then the override that is what
             // is shown.
@@ -530,7 +530,7 @@ std::vector<Cell> FillIconTable(UI::Element* tableElement, const std::vector<int
         if (AtLimit(BuiltOf(it), it.limit) && isButton) {
             UI::ButtonElement* button = static_cast<UI::ButtonElement*>(cell.Get());
             for (uint32_t& colour : button->_stateColor) {
-                colour = (((colour >> 24) / 2) << 24) | (colour & 0x00ffffffu);
+                colour = (((colour >> 24) / 2) << 24) | (colour & System::kColorRgbMask);
             }
         }
         int32_t w = 0;

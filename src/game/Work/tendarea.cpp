@@ -153,12 +153,12 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
     }
 
     // Step 5: Find nearest passable cell and check pathability
-    int nearestCell = mapGrid->FindCell(targetCell, citizenGridCell, 0xe1f);
+    int nearestCell = mapGrid->FindCell(targetCell, citizenGridCell, PathBits::Walk);
     if (nearestCell < 0 || (int)randIdx < 0) {
         return 0;  // No passable cell found
     }
 
-    bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(0xe1f, citizenGridCell, nearestCell));   // the door read AL
+    bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the door read AL
     if (!canPath) {
         return 0;  // Can't path to cell
     }
@@ -202,12 +202,12 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
     Profession* workEnt = nullptr;
     GetTarget(&workEnt);
 
-    citEnt->statusFlags |= 4;
+    citEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
     citEnt->field_0x30 = priority;
     citEnt->field_0xB0 = 0;
 
     if (workEnt == citEnt->profession && priority >= 0) {
-        citEnt->happinessFlags |= 0x20000;
+        citEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     WorkCitizenSetNode* inserted = nullptr;

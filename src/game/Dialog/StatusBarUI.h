@@ -42,7 +42,7 @@ public:
     void OnUpdateLayout() override;   // [7] 0x1400798d0
     // [8] inherited: DialogController::OnUpdate (table slot 0x14003a96c jumps to the import);
     // the refresh is slot 7, which UserInterface::Update's layout pass dispatches every frame
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x14007a3a0
 
     // ---- fields: OnOpened 0x14007a3d0 finds each by its .rsc name --------

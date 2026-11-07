@@ -434,15 +434,15 @@ void PastureProduce(PastureComponent* self) {
             if (occ != nullptr && occ->FindComponent<RawMaterialComponent>() == nullptr) {   // 0x1400223c0
                 // Not a pile: clear the occupant off the cell and take it
                 // (0x140126a5c-0x140126ae2; the same retype as the cemetery's grave).
-                const uint8_t old = rec.terrainType;                              // +0x29
-                const bool wasWalk = ((1u << (old & 0x1f)) & 0x1e0u) != 0;       // old 5..8
-                map->field_0xA2 |= static_cast<uint8_t>(wasWalk);
-                rec.terrainType = 2;
+                const uint8_t old = static_cast<uint8_t>(rec.terrainType);       // +0x29
+                const bool wasZoneless = ((1u << (old & 0x1f)) & Bits(PathBits::Zoneless)) != 0;   // old 5..8
+                map->field_0xA2 |= static_cast<uint8_t>(wasZoneless);
+                rec.terrainType = PathType::Normal;
                 TerrainSidecar::NoteWrite(&rec);   // [terrain sidecar] mirror (missing until PERFXEXT)
                 CellStamp::NoteWrite(&rec);   // [AMBMEMO] cell write clock
-                if (wasWalk)
+                if (wasZoneless)
                     map->regionGraph->MarkCellDirty(cell % map->size, cell / map->size);   // +0x70, 0x1400a8c90
-                map->pathfinder->SetCellTerrain(cell, 2);                                   // +0x68, 0x1400a6fe0
+                map->pathfinder->SetCellTerrain(cell, ToUnderlying(PathType::Normal));      // +0x68, 0x1400a6fe0
                 rec.occupant = nullptr;
                 CellStamp::NoteWrite(&rec);   // [AMBMEMO] cell write clock
                 occ = nullptr;

@@ -2,7 +2,8 @@
 // src/ext/terrain_batch/terrain_batch_rules.h -- ext.terrain_batch's pure parts
 // ============================================================================
 // NOT RETAIL. docs/extensions/handins/TERRAINBATCH.md. Standard C++ only, no engine
-// types: the unit tests (tests/unit/ext_terrain_batch_test.cpp) include this alone.
+// types (Game/WorldDrawKey.h is <cstdint> only): the unit tests
+// (tests/unit/ext_terrain_batch_test.cpp) include this alone.
 //
 // 1. THE RUN KEY. Retail's WorldGeometry::AddDrawItems gives each visible terrain chunk
 //    one draw item whose key2 is (row << 6) | col (draw mode 0, the top three bits 0).
@@ -33,12 +34,13 @@
 #pragma once
 
 #include <cstdint>
+#include "Game/WorldDrawKey.h"   // WorldDrawKey::kModeExtTerrainRun (the run tag)
 
 namespace Ext {
 namespace TerrainBatch {
 
 // The two top key bits: a run item (WorldGeometry::Draw's EXT SEAM tests this).
-constexpr uint32_t kRunTag = 0xC000u;
+constexpr uint32_t kRunTag = WorldDrawKey::kModeExtTerrainRun;
 // The payload width under the tag.
 constexpr int32_t kPayloadBits = 14;
 // The largest 16-bit index + 1.

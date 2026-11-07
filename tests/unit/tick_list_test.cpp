@@ -127,7 +127,7 @@ int Run(World& w, bool cached, bool verify, int iters, int* reports = nullptr) {
         w.iteration = it;
         for (size_t i = 0; i < w.ents.size(); ++i) {
             MEnt* e = w.ents[i].get();
-            if ((e->_entityFlags >> 10) & 1) continue;   // the walk's own deleted test
+            if (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) continue;   // the walk's own deleted test
             if (!cached)     TickList::Retail(e, tick);
             else if (verify) TickList::Cached<true>(e, e->entry, tick, report);
             else             TickList::Cached<false>(e, e->entry, tick, report);
@@ -170,7 +170,7 @@ UNIT_TEST(tick_list_static_mix_identical) {
         w.NewEnt({0x80, 0x83, 0x2});
         w.NewEnt({0x84, 0x84, 0x84, 0x84, 0x84, 0x84});   // 6 candidates > kMaxIdx
         MEnt* e = w.NewEnt({0x84, 0x80});
-        e->_entityFlags &= ~4u;   // a stale entity word: no tick, in both
+        e->_entityFlags &= ~Bits(ComponentFlags::Tick);   // a stale entity word: no tick, in both
         w.NewEnt({});            // no components
     }, 5);
 }
@@ -291,7 +291,7 @@ UNIT_TEST(tick_list_deleted_mid_loop) {
         // comp 2's 2nd tick marks the entity deleted: comp 3 does not tick that pass,
         // and the walk skips the entity after
         e->_components[2].p->hook = [e](World&, MComp* c) {
-            if (c->ticks == 2) e->_entityFlags |= 0x400;
+            if (c->ticks == 2) e->_entityFlags |= Bits(ComponentFlags::MarkedForRemoval);
         };
         // two iterations later another entity's flag write refreshes it, which (as
         // retail's RefreshEntityFlags does) drops 0x400: it ticks again
@@ -303,7 +303,10 @@ UNIT_TEST(tick_list_deleted_mid_loop) {
     CheckIdentical([](World& w) {
         MEnt* e = w.NewEnt({0x80, 0x84, 0x80, 0x84});
         e->_components[3].p->hook = [e](World& ww, MComp* c) {
-            if (c->ticks == 2) { ww.Write(e->_components[0].p, 4, 0); e->_entityFlags |= 0x400; }
+            if (c->ticks == 2) {
+                ww.Write(e->_components[0].p, 4, 0);
+                e->_entityFlags |= Bits(ComponentFlags::MarkedForRemoval);
+            }
         };
         e->_components[1].p->hook = [e](World& ww, MComp* c) {
             if (c->ticks == 4) ww.Refresh(e);
@@ -332,7 +335,7 @@ UNIT_TEST(tick_list_shadow_reports_a_write_without_refresh) {
         MEnt* e = w.NewEnt({0x84, 0x80, 0x80});
         MEnt* o = w.NewEnt({0x84});
         o->_components[0].p->hook = [e](World&, MComp* c) {
-            if (c->ticks == 2) e->_components[2].p->_flags |= 4;   // no Refresh
+            if (c->ticks == 2) e->_components[2].p->_flags |= Bits(ComponentFlags::Tick);   // no Refresh
         };
     };
     script(a); script(b);

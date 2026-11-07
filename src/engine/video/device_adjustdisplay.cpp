@@ -151,8 +151,10 @@ void Video::Device::AdjustDisplay() {
     // constants; all four are kept because only the DLL knows why the large
     // ones are there, and dropping a disjunct changes which branch runs.
     const uint32_t showCmd = Platform::Window::GetShowCmd(hwnd);
-    const bool maximized = (showCmd == 0x1000000u || showCmd == 3u);   // SW_MAXIMIZE
-    const bool minimized = (showCmd == 0x20000000u || showCmd == 2u);  // SW_MINIMIZE
+    const bool maximized = (showCmd == Platform::Window::kStyleMaximize ||
+                            showCmd == Platform::Window::kShowCmdMaximized);   // SW_MAXIMIZE
+    const bool minimized = (showCmd == Platform::Window::kStyleMinimize ||
+                            showCmd == Platform::Window::kShowCmdMinimized);   // SW_MINIMIZE
 
     // Grow the client rect into a window rect for this style:
     //     AdjustWindowRect(&rect, style, FALSE)

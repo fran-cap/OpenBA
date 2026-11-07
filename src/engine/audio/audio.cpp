@@ -191,9 +191,9 @@ void ArraySetSize(Collection::Array<T>* arr, int32_t n, const T& fillValue) {
 // accessor (AddEmitter, MoveEmitter, RemoveEmitter, SetEmitterVolume,
 // GetEmitterCount all repeat this exact check in retail).
 EffectSlot* FindEffectSlot(const Scene* self, uint32_t id) {
-    uint32_t idx = (id >> 1) & 0xfff;
+    uint32_t idx = (id >> Scene::kHandleIndexShift) & Scene::kEffectIndexMask;
     EffectSlot* slot = &self->effects._data[idx];
-    if (((slot->idTag ^ id) & 0xffffe000) != 0) return nullptr;
+    if (((slot->idTag ^ id) & Scene::kEffectTagMask) != 0) return nullptr;
     return slot;
 }
 
@@ -214,12 +214,12 @@ namespace Audio {
 Scene::Scene() : time(0), playGeneration(1), channels(), effects() {
     EffectSlot defaultSlot{};
     defaultSlot.baseVolume = 1.0f;
-    ArraySetSize(&effects, 0x1000, defaultSlot);   // matches FUN_180051390(this+0x20, 0x1000)
+    ArraySetSize(&effects, kEffectSlotCount, defaultSlot);   // matches FUN_180051390(this+0x20, 0x1000)
 
     Channel defaultChannel{};
     defaultChannel.volume = 1.0f;
     defaultChannel.sampleVolume = 1.0f;
-    ArraySetSize(&channels, 0x100, defaultChannel); // matches FUN_180051020(this+0x10)
+    ArraySetSize(&channels, kChannelCount, defaultChannel); // matches FUN_180051020(this+0x10)
 
     for (int i = 0; i < 5; ++i) paused[i] = 0;
 }
@@ -339,10 +339,10 @@ int32_t Scene::GetEmitterCount(uint32_t id) const {
 // EffectSlot functions above — see the header note). Full replay oracle.
 // ============================================================================
 bool Scene::IsEffectPlaying(uint32_t handle) const {
-    uint32_t idx = (handle >> 1) & 0xff;
+    uint32_t idx = (handle >> kHandleIndexShift) & kChannelIndexMask;
     bool ours = false;
     if ((int32_t)idx < channels._size)
-        ours = ((channels._data[idx].handleTag ^ handle) & 0xfffffe00) == 0;
+        ours = ((channels._data[idx].handleTag ^ handle) & kChannelTagMask) == 0;
     return ours;
 }
 
@@ -377,7 +377,7 @@ uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType so
     uint32_t handle = 0;
     if (effect) {
         int32_t free = -1;
-        for (int32_t i = 0; i < channels._size && i < 0x100; ++i) {
+        for (int32_t i = 0; i < channels._size && i < kChannelCount; ++i) {
             if (channels._data[i].handleTag == 0) { free = i; break; }
         }
         if (free >= 0) {
@@ -386,7 +386,8 @@ uint32_t Scene::PlayEffect(Object::ExternalPtr<SoundEffect> effect, SoundType so
             ch.soundType = (uint32_t)soundType;
             ch.startTime = time;
             playGeneration += 1;
-            handle = ((uint32_t)free << 1) | ((uint32_t)playGeneration << 9);
+            handle = ((uint32_t)free << kHandleIndexShift)
+                     | ((uint32_t)playGeneration << kChannelGenerationShift);
             ch.handleTag = handle;
         }
     }
@@ -476,7 +477,7 @@ int32_t Scene::FindFree3DEffect(Object::ExternalPtr<SoundEffect> effect,
     int32_t firstFree = -1;
     int32_t ours = -1;
     bool early = false;
-    for (int32_t i = 0; i < 0x1000; ++i, ++slot) {
+    for (int32_t i = 0; i < kEffectSlotCount; ++i, ++slot) {
         if (firstFree < 0 && slot->idTag == 0)
             firstFree = i;
         if (slot->soundEffectRef == effect) {
@@ -537,7 +538,8 @@ uint32_t Scene::PlayEffect3D(Object::ExternalPtr<SoundEffect> effect, SoundType 
             slot.startTime = time;
             slot.channelHandle = 0;
             playGeneration += 1;
-            handle = ((uint32_t)idx << 1) | 1u | ((uint32_t)playGeneration << 13);
+            handle = ((uint32_t)idx << kHandleIndexShift) | kEffect3DBit
+                     | ((uint32_t)playGeneration << kEffectGenerationShift);
             slot.idTag = handle;
         }
     }
@@ -786,7 +788,7 @@ static void ReleasePlatformChannels(Scene* self, uint32_t index, bool clearSlots
         if (clearSlots) {
             ch = &self->channels._data[index];
             ch->platformChannel[b] = nullptr;
-            ch->channelFlags[b] &= 0xfd;
+            ch->channelFlags[b] &= Bits(~SampleFlags::Ended);
         }
     }
 }
@@ -813,9 +815,9 @@ static void ResetChannel(Channel* ch) {
 // in PauseEffect, UnpauseEffect, StopEffect, StopAll, Pause and
 // IsEffectPlaying.
 static bool ChannelHandleMatches(const Scene* self, uint32_t handle, uint32_t* outIndex) {
-    uint32_t idx = (handle >> 1) & 0xff;
+    uint32_t idx = (handle >> Scene::kHandleIndexShift) & Scene::kChannelIndexMask;
     *outIndex = idx;
-    return ((self->channels._data[idx].handleTag ^ handle) & 0xfffffe00) == 0;
+    return ((self->channels._data[idx].handleTag ^ handle) & Scene::kChannelTagMask) == 0;
 }
 
 // ============================================================================
@@ -890,14 +892,14 @@ void Scene::Pause(int32_t soundType, bool paused) {
 
     if (!alreadyThere) {
         if (paused) {
-            for (int32_t i = 0; i < 0x100; ++i) {      // 0x7000 bytes, hardcoded
+            for (int32_t i = 0; i < kChannelCount; ++i) {      // 0x7000 bytes, hardcoded
                 const Channel* ch = &channels._data[i];
                 uint32_t tag = ch->handleTag;
                 if (tag == 0 || (int32_t)ch->soundType != soundType) continue;
                 PauseEffect(tag);
             }
         } else {
-            for (int32_t i = 0; i < 0x100; ++i) {      // 0x7000 bytes, hardcoded
+            for (int32_t i = 0; i < kChannelCount; ++i) {      // 0x7000 bytes, hardcoded
                 const Channel* ch = &channels._data[i];
                 uint32_t tag = ch->handleTag;
                 if (tag == 0 || (int32_t)ch->soundType != soundType) continue;
@@ -939,9 +941,9 @@ void Scene::Pause(int32_t soundType, bool paused) {
 // POD, so the trait-derived `~Array()` on the stack temporary IS that body.
 
 void Scene::StopEffect3D(uint32_t id) {
-    uint32_t idx = (id >> 1) & 0xfff;
+    uint32_t idx = (id >> kHandleIndexShift) & kEffectIndexMask;
     EffectSlot* slot = &effects._data[idx];
-    if ((slot->idTag >> 13) != (id >> 13)) {
+    if ((slot->idTag >> kEffectGenerationShift) != (id >> kEffectGenerationShift)) {
         // SHADOW on the reject path -- reported rather than returned silently,
         // for the same reason as Pause's early-out: `calls=` must mean
         // "entered". The DLL's GetEmitterCount uses a guard one bit WIDER than
@@ -1016,7 +1018,7 @@ void Scene::StopAll() {
     // DIFFERENT channel keeps its own tag while the other one is reset. That
     // predicate reported 8 divergences in 9 calls and all 8 were the predicate.
 
-    for (int32_t i = 0; i < 0x100; ++i) {              // 0x7000 bytes, hardcoded
+    for (int32_t i = 0; i < kChannelCount; ++i) {              // 0x7000 bytes, hardcoded
         uint32_t tag = channels._data[i].handleTag;
         if (tag == 0) continue;
         uint32_t idx;

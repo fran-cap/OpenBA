@@ -81,7 +81,7 @@ int ClearAreaComponent::FootprintSweep() {
 
             // Skip empty cells and the building's own entity.
             if (occ == nullptr || occ == _entity.Get()) continue;
-            if (occ->_entityFlags & 0x400) continue;   // already marked for removal
+            if (occ->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) continue;
 
             // Mark + push (the proven backend).
             occ->MarkForRemoval();

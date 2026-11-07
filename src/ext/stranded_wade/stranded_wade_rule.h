@@ -39,12 +39,14 @@
 
 #include <cstdint>
 
+#include "Game/PathType.h"   // PathType / PathBits (standalone: <cstdint> and EnumFlags.h only)
+
 namespace Ext {
 namespace StrandedWade {
 
-constexpr uint32_t kLandTypes = 0xe1fu;   // Map::FillZone 0x14009c170: types that get a zone
-constexpr uint32_t kZonelessTypes = 0x1e0u;   // types 5-8: the bypass in RequestPath
-constexpr uint32_t kRescueFlags = kLandTypes | kZonelessTypes;   // 0xfff
+constexpr PathBits kLandTypes = PathBits::Walk;   // Map::FillZone 0x14009c170: types that get a zone
+constexpr PathBits kZonelessTypes = PathBits::Zoneless;   // types 5-8: the bypass in RequestPath
+constexpr PathBits kRescueFlags = kLandTypes | kZonelessTypes;   // 0xfff
 
 // The flag byte.
 constexpr uint8_t kRefused = 0x01;     // a walk toward the anchor zone was refused from `zone`
@@ -52,9 +54,12 @@ constexpr uint8_t kPending = 0x04;     // a rescue walk is out; its outcome is t
 constexpr uint8_t kToFallback = 0x08;    // the rescue walk out goes to the fallback (hall, else storage)
 constexpr uint8_t kAnchorFailed = 0x10;  // the last rescue walk to the anchor failed: the next goes to the fallback
 
-// A land cell with a zone (FillZone gives zones to the land types only).
-inline bool IsZonedLand(uint8_t type, uint16_t zone) {
-    return ((1u << (type & 0x1f)) & kLandTypes) != 0 && zone != 0;
+// A land cell with a zone (FillZone gives zones to the land types only). HasType(kLandTypes, type) is the
+// same test, but the compiler folds it with `&& zone != 0` into other instructions: the bit test stays
+// one expression, spelled out.
+inline bool IsZonedLand(PathType type, uint16_t zone) {
+    return ((1u << (static_cast<uint8_t>(type) & 0x1f)) & static_cast<uint32_t>(kLandTypes)) != 0 &&
+           zone != 0;
 }
 
 // The anchor's kind, the first that exists (ruled order).
@@ -83,7 +88,7 @@ inline uint32_t OnHomeChange(uint32_t lost, bool hadHome, int oldHomeCell, bool 
 }
 
 // The remembered lost home is kept until he stands on land of its zone again.
-inline uint32_t SettleLostHome(uint32_t lost, uint8_t typeHere, uint16_t zoneHere, uint16_t lostZone) {
+inline uint32_t SettleLostHome(uint32_t lost, PathType typeHere, uint16_t zoneHere, uint16_t lostZone) {
     if (lost != 0 && IsZonedLand(typeHere, zoneHere) && zoneHere == lostZone) return 0;
     return lost;
 }
@@ -96,16 +101,16 @@ struct State {
 // Whether RequestPath refused a walk on the land-to-land zone mismatch: `flags` its pass flags,
 // (typeA, zoneA) / (typeB, zoneB) the two endpoint cells. Not when an endpoint or a pass flag is
 // zone-less (types 5-8: RequestPath bypasses the zone test) or a cell has no zone.
-inline bool IsZoneRefusal(uint32_t flags, uint8_t typeA, uint16_t zoneA, uint8_t typeB, uint16_t zoneB) {
-    const uint32_t mask = flags | (1u << (typeA & 0x1f)) | (1u << (typeB & 0x1f));
-    if ((mask & kZonelessTypes) != 0) return false;
+inline bool IsZoneRefusal(PathBits flags, PathType typeA, uint16_t zoneA, PathType typeB, uint16_t zoneB) {
+    const uint32_t mask = Bits(flags) | Bits(PathBitOf(typeA)) | Bits(PathBitOf(typeB));
+    if ((mask & Bits(kZonelessTypes)) != 0) return false;
     if (!IsZonedLand(typeA, zoneA) || !IsZonedLand(typeB, zoneB)) return false;
     return zoneA != zoneB;
 }
 
 // A refused walk from (typeHere, zoneHere) to (typeDest, zoneDest), `anchorZone` the citizen's anchor
 // zone (0: none). Only a zone refusal toward the anchor zone, from outside it, is recorded.
-inline State OnRefusal(State s, uint32_t flags, uint8_t typeHere, uint16_t zoneHere, uint8_t typeDest,
+inline State OnRefusal(State s, PathBits flags, PathType typeHere, uint16_t zoneHere, PathType typeDest,
                        uint16_t zoneDest, uint16_t anchorZone) {
     if (anchorZone == 0) return s;
     if (!IsZoneRefusal(flags, typeHere, zoneHere, typeDest, zoneDest)) return s;
@@ -116,7 +121,7 @@ inline State OnRefusal(State s, uint32_t flags, uint8_t typeHere, uint16_t zoneH
 }
 
 // Condition 1 and 2 at (typeHere, zoneHere).
-inline bool IsStranded(State s, uint8_t typeHere, uint16_t zoneHere, uint16_t anchorZone) {
+inline bool IsStranded(State s, PathType typeHere, uint16_t zoneHere, uint16_t anchorZone) {
     if (anchorZone == 0 || !IsZonedLand(typeHere, zoneHere)) return false;
     if (zoneHere == anchorZone) return false;
     return (s.flags & kRefused) != 0 && s.zone == zoneHere;
@@ -124,7 +129,7 @@ inline bool IsStranded(State s, uint8_t typeHere, uint16_t zoneHere, uint16_t an
 
 // The record clears when he stands in the anchor zone again, and goes stale when he stands on land
 // of another zone than the one it was made in (he left that zone).
-inline State Settle(State s, uint8_t typeHere, uint16_t zoneHere, uint16_t anchorZone) {
+inline State Settle(State s, PathType typeHere, uint16_t zoneHere, uint16_t anchorZone) {
     if ((s.flags & kRefused) == 0 || !IsZonedLand(typeHere, zoneHere)) return s;
     if (zoneHere == anchorZone || zoneHere != s.zone) {
         s.flags = static_cast<uint8_t>(s.flags & ~kRefused);
@@ -167,7 +172,7 @@ inline Target RescueTarget(State s) {
 
 // Whether a walk to the goal needs the bypass: false when he and the goal stand on land of one zone
 // (an ordinary walk gets there). Used for the fallback after a failed rescue walk.
-inline bool NeedsRescue(uint8_t typeHere, uint16_t zoneHere, uint8_t typeGoal, uint16_t zoneGoal) {
+inline bool NeedsRescue(PathType typeHere, uint16_t zoneHere, PathType typeGoal, uint16_t zoneGoal) {
     if (!IsZonedLand(typeHere, zoneHere) || !IsZonedLand(typeGoal, zoneGoal)) return true;
     return zoneHere != zoneGoal;
 }

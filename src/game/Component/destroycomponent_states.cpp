@@ -373,7 +373,7 @@ void DestroyComponent::ScatterContents(int baseX, int baseY, int width, int dept
             grid->GetTerrainPos(w1, w0, 0, nullptr);
             const MapCell* cp = &cellArr[static_cast<uintptr_t>(cell)];
             bool valid = (cp->blocker == nullptr) &&
-                         (static_cast<int8_t>(cp->terrainType) == 2) &&
+                         (cp->terrainType == PathType::Normal) &&
                          (0.0f <= w1[2]) && (w1[2] < kMaxHeight);
             if (valid) {
                 RawMaterialDescription* rmDesc = FindRawMatDescInTemplate(tmpl);
@@ -441,7 +441,7 @@ static void Destroy_MarkAndPushRemoval(ComponentEntity* entity) {
     // GameUpdateLoop::m_entityList (+0xe8): the removal array is its removalList (+0xd0).
     EntityList* entityList = GameUpdateLoop::_singleton->m_entityList;
     if (!entityList) return;
-    if (((entity->_entityFlags >> 10) & 1) != 0) return;
+    if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0) return;
     entity->MarkForRemoval();
     entityList->removalList
         .SetSize(entityList->removalList._size + 1, entity);

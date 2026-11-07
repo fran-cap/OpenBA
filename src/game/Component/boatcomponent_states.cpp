@@ -190,7 +190,7 @@ void DeleteBoatEntity(BoatComponent* boat) {
     EntityList* const entityList = GameUpdateLoop::_singleton->m_entityList;
     if (!entIBP) return;
 
-    if ((entIBP->_entityFlags >> 10) & 1) return;   // already going
+    if (entIBP->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) return;   // already going
     entIBP->MarkForRemoval();
     {
         // exe 0x140003110 IS Collection::Array<void*>::SetSize(n, fill) (kSpec_PtrZero).

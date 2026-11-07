@@ -33,7 +33,7 @@ public:
     ~BuildUI() override = default;                                // [0] 0x140020a90
     void OnCreated() override;   // [4] 0x1400b1f40
     void OnUpdateLayout() override;   // [7] 0x1400b1a50
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x1400b1ea0
 
     // One storage-table row: its "labelStorage" and "textTotal" elements (the

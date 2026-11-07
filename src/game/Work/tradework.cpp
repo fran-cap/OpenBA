@@ -153,10 +153,10 @@ int TradeWork::CommitAssignment(CitizenComponent* const* citizenRef, ComponentDe
     GetTarget(&target);   // slot 10, by name (B.3.x)
 
     citizen->field_0x30 = taskId;
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0xB0 = 0;
     if (target == citizen->profession && taskId >= 0)
-        citizen->happinessFlags |= 0x20000;
+        citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
 
     Assignment rec;
     rec.citizen = citizen;          // +0x00 key

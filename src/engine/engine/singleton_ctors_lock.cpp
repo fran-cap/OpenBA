@@ -57,6 +57,6 @@ bool RtLaneXEnsureAllocatorPlatform() {
 // is the only caller and the two calls are one retail body's, verbatim.
 void RtLaneXPlatformLockInit(Platform::LockStorage* cs) {
     // InitializeCriticalSection(cs); SetCriticalSectionSpinCount(cs, 0x1388)
-    Platform::MutexInit(cs, 0x1388);
+    Platform::MutexInit(cs, Platform::kLockSpinCount);
 }
 

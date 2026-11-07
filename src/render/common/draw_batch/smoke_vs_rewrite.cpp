@@ -113,7 +113,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
         m->why = "input signature is not 5 elements";
         return;
     }
-    static const uint32_t kMasks[4] = {0xF, 0xF, 0xF, 0x1};
+    static const uint32_t kMasks[4] = {Dxbc::Mask::XYZW, Dxbc::Mask::XYZW, Dxbc::Mask::XYZW, Dxbc::Mask::X};
     for (uint32_t r = 0; r < 4; ++r) {
         const SigElement& e = sig[r];
         if (e.reg != r || e.sysValue != 0 || e.compType != kTypeFloat || e.mask != kMasks[r]) {
@@ -125,7 +125,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
         m->why = "no SV_InstanceID as the fifth input";
         return;
     }
-    if ((sig[0].rwMask & 0x8) != 0) {
+    if ((sig[0].rwMask & Dxbc::Mask::W) != 0) {
         m->why = "v0.w is read";
         return;
     }
@@ -144,7 +144,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
                 const uint32_t tok = t[1];
                 const bool input = ((tok >> 12) & 0xFF) == OT::Input && (tok & 3) == 2 && ((tok >> 2) & 3) == 0;
                 if (input && t[2] == 0) {
-                    if ((tok >> 4) & 0x8) {
+                    if ((tok >> 4) & Dxbc::Mask::W) {
                         m->why = "dcl_input v0 declares w";
                         return;
                     }
@@ -187,7 +187,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
         return;
     }
     const Dxbc::Instr& sh = m->prog.instrs[static_cast<size_t>(m->shiftIdx)];
-    if (sh.opcode != kOpIshl || sh.Saturate() || (sh.token & 0x80000000u) != 0 || sh.operands.size() != 3) {
+    if (sh.opcode != kOpIshl || sh.Saturate() || (sh.token & Dxbc::kTokenExtended) != 0 || sh.operands.size() != 3) {
         m->why = "the instance-id read is not a plain ishl";
         return;
     }
@@ -215,7 +215,7 @@ bool Transform(const Match& m, std::vector<uint8_t>* out) {
         const uint32_t* src = p.tokens.data() + in.offset;
         if (static_cast<int>(i) == m.dclInputIdx) {
             t.insert(t.end(), src, src + in.length);
-            t[t.size() - 2] |= (0xFu << 4);   // dcl_input v0.xyzw
+            t[t.size() - 2] |= (Dxbc::Mask::XYZW << 4);   // dcl_input v0.xyzw
             continue;
         }
         if (static_cast<int>(i) != m.shiftIdx) {
@@ -261,7 +261,7 @@ bool Transform(const Match& m, std::vector<uint8_t>* out) {
     Dxbc::Chunk* isgn = c.Find(Dxbc::FourCC('I', 'S', 'G', 'N'));
     if (shdr == nullptr || isgn == nullptr || m.isgnV0 + 22 > isgn->data.size()) return false;
     shdr->data = Dxbc::EmitProgram(np);
-    isgn->data[m.isgnV0 + 21] |= 0x8;   // v0's read mask gains w
+    isgn->data[m.isgnV0 + 21] |= Dxbc::Mask::W;   // v0's read mask gains w
     std::vector<uint8_t> blob = Dxbc::Emit(c);
 
     // Self-check: the copy parses, its checksum verifies, and it has exactly two instructions more.

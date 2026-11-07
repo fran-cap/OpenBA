@@ -139,7 +139,7 @@ inline Map* MapGrid() {
 inline MapCell* CellArray(Map* grid) {
     return grid->cells.GetData();
 }
-inline uint8_t CellTerrain(const MapCell* cells, int64_t index) {
+inline PathType CellTerrain(const MapCell* cells, int64_t index) {
     return cells[index].terrainType;
 }
 inline ComponentEntity* CellOccupant(const MapCell* cells, int64_t index) {
@@ -226,20 +226,20 @@ int AnimalComponent::FindHabitat() {
         // Top and bottom edges.
         for (int x = x0; x <= xMax; ++x) {
             int64_t top = static_cast<int64_t>(y0) * grid->size + x;
-            if (CellTerrain(cells, top) == 0x02 && CellOccupant(cells, top) == 0)
+            if (CellTerrain(cells, top) == PathType::Normal && CellOccupant(cells, top) == 0)
                 return static_cast<int>(y0) * grid->size + x;
             int64_t bottom = static_cast<int64_t>(grid->size) * yMax + x;
-            if (CellTerrain(cells, bottom) == 0x02 && CellOccupant(cells, bottom) == 0)
+            if (CellTerrain(cells, bottom) == PathType::Normal && CellOccupant(cells, bottom) == 0)
                 return grid->size * yMax + x;
         }
 
         // Left and right edges, interior rows only.
         for (int y = static_cast<int>(y0) + 1; y <= yMax - 1; ++y) {
             int64_t left = static_cast<int64_t>(grid->size) * y + x0;
-            if (CellTerrain(cells, left) == 0x02 && CellOccupant(cells, left) == 0)
+            if (CellTerrain(cells, left) == PathType::Normal && CellOccupant(cells, left) == 0)
                 return static_cast<int>(x0) + grid->size * y;
             int64_t right = static_cast<int64_t>(grid->size) * y + xMax;
-            if (CellTerrain(cells, right) == 0x02 && CellOccupant(cells, right) == 0)
+            if (CellTerrain(cells, right) == PathType::Normal && CellOccupant(cells, right) == 0)
                 return y * grid->size + xMax;
         }
 
@@ -460,7 +460,7 @@ void AnimalComponent::Update(const System::Time* time) {
                                         ? GameUpdateLoop::_singleton->m_entityList : nullptr;
         if (entity == nullptr) return;
 
-        if ((entity->_entityFlags >> 10) & 1) return;
+        if (entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) return;
 
         entity->MarkForRemoval();
         if (corpseOwner) {
@@ -556,7 +556,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 blocked = (buildingIBP == nullptr);
             }
 
-            if ((cells && CellTerrain(cells, cell) != 0x02) || blocked) {
+            if ((cells && CellTerrain(cells, cell) != PathType::Normal) || blocked) {
                 habitatCell = FindHabitat();
                 GetWanderBox(&wanderX, &wanderY, &wanderWidth, &wanderHeight,
                                                  desc->_i20);
@@ -654,7 +654,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 const int cx = ClampCell(static_cast<int>(dest[0] + half2), dim2);
                 const int cy = ClampCell(static_cast<int>(dest[1] + half2), dim2);
                 MapCell* const cells = CellArray(grid);
-                valid = cells && CellTerrain(cells, static_cast<int64_t>(cy) * dim2 + cx) == 0x02;
+                valid = cells && CellTerrain(cells, static_cast<int64_t>(cy) * dim2 + cx) == PathType::Normal;
             } while (!valid && attempts < 100);
 
             // Retail re-derives the final cell from the freshly-read grid rather
@@ -667,7 +667,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 const int fx = ClampCell(static_cast<int>(dest[0] + half3), dim3);
                 const int fy = ClampCell(static_cast<int>(dest[1] + half3), dim3);
                 MapCell* const cells2 = CellArray(g2);
-                accept = cells2 && CellTerrain(cells2, static_cast<int64_t>(fy) * dim3 + fx) == 0x02;
+                accept = cells2 && CellTerrain(cells2, static_cast<int64_t>(fy) * dim3 + fx) == PathType::Normal;
             }
 
             if (accept) {
@@ -681,7 +681,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 if (mem) {
                     CharacterComponent* moverIBP = character;
                     action = ::new (mem) MoveTo(&moverIBP, 0 /*Normal*/, 1,
-                                                dest, 0xf9f, 1, MoveSpeed());   // 0x1400c9170
+                                                dest, PathBits::AnimalWalk, 1, MoveSpeed());   // 0x1400c9170
                 }
                 // If the alloc fails, `action` stays null and we push a null IBP —
                 // the same degradation retail takes when MemAlloc fails

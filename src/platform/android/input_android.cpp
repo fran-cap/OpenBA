@@ -199,8 +199,8 @@ void AddScreenKeys(uint8_t dik[256]) {
     if (k.scancode >= kSdlScancodeCount) return;
     const uint8_t code = kSdlScancodeToDik[k.scancode];
     if (code == 0) return;
-    dik[code] = 0x80;
-    if (k.shift) dik[kSdlScancodeToDik[SDL_SCANCODE_LSHIFT]] = 0x80;
+    dik[code] = kDiKeyDown;
+    if (k.shift) dik[kSdlScancodeToDik[SDL_SCANCODE_LSHIFT]] = kDiKeyDown;
 }
 
 bool ShiftHeld() {

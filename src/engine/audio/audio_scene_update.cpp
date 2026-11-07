@@ -330,7 +330,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
         AttenutedEffect* const table = this->effects.GetData();
         // Row 1220: no test of the table (0x1800df730 MOV RBX,[R15+0x20]; ADD RBX,RDI;
         // CMP dword ptr [RBX+0x24],0). Scene's ctor builds the 0x1000-slot array.
-        for (int32_t k = 0; k < 0x1000; ++k) {                // 1800df812  (0x40000 bytes)
+        for (int32_t k = 0; k < kEffectSlotCount; ++k) {      // 1800df812  (0x40000 bytes)
             AttenutedEffect* const slot = &table[k];
             if (slot->idTag == 0) continue;
             const int64_t soundType = static_cast<int32_t>(slot->soundType);
@@ -371,10 +371,10 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
             // ---- push the attenuated volume onto the live Channel ----
             const uint32_t handle = slot->channelHandle;
             if (handle != 0) {                                // 1800df7ad
-                const uint32_t gen = handle >> 9;             // 1800df7b3
-                const uint32_t idx = (handle >> 1) & 0xffu;   // 1800df7b6 / MOVZX AL
+                const uint32_t gen = handle >> kChannelGenerationShift;   // 1800df7b3
+                const uint32_t idx = (handle >> kHandleIndexShift) & kChannelIndexMask;   // 1800df7b6 / MOVZX AL
                 Channel* const ch = &channels.GetData()[idx];
-                if (gen == (ch->handleTag >> 9)) {            // 1800df7cb
+                if (gen == (ch->handleTag >> kChannelGenerationShift)) {   // 1800df7cb
                     ch->volume = vol;                         // 1800df7cf
                 }
             }
@@ -431,7 +431,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
         Channel* const chans = channels.GetData();
         if (!chans) return true;
 
-        for (int32_t c = 0; c < 0x100; ++c) {                     // 1800dfd9f  (0x7000 bytes)
+        for (int32_t c = 0; c < kChannelCount; ++c) {             // 1800dfd9f  (0x7000 bytes)
             Channel* const ch = &chans[c];
             if (ch->handleTag == 0) continue;
             const int64_t soundType = static_cast<int32_t>(ch->soundType);
@@ -498,8 +498,8 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                         // the loop's ended count, which `continue` skips).
                         if (variantCount <= 0) {
                             *pchan = nullptr;
-                            *flag |= 1;
-                            if (*flag & 2) ++endedCount;
+                            *flag |= Bits(SampleFlags::Started);
+                            if (*flag & Bits(SampleFlags::Ended)) ++endedCount;
                             continue;
                         }
                         uint32_t pick = 0;
@@ -530,10 +530,11 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                         int32_t freeSlot = -1;
                         if (device) {
                             int32_t k = 0;
-                            for (; k < 0x40; ++k) {                       // 1800dfadf
-                                if ((device->_channels[k].LoadFlags() & 1) == 0) break;   // 1800dfad0
+                            for (; k < Device::kChannelCount; ++k) {      // 1800dfadf
+                                if ((device->_channels[k].LoadFlags() & Bits(ChannelFlags::Live)) == 0)
+                                    break;                                // 1800dfad0
                             }
-                            if (k < 0x40) freeSlot = k;
+                            if (k < Device::kChannelCount) freeSlot = k;
                         }
                         if (freeSlot >= 0) {
                             // NOT RETAIL (review S-026): retail stores `source` after PlayPlatform
@@ -553,7 +554,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                                     ch->startTime,
                                     mix, pitch, vThird)) {                // 1800dfb17
                                 ++g_samplesPlaced;
-                                s->OrFlags(1u);                           // 1800dfb39 (atomic, review F-138)
+                                s->OrFlags(Bits(ChannelFlags::Live));     // 1800dfb39 (atomic, review F-138)
                                 // 1800dfb3e: `source = bufferRef`, stored above (S-026).
                                 s->onComplete = &Scene::OnSoundEnded;     // 1800dfb4a
                                 s->userData = this;                       // 1800dfb4f
@@ -567,12 +568,13 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                             ++g_deviceFull;                               // 1800dfaec
                         }
                         *pchan = placed;                                  // 1800dfb6d
-                        *flag |= 1;                                       // 1800dfb75
+                        *flag |= Bits(SampleFlags::Started);              // 1800dfb75
                     } else {
                         // ---- outside the window: keep a running channel's
                         //      volume in step with the mix. 1800dfb90.
                         const uint8_t fl = *flag;
-                        if ((fl & 1) && !(fl & 2) && *pchan != nullptr) {
+                        if ((fl & Bits(SampleFlags::Started)) && !(fl & Bits(SampleFlags::Ended))
+                            && *pchan != nullptr) {
                             float mix = ch->sampleVolume * ch->volume;    // 1800dfbab/b2
                             mix *= volumes[soundType];                    // 1800dfbbe
                             if (device) {
@@ -590,7 +592,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                         }
                     }
 
-                    if (*flag & 2) ++endedCount;                          // 1800dfc24
+                    if (*flag & Bits(SampleFlags::Ended)) ++endedCount;   // 1800dfc24
                 }
             }
 
@@ -620,7 +622,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                 // Row 1220: no test of the table (0x1800dfc7a MOV RAX,[R8+0x20]; ADD RAX,0x20;
                 // CMP EDX,[RAX]). Scene's ctor builds the 0x1000-slot array; nothing frees it
                 // before ~Scene.
-                for (int64_t k = 0; k < 0x1000; ++k) {                // 1800dfc8d
+                for (int64_t k = 0; k < kEffectSlotCount; ++k) {      // 1800dfc8d
                     AttenutedEffect* const slot = &table[k];
                     if (slot->channelHandle != tag) continue;         // 1800dfc82
                     // A zeroed EffectSlot, field by field as retail stores

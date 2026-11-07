@@ -26,7 +26,7 @@
 // transposed traversal); ties resolve to the first-visited minimum, so the exact order is
 // preserved here. The Map's cells, terrain type (+0x29).
 // Caller: int fn(Map* map, int srcCell, int destCell, uint32_t passFlags)
-int Map::FindCell(int srcCell, int destCell, uint32_t passFlags) {
+int Map::FindCell(int srcCell, int destCell, PathBits passFlags) {
     int gridW = size;
     int best = -1;
     int bestDist = 0;
@@ -41,8 +41,8 @@ int Map::FindCell(int srcCell, int destCell, uint32_t passFlags) {
             int row = colD + srcCell / gridW;
             if (row < 0 || col >= gridW || row >= gridW) continue;
             int cand = col + rowBase;
-            uint8_t passByte = cellArr[static_cast<uint32_t>(cand)].terrainType;
-            if (!(passFlags & (1u << (passByte & 0x1f)))) continue;
+            PathType passByte = cellArr[static_cast<uint32_t>(cand)].terrainType;
+            if (!HasType(passFlags, passByte)) continue;
             int dRow = cand / gridW - destCell / gridW;
             int dCol = cand % gridW - destCell % gridW;
             int dist = dRow * dRow + dCol * dCol;

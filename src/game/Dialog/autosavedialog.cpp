@@ -103,9 +103,9 @@ void AutoSaveDialog::OnOpened() {
 // Original: 0x14005E0F0.
 
 void AutoSaveDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
-                                    int32_t param3, int32_t /*param4*/, int32_t /*c*/,
+                                    UI::EventId param3, int32_t /*param4*/, int32_t /*c*/,
                                     int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 != 0x13)
+    if (param3 != UI::EventId::Timer)
         return;
 
     // 0x14005DEC0, the autosave body (a tail JMP in retail). Wired 2026-08-30

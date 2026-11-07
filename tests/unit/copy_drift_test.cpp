@@ -91,7 +91,7 @@ const Region kRegions[] = {
      0xef438eab1dbd76a7ull},
     {"src/game/Action/moveto.cpp",
      "ext_walk_batch_test.cpp (ExecuteRef)",
-     0x55388122af05a199ull},
+     0xb448e78c0f28dadeull},
     {"src/game/Game/worldgeometry_ray.cpp",
      "still_terrain_test.cpp (World::SampleHeight, World::RayTri)",
      0xf5a2abe22bdb3d72ull},

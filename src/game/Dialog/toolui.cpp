@@ -42,6 +42,7 @@
 #include <new>  // ENDGAME B.3.6 UI callers (K3)
 #include "ui/TextElement.h"  // ENDGAME B.3.6 UI callers round 2 (K3)
 #include "input/Input.h"  // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "Component/ComponentDescription.h"   // X::TypeId() (B.3.8 callers)
 #include "Component/ToolbarDescription.h"   // X::TypeId() (B.3.8 callers)
 #include "Component/UIDescription.h"   // X::TypeId() (B.3.8 callers)
@@ -286,7 +287,7 @@ void ToolUI::OnCreated() {
             pinned = 0;
         } else {
             borderTitle->SetElementId(0);
-            borderTitle->SetFlagsOnOff(0x10000, 0);
+            borderTitle->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
             // retail: one word store of 1 at +0x40 (pinned = 1, dragging = 0)
             pinned = 1;
             dragging = 0;
@@ -332,12 +333,12 @@ static bool ToolUI_DialogHasEntityUI(const UI::DialogInstance* dialog) {
 // The mouse position in UI units (KeyMap axes 0 / 1 scaled by the dialog's
 // UserInterface _uiScale), as OnUpdate reads it.
 static int ToolUI_MouseX(const Input::KeyMap* keyMap, const UI::DialogInstance* dialog) {
-    short axisX = keyMap->GetValue(0, 0);
+    short axisX = keyMap->GetValue(0, ToUnderlying(GameKey::MouseX));
     float scaleX = dialog->_ui->_uiScale;
     return (int)((float)(int)axisX * scaleX);
 }
 static int ToolUI_MouseY(const Input::KeyMap* keyMap, const UI::DialogInstance* dialog) {
-    short axisY = keyMap->GetValue(0, 1);
+    short axisY = keyMap->GetValue(0, ToUnderlying(GameKey::MouseY));
     float scaleY = dialog->_ui->_uiScale;
     return (int)((float)(int)axisY * scaleY);
 }
@@ -406,7 +407,7 @@ void ToolUI::OnUpdate(const System::Time& /*time*/) {
         }
 
         // Check if mouse button released
-        short btn = keyMap->GetValue(0, 5);
+        short btn = keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft));
         if (btn == 0) {
             isDragPending = 0;
         }
@@ -455,7 +456,7 @@ void ToolUI::OnUpdate(const System::Time& /*time*/) {
         }
 
         // Check if mouse button released
-        short btn = keyMap->GetValue(0, 5);
+        short btn = keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft));
         if (btn == 0) {
             dragging = 0;
         }
@@ -475,9 +476,9 @@ void ToolUI::OnUpdate(const System::Time& /*time*/) {
 // Original: 0x14007BC30.
 
 // [9] 0x14007bc30
-void ToolUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg, int32_t id,
+void ToolUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId msg, int32_t id,
                             int32_t mouseX, int32_t mouseY, int32_t /*e*/, void* /*userData*/) {
-    if (msg == 2) {
+    if (msg == UI::EventId::LeftPress) {
         if (id == 0) {
             if (pinned != 0) {
                 // Already pinned — start drag immediately
@@ -496,17 +497,17 @@ void ToolUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32
                 return;
             }
         }
-    } else if (msg == 5) {
+    } else if (msg == UI::EventId::LeftRelease) {
         // Mouse up — cancel both drag modes
         dragging = 0;
         isDragPending = 0;
         return;
-    } else if (msg > 7 && msg < 0x0B) {
+    } else if (msg >= UI::EventId::DialogLeftPress && msg <= UI::EventId::DialogMiddlePress) {
         // Focus events (8, 9, 10) — bring dialog to front
         Object::InternalPtr<UI::DialogInstance> dialogRef(_dialog);
         _dialog->_ui->BringDialogToFront(&dialogRef);
         return;
-    } else if (msg == 0x12 && id == 1) {
+    } else if (msg == UI::EventId::Activated && id == 1) {
         // Close button — close dialog and remove from entity tracking.
         // B7 LX (row 994 G33): retail 0x14007bc30's close arm is CloseDialog and the
         // tracked-set walk, nothing else. The EditTool-deselect block that stood here

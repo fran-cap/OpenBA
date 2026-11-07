@@ -136,7 +136,7 @@ void Release(void* a) {
 }
 
 // The ctor's InitializeCriticalSection + 5000 spin, in place in the +0x640 bytes.
-void LockInit(Platform::LockStorage* cs) { Platform::MutexInit(cs, 5000); }
+void LockInit(Platform::LockStorage* cs) { Platform::MutexInit(cs, Platform::kLockSpinCount); }
 
 const RtSysMemPlatform kPosix = {
     &Reserve, &ReserveCommit, &Commit, &Decommit, &Release, &PageSize,

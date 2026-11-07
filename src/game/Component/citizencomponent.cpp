@@ -421,13 +421,13 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     hungerThreshLow = desc->_fcc;
     hungerThreshHigh = desc->maxHunger;
     if ((hungerThreshHigh - hungerThreshLow) * fVar4 + hungerThreshLow < hunger) {
-        statusFlags |= 1;
+        statusFlags |= Bits(CitizenStatus::Hungry);
         happinessFlags |= 1;
     }
     thirstThreshLow = desc->_fec;
     thirstThreshHigh = desc->maxColdness;
     if ((thirstThreshHigh - thirstThreshLow) * fThirstFrac + thirstThreshLow < coldness) {
-        statusFlags |= 2;
+        statusFlags |= Bits(CitizenStatus::Cold);
         happinessFlags |= 1;
     }
 
@@ -1478,13 +1478,18 @@ void CitizenComponent::EatFrom(ComponentEntity* target) {
             }
         }
         uint32_t* state = &statusFlags;
-        if ((*state & 8) == 0) *state = (*state & 0xfffffe8f) | 8;
+        if ((*state & Bits(CitizenStatus::Ate)) == 0) {
+            // retail's mask 0xfffffe8f: the four diet bits cleared
+            *state = (*state & ~Bits(CitizenStatus::DietGroup0 | CitizenStatus::DietGroup1 |
+                                     CitizenStatus::DietGroup2 | CitizenStatus::DietGroup3)) |
+                     Bits(CitizenStatus::Ate);
+        }
         if (mat) {
             uint32_t f = mat->_flags;
-            if (f & 1)        *state |= 0x10;
-            if (f >> 1 & 1)   *state |= 0x20;
-            if (f >> 2 & 1)   *state |= 0x40;
-            if (f >> 4 & 1)   *state |= 0x100;
+            if (f & 1)        *state |= Bits(CitizenStatus::DietGroup0);
+            if (f >> 1 & 1)   *state |= Bits(CitizenStatus::DietGroup1);
+            if (f >> 2 & 1)   *state |= Bits(CitizenStatus::DietGroup2);
+            if (f >> 4 & 1)   *state |= Bits(CitizenStatus::DietGroup3);
         }
         hours = hunger - uv;
         hunger = hours;
@@ -1626,14 +1631,14 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
                     MapCell* cellBase = mapInfo->cells.GetData();
                     MapCell* homeCellPtr = cellBase + homeCellIdx;
                     MapCell* wpCellPtr = cellBase + static_cast<int64_t>(wpY * mw + wpX);
-                    uint32_t wpBit   = 1u << (wpCellPtr->terrainType & 0x1f);
-                    uint32_t homeBit = 1u << (homeCellPtr->terrainType & 0x1f);
+                    uint32_t wpBit   = 1u << (static_cast<uint8_t>(wpCellPtr->terrainType) & 0x1f);
+                    uint32_t homeBit = 1u << (static_cast<uint8_t>(homeCellPtr->terrainType) & 0x1f);
                     uint32_t both = homeBit | wpBit;
-                    uint32_t mask = both | 0xe1f;
+                    uint32_t mask = both | Bits(PathBits::Walk);
                     short hr = homeCellPtr->zone;
                     short wr = wpCellPtr->zone;
                     if ((homeBit & mask) != 0 && (wpBit & mask) != 0 &&
-                        ((both & 0x1e0) != 0 || (hr != 0 && wr != 0 && hr == wr))) {
+                        ((both & Bits(PathBits::Zoneless)) != 0 || (hr != 0 && wr != 0 && hr == wr))) {
                         if (resIBP->residentSlots._size == 1) {
                             *param_3 = slot;
                             return entry;
@@ -1681,7 +1686,7 @@ char CitizenComponent::CanReach(ComponentEntity* target) {
     ComponentEntity* ibpVal = target;
     int regionId = EntityAnchorCell(&ibpVal, nullptr);
     uint32_t cellIdx = static_cast<uint32_t>(mapW * tileY + tileX);
-    char res = static_cast<char>(static_cast<uint8_t>(map->ValidateCell(0xe1f, cellIdx, regionId)));
+    char res = static_cast<char>(static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, cellIdx, regionId)));
     return res;
 }
 
@@ -1836,14 +1841,19 @@ void CitizenComponent::UpdateHealth() {
         return;
     }
     uint32_t f = statusFlags;
+    // the diet groups eaten (CitizenStatus::DietGroup3 / 2 / 1 / 0), plus a Health item
     uint32_t cnt = (f >> 8 & 1) + (f >> 6 & 1) + (f >> 5 & 1) + (f >> 4 & 1);
-    if ((f & 0x200) != 0) cnt++;
+    if ((f & Bits(CitizenStatus::UsedHealthItem)) != 0) cnt++;
     float* acc = &health;
-    if ((f & 8) != 0 && (f & 4) != 0 && cnt > 3) *acc += c114;
-    if ((f & 8) != 0 && (f & 0x200) == 0 && cnt < 3) *acc -= (uv - (float)cnt / c180);
-    if ((f & 1) != 0) *acc -= uv;
-    if ((f & 2) != 0) *acc -= uv;
-    if ((f & 4) == 0 &&
+    if ((f & Bits(CitizenStatus::Ate)) != 0 && (f & Bits(CitizenStatus::TaskDone)) != 0 && cnt > 3) {
+        *acc += c114;
+    }
+    if ((f & Bits(CitizenStatus::Ate)) != 0 && (f & Bits(CitizenStatus::UsedHealthItem)) == 0 && cnt < 3) {
+        *acc -= (uv - (float)cnt / c180);
+    }
+    if ((f & Bits(CitizenStatus::Hungry)) != 0) *acc -= uv;
+    if ((f & Bits(CitizenStatus::Cold)) != 0) *acc -= uv;
+    if ((f & Bits(CitizenStatus::TaskDone)) == 0 &&
         desc->adultAge <= age &&
         school == nullptr) {
         *acc -= c100;
@@ -2009,7 +2019,7 @@ bool CitizenComp_sub_40f0(AttendanceComponent* att, CitizenComponent* citizen) {
     int posY  = clampTile(pos.y);
     uint32_t fromCell = (uint32_t)(mapW * posY + posX);
     uint32_t toCell   = (uint32_t)(mapW * homeY + homeX);
-    char ok = mapInfo->ValidateCell(0xe1f, fromCell, toCell);
+    char ok = mapInfo->ValidateCell(PathBits::Walk, fromCell, toCell);
     if (!ok) g_sub40f0_exit = 3;
     return ok != 0;
 }

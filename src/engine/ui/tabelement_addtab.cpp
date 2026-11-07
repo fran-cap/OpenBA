@@ -98,8 +98,6 @@
 
 namespace {
 
-constexpr uint32_t kDirtyBit  = 0x8000000u;                       // NeedsSizeCalc
-
 // UI::Dialog, 0x88 bytes — see the store-for-store table in the banner.
 constexpr size_t kDialogSize = 0x88;
 
@@ -118,7 +116,7 @@ inline void ArrayCellsSetSizeFill(void* arrayHdr, int32_t n, const void* fill) {
 // (0x1800DA211, 0x1800DA270).
 void DirtyWalk(UI::Element* self) {
     for (UI::Element* p = self; p != nullptr; p = p->_parent)
-        p->_flags |= kDirtyBit;
+        p->_flags |= UI::kElementFlagNeedsSizeCalc;
 }
 
 } // namespace

@@ -350,7 +350,7 @@ static void CtorBody(UserInterface* self) {
     self->_fadeSpriteIndex = -1;                        // +0xe8 (empty sprite)
     self->_fadeVelocity = 0.0f;                         // +0xf0 } one QWORD
     self->_fadeAmount   = 0.0f;                         // +0xf4 }
-    self->_fadeColor = 0xffffffffu;                     // +0xf8
+    self->_fadeColor = System::kColorWhite;             // +0xf8
     self->_clipRegion.left   = 0;                       // +0xfc  } one QWORD
     self->_clipRegion.top    = 0;                       // +0x100 }
     self->_clipRegion.right  = 0;                       // +0x104 } one QWORD
@@ -403,7 +403,7 @@ extern "C" void* RtUi_UserInterface_GetFirstDialog(UserInterface* self, void* re
 bool UI::UserInterface::PausesGame() const {
     for (auto* node = _dialogs._head; node; node = node->next) {
         const auto* dlg = node->element;
-        if (dlg->_flags & 1u) return true;          // DialogInstance +0x20 bit 0
+        if (dlg->_flags & kDialogFlagPauseGame) return true;   // DialogInstance +0x20 bit 0
     }
     return false;
 }
@@ -441,7 +441,7 @@ UI::UserInterface::GetFirstContainedDialog(int32_t gx, int32_t gy) const {
     for (auto* node = _dialogs._tail; node; node = node->prev) {
         auto* dlg = node->element;
         const uint32_t flags = dlg->_flags;                            // +0x20
-        if (flags & 0x4u) continue;
+        if (flags & kDialogFlagNoMouseCapture) continue;
 
         // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): a dialog with its own scale k is
         // tested in its own units. Null seam: retail's point.
@@ -456,7 +456,7 @@ UI::UserInterface::GetFirstContainedDialog(int32_t gx, int32_t gy) const {
         }
 
         bool hit;
-        if (flags & 0x8u) {
+        if (flags & kDialogFlagPerElementCapture) {
             // Element vtable slot 9 (+0x48), `Contains(x, y, ui)` — a VIRTUAL
             // call dispatches through the element's own (minted) table.
             // `_root` (+0x50) through the dialog's own one-load accessor
@@ -914,7 +914,7 @@ void UiDtorBody(UserInterface* self) {
             // Trap (a): the flag word is read BEFORE the null test, as retail
             // does. Kept in that order deliberately.
             const uint32_t flags = dlg->_flags;
-            if (((~static_cast<uint8_t>(flags >> 5)) & 1) != 0 && dlg != nullptr) {
+            if ((flags & UI::kDialogFlagNoDelete) == 0 && dlg != nullptr) {
                 delete dlg;
                 slot = nullptr;
             }
@@ -927,7 +927,7 @@ void UiDtorBody(UserInterface* self) {
     for (Node* node = list._head; node; node = node->next) {
         UI::DialogInstance* const dlg = node->element;
         const uint32_t flags = dlg->_flags;
-        if (((~static_cast<uint8_t>(flags >> 5)) & 1) != 0 && dlg != nullptr) {
+        if ((flags & UI::kDialogFlagNoDelete) == 0 && dlg != nullptr) {
             delete dlg;
             node->element = nullptr;
         }
@@ -1027,7 +1027,7 @@ void UI::UserInterface::CleanRemovedDialogs() {
         // tree's `*(nullptr)` read did.)
         DialogInstance* const dlg = _removedDialogs._data[i];
         const uint32_t flags = dlg->_flags;   // trap (a): read before the null test
-        if (((~static_cast<uint8_t>(flags >> 5)) & 1) != 0 && dlg != nullptr) {
+        if ((flags & kDialogFlagNoDelete) == 0 && dlg != nullptr) {
             delete dlg;
             // NOT RETAIL: retail stores the null through the base it loaded
             // BEFORE the delete (0x18011f920 `MOV RBX,[RDI+0x18]`, 0x18011f947
@@ -1087,12 +1087,12 @@ int32_t UI::UserInterface::GetMouseCursorIndex(int32_t x, int32_t y) const {
     for (const auto* node = _dialogs._tail; node; node = node->prev) {
         DialogInstance* const dlg = node->element;
         const uint32_t flags = dlg->_flags;
-        if ((flags >> 2) & 1) continue;
+        if ((flags & kDialogFlagNoMouseCapture) != 0) continue;
         // `_root` (+0x50) through the dialog's own accessor (0x180045580, one
         // load): DialogInstance.h still spells the field `void*`.
         const Object::InternalPtr<UI::Element> root = dlg->GetRoot();
         bool hit;
-        if ((flags >> 3) & 1) {
+        if ((flags & kDialogFlagPerElementCapture) != 0) {
             // Element vtable slot 9 (+0x48) `Contains` — VIRTUAL.
             // B.4 LEFT: `DialogInstance::_ui` (+0x10) is `void*` (R-UI-a).
             hit = root->Contains(x, y, dlg->_ui);
@@ -1239,7 +1239,7 @@ void UI::UserInterface::SaveAllSettings() {
             st->_cursor    = 0;
             st->_direction = 1;
             if (size >= 4) {
-                *reinterpret_cast<uint32_t*>(buf) = 0xdeadbeefu;  // CAST-OK: byte_io
+                *reinterpret_cast<uint32_t*>(buf) = DialogInstance::kSettingsMagic;  // CAST-OK: byte_io
                 st->_cursor += 4;
             }
 

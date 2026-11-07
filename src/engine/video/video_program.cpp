@@ -142,12 +142,6 @@
 
 namespace {
 
-// The video-program dirty bit. Context.h's prose names it ("0x00000100 VIDEO
-// program ?SetVideoProgram@ 0x18001a040", from WAVE 9 lane CTX reading
-// ?BindResources@'s arms) but its enum does not carry an enumerator, so it is
-// spelled here rather than added to a header three other lanes include.
-constexpr uint32_t kDirtyVideoProgram = 0x00000100u;
-
 // One compare-then-OR-then-store, retail's idiom, for a typed pointer slot of
 // the Context (B.4 R-VIDEO: the four slots are typed fields now).
 template <class T>
@@ -166,8 +160,8 @@ inline void Apply(Video::Context* ctx, const T*& slot, const T* value, uint32_t 
 
 // ============================================================================
 // THE MEMBER BODY — `Video::VideoProgram::SetupShaders`. At `namespace Video`
-// scope and AFTER the anonymous namespace (B34_BRIEFS A.2); `Apply` and
-// `kDirtyVideoProgram` stay reachable by unqualified name.
+// scope and AFTER the anonymous namespace (B34_BRIEFS A.2); `Apply` stays
+// reachable by unqualified name.
 // ============================================================================
 namespace Video {
 
@@ -177,7 +171,7 @@ void VideoProgram::SetupShaders(Context& context) const {
     // Context+0x200 is `_videoProgram`, the first member of
     // Context::PixelConstantStaging (src/engine/video/Context.h).
     if (ctx->_pixelConstantStaging.videoProgram != this) {
-        ctx->_dirty |= kDirtyVideoProgram;
+        ctx->_dirty |= RtVideo::kDirtyVideoProgram;
         ctx->_pixelConstantStaging.videoProgram = this;
     }
 

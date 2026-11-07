@@ -166,6 +166,7 @@
 #include "system/Timer.h"   // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
 #include "input/input_key_tables.h"
 #include "platform_input.h"
+#include "system/EnumFlags.h"   // ToUnderlying (the MouseInput slots)
 
 namespace {
 
@@ -208,8 +209,8 @@ static_assert(sizeof(kIndexToVirtualKey) == Input::Device::kKeyboardInputCount,
 //     AND AX,0x8000 / NEG AX / SBB AX,AX / AND AX,0x7FFF
 // which is a branchless (down ? 0x7FFF : 0). 0x7FFF and not 0x8000: it is the
 // POSITIVE full scale of the int16 axis range, which is what makes normalized
-// come out as exactly 1.0f from UpdateState's divide by 32767.
-constexpr int16_t kFullScale = 0x7FFF;
+// come out as exactly 1.0f from UpdateState's divide by 32767: Device::kFullScale
+// (input/Device.h).
 
 // The two IDirectInputDevice8 methods retail calls, by BYTE OFFSET into the
 // vtable, as the disassembly spells them: +0x38 Acquire (COM index 7), +0x48
@@ -371,7 +372,7 @@ bool Device::PlatformGetKeyboardState(State* out) {
         if (Platform::Input::IsForeground(hwnd)) {
             for (int i = 0; i < kKeyboardInputCount; ++i) {
                 const int16_t s = Platform::Input::AsyncKeyState(kIndexToVirtualKey[i]);
-                out[i].value = (s & 0x8000) ? kFullScale : 0;
+                out[i].value = (s & Platform::Input::kAsyncKeyDown) ? kFullScale : 0;
             }
         } else {
             for (int i = 0; i < kKeyboardInputCount; ++i) out[i].value = 0;
@@ -398,7 +399,7 @@ bool Device::PlatformGetKeyboardState(State* out) {
     }
 
     for (int i = 0; i < 256; ++i)
-        out[kScanCodeToIndex[i]].value = (keys[i] & 0x80) ? kFullScale : 0;
+        out[kScanCodeToIndex[i]].value = (keys[i] & Platform::Input::kDiKeyDown) ? kFullScale : 0;
 
     return true;
 }
@@ -446,9 +447,9 @@ bool Device::PlatformGetMouseState(State* out) {
 
     auto swapIfLeftHanded = [&]() {
         if (Platform::Input::ButtonsSwapped()) {                  // GetSystemMetrics(SM_SWAPBUTTON)
-            const int16_t b0 = out[4].value;
-            out[4].value = out[5].value;
-            out[5].value = b0;
+            const int16_t b0 = out[ToUnderlying(MouseInput::Left)].value;
+            out[ToUnderlying(MouseInput::Left)].value = out[ToUnderlying(MouseInput::Right)].value;
+            out[ToUnderlying(MouseInput::Right)].value = b0;
         }
     };
 
@@ -470,25 +471,29 @@ bool Device::PlatformGetMouseState(State* out) {
         int32_t* lastY = &_lastCursorY;
 
         // 16-bit wrapping subtracts, in retail's operand order (see the banner).
-        out[2].value = static_cast<int16_t>(static_cast<uint16_t>(x) -
-                                            static_cast<uint16_t>(*lastX));
-        out[3].value = static_cast<int16_t>(static_cast<uint16_t>(*lastY) -
-                                            static_cast<uint16_t>(y));
+        out[ToUnderlying(MouseInput::DeltaX)].value =
+            static_cast<int16_t>(static_cast<uint16_t>(x) - static_cast<uint16_t>(*lastX));
+        out[ToUnderlying(MouseInput::DeltaY)].value =
+            static_cast<int16_t>(static_cast<uint16_t>(*lastY) - static_cast<uint16_t>(y));
         *lastX = x;
         *lastY = y;
-        out[0].value = static_cast<int16_t>(x);
-        out[1].value = static_cast<int16_t>(y);
+        out[ToUnderlying(MouseInput::X)].value = static_cast<int16_t>(x);
+        out[ToUnderlying(MouseInput::Y)].value = static_cast<int16_t>(y);
 
-        out[4].value = (Platform::Input::AsyncMouseButtonState(0x01) & 0x8000) ? kFullScale : 0;  // VK_LBUTTON
-        out[5].value = (Platform::Input::AsyncMouseButtonState(0x02) & 0x8000) ? kFullScale : 0;  // VK_RBUTTON
-        out[6].value = (Platform::Input::AsyncMouseButtonState(0x04) & 0x8000) ? kFullScale : 0;  // VK_MBUTTON
+        using Platform::Input::AsyncMouseButtonState;
+        using Platform::Input::kAsyncKeyDown;
+        out[ToUnderlying(MouseInput::Left)].value =
+            (AsyncMouseButtonState(Platform::Input::kVkLButton) & kAsyncKeyDown) ? kFullScale : 0;
+        out[ToUnderlying(MouseInput::Right)].value =
+            (AsyncMouseButtonState(Platform::Input::kVkRButton) & kAsyncKeyDown) ? kFullScale : 0;
+        out[ToUnderlying(MouseInput::Middle)].value =
+            (AsyncMouseButtonState(Platform::Input::kVkMButton) & kAsyncKeyDown) ? kFullScale : 0;
         swapIfLeftHanded();
 
         int32_t* wheel = &_wheelAccum;
         const int32_t w = *wheel;
-        out[12].value = (w == 0) ? static_cast<int16_t>(0)
-                                 : (w > 0 ? kFullScale
-                                          : static_cast<int16_t>(0x8001));
+        out[ToUnderlying(MouseInput::Wheel)].value =
+            (w == 0) ? static_cast<int16_t>(0) : (w > 0 ? kFullScale : kNegativeFullScale);
         *wheel = 0;
 
         return true;
@@ -512,16 +517,17 @@ bool Device::PlatformGetMouseState(State* out) {
         return true;
     }
 
-    for (int b = 0; b < 8; ++b)
-        out[4 + b].value = (st.buttons[b] & 0x80) ? kFullScale : 0;
+    for (int b = 0; b < 8; ++b) {
+        out[ToUnderlying(MouseInput::Left) + b].value =
+            (st.buttons[b] & Platform::Input::kDiKeyDown) ? kFullScale : 0;
+    }
     swapIfLeftHanded();
 
-    out[12].value = (st.z == 0) ? static_cast<int16_t>(0)
-                                : (st.z > 0 ? kFullScale
-                                            : static_cast<int16_t>(0x8001));
+    out[ToUnderlying(MouseInput::Wheel)].value =
+        (st.z == 0) ? static_cast<int16_t>(0) : (st.z > 0 ? kFullScale : kNegativeFullScale);
 
-    out[2].value = static_cast<int16_t>(st.x);
-    out[3].value = static_cast<int16_t>(-static_cast<int16_t>(st.y));
+    out[ToUnderlying(MouseInput::DeltaX)].value = static_cast<int16_t>(st.x);
+    out[ToUnderlying(MouseInput::DeltaY)].value = static_cast<int16_t>(-static_cast<int16_t>(st.y));
 
     // The absolute position still comes from the CURSOR even on the DirectInput
     // path — a DI mouse reports deltas only. Retail re-reads
@@ -530,8 +536,8 @@ bool Device::PlatformGetMouseState(State* out) {
     Platform::Point pt;
     Platform::Input::GetCursorPos(&pt);
     Platform::Input::ScreenToClient(::Application::Application::_singleton->_windowHandle, &pt);
-    out[0].value = static_cast<int16_t>(pt.x);
-    out[1].value = static_cast<int16_t>(pt.y);
+    out[ToUnderlying(MouseInput::X)].value = static_cast<int16_t>(pt.x);
+    out[ToUnderlying(MouseInput::Y)].value = static_cast<int16_t>(pt.y);
 
     return true;
 }

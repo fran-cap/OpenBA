@@ -98,6 +98,16 @@ void ScreenToClient(void* window, Point* inOut);
 // GetSystemMetrics(SM_SWAPBUTTON) != 0: the pollers swap buttons 0 and 1 when true.
 bool ButtonsSwapped();
 
+// The Win32 / DirectInput values this seam keeps (the SDL twin maps onto them).
+constexpr int32_t kVkLButton    = 0x01;     // VK_LBUTTON
+constexpr int32_t kVkRButton    = 0x02;     // VK_RBUTTON
+constexpr int32_t kVkMButton    = 0x04;     // VK_MBUTTON
+constexpr int32_t kVkEscape     = 0x1B;     // VK_ESCAPE
+constexpr int32_t kVkF1         = 0x70;     // VK_F1 (VK_F1..VK_F12 are consecutive)
+constexpr int32_t kVkF12        = 0x7B;     // VK_F12
+constexpr int32_t kAsyncKeyDown = 0x8000;   // GetAsyncKeyState's bit 15: down now
+constexpr int32_t kDiKeyDown    = 0x80;     // DirectInput key / rgbButtons byte: down
+
 // ---------------------------------------------------------------------------
 // The launcher's Shift test (Engine::PlatformConfigure 0x1800a1670; Phase D.4 SDL-5).
 // ---------------------------------------------------------------------------

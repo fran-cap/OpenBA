@@ -204,13 +204,13 @@ static bool CheckCellConnectivity(const MapCell* gridData, int64_t cellA, int64_
     const MapCell& entryA = gridData[cellA];
     const MapCell& entryB = gridData[cellB];
 
-    uint32_t bitA = 1u << (entryA.terrainType & 0x1f);
-    uint32_t bitB = 1u << (entryB.terrainType & 0x1f);
+    uint32_t bitA = 1u << (static_cast<uint8_t>(entryA.terrainType) & 0x1f);
+    uint32_t bitB = 1u << (static_cast<uint8_t>(entryB.terrainType) & 0x1f);
     uint32_t combined = bitA | bitB;
-    uint32_t mask = combined | 0xe1fu;
+    uint32_t mask = combined | Bits(PathBits::Walk);
 
     if (!(mask & bitA) || !(mask & bitB)) return false;
-    if (combined & 0x1e0) return true;
+    if (combined & Bits(PathBits::Zoneless)) return true;
 
     int16_t zA = static_cast<int16_t>(entryA.zone);
     if (zA == 0) return false;
@@ -486,12 +486,12 @@ int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*conte
                     Profession* targetIBP = nullptr;
                     Profession* targetVal = *GetTarget(&targetIBP);
 
-                    bldgEntity->statusFlags |= 4;
+                    bldgEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
                     bldgEntity->field_0x30 = priority;
                     bldgEntity->field_0xB0 = 0;
 
                     if (targetVal == bldgEntity->profession && priority >= 0) {
-                        bldgEntity->happinessFlags |= 0x20000;
+                        bldgEntity->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                     }
 
                     // Insert claimed position into BST at +0x60

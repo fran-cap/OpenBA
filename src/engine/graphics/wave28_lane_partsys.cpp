@@ -964,7 +964,8 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
             g_shadowHeldThisDraw = true;
             ++StaggerHold::g_counters.shadowHeld;
             const int heldGroup = rendererRef.Graphics::Renderer::BeginDrawGroup(
-                _renderBuffer, view, HeldSunCamera(), 1, 1u);
+                _renderBuffer, view, HeldSunCamera(), static_cast<int32_t>(::Graphics::MaterialPass::Depth),
+                Bits(::Graphics::MaterialTypeMask::Opaque));
             rendererRef.Graphics::Renderer::EndDrawGroup(heldGroup);
             PassSplit::EndSun(splitT0);   // issue #253: a held frame's (small) shadow share
             return;
@@ -999,7 +1000,8 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
     // Draw group ZERO's camera (`renderer+0x10` data, +0x08).
     const ::Graphics::Camera& sceneCam = rendererRef._drawGroups._data[0]._camera;
     const int group = rendererRef.Graphics::Renderer::BeginDrawGroup(
-        _renderBuffer, sceneCam, sunCamera, 1, 1u);
+        _renderBuffer, sceneCam, sunCamera, static_cast<int32_t>(::Graphics::MaterialPass::Depth),
+        Bits(::Graphics::MaterialTypeMask::Opaque));
 
     if (rendererRef._shaderDetail != 0) {                 // +0x3c
         sceneRef.Graphics::Scene::AddGlobalDrawItems(rendererRef);

@@ -279,7 +279,7 @@ int32_t UI::UserInterface::ShowDialog(Object::InternalPtr<DialogInstance>* dialo
     // 3. Hand the dialog to the nested UI and clear its DeleteOnClose.
     DialogInstance* const dlg = dialogArg->Get();
     dlg->_ui = nested;                                                   // +0x10
-    dlg->_flags |= 0x20;                                                 // +0x20
+    dlg->_flags |= kDialogFlagNoDelete;                                  // +0x20
     if (g_RtShowDialogDefect == 3)
         dlg->_flags |= 0x80000000u;                                      // control
 

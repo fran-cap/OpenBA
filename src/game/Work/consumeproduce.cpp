@@ -231,12 +231,12 @@ static int FinalizeAction(ConsumeProduce* self, CitizenComponent** citizenIBP, i
     Profession* targetBuf;
     Profession* actionPtr = *self->GetTarget(&targetBuf);
 
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0x30 = priority;
     citizen->field_0xB0 = 0;
 
     if (actionPtr == citizen->profession && priority >= 0) {
-        citizen->happinessFlags |= 0x20000;
+        citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     // Store citizen entity ref at self->field_58[slotIndex]
@@ -488,7 +488,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 
                 if (foundEntity != nullptr) {
                     // Check passability
-                    uint64_t passable = map->ValidateCell(0xe1f, (uint32_t)citizenCell,
+                    uint64_t passable = map->ValidateCell(PathBits::Walk, (uint32_t)citizenCell,
                                                              (uint32_t)field_28);
                     if ((char)passable == '\0') {
                         return 1;
@@ -800,13 +800,13 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
             MapCell* srcCellStruct = &structBase3[citizenCell];
             MapCell* dstCellStruct = &structBase3[prodCellX * mapSize + prodCellY];
 
-            uint32_t srcMask = 1 << (dstCellStruct->terrainType & 0x1f);   // +0x29
-            uint32_t dstMask = 1 << (srcCellStruct->terrainType & 0x1f);
+            uint32_t srcMask = 1 << (static_cast<uint8_t>(dstCellStruct->terrainType) & 0x1f);   // +0x29
+            uint32_t dstMask = 1 << (static_cast<uint8_t>(srcCellStruct->terrainType) & 0x1f);
             uint32_t combined = srcMask | dstMask;
-            uint32_t passFlags = combined | 0xe1f;
+            uint32_t passFlags = combined | Bits(PathBits::Walk);
 
             if ((passFlags & dstMask) != 0 && (passFlags & srcMask) != 0 &&
-                ((combined & 0x1e0) != 0 ||
+                ((combined & Bits(PathBits::Zoneless)) != 0 ||
                  (srcCellStruct->zone != 0 &&   // +0x26
                   dstCellStruct->zone != 0 &&
                   srcCellStruct->zone == dstCellStruct->zone))) {

@@ -191,6 +191,14 @@ static const uint64_t kTagPrevHiMask   = 0xffffc00000000000ull; // bits 46..63
 static const uint64_t kSizeBytesMask   = 0x000007fffffffffcull; // bits 2..42
 static const uint64_t kThisFreeShl2    = 0x0000800000000000ull; // kTagThisFree << 2
 
+// The prevSize field's shift (bits 41..43 above).
+constexpr int32_t  kTagPrevSizeShift = 41;
+// A free-list link delta is stored split: its low 23 bits in the node word's
+// bits 41..63, its high bits (this mask) in the tag's bits 46..63 via << 23.
+constexpr uint64_t kLinkDeltaHiMask  = 0xffffffffff800000ull;
+// The size-class bins (freeLists[192]); minBin starts at the last one, 191.
+constexpr int32_t  kFreeListBinCount = 0xc0;
+
 // ---------------------------------------------------------------------------
 // MemoryTag / FreeTag — the two names the DLL's own mangled signatures use
 // (`PEAUMemoryTag@12@`, `PEAUFreeTag@12@`). Both are a single packed qword; the

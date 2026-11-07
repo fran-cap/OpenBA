@@ -181,7 +181,7 @@ void PopulationComponent::ScanHabitability(Map* map, int cellIndex) {
                 const MapCell* tile = &map->cells.GetData()[(int64_t)(map->size * r + colStart)];
                 uint64_t remaining = (uint64_t)(unsigned int)((blockDim + colStart) - colStart);
                 do {
-                    unsigned int bit = 1u << (tile->terrainType & 0x1f);
+                    unsigned int bit = Bits(PathBitOf(tile->terrainType));
                     if ((bit & scan->_habitatTerrain) != 0) {
                         walkable++;
                     }

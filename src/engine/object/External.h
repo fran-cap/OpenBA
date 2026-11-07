@@ -196,6 +196,13 @@ using ExternalRefArray = Collection::Array<ExternalArrayElement, Collection::Def
 // at 0x18002cfdc) run ~Filename on it by hand. Nothing copies, memsets or
 // default-constructs an entry; ~Set's Clear runs after ~ExternalFactory has
 // zeroed the root, so it destroys nothing.
+}  // namespace RtObject
+namespace Object {
+// An External's referenceId with no reference (ResourceEntry::referenceId; Add seeds it).
+constexpr uint32_t kNoReferenceId = 0xFFFFFFFFu;
+}  // namespace Object
+namespace RtObject {
+
 struct ResourceEntry {
     ResourceEntry(const System::Filename& key, ::Object::External* ext,
                   uint32_t mask, uint32_t refId)

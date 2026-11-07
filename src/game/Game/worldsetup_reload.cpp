@@ -61,13 +61,13 @@
 void GameUpdateLoop::SetEngineNextLoop(Engine::UpdateLoop* loaderLoop) {
     UI::UserInterface* ui = m_userInterface;   // +0x98
     ui->SetCursor(::Object::ExternalPtr<UI::Cursor>(g_gameContainer->cursorHourglass.Get()));
-    ui->SetFullscreenFade(true, 0xFF000000, false);
+    ui->SetFullscreenFade(true, System::kColorBlack, false);
     m_nextLoop = loaderLoop;                    // +0xC8
 }
 
 // 0x14009a8f0: fade the menu loop's UI (+0x40) to opaque black, queue the loop.
 void MenuDialogLoopT::SetLoaderNextLoop(Engine::UpdateLoop* loaderLoop) {
-    GetUserInterface().SetFullscreenFade(true, 0xFF000000, false);
+    GetUserInterface().SetFullscreenFade(true, System::kColorBlack, false);
     _pendingLoop = loaderLoop;              // +0xb68
 }
 

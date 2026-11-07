@@ -23,6 +23,7 @@
 #include "ui/UserInterface.h"
 #include "ui/TabElement.h"
 #include "input/Input.h"
+#include "Game/inputbindings.h"   // GameKey (the KeyMap ids)
 #include "ui/Sprite.h"
 #include "ui/SpriteSheet.h"
 #include "ui/StringTable.h"
@@ -160,7 +161,7 @@ public:
         }
         if (UI::Element* handle = FindElement(System::String("borderTitle")).Get()) {
             handle->SetElementId(0);
-            handle->SetFlagsOnOff(0x10000, 0);
+            handle->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
         }
 
         // One tab per active extension page.
@@ -243,26 +244,26 @@ public:
         UI::DialogInstance::OnClosed();
     }
 
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id, int32_t c,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id, int32_t c,
                         int32_t d, int32_t e, void* userData) override {
         // The utility window's behaviour, as ToolUI::OnElementEvent (toolui.cpp): a press on the
         // title bar starts a drag, a release ends it, focus events bring the window to the front, the
         // close button closes it.
-        if (msg == 2 && id == 0) {
+        if (msg == UI::EventId::LeftPress && id == 0) {
             _dragging = true;
             _dragOffsetX = c - _upperLeftX;
             _dragOffsetY = d - _upperLeftY;
-        } else if (msg == 5) {
+        } else if (msg == UI::EventId::LeftRelease) {
             _dragging = false;
-        } else if (msg > 7 && msg < 0x0B) {
+        } else if (msg >= UI::EventId::DialogLeftPress && msg <= UI::EventId::DialogMiddlePress) {
             Object::InternalPtr<UI::DialogInstance> self(this);
             _ui->BringDialogToFront(&self);
-        } else if (msg == 0x12 || msg == 0x14) {
+        } else if (msg == UI::EventId::Activated || msg == UI::EventId::SelectionChanged) {
             // A combo box is a button: its click (0x12) only opens the list, and the pick comes from the
             // list as 0x14 (ComboDialog::OnElementEvent). A page hears a combo when something is picked,
             // not when the list is opened or closed again; every other control, as before, on its click.
             const bool isCombo = ::Object::IsDerivedFromNullSafe(element->Get(), UI::ComboElement::TypeId());
-            if (isCombo != (msg == 0x14)) {
+            if (isCombo != (msg == UI::EventId::SelectionChanged)) {
                 Object::InternalPtr<UI::Element> copy = *element;
                 UI::DialogInstance::OnElementEvent(&copy, msg, id, c, d, e, userData);
                 return;
@@ -301,8 +302,8 @@ public:
         }
         const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
         const float scale = _ui->_uiScale;
-        const int keyX = static_cast<int>(keyMap->GetValue(0, 0));
-        const int keyY = static_cast<int>(keyMap->GetValue(0, 1));
+        const int keyX = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseX)));
+        const int keyY = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseY)));
         int x = static_cast<int>(static_cast<float>(keyX) * scale) - _dragOffsetX;
         int y = static_cast<int>(static_cast<float>(keyY) * scale) - _dragOffsetY;
         if (x < 0) {
@@ -314,7 +315,7 @@ public:
         SetUpperLeft(x, y, false);
         SavedWindow().x = x;
         SavedWindow().y = y;
-        if (keyMap->GetValue(0, 5) == 0) {
+        if (keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft)) == 0) {
             _dragging = false;
         }
     }
@@ -487,7 +488,7 @@ void Style(UI::Element* button, int32_t index) {
     b->SetElementId(index);
     b->SetUserData(nullptr);
     b->SetToolTip(OurString("ExtensionsWindowTip"));
-    b->SetFlagsOnOff(0x10000, 0);
+    b->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
     UI::SpriteSheet* sheet = OurSpriteSheet();
     if (sheet == nullptr) {
         return;

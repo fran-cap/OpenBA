@@ -281,9 +281,6 @@ inline float TransformY(const FlushTransform2& m, float x, float y) {
 // CONCRETE `*Data` subclass and the 84-slot seam are a declared leave for step 5
 // (B35_RULES section 11); only the dispatch converts.
 
-// The dirty bit `Flush` ORs in when the scissor changed (0x18011badf).
-const uint32_t kDirtyScissor = 0x400;
-
 // ---------------------------------------------------------------------------
 // The half-pixel offset. `Video::Device::_singleton` (0x1801fe7a8) -> +0x100
 // (the DeviceData) -> vtable slot 5.
@@ -357,7 +354,7 @@ void SpriteContext::Flush() {
     Video::Viewport& ctxScissor = ctx->_scissor;
     if (ctxScissor.x != _scissorX || ctxScissor.y != _scissorY ||
         ctxScissor.width != _scissorW || ctxScissor.height != _scissorH) {
-        ctx->_dirty |= kDirtyScissor;
+        ctx->_dirty |= RtVideo::kDirtyScissor;   // the scissor changed (0x18011badf)
         ctxScissor.x      = _scissorX;
         ctxScissor.y      = _scissorY;
         ctxScissor.width  = _scissorW;
@@ -400,7 +397,7 @@ void SpriteContext::Flush() {
         if (point != Video::ImageBufferData::_extPointSampling) {
             // Context::BindTextures binds only dirty slots: force the rebind.
             Video::ImageBufferData::_extPointSampling = point;
-            ctx->_imageBufferDirty |= 0xffffu;
+            ctx->_imageBufferDirty |= RtVideo::kAllImageBufferSlotsDirty;
             ctx->_dirty |= RtVideo::kDirtyImageBuffers;
         }
     }

@@ -48,7 +48,7 @@ public:
     // [5] the pause menu unpauses the three audio types.
     void OnClosed() override;                                      // [5] 0x1400b3c60
     void OnElementEvent(Object::InternalPtr<UI::Element>* element,
-                        int32_t a, int32_t b, int32_t c,
+                        UI::EventId a, int32_t b, int32_t c,
                         int32_t d, int32_t e, void* userData) override;  // [8] 0x1400b3b50
 
     // The button handlers retail's OnElementEvent 0x1400b3b50 calls.

@@ -105,7 +105,7 @@ void WeatherSimulation::DrawUpdate(Video::Context& context) {
     context._pixelConstantStaging.pixel[4].y = field_0x1C.y;
     context._pixelConstantStaging.pixel[4].z = field_0x1C.z;
     context._pixelConstantStaging.pixel[4].w = field_0x1C.w;
-    context._dirty |= 0x10800;
+    context._dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     // The fog colour's fourth channel is the record's fog maximum.
     context.SetFog(setting.fogNear, setting.fogFar,

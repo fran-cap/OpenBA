@@ -17,6 +17,7 @@
 #include "ui/DialogInstance.h"
 #include "ui/UserInterface.h"
 #include "input/Input.h"
+#include "Game/inputbindings.h"   // GameKey (the KeyMap ids)
 #include "ui/String.h"
 #include "ui/Dialog.h"
 #include "object/External.h"
@@ -108,7 +109,7 @@ public:
         if (UI::Element* close = FindElement(System::String("buttonClose")).Get()) close->SetElementId(1);
         if (UI::Element* handle = FindElement(System::String("borderTitle")).Get()) {
             handle->SetElementId(0);
-            handle->SetFlagsOnOff(0x10000, 0);
+            handle->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
         }
         table_ = Object::InternalPtr<UI::Element>(FindElement(System::String("tableFamilySummary")).Get());
         if (!::Object::IsDerivedFromNullSafe(table_, UI::TableElement::TypeId())) {
@@ -126,21 +127,21 @@ public:
         UI::DialogInstance::OnClosed();
     }
 
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id, int32_t c,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id, int32_t c,
                         int32_t d,
                         int32_t e, void* userData) override {
         // The utility window's behavior, as TreeWindow (tree_window.cpp): a press on the title bar starts a
         // drag, a release ends it, focus events bring the window to the front, the close button closes it.
-        if (msg == 2 && id == 0) {
+        if (msg == UI::EventId::LeftPress && id == 0) {
             _dragging = true;
             _dragOffsetX = c - _upperLeftX;
             _dragOffsetY = d - _upperLeftY;
-        } else if (msg == 5) {
+        } else if (msg == UI::EventId::LeftRelease) {
             _dragging = false;
-        } else if (msg > 7 && msg < 0x0B) {
+        } else if (msg >= UI::EventId::DialogLeftPress && msg <= UI::EventId::DialogMiddlePress) {
             Object::InternalPtr<UI::DialogInstance> self(this);
             _ui->BringDialogToFront(&self);
-        } else if (msg == 0x12 && id == 1) {
+        } else if (msg == UI::EventId::Activated && id == 1) {
             Object::InternalPtr<UI::DialogInstance> self(this);
             _ui->CloseDialog(&self);
             return;
@@ -159,8 +160,8 @@ public:
         if (!_dragging || Input::Configuration::_singleton == nullptr) return;
         const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
         const float scale = _ui->_uiScale;
-        const int keyX = static_cast<int>(keyMap->GetValue(0, 0));
-        const int keyY = static_cast<int>(keyMap->GetValue(0, 1));
+        const int keyX = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseX)));
+        const int keyY = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseY)));
         int x = static_cast<int>(static_cast<float>(keyX) * scale) - _dragOffsetX;
         int y = static_cast<int>(static_cast<float>(keyY) * scale) - _dragOffsetY;
         if (x < 0) x = 0;
@@ -168,7 +169,7 @@ public:
         SetUpperLeft(x, y, false);
         g_x = x;
         g_y = y;
-        if (keyMap->GetValue(0, 5) == 0) _dragging = false;
+        if (keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft)) == 0) _dragging = false;
     }
 
     void ToFront() {

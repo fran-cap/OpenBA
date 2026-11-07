@@ -143,13 +143,23 @@ void NumberElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     if ((_flags & kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 1: case 4: case 7: px = ((aw >> 1) - (w >> 1)) + px; break;
-        case 2: case 5: case 8: px = (right - _rightPad) - w; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            px = ((aw >> 1) - (w >> 1)) + px;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            px = (right - _rightPad) - w;
+            break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutRight  = px + w;
@@ -167,7 +177,7 @@ void NumberElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
     // `(flags & 0x1800000) == 0 || (flags >> 0x18 & 1) != 0` — draw when the
     // element is fully enabled, OR when it is SYSTEM-disabled (bit 24), which
     // still paints; a plain Disabled (bit 23) alone suppresses it.
-    if ((flags & 0x01800000u) != 0 && ((flags >> 24) & 1) == 0) return;
+    if ((flags & kElementFlagAnyDisabled) != 0 && (flags & kElementFlagSystemDisabled) == 0) return;
 
     const uint32_t color = _color;
     if ((flags & kElementFlagDimColor) != 0) alpha >>= 1;

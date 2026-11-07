@@ -151,9 +151,9 @@ void ResourceLimitUI::OnUpdateLayout() {
 // Event (vtable +0x48): on spinner change (msg 0x15, id 0x3039) write the new
 // value back to the live limit.
 // [9] 0x1400777e0
-void ResourceLimitUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id,
+void ResourceLimitUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id,
                                      int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (msg != 0x15 || id != 0x3039) return;
+    if (msg != UI::EventId::ValueChanged || id != 0x3039) return;
     UI::SpinnerElement* spinner = this->editLimit;
     if (!spinner || !element) return;
     UI::Element* sender = element->Get();

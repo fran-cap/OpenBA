@@ -65,14 +65,14 @@ namespace UI {
 // passes it straight to GetPaddedSize). A ClipRegionElement always has its one
 // child, built by ContainerDescription::CreateInstance.
 void ClipRegionElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     _layoutWidth  = _reqWidth;
     _layoutHeight = _reqHeight;
 
     _children._data[0]->GetPaddedSize(_innerWidth, _innerHeight);   // 0x180115f10
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // ============================================================================
@@ -90,7 +90,7 @@ void ClipRegionElement::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h
 
     Element* child = _children._data[0];
     if (child == nullptr) return;
-    if ((child->_flags & kFlagHidden) != 0) return;
+    if ((child->_flags & UI::kElementFlagHidden) != 0) return;
 
     int cw = 0, ch = 0;
     PaddedSizeInline(child, &cw, &ch);
@@ -135,7 +135,7 @@ void ClipRegionElement::Draw(SpriteContext& context, uint8_t alpha) const {
     for (int32_t i = 0; i < count; ++i) {
         const Element* child = _children._data[i];
         if (child == nullptr) continue;
-        if ((child->_flags & kFlagHidden) != 0) continue;
+        if ((child->_flags & UI::kElementFlagHidden) != 0) continue;
         child->Draw(context, alpha);
     }
 

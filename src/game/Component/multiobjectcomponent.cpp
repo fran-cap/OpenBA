@@ -37,7 +37,7 @@ void MultiObjectComponent::OnRemove() {
         ComponentEntity* entityPtr = children[i].Get();
         EntityList* entityList = GameUpdateLoop::_singleton->m_entityList;   // +0xE8
 
-        if (entityPtr != nullptr && ((entityPtr->_entityFlags >> 10) & 1) == 0) {
+        if (entityPtr != nullptr && (entityPtr->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
             entityPtr->MarkForRemoval();   // 0x1400c2ea0
 
             if (entityList) {

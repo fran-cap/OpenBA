@@ -134,9 +134,10 @@ public:
     using ComponentArray = Collection::Array<Object::InternalPtr<Component>, Collection::DefaultAllocator,
                                              Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
     ComponentArray        _components;      // +0x30 (count +0x38, capacity +0x3C)
-    uint32_t              _entityFlags;     // +0x40 OR of every component's +0x20 flags:
-                                            //       bit 0 OnAdded, 2 update, 4 draw,
-                                            //       7 Startup, 8 Shutdown
+    uint32_t              _entityFlags;     // +0x40 ComponentFlags: OR of every component's +0x20
+                                            //       low word (bit 0 OnAdded, 2 Tick, 4 PostUpdate,
+                                            //       7 Startup, 8 Shutdown, ...), plus bit 10
+                                            //       MarkedForRemoval (MarkForRemoval 0x1400c2ea0)
     uint8_t               _pad44[4];        // +0x44
 };
 

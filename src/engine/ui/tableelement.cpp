@@ -71,7 +71,7 @@ namespace UI {
 // contributing a gap.
 // ---------------------------------------------------------------------------
 void TableElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     _layoutWidth  = 0;     // one qword store
     _layoutHeight = 0;
@@ -100,7 +100,7 @@ void TableElement::ComputeSize() {
         }
     }
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,17 +124,27 @@ void TableElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t bo
     const int32_t aw = (right  - _rightPad)  - px;
     const int32_t ah = (bottom - _bottomPad) - py;
 
-    if ((_flags & kFlagStretchX) != 0) w = aw;
-    if ((_flags & kFlagStretchY) != 0) h = ah;
+    if ((_flags & UI::kElementFlagAlignArg1) != 0) w = aw;
+    if ((_flags & UI::kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 1: case 4: case 7: px = ((aw >> 1) - (w >> 1)) + px; break;
-        case 2: case 5: case 8: px = (right - _rightPad) - w; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            px = ((aw >> 1) - (w >> 1)) + px;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            px = (right - _rightPad) - w;
+            break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutRight  = px + w;
@@ -149,7 +159,7 @@ void TableElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t bo
         for (int32_t c = 0; c < _columnCount; ++c) {
             const int32_t colW = _columnSizes._data[c];
             Element* cell = _children[_columnCount * r + c];
-            if (cell != nullptr && (cell->_flags & kFlagHidden) == 0)
+            if (cell != nullptr && (cell->_flags & UI::kElementFlagHidden) == 0)
                 cell->ComputeLayout(cellLeft, cellTop, colW + cellLeft, cellTop + rowH);
             cellLeft += colW;
             if (colW > 0) cellLeft += _spacing;
@@ -166,13 +176,13 @@ void TableElement::Draw(SpriteContext& context, uint8_t alpha) const {
     if (Element* border = _border)
         border->Draw(context, alpha);
 
-    if ((_flags & kFlagDimColor) != 0) alpha >>= 1;
+    if ((_flags & UI::kElementFlagDimColor) != 0) alpha >>= 1;
 
     for (int32_t r = 0; r < _rowCount; ++r) {
         int32_t cols = _columnCount;
         for (int32_t c = 0; c < cols; ++c) {
             Element* cell = _children[cols * r + c];
-            if (cell != nullptr && (cell->_flags & kFlagHidden) == 0)
+            if (cell != nullptr && (cell->_flags & UI::kElementFlagHidden) == 0)
                 cell->Draw(context, alpha);
             cols = _columnCount;
         }

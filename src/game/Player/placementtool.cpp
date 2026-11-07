@@ -50,6 +50,7 @@
 #include "object/Internal.h"    // ENDGAME B.3.6 UI callers (K4)
 #include "ui/UserInterface.h"   // ENDGAME B.3.6 UI callers (K4)
 #include "input/Input.h"        // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "Player/exe_bodies.h"
 #include "Component/exe_bodies.h"
 #include "Game/exe_bodies.h"
@@ -174,7 +175,7 @@ char PlacementTool::OnKey(char param2) {
     const Input::KeyMap* keyMap = GetKeyMap();
 
     // Key 0x13: Rotate counter-clockwise
-    bool rotCCW = keyMap->Pressed(0, 0x13);
+    bool rotCCW = keyMap->Pressed(0, ToUnderlying(GameKey::StructureLeft));
     if (rotCCW) {
         rotationIBP->rotation = rotationIBP->rotation - 1;
 
@@ -184,7 +185,7 @@ char PlacementTool::OnKey(char param2) {
         }
     } else {
         // Key 0x14: Rotate clockwise
-        bool rotCW = keyMap->Pressed(0, 0x14);
+        bool rotCW = keyMap->Pressed(0, ToUnderlying(GameKey::StructureRight));
         if (rotCW) {
             rotationIBP->rotation = rotationIBP->rotation + 1;
 
@@ -194,7 +195,7 @@ char PlacementTool::OnKey(char param2) {
             }
         } else {
             // Key 0x15: Flip/Mirror
-            bool flip = keyMap->Pressed(0, 0x15);
+            bool flip = keyMap->Pressed(0, ToUnderlying(GameKey::StructureType));
             if (flip) {
                 FlipVariant();
             }
@@ -203,7 +204,7 @@ char PlacementTool::OnKey(char param2) {
 
     // --- Placement confirmation (key 5, only when active) ---
     if (param2 != 0) {
-        bool placeKey = keyMap->Pressed(0, 5);
+        bool placeKey = keyMap->Pressed(0, ToUnderlying(GameKey::MouseLeft));
         if (placeKey) {
             // Calculate placement position
             int startCol = 0, startRow = 0, endCol = 0, endRow = 0;

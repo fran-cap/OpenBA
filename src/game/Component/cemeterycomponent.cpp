@@ -193,14 +193,14 @@ char CemeteryComponent::EnterBuilt() {
         }
 
         // Free plot: stamp the zone byte, notify, and null the entity slot.
-        const uint8_t zone = cell->terrainType;   // +0x29
-        const bool walkableZone = CemeteryWalkableZone(zone);
-        world->field_0xA2 |= walkableZone ? 1 : 0;   // retail ORs the byte (row 311)
-        cell->terrainType = 2;
+        const uint8_t zone = static_cast<uint8_t>(cell->terrainType);   // +0x29
+        const bool zonesStale = CemeteryTypeIsZoneless(zone);
+        world->field_0xA2 |= zonesStale ? 1 : 0;   // retail ORs the byte (row 311)
+        cell->terrainType = PathType::Normal;
         TerrainSidecar::NoteWrite(cell);   // [terrain sidecar] mirror
         CellStamp::NoteWrite(cell);   // [AMBMEMO] cell write clock
 
-        if (walkableZone) {
+        if (zonesStale) {
             const int mapWidth = world->size;
             RegionGraph* fine = world->regionGraph;   // +0x70
             if (fine && mapWidth)
@@ -212,7 +212,7 @@ char CemeteryComponent::EnterBuilt() {
             // fourth parameter reaches only Pf_WorkerApplyCmd_a6430's cmd-5 arm; this is
             // cmd 2, so it is never read (quarrycomponent_deform.cpp / starttown.cpp pass
             // nullptr the same way).
-            if (pf) pf->SetCellTerrain(cellIdx, 2);   // 0x1400a6fe0
+            if (pf) pf->SetCellTerrain(cellIdx, ToUnderlying(PathType::Normal));   // 0x1400a6fe0
         }
 
         cell->occupant = nullptr;   // a null InternalBasePtr (+0x08)

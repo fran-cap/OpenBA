@@ -86,7 +86,7 @@ void CopyEventEntry(EventLogEntry* dst, const EventLogEntry* src) {
 // The resize's init arm (0x1400199a0). Seed values are load-bearing:
 // color=-1, tileIndex=iconIndex=popup=-1, eventType=severity=0.
 void ZeroEventEntry(EventLogEntry* dst) {
-    dst->color = 0xffffffff;
+    dst->color = System::kColorWhite;
     dst->text._data = nullptr;         // null String (retail: one qword 0)
     dst->eventType = 0;                // retail: one qword store, H7
     dst->severity  = 0;
@@ -146,7 +146,7 @@ static uint32_t EventLog_SeverityColor(int severity) {
         case 2:  return 0xFF8080FFu;  // pink
         case 3:  return 0xFFFF6060u;  // red
         case 4:  return 0xFFEA7517u;  // orange
-        default: return 0xFFFFFFFFu;  // white
+        default: return System::kColorWhite;
     }
 }
 

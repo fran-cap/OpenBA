@@ -264,8 +264,8 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
                 float ymax = ymin + chunkSizeF;
                 const ::Box box = { { xmin, ymin, zMin }, { xmax, ymax, zMax } };
 
-                uint32_t r = FrustumCull_Test(&localPlanes, &box, 0x3F, cullVerify);
-                if (r != 0x40) {
+                uint32_t r = FrustumCull_Test(&localPlanes, &box, Bits(FrustumPlanes::All), cullVerify);
+                if (r != Bits(FrustumPlanes::Outside)) {
                     uint16_t key2 = static_cast<uint16_t>((i << 6) | j);
                     renderer.AddDrawItem(this, matInst0, materialKey, key2, 0.0f, uvScale, 1, nullptr, 0);
                 }
@@ -286,7 +286,7 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
     const Graphics::MaterialInstance* matInst1 = _waterMaterialA;    // +0x150
     for (int idx = 0; idx < countA; ++idx) {
         uint16_t key1 = static_cast<uint16_t>(idx | 0x3900);
-        uint16_t key2 = static_cast<uint16_t>(idx | 0x6000);
+        uint16_t key2 = static_cast<uint16_t>(idx | DrawKey::kModeRiverRange);
         renderer.AddDrawItem(this, matInst1, key1, key2, 0.0f, uvScale, 1, nullptr, 0);
     }
 
@@ -294,7 +294,7 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
     const Graphics::MaterialInstance* matInst2 = _waterMaterialB;    // +0x158
     for (int idx = 0; idx < countB; ++idx) {
         uint16_t key1 = static_cast<uint16_t>(idx | 0x4000);
-        uint16_t key2 = static_cast<uint16_t>(idx | 0x8000);
+        uint16_t key2 = static_cast<uint16_t>(idx | DrawKey::kModeLakeRange);
         renderer.AddDrawItem(this, matInst2, key1, key2, 0.0f, uvScale, 1, nullptr, 0);
     }
 
@@ -321,12 +321,12 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
         const ::Box box = { { xmin, ymin, 0.0f }, { xmax, ymax, 0.0f } };
 
         ++decalBoxes;
-        uint32_t r = FrustumCull_Test(&localPlanes, &box, 0x3F, cullVerify);
-        if (r == 0x40) continue;
+        uint32_t r = FrustumCull_Test(&localPlanes, &box, Bits(FrustumPlanes::All), cullVerify);
+        if (r == Bits(FrustumPlanes::Outside)) continue;
 
         // key1 = 1 normally; 3 if +0x5D is set.
         uint16_t key1 = b.alternateKey ? 3 : 1;
-        uint16_t key2 = static_cast<uint16_t>(idx | 0x2000);
+        uint16_t key2 = static_cast<uint16_t>(idx | DrawKey::kModeDecal);
         renderer.AddDrawItem(this, b.material,
                              key1, key2, 0.0f, uvScale, 1, nullptr, 0);
     }
@@ -346,10 +346,10 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
         const ::Box box = { { xmin, ymin, 0.0f }, { xmax, ymax, 0.0f } };
 
         ++roadBoxes;
-        uint32_t r = FrustumCull_Test(&localPlanes, &box, 0x3F, cullVerify);
-        if (r == 0x40) continue;
+        uint32_t r = FrustumCull_Test(&localPlanes, &box, Bits(FrustumPlanes::All), cullVerify);
+        if (r == Bits(FrustumPlanes::Outside)) continue;
 
-        uint16_t key2 = static_cast<uint16_t>(idx | 0x4000);
+        uint16_t key2 = static_cast<uint16_t>(idx | DrawKey::kModeRoad);
         renderer.AddDrawItem(this, b.material,
                              2, key2, 0.0f, uvScale, 1, nullptr, 0);
     }
@@ -393,8 +393,8 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
     context.SetColor(color);
 
     // 4. Branch on the high 3 bits (0xE000) of param6.
-    uint32_t key = param6 & 0xFFFF1FFFu;     // local index
-    uint32_t mode = param6 & 0xE000u;        // draw-mode selector
+    uint32_t key = param6 & DrawKey::kIndexMask;   // local index
+    uint32_t mode = param6 & DrawKey::kModeMask;   // draw-mode selector
 
     // Indexed draw of one batch's vertices and indices through the context's
     // dynamic buffers (the 0x2000 and 0x4000 branches).
@@ -417,13 +417,13 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
         context.EndIndexedVertices(0);
     };
 
-    if (mode == 0x2000) {
+    if (mode == DrawKey::kModeDecal) {
         GeometryBatch* base = _decals._data;
         if (!base) return;
         IndexedDrawFromBatch(base[static_cast<int>(key)]);
         return;
     }
-    if (mode == 0x4000) {
+    if (mode == DrawKey::kModeRoad) {
         GeometryBatch* base = _roadBatches._data;
         if (!base) return;
         IndexedDrawFromBatch(base[static_cast<int>(key)]);
@@ -434,7 +434,7 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
     // 0x10 when the bound buffer or its offset differs.
     auto BindIndexBuffer = [&](const Video::IndexBuffer* ib) {
         if (context._indexBuffer != ib || context._indexOffset != 0) {
-            context._dirty |= 0x10;
+            context._dirty |= RtVideo::kDirtyIndexBuffer;
             context._indexBuffer = ib;
             context._indexOffset = 0;
         }
@@ -453,7 +453,7 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
         // range once more with its shore pixel program over retail's water, then rebinds the water's.
         if (Ext::BetterWater::Enabled()) {
             const Ext::BetterWater::Kind kind =
-                mode == 0x8000 ? Ext::BetterWater::Kind::Lake : Ext::BetterWater::Kind::River;
+                mode == DrawKey::kModeLakeRange ? Ext::BetterWater::Kind::Lake : Ext::BetterWater::Kind::River;
             Ext::BetterWater::DrawShore(context, kind, range.values[1], range.values[2], range.values[0],
                                         range.values[3]);
         }
@@ -464,13 +464,13 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
         }
     };
 
-    if (mode == 0x8000) {
+    if (mode == DrawKey::kModeLakeRange) {
         const GeometryDrawRange* ranges = _contourRangesB.data;   // +0x1D0
         if (!ranges) return;
         DrawContourRange(ranges);
         return;
     }
-    if (mode == 0x6000) {
+    if (mode == DrawKey::kModeRiverRange) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md section 7): the shore strip's
         // item (AddDrawItems above), not a range.
         if (key == Ext::BetterWater::kStripIndex) {

@@ -830,12 +830,12 @@ void DebugUI::OnUpdateLayout() {
 //
 // Original: 0x140060BC0
 // [9] 0x140060bc0
-void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                              int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
 
     // ---- Combo change (0x14) ----
-    if (a == 0x14) {
+    if (a == UI::EventId::SelectionChanged) {
         if (b == 0x166) {
             OnDrawComboChanged();
         } else if (b == 0x163) {
@@ -846,7 +846,7 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t 
     }
 
     // ---- Slider/number change (0x17) ----
-    if (a == 0x17) {
+    if (a == UI::EventId::SliderChanged) {
         if (b == 0x154) {
             // Day slider changed → update game time and lighting
             OnDaySliderChanged();
@@ -859,7 +859,7 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t 
     }
 
     // ---- Button click (0x12) ----
-    if (a != 0x12)
+    if (a != UI::EventId::Activated)
         return;
 
     // Range check: element IDs 300 (0x12C) through 339 (0x153)
@@ -873,17 +873,17 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t 
     // --- Resource spawn buttons ---
     // Each calls CitizenBehavior::SpawnResources(resourceFlag, count). The comments name the
     // element OnCreated gives the id (buttonTool -> 0x131 at 0x140061d7e, and so on in order).
-    case 300:  citizenList->SpawnResources(0x400,     50);   return;  // buttonWood
-    case 301:  citizenList->SpawnResources(0x800,     50);   return;  // buttonStone
-    case 302:  citizenList->SpawnResources(0x1000,    50);   return;  // buttonIron
-    case 303:  citizenList->SpawnResources(0x80,      50);   return;  // buttonFuel
-    case 304:  citizenList->SpawnResources(0x100,     50);   return;  // buttonCoal
-    case 305:  citizenList->SpawnResources(0x200,     50);   return;  // buttonTool
-    case 306:  citizenList->SpawnResources(0x20,      1000); return;  // buttonFood
-    case 307:  citizenList->SpawnResources(0x2000,    25);   return;  // buttonHealth
-    case 308:  citizenList->SpawnResources(0x4000,    25);   return;  // buttonClothes
-    case 309:  citizenList->SpawnResources(0x10000,   50);   return;  // buttonTextile
-    case 310:  citizenList->SpawnResources(0x20000,   100);  return;  // buttonAlcohol
+    case 300:  citizenList->SpawnResources(RawMaterialFlags::Wood,     50);   return;  // buttonWood
+    case 301:  citizenList->SpawnResources(RawMaterialFlags::Stone,    50);   return;  // buttonStone
+    case 302:  citizenList->SpawnResources(RawMaterialFlags::Iron,     50);   return;  // buttonIron
+    case 303:  citizenList->SpawnResources(RawMaterialFlags::FuelBit7, 50);   return;  // buttonFuel
+    case 304:  citizenList->SpawnResources(RawMaterialFlags::FuelBit8, 50);   return;  // buttonCoal
+    case 305:  citizenList->SpawnResources(RawMaterialFlags::Tool,     50);   return;  // buttonTool
+    case 306:  citizenList->SpawnResources(RawMaterialFlags::Edible,   1000); return;  // buttonFood
+    case 307:  citizenList->SpawnResources(RawMaterialFlags::Health,   25);   return;  // buttonHealth
+    case 308:  citizenList->SpawnResources(RawMaterialFlags::Clothing, 25);   return;  // buttonClothes
+    case 309:  citizenList->SpawnResources(RawMaterialFlags::Textile,  50);   return;  // buttonTextile
+    case 310:  citizenList->SpawnResources(RawMaterialFlags::Alcohol,  100);  return;  // buttonAlcohol
     case 311:  citizenList->SpawnResources(0x40000,   100);  return;  // Resource type 18
     case 312:  citizenList->SpawnResources(0x80000,   100);  return;  // Resource type 19
     case 313:  citizenList->SpawnResources(0x100000,  100);  return;  // Resource type 20
@@ -926,7 +926,7 @@ void DebugUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t 
 
 // B4 FORWARD: 1 outside caller(s) (src/diag/disaster_harness.cpp, which reaches
 // the tornado button with a null DebugUI; case 329 reads no DebugUI field).
-void DebugUI_Slot9(DebugUI* self, Object::InternalPtr<UI::Element>* element, int param3, int param4) {
+void DebugUI_Slot9(DebugUI* self, Object::InternalPtr<UI::Element>* element, UI::EventId param3, int param4) {
     self->DebugUI::OnElementEvent(element, param3, param4, 0, 0, 0, nullptr);
 }
 

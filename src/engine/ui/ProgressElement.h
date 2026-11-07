@@ -75,7 +75,7 @@ public:
     // ??0Element`; the six UI::Sprite members' own ctors make {null, -1};
     // then the three tail stores. +0x12c is written by nothing.
     ProgressElement() : Element() {
-        _backgroundColor = 0xffffffffu;
+        _backgroundColor = System::kColorWhite;
         _maxValue        = 1.0f;      // 0x3f800000
         _currentValue    = 0.25f;     // 0x3e800000
     }

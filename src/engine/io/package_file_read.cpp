@@ -233,6 +233,8 @@
 #include "system/string_internal.h"
 #include "system/MemoryAllocator.h"
 #include "collection/Collection.h"
+#include "system/Configuration.h"   // System::kGameVersion (the uncompressed default)
+#include "system/Value.h"           // System::kColorWhite (the placeholder icon ink)
 
 // ---- the ported callees, called DIRECTLY --------------------------------
 // Every one of these is this lane's own port from an earlier rung. They are
@@ -464,7 +466,7 @@ int64_t IndexBytesLeft(const IO::CompressedStream* cs) {
 // colours read the same in any channel order.
 constexpr int32_t kPlaceholderIconSize = 48;
 constexpr int32_t kPlaceholderScale    = 3;
-constexpr uint32_t kPlaceholderInk     = 0xffffffffu;
+constexpr uint32_t kPlaceholderInk     = System::kColorWhite;
 constexpr uint32_t kPlaceholderPaper   = 0xff404040u;
 constexpr const char* kPlaceholderGlyph[] = {
     "..####..",
@@ -553,20 +555,20 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
     fs = IO::FileSystem::_singleton;                           // 1800b478b
     fs->_platformExistsGate = savedGate;                       // 1800b4792
 
-    if (fi->handle == -1) {                                    // 1800b4795  CMP [RDI],-1
+    if (fi->handle == RtIO::FileInfo::kHandleNone) {           // 1800b4795  CMP [RDI],-1
         return false;                                          // 1800b479a  XOR AL,AL
     }
 
     // ---- the header word, its sign bit, and the seek (§69) -----------------
     int32_t hdr = 0;
     fs->ReadFile(*fi, 4, &hdr);                                // 1800b47b1
-    const int32_t compressed = (hdr & static_cast<int32_t>(0x80000000)) ? 1 : 0;
+    const int32_t compressed = (hdr & static_cast<int32_t>(IO::PackageFile::kHeaderCompressedBit)) ? 1 : 0;
                                                                // 1800b47b9  BT/CMOVC
-    hdr &= 0x7fffffff;                                         // 1800b47ca  BTR
+    hdr &= static_cast<int32_t>(IO::PackageFile::kHeaderOffsetMask);   // 1800b47ca  BTR
     fi->cursor = hdr;                                          // 1800b47d1  the seek
     // Only when the handle is -1 or -2, i.e. a LOOSE file, is there an OS
     // handle to mirror it into. `CMP dword [RDI],-3 ; JBE` is UNSIGNED.
-    if (static_cast<uint32_t>(fi->handle) > 0xFFFFFFFDu) {     // 1800b47d4
+    if (!RtIO::FileInfo::IsPackedHandle(fi->handle)) {         // 1800b47d4
         Platform::FileSeek32(fi->winHandle, hdr);              // 1800b47e3 SetFilePointer
     }
 
@@ -734,16 +736,16 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
         }
     } else {
         // ---- the uncompressed default, 0x1800b5b25. §92(b): SEVEN stores. --
-        _version = 0x010007ff;                            // 1800b5b25  dword
+        _version = System::kGameVersion;                  // 1800b5b25  dword
         // `MOV qword ptr [R13+0x70],0x2710` — one store, two fields.
-        _priority = 0x2710;                               // 1800b5b2d
+        _priority = kDefaultPriority;                     // 1800b5b2d
         _platform = 0;
         _crc  = 0;                                 // 1800b5b35
         _overridable = true;                              // 1800b5b3c
         _iconWidth  = 1;                                  // 1800b5b49
         _iconHeight = 1;                                  // 1800b5b4d
         rtcoll::RtColl_ArraySetSize_180029510(&_iconData, 1);  // 1800b5b5a
-        _iconData._data[0] = 0xff000000u;                           // 1800b5b66
+        _iconData._data[0] = kPlaceholderIconPixel;                 // 1800b5b66
         // falls into 0x1800b5b6c, which reloads formatVersion — still 0 here.
     }
 

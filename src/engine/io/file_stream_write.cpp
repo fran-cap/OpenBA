@@ -136,7 +136,7 @@ bool FileStream::SetCurrentPos(int pos) {
     _file.cursor = pos;                                  // 1800aac1c — BEFORE the branch
 
     // Unsigned: -1 and -2 take the Win32 path, a packed descriptor does not.
-    if (static_cast<uint32_t>(_file.handle) <= 0xFFFFFFFDu) {   // 1800aac16/1f
+    if (RtIO::FileInfo::IsPackedHandle(_file.handle)) {         // 1800aac16/1f
         return true;                                     // 1800aac21
     }
 

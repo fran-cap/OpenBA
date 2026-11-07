@@ -241,7 +241,7 @@ ComponentEntity** CitizenBehavior::FindElderResidence(ComponentEntity** found, u
         int cost = CellCost(map, cell, param_3);
 
         if (cost < best) {
-            uint64_t valid = mapGrid->ValidateCell(0xe1f, param_3, static_cast<int>(cell));
+            uint64_t valid = mapGrid->ValidateCell(PathBits::Walk, param_3, static_cast<int>(cell));
             if (static_cast<char>(valid) != '\0') {
                 ComponentEntity* self_00 = field_0x20._data[idx].Get();
                 // 0x140008090 (was its CitizenComp_Entity_FindComponent_Storage forwarder)
@@ -294,7 +294,7 @@ ComponentEntity** CitizenBehavior::FindAdultTarget(ComponentEntity** found, uint
         float vec[4] = {0, 0, 0, 0};
         ComponentEntity* candIBP = preferred;
         uint32_t cell = static_cast<uint32_t>(EntityAnchorCell(&candIBP, vec));
-        uint64_t valid = mapGrid->ValidateCell(0xe1f, param_3, static_cast<int>(cell));
+        uint64_t valid = mapGrid->ValidateCell(PathBits::Walk, param_3, static_cast<int>(cell));
         if (static_cast<char>(valid) != '\0') {
             int dist = mapGrid->CalcDistance(cell, param_3);
             ComponentEntity* candA = *origP7;
@@ -438,13 +438,13 @@ ComponentEntity** CitizenBehavior::FindAdultTarget(ComponentEntity** found, uint
                     MapCell* cellArr = map->cells.GetData();   // +0x80
                     MapCell* cGoal = &cellArr[static_cast<int>(param_3)];
                     MapCell* cCand = &cellArr[static_cast<int>(cell)];
-                    uint32_t fGoal = 1u << (cGoal->terrainType & 0x1f);
-                    uint32_t fCand = 1u << (cCand->terrainType & 0x1f);
+                    uint32_t fGoal = 1u << (static_cast<uint8_t>(cGoal->terrainType) & 0x1f);
+                    uint32_t fCand = 1u << (static_cast<uint8_t>(cCand->terrainType) & 0x1f);
                     uint32_t both = fCand | fGoal;
-                    uint32_t flags = both | 0xe1f;
+                    uint32_t flags = both | Bits(PathBits::Walk);
                     bool proceed = true;
                     if (((flags & fGoal) != 0) && ((flags & fCand) != 0)) {
-                        if ((both & 0x1e0) == 0) {
+                        if ((both & Bits(PathBits::Zoneless)) == 0) {
                             uint16_t gz = cGoal->zone;
                             if (gz == 0) {
                                 proceed = false;

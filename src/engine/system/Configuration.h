@@ -100,6 +100,19 @@
 
 namespace System {
 
+// A game version packs major << 24 | minor << 16 | patch << 8 | stage
+// (GetVersionString 0x1800c4f90). The stage byte appends a suffix; a shipped
+// build is Release.
+enum class VersionStage : uint32_t {
+    Prototype = 0xfb,   // "R" / " Prototype"
+    PreAlpha  = 0xfc,   // "P" / " Pre Alpha"
+    Alpha     = 0xfd,   // "A" / " Alpha"
+    Beta      = 0xfe,   // "B" / " Beta"
+    Release   = 0xff,   // no suffix
+};
+constexpr uint32_t kGameVersion       = 0x010007ffu;   // 1.0.7 release (CurrentVersion 0x1800c4f40)
+constexpr uint32_t kModMinGameVersion = 0x01000400u;   // 1.0.4: a mod built for an older game is out of date
+
 class Configuration {
 public:
     // ---- instance members --------------------------------------------------

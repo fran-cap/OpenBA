@@ -157,6 +157,14 @@ struct BmpInfoHeader {
 static_assert(sizeof(BmpInfoHeader) == 40, "BITMAPINFOHEADER is 40 bytes");
 static_assert(offsetof(BmpInfoHeader, xPelsPerMeter) == 24, "biXPelsPerMeter @ 24");
 
+// The header values the writer fills in by hand.
+constexpr uint16_t kBmpSignature         = 0x4d42;   // bfType 'BM'
+constexpr int32_t  kBmpPixelOffset       = 0x36;     // bfOffBits: the two headers, 14 + 40 bytes
+constexpr int32_t  kBmpInfoHeaderSize    = 0x28;     // biSize: sizeof(BmpInfoHeader)
+constexpr int32_t  kBmpPelsPerMeter96Dpi = 0xec4;    // 3780 px/m == 96 DPI
+static_assert(kBmpPixelOffset == sizeof(BmpFileHeader) + sizeof(BmpInfoHeader), "bfOffBits");
+static_assert(kBmpInfoHeaderSize == sizeof(BmpInfoHeader), "biSize");
+
 // ---------------------------------------------------------------------------
 // 0x180053da0 — Collection::Array<uint8>::SetSize(newSize, const uint8& fill)
 //
@@ -266,11 +274,11 @@ bool ImageBuffer::SaveImageToFile(const System::Filename& pathRef,
     const int32_t rowBytes =
         static_cast<int32_t>((3u * static_cast<uint32_t>(width + 1)) & 0xfffffffcu);
 
-    fileHeader.type    = 0x4d42;                        // bfType 'BM'
-    fileHeader.size    = rowBytes * height + 0x36;      // bfSize
-    fileHeader.offBits = 0x36;                          // bfOffBits
+    fileHeader.type    = kBmpSignature;                 // bfType 'BM'
+    fileHeader.size    = rowBytes * height + kBmpPixelOffset;   // bfSize
+    fileHeader.offBits = kBmpPixelOffset;               // bfOffBits
 
-    infoHeader.size   = 0x28;
+    infoHeader.size   = kBmpInfoHeaderSize;
     infoHeader.width  = width;
     infoHeader.height = height;
     // Retail writes planes, bitCount and compression as ONE eight-byte store of
@@ -278,8 +286,8 @@ bool ImageBuffer::SaveImageToFile(const System::Filename& pathRef,
     // are identical, and compression's zero half is already there.
     infoHeader.planes   = 1;
     infoHeader.bitCount = 24;
-    infoHeader.xPelsPerMeter = 0xec4;                   // 3780 == 96 DPI
-    infoHeader.yPelsPerMeter = 0xec4;
+    infoHeader.xPelsPerMeter = kBmpPelsPerMeter96Dpi;   // 3780 == 96 DPI
+    infoHeader.yPelsPerMeter = kBmpPelsPerMeter96Dpi;
 
     // ---- 3. open --------------------------------------------------------
     //
@@ -304,7 +312,7 @@ bool ImageBuffer::SaveImageToFile(const System::Filename& pathRef,
         int32_t& cursor    = stream._file.cursor;
 
         cursor += static_cast<int32_t>(RtVideoWriteFileRaw(handle, &fileHeader, 14));
-        cursor += static_cast<int32_t>(RtVideoWriteFileRaw(handle, &infoHeader, 0x28));
+        cursor += static_cast<int32_t>(RtVideoWriteFileRaw(handle, &infoHeader, kBmpInfoHeaderSize));
 
         // ---- 4. the pixels, bottom-up, 32bpp -> 24bpp ----------------------
         // ENDGAME B.3.2: default ctor == retail's three zero stores; the
@@ -352,7 +360,7 @@ bool ImageBuffer::SaveImageToFile(const System::Filename& pathRef,
         // Retail closes the file HERE and the destructor below re-tests the
         // same handle field. Both are reproduced: CloseFile resets it to the
         // -1 sentinel, which is what stops the second close.
-        if (stream._file.handle != -1) {
+        if (stream._file.handle != RtIO::FileInfo::kHandleNone) {
             fs->CloseFile(stream._file);   // 0x1800accc0
         }
         ok = true;   // 0x1800f2b23 `MOV DIL,1`, after the close, unconditionally

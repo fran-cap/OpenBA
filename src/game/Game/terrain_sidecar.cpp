@@ -22,14 +22,14 @@ void Rebuild(const MapCell* cells, int count) {
         s_bufCap = s_buf ? count : 0;
     }
     if (!s_buf) { g_mirror = nullptr; g_mirrorBase = nullptr; g_mirrorCount = 0; return; }
-    for (int i = 0; i < count; ++i) s_buf[i] = cells[(size_t)i].terrainType;
+    for (int i = 0; i < count; ++i) s_buf[i] = static_cast<uint8_t>(cells[(size_t)i].terrainType);
     g_mirror = s_buf; g_mirrorBase = cells; g_mirrorCount = count;
     ++s_rebuilds;
 }
 }  // namespace
 
 uint8_t GetSlow(const MapCell* cells, int count, int idx) {
-    const uint8_t raw = cells[(size_t)idx].terrainType;
+    const uint8_t raw = static_cast<uint8_t>(cells[(size_t)idx].terrainType);
     if (!cells || count <= 0 || (unsigned)idx >= (unsigned)count) return raw;
     if (cells != g_mirrorBase || count != g_mirrorCount) Rebuild(cells, count);
     if (!g_mirror) return raw;
@@ -53,7 +53,7 @@ void NoteWrite(const MapCell* cellPtr) {
     if (cellPtr < base) return;
     const size_t idx = static_cast<size_t>(cellPtr - base);
     if (idx >= (size_t)g_mirrorCount) return;
-    g_mirror[idx] = cellPtr->terrainType;
+    g_mirror[idx] = static_cast<uint8_t>(cellPtr->terrainType);
     ++s_writes;
 }
 

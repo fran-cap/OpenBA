@@ -32,7 +32,7 @@ public:
     void  OnUpdateLayout() override;                              // [7]  0x1400754b0
     // [9] STANDALONE DEVIATION: retail inherits SelectResourceUI's 0x140078d80;
     // the tree's wrapper traces the event, then runs the same base body.
-    void  OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void  OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                          int32_t c, int32_t d, int32_t e, void* userData) override;
     void  SetResource(ComponentDescription* type) override;       // [11] 0x140075380
     ComponentDescription** GetResource(ComponentDescription** out) override;  // [12] 0x140075430

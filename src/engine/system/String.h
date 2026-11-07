@@ -221,6 +221,10 @@ public:
     static String FormatIndexedList(const char* fmt, const char* const* argv, int argc);
 
     // ---- serialization -----------------------------------------------------
+    // The u32 written before a serialized string: length + 1 (0 for null), with
+    // bit 31 set for a UTF-8 payload (clear = the legacy UTF-16 payload).
+    static constexpr uint32_t kSerializedUtf8Flag   = 0x80000000u;   // string.cpp BTS 31
+    static constexpr uint32_t kSerializedLengthMask = 0x7FFFFFFFu;   // BTR 31: the length with the terminator
     void Serialize(IO::Serializer& serializer);     // ?Serialize@..@QEAAXAEAVSerializer@IO@@@Z 0x1800c9930
 
 private:

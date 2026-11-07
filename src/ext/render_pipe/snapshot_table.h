@@ -18,18 +18,15 @@
 #include <cstdint>
 #include <functional>   // std::hash<const void*>: no pointer casts
 #include <vector>
+#include "Game/WorldDrawKey.h"   // WorldDrawKey (WorldGeometry::DrawKey; standalone: <cstdint> only)
 
 namespace Ext {
 namespace RenderPipe {
 
-constexpr uint32_t kModeMask  = 0xE000u;   // WorldGeometry::Draw's mode bits of the item key
-constexpr uint32_t kModeDecal = 0x2000u;
-constexpr uint32_t kModeRoad  = 0x4000u;
-
 // A WorldGeometry item with this draw key (RendererDrawItem::_arg5) draws from the copy.
 inline bool WorldItemCopied(uint32_t key) {
-    const uint32_t mode = key & kModeMask;
-    return mode == kModeDecal || mode == kModeRoad;
+    const uint32_t mode = key & WorldDrawKey::kModeMask;
+    return mode == WorldDrawKey::kModeDecal || mode == WorldDrawKey::kModeRoad;
 }
 
 // An open-addressing table from a live pointer to an index, cleared by generation.

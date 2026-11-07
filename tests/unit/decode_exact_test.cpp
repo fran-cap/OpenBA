@@ -528,7 +528,7 @@ UNIT_TEST(decode_exact_binaryreader_array_slots_match_scalar_loop) {
     // throwaway stream and then point it at the fixture.
     SourceStream hdrA;
     SourceStream hdrB;
-    const int32_t rec[4] = {static_cast<int32_t>(0xaaaaaaaau), 8, 1, 0};
+    const int32_t rec[4] = {static_cast<int32_t>(IO::kRecordMagic), 8, 1, 0};
     hdrA.bytes.assign(reinterpret_cast<const uint8_t*>(rec), reinterpret_cast<const uint8_t*>(rec) + 16);
     hdrB.bytes = hdrA.bytes;
     alignas(8) uint8_t sa[16] = {};

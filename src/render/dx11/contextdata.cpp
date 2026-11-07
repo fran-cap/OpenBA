@@ -727,21 +727,21 @@ void ContextData::SetScissorFromContext() {
 // onto D3D11_CLEAR_DEPTH / D3D11_CLEAR_STENCIL; ClearDepthStencilView is
 // skipped entirely when neither is asked for.
 // ============================================================
-void ContextData::Clear(unsigned flags, unsigned color, float depth, int stencil) {
+void ContextData::Clear(::Video::ClearFlags flags, unsigned color, float depth, int stencil) {
     // The original tests bit 0x01 with a BYTE load of the dirty word; the low
     // byte's bit 0 is the word's bit 0.
-    if (static_cast<uint8_t>(_owner->_dirty) & 0x01)
+    if (static_cast<uint8_t>(_owner->_dirty) & RtVideo::kDirtyRenderBuffer)
         ContextData::BindRenderBuffer();
 
-    if (_owner->_dirty & 0x200)
+    if (_owner->_dirty & RtVideo::kDirtyViewport)
         ContextData::BindViewport();
 
-    if (_owner->_dirty & 0x400)
+    if (_owner->_dirty & RtVideo::kDirtyScissor)
         SetScissorFromContext();
 
-    _owner->_dirty &= 0xfffff9feu;
+    _owner->_dirty &= ~(RtVideo::kDirtyRenderBuffer | RtVideo::kDirtyViewport | RtVideo::kDirtyScissor);
 
-    if (flags & 1) {
+    if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(::Video::ClearFlags::Color)) {
         const float rgba[4] = {
             static_cast<float>((color >> 16) & 0xff) / 255.0f,
             static_cast<float>((color >>  8) & 0xff) / 255.0f,
@@ -752,8 +752,13 @@ void ContextData::Clear(unsigned flags, unsigned color, float depth, int stencil
         d3dContext->ClearRenderTargetView(Dx11ImageRtv(rb->colorBuffer), rgba);
     }
 
-    UINT clearFlags = (flags & 2) ? D3D11_CLEAR_DEPTH : 0;
-    if (flags & 4) clearFlags |= D3D11_CLEAR_STENCIL;
+    // Plain casts, not the ClearFlags operators: on a variable an operator is an
+    // inline call that changes this function's instruction selection.
+    UINT clearFlags = (static_cast<uint32_t>(flags) & static_cast<uint32_t>(::Video::ClearFlags::Depth))
+                          ? D3D11_CLEAR_DEPTH
+                          : 0;
+    if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(::Video::ClearFlags::Stencil))
+        clearFlags |= D3D11_CLEAR_STENCIL;
 
     if (clearFlags) {
         const RenderBufferOwner* rb = _owner->_renderBuffer;
@@ -795,9 +800,9 @@ void ContextData::BindRenderBuffer() {
     }
 
     // A byte test in the original, as in slot 4.
-    if (static_cast<uint8_t>(_owner->_dirty) & 0x02) {
+    if (static_cast<uint8_t>(_owner->_dirty) & RtVideo::kDirtyImageBuffers) {
         _owner->BindTextures();
-        _owner->_dirty &= 0xfffffffdu;
+        _owner->_dirty &= ~RtVideo::kDirtyImageBuffers;
     }
 
     _owner->_renderBuffer->Bind(*_owner);
@@ -857,7 +862,7 @@ void ContextData::BindScissor() {
 // ============================================================
 void ContextData::BindTransforms() {
     ::Video::Context* ctx = _owner;
-    if (ctx->_dirty & 0x4000) {
+    if (ctx->_dirty & RtVideo::kDirtyTransformConstants) {
         ctx->_transformConstants.Bind(*ctx,
                                       ctx->_transforms,
                                       0,
@@ -1213,7 +1218,7 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     const int32_t               dynOffset = ctx->_unknown2120;
     if (dynIb     != ctx->_indexBuffer ||
         dynOffset != ctx->_indexOffset) {
-        ctx->_dirty       |= 0x10u;
+        ctx->_dirty       |= RtVideo::kDirtyIndexBuffer;
         ctx->_indexBuffer  = dynIb;
         ctx->_indexOffset  = dynOffset;
     }

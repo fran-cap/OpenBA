@@ -657,7 +657,7 @@ public:
     // System@@W4Format@Text@4@@Z`. Named `OpenWithFormat`, not `Open`: see the
     // banner. It is the body that INSTALLS `_buffer`, and it CLOSES the file
     // before returning, which is why `Read` never touches the handle.
-    virtual bool OpenWithFormat(const System::Filename& path, int32_t format);
+    virtual bool OpenWithFormat(const System::Filename& path, Text::Format format);
 
     // slot 9  +0x48  0x1800ba940 — `(Filename const&, Text::Format,
     // Text::Format)`. THE LAST TWO ARGUMENTS ARE BOTH FORMATS: the mangled
@@ -665,7 +665,7 @@ public:
     // `MOV [RCX+0x68],R8D ; MOV [RCX+0x6c],R9D` stores both as DWORDS, which a
     // `Filename const&` in R9 could not be.
     virtual bool Create(const System::Filename& path,
-                        int32_t requestedFormat, int32_t activeEncoding);
+                        Text::Format requestedFormat, Text::Format activeEncoding);
 
     // ---- the 0x80 bytes, at retail's offsets -------------------------------
     int32_t _objectVersion;    // +0x50  ?GetObjectVersion@ is `MOV EAX,[RCX+0x50]`
@@ -677,8 +677,8 @@ public:
     // own ~Strings, reverse declaration order, after the body.
     System::String _objectName;  // +0x58  ?GetObjectName@ LEAs it
     System::String _objectType;  // +0x60  ?GetObjectType@ LEAs it
-    int32_t _requestedFormat;  // +0x68  ctor: 6 ("detect from the data")
-    int32_t _activeEncoding;   // +0x6c  ctor: 6 — THE BOM SELECTOR
+    Text::Format _requestedFormat;  // +0x68  ctor: Text::Format::Detect (6)
+    Text::Format _activeEncoding;   // +0x6c  ctor: Text::Format::Detect (6) — THE BOM SELECTOR
     uint8_t* _buffer;          // +0x70  owned, bare MemFree in the dtor door (the transcoded bytes OpenWithFormat installs)
     int32_t _bufSize;          // +0x78  bytes in _buffer — see the banner
     int32_t _bufCursor;        // +0x7c  position IN _buffer

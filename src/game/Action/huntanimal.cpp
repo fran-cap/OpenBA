@@ -243,14 +243,14 @@ void HuntAnimal::Enter(ActionStack*, const System::Time*) {
     Map* mapGrid = map;
 
     // Check path cost between the two cells
-    uint32_t pathCost = (uint32_t)mapGrid->FindCell(fromCell, toCell, 0xe1f);   // 0x14009ccf0
+    uint32_t pathCost = (uint32_t)mapGrid->FindCell(fromCell, toCell, PathBits::Walk);   // 0x14009ccf0
     if ((int)pathCost < 0) {
         // No valid path, bail
         return;
     }
 
     // Check path validity
-    uint64_t pathValid = mapGrid->ValidateCell(0xe1f, pathCost, toCell);   // 0x1400a00f0
+    uint64_t pathValid = mapGrid->ValidateCell(PathBits::Walk, pathCost, toCell);   // 0x1400a00f0
     if ((char)pathValid == 0) {
         // Path not valid, bail
         return;

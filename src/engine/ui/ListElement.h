@@ -60,8 +60,8 @@ public:
     // ??0Element`, then retail's stores (the Sprite and Array members' own
     // ctors make {null, -1} and the three zeroes).
     ListElement() : Element() {
-        _hoverColor    = 0xff808080u;   // one qword store, low half ...
-        _selectColor   = 0xffffffffu;   // ... high half
+        _hoverColor    = System::kColorGrey;    // one qword store, low half ...
+        _selectColor   = System::kColorWhite;   // ... high half
         _selectedIndex = -1;
         _hoverIndex    = -1;
         _ribbon        = nullptr;

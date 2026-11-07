@@ -329,7 +329,7 @@ void ParticleComponent::StartEmitterFade(int index) {
     if (ge->instance) {
         Graphics::ParticleInstance* g = ge->instance;
         if (g->_opacity != 0.0f) {
-            g->_dirtyFlags |= 4;      // dirty
+            g->_dirtyFlags |= RtGraphics::kDirtyOpacity;
             g->_opacity = 0.0f;       // opacity (both floats) = 0
             g->_opacityPrev = 0.0f;
         }
@@ -679,7 +679,7 @@ void ParticleComponent::OnAdded() {
         // Check/set geometry opacity
         Graphics::ParticleInstance* geoObj = geoEntry->instance;
         if (geoObj->_opacity != 0.0f) {
-            geoObj->_dirtyFlags |= 4;
+            geoObj->_dirtyFlags |= RtGraphics::kDirtyOpacity;
             geoObj->_opacity = 0.0f;
             geoObj->_opacityPrev = 0.0f;
         }
@@ -813,7 +813,7 @@ void ParticleComponent::Tick(const System::Time* time) {
                 continue;
             }
             if (op != g->_opacity) {
-                g->_dirtyFlags |= 4;   // dirty
+                g->_dirtyFlags |= RtGraphics::kDirtyOpacity;
                 g->_opacity = op;
                 g->_opacityPrev = op;
             }

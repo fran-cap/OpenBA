@@ -84,7 +84,8 @@ constexpr uint32_t kPixelColourLen = 0x20;
 constexpr uint32_t kPixelPosition = kPixelColour + 0x10;   // the second four of those dwords
 constexpr uint32_t kPixelShadow   = 0x248;    // .. 0x258, 4 dwords copied from +0x1e28
 constexpr uint32_t kPixelShadowLen = 0x10;
-constexpr uint32_t kDirtyBits     = 0x12000;  // OR dword [this+0x10],0x12000
+constexpr uint32_t kDirtyBits     = RtVideo::kDirtyLightConstants |
+                                    RtVideo::kDirtyPixelConstants;   // OR dword [this+0x10],0x12000
 
 static_assert(offsetof(Context, _lightStaging) == kLightStage,
               "SetLight writes Context::_lightStaging");

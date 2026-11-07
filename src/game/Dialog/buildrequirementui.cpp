@@ -193,7 +193,7 @@ void BuildRequirementUI::OnCreated() {
     // --- Find "labelBuildMulti" element, hide initially ---
     UI::Element* labelMulti = FindDialogElem(dialogInst, "labelBuildMulti");
     if (labelMulti) {
-        labelMulti->SetFlagsOnOff(1, 0);  // hide
+        labelMulti->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide
     }
 
     // --- Build dynamic label array: find "labelBuild0", "labelBuild1", etc. ---
@@ -217,7 +217,7 @@ void BuildRequirementUI::OnCreated() {
             if (!wrappedElem) break;
 
             // Hide the label initially
-            wrappedElem->SetFlagsOnOff(1, 0);
+            wrappedElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 
             // Push into the label array at +0x40.
             // B.3.2: Collection::Array<T>::SetSize — retail 0x1400032e0, stride 8 align 8;
@@ -285,7 +285,7 @@ void BuildRequirementUI::OnCreated() {
             label->SetParameter(0, countStr);
 
             // Show the label
-            label->SetFlagsOnOff(0, 1);
+            label->SetFlagsOnOff(0, UI::kElementFlagHidden);
         }
     }
 
@@ -293,7 +293,7 @@ check_multi:
     // If the BuildDescription's multi-build flag (+0x34) is set, show "labelBuildMulti"
     if (resourceComp->_b34 != 0) {
         if (labelMulti) {
-            labelMulti->SetFlagsOnOff(0, 1);  // show
+            labelMulti->SetFlagsOnOff(0, UI::kElementFlagHidden);  // show
         }
     }
 }

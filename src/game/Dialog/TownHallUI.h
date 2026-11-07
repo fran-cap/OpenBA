@@ -186,7 +186,7 @@ public:
     void OnCreated() override;   // [4] 0x140081000
     void OnUpdateLayout() override;   // [7] 0x14007d550
     void OnUpdate(const System::Time& time) override;   // [8] 0x14007e550
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x14007c180
     void OnSerializeSettings(IO::Stream& stream) override;   // [10] 0x140080db0
 

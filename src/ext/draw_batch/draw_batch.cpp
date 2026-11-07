@@ -83,9 +83,6 @@ using Graphics::RendererDrawGroup;
 using Graphics::RendererDrawItem;
 
 constexpr int32_t  kDecalStride = 0x14;     // WorldGeometry::Draw's hard-coded stride
-constexpr uint32_t kModeMask    = 0xE000u;  // WorldGeometry::Draw's mode bits of the item key
-constexpr uint32_t kModeDecal   = 0x2000u;
-constexpr uint32_t kModeRoad    = 0x4000u;
 constexpr int32_t  kMaxRunItems = 4096;     // the span scratch per run (a run is cut there)
 constexpr int32_t  kSmokeStride = 0x34;     // ParticleInstance::Draw's vertex stride
 constexpr int32_t  kSmokeSlots  = 52;       // Context::_transforms[52], the VS's cb of 208 float4
@@ -163,14 +160,15 @@ const GeometryBatch* DecalBatch(const RendererDrawItem& item, uint32_t* mode) {
     if (item._arg8 > 1) return nullptr;
     if (item._instance->_hasRenderTexture != 0) return nullptr;
     const uint32_t key = static_cast<uint32_t>(static_cast<int32_t>(item._arg5));
-    const uint32_t m   = key & kModeMask;
-    if (m != kModeDecal && m != kModeRoad) return nullptr;
+    const uint32_t m   = key & WorldGeometry::DrawKey::kModeMask;
+    if (m != WorldGeometry::DrawKey::kModeDecal && m != WorldGeometry::DrawKey::kModeRoad) return nullptr;
     if (Classify(item._geometry) != Kind::World) return nullptr;
     const WorldGeometry* const world = static_cast<const WorldGeometry*>(item._geometry);
-    const GeometryBatch* const base = (m == kModeDecal) ? world->_decals._data : world->_roadBatches._data;
+    const GeometryBatch* const base =
+        (m == WorldGeometry::DrawKey::kModeDecal) ? world->_decals._data : world->_roadBatches._data;
     if (base == nullptr) return nullptr;
     *mode = m;
-    return &base[static_cast<int>(key & 0xFFFF1FFFu)];
+    return &base[static_cast<int>(key & WorldGeometry::DrawKey::kIndexMask)];
 }
 
 Span g_spans[kMaxRunItems];

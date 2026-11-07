@@ -236,7 +236,7 @@ ComponentEntity::~ComponentEntity() {
 // If entityFlags bit 8 (0x100) is set, iterates components and calls
 // vtable+0x28 (Shutdown) on each component whose Component+0x20 bit 8 is set.
 void ComponentEntity::ShutdownComponents() {
-    if ((_entityFlags & 0x100) == 0) return;
+    if ((_entityFlags & Bits(ComponentFlags::Shutdown)) == 0) return;
 
     int count = _components._size;
     if (count <= 0) return;
@@ -245,7 +245,7 @@ void ComponentEntity::ShutdownComponents() {
         Component* compPtr = _components[i].Get();
         // Component+0x20 is uint32 containing capability flags
         uint32_t compFlags = compPtr->_flags;
-        if (((compFlags >> 8) & 1) != 0) {
+        if ((compFlags & Bits(ComponentFlags::Shutdown)) != 0) {
             // Re-check after potential lazy resolve
             compPtr = _components[i].Get();
             // Virtual slot 5 (+0x28, the shutdown slot)
@@ -260,7 +260,7 @@ void ComponentEntity::ShutdownComponents() {
 // If entityFlags bit 7 (0x80) is set, iterates components and calls
 // vtable+0x20 (Startup) on each component whose Component+0x20 bit 7 is set.
 void ComponentEntity::StartupComponents() {
-    if ((_entityFlags & 0x80) == 0) return;
+    if ((_entityFlags & Bits(ComponentFlags::Startup)) == 0) return;
 
     int count = _components._size;
     if (count <= 0) return;
@@ -269,7 +269,7 @@ void ComponentEntity::StartupComponents() {
         Component* compPtr = _components[i].Get();
         if (!compPtr) continue;   // defensive: skip null component (standalone factory miss)
         uint32_t compFlags = compPtr->_flags;
-        if (((compFlags >> 7) & 1) != 0) {
+        if ((compFlags & Bits(ComponentFlags::Startup)) != 0) {
             compPtr = _components[i].Get();
             // Virtual slot 4 (+0x20): Startup
             compPtr->Startup();
@@ -312,7 +312,7 @@ void ComponentEntity::RefreshEntityFlags() {
         EntityList* entityList = _entityList;
 
         // If update bit (bit 2) changed, register in update bucket
-        if (((oldFlags ^ _entityFlags) & 4) != 0) {
+        if (((oldFlags ^ _entityFlags) & Bits(ComponentFlags::Tick)) != 0) {
             // EntityList +0x88 = update entity array, +0x90 = update count
             int updateCount = entityList->stagingUpdate._size + 1;
             ComponentEntity* ibp = this;   // the InternalBasePtr onto this entity
@@ -323,7 +323,7 @@ void ComponentEntity::RefreshEntityFlags() {
         }
 
         // If draw bit (bit 4) changed, register in draw bucket
-        if (((oldFlags ^ _entityFlags) & 0x10) != 0) {
+        if (((oldFlags ^ _entityFlags) & Bits(ComponentFlags::PostUpdate)) != 0) {
             // EntityList +0x98 = draw entity array, +0xa0 = draw count
             int drawCount = entityList->stagingPostUpdate._size + 1;
             ComponentEntity* ibp = this;   // the InternalBasePtr onto this entity
@@ -619,14 +619,14 @@ void ComponentEntity::RegisterUpdateDraw(uint32_t oldFlags) {
     if (_entityList == nullptr) return;
     EntityList* el = _entityList;
     uint32_t changed = oldFlags ^ _entityFlags;
-    if ((changed & 4) != 0) {
+    if ((changed & Bits(ComponentFlags::Tick)) != 0) {
         int updateCount = el->stagingUpdate._size + 1;
         ComponentEntity* ibp = this;   // the InternalBasePtr onto this entity
         // B.3.2: Collection::Array<T>::SetSize(n, fill) — retail 0x140003110,
         // stride 8 align 8. Element is the 8-byte entity InternalBasePtr.
         el->stagingUpdate.SetSize(updateCount, ibp);
     }
-    if ((changed & 0x10) != 0) {
+    if ((changed & Bits(ComponentFlags::PostUpdate)) != 0) {
         int drawCount = el->stagingPostUpdate._size + 1;
         ComponentEntity* ibp = this;   // the InternalBasePtr onto this entity
         // B.3.2: Collection::Array<T>::SetSize(n, fill) — retail 0x140003110,
@@ -640,12 +640,12 @@ void ComponentEntity::RegisterUpdateDraw(uint32_t oldFlags) {
 // Component+0x20 bit 0 is set.
 void ComponentEntity::OnAddedPass() {
 
-    if ((_entityFlags & 1) == 0) return;
+    if ((_entityFlags & Bits(ComponentFlags::OnAdded)) == 0) return;
     int count = _components._size;
     for (int i = 0; i < count; i++) {
         Component* compPtr = _components[i].Get();
         if (!compPtr) continue;   // defensive: skip null component (standalone factory miss)
-        const bool armed = (compPtr->_flags & 1) != 0;   // retail tests the low BYTE
+        const bool armed = (compPtr->_flags & Bits(ComponentFlags::OnAdded)) != 0;   // retail tests the low BYTE
         if (armed) {
             compPtr = _components[i].Get();
             compPtr->OnAdded();   // slot 6, +0x30

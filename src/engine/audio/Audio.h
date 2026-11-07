@@ -92,6 +92,7 @@
 #include "../object/External.h"             // Object::ExternalPtr
 #include "Device.h"                         // Device::AudioChannel (OnSoundEnded)
 #include "../system/Value.h"                // System::Time (the two startTime fields)
+#include "../system/EnumFlags.h"            // OPENBA_ENUM_FLAGS (SampleFlags)
 
 namespace System { class Time; class Random; }
 namespace IO { class Serializer; }
@@ -99,6 +100,13 @@ namespace IO { class Serializer; }
 namespace Audio {
 
 class SoundEffect;
+
+// Scene::Channel::channelFlags[i]: one byte per platformChannel slot.
+enum class SampleFlags : uint8_t {
+    Started = 0x01,   // the sample was started (or skipped as started) this playback
+    Ended   = 0x02,   // its Device channel ended (OnSoundEnded ORs the byte)
+};
+OPENBA_ENUM_FLAGS(SampleFlags)
 
 // ============================================================================
 // Audio::Scene — 0x38 (56) bytes, NON-polymorphic, concrete.
@@ -127,6 +135,20 @@ class SoundEffect;
 // ============================================================================
 class Scene {
 public:
+    // Fixed table sizes (the ctor's ArraySetSize calls) and the two handle spaces:
+    // a Channel handle is index << 1 | generation << 9 (index 0..255); an
+    // EffectSlot id is index << 1 | 1 (3D) | generation << 13 (index 0..4095). A
+    // stored tag matches when (tag ^ handle) & the tag mask is 0.
+    static constexpr int32_t  kChannelCount           = 0x100;         // channels
+    static constexpr int32_t  kEffectSlotCount        = 0x1000;        // effects
+    static constexpr int32_t  kHandleIndexShift       = 1;             // the index starts at bit 1 in both spaces
+    static constexpr uint32_t kChannelIndexMask       = 0xff;          // channel index after >> 1 (MOVZX AL)
+    static constexpr int32_t  kChannelGenerationShift = 9;             // channel generation bits 9..31
+    static constexpr uint32_t kChannelTagMask         = 0xfffffe00u;   // TEST EAX,0xfffffe00
+    static constexpr uint32_t kEffectIndexMask        = 0xfff;         // effect slot index after >> 1
+    static constexpr int32_t  kEffectGenerationShift  = 13;            // effect generation bits 13..31
+    static constexpr uint32_t kEffectTagMask          = 0xffffe000u;   // the effect id's validity mask
+    static constexpr uint32_t kEffect3DBit            = 1u;            // bit 0 of a PlayEffect3D id
     // ------------------------------------------------------------------------
     // Scene::Channel — one 2D/general playback slot, 0x70 (112) bytes.
     // Pinned by Scene::PlayEffect (writes +0x00/+0x08/+0x10/+0x68), Scene::Update

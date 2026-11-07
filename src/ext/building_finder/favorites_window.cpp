@@ -37,6 +37,8 @@
 
 #include "ui/StringTable.h"
 #include "Game/game.h"
+#include "Game/inputbindings.h"   // GameKey (the KeyMap ids)
+#include "platform_input.h"        // Platform::Input::kVkEscape
 
 #include "ext/building_finder/building_finder.h"
 #include "ext/building_finder/finder_core.h"
@@ -112,7 +114,7 @@ public:
         }
         if (UI::Element* handle = FindElement(System::String("borderTitle")).Get()) {
             handle->SetElementId(0);
-            handle->SetFlagsOnOff(0x10000, 0);
+            handle->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
         }
         table_ = FindElement(System::String("tableFavoritesWindow"));
         note_ = FindElement(System::String("textFavoritesWindowNote"));
@@ -146,22 +148,22 @@ public:
         UI::DialogInstance::OnClosed();
     }
 
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id, int32_t c,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id, int32_t c,
                         int32_t d,
                         int32_t e, void* userData) override {
         // The utility window's behavior, as TreeWindow (family_tree/tree_window.cpp): a press on the title
         // bar starts a drag, a release ends it, focus events bring the window to the front, the close button
         // closes it.
-        if (msg == 2 && id == 0) {
+        if (msg == UI::EventId::LeftPress && id == 0) {
             _dragging = true;
             _dragOffsetX = c - _upperLeftX;
             _dragOffsetY = d - _upperLeftY;
-        } else if (msg == 5) {
+        } else if (msg == UI::EventId::LeftRelease) {
             _dragging = false;
-        } else if (msg > 7 && msg < 0x0B) {
+        } else if (msg >= UI::EventId::DialogLeftPress && msg <= UI::EventId::DialogMiddlePress) {
             Object::InternalPtr<UI::DialogInstance> self(this);
             _ui->BringDialogToFront(&self);
-        } else if (msg == 0x12) {
+        } else if (msg == UI::EventId::Activated) {
             if (id == kCloseId) {
                 Object::InternalPtr<UI::DialogInstance> self(this);
                 _ui->CloseDialog(&self);
@@ -183,8 +185,8 @@ public:
         if (!_dragging || Input::Configuration::_singleton == nullptr) return;
         const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
         const float scale = _ui->_uiScale;
-        const int keyX = static_cast<int>(keyMap->GetValue(0, 0));
-        const int keyY = static_cast<int>(keyMap->GetValue(0, 1));
+        const int keyX = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseX)));
+        const int keyY = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseY)));
         int x = static_cast<int>(static_cast<float>(keyX) * scale) - _dragOffsetX;
         int y = static_cast<int>(static_cast<float>(keyY) * scale) - _dragOffsetY;
         if (x < 0) x = 0;
@@ -192,7 +194,7 @@ public:
         SetUpperLeft(x, y, false);
         g_x = x;
         g_y = y;
-        if (keyMap->GetValue(0, 5) == 0) _dragging = false;
+        if (keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft)) == 0) _dragging = false;
     }
 
     // Shows the window in front of the others.
@@ -395,13 +397,11 @@ int KeyIndex(int virtualKey) {
     return -1;
 }
 
-constexpr int kVkEscape = 0x1b;
-
 std::string g_message;       // what the page says about the last capture; TakeHotkeyMessage hands it over
 int g_rejectedIndex = -1;    // a key that was refused: ignored until it is let go
 
 // KeyMap's device number for the keyboard (inputbindings.cpp: 0 pad, 1 keyboard, 2 mouse)
-constexpr int kKeyboardDevice = 1;
+constexpr int kKeyboardDevice = static_cast<int32_t>(Input::Device::InputDevice::Keyboard);
 
 // The name the controls menu shows for a binding ("Rotate Right"), "" when unknown.
 std::string BindingName(int inputId) {
@@ -418,7 +418,7 @@ bool CaptureKey(const Input::Device* device, const Input::KeyMap* keyMap) {
     for (int i = 0; i < Input::Device::kKeyboardInputCount; ++i) {
         if (device->_keyboard[i].value == 0 || i == g_rejectedIndex) continue;
         const int vk = Input::KeyTables::kIndexToVirtualKey[i];
-        if (vk == kVkEscape) {
+        if (vk == Platform::Input::kVkEscape) {
             g_capturing = false;
             g_message = "Hotkey not changed.";
             return true;

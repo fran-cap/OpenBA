@@ -138,6 +138,7 @@
 #include "input/Input.h"
 #include "collection/set_avl.h"
 #include "platform_input.h"
+#include "platform_window.h"   // Platform::Window::kMsg* (the three erased callbacks)
 
 // ENDGAME B.3.7 (block B1, outside its file set -- the minimum): the global
 // `using RtApplication::Application;` is ill-formed next to `namespace
@@ -148,9 +149,9 @@ using rtsetavl::Set;
 namespace {
 
 // The three Win32 messages retail removes, in retail's order.
-constexpr unsigned kMsgSetFocus    = 0x0007;   // CMP EAX,0x7   at 0x1800e1b72
-constexpr unsigned kMsgKillFocus   = 0x0008;   // CMP EAX,0x8   at 0x1800e1ba5
-constexpr unsigned kMsgMouseWheel  = 0x020A;   // CMP EAX,0x20a at 0x1800e1bd8
+using Platform::Window::kMsgSetFocus;     // CMP EAX,0x7   at 0x1800e1b72
+using Platform::Window::kMsgKillFocus;    // CMP EAX,0x8   at 0x1800e1ba5
+using Platform::Window::kMsgMouseWheel;   // CMP EAX,0x20a at 0x1800e1bd8
 
 // The COM calls retail makes: IUnknown::Release +0x10,
 // IDirectInputDevice8W::Unacquire +0x40 (Platform::Input::Release / Unacquire).

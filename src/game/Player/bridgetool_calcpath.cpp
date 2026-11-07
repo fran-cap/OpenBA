@@ -299,7 +299,7 @@ bool BridgeTool::CalcPath(int startCell, int endCell) {
         for (int row = minRow; row <= maxRow && !found; row++) {
             for (int col = minCol; col <= maxCol; col++) {
                 const MapCell* cell = &terrainBase[width * row + col];
-                const uint32_t bit = 1u << (cell->terrainType & 0x1f);
+                const uint32_t bit = Bits(PathBitOf(cell->terrainType));
                 if (maskBody & bit) { bodyCol = col; bodyRow = row; found = true; break; }
             }
         }

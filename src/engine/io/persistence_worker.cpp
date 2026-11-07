@@ -291,7 +291,7 @@ void SignalWorker(IO::PersistenceWorker* w) {
 extern "C" void RtIo_PersistenceWorker_EnqueueDelete(IO::PersistenceWorker* w, const System::String* filename) {
     AssignPendingFilename(w, filename);
     w->_command = 2;
-    w->_status  = 0;
+    w->_status  = static_cast<int32_t>(IO::PersistenceWorker::Status::Pending);
     SignalWorker(w);
 
     // SHADOW — a SELF-CHECK, not an oracle (banner). It re-reads the object and
@@ -330,7 +330,7 @@ extern "C" void RtIo_PersistenceWorker_EnqueueLoad(IO::PersistenceWorker* w, con
 
     AssignPendingFilename(w, filename);
     w->_command = 1;
-    w->_status  = 0;
+    w->_status  = static_cast<int32_t>(IO::PersistenceWorker::Status::Pending);
 
     // NOT RETAIL (spelling only): retail runs the ~Array body (0x180024aa0) on the
     // live member; an explicit destructor call would end its lifetime ([basic.life])
@@ -417,7 +417,7 @@ extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, con
     // The single QWORD zero store over status+command. Spelled as two field
     // writes because the header names them separately; the widths add up to
     // the 8 bytes the instruction covers.
-    w->_status  = 0;
+    w->_status  = static_cast<int32_t>(IO::PersistenceWorker::Status::Pending);
     w->_command = 0;
 
     // NOT RETAIL (spelling only): the ~Array bodies run on the live members, as
@@ -433,8 +433,9 @@ extern "C" void RtIo_PersistenceWorker_EnqueueSave(IO::PersistenceWorker* w, con
     // of 0xFFFFFFFF80808080 spanning `magic` (low 32 bits, 0x80808080) and
     // `crc` (high 32 bits, the seed 0xFFFFFFFF) -- spelled as the two named
     // dword stores it covers.
-    w->_fileHeader = (static_cast<uint32_t>(static_cast<uint16_t>(blockCount)) << 16) | 2u;
-    w->_magic = 0x80808080u;
+    w->_fileHeader =
+        (static_cast<uint32_t>(static_cast<uint16_t>(blockCount)) << 16) | RtIo::kSaveFileVersion;
+    w->_magic = RtIo::kSaveFileMagic;
     w->_crc   = 0xFFFFFFFFu;
 
     w->_blockDescs.SetSize(blockCount);   // 0x18002a810
@@ -601,13 +602,13 @@ void IO::PersistenceWorker::SaveJob() {
 
     bool wroteAll = false;
     if (created) {
-        _magic = 0x80808080u;
+        _magic = RtIo::kSaveFileMagic;
 
         const int32_t descCount = _blockDescs._size;
         const RtIo::BlockDesc* const descs = _blockDescs._data;
         uint32_t crc = _crc;
         if (descCount > 0) {
-            crc = Crc32Chunked(crc, descs, static_cast<uint32_t>(descCount) * 0xC, 0);
+            crc = Crc32Chunked(crc, descs, static_cast<uint32_t>(descCount) * RtIo::kBlockDescBytes, 0);
         }
         _crc = crc;
 
@@ -616,7 +617,7 @@ void IO::PersistenceWorker::SaveJob() {
             for (int32_t i = 0; i < descCount; ++i) {
                 const uint32_t size = descs[i].size;
                 if (size > 0) {
-                    crc = Crc32Chunked(_crc, blockPtrs[i], size, 0x8000);
+                    crc = Crc32Chunked(_crc, blockPtrs[i], size, RtIo::kSaveCrcChunkBytes);
                     _crc = crc;
                 }
             }
@@ -631,7 +632,7 @@ void IO::PersistenceWorker::SaveJob() {
             // 8 bytes from &magic in one call.
             ok = Platform::FileWrite(file->winHandle, &_magic, 8, &written);
             if (ok && written == 8) {
-                const uint32_t descBytesLen = static_cast<uint32_t>(descCount) * 0xC;
+                const uint32_t descBytesLen = static_cast<uint32_t>(descCount) * RtIo::kBlockDescBytes;
                 ok = Platform::FileWrite(file->winHandle, _blockDescs._data, descBytesLen, &written);
                 if (ok && written == descBytesLen) {
                     wroteAll = true;
@@ -649,7 +650,7 @@ void IO::PersistenceWorker::SaveJob() {
             // NOT RETAIL (fix.save_failure_notice): close the temporary file, then move it
             // over the save; a short write or a failed move deletes it and the old save
             // stays. The status is stored last, so a reader that sees 1 finds the save in place.
-            if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
+            if (bfs._file.handle != RtIO::FileInfo::kHandleNone) Fs()->CloseFile(bfs._file);
             const System::Filename tempPath(tempName.c_str());
             const System::Filename savePath(_pendingFilename._data);
             const System::WideString tempWide(tempPath);
@@ -660,14 +661,15 @@ void IO::PersistenceWorker::SaveJob() {
             // Retail's full-write success arm closes the file before it stores 1
             // (0x1800b6e00: `if (handle != -1) CloseFile(...); *(this + 0x38) = 1;`);
             // the failure arms store 2 and leave the close to the tail below.
-            if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
+            if (bfs._file.handle != RtIO::FileInfo::kHandleNone) Fs()->CloseFile(bfs._file);
         }
         // NOT RETAIL (review F-147): release stores. fix.save_failure_notice polls
         // `_status` while this job runs (SaveLoad::UpdateSave), so a plain store
         // is a data race; the release orders the file work before the value.
-        __atomic_store_n(&_status, wroteAll ? 1 : 2, __ATOMIC_RELEASE);
+        __atomic_store_n(&_status, static_cast<int32_t>(wroteAll ? Status::Done : Status::Failed),
+                         __ATOMIC_RELEASE);
     } else {
-        __atomic_store_n(&_status, 2, __ATOMIC_RELEASE);
+        __atomic_store_n(&_status, static_cast<int32_t>(Status::Failed), __ATOMIC_RELEASE);
     }
 
     // Retail's tail close-if-still-open check, UNCONDITIONALLY, after the
@@ -676,7 +678,7 @@ void IO::PersistenceWorker::SaveJob() {
     // its arm above (retail closes there, then stores 1: review F-237), so
     // this is a no-op too; a short write leaves the handle open for this
     // check to close, as FUN_1800b6e00's tail reads.
-    if (bfs._file.handle != -1) Fs()->CloseFile(bfs._file);
+    if (bfs._file.handle != RtIO::FileInfo::kHandleNone) Fs()->CloseFile(bfs._file);
     // ~bfs is retail's ~BinaryFileStream.
 }
 

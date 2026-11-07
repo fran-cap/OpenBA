@@ -107,6 +107,7 @@
 #include "engine/MainLoop.h"                  // ENDGAME B.3.7 callers (K2)
 #include "audio/Audio.h"                      // ENDGAME B.3.7 callers (K4)
 #include "input/Input.h"                      // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "graphics/Mesh.h"               // ENDGAME B.3.9 SS2: MeshInstance::_rootOnlyUpdates
 #include "graphics/ParticleInstance.h"   // ENDGAME B.3.9 SS2: ParticleInstance::_frameIndex
 #include "io/FileSystem.h"               // ENDGAME B.3.9 SS2: IO::FileSystem::_singleton
@@ -1274,7 +1275,7 @@ post_simulation:
     {
         const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
 
-        if (keyMap->Pressed(0, 0x21)) {
+        if (keyMap->Pressed(0, ToUnderlying(GameKey::ScreenshotNoUI))) {
             m_quickSavePressed = 1;
         }
 
@@ -1318,7 +1319,7 @@ post_simulation:
             }
         }
 
-        if (keyMap->Pressed(0, 0x22)) {
+        if (keyMap->Pressed(0, ToUnderlying(GameKey::Screenshot))) {
             m_quickLoadPressed = 1;
         }
         TRACE("[GameUpdateLoop::Update] quicksave/quickload checked (save=%d, load=%d)\n",
@@ -2027,8 +2028,8 @@ void GameUpdateLoop::Startup() {
 
     // Set fullscreen fade
     TRACE("[GameUpdateLoop::Startup] setting fullscreen fade...\n");
-    m_userInterface->SetFullscreenFade(true, 0xFF000000, true);
-    m_userInterface->SetFullscreenFade(false, 0xFF000000, false);
+    m_userInterface->SetFullscreenFade(true, System::kColorBlack, true);
+    m_userInterface->SetFullscreenFade(false, System::kColorBlack, false);
     TRACE("[GameUpdateLoop::Startup] fullscreen fade set\n");
 
     TRACE("[GameUpdateLoop::Startup] calling EntityUI::Startup...\n");

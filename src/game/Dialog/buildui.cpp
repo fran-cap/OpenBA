@@ -461,11 +461,11 @@ void BuildUI::OnUpdateLayout() {
 
 // Slot9: On button click (event 0x12, id 6000), toggle workplace enabled state.
 // [9] 0x1400b1ea0
-void BuildUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4,
+void BuildUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                              int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (!SA_DialogEntityAlive(this)) return;
 
-    if (param3 == 0x12 && param4 == 6000) {
+    if (param3 == UI::EventId::Activated && param4 == 6000) {
         // Get entity at +0x28, check IsA ComponentEntity
         ComponentEntity* checkedEntity = BuildUI_Entity(_dataSource);
 

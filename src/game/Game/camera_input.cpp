@@ -46,6 +46,7 @@
 #include <cstdlib>
 #include "system/Value.h"      // ENDGAME B.3.4b System caller batch (Random/Time/Color)
 #include "input/Input.h"       // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "video/Device.h"   // ENDGAME B.3.9 SS2: Video::Device::_singleton
 #include "Entity/ComponentEntity.h"   // B4 S4 RT2: InternalPtr<ComponentEntity>::Get() needs the class complete
 #include "Player/Tool.h"            // UpdateHotkeys: the current tool's OnKey / OnCancel
@@ -136,10 +137,10 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
 
     // ── yaw: keyboard rotate (ids 9/10) + middle-mouse drag (id 7 + mouseDeltaX id 2) ──
     float yaw = pc->yaw;
-    if (keyMap->GetValue(0, 9))  yaw -= dt * kRotSpeed;   // RotateLeft
-    if (keyMap->GetValue(0, 10)) yaw += dt * kRotSpeed;   // RotateRight
-    if (keyMap->GetValue(0, 7)) {                          // MouseMiddle drag
-        short ddx = keyMap->GetValue(0, 2);
+    if (keyMap->GetValue(0, ToUnderlying(GameKey::RotateLeft)))  yaw -= dt * kRotSpeed;   // RotateLeft
+    if (keyMap->GetValue(0, ToUnderlying(GameKey::RotateRight))) yaw += dt * kRotSpeed;   // RotateRight
+    if (keyMap->GetValue(0, ToUnderlying(GameKey::MouseMiddle))) {                          // MouseMiddle drag
+        short ddx = keyMap->GetValue(0, ToUnderlying(GameKey::MouseDeltaX));
         yaw -= (float)ddx * kMidDragScale;
     }
 
@@ -149,28 +150,28 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // Game-settings byte +0x14 (DAT_1401c3de0 -> settings base): edge-scroll enabled.
     if (g_gameSettings != nullptr && g_gameSettings->edgeScroll != 0) {
         int sw, sh; ScreenSize(sw, sh);
-        unsigned mx = (unsigned)(uint16_t)keyMap->GetValue(0, 0);
-        unsigned my = (unsigned)(uint16_t)keyMap->GetValue(0, 1);
+        unsigned mx = (unsigned)(uint16_t)keyMap->GetValue(0, ToUnderlying(GameKey::MouseX));
+        unsigned my = (unsigned)(uint16_t)keyMap->GetValue(0, ToUnderlying(GameKey::MouseY));
         if (mx < 4)                               panX = -1.0f;
         if ((int)mx > sw - 5 && (int)mx < sw)     panX =  1.0f;
         if (my < 4)                               panY = -1.0f;
         if ((int)my > sh - 5 && (int)my < sh)     panY =  1.0f;
     }
-    if (keyMap->GetValue(0, 0xd)) panX = -1.0f; // Left
-    if (keyMap->GetValue(0, 0xe)) panX =  1.0f; // Right
-    if (keyMap->GetValue(0, 0xb)) panY = -1.0f; // Forward
-    if (keyMap->GetValue(0, 0xc)) panY =  1.0f; // Back
+    if (keyMap->GetValue(0, ToUnderlying(GameKey::Left))) panX = -1.0f; // Left
+    if (keyMap->GetValue(0, ToUnderlying(GameKey::Right))) panX =  1.0f; // Right
+    if (keyMap->GetValue(0, ToUnderlying(GameKey::Forward))) panY = -1.0f; // Forward
+    if (keyMap->GetValue(0, ToUnderlying(GameKey::Back))) panY =  1.0f; // Back
 
     // ── zoom target (+0x3c) init + wheel/key input ──
     if (field_0x3C == 0.0f)
         field_0x3C = pc->distance; // seed from current distance
 
-    short wheel = keyMap->GetValue(0, 4);
+    short wheel = keyMap->GetValue(0, ToUnderlying(GameKey::MouseWheel));
     if (inputFlag == 0 && !field_0x38) wheel = 0; // no wheel zoom if UI focused (+0x38)
     int zoomDir;
-    if (keyMap->Pressed(0, 0xf)) {          // ZoomIn
+    if (keyMap->Pressed(0, ToUnderlying(GameKey::ZoomIn))) {          // ZoomIn
         zoomDir = 1;
-    } else if (keyMap->Pressed(0, 0x10)) {  // ZoomOut
+    } else if (keyMap->Pressed(0, ToUnderlying(GameKey::ZoomOut))) {  // ZoomOut
         zoomDir = -1;
     } else {
         zoomDir = wheel;
@@ -197,9 +198,9 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     }
 
     // ── manual pitch accumulator +0x44 (0..1) from PitchUp/PitchDown (ids 0x11/0x12) ──
-    if (keyMap->Pressed(0, 0x11))
+    if (keyMap->Pressed(0, ToUnderlying(GameKey::PitchUp)))
         field_0x44 += kPitchStep;
-    else if (keyMap->Pressed(0, 0x12))
+    else if (keyMap->Pressed(0, ToUnderlying(GameKey::PitchDown)))
         field_0x44 -= kPitchStep;
     field_0x44 = clampf(field_0x44, 0.0f, 1.0f);
 
@@ -450,14 +451,15 @@ void PlayerToolManager::ApplyCameraView(int index) {
 // No null test on the key map, the world or the tool: retail has none.
 void PlayerToolManager::UpdateHotkeys(bool inputFlag) {
     const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
-    if (keyMap->Pressed(0, 0x17) && ((GameUpdateLoop::_singleton->m_gameFlags >> 10) & 1) == 0)
+    if (keyMap->Pressed(0, ToUnderlying(GameKey::TogglePause))
+        && ((GameUpdateLoop::_singleton->m_gameFlags >> 10) & 1) == 0)
         paused = !paused;
     if (currentTool.Get()->OnKey(inputFlag)) {
         for (int i = 0; i < 5; ++i) {
-            if (keyMap->Pressed(0, i + 0x2d))
+            if (keyMap->Pressed(0, i + ToUnderlying(GameKey::Camera0)))
                 ApplyCameraView(i);
         }
-        if (inputFlag && keyMap->Pressed(0, 6) && !field_0x80) {
+        if (inputFlag && keyMap->Pressed(0, ToUnderlying(GameKey::MouseRight)) && !field_0x80) {
             if (!currentTool.Get()->OnCancel())
                 SelectTool(nullptr);
         }

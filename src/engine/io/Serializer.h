@@ -623,6 +623,11 @@ public:
     int32_t _pad2c;    // +0x2c
 };
 
+// A BinaryWriter record on the stream: kRecordMagic, the length (back-patched),
+// the version, the body, kRecordTrailer (the ctor 0x1800a8a30 / dtor 0x1800a8980).
+constexpr uint32_t kRecordMagic   = 0xAAAAAAAAu;   // record start
+constexpr uint32_t kRecordTrailer = 0xBBBBBBBBu;   // record end
+
 class BinaryWriter final : public ReaderWriter {
 public:
     // ??0BinaryWriter@IO@@QEAA@AEAVSerializer@1@H@Z   0x1800a8a30 -- EMITS
@@ -1025,7 +1030,7 @@ inline BinaryReader::~BinaryReader() {
 inline BinaryWriter::BinaryWriter(Serializer& ser, int ver)
     : ReaderWriter(ser), word20(0), word24(-1), version(ver) {
     Stream* s = stream;
-    int32_t magic = static_cast<int32_t>(0xaaaaaaaau);
+    int32_t magic = static_cast<int32_t>(kRecordMagic);
     rw_stream::Write(s, 4, &magic);
     word20 = rw_stream::GetPos(s);           // where the placeholder lands
     rw_stream::Write(s, 4, &word24);         // emit the -1 placeholder
@@ -1038,7 +1043,7 @@ inline BinaryWriter::BinaryWriter(Serializer& ser, int ver)
 inline BinaryWriter::~BinaryWriter() {
     Stream* s = stream;
     const int32_t len = rw_stream::GetPos(s) - word24;
-    int32_t trailer = static_cast<int32_t>(0xbbbbbbbbu);
+    int32_t trailer = static_cast<int32_t>(kRecordTrailer);
     rw_stream::Write(s, 4, &trailer);
     const int32_t resume = rw_stream::GetPos(s);
     rw_stream::SetPos(s, word20);

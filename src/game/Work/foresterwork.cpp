@@ -157,14 +157,14 @@ static void AssignWorkToEntity(ForesterWork* self, CitizenComponent** citizenIBP
     self->GetTarget(&workEntity);
 
     // Set citizen flags
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0xB0 = 0;
     citizen->field_0x30 = priority;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0,
     // set the "owned work" flag
     if (workEntity == citizen->profession && priority >= 0) {
-        citizen->happinessFlags |= 0x20000;
+        citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     // Register work with citizen AI subsystem at self+0x48 (the tree helper takes the
@@ -343,9 +343,9 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 
             // Check terrain type bitmask — skip "forest-incompatible" terrain types
             // bit 5..8 (0x1e0 mask) indicates forest/grass terrain
-            uint8_t terrainByte = cellData.terrainType;
+            uint8_t terrainByte = static_cast<uint8_t>(cellData.terrainType);
             uint32_t terrainBit = 1u << (terrainByte & 0x1f);
-            if ((terrainBit & 0x1e0u) != 0) {
+            if ((terrainBit & Bits(PathBits::Zoneless)) != 0) {
                 // Terrain already has resources (trees), skip
                 goto next_attempt;
             }
@@ -361,17 +361,17 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                 const MapCell& entityCellData = gridData2[entityCellSigned];
                 const MapCell& testCellData2 = gridData2[(int)testCell];
 
-                uint32_t entityTerrainBit = 1u << (entityCellData.terrainType & 0x1f);
-                uint32_t testTerrainBit = 1u << (testCellData2.terrainType & 0x1f);
+                uint32_t entityTerrainBit = 1u << (static_cast<uint8_t>(entityCellData.terrainType) & 0x1f);
+                uint32_t testTerrainBit = 1u << (static_cast<uint8_t>(testCellData2.terrainType) & 0x1f);
                 uint32_t combinedBits = testTerrainBit | entityTerrainBit;
-                uint32_t fullMask = combinedBits | 0xe1f;
+                uint32_t fullMask = combinedBits | Bits(PathBits::Walk);
 
                 // Both cells must be passable
                 if ((fullMask & testTerrainBit) == 0) goto next_attempt;
                 if ((fullMask & entityTerrainBit) == 0) goto next_attempt;
 
                 // Either both are "forest terrain" (0x1e0), or they share the same zone
-                if ((combinedBits & 0x1e0) == 0) {
+                if ((combinedBits & Bits(PathBits::Zoneless)) == 0) {
                     int16_t zone1 = (int16_t)testCellData2.zone;
                     if (zone1 == 0) goto next_attempt;
                     int16_t zone2 = (int16_t)entityCellData.zone;
@@ -405,7 +405,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 
                 if (plantEnabled && resourceEntity == nullptr) {
                     // PLANT PATH: empty cell, check if we can plant here
-                    bool canPath = static_cast<uint8_t>(map->ValidateCell(0xe1f, testCell, citizenGridCell));   // the door read AL
+                    bool canPath = static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, testCell, citizenGridCell));   // the door read AL
                     if (canPath) {
                         // Check terrain suitability for planting
                         bool terrainOk = map->TestPlacement(   // 0x14009f5d0 (the Map* overload; the int* forwarder went)
@@ -496,11 +496,11 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                             if ((flags20 >> 20) & 1) goto next_attempt;
 
                             // Find nearest passable cell for pathfinding
-                            int nearestCell = map->FindCell(testCell, citizenGridCell, 0xe07);
+                            int nearestCell = map->FindCell(testCell, citizenGridCell, PathBits::Access);
                             if (nearestCell < 0) goto next_attempt;
 
                             // Check path to the nearest passable cell
-                            bool canPath2 = static_cast<uint8_t>(map->ValidateCell(0xe1f, nearestCell, citizenGridCell));   // the door read AL
+                            bool canPath2 = static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, nearestCell, citizenGridCell));   // the door read AL
                             if (!canPath2) goto next_attempt;
 
                             // Reset fail counter
@@ -607,12 +607,12 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
         Profession* workEnt = nullptr;
         GetTarget(&workEnt);
 
-        citizenEnt2->statusFlags |= 4;
+        citizenEnt2->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizenEnt2->field_0x30 = priority;
         citizenEnt2->field_0xB0 = 0;
 
         if (workEnt == citizenEnt2->profession && priority >= 0) {
-            citizenEnt2->happinessFlags |= 0x20000;
+            citizenEnt2->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
         }
 
         // (the tree helper takes the container as uintptr_t*: LEFT)

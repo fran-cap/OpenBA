@@ -291,11 +291,11 @@ void RemovalTool::Draw(Video::Context* ctx, char param3) {
                     if (removalDesc && removalDesc->_b40) {
                         int tileIdx2 = mapGrid->size * (int)r + (int)c;
                         const MapCell* cellBase2 = &mapGrid->cells.GetData()[tileIdx2];
-                        uint32_t terrainFlag = 1u << (cellBase2->terrainType & 0x1f);
+                        uint32_t terrainFlag = Bits(PathBitOf(cellBase2->terrainType));
 
                         // Check if cell has road-type terrain (bits 0 or 1)
-                        if ((terrainFlag & 2) != 0 || (terrainFlag & 1) != 0 ||
-                            static_cast<char>(cellBase2->field_0x2A) != (char)0xff) {
+                        if ((terrainFlag & Bits(PathBits::Fast)) != 0 || (terrainFlag & Bits(PathBits::Faster)) != 0 ||
+                            cellBase2->field_0x2A != MapCell::kNoRoadBatch) {
                             canRemove = true;
                         }
 

@@ -75,8 +75,8 @@ void TabElement::UpdateContainers() {
         Element* c = _children.GetData()[GetContainerIndex(i)];
         const uint32_t old = c->_flags;
         if (i == _activeTab) {
-            c->_flags = old & ~kFlagHidden;
-            if ((old & kFlagHidden) != 0) DirtyWalk(c);
+            c->_flags = old & ~UI::kElementFlagHidden;
+            if ((old & UI::kElementFlagHidden) != 0) DirtyWalk(c);
             const int32_t gap = _gap;
             Element* cc = _children.GetData()[GetContainerIndex(i)];
             cc->ComputeLayout(gap + _layoutLeft,
@@ -84,8 +84,8 @@ void TabElement::UpdateContainers() {
                               _layoutRight  - gap,
                               _layoutBottom - gap);                      // slot 5
         } else {
-            c->_flags = old | kFlagHidden;
-            if ((((old | kFlagHidden) ^ old) & kFlagHidden) != 0) DirtyWalk(c);
+            c->_flags = old | UI::kElementFlagHidden;
+            if ((((old | UI::kElementFlagHidden) ^ old) & UI::kElementFlagHidden) != 0) DirtyWalk(c);
         }
     }
 }
@@ -94,7 +94,7 @@ void TabElement::UpdateContainers() {
 // [4] ?ComputeSize@TabElement@UI@@UEAAXXZ   0x1800d9ea0
 // ---------------------------------------------------------------------------
 void TabElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     _tabBarWidth  = _gap;
     _tabBarHeight = 0;
@@ -104,7 +104,7 @@ void TabElement::ComputeSize() {
     const int32_t n = _tabCount;
     for (int32_t i = 0; i < n; ++i) {
         Element* button = _children.GetData()[GetButtonIndex(i)];
-        if ((button->_flags & kFlagHidden) != 0) continue;
+        if ((button->_flags & UI::kElementFlagHidden) != 0) continue;
 
         int32_t bw = 0, bh = 0;
         InlineGetPaddedSize(button, &bw, &bh);
@@ -118,7 +118,7 @@ void TabElement::ComputeSize() {
         if (maxH <= ch) maxH = ch;
     }
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutHeight = _gap * 3 + _tabBarHeight + maxH;
     _layoutWidth  = maxW + _gap * 2;
 }
@@ -144,17 +144,27 @@ void TabElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t bott
     const int32_t aw = (right  - _rightPad)  - px;
     const int32_t ah = (bottom - _bottomPad) - py;
 
-    if ((_flags & kFlagStretchX) != 0) w = aw;
-    if ((_flags & kFlagStretchY) != 0) h = ah;
+    if ((_flags & UI::kElementFlagAlignArg1) != 0) w = aw;
+    if ((_flags & UI::kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 1: case 4: case 7: px = ((aw >> 1) - (w >> 1)) + px; break;
-        case 2: case 5: case 8: px = (right - _rightPad) - w; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            px = ((aw >> 1) - (w >> 1)) + px;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            px = (right - _rightPad) - w;
+            break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     const int32_t rx = px + w;
@@ -178,7 +188,7 @@ void TabElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t bott
     const int32_t n = _tabCount;
     for (int32_t i = 0; i < n; ++i) {
         Element* button = _children.GetData()[GetButtonIndex(i)];
-        if ((button->_flags & kFlagHidden) != 0) continue;
+        if ((button->_flags & UI::kElementFlagHidden) != 0) continue;
 
         int32_t bw = 0, bh = 0;
         InlineGetPaddedSize(button, &bw, &bh);
@@ -212,7 +222,7 @@ void TabElement::Draw(SpriteContext& context, uint8_t alpha) const {
     const int32_t n = _tabCount;
     for (int32_t i = 0; i < n; ++i) {
         const Element* button = _children.GetData()[GetButtonIndex(i)];
-        if ((button->_flags & kFlagHidden) == 0)
+        if ((button->_flags & UI::kElementFlagHidden) == 0)
             button->Draw(context, alpha);
     }
 
@@ -250,8 +260,8 @@ void TabElement::Update(const System::Time& time, UserInterface* ui,
     const int32_t n = _tabCount;
     for (int32_t i = 0; i < n; ++i) {
         const Element* button = _children.GetData()[GetButtonIndex(i)];
-        if ((button->_flags & kFlagHidden) == 0 &&
-            (button->_flags & kFlagWasActivated) != 0) {
+        if ((button->_flags & UI::kElementFlagHidden) == 0 &&
+            (button->_flags & UI::kElementFlagWasActivated) != 0) {
             _activeTab = i;
             break;
         }

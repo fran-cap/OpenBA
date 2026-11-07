@@ -172,14 +172,14 @@ int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     GetTarget(&workEntity);
 
     // Set citizen flags
-    citEntPost->statusFlags |= 4;
+    citEntPost->statusFlags |= Bits(CitizenStatus::TaskDone);
     citEntPost->field_0x30 = priority;
     citEntPost->field_0xB0 = 0;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0, set
     // the owned flag
     if (workEntity == citEntPost->profession && priority >= 0) {
-        citEntPost->happinessFlags |= 0x20000;
+        citEntPost->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     // Store citizen as target at +0x48

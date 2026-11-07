@@ -166,6 +166,24 @@ public:
     static constexpr uint32_t kAddressModeCount = 2;   // WRAP, CLAMP
     static constexpr uint32_t kFilterModeCount  = 3;   // POINT, LINEAR, ANISOTROPIC
 
+    // `_flags` (+0x34), `Create`'s plain `uint32_t flags`: a bit set, not one of the
+    // five W4 enums above. The names are retail's own, from the profile build's
+    // {value, name} table "Flags" (Runtime-x64-profile.dll 0x1802538e0). Unscoped
+    // (it was RtVideo::ImageBufferSizeFlag in Device.h, three bits), so a bit is a
+    // uint32_t constant in every `_flags` expression and Create argument.
+    enum Flags : uint32_t {
+        kMipmaps          = 0x001,  // the levels are a full chain (HasMipMaps; D3D MipLevels 0)
+        kCanDownsample    = 0x002,  // retail table only; no ported body tests it
+        kClearEdgeAlpha   = 0x004,  // retail table only (a compile-time option of the kit)
+        kClearEdgeColor   = 0x008,  // retail table only (a compile-time option of the kit)
+        kAliasedColor     = 0x010,  // wraps the device's back buffer (AttachColorBuffer)
+        kAliasedDepth     = 0x020,  // wraps the device's depth buffer (AttachDepthBuffer)
+        kShadowMap        = 0x040,  // size >>= Configuration::shadowScalar; comparison sampler
+        kDebugMipmaps     = 0x080,  // retail table only; no ported body tests it
+        kViewportSize     = 0x100,  // Width/Height read the live back buffer's size
+        kHalfViewportSize = 0x200,  // Width/Height read half the live back buffer's size
+    };
+
     // `kind == 4 || kind == 5` (IsGenerated() || IsRendered()) on a raw `_kind`:
     // retail's `LEA EAX,[R8-4] / CMP EAX,1 / JBE` (0x1800f3154), a wrapping
     // 32-bit subtraction and an unsigned compare.

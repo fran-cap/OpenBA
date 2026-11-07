@@ -123,6 +123,7 @@
 #include <cstddef>
 
 #include "../collection/Collection.h"
+#include "EventId.h"                 // UI::EventId (Event::eventId)
 
 namespace UI {
 
@@ -191,7 +192,7 @@ class Element;
 struct Event {
     DialogInstancePtr dialog; // +0x00  the list's element type (B4 P2 H4: typed)
     Element* element;    // +0x08
-    int32_t  eventId;    // +0x10
+    EventId  eventId;    // +0x10  UI::EventId (ui/EventId.h)
     int32_t  arg14;      // +0x14
     int32_t  arg18;      // +0x18
     int32_t  arg1C;      // +0x1c

@@ -121,7 +121,7 @@ void AchievementDialog::OnOpened() {
         imageIcon->SetSprite(&sprite);
 
         // Hide imageStar initially (OnUpdateLayout shows it if awarded)
-        imageStar->SetFlagsOnOff(1, 0);
+        imageStar->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 
         // Set title text
         System::String titleText = achievement->GetTitle();
@@ -205,8 +205,8 @@ void AchievementDialog::OnUpdateLayout() {
 // Byte-identical to GoalDialog::Slot8 (0x1400697C0): on a button click (msg 0x12)
 // from buttonOk (id 100), wrap self in an InternalBasePtr and ask the UserInterface
 // at +0x10 to close this dialog.
-void AchievementDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 == 0x12 && param4 == 100) {
+void AchievementDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (param3 == UI::EventId::Activated && param4 == 100) {
         Object::InternalPtr<UI::DialogInstance> self(this);
         _ui->CloseDialog(&self);
     }

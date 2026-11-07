@@ -390,7 +390,7 @@ void TradeUI::RefreshSellTable()
             int sellableCount = trade->GetResourcePrice(sellData.resource);
 
             bool hasStock = (sellableCount > 0);
-            uint32_t color = hasStock ? 0xFFFFFFFF : 0xFF808080;
+            uint32_t color = hasStock ? System::kColorWhite : System::kColorGrey;
 
             // Set sprite from ValueDescription (+0x20=spriteSheet, +0x28=spriteName)
             ValueDescription* valueDesc = sellData.value;
@@ -1135,26 +1135,26 @@ void TradeUI::OnUpdateLayout() {
         // Buy value exceeds sell value — show "not enough" text with difference
         System::String strBuf = System::String::Format("%d", (unsigned)(displayBuyTotal - displaySellTotal));
         _textNotEnough->SetParameter(0, strBuf);
-        _textNoStorage->SetFlagsOnOff(1, 0);  // hide textNoStorage
-        _textTooMuch->SetFlagsOnOff(1, 0);    // hide textTooMuch
-        _textNotEnough->SetFlagsOnOff(0, 1);  // show textNotEnough
+        _textNoStorage->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide textNoStorage
+        _textTooMuch->SetFlagsOnOff(UI::kElementFlagHidden, 0);    // hide textTooMuch
+        _textNotEnough->SetFlagsOnOff(0, UI::kElementFlagHidden);  // show textNotEnough
     } else if (bStorageFull) {
         // Storage overflow — show "no storage" text
-        _textNoStorage->SetFlagsOnOff(0, 1);  // show textNoStorage
-        _textTooMuch->SetFlagsOnOff(1, 0);    // hide textTooMuch
-        _textNotEnough->SetFlagsOnOff(1, 0);  // hide textNotEnough
+        _textNoStorage->SetFlagsOnOff(0, UI::kElementFlagHidden);  // show textNoStorage
+        _textTooMuch->SetFlagsOnOff(UI::kElementFlagHidden, 0);    // hide textTooMuch
+        _textNotEnough->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide textNotEnough
     } else if (!bBuySell) {
         // Totals are equal (no net trade) — hide all warning texts
-        _textNoStorage->SetFlagsOnOff(1, 0);  // hide textNoStorage
-        _textTooMuch->SetFlagsOnOff(1, 0);    // hide textTooMuch
-        _textNotEnough->SetFlagsOnOff(1, 0);  // hide textNotEnough
+        _textNoStorage->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide textNoStorage
+        _textTooMuch->SetFlagsOnOff(UI::kElementFlagHidden, 0);    // hide textTooMuch
+        _textNotEnough->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide textNotEnough
     } else {
         // Sell value exceeds buy value — show "too much" text with difference
         System::String strBuf = System::String::Format("%d", (unsigned)(displaySellTotal - displayBuyTotal));
         _textTooMuch->SetParameter(0, strBuf);
-        _textNoStorage->SetFlagsOnOff(1, 0);  // hide textNoStorage
-        _textTooMuch->SetFlagsOnOff(0, 1);    // show textTooMuch
-        _textNotEnough->SetFlagsOnOff(1, 0);  // hide textNotEnough
+        _textNoStorage->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide textNoStorage
+        _textTooMuch->SetFlagsOnOff(0, UI::kElementFlagHidden);    // show textTooMuch
+        _textNotEnough->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide textNotEnough
     }
 
     // --- Find BuildState (merchant) component and check merchant arrival state ---
@@ -1237,13 +1237,14 @@ void TradeUI::OnUpdate(const System::Time& /*time*/) {
 
 
 // [9] 0x140081f20
-void TradeUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t eventType, int32_t eventId,
+void TradeUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventId,
                              int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (!tradeui_sa::IsSetUp(this)) return;
     tradeui_sa::Trace("Slot9-event", this);
 
 
-    int switchVal = eventType - 0x12;
+    // The id ladder: 0 = Activated (0x12), two on = SelectionChanged, one more = ValueChanged.
+    int switchVal = static_cast<int32_t>(eventType) - static_cast<int32_t>(UI::EventId::Activated);
     if (switchVal == 0) {
         // --- eventType 0x12: click events ---
         if (eventId == 0x4e20) {

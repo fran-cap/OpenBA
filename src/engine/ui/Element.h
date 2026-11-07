@@ -135,6 +135,8 @@ enum ElementFlag : uint32_t {
     // dialog's UI scale.
     kElementFlagSizeToScreenH = 0x00000010,
     kElementFlagSizeToScreenW = 0x00000020,
+    // the mask GetPaddedSize tests first: either SizeToScreen bit
+    kElementFlagSizeToScreen  = 0x00000030,
 
     // bit 18, tested by `?ComputeColor@` (0x180035490): halves the incoming
     // alpha before modulating.
@@ -142,9 +144,26 @@ enum ElementFlag : uint32_t {
 
     // bits 16 and 19, set together (0x90000) by `?SetToolTip@` (0x180035740)
     // when the new tooltip is valid; bit 19 alone is cleared (BTR 0x13) when it
-    // is not.
-    kElementFlagToolTip16     = 0x00010000,
+    // is not. Bit 16 gates ALL of Element::Update's event steps (tooltip, hover
+    // enter / leave, every press / release / drag / drop event:
+    // element_vtable.cpp `BT 0x10 / JNC exit`), so it means the element raises
+    // events (it was once named kElementFlagToolTip16).
+    kElementFlagRaisesEvents  = 0x00010000,
     kElementFlagToolTipValid  = 0x00080000,
+
+    // bit 17. Element::Update sets it (BTS 0x11) while the mouse is inside the
+    // element's (or its border's) rect and the clip region, clears it (BTR
+    // 0x11) when it leaves; the widgets test it before reacting to the mouse.
+    kElementFlagHovered       = 0x00020000,
+
+    // bit 20. Element::Update sets it (BTS 0x14) when it raises the tooltip
+    // BEGIN event; while set the next frames raise MOVE, leaving clears it
+    // (BTR 0x14).
+    kElementFlagToolTipShown  = 0x00100000,
+
+    // bit 21. A left press started while hovered: the button / check / combo
+    // click arming, the slider / scroll thumb drag.
+    kElementFlagPressed       = 0x00200000,
 
     // bit 22. `?WasActivated@` (0x1800354f0).
     kElementFlagWasActivated  = 0x00400000,
@@ -158,6 +177,8 @@ enum ElementFlag : uint32_t {
     // `?IsEnabled@` (0x180035500) is `TEST [RCX+0x34],0x1800000; SETZ` — i.e.
     // enabled means NEITHER bit 23 nor bit 24.
     kElementFlagSystemDisabled = 0x01000000,
+    // `?IsEnabled@`'s mask: Disabled | SystemDisabled.
+    kElementFlagAnyDisabled   = 0x01800000,
 
     // bit 27. `?NeedsSizeCalc@` (0x180035460) is `SHR EAX,0x1b; AND AL,1`.
     // Element::Element sets it, and `?SetNeedsSizeCalc@` (0x180035470) ORs it

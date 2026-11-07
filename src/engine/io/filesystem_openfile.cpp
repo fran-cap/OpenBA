@@ -303,8 +303,8 @@ void (*FileSystem::_extPackagesClosed)(FileSystem& fs) = nullptr;
 
 int64_t FileSystem::PackedReadOffset(const RtIO::FileInfo& fi, bool* wide) const {
     const uint32_t tag = static_cast<uint32_t>(fi.handle);
-    const uint32_t packIndex = tag >> 24;
-    const uint32_t fileIndex = tag & 0x00FFFFFFu;
+    const uint32_t packIndex = tag >> RtIO::FileInfo::kPackIndexShift;
+    const uint32_t fileIndex = tag & RtIO::FileInfo::kFileIndexMask;
     if (_extWidePackages != nullptr && packIndex < static_cast<uint32_t>(_extWideCount)) {
         const ExtWidePackage& w = _extWidePackages[packIndex];
         // The low dword must be the FileInfo's own offset: a FileInfo opened
@@ -405,11 +405,11 @@ namespace {
 // sum, 1800ace43/46); null for a loose or nested FileInfo or an unmapped package.
 PackedMap* PackedMapOfEntry(Collection::Array<PackageFile*>& packfiles, const RtIO::FileInfo& fi,
                             int32_t cursor, int64_t* abs) {
-    if (static_cast<uint32_t>(fi.handle) > 0xFFFFFFFDu) return nullptr;    // loose
-    const uint32_t packIndex = static_cast<uint32_t>(fi.handle) >> 24;
+    if (!RtIO::FileInfo::IsPackedHandle(fi.handle)) return nullptr;        // loose
+    const uint32_t packIndex = static_cast<uint32_t>(fi.handle) >> RtIO::FileInfo::kPackIndexShift;
     if (packIndex >= static_cast<uint32_t>(packfiles._size)) return nullptr;
     const PackageFile* const pkg = packfiles[packIndex];
-    if (static_cast<uint32_t>(pkg->_file.handle) <= 0xFFFFFFFDu) return nullptr;   // nested
+    if (RtIO::FileInfo::IsPackedHandle(pkg->_file.handle)) return nullptr;         // nested
     PackedMap* const m = PackedMapFor(pkg->_file.winHandle);
     if (m == nullptr || m->map.data == nullptr) return nullptr;
     *abs = static_cast<int32_t>(static_cast<uint32_t>(fi.baseOffset) + static_cast<uint32_t>(cursor));
@@ -449,11 +449,11 @@ void FileSystem::PackedMapNoteRead(const RtIO::FileInfo& fi, int32_t cursor, int
 // needing the engine's own mapping.
 bool FileSystem::PackedEntryOrigin(const RtIO::FileInfo& fi, Platform::FileHandle* package,
                                    int64_t* offset) const {
-    if (static_cast<uint32_t>(fi.handle) > 0xFFFFFFFDu) return false;    // loose
-    const uint32_t packIndex = static_cast<uint32_t>(fi.handle) >> 24;
+    if (!RtIO::FileInfo::IsPackedHandle(fi.handle)) return false;        // loose
+    const uint32_t packIndex = static_cast<uint32_t>(fi.handle) >> RtIO::FileInfo::kPackIndexShift;
     if (packIndex >= static_cast<uint32_t>(_packfiles._size)) return false;
     const PackageFile* const pkg = _packfiles[packIndex];
-    if (static_cast<uint32_t>(pkg->_file.handle) <= 0xFFFFFFFDu) return false;   // nested
+    if (RtIO::FileInfo::IsPackedHandle(pkg->_file.handle)) return false;         // nested
     int64_t abs = static_cast<int32_t>(static_cast<uint32_t>(fi.baseOffset));
     if (_extWidePackages != nullptr) {
         bool wide = false;
@@ -495,7 +495,7 @@ bool FileSystem::ReadFile(RtIO::FileInfo& fiRef, int32_t n, void* dst) {
     RtIO::FileInfo* const fi = &fiRef;
 
     // UNSIGNED: -1 and -2 both fall through to the loose path (§1).
-    if (static_cast<uint32_t>(fi->handle) > 0xFFFFFFFDu) {   // 1800ace23  JA
+    if (!RtIO::FileInfo::IsPackedHandle(fi->handle)) {       // 1800ace23  JA
         // ---- LOOSE ------------------------------------------------------
         uint32_t got = 0;                                    // 1800acf0f
         Platform::FileRead(fi->winHandle, dst,
@@ -519,7 +519,7 @@ bool FileSystem::ReadFile(RtIO::FileInfo& fiRef, int32_t n, void* dst) {
     const int64_t abs64 = (_extWidePackages != nullptr) ? PackedReadOffset(*fi, &wide) : 0;
     bool ok;
     PackedMap* map = nullptr;                                // MAPREAD (banner above)
-    if (static_cast<uint32_t>(pack.handle) <= 0xFFFFFFFDu) {  // 1800ace4d  JBE
+    if (RtIO::FileInfo::IsPackedHandle(pack.handle)) {        // 1800ace4d  JBE
         // The containing .pkg is itself packed — no seek, just recurse.
         ok = true;
     } else {
@@ -615,7 +615,8 @@ RtIO::FileInfo FileSystem::OpenFile(const System::Filename& name) {
 
         if (node != nullptr && _existsInPackfileGate != 0) {  // 1800ac9bf
             lf.handle = static_cast<int32_t>(
-                (node->element.value.packIndex << 24) | node->element.value.fileIndex);  // 1800ac9c5..d1
+                (node->element.value.packIndex << RtIO::FileInfo::kPackIndexShift)
+                | node->element.value.fileIndex);                               // 1800ac9c5..d1
             const PackageFile* const pkg = _packfiles[node->element.value.packIndex];
             const RtIO::PackageFileEntry* const e = &pkg->_entries._data[node->element.value.fileIndex];
             lf.size       = static_cast<int32_t>(e->size);   // 1800ac9ee  +0xc
@@ -632,7 +633,7 @@ RtIO::FileInfo FileSystem::OpenFile(const System::Filename& name) {
         } else if (!PlatformOpenFile(lf, name)) {            // 1800acace
             return RtIO::FileInfo();                         // 1800acadb..acaff
         } else {
-            lf.handle = -2;                                  // 1800acb77
+            lf.handle = RtIO::FileInfo::kHandleLoose;        // 1800acb77
             emitted   = true;
         }
     }

@@ -336,17 +336,18 @@ void PastureComponent::OnEvent(int msgId) {
         if (y < 0) y = 0; if (y >= width) y = width - 1;
         const int cell = width * y + x;
 
-        uint8_t* terrain = &grid[cell].terrainType;   // +0x29
-        const uint8_t was = *terrain;
-        const bool wasRough = ((1u << (was & 0x1f)) & 0x1e0u) != 0;
+        PathType* terrain = &grid[cell].terrainType;   // +0x29
+        const uint8_t was = static_cast<uint8_t>(*terrain);
+        const bool wasRough = ((1u << (was & 0x1f)) & Bits(PathBits::Zoneless)) != 0;
         map->field_0xA2 = map->field_0xA2 | wasRough;
-        *terrain = 2;
+        *terrain = PathType::Normal;
         TerrainSidecar::NoteWrite(&grid[cell]);   // [terrain sidecar] mirror (missing until AMBMEMO)
         CellStamp::NoteWrite(&grid[cell]);   // [AMBMEMO] cell write clock
         if (wasRough)
             map->regionGraph->MarkCellDirty(cell % width, cell / width);   // 0x1400a8c90 (Pf_FineCellDirty_a8c90's body)
         // 0x1400a6fe0 reads the cell and the type (EDX, R8D) only.
-        map->pathfinder->SetCellTerrain(cell, 2);   // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
+        // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
+        map->pathfinder->SetCellTerrain(cell, ToUnderlying(PathType::Normal));
         grid[cell].occupant = nullptr;   // +0x08 the entity on the cell
         CellStamp::NoteWrite(&grid[cell]);   // [AMBMEMO] cell write clock
     }

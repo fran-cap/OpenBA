@@ -334,7 +334,7 @@ void Scene::OnSoundEnded(Device::AudioChannel* audioChannel, void* userData, uin
 
     // MOV EAX,[R11+0x68] / XOR EAX,R8D / TEST EAX,0xfffffe00 / JNZ
     const uint32_t storedTag = ch->handleTag;
-    if (((storedTag ^ tag) & 0xfffffe00u) != 0) { ++g_endedRejected; return; }
+    if (((storedTag ^ tag) & Scene::kChannelTagMask) != 0) { ++g_endedRejected; return; }
 
     // The 8-slot linear search over platformChannel[], +0x20 stride 8.
     // `CMP RCX,0x8 / JL` -- eight iterations, indices 0..7.
@@ -352,7 +352,7 @@ void Scene::OnSoundEnded(Device::AudioChannel* audioChannel, void* userData, uin
     // *** THIS; it is transcribed, not guarded. The `int64_t` cast is the
     // *** MOVSXD -- an unsigned index here would address +0x60+0xFFFFFFFF.
     uint8_t* const flagByte = &ch->channelFlags[static_cast<int64_t>(found)];
-    *flagByte = static_cast<uint8_t>(*flagByte | 0x02u);   // OR byte, NOT dword
+    *flagByte = static_cast<uint8_t>(*flagByte | Bits(SampleFlags::Ended));   // OR byte, NOT dword
 }
 // ---- registration ----------------------------------------------------------
 }  // namespace Audio

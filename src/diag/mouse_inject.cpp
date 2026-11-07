@@ -139,23 +139,23 @@ namespace {
 // from the exported one-line accessor that reads each one; the two without an
 // accessor are named from the body that writes them.
 // ---------------------------------------------------------------------------
-constexpr uint32_t kFlagHidden      = UI::kElementFlagHidden;       // bit 0
-constexpr uint32_t kFlagNoHitTest   = UI::kElementFlagNoHitTest;    // bit 1
-constexpr uint32_t kFlagToolTip16   = UI::kElementFlagToolTip16;    // bit 16
-constexpr uint32_t kFlagHovering    = 0x00020000u;                  // bit 17,
+constexpr uint32_t kFlagHidden       = UI::kElementFlagHidden;       // bit 0
+constexpr uint32_t kFlagNoHitTest    = UI::kElementFlagNoHitTest;    // bit 1
+constexpr uint32_t kFlagRaisesEvents = UI::kElementFlagRaisesEvents; // bit 16
+constexpr uint32_t kFlagHovering     = UI::kElementFlagHovered;      // bit 17,
     // written by Element::Update itself (element_vtable.cpp:786/791, BTS/BTR
     // 0x11). There is no accessor for it; the writer is the evidence.
-constexpr uint32_t kFlagToolTipOk   = UI::kElementFlagToolTipValid; // bit 19
-constexpr uint32_t kFlagTipShown    = 0x00100000u;                  // bit 20,
+constexpr uint32_t kFlagToolTipOk    = UI::kElementFlagToolTipValid; // bit 19
+constexpr uint32_t kFlagTipShown     = UI::kElementFlagToolTipShown; // bit 20,
     // set beside the BeginToolTip call and cleared beside EndHover
     // (element_vtable.cpp:833/862, BTS/BTR 0x14).
-constexpr uint32_t kFlagDisabled    = UI::kElementFlagDisabled;     // bit 23
+constexpr uint32_t kFlagDisabled     = UI::kElementFlagDisabled;     // bit 23
 
 // Mouse input indices inside the Input::Device state array.
-constexpr int kMouseX      = 0;
-constexpr int kMouseY      = 1;
-constexpr int kMouseButton = 4;   // the one Element::Update's drop arm reads
-                                  // as `b04` (in[0x10ff] == input 4 released)
+constexpr int kMouseX      = static_cast<int>(Input::Device::MouseInput::X);
+constexpr int kMouseY      = static_cast<int>(Input::Device::MouseInput::Y);
+constexpr int kMouseButton = static_cast<int>(Input::Device::MouseInput::Left);   // the one
+    // Element::Update's drop arm reads as `b04` (in[0x10ff] == input 4 released)
 
 // The linked-list node UserInterface::_dialogs is built from. Spelled raw, as
 // userinterface_frame.cpp:281 spells it, rather than instantiating the
@@ -401,12 +401,12 @@ struct Target {
 // BeginToolTip. Asking the same questions the subject asks is what makes a
 // found target actually reach the body rather than merely look plausible.
 bool TipCapable(const UI::Element* e) {
-    if ((e->_flags & kFlagToolTip16) == 0)  return false;   // Element::Update
-    if ((e->_flags & kFlagToolTipOk) == 0)  return false;   // Element::Update
-    if (e->_toolTipDialog == nullptr)       return false;   // BeginToolTip +0x40
-    if (e->_toolTip.table == nullptr)       return false;   // BeginToolTip +0x48
-    if (e->_toolTip.index < 0)              return false;   // BeginToolTip +0x50
-    if ((e->_flags & kFlagDisabled) != 0)   return false;   // BeginToolTip +0x34
+    if ((e->_flags & kFlagRaisesEvents) == 0) return false;   // Element::Update
+    if ((e->_flags & kFlagToolTipOk) == 0)    return false;   // Element::Update
+    if (e->_toolTipDialog == nullptr)         return false;   // BeginToolTip +0x40
+    if (e->_toolTip.table == nullptr)         return false;   // BeginToolTip +0x48
+    if (e->_toolTip.index < 0)                return false;   // BeginToolTip +0x50
+    if ((e->_flags & kFlagDisabled) != 0)     return false;   // BeginToolTip +0x34
     return true;
 }
 

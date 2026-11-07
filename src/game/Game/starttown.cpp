@@ -150,7 +150,6 @@ extern "C" float WorldGen_GetPathBankDistance(int pathIndex);
 static constexpr int   CELL_STRIDE = 0x30;
 static constexpr int   CELL_TYPE   = 0x29;     // tile type byte
 static constexpr int   GAME_CELLS  = 0x80;     // Game+0x80 = {void* data, int count, int cap}
-static constexpr int   TILE_BUILDABLE = 2;
 static constexpr float kCenterBias = 0.5f;     // DAT_140172114
 
 // Force-work harness (env BANISHED_FORCE_WORK): the first spawned start-town
@@ -360,7 +359,7 @@ static bool StartTown_DiskBuildable(const Map* game, int tileX, int tileY, int s
             if (ix * ix + iy * iy > sizeSq) continue;          // outside the disk
             const int cx = tileX + ix, cy = tileY + iy;
             if (cx < 0 || cy < 0 || cx >= dim || cy >= dim) return false;
-            if (cells[dim * cy + cx].terrainType != TILE_BUILDABLE)
+            if (cells[dim * cy + cx].terrainType != PathType::Normal)
                 return false;
         }
     }
@@ -699,14 +698,14 @@ static void StartTown_RunOnCreatePass(ComponentEntity* ent) {
     const uint32_t s_tidResidence = ResidenceComponent::TypeId();   // caller batch CB6: was a lazy cache
 
     uint32_t* entFlags = &ent->_entityFlags;
-    if ((*entFlags & 2) != 0 && s_tidResidence != 0) {
+    if ((*entFlags & Bits(ComponentFlags::OnRemove)) != 0 && s_tidResidence != 0) {
         int count = ent->_components._size;
         Object::InternalPtr<Component>* arr = ent->_components._data;
         for (int i = 0; i < count; ++i) {
             Object::InternalPtr<Component>* slot = &arr[i];
             Component* comp = slot->Get();
             if (!comp) continue;
-            if ((comp->_flags >> 1 & 1) == 0) continue;  // flag bit 1
+            if ((comp->_flags & Bits(ComponentFlags::OnRemove)) == 0) continue;
             // Slot 2 on an entity component-array element.
             uint32_t tid = comp->Type();
             if (tid != s_tidResidence) continue;                 // ONLY ResidenceComponent
@@ -960,7 +959,7 @@ static std::function<ComponentEntity*(ComponentDescription* /*tmpl*/, int /*tile
 // 0x1400a00f0 WorkBase_ValidateCell_a00f0 returns uint64_t; every reader in this file
 // was typed `char (*)(int*, uint32_t, uint32_t, int)` and read AL only. B3R keeps
 // today's bits with the cast (a behaviour: candidate).
-static inline char ST_CanPathTo(Map* map, uint32_t mask, uint32_t destCell, int srcCell) {
+static inline char ST_CanPathTo(Map* map, PathBits mask, uint32_t destCell, int srcCell) {
     return static_cast<char>(map->ValidateCell(mask, destCell, srcCell));
 }
 
@@ -974,7 +973,7 @@ static bool ST_SiteIsWorkable(int tx, int ty, int fw, int fh) {
         for (int xx = 0; xx < fw; ++xx) {
             const int cell = (ty + yy) * mapW + (tx + xx);
             if (cell < 0 || cell >= mapW * mapW) return false;
-            if (grid->FindCell(cell, cell, 0xe0f) < 0) return false;   // 0x14009ccf0
+            if (grid->FindCell(cell, cell, PathBits::Walk & ~PathBits::Obstacle) < 0) return false;   // 0x14009ccf0
         }
     }
     return true;
@@ -1178,7 +1177,8 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
     auto cellWorkable = [&](int cell) -> bool {
         if (cell < 0 || (size_t)cell >= cells) return false;
         if (workable[cell] < 0) {
-            workable[cell] = (grid->FindCell(cell, cell, 0xe0f) >= 0) ? 1 : 0;   // 0x14009ccf0
+            // 0x14009ccf0
+            workable[cell] = (grid->FindCell(cell, cell, PathBits::Walk & ~PathBits::Obstacle) >= 0) ? 1 : 0;
         }
         return workable[cell] == 1;
     };
@@ -1231,8 +1231,8 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
     const MapCell* const kindTiles = game->cells.GetData();
     auto cellWalkable = [&](int cell) -> bool {
         if (!kindTiles) return cellWorkable(cell);
-        const unsigned k = kindTiles[(size_t)cell].terrainType;
-        return ((1u << (k & 0x1f)) & 0xe1fu) != 0;
+        const unsigned k = static_cast<uint8_t>(kindTiles[(size_t)cell].terrainType);
+        return ((1u << (k & 0x1f)) & Bits(PathBits::Walk)) != 0;
     };
     std::vector<uint8_t> reach(cells, 0);
     int reachCount = 0;
@@ -1275,7 +1275,7 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
             for (int yy = 0; yy < mapW; ++yy) {
                 for (int xx = 0; xx < mapW; ++xx) {
                     const size_t c = (size_t)yy * mapW + xx;
-                    const unsigned k = kindTiles[c].terrainType;
+                    const unsigned k = static_cast<uint8_t>(kindTiles[c].terrainType);
                     char ch = occ[c] ? '#' : (k < 10 ? (char)('0' + k) : (char)('a' + k - 10));
                     if (reach[c]) ch = (k < 10 ? (char)('0' + k) : (char)('a' + k - 10));
                     std::fputc(ch, km);
@@ -1344,7 +1344,7 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
         for (int yy = 0; yy < h; ++yy)
             for (int xx = 0; xx < w; ++xx)
                 if (!cellWorkable((ty + yy) * mapW + (tx + xx))) return false;
-        if (!ST_CanPathTo(game, 0xe1f, (uint32_t)((ty + h / 2) * mapW + (tx + w / 2)), townCell)) {
+        if (!ST_CanPathTo(game, PathBits::Walk, (uint32_t)((ty + h / 2) * mapW + (tx + w / 2)), townCell)) {
             ++reachRejects; return false;
         }
         if (!allowPockets && createsPocket(tx, ty, w, h, doorDx, doorDy)) { ++pocketRejects; return false; }
@@ -2680,10 +2680,10 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                             }
                         }
                         if (entryCell >= 0) {
-                            const uint32_t kBoatMask = 0x380u;
+                            const uint32_t kBoatMask = Bits(PathBits::Boat);
                             auto navigable = [&](int c) {
                                 const unsigned cls =
-                                    cellBase[c].terrainType & 0x1fu;
+                                    static_cast<uint8_t>(cellBase[c].terrainType) & 0x1fu;
                                 return ((1u << cls) & kBoatMask) != 0;
                             };
                             if (navigable(entryCell)) {
@@ -3549,14 +3549,15 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                         bool footprintDry = true;
                         for (int yy = ty; yy < ty + fh && footprintDry; ++yy)
                             for (int xx = tx; xx < tx + fw; ++xx) {
-                                const uint8_t t = grid[static_cast<size_t>(yy * width + xx)].terrainType;
+                                const uint8_t t =
+                                    static_cast<uint8_t>(grid[static_cast<size_t>(yy * width + xx)].terrainType);
                                 if ((mask >> (t & 0x1f)) & 1) { footprintDry = false; break; }
                             }
                         if (!footprintDry) continue;
                         ++candidates;
 
                         // Reachable from town, or the worker can never stand on it.
-                        if (!ST_CanPathTo(mapObj, 0xe1f,
+                        if (!ST_CanPathTo(mapObj, PathBits::Walk,
                                        (uint32_t)((ty + fh / 2) * width + (tx + fw / 2)),
                                        townCell)) {
                             ++unreachable;
@@ -3571,7 +3572,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                                 if (dx * dx + dy * dy > radius * radius) continue;
                                 const int x = cx + dx, y = cy + dy;
                                 if (x < 0 || y < 0 || x >= width || y >= width) continue;
-                                const uint8_t t = grid[static_cast<size_t>(y * width + x)].terrainType;
+                                const uint8_t t =
+                                    static_cast<uint8_t>(grid[static_cast<size_t>(y * width + x)].terrainType);
                                 if ((mask >> (t & 0x1f)) & 1) ++score;
                             }
                         if (score == 0) continue;
@@ -3783,7 +3785,7 @@ extern "C" void StartTown_DeferredSpawn_Tick(int frameNum) {
                 ++candidates;
 
                 const int cell = (ty + h / 2) * mapW + (tx + w / 2);
-                if (!ST_CanPathTo(game, 0xe1f,
+                if (!ST_CanPathTo(game, PathBits::Walk,
                                             (uint32_t)cell, townCell)) {
                     ++unreachable;
                     continue;
@@ -3841,7 +3843,7 @@ extern "C" void StartTown_DeferredSpawn_Tick(int frameNum) {
                     if (ST_ClashesWithStartTown(tx, ty, w, h)) continue;
                     if (!ST_SiteIsWorkable(tx, ty, w, h)) continue;
                     const int fcell = (ty + h / 2) * mapW + (tx + w / 2);
-                    if (!ST_CanPathTo(game, 0xe1f,
+                    if (!ST_CanPathTo(game, PathBits::Walk,
                                                 (uint32_t)fcell, townCell)) continue;
                     bestX = tx; bestY = ty; bestScore = 0; found = true;
                 }
@@ -4381,8 +4383,8 @@ static void StartTown_SeedHouseInventory(int unitsPerHouse) {
             tmpl ? FindDescriptionOnTemplate<RawMaterialDescription>(tmpl, tidRawMat) : nullptr;
         if (!desc) continue;
         uint32_t flags = desc->_flags;
-        if (foodTmpl == nullptr && (flags & 0x20)) { foodTmpl = tmpl; foodFlags = flags; foodVol = desc->_weight; }   // edible  (bit 5)
-        if (fuelTmpl == nullptr && (flags & 0x40)) { fuelTmpl = tmpl; fuelFlags = flags; fuelVol = desc->_weight; }   // fuel    (bit 6)
+        if (foodTmpl == nullptr && (flags & RawMaterialFlags::Edible)) { foodTmpl = tmpl; foodFlags = flags; foodVol = desc->_weight; }   // edible  (bit 5)
+        if (fuelTmpl == nullptr && (flags & RawMaterialFlags::Fuel)) { fuelTmpl = tmpl; fuelFlags = flags; fuelVol = desc->_weight; }   // fuel    (bit 6)
     }
     if (foodTmpl == nullptr) {
         fprintf(stderr, "[startTown::housing] no edible raw-material template (templates=%d) — no house food\n", tmplCount);
@@ -4856,10 +4858,11 @@ static int StartTown_ClassifyCell(Map* game, int dim, int idx) {
     float tri[4] = { 0, 0, 0, 0 };
     game->GetTerrainPos(out, in, 1, tri);   // flag=1 => height-only (matches e2c0)
     const float h = out[2], slope = tri[2];
-    if (h < kClassDeepWaterMax) return 8;
-    if (h < kClassShoreMax)     return 7;
-    if (h >= kClassShoreMax && h <= kClassBuildableMax && slope >= kClassSlopeMin) return 2;
-    return (h < kClassMountainMax) ? 10 : 6;
+    if (h < kClassDeepWaterMax) return static_cast<int>(PathType::DeepWater);
+    if (h < kClassShoreMax)     return static_cast<int>(PathType::Water);
+    if (h >= kClassShoreMax && h <= kClassBuildableMax && slope >= kClassSlopeMin)
+        return static_cast<int>(PathType::Normal);
+    return (h < kClassMountainMax) ? static_cast<int>(PathType::Walkable) : static_cast<int>(PathType::Unusable);
 }
 
 // f2f0 notify targets: RegionGraph::MarkCellDirty (0x1400a8c90) and
@@ -4918,16 +4921,17 @@ extern "C" void StartTown_UnmarkResourceCellGrid(Map* game, ComponentEntity* own
             if (occupied) {
                 uint8_t t = (uint8_t)StartTown_ClassifyCell(game, dim, cellIdx);
                 ComponentEntity* cellOwner = cell->blocker.Get();   // cell+0x00
-                if ((1u << (t & 0x1f) & 0x1e0u) && cellOwner && cellOwner != ownerEntity)
-                    t = 2;
+                if ((1u << (t & 0x1f) & Bits(PathBits::Zoneless)) && cellOwner && cellOwner != ownerEntity)
+                    t = static_cast<uint8_t>(PathType::Normal);
                 // FIX terrain_resort (NOT RETAIL, docs/extensions/handins/TERRAINRESORT.md): a lone
                 // occupant (a tree or ore on steep ground, a goods pile) leaves the cell buildable,
                 // as it was placeable while the occupant stood.
                 if (Ext::Fix().terrain_resort) {
                     const bool zoned = cellOwner != nullptr && cellOwner != ownerEntity;
-                    t = static_cast<uint8_t>(Ext::TerrainResort::ClearedCellType(cell->terrainType, t, zoned));
+                    t = static_cast<uint8_t>(
+                        Ext::TerrainResort::ClearedCellType(static_cast<uint8_t>(cell->terrainType), t, zoned));
                 }
-                CellTrace::NoteResort(game, cellIdx, cell->terrainType, t);
+                CellTrace::NoteResort(game, cellIdx, static_cast<uint8_t>(cell->terrainType), t);
                 game->SetTerrainType(cellIdx, t);   // 0x14009f2f0
             }
             cell->occupant = nullptr;        // dee0: null the cell entity-link, ALWAYS

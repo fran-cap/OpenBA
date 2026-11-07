@@ -312,13 +312,13 @@ void QuarryComponent::OnMessage(int /*message*/, void* /*data*/, uint32_t /*arg0
                 if (!(probe[2] < s_slopeCut)) continue;
 
                 MapCell* cell = &tileData[static_cast<int64_t>(cellIdx)];
-                const uint8_t  oldType = cell->terrainType;
+                const uint8_t  oldType = static_cast<uint8_t>(cell->terrainType);
                 const uint32_t oldMask = 1u << (oldType & 0x1f);
                 // newType 5 always lands in 0x1e0, so f2f0's two-sided boundary rule
                 // reduces to "was the old type in 0xe1f" — which is what retail inlines.
-                const uint8_t dirty = ((oldMask & 0xe1f) != 0) ? 1u : 0u;
+                const uint8_t dirty = ((oldMask & Bits(PathBits::Walk)) != 0) ? 1u : 0u;
                 tileGrid->field_0xA2 |= dirty;
-                cell->terrainType = 5;
+                cell->terrainType = PathType::Immovable;
                 TerrainSidecar::NoteWrite(cell);   // [terrain sidecar] mirror
                 CellStamp::NoteWrite(cell);   // [AMBMEMO] cell write clock
 
@@ -328,7 +328,7 @@ void QuarryComponent::OnMessage(int /*message*/, void* /*data*/, uint32_t /*arg0
                 }
                 PathfinderThread* pfThread = tileGrid->pathfinder;
                 if (pfThread)
-                    pfThread->SetCellTerrain(static_cast<int>(cellIdx), 5);   // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
+                    pfThread->SetCellTerrain(static_cast<int>(cellIdx), ToUnderlying(PathType::Immovable));   // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
 
                 // MapCell::occupant (+0x08) is the ENTITY raster — the quarry claims the dug cell.
                 cell->occupant = entity;

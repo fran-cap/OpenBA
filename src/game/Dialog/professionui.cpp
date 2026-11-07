@@ -477,10 +477,10 @@ void ProfessionUI::OnOpened() {
         // laborer's goto button.
         Profession* noneProfession = profListPtr->field_0x30;
         if (profDesc == noneProfession) {
-            number->SetFlagsOnOff(1, 0);   // child[3] numberAvailable
+            number->SetFlagsOnOff(UI::kElementFlagHidden, 0);   // child[3] numberAvailable
 
             UI::Element* ofTextChild = cellElem->Child(2).Get();   // child[2] ofText
-            ofTextChild->SetFlagsOnOff(1, 0);
+            ofTextChild->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         }
 
         // Advance table position
@@ -862,7 +862,7 @@ void ProfessionUI::HandleButton(int profIndex) {
 // Original: 0x140076C10.
 
 // [9] 0x140076c10
-void ProfessionUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4,
+void ProfessionUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                   int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     // 0x140076c10 starts `CMP R8D,0x12` / `0x15`: no set-up test (element events
     // reach an opened dialog only).
@@ -873,8 +873,8 @@ void ProfessionUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
 
     // Original logic: msg 0x15 handles BOTH spinner (300-range) and button (500-range).
     // msg 0x12 also handles button (500-range).
-    if (param3 != 0x12) {
-        if (param3 != 0x15) return;
+    if (param3 != UI::EventId::Activated) {
+        if (param3 != UI::EventId::ValueChanged) return;
         // msg 0x15: spinner value changed -- reassign citizens
         if (param4 >= 300 && param4 <= profCount + 300) {
             HandleSpinner(param4 - 300);

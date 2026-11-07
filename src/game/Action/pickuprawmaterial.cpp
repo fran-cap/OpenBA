@@ -118,7 +118,7 @@ int  PickupRawMaterial::AbstractImpl(ActionStack* actionStack) {
 
         // Check bit 10 of the entity flags (+0x40)
         uint32_t flags = localEntity->_entityFlags;
-        if (((flags >> 10) & 1) == 0) {
+        if ((flags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
             // Not yet flagged -- flag it and queue it on the removal list
             localEntity->MarkForRemoval();   // 0x1400c2ea0
 

@@ -419,7 +419,7 @@ bool IO::FileStream::Create(const System::Filename& path) {
     // (1800aa97c), ~FileInfo on the temporary (1800aa982 +0x28, 1800aa9b9 +0x20).
     _file = ::IO::FileSystem::_singleton->CreateFileW(path);
 
-    const bool ok = (_file.handle != -1);                       // 1800aa9f0
+    const bool ok = (_file.handle != RtIO::FileInfo::kHandleNone);   // 1800aa9f0
     return ok;
 }
 
@@ -626,7 +626,7 @@ bool FileStream::Open(const System::Filename& path) {
     // ~FileInfo on the temporary (1800aacf2 +0x28, 1800aad29 +0x20).
     _file = FileSystem::_singleton->OpenFile(path);
 
-    const bool ok = (_file.handle != -1);                 // 1800aad60
+    const bool ok = (_file.handle != RtIO::FileInfo::kHandleNone);   // 1800aad60
     return ok;
 }
 
@@ -643,7 +643,7 @@ bool FileStream::Open(const System::Filename& path) {
 // Step 4 (1800aaaf6) is the `System::String` member's own destructor, which the
 // compiler runs after this body and before ~Stream (B4 X-RH).
 FileStream::~FileStream() {
-    if (_file.handle != -1)                                       // 1800aaad5
+    if (_file.handle != RtIO::FileInfo::kHandleNone)              // 1800aaad5
         FileSystem::_singleton->CloseFile(_file);                 // 1800aaae6
     // 1800aaaf0 (~FileInfo 0x18000c180 on +0x20) and 1800aaaf6 (~String on
     // +0x18) are the members' own destructors, run after this body in reverse
@@ -663,8 +663,8 @@ TextFileStream::TextFileStream(const System::String& type,
                                const System::String& name, int version)
     : _objectName(),                 // 1800ba3d0  +0x58
       _objectType(),                 // 1800ba3d4  +0x60
-      _requestedFormat(6),           // 1800ba3d8  +0x68
-      _activeEncoding(6),            // 1800ba3df  +0x6c
+      _requestedFormat(Text::Format::Detect),           // 1800ba3d8  +0x68
+      _activeEncoding(Text::Format::Detect),            // 1800ba3df  +0x6c
       _buffer(nullptr),              // 1800ba3e6  +0x70
       _bufSize(0),                   // 1800ba3ea  +0x78 (one qword with +0x7c)
       _bufCursor(0) {
@@ -756,7 +756,7 @@ IO::CompressedFileStream::~CompressedFileStream() {
 
     // The member BinaryFileStream's FileInfo (this + 0x68 + 0x20).
     RtIO::FileInfo* const inner = &_file._file;                         // 1800a9366
-    if (inner->handle != -1) {                                          // 1800a936e
+    if (inner->handle != RtIO::FileInfo::kHandleNone) {                 // 1800a936e
         ::IO::FileSystem::_singleton->CloseFile(*inner);                // 1800a937a
     }
 }                                                                       // 1800a9388 / 1800a939b

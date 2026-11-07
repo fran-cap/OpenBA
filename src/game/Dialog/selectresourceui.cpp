@@ -211,9 +211,9 @@ void SelectResourceUI::OnUpdate(const System::Time& /*time*/) {
 // Original: 0x140078D80 (shared by CropUI and OrchardUI).
 
 // [9] 0x140078d80 — the element pointer's address and (event, id) as the body reads them.
-void SelectResourceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4,
+void SelectResourceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                       int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 != 0x14 || param4 != 500)
+    if (param3 != UI::EventId::SelectionChanged || param4 != 500)
         return;
 
     // Get current selected item index from combo

@@ -17,6 +17,7 @@
 #include "ext/registry.h"
 #include "io/settings_file.h"
 #include "io/Stream.h"
+#include "io/PackageFile.h"   // IO::PackageFile header word bits
 #include "platform_file.h"
 #include "system/Compression.h"
 #include "system/string_internal.h"   // RtSystem::RtMemFree: the table Compress allocated
@@ -618,8 +619,8 @@ struct EntryReader {
 // PackageFile::ReadPackfile's directory, the entry offsets and sizes only.
 bool ReadDirectory(const uint8_t* d, uint64_t mapSize, std::vector<std::pair<uint32_t, uint32_t>>* entries) {
     const int32_t hdr = ReadI32(d);
-    const bool compressed = (hdr & int32_t(0x80000000)) != 0;
-    const int32_t at = hdr & 0x7fffffff;
+    const bool compressed = (hdr & static_cast<int32_t>(IO::PackageFile::kHeaderCompressedBit)) != 0;
+    const int32_t at = hdr & static_cast<int32_t>(IO::PackageFile::kHeaderOffsetMask);
     if (static_cast<uint64_t>(at) + 4 > mapSize) return false;
     EntryReader dir(d + at + 4, ReadI32(d + at));
     if (dir.cs == nullptr) return false;

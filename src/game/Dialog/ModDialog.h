@@ -69,6 +69,11 @@ class ModDialog final : public UI::DialogInstance {
     DECLARE_EXE_TYPE(ModDialog)
 
 public:
+    // The Mods list's row tints (ARGB, a row border's SetColor; moddialog.cpp).
+    static constexpr uint32_t kRowTintIdle     = 0x10ffffffu;   // disabled / idle row (faint white)
+    static constexpr uint32_t kRowTintEnabled  = 0x20c0ffc0u;   // enabled row (green)
+    static constexpr uint32_t kRowTintConflict = 0x40ff0000u;   // a conflict (red)
+
     ModDialog();                                                    // create 0x140012900
     ModDialog(UI::UserInterface* ui, const UI::Dialog* dialog,
               Object::InternalPtr<UI::DialogInstance> parent,
@@ -78,7 +83,7 @@ public:
     ~ModDialog() override;                                         // [0] 0x140012a30
     void OnOpened() override;                                      // [4] 0x14006f150
     void OnElementEvent(Object::InternalPtr<UI::Element>* element,
-                        int32_t a, int32_t b, int32_t c,
+                        UI::EventId a, int32_t b, int32_t c,
                         int32_t d, int32_t e, void* userData) override;  // [8] 0x14006ed40
 
     void RefreshDisplay();                                         // 0x14006eec0

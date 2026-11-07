@@ -43,8 +43,8 @@ bool Refuse(Match* m, const std::string& why) {
 // The register index dword of an operand with an immediate first index (after any extended tokens).
 uint32_t IndexSlot(const uint32_t* t, uint32_t avail) {
     uint32_t n = 1;
-    if (t[0] & 0x80000000u) {
-        while (n < avail && (t[n] & 0x80000000u)) ++n;
+    if (t[0] & Dxbc::kTokenExtended) {
+        while (n < avail && (t[n] & Dxbc::kTokenExtended)) ++n;
         ++n;
     }
     return n < avail ? n : 0;
@@ -70,7 +70,7 @@ int IsgnMask(const Dxbc::Container& c, uint32_t reg) {
 
 void InputSrc(std::vector<uint32_t>& t, uint32_t reg, uint32_t swz, uint32_t modifier = 0) {
     uint32_t tok = 2u | (1u << 2) | ((swz & 0xFF) << 4) | (OT::Input << 12) | (1u << 20);
-    if (modifier) tok |= 0x80000000u;
+    if (modifier) tok |= Dxbc::kTokenExtended;
     t.push_back(tok);
     if (modifier) t.push_back(1u | (modifier << 6));
     t.push_back(reg);
@@ -158,14 +158,17 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
         const uint32_t tok = p.tokens[in.offset + 1];
         if (((tok >> 12) & 0xFF) != OT::Input || (tok & 3) != 2 || ((tok >> 2) & 3) != 0) continue;
         if (((tok >> 20) & 3) != 1 || ((tok >> 22) & 7) != 0) continue;   // one immediate index
-        if (tok & 0x80000000u) continue;
+        if (tok & Dxbc::kTokenExtended) continue;
         if (p.tokens[in.offset + 2] == static_cast<uint32_t>(shadowIn)) m->dclIdx = static_cast<int>(i);
     }
     if (m->dclIdx < 0) { Refuse(m, "the shadow input has no plain dcl_input_ps"); return; }
     {
         const int provided = IsgnMask(m->cont, static_cast<uint32_t>(shadowIn));
         if (provided < 0) { Refuse(m, "no ISGN element for the shadow input"); return; }
-        if ((provided & 0x8) == 0) { Refuse(m, "the vertex stage does not write the shadow input's w (ISGN)"); return; }
+        if ((provided & static_cast<int>(Dxbc::Mask::W)) == 0) {
+            Refuse(m, "the vertex stage does not write the shadow input's w (ISGN)");
+            return;
+        }
     }
     // THE PLACEMENT (edge_dither.h): after the last discard when every read of S follows it, else right
     // before the first read of S; a program without a discard keeps the block before its first instruction.
@@ -209,8 +212,9 @@ bool WidenInputSignature(Dxbc::Container& c, uint32_t reg) {
         uint32_t r;
         std::memcpy(&r, e + 16, 4);
         if (r != reg) continue;
-        if ((e[20] & 0x8) == 0) return false;   // w not written by the vertex stage: never declare a read of it
-        e[21] |= 0xF;   // readWriteMask
+        // w not written by the vertex stage: never declare a read of it
+        if ((e[20] & Dxbc::Mask::W) == 0) return false;
+        e[21] |= Dxbc::Mask::XYZW;   // readWriteMask
         found = true;
     }
     return found;
@@ -248,11 +252,11 @@ bool Transform(const Match& m, std::vector<uint8_t>* out, const BbsRewrite::Para
             const size_t at = t.size();
             t.insert(t.end(), src, src + in.length);
             if (in.opcode == Op::DclTemps) t[at + 1] = T + 2;
-            if (static_cast<int>(i) == m.dclIdx) t[at + 1] |= 0xFu << 4;   // dcl_input_ps vS.xyzw
+            if (static_cast<int>(i) == m.dclIdx) t[at + 1] |= Dxbc::Mask::XYZW << 4;   // dcl_input_ps vS.xyzw
             continue;
         }
         if (static_cast<int>(i) == m.insertAt) {
-            ins(Op::Mov, [&] { E::TempDst(t, T, 0xF); InputSrc(t, S, XYZW); });
+            ins(Op::Mov, [&] { E::TempDst(t, T, Dxbc::Mask::XYZW); InputSrc(t, S, XYZW); });
             ins(Op::Mul, [&] { E::TempDst(t, N, 3); InputSrc(t, U, m.uvSwizzle); E::Imm4(t, k.noiseScale, k.noiseScale, 0.0f, 0.0f); });
             ins(kRoundNi, [&] { E::TempDst(t, N, 3); E::TempSrc(t, N, XY); });
             ins(Op::Dp2, [&] { E::TempDst(t, N, 1); E::TempSrc(t, N, XY); E::Imm4(t, kHashU, kHashV, 0.0f, 0.0f); });

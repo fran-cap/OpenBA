@@ -55,6 +55,17 @@ namespace Input {
 // `RegisterInput`'s disassembly (0x1800a7e70: the stack blob built at
 // [RSP+0x20]..[RSP+0x37] before the call to the node-insert helper 0x180023060).
 struct Binding {
+    // device[slot] of an unbound slot (reads as int8 -1).
+    static constexpr uint8_t kUnboundDevice         = 0xFF;
+    // The settings.cfg value of a slot is `device << kDeviceShift | inputId`
+    // (binding_value.h, keymap_save.cpp).
+    static constexpr int32_t kDeviceShift           = 8;
+    static constexpr int32_t kValueUnbound          = -1;     // the settings value of an unbound slot
+    static constexpr int32_t kValueAbsent           = -2;     // the key is missing: the default stays
+    // The largest device byte that is still >= 0 as an int8: bytes 3..0x7F are
+    // invalid, 0x80..0xFF read as negative (unbound).
+    static constexpr int32_t kMaxPositiveDeviceByte = 0x7F;
+
     uint8_t     id;            // +0x00 — BST key, UNSIGNED byte compare
     uint8_t     exclusive;     // +0x01 — RegisterInput's `bool exclusive` param, verbatim
     uint8_t     _pad02[6];     // +0x02..+0x07 — never written by RegisterInput; garbage

@@ -344,14 +344,14 @@ PathTicket* Map::RequestPath(PathTicket* out, uint64_t flags, uint32_t destCell,
     const MapCell* recSrc  = &cells.GetData()[static_cast<int>(srcCell)];
     const MapCell* recDest = &cells.GetData()[static_cast<int>(destCell)];
 
-    uint32_t typeSrc  = 1u << (Ext::WalkOnIce::TypeOf(*recSrc) & 0x1f);
-    uint32_t typeDest = 1u << (Ext::WalkOnIce::TypeOf(*recDest) & 0x1f);
+    uint32_t typeSrc  = Bits(PathBitOf(Ext::WalkOnIce::TypeOf(*recSrc)));
+    uint32_t typeDest = Bits(PathBitOf(Ext::WalkOnIce::TypeOf(*recDest)));
     uint32_t mask = static_cast<uint32_t>(flags) | typeDest | typeSrc;
 
     bool reachable = (mask & typeDest) && (mask & typeSrc);
     int16_t rd = static_cast<int16_t>(recDest->zone);
     int16_t rs = static_cast<int16_t>(recSrc->zone);
-    if (reachable && (mask & 0x1e0u) == 0) {
+    if (reachable && (mask & Bits(PathBits::Zoneless)) == 0) {
         if (rd == 0 || rs == 0 || rd != rs)
             reachable = false;
     }

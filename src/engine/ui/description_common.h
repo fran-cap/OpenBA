@@ -60,9 +60,6 @@ namespace rtdesc {
 // version 0) and `??1Serializer@IO@@` (0x1800b99b0): B4 bodies build a real
 // `IO::Serializer ser(stream, 0)` for exactly those stores and that teardown.
 
-// UI::Element::_flags bit 27 (Element.h kElementFlagNeedsSizeCalc).
-constexpr uint32_t kElementFlagNeedsSizeCalc = 0x08000000u;
-
 // B3R RT-UI: `?MemFree@MemoryAllocator@System@@` (0x1800c7ad0), called
 // directly (B3R_RULES R9, correction 1).
 inline void MemFree(void* p) {
@@ -101,7 +98,7 @@ inline void ReleaseStringField(char*& s) {
 // ---- fragment 4: the needs-size-calc walk, as a DO-WHILE -------------------
 inline void MarkNeedsSizeCalc(UI::Element* n) {
     do {
-        n->_flags |= kElementFlagNeedsSizeCalc;
+        n->_flags |= UI::kElementFlagNeedsSizeCalc;
         n = n->_parent;
     } while (n != nullptr);
 }

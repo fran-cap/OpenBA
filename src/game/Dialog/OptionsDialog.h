@@ -44,7 +44,7 @@ public:
     void OnClosed() override;                                      // [5] 0x140073480 RET
     // [6] / [7]: DialogInstance's bodies, inherited (B38 D3.1).
     void OnElementEvent(Object::InternalPtr<UI::Element>* element,
-                        int32_t a, int32_t b, int32_t c,
+                        UI::EventId a, int32_t b, int32_t c,
                         int32_t d, int32_t e, void* userData) override;  // [8] 0x140072f20
 
 private:

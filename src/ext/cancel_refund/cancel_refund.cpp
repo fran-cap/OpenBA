@@ -39,7 +39,7 @@ int FindDropCell(Map* map, int x0, int y0, int w, int h) {
     int found = -1;
     ComponentEntity* allow = nullptr;   // DropOnGround's null allow slot
     ForEachRimCell(x0, y0, w, h, map->size, [&](int start) -> bool {
-        found = map->FindPlacementCell(start, '\0', &allow, 0);   // 0x14009bd40
+        found = map->FindPlacementCell(start, '\0', &allow, PathBits{});   // 0x14009bd40 (no walk mask)
         return found >= 0;
     });
     return found;

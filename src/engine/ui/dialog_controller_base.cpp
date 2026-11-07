@@ -167,7 +167,7 @@ void DialogController::OnClosed() {}                                   // [6]  0
 void DialogController::OnUpdateLayout() {}                             // [7]  0x1800cd280
 void DialogController::OnUpdate(const System::Time& /*time*/) {}       // [8]  0x1800cd270
 void DialogController::OnElementEvent(Object::InternalPtr<Element>* /*element*/,
-                                      int32_t, int32_t, int32_t, int32_t, int32_t,
+                                      UI::EventId, int32_t, int32_t, int32_t, int32_t,
                                       void* /*userData*/) {}           // [9]  0x1800cd260
 // [10] 0x1800cd250 — `IO::Stream&`, never read. This is the slot
 // dialog_settings.cpp dispatches per controller on the write path and OnOpened

@@ -37,6 +37,7 @@
 #include "system/Value.h"                // RtSystem_Time_Ctor
 #include "Game/PlayerToolManager.h"
 #include "Game/Map.h"
+#include "Game/inputbindings.h"     // GameKey (the KeyMap ids)
 #include "Game/WorldGeometry.h"
 #include "Game/WorldGeometryElements.h"   // GeometryDrawRange, TerrainVertex (the water mesh log)
 #include "Component/still_terrain.h"    // StillTerrain::Bump (the terrain epoch)
@@ -162,7 +163,7 @@ void AdoptWorld(const void* map, const void* heights, int stride) {
 // is built once from the ground's heights at that time, so ground raised or lowered under a road would bury
 // it or leave it in the air, and the cell's type must stay what the road was built on.
 bool IsRoadCell(const MapCell& cell) {
-    return cell.field_0x2A != 0xFF;
+    return cell.field_0x2A != MapCell::kNoRoadBatch;
 }
 
 // A vertex is a corner of four cells, and the terrain classifier reads the cell centre from all four
@@ -203,7 +204,8 @@ bool UndoWouldSkip(Map* map, const Ext::TerrainEdit::Stroke& stroke, int stride,
         if (cell.blocker.Get() != nullptr || IsRoadCell(cell)) return true;
         // A stroke further down the list finds its cells retyped by the strokes above it, which are undone
         // first and put the types back, so only the top stroke is held to the type it wrote.
-        if (typesMustMatch && (wrote == stroke.written.end() || cell.terrainType != wrote->second)) {
+        if (typesMustMatch &&
+            (wrote == stroke.written.end() || static_cast<uint8_t>(cell.terrainType) != wrote->second)) {
             return true;
         }
     }
@@ -216,8 +218,9 @@ constexpr int kMaxWaterRanges = 0x2000;
 
 // The cell types the terrain classifier assigns (Map::ClassifyTerrain): the brush may retype a cell only
 // while it holds one of these, so a road, a field or any other cell the game gave a meaning to keeps it.
-bool IsNaturalType(uint8_t t) {
-    return t == 2 || t == 6 || t == 7 || t == 8 || t == 10;
+bool IsNaturalType(PathType t) {
+    return t == PathType::Normal || t == PathType::Unusable || t == PathType::Water ||
+           t == PathType::DeepWater || t == PathType::Walkable;
 }
 
 // The tint of the brush's disc, ARGB, per mode.
@@ -910,7 +913,7 @@ void RefreshWaterAccess(Map* map, int boxMinX, int boxMinY, int boxMaxX, int box
     }
     const MapCell* cells = map->cells.GetData();
     for (const int cell : look) {
-        if (cells[cell].terrainType != 2) continue;
+        if (cells[cell].terrainType != PathType::Normal) continue;
         const int x = cell % size;
         const int y = cell / size;
         bool found = false;
@@ -918,8 +921,8 @@ void RefreshWaterAccess(Map* map, int boxMinX, int boxMinY, int boxMaxX, int box
             for (int nx = x - 1; nx <= x + 1; ++nx) {
                 if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
                 const int neighbour = size * ny + nx;
-                const uint8_t t = cells[neighbour].terrainType;
-                if (t == 7 || t == 8) {
+                const PathType t = cells[neighbour].terrainType;
+                if (t == PathType::Water || t == PathType::DeepWater) {
                     WaterCellPair pair;
                     pair.cellA = cell;
                     pair.cellB = neighbour;
@@ -975,9 +978,11 @@ void RemoveResourcesInLakes(Map* map, const StrokeBox& box) {
             ++resources;
             const int cls = map->ClassifyTerrain(idx);
             if (cls >= 0 && cls < 16) ++byClass[cls];
-            if (cls != 7 && cls != 8) continue;
+            if (cls != static_cast<int>(PathType::Water) && cls != static_cast<int>(PathType::DeepWater)) {
+                continue;
+            }
             ++inWater;
-            if (((entity->_entityFlags >> 10) & 1) == 0) ++removed;
+            if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) ++removed;
             RemoveNaturalResource(entity);
         }
     }
@@ -1042,7 +1047,7 @@ void ReseatOccupant(Map* map, ComponentEntity* entity) {
 // bring it back.
 void RemoveNaturalResource(ComponentEntity* entity) {
     if (entity == nullptr || entity->FindComponent<NaturalResourceComponent>() == nullptr) return;
-    if (((entity->_entityFlags >> 10) & 1) != 0) return;   // already marked
+    if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0) return;   // already marked
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
     if (game == nullptr || game->m_entityList == nullptr) return;
     entity->MarkForRemoval();
@@ -1123,8 +1128,8 @@ void RescanPalette() {
 // mountain or water).
 bool CanPlantOn(const MapCell& cell) {
     if (cell.occupant.Get() != nullptr || cell.blocker.Get() != nullptr || IsRoadCell(cell)) return false;
-    const uint8_t t = cell.terrainType;
-    return IsNaturalType(t) && t != 6 && t != 7 && t != 8;
+    const PathType t = cell.terrainType;
+    return IsNaturalType(t) && t != PathType::Unusable && t != PathType::Water && t != PathType::DeepWater;
 }
 
 // Plants the picked template on `cell` and returns the entity, or null when the cell does not take it.
@@ -1239,7 +1244,7 @@ public:
         if (g_frameHook != nullptr) g_frameHook();
         const Input::Configuration* cfg = Input::Configuration::_singleton;
         const bool held = active && cfg != nullptr && cfg->_keyMap != nullptr && cfg->_keyMap->GetValue(0,
-            5) != 0;   // left button
+            ToUnderlying(GameKey::MouseLeft)) != 0;   // left button
         const bool pressed = held && !_wasHeld;
         if (!held && _wasHeld) {
             FinishStroke();   // the button went up: the stroke is one undo step
@@ -1358,11 +1363,14 @@ public:
             ReseatOccupant(map, mc.occupant.Get());   // a tree or rock on the cell goes with the ground
             if (mc.blocker.Get() != nullptr || IsRoadCell(mc) || !IsNaturalType(mc.terrainType)) continue;
             const int cls = map->ClassifyTerrain(idx);
-            if (cls != mc.terrainType && IsNaturalType(static_cast<uint8_t>(cls))) {
-                g_undo.RecordType(idx, mc.terrainType);
+            if (cls != static_cast<uint8_t>(mc.terrainType) && IsNaturalType(static_cast<PathType>(cls))) {
+                g_undo.RecordType(idx, static_cast<uint8_t>(mc.terrainType));
                 g_undo.RecordWrittenType(idx, static_cast<uint8_t>(cls));
                 map->SetTerrainType(idx, static_cast<uint32_t>(cls));
-                if (cls == 7 || cls == 8) RemoveNaturalResource(mc.occupant.Get());   // a lake covers it
+                if (cls == static_cast<int>(PathType::Water) ||
+                    cls == static_cast<int>(PathType::DeepWater)) {
+                    RemoveNaturalResource(mc.occupant.Get());   // a lake covers it
+                }
             }
         }
     }
@@ -1570,7 +1578,7 @@ bool UndoLast() {
         // only a cell that is free and still holds the type the stroke gave it: not a road, a field or a
         // house built since
         if (undone.blocker.Get() != nullptr || IsRoadCell(undone) || wrote == stroke.written.end() ||
-            undone.terrainType != wrote->second) {
+            static_cast<uint8_t>(undone.terrainType) != wrote->second) {
             continue;
         }
         map->SetTerrainType(entry.first, static_cast<uint32_t>(entry.second));

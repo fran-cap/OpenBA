@@ -281,8 +281,8 @@ void ProductionUI::UpdateList(int listIndex) {
         numberElem->SetValue(static_cast<int32_t>(count));
 
         // Show both elements
-        labelElem->SetFlagsOnOff(0, 1);
-        numberElem->SetFlagsOnOff(0, 1);
+        labelElem->SetFlagsOnOff(0, UI::kElementFlagHidden);
+        numberElem->SetFlagsOnOff(0, UI::kElementFlagHidden);
 
         i++;
     }
@@ -302,7 +302,7 @@ void ProductionUI::UpdateList(int listIndex) {
 
         // Hide number element
         UI::NumberElement* numberElem = elemPair.numberCount;
-        numberElem->SetFlagsOnOff(1, 0);
+        numberElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 
         i++;
     }

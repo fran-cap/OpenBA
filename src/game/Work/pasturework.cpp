@@ -237,8 +237,8 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                         int animalCell = iVar21 * iVar10 + iVar9;
 
                         // Pathfinding check
-                        uint32_t uVar11 = (uint32_t)piVar4->FindCell(animalCell, uVar23, 0xe1f);
-                        uint64_t uVar16 = (uint64_t)piVar4->ValidateCell(0xe1f, (uint32_t)uVar11, uVar23);
+                        uint32_t uVar11 = (uint32_t)piVar4->FindCell(animalCell, uVar23, PathBits::Walk);
+                        uint64_t uVar16 = (uint64_t)piVar4->ValidateCell(PathBits::Walk, (uint32_t)uVar11, uVar23);
 
                         if ((char)uVar16 != '\0') {
                             // The AnimalComponent's description for the RemoveAnimal action
@@ -278,12 +278,12 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                             Profession* workEnt = nullptr;
                             GetTarget(&workEnt);
 
-                            citizenEnt->statusFlags |= 4;
+                            citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
                             citizenEnt->field_0x30 = priority;
                             citizenEnt->field_0xB0 = 0;
 
                             if (workEnt == citizenEnt->profession && priority >= 0) {
-                                citizenEnt->happinessFlags |= 0x20000;
+                                citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                             }
                             return 2;
                         }
@@ -357,9 +357,9 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         // Random::Rand(h) then Rand(w), the bounded overload (0x1400f299d / 0x1400f29aa)
         int randCell = WorkRules::PastureGrazeCell(*rng, sVar1, sVar2, sVar3, area->tileY1, map->size);
 
-        int nearCell = piVar4->FindCell(randCell, uVar23, 0xe1f);
+        int nearCell = piVar4->FindCell(randCell, uVar23, PathBits::Walk);
         if (nearCell >= 0) {
-            uint64_t canPath = (uint64_t)piVar4->ValidateCell(0xe1f, uVar23, nearCell);
+            uint64_t canPath = (uint64_t)piVar4->ValidateCell(PathBits::Walk, uVar23, nearCell);
             uint32_t dVar7 = PastureComponent::TypeId();  // DWORD_1401c7ba0
 
             if ((char)canPath != '\0') {
@@ -410,13 +410,13 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                 Profession* workEnt = nullptr;
                 GetTarget(&workEnt);
 
-                citizenEnt->statusFlags |= 4;
+                citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
                 citizenEnt->field_0x30 = priority;
                 citizenEnt->field_0xB0 = 0;
 
                 // Profession match: slot 10's result vs citizen+0x1F0 (Profession*).
                 if (workEnt == citizenEnt->profession && priority >= 0) {
-                    citizenEnt->happinessFlags |= 0x20000;
+                    citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                 }
 
                 // Register work with CitizenAI (CitizenAI_impl_1a30):

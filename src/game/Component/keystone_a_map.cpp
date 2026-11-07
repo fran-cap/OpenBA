@@ -126,11 +126,11 @@ int Map::ClassifyTerrain(int param_2) {
     float height = outVec[2];                                       // local_10
     float slope  = outMat[2];                                       // local_20
 
-    if (height < kT_Ret8) return 8;
-    if (height < kT_Ret7) return 7;
-    if (kT_Ret7 <= height && height <= kT_Ret2Hi && kSlopeMin <= slope) return 2;
-    int ret = 6;
-    if (height < kT_Ret6) ret = 10;
+    if (height < kT_Ret8) return static_cast<int>(PathType::DeepWater);
+    if (height < kT_Ret7) return static_cast<int>(PathType::Water);
+    if (kT_Ret7 <= height && height <= kT_Ret2Hi && kSlopeMin <= slope) return static_cast<int>(PathType::Normal);
+    int ret = static_cast<int>(PathType::Unusable);
+    if (height < kT_Ret6) ret = static_cast<int>(PathType::Walkable);
     return ret;
 }
 
@@ -169,7 +169,7 @@ void MapComponent_overlay_dc20(Map* param_1, ComponentEntity* const* owner, uint
                             EntityList* entityList = GameUpdateLoop::_singleton->m_entityList;   // +0xE8
                             ComponentEntity* local_68 = lVar2;
                             if (lVar2 != nullptr) {
-                                if ((local_68->_entityFlags >> 10 & 1) == 0) {
+                                if ((local_68->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                                     // Always-on tally (the trace above is opt-in AND capped at
                                     // 40 lines, so nothing countable survived a default run).
                                     // This branch DESTROYS an entity, so its rate is the single
@@ -177,7 +177,7 @@ void MapComponent_overlay_dc20(Map* param_1, ComponentEntity* const* owner, uint
                                     // spawned entity gets freed while its ModelComponent is
                                     // still linked into Graphics::Scene.
                                     ++g_dc20Evictions;
-                                    if ((local_68->_entityFlags & 2) == 0) {
+                                    if ((local_68->_entityFlags & Bits(ComponentFlags::OnRemove)) == 0) {
                                         ++g_dc20EvictNoTeardown;   // scene geometry will dangle
                                     } else {
                                         // Entity gate passed — but MarkForRemoval's broadcast
@@ -190,7 +190,7 @@ void MapComponent_overlay_dc20(Map* param_1, ComponentEntity* const* owner, uint
                                         int participating = 0;
                                         for (int ci = 0; ci < n && arr; ++ci) {
                                             Component* c = arr[ci].Get();
-                                            if (c && (c->_flags >> 1 & 1))
+                                            if (c && (c->_flags & Bits(ComponentFlags::OnRemove)))
                                                 ++participating;
                                         }
                                         if (participating == 0) ++g_dc20EvictNoParticipant;
@@ -235,7 +235,7 @@ void MapComponent_overlay_dc20(Map* param_1, ComponentEntity* const* owner, uint
                         }
                         bVar19 = cVar1 != '.';
                         if (cVar1 == '_') {
-                            bVar16 = 2;
+                            bVar16 = ToUnderlying(PathType::Normal);
                         }
                         // ⚠ DELIBERATE DEVIATION — BANISHED_LIVE_WALKWAY_DROPCELLS (default
                         // on; set =0 to restore the byte-faithful claim). Retail claims '_'
@@ -250,7 +250,7 @@ void MapComponent_overlay_dc20(Map* param_1, ComponentEntity* const* owner, uint
                         }
                     }
 
-                    uint8_t bVar10 = cell->terrainType;   // +0x29
+                    uint8_t bVar10 = static_cast<uint8_t>(cell->terrainType);   // +0x29
                     if (bVar7) {
                         bVar10 = bVar16;
                     }
@@ -322,12 +322,13 @@ void CreateNaturalResource_impl_dee0(Map* param_1, ComponentEntity* const* owner
                     if (bVar6) {
                         int cls = param_1->ClassifyTerrain(iVar14);
                         uint8_t bVar13 = (uint8_t)cls;
-                        if (((1 << (bVar13 & 0x1f) & 0x1e0u) != 0) && (plVar11->blocker != nullptr)) {   // +0x00
+                        if (((1 << (bVar13 & 0x1f) & Bits(PathBits::Zoneless)) != 0)
+                            && (plVar11->blocker != nullptr)) {   // +0x00
                             if (plVar11->blocker != *owner) {
-                                bVar13 = 2;
+                                bVar13 = ToUnderlying(PathType::Normal);
                             }
                         }
-                        CellTrace::NoteResort(param_1, iVar14, plVar11->terrainType, bVar13);
+                        CellTrace::NoteResort(param_1, iVar14, static_cast<uint8_t>(plVar11->terrainType), bVar13);
                         param_1->SetTerrainType(iVar14, (uint32_t)bVar13);   // 0x14009f2f0
                     }
 

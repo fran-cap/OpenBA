@@ -46,6 +46,7 @@
 #include <cmath>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "input/Input.h"       // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 
 
 // ============================================================
@@ -100,7 +101,7 @@ char FencedTool::OnKey(char key) {
     const Input::KeyMap* keyMap = GetKeyMap();
 
     // Check rotate counter-clockwise (key 0x13)
-    bool rotLeft = keyMap->Pressed(0, 0x13);
+    bool rotLeft = keyMap->Pressed(0, ToUnderlying(GameKey::StructureLeft));
     if (rotLeft) {
         RotationSetting* rotSetting = rotationSetting;
         rotSetting->rotation = rotSetting->rotation - 1;
@@ -110,7 +111,7 @@ char FencedTool::OnKey(char key) {
         }
     } else {
         // Check rotate clockwise (key 0x14)
-        bool rotRight = keyMap->Pressed(0, 0x14);
+        bool rotRight = keyMap->Pressed(0, ToUnderlying(GameKey::StructureRight));
         if (rotRight) {
             RotationSetting* rotSetting = rotationSetting;
                 rotSetting->rotation = rotSetting->rotation + 1;
@@ -303,7 +304,7 @@ int FencedTool::CalcCost(int startCell, int endCell,
             const MapCell* cellPtr = &cellDataBase[cellIdx];
 
             // Check terrain type mask
-            uint8_t terrainByte = cellPtr->terrainType;
+            uint8_t terrainByte = static_cast<uint8_t>(cellPtr->terrainType);
             if ((~terrainMask & (1u << (terrainByte & 0x1f))) != 0) {
                 allValid = false; break;
             }
@@ -500,7 +501,7 @@ void FencedTool::Draw(Video::Context* context, char param3) {
                 const MapCell* cellPtr = &cellDataBase[cellIdx];
 
                 // Terrain type check
-                uint8_t terrainByte = cellPtr->terrainType;
+                uint8_t terrainByte = static_cast<uint8_t>(cellPtr->terrainType);
                 if ((~terrainMask & (1u << (terrainByte & 0x1f))) != 0) {
                     valid = false;
                 } else {

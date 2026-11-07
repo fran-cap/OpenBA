@@ -158,8 +158,8 @@ bool AppendElement(Dxbc::Container& c, uint32_t fourcc, uint32_t reg, uint32_t s
     std::memcpy(e, d.data() + 8 + 24 * tex, 24);
     std::memcpy(e + 4, &semIx, 4);
     std::memcpy(e + 16, &reg, 4);
-    e[20] = 0xF;
-    e[21] = fourcc == Dxbc::FourCC('I', 'S', 'G', 'N') ? 0xF : 0x0;
+    e[20] = Dxbc::Mask::XYZW;
+    e[21] = fourcc == Dxbc::FourCC('I', 'S', 'G', 'N') ? static_cast<int>(Dxbc::Mask::XYZW) : 0x0;
     d.insert(d.begin() + static_cast<std::ptrdiff_t>(table), e, e + 24);
     ++count;
     std::memcpy(d.data(), &count, 4);
@@ -185,9 +185,10 @@ bool WidenElement(Dxbc::Container& c, uint32_t fourcc, uint32_t reg) {
         uint32_t r;
         std::memcpy(&r, e + 16, 4);
         if (r != reg) continue;
-        e[20] = 0xF;
-        e[21] = fourcc == Dxbc::FourCC('I', 'S', 'G', 'N') ? static_cast<uint8_t>(e[21] | 0x8)
-                                                           : static_cast<uint8_t>(e[21] & ~0x8);
+        e[20] = Dxbc::Mask::XYZW;
+        e[21] = fourcc == Dxbc::FourCC('I', 'S', 'G', 'N')
+                    ? static_cast<uint8_t>(e[21] | Dxbc::Mask::W)
+                    : static_cast<uint8_t>(e[21] & ~static_cast<int>(Dxbc::Mask::W));
         found = true;
     }
     return found;
@@ -196,7 +197,7 @@ bool WidenElement(Dxbc::Container& c, uint32_t fourcc, uint32_t reg) {
 // ---- token emitters -------------------------------------------------------------------------------
 void InputSrc(std::vector<uint32_t>& t, uint32_t reg, uint32_t swz, uint32_t modifier = 0) {
     uint32_t tok = 2u | (1u << 2) | ((swz & 0xFF) << 4) | (OT::Input << 12) | (1u << 20);
-    if (modifier) tok |= 0x80000000u;
+    if (modifier) tok |= Dxbc::kTokenExtended;
     t.push_back(tok);
     if (modifier) t.push_back(1u | (modifier << 6));
     t.push_back(reg);
@@ -340,7 +341,8 @@ void AnalyseVertex(Match* m) {
                 m->depthMulIdx = static_cast<int>(i);
                 m->depthMulOp  = static_cast<int>(k);
             }
-            if (in.opcode == Op::Mul && ReadsOnly(o, 0) && dst.selMode == 0 && dst.Mask() == 0x4) {   // n.z * snow
+            if (in.opcode == Op::Mul && ReadsOnly(o, 0) && dst.selMode == 0
+                && dst.Mask() == Dxbc::Mask::Z) {   // n.z * snow
                 foliageIdx = static_cast<int>(i);
                 foliageReg = dst.index[0];
             }
@@ -360,7 +362,7 @@ void AnalyseVertex(Match* m) {
     if (foliageIdx >= 0) {
         for (const SigElem& e : osgn) {
             if (e.reg != foliageReg) continue;
-            if (e.mask != 0x7) return Refuse(m, "foliage: the snow interpolant is not xyz");
+            if (e.mask != Dxbc::Mask::XYZ) return Refuse(m, "foliage: the snow interpolant is not xyz");
             m->snowReg = foliageReg;
         }
         if (m->snowReg != foliageReg) return Refuse(m, "foliage: no OSGN element for the snow interpolant");
@@ -481,7 +483,7 @@ void EmitBloomVertex(Writer& w, const Match& m, uint32_t n2) {
     w.Ins(kRoundNi, [&] { E::TempDst(t, Ev, 1); E::TempSrc(t, Ev, E::Rep(0)); });
     w.Ins(Op::Mad, [&] { E::TempDst(t, Ev, 2); E::TempSrc(t, Ev, E::Rep(0)); E::ImmScalar(t, -256.0f); E::TempSrc(t, F, E::Rep(2)); });
     // the pink buds' G and B (kBudTint.x is 0: R is left alone), then the output
-    w.Ins(Op::Mad, [&] { E::TempDst(t, Ev, 0xC); E::TempSrc(t, F, E::Rep(1)); E::Imm4(t, 0.0f, 0.0f, Bl::kBudTint[1], Bl::kBudTint[2]);
+    w.Ins(Op::Mad, [&] { E::TempDst(t, Ev, Dxbc::Mask::ZW); E::TempSrc(t, F, E::Rep(1)); E::Imm4(t, 0.0f, 0.0f, Bl::kBudTint[1], Bl::kBudTint[2]);
                          E::Imm4(t, 0.0f, 0.0f, 1.0f, 1.0f); });
     w.Ins(Op::Mul, [&] { E::TempDst(t, Ev, 3); E::TempSrc(t, Ev, E::Swizzle(0, 1, 0, 0)); E::TempSrc(t, Ev, E::Swizzle(2, 3, 2, 2)); });
     w.Ins(Op::Mul, [&] { E::OutputDst(t, n2, 1); E::TempSrc(t, F, E::Rep(0)); E::ImmScalar(t, 1.0f / 255.0f); });
@@ -504,11 +506,11 @@ bool TransformVertex(const Match& m, const Curves& cv, std::vector<uint8_t>* out
             const size_t at = t.size();
             t.insert(t.end(), src, src + in.length);
             if (in.opcode == Op::DclTemps) t[at + 1] = m.temps + (m.kind == Kind::BillboardColour ? 6 : 4);
-            if (m.kind == Kind::Foliage && ii == m.dclIdx) t[at + 1] |= 0xFu << 4;   // dcl_output oS.xyzw
+            if (m.kind == Kind::Foliage && ii == m.dclIdx) t[at + 1] |= Dxbc::Mask::XYZW << 4;   // dcl_output oS.xyzw
             if (m.kind == Kind::BillboardColour && ii == m.lastDclOut) {
                 for (uint32_t r = m.newReg; r <= m.newReg + 1; ++r) {   // the terms, the blossom
                     t.push_back(E::Opcode(kDclOutput, 3));
-                    t.push_back(2u | (0xFu << 4) | (OT::Output << 12) | (1u << 20));
+                    t.push_back(2u | (Dxbc::Mask::XYZW << 4) | (OT::Output << 12) | (1u << 20));
                     t.push_back(r);
                     ++dclAdded;
                 }
@@ -569,7 +571,7 @@ void AnalysePixel(Match* m) {
             if (IsCb(o, kPixelCb, kPixelUserRow)) readsPixelUser = true;
         if (m->sampleIdx < 0 && in.opcode == Op::Sample && in.operands.size() == 4 &&
             in.operands[1].type == OT::Input && in.operands[2].type == OT::Resource && in.operands[2].index[0] == 0 &&
-            in.operands[0].type == OT::Temp && in.operands[0].Mask() == 0xF) {
+            in.operands[0].type == OT::Temp && in.operands[0].Mask() == Dxbc::Mask::XYZW) {
             m->sampleIdx = static_cast<int>(i);
             rA = in.operands[0].index[0];
         }
@@ -653,7 +655,7 @@ void AnalysePixel(Match* m) {
     if (!amount) return Refuse(m, "foliage: no snow amount read from the interpolant's z");
     for (const SigElem& e : isgn) {
         if (e.reg != static_cast<uint32_t>(snow)) continue;
-        if (e.mask != 0x7) return Refuse(m, "foliage: the snow interpolant is not xyz");
+        if (e.mask != Dxbc::Mask::XYZ) return Refuse(m, "foliage: the snow interpolant is not xyz");
         m->snowReg = e.reg;
     }
     if (m->snowReg != static_cast<uint32_t>(snow)) return Refuse(m, "foliage: no ISGN element for the snow input");
@@ -685,13 +687,13 @@ void EmitBloomLayer(Writer& w, const Match& m, int layer) {
     if (layer == 0) {
         // the cells per pixel -> the far-field blend (P.x)
         w.Ins(Op::DerivRtx, [&] { E::TempDst(t, P, 3); E::TempSrc(t, Q, XYXX); });
-        w.Ins(Op::DerivRty, [&] { E::TempDst(t, P, 0xC); E::TempSrc(t, Q, E::Swizzle(0, 0, 0, 1)); });
+        w.Ins(Op::DerivRty, [&] { E::TempDst(t, P, Dxbc::Mask::ZW); E::TempSrc(t, Q, E::Swizzle(0, 0, 0, 1)); });
         w.Ins(Op::Add, [&] { E::TempDst(t, P, 3); E::TempSrc(t, P, XYXX, 2); E::TempSrc(t, P, E::Swizzle(2, 3, 2, 2), 2); });
         w.Ins(Op::Max, [&] { E::TempDst(t, P, 1); E::TempSrc(t, P, E::Rep(0)); E::TempSrc(t, P, E::Rep(1)); });
         w.Ins(Op::Mad, true, [&] { E::TempDst(t, P, 1); E::TempSrc(t, P, E::Rep(0)); E::ImmScalar(t, Bl::kAaSlope);
                                    E::ImmScalar(t, -Bl::kAaStart * Bl::kAaSlope); });
     }
-    w.Ins(kRoundNi, [&] { E::TempDst(t, P, 0xC); E::TempSrc(t, Q, E::Swizzle(0, 0, 0, 1)); });
+    w.Ins(kRoundNi, [&] { E::TempDst(t, P, Dxbc::Mask::ZW); E::TempSrc(t, Q, E::Swizzle(0, 0, 0, 1)); });
     // hash33(cell) -> R.xyz (EmitTerms' sequence, S the scratch)
     w.Ins(Op::Mul, [&] { E::TempDst(t, S, 7); E::TempSrc(t, P, E::Swizzle(2, 3, 2, 2)); E::Imm4(t, kHashK[0], kHashK[1], kHashK[2], 0.0f); });
     w.Ins(kFrc, [&] { E::TempDst(t, S, 7); E::TempSrc(t, S, XYZX); });
@@ -777,11 +779,11 @@ bool TransformPixel(const Match& m, std::vector<uint8_t>* out, bool bloom) {
             const size_t at = t.size();
             t.insert(t.end(), src, src + in.length);
             if (in.opcode == Op::DclTemps) t[at + 1] = m.temps + (bloomed ? 8 : (bb ? 3 : 1));
-            if (!bb && ii == m.dclIdx) t[at + 1] |= 0xFu << 4;   // dcl_input_ps vD.xyzw
+            if (!bb && ii == m.dclIdx) t[at + 1] |= Dxbc::Mask::XYZW << 4;   // dcl_input_ps vD.xyzw
             if (bb && ii == m.lastDclIn) {
                 for (uint32_t r = N; r <= N + 1; ++r) {   // the terms, the blossom
                     t.push_back(src[0]);   // dcl_input_ps with the same (linear) interpolation
-                    t.push_back(2u | (0xFu << 4) | (OT::Input << 12) | (1u << 20));
+                    t.push_back(2u | (Dxbc::Mask::XYZW << 4) | (OT::Input << 12) | (1u << 20));
                     t.push_back(r);
                     t[t.size() - 3] = (src[0] & ~(0x7Fu << 24)) | (3u << 24);
                     ++dclAdded;

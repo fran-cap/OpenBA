@@ -243,7 +243,7 @@ extern "C" int BoatRoute_FindWaterPath(Map* map, void* /*unused2*/, uint32_t fro
         pf->SetStepCost(i, kCost[i]);
     pf->SetSearchFlags(1, 0, 0);   // 0x1400a68b0 (1, 0, 0)
     const int n = pf->QueryPath(static_cast<int>(fromCell), static_cast<int>(toCell & 0xffffffffu),
-                                       0x380, outBuf, 0x1000);   // 0x1400a6e30
+                                       Bits(PathBits::Boat), outBuf, 0x1000);   // 0x1400a6e30
     return n;
 }
 

@@ -108,7 +108,7 @@ bool NodeOf(ComponentEntity* entity, Math::Vector3* out) {
 // The squared cell distance from `cell` to `entity`'s interaction node, -1 when it has none or (with
 // zone != 0) the node is not in that zone.
 long long NodeDistance(const Map* map, ComponentEntity* entity, int cell, uint16_t zone, Math::Vector3* node) {
-    if (entity == nullptr || ((entity->_entityFlags >> 10) & 1) != 0) return -1;   // marked for removal
+    if (entity == nullptr || (entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0) return -1;
     if (!NodeOf(entity, node)) return -1;
     const int nodeCell = CellOf(map, node->x, node->y);
     if (zone != 0 && map->cells.GetData()[nodeCell].zone != zone) return -1;
@@ -232,7 +232,7 @@ bool RescueWalkRunning(CharacterComponent* character) {
     if (stack.current < 0) return false;
     Action* top = stack.actions[stack.current].Get();
     if (top == nullptr || top->Type() != MoveTo::TypeId()) return false;
-    return static_cast<MoveTo*>(top)->passFlags == kRescueFlags;
+    return static_cast<MoveTo*>(top)->passFlags == Bits(kRescueFlags);
 }
 
 // Clear the citizen's stack and push one walk to `dest` with the rescue pass flags, led by the
@@ -300,20 +300,23 @@ void OnRefused(MoveTo* walk) {
     Map* map = GameUpdateLoop::_singleton->m_game;
     const MapCell& here = CharacterCell(map, character);
     const MapCell& there = CellAt(map, walk->destination.x, walk->destination.y);
-    if (!IsZoneRefusal(walk->passFlags, here.terrainType, here.zone, there.terrainType, there.zone)) return;
+    if (!IsZoneRefusal(static_cast<PathBits>(walk->passFlags), here.terrainType, here.zone, there.terrainType,
+                       there.zone)) {
+        return;
+    }
     // Only a citizen has an anchor (a nomad's or an animal's walk is not recorded).
     CitizenComponent* citizen = character->_entity->FindComponent<CitizenComponent>();
     if (citizen == nullptr) return;
     const Math::Vector3& pos = character->modelComponent->transform.translation;
     const Anchor anchor = ResolveAnchor(map, citizen, CellOf(map, pos.x, pos.y));
-    Store(character, OnRefusal(Load(character), walk->passFlags, here.terrainType, here.zone,
-                               there.terrainType, there.zone, anchor.zone));
+    Store(character, OnRefusal(Load(character), static_cast<PathBits>(walk->passFlags), here.terrainType,
+                               here.zone, there.terrainType, there.zone, anchor.zone));
 }
 
 void OnEmptyPath(MoveTo* walk) {
     CharacterComponent* character = walk->character.Get();
     if (character == nullptr) return;
-    Store(character, OnWalkEnd(Load(character), false, walk->passFlags == kRescueFlags));
+    Store(character, OnWalkEnd(Load(character), false, walk->passFlags == Bits(kRescueFlags)));
 }
 
 void OnExit(MoveTo* walk) {
@@ -322,7 +325,7 @@ void OnExit(MoveTo* walk) {
     Map* map = GameUpdateLoop::_singleton->m_game;
     const Math::Vector3& pos = character->modelComponent->transform.translation;
     if (CellOf(map, pos.x, pos.y) != CellOf(map, walk->destination.x, walk->destination.y)) return;
-    State s = OnWalkEnd(Load(character), true, walk->passFlags == kRescueFlags);
+    State s = OnWalkEnd(Load(character), true, walk->passFlags == Bits(kRescueFlags));
     // A record made in another zone than the one he arrived in is stale ("since he entered").
     const MapCell& here = CharacterCell(map, character);
     if (IsZonedLand(here.terrainType, here.zone) && here.zone != s.zone) {

@@ -41,7 +41,8 @@ void NoteCount(const Map* map, const MapCell* cell, uint8_t before, int delta, c
     const int index = CellIndex(map, cell);
     ErrLine("[CellTrace] count %s cell=%d (%d,%d) %u%+d -> %u terrain=%u road=%02x blocker=%s\n",
             site, index, index % map->size, index / map->size, before, delta,
-            static_cast<unsigned>(static_cast<uint8_t>(after)), cell->terrainType, cell->field_0x2A,
+            static_cast<unsigned>(static_cast<uint8_t>(after)), static_cast<unsigned>(cell->terrainType),
+            cell->field_0x2A,
             EntityName(cell->blocker.Get()).c_str());
 }
 
@@ -79,7 +80,8 @@ void DumpCells(const Map* map, const char* stage, int version) {
         float tri[3] = {0, 0, 0};
         query->GetTerrainPos(pos, inXY, '\x01', tri);
         std::fprintf(out, "%d %d %d %u %u %u %u %u %d %u %s %s %d %.4f %.4f\n",
-                     i, i % size, i / size, cell.footprintCount, cell.terrainType, cell.field_0x2A,
+                     i, i % size, i / size, cell.footprintCount, static_cast<unsigned>(cell.terrainType),
+                     cell.field_0x2A,
                      cell.field_0x2B, cell.field_0x2C, cell.floorCount, cell.zone,
                      EntityName(cell.blocker.Get()).c_str(), EntityName(cell.occupant.Get()).c_str(),
                      query->ClassifyTerrain(i), pos[2], tri[2]);

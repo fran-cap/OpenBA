@@ -115,7 +115,7 @@ void DropOffRawMaterial::DropOnGround(ComponentDescription* material, int count)
     if (size <= x) x = size - 1;
     if (y < 0) y = 0;
     if (size <= y) y = size - 1;
-    int cell = map->FindPlacementCell(size * y + x, '\0', &allow, 0);   // 0x14009bd40
+    int cell = map->FindPlacementCell(size * y + x, '\0', &allow, PathBits{});   // 0x14009bd40
     if (-1 < cell) {
         ComponentEntity* created = nullptr;
         ComponentEntity* mem = static_cast<ComponentEntity*>(MemAlloc(0x48, 8));
@@ -208,7 +208,7 @@ uint64_t DropOffRawMaterial::Deposit(ActionStack* stack, StorageComponent* const
         if (mem != nullptr) {
             CharacterComponent* character =
                 citizen->_entity->FindComponent<CharacterComponent>();   // 0x1400012d0
-            ptr = new (mem) MoveTo(&character, /*Slow*/1, 0, dropPos, 0xe1f, 0,   // 0x1400c9170
+            ptr = new (mem) MoveTo(&character, /*Slow*/1, 0, dropPos, PathBits::Walk, 0,   // 0x1400c9170
                                    kRdata_140172280);
         }
         ::Object::InternalPtr<Action> pushed(ptr);
@@ -341,7 +341,7 @@ void RemoveAnimalActions(CitizenComponent* const* citizenIBP, uint32_t task, flo
             CharacterComponent* characterIBP =
                 citizen->_entity->FindComponent<CharacterComponent>();   // 0x1400012d0
             moveTo = new (mem) MoveTo(&characterIBP, /*Slow*/1, 0,   // 0x1400c9170
-                                      destination, 0xe1f, 0,
+                                      destination, PathBits::Walk, 0,
                                       kRdata_140172280);
         }
         ::Object::InternalPtr<Action> pushed(moveTo);

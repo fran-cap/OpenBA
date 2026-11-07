@@ -182,11 +182,22 @@ public:
     // The alignment enum `?GetAlignedPosition@Element@UI@@SAXW4Alignment@
     // ElementDescription@2@…` and `?SetAlignment@Element@UI@@QEAAXW4Alignment@
     // ElementDescription@2@@Z` name. A `W4` enum: four bytes, passed in a
-    // register. Its ENUMERATOR NAMES ARE NOT RECOVERABLE from the binary; its
-    // VALUES are the row-major 3x3 src/engine/ui/element.cpp reads off the
-    // jump table at 0x180115a14 (0 top-left .. 8 bottom-right, anything else
-    // behaves as top-left). No names are invented here.
-    enum Alignment : int32_t {};
+    // register. Its VALUES are the row-major 3x3 src/engine/ui/element.cpp reads
+    // off the jump table at 0x180115a14 (0 top-left .. 8 bottom-right, anything
+    // else behaves as top-left); its NAMES are retail's, from the profile build's
+    // {value, name} table (Runtime-x64-profile.dll 0x1802544e0), which are also
+    // the .rsc identifiers the kit's text files use.
+    enum Alignment : int32_t {
+        TopLeft      = 0,   // left column, top row (the default arm of both tests)
+        TopCenter    = 1,   // centre column, top row
+        TopRight     = 2,   // right column, top row
+        MidLeft      = 3,   // left column, middle row: the ctor's default
+        MidCenter    = 4,   // centre column, middle row
+        MidRight     = 5,   // right column, middle row
+        BottomLeft   = 6,   // left column, bottom row
+        BottomCenter = 7,   // centre column, bottom row
+        BottomRight  = 8,   // right column, bottom row
+    };
 
     // ---- the nine slots, in measured order ---------------------------------
     // [0] 0x180035350 — MSVC's VECTOR deleting destructor (retail; here
@@ -252,7 +263,7 @@ public:
     int32_t  _minHeight;               // +0x34
     int32_t  _tabOrder;                // +0x38
     uint32_t _id;                      // +0x3c  ctor: 0xffffffff; serialized by the uint slot, copied to Element::_color
-    uint32_t _elementType;             // +0x40  ctor: 3 — the Alignment, see above
+    uint32_t _elementType;             // +0x40  ctor: 3 (MidLeft) — the Alignment, see above
     uint32_t _flags;                   // +0x44
     ElementDescription* _childDesc;    // +0x48  ExternalPtr<UI::ElementDescription> (B4 H4)
     // +0x50: ExternalPtr<UI::Dialog> (Serialize 0x180076610). B4 H3: renamed from

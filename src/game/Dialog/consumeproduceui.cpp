@@ -268,9 +268,9 @@ void ConsumeProduceUI::OnUpdateLayout() {
 // Original: 0x14005F330.
 
 // [9] 0x14005f330
-void ConsumeProduceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4,
+void ConsumeProduceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                       int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 != 0x14 || param4 != 22000) return;
+    if (param3 != UI::EventId::SelectionChanged || param4 != 22000) return;
 
     // Find component
     ConsumeProduceComponent* component = CPUI_FindComponent(_dataSource);

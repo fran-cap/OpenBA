@@ -60,7 +60,7 @@ public:
     // over +0x94/+0x98, +0x9c DWORD 2, ONE QWORD -1 over +0xa0/+0xa4, +0xa8
     // and +0xb0 QWORD zero.
     LabelDescription() : TextDescription() {
-        _word90 = 3;
+        _word90 = MidLeft;
         _word94 = 1;
         _word98 = 0;
         _word9c = 2;

@@ -202,7 +202,7 @@ void WriteShadowMatrix(Video::Context& context, const Math::Matrix& projection,
     const Math::Matrix     result   = product * bias;
 
     context._lightStaging.shadowMatrix = result;   // B.4 R-VIDEO: the named field at +0xa0
-    context._dirty |= 0x2000u;
+    context._dirty |= RtVideo::kDirtyLightConstants;
 }
 
 }  // namespace
@@ -433,14 +433,17 @@ void SpotLight::AddDrawItems(const Scene& scene, Renderer& renderer) const {
 
     renderer.AddLight(this);
 
-    int32_t id = renderer.BeginDrawGroup(_shadowTarget, camera, camera, 1, 1u);
+    int32_t id = renderer.BeginDrawGroup(_shadowTarget, camera, camera,
+                                         static_cast<int32_t>(MaterialPass::Depth),
+                                         Bits(MaterialTypeMask::Opaque));
     scene.AddGlobalDrawItems(renderer);
     if (renderer._detailId != 0)                     // +0x48
         scene.AddCulledDrawItems(renderer);
     renderer.EndDrawGroup(id);
 
     const Camera& mainCamera = renderer._drawGroups._data[0]._camera;   // group 0 +0x08
-    id = renderer.BeginDrawGroup(nullptr, mainCamera, camera, 3, 3u);
+    id = renderer.BeginDrawGroup(nullptr, mainCamera, camera, static_cast<int32_t>(MaterialPass::SpotLight),
+                                 Bits(MaterialTypeMask::Opaque | MaterialTypeMask::Blended));
     scene.AddGlobalDrawItems(renderer);
     if (renderer._detailId != 0)                     // +0x48
         scene.AddCulledDrawItems(renderer);
@@ -477,7 +480,7 @@ void SpotLight::DrawShadowMap(Video::Context& context, Renderer& renderer,
     const int32_t w = image->Width();
     context.SetViewport(Video::Viewport{ 0, 0, w, h });   // dirty 0x200
 
-    context.Clear(6, 0, 1.0f, 0);
+    context.Clear(Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0, 1.0f, 0);
     // The fifth value is THIS FUNCTION'S OWN arg5, passed through untouched.
     renderer.DrawItemList(context, a4, 0, a5);
 }
@@ -656,7 +659,7 @@ void SunLight::DrawShadowMap(Video::Context& context, Renderer& renderer,
         SetScissor(context, Video::Viewport{ 0, 0, w, h });   // dirty 0x400
     }
 
-    context.Clear(6, 0, 1.0f, 0);
+    context.Clear(Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0, 1.0f, 0);
 
     {
         const Video::ImageBuffer* const image = _depthTarget;   // re-read

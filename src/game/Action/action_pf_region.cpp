@@ -48,7 +48,7 @@ static inline void* MemAlloc(int64_t size, int align) {
 // The walkable terrain types the flood fills spread over (retail's 0xe1f mask) on a cell's terrain type
 // (+0x29), as ext.walk_on_ice's seam reads it (WINTERICE.md 5.2: a frozen lake cell reads as 9).
 inline bool Walkable(const MapCell& cell) {
-    return ((1 << (Ext::WalkOnIce::TypeOf(cell) & 0x1f)) & 0xe1fU) != 0;
+    return ((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(cell)) & 0x1f)) & Bits(PathBits::Walk)) != 0;
 }
 
 } // namespace

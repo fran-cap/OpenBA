@@ -410,7 +410,7 @@ void ProbeClass(PlayerToolManager* entityUI, const FoodClass& fc) {
                 {
                     // msg 0x12 = button command, id 0x1450 = workerCountUp. WorkPlaceUI is a
                     // real class (ENDGAME B.3.8): slot 9 is its OnElementEvent override.
-                    wpUi->OnElementEvent(nullptr, 0x12, 0x1450, 0, 0, 0, nullptr);
+                    wpUi->OnElementEvent(nullptr, UI::EventId::Activated, 0x1450, 0, 0, 0, nullptr);
                     const int rosterNow = wpc->workers._size;           // +0x60
                     const int capNow = wc ? wc->workState : -1;       // WC+0x30
                     std::fprintf(stderr, "[FoodPanel]   seat CLICK workerCountUp(0x1450): "
@@ -518,7 +518,7 @@ void ProbeClass(PlayerToolManager* entityUI, const FoodClass& fc) {
             std::fprintf(stderr, "[FoodPanel]   teardown: close BUTTON via ToolUI=%p\n",
                          static_cast<void*>(toolUi));
             std::fflush(stderr);
-            toolUi->OnElementEvent(nullptr, 0x12, 1, 0, 0, 0, nullptr);   // slot 9
+            toolUi->OnElementEvent(nullptr, UI::EventId::Activated, 1, 0, 0, 0, nullptr);   // slot 9
             // Re-read the CURRENT active tool: with ARM_BUILDTOOL the EditTool we
             // opened with has been destroyed by SetEditMode, so the captured `tool`
             // pointer is dangling and must not be dereferenced.

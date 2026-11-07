@@ -187,7 +187,7 @@ template <typename T> constexpr bool InheritsOnUpdate =
     std::is_same<decltype(&T::OnUpdate), void (UI::DialogInstance::*)(const System::Time&)>::value;
 template <typename T> constexpr bool InheritsOnElementEvent =
     std::is_same<decltype(&T::OnElementEvent),
-                 void (UI::DialogInstance::*)(Object::InternalPtr<UI::Element>*, int32_t, int32_t,
+                 void (UI::DialogInstance::*)(Object::InternalPtr<UI::Element>*, UI::EventId, int32_t,
                                               int32_t, int32_t, int32_t, void*)>::value;
 }  // namespace
 

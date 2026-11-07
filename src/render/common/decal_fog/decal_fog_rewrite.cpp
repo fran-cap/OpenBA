@@ -22,7 +22,7 @@ enum : uint32_t {
     kLoop = 48, kRetC = 63, kSwitch = 76,
 };
 
-constexpr uint32_t kXyz  = 0x7;
+constexpr uint32_t kXyz  = Dxbc::Mask::XYZ;
 constexpr uint32_t kXyzw = Enc::Swizzle(0, 1, 2, 3);
 
 bool IsFlowControl(uint32_t op) {
@@ -36,7 +36,7 @@ bool IsFlowControl(uint32_t op) {
     }
 }
 
-bool Extended(const Dxbc::Instr& in) { return (in.token & 0x80000000u) != 0; }
+bool Extended(const Dxbc::Instr& in) { return (in.token & Dxbc::kTokenExtended) != 0; }
 
 // A plain four-component temp: no modifier, no relative index.
 bool PlainTemp(const Dxbc::Operand& o) {
@@ -68,7 +68,7 @@ uint32_t SwizzleOf(const Dxbc::Operand& o) { return Enc::Swizzle(o.Swz(0), o.Swz
 // The components of its register a source operand may read (conservative: every selected slot).
 uint32_t ReadComponents(const Dxbc::Operand& o) {
     if (o.numComp != 2) return 1;
-    if (o.selMode == 0) return o.compBits & 0xF;
+    if (o.selMode == 0) return o.compBits & Dxbc::Mask::XYZW;
     uint32_t bits = 0;
     for (int k = 0; k < 4; ++k) bits |= 1u << o.Swz(k);
     return bits;
@@ -379,7 +379,7 @@ bool Transform(const Match& m, std::vector<uint8_t>* out) {
         // mov_sat rN.w, v#.c
         at = t.size();
         t.push_back(0);
-        Enc::TempDst(t, N, 0x8);
+        Enc::TempDst(t, N, Dxbc::Mask::W);
         Enc::CopyWithSwizzle(t, p, u, Enc::Rep(u.Swz(static_cast<int>(gComp))));
         t[at] = Enc::Opcode(Op::Mov, static_cast<uint32_t>(t.size() - at), true);
         // mad rN.xyz, rN.wwww, rN.xyzw, L          T = lerp(L, tint, u)

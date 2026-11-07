@@ -39,7 +39,6 @@ constexpr const char* kDialogSheet     = "Dialog/SpriteSheet.rsc";
 constexpr const char* kExtensionsSheet = "Dialog/ExtensionsSprites.rsc";
 constexpr int32_t  kFormatBgra8   = 5;    // ImageBuffer::_format 5 = DXGI B8G8R8A8_UNORM
 constexpr int32_t  kFormatBc3     = 2;    // ImageBuffer::_format 2 = DXGI BC3_UNORM (1 is BC3 too)
-constexpr uint32_t kFlagMipmapped = 1u;   // ImageBuffer::_flags bit 0: the full chain
 
 // A copy at or above this factor is made as BC3 with its mips; below, one BGRA8
 // level as the sheet itself. A 2x copy keeps no mips: the UI sampler takes the
@@ -287,7 +286,7 @@ Built Finish(UI::SpriteSheet& sheet, const Video::ImageBuffer& base, Job& job) {
     spec.imageAddress = base._addressU;
     spec.imageFilter  = base._filter;
     spec.imageFormat  = job.compress ? kFormatBc3 : kFormatBgra8;
-    spec.imageFlags   = job.compress ? kFlagMipmapped : 0u;
+    spec.imageFlags   = job.compress ? Video::ImageBuffer::kMipmaps : 0u;
 
     Graphics::Material* const baseMaterial = sheet.m_field30->_material.Get();
     b.texture  = NewObject<Video::ImageBuffer>();

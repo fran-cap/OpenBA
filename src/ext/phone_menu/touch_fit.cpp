@@ -49,6 +49,7 @@
 #include "ui/ToolTipDialog.h"
 #include "ui/UserInterface.h"
 #include "input/Device.h"   // Input::Device::_singleton: the left button (a finger down)
+#include "system/EnumFlags.h"   // ToUnderlying (a MouseInput as the _mouse index)
 #include "platform/common/platform_input.h"   // Platform::Input::PointerIsTouch (P11)
 #include "video/Device.h"   // Video::Device::_singleton: the back buffer the fitted scale is for
 
@@ -57,8 +58,8 @@ namespace PhoneMenu {
 
 namespace {
 
-// Element::_flags bits 2 / 3 (UI::kElementFlagAlignArg1 / 2): the sticky stretch overrides a scroll
-// bar's ComputeLayout reads (widget_common.h kFlagStretchX / kFlagStretchY).
+// Element::_flags bits 2 / 3 (UI::kElementFlagAlignArg1 / 2, Element.h): the sticky stretch
+// overrides a scroll bar's ComputeLayout reads.
 constexpr uint32_t kStretchX = UI::kElementFlagAlignArg1;
 constexpr uint32_t kStretchY = UI::kElementFlagAlignArg2;
 
@@ -180,7 +181,7 @@ bool IsWindow(const UI::DialogInstance* d, UI::Element*& root) {
     root = d->_root.Get();
     if (d->_dialog == nullptr || root == nullptr) return false;
     if (d->_spriteSheet != nullptr && d->_spriteIndex >= 0) return false;
-    if ((root->_flags & (UI::kElementFlagHidden | 0x30u)) != 0) return false;
+    if ((root->_flags & (UI::kElementFlagHidden | UI::kElementFlagSizeToScreen)) != 0) return false;
     return true;
 }
 
@@ -430,7 +431,8 @@ int32_t ReleaseHeld(const UI::UserInterface* ui, bool on) {
 void FingerUpHidesToolTip(UI::UserInterface* ui) {
     if (!::Platform::Input::PointerIsTouch()) return;
     const ::Input::Device* in = ::Input::Device::_singleton;
-    if (in == nullptr || in->_mouse[4].value > 0) return;   // a finger down: retail's hover rule
+    // A finger down: retail's hover rule.
+    if (in == nullptr || in->_mouse[ToUnderlying(::Input::Device::MouseInput::Left)].value > 0) return;
     for (auto* node = ui->_dialogs._head; node != nullptr; node = node->next) {
         if (node->element != nullptr) node->element->_hoverTime = 0;
     }

@@ -25,6 +25,7 @@
 //   }
 
 #include <cstdint>
+#include "system/Value.h"   // System::kColorBlack (the default fade colour)
 
 namespace UI { class UserInterface; }
 
@@ -57,13 +58,13 @@ bool EnsureFadeSprite(UI::UserInterface* userInterface);
 // covered by the overlay then revealed.
 //
 // color: packed 0xRRGGBBAA. Pass 0xFF000000 for black (the game's default).
-void TriggerReveal(UI::UserInterface* userInterface, uint32_t color = 0xFF000000);
+void TriggerReveal(UI::UserInterface* userInterface, uint32_t color = System::kColorBlack);
 
 // Trigger a fade IN (toward opaque) over ~0.25s. Mirrors the call in
 // FUN_140098DA0 (LoaderLoop::Update) when IsFinished first transitions:
 //   SetFullscreenFade(ui, true, color, false);    // animated: rate = +1.0
 // Use when leaving a loop (after fade completes the loop transitions).
-void TriggerFadeIn(UI::UserInterface* userInterface, uint32_t color = 0xFF000000);
+void TriggerFadeIn(UI::UserInterface* userInterface, uint32_t color = System::kColorBlack);
 
 // Diagnostic — log "[UIFade::tag] alpha=X rate=Y" exactly once per call (no
 // throttling). Caller is responsible for throttling. Useful from Stub_Draw

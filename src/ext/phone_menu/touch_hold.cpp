@@ -7,6 +7,7 @@
 #include "ext/registry.h"
 
 #include "input/Device.h"                      // Input::Device::_singleton: the buttons (a finger is the left)
+#include "system/EnumFlags.h"                  // ToUnderlying (a MouseInput as the _mouse index)
 #include "platform/common/platform_input.h"   // Platform::Input::PointerIsTouch (P11)
 #include "platform/common/platform_touch.h"   // Platform::Touch::EnginePixelsPerDevicePixel (P11c)
 #include "ui/DialogInstance.h"
@@ -17,22 +18,16 @@
 namespace Ext {
 namespace PhoneMenu {
 
-namespace {
-
-// Input::Device::_mouse: 4 / 5 / 6 = left / right / middle (src/game/Game/inputbindings.cpp).
-constexpr int kMouseLeft = 4;
-constexpr int kMouseRight = 5;
-constexpr int kMouseMiddle = 6;
-
-}  // namespace
-
 bool HoverWhileFingerDown(const UI::DialogInstance* /*dialog*/) {
     if (!Ext().phone_menu) return false;
     if (!::Platform::Input::PointerIsTouch()) return false;
     const ::Input::Device* in = ::Input::Device::_singleton;
     if (in == nullptr) return false;
-    if (in->_mouse[kMouseRight].value > 0 || in->_mouse[kMouseMiddle].value > 0) return false;
-    return in->_mouse[kMouseLeft].value > 0;
+    if (in->_mouse[ToUnderlying(::Input::Device::MouseInput::Right)].value > 0 ||
+        in->_mouse[ToUnderlying(::Input::Device::MouseInput::Middle)].value > 0) {
+        return false;
+    }
+    return in->_mouse[ToUnderlying(::Input::Device::MouseInput::Left)].value > 0;
 }
 
 bool PlaceHeldToolTip(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32_t height,
@@ -55,8 +50,10 @@ bool PlaceHeldToolTip(int32_t point, const UI::DialogInstance* dialog, int32_t w
     // The finger: the cursor, which ext.touch_pointer holds on the press point while the finger rests
     // (P11b), in global layout units as UserInterface::Update reads it (0x180121635).
     const float scale = ui->_uiScale;
-    const int32_t fx = static_cast<int32_t>(static_cast<float>(in->_mouse[0].value) * scale);
-    const int32_t fy = static_cast<int32_t>(static_cast<float>(in->_mouse[1].value) * scale);
+    const int32_t fx = static_cast<int32_t>(
+        static_cast<float>(in->_mouse[ToUnderlying(::Input::Device::MouseInput::X)].value) * scale);
+    const int32_t fy = static_cast<int32_t>(
+        static_cast<float>(in->_mouse[ToUnderlying(::Input::Device::MouseInput::Y)].value) * scale);
 
     // The tooltip's padded size in its own units (a tooltip follows its owner's fitted scale k,
     // touch_fit.h (c)), then in global layout units.

@@ -54,10 +54,6 @@ namespace {
 
 constexpr int kDialogSize = 0xd0;
 
-// Element::_flags bits Element.h does not name (see buttonelement.cpp).
-constexpr uint32_t kFlagHover        = 0x00020000u;
-constexpr uint32_t kFlagPressStarted = 0x00200000u;
-
 // ENDGAME B.3.9 TI-UI: the two type ids Update tests against are
 // `UI::ListElement::TypeId()` / `UI::TextElement::TypeId()`, read at the use.
 
@@ -111,11 +107,11 @@ void ComboElement::Update(const System::Time& time, UserInterface* ui,
                           Object::InternalPtr<DialogInstance>* dialog,
                           const UpdateState& state) {
     const uint32_t flags = _flags;
-    const bool open = (flags & kFlagDisabledMask) == 0 &&
+    const bool open = (flags & UI::kElementFlagAnyDisabled) == 0 &&
                       _strings._size > 0 &&
                       state.b04 != 0 &&
-                      (flags & kFlagHover) != 0 &&
-                      (flags & kFlagPressStarted) != 0;
+                      (flags & kElementFlagHovered) != 0 &&
+                      (flags & kElementFlagPressed) != 0;
 
     if (open) {
         alignas(16) uint8_t dialogBuf[kDialogSize];
@@ -160,7 +156,7 @@ void ComboElement::Update(const System::Time& time, UserInterface* ui,
         const int32_t cur = _currentItem;
         if (cur < 0 || cur >= list->_userData._size) list->_selectedIndex = 0;
         else                                         list->_selectedIndex = cur;
-        list->_alignment = 0;
+        list->_alignment = ElementDescription::TopLeft;
 
         void* combo = RtUi_ComboDialog_OperatorNew(kDialogSize);   // ??2ComboDialog 0x180074770
         ComboDialog* made2 = nullptr;
@@ -172,7 +168,7 @@ void ComboElement::Update(const System::Time& time, UserInterface* ui,
         _openDialog = made2;
 
         made2->SetUpperLeft(_layoutLeft, _layoutBottom, false);    // 0x180114a60
-        made2->_flags |= 2u;                                        // == _openDialog
+        made2->_flags |= kDialogFlagModal;                          // == _openDialog
 
         DialogInstance* pushed = made2;
         pushed->OnOpened();                                         // DialogInstance slot 4

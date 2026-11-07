@@ -293,10 +293,10 @@ void NoiseUI::OnCreated() {
 // When msg==0x12 (button click) and id==1000 (buttonGenerate),
 // regenerates the Perlin noise texture using current edit values.
 
-void NoiseUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg,
+void NoiseUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId msg,
                              int32_t id, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/,
                              void* /*userData*/) {
-    if (msg != 0x12 || id != 1000) return;
+    if (msg != UI::EventId::Activated || id != 1000) return;
 
     // Regenerate noise texture from edit values
     GenerateNoise();

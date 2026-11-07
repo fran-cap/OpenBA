@@ -39,6 +39,7 @@
 
 #include "Game/EventLog.h"
 #include "Game/GameUpdateLoop.h"
+#include "Dialog/ModDialog.h"   // ModDialog::kRowTintIdle (the people rows' tint)
 
 #include "ext/family_tree/family_picture.h"
 #include "ext/family_tree/family_raster.h"
@@ -48,6 +49,7 @@
 #include "ext/town_screenshot/town_screenshot.h"
 #include "ext/ui/find_element.h"
 #include "ext/ui/list_width.h"
+#include "ext/ui/row_tint.h"   // Ext::RowTint::kSelected / kSearchFill
 
 #include <algorithm>
 #include <cctype>
@@ -79,8 +81,6 @@ constexpr int32_t kPersonId = 100;
 constexpr int32_t kRelatedId = 5000;
 constexpr int32_t kMaxPeopleRows = kRelatedId - kPersonId;   // 4900
 constexpr int32_t kMaxDetailRows = 400;
-// the search box's fill (ARGB): the people rows use 0x10ffffff
-constexpr uint32_t kSearchFill = 0x38ffffffu;
 constexpr int kJobsRecheckFrames = 180;         // a person's time at their jobs grows while the page is open
 
 constexpr const char* kWindowRsc = "Dialog/ExtensionsWindow.rsc";
@@ -382,7 +382,8 @@ UI::ElementDescription* CellTemplate(const char* rsc) {
 void TintPeople() {
     for (size_t k = 0; k < g_peopleCells.size() && k < g_people.size(); ++k) {
         if (g_peopleCells[k].border.Get() != nullptr) {
-            g_peopleCells[k].border->SetColor(g_people[k] == g_selected ? 0x30a0c8ffu : 0x10ffffffu);
+            g_peopleCells[k].border->SetColor(g_people[k] == g_selected ? Ext::RowTint::kSelected
+                                                                        : ModDialog::kRowTintIdle);
         }
     }
 }
@@ -641,7 +642,7 @@ void PageOpen(UI::Element* page, int32_t idBase) {
         // the border has no color of its own: a light fill shows where to type
         Object::InternalPtr<UI::Element> slot;
         Object::InternalPtr<UI::Element> border = *field->GetBorder(&slot);
-        if (border.Get() != nullptr) border->SetColor(kSearchFill);
+        if (border.Get() != nullptr) border->SetColor(Ext::RowTint::kSearchFill);
     }
     g_countText = Object::InternalPtr<UI::Element>(Ext::FindElement<UI::TextElement>(page,
             "textFamilyCount"));

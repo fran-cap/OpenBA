@@ -27,7 +27,7 @@
 // one caller, PathfinderThread, now constructs its +0x30 member).
 System::CriticalSection::CriticalSection() {
     // InitializeCriticalSection(this); SetCriticalSectionSpinCount(this, 5000)
-    Platform::MutexInit(&_storage, 5000);
+    Platform::MutexInit(&_storage, Platform::kLockSpinCount);
 }
 
 // 0x18000c5b0  ??1CriticalSection@System@@QEAA@XZ

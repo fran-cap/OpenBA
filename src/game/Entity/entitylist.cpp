@@ -130,8 +130,8 @@ void ComponentEntity::PostUpdateComponents() {
     uint32_t entityFlags = _entityFlags;
 
     // Check entity has "needs post-update" flag (bit 4) and is not deleted (bit 10)
-    if ((entityFlags & 0x10) == 0) return;
-    if ((entityFlags >> 10) & 1) return;
+    if ((entityFlags & Bits(ComponentFlags::PostUpdate)) == 0) return;
+    if (entityFlags & Bits(ComponentFlags::MarkedForRemoval)) return;
 
     int32_t compCount = _components._size;
     int64_t ci = 0;
@@ -145,7 +145,7 @@ void ComponentEntity::PostUpdateComponents() {
         // Component flags at +0x20, bit 4 = "needs post-update"
         uint32_t compFlags = c->_flags;
 
-        if ((compFlags >> 4) & 1) {
+        if (compFlags & Bits(ComponentFlags::PostUpdate)) {
             // CheckPtr again before vtable call; slot 10 (+0x50) PostUpdate, by name.
             _components[ci].Get()->PostUpdate();
         }
@@ -153,7 +153,7 @@ void ComponentEntity::PostUpdateComponents() {
         ci++;
 
         // Break if entity was deleted during component processing
-        if (_entityFlags & 0x400) break;
+        if (_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) break;
 
     } while (ci < compCount);
 }
@@ -744,7 +744,7 @@ static bool WalkUpdateTreeSnapshot(EntityList* self, const System::Time* time, b
         }   // kWalkPrefetch == 1
         ComponentEntity* entity = arr[i];
         Ext::RenderCulling::g_walkIndex = static_cast<int64_t>(i);   // [PerfX PERFXTBL] the ticks' side-table slot
-        if (!((entity->_entityFlags >> 10) & 1)) {
+        if (!(entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
             if (!cached)      entity->TickComponents(time);
             else if (verify)  TickList::Cached<true>(entity, tl[i], tick, report);
             else              TickList::Cached<false>(entity, tl[i], tick, report);
@@ -870,7 +870,7 @@ template <int kWalk>
             }
 
             // Check entity not deleted (bit 10 of flags at entity+0x40)
-            if (!((entity->_entityFlags >> 10) & 1)) {
+            if (!(entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
                 // Call tree node handler (inline for Update, calls vtable +0x40)
                 entity->TickComponents(time);
             }
@@ -906,7 +906,7 @@ template <int kWalk>
             if (prof) ++g_elProfBucketVisits;
 
             // Check not deleted (bit 10)
-            if (!((entIBP->_entityFlags >> 10) & 1)) {
+            if (!(entIBP->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
                 // +0x20 is the entity's last-update System::Time (Serialize below
                 // writes it through Time::Serialize)
                 // NOT RETAIL (review S-038): a wrapping subtract (EntityListBucket::TicksSince),
@@ -919,8 +919,8 @@ template <int kWalk>
 
                     // Check entity has "needs bucket update" flag (bit 3)
                     // and is not deleted (bit 10)
-                    if ((ent->_entityFlags & 0x8) != 0 &&
-                        (ent->_entityFlags & 0x400) == 0) {
+                    if ((ent->_entityFlags & Bits(ComponentFlags::Update)) != 0 &&
+                        (ent->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
 
                         int32_t compCount = ent->_components._size;
                         System::Time deltaTime = { delta };
@@ -931,7 +931,7 @@ template <int kWalk>
 
                             // Component flags at byte +0x20, bit 3 = "needs Update tick"
                             // Verified from disassembly: MOV ECX,[RAX+0x20]; SHR ECX,3
-                            if ((comp->_flags >> 3) & 1) {
+                            if (comp->_flags & Bits(ComponentFlags::Update)) {
 
                                 // Component slot 9 (+0x48) Update, by name.
                                 if (g_compProfOn) {
@@ -953,7 +953,7 @@ template <int kWalk>
                             currentTime = accumulatedTime._ticks;
 
                             // Check if entity deleted during component update
-                            if (ent->_entityFlags & 0x400) break;
+                            if (ent->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) break;
                         }
                     }
 
@@ -1040,7 +1040,8 @@ static void EntityList_CloseDialogsForDyingEntities() {
                 Object::Base* ds = ctrl->_dataSource;   // +0x28
                 // The data source's +0x40 entity flags, read with no type check (standalone-only code)
                 // (unchecked: the tree's EntityUI controllers hold a ComponentEntity; B10's check is not made here, as before)
-                if (ds && ((static_cast<const ComponentEntity*>(ds)->_entityFlags >> 10) & 1))
+                if (ds &&
+                    (static_cast<const ComponentEntity*>(ds)->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)))
                     toClose[nClose++] = dialog;
             }
         }
@@ -1085,7 +1086,8 @@ static void EntityList_ClearToolSelectionForDyingEntities() {
     if (tool->lastEntityRef == 0) return;
     uintptr_t ent = reinterpret_cast<uintptr_t>(tool->lastEntityRef);   // CAST-OK: ptr_int (the tree's address-range probe below)
     if (ent < 0x10000 || ent > 0x00007FFFFFFFFFFFULL) return;
-    if (((tool->lastEntityRef->_entityFlags >> 10) & 1) == 0) return;   // ComponentEntity +0x40
+    // ComponentEntity +0x40
+    if ((tool->lastEntityRef->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) return;
 
     // Drop both the dialog ref (+0x28) and the selected-entity ref (+0x30), exactly as
     // EditTool_CloseInfoDialog does — leaving +0x30 set would keep the follow chasing it.
@@ -1233,8 +1235,8 @@ void EntityList::PreUpdate() {
         ComponentEntity** ibpPtr = &stagingUpdate._data[i];
 
         uint32_t entityFlags = (*ibpPtr)->_entityFlags;
-        bool hasUpdateFlag = (entityFlags & 0x4) != 0;
-        bool isDeleted = ((entityFlags >> 10) & 1) != 0;
+        bool hasUpdateFlag = (entityFlags & Bits(ComponentFlags::Tick)) != 0;
+        bool isDeleted = (entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0;
 
         if (hasUpdateFlag && !isDeleted) {
             // Insert into update tree
@@ -1294,8 +1296,8 @@ void EntityList::PostUpdateStaging() {
         ComponentEntity** ibpPtr = &stagingPostUpdate._data[i];
 
         uint32_t entityFlags = (*ibpPtr)->_entityFlags;
-        bool hasPostUpdateFlag = (entityFlags & 0x10) != 0;
-        bool isDeleted = ((entityFlags >> 10) & 1) != 0;
+        bool hasPostUpdateFlag = (entityFlags & Bits(ComponentFlags::PostUpdate)) != 0;
+        bool isDeleted = (entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0;
 
         if (hasPostUpdateFlag && !isDeleted) {
             // Insert into post-update tree
@@ -1366,7 +1368,7 @@ void EntityList::PostUpdate() {
         }
 
         // Check entity not deleted (bit 10 of flags at entity+0x40)
-        if (!((entity->_entityFlags >> 10) & 1)) {
+        if (!(entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
             entity->PostUpdateComponents();
         }
 

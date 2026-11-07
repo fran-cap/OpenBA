@@ -320,7 +320,7 @@ void UI::UserInterface::CloseDialog(Object::InternalPtr<DialogInstance>* dialog)
             Event ev;
             ev.dialog   = drag;                                            // 0x180121011
             ev.element  = nullptr;                                         // 0x180121016
-            ev.eventId  = 0xd;                                             // 0x18012101b
+            ev.eventId  = UI::EventId::DragDropEnd;                        // 0x18012101b
             ev.arg14    = -1;                                              // 0x180121023
             ev.arg18    = 0;                                               // 0x18012102b } one QWORD
             ev.arg1C    = 0;                                               //             }

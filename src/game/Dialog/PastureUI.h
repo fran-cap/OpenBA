@@ -31,7 +31,7 @@ public:
     ~PastureUI() override = default;                              // [0]  0x140020ee0
     void  OnCreated() override;                                   // [4]  0x1400b5090
     void  OnUpdateLayout() override;                              // [7]  0x1400b4e50
-    void  OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void  OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                          int32_t c, int32_t d, int32_t e, void* userData) override;  // [9] 0x1400b4e20
     void  SetResource(ComponentDescription* type) override;       // [11] 0x1400b4c40
     ComponentDescription** GetResource(ComponentDescription** out) override;  // [12] 0x1400b4d00

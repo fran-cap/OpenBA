@@ -144,8 +144,9 @@ Builder g_builder;
 
 const InstancedAnimationState* LiveInstancedState(const MeshInstance& mi) {
     const int32_t handle = mi._animation._layers._data[mi._animation._layers._size - 1]._handle;
-    return &Graphics::AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff]
-                ._states._data[handle & 0xff];
+    return &Graphics::AnimationManager::_singleton
+                ->_instances._data[Graphics::AnimationManager::HandleInstance(handle)]
+                ._states._data[Graphics::AnimationManager::HandleState(handle)];
 }
 
 size_t StateBytes(const InstancedAnimationState& s) {
@@ -286,11 +287,11 @@ int32_t Admit(Builder& b, const Geometry* g, size_t& bytes, const char** why) {
 // A decal / road item: mark its batch (counted once).
 bool MarkBatch(Builder& b, uint32_t mode, uint32_t key, size_t& bytes) {
     const WorldGeometry& world = *b.world;
-    const bool decal = mode == kModeDecal;
+    const bool decal = mode == WorldGeometry::DrawKey::kModeDecal;
     const GeometryBatchArray& array = decal ? world._decals : world._roadBatches;
     std::vector<uint32_t>& marks = decal ? b.decalMark : b.roadMark;
     std::vector<size_t>& at = decal ? b.decalAt : b.roadAt;
-    const int32_t index = static_cast<int32_t>(key & 0xFFFF1FFFu);   // WorldGeometry::Draw's key
+    const int32_t index = static_cast<int32_t>(key & WorldGeometry::DrawKey::kIndexMask);
     if (array._data == nullptr || index < 0 || index >= array._size) return false;
     if (marks.size() < static_cast<size_t>(array._size)) {
         marks.resize(static_cast<size_t>(array._size), 0);
@@ -512,7 +513,7 @@ SnapshotResult BuildReference(Builder& b, int32_t slot, Graphics::Renderer& r) {
                 if (typeid(*g) == typeid(WorldGeometry)) {
                     const uint32_t key = item._arg5;
                     if (!WorldItemCopied(key)) continue;   // the live object (2.2)
-                    const uint32_t mode = key & kModeMask;
+                    const uint32_t mode = key & WorldGeometry::DrawKey::kModeMask;
                     const char* why = nullptr;
                     if (Admit(b, g, bytes, &why) < 0) {
                         result.refused = why;
@@ -615,7 +616,7 @@ SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
                         ++kept;
                         continue;
                     }
-                    const uint32_t mode = key & kModeMask;
+                    const uint32_t mode = key & WorldGeometry::DrawKey::kModeMask;
                     const char* why = nullptr;
                     const int32_t index = Admit(b, g, bytes, &why);
                     if (index < 0) {

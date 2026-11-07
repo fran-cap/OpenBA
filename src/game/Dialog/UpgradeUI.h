@@ -34,7 +34,7 @@ public:
     void OnUpdateLayout() override {}   // [7] 0x140086d80  RET 0 in retail
     // [8] STANDALONE DEVIATION: retail inherits DialogController::OnUpdate (RET); the tree drives this panel's per-frame refresh here.
     void OnUpdate(const System::Time& time) override;
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140086c90
 
     // ---- fields (B4 H1-H8: OnCreated 0x140086d90) ------------------------

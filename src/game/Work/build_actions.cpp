@@ -194,7 +194,7 @@ extern "C" void BuildStructure_SetupBuildActions(CitizenComponent** citizenRef, 
         Action* act = nullptr;
         if (mem) {
             CharacterComponent* mover = citizen->_entity->FindComponent<CharacterComponent>();
-            act = ::new (mem) MoveTo(&mover, 2 /*pathType Fast*/, 0, position, 0xe1f, 0, -1.0f /*DAT_140172280*/);   // 0x1400c9170
+            act = ::new (mem) MoveTo(&mover, 2 /*pathType Fast*/, 0, position, PathBits::Walk, 0, -1.0f /*DAT_140172280*/);   // 0x1400c9170
         }
         ::Object::InternalPtr<Action> ibp = act;
         ActionStackPush(stack, &ibp);

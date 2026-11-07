@@ -103,12 +103,12 @@ void UpgradeUI::OnCreated() {
 // ============================================================
 // On the button's click (id 33000), writes the upgrade target into the
 // entity's DestroyComponent and starts the upgrade.
-void UpgradeUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t eventType, int32_t eventId,
+void UpgradeUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId eventType, int32_t eventId,
                                int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (!element) return;
 
     // Only handle button clicks (msg 0x12) with ID 33000
-    if (eventType != 0x12 || eventId != 33000)
+    if (eventType != UI::EventId::Activated || eventId != 33000)
         return;
 
     // The event source must be our button.

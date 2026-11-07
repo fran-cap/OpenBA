@@ -182,7 +182,7 @@ public:
     // +0xd0 = 10.0f and +0x30 = 0x8000. +0xd4 is written by nothing.
     AmbientLight() : Light() {
         _intensity         = 10.0f;     // 0x41200000
-        _materialTypeFlags = 0x8000u;
+        _materialTypeFlags = static_cast<uint32_t>(MaterialTypeMask::Light);   // 0x8000
     }
 
     // [0] 0x180059080 -- MSVC's VECTOR deleting destructor, both arms exactly as
@@ -297,7 +297,7 @@ public:
         _shadowDepth = nullptr;
         _boundImage  = nullptr;
         CreateTargets();
-        _materialTypeFlags = 0x8000u;
+        _materialTypeFlags = static_cast<uint32_t>(MaterialTypeMask::Light);   // 0x8000
     }
 
     // [0] 0x1800642b0 -- MSVC's VECTOR deleting destructor, both arms exactly as

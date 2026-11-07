@@ -63,8 +63,8 @@ public:
     // then retail's tail stores. +0x15c (_inset) is NOT written.
     ScrollElement() : Element() {
         _vertical       = 1;
-        _barColor       = 0xffffffffu;   // one unaligned qword of -1 ...
-        _unknown158     = 0xffffffffu;   // ... covering both
+        _barColor       = System::kColorWhite;   // one unaligned qword of -1 ...
+        _unknown158     = 0xffffffffu;           // ... covering both
         _currentValue   = 0.0f;
         _displayPercent = 0.33333334f;   // 0x3eaaaaab
         _maxValue       = 4.0f;          // 0x40800000

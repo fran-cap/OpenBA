@@ -91,7 +91,7 @@ void CullStackInit(CullStack* self, const Scene* scene, float minZBias, float ma
     r.halfX = h; r.halfY = h; r.halfZ = 0.0f;
     r.node  = 0;
     r.depth = 0;
-    r.mask  = 0x003f003fu;
+    r.mask  = kFrustumAllPlanesBoth;
 }
 
 void CullStackPushChildren(CullStack* self, uint32_t mask) {
@@ -213,11 +213,14 @@ inline unsigned int Contains(const Frame& f, const FrustumCullPlanes* p, const B
 bool BoxPasses(const Frame& f, const Box& wb, uint32_t cullMask, uint32_t shadowMask) {
     if (cullMask != 0) {
         Box b = wb;
-        if (Contains(f, &f.cullPlanes, &b, cullMask) == 0x40) return false;
+        if (Contains(f, &f.cullPlanes, &b, cullMask) == static_cast<uint32_t>(FrustumPlanes::Outside)) {
+            return false;
+        }
     }
     if (f.notShadow) return true;
     const Box b = ShadowCasterBox(wb, f.extX, f.extY, f.extZ);
-    return shadowMask == 0 || Contains(f, &f.shadowPlanes, &b, shadowMask) != 0x40;
+    return shadowMask == 0 ||
+           Contains(f, &f.shadowPlanes, &b, shadowMask) != static_cast<uint32_t>(FrustumPlanes::Outside);
 }
 
 // The quadtree walk, retail's, with the per-object test as a policy:
@@ -227,7 +230,7 @@ bool BoxPasses(const Frame& f, const Box& wb, uint32_t cullMask, uint32_t shadow
 // has one caller, so it inlines back into Walk as before.
 template <class Test>
 void WalkStack(const Scene* self, const Frame& f, CullStack& st, std::vector<Geometry*>& out, Test& test) {
-    uint32_t shadowMask = 0x3f;
+    uint32_t shadowMask = static_cast<uint32_t>(FrustumPlanes::All);
 
     while (st.top >= 0) {
         const int32_t t    = st.top;
@@ -243,7 +246,7 @@ void WalkStack(const Scene* self, const Frame& f, CullStack& st, std::vector<Geo
         if (cullMask != 0) {
             const Box b = NodeBoxCull(&st, st.rec[t]);
             cullMask = Contains(f, &f.cullPlanes, &b, cullMask);
-            if (cullMask == 0x40) {
+            if (cullMask == static_cast<uint32_t>(FrustumPlanes::Outside)) {
                 st.top -= 1;
                 continue;
             }
@@ -429,7 +432,7 @@ void AddStats(TaskStats& to, const TaskStats& s) {
 void ParPlan(ParWalk& p, const Scene* self, const Frame& f) {
     p.roots.clear();
     p.plan.clear();
-    uint32_t shadowMask = 0x3f;
+    uint32_t shadowMask = static_cast<uint32_t>(FrustumPlanes::All);
 
     CullStack st;
     CullStackInit(&st, self, kMinZBias, kMaxZBias);
@@ -454,7 +457,7 @@ void ParPlan(ParWalk& p, const Scene* self, const Frame& f) {
         if (cullMask != 0) {
             const Box b = NodeBoxCull(&st, st.rec[t]);
             cullMask = Contains(f, &f.cullPlanes, &b, cullMask);
-            if (cullMask == 0x40) {
+            if (cullMask == static_cast<uint32_t>(FrustumPlanes::Outside)) {
                 st.top -= 1;
                 continue;
             }
@@ -588,9 +591,9 @@ inline bool CellMasks(const Frame& f, const CullStack* st, const CullRecord& r, 
     if (cullMask != 0) {
         const Box b = NodeBoxCull(st, r);
         cullMask = Contains(f, &f.cullPlanes, &b, cullMask);
-        if (cullMask == 0x40) return false;
+        if (cullMask == static_cast<uint32_t>(FrustumPlanes::Outside)) return false;
     }
-    shadowMask = 0x3f;
+    shadowMask = static_cast<uint32_t>(FrustumPlanes::All);
     if (!f.notShadow) {
         shadowMask = packed >> 16;
         if (shadowMask != 0) {
@@ -682,7 +685,7 @@ void FusedWalk(const Scene* self, const Frame& fa, const Frame& fb, std::vector<
     CullStack  st;
     FusedExtra extra[256];
     CullStackInit(&st, self, kMinZBias, kMaxZBias);
-    extra[0] = FusedExtra{ 0x003f003fu, kFusedRootLive };
+    extra[0] = FusedExtra{ kFrustumAllPlanesBoth, kFusedRootLive };
     FusedWalkStack(self, fa, fb, st, extra, out, test);
 }
 
@@ -790,7 +793,7 @@ void FusedParPlan(FusedParWalk& p, const Scene* self, const Frame& fa, const Fra
     CullStack  st;
     FusedExtra extra[256];
     CullStackInit(&st, self, kMinZBias, kMaxZBias);
-    extra[0] = FusedExtra{ 0x003f003fu, kFusedRootLive };
+    extra[0] = FusedExtra{ kFrustumAllPlanesBoth, kFusedRootLive };
 
     while (st.top >= 0) {
         const int32_t t    = st.top;

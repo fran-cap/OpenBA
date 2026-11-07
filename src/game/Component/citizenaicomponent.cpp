@@ -503,7 +503,7 @@ void CitizenAIComponent::OnMessage(int /*message*/, void* /*data*/, uint32_t /*a
     citizen->Update(&time);
 
     ComponentEntity* entity = citizen->_entity.Get();
-    if (((entity->_entityFlags >> 10) & 1) == 0) {
+    if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
         RtSystem_Time_Ctor(&time, 0.0f);
         Update(&time);   // slot 9, this component's own Update
     }

@@ -311,6 +311,12 @@ public:
     uint32_t _value;   // +0x00  as a uint32 it reads 0xAARRGGBB
 };
 
+// ARGB (0xAARRGGBB) colour words the engine spells as literals.
+constexpr uint32_t kColorWhite   = 0xffffffffu;   // opaque white: the no-tint default (Element::_color)
+constexpr uint32_t kColorBlack   = 0xff000000u;   // opaque black: text drop shadows, fullscreen fades
+constexpr uint32_t kColorGrey    = 0xff808080u;   // opaque 50% grey: list hover, the menu backdrop (DialogLoopT::Draw)
+constexpr uint32_t kColorRgbMask = 0x00ffffffu;   // the RGB bits; the complement is the alpha byte
+
 static_assert(sizeof(Color) == 4, "System::Color is 4 bytes");
 static_assert(sizeof(Color) == sizeof(::Color), "class and POD interchangeable");
 static_assert(offsetof(Color, _value) == 0x00, "Color::_value @ +0x00");

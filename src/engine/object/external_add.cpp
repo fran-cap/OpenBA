@@ -430,7 +430,7 @@ extern "C" void RtObject_ExternalFactory_Add(ExternalFactory* self, ::Object::Ex
         rtresset::EntryValue value;
         value.external    = external;
         value.usageMask   = bit;
-        value.referenceId = 0xffffffffu;
+        value.referenceId = ::Object::kNoReferenceId;
 
         rtresset::Node* out = nullptr;
         rtresset::Insert(set, &out, &path, &value);             // 1800be6bd

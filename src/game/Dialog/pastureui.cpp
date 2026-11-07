@@ -243,11 +243,11 @@ ComponentDescription** PastureUI::GetResource(ComponentDescription** param2) {
 // Original: 0x1400B4E20.
 
 // [9] 0x1400b4e20
-void PastureUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4,
+void PastureUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     pastureui_sa::Trace("Slot9(event)", this);
 
-    if (param3 == 0x14 && param4 == 500) {
+    if (param3 == UI::EventId::SelectionChanged && param4 == 500) {
         // Combo selection: get selected resource, call Slot11 via vtable
         const UI::ComboElement* comboElem = selectResource;
         int currentItem = comboElem->GetCurrentItem();
@@ -260,7 +260,7 @@ void PastureUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, in
 
         SetResource(resourceType);   // slot 11, virtual (as retail)
     }
-    else if (param3 == 0x17 && param4 == 501) {
+    else if (param3 == UI::EventId::SliderChanged && param4 == 501) {
         // Slider change: read slider value, update max count on PastureComponent
         Object::Base* entity = _dataSource;
         bool isEntity = ::Object::IsDerivedFromNullSafe(entity, ComponentEntity::TypeId());

@@ -278,7 +278,7 @@ void CitizenComponent::HideTool() {
 //     attach it at the model's "tool" node, then add it to the scene and record the ids.
 void CitizenComponent::ShowTool(int toolId) {
     ComponentEntity* parent = _entity.Get();
-    if (((parent->_entityFlags >> 10) & 1) != 0) return;  // removed flag
+    if ((parent->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0) return;  // removed flag
 
     if (toolSceneId >= 0) HideTool();
 

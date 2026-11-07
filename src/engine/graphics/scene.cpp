@@ -527,7 +527,7 @@ Graphics::Geometry::Geometry() {
     self->_attached._size    = 0;
     self->_attached._capacity= 0;
     self->_detailId          = 2;
-    self->_dirtyFlags        = 7;
+    self->_dirtyFlags        = RtGraphics::kDirtyAll;
     self->_materialTypeFlags = 0;
 
     self->_localBounds.min.x = 0.0f;
@@ -1055,7 +1055,7 @@ void Geometry::SetTransform(const Math::Transform& xf) {
     if (TransformDiffers(&_transform._current, &xf)) {
         _transform._previous = _transform._current;
         _transform._current     = xf;
-        _dirtyFlags   |= 3u;
+        _dirtyFlags   |= RtGraphics::kDirtyTransform | RtGraphics::kDirtyBounds;
         tailCall = _attached.GetSize() > 0;
     }
 
@@ -1119,7 +1119,7 @@ void Geometry::UpdateAttached() {
             if (TransformDiffers(&child->_transform._current, p)) {
                 child->_transform._previous = child->_transform._current;
                 child->_transform._current     = *p;
-                child->_dirtyFlags   |= 3u;
+                child->_dirtyFlags   |= RtGraphics::kDirtyTransform | RtGraphics::kDirtyBounds;
                 if (child->_attached.GetSize() > 0)
                     child->UpdateAttached();                                  // slot 4
             }
@@ -1161,27 +1161,27 @@ bool Geometry::Clean() {
     uint32_t f = _dirtyFlags;
     bool changed = false;
 
-    if ((f & 1u) == 0) {
-        if ((f & 8u) != 0) {
+    if ((f & RtGraphics::kDirtyTransform) == 0) {
+        if ((f & RtGraphics::kRolledTransform) != 0) {
             _transform._previous = _transform._current;
-            _dirtyFlags &= ~8u;
+            _dirtyFlags &= ~RtGraphics::kRolledTransform;
             changed = true;
         }
     } else {
-        _dirtyFlags = (f & ~1u) | 8u;
+        _dirtyFlags = (f & ~RtGraphics::kDirtyTransform) | RtGraphics::kRolledTransform;
         changed = true;
     }
 
     f = _dirtyFlags;
-    if ((f & 2u) == 0) {
-        if ((f & 0x10u) != 0) {
+    if ((f & RtGraphics::kDirtyBounds) == 0) {
+        if ((f & RtGraphics::kRolledBounds) != 0) {
             _prevWorldBounds = _worldBounds;
-            _dirtyFlags &= ~0x10u;
+            _dirtyFlags &= ~RtGraphics::kRolledBounds;
             changed = true;
         }
         // (f & 0x10) == 0: nothing to do, and `changed` is NOT raised.
     } else {
-        _dirtyFlags = (f & ~2u) | 0x10u;
+        _dirtyFlags = (f & ~RtGraphics::kDirtyBounds) | RtGraphics::kRolledBounds;
         // Retail copies the transform to a local before handing its address to
         // the box helper; kept so the helper never sees the live object.
         const Math::Transform xf = _transform._current;
@@ -1198,8 +1198,10 @@ bool Geometry::Clean() {
     }
 
     f = _dirtyFlags;
-    if ((f & 4u) != 0) _dirtyFlags = (f & ~4u) | 0x20u;
-    else               _dirtyFlags = f & ~0x20u;
+    if ((f & RtGraphics::kDirtyOpacity) != 0)
+        _dirtyFlags = (f & ~RtGraphics::kDirtyOpacity) | RtGraphics::kRolledOpacity;
+    else
+        _dirtyFlags = f & ~RtGraphics::kRolledOpacity;
 
     return changed;
 }
@@ -1219,7 +1221,7 @@ void Geometry::SetBounds(const ::Box& box) {
         _localBounds.max.y != box.max.y ||
         _localBounds.max.z != box.max.z) {
         _localBounds = box;
-        _dirtyFlags |= 2u;
+        _dirtyFlags |= RtGraphics::kDirtyBounds;
     }
 }
 

@@ -132,14 +132,14 @@ uint32_t GetTypeIdByName(const char* name) {
 // GetTypeName faults on a miss in retail; this diagnostic helper asks
 // IsTypeValid first and answers nullptr instead.
 const char* GetTypeNameById(uint32_t typeId) {
-    if (typeId == 0 || typeId == 0xFFFFFFFFu) return nullptr;
+    if (typeId == 0 || typeId == kInvalidTypeId) return nullptr;
     const Factory* factory = Factory::Get();
     if (!factory || !factory->IsTypeValid(typeId)) return nullptr;
     return factory->GetTypeName(typeId);
 }
 
 bool IsTypeDerivedFrom(uint32_t typeId, uint32_t ancestorId) {
-    if (typeId == 0 || typeId == 0xFFFFFFFF || ancestorId == 0 || ancestorId == 0xFFFFFFFF)
+    if (typeId == 0 || typeId == kInvalidTypeId || ancestorId == 0 || ancestorId == kInvalidTypeId)
         return false;
     const Factory* factory = Factory::Get();
     if (!factory || !factory->IsTypeValid(typeId) || !factory->IsTypeValid(ancestorId))

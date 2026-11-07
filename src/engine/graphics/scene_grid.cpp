@@ -208,10 +208,10 @@ Graphics::SceneGrid::SceneGrid(float cellSize) {
     _levelOffsets._data[6] = 0x0555;               // 18005e561
     _levelOffsets._data[7] = 0x1555;               // 18005e56c
 
-    _cellHeads.SetSize(0x5555);                    // 18005e580  retail 0x18002fea0
-    _cellCounts.SetSize(0x5555);                   // 18005e58e  retail 0x18002fea0
+    _cellHeads.SetSize(RtGraphics::kSceneCellCount);   // 18005e580  retail 0x18002fea0
+    _cellCounts.SetSize(RtGraphics::kSceneCellCount);  // 18005e58e  retail 0x18002fea0
 
-    for (int32_t i = 0; i < 0x5555; ++i) {         // 18005e5a0..5be, byte offset < 0x15554
+    for (int32_t i = 0; i < RtGraphics::kSceneCellCount; ++i) {   // 18005e5a0..5be, byte offset < 0x15554
         _cellHeads._data[i]  = -1;                 // both array pointers re-read
         _cellCounts._data[i] = 0;                  // every iteration
     }

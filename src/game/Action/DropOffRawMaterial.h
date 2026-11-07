@@ -26,6 +26,9 @@ class DropOffRawMaterial final : public Action {
     DECLARE_EXE_TYPE(DropOffRawMaterial)
 
 public:
+    // The ctor's `count` (0x1400c7cd0, stored at _field24) that drops every unit carried.
+    static constexpr uint32_t kAllUnits = 0xffffffffu;
+
     DropOffRawMaterial();                                                   // create 0x140022600
     DropOffRawMaterial(CitizenComponent* const* citizen, ComponentEntity* const* destination,
                        ComponentDescription* material, uint32_t count, bool flag);   // 0x1400c7cd0

@@ -123,8 +123,9 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
         le  |= static_cast<unsigned int>(_mm_movemask_ps(isLe)) << o;
         out |= static_cast<unsigned int>(_mm_movemask_ps(_mm_and_ps(isLe, isLt))) << o;
     }
-    if (out & mask & 0x3Fu) return 0x40u;
-    return mask & ~(~le & 0x3Fu);
+    if (out & mask & static_cast<uint32_t>(FrustumPlanes::All))
+        return static_cast<uint32_t>(FrustumPlanes::Outside);
+    return mask & ~(~le & static_cast<uint32_t>(FrustumPlanes::All));
 #elif defined(__ARM_NEON) && defined(__aarch64__)
     const uint32x4_t mnx = vreinterpretq_u32_f32(vdupq_n_f32(box->min.x));
     const uint32x4_t mxx = vreinterpretq_u32_f32(vdupq_n_f32(box->max.x));
@@ -169,8 +170,9 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
         le  |= vaddvq_u32(vandq_u32(isLe, laneBits)) << o;
         out |= vaddvq_u32(vandq_u32(vandq_u32(isLe, isLt), laneBits)) << o;
     }
-    if (out & mask & 0x3Fu) return 0x40u;
-    return mask & ~(~le & 0x3Fu);
+    if (out & mask & static_cast<uint32_t>(FrustumPlanes::All))
+        return static_cast<uint32_t>(FrustumPlanes::Outside);
+    return mask & ~(~le & static_cast<uint32_t>(FrustumPlanes::All));
 #else
     unsigned int le = 0, out = 0;
     for (int i = 0; i < 6; ++i) {
@@ -186,8 +188,9 @@ inline unsigned int FrustumCull_ContainsFast(const FrustumCullPlanes* p, const B
             if (dp < 0.0f) out |= 1u << i;
         }
     }
-    if (out & mask & 0x3Fu) return 0x40u;
-    return mask & ~(~le & 0x3Fu);
+    if (out & mask & static_cast<uint32_t>(FrustumPlanes::All))
+        return static_cast<uint32_t>(FrustumPlanes::Outside);
+    return mask & ~(~le & static_cast<uint32_t>(FrustumPlanes::All));
 #endif
 }
 

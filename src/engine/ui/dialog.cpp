@@ -925,7 +925,7 @@ void DialogInstance::OnUpdate(const System::Time& time) {      // [7] 0x18011540
 // hands the ADDRESS of that copy on, so a controller that overwrites its
 // argument cannot corrupt the caller's InternalPtr. Kept.
 void DialogInstance::OnElementEvent(Object::InternalPtr<Element>* element,
-                                    int32_t a, int32_t b, int32_t c4,
+                                    UI::EventId a, int32_t b, int32_t c4,
                                     int32_t d, int32_t e, void* userData) {  // [8] 0x180114ed0
     for (int32_t i = 0; i < _controllers._size; ++i) {
         DialogController* c = _controllers._data[i];
@@ -940,8 +940,8 @@ void DialogInstance::OnElementEvent(Object::InternalPtr<Element>* element,
 // 9 Contains.
 bool DialogInstance::Contains(int32_t x, int32_t y) const {    // 0x180114820
     const Element* const root = _root.Get();
-    if ((_flags >> 2) & 1) return false;
-    if ((_flags >> 3) & 1)
+    if ((_flags & kDialogFlagNoMouseCapture) != 0) return false;
+    if ((_flags & kDialogFlagPerElementCapture) != 0)
         return root->Contains(x, y, _ui);                      // Element slot 9
     return root->_layoutLeft <= x && x <= root->_layoutRight &&
            root->_layoutTop <= y && y <= root->_layoutBottom;
@@ -956,7 +956,8 @@ int32_t DialogInstance::GetMouseCursorIndex(Object::InternalPtr<Element> element
     for (int32_t i = 0; i < count; ++i) {
         Element* child = children ? children[i] : nullptr;
         if (!child) continue;
-        if ((child->_flags & 3) != 0) continue;                // the low byte of +0x34
+        // the low byte of +0x34
+        if ((child->_flags & (kElementFlagHidden | kElementFlagNoHitTest)) != 0) continue;
         if (child->_layoutLeft <= x && x < child->_layoutRight &&
             child->_layoutTop <= y && y < child->_layoutBottom)
             result = GetMouseCursorIndex(Object::InternalPtr<Element>(child), x, y);
@@ -993,17 +994,27 @@ void DialogInstance::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h) {
     posY += topPad;
     int32_t availW = availRight - posX;
     int32_t availH = availBottom - posY;
-    if ((elemFlags >> 2) & 1) layoutW = availW;
-    if ((elemFlags >> 3) & 1) layoutH = availH;
+    if ((elemFlags & kElementFlagAlignArg1) != 0) layoutW = availW;
+    if ((elemFlags & kElementFlagAlignArg2) != 0) layoutH = availH;
 
     switch (alignment) {
-        case 1: case 4: case 7: posX = posX + (availW >> 1) - (layoutW >> 1); break;
-        case 2: case 5: case 8: posX = availRight - layoutW; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            posX = posX + (availW >> 1) - (layoutW >> 1);
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            posX = availRight - layoutW;
+            break;
         default: break;   // left-aligned: posX unchanged
     }
-    if (alignment > 2) {
-        if (alignment < 6)      posY = posY + (availH >> 1) - (layoutH >> 1);
-        else if (alignment < 9) posY = availBottom - layoutH;
+    if (alignment > ElementDescription::TopRight) {
+        if (alignment < ElementDescription::BottomLeft)
+            posY = posY + (availH >> 1) - (layoutH >> 1);
+        else if (alignment <= ElementDescription::BottomRight)
+            posY = availBottom - layoutH;
     }
 
     ComputeSize();   // retail calls it a second time; reproduced as-is.
@@ -1015,7 +1026,7 @@ void DialogInstance::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h) {
     if (totalH < minH) totalH = minH;
 
     const uint32_t rootFlags = root->_flags;
-    if (rootFlags & 0x30) {
+    if (rootFlags & kElementFlagSizeToScreen) {
         Element* ancestor = root;
         while (ancestor->_parent != nullptr)
             ancestor = ancestor->_parent;
@@ -1024,9 +1035,9 @@ void DialogInstance::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h) {
         const float uiScale = dlgParent ? dlgParent->_ui->_uiScale : 1.0f;
         const ::Video::Device* device = ::Video::Device::_singleton;
         if (device) {
-            if (rootFlags & 0x20)
+            if (rootFlags & kElementFlagSizeToScreenW)
                 totalW = static_cast<int32_t>(static_cast<float>(device->backBufferWidth) * uiScale);
-            if (rootFlags & 0x10)
+            if (rootFlags & kElementFlagSizeToScreenH)
                 totalH = static_cast<int32_t>(static_cast<float>(device->backBufferHeight) * uiScale);
         }
     }
@@ -1042,7 +1053,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
     struct EventRecord {
         void*    dialog;
         uint64_t _unused08;
-        int32_t  type;
+        EventId  type;
         int32_t  data;
         int32_t  mouseX;
         int32_t  mouseY;
@@ -1053,7 +1064,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
     // UserInterface::_events (+0x48) through the hand-derived kSpec_Event30
     // row, which leaves bytes [0x24,0x28) of every element UNWRITTEN — see
     // the door's banner for why the trait-derived member is not used.
-    auto PushEvent = [&](int32_t type, int32_t data, int32_t mouseX, int32_t mouseY) {
+    auto PushEvent = [&](EventId type, int32_t data, int32_t mouseX, int32_t mouseY) {
         EventRecord rec{};
         rec.dialog = this;
         rec.type = type;
@@ -1067,7 +1078,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
     bool anyChildBit1 = false;
     for (auto it = _children.GetFirst(); it; ++it) {
         DialogInstance* child = it->Get();
-        anyChildBit1 = anyChildBit1 || ((child->_flags >> 1) & 1) != 0;
+        anyChildBit1 = anyChildBit1 || (child->_flags & kDialogFlagModal) != 0;
     }
 
     if (!anyChildBit1) {
@@ -1097,7 +1108,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
             }
         } else if (_hovering != 0) {
             _hovering = 0;
-            PushEvent(0x11, 0, 0, 0);
+            PushEvent(EventId::HoverEnd, 0, 0, 0);
             _hoverTime = 0;
         }
 
@@ -1109,7 +1120,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
                 RtUI::DialogTimer& t = data[i];
                 t._remaining -= timeTicks;
                 if (t._remaining <= 0) {
-                    PushEvent(0x13, t._id, 0, 0);
+                    PushEvent(EventId::Timer, t._id, 0, 0);
                     for (int32_t k = i; k + 1 < _timers._size; ++k)
                         data[k] = data[k + 1];                 // the 0x18-byte record
                     --_timers._size;
@@ -1131,9 +1142,9 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
         const int32_t my2 = state.mouseY;
         // bit2 is mouse-passthrough: it SKIPS the hit block (see the door).
         bool hit;
-        if ((_flags >> 2) & 1) {
+        if ((_flags & kDialogFlagNoMouseCapture) != 0) {
             hit = false;
-        } else if ((_flags >> 3) & 1) {
+        } else if ((_flags & kDialogFlagPerElementCapture) != 0) {
             // Retail 0x180113baf..bba: RCX = [RBX+0x50] (_root), EDX/R8D = mouse
             // x/y, R9 = [RBX+0x10] (_ui), CALL [RAX+0x48] = Element slot 9,
             // Contains(x, y, UserInterface*). B3R owed 1 (behaviour): this used
@@ -1146,9 +1157,9 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
         if (hit) {
             const int32_t px = state.mouseX;
             const int32_t py = state.mouseY;
-            if (state.buttonPressed != 0) PushEvent(8,  0, px, py);
-            if (state.b03 != 0)           PushEvent(9,  0, px, py);
-            if (state.b02 != 0)           PushEvent(0xa, 0, px, py);
+            if (state.buttonPressed != 0) PushEvent(EventId::DialogLeftPress,   0, px, py);
+            if (state.b03 != 0)           PushEvent(EventId::DialogRightPress,  0, px, py);
+            if (state.b02 != 0)           PushEvent(EventId::DialogMiddlePress, 0, px, py);
             state.leftDown = 0;          state.b08 = 0;        // retail: one WORD store at +0x07
             state.buttonPressed = 0;     state.b02 = 0;        // one WORD store at +0x01
             state.b04 = 0;               state.b05 = 0;        // one WORD store at +0x04
@@ -1199,16 +1210,16 @@ void DialogInstance::SetUpperLeft(int32_t x, int32_t y, bool scaled) {  // 0x180
     if (h < root->_minHeight)
         h = root->_minHeight;
 
-    if ((flags & 0x30u) != 0) {
+    if ((flags & kElementFlagSizeToScreen) != 0) {
         const Element* e = root;
         while (e->_parent != nullptr)
             e = e->_parent;
         const DialogInstance* dlg = e->_dialogParent;
-        if ((flags & 0x20u) != 0) {
+        if ((flags & kElementFlagSizeToScreenW) != 0) {
             const float s = dlg->_ui->_uiScale;
             w = static_cast<int32_t>(static_cast<float>(device->backBufferWidth) * s);
         }
-        if ((flags & 0x10u) != 0) {
+        if ((flags & kElementFlagSizeToScreenH) != 0) {
             const float s = dlg->_ui->_uiScale;
             h = static_cast<int32_t>(static_cast<float>(device->backBufferHeight) * s);
         }
@@ -1369,7 +1380,7 @@ void ElementDescription::InitFields() {
     _minWidth = 0;       _minHeight = 0;      // +0x30
     _tabOrder = 0;                            // +0x38
     _id = 0xFFFFFFFFu;                        // +0x3c
-    _elementType = 3;    _flags = 0;          // +0x40 (QWORD 3)
+    _elementType = MidLeft; _flags = 0;       // +0x40 (QWORD 3)
     _childDesc = nullptr;                     // +0x48
     _toolTipDialog = nullptr;                 // +0x50
     _stringTable = nullptr;                   // +0x58
@@ -1473,14 +1484,14 @@ void ElementDescription::CreateInstance(Object::InternalPtr<Element>* element) c
     if (elem->_toolTipDialog != nullptr &&
         elem->_toolTip.table != nullptr &&
         elem->_toolTip.index >= 0 &&
-        (elem->_flags & 0x800000u) == 0) {
+        (elem->_flags & kElementFlagDisabled) == 0) {
         const uint32_t before = elem->_flags;
-        const uint32_t after  = before | 0x90000u;
+        const uint32_t after  = before | (kElementFlagRaisesEvents | kElementFlagToolTipValid);
         elem->_flags = after;
-        if ((static_cast<uint8_t>(before ^ after) & 1u) != 0) {
+        if ((static_cast<uint8_t>(before ^ after) & kElementFlagHidden) != 0) {
             Element* w = elem;
             do {
-                w->_flags |= 0x8000000u;
+                w->_flags |= kElementFlagNeedsSizeCalc;
                 w = w->_parent;
             } while (w != nullptr);
         }

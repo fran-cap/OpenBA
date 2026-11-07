@@ -139,20 +139,20 @@ extern "C" void* RtSystem_OperatorNew_180011640(uint64_t size) {
 // ---------------------------------------------------------------------------
 extern "C" void RtSystem_MemoryAllocator_LinkPrevBlock(uint64_t* header,
                                                        const uint64_t* prev) {
-    *header |= 0x100000000000ull;
-    const uint64_t prevSize = *prev & 0x1ffffffffffull;
+    *header |= rt::system::kTagPrevFree;
+    const uint64_t prevSize = *prev & rt::system::kTagSizeMask;
     const uint64_t hdr = *header;                       // re-read AFTER the OR
     if (prevSize > 4ull) {                            // JA — unsigned
         const int64_t delta = reinterpret_cast<const uint8_t*>(header) -  // CAST-OK: ptr_int
                               reinterpret_cast<const uint8_t*>(prev);  // CAST-OK: ptr_int
         header[-1] = static_cast<uint64_t>(delta);
-        *header = hdr & ~0xe0000000000ull;
+        *header = hdr & ~rt::system::kTagPrevSizeMask;
         return;
     }
     const int64_t delta = reinterpret_cast<const uint8_t*>(header) -  // CAST-OK: ptr_int
                           reinterpret_cast<const uint8_t*>(prev);  // CAST-OK: ptr_int
-    const uint64_t packed = static_cast<uint64_t>(delta >> 2) << 0x29;  // SAR then SHL
-    *header = ((packed ^ hdr) & 0xe0000000000ull) ^ hdr;
+    const uint64_t packed = static_cast<uint64_t>(delta >> 2) << rt::system::kTagPrevSizeShift;  // SAR then SHL
+    *header = ((packed ^ hdr) & rt::system::kTagPrevSizeMask) ^ hdr;
 }
 
 // ============================================================================

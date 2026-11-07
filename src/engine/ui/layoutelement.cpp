@@ -74,7 +74,7 @@ namespace UI {
 // slot 4 — ?ComputeSize@LayoutElement@UI@@UEAAXXZ   0x1800d3100
 // ---------------------------------------------------------------------------
 void LayoutElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     // One qword store clears both size fields.
     _layoutWidth  = 0;
@@ -88,7 +88,7 @@ void LayoutElement::ComputeSize() {
         ChildRecord* row   = _childRecords._data + i;
 
         // `(~child->_flags & 1) == 0` is "child IS hidden".
-        const bool hidden  = (child->_flags & kFlagHidden) != 0;
+        const bool hidden  = (child->_flags & UI::kElementFlagHidden) != 0;
         const bool visible = !(hidden && row->force == 0);
 
         if (!visible) {
@@ -108,7 +108,7 @@ void LayoutElement::ComputeSize() {
         if (maxY <= row->bottom[1]) maxY = row->bottom[1];
     }
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutWidth  = maxX - minX;
     _layoutHeight = maxY - minY;
 }
@@ -135,13 +135,16 @@ void LayoutElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
     // only surviving case of the aligned-position switch is 2/5/8, and its
     // body re-derives the value it already has. Transcribed as shipped.
     switch (align) {
-        case 2: case 5: case 8:
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
             px = (right - _rightPad) - aw;
             break;
         default:
             break;
     }
-    if (align > 2 && align > 5 && align < 9)
+    if (align > ElementDescription::TopRight && align > ElementDescription::MidRight &&
+        align <= ElementDescription::BottomRight)
         py = (bottom - _bottomPad) - ah;
 
     _layoutRight  = aw + px;
@@ -156,7 +159,7 @@ void LayoutElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t b
         Element*           child = _children[i];
         const ChildRecord* row0  = _childRecords._data + i;
 
-        const bool hidden  = (child->_flags & kFlagHidden) != 0;
+        const bool hidden  = (child->_flags & UI::kElementFlagHidden) != 0;
         const bool visible = !(hidden && row0->force == 0);
 
         GetChildLayout(i, 0, _layoutLeft, _layoutTop, _layoutRight, _layoutBottom,   // 0x1800d2dc0
@@ -205,7 +208,7 @@ void LayoutElement::Draw(SpriteContext& context, uint8_t alpha) const {
     const int32_t n = _children.GetSize();
     for (int32_t i = 0; i < n; ++i) {
         Element* child = _children[i];
-        if ((child->_flags & kFlagHidden) == 0) child->Draw(context, alpha);
+        if ((child->_flags & UI::kElementFlagHidden) == 0) child->Draw(context, alpha);
     }
 }
 

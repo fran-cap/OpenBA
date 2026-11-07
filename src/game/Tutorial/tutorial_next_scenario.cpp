@@ -271,7 +271,7 @@ void TutorialInstance::LoadNextScenario() {
         GameUpdateLoop* engine = GameUpdateLoop::_singleton;
         UI::UserInterface* ui = engine->m_userInterface;
         ui->SetCursor(g_gameContainer->cursorHourglass);
-        ui->SetFullscreenFade(true, 0xFF000000, false);
+        ui->SetFullscreenFade(true, System::kColorBlack, false);
         engine->m_nextLoop = pOuterLoop;
     }
 

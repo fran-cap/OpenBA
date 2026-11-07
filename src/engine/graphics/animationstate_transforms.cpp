@@ -174,7 +174,7 @@ void AnimationState::PlayAnimation(Object::ExternalPtr<AnimationGroup> groupHand
             if (handle < 0) continue;                       // TEST ECX,ECX / JS
 
             AnimationManager::Instance* inst =
-                &AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
+                &AnimationManager::_singleton->_instances._data[AnimationManager::HandleInstance(handle)];
             if (--inst->_refCount != 0) continue;
 
             inst->_group     = nullptr;
@@ -291,8 +291,8 @@ void AnimationState::CopyInstancedToUnique(const GraphicsMesh::NodeArray& nodes,
                                            InterpolatedState<Math::Transform>* interp,
                                            int handle) const {
     const AnimationManager::Instance& inst =
-        AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
-    const Math::Transform* pose = inst._states._data[handle & 0xff]._pose._data;
+        AnimationManager::_singleton->_instances._data[AnimationManager::HandleInstance(handle)];
+    const Math::Transform* pose = inst._states._data[AnimationManager::HandleState(handle)]._pose._data;
 
     // ---- node 0, through the two real calls ----
     const Math::Vector3 rot = root.rotation.Rotate(pose[0].translation);
@@ -460,9 +460,10 @@ void AnimationState::UpdateNodes(float speed,
             // Inlined GetPose, straight out of the instance pool into the
             // scratch: retail does NOT call 0x1800fb8e0 on this arm.
             const AnimationManager::Instance& inst =
-                AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
+                AnimationManager::_singleton->_instances._data[AnimationManager::HandleInstance(handle)];
             if (nodeCount > 0) {
-                const Math::Transform* src = inst._states._data[handle & 0xff]._pose._data;
+                const Math::Transform* src =
+                    inst._states._data[AnimationManager::HandleState(handle)]._pose._data;
                 for (int64_t k = 0; k < nodeCount; ++k)
                     scratch[k] = src[k];
             }
@@ -737,8 +738,9 @@ int MeshInstance::GetBones(float t, const Math::Transform& rootRef,
         const int32_t handle =
             _animation._layers._data[_animation._layers._size - 1]._handle;
         const AnimationManager::Instance& inst =
-            AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
-        interp = inst._states._data[handle & 0xff]._nodes._data;
+            AnimationManager::_singleton->_instances._data[
+                (handle >> AnimationManager::kHandleIndexBits) & AnimationManager::kHandleIndexMask];
+        interp = inst._states._data[handle & AnimationManager::kHandleIndexMask]._nodes._data;
     } else {
         interp = _nodes._data;
     }
@@ -1194,7 +1196,7 @@ int32_t AnimationManager::GetInstanceId(Object::ExternalPtr<AnimationGroup> grou
         } while (j < n);
     }
 
-    return (idx << 8) | bestIdx;
+    return (idx << kHandleIndexBits) | bestIdx;
 }
 
 }  // namespace Graphics

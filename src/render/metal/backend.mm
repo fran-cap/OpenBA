@@ -1292,8 +1292,9 @@ void ContextData::Finish() {
     Present();
     _owner->_device->Unlock();
 }
-void ContextData::Clear(unsigned flags, unsigned color, float depth, int stencil) {
-    if (flags & 1) clearColor = color;
+void ContextData::Clear(Video::ClearFlags flags, unsigned color, float depth, int stencil) {
+    const uint32_t bits = static_cast<uint32_t>(flags);
+    if (bits & static_cast<uint32_t>(Video::ClearFlags::Color)) clearColor = color;
     BindRenderBuffer();
     if (!commands) return;
     EndEncoder();
@@ -1301,18 +1302,21 @@ void ContextData::Clear(unsigned flags, unsigned color, float depth, int stencil
     if (targetColor) {
         auto a = pass.colorAttachments[0];
         a.texture = targetColor;
-        a.loadAction = (flags & 1) ? MTLLoadActionClear : MTLLoadActionLoad;
+        a.loadAction = (bits & static_cast<uint32_t>(Video::ClearFlags::Color)) ? MTLLoadActionClear
+                                                                                : MTLLoadActionLoad;
         a.storeAction = MTLStoreActionStore;
         a.clearColor = MTLClearColorMake(((color >> 16) & 255) / 255., ((color >> 8) & 255) / 255.,
                                          (color & 255) / 255., (color >> 24) / 255.);
     }
     if (targetDepth) {
         pass.depthAttachment.texture = targetDepth;
-        pass.depthAttachment.loadAction = (flags & 2) ? MTLLoadActionClear : MTLLoadActionLoad;
+        pass.depthAttachment.loadAction =
+            (bits & static_cast<uint32_t>(Video::ClearFlags::Depth)) ? MTLLoadActionClear : MTLLoadActionLoad;
         pass.depthAttachment.storeAction = MTLStoreActionStore;
         pass.depthAttachment.clearDepth = depth;
         pass.stencilAttachment.texture = targetDepth;
-        pass.stencilAttachment.loadAction = (flags & 4) ? MTLLoadActionClear : MTLLoadActionLoad;
+        pass.stencilAttachment.loadAction =
+            (bits & static_cast<uint32_t>(Video::ClearFlags::Stencil)) ? MTLLoadActionClear : MTLLoadActionLoad;
         pass.stencilAttachment.storeAction = MTLStoreActionStore;
         pass.stencilAttachment.clearStencil = stencil;
     }
@@ -1332,7 +1336,8 @@ void ContextData::BindViewport() {}
 void ContextData::BindScissor() {}
 void ContextData::BindTransforms() {
     auto c = _owner;
-    if (c->_dirty & 0x4000) c->_transformConstants.Bind(*c, c->_transforms, 0, c->_transformCount << 6);
+    if (c->_dirty & RtVideo::kDirtyTransformConstants)
+        c->_transformConstants.Bind(*c, c->_transforms, 0, c->_transformCount << 6);
     if (c->_unknown0024 > 0) c->_boneConstants.Bind(*c, c->_boneAndProjectionStaging, 0, 0x0cc0);
 }
 void ContextData::BindTextureNone(int slot) {
@@ -1408,7 +1413,7 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     c->_dynamicVertexBuffer->Unlock();
     c->SetVertexBuffer(c->_dynamicVertexBuffer, 0, c->_unknown2100, c->_dynamicVertexStride);
     if (c->_indexBuffer != c->_dynamicIndexBuffer || c->_indexOffset != c->_unknown2120) {
-        c->_dirty |= 0x10;
+        c->_dirty |= RtVideo::kDirtyIndexBuffer;
         c->_indexBuffer = c->_dynamicIndexBuffer;
         c->_indexOffset = c->_unknown2120;
     }

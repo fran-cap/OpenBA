@@ -257,9 +257,9 @@ void Video::ImageBuffer::RecreateDynamic() {
 
                 // Unguarded past retail's own test — see the banner.
                 const uint32_t flags = p->_flags;
-                if ((flags >> 4) & 1u) {
+                if ((flags & Video::ImageBuffer::kAliasedColor) != 0) {
                     companion->AttachColorBuffer();
-                } else if ((flags >> 5) & 1u) {
+                } else if ((flags & Video::ImageBuffer::kAliasedDepth) != 0) {
                     companion->AttachDepthBuffer();
                 } else {
                     companion->Create(nullptr);

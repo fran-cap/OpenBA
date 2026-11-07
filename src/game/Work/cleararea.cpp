@@ -437,13 +437,13 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 }
 
                 // Find valid cell near this tile
-                int cellIdx = map->FindCell(tile->cell, refTileIdx, 0xe07);
+                int cellIdx = map->FindCell(tile->cell, refTileIdx, PathBits::Access);
                 if (cellIdx < 0) {
                     continue;
                 }
 
                 // Validate cell is passable
-                int valid = static_cast<int>(map->ValidateCell(0xe1f, (int)(uint32_t)cellIdx, refTileIdx));   // the door read EAX
+                int valid = static_cast<int>(map->ValidateCell(PathBits::Walk, (int)(uint32_t)cellIdx, refTileIdx));   // the door read EAX
                 if (!(valid & 0xFF)) {
                     continue;
                 }
@@ -495,12 +495,12 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
 
                 // Set fields on citizen: +0x30 = workId, +0x54 |= 4, +0xb0 = 0
                 citizenObj->field_0x30 = workId;
-                citizenObj->statusFlags |= 4;
+                citizenObj->statusFlags |= Bits(CitizenStatus::TaskDone);
                 citizenObj->field_0xB0 = 0;
 
                 // If the work's profession matches the citizen's (+0x1f0) and workId >= 0, set flag
                 if (workEntity2 == citizenObj->profession && workId >= 0) {
-                    citizenObj->happinessFlags |= 0x20000;
+                    citizenObj->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                 }
 
                 // Insert tree entity into tracking BST
@@ -549,7 +549,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 }
 
                 // Validate cell passability
-                int passable = static_cast<int>(map->ValidateCell(0xe1f, (int)tileIdx, refTileIdx));   // the door read EAX
+                int passable = static_cast<int>(map->ValidateCell(PathBits::Walk, (int)tileIdx, refTileIdx));   // the door read EAX
                 if (!(passable & 0xFF)) {
                     tileCount = tileArray.size;
                     continue;
@@ -590,11 +590,11 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 Profession* workEntity2 = *GetTarget(&workIBP);
 
                 citizenObj->field_0x30 = workIdSaved;
-                citizenObj->statusFlags |= 4;
+                citizenObj->statusFlags |= Bits(CitizenStatus::TaskDone);
                 citizenObj->field_0xB0 = 0;
 
                 if (workEntity2 == citizenObj->profession && workIdSaved >= 0) {
-                    citizenObj->happinessFlags |= 0x20000;
+                    citizenObj->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                 }
 
                 // Insert tile into ground tracking BST

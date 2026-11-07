@@ -250,13 +250,13 @@ void MainMenuDialog::ReturnToMenu() {
     // Step 4: Set next loop on the appropriate target
     if (gameWorld == nullptr) {
         // No game: fade the menu loop's UI and queue the chain
-        menuLoop->_ui.SetFullscreenFade(true, 0xFF000000, false);
+        menuLoop->_ui.SetFullscreenFade(true, System::kColorBlack, false);
         menuLoop->_pendingLoop = outerLoop;
     } else {
         // Game active: set cursor, fade, store as the game's next loop
         UI::UserInterface* ui = gameWorld->m_userInterface;
         ui->SetCursor(g_gameContainer->cursorHourglass);
-        ui->SetFullscreenFade(true, 0xFF000000, false);
+        ui->SetFullscreenFade(true, System::kColorBlack, false);
         gameWorld->m_nextLoop = outerLoop;
     }
 }
@@ -479,9 +479,9 @@ void MainMenuDialog::OnOpened() {
 
         // A scenario game (index >= 0) hides Map; a free game hides Goal.
         if (GameUpdateLoop::_singleton->m_scenarioIndex < 0) {
-            if (buttonGoal) buttonGoal->SetFlagsOnOff(1, 0);
+            if (buttonGoal) buttonGoal->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         } else if (buttonMap) {
-            buttonMap->SetFlagsOnOff(1, 0);
+            buttonMap->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         }
 
         // Game flag bit 10 disables Save and Mod (retail re-reads it per button).
@@ -581,9 +581,9 @@ void MainMenuDialog::OnClosed() {
 static void StandaloneOpenMapParams_UI(UI::UserInterface* ui);  // defined below (map dialog bring-up)
 
 void MainMenuDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
-                                    int32_t msg, int32_t id, int32_t /*c*/,
+                                    UI::EventId msg, int32_t id, int32_t /*c*/,
                                     int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (msg != 0x12) return;
+    if (msg != UI::EventId::Activated) return;
     printf("[MainMenuDialog::OnCommand] self=%p msg=0x%x id=%d\n", (void*)this, msg, id);
 
     switch (id) {

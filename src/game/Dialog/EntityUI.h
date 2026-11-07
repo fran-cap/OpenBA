@@ -38,7 +38,7 @@ public:
     void OnClosed() override;   // [6] 0x140067090
     void OnUpdateLayout() override;   // [7] 0x140066d80
     void OnUpdate(const System::Time& time) override;   // [8] 0x140066ad0
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140067050
 
     // B4 PLAYER (bodies in Player/tool_base_trade.cpp): the pin check box.

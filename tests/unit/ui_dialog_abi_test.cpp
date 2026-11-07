@@ -532,7 +532,7 @@ void DialogInstance::OnOpened() { Note(this, 104); }
 void DialogInstance::OnClosed() { Note(this, 105); }
 void DialogInstance::OnUpdateLayout() { Note(this, 106); }
 void DialogInstance::OnUpdate(const System::Time& t) { Note(this, 107); g_lastArg = &t; }
-void DialogInstance::OnElementEvent(Object::InternalPtr<Element>* e, int32_t, int32_t,
+void DialogInstance::OnElementEvent(Object::InternalPtr<Element>* e, UI::EventId, int32_t,
                                     int32_t, int32_t, int32_t, void*) {
     Note(this, 108); g_lastArg = e;
 }
@@ -545,7 +545,7 @@ void DialogController::OnOpened() { Note(this, 205); }
 void DialogController::OnClosed() { Note(this, 206); }
 void DialogController::OnUpdateLayout() { Note(this, 207); }
 void DialogController::OnUpdate(const System::Time& t) { Note(this, 208); g_lastArg = &t; }
-void DialogController::OnElementEvent(Object::InternalPtr<Element>* e, int32_t, int32_t,
+void DialogController::OnElementEvent(Object::InternalPtr<Element>* e, UI::EventId, int32_t,
                                       int32_t, int32_t, int32_t, void*) {
     Note(this, 209); g_lastArg = e;
 }
@@ -554,7 +554,7 @@ DialogController::~DialogController() { B39UidDlgNoteDtor(this); }
 
 void ComboDialog::OnUpdateLayout() { Note(this, 306); }
 void ComboDialog::OnUpdate(const System::Time& t) { Note(this, 307); g_lastArg = &t; }
-void ComboDialog::OnElementEvent(Object::InternalPtr<Element>* e, int32_t, int32_t,
+void ComboDialog::OnElementEvent(Object::InternalPtr<Element>* e, UI::EventId, int32_t,
                                  int32_t, int32_t, int32_t, void*) {
     Note(this, 308); g_lastArg = e;
 }

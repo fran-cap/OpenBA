@@ -334,7 +334,8 @@ void Join(bool finishSave) {
         // with a release store, and a volatile read of a word the worker writes is still a data
         // race; the acquire also orders the job's last reads of the blocks before the teardown.
         int32_t status = p != nullptr ? __atomic_load_n(&p->_worker._status, __ATOMIC_ACQUIRE) : -1;
-        while (status == 0 && std::chrono::steady_clock::now() < deadline) {
+        while (status == static_cast<int32_t>(IO::PersistenceWorker::Status::Pending) &&
+               std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             status = __atomic_load_n(&p->_worker._status, __ATOMIC_ACQUIRE);
         }

@@ -218,7 +218,7 @@ unsigned int RtVolume_Frustum_Contains(const Frustum* self, const Box* box, unsi
         float dN = plane.y * nVertex.y + plane.x * nVertex.x + plane.z * nVertex.z - plane.w;
         if (!(dN > 0.0f)) {   // COMISS + JBE: taken on unordered
             float dP = plane.y * pVertex.y + plane.x * pVertex.x + plane.z * pVertex.z - plane.w;
-            if (dP < 0.0f) { ours = 0x40u; goto diffed; }
+            if (dP < 0.0f) { ours = Bits(FrustumPlanes::Outside); goto diffed; }
             // else: straddles this plane — leave the bit set, test the next plane.
         } else {
             ours &= ~bit;

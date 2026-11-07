@@ -29,11 +29,11 @@ UNIT_TEST(ext_debug_spawn_origin_origin_is_the_map_centre) {
 }
 
 UNIT_TEST(ext_debug_spawn_origin_land_is_a_zoned_land_type) {
-    CHECK(IsZonedLand(2, 7));
-    CHECK(IsZonedLand(10, 1));
-    CHECK(!IsZonedLand(2, 0));    // no zone yet
-    CHECK(!IsZonedLand(5, 7));    // a footprint / mountain / water type (5-8) has no zone
-    CHECK(!IsZonedLand(8, 7));
+    CHECK(IsZonedLand(PathType::Normal, 7));
+    CHECK(IsZonedLand(PathType::Walkable, 1));
+    CHECK(!IsZonedLand(PathType::Normal, 0));    // no zone yet
+    CHECK(!IsZonedLand(PathType::Immovable, 7));    // a footprint / mountain / water type (5-8) has no zone
+    CHECK(!IsZonedLand(PathType::DeepWater, 7));
 }
 
 UNIT_TEST(ext_debug_spawn_origin_nearest_takes_the_origin_when_it_stands) {

@@ -30,6 +30,8 @@ namespace Ext {
 namespace FastPaths {
 
 using GridSearch::HeuristicScale;
+using GridSearch::kCellTypeCount;
+using GridSearch::kCellTypeMask;
 using GridSearch::kPathCap;
 using GridSearch::kStepCosts;
 using GridSearch::Searcher;
@@ -48,7 +50,7 @@ std::atomic<bool> g_rescan{true};
 // Worker-thread state (one pathfinder worker; see the header comment).
 struct WorkerState {
     Searcher searcher;
-    int32_t  typeCount[0x80] = {};
+    int32_t  typeCount[kCellTypeCount] = {};
     bool     countsValid = false;
     bool     reportedUnsupported = false;
     int      lastExpanded = 0;   // PFBENCH's expansion figure for the last Run (see LastRunExpanded)
@@ -68,7 +70,7 @@ uint32_t PresentMask(WorkerState& w, const GridPathSearch& grid) {
         g_rescan.store(false, std::memory_order_relaxed);
         for (int32_t& c : w.typeCount) c = 0;
         const int n = grid.width * grid.width;
-        for (int i = 0; i < n; ++i) ++w.typeCount[grid.cellFlags[i] & 0x7f];
+        for (int i = 0; i < n; ++i) ++w.typeCount[grid.cellFlags[i] & kCellTypeMask];
         w.countsValid = true;
         w.reportedUnsupported = false;
     }
@@ -181,8 +183,8 @@ int RunWith(Searcher& searcher, GridPathSearch& grid, int start, int goal, int32
 void NoteCellTerrain(uint8_t oldFlags, int newType) {
     WorkerState& w = Worker();
     if (!w.countsValid) return;   // the next request rescans
-    --w.typeCount[oldFlags & 0x7f];
-    ++w.typeCount[static_cast<uint8_t>(newType) & 0x7f];
+    --w.typeCount[oldFlags & kCellTypeMask];
+    ++w.typeCount[static_cast<uint8_t>(newType) & kCellTypeMask];
 }
 
 ShadowResult Shadow(const Request& req) {

@@ -32,6 +32,7 @@
 #include "ui/UserInterface.h"
 #include "ui/TableElement.h"
 #include "input/Input.h"
+#include "Game/inputbindings.h"   // GameKey (the KeyMap ids)
 #include "ui/String.h"
 #include "ui/Sprite.h"
 #include "ui/Dialog.h"
@@ -189,7 +190,7 @@ public:
         }
         if (UI::Element* handle = FindElement(System::String("borderTitle")).Get()) {
             handle->SetElementId(0);
-            handle->SetFlagsOnOff(0x10000, 0);
+            handle->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
         }
         if (UI::Element* one = FindElement(System::String("buttonProfessionsOneColumn")).Get()) {
             one->SetElementId(kOneColumnId);
@@ -199,7 +200,7 @@ public:
         }
         if (UI::Element* grip = FindElement(System::String("borderProfessionsGrip")).Get()) {
             grip->SetElementId(kGripId);
-            grip->SetFlagsOnOff(0x10000, 0);
+            grip->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
         }
         box_ = FindElement(System::String("containerProfessionsBox"));
         ShowColumnsButton();
@@ -229,32 +230,33 @@ public:
         UI::DialogInstance::OnClosed();
     }
 
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id, int32_t c,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id, int32_t c,
                         int32_t d, int32_t e, void* userData) override {
         // A utility window's behavior, as the favorites window's: a press on the title bar starts a drag, a
         // release ends it, focus events bring the window to the front, the close button closes it.
-        if (msg == 2 && id == 0) {
+        if (msg == UI::EventId::LeftPress && id == 0) {
             _dragging = true;
             _dragOffsetX = c - _upperLeftX;
             _dragOffsetY = d - _upperLeftY;
-        } else if (msg == 5) {
+        } else if (msg == UI::EventId::LeftRelease) {
             _dragging = false;
             resizing_ = false;
-        } else if (msg > 7 && msg < 0x0B) {
-            if (msg == 8) StartResizeIfOnGrip(c, d);
+        } else if (msg >= UI::EventId::DialogLeftPress && msg <= UI::EventId::DialogMiddlePress) {
+            if (msg == UI::EventId::DialogLeftPress) StartResizeIfOnGrip(c, d);
             Object::InternalPtr<UI::DialogInstance> self(this);
             _ui->BringDialogToFront(&self);
-        } else if (msg == 0x12 && id == kCloseId) {
+        } else if (msg == UI::EventId::Activated && id == kCloseId) {
             Object::InternalPtr<UI::DialogInstance> self(this);
             _ui->CloseDialog(&self);
             return;
-        } else if (msg == 0x12 && (id == kOneColumnId || id == kTwoColumnsId)) {
+        } else if (msg == UI::EventId::Activated && (id == kOneColumnId || id == kTwoColumnsId)) {
             pendingColumns_ = id == kOneColumnId ? 1 : 2;   // applied on the next tick, not inside the event
-        } else if (msg == 0x15 && id >= kSpinnerId0 && id < kSpinnerId0 + kMaxIds) {
+        } else if (msg == UI::EventId::ValueChanged && id >= kSpinnerId0 && id < kSpinnerId0 + kMaxIds) {
             pendingSpinner_ = id - kSpinnerId0;   // retail's: a spinner changed
         }
         // retail's: a goto arrow (message 0x12 or 0x15)
-        if ((msg == 0x12 || msg == 0x15) && id >= kGotoId0 && id < kGotoId0 + kMaxIds) {
+        if ((msg == UI::EventId::Activated || msg == UI::EventId::ValueChanged)
+            && id >= kGotoId0 && id < kGotoId0 + kMaxIds) {
             pendingGoto_ = id - kGotoId0;
         }
         Object::InternalPtr<UI::Element> copy = *element;
@@ -268,8 +270,8 @@ public:
         if (!_dragging || Input::Configuration::_singleton == nullptr) return;
         const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
         const float scale = _ui->_uiScale;
-        const int keyX = static_cast<int>(keyMap->GetValue(0, 0));
-        const int keyY = static_cast<int>(keyMap->GetValue(0, 1));
+        const int keyX = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseX)));
+        const int keyY = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseY)));
         int x = static_cast<int>(static_cast<float>(keyX) * scale) - _dragOffsetX;
         int y = static_cast<int>(static_cast<float>(keyY) * scale) - _dragOffsetY;
         if (x < 0) x = 0;
@@ -277,7 +279,7 @@ public:
         SetUpperLeft(x, y, false);
         g_x = x;
         g_y = y;
-        if (keyMap->GetValue(0, 5) == 0) _dragging = false;
+        if (keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft)) == 0) _dragging = false;
     }
 
     // A drag on the strip under the list: the list's height follows the mouse, a whole number of rows at a
@@ -285,7 +287,7 @@ public:
     void Resize() {
         if (Input::Configuration::_singleton == nullptr) return;
         const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
-        if (keyMap->GetValue(0, 5) == 0) {
+        if (keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft)) == 0) {
             resizing_ = false;
             if (!resizeMoved_) {   // a click on the strip: back to fitting the rows
                 g_manual = false;
@@ -296,7 +298,7 @@ public:
             return;
         }
         const float scale = _ui->_uiScale;
-        const int keyY = static_cast<int>(keyMap->GetValue(0, 1));
+        const int keyY = static_cast<int>(keyMap->GetValue(0, ToUnderlying(GameKey::MouseY)));
         const int mouseY = static_cast<int>(static_cast<float>(keyY) * scale);
         int height = resizeStartHeight_ + (mouseY - resizeStartMouseY_);
         const ::Video::Device* device = ::Video::Device::_singleton;
@@ -497,8 +499,8 @@ private:
             edit->SetElementId(kSpinnerId0 + index);
             arrow->SetElementId(kGotoId0 + index);
             if (index == laborer_) {
-                number->SetFlagsOnOff(1, 0);
-                of->SetFlagsOnOff(1, 0);
+                number->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+                of->SetFlagsOnOff(UI::kElementFlagHidden, 0);
             }
             Row row;
             row.profession = index;
@@ -558,16 +560,16 @@ private:
         UI::Element* two = FindElement(System::String("buttonProfessionsTwoColumns")).Get();
         if (one != nullptr) {
             if (g_columns == 2) {
-                one->SetFlagsOnOff(0, 1);
+                one->SetFlagsOnOff(0, UI::kElementFlagHidden);
             } else {
-                one->SetFlagsOnOff(1, 0);
+                one->SetFlagsOnOff(UI::kElementFlagHidden, 0);
             }
         }
         if (two != nullptr) {
             if (g_columns == 1) {
-                two->SetFlagsOnOff(0, 1);
+                two->SetFlagsOnOff(0, UI::kElementFlagHidden);
             } else {
-                two->SetFlagsOnOff(1, 0);
+                two->SetFlagsOnOff(UI::kElementFlagHidden, 0);
             }
         }
         // the scroll box is as wide as its columns need

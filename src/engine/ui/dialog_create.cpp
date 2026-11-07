@@ -136,10 +136,8 @@ using RtUI::DialogTimer;
 
 namespace {
 
-// Element::_flags bit the 6-arg AddController propagates up the parent chain.
-// `OR dword ptr [RBX+0x34],0x8000000` at 0x180113620. Element.h calls bit 27
-// kElementFlagNeedsSizeCalc.
-constexpr uint32_t kElementNeedsSizeCalc = 0x8000000u;
+// The 6-arg AddController propagates UI::kElementFlagNeedsSizeCalc (bit 27) up the
+// parent chain: `OR dword ptr [RBX+0x34],0x8000000` at 0x180113620.
 
 // ---- The allocator boundary ------------------------------------------------
 // `?MemAlloc@MemoryAllocator@System@@SAPEAX_KH@Z` (0x1800c7a50), called
@@ -261,7 +259,7 @@ void* MemAlloc(uint64_t bytes, int align) {
 //   2. CREATE the element: default-construct a temporary `UI::Dialog`, call the
 //      description's vtable slot 8 with (out, &tmpDialog), parent the result
 //      into the resolved element, append it to that element's `_children`, and
-//      OR kElementNeedsSizeCalc up the whole parent chain. Then destroy tmp.
+//      OR UI::kElementFlagNeedsSizeCalc up the whole parent chain. Then destroy tmp.
 //   3. FORWARD to the 4-arg overload with the created element, if id != 0.
 //
 // THE TEMPORARY IS A `UI::Dialog`, NOT AN `ElementDescription`. The inlined
@@ -538,7 +536,7 @@ void DialogInstance::AddController(uint32_t typeId, Object::Base* dataSource,
             // 0x180113620: a DO-WHILE (retail faults here on a null target).
             Element* walk = target;
             do {
-                walk->_flags |= kElementNeedsSizeCalc;
+                walk->_flags |= UI::kElementFlagNeedsSizeCalc;
                 walk = walk->_parent;
             } while (walk);
         }

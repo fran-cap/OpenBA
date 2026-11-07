@@ -38,7 +38,7 @@ std::vector<Candidate> EdibleMaterials() {
             continue;
         }
         const RawMaterialDescription* m = static_cast<const RawMaterialDescription*>(prev);
-        if ((m->_flags & kEdible) == 0) {
+        if ((m->_flags & RawMaterialFlags::Edible) == 0) {
             continue;
         }
         Candidate c;

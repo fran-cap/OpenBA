@@ -37,7 +37,7 @@ public:
     ~ModDetailsDialog() override;                                  // [0] 0x140012890
     void OnOpened() override;                                      // [4] 0x14006d700
     void OnElementEvent(Object::InternalPtr<UI::Element>* element,
-                        int32_t a, int32_t b, int32_t c,
+                        UI::EventId a, int32_t b, int32_t c,
                         int32_t d, int32_t e, void* userData) override;  // [8] 0x14006d6a0
 
     // 0x14006d400 (update) / 0x14006d550 (delete): both open Dialog/ModUpdate.rsc.

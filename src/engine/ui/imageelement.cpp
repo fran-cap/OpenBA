@@ -67,7 +67,7 @@ namespace UI {
 // `flags` is snapshotted once and the clear is written from the snapshot.
 void ImageElement::ComputeSize() {
     const uint32_t flags = _flags;
-    if (((flags >> 27) & 1u) == 0) return;
+    if ((flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     int w = _width;
     if (w < 1) w = SpriteW(_sprite);

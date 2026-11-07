@@ -67,8 +67,8 @@ public:
         _partDescs[0] = nullptr;
         _partDescs[1] = nullptr;
         _spriteSheet  = nullptr;
-        _hoverColor   = 0xff808080u;
-        _selectColor  = 0xffffffffu;
+        _hoverColor   = System::kColorGrey;
+        _selectColor  = System::kColorWhite;
     }
 
     // [0] 0x180044ed0 -- MSVC's VECTOR deleting destructor (retail; here the

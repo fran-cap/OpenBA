@@ -58,7 +58,7 @@ inline Map* MapGrid() {
     return gameWorld->m_game;
 }
 inline uint32_t TerrainBit(const MapCell* cell) {
-    return 1u << (cell->terrainType & 0x1f);
+    return Bits(PathBitOf(cell->terrainType));
 }
 // Pending/queued-cell BST at Map +0xE8 (AvlNode28: key +0x00, left +0x10, right +0x18).
 bool PendingContains(const Map* mapGrid, int cellIdx) {
@@ -197,9 +197,9 @@ void BridgeTool::Draw(Video::Context* context, char skip) {
                 const uint32_t  rBit  = TerrainBit(rCell);
 
                 const bool free = (rCell->blocker == nullptr)
-                               && ((rBit & 2) == 0)
-                               && ((rBit & 1) == 0)
-                               && (static_cast<int8_t>(rCell->field_0x2A) == -1);
+                               && ((rBit & Bits(PathBits::Fast)) == 0)
+                               && ((rBit & Bits(PathBits::Faster)) == 0)
+                               && (rCell->field_0x2A == MapCell::kNoRoadBatch);
                 if (!free || PendingContains(mapGrid, idx)) color = kRed;
 
                 if (color != kRed)

@@ -857,7 +857,8 @@ VkSampler TextureSampler(const ImageBufferData* image) {
     if (!image || !image->sampler) return DefaultSampler();
     // EXT SEAM (NOT RETAIL): ext.point_sampling's switch (dx11 imagebufferdata.cpp Bind), never on a
     // comparison sampler.
-    if (Video::ImageBufferData::_extPointSampling && ((image->_owner->_flags >> 6) & 1) == 0 && image->pointSampler) {
+    if (Video::ImageBufferData::_extPointSampling &&
+        (image->_owner->_flags & Video::ImageBuffer::kShadowMap) == 0 && image->pointSampler) {
         return image->pointSampler;
     }
     return image->sampler;
@@ -1891,26 +1892,26 @@ bool DrawReadImage(ImageBufferData* image, void* dst, int width, int height) {
 // targets what is bound), clear the three dirty bits in one AND, then the clears; here a clear is
 // recorded as the next pass's LOAD_OP_CLEAR (draw.h). The colour word is 0xAARRGGBB, each component
 // DIVIDED by 255 as retail does.
-void ContextData::Clear(unsigned flags, unsigned color, float depth, int stencil) {
-    if (static_cast<uint8_t>(_owner->_dirty) & 0x01) ContextData::BindRenderBuffer();
-    if (_owner->_dirty & 0x200) ContextData::BindViewport();
-    if (_owner->_dirty & 0x400) ContextData::BindScissor();
-    _owner->_dirty &= 0xfffff9feu;
+void ContextData::Clear(Video::ClearFlags flags, unsigned color, float depth, int stencil) {
+    if (static_cast<uint8_t>(_owner->_dirty) & RtVideo::kDirtyRenderBuffer) ContextData::BindRenderBuffer();
+    if (_owner->_dirty & RtVideo::kDirtyViewport) ContextData::BindViewport();
+    if (_owner->_dirty & RtVideo::kDirtyScissor) ContextData::BindScissor();
+    _owner->_dirty &= ~(RtVideo::kDirtyRenderBuffer | RtVideo::kDirtyViewport | RtVideo::kDirtyScissor);
     if (!g_frame.active) return;
-    if ((flags & 7) == 0) return;
+    if ((static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::All)) == 0) return;
     EndPass();   // never a mid-pass clear: the next draw begins a pass that clears
-    if (flags & 1) {
+    if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::Color)) {
         g_clear.color = true;
         g_clear.rgba[0] = static_cast<float>((color >> 16) & 0xff) / 255.0f;
         g_clear.rgba[1] = static_cast<float>((color >> 8) & 0xff) / 255.0f;
         g_clear.rgba[2] = static_cast<float>(color & 0xff) / 255.0f;
         g_clear.rgba[3] = static_cast<float>(color >> 24) / 255.0f;
     }
-    if (flags & 2) {
+    if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::Depth)) {
         g_clear.depth = true;
         g_clear.depthValue = depth;
     }
-    if (flags & 4) {
+    if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::Stencil)) {
         g_clear.stencil = true;
         g_clear.stencilValue = static_cast<uint8_t>(stencil);   // retail reads the stencil as a byte
     }
@@ -1925,9 +1926,9 @@ void ContextData::BindRenderBuffer() {
         const ::Video::RenderBuffer* rb = ctx->_renderBuffer;
         if (bound == rb->colorBuffer || bound == rb->depthBuffer) ctx->SetImageBuffer(nullptr, i);
     }
-    if (static_cast<uint8_t>(_owner->_dirty) & 0x02) {
+    if (static_cast<uint8_t>(_owner->_dirty) & RtVideo::kDirtyImageBuffers) {
         _owner->BindTextures();
-        _owner->_dirty &= 0xfffffffdu;
+        _owner->_dirty &= ~RtVideo::kDirtyImageBuffers;
     }
     _owner->_renderBuffer->Bind(*_owner);
 }
@@ -1951,7 +1952,7 @@ void ContextData::BindTransforms() {
         // such bind (dirty or not: the copy the ring holds is only as long as the last bind's count).
         std::memcpy(wideBank.data(), ctx->_transforms, sizeof(ctx->_transforms));
         ctx->_transformConstants.Bind(*ctx, wideBank.data(), 0, ctx->_transformCount << 6);
-    } else if (ctx->_dirty & 0x4000) {
+    } else if (ctx->_dirty & RtVideo::kDirtyTransformConstants) {
         ctx->_transformConstants.Bind(*ctx, ctx->_transforms, 0, ctx->_transformCount << 6);
     }
     ctx = _owner;
@@ -2077,7 +2078,7 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     ::Video::IndexBuffer* const dynIb = ctx->_dynamicIndexBuffer;
     const int32_t dynOffset = ctx->_unknown2120;
     if (dynIb != ctx->_indexBuffer || dynOffset != ctx->_indexOffset) {
-        ctx->_dirty |= 0x10u;
+        ctx->_dirty |= RtVideo::kDirtyIndexBuffer;
         ctx->_indexBuffer = dynIb;
         ctx->_indexOffset = dynOffset;
     }

@@ -95,7 +95,8 @@ void SpriteCaptureUI::OnUpdate(const System::Time& /*time*/) {
 
     // 1. If currently dragging, check if left mouse button (axis 4) was released
     if (self->dragging) {
-        short btnHeld = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0, 4);
+        short btnHeld = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0,
+                                              ToUnderlying(Input::Device::MouseInput::Left));
         if (btnHeld == 0) {
             self->dragging = 0;
             goto check_pressed;
@@ -104,19 +105,23 @@ void SpriteCaptureUI::OnUpdate(const System::Time& /*time*/) {
 
     // 2. While dragging, update anchor position to current mouse pos
     if (self->dragging) {
-        short mx = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0, 0);
-        short my = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0, 1);
+        short mx = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0,
+                                         ToUnderlying(Input::Device::MouseInput::X));
+        short my = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0,
+                                         ToUnderlying(Input::Device::MouseInput::Y));
         self->anchorX = (int)mx;
         self->anchorY = (int)my;
     }
 
 check_pressed:
     // 3. Check for new capture start: left mouse pressed + key 0x3E held
-    if (inputDevice->Pressed(Input::Device::InputDevice::Mouse, 0, 4)) {
+    if (inputDevice->Pressed(Input::Device::InputDevice::Mouse, 0, ToUnderlying(Input::Device::MouseInput::Left))) {
         short keyHeld = inputDevice->GetValue(Input::Device::InputDevice::Keyboard, 0, 0x3e);
         if (keyHeld != 0) {
-            short mx = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0, 0);
-            short my = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0, 1);
+            short mx = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0,
+                                             ToUnderlying(Input::Device::MouseInput::X));
+            short my = inputDevice->GetValue(Input::Device::InputDevice::Mouse, 0,
+                                             ToUnderlying(Input::Device::MouseInput::Y));
             self->curX   = (int)mx;
             self->curY   = (int)my;
             self->anchorX = (int)mx;
@@ -174,7 +179,7 @@ check_pressed:
 
             // i. Hide captureBox element: SetFlagsOnOff(elem, hideFlags=0, showFlags=1)
             if (self->captureBox)
-                self->captureBox->SetFlagsOnOff(0, 1);
+                self->captureBox->SetFlagsOnOff(0, UI::kElementFlagHidden);
 
             // j. filenameRsc/pathFilename release via their destructors (System::Filename).
         } else {
@@ -192,9 +197,9 @@ check_pressed:
 // [9] 0x140079620: `a == 0x12 && b == 1000` (the capture button's click; OnCreated set
 // its id to 1000) tail-jumps to StartCapture 0x1400792b0. Nothing else is handled.
 void SpriteCaptureUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
-                                     int32_t a, int32_t b, int32_t /*c*/,
+                                     UI::EventId a, int32_t b, int32_t /*c*/,
                                      int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (a == 0x12 && b == 1000)
+    if (a == UI::EventId::Activated && b == 1000)
         StartCapture();   // 0x1400792b0
 }
 
@@ -217,5 +222,5 @@ void SpriteCaptureUI::StartCapture() {
 
     const Video::Viewport viewport{curX, curY, anchorX - curX + 1, anchorY - curY + 1};
     _dialog->_ui->BeginSpriteCapture(capture, &viewport);
-    captureBox->SetFlagsOnOff(1, 0);
+    captureBox->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 }

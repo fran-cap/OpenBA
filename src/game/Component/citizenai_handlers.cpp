@@ -129,7 +129,7 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
             familyOut = character;
         }
         float speed = kRdata_140172280;
-        moveAction = ::new (mmem) MoveTo(&familyOut, 1 /*Slow*/, 0, dest, 0xe1f, 0, speed);   // 0x1400c9170
+        moveAction = ::new (mmem) MoveTo(&familyOut, 1 /*Slow*/, 0, dest, PathBits::Walk, 0, speed);   // 0x1400c9170
     }
     ::Object::InternalPtr<Action> moveIBP = moveAction;
     ActionStackPush(stack, &moveIBP);
@@ -147,7 +147,7 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
 //   (character -> modelComponent, +0x158 x / +0x15c y: ModelComponent's raw
 //   transform), add (mapSize>>1), clamp to [0, mapSize-1], form a cell index
 //   mapSize*yCell + xCell.
-//   cell = WorkGrid_FindCell(grid, targetCell, selfCell, 0xe1f); bail if < 0.
+//   cell = WorkGrid_FindCell(grid, targetCell, selfCell, PathBits::Walk); bail if < 0.
 //   Build a world Vector3 from the found cell { (cell%mapSize)-K, (cell/mapSize)-K, 0 }
 //   where K = (float)(mapSize>>1) - 0.5, terrain-resolve it, then queue the action
 //   triple via PlayAnimation_Action_Ctor5 with animTime = RandFloat*7 + 3.
@@ -195,7 +195,7 @@ bool CitizenAIComponent::State_Wander() {
     if (sy < 0) sy = 0;
     if (mapSize <= sy) sy = mapSize - 1;
 
-    int cell = grid->FindCell(mapSize * ty + tx, mapSize * sy + sx, 0xe1f);
+    int cell = grid->FindCell(mapSize * ty + tx, mapSize * sy + sx, PathBits::Walk);
     if (cell < 0) return false;
 
     float kBias = kRdata_140172114;

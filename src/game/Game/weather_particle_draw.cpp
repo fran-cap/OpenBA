@@ -224,8 +224,8 @@ void WeatherParticleGeometry::Draw(Video::Context& videoCtx, const Graphics::Cam
                 ::Box aabb;
                 aabb.min.x = center[0];           aabb.min.y = center[1];           aabb.min.z = center[2];
                 aabb.max.x = center[0] + boxSize; aabb.max.y = center[1] + boxSize; aabb.max.z = center[2] + boxSize;
-                uint32_t r = FrustumCull_Test(&worldPlanes, &aabb, 0x3f, cullVerify);
-                if (r != 0x40) {
+                uint32_t r = FrustumCull_Test(&worldPlanes, &aabb, Bits(FrustumPlanes::All), cullVerify);
+                if (r != Bits(FrustumPlanes::Outside)) {
                     if (visibleTiles < kTileCap) {
                         tiles[visibleTiles * 3 + 0] = center[0] + boxHalf;
                         tiles[visibleTiles * 3 + 1] = center[1] + boxHalf;
