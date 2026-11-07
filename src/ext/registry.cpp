@@ -462,6 +462,14 @@ const Entry kEntries[] = {
       "Lakes and rivers freeze over in cold winters: ice grows from the banks inward and melts from the "
       "sides in spring. The trade boats' channel stays open.",
       0, [](State& s) -> bool& { return s.ext.winter_ice; } },
+    // BETTERCLOUDS (docs/extensions/handins/BETTERCLOUDS.md): the sky draws with a pixel program of ours,
+    // procedural clouds drifting down the wind over the painted sky blurred; the mode below adds Fancy.
+    // Class A: drawing only, nothing saved, live; ON by default (the standing class A rule).
+    { "better_clouds", Tier::Extension, Class::A, true,
+      "Better clouds",
+      "Clouds drift across the sky and its reflection in the water with the wind, thicker and darker "
+      "in winter and in bad weather. They stop when the game is paused.",
+      0, [](State& s) -> bool& { return s.ext.better_clouds; } },
     // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at 4096 when the retail
     // Shadow Resolution combo is at High; Medium / Low keep their retail sizes.
     { "max_shadow_res", Tier::Extension, Class::A, true,
@@ -917,6 +925,10 @@ const ValueKey kValueKeys[] = {
     // regrowth and green variation), on whenever the row is; the Enhanced tab's second Better trees combo.
     { "natural_tree_growth", "better_trees", 0, 1, 1,
       [](State& s) -> int32_t& { return s.val.natural_tree_growth; }, nullptr, 0 },
+    // BETTERCLOUDS.md: Better clouds' level, the Enhanced tab's "Better clouds" On / Fancy (Off is the row).
+    // Fancy adds the clouds' shadows on the ground.
+    { "better_clouds_mode", "better_clouds", 1, 2, 1,
+      [](State& s) -> int32_t& { return s.val.better_clouds_mode; }, nullptr, 0 },
     // BETTERWATER.md section 7: Better water's level, the Enhanced tab's "Better water" Plain / Fancy (Off is
     // the row). Fancy adds the shore strip on the bank side of the waterline.
     { "better_water_mode", "better_water", 1, 2, 1,

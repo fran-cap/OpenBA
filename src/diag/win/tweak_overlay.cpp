@@ -70,7 +70,7 @@ using detail::g_open;
 // The rows and keys the overlay touches (registry ids, registry.cpp's tables).
 // ---------------------------------------------------------------------------
 constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
-                                 "eye_camera", "winter_ice"};
+                                 "eye_camera", "winter_ice", "better_clouds"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
 constexpr int kKeyCount = static_cast<int>(sizeof(kKeys) / sizeof(kKeys[0]));
@@ -120,6 +120,7 @@ Ext::Tweak::Faa g_uiFaa;
 Ext::Tweak::Bbs g_uiBbs;
 Ext::Tweak::Water g_uiWater;
 Ext::Tweak::Ice g_uiIce;
+Ext::BetterClouds::Look g_uiClouds;
 bool            g_uiLoaded = false;
 
 void Queue(Act kind, const char* id, int value) {
@@ -439,6 +440,37 @@ void DrawPanels(const Snapshot& s) {
                     g_uiIce.edge.wobble, g_uiIce.edge.wobbleSize, g_uiIce.edge.grain);
     }
 
+    // ext.better_clouds (BETTERCLOUDS): the sky program's look, live (Ext::BetterClouds::Look, published
+    // by BeginFrame every frame); the reflection in the water uses the same values.
+    if (ImGui::CollapsingHeader("Better clouds", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::BetterClouds::Look& c = g_uiClouds;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("better_clouds")] ? "on" : "off (tick better_clouds under Rows)");
+        changed |= ImGui::SliderFloat("cloud white (lit side)", &c.white, 0.5f, 1.2f, "%.2f");
+        changed |= ImGui::SliderFloat("shaded side (x white)", &c.shade, 0.3f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("sky lift (toward white)", &c.skyLift, 0.0f, 0.6f, "%.2f");
+        changed |= ImGui::SliderFloat("coverage (+ the weather's)", &c.coverage, -0.4f, 0.4f, "%.2f");
+        changed |= ImGui::SliderFloat("layer scale (smaller = bigger clouds)", &c.scale, 0.05f, 1.0f, "%.3f");
+        changed |= ImGui::SliderFloat("wind speed (x)", &c.speed, 0.0f, 5.0f, "%.2f");
+        changed |= ImGui::SliderFloat("morph (shapes change as they travel)", &c.morph, 0.0f, 1.0f, "%.2f");
+        ImGui::SeparatorText("Fancy: shadows on the ground (mode 2, DX11)");
+        changed |= ImGui::SliderFloat("shadow strength", &c.shadowStrength, 0.0f, 0.8f, "%.2f");
+        changed |= ImGui::SliderFloat("shadow scale (tiles per unit)", &c.shadowScale, 0.001f, 0.03f, "%.4f");
+        changed |= ImGui::SliderFloat("cloud height (sun slant)", &c.shadowHeight, 0.0f, 200.0f, "%.0f");
+        changed |= ImGui::SliderFloat("shadow edge softness", &c.shadowSoftness, 0.05f, 1.0f, "%.2f");
+        if (changed) Ext::Tweak::SetClouds(c);
+        if (ImGui::Button("clouds defaults")) {
+            c = Ext::BetterClouds::Look{};
+            Ext::Tweak::SetClouds(c);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/better_clouds/cloud_params.h (Look):");
+        ImGui::Text("white %.2f shade %.2f skyLift %.2f coverage %.2f scale %.3f speed %.2f morph %.2f", c.white,
+                    c.shade, c.skyLift, c.coverage, c.scale, c.speed, c.morph);
+        ImGui::Text("shadowStrength %.2f shadowScale %.4f shadowHeight %.0f shadowSoftness %.2f", c.shadowStrength,
+                    c.shadowScale, c.shadowHeight, c.shadowSoftness);
+    }
+
     if (ImGui::CollapsingHeader("Ambient occlusion")) {
         ImGui::Text("row %s, pass %s", s.rowRequested[RowIndex("ambient_occlusion")] ? "on" : "off",
                     s.aoEnabled ? "enabled" : "inactive");
@@ -636,6 +668,7 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
         g_uiBbs = Ext::Tweak::BbsValues();
         g_uiWater = Ext::Tweak::WaterValues();
         g_uiIce = Ext::Tweak::IceValues();
+        g_uiClouds = Ext::Tweak::CloudsValues();
         g_uiLoaded = true;
     }
 

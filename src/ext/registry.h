@@ -124,6 +124,7 @@ struct Extensions {
     bool better_trees = false; // class A: src/ext/better_trees/ (docs/extensions/handins/BETTER-TREES.md): smooth leaf edges + stable tree shading + edge dapple
     bool boat_lane = false;    // class B: src/ext/boat_lane/, seam BoatComponent::SetDestination (docs/extensions/handins/BOATLANE.md)
     bool winter_ice = true;    // class A, live: src/ext/winter_ice/, seam WorldGeometry's lake-range draw (docs/extensions/handins/WINTERICE.md)
+    bool better_clouds = false; // class A, live: src/ext/better_clouds/, the sky material's pass slots + the material setup seam (docs/extensions/handins/BETTERCLOUDS.md)
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten
     bool restricted_foods = false;
@@ -217,6 +218,7 @@ struct Values {
     int32_t staggered_passes_shadow = 2; // ext.staggered_passes_shadow 1 | 2 | 3 | 4 (owner staggered_passes): the sun's shadow map renders at least every N frames on a near-still view (1 = every frame, as retail); 2 is the ruled default (issue #253)
     int32_t staggered_passes_reflection = 2; // ext.staggered_passes_reflection 1 | 2 | 4 | 8 (owner staggered_passes): the water's reflection image renders at least every N frames on a near-still view (1 = every frame); 2 is the ruled default (issue #253)
     int32_t sharp_ui_icons = 0; // ext.sharp_ui_icons 0..1 (owner sharp_ui): 1 = the dialog and Extensions sheets drawn from their magnified copies with our art (SHARP_SPRITES.md); 0 = the text only (the default, the user 2026-11-04)
+    int32_t better_clouds_mode = 1; // ext.better_clouds_mode 1..2 (owner better_clouds): 1 On (the drifting clouds in the sky), 2 Fancy (+ their shadows on the ground) (BETTERCLOUDS.md)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
 

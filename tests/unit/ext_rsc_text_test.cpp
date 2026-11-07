@@ -178,7 +178,7 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(page && page->body.Find("_content") &&
           page->body.Find("_content")->tokens[0].text == "enhancedOptionsTable");
     const Object* table = e.Find("enhancedOptionsTable");
-    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 41);   // twenty-one labels, twenty controls (BETTERWATER: better water; WINTERICE: better ice; SHARP_SPRITES: Sharp UI; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin; the reporter's follow-up: corner camera buttons)
+    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 43);   // twenty-two labels, twenty-one controls (BETTERWATER: better water; WINTERICE: better ice; BETTERCLOUDS: better clouds; SHARP_SPRITES: Sharp UI; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin; the reporter's follow-up: corner camera buttons)
     // Issue #96: one combo item per choice of its value key (registry.cpp), in the key's order.
     const char* const keyCombos[][2] = {{"touchPadItems", "touch_mode_pad_scale"},
                                         {"touchCameraButtonItems", "touch_mode_camera_buttons"},

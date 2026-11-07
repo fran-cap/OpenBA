@@ -6,7 +6,9 @@ twice (river and, with WATER_LAKE, lake: their uv sets scroll differently), and 
 `src/render/common/better_water/shore_overlay_{river,lake}_ps.h` (`/Fh`, `const uint8_t
 g_bw_PSShoreRiver[]` / `g_bw_PSShoreLake[]`); Fancy's shore strip program likewise as `shore_strip_ps.h`
 (`g_bw_PSShoreStrip`), and its contact foam as `shore_contact_{river,lake}_ps.h`; ext.winter_ice's lake ice as `src/render/common/winter_ice/ice_overlay_ps.h`
-(`g_wi_PSIceOverlay`, docs/extensions/handins/WINTERICE.md). fxc's BYTE rewritten so shared code needs no Win32 typedef). Every backend
+(`g_wi_PSIceOverlay`, docs/extensions/handins/WINTERICE.md); ext.better_clouds' sky as
+`src/render/common/better_clouds/cloud_sky{,_cheap}_ps.h` (`g_bc_PSCloudSky`, `g_bc_PSCloudSkyCheap`,
+docs/extensions/handins/BETTERCLOUDS.md). fxc's BYTE rewritten so shared code needs no Win32 typedef). Every backend
 takes the DXBC (docs/extensions/handins/BETTERWATER.md). The tools/ao_shaders.py pattern.
 
     python -I tools/water_shaders.py [--fxc PATH] [--check]
@@ -25,6 +27,7 @@ import tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WATER_DIR = os.path.join(REPO, "src", "render", "common", "better_water")
 ICE_DIR = os.path.join(REPO, "src", "render", "common", "winter_ice")
+CLOUDS_DIR = os.path.join(REPO, "src", "render", "common", "better_clouds")
 
 # (source, entry, profile, variable, header, defines). ps_4_0: the profile retail's own water programs
 # use, so the overlay runs wherever the water does.
@@ -36,6 +39,12 @@ SHADERS = [
     ("shore_contact.hlsl", "PSShoreContact", "ps_4_0", "g_bw_PSContactLake", "shore_contact_lake_ps.h", ["WATER_LAKE=1"]),
     # ext.winter_ice's lake ice (docs/extensions/handins/WINTERICE.md): lakes only, so one variant.
     ("winter_ice/ice_overlay.hlsl", "PSIceOverlay", "ps_4_0", "g_wi_PSIceOverlay", "winter_ice/ice_overlay_ps.h", []),
+    # ext.better_clouds' sky (docs/extensions/handins/BETTERCLOUDS.md): the full program for the sky's own pass,
+    # the cheap one (no detail octave, no sun probe) for its reflection in the water.
+    ("better_clouds/cloud_sky.hlsl", "PSCloudSky", "ps_4_0", "g_bc_PSCloudSky", "better_clouds/cloud_sky_ps.h", []),
+    ("better_clouds/cloud_shadow.hlsl", "PSCloudShadow", "ps_4_0", "g_bc_PSCloudShadow", "better_clouds/cloud_shadow_ps.h", []),
+    ("better_clouds/cloud_sky.hlsl", "PSCloudSky", "ps_4_0", "g_bc_PSCloudSkyCheap", "better_clouds/cloud_sky_cheap_ps.h",
+     ["CLOUDS_CHEAP=1"]),
 ]
 FLAGS = ["/O3", "/WX", "/Ges"]
 
@@ -62,9 +71,12 @@ def blob_size(header_text):
 
 
 def source_path(name):
-    """A source or header name relative to better_water/, or under a `winter_ice/` prefix to winter_ice/."""
+    """A source or header name relative to better_water/, or under a `winter_ice/` or `better_clouds/` prefix to
+    that directory."""
     if name.startswith("winter_ice/"):
         return os.path.join(ICE_DIR, name[len("winter_ice/"):])
+    if name.startswith("better_clouds/"):
+        return os.path.join(CLOUDS_DIR, name[len("better_clouds/"):])
     return os.path.join(WATER_DIR, name)
 
 
