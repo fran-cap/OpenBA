@@ -43,6 +43,7 @@
 #include "Game/WorkSchedulerNodes.h"   // WorkSchedulerIdNode (the id trees' node)
 #include "stress_harness.h"   // PFBENCH: g_pfProfOn / PfProf_Taken (stress harness only)
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
+#include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 // ============================================================
 // Locally-resolved dispatch-slot / math helpers
@@ -343,8 +344,8 @@ PathTicket* Map::RequestPath(PathTicket* out, uint64_t flags, uint32_t destCell,
     const MapCell* recSrc  = &cells.GetData()[static_cast<int>(srcCell)];
     const MapCell* recDest = &cells.GetData()[static_cast<int>(destCell)];
 
-    uint32_t typeSrc  = 1u << (recSrc->terrainType & 0x1f);
-    uint32_t typeDest = 1u << (recDest->terrainType & 0x1f);
+    uint32_t typeSrc  = 1u << (Ext::WalkOnIce::TypeOf(*recSrc) & 0x1f);
+    uint32_t typeDest = 1u << (Ext::WalkOnIce::TypeOf(*recDest) & 0x1f);
     uint32_t mask = static_cast<uint32_t>(flags) | typeDest | typeSrc;
 
     bool reachable = (mask & typeDest) && (mask & typeSrc);

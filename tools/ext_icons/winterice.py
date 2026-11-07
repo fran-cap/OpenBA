@@ -1,4 +1,4 @@
-"""tools/ext_icons/winterice.py -- the white pictogram for the winter-ice entry (programmer art, our own).
+"""tools/ext_icons/winterice.py -- the white pictograms for the winter-ice and walk-on-ice entries (programmer art, our own).
 
 Same conventions as water.py: draw(px) paints the 12 x 12 interior (x, y in [2, 13]) of a 16 x 16 tile.
 '#' = white, 'k' = the dark accent, '.' = leave the tier colour showing.
@@ -36,6 +36,25 @@ def draw_winter_ice(px):
     ])
 
 
+def draw_walk_on_ice(px):
+    """Two footprints crossing a frozen sheet (ext.walk_on_ice, the class C row)."""
+    _paint(px, [
+        "......##....",
+        ".....####...",
+        ".....####...",
+        "......##....",
+        "..##........",
+        ".####.......",
+        ".####.......",
+        "..##........",
+        "############",
+        "#####k######",
+        "##kk##k###k#",
+        "####kk#kkk##",
+    ])
+
+
 ICONS = {
     "winter_ice": ("A", draw_winter_ice),
+    "walk_on_ice": ("C", draw_walk_on_ice),
 }

@@ -78,6 +78,7 @@
 #include "Component/still_terrain.h"          // STILLTERRAIN: the last iteration's terrain memo
 #include "crt/msvc_libm.h"                     // MsvcLibm::Sinf / Cosf (the exe's sinf / cosf)
 #include "stress_harness.h"                     // g_verifyOn / StressHarness_Verify (the StillFastPath shadow)
+#include "ext/winter_ice/walk_type.h"                // EXT SEAM: ext.walk_on_ice, a walker on a frozen lake stands on the ice
 
 namespace {
 
@@ -575,6 +576,16 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     model->transform = xform;   // Transform::operator=
     model->yaw = fVar14;
     // [COPY-PINNED end]
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md 5.3 step 4): ext.walk_on_ice stands a walker
+    // on a frozen lake cell on the ice, not on the lake bed: the tail's terrain height (the branch above,
+    // taken on the last iteration of a walker that is not description-pinned) raised to the ice's top. Placed
+    // after the pinned region so the literal copies (copy_drift_test.cpp) stay the faithful tail; it runs
+    // before the transform reaches the Geometry. One null test while no lake holds walkable ice.
+    if (Ext::WalkOnIce::g_surface != nullptr && rootOnly == 0 && !blockedHandled &&
+        !self->characterDescription->_b3c) {
+        float& z = model->transform.translation.z;
+        z = Ext::WalkOnIce::OnIce(*gameWorld, pos[0], pos[1], z);
+    }
     // [ext.render_culling GEOMXF_LASTONLY -- NON-RETAIL] retail pushes the transform into the
     // Geometry (bounds, attached children, scene quadtree) on EVERY speed iteration; only
     // the last one is ever drawn, and the render-side interpolation is snapped from that

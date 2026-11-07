@@ -693,8 +693,8 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/BUILDINGFINDER.md): ext.building_finder (A) reads its
     // hotkey once per frame
     Ext::BuildingFinder::BeginFrame(m_userInterface);
-    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md): ext.winter_ice (A) advances the lake ice
-    // from the calendar and the temperature, keeps its textures and the open-water mask
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md): ext.winter_ice (A) starts the lake ice,
+    // keeps its textures and the open-water mask (the game tick steps the ice: Tick, step 3e)
     Ext::WinterIce::BeginFrame();
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCLOUDS.md): ext.better_clouds (A) points the sky
     // material's passes at the cloud programs while the row is on, publishes the frame's cloud constants
@@ -965,6 +965,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
                 { PhaseTimer pt(kPhWeather);
                 m_weather->Update(time);   // 0x1400944e0
                 }
+                // EXT SEAM (NOT RETAIL, docs/extensions/handins/WINTERICE.md 5.3): ext.winter_ice steps the
+                // lake ice by this iteration's time
+                if (Ext::WinterIce::g_tick) Ext::WinterIce::Tick(time->AsSeconds());
                 TRACE("[GameUpdateLoop::Update] Weather_ResetTime done\n");
 
                 // 3f. CitizenBehavior::Update / Map::Update

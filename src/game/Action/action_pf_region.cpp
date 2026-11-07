@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 namespace {
 
@@ -44,9 +45,10 @@ static inline void* MemAlloc(int64_t size, int align) {
     return System::MemoryAllocator::MemAlloc(static_cast<uint64_t>(size), align);
 }
 
-// The walkable terrain types the flood fills spread over (retail's 0xe1f mask).
-inline bool Walkable(uint8_t terrainType) {
-    return ((1 << (terrainType & 0x1f)) & 0xe1fU) != 0;
+// The walkable terrain types the flood fills spread over (retail's 0xe1f mask) on a cell's terrain type
+// (+0x29), as ext.walk_on_ice's seam reads it (WINTERICE.md 5.2: a frozen lake cell reads as 9).
+inline bool Walkable(const MapCell& cell) {
+    return ((1 << (Ext::WalkOnIce::TypeOf(cell) & 0x1f)) & 0xe1fU) != 0;
 }
 
 } // namespace
@@ -480,14 +482,14 @@ void RegionGraph::FloodLabel(int param_2, int param_3, uint32_t param_4, uint32_
             int64_t lVar15 = static_cast<int64_t>(param_2);
             int64_t lVar11 = static_cast<int64_t>(map->size);
             const MapCell* lVar5 = map->cells.GetData();
-            if (Walkable(lVar5[(iVar12 + lVar13) * lVar11 + lVar15 + lVar10].terrainType)) {
+            if (Walkable(lVar5[(iVar12 + lVar13) * lVar11 + lVar15 + lVar10])) {
                 uint64_t uVar4 = static_cast<uint64_t>(static_cast<uint32_t>(local_res8.x));
                 uint32_t uVar6 = uVar14;
                 if (-1 < static_cast<int>(uVar14 - 1)) {
                     const MapCell* pbVar9 = &lVar5[(iVar12 + lVar13) * lVar11 + lVar15 + lVar10] - 1;
                     do {
                         uVar6 = static_cast<uint32_t>(uVar4);
-                        if (!Walkable(pbVar9->terrainType)) break;
+                        if (!Walkable(*pbVar9)) break;
                         uVar6 = static_cast<uint32_t>(uVar4) - 1;
                         uVar4 = static_cast<uint64_t>(uVar6);
                         pbVar9 = pbVar9 - 1;
@@ -499,7 +501,7 @@ void RegionGraph::FloodLabel(int param_2, int param_3, uint32_t param_4, uint32_
                 if (iVar8 <= iVar7) {
                     const MapCell* pbVar9 = &lVar5[(iVar12 + lVar13) * lVar11 + lVar15 + lVar10] + 1;
                     do {
-                        if (!Walkable(pbVar9->terrainType)) break;
+                        if (!Walkable(*pbVar9)) break;
                         iVar8 = iVar8 + 1;
                         uVar4 = static_cast<uint64_t>(static_cast<int>(uVar4) + 1);
                         pbVar9 = pbVar9 + 1;
@@ -526,7 +528,7 @@ void RegionGraph::FloodLabel(int param_2, int param_3, uint32_t param_4, uint32_
                     for (lVar10 = static_cast<int64_t>(static_cast<int>(uVar6)); lVar10 <= iVar8; lVar10 = lVar10 + 1) {
                         if ((labels._data[static_cast<int64_t>(blockWidth) * static_cast<int64_t>(iVar12) + lVar10] == 0)
                             && Walkable(map->cells.GetData()[(iVar12 + lVar13) * static_cast<int64_t>(map->size) +
-                                                   static_cast<int64_t>(local_res10) + lVar10].terrainType)) {
+                                                   static_cast<int64_t>(local_res10) + lVar10])) {
                             PathCellXY pack;
                             pack.x = static_cast<int32_t>(uVar14);
                             pack.y = iVar12;
@@ -552,7 +554,7 @@ void RegionGraph::FloodLabel(int param_2, int param_3, uint32_t param_4, uint32_
                          lVar10 <= iVar8); lVar10 = lVar10 + 1) {
                         if ((labels._data[static_cast<int64_t>(blockWidth) * static_cast<int64_t>(iVar12) + lVar10] == 0)
                             && Walkable(map->cells.GetData()[(iVar12 + lVar13) * static_cast<int64_t>(map->size) +
-                                                   static_cast<int64_t>(param_2) + lVar10].terrainType)) {
+                                                   static_cast<int64_t>(param_2) + lVar10])) {
                             PathCellXY pack;
                             pack.x = static_cast<int32_t>(uVar6);
                             pack.y = iVar12;
@@ -607,7 +609,7 @@ int RegionGraph::LabelBlock(int block) {
             if (0 < iVar5) {
                 do {
                     if (Walkable(map->cells.GetData()[(iVar7 + lVar8) * static_cast<int64_t>(map->size) +
-                                            static_cast<int64_t>(iVar6) + lVar3].terrainType) &&
+                                            static_cast<int64_t>(iVar6) + lVar3]) &&
                         (labels._data[blockWidth * lVar8 + lVar3] == 0)) {
                         FloodLabel(iVar6, iVar7, iVar4, iVar9, uVar2);   // 0x1400a7ad0
                         uVar2 = uVar2 + 1;

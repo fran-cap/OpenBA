@@ -12,6 +12,7 @@
 #include "ext/tool_names/tool_names.h"   // ToolNames::Codec()
 #include "ext/family_tree/family_tree.h"   // FamilyTree::Codec()
 #include "ext/map_overlays/map_overlays.h"   // MapOverlays::Codec()
+#include "ext/winter_ice/ice_town.h"   // WinterIce::WalkCodec()
 
 #include <cstring>
 
@@ -26,6 +27,7 @@ const StateCodec* const* Codecs(int& n) {
         &ToolNames::Codec(),
         &FamilyTree::Codec(),
         &MapOverlays::Codec(),
+        &WinterIce::WalkCodec(),
     };
     n = static_cast<int>(sizeof(kCodecs) / sizeof(kCodecs[0]));
     return kCodecs;

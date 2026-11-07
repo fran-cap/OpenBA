@@ -126,6 +126,7 @@ struct Extensions {
     bool better_trees = false; // class A: src/ext/better_trees/ (docs/extensions/handins/BETTER-TREES.md): smooth leaf edges + stable tree shading + edge dapple
     bool boat_lane = false;    // class B: src/ext/boat_lane/, seam BoatComponent::SetDestination (docs/extensions/handins/BOATLANE.md)
     bool winter_ice = true;    // class A, live: src/ext/winter_ice/, seam WorldGeometry's lake-range draw (docs/extensions/handins/WINTERICE.md)
+    bool walk_on_ice = false;  // class C: src/ext/winter_ice/ (owner winter_ice), citizens cross a solid lake (WINTERICE.md section 5)
     bool better_clouds = false; // class A, live: src/ext/better_clouds/, the sky material's pass slots + the material setup seam (docs/extensions/handins/BETTERCLOUDS.md)
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten

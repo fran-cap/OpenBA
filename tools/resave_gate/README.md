@@ -34,6 +34,19 @@ Golden md5 `a5a1dc485139a26f3190cfcf89f9d350` (23,440,348 bytes), mods parked; P
 NEW-GOLDEN. A change to the restricted_foods payload or the toolbar host record is a DIFF here and a
 PASS on `Gate`.
 
+## The class C golden: GateWalkOnIce (2026-11-07, WINTERICE.md section 5)
+
+`GateWalkOnIce.sav` (in the save directory, beside `Gate.sav`; md5 `8d09e149a9505b87060183d757962d8a`) is
+a new seed town played at speed 10 with only `ext.walk_on_ice` requested among the B / C rows (and
+`ext.winter_ice` at its default), autosaved on the first frame its lake was walkable (9709 cells). Its
+tail carries the `walk_on_ice` record: the two ice fronts and the walk set as runs of cells. Run it under
+the forced all-on profile, as GateRestrictedFoods:
+
+    GATE_PROFILE=/profile:all tools/resave_gate/resave_gate.sh GateWalkOnIce
+
+Golden md5 `9a70f72514b73d63a8b29d2d1bcf400f` (23,322,111 bytes, tail 1,248); PASS on the run after
+NEW-GOLDEN. A change to the walk_on_ice payload is a DIFF here and a PASS on `Gate`.
+
 ## The golden was re-cut on 2026-10-11 (Phase D.4 close, row 1286) -- same fixture
 
 Golden md5 `994eb184a8e88db9372b5b9cd13a9ed9` -> `9c18dd25f2a84677e33cc61c233943b3` (23,453,453 bytes, +516,
