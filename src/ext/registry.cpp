@@ -446,8 +446,7 @@ const Entry kEntries[] = {
     // WINTERICE (docs/extensions/handins/WINTERICE.md): water freezes in winter -- ice from the banks inward
     // while it is below 32 F, the shallow sides thawing first in spring, open water round buildings in the
     // water and along the trade boats' channel. Drawn as one more pass over each water range with our own
-    // pixel program. Class A: drawing only, nothing saved; OFF by default like no_fog, as it changes how
-    // the map looks.
+    // pixel program. Class A: drawing only, nothing saved; ON by default (the standing class A rule).
     { "winter_ice", Tier::Extension, Class::A, true,
       "Winter ice",
       "Lakes and rivers freeze over in cold winters: ice grows from the banks inward and melts from the "
