@@ -532,13 +532,27 @@ UNIT_TEST(packfile_read_rejects_icon_product_overflow) {
 }
 
 // F-056: icon width -1, height 0x30000000 (pkD2_icon_size4_overflow: the
-// size * 4 of the read overflowed int32).
-UNIT_TEST(packfile_read_rejects_negative_icon_size) {
+// size * 4 of the read overflowed int32). A negative size is a broken icon, not
+// a broken package: no pixels are read and the mod loads with the 48x48 "?".
+UNIT_TEST(packfile_read_negative_icon_size_loads_placeholder) {
     std::vector<uint8_t> p;
-    Put32(p, 0);
-    PutMeta(p, 1, 0xffffffffu, 0x30000000u, 0);
+    Put32(p, 1);
+    PutMeta(p, 3, 0xffffffffu, 0x30000000u, 0);
+    PutRaw(p, "Mod name");
+    PutRaw(p, "An author");
+    PutRaw(p, "");
+    PutRaw(p, "file.dat");
+    Put32(p, 0x100);
+    Put32(p, 0x200);
     SetImage(p, true);
-    CheckRejected(Run());
+    const Result r = Run();
+    CHECK(r.ok);
+    CHECK_EQ(g_closeCalls, 0);
+    CHECK_STREQ(r.name.c_str(), "Mod name");
+    CHECK_EQ(r.iconW, 48);
+    CHECK_EQ(r.iconH, 48);
+    CHECK_EQ(r.iconPixels, 48 * 48);
+    CHECK_EQ(r.entryNames.size(), static_cast<size_t>(1));
 }
 
 // F-076: an icon (0x4000 x 0x4000, 1 GiB) or a preview (0x7fffffff bytes)
@@ -558,13 +572,28 @@ UNIT_TEST(packfile_read_rejects_icon_or_preview_larger_than_index) {
         SetImage(p, true);
         CheckRejected(Run());
     }
-    {
-        std::vector<uint8_t> p;
-        Put32(p, 0);
-        PutMeta(p, 2, 0, 0, 0x80000000u);   // negative
-        SetImage(p, true);
-        CheckRejected(Run());
-    }
+}
+
+// A NEGATIVE preview count is read as retail reads it: no preview, the rest of the
+// index as written. Shipped mods carry one (North7.pkm stores 0xE1E1E1E1, its
+// packer's uninitialised fill); rejecting it hid the mod from the Mods page.
+UNIT_TEST(packfile_read_negative_preview_count_is_no_preview) {
+    std::vector<uint8_t> p;
+    Put32(p, 1);
+    PutMeta(p, 3, 1, 1, 0xE1E1E1E1u);
+    PutRaw(p, "NORTH 7");
+    PutRaw(p, "An author");
+    PutRaw(p, "");
+    PutRaw(p, "file.dat");
+    Put32(p, 0x100);
+    Put32(p, 0x200);
+    SetImage(p, true);
+    const Result r = Run();
+    CHECK(r.ok);
+    CHECK_EQ(g_closeCalls, 0);
+    CHECK_STREQ(r.name.c_str(), "NORTH 7");
+    CHECK_EQ(r.previewBytes, 0);
+    CHECK_EQ(r.entryNames.size(), static_cast<size_t>(1));
 }
 
 // F-077: a file count the index cannot hold (each entry is at least 12 bytes:

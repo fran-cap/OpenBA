@@ -125,9 +125,12 @@
 //  * a raw string or name longer than the frame less its terminator, a UTF-16
 //    one longer than buf860 less the frame's last byte, kept zero as the
 //    terminator a full decode does not write (F-019, F-020, F-021);
-//  * a negative icon size, or an icon or preview larger than the bytes the index
-//    has left (F-055, F-056, F-076);
+//  * an icon or preview larger than the bytes the index has left (F-055,
+//    F-056, F-076);
 //  * a file count the index cannot hold at 12 bytes an entry (F-077).
+// Two broken fields shipped mods carry are NOT rejected: a negative preview
+// count reads as no preview (retail's reading), and a negative icon width or
+// height loads the mod with a 48x48 "?" icon (SetPlaceholderIcon).
 // A rejected package returns false with its file closed and no entry kept: the
 // state of a package whose file never opened, which both callers handle.
 // Three UB fixes keep retail's reads otherwise: the frame starts zeroed (F-054),
@@ -456,6 +459,47 @@ int64_t IndexBytesLeft(const IO::CompressedStream* cs) {
     return total - cs->_position;
 }
 
+// NOT RETAIL (review 2026-11-03): the icon of a package whose icon size is
+// broken: 48x48 (the Mods page's thumbnail size), a white "?" on grey. Both
+// colours read the same in any channel order.
+constexpr int32_t kPlaceholderIconSize = 48;
+constexpr int32_t kPlaceholderScale    = 3;
+constexpr uint32_t kPlaceholderInk     = 0xffffffffu;
+constexpr uint32_t kPlaceholderPaper   = 0xff404040u;
+constexpr const char* kPlaceholderGlyph[] = {
+    "..####..",
+    ".##..##.",
+    "##....##",
+    "......##",
+    ".....##.",
+    "....##..",
+    "...##...",
+    "...##...",
+    "...##...",
+    "........",
+    "...##...",
+    "...##...",
+};
+constexpr int32_t kPlaceholderGlyphRows = 12;
+constexpr int32_t kPlaceholderGlyphCols = 8;
+
+void SetPlaceholderIcon(IO::PackageFile& pkg) {
+    pkg._iconWidth = kPlaceholderIconSize;
+    pkg._iconHeight = kPlaceholderIconSize;
+    rtcoll::RtColl_ArraySetSize_180029510(&pkg._iconData, kPlaceholderIconSize * kPlaceholderIconSize);
+    const int32_t left = (kPlaceholderIconSize - kPlaceholderGlyphCols * kPlaceholderScale) / 2;
+    const int32_t top = (kPlaceholderIconSize - kPlaceholderGlyphRows * kPlaceholderScale) / 2;
+    for (int32_t y = 0; y < kPlaceholderIconSize; ++y) {
+        for (int32_t x = 0; x < kPlaceholderIconSize; ++x) {
+            const int32_t gx = (x - left) / kPlaceholderScale;
+            const int32_t gy = (y - top) / kPlaceholderScale;
+            const bool inGlyph = x >= left && y >= top && gx < kPlaceholderGlyphCols && gy < kPlaceholderGlyphRows;
+            const bool ink = inGlyph && kPlaceholderGlyph[gy][gx] == '#';
+            pkg._iconData._data[y * kPlaceholderIconSize + x] = ink ? kPlaceholderInk : kPlaceholderPaper;
+        }
+    }
+}
+
 
 }  // namespace
 
@@ -597,28 +641,37 @@ bool PackageFile::ReadPackfile(const System::Filename& name) {
         // spelled.
         // NOT RETAIL (review 2026-11-03, F-055 / F-056 / F-076): retail multiplies
         // the two int32s (it overflows: UB) and sizes the array from the file with
-        // no cap. A negative size, or more pixels than the index has bytes left,
-        // is rejected at the parse; a valid icon is inside the index.
+        // no cap. More pixels than the index has bytes left is rejected at the
+        // parse; a valid icon is inside the index. The product is taken in int64,
+        // and a negative one sizes the array 0, as SetSize clamps it (F-012).
         const int64_t iconPixels = static_cast<int64_t>(_iconHeight) * _iconWidth;
-        if (_iconWidth < 0 || _iconHeight < 0 || iconPixels > INT32_MAX / 4 ||
-            iconPixels > IndexBytesLeft(cs) / 4) {
+        if (iconPixels > INT32_MAX / 4 || iconPixels > IndexBytesLeft(cs) / 4) {
             malformed = true;
             goto teardown;
         }
         // Array<uint32>::SetSize, handed the {data, size, capacity} header.
         rtcoll::RtColl_ArraySetSize_180029510(&_iconData,
-                     _iconHeight * _iconWidth);      // 1800b4d27/d37
+                     iconPixels < 0 ? 0 : static_cast<int32_t>(iconPixels));   // 1800b4d27/d37
         cs->IO::CompressedStream::Read(
             _iconData._size * 4, _iconData._data);             // 1800b4d56  REAL CALL
+        // NOT RETAIL (review 2026-11-03): a negative width or height is a broken
+        // icon, not a broken package. The read above keeps retail's stream position
+        // and the mod loads with the "?" icon (ModDialog::Update copies 48x48 pixels
+        // whatever the size says).
+        if (_iconWidth < 0 || _iconHeight < 0)
+            SetPlaceholderIcon(*this);
 
         if (formatVersion >= 2) {                              // 1800b4d62  CMP 2 / JL
             int32_t* const n90 =
                 &_previewByteCount;   /* +0x90 -- see PackageFile.h */
             cs->IO::CompressedStream::Read(4, n90);            // 1800b4d6c  +0x90
             // NOT RETAIL (review 2026-11-03, F-076): retail sizes the preview from
-            // the file with no cap. A negative count, or more bytes than the index
-            // has left, is rejected at the parse.
-            if (*n90 < 0 || *n90 > IndexBytesLeft(cs)) {
+            // the file with no cap. More bytes than the index has left is rejected
+            // at the parse. A NEGATIVE count is not: shipped mods carry one (North7.pkm
+            // stores 0xE1E1E1E1, its packer's uninitialised fill), and retail reads
+            // them as packages with no preview (SetSize clamps it to 0 here, F-012;
+            // a Read of a negative count reads nothing). Rejecting it hid the mod.
+            if (*n90 > IndexBytesLeft(cs)) {
                 malformed = true;
                 goto teardown;
             }
