@@ -132,6 +132,9 @@ struct Extensions {
     bool restricted_foods = false;
     // class C: src/ext/item_priority/ (docs/extensions/handins/ITEMPRIO.md); the town's ranked item lists
     bool item_priority = false;
+    // class B: src/ext/recipe_skip/ (docs/extensions/handins/RECIPESKIP.md); a workshop set to every recipe
+    // skips a recipe whose material is at its limit
+    bool recipe_skip = false;
     // class B: src/ext/terrain_edit/ (docs/extensions/handins/TERRAINEDIT.md); a brush tool that edits the
     // terrain under the mouse
     bool terrain_edit = false;

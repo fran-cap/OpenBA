@@ -21,6 +21,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsTierB";		String _source = "Sprite/Extensions/TierB.png"; }
 		{ String _name = "ExtensionsTierC";		String _source = "Sprite/Extensions/TierC.png"; }
 		// one icon per registry entry (tools/ext_icons/*.py), named ExtensionsEntry_<id>
+		{ String _name = "ExtensionsEntry_recipe_skip";	String _source = "Sprite/Extensions/Entry_recipe_skip.png"; }
 		{ String _name = "ExtensionsEntry_icon_slide";	String _source = "Sprite/Extensions/Entry_icon_slide.png"; }
 		{ String _name = "ExtensionsEntry_residence_goto";	String _source = "Sprite/Extensions/Entry_residence_goto.png"; }
 		{ String _name = "ExtensionsEntry_tavern_counter";	String _source = "Sprite/Extensions/Entry_tavern_counter.png"; }

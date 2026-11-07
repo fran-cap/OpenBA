@@ -17,6 +17,8 @@
 #include <cstdint>
 #include "system/Value.h"      // ENDGAME B.3.4b System callers
 #include "Component/ConsumeProduceComponent.h"
+#include "ext/registry.h"                 // EXT SEAM (NOT RETAIL, RECIPESKIP.md): Ext::Ext()
+#include "ext/recipe_skip/recipe_skip.h"   // EXT SEAM (NOT RETAIL, RECIPESKIP.md): the draw
 
 // ============================================================
 // FUN_140119470 — weighted-random index over a float-weight array.
@@ -33,6 +35,14 @@ uint64_t ConsumeProduceComponent::PickConsumeRecipe() const {
     uint64_t result = sel;
     if ((int)sel < 0) {
         if (sel == 0xffffffff) {
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/RECIPESKIP.md): with the row on, the same
+            // weighted draw (one random number) leaves out the recipes whose material is at its limit.
+            if (::Ext::Ext().recipe_skip) {
+                const int pick = ::Ext::RecipeSkip::Pick(this);
+                if (pick >= 0) {
+                    return static_cast<uint64_t>(pick);
+                }
+            }
             int n = consumeRates._size;
             float total = 0.0f;
             if (0 < n) {
