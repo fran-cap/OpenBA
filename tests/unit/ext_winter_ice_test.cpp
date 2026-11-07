@@ -14,6 +14,8 @@
 #include "ext/winter_ice/open_mask.h"
 #include "ext/boat_lane/boat_lane.h"
 #include "ext/registry.h"
+#include "ext/savetail.h"
+#include "ext/winter_ice/ice_town.h"
 
 #include <cstring>
 #include <string>
@@ -261,4 +263,85 @@ UNIT_TEST(ext_winter_ice_channel_keeps_to_the_middle) {
     CHECK(smooth.size() >= line.size());
     CHECK(smooth[0] == line[0] && smooth[1] == line[1]);
     CHECK(smooth[smooth.size() - 2] == line[line.size() - 2] && smooth.back() == line.back());
+}
+
+// ---- ext.walk_on_ice (WINTERICE.md section 5): the row and its save record ----------------------------
+
+UNIT_TEST(ext_walk_on_ice_row_is_class_c_default_off) {
+    const Ext::Entry* found = Ext::FindEntry("walk_on_ice");
+    CHECK(found != nullptr);
+    if (!found) return;
+    CHECK(found->tier == Ext::Tier::Extension);
+    CHECK(found->cls == Ext::Class::C);
+    CHECK(!found->defaultOn);
+    CHECK(found->formatVersion == Ext::WinterIce::kWalkWireVersion);
+    CHECK(Ext::SettingsKey(*found) == "ext.walk_on_ice");
+    const Ext::SaveTail::StateCodec* codec = Ext::SaveTail::FindCodec("walk_on_ice");
+    CHECK(codec != nullptr);
+    if (codec) {
+        CHECK(codec == &Ext::WinterIce::WalkCodec());
+        CHECK(codec->encode != nullptr && codec->decode != nullptr && codec->reset != nullptr);
+    }
+}
+
+UNIT_TEST(ext_walk_on_ice_codec_round_trip) {
+    using Ext::WinterIce::IceTown;
+    IceTown a;
+    a.known = true;
+    a.walkable = true;
+    a.ice.freeze = 1.7f;
+    a.ice.thaw = 0.25f;
+    std::vector<uint8_t> bytes;
+    a.Encode(bytes);
+    CHECK(bytes.size() == 12);
+    IceTown b;
+    CHECK(b.Decode(bytes.data(), bytes.size()));
+    CHECK(b.known && b.walkable && b.adopt);
+    CHECK(b.ice.freeze == 1.7f && b.ice.thaw == 0.25f);
+
+    // An empty town saves as unknown and loads as unknown (the next tick guesses).
+    IceTown none;
+    bytes.clear();
+    none.Encode(bytes);
+    IceTown c;
+    c.known = true;
+    CHECK(c.Decode(bytes.data(), bytes.size()));
+    CHECK(!c.known && !c.walkable && !c.adopt);
+}
+
+UNIT_TEST(ext_walk_on_ice_codec_refuses_damage) {
+    using Ext::WinterIce::IceTown;
+    IceTown a;
+    a.known = true;
+    a.ice.freeze = 1.0f;
+    std::vector<uint8_t> good;
+    a.Encode(good);
+    IceTown t;
+    CHECK(!t.Decode(good.data(), good.size() - 1));   // cut
+    std::vector<uint8_t> longer = good;
+    longer.push_back(0);
+    CHECK(!t.Decode(longer.data(), longer.size()));   // trailing byte
+    std::vector<uint8_t> flags = good;
+    flags[0] |= 4;
+    CHECK(!t.Decode(flags.data(), flags.size()));   // unknown flag
+    std::vector<uint8_t> nan = good;
+    nan[4] = 0x00;
+    nan[5] = 0x00;
+    nan[6] = 0xC0;
+    nan[7] = 0x7F;   // freeze = NaN
+    CHECK(!t.Decode(nan.data(), nan.size()));
+    std::vector<uint8_t> big = good;
+    big[8] = 0x00;
+    big[9] = 0x00;
+    big[10] = 0x80;
+    big[11] = 0x40;   // thaw = 4.0, past kFreezeCap
+    CHECK(!t.Decode(big.data(), big.size()));
+    CHECK(!t.known);   // a refused payload leaves the state as it was
+
+    // Through the registered codec a damaged payload empties the town and the load goes on.
+    Ext::WinterIce::Town().known = true;
+    const Ext::SaveTail::StateCodec& codec = Ext::WinterIce::WalkCodec();
+    CHECK(codec.decode(flags.data(), flags.size(), Ext::WinterIce::kWalkWireVersion));
+    CHECK(!Ext::WinterIce::Town().known);
+    codec.reset();
 }

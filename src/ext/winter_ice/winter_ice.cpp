@@ -18,6 +18,7 @@
 
 #include "ext/winter_ice/winter_ice.h"
 #include "ext/winter_ice/ice_model.h"
+#include "ext/winter_ice/ice_town.h"
 #include "ext/winter_ice/open_mask.h"
 #include "ext/boat_lane/boat_lane.h"
 #include "ext/winter_ice/ice_texture_data.h"
@@ -392,10 +393,9 @@ void ScanMap(const Map& map, const WorldGeometry* geo) {
 // ---- the ice (main thread) -------------------------------------------------------------------------
 
 bool g_on = false;
-IceState g_ice;
-bool g_haveTown = false;
-const void* g_townWeather = nullptr;
-double g_lastSeconds = 0.0;   // game seconds since year 0 at the last tick (or guess)
+// The fronts themselves are Town() (ice_town.h), shared with ext.walk_on_ice and its save record.
+double g_lastSeconds = 0.0;             // the calendar, game seconds since year 0, at the last tick
+const void* g_scanWeather = nullptr;    // the town the open-water mask was last scanned for
 
 // The calendar as game seconds since year 0 (pause and game speed honoured).
 double CalendarSeconds(const Calendar& cal) {
@@ -507,14 +507,41 @@ bool g_tick = false;
 
 bool Enabled() { return Ext::Ext().winter_ice; }
 
+bool WalkEnabled() { return Ext::Ext().walk_on_ice; }   // class C: the game's locked value
+
 void Tick(double seconds) {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
-    if (!g_haveTown || game == nullptr || game->m_weather == nullptr || game->m_dayCounter == nullptr ||
-        game->m_weather != g_townWeather || game->m_weather->seasonStep < 0) {
+    // A new game's weather has not run yet: its temperature is the ctor's 0 until the first
+    // WeatherSimulation::Update sets the season step (ctor -1; a load restores both).
+    if (game == nullptr || game->m_weather == nullptr || game->m_dayCounter == nullptr ||
+        game->m_weather->seasonStep < 0) {
         return;
     }
-    Step(g_ice, game->m_weather->temperature, static_cast<float>(seconds));
-    g_lastSeconds = CalendarSeconds(*game->m_dayCounter);
+    IceTown& town = Town();
+    const float temperature = game->m_weather->temperature;
+    const double now = CalendarSeconds(*game->m_dayCounter);
+    if (town.adopt) {
+        // Decoded from the save: these fronts are this town's, and this tick steps them as the unbroken game's
+        // next tick would have.
+        town.adopt = false;
+        town.weather = game->m_weather;
+    } else if (town.known && town.weather == game->m_weather) {
+        // The calendar moved by more than this tick (the debug calendar, or the rows were off a while): the
+        // fronts no longer fit the day.
+        const double jump = now - g_lastSeconds - seconds;
+        if (jump < -kMaxStepSeconds || jump > kMaxStepSeconds) town.known = false;
+    } else {
+        town.known = false;   // a new game or a load (ResetAllState emptied the state), another weather
+    }
+    if (!town.known) {
+        town.ice = Guess(temperature);
+        town.known = true;
+        town.weather = game->m_weather;
+        std::fprintf(stderr, "[WinterIce] town: %.1f F, freeze %.2f\n", temperature, town.ice.freeze);
+    } else {
+        Step(town.ice, temperature, static_cast<float>(seconds));
+    }
+    g_lastSeconds = now;
 }
 
 bool Drawing(const WorldGeometry& geo) {
@@ -529,41 +556,23 @@ bool Drawing(const WorldGeometry& geo) {
 void BeginFrame() {
     g_on = Enabled();
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
-    if (!g_on || game == nullptr || game->m_weather == nullptr || game->m_dayCounter == nullptr ||
-        game->m_game == nullptr) {
+    const bool town = game != nullptr && game->m_weather != nullptr && game->m_dayCounter != nullptr &&
+                      game->m_game != nullptr;
+    // The game tick keeps the ice while either row is on: the walk row's ice is the town's state and must
+    // not stop when the drawing is turned off.
+    g_tick = town && (g_on || WalkEnabled());
+    const IceTown& townIce = Town();
+    if (!g_on || !town || !townIce.known || townIce.weather != game->m_weather) {
         g_drawing.store(false, std::memory_order_relaxed);
-        g_haveTown = false;   // the row turned back on, or the next town, starts from a guess
-        g_tick = false;
         return;
     }
-
-    // A new game's weather has not run yet: its temperature is the ctor's 0 until the first
-    // WeatherSimulation::Update sets the season step (ctor -1; a load restores both).
-    if (game->m_weather->seasonStep < 0) {
-        g_drawing.store(false, std::memory_order_relaxed);
-        g_haveTown = false;
-        g_tick = false;
-        return;
-    }
-
-    // The game tick steps the ice (Tick) and leaves g_lastSeconds at the calendar it reached, so between
-    // two frames the calendar moves on its own only under a load or a new town: a step back in time or a
-    // long jump starts again from a guess.
-    const Calendar& cal = *game->m_dayCounter;
-    const float temperature = game->m_weather->temperature;
-    const double step = CalendarSeconds(cal) - g_lastSeconds;
-    if (!g_haveTown || g_townWeather != game->m_weather || step < 0.0 || step > kMaxStepSeconds) {
-        g_ice = Guess(temperature);
-        g_haveTown = true;
-        g_townWeather = game->m_weather;
+    if (g_scanWeather != townIce.weather) {
+        g_scanWeather = townIce.weather;   // a new town: scan its water at once
         g_scanCountdown = 0;
-        g_lastSeconds = CalendarSeconds(cal);
-        std::fprintf(stderr, "[WinterIce] town: %.1f F, freeze %.2f\n", temperature, g_ice.freeze);
     }
-    g_tick = true;   // the game tick steps the fronts from here on
 
     // What is drawn: the weather's ice, or the debug overlay's preview fronts (drawing only).
-    IceState shown = g_ice;
+    IceState shown = townIce.ice;
 #if BANISHED_TWEAK_OVERLAY
     const Ext::Tweak::Ice tweak = Ext::Tweak::IceValues();
     if (tweak.preview) {

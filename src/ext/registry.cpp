@@ -471,6 +471,15 @@ const Entry kEntries[] = {
       "Lakes and rivers freeze over in cold winters: ice grows from the banks inward and melts from the "
       "sides in spring. The trade boats' channel stays open.",
       0, [](State& s) -> bool& { return s.ext.winter_ice; } },
+    // WALKONICE (docs/extensions/handins/WINTERICE.md section 5): while a lake is frozen solid from bank to bank
+    // its cells are open to walkers (never a river, never the open water round a dock or along the boat
+    // channel). Class C: the ice is the town's own state, kept in the save's tail
+    // (src/ext/winter_ice/ice_town.cpp), so the lake opens on the same day after a reload. Owner winter_ice.
+    { "walk_on_ice", Tier::Extension, Class::C, false,
+      "Walk on ice",
+      "Citizens and animals can cross a lake while it is frozen solid in winter. Rivers stay a barrier. Play "
+      "diverges; the ice is recorded in the save.",
+      1, [](State& s) -> bool& { return s.ext.walk_on_ice; } },
     // BETTERCLOUDS (docs/extensions/handins/BETTERCLOUDS.md): the sky draws with a pixel program of ours,
     // procedural clouds drifting down the wind over the painted sky blurred; the mode below adds Fancy.
     // Class A: drawing only, nothing saved, live; ON by default (the standing class A rule).
