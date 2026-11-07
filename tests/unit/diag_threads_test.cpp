@@ -35,6 +35,9 @@ UNIT_TEST(diag_threads_reused_tid_gets_a_new_slot) {
 }
 
 UNIT_TEST(diag_threads_busy_bit_lives_in_the_roster) {
+    // Same as above: with every roster slot taken the thread below cannot register and has no slot.
+    if (DiagThreads::Count() > DiagThreads::kMaxThreads - 1)
+        UNIT_SKIP("the roster is full in this worker: earlier tests' threads took every slot");
     int slot = -1;
     bool busyInJob = false;
     std::thread t([&] {
