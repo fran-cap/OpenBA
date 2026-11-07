@@ -152,7 +152,10 @@ const FieldDesc kContainer[] = {
     // _partDescs[0] / [1]: the bars, built as children 2 (horizontal) and 1 (vertical) by
     // ContainerDescription::CreateInstance. Named so a page of ours can state its vertical bar rather
     // than inherit it from a game page a mod may have rebuilt without one (issue #96, The North 7).
-    F("_horizontalScroll", Ext), F("_verticalScroll", Ext), F("_content", Ext), F("", Bool), F("", Bool),
+    F("_horizontalScroll", Ext), F("_verticalScroll", Ext), F("_content", Ext),
+    // ContainerElement +0xcc / +0xcd: the requested width / height is cut down to the content when the
+    // content is smaller (ContainerElement::ComputeSize); retail's Profession dialogs name the second one.
+    F("_allowShrinkWidth", Bool), F("_allowShrinkHeight", Bool),
 };
 const FieldDesc kLayoutItem[] = {
     F("_element", Ext), F("_name", String), F("_xAnchorTo", String), F("_yAnchorTo", String),

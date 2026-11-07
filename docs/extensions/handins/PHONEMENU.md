@@ -229,7 +229,7 @@ overlay's own centre line, within 0.3 %) and 0.039 .. 0.210 of its height.
     ELEMENT takes its place in the clip region (elements own their children by raw pointer; only a
     dialog's root knows its `DialogInstance`), so the dialog's controller keeps the pointers it found at
     open. The frame takes the page's slot and its hidden bit (the tab shows a page by that bit) and has
-    `_clampHeight` set (a page shorter than the cap does not leave a gap). Row off: the page goes back
+    `_allowShrinkHeight` set (a page shorter than the cap does not leave a gap). Row off: the page goes back
     into its slot with the frame's hidden bit, the frame is deleted;
   * a top-level window taller than the safe area at the player's UI scale caps every vertical list it
     holds (`ContainerElement::_requestedHeight` on the instance; the container clamps the clip region and

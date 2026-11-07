@@ -7,8 +7,8 @@
 //   * A scrolling list is a UI::ContainerElement whose children are [clip region, bar, bar]
 //     (ContainerDescription::CreateInstance 0x1800ccb90); the clip region (UI::ClipRegionElement) holds
 //     the content as its child 0 and measures it (`_innerWidth` / `_innerHeight`). The container's height
-//     is its `_requestedHeight` when that is positive (shrunk to the content when `_clampHeight` is set),
-//     the content's otherwise; the clip region gets what is left after the bars (ContainerElement::
+//     is its `_requestedHeight` when that is positive (shrunk to the content when `_allowShrinkHeight` is
+//     set), the content's otherwise; the clip region gets what is left after the bars (ContainerElement::
 //     ComputeSize 0x1800cc850). So a list is capped by writing its instance's `_requestedHeight`, and
 //     the scroll bar, its thumb and the wheel follow by themselves.
 //   * Element owns its children by raw pointer (`_children`, deleted by RemoveChildren 0x180115570) and
@@ -219,7 +219,7 @@ int32_t Wrap(UI::Element* parent, int32_t index, UI::Element* page) {
     clip->_children._data[0] = page;
     page->_parent = clip;
     // The frame's size follows its content; it shrinks to a page shorter than its cap (touch_scroll.h (b)).
-    static_cast<UI::ContainerElement*>(frame)->_clampHeight = 1;
+    static_cast<UI::ContainerElement*>(frame)->_allowShrinkHeight = 1;
     frame->_parent = parent;
     parent->_children._data[index] = frame;
     // The tab shows and hides its page by the slot's hidden bit: the frame carries it now.
@@ -326,7 +326,7 @@ int32_t NaturalHeight(const UI::ContainerElement* list) {
                                 ? static_cast<const UI::ClipRegionElement*>(clip)->_innerHeight
                                 : retail;
     if (retail <= 0) return content;
-    if (list->_clampHeight != 0 && content < retail) return content;
+    if (list->_allowShrinkHeight != 0 && content < retail) return content;
     return retail;
 }
 
@@ -484,7 +484,7 @@ int32_t TouchScrollCap(const UI::DialogInstance* dialog, bool on) {
             const UI::ContainerElement* list = lists.list[i];
             const int32_t n = NaturalHeight(list);
             int32_t h = list->_requestedHeight > 0 ? list->_requestedHeight : list->_layoutHeight;
-            if (list->_clampHeight != 0 && n < h) h = n;   // shrunk to its content
+            if (list->_allowShrinkHeight != 0 && n < h) h = n;   // shrunk to its content
             if (h > tallest) tallest = h;
             if (n > natural) natural = n;
         }

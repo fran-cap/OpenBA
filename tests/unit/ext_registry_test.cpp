@@ -76,6 +76,7 @@ UNIT_TEST(ext_registry_table_shape) {
         // no_fog is class A but changes how the map looks: the player's call, OFF. So is show_grid.
         // fps_counter is class A but adds the toolbar's extension button: the player's call, OFF (FPSCOUNTER).
         // building_finder is class A but adds a tab to the extension window: OFF (BUILDINGFINDER).
+        // dynamic_professions is class A but replaces the Professions window: OFF (DYNAMICPROFESSIONS).
         // texture_quality is class A but lowers texture detail: the player's call, OFF (TEXQUALITY).
         // phone_menu is class A but moves the desktop menu: OFF; the Android first run turns it on (PHONEMENU).
         // fps_cap is class A but caps a desktop's game, retail's uncapped: OFF; the Android first run turns it on (P8).
@@ -87,6 +88,7 @@ UNIT_TEST(ext_registry_table_shape) {
                                   std::strcmp(e.id, "no_fog") != 0 && std::strcmp(e.id, "show_grid") != 0 &&
                                   std::strcmp(e.id, "fps_counter") != 0 &&
                                   std::strcmp(e.id, "building_finder") != 0 &&
+                                  std::strcmp(e.id, "dynamic_professions") != 0 &&
                                   std::strcmp(e.id, "texture_quality") != 0 &&
                                   std::strcmp(e.id, "phone_menu") != 0 && std::strcmp(e.id, "fps_cap") != 0 &&
                                   std::strcmp(e.id, "touch_mode") != 0 && std::strcmp(e.id, "touch_pointer") != 0 &&

@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 20);
+    CHECK(kEmbeddedCount == 21);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -60,6 +60,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/FavoritesWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/FullscreenMode.rsc") != nullptr);
     CHECK(Embedded("Dialog/MapOverlays.rsc") != nullptr);
+    CHECK(Embedded("Dialog/ProfessionsWindow.rsc") != nullptr);
 }
 
 UNIT_TEST(ext_rsc_text_parse_extensions) {
@@ -211,8 +212,10 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // the picture's main-job check box and its tip, + 10 for the Grid page, + 1 for
     // fix.save_failure_notice's message, + 2 for the Game files menu button and its tip (issue #96),
     // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS
-    // page, + 18 for the Find Buildings page and its favorites window, + 52 for the map window's overlay views
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52);
+    // page, + 18 for the Find Buildings page and its favorites window, + 52 for the map window's overlay
+    // views, + 4 for the dynamic Professions window (its title, its two column-button tips and its resize
+    // strip)
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -471,6 +474,13 @@ UNIT_TEST(ext_rsc_text_parse_map_overlays) {
           f.Find("sliderMapOverlaysScale") && f.Find("ribbonMapOverlaysRamp") &&
           f.Find("textMapOverlaysLegendMax") && f.Find("checkMapOverlaysTerrain"));
     CheckKnownTypes(f, "MapOverlays.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_professions_window) {
+    File w;
+    CHECK(ParseEmbedded("Dialog/ProfessionsWindow.rsc", w));
+    CHECK(w.Find("dialogRoot") && w.Find("tableProfessions") && w.Find("containerProfessionsBox"));
+    CheckKnownTypes(w, "ProfessionsWindow.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_show_grid_page) {

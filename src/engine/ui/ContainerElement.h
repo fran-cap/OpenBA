@@ -55,10 +55,10 @@ public:
     // +0xc8 dword 0 ; +0xcc WORD 0 (both flags) ; +0xd0 dword 0. +0xc0/+0xc4
     // are NOT written (ContainerDescription::CreateInstance writes them).
     ContainerElement() : Element() {
-        _barSize      = 0;
-        _clampWidth   = 0;
-        _clampHeight  = 0;
-        _wheelImpulse = 0;
+        _barSize           = 0;
+        _allowShrinkWidth  = 0;
+        _allowShrinkHeight = 0;
+        _wheelImpulse      = 0;
     }
 
     // ---- the twelve slots, in measured order -------------------------------
@@ -102,14 +102,14 @@ private:
 
 public:
     // ---- the 0x18 bytes after Element --------------------------------------
-    int32_t  _requestedWidth;    // +0xc0  NOT written by the ctor; GetWidth
-    int32_t  _requestedHeight;   // +0xc4  NOT written by the ctor; GetHeight
-    int32_t  _barSize;           // +0xc8  ctor 0; the scroll-bar gutter
-    uint8_t  _clampWidth;        // +0xcc  ctor 0 (one WORD store with +0xcd)
-    uint8_t  _clampHeight;       // +0xcd  ctor 0
-    uint8_t  _padce[2];          // +0xce  written by nothing
-    int32_t  _wheelImpulse;      // +0xd0  ctor 0; ±7 per wheel event, spent one per frame
-    uint32_t _padd4;             // +0xd4  written by nothing
+    int32_t  _requestedWidth;     // +0xc0  NOT written by the ctor; GetWidth
+    int32_t  _requestedHeight;    // +0xc4  NOT written by the ctor; GetHeight
+    int32_t  _barSize;            // +0xc8  ctor 0; the scroll-bar gutter
+    uint8_t  _allowShrinkWidth;   // +0xcc  ctor 0 (one WORD store with +0xcd)
+    uint8_t  _allowShrinkHeight;  // +0xcd  ctor 0
+    uint8_t  _padce[2];           // +0xce  written by nothing
+    int32_t  _wheelImpulse;       // +0xd0  ctor 0; ±7 per wheel event, spent one per frame
+    uint32_t _padd4;              // +0xd4  written by nothing
 };
 
 static_assert(sizeof(ContainerElement) == 0xd8,
@@ -119,11 +119,11 @@ static_assert(offsetof(ContainerElement, _padce) == 0xCE, "ContainerElement::_pa
 static_assert(offsetof(ContainerElement, _padd4) == 0xD4, "ContainerElement::_padd4");
 static_assert(alignof(ContainerElement) == 8, "UI::ContainerElement aligns to 8");
 static_assert(offsetof(ContainerElement, _requestedWidth) == sizeof(Element), "");
-static_assert(offsetof(ContainerElement, _requestedWidth)  == 0xc0, "");
-static_assert(offsetof(ContainerElement, _requestedHeight) == 0xc4, "");
-static_assert(offsetof(ContainerElement, _barSize)         == 0xc8, "");
-static_assert(offsetof(ContainerElement, _clampWidth)      == 0xcc, "");
-static_assert(offsetof(ContainerElement, _clampHeight)     == 0xcd, "");
-static_assert(offsetof(ContainerElement, _wheelImpulse)    == 0xd0, "");
+static_assert(offsetof(ContainerElement, _requestedWidth)    == 0xc0, "");
+static_assert(offsetof(ContainerElement, _requestedHeight)   == 0xc4, "");
+static_assert(offsetof(ContainerElement, _barSize)           == 0xc8, "");
+static_assert(offsetof(ContainerElement, _allowShrinkWidth)  == 0xcc, "");
+static_assert(offsetof(ContainerElement, _allowShrinkHeight) == 0xcd, "");
+static_assert(offsetof(ContainerElement, _wheelImpulse)      == 0xd0, "");
 
 }  // namespace UI

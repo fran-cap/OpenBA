@@ -357,8 +357,8 @@ UNIT_TEST(b39_uib_c4_container_ctor_stores) {
     auto* cd = ::new (static_cast<void*>(d)) UI::ContainerDescription();
     CHECK_EQ(cd->_requestedWidth, 0x64);
     CHECK_EQ(cd->_requestedHeight, 0x64);
-    CHECK_EQ((int)cd->_clampWidth, 0);
-    CHECK_EQ((int)cd->_clampHeight, 0);
+    CHECK_EQ((int)cd->_allowShrinkWidth, 0);
+    CHECK_EQ((int)cd->_allowShrinkHeight, 0);
     CHECK_EQ((int)d[0x72], 0xCD);
     CHECK_EQ((int)d[0x73], 0xCD);
     CHECK_EQ(cd->_barSize, 0);
@@ -373,8 +373,8 @@ UNIT_TEST(b39_uib_c4_container_ctor_stores) {
     std::memset(e, 0xCD, sizeof e);
     auto* ce = ::new (static_cast<void*>(e)) UI::ContainerElement();
     CHECK_EQ(ce->_barSize, 0);
-    CHECK_EQ((int)ce->_clampWidth, 0);
-    CHECK_EQ((int)ce->_clampHeight, 0);
+    CHECK_EQ((int)ce->_allowShrinkWidth, 0);
+    CHECK_EQ((int)ce->_allowShrinkHeight, 0);
     CHECK_EQ(ce->_wheelImpulse, 0);
     CHECK_EQ((int)e[0xc0], 0xCD);
     CHECK_EQ((int)e[0xc4], 0xCD);

@@ -101,8 +101,8 @@ bool ContainerDescription::Serialize(IO::Stream& streamv) {
     Object::SerializeExternal<UI::ElementDescription>(ser, _partDescs[1]);   // 1800ccf6c
     Object::SerializeExternal<UI::ElementDescription>(ser, _partDescs[2]);   // 1800ccf7d
 
-    rw->SerializeBool(_clampWidth, nullptr);                 // 1800ccf9d
-    rw->SerializeBool(_clampHeight, nullptr);                // 1800ccfaf
+    rw->SerializeBool(_allowShrinkWidth, nullptr);          // 1800ccf9d
+    rw->SerializeBool(_allowShrinkHeight, nullptr);         // 1800ccfaf
 
     // ~Serializer (0x1800b99b0) inlined here: rw's scalar deleting dtor                 // 1800ccfc5
     return true;
@@ -191,11 +191,11 @@ Object::InternalPtr<Element>* ContainerDescription::CreateInstance(
     }
 
     // ---- 7. the container's own fields --------------------------------------
-    container->_barSize         = _barSize;                 // 1800ccd96
-    container->_requestedWidth  = _requestedWidth;          // 1800ccda0
-    container->_requestedHeight = _requestedHeight;         // 1800ccdaa
-    container->_clampWidth      = _clampWidth;              // 1800ccdb4 BYTE
-    container->_clampHeight     = _clampHeight;             // 1800ccdbf BYTE
+    container->_barSize           = _barSize;               // 1800ccd96
+    container->_requestedWidth    = _requestedWidth;        // 1800ccda0
+    container->_requestedHeight   = _requestedHeight;       // 1800ccdaa
+    container->_allowShrinkWidth  = _allowShrinkWidth;      // 1800ccdb4 BYTE
+    container->_allowShrinkHeight = _allowShrinkHeight;     // 1800ccdbf BYTE
 
     // ---- 8. the clip region becomes the container's first child -------------
     slot = clip;                                            // 1800ccdca

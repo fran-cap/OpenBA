@@ -260,6 +260,7 @@ void InitText() {
     Register("Dialog/FpsCounterPage", &ProvideText, nullptr);
     Register("Dialog/BuildingFinderPage", &ProvideText, nullptr);
     Register("Dialog/FavoritesWindow", &ProvideText, nullptr);
+    Register("Dialog/ProfessionsWindow", &ProvideText, nullptr);
     Register("Dialog/FullscreenMode", &ProvideText, nullptr);
     Register("Dialog/MapOverlays", &ProvideText, nullptr);
 }
