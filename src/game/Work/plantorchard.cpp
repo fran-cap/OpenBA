@@ -162,12 +162,12 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
             int srcCellIdx = orchard->slots[i].tile;
 
             // Check pathfinding
-            int nearestCell = mapGrid->FindCell(srcCellIdx, citizenGridCell, 0xe0f);
+            int nearestCell = mapGrid->FindCell(srcCellIdx, citizenGridCell, PathBits::Walk & ~PathBits::Obstacle);
             if (nearestCell < 0) {
                 continue;
             }
 
-            bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(0xe1f, citizenGridCell, nearestCell));   // the door read AL
+            bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, citizenGridCell, nearestCell));   // the door read AL
             if (!canPath) {
                 continue;
             }
@@ -211,12 +211,12 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
             Profession* workEnt = nullptr;
             GetTarget(&workEnt);
 
-            citizenEnt->statusFlags |= 4;
+            citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
             citizenEnt->field_0x30 = priority;
             citizenEnt->field_0xB0 = 0;
 
             if (workEnt == citizenEnt->profession && priority >= 0) {
-                citizenEnt->happinessFlags |= 0x20000;
+                citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
             }
 
             // Insert into the set: {cell, citizen}.

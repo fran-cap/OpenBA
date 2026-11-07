@@ -292,12 +292,6 @@ int64_t CurrentTimeTicksViaGlobals() {
 
 namespace {
 
-// The 64 `Audio::Device::AudioChannel` records at +0x00 (stride 0x28): the
-// flags dword (bit 1 = needs release), `source` (+0x08, zeroed with the
-// flags), `userData` / `userValue` (+0x10 / +0x18, the callback's 2nd / 3rd
-// arguments) and `onComplete` (+0x20). Every offset is Frame's own (§4).
-constexpr int      kAudioChannelCount  = 0x40;
-
 // ENDGAME B.3.7: the three Engine subsystem offsets (+0x6e0 Input::Device,
 // +0x6d0 Audio::Device, +0x690 Application) and Application+0x28 are read as
 // the named fields of the real classes now; the static_asserts pin that the
@@ -306,10 +300,6 @@ static_assert(offsetof(Engine::Engine, _inputDevice) == 0x6e0, "Frame reads +0x6
 static_assert(offsetof(Engine::Engine, _audioDevice) == 0x6d0, "Frame reads +0x6d0");
 static_assert(offsetof(Engine::Engine, _application) == 0x690, "Frame reads +0x690");
 static_assert(offsetof(Application::Application, _quitRequested) == 0x28, "Frame tests +0x28");
-
-// Video::Context — the dirty bit Frame's tail sets beside `_time` (+0x3c8).
-constexpr uint32_t kContextDirtyBit    = 0x800;
-
 
 }  // namespace
 
@@ -377,12 +367,16 @@ bool Engine::MainLoop::Frame(bool skipUpdate) {
         engine->_inputDevice->Update(_deltaTime);
 
         // --- the 64-channel audio sweep (§4) --------------------------------
+        // The 64 `Audio::Device::AudioChannel` records at +0x00 (stride 0x28): the
+        // flags dword (bit 1 = needs release), `source` (+0x08, zeroed with the
+        // flags), `userData` / `userValue` (+0x10 / +0x18, the callback's 2nd / 3rd
+        // arguments) and `onComplete` (+0x20). Every offset is Frame's own (§4).
         Audio::Device* audioDevice = engine->_audioDevice;
-        for (int i = 0; i < kAudioChannelCount; ++i) {
+        for (int i = 0; i < Audio::Device::kChannelCount; ++i) {
             Audio::Device::AudioChannel* chan = &audioDevice->_channels[i];
             // NOT RETAIL (review F-138): the flag word is read and cleared atomically;
             // the backend's audio thread sets bit 1 (Device.h, AudioChannel).
-            if ((chan->LoadFlags() & 2u) == 0)
+            if ((chan->LoadFlags() & Bits(Audio::ChannelFlags::Finished)) == 0)
                 continue;
 
             // PRIVATE (`AEAA`) in retail but EXPORTED, ordinal 2380; Device.h
@@ -395,7 +389,7 @@ bool Engine::MainLoop::Frame(bool skipUpdate) {
             // FreeChannelPlatform starts touching the record.
             Audio::Device::Callback onComplete = chan->onComplete;
 
-            chan->AndFlags(0xFFFFFFFCu);                 // AND ~3
+            chan->AndFlags(Bits(~(Audio::ChannelFlags::Live | Audio::ChannelFlags::Finished)));   // AND ~3
             chan->source = nullptr;
 
             if (onComplete) {
@@ -476,7 +470,7 @@ bool Engine::MainLoop::Frame(bool skipUpdate) {
     context->_time.y = 0.0f;
     context->_time.z = 0.0f;
     context->_time.w = 0.0f;
-    context->_dirty |= kContextDirtyBit;       // +0x10
+    context->_dirty |= RtVideo::kDirtyGlobalConstants;   // +0x10, beside `_time` (+0x3c8)
 
     // MainLoop::Draw — NOT ported. By NAME (it is exported), so the cutover
     // miss is diagnosable rather than a silent null (§5). The float is `alpha`,

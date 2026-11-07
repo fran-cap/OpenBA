@@ -56,14 +56,7 @@ namespace rtuielem {
 // (B4: the `kElem*` offsets and the I32 / U32 / P / Pc / Child byte accessors
 // are gone -- every UI::Element field is read by name.)
 
-constexpr uint32_t kFlagHidden        = 0x00000001;
-constexpr uint32_t kFlagAlignArg1     = 0x00000004;
-constexpr uint32_t kFlagAlignArg2     = 0x00000008;
-constexpr uint32_t kFlagScreenH       = 0x00000010;
-constexpr uint32_t kFlagScreenW       = 0x00000020;
-constexpr uint32_t kFlagDimColor      = 0x00040000;
-constexpr uint32_t kFlagDisabledMask  = 0x01800000;   // bits 23|24
-constexpr uint32_t kFlagNeedsSizeCalc = 0x08000000;
+// (The Element::_flags bits are Element.h's UI::kElementFlag* names.)
 
 // ---------------------------------------------------------------------------
 // `?SetNeedsSizeCalc@Element@UI@@` (0x180035470), inlined everywhere.
@@ -73,7 +66,7 @@ constexpr uint32_t kFlagNeedsSizeCalc = 0x08000000;
 inline void SetNeedsSizeCalc(UI::Element* self) {
     UI::Element* n = self;
     do {
-        n->_flags |= kFlagNeedsSizeCalc;
+        n->_flags |= UI::kElementFlagNeedsSizeCalc;
         n = n->_parent;
     } while (n != nullptr);
 }
@@ -88,7 +81,7 @@ inline void SetNeedsSizeCalc(UI::Element* self) {
 inline void StoreFlags(UI::Element* self, uint32_t newFlags) {
     const uint32_t old = self->_flags;
     self->_flags = newFlags;
-    if (((old ^ newFlags) & 1u) != 0) SetNeedsSizeCalc(self);
+    if (((old ^ newFlags) & UI::kElementFlagHidden) != 0) SetNeedsSizeCalc(self);
 }
 
 // ---------------------------------------------------------------------------
@@ -141,7 +134,7 @@ inline uint32_t ComputeColor(uint32_t color, uint8_t alpha) {
 
 // The `TEST [this+0x34],0x40000 / SHR alpha,1` prologue every Draw runs.
 inline uint8_t DimAlpha(const UI::Element* self, uint8_t alpha) {
-    return (self->_flags & kFlagDimColor) ? static_cast<uint8_t>(alpha >> 1) : alpha;
+    return (self->_flags & UI::kElementFlagDimColor) ? static_cast<uint8_t>(alpha >> 1) : alpha;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,15 +153,15 @@ inline void PaddedSizeInline(UI::Element* e, int* outW, int* outH) {
     if (*outH < e->_minHeight) *outH = e->_minHeight;
 
     const uint32_t f = e->_flags;
-    if ((f & (kFlagScreenH | kFlagScreenW)) != 0) {
+    if ((f & (UI::kElementFlagSizeToScreenH | UI::kElementFlagSizeToScreenW)) != 0) {
         UI::Element* root = e;
         while (root->_parent != nullptr) root = root->_parent;
         const ::Video::Device* dev = ::Video::Device::_singleton;
-        if (f & kFlagScreenW) {
+        if (f & UI::kElementFlagSizeToScreenW) {
             const UI::UserInterface* owner = root->_dialogParent->_ui;
             *outW = static_cast<int>(static_cast<float>(dev->backBufferWidth) * owner->_uiScale);
         }
-        if (f & kFlagScreenH) {
+        if (f & UI::kElementFlagSizeToScreenH) {
             const UI::UserInterface* owner = root->_dialogParent->_ui;
             *outH = static_cast<int>(static_cast<float>(dev->backBufferHeight) * owner->_uiScale);
         }
@@ -217,17 +210,27 @@ inline void ElementComputeAlignedRect(UI::Element* self, int x, int y, int w, in
     const int availH = (h - self->_bottomPad) - cy;
 
     const uint32_t flags = self->_flags;
-    if ((flags & kFlagAlignArg1) != 0) sw = availW;
-    if ((flags & kFlagAlignArg2) != 0) sh = availH;
+    if ((flags & UI::kElementFlagAlignArg1) != 0) sw = availW;
+    if ((flags & UI::kElementFlagAlignArg2) != 0) sh = availH;
 
     switch (align) {
-    case 1: case 4: case 7: cx = ((availW >> 1) - (sw >> 1)) + cx;      break;
-    case 2: case 5: case 8: cx = (w - self->_rightPad) - sw;            break;
+    case UI::ElementDescription::TopCenter:
+    case UI::ElementDescription::MidCenter:
+    case UI::ElementDescription::BottomCenter:
+        cx = ((availW >> 1) - (sw >> 1)) + cx;
+        break;
+    case UI::ElementDescription::TopRight:
+    case UI::ElementDescription::MidRight:
+    case UI::ElementDescription::BottomRight:
+        cx = (w - self->_rightPad) - sw;
+        break;
     default: break;
     }
-    if (align > 2) {
-        if (align < 6)      cy = ((availH >> 1) - (sh >> 1)) + cy;
-        else if (align < 9) cy = (h - self->_bottomPad) - sh;
+    if (align > UI::ElementDescription::TopRight) {
+        if (align < UI::ElementDescription::BottomLeft)
+            cy = ((availH >> 1) - (sh >> 1)) + cy;
+        else if (align <= UI::ElementDescription::BottomRight)
+            cy = (h - self->_bottomPad) - sh;
     }
 
     self->_layoutLeft   = cx;

@@ -55,7 +55,7 @@ public:
     bool BeginCommands() override;
     void EndCommands() override;
     void Finish() override;
-    void Clear(unsigned flags, unsigned color, float depth, int stencil) override;
+    void Clear(Video::ClearFlags flags, unsigned color, float depth, int stencil) override;
     void BindRenderBuffer() override;
     void BindViewport() override;
     void BindScissor() override;

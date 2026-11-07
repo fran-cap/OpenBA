@@ -208,18 +208,18 @@ int ImmigrationComponent::FindSpawnCell(int x, int y, int hallCell) {
         if (cy < 0) cy = 0; else if (cy >= W) cy = W - 1;
         int c = W * cy + cx;
         const MapCell* tiles = grid->cells.GetData();   // Map +0x80
-        uint32_t fc = 1u << (tiles[static_cast<uintptr_t>(c)].terrainType & 0x1f);
-        if ((fc & 0xe07u) == 0) continue;
+        uint32_t fc = 1u << (static_cast<uint8_t>(tiles[static_cast<uintptr_t>(c)].terrainType) & 0x1f);
+        if ((fc & Bits(PathBits::Access)) == 0) continue;
         grid->FillZones();   // 0x14009c480 (RCX only)
         tiles = grid->cells.GetData();
         const MapCell* tc = &tiles[static_cast<uintptr_t>(c)];
         const MapCell* th = &tiles[static_cast<uintptr_t>(hallCell)];
-        uint32_t mh = 1u << (th->terrainType & 0x1f);
-        uint32_t mc = 1u << (tc->terrainType & 0x1f);
+        uint32_t mh = 1u << (static_cast<uint8_t>(th->terrainType) & 0x1f);
+        uint32_t mc = 1u << (static_cast<uint8_t>(tc->terrainType) & 0x1f);
         uint32_t u = mc | mh;
-        uint32_t u8 = u | 0xe1fu;
+        uint32_t u8 = u | Bits(PathBits::Walk);
         if ((u8 & mc) && (u8 & mh)) {
-            if (u & 0x1e0u) return c;
+            if (u & Bits(PathBits::Zoneless)) return c;
             int16_t zc = static_cast<int16_t>(tc->zone);   // +0x26
             int16_t zh = static_cast<int16_t>(th->zone);
             if (zc != 0 && zh != 0 && zc == zh) return c;

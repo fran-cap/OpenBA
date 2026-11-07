@@ -215,7 +215,7 @@ void EntityList::Shutdown() {
     for (int32_t i = 0; i < masterArray._size; ++i) {
         Object::InternalPtr<ComponentEntity>* slot = &masterArray._data[i];
         ComponentEntity* entity = slot->Get();
-        if ((entity->_entityFlags >> 10 & 1) == 0) {
+        if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
             slot->Get()->MarkForRemoval();   // 0x1400c2ea0
         }
         if (bracket && !bracketFired) {

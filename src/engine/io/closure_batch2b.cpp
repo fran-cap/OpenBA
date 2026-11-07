@@ -84,7 +84,7 @@ void IO::PersistenceWorker::DeleteJob() {
         ok = Platform::FileDelete(w._data);   // DeleteFileW
     }   // ~w, then ~f
 
-    _status = static_cast<int32_t>((ok != 1) + 1);
+    _status = static_cast<int32_t>(ok == 1 ? Status::Done : Status::Failed);
 }
 
 // ============================================================================
@@ -168,7 +168,7 @@ void IO::PersistenceWorker::LoadJob() {
                     const uint32_t off  = desc[i].offset;                      // +0x04
                     const int32_t  size = static_cast<int32_t>(desc[i].size);  // +0x08
                     st._file.cursor = static_cast<int32_t>(off);
-                    if (static_cast<uint32_t>(st._file.handle) > 0xfffffffdu &&
+                    if (!RtIO::FileInfo::IsPackedHandle(st._file.handle) &&
                         Platform::FileSeek32(st._file.winHandle,               // SetFilePointer
                                              static_cast<int32_t>(off)) != off) {
                         failed = true;
@@ -181,14 +181,14 @@ void IO::PersistenceWorker::LoadJob() {
                 }
             }
             if (failed) {
-                _status = 2;
+                _status = static_cast<int32_t>(Status::Failed);
             } else {
-                if (st._file.handle != -1)
+                if (st._file.handle != RtIO::FileInfo::kHandleNone)
                     fs->CloseFile(st._file);
-                _status = 1;
+                _status = static_cast<int32_t>(Status::Done);
             }
         } else {
-            _status = 2;
+            _status = static_cast<int32_t>(Status::Failed);
         }
     }
 

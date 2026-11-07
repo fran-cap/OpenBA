@@ -464,8 +464,8 @@ void FireRoadTool(PlayerToolManager* entityUI) {
         if (row < 0 || col < 0 || row >= gridSize || col >= gridSize) return false;
         const MapCell& c = terrain[(uintptr_t)(gridSize * row + col)];
         if (c.blocker != nullptr) return false;                              // occupied
-        uint32_t flag = 1u << (c.terrainType & 0x1f);
-        return (flag & 0x5e0) == 0;                                          // legal terrain
+        uint32_t flag = Bits(PathBitOf(c.terrainType));
+        return (flag & Bits(PathBits::NoRoad)) == 0;                         // legal terrain
     };
 
     // BANISHED_ROAD_RUNS=<n> / BANISHED_ROAD_LEN=<tiles> — lay n spans instead of one.
@@ -638,8 +638,8 @@ void FirePastureTool(PlayerToolManager* entityUI) {
         const MapCell& c = terrain[(uintptr_t)(gridSize * row + col)];
         if (c.blocker != nullptr) return false;                              // entity in cell
         if (c.footprintCount != 0) return false;                             // occupied flag
-        uint32_t flag = 1u << (c.terrainType & 0x1f);
-        return (flag & 0x5e0) == 0;                                          // buildable terrain
+        uint32_t flag = Bits(PathBitOf(c.terrainType));
+        return (flag & Bits(PathBits::NoRoad)) == 0;                         // buildable terrain
     };
 
     // BANISHED_PASTURE_OVER_NATURALS=1: pick a rect that CONTAINS trees/rocks
@@ -1158,7 +1158,7 @@ void FireMarkRemoval() {
                 ComponentEntity* local = ent;
                 if (!local) continue;
                 uint32_t flags = local->_entityFlags;
-                if (flags & 0x400) continue;             // already marked
+                if (flags & Bits(ComponentFlags::MarkedForRemoval)) continue;             // already marked
                 uint32_t tid = Comp0TypeId(local);
                 int compCnt = local->_components._size;
                 fprintf(stderr, "[MarkRemoval] target found: cell=(%d,%d) idx=%d slot=+0x%02x entity=%p "
@@ -1216,7 +1216,7 @@ void FireMarkRemoval() {
 // past +0x28, so the observation itself stays crash-free.
 UI::DialogController* GetControllerByType(UI::DialogInstance* dialog, uint32_t tid) {
     if (!dialog) return nullptr;
-    if (tid == 0 || tid == 0xFFFFFFFFu) return nullptr;
+    if (tid == 0 || tid == ::Object::kInvalidTypeId) return nullptr;
     uintptr_t buf[2] = {};
     Object::InternalPtr<UI::DialogController>* ref = ::new (buf) Object::InternalPtr<UI::DialogController>(
         dialog->GetController(tid));
@@ -1788,7 +1788,7 @@ void FirePasturePanel(PlayerToolManager* entityUI) {
                 combo->SetCurrentItem(wantItem);
                 Object::InternalPtr<UI::Element> comboRef(combo);   // the slot takes the element's InternalPtr (its body never reads it)
                 pui->OnElementEvent(
-                    &comboRef, 0x14, 500,
+                    &comboRef, UI::EventId::SelectionChanged, 500,
                     0, 0, 0, nullptr);
                 fprintf(stderr, "[PasturePanel] SELECT fired: item=%d -> pasture type(+0x28)=%p "
                        "max(+0x40)=%d\n", wantItem,
@@ -1926,7 +1926,7 @@ void FireOrchardPanel(PlayerToolManager* entityUI) {
             combo->SetCurrentItem(wantItem);
             Object::InternalPtr<UI::Element> comboRef(combo);   // the slot takes the element's InternalPtr (its body never reads it)
             oui->OnElementEvent(
-                &comboRef, 0x14, 500,
+                &comboRef, UI::EventId::SelectionChanged, 500,
                 0, 0, 0, nullptr);
             fprintf(stderr, "[OrchardPanel] SELECT fired: item=%d -> orchard type(+0x60)=%llx "
                    "(%s)\n", wantItem, orchType(),
@@ -2091,7 +2091,7 @@ void FireClearPlace() {
         for (int col = 100; col <= 156 && rcRow < 0; ++col) {
             int cell = width * row + col;
             ComponentEntity* occ = tileArray[(uintptr_t)cell].occupant.Get();
-            if (occ && !(occ->_entityFlags & 0x400)) {
+            if (occ && !(occ->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
                 rcRow = row; rcCol = col; resEnt = occ;
             }
         }
@@ -2133,7 +2133,8 @@ void FireClearPlace() {
     uint32_t resFlags = resEnt->_entityFlags;
     fprintf(stderr, "[ClearPlace] marked=%d  resource flags(+0x40)=0x%08x (bit0x400 %s)  "
            "removalList.count %d -> %d\n",
-           marked, resFlags, (resFlags & 0x400) ? "SET" : "MISSING", cntBefore, cntAfter);
+           marked, resFlags, (resFlags & Bits(ComponentFlags::MarkedForRemoval)) ? "SET" : "MISSING",
+           cntBefore, cntAfter);
     if (marked > 0) { s_mr_fired = true; s_mr_entity = 0; s_mr_tileSlot = 0; }
 }
 
@@ -2154,7 +2155,7 @@ void FireClearLive() {
         for (int col = 100; col <= 156 && rcRow < 0; ++col) {
             int cell = width * row + col;
             ComponentEntity* occ = tileArray[(uintptr_t)cell].occupant.Get();
-            if (occ && !(occ->_entityFlags & 0x400)) {
+            if (occ && !(occ->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
                 rcRow = row; rcCol = col; resEnt = occ;
             }
         }
@@ -2205,7 +2206,7 @@ void FireClearPlaceOver() {
         for (int col = 110; col <= 150 && rcRow < 0; ++col) {
             int cell = width * row + col;
             ComponentEntity* occ = tileArray[(uintptr_t)cell].occupant.Get();
-            if (occ && !(occ->_entityFlags & 0x400)) {
+            if (occ && !(occ->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
                 rcRow = row; rcCol = col; resEnt = occ;
             }
         }
@@ -2249,7 +2250,7 @@ void FireClearHarvest() {
         for (int col = 100; col <= 156 && rcRow < 0; ++col) {
             int cell = width * row + col;
             ComponentEntity* occ = tileArray[(uintptr_t)cell].occupant.Get();
-            if (occ && !(occ->_entityFlags & 0x400)) {
+            if (occ && !(occ->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) {
                 rcRow = row; rcCol = col; resEnt = occ;
             }
         }
@@ -2457,7 +2458,7 @@ void FireUpgradeClick() {
     }
     Object::InternalPtr<UI::Element> src(button);   // p2 points at the source-element pointer
     fprintf(stderr, "[Upgrade] >>> firing UpgradeUI slot 9 (msg=0x12 id=33000) <<<\n");
-    ctrl->OnElementEvent(&src, 0x12, 33000, 0, 0, 0, nullptr);
+    ctrl->OnElementEvent(&src, UI::EventId::Activated, 33000, 0, 0, 0, nullptr);
     fprintf(stderr, "[Upgrade] click delivered — follow [DestroySM] for state 3 -> 4 -> 5 "
            "and the UPGRADE SPAWN.\n");
 }
@@ -2900,7 +2901,7 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
     }
     const int W = mapGrid->size;
     auto bitAt = [&](int idx) -> uint32_t {
-        return 1u << (terrain[static_cast<uintptr_t>(idx)].terrainType & 0x1f);
+        return Bits(PathBitOf(terrain[static_cast<uintptr_t>(idx)].terrainType));
     };
 
     // The BridgeTool: a DragTool. CalcCost is retail [14] (+0x70). Dispatched through
@@ -3341,7 +3342,8 @@ void SpriteCaptureTick(int frameNum) {
     if (s_sc_clickFrame != 0 && frameNum >= s_sc_clickFrame) {
         s_sc_clickFrame = 0;
         Object::InternalPtr<UI::Element> button(s_sc_ui->buttonCapture);
-        s_sc_dialog->OnElementEvent(&button, 0x12, 1000, 0, 0, 0, nullptr);   // the button click
+        // the button click
+        s_sc_dialog->OnElementEvent(&button, UI::EventId::Activated, 1000, 0, 0, 0, nullptr);
         fprintf(stderr, "[ToolHarness][spritecapture] frame %d: buttonCapture clicked -> "
                 "pendingExternal=%p saveFrameCount=%d box=(%d,%d)-(%d,%d)\n", frameNum,
                 static_cast<void*>(s_sc_ui->pendingExternal), s_sc_ui->saveFrameCount,
@@ -3456,7 +3458,8 @@ void PanelCloseTick(PlayerToolManager* toolManager, int frameNum) {
             fprintf(stderr, "[ToolHarness][panelclose] FAILED: the panel has no buttonClose\n");
             return;
         }
-        dialog->OnElementEvent(&closeButton, 0x12, 1, 0, 0, 0, nullptr);   // the button click
+        // the button click
+        dialog->OnElementEvent(&closeButton, UI::EventId::Activated, 1, 0, 0, 0, nullptr);
         Tool* toolAfter = toolManager->currentTool.Get();
         EditTool* editAfter = EditTool_IsEditTool(toolAfter) ? static_cast<EditTool*>(toolAfter)
                                                              : nullptr;

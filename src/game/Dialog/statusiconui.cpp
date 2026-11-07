@@ -150,10 +150,10 @@ void StatusIconUI::OnUpdateLayout() {
 
         if (bitSet && iconsActive) {
             // Show icon
-            iconElem->SetFlagsOnOff(0, 1);
+            iconElem->SetFlagsOnOff(0, UI::kElementFlagHidden);
         } else {
             // Hide icon
-            iconElem->SetFlagsOnOff(1, 0);
+            iconElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         }
 
         // Rotate bit mask left

@@ -437,11 +437,11 @@ uint64_t g_tfsAtt = 0;
 // The shared BOM-skip ladder. Retail inlines it three times (twice in `Open`,
 // once in `Write`) as `test / sub 2 / dec / dec / dec`, so every value outside
 // {3,4,5} — INCLUDING 1 and 6 — falls through to 0.
-inline int32_t TfsBomSkip(int32_t detected) {
+inline int32_t TfsBomSkip(IO::Text::Format detected) {
     switch (detected) {
-        case 3:  return 3;   // EF BB BF
-        case 4:  return 2;   // FF FE
-        case 5:  return 2;   // FE FF
+        case IO::Text::Format::Utf8Bom:  return 3;   // EF BB BF
+        case IO::Text::Format::Utf16Le:  return 2;   // FF FE
+        case IO::Text::Format::Utf16Be:  return 2;   // FE FF
         default: return 0;
     }
 }
@@ -754,7 +754,7 @@ bool TextFileStream::SetCurrentPos(int pos) {
     _file.cursor = pos;                                            // 1800bac02  +0x2c
 
     // UNSIGNED — see the door's banner.
-    if (static_cast<uint32_t>(_file.handle) <= 0xfffffffdu) {      // 1800babfe/05
+    if (RtIO::FileInfo::IsPackedHandle(_file.handle)) {            // 1800babfe/05
         return true;                                               // 1800bac07
     }
 
@@ -780,7 +780,7 @@ bool TextFileStream::SetCurrentPos(int pos) {
 // to the lifecycle block in file_stream.cpp, not to this one), so the call
 // bridges through the POD view of `this` rather than changing the callee.
 bool TextFileStream::Create(const System::Filename& path,
-                            int32_t requestedFormat, int32_t activeEncoding) {
+                            Text::Format requestedFormat, Text::Format activeEncoding) {
     ++RtIO::g_tfs.create;
 
     _requestedFormat = requestedFormat;                      // 1800ba949  +0x68
@@ -793,16 +793,27 @@ bool TextFileStream::Create(const System::Filename& path,
 
     uint8_t bom[3] = { 0, 0, 0 };
     int32_t bomLen = 0;
-    int32_t bomSelector = _activeEncoding;                   // 1800ba960  +0x6c
+    Text::Format bomSelector = _activeEncoding;              // 1800ba960  +0x6c
     if (RtIO::g_tfsCtl == 4) { ++RtIO::g_tfsAtt; bomSelector = _requestedFormat; }
     switch (bomSelector) {                                   // 1800ba963..76
-        case 3:  bom[0] = 0xEF; bom[1] = 0xBB; bom[2] = 0xBF;  // 1800ba994
-                 bomLen = 3; break;
-        case 4:  bom[0] = 0xFF; bom[1] = 0xFE;                 // 1800ba985
-                 bomLen = 2; break;
-        case 5:  bom[0] = 0xFE; bom[1] = 0xFF;                 // 1800ba978
-                 bomLen = 2; break;
-        default: break;                                        // 0, 2, anything else
+        case Text::Format::Utf8Bom:   // 1800ba994
+            bom[0] = 0xEF;
+            bom[1] = 0xBB;
+            bom[2] = 0xBF;
+            bomLen = 3;
+            break;
+        case Text::Format::Utf16Le:   // 1800ba985
+            bom[0] = 0xFF;
+            bom[1] = 0xFE;
+            bomLen = 2;
+            break;
+        case Text::Format::Utf16Be:   // 1800ba978
+            bom[0] = 0xFE;
+            bom[1] = 0xFF;
+            bomLen = 2;
+            break;
+        default:                      // 0, 2, anything else
+            break;
     }
 
     if (bomLen != 0) {
@@ -826,8 +837,8 @@ bool TextFileStream::Create(const System::Filename& path,
 bool TextFileStream::Write(int len, const void* buf) {
     ++RtIO::g_tfs.write;
 
-    int32_t srcFormat = _requestedFormat;                       // 1800baa03  +0x68
-    const int32_t dstFormat = _activeEncoding;                  // 1800baa06  +0x6c
+    Text::Format srcFormat = _requestedFormat;                  // 1800baa03  +0x68
+    const Text::Format dstFormat = _activeEncoding;             // 1800baa06  +0x6c
 
     // ---- fast arm: no transcode -------------------------------------------
     if (srcFormat == dstFormat) {                               // 1800baa15
@@ -846,7 +857,7 @@ bool TextFileStream::Write(int len, const void* buf) {
     const uint8_t* const end   = begin + len;                   // 1800baa70
     const uint8_t* p           = begin;
 
-    if (srcFormat == 6) {                                       // 1800baa74
+    if (srcFormat == Text::Format::Detect) {                                       // 1800baa74
         srcFormat = RtIo_TextCodec_DetectFormat(begin, len);        // 1800baa7e
         p = begin + RtIO::TfsBomSkip(srcFormat);                // 1800baaac
     }
@@ -856,7 +867,7 @@ bool TextFileStream::Write(int len, const void* buf) {
     while (p < end) {                                           // 1800baab2
         int32_t cp = -1;                                        // 1800baac0
         int32_t consumed;
-        if (static_cast<uint32_t>(srcFormat) <= 5u) {           // 1800baacb
+        if (static_cast<uint32_t>(srcFormat) <= static_cast<uint32_t>(Text::Format::Utf16Be)) {           // 1800baacb
             consumed = RtIo_TextCodec_DecodeOne(srcFormat, p, end, &cp, srcFormat);  // 1800baae4
         } else {
             cp = -1; consumed = 1;                              // 1800baaf2
@@ -864,7 +875,7 @@ bool TextFileStream::Write(int len, const void* buf) {
         p += consumed;                                          // 1800baafc
         if (cp >= 0) {                                          // 1800baaff
             int32_t n = 0;
-            if (static_cast<uint32_t>(dstFormat) <= 5u)         // 1800bab03
+            if (static_cast<uint32_t>(dstFormat) <= static_cast<uint32_t>(Text::Format::Utf16Be))         // 1800bab03
                 n = RtIo_TextCodec_EncodeOne(cp, &cp, dstFormat);   // 1800bab14
             outBytes += n;                                      // 1800bab1d
         }
@@ -901,7 +912,7 @@ bool TextFileStream::Write(int len, const void* buf) {
 // which is why `Read` never touches the handle. `_requestedFormat` (+0x68) is
 // deliberately NOT written; only `_activeEncoding` (+0x6c) is, and only at the
 // very end.
-bool TextFileStream::OpenWithFormat(const System::Filename& path, int32_t format) {
+bool TextFileStream::OpenWithFormat(const System::Filename& path, Text::Format format) {
     ++RtIO::g_tfs.open;
 
     if (!FileStream::Open(path)) {                              // 1800ba652  (B.3.9 IO: non-virtual, as the door was)
@@ -916,24 +927,24 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, int32_t format
     _file.cursor = 0;                                           // 1800ba699  +0x2c
 
     // UNSIGNED: -1 and -2 seek, a packed descriptor does not (FileStream.h).
-    if (static_cast<uint32_t>(_file.handle) > 0xFFFFFFFDu)      // 1800ba695 JBE
+    if (!RtIO::FileInfo::IsPackedHandle(_file.handle))          // 1800ba695 JBE
         Platform::FileSeek32(_file.winHandle, 0);               // 1800ba6b6 SetFilePointer
 
     FileSystem::_singleton->ReadFile(_file, fileSize, raw);     // 1800ba6cd
-    if (_file.handle != -1)                                     // 1800ba6d2
+    if (_file.handle != RtIO::FileInfo::kHandleNone)            // 1800ba6d2
         FileSystem::_singleton->CloseFile(_file);               // 1800ba6e3
 
     const uint8_t* const rawEnd = raw + fileSize;               // 1800ba6f0
 
     // ---- pass 1: MEASURE ---------------------------------------------------
-    int32_t srcFormat = RtIo_TextCodec_DetectFormat(raw, fileSize); // 1800ba6f4
+    Text::Format srcFormat = RtIo_TextCodec_DetectFormat(raw, fileSize); // 1800ba6f4
     const uint8_t* p  = raw + RtIO::TfsBomSkip(srcFormat);      // 1800ba721
 
     int32_t outBytes = 0;
     while (p < rawEnd) {                                        // 1800ba727
         int32_t cp = -1;                                        // 1800ba730
         int32_t consumed;
-        if (static_cast<uint32_t>(srcFormat) <= 5u) {           // 1800ba73b
+        if (static_cast<uint32_t>(srcFormat) <= static_cast<uint32_t>(Text::Format::Utf16Be)) {           // 1800ba73b
             consumed = RtIo_TextCodec_DecodeOne(srcFormat, p, rawEnd, &cp, srcFormat);  // 1800ba754
         } else {
             cp = -1; consumed = 1;                              // 1800ba762
@@ -941,7 +952,7 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, int32_t format
         p += consumed;                                          // 1800ba76c
         if (cp >= 0) {                                          // 1800ba76f
             int32_t n = 0;
-            if (static_cast<uint32_t>(format) <= 5u)            // 1800ba773
+            if (static_cast<uint32_t>(format) <= static_cast<uint32_t>(Text::Format::Utf16Be))            // 1800ba773
                 n = RtIo_TextCodec_EncodeOne(cp, &cp, format);      // 1800ba784
             outBytes += n;                                      // 1800ba78d
         }
@@ -965,7 +976,7 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, int32_t format
     while (p < rawEnd) {                                        // 1800ba7f2
         int32_t cp = -1;                                        // 1800ba800
         int32_t consumed;
-        if (static_cast<uint32_t>(srcFormat) <= 5u) {           // 1800ba80b
+        if (static_cast<uint32_t>(srcFormat) <= static_cast<uint32_t>(Text::Format::Utf16Be)) {           // 1800ba80b
             consumed = RtIo_TextCodec_DecodeOne(srcFormat, p, rawEnd, &cp, srcFormat);  // 1800ba827
         } else {
             cp = -1; consumed = 1;                              // 1800ba83c
@@ -977,7 +988,7 @@ bool TextFileStream::OpenWithFormat(const System::Filename& path, int32_t format
         // widest any table entry emits.
         uint8_t scratch[4] = { 0, 0, 0, 0 };
         int32_t n = 0;
-        if (static_cast<uint32_t>(format) <= 5u)                // 1800ba84d
+        if (static_cast<uint32_t>(format) <= static_cast<uint32_t>(Text::Format::Utf16Be))                // 1800ba84d
             n = RtIo_TextCodec_EncodeOne(cp, scratch, format);      // 1800ba85b
         written += n;                                           // 1800ba864
         if (written > bufSize) continue;                        // 1800ba866  JG

@@ -392,7 +392,7 @@ void PathTool::BuildRoutes() {
 
         // Async A* query: returns {slot@+0, token@+4}. Spin on the map's result table.
         PathTicket ticket = {0, 0};
-        map->RequestPath(&ticket, 0xe1f, srcCell, dstCell);   // 0x14009cfb0
+        map->RequestPath(&ticket, Bits(PathBits::Walk), srcCell, dstCell);   // 0x14009cfb0
         int qIdx = ticket.slot;
         int qId  = ticket.token;
         if (qId == 0 || qIdx < 0) {

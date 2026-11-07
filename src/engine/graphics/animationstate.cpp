@@ -442,8 +442,8 @@ void AnimationState::Serialize(IO::Serializer& s) {
             const int32_t handle = layer._handle;
             if (handle < 0)
                 continue;
-            const int32_t instance = (handle >> 8) & 0xff;
-            const int32_t state = handle & 0xff;
+            const int32_t instance = AnimationManager::HandleInstance(handle);
+            const int32_t state = AnimationManager::HandleState(handle);
             if (mgr == nullptr || instance >= mgr->_instances._size ||
                 state >= mgr->_instances._data[instance]._states._size)
                 layer._handle = -1;
@@ -473,7 +473,7 @@ void AnimationState::ResetAnimationState() {
         if (handle < 0) continue;                        // TEST ECX,ECX / JS
 
         AnimationManager::Instance* inst =
-            &AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
+            &AnimationManager::_singleton->_instances._data[AnimationManager::HandleInstance(handle)];
         if (--inst->_refCount != 0) continue;
 
         inst->_group     = nullptr;
@@ -507,8 +507,8 @@ void AnimationState::ResetAnimationState() {
 // bit copy — a float-register round trip is never involved.
 // ============================================================================
 void AnimationManager::GetPose(int handle, Math::Transform* out, int count) const {
-    const Instance& inst = _instances._data[(handle >> 8) & 0xff];
-    const Math::Transform* pose = inst._states._data[handle & 0xff]._pose._data;
+    const Instance& inst = _instances._data[HandleInstance(handle)];
+    const Math::Transform* pose = inst._states._data[HandleState(handle)]._pose._data;
 
     for (int i = 0; i < count; ++i)
         out[i] = pose[i];

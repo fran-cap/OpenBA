@@ -835,7 +835,7 @@ void Engine::LoaderLoop::Draw(float /*interpolation*/) {
     if (!ml) return;
     Video::Context* ctx = ml->_context;
     Video::ContextData* cd = CtxDataOf(ctx);
-    cd->Clear(7u, 0u, 1.0f, 0);
+    cd->Clear(Video::ClearFlags::Color | Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0u, 1.0f, 0);
 }
 
 // ---- ?Shutdown@DialogLoaderLoopT@Engine@@UEAAXXZ  0x1800dafc0  ord 4045 -----
@@ -902,13 +902,13 @@ void Engine::DialogLoaderLoopT::Draw(float /*interpolation*/) {
     Video::Context* ctx = ml->_context;
 
     Video::ContextData* cd = CtxDataOf(ctx);
-    cd->Clear(7u, 0u, 1.0f, 0);
+    cd->Clear(Video::ClearFlags::Color | Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0u, 1.0f, 0);
 
     const float secs = TicksToSeconds(_elapsedTicks);
 
     ctx->_time.x = secs;   ctx->_time.y = 0.0f;
     ctx->_time.z = 0.0f;   ctx->_time.w = 0.0f;
-    ctx->_dirty |= 0x800u;
+    ctx->_dirty |= RtVideo::kDirtyGlobalConstants;
 
     ctx->_unknown03b8.x = secs;  ctx->_unknown03b8.y = 0.0f;
     ctx->_unknown03b8.z = 0.0f;  ctx->_unknown03b8.w = 0.0f;
@@ -916,7 +916,7 @@ void Engine::DialogLoaderLoopT::Draw(float /*interpolation*/) {
     // ctx +0x288: Context::PixelConstantStaging::pixel[4].
     Math::Vector4& staging = ctx->_pixelConstantStaging.pixel[4];   // LEFT: Context::_pixelConstantStaging is one 0x98-byte block (+0x200 videoProgram, +0x208 material, +0x248 pixel constants); ~10 readers in runtime/video and code/ index it by byte: splitting it is its own sweep
     staging.x = secs; staging.y = 0.0f; staging.z = 0.0f; staging.w = 0.0f;
-    ctx->_dirty |= 0x10800u;
+    ctx->_dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     _ui.Draw(*ctx);   // B.3.6: `_ui` IS a UI::UserInterface; RtVideo::Context aliases Video::Context
 }
@@ -942,7 +942,8 @@ void Engine::DialogLoopT::Draw(float /*interpolation*/) {
     Video::Context* ctx = ml->_context;
 
     Video::ContextData* cd = CtxDataOf(ctx);
-    cd->Clear(7u, 0xff808080u, 1.0f, 0);
+    cd->Clear(Video::ClearFlags::Color | Video::ClearFlags::Depth | Video::ClearFlags::Stencil,
+              System::kColorGrey, 1.0f, 0);
 
     _ui.Draw(*ctx);   // B.3.6: `_ui` IS a UI::UserInterface; RtVideo::Context aliases Video::Context
 }
@@ -1101,7 +1102,7 @@ void Engine::MainLoop::Draw(float dt) {
         const int32_t h = rb->height;
         if (c->_viewport.x != 0 || c->_viewport.y != 0 ||
             c->_viewport.width != w || c->_viewport.height != h) {
-            c->_dirty |= 0x200u;
+            c->_dirty |= RtVideo::kDirtyViewport;
             c->_viewport.x = 0;
             c->_viewport.y = 0;
             c->_viewport.width  = w;

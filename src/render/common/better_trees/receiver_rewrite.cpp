@@ -75,12 +75,12 @@ uint32_t RelativeReads(const uint32_t* t, uint32_t avail, std::vector<Read>* rea
     const uint32_t type = (tok >> 12) & 0xFF;
     const uint32_t dims = (tok >> 20) & 3;
     const uint32_t numComp = tok & 3;
-    if (tok & 0x80000000u) {
+    if (tok & Dxbc::kTokenExtended) {
         uint32_t ext;
         do {
             if (n >= avail) return 0;
             ext = t[n++];
-        } while (ext & 0x80000000u);
+        } while (ext & Dxbc::kTokenExtended);
     }
     if (type == OT::Imm32 || type == OT::Imm64) {
         const uint32_t comps = numComp == 1 ? 1 : (numComp == 2 ? 4 : 0);
@@ -111,11 +111,11 @@ uint32_t RelativeReads(const uint32_t* t, uint32_t avail, std::vector<Read>* rea
                 uint32_t mask = 0;
                 if (subSel == 2) mask = 1u << (subBits & 3);
                 else if (subSel == 1) for (int c = 0; c < 4; ++c) mask |= 1u << ((subBits >> (2 * c)) & 3);
-                else mask = subBits & 0xF;
+                else mask = subBits & Dxbc::Mask::XYZW;
                 // the sub-operand's register index is its first index dword
                 uint32_t k = 1;
-                if (sub & 0x80000000u) {
-                    while (t[n + k] & 0x80000000u) ++k;
+                if (sub & Dxbc::kTokenExtended) {
+                    while (t[n + k] & Dxbc::kTokenExtended) ++k;
                     ++k;
                 }
                 reads->push_back({t[n + k], mask});
@@ -143,7 +143,8 @@ bool Describe(const Dxbc::Program& p, const Dxbc::Instr& in, Info* info, std::st
     for (int i = 0; i < nd && i < static_cast<int>(in.operands.size()); ++i) {
         const Dxbc::Operand& o = in.operands[static_cast<size_t>(i)];
         if (o.type == kOperandNull) continue;
-        const uint32_t mask = o.numComp == 2 && o.selMode == 0 ? (o.compBits & 0xF) : 0xF;
+        const uint32_t mask = o.numComp == 2 && o.selMode == 0 ? (o.compBits & Dxbc::Mask::XYZW)
+                                                               : static_cast<uint32_t>(Dxbc::Mask::XYZW);
         dstUnion |= mask;
         if (o.type == OT::Temp) {
             if (o.relative) { *why = "relative temp destination"; return false; }
@@ -157,7 +158,7 @@ bool Describe(const Dxbc::Program& p, const Dxbc::Instr& in, Info* info, std::st
             return false;
         }
     }
-    if (dstUnion == 0) dstUnion = 0xF;
+    if (dstUnion == 0) dstUnion = Dxbc::Mask::XYZW;
     const int span = SourceSpan(in.opcode);
     for (size_t i = static_cast<size_t>(nd); i < in.operands.size(); ++i) {
         const Dxbc::Operand& o = in.operands[i];
@@ -173,11 +174,11 @@ bool Describe(const Dxbc::Program& p, const Dxbc::Instr& in, Info* info, std::st
         if (o.type != OT::Temp) continue;
         uint32_t mask = 0;
         if (o.numComp != 2) {
-            mask = 0xF;
+            mask = Dxbc::Mask::XYZW;
         } else if (o.selMode == 2) {
             mask = 1u << (o.compBits & 3);
         } else if (o.selMode == 0) {
-            mask = o.compBits & 0xF;
+            mask = o.compBits & Dxbc::Mask::XYZW;
         } else if (span < 0) {
             for (int c = 0; c < 4; ++c)
                 if (dstUnion & (1u << c)) mask |= 1u << o.Swz(c);
@@ -238,7 +239,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
             continue;
         }
         if (IsFlowControl(in.opcode)) { Refuse(m, "flow control"); return; }
-        if (in.token & 0x80000000u) { Refuse(m, "extended opcode token"); return; }
+        if (in.token & Dxbc::kTokenExtended) { Refuse(m, "extended opcode token"); return; }
         std::string why;
         if (!Describe(p, in, &info[i], &why)) { Refuse(m, why); return; }
         if (info[i].cb0Relative) { Refuse(m, "a relative gc read (its rows cannot be told apart)"); return; }
@@ -284,7 +285,7 @@ void Analyse(const uint8_t* blob, size_t size, Match* m) {
     // definition per component).
     const uint32_t T = m->temps;
     std::vector<uint32_t> needed(T, 0);
-    uint32_t neededOut = 0xF;
+    uint32_t neededOut = Dxbc::Mask::XYZW;
     std::vector<uint8_t> inSlice(n, 0);
     for (size_t k = n; k-- > 0;) {
         const Dxbc::Instr& in = p.instrs[k];
@@ -419,8 +420,8 @@ void CbSrc(std::vector<uint32_t>& t, uint32_t cb, uint32_t row, uint32_t swz) {
 bool RetargetTemp(uint32_t* t, uint32_t avail, uint32_t reg) {
     if (avail < 2) return false;
     uint32_t n = 1;
-    if (t[0] & 0x80000000u) {
-        while (n < avail && (t[n] & 0x80000000u)) ++n;
+    if (t[0] & Dxbc::kTokenExtended) {
+        while (n < avail && (t[n] & Dxbc::kTokenExtended)) ++n;
         ++n;
     }
     if (n >= avail) return false;

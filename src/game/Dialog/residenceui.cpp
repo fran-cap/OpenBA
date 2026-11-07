@@ -98,7 +98,7 @@ static bool DataSourceAlive(ResidenceUI* self) {
     // Marked-for-removal (entity+0x40 bit 0x400): the entity survives until the
     // EntityList drain, but its components/roster may already be torn down —
     // reading them crashed live 2026-07-20 (garbage into IsDerivedFrom).
-    if ((static_cast<ComponentEntity*>(e)->_entityFlags >> 10) & 1)
+    if (static_cast<ComponentEntity*>(e)->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))
         return false;
     return true;
 }
@@ -302,9 +302,9 @@ void ResidenceUI::OnUpdateLayout() {
                     UI::Element* imageFemale = row.imageFemale;
                     if (imageFemale) {
                         if (isMale) {
-                            imageFemale->SetFlagsOnOff(1, 0);
+                            imageFemale->SetFlagsOnOff(UI::kElementFlagHidden, 0);
                         } else {
-                            imageFemale->SetFlagsOnOff(0, 1);
+                            imageFemale->SetFlagsOnOff(0, UI::kElementFlagHidden);
                         }
                     }
                     UI::Element* imageMale = row.imageMale;
@@ -398,9 +398,9 @@ void ResidenceUI::OnUpdateLayout() {
 
             // Hide both gender icons
             UI::Element* imageMale = row.imageMale;
-            if (imageMale) imageMale->SetFlagsOnOff(1, 0);
+            if (imageMale) imageMale->SetFlagsOnOff(UI::kElementFlagHidden, 0);
             UI::Element* imageFemale = row.imageFemale;
-            if (imageFemale) imageFemale->SetFlagsOnOff(1, 0);
+            if (imageFemale) imageFemale->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 
             // Clear name text
             {
@@ -502,12 +502,12 @@ void ResidenceUI::GoToCitizen(int citizenIndex) {
 }
 
 // [9] 0x1400b5820
-void ResidenceUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id,
+void ResidenceUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id,
                                  int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     (void)element;
     if (!residenceui_sa::Ready() || !residenceui_sa::DataSourceAlive(this)) return;
 
-    if (msg != 0x12) return;
+    if (msg != UI::EventId::Activated) return;
 
     int count = rows._size;
     if (id >= 300 && id < 300 + count) {

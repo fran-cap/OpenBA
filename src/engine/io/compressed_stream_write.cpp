@@ -826,7 +826,7 @@ void CompressedFileStream::Close() {
         Commit();                                        // 1800a94a5
 
     RtIO::FileInfo* const fileInfo = &_file._file;       // 1800a94aa  (== this+0x88)
-    if (fileInfo->handle != -1) {                        // 1800a94b1/b4
+    if (fileInfo->handle != RtIO::FileInfo::kHandleNone) {   // 1800a94b1/b4
         ::IO::FileSystem* const fs = ::IO::FileSystem::_singleton;   // 1800a94b6  (the class static)
         fs->CloseFile(*fileInfo);                        // 1800a94c2
         return;

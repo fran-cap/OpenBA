@@ -81,11 +81,12 @@ UNIT_TEST(ext_building_finder_limit_note) {
 }
 
 UNIT_TEST(ext_building_finder_hotkey) {
-    CHECK(HotkeyAllowed('H') && HotkeyAllowed('7') && HotkeyAllowed(0x74));
-    CHECK(!HotkeyAllowed(0x1b) && !HotkeyAllowed(' ') && !HotkeyAllowed(0x7c));
+    CHECK(HotkeyAllowed('H') && HotkeyAllowed('7') && HotkeyAllowed(Platform::Input::kVkF1 + 4));
+    CHECK(!HotkeyAllowed(Platform::Input::kVkEscape) && !HotkeyAllowed(' ') &&
+          !HotkeyAllowed(Platform::Input::kVkF12 + 1));
     CHECK(HotkeyName('H') == "H" && HotkeyName('7') == "7");
-    CHECK(HotkeyName(0x70) == "F1" && HotkeyName(0x7b) == "F12");
-    CHECK(HotkeyName(0x1b) == "?");
+    CHECK(HotkeyName(Platform::Input::kVkF1) == "F1" && HotkeyName(Platform::Input::kVkF12) == "F12");
+    CHECK(HotkeyName(Platform::Input::kVkEscape) == "?");
 }
 
 UNIT_TEST(ext_building_finder_clip) {

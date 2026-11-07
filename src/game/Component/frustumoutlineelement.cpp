@@ -116,9 +116,9 @@ FrustumOutlineElement::FrustumOutlineElement()
 // no engine deps. (RibbonElement::ComputeSize clears the same bit 27 after it.)
 void FrustumOutlineElement::ComputeSize() {
     uint32_t flags = _flags;
-    if ((flags >> 27) & 1u) {
+    if (flags & UI::kElementFlagNeedsSizeCalc) {
         _layoutWidth = _width;
-        _flags = flags & ~(1u << 27);
+        _flags = flags & ~UI::kElementFlagNeedsSizeCalc;
         _layoutHeight = _height;
     }
 }
@@ -150,7 +150,7 @@ void FrustumOutlineElement::Draw(UI::SpriteContext& context, uint8_t alpha) cons
 
     // Line color = _color modulated by alpha (halved if flag bit 18 set).
     uint32_t a32 = alpha;
-    if (_flags & 0x40000) a32 = (uint32_t)(alpha >> 1);
+    if (_flags & UI::kElementFlagDimColor) a32 = (uint32_t)(alpha >> 1);
     uint32_t v = _color;
     uint32_t color = ((((v >> 8) & 0xffff0000u) * a32 ^ v) & 0xffffffu)
                      ^ (((v >> 8) & 0xff0000u) * a32);

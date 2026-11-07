@@ -356,7 +356,7 @@ void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t
     const ShoreParams params = CurrentParams();
     static_assert(sizeof(params) == sizeof(saved), "ShoreParams fills the material staging");
     std::memcpy(context._pixelConstantStaging.material, &params, sizeof(saved));
-    context._dirty |= 0x8000u;
+    context._dirty |= RtVideo::kDirtyMaterialConstants;
 
     twin->SetupShaders(context);
     context.DrawIndexed(0, a, b, c, d, 1);
@@ -388,7 +388,7 @@ void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t
             }
             static_assert(sizeof(cp) == sizeof(saved), "ContactParams fills the material staging");
             std::memcpy(context._pixelConstantStaging.material, &cp, sizeof(saved));
-            context._dirty |= 0x8000u;
+            context._dirty |= RtVideo::kDirtyMaterialConstants;
             const Video::ImageBuffer* slot4 = context._imageBuffers[4];
             context.SetImageBuffer(depth, 4);
             contact->SetupShaders(context);
@@ -398,7 +398,7 @@ void DrawShore(Video::Context& context, Kind kind, int32_t a, int32_t b, int32_t
     }
 
     std::memcpy(context._pixelConstantStaging.material, saved, sizeof(saved));
-    context._dirty |= 0x8000u;
+    context._dirty |= RtVideo::kDirtyMaterialConstants;
     water->SetupShaders(context);
 }
 
@@ -418,13 +418,13 @@ void DrawStrip(const WorldGeometry& geo, Video::Context& context) {
     const StripParams params = CurrentStripParams();
     static_assert(sizeof(params) == sizeof(saved), "StripParams fills the material staging");
     std::memcpy(context._pixelConstantStaging.material, &params, sizeof(saved));
-    context._dirty |= 0x8000u;
+    context._dirty |= RtVideo::kDirtyMaterialConstants;
 
     twin->SetupShaders(context);
     context.SetVertexBuffer(s->vb, 0, 0, static_cast<int32_t>(sizeof(Strip::Vertex)));
     // The inlined SetIndexBuffer of WorldGeometry::Draw (dirty bit 0x10).
     if (context._indexBuffer != s->ib || context._indexOffset != 0) {
-        context._dirty |= 0x10u;
+        context._dirty |= RtVideo::kDirtyIndexBuffer;
         context._indexBuffer = s->ib;
         context._indexOffset = 0;
     }
@@ -434,7 +434,7 @@ void DrawStrip(const WorldGeometry& geo, Video::Context& context) {
     }
 
     std::memcpy(context._pixelConstantStaging.material, saved, sizeof(saved));
-    context._dirty |= 0x8000u;
+    context._dirty |= RtVideo::kDirtyMaterialConstants;
     water->SetupShaders(context);
 }
 

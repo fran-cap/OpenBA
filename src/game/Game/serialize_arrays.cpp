@@ -109,7 +109,7 @@ WorldGeometry::WorldGeometry() {
     // +0x1F0 / +0x200 (0x1400b01d5..0x1400b01ea): `_decals` / `_roadBatches`' own ctors.
     _batchMaterials.data  = nullptr; _batchMaterials.size  = 0; _batchMaterials.capacity  = 0;
 
-    _materialTypeFlags = 1;             // +0x30 (Graphics::Geometry's)
+    _materialTypeFlags = static_cast<uint32_t>(Graphics::MaterialTypeMask::Opaque);   // +0x30 (Graphics::Geometry's)
 }
 
 // ============================================================

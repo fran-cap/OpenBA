@@ -65,7 +65,8 @@ UNIT_TEST(mull_memorystream_write_inside_and_to_the_end) {
 UNIT_TEST(mull_convert_text_utf16be_source) {
     const uint8_t src[4] = {0x00, 0x41, 0x00, 0x42};
     uint8_t out[8] = {};
-    const int32_t n = RtIo_TextCodec_ConvertText(5, 0, src, 4, 2, 0, 0, out, 8);
+    const int32_t n = RtIo_TextCodec_ConvertText(IO::Text::Format::Utf16Be, 0, src, 4,
+                                                 IO::Text::Format::Utf8, 0, 0, out, 8);
     CHECK_EQ(n, 2);
     CHECK(out[0] == 'A' && out[1] == 'B');
 }
@@ -74,7 +75,8 @@ UNIT_TEST(mull_convert_text_utf16be_source) {
 UNIT_TEST(mull_convert_text_embedded_nul_is_converted) {
     const uint8_t src[3] = {'a', 0x00, 'b'};
     uint8_t out[8] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    const int32_t n = RtIo_TextCodec_ConvertText(0, 0, src, 3, 2, 0, 0, out, 8);
+    const int32_t n = RtIo_TextCodec_ConvertText(IO::Text::Format::Latin1, 0, src, 3,
+                                                 IO::Text::Format::Utf8, 0, 0, out, 8);
     CHECK_EQ(n, 3);
     CHECK(out[0] == 'a' && out[1] == 0x00 && out[2] == 'b');
 }
@@ -84,7 +86,8 @@ UNIT_TEST(mull_convert_text_embedded_nul_is_converted) {
 UNIT_TEST(mull_convert_text_utf16be_destination_exact_fit) {
     const uint8_t src[2] = {'A', 'B'};
     uint8_t out[4] = {0xff, 0xff, 0xff, 0xff};
-    const int32_t n = RtIo_TextCodec_ConvertText(0, 0, src, 2, 5, 0, 0, out, 4);
+    const int32_t n = RtIo_TextCodec_ConvertText(IO::Text::Format::Latin1, 0, src, 2,
+                                                 IO::Text::Format::Utf16Be, 0, 0, out, 4);
     CHECK_EQ(n, 4);
     CHECK(out[0] == 0x00 && out[1] == 'A' && out[2] == 0x00 && out[3] == 'B');
 }

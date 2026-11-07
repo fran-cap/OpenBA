@@ -69,10 +69,10 @@ namespace Audio {
 const bool* Device::_extFixStreamFreeWait = nullptr;   // fix.stream_free_wait seam
 
 void Device::OnSoundBufferDeleted(const SoundBuffer* buffer) {
-    for (int i = 0; i < 64; ++i) {              // `CMP EDI,0x40 ; JL` at 0x1800de154
+    for (int i = 0; i < kChannelCount; ++i) {   // `CMP EDI,0x40 ; JL` at 0x1800de154
         AudioChannel* ch = &_channels[i];
         if (ch->source != buffer) continue;
-        if ((ch->LoadFlags() & 1u) == 0) continue;   // atomic: AudioChannel (review F-138)
+        if ((ch->LoadFlags() & Bits(ChannelFlags::Live)) == 0) continue;   // atomic: AudioChannel (review F-138)
 
         // FIX stream_free_wait (review S-027, NOT RETAIL): retail 0x1800de0e0 frees the voice and
         // returns, and ~SoundBuffer (0x1800e03b0) then frees `_wmaData`, while the stream worker may
@@ -95,11 +95,11 @@ void Device::OnSoundBufferDeleted(const SoundBuffer* buffer) {
             Platform::EventReset(_stream._wakeEvent);
         }
 
-        ch->OrFlags(2u);
+        ch->OrFlags(Bits(ChannelFlags::Finished));
         FreeChannelPlatform(i);
 
         Callback cb = ch->onComplete;           // read BEFORE the clears
-        ch->AndFlags(0xFFFFFFFCu);
+        ch->AndFlags(Bits(~(ChannelFlags::Live | ChannelFlags::Finished)));
         ch->source = nullptr;
         if (cb)
             cb(ch, ch->userData, ch->userValue);  // `this` is the CHANNEL

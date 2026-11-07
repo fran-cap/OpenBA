@@ -63,13 +63,13 @@ void TutorialUI::OnCreated() {
     System::String closeName("buttonClose");
     UI::Element* closeElem = _dialog->FindElement(closeName).Get();
     // SetFlagsOnOff(elem, hideFlags=1, showFlags=0) — hide element
-    closeElem->SetFlagsOnOff(1, 0);
+    closeElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 }
 
 void TutorialUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
-                                int32_t a, int32_t b, int32_t /*c*/,
+                                UI::EventId a, int32_t b, int32_t /*c*/,
                                 int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (a == 0x12 && b == 0x579) QuitTutorial();
+    if (a == UI::EventId::Activated && b == 0x579) QuitTutorial();
 }
 
 void TutorialUI::QuitTutorial() {
@@ -123,7 +123,7 @@ void TutorialUI::QuitTutorial() {
     {
         UI::UserInterface* ui = eng->m_userInterface;
         ui->SetCursor(g_gameContainer->cursorHourglass);
-        ui->SetFullscreenFade(true, 0xFF000000, false);
+        ui->SetFullscreenFade(true, System::kColorBlack, false);
         eng->m_nextLoop = pOuterLoop;
     }
 }
@@ -131,12 +131,12 @@ void TutorialUI::QuitTutorial() {
 void TutorialUI::OnUpdateLayout() {
     // nextButton (+0x50): check flags at element +0x34
     UI::Element* nextBtn = nextButton;
-    bool nextHidden = (nextBtn->_flags & 0x1800000) != 0;
+    bool nextHidden = (nextBtn->_flags & UI::kElementFlagAnyDisabled) != 0;
     nextBtn->SetFlagsOnOff(nextHidden ? 1 : 0, nextHidden ? 0 : 1);
 
     // quitButton (+0x58): same check
     UI::Element* quitBtn = quitButton;
-    bool quitHidden = (quitBtn->_flags & 0x1800000) != 0;
+    bool quitHidden = (quitBtn->_flags & UI::kElementFlagAnyDisabled) != 0;
     quitBtn->SetFlagsOnOff(quitHidden ? 1 : 0, quitHidden ? 0 : 1);
 }
 

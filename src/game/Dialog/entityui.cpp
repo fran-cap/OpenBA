@@ -24,6 +24,7 @@
 #include "ui/PageElement.h"  // ENDGAME B.3.6 UI callers (K3)
 #include <new>  // ENDGAME B.3.6 UI callers (K3)
 #include "input/Input.h"  // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "Object/factory_registration.h"
 #include <cstddef>
 #include "Component/MapComponent.h"   // X::TypeId() (B.3.8 callers)
@@ -468,12 +469,12 @@ void EntityUI::OnUpdate(const System::Time& /*time*/) {
 
     // Read mouse axes and scale by the UI scale (UserInterface +0xDC)
     UI::UserInterface* ui = _dialog->_ui;
-    short axisX = keyMap->GetValue(0, 0);
+    short axisX = keyMap->GetValue(0, ToUnderlying(GameKey::MouseX));
     int mouseX = (int)((float)(int)axisX * ui->_uiScale);
 
     // Re-read the UI since the CheckPtr pattern accesses +0x18 again
     ui = _dialog->_ui;
-    short axisY = keyMap->GetValue(0, 1);
+    short axisY = keyMap->GetValue(0, ToUnderlying(GameKey::MouseY));
     int mouseY = (int)((float)(int)axisY * ui->_uiScale);
 
     // Get ToolUI controller from dialog
@@ -491,7 +492,7 @@ void EntityUI::OnUpdate(const System::Time& /*time*/) {
     }
 
     // Check key 5 press (left mouse button / select)
-    if (!keyMap->Pressed(0, 5))
+    if (!keyMap->Pressed(0, ToUnderlying(GameKey::MouseLeft)))
         return;
 
     // Get dialog at mouse position
@@ -538,10 +539,10 @@ void EntityUI::OnUpdate(const System::Time& /*time*/) {
 // Original: 0x140067050.
 
 // [9] 0x140067050
-void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id,
+void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id,
                               int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     void* param2 = element;
-    if (msg != 0x12) return;
+    if (msg != UI::EventId::Activated) return;
     // B7 LX (row 994 G33): retail 0x140067050's id-1 arm, first and unguarded:
     // `FUN_140102b60(*(g_pGameWorldSingleton + 0x120), 0); return;` -- SelectTool(0)
     // on the tool manager, no test of the world singleton. It returned here before
@@ -559,7 +560,7 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t
     // datasource (of which +0x30 is a copy) for null / marked-for-removal (0x400).
     if (!SA_DialogEntityAlive(this)) return;
     (void)param2;
-    if (msg != 0x12) return;
+    if (msg != UI::EventId::Activated) return;
 
     PlayerToolManager* playerController = GameUpdateLoop::_singleton->m_toolManager;
 

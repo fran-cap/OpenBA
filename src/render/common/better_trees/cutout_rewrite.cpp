@@ -26,7 +26,7 @@ bool IsFlowControl(uint32_t op) {
     return op == 2 || op == 3 || op == 4 || op == 5 || op == 6 || op == 7 || op == 8 || op == 10 ||
            op == 18 || op == 21 || op == 22 || op == 23 || op == 31 || op == 48 || op == 63 || op == 76;
 }
-bool HasExtendedOpcode(const Instr& in) { return (in.token & 0x80000000u) != 0; }
+bool HasExtendedOpcode(const Instr& in) { return (in.token & Dxbc::kTokenExtended) != 0; }
 uint32_t ReadComp(const Operand& o) {   // the one component a scalar source reads
     if (o.selMode == 2) return o.compBits & 3;
     return o.Swz(0);
@@ -85,7 +85,10 @@ struct Emitter {
     }
 };
 
-constexpr uint32_t kX = 1, kY = 2, kZ = 4, kW = 8;
+constexpr uint32_t kX = Dxbc::Mask::X;
+constexpr uint32_t kY = Dxbc::Mask::Y;
+constexpr uint32_t kZ = Dxbc::Mask::Z;
+constexpr uint32_t kW = Dxbc::Mask::W;
 
 // P.x = the filled alpha: rA.c * (1 + max(0, lod) * k), lod the anisotropic estimate (§6.5);
 // with a floor, rA.c itself where rA.c < floor. Uses N and M as scratch.
@@ -111,7 +114,7 @@ void EmitFill(Emitter& e, const Match& m, uint32_t P, uint32_t N, uint32_t M, fl
     Enc::CopyWithSwizzle(e.t, p, uv, Enc::Swizzle(sx, sy, sx, sy));
     e.End(Op::DerivRty);
     // in texels
-    e.Op3(Op::Mul, N, 0xF, N, Enc::Swizzle(0, 1, 2, 3), M, Enc::Swizzle(2, 3, 2, 3));
+    e.Op3(Op::Mul, N, Dxbc::Mask::XYZW, N, Enc::Swizzle(0, 1, 2, 3), M, Enc::Swizzle(2, 3, 2, 3));
     e.Op3(Op::Dp2, M, kX, N, Enc::Swizzle(0, 1, 0, 0), N, Enc::Swizzle(0, 1, 0, 0));   // |ddx|^2
     e.Op3(Op::Dp2, M, kY, N, Enc::Swizzle(2, 3, 2, 2), N, Enc::Swizzle(2, 3, 2, 2));   // |ddy|^2
     e.Op3(Op::Max, M, kZ, M, Enc::Rep(0), M, Enc::Rep(1));                               // Pmax^2

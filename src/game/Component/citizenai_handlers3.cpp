@@ -112,7 +112,7 @@ static uint32_t ModelCell(const ModelComponent* model, const Map* mapGrid) {
 // success epilogue: set the action-state flags on the CitizenComponent and return 1.
 static uint64_t Pushed(CitizenComponent* cz) {
     cz->field_0x30 = -1;
-    cz->statusFlags |= 4;
+    cz->statusFlags |= Bits(CitizenStatus::TaskDone);
     cz->field_0xB0 = 0;
     return 1;  // CONCAT71(cz>>8, 1): the caller reads the low byte
 }
@@ -372,7 +372,7 @@ uint64_t CitizenAIComponent::State_Work() {
     float walkTime = citDesc ? citDesc->_f124 : 0.0f;
     CitizenAI_Pathfinding_WalkTowards_bb490(&holderCitizen, 0xffffffff, walkOut, 5, walkTime, 1);
 
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0x30 = -1;
     citizen->field_0xB0 = 0;
     return 0;  // low byte 0 (retail's RAX carries the citizen pointer above it)

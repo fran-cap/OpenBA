@@ -84,7 +84,8 @@ void Map::FillZones() {
         uVar2 = 0;
         if (0 < lVar4) {
             do {
-                if (((1 << (Ext::WalkOnIce::TypeOf(cells.GetData()[uVar5]) & 0x1f) & 0xe1fU) != 0) &&
+                if (((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(cells.GetData()[uVar5])) & 0x1f) &
+                      Bits(PathBits::Walk)) != 0) &&
                     (static_cast<short>(cells.GetData()[uVar5].zone) == 0)) {
                     FillZone(static_cast<uint32_t>(static_cast<int>(uVar2)), static_cast<uint16_t>(sVar6));   // 0x14009c170
                     sVar6 = sVar6 + 1;
@@ -115,23 +116,23 @@ void Map::SetTerrainType(int param_2, uint param_3) {
     uint uVar5;
 
     lVar3 = &cells.GetData()[param_2];
-    bVar1 = lVar3->terrainType;
+    bVar1 = static_cast<uint8_t>(lVar3->terrainType);
     uVar5 = 1u << (bVar1 & 0x1f);
     bVar4 = static_cast<uint8_t>(param_3);
-    if ((((uVar5 & 0xe1f) == 0) || ((1u << (bVar4 & 0x1f) & 0x1e0U) == 0)) &&
-        (((uVar5 & 0x1e0) == 0) || ((1u << (bVar4 & 0x1f) & 0xe1fU) == 0))) {
+    if ((((uVar5 & Bits(PathBits::Walk)) == 0) || ((1u << (bVar4 & 0x1f) & Bits(PathBits::Zoneless)) == 0)) &&
+        (((uVar5 & Bits(PathBits::Zoneless)) == 0) || ((1u << (bVar4 & 0x1f) & Bits(PathBits::Walk)) == 0))) {
         bVar2 = 0;
     } else {
         bVar2 = 1;
     }
     field_0xA2 = static_cast<uint8_t>(field_0xA2) | bVar2;
-    lVar3->terrainType = bVar4;
+    lVar3->terrainType = static_cast<PathType>(bVar4);
     TerrainSidecar::NoteWrite(lVar3);   // [terrain sidecar] mirror
     CellStamp::NoteWrite(lVar3);   // [AMBMEMO] cell write clock
     uVar5 = 1u << (bVar1 & 0x1f);
-    if ((((uVar5 & 0xe1f) != 0) && ((1u << (bVar4 & 0x1f) & 0x1e0U) != 0)) ||
-        (((uVar5 & 0x1e0) != 0) &&
-         (uVar5 = 1u << (bVar4 & 0x1f), (uVar5 & 0xe1f) != 0))) {
+    if ((((uVar5 & Bits(PathBits::Walk)) != 0) && ((1u << (bVar4 & 0x1f) & Bits(PathBits::Zoneless)) != 0)) ||
+        (((uVar5 & Bits(PathBits::Zoneless)) != 0) &&
+         (uVar5 = 1u << (bVar4 & 0x1f), (uVar5 & Bits(PathBits::Walk)) != 0))) {
         regionGraph->MarkCellDirty(param_2 % size, param_2 / size);   // 0x1400a8c90
     }
     // Retail's R9 carries the road-bit flag here; 0x1400a6fe0 reads EDX and R8D only.
@@ -211,12 +212,12 @@ void Map::FinishRoadCell(int param_2, uint8_t param_3, uint param_4) {
     MapCell* lVar4;
 
     lVar4 = &cells.GetData()[param_2];
-    if (param_4 == 2) {
+    if (param_4 == ToUnderlying(PathType::Normal)) {   // the road removed
         CellTrace::NoteCount(this, lVar4, lVar4->footprintCount, -1, "FinishRoadCell");
         lVar4->footprintCount = lVar4->footprintCount + -1;
-        lVar4->field_0x2A = 0xff;          // disasm: MOV word ptr,0xff over +0x2a / +0x2b (H7)
+        lVar4->field_0x2A = MapCell::kNoRoadBatch;   // disasm: MOV word ptr,0xff over +0x2a / +0x2b (H7)
         lVar4->field_0x2B = 0;
-        SetTerrainType(param_2, 2);        // 0x14009f2f0
+        SetTerrainType(param_2, ToUnderlying(PathType::Normal));   // 0x14009f2f0
     } else {
         lVar4->field_0x2B = param_3;
         SetTerrainType(param_2, param_4 & 0xff);   // 0x14009f2f0

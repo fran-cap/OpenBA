@@ -246,11 +246,11 @@ void KeyMap::Save() {
             // 0x1800a7590..0x1800a75a7. EDI starts at -1 and is only rebuilt
             // when the device byte is non-negative; 0xFF (unbound) is negative
             // and leaves the -1 standing.
-            int32_t value = -1;
+            int32_t value = Binding::kValueUnbound;
             const int8_t device = static_cast<int8_t>(b->device[slot]);
             if (device >= 0)
                 value = static_cast<int32_t>(b->inputId[slot]) |
-                        (static_cast<int32_t>(device) << 8);
+                        (static_cast<int32_t>(device) << Binding::kDeviceShift);
 
             System::String key = System::String::Format(
                 "%s%s", b->description, kSlotSuffix[slot]);

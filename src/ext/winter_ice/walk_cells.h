@@ -24,6 +24,8 @@
 #include <deque>
 #include <vector>
 
+#include "Game/PathType.h"   // PathType (standalone: <cstdint> and EnumFlags.h only)
+
 namespace Ext {
 namespace WinterIce {
 
@@ -31,7 +33,10 @@ inline constexpr int kRiverMargin = 1;   // cells added round the river strips
 inline constexpr int kRimReach = 2;      // steps from a lake cell into the uncovered rim
 inline constexpr uint8_t kOpenWalkLimit = 128;   // an open-mask value at or over this is open water
 
-inline bool WalkWater(uint8_t terrainType) { return terrainType == 7 || terrainType == 8; }
+inline bool WalkWater(uint8_t terrainType) {
+    const PathType t = static_cast<PathType>(terrainType);
+    return t == PathType::Water || t == PathType::DeepWater;
+}
 
 // Marks the cells whose centre lies in any triangle of `tris` (x0 y0 x1 y1 x2 y2 per triangle, cell units).
 inline void MarkCentres(const std::vector<float>& tris, int size, std::vector<uint8_t>& out) {

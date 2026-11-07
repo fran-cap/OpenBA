@@ -19,18 +19,21 @@
 
 #include <cstdint>
 
+#include "Game/PathType.h"   // PathType / PathBits (standalone: <cstdint> and EnumFlags.h only)
+
 namespace Ext {
 namespace DebugSpawnOrigin {
 
 // The terrain types Map::FillZone (0x14009c170) gives a zone: the land a citizen walks on.
-constexpr uint32_t kLandTypes = 0xe1fu;
+constexpr PathBits kLandTypes = PathBits::Walk;
 
 // The citizens one press places (Game_SpawnCitizens' loop bound).
 constexpr int kSpawnCount = 4;
 
 // A land cell with a zone, where a citizen can stand and walk from.
-inline bool IsZonedLand(uint8_t type, uint16_t zone) {
-    return ((1u << (type & 0x1f)) & kLandTypes) != 0 && zone != 0;
+inline bool IsZonedLand(PathType type, uint16_t zone) {
+    return ((1u << (static_cast<uint8_t>(type) & 0x1f)) & static_cast<uint32_t>(kLandTypes)) != 0 &&
+           zone != 0;
 }
 
 // Whether the pass just made over the storage list ends the press at the origin: the row is on

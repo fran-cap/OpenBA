@@ -36,8 +36,8 @@ struct TestMap {
         map->cells._capacity = kDim * kDim;
         for (int i = 0; i < kDim * kDim; ++i) {
             MapCell& c = Cell(i);
-            c.terrainType = 2;     // buildable
-            c.field_0x2A = 0xff;   // no road pending
+            c.terrainType = PathType::Normal;          // buildable
+            c.field_0x2A = MapCell::kNoRoadBatch;   // no road pending
         }
     }
     Map* Get() { return reinterpret_cast<Map*>(mapBytes); }
@@ -53,7 +53,7 @@ struct TestMap {
 
 // What a finished road cell holds (a retail save, RetailA.sav): road terrain 0 or 1, the
 // road kind left at +0x2A by PlaceRoadCell, no occupant, not in the road-cell tree.
-void MakeFinishedRoad(MapCell& c, uint8_t terrain) {
+void MakeFinishedRoad(MapCell& c, PathType terrain) {
     c.footprintCount = 1;
     c.terrainType = terrain;
     c.field_0x2A = 0;
@@ -69,7 +69,7 @@ UNIT_TEST(clear_area_free_ground_is_clear_and_empty) {
 }
 
 UNIT_TEST(clear_area_finished_road_is_empty_but_not_clear) {
-    for (uint8_t terrain = 0; terrain <= 1; ++terrain) {
+    for (const PathType terrain : {PathType::Faster, PathType::Fast}) {
         TestMap t;
         MakeFinishedRoad(t.Cell(3, 4), terrain);
         // The Remove Roads marker's one-cell footprint: nothing stands on it...
@@ -85,13 +85,13 @@ UNIT_TEST(clear_area_finished_road_is_empty_but_not_clear) {
 
 UNIT_TEST(clear_area_removed_road_is_clear) {
     TestMap t;
-    MakeFinishedRoad(t.Cell(5, 1), 0);
+    MakeFinishedRoad(t.Cell(5, 1), PathType::Faster);
     CHECK(!t.Get()->IsGroundClear(5, 1, 1, 1));
     // What Map::RemovePendingRoad (0x14009c700) leaves once the laborer removes it:
     // terrain 2, +0x2A back to 0xff.
     MapCell& c = t.Cell(5, 1);
-    c.terrainType = 2;
-    c.field_0x2A = 0xff;
+    c.terrainType = PathType::Normal;
+    c.field_0x2A = MapCell::kNoRoadBatch;
     CHECK(t.Get()->IsGroundClear(5, 1, 1, 1));
 }
 

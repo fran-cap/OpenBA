@@ -51,7 +51,8 @@ void Pass1(Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float al
     r._frameIndex = frameIndex;   // fix 2 (faithful: context._frameIndex)
 
     r.Graphics::Renderer::AddScene(&sceneRef, defaultRenderBuffer, cameraRef, r._shaderDetail,
-                                   0x40, 0, 0x8007u);
+                                   0x40, static_cast<int32_t>(Graphics::MaterialPass::Normal),
+                                   Bits(Graphics::kMainScenePassMask));
 
     r._currentSceneGroup = 0;
     if (r._sceneGroups._size > 0) {
@@ -113,7 +114,7 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao,
         RendererSceneEntry* const e = r._sceneGroups._data + si;
 
         r._shaderDetail = e->_shaderDetail;
-        context._dirty |= 0xc0;
+        context._dirty |= RtVideo::kDirtyVertexProgram | RtVideo::kDirtyPixelProgram;
         context._shaderDetail = e->_shaderDetail;
 
         const int64_t shadowT0 = PassSplit::Begin();   // issue #253 (counters only)
@@ -140,7 +141,7 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao,
             const int32_t w = rb->width, h = rb->height;
             if (!(context._scissor.x == 0 && context._scissor.y == 0 &&
                   context._scissor.width == w && context._scissor.height == h)) {
-                context._dirty |= 0x400;
+                context._dirty |= RtVideo::kDirtyScissor;
                 context._scissor.x = 0;
                 context._scissor.y = 0;
                 context._scissor.width = w;
@@ -148,7 +149,7 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao,
             }
         }
 
-        context.Clear(6, 0x1184d6u, 1.0f, 0);
+        context.Clear(Video::ClearFlags::Depth | Video::ClearFlags::Stencil, 0x1184d6u, 1.0f, 0);
 
         const int64_t lightT0 = PassSplit::Begin();   // issue #253 (counters only)
         for (int32_t k = 0; k < 3; ++k) {
@@ -159,12 +160,14 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao,
             }
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOCORE.md): ext.ambient_occlusion after the opaque light pass; the faithful loop's test
             // (wave27_lane_gfxbig.cpp), with the packet's record instead of the static.
-            if (k == 0 && ao != nullptr && e->_shader == 0 &&
+            if (k == 0 && ao != nullptr &&
+                e->_shader == static_cast<int32_t>(Graphics::MaterialPass::Normal) &&
                 e->_renderBuffer == context._defaultRenderBuffer)
                 Graphics::ExtAoAfterOpaque(context, *ao, *e);
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): the ground draw, the faithful loop's
             // test, with the packet's pointer instead of the static.
-            if (k == 0 && ground != nullptr && e->_shader == 0 &&
+            if (k == 0 && ground != nullptr &&
+                e->_shader == static_cast<int32_t>(Graphics::MaterialPass::Normal) &&
                 e->_renderBuffer == context._defaultRenderBuffer)
                 ground(context, e->_camera);
         }

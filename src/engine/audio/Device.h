@@ -66,6 +66,7 @@
 #include "../object/External.h"   // Object::ExternalPtr
 #include "platform_audio.h"       // Platform::AudioEngine / AudioMaster / AudioVoice / AudioVoiceCallback
 #include "platform_sync.h"        // Platform::EventHandle
+#include "../system/EnumFlags.h"  // OPENBA_ENUM_FLAGS (ChannelFlags)
 
 namespace System { class Time; }
 
@@ -74,8 +75,20 @@ namespace Audio {
 class SoundBuffer;
 class Stream;
 
+// Device::AudioChannel::flags (+0x00): the channel's state word. Reaping clears
+// both bits (AND 0xfffffffc). The atomic helpers keep uint32_t (an __atomic_*
+// needs the integer): a site passes Bits(ChannelFlags::X).
+enum class ChannelFlags : uint32_t {
+    Live     = 0x1,   // the slot is allocated / playing (Scene::Update's free-slot scan)
+    Finished = 0x2,   // the stream-end callback raised it: Update reaps the channel
+};
+OPENBA_ENUM_FLAGS(ChannelFlags)
+
 class Device {
 public:
+    // The AudioChannel / PlatformChannel count (_channels[64], `CMP EDI,0x40`).
+    static constexpr int32_t kChannelCount = 64;
+
     // ------------------------------------------------------------------------
     // Audio::Device::AudioChannel — 0x28 bytes, 64 at +0x000. Pinned by three
     // functions independently: Update's loop, Stop's pointer-to-index division

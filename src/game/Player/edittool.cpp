@@ -40,6 +40,7 @@
 #include "ui/UserInterface.h"  // ENDGAME B.3.6 UI callers (K4)
 #include "picking/Scene.h"     // ENDGAME B.3.7 callers (K2)
 #include "input/Input.h"       // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "video/Device.h"   // ENDGAME B.3.9 SS2: Video::Device::_singleton
 #include "Entity/ComponentEntity.h"
 #include "Game/WorldGeometry.h"
@@ -454,7 +455,7 @@ char EditTool::OnKey(char param2) {
     const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
 
     // Check KeyMap::Pressed(keyMap, 0, 5)
-    bool pressed = keyMap->Pressed(0, 5);
+    bool pressed = keyMap->Pressed(0, ToUnderlying(GameKey::MouseLeft));
     if (SelDiagOn() && pressed)
         printf("[SelDiag] action-5 PRESSED (keyMap=%p) — running pick\n", static_cast<const void*>(keyMap));
     if (!pressed) return 1;

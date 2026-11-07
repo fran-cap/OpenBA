@@ -234,7 +234,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             // fishable-tile score, and this branch used to return silently — a working
             // dock and a stranded one logged exactly the same nothing. Count it and print
             // the two region ids, which name the cause outright.
-            uint64_t passResult = map->ValidateCell(0xe1f, (uint32_t)citizenCell, spotCell);
+            uint64_t passResult = map->ValidateCell(PathBits::Walk, (uint32_t)citizenCell, spotCell);
             if ((char)passResult == '\0') {
                 return 1;
             }
@@ -284,7 +284,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                 int64_t mapCellIdx = (int64_t)(cMapSize * targetY + targetX);
                 MapCell* mapData = map->cells.GetData();
                 uint8_t terrainType = mapData[mapCellIdx].field_0x1C[8];   // +0x24 (field_0x1C[8])
-                uint8_t terrainBit = mapData[mapCellIdx].terrainType;      // +0x29
+                uint8_t terrainBit = static_cast<uint8_t>(mapData[mapCellIdx].terrainType);   // +0x29
 
                 // Check fishing description allows this terrain and terrain is nonzero
                 uint32_t fishingTerrainMask = fishingDesc->_terrainMask;   // COMP-c named FishingDescription +0x2c
@@ -321,12 +321,12 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                 Profession* targetBuf;   // retail: slot 10 writes into the reused entityRef stack slot
                 Profession* actionVal = *GetTarget(&targetBuf);
 
-                ce->statusFlags |= 4;
+                ce->statusFlags |= Bits(CitizenStatus::TaskDone);
                 ce->field_0x30 = priority;
                 ce->field_0xB0 = 0;
 
                 if (actionVal == ce->profession && priority >= 0) {
-                    ce->happinessFlags |= 0x20000;
+                    ce->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                 }
 
                 // Store citizen ref in slot
@@ -347,12 +347,12 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                 Profession* targetBuf;   // retail: slot 10 writes into the reused citizenRef2 stack slot
                 Profession* actionVal = *GetTarget(&targetBuf);
 
-                ce->statusFlags |= 4;
+                ce->statusFlags |= Bits(CitizenStatus::TaskDone);
                 ce->field_0x30 = priority;
                 ce->field_0xB0 = 0;
 
                 if (actionVal == ce->profession && priority >= 0) {
-                    ce->happinessFlags |= 0x20000;
+                    ce->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                 }
 
                 citizenRefs[emptySlot] = *citizenIBP;

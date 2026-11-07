@@ -339,7 +339,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
             float fv = cz->description->_f74;
             float work50 = cz->health;
             if ((work50 <= fv && fv != work50) &&
-                ((cz->statusFlags >> 9 & 1) == 0)) {
+                ((cz->statusFlags & Bits(CitizenStatus::UsedHealthItem)) == 0)) {
                 AppendCandidate(outList, 4, 3);
             }
         }

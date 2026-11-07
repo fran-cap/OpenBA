@@ -144,7 +144,7 @@ char FishingComponent::ProduceTick(const System::Time* /*time*/) {
             const int x = cx + dx, y = cy + dy;
             if (x < 0 || y < 0 || x >= width || y >= width) continue;
             ++total;
-            const uint8_t terrain = grid[y * width + x].terrainType;   // +0x29
+            const uint8_t terrain = static_cast<uint8_t>(grid[y * width + x].terrainType);   // +0x29
             if ((mask >> (terrain & 0x1f)) & 1) ++matching;
         }
     }

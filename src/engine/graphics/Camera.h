@@ -26,6 +26,7 @@
 #include "../math/Math.h"                 // Matrix, Transform3
 #include "../volume/Volume.h"             // Frustum
 #include "../collection/Collection.h"     // Collection::Array
+#include "../system/EnumFlags.h"          // OPENBA_ENUM_FLAGS (MaterialTypeMask)
 #include "renderer_ext_ao.h"           // NOT RETAIL: Graphics::ExtAoFrame (the ext.ambient_occlusion seam)
 
 
@@ -456,6 +457,40 @@ static_assert(offsetof(RendererDrawItem, _arg10) == 0x30, "RendererDrawItem::_ar
 static_assert(std::is_trivially_copyable_v<RendererDrawItem>, "byteCopy element");
 static_assert(offsetof(RendererDrawItem, _pad24)    == 0x24, "DrawItem::_pad24 @ +0x24");
 static_assert(offsetof(RendererDrawItem, _pad34)    == 0x34, "DrawItem::_pad34 @ +0x34");
+
+// ============================================================
+// The two numbers a draw group is begun with (BeginDrawGroup's `shader` and
+// `materialTypeFlags`, AddScene's last two arguments).
+//
+// MaterialPass: the group's `_shader`, the index into Material::_passes the
+// group's items draw with (AddDrawItem rejects an index past the material's
+// pass count). The names are retail's, from the profile build's {value, name}
+// table at Runtime-x64-profile.dll 0x180253fc0, which lists 0, 1 and 3 only;
+// 2 has no name there (the water reflection's entry uses it, pass_split.h).
+// ============================================================
+enum class MaterialPass : int32_t {
+    Normal    = 0,   // the main colour pass: Renderer::Draw's own scene entry
+    Depth     = 1,   // a shadow map's depth pass (SunLight, SpotLight); cull reads it as "shadow"
+    SpotLight = 3,   // a spot light's lit pass over the main camera (SpotLight::AddDrawItems)
+};
+
+// MaterialTypeMask: a pass mask. Bit N is material type N, the
+// MaterialInstance::_shaderClass (a copy of Material::_type) AddDrawItem tests
+// as `1 << _shaderClass` and whose item it files in the group's _items[N]; a
+// geometry's own `_materialTypeFlags` is the OR of its materials' bits. Types
+// 0..2 are retail's "MaterialType" table (Runtime-x64-profile.dll 0x180254000).
+// ============================================================
+enum class MaterialTypeMask : uint32_t {
+    Opaque  = 0x0001,   // MaterialType 0: the opaque list
+    Blended = 0x0002,   // MaterialType 1: the blended list
+    Effect  = 0x0004,   // MaterialType 2: the effect list
+    Light   = 0x8000,   // no material's: the Light ctors set it, so only a pass that asks gathers lights
+};
+OPENBA_ENUM_FLAGS(MaterialTypeMask)
+
+// Renderer::Draw's main scene entry (0x8007): every material type, and the lights.
+inline constexpr MaterialTypeMask kMainScenePassMask = MaterialTypeMask::Opaque | MaterialTypeMask::Blended |
+                                                       MaterialTypeMask::Effect | MaterialTypeMask::Light;
 
 // ============================================================
 // Graphics::RendererDrawGroup — one draw group, 0x1f0, and the 0x1f0 bytes are

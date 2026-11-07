@@ -56,7 +56,7 @@ uint64_t PageSize() { SYSTEM_INFO si; GetSystemInfo(&si); return si.dwPageSize; 
 // Built in place in the +0x640 bytes: the allocator's lock never allocates.
 // Enter / Leave / Delete are the primitives themselves (EnterCriticalSection /
 // LeaveCriticalSection / DeleteCriticalSection), one call deep as before.
-void LockInit(Platform::LockStorage* cs) { Platform::MutexInit(cs, 5000); }
+void LockInit(Platform::LockStorage* cs) { Platform::MutexInit(cs, Platform::kLockSpinCount); }
 
 const RtSysMemPlatform kWin32 = {
     &Reserve, &ReserveCommit, &Commit, &Decommit, &Release, &PageSize,

@@ -345,7 +345,7 @@ void WorkAct_ConsumeProduceCtor_bef70(CitizenComponent* const* citizenRef, uint3
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();  // *(*param_1+0x10)
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
         float speed = kRdata_140172280;          // [0x140172280]==-1.0f
-        mv = new (obj) MoveTo(&family, pathType, 0, param_4, 0xe1f, 0, speed);   // 0x1400c9170
+        mv = new (obj) MoveTo(&family, pathType, 0, param_4, PathBits::Walk, 0, speed);   // 0x1400c9170
     }
     ::Object::InternalPtr<Action> ibpMv;
     ibpMv = mv;                   // ctor(&local_58, mv)

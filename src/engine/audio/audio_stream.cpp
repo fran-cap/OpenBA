@@ -249,7 +249,6 @@
 namespace {
 
 constexpr uint32_t kStreamStackSize = 0x10000;   // MOV EDX,0x10000 — 64 KB
-constexpr uint32_t kStreamSpinCount = 0x1388;    // MOV EDX,0x1388  — 5000
 
 // ---- attendance ------------------------------------------------------------
 uint64_t g_ctorEntries = 0;
@@ -288,7 +287,7 @@ Audio::Stream::Stream() : System::Thread(kStreamStackSize) {
     // +0x30 `_buffers`: Array<Block>() is retail's 0x1800a0e67 / 0x1800a0e6b
     // zero stores (the member, before this body).
     // InitializeCriticalSection 0x1800a0e73, SetCriticalSectionSpinCount 0x1800a0e82
-    Platform::MutexInit(&_lock, kStreamSpinCount);
+    Platform::MutexInit(&_lock, Platform::kLockSpinCount);   // MOV EDX,0x1388 — 5000
 
     _bytePosition = 0; _channel = 0;                     // 0x1800a0e89 (ONE qword store at +0x78)
     _stopping = 0;                                       // 0x1800a0e8d, a BYTE store

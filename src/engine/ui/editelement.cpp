@@ -70,8 +70,6 @@ constexpr int kKeyEnd    = 81;
 constexpr int kKeyBack   = 52;
 constexpr int kKeyDelete = 80;
 
-constexpr int32_t kEventEditFinished = 0x15;
-
 // ENDGAME B.3.9 SS1 (B39_RULES D7): both class statics, read at each use.
 // The text-input latch is `Configuration::_singleton->_keyMap->_suspendCount`.
 double SecondsPerTick() {
@@ -85,7 +83,7 @@ void MemFree(void* p) { System::MemoryAllocator::MemFree(p); }
 struct Event {
     void*    dialog;
     void*    element;
-    int32_t  kind;
+    UI::EventId kind;   // UI::EventId::ValueChanged: the edit was committed
     int32_t  elementId;
     int32_t  x;
     int32_t  y;
@@ -165,7 +163,7 @@ EditElement::~EditElement() {
 // In password mode the mask is built FIRST and measured instead, so a password
 // box is as wide as its asterisks, not as its secret.
 void EditElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     Font* font = _font;
 
@@ -211,7 +209,7 @@ void EditElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
         border->Draw(ctx, alpha);                            // virtual, slot 6
 
     const uint32_t flags = _flags;
-    if ((flags & kFlagDisabledMask) != 0 && ((flags >> 24) & 1u) == 0) return;
+    if ((flags & UI::kElementFlagAnyDisabled) != 0 && (flags & kElementFlagSystemDisabled) == 0) return;
 
     const uint32_t baseColor = _color;
     if ((flags & kElementFlagDimColor) != 0) alpha = static_cast<uint8_t>(alpha >> 1);
@@ -281,10 +279,10 @@ void EditElement::Update(const System::Time& time, UserInterface* ui,
         return dev->_keyboard[key].pressed != 0 || dev->_keyboard[key].repeat != 0;
     };
 
-    if ((_flags & kFlagDisabledMask) != 0) return;
+    if ((_flags & UI::kElementFlagAnyDisabled) != 0) return;
 
     // ---- take focus -------------------------------------------------------
-    if (st.buttonPressed != 0 && ((_flags >> 17) & 1u) != 0) {
+    if (st.buttonPressed != 0 && (_flags & kElementFlagHovered) != 0) {
         if (_active == 0) {
             ++::Input::Configuration::_singleton->_keyMap->_suspendCount;
         }
@@ -303,7 +301,7 @@ void EditElement::Update(const System::Time& time, UserInterface* ui,
     if (_active == 0) return;
 
     // ---- drop focus -------------------------------------------------------
-    const bool clickedAway = st.buttonPressed != 0 && (_flags & 0x20000u) == 0;
+    const bool clickedAway = st.buttonPressed != 0 && (_flags & kElementFlagHovered) == 0;
     if (clickedAway || dev->_keyboard[0].pressed != 0 ||
         dev->_keyboard[kKeyEscape].pressed != 0 || dev->_keyboard[kKeyEnter].pressed != 0) {
         _active = 0;
@@ -315,7 +313,7 @@ void EditElement::Update(const System::Time& time, UserInterface* ui,
         ::Event ev;
         ev.dialog    = dlg->Get();
         ev.element   = this;
-        ev.kind      = kEventEditFinished;
+        ev.kind      = EventId::ValueChanged;
         ev.elementId = _elementId;
         ev.x         = st.mouseX;
         ev.y         = st.mouseY;

@@ -34,7 +34,7 @@ Binding Registered() {
     b.exclusive  = 1;
     b.device[0]  = 1;
     b.inputId[0] = 0x11;
-    b.device[1]  = 0xFF;
+    b.device[1]  = Binding::kUnboundDevice;
     b.inputId[1] = 0;
     return b;
 }
@@ -56,7 +56,7 @@ UNIT_TEST(review_keymap_store_valid_values_as_retail) {
     CHECK_EQ((int)b.inputId[0], 0x11);
     // -1: stored as unbound.
     CHECK(StoreBindingValue(&b, 0, -1));
-    CHECK_EQ((int)b.device[0], 0xFF);
+    CHECK_EQ((int)b.device[0], Binding::kUnboundDevice);
     CHECK_EQ((int)b.inputId[0], 0);
     // -2 (absent) and any other negative: nothing written.
     b = Registered();
@@ -87,7 +87,7 @@ UNIT_TEST(review_keymap_store_rejects_out_of_range_input) {
     // A device byte of 0x80..0xFF reads as unbound in every reader: stored as retail stores it.
     Binding u = Registered();
     CHECK(StoreBindingValue(&u, 0, 0xFF05));
-    CHECK_EQ((int)u.device[0], 0xFF);
+    CHECK_EQ((int)u.device[0], Binding::kUnboundDevice);
     CHECK_EQ((int)u.inputId[0], 0x05);
     // Bits above the low 16 are dropped exactly as retail's byte stores drop them.
     Binding b = Registered();

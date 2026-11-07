@@ -24,18 +24,21 @@ inline bool StoreBindingValue(Binding* b, int slot, int32_t value) {
         // device byte 3..0x7F gives. A value whose device byte is 3..0x7F, or whose input is past that
         // device's count, is treated as absent: the RegisterInput default stays. A device byte of
         // 0x80..0xFF reads as unbound (the readers skip a negative device) and is stored as retail does.
-        const int32_t device = (value >> 8) & 0xFF;
+        const int32_t device = (value >> Binding::kDeviceShift) & 0xFF;
         const int32_t input  = value & 0xFF;
-        if (device == 0 && input >= Device::kJoystickInputCount) return false;
-        if (device == 1 && input >= Device::kKeyboardInputCount) return false;
-        if (device == 2 && input >= Device::kMouseInputCount) return false;
-        if (device >= 3 && device <= 0x7F) return false;
-        b->device[slot]  = static_cast<uint8_t>((value >> 8) & 0xFF);
+        constexpr int32_t kJoystick = static_cast<int32_t>(Device::InputDevice::Joystick);
+        constexpr int32_t kKeyboard = static_cast<int32_t>(Device::InputDevice::Keyboard);
+        constexpr int32_t kMouse    = static_cast<int32_t>(Device::InputDevice::Mouse);
+        if (device == kJoystick && input >= Device::kJoystickInputCount) return false;
+        if (device == kKeyboard && input >= Device::kKeyboardInputCount) return false;
+        if (device == kMouse && input >= Device::kMouseInputCount) return false;
+        if (device >= 3 && device <= Binding::kMaxPositiveDeviceByte) return false;
+        b->device[slot]  = static_cast<uint8_t>((value >> Binding::kDeviceShift) & 0xFF);
         b->inputId[slot] = static_cast<uint8_t>(value & 0xFF);
         return true;
     }
-    if (value == -1) {
-        b->device[slot]  = 0xFF;   // retail stores R14B, the low byte of -1
+    if (value == Binding::kValueUnbound) {
+        b->device[slot]  = Binding::kUnboundDevice;   // retail stores R14B, the low byte of -1
         b->inputId[slot] = 0;
         return true;
     }

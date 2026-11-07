@@ -161,9 +161,9 @@ void Map::PlaceRoadCell(uint32_t cellIdx,
     // pending in the BST.
     {
         const MapCell* tb = &cells.GetData()[(int)cellIdx];
-        uint32_t terrainFlag = 1u << (tb->terrainType & 0x1f);
-        if ((terrainFlag & 2) == 0 && (terrainFlag & 1) == 0 &&
-            static_cast<int8_t>(tb->field_0x2A) == -1) {
+        uint32_t terrainFlag = Bits(PathBitOf(tb->terrainType));
+        if ((terrainFlag & Bits(PathBits::Fast)) == 0 && (terrainFlag & Bits(PathBits::Faster)) == 0 &&
+            tb->field_0x2A == MapCell::kNoRoadBatch) {
             bool pending = PendingRoad(this, (int)cellIdx);
             if (!pending) {
                 CellTrace::NoteCount(this, cell, cell->footprintCount, 1, "PlaceRoadCell");
@@ -182,7 +182,7 @@ void Map::PlaceRoadCell(uint32_t cellIdx,
                                    mapDescVal, roadDescExtra,
                                    cell->field_0x2A,      // existing road type
                                    cell->field_0x2B,      // existing road state
-                                   cell->terrainType);    // terrain type
+                                   static_cast<uint8_t>(cell->terrainType));    // terrain type
     }
 
     // 0x14009ca33 tests only MemAlloc's result (to skip the ctor); the object or null
@@ -228,9 +228,9 @@ bool RoadTool::CalcPath(int startCell, int endCell) {
     // Both endpoints must be road-legal terrain and unoccupied.
     const MapCell* cellA = &terrainBase[(int)sc];
     const MapCell* cellB = &terrainBase[(int)ec];
-    uint32_t flagA = 1u << (cellA->terrainType & 0x1f);
-    uint32_t flagB = 1u << (cellB->terrainType & 0x1f);
-    if ((flagA & 0x5e0) != 0 || (flagB & 0x5e0) != 0) return false;
+    uint32_t flagA = Bits(PathBitOf(cellA->terrainType));
+    uint32_t flagB = Bits(PathBitOf(cellB->terrainType));
+    if ((flagA & Bits(PathBits::NoRoad)) != 0 || (flagB & Bits(PathBits::NoRoad)) != 0) return false;
     if (cellA->blocker != nullptr || cellB->blocker != nullptr) return false;
 
     // Honour the owner's fixed-endpoint constraint (used by scripted/tutorial roads).
@@ -249,7 +249,7 @@ bool RoadTool::CalcPath(int startCell, int endCell) {
     // Run the road A* over the span (same call CalcCost makes, mask 0xa17).
     int pathBuf[2048];
     int pathLen = 0;
-    pathLen = mapGrid->FindRoadPath(0xa17, sc, ec, nullptr, pathBuf, modifierFlag, 1);
+    pathLen = mapGrid->FindRoadPath(PathBits::RoadRoute, sc, ec, nullptr, pathBuf, modifierFlag, 1);
     if (pathLen == 0) {
         return false;
     }

@@ -78,10 +78,10 @@ namespace UI {
 
 // slot 4 — 0x1800d4380
 void ListElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
     Element* content = _children[1];
     content->GetPaddedSize(_layoutWidth, _layoutHeight);             // 0x180115f10
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // slot 5 — 0x1800d4210
@@ -101,13 +101,16 @@ void ListElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t bot
     const int32_t ah = (bottom - _bottomPad) - py;
 
     switch (align) {
-        case 2: case 5: case 8:
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
             px = (right - _rightPad) - aw;
             break;
         default:
             break;
     }
-    if (align > 2 && align > 5 && align < 9)
+    if (align > ElementDescription::TopRight && align > ElementDescription::MidRight &&
+        align <= ElementDescription::BottomRight)
         py = (bottom - _bottomPad) - ah;
 
     _layoutLeft   = px;
@@ -118,7 +121,7 @@ void ListElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t bot
     int32_t n = _children.GetSize();
     for (int32_t i = 0; i < n; ++i) {
         Element* child = _children[i];
-        if (child != nullptr && (child->_flags & kFlagHidden) == 0)
+        if (child != nullptr && (child->_flags & UI::kElementFlagHidden) == 0)
             child->ComputeLayout(_layoutLeft, _layoutTop, _layoutRight, _layoutBottom);
         n = _children.GetSize();
     }
@@ -130,14 +133,14 @@ void ListElement::Draw(SpriteContext& context, uint8_t alpha) const {
         border->Draw(context, alpha);
 
     Element* back = _children[0];
-    if (back != nullptr && (back->_flags & kFlagHidden) == 0)
+    if (back != nullptr && (back->_flags & UI::kElementFlagHidden) == 0)
         back->Draw(context, alpha);
 
     DrawHighlight(context, _hoverIndex, _hoverColor);                 // 0x1800d3f70
     DrawHighlight(context, _selectedIndex, _selectColor);
 
     Element* content = _children[1];
-    if (content != nullptr && (content->_flags & kFlagHidden) == 0)
+    if (content != nullptr && (content->_flags & UI::kElementFlagHidden) == 0)
         content->Draw(context, alpha);
 }
 
@@ -156,7 +159,7 @@ void ListElement::Update(const System::Time& time, UserInterface* ui,
     UI::Element::Update(time, ui, &slot, state);               // 1800d3c4a (qualified)
 
     _hoverIndex = -1;                                          // 1800d3c56
-    if ((_flags & kFlagInteractive) == 0) return;              // TEST ...,0x20000
+    if ((_flags & UI::kElementFlagHovered) == 0) return;       // TEST ...,0x20000
 
     const int32_t mouseX = state.mouseX;
     const int32_t mouseY = state.mouseY;
@@ -219,7 +222,7 @@ void ListElement::Update(const System::Time& time, UserInterface* ui,
                     Object::InternalPtr<Element> elemSlot(this);   // 1800d3e37
                     DialogInstance* dlg = dialog->Get();           // 1800d3e2a
                     // UI::DialogInstance slot 8 (block B), by name.
-                    dlg->OnElementEvent(&elemSlot, 0x14, _elementId, i, 0, 0, nullptr);
+                    dlg->OnElementEvent(&elemSlot, EventId::SelectionChanged, _elementId, i, 0, 0, nullptr);
                 }
             }
         }

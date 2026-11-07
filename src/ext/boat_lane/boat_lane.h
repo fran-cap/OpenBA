@@ -33,14 +33,17 @@
 #include <utility>
 #include <vector>
 
+#include "Game/PathType.h"   // PathType (standalone: <cstdint> and EnumFlags.h only)
+
 namespace Ext {
 namespace BoatLane {
 
 // BoatRoute_FindWaterPath's step cost of a terrain type (kCost[], types 7 / 8 / 9 of mask 0x380);
 // 0 = not passable.
 inline int BoatStepCost(uint8_t type) {
-    if (type == 8) return 1;
-    if (type == 7 || type == 9) return 5;
+    const PathType t = static_cast<PathType>(type);
+    if (t == PathType::DeepWater) return 1;
+    if (t == PathType::Water || t == PathType::Bridge) return 5;
     return 0;
 }
 

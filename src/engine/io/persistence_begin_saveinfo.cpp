@@ -96,7 +96,7 @@ bool Persistence::BeginGetSaveGameInfo(const System::String& name, int count) {
         _worker._pendingFilename = fn;
     }
 
-    _worker._status     = 0;
+    _worker._status     = static_cast<int32_t>(PersistenceWorker::Status::Pending);
     _worker._blockCount = count;
 
     Platform::EventReset(_worker._hFinished);                        // doneEvent

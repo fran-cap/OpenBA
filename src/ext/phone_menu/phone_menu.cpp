@@ -238,8 +238,8 @@ void Shape(UI::Font* font, int32_t side) {
         g_row.buttons[i]->_minHeight = side;
         RestoreButtonPads(i);
         g_row.buttons[i]->SetNeedsSizeCalc();
-        label->_alignment = 4;   // MidCenter: the label in the middle of its square
-        label->_align = 4;       //   and the icon / text pair centred inside the label
+        label->_alignment = UI::ElementDescription::MidCenter;   // the label in its square's middle
+        label->_align = UI::ElementDescription::MidCenter;       //   and the icon / text pair centred
         label->_mode = 3;        //   with the icon above the text
         label->_font = font != nullptr ? font : g_row.font[i];
         label->_leftPad = 0;     //   with no padding of its own: the square's frame is the margin
@@ -566,7 +566,8 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
         // position a game tool gives it after the layout (an entity's panel, every frame) is the one
         // the next layout keeps (phone_math.h SafeBounds). The menus, the version line, a root sized
         // to the screen and a dialog at its own fitted scale keep retail's clamp.
-        if (menu || pause || version || root == nullptr || (root->_flags & 0x30) != 0) return;
+        if (menu || pause || version || root == nullptr) return;
+        if ((root->_flags & UI::kElementFlagSizeToScreen) != 0) return;
         if (FitDialogScale(dialog) != 1.0f) return;
         // SetUpperLeft moves the laid-out tree by its delta from _upperLeft: the upper-left the root is
         // actually laid out at first, so the move lands it where the next layout keeps it. With
@@ -600,7 +601,7 @@ void Place(int32_t point, const UI::DialogInstance* dialog, int32_t width, int32
     if (root == nullptr) return;
     // A root sized to the back buffer (ComputeLayout's 0x10 / 0x20 flags) is meant to cover
     // the screen: retail's rectangle.
-    if ((root->_flags & 0x30) != 0) return;
+    if ((root->_flags & UI::kElementFlagSizeToScreen) != 0) return;
     // P11: a dialog shown at its own scale k (touch_fit.h (c)) keeps its upper-left and size in its
     // own units; the safe area is decided in the layout units the engine then divides by k.
     const float k = FitDialogScale(dialog);

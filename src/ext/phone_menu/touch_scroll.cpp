@@ -417,7 +417,7 @@ bool IsTopWindow(const UI::DialogInstance* d, UI::Element*& root) {
     root = d->_root.Get();
     if (d->_dialog == nullptr || root == nullptr || d->_parent.Get() != nullptr) return false;
     if (d->_spriteSheet != nullptr && d->_spriteIndex >= 0) return false;
-    if ((root->_flags & (UI::kElementFlagHidden | 0x30u)) != 0) return false;
+    if ((root->_flags & (UI::kElementFlagHidden | UI::kElementFlagSizeToScreen)) != 0) return false;
     return true;
 }
 

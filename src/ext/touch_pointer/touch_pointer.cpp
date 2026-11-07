@@ -33,6 +33,7 @@
 #include "system/String.h"
 #include "video/Device.h"
 #include "Game/GameUpdateLoop.h"
+#include "Game/inputbindings.h"   // GameKey (the KeyMap actions the buttons send)
 #include "Game/Map.h"
 #include "Game/PlayerController.h"
 #include "Game/PlayerToolManager.h"
@@ -73,19 +74,23 @@ constexpr const char* kHolders[kButtonCount] = {"holderPointerPlace", "holderPoi
 constexpr const char* kButtonNames[kButtonCount] = {"place", "rotate left", "rotate right", "flip", "shift", "cancel"};
 // The KeyMap actions the buttons send (src/game/Game/inputbindings.cpp): StructureLeft / Right / Type, MouseRight.
 // Place clicks and Shift toggles (-1: no one-step action).
-constexpr int32_t kButtonAction[kButtonCount] = {-1, 0x13, 0x14, 0x15, -1, 6};
+constexpr int32_t kButtonAction[kButtonCount] = {-1,
+                                                 ToUnderlying(GameKey::StructureLeft),
+                                                 ToUnderlying(GameKey::StructureRight),
+                                                 ToUnderlying(GameKey::StructureType),
+                                                 -1,
+                                                 ToUnderlying(GameKey::MouseRight)};
 // The binding the Shift toggle holds: PathMethod, retail's Shift (RoadTool::OnKey reads it with GetValue and routes
 // the road diagonally).
-constexpr int32_t kShiftAction = 0x16;
+constexpr int32_t kShiftAction = ToUnderlying(GameKey::PathMethod);
 
-// Retail's input values (input_device_update.cpp kFullScale) and mouse inputs (inputbindings.cpp).
-constexpr int16_t kFullScale = 0x7FFF;
-constexpr int32_t kMouseX = 0;
-constexpr int32_t kMouseY = 1;
-constexpr int32_t kMouseDx = 2;
-constexpr int32_t kMouseDy = 3;
-constexpr int32_t kMouseLeft = 4;
-constexpr int32_t kMouseRight = 5;
+// The mouse inputs (Input::Device::_mouse indices), as the int indices the loops below compare.
+constexpr int32_t kMouseX = ToUnderlying(Input::Device::MouseInput::X);
+constexpr int32_t kMouseY = ToUnderlying(Input::Device::MouseInput::Y);
+constexpr int32_t kMouseDx = ToUnderlying(Input::Device::MouseInput::DeltaX);
+constexpr int32_t kMouseDy = ToUnderlying(Input::Device::MouseInput::DeltaY);
+constexpr int32_t kMouseLeft = ToUnderlying(Input::Device::MouseInput::Left);
+constexpr int32_t kMouseRight = ToUnderlying(Input::Device::MouseInput::Right);
 
 // After this long of real mouse use the bar hides (the ruling's "a few seconds").
 constexpr double kMouseHideSeconds = 3.0;
@@ -690,11 +695,13 @@ void PressAction(Input::Device& dev, int32_t action) {
     for (int32_t slot = 0; slot < 2; ++slot) {
         const int32_t device = static_cast<int8_t>(km->GetDeviceForId(action, slot));
         const int32_t input = km->GetInputForId(action, slot);
-        if (device == 1 && input >= 0 && input < Input::Device::kKeyboardInputCount) {
+        if (device == static_cast<int32_t>(Input::Device::InputDevice::Keyboard) && input >= 0 &&
+            input < Input::Device::kKeyboardInputCount) {
             dev._keyboard[input].pressed = true;
             return;
         }
-        if (device == 2 && input >= 0 && input < Input::Device::kMouseInputCount) {
+        if (device == static_cast<int32_t>(Input::Device::InputDevice::Mouse) && input >= 0 &&
+            input < Input::Device::kMouseInputCount) {
             dev._mouse[input].pressed = true;
             return;
         }
@@ -708,15 +715,17 @@ void HoldAction(Input::Device& dev, int32_t action, bool down, int16_t& prev) {
     const Input::KeyMap* km = Input::Configuration::_singleton != nullptr ? Input::Configuration::_singleton->_keyMap
                                                                          : nullptr;
     if (km == nullptr) return;
-    const int16_t value = down ? kFullScale : 0;
+    const int16_t value = down ? Input::Device::kFullScale : 0;
     for (int32_t slot = 0; slot < 2; ++slot) {
         const int32_t device = static_cast<int8_t>(km->GetDeviceForId(action, slot));
         const int32_t input = km->GetInputForId(action, slot);
-        if (device == 1 && input >= 0 && input < Input::Device::kKeyboardInputCount) {
+        if (device == static_cast<int32_t>(Input::Device::InputDevice::Keyboard) && input >= 0 &&
+            input < Input::Device::kKeyboardInputCount) {
             SetInput(dev._keyboard[input], value, prev);
             return;
         }
-        if (device == 2 && input >= 0 && input < Input::Device::kMouseInputCount) {
+        if (device == static_cast<int32_t>(Input::Device::InputDevice::Mouse) && input >= 0 &&
+            input < Input::Device::kMouseInputCount) {
             SetInput(dev._mouse[input], value, prev);
             return;
         }
@@ -757,8 +766,8 @@ void AfterUpdate(Input::Device& dev) {
         if (i == kMouseY) v = y;
         if (i == kMouseDx) v = dx;
         if (i == kMouseDy) v = dy;
-        if (i == kMouseLeft) v = s.left ? kFullScale : 0;
-        if (i == kMouseRight) v = s.right ? kFullScale : 0;
+        if (i == kMouseLeft) v = s.left ? Input::Device::kFullScale : 0;
+        if (i == kMouseRight) v = s.right ? Input::Device::kFullScale : 0;
         SetInput(dev._mouse[i], v, g_prev[i]);
     }
     if (!g_actions.empty()) {
@@ -936,7 +945,8 @@ public:
     }
     void OnOpened() override {
         g_markerDialog = this;
-        SetFlagsOnOff(0x4u, 0);   // the mouse passes through (DialogInstance::Update's bit 2): the cursor stays on the world
+        // The mouse passes through: the cursor stays on the world.
+        SetFlagsOnOff(UI::kDialogFlagNoMouseCapture, 0);
     }
     void OnClosed() override {
         if (g_markerDialog == this) g_markerDialog = nullptr;

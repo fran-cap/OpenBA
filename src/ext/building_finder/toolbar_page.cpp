@@ -40,6 +40,7 @@
 #include "ext/registry.h"
 #include "ext/toolbar/toolbar.h"
 #include "ext/ui/find_element.h"
+#include "ext/ui/row_tint.h"   // Ext::RowTint::kSearchFill
 
 #include <cstdint>
 #include <cstdio>
@@ -58,7 +59,6 @@ constexpr int32_t kKeyId = 12;                 // the button that sets the hotke
 constexpr int32_t kPickId = 100;               // a row's name button, + its position
 constexpr int32_t kStarId = 500;               // its favorite button
 constexpr int32_t kMaxResultRows = 300;        // rows built; the rest wait for a longer search
-constexpr uint32_t kSearchFill = 0x38ffffffu;
 constexpr const char* kWindowRsc = "Dialog/ExtensionsWindow.rsc";
 
 enum class Kind { None, Pick, Star };
@@ -175,7 +175,7 @@ void PageOpen(UI::Element* page, int32_t idBase) {
         // the border has no color of its own: a light fill shows where to type
         Object::InternalPtr<UI::Element> slot;
         Object::InternalPtr<UI::Element> border = *field->GetBorder(&slot);
-        if (border.Get() != nullptr) border->SetColor(kSearchFill);
+        if (border.Get() != nullptr) border->SetColor(Ext::RowTint::kSearchFill);
     }
     g_count = Object::InternalPtr<UI::Element>(Ext::FindElement<UI::TextElement>(page, "textFinderCount"));
     g_status = Object::InternalPtr<UI::Element>(Ext::FindElement<UI::TextElement>(page, "textFinderStatus"));

@@ -999,8 +999,10 @@ void Save::SaveLoad::UpdateSave() {
             // An acquire load, paired with SaveJob's release store (review F-147): a
             // volatile read of a word the worker writes is still a data race.
             const int32_t status = __atomic_load_n(&persistence->_worker._status, __ATOMIC_ACQUIRE);
-            if (g_extSaveQueued && status == 0) return;
-            _extSaveResult(g_extSaveQueued && status == 1);
+            if (g_extSaveQueued && status == static_cast<int32_t>(::IO::PersistenceWorker::Status::Pending))
+                return;
+            _extSaveResult(g_extSaveQueued &&
+                           status == static_cast<int32_t>(::IO::PersistenceWorker::Status::Done));
         }
 
         // FUN_180032320 — `if (p->_data) MemFree(p->_data); MemFree(p);`, the
@@ -1461,7 +1463,7 @@ void Save::SaveLoad::UpdateList() {
             // state exists to perform; a reader who sees it go red on exactly
             // this label should suspect the worker before suspecting the port.
             persistence->_worker._command = 4;   // request: list saves
-            persistence->_worker._status  = 0;   // result: pending
+            persistence->_worker._status  = static_cast<int32_t>(::IO::PersistenceWorker::Status::Pending);
 
             Platform::EventReset(persistence->_worker._hFinished);   // ResetEvent
             Platform::EventSet(persistence->_worker._hStart);        // SetEvent
@@ -1603,7 +1605,8 @@ void Save::SaveLoad::UpdateList() {
     // ---- state 3 -----------------------------------------------------------
     if (progress == 3) {
         // The guard is INSIDE the state; the transition is not. See point 2.
-        if (!persistence->_worker.IsWorking() && persistence->_worker._status == 1) {
+        if (!persistence->_worker.IsWorking() &&
+            persistence->_worker._status == static_cast<int32_t>(::IO::PersistenceWorker::Status::Done)) {
             RtIo::SaveBlock block{};
             // `ADD RCX,0x28` — the EMBEDDED SavedState, not the heap one at
             // +0x40 that UpdateSave allocates. Hidden return slot in RDX.
@@ -1623,7 +1626,8 @@ void Save::SaveLoad::UpdateList() {
         SaveInfo&     row = _saves._data[at];
 
 
-        if (!persistence->_worker.IsWorking() && persistence->_worker._status == 1) {
+        if (!persistence->_worker.IsWorking() &&
+            persistence->_worker._status == static_cast<int32_t>(::IO::PersistenceWorker::Status::Done)) {
             // --- the metadata arrived ---
             void*       pixels      = nullptr;
             int         w = 0, h = 0, field44 = 0;

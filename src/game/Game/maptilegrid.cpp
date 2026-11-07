@@ -39,10 +39,6 @@ static constexpr float kMountainMax  = 2.0f;    // DAT_140172174
 static constexpr float kShoreMax     = -0.25f;  // DAT_140172274
 static constexpr float kDeepWaterMax = -1.4f;   // DAT_140172284
 
-// Terrain tile types.
-enum TileType { TILE_BUILDABLE = 2, TILE_MOUNTAIN_HI = 6, TILE_SHORE = 7,
-                TILE_DEEP_WATER = 8, TILE_MOUNTAIN_LO = 10 };
-
 // CreateNaturalResource_helper_e2c0 — classify one cell into a terrain type.
 static int MapTileGrid_Classify(Map* game, int dim, int idx) {
     const float center = (float)(dim >> 1) - kCenterBias;
@@ -52,10 +48,10 @@ static int MapTileGrid_Classify(Map* game, int dim, int idx) {
     game->GetTerrainPos(out, in, 1, tri);   // flag=1 => height-only, no picking refine
     const float h     = out[2];
     const float slope = tri[2];
-    if (h < kDeepWaterMax) return TILE_DEEP_WATER;
-    if (h < kShoreMax)     return TILE_SHORE;
-    if (h >= kShoreMax && h <= kBuildableMax && slope >= kSlopeMin) return TILE_BUILDABLE;
-    return (h < kMountainMax) ? TILE_MOUNTAIN_LO : TILE_MOUNTAIN_HI;
+    if (h < kDeepWaterMax) return static_cast<int>(PathType::DeepWater);
+    if (h < kShoreMax)     return static_cast<int>(PathType::Water);
+    if (h >= kShoreMax && h <= kBuildableMax && slope >= kSlopeMin) return static_cast<int>(PathType::Normal);
+    return (h < kMountainMax) ? static_cast<int>(PathType::Walkable) : static_cast<int>(PathType::Unusable);
 }
 
 // The worldgen map create 0x14009ef20, in retail's order (no test of the map or dim;
@@ -77,7 +73,7 @@ extern "C" void MapTileGrid_Build(Map* game, int dim) {
 
     LoadTime::Stamp("tg.classify");   // NOT RETAIL: print-only
     for (int i = 0; i < count; ++i)
-        game->cells[i].terrainType = (uint8_t)MapTileGrid_Classify(game, dim, i);
+        game->cells[i].terrainType = static_cast<PathType>(MapTileGrid_Classify(game, dim, i));
     TerrainSidecar::Invalidate();   // [terrain sidecar] fresh grid: mirror rebuilds on first read
     CellStamp::Invalidate();        // [AMBMEMO] fresh grid: every block re-stamped on the next read
     StillTerrain::Bump();           // [STILLTERRAIN] a new size and cell array (every floorCount 0)
@@ -95,14 +91,14 @@ extern "C" void MapTileGrid_Build(Map* game, int dim) {
         for (int x = 0; x < game->size; ++x) {
             const int size = game->size;
             const int cell = size * y + x;
-            if (game->cells.GetData()[cell].terrainType != TILE_BUILDABLE) continue;
+            if (game->cells.GetData()[cell].terrainType != PathType::Normal) continue;
             bool linked = false;
             for (int ny = y - 1; ny <= y + 1 && !linked; ++ny) {
                 for (int nx = x - 1; nx <= x + 1; ++nx) {
                     if (nx < 0 || ny < 0 || nx >= dim || ny >= dim) continue;
                     const int neighbour = size * ny + nx;
-                    const uint8_t t = game->cells.GetData()[neighbour].terrainType;
-                    if (static_cast<uint8_t>(t - TILE_SHORE) <= 1) {   // 7 or 8
+                    const uint8_t t = static_cast<uint8_t>(game->cells.GetData()[neighbour].terrainType);
+                    if (static_cast<uint8_t>(t - static_cast<int>(PathType::Water)) <= 1) {   // Water or DeepWater
                         town->AddWaterAccess(cell, neighbour);         // 0x140088b80
                         linked = true;
                         break;

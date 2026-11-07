@@ -67,7 +67,7 @@ public:
         // as a member, [0] first.
         _vertical  = true;
         _inset     = 1;
-        _barColor  = 0xffffffffu;
+        _barColor  = System::kColorWhite;
         _unknownC4 = 0xffffffffu;
     }
 

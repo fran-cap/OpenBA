@@ -290,7 +290,8 @@ bool LargeSunMapFits(bool mayProbe) {
         Video::Device::_singleton->deviceData != nullptr) {
         Video::ImageBuffer* const probe = NewImageBuffer();
         const bool ok = probe != nullptr &&
-                        probe->Create(0, 1, 7, 0x40, kSunMapLargeSize, kSunMapLargeSize, 1, 1, 1, 1, nullptr);
+                        probe->Create(0, 1, 7, Video::ImageBuffer::kShadowMap, kSunMapLargeSize,
+                                      kSunMapLargeSize, 1, 1, 1, 1, nullptr);
         DeleteImageBuffer(probe);
         g_largeSunMapFits = ok ? 1 : 0;
         if (!ok)
@@ -407,8 +408,8 @@ void SunLight::Set(const Math::Vector3& direction, const Math::Vector4& sun,
         _colourTarget = NewImageBuffer();
         // 0x800 in retail. ext.max_shadow_res: the depth's raw size, so the two
         // attachments always match (the depth is 0x800 unless the row is on).
-        _colourTarget->Create(0, 0, 5, 0x40, _depthTarget->_width, _depthTarget->_width,
-                              1, 1, 1, 1, nullptr);
+        _colourTarget->Create(0, 0, 5, Video::ImageBuffer::kShadowMap, _depthTarget->_width,
+                              _depthTarget->_width, 1, 1, 1, 1, nullptr);
         _renderBuffer = NewRenderBuffer();
         _renderBuffer->Create(_colourTarget, _depthTarget);
     } else if (!DeviceSupportsColourShadowTarget() && _colourTarget != nullptr) {
@@ -453,20 +454,20 @@ void Graphics::SunLight::InitFields() {
     _colourTarget = nullptr;
     _depthTarget  = nullptr;
     _renderBuffer = nullptr;
-    _materialTypeFlags = 0x8000;
+    _materialTypeFlags = static_cast<uint32_t>(MaterialTypeMask::Light);   // 0x8000
 
     // 0x800 in retail; ext.max_shadow_res may raise it (SunMapRawSize, above).
     const int32_t size = SunMapRawSize(true);
     if (DeviceSupportsColourShadowTarget()) {
         _colourTarget = NewImageBuffer();
-        _colourTarget->Create(0, 0, 5, 0x40, size, size, 1, 1, 1, 1, nullptr);
+        _colourTarget->Create(0, 0, 5, Video::ImageBuffer::kShadowMap, size, size, 1, 1, 1, 1, nullptr);
     }
 
     // Unconditional — the join label 0x180108325 is BELOW the capability test's
     // JZ target, so the depth target and the render buffer are built whether or
     // not the colour target was.
     _depthTarget = NewImageBuffer();
-    _depthTarget->Create(0, 1, 7, 0x40, size, size, 1, 1, 1, 1, nullptr);
+    _depthTarget->Create(0, 1, 7, Video::ImageBuffer::kShadowMap, size, size, 1, 1, 1, 1, nullptr);
 
     _renderBuffer = NewRenderBuffer();
     _renderBuffer->Create(_colourTarget, _depthTarget);
@@ -478,7 +479,7 @@ void Graphics::SunLight::InitFields() {
     if (!same) {
         b.min.x = kBoundsMin; b.min.y = kBoundsMin; b.min.z = kBoundsMin;
         b.max.x = kBoundsMax; b.max.y = kBoundsMax; b.max.z = kBoundsMax;
-        _dirtyFlags |= 2u;
+        _dirtyFlags |= RtGraphics::kDirtyBounds;
     }
 
 }

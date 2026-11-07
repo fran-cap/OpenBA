@@ -144,6 +144,12 @@ namespace IO {
 
 class PackageFile : public Object::External {
 public:
+    // The package header word (ReadPackfile, package_file_read.cpp): bit 31 says
+    // the directory is compressed, bits 0..30 are its offset.
+    static constexpr uint32_t kHeaderCompressedBit  = 0x80000000u;   // BT 31
+    static constexpr uint32_t kHeaderOffsetMask     = 0x7fffffffu;   // BTR 31
+    static constexpr int32_t  kDefaultPriority      = 0x2710;        // 10000, the ctor's / uncompressed default
+    static constexpr uint32_t kPlaceholderIconPixel = 0xff000000u;   // the 1x1 opaque-black default icon
     // ---- ENDGAME B.3.9 IO: CONCRETE ------------------------------------------
     // The two banners above ("NO REAL CONSTRUCTOR", "NO DESTRUCTOR
     // DECLARATION") describe B.3.4. In B.3.9 the minted ??_7PackageFile row,
@@ -165,7 +171,7 @@ public:
     PackageFile()
         : Object::External(),
           _version(0), _userVersion(0),                         // 1800b44ad (one qword)
-          _priority(0x2710), _platform(0),                      // 1800b44b1 (one qword 0x2710)
+          _priority(kDefaultPriority), _platform(0),            // 1800b44b1 (one qword 0x2710)
           _iconData(),                                          // 1800b44b9 / 1800b44c0
           _previewData(),                                       // 1800b44c7 / 1800b44ce
           // B.4 Z LAST IO: the last four are members constructed in

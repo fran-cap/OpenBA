@@ -170,8 +170,8 @@ GameLoadDialogLoopT::GameLoadDialogLoopT(const System::String& filename,
                                          Engine::UpdateLoop* nextLoop,
                                          const System::Time& delay)
     : Engine::DialogLoaderLoopT(filename, nextLoop, delay),
-      _fadeColor1(0xff000000),
-      _fadeColor2(0xff000000),
+      _fadeColor1(System::kColorBlack),
+      _fadeColor2(System::kColorBlack),
       _fadeDone(0),
       _random() {                       // ??0Random@System@@QEAA@XZ 0x1800c7f20, after the three stores
     _tipTimer   = 0;

@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include "platform_input.h"   // Platform::Input::kVkF1 / kVkF12 (standalone: <cstdint> only)
+
 namespace Ext {
 namespace BuildingFinder {
 
@@ -144,13 +146,14 @@ inline std::string Clip(const std::string& s, size_t max) {
 
 // A key the hotkey may be: a letter, a digit, F1-F12. (Esc cancels; the rest are the game's own.)
 inline bool HotkeyAllowed(int vk) {
-    return (vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9') || (vk >= 0x70 && vk <= 0x7b);
+    return (vk >= 'A' && vk <= 'Z') || (vk >= '0' && vk <= '9') ||
+           (vk >= Platform::Input::kVkF1 && vk <= Platform::Input::kVkF12);
 }
 
 // "H", "7", "F5".
 inline std::string HotkeyName(int vk) {
-    if (vk >= 0x70 && vk <= 0x7b) {
-        return "F" + std::to_string(vk - 0x70 + 1);
+    if (vk >= Platform::Input::kVkF1 && vk <= Platform::Input::kVkF12) {
+        return "F" + std::to_string(vk - Platform::Input::kVkF1 + 1);
     }
     if (HotkeyAllowed(vk)) {
         return std::string(1, static_cast<char>(vk));

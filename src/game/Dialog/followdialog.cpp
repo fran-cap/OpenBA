@@ -15,6 +15,7 @@
 #include "object/External.h"   // ENDGAME B.3.6 UI callers (K2)
 #include <new>   // ENDGAME B.3.6 UI callers (K2)
 #include "input/Input.h"   // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "Dialog/FollowDialog.h"
 #include "Dialog/ui_dialogs.h"
 #include "system/Value.h"
@@ -256,8 +257,8 @@ void FollowDialog::Close() {
 //
 // Original: 0x140069230 (18 bytes).
 
-void FollowDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 != 0x12 || param4 != 100)
+void FollowDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (param3 != UI::EventId::Activated || param4 != 100)
         return;
 
     Close();
@@ -304,7 +305,7 @@ void FollowDialog::OnUpdate(const System::Time& /*time*/) {
 
     // Escape key (key ID 8) — if pressed, close the follow dialog (0x140068f00).
     const Input::KeyMap* keyMap = Input::Configuration::_singleton ? Input::Configuration::_singleton->_keyMap : nullptr;
-    if (keyMap && keyMap->Pressed(0, 8)) {
+    if (keyMap && keyMap->Pressed(0, ToUnderlying(GameKey::Cancel))) {
         Close();
     }
 }

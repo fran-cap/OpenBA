@@ -179,7 +179,7 @@ extern "C" void Pathfinder_Seed(Map* game, int dim) NO_THREAD_SAFETY_ANALYSIS {
     MapCell* cellGrid = game->cells.GetData();
     int      cellN    = game->cells.GetSize();
     for (int i = 0; i < cellN; ++i) {
-        uint8_t  type    = cellGrid[i].terrainType;
+        uint8_t  type    = static_cast<uint8_t>(cellGrid[i].terrainType);
         bool     blocked = cellGrid[i].blocker != nullptr;
         flags[i] = static_cast<uint8_t>((flags[i] & 0x80) | type);
         flags[i] = static_cast<uint8_t>((blocked ? 0x80 : 0) | (flags[i] & 0x7f));

@@ -27,8 +27,9 @@
 
 #include <cstdint>
 
+#include "Game/WorldGeometry.h"   // WorldGeometry::DrawKey (the strip item's mode bits)
+
 namespace Video { class Context; }
-class WorldGeometry;
 
 namespace Ext {
 namespace BetterWater {
@@ -57,7 +58,7 @@ bool StripEnabled();
 // range index retail never reaches; WorldGeometry::Draw hands that item to DrawStrip.
 constexpr uint16_t kStripSortKey = 0x5fff;
 constexpr uint16_t kStripIndex = 0x1fff;
-constexpr uint16_t kStripDrawKey = 0x6000 | kStripIndex;
+constexpr uint16_t kStripDrawKey = WorldGeometry::DrawKey::kModeRiverRange | kStripIndex;
 
 // Draws the geometry's strip (built on first use and whenever the water mesh changed) with the strip
 // program, then rebinds the water's own program. The river material bound its program for the item.

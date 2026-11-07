@@ -67,9 +67,9 @@ namespace UI {
 // A graph is exactly the size it was told to be. Note the store ORDER: the flag
 // clear sits BETWEEN the two size stores (0x1800d1826), not after them.
 void GraphElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
     _layoutWidth = _width;
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutHeight = _height;
 }
 

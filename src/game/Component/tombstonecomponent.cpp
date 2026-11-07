@@ -126,7 +126,7 @@ void TombstoneComponent::Update(const System::Time* timeV) {
 
             // Check bit 10 of the entity flags
             uint32_t entityFlags = entityPtr->_entityFlags;
-            if (((entityFlags >> 10) & 1) == 0) {
+            if ((entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                 entityPtr->MarkForRemoval();   // 0x1400c2ea0
 
                 // Add to removal queue

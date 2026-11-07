@@ -244,7 +244,7 @@ void Context::SetColor(const Math::Vector4& color) {
     if (_color.x != color.x || _color.y != color.y ||
         _color.z != color.z || _color.w != color.w) {
         _color = color;
-        _dirty |= RtVideo::kDirtyMaterialConstants;
+        _dirty |= RtVideo::kDirtyInstanceConstants;
     }
 
 }
@@ -258,7 +258,7 @@ void Context::SetInverseScale(float x, float y, float z, float w) {
         _inverseScale.y = y;
         _inverseScale.z = z;
         _inverseScale.w = w;
-        _dirty |= RtVideo::kDirtyMaterialConstants;
+        _dirty |= RtVideo::kDirtyInstanceConstants;
     }
 
 }
@@ -640,7 +640,7 @@ void Context::AddVertices(int32_t count, const void* vertices) {
 // src/render/dx11/VideoDX11Data.h); the nine `static_assert`s above pin the byte offsets.
 // ============================================================================
 
-void Context::Clear(uint32_t flags, uint32_t color, float depth, int32_t stencil) {
+void Context::Clear(ClearFlags flags, uint32_t color, float depth, int32_t stencil) {
     Backend(this)->Clear(flags, color, depth, stencil);
 }
 

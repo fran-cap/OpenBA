@@ -58,6 +58,7 @@
 
 #include "../object/Internal.h"
 #include "../object/External.h"
+#include "EventId.h"             // UI::EventId (OnElementEvent's event id)
 
 namespace System { class Time; }
 
@@ -91,7 +92,7 @@ public:
     // [9] 0x1800cd260  RET. `element` is the ADDRESS of the caller's
     // InternalPtr copy — see the banner.
     virtual void OnElementEvent(Object::InternalPtr<Element>* element,
-                                int32_t a, int32_t b, int32_t c,
+                                UI::EventId a, int32_t b, int32_t c,
                                 int32_t d, int32_t e, void* userData);
     // [10] 0x1800cd250  RET. `IO::Stream&` in retail; spelled as the pointer
     // every C caller passes, the `Object::Internal::Persist` precedent.

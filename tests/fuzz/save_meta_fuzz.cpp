@@ -39,6 +39,8 @@
 #include "../../src/engine/collection/array_internal.h"
 #include "system/MemoryAllocator.h"
 #include "system/Compression.h"
+#include "system/Configuration.h"   // System::kGameVersion
+#include "system/String.h"          // System::String::kSerializedUtf8Flag
 #include "system/string_internal.h"
 
 #include <cstddef>
@@ -132,7 +134,7 @@ void Put32(std::vector<uint8_t>& v, uint32_t x) {
         v.push_back(static_cast<uint8_t>(x >> (8 * i)));
 }
 void PutStr(std::vector<uint8_t>& v, const std::string& s) {
-    Put32(v, static_cast<uint32_t>(s.size() + 1) | 0x80000000u);
+    Put32(v, static_cast<uint32_t>(s.size() + 1) | System::String::kSerializedUtf8Flag);
     v.insert(v.end(), s.begin(), s.end());
     v.push_back(0);
 }
@@ -162,16 +164,16 @@ std::vector<uint8_t> Record(int ver, const std::string& desc, int w, int h, int 
             PutStr(body, "mod" + std::to_string(m));
             PutStr(body, "ext:mod" + std::to_string(m));
             Put32(body, 0x1234u + m);
-            Put32(body, 0x010007ffu);
+            Put32(body, System::kGameVersion);
             Put32(body, 1);
         }
     }
     std::vector<uint8_t> rec;
-    Put32(rec, 0xaaaaaaaau);
+    Put32(rec, IO::kRecordMagic);
     Put32(rec, static_cast<uint32_t>(body.size() + 4));
     Put32(rec, static_cast<uint32_t>(ver));
     rec.insert(rec.end(), body.begin(), body.end());
-    Put32(rec, 0xbbbbbbbbu);
+    Put32(rec, IO::kRecordTrailer);
     return rec;
 }
 // The CompressedStream container, 32 KB blocks, compressed by OUR encoder or STORED.

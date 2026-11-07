@@ -50,7 +50,6 @@ namespace AutoStart {
 namespace {
 
 // Dialog command/event protocol (matches the UI dispatcher).
-constexpr int kMsg_ButtonClick = 0x12;
 constexpr int kButtonId_New    = 0;   // MainMenuDialog "buttonNew"
 constexpr int kButtonId_Load   = 2;   // MainMenuDialog "buttonLoad" (kButton_Load)
 constexpr int kButtonId_Quit   = 6;   // MainMenuDialog "buttonQuit"
@@ -124,7 +123,7 @@ constexpr int kNewGameTimeoutFrames = 600;   // ~10s at 60fps
 // UI::DialogInstance. The three trailing ints and userData were never set by
 // the old raw 4-argument call; the by-name call passes 0 / nullptr. The four
 // trailing arguments are the harness's choice: retail has no such caller.
-void InjectClick(UI::DialogInstance* dialog, int msg, int id) {
+void InjectClick(UI::DialogInstance* dialog, UI::EventId msg, int id) {
     dialog->OnElementEvent(
         nullptr, msg, id, 0, 0, 0, nullptr);
 }
@@ -260,7 +259,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
         fprintf(stderr, "[AutoStart] menu settled (mainMenu=%p) — injecting New Game "
                "click\n", (void*)mainMenu);
         s_lastMenu = mainMenu;
-        InjectClick(mainMenu, kMsg_ButtonClick, kButtonId_New);
+        InjectClick(mainMenu, UI::EventId::Activated, kButtonId_New);
         s_phase        = Phase::WaitNewGame;
         s_newGameFrame = 0;
         break;
@@ -277,7 +276,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
         if (setupDone) {
             fprintf(stderr, "[AutoStart] NewGameDialog ready (self=%p) — injecting "
                    "Start click (buttonOk)\n", newGame);
-            InjectClick(newGame, kMsg_ButtonClick, kEventId_Ok);
+            InjectClick(newGame, UI::EventId::Activated, kEventId_Ok);
             if (--s_gamesLeft > 0) {
                 // Rearm for the next game. WaitMenuSettle refuses to fire on the
                 // menu we just clicked (s_lastMenu), so the few frames the old menu
@@ -316,7 +315,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
 
         fprintf(stderr, "[AutoStart] menu settled (mainMenu=%p) - injecting click id=%d\n",
                 (void*)mainMenu, s_menuButtonId);
-        InjectClick(mainMenu, kMsg_ButtonClick, s_menuButtonId);
+        InjectClick(mainMenu, UI::EventId::Activated, s_menuButtonId);
         s_phase      = s_menuClickCursor ? Phase::MenuClicks : Phase::Done;
         s_phaseFrame = 0;
         break;
@@ -335,12 +334,12 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
             UI::DialogInstance* mainMenu = menuDLT->_dialogInstance;
             int id = HarnessAtoi(tok + 1);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: MainMenuDialog=%p id=%d\n", (void*)mainMenu, id);
-            if (mainMenu) InjectClick(mainMenu, kMsg_ButtonClick, id);
+            if (mainMenu) InjectClick(mainMenu, UI::EventId::Activated, id);
         } else if (tok[0] == 'd') {
             ModDetailsDialog* dlg = ModDetailsDialog_LastOpened();
             int id = HarnessAtoi(tok + 1);
             fprintf(stderr, "[AutoStart] AUTOMENU_CLICKS: ModDetailsDialog=%p id=%d\n", dlg, id);
-            if (dlg) InjectClick(dlg, kMsg_ButtonClick, id);
+            if (dlg) InjectClick(dlg, UI::EventId::Activated, id);
         } else {
             ModDialog* dlg = ModDialog_LastOpened();
             int id = HarnessAtoi(tok);
@@ -371,7 +370,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
                 // left them unset) are the harness's choice: retail has no such
                 // caller.
                 Object::InternalPtr<UI::Element> nullElem;
-                modDlg->OnElementEvent(&nullElem, kMsg_ButtonClick, id, 0, 0, 0, nullptr);
+                modDlg->OnElementEvent(&nullElem, UI::EventId::Activated, id, 0, 0, 0, nullptr);
             }
         }
         if (!s_menuClickCursor) s_phase = Phase::Done;
@@ -388,7 +387,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
 
         fprintf(stderr, "[AutoStart] menu settled (mainMenu=%p) — injecting Load click\n",
                 (void*)mainMenu);
-        InjectClick(mainMenu, kMsg_ButtonClick, kButtonId_Load);
+        InjectClick(mainMenu, UI::EventId::Activated, kButtonId_Load);
         s_phase        = Phase::WaitLoadDialog;
         s_newGameFrame = 0;
         break;
@@ -432,7 +431,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
         d->selectedIndex = pick;   // +0xC0 (SelectEntry sans sound)
         fprintf(stderr, "[AutoStart] save list ready (%d entries) — selecting #%d "
                "(\"%s\") and injecting Load click\n", saveCount, pick, s_loadName);
-        InjectClick(dlg, kMsg_ButtonClick, kSLD_LoadClick);
+        InjectClick(dlg, UI::EventId::Activated, kSLD_LoadClick);
         // DoLoad runs inside the click, and on an unattended run every modal on its
         // path (confirmLoad, the mods / `ext:` notices) is answered there and then
         // (SaveLoad_ModalShowDialog). So loadFlag (+0xBA) is already 1 if the load
@@ -465,7 +464,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
 
         fprintf(stderr, "[AutoStart] menu settled (mainMenu=%p) — injecting Tutorial "
                 "click\n", (void*)mainMenu);
-        InjectClick(mainMenu, kMsg_ButtonClick, kButtonId_Tutorial);
+        InjectClick(mainMenu, UI::EventId::Activated, kButtonId_Tutorial);
         s_phase        = Phase::WaitTutorialDialog;
         s_newGameFrame = 0;
         break;
@@ -507,7 +506,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
 
         fprintf(stderr, "[AutoStart] tutorial list ready (%d entries) — selecting #%d "
                 "and injecting Load click\n", count, pick);
-        InjectClick(dlg, kMsg_ButtonClick, kSD_LoadClick);
+        InjectClick(dlg, UI::EventId::Activated, kSD_LoadClick);
         // BANISHED_AUTOSTART_GAMES=<n> alongside AUTOTUTORIAL rearms the driver so a
         // quit-to-main-menu (PAUSEMENU_BUTTON=5) is followed by n NEW GAMES. Added
         // 2026-09-07 for a user-reported repro that the pre-existing games-loop could
@@ -539,7 +538,7 @@ void TickMenu(MenuDialogLoopT* menuDLT) {
 
         fprintf(stderr, "[AutoStart] menu settled (mainMenu=%p) — injecting Quit click\n",
                (void*)mainMenu);
-        InjectClick(mainMenu, kMsg_ButtonClick, kButtonId_Quit);
+        InjectClick(mainMenu, UI::EventId::Activated, kButtonId_Quit);
         s_phase = Phase::Done;
         break;
     }

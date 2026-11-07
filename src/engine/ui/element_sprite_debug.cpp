@@ -58,7 +58,7 @@ void Debug_ImageElement_SetSprite(UI::ImageElement* self, const UI::Sprite* spri
     printf("  flags@+0x34 after:  0x%08X", flagsAfter);
     if (flagsAfter != flagsBefore) {
         printf(" (CHANGED: dirty flag 0x8000000 %s)",
-               (flagsAfter & 0x8000000) ? "SET" : "CLEARED");
+               (flagsAfter & UI::kElementFlagNeedsSizeCalc) ? "SET" : "CLEARED");
     }
     printf("\n");
 #endif
@@ -88,7 +88,7 @@ void Debug_LabelElement_SetSprite(UI::LabelElement* self, const UI::Sprite* spri
     printf("  flags@+0x34 after:  0x%08X", flagsAfter);
     if (flagsAfter != flagsBefore) {
         printf(" (CHANGED: dirty flag 0x8000000 %s)",
-               (flagsAfter & 0x8000000) ? "SET" : "CLEARED");
+               (flagsAfter & UI::kElementFlagNeedsSizeCalc) ? "SET" : "CLEARED");
     }
     printf("\n");
 #endif

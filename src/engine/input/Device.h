@@ -78,6 +78,25 @@ public:
         uint8_t  _unknown09[7];  // +0x09..+0x0F — never written by any body read so far
         int64_t  holdTicks;      // +0x10 — accumulated hold time, in System::Time ticks
     };
+    // State::value's full scales: a pressed key / button, or a positive axis
+    // end, reads kFullScale; the wheel turned down reads kNegativeFullScale.
+    static constexpr int16_t kFullScale         = 0x7FFF;
+    static constexpr int16_t kNegativeFullScale = -0x7FFF;   // 0x8001
+
+    // The index of a mouse input in the mouse State block (Device::_mouse, 13
+    // records): the device-input codes the mouse bindings register
+    // (inputbindings.cpp column 3; the names are the game's RegisterInput
+    // names). Not the GameKey ids (GameKey::MouseLeft is 5, slot Left is 4).
+    enum class MouseInput : int32_t {
+        X       = 0x00,   // cursor x
+        Y       = 0x01,   // cursor y
+        DeltaX  = 0x02,   // x delta this frame
+        DeltaY  = 0x03,   // y delta this frame
+        Left    = 0x04,   // button 0 (VK_LBUTTON; the first of the 8 DirectInput buttons)
+        Right   = 0x05,   // button 1 (VK_RBUTTON)
+        Middle  = 0x06,   // button 2 (VK_MBUTTON)
+        Wheel   = 0x0C,   // the wheel (after the 8 buttons 4..11)
+    };
 
     // The three State blocks, pinned by GetValue/Pressed/Released
     // (0x1800e1660/0x1800e16c0/0x1800e1720) AND independently by ResetState

@@ -97,7 +97,7 @@ void RadioElement::Update(const System::Time& time, UserInterface* ui,
     UserInterface::Event ev;
     ev.dialog   = dialog->Get();     // the handle's 8 bytes
     ev.element  = this;
-    ev.eventId  = 0x16;
+    ev.eventId  = UI::EventId::RadioSelected;
     ev.arg14    = _elementId;
     ev.arg18    = state.mouseX;
     ev.arg1C    = state.mouseY;

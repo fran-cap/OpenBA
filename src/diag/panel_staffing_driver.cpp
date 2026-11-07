@@ -177,7 +177,7 @@ int SeatViaPanel(PlayerToolManager* entityUI, ComponentEntity* ent, WorkPlaceCom
             static const int unseat = EnvOnValue(Opt().autoStaffUnseat) ? 1 : 0;
             if (unseat && wpc->workers._size > 0) {                    // +0x60
                 const int b = wpc->workers._size;
-                wpUi->OnElementEvent(nullptr, 0x12, 0x1451, 0, 0, 0, nullptr);
+                wpUi->OnElementEvent(nullptr, UI::EventId::Activated, 0x1451, 0, 0, 0, nullptr);
                 std::fprintf(stderr, "[AutoStaff] UNSEAT click: roster %d -> %d\n",
                              b, wpc->workers._size);
                 std::fflush(stderr);
@@ -186,7 +186,7 @@ int SeatViaPanel(PlayerToolManager* entityUI, ComponentEntity* ent, WorkPlaceCom
             for (int i = 0; i < want; ++i) {
                 const int before = wpc->workers._size;                  // +0x60
                 // msg 0x12 = button command, id 0x1450 = workerCountUp.
-                wpUi->OnElementEvent(nullptr, 0x12, 0x1450, 0, 0, 0, nullptr);
+                wpUi->OnElementEvent(nullptr, UI::EventId::Activated, 0x1450, 0, 0, 0, nullptr);
                 const int after = wpc->workers._size;
                 if (after <= before) break;      // nobody left to seat — stop asking
                 gained += after - before;

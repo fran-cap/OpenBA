@@ -394,10 +394,14 @@ void Element::GetAlignedPosition(ElementDescription::Alignment alignment,
 
     // ---- X: center for 1/4/7, right for 2/5/8, left otherwise -------------
     switch (align) {
-    case 1: case 4: case 7:
+    case ElementDescription::TopCenter:
+    case ElementDescription::MidCenter:
+    case ElementDescription::BottomCenter:
         outX = ((availW >> 1) - (outW >> 1)) + curX;
         break;
-    case 2: case 5: case 8:
+    case ElementDescription::TopRight:
+    case ElementDescription::MidRight:
+    case ElementDescription::BottomRight:
         outX = (containerW - rightPad) - outW;
         break;
     default:
@@ -406,9 +410,9 @@ void Element::GetAlignedPosition(ElementDescription::Alignment alignment,
     }
 
     // ---- Y: middle for 3..5, bottom for 6..8, top otherwise ---------------
-    if (align >= 3 && align <= 5) {
+    if (align >= ElementDescription::MidLeft && align <= ElementDescription::MidRight) {
         outY = ((availH >> 1) - (outH >> 1)) + curY;
-    } else if (align >= 6 && align <= 8) {
+    } else if (align >= ElementDescription::BottomLeft && align <= ElementDescription::BottomRight) {
         outY = (containerH - bottomPad) - outH;
     } else {
         outY = curY;
@@ -498,11 +502,11 @@ Object::Base* Element::GetUserData() {
 // `hide ? 0xFFFFFFFF : ~1`, so the AND is a no-op on the hide path.
 void Element::Hide(bool hide) {
     const uint32_t old = _flags;
-    const uint32_t setMask   = hide ? 1u : 0u;
-    const uint32_t clearMask = hide ? 0xFFFFFFFFu : ~1u;
+    const uint32_t setMask   = hide ? uint32_t{kElementFlagHidden} : 0u;
+    const uint32_t clearMask = hide ? 0xFFFFFFFFu : ~uint32_t{kElementFlagHidden};
     const uint32_t next = (old | setMask) & clearMask;
     _flags = next;
-    if ((next ^ old) & 1u) SetNeedsSizeCalc();
+    if ((next ^ old) & kElementFlagHidden) SetNeedsSizeCalc();
 }
 
 // ---- ?SetElementId@  0x180115820 -------------------------------------------
@@ -517,7 +521,7 @@ void Element::SetFlagsOnOff(uint32_t on, uint32_t off) {
     const uint32_t old = _flags;
     const uint32_t next = (old | on) & ~off;
     _flags = next;
-    if ((next ^ old) & 1u) SetNeedsSizeCalc();
+    if ((next ^ old) & kElementFlagHidden) SetNeedsSizeCalc();
 }
 
 }  // namespace UI
@@ -583,12 +587,12 @@ void Element::SetToolTip(::UIString tip) {
     uint32_t next;
     if (hadDialog && _toolTip.table != nullptr && _toolTip.index >= 0 &&
         (old & kElementFlagDisabled) == 0) {
-        next = old | (kElementFlagToolTip16 | kElementFlagToolTipValid);
+        next = old | (kElementFlagRaisesEvents | kElementFlagToolTipValid);
     } else {
         next = old & ~static_cast<uint32_t>(kElementFlagToolTipValid);
     }
     _flags = next;
-    if ((next ^ old) & 1u) SetNeedsSizeCalc();
+    if ((next ^ old) & kElementFlagHidden) SetNeedsSizeCalc();
 }
 
 // ---- ?SetToolTipString@  0x1800356e0 ---------------------------------------
@@ -614,9 +618,9 @@ void Element::InitFields() {
     _bottomPad        = 0;
     _minWidth         = 0;
     _minHeight        = 0;
-    _alignment        = 3;                                  // literal 3 at 0x180115e88
+    _alignment        = ElementDescription::MidLeft;        // literal 3 at 0x180115e88
     _flags            = UI::kElementFlagNeedsSizeCalc;      // 0x08000000
-    _color            = 0xFFFFFFFFu;
+    _color            = System::kColorWhite;
     _mouseCursorIndex = 0;
     _toolTipDialog    = nullptr;
     _toolTip.table    = nullptr;

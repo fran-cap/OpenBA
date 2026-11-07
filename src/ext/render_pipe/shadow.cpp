@@ -97,8 +97,9 @@ void HashMesh(Hasher& h, const Graphics::MeshInstance& mi) {
         pose = frozen->_nodes._data;
     } else {
         const Graphics::AnimationManager::Instance& inst =
-            Graphics::AnimationManager::_singleton->_instances._data[(handle >> 8) & 0xff];
-        pose = inst._states._data[handle & 0xff]._nodes._data;
+            Graphics::AnimationManager::_singleton
+                ->_instances._data[Graphics::AnimationManager::HandleInstance(handle)];
+        pose = inst._states._data[Graphics::AnimationManager::HandleState(handle)]._nodes._data;
     }
     h.Own(pose);
     for (int32_t k = 0; k < count; ++k) h.XfPair(pose[k]);

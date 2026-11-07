@@ -184,17 +184,17 @@ void IO::PersistenceWorker::GetSaveInfoJob() {
         }
 
         if (!opened) {
-            _status = 2;                                         // 0x1800b66e0
+            _status = static_cast<int32_t>(Status::Failed);      // 0x1800b66e0
         } else {
             // `headerBytes` is retail's ESI: 4 after the first read, 12 after the
             // optional second one, and it is the term the size check starts from.
-            uint32_t headerBytes = 4;                            // 0x1800b66ed
+            uint32_t headerBytes = RtIo::kSaveHeaderBytesV1;     // 0x1800b66ed
             bool ioFail  = false;
             bool badFile = false;
 
             // ---- 2. the 4-byte file header ------------------------------------
             if (!fs->ReadFile(bfs._file, 4, &_fileHeader)) {
-                _status = 2;
+                _status = static_cast<int32_t>(Status::Failed);
                 ioFail = true;
             } else if (static_cast<uint32_t>(static_cast<uint16_t>(_fileHeader >> 16)) !=
                        static_cast<uint32_t>(_blockCount)) {      // 0x1800b6720
@@ -203,13 +203,13 @@ void IO::PersistenceWorker::GetSaveInfoJob() {
                 // ---- 3. version 2 carries {magic, crc} ------------------------
                 // The 8 bytes land on `_magic` and the adjacent `_crc` (+0x48,
                 // +0x4c): retail reads them in one call from &magic.
-                if (static_cast<uint16_t>(_fileHeader) == 2) {    // 0x1800b672a
+                if (static_cast<uint16_t>(_fileHeader) == RtIo::kSaveFileVersion) {   // 0x1800b672a
                     if (!fs->ReadFile(bfs._file, 8, &_magic)) {
-                        _status = 2;
+                        _status = static_cast<int32_t>(Status::Failed);
                         ioFail = true;
                     } else {
-                        headerBytes = 0xC;                        // 0x1800b675e
-                        if (_magic != 0x80808080u) badFile = true;
+                        headerBytes = RtIo::kSaveHeaderBytesV2;   // 0x1800b675e
+                        if (_magic != RtIo::kSaveFileMagic) badFile = true;
                     }
                 }
 
@@ -229,8 +229,9 @@ void IO::PersistenceWorker::GetSaveInfoJob() {
                     descs->SetSize(static_cast<uint16_t>(_fileHeader >> 16));  // 0x1800b678c
 
                     const int32_t n = descs->_size;               // 0x1800b6791
-                    if (!fs->ReadFile(bfs._file, n * 0xC, descs->_data)) {
-                        _status = 2;
+                    if (!fs->ReadFile(bfs._file, n * static_cast<int32_t>(RtIo::kBlockDescBytes),
+                                      descs->_data)) {
+                        _status = static_cast<int32_t>(Status::Failed);
                         ioFail = true;
                     } else {
                         // ---- 6. the file size must add up ----------------------
@@ -241,23 +242,24 @@ void IO::PersistenceWorker::GetSaveInfoJob() {
                         // SetSize has just made them equal.
                         uint32_t total = headerBytes +
                             static_cast<uint32_t>(
-                                static_cast<uint16_t>(_fileHeader >> 16)) * 0xCu;
+                                static_cast<uint16_t>(_fileHeader >> 16)) * RtIo::kBlockDescBytes;
                         for (int32_t i = 0; i < n; ++i)           // 0x1800b67e1
                             total += descs->_data[i].size;
 
                         if (total != static_cast<uint32_t>(bfs._file.size)) {
                             badFile = true;                       // 0x1800b67f1
-                        } else if (static_cast<uint16_t>(_fileHeader) == 2) {
+                        } else if (static_cast<uint16_t>(_fileHeader) == RtIo::kSaveFileVersion) {
                             // ---- 7. recompute the checksum --------------------
                             // ?Compute@CRC@System@@SAIPEBXHI@Z (ordinal 1752,
                             // retail 0x1800c5490): System::CRC::Compute, by name.
                             uint32_t crc = ::System::CRC::Compute(
-                                        descs->_data, n * 0xC, 0xFFFFFFFFu);  // 0x1800b6811
+                                        descs->_data, n * static_cast<int32_t>(RtIo::kBlockDescBytes),
+                                        0xFFFFFFFFu);  // 0x1800b6811
 
                             // The 0x8000-byte stack buffer at [RBP-0x80]; the
                             // frame is `_chkstk(0x8088)`, so this size is retail's.
-                            static const uint32_t kChunk = 0x8000;
-                            uint8_t buffer[0x8000];
+                            static const uint32_t kChunk = RtIo::kSaveCrcChunkBytes;
+                            uint8_t buffer[RtIo::kSaveCrcChunkBytes];
                             const uint32_t* const table = CrcTable();
 
                             for (int32_t i = 0; i < descs->_size; ++i) { // 0x1800b6830
@@ -266,7 +268,7 @@ void IO::PersistenceWorker::GetSaveInfoJob() {
                                 bfs._file.cursor =
                                     static_cast<int32_t>(d->offset);        // 0x1800b6838
                                 // Loose (-1/-2) only; a packed entry needs no seek.
-                                if (static_cast<uint32_t>(bfs._file.handle) > 0xFFFFFFFDu)
+                                if (!RtIO::FileInfo::IsPackedHandle(bfs._file.handle))
                                     Platform::FileSeek32(                   // SetFilePointer
                                         bfs._file.winHandle,
                                         static_cast<int32_t>(d->offset));
@@ -292,12 +294,12 @@ void IO::PersistenceWorker::GetSaveInfoJob() {
 
             if (!ioFail) {
                 if (badFile) {
-                    _status = 3;                                            // 0x1800b691b
+                    _status = static_cast<int32_t>(Status::BadFile);        // 0x1800b691b
                 } else {
                     // 0x1800b68f9 — retail's own close, BEFORE the teardown's.
-                    if (bfs._file.handle != -1)
+                    if (bfs._file.handle != RtIO::FileInfo::kHandleNone)
                         fs->CloseFile(bfs._file);
-                    _status = 1;                                            // 0x1800b6911
+                    _status = static_cast<int32_t>(Status::Done);           // 0x1800b6911
                 }
             }
         }
@@ -306,7 +308,7 @@ void IO::PersistenceWorker::GetSaveInfoJob() {
         // The failure-to-open arm jumps past the `LEA RSI,[0x1801549a0]` at
         // 0x1800b6923 only because RSI still holds that value from 0x1800b65f9;
         // the teardown itself is the same on both paths.
-        if (bfs._file.handle != -1)
+        if (bfs._file.handle != RtIO::FileInfo::kHandleNone)
             fs->CloseFile(bfs._file);                                       // 0x1800b6942
     }   // ~bfs: ??1BinaryFileStream                                    // 0x1800b694f..
     fs->_platformExistsGate = savedGate;                                // 0x1800b69a3

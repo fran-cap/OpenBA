@@ -1106,7 +1106,7 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
 
             button->SetToolTip(uiString);
 
-            button->SetFlagsOnOff(0x10000, 0);
+            button->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
 
             // Set sprite on all ImageElement children
             int childIdx = 0;
@@ -1288,12 +1288,12 @@ void ToolbarDialog::OnUpdateLayout() {
 //
 // Original: 0x1400b92a0.
 
-void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t p7, void* /*userData*/) {
+void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t p7, void* /*userData*/) {
     // The game world and its tool manager
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
     PlayerToolManager* gameSys = gameWorld->m_toolManager;
 
-    if (eventType == 0x12) {
+    if (eventType == UI::EventId::Activated) {
         // Button click: eventData = button index
         int32_t buttonIndex = eventData;
 
@@ -1479,7 +1479,7 @@ void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, in
         }
         }
     }
-    else if (eventType == 0x16 && eventData == 1000 && p7 >= 0) {
+    else if (eventType == UI::EventId::RadioSelected && eventData == 1000 && p7 >= 0) {
         // Toolbar selection change: p7 = selected item index
         int32_t selIndex = p7;
         const Toolbar* item = toolbarItems[selIndex];

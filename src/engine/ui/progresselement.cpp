@@ -60,7 +60,7 @@ namespace UI {
 // [4] ?ComputeSize@ProgressElement@UI@@UEAAXXZ   0x1801198f0
 // ---------------------------------------------------------------------------
 void ProgressElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     const int32_t fillW  = _fillLeft.Width() + _fillMiddle.Width() + _fillRight.Width();
     int32_t trackW = _trackLeft.Width() + _trackMiddle.Width() + _trackRight.Width();
@@ -82,7 +82,7 @@ void ProgressElement::ComputeSize() {
     if (spriteH < fillH) spriteH = fillH;
     if (height  < spriteH) height = spriteH;
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutHeight = height;
 }
 
@@ -106,18 +106,22 @@ void ProgressElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t
     const int32_t aw = (right  - _rightPad)  - px;
 
     // Only the vertical stretch bit is tested; the width always stretches.
-    if ((_flags & kFlagStretchY) != 0) h = ah;
+    if ((_flags & UI::kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 2: case 5: case 8:
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
             px = (right - _rightPad) - aw;
             break;
         default:
             break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutLeft   = px;
@@ -140,17 +144,17 @@ void ProgressElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t
     uint32_t color;
     if (_currentValue == 0.0f) {
         if (_fillLeft.spriteIndex < 0) {
-            color = 0xffffffffu;
+            color = System::kColorWhite;
         } else {
             left += _fillLeft.Width();
-            color = 0xffffffffu;
+            color = System::kColorWhite;
         }
     } else {
         const int32_t capW = _fillRight.Width();
         if (barW + cw < (_layoutRight - left) - capW) {
-            color = 0xffffffffu;
+            color = System::kColorWhite;
         } else {
-            color = 0xff000000u;
+            color = System::kColorBlack;
             left  = (left - _fillRight.Width()) - cw;
         }
         left += barW;
@@ -174,11 +178,11 @@ void ProgressElement::Draw(SpriteContext& context, uint8_t alpha) const {
         _border->Draw(context, alpha);
 
     uint32_t raw = _backgroundColor;
-    if ((_flags & kFlagDimColor) != 0) alpha >>= 1;
+    if ((_flags & UI::kElementFlagDimColor) != 0) alpha >>= 1;
     const uint32_t trackColor = ModulateColor(raw, alpha);
 
     raw = _color;
-    if ((_flags & kFlagDimColor) != 0) alpha >>= 1;
+    if ((_flags & UI::kElementFlagDimColor) != 0) alpha >>= 1;
     const uint32_t fillColor = ModulateColor(raw, alpha);
 
     const int32_t left   = _layoutLeft;

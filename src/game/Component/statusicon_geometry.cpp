@@ -175,22 +175,22 @@ void StatusIconGeometry::Draw(Video::Context& context, const Graphics::Camera& c
         vtx[0].x = center[0] - right[0] + up[0];
         vtx[0].y = center[1] - right[1] + up[1];
         vtx[0].z = center[2] - right[2] + up[2];
-        vtx[0].color = 0xffffffffu; vtx[0].u = u0; vtx[0].v = v0;
+        vtx[0].color = System::kColorWhite; vtx[0].u = u0; vtx[0].v = v0;
         // v1 = center + right + up   uv(u1,v0)
         vtx[1].x = center[0] + right[0] + up[0];
         vtx[1].y = center[1] + right[1] + up[1];
         vtx[1].z = center[2] + right[2] + up[2];
-        vtx[1].color = 0xffffffffu; vtx[1].u = u1; vtx[1].v = v0;
+        vtx[1].color = System::kColorWhite; vtx[1].u = u1; vtx[1].v = v0;
         // v2 = center + right - up   uv(u1,v1)
         vtx[2].x = center[0] + right[0] - up[0];
         vtx[2].y = center[1] + right[1] - up[1];
         vtx[2].z = center[2] + right[2] - up[2];
-        vtx[2].color = 0xffffffffu; vtx[2].u = u1; vtx[2].v = v1;
+        vtx[2].color = System::kColorWhite; vtx[2].u = u1; vtx[2].v = v1;
         // v3 = center - right - up   uv(u0,v1)
         vtx[3].x = center[0] - right[0] - up[0];
         vtx[3].y = center[1] - right[1] - up[1];
         vtx[3].z = center[2] - right[2] - up[2];
-        vtx[3].color = 0xffffffffu; vtx[3].u = u0; vtx[3].v = v1;
+        vtx[3].color = System::kColorWhite; vtx[3].u = u0; vtx[3].v = v1;
 
         context.AddVertices(4, vtx);
 

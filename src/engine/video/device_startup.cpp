@@ -526,11 +526,11 @@ void Video::Device::PlatformShutdown() {
     // B.4 (R-ENG): `Application::_messageCallbacks` is the rtsetavl::Set at +0x18.
     {
         ::Application::Application* app = ::Application::Application::_singleton;
-        UnregisterInline(&app->_messageCallbacks, 5);           // WM_SIZE
+        UnregisterInline(&app->_messageCallbacks, Platform::Window::kMsgSize);           // WM_SIZE
     }
     {
         ::Application::Application* app = ::Application::Application::_singleton;  // 0x1800f842f
-        UnregisterInline(&app->_messageCallbacks, 0x232);       // WM_EXITSIZEMOVE
+        UnregisterInline(&app->_messageCallbacks, Platform::Window::kMsgExitSizeMove);   // WM_EXITSIZEMOVE
     }
 
     // 0x1800f8464: release the DeviceData — Shutdown (vtable +0x18, slot 3), then

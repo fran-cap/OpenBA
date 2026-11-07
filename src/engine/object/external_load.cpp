@@ -156,7 +156,7 @@ void ArraySetSize(void* arr, int32_t n) {
 }
 
 void CloseIfOpen(RtIO::FileInfo* fi) {
-    if (fi->handle == -1) return;
+    if (fi->handle == RtIO::FileInfo::kHandleNone) return;
     // ENDGAME B.3.9 SS1 (B39_RULES D7): the class static now, read fresh.
     ::IO::FileSystem::_singleton->CloseFile(*fi);                 // 0x1800accc0
 }

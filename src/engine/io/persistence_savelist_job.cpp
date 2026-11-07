@@ -220,7 +220,7 @@ void IO::PersistenceWorker::GetSaveListJob() {
     }
 
     // ---- 4. publish ---------------------------------------------------------
-    _status = 1;                                                // 0x1800b64c8
+    _status = static_cast<int32_t>(Status::Done);               // 0x1800b64c8
 
     // ---- 5. tear the FindFiles array down ----------------------------------
     // `found.data` is a raw buffer of `System::Filename` from an external

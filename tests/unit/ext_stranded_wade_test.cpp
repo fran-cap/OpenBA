@@ -15,31 +15,32 @@ using namespace Ext::StrandedWade;
 
 namespace {
 
-constexpr uint8_t kGrass = 2;
-constexpr uint8_t kShore = 7;
-constexpr uint8_t kWater = 8;
+constexpr PathType kGrass = PathType::Normal;
+constexpr PathType kShore = PathType::Water;
+constexpr PathType kWater = PathType::DeepWater;
 constexpr uint16_t kTown = 3;     // the anchor zone (his home's)
 constexpr uint16_t kIsland = 2;   // the zone across the river
 constexpr uint16_t kFar = 5;      // a third zone
 
 // One walk from the island toward home, refused on the zone test.
 State RefusedHome(State s) {
-    return OnRefusal(s, 0xe1f, kGrass, kIsland, kGrass, kTown, kTown);
+    return OnRefusal(s, PathBits::Walk, kGrass, kIsland, kGrass, kTown, kTown);
 }
 
 }  // namespace
 
 UNIT_TEST(ext_stranded_wade_zone_refusal) {
-    CHECK(IsZoneRefusal(0xe1f, kGrass, kIsland, kGrass, kTown));
-    CHECK(IsZoneRefusal(0xe1f, 1, kIsland, 10, kTown));
-    CHECK(!IsZoneRefusal(0xe1f, kGrass, kTown, kGrass, kTown));
+    CHECK(IsZoneRefusal(PathBits::Walk, kGrass, kIsland, kGrass, kTown));
+    CHECK(IsZoneRefusal(PathBits::Walk, PathType::Fast, kIsland, PathType::Walkable, kTown));
+    CHECK(!IsZoneRefusal(PathBits::Walk, kGrass, kTown, kGrass, kTown));
     // A zone-less endpoint (types 5-8) or pass flag: RequestPath bypasses the test.
-    for (uint8_t t = 5; t <= 8; ++t) {
-        CHECK(!IsZoneRefusal(0xe1f, t, 0, kGrass, kTown));
-        CHECK(!IsZoneRefusal(0xe1f, kGrass, kIsland, t, 0));
+    for (uint8_t i = 5; i <= 8; ++i) {
+        const PathType t = static_cast<PathType>(i);
+        CHECK(!IsZoneRefusal(PathBits::Walk, t, 0, kGrass, kTown));
+        CHECK(!IsZoneRefusal(PathBits::Walk, kGrass, kIsland, t, 0));
     }
     CHECK(!IsZoneRefusal(kRescueFlags, kGrass, kIsland, kGrass, kTown));
-    CHECK(!IsZoneRefusal(0xe1f, kGrass, 0, kGrass, kTown));
+    CHECK(!IsZoneRefusal(PathBits::Walk, kGrass, 0, kGrass, kTown));
 }
 
 UNIT_TEST(ext_stranded_wade_one_refusal_home_strands) {
@@ -59,22 +60,22 @@ UNIT_TEST(ext_stranded_wade_success_in_his_zone_does_not_reset) {
 
 UNIT_TEST(ext_stranded_wade_refusal_to_another_zone_does_not_count) {
     // On the island, a walk toward a third zone is refused: not toward the anchor.
-    State s = OnRefusal(State(), 0xe1f, kGrass, kIsland, kGrass, kFar, kTown);
+    State s = OnRefusal(State(), PathBits::Walk, kGrass, kIsland, kGrass, kFar, kTown);
     CHECK(!IsStranded(s, kGrass, kIsland, kTown));
     // ... and does not reset a record already made.
     s = RefusedHome(State());
-    s = OnRefusal(s, 0xe1f, kGrass, kIsland, kGrass, kFar, kTown);
+    s = OnRefusal(s, PathBits::Walk, kGrass, kIsland, kGrass, kFar, kTown);
     CHECK(IsStranded(s, kGrass, kIsland, kTown));
 }
 
 UNIT_TEST(ext_stranded_wade_home_in_his_own_zone_is_never_stranded) {
     // A town citizen whose walks to a target across the river are refused: his home is in his zone.
     State s;
-    for (int i = 0; i < 45; ++i) s = OnRefusal(s, 0xe1f, kGrass, kTown, kGrass, kIsland, kTown);
+    for (int i = 0; i < 45; ++i) s = OnRefusal(s, PathBits::Walk, kGrass, kTown, kGrass, kIsland, kTown);
     CHECK(!IsStranded(s, kGrass, kTown, kTown));
     // A citizen living across the river by the player's choice: his anchor is the island.
     State t;
-    for (int i = 0; i < 10; ++i) t = OnRefusal(t, 0xe1f, kGrass, kIsland, kGrass, kTown, kIsland);
+    for (int i = 0; i < 10; ++i) t = OnRefusal(t, PathBits::Walk, kGrass, kIsland, kGrass, kTown, kIsland);
     CHECK(!IsStranded(t, kGrass, kIsland, kIsland));
 }
 
@@ -131,8 +132,8 @@ UNIT_TEST(ext_stranded_wade_interrupted_rescue_is_forgotten) {
 }
 
 UNIT_TEST(ext_stranded_wade_hall_in_his_zone_needs_no_rescue) {
-    CHECK(!NeedsRescue(kGrass, kIsland, 4, kIsland));
-    CHECK(NeedsRescue(kGrass, kIsland, 4, kTown));
+    CHECK(!NeedsRescue(kGrass, kIsland, PathType::Obstacle, kIsland));
+    CHECK(NeedsRescue(kGrass, kIsland, PathType::Obstacle, kTown));
     CHECK(NeedsRescue(kShore, 0, kGrass, kTown));
 }
 

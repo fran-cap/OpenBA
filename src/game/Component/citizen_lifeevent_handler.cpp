@@ -157,7 +157,7 @@ extern "C" CemeteryComponent** Cemetery_FindNearestWithSlot_9740(CitizenBehavior
             dist = static_cast<int>(sqrtf(static_cast<float>(dy * dy + dx * dx))) + size;
         }
         if (dist < best
-            && (mapGrid->ValidateCell(0xe1f, citizenCell, static_cast<int>(cemCell)) & 0xff) != 0) {
+            && (mapGrid->ValidateCell(PathBits::Walk, citizenCell, static_cast<int>(cemCell)) & 0xff) != 0) {
             if (static_cast<int>(Cemetery_PickFreeSlot_6c60(slot->Get())) >= 0) {
                 *out = slot->Get();
                 best = dist;
@@ -227,16 +227,16 @@ extern "C" void Cemetery_SpawnTombstone_6a90(CemeteryComponent* cem, int cell,
     ComponentEntity* nullIBP = nullptr;                          // the InternalBasePtr(nullptr) ctor
     Map* map = world->m_game;                                    // +0xf8
     MapCell* cellRec = map->cells.GetData();                               // +0x80, stride 0x30
-    uint8_t oldState = cellRec[cell].terrainType;                // +0x29
-    bool stateWasWalk = ((1u << (oldState & 0x1f)) & 0x1e0u) != 0;   // old state 5..8
-    map->field_0xA2 |= static_cast<uint8_t>(stateWasWalk);   // SETNZ AL; OR byte [map+0xa2],AL (0x140046afd)
-    cellRec[cell].terrainType = 2;
+    uint8_t oldState = static_cast<uint8_t>(cellRec[cell].terrainType);   // +0x29
+    bool stateWasZoneless = ((1u << (oldState & 0x1f)) & Bits(PathBits::Zoneless)) != 0;   // old state 5..8
+    map->field_0xA2 |= static_cast<uint8_t>(stateWasZoneless);   // SETNZ AL; OR byte [map+0xa2],AL (0x140046afd)
+    cellRec[cell].terrainType = PathType::Normal;
     TerrainSidecar::NoteWrite(&cellRec[cell]);   // [terrain sidecar] mirror (missing until PERFXEXT)
     CellStamp::NoteWrite(&cellRec[cell]);   // [AMBMEMO] cell write clock
     int size = map->size;
-    if (stateWasWalk)
+    if (stateWasZoneless)
         map->regionGraph->MarkCellDirty(cell % size, cell / size);   // +0x70, 0x1400a8c90
-    map->pathfinder->SetCellTerrain(cell, 2);                        // +0x68, 0x1400a6fe0
+    map->pathfinder->SetCellTerrain(cell, ToUnderlying(PathType::Normal));   // +0x68, 0x1400a6fe0
     cellRec[cell].occupant = nullIBP;  // = null (+0x08)
     CellStamp::NoteWrite(&cellRec[cell]);   // [AMBMEMO] cell write clock
     // Tombstone yaw = the cemetery's own placed rotation (position component +0x30).
@@ -356,7 +356,7 @@ uint64_t CitizenComponent::HandleLifeEvent(int eventType, const char* strParam) 
     ComponentEntity* entIBP = _entity.Get();
     EntityList* loop = world->m_entityList;   // [gw+0xe8], no test
     if (entIBP != nullptr) {
-        if ((entIBP->_entityFlags >> 10 & 1) == 0) {
+        if ((entIBP->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
             entIBP->MarkForRemoval();   // 0x1400c2ea0
             loop->removalList
                 .SetSize(loop->removalList._size + 1, entIBP);   // +0xd0 / +0xd8

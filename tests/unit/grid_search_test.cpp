@@ -21,6 +21,7 @@
 // ============================================================================
 #include "unit.h"
 #include "Action/grid_search.h"
+#include "Game/PathType.h"   // PathBits (the walk masks)
 
 #include <cstdint>
 #include <cstdio>
@@ -69,7 +70,7 @@ struct RefSearch {
         }
         if (col < 0 || col >= w || row < 0 || row >= w) return -1;
         const int cell = w * row + col;
-        if (respectBlocked && (cellFlags[cell] & 0x80) != 0) return -1;
+        if (respectBlocked && (cellFlags[cell] & GridSearch::kCellBlocked) != 0) return -1;
         if (((passableTypes >> (cellFlags[cell] & 0x1f)) & 1u) == 0) return -1;
         return cell;
     }
@@ -111,7 +112,7 @@ struct RefSearch {
                 if (nb < 0) continue;
                 int dc = top.cell % width - nb % width; if (dc < 0) dc = -dc;
                 int dr = top.cell / width - nb / width; if (dr < 0) dr = -dr;
-                const int step = stepCost[cellFlags[nb] & 0x7f] * (dc + dr == 1 ? 10 : 14);
+                const int step = stepCost[cellFlags[nb] & GridSearch::kCellTypeMask] * (dc + dr == 1 ? 10 : 14);
                 const int t = nodes[top.cell].gCost + step;
                 Node& n = nodes[nb];
                 if (n.closedStamp == generation) {
@@ -206,10 +207,12 @@ Case MakeCase(Rng& r, int width, int wallPercent, int profile) {
         if (r.Chance(wallPercent)) c.flags[i] = 12;
     // blocked bits
     const int blockedCells = r.Below(1 + n / 20);
-    for (int k = 0; k < blockedCells; ++k) c.flags[r.Below(n)] |= 0x80;
+    for (int k = 0; k < blockedCells; ++k) c.flags[r.Below(n)] |= GridSearch::kCellBlocked;
 
     FillCosts(profile, c.cost);
-    static const uint32_t kMasks[] = { 0xe1fu, 0xa17u, 0xff7u, 0x0e1fu & ~0x100u, 0x7ffu };
+    static const uint32_t kMasks[] = { Bits(PathBits::Walk), Bits(PathBits::RoadRoute),
+                                       Bits(PathBits::RoadRouteRelaxed),
+                                       Bits(PathBits::Walk & ~PathBits::DeepWater), 0x7ffu };
     c.passable = kMasks[r.Below(5)];
     c.diag = r.Chance(85);
     c.manh = !c.diag && r.Chance(50);
@@ -325,8 +328,9 @@ UNIT_TEST(ext_fast_paths_real_scale_keeps_cost) {
                 ok = dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1 && (dx | dy) != 0 &&
                      (c.diag || dx == 0 || dy == 0) &&
                      ((c.passable >> (c.flags[q] & 0x1f)) & 1u) != 0 &&
-                     !(c.blocked && (c.flags[q] & 0x80) != 0);
-                sum += static_cast<int64_t>(c.cost[c.flags[q] & 0x7f]) * ((dx != 0 && dy != 0) ? 14 : 10);
+                     !(c.blocked && (c.flags[q] & GridSearch::kCellBlocked) != 0);
+                sum += static_cast<int64_t>(c.cost[c.flags[q] & GridSearch::kCellTypeMask]) *
+                       ((dx != 0 && dy != 0) ? 14 : 10);
             }
             ok = ok && sum == res.cost;
             bool same = res.count == refCount;
@@ -386,7 +390,8 @@ UNIT_TEST(ext_fast_paths_no_path_agrees) {
             for (int x = gx - 1; x <= gx + 1; ++x)
                 if (x != gx || y != gy) c.flags[y * w + x] = 12;
         do { c.start = r.Below(w * w); } while (c.flags[c.start] == 12 || c.start == c.goal);
-        c.passable = 0xe1fu | (1u << (c.flags[c.start] & 0x1f)) | (1u << (c.flags[c.goal] & 0x1f));
+        c.passable = Bits(PathBits::Walk) | (1u << (c.flags[c.start] & 0x1f)) |
+                     (1u << (c.flags[c.goal] & 0x1f));
         RefSearch ref = RefOf(c);
         const int refCount = ref.Run(c.start, c.goal, nullptr);
         const GridSearch::SearchResult s1 = fast.Run(InputOf(c, 1), nullptr);
@@ -417,7 +422,7 @@ UNIT_TEST(ext_fast_paths_path_cap_clamp) {
             c.flags[y * w + gap] = 2;
         }
         FillCosts(0, c.cost);
-        c.passable = 0xe1fu;
+        c.passable = Bits(PathBits::Walk);
         c.diag = diag != 0;
         c.start = 0;
         c.goal = (w - 2) * w + (((w - 2) / 2) % 2 == 0 ? 0 : w - 1);
@@ -448,7 +453,7 @@ UNIT_TEST(ext_fast_paths_unsupported_inputs) {
     c.width = 8;
     c.flags.assign(64, 2);
     FillCosts(0, c.cost);
-    c.passable = 0xe1fu;
+    c.passable = Bits(PathBits::Walk);
     c.start = 0;
     c.goal = 63;
     GridSearch::Searcher fast;
@@ -463,11 +468,14 @@ UNIT_TEST(ext_fast_paths_unsupported_inputs) {
     c.cost[2] = 4;
     CHECK(fast.Run(InputOf(c, 1), nullptr).status == GridSearch::Status::Found);
     // The scale: min over passable AND present types.
-    CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0xe1fu, ~0u), 1);           // type 11 costs 1
-    CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0xe1fu, 1u << 2), 4);       // ground only
-    CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0xe1fu, (1u << 2) | 1u), 3);   // + a road
+    CHECK_EQ(GridSearch::HeuristicScale(c.cost, Bits(PathBits::Walk), ~0u), 1);   // type 11 costs 1
+    // ground only
+    CHECK_EQ(GridSearch::HeuristicScale(c.cost, Bits(PathBits::Walk), Bits(PathBits::Normal)), 4);
+    // + a road
+    CHECK_EQ(GridSearch::HeuristicScale(c.cost, Bits(PathBits::Walk),
+                                        Bits(PathBits::Normal | PathBits::Faster)), 3);
     CHECK_EQ(GridSearch::HeuristicScale(c.cost, 0x0u, ~0u), 0);
-    CHECK_EQ(GridSearch::PresentTypes(c.flags.data(), 64), 1u << 2);
+    CHECK_EQ(GridSearch::PresentTypes(c.flags.data(), 64), Bits(PathBits::Normal));
 }
 
 // The regime PATHRESEARCH §1.6 reasons about: citizens (profile 0, mask 0xe1f,
@@ -489,7 +497,7 @@ UNIT_TEST(ext_fast_paths_open_ground_expansions) {
                 else       { const int x = r.Below(w); for (int y = 0; y < w; ++y) c.flags[y * w + x] = 1; }
             }
         FillCosts(0, c.cost);
-        c.passable = 0xe1fu;
+        c.passable = Bits(PathBits::Walk);
         c.diag = true;
         c.start = r.Below(w * w);
         c.goal = r.Below(w * w);

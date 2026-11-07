@@ -142,7 +142,7 @@ namespace {
 struct EventRecord {
     void*    dialog;     // +0x00
     void*    element;    // +0x08
-    int32_t  eventId;    // +0x10
+    UI::EventId eventId; // +0x10
     int32_t  elementId;  // +0x14
     int32_t  mouseX;     // +0x18
     int32_t  mouseY;     // +0x1c
@@ -372,20 +372,20 @@ void Element::Update(const System::Time& time, UserInterface* ui,
     bool hovering;
     if (l < mx && mx < r && t < my && my < b && inClip) {
         hovering = true;
-        _flags = oldFlags | 0x00020000u;                        // BTS 0x11
+        _flags = oldFlags | kElementFlagHovered;                // BTS 0x11
         // DEAD (see banner); Ghidra itself folds this arm away.
-        if ((((oldFlags | 0x00020000u) ^ oldFlags) & kElementFlagHidden) != 0)
+        if ((((oldFlags | kElementFlagHovered) ^ oldFlags) & kElementFlagHidden) != 0)
             SetNeedsSizeCalc();
     } else {
         hovering = false;
-        _flags = oldFlags & ~0x00020000u;                       // BTR 0x11
-        if ((((oldFlags & ~0x00020000u) ^ oldFlags) & kElementFlagHidden) != 0)
+        _flags = oldFlags & ~kElementFlagHovered;               // BTR 0x11
+        if ((((oldFlags & ~kElementFlagHovered) ^ oldFlags) & kElementFlagHidden) != 0)
             SetNeedsSizeCalc();
     }
 
     // ---- 5. tooltip -------------------------------------------------------
     const uint32_t f = _flags;
-    if ((f & kElementFlagToolTip16) == 0) return;               // BT 0x10 / JNC exit
+    if ((f & kElementFlagRaisesEvents) == 0) return;            // BT 0x10 / JNC exit
 
     if ((f & kElementFlagToolTipValid) != 0) {                  // BT 0x13
         DialogInstance* const dlg = dialog->Get();
@@ -398,14 +398,14 @@ void Element::Update(const System::Time& time, UserInterface* ui,
             rec.mouseY    = my;
             rec.dragId    = 0;
             rec.dragData  = nullptr;
-            if ((f & 0x00100000u) == 0) {                       // BT 0x14 clear
-                rec.eventId = 0xf;                              // tooltip BEGIN
+            if ((f & kElementFlagToolTipShown) == 0) {          // BT 0x14 clear
+                rec.eventId = EventId::ToolTipBegin;            // tooltip BEGIN
                 rtcoll::RtColl_ArraySetSizeFill_180033690(&u->_events, u->_events._size + 1, &rec);
                 Object::InternalPtr<DialogInstance> dlgLocal(dialog->Get());
                 Object::InternalPtr<Element> elemLocal(this);
                 u->BeginToolTip(&dlgLocal, &elemLocal, mx, my);         // 0x180120860
             } else {
-                rec.eventId = 0x10;                             // tooltip MOVE
+                rec.eventId = EventId::ToolTipMove;             // tooltip MOVE
                 rtcoll::RtColl_ArraySetSizeFill_180033690(&u->_events, u->_events._size + 1, &rec);
                 DialogInstance* const tip = ToolTipDialogOf(u);
                 if (tip) {
@@ -417,11 +417,11 @@ void Element::Update(const System::Time& time, UserInterface* ui,
                 }
             }
             const uint32_t o = _flags;
-            _flags = o | 0x00100000u;                           // BTS 0x14
-            if ((((o | 0x00100000u) ^ o) & kElementFlagHidden) != 0)
+            _flags = o | kElementFlagToolTipShown;              // BTS 0x14
+            if ((((o | kElementFlagToolTipShown) ^ o) & kElementFlagHidden) != 0)
                 SetNeedsSizeCalc();                             // DEAD
 
-        } else if ((f & 0x00100000u) != 0) {
+        } else if ((f & kElementFlagToolTipShown) != 0) {
             dialog->Get()->EndHover(u);                                 // 0x180113d10
             DialogInstance* const tip = ToolTipDialogOf(u);
             bool clear = false;
@@ -441,8 +441,8 @@ void Element::Update(const System::Time& time, UserInterface* ui,
                 u->_toolTipOwner  = nullptr;
             }
             const uint32_t o = _flags;
-            _flags = o & ~0x00100000u;                          // BTR 0x14
-            if ((((o & ~0x00100000u) ^ o) & kElementFlagHidden) != 0)
+            _flags = o & ~kElementFlagToolTipShown;             // BTR 0x14
+            if ((((o & ~kElementFlagToolTipShown) ^ o) & kElementFlagHidden) != 0)
                 SetNeedsSizeCalc();                             // DEAD
         }
     }
@@ -457,19 +457,19 @@ void Element::Update(const System::Time& time, UserInterface* ui,
     rec.dragId    = 0;
     rec.dragData  = nullptr;
 
-    const bool wasHovering = (oldFlags & 0x00020000u) != 0;
+    const bool wasHovering = (oldFlags & kElementFlagHovered) != 0;
     if (!wasHovering) {
         if (!hovering) return;
-        rec.eventId = 0;                                        // hover ENTER
+        rec.eventId = EventId::HoverEnter;                      // hover ENTER
         rtcoll::RtColl_ArraySetSizeFill_180033690(&u->_events, u->_events._size + 1, &rec);
     } else if (!hovering) {
-        rec.eventId = 1;                                        // hover LEAVE
+        rec.eventId = EventId::HoverLeave;                      // hover LEAVE
         rtcoll::RtColl_ArraySetSizeFill_180033690(&u->_events, u->_events._size + 1, &rec);
         return;
     }
 
     // ---- 7. the input events ---------------------------------------------
-    auto push = [&](int32_t id) {
+    auto push = [&](EventId id) {
         rec.dialog    = dialog->Get();
         rec.element   = this;
         rec.eventId   = id;
@@ -487,7 +487,7 @@ void Element::Update(const System::Time& time, UserInterface* ui,
         if (!state.b04) return;
         rec.dialog    = dialog->Get();
         rec.element   = this;
-        rec.eventId   = 0xc;                                    // DROP
+        rec.eventId   = EventId::Drop;                          // DROP
         rec.elementId = _elementId;
         rec.mouseX    = mx;
         rec.mouseY    = my;
@@ -499,13 +499,13 @@ void Element::Update(const System::Time& time, UserInterface* ui,
         return;
     }
 
-    if (state.buttonPressed) push(2);
-    if (state.b02)           push(4);
-    if (state.b03)           push(3);
-    if (state.b04)           push(5);
-    if (state.b05)           push(7);
-    if (state.b06)           push(6);
-    if (state.leftDown && (state.dragDx != 0 || state.dragDy != 0)) push(0xb);
+    if (state.buttonPressed) push(EventId::LeftPress);
+    if (state.b02)           push(EventId::MiddlePress);
+    if (state.b03)           push(EventId::RightPress);
+    if (state.b04)           push(EventId::LeftRelease);
+    if (state.b05)           push(EventId::MiddleRelease);
+    if (state.b06)           push(EventId::RightRelease);
+    if (state.leftDown && (state.dragDx != 0 || state.dragDy != 0)) push(EventId::Drag);
 }
 
 }  // namespace UI

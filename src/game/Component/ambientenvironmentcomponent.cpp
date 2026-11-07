@@ -223,7 +223,7 @@ void ScanRegion(const MapCell* cells, int gridWidth, int gridX, int gridY, int r
         for (int x = 0; x < rw; ++x) {
             intptr_t ci = (intptr_t)(gridY + y) * gridWidth + (gridX + x);
             const MapCell* cell = cells + ci;
-            uint8_t bits = cell->terrainType;
+            uint8_t bits = static_cast<uint8_t>(cell->terrainType);
 
             // Cell's entity reference (cell+0x00, else cell+0x08).
             ComponentEntity* ent = cell->blocker.Get();

@@ -236,7 +236,8 @@ int  CreateRawMaterial::AbstractImpl(ActionStack* actionStack) {
         if (naturalResFlag) {
             // Natural resource placement: use helper
             ComponentEntity* thirdEntity = tertiaryEntity.Get();
-            cellIndex = gameWorld->m_game->FindPlacementCell(matIdx, '\x01', &thirdEntity, placementFlags);   // 0x14009bd40
+            cellIndex = gameWorld->m_game->FindPlacementCell(matIdx, '\x01', &thirdEntity,
+                                                             static_cast<PathBits>(placementFlags));   // 0x14009bd40
         } else {
             cellIndex = matIdx;
         }

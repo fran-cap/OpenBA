@@ -255,7 +255,7 @@ IO::Stream* LoadBegin(IO::CompressedFileStream& cfs) {
         // A hit reads nothing of the package: the record is the entry's (package identity, offset,
         // size) and carries the entry's directory.
         std::lock_guard<std::mutex> lk(g_mu);
-        Package* const pkg = PackageAt(static_cast<uint32_t>(fi.handle) >> 24);
+        Package* const pkg = PackageAt(static_cast<uint32_t>(fi.handle) >> RtIO::FileInfo::kPackIndexShift);
         if (pkg == nullptr) {
             ++g_stats.loose;
             return nullptr;

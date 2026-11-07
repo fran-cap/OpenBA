@@ -299,7 +299,7 @@ void WorkAct_HarvestAreaCtor_c1530(CitizenComponent* const* citizenRef, uint32_t
             CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
             float speed = kRdata_140172280; // -1.0f
             Action* mv = nullptr;
-            mv = new (obj) MoveTo(&family, pathType, 0, param_5, 0xe1f, 0, speed);
+            mv = new (obj) MoveTo(&family, pathType, 0, param_5, PathBits::Walk, 0, speed);
             ibpA = mv;
             mvIbp = ibpA.Get();
         } else {

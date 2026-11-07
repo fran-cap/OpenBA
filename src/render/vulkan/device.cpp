@@ -1652,7 +1652,7 @@ void ImageBufferData::AttachColorBuffer() {
     ib->_addressV = 1;
     ib->_addressU = 1;
     ib->_filter = 0;
-    ib->_flags = 0x10;
+    ib->_flags = Video::ImageBuffer::kAliasedColor;
 }
 
 void ImageBufferData::AttachDepthBuffer() {
@@ -1668,7 +1668,7 @@ void ImageBufferData::AttachDepthBuffer() {
     ib->_addressV = 1;
     ib->_addressU = 1;
     ib->_filter = 0;
-    ib->_flags = 0x20;
+    ib->_flags = Video::ImageBuffer::kAliasedDepth;
 }
 
 // dx11 0x180001070: OMSetRenderTargets(colour, depth). Here the render buffer becomes the draw target;

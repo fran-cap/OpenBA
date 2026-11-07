@@ -319,6 +319,23 @@ class UserInterface;            // block E
 class SpriteContext;            // block D
 class SpriteSheet;
 
+// ---------------------------------------------------------------------------
+// DialogInstance::_flags (+0x20), seeded from Dialog::_defaultFlags (+0x40, the
+// .rsc value; the ctor copies one into the other, so the bits are the same in
+// both words). Names from Runtime-x64-profile.dll's {value, name} table at
+// 0x1802543b0 (the DialogInstance flag names); the predicates are cited per
+// line. Unscoped: the fields and SetFlagsOnOff stay uint32_t.
+// ---------------------------------------------------------------------------
+enum DialogFlag : uint32_t {
+    kDialogFlagPauseGame         = 0x00000001,   // ?PausesGame@ 0x180114160 = f & 1
+    kDialogFlagModal             = 0x00000002,   // ?IsModal@ 0x180114170 = f >> 1 & 1: input stops here
+    kDialogFlagNoMouseCapture    = 0x00000004,   // ?NoMouseCapture@ 0x180114150: the mouse passes through
+    kDialogFlagPerElementCapture = 0x00000008,   // ?PerElementCapture@ 0x180114140: hit test via root Contains
+    kDialogFlagFirstDraw         = 0x00000010,   // ?IsFirstDraw@ 0x180114130: the draw barrier
+    kDialogFlagNoDelete          = 0x00000020,   // ?DeleteOnClose@ 0x180114110 = !(f >> 5 & 1)
+    kDialogFlagAlwaysDraw        = 0x00000040,   // _defaultFlags only: still drawn below the first-draw dialog
+};
+
 class DialogInstance : public Object::Internal {
 public:
     // [0] CONCRETE (ENDGAME B.3.8 block RB, B38_RULES D1/D2): the exe
@@ -346,7 +363,7 @@ public:
     virtual void OnUpdateLayout();                                // [6] 0x1801153a0
     virtual void OnUpdate(const System::Time& time);              // [7] 0x180115400
     virtual void OnElementEvent(Object::InternalPtr<Element>* element,
-                                int32_t a, int32_t b, int32_t c,
+                                UI::EventId a, int32_t b, int32_t c,
                                 int32_t d, int32_t e, void* userData);  // [8] 0x180114ed0
     virtual void OnSerializeSettings(IO::Stream& stream);               // [9] 0x180115470  RET
 
@@ -376,6 +393,9 @@ public:
                        Object::ExternalPtr<DialogControllerConfig> config,
                        Object::ExternalPtr<ElementDescription> description,
                        const System::String& name);                            // 0x180113470
+    // The first dword of a saved-settings buffer (_userData): SaveSettings writes
+    // it, LoadSettings refuses a buffer without it (dialog_settings.cpp).
+    static constexpr uint32_t kSettingsMagic = 0xdeadbeefu;
     void SaveSettings();                                                       // 0x180114240
 
     // ---- exported, NOT PORTED here: declared, deliberately undefined -------

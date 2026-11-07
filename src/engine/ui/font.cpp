@@ -106,7 +106,7 @@ void MemFree(void* p) { System::MemoryAllocator::MemFree(p); }
 // format 2 (UTF-8) in BOTH the ECX and the arg-5 position, exactly as retail
 // does (`MOV ECX,0x2` + `MOV dword ptr [RSP+0x20],0x2`).
 int32_t DecodeUtf8(const void* src, const void* end, int32_t* cp) {
-    return RtIo_TextCodec_DecodeOne(2, src, end, cp, 2);
+    return RtIo_TextCodec_DecodeOne(IO::Text::Format::Utf8, src, end, cp, IO::Text::Format::Utf8);
 }
 
 // The two literals Serialize measures when it meets a file written before
@@ -142,7 +142,7 @@ int32_t MeasureLiteral(const UI::Font& font, const char* text, int32_t bytes) {
 
         if (cp >= 0 && cp < font._charToGlyph._size) {
             const int32_t glyph = font._charToGlyph._data[cp];
-            if (glyph != 0xffff && glyph != -1 && glyph >= 0) {      // 180117a5c..a6f
+            if (glyph != UI::Font::kNoGlyph && glyph != -1 && glyph >= 0) {  // 180117a5c..a6f
                 const UI::SpriteSheet* sheet = font._spriteSheet.Get();
                 // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
                 // the font resource and may be shorter (heap out-of-bounds read).
@@ -409,7 +409,7 @@ int32_t Font::ComputeLineLayout(const char* text, int32_t count, int32_t startX,
 
             if (cp >= 0 && cp < _charToGlyph._size) {
                 const int32_t glyph = _charToGlyph._data[cp];
-                if (glyph != 0xffff && glyph != -1 && glyph >= 0) {  // 180116d1e..d35
+                if (glyph != kNoGlyph && glyph != -1 && glyph >= 0) {  // 180116d1e..d35
                     const SpriteSheet* sheet = _spriteSheet.Get();
                     // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
                     // the font resource and may be shorter (heap out-of-bounds read).
@@ -500,7 +500,7 @@ int32_t Font::ComputeCharacterPosition(const System::String& text, int32_t count
 
             if (cp >= 0 && cp < _charToGlyph._size) {
                 const int32_t glyph = _charToGlyph._data[cp];
-                if (glyph != 0xffff && glyph != -1 && glyph >= 0) {  // 180116f6b..f79
+                if (glyph != kNoGlyph && glyph != -1 && glyph >= 0) {  // 180116f6b..f79
                     const SpriteSheet* sheet = _spriteSheet.Get();
                     // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
                     // the font resource and may be shorter (heap out-of-bounds read).
@@ -654,7 +654,7 @@ void Font::ComputeStringLayout(const System::String& text, bool multiline,
         // codepoint table lookup normally falls through. Faithful.
         if (cp < _charToGlyph._size) {   // 1801172d1
             const int32_t glyph = _charToGlyph._data[cp];
-            if (glyph != 0xffff && glyph != -1 && glyph >= 0) {      // 1801172e3..fa
+            if (glyph != kNoGlyph && glyph != -1 && glyph >= 0) {    // 1801172e3..fa
                 const SpriteSheet* sheet = _spriteSheet.Get();
                 // NOT RETAIL: retail bounds the glyph by the sheet only; `_glyphs` comes from
                 // the font resource and may be shorter (heap out-of-bounds read).

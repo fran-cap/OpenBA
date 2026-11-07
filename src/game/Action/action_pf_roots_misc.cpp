@@ -97,7 +97,7 @@ static inline float C_neg1() { return -1.0f; }
 // returns the matching cell index; else -1 after 7 rings.
 //
 // Literal transcription of the decompile, node/flag offsets disasm-verified.
-int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* allow, uint32_t param_5) {
+int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* allow, PathBits param_5) {
     const float fHalf = C_half();    // DAT_140172114
     const float fMinGrowth = C_097(); // DAT_14017213c
     const float fTol = C_1000();     // DAT_140172248
@@ -154,9 +154,10 @@ int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* al
                                 }
                                 if (occOk) {
                                     const MapCell& cell = cells.GetData()[lVar10];
-                                    uint32_t uVar8 = 1u << (cell.terrainType & 0x1f);
-                                    if (((uVar8 & 2) == 0) &&
-                                        (((uVar8 & 1) == 0) && (cell.field_0x2A == 0xff))) {
+                                    PathBits uVar8 = PathBitOf(cell.terrainType);
+                                    if (!Any(uVar8 & PathBits::Fast) &&
+                                        (!Any(uVar8 & PathBits::Faster)
+                                         && (cell.field_0x2A == MapCell::kNoRoadBatch))) {
                                         // the skip tree at field_0xE8 (key = cell index)
                                         const AvlNode28* piVar2 = field_0xE8.root;
                                         bool skip = false;
@@ -181,7 +182,8 @@ int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* al
                                                 if ((iVar20 < iVar14) && (iVar18 < iVar14)) {
                                                     iVar12 = iVar14 * iVar18 + iVar20;
                                                     const MapCell& at = cells.GetData()[iVar12];
-                                                    if (((1u << (at.terrainType & 0x1f) & 0xfffffffbU) == 0) &&
+                                                    // retail 0xfffffffb: every type but Normal
+                                                    if (!HasType(~PathBits::Normal, at.terrainType) &&
                                                         ((at.blocker == nullptr) &&
                                                          (at.footprintCount == 0))) {
                                                         // ext = (local_d0[2], local_c8) contiguous height-sample buffer.
@@ -201,7 +203,8 @@ int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* al
                                                         }
                                                     }
                                                 }
-                                            } else if ((param_5 >> (cell.terrainType & 0x1f) & 1) != 0) {
+                                            } else if ((Bits(param_5) >> (static_cast<uint8_t>(cell.terrainType) & 0x1f)
+                                                        & 1) != 0) {
                                                 return iVar7;  // break -> success
                                             }
                                         }
@@ -453,7 +456,7 @@ void HerdComponent::StartMigration() {
                 ComponentEntity* local_res8 = members[0]->_entity.Get();
                 EntityList* list = GameUpdateLoop::_singleton->m_entityList;
                 if (local_res8 != nullptr) {
-                    if ((local_res8->_entityFlags >> 10 & 1) == 0) {
+                    if ((local_res8->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                         local_res8->MarkForRemoval();   // 0x1400c2ea0
                         list->removalList.SetSize(list->removalList._size + 1, local_res8);   // 0x140003110
                     }

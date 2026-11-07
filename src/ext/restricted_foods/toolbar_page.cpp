@@ -43,6 +43,7 @@
 #include "Entity/CitizenBehavior.h"
 #include "Component/ComponentDescription.h"
 #include "Component/Description.h"
+#include "Dialog/ModDialog.h"   // ModDialog::kRowTintIdle (the Mods list's row tint)
 
 #include "ext/registry.h"
 #include "ext/restricted_foods/restricted_foods.h"
@@ -71,6 +72,7 @@ constexpr int32_t kMaxRows = Toolbar::kPageIdSpan - kRowId;
 
 constexpr const char* kWindowRsc = "Dialog/ExtensionsWindow.rsc";
 constexpr const char* kCellRsc   = "Dialog/RestrictedFoodsPage.rsc:ribbonRestrictedFoodsCell";
+constexpr uint32_t kRowTintBlocked = 0x20ffa0a0u;   // a blocked food's row (red; ARGB)
 constexpr int kColumns = 4;   // RestrictedFoodsPage.rsc:tableRestrictedFoods's _width: the columns when the
                               // list's width is not known
 
@@ -173,7 +175,7 @@ std::vector<Food> CollectFoods() {
             continue;
         }
         const RawMaterialDescription* m = static_cast<const RawMaterialDescription*>(prev);
-        if ((m->_flags & kEdible) == 0) {
+        if ((m->_flags & RawMaterialFlags::Edible) == 0) {
             continue;
         }
         if (m->_name._data == nullptr || m->_name._data[0] == 0) {
@@ -244,7 +246,7 @@ void RefreshRow(int index) {
     }
     // Red-tinted when blocked, the Mods list's white otherwise.
     if (r.border.Get() != nullptr) {
-        r.border->SetColor(r.pending ? 0x20ffa0a0u : 0x10ffffffu);
+        r.border->SetColor(r.pending ? kRowTintBlocked : ModDialog::kRowTintIdle);
     }
 }
 

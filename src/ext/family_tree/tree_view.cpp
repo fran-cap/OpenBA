@@ -32,6 +32,7 @@
 #include "ext/family_tree/tree_view.h"
 #include "ext/ui/find_element.h"
 #include "ext/ui/list_width.h"
+#include "ext/ui/row_tint.h"   // Ext::RowTint::kSelected
 
 #include <algorithm>
 #include <cstdint>
@@ -50,6 +51,10 @@ constexpr const char* kSpaceBoxRsc = "Dialog/FamilyTreePage.rsc:ribbonFamilySpac
 constexpr const char* kSpaceLinkRsc = "Dialog/FamilyTreePage.rsc:ribbonFamilySpaceLink";
 constexpr const char* kGapRsc = "Dialog/FamilyTreePage.rsc:imageFamilyGap";
 constexpr const char* kGapStemRsc = "Dialog/FamilyTreePage.rsc:imageFamilyGapStem";
+
+// A person box's border tint (ARGB) when it is not the selected one (Ext::RowTint::kSelected).
+constexpr uint32_t kBoxTintDead = 0x20808080u;   // a dead person: faint grey
+constexpr uint32_t kBoxTintNone = 0x00ffffffu;   // a living person: no tint (alpha 0)
 
 UI::ElementDescription* CellTemplate(const char* rsc) {
     const ::Object::External* ext = ::Object::ExternalFactory::_singleton->FindOrLoad(System::Filename(rsc));
@@ -144,9 +149,9 @@ void TreeView::Tint(uint32_t selected) {
     for (size_t k = 0; k < boxBorder_.size() && k < boxPerson_.size(); ++k) {
         if (boxBorder_[k].Get() == nullptr) continue;
         const Person* p = tree.Find(boxPerson_[k]);
-        const uint32_t color = boxPerson_[k] == selected ? 0x30a0c8ffu
-                                                         : (p != nullptr && !p->Alive() ? 0x20808080u
-                                                                 : 0x00ffffffu);
+        const uint32_t color = boxPerson_[k] == selected ? Ext::RowTint::kSelected
+                                                         : (p != nullptr && !p->Alive() ? kBoxTintDead
+                                                                 : kBoxTintNone);
         boxBorder_[k]->SetColor(color);
     }
 }

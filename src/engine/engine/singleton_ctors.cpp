@@ -626,7 +626,7 @@ Audio::Configuration* Ctor_AudioConfiguration(Audio::Configuration* self) {
 // by-address read of the minted unnamed row (a function-local lazy cache, B9-10)
 // is gone with that row.
 Audio::Device* Ctor_AudioDevice(Audio::Device* self) {
-    for (int i = 0; i < 64; ++i) {
+    for (int i = 0; i < Audio::Device::kChannelCount; ++i) {
         Audio::Device::AudioChannel& c = self->_channels[i];
         c.flags      = 0;
         c.source     = nullptr;
@@ -637,12 +637,12 @@ Audio::Device* Ctor_AudioDevice(Audio::Device* self) {
     // ENDGAME B.3.9 ENG W2: `??0Stream` is the class's real ctor now (it was
     // the door, by name); built in place at +0xa00 as retail's LEA/CALL does.
     ::new (&self->_stream) Audio::Stream();
-    for (int i = 0; i < 64; ++i)
+    for (int i = 0; i < Audio::Device::kChannelCount; ++i)
         ::new (&self->_platformChannels[i]) Audio::Device::PlatformChannel();
     Audio::Device::_singleton = self;
     self->_xaudio2        = nullptr;
     self->_masteringVoice = nullptr;
-    for (int i = 0; i < 64; ++i)
+    for (int i = 0; i < Audio::Device::kChannelCount; ++i)
         self->_platformChannels[i].channel = &self->_channels[i];
     return self;
 }

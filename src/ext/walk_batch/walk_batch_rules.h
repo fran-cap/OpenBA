@@ -19,6 +19,7 @@
 
 #include "Game/exe_constants.h"   // kRdata_* (the exe .rdata floats the bodies read)
 #include "Action/saved_bounds.h"   // ActionBounds::WorldToCellAxis (moveto.cpp's cell, review F-160)
+#include "Game/PathType.h"         // PathType (standalone: <cstdint> and EnumFlags.h only)
 
 namespace Ext {
 namespace WalkBatch {
@@ -43,11 +44,12 @@ inline int WorldToCell(int mapSize, float worldX, float worldY) {
 
 // MoveTo::Execute's speed for the cell the character stands in, follow flag (+0x474) CLEAR
 // (a set flag is declined, DecideWalk): a road / path byte (type & ~8 == 0 after -1, i.e.
-// 1 or 9) -> desc +0x34; 0 -> desc +0x38; anything else -> 1.0 (0x14017214c). The caller
+// PathType::Fast 1 or PathType::Bridge 9; retail's bit trick kept) -> desc +0x34;
+// PathType::Faster 0 -> desc +0x38; anything else -> 1.0 (0x14017214c). The caller
 // multiplies by MoveTo +0x478 and stores it at CharacterComponent +0x38.
 inline float TerrainSpeed(uint8_t terrainType, float descRoad34, float descNormal38) {
     if (((terrainType - 1) & 0xFFFFFFF7) == 0) return descRoad34;
-    if (terrainType == 0) return descNormal38;
+    if (terrainType == ToUnderlying(PathType::Faster)) return descNormal38;
     return kRdata_14017214c;
 }
 

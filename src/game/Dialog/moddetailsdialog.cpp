@@ -224,8 +224,8 @@ void ModDetailsDialog::OnOpened() {
 
     if (conflictCount == 0) {
         // Hide conflict title and list when no conflicts
-        textConflictTitle->SetFlagsOnOff(1, 0);
-        textConflictList->SetFlagsOnOff(1, 0);
+        textConflictTitle->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        textConflictList->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     } else {
         // Set conflict list text (DocumentTextElement)
         textConflictList->SetText(conflictResult);
@@ -348,11 +348,11 @@ void ModDetailsDialog::OpenUpdateDialog(const char* rscPath) {
 // ============================================================
 // OnElementEvent (0x14006D6A0): OnCommand — button dispatch.
 // ============================================================
-void ModDetailsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 == 0x12)
+void ModDetailsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (param3 == UI::EventId::Activated)
         printf("[ModDetailsDialog::OnEvent] click id=%d\n", param4);
 
-    if (param3 != 0x12)
+    if (param3 != UI::EventId::Activated)
         return;
 
     if (param4 == 0) {

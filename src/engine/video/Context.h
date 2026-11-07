@@ -184,13 +184,10 @@
 //
 // Wave 9 lane CTX read `?BindResources@Context@Video@@` (0x1800ef060) — the one
 // function that consumes the whole mask — and that is where 0x100, 0x2000 and
-// 0x8000 above come from, along with one correction that is NOT applied to the
-// enum name: bit 0x1000 uploads +0x3f8 length 0x20 (`_inverseScale` and
-// `_color`) into the buffer at +0x1fc0, which this header calls
-// `_instanceConstants`. `kDirtyMaterialConstants` is therefore a MISLEADING
-// name for 0x1000 — the material constants are 0x8000 — and it is left alone
-// only because `src/engine/ui/userinterface_draw.cpp:261` spells it. Renaming
-// it is owed to the caller pass.
+// 0x8000 above come from, along with one correction: bit 0x1000 uploads +0x3f8
+// length 0x20 (`_inverseScale` and `_color`) into the buffer at +0x1fc0, which
+// this header calls `_instanceConstants`. It is kDirtyInstanceConstants (it was
+// once misnamed kDirtyMaterialConstants); kDirtyMaterialConstants is 0x8000.
 //
 // BindResources also settles what +0x20 and +0x24 are for: its transform arm
 // fires on `(dirty & 0x4000) || (int32)+0x20 > 0 || (int32)+0x24 > 0`, and its
@@ -204,6 +201,7 @@
 
 #include "../math/Math.h"
 #include "ConstantBuffer.h"
+#include "ClearFlags.h"       // Video::ClearFlags (Clear's first argument)
 // ENDGAME B.3.5 block D2, RULE B5-2.3: the real `Video::RenderBuffer`, which
 // `RtVideo::RenderBufferPrefix` below is now an alias of rather than a third view.
 #include "Device.h"
@@ -353,7 +351,7 @@ public:
     // ---- ported: the nine backend forwarders ---------------------------
     // Each is a three-instruction tail call through the `ContextData` vtable at
     // the byte offset in the `kSlot*` enum below. Bodies in context.cpp.
-    void Clear(uint32_t flags, uint32_t color, float depth, int32_t stencil);  // 0x1800f23f0
+    void Clear(ClearFlags flags, uint32_t color, float depth, int32_t stencil);  // 0x1800f23f0
     void DrawIndexed(int32_t primitiveType, int32_t a, int32_t b,
                      int32_t c, int32_t d, int32_t e);             // 0x1800f2410
     int32_t GetMaxDynamicInstances(int32_t a, int32_t b, int32_t c) const;     // 0x1800f21d0
@@ -770,9 +768,13 @@ constexpr int kTransformSlots  = 52;
 // and Reset both walk exactly 0x10 iterations over each array.
 constexpr int kImageBufferSlots  = 16;
 constexpr int kVertexBufferSlots = 16;
+// Context::_imageBufferDirty (+0x18) is one bit per texture slot: every slot dirty.
+constexpr uint32_t kAllImageBufferSlotsDirty = 0xffffu;   // (1u << kImageBufferSlots) - 1
 
 // ---- Dirty-mask bits (named by their setters; see the banner) ---------------
-enum : uint32_t {
+// Context::_dirty (+0x10): what BindResources (0x1800ef060) must re-bind or re-upload.
+// Unscoped so `ctx->_dirty |= RtVideo::kDirtyX` stays an integer expression.
+enum ContextDirty : uint32_t {
     kDirtyRenderBuffer      = 0x00000001u,
     kDirtyImageBuffers      = 0x00000002u,
     kDirtyVertexLayout      = 0x00000004u,
@@ -785,16 +787,15 @@ enum : uint32_t {
     kDirtyViewport          = 0x00000200u,
     kDirtyScissor           = 0x00000400u,
     kDirtyGlobalConstants   = 0x00000800u,
-    // MISNAMED — this bit feeds the INSTANCE constants at +0x1fc0; the material
-    // constants are 0x8000. See the banner; one caller outside this block
-    // spells it, so the rename is owed to the caller pass.
-    kDirtyMaterialConstants = 0x00001000u,
+    // The INSTANCE constants: BindResources uploads +0x3f8 length 0x20
+    // (`_inverseScale` and `_color`) into the buffer at +0x1fc0 (context_bind.cpp).
+    // Formerly misnamed kDirtyMaterialConstants; see the banner.
+    kDirtyInstanceConstants = 0x00001000u,
     kDirtyLightConstants    = 0x00002000u,
     kDirtyTransformConstants= 0x00004000u,
-    // 0x00008000 is the REAL material-constant bit (the buffer at +0x298). It is
-    // deliberately NOT given a name here: the name it should have is taken by
-    // 0x1000 above, and inventing a second spelling would make the two
-    // indistinguishable at a call site. context_bind.cpp uses the literal.
+    // The REAL material constants: the buffer at +0x298 (staging +0x208),
+    // BindResources' upload {0x08000, &_materialConstants}.
+    kDirtyMaterialConstants = 0x00008000u,
     kDirtyPixelConstants    = 0x00010000u,
     // The literal Reset (0x1800f1e50) stores into +0x10 before it starts
     // re-dirtying individual bindings. Bits 9..16 inclusive.

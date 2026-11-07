@@ -19,6 +19,7 @@
 #include <cstddef>
 #include "Action/Action.h"
 #include "Action/PathSearch.h"   // PathTicket
+#include "Game/PathType.h"       // PathBits (the ctor's pass flags)
 #include "Object/exe_type.h"
 #include "object/Internal.h"     // Object::InternalPtr<T>
 #include "math/Math.h"           // Math::Vector3
@@ -32,7 +33,7 @@ class MoveTo final : public Action {
 public:
     MoveTo();                                                   // create 0x1400228c0
     MoveTo(CharacterComponent* const* character, uint32_t moveAnimation, int stopAnimation,
-           const float* destination, uint32_t passFlags, int movementProfile,
+           const float* destination, PathBits passFlags, int movementProfile,
            float speed);   // 0x1400c9170
     ~MoveTo() override = default;                              // [0] 0x140022900
     void Persist(IO::Stream& stream) override;                       // [3] 0x1400c8ec0

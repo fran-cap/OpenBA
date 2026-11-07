@@ -177,7 +177,7 @@ extern "C" uint64_t Entity_ReassignCost_6c60(const void* /*param_1*/,   // LEFT:
             ComponentEntity* workplaceIBP = worker->workplace.Get();
             uint32_t wpCell = static_cast<uint32_t>(EntityAnchorCell(&workplaceIBP, nullptr));
             // WorkBase_ValidateCell_a00f0 returns its bool in the low byte of a uint64.
-            if (static_cast<uint8_t>(pathData->ValidateCell(0xe1f, targetCell,
+            if (static_cast<uint8_t>(pathData->ValidateCell(PathBits::Walk, targetCell,
                                                                   static_cast<int>(wpCell)))) {
                 total += static_cast<uint32_t>(pathData->CalcDistance(targetCell, wpCell));
             }

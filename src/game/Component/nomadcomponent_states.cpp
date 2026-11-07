@@ -161,7 +161,7 @@ bool NomadHasArrived(NomadComponent* nomad) {
 // ============================================================
 void EntityList::QueueDestroy(ComponentEntity* const* entity) {
     if (*entity == nullptr) return;
-    if (((*entity)->_entityFlags >> 10) & 1) return;
+    if ((*entity)->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) return;
     (*entity)->MarkForRemoval();   // 0x1400c2ea0
     removalList.SetSize(removalList._size + 1, *entity);
 }
@@ -179,7 +179,7 @@ void NomadComponent::MoveTo(Math::Vector3* dest) {
     Action* act = nullptr;
     if (mem) {
         CharacterComponent* ownerIBP = chr;
-        act = ::new (mem) ::MoveTo(&ownerIBP, 1 /*Slow*/, 0, &dest->x, 0xe1f, 0, kMoveSpeed);   // 0x1400c9170
+        act = ::new (mem) ::MoveTo(&ownerIBP, 1 /*Slow*/, 0, &dest->x, PathBits::Walk, 0, kMoveSpeed);   // 0x1400c9170
     }
     ::Object::InternalPtr<Action> actIBP = act;
     ActionStackPush(&chr->actionStack, &actIBP);   // 0x1400c54e0
@@ -260,7 +260,7 @@ char NomadComponent::TickLoiter(const System::Time* time) {
             int xx = x0 + rx;
             if (xx < 0 || xx >= W || yy < 0 || yy >= W) continue;
             int c = yy * W + xx;
-            if (tiles[static_cast<uintptr_t>(c)].terrainType < 3) cand[nc++] = c;   // +0x29
+            if (tiles[static_cast<uintptr_t>(c)].terrainType < PathType::Occasional) cand[nc++] = c;   // +0x29
         }
     }
     if (nc != 0) {

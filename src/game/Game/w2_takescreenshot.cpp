@@ -127,11 +127,11 @@ void GameUpdateLoop::TakeScreenshot() {
         ::new (frameCopy) Graphics::FrameCopyImageBuffer();
     }
 
-    // Retail's literal arg list: (imageType=0, usage=4, format=5, mip=0x100,
+    // Retail's literal arg list: (imageType=0, usage=4, format=5, flags=0x100,
     // width, height, filterMode=1, addressMode 1,1,1, initialData=nullptr).
     // Both are VIRTUALS the class overrides ([9] 0x1800a3b70 and [10] 0x1800a3b20);
     // the receiver wears the Runtime vptr the ctor installed (departure (1)).
-    frameCopy->Create(0, 4, 5, 0x100u, width, height, 1, 1, 1, 1, nullptr);
+    frameCopy->Create(0, 4, 5, Video::ImageBuffer::kViewportSize, width, height, 1, 1, 1, 1, nullptr);
     static_cast<const Graphics::FrameCopyImageBuffer*>(frameCopy)->Generate(videoCtx, 1);
 
     // --- <saveDir>\Screenshots\Screenshot<N>.bmp, first N that does not exist --

@@ -274,7 +274,7 @@ extern "C" void* CitizenAI_Entity_impl_f230(const CitizenBehavior* param_1, Comp
             if (ix < 0) ix = 0; if (dim <= ix) ix = dim - 1;
             if (iy < 0) iy = 0; if (dim <= iy) iy = dim - 1;
             uint32_t cell = static_cast<uint32_t>(dim * iy + ix);
-            uint64_t reachable = mapGrid->ValidateCell(0xe1f, param_3, cell);
+            uint64_t reachable = mapGrid->ValidateCell(PathBits::Walk, param_3, cell);
             if (static_cast<char>(reachable) != '\0') {
                 int cost = mapGrid->CalcDistance(param_3, cell);
                 if (cost < bestCost) {
@@ -430,7 +430,7 @@ void CitizenComponent::LongTermPlan() {
 
         // commit the action-state flags on the citizen and run the executor.
         field_0x30 = -1;
-        statusFlags |= 4;
+        statusFlags |= Bits(CitizenStatus::TaskDone);
         field_0xB0 = 0;
 
         System::Time timeStamp{};
@@ -608,7 +608,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
 
                     // success epilogue: flag triplet on the citizen.
                     CitizenComponent* cz = citizen.Get();
-                    cz->statusFlags |= 4;
+                    cz->statusFlags |= Bits(CitizenStatus::TaskDone);
                     cz->field_0x30 = -1;
                     cz->field_0xB0 = 0;
 

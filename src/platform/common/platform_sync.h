@@ -41,6 +41,8 @@ static_assert(alignof(LockStorage) == 8, "LockStorage keeps the slot's 8-byte al
 // spinCount) when spinCount != 0 (every retail lock passes 5000; the port-only
 // res_load_lock passes 0, i.e. it never set a spin count).
 void MutexInit(LockStorage* lock, uint32_t spinCount);
+// Retail's SetCriticalSectionSpinCount value for every engine lock (MOV EDX,0x1388).
+constexpr uint32_t kLockSpinCount = 5000;   // 0x1388
 void MutexLock(LockStorage* lock) ACQUIRE(*lock);     // EnterCriticalSection: recursive
 void MutexUnlock(LockStorage* lock) RELEASE(*lock);   // LeaveCriticalSection
 void MutexDestroy(LockStorage* lock);   // DeleteCriticalSection

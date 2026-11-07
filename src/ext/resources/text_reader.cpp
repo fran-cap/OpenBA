@@ -514,7 +514,8 @@ private:
                         if (!_clearArrays) { _pending = Unescape(t->text); _pendingSet = true; }
                     }
                     *static_cast<uint32_t*>(v) = _pendingSet
-                        ? (static_cast<uint32_t>(_pending.size() + 1) | 0x80000000u) : 0x80000000u;
+                        ? (static_cast<uint32_t>(_pending.size() + 1) | System::String::kSerializedUtf8Flag)
+                        : System::String::kSerializedUtf8Flag;
                     f.phase = 1;
                     return;
                 }
@@ -550,7 +551,8 @@ private:
                     // length leaves `path = cur->GetPath()` as the engine built it).
                     if (!Expect(p, Prim::UInt, d, slot)) return;
                     *static_cast<uint32_t*>(v) = _pendingSet
-                        ? (static_cast<uint32_t>(_pending.size() + 1) | 0x80000000u) : 0x80000000u;
+                        ? (static_cast<uint32_t>(_pending.size() + 1) | System::String::kSerializedUtf8Flag)
+                        : System::String::kSerializedUtf8Flag;
                     f.phase = 2;
                     return;
                 }

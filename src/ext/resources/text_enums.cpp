@@ -22,7 +22,8 @@ struct EnumValue {
 };
 
 const EnumValue kEnumValues[] = {
-    // Element::GetAlignedPosition (element.cpp): row-major 3x3, 0 = top-left .. 8 = bottom-right.
+    // UI::ElementDescription::Alignment's names and values (ElementDescription.h; the unit test
+    // ext_rsc_text_alignment_names holds the two equal): row-major 3x3, 0 = top-left .. 8 = bottom-right.
     { kAlignment, "TopLeft", 0 },    { kAlignment, "TopCenter", 1 },    { kAlignment, "TopRight", 2 },
     { kAlignment, "MidLeft", 3 },    { kAlignment, "MidCenter", 4 },    { kAlignment, "MidRight", 5 },
     { kAlignment, "BottomLeft", 6 }, { kAlignment, "BottomCenter", 7 }, { kAlignment, "BottomRight", 8 },

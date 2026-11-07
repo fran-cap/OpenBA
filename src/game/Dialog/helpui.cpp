@@ -406,18 +406,18 @@ static void HelpUI_StepHistory(HelpUI* self, int step) {
 }
 
 // [9] 0x14006a290
-void HelpUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg, int32_t id,
+void HelpUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId msg, int32_t id,
                             int32_t /*param5*/, int32_t /*param6*/, int32_t linkIndex, void* /*userData*/) {
     if (!helpui_sa::CheckOnce()) return;
     helpui_sa::Trace("Slot9", this);
 
-    if (msg == 0x14 && id == 0xE74) {
+    if (msg == UI::EventId::SelectionChanged && id == 0xE74) {
         // Combo selection changed — reload page
         LoadPage();
         return;
     }
 
-    if (msg != 0x12)
+    if (msg != UI::EventId::Activated)
         return;
 
     if (id != 0xE75 && id != 0xE76 && id != 0xE77)

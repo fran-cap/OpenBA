@@ -144,6 +144,7 @@ enum GeometryDirty : uint32_t {
     kRolledTransform    = 0x08,  // Clean: set when 0x01 was seen, cleared next call
     kRolledBounds       = 0x10,  // Clean: set when 0x02 was seen, cleared next call
     kRolledOpacity      = 0x20,  // Clean: set when 0x04 was seen, cleared next call
+    kDirtyAll           = 0x07,  // the ctor's store: all three inputs dirty, nothing rolled
 };
 
 // (B3X W0: the `GeometryVSlot` index enum -- `kVSlotAddDrawItems` .. `kVSlotClean`

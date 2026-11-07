@@ -109,14 +109,14 @@ void CitizenBehavior::ScanWaterCell(Map* map, int coarseCell, int ringX, int rin
                 // Cell-type gate: bit (cellType & 0x1f) of mask 0xe07 must be set.
                 // cellType = byte +0x29 of the 0x30-byte map cell (disasm:
                 // MOV RAX,[R14 + 0x80]).
-                uint8_t cellType = map->cells.GetData()[static_cast<int>(uVar7)].terrainType;
-                if (((1u << (cellType & 0x1f)) & 0xe07u) == 0)
+                uint8_t cellType = static_cast<uint8_t>(map->cells.GetData()[static_cast<int>(uVar7)].terrainType);
+                if (((1u << (cellType & 0x1f)) & Bits(PathBits::Access)) == 0)
                     goto next;
             }
 
             // Reachability: path-type 0xe07 query then explicit length query.
             {
-                uint64_t ok = map->ValidateCell(0xe07, srcCell, static_cast<int>(uVar7));
+                uint64_t ok = map->ValidateCell(PathBits::Access, srcCell, static_cast<int>(uVar7));
                 if (static_cast<char>(ok) != '\0') {
                     int iVar2;
                     iVar2 = map->PathDistance(srcCell, uVar7, '\x01');   // 0x14009f810 (was its Pf_IsDstReachable_f810 forwarder)

@@ -313,7 +313,7 @@ int System::Compression::Decompress(const void* src, uint32_t srcLen,
     // do-while: retail has NO test before the first iteration (§2 note 3).
     do {
         const uint32_t c = *sp++;                       // 1800c4680
-        if (c < 0x20u) {                                // 1800c468a  JNC -> match
+        if (c < kMaxLiteralRun) {                       // 1800c468a  JNC -> match
             // ---- literal run: 1..32 bytes ------------------------------
             const uint32_t n = c + 1u;                  // 1800c468c
             if (op + n > dstEnd)                        // 1800c4696  JA
@@ -499,9 +499,9 @@ static inline uint32_t CompressHash(uint32_t dv) {
 // NOT NULL-CHECKED: retail stores the result and memsets it unconditionally.
 // An allocation failure here is an upstream fault to find.
 System::Compression::Compression() {
-    uint32_t* const p = static_cast<uint32_t*>(RtSystem::RtMemAlloc(0x40000u, 4));
+    uint32_t* const p = static_cast<uint32_t*>(RtSystem::RtMemAlloc(kHashTableBytes, 4));
     _table = p;
-    std::memset(p, 0, 0x40000u);
+    std::memset(p, 0, kHashTableBytes);
 }
 
 // ============================================================================
@@ -536,7 +536,7 @@ int System::Compression::Compress(const void* src, uint32_t srcLen,
             const uint64_t off = static_cast<uint64_t>(ip - mpos) - 1u;   // 1800c42de..42e1
 
             const bool isMatch =
-                off < 0x2000u &&                              // 1800c42e4  JNC (unsigned)
+                off < kMaxOffset &&                           // 1800c42e4  JNC (unsigned)
                 mpos > in &&                                  // 1800c42f1  JBE (STRICT, see note 4)
                 mpos[2] == ip[2] &&                           // 1800c42fa
                 mpos[0] == ip[0] && mpos[1] == ip[1];         // 1800c4308..4327 (as one 16-bit cmp)
@@ -547,9 +547,10 @@ int System::Compression::Compress(const void* src, uint32_t srcLen,
                 *op++ = *ip++;
                 ++ii;
                 if (RtSystem::g_cbranch) ++RtSystem::g_cbranch->literal;
-                if (ii == 0x20) {                             // 1800c45a7
+                if (ii == static_cast<int32_t>(kMaxLiteralRun)) {   // 1800c45a7
                     if (RtSystem::g_cbranch) ++RtSystem::g_cbranch->literalFlush;
-                    op[-0x21] = 0x1f;                         // 1800c45ac: the reserved slot, 32 literals back
+                    // 1800c45ac: the reserved slot, 32 literals back (op[-0x21] = 0x1f)
+                    op[-static_cast<int32_t>(kMaxLiteralRun + 1)] = kMaxLiteralRun - 1;
                     ++op;                                     // and reserve the next one
                     ii = 0;
                 }
@@ -559,7 +560,7 @@ int System::Compression::Compress(const void* src, uint32_t srcLen,
 
             // ---- MATCH ---- how long?  1800c432d..1800c4342
             uint32_t maxLen = static_cast<uint32_t>(inEnd - ip) - 2u;
-            if (maxLen > 0x108u) maxLen = 0x108u;             // CMOVA
+            if (maxLen > kMaxMatchLength) maxLen = kMaxMatchLength;   // CMOVA
 
             // The output reservation, BEFORE the literal header is flushed.
             // 1800c4345..1800c4363. Note the second test backs `op` up by one
@@ -645,8 +646,8 @@ int System::Compression::Compress(const void* src, uint32_t srcLen,
     while (ip < inEnd) {                                       // 1800c4600..4621
         *op++ = *ip++;
         ++ii;
-        if (ii == 0x20) {
-            op[-0x21] = 0x1f;
+        if (ii == static_cast<int32_t>(kMaxLiteralRun)) {
+            op[-static_cast<int32_t>(kMaxLiteralRun + 1)] = kMaxLiteralRun - 1;   // op[-0x21] = 0x1f
             ++op;
             ii = 0;
         }

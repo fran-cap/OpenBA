@@ -7,6 +7,7 @@
 // (PKGCACHE). Reads only the header word and the directory blob.
 // ============================================================================
 #include "io/Stream.h"
+#include "io/PackageFile.h"   // IO::PackageFile header word bits
 
 #include <cstdint>
 #include <cstdio>
@@ -108,8 +109,8 @@ inline std::vector<std::string> PackageNames(const std::string& path) {
     uint8_t word[4] = {};
     const bool headOk = std::fread(word, 1, 4, f) == 4;
     const int32_t hdr = ReadI32(word);
-    const bool compressed = (hdr & int32_t(0x80000000)) != 0;
-    const int32_t at = hdr & 0x7fffffff;
+    const bool compressed = (hdr & static_cast<int32_t>(IO::PackageFile::kHeaderCompressedBit)) != 0;
+    const int32_t at = hdr & static_cast<int32_t>(IO::PackageFile::kHeaderOffsetMask);
     std::vector<uint8_t> blob;
     if (headOk && std::fseek(f, at, SEEK_SET) == 0 && std::fread(word, 1, 4, f) == 4) {
         const int32_t blobLen = ReadI32(word);

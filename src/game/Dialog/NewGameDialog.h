@@ -45,7 +45,7 @@ public:
     void OnClosed() override;                                      // [5] 0x1400706c0 RET
     void OnUpdateLayout() override;                                // [6] 0x140070650
     void OnElementEvent(Object::InternalPtr<UI::Element>* element,
-                        int32_t a, int32_t b, int32_t c,
+                        UI::EventId a, int32_t b, int32_t c,
                         int32_t d, int32_t e, void* userData) override;  // [8] 0x140070110
 
     void StartGame();          // OnElementEvent's buttonOk arm (StartNewGame 0x1400b4540 on the menu)

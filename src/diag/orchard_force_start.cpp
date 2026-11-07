@@ -135,7 +135,7 @@ bool TryAssignRealTreeType(PlayerToolManager* entityUI, ComponentEntity* orchEnt
     // (known_port_issues row 155: SelectResourceUI's body never reads it).
     Object::InternalPtr<UI::Element> comboRef(combo);   // the slot takes the element's InternalPtr (its body never reads it)
     oui->OnElementEvent(
-        &comboRef, 0x14, 500,
+        &comboRef, UI::EventId::SelectionChanged, 500,
         0, 0, 0, nullptr);
 
     ComponentDescription* treeTypeAfter = orchComp->treeType;          // +0x60

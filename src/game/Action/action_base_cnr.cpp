@@ -99,9 +99,10 @@ inline float RdataF(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); 
 // ============================================================
 uint64_t Map::CheckCellTerrain(int cellIndex) const {
     const MapCell& rec = cells.GetData()[cellIndex];
-    uint32_t passBits = 1u << (rec.terrainType & 0x1f);
+    uint32_t passBits = Bits(PathBitOf(rec.terrainType));
     uint64_t high = passBits;   // retail's RAX before the tree walk
-    if (((passBits & 2) == 0) && ((passBits & 1) == 0) && (rec.field_0x2A == 0xff)) {
+    if (((passBits & Bits(PathBits::Fast)) == 0) && ((passBits & Bits(PathBits::Faster)) == 0) &&
+        (rec.field_0x2A == MapCell::kNoRoadBatch)) {
         const AvlNode28* node = field_0xE8.root;
         while (true) {
             while (true) {
@@ -319,7 +320,7 @@ void NaturalResourceComponent::RemoveResource(ComponentEntity* const* citizenIBP
 
     // Mark the entity for removal unless already marked (bit 10 of its flags).
     if (parent != nullptr) {
-        if (((parent->_entityFlags >> 10) & 1) == 0) {
+        if ((parent->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
             parent->MarkForRemoval();   // 0x1400c2ea0
             entityList->removalList.SetSize(entityList->removalList._size + 1, parent);   // 0x140003110
         }

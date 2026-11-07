@@ -149,7 +149,7 @@ void PlayerToolManager::TutorialTreeInsert(ComponentDescription* tutorialId,
 // 0x1400E2250 — recursive element show/hide.
 //
 // SetFlagsOnOff(elem, show ? 0 : 0x1000000, show ? 0x1000000 : 0), then recurse
-// into every child that resolves non-null. 0x1000000 is the hidden bit.
+// into every child that resolves non-null. 0x1000000 is UI::kElementFlagSystemDisabled.
 // The double Child() call is retail's, not a transcription slip: the first
 // fetch is only a null test, the second is the one that is recursed into, and
 // ChildCount is re-read every iteration because a child may add siblings.
@@ -160,8 +160,8 @@ void TutorialSetupDialog::SetElementFlagsRecursive(Object::InternalPtr<UI::Eleme
     UI::Element* elem = elemIBP->Get();
     if (!elem) return;
 
-    uint32_t hideFlags = show ? 0u : 0x1000000u;
-    uint32_t showFlags = show ? 0x1000000u : 0u;
+    uint32_t hideFlags = show ? 0u : static_cast<uint32_t>(UI::kElementFlagSystemDisabled);
+    uint32_t showFlags = show ? static_cast<uint32_t>(UI::kElementFlagSystemDisabled) : 0u;
     elem->SetFlagsOnOff(hideFlags, showFlags);
 
     int i = 0;
@@ -199,8 +199,8 @@ void TutorialSetupDialog::SetAllDialogFlags(char show) {
             // Retail applies the flags to the root itself and then walks the
             // children — the root pass is inlined here, the children go through
             // the shared recursive helper (same code, same order).
-            uint32_t hideFlags = show ? 0u : 0x1000000u;
-            uint32_t showFlags = show ? 0x1000000u : 0u;
+            uint32_t hideFlags = show ? 0u : static_cast<uint32_t>(UI::kElementFlagSystemDisabled);
+            uint32_t showFlags = show ? static_cast<uint32_t>(UI::kElementFlagSystemDisabled) : 0u;
             root->SetFlagsOnOff(hideFlags, showFlags);
 
             int i = 0;

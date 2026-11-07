@@ -243,7 +243,7 @@ bool WarnedTypeId(const char* name) {
 Component* ComponentByName(ComponentEntity* entity, const char* typeName) {
     if (!entity || !typeName) return nullptr;
     uint32_t want = ::Object::GetTypeIdByName(typeName);
-    if (!want || want == 0xFFFFFFFFu) {
+    if (!want || want == ::Object::kInvalidTypeId) {
         if (!WarnedTypeId(typeName))
             DLOG("Disaster", "TYPE ID UNRESOLVED: GetTypeIdByName(\"%s\") returned %s. "
                  "EVERY lookup of that component will report absent, so any census below "
@@ -424,7 +424,7 @@ void ForceTornado(int frameNum, int want) {
 
     for (int i = 0; i < want; ++i) {
         DLOG("Tornado", "spawning %d/%d via DebugUI_Slot9(id=329)\n", i + 1, want);
-        DebugUI_Slot9(nullptr, 0, /*msg=buttonClick*/0x12, /*id=spawnTornado*/329);
+        DebugUI_Slot9(nullptr, 0, /*msg=buttonClick*/UI::EventId::Activated, /*id=spawnTornado*/329);
     }
 
     const int after = entityList->buckets[1]._size;             // +0x30
@@ -481,7 +481,7 @@ Disease* FindDiseaseDescription(int wantIdx, int* outFound, int* outScanned,
     ::Object::ExternalList* externalList = gw->m_diseaseList;   // +0xa8
     if (!externalList) return nullptr;
     *outListPresent = true;
-    if (!*outTypeId || *outTypeId == 0xFFFFFFFFu) return nullptr;
+    if (!*outTypeId || *outTypeId == ::Object::kInvalidTypeId) return nullptr;
 
     const int count = externalList->GetResourceCount();
     *outScanned = count;
@@ -516,7 +516,7 @@ void ForceSick(int frameNum, int want) {
             DLOG("Sick", "gameWorld+0xA8 is NULL - the external list was never loaded. "
                  "GameUpdateLoop::Load step 1 loads Game/Disease/Diseases.rsc only under "
                  "BANISHED_LIVE_DISEASELIST. Nobody infected.\n");
-        else if (!diseaseTid || diseaseTid == 0xFFFFFFFFu)
+        else if (!diseaseTid || diseaseTid == ::Object::kInvalidTypeId)
             DLOG("Sick", "the Disease type id is %s, so IsDerivedFrom can never match and "
                  "the scan of %d resource(s) is meaningless. This is a type-REGISTRATION "
                  "problem, not an empty list. Nobody infected.\n",

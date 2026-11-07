@@ -42,7 +42,7 @@ public:
     void OnUpdateLayout() override;                                // [6] 0x14005d240
     void OnUpdate(const System::Time& time) override;              // [7] 0x14005d480 RET
     void OnElementEvent(Object::InternalPtr<UI::Element>* element,
-                        int32_t a, int32_t b, int32_t c,
+                        UI::EventId a, int32_t b, int32_t c,
                         int32_t d, int32_t e, void* userData) override;  // [8] 0x14005d440
 
     // One achievement row, the element of the +0xC0 Array (stride 0x20): the

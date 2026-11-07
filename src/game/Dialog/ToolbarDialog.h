@@ -43,7 +43,7 @@ public:
     void OnClosed() override;                                      // [5] 0x1400b97b0
     void OnUpdateLayout() override;                                // [6] 0x1400b8d40
     void OnElementEvent(Object::InternalPtr<UI::Element>* element,
-                        int32_t a, int32_t b, int32_t c,
+                        UI::EventId a, int32_t b, int32_t c,
                         int32_t d, int32_t e, void* userData) override;  // [8] 0x1400b92a0
 
     // FUN_1400b9730: close the open sub-toolbar dialog and reset the radio. Not a

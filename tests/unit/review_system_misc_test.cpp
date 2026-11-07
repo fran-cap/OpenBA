@@ -94,7 +94,7 @@ struct Reader {
 // ---------------------------------------------------------------------------
 UNIT_TEST(sysmisc_random_serialize_bounds_the_saved_index) {
     std::vector<uint8_t> rec;
-    PutU32(rec, 0xaaaaaaaau);        // magic
+    PutU32(rec, IO::kRecordMagic);   // magic
     PutU32(rec, 4 * 625 + 4);        // length
     PutU32(rec, 0);                  // version
     PutU32(rec, 0x270 + 8);          // _index: past the 624-word state
@@ -122,7 +122,7 @@ UNIT_TEST(sysmisc_random_serialize_bounds_the_saved_index) {
 // ---------------------------------------------------------------------------
 UNIT_TEST(sysmisc_binaryreader_skip_wraps_like_retail) {
     std::vector<uint8_t> rec;
-    PutU32(rec, 0xaaaaaaaau);
+    PutU32(rec, IO::kRecordMagic);
     PutU32(rec, 0x7fffffffu);        // the record length word, near INT_MAX
     PutU32(rec, 0);
     ByteStream s;

@@ -155,14 +155,6 @@
 
 namespace {
 
-// UI::Element::_flags bits, named by src/engine/ui/Element.h.
-constexpr uint32_t kElementFlagSizeToScreenH = 0x00000010u;  // bit 4
-constexpr uint32_t kElementFlagSizeToScreenW = 0x00000020u;  // bit 5
-constexpr uint32_t kElementFlagSizeToScreen  = 0x00000030u;  // the mask
-constexpr uint32_t kElementFlagHidden        = 0x00000001u;  // bit 0
-constexpr uint32_t kElementFlagToolTip16     = 0x00010000u;  // bit 16
-constexpr uint32_t kElementFlagNeedsSizeCalc = 0x08000000u;  // bit 27
-
 // ---------------------------------------------------------------------------
 // ATTENDANCE — entries, and NOT a verification of anything. A zero here means
 // the row is registered and DEAD on the route that was run; a non-zero means
@@ -232,9 +224,9 @@ void SetFlagsOnOff(UI::Element* el, uint32_t on, uint32_t off) {
     const uint32_t old = el->_flags;
     const uint32_t now = (old | on) & ~off;
     el->_flags = now;
-    if ((now ^ old) & kElementFlagHidden) {
+    if ((now ^ old) & UI::kElementFlagHidden) {
         for (UI::Element* p = el; p; p = p->_parent)
-            p->_flags |= kElementFlagNeedsSizeCalc;
+            p->_flags |= UI::kElementFlagNeedsSizeCalc;
     }
 }
 
@@ -245,7 +237,7 @@ void ContainerSetSize(UI::ContainerElement* el, int32_t w, int32_t h) {
     el->_requestedWidth  = w;
     el->_requestedHeight = h;
     for (UI::Element* p = el; p; p = p->_parent)
-        p->_flags |= kElementFlagNeedsSizeCalc;
+        p->_flags |= UI::kElementFlagNeedsSizeCalc;
 }
 
 // ?GetContentSize@ClipRegionElement@UI@@QEAAXAEAH0@Z  0x1800381e0, inlined at
@@ -270,19 +262,19 @@ void GetPaddedSize(UI::Element* el, int32_t* outW, int32_t* outH) {
     if (h < el->_minHeight) h = el->_minHeight;
 
     const uint32_t flags = el->_flags;
-    if (flags & kElementFlagSizeToScreen) {
+    if (flags & UI::kElementFlagSizeToScreen) {
         UI::Element* root = el;
         while (root->_parent) root = root->_parent;
 
         UI::DialogInstance* const dialog = root->_dialogParent;
         const ::Video::Device* const device = ::Video::Device::_singleton;
 
-        if (flags & kElementFlagSizeToScreenW) {
+        if (flags & UI::kElementFlagSizeToScreenW) {
             UI::UserInterface* const ui = dialog->_ui;
             w = static_cast<int32_t>(
                 static_cast<float>(device->backBufferWidth) * ui->_uiScale);
         }
-        if (flags & kElementFlagSizeToScreenH) {
+        if (flags & UI::kElementFlagSizeToScreenH) {
             UI::UserInterface* const ui = dialog->_ui;
             h = static_cast<int32_t>(
                 static_cast<float>(device->backBufferHeight) * ui->_uiScale);
@@ -472,10 +464,10 @@ UI::ComboDialog::ComboDialog(UserInterface* ui, Object::InternalPtr<Element> roo
     }
 
     // 0x180111e1e / 0x180111e24: ?SetElementId@(0) then
-    // ?SetFlagsOnOff@(kElementFlagToolTip16, 0), both on the list.
+    // ?SetFlagsOnOff@(UI::kElementFlagRaisesEvents, 0), both on the list.
     // UNGUARDED derefs of a pointer the CMOV above may have just nulled.
     _list->_elementId = 0;
-    ::SetFlagsOnOff(_list, kElementFlagToolTip16, 0);
+    ::SetFlagsOnOff(_list, UI::kElementFlagRaisesEvents, 0);
 
     // ---- 0x180111e56-0x180111edb: find the ClipRegionElement --------------
     const uint32_t tidClip = UI::ClipRegionElement::TypeId();

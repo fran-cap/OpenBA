@@ -70,7 +70,7 @@ const bool* SpinnerElement::_extSideBySide = nullptr;
 
 // [4] 0x1800d83b0
 void SpinnerElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     Element* const* kids = _children.GetData();
 
@@ -85,7 +85,7 @@ void SpinnerElement::ComputeSize() {
         int32_t h = h0;
         if (h < h1) h = h1;
         if (h < h2) h = h2;
-        _flags &= ~kFlagNeedsSizeCalc;
+        _flags &= ~UI::kElementFlagNeedsSizeCalc;
         _layoutHeight = h;
         return;
     }
@@ -95,7 +95,7 @@ void SpinnerElement::ComputeSize() {
 
     int32_t h = h2 + h1;
     if (h < h0) h = h0;
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
     _layoutHeight = h;
 }
 
@@ -118,17 +118,27 @@ void SpinnerElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t 
     const int32_t aw = (right  - _rightPad)  - px;
     const int32_t ah = (bottom - _bottomPad) - py;
 
-    if ((_flags & kFlagStretchX) != 0) w = aw;
-    if ((_flags & kFlagStretchY) != 0) h = ah;
+    if ((_flags & UI::kElementFlagAlignArg1) != 0) w = aw;
+    if ((_flags & UI::kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 1: case 4: case 7: px = ((aw >> 1) - (w >> 1)) + px; break;
-        case 2: case 5: case 8: px = (right - _rightPad) - w; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            px = ((aw >> 1) - (w >> 1)) + px;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            px = (right - _rightPad) - w;
+            break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutTop    = py;
@@ -213,9 +223,9 @@ void SpinnerElement::Update(const System::Time& time, UserInterface* ui,
     }
 
     int32_t step;
-    if ((_children.GetData()[1]->_flags & kFlagWasActivated) != 0) {
+    if ((_children.GetData()[1]->_flags & UI::kElementFlagWasActivated) != 0) {
         step = _increment;
-    } else if ((_children.GetData()[2]->_flags & kFlagWasActivated) != 0) {
+    } else if ((_children.GetData()[2]->_flags & UI::kElementFlagWasActivated) != 0) {
         step = -_increment;
     } else {
         return;
@@ -229,7 +239,7 @@ void SpinnerElement::Update(const System::Time& time, UserInterface* ui,
     UserInterface::Event ev;
     ev.dialog   = dialog->Get();
     ev.element  = this;
-    ev.eventId  = 0x15;
+    ev.eventId  = UI::EventId::ValueChanged;
     ev.arg14    = _elementId;
     ev.arg18    = state.mouseX;
     ev.arg1C    = state.mouseY;

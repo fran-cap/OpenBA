@@ -53,7 +53,7 @@ namespace UI {
 // contribute nothing — this is the one sizing loop in the batch that tests the
 // flag, and it is why hiding a child in a group actually shrinks the group.
 void GroupElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     // +0x60 and +0x64 zeroed as ONE qword store (H7: two named stores).
     _layoutWidth  = 0;
@@ -106,12 +106,15 @@ void GroupElement::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h) {
     const int availH = (h - _bottomPad) - cy;
 
     switch (align) {
-    case 2: case 5: case 8:
+    case ElementDescription::TopRight:
+    case ElementDescription::MidRight:
+    case ElementDescription::BottomRight:
         cx = (w - _rightPad) - availW;
         break;
     default: break;
     }
-    if (align > 2 && align > 5 && align < 9)
+    if (align > ElementDescription::TopRight && align > ElementDescription::MidRight &&
+        align <= ElementDescription::BottomRight)
         cy = (h - _bottomPad) - availH;
 
     _layoutLeft   = cx;

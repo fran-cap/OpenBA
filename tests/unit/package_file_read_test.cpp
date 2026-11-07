@@ -111,7 +111,7 @@ void PutMeta(std::vector<uint8_t>& p, int32_t formatVersion, uint32_t iconW, uin
     Put32(p, static_cast<uint32_t>(formatVersion));
     Put32(p, 7);            // version
     Put32(p, 3);            // userVersion
-    Put32(p, 0x2710);       // priority
+    Put32(p, IO::PackageFile::kDefaultPriority);   // priority
     Put32(p, 0);            // platform
     p.push_back(1);         // overridable
     Put32(p, 0x12345678);   // crc

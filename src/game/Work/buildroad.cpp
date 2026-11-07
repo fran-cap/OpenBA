@@ -264,11 +264,11 @@ static int FinalizeAction(BuildRoad* self, CitizenComponent** entityIBP, int pri
     Profession* actionPtr = *self->GetTarget(&targetBuf);
 
     citizenEntity->field_0x30 = priority;
-    citizenEntity->statusFlags |= 4;
+    citizenEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizenEntity->field_0xB0 = 0;
 
     if (actionPtr == citizenEntity->profession && priority >= 0) {
-        citizenEntity->happinessFlags |= 0x20000;
+        citizenEntity->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     self->field_48 = *entityIBP;
@@ -297,7 +297,7 @@ int BuildRoad::Execute(CitizenComponent** entityIBP, System::Time* /*context*/) 
 
     int targetCell = field_58;
 
-    uint64_t passResult = mapGrid->ValidateCell(0xe1f, (uint32_t)cellIndex, targetCell);
+    uint64_t passResult = mapGrid->ValidateCell(PathBits::Walk, (uint32_t)cellIndex, targetCell);
     if ((char)passResult == '\0') {
         return 1;
     }
@@ -341,12 +341,12 @@ int BuildRoad::Execute(CitizenComponent** entityIBP, System::Time* /*context*/) 
         mapSize = map->size;
         cellIndex = PosToCellIndex(map, GetPositionData(entityIBP));
 
-        int adjacentCell = mapGrid->FindCell(targetCell, cellIndex, 0xe07);
+        int adjacentCell = mapGrid->FindCell(targetCell, cellIndex, PathBits::Access);
         if (adjacentCell < 0) {
             return 1;
         }
 
-        passResult = mapGrid->ValidateCell(0xe1f, (uint32_t)adjacentCell, cellIndex);
+        passResult = mapGrid->ValidateCell(PathBits::Walk, (uint32_t)adjacentCell, cellIndex);
         if ((char)passResult == '\0') {
             return 1;
         }

@@ -458,12 +458,13 @@ int  MoveTo::Execute(ActionStack* actionStack, const System::Time* time) {
         speed = description->_f30;
     } else {
         // Check terrain type for road tiles
-        // terrainType & ~0x08 in {1, 0} means road/path tile
+        // terrainType & ~0x08 in {1, 0} means road/path tile: (type - 1) & ~8 is 0 exactly
+        // for PathType::Fast (1, dirt road) and PathType::Bridge (9); retail's bit trick kept.
         if (((terrainType - 1) & 0xFFFFFFF7) == 0) {
             // Road tile -- use road speed
             speed = description->_f34;
-        } else if (terrainType == 0) {
-            // Normal terrain -- use normal speed
+        } else if (terrainType == ToUnderlying(PathType::Faster)) {
+            // PathType::Faster (stone road) -- the description's +0x38 speed
             speed = description->_f38;
         } else {
             // Default speed (e.g., grass) -- use g_fUVScale (1.0)
@@ -645,7 +646,7 @@ MoveTo::MoveTo()
 
 // 0x1400c9170 — the ctor body: after Action() the retail stores, in retail order.
 MoveTo::MoveTo(CharacterComponent* const* characterRef, uint32_t moveAnim, int stopAnim,
-               const float* dest, uint32_t passFlagsArg, int profile, float speed) {
+               const float* dest, PathBits passFlagsArg, int profile, float speed) {
     Object::ClassVptr<MoveTo>::Record(this);   // NOT RETAIL: the vptr hint (object/class_vptr.h)
     ticket.slot = -1;
     ticket.token = 0;
@@ -661,7 +662,7 @@ MoveTo::MoveTo(CharacterComponent* const* characterRef, uint32_t moveAnim, int s
     field_0x50 = 0;
     field_0x54 = 0;
     field_0x58 = 0;
-    passFlags = passFlagsArg;
+    passFlags = Bits(passFlagsArg);
     pathIndex = -1;
     pathCount = 0;
     moveAnimation = static_cast<int32_t>(moveAnim);

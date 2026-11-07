@@ -1299,7 +1299,7 @@ void GameUpdateLoop::Load() {
                         int hist[16] = {0};
                         int total = gdim * gdim;
                         for (int i = 0; i < total; ++i) {
-                            uint8_t t = cells[i].terrainType;
+                            uint8_t t = static_cast<uint8_t>(cells[i].terrainType);
                             hist[t < 16 ? t : 0]++;
                         }
                         fprintf(stderr, "[startTown::DIAG]   tiles: buildable(2)=%d shore(7)=%d "
@@ -1377,7 +1377,7 @@ void GameUpdateLoop::Load() {
                         for (int c = 32000; c <= 35000; c += 500)
                             fprintf(stderr, " [%d]=%u/kind%u", c,
                                     tiles[c].zone,
-                                    tiles[c].terrainType);
+                                    static_cast<uint8_t>(tiles[c].terrainType));
                     fprintf(stderr, "\n"); fflush(stderr);
                 }
             }

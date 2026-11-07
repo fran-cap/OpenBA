@@ -30,8 +30,8 @@ namespace Platform {
 namespace Input {
 
 bool ShiftHeld() {
-    return (GetAsyncKeyState(VK_LSHIFT) & 0x8000) != 0
-        || (GetAsyncKeyState(VK_RSHIFT) & 0x8000) != 0;
+    return (GetAsyncKeyState(VK_LSHIFT) & kAsyncKeyDown) != 0
+        || (GetAsyncKeyState(VK_RSHIFT) & kAsyncKeyDown) != 0;
 }
 
 // The hooks of platform_input_hooks.h: nothing to change on this host.

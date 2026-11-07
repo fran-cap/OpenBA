@@ -45,6 +45,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>   // std::less: the pointer order
+#include "Component/ComponentFlags.h"   // ComponentFlags: the entity and component bits
 
 namespace TickList {
 
@@ -77,14 +78,14 @@ inline void RetailFrom(Ent* e, int32_t ci, int32_t compCount, TickFn& tick) {
         // Component flags at byte offset +0x20 from component base.
         // Verified from disassembly at 0x1400c2e42: MOV ECX,dword ptr [RAX + 0x20]
         // Then SHR ECX,0x2; TEST CL,0x1 checks bit 2.
-        if ((c->_flags >> 2) & 1) {
+        if (c->_flags & Bits(ComponentFlags::Tick)) {
             // CheckPtr again before vtable call
             c = e->_components[ci].Get();
             tick(c);   // component slot 8 (+0x40) Tick
         }
         ci++;
         // Break if entity was deleted during component processing
-        if (e->_entityFlags & 0x400) break;
+        if (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) break;
     }
 }
 
@@ -93,8 +94,8 @@ template <class Ent, class TickFn>
 inline void Retail(Ent* e, TickFn& tick) {
     const uint32_t entityFlags = e->_entityFlags;
     // Check entity has "needs tree tick" flag (bit 2) and is not deleted (bit 10)
-    if ((entityFlags & 0x4) == 0) return;
-    if ((entityFlags >> 10) & 1) return;
+    if ((entityFlags & Bits(ComponentFlags::Tick)) == 0) return;
+    if (entityFlags & Bits(ComponentFlags::MarkedForRemoval)) return;
     const int32_t compCount = e->_components._size;
     if (compCount <= 0) return;
     RetailFrom(e, 0, compCount, tick);
@@ -111,7 +112,7 @@ inline void Build(Entry& en, const Ent* e) {
     for (int32_t i = 0; i < n; ++i) {
         const auto* c = e->_components[i].Get();
         if (c == nullptr) { en.state = kWide; return; }   // not a guard: Build adds no deref retail lacks
-        if ((c->_flags >> 2) & 1) {
+        if (c->_flags & Bits(ComponentFlags::Tick)) {
             if (en.count == kMaxIdx) { en.state = kWide; return; }
             en.idx[en.count++] = static_cast<uint8_t>(i);
         }
@@ -130,15 +131,15 @@ inline bool KeyMatches(const Entry& en, const void* data, int32_t n) {
 template <bool V, class Ent, class TickFn, class ReportFn>
 inline void Cached(Ent* e, Entry& en, TickFn& tick, ReportFn& report) {
     const uint32_t entityFlags = e->_entityFlags;
-    if ((entityFlags & 0x4) == 0) return;
-    if ((entityFlags >> 10) & 1) return;
+    if ((entityFlags & Bits(ComponentFlags::Tick)) == 0) return;
+    if (entityFlags & Bits(ComponentFlags::MarkedForRemoval)) return;
     const int32_t compCount = e->_components._size;
     if (compCount <= 0) return;
 
     if (en.state != kCached || !KeyMatches(en, e->_components._data, compCount)) {
         const bool wide = en.state == kWide && KeyMatches(en, e->_components._data, compCount);
         RetailFrom(e, 0, compCount, tick);
-        if (!wide && (e->_entityFlags & 0x400) == 0) Build(en, e);
+        if (!wide && (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) Build(en, e);
         return;
     }
 
@@ -148,7 +149,7 @@ inline void Cached(Ent* e, Entry& en, TickFn& tick, ReportFn& report) {
     auto checkSkipped = [&](int32_t from, int32_t to) {   // [from, to) skipped
         for (int32_t s = from; s < to; ++s) {
             const auto* c = e->_components[s].Get();
-            if ((c->_flags >> 2) & 1) { if (ok) bad = s; ok = false; }
+            if (c->_flags & Bits(ComponentFlags::Tick)) { if (ok) bad = s; ok = false; }
         }
     };
 
@@ -156,14 +157,14 @@ inline void Cached(Ent* e, Entry& en, TickFn& tick, ReportFn& report) {
         const int32_t ci = en.idx[k];
         if (V) checkSkipped(next, ci);
         auto* c = e->_components[ci].Get();
-        if ((c->_flags >> 2) & 1) {
+        if (c->_flags & Bits(ComponentFlags::Tick)) {
             c = e->_components[ci].Get();
             tick(c);
-            if (e->_entityFlags & 0x400) { if (V) report(ok, bad); return; }
+            if (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) { if (V) report(ok, bad); return; }
             if (en.state != kCached || !KeyMatches(en, e->_components._data, e->_components._size)) {
                 // A Refresh on this entity inside the tick: retail's loop takes over.
                 RetailFrom(e, ci + 1, compCount, tick);
-                if ((e->_entityFlags & 0x400) == 0) Build(en, e);
+                if ((e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) Build(en, e);
                 if (V) report(ok, bad);
                 return;
             }

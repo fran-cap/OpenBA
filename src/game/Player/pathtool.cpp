@@ -28,6 +28,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "picking/Scene.h"     // ENDGAME B.3.7 callers (K2)
 #include "input/Input.h"       // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 
 // ============================================================
 // PathTool helpers, called by name (Player/exe_bodies.h):
@@ -80,7 +81,7 @@ char PathTool::OnKey(char key) {
     const Input::KeyMap* keyMap = GetKeyMap();
 
     // KeyMap::Pressed(keyMap, 0, 5) — retail calls it through exe slot 0x140151758.
-    bool pressed = keyMap->Pressed(0, 5);
+    bool pressed = keyMap->Pressed(0, ToUnderlying(GameKey::MouseLeft));
     if (!pressed) return 1;
 
     // The map

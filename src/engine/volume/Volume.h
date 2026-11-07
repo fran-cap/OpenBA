@@ -49,6 +49,7 @@
 #include <cstddef>
 #include "../global_types.h"   // Vector2, Vector3, Vector4
 #include "../math/Math.h"                   // Scalar, Transform3
+#include "../system/EnumFlags.h"            // OPENBA_ENUM_FLAGS (FrustumPlanes)
 
 // ============================================================
 // Volume::Box — axis-aligned bounding box.
@@ -163,6 +164,25 @@ bool RtVolume_Box_Intersect(const Box* self, const Box* other);  // 0x180012160
 // ---- volume/rectangle.cpp
 struct Rectangle* RtVolume_Rectangle_Ctor(struct Rectangle* self);  // 0x18005ddd0
 // ---- volume/frustum.cpp
+// The plane mask Frustum::Contains (0x1800f8e80) takes and returns: bit i = plane
+// i is still straddled and must be tested (planes[] order from the frustum
+// builders, frustum.cpp). The functions keep `unsigned int`: a call passes
+// Bits(FrustumPlanes::All) and compares the result with Bits(...).
+enum class FrustumPlanes : uint32_t {
+    Near    = 0x01,   // planes[0]
+    Far     = 0x02,   // planes[1]
+    XLow    = 0x04,   // planes[2]
+    XHigh   = 0x08,   // planes[3]
+    ZLow    = 0x10,   // planes[4]
+    ZHigh   = 0x20,   // planes[5]
+    All     = 0x3F,   // test all six planes
+    Outside = 0x40,   // the result when the box is entirely outside one plane (culled)
+};
+OPENBA_ENUM_FLAGS(FrustumPlanes)
+// A scene cull-stack record packs two plane masks: the view cull's in the low 16
+// bits, the shadow cull's in the high 16. Both full:
+constexpr uint32_t kFrustumAllPlanesBoth = 0x003F003Fu;
+
 Frustum* RtVolume_Frustum_MulTransform3(const Frustum* self, Frustum* ret, const Math::Transform3* t);  // 0x1800f9310
 unsigned int RtVolume_Frustum_Contains(const Frustum* self, const Box* box, unsigned int mask);  // 0x1800f8e80
 void RtVolume_Frustum_GetCorners(const Frustum* self, Math::Vector3* out);  // 0x1800f9850

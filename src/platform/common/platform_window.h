@@ -87,6 +87,12 @@ void ClientToScreen(void* window, Point* inOut);
 // GetWindowPlacement's showCmd: SW_SHOWMINIMIZED (2) while minimised, SW_SHOWMAXIMIZED (3)
 // while maximised, otherwise SW_SHOWNORMAL (1).
 uint32_t GetShowCmd(void* window);
+constexpr uint32_t kShowCmdMinimized = 2;            // SW_SHOWMINIMIZED
+constexpr uint32_t kShowCmdMaximized = 3;            // SW_SHOWMAXIMIZED / SW_MAXIMIZE
+// The WS_MAXIMIZE / WS_MINIMIZE style bits, which retail's AdjustDisplay /
+// IsMinimized also compare the showCmd against (kept as retail does).
+constexpr uint32_t kStyleMaximize    = 0x01000000;   // WS_MAXIMIZE
+constexpr uint32_t kStyleMinimize    = 0x20000000;   // WS_MINIMIZE
 // IsIconic.
 bool IsIconic(void* window);
 // IsWindowVisible (RENDER step 3: DeviceData_Resize's early-out, TraceGeom). SDL's

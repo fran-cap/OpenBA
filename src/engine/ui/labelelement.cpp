@@ -95,7 +95,7 @@ static int IconHeight(const LabelElement& e) {
 // a label whose minimum width exceeds its text draws the text at its natural
 // width inside a wider box.
 void LabelElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     int textW = 0;
     int textH = 0;
@@ -206,13 +206,23 @@ void LabelElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
         int ty = T;
         if (B < textH + T) ty = B - textH;
         switch (align) {
-        case 1: case 4: case 7: textX = (((textRight - textX) >> 1) - halfTextW) + textX; break;
-        case 2: case 5: case 8: textX = textRight - textW;                                break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            textX = (((textRight - textX) >> 1) - halfTextW) + textX;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            textX = textRight - textW;
+            break;
         default: break;
         }
-        if (align > 2) {
-            if (align < 6)      ty = (((B - ty) >> 1) - halfTextH) + ty;
-            else if (align < 9) ty = B - textH;
+        if (align > ElementDescription::TopRight) {
+            if (align < ElementDescription::BottomLeft)
+                ty = (((B - ty) >> 1) - halfTextH) + ty;
+            else if (align <= ElementDescription::BottomRight)
+                ty = B - textH;
         }
         textY = ty;
         if (B < iconH + T) iconY = B - iconH;
@@ -227,13 +237,23 @@ void LabelElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
         int ty = T;
         if (B < T + textH) ty = B - textH;
         switch (align) {
-        case 1: case 4: case 7: textX = (((R - textX) >> 1) - halfTextW) + textX; break;
-        case 2: case 5: case 8: textX = R - textW;                                break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            textX = (((R - textX) >> 1) - halfTextW) + textX;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            textX = R - textW;
+            break;
         default: break;
         }
-        if (align > 2) {
-            if (align < 6)      ty = (((B - ty) >> 1) - halfTextH) + ty;
-            else if (align < 9) ty = B - textH;
+        if (align > ElementDescription::TopRight) {
+            if (align < ElementDescription::BottomLeft)
+                ty = (((B - ty) >> 1) - halfTextH) + ty;
+            else if (align <= ElementDescription::BottomRight)
+                ty = B - textH;
         }
         textY = ty;
         if (B < T + iconH) iconY = B - iconH;
@@ -247,13 +267,23 @@ void LabelElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
         if (R < L + textW) textX = R - textW;
         if (B < ty + textH) ty = B - textH;
         switch (align) {
-        case 1: case 4: case 7: textX = (((R - textX) >> 1) - halfTextW) + textX; break;
-        case 2: case 5: case 8: textX = R - textW;                                break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            textX = (((R - textX) >> 1) - halfTextW) + textX;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            textX = R - textW;
+            break;
         default: break;
         }
-        if (align > 2) {
-            if (align < 6)      ty = (((B - ty) >> 1) - halfTextH) + ty;
-            else if (align < 9) ty = B - textH;
+        if (align > ElementDescription::TopRight) {
+            if (align < ElementDescription::BottomLeft)
+                ty = (((B - ty) >> 1) - halfTextH) + ty;
+            else if (align <= ElementDescription::BottomRight)
+                ty = B - textH;
         }
         textY = ty;
         if (R < L + iconW) iconX = R - iconW;
@@ -267,14 +297,24 @@ void LabelElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
         if (R < L + textW) textX = R - textW;
         if (textBottom < T + textH) top = textBottom - textH;
         switch (align) {
-        case 1: case 4: case 7: textX = (((R - textX) >> 1) - halfTextW) + textX; break;
-        case 2: case 5: case 8: textX = R - textW;                                break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            textX = (((R - textX) >> 1) - halfTextW) + textX;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            textX = R - textW;
+            break;
         default: break;
         }
         int ty = top;
-        if (align > 2) {
-            if (align < 6)      ty = (((textBottom - top) >> 1) - halfTextH) + top;
-            else if (align < 9) ty = textBottom - textH;
+        if (align > ElementDescription::TopRight) {
+            if (align < ElementDescription::BottomLeft)
+                ty = (((textBottom - top) >> 1) - halfTextH) + top;
+            else if (align <= ElementDescription::BottomRight)
+                ty = textBottom - textH;
         }
         textY = ty;
         if (R < L + iconW) iconX = R - iconW;
@@ -291,7 +331,7 @@ void LabelElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
     if (_drawShadow != 0) {
         ctx.AddFont(Object::ExternalPtr<Font>(font), _cachedText, _wrap != 0,
                     _wordWrapSize, _justify, _maxWidth,
-                    textX + 1, baselineAdj + 1 + textY, 0xff000000u);
+                    textX + 1, baselineAdj + 1 + textY, System::kColorBlack);
     }
     ctx.AddFont(Object::ExternalPtr<Font>(font), _cachedText, _wrap != 0,
                 _wordWrapSize, _justify, _maxWidth,

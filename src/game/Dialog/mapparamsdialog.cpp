@@ -253,8 +253,8 @@ void MapParamsDialog::GenerateName() {
     }
 }
 
-void MapParamsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (eventType != 0x12) return;
+void MapParamsDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (eventType != UI::EventId::Activated) return;
 
     if (eventData == 1) {
         // buttonOk: save map name to game world and close

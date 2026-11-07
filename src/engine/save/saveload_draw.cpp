@@ -207,6 +207,7 @@
 #include "ui/SpriteSheet.h"
 #include "ui/SpriteCapture.h"   // ENDGAME B.3.6 UI callers (K4)
 #include "object/External.h"   // Object::ExternalPtr<T> — Draw's by-value argument
+#include "system/Value.h"      // System::kColorWhite
 
 using RtSave::SaveLoad;
 using RtVideo::Context;
@@ -421,7 +422,7 @@ void Save::SaveLoad::Draw(Video::Context& context,
     // 0x1800a3b70, not `Video::ImageBuffer`'s 0x1800f2680). The eleven parameter
     // types come from the export-table entry, unchanged.
     frameCopy->Create(
-        0, 4, 5, 0x100u,
+        0, 4, 5, Video::ImageBuffer::kViewportSize,
         device->backBufferWidth, device->backBufferHeight,
         1, 1, 1, 1, nullptr);
 
@@ -586,13 +587,13 @@ void Save::SaveLoad::Draw(Video::Context& context,
     // ---- redirect the context ---------------------------------------------
     const Video::RenderBuffer* const savedRenderBuffer = ctx->_renderBuffer;
     if (savedRenderBuffer != renderBuffer) {
-        ctx->_dirty |= 0x1u;
+        ctx->_dirty |= RtVideo::kDirtyRenderBuffer;
         ctx->_renderBuffer = renderBuffer;
     }
     if (ctx->_viewport.x != 0 || ctx->_viewport.y != 0 ||
         ctx->_viewport.width != _captureWidth ||
         ctx->_viewport.height != _captureHeight) {
-        ctx->_dirty |= 0x200u;
+        ctx->_dirty |= RtVideo::kDirtyViewport;
         // `MOV qword ptr [RDI+0x1d0],R8` with R8 == 0 — x and y cleared as ONE
         // qword store, then the two dwords.
         ctx->_viewport.x      = 0;
@@ -610,7 +611,7 @@ void Save::SaveLoad::Draw(Video::Context& context,
     // Context.h types as `ContextData*`. The concrete subclass and the dx11 seam
     // stay as they are (B35_RULES section 11).
     ctx->_contextData
-        ->Clear(1u, 0xffff6000u, 1.0f, 0);
+        ->Clear(Video::ClearFlags::Color, 0xffff6000u, 1.0f, 0);
 
     // ---- the orthographic camera ------------------------------------------
     // Six planes and an "orthographic" flag, all literals except the two that
@@ -718,7 +719,7 @@ void Save::SaveLoad::Draw(Video::Context& context,
     draw.x2          = _captureWidth;
     draw.y2          = _captureHeight;
     draw.rotation    = 0.0f;
-    draw.color       = 0xffffffffu;
+    draw.color       = System::kColorWhite;
     draw.isLine      = 0;
     // +0x25..+0x27 are NOT written by retail (the stores stop at the byte at
     // +0x24), so they are left alone here too.
@@ -733,21 +734,21 @@ void Save::SaveLoad::Draw(Video::Context& context,
     // piece of shared state this function leaves changed besides the readback.
     if (ctx->_scissor.x != 0 || ctx->_scissor.y != 0 ||
         ctx->_scissor.width != devW || ctx->_scissor.height != devH) {
-        ctx->_dirty |= 0x400u;
+        ctx->_dirty |= RtVideo::kDirtyScissor;
         ctx->_scissor.x      = 0;
         ctx->_scissor.y      = 0;
         ctx->_scissor.width  = devW;
         ctx->_scissor.height = devH;
     }
     if (ctx->_renderBuffer != savedRenderBuffer) {
-        ctx->_dirty |= 0x1u;
+        ctx->_dirty |= RtVideo::kDirtyRenderBuffer;
         ctx->_renderBuffer = savedRenderBuffer;
     }
     if (ctx->_viewport.x      != savedViewport.x     ||
         ctx->_viewport.y      != savedViewport.y     ||
         ctx->_viewport.width  != savedViewport.width ||
         ctx->_viewport.height != savedViewport.height) {
-        ctx->_dirty |= 0x200u;
+        ctx->_dirty |= RtVideo::kDirtyViewport;
         ctx->_viewport = savedViewport;
     }
 

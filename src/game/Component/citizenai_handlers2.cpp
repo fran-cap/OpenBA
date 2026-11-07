@@ -194,7 +194,7 @@ uint64_t CitizenAIComponent::State_Education() {
     CitizenComponent* ibpHolder = citizen.Get();   // the CitizenComponent in a stack IBP holder
     CitizenAI_PerformWorkCtor10_bccb0(&ibpHolder, &foundEntity, dest, local_res8);
 
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0xB0 = 0;
     citizen->field_0x30 = -1;
 
@@ -266,7 +266,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
             // gated by ((inner->_entityFlags >> 10) & 1) == 0  (disasm: SHR 0xa; TEST CL,1).
             // inner is just-CheckPtr'd by the original (never 0 with valid data); guard
             // it to stay crash-safe (skip rather than fault, matching nothing-to-do).
-            if (inner != nullptr && (inner->_entityFlags >> 10 & 1) == 0) {
+            if (inner != nullptr && (inner->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                 // OR [mi+0x28 + 0xc8], 0x10   == set status-mask bit 4
                 mi->_geometry.activeMask |= 0x10;
                 uint32_t changed;
@@ -312,7 +312,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
     CitizenComponent* ibpHolder = citizen.Get();
     CitizenAI_PerformWorkCtor5_bd070(&ibpHolder, &foundEntity, dest, local_res8);
 
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0xB0 = 0;
     citizen->field_0x30 = -1;
 
@@ -377,7 +377,7 @@ uint64_t CitizenAIComponent::State_FindWork() {
         float walkTime = desc ? desc->_f120 : 0.0f;
         CitizenAI_Pathfinding_WalkTowards_bb490(&ibpHolder, 0xffffffff, outVec, 4, walkTime, 1);
 
-        citizen->statusFlags |= 4;
+        citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizen->field_0x30 = -1;
         citizen->field_0xB0 = 0;
 

@@ -11,6 +11,7 @@
 #include "unit.h"
 #include "ext/registry.h"
 #include "io/settings_file.h"
+#include "system/Configuration.h"   // System::kGameVersion (the pseudo mods' game version)
 
 #include <string>
 
@@ -321,7 +322,7 @@ UNIT_TEST(ext_registry_pseudo_mods_for_save) {
     CHECK_STREQ(mods[0].path.c_str(), "ext:unit_b");
     CHECK_EQ(mods[0].formatVersion, 1);
     CHECK_EQ(mods[0].field10, 0);
-    CHECK_EQ(mods[0].field14, 0x010007ffu);
+    CHECK_EQ(mods[0].field14, System::kGameVersion);
     CHECK_STREQ(mods[1].path.c_str(), "ext:unit_c");
     CHECK_STREQ(mods[1].name.c_str(), "Unit C");
     CHECK_EQ(mods[1].formatVersion, 3);
@@ -334,7 +335,7 @@ UNIT_TEST(ext_registry_pseudo_mods_for_save) {
     CHECK_EQ(Ext::ProvideExtraModsForSave(rec, 4), 2);
     CHECK_STREQ(rec[0].path, "ext:unit_b");
     CHECK_STREQ(rec[1].name, "Unit C");
-    CHECK_EQ(rec[1].field14, 0x010007ffu);
+    CHECK_EQ(rec[1].field14, System::kGameVersion);
     CHECK_EQ(rec[1].formatVersion, 3);
 
     // It reports the ACTIVE set: a B toggled off in game is still in this

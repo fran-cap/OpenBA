@@ -550,11 +550,11 @@ System::String System::Configuration::GetVersionString(uint32_t version, bool de
         "%i.%i.%i", version >> 24, (version >> 16) & 0xffu, (version >> 8) & 0xffu);
 
     const char* text = nullptr;
-    switch (version & 0xffu) {
-        case 0xfb: text = detailed ? "R" : " Prototype"; break;
-        case 0xfc: text = detailed ? "P" : " Pre Alpha"; break;
-        case 0xfd: text = detailed ? "A" : " Alpha"; break;
-        case 0xfe: text = detailed ? "B" : " Beta"; break;
+    switch (static_cast<VersionStage>(version & 0xffu)) {
+        case VersionStage::Prototype: text = detailed ? "R" : " Prototype"; break;
+        case VersionStage::PreAlpha:  text = detailed ? "P" : " Pre Alpha"; break;
+        case VersionStage::Alpha:     text = detailed ? "A" : " Alpha"; break;
+        case VersionStage::Beta:      text = detailed ? "B" : " Beta"; break;
         default: return ret;
     }
 
@@ -568,5 +568,5 @@ System::String System::Configuration::GetVersionString(uint32_t version, bool de
 
 // ?CurrentVersion@Configuration@System@@SA?AVString@2@XZ  retail 0x1800c4f40
 System::String System::Configuration::CurrentVersion() {
-    return GetVersionString(0x010007ffu, false);
+    return GetVersionString(kGameVersion, false);
 }

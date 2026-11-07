@@ -102,7 +102,7 @@ int  RemoveAnimal::AbstractImpl(ActionStack* actionStack) {
 
         // Check bit 10 of the entity flags (already marked for removal?)
         uint32_t flags = localRef->_entityFlags;
-        if (((flags >> 10) & 1) == 0) {
+        if ((flags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
 
             // Mark entity for removal
             localRef->MarkForRemoval();   // 0x1400c2ea0

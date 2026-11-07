@@ -159,7 +159,7 @@ void CitizenComponent::OnMessage(int message, void* data, uint32_t arg0, uint32_
         return;
     }
     case 3: {   // +0x54 |= 0x200 ; +0x50 += DAT_140172114 (0.5f)
-        statusFlags |= 0x200;
+        statusFlags |= Bits(CitizenStatus::UsedHealthItem);
         health += kRdata_140172114;   // 0.5f
         return;
     }

@@ -310,6 +310,23 @@ public:
     // animation.cpp; zero-initialised, as the mint zeroed it.
     static AnimationManager* _singleton;
 
+    // An AnimationState layer handle (AnimationState::Layer::_handle) packs
+    // `instance << 8 | state`: bits 8-15 index _instances, bits 0-7 that
+    // instance's states (GetInstanceId, animationstate_transforms.cpp). Retail
+    // decodes with SAR (arithmetic) then MOVZX: the helpers keep `>>` on the
+    // signed int.
+    static constexpr int32_t kHandleIndexBits = 8;      // shift of the instance index
+    static constexpr int32_t kHandleIndexMask = 0xff;   // width of each index
+    static constexpr int32_t HandleInstance(int32_t handle) {
+        return (handle >> kHandleIndexBits) & kHandleIndexMask;
+    }
+    static constexpr int32_t HandleState(int32_t handle) {
+        return handle & kHandleIndexMask;
+    }
+    static constexpr int32_t MakeHandle(int32_t instance, int32_t state) {
+        return (instance << kHandleIndexBits) | state;
+    }
+
     // ?Update@AnimationManager@Graphics@@QEAAXAEBVTime@System@@_N@Z 0x1800fc240
     //   PORTED — the body is this member, in `wave23_lane_gfxbody.cpp`'s
     //   `namespace Graphics` block; the registered door delegates and keeps both

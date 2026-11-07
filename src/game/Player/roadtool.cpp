@@ -30,6 +30,7 @@
 #include "collection/Collection.h"
 #include "Component/CreateRoadDescription.h"
 #include "input/Input.h"       // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "Component/ComponentDescription.h"
 #include "Game/Map.h"
 #include "Game/PlayerToolManager.h"
@@ -88,7 +89,7 @@ char RoadTool::OnKey(char key) {
 
     // Read KeyMap::GetValue(0, 0x16) for the modifier flag
     const Input::KeyMap* keyMap = Input::Configuration::_singleton->_keyMap;
-    short val = keyMap->GetValue(0, 0x16);
+    short val = keyMap->GetValue(0, ToUnderlying(GameKey::PathMethod));
     modifierFlag = (val == 0) ? 1 : 0;
 
     return 1;
@@ -152,12 +153,12 @@ int RoadTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
 
     // Check terrain flags at both cells
     const MapCell* cells = mapGrid->cells.GetData();
-    uint32_t flagA = 1u << (cells[sc].terrainType & 0x1f);
-    uint32_t flagB = 1u << (cells[ec].terrainType & 0x1f);
+    uint32_t flagA = Bits(PathBitOf(cells[sc].terrainType));
+    uint32_t flagB = Bits(PathBitOf(cells[ec].terrainType));
     uint32_t combinedFlags = flagA | flagB;
 
     // Check if terrain allows road placement (mask 0x5e0 = bits 5-10 must be clear)
-    if ((combinedFlags & 0x5e0) != 0) {
+    if ((combinedFlags & Bits(PathBits::NoRoad)) != 0) {
         return 3;
     }
 
@@ -170,7 +171,8 @@ int RoadTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
     // modifier byte at +0x40, writing the cell path into a stack buffer.
     int pathBuf[2048];   // retail reserves 8184 bytes for the same buffer
     int pathLength = 0;
-    pathLength = mapGrid->FindRoadPath(combinedFlags | 0xa17, sc, ec, nullptr, pathBuf, modifierFlag, 1);
+    pathLength = mapGrid->FindRoadPath(static_cast<PathBits>(combinedFlags) | PathBits::RoadRoute, sc, ec, nullptr,
+                                       pathBuf, modifierFlag, 1);
     if (pathLength != 0) {
         *outCostA  = pathLength;
         *outCostB  = pathLength;
@@ -221,7 +223,7 @@ void RoadTool::Draw(Video::Context* context, char param3) {
         int endNorm   = gridSize * (constrainEnd / gridSize) + constrainEnd % gridSize;
 
         int pathLen = 0;
-        pathLen = mapGrid->FindRoadPath(0xa17, (uint32_t)startNorm, (uint32_t)endNorm,
+        pathLen = mapGrid->FindRoadPath(PathBits::RoadRoute, (uint32_t)startNorm, (uint32_t)endNorm,
                             nullptr, pathBuf, modifierFlag, 1);
 
         // Build tile array from path results
@@ -272,12 +274,12 @@ void RoadTool::Draw(Video::Context* context, char param3) {
         const MapCell* terrainBase = mapGrid->cells.GetData();
 
         // Check terrain flags at both cells
-        uint32_t flagA = 1u << (terrainBase[sc].terrainType & 0x1f);
-        uint32_t flagB = 1u << (terrainBase[ec].terrainType & 0x1f);
+        uint32_t flagA = Bits(PathBitOf(terrainBase[sc].terrainType));
+        uint32_t flagB = Bits(PathBitOf(terrainBase[ec].terrainType));
         uint32_t combinedFlags = flagA | flagB;
 
         // Both cells must be valid terrain (mask 0x5e0 clear) and unoccupied
-        bool valid = ((combinedFlags & 0x5e0) == 0) &&
+        bool valid = ((combinedFlags & Bits(PathBits::NoRoad)) == 0) &&
                      (terrainBase[sc].blocker == nullptr) &&
                      (terrainBase[ec].blocker == nullptr);
 
@@ -285,12 +287,14 @@ void RoadTool::Draw(Video::Context* context, char param3) {
 
         if (valid) {
             // Try strict pathfinding first (mask: combinedFlags | 0xa17)
-            pathLen = mapGrid->FindRoadPath(combinedFlags | 0xa17, sc, ec, nullptr, pathBuf, modifierFlag, 1);
+            pathLen = mapGrid->FindRoadPath(static_cast<PathBits>(combinedFlags) | PathBits::RoadRoute, sc, ec,
+                                            nullptr, pathBuf, modifierFlag, 1);
         }
 
         if (pathLen == 0) {
             // Fallback: relaxed pathfinding (mask: combinedFlags | 0xff7)
-            pathLen = mapGrid->FindRoadPath(combinedFlags | 0xff7, sc, ec, nullptr, pathBuf, modifierFlag, 0);
+            pathLen = mapGrid->FindRoadPath(static_cast<PathBits>(combinedFlags) | PathBits::RoadRouteRelaxed, sc, ec,
+                                            nullptr, pathBuf, modifierFlag, 0);
         }
 
         if (pathLen > 0) {
@@ -300,12 +304,12 @@ void RoadTool::Draw(Video::Context* context, char param3) {
             for (int i = 0; i < pathLen; i++) {
                 int cellIdx = pathBuf[i];
                 const MapCell* cellData = &terrainBase[cellIdx];
-                uint8_t terrainByte = cellData->terrainType;
+                uint8_t terrainByte = static_cast<uint8_t>(cellData->terrainType);
                 uint32_t terrainFlag = 1u << (terrainByte & 0x1f);
 
                 // Color: green if valid road terrain (0xa17), red if invalid or occupied
                 uint32_t color;
-                if ((terrainFlag & 0xa17) == 0 || cellData->blocker != nullptr) {
+                if ((terrainFlag & Bits(PathBits::RoadRoute)) == 0 || cellData->blocker != nullptr) {
                     color = 0xffff0000; // red — invalid
                 } else {
                     color = 0xff00ff00; // green — valid

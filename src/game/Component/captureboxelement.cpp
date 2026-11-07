@@ -34,10 +34,10 @@ CaptureBoxElement::CaptureBoxElement()
 // is set, the element's size (+0x60/+0x64) is 1x1 and the flag is cleared.
 void CaptureBoxElement::ComputeSize() {
     uint32_t flags = _flags;
-    if ((flags >> 27) & 1u) {
+    if (flags & UI::kElementFlagNeedsSizeCalc) {
         _layoutWidth = 1;
         _layoutHeight = 1;
-        _flags = flags & 0xf7ffffffu;
+        _flags = flags & ~UI::kElementFlagNeedsSizeCalc;
     }
 }
 
@@ -59,7 +59,7 @@ void CaptureBoxElement::ComputeLayout(int32_t x, int32_t y, int32_t w, int32_t h
 void CaptureBoxElement::Draw(UI::SpriteContext& context, uint8_t alpha) const {
     UI::Element::Draw(context, alpha);   // base — QUALIFIED (slot 6)
     uint32_t a32 = alpha;
-    if (_flags & 0x40000) a32 = (uint32_t)(alpha >> 1);
+    if (_flags & UI::kElementFlagDimColor) a32 = (uint32_t)(alpha >> 1);
     uint32_t v = _color;
     uint32_t color = ((((v >> 8) & 0xffff0000u) * a32 ^ v) & 0xffffffu)
                      ^ (((v >> 8) & 0xff0000u) * a32);

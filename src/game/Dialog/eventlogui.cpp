@@ -252,9 +252,9 @@ void EventLogUI::NavigateToRow(int32_t rowIdx) {
 // Original: 0x1400675D0.
 
 // [9] 0x1400675d0
-void EventLogUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg, int32_t id,
+void EventLogUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId msg, int32_t id,
                                 int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (msg != 0x12) return;
+    if (msg != UI::EventId::Activated) return;
 
     if (id == 100) {
         // buttonPrevious — scroll to older events

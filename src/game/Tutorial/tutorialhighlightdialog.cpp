@@ -334,7 +334,7 @@ void TutHLDiag(const ComponentEntity* entity, bool ok, const Rectangle& rect) {
 // Row 89 (B7 RES): 0x1400dfda0 tests nothing but the screen-rect result
 // (0x1400dfdfa); glowGroup (+0xc0) and arrow (+0xd0) are read straight.
 void TutorialHighlightDialog::PlaceOnEntity() {
-    glowGroup->SetFlagsOnOff(1, 0);   // hide
+    glowGroup->SetFlagsOnOff(UI::kElementFlagHidden, 0);   // hide
 
     // Volume::Rectangle rect; ok = EntityScreenRect(rect, &entityIBP, &rect)
     alignas(16) struct Rectangle rect;
@@ -356,10 +356,10 @@ void TutorialHighlightDialog::PlaceOnEntity() {
 
     UI::ImageElement* arrowElem = arrow;
     if (!ok) {
-        arrowElem->SetFlagsOnOff(1, 0);   // hide
+        arrowElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);   // hide
         return;
     }
-    arrowElem->SetFlagsOnOff(0, 1);                  // show
+    arrowElem->SetFlagsOnOff(0, UI::kElementFlagHidden);                  // show
 
     UI::Sprite sprite = arrowElem->GetSprite();
     int arrowW = sprite.Width();

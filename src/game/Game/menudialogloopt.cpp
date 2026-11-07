@@ -676,7 +676,7 @@ void MenuDialogLoopT::DrawScene_PhaseA(float alpha, Video::Context* context) {
     context->_unknown03b8 = menuScene->field_0x1B4;
     // Context +0x288: Context::PixelConstantStaging::pixel[4] (Video/Context.h).
     std::memcpy(&context->_pixelConstantStaging.pixel[4], &menuScene->field_0x1B4, 16);
-    context->_dirty |= 0x10800;
+    context->_dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     // Fog color Vector4 — the skyColor's RGB; the 4th component is fog density.
     const Math::Vector4 fogColor(ColorChannel(menuScene->skyColor, 16),

@@ -146,7 +146,7 @@ bool ExternalSerialize(::Object::External* self, IO::Stream& stream) {
 // idempotent on a closed FileInfo, but the second call is a different
 // destructor's statement and a reader who saw only one would not know that.
 void CloseIfOpen(RtIO::FileInfo* fi) {
-    if (fi->handle == -1) return;
+    if (fi->handle == RtIO::FileInfo::kHandleNone) return;
     // ENDGAME B.3.9 SS1 (B39_RULES D7): the class static now, read fresh.
     ::IO::FileSystem::_singleton->CloseFile(*fi);                 // 0x1800accc0
 }
@@ -256,9 +256,9 @@ extern "C" bool RtObject_External_SaveText(::Object::External* self, const Syste
     // ---- 1800bba85..1800bba9f -------------------------------------------
     bool result = false;                             // 1800bba85: XOR DIL,DIL
     int32_t bomLen = 2;                              // 1800bba88: MOV EBX,2
-    ts->_requestedFormat = 2;                        // 1800bba8d: [+0x68] = 2
-    ts->_activeEncoding  = 2;                        // 1800bba90: [+0x6c] = 2
-    if (g_stCtl == 3) { ++g_stAtt; ts->_activeEncoding = 3; }  // see the control note
+    ts->_requestedFormat = IO::Text::Format::Utf8;   // 1800bba8d: [+0x68] = 2
+    ts->_activeEncoding  = IO::Text::Format::Utf8;   // 1800bba90: [+0x6c] = 2
+    if (g_stCtl == 3) { ++g_stAtt; ts->_activeEncoding = IO::Text::Format::Utf8Bom; }  // see the control note
 
     if (ts->IO::FileStream::Create(*path)) {   // B.3.9 IO: the member
 
@@ -274,13 +274,25 @@ extern "C" bool RtObject_External_SaveText(::Object::External* self, const Syste
         bool haveBom = false;
 
         switch (ts->_activeEncoding) {
-            case 3:  bom[0] = 0xEF; bom[1] = 0xBB; bom[2] = 0xBF;   // 1800bbaca
-                     bomLen = 3; haveBom = true; break;
-            case 4:  bom[0] = 0xFF; bom[1] = 0xFE;                  // 1800bbac2
-                     haveBom = true; break;
-            case 5:  bom[0] = 0xFE; bom[1] = 0xFF;                  // 1800bbaba
-                     haveBom = true; break;
-            default: break;                                          // 0, 2, other
+            case IO::Text::Format::Utf8Bom:   // 1800bbaca
+                bom[0] = 0xEF;
+                bom[1] = 0xBB;
+                bom[2] = 0xBF;
+                bomLen = 3;
+                haveBom = true;
+                break;
+            case IO::Text::Format::Utf16Le:   // 1800bbac2
+                bom[0] = 0xFF;
+                bom[1] = 0xFE;
+                haveBom = true;
+                break;
+            case IO::Text::Format::Utf16Be:   // 1800bbaba
+                bom[0] = 0xFE;
+                bom[1] = 0xFF;
+                haveBom = true;
+                break;
+            default:                          // 0, 2, other
+                break;
         }
 
         if (haveBom) {

@@ -128,7 +128,7 @@ class ComponentDescription;
 inline bool SA_DialogEntityAlive(const UI::DialogController* self) {
     const Object::Base* e = self->_dataSource;
     if (!e) return false;
-    if ((static_cast<const ComponentEntity*>(e)->_entityFlags >> 10) & 1)
+    if (static_cast<const ComponentEntity*>(e)->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))
         return false;
     return true;
 }

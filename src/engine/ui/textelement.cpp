@@ -103,13 +103,23 @@ void TextElement::ComputeLayout(int32_t x, int32_t y, int32_t right, int32_t bot
     if ((_flags & kElementFlagAlignArg2) != 0) h = ah;
 
     switch (align) {
-        case 1: case 4: case 7: px = ((aw >> 1) - (w >> 1)) + px; break;
-        case 2: case 5: case 8: px = (right - _rightPad) - w; break;
+        case ElementDescription::TopCenter:
+        case ElementDescription::MidCenter:
+        case ElementDescription::BottomCenter:
+            px = ((aw >> 1) - (w >> 1)) + px;
+            break;
+        case ElementDescription::TopRight:
+        case ElementDescription::MidRight:
+        case ElementDescription::BottomRight:
+            px = (right - _rightPad) - w;
+            break;
         default: break;
     }
-    if (align > 2) {
-        if (align < 6)      py = ((ah >> 1) - (h >> 1)) + py;
-        else if (align < 9) py = (bottom - _bottomPad) - h;
+    if (align > ElementDescription::TopRight) {
+        if (align < ElementDescription::BottomLeft)
+            py = ((ah >> 1) - (h >> 1)) + py;
+        else if (align <= ElementDescription::BottomRight)
+            py = (bottom - _bottomPad) - h;
     }
 
     _layoutRight  = px + w;
@@ -133,7 +143,7 @@ void TextElement::Draw(SpriteContext& ctx, uint8_t alpha) const {
         ctx.AddFont(Object::ExternalPtr<Font>(font), _cachedText, _wrap != 0,
                     _wordWrapSize, _justify, _maxWidth,
                     _layoutLeft + 1, _layoutTop + 1 + baseline,
-                    0xff000000u);
+                    System::kColorBlack);
     }
 
     ctx.AddFont(Object::ExternalPtr<Font>(font), _cachedText, _wrap != 0,

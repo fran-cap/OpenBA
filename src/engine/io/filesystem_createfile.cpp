@@ -296,7 +296,7 @@ bool FileSystem::PlatformCreateFile(RtIO::FileInfo& infoRef,
         return false;                                        // 1800adffa
     }
 
-    info->handle = -2;                                       // 1800adef6 — LOOSE
+    info->handle = RtIO::FileInfo::kHandleLoose;             // 1800adef6 — LOOSE
 
     // temp path -> _name0, via WideString::Set / AsUTF8 / AdjustDelimiters.
     // B.4 Z MIRROR2 (`behaviour:`, known_port_issues row 582, disassembly

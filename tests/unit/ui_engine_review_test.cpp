@@ -64,7 +64,7 @@ UI::UserInterface* NewUserInterface() {
 void PostEvent(UI::UserInterface* ui, UI::DialogInstance* dialog, int32_t id) {
     UI::Event ev{};
     ev.dialog = dialog;
-    ev.eventId = id;
+    ev.eventId = static_cast<UI::EventId>(id);   // test ids, some outside the enum
     rtcoll::RtColl_ArraySetSizeFill_180033690(&ui->_events, ui->_events._size + 1, &ev);
 }
 
@@ -74,10 +74,10 @@ struct PostingDialog final : UI::DialogInstance {
     UI::UserInterface* ui = nullptr;
     int calls = 0;
     int lastId = 0;
-    void OnElementEvent(Object::InternalPtr<UI::Element>*, int32_t eventId, int32_t, int32_t,
+    void OnElementEvent(Object::InternalPtr<UI::Element>*, UI::EventId eventId, int32_t, int32_t,
                         int32_t, int32_t, void*) override {
         ++calls;
-        lastId = eventId;
+        lastId = static_cast<int32_t>(eventId);
         if (calls == 1) {
             PostEvent(ui, this, 99);
         }

@@ -106,6 +106,7 @@
 #include "system/string_internal.h"   // the String release helpers (Wave 2, lane String)
 #include "saveload_internal.h"
 #include "rt_crt.h"   // rtcrt::StrICmp, retail's _stricmp (D.4 Q9)
+#include "system/Configuration.h"   // System::kModMinGameVersion
 
 using RtSave::SaveLoad;
 using RtSave::SavedState;
@@ -768,7 +769,7 @@ int Save::SaveLoad::CheckMod(int saveIndex, int modIndex) const {
         // Equality only (`CMP ; JZ`): signedness is unobservable.
         if (static_cast<uint32_t>(entry.i2c) != mod->versionMajor)      ours = 4;
         else if (static_cast<uint32_t>(entry.i1c) != mod->versionMinor) ours = 3;
-        else ours = (mod->gameVersion < 0x1000400u) ? 2 : 0;
+        else ours = (mod->gameVersion < System::kModMinGameVersion) ? 2 : 0;
     }
 
     return ours;
@@ -811,7 +812,7 @@ void Save::SaveLoad::Update(const System::Time& delta) {
 
     const ::IO::Persistence* p = PersistenceSingleton();
     if (p->_worker.IsWorking()) return;
-    if (p->_worker._status == 0) return;
+    if (p->_worker._status == static_cast<int32_t>(::IO::PersistenceWorker::Status::Pending)) return;
 
     // ENDGAME B.3.7 B2: the five targets are members of this class now, called
     // directly (they were five RT_EXPORT_ONCE doors onto our own ports).

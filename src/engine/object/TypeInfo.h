@@ -43,6 +43,11 @@
 #include "../collection/Collection.h"   // B7: TypeRecord::children is the real Array
 
 namespace Object { class Base; }   // the factory pair's return type (below)
+namespace Object {
+// A type id not assigned yet (BaseTypeInfo::typeId until Factory::Startup gives it
+// its CRC id), and the type a null InternalPtr serializes.
+constexpr uint32_t kInvalidTypeId = 0xFFFFFFFFu;
+}  // namespace Object
 namespace Object { class BaseTypeInfo; }   // B.4 Z RT2: TypeRecord::info, the real class
 
 namespace RtObject {

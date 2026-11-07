@@ -399,7 +399,7 @@ bool PlatformFileExists(const System::Filename* path) {
     {
         const System::WideString ws(path->AsString());          // 0x1800aefbf
         const uint32_t attrs = Platform::PathAttributes(ws._data);   // GetFileAttributesW
-        ok = (attrs != 0xFFFFFFFFu);                            // 0x1800aefce
+        ok = (attrs != Platform::kInvalidPathAttributes);       // 0x1800aefce
     }                                                           // 0x1800aefd5
     return ok;
 }

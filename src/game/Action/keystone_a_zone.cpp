@@ -255,8 +255,8 @@ void Map::StampFootprint(const Object::InternalPtr<ComponentEntity>* owner, int 
     StampZoneFootprint(this, owner, x, y, w, h, footprint, rotation);
 }
 
-int Map::FindRoadPath(uint passableTypes, uint start, uint64_t goal,
+int Map::FindRoadPath(PathBits passableTypes, uint start, uint64_t goal,
                       void* unused5, int32_t* path, uint8_t manhattan, uint8_t respectBlocked) {
     (void)unused5;
-    return RoadPathQuery(this, passableTypes, start, goal, path, manhattan, respectBlocked);
+    return RoadPathQuery(this, Bits(passableTypes), start, goal, path, manhattan, respectBlocked);
 }

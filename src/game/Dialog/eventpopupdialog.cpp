@@ -68,9 +68,9 @@ void EventPopupDialog::OnOpened() {
 // Original: 0x140068BD0.
 
 void EventPopupDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
-                                      int32_t param3, int32_t param4, int32_t /*c*/,
+                                      UI::EventId param3, int32_t param4, int32_t /*c*/,
                                       int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 == 0x12 && param4 == 200) {
+    if (param3 == UI::EventId::Activated && param4 == 200) {
         Object::InternalPtr<UI::DialogInstance> selfIBP(this);
         _ui->CloseDialog(&selfIBP);
     }

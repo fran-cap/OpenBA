@@ -192,6 +192,10 @@ class CharacterSet;
 
 class Font : public Object::External {
 public:
+    // _charToGlyph entry of a codepoint the font has no glyph for
+    // (GetSpriteIndex 0x180031da0 maps it to -1).
+    static constexpr int32_t kNoGlyph = 0xffff;
+
     // Retail's nested names (`Kerning@Font@UI`, `Layout@Font@UI`,
     // `Justify@Font@UI` in the exported manglings).
     using Kerning = RtUI::FontGlyph;
@@ -255,7 +259,7 @@ public:
     int32_t GetSpriteIndex(int32_t codepoint) const {      // 0x180031da0
         if (codepoint < 0 || codepoint >= _charToGlyph._size) return -1;
         const int32_t g = _charToGlyph._data[codepoint];
-        return (g == 0xffff) ? -1 : g;
+        return (g == kNoGlyph) ? -1 : g;
     }
     // 0x180031d90 — RETSLOT in retail; a plain by-value return here.
     Object::ExternalPtr<SpriteSheet> GetSpriteSheet() const { return _spriteSheet; }

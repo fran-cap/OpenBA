@@ -151,7 +151,7 @@ void WorkPlaceComponent::Detach(Object::InternalPtr<CitizenComponent>* worker) {
 
     StatusIconComponent* mesh = _entity->FindComponent<StatusIconComponent>();
     if (!mesh) return;   // partial-world guard: no StatusIconComponent renderable
-    if ((mesh->_entity->_entityFlags >> 10 & 1) != 0) return;
+    if ((mesh->_entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0) return;
 
     mesh->_geometry.activeMask |= 0x10;
     // Each branch reads the component flags FRESH right before the OR/AND (the original

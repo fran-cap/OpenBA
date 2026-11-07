@@ -198,16 +198,16 @@ void Device::FreeChannelPlatform(int32_t index) NO_THREAD_SAFETY_ANALYSIS {
 // (0x1800DE23F..0x1800DE268), which is the cross-check for all of it.
 // ---------------------------------------------------------------------------
 void Device::Update(const System::Time& /*time — never read*/) {
-    for (int i = 0; i < 64; ++i) {                    // `CMP EDI,0x40 ; JL`
+    for (int i = 0; i < kChannelCount; ++i) {         // `CMP EDI,0x40 ; JL`
         AudioChannel* ch = &_channels[i];
         // Retail tests the LOW BYTE of the dword (`TEST byte ptr [..],0x2`)
         // and clears the whole dword; both are reproduced.
-        if ((ch->LoadFlags() & 2u) == 0) continue;
+        if ((ch->LoadFlags() & Bits(ChannelFlags::Finished)) == 0) continue;
 
         FreeChannelPlatform(i);
 
         Callback cb = ch->onComplete;
-        ch->AndFlags(0xFFFFFFFCu);
+        ch->AndFlags(Bits(~(ChannelFlags::Live | ChannelFlags::Finished)));
         ch->source = nullptr;
         if (cb)
             cb(ch, ch->userData, ch->userValue);
@@ -287,7 +287,7 @@ void Device::StopPlatform(int32_t index) {
     }
 
     // Unguarded on purpose - see the banner above.
-    pc.channel->OrFlags(2u);
+    pc.channel->OrFlags(Bits(ChannelFlags::Finished));
 }
 
 // ---------------------------------------------------------------------------
@@ -363,7 +363,7 @@ void Device::Stop(AudioChannel* channelPtr) {
     // ---- the reap epilogue, identical to Device::Update's ------------------
     AudioChannel* ch = &_channels[index];
     Callback cb = ch->onComplete;
-    ch->AndFlags(0xFFFFFFFCu);
+    ch->AndFlags(Bits(~(ChannelFlags::Live | ChannelFlags::Finished)));
     ch->source = nullptr;
     if (cb)
         cb(ch, ch->userData, ch->userValue);

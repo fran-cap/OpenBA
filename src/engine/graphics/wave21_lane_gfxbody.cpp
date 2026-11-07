@@ -74,18 +74,6 @@ static_assert(offsetof(Context, _imageBuffers)     == 0x0030, "Setup writes ctx+
 static_assert(offsetof(Context, _pixelConstantStaging) == 0x0200,
               "Setup writes ctx+0x208+slot*0x10, i.e. staging[0x08 + slot*0x10]");
 
-// The two dirty bits Setup raises, by VALUE not by the enum name.
-//
-// 0x2 is Context.h's `kDirtyImageBuffers` and that name is safe to use. 0x8000
-// is NOT in Context.h's enum at all — the enum's `kDirtyMaterialConstants` is
-// 0x1000, and Context.h:130-149 documents at length that that name is
-// MISLEADING (0x1000 feeds the INSTANCE constant buffer; 0x8000 is the one
-// BindResources uploads from +0x208, length 0x40). Using the literal here, with
-// this note, is deliberate: borrowing a name whose own header says it means
-// something else is how a wrong constant survives review.
-constexpr uint32_t kDirtyImageBuffersBit    = 0x00000002u;
-constexpr uint32_t kDirtyMaterialStagingBit = 0x00008000u;
-
 // The +0x208 staging window is 0x40 bytes = four float4 slots. That is the
 // length BindResources uploads (Context.h:139), and it is what bounds the slot
 // index Setup writes. Not enforced at runtime — retail does not bound it either
@@ -313,7 +301,7 @@ void MaterialInstance::Setup(Video::Context& context, int32_t shader) const {
         const Video::ImageBuffer* image = _textures._data[b.sourceIndex].image;
         int32_t slot = b.shaderSlot;
         if (context._imageBuffers[slot] != image) {
-            context._dirty            |= kDirtyImageBuffersBit;
+            context._dirty            |= RtVideo::kDirtyImageBuffers;
             context._imageBufferDirty |= (1u << (static_cast<uint32_t>(slot) & 31u));  // (b)
             context._imageBuffers[slot] = image;
         }
@@ -335,7 +323,7 @@ void MaterialInstance::Setup(Video::Context& context, int32_t shader) const {
             continue;
         }
         std::memcpy(dst, src, 4 * sizeof(float));       // (d) integer moves
-        context._dirty |= kDirtyMaterialStagingBit;
+        context._dirty |= RtVideo::kDirtyMaterialConstants;   // the +0x208 staging upload
     }
 
     // EXT SEAM (NOT RETAIL, docs/extensions/BLOSSOM.md): the blossom code for this draw; null = retail.

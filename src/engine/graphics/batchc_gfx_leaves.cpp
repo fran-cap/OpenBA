@@ -644,7 +644,7 @@ void SpotLight::CreateTargets() {
         // Slot 9 `Create`, by name (B3X W0); faithful: unguarded, and the field
         // is re-read (`MOV RCX,[RSI+0x148]`).
         _shadowMap->Create(0, 0, 5,
-                           0x40u, 0x400, 0x400,
+                           Video::ImageBuffer::kShadowMap, 0x400, 0x400,
                            1, 1, 1, 1, nullptr);
     }
 
@@ -653,7 +653,7 @@ void SpotLight::CreateTargets() {
         void* const p = Video::ImageBuffer::operator new(0x68);
         _shadowDepth = (p != nullptr) ? ::new (p) Video::ImageBuffer() : nullptr;
         _shadowDepth->Create(0, 1, 7,
-                             0x40u, 0x400, 0x400,
+                             Video::ImageBuffer::kShadowMap, 0x400, 0x400,
                              1, 1, 1, 1, nullptr);
     }
 

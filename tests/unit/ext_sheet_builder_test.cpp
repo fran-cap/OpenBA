@@ -30,6 +30,7 @@
 #include "ext/resources/ext_sprites_data.h"
 #include "ext/resources/sheet_builder.h"
 #include "ext/registry.h"   // the rows whose icons the sheet must carry
+#include "io/Serializer.h"   // IO::kRecordMagic / kRecordTrailer (the BinaryWriter frame)
 #include "object/External.h"
 #include "system/Crc.h"
 #include "system/Filename.h"
@@ -132,8 +133,8 @@ struct Cur {
     // String::Serialize's record: u32 length | 0x80000000, then the bytes (nul included).
     std::string Str() {
         const uint32_t n = U32();
-        if (!(n & 0x80000000u)) { ok = false; return std::string(); }
-        const size_t len = n & 0x7fffffffu;
+        if (!(n & System::String::kSerializedUtf8Flag)) { ok = false; return std::string(); }
+        const size_t len = n & System::String::kSerializedLengthMask;
         if (o + len > d->size()) { ok = false; return std::string(); }
         std::string s(reinterpret_cast<const char*>(d->data() + o), len);
         o += len;
@@ -143,7 +144,7 @@ struct Cur {
     // The BinaryWriter frame: aaaaaaaa, length, version. Returns the version.
     int32_t Frame() {
         const uint32_t m = U32();
-        if (m != 0xaaaaaaaau) ok = false;
+        if (m != IO::kRecordMagic) ok = false;
         (void)U32();
         return I32();
     }
@@ -175,17 +176,17 @@ struct Rec {
     void Str(const System::String& s) {
         const char* p = s._data;
         const size_t n = p ? std::strlen(p) + 1 : 0;
-        U32(static_cast<uint32_t>(n) | 0x80000000u);
+        U32(static_cast<uint32_t>(n) | System::String::kSerializedUtf8Flag);
         if (n) b.insert(b.end(), p, p + n);
     }
     void ExtPtr(const Object::External* e) {
         Bool(e != nullptr);
         if (e != nullptr) Str(e->_path);
     }
-    void Begin(int32_t version) { U32(0xaaaaaaaau); lenAt = b.size(); U32(0xffffffffu); I32(version); }
+    void Begin(int32_t version) { U32(IO::kRecordMagic); lenAt = b.size(); U32(0xffffffffu); I32(version); }
     void End() {
         const uint32_t len = static_cast<uint32_t>(b.size() - (lenAt + 4));
-        U32(0xbbbbbbbbu);
+        U32(IO::kRecordTrailer);
         std::memcpy(&b[lenAt], &len, 4);
     }
 };

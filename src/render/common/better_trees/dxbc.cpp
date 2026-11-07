@@ -72,13 +72,13 @@ uint32_t DecodeOperand(const uint32_t* t, uint32_t avail, uint32_t at, Operand* 
         else if (o->selMode == 1) o->compBits = (tok >> 4) & 0xFF;
         else                      o->compBits = (tok >> 4) & 3;
     }
-    if (tok & 0x80000000u) {   // extended operand token(s)
+    if (tok & kTokenExtended) {   // extended operand token(s)
         uint32_t ext;
         do {
             if (n >= avail) return 0;
             ext = t[n++];
             if ((ext & 0x3F) == 1) o->modifier = (ext >> 6) & 0xFF;
-        } while (ext & 0x80000000u);
+        } while (ext & kTokenExtended);
     }
     if (o->type == OperandType::Imm32 || o->type == OperandType::Imm64) {
         const uint32_t comps = (o->numComp == 1) ? 1 : (o->numComp == 2 ? 4 : 0);
@@ -248,12 +248,12 @@ bool ParseProgram(const Chunk& shdr, Program* out, std::string* err) {
         in.isDecl = IsDeclaration(in.opcode);
         if (!in.isDecl) {
             uint32_t k = 1;
-            if (in.token & 0x80000000u) {   // extended opcode token(s)
+            if (in.token & kTokenExtended) {   // extended opcode token(s)
                 uint32_t ext;
                 do {
                     if (k >= in.length) return fail("extended opcode truncated");
                     ext = t[at + k++];
-                } while (ext & 0x80000000u);
+                } while (ext & kTokenExtended);
             }
             while (k < in.length) {
                 Operand o;
@@ -349,7 +349,7 @@ void TempDst(std::vector<uint32_t>& t, uint32_t reg, uint32_t mask) { Dst(t, Ope
 void OutputDst(std::vector<uint32_t>& t, uint32_t reg, uint32_t mask) { Dst(t, OperandType::Output, reg, mask); }
 void TempSrc(std::vector<uint32_t>& t, uint32_t reg, uint32_t swizzle, uint32_t modifier) {
     uint32_t tok = 2u | (1u << 2) | ((swizzle & 0xFF) << 4) | (OperandType::Temp << 12) | (1u << 20);
-    if (modifier) tok |= 0x80000000u;
+    if (modifier) tok |= kTokenExtended;
     t.push_back(tok);
     if (modifier) t.push_back(1u | (modifier << 6));
     t.push_back(reg);

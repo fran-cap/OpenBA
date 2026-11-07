@@ -27,6 +27,7 @@
 #include "Action/PathSearch.h"   // RawArray<T>, RawArrayFree (the arrays at +0xD8 and +0x1A0)
 #include "Action/PathAvl.h"      // AvlTreeHead, AvlNode28 (the +0xE8 set)
 #include "Game/WorldGeometryElements.h"   // TerrainVertex, GeometryBatch(_DestroyRange), GeometryDrawRange
+#include "Game/WorldDrawKey.h"            // WorldDrawKey (DrawKey; standalone for the ext unit tests)
 class TerrainGenerator;       // Game/TerrainGenerator.h
 struct TerrainHeightfield;    // Game/TerrainHeightfield.h
 namespace Video { class ImageBuffer; }
@@ -72,6 +73,11 @@ static_assert(sizeof(DirtyChunkSet) == 0x10, "DirtyChunkSet is the Set header {r
 
 class WorldGeometry final : public Graphics::Geometry {
 public:
+    // The item key AddDrawItems (0x1400AE490) hands Renderer::AddDrawItem and Draw
+    // (0x1400AEA10) decodes: the mode in bits 13-15, the index in the rest
+    // (Game/WorldDrawKey.h, standalone for the ext unit tests).
+    using DrawKey = WorldDrawKey;
+
     WorldGeometry();                                                  // 0x1400b00e0
 
     // body 0x1400aed50

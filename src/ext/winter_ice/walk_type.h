@@ -26,7 +26,7 @@
 namespace Ext {
 namespace WalkOnIce {
 
-inline constexpr uint8_t kFrozenType = 9;   // retail's bridge-cell type: walkers cross, boats pass
+inline constexpr PathType kFrozenType = PathType::Bridge;   // retail's bridge-cell type 9: walkers cross, boats pass
 
 extern const uint8_t* g_frozen;   // g_count bytes, 1 = a walkable frozen cell; null = none (faithful)
 extern const MapCell* g_base;     // the cell array g_frozen indexes
@@ -65,7 +65,7 @@ inline float OnIce(const Map& map, float x, float y, float z) {
 }
 
 // The terrain type `cell` (an element of the map's cell array) has for the walk readers.
-inline uint8_t TypeOf(const MapCell& cell) {
+inline PathType TypeOf(const MapCell& cell) {
     const uint8_t* frozen = g_frozen;
     if (frozen == nullptr) return cell.terrainType;
     // Compared as addresses: a cell of another array is no pointer difference the language defines.

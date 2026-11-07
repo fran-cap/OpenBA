@@ -36,7 +36,8 @@ bool ReadIndexExtent(Platform::FileHandle h, int64_t& begin, int64_t& end) {
     uint32_t got = 0;
     if (Platform::FileSeek64(h, 0) == 0) return false;
     if (Platform::FileRead(h, &hdr, 4, &got) == 0 || got != 4) return false;
-    begin = static_cast<int64_t>(hdr & 0x7FFFFFFFu);   // ReadPackfile 0x1800b47ca: BTR 31
+    // ReadPackfile 0x1800b47ca: BTR 31
+    begin = static_cast<int64_t>(hdr & IO::PackageFile::kHeaderOffsetMask);
     int32_t blobLen = 0;
     if (Platform::FileSeek64(h, begin) == 0) return false;
     if (Platform::FileRead(h, &blobLen, 4, &got) == 0 || got != 4) return false;
@@ -59,7 +60,7 @@ void OnMounted(IO::FileSystem& fs) {
         const IO::PackageFile* pkg = fs._packfiles[pi];
         // A loose package with an OS handle (a package inside a package is read
         // through its parent and keeps retail's read).
-        if (static_cast<uint32_t>(pkg->_file.handle) <= 0xFFFFFFFDu) continue;
+        if (RtIO::FileInfo::IsPackedHandle(pkg->_file.handle)) continue;
         const Platform::FileHandle h = pkg->_file.winHandle;
         if (h == nullptr || h == Platform::kInvalidFileHandle) continue;
         const int64_t size = Platform::FileSize64(h);

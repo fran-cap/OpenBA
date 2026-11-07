@@ -246,12 +246,12 @@ void ImageBuffer::ReleaseFields() {
 // right-shifted by `Configuration::shadowScalar & 0x1f` when bit 6 is set.
 // Both singletons are read at the point retail reads them.
 int32_t ImageBuffer::Width() const {
-    if ((_flags >> 8) & 1)
+    if ((_flags & kViewportSize) != 0)
         return Device::_singleton->backBufferWidth;
-    if ((_flags >> 9) & 1)
+    if ((_flags & kHalfViewportSize) != 0)
         return Device::_singleton->backBufferWidth / 2;
     int32_t v = _width;
-    if ((_flags >> 6) & 1) {
+    if ((_flags & kShadowMap) != 0) {
         const uint32_t shift =
             static_cast<uint32_t>(Configuration::_singleton->shadowScalar) & 0x1f;
         v >>= shift;
@@ -261,12 +261,12 @@ int32_t ImageBuffer::Width() const {
 
 // ?Height@ImageBuffer@Video@@QEBAHXZ  0x1800f24e0 — the same ladder on +8.
 int32_t ImageBuffer::Height() const {
-    if ((_flags >> 8) & 1)
+    if ((_flags & kViewportSize) != 0)
         return Device::_singleton->backBufferHeight;
-    if ((_flags >> 9) & 1)
+    if ((_flags & kHalfViewportSize) != 0)
         return Device::_singleton->backBufferHeight / 2;
     int32_t v = _height;
-    if ((_flags >> 6) & 1) {
+    if ((_flags & kShadowMap) != 0) {
         const uint32_t shift =
             static_cast<uint32_t>(Configuration::_singleton->shadowScalar) & 0x1f;
         v >>= shift;
@@ -295,7 +295,7 @@ int32_t ImageBuffer::GetLevelCount() const {
 // {0,1,4,5} — deliberately NOT the same set as `dynamic_resources.cpp`'s
 // per-element guard, which also admits 3.
 bool ImageBuffer::IsCompressed() const   { return _format < 3; }
-bool ImageBuffer::HasMipMaps() const     { return (_flags & 1u) != 0; }
+bool ImageBuffer::HasMipMaps() const     { return (_flags & kMipmaps) != 0; }
 bool ImageBuffer::IsDepthBuffer() const  { return _kind == 1; }
 bool ImageBuffer::IsDynamic() const      { return _kind == 3; }
 bool ImageBuffer::IsGenerated() const    { return _kind == 4; }

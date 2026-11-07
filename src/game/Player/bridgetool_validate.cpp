@@ -46,7 +46,7 @@ inline Map* MapGrid() {
 
 // 1 << (terrainType & 0x1f) — the bit each mask is tested against.
 inline uint32_t TerrainBit(const MapCell* cell) {
-    return 1u << (cell->terrainType & 0x1f);
+    return Bits(PathBitOf(cell->terrainType));
 }
 
 // The pending/queued-cell BST at Map +0xE8 (AvlNode28: key +0x00, left +0x10,
@@ -232,9 +232,9 @@ uint32_t BridgeTool::ValidatePath(int startCell, int endCell, int* outLength) co
                     result = 0;
 
                 const bool free = (cell->blocker == nullptr)
-                               && ((bit & 2) == 0)
-                               && ((bit & 1) == 0)
-                               && (static_cast<int8_t>(cell->field_0x2A) == -1);
+                               && ((bit & Bits(PathBits::Fast)) == 0)
+                               && ((bit & Bits(PathBits::Faster)) == 0)
+                               && (cell->field_0x2A == MapCell::kNoRoadBatch);
                 if (!free || PendingContains(mapGrid, idx))
                     result = 0;
             }

@@ -272,9 +272,9 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     if (testCellX < 0 || testCellX >= mapSize) {
     } else {
         // Check 1: terrain type — skip resource terrain (0x1e0 mask)
-        uint8_t terrainByte = gridData[testCell].terrainType;
+        uint8_t terrainByte = static_cast<uint8_t>(gridData[testCell].terrainType);
         uint32_t terrainBit = 1u << (terrainByte & 0x1f);
-        bool terrainOk = (terrainBit & 0x1e0u) == 0;
+        bool terrainOk = (terrainBit & Bits(PathBits::Zoneless)) == 0;
 
         // Check 2: distance from workplace to random cell
         int dist = mapGrid->CalcDistance(entityGridCell, testCell);
@@ -289,7 +289,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
 
         // Check 4: passability from random cell to citizen
         if (terrainOk && distOk && emptyCell) {
-            bool canPath = (char)mapGrid->ValidateCell(0xe1f, testCell, citizenGridCell) != 0;
+            bool canPath = (char)mapGrid->ValidateCell(PathBits::Walk, testCell, citizenGridCell) != 0;
             allChecksPass = canPath;
         }
     }
@@ -350,12 +350,12 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     Profession* workEnt = nullptr;
     GetTarget(&workEnt);
 
-    citizenEnt->statusFlags |= 4;
+    citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizenEnt->field_0xB0 = 0;
     citizenEnt->field_0x30 = priority;
 
     if (workEnt == citizenEnt->profession && priority >= 0) {
-        citizenEnt->happinessFlags |= 0x20000;
+        citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     // (the tree helper takes the container as uintptr_t*: LEFT)

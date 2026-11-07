@@ -231,13 +231,13 @@ UNIT_TEST(b39_io_binarywriter_ctor_and_dtor_frame_the_record) {
     CHECK_EQ(w->word24, 8);                              // after the placeholder
     CHECK_EQ(w->version, 7);
     CHECK_EQ(w->GetVersion(), 7);
-    CHECK_EQ((uint32_t)Dword(f, 0), 0xaaaaaaaau);
+    CHECK_EQ((uint32_t)Dword(f, 0), IO::kRecordMagic);
     CHECK_EQ(Dword(f, 4), -1);
     CHECK_EQ(Dword(f, 8), 7);
     int32_t payload = 0x1234;
     f.Write(4, &payload);                                // one field of the record
     w->~BinaryWriter();                                  // retail flags 0: no free
-    CHECK_EQ((uint32_t)Dword(f, 16), 0xbbbbbbbbu);       // trailer
+    CHECK_EQ((uint32_t)Dword(f, 16), IO::kRecordTrailer);
     CHECK_EQ(Dword(f, 4), 8);                            // len = 16 - 8, back-patched
     CHECK_EQ(f.pos, 20);                                 // and forward again
 }
@@ -249,7 +249,8 @@ UNIT_TEST(b39_io_binarywriter_ctor_and_dtor_frame_the_record) {
 // operator delete (std::free here, matching the std::malloc block).
 UNIT_TEST(b39_io_binaryreader_consumes_the_record_both_arms) {
     FakeStream f; InitFake(f);
-    const int32_t rec[5] = { (int32_t)0xaaaaaaaau, 8, 9, 0x1234, (int32_t)0xbbbbbbbbu };
+    const int32_t rec[5] = { static_cast<int32_t>(IO::kRecordMagic), 8, 9, 0x1234,
+                             static_cast<int32_t>(IO::kRecordTrailer) };
     std::memcpy(f.buf, rec, sizeof rec);
     SerBuf sb; IO::Serializer& ser = SerOver(sb, f);
     void* p = std::malloc(0x30);
@@ -418,7 +419,7 @@ UNIT_TEST(b39_io_filestream_family_deletingdtor_arms) {
     using TLog = ArrLog<IO::TextFileStream>;
     TLog* t = new TLog[2]{{System::String(), System::String(), 0},
                           {System::String(), System::String(), 0}};
-    CHECK_EQ(t[0]._requestedFormat, 6);
+    CHECK_EQ(t[0]._requestedFormat, IO::Text::Format::Detect);
     const void* t0 = &t[0];
     const void* t1 = &t[1];
     g_arrN = 0;
@@ -538,7 +539,7 @@ UNIT_TEST(b39_io_packagefile_shape_ctor_and_both_arms) {
     CHECK(pf->_name._data == nullptr);
     CHECK(pf->_string60._data == nullptr);
     CHECK_EQ(pf->_version, 0);
-    CHECK_EQ(pf->_priority, 0x2710);
+    CHECK_EQ(pf->_priority, IO::PackageFile::kDefaultPriority);
     CHECK_EQ(pf->_platform, 0);
     CHECK_EQ(pf->_iconData._size, 0);
     CHECK(pf->_previewData._data == nullptr);

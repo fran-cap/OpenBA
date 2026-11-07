@@ -70,7 +70,7 @@ void StatusIconGeometry::Setup(float size, int count, uint8_t constant, UI::Spri
     float half = size * 0.5f;
 
     iconSize = size;
-    _materialTypeFlags = 2;
+    _materialTypeFlags = static_cast<uint32_t>(Graphics::MaterialTypeMask::Blended);   // 2
     spriteCount = count;
     spriteSheet = sheet;
     activeMask = 0;
@@ -203,7 +203,7 @@ void StatusIconComponent::ShowAfterLoad() {
 // stopped", "no workers") take, so the corrected arm positions before AddObject here too.
 void StatusIconComponent::SetFlag(uint8_t flagIndex, char value) {
     const bool fixIconSlide = Ext::Fix().icon_slide;
-    if ((((_entity->_entityFlags >> 10) & 1) == 0) || (value == '\0')) {
+    if (((_entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) || (value == '\0')) {
         uint32_t bit = 1u << (flagIndex & 0x1f);
         if (value == '\0') {
             _geometry.activeMask &= ~bit;
@@ -567,7 +567,7 @@ void StatusIconComponent::Tick(const System::Time* /*time*/) {
     // (+0xa4/+0xa8); dirty bit 2 on change.
     float scaleVal = (float)(settings->statusIconOpacity) / 100.0f;
     if (scaleVal != _geometry._opacity) {
-        _geometry._dirtyFlags |= 4u;
+        _geometry._dirtyFlags |= RtGraphics::kDirtyOpacity;
         _geometry._opacity = scaleVal;
         _geometry._opacityPrev = scaleVal;
     }

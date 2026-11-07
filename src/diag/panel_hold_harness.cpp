@@ -135,7 +135,7 @@ void PanelHoldClick(int frameNum) {
     // slot 9: the controller's OnElementEvent (GetController hands back a
     // UI::DialogController; every exe panel overrides it as a real class, ENDGAME B.3.8).
     ctrl->OnElementEvent(
-        nullptr, 0x12, s_id, 0, 0, 0, nullptr);
+        nullptr, UI::EventId::Activated, s_id, 0, 0, 0, nullptr);
 }
 }  // namespace
 

@@ -203,8 +203,8 @@ void SaveLoadDialog::PopulateFileList() {
         entry.imageCorrupt  = FindChildElem<UI::ImageElement>(clonedElem, "imageCorrupt");
         entry.selectSave    = FindChildElem<UI::Element>(clonedElem, "selectSave");
 
-        // Set imageSaveIcon flags: disable mouse-over highlight (0x10000)
-        entry.imageSaveIcon->SetFlagsOnOff(0x10000, 0);
+        // imageSaveIcon raises element events (hover, press, tooltip; flag 0x10000)
+        entry.imageSaveIcon->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
 
         // Set imageSaveIcon element ID for selection tracking (ID = i + 4)
         entry.imageSaveIcon->SetElementId(i + 4);
@@ -220,7 +220,7 @@ void SaveLoadDialog::PopulateFileList() {
             entry.imageSaveIcon->SetSprite(&thumb);
 
             // Hide imageCorrupt overlay
-            entry.imageCorrupt->SetFlagsOnOff(1, 0);
+            entry.imageCorrupt->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         } else {
             // --- Build sprite from raw image data ---
             // Allocate MaterialInstance (0x60 bytes)
@@ -306,10 +306,10 @@ void SaveLoadDialog::PopulateFileList() {
             // Check save validity: SaveInfo::field44 (+0x44, the format version)
             if (saveInfo.field44 == 2) {
                 // Valid save: hide imageCorrupt overlay
-                entry.imageCorrupt->SetFlagsOnOff(1, 0);
+                entry.imageCorrupt->SetFlagsOnOff(UI::kElementFlagHidden, 0);
             } else {
                 // Invalid/corrupt: dim the icon
-                entry.imageSaveIcon->SetColor(0xff808080);
+                entry.imageSaveIcon->SetColor(System::kColorGrey);
             }
         }
 
@@ -364,8 +364,8 @@ void SaveLoadDialog::PopulateFileList() {
         entry.selectSave    = FindChildElem<UI::Element>(clonedElem, "selectSave");
 
         // Hide imageCorrupt and selectSave overlays for empty slots
-        entry.imageCorrupt->SetFlagsOnOff(1, 0);
-        entry.selectSave->SetFlagsOnOff(1, 0);
+        entry.imageCorrupt->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        entry.selectSave->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 
         // Dim border (SetColor via vtable[10] = 0x80ffffff)
         {
@@ -556,19 +556,19 @@ void SaveLoadDialog::OnUpdateLayout() {
     // Operation types: 1 = listing, 2 = saving, 4 = deleting
     if (operation == 1) {
         // Listing: show textPleaseWait, hide textLoading, hide textSaving
-        if (textPleaseWait) textPleaseWait->SetFlagsOnOff(0, 1);
-        if (textLoading) textLoading->SetFlagsOnOff(1, 0);
-        if (textSaving) textSaving->SetFlagsOnOff(1, 0);
+        if (textPleaseWait) textPleaseWait->SetFlagsOnOff(0, UI::kElementFlagHidden);
+        if (textLoading) textLoading->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        if (textSaving) textSaving->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     } else if (operation == 2) {
         // Saving: hide textPleaseWait, show textLoading, hide textSaving
-        if (textPleaseWait) textPleaseWait->SetFlagsOnOff(1, 0);
-        if (textLoading) textLoading->SetFlagsOnOff(0, 1);
-        if (textSaving) textSaving->SetFlagsOnOff(1, 0);
+        if (textPleaseWait) textPleaseWait->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        if (textLoading) textLoading->SetFlagsOnOff(0, UI::kElementFlagHidden);
+        if (textSaving) textSaving->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     } else if (operation == 4) {
         // Deleting: hide textPleaseWait, hide textLoading, show textSaving
-        if (textPleaseWait) textPleaseWait->SetFlagsOnOff(1, 0);
-        if (textLoading) textLoading->SetFlagsOnOff(1, 0);
-        if (textSaving) textSaving->SetFlagsOnOff(0, 1);
+        if (textPleaseWait) textPleaseWait->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        if (textLoading) textLoading->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        if (textSaving) textSaving->SetFlagsOnOff(0, UI::kElementFlagHidden);
     }
 }
 
@@ -1105,8 +1105,8 @@ void SaveLoadDialog::SelectEntry(int index) {
     selectedIndex = index;
 }
 
-void SaveLoadDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (eventType == 2) {
+void SaveLoadDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (eventType == UI::EventId::LeftPress) {
         // List row selection change
         int saveCountNow = saveCount;
         if (eventData > 3 && eventData < saveCountNow + 4) {
@@ -1115,7 +1115,7 @@ void SaveLoadDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, i
         return;
     }
 
-    if (eventType == 0x12) {
+    if (eventType == UI::EventId::Activated) {
         if (eventData == 0) {
             // buttonCancel: close dialog
             Object::InternalPtr<UI::DialogInstance> self(this);

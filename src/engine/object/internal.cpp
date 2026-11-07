@@ -236,7 +236,7 @@ void InternalBasePtrSerializeBody(Internal** self,
     Internal* p = *self;
     if (p == nullptr) {
         index = 0;
-        type  = 0xffffffffu;
+        type  = ::Object::kInvalidTypeId;
     } else {
         index = p->_factoryIndex;
         type = p->Type();   // slot 2 +0x10

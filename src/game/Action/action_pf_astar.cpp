@@ -350,7 +350,7 @@ uint64_t GridPathSearch::FindPath(int start, int goal) {
                     uVar14 = curRow - nbrRow;
                     uVar16 = static_cast<int>(uVar15) >> 0x1f;
                     uVar17 = static_cast<int>(uVar14) >> 0x1f;
-                    uVar13 = static_cast<uint64_t>(cellFlags[iVar11] & 0x7f);
+                    uVar13 = static_cast<uint64_t>(cellFlags[iVar11] & GridSearch::kCellTypeMask);
                     if (((uVar15 ^ uVar16) - uVar16) + ((uVar14 ^ uVar17) - uVar17) == 1) {
                         iVar21 = stepCost[static_cast<int>(uVar13)] * 10;
                     } else {
@@ -756,11 +756,12 @@ void PathfinderThread::ApplyCommand(const PathCommandArgs& cmd) {
     case 2:
         pbVar3 = &grid.cellFlags[cmd.arg1];
         if (Ext::FastPaths::Engaged()) Ext::FastPaths::NoteCellTerrain(*pbVar3, cmd.arg2);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FASTPATHS.md): ext.fast_paths' type counts
-        *pbVar3 = static_cast<uint8_t>((*pbVar3 & 0x80) | static_cast<uint8_t>(cmd.arg2));
+        *pbVar3 = static_cast<uint8_t>((*pbVar3 & GridSearch::kCellBlocked) | static_cast<uint8_t>(cmd.arg2));
         return;
     case 3:
         pbVar3 = &grid.cellFlags[cmd.arg1];
-        *pbVar3 = static_cast<uint8_t>((static_cast<uint8_t>(-(cmd.arg2 != 0)) & 0x80U) | (*pbVar3 & 0x7f));
+        *pbVar3 = static_cast<uint8_t>((static_cast<uint8_t>(-(cmd.arg2 != 0)) & GridSearch::kCellBlocked) |
+                                       (*pbVar3 & GridSearch::kCellTypeMask));
         return;
     case 4:
         iVar2 = cmd.arg2;
@@ -1064,13 +1065,14 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
         iVar13 = iVar12 * iVar4;
         iVar12 = (iVar4 + 1) * iVar12 + -1;
         if ((lVar14c->zone == 0) &&
-            ((1 << (Ext::WalkOnIce::TypeOf(*lVar14c) & 0x1f) & 0xe1fU) != 0)) {
+            ((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(*lVar14c)) & 0x1f) & Bits(PathBits::Walk)) != 0)) {
             iVar7 = uVar8 - 1;
             uVar10 = uVar8;
             if (iVar13 <= iVar7) {
                 pbVar11 = lVar14c - 1;
                 do {
-                    if ((1 << (Ext::WalkOnIce::TypeOf(*pbVar11) & 0x1f) & 0xe1fU) == 0) break;
+                    if ((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(*pbVar11)) & 0x1f)
+                         & Bits(PathBits::Walk)) == 0) break;
                     iVar7 = iVar7 + -1;
                     uVar10 = uVar10 - 1;
                     pbVar11 = pbVar11 - 1;
@@ -1081,7 +1083,8 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
                 pbVar11 = lVar14c + 1;
                 do {
                     uVar8 = static_cast<uint>(uVar9);
-                    if ((1 << (Ext::WalkOnIce::TypeOf(*pbVar11) & 0x1f) & 0xe1fU) == 0) break;
+                    if ((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(*pbVar11)) & 0x1f)
+                         & Bits(PathBits::Walk)) == 0) break;
                     iVar7 = iVar7 + 1;
                     uVar8 = uVar8 + 1;
                     uVar9 = static_cast<uint64_t>(uVar8);
@@ -1110,7 +1113,8 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
                     local_res20.cell = uVar3 - size;
                     const MapCell* c = &cells.GetData()[local_res20.cell];
                     if ((c->zone == 0) &&
-                        ((1 << (Ext::WalkOnIce::TypeOf(*c) & 0x1f) & 0xe1fU) != 0)) {
+                        ((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(*c)) & 0x1f)
+                          & Bits(PathBits::Walk)) != 0)) {
                         puVar5 = cellQueue.NewNode(&local_res20);   // 0x14001a9b0
                         if (cellQueue.tail == nullptr) {
                             cellQueue.head = puVar5;
@@ -1128,7 +1132,8 @@ void Map::FillZone(uint32_t cell, uint16_t zone) {
                     local_res20.cell = size + uVar10;
                     const MapCell* c = &cells.GetData()[local_res20.cell];
                     if ((c->zone == 0) &&
-                        ((1 << (Ext::WalkOnIce::TypeOf(*c) & 0x1f) & 0xe1fU) != 0)) {
+                        ((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(*c)) & 0x1f)
+                          & Bits(PathBits::Walk)) != 0)) {
                         puVar5 = cellQueue.NewNode(&local_res20);   // 0x14001a9b0
                         if (cellQueue.tail == nullptr) {
                             cellQueue.head = puVar5;

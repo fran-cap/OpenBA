@@ -107,7 +107,7 @@ static void TerraformArrayPush(T*& data, int32_t& count, int32_t& cap, const T& 
 }
 
 // The terrain-type byte of map cell `idx` (MapCell::terrainType, +0x29).
-static uint8_t* TerraformCellTypeAt(Map* map, int64_t idx) {
+static PathType* TerraformCellTypeAt(Map* map, int64_t idx) {
     return &map->cells.GetData()[idx].terrainType;
 }
 
@@ -122,7 +122,7 @@ static uint8_t TerraformCellType(Map* map, float wx, float wy) {
     if (cy < 0) cy = 0;
     if (cy >= gw) cy = gw - 1;
     const int64_t idx = static_cast<int64_t>(gw) * cy + cx;
-    return *TerraformCellTypeAt(map, idx);
+    return static_cast<uint8_t>(*TerraformCellTypeAt(map, idx));
 }
 
 // The terrain heightmap sample at (mapX, mapY): WorldGeometry's +0xD8 int16 array,
@@ -259,15 +259,16 @@ void TerraformComponent::ApplyFootprint() {
     for (int y = y0; y < y0 + h; ++y) {
         for (int x = x0; x < x0 + w; ++x) {
             const int idx = map->size * y + x;
-            uint8_t* type = TerraformCellTypeAt(map, idx);
-            if (*type != 10) continue;
+            PathType* type = TerraformCellTypeAt(map, idx);
+            if (*type != PathType::Walkable) continue;
 
             map->field_0xA2 |= 1;
-            *type = 6;
+            *type = PathType::Unusable;
             map->regionGraph->MarkCellDirty(
                 idx % map->size, idx / map->size);   // 0x1400a8c90 (Pf_FineCellDirty_a8c90's body)
             // 0x1400a6fe0 reads the cell and the type (EDX, R8D) only.
-            map->pathfinder->SetCellTerrain(idx, 6);   // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
+            // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
+            map->pathfinder->SetCellTerrain(idx, ToUnderlying(PathType::Unusable));
             TerraformArrayPush(tileRecord._data, tileRecord._size, tileRecord._capacity, static_cast<int32_t>(idx));
             ++converted;
         }
@@ -378,24 +379,24 @@ void TerraformComponent::OnRemove() {
             int tileIndex = tileRecord[i];
 
             // Read current terrain type
-            uint8_t* type = TerraformCellTypeAt(map, tileIndex);
-            uint8_t oldType = *type;
+            PathType* type = TerraformCellTypeAt(map, tileIndex);
+            uint8_t oldType = static_cast<uint8_t>(*type);
 
-            // Update buildable flag
-            bool isBuildable = ((1 << (oldType & 0x1F)) & 0x1E0) != 0;
-            map->field_0xA2 |= (isBuildable ? 1 : 0);
+            // The old type was zoneless (PathBits::Zoneless): the zones go stale
+            bool wasZoneless = ((1 << (oldType & 0x1F)) & static_cast<int>(PathBits::Zoneless)) != 0;
+            map->field_0xA2 |= (wasZoneless ? 1 : 0);
 
-            // Set tile type to 10 (terraformed)
-            *type = 10;
+            // Set tile type to PathType::Walkable (10)
+            *type = PathType::Walkable;
 
-            // Update terrain visuals if was buildable
-            if (isBuildable) {
+            // Mark the cell dirty if the old type was zoneless
+            if (wasZoneless) {
                 map->regionGraph->MarkCellDirty(
                     tileIndex % gridWidth, tileIndex / gridWidth);   // 0x1400a8c90 (Pf_FineCellDirty_a8c90's body)
             }
 
             // Set terrain type (0x1400a6fe0; args 3/4 cast as above)
-            map->pathfinder->SetCellTerrain(static_cast<int>(tileIndex), 10);   // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
+            map->pathfinder->SetCellTerrain(static_cast<int>(tileIndex), ToUnderlying(PathType::Walkable));   // 0x1400a6fe0 (Pf_EnqueueCmd2_a6fe0's body)
         }
     }
 }

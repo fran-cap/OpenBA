@@ -275,7 +275,7 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
         float speed = kRdata_140172280;
-        mv = new (obj) MoveTo(&family, pathType, 0, worldPos, 0xe1f, 0, speed);
+        mv = new (obj) MoveTo(&family, pathType, 0, worldPos, PathBits::Walk, 0, speed);
     }
     ibpA = mv;
     WA_Append(list, &ibpA);
@@ -396,7 +396,7 @@ void WorkAct_PerformWorkCtor9_c0ad0(CitizenComponent* const* citizenRef, uint32_
     // --- path-mask byte from the pile's map cell (terrain type +0x29) ---
     // 0x1400c0c24-0x1400c0c44: [0x1401c3dd8]+0xf8 and the cell read with no test.
     Map* grid = GameUpdateLoop::_singleton->m_game;
-    uint8_t cellFlag = grid->cells.GetData()[static_cast<int64_t>(cellIdx)].terrainType;
+    PathType cellFlag = grid->cells.GetData()[static_cast<int64_t>(cellIdx)].terrainType;
 
     // --- inline PerformWork action, kind 7 ---
     obj = System::MemoryAllocator::MemAlloc(0x48, 8);
@@ -467,7 +467,7 @@ void WorkAct_PerformWorkCtor9_c0ad0(CitizenComponent* const* citizenRef, uint32_
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         int pathType = (carried > 0) ? 4 : 1;
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
-        int mask = static_cast<int>((1u << (cellFlag & 0x1f)) | 0xe1fu);
+        PathBits mask = PathBitOf(cellFlag) | PathBits::Walk;
         mv = new (obj) MoveTo(&family, pathType, 0, worldPos, mask, 0, WA_MoveSpeed());
     }
     ibpB = mv;
@@ -647,7 +647,7 @@ void WorkAct_GrazingWorkCtor_bb0a0(CitizenComponent* const* citizenRef, uint32_t
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
         float speed = kRdata_140172280;
-        mv = new (obj) MoveTo(&family, 3 /*Fastest*/, 0, targetPos, 0xe1f, 0, speed);
+        mv = new (obj) MoveTo(&family, 3 /*Fastest*/, 0, targetPos, PathBits::Walk, 0, speed);
     }
     ibpResA = mv;
     WA_Append(list, &ibpResA);
@@ -775,7 +775,7 @@ void WorkAct_PlantWorkCtor_be6e0(CitizenComponent* const* citizenRef, uint32_t p
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>();   // 0x1400012d0
         float speed = kRdata_140172280;
-        mv = new (obj) MoveTo(&family, 3 /*Fastest*/, 0, position, 0xe1f, 0, speed);
+        mv = new (obj) MoveTo(&family, 3 /*Fastest*/, 0, position, PathBits::Walk, 0, speed);
     }
     ibpRes8 = mv;
     WA_Append(list, &ibpRes8);

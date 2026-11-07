@@ -27,6 +27,7 @@
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "ui/UserInterface.h"   // ENDGAME B.3.6 UI callers (K4)
 #include "input/Input.h"        // ENDGAME B.3.7 callers (K3)
+#include "Game/inputbindings.h"   // GameKey (the KeyMap binding ids)
 #include "Object/exe_type.h"   // DEFINE_EXE_ABSTRACT_TYPE
 #include "Game/PlayerToolManager.h"
 #include "Component/ToolbarDescription.h"
@@ -122,7 +123,7 @@ char DragTool::OnKey(char key) {
         // ENDGAME B.3.7: fn_KeyMap_Released was bound only to the unregistered exe
         // slot 0x1401528f0 and was always null, so this reset never ran; the member
         // call restores retail's key-up path (CALLER_SURFACE.md 6, defect 1).
-        if (keyMap->Released(0, 5)) {
+        if (keyMap->Released(0, ToUnderlying(GameKey::MouseLeft))) {
             // Reset both dragState and singleClick (original does MOV word [self+0x28], 0)
             dragState = 0;
             singleClick = 0;
@@ -131,7 +132,7 @@ char DragTool::OnKey(char key) {
     else if (dragState == 0) {
         // ---- Idle state: check for drag start ----
         // KeyMap::Pressed at dispatch 0x140151758 — checks if button newly pressed
-        bool pressed = keyMap->Pressed(0, 5);
+        bool pressed = keyMap->Pressed(0, ToUnderlying(GameKey::MouseLeft));
         if (pressed) {
             int cell = PlayerRay_ScreenToCell_101270(keyMap);
             startCell = cell;
@@ -224,7 +225,7 @@ char DragTool::OnKey(char key) {
         if (singleClick != 0) {
             // Single-click mode: waiting for second click to confirm placement.
             // Original uses KeyMap::Pressed (dispatch 0x140151758).
-            bool pressed = keyMap->Pressed(0, 5);
+            bool pressed = keyMap->Pressed(0, ToUnderlying(GameKey::MouseLeft));
             if (pressed) {
                 if (currentCell < 0) {
                     // Invalid target cell
@@ -251,9 +252,9 @@ char DragTool::OnKey(char key) {
             // Original checks: Released(0,5) || GetValue(0,5)==0
             // ENDGAME B.3.7: Released used to be always false (see the key-up
             // branch above); it now reports the release itself.
-            bool released = keyMap->Released(0, 5);
+            bool released = keyMap->Released(0, ToUnderlying(GameKey::MouseLeft));
             if (!released) {
-                short value = keyMap->GetValue(0, 5);
+                short value = keyMap->GetValue(0, ToUnderlying(GameKey::MouseLeft));
                 released = (value == 0);
             }
 

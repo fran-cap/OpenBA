@@ -432,7 +432,7 @@ uint64_t CitizenAIComponent::State_GatherResources() {
         GatherTransferLoop(citizen.Get(), pathResult, found, capLeft);
 
         // 5) set citizen action-state flags + return 1
-        citizen->statusFlags |= 4;
+        citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizen->field_0x30 = -1;
         citizen->field_0xB0 = 0;
         citizen->field_0xB0 = 1;
@@ -555,7 +555,7 @@ uint64_t CitizenAIComponent::State_GatherResources2() {
         SelectAndTransfer(found, pathResult, capLeft);
 
         // ---- set citizen action-state flags + return 1 ----
-        citizen->statusFlags |= 4;
+        citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizen->field_0x30 = -1;
         citizen->field_0xB0 = 0;
         citizen->field_0xB0 = 2;

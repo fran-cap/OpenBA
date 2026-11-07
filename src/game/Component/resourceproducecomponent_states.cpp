@@ -201,15 +201,15 @@ static void RP_Trans2to13(ResourceProduceComponent* self) {
         const int cell = dim * gy + gx;
 
         MapCell& rec = map->cells.GetData()[cell];
-        const uint8_t old = rec.terrainType;                             // +0x29
-        const bool wasWalk = ((1u << (old & 0x1f)) & 0x1e0u) != 0;      // old 5..8
-        map->field_0xA2 |= static_cast<uint8_t>(wasWalk);               // 0x14012b112
-        rec.terrainType = 2;
+        const uint8_t old = static_cast<uint8_t>(rec.terrainType);      // +0x29
+        const bool wasZoneless = ((1u << (old & 0x1f)) & Bits(PathBits::Zoneless)) != 0;  // old 5..8
+        map->field_0xA2 |= static_cast<uint8_t>(wasZoneless);           // 0x14012b112
+        rec.terrainType = PathType::Normal;
         TerrainSidecar::NoteWrite(&rec);   // [terrain sidecar] mirror
         CellStamp::NoteWrite(&rec);   // [AMBMEMO] cell write clock
-        if (wasWalk)
+        if (wasZoneless)
             map->regionGraph->MarkCellDirty(cell % map->size, cell / map->size);   // +0x70, 0x1400a8c90
-        map->pathfinder->SetCellTerrain(cell, 2);                                   // +0x68, 0x1400a6fe0
+        map->pathfinder->SetCellTerrain(cell, ToUnderlying(PathType::Normal));      // +0x68, 0x1400a6fe0
         rec.occupant = nullptr;                                                     // 0x14012b15e
         CellStamp::NoteWrite(&rec);   // [AMBMEMO] cell write clock
     }

@@ -17,7 +17,7 @@
 //   1. Compute the UI-space screen size from Video::Device::_singleton and
 //      `_uiScale`, and reset `_clipRegion` to {0, 0, w-1, h-1}.
 //   2. Force the Video::Context's `_color` to opaque white if it is not already,
-//      marking kDirtyMaterialConstants.
+//      marking kDirtyInstanceConstants.
 //   3. Build an ORTHOGRAPHIC Volume::Frustum covering the UI rect, construct a
 //      Graphics::Camera from it and an IDENTITY Math::Transform3, and push the
 //      camera's world matrix + projection into the context.
@@ -149,6 +149,7 @@
 #include "element_common.h"
 #include "video/Device.h"   // ENDGAME B.3.9 SS1: Video::Device::_singleton
 #include "input/Device.h"   // ENDGAME B.3.9 SS1: Input::Device::_singleton
+#include "system/EnumFlags.h"   // ToUnderlying: a MouseInput as a _mouse index
 #include "input/Input.h"    // ENDGAME B.3.9 SS1: Input::Configuration::_singleton
 #include "collection/Collection.h"
 
@@ -214,7 +215,7 @@ void UI::UserInterface::Draw(Video::Context& context) {
             context._color.y = 1.0f;
             context._color.z = 1.0f;
             context._color.w = 1.0f;
-            context._dirty |= RtVideo::kDirtyMaterialConstants;    // +0x10
+            context._dirty |= RtVideo::kDirtyInstanceConstants;    // +0x10
         }
     }
 
@@ -312,7 +313,7 @@ void UI::UserInterface::Draw(Video::Context& context) {
     for (Node* n = topmost; n != nullptr; n = n->next) {
         const DialogInstance* const d = n->element;
 
-        const uint32_t shifted = d->_flags >> 4;
+        const uint32_t shifted = d->_flags >> 4;   // bit 0 of it is kDialogFlagFirstDraw
         if (shifted & 1u) topmost = n;
 
         // THE DROPPED DEREFERENCE. On a null `_dialog` (+0x18) the compared
@@ -531,7 +532,7 @@ void UI::UserInterface::Draw(Video::Context& context) {
                     pastTopmost = true;
                 } else if (!pastTopmost) {
                     const Dialog* const desc = d->_dialog;
-                    if ((desc->_defaultFlags & 0x40) == 0) continue;   // UNGUARDED deref, +0x40
+                    if ((desc->_defaultFlags & kDialogFlagAlwaysDraw) == 0) continue;   // UNGUARDED deref, +0x40
                 }
 
                 // ---- 0x180121f32: layer test then paint ------------------
@@ -560,7 +561,7 @@ void UI::UserInterface::Draw(Video::Context& context) {
                     SpriteContext::_extSharp = nullptr;
                     if (::Video::ImageBufferData::_extPointSampling) {
                         ::Video::ImageBufferData::_extPointSampling = false;
-                        context._imageBufferDirty |= 0xffffu;
+                        context._imageBufferDirty |= RtVideo::kAllImageBufferSlotsDirty;
                         context._dirty |= RtVideo::kDirtyImageBuffers;
                     }
                 }
@@ -633,7 +634,7 @@ void UI::UserInterface::Draw(Video::Context& context) {
             const int64_t a64 = static_cast<int64_t>(amount * 255.0f);
             const uint32_t color =
                 (static_cast<uint32_t>(static_cast<uint8_t>(a64)) << 24) |
-                (_fadeColor & 0x00ffffffu);
+                (_fadeColor & System::kColorRgbMask);
 
             SpriteSheet* const sheet = _fadeSpriteSheet;
             if (sheet != nullptr && _fadeSpriteIndex >= 0) {
@@ -661,9 +662,10 @@ void UI::UserInterface::Draw(Video::Context& context) {
 
             // MOVSX — SIGNED 16-bit mouse coordinates, which Ghidra prints as a
             // zero extension. A negative X off the left edge is real.
-            const int32_t rawY = in->_mouse[1].value;                     // +0x10b4
+            using MouseInput = ::Input::Device::MouseInput;
+            const int32_t rawY = in->_mouse[ToUnderlying(MouseInput::Y)].value;   // +0x10b4
             const float   uiScale = _uiScale;
-            const int32_t rawX = in->_mouse[0].value;                     // +0x109c
+            const int32_t rawX = in->_mouse[ToUnderlying(MouseInput::X)].value;   // +0x109c
 
             const int32_t x1 = static_cast<int32_t>(static_cast<float>(rawX) * uiScale)
                              - cursor->_hotSpotX;                         // +0x20
@@ -686,7 +688,7 @@ void UI::UserInterface::Draw(Video::Context& context) {
                 sd.x1 = x1; sd.y1 = y1;
                 sd.x2 = sw + x1; sd.y2 = sh + y1;
                 sd.rotation    = 0.0f;
-                sd.color       = 0xffffffffu;
+                sd.color       = System::kColorWhite;
                 sd.isLine      = 0;
                 sc->AddSpriteDraw(sd);                  // mouse cursor
             }

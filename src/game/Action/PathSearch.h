@@ -29,6 +29,7 @@
 #include <type_traits>
 #include "collection/Collection.h"
 #include "Action/PathAvl.h"          // AvlTreeHead, AvlNode30
+#include "Action/grid_search.h"      // GridSearch::kCellBlocked / kCellTypeMask (the cellFlags byte)
 
 class Map;
 
@@ -324,7 +325,8 @@ struct GridPathSearch {
     uint8_t    _padD7;            // +0xD7
     int32_t    width;             // +0xD8 grid edge in cells
     uint8_t    _padDC[4];         // +0xDC
-    uint8_t*   cellFlags;         // +0xE0 per cell: terrain type (bits 0-6), blocked (bit 7)
+    uint8_t*   cellFlags;         // +0xE0 per cell: terrain type (bits 0-6), blocked (bit 7):
+                                  //       GridSearch::kCellTypeMask / kCellBlocked
 
     // 0x1400a5ec0, -1 when not walkable (below). Retail takes the cell index and splits it
     // into (row, col) on entry; here the caller passes the split and gets the neighbour's.
@@ -384,7 +386,7 @@ inline int GridPathSearch::Neighbour(int& row, int& col, uint32_t dir) const {
         int cell = w * row + col;
         char gateFlag = static_cast<char>(respectBlocked);
         const uint8_t* byteMap = cellFlags;
-        if (gateFlag == 0 || (byteMap[cell] & 0x80) == 0) {
+        if (gateFlag == 0 || (byteMap[cell] & GridSearch::kCellBlocked) == 0) {
             uint32_t passMask = passableTypes;
             uint8_t cb = byteMap[cell];
             if (((passMask >> (cb & 0x1f)) & 1) != 0)

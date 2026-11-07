@@ -672,7 +672,7 @@ static void WndMsgObserver([[maybe_unused]] void* hwnd, uint32_t message, uint64
     // then in VideoWindowWidth/Height. Decode them so a collapse to a minimum-size
     // window is attributable to the message that caused it. (The WM_WINDOWPOSCHANGING
     // decode went with the WH_CALLWNDPROC hook: no SDL event carries it.)
-    if (message == 0x0005 /*WM_SIZE*/) {
+    if (message == Platform::Window::kMsgSize) {
         printf("[WndMsg] WM_SIZE               hwnd=%p type=%llu %ux%u\n",
                hwnd, (unsigned long long)wParam,
                (unsigned)(lParam & 0xFFFF),
@@ -684,7 +684,8 @@ static void WndMsgObserver([[maybe_unused]] void* hwnd, uint32_t message, uint64
     // the swap chain and reset the Video::Context an overlapped emit may be drawing with. The pump
     // runs inside the steps, which an emit may run beside. Null while the extension is off.
     ::Engine::MainLoop* const loop = ::Engine::MainLoop::_singleton;
-    if (message == 0x0006 /*WM_ACTIVATE*/ && ::Engine::MainLoop::_extFrame != nullptr && loop != nullptr)
+    if (message == Platform::Window::kMsgActivate && ::Engine::MainLoop::_extFrame != nullptr &&
+        loop != nullptr)
         ::Engine::MainLoop::_extFrame(*loop, ::Engine::MainLoop::kExtBeforeActivate, 0.0f, 0.0f);
     if (const char* name = WMNameForFocus(message)) {
         printf("[WndMsg] %-20s hwnd=%p w=%llx l=%llx\n",
@@ -698,7 +699,7 @@ static void WndMsgObserver([[maybe_unused]] void* hwnd, uint32_t message, uint64
         // frame rather than waiting until WM_SETFOCUS. Our Reset clears
         // Video::Context's cached state, which the engine does not touch, so by
         // the next frame both sides are fresh.
-        if (message == 0x0006 /*WM_ACTIVATE*/ && (wParam & 0xFFFF) != 0) {
+        if (message == Platform::Window::kMsgActivate && (wParam & 0xFFFF) != 0) {
             ForceVideoContextReset("WM_ACTIVATE(refocus)");
         }
         fflush(stdout);

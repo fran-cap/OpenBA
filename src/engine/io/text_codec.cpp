@@ -84,6 +84,8 @@
 #include "system/String.h"
 #include "system/MemoryAllocator.h"
 
+using IO::Text::Format;   // the codec's format ids (io/Stream.h)
+
 
 namespace {
 
@@ -100,23 +102,23 @@ namespace {
 //   -> bytes written, 0 when the codepoint cannot be represented.
 // The caller is responsible for `dst` having room for 4 bytes.
 // ============================================================================
-extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, int32_t fmt) {
+extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, IO::Text::Format fmt) {
     uint8_t* const d = static_cast<uint8_t*>(dstv);  // CAST-OK: byte_io
 
     switch (fmt) {
-        case 0:                                                    // 0x1800c9b7b
+        case Format::Latin1:                                       // 0x1800c9b7b
             if (cp >= 0x100) return 0;
             d[0] = static_cast<uint8_t>(cp);
             return 1;
 
-        case 1:                                                    // 0x1800c9b91
+        case Format::Ucs2Le:                                       // 0x1800c9b91
             if (cp >= 0x10000) return 0;
             d[0] = static_cast<uint8_t>(cp);
             d[1] = static_cast<uint8_t>(cp >> 8);
             return 2;
 
-        case 2:                                                    // 0x1800c9baf
-        case 3:
+        case Format::Utf8:                                         // 0x1800c9baf
+        case Format::Utf8Bom:
             if (cp < 0x80) {          // JL back into case 0's store
                 d[0] = static_cast<uint8_t>(cp);
                 return 1;
@@ -143,7 +145,7 @@ extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, int32_t fmt)
             }
             return 0;
 
-        case 4: {                                                  // 0x1800c9c58
+        case Format::Utf16Le: {                                                  // 0x1800c9c58
             // `LEA EAX,[R9-0xD800] / CMP EAX,0x7FF / JBE` — the whole
             // D800..DFFF block, as ONE unsigned range test.
             // NOT RETAIL (review 2026-11-03 F-057, UB): `cp - 0xD800` in int32 overflows
@@ -165,7 +167,7 @@ extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, int32_t fmt)
             return 4;
         }
 
-        case 5: {                                                  // 0x1800c9cc2
+        case Format::Utf16Be: {                                                  // 0x1800c9cc2
             // NOT RETAIL (F-057): unsigned, as in case 4.
             if (static_cast<uint32_t>(cp) - 0xD800u <= 0x7FFu) return 0;
             if (cp < 0x10000) {
@@ -200,18 +202,18 @@ extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, int32_t fmt)
 //   -> bytes consumed. `*cp` is set to -1 on any malformed input, and the
 //      return is then 1, so a caller can always make progress.
 // ============================================================================
-extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
+extern "C" int32_t RtIo_TextCodec_DecodeOne(IO::Text::Format fmtEcx, const void* srcv,
                                             const void* endv, int32_t* cp,
-                                            int32_t fmtArg5) {
+                                            IO::Text::Format fmtArg5) {
     const uint8_t* src = static_cast<const uint8_t*>(srcv);  // CAST-OK: byte_io
     const uint8_t* const end = static_cast<const uint8_t*>(endv);  // CAST-OK: byte_io
 
     switch (fmtArg5) {                 // the TABLE index is arg5
-        case 0:                                                    // 0x1800c9fe1
+        case Format::Latin1:                                       // 0x1800c9fe1
             *cp = src[0];
             return 1;
 
-        case 1:                                                    // 0x1800c9ff1
+        case Format::Ucs2Le:                                       // 0x1800c9ff1
             // NOT RETAIL (review 2026-11-03 F-034, heap over-read): retail reads both
             // bytes unchecked, so an odd-length source reads one byte past `end`. A
             // lone trailing byte is malformed here, as a short unit is in case 4 / 5.
@@ -219,8 +221,8 @@ extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
             *cp = src[0] | (static_cast<int32_t>(src[1]) << 8);
             return 2;
 
-        case 2:                                                    // 0x1800ca00a
-        case 3: {
+        case Format::Utf8:                                         // 0x1800ca00a
+        case Format::Utf8Bom: {
             const uint8_t c = src[0];
             if (static_cast<int8_t>(c) >= 0) {      // TEST CL,CL / JNS
                 *cp = c;
@@ -266,11 +268,11 @@ extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
             return n + 1;
         }
 
-        case 4:                                                    // 0x1800ca0e8
-        case 5: {
+        case Format::Utf16Le:                                      // 0x1800ca0e8
+        case Format::Utf16Be: {
             if (end - src < 2) goto bad;          // `JA`, not `JAE`
             // The ENDIANNESS comes from ECX, the table index from arg5.
-            const uint16_t w = (fmtEcx == 4)
+            const uint16_t w = (fmtEcx == Format::Utf16Le)
                 ? static_cast<uint16_t>((src[1] << 8) | src[0])
                 : static_cast<uint16_t>((src[0] << 8) | src[1]);
 
@@ -278,7 +280,7 @@ extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv,
             // wrap test for "is this a HIGH surrogate (D800..DBFF)".
             if (static_cast<uint16_t>(0x2800 + w) <= 0x3FF) {
                 if (src + 4 >= end) goto bad;     // `JAE`, one stricter than 4
-                const uint16_t w2 = (fmtEcx == 4)
+                const uint16_t w2 = (fmtEcx == Format::Utf16Le)
                     ? static_cast<uint16_t>((src[3] << 8) | src[2])
                     : static_cast<uint16_t>((src[2] << 8) | src[3]);
                 // the same test shifted for DC00..DFFF
@@ -314,7 +316,7 @@ bad:                                                               // 0x1800ca0d
 // trailing byte (`MOV WORD [RBP+0x18],0xBBEF / MOV BYTE [RBP+0x1A],0xBF`), so
 // the byte order in the file is EF BB BF / FF FE / FE FF.
 // ============================================================================
-extern "C" int32_t RtIo_TextCodec_DetectFormat(const uint8_t* src, int32_t len) {
+extern "C" IO::Text::Format RtIo_TextCodec_DetectFormat(const uint8_t* src, int32_t len) {
 
     static const uint8_t kUtf8Bom[3]    = { 0xEF, 0xBB, 0xBF };
     static const uint8_t kUtf16LeBom[2] = { 0xFF, 0xFE };
@@ -322,11 +324,11 @@ extern "C" int32_t RtIo_TextCodec_DetectFormat(const uint8_t* src, int32_t len) 
 
     if (len >= 3 && src[0] == kUtf8Bom[0] && src[1] == kUtf8Bom[1] &&
                     src[2] == kUtf8Bom[2])
-        return 3;                                                  // 0x1800c9db9
+        return Format::Utf8Bom;                                    // 0x1800c9db9
     if (len >= 2 && src[0] == kUtf16LeBom[0] && src[1] == kUtf16LeBom[1])
-        return 4;                                                  // 0x1800c9e09
+        return Format::Utf16Le;                                    // 0x1800c9e09
     if (len >= 2 && src[0] == kUtf16BeBom[0] && src[1] == kUtf16BeBom[1])
-        return 5;                                                  // 0x1800c9e58
+        return Format::Utf16Be;                                    // 0x1800c9e58
 
     // 0x1800c9e68 — validate as UTF-8. `cp` is seeded to -1 before the loop
     // and NOT re-seeded inside it; DecodeOne writes it on every call.
@@ -334,11 +336,11 @@ extern "C" int32_t RtIo_TextCodec_DetectFormat(const uint8_t* src, int32_t len) 
     const uint8_t* const end = src + len;
     int32_t cp = -1;
     while (p < end) {
-        const int32_t used = RtIo_TextCodec_DecodeOne(2, p, end, &cp, 2);
-        if (cp < 0) return 0;                                      // 0x1800c9ecb
+        const int32_t used = RtIo_TextCodec_DecodeOne(Format::Utf8, p, end, &cp, Format::Utf8);
+        if (cp < 0) return Format::Latin1;                         // 0x1800c9ecb
         p += used;
     }
-    return 2;                                                      // 0x1800c9eac
+    return Format::Utf8;                                           // 0x1800c9eac
 }
 
 // ============================================================================
@@ -359,9 +361,9 @@ extern "C" int32_t RtIo_TextCodec_DetectFormat(const uint8_t* src, int32_t len) 
 // at 0x1800ca300 is the first instruction of the loop. The parameter stays in
 // the signature because removing it would shift args 7, 8 and 9.
 // ============================================================================
-extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetect,
+extern "C" int32_t RtIo_TextCodec_ConvertText(IO::Text::Format srcFmt, uint8_t forceDetect,
                                               const uint8_t* src, int32_t srcLen,
-                                              int32_t dstFmt, int32_t /*scratch*/,
+                                              IO::Text::Format dstFmt, int32_t /*scratch*/,
                                               uint8_t appendTerminator,
                                               uint8_t* const dst, int32_t dstCap) {
     const uint8_t* const srcEnd = src + srcLen;
@@ -371,16 +373,16 @@ extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetec
     // count is kept in 64 bits and the return saturates at INT32_MAX. Below 2 GB every
     // comparison and the return are retail's.
     int64_t produced = 0;                                   // EBX
-    int32_t fmt = srcFmt;                                   // EBP
+    Format fmt = srcFmt;                                    // EBP
 
     // 0x1800ca289 — detect when asked to, OR when the id is the magic 6.
-    if (forceDetect != 0 || srcFmt == 6) {
+    if (forceDetect != 0 || srcFmt == Format::Detect) {
         fmt = RtIo_TextCodec_DetectFormat(src, srcLen);
         int32_t skip;                                       // 0x1800ca2a1 ladder
         switch (fmt) {
-            case 3:  skip = 3; break;
-            case 4:  skip = 2; break;
-            case 5:  skip = 2; break;
+            case Format::Utf8Bom:  skip = 3; break;
+            case Format::Utf16Le:  skip = 2; break;
+            case Format::Utf16Be:  skip = 2; break;
             default: skip = 0; break;      // includes 0 and 2
         }
         src += skip;
@@ -393,7 +395,7 @@ extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetec
     while (src < srcEnd) {                                  // 0x1800ca2eb / ca300
         int32_t cp = -1;                                    // [RSP+0x88]
         int32_t used;
-        if (static_cast<uint32_t>(fmt) <= 5) {
+        if (static_cast<uint32_t>(fmt) <= static_cast<uint32_t>(Format::Utf16Be)) {
             used = RtIo_TextCodec_DecodeOne(fmt, src, srcEnd, &cp, fmt);
         } else {
             cp = -1;                                        // OR ECX,-1
@@ -404,7 +406,7 @@ extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetec
         if (cp < 0) continue;                               // JS to the loop tail
 
         int32_t n;
-        if (static_cast<uint32_t>(dstFmt) <= 5)
+        if (static_cast<uint32_t>(dstFmt) <= static_cast<uint32_t>(Format::Utf16Be))
             n = RtIo_TextCodec_EncodeOne(cp, buf, dstFmt);
         else
             n = 0;
@@ -425,9 +427,9 @@ extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetec
     // through a second six-entry table at 0x1800ca420: ids 0/2/3 -> one zero
     // byte, ids 1/4/5 -> one zero word.
     if (appendTerminator != 0) {
-        if (static_cast<uint32_t>(dstFmt) <= 5) {
+        if (static_cast<uint32_t>(dstFmt) <= static_cast<uint32_t>(Format::Utf16Be)) {
             switch (dstFmt) {
-                case 0: case 2: case 3:
+                case Format::Latin1: case Format::Utf8: case Format::Utf8Bom:
                     buf[0] = 0;
                     termLen = 1;           // R14D is still 1 from the seed
                     break;
@@ -507,12 +509,12 @@ extern "C" void RtIo_SerializeStringArray(::IO::Serializer* ser, int32_t count,
         if (slot->_data != nullptr)
             tagged = static_cast<uint32_t>(
                 *reinterpret_cast<const int32_t*>(slot->_data - 8) + 1);  // CAST-OK: string_header
-        tagged |= 0x80000000u;                                     // BTS EAX,31
+        tagged |= System::String::kSerializedUtf8Flag;             // BTS EAX,31
 
         ser->_readerWriter->SerializeUInt(tagged, nullptr);    // +0x98
 
         const bool wasWide = (tagged >> 31) == 0;                  // SHR/NOT/AND 1
-        uint32_t len = tagged & 0x7FFFFFFFu;                       // BTR EDX,31
+        uint32_t len = tagged & System::String::kSerializedLengthMask;   // BTR EDX,31
 
         const bool reading = (ser->_stream->_direction == rt::io::kDirectionReading);
 
@@ -566,9 +568,9 @@ extern "C" void RtIo_SerializeStringArray(::IO::Serializer* ser, int32_t count,
         int32_t utf8Len = 0;
         for (const uint8_t* p = tmp; p < wideEnd; ) {
             int32_t cp = -1;
-            p += RtIo_TextCodec_DecodeOne(1, p, wideEnd, &cp, 1);
+            p += RtIo_TextCodec_DecodeOne(Format::Ucs2Le, p, wideEnd, &cp, Format::Ucs2Le);
             if (cp >= 0)
-                utf8Len += RtIo_TextCodec_EncodeOne(cp, &cp, 2);    // dst == &cp
+                utf8Len += RtIo_TextCodec_EncodeOne(cp, &cp, Format::Utf8);    // dst == &cp
         }
 
         ::System::StringPrivateAccess::SetLength(*slot, utf8Len);  // 0x180029d5b
@@ -581,9 +583,9 @@ extern "C" void RtIo_SerializeStringArray(::IO::Serializer* ser, int32_t count,
         uint8_t enc[8];                                            // [RSP+0x30]
         for (const uint8_t* p = tmp; p < wideEnd; ) {
             int32_t cp = -1;
-            p += RtIo_TextCodec_DecodeOne(1, p, wideEnd, &cp, 1);
+            p += RtIo_TextCodec_DecodeOne(Format::Ucs2Le, p, wideEnd, &cp, Format::Ucs2Le);
             if (cp < 0) continue;
-            const int32_t n = RtIo_TextCodec_EncodeOne(cp, enc, 2);
+            const int32_t n = RtIo_TextCodec_EncodeOne(cp, enc, Format::Utf8);
             written += n;
             if (written > utf8Len) continue;
             if (base == nullptr) continue;

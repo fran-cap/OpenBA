@@ -79,16 +79,16 @@ UNIT_TEST(review_component_ub_decal_alpha_byte) {
     CHECK_EQ(DecalAlphaByte(infScale), (uint8_t)0x00);
 }
 
-// F-161: zones 5..8 are walkable; a zone byte >= 32 shifts by (zone & 31), as SHL does.
+// F-161: types 5..8 are zoneless; a type byte >= 32 shifts by (type & 31), as SHL does.
 UNIT_TEST(review_component_ub_cemetery_zone_shift) {
-    constexpr bool z2   = CemeteryWalkableZone(2);
-    constexpr bool z5   = CemeteryWalkableZone(5);
-    constexpr bool z8   = CemeteryWalkableZone(8);
-    constexpr bool z9   = CemeteryWalkableZone(9);
-    constexpr bool z37  = CemeteryWalkableZone(37);    // 37 & 31 = 5
-    constexpr bool z40  = CemeteryWalkableZone(40);    // 40 & 31 = 8
-    constexpr bool z41  = CemeteryWalkableZone(41);    // 41 & 31 = 9
-    constexpr bool z255 = CemeteryWalkableZone(255);   // 255 & 31 = 31
+    constexpr bool z2   = CemeteryTypeIsZoneless(2);
+    constexpr bool z5   = CemeteryTypeIsZoneless(5);
+    constexpr bool z8   = CemeteryTypeIsZoneless(8);
+    constexpr bool z9   = CemeteryTypeIsZoneless(9);
+    constexpr bool z37  = CemeteryTypeIsZoneless(37);    // 37 & 31 = 5
+    constexpr bool z40  = CemeteryTypeIsZoneless(40);    // 40 & 31 = 8
+    constexpr bool z41  = CemeteryTypeIsZoneless(41);    // 41 & 31 = 9
+    constexpr bool z255 = CemeteryTypeIsZoneless(255);   // 255 & 31 = 31
     CHECK(!z2);
     CHECK(z5);
     CHECK(z8);

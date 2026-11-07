@@ -150,7 +150,7 @@ static const int kUnreachable = 0x1000000;
 int ExactCellCost(Map* map, int fromCell, int toCell) {
     if (fromCell < 0 || toCell < 0) return kUnreachable;
     if (!static_cast<bool>(static_cast<uint8_t>(
-            map->ValidateCell(0xe1f, static_cast<uint32_t>(fromCell),
+            map->ValidateCell(PathBits::Walk, static_cast<uint32_t>(fromCell),
                                         static_cast<int>(static_cast<uint32_t>(toCell))))))
         return kUnreachable;
     int W = map->size;
@@ -404,7 +404,7 @@ std::vector<std::pair<size_t, CitizenComponent*>> ShadowAssignSequence(const std
 //                  while the pairs drained). docs/retail_bugs.md.
 int PathGraph::RegionPairCost(Map* map, int fromCell, int toCell) {
     if (fromCell < 0) return kUnreachable;
-    if (!static_cast<uint8_t>(map->ValidateCell(0xe1f, static_cast<uint32_t>(fromCell), toCell)))
+    if (!static_cast<uint8_t>(map->ValidateCell(PathBits::Walk, static_cast<uint32_t>(fromCell), toCell)))
         return kUnreachable;
 
     MapCell* cells = map->cells.GetData();   // +0x80

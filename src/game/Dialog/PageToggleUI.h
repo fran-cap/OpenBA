@@ -33,7 +33,7 @@ public:
     void Persist(IO::Stream&/*stream*/) override {}   // [3] 0x1400759a0  RET 0 in retail
     void OnCreated() override;   // [4] 0x140075850
     void OnUpdateLayout() override;   // [7] 0x140075780
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140075710
 
     // ---- fields (OnCreated 0x140075850 fills them) --------------------

@@ -109,7 +109,7 @@ bool Map::TestPlacement(int param_2, int param_3, uint32_t param_4,
     int iVar2 = size * param_3 + param_2;
     const MapCell* cell = &cells.GetData()[iVar2];
 
-    uint8_t passByte = cell->terrainType;
+    uint8_t passByte = static_cast<uint8_t>(cell->terrainType);
     if ((~param_4 & (1u << (passByte & 0x1f))) != 0)
         return false;
 

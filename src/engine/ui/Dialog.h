@@ -260,7 +260,7 @@ public:
         _spriteSheet           = nullptr;                   // 180112df5
         // 180112df9 (+0x28 = 0): the System::String member's default ctor,
         // run before this body (B4 X-RH).
-        _backgroundColor       = 0xFFFFFFFFu;               // 180112dfd  -1, NOT 0
+        _backgroundColor       = System::kColorWhite;       // 180112dfd  -1, NOT 0
         _drawLevel             = 0;                         // 180112e04
         _rootDescription       = nullptr;                   // 180112e07
         _defaultFlags          = 0;                         // 180112e0b  DWORD

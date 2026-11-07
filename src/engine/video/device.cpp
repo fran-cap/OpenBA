@@ -323,10 +323,10 @@ namespace {
 int RenderBufferExtent(uint32_t flags,
                        int32_t ownExtent, int32_t backBufferExtent,
                        const Configuration* cfg) {
-    if (flags & RtVideo::kImageBufferBackBuffer)     return backBufferExtent;
-    if (flags & RtVideo::kImageBufferHalfBackBuffer) return backBufferExtent / 2;
+    if (flags & Video::ImageBuffer::kViewportSize)     return backBufferExtent;
+    if (flags & Video::ImageBuffer::kHalfViewportSize) return backBufferExtent / 2;
     int v = ownExtent;
-    if (flags & RtVideo::kImageBufferShadowScaled)
+    if (flags & Video::ImageBuffer::kShadowMap)
         v >>= (cfg->shadowScalar & 31);   // retail: SAR EDX,CL with CL = scalar & 0x1f
     return v;
 }

@@ -42,7 +42,7 @@ public:
     void OnClosed() override {}   // [6] 0x1400645f0  RET 0 in retail
     void OnUpdateLayout() override;   // [7] 0x140061280
     void OnUpdate(const System::Time& time) override;   // [8] 0x1400610c0
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140060bc0
 
 private:

@@ -16,12 +16,16 @@
 
 #include <cstdint>
 
+#include "Game/PathType.h"   // PathType (standalone: <cstdint> and EnumFlags.h only)
+
 namespace Ext {
 namespace TerrainResort {
 
-constexpr uint8_t kTypeBuildable = 2;    // MapCell +0x29
-constexpr uint8_t kTypeSteep     = 10;   // the classifier's "mountain, below 2.0"
-constexpr uint8_t kNoRoad        = 0xFF; // MapCell +0x2A
+// MapCell +0x29 as the integer the classifier returns (the rule compares ints).
+constexpr uint8_t kTypeBuildable = static_cast<uint8_t>(PathType::Normal);
+constexpr uint8_t kTypeSteep     = static_cast<uint8_t>(PathType::Walkable);   // "mountain, below 2.0"
+// MapCell +0x2A with no road: MapCell::kNoRoadBatch (Map.h is not standalone; terrain_resort.cpp asserts it).
+constexpr uint8_t kNoRoad        = 0xFF;
 
 struct CellView {
     uint8_t terrainType;      // +0x29
@@ -31,7 +35,8 @@ struct CellView {
     bool    occupied;         // +0x08 occupant set
 };
 
-constexpr uint8_t kTypeResource = 4;    // a lone occupant stands here: a tree, ore, a goods pile
+// A lone occupant stands here: a tree, ore, a goods pile.
+constexpr uint8_t kTypeResource = static_cast<uint8_t>(PathType::Obstacle);
 
 // The removal re-sort (0x14009dee0 / StartTown_UnmarkResourceCellGrid): an entity leaving a
 // type-4 cell no other entity's zone claims. World generation scatters trees and ore on ground up

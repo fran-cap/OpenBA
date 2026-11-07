@@ -1028,18 +1028,8 @@ using Adapter           = ::Video::Device::Adapter;
 using GraphicsInterface = ::Video::Device::GraphicsInterface;
 using InterfaceSlot     = ::Video::Device::InterfaceSlot;
 
-// ----------------------------------------------------------------------------
-// Video::ImageBuffer flag bits that RenderBuffer::Create tests (+0x34).
-//
-// src/engine/video/ImageBuffer.h documents bit 0 (mip maps) only; these
-// three are new to Wave 6 lane B and are NOT added there because that header is
-// b35-C's. See WAVE6_LANE_B.md §4.
-// ----------------------------------------------------------------------------
-enum ImageBufferSizeFlag : uint32_t {
-    kImageBufferShadowScaled  = 1u << 6,  // size >>= Configuration::shadowScalar
-    kImageBufferBackBuffer    = 1u << 8,  // size == the back buffer's
-    kImageBufferHalfBackBuffer= 1u << 9,  // size == the back buffer's / 2
-};
+// (The ImageBuffer `_flags` bits RenderBuffer::Create tests are Video::ImageBuffer::Flags,
+// ImageBuffer.h, with the rest of the set.)
 
 }  // namespace RtVideo
 

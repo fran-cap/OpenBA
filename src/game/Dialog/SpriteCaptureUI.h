@@ -35,7 +35,7 @@ public:
     void Persist(IO::Stream&/*stream*/) override {}   // [3] 0x140079850  RET 0 in retail
     void OnCreated() override;   // [4] 0x140079640 (spritecaptureui.cpp)
     void OnUpdate(const System::Time& time) override;   // [8] 0x1400793a0 (spritecaptureui.cpp)
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140079620 (spritecaptureui.cpp)
     void StartCapture();                                  // 0x1400792b0 (the button's arm of [9])
 

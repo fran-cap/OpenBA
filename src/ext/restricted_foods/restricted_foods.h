@@ -50,8 +50,6 @@ namespace Ext { namespace SaveTail { struct StateCodec; } }
 namespace Ext {
 namespace RestrictedFoods {
 
-constexpr uint32_t kEdible = 0x20u;   // RawMaterialDescription::_flags bit 5
-
 // The page this extension contributes to the extension window (toolbar_page.cpp builds its Contribution
 // from these, and the unit tests check them against the registry and the .rsc).
 constexpr const char* kId          = "restricted_foods";

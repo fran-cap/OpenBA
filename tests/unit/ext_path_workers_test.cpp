@@ -22,6 +22,7 @@
 #include "unit.h"
 #include "ext/path_workers/pool.h"
 #include "Action/grid_search.h"
+#include "Game/PathType.h"   // PathBits (the walk masks)
 
 #include <atomic>
 #include <cstdint>
@@ -56,9 +57,14 @@ struct MockGrid {
         switch (c.type) {
         case 0: passableTypes = static_cast<uint32_t>(c.arg1); break;
         case 1: stepCost[c.arg1] = c.arg2; break;
-        case 2: cells[c.arg1] = static_cast<uint8_t>((cells[c.arg1] & 0x80) | static_cast<uint8_t>(c.arg2)); break;
-        case 3: cells[c.arg1] = static_cast<uint8_t>((static_cast<uint8_t>(-(c.arg2 != 0)) & 0x80U) |
-                                                     (cells[c.arg1] & 0x7f)); break;
+        case 2:
+            cells[c.arg1] = static_cast<uint8_t>((cells[c.arg1] & GridSearch::kCellBlocked) |
+                                                 static_cast<uint8_t>(c.arg2));
+            break;
+        case 3:
+            cells[c.arg1] = static_cast<uint8_t>((static_cast<uint8_t>(-(c.arg2 != 0)) & GridSearch::kCellBlocked) |
+                                                 (cells[c.arg1] & GridSearch::kCellTypeMask));
+            break;
         case 4: allowDiagonal = c.arg1 != 0; manhattan = c.arg2 != 0; respectBlocked = c.arg3 != 0; break;
         default: break;
         }
@@ -124,16 +130,17 @@ Case MakeCase(std::mt19937& rng) {
     static const uint8_t kTypes[] = { 0, 1, 2, 2, 2, 3, 4, 7, 8, 10, 10, 11 };
     for (uint8_t& b : c.start.cells) {
         b = kTypes[rng() % sizeof(kTypes)];
-        if (rng() % 10 == 0) b |= 0x80;
+        if (rng() % 10 == 0) b |= GridSearch::kCellBlocked;
     }
     for (int t = 0; t < 0x20; ++t) c.start.stepCost[t] = 1;   // the grid ctor's
     static const int32_t kProfile0[11] = { 3, 3, 4, 8, 16, 16, 16, 16, 16, 3, 4 };
     for (int t = 0; t < 11; ++t) c.start.stepCost[t] = kProfile0[t];
-    c.start.passableTypes = 0xe1f;
+    c.start.passableTypes = Bits(PathBits::Walk);
     c.start.allowDiagonal = 1;
     c.fast = rng() % 2 == 0;
 
-    static const int32_t kMasks[] = { 0xe1f, 0x7, 0x1ff, 0x404 | 0x4, -1, 0xe1f | (1 << 7) | (1 << 8) };
+    static const int32_t kMasks[] = { Bits(PathBits::Walk), 0x7, 0x1ff, 0x404 | 0x4, -1,
+                                      Bits(PathBits::AnimalWalk) };
     const int n = 20 + static_cast<int>(rng() % 120);
     const int cellsN = w * w;
     for (int i = 0; i < n; ++i) {
@@ -343,7 +350,7 @@ UNIT_TEST(ext_path_workers_stop_under_load) {
     pc.grid.width = 64;
     pc.grid.cells.assign(64 * 64, 2);
     for (int t = 0; t < 0x20; ++t) pc.grid.stepCost[t] = 4;
-    pc.grid.passableTypes = 0xe1f;
+    pc.grid.passableTypes = Bits(PathBits::Walk);
     pc.grid.allowDiagonal = 1;
     const int kJobs = 4000;
     pc.results.assign(kJobs, Result());
@@ -380,7 +387,7 @@ UNIT_TEST(ext_path_workers_stop_before_start_and_idle) {
     pc.grid.width = 16;
     pc.grid.cells.assign(256, 2);
     for (int t = 0; t < 0x20; ++t) pc.grid.stepCost[t] = 4;
-    pc.grid.passableTypes = 0xe1f;
+    pc.grid.passableTypes = Bits(PathBits::Walk);
     pc.results.assign(100, Result());
     {
         // Jobs queued and Stop called before any thread exists: each still runs.

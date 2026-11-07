@@ -38,7 +38,7 @@ public:
     void OnOpened() override;   // [5] 0x140067640
     void OnClosed() override {}   // [6] 0x140067630  RET 0 in retail
     void OnUpdateLayout() override;   // [7] 0x140067440
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x1400675d0
 
     // 0x140067320: a notification check box's state into the event log's filter.

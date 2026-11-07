@@ -486,7 +486,7 @@ int Component::PickReachableCell(uint32_t param_2, float* param_3) const {
     // LEFT: 0x1400a00f0 / 0x140008830's C declarations (Work/exe_bodies.h, WORK-a's header)
     // take the Map as int*.
     Map* mapGrid = map;
-    uint64_t ok = mapGrid->ValidateCell(0xe1f, param_2, static_cast<int>(cell));   // 0x1400a00f0
+    uint64_t ok = mapGrid->ValidateCell(PathBits::Walk, param_2, static_cast<int>(cell));   // 0x1400a00f0
     if (static_cast<char>(ok) == '\0') return -1;
     return mapGrid->CalcDistance(param_2, cell);   // 0x140008830
 }
@@ -702,7 +702,7 @@ void WorldGeometry::RebuildRoadMesh(Map* map) {
                                                     if (iVar1 < 0 || iVar1 >= gridDim || row < 0 || row >= gridDim) {
                                                         local_f0[slot] = 0;
                                                     } else {
-                                                        local_f0[slot] = (map->cells.GetData()[static_cast<int64_t>(iVar1) + rowOff].field_0x2A != 0xff) ? 1 : 0;
+                                                        local_f0[slot] = (map->cells.GetData()[static_cast<int64_t>(iVar1) + rowOff].field_0x2A != MapCell::kNoRoadBatch) ? 1 : 0;
                                                     }
                                                 }
                                                 slot++;

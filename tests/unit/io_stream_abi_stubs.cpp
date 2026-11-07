@@ -87,8 +87,8 @@ bool     FileStream::Open(const System::Filename&) { StubReached("FileStream::Op
 // SetObject (the probes read neither).
 FileStream::~FileStream() {}
 TextFileStream::TextFileStream(const System::String&, const System::String&, int)
-    : _objectName(), _objectType(), _requestedFormat(6),
-      _activeEncoding(6), _buffer(nullptr), _bufSize(0), _bufCursor(0) {}
+    : _objectName(), _objectType(), _requestedFormat(Text::Format::Detect),
+      _activeEncoding(Text::Format::Detect), _buffer(nullptr), _bufSize(0), _bufCursor(0) {}
 TextFileStream::~TextFileStream() {}
 
 // ---- IO::CompressedStream / CompressedMemoryStream -------------------------
@@ -114,10 +114,10 @@ bool     TextFileStream::Read(int, void*)        { StubReached("TextFileStream::
 bool     TextFileStream::SetCurrentPos(int)      { StubReached("TextFileStream::SetCurrentPos"); }
 uint32_t TextFileStream::GetCurrentPos() const   { StubReached("TextFileStream::GetCurrentPos"); }
 uint32_t TextFileStream::GetSize() const         { StubReached("TextFileStream::GetSize"); }
-bool     TextFileStream::OpenWithFormat(const System::Filename&, int32_t) {
+bool     TextFileStream::OpenWithFormat(const System::Filename&, Text::Format) {
     StubReached("TextFileStream::OpenWithFormat");
 }
-bool     TextFileStream::Create(const System::Filename&, int32_t, int32_t) {
+bool     TextFileStream::Create(const System::Filename&, Text::Format, Text::Format) {
     StubReached("TextFileStream::Create");
 }
 

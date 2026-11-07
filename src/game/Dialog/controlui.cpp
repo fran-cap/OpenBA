@@ -116,11 +116,11 @@ void TraceSlot7(ControlUI* self) {
         if (::Object::IsDerivedFromNullSafe(elem, ControlUI_CheckElementTypeId())) {
             unsigned checked = static_cast<UI::CheckElement*>(elem)->_checked;
             std::fprintf(stderr, "[ControlUI] Slot7 cmd=%d elem=%p disabled=%d checked=%u\n",
-                         cmd, (void*)elem, (flags & 0x800000u) ? 1 : 0, checked);
+                         cmd, (void*)elem, (flags & UI::kElementFlagDisabled) ? 1 : 0, checked);
         } else {
             std::fprintf(stderr, "[ControlUI] Slot7 cmd=%d elem=%p disabled=%d"
                          " checked=n/a (ButtonElement, no +0xd8)\n",
-                         cmd, (void*)elem, (flags & 0x800000u) ? 1 : 0);
+                         cmd, (void*)elem, (flags & UI::kElementFlagDisabled) ? 1 : 0);
         }
     }
     std::fflush(stderr);
@@ -251,11 +251,11 @@ void ControlUI::OnUpdateLayout() {
 // against the stored element. Original asm: CMP [RDI],RAX where RDI=element,
 // RAX=*(self+0x30)
 // [9] 0x14005f7f0
-void ControlUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t param3, int32_t param4,
+void ControlUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId param3, int32_t param4,
                                int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 == 0x12 && param4 == 50000) controlui_sa::Trace("Slot9(click)", this);
+    if (param3 == UI::EventId::Activated && param4 == 50000) controlui_sa::Trace("Slot9(click)", this);
 
-    if (param3 == 0x12 && param4 == 50000) {
+    if (param3 == UI::EventId::Activated && param4 == 50000) {
         // CheckPtr on stored element before comparison
         if (element->Get() == button) {
             // Get the config

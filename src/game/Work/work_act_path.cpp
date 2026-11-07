@@ -249,7 +249,7 @@ extern "C" ::Object::InternalPtr<Action>* WorkAct_GatherRawMatCtor_bf790(
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();             // *((*entity)+0x10) (0xbfbcc-0xbfbd7)
         int pathT = 4 + (param_14 != 0 ? 1 : 0);                       // LEA R8D,[RBX+4], RBX=SETNZ (0xbfbe7-0xbfc1b)
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>(); // 0x1400012d0 (0xbfbf5)
-        mv1 = new (obj) MoveTo(&family, pathT, 0, srcPos, 0xe1f, 0, kSpeed); // (0xbfc22)
+        mv1 = new (obj) MoveTo(&family, pathT, 0, srcPos, PathBits::Walk, 0, kSpeed); // (0xbfc22)
     }
     ibpB = mv1;
     WAP2_Append(list, &ibpB);                                          // (0xbfc40)
@@ -338,7 +338,7 @@ extern "C" ::Object::InternalPtr<Action>* WorkAct_GatherRawMatCtor_bf790(
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();             // *((*entity)+0x10) (0xbfecb-0xbfed6)
         int pathT = (param_14 != 0) ? 5 : 1;                           // MOV EBX,1; MOV EAX,5; CMOVNZ (0xbfee4-0xbfef1)
         CharacterComponent* family = entityInner->FindComponent<CharacterComponent>(); // 0x1400012d0 (0xbfefc)
-        mv2 = new (obj) MoveTo(&family, pathT, 0, dstPos, 0xe1f, 0, kSpeed); // (0xbff28)
+        mv2 = new (obj) MoveTo(&family, pathT, 0, dstPos, PathBits::Walk, 0, kSpeed); // (0xbff28)
     }
     ibpB = mv2;
     WAP2_Append(list, &ibpB);                                          // (0xbff46)

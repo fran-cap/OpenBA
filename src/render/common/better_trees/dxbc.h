@@ -69,6 +69,23 @@ namespace OperandType {   // D3D10_SB_OPERAND_TYPE
 enum : uint32_t { Temp = 0, Input = 1, Output = 2, IndexableTemp = 3, Imm32 = 4, Imm64 = 5,
                   Sampler = 6, Resource = 7, ConstantBuffer = 8 };
 }
+// A component mask: an operand's write / read mask (bits 4-7 of a mask-mode
+// operand token, so `Mask::XYZW << 4`) and a signature element's mask /
+// read-write-mask bytes.
+namespace Mask {
+enum : uint32_t {
+    X    = 0x1,
+    Y    = 0x2,
+    Z    = 0x4,
+    W    = 0x8,
+    XYZ  = 0x7,
+    ZW   = 0xC,
+    XYZW = 0xF,
+};
+}
+// Bit 31 of an opcode or operand token: an extended token follows
+// (D3D10_SB_OPCODE_EXTENDED / D3D10_SB_OPERAND_EXTENDED).
+constexpr uint32_t kTokenExtended = 0x80000000u;
 
 struct Operand {
     uint32_t offset   = 0;   // dword index of the operand token in Program::tokens
@@ -85,7 +102,7 @@ struct Operand {
     uint32_t imm[4]   = {0, 0, 0, 0};   // Imm32 values (raw bits)
 
     // The component the operand reads first / writes (for scalar patterns).
-    uint32_t Mask() const { return selMode == 0 ? (compBits & 0xF) : 0; }
+    uint32_t Mask() const { return selMode == 0 ? (compBits & Dxbc::Mask::XYZW) : 0; }
     // Component c's source selector for a swizzled / selected source.
     uint32_t Swz(int c) const {
         if (selMode == 1) return (compBits >> (2 * c)) & 3;

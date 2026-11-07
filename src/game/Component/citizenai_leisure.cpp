@@ -265,7 +265,8 @@ static ComponentEntity** CitizenAI_State_Leisure_sub_99d0(CitizenBehavior* param
                 cost = static_cast<int>(d) + wgrid;
             }
 
-            if (cost < param_4 * 2 && (static_cast<char>(mapGrid->ValidateCell(0xe1f, param_3, destCell)) != '\0')) {
+            if (cost < param_4 * 2
+                && (static_cast<char>(mapGrid->ValidateCell(PathBits::Walk, param_3, destCell)) != '\0')) {
                 HappinessComponent* node = param_1->happinessComponents._data[idx].Get();
                 Description* prim = node->_description;
                 HappinessDescription* narrowed = Object::IsDerivedFromNullSafe(prim, s_tid_HappinessDescription)
@@ -397,7 +398,7 @@ uint64_t CitizenAIComponent::State_Leisure() {
         if (tcol < 0) tcol = 0; if (w <= tcol) tcol = w - 1;
         if (trow < 0) trow = 0; if (w <= trow) trow = w - 1;
         uint32_t uVar35 = static_cast<uint32_t>(w * trow + tcol);
-        uint8_t reach = piVar5->ValidateCell(0xe1f, uVar37, uVar35);
+        uint8_t reach = piVar5->ValidateCell(PathBits::Walk, uVar37, uVar35);
         if (static_cast<char>(reach) == '\0') goto LAB_14010a7e0;
         goto LAB_14010a83d;   // target validated
     }
@@ -608,16 +609,16 @@ LAB_14010ae8a:
                 if (iVar16 >= 0 && iVar16 < w && iVar13 >= 0 && iVar13 < w) {
                     int cellIdx = w * iVar13 + cc + (iVar30 - iVar27);
                     int64_t lv = static_cast<int64_t>(cellIdx);
-                    if (piVar5->cells.GetData()[lv].terrainType < 3) {
+                    if (piVar5->cells.GetData()[lv].terrainType < PathType::Occasional) {   // a road or Normal
                         piVar5->FillZones();   // 0x14009c480 (RCX only)
                         MapCell* arrBase = piVar5->cells.GetData();
-                        uint32_t mNew = 1u << (arrBase[lv].terrainType & 0x1f);
-                        uint32_t mSrc = 1u << (arrBase[local_a8].terrainType & 0x1f);
+                        uint32_t mNew = 1u << (static_cast<uint8_t>(arrBase[lv].terrainType) & 0x1f);
+                        uint32_t mSrc = 1u << (static_cast<uint8_t>(arrBase[local_a8].terrainType) & 0x1f);
                         uint32_t both = mSrc | mNew;
-                        uint32_t mask = both | 0xe1f;
+                        uint32_t mask = both | Bits(PathBits::Walk);
                         bool match = false;
                         if ((mask & mSrc) != 0 && (mask & mNew) != 0) {
-                            if ((both & 0x1e0) != 0) match = true;
+                            if ((both & Bits(PathBits::Zoneless)) != 0) match = true;
                             else {
                                 short z0 = arrBase[local_a8].zone;
                                 short z1 = arrBase[lv].zone;
@@ -719,7 +720,7 @@ LAB_14010ae8a:
                                        static_cast<uint32_t>(static_cast<unsigned char>(cVar12)));
 
             citizen->field_0x30 = -1;
-            citizen->statusFlags |= 4;
+            citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
             citizen->field_0xB0 = 0;
             leisureTimer._ticks = 0;
             uVar41 = 1;

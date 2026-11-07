@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <new>
 #include "Component/ComponentDescription.h"   // B8 RT2: ::Object::SerializeExternal<ComponentDescription> (the downcast needs it complete)
+#include "Game/PathType.h"                    // PathBits::Walk (the default habitat)
 
 // ctor (inlined into create 0x14000afb0 / createInPlace 0x14000aff0):
 // `??0External@Object@@` (Description()), the stamps (the compiler's), then
@@ -42,7 +43,7 @@ PopulationDescription::PopulationDescription()
     : Description(),
       _habitatBlock(8),
       _herdBlock(0x20),
-      _habitatTerrain(0xe1f),
+      _habitatTerrain(Bits(PathBits::Walk)),
       _blockingTerrain(0),
       _blockedByEntity(true),
       _habitatDensity(4),

@@ -136,7 +136,7 @@ void DragPlacementTool_ClearPathEntities_1018d0(const void* /*unused*/, int minC
                     ComponentEntity* resolved = local;
                     EntityList* entityList = gw->m_entityList;
                     // skip if flag bit 10 (0x400) already set at entity+0x40
-                    if ((resolved->_entityFlags >> 10 & 1) == 0) {
+                    if ((resolved->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                         resolved->MarkForRemoval();
                         entityList->removalList.SetSize(entityList->removalList._size + 1,
                                                         resolved);   // 0x140003110

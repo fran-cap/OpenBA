@@ -171,13 +171,13 @@ static void Push(ActionStack* stack, Action* act) {
 
 // Build + push the trailing MoveTo action toward `dest`, mask = the pathfinding flags.
 static void PushMoveTo(CitizenComponent* const* citizenRef, ActionStack* stack, uint32_t pathType,
-                       float* dest, int mask) {
+                       float* dest, PathBits mask) {
     void* mem = MemA(0x480);
     Action* act = nullptr;
     if (mem) {
         CharacterComponent* fam = ((*citizenRef)->_entity.Get())->FindComponent<CharacterComponent>();   // 0x1400012d0
         float speed = kRdata_140172280;
-        act = new (mem) MoveTo(&fam, pathType, 0, dest, static_cast<uint32_t>(mask), 0, speed);   // 0x1400c9170
+        act = new (mem) MoveTo(&fam, pathType, 0, dest, mask, 0, speed);   // 0x1400c9170
     }
     Push(stack, act);
 }
@@ -244,13 +244,14 @@ void CitizenAI_PerformWorkCtor4_c1070(CitizenComponent* const* citizenRef, Compo
         if (mem) {
             ComponentEntity* destIBP = nullptr;   // retail: InternalBasePtr(nullptr) in a stack slot
             CitizenComponent* entityIBP = *citizenRef;  // *(undefined8*)param_1
-            act = new (mem) DropOffRawMaterial(&entityIBP, &destIBP, nullptr, 0xffffffff, param_5);   // 0x1400c7cd0
+            act = new (mem) DropOffRawMaterial(&entityIBP, &destIBP, nullptr,     // 0x1400c7cd0
+                                               DropOffRawMaterial::kAllUnits, param_5);
         }
         Push(stack, act);
     }
 
     // work mask bit from the cell flags byte
-    uint8_t bit = GameUpdateLoop::_singleton->m_game->cells.GetData()[param_4].terrainType;
+    PathType bit = GameUpdateLoop::_singleton->m_game->cells.GetData()[param_4].terrainType;
 
     ComponentEntity* target = *targetRef;
     if (target == nullptr) return;
@@ -289,7 +290,8 @@ void CitizenAI_PerformWorkCtor4_c1070(CitizenComponent* const* citizenRef, Compo
         if (mem) {
             ComponentEntity* targetIBP = *targetRef;
             CitizenComponent* entityIBP = *citizenRef;
-            act = new (mem) DropOffRawMaterial(&entityIBP, &targetIBP, nullptr, 0xffffffff, param_5);   // 0x1400c7cd0
+            act = new (mem) DropOffRawMaterial(&entityIBP, &targetIBP, nullptr,   // 0x1400c7cd0
+                                               DropOffRawMaterial::kAllUnits, param_5);
         }
         Push(stack, act);
     }
@@ -305,7 +307,7 @@ void CitizenAI_PerformWorkCtor4_c1070(CitizenComponent* const* citizenRef, Compo
         Push(stack, act);
     }
     // MoveTo (Faster=4, disasm `LEA R8D,[R9+0x4]`) with mask = (1<<bit)|0xe1f
-    PushMoveTo(citizenRef, stack, 4 /*Faster*/, param_3, (1 << (bit & 0x1f)) | 0xe1f);
+    PushMoveTo(citizenRef, stack, 4 /*Faster*/, param_3, PathBitOf(bit) | PathBits::Walk);
     // trailing ShowTool (unequip)
     {
         void* mem = MemA(0x30);
@@ -381,7 +383,7 @@ void CitizenAI_PerformWorkCtor5_bd070(CitizenComponent* const* citizenRef, Compo
         Push(stack, act);
     }
     // MoveTo (Slow=1) mask 0xe1f
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, PathBits::Walk);
 }
 
 // ============================================================
@@ -431,7 +433,7 @@ void CitizenAI_PerformWorkCtor6_bd420(CitizenComponent* const* citizenRef, Compo
         }
         Push(stack, act);
     }
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, PathBits::Walk);
 }
 
 // ============================================================
@@ -469,7 +471,7 @@ void CitizenAI_PerformWorkCtor8_bd790(CitizenComponent* const* citizenRef, Compo
         }
         Push(stack, act);
     }
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, PathBits::Walk);
 }
 
 // ============================================================
@@ -530,7 +532,7 @@ void CitizenAI_PerformWorkCtor10_bccb0(CitizenComponent* const* citizenRef, Comp
         }
         Push(stack, act);
     }
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, PathBits::Walk);
 }
 
 // ============================================================
@@ -596,7 +598,7 @@ void CitizenAI_PerformWorkCtor11_bc790(CitizenComponent* const* citizenRef, Comp
         Push(stack, act);
     }
     // MoveTo(Slow) dest = param_6
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_6, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_6, PathBits::Walk);
     // PickupStored(src=*param_3, list=param_2, requested=1, flag=0)
     {
         void* mem = MemA(0x48);
@@ -620,7 +622,7 @@ void CitizenAI_PerformWorkCtor11_bc790(CitizenComponent* const* citizenRef, Comp
         Push(stack, act);
     }
     // MoveTo(Slow) dest = param_4
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_4, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_4, PathBits::Walk);
 }
 
 // ============================================================
@@ -659,7 +661,7 @@ void CitizenAI_Pathfinding_NavigateTo_bda50(CitizenComponent* const* citizenRef,
         }
         Push(stack, act);
     }
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, PathBits::Walk);
 }
 
 // ============================================================
@@ -707,7 +709,7 @@ void CitizenAI_Pathfinding_WalkTowards_bb490(CitizenComponent* const* citizenRef
         }
         Push(stack, act);
     }
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, PathBits::Walk);
 }
 
 // ============================================================
@@ -767,5 +769,5 @@ void CitizenAI_PlayAnimationCtor4_ba6b0(CitizenComponent* const* citizenRef, Com
         }
         Push(stack, act);
     }
-    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, 0xe1f);
+    PushMoveTo(citizenRef, stack, 1 /*Slow*/, param_3, PathBits::Walk);
 }

@@ -367,7 +367,7 @@ void Stream::Run() NO_THREAD_SAFETY_ANALYSIS {
             // Note 2 in the banner: the cursor store IS the seek for a packed
             // file, and it happens on both paths.
             st._file.cursor = byteOffset;                               // 1800a11a0
-            if (static_cast<uint32_t>(st._file.handle) > 0xfffffffdu)   // 1800a11a4
+            if (!RtIO::FileInfo::IsPackedHandle(st._file.handle))       // 1800a11a4
                 Platform::FileSeek32(st._file.winHandle, byteOffset);   // SetFilePointer(h, off, NULL, FILE_BEGIN)
 
             // `slotIndex * 0x8ba0` (1800a11c0): the Block of the ring.
@@ -497,7 +497,7 @@ void Stream::Run() NO_THREAD_SAFETY_ANALYSIS {
         }
         // kExitStop (1800a13af -> 1800a13da) holds no lock and needs no release.
 
-        if (st._file.handle != -1)                                      // 1800a13da
+        if (st._file.handle != RtIO::FileInfo::kHandleNone)             // 1800a13da
             fsys->CloseFile(st._file);                                  // 0x1800accc0
     }
 }   // ~FileStream: 1800a14b3..1654

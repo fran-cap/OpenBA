@@ -189,7 +189,7 @@ void WorkAct_GatherWorkCtor_bb7b0(CitizenComponent* const* citizenRef, uint32_t 
         CharacterComponent* family = entInner->FindComponent<CharacterComponent>();   // 0x1400012d0            // [RBP-0x21]
         float speed = kRdata_140172280;          // [0x140172280] = -1.0f
         // disasm: R8D=1 (Slow), R9D=0, [RSP+0x20]=param_4, [RSP+0x28]=0xe1f, [RSP+0x30]=0, [RSP+0x38]=speed
-        mv = new (obj) MoveTo(&family, 1 /*Slow; disasm LEA R8D,[R9+1]*/, 0, worldPos, 0xe1f, 0, speed);
+        mv = new (obj) MoveTo(&family, 1 /*Slow; disasm LEA R8D,[R9+1]*/, 0, worldPos, PathBits::Walk, 0, speed);
     }
     ibpB = mv;              // [RBP-0x19]
     WAR_Append(list, &ibpB);
@@ -326,7 +326,7 @@ void WorkAct_FishWorkCtor_beae0(CitizenComponent* const* citizenRef, uint32_t wo
         float speed = kRdata_140172280;          // [0x140172280] = -1.0f
         // disasm: R8D = 2 (Fast; LEA R8D,[R9+2]), R9D=0, [RSP+0x20]=R13(=param_4),
         //         [RSP+0x28]=0xe1f, [RSP+0x30]=0, [RSP+0x38]=speed
-        mv = new (obj) MoveTo(&family, 2 /*Fast*/, 0, position, 0xe1f, 0, speed);
+        mv = new (obj) MoveTo(&family, 2 /*Fast*/, 0, position, PathBits::Walk, 0, speed);
     }
     ibpC = mv;              // [RBP+0x50]
     WAR_Append(list, &ibpC);

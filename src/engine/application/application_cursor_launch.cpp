@@ -53,6 +53,7 @@
 #include "system/String.h"
 #include "system/WideString.h"
 #include "platform_os.h"
+#include "platform_window.h"   // Platform::Window::kMsgSetCursor
 
 // ENDGAME B.3.7: `Application::Application` is the real class; a global
 // `using RtApplication::Application;` is ill-formed next to the namespace.
@@ -99,7 +100,7 @@ using App = Application::Application;
 // ============================================================================
 namespace {
 
-constexpr unsigned kWmSetCursor = 0x20;
+using Platform::Window::kMsgSetCursor;   // WM_SETCURSOR
 
 // Application's message-callback element: `{unsigned message; int(*)(HWND,
 // unsigned, WPARAM, LPARAM) callback;}` at node+0x00/+0x08 (Application.h).
@@ -120,8 +121,8 @@ void EnableCursorBody(App* self, bool enabled, RtSink& out) {
     const Node* found = nullptr;
     while (n != nullptr) {
         const unsigned key = rtsetavl::ElementOf<CursorCallbackElement>(n).message;
-        if (kWmSetCursor < key)      n = n->left;                // 0x18009f820
-        else if (key < kWmSetCursor) n = n->right;                // 0x18009f81a
+        if (kMsgSetCursor < key)      n = n->left;                // 0x18009f820
+        else if (key < kMsgSetCursor) n = n->right;                // 0x18009f81a
         else { found = n; break; }                                // 0x18009f826
     }
     if (found != nullptr) {
@@ -130,8 +131,8 @@ void EnableCursorBody(App* self, bool enabled, RtSink& out) {
         if (out.Call("Application message callback @ WM_SETCURSOR",
                      reinterpret_cast<const void*>(cb),  // CAST-OK: ptr_int
                      reinterpret_cast<int64_t>(self->_windowHandle),  // CAST-OK: win32
-                     static_cast<int64_t>(kWmSetCursor), 0, 0)) {
-            cb(self->_windowHandle, kWmSetCursor, 0, 0);          // 0x18009f838
+                     static_cast<int64_t>(kMsgSetCursor), 0, 0)) {
+            cb(self->_windowHandle, kMsgSetCursor, 0, 0);          // 0x18009f838
         }
     }
 }

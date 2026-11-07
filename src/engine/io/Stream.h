@@ -921,8 +921,26 @@ static_assert(std::is_trivially_destructible<RtIo::CompressedMemoryStream>::valu
 // IO::CompressedStream members.)
 
 // ---- io/text_codec.cpp
-extern "C" int32_t RtIo_TextCodec_DetectFormat(const uint8_t* src, int32_t len);  // 0x1800c9d60
-extern "C" int32_t RtIo_TextCodec_DecodeOne(int32_t fmtEcx, const void* srcv, const void* endv, int32_t* cp, int32_t fmtArg5);  // 0x1800c9fc0
-extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, int32_t fmt);  // 0x1800c9b60
-extern "C" int32_t RtIo_TextCodec_ConvertText(int32_t srcFmt, uint8_t forceDetect, const uint8_t* src, int32_t srcLen, int32_t dstFmt, int32_t, uint8_t appendTerminator, uint8_t* dst, int32_t dstCap);  // 0x1800ca260
+namespace IO {
+namespace Text {
+// Retail's `IO::Text::Format` (the name is in the mangling of
+// ?Open@TextFileStream@IO@@UEAA_NAEBVFilename@System@@W4Format@Text@4@@Z); the
+// enumerator names are not in the binary. Values pinned by the codec's switch
+// arms (EncodeOne 0x1800c9b60, DecodeOne 0x1800c9fc0) and DetectFormat's BOMs.
+enum class Format : int32_t {
+    Latin1  = 0,   // one byte per codepoint, cp < 0x100; DetectFormat's answer on malformed UTF-8
+    Ucs2Le  = 1,   // two bytes LE, cp < 0x10000, no surrogates, no BOM (the wide strings)
+    Utf8    = 2,   // UTF-8 without a BOM (DetectFormat's valid-UTF-8 answer)
+    Utf8Bom = 3,   // UTF-8 with the EF BB BF mark
+    Utf16Le = 4,   // UTF-16 LE, mark FF FE
+    Utf16Be = 5,   // UTF-16 BE, mark FE FF (bytes swapped)
+    Detect  = 6,   // detect from the data (the TextFileStream ctor's default)
+};
+}  // namespace Text
+}  // namespace IO
+
+extern "C" IO::Text::Format RtIo_TextCodec_DetectFormat(const uint8_t* src, int32_t len);  // 0x1800c9d60
+extern "C" int32_t RtIo_TextCodec_DecodeOne(IO::Text::Format fmtEcx, const void* srcv, const void* endv, int32_t* cp, IO::Text::Format fmtArg5);  // 0x1800c9fc0
+extern "C" int32_t RtIo_TextCodec_EncodeOne(int32_t cp, void* dstv, IO::Text::Format fmt);  // 0x1800c9b60
+extern "C" int32_t RtIo_TextCodec_ConvertText(IO::Text::Format srcFmt, uint8_t forceDetect, const uint8_t* src, int32_t srcLen, IO::Text::Format dstFmt, int32_t, uint8_t appendTerminator, uint8_t* dst, int32_t dstCap);  // 0x1800ca260
 // ==== end B3R W0-P0c ====

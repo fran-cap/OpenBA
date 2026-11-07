@@ -385,12 +385,12 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
                 Profession* workEntity = nullptr;
                 GetTarget(&workEntity);
 
-                citizenFinal->statusFlags |= 4;
+                citizenFinal->statusFlags |= Bits(CitizenStatus::TaskDone);
                 citizenFinal->field_0x30 = priority;
                 citizenFinal->field_0xB0 = 0;
 
                 if (workEntity == citizenFinal->profession && priority >= 0) {
-                    citizenFinal->happinessFlags |= 0x20000;
+                    citizenFinal->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
                 }
 
                 // (the tree helper takes the container as uintptr_t*: LEFT)

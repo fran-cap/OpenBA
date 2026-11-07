@@ -83,7 +83,7 @@ bool InteractComponent::FindWalkablePos(const InteractDescription::NodeArray* no
         int row = WalkClampCell(static_cast<int>(pos.y + static_cast<float>(w2 >> 1)), w2);
         uint32_t destCell = static_cast<uint32_t>(w2 * row + col);
 
-        uint64_t reach = map->ValidateCell(0xe1f, srcCell, static_cast<int>(destCell));
+        uint64_t reach = map->ValidateCell(PathBits::Walk, srcCell, static_cast<int>(destCell));
         if (static_cast<char>(reach) != '\0') {
             int dist = map->PathDistance(srcCell, destCell, '\x01');   // 0x14009f810 (was its Pf_IsDstReachable_f810 forwarder)
             if (dist < 0) {

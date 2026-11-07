@@ -125,8 +125,8 @@ void GoalDialog::OnOpened() {
             }
 
             // Hide both complete and fail images initially
-            if (imageComplete) imageComplete->SetFlagsOnOff(1, 0);
-            if (imageFail) imageFail->SetFlagsOnOff(1, 0);
+            if (imageComplete) imageComplete->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+            if (imageFail) imageFail->SetFlagsOnOff(UI::kElementFlagHidden, 0);
 
             // Append {imageComplete, imageFail, textGoal}. GoalDialog::OnOpened's own
             // inlined copy of Collection::Array<T>::SetSize — NOT FUN_140011750
@@ -166,7 +166,7 @@ void GoalDialog::OnOpened() {
         }
     } else {
         // No achievement/scenario — hide textScenario
-        if (textScenario) textScenario->SetFlagsOnOff(1, 0);
+        if (textScenario) textScenario->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
 }
 
@@ -216,8 +216,8 @@ void GoalDialog::OnUpdate(const System::Time& /*time*/) {}
 //
 // Original: 0x1400697C0.
 
-void GoalDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (param3 == 0x12 && param4 == 100) {
+void GoalDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (param3 == UI::EventId::Activated && param4 == 100) {
         Object::InternalPtr<UI::DialogInstance> selfIBP(this);
         _ui->CloseDialog(&selfIBP);
     }

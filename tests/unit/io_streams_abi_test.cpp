@@ -329,10 +329,10 @@ struct TextFileStreamProbe final : IO::TextFileStream {
     TextFileStreamProbe() : IO::TextFileStream(System::String(), System::String(), 0) {}
     STREAM_PROBE_SEVEN
     bool Open(const System::Filename&) override { Note(this, 7); return true; }
-    bool OpenWithFormat(const System::Filename&, int32_t) override {
+    bool OpenWithFormat(const System::Filename&, IO::Text::Format) override {
         Note(this, 8); return true;
     }
-    bool Create(const System::Filename&, int32_t, int32_t) override {
+    bool Create(const System::Filename&, IO::Text::Format, IO::Text::Format) override {
         Note(this, 9); return true;
     }
     ~TextFileStreamProbe() override { Note(this, 0); }
@@ -448,8 +448,8 @@ UNIT_TEST(TextFileStream_and_VisitorStream_are_layout_identical_to_their_PODs) {
     // `Create` and `OpenWithFormat` members use to reach the FileStream doors.
     TextFileStreamProbe p;
     p._objectVersion   = 0x11;
-    p._requestedFormat = 6;
-    p._activeEncoding  = 3;
+    p._requestedFormat = IO::Text::Format::Detect;
+    p._activeEncoding  = IO::Text::Format::Utf8Bom;
     p._bufSize         = 0x333;
     const RtIo::TextFileStream* pod =
         reinterpret_cast<const RtIo::TextFileStream*>(

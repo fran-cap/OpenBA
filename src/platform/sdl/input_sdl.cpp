@@ -205,7 +205,7 @@ int32_t ReadKeyboard(void* /*device*/, uint8_t dik[256]) {
 
     std::memset(dik, 0, 256);
     for (int s = 0; s < count; ++s) {
-        if (state[s]) dik[kSdlScancodeToDik[s]] = 0x80;
+        if (state[s]) dik[kSdlScancodeToDik[s]] = kDiKeyDown;
     }
     AddScreenKeys(dik);
     return kOk;
@@ -277,11 +277,11 @@ int32_t ReadMouse(void* /*device*/, MouseState* out) {
     // Plan §G3 option (b): raw motion while the middle button (camera rotate) is held,
     // from the next poll on (this poll's motion was already read above).
     SetRotateDrag((b & SDL_BUTTON_MMASK) != 0);
-    out->buttons[0] = (b & SDL_BUTTON_LMASK)  ? 0x80 : 0;
-    out->buttons[1] = (b & SDL_BUTTON_RMASK)  ? 0x80 : 0;
-    out->buttons[2] = (b & SDL_BUTTON_MMASK)  ? 0x80 : 0;
-    out->buttons[3] = (b & SDL_BUTTON_X1MASK) ? 0x80 : 0;
-    out->buttons[4] = (b & SDL_BUTTON_X2MASK) ? 0x80 : 0;
+    out->buttons[0] = (b & SDL_BUTTON_LMASK)  ? kDiKeyDown : 0;
+    out->buttons[1] = (b & SDL_BUTTON_RMASK)  ? kDiKeyDown : 0;
+    out->buttons[2] = (b & SDL_BUTTON_MMASK)  ? kDiKeyDown : 0;
+    out->buttons[3] = (b & SDL_BUTTON_X1MASK) ? kDiKeyDown : 0;
+    out->buttons[4] = (b & SDL_BUTTON_X2MASK) ? kDiKeyDown : 0;
     out->buttons[5] = 0;
     out->buttons[6] = 0;
     out->buttons[7] = 0;
@@ -295,10 +295,10 @@ int16_t AsyncMouseButtonState(int32_t vk) {
     const SDL_MouseButtonFlags b = LiveButtons();
     SDL_MouseButtonFlags mask = 0;
     switch (vk) {
-        case 0x01: mask = SDL_BUTTON_LMASK; break;   // VK_LBUTTON
-        case 0x02: mask = SDL_BUTTON_RMASK; break;   // VK_RBUTTON
-        case 0x04: mask = SDL_BUTTON_MMASK; break;   // VK_MBUTTON
-        default:   break;
+        case kVkLButton: mask = SDL_BUTTON_LMASK; break;
+        case kVkRButton: mask = SDL_BUTTON_RMASK; break;
+        case kVkMButton: mask = SDL_BUTTON_MMASK; break;
+        default:         break;
     }
     return (b & mask) ? INT16_MIN : 0;
 }

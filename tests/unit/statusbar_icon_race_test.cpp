@@ -113,7 +113,7 @@ struct FakeBar {
 void Click(StatusBarUI* bar, int32_t elementId) {
     // StatusBarUI::OnElementEvent is slot 9 of the real class; it is called directly here
     // (the fake object has no table).
-    bar->StatusBarUI::OnElementEvent(nullptr, 2, elementId, 0, 0, 0, nullptr);
+    bar->StatusBarUI::OnElementEvent(nullptr, UI::EventId::LeftPress, elementId, 0, 0, 0, nullptr);
 }
 
 }  // namespace

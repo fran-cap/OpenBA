@@ -43,6 +43,7 @@
 #include "Entity/CitizenBehavior.h"
 #include "Component/ComponentDescription.h"
 #include "Component/Description.h"
+#include "Dialog/ModDialog.h"   // ModDialog::kRowTintIdle (the Mods list's row tint)
 
 #include "ext/item_priority/item_priority.h"
 #include "ext/registry.h"
@@ -76,6 +77,8 @@ constexpr int kCategoryOrder[kButtonCount] = { kTool, kFuel, kClothing, kHealth 
 
 constexpr const char* kWindowRsc = "Dialog/ExtensionsWindow.rsc";
 constexpr const char* kCellRsc = "Dialog/ItemPriorityPage.rsc:ribbonItemPriorityCell";
+constexpr uint32_t kRowTintNever = 0x30ff5050u;    // an item set to Never (red; ARGB)
+constexpr uint32_t kRowTintRanked = 0x20a0c8ffu;   // a ranked item (blue)
 
 UI::TextElement* AsText(UI::Element* e) {
     if (!::Object::IsDerivedFromNullSafe(e, UI::TextElement::TypeId())) {
@@ -380,7 +383,9 @@ void BindCell(size_t k) {
     }
     // Tinted while the item is ranked (blue) or Never (red), the Mods list's white otherwise.
     if (cell.border.Get() != nullptr) {
-        cell.border->SetColor(r.never ? 0x30ff5050u : r.rank != kUnranked ? 0x20a0c8ffu : 0x10ffffffu);
+        cell.border->SetColor(r.never                 ? kRowTintNever
+                              : r.rank != kUnranked ? kRowTintRanked
+                                                    : ModDialog::kRowTintIdle);
     }
     FitRow(cell);
 }

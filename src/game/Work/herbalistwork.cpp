@@ -125,14 +125,14 @@ static void AssignWorkToEntity(HerbalistWork* self, CitizenComponent** citizenIB
     self->GetTarget(&workEntity);
 
     // Set citizen flags
-    citizen->statusFlags |= 4;
+    citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->field_0xB0 = 0;
     citizen->field_0x30 = priority;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0,
     // set the "owned work" flag
     if (workEntity == citizen->profession && priority >= 0) {
-        citizen->happinessFlags |= 0x20000;
+        citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     // Register work with citizen AI subsystem at self+0x48 (the tree helper takes the
@@ -300,9 +300,9 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
             MapCell* gridData = map->cells.GetData();
 
             // Check terrain type bitmask — skip "forest/resource" terrain (0x1e0 mask)
-            uint8_t terrainByte = gridData[testCell].terrainType;
+            uint8_t terrainByte = static_cast<uint8_t>(gridData[testCell].terrainType);
             uint32_t terrainBit = 1u << (terrainByte & 0x1f);
-            if ((terrainBit & 0x1e0u) != 0) {
+            if ((terrainBit & Bits(PathBits::Zoneless)) != 0) {
                 continue;
             }
 
@@ -355,13 +355,13 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
                 }
 
                 // Find nearest passable cell for pathfinding
-                int nearestCell = mapGrid->FindCell(testCell, citizenGridCell, 0xe07);
+                int nearestCell = mapGrid->FindCell(testCell, citizenGridCell, PathBits::Access);
                 if (nearestCell < 0) {
                     continue;
                 }
 
                 // Check path to the nearest passable cell
-                bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(0xe1f, nearestCell, citizenGridCell)) != 0;   // the bool door read AL
+                bool canPath = static_cast<uint8_t>(mapGrid->ValidateCell(PathBits::Walk, nearestCell, citizenGridCell)) != 0;   // the bool door read AL
                 if (!canPath) {
                     continue;
                 }
@@ -425,12 +425,12 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
         Profession* workEnt = nullptr;
         GetTarget(&workEnt);
 
-        citizenEnt2->statusFlags |= 4;
+        citizenEnt2->statusFlags |= Bits(CitizenStatus::TaskDone);
         citizenEnt2->field_0x30 = priority;
         citizenEnt2->field_0xB0 = 0;
 
         if (workEnt == citizenEnt2->profession && priority >= 0) {
-            citizenEnt2->happinessFlags |= 0x20000;
+            citizenEnt2->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
         }
 
         // (the tree helper takes the container as uintptr_t*: LEFT)

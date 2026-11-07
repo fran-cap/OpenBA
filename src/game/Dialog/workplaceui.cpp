@@ -317,8 +317,8 @@ void WorkPlaceUI::OnCreated() {
         ? static_cast<WorkDescription*>(descSource) : nullptr;
 
     if (workDesc && !workDesc->_b20) {
-        jobCountUp->SetFlagsOnOff(1, 0);
-        jobCountDown->SetFlagsOnOff(1, 0);
+        jobCountUp->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        jobCountDown->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
 }
 
@@ -351,11 +351,11 @@ void WorkPlaceUI::OnUpdateLayout() {
         printf("[WorkPlaceUI] HIDDEN: wpComp=%p profession(+0x48)=NULL entity=%p\n",
                static_cast<void*>(workPlace), static_cast<void*>(entity));
 #endif
-        _container->SetFlagsOnOff(1, 0);
+        _container->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         return;
     }
 
-    _container->SetFlagsOnOff(0, 1);
+    _container->SetFlagsOnOff(0, UI::kElementFlagHidden);
 
     ProfessionList* professions = GameUpdateLoop::_singleton->m_professionList;
 #ifdef _DEBUG
@@ -371,11 +371,11 @@ void WorkPlaceUI::OnUpdateLayout() {
             showJobArrows = true;
     }
     if (showJobArrows) {
-        jobCountUp->SetFlagsOnOff(0, 1);
-        jobCountDown->SetFlagsOnOff(0, 1);
+        jobCountUp->SetFlagsOnOff(0, UI::kElementFlagHidden);
+        jobCountDown->SetFlagsOnOff(0, UI::kElementFlagHidden);
     } else {
-        jobCountUp->SetFlagsOnOff(1, 0);
-        jobCountDown->SetFlagsOnOff(1, 0);
+        jobCountUp->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+        jobCountDown->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
 
     uint32_t workerCount = static_cast<uint32_t>(workPlace->workers._size);
@@ -495,10 +495,10 @@ void WorkPlaceUI::OnUpdate(const System::Time& /*time*/) {
 //        + the seat strategies / RemoveWorker (0x140091180): the seat/unseat
 //        pair that actually converts a laborer into a worker of this profession.
 //   0x1454           workPlaceButton   -> CycleWorkplace (0x1400876d0)
-void WorkPlaceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg, int32_t id,
+void WorkPlaceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId msg, int32_t id,
                                  int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (!SA_DialogEntityAlive(this)) return;
-    if (msg != 0x12) return;                        // button click
+    if (msg != UI::EventId::Activated) return;                        // button click
     if (id < 0x1450 || id > 0x1454) return;         // one of the 5 armed controls
 
     if (id == 0x1454) { CycleWorkplace(); return; }

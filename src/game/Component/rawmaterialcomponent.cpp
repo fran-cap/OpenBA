@@ -272,7 +272,7 @@ void RawMaterialComponent::Update(const System::Time* time) {
     if (entity == nullptr) {
         return;
     }
-    if (((entity->_entityFlags >> 10) & 1) != 0) {
+    if ((entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0) {
         return;
     }
     entity->MarkForRemoval();   // 0x1400c2ea0

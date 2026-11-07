@@ -152,6 +152,7 @@
 #include "element_common.h"
 #include "video/Device.h"    // ENDGAME B.3.9 SS1: Video::Device::_singleton
 #include "input/Device.h"    // ENDGAME B.3.9 SS1: Input::Device::_singleton
+#include "system/EnumFlags.h"   // ToUnderlying: a MouseInput as a _mouse index
 #include "input/Input.h"     // ENDGAME B.3.9 SS1: Input::Configuration::_singleton
 #include "system/Timer.h"    // ENDGAME B.3.9 SS1: Timer::_secondsPerTick
 #include "collection/Collection.h"
@@ -246,7 +247,7 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
         if (toolTip) {
             DialogInstancePtr* const reload = _addDialogs._data;
             const DialogInstance* const dlg = static_cast<const DialogInstance*>(reload[i]);
-            if ((dlg->_flags >> 4) & 1u) {
+            if ((dlg->_flags & kDialogFlagFirstDraw) != 0) {
                 // 0x1801214a9: MOV RAX,[RDX+0x30]; CMP RAX,RAX; JNZ ...
                 // The compare can never be unequal, so the branch is dead — but
                 // the LOAD (+0x30, `_dataSource`) is real and faults on a bad
@@ -367,23 +368,30 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
     const ::Input::Device* const in = ::Input::Device::_singleton;
     st.dragActive = (_dragDropDialog != nullptr) ? 1 : 0;
 
+    using MouseInput = ::Input::Device::MouseInput;
+    constexpr int32_t kX      = ToUnderlying(MouseInput::X);
+    constexpr int32_t kY      = ToUnderlying(MouseInput::Y);
+    constexpr int32_t kLeft   = ToUnderlying(MouseInput::Left);
+    constexpr int32_t kRight  = ToUnderlying(MouseInput::Right);
+    constexpr int32_t kMiddle = ToUnderlying(MouseInput::Middle);
+    constexpr int32_t kWheel  = ToUnderlying(MouseInput::Wheel);
     const int32_t mx = static_cast<int32_t>(
-        static_cast<float>(in->_mouse[0].value) * scale);      // +0x109c
+        static_cast<float>(in->_mouse[kX].value) * scale);     // +0x109c
     const int32_t my = static_cast<int32_t>(
-        static_cast<float>(in->_mouse[1].value) * scale);      // +0x10b4
+        static_cast<float>(in->_mouse[kY].value) * scale);     // +0x10b4
     st.mouseX = mx;
     st.mouseY = my;
 
-    st.buttonPressed = in->_mouse[4].pressed;                   // +0x10fe
-    st.b03           = in->_mouse[5].pressed;                   // +0x1116
-    st.b02           = in->_mouse[6].pressed;                   // +0x112e
-    st.b04           = in->_mouse[4].released;                  // +0x10ff
-    st.b06           = in->_mouse[5].released;                  // +0x1117
-    st.b05           = in->_mouse[6].released;                  // +0x112f
-    st.leftDown      = (in->_mouse[4].value > 0) ? 1 : 0;       // +0x10fc
-    st.b08           = (in->_mouse[5].value > 0) ? 1 : 0;       // +0x1114
-    st.b09           = (in->_mouse[6].value > 0) ? 1 : 0;       // +0x112c
-    st.wheel         = in->_mouse[12].value;                    // +0x11bc
+    st.buttonPressed = in->_mouse[kLeft].pressed;               // +0x10fe
+    st.b03           = in->_mouse[kRight].pressed;              // +0x1116
+    st.b02           = in->_mouse[kMiddle].pressed;             // +0x112e
+    st.b04           = in->_mouse[kLeft].released;              // +0x10ff
+    st.b06           = in->_mouse[kRight].released;             // +0x1117
+    st.b05           = in->_mouse[kMiddle].released;            // +0x112f
+    st.leftDown      = (in->_mouse[kLeft].value > 0) ? 1 : 0;   // +0x10fc
+    st.b08           = (in->_mouse[kRight].value > 0) ? 1 : 0;  // +0x1114
+    st.b09           = (in->_mouse[kMiddle].value > 0) ? 1 : 0; // +0x112c
+    st.wheel         = in->_mouse[kWheel].value;                // +0x11bc
     st.config        = ::Input::Configuration::_singleton->_keyMap;   // +0x00
     st.mouseCaptured = 0;
 
@@ -440,7 +448,7 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
                     st.dragDy = gdy;
                 }
             }
-            if ((dlg->_flags >> 1) & 1u) break;
+            if ((dlg->_flags & kDialogFlagModal) != 0) break;
             n = n->prev;
             if (!n) break;
         }
@@ -451,11 +459,13 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
 
     // ---- end drag-drop ----------------------------------------------------
     if (!leftDown && _dragDropDialog != nullptr) {
-        for (int32_t id = 0xd; id <= 0xe; ++id) {
+        // UI::EventId::DragDropEnd (0xd), then DragDropCancel (0xe)
+        for (int32_t id = static_cast<int32_t>(EventId::DragDropEnd);
+             id <= static_cast<int32_t>(EventId::DragDropCancel); ++id) {
             Event rec;
             rec.dialog   = _dragDropDialog;
             rec.element  = nullptr;
-            rec.eventId  = id;
+            rec.eventId  = static_cast<EventId>(id);
             rec.arg14    = -1;
             rec.arg18    = 0;                                   // } one QWORD
             rec.arg1C    = 0;                                   // }

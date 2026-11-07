@@ -199,12 +199,12 @@ int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     Profession* targetVal = *GetTarget(&targetIBP);
 
     // Set citizen flags
-    citizenVal->statusFlags |= 4;
+    citizenVal->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizenVal->field_0x30 = priority;
     citizenVal->field_0xB0 = 0;
 
     if (targetVal == citizenVal->profession && priority >= 0) {
-        citizenVal->happinessFlags |= 0x20000;
+        citizenVal->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
     // Register with citizen AI BST at +0x50 (the tree helpers take the root as uintptr_t*)

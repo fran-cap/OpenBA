@@ -40,11 +40,6 @@ constexpr int kChildTick = 5;
 
 // The ctor/dtor doors only.
 
-
-// Element::_flags bits Element.h does not name (see buttonelement.cpp).
-constexpr uint32_t kFlagHover        = 0x00020000u;
-constexpr uint32_t kFlagPressStarted = 0x00200000u;
-
 }  // namespace
 
 namespace UI {
@@ -62,7 +57,7 @@ namespace UI {
 // again at the end here. Reproduced; the second clear is a no-op unless the
 // tick's own ComputeSize dirtied us back, which it can (it walks parents).
 void CheckElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     ButtonElement::ComputeSize();
 
@@ -75,7 +70,7 @@ void CheckElement::ComputeSize() {
         if (_layoutHeight < h) _layoutHeight = h;
     }
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // ============================================================================
@@ -124,9 +119,9 @@ void CheckElement::Update(const System::Time& time, UserInterface* ui,
                           const UpdateState& state) {
     const uint32_t flags = _flags;
     bool toggle = false;
-    if ((flags & kFlagDisabledMask) == 0) {
-        if (state.b04 != 0 && (flags & kFlagHover) != 0 &&
-            (flags & kFlagPressStarted) != 0) {
+    if ((flags & UI::kElementFlagAnyDisabled) == 0) {
+        if (state.b04 != 0 && (flags & kElementFlagHovered) != 0 &&
+            (flags & kElementFlagPressed) != 0) {
             toggle = true;
         } else {
             const int32_t key = _keyIndex;

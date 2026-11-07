@@ -184,12 +184,6 @@
 
 namespace Object {
 
-namespace {
-
-constexpr uint32_t kNoReferenceId = 0xFFFFFFFFu;
-
-}  // namespace
-
 // ============================================================================
 // void Object::ExternalPtr<T>::Serialize(IO::Serializer&)
 //   retail: 25 addresses, 215 instructions / 748 bytes each. Unexported.

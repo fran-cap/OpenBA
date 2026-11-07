@@ -17,7 +17,7 @@ bool RoutePoints(const Map& map, int entry, int dock, int exit, std::vector<floa
     if (size <= 0 || map.cells.GetSize() < size * size) return false;
     std::vector<uint8_t> types(static_cast<size_t>(size) * static_cast<size_t>(size));
     const MapCell* cells = map.cells.GetData();
-    for (size_t i = 0; i < types.size(); ++i) types[i] = cells[i].terrainType;
+    for (size_t i = 0; i < types.size(); ++i) types[i] = ToUnderlying(cells[i].terrainType);
     LaneLegs legs;
     if (!Legs(types.data(), size, entry, dock, exit, kLanePull, kLaneSmoothing, legs)) return false;
     const float half = static_cast<float>(size >> 1);

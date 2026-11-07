@@ -742,12 +742,12 @@ void* MainMenuDialog::StartNewGame(const System::String& name, uint32_t seed, ui
     }
 }
 
-void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     fprintf(stderr, "[NewGameDialog::OnEvent] this=%p type=0x%x data=%d\n",
             (void*)this, eventType, eventData);
     fflush(stderr);
 
-    if (eventType == 0x12) {
+    if (eventType == UI::EventId::Activated) {
         // Button click
         if (eventData == 2) {
             // buttonOk: start game
@@ -770,7 +770,7 @@ void NewGameDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/
             GenerateRandomSeed(editSeed, &random);
             return;
         }
-    } else if (eventType == 0x14 && eventData == 4) {
+    } else if (eventType == UI::EventId::SelectionChanged && eventData == 4) {
         // comboCondition selection changed: update description text
         UpdateDescription();
     }

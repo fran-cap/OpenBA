@@ -254,7 +254,7 @@ void KeyMap::Load() {
         for (int slot = 0; slot < 2; ++slot) {
             // Retail re-arms the sentinel at the TOP of every slot iteration
             // (0x1800A7200), not once per binding.
-            int32_t value = -2;
+            int32_t value = Binding::kValueAbsent;
 
             if (b->exclusive != 0) {
                 System::String name = System::String::Format(

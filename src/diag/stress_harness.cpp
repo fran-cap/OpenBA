@@ -1191,7 +1191,7 @@ void StaffPass(GameUpdateLoop* gw, int worldFrame) {
     for (int i = 0; i < n; ++i) {
         ComponentEntity* ent = arr[i].Get();
         if (!ent) continue;
-        if (ent->_entityFlags & 0x400) continue;   // removed (+0x40)
+        if (ent->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) continue;   // removed (+0x40)
         WorkPlaceComponent* wpc = ent->FindComponent<WorkPlaceComponent>();   // 0x140002e10
         if (!wpc) continue;
         Profession* const prof = wpc->profession;   // +0x48
@@ -1259,7 +1259,7 @@ int EdibleUnits(const StorageComponent* sc) {
     for (int i = 0; i < sc->storageSlots._size; ++i) {
         const StorageComponent::Item& it = sc->storageSlots._data[i];
         const RawMaterialDescription* rm = RawMatOf(it._resource);
-        if (rm && (rm->_flags & 0x20)) n += it._count;
+        if (rm && (rm->_flags & RawMaterialFlags::Edible)) n += it._count;
     }
     return n;
 }
@@ -1271,7 +1271,7 @@ void UniqueStorageLocations(CitizenBehavior* townMgr, std::vector<StorageCompone
     const int nLoc = townMgr->field_0x00._size;
     for (int i = 0; i < nLoc; ++i) {
         ComponentEntity* e = townMgr->field_0x00._data[i].Get();
-        if (!e || (e->_entityFlags & 0x400)) continue;
+        if (!e || (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) continue;
         if (std::find(seen.begin(), seen.end(), e) != seen.end()) continue;
         seen.push_back(e);
         StorageComponent* sc = e->FindComponent<StorageComponent>();
@@ -1294,7 +1294,7 @@ void FoodCensus(GameUpdateLoop* gw, int worldFrame) {
         const int f = EdibleUnits(sc);
         const int used = sc->QueryCount();
         locFood += f; locUsed += used; locCap += sc->capacity;
-        if ((sc->rawMaterialFlags & 0x20) && dl < (int)sizeof(detail) - 40)
+        if ((sc->rawMaterialFlags & RawMaterialFlags::Edible) && dl < (int)sizeof(detail) - 40)
             dl += std::snprintf(detail + dl, sizeof(detail) - dl, " %d/%d/%d", f, used, sc->capacity);
     }
     int houseN = 0, houseFood = 0, houseEmpty = 0, allFood = 0;
@@ -1302,7 +1302,7 @@ void FoodCensus(GameUpdateLoop* gw, int worldFrame) {
     const int n = el->masterArray._size;
     for (int i = 0; i < n; ++i) {
         ComponentEntity* e = arr[i].Get();
-        if (!e || (e->_entityFlags & 0x400)) continue;
+        if (!e || (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) continue;
         StorageComponent* sc = e->FindComponent<StorageComponent>();
         if (!sc) continue;
         const int f = EdibleUnits(sc);
@@ -1352,7 +1352,7 @@ void FoodPass(GameUpdateLoop* gw) {
     for (int t = 0; t < townMgr->field_0x110._size; ++t) {
         ComponentDescription* tmpl = townMgr->field_0x110._data[t];
         const RawMaterialDescription* rm = RawMatOf(tmpl);
-        if (rm && (rm->_flags & 0x20)) foods.push_back(tmpl);
+        if (rm && (rm->_flags & RawMaterialFlags::Edible)) foods.push_back(tmpl);
     }
     if (foods.empty()) return;
 

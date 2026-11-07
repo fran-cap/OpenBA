@@ -426,19 +426,19 @@ uint64_t Map::RemovePendingRoad(int param_2) {
     // ---- LAB_14009c8a0: apply to map cell ----
     MapCell* cell = &cells.GetData()[param_2];
     uint64_t result;
-    if (static_cast<int8_t>(cell->field_0x2A) == (int8_t)0xff) {
-        uint8_t bVar1 = cell->terrainType;
-        uint8_t setBit = ((1u << (bVar1 & 0x1f)) & 0x1e0u) != 0 ? 1 : 0;
+    if (cell->field_0x2A == MapCell::kNoRoadBatch) {
+        uint8_t bVar1 = static_cast<uint8_t>(cell->terrainType);
+        uint8_t setBit = ((1u << (bVar1 & 0x1f)) & Bits(PathBits::Zoneless)) != 0 ? 1 : 0;
         field_0xA2 = field_0xA2 | (setBit != 0);
-        cell->terrainType = 2;
+        cell->terrainType = PathType::Normal;
         TerrainSidecar::NoteWrite(cell);   // [terrain sidecar] mirror
         CellStamp::NoteWrite(cell);   // [AMBMEMO] cell write clock
-        if (((1u << (bVar1 & 0x1f)) & 0x1e0u) != 0) {
+        if (((1u << (bVar1 & 0x1f)) & Bits(PathBits::Zoneless)) != 0) {
             int div = size;
             regionGraph->MarkCellDirty(param_2 % div, param_2 / div);   // 0x1400a8c90
         }
         // 0x1400a6fe0 reads the cell and the type (EDX, R8D) only; retail's R9 is not read.
-        pathfinder->SetCellTerrain(static_cast<int>(param_2), 2);   // 0x1400a6fe0
+        pathfinder->SetCellTerrain(static_cast<int>(param_2), ToUnderlying(PathType::Normal));   // 0x1400a6fe0
         result = 0;  // uVar8 & 0xff..00
     } else {
         if (found) {
@@ -702,9 +702,10 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
                     if (removalDesc->_b40) {
                         int cid = piVar15->size * iRow + iCol;
                         const MapCell* cl = &piVar15->cells.GetData()[cid];
-                        uint32_t mask = 1u << (cl->terrainType & 0x1f);
+                        uint32_t mask = Bits(PathBitOf(cl->terrainType));
                         bool hit = false;
-                        if (((mask & 2) == 0) && ((mask & 1) == 0) && (static_cast<int8_t>(cl->field_0x2A) == (int8_t)-1)) {
+                        if (((mask & Bits(PathBits::Fast)) == 0) && ((mask & Bits(PathBits::Faster)) == 0) &&
+                            (cl->field_0x2A == MapCell::kNoRoadBatch)) {
                             const AvlNode28* bn = piVar15->field_0xE8.root;
                             while (bn != nullptr) {
                                 if (cid < bn->key) {
@@ -732,7 +733,7 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
                         if (local_e8->_description == removalDesc->_ref38) {
                             local_e0 = local_e8;
                             EntityList* lst = GameUpdateLoop::_singleton->m_entityList;
-                            if ((local_e0->_entityFlags >> 10 & 1) == 0) {
+                            if ((local_e0->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
                                 local_e0->MarkForRemoval();
                                 lst->removalList.SetSize(lst->removalList._size + 1, local_e0);   // 0x140003110
                             }

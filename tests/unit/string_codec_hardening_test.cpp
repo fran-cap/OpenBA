@@ -152,7 +152,7 @@ public:
     }
     void SerializeUInt(uint32_t& v, const char*) override {
         ++uintCalls;
-        v = static_cast<uint32_t>(std::strlen(_text) + 1) | 0x80000000u;
+        v = static_cast<uint32_t>(std::strlen(_text) + 1) | System::String::kSerializedUtf8Flag;
     }
     void SerializeBoolArray(int, bool*, const char*) override { ++otherCalls; }
     void SerializeFloatArray(int, float*, const char*) override { ++otherCalls; }
@@ -332,31 +332,35 @@ UNIT_TEST(string_codec_string_array_valid_records_unchanged) {
 UNIT_TEST(string_codec_decode_fmt1_odd_tail_is_malformed) {
     const uint8_t buf[2] = {0x41, 0x99};
     int32_t cp = 0;
-    const int32_t used = RtIo_TextCodec_DecodeOne(1, buf, buf + 1, &cp, 1);
+    const int32_t used =
+        RtIo_TextCodec_DecodeOne(IO::Text::Format::Ucs2Le, buf, buf + 1, &cp, IO::Text::Format::Ucs2Le);
     CHECK_EQ(cp, -1);
     CHECK_EQ(used, 1);
 
     // A whole unit still decodes.
     cp = 0;
-    CHECK_EQ(RtIo_TextCodec_DecodeOne(1, buf, buf + 2, &cp, 1), 2);
+    CHECK_EQ(RtIo_TextCodec_DecodeOne(IO::Text::Format::Ucs2Le, buf, buf + 2, &cp, IO::Text::Format::Ucs2Le),
+             2);
     CHECK_EQ(cp, 0x9941);
 
     // ConvertText over the one-byte source (the fuzz input 0001020041) produces nothing.
     uint8_t out[8] = {};
-    CHECK_EQ(RtIo_TextCodec_ConvertText(1, 0, buf, 1, 2, 0, 0, out, sizeof out), 0);
+    CHECK_EQ(RtIo_TextCodec_ConvertText(IO::Text::Format::Ucs2Le, 0, buf, 1,
+                                        IO::Text::Format::Utf8, 0, 0, out, sizeof out),
+             0);
 }
 
 // F-057: the surrogate test keeps retail's 32-bit wrap for a negative codepoint
 // (INT_MIN - 0xD800 is not a surrogate, so retail stores the low 16 bits).
 UNIT_TEST(string_codec_encode_utf16_negative_codepoint_wraps) {
     uint8_t d[4] = {0xee, 0xee, 0xee, 0xee};
-    CHECK_EQ(RtIo_TextCodec_EncodeOne(INT_MIN, d, 4), 2);
+    CHECK_EQ(RtIo_TextCodec_EncodeOne(INT_MIN, d, IO::Text::Format::Utf16Le), 2);
     CHECK_EQ(d[0], 0x00);
     CHECK_EQ(d[1], 0x00);
-    CHECK_EQ(RtIo_TextCodec_EncodeOne(INT_MIN, d, 5), 2);
-    CHECK_EQ(RtIo_TextCodec_EncodeOne(0xD800, d, 4), 0);
-    CHECK_EQ(RtIo_TextCodec_EncodeOne(0xDFFF, d, 5), 0);
-    CHECK_EQ(RtIo_TextCodec_EncodeOne(0xE000, d, 4), 2);
+    CHECK_EQ(RtIo_TextCodec_EncodeOne(INT_MIN, d, IO::Text::Format::Utf16Be), 2);
+    CHECK_EQ(RtIo_TextCodec_EncodeOne(0xD800, d, IO::Text::Format::Utf16Le), 0);
+    CHECK_EQ(RtIo_TextCodec_EncodeOne(0xDFFF, d, IO::Text::Format::Utf16Be), 0);
+    CHECK_EQ(RtIo_TextCodec_EncodeOne(0xE000, d, IO::Text::Format::Utf16Le), 2);
 }
 
 // Review of PR #107 (blocker): the F-079 / F-080 cap must not touch the ext .rsc text

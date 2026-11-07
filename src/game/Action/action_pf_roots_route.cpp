@@ -116,7 +116,7 @@ int Map::PathDistance(uint32_t param_2, uint32_t param_3, char param_4) {
     PfMainTimer pfTimer(PF_MAIN_PATHDISTANCE);   // [PFBENCH] one g_pfProfOn branch when the harness is off
     // LEFT: 0x1400a00f0's C declaration (Work/exe_bodies.h, WORK-a's header) takes the
     // Map as int*.
-    uint64_t uVar4 = ValidateCell(0xe1f, param_2, (int)param_3);   // 0x1400a00f0
+    uint64_t uVar4 = ValidateCell(PathBits::Walk, param_2, (int)param_3);   // 0x1400a00f0
     if ((char)uVar4 != '\0') {
         uint32_t uVar1 = static_cast<uint32_t>(cells.GetData()[(int)param_2].regionId);
         uint32_t uVar2 = static_cast<uint32_t>(cells.GetData()[(int)param_3].regionId);
@@ -204,19 +204,20 @@ int Component::FindBestAdjacentCell(uint32_t param_2, float* param_3) const {
                         if ((-1 < iVar13) && (iVar13 < map->size)) {
                             uint32_t uVar14 = map->size * iVar5 + iVar13;
                             int64_t lVar10b = (int64_t)(int)uVar14;
-                            if ((1 << (Ext::WalkOnIce::TypeOf(map->cells.GetData()[lVar10b]) & 0x1f) & 0xe07U) != 0) {
+                            if ((1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(map->cells.GetData()[lVar10b])) &
+                                       0x1f) & Bits(PathBits::Access)) != 0) {
                                 // 0x14009c480, RCX only (Ghidra's uVar18 carried its phantom
                                 // 3rd argument and is gone with it)
                                 map->FillZones();
                                 const MapCell* cells = map->cells.GetData();
                                 const MapCell& goal = cells[(int64_t)(int)param_2];
                                 const MapCell& cell = cells[lVar10b];
-                                uint32_t uVar17 = 1 << (Ext::WalkOnIce::TypeOf(goal) & 0x1f);
-                                uint32_t uVar7 = 1 << (Ext::WalkOnIce::TypeOf(cell) & 0x1f);
+                                uint32_t uVar17 = 1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(goal)) & 0x1f);
+                                uint32_t uVar7 = 1 << (static_cast<uint8_t>(Ext::WalkOnIce::TypeOf(cell)) & 0x1f);
                                 uint32_t uVar11 = uVar7 | uVar17;
-                                uint32_t uVar12 = uVar11 | 0xe1f;
+                                uint32_t uVar12 = uVar11 | Bits(PathBits::Walk);
                                 if ((((uVar12 & uVar7) != 0) && ((uVar12 & uVar17) != 0)) &&
-                                    (((uVar11 & 0x1e0) != 0 ||
+                                    (((uVar11 & Bits(PathBits::Zoneless)) != 0 ||
                                       (((cell.zone != 0 && goal.zone != 0) &&
                                         (cell.zone == goal.zone)))))) {
                                     // LEFT: 0x140008830's C declaration (Work/exe_bodies.h,
@@ -267,7 +268,7 @@ LAB_14012d8ce:;
                 if (iVar13 <= iVar5) iVar5 = iVar13 + -1;
                 uint32_t uVar16 = iVar13 * iVar5 + iVar4b;
                 // LEFT: 0x1400a00f0's C declaration (Work/exe_bodies.h) takes the Map as int*.
-                uint64_t uVar9 = map->ValidateCell(0xe1f, param_2, (int)uVar16);   // 0x1400a00f0
+                uint64_t uVar9 = map->ValidateCell(PathBits::Walk, param_2, (int)uVar16);   // 0x1400a00f0
                 if ((char)uVar9 != '\0') {
                     int iVar4c = map->PathDistance(param_2, uVar16, '\x01');   // 0x14009f810
                     if (iVar4c < 0) {

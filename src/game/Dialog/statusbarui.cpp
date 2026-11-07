@@ -115,12 +115,12 @@ void StatusBarUI::OnOpened() {
     imageStatusTool    = FindNamed<UI::Element>(this, "imageStatusTool");
     imageStatusDisease = FindNamed<UI::Element>(this, "imageStatusDisease");
 
-    // Set element IDs 100-105 and hide initially (flag 0x10000 off)
+    // Set element IDs 100-105; each icon raises element events (flag 0x10000)
     UI::Element* const statusIcons[6] = { imageStatusHome, imageStatusFood, imageStatusCold,
                                           imageStatusJob, imageStatusTool, imageStatusDisease };
     for (int i = 0; i < 6; i++) {
         statusIcons[i]->SetElementId(100 + i);
-        statusIcons[i]->SetFlagsOnOff(0x10000, 0);
+        statusIcons[i]->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
     }
 
     // --- Status numbers (numberStatus*) ---
@@ -469,11 +469,11 @@ bound_test:
 // ============================================================
 
 // [9] 0x14007a3a0
-void StatusBarUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t eventType, int32_t eventId,
+void StatusBarUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventId,
                                  int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     // Click events (2) on element ids 100..106: `param_4 - 100U < 7` (0x14007a3a0);
     // the six status icons carry 100..105 (OnOpened). Icon 0 = home (bit 0), ...
-    if (eventType == 2 && static_cast<uint32_t>(eventId - 100) < 7) {
+    if (eventType == UI::EventId::LeftPress && static_cast<uint32_t>(eventId - 100) < 7) {
         StatusBarUI_StatusIconHandler_Impl(this, static_cast<uint8_t>(eventId + 0x9c));
     }
 }

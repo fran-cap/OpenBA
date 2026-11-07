@@ -779,7 +779,7 @@ void TownHallUI::UpdateGraph() {
         UI::LabelElement* const* labelPtr = labelSlots[g];
 
         if (seriesIdx < 0) {
-            (*labelPtr)->SetFlagsOnOff(1, 0);
+            (*labelPtr)->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         } else {
             graphData->AddGraph(colors[g]);
 
@@ -808,7 +808,7 @@ void TownHallUI::UpdateGraph() {
             UI::String lblCopy = lblStr;
             (*labelPtr)->SetText(&lblCopy);
 
-            (*labelPtr)->SetFlagsOnOff(0, 1);
+            (*labelPtr)->SetFlagsOnOff(0, UI::kElementFlagHidden);
 
             pointCount = graphSeries[4];
             graphCount++;
@@ -1310,7 +1310,7 @@ next_entity: ;
             }
 
             // Show element (SetFlagsOnOff hide=0, show=1)
-            agriLabels[displayIdx]->SetFlagsOnOff(0, 1);
+            agriLabels[displayIdx]->SetFlagsOnOff(0, UI::kElementFlagHidden);
 
             displayIdx++;
 
@@ -1322,7 +1322,7 @@ next_entity: ;
     // Hide remaining label elements
     if (displayIdx < agriLabels.GetSize()) {
         for (int i = displayIdx; i < agriLabels.GetSize(); i++) {
-            agriLabels[i]->SetFlagsOnOff(1, 0);
+            agriLabels[i]->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         }
     }
 
@@ -1839,18 +1839,18 @@ void TownHallUI::OnUpdate(const System::Time& /*time*/) {
 // TownHallUI::OnElementEvent (vtable +0x48)
 // ============================================================
 // [9] 0x14007c180
-void TownHallUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg, int32_t id,
+void TownHallUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId msg, int32_t id,
                                 int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (!townhallui_sa::Built(this) || !townhallui_sa::Ready() || !townhallui_sa::TownReady()) return;
     int profCount = GameUpdateLoop::_singleton->m_professionList->professions.GetSize();
 
-    if (msg == 0x12) {
+    if (msg == UI::EventId::Activated) {
         if (id > 0x1998 && id <= 0x1999 + profCount)
             OnProfessionButton(id - 0x1999);
-    } else if (msg == 0x14) {
+    } else if (msg == UI::EventId::SelectionChanged) {
         if (id == 0x1964 || id == 0x1965)
             UpdateGraph();
-    } else if (msg == 0x15) {
+    } else if (msg == UI::EventId::ValueChanged) {
         if (id > 0x1965 && id <= 0x1966 + profCount)
             OnProfessionSpinner(id - 0x1966);
     }

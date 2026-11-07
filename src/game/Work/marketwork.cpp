@@ -976,10 +976,10 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             Profession* tgtVal = nullptr;
             GetTarget(&tgtVal);                     // 0x1400f0e03 MOV RAX,[RAX]
             citizen3->field_0x30   = pathTypeAfter;
-            citizen3->statusFlags |= 4;
+            citizen3->statusFlags |= Bits(CitizenStatus::TaskDone);
             citizen3->field_0xB0   = 0;
             if (tgtVal == citizen3->profession && pathTypeAfter >= 0) {
-                citizen3->happinessFlags |= 0x20000;
+                citizen3->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
             }
 
             // 0x1400f0e2a..0x1400f0e51: record the claim in MarketWork's OWN tree.
@@ -1048,9 +1048,9 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
         // Cell records live at map->cells, stride 0x30 (LEA r,[r+r*2]; SHL 4).
         const MapCell& cellSrc = map->cells.GetData()[cellIdx];
         const MapCell& cellDst = map->cells.GetData()[candCell];
-        const uint32_t bitDst = 1u << (cellDst.terrainType & 0x1f);
-        const uint32_t bitSrc = 1u << (cellSrc.terrainType & 0x1f);
-        const uint32_t mask   = (bitSrc | bitDst) | 0xe1fu;
+        const uint32_t bitDst = Bits(PathBitOf(cellDst.terrainType));
+        const uint32_t bitSrc = Bits(PathBitOf(cellSrc.terrainType));
+        const uint32_t mask   = (bitSrc | bitDst) | Bits(PathBits::Walk);
         // ⚠ These two tests are PROVABLY DEAD in retail: `mask` is OR'd with both
         // bits before being TESTed against each of them, so TEST is always
         // non-zero and neither JZ is ever taken (0x1400f1119 / 0x1400f1121).
@@ -1062,7 +1062,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
         // only when one of the two cells' own layer bit lands in 5..8. When it
         // does, the pair is accepted outright; otherwise both cells must carry a
         // non-zero zone and the two zones must match.
-        if ((mask & 0x1e0u) == 0) {
+        if ((mask & Bits(PathBits::Zoneless)) == 0) {
             const uint16_t regionSrc = cellSrc.zone;
             if (regionSrc == 0) continue;
             const uint16_t regionDst = cellDst.zone;
@@ -1281,10 +1281,10 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             Profession* tgtVal2 = nullptr;
             GetTarget(&tgtVal2);
             citizen5->field_0x30   = pathType2;
-            citizen5->statusFlags |= 4;
+            citizen5->statusFlags |= Bits(CitizenStatus::TaskDone);
             citizen5->field_0xB0   = 0;
             if (tgtVal2 == citizen5->profession && pathType2 >= 0) {
-                citizen5->happinessFlags |= 0x20000;
+                citizen5->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
             }
 
             // 0x1400ca230 (was its ActChild_TransferToCarrier_ca230 forwarder): the path

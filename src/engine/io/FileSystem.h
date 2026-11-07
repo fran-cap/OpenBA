@@ -166,8 +166,21 @@ static_assert(offsetof(PackageFileEntry, size)   == 0x0C,
 // No move operations (retail has none): the declared copy members suppress
 // them, so an rvalue FileInfo is copied, as retail's code does.
 struct FileInfo {
+    // `handle`'s tags (see the field): no file, a loose OS file, else a packed
+    // `(packIndex << kPackIndexShift) | fileIndex` encoding.
+    static constexpr int32_t  kHandleNone       = -1;            // nothing opened (ctor, CloseFile guard)
+    static constexpr int32_t  kHandleLoose      = -2;            // a loose OS file; the real handle is winHandle
+    static constexpr uint32_t kHandleLastPacked = 0xFFFFFFFDu;   // largest packed tag (ReadFile CMP -3 ; JA loose)
+    static constexpr int32_t  kPackIndexShift   = 24;            // the pack index is the top byte (OpenFile SHL 0x18)
+    static constexpr uint32_t kFileIndexMask    = 0x00FFFFFFu;   // the entry index within the package
+    // Retail's unsigned discrimination, spelled once: true for a packed tag,
+    // false for kHandleNone and kHandleLoose.
+    static constexpr bool IsPackedHandle(int32_t h) {
+        return static_cast<uint32_t>(h) <= kHandleLastPacked;
+    }
+
     FileInfo()
-        : handle(-1), size(0), cursor(0), baseOffset(0) {
+        : handle(kHandleNone), size(0), cursor(0), baseOffset(0) {
         winHandle = Platform::kInvalidFileHandle;   // INVALID_HANDLE_VALUE, stored after the names as retail does
     }
     // +0x04 (`_unk04`) is retail's unwritten window: the default ctor leaves it

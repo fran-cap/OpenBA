@@ -233,7 +233,7 @@ int32_t TablePaddedExtent(UI::Element* cell,
     const int32_t floorV = cell->*minField;
     if (v < floorV) v = floorV;                                    // CMOVL
 
-    if ((flags & 0x30u) != 0) {                                    // 18011e10e / 18011e214
+    if ((flags & UI::kElementFlagSizeToScreen) != 0) {             // 18011e10e / 18011e214
         const UI::Element* root = cell;
         while (root->_parent != nullptr) {                         // 18011e120 / 18011e223
             root = root->_parent;
@@ -263,7 +263,8 @@ int32_t TableElement::GetRowHeight(int32_t row) {
         if ((cell->_flags & kElementFlagHidden) != 0) continue;   // 18011e0f0
 
         const int32_t h = TablePaddedExtent(cell, &Element::_layoutHeight, &Element::_topPad,
-                                            &Element::_bottomPad, &Element::_minHeight, 0x10u,
+                                            &Element::_bottomPad, &Element::_minHeight,
+                                            kElementFlagSizeToScreenH,
                                             &::Video::Device::backBufferHeight);   // Device +0x08
         if (h > best) best = h;                                    // 18011e161 CMOVG
     }
@@ -281,7 +282,8 @@ int32_t TableElement::GetColumnWidth(int32_t column) {
         if ((cell->_flags & kElementFlagHidden) != 0) continue;   // 18011e1f6
 
         const int32_t w = TablePaddedExtent(cell, &Element::_layoutWidth, &Element::_leftPad,
-                                            &Element::_rightPad, &Element::_minWidth, 0x20u,
+                                            &Element::_rightPad, &Element::_minWidth,
+                                            kElementFlagSizeToScreenW,
                                             &::Video::Device::backBufferWidth);    // Device +0x04
         if (w > best) best = w;                                    // 18011e264 CMOVG
     }

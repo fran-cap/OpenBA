@@ -91,13 +91,13 @@ public:
     // +0x114/+0x118, +0x11c DWORD 2, ONE QWORD -1 over +0x120/+0x124, +0x128
     // DWORD -1, +0x12c DWORD 0.
     LabelElement() : TextElement() {
-        _align        = 3;
+        _align        = ElementDescription::MidLeft;
         _mode         = 1;
         _minTextWidth = 0;
         _gap          = 2;
         _iconWidth    = -1;
         _iconHeight   = -1;
-        _iconColor    = 0xffffffffu;
+        _iconColor    = System::kColorWhite;
         _textWidth    = 0;
     }
 

@@ -32,7 +32,7 @@ public:
     ~DestroyUI() override = default;                              // [0] 0x140011200
     void OnCreated() override;   // [4] 0x140066150
     void OnUpdateLayout() override;   // [7] 0x140065b00
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x140066080
 
     // ---- fields (B4 DLG-a: named from the element strings OnCreated

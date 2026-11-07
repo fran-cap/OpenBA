@@ -183,9 +183,9 @@ conflict_done:
         //   0x10ffffff = disabled (white/transparent)
         uint32_t rowColor;
         if (enabled) {
-            rowColor = hasConflict ? 0x40ff0000 : 0x20c0ffc0;
+            rowColor = hasConflict ? kRowTintConflict : kRowTintEnabled;
         } else {
-            rowColor = 0x10ffffff;
+            rowColor = kRowTintIdle;
         }
         entry.rowBorder->SetColor(rowColor);
 
@@ -650,11 +650,11 @@ void ModDialog::Apply() {
 //
 // Always calls base DialogInstance::OnElementEvent at the end.
 
-void ModDialog::OnElementEvent(Object::InternalPtr<UI::Element>* param2, int32_t msg, int32_t id, int32_t p5, int32_t p6, int32_t p7, void* p8) {
-    if (msg == 0x12)
+void ModDialog::OnElementEvent(Object::InternalPtr<UI::Element>* param2, UI::EventId msg, int32_t id, int32_t p5, int32_t p6, int32_t p7, void* p8) {
+    if (msg == UI::EventId::Activated)
         printf("[ModDialog::OnEvent] click id=%d\n", id);
 
-    if (msg == 0x12) {  // Button click event
+    if (msg == UI::EventId::Activated) {  // Button click event
         IO::Modification* modification = ::IO::Modification::_singleton;
 
         if (id == 100) {

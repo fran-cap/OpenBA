@@ -103,9 +103,9 @@ Input::Device* DeviceSingleton() {
 // (d + joystick * 0x1b0, d + 0x6c0, d + 0x1098) and tests neither.
 const State* DeviceArrayBase(const Input::Device* d, int32_t device, int32_t joystick) {
     switch (device) {
-        case 0: return d->_joystick[joystick];
-        case 1: return d->_keyboard;
-        case 2: return d->_mouse;
+        case static_cast<int32_t>(Input::Device::InputDevice::Joystick): return d->_joystick[joystick];
+        case static_cast<int32_t>(Input::Device::InputDevice::Keyboard): return d->_keyboard;
+        case static_cast<int32_t>(Input::Device::InputDevice::Mouse):    return d->_mouse;
         default: return nullptr;
     }
 }
@@ -144,7 +144,8 @@ T ReadBoundState(const Input::KeyMap* km, int32_t joystick, int32_t id, Read rea
         // Faithful to retail: a missing id leaves n == nullptr and this reads
         // through a near-null address — the same crash retail would take.
         const int8_t device = static_cast<int8_t>(n->element.device[slot]);
-        if (km->_suspendCount > 0 && device == 1) return T();
+        if (km->_suspendCount > 0 && device == static_cast<int8_t>(Input::Device::InputDevice::Keyboard))
+            return T();
         if (device < 0) continue;
         const State* base = DeviceArrayBase(dev, device, joystick);
         const T v = read(base[n->element.inputId[slot]]);
@@ -193,7 +194,7 @@ void KeyMap::ClearAll() {
 // write targets address (0+slot+0x10/0x12) — the same crash retail would take.
 void KeyMap::ClearInput(int32_t id, int32_t slot) {
     BindingNode* n = FindBinding(this, static_cast<uint8_t>(id));
-    n->element.device[slot]  = 0xFF;
+    n->element.device[slot]  = Binding::kUnboundDevice;
     n->element.inputId[slot] = 0;
 }
 
@@ -209,7 +210,7 @@ void KeyMap::ClearInput(int32_t id, int32_t device, int32_t input) {
         int8_t  d = static_cast<int8_t>(n->element.device[slot]);
         uint8_t k = n->element.inputId[slot];
         if (d == device && k == input) {
-            n->element.device[slot] = 0xFF;
+            n->element.device[slot] = Binding::kUnboundDevice;
             n->element.inputId[slot] = 0;
         }
     }
@@ -265,7 +266,7 @@ void KeyMap::RegisterInput(int32_t id, int32_t device, int32_t input,
     elem.exclusive   = static_cast<uint8_t>(exclusive);
     elem.description = name;
     elem.device[0]   = static_cast<uint8_t>(device);
-    elem.device[1]   = 0xFF;
+    elem.device[1]   = Binding::kUnboundDevice;
     elem.inputId[0]  = static_cast<uint8_t>(input);
     elem.inputId[1]  = 0;
 

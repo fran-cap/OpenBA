@@ -52,9 +52,9 @@ void MessageDialog::OnClosed() {}
 // through the vtable, so a subclass override runs:
 //   id 0 -> [11] OnCancel, 1 -> [10] OnOk, 2 -> [12] OnYes, 3 -> [13] OnNo.
 void MessageDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/,
-                                   int32_t a, int32_t b, int32_t /*c*/,
+                                   UI::EventId a, int32_t b, int32_t /*c*/,
                                    int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (a != 0x12)
+    if (a != UI::EventId::Activated)
         return;
 
     switch (b) {

@@ -173,7 +173,6 @@ constexpr int32_t kFormatBGRA8 = 5;   // ImageBuffer format 5 = DXGI B8G8R8A8_UN
 constexpr int32_t kUsageDefault = 2;
 constexpr int32_t kWrap = 0;
 constexpr int32_t kAnisotropic = 2;
-constexpr uint32_t kMipmapped = 1u;   // ImageBuffer::_flags bit 0: the levels are a full chain
 
 std::once_flag g_bakeOnce;
 std::vector<std::vector<uint8_t>> g_noiseLevels;   // BGRA8, level 0 first; written once (g_bakeOnce)
@@ -223,8 +222,8 @@ bool CreateOnDevice(Video::ImageBuffer* image) {
         level.SetSize(static_cast<int>(g_noiseLevels[i].size()));
         std::memcpy(level.GetData(), g_noiseLevels[i].data(), g_noiseLevels[i].size());
     }
-    return image->Create(0, kUsageDefault, kFormatBGRA8, kMipmapped, kNoiseSize, kNoiseSize, kAnisotropic, kWrap,
-                         kWrap, kWrap, &levels);
+    return image->Create(0, kUsageDefault, kFormatBGRA8, Video::ImageBuffer::kMipmaps, kNoiseSize, kNoiseSize,
+                         kAnisotropic, kWrap, kWrap, kWrap, &levels);
 }
 
 bool EnsureNoise() {
@@ -268,7 +267,7 @@ void AfterSetup(const Graphics::MaterialInstance& instance, Video::Context& cont
         static_assert(sizeof(g_const) == sizeof(context._pixelConstantStaging.material), "four float4s");
         std::memcpy(context._pixelConstantStaging.material, g_const, sizeof(g_const));
     }
-    context._dirty |= 0x8000u;   // the material constants (Context.h: the real bit, unnamed)
+    context._dirty |= RtVideo::kDirtyMaterialConstants;   // the material constants
     context.SetImageBuffer(noise, 1);
 }
 

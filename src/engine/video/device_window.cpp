@@ -114,7 +114,7 @@ int Video::Device::MoveWindow(void* hwnd, unsigned /*msg*/,
     // literal, = sizeof); 0x1800f7dc9 reads the DWORD at +0x08 of it, which is
     // `showCmd`.
     const uint32_t showCmd = Platform::Window::GetShowCmd(hwnd);
-    if (showCmd == 0x20000000u || showCmd == 2u) return 1;
+    if (showCmd == Platform::Window::kStyleMinimize || showCmd == Platform::Window::kShowCmdMinimized) return 1;
 
     Platform::Point pt;
     pt.x = 0; pt.y = 0;

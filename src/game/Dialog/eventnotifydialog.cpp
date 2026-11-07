@@ -250,7 +250,7 @@ void EventNotifyDialog::OnUpdate(const System::Time& time) {
                         else if (sev == 2) color = 0xFF8080FF;  // pink
                         else if (sev == 3) color = 0xFFFF6060;  // red
                         else if (sev == 4) color = 0xFFEA7517;  // orange
-                        else               color = 0xFFFFFFFF;  // white
+                        else               color = System::kColorWhite;
                         notifyEntry.color = color;
 
                         // text: strip the category prefix before ':'.
@@ -379,7 +379,7 @@ void EventNotifyDialog::OnUpdateLayout() {
     if (!eventArray) return;
 
     UI::Element* ribbonElem = ribbonNotify.Get();
-    if (ribbonElem) ribbonElem->SetFlagsOnOff(0, 1);  // clear flag 1 = show
+    if (ribbonElem) ribbonElem->SetFlagsOnOff(0, UI::kElementFlagHidden);  // clear flag 1 = show
 
     // -------------------------------------------------------
     // Steps 5 & 6: Sync notification slots
@@ -424,11 +424,11 @@ void EventNotifyDialog::OnUpdateLayout() {
         bool noPopup   = (popupField < 0);
 
         if (noPopup) {
-            buttonElem->SetFlagsOnOff(1, 0);  // set flag 1 = hide
-            imageElem->SetFlagsOnOff(0, 1);   // clear flag 1 = show
+            buttonElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // set flag 1 = hide
+            imageElem->SetFlagsOnOff(0, UI::kElementFlagHidden);   // clear flag 1 = show
         } else {
-            buttonElem->SetFlagsOnOff(0, 1);  // clear flag 1 = show
-            imageElem->SetFlagsOnOff(1, 0);   // set flag 1 = hide
+            buttonElem->SetFlagsOnOff(0, UI::kElementFlagHidden);  // clear flag 1 = show
+            imageElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);   // set flag 1 = hide
         }
 
         uint32_t color = activeEntry.color;
@@ -469,20 +469,20 @@ void EventNotifyDialog::OnUpdateLayout() {
             Object::InternalPtr<UI::Element> border;
             UI::Element* borderElem = imageElem->GetBorder(&border)->Get();
             if (borderElem) {
-                borderElem->SetColor(0xFFFFFFFFu);
+                borderElem->SetColor(System::kColorWhite);
             }
         }
 
         // Also reset color on the image element itself (vtable slot 10, the +0x08 again).
-        imageElem->SetColor(0xFFFFFFFFu);
+        imageElem->SetColor(System::kColorWhite);
 
         // Clear the group element's tooltip string
         groupElem->SetToolTipString(System::String());
 
         // Show image element (clear flag 1), hide button element (set flag 1).
         // Empty image slots display nothing (no sprite set); button hidden to prevent clicks.
-        imageElem->SetFlagsOnOff(0, 1);
-        buttonElem->SetFlagsOnOff(1, 0);
+        imageElem->SetFlagsOnOff(0, UI::kElementFlagHidden);
+        buttonElem->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
 }
 
@@ -535,8 +535,8 @@ void EventNotifyDialog::NavigateToEvent(int32_t index) {
     camTarget->target.z = outPos[2];
 }
 
-void EventNotifyDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (eventType == 0x12) {
+void EventNotifyDialog::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId eventType, int32_t eventData, int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (eventType == UI::EventId::Activated) {
         int activeCount = entries._size;
         if (eventData > 0x5DB && eventData < activeCount + 0x5DC) {
             NavigateToEvent(eventData - 0x5DC);

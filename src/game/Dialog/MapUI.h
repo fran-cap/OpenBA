@@ -34,7 +34,7 @@ public:
     ~MapUI() override;                                            // [0] 0x1400124d0
     void Persist(IO::Stream&/*stream*/) override {}   // [3] 0x14006ce80  RET 0 in retail
     void OnCreated() override;   // [4] 0x14006ca80
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t a, int32_t b,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId a, int32_t b,
                         int32_t c, int32_t d, int32_t e, void* userData) override;   // [9] 0x14006c9e0
 
     // SetupImage 0x14006cb00: a MaterialInstance and SpriteSheet over `image`

@@ -129,11 +129,6 @@ namespace Ext {
 namespace RenderPipe {
 namespace {
 
-// Video::Context's dirty bit beside `_time` (mainloop_frame.cpp kContextDirtyBit).
-constexpr uint32_t kContextDirtyFrameTime = 0x800;
-// Weather::DrawUpdate's dirty bits for the four terrain floats (weather_sun.cpp).
-constexpr uint32_t kContextDirtyWeather = 0x10800;
-
 Graphics::Renderer* g_second    = nullptr;  // fix 1: slot 1
 bool                g_installed = false;
 
@@ -177,7 +172,7 @@ void FaithfulTail(::Engine::MainLoop& loop, float alpha, float time) {
     context->_time.y = 0.0f;
     context->_time.z = 0.0f;
     context->_time.w = 0.0f;
-    context->_dirty |= kContextDirtyFrameTime;
+    context->_dirty |= RtVideo::kDirtyGlobalConstants;   // the bit beside `_time`
     loop.Draw(alpha);
 }
 
@@ -340,7 +335,7 @@ struct EngineOps {
         ctx->_time.y = 0.0f;
         ctx->_time.z = 0.0f;
         ctx->_time.w = 0.0f;
-        ctx->_dirty |= kContextDirtyFrameTime;
+        ctx->_dirty |= RtVideo::kDirtyGlobalConstants;   // the bit beside `_time`
     }
     bool BeginCommands() {
         const bool begun = ctx->_contextData->BeginCommands();
@@ -368,7 +363,7 @@ struct EngineOps {
         const int32_t h = rb->height;
         if (c->_viewport.x != 0 || c->_viewport.y != 0 ||
             c->_viewport.width != w || c->_viewport.height != h) {
-            c->_dirty |= 0x200u;
+            c->_dirty |= RtVideo::kDirtyViewport;
             c->_viewport.x = 0;
             c->_viewport.y = 0;
             c->_viewport.width  = w;
@@ -395,7 +390,7 @@ struct EngineOps {
         ctx->_pixelConstantStaging.pixel[4].y = p.weather[1];
         ctx->_pixelConstantStaging.pixel[4].z = p.weather[2];
         ctx->_pixelConstantStaging.pixel[4].w = p.weather[3];
-        ctx->_dirty |= kContextDirtyWeather;
+        ctx->_dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;   // as Weather's
         ctx->SetFog(p.fogNear, p.fogFar,
                     Math::Vector4(p.fogColor[0], p.fogColor[1], p.fogColor[2], p.fogColor[3]));
     }

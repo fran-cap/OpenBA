@@ -189,7 +189,7 @@ void HandBack(const char* reason, bool dialogOpen, bool followFlag) {
 bool InFactoryTable(const void* entity) { return FactorySlot(entity, -1) >= 0; }
 
 bool MarkedForRemoval(const ComponentEntity* entity) {
-    return ((entity->_entityFlags >> 10) & 1) != 0;
+    return (entity->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) != 0;
 }
 
 }  // namespace

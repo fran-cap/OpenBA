@@ -96,7 +96,7 @@ constexpr int kFlowScaleSteps = 5;     // Made / Used / Stock: 1 (Selection.scal
 constexpr int kViewCount = static_cast<int>(View::Count);
 
 // The view buttons' frame and caption tints (0xAARRGGBB): the shown view's (untinted), and the others' (dimmed).
-constexpr uint32_t kCaptionShown = 0xffffffffu;
+constexpr uint32_t kCaptionShown = System::kColorWhite;
 constexpr uint32_t kCaptionOther = 0xff8c867eu;
 
 // What a view button shows, in View order (overlay_core.h; MapOverlays.rsc lists the pages in the same order):
@@ -485,7 +485,7 @@ public:
 
     bool Build(UI::Element* column);
     void OnUpdate(const System::Time& time) override;
-    void OnElementEvent(Object::InternalPtr<UI::Element>* element, int32_t msg, int32_t id, int32_t c, int32_t d,
+    void OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id, int32_t c, int32_t d,
                         int32_t e, void* userData) override;
 
 private:
@@ -756,9 +756,9 @@ void MapWindowController::UpdateLegend(Page& page, const Selection& s) {
 }
 
 // A view button was pressed (its click, msg 0x12, with the id Build gave it).
-void MapWindowController::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t msg, int32_t id,
+void MapWindowController::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId msg, int32_t id,
                                          int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
-    if (msg != 0x12) {
+    if (msg != UI::EventId::Activated) {
         return;
     }
     for (int tab = 0; tab < static_cast<int>(_pages.size()); ++tab) {

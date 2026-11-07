@@ -125,7 +125,7 @@ namespace UI {
 // started) is what the clamps compare against — not the container's freshly
 // written +0x60/+0x64, which are the same values only until the bars adjust.
 void ContainerElement::ComputeSize() {
-    if ((_flags & kFlagNeedsSizeCalc) == 0) return;
+    if ((_flags & UI::kElementFlagNeedsSizeCalc) == 0) return;
 
     ClipRegionElement* clip = AsClipRegion(_children[0]);
     clip->ComputeSize();                                     // faithful: may be null
@@ -144,9 +144,9 @@ void ContainerElement::ComputeSize() {
         int w = barA->_layoutWidth + barA->_rightPad + barA->_leftPad;
         if (w < barA->_minWidth) w = barA->_minWidth;
         const uint32_t f = barA->_flags;
-        if ((f & (kFlagScreenH | kFlagScreenW)) != 0) {
+        if ((f & (UI::kElementFlagSizeToScreenH | UI::kElementFlagSizeToScreenW)) != 0) {
             const UI::UserInterface* owner = ScaleOwnerOf(barA);
-            if (f & kFlagScreenW) {
+            if (f & UI::kElementFlagSizeToScreenW) {
                 const ::Video::Device* dev = VideoDevice();
                 w = static_cast<int>(static_cast<float>(dev->backBufferWidth) *
                                      owner->_uiScale);
@@ -166,13 +166,13 @@ void ContainerElement::ComputeSize() {
         if (w < barB->_minWidth)  w = barB->_minWidth;
         if (h < barB->_minHeight) h = barB->_minHeight;
         const uint32_t f = barB->_flags;
-        if ((f & (kFlagScreenH | kFlagScreenW)) != 0) {
+        if ((f & (UI::kElementFlagSizeToScreenH | UI::kElementFlagSizeToScreenW)) != 0) {
             const UI::UserInterface* owner = ScaleOwnerOf(barB);
             const ::Video::Device* dev = VideoDevice();
-            if (f & kFlagScreenW)
+            if (f & UI::kElementFlagSizeToScreenW)
                 w = static_cast<int>(static_cast<float>(dev->backBufferWidth) *
                                      owner->_uiScale);
-            if (f & kFlagScreenH)
+            if (f & UI::kElementFlagSizeToScreenH)
                 h = static_cast<int>(static_cast<float>(dev->backBufferHeight) *
                                      owner->_uiScale);
         }
@@ -201,7 +201,7 @@ void ContainerElement::ComputeSize() {
         clip->SetNeedsSizeCalc();
     }
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // ============================================================================
@@ -316,7 +316,7 @@ void ContainerElement::Update(const System::Time& time, UserInterface* ui,
         if (range < 0.0f) bar->_maxValue = 0.0f;
     }
 
-    if ((_flags & 0x20000u) != 0) {
+    if ((_flags & kElementFlagHovered) != 0) {
         const int32_t wheel = state.wheel;
         if (wheel != 0) _wheelImpulse += (wheel > 0) ? -7 : 7;
     }

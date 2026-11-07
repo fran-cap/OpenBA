@@ -122,8 +122,8 @@ Tornado::Tornado() {
     _particleScaleSize   = 30.0f;   // 0x41f00000  clamped into [start, end]
     // Two System::Colors -- START and END tint -- all-0xFF = opaque white at both
     // ends; Update divides their bytes by 255.0 (DAT_14017222c).
-    _startColor._value = 0xFFFFFFFFu;
-    _endColor._value   = 0xFFFFFFFFu;
+    _startColor._value = System::kColorWhite;
+    _endColor._value   = System::kColorWhite;
     // Two System::Time fields seeded with g_fUVScale (= 1.0f): fade-in and fade-out.
     {
         float uv = kRdata_14017214c;   // 0x14017214c

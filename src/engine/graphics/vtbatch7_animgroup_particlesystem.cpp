@@ -515,8 +515,8 @@ Graphics::ParticleSystem::ParticleSystem() : Particle() {
     self->_sizeAccel = 0.0f;                              // 1800a543f
     self->_sizeDamp = 1.0f; self->_colorT0 = 0.0f;        // 1800a5445  one qword
     self->_colorT1 = 1.0f;                                // 1800a5450
-    self->_color0 = 0xffffffffu;                          // 1800a545a  one qword
-    self->_color1 = 0xffffffffu;                          //            of -1
+    self->_color0 = System::kColorWhite;                  // 1800a545a  one qword
+    self->_color1 = System::kColorWhite;                  //            of -1
     self->_fadeInTicks  = static_cast<int64_t>(0.25 / spt); // 1800a5465..7d
     self->_fadeOutTicks = static_cast<int64_t>(0.25 / spt); // 1800a5484..91
     // 1800a5498 / 1800a549f — two qword stores over +0xf8 and +0x100, i.e. the

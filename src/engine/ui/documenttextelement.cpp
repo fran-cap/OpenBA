@@ -103,8 +103,6 @@ using Link = UI::DocumentTextElement::Link;
 constexpr int kUiHoverSound  = 4;
 constexpr int kUiClickSound  = 5;
 
-constexpr int32_t kEventActivated = 0x12;
-
 double SecondsPerTick() {
     // ENDGAME B.3.9 SS1 (B39_RULES D7): the class static now, no lazy cache.
     return ::System::Timer::_secondsPerTick;
@@ -114,7 +112,7 @@ double SecondsPerTick() {
 struct Event {
     void*    dialog;
     void*    element;
-    int32_t  kind;
+    UI::EventId kind;
     int32_t  elementId;
     int32_t  x;
     int32_t  y;
@@ -171,7 +169,7 @@ namespace UI {
 // so a document inside a wider box keeps the box's width, while the HEIGHT is
 // unconditionally reset to 0 before the layout pass.
 void DocumentTextElement::ComputeSize() {
-    if (((_flags >> 27) & 1u) == 0) return;
+    if ((_flags & kElementFlagNeedsSizeCalc) == 0) return;
 
     rtcoll::RtColl_ArraySetSize_18003d1c0(&_items);
     rtcoll::RtColl_ArraySetSize_18003d430(&_links);
@@ -182,7 +180,7 @@ void DocumentTextElement::ComputeSize() {
 
     GenerateItems();   // 0x1800cf060 — was by address; the member (documenttext.cpp)
 
-    _flags &= ~kFlagNeedsSizeCalc;
+    _flags &= ~UI::kElementFlagNeedsSizeCalc;
 }
 
 // ============================================================================
@@ -252,7 +250,7 @@ void DocumentTextElement::Draw(SpriteContext& context, uint8_t alpha) const {
             sprite.spriteSheet = _sheets._data[item->index];
             sprite.spriteIndex = item->first;
             context.AddSprite(sprite,                                       // 0x18011cf00
-                              L + item->x, T + item->y, 0xffffffffu);
+                              L + item->x, T + item->y, System::kColorWhite);
         } else if (kind == 2) {
             Object::External* obj = _resourceList->_resources[item->index];
             const UI::SpriteCapture* capture = obj->IsDerivedFrom(UI::SpriteCapture::TypeId())
@@ -291,7 +289,7 @@ void DocumentTextElement::Update(const System::Time& time, UserInterface* ui,
         Element::Update(time, ui, &dlgCopy, state);
     }
 
-    if ((_flags & kFlagHidden) != 0) return;
+    if ((_flags & UI::kElementFlagHidden) != 0) return;
 
     const int32_t linkCount = _links._size;
     for (int32_t li = 0; li < linkCount; ++li) {
@@ -301,7 +299,7 @@ void DocumentTextElement::Update(const System::Time& time, UserInterface* ui,
         bool hit = false;
         bool pressed = false;
 
-        if ((_flags & 0x20000u) != 0) {
+        if ((_flags & kElementFlagHovered) != 0) {
             int32_t j = link->firstItem;
             const int32_t end = link->lastItem;
             for (; j < end; ++j) {
@@ -326,7 +324,7 @@ void DocumentTextElement::Update(const System::Time& time, UserInterface* ui,
 
         if (state.buttonPressed != 0 && hit) link->armed = 1;
 
-        if ((_flags & kFlagDisabledMask) == 0) {
+        if ((_flags & UI::kElementFlagAnyDisabled) == 0) {
             if (hit) {
                 colour = (link->armed != 0 && state.leftDown != 0)
                              ? _linkPressedColor : _linkHoverColor;
@@ -354,7 +352,7 @@ void DocumentTextElement::Update(const System::Time& time, UserInterface* ui,
             ::Event ev;
             ev.dialog    = dialog->Get();
             ev.element   = this;
-            ev.kind      = kEventActivated;
+            ev.kind      = EventId::Activated;
             ev.elementId = _elementId;
             ev.x         = state.mouseX;
             ev.y         = state.mouseY;

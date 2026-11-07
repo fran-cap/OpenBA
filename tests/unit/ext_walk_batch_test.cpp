@@ -151,7 +151,7 @@ void ExecuteRef(const World& wd, Walker& k) {
     float speed;
     if (k.follow) speed = k.desc->f30;
     else if (((terrainType - 1) & 0xFFFFFFF7) == 0) speed = k.desc->f34;
-    else if (terrainType == 0) speed = k.desc->f38;
+    else if (terrainType == ToUnderlying(PathType::Faster)) speed = k.desc->f38;
     else speed = kRdata_14017214c;
     k.c38 = speed * k.mult;
     if (curCell != k.path[k.pathIndex]) return;
@@ -465,7 +465,7 @@ UNIT_TEST(ext_walk_batch_rules_match_retail) {
         float want;
         const uint8_t tt = (uint8_t)t;
         if (((tt - 1) & 0xFFFFFFF7) == 0) want = 1.5f;
-        else if (tt == 0) want = 0.75f;
+        else if (tt == ToUnderlying(PathType::Faster)) want = 0.75f;
         else want = kRdata_14017214c;
         CHECK_EQ(Bits(Ext::WalkBatch::TerrainSpeed(tt, 1.5f, 0.75f)), Bits(want));
     }

@@ -319,9 +319,9 @@ void CitizenUI::OnUpdateLayout() {
     bool isMale = (ai->gender != 0);
     // if isMale, show imageMale (hide female), else show imageFemale (hide male)
     if (isMale) {
-        if (imageFemale) imageFemale->SetFlagsOnOff(1, 0);  // hide imageFemale
+        if (imageFemale) imageFemale->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide imageFemale
     } else {
-        if (imageFemale) imageFemale->SetFlagsOnOff(0, 1);  // show imageFemale
+        if (imageFemale) imageFemale->SetFlagsOnOff(0, UI::kElementFlagHidden);  // show imageFemale
     }
     if (imageMale) imageMale->SetFlagsOnOff(isMale ? 0 : 1, isMale ? 1 : 0);
 
@@ -330,9 +330,9 @@ void CitizenUI::OnUpdateLayout() {
     // the CitizenDescription; see aiDesc note above). Skip if no description resolved.
     bool isEducated = aiDesc && (ai->education < aiDesc->maxEducation);
     if (isEducated) {
-        if (textEducatedNo) textEducatedNo->SetFlagsOnOff(0, 1);  // show textEducatedNo
+        if (textEducatedNo) textEducatedNo->SetFlagsOnOff(0, UI::kElementFlagHidden);  // show textEducatedNo
     } else {
-        if (textEducatedNo) textEducatedNo->SetFlagsOnOff(1, 0);  // hide textEducatedNo
+        if (textEducatedNo) textEducatedNo->SetFlagsOnOff(UI::kElementFlagHidden, 0);  // hide textEducatedNo
     }
     if (textEducatedYes) textEducatedYes->SetFlagsOnOff(
                              isEducated ? 1 : 0, isEducated ? 0 : 1);
@@ -510,13 +510,13 @@ void CitizenUI::OnUpdateLayout() {
 // the camera to the entity's world position or build footprint center.
 
 // [9] 0x1400650f0
-void CitizenUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, int32_t param3, int32_t param4,
+void CitizenUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     // Gate on datasource-alive like the sibling slots (4/6/7): a click on a dead
     // citizen's still-open panel must not drive this body into a freed entity.
     if (!SA_DialogEntityAlive(this)) return;
     // Only handle event type 0x12 (button click)
-    if (param3 != 0x12) return;
+    if (param3 != UI::EventId::Activated) return;
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAMILYTREE.md): ext.family_tree (class C), the Family
     // button
     if (Ext::FamilyTree::CitizenPanelEvent(this, param4)) return;
