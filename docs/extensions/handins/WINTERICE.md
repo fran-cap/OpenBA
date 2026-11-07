@@ -117,7 +117,7 @@ A bridge writes a land type into its cells, so it does not count.
 - Not yet run: Vulkan, Metal, Android; the thaw sequence over real game time; the menu after leaving a
   winter game (the logic is in, not exercised); a device restart with ice showing.
 
-## 5. Phase 2: walkable ice (`ext.walk_on_ice`, PLANNED)
+## 5. Phase 2: walkable ice (`ext.walk_on_ice`)
 
 A class C row of its own, `ext.walk_on_ice` (display "Walk on ice", owner `winter_ice`), **OFF by
 default** (the B / C rule). Citizens and animals may cross a frozen lake while it is solid from bank to
@@ -219,7 +219,19 @@ without it.
    fell from about 137 per frame at the thaw to none about 14,400 ticks later (crossings planned before
    the thaw, finishing); the walkers held on the ice followed the thaw front down to none; afterwards
    0 to 5 per frame stand on rim cells by the bank, where retail lets walkers wade, and animals.
-6. **Verify:** unit, a winter crossing in game (the showroom bench, section 4's lake on seed 12345),
-   gate and resave with the row off (faithful untouched) and on.
+6. **Verify** (2026-11-07, Windows, DX11, rebased on main ce195a3fe):
+   - unit 2289 / 0 (the row, the codec and its refusals, the walk set's runs, the lake / rim / river /
+     open-water rule);
+   - the gate (`tools/build.sh run`, faithful) and `resave_gate.sh Gate`: PASS;
+   - a save with the lake walkable (a new seed town, speed 10, autosaved on the first walkable frame,
+     9709 cells) reloads with the same 9709 cells back on its map and no guess; it is the class C golden
+     `GateWalkOnIce` (`tools/resave_gate/README.md`): PASS under `/profile:all`;
+   - the stress town (`STRESS_EXT=winter_ice,walk_on_ice`, 30000 frames): two winters, 9810 cells each,
+     about 31,000 citizen steps on the ice, clean freeze / thaw, clean self-quit; walkers drawn on the
+     ice in deep winter and on the lingering ice in the thaw;
+   - faithful stress A/B, the same machine back to back: 0.16 ms sim / iteration on the branch against
+     0.17 on main ce195a3fe (update 1.65 / 1.67 ms per frame, draw 1.21 / 1.20 ms): no change.
+   Not run: Linux / macOS / Android in game (CI builds them and runs `unit`); the Vulkan and Metal
+   backends (this row draws nothing of its own).
 
 Animals share the zones, so deer and herds cross too: accepted, not special-cased.
