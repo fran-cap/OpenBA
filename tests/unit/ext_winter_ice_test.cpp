@@ -4,7 +4,7 @@
 // The freeze / thaw fronts (src/ext/winter_ice/ice_model.h) driven by made-up weather, the mask round
 // buildings in a lake (open_mask.h), the generated ice program (src/render/common/winter_ice/
 // ice_overlay_ps.h, tools/water_shaders.py: a valid ps_4_0 container reading the lake vertex program's
-// interpolants) and the registry row (class A, OFF by default). Every platform.
+// interpolants) and the registry row (class A, ON by default). Every platform.
 // ============================================================================
 #include "unit.h"
 
@@ -12,7 +12,7 @@
 #include "winter_ice/ice_overlay_ps.h"
 #include "ext/winter_ice/ice_model.h"
 #include "ext/winter_ice/open_mask.h"
-#include "ext/winter_ice/boat_channel.h"
+#include "ext/boat_lane/boat_lane.h"
 #include "ext/registry.h"
 
 #include <cstring>
@@ -213,7 +213,7 @@ UNIT_TEST(ext_winter_ice_boat_path_prefers_deep_water) {
         types[3 * size + x] = 8;   // a deep row beside it
     }
     types[1 * size + 9] = 7;       // the dock's water cell, above the shallow row's end
-    const std::vector<int> path = BoatWaterPath(types.data(), size, 2 * size + 0, 1 * size + 9);
+    const std::vector<int> path = Ext::BoatLane::BoatWaterPath(types.data(), size, 2 * size + 0, 1 * size + 9);
     CHECK(!path.empty());
     if (path.empty()) return;
     CHECK(path.front() == 2 * size + 0);
@@ -221,7 +221,7 @@ UNIT_TEST(ext_winter_ice_boat_path_prefers_deep_water) {
     // A dock on land is no goal: the game's A* tests the goal's type like any neighbour's, the leg
     // fails, and retail's route (and the channel) keeps the polyline alone.
     types[1 * size + 9] = 2;
-    CHECK(BoatWaterPath(types.data(), size, 2 * size + 0, 1 * size + 9).empty());
+    CHECK(Ext::BoatLane::BoatWaterPath(types.data(), size, 2 * size + 0, 1 * size + 9).empty());
     int deep = 0;
     for (const int c : path) deep += types[c] == 8 ? 1 : 0;
     CHECK(deep >= 6);              // the middle of the way runs along the deep row
@@ -232,9 +232,9 @@ UNIT_TEST(ext_winter_ice_boat_path_needs_joined_water) {
     std::vector<uint8_t> types(size * size, 2);
     types[0] = 8;
     types[size * size - 1] = 8;    // two pools with land between
-    CHECK(BoatWaterPath(types.data(), size, 0, size * size - 1).empty());
-    CHECK(BoatWaterPath(types.data(), size, -1, 3).empty());
-    CHECK(CellPathLine({0, size + 1}, size).size() == 4);
+    CHECK(Ext::BoatLane::BoatWaterPath(types.data(), size, 0, size * size - 1).empty());
+    CHECK(Ext::BoatLane::BoatWaterPath(types.data(), size, -1, 3).empty());
+    CHECK(Ext::BoatLane::CellPathLine({0, size + 1}, size).size() == 4);
 }
 
 // The channel's lane: the centre pull keeps a leg off the bank, and the spline keeps the ends.
@@ -244,11 +244,11 @@ UNIT_TEST(ext_winter_ice_channel_keeps_to_the_middle) {
     for (int y = 2; y <= 8; ++y) {
         for (int x = 0; x < size; ++x) types[y * size + x] = 8;   // a river 7 cells wide, rows 2..8
     }
-    const std::vector<float> bank = BankDistance(types.data(), size);
+    const std::vector<float> bank = Ext::BoatLane::BankDistance(types.data(), size);
     CHECK(bank[5 * size + 5] > bank[2 * size + 5]);               // the middle row lies furthest from land
     // From the top bank's edge on the left to the top bank's edge on the right.
-    const std::vector<int> hug = BoatWaterPath(types.data(), size, 2 * size + 0, 2 * size + 11);
-    const std::vector<int> mid = BoatWaterPath(types.data(), size, 2 * size + 0, 2 * size + 11, bank.data(), 2.0f);
+    const std::vector<int> hug = Ext::BoatLane::BoatWaterPath(types.data(), size, 2 * size + 0, 2 * size + 11);
+    const std::vector<int> mid = Ext::BoatLane::BoatWaterPath(types.data(), size, 2 * size + 0, 2 * size + 11, bank.data(), 2.0f);
     CHECK(!hug.empty() && !mid.empty());
     int hugRow = 0;
     int midRow = 0;
@@ -256,8 +256,8 @@ UNIT_TEST(ext_winter_ice_channel_keeps_to_the_middle) {
     for (const int c : mid) midRow = c / size > midRow ? c / size : midRow;
     CHECK(hugRow == 2);                                            // without the pull: along the bank
     CHECK(midRow >= 4);                                            // with it: out towards the middle
-    const std::vector<float> line = CellPathLine(mid, size);
-    const std::vector<float> smooth = SmoothLine(line, 3);
+    const std::vector<float> line = Ext::BoatLane::CellPathLine(mid, size);
+    const std::vector<float> smooth = Ext::BoatLane::SmoothLine(line, 3);
     CHECK(smooth.size() >= line.size());
     CHECK(smooth[0] == line[0] && smooth[1] == line[1]);
     CHECK(smooth[smooth.size() - 2] == line[line.size() - 2] && smooth.back() == line.back());

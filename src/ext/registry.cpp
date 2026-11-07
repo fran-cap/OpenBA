@@ -443,6 +443,16 @@ const Entry kEntries[] = {
       "Better trees",
       "Smooth leaf edges (MSAA), tree shading that no longer turns with the view, leaf-scale shadow dapple.",
       0, [](State& s) -> bool& { return s.ext.better_trees; } },
+    // BOATLANE (docs/extensions/handins/BOATLANE.md): the trade boats sail a lane through the middle of the
+    // water, a smooth curve, instead of retail's grid steps along the cheapest bank; the same lane
+    // ext.winter_ice keeps open in the ice. Class B: a boat's route and so its travel time change. OFF by
+    // default, the B / C rule (the user's ruling, 2026-11-06; extension defaults to be revisited next
+    // release).
+    { "boat_lane", Tier::Extension, Class::B, false,
+      "Boat lane",
+      "Trade boats sail a smooth lane down the middle of rivers and lakes instead of hugging the cheapest "
+      "bank in grid steps.",
+      1, [](State& s) -> bool& { return s.ext.boat_lane; } },
     // WINTERICE (docs/extensions/handins/WINTERICE.md): water freezes in winter -- ice from the banks inward
     // while it is below 32 F, the shallow sides thawing first in spring, open water round buildings in the
     // water and along the trade boats' channel. Drawn as one more pass over each water range with our own

@@ -10,7 +10,7 @@ ruling 2026-11-06). Phase 1 of the frozen-water feature: the look only. Phase 2 
   first and the middle goes last.
 - Open water stays round any building standing in the water: a fishing dock, a trading post, a bridge.
 - While the town has a trading post, the trade boats' channel stays open along the way the boats sail
-  (`boat_channel.h`): retail's route (`BoatComponent::SetDestination` 0x1400456e0) is the world's
+  (`src/ext/boat_lane/boat_lane.h`, shared with ext.boat_lane): retail's route (`BoatComponent::SetDestination` 0x1400456e0) is the world's
   polyline 0 up to the map, then two A* legs through the water (map entry -> the dock's "boat" attach
   point -> map exit; passable types 7 / 8 / 9, step costs 5 / 1 / 5, so the boats keep to deep water),
   then the polyline out. The extension runs its own search under `GridPathSearch::FindPath`'s rules
@@ -24,8 +24,8 @@ ruling 2026-11-06). Phase 1 of the frozen-water feature: the look only. Phase 2 
   land costs `centrePull * 4 / d` more) and are drawn as a Catmull-Rom spline through every few cells
   (`SmoothLine`). The boats still sail the game's legs, which may hug a bank outside the lane, so a
   narrow cut (`kBoatCut`, 0.75 cells) follows those legs too and a boat is never seen on ice. The user
-  wants the boats to sail the lane itself: a separate row, class B (it changes travel time, so the
-  sim), sharing the lane function; with it on, the lane and the route are one line.
+  wants the boats to sail the lane itself: `ext.boat_lane` (class B, OFF; BOATLANE.md). With it on, the
+  channel is that lane exactly (fixed shape, no cut) and the boats sail it.
   Overlay sliders: channel width / centre pull / smoothing; open edge softness / wobble / wobble size /
   grain, the user's set as the defaults (1.46 / 1.0 / 4; 0.33 / 0.52 / 2.24 / 0.33). `IceEdge` rides in b0 userPosition.yzw for the pass's draw; the shader reads the mask's size
   with GetDimensions, freeing mc1.z for the softness. Drawing only: the boats and the citizens go where they
