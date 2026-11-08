@@ -84,7 +84,9 @@ UNIT_TEST(ext_registry_table_shape) {
         // touch_mode is class A but puts camera controls over a desktop's game: OFF; the Android first run turns it on.
         // touch_pointer is class A but takes a touch screen's fingers from the mouse: OFF; the Android first run turns it on.
         // staggered_passes is class A but lets shadows and reflections trail by a frame: the player's call, OFF (issue #253).
-        // render_backend is class A but changes the renderer (Vulkan first): OFF until the install default is ruled.
+        // render_backend is class A but changes the renderer: OFF in the table, so a current player stays on
+        // DirectX 11; a fresh install is seeded on (Vulkan first) by Ext::RenderBackend::SeedFreshInstall
+        // (maintainer ruling 2026-11-08, docs/extensions/handins/RENDERBACKEND.md).
         if (e.tier == Ext::Tier::Extension && std::strncmp(e.id, "unit_", 5) != 0)
             CHECK(e.defaultOn == (e.cls == Ext::Class::A && std::strcmp(e.id, "eye_camera") != 0 &&
                                   std::strcmp(e.id, "no_fog") != 0 && std::strcmp(e.id, "show_grid") != 0 &&

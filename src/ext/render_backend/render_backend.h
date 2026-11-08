@@ -27,6 +27,14 @@
 // Device::Startup, selects the backend and lists the adapters again (the two backends' adapter lists
 // mean different things: DXGI adapter / output pairs, Vulkan physical devices).
 //
+// THE DEFAULT (maintainer ruling 2026-11-08, a deliberate exception to "extension rows default off"): a
+// fresh install starts on Vulkan, an existing player stays on DirectX 11. The table's default is off;
+// SeedFreshInstall, before Engine::Startup, writes ext.render_backend=1 and ext.render_api=1 into a new
+// settings.cfg when there is none and nothing to import (IO::SettingsStore::Source::None). A settings.cfg
+// without the keys, or a retail registry import, keeps the default: DirectX 11, never a silent switch.
+// The fallback to DirectX 11 is on in both cases. The faithful profile turns every extension row off,
+// so it always runs DirectX 11 (retail's renderer).
+//
 // THE FALLBACK. At boot the wanted backend is skipped when its probe fails (Render::BackendAvailable:
 // no Vulkan loader, a loader older than 1.1, no adapter). A CreateDevice that fails later (vkCreateDevice,
 // the swap chain) reaches Device::PlatformStartup's own fallback, whose seam (Video::Device::
@@ -51,6 +59,12 @@ namespace RenderBackend {
 // The row on (resolved from settings.cfg before the registry is installed) and the exe carries more
 // than one backend.
 bool Offered();
+
+// src/app/main.cpp, before Engine::Startup (THE DEFAULT above): in an exe with more than one backend and
+// with no settings at all (no settings.cfg, no registry to import), settings.cfg is created holding
+// ext.render_backend=1 and ext.render_api=1. No-op otherwise. Uses only IO::SettingsStore (no engine
+// allocator yet).
+void SeedFreshInstall();
 
 // The first Device::InitializeInterfaces (inside Engine::Startup, before the adapters are listed): the
 // wanted backend selected, or the next available one; installs the PlatformStartup seam. No-op in a

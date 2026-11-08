@@ -7,6 +7,7 @@
 #include "ext/render_pipe/render_pipe.h"   // Ext::RenderPipe::SettleBeforeStepWrite
 
 #include "engine/MainLoop.h"
+#include "io/settings_store.h"   // IO::SettingsStore (SeedFreshInstall, before Engine::Startup)
 #include "render/common/render_backend.h"   // Render::BackendCount / SelectBackend / ... (by path: this directory has its own render_backend.h)
 #include "system/MemoryAllocator.h"
 #include "system/String.h"
@@ -17,6 +18,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 namespace Ext {
 namespace RenderBackend {
@@ -114,6 +116,20 @@ int32_t g_committedFrom = -1;      // ext.render_api before CommitVideoRow, -1 =
 
 bool Offered() {
     return Render::BackendCount() > 1 && RowOn();
+}
+
+void SeedFreshInstall() {
+    if (Render::BackendCount() < 2) return;
+    std::string path;
+    IO::SettingsFile::Entries entries;
+    if (!IO::SettingsStore::DefaultPath(path)) return;
+    if (IO::SettingsStore::Load(path, entries) != IO::SettingsStore::Source::None) return;
+    entries.clear();
+    entries.push_back(IO::SettingsFile::Entry{"ext.render_api", "1"});
+    entries.push_back(IO::SettingsFile::Entry{"ext.render_backend", "1"});
+    const bool ok = IO::SettingsStore::Store(path, entries);
+    std::fprintf(stderr, "[RenderBackend] fresh install: %s ext.render_backend=1 ext.render_api=1 (Vulkan first)\n",
+                 ok ? "settings.cfg created with" : "FAILED to write");
 }
 
 void BootSelect() {

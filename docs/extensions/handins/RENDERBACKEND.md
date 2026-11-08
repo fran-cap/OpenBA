@@ -1,0 +1,107 @@
+# RENDERBACKEND -- one Windows exe with DirectX 11 and Vulkan, switched in game
+
+Branch `feat/dual-backend`. Row `ext.render_backend` (class A) with the value key `ext.render_api`
+(0 = DirectX 11, 1 = Vulkan). Build: `BANISHED_RENDER_BACKEND=dx11+vulkan tools/build.sh build`
+(build dir `build/cmake-<flavour>-dx11+vulkan`). A one-backend build is unchanged and ignores the row.
+
+## Maintainer rulings (2026-11-08)
+
+1. **A shared function-pointer table in the render glue is approved** (`render_backend_table.h`).
+2. **Vulkan is the default on future installs.** This is a deliberate exception to "extension rows
+   default off":
+   - A fresh install (no `settings.cfg`, nothing to import) starts on Vulkan.
+     `Ext::RenderBackend::SeedFreshInstall` (`src/app/main.cpp`, before `Engine::Startup`) writes
+     `ext.render_backend=1` and `ext.render_api=1` into the new file.
+   - An existing `settings.cfg` that lacks the keys keeps DirectX 11: the table default is off. Current
+     players are never switched silently.
+   - The DirectX 11 fallback on a failed Vulkan start is on in both cases.
+   - The registry row's comment (`src/ext/registry.cpp`) and `tests/unit/ext_registry_test.cpp`
+     (class A default-on exception list) both name this ruling.
+   - The faithful profile turns every row off, so `/profile:faithful` (and `tools/build.sh run`)
+     always runs DirectX 11, retail's renderer.
+
+## Retail findings (Runtime-x64.dll / exe)
+
+| Address | Function | Role |
+|---|---|---|
+| 0x140071e10 | OptionsDialog::ApplyVideoSettings | the swap path when the renderer or adapter changed |
+| 0x1800dc5e0 | MainLoop::OnVideoError | destructs External video resources (10 types), the context, the SaveLoad thumbnails |
+| 0x1800f80e0 | Device::ReleaseDynamic | deletes companions |
+| 0x1800f83f0 (thunk 0x1800f7280) | Device::Shutdown | |
+| 0x1800f7270 -> 0x1800f8260 | Device::Startup -> PlatformStartup | fallback loop: the configured index first, then down with a wrap (1 -> 0 -> 2) |
+| 0x1800f80b0 | Device::RecreateDynamic | rebuilds companions through the current DeviceData |
+| 0x1800dc3b0 | MainLoop::OnVideoRestart | reloads from file |
+| 0x1800f7930 | CreateVideoInterface | sets `activeInterface` (+0xF8) before createDeviceData |
+| 0x1800f8610 | EnumerateVideoModes | a temporary DeviceData per slot for EnumerateInterfaces |
+| 0x1800f87b0 | ReleaseVideoModes | frees the slots only |
+| 0x18000cb00 | NeedsRestart | returns +0x9C |
+| 0x1800f52b0 | ShaderProgram::PlatformSerialize | data arms per `activeInterface`: 0, 1, 2 |
+
+- `Device::dllSlots[3]` sits at +0xB0 (DX9 = 0, DX11 = 1, GL = 2, stride 0x18).
+- The interface array sits at +0x40, and its index equals the slot index.
+- Vulkan reads the DX11 data arm, so both backends live in **slot 1**. Switching is a backend
+  change behind slot 1, not a slot change. The DX9 placeholder in slot 0 keeps the index invariant.
+
+## Design
+
+- Each backend's sources compile with `BANISHED_RENDER_IMPL_NS=impl_<name>`.
+  `render_impl.h` turns that into an inline namespace around every backend-defined interface
+  function, so the two definitions of `Render::DeviceName` (and so on) do not collide.
+  In a one-backend build the macros are empty.
+- Each backend fills a `Render::BackendTable` in its own `render_backend_<name>.cpp`
+  (`render_backend_table_fill.h`, internal linkage). CMake generates `render_backends.inc`.
+- `src/render/common/multi/render_backend_dispatch.cpp` forwards every public name to the active
+  table. `src/render/common/single/` holds the one-backend answers for the backend-set API.
+- Extension requests made while no device exists are recorded and replayed on `SelectBackend`. They
+  are not broadcast, because a backend's request body reads its own DeviceData type.
+- No backend names another's namespace. Neutral code stays in `src/render/common/`.
+- The switch is retail's own restart order: OnVideoError, ReleaseDynamic, Shutdown, select,
+  list the adapters again, Startup, RecreateDynamic, OnVideoRestart.
+- The Options Video tab's Renderer combo lists one item per backend in slot 1's place.
+- Fallback: `Video::Device::_extInterfaceRetry` (a class static: the layout is untouched) is
+  consulted in PlatformStartup's create-failed branch. It marks the backend failed, selects the next
+  one, lists the adapters again and retries slot 1. If no other backend is left, retail's step-down
+  loop continues.
+
+## Vulkan fix found by the switch test
+
+On the second Vulkan device of a run, `pipelines.cpp` WarmMain -> BuildPipeline crashed in
+nvoglv64.dll.
+
+- **Cause:** shader entries a holder still references survived `DeviceData::Shutdown` in
+  `g_shaders`, but their modules were destroyed with the device ("N shader module(s) still held").
+  The next device found the dead modules by hash.
+- **Fix:** `PipelinesShutdown` orphans those entries (out of the registry, module nulled).
+  `ReleaseShader` erases only its own entry.
+- **Scope:** Vulkan's own device-lost recovery has the same window.
+
+## Tests (Windows, RTX 5080, 2026-11-08)
+
+| Test | Result |
+|---|---|
+| dual debug, boot DX11, town loaded, DX11 -> Vulkan -> DX11 -> Vulkan -> DX11 (`tools/dual_backend_check.sh dx11 "900:vulkan,1800:dx11,2700:vulkan,3600:dx11"`) | PASS, clean shutdown |
+| dual debug, boot Vulkan, Vulkan -> DX11 -> Vulkan | PASS, clean shutdown |
+| forced Vulkan CreateDevice failure at boot (`failcreate=vulkan`), then a switch to Vulkan | DX11 fallback PASS, switch PASS |
+| fresh-install seed | not reachable on this machine: the retail registry exists, so a missing `settings.cfg` is a registry import (DX11, as ruled for existing players) |
+| probe-level failure (`Available()` false) | not run: the Vulkan loader ignores `VK_LOADER_DRIVERS_*` in an elevated shell |
+| `tools/build.sh unit` (DX11) | 2287 ok, rc 0 |
+| `tools/build.sh unit` (dx11+vulkan) | 2318 ok, rc 0 |
+| DX11 gate `tools/build.sh run` | PASS (in game, no crash) |
+| Vulkan `run-menu` (one-backend build) | PASS |
+| one-backend DX11 and Vulkan debug builds; dual perf build | compile |
+| Metal | not compiled (no Mac); its macros are empty and `single/` is compiled |
+
+Stripped perf exe: dual 16.26 MB, DX11-only 13.44 MB, Vulkan-only 14.90 MB. The dual perf build
+took 350 s at -j3.
+
+## Open questions
+
+- Should a retail registry import (a retail player's first OpenBA run) count as a fresh install?
+  The current answer is no, so that player stays on DirectX 11.
+- A fallback is not persisted to `ext.render_api`, so the next start tries Vulkan again (and falls
+  back again).
+- `failcreate=` (the harness `BANISHED_RENDER_SWITCH`) injects at boot only.
+- The tweak overlay is off in the dual build: its default needs a DX11-only build.
+- After a switch, the Options combo re-reads the saved fields and lists the adapters again. A second
+  switch in the same dialog session has not been driven by hand.
+- CI has no dual configure yet. A Windows `dx11+vulkan` configure + unit would cover the table.
