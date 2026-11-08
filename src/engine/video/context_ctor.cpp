@@ -298,11 +298,11 @@ extern "C" Video::Context* RtVideo_Context_Ctor(Video::Context* self, Video::Dev
     self->_frameIndex        = 0;               // +0x08 \ qword
     self->_shaderDetail      = 0;               // +0x0c /
     self->_dirty             = 0;               // +0x10 \ qword
-    self->_unknown0014       = 0;               // +0x14 /
+    self->_unreadDirtyCompanion       = 0;               // +0x14 /
     self->_imageBufferDirty  = 0;               // +0x18 \ qword
     self->_vertexBufferDirty = 0;               // +0x1c /
     self->_transformCount    = 0;               // +0x20 \ qword
-    self->_unknown0024       = 0;               // +0x24 /
+    self->_boneCount       = 0;               // +0x24 /
     self->_renderBuffer      = nullptr;         // +0x28
     self->_vertexLayout      = nullptr;         // +0xb0
     self->_indexBuffer       = nullptr;         // +0x1b8
@@ -344,14 +344,14 @@ extern "C" Video::Context* RtVideo_Context_Ctor(Video::Context* self, Video::Dev
     self->_dynamicVertexBuffer   = nullptr;     // +0x20f8
     // B5 CTX: +0x2100 / +0x2120 were one qword store each; the two dword
     // halves are stored separately now (same eight zero bytes).
-    self->_unknown2100           = 0;           // +0x2100
-    self->_unknown2104           = 0;           // +0x2104
-    self->_unknown2108           = nullptr;     // +0x2108
+    self->_dynamicVertexOffset           = 0;           // +0x2100
+    self->_dynamicVertexCount           = 0;           // +0x2104
+    self->_dynamicVertexBase           = nullptr;     // +0x2108
     self->_instanceCount         = 0;           // +0x2110 (a dword)
     self->_dynamicIndexBuffer    = nullptr;     // +0x2118
-    self->_unknown2120           = 0;           // +0x2120
-    self->_unknown2124           = 0;           // +0x2124
-    self->_unknown2128           = nullptr;     // +0x2128
+    self->_dynamicIndexOffset           = 0;           // +0x2120
+    self->_dynamicIndexCount           = 0;           // +0x2124
+    self->_dynamicIndexBase           = nullptr;     // +0x2128
     self->_dynamicInstanceBuffer = nullptr;     // +0x2130
     self->_defaultRenderBuffer   = nullptr;     // +0x2138
     self->_defaultColorImage     = nullptr;     // +0x2140

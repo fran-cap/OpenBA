@@ -112,8 +112,8 @@ static int SettledSlots(const CropFieldComponent* crop) {
 //
 int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) {
     // Step 1: Find components on the field entity
-    WorkComponent* workComp = field_10->FindComponent<WorkComponent>();         // 0x140003050
-    CropFieldComponent* crop = field_10->FindComponent<CropFieldComponent>();   // 0x140005380
+    WorkComponent* workComp = _entity->FindComponent<WorkComponent>();         // 0x140003050
+    CropFieldComponent* crop = _entity->FindComponent<CropFieldComponent>();   // 0x140005380
 
     // Step 2: Check max workers vs current tree count
     int treeCount = _cells._count;
@@ -143,12 +143,12 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
     uint32_t citizenGridCell = (uint32_t)(mapSz * citizenCellY + citizenCellX);
 
     // Step 4: Iterate field cells
-    int fieldCellCount = field_58._size;
+    int fieldCellCount = _unplantedCells._size;
     bool anyUnplanted = true;  // tracks if we found any cell with validity flag set
 
     if (fieldCellCount > 0) {
         for (int i = 0; i < fieldCellCount; i++) {
-            bool* validityArray = field_58._data;
+            bool* validityArray = _unplantedCells._data;
             if (validityArray[i] == 0) {
                 continue;
             }
@@ -208,7 +208,7 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
             }
 
             uint32_t typeConstVal = CropFieldComponent::TypeId();  // DAT_1401c7510
-            ComponentEntity* entityRef = field_10.Get();
+            ComponentEntity* entityRef = _entity.Get();
 
             // The slot indices the per-slot messages carry: primary, then paired
             uint32_t packedCells[2];
@@ -233,21 +233,21 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
             // Call ShowTool_Action_Ctor3 (0x1400bdd20) with 12 params
             WorkAct_ShowToolCtor3_bdd20(
                 &citizenBuf,                      // RCX: citizenIBP
-                field_20,                         // EDX: priority
-                field_68,                         // R8: the crop (ExternalPtr)
+                _workId,                         // EDX: priority
+                _crop,                         // R8: the crop (ExternalPtr)
                 0,                                // R9D: 0
                 pathPos,                          // [RSP+0x20]: position
                 harvestMode,                      // [RSP+0x28]: 1=single, 2=paired
                 cellPair,                         // [RSP+0x30]: ptr to {cell, pairedCell}
                 packedCellInfo,                   // [RSP+0x38]: packed cell indices
-                &entityRef,                       // [RSP+0x40]: entity ref from field_10
+                &entityRef,                       // [RSP+0x40]: entity ref from _entity
                 &typeConstVal,                    // [RSP+0x48]: type constant
                 0,                                // [RSP+0x50]: unused
                 packedCells                       // [RSP+0x58]: the slot indices, one per cell
             );
 
             // Assign work and register with AI
-            int priority = field_20;
+            int priority = _workId;
             CitizenComponent* citizenEnt = *citizenRef;
 
             // Slot 10 (GetTarget): the workplace's Profession
@@ -255,7 +255,7 @@ int PlantArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
             GetTarget(&workEnt);
 
             citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-            citizenEnt->field_0x30 = priority;
+            citizenEnt->lastWorkId = priority;
             citizenEnt->lastErrand = CitizenErrand::None;
 
             if (workEnt == citizenEnt->profession && priority >= 0) {
@@ -356,7 +356,7 @@ int PlantArea::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** /*par
     // TryCompleteTask reporting false is faithful and was never the defect.
 
     // Handle paired cell (if within bounds)
-    if ((int)pairedIdx < field_58._size) {
+    if ((int)pairedIdx < _unplantedCells._size) {
         // Remove paired cell from the set
         WorkCellSetNode* node2 = _cells._root;
         while (node2 != nullptr) {
@@ -399,11 +399,11 @@ int PlantArea::OnCancel(CitizenComponent** /*param2*/, ComponentEntity** /*param
     }
 
     // Mark primary cell as valid
-    bool* validityArray = field_58._data;
+    bool* validityArray = _unplantedCells._data;
     validityArray[primaryIdx] = 1;
 
     // Handle paired cell
-    if ((int)pairedIdx < field_58._size) {
+    if ((int)pairedIdx < _unplantedCells._size) {
         validityArray[pairedIdx] = 1;
 
         // Remove paired cell from the set
@@ -517,7 +517,7 @@ int PlantArea::Validate() {
             }
 
             // Mark cell as valid (available for re-planting)
-            bool* validityArray = field_58._data;
+            bool* validityArray = _unplantedCells._data;
             validityArray[node->element.cell] = 1;
         }
 
@@ -574,7 +574,7 @@ cleanup:
 // ============================================================
 Profession** PlantArea::GetTarget(Profession** outPtr) {
     // 0x140002e10 = FindComponent<WorkPlaceComponent>.
-    WorkPlaceComponent* workplace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workplace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workplace->profession;
     return outPtr;
 }
@@ -605,13 +605,13 @@ void PlantArea::Persist(IO::Stream& stream) {
     WorkCellBST_Serialize_9de0(&_cells, &ser);
 
     // Serialize field cell count at +0x60
-    int cellCountBuf[2] = { field_58._size, 0 };
+    int cellCountBuf[2] = { _unplantedCells._size, 0 };
     ser.Serialize(cellCountBuf[0], nullptr);
 
     // If reading (serializer mode == 0), resize validity array.
     // 0x14000a590 == Collection::Array<bool>::SetSize.
     if (static_cast<int>(ser.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
-        field_58.SetSize(cellCountBuf[0]);
+        _unplantedCells.SetSize(cellCountBuf[0]);
     }
 
     // Serialize validity array through the BOOL-ARRAY door.
@@ -634,10 +634,10 @@ void PlantArea::Persist(IO::Stream& stream) {
     // the element COUNT landed in RDX — the register the scalar body
     // dereferences as `int*` — so this was a wild read off a small integer, not
     // a differently-shaped write. It could never have been retail behaviour.
-    ser.Serialize(cellCountBuf[0], field_58._data, nullptr);
+    ser.Serialize(cellCountBuf[0], _unplantedCells._data, nullptr);
 
     // Serialize ExternalRef at +0x68
-    ::Object::SerializeExternal<ComponentDescription>(ser, field_68);
+    ::Object::SerializeExternal<ComponentDescription>(ser, _crop);
 }   // ~Serializer
 
 
@@ -646,7 +646,7 @@ void PlantArea::Persist(IO::Stream& stream) {
 // Work dtor chain. The stamps and the `~Internal` call are the compiler's chain.
 // ============================================================
 PlantArea::~PlantArea() {
-    // The +0x58 flags are the `field_58` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
+    // The +0x58 flags are the `_unplantedCells` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
     // then the +0x48 set's Clear is the `_cells` member's ~Set: reverse declaration order
     // after this empty body (0x1400f4600).
 
@@ -659,7 +659,7 @@ PlantArea::~PlantArea() {
 // fields zeroed (the two stamps are the compiler's).
 PlantArea::PlantArea()
     : Work(),
-      field_68(nullptr) {
+      _crop(nullptr) {
 }
 
 // ============================================================

@@ -663,7 +663,7 @@ bool DocumentTextElement::GetNextItem(DocumentItem& item) {
                     const int32_t savedPenX  = _penX;
                     const int32_t savedHang  = _hangIndent;
                     const int32_t savedRight = _rightEdge;
-                    const int32_t saved184   = _unknown184;
+                    const int32_t saved184   = _unwrittenPenState;
                     const int32_t savedRowX  = _rowPenX;
                     const int32_t savedRow   = _rowFirstItem;
 
@@ -686,7 +686,7 @@ bool DocumentTextElement::GetNextItem(DocumentItem& item) {
                     _penX          = savedPenX;
                     _hangIndent    = savedHang;
                     _rightEdge     = savedRight;
-                    _unknown184        = saved184;
+                    _unwrittenPenState        = saved184;
                     _rowPenX       = savedRowX;
                     _penY          = savedY;
                     _rowFirstItem  = savedRow;

@@ -58,8 +58,8 @@
 BuildDescription::BuildDescription()
     : Description(),
       _costs(nullptr),
-      _i30(0),
-      _b34(false) {}
+      _workRequired(0),
+      _scaledWithSize(false) {}
 
 // dtor (slot 0 0x14002f460 minus the stamps): frees the cost array buffer.
 // The compiler then chains ~Description -> ~External.
@@ -129,8 +129,8 @@ bool BuildDescription::Serialize(IO::Stream& stream) {
         ::Object::SerializeExternal<ComponentDescription>(ser, e->material);   // ref  @ elem+0x00
     }
 
-    ser.Serialize(_i30, nullptr);   // int +0x30
-    ser.Serialize(_b34, nullptr);   // bool +0x34
+    ser.Serialize(_workRequired, nullptr);   // int +0x30
+    ser.Serialize(_scaledWithSize, nullptr);   // bool +0x34
 
     // Commit, keeping a populated array over an empty re-load. (The tree ran this
     // after ~Serializer; it touches only this object's memory, so ending the

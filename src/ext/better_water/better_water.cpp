@@ -264,7 +264,7 @@ StripSlot* StripFor(const WorldGeometry& geo) {
         s->waterVertices = waterVertices;
         s->waterCount = waterCount;
         s->state = StripState::NeedsUpload;
-        Strip::Build(geo._heights.data, geo._fieldD0, geo._gridSize >> 1,
+        Strip::Build(geo._heights.data, geo._heightRowStride, geo._gridSize >> 1,
                      reinterpret_cast<const Strip::Vertex*>(geo._contourVertices.data), waterCount, s->mesh);
         std::fprintf(stderr, "[BetterWater] strip built: %d cells, %d vertices, %d chunk(s)\n",
                      s->mesh.cells, static_cast<int>(s->mesh.vertices.size()),

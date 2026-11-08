@@ -30,17 +30,17 @@ namespace Audio { class SoundEffect; }
 // has a retail name.
 struct MusicListTrack {
     Audio::SoundEffect* sound;    // +0x00 ExternalPtr<Audio::SoundEffect>: the track's audio resource (0x1400019a0's cell; B8 RT2)
-    float             field_0x08; // +0x08
-    float             field_0x0C; // +0x0C (new track: 1.0f)
-    int32_t           field_0x10; // +0x10
-    int32_t           field_0x14; // +0x14 (new track: 11)
+    float             minStatus; // +0x08
+    float             maxStatus; // +0x0C (new track: 1.0f)
+    int32_t           minMonth; // +0x10
+    int32_t           maxMonth; // +0x14 (new track: 11)
 };
 static_assert(sizeof(MusicListTrack) == 0x18, "stride 0x18 (0x14001c3c0)");
 static_assert(offsetof(MusicListTrack, sound) == 0x0, "MusicListTrack::sound");
-static_assert(offsetof(MusicListTrack, field_0x08) == 0x08, "+0x08");
-static_assert(offsetof(MusicListTrack, field_0x0C) == 0x0C, "+0x0C");
-static_assert(offsetof(MusicListTrack, field_0x10) == 0x10, "+0x10");
-static_assert(offsetof(MusicListTrack, field_0x14) == 0x14, "+0x14");
+static_assert(offsetof(MusicListTrack, minStatus) == 0x08, "+0x08");
+static_assert(offsetof(MusicListTrack, maxStatus) == 0x0C, "+0x0C");
+static_assert(offsetof(MusicListTrack, minMonth) == 0x10, "+0x10");
+static_assert(offsetof(MusicListTrack, maxMonth) == 0x14, "+0x14");
 
 class MusicList final : public Object::External {
     DECLARE_EXE_TYPE(MusicList)

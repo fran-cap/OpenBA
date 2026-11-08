@@ -383,14 +383,14 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
     st.mouseY = my;
 
     st.buttonPressed = in->_mouse[kLeft].pressed;               // +0x10fe
-    st.b03           = in->_mouse[kRight].pressed;              // +0x1116
-    st.b02           = in->_mouse[kMiddle].pressed;             // +0x112e
-    st.b04           = in->_mouse[kLeft].released;              // +0x10ff
-    st.b06           = in->_mouse[kRight].released;             // +0x1117
-    st.b05           = in->_mouse[kMiddle].released;            // +0x112f
+    st.rightPressed           = in->_mouse[kRight].pressed;              // +0x1116
+    st.middlePressed           = in->_mouse[kMiddle].pressed;             // +0x112e
+    st.leftReleased           = in->_mouse[kLeft].released;              // +0x10ff
+    st.rightReleased           = in->_mouse[kRight].released;             // +0x1117
+    st.middleReleased           = in->_mouse[kMiddle].released;            // +0x112f
     st.leftDown      = (in->_mouse[kLeft].value > 0) ? 1 : 0;   // +0x10fc
-    st.b08           = (in->_mouse[kRight].value > 0) ? 1 : 0;  // +0x1114
-    st.b09           = (in->_mouse[kMiddle].value > 0) ? 1 : 0; // +0x112c
+    st.rightDown           = (in->_mouse[kRight].value > 0) ? 1 : 0;  // +0x1114
+    st.middleDown           = (in->_mouse[kMiddle].value > 0) ? 1 : 0; // +0x112c
     st.wheel         = in->_mouse[kWheel].value;                // +0x11bc
     st.config        = ::Input::Configuration::_singleton->_keyMap;   // +0x00
     st.mouseCaptured = 0;
@@ -466,10 +466,10 @@ int32_t UI::UserInterface::Update(const System::Time& timeRef) {
             rec.dialog   = _dragDropDialog;
             rec.element  = nullptr;
             rec.eventId  = static_cast<EventId>(id);
-            rec.arg14    = -1;
-            rec.arg18    = 0;                                   // } one QWORD
-            rec.arg1C    = 0;                                   // }
-            rec.arg20    = static_cast<int32_t>(_dragDropId);
+            rec.elementId    = -1;
+            rec.mouseX    = 0;                                   // } one QWORD
+            rec.mouseY    = 0;                                   // }
+            rec.value    = static_cast<int32_t>(_dragDropId);
             rec.userData = _dragDropData;
             // rec._pad24 deliberately left uninitialised: retail never writes
             // it and the grow helper never copies it.

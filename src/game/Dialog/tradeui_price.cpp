@@ -106,7 +106,7 @@ int TradeComponent::GetResourcePrice(const ComponentDescription* resource) const
     if (merchantIdx < 0) {
         const ValueDescription* vd = static_cast<const ValueDescription*>(
             PriceFindComponentByTypeId(resource, ValueDescription::TypeId()));
-        const int32_t base = vd ? vd->_i40 : 0;   // retail: *(int*)(0 + 0x40)
+        const int32_t base = vd ? vd->_baseValue : 0;   // retail: *(int*)(0 + 0x40)
         return base;
     }
 
@@ -129,7 +129,7 @@ int TradeComponent::GetResourcePrice(const ComponentDescription* resource) const
 
     const ValueDescription* vd = static_cast<const ValueDescription*>(
         TradeUI_FindValueDescription_ea80(resource));   // 0x14000ea80
-    const int32_t base = vd ? vd->_i40 : 0;        // retail: *(int*)(0 + 0x40)
+    const int32_t base = vd ? vd->_baseValue : 0;        // retail: *(int*)(0 + 0x40)
 
     int32_t result;
     if ((mask14 & flags) != 0) {

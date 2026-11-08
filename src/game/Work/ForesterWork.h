@@ -58,7 +58,7 @@ public:
     using CitizenSet     = Collection::Set<CitizenComponent*>;
     using AssignmentNode = CitizenSet::Node;
     CitizenSet _citizens;
-    int32_t  _field58;           // +0x58: the failed-search count (Persist 0x1400eb970 int&;
+    int32_t  _failedSearchCount;           // +0x58: the failed-search count (Persist 0x1400eb970 int&;
                                  //        Execute 0x1400eaec0 compares it signed)
     uint8_t  _pad5C[4];          // +0x5C: padding
 };
@@ -68,4 +68,4 @@ static_assert(offsetof(ForesterWork, _pad5C) == 0x5C, "ForesterWork::_pad5C");
 static_assert(alignof(ForesterWork) == 8, "ForesterWork is 8-aligned");
 static_assert(offsetof(ForesterWork, _citizens) == 0x48, "ForesterWork +0x48");
 static_assert(offsetof(ForesterWork, _citizens) + offsetof(ForesterWork::CitizenSet, _count) == 0x50, "ForesterWork +0x50");
-static_assert(offsetof(ForesterWork, _field58) == 0x58, "ForesterWork +0x58");
+static_assert(offsetof(ForesterWork, _failedSearchCount) == 0x58, "ForesterWork +0x58");

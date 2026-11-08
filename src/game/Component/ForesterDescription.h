@@ -38,7 +38,7 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140034950
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    ComponentDescription* _ref20;               // +0x20 ExternalPtr (tree/sapling material: ForesterWork scans its sub-descriptions, 0x14000c3c0)
+    ComponentDescription* _naturalResource;               // +0x20 ExternalPtr (tree/sapling material: ForesterWork scans its sub-descriptions, 0x14000c3c0)
     uint32_t _type;                             // +0x28 enum (serialized through the uint door)
     uint8_t _pad2c[4];                          // +0x2c never written by the ctor
 };
@@ -46,5 +46,5 @@ public:
 static_assert(sizeof(ForesterDescription) == 0x30, "ForesterDescription is 0x30 (create 0x1400348e0 MemAlloc(0x30))");
 static_assert(offsetof(ForesterDescription, _pad2c) == 0x2C, "ForesterDescription::_pad2c");
 static_assert(alignof(ForesterDescription) == 8, "ForesterDescription alignment");
-static_assert(offsetof(ForesterDescription, _ref20) == 0x20, "ForesterDescription::_ref20 @ +0x20");
+static_assert(offsetof(ForesterDescription, _naturalResource) == 0x20, "ForesterDescription::_naturalResource @ +0x20");
 static_assert(offsetof(ForesterDescription, _type) == 0x28, "ForesterDescription::_type @ +0x28");

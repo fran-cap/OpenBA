@@ -361,8 +361,8 @@ void CropFieldComponent::OnMessage(int message, void* /*data*/, uint32_t arg0, u
         if (!(desc && ::Object::IsDerivedFromNullSafe(desc, tidCropDesc)))
             return;
 
-        const float rate = growth->config->_f28;
-        const float mult = static_cast<CropFieldDescription*>(desc)->_f24;
+        const float rate = growth->config->_growthInMonths;
+        const float mult = static_cast<CropFieldDescription*>(desc)->_growthPercentOnTend;
         ::System::Time t = {0};
         RtSystem_Time_Ctor(&t, rate * kRdata_140172234 * mult);   // 300.0f
 

@@ -129,9 +129,9 @@ extern "C" ::Object::InternalPtr<Action>* WorkAct_GatherRawMatCtor_bf790(
     ibpA = sm;                                            // (0xbf86a)
     // SendComponentMessage handle slot = R14+0x10, where R14 = list = character+0x48,
     // i.e. character+0x58. DeletePtr the prior handle, then store. (0xbf870-0xbf885)
-    if (character->actionStack.field_0x10 != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
-        character->actionStack.field_0x10.DeletePtr();   // (0xbf877-0xbf87b)
-    character->actionStack.field_0x10 = ibpA;                                       // (0xbf885)
+    if (character->actionStack.completionAction != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
+        character->actionStack.completionAction.DeletePtr();   // (0xbf877-0xbf87b)
+    character->actionStack.completionAction = ibpA;                                       // (0xbf885)
 
     // ============================================================
     // optional SendComponentMessage #2 when (char)flags != 0  (0xbf889-0xbf914)

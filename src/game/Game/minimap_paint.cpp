@@ -186,7 +186,7 @@ void Minimap::PaintTerrain(Video::Context& context, Graphics::Geometry* worldGeo
     const float fogEnd   = 1001.0f;  // DAT_14017224c
     context.SetFog(fogStart, fogEnd, fogColor);
 
-    context._unknown03b8 = Math::Vector4(0.0f, 0.0f, clearDepth, 0.0f);   // +0x3b8..+0x3c4
+    context._userPosition = Math::Vector4(0.0f, 0.0f, clearDepth, 0.0f);   // +0x3b8..+0x3c4
     // Context +0x288: Context::PixelConstantStaging::pixel[4] (Video/Context.h).
     Math::Vector4& row = context._pixelConstantStaging.pixel[4];
     row.x = 0.0f;         // +0x288

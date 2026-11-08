@@ -42,7 +42,7 @@ Map* LoadedMap() {
     GameUpdateLoop* loop = GameUpdateLoop::_singleton;
     if (loop == nullptr || loop->m_game == nullptr) return nullptr;
     const WorldGeometry* wg = loop->m_worldGeometry;
-    if (wg == nullptr || wg->_heights.data == nullptr || wg->_fieldD0 <= 0) return nullptr;
+    if (wg == nullptr || wg->_heights.data == nullptr || wg->_heightRowStride <= 0) return nullptr;
     return loop->m_game;
 }
 
@@ -54,7 +54,7 @@ bool IsRock(const ModelComponent* model) {
     Description* desc = nr->_description;
     if (!::Object::IsDerivedFromNullSafe(desc, NaturalResourceDescription::TypeId())) return false;
     const NaturalResourceDescription* d = static_cast<const NaturalResourceDescription*>(desc);
-    return !d->_b64 && d->_u80 == kToolPickAxe;
+    return !d->_animated && d->_toolType == kToolPickAxe;
 }
 
 }  // namespace

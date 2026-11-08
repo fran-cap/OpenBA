@@ -70,8 +70,8 @@ struct Node final : ControllerComponent::Controller {
     Machine* m = nullptr;
 
     Node(int id_, const Table* t) : id(id_), table(t) {}
-    Node* Parent() const { return static_cast<Node*>(_data08); }
-    Node* Child()  const { return static_cast<Node*>(_data10); }
+    Node* Parent() const { return static_cast<Node*>(_parent); }
+    Node* Child()  const { return static_cast<Node*>(_child); }
 
     int  FindState(int stateId) override { return table->Find(stateId); }
     int  FindTransition(int stateIndex, int* desiredStateId) override;
@@ -182,14 +182,14 @@ struct World {
         bool got = false;
         for (Node* n : m.ctrl) {
             if (!got) { m.sm.pendingState = (int8_t)defaultState; got = true; }
-            n->_data08 = tail; tail->_data10 = n; tail = n;
+            n->_parent = tail; tail->_child = n; tail = n;
         }
     }
     // StateMachineComponent::RelinkAndResume (after a load: current = root, bytes kept).
     void Relink(Machine& m) {
         m.sm.tickMemo = SmMemo::kNone;
         Node* tail = m.root;
-        for (Node* n : m.ctrl) { n->_data08 = tail; tail->_data10 = n; tail = n; }
+        for (Node* n : m.ctrl) { n->_parent = tail; tail->_child = n; tail = n; }
         if (m.sm.currentInput < 0) return;
         Node* node = m.Current();
         while (node->Child()) node = node->Child();

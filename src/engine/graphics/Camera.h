@@ -436,12 +436,12 @@ public:
     const Material*         _material;   // +0x08  MaterialInstance::_material (+0x28), by value
     const MaterialInstance* _instance;   // +0x10
     uint16_t    _flags;      // +0x18
-    uint16_t    _arg5;       // +0x1a
+    uint16_t    _node;       // +0x1a
     float       _sortKey;    // +0x1c
-    int32_t     _arg8;       // +0x20
+    int32_t     _maxInstances;       // +0x20
     int32_t     _pad24;      // +0x24  NEVER WRITTEN
     const void* _userData;   // +0x28
-    uint32_t    _arg10;      // +0x30
+    uint32_t    _animationInstanceId;      // +0x30
     int32_t     _pad34;      // +0x34  NEVER WRITTEN
 };
 static_assert(sizeof(RendererDrawItem) == 0x38, "Renderer::DrawItem is 0x38");
@@ -449,11 +449,11 @@ static_assert(offsetof(RendererDrawItem, _geometry) == 0x0, "RendererDrawItem::_
 static_assert(offsetof(RendererDrawItem, _material) == 0x8, "RendererDrawItem::_material");
 static_assert(offsetof(RendererDrawItem, _instance) == 0x10, "RendererDrawItem::_instance");
 static_assert(offsetof(RendererDrawItem, _flags) == 0x18, "RendererDrawItem::_flags");
-static_assert(offsetof(RendererDrawItem, _arg5) == 0x1A, "RendererDrawItem::_arg5");
+static_assert(offsetof(RendererDrawItem, _node) == 0x1A, "RendererDrawItem::_node");
 static_assert(offsetof(RendererDrawItem, _sortKey) == 0x1C, "RendererDrawItem::_sortKey");
-static_assert(offsetof(RendererDrawItem, _arg8) == 0x20, "RendererDrawItem::_arg8");
+static_assert(offsetof(RendererDrawItem, _maxInstances) == 0x20, "RendererDrawItem::_maxInstances");
 static_assert(offsetof(RendererDrawItem, _userData) == 0x28, "RendererDrawItem::_userData");
-static_assert(offsetof(RendererDrawItem, _arg10) == 0x30, "RendererDrawItem::_arg10");
+static_assert(offsetof(RendererDrawItem, _animationInstanceId) == 0x30, "RendererDrawItem::_animationInstanceId");
 static_assert(std::is_trivially_copyable_v<RendererDrawItem>, "byteCopy element");
 static_assert(offsetof(RendererDrawItem, _pad24)    == 0x24, "DrawItem::_pad24 @ +0x24");
 static_assert(offsetof(RendererDrawItem, _pad34)    == 0x34, "DrawItem::_pad34 @ +0x34");

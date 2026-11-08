@@ -324,7 +324,7 @@ IO::FileSystem* Ctor_FileSystem(IO::FileSystem* self) {
 //   MOV EDX,0x1388 ; LEA RCX,[RSI+0x60] ; CALL [SetCriticalSectionSpinCount]
 //   MOV qword [RSI+0xb0 .. +0xf0],RBP         ; the three plugin slots
 //   MOV qword [RSI+0x90],RBP                  ; windowHandle
-//   MOV word  [RSI+0x9c],BP                   ; settingsChanged, field9D
+//   MOV word  [RSI+0x9c],BP                   ; settingsChanged, adjustingDisplay
 //   MOV dword [RSI+0xf8],0xffffffff           ; activeInterface = -1
 //   MOV qword [RSI+0x100],RBP                 ; deviceData
 //   MOV qword [RSI+0xa0],RBP ; [RSI+0xa8],RBP
@@ -367,11 +367,11 @@ Video::Device* Ctor_VideoDevice(Video::Device* self, int32_t type) {
     }
     self->windowHandle       = nullptr;
     self->settingsChanged    = 0;
-    self->field9D            = 0;
+    self->adjustingDisplay            = 0;
     self->activeInterface    = -1;
     self->deviceData         = nullptr;
     self->monitor            = nullptr;
-    std::memset(self->gapA8, 0, sizeof(self->gapA8));   // one qword store in retail
+    std::memset(self->unusedMonitorPair, 0, sizeof(self->unusedMonitorPair));   // one qword store in retail
 
     Video::Device* const keep = Video::Device::_singleton;
     Video::Device::_singleton = (type == 0) ? self : keep;   // the CMOVE, then the store
@@ -393,7 +393,7 @@ Video::Device* Ctor_VideoDevice(Video::Device* self, int32_t type) {
 //   MOV dword [RCX+0x38],0x3c         ; refreshNumerator = 60
 //   MOV dword [RCX+0x3c],1            ; refreshDenominator
 //   MOV word  [RCX+0x40],0x101        ; fullscreen = 1, vsync = 1
-//   MOV byte  [RCX+0x42],0            ; field42
+//   MOV byte  [RCX+0x42],0            ; hideWindow
 //   MOV qword ptr [0x1801fe7a0],RCX   ; _singleton
 //
 // Six of the thirteen stores are UNALIGNED qwords spanning two named fields.
@@ -420,7 +420,7 @@ Video::Configuration* Ctor_VideoConfiguration(Video::Configuration* self) {
     self->refreshDenominator = 1;
     self->fullscreen         = 1;
     self->vsync              = 1;
-    self->field42            = 0;
+    self->hideWindow            = 0;
     Video::Configuration::_singleton = self;
     return self;
 }

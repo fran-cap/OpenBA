@@ -50,8 +50,8 @@
 // header, capacity at +0x44) and src/engine/picking/Scene.h's POD (bare
 // `SubMesh* _nodes; int32 _nodeCount`) FOLD into that one class (RULE B7-6).
 // The slot bodies are its members; every registered door below is a one-line
-// QUALIFIED delegation. The fields are named by offset (_string20, _string28,
-// _flag30): no getter names them (B6-8).
+// QUALIFIED delegation. The fields were named by offset (now _meshName, _subObject,
+// _allowChildren): no getter names them (B6-8).
 //
 // RULE B6-5: the four Array SetSize bodies and ~Array<SubMesh> are reached by
 // ADDRESS (registry-first) through namespace-scope atomic slots — this class
@@ -260,7 +260,7 @@ Object::Base* PickingMesh::CreateInPlaceObject(void* place) {
 // ============================================================================
 // [5] ?Serialize@PickingMesh@Picking@@UEAA_NAEAVStream@IO@@@Z  0x180122960
 // ============================================================================
-// Order: _string20, _string28, _flag30 (kScalarBool), then the SubMesh array
+// Order: _meshName, _subObject, _allowChildren (kScalarBool), then the SubMesh array
 // (count @ +0x40, resize 0x18007aa40, walk 0x18007ac20).
 bool PickingMesh::Serialize(IO::Stream& stream) {
     // B.4 R-SYS: retail's `??0Serializer@IO@@` (0x1800b9960): the stream, a
@@ -269,13 +269,13 @@ bool PickingMesh::Serialize(IO::Stream& stream) {
     // ReaderWriter at scope exit, where the hand-written `delete` stood.
     IO::Serializer ser(stream, 0);
 
-    _string20.Serialize(ser);
-    _string28.Serialize(ser);
+    _meshName.Serialize(ser);
+    _subObject.Serialize(ser);
 
     IO::ReaderWriter* rwc = ser._readerWriter;
     const bool reading = (stream._direction == rt::io::kDirectionReading);
 
-    rwc->SerializeBool(_flag30, nullptr);                     // +0x78
+    rwc->SerializeBool(_allowChildren, nullptr);                     // +0x78
 
     int32_t nodeCount = _nodes._size;
     rwc->SerializeInt(nodeCount, nullptr);                    // +0xa0

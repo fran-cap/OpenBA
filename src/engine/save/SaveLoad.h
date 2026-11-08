@@ -310,7 +310,7 @@ public:
         // THE STACK TEMPLATE UpdateList state 1 builds and appends
         // (0x1800c1fb0..0x1800c1fdf, the blank row at 0x1800c1f41..0x1800c1f65):
         // eleven stores — q+0x00, d+0x08, q+0x10, q+0x18, q+0x28, q+0x30,
-        // q+0x38, q+0x40 (= -1, i.e. field44 too), q+0x48, q+0x50, then d+0x40
+        // q+0x38, q+0x40 (= -1, i.e. formatVersion too), q+0x48, q+0x50, then d+0x40
         // = index — and NEVER +0x0c, +0x20 or +0x24: those keep what the
         // storage held. (+0x2c IS written: +0x28 is a QWORD store,
         // 0x1800c1fc3 `MOV qword ptr [RBP-0x21],RSI`. The old UpdateList banner
@@ -327,7 +327,7 @@ public:
               sortKey(),                   // +0x30  the qword 0
               name(),                      // +0x38  String(): the qword 0
               saveIndex(index),            // +0x40
-              field44(-1),                 // +0x44
+              formatVersion(-1),                 // +0x44
               mods() {}                    // +0x48 qword 0, +0x50 qword 0
         // 0x180032f70 (unexported) — the element assign of 0x1800332d0: every
         // qword/dword verbatim, the two Strings adopted with an AddRef, and the
@@ -357,7 +357,7 @@ public:
         System::DateTime sortKey;    // +0x30  SaveGameInfo+0x00; qsort key (its 64-bit ticks), DESCENDING
         System::String name;         // +0x38
         int32_t     saveIndex;       // +0x40  Persistence save index; -1 == the blank row
-        int32_t     field44;         // +0x44  LoadMetaData out-param 6 (format version)
+        int32_t     formatVersion;         // +0x44  LoadMetaData out-param 6 (format version)
         Collection::Array<ModInfo> mods;   // +0x48  {_data, _size, _capacity}
     };
 
@@ -395,8 +395,8 @@ public:
     struct ExtraModRecord {
         const char* path;            // "ext:<id>"
         const char* name;            // the display name
-        int32_t     field10;         // ModInfo +0x10 (the package CRC slot): 0
-        uint32_t    field14;         // ModInfo +0x14: 0x010007ff
+        int32_t     versionMajor;         // ModInfo +0x10 (the package CRC slot): 0
+        uint32_t    gameVersion;         // ModInfo +0x14: 0x010007ff
         int32_t     formatVersion;   // ModInfo +0x18: the extension's format version
     };
     using ExtraModsProvider = int (*)(ExtraModRecord* out, int capacity);
@@ -502,7 +502,7 @@ public:
     // C++ constructor or destructor that could run them: construction and
     // destruction are the ??0 / ??1 doors (saveload.cpp), which write
     // `_data` and call `~String()` at retail's points explicitly.
-    System::String _string20;      // +0x20  the operation's save name; ~SaveLoad releases it LAST
+    System::String _operationSaveName;      // +0x20  the operation's save name; ~SaveLoad releases it LAST
     // An entire Save::SavedState embedded BY VALUE (Wave 13's correction of the
     // old `field28`/`_buffer30`): ?UpdateList state 3 (0x1800c2455) calls
     // ?SetupLoad@SavedState with `this + 0x28`; ?UpdateSave (0x1800c2c60) builds
@@ -510,7 +510,7 @@ public:
     // the same locked MemFree ~SavedState uses. The save path serialises into
     // TWO SavedStates, one owned inline and one on the heap (+0x40).
     SavedState  _embeddedState;    // +0x28 .. +0x37
-    uint32_t    field38;           // +0x38  UpdateList's metadata cursor
+    uint32_t    _metadataCursor;           // +0x38  UpdateList's metadata cursor
     uint32_t    pad3c;             // +0x3c  NOT written by the ctor
     SavedState* _saveState;        // +0x40  GetSaveState. NOT written by the ctor
     int32_t     _selectedIndex;    // +0x48  SetOperation's second argument; ctor -1
@@ -551,7 +551,7 @@ static_assert(offsetof(SaveLoad::SaveInfo, thumbPixels) == 0x28, "SaveInfo.thumb
 static_assert(offsetof(SaveLoad::SaveInfo, sortKey)     == 0x30, "SaveInfo.sortKey @ 0x30");
 static_assert(offsetof(SaveLoad::SaveInfo, name)        == 0x38, "SaveInfo.name @ 0x38");
 static_assert(offsetof(SaveLoad::SaveInfo, saveIndex)   == 0x40, "SaveInfo.saveIndex @ 0x40");
-static_assert(offsetof(SaveLoad::SaveInfo, field44)     == 0x44, "SaveInfo.field44 @ 0x44");
+static_assert(offsetof(SaveLoad::SaveInfo, formatVersion)     == 0x44, "SaveInfo.formatVersion @ 0x44");
 static_assert(offsetof(SaveLoad::SaveInfo, mods)        == 0x48, "SaveInfo.mods @ 0x48");
 static_assert(offsetof(SaveLoad::SaveInfo, mods) + offsetof(Collection::Array<SaveLoad::ModInfo>, _size) == 0x50,
               "SaveInfo.mods._size @ 0x50 (saveloaddialog.cpp:1088)");
@@ -566,11 +566,11 @@ static_assert(offsetof(SaveLoad, _elapsed)          == 0x08, "SaveLoad._elapsed 
 static_assert(offsetof(SaveLoad, _minOperationTime) == 0x10, "SaveLoad._minOperationTime @ 0x10");
 static_assert(offsetof(SaveLoad, _progress)         == 0x18, "SaveLoad._progress @ 0x18");
 static_assert(sizeof(SaveLoad::Progress) == 4, "SaveLoad._progress is a dword (uint32_t)");
-static_assert(offsetof(SaveLoad, _string20)         == 0x20, "SaveLoad._string20 @ 0x20");
+static_assert(offsetof(SaveLoad, _operationSaveName)         == 0x20, "SaveLoad._operationSaveName @ 0x20");
 static_assert(offsetof(SaveLoad, _embeddedState)    == 0x28, "SaveLoad._embeddedState @ 0x28");
 static_assert(offsetof(SaveLoad, _embeddedState) + offsetof(SavedState, _data) == 0x30,
               "the embedded SavedState puts its _data at SaveLoad+0x30 — the old _buffer30");
-static_assert(offsetof(SaveLoad, field38)           == 0x38, "SaveLoad.field38 @ 0x38");
+static_assert(offsetof(SaveLoad, _metadataCursor)           == 0x38, "SaveLoad._metadataCursor @ 0x38");
 static_assert(offsetof(SaveLoad, _saveState)        == 0x40, "SaveLoad._saveState @ 0x40");
 static_assert(offsetof(SaveLoad, _selectedIndex)    == 0x48, "SaveLoad._selectedIndex @ 0x48");
 static_assert(offsetof(SaveLoad, _saves)            == 0x50, "SaveLoad._saves @ 0x50");

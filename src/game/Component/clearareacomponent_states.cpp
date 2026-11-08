@@ -91,7 +91,7 @@ static T* FindOn(ComponentEntity* entity) {
 // grid = int*; grid[0] = width; *(char*)grid+0x80 = tile array base; tile stride
 // 0x30; tile+0x08 = occupant entity IBP; tile+0x29 flags byte, +0x2a byte;
 // *(void**)((char*)grid+0xe8) = reserved-cell BST root {key@0, left@0x10, right@0x18}.
-// By name: Map::cells (MapCell), Map::field_0xE8 (AvlNode28).
+// By name: Map::cells (MapCell), Map::pendingRoadCells (AvlNode28).
 // ============================================================
 static inline const MapCell* GridTiles(const Map* grid) {
     return grid->cells.GetData();   // Map +0x80

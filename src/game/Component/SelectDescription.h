@@ -39,19 +39,19 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x14000bc00
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    UI::SpriteSheet* _ref20;                    // +0x20 ExternalPtr (a raw pointer)
-    System::String _s28;                        // +0x28 String
-    UI::StringTable* _ref30;                    // +0x30 ExternalPtr (a raw pointer)
-    System::String _s38;                        // +0x38 String
-    uint32_t _u40;                              // +0x40 enum (serialized through the uint door)
+    UI::SpriteSheet* _spriteSheet;                    // +0x20 ExternalPtr (a raw pointer)
+    System::String _spriteName;                        // +0x28 String
+    UI::StringTable* _stringTable;                    // +0x30 ExternalPtr (a raw pointer)
+    System::String _stringName;                        // +0x38 String
+    uint32_t _group;                              // +0x40 enum (serialized through the uint door)
     uint8_t _pad44[4];                          // +0x44 never written by the ctor
 };
 
 static_assert(sizeof(SelectDescription) == 0x48, "SelectDescription is 0x48 (create 0x14000bb90 MemAlloc(0x48))");
 static_assert(offsetof(SelectDescription, _pad44) == 0x44, "SelectDescription::_pad44");
 static_assert(alignof(SelectDescription) == 8, "SelectDescription alignment");
-static_assert(offsetof(SelectDescription, _ref20) == 0x20, "SelectDescription::_ref20 @ +0x20");
-static_assert(offsetof(SelectDescription, _s28) == 0x28, "SelectDescription::_s28 @ +0x28");
-static_assert(offsetof(SelectDescription, _ref30) == 0x30, "SelectDescription::_ref30 @ +0x30");
-static_assert(offsetof(SelectDescription, _s38) == 0x38, "SelectDescription::_s38 @ +0x38");
-static_assert(offsetof(SelectDescription, _u40) == 0x40, "SelectDescription::_u40 @ +0x40");
+static_assert(offsetof(SelectDescription, _spriteSheet) == 0x20, "SelectDescription::_spriteSheet @ +0x20");
+static_assert(offsetof(SelectDescription, _spriteName) == 0x28, "SelectDescription::_spriteName @ +0x28");
+static_assert(offsetof(SelectDescription, _stringTable) == 0x30, "SelectDescription::_stringTable @ +0x30");
+static_assert(offsetof(SelectDescription, _stringName) == 0x38, "SelectDescription::_stringName @ +0x38");
+static_assert(offsetof(SelectDescription, _group) == 0x40, "SelectDescription::_group @ +0x40");

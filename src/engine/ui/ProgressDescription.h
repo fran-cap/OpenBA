@@ -57,7 +57,7 @@ public:
     // ElementDescription's stores (inlined in retail), then +0x68 ONE DWORD
     // (+0x6c stays untouched) and +0x70..+0xaf zero.
     ProgressDescription() : ElementDescription() {
-        _unknown68        = 0;
+        _backgroundColor        = 0;
         _spriteSheet      = nullptr;
         // +0x78 .. +0xa0: the six System::String members, zeroed by their own
         // ctor (0x180006760) as 0x18011a294 .. 0x18011a2b4 store (B4 P2 H5).
@@ -90,7 +90,7 @@ public:
 private:
 
 public:
-    uint32_t _unknown68;          // +0x68  ctor DWORD 0; kScalarUInt. Serialized, read by no slot
+    uint32_t _backgroundColor;          // +0x68  ctor DWORD 0; kScalarUInt. Serialized, read by no slot
     uint32_t _pad6c;              // +0x6c  written by nothing
     SpriteSheet*    _spriteSheet;        // +0x70  ExternalPtr<UI::SpriteSheet>
     System::String _fillLeftName;       // +0x78  System::String -> ProgressElement::_fillLeft
@@ -106,8 +106,8 @@ static_assert(sizeof(ProgressDescription) == 0xb0,
               "UI::ProgressDescription is 0xb0 (MOV EDX,0xb0 in 0x180077c80)");
 static_assert(offsetof(ProgressDescription, _pad6c) == 0x6C, "ProgressDescription::_pad6c");
 static_assert(alignof(ProgressDescription) == 8, "UI::ProgressDescription aligns to 8");
-static_assert(offsetof(ProgressDescription, _unknown68) == sizeof(ElementDescription), "");
-static_assert(offsetof(ProgressDescription, _unknown68)        == 0x68, "");
+static_assert(offsetof(ProgressDescription, _backgroundColor) == sizeof(ElementDescription), "");
+static_assert(offsetof(ProgressDescription, _backgroundColor)        == 0x68, "");
 static_assert(offsetof(ProgressDescription, _spriteSheet)      == 0x70, "");
 static_assert(offsetof(ProgressDescription, _fillLeftName)     == 0x78, "");
 static_assert(offsetof(ProgressDescription, _fillMiddleName)   == 0x80, "");

@@ -104,7 +104,7 @@ public:
     // Base's and External's vptr (External(), the compiler's), +0x08/+0x10/
     // +0x18 zero (External()), PointList's vptr (the compiler's), then SIX zero
     // qwords +0x20..+0x48 -- the two Strings' null and the two Arrays' headers.
-    PointList() : Object::External(), _meshName(), _string28(), _points(), _pathPoints() {}
+    PointList() : Object::External(), _meshName(), _subObject(), _points(), _pathPoints() {}
 
     // ---- the nine slots, in measured order ----
     // [0] 0x1800713b0 -- MSVC's VECTOR deleting destructor, both arms exactly as
@@ -156,7 +156,7 @@ public:
     // ---- the 0x30 bytes PointList adds (public: the doors and the exe-side
     // raw reader reach them) ----
     System::String           _meshName;    // +0x20  GetMeshName 0x1800711b0
-    System::String           _string28;    // +0x28  serialized second; no getter
+    System::String           _subObject;    // +0x28  serialized second; no getter
     Collection::Array<Point> _points;      // +0x30  Points 0x180071190
     Collection::Array<Point> _pathPoints;  // +0x40  PathPoints 0x1800711a0
 };
@@ -170,7 +170,7 @@ static_assert(sizeof(PointList) == 0x50,
               "Pathfinding::PointList is 0x50 bytes (MOV EDX,0x50 in slot 0, 0x1800713b0)");
 static_assert(alignof(PointList) == 8, "Pathfinding::PointList aligns to 8 (the vptr)");
 static_assert(offsetof(PointList, _meshName)   == 0x20, "GetMeshName 0x1800711b0 reads +0x20");
-static_assert(offsetof(PointList, _string28)   == 0x28, "Serialize's second String @ +0x28");
+static_assert(offsetof(PointList, _subObject)   == 0x28, "Serialize's second String @ +0x28");
 static_assert(offsetof(PointList, _points)     == 0x30, "Points 0x180071190 is LEA [RCX+0x30]");
 static_assert(offsetof(PointList, _pathPoints) == 0x40, "PathPoints 0x1800711a0 is LEA [RCX+0x40]");
 static_assert(offsetof(PointList, _meshName) == sizeof(Object::External),

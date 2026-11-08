@@ -134,9 +134,9 @@ void WorkAct_PerformWorkCopyCtor_ba9f0(CitizenComponent* const* citizenRef, uint
     }
     ibpA = sm;
     // 0x1400baad0: CMP [R15+0x10] — R15 = character+0x48, so this is (character+0x48)+0x10 = character+0x58.
-    if (character->actionStack.field_0x10 != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpA; // 0x1400baae5: MOV [R15+0x10],RAX
+    if (character->actionStack.completionAction != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpA; // 0x1400baae5: MOV [R15+0x10],RAX
 
     // --- heading via Entity_impl_29a0(pos5, &{*param_6}) (0x1400baae9..0x1400bab02; XMM6) ---
     ComponentEntity* srcInner6 = srcRef6 ? *srcRef6 : nullptr; // 0x1400baaed: MOV RAX,[R13]; [RBP+0x7f]=RAX
@@ -318,9 +318,9 @@ void WorkAct_PerformWorkCtor_bffd0(CitizenComponent* const* citizenRef, uint32_t
     }
     ibpA = sm;
     // 0x1400c00b1: CMP [RSI+0x10] — RSI = character+0x48 → character+0x58.
-    if (character->actionStack.field_0x10 != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpA; // 0x1400c00c6: MOV [RSI+0x10],RAX
+    if (character->actionStack.completionAction != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpA; // 0x1400c00c6: MOV [RSI+0x10],RAX
 
     // --- CompleteTask (workId, p5=completeTaskP7) (0x1400c00ca..0x1400c012a) ---
     obj = WAP_Alloc(0x38, 8); // 0x1400c00cf: ECX=0x30+8=0x38

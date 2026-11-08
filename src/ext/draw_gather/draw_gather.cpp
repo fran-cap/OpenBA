@@ -582,9 +582,9 @@ void ReplayTask(const DispatchTask& t, const Scene& scene, Renderer& r, int32_t 
 // The two pads AddDrawItem never writes are not compared: they are stack bytes in retail too.
 bool SameItem(const RendererDrawItem& a, const RendererDrawItem& b) {
     return a._geometry == b._geometry && a._material == b._material && a._instance == b._instance &&
-           a._flags == b._flags && a._arg5 == b._arg5 &&
-           std::memcmp(&a._sortKey, &b._sortKey, sizeof(float)) == 0 && a._arg8 == b._arg8 &&
-           a._userData == b._userData && a._arg10 == b._arg10;
+           a._flags == b._flags && a._node == b._node &&
+           std::memcmp(&a._sortKey, &b._sortKey, sizeof(float)) == 0 && a._maxInstances == b._maxInstances &&
+           a._userData == b._userData && a._animationInstanceId == b._animationInstanceId;
 }
 
 // ===========================================================================

@@ -453,15 +453,15 @@ void WorkScheduler::Serialize(IO::Stream& stream) {
     int32_t slotCount = (version > 2) ? 0xf : 0xe;
 
     SerializeIdTrees(ser, slotCount, trees);
-    SerializeBucketTree(&field_0x120, &field_0x128, ser);
+    SerializeBucketTree(&professionBucketRoot, &professionBucketCount, ser);
 
-    ser.Serialize(field_0x00, nullptr);
-    ser.Serialize(field_0x04, nullptr);
+    ser.Serialize(lastWorkId, nullptr);
+    ser.Serialize(nextQueueOrder, nullptr);
     ser.Serialize(stepCount, nullptr);
 
     bool loading = (static_cast<int>(stream.GetDirection()) == 0);   // IO::Stream::GetDirection, retail 0x180006200
     if (loading) {
-        WorkSchedulerCountNode* workCountRoot = field_0x10.root;
+        WorkSchedulerCountNode* workCountRoot = queueOrderTree.root;
 
         // --- Stage 1: walk the id tree (+0x30), notify each Work (slot 12), and for
         // version==2 entries build the +0x10 tree keyed by the running counter at +0x18. ---
@@ -475,16 +475,16 @@ void WorkScheduler::Serialize(IO::Stream& stream) {
 
                 int32_t ver = ser.GetVersion();
                 if (ver == 2) {
-                    int32_t counter = field_0x10.count;
-                    uint32_t workId = static_cast<uint32_t>(node->work->field_20);
+                    int32_t counter = queueOrderTree.count;
+                    uint32_t workId = static_cast<uint32_t>(node->work->_workId);
                     bool inserted = false;
                     CountTreeInsert(&workCountRoot, counter, workId, &inserted);
                     if (inserted) {
-                        field_0x10.count = counter + 1;
+                        queueOrderTree.count = counter + 1;
                     }
                 }
             }
-            field_0x10.root = workCountRoot;
+            queueOrderTree.root = workCountRoot;
         }
 
         // --- Stage 2: re-walk the id tree; for Works whose entity (+0x10) is set, collect the
@@ -498,7 +498,7 @@ void WorkScheduler::Serialize(IO::Stream& stream) {
         {
             for (WorkSchedulerIdNode* node = Leftmost(trees[0].root); node; node = Next(node)) {
                 Work* work = node->work.Get();
-                if (work->field_10 != nullptr) {
+                if (work->_entity != nullptr) {
                     bool inserted = false;
                     CountTreeInsert(&localFound.root, node->key, 0, &inserted); // key only; upper 32 unused by retail
                     if (inserted) {
@@ -552,11 +552,11 @@ void WorkScheduler::Serialize(IO::Stream& stream) {
                     }
 
                     Work* work = idTreeNode->work.Get();
-                    int32_t orderKey = work->field_24;
+                    int32_t orderKey = work->_queueOrder;
 
-                    WorkSchedulerCountNode* wcMatch = FindByKey(field_0x10.root, orderKey);
+                    WorkSchedulerCountNode* wcMatch = FindByKey(queueOrderTree.root, orderKey);
                     if (wcMatch != nullptr) {
-                        EraseCountNode(&field_0x10, wcMatch);   // RCX = R13+0x10 (0x1400f9896 / 0x1400f989a)
+                        EraseCountNode(&queueOrderTree, wcMatch);   // RCX = R13+0x10 (0x1400f9896 / 0x1400f989a)
                     }
 
                     // Slot 10 writes the Work's target Profession into the return slot (every
@@ -566,7 +566,7 @@ void WorkScheduler::Serialize(IO::Stream& stream) {
 
                     // The keys compare as unsigned qwords (pointer order).
                     Profession* const targetKey = target[0];
-                    WorkSchedulerBucketNode* cNode = field_0x120;
+                    WorkSchedulerBucketNode* cNode = professionBucketRoot;
                     while (cNode != nullptr) {
                         Profession* const nodeKey = cNode->bucket.key;
                         if (targetKey < nodeKey) {

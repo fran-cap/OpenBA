@@ -39,7 +39,7 @@
 //     +0x86 ..+0x87  NEVER WRITTEN by the ctor and read by no body
 //     +0x88 dword 0xc8  kScalarInt
 //     +0x8c dword -1    kScalarInt, serialized CONDITIONALLY (textdescription.cpp)
-// The scalar names are the ported file's (`_u80`/`_b84`/`_b85`/`_i8c`; the +0x88 dword is `_wordWrapSize`):
+// The scalar names are the ported file's (`_u80`/`_b84`/`_b85`/`_maxWidth`; the +0x88 dword is `_wordWrapSize`):
 // Serialize proves the widths, nothing proves a meaning. +0x88 is the width a wrapped text breaks at (the kit's
 // Mod.rsc writes `int _wordWrapSize = 192`), so it carries that name here and in TextElement.
 //
@@ -81,11 +81,11 @@ public:
         _font         = nullptr;
         _stringTable2 = nullptr;
         // +0x78 `_name`: its own String() (the zero store) runs as a member.
-        _u80 = 0;
-        _b84 = false;
-        _b85 = false;
+        _justify = 0;
+        _dropShadow = false;
+        _wordWrap = false;
         _wordWrapSize = 0xc8;
-        _i8c = -1;
+        _maxWidth = -1;
     }
 
     // ---- the ten slots, in measured order ---------------------------------
@@ -139,12 +139,12 @@ public:
     Font*        _font;          // +0x68  ExternalPtr<UI::Font>
     StringTable* _stringTable2;  // +0x70  ExternalPtr<UI::StringTable> (the base's +0x58 is another)
     System::String _name;        // +0x78  ctor 0x18011ea20 zero store, dtor 0x18011eae0 release
-    uint32_t     _u80;           // +0x80  kScalarUInt
-    bool         _b84;           // +0x84  kScalarBool
-    bool         _b85;           // +0x85  kScalarBool
+    uint32_t     _justify;           // +0x80  kScalarUInt
+    bool         _dropShadow;           // +0x84  kScalarBool
+    bool         _wordWrap;           // +0x85  kScalarBool
     uint8_t      _pad86[2];      // +0x86  never written
     int32_t      _wordWrapSize;  // +0x88  kScalarInt, ctor 0xc8
-    int32_t      _i8c;           // +0x8c  kScalarInt, ctor -1, conditional
+    int32_t      _maxWidth;           // +0x8c  kScalarInt, ctor -1, conditional
 };
 
 static_assert(sizeof(TextDescription) == 0x90,
@@ -158,10 +158,10 @@ static_assert(offsetof(TextDescription, _font) == sizeof(ElementDescription),
 static_assert(offsetof(TextDescription, _font)         == 0x68, "");
 static_assert(offsetof(TextDescription, _stringTable2) == 0x70, "");
 static_assert(offsetof(TextDescription, _name)         == 0x78, "");
-static_assert(offsetof(TextDescription, _u80)          == 0x80, "");
-static_assert(offsetof(TextDescription, _b84)          == 0x84, "");
-static_assert(offsetof(TextDescription, _b85)          == 0x85, "");
+static_assert(offsetof(TextDescription, _justify)          == 0x80, "");
+static_assert(offsetof(TextDescription, _dropShadow)          == 0x84, "");
+static_assert(offsetof(TextDescription, _wordWrap)          == 0x85, "");
 static_assert(offsetof(TextDescription, _wordWrapSize)   == 0x88, "");
-static_assert(offsetof(TextDescription, _i8c)          == 0x8c, "");
+static_assert(offsetof(TextDescription, _maxWidth)          == 0x8c, "");
 
 }  // namespace UI

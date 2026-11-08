@@ -122,7 +122,7 @@ void ToolbarDialog::CloseSubDialog() {
 // through speedValues, clamped to its ends.
 void ToolbarDialog::ChangeSpeed(int direction) {
     PlayerToolManager* toolManager = GameUpdateLoop::_singleton->m_toolManager;
-    int32_t speedVal = toolManager->field_0x34;
+    int32_t speedVal = toolManager->gameSpeed;
     int32_t count = speedValues.GetSize();
     // Find current speed in array
     int32_t idx = 0;
@@ -137,7 +137,7 @@ void ToolbarDialog::ChangeSpeed(int direction) {
         currentSpeedIndex = count - 1;
     }
     // Write new speed value
-    toolManager->field_0x34 = speedValues[currentSpeedIndex];
+    toolManager->gameSpeed = speedValues[currentSpeedIndex];
 }
 
 // The town's per-template entity tree is CitizenBehavior +0x160: its node is
@@ -146,7 +146,7 @@ void ToolbarDialog::ChangeSpeed(int direction) {
 
 // The +0x160 node of `key`, or null.
 static TemplateBucket* Toolbar_FindTemplateNode(const CitizenBehavior* town, const void* key) {
-    TemplateBucket* node = town->field_0x160._root;
+    TemplateBucket* node = town->entitiesByTemplate._root;
     while (node != nullptr) {
         const void* nodeKey = node->element.key;
         if (nodeKey > key) {
@@ -216,7 +216,7 @@ void ToolbarDialog::UpdateButtons() {
             continue;
         }
         // The item's template
-        ComponentDescription* typeId = item->_field58;
+        ComponentDescription* typeId = item->componentDescription;
 
         if (typeId == nullptr) continue;
 
@@ -237,7 +237,7 @@ void ToolbarDialog::UpdateButtons() {
             }
         }
 
-        int32_t actionType = item->_field48;
+        int32_t actionType = item->actionType;
 
         if (actionType == 1) {
             // ShowGroup: enabled while the town has fewer of the template than
@@ -300,17 +300,17 @@ void PlayerToolManager::SelectTool(ComponentDescription* group) {
     // +0x80/+0x88 are written by TutorialSetupRestrictPlayer_Slot8. A step whose
     // setup list contains `disableSelect` locks +0x88 to NULL, which turns EVERY
     // toolbar selection into "no group".)
-    if (field_0x80 != 0 && group != nullptr) {
-        group = field_0x88;
+    if (tutorialRestricted != 0 && group != nullptr) {
+        group = tutorialTool;
     }
 
     // Step 2: Early return if same group is already active with a live tool
-    if (field_0x20 == group && currentTool != nullptr && group != nullptr) {
+    if (activeToolGroup == group && currentTool != nullptr && group != nullptr) {
         return;
     }
 
     // Step 3: Store new group, shut down and delete the current tool if any
-    field_0x20 = group;
+    activeToolGroup = group;
     if (currentTool != nullptr) {
         currentTool->Shutdown();   // slot 5
         // InternalBasePtr::DeletePtr: the scalar deleting dtor, then null
@@ -336,7 +336,7 @@ void PlayerToolManager::SelectTool(ComponentDescription* group) {
         // In-order traversal
         while (node != nullptr) {
             // Check if this node's typeId matches a sub-item in the group data
-            ComponentDescription* groupData = field_0x20;
+            ComponentDescription* groupData = activeToolGroup;
             if (groupData != nullptr) {
                 uint32_t nodeTypeId = node->typeId;
                 int32_t subCount = groupData->_subDescCount;
@@ -436,7 +436,7 @@ void PlayerToolManager::SelectTool(ComponentDescription* group) {
     ToolSetting* toolSettingRef = foundNode->toolSetting.Get();
     Tool* tool = currentTool.Get();
     tool->dialogPtr = this;                 // back-pointer to the manager
-    tool->descriptionPtr = field_0x20;      // the group
+    tool->descriptionPtr = activeToolGroup;      // the group
     tool->toolSetting = toolSettingRef;     // ToolSetting ref
 
     // Start the tool (slot 4)
@@ -480,7 +480,7 @@ UI::DialogInstance* PlayerToolManager::ToggleUtilityDialog(ComponentDescription*
         userInterface->CloseDialog(&closeRef);
 
         // Clear the set node's open flag
-        PinnedToolNode* node = field_0x50.root;
+        PinnedToolNode* node = pinnedToolDialogs.root;
         while (node != nullptr) {
             const void* nodeKey = node->key;
             if (key < nodeKey) {
@@ -553,7 +553,7 @@ UI::DialogInstance* PlayerToolManager::ToggleUtilityDialog(ComponentDescription*
 
     // Step 4: Look up the position node in the +0x50 set
     PinnedToolNode* bstNode = nullptr;
-    PinnedToolNode* current = field_0x50.root;
+    PinnedToolNode* current = pinnedToolDialogs.root;
     while (current != nullptr) {
         const void* nodeKey = current->key;
         if (key < nodeKey) {
@@ -576,7 +576,7 @@ UI::DialogInstance* PlayerToolManager::ToggleUtilityDialog(ComponentDescription*
         rec.active = 0;                                    // flags=0 (one qword with the pad)
         for (int i = 0; i < 7; ++i) rec._pad11[i] = 0;
 
-        bstNode = Avl38SetInsert(&field_0x50, rec);        // 0x140014890
+        bstNode = Avl38SetInsert(&pinnedToolDialogs, rec);        // 0x140014890
     }
 
     // Set the open flag
@@ -830,7 +830,7 @@ static void DynArray_Push(T** pData, int32_t* pCount, int32_t* pCapacity, T valu
 //   1. Calls base DialogInstance ctor
 //   2. The compiler's vtable store
 //   3. Iterates all Toolbar externals whose parent group is `group`
-//   4. Sorts them by priority (_field50)
+//   4. Sorts them by priority (sortPriority)
 //   5. Determines the keyboard shortcut range from the nesting depth
 //   6. For each toolbar item, clones a UI template element, sets up
 //      name, tooltip, sprite, keyboard shortcut, and adds to table
@@ -882,9 +882,9 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
         bool isDerived = ::Object::IsDerivedFromNullSafe(ext, toolbarTypeId);
         const Toolbar* toolbarItem = isDerived ? static_cast<const Toolbar*>(ext) : nullptr;
 
-        // Check: item must be shown (_field45 != 0) and its group must match
+        // Check: item must be shown (visible != 0) and its group must match
         if (toolbarItem != nullptr) {
-            if (toolbarItem->_field45 != 0 && toolbarItem->_field60 == group) {
+            if (toolbarItem->visible != 0 && toolbarItem->parentToolbar == group) {
                 DynArray_Push(&itemList, &itemListCount, &itemListCap, toolbarItem);
             }
         }
@@ -892,7 +892,7 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
         ext = etbFactory->FindNext(toolbarTypeId, ext);
     }
 
-    // Sort the collected items by their priority field (_field50), ascending.
+    // Sort the collected items by their priority field (sortPriority), ascending.
     // The original calls fn_ToolbarSort (exe-only introsort @0x140021790, keyed on
     // the item's +0x50). Ported directly so the buttons order correctly.
     // itemListCount is small (~10) and a stable insertion sort matches the
@@ -901,9 +901,9 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
         const Toolbar** items = itemList;
         for (int i = 1; i < itemListCount; i++) {
             const Toolbar* key = items[i];
-            int32_t keyPri = key->_field50;
+            int32_t keyPri = key->sortPriority;
             int j = i - 1;
-            while (j >= 0 && items[j]->_field50 > keyPri) {
+            while (j >= 0 && items[j]->sortPriority > keyPri) {
                 items[j + 1] = items[j];
                 j--;
             }
@@ -926,15 +926,15 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
     }
 
     // --- Step 6: Determine the nesting depth ---
-    // Walk the parent chain (_field60) of the first item
+    // Walk the parent chain (parentToolbar) of the first item
     int depth = 0;
     if (itemListCount > 0) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): the chain starts at `group`, the
-        // parent of every collected item (retail's `itemList[0]->_field60`). The first slot may be the
+        // parent of every collected item (retail's `itemList[0]->parentToolbar`). The first slot may be the
         // extension button's null entry. (the parent chain, ExternalPtr<Toolbar>)
         for (const Toolbar* link = group;
              link != nullptr;
-             link = link->_field60) {
+             link = link->parentToolbar) {
             depth++;
         }
     }
@@ -980,10 +980,10 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
         }
         // LEFT: Toolbar's +0x30 / +0x38 Strings are declared void* (GAME-c's header,
         // H5): the button text and sprite names are read through a cast.
-        ComponentDescription* itemTemplate = item->_field58;
+        ComponentDescription* itemTemplate = item->componentDescription;
 
         // Determine template index based on action type
-        int32_t actionType = item->_field48;
+        int32_t actionType = item->actionType;
         int templateIndex;
         if (actionType == 10) {
             templateIndex = 0;  // SpeedDisplay: plain text template
@@ -1018,14 +1018,14 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
         newElement->SetName(pathIdObj.AsString());
 
         // Get toolbar item's display string and sprite
-        UI::String uiString(Object::ExternalPtr<UI::StringTable>(item->_field20),
-                            item->_field30);
+        UI::String uiString(Object::ExternalPtr<UI::StringTable>(item->textTable),
+                            item->textKey);
 #ifdef _DEBUG
         UI::Sprite uiSprite;
-        Debug_Sprite_Ctor(&uiSprite, item->_field28, &item->_field38);
+        Debug_Sprite_Ctor(&uiSprite, item->spriteSheet, &item->spriteName);
 #else
-        UI::Sprite uiSprite(Object::ExternalPtr<UI::SpriteSheet>(item->_field28),
-                            item->_field38);
+        UI::Sprite uiSprite(Object::ExternalPtr<UI::SpriteSheet>(item->spriteSheet),
+                            item->spriteName);
 #endif
 
         // --- Configure button element (skip for SpeedDisplay) ---
@@ -1072,12 +1072,12 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
             }
 
             // Assign keyboard shortcut ID
-            if (item->_field44 == 0) {
-                // Item has explicit shortcut override (_field40)
-                button->_keyIndex = item->_field40;
+            if (item->autoShortcut == 0) {
+                // Item has explicit shortcut override (shortcutKey)
+                button->_keyIndex = item->shortcutKey;
 
                 // Remove this shortcut ID from the available pool
-                int32_t targetId = item->_field40;
+                int32_t targetId = item->shortcutKey;
                 for (int j = 0; j < shortcutCount; j++) {
                     if (shortcutIds[j] == targetId) {
                         // Shift remaining elements left
@@ -1160,7 +1160,7 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
     // --- Step 10: Find current game speed in speed array ---
     int32_t speedIndex = 0;
     PlayerToolManager* toolManager = GameUpdateLoop::_singleton->m_toolManager;
-    int32_t currentSpeed = toolManager->field_0x34;
+    int32_t currentSpeed = toolManager->gameSpeed;
     int32_t speedCount = speedValues.GetSize();
 
     for (int i = 0; i < speedCount; i++) {
@@ -1176,7 +1176,7 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
 found_speed:
     currentSpeedIndex = speedIndex;
     // Write the speed value back to the game system
-    toolManager->field_0x34 = speedValues[speedIndex];
+    toolManager->gameSpeed = speedValues[speedIndex];
 
     // --- Cleanup ---
     System::MemoryAllocator::MemFree(shortcutIds);
@@ -1198,8 +1198,8 @@ void ToolbarDialog::OnUpdateLayout() {
     PlayerToolManager* toolManager = gameWorld->m_toolManager;
 
     // The tool manager's active group (+0x20) and game speed (+0x34)
-    const ComponentDescription* activeDialog = toolManager->field_0x20;
-    uint32_t gameSpeed = (uint32_t)toolManager->field_0x34;
+    const ComponentDescription* activeDialog = toolManager->activeToolGroup;
+    uint32_t gameSpeed = (uint32_t)toolManager->gameSpeed;
 
     int32_t itemCount = toolbarItems.GetSize();
 
@@ -1210,12 +1210,12 @@ void ToolbarDialog::OnUpdateLayout() {
         if (item == nullptr) {
             continue;
         }
-        int32_t actionType = item->_field48;
+        int32_t actionType = item->actionType;
 
         if (actionType == 1) {
             // ShowGroup: uncheck button if this group is not the active one
             // (the address compare retail makes: +0x20 against the item's template)
-            if (activeDialog != item->_field58) {
+            if (activeDialog != item->componentDescription) {
                 // The button element from the parallel array, narrowed (null when not
                 // a CheckElement) and its +0xd8 read unguarded, as retail
                 UI::Element* elem = buttonElements[i];
@@ -1322,7 +1322,7 @@ void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI
             return;
         }
 
-        int32_t actionType = item->_field48;
+        int32_t actionType = item->actionType;
 
         switch (actionType) {
         case 0: {
@@ -1395,14 +1395,14 @@ void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI
             // ShowGroup: select the item's tool group (null when unchecked)
             ComponentDescription* groupId = nullptr;
             if (checkElem != nullptr && checkElem->_checked != 0) {
-                groupId = item->_field58;
+                groupId = item->componentDescription;
             }
             gameSys->SelectTool(groupId);   // 0x140102b60
             break;
         }
         case 2: {
             // Utility action: toggle the item's utility dialog
-            gameSys->ToggleUtilityDialog(item->_field58);   // 0x140101a80
+            gameSys->ToggleUtilityDialog(item->componentDescription);   // 0x140101a80
             break;
         }
         case 3: {
@@ -1419,7 +1419,7 @@ void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI
             UI::DialogInstance* noDialog = nullptr;
 
             // Find entity by template (0x140088d40)
-            ComponentEntity* entity = Toolbar_FindEntity_Impl(town, item->_field58, 0);
+            ComponentEntity* entity = Toolbar_FindEntity_Impl(town, item->componentDescription, 0);
 
             // Center camera on entity: retail 0x1400b92a0 hands 0x140103040 the
             // ADDRESS of 0x140088d40's result slot (the tree handed the entity
@@ -1437,10 +1437,10 @@ void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI
             // Set point as active
             point->used = 1;
             // Copy the view angles from the tool manager
-            point->field_0x14 = gameSys->field_0x3C;
-            point->field_0x10 = gameSys->field_0x40;
+            point->distance = gameSys->zoomTarget;
+            point->pitch = gameSys->pitchTarget;
             // Copy the camera's yaw and look-at target
-            point->field_0x0C = cameraSys->yaw;
+            point->yaw = cameraSys->yaw;
             float camY = cameraSys->target.y;
             float camZ = cameraSys->target.z;
             point->position.x = cameraSys->target.x;
@@ -1490,7 +1490,7 @@ void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI
 
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): the extension button
         // acts as a Utility
-        int32_t actionType = item != nullptr ? item->_field48 : 2;
+        int32_t actionType = item != nullptr ? item->actionType : 2;
 
         // If not a Tool (case 0) and we have an open sub-dialog, close it
         if (actionType != 0 && subDialog.Get() != nullptr) {

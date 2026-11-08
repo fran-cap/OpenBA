@@ -67,8 +67,8 @@ public:
     // 0x140002100 MemFrees +0x20 and zeroes both qwords before ~Description; no element
     // destroy). Resized by 0x140002540 (AmbientArrayResize_Reimpl).
     Collection::Array<AmbientEnvironmentBiome> _entries;
-    float _f30;                                 // +0x30
-    float _f34;                                 // +0x34
+    float _minTemp;                                 // +0x30
+    float _maxTemp;                                 // +0x34
 };
 
 static_assert(sizeof(AmbientEnvironmentDescription) == 0x38, "AmbientEnvironmentDescription is 0x38 (create 0x140001f40 MemAlloc(0x38))");
@@ -76,5 +76,5 @@ static_assert(alignof(AmbientEnvironmentDescription) == 8, "AmbientEnvironmentDe
 static_assert(offsetof(AmbientEnvironmentDescription, _entries) == 0x20, "AmbientEnvironmentDescription::_entries @ +0x20");
 static_assert(offsetof(AmbientEnvironmentDescription, _entries._size) == 0x28, "AmbientEnvironmentDescription entry count @ +0x28");
 static_assert(offsetof(AmbientEnvironmentDescription, _entries._capacity) == 0x2c, "AmbientEnvironmentDescription entry capacity @ +0x2c");
-static_assert(offsetof(AmbientEnvironmentDescription, _f30) == 0x30, "AmbientEnvironmentDescription::_f30 @ +0x30");
-static_assert(offsetof(AmbientEnvironmentDescription, _f34) == 0x34, "AmbientEnvironmentDescription::_f34 @ +0x34");
+static_assert(offsetof(AmbientEnvironmentDescription, _minTemp) == 0x30, "AmbientEnvironmentDescription::_minTemp @ +0x30");
+static_assert(offsetof(AmbientEnvironmentDescription, _maxTemp) == 0x34, "AmbientEnvironmentDescription::_maxTemp @ +0x34");

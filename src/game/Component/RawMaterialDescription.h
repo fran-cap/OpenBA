@@ -92,8 +92,8 @@ public:
     int32_t _weight;                            // +0x48
     int32_t _createChance;                      // +0x4c
     float _carryScale;                          // +0x50 0.33
-    int32_t _i54;                               // +0x54 the POD's _pad54: zeroed, serialized as an int
-    bool _unknown58;                            // +0x58
+    int32_t _useValue;                               // +0x54 the POD's _pad54: zeroed, serialized as an int
+    bool _preferred;                            // +0x58
     uint8_t _pad59[3];                          // +0x59 never written by the ctor
     uint32_t _flags;                            // +0x5c RawMaterialFlags bitfield (.rsc _flags)
 };
@@ -110,6 +110,6 @@ static_assert(offsetof(RawMaterialDescription, _highCreateCount) == 0x44, "RawMa
 static_assert(offsetof(RawMaterialDescription, _weight) == 0x48, "RawMaterialDescription::_weight @ +0x48");
 static_assert(offsetof(RawMaterialDescription, _createChance) == 0x4c, "RawMaterialDescription::_createChance @ +0x4c");
 static_assert(offsetof(RawMaterialDescription, _carryScale) == 0x50, "RawMaterialDescription::_carryScale @ +0x50");
-static_assert(offsetof(RawMaterialDescription, _i54) == 0x54, "RawMaterialDescription::_i54 @ +0x54");
-static_assert(offsetof(RawMaterialDescription, _unknown58) == 0x58, "RawMaterialDescription::_unknown58 @ +0x58");
+static_assert(offsetof(RawMaterialDescription, _useValue) == 0x54, "RawMaterialDescription::_useValue @ +0x54");
+static_assert(offsetof(RawMaterialDescription, _preferred) == 0x58, "RawMaterialDescription::_preferred @ +0x58");
 static_assert(offsetof(RawMaterialDescription, _flags) == 0x5c, "RawMaterialDescription::_flags @ +0x5c");

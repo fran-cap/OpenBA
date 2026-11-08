@@ -53,11 +53,11 @@ public:
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c9bf0
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    Object::InternalPtr<CitizenComponent> _field20;   // +0x20 the carrying citizen (Persist checks CitizenComponent)
-    Object::InternalPtr<ComponentEntity>  _field28;   // +0x28 the storage entity (Persist checks ComponentEntity)
+    Object::InternalPtr<CitizenComponent> _citizen;   // +0x20 the carrying citizen (Persist checks CitizenComponent)
+    Object::InternalPtr<ComponentEntity>  _storageEntity;   // +0x28 the storage entity (Persist checks ComponentEntity)
     // +0x30 Array<Entry> (H5: the raw triple as a POD; the dtor frees the data as retail's does)
-    EntryList _field30;          // +0x30 list {data (stride 0x10), count +0x38, capacity +0x3C}
-    bool      _field40;          // +0x40 partial pickup allowed (Persist: the bool overload)
+    EntryList _materials;          // +0x30 list {data (stride 0x10), count +0x38, capacity +0x3C}
+    bool      _allowPartial;          // +0x40 partial pickup allowed (Persist: the bool overload)
     uint8_t   _pad41[7];         // +0x41 padding
 };
 
@@ -65,7 +65,7 @@ static_assert(sizeof(PickupStoredRawMaterial::Entry) == 0x10, "PickupStoredRawMa
 static_assert(offsetof(PickupStoredRawMaterial::Entry, material) == 0x0, "Entry::material");
 static_assert(offsetof(PickupStoredRawMaterial::Entry, count) == 0x08, "Entry +0x08");
 static_assert(offsetof(PickupStoredRawMaterial::Entry, reserved) == 0x0C, "Entry +0x0C");
-static_assert(offsetof(PickupStoredRawMaterial, _field30.capacity) == 0x3C, "PickupStoredRawMaterial +0x3C");
+static_assert(offsetof(PickupStoredRawMaterial, _materials.capacity) == 0x3C, "PickupStoredRawMaterial +0x3C");
 static_assert(sizeof(PickupStoredRawMaterial::EntryList) == 0x10, "Array<Entry> header");
 static_assert(offsetof(PickupStoredRawMaterial::EntryList, data) == 0x0, "EntryList::data");
 static_assert(offsetof(PickupStoredRawMaterial::EntryList, count) == 0x8, "EntryList::count");
@@ -74,8 +74,8 @@ static_assert(offsetof(PickupStoredRawMaterial::EntryList, capacity) == 0xC, "En
 static_assert(sizeof(PickupStoredRawMaterial) == 0x48, "PickupStoredRawMaterial is 0x48 (create 0x140022d60 MemAlloc)");
 static_assert(offsetof(PickupStoredRawMaterial, _pad41) == 0x41, "PickupStoredRawMaterial::_pad41");
 static_assert(alignof(PickupStoredRawMaterial) == 8, "PickupStoredRawMaterial is 8-aligned");
-static_assert(offsetof(PickupStoredRawMaterial, _field20) == 0x20, "PickupStoredRawMaterial +0x20");
-static_assert(offsetof(PickupStoredRawMaterial, _field28) == 0x28, "PickupStoredRawMaterial +0x28");
-static_assert(offsetof(PickupStoredRawMaterial, _field30) == 0x30, "PickupStoredRawMaterial +0x30");
-static_assert(offsetof(PickupStoredRawMaterial, _field30.count) == 0x38, "PickupStoredRawMaterial +0x38");
-static_assert(offsetof(PickupStoredRawMaterial, _field40) == 0x40, "PickupStoredRawMaterial +0x40");
+static_assert(offsetof(PickupStoredRawMaterial, _citizen) == 0x20, "PickupStoredRawMaterial +0x20");
+static_assert(offsetof(PickupStoredRawMaterial, _storageEntity) == 0x28, "PickupStoredRawMaterial +0x28");
+static_assert(offsetof(PickupStoredRawMaterial, _materials) == 0x30, "PickupStoredRawMaterial +0x30");
+static_assert(offsetof(PickupStoredRawMaterial, _materials.count) == 0x38, "PickupStoredRawMaterial +0x38");
+static_assert(offsetof(PickupStoredRawMaterial, _allowPartial) == 0x40, "PickupStoredRawMaterial +0x40");

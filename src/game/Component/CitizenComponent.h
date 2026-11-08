@@ -215,8 +215,8 @@ public:
                                    //       serialized first (0x140151238), handed to the event log
                                    //       by PostLifeEvent (EventLog_AddCitizenEvent's name
                                    //       argument), ~String in the dtor
-    int32_t  field_0x30;           // +0x30 int, ctor -1; serialized after +0xB0
-    int32_t  field_0x34;           // +0x34 int, ctor 0; serialized last
+    int32_t  lastWorkId;           // +0x30 int, ctor -1; serialized after +0xB0
+    int32_t  appearanceVariant;           // +0x34 int, ctor 0; serialized last
     int32_t  gender;               // +0x38 int; 0 = female: Update's childbearing block runs only
                                    //       on `+0x38 == 0` (0x140113873)
     float    age;                  // +0x3C += dt * desc->agingRate; >= desc->adultAge = adult
@@ -227,12 +227,12 @@ public:
     float    health;               // +0x50 birth-risk ratio health / desc->maxHealth
     uint32_t statusFlags;          // +0x54 CitizenStatus bits, zeroed by UpdateHealth
     System::Time foodTimer;        // +0x58 += dt; each desc->foodInterval -> ConsumeFood
-    System::Time field_0x60;       // +0x60 System::Time: += dt (Update)
+    System::Time diseaseRollTimer;       // +0x60 System::Time: += dt (Update)
     Disease* disease;              // +0x68 ExternalPtr<Disease> (serialize helper 0x140030790)
-    System::Time field_0x70;       // +0x70 System::Time, serialized
-    System::Time field_0x78;       // +0x78 System::Time, serialized
+    System::Time diseaseTimer;       // +0x70 System::Time, serialized
+    System::Time diseaseSpreadTimer;       // +0x78 System::Time, serialized
     float    happiness;            // +0x80 the happiness update 0x140112ae0, clamped to [0, desc->maxHappiness]
-    int32_t  field_0x84;           // +0x84 int, NOT written by the ctor, not serialized; the happiness
+    int32_t  ownProfessionWorkCount;           // +0x84 int, NOT written by the ctor, not serialized; the happiness
                                    //       update compares it with desc+0xB0
     uint32_t happinessFlags;       // +0x88 the bits the happiness update 0x140112ae0 scores
     uint8_t  _pad8C[4];            // +0x8C
@@ -244,8 +244,8 @@ public:
                                    //       serialized by 0x1400049c0 (validated ComponentDescription);
                                    //       EatFrom 0x1401152e0 appends the eaten material's description;
                                    //       the happiness update compares its count (+0xA0) with desc+0xA8/+0xAC
-    int32_t  field_0xA8;          // +0xA8 int, ctor -1; serialized (version > 0)
-    int32_t  field_0xAC;           // +0xAC int, ctor 0; serialized
+    int32_t  toolGrade;          // +0xA8 int, ctor -1; serialized (version > 0)
+    int32_t  toolUses;           // +0xAC int, ctor 0; serialized
     CitizenErrand lastErrand;      // +0xB0 uint (Encoding slot 0x98), ctor 0 (None)
     uint8_t  _padB4[4];            // +0xB4
 
@@ -254,20 +254,20 @@ public:
 
     int32_t  toolId;               // +0x1D8 int, ctor -1 (one qword store with +0x1DC); serialized
     int32_t  toolSceneId;          // +0x1DC int, ctor -1; NOT serialized; HideTool 0x1401176e0 guards >= 0
-    int32_t  field_0x1E0;          // +0x1E0 int, ctor 4 (one qword store with +0x1E4); serialized (version > 1)
+    int32_t  clothingType;          // +0x1E0 int, ctor 4 (one qword store with +0x1E4); serialized (version > 1)
     int32_t  clothingLevel;        // +0x1E4 indexes desc->coldRate[]; reset to 0 when clothingTimer < 0
     System::Time clothingTimer;    // +0x1E8 System::Time: -= dt; < 0 -> clothingLevel = 0
     Profession* profession;        // +0x1F0 ExternalPtr<Profession> (0x140018020); Update reads its +0x4C
     Profession* pendingProfession; // +0x1F8 ExternalPtr<Profession>; != 0 -> HandleLifeEvent(7, its name)
-    System::Time field_0x200;      // +0x200 += dt (Update), not serialized
+    System::Time professionRollTimer;      // +0x200 += dt (Update), not serialized
     Object::InternalPtr<AttendanceComponent> school;   // +0x208 InternalPtr (cell 0x1401c3f40); != 0: schoolTime += dt
     int32_t  education;            // +0x210 raised to desc->maxEducation (Update)
     uint8_t  _pad214[4];           // +0x214
     System::Time schoolTime;       // +0x218 += dt while school != 0 (version > 2)
-    bool     field_0x220;          // +0x220 bool; 0 at adulthood -> TryEnrolInSchool 0x140111840
+    bool     hasBeenSchooled;          // +0x220 bool; 0 at adulthood -> TryEnrolInSchool 0x140111840
     uint8_t  _pad221[7];           // +0x221
     Object::InternalPtr<AttendanceComponent> careBuilding; // +0x228 InternalPtr (cell 0x1401c3f40); FindCareBuilding 0x140111590
-    Object::InternalPtr<AttendanceComponent> field_0x230;  // +0x230 InternalPtr (cell 0x1401c3f40); found through desc+0x28
+    Object::InternalPtr<AttendanceComponent> chapel;  // +0x230 InternalPtr (cell 0x1401c3f40); found through desc+0x28
                                        //        by 0x1401116f0; != 0 scores happiness
     Object::InternalPtr<ComponentEntity> home;         // +0x238 InternalPtr<ComponentEntity> (cell 0x1401c5d70): the residence
     int32_t  homeSlot;             // +0x240 int, NOT written by the ctor; the household slot in the residence
@@ -287,8 +287,8 @@ public:
 static_assert(sizeof(CitizenComponent) == 0x290, "CitizenComponent is 0x290 (create 0x140030110)");
 static_assert(alignof(CitizenComponent) == 8, "CitizenComponent alignment");
 static_assert(offsetof(CitizenComponent, name)                 == 0x28,  "");
-static_assert(offsetof(CitizenComponent, field_0x30)           == 0x30,  "");
-static_assert(offsetof(CitizenComponent, field_0x34)           == 0x34,  "");
+static_assert(offsetof(CitizenComponent, lastWorkId)           == 0x30,  "");
+static_assert(offsetof(CitizenComponent, appearanceVariant)           == 0x34,  "");
 static_assert(offsetof(CitizenComponent, gender)               == 0x38,  "");
 static_assert(offsetof(CitizenComponent, age)                  == 0x3C,  "");
 static_assert(offsetof(CitizenComponent, maxAge)               == 0x40,  "");
@@ -298,40 +298,40 @@ static_assert(offsetof(CitizenComponent, pregnancyTimer)       == 0x4C,  "");
 static_assert(offsetof(CitizenComponent, health)               == 0x50,  "");
 static_assert(offsetof(CitizenComponent, statusFlags)          == 0x54,  "");
 static_assert(offsetof(CitizenComponent, foodTimer)            == 0x58,  "");
-static_assert(offsetof(CitizenComponent, field_0x60)           == 0x60,  "");
+static_assert(offsetof(CitizenComponent, diseaseRollTimer)           == 0x60,  "");
 static_assert(offsetof(CitizenComponent, disease)              == 0x68,  "");
-static_assert(offsetof(CitizenComponent, field_0x70)           == 0x70,  "");
-static_assert(offsetof(CitizenComponent, field_0x78)           == 0x78,  "");
+static_assert(offsetof(CitizenComponent, diseaseTimer)           == 0x70,  "");
+static_assert(offsetof(CitizenComponent, diseaseSpreadTimer)           == 0x78,  "");
 static_assert(offsetof(CitizenComponent, happiness)            == 0x80,  "");
-static_assert(offsetof(CitizenComponent, field_0x84)           == 0x84,  "");
+static_assert(offsetof(CitizenComponent, ownProfessionWorkCount)           == 0x84,  "");
 static_assert(offsetof(CitizenComponent, happinessFlags)       == 0x88,  "");
 static_assert(offsetof(CitizenComponent, _pad8C)               == 0x8C,  "");
 static_assert(offsetof(CitizenComponent, happinessTimer)       == 0x90,  "");
 static_assert(offsetof(CitizenComponent, consumedTypes)        == 0x98,  "");
 static_assert(sizeof(Collection::Array<ComponentDescription*>) == 0x10, "+0x98 Array is {data, size, capacity}");
 static_assert(sizeof(Graphics::MeshInstance) == 0x120, "+0xB8 MeshInstance ends at +0x1D8");
-static_assert(offsetof(CitizenComponent, field_0xA8)           == 0xA8,  "");
-static_assert(offsetof(CitizenComponent, field_0xAC)           == 0xAC,  "");
+static_assert(offsetof(CitizenComponent, toolGrade)           == 0xA8,  "");
+static_assert(offsetof(CitizenComponent, toolUses)           == 0xAC,  "");
 static_assert(offsetof(CitizenComponent, lastErrand)           == 0xB0,  "");
 static_assert(sizeof(CitizenErrand) == 4, "+0xB0 lastErrand is a 4-byte uint");
 static_assert(offsetof(CitizenComponent, _padB4)               == 0xB4,  "");
 static_assert(offsetof(CitizenComponent, meshInstance)         == 0xB8,  "");
 static_assert(offsetof(CitizenComponent, toolId)               == 0x1D8, "");
 static_assert(offsetof(CitizenComponent, toolSceneId)          == 0x1DC, "");
-static_assert(offsetof(CitizenComponent, field_0x1E0)          == 0x1E0, "");
+static_assert(offsetof(CitizenComponent, clothingType)          == 0x1E0, "");
 static_assert(offsetof(CitizenComponent, clothingLevel)        == 0x1E4, "");
 static_assert(offsetof(CitizenComponent, clothingTimer)        == 0x1E8, "");
 static_assert(offsetof(CitizenComponent, profession)           == 0x1F0, "");
 static_assert(offsetof(CitizenComponent, pendingProfession)    == 0x1F8, "");
-static_assert(offsetof(CitizenComponent, field_0x200)          == 0x200, "");
+static_assert(offsetof(CitizenComponent, professionRollTimer)          == 0x200, "");
 static_assert(offsetof(CitizenComponent, school)               == 0x208, "");
 static_assert(offsetof(CitizenComponent, education)            == 0x210, "");
 static_assert(offsetof(CitizenComponent, _pad214)              == 0x214, "");
 static_assert(offsetof(CitizenComponent, schoolTime)           == 0x218, "");
-static_assert(offsetof(CitizenComponent, field_0x220)          == 0x220, "");
+static_assert(offsetof(CitizenComponent, hasBeenSchooled)          == 0x220, "");
 static_assert(offsetof(CitizenComponent, _pad221)              == 0x221, "");
 static_assert(offsetof(CitizenComponent, careBuilding)         == 0x228, "");
-static_assert(offsetof(CitizenComponent, field_0x230)          == 0x230, "");
+static_assert(offsetof(CitizenComponent, chapel)          == 0x230, "");
 static_assert(offsetof(CitizenComponent, home)                 == 0x238, "");
 static_assert(offsetof(CitizenComponent, homeSlot)             == 0x240, "");
 static_assert(offsetof(CitizenComponent, _pad244)              == 0x244, "");

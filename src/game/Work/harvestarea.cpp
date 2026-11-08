@@ -79,7 +79,7 @@
 //   0x14000e320 BST recursive free                  WorkBase_TreeNodeFree_e320
 //   MemAlloc                                        System::MemoryAllocator::MemAlloc
 //   DAT_140172114 = 0.5f                            kRdata_140172114
-// 0x14000a590 (Array<bool>::SetSize) is `_field58.SetSize`.
+// 0x14000a590 (Array<bool>::SetSize) is `_slotsAvailable.SetSize`.
 
 
 // ============================================================
@@ -140,9 +140,9 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
     }
 
     // Step 2: Find components (0x140003050 WorkComponent, 0x140005380 CropFieldComponent)
-    WorkComponent* matDesc = field_10->FindComponent<WorkComponent>();
+    WorkComponent* matDesc = _entity->FindComponent<WorkComponent>();
 
-    CropFieldComponent* cropField = field_10->FindComponent<CropFieldComponent>();
+    CropFieldComponent* cropField = _entity->FindComponent<CropFieldComponent>();
 
     // The crop field's description
     Description* descObj = cropField->_description;
@@ -157,7 +157,7 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
     bool atCapacity = resEntry.maxCount <= resEntry.currentCount;
 
     // The status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
-    StatusIconComponent* statusIcon = field_10->FindComponent<StatusIconComponent>();
+    StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
     statusIcon->SetFlag(2, atCapacity ? 1 : 0);
 
     if (atCapacity) {
@@ -194,13 +194,13 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
     if (citizenCellY >= mapSz) citizenCellY = mapSz - 1;
     uint32_t citizenGridCell = mapSz * citizenCellY + citizenCellX;
 
-    int fieldCellCount = _field58._size;
+    int fieldCellCount = _slotsAvailable._size;
 
     if (fieldCellCount > 0) {
         int cellIdx2 = 1; // paired cell index starts at 1
         for (int i = 0; i < fieldCellCount; i++) {
             // Check if this cell's validity flag is set
-            bool* validityArray = _field58._data;
+            bool* validityArray = _slotsAvailable._data;
             if (validityArray[i] == 0) {
                 ++g_ha_nomark;
                 goto next_cell;
@@ -305,7 +305,7 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
 
                                 WorkAct_HarvestAreaCtor_c1530(
                                     actionBuf,                    // citizenIBP
-                                    field_20,                     // priority
+                                    _workId,                     // priority
                                     harvestMode,                  // 1=single, 2=paired
                                     natRes,                       // target NatRes array (harvestMode entries)
                                     pathPos,                      // position
@@ -313,14 +313,14 @@ int HarvestArea::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                                     0);                           // param7
 
                                 // Assign work and register with AI
-                                int priority = field_20;
+                                int priority = _workId;
                                 CitizenComponent* citizenEnt = *citizenIBP;
 
                                 Profession* workEnt = nullptr;
                                 GetTarget(&workEnt);
 
                                 citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-                                citizenEnt->field_0x30 = priority;
+                                citizenEnt->lastWorkId = priority;
                                 citizenEnt->lastErrand = CitizenErrand::None;
 
                                 if (workEnt == citizenEnt->profession && priority >= 0) {
@@ -405,7 +405,7 @@ int HarvestArea::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** /*p
     int pairedIdx  = (int)((param4 >> 16) & 0xFFFF);
 
     HarvestArea_RemoveCellNode(this, primaryIdx);
-    if (pairedIdx < _field58._size) {
+    if (pairedIdx < _slotsAvailable._size) {
         HarvestArea_RemoveCellNode(this, pairedIdx);
     }
     return 0;
@@ -441,10 +441,10 @@ int HarvestArea::OnCancel(CitizenComponent** /*param2*/, ComponentEntity** /*par
     HarvestArea_RemoveCellNode(this, primaryIdx);
 
     // Cancelled: the cell goes back in the pool.
-    bool* validityArray = _field58._data;
+    bool* validityArray = _slotsAvailable._data;
     validityArray[primaryIdx] = 1;
 
-    if (pairedIdx < _field58._size) {
+    if (pairedIdx < _slotsAvailable._size) {
         validityArray[pairedIdx] = 1;
         HarvestArea_RemoveCellNode(this, pairedIdx);
     }
@@ -554,7 +554,7 @@ int HarvestArea::Validate() {
             }
 
             // Mark validity flag
-            bool* validityArray = _field58._data;
+            bool* validityArray = _slotsAvailable._data;
             validityArray[node->element.slot] = 1;
         }
 
@@ -614,7 +614,7 @@ cleanup:
 // its profession (+0x48) into the return slot.
 // ============================================================
 Profession** HarvestArea::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }
@@ -641,14 +641,14 @@ void HarvestArea::Persist(IO::Stream& stream) {
     WorkCellBST_Serialize_9de0(&_cells, &serializer2);
 
     // Serialize field cell count at +0x60
-    int cellCount = _field58._size;
+    int cellCount = _slotsAvailable._size;
     int cellCountBuf[2] = { cellCount, 0 };
     serializer2.Serialize(cellCountBuf[0], nullptr);
 
     // If reading (serializer mode == 0), resize validity array.
     // 0x14000a590 == Collection::Array<bool>::SetSize.
     if (static_cast<int>(serializer2.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
-        _field58.SetSize(cellCountBuf[0]);
+        _slotsAvailable.SetSize(cellCountBuf[0]);
     }
 
     // Serialize validity array through the BOOL-ARRAY door.
@@ -667,14 +667,14 @@ void HarvestArea::Persist(IO::Stream& stream) {
     // B.3.4a closing sweep) pointed at — that is the THREE-parameter
     // `Serialize(int&)` scalar door, so the old call put the COUNT in the register
     // the scalar body dereferences as `int*`.
-    serializer2.Serialize(cellCountBuf[0], _field58._data, nullptr);   // slot 0x140151458 = bool-array door
+    serializer2.Serialize(cellCountBuf[0], _slotsAvailable._data, nullptr);   // slot 0x140151458 = bool-array door
 }
 
 
 // The HarvestArea / AutoPickupWork / Work stamps and the `~Internal` call are the
 // compiler's chain.
 HarvestArea::~HarvestArea() {
-    // The +0x58 flags are the `_field58` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
+    // The +0x58 flags are the `_slotsAvailable` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
     // then the +0x48 set's Clear is the `_cells` member's ~Set: reverse declaration order
     // after this empty body (0x1400ed410).
 }

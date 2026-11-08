@@ -40,10 +40,10 @@ public:
 
     // ---- fields -----------------------------------------------------------------
     UI::ProgressElement* yield = nullptr;  // +0x38: "yield" ProgressElement (InternalBasePtr, OnCreated 0x1400755b0)
-    uint64_t data40 = 0;           // +0x40
+    uint64_t unusedElement = 0;           // +0x40
 };
 
 static_assert(sizeof(OrchardUI) == 0x48, "OrchardUI is 0x48 (create 0x140012ff0 MemAlloc(0x48))");
 static_assert(alignof(OrchardUI) == 8, "qword-aligned (the vptr)");
 static_assert(offsetof(OrchardUI, yield) == 0x38, "yield @ +0x38 (0x1400755b0)");
-static_assert(offsetof(OrchardUI, data40) == 0x40, "OrchardUI +0x40");
+static_assert(offsetof(OrchardUI, unusedElement) == 0x40, "OrchardUI +0x40");

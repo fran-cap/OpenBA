@@ -42,10 +42,10 @@ void AnimateNaturalResource::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // Entity ref (+0x20) with type validation
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
-            _field20 = nullptr;
+    resourceEntity.InternalBasePtr::Serialize(ser);
+    if (!resourceEntity.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(resourceEntity, ComponentEntity::TypeId())) {
+            resourceEntity = nullptr;
         }
     }
 
@@ -61,7 +61,7 @@ void AnimateNaturalResource::Persist(IO::Stream& stream) {
 int  AnimateNaturalResource::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
 
-    _field20->FindComponent<NaturalResourceComponent>()->SetAnimation(   // 0x1400052c0
+    resourceEntity->FindComponent<NaturalResourceComponent>()->SetAnimation(   // 0x1400052c0
                                 static_cast<uint32_t>(animIndex));                     // 0x140126440
 
     return (this->waitForAnim != 0) ? 1 : 0;
@@ -77,7 +77,7 @@ int  AnimateNaturalResource::Execute(ActionStack* actionStack, const System::Tim
 
     // B6 (14d G64): 0x1400c55b0 finds the ModelComponent (0x140003f60), CheckPtr, then
     // MeshInstance::IsAnimating on [model]+0x28 with no test.
-    ModelComponent* model = _field20->FindComponent<ModelComponent>();   // 0x140003f60
+    ModelComponent* model = resourceEntity->FindComponent<ModelComponent>();   // 0x140003f60
     return model->meshInstance.IsAnimating() ? 1 : 0;
 }
 
@@ -86,7 +86,7 @@ int  AnimateNaturalResource::Execute(ActionStack* actionStack, const System::Tim
 // Returns true if param matches entity at +0x20.
 // ============================================================
 bool AnimateNaturalResource::GetTarget(ComponentEntity** param) {
-    return _field20.Get() == *param;
+    return resourceEntity.Get() == *param;
 }
 
 // ============================================================
@@ -109,7 +109,7 @@ bool AnimateNaturalResource::GetTarget(ComponentEntity** param) {
 // create 0x140021dc0 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 AnimateNaturalResource::AnimateNaturalResource()
-    : _field20(nullptr),
+    : resourceEntity(nullptr),
       animIndex(0),
       waitForAnim(false),
       _pad2D{} {}
@@ -140,7 +140,7 @@ void AnimateNaturalResource::CheckEntity() {}
 // 0x1400c57d0: +0x20 = *param_2 ; +0x28 = param_3 ; +0x2c = param_4.
 AnimateNaturalResource::AnimateNaturalResource(ComponentEntity* const* entity,
                                                uint32_t animIndexArg, bool wait)
-    : _field20(*entity),
+    : resourceEntity(*entity),
       animIndex(static_cast<int32_t>(animIndexArg)),
       waitForAnim(wait) {}
 

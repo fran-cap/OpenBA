@@ -36,13 +36,13 @@
 // the defaults.
 CreateRoadDescription::CreateRoadDescription()
     : Description(),
-      _b20(false),
+      _index(false),
       _created(nullptr) {}
 
 // [5] 0x140119c80: stream order as retail.
 bool CreateRoadDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_b20, nullptr);
+    ser.Serialize(_index, nullptr);
     ::Object::SerializeExternal<ComponentDescription>(ser, _created);
     return true;
 }

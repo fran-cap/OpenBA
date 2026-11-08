@@ -62,7 +62,7 @@ void CitizenBehavior::RemoveCellEntry(int x, int y, int value) {
     GameUpdateLoop* world = GameUpdateLoop::_singleton;
     if (!world) return;
     int width = world->m_game->size >> 3;   // Map +0x00
-    Collection::Array<int32_t>& cell = field_0x140._data[(width * (y >> 3)) + (x >> 3)];
+    Collection::Array<int32_t>& cell = coarseWaterIndex._data[(width * (y >> 3)) + (x >> 3)];
     int count = cell._size;
     if (count <= 0) return;
 
@@ -146,7 +146,7 @@ void CitizenBehavior::UnregisterWell(Object::InternalPtr<WellComponent>* well) {
 // Reimpl of FUN_140088a80 — the coarse-cell index push_back.
 // The exact mirror of RemoveCellEntry above: same addressing
 //     cellIdx = (mapWidth >> 3) * (y >> 3) + (x >> 3)
-//     record  = field_0x140[cellIdx] = { int* data; int count; int cap }
+//     record  = coarseWaterIndex[cellIdx] = { int* data; int count; int cap }
 // but it APPENDS `value` instead of compacting it out. This is the array the FireWork
 // spiral search reads, so without this call the buckets stay empty however many wells
 // the town has.
@@ -160,7 +160,7 @@ void CitizenBehavior::AddCellEntry(int x, int y, int value) {
     GameUpdateLoop* world = GameUpdateLoop::_singleton;
     const int mapW = world->m_game->size;   // Map +0x00
     const int64_t cellIdx = static_cast<int64_t>((mapW >> 3) * (y >> 3) + (x >> 3));
-    Collection::Array<int32_t>& rec = field_0x140._data[cellIdx];
+    Collection::Array<int32_t>& rec = coarseWaterIndex._data[cellIdx];
 
     int* oldData = rec._data;
     const int count = rec._size;
@@ -201,9 +201,9 @@ void CitizenBehavior::AddCellEntry(int x, int y, int value) {
 // save (Serialize) and the buckets from PostLoad 0x14008f580.
 // ============================================================
 void CitizenBehavior::AddWaterAccess(int cell, int waterCell) {
-    const int index = field_0x130._size;
+    const int index = waterAccessPairs._size;
     const WaterCellPair pair{cell, waterCell};
-    field_0x130.SetSize(index + 1, pair);
+    waterAccessPairs.SetSize(index + 1, pair);
     const int mapW = GameUpdateLoop::_singleton->m_game->size;
     AddCellEntry(cell % mapW, cell / mapW, index);   // 0x140088a80
 }

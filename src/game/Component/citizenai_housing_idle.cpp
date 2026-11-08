@@ -174,13 +174,13 @@ void Helper_sub_8000(CitizenComponent* /*param_1: the citizen, unread*/, Compone
             doInsert = true;
         } else {
             Work* payload = cur->work.Get();
-            ComponentEntity* k = payload->field_10.Get();
+            ComponentEntity* k = payload->_entity.Get();
             if (k == *param_2) doInsert = true;
         }
 
         if (doInsert) {
             Work* payload = cur->work.Get();   // local_28
-            int costKey = payload->field_24;   // iVar6 / local_20
+            int costKey = payload->_queueOrder;   // iVar6 / local_20
             bool inserted = true;   // false on duplicate (JG/JGE 0x81fc -> skip INC + rebalance)
             WorkCandidateNode* existing = param_4->root;
             if (existing == nullptr) {
@@ -208,15 +208,15 @@ void Helper_sub_8000(CitizenComponent* /*param_1: the citizen, unread*/, Compone
                         // self.key <= costKey
                         if (costKey <= self->cost) {
                             // equal key: tiebreak on Work +0x20
-                            int iv = payload->field_20;
-                            int sv = self->work->field_20;
+                            int iv = payload->_workId;
+                            int sv = self->work->_workId;
                             if (iv < sv) { descendLeft = true; }
                         }
                         if (!descendLeft) {
                             if (costKey <= self->cost) {
                                 if (costKey < self->cost) { inserted = false; break; }
-                                int sv2 = self->work->field_20;
-                                int iv2 = payload->field_20;
+                                int sv2 = self->work->_workId;
+                                int iv2 = payload->_workId;
                                 if (iv2 <= sv2) { inserted = false; break; }
                             }
                             // go right (+0x20)
@@ -318,12 +318,12 @@ void Helper_sub_7c90(CitizenComponent* /*param_1: the citizen, unread*/, Citizen
         if (*param_3 == nullptr) {
             doInsert = true;
         } else {
-            ComponentEntity* key = cur->work->field_10.Get();
+            ComponentEntity* key = cur->work->_entity.Get();
             if (key == *param_3) doInsert = true;
         }
 
         if (doInsert) {
-            uint32_t toCell = static_cast<uint32_t>(cur->work->field_28);
+            uint32_t toCell = static_cast<uint32_t>(cur->work->_cell);
             int cost = map->PathDistance(fromCell, toCell, '\x01');
             if (cost < 0) {
                 // unreachable via path graph -> euclidean fallback on grid coords
@@ -359,15 +359,15 @@ void Helper_sub_7c90(CitizenComponent* /*param_1: the citizen, unread*/, Citizen
                     local_res8 = self;
                     if (self->cost <= costKey) {
                         if (costKey <= self->cost) {
-                            int iv = payload->field_20;
-                            int sv = self->work->field_20;
+                            int iv = payload->_workId;
+                            int sv = self->work->_workId;
                             if (iv < sv) descendLeft = true;
                         }
                         if (!descendLeft) {
                             if (costKey <= self->cost) {
                                 if (costKey < self->cost) { inserted = false; break; }
-                                int sv2 = self->work->field_20;
-                                int iv2 = payload->field_20;
+                                int sv2 = self->work->_workId;
+                                int iv2 = payload->_workId;
                                 if (iv2 <= sv2) { inserted = false; break; }
                             }
                             WorkCandidateNode* rc = self->right;
@@ -448,14 +448,14 @@ uint8_t Helper_sub_7b60(WorkScheduler* param_1, CitizenComponent* const* param_2
     while (cur->left != nullptr) cur = cur->left;
 
     while (cur != nullptr) {
-        if (cur->work->field_2c != static_cast<int32_t>(param_1->stepCount)) {
+        if (cur->work->_lastRejectStep != static_cast<int32_t>(param_1->stepCount)) {
             // vtable +0x48 refresh
             cur->work->Validate();   // slot 9; 0x1400f7bc3 RCX only
             CitizenComponent* citizen = *param_2;  // local_res18[0] = *param_2 (citizen)
             uint32_t r = static_cast<uint32_t>(cur->work->Execute(&citizen, &param_1->time));   // slot 4; 0x1400f7be9
             if (static_cast<int>(r) == 2) return 1;
             if (static_cast<int>(r) == 1) {
-                cur->work->field_2c = static_cast<int32_t>(param_1->stepCount);
+                cur->work->_lastRejectStep = static_cast<int32_t>(param_1->stepCount);
             }
         }
         // in-order successor: node +0x20 (right) subtree's leftmost, else climb +0x10 parents
@@ -551,7 +551,7 @@ uint64_t Helper_sub_79b0(WorkScheduler* param_1, CitizenComponent* const* param_
         // B6 row 211: 0x1400f7a89 MOV RAX,[RBP+0x48]; 0x1400f7a8d CMP byte ptr [RAX+0x4c],0 --
         // the key's byte is read with no test (every citizen carries a profession: B6_RULES
         // C5, row 990's fixture re-cut, the root of the old "citizen+0x1f0 == 0" null).
-        if (local_res20->field4C || (param_6 != '\0')) {
+        if (local_res20->transient || (param_6 != '\0')) {
             ::Object::InternalPtr<ComponentEntity> freshIbp(nullptr);   // the IBP ctor 0x1400f7aa6
             uint8_t hit = BuildAndWalk(freshIbp.Get());
             ret = (hit != 0) ? 1 : 0;
@@ -593,7 +593,7 @@ uint64_t Helper_7550(WorkScheduler* param_1, CitizenComponent* const* param_2) {
         // the town's per-resource counters: CitizenBehavior (+0xF0) professionResources (+0x170)
         CitizenBehavior* listEnt = GameUpdateLoop::_singleton->m_citizenList;
         bool homeless = ((*param_2)->profession
-                         == GameUpdateLoop::_singleton->m_professionList->field_0x38);
+                         == GameUpdateLoop::_singleton->m_professionList->builderProfession);
         if (homeless) buf[0] = 0x0d;
         uint32_t idx = homeless ? 1u : 0u;
         ProfessionResourceEntry* p = listEnt->professionResources._data;
@@ -660,14 +660,14 @@ void Helper_7830(WorkScheduler* param_1, CitizenComponent* const* param_2) {
     ++g_idleSearchCalls;
 
     ProfessionList* homeRoot = GameUpdateLoop::_singleton->m_professionList;
-    Profession* homeKey = homeRoot->field_0x30;
+    Profession* homeKey = homeRoot->laborerProfession;
 
     Profession* ownerKey = (*param_2)->profession;
 
     // (1) probe the param_1+0x120 tree for ownerKey
-    if (ownerKey == homeRoot->field_0x38) ++g_idleSearchByBuilder;
-    if (ownerKey != homeRoot->field_0x30) {
-        WorkSchedulerBucketNode* node = param_1->field_0x120;
+    if (ownerKey == homeRoot->builderProfession) ++g_idleSearchByBuilder;
+    if (ownerKey != homeRoot->laborerProfession) {
+        WorkSchedulerBucketNode* node = param_1->professionBucketRoot;
         while (node != nullptr) {
             if (ownerKey < node->bucket.key) {
                 node = node->left;          // +0x20 left
@@ -681,7 +681,7 @@ void Helper_7830(WorkScheduler* param_1, CitizenComponent* const* param_2) {
                 WorkSchedulerIdNode* walkedHolder = walked;
                 uint64_t hit = Helper_sub_79b0(param_1, &citHolder, &walkedHolder,
                                                ownerKey, '\0', '\0');
-                if (ownerKey == homeRoot->field_0x38) {
+                if (ownerKey == homeRoot->builderProfession) {
                     ++g_idleBuilderBucketHit;
                     if (static_cast<char>(hit) != '\0') ++g_idleBuilderTookWork;
                 }
@@ -699,7 +699,7 @@ void Helper_7830(WorkScheduler* param_1, CitizenComponent* const* param_2) {
     if (static_cast<char>(hit2) != '\0') return;
 
     // (3) try the home-key subtree once
-    WorkSchedulerBucketNode* node = param_1->field_0x120;
+    WorkSchedulerBucketNode* node = param_1->professionBucketRoot;
     while (node != nullptr) {
         if (homeKey < node->bucket.key) {
             node = node->left;

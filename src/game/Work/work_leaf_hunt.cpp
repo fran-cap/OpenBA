@@ -90,7 +90,7 @@ bool ConsumeProduceComponent::CanProduce() const {
             if (i >= n) break;
         }
     }
-    int capacity = found->_i48;   // +0x48 (retail reads it unguarded)
+    int capacity = found->_maximumProduction;   // +0x48 (retail reads it unguarded)
     if (capacity < 0) return true;
     return consumeState < capacity;
 }
@@ -127,7 +127,7 @@ int PastureComponent::FindOldestLivestock() const {
                 AnimalDescription* derived = nullptr;
                 if (Object::IsDerivedFromNullSafe(obj, tidThresh)) derived = static_cast<AnimalDescription*>(obj);
                 // Keep only if score strictly exceeds the description's threshold.
-                float threshold = derived->_f30;
+                float threshold = derived->_ageForOffspring;
                 if (threshold <= score && score != threshold) {
                     bestScore = sub->age;
                     bestIndex = outer;

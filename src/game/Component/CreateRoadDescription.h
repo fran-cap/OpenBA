@@ -36,7 +36,7 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140032da0
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    bool _b20;                                  // +0x20
+    bool _index;                                  // +0x20
     uint8_t _pad21[7];                          // +0x21 never written by the ctor
     class ComponentDescription* _created;       // +0x28 ExternalPtr (created-resource description: the BuildRoad work's +0x50)
 };
@@ -44,5 +44,5 @@ public:
 static_assert(sizeof(CreateRoadDescription) == 0x30, "CreateRoadDescription is 0x30 (create 0x140032d30 MemAlloc(0x30))");
 static_assert(offsetof(CreateRoadDescription, _pad21) == 0x21, "CreateRoadDescription::_pad21");
 static_assert(alignof(CreateRoadDescription) == 8, "CreateRoadDescription alignment");
-static_assert(offsetof(CreateRoadDescription, _b20) == 0x20, "CreateRoadDescription::_b20 @ +0x20");
+static_assert(offsetof(CreateRoadDescription, _index) == 0x20, "CreateRoadDescription::_index @ +0x20");
 static_assert(offsetof(CreateRoadDescription, _created) == 0x28, "CreateRoadDescription::_created @ +0x28");

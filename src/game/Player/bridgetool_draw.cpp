@@ -62,7 +62,7 @@ inline uint32_t TerrainBit(const MapCell* cell) {
 }
 // Pending/queued-cell BST at Map +0xE8 (AvlNode28: key +0x00, left +0x10, right +0x18).
 bool PendingContains(const Map* mapGrid, int cellIdx) {
-    const AvlNode28* node = mapGrid->field_0xE8.root;
+    const AvlNode28* node = mapGrid->pendingRoadCells.root;
     while (node != nullptr) {
         if (cellIdx < node->key) {
             node = node->left;
@@ -123,11 +123,11 @@ void BridgeTool::Draw(Video::Context* context, char skip) {
 
     const CreateBridgeDescription* desc = bridgeDesc;
 
-    const uint32_t maskBody      = desc->_u20;
-    const uint32_t maskApproach  = desc->_u24;
-    const uint32_t maskBodyExtra = desc->_u28;
-    const uint32_t maskNeighbor  = desc->_u30;
-    const int      radius        = desc->_i34;
+    const uint32_t maskBody      = desc->_placeBits;
+    const uint32_t maskApproach  = desc->_invalidBits;
+    const uint32_t maskBodyExtra = desc->_startEndBits;
+    const uint32_t maskNeighbor  = desc->_edgeBits;
+    const int      radius        = desc->_edgeWidth;
     const uint32_t maskSpan      = maskBody | maskBodyExtra;
 
     // ---- 2. Bounding rect of the span --------------------------------------
@@ -199,7 +199,7 @@ void BridgeTool::Draw(Video::Context* context, char skip) {
                 const bool free = (rCell->blocker == nullptr)
                                && ((rBit & Bits(PathBits::Fast)) == 0)
                                && ((rBit & Bits(PathBits::Faster)) == 0)
-                               && (rCell->field_0x2A == MapCell::kNoRoadBatch);
+                               && (rCell->roadType == MapCell::kNoRoadBatch);
                 if (!free || PendingContains(mapGrid, idx)) color = kRed;
 
                 if (color != kRed)

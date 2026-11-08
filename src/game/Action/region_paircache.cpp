@@ -187,7 +187,7 @@ void RegionPairCache::Expire(const int64_t* dt) {
         slot->regionA = -1;          // H7: one qword store of -1 in retail
         slot->regionB = -1;
         slot->distance = -1;         // H7: one qword store {-1, pad} in retail
-        slot->field_0x0C = 0;        // retail's uninitialized uStack_1c high half
+        slot->unusedDistanceHigh = 0;        // retail's uninitialized uStack_1c high half
         slot->time = 0;
 
         // 2c) advance the expiry index, wrapping at the ring size

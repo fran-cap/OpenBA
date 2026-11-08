@@ -185,10 +185,10 @@ static_assert(sizeof(MemoryStream) == 0x30, "sizeof(IO::MemoryStream) == 0x30");
 // ============================================================
 struct CompressedStream {
     Stream   base;            // +0x00
-    uint32_t unknown18;       // +0x18  never initialised by the ctor
+    uint32_t copiedUnwrittenWord;       // +0x18  never initialised by the ctor
     int32_t  position;        // +0x1c
     int32_t  activeWindow;    // +0x20  ctor: -1
-    uint32_t unknown24;       // +0x24  never initialised by the ctor
+    uint32_t pad24;       // +0x24  never initialised by the ctor
     Stream*  source;          // +0x28
     void*    windowData;      // +0x30  Array<Window>::_data
     int32_t  windowSize;      // +0x38  Array<Window>::_size
@@ -202,8 +202,8 @@ struct CompressedStream {
     void*    compression;     // +0x60  System::Compression*, owned
 };
 static_assert(offsetof(RtIo::CompressedStream, base) == 0x0, "CompressedStream::base");
-static_assert(offsetof(RtIo::CompressedStream, unknown18) == 0x18, "CompressedStream::unknown18");
-static_assert(offsetof(RtIo::CompressedStream, unknown24) == 0x24, "CompressedStream::unknown24");
+static_assert(offsetof(RtIo::CompressedStream, copiedUnwrittenWord) == 0x18, "CompressedStream::copiedUnwrittenWord");
+static_assert(offsetof(RtIo::CompressedStream, pad24) == 0x24, "CompressedStream::pad24");
 static_assert(offsetof(RtIo::CompressedStream, windowCap) == 0x3C, "CompressedStream::windowCap");
 static_assert(offsetof(RtIo::CompressedStream, headerCap) == 0x4C, "CompressedStream::headerCap");
 static_assert(offsetof(RtIo::CompressedStream, blockSize) == 0x58, "CompressedStream::blockSize");
@@ -777,13 +777,13 @@ public:
     static ExtReadTapFn _extReadTap;               // defined in compressed_stream_read.cpp
 
     // ---- the 0x68 bytes, at retail's offsets -------------------------------
-    // `_unknown18` and `_unknown24` are the two gaps `??0CompressedStream`
+    // `_copiedUnwrittenWord` and `_pad24` are the two gaps `??0CompressedStream`
     // (0x1800aa3d0) leaves unwritten. They are recorded as unknown rather than
     // guessed, and zeroing them would be a behavioural difference from retail.
-    uint32_t _unknown18;      // +0x18  never initialised by the ctor
+    uint32_t _copiedUnwrittenWord;      // +0x18  never initialised by the ctor
     int32_t  _position;       // +0x1c  logical position in the DECOMPRESSED stream
     int32_t  _activeWindow;   // +0x20  ctor writes -1
-    uint32_t _unknown24;      // +0x24  never initialised by the ctor
+    uint32_t _pad24;      // +0x24  never initialised by the ctor
     Stream*  _source;         // +0x28  the stream the compressed bytes live on
     RtIo::CompressedStreamWindow* _windowData;   // +0x30  Array<Window>::_data
     int32_t  _windowSize;     // +0x38  Array<Window>::_size
@@ -815,8 +815,8 @@ protected:
         _encoding = enc;
     }
 };
-static_assert(offsetof(IO::CompressedStream, _unknown18) == 0x18, "CompressedStream::_unknown18");
-static_assert(offsetof(IO::CompressedStream, _unknown24) == 0x24, "CompressedStream::_unknown24");
+static_assert(offsetof(IO::CompressedStream, _copiedUnwrittenWord) == 0x18, "CompressedStream::_copiedUnwrittenWord");
+static_assert(offsetof(IO::CompressedStream, _pad24) == 0x24, "CompressedStream::_pad24");
 static_assert(offsetof(IO::CompressedStream, _windowCap) == 0x3C, "CompressedStream::_windowCap");
 static_assert(offsetof(IO::CompressedStream, _headerCap) == 0x4C, "CompressedStream::_headerCap");
 static_assert(offsetof(IO::CompressedStream, _blockSize) == 0x58, "CompressedStream::_blockSize");

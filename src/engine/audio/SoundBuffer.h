@@ -88,7 +88,7 @@ public:
     // at +0x54 (the last four of `_format` and the pads at +0x22 / +0x44 /
     // +0x4c are NOT written), a qword +0x38, a dword +0x40, a qword +0x48 and a
     // dword +0x50.
-    SoundBuffer() : Object::CompiledExternal(), _string28(), _streamPath() {
+    SoundBuffer() : Object::CompiledExternal(), _wave(), _streamPath() {
         _loopForever = 0;
         _streamed = 0;
         _durationSeconds = 0.0f;
@@ -187,7 +187,7 @@ public:
     bool            _streamed;               // +0x21  IsStreamed
     uint8_t         _pad22[2];               // +0x22  never written
     float           _durationSeconds;        // +0x24  kScalarFloat, last scalar
-    System::String  _string28;               // +0x28  serialized first; no getter
+    System::String  _wave;               // +0x28  serialized first; no getter
     System::String  _streamPath;             // +0x30  GetStreamPath
     uint8_t*        _data;                   // +0x38  GetData (the audio bytes, XAUDIO2_BUFFER::pAudioData)
     int32_t         _length;                 // +0x40  GetLength
@@ -213,7 +213,7 @@ static_assert(alignof(SoundBuffer) == 8, "Audio::SoundBuffer aligns to 8 (the vp
 static_assert(offsetof(SoundBuffer, _loopForever)     == 0x20, "IsLooping 0x18000bc80 reads +0x20");
 static_assert(offsetof(SoundBuffer, _streamed)        == 0x21, "IsStreamed 0x18000bc90 reads +0x21");
 static_assert(offsetof(SoundBuffer, _durationSeconds) == 0x24, "PlayPlatform: MOVSS [buf+0x24]");
-static_assert(offsetof(SoundBuffer, _string28)        == 0x28, "Serialize's first String");
+static_assert(offsetof(SoundBuffer, _wave)        == 0x28, "Serialize's first String");
 static_assert(offsetof(SoundBuffer, _streamPath)      == 0x30, "GetStreamPath 0x18000bca0 is LEA +0x30");
 static_assert(offsetof(SoundBuffer, _data)            == 0x38, "GetData 0x18000bcd0 reads +0x38");
 static_assert(offsetof(SoundBuffer, _length)          == 0x40, "GetLength 0x18000bcc0 reads +0x40");

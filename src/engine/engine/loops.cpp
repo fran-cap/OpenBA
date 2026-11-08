@@ -885,7 +885,7 @@ bool Engine::DialogLoaderLoopT::Update(const System::Time& time) {
 //
 // The three destinations and the two dirty bits, read off the stores:
 //     ctx->_time          (+0x3c8) = (secs,0,0,0) ; _dirty |= 0x00800
-//     ctx->_unknown03b8   (+0x3b8) = (secs,0,0,0)
+//     ctx->_userPosition  (+0x3b8) = (secs,0,0,0)
 //     ctx->_pixelConstantStaging[0x88] = (secs,0,0,0) ; _dirty |= 0x10800
 // The second OR is 0x10800, not 0x10000 — it re-sets 0x800 that the first OR
 // already set. Faithful, and harmless.
@@ -910,8 +910,8 @@ void Engine::DialogLoaderLoopT::Draw(float /*interpolation*/) {
     ctx->_time.z = 0.0f;   ctx->_time.w = 0.0f;
     ctx->_dirty |= RtVideo::kDirtyGlobalConstants;
 
-    ctx->_unknown03b8.x = secs;  ctx->_unknown03b8.y = 0.0f;
-    ctx->_unknown03b8.z = 0.0f;  ctx->_unknown03b8.w = 0.0f;
+    ctx->_userPosition.x = secs;  ctx->_userPosition.y = 0.0f;
+    ctx->_userPosition.z = 0.0f;  ctx->_userPosition.w = 0.0f;
 
     // ctx +0x288: Context::PixelConstantStaging::pixel[4].
     Math::Vector4& staging = ctx->_pixelConstantStaging.pixel[4];   // LEFT: Context::_pixelConstantStaging is one 0x98-byte block (+0x200 videoProgram, +0x208 material, +0x248 pixel constants); ~10 readers in runtime/video and code/ index it by byte: splitting it is its own sweep

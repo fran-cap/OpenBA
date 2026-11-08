@@ -47,7 +47,7 @@ bool TutorialGoalGameSpeed::IsComplete(const System::Time* /*time*/, void* /*ins
     if (timeCtrl == nullptr) return false;
 
     // its +0x34 = current game speed
-    int32_t currentSpeed = timeCtrl->field_0x34;
+    int32_t currentSpeed = timeCtrl->gameSpeed;
 
     return currentSpeed == targetSpeed;
 }

@@ -106,8 +106,8 @@ std::string TextOf(UI::StringTable* table, const System::String& key) {
 std::vector<std::string> GroupChain(const ::Toolbar* item) {
     std::vector<std::string> chain;
     int guard = 0;
-    for (const ::Toolbar* g = item->_field60; g != nullptr && guard++ < 8; g = g->_field60) {
-        const std::string name = TextOf(g->_field20, g->_field30);
+    for (const ::Toolbar* g = item->parentToolbar; g != nullptr && guard++ < 8; g = g->parentToolbar) {
+        const std::string name = TextOf(g->textTable, g->textKey);
         chain.insert(chain.begin(), name);
     }
     return chain;
@@ -130,11 +130,11 @@ std::vector<Item> CollectItems() {
             continue;
         }
         const ::Toolbar* item = static_cast<const ::Toolbar*>(ext);
-        if (item->_field45 == 0 || item->_field48 != 1 || item->_field58 == nullptr) {
+        if (item->visible == 0 || item->actionType != 1 || item->componentDescription == nullptr) {
             continue;
         }
         Item it;
-        it.tmpl = item->_field58;
+        it.tmpl = item->componentDescription;
         it.key = PathOf(it.tmpl);
         if (it.key.empty()) {
             continue;
@@ -178,13 +178,13 @@ std::vector<Item> CollectItems() {
                 it.sprite = desc->_name._data;
             }
         }
-        if (it.sheet == nullptr && item->_field28 != nullptr && item->_field38._data != nullptr &&
-            item->_field38._data[0] != '\0') {
-            it.sheet = item->_field28;   // the toolbar item's own icon, when the description has none
-            it.sprite = item->_field38._data;
+        if (it.sheet == nullptr && item->spriteSheet != nullptr && item->spriteName._data != nullptr &&
+            item->spriteName._data[0] != '\0') {
+            it.sheet = item->spriteSheet;   // the toolbar item's own icon, when the description has none
+            it.sprite = item->spriteName._data;
         }
         if (it.name.empty()) {
-            it.name = TextOf(item->_field20, item->_field30);
+            it.name = TextOf(item->textTable, item->textKey);
         }
         if (it.name.empty()) {
             it.name = LeafName(it.key);
@@ -387,7 +387,7 @@ bool IsPlacing(const Item& it) {
     const GameUpdateLoop* game = GameUpdateLoop::_singleton;
     // the manager's active tool group: SelectTool stores the template, and a cancel or a finished placement
     // selects none (null: the edit tool)
-    return game != nullptr && game->m_toolManager != nullptr && game->m_toolManager->field_0x20 == it.tmpl;
+    return game != nullptr && game->m_toolManager != nullptr && game->m_toolManager->activeToolGroup == it.tmpl;
 }
 
 std::string StartPlacing(const Item& it) {

@@ -244,7 +244,7 @@ void ConsumeProduceUI::OnUpdateLayout() {
 
     // Calculate production ratio: 1.0 - currentTicks / totalTicks
     int currentTicks = component->consumeState;
-    int totalTicks = cpComp->_i48;
+    int totalTicks = cpComp->_maximumProduction;
     float ratio = 1.0f - (float)currentTicks / (float)totalTicks;
 
     // Store ratio as the progress value

@@ -62,11 +62,11 @@ public:
     using CellSet   = Collection::Set<WorkCellAssignment>;
     EntitySet _entities;         // +0x48
     CellSet   _cells;            // +0x58
-    ComponentDescription* field_68; // +0x68: ExternalPtr<ComponentDescription> filter (Persist 0x1400e6740
+    ComponentDescription* _targetFilter; // +0x68: ExternalPtr<ComponentDescription> filter (Persist 0x1400e6740
                                     //        serializes it by the ExternalPtr body; Execute compares entity +0x28)
-    bool     field_70;           // +0x70: bool — clear trees/resources
-    bool     field_71;           // +0x71: bool — clear ground (version >= 1)
-    bool     field_72;           // +0x72: bool — clear buildings (version >= 1)
+    bool     _clearTrees;           // +0x70: bool — clear trees/resources
+    bool     _clearGround;           // +0x71: bool — clear ground (version >= 1)
+    bool     _clearPiles;           // +0x72: bool — clear buildings (version >= 1)
     uint8_t  _pad73[5];          // +0x73: padding
 };
 
@@ -77,7 +77,7 @@ static_assert(offsetof(ClearArea, _entities) == 0x48, "ClearArea +0x48");
 static_assert(offsetof(ClearArea, _entities) + offsetof(ClearArea::EntitySet, _count) == 0x50, "ClearArea +0x50");
 static_assert(offsetof(ClearArea, _cells) == 0x58, "ClearArea +0x58");
 static_assert(offsetof(ClearArea, _cells) + offsetof(ClearArea::CellSet, _count) == 0x60, "ClearArea +0x60");
-static_assert(offsetof(ClearArea, field_68) == 0x68, "ClearArea +0x68");
-static_assert(offsetof(ClearArea, field_70) == 0x70, "ClearArea +0x70");
-static_assert(offsetof(ClearArea, field_71) == 0x71, "ClearArea +0x71");
-static_assert(offsetof(ClearArea, field_72) == 0x72, "ClearArea +0x72");
+static_assert(offsetof(ClearArea, _targetFilter) == 0x68, "ClearArea +0x68");
+static_assert(offsetof(ClearArea, _clearTrees) == 0x70, "ClearArea +0x70");
+static_assert(offsetof(ClearArea, _clearGround) == 0x71, "ClearArea +0x71");
+static_assert(offsetof(ClearArea, _clearPiles) == 0x72, "ClearArea +0x72");

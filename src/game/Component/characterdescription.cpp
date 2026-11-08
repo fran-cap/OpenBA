@@ -6,9 +6,9 @@
 //
 // Field layout (from ctor FUN_140109f10 + Serialize 0x140109dd0):
 //   +0x20 float  speedScale        (default 0.25  = 0x3e800000)
-//   +0x24 float  _slowSpeed?       (default 0.0;  high dword of the 8-byte ctor write at +0x20)
-//   +0x28 float  _slowSpeed        (default 0.85  = 0x3f59999a)
-//   +0x2c float  _turnFilter?      (default 0.1   = 0x3dcccccd)
+//   +0x24 float  _headingOffset    (default 0.0;  high dword of the 8-byte ctor write at +0x20)
+//   +0x28 float  _turnFilter       (default 0.85  = 0x3f59999a)
+//   +0x2c float  _defaultAnimationBlendTime (default 0.1   = 0x3dcccccd)
 //   +0x30 float                    (default 1.0)
 //   +0x34 float                    (default 1.0)
 //   +0x38 float                    (default 1.0)
@@ -45,30 +45,30 @@ inline float FloatBits(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f
 // the defaults.
 CharacterDescription::CharacterDescription()
     : Description(),
-      _speedScale(0.25f),
-      _f24(0.0f),
-      _slowSpeed(FloatBits(0x3f59999a)),
-      _turnFilter(FloatBits(0x3dcccccd)),
-      _f30(1.0f),
-      _f34(1.0f),
-      _f38(1.0f),
-      _b3c(false),
-      _f40(0.0f),
-      _f44(-10.0f) {}
+      _radius(0.25f),
+      _headingOffset(0.0f),
+      _turnFilter(FloatBits(0x3f59999a)),
+      _defaultAnimationBlendTime(FloatBits(0x3dcccccd)),
+      _slowSpeed(1.0f),
+      _fastSpeed(1.0f),
+      _fastestSpeed(1.0f),
+      _forceHeight(false),
+      _height(0.0f),
+      _minHeight(-10.0f) {}
 
 // [5] 0x140109dd0: stream order as retail.
 bool CharacterDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_speedScale, nullptr);
-    ser.Serialize(_f24, nullptr);
-    ser.Serialize(_slowSpeed, nullptr);
+    ser.Serialize(_radius, nullptr);
+    ser.Serialize(_headingOffset, nullptr);
     ser.Serialize(_turnFilter, nullptr);
-    ser.Serialize(_f30, nullptr);
-    ser.Serialize(_f34, nullptr);
-    ser.Serialize(_f38, nullptr);
-    ser.Serialize(_b3c, nullptr);
-    ser.Serialize(_f40, nullptr);
-    ser.Serialize(_f44, nullptr);
+    ser.Serialize(_defaultAnimationBlendTime, nullptr);
+    ser.Serialize(_slowSpeed, nullptr);
+    ser.Serialize(_fastSpeed, nullptr);
+    ser.Serialize(_fastestSpeed, nullptr);
+    ser.Serialize(_forceHeight, nullptr);
+    ser.Serialize(_height, nullptr);
+    ser.Serialize(_minHeight, nullptr);
     return true;
 }
 

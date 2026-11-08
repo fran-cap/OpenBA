@@ -377,16 +377,16 @@ extern "C" int RtCrt_ParseInt10_18007f034(const char* s) {
 // RtColl_ArraySetSizeFill_180026880, RtIo_Modification_SortMods).
 
 // The `Mod` int columns, named from the PackageFile fields RefreshList copies
-// them out of (0x1800afaba..0x1800afade and 0x1800afc8e). Modification.h calls
-// them i18/i1c/i24/i28/i2c because the lifecycle triple that pinned the layout
-// only ever COPIES them; this is the body that gives them meaning, so the
-// mapping is recorded here rather than renaming a header three files include:
+// them out of (0x1800afaba..0x1800afade and 0x1800afc8e). Modification.h called
+// them i18/i1c/i24/i28/i2c (by offset) because the lifecycle triple that pinned the layout
+// only ever COPIES them; this is the body that gives them meaning, and the
+// header now carries these names:
 //
-//     Mod::i18 <- PackageFile +0x68   ?GetVersion@      (0x1800253d0)
-//     Mod::i1c <- PackageFile +0x6c   ?GetUserVersion@  (0x1800253e0)
-//     Mod::i24 <- PackageFile +0x78   ?GetIconWidth@    (0x180025510)
-//     Mod::i28 <- PackageFile +0x7c   ?GetIconHeight@   (0x180025520)
-//     Mod::i2c <- PackageFile +0xa8   ?GetCRC@          (0x180025500)
+//     Mod::version     <- PackageFile +0x68   ?GetVersion@      (0x1800253d0)
+//     Mod::userVersion <- PackageFile +0x6c   ?GetUserVersion@  (0x1800253e0)
+//     Mod::iconWidth   <- PackageFile +0x78   ?GetIconWidth@    (0x180025510)
+//     Mod::iconHeight  <- PackageFile +0x7c   ?GetIconHeight@   (0x180025520)
+//     Mod::crc         <- PackageFile +0xa8   ?GetCRC@          (0x180025500)
 //     Mod::order starts at 0 and is overwritten from "ModIndex_<stem>".
 
 }  // namespace RtIO
@@ -601,10 +601,10 @@ void Modification::RefreshList() {
         }
 
         // 0x1800afaba — the four ints that come straight off the header.
-        m->i18 = pkgObj->_version;       // +0x68
-        m->i1c = pkgObj->_userVersion;   // +0x6c
-        m->i24 = pkgObj->_iconWidth;     // +0x78
-        m->i28 = pkgObj->_iconHeight;    // +0x7c
+        m->version = pkgObj->_version;       // +0x68
+        m->userVersion = pkgObj->_userVersion;   // +0x6c
+        m->iconWidth = pkgObj->_iconWidth;     // +0x78
+        m->iconHeight = pkgObj->_iconHeight;    // +0x7c
 
         // 0x1800afae2 — the icon, then the preview. Each arrives in a temporary
         // Array this body hands to the member's operator= and then frees.
@@ -619,7 +619,7 @@ void Modification::RefreshList() {
             if (&m->bytes != &tmp) RtColl_ArrayU8Assign_180011220(&m->bytes, &tmp);
         }
 
-        m->i2c   = static_cast<int32_t>(pkgObj->_crc);            // +0xa8 crc  0x1800afc8e
+        m->crc   = static_cast<int32_t>(pkgObj->_crc);            // +0xa8 crc  0x1800afc8e
         m->order = 0;                                             //      0x1800afc98
 
         // -------------------------------------------------------------------

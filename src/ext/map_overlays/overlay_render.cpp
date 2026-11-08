@@ -247,7 +247,7 @@ uint64_t HeightsHash(const int16_t* heights, size_t count) {
 
 // The heightmap's hash and its lowest and highest ground, worked out again only when the hash changes.
 void GroundOf(const WorldGeometry& terrain, TerrainCache& cache) {
-    const int dim = terrain._fieldD0;
+    const int dim = terrain._heightRowStride;
     const size_t count = static_cast<size_t>(dim) * static_cast<size_t>(dim);
     const uint64_t hash = HeightsHash(terrain._heights.data, count);
     if (cache.heights == terrain._heights.data && cache.heightsDim == dim && cache.heightsHash == hash) return;
@@ -284,7 +284,7 @@ const Video::RenderState* TerrainState(const Graphics::MaterialInstance* instanc
     depth.write = false;
     depth.func = 4;   // the engine's default: less or equal
     state->Initialize(overlay->_alphaBlend, depth, overlay->_stencil, overlay->_cullMode, overlay->_fillMode,
-                      overlay->_flag70);
+                      overlay->_scissorEnable);
     ours = state;   // kept for the life of the process
     source = overlay;
     return ours;
@@ -416,14 +416,14 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
     const int mapSize = game->m_game->size;
     if (mapSize <= 0) return;
     const WorldGeometry* terrain = game->m_worldGeometry;
-    if (terrain->_heights.data == nullptr || terrain->_fieldD0 <= 0) return;
+    if (terrain->_heights.data == nullptr || terrain->_heightRowStride <= 0) return;
 
-    const int base = (terrain->_gridSize - terrain->_fieldC4) >> 1;
+    const int base = (terrain->_gridSize - terrain->_mapSize) >> 1;
     const float center = static_cast<float>(terrain->_gridSize >> 1);
     const float origin = static_cast<float>(base) - center;
     Ground ground;
     ground.base = base;
-    ground.dim = terrain->_fieldD0;
+    ground.dim = terrain->_heightRowStride;
     ground.heights = terrain->_heights.data;
 
     TerrainCache& cache = Cache();

@@ -88,13 +88,13 @@ int CheckRegion(const Region& r) {
 const Region kRegions[] = {
     {"src/game/Component/citizenai_executor.cpp",
      "still_path_test.cpp (Tail) and ext_walk_batch_test.cpp (TailRef)",
-     0xef438eab1dbd76a7ull},
+     0xf4d6a15ed9a13bd8ull},
     {"src/game/Action/moveto.cpp",
      "ext_walk_batch_test.cpp (ExecuteRef)",
-     0xb448e78c0f28dadeull},
+     0xf1f494f1cf93423full},
     {"src/game/Game/worldgeometry_ray.cpp",
      "still_terrain_test.cpp (World::SampleHeight, World::RayTri)",
-     0xf5a2abe22bdb3d72ull},
+     0xac5163ca36755eeaull},
 };
 
 }  // namespace

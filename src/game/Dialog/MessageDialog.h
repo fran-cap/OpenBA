@@ -45,9 +45,9 @@ public:
     virtual void OnNo();                                           // [13] 0x14006cf70
 
 public:
-    uint64_t dataB8;                                               // +0xb8 never written
+    uint64_t _padB8;                                               // +0xb8 never written
 };
 
-static_assert(offsetof(MessageDialog, dataB8) == 0xb8, "MessageDialog +0xb8");
+static_assert(offsetof(MessageDialog, _padB8) == 0xb8, "MessageDialog +0xb8");
 static_assert(sizeof(MessageDialog) == 0xc0, "MessageDialog is 0xc0 (create 0x1400125d0 MemAlloc(0xc0))");
 static_assert(alignof(MessageDialog) == 8, "MessageDialog is qword-aligned");

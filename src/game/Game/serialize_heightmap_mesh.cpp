@@ -114,7 +114,7 @@ constexpr float kNormalDefaultZ  = 2.0f;        // 0x140172174
 // 0x1400ae270 — WorldGeometry::TerrainNormal (vertex normal from the heightmap)
 // ============================================================
 //
-// Reads the int16 heightmap (_heights.data, row stride _fieldD0 = gridLevels) around
+// Reads the int16 heightmap (_heights.data, row stride _heightRowStride = gridLevels) around
 // (col, row), computes a normal from the discrete x/y deltas and normalizes it.
 //
 // Decompile:
@@ -125,7 +125,7 @@ constexpr float kNormalDefaultZ  = 2.0f;        // 0x140172174
 //
 // Coordinate clamping: each index is clamped to [0, gridLevels-1] independently.
 Math::Vector3 WorldGeometry::TerrainNormal(int col, int row) const {
-    int gridLevels = _fieldD0;
+    int gridLevels = _heightRowStride;
     // Degenerate — 0,0,2 unnormalized to avoid div-by-zero in Normalize.
     if (gridLevels <= 0) return Math::Vector3(0.0f, 0.0f, kNormalDefaultZ);
     const int16_t* heightmap = _heights.data;
@@ -185,7 +185,7 @@ void WorldGeometry::FillTerrainVertices(int colStart, int rowStart, int width, i
     int colEnd = colStart + width;
 
     int gridSize   = _gridSize;
-    int gridLevels = _fieldD0;
+    int gridLevels = _heightRowStride;
     const int16_t* heightmap = _heights.data;
 
     if (!heightmap) {
@@ -255,7 +255,7 @@ void WorldGeometry::FillTerrainVertices(int colStart, int rowStart, int width, i
 //   _gridSize (+0xC0)          full heightmap edge in cells (e.g. 768)
 //   _chunkSize (+0xC8)         per-chunk cell edge (e.g. 32): the divisor for
 //                              chunksPerSide, the chunk stride and the IB loop bound
-//   _fieldCC (+0xCC)           vertsPerSide = chunkSize + 1 (e.g. 33): the vertex
+//   _chunkVertsPerSide (+0xCC) vertsPerSide = chunkSize + 1 (e.g. 33): the vertex
 //                              block edge and the row stride of the index ids
 //   _chunkIndexStride (+0xD4)  vertsPerChunk = vertsPerSide^2 (e.g. 1089)
 //   _vertexBuffer (+0x100), _indexBuffer (+0x120)
@@ -274,7 +274,7 @@ void WorldGeometry::BuildTerrainMesh() {
 
     int gridSize       = _gridSize;
     int chunkSize      = _chunkSize;
-    int vertsPerSide   = _fieldCC;
+    int vertsPerSide   = _chunkVertsPerSide;
     int vertsPerChunk  = _chunkIndexStride;
     int chunksPerSide  = (chunkSize > 0) ? (gridSize / chunkSize) : 0;
 
@@ -443,7 +443,7 @@ void WorldGeometry::RebuildDirtyChunks() {
 
     int gridSize       = _gridSize;           // +0xC0
     int chunkSize      = _chunkSize;          // +0xC8
-    int vertsPerSide   = _fieldCC;            // +0xCC
+    int vertsPerSide   = _chunkVertsPerSide;            // +0xCC
     int vertsPerChunk  = _chunkIndexStride;   // +0xD4
     int chunksPerSide  = (chunkSize > 0) ? (gridSize / chunkSize) : 0;
 
@@ -477,8 +477,8 @@ void WorldGeometry::RebuildDirtyChunks() {
         // outside it (signed compares, JG / JL).
         int x0 = _chunkSize * col;          // +0xC8, re-read after the upload
         int y0 = _chunkSize * row;
-        int x1 = _fieldCC + x0;             // +0xCC
-        int y1 = _fieldCC + y0;
+        int x1 = _chunkVertsPerSide + x0;             // +0xCC
+        int y1 = _chunkVertsPerSide + y0;
         for (int i = 0; i < _decals._size; ++i) {   // +0x1F8
             const GeometryBatch& decal = _decals._data[i];   // +0x1F0
             if (decal.minX > x1) continue;   // +0x2C

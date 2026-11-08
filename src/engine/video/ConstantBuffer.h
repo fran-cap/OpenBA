@@ -55,7 +55,7 @@
 //                          (0x1800eecf0); dx11: `<<4` is the total byte size
 //   0x20  _bankStride      dx11 `ConstantBufferOwner::bankStride`; the only
 //                          non-zero value the engine passes is 0x40, for tc_
-//   0x24  _unknown24[4]    NOT written by the ctor (its `MOV qword
+//   0x24  _pad24[4]        NOT written by the ctor (its `MOV qword
 //                          [RCX+0x1c],RAX` stops at +0x23) and by nothing else
 //   0x28  _constants       `Collection::Array<ConstantInfo>` — data +0x28,
 //                          _size +0x30, _capacity +0x34. ?GetConstant@
@@ -229,7 +229,7 @@ public:
     uint8_t  _pad1a[2];        // +0x1a  UNPROVEN — written by nothing
     int32_t  _registerCount;   // +0x1c  running total, in float4 registers
     int32_t  _bankStride;      // +0x20  bytes per bank; 0x40 for tc_ only
-    uint8_t  _unknown24[4];    // +0x24  UNPROVEN — the ctor's qword stops at +0x23
+    uint8_t  _pad24[4];    // +0x24  UNPROVEN — the ctor's qword stops at +0x23
 
     // `Collection::Array<ConstantInfo>`, spelled out for the triviality reason
     // in the banner. +0x28 / +0x30 / +0x34.
@@ -246,7 +246,7 @@ static_assert(sizeof(ConstantBuffer) == 0x48,
               "seven instances embedded in Video::Context (0x2e0 - 0x298, and "
               "the five at 0x1f78/0x1fc0/0x2008/0x2050/0x2098)");
 static_assert(offsetof(ConstantBuffer, _pad1a) == 0x1A, "ConstantBuffer::_pad1a");
-static_assert(offsetof(ConstantBuffer, _unknown24) == 0x24, "ConstantBuffer::_unknown24");
+static_assert(offsetof(ConstantBuffer, _pad24) == 0x24, "ConstantBuffer::_pad24");
 static_assert(alignof(ConstantBuffer) == 8, "Video::ConstantBuffer is qword-aligned");
 
 // RULE B5-4, the properties `Video::Context` depends on.

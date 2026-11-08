@@ -20,11 +20,11 @@
 #include <cstddef>
 #include "Component/Description.h"
 #include "Object/exe_type.h"
-#include "collection/Collection.h"   // Collection::Array (_refs)
+#include "collection/Collection.h"   // Collection::Array (_removeTypes)
 
-class ComponentDescription;   // Component/ComponentDescription.h (the _refs entries)
+class ComponentDescription;   // Component/ComponentDescription.h (the _removeTypes entries)
 
-// _refs grows through retail's stride-8 row (Serialize's 0x140001bb0 SetSize(n): stride 8,
+// _removeTypes grows through retail's stride-8 row (Serialize's 0x140001bb0 SetSize(n): stride 8,
 // align 8, the new tail ZEROED, no element destroy) and is freed by the inlined ~Array
 // (dtor 0x140032cc7: MemFree(+0x28), then +0x28 = +0x30 = 0): kSpec_PtrZero (Entity/EntityList.h).
 namespace rtcoll { extern const ArraySpec kSpec_PtrZero; }   // 0x180008d60
@@ -44,18 +44,18 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140032be0
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    bool _b20;                                  // +0x20
+    bool _removeResources;                                  // +0x20
     uint8_t _pad21[7];                          // +0x21 never written by the ctor
     // +0x28 Array<ExternalPtr<ComponentDescription>> (count +0x30, capacity +0x34; entries are
     // non-owning; B4 PLAYER H4: the field templates RemovalTool compares entity descriptions with)
     using RefList = Collection::Array<ComponentDescription*, Collection::DefaultAllocator,
                                       Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
-    RefList _refs;                              // +0x28
-    class ComponentDescription* _ref38;         // +0x38 ExternalPtr (B4 PLAYER H4: the template RemovalTool compares entity descriptions with, 0x140104670)
-    bool _b40;                                  // +0x40
-    bool _b41;                                  // +0x41
-    bool _b42;                                  // +0x42
-    bool _b43;                                  // +0x43
+    RefList _removeTypes;                              // +0x28
+    class ComponentDescription* _remover;         // +0x38 ExternalPtr (B4 PLAYER H4: the template RemovalTool compares entity descriptions with, 0x140104670)
+    bool _removeRoads;                                  // +0x40
+    bool _removeBuildings;                                  // +0x41
+    bool _cancelClear;                                  // +0x42
+    bool _increasePriority;                                  // +0x43
     uint8_t _pad44[4];                          // +0x44 never written by the ctor
 };
 
@@ -63,12 +63,12 @@ static_assert(sizeof(CreateRemovalDescription) == 0x48, "CreateRemovalDescriptio
 static_assert(offsetof(CreateRemovalDescription, _pad21) == 0x21, "CreateRemovalDescription::_pad21");
 static_assert(offsetof(CreateRemovalDescription, _pad44) == 0x44, "CreateRemovalDescription::_pad44");
 static_assert(alignof(CreateRemovalDescription) == 8, "CreateRemovalDescription alignment");
-static_assert(offsetof(CreateRemovalDescription, _b20) == 0x20, "CreateRemovalDescription::_b20 @ +0x20");
-static_assert(offsetof(CreateRemovalDescription, _refs) == 0x28, "CreateRemovalDescription::_refs @ +0x28");
-static_assert(offsetof(CreateRemovalDescription, _refs) + offsetof(CreateRemovalDescription::RefList, _size) == 0x30, "CreateRemovalDescription::_refs count @ +0x30");
-static_assert(offsetof(CreateRemovalDescription, _refs) + offsetof(CreateRemovalDescription::RefList, _capacity) == 0x34, "CreateRemovalDescription::_refs capacity @ +0x34");
-static_assert(offsetof(CreateRemovalDescription, _ref38) == 0x38, "CreateRemovalDescription::_ref38 @ +0x38");
-static_assert(offsetof(CreateRemovalDescription, _b40) == 0x40, "CreateRemovalDescription::_b40 @ +0x40");
-static_assert(offsetof(CreateRemovalDescription, _b41) == 0x41, "CreateRemovalDescription::_b41 @ +0x41");
-static_assert(offsetof(CreateRemovalDescription, _b42) == 0x42, "CreateRemovalDescription::_b42 @ +0x42");
-static_assert(offsetof(CreateRemovalDescription, _b43) == 0x43, "CreateRemovalDescription::_b43 @ +0x43");
+static_assert(offsetof(CreateRemovalDescription, _removeResources) == 0x20, "CreateRemovalDescription::_removeResources @ +0x20");
+static_assert(offsetof(CreateRemovalDescription, _removeTypes) == 0x28, "CreateRemovalDescription::_removeTypes @ +0x28");
+static_assert(offsetof(CreateRemovalDescription, _removeTypes) + offsetof(CreateRemovalDescription::RefList, _size) == 0x30, "CreateRemovalDescription::_removeTypes count @ +0x30");
+static_assert(offsetof(CreateRemovalDescription, _removeTypes) + offsetof(CreateRemovalDescription::RefList, _capacity) == 0x34, "CreateRemovalDescription::_removeTypes capacity @ +0x34");
+static_assert(offsetof(CreateRemovalDescription, _remover) == 0x38, "CreateRemovalDescription::_remover @ +0x38");
+static_assert(offsetof(CreateRemovalDescription, _removeRoads) == 0x40, "CreateRemovalDescription::_removeRoads @ +0x40");
+static_assert(offsetof(CreateRemovalDescription, _removeBuildings) == 0x41, "CreateRemovalDescription::_removeBuildings @ +0x41");
+static_assert(offsetof(CreateRemovalDescription, _cancelClear) == 0x42, "CreateRemovalDescription::_cancelClear @ +0x42");
+static_assert(offsetof(CreateRemovalDescription, _increasePriority) == 0x43, "CreateRemovalDescription::_increasePriority @ +0x43");

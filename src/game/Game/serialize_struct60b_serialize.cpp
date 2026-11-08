@@ -98,18 +98,18 @@ void GeometryBatch_Serialize(IO::Serializer& serializer, int count, GeometryBatc
         serializer.Serialize(b.maxX, nullptr);
         serializer.Serialize(b.maxY, nullptr);
         // 3. 1 byte at +0x3c.
-        serializer.Serialize(b.field_0x3C, nullptr);
+        serializer.Serialize(b.alpha, nullptr);
         // 4. 1 int at +0x40.
-        serializer.Serialize(b.field_0x40, nullptr);
+        serializer.Serialize(b.rotation, nullptr);
         // 5. 1 bool at +0x44.
-        serializer.Serialize(b.field_0x44, nullptr);
+        serializer.Serialize(b.tiled, nullptr);
         // 6. 5 floats at +0x48..+0x58.
         for (int k = 0; k < 5; ++k)
-            serializer.Serialize(b.field_0x48[k], nullptr);
+            serializer.Serialize(b.uvParams[k], nullptr);
         // 7. 1 bool at +0x5c: retail's bool slot (+0x78). The binary reader / writer
         // move the one byte through its address and never load it as a bool; the
         // field is a raw byte (review F-008).
-        serializer.Serialize(reinterpret_cast<bool&>(b.field_0x5C), nullptr);
+        serializer.Serialize(reinterpret_cast<bool&>(b.isDecal), nullptr);
 
         // 8. Version-gated bool at +0x5d (versions >= 2).
         int version = serializer.GetVersion();

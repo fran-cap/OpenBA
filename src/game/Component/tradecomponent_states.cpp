@@ -421,7 +421,7 @@ char TradeComponent::Teardown() {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     if (gw) {
         // The town manager's trading-post list at +0x30.
-        gw->m_citizenList->field_0x30.Remove(entityIBP);
+        gw->m_citizenList->tradePosts.Remove(entityIBP);
     }
 
     if (merchant.Get() != nullptr) {

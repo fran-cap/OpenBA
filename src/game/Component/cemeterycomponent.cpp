@@ -195,7 +195,7 @@ char CemeteryComponent::EnterBuilt() {
         // Free plot: stamp the zone byte, notify, and null the entity slot.
         const uint8_t zone = static_cast<uint8_t>(cell->terrainType);   // +0x29
         const bool zonesStale = CemeteryTypeIsZoneless(zone);
-        world->field_0xA2 |= zonesStale ? 1 : 0;   // retail ORs the byte (row 311)
+        world->zonesStale |= zonesStale ? 1 : 0;   // retail ORs the byte (row 311)
         cell->terrainType = PathType::Normal;
         TerrainSidecar::NoteWrite(cell);   // [terrain sidecar] mirror
         CellStamp::NoteWrite(cell);   // [AMBMEMO] cell write clock

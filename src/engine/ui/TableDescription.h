@@ -39,8 +39,8 @@
 // pad. Serialize (0x18011e590): kScalarInt over +0x68/+0x6c/+0x70, then the
 // +0x78 cell array (count, Array<Cell>::SetSize 0x1800799a0, per cell two
 // kScalarInt and ExternalPtr<ElementDescription> 0x180038f90). +0x88 is written
-// by the ctor and touched by nothing else in the class (`_unknown88`); +0x90 is a
-// System::String only ~TableDescription (0x18011e6f0) releases (`_unknown90`).
+// by the ctor and touched by nothing else in the class (`_unreadReserved`); +0x90 is a
+// System::String only ~TableDescription (0x18011e6f0) releases (`_unreadOwnedString`).
 // CreateInstance (0x18011e350) loops a over [0, +0x68) against cell.column and
 // b over [0, +0x6c) against cell.row, and stores +0x68 to TableElement +0xc4
 // (column count) and +0x6c to +0xc0 (row count): that is what names them.
@@ -76,8 +76,8 @@ public:
         _columnCount = 1;
         _rowCount    = 1;
         _spacing     = 0;
-        _unknown88   = 0;
-        _unknown90   = nullptr;
+        _unreadReserved   = 0;
+        _unreadOwnedString   = nullptr;
     }
 
     // [0] 0x180079210 -- MSVC's VECTOR deleting destructor (retail; here the
@@ -113,8 +113,8 @@ public:
     int32_t  _spacing;            // +0x70  ctor 0; -> TableElement::_spacing     (+0xc8)
     uint32_t _pad74;              // +0x74  written by nothing
     Collection::Array<Cell> _cells;   // +0x78 .. +0x87  ~Array 0x180079870
-    uint64_t _unknown88;          // +0x88  ctor 0; no body of this class reads it
-    char*    _unknown90;          // +0x90  System::String; only the dtor touches it
+    uint64_t _unreadReserved;          // +0x88  ctor 0; no body of this class reads it
+    char*    _unreadOwnedString;          // +0x90  System::String; only the dtor touches it
 };
 
 static_assert(sizeof(TableDescription::Cell) == 0x10, "Array<Cell> stride (0x1800799a0)");
@@ -131,7 +131,7 @@ static_assert(offsetof(TableDescription, _columnCount) == 0x68, "");
 static_assert(offsetof(TableDescription, _rowCount)    == 0x6c, "");
 static_assert(offsetof(TableDescription, _spacing)     == 0x70, "");
 static_assert(offsetof(TableDescription, _cells)       == 0x78, "");
-static_assert(offsetof(TableDescription, _unknown88)   == 0x88, "");
-static_assert(offsetof(TableDescription, _unknown90)   == 0x90, "");
+static_assert(offsetof(TableDescription, _unreadReserved)   == 0x88, "");
+static_assert(offsetof(TableDescription, _unreadOwnedString)   == 0x90, "");
 
 }  // namespace UI

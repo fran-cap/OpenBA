@@ -48,17 +48,17 @@ public:
     virtual Object::External* Construct();                        // [8] 0x1400205d0
 
 public:
-    UI::StringTable* _field20;   // +0x20: ExternalPtr<StringTable> (serialized via FUN_14000bf40, as Map / Climate)
-    System::String _field28;     // +0x28: String (ctor 0x1400b1810 stores 0; dtor 0x140020630 ~String)
-    bool     _field30;           // +0x30: 1 (bool, enabled?; retail serializes it through Serialize(bool&))
+    UI::StringTable* stringTable;   // +0x20: ExternalPtr<StringTable> (serialized via FUN_14000bf40, as Map / Climate)
+    System::String text;     // +0x28: String (ctor 0x1400b1810 stores 0; dtor 0x140020630 ~String)
+    bool     exposed;           // +0x30: 1 (bool, enabled?; retail serializes it through Serialize(bool&))
     uint8_t  _pad31[7];          // +0x31: padding
     // The three material refs, each {String filename, int32 generation (-1 =
     // unresolved), External* resolved} (B4 S4 RESOLVE: the one NamedExternalRef;
     // the ctor 0x1400b1810 builds each as a member, 0 / -1 / 0, the dtor ~String
     // of each name).
-    MapGenerator::ExternalRef _field38;   // +0x38: noise layer 1 (the terrain material)
-    MapGenerator::ExternalRef _field50;   // +0x50: noise layer 2 (water material A)
-    MapGenerator::ExternalRef _field68;   // +0x68: noise layer 3 (water material B)
+    MapGenerator::ExternalRef terrainMaterial;   // +0x38: noise layer 1 (the terrain material)
+    MapGenerator::ExternalRef waterMaterialA;   // +0x50: noise layer 2 (water material A)
+    MapGenerator::ExternalRef waterMaterialB;   // +0x68: noise layer 3 (water material B)
     // +0x80: the size table (TerrainSizeRow, 0x44 per entry). B4 X7-GAME-A (H5):
     // an Array member; retail's dtor body 0x140020630 frees it FIRST (MemFree
     // [+0x80], zero +0x80 / +0x88) and then runs ~String on +0x68 / +0x50 / +0x38
@@ -68,13 +68,13 @@ public:
 };
 
 static_assert(sizeof(TerrainGenerator) == 0x90, "TerrainGenerator is 0x90");
-static_assert(offsetof(TerrainGenerator, _field28) == 0x28, "TerrainGenerator::_field28");
+static_assert(offsetof(TerrainGenerator, text) == 0x28, "TerrainGenerator::text");
 static_assert(offsetof(TerrainGenerator, _pad31) == 0x31, "TerrainGenerator::_pad31");
 static_assert(alignof(TerrainGenerator) == 8, "qword-aligned");
-static_assert(offsetof(TerrainGenerator, _field20) == 0x20, "+0x20");
-static_assert(offsetof(TerrainGenerator, _field30) == 0x30, "+0x30");
-static_assert(offsetof(TerrainGenerator, _field38) == 0x38, "+0x38");
-static_assert(offsetof(TerrainGenerator, _field50) == 0x50, "+0x50");
-static_assert(offsetof(TerrainGenerator, _field68) == 0x68, "+0x68");
+static_assert(offsetof(TerrainGenerator, stringTable) == 0x20, "+0x20");
+static_assert(offsetof(TerrainGenerator, exposed) == 0x30, "+0x30");
+static_assert(offsetof(TerrainGenerator, terrainMaterial) == 0x38, "+0x38");
+static_assert(offsetof(TerrainGenerator, waterMaterialA) == 0x50, "+0x50");
+static_assert(offsetof(TerrainGenerator, waterMaterialB) == 0x68, "+0x68");
 static_assert(offsetof(TerrainGenerator, sizeRows) == 0x80, "+0x80");
 static_assert(offsetof(TerrainGenerator, sizeRows) + offsetof(decltype(TerrainGenerator::sizeRows), _size) == 0x88, "+0x88 count");

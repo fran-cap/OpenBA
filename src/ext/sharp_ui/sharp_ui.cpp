@@ -116,7 +116,7 @@ T* LoadAs(const char* path) {
 }
 
 bool SameFace(const UI::Font* font) {
-    return font->_string20._data != nullptr && std::strcmp(font->_string20._data, kFace) == 0;
+    return font->_fontName._data != nullptr && std::strcmp(font->_fontName._data, kFace) == 0;
 }
 
 UI::SharpSheetSwap* NewSwap() {

@@ -371,8 +371,8 @@ void AmbientEnvironmentComponent::Update(const System::Time* /*time*/) {
     float f = 0.0f;
     if (weather) {
         float temp = weather->temperature;
-        float lo = desc->_f30;
-        float hi = desc->_f34;
+        float lo = desc->_minTemp;
+        float hi = desc->_maxTemp;
         float denom = hi - lo;
         f = saturate((denom != 0.0f) ? (temp - lo) / denom : 0.0f, unit);
     }

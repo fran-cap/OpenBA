@@ -38,7 +38,7 @@ FruitDescription::FruitDescription()
       _ripenSeasons(1.0f),
       _optimalTemp(0.0f),
       _tempRange(0.0f),
-      _ref30(nullptr) {}
+      _rawMaterial(nullptr) {}
 
 // [5] 0x14004a1e0: stream order as retail.
 bool FruitDescription::Serialize(IO::Stream& stream) {
@@ -46,7 +46,7 @@ bool FruitDescription::Serialize(IO::Stream& stream) {
     ser.Serialize(_ripenSeasons, nullptr);
     ser.Serialize(_optimalTemp, nullptr);
     ser.Serialize(_tempRange, nullptr);
-    ::Object::SerializeExternal<ComponentDescription>(ser, _ref30);
+    ::Object::SerializeExternal<ComponentDescription>(ser, _rawMaterial);
     return true;
 }
 

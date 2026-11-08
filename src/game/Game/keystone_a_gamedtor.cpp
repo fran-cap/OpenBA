@@ -296,14 +296,14 @@ Map::~Map() {
 
     // +0xe8 tree: free children @+0x10/+0x18 via 0x140014c30 (which takes
     // (&slot, child) and recurses children @child+0x10 / child+0x18).
-    AvlNode28* node = field_0xE8.root;
+    AvlNode28* node = pendingRoadCells.root;
     if (node != nullptr) {
-        WorkBase_TreeNodeFree(&field_0xE8, node->left);    // 0x140014c30
-        WorkBase_TreeNodeFree(&field_0xE8, node->right);
+        WorkBase_TreeNodeFree(&pendingRoadCells, node->left);    // 0x140014c30
+        WorkBase_TreeNodeFree(&pendingRoadCells, node->right);
         System::MemoryAllocator::MemFree(node);
     }
-    field_0xE8.root = nullptr;                                  // [+0xe8] = 0
-    field_0xE8.count = 0;                                       // [+0xf0] = 0
+    pendingRoadCells.root = nullptr;                                  // [+0xe8] = 0
+    pendingRoadCells.count = 0;                                       // [+0xf0] = 0
 
     // Then the compiler destroys the members in reverse declaration order, as
     // retail does after the body: ~PathCellQueue on cellQueue (0x14001a5f0(+0xa8),

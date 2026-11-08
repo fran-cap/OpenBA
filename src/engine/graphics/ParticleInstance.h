@@ -320,23 +320,23 @@ public:
     // both stamps are the chain; `+0xd8 = 0` is the body. (ENDGAME B.3.9 GFX:
     // the ??0 door is retired; ParticleSystem::CreateSystem and the exe menu
     // scene spell `::new (p) ParticleSystemInstance()`.)
-    ParticleSystemInstance() { _f_d8 = nullptr; }
+    ParticleSystemInstance() { _emitter = nullptr; }
 
 public:
     // +0xd8  B.4: typed -- the emitter record (Particle.h); the name stays,
     // tests/unit/graphics_geometry_abi_test.cpp pins it. Borrowed from
     // `ParticleSystem::_pool[_index]` when the resource is active, owned
     // (built by SetParticle, freed by ~ParticleSystemInstance) when it is not.
-    RtGraphics::ParticleEmitter* _f_d8;
+    RtGraphics::ParticleEmitter* _emitter;
 };
 
 static_assert(sizeof(ParticleSystemInstance) == 0xe0,
               "Graphics::ParticleSystemInstance is 0xe0 bytes (MOV EDX,0xe0 in "
               "its own slot-0 vector deleting destructor 0x180020ce0)");
 static_assert(alignof(ParticleSystemInstance) == 8, "qword aligned (the vptr)");
-static_assert(offsetof(ParticleSystemInstance, _f_d8) == 0xd8,
-              "ParticleSystemInstance::_f_d8 @ +0xd8 (the one extra field its ctor zeroes)");
-static_assert(offsetof(ParticleSystemInstance, _f_d8) == sizeof(ParticleInstance),
+static_assert(offsetof(ParticleSystemInstance, _emitter) == 0xd8,
+              "ParticleSystemInstance::_emitter @ +0xd8 (the one extra field its ctor zeroes)");
+static_assert(offsetof(ParticleSystemInstance, _emitter) == sizeof(ParticleInstance),
               "its own field begins at the end of the ParticleInstance base");
 
 }  // namespace Graphics

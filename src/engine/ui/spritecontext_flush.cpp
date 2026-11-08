@@ -270,7 +270,7 @@ inline float TransformY(const FlushTransform2& m, float x, float y) {
 // The fields read here, by name: Video::Context `_dirty` (+0x10), `_scissor`
 // (+0x1e0), `_dynamicVertexCursor` (+0x20e0), `_dynamicVertexStride`
 // (+0x20e8), `_contextData` (+0x2160); UI::SpriteSheet `m_sprites` (+0x20,
-// stride 0x38, u0/v0/u1/v1 at +0x24..+0x30) and `m_field30` (+0x30, the
+// stride 0x38, u0/v0/u1/v1 at +0x24..+0x30) and `m_materialInstance` (+0x30, the
 // Graphics::MaterialInstance).
 
 // ENDGAME B.3.5: the two ContextData byte offsets are gone. +0x70 and +0x78 are
@@ -373,14 +373,14 @@ void SpriteContext::Flush() {
     const SharpSheetSwap* const swap = (sharp != nullptr) ? FindSwap(*sharp, current) : nullptr;
 
     // --- 0x18011bb37 -------------------------------------------------------
-    // `m_field30` is spelt uint64_t (saveload_draw.cpp stores it as an integer).
+    // `m_materialInstance` is spelt uint64_t (saveload_draw.cpp stores it as an integer).
     if (swap == nullptr)
-        current->m_field30
+        current->m_materialInstance
             ->Setup(*ctx, 0);
     else if (swap->material != nullptr)
         swap->material->Setup(*ctx, 0);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARP_SPRITES.md): ext.sharp_ui, the scaled sheet's material
     else
-        swap->twin->m_field30->Setup(*ctx, 0);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, the twin's material
+        swap->twin->m_materialInstance->Setup(*ctx, 0);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, the twin's material
 
     if (sharp != nullptr && sharp->point) {
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/SHARPUI.md): ext.sharp_ui, this batch's sampler, chosen before the

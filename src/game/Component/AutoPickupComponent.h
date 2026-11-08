@@ -11,7 +11,7 @@
 //   ctor   0x140044ae0: Component ctor, stamp 0x140158df0, +0x28 = 1 (byte),
 //                       +0x30 = +0x38 = 0, flags |= 0x80 (no change)
 //   dtor   0x140044a80: restamp, MemFree(+0x30), +0x30 = +0x38 = 0 (~Array of
-//                       `field30`, 0x140044aa0..0x140044ab0), restamp, ~Internal
+//                       `pileWorkIds`, 0x140044aa0..0x140044ab0), restamp, ~Internal
 //   table  0x140158df0, 16 slots:
 //     [0]  0x140003590 scalar deleting dtor  [1]/[2] TypeName/Type
 //     [3]  0x1400449d0 Persist               [4] 0x140044990 Startup
@@ -23,7 +23,7 @@
 #include <cstddef>
 #include "Component/Component.h"
 #include "Object/exe_type.h"
-#include "collection/Collection.h"   // Collection::Array (field30)
+#include "collection/Collection.h"   // Collection::Array (pileWorkIds)
 
 class AutoPickupComponent final : public Component {
     DECLARE_EXE_TYPE(AutoPickupComponent)
@@ -31,7 +31,7 @@ class AutoPickupComponent final : public Component {
 public:
     AutoPickupComponent();                                        // 0x140044ae0
 
-    // 0x140044a80: the body is empty; ~field30 (MemFree, then +0x30 = +0x38 = 0) and
+    // 0x140044a80: the body is empty; ~pileWorkIds (MemFree, then +0x30 = +0x38 = 0) and
     // ~Component follow, the order retail's dtor runs them.
     ~AutoPickupComponent() override = default;                    // [0]  0x140003590
     void     Persist(IO::Stream& stream) override;                      // [3]  0x1400449d0
@@ -39,7 +39,7 @@ public:
     uint32_t CommandMask(int command) override;                   // [13] 0x140044970 isEnabled ? 3 : 1
     void     Command(int command) override;                       // [14] 0x140044930 toggle, free on OFF
 
-    // 0x140044810: append `value` to field30 while enabled (action_base_rawmat.cpp).
+    // 0x140044810: append `value` to pileWorkIds while enabled (action_base_rawmat.cpp).
     void     Append(uint32_t value);
 
     // PUBLIC while the ported bodies read them (B38 decision 1).
@@ -48,13 +48,13 @@ public:
     // +0x30 Array<int32> (size +0x38, capacity +0x3c; Persist 0x1400449d0 serializes it).
     // The trait-derived row of int32_t is exe 0x1400021d0's: stride 4, align 4, the
     // grown tail left as-found, no element destroy.
-    Collection::Array<int32_t> field30;
+    Collection::Array<int32_t> pileWorkIds;
 };
 
 static_assert(sizeof(AutoPickupComponent) == 0x40, "AutoPickupComponent is 0x40 (create 0x1400033c0)");
 static_assert(offsetof(AutoPickupComponent, _pad29) == 0x29, "AutoPickupComponent::_pad29");
 static_assert(alignof(AutoPickupComponent) == 8, "AutoPickupComponent alignment");
 static_assert(offsetof(AutoPickupComponent, isEnabled) == 0x28, "");
-static_assert(offsetof(AutoPickupComponent, field30) == 0x30, "");
-static_assert(offsetof(AutoPickupComponent, field30) + offsetof(Collection::Array<int32_t>, _size) == 0x38, "");
-static_assert(offsetof(AutoPickupComponent, field30) + offsetof(Collection::Array<int32_t>, _capacity) == 0x3c, "");
+static_assert(offsetof(AutoPickupComponent, pileWorkIds) == 0x30, "");
+static_assert(offsetof(AutoPickupComponent, pileWorkIds) + offsetof(Collection::Array<int32_t>, _size) == 0x38, "");
+static_assert(offsetof(AutoPickupComponent, pileWorkIds) + offsetof(Collection::Array<int32_t>, _capacity) == 0x3c, "");

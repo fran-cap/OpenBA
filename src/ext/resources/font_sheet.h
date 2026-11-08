@@ -23,7 +23,7 @@
 //     material, sheet), the material derives from `baseMaterialPath`'s
 //     Graphics::MaterialInstance by reference (its Material, parameters and
 //     constants; its "diffuse" texture replaced by ours), and the sheet's
-//     material pointer (UI::SpriteSheet::m_field30) is that material;
+//     material pointer (UI::SpriteSheet::m_materialInstance) is that material;
 //   * `sheetWidth` x `sheetHeight` is a suggestion (the kit's size); the
 //     builder may choose another power-of-two size that fits.
 // ============================================================================

@@ -107,7 +107,7 @@ void ModelComponent::PlayAnimation(uint32_t animId, float p3, float p4, float p5
     RtSystem_Time_Ctor(&timeA, p4); RtSystem_Time_Ctor(&timeB, p3);
 
     short animIndex = meshGroup;
-    Graphics::AnimationGroup* animData = animHolder->_meshGroups[static_cast<uintptr_t>(animIndex)].field_0x00;
+    Graphics::AnimationGroup* animData = animHolder->_meshGroups[static_cast<uintptr_t>(animIndex)].animations;
     // PlayAnimation(meshInstance, animData, animId, &tB=p3, &tA=p4, p5)
     meshInstance.PlayAnimation(Object::ExternalPtr<Graphics::AnimationGroup>(animData), static_cast<int>(animId),
                                       &timeB, &timeA, p5);

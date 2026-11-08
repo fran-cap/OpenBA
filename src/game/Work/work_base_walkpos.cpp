@@ -141,10 +141,10 @@ uint8_t InteractComponent::FindWalkablePosRecursive(int param_2,
 uint64_t Work::StepProgress(CitizenComponent** citizen, uint32_t cellA, uint32_t cellB, const System::Time* now) {
 
     // +0x30 += (*now - +0x38)
-    field_30._ticks += (now->_ticks - field_38._ticks);
+    _waitTime._ticks += (now->_ticks - _waitBaseTime._ticks);
 
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
-    Profession* gateA = gw->m_professionList->field_0x30;
+    Profession* gateA = gw->m_professionList->laborerProfession;
 
     CitizenComponent* target = *citizen;
     if (target->profession != gateA) {
@@ -160,42 +160,42 @@ uint64_t Work::StepProgress(CitizenComponent** citizen, uint32_t cellA, uint32_t
             CitizenDescription* stage = (Object::IsDerivedFromNullSafe(obj, CitizenDescription::TypeId()))
                                             ? static_cast<CitizenDescription*>(obj) : nullptr;
 
-            int   field108 = stage->_i108;
-            int   field0fc = stage->_ifc;
-            int   field100 = stage->_i100;
-            float field10c = stage->_f10c;
-            int   field104 = stage->_i104;
+            int   maxWinterWalk = stage->maxWalkInWinter;
+            int   minDistance = stage->minDistanceForWork;
+            int   maxDistance = stage->maxDistanceForWork;
+            float minWinterWalkTemperature = stage->minTemperatureForWinterWalk;
+            int   rampMonths = stage->timeUntilMaxDistanceForWorkInMonths;
 
-            // Time cap = field104 * 300.0f seconds.
+            // Time cap = rampMonths * 300.0f seconds.
             System::Time cap = {0};
-            RtSystem_Time_Ctor(&cap, static_cast<float>(field104) * 300.0f);
+            RtSystem_Time_Ctor(&cap, static_cast<float>(rampMonths) * 300.0f);
 
-            if ((mapInfo->citizens._size / 2 < field_40) &&
-                (field_30._ticks < cap._ticks)) {
-                field_30._ticks *= 2;
+            if ((mapInfo->citizens._size / 2 < _tooFarCount) &&
+                (_waitTime._ticks < cap._ticks)) {
+                _waitTime._ticks *= 2;
             }
-            if ((field_30._ticks < 0) ||
-                (cap._ticks < field_30._ticks)) {
-                field_30._ticks = cap._ticks;
+            if ((_waitTime._ticks < 0) ||
+                (cap._ticks < _waitTime._ticks)) {
+                _waitTime._ticks = cap._ticks;
             }
 
-            float accSec = field_30.AsSeconds();
+            float accSec = _waitTime.AsSeconds();
             float nowSec = now->AsSeconds();
-            uint32_t progress = static_cast<uint32_t>(((accSec / nowSec) / static_cast<float>(field104 * 300))
-                                * static_cast<float>(field100 - field0fc)) + static_cast<uint32_t>(field0fc);
+            uint32_t progress = static_cast<uint32_t>(((accSec / nowSec) / static_cast<float>(rampMonths * 300))
+                                * static_cast<float>(maxDistance - minDistance)) + static_cast<uint32_t>(minDistance);
 
             uint64_t local_res10_v = resDefault;
             if (static_cast<int>(progress) < budget) {
-                field_40 += 1;
+                _tooFarCount += 1;
                 local_res10_v = static_cast<uint64_t>(progress);
             } else {
                 uint64_t uVar8 = static_cast<uint64_t>(progress);
-                if (budget <= field108) {
+                if (budget <= maxWinterWalk) {
                     return (uVar8 & 0xffffffffffffff00ull) | 1u;
                 }
                 uVar8 = resDefault;
                 float cmp = weather->temperature;
-                if (field10c < cmp || field10c == cmp) {
+                if (minWinterWalkTemperature < cmp || minWinterWalkTemperature == cmp) {
                     return (uVar8 & 0xffffffffffffff00ull) | 1u;
                 }
             }

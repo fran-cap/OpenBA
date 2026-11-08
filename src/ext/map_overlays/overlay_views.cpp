@@ -71,7 +71,7 @@ namespace MapOverlays {
 
 namespace {
 
-constexpr int kFishingCoverageByte = 8;   // MapCell::field_0x1C[8]: the docks' coverage (fishingcomponent_produce.cpp)
+constexpr int kFishingCoverageByte = 8;   // MapCell::influenceCounts[8]: the docks' coverage (fishingcomponent_produce.cpp)
 constexpr int kMaxRadius = 512;           // a radius past this is a broken description, not a service
 
 // ---- materials -------------------------------------------------------------------------------------------
@@ -529,7 +529,7 @@ void BuildNatural(const Selection& s, int size, std::vector<float>& out) {
         }
         const size_t n = static_cast<size_t>(size) * size;
         for (size_t i = 0; i < n; ++i) {
-            out[i] = static_cast<float>(cells[i].field_0x1C[kFishingCoverageByte]);
+            out[i] = static_cast<float>(cells[i].influenceCounts[kFishingCoverageByte]);
         }
         return;
     }

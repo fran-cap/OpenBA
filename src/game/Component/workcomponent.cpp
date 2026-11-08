@@ -29,7 +29,7 @@
 #include "Component/StatusIconComponent.h"     // 0x140002f90's class
 #include "Game/WorkScheduler.h"                // GameUpdateLoop::m_tutorial's class
 #include "Game/WorkSchedulerNodes.h"           // WorkSchedulerIdNode (the goals tree's node)
-#include "Work/Work.h"                         // Work::field_24
+#include "Work/Work.h"                         // Work::_queueOrder
 
 // ============================================================
 // Helpers
@@ -116,7 +116,7 @@ void WorkComponent::CancelWork() {
         new (&value) ::Object::InternalBasePtr(nullptr);
     }
 
-    workFlags = value->field_24;   // the work's +0x24 (the queue-order key)
+    workFlags = value->_queueOrder;   // the work's +0x24 (the queue-order key)
 
     GameUpdateLoop::_singleton->m_tutorial->TaskCleanup(key);   // 0x1400f8e30
 
@@ -262,12 +262,12 @@ int WorkComponent::CalcMaxWorkers() const {
     Description* base = _description;
     WorkDescription* jobType = base->IsDerivedFrom(WorkDescription::TypeId())
         ? static_cast<WorkDescription*>(base) : nullptr;
-    if (!jobType->_b34) {                        // _scaleWorkersWithSize
-        return jobType->_i24;                    // _defaultWorkers
+    if (!jobType->_scaleWorkersWithSize) {                        // _scaleWorkersWithSize
+        return jobType->_defaultWorkers;                    // _defaultWorkers
     }
     MapComponent* build = _entity->FindComponent<MapComponent>();
-    int defaultWorkers = jobType->_i24;   // _defaultWorkers (NOT _maxWorkerCount)
-    int maxArea        = jobType->_i30;   // _maxArea (NOT the building's tile area)
+    int defaultWorkers = jobType->_defaultWorkers;   // _defaultWorkers (NOT _maxWorkerCount)
+    int maxArea        = jobType->_maxArea;   // _maxArea (NOT the building's tile area)
     int width      = static_cast<int16_t>(build->tileX1);
     int height     = static_cast<int16_t>(build->tileY1);
     int result = (int)(((float)(width * height) / (float)maxArea) * (float)defaultWorkers + 1.0f);

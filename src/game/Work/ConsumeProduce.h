@@ -27,7 +27,7 @@
 #include <cstddef>
 #include "Work/Work.h"
 #include "Object/exe_type.h"
-#include "collection/Collection.h"   // Collection::Array (field_58, field_68)
+#include "collection/Collection.h"   // Collection::Array (_slotCitizens, _spotStates)
 #include "object/Internal.h"         // Object::InternalPtr<T>
 
 namespace rtcoll { extern const ArraySpec kSpec_PtrZero; }   // 0x180008d60
@@ -54,12 +54,12 @@ public:
     void  Slot12(int version) override;                                      // [12] 0x1400e9010 (own RET 0)
 
     // --- ConsumeProduce fields (+0x48) ---
-    uint8_t  field_48;           // +0x48: bool (serialized)
+    uint8_t  _outputBlocked;           // +0x48: bool (serialized)
     uint8_t  _pad49[3];          // +0x49: padding
-    int32_t  field_4c;           // +0x4C: int (serialized)
-    uint32_t field_50;           // +0x50: Type id (zeroed, serialized through Object::Type::Serialize; retail
+    int32_t  _completedCycles;           // +0x4C: int (serialized)
+    uint32_t _notifyComponentType;           // +0x50: Type id (zeroed, serialized through Object::Type::Serialize; retail
                                  //        reads it only as a dword copy, 0x1400e8d00)
-    int32_t  field_54;           // +0x54: int (serialized)
+    int32_t  _notifyMessage;           // +0x54: int (serialized)
     // Both arrays are real members: the ctor 0x1400e9340 zeroes +0x58 / +0x60 / +0x68 /
     // +0x70 as four qwords (0x1400e939d..0x1400e93a9); the dtor 0x1400e9190 restamps,
     // MemFrees +0x68 and zeroes +0x68 / +0x70, then MemFrees +0x58 and zeroes +0x58 /
@@ -69,22 +69,22 @@ public:
     // no element destroy): kSpec_PtrZero, the row the AsArray<Ptr8> view reached.
     using CitizenRefList = Collection::Array<Object::InternalPtr<CitizenComponent>, Collection::DefaultAllocator,
                                              Collection::ExplicitSpec<&rtcoll::kSpec_PtrZero>>;
-    CitizenRefList field_58;     // +0x58 (count +0x60, capacity +0x64)
+    CitizenRefList _slotCitizens;     // +0x58 (count +0x60, capacity +0x64)
     // +0x68: per output position WorkSpotState (Persist's int-array overload); grows through
     // 0x1400021d0 (stride 4, the new tail left as found): Array<int32_t>'s trait row.
-    Collection::Array<int32_t> field_68;   // +0x68 (count +0x70, capacity +0x74)
+    Collection::Array<int32_t> _spotStates;   // +0x68 (count +0x70, capacity +0x74)
 };
 
 static_assert(sizeof(ConsumeProduce) == 0x78, "ConsumeProduce is 0x78 (retail create MemAlloc)");
 static_assert(offsetof(ConsumeProduce, _pad49) == 0x49, "ConsumeProduce::_pad49");
 static_assert(alignof(ConsumeProduce) == 8, "ConsumeProduce is 8-aligned");
-static_assert(offsetof(ConsumeProduce, field_48) == 0x48, "ConsumeProduce +0x48");
-static_assert(offsetof(ConsumeProduce, field_4c) == 0x4c, "ConsumeProduce +0x4c");
-static_assert(offsetof(ConsumeProduce, field_50) == 0x50, "ConsumeProduce +0x50");
-static_assert(offsetof(ConsumeProduce, field_54) == 0x54, "ConsumeProduce +0x54");
-static_assert(offsetof(ConsumeProduce, field_58) == 0x58, "ConsumeProduce +0x58");
-static_assert(offsetof(ConsumeProduce, field_58) + offsetof(ConsumeProduce::CitizenRefList, _size) == 0x60, "ConsumeProduce +0x60");
-static_assert(offsetof(ConsumeProduce, field_58) + offsetof(ConsumeProduce::CitizenRefList, _capacity) == 0x64, "ConsumeProduce +0x64");
-static_assert(offsetof(ConsumeProduce, field_68) == 0x68, "ConsumeProduce +0x68");
-static_assert(offsetof(ConsumeProduce, field_68) + offsetof(Collection::Array<int32_t>, _size) == 0x70, "ConsumeProduce +0x70");
-static_assert(offsetof(ConsumeProduce, field_68) + offsetof(Collection::Array<int32_t>, _capacity) == 0x74, "ConsumeProduce +0x74");
+static_assert(offsetof(ConsumeProduce, _outputBlocked) == 0x48, "ConsumeProduce +0x48");
+static_assert(offsetof(ConsumeProduce, _completedCycles) == 0x4c, "ConsumeProduce +0x4c");
+static_assert(offsetof(ConsumeProduce, _notifyComponentType) == 0x50, "ConsumeProduce +0x50");
+static_assert(offsetof(ConsumeProduce, _notifyMessage) == 0x54, "ConsumeProduce +0x54");
+static_assert(offsetof(ConsumeProduce, _slotCitizens) == 0x58, "ConsumeProduce +0x58");
+static_assert(offsetof(ConsumeProduce, _slotCitizens) + offsetof(ConsumeProduce::CitizenRefList, _size) == 0x60, "ConsumeProduce +0x60");
+static_assert(offsetof(ConsumeProduce, _slotCitizens) + offsetof(ConsumeProduce::CitizenRefList, _capacity) == 0x64, "ConsumeProduce +0x64");
+static_assert(offsetof(ConsumeProduce, _spotStates) == 0x68, "ConsumeProduce +0x68");
+static_assert(offsetof(ConsumeProduce, _spotStates) + offsetof(Collection::Array<int32_t>, _size) == 0x70, "ConsumeProduce +0x70");
+static_assert(offsetof(ConsumeProduce, _spotStates) + offsetof(Collection::Array<int32_t>, _capacity) == 0x74, "ConsumeProduce +0x74");

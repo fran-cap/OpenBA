@@ -229,7 +229,7 @@ extern "C" void Cemetery_SpawnTombstone_6a90(CemeteryComponent* cem, int cell,
     MapCell* cellRec = map->cells.GetData();                               // +0x80, stride 0x30
     uint8_t oldState = static_cast<uint8_t>(cellRec[cell].terrainType);   // +0x29
     bool stateWasZoneless = ((1u << (oldState & 0x1f)) & Bits(PathBits::Zoneless)) != 0;   // old state 5..8
-    map->field_0xA2 |= static_cast<uint8_t>(stateWasZoneless);   // SETNZ AL; OR byte [map+0xa2],AL (0x140046afd)
+    map->zonesStale |= static_cast<uint8_t>(stateWasZoneless);   // SETNZ AL; OR byte [map+0xa2],AL (0x140046afd)
     cellRec[cell].terrainType = PathType::Normal;
     TerrainSidecar::NoteWrite(&cellRec[cell]);   // [terrain sidecar] mirror (missing until PERFXEXT)
     CellStamp::NoteWrite(&cellRec[cell]);   // [AMBMEMO] cell write clock
@@ -248,7 +248,7 @@ extern "C" void Cemetery_SpawnTombstone_6a90(CemeteryComponent* cem, int cell,
     // the description itself is not tested (0x140046b74-0x140046b8c: CALL IsDerivedFrom, CMOVNZ).
     CemeteryDescription* cemDesc = desc->IsDerivedFrom(CemeteryDescription::TypeId())
                                    ? static_cast<CemeteryDescription*>(desc) : nullptr;
-    ComponentDescription* tombDesc = cemDesc->_ref20;            // +0x20
+    ComponentDescription* tombDesc = cemDesc->_tombstone;            // +0x20
     ComponentEntity* built = nullptr;
     ComponentEntity* mem = static_cast<ComponentEntity*>(System::MemoryAllocator::MemAlloc(0x48, 8));
     if (mem) built = ::new (mem) ComponentEntity(tombDesc);

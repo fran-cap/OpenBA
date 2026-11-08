@@ -128,7 +128,7 @@ void FollowDialog::OnOpened() {
     // Set the follow-active flag: the tool manager's +0x38 byte = 1.
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
     PlayerToolManager* subsys = gameWorld ? gameWorld->m_toolManager : nullptr;
-    if (subsys) subsys->field_0x38 = true;
+    if (subsys) subsys->followActive = true;
 }
 
 // ============================================================
@@ -196,7 +196,7 @@ void FollowDialog::OnUpdateLayout() {
     // Check if citizen's home tile entity has a different profession — if so, show index 0x10
     if (actionIndex == static_cast<int32_t>(CitizenAIState::Idle)) {
         Work* homeRef = nullptr;
-        int homeTile = ai->field_0x30;
+        int homeTile = ai->lastWorkId;
         if (homeTile >= 0) {
             // Look up the work by id in the work scheduler's id tree
             // (GameUpdateLoop +0x118 is the WorkScheduler).
@@ -235,7 +235,7 @@ void FollowDialog::OnUpdateLayout() {
 
 void FollowDialog::OnClosed() {
     PlayerToolManager* subsys = GameUpdateLoop::_singleton->m_toolManager;
-    subsys->field_0x38 = false;
+    subsys->followActive = false;
 }
 
 // ============================================================

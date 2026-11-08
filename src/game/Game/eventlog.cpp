@@ -288,7 +288,7 @@ void EventLog::AddEventCore(int eventType, int severity, const ::Object::Interna
     // (0x140095712) and [[+0x120]+0x34] stored, nothing tested.
     if (eventType > 0xa && (eventType < 0xd || (unsigned)(eventType - 0x1e) < 2u)) {
         if (g_gameSettings->autoSlow != 0) {
-            GameUpdateLoop::_singleton->m_toolManager->field_0x34 = 1;
+            GameUpdateLoop::_singleton->m_toolManager->gameSpeed = 1;
         }
     }
 }

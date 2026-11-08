@@ -762,7 +762,7 @@ void TornadoComponent::Startup() {
 
     if (g_gameSettings != nullptr && g_gameSettings->autoSlow != 0) {
         PlayerToolManager* speedObj = gw->m_toolManager;
-        if (speedObj) speedObj->field_0x34 = 1;
+        if (speedObj) speedObj->gameSpeed = 1;
     }
 
     // Diagnostic only: whether the fractal actually bent the path. Straight would

@@ -79,9 +79,9 @@ namespace rtcoll { extern const ArraySpec kSpec_PtrZero; }   // 0x180008d60 (Ent
 // unchanged. (The Reimpl_Geometry_Init door registered at 0x1400b00e0 went at the
 // B.3.8 close with fn_Geometry_Init, its only reader.)
 WorldGeometry::WorldGeometry() {
-    _gridSize = 0;  _fieldC4 = 0;       // qword +0xc0
-    _chunkSize = 0; _fieldCC = 0;       // qword +0xc8
-    _fieldD0 = 0;                       // dword +0xd0 (+0xd4 left as found)
+    _gridSize = 0;  _mapSize = 0;       // qword +0xc0
+    _chunkSize = 0; _chunkVertsPerSide = 0;       // qword +0xc8
+    _heightRowStride = 0;                       // dword +0xd0 (+0xd4 left as found)
     // +0xd8 / +0xe0: two qword stores in retail; three named stores here (H7).
     _heights.data = nullptr; _heights.size = 0; _heights.capacity = 0;
     StillTerrain::Bump();   // [STILLTERRAIN] a new (empty) heightmap

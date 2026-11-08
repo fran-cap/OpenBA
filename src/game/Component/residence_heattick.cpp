@@ -204,7 +204,7 @@ char ResidenceComponent::HeatTick(const System::Time* dt) {
                     // The counter rows (consumed count at +0xC) — same deref as the eat loop.
                     ProfessionResourceEntry* rows = townMgr->professionResources._data;
                     if (rows)
-                        rows[cat].field_0x0C += 1;
+                        rows[cat].consumedCount += 1;
                 }
             }
 

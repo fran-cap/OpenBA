@@ -37,7 +37,7 @@ HappinessDescription::HappinessDescription()
       _needsWorkers(false),
       _needsGoods(false),
       _goodsFlags(0),
-      _i2c(0) {}
+      _idleRange(0) {}
 
 // [5] 0x14004acb0: stream order as retail.
 bool HappinessDescription::Serialize(IO::Stream& stream) {
@@ -46,7 +46,7 @@ bool HappinessDescription::Serialize(IO::Stream& stream) {
     ser.Serialize(_needsWorkers, nullptr);
     ser.Serialize(_needsGoods, nullptr);
     ser.Serialize(_goodsFlags, nullptr);
-    ser.Serialize(_i2c, nullptr);
+    ser.Serialize(_idleRange, nullptr);
     return true;
 }
 

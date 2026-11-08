@@ -61,15 +61,15 @@ void RemoveAnimal::Persist(IO::Stream& stream) {
 
     // Serialize entity ref at +0x20
     IO::Serializer ser(stream, 0);
-    _field20.InternalBasePtr::Serialize(ser);
+    _animal.InternalBasePtr::Serialize(ser);
 
     // Type-check: a loaded ref that is not a ComponentEntity is cleared
     // (0x1400ca8d8 TEST / 0x1400ca8e1 MOV EDX,[0x1401c5d70] / 0x1400ca8f1 store 0).
     // NOT RETAIL (F-143): null and type tests on the held Internal*, before any
     // downcast to ComponentEntity*; the answer is the same.
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
-            _field20 = nullptr;
+    if (!_animal.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_animal, ComponentEntity::TypeId())) {
+            _animal = nullptr;
         }
     }
 }
@@ -81,7 +81,7 @@ void RemoveAnimal::Persist(IO::Stream& stream) {
 // ============================================================
 int  RemoveAnimal::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
-    ComponentEntity* entityRef = _field20.Get();
+    ComponentEntity* entityRef = _animal.Get();
 
     // ~310 kills produced ZERO component dumps below, and the dump sits inside the
     // `entityRef != nullptr` arm — so "RemoveAnimal never ran" and "RemoveAnimal ran with
@@ -120,7 +120,7 @@ int  RemoveAnimal::AbstractImpl(ActionStack* actionStack) {
 // If the low 16 bits of flags changed, notifies the owning entity.
 // ============================================================
 void RemoveAnimal::CheckEntity() {
-    AnimalComponent* animal = _field20->FindComponent<AnimalComponent>();   // 0x140005500
+    AnimalComponent* animal = _animal->FindComponent<AnimalComponent>();   // 0x140005500
 
     uint32_t flagsOld = animal->_flags;
 
@@ -142,7 +142,7 @@ void RemoveAnimal::CheckEntity() {
 // Returns true if *param matches the entity at +0x20.
 // ============================================================
 bool RemoveAnimal::GetTarget(ComponentEntity** param) {
-    return *param == _field20.Get();
+    return *param == _animal.Get();
 }
 
 // ============================================================
@@ -156,12 +156,12 @@ bool RemoveAnimal::GetTarget(ComponentEntity** param) {
 // create 0x140022e70 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 RemoveAnimal::RemoveAnimal()
-    : _field20(nullptr) {}
+    : _animal(nullptr) {}
 
 // Retail has no out-of-line RemoveAnimal ctor: 0x1400bbea0 inlines it
 // (Internal(), Action stamp, +0x10/+0x18 = 0, RemoveAnimal stamp, +0x20 = animal).
 RemoveAnimal::RemoveAnimal(ComponentEntity* animal)
-    : _field20(animal) {}
+    : _animal(animal) {}
 
 // [3] 0x1400ca870
 // [4] 0x1400ca7f0

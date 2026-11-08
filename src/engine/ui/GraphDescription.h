@@ -55,7 +55,7 @@ public:
         _width       = 100;
         _height      = 100;
         _tickSize    = 4;
-        _unknown74   = 0xffffffffu;
+        _lineColor   = 0xffffffffu;
         _spriteSheet = nullptr;
     }
 
@@ -92,7 +92,7 @@ public:
     int32_t  _width;        // +0x68  ctor 100 -> GraphElement::_width     (+0xc0)
     int32_t  _height;       // +0x6c  ctor 100 -> GraphElement::_height    (+0xc4)
     int32_t  _tickSize;     // +0x70  ctor 4   -> GraphElement::_tickSize  (+0xc8)
-    uint32_t _unknown74;    // +0x74  ctor -1  -> GraphElement::_unknownCC (+0xcc); kScalarUInt
+    uint32_t _lineColor;    // +0x74  ctor -1  -> GraphElement::_lineColor (+0xcc); kScalarUInt
     SpriteSheet* _spriteSheet; // +0x78 (B4 H4: typed)  ExternalPtr<UI::SpriteSheet>
     System::String _spriteName;  // +0x80  ctor 0x1800d1bd0, dtor 0x1800d1b30 (B4 Y RT-UI: a real member)
 };
@@ -104,7 +104,7 @@ static_assert(offsetof(GraphDescription, _width) == sizeof(ElementDescription), 
 static_assert(offsetof(GraphDescription, _width)       == 0x68, "");
 static_assert(offsetof(GraphDescription, _height)      == 0x6c, "");
 static_assert(offsetof(GraphDescription, _tickSize)    == 0x70, "");
-static_assert(offsetof(GraphDescription, _unknown74)   == 0x74, "");
+static_assert(offsetof(GraphDescription, _lineColor)   == 0x74, "");
 static_assert(offsetof(GraphDescription, _spriteSheet) == 0x78, "");
 static_assert(offsetof(GraphDescription, _spriteName)  == 0x80, "");
 // RtUI::GraphDescription is an ALIAS of this class since fragment pass F2;

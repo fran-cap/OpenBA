@@ -98,7 +98,7 @@ bool ModelDescription::Serialize(IO::Stream& stream) {
         AllocArray(_meshGroups, _meshGroupCount, _meshGroupCap, count);
         e = _meshGroups;
         for (int i = 0; i < count; ++i) {
-            e[i].field_0x00   = nullptr;   // ExternalPtr
+            e[i].animations   = nullptr;   // ExternalPtr
             e[i].meshes       = nullptr;   // mesh array
             e[i].meshCount    = 0;         // mesh count + cap
             e[i].meshCapacity = 0;
@@ -108,7 +108,7 @@ bool ModelDescription::Serialize(IO::Stream& stream) {
     }
 
     for (int i = 0; i < count; ++i, ++e) {
-        ::Object::SerializeExternal<Graphics::AnimationGroup>(ser, e->field_0x00);      // elem+0
+        ::Object::SerializeExternal<Graphics::AnimationGroup>(ser, e->animations);      // elem+0
 
         ser.Serialize(e->meshCount, nullptr);   // mesh count, elem+0x10
         int matCount = e->meshCount;

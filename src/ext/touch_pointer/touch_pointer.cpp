@@ -388,7 +388,7 @@ bool OverDialog(float x, float y) {
     const UI::DialogInstance* d = hit.Get();
     if (d == nullptr) return false;
     const PlayerToolManager* tm = GameUpdateLoop::_singleton->m_toolManager;
-    if (tm != nullptr && d == tm->field_0x00) return false;   // the tool's CreateBar follows the aim
+    if (tm != nullptr && d == tm->toolDialog) return false;   // the tool's CreateBar follows the aim
     const UI::Element* root = d->_root.Get();
     return root != nullptr && root->IsVisible();
 }

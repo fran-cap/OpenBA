@@ -115,7 +115,7 @@
 //                                mask 0xfffff9fe).
 //   +0x0020 _transformCount      slot 8: payload size is `[0x20] << 6`
 //                                (0x180001c67, 64-byte matrices).
-//   +0x0024 _unknown0024         slot 8 binds the bone buffer only when > 0.
+//   +0x0024 _boneCount           slot 8 binds the bone buffer only when > 0.
 //   +0x0028 _renderBuffer        ?GetRenderBuffer@ = `MOV RAX,[RCX+0x28]; RET`.
 //   +0x0030 _imageBuffers[16]    slot 5 walks i in [0,0x10) stride 8 from 0x30
 //                                (0x180001ae4 seeds RDI with 0x30, 0x180001b18
@@ -136,14 +136,14 @@
 //   +0x20e8 _dynamicVertexStride bytes per vertex (AddVertex advances by it)
 //   +0x20f0 _dynamicIndexCursor  moving write pointer
 //   +0x20f8 _dynamicVertexBuffer Video::VertexBuffer*
-//   +0x2100 _unknown2100         int, the byte offset VertexBuffer::Lock returns
-//   +0x2104 _unknown2104         int, the vertex count (Draw's count, slot 15)
-//   +0x2108 _unknown2108         void*, a copy of the vertex Lock result
+//   +0x2100 _dynamicVertexOffset int, the byte offset VertexBuffer::Lock returns
+//   +0x2104 _dynamicVertexCount  int, the vertex count (Draw's count, slot 15)
+//   +0x2108 _dynamicVertexBase   void*, a copy of the vertex Lock result
 //   +0x2110 _instanceCount       int
 //   +0x2118 _dynamicIndexBuffer  Video::IndexBuffer*
-//   +0x2120 _unknown2120         int, the byte offset IndexBuffer::Lock returns
-//   +0x2124 _unknown2124         int, the index count
-//   +0x2128 _unknown2128         void*, a copy of the index Lock result
+//   +0x2120 _dynamicIndexOffset  int, the byte offset IndexBuffer::Lock returns
+//   +0x2124 _dynamicIndexCount   int, the index count
+//   +0x2128 _dynamicIndexBase    void*, a copy of the index Lock result
 //   +0x2138 _defaultRenderBuffer ?GetDefaultRenderBuffer@ = `MOV RAX,[RCX+0x2138]`.
 //   +0x2150.. the four per-frame counters, each named by its one-instruction
 //             Runtime getter (0x18001ae60 / 70 / 80 / 90).
@@ -873,7 +873,7 @@ void ContextData::BindTransforms() {
     }
 
     ctx = _owner;
-    if (ctx->_unknown0024 > 0) {
+    if (ctx->_boneCount > 0) {
         ctx->_boneConstants.Bind(*ctx,
                                  ctx->_boneAndProjectionStaging,
                                  0,
@@ -1027,14 +1027,14 @@ bool ContextData::BeginVertices(int vertexCount, int vertexStride) {
         return false;
 
     _owner->_dynamicVertexStride = vertexStride;
-    _owner->_unknown2104         = vertexCount;            // +0x2104 vertex count
+    _owner->_dynamicVertexCount         = vertexCount;            // +0x2104 vertex count
 
     ctx = _owner;
     void* mapped = ctx->_dynamicVertexBuffer->Lock(vertexCount * vertexStride,
-                                                   ctx->_unknown2100);   // +0x2100 byte offset
+                                                   ctx->_dynamicVertexOffset);   // +0x2100 byte offset
 
     _owner->_dynamicVertexCursor = static_cast<uint8_t*>(mapped);   // CAST-OK: gpu_map (the Lock result)
-    _owner->_unknown2108         = _owner->_dynamicVertexCursor;          // +0x2108 Lock result
+    _owner->_dynamicVertexBase         = _owner->_dynamicVertexCursor;          // +0x2108 Lock result
 
     return _owner->_dynamicVertexCursor != nullptr;
 }
@@ -1081,13 +1081,13 @@ void ContextData::EndVertices(int primitiveType) {
     ::Video::Context* ctx = _owner;
     ctx->SetVertexBuffer(ctx->_dynamicVertexBuffer,
                          0,
-                         ctx->_unknown2100,
+                         ctx->_dynamicVertexOffset,
                          ctx->_dynamicVertexStride);
 
     ctx = _owner;
-    const int vertexCount = ctx->_unknown2104;
+    const int vertexCount = ctx->_dynamicVertexCount;
     ctx->_trianglesSubmitted += vertexCount / 3;
-    _owner->_verticesSubmitted += _owner->_unknown2104;
+    _owner->_verticesSubmitted += _owner->_dynamicVertexCount;
     _owner->_drawsSubmitted    += 1;
     _owner->_objectsSubmitted  += 1;
 
@@ -1095,7 +1095,7 @@ void ContextData::EndVertices(int primitiveType) {
 
     ApplyPrimitiveType(primitiveType);
 
-    d3dContext->Draw(static_cast<UINT>(_owner->_unknown2104), 0);
+    d3dContext->Draw(static_cast<UINT>(_owner->_dynamicVertexCount), 0);
 }
 
 // ============================================================
@@ -1145,26 +1145,26 @@ bool ContextData::BeginInstancedIndexedVertices(int vertexCount, int vertexStrid
     if (indexCount * 2 >= vertexCapacity) return false;   // sic — see above
 
     ctx->_dynamicVertexStride = vertexStride;
-    _owner->_unknown2104      = vertexCount;               // +0x2104 vertex count
+    _owner->_dynamicVertexCount      = vertexCount;               // +0x2104 vertex count
     _owner->_instanceCount    = instanceCount;
 
     ctx = _owner;
     void* mappedVertices = ctx->_dynamicVertexBuffer->Lock(vertexCount * vertexStride,
-                                                           ctx->_unknown2100);   // +0x2100
+                                                           ctx->_dynamicVertexOffset);   // +0x2100
 
     _owner->_dynamicVertexCursor = static_cast<uint8_t*>(mappedVertices);   // CAST-OK: gpu_map
-    _owner->_unknown2108         = _owner->_dynamicVertexCursor;
+    _owner->_dynamicVertexBase         = _owner->_dynamicVertexCursor;
 
     if (_owner->_dynamicVertexCursor == nullptr) return false;
 
-    _owner->_unknown2124 = indexCount;                     // +0x2124 index count
+    _owner->_dynamicIndexCount = indexCount;                     // +0x2124 index count
 
     ctx = _owner;
     void* mappedIndices = ctx->_dynamicIndexBuffer->Lock(indexCount * 2,
-                                                         ctx->_unknown2120);     // +0x2120
+                                                         ctx->_dynamicIndexOffset);     // +0x2120
 
     _owner->_dynamicIndexCursor = static_cast<uint16_t*>(mappedIndices);   // CAST-OK: gpu_map
-    _owner->_unknown2128        = _owner->_dynamicIndexCursor;                   // +0x2128
+    _owner->_dynamicIndexBase        = _owner->_dynamicIndexCursor;                   // +0x2128
 
     return _owner->_dynamicIndexCursor != nullptr;
 }
@@ -1213,12 +1213,12 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     ::Video::Context* ctx = _owner;
     ctx->SetVertexBuffer(ctx->_dynamicVertexBuffer,
                          0,
-                         ctx->_unknown2100,
+                         ctx->_dynamicVertexOffset,
                          ctx->_dynamicVertexStride);
 
     ctx = _owner;
     ::Video::IndexBuffer* const dynIb     = ctx->_dynamicIndexBuffer;
-    const int32_t               dynOffset = ctx->_unknown2120;
+    const int32_t               dynOffset = ctx->_dynamicIndexOffset;
     if (dynIb     != ctx->_indexBuffer ||
         dynOffset != ctx->_indexOffset) {
         ctx->_dirty       |= RtVideo::kDirtyIndexBuffer;
@@ -1227,12 +1227,12 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     }
 
     ctx = _owner;
-    const int indexCount    = ctx->_unknown2124;
+    const int indexCount    = ctx->_dynamicIndexCount;
     const int instanceCount = ctx->_instanceCount;
     ctx->_trianglesSubmitted += (indexCount / 3) * instanceCount;
 
     ctx = _owner;
-    ctx->_verticesSubmitted += ctx->_instanceCount * ctx->_unknown2104;
+    ctx->_verticesSubmitted += ctx->_instanceCount * ctx->_dynamicVertexCount;
     _owner->_drawsSubmitted   += 1;
     _owner->_objectsSubmitted += _owner->_instanceCount;
 
@@ -1242,12 +1242,12 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
 
     ctx = _owner;
     const UINT startIndex = static_cast<UINT>(
-        static_cast<uint64_t>(static_cast<int64_t>(ctx->_unknown2120)) >> 1);
+        static_cast<uint64_t>(static_cast<int64_t>(ctx->_dynamicIndexOffset)) >> 1);
 
     if (ctx->_instanceCount == 1) {
-        d3dContext->DrawIndexed(static_cast<UINT>(ctx->_unknown2124), startIndex, 0);
+        d3dContext->DrawIndexed(static_cast<UINT>(ctx->_dynamicIndexCount), startIndex, 0);
     } else {
-        d3dContext->DrawIndexedInstanced(static_cast<UINT>(ctx->_unknown2124),
+        d3dContext->DrawIndexedInstanced(static_cast<UINT>(ctx->_dynamicIndexCount),
                                          static_cast<UINT>(ctx->_instanceCount),
                                          startIndex, 0, 0);
     }

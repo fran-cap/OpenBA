@@ -44,16 +44,16 @@
 // ============================================================
 // External() and the 0x140160120 stamp are the compiler's; then the defaults.
 Toolbar::Toolbar() {
-    _field20      = nullptr;  // +0x20: ExternalPtr
-    _field28      = nullptr;  // +0x28: ExternalPtr
+    textTable      = nullptr;  // +0x20: ExternalPtr
+    spriteSheet      = nullptr;  // +0x28: ExternalPtr
     // +0x30 / +0x38: the two String members' ctors (retail inlines them as the zero stores)
-    _field40      = 8;        // +0x40: default 8
-    _field44      = true;     // +0x44: default true (0x101 as uint16 = both bytes set)
-    _field45      = true;     // +0x45: default true
-    _field48      = 0;        // +0x48: zeroed
+    shortcutKey      = 8;        // +0x40: default 8
+    autoShortcut      = true;     // +0x44: default true (0x101 as uint16 = both bytes set)
+    visible      = true;     // +0x45: default true
+    actionType      = 0;        // +0x48: zeroed
     selectedIndex = -1;       // +0x4C: -1 sentinel (no selection)
-    _field58      = nullptr;  // +0x58: ExternalPtr
-    _field60      = nullptr;  // +0x60: ExternalPtr
+    componentDescription      = nullptr;  // +0x58: ExternalPtr
+    parentToolbar      = nullptr;  // +0x60: ExternalPtr
 }
 
 // ============================================================
@@ -76,32 +76,32 @@ bool Toolbar::Serialize(IO::Stream& stream) {
     IO::Serializer* serializer = &ser;
 
     // ExternalPtr fields
-    ::Object::SerializeExternal<UI::StringTable>(*serializer, _field20);
-    ::Object::SerializeExternal<UI::SpriteSheet>(*serializer, _field28);
+    ::Object::SerializeExternal<UI::StringTable>(*serializer, textTable);
+    ::Object::SerializeExternal<UI::SpriteSheet>(*serializer, spriteSheet);
 
     // String fields
-    _field30.Serialize(*serializer);
-    _field38.Serialize(*serializer);
+    textKey.Serialize(*serializer);
+    spriteName.Serialize(*serializer);
 
     // Encoding vcall 0x98 (the uint door) for +0x48
-    serializer->Serialize(_field48, nullptr);
+    serializer->Serialize(actionType, nullptr);
 
     // Typed ExternalPtr serialize for Toolbar at +0x60
-    ::Object::SerializeExternal<Toolbar>(*serializer, _field60);
+    ::Object::SerializeExternal<Toolbar>(*serializer, parentToolbar);
 
     // ExternalPtr<BuildingDescription> at +0x58
-    ::Object::SerializeExternal<ComponentDescription>(*serializer, _field58);
+    ::Object::SerializeExternal<ComponentDescription>(*serializer, componentDescription);
 
     // Encoding vcall 0x98 (the uint door) for +0x40
-    serializer->Serialize(_field40, nullptr);
+    serializer->Serialize(shortcutKey, nullptr);
 
     // Bool fields
-    serializer->Serialize(_field45, nullptr);
-    serializer->Serialize(_field44, nullptr);
+    serializer->Serialize(visible, nullptr);
+    serializer->Serialize(autoShortcut, nullptr);
 
     // Int fields
     serializer->Serialize(selectedIndex, nullptr);
-    serializer->Serialize(_field50, nullptr);
+    serializer->Serialize(sortPriority, nullptr);
 
     return true;   // ~Serializer
 }

@@ -444,8 +444,8 @@ char EditTool::OnKey(char param2) {
 
     // Check the tool manager's state (Tool +0x10)
     PlayerToolManager* manager = dialogPtr;
-    bool flag80 = manager->field_0x80 != 0;
-    if (flag80 && manager->field_0x90 == nullptr) {
+    bool flag80 = manager->tutorialRestricted != 0;
+    if (flag80 && manager->tutorialSelectTarget == nullptr) {
         return 1;
     }
 
@@ -595,7 +595,7 @@ char EditTool::OnKey(char param2) {
                 return 1;
             }
             // The entity's description (+0x28) against the manager's pending group (+0x90).
-            if (foundEntity->_description != manager->field_0x90) {
+            if (foundEntity->_description != manager->tutorialSelectTarget) {
                 return 1;  // type mismatch, skip
             }
         }

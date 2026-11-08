@@ -99,7 +99,7 @@ void NoiseUI::SetupImage(Video::ImageBuffer* image, UI::SpriteSheet** sheetOut,
     *sheetOut = newSheet;
 
     // The sheet's material instance (+0x30).
-    (*sheetOut)->m_field30 = *materialOut;
+    (*sheetOut)->m_materialInstance = *materialOut;
 
     // Get image dimensions
     int imgW = image->Width();
@@ -112,9 +112,9 @@ void NoiseUI::SetupImage(Video::ImageBuffer* image, UI::SpriteSheet** sheetOut,
     // LEFT: SpriteSheet holds them as char* (H5, R-UI's header).
     ss->m_groupName = emptyStr1;
     ss->m_textureName = emptyStr2;
-    ss->m_field48 = imgW;
-    ss->m_field4C = imgH;
-    ss->m_field50 = false;
+    ss->m_imageWidth = imgW;
+    ss->m_imageHeight = imgH;
+    ss->m_padForFiltering = false;
 
     // Add sprite info: empty name, empty group, full image rect
     imgW = image->Width();

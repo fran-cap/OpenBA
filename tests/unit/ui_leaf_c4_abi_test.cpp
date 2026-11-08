@@ -599,7 +599,7 @@ UNIT_TEST(b39_uib_c4_scroll) {
     CHECK_EQ((int)d[0xb9], 0xCD);
     CHECK_EQ(sd->_inset, 1);
     CHECK_EQ(sd->_barColor, 0xffffffffu);
-    CHECK_EQ(sd->_unknownC4, 0xffffffffu);
+    CHECK_EQ(sd->_highlightColor, 0xffffffffu);
     sd->~ScrollDescription();                  // retail slot 0, flags 0
     // ??0ScrollElement 0x18011a7f0: _inset (+0x15c) NOT written.
     alignas(8) uint8_t e[0x178];
@@ -609,7 +609,7 @@ UNIT_TEST(b39_uib_c4_scroll) {
     CHECK_EQ(se->_hotEnd.spriteIndex, -1);
     CHECK_EQ((int)se->_vertical, 1);
     CHECK_EQ(se->_barColor, 0xffffffffu);
-    CHECK_EQ(se->_unknown158, 0xffffffffu);
+    CHECK_EQ(se->_highlightColor, 0xffffffffu);
     CHECK_EQ((int)e[0x15c], 0xCD);
     CHECK(se->_currentValue == 0.0f);
     CHECK(se->_displayPercent == 0.33333334f);
@@ -640,8 +640,8 @@ UNIT_TEST(b39_uib_c4_table) {
     CHECK_EQ((int)d[0x74], 0xCD);
     CHECK(td->_cells._data == nullptr);
     CHECK_EQ(td->_cells._size, 0);
-    CHECK_EQ(td->_unknown88, 0ull);
-    CHECK(td->_unknown90 == nullptr);
+    CHECK_EQ(td->_unreadReserved, 0ull);
+    CHECK(td->_unreadOwnedString == nullptr);
     td->~TableDescription();                   // retail slot 0, flags 0
     // ??0TableElement 0x18011e2f0: +0xcc not written.
     alignas(8) uint8_t e[0xf0];

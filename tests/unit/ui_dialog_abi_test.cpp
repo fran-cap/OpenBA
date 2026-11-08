@@ -368,7 +368,7 @@ UNIT_TEST(ui_dialog_family_layout) {
     CHECK_EQ((int)offsetof(UI::DialogController, _config), (int)sizeof(Object::Internal));
     CHECK_EQ((int)offsetof(UI::Dialog, _spriteSheet), (int)sizeof(Object::External));
     CHECK_EQ((int)offsetof(UI::ComboDialog, _list), (int)sizeof(UI::DialogInstance));
-    CHECK_EQ((int)offsetof(UI::ToolTipDialog, _unknownB8), (int)sizeof(UI::DialogInstance));
+    CHECK_EQ((int)offsetof(UI::ToolTipDialog, _unreadCopiedHead), (int)sizeof(UI::DialogInstance));
 
     // The fields the old engine POD got wrong (POD_TREE_AUDIT 1.2).
 

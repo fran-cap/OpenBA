@@ -159,11 +159,11 @@ void AdoptWorld(const void* map, const void* heights, int stride) {
     g_undoEpoch = Ext::LockEpoch();
 }
 
-// A road is a cell the game marked in field_0x2A (the road batch id, 0xFF when there is none): the road mesh
+// A road is a cell the game marked in roadType (the road batch id, 0xFF when there is none): the road mesh
 // is built once from the ground's heights at that time, so ground raised or lowered under a road would bury
 // it or leave it in the air, and the cell's type must stay what the road was built on.
 bool IsRoadCell(const MapCell& cell) {
-    return cell.field_0x2A != MapCell::kNoRoadBatch;
+    return cell.roadType != MapCell::kNoRoadBatch;
 }
 
 // A vertex is a corner of four cells, and the terrain classifier reads the cell centre from all four
@@ -581,7 +581,7 @@ void AddWaterForStroke(WorldGeometry* terrain) {
     const StrokeBox box = g_box;
     g_box = StrokeBox();
     const int16_t* heights = terrain->_heights.data;
-    const int stride = terrain->_fieldD0;
+    const int stride = terrain->_heightRowStride;
     if (!box.valid || heights == nullptr || stride < 2 || terrain->_contourVertices.data == nullptr) return;
     if (!g_waterQuadsValid) ScanWaterQuads(terrain);
     // The cells around the written vertices: a vertex is a corner of four cells.
@@ -763,7 +763,7 @@ void UploadGroundTexture(WorldGeometry* terrain) {
 void UpdateGroundTexture(WorldGeometry* terrain) {
     using namespace Ext::TerrainEdit;
     const int dim = terrain->_gridSize;
-    const int stride = terrain->_fieldD0;
+    const int stride = terrain->_heightRowStride;
     const int16_t* heights = terrain->_heights.data;
     uint8_t* bytes = terrain->_heightBytes;
     if (heights == nullptr || bytes == nullptr || dim <= 0 || stride != dim + 1) return;
@@ -876,7 +876,7 @@ void RefreshWaterAccess(Map* map, int boxMinX, int boxMinY, int boxMaxX, int box
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
     if (game == nullptr || game->m_citizenList == nullptr || map == nullptr) return;
     CitizenBehavior* town = game->m_citizenList;
-    if (town->field_0x140._size < 1) return;   // the index is not built yet (a load builds it after this)
+    if (town->coarseWaterIndex._size < 1) return;   // the index is not built yet (a load builds it after this)
     const int size = map->size;
     const int offset = size >> 1;
     int col0 = boxMinX - offset - 3;
@@ -897,8 +897,8 @@ void RefreshWaterAccess(Map* map, int boxMinX, int boxMinY, int boxMaxX, int box
     // looked at again.
     std::vector<WaterCellPair> keep;
     std::set<int> look;   // the cells whose pair is made again, in cell order
-    const int oldCount = town->field_0x130._size;
-    const WaterCellPair* old = town->field_0x130._data;
+    const int oldCount = town->waterAccessPairs._size;
+    const WaterCellPair* old = town->waterAccessPairs._data;
     for (int i = 0; i < oldCount; ++i) {
         const bool a = inArea(old[i].cellA);
         const bool b = inArea(old[i].cellB);
@@ -939,10 +939,10 @@ void RefreshWaterAccess(Map* map, int boxMinX, int boxMinY, int boxMaxX, int box
     WaterCellPair zero;
     zero.cellA = 0;
     zero.cellB = 0;
-    town->field_0x130.SetSize(static_cast<int>(keep.size()), zero);
-    for (size_t i = 0; i < keep.size(); ++i) town->field_0x130._data[i] = keep[i];
-    for (int b = 0; b < town->field_0x140._size; ++b) {
-        Collection::Array<int32_t>& block = town->field_0x140._data[b];
+    town->waterAccessPairs.SetSize(static_cast<int>(keep.size()), zero);
+    for (size_t i = 0; i < keep.size(); ++i) town->waterAccessPairs._data[i] = keep[i];
+    for (int b = 0; b < town->coarseWaterIndex._size; ++b) {
+        Collection::Array<int32_t>& block = town->coarseWaterIndex._data[b];
         int out = 0;
         for (int i = 0; i < block._size; ++i) {
             if (block._data[i] < 0) block._data[out++] = block._data[i];
@@ -1139,7 +1139,7 @@ bool CanPlantOn(const MapCell& cell) {
 // growthScale of zero or less (a plant that is never harvested or never dies; GrowthComponent::Startup sets
 // it to -1) gives growth 1.0 too, and the sign keeps it from ever passing the end. Rocks and ore have no
 // GrowthComponent and skip that step. The mesh variant is picked under worldgen's own condition (the
-// description's _b48 and a model with mesh groups, starttown.cpp), whether or not there is a GrowthComponent.
+// description's _groupModels and a model with mesh groups, starttown.cpp), whether or not there is a GrowthComponent.
 ComponentEntity* PlantAt(Map* map, int cell) {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
     if (g_palette.empty() || cell < 0 || cell >= map->size * map->size) return nullptr;
@@ -1156,7 +1156,7 @@ ComponentEntity* PlantAt(Map* map, int cell) {
     if (nr == nullptr || model == nullptr) return nullptr;   // unreachable: checked on the description above
     nr->PlaceAtCell(cell);
     if (growth != nullptr && growth->growthScale != 0.0f) growth->SetProgress(1.0f / growth->growthScale);
-    if (nrDesc->_b48 && model->MeshGroupCount() > 0) {
+    if (nrDesc->_groupModels && model->MeshGroupCount() > 0) {
         System::Random* random = game->m_random;
         const uint32_t variant = random->Rand(model->MeshGroupCount());
         const int meshes = model->MeshCount(static_cast<int>(variant));
@@ -1174,7 +1174,7 @@ ComponentEntity* PlantAt(Map* map, int cell) {
 void PlantStroke(Map* map, WorldGeometry* terrain, int cell, bool strokeStart) {
     using namespace Ext::TerrainEdit;
     int16_t* heights = terrain->_heights.data;
-    const int stride = terrain->_fieldD0;
+    const int stride = terrain->_heightRowStride;
     if (heights == nullptr || stride <= 0) return;
     if (strokeStart) RescanPalette(); else EnsurePalette();
     if (g_palette.empty()) return;
@@ -1296,7 +1296,7 @@ public:
         int16_t* heights = terrain->_heights.data;
         if (heights == nullptr) return;
         const int size   = map->size;
-        const int stride = terrain->_fieldD0;    // vertices per edge
+        const int stride = terrain->_heightRowStride;    // vertices per edge
         const int offset = size >> 1;            // the map's cells are the middle of the (wider) height grid
         if (strokeStart || !g_undo.Open()) {
             if (!SameWorld(map, heights, stride)) {
@@ -1402,7 +1402,7 @@ void StartBrush() {
     PlayerToolManager* manager = game->m_toolManager;
     // What SelectTool does to install a tool (Dialog/toolbardialog.cpp), without the registry lookup: shut
     // down and delete the current tool, then set the new one's three fields and start it.
-    manager->field_0x20 = nullptr;
+    manager->activeToolGroup = nullptr;
     if (manager->currentTool != nullptr) {
         manager->currentTool->Shutdown();
         delete manager->currentTool.Get();
@@ -1444,7 +1444,7 @@ size_t CountReachable(Recount& r, size_t depth, uint32_t version, Skips skips, b
     // The strokes were painted on one world; after a new game or a load there are none.
     const bool here = game != nullptr && game->m_game != nullptr && game->m_worldGeometry != nullptr &&
                       SameWorld(game->m_game, game->m_worldGeometry->_heights.data,
-                                game->m_worldGeometry->_fieldD0);
+                                game->m_worldGeometry->_heightRowStride);
     if (!here) {
         ForgetWorld();
         r.reachable = 0;
@@ -1456,7 +1456,7 @@ size_t CountReachable(Recount& r, size_t depth, uint32_t version, Skips skips, b
         r.at = now;
         r.version = version;
         r.valid = true;
-        const int stride = game->m_worldGeometry->_fieldD0;
+        const int stride = game->m_worldGeometry->_heightRowStride;
         const int offset = game->m_game->size >> 1;
         r.reachable = 0;
         while (r.reachable < depth && !skips(r.reachable, game->m_game, stride, offset)) ++r.reachable;
@@ -1509,7 +1509,7 @@ bool UndoLast() {
     Map* map = game->m_game;
     WorldGeometry* terrain = game->m_worldGeometry;
     int16_t* heights = terrain->_heights.data;
-    const int stride = terrain->_fieldD0;
+    const int stride = terrain->_heightRowStride;
     if (heights == nullptr || stride <= 0) return false;
     FinishStroke();   // a stroke still being painted counts first
     if (!SameWorld(map, heights, stride)) {
@@ -1647,7 +1647,7 @@ bool RedoLast() {
     Map* map = game->m_game;
     WorldGeometry* terrain = game->m_worldGeometry;
     int16_t* heights = terrain->_heights.data;
-    const int stride = terrain->_fieldD0;
+    const int stride = terrain->_heightRowStride;
     if (heights == nullptr || stride <= 0) return false;
     FinishStroke();   // a stroke still being painted counts first (and ends the redo list)
     if (!SameWorld(map, heights, stride)) {
@@ -1723,7 +1723,7 @@ bool UndoRefused() {
         GameUpdateLoop* game = GameUpdateLoop::_singleton;
         const bool here = game != nullptr && game->m_game != nullptr && game->m_worldGeometry != nullptr &&
                           SameWorld(game->m_game, game->m_worldGeometry->_heights.data,
-                                    game->m_worldGeometry->_fieldD0);
+                                    game->m_worldGeometry->_heightRowStride);
         if (!here) g_undoRefused = false;
     }
     return g_undoRefused;

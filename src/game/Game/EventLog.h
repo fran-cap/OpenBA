@@ -82,14 +82,14 @@ public:
     // word +0x14 = 0x0101, then byte +0x10 = 0. The dtor is implicit: retail's
     // Shutdown releases only the entry array (~Array 0x14000a8a0 at 0x140097ab0).
     EventLog() : events(nullptr), seasons(nullptr), entries() {
-        field_0x10[0] = true; field_0x10[1] = true; field_0x10[2] = true;
-        field_0x10[3] = true; field_0x10[4] = true; field_0x10[5] = true;
-        field_0x10[0] = false;
+        notifyCategories[0] = true; notifyCategories[1] = true; notifyCategories[2] = true;
+        notifyCategories[3] = true; notifyCategories[4] = true; notifyCategories[5] = true;
+        notifyCategories[0] = false;
     }
 
     UI::StringTable* events;      // +0x00 "Dialog/StringTable.rsc:events" (ExternalPtr)
     UI::StringTable* seasons;     // +0x08 "Dialog/StringTable.rsc:seasons" (ExternalPtr)
-    bool           field_0x10[6]; // +0x10 Serialize(6, bool*); ctor {0, 1, 1, 1, 1, 1}
+    bool           notifyCategories[6]; // +0x10 Serialize(6, bool*); ctor {0, 1, 1, 1, 1, 1}
     uint8_t        _pad16[2];     // +0x16 never written by the ctor
     EntryArray     entries;       // +0x18 data, +0x20 count, +0x24 capacity
 
@@ -117,6 +117,6 @@ public:
 static_assert(sizeof(EventLog) == 0x28, "EventLog is 0x28 (Load MemAlloc(0x28, 4))");
 static_assert(offsetof(EventLog, events) == 0x00, "EventLog::events @ +0x00");
 static_assert(offsetof(EventLog, seasons) == 0x08, "EventLog::seasons @ +0x08");
-static_assert(offsetof(EventLog, field_0x10) == 0x10, "EventLog +0x10");
+static_assert(offsetof(EventLog, notifyCategories) == 0x10, "EventLog +0x10");
 static_assert(offsetof(EventLog, _pad16) == 0x16, "EventLog +0x16");
 static_assert(offsetof(EventLog, entries) == 0x18, "EventLog::entries @ +0x18");

@@ -156,10 +156,10 @@ static void InstallLeadMessage(CitizenComponent* const* citizenRef, CharacterCom
         ComponentEntity* entityIBP = (*citizenRef)->_entity.Get();
         act = new (mem) SendComponentMessage(&entityIBP, &msgId, 0, &destIBP, 0);   // 0x1400cb1d0
     }
-    if (ch->actionStack.field_0x10 != nullptr) {
-        ch->actionStack.field_0x10.DeletePtr();
+    if (ch->actionStack.completionAction != nullptr) {
+        ch->actionStack.completionAction.DeletePtr();
     }
-    ch->actionStack.field_0x10 = act;
+    ch->actionStack.completionAction = act;
 }
 
 // Push an action (null when its allocation failed) on the stack: the InternalPtr retail
@@ -345,7 +345,7 @@ void CitizenAI_PerformWorkCtor5_bd070(CitizenComponent* const* citizenRef, Compo
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (class C) notes which item
     // this citizen is on its way to take and the use count it posts, so the citizen panel can name it.
     if (::Ext::Ext().tool_names && limit != nullptr && citizenRef != nullptr) {
-        ::Ext::ToolNames::RememberPickup(*citizenRef, limit, limit->_i54);
+        ::Ext::ToolNames::RememberPickup(*citizenRef, limit, limit->_useValue);
     }
 
     // SendComponentMessage(7158, a4=1, a6 = limit->+0x54)
@@ -356,7 +356,7 @@ void CitizenAI_PerformWorkCtor5_bd070(CitizenComponent* const* citizenRef, Compo
             ComponentEntity* destIBP = nullptr;   // retail: InternalBasePtr(nullptr) in a stack slot
             uint32_t msgId = MsgId7158();
             ComponentEntity* entityIBP = (*citizenRef)->_entity.Get();
-            uint32_t a6 = static_cast<uint32_t>(limit->_i54);
+            uint32_t a6 = static_cast<uint32_t>(limit->_useValue);
             act = new (mem) SendComponentMessage(&entityIBP, &msgId, 1, &destIBP, a6);   // 0x1400cb1d0
         }
         Push(stack, act);
@@ -761,10 +761,10 @@ void CitizenAI_PlayAnimationCtor4_ba6b0(CitizenComponent* const* citizenRef, Com
             // ENDGAME B.3.9 EXA: the real class (was the `??0Internal` door and
             // two stamps); then retail's inlined leaf stores.
             PlayAnimation* a = ::new (mem) PlayAnimation();
-            a->_field20         = entityIBP;   // raw IBP copy, as retail
+            a->_entity         = entityIBP;   // raw IBP copy, as retail
             a->animation        = 0;
-            a->_field30         = t;
-            a->_field38._ticks  = 0;
+            a->_duration         = t;
+            a->_elapsed._ticks  = 0;
             act = a;
         }
         Push(stack, act);

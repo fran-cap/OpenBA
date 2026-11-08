@@ -21,7 +21,7 @@
 // Dtor (vtable +0x00, 0x140032ca0): MemFree(array @+0x28) + External::~External + free.
 //
 // NOTE: count is serialized into a local; the on-disk count then drives array resize +
-// the per-element load. The resize is `_refs.SetSize` (kSpec_PtrZero).
+// the per-element load. The resize is `_removeTypes.SetSize` (kSpec_PtrZero).
 // fn_ExternalRefArray_Serialize -> exe FUN_1400049c0, null in standalone until 0x1400049c0
 // is registered (REPORTED). param4 is a dead init -> nullptr safe.
 //
@@ -46,17 +46,17 @@
 
 // ctor (inlined into create 0x140032b70 / createInPlace 0x140032be0):
 // `??0External@Object@@` (Description()), the stamps (the compiler's), then
-// the defaults (+0x28 = +0x30 = 0 is _refs' Array ctor, 0x140032bbe / 0x140032bc2).
+// the defaults (+0x28 = +0x30 = 0 is _removeTypes' Array ctor, 0x140032bbe / 0x140032bc2).
 CreateRemovalDescription::CreateRemovalDescription()
     : Description(),
-      _b20(false),
-      _ref38(nullptr),
-      _b40(false),
-      _b41(false),
-      _b42(false),
-      _b43(false) {}
+      _removeResources(false),
+      _remover(nullptr),
+      _removeRoads(false),
+      _removeBuildings(false),
+      _cancelClear(false),
+      _increasePriority(false) {}
 
-// dtor (slot 0 0x140032ca0 minus the stamps): the body is empty. ~_refs frees the
+// dtor (slot 0 0x140032ca0 minus the stamps): the body is empty. ~_removeTypes frees the
 // ExternalPtr array unconditionally and zeroes +0x28 / +0x30 (0x140032cc7..0x140032cd7; the
 // entries are non-owning, no element release); the compiler then chains ~Description -> ~External.
 CreateRemovalDescription::~CreateRemovalDescription() {
@@ -65,20 +65,20 @@ CreateRemovalDescription::~CreateRemovalDescription() {
 // [5] 0x140119ac0: stream order as retail.
 bool CreateRemovalDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_b20, nullptr);
-    int count = _refs._size;
+    ser.Serialize(_removeResources, nullptr);
+    int count = _removeTypes._size;
     ser.Serialize(count, nullptr);   // a local copy, as retail
     // On load (stream mode == 0): resize the heap ExternalPtr array at +0x28.
     if (ser._stream && static_cast<int>(ser.GetDirection()) == 0) {
         // retail 0x140001bb0 IS Collection::Array<T>::SetSize(n): stride 8 align 8, new tail zeroed.
-        _refs.SetSize(count);
+        _removeTypes.SetSize(count);
     }
-    ::Object::SerializeExternalArray<ComponentDescription>(ser, count, _refs._data);   // ExtPtr[count] (0x1400049c0)
-    ::Object::SerializeExternal<ComponentDescription>(ser, _ref38);
-    ser.Serialize(_b40, nullptr);
-    ser.Serialize(_b41, nullptr);
-    ser.Serialize(_b42, nullptr);
-    ser.Serialize(_b43, nullptr);
+    ::Object::SerializeExternalArray<ComponentDescription>(ser, count, _removeTypes._data);   // ExtPtr[count] (0x1400049c0)
+    ::Object::SerializeExternal<ComponentDescription>(ser, _remover);
+    ser.Serialize(_removeRoads, nullptr);
+    ser.Serialize(_removeBuildings, nullptr);
+    ser.Serialize(_cancelClear, nullptr);
+    ser.Serialize(_increasePriority, nullptr);
     return true;
 }
 

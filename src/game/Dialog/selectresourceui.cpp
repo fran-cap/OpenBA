@@ -59,8 +59,8 @@ static int SelectResourceUI_IterateResources(SelectResourceUI* ui, UI::ComboElem
 
     // The town's template list
     const CitizenBehavior* town = GameUpdateLoop::_singleton->m_citizenList;
-    int numTypes = town->field_0x120._size;
-    ComponentDescription** typeArray = town->field_0x120._data;
+    int numTypes = town->availableFarmTypes._size;
+    ComponentDescription** typeArray = town->availableFarmTypes._data;
 
     // The current resource type (slot 12, the ExternalPtr retslot)
     ComponentDescription* currentResource = nullptr;
@@ -96,15 +96,15 @@ static int SelectResourceUI_IterateResources(SelectResourceUI* ui, UI::ComboElem
                 if (isDerived && subObj != nullptr) {
                     const SelectDescription* select = static_cast<const SelectDescription*>(subObj);
                     // Check category filter matches
-                    int category = (int)select->_u40;
+                    int category = (int)select->_group;
                     if (category == categoryFilter) {
                         if (combo) {
                             // The name: a UI::String of the table and key, as System::String
-                            UI::String uiStr(Object::ExternalPtr<UI::StringTable>(select->_ref30), select->_s38);
+                            UI::String uiStr(Object::ExternalPtr<UI::StringTable>(select->_stringTable), select->_stringName);
                             System::String sysStr(uiStr.operator System::String());
 
                             // The icon: a Sprite of the sheet and name
-                            UI::Sprite sprite(Object::ExternalPtr<UI::SpriteSheet>(select->_ref20), select->_s28);
+                            UI::Sprite sprite(Object::ExternalPtr<UI::SpriteSheet>(select->_spriteSheet), select->_spriteName);
 
                             // Add item to combo with the template's index as userData
                             combo->AddItem(sprite, sysStr, reinterpret_cast<void*>(static_cast<intptr_t>(comboIdx)));  // CAST-OK: ptr_int
@@ -224,7 +224,7 @@ void SelectResourceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*elemen
     int resourceIndex = (int)reinterpret_cast<intptr_t>(itemData);  // CAST-OK: ptr_int
 
     // The template
-    ComponentDescription* resourceType = GameUpdateLoop::_singleton->m_citizenList->field_0x120._data[resourceIndex];
+    ComponentDescription* resourceType = GameUpdateLoop::_singleton->m_citizenList->availableFarmTypes._data[resourceIndex];
 
     // Slot 11 (polymorphic -- sets resource type on component)
     SetResource(resourceType);   // slot 11, virtual (as retail)

@@ -293,11 +293,11 @@ int MapGenerator::SpawnStartingHerd(const float* centre, ComponentDescription* t
     // iteration, so a group of 8 comes out 4/4 rather than 8 independent coin flips.
     bool female = rng->Rand(2u) == 0u;
 
-    const int groupCount = paramF8;   // +0xf8 (0x1400a0b77; retail re-reads it at 0x1400a0d80, nothing writes it in the loop)
+    const int groupCount = livestockGroupCount;   // +0xf8 (0x1400a0b77; retail re-reads it at 0x1400a0d80, nothing writes it in the loop)
 
-    const float offX      = paramEC;   // +0xec
-    const float offY      = paramF0;   // +0xf0
-    const float radius    = paramF4;   // +0xf4
+    const float offX      = livestockOffsetX;   // +0xec
+    const float offY      = livestockOffsetY;   // +0xf0
+    const float radius    = livestockRadius;   // +0xf4
     const float yawSpread = kRdata_140172220;  // 0x140172220 = 180.0f
 
     const ComponentDescription* templ = tmpl;

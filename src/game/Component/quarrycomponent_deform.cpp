@@ -163,7 +163,7 @@ void QuarryComponent::ApplyDepth(float depth) {
     WorldGeometry* terrain = GameUpdateLoop::_singleton->m_worldGeometry;   // +0x110
 
     int16_t* heightArray = terrain->_heights.data;   // +0xD8 the height array
-    const int       stride      = terrain->_fieldD0;
+    const int       stride      = terrain->_heightRowStride;
     const float     half        = static_cast<float>(terrain->_gridSize >> 1);
 
     // Picking::PickingMesh::Vertices (import slot 0x140151478) — a reference return.
@@ -235,7 +235,7 @@ void QuarryComponent::OnMessage(int /*message*/, void* /*data*/, uint32_t /*arg0
     if (!qDesc) { QuarryBail("Slot15", "no QuarryDescription in the entity description list"); return; }
 
     const int produced = cp->consumeState;   // +0x68: the production count this sink reads
-    const int maxProd  = cpDesc->_i48;       // +0x48 _maximumProduction
+    const int maxProd  = cpDesc->_maximumProduction;       // +0x48 _maximumProduction
     // Retail divides unguarded; _maximumProduction is authored non-zero on every quarry
     // template. Guarded only because a zero here would be OUR resolution failure.
     if (maxProd == 0) { QuarryBail("Slot15", "cpDesc+0x48 _maximumProduction is 0"); return; }
@@ -317,7 +317,7 @@ void QuarryComponent::OnMessage(int /*message*/, void* /*data*/, uint32_t /*arg0
                 // newType 5 always lands in 0x1e0, so f2f0's two-sided boundary rule
                 // reduces to "was the old type in 0xe1f" — which is what retail inlines.
                 const uint8_t dirty = ((oldMask & Bits(PathBits::Walk)) != 0) ? 1u : 0u;
-                tileGrid->field_0xA2 |= dirty;
+                tileGrid->zonesStale |= dirty;
                 cell->terrainType = PathType::Immovable;
                 TerrainSidecar::NoteWrite(cell);   // [terrain sidecar] mirror
                 CellStamp::NoteWrite(cell);   // [AMBMEMO] cell write clock

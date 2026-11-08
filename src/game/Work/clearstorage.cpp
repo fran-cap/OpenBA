@@ -72,11 +72,11 @@ static inline uint32_t WorldToCell(float x, float z, int gridSize) {
 int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
     // Find components on the entity (+0x10) through the guarded finders (typed locals)
     // 0x1400e6c8b CALL 0x140002ed0: FindComponent<InteractComponent> into [RBP-0x40]
-    InteractComponent* positionComp = field_10->FindComponent<InteractComponent>();
+    InteractComponent* positionComp = _entity->FindComponent<InteractComponent>();
 
-    StorageLocationComponent* unknownComp = field_10.Get()->FindComponent<StorageLocationComponent>(); // cell 0x1401c7ee8
+    StorageLocationComponent* unknownComp = _entity.Get()->FindComponent<StorageLocationComponent>(); // cell 0x1401c7ee8
 
-    StorageComponent* storage = field_10.Get()->FindComponent<StorageComponent>();
+    StorageComponent* storage = _entity.Get()->FindComponent<StorageComponent>();
 
     // Get game world grid data
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
@@ -164,10 +164,10 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
         }
 
         // Set up search for destination storage
-        Object::InternalPtr<ComponentEntity> entityIBP = field_10;
+        Object::InternalPtr<ComponentEntity> entityIBP = _entity;
 
         float searchPos[3] = {0.0f, 0.0f, 0.0f};
-        uint32_t resourceTypeId = (uint32_t)field_28;
+        uint32_t resourceTypeId = (uint32_t)_cell;
         ComponentEntity* destEntity = nullptr;
 
         worldArray->PickBestDropTarget(
@@ -179,7 +179,7 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
         }
 
         // Check if path is possible
-        uint32_t workTypeId = (uint32_t)field_28;
+        uint32_t workTypeId = (uint32_t)_cell;
         if (!gridDataPtr->ValidateCell(PathBits::Walk, srcCell, workTypeId)) {
             return 1;
         }
@@ -218,8 +218,8 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
         }
 
         // Set up pathfinding
-        ComponentEntity* workEntity = field_10.Get();
-        int pathType = field_20;
+        ComponentEntity* workEntity = _entity.Get();
+        int pathType = _workId;
         ComponentEntity* destEntityCopy = destEntity;
         uint32_t pathFlags = (availCount << 8) | 0;  // flags from local_res20[0]
 
@@ -238,7 +238,7 @@ int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
 
         // Update citizen state
         citizenPtr->statusFlags |= Bits(CitizenStatus::TaskDone);
-        citizenPtr->field_0x30 = pathType;
+        citizenPtr->lastWorkId = pathType;
         citizenPtr->lastErrand = CitizenErrand::None;
 
         if (resultVal == citizenPtr->profession && pathType >= 0) {
@@ -472,7 +472,7 @@ int ClearStorage::Cleanup() {
 // Returns the profession list's +0x30 profession (GameUpdateLoop::m_professionList).
 // Uses hidden return pointer ABI (member function returning non-trivial).
 Profession** ClearStorage::GetTarget(Profession** retbuf) {
-    *retbuf = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    *retbuf = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
     return retbuf;
 }
 

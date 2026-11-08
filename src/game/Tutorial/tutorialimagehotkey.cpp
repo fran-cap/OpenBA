@@ -150,7 +150,7 @@ Object::InternalPtr<UI::Element>* TutorialImageHotKey::CreateElement(Object::Int
     const Toolbar* resolvedRef = ResolvedToolbar(hotkeyRef);
     int keyId = 0;
     if (resolvedRef)
-        keyId = resolvedRef->_field40;
+        keyId = resolvedRef->shortcutKey;
 
     // 10. Get device type for this key
     int deviceType = 0;

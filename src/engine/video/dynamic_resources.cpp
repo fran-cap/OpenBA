@@ -144,7 +144,7 @@ namespace {
 // The offsets are retail's, read off the four disassemblies, and they are NOT
 // the same across the four classes:
 //
-//   ImageBuffer   +0x58   (0x1800f2e35  MOV RBX,[RBX+0x58])   `_field58`
+//   ImageBuffer   +0x58   (0x1800f2e35  MOV RBX,[RBX+0x58])   `_prevSurface`
 //   IndexBuffer   +0x18   (0x1800f3584  MOV RBX,[RBX+0x18])   `listNext`
 //   VertexBuffer  +0x18   (0x1800f56e4  MOV RBX,[RBX+0x18])   `listNext`
 //   RenderBuffer  +0x20   (0x1800f4078  MOV RBX,[RBX+0x20])   `prev`
@@ -154,7 +154,7 @@ namespace {
 // buffers `next` / `prev`, so Buffers.h's `listNext` is ListLink's `prev`.
 // The list is circular, so both directions terminate; the OFFSET is retail's.
 // ---------------------------------------------------------------------------
-static_assert(offsetof(Video::ImageBuffer, _field58) == 0x58, "ImageBuffer walker link");
+static_assert(offsetof(Video::ImageBuffer, _prevSurface) == 0x58, "ImageBuffer walker link");
 static_assert(offsetof(Video::IndexBuffer, listNext) == 0x18, "IndexBuffer walker link");
 static_assert(offsetof(Video::VertexBuffer, listNext) == 0x18, "VertexBuffer walker link");
 static_assert(offsetof(Video::RenderBuffer, prev) == 0x20, "RenderBuffer walker link");
@@ -265,7 +265,7 @@ void Video::ImageBuffer::RecreateDynamic() {
                     companion->Create(nullptr);
                 }
             }
-            p = p->_field58;
+            p = p->_prevSurface;
         } while (p != _firstSurface);
     }
 
@@ -298,7 +298,7 @@ void Video::ImageBuffer::ReleaseDynamic() {
                 p->_data = nullptr;
                 terminator = _firstSurface;
             }
-            p = p->_field58;
+            p = p->_prevSurface;
         } while (p != terminator);
     }
 

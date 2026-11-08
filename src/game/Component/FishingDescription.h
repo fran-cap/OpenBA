@@ -39,12 +39,12 @@ public:
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
     ComponentDescription* _fish;                // +0x20 ExternalPtr (fish material: FishWork hands it to 0x1400beae0 as the material)
-    uint32_t _u28;                              // +0x28 enum (serialized through the uint door)
+    uint32_t _resourceLimit;                              // +0x28 enum (serialized through the uint door)
     uint32_t _terrainMask;                      // +0x2c accepted terrain bits (cell +0x29), ProduceTick 0x14011ec10
 };
 
 static_assert(sizeof(FishingDescription) == 0x30, "FishingDescription is 0x30 (create 0x1400343c0 MemAlloc(0x30))");
 static_assert(alignof(FishingDescription) == 8, "FishingDescription alignment");
 static_assert(offsetof(FishingDescription, _fish) == 0x20, "FishingDescription::_fish @ +0x20");
-static_assert(offsetof(FishingDescription, _u28) == 0x28, "FishingDescription::_u28 @ +0x28");
+static_assert(offsetof(FishingDescription, _resourceLimit) == 0x28, "FishingDescription::_resourceLimit @ +0x28");
 static_assert(offsetof(FishingDescription, _terrainMask) == 0x2c, "FishingDescription::_terrainMask @ +0x2c");

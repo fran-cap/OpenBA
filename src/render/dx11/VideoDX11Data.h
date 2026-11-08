@@ -129,7 +129,7 @@ public:
     // nulls the field, so this dangles for the rest of the session. Slot 3 does
     // not touch it, which is correct — releasing it again would be a double
     // release.
-    IDXGIFactory1*       unk10;          // +0x10  IDXGIFactory1*, dangling after slot 2
+    IDXGIFactory1*       dxgiFactory;          // +0x10  IDXGIFactory1*, dangling after slot 2
     IDXGISwapChain*      swapChain;      // +0x18  (SetFullscreenState(FALSE) before release)
     ID3D11Device*        d3dDevice;      // +0x20  (CreateTexture2D callee in 0x1800052b0)
     ID3D11DeviceContext* d3dContext;     // +0x28  (every resource Bind reads this)
@@ -174,7 +174,7 @@ public:
 };
 static_assert(sizeof(DeviceData) == 0x70, "DeviceData size (MemAlloc 0x70 @ 0x1800011a0)");
 static_assert(offsetof(DeviceData, _owner) == 0x8, "DeviceData::_owner (the base's)");
-static_assert(offsetof(DeviceData, unk10) == 0x10, "DeviceData::unk10");
+static_assert(offsetof(DeviceData, dxgiFactory) == 0x10, "DeviceData::dxgiFactory");
 static_assert(offsetof(DeviceData, pad41) == 0x41, "DeviceData::pad41");
 static_assert(offsetof(DeviceData, cursorHotspotY) == 0x5C, "DeviceData::cursorHotspotY");
 static_assert(offsetof(DeviceData, swapChain)       == 0x18, "DeviceData::swapChain");

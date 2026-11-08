@@ -259,7 +259,7 @@ UNIT_TEST(b39_vid_renderstate_ctor_makes_retails_stores) {
     for (int off = 0x44; off < 0x68; ++off) CHECK_EQ((int)buf[off], 0);
     CHECK_EQ(r->_cullMode, 1u);
     CHECK_EQ(r->_fillMode, 0u);
-    CHECK_EQ((int)r->_flag70, 0);
+    CHECK_EQ((int)r->_scissorEnable, 0);
     for (int off = 0x71; off < 0x78; ++off) CHECK_EQ((int)buf[off], 0xCD);
     CHECK(static_cast<void*>(r->_data) == kMarkerData);
     g_dtorCount = 0;

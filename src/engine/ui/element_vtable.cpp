@@ -484,7 +484,7 @@ void Element::Update(const System::Time& time, UserInterface* ui,
     if (state.dragActive) {
         // A drop only happens on the button the drag was started with; retail
         // returns without raising ANY other event when +0x04 is clear.
-        if (!state.b04) return;
+        if (!state.leftReleased) return;
         rec.dialog    = dialog->Get();
         rec.element   = this;
         rec.eventId   = EventId::Drop;                          // DROP
@@ -500,11 +500,11 @@ void Element::Update(const System::Time& time, UserInterface* ui,
     }
 
     if (state.buttonPressed) push(EventId::LeftPress);
-    if (state.b02)           push(EventId::MiddlePress);
-    if (state.b03)           push(EventId::RightPress);
-    if (state.b04)           push(EventId::LeftRelease);
-    if (state.b05)           push(EventId::MiddleRelease);
-    if (state.b06)           push(EventId::RightRelease);
+    if (state.middlePressed)           push(EventId::MiddlePress);
+    if (state.rightPressed)           push(EventId::RightPress);
+    if (state.leftReleased)           push(EventId::LeftRelease);
+    if (state.middleReleased)           push(EventId::MiddleRelease);
+    if (state.rightReleased)           push(EventId::RightRelease);
     if (state.leftDown && (state.dragDx != 0 || state.dragDy != 0)) push(EventId::Drag);
 }
 

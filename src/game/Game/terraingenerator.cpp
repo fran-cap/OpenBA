@@ -19,7 +19,7 @@
 //   +0x08: External base (0x18 bytes)
 //   +0x20: ExternalPtr (8 bytes)
 //   +0x28: System::String noiseFile1 (8 bytes)
-//   +0x30: bool enabled (default 1)
+//   +0x30: bool exposed (default 1)
 //   +0x31: pad (7 bytes)
 //   +0x38: System::String noiseFile2 (8 bytes)
 //   +0x40: int32_t sentinel1 (default -1)
@@ -113,7 +113,7 @@ static void Reimpl_TerrainDataSerialize(IO::Serializer* serializer, uint32_t cou
         serializer->Serialize(row->riverCount1, nullptr);         // [4]
         serializer->Serialize(row->riverMinEdge1, nullptr);       // [5]
         serializer->Serialize(row->riverMaxEdge1, nullptr);       // [6]
-        serializer->Serialize(row->field_0x1C, nullptr);          // [7]
+        serializer->Serialize(row->flatAreaConnections, nullptr);          // [7]
         serializer->Serialize(row->secondaryPathCount, nullptr);  // [8]
         serializer->Serialize(row->minRangeCount, nullptr);       // [10]
         serializer->Serialize(row->maxRangeCount, nullptr);       // [11]
@@ -159,8 +159,8 @@ static void SerializeFilenameString(MapGenerator::ExternalRef* ref, IO::Serializ
 // generation -1, resolved 0: retail 0x1400b184e / 0x1400b1865 / 0x1400b187c),
 // then the +0x80 size table's Array() (one qword zero each; H7).
 TerrainGenerator::TerrainGenerator()
-    : _field20(nullptr),         // ExternalPtr
-      _field30(true) {}          // enabled
+    : stringTable(nullptr),         // ExternalPtr
+      exposed(true) {}          // +0x30
 
 // ============================================================
 // TerrainGenerator::~TerrainGenerator / DeletingDtor (vtable +0x00)
@@ -199,18 +199,18 @@ bool TerrainGenerator::Serialize(IO::Stream& stream) {
     IO::Serializer* serializer = &s;   // destroyed at the return (retail's order)
 
     // Serialize ExternalPtr at +0x20
-    ::Object::SerializeExternal<UI::StringTable>(*serializer, _field20);
+    ::Object::SerializeExternal<UI::StringTable>(*serializer, stringTable);
 
     // Serialize String at +0x28
-    _field28.Serialize(*serializer);
+    text.Serialize(*serializer);
 
     // Serialize bool at +0x30
-    s.Serialize(_field30, nullptr);
+    s.Serialize(exposed, nullptr);
 
     // 3 filename strings with the version-0 resolution: +0x38, +0x50, +0x68
-    SerializeFilenameString(&_field38, serializer);
-    SerializeFilenameString(&_field50, serializer);
-    SerializeFilenameString(&_field68, serializer);
+    SerializeFilenameString(&terrainMaterial, serializer);
+    SerializeFilenameString(&waterMaterialA, serializer);
+    SerializeFilenameString(&waterMaterialB, serializer);
 
     // Terrain data array count: read the current count from +0x88, serialize
     // it, resize when reading (FUN_1400206b0), then the rows (FUN_140020870).

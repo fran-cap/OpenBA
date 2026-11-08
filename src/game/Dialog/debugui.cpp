@@ -446,7 +446,7 @@ static void Game_SpawnCitizenAt(System::Random* random, const Math::Vector3* pos
     CitizenDescription* citDesc = isCitDesc ? static_cast<CitizenDescription*>(citDescRaw) : nullptr;
 
     // Get profession list from game (re-read global)
-    Profession* profList = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    Profession* profList = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
 
     // Null parent InternalBasePtr
     CitizenComponent* parentIBP = nullptr;
@@ -480,7 +480,7 @@ static void Game_SpawnCitizens_Impl() {
     System::Random* random = game->m_random;
     // The building list: CitizenBehavior +0x00 / +0x08.
     CitizenBehavior* town = DebugUI_Town();
-    int buildingCount = town->field_0x00._size;
+    int buildingCount = town->storageLocations._size;
 
     if (buildingCount == 0) return;
 
@@ -492,7 +492,7 @@ static void Game_SpawnCitizens_Impl() {
         if (buildingCount > 0) {
             do {
                 // The building (the array is re-read per pass)
-                ComponentEntity* building = town->field_0x00._data[buildIdx].Get();
+                ComponentEntity* building = town->storageLocations._data[buildIdx].Get();
 
                 if (building != nullptr) {
 
@@ -557,7 +557,7 @@ static void Game_SpawnCitizens_Impl() {
                 // Advance to next building
                 buildIdx++;
                 // Re-read building count (may change if entities are added)
-                buildingCount = town->field_0x00._size;
+                buildingCount = town->storageLocations._size;
             } while (buildIdx < buildingCount);
         }
         // FIX debug_spawn_origin (docs/retail_bugs.md section 29): a pass that placed nobody (no
@@ -617,14 +617,14 @@ static void Game_StartRandomFire_Impl() {
     GameUpdateLoop* game = GameUpdateLoop::_singleton;
     // The building list: CitizenBehavior +0x20 / +0x28.
     CitizenBehavior* town = DebugUI_Town();
-    uint32_t buildingCount = (uint32_t)town->field_0x20._size;
+    uint32_t buildingCount = (uint32_t)town->residences._size;
 
     if (buildingCount == 0) return;
 
     uint32_t randIdx = game->m_random->Rand(static_cast<uint32_t>(buildingCount));
 
     // Get random building entity
-    ComponentEntity* building = town->field_0x20._data[randIdx].Get();
+    ComponentEntity* building = town->residences._data[randIdx].Get();
 
     // Find FireComponent on the building (FindComponent<FireComponent>, cell 0x1401c41e0)
     FireComponent* fireComp = building->FindComponent<FireComponent>();

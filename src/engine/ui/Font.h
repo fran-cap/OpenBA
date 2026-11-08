@@ -210,13 +210,13 @@ public:
     // The four Strings' null stores (180031d2a, 180031d55 / 59 / 60) are the
     // members' own constructors, run in declaration order before this body.
     Font() : Object::External() {
-        _field28       = nullptr;                        // 180031d2e
+        _characterSet       = nullptr;                        // 180031d2e
         _lineHeight    = 0;                              // 180031d42 (qword: +0x50/+0x54)
         _baseLine      = 0;
         _ellipsisWidth = 0;                              // 180031d46 DWORD
         _material      = nullptr;                        // 180031d4d
-        _field70       = 0;                              // 180031d51 (qword: +0x70/+0x74)
-        _field74       = 0;
+        _sheetWidth       = 0;                              // 180031d51 (qword: +0x70/+0x74)
+        _sheetHeight       = 0;
     }
 
     // [0] 0x180032130 — MSVC's VECTOR deleting destructor, both arms exactly as
@@ -276,8 +276,8 @@ public:
 
 public:
     // ---- the 0x70 bytes Font adds (public: the doors and AddFont read them) --
-    System::String                     _string20;      // +0x20  ctor 180031d2a, dtor 180117664
-    CharacterSet*                      _field28;       // +0x28  ExternalPtr<CharacterSet>, serialized by 0x180076e90 (B4 H4: typed)
+    System::String                     _fontName;      // +0x20  ctor 180031d2a, dtor 180117664
+    CharacterSet*                      _characterSet;       // +0x28  ExternalPtr<CharacterSet>, serialized by 0x180076e90 (B4 H4: typed)
     Collection::Array<int32_t>         _charToGlyph;   // +0x30  codepoint -> glyph index
     Collection::Array<Kerning>         _glyphs;        // +0x40  GetKern
     int32_t                            _lineHeight;    // +0x50  GetHeight
@@ -286,17 +286,17 @@ public:
     int32_t                            _spaceWidth;    // +0x5c  GetSpaceWidth
     Object::ExternalPtr<SpriteSheet>   _spriteSheet;   // +0x60  GetSpriteSheet
     Graphics::MaterialInstance*        _material;      // +0x68  ExternalPtr<MaterialInstance> (B4 H4: typed)
-    int32_t                            _field70;       // +0x70
-    int32_t                            _field74;       // +0x74
-    System::String                     _string78;      // +0x78  ctor 180031d55, dtor 18011762a
-    System::String                     _string80;      // +0x80  ctor 180031d59, dtor 1801175f8
-    System::String                     _string88;      // +0x88  ctor 180031d60, dtor 1801175c5
+    int32_t                            _sheetWidth;       // +0x70
+    int32_t                            _sheetHeight;       // +0x74
+    System::String                     _imageName;      // +0x78  ctor 180031d55, dtor 18011762a
+    System::String                     _sheetName;      // +0x80  ctor 180031d59, dtor 1801175f8
+    System::String                     _materialName;      // +0x88  ctor 180031d60, dtor 1801175c5
 };
 
 static_assert(sizeof(Font) == 0x90, "sizeof(UI::Font) == 0x90 (MOV EDX,0x90 at 0x18003214f)");
 static_assert(alignof(Font) == 8, "UI::Font aligns to 8 (the vptr)");
-static_assert(offsetof(Font, _string20)      == 0x20, "Font::_string20 @ +0x20");
-static_assert(offsetof(Font, _field28)       == 0x28, "Font::_field28 @ +0x28");
+static_assert(offsetof(Font, _fontName)      == 0x20, "Font::_fontName @ +0x20");
+static_assert(offsetof(Font, _characterSet)       == 0x28, "Font::_characterSet @ +0x28");
 static_assert(offsetof(Font, _charToGlyph)   == 0x30, "Font::_charToGlyph @ +0x30");
 static_assert(offsetof(Font, _charToGlyph._size) == 0x38,
               "Font::_charToGlyph._size @ +0x38 (CMP EAX,[RBP+0x38] at 0x180116d0a)");
@@ -309,12 +309,12 @@ static_assert(offsetof(Font, _ellipsisWidth) == 0x58, "Font::_ellipsisWidth @ +0
 static_assert(offsetof(Font, _spaceWidth)    == 0x5c, "GetSpaceWidth 0x180031e00 reads +0x5c");
 static_assert(offsetof(Font, _spriteSheet)   == 0x60, "GetSpriteSheet 0x180031d90 reads +0x60");
 static_assert(offsetof(Font, _material)      == 0x68, "Font::_material @ +0x68");
-static_assert(offsetof(Font, _field70)       == 0x70, "Font::_field70 @ +0x70");
-static_assert(offsetof(Font, _field74)       == 0x74, "Font::_field74 @ +0x74");
-static_assert(offsetof(Font, _string78)      == 0x78, "Font::_string78 @ +0x78");
-static_assert(offsetof(Font, _string80)      == 0x80, "Font::_string80 @ +0x80");
-static_assert(offsetof(Font, _string88)      == 0x88, "Font::_string88 @ +0x88");
-static_assert(offsetof(Font, _string20) == sizeof(Object::External),
+static_assert(offsetof(Font, _sheetWidth)       == 0x70, "Font::_sheetWidth @ +0x70");
+static_assert(offsetof(Font, _sheetHeight)       == 0x74, "Font::_sheetHeight @ +0x74");
+static_assert(offsetof(Font, _imageName)      == 0x78, "Font::_imageName @ +0x78");
+static_assert(offsetof(Font, _sheetName)      == 0x80, "Font::_sheetName @ +0x80");
+static_assert(offsetof(Font, _materialName)      == 0x88, "Font::_materialName @ +0x88");
+static_assert(offsetof(Font, _fontName) == sizeof(Object::External),
               "Font's own bytes begin right after Object::External");
 
 }  // namespace UI

@@ -1070,7 +1070,7 @@ bool DeviceData::CreateDevice() {
 
     // 6 -- the deferred first show (src/app/boot_window.cpp) or the shipped inline ShowWindow.
     BootWindow::ArmDeferredShow(cfg, dev->windowHandle);
-    if (!cfg || cfg->field42 == 0) {
+    if (!cfg || cfg->hideWindow == 0) {
         Platform::Window::ShowDefault(dev->windowHandle);
         StallDebug::Mark("  Vulkan ShowWindow  <== WINDOW NOW VISIBLE");
     }

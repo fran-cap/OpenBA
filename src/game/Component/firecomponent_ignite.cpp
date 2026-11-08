@@ -134,21 +134,21 @@ static inline FireDescription* FireDesc(const Component* self) {
 // town-wide count of active fires. `delta` is +1 on ignite, -1 on extinguish.
 // param_2 in the listing is dead (the caller passes yMax twice).
 // Its receiver is the Map (GameUpdateLoop +0xf8): Map::StampDanger. The cell's +0x22 is
-// MapCell::field_0x1C[6] (the 9 serialized bytes at +0x1C). The active-fire count is
-// Map::field_0x90[6] (+0x9c), one of the per-kind shorts StampInfluence also keeps.
+// MapCell::influenceCounts[6] (the 9 serialized bytes at +0x1C). The active-fire count is
+// Map::influenceTotals[6] (+0x9c), one of the per-kind shorts StampInfluence also keeps.
 void Map::StampDanger(int xMin, int yMin, int xMax, int yMax, short delta) {
     if (yMin <= yMax) {
         for (int y = yMin; y <= yMax; ++y) {
             for (int x = xMin; x <= xMax; ++x) {
                 const int w = size;
                 if (x >= 0 && y >= 0 && x < w && y < w) {
-                    uint8_t* cell = &cells.GetData()[static_cast<int64_t>(w * y + x)].field_0x1C[6];   // +0x22
+                    uint8_t* cell = &cells.GetData()[static_cast<int64_t>(w * y + x)].influenceCounts[6];   // +0x22
                     *cell = static_cast<uint8_t>(*cell + static_cast<char>(delta));
                 }
             }
         }
     }
-    field_0x90[6] = static_cast<int16_t>(field_0x90[6] + delta);
+    influenceTotals[6] = static_cast<int16_t>(influenceTotals[6] + delta);
 }
 
 // ============================================================
@@ -314,9 +314,9 @@ void FireComponent::Ignite() {
     //   local_60    = -1          == PopupIndex(0x1F)   => -1         (agrees)
     //   EventArray_Grow(eventLog+0x18, *(int*)(eventLog+0x20) + 1, entry)
     // All five literals reproduce, so the call is the inline.
-    // The Map's active-fire count is Map::field_0x90[6] (+0x9c).
+    // The Map's active-fire count is Map::influenceTotals[6] (+0x9c).
     const Map* grid = gw->m_game;
-    if (grid && grid->field_0x90[6] < 1) {
+    if (grid && grid->influenceTotals[6] < 1) {
         EventLog* eventLog = gw->m_eventNotifier;   // +0x138
         Object::InternalPtr<ComponentEntity> entityIbp(_entity);
         if (eventLog) eventLog->AddEvent(0x1f, 3, &entityIbp);
@@ -325,7 +325,7 @@ void FireComponent::Ignite() {
         // BLOCK (this read indexed the cell pointer, 0xb8 bytes past it).
         if (g_gameSettings != nullptr && g_gameSettings->autoSlow != 0) {
             PlayerToolManager* evt = gw->m_toolManager;   // +0x120
-            if (evt) evt->field_0x34 = 1;
+            if (evt) evt->gameSpeed = 1;
         }
     }
 

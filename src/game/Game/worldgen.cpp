@@ -372,7 +372,7 @@ static void wg_FreeScalarList(Collection::Array<T>* list) {
 // @0x1400ac4b0 (blueprint §0). First-light skips b260 (detail mesh).
 // ============================================================
 void WorldGeometry::BuildFromHeightfield(TerrainHeightfield* hf) {
-    int N = _fieldD0;     // dim*2+1
+    int N = _heightRowStride;     // dim*2+1
 
     // 1. Resize the int16 heightmap to N*N (Array<int16>::SetSize, 0x14001c890).
     RawArraySetSize(_heights, N * N);
@@ -587,10 +587,10 @@ void WorldGeometry::BuildTerrain(TerrainGenerator* gen, int sizeIdx, uint32_t se
 
     // WorldGeometry grid dims.
     _gridSize         = dim * 2;
-    _fieldC4          = dim;
+    _mapSize          = dim;
     _chunkSize        = 0x20;          // 32
-    _fieldD0          = dim * 2 + 1;
-    _fieldCC          = 0x20 + 1;      // 33
+    _heightRowStride          = dim * 2 + 1;
+    _chunkVertsPerSide          = 0x20 + 1;      // 33
     _chunkIndexStride = 33 * 33;       // 1089
 
     // Resolve the 3 ground materials (0x1400b02a6..0x1400b03af): each triple is COPIED
@@ -598,17 +598,17 @@ void WorldGeometry::BuildTerrain(TerrainGenerator* gen, int sizeIdx, uint32_t se
     // the copy, the copy's +0x10 is stored, the copy's String destroyed. The
     // TerrainGenerator's own triples are never updated.
     {
-        NamedExternalRef copy(gen->_field38);
+        NamedExternalRef copy(gen->terrainMaterial);
         wg_ResolveMaterial_fd10(&copy);
         _terrainMaterial = static_cast<Graphics::MaterialInstance*>(copy.resolved);   // +0xF8
     }
     {
-        NamedExternalRef copy(gen->_field50);
+        NamedExternalRef copy(gen->waterMaterialA);
         wg_ResolveMaterial_fd10(&copy);
         _waterMaterialA = static_cast<Graphics::MaterialInstance*>(copy.resolved);    // +0x150
     }
     {
-        NamedExternalRef copy(gen->_field68);
+        NamedExternalRef copy(gen->waterMaterialB);
         wg_ResolveMaterial_fd10(&copy);
         _waterMaterialB = static_cast<Graphics::MaterialInstance*>(copy.resolved);    // +0x158
     }
@@ -646,7 +646,7 @@ void WorldGeometry::BuildTerrain(TerrainGenerator* gen, int sizeIdx, uint32_t se
     System::MemoryAllocator::MemFree(hf);
 
     fprintf(stderr, "[worldgen] BuildTerrain EXIT — wg=%p dimX2=%d edge=%d hm16=%p mat1=%p blendTex=%p\n",
-            static_cast<void*>(this), _gridSize, _fieldD0,
+            static_cast<void*>(this), _gridSize, _heightRowStride,
             static_cast<void*>(_heights.data), static_cast<void*>(_terrainMaterial), _heightBytes);
     // Water diagnostics: the two water materials (+0x150/+0x158), the water vertex
     // buffer's size and the water draw-range counts (+0x1c8/+0x1d8).

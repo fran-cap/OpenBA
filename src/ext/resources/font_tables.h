@@ -43,9 +43,9 @@ struct VariantNames {
     std::string materialPath;  // "Font/SharpFont_32.rsc:material"
     std::string texturePath;   // "Font/SharpFont_32.rsc:texture"
     std::string sheetPath;     // "Build/SharpFont_32Sheet.rsc:resource"
-    std::string sheetName;     // "Build/SharpFont_32Sheet.rsc"   (UI::Font::_string80)
-    std::string materialName;  // "Font/SharpFont_32.rsc:material" (UI::Font::_string88)
-    std::string imageName;     // "Build/uiSharpFont_32Image.png"  (UI::Font::_string78)
+    std::string sheetName;     // "Build/SharpFont_32Sheet.rsc"   (UI::Font::_sheetName)
+    std::string materialName;  // "Font/SharpFont_32.rsc:material" (UI::Font::_materialName)
+    std::string imageName;     // "Build/uiSharpFont_32Image.png"  (UI::Font::_imageName)
     std::string baseFontPath;      // "Font/Font.rsc"
     std::string baseMaterialPath;  // "Font/FontMaterial.rsc"
 };

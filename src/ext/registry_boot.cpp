@@ -104,8 +104,8 @@ using EngineRecord = ::Save::SaveLoad::ExtraModRecord;
 static_assert(sizeof(EngineRecord) == sizeof(PseudoModRecord), "pseudo-mod record size");
 static_assert(offsetof(EngineRecord, path) == offsetof(PseudoModRecord, path), "path");
 static_assert(offsetof(EngineRecord, name) == offsetof(PseudoModRecord, name), "name");
-static_assert(offsetof(EngineRecord, field10) == offsetof(PseudoModRecord, field10), "+0x10");
-static_assert(offsetof(EngineRecord, field14) == offsetof(PseudoModRecord, field14), "+0x14");
+static_assert(offsetof(EngineRecord, versionMajor) == offsetof(PseudoModRecord, versionMajor), "+0x10");
+static_assert(offsetof(EngineRecord, gameVersion) == offsetof(PseudoModRecord, gameVersion), "+0x14");
 static_assert(offsetof(EngineRecord, formatVersion) == offsetof(PseudoModRecord, formatVersion),
               "+0x18");
 
@@ -116,8 +116,8 @@ int EngineExtraMods(EngineRecord* out, int capacity) {
     for (int i = 0; i < n && i < capacity; ++i) {
         out[i].path          = recs[static_cast<size_t>(i)].path;
         out[i].name          = recs[static_cast<size_t>(i)].name;
-        out[i].field10       = recs[static_cast<size_t>(i)].field10;
-        out[i].field14       = recs[static_cast<size_t>(i)].field14;
+        out[i].versionMajor       = recs[static_cast<size_t>(i)].versionMajor;
+        out[i].gameVersion       = recs[static_cast<size_t>(i)].gameVersion;
         out[i].formatVersion = recs[static_cast<size_t>(i)].formatVersion;
     }
     return n;

@@ -44,9 +44,9 @@ public:
     // +0x30 enum[] `_placeBitArray` (size +0x38, capacity +0x3c). uint32_t's trait-derived
     // row is exe 0x1400021d0's (stride 4, align 4, tail as-found, no destroy).
     Collection::Array<uint32_t> _placeArray;
-    int32_t _i40;                               // +0x40
-    int32_t _i44;                               // +0x44
-    int32_t _i48;                               // +0x48
+    int32_t _footprintRotation;                               // +0x40
+    int32_t _width;                               // +0x44
+    int32_t _height;                               // +0x48
     uint8_t _pad4c[4];                          // +0x4c never written by the ctor
     class ComponentDescription* _created;       // +0x50 ExternalRef: created description (weak; B4 PLAYER H4: the entity template PlacementTool places, 0x1400fd71d)
 };
@@ -60,7 +60,7 @@ static_assert(offsetof(CreatePlacedDescription, _name) == 0x28, "CreatePlacedDes
 static_assert(offsetof(CreatePlacedDescription, _placeArray) == 0x30, "CreatePlacedDescription::_placeArray @ +0x30");
 static_assert(offsetof(CreatePlacedDescription, _placeArray) + offsetof(Collection::Array<uint32_t>, _size) == 0x38, "CreatePlacedDescription::_placeArray size @ +0x38");
 static_assert(offsetof(CreatePlacedDescription, _placeArray) + offsetof(Collection::Array<uint32_t>, _capacity) == 0x3c, "CreatePlacedDescription::_placeArray capacity @ +0x3c");
-static_assert(offsetof(CreatePlacedDescription, _i40) == 0x40, "CreatePlacedDescription::_i40 @ +0x40");
-static_assert(offsetof(CreatePlacedDescription, _i44) == 0x44, "CreatePlacedDescription::_i44 @ +0x44");
-static_assert(offsetof(CreatePlacedDescription, _i48) == 0x48, "CreatePlacedDescription::_i48 @ +0x48");
+static_assert(offsetof(CreatePlacedDescription, _footprintRotation) == 0x40, "CreatePlacedDescription::_footprintRotation @ +0x40");
+static_assert(offsetof(CreatePlacedDescription, _width) == 0x44, "CreatePlacedDescription::_width @ +0x44");
+static_assert(offsetof(CreatePlacedDescription, _height) == 0x48, "CreatePlacedDescription::_height @ +0x48");
 static_assert(offsetof(CreatePlacedDescription, _created) == 0x50, "CreatePlacedDescription::_created @ +0x50");

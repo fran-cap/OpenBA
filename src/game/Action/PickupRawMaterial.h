@@ -33,11 +33,11 @@ public:
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c9860
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    Object::InternalPtr<CitizenComponent> _field20;   // +0x20 the carrying citizen (Persist checks CitizenComponent)
-    Object::InternalPtr<ComponentEntity>  _field28;   // +0x28 the raw-material pile (Persist checks ComponentEntity)
+    Object::InternalPtr<CitizenComponent> _citizen;   // +0x20 the carrying citizen (Persist checks CitizenComponent)
+    Object::InternalPtr<ComponentEntity>  _pile;   // +0x28 the raw-material pile (Persist checks ComponentEntity)
 };
 
 static_assert(sizeof(PickupRawMaterial) == 0x30, "PickupRawMaterial is 0x30 (create 0x140022c60 MemAlloc)");
 static_assert(alignof(PickupRawMaterial) == 8, "PickupRawMaterial is 8-aligned");
-static_assert(offsetof(PickupRawMaterial, _field20) == 0x20, "PickupRawMaterial +0x20");
-static_assert(offsetof(PickupRawMaterial, _field28) == 0x28, "PickupRawMaterial +0x28");
+static_assert(offsetof(PickupRawMaterial, _citizen) == 0x20, "PickupRawMaterial +0x20");
+static_assert(offsetof(PickupRawMaterial, _pile) == 0x28, "PickupRawMaterial +0x28");

@@ -118,9 +118,9 @@ void WorkAct_GatherWorkCtor_bb7b0(CitizenComponent* const* citizenRef, uint32_t 
     }
     ibpA = sm;              // [RBP-0x19]
     // disasm 0x1400bb886: CMP [RSI+0x10],0 ; RSI = character+0x48 -> +0x10 = character+0x58.
-    if (character->actionStack.field_0x10 != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpA; // disasm 0x1400bb89b: MOV [RSI+0x10],RAX
+    if (character->actionStack.completionAction != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpA; // disasm 0x1400bb89b: MOV [RSI+0x10],RAX
 
     // --- CompleteTask action (0x1400bb89f..0x1400bb904) ---
     obj = WAR_Alloc(0x38, 8);
@@ -234,9 +234,9 @@ void WorkAct_FishWorkCtor_beae0(CitizenComponent* const* citizenRef, uint32_t wo
     }
     ibpA = sm;              // [RBP-0x18]
     // disasm 0x1400bebb3: CMP [RSI+0x10],0 ; RSI = character+0x48 -> +0x10 = character+0x58.
-    if (character->actionStack.field_0x10 != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpA; // disasm 0x1400bebc8: MOV [RSI+0x10],RAX
+    if (character->actionStack.completionAction != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpA; // disasm 0x1400bebc8: MOV [RSI+0x10],RAX
 
     // --- ShowTool (~Hoe = -1) action (0x1400bebcc..0x1400bec13) ---
     obj = WAR_Alloc(0x30, 8);

@@ -48,24 +48,24 @@
 // the defaults.
 CreateDragDescription::CreateDragDescription()
     : Description(),
-      _shape(0),
-      _b24(false),
-      _i28(1),
-      _i2c(1),
-      _i30(1),
-      _i34(1),
-      _created(nullptr) {}
+      _placeBits(0),
+      _ignoreZones(false),
+      _maxWidth(1),
+      _maxHeight(1),
+      _minWidth(1),
+      _minHeight(1),
+      _allowAndRemove(nullptr) {}
 
 // [5] 0x140119750: stream order as retail.
 bool CreateDragDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_shape, nullptr);
-    ser.Serialize(_i28, nullptr);
-    ser.Serialize(_i2c, nullptr);
-    ser.Serialize(_i30, nullptr);
-    ser.Serialize(_i34, nullptr);
-    ser.Serialize(_b24, nullptr);
-    ::Object::SerializeExternal<ComponentDescription>(ser, _created);
+    ser.Serialize(_placeBits, nullptr);
+    ser.Serialize(_maxWidth, nullptr);
+    ser.Serialize(_maxHeight, nullptr);
+    ser.Serialize(_minWidth, nullptr);
+    ser.Serialize(_minHeight, nullptr);
+    ser.Serialize(_ignoreZones, nullptr);
+    ::Object::SerializeExternal<ComponentDescription>(ser, _allowAndRemove);
     return true;
 }
 

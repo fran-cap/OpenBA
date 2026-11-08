@@ -116,10 +116,10 @@ void FillSpriteSheet(UI::SpriteSheet& sheet, const SheetSpec& spec, const SheetB
                      int count, const SheetLayout& layout, Graphics::MaterialInstance* material) {
     sheet.m_groupName   = System::String(spec.materialName);   // +0x40, written first
     sheet.m_textureName = System::String(spec.imageName);      // +0x38
-    sheet.m_field48 = layout.width;
-    sheet.m_field4C = layout.height;
-    sheet.m_field50 = layout.padded;
-    sheet.m_field30 = material;
+    sheet.m_imageWidth = layout.width;
+    sheet.m_imageHeight = layout.height;
+    sheet.m_padForFiltering = layout.padded;
+    sheet.m_materialInstance = material;
     for (int i = 0; i < count; ++i) {
         const SheetRecord r = RecordFor(layout, bitmaps[i], i);
         sheet.AddSpriteInfo(System::String(bitmaps[i].name), System::String(bitmaps[i].group),

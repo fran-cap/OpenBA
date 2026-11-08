@@ -108,8 +108,8 @@ template <> void Collection::Array<AmbientEnvironmentBiome>::SetSize(int newCoun
 AmbientEnvironmentDescription::AmbientEnvironmentDescription()
     : Description(),
       _entries(),
-      _f30(32.0f),
-      _f34(45.0f) {}
+      _minTemp(32.0f),
+      _maxTemp(45.0f) {}
 
 // dtor (slot 0 0x140002100 minus the stamps): the entry array's ~Array frees it
 // (MemFree, then the data and count+capacity qwords zeroed), then the compiler chains
@@ -142,8 +142,8 @@ bool AmbientEnvironmentDescription::Serialize(IO::Stream& stream) {
 
     // +0x30 / +0x34: retail's float overload (import 0x140152a60 at 0x140043a25
     // and 0x140043a37).
-    ser.Serialize(_f30, nullptr);
-    ser.Serialize(_f34, nullptr);
+    ser.Serialize(_minTemp, nullptr);
+    ser.Serialize(_maxTemp, nullptr);
     return true;
 }
 

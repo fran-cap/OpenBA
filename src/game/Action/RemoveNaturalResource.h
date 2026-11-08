@@ -34,15 +34,15 @@ public:
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400caa20
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    Object::InternalPtr<CitizenComponent> _field20;   // +0x20 the working citizen (Persist checks CitizenComponent)
-    Object::InternalPtr<ComponentEntity>  _field28;   // +0x28 the natural-resource entity (Persist checks ComponentEntity)
-    bool      _field30;          // +0x30 harvest flag (Persist: the bool overload)
+    Object::InternalPtr<CitizenComponent> _citizen;   // +0x20 the working citizen (Persist checks CitizenComponent)
+    Object::InternalPtr<ComponentEntity>  _resource;   // +0x28 the natural-resource entity (Persist checks ComponentEntity)
+    bool      _harvestFlag;          // +0x30 harvest flag (Persist: the bool overload)
     uint8_t   _pad31[7];         // +0x31 padding
 };
 
 static_assert(sizeof(RemoveNaturalResource) == 0x38, "RemoveNaturalResource is 0x38 (create 0x140022f70 MemAlloc)");
 static_assert(offsetof(RemoveNaturalResource, _pad31) == 0x31, "RemoveNaturalResource::_pad31");
 static_assert(alignof(RemoveNaturalResource) == 8, "RemoveNaturalResource is 8-aligned");
-static_assert(offsetof(RemoveNaturalResource, _field20) == 0x20, "RemoveNaturalResource +0x20");
-static_assert(offsetof(RemoveNaturalResource, _field28) == 0x28, "RemoveNaturalResource +0x28");
-static_assert(offsetof(RemoveNaturalResource, _field30) == 0x30, "RemoveNaturalResource +0x30");
+static_assert(offsetof(RemoveNaturalResource, _citizen) == 0x20, "RemoveNaturalResource +0x20");
+static_assert(offsetof(RemoveNaturalResource, _resource) == 0x28, "RemoveNaturalResource +0x28");
+static_assert(offsetof(RemoveNaturalResource, _harvestFlag) == 0x30, "RemoveNaturalResource +0x30");

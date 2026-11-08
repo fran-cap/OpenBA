@@ -232,7 +232,7 @@ namespace Graphics {
 // never stores a vtable pointer.
 //
 // B.4 wave Y (RT-GFX): BOTH ARE REAL NOW (animation.cpp). The constructor names
-// `_instances` (Array(): the +0x00 / +0x08 qwords) and `_f10` and nothing else
+// `_instances` (Array(): the +0x00 / +0x08 qwords) and `_rngIndex` and nothing else
 // by initialiser, so +0x9d4 stays unwritten; the doors placement-new / call
 // ~AnimationManager. The paragraph below is the HISTORY of why they were not.
 // [was:] NO REAL CONSTRUCTOR OR DESTRUCTOR, and the reason is NOT B4b-2's vtable test
@@ -403,7 +403,7 @@ public:
     // +0x10  UNVERIFIED — no reader in the ctor, the dtor, `Update` or
     //        `Serialize`. The DO-NOT-DELETE note in Animation.h owns this field's
     //        history; do not re-open it on the same guess.
-    uint32_t _f10;
+    uint32_t _rngIndex;
 
     // +0x14  Mersenne-Twister state, `_time64(NULL)`-seeded by the constructor
     //        with the textbook `init_genrand` recurrence.
@@ -421,7 +421,7 @@ static_assert(sizeof(AnimationManager::Instance) == 0x30,
               "AnimationManager::Instance is 0x30 bytes");
 static_assert(offsetof(AnimationManager::Instance, _group) == 0x0, "Instance::_group");
 static_assert(offsetof(AnimationManager, _instances) == 0x00, "_instances @ +0x00");
-static_assert(offsetof(AnimationManager, _f10)       == 0x10, "_f10 @ +0x10");
+static_assert(offsetof(AnimationManager, _rngIndex)       == 0x10, "_f10 @ +0x10");
 static_assert(offsetof(AnimationManager, _rngState)  == 0x14, "_rngState @ +0x14");
 static_assert(offsetof(AnimationManager::Instance, _animIndex) == 0x08, "Instance::_animIndex");
 static_assert(offsetof(AnimationManager::Instance, _refCount)  == 0x0c, "Instance::_refCount");

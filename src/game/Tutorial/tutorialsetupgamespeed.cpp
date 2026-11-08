@@ -7,7 +7,7 @@
 //
 // Fields:
 //   +0x20: int32_t speed      -- game speed to set (default 1)
-//   +0x24: uint8_t _field24   -- if nonzero, also pause (set controller +0x30 to 0)
+//   +0x24: uint8_t unpause   -- if nonzero, also pause (set controller +0x30 to 0)
 //
 // The Apply function (Slot8) writes speed to the game's time/speed controller,
 // and optionally pauses the game.
@@ -32,7 +32,7 @@
 // ============================================================
 // ctor 0x1400e2e40 (inlined in create 0x1400289c0 / createInPlace 0x140028a20):
 // External(), the two stamps (the compiler's), speed = 1, +0x24 = 0.
-TutorialSetupGameSpeed::TutorialSetupGameSpeed() : speed(1), _field24(0), _pad25{} {}
+TutorialSetupGameSpeed::TutorialSetupGameSpeed() : speed(1), unpause(0), _pad25{} {}
 
 // ============================================================
 // TutorialSetupGameSpeed::Begin (vtable +0x40, 0x1400e2d60)
@@ -42,7 +42,7 @@ TutorialSetupGameSpeed::TutorialSetupGameSpeed() : speed(1), _field24(0), _pad25
 //   MOV EAX,[RCX+0x20]              ; EAX = self->speed
 //   MOV RDX,[R8+0x120]              ; RDX = time controller
 //   MOV [RDX+0x34],EAX              ; controller->speed = self->speed
-//   CMP byte [RCX+0x24],0           ; if (_field24)
+//   CMP byte [RCX+0x24],0           ; if (unpause)
 //   JZ skip
 //   MOV RAX,[R8+0x120]              ;   re-read controller
 //   MOV byte [RAX+0x30],0           ;   controller->paused = 0
@@ -56,10 +56,10 @@ void TutorialSetupGameSpeed::Begin() {
     if (timeCtrl == nullptr) return;
 
     // Write speed to controller +0x34
-    timeCtrl->field_0x34 = speed;
+    timeCtrl->gameSpeed = speed;
 
-    // If _field24 is set, also clear the controller's +0x30 (paused)
-    if (_field24) {
+    // If unpause is set, also clear the controller's +0x30 (paused)
+    if (unpause) {
         // Re-read controller (matching original code)
         timeCtrl = game->m_toolManager;
         timeCtrl->paused = false;
@@ -69,13 +69,13 @@ void TutorialSetupGameSpeed::Begin() {
 // ============================================================
 // TutorialSetupGameSpeed::Serialize (vtable +0x28, 0x1400e2d90)
 // ============================================================
-// speed (int32) and _field24 (bool).
+// speed (int32) and unpause (bool).
 bool TutorialSetupGameSpeed::Serialize(IO::Stream& stream) {
     // The serializer.
     IO::Serializer ser(stream, 0);
 
     ser.Serialize(speed, nullptr);
-    ser.Serialize(_field24, nullptr);
+    ser.Serialize(unpause, nullptr);
     return true;
 }
 

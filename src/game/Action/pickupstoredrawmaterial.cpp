@@ -87,34 +87,34 @@ void PickupStoredRawMaterial::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // The carrying citizen (+0x20)
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, CitizenComponent::TypeId())) {
-            _field20 = nullptr;
+    _citizen.InternalBasePtr::Serialize(ser);
+    if (!_citizen.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_citizen, CitizenComponent::TypeId())) {
+            _citizen = nullptr;
         }
     }
 
     // The storage entity (+0x28)
-    _field28.InternalBasePtr::Serialize(ser);
-    if (!_field28.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field28, ComponentEntity::TypeId())) {
-            _field28 = nullptr;
+    _storageEntity.InternalBasePtr::Serialize(ser);
+    if (!_storageEntity.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_storageEntity, ComponentEntity::TypeId())) {
+            _storageEntity = nullptr;
         }
     }
 
     // Serialize material count (+0x38)
-    int matCount = _field30.count;
+    int matCount = _materials.count;
     ser.Serialize(matCount, nullptr);
 
     // If loading, resize the material array
     if (static_cast<int>(ser.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
         // LEFT: the shared 16-byte Array SetSize 0x14000da70 is ACT-a's file-local body,
         // reached only through its int64_t* forwarder.
-        MaterialArraySetSize(&_field30, matCount);   // 0x14000da70
+        MaterialArraySetSize(&_materials, matCount);   // 0x14000da70
     }
 
     // Serialize each material entry (ExternalPtr + int count, 0x10 bytes each)
-    Entry* entry = _field30.data;
+    Entry* entry = _materials.data;
     if (matCount > 0) {
         uint64_t remaining = (uint64_t)matCount;
         do {
@@ -126,7 +126,7 @@ void PickupStoredRawMaterial::Persist(IO::Stream& stream) {
     }
 
     // Serialize partial pickup flag (+0x40)
-    ser.Serialize(_field40, nullptr);
+    ser.Serialize(_allowPartial, nullptr);
 }
 
 // ============================================================
@@ -146,25 +146,25 @@ int  PickupStoredRawMaterial::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
 
     // The storage entity's StorageComponent (+0x28)
-    StorageComponent* storage = _field28->FindComponent<StorageComponent>();   // 0x140006270
+    StorageComponent* storage = _storageEntity->FindComponent<StorageComponent>();   // 0x140006270
 
     int matIdx = 0;
-    if (matIdx >= _field30.count) {
+    if (matIdx >= _materials.count) {
         return 0;
     }
 
     do {
-        ComponentDescription* materialType = _field30.data[matIdx].material;
+        ComponentDescription* materialType = _materials.data[matIdx].material;
 
         // Find RawMaterialDescription on the material template
         RawMaterialDescription* rawMatDesc = FindRawMaterialDescription(materialType);
 
         // Requested count
-        int requestedCount = _field30.data[matIdx].count;
+        int requestedCount = _materials.data[matIdx].count;
 
         if (requestedCount < 1) {
             // Count not specified: compute from the citizen's storage capacity
-            StorageComponent* parentStorage = _field20->_entity->FindComponent<StorageComponent>();
+            StorageComponent* parentStorage = _citizen->_entity->FindComponent<StorageComponent>();
 
             int maxCapacity = parentStorage->capacity;
             int currentTotal = parentStorage->QueryCount();   // 0x14012cf10
@@ -182,7 +182,7 @@ int  PickupStoredRawMaterial::AbstractImpl(ActionStack* actionStack) {
         if (slotCount > 0) {
             StorageComponent::Item* itemArray = storage->storageSlots._data;
             for (int i = 0; i < slotCount; i++) {
-                if (itemArray[i]._resource == _field30.data[matIdx].material) {
+                if (itemArray[i]._resource == _materials.data[matIdx].material) {
                     if (i >= 0) {
                         availableCount = itemArray[i]._count;
                     }
@@ -192,7 +192,7 @@ int  PickupStoredRawMaterial::AbstractImpl(ActionStack* actionStack) {
         }
 
         // Check availability
-        bool partialAllowed = _field40;
+        bool partialAllowed = _allowPartial;
         if (!partialAllowed) {
             if (availableCount < requestedCount) {
                 return 2;  // Insufficient, fail
@@ -211,7 +211,7 @@ int  PickupStoredRawMaterial::AbstractImpl(ActionStack* actionStack) {
         if (slotCount > 0) {
             StorageComponent::Item* itemArray = storage->storageSlots._data;
             for (int i = 0; i < slotCount; i++) {
-                if (itemArray[i]._resource == _field30.data[matIdx].material) {
+                if (itemArray[i]._resource == _materials.data[matIdx].material) {
                     if (i >= 0) {
                         itemArray[i]._reserve -= requestedCount;
                         if (itemArray[i]._reserve < 0) {
@@ -224,15 +224,15 @@ int  PickupStoredRawMaterial::AbstractImpl(ActionStack* actionStack) {
         }
 
         // Take it out of the storage
-        storage->SubtractItem(_field30.data[matIdx].material, requestedCount);   // 0x14012d150
+        storage->SubtractItem(_materials.data[matIdx].material, requestedCount);   // 0x14012d150
 
         // Put it into the citizen's storage
-        ComponentDescription* itemType = _field30.data[matIdx].material;
-        StorageComponent* parentStorage = _field20->_entity->FindComponent<StorageComponent>();
+        ComponentDescription* itemType = _materials.data[matIdx].material;
+        StorageComponent* parentStorage = _citizen->_entity->FindComponent<StorageComponent>();
         parentStorage->AddItem(itemType, requestedCount);   // 0x14012d000
 
         matIdx++;
-    } while (matIdx < _field30.count);
+    } while (matIdx < _materials.count);
 
     return 0;
 }
@@ -244,13 +244,13 @@ int  PickupStoredRawMaterial::AbstractImpl(ActionStack* actionStack) {
 // ============================================================
 void PickupStoredRawMaterial::CheckEntity() {
     // The storage entity's StorageComponent (+0x28)
-    StorageComponent* storage = _field28->FindComponent<StorageComponent>();   // 0x140006270
+    StorageComponent* storage = _storageEntity->FindComponent<StorageComponent>();   // 0x140006270
 
-    int matCount = _field30.count;
+    int matCount = _materials.count;
     if (matCount <= 0) return;
 
     for (int i = 0; i < matCount; i++) {
-        const Entry& entry = _field30.data[i];
+        const Entry& entry = _materials.data[i];
 
         int slotCount = storage->storageSlots._size;
         if (slotCount > 0) {
@@ -278,11 +278,11 @@ void PickupStoredRawMaterial::CheckEntity() {
 bool PickupStoredRawMaterial::GetTarget(ComponentEntity** param) {
     void* target = *param;
 
-    if (target == _field28.Get()) {
+    if (target == _storageEntity.Get()) {
         return true;
     }
 
-    return _field20->_entity.Get() == target;
+    return _citizen->_entity.Get() == target;
 }
 
 // ============================================================
@@ -296,10 +296,10 @@ bool PickupStoredRawMaterial::GetTarget(ComponentEntity** param) {
 // create 0x140022d60 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 PickupStoredRawMaterial::PickupStoredRawMaterial()
-    : _field20(nullptr),
-      _field28(nullptr),
-      _field30{nullptr, 0, 0},
-      _field40(false),
+    : _citizen(nullptr),
+      _storageEntity(nullptr),
+      _materials{nullptr, 0, 0},
+      _allowPartial(false),
       _pad41{} {}
 
 // The dtor body of 0x140022dd0, between its own stamp and the Action stamp:
@@ -307,10 +307,10 @@ PickupStoredRawMaterial::PickupStoredRawMaterial()
 //   [this+0x30] = 0; [this+0x38] = 0 (the qword: count +0x38 and capacity +0x3c).
 // The tree's shared Action_ScalarDtor skipped it and leaked the carrier list.
 PickupStoredRawMaterial::~PickupStoredRawMaterial() {
-    Object::detail::InternalMemFree(_field30.data);
-    _field30.data = nullptr;
-    _field30.count = 0;   // H7: retail clears count and capacity with one qword store
-    _field30.capacity = 0;
+    Object::detail::InternalMemFree(_materials.data);
+    _materials.data = nullptr;
+    _materials.count = 0;   // H7: retail clears count and capacity with one qword store
+    _materials.capacity = 0;
 }
 
 // [3] 0x1400ca0d0
@@ -335,7 +335,7 @@ PickupStoredRawMaterial::~PickupStoredRawMaterial() {
 // material, count, reserved), and bump the matching storage item's reserve by `count`.
 // ============================================================
 void PickupStoredRawMaterial::AddMaterial(ComponentDescription* material, int count) {
-    StorageComponent* storage = _field28->FindComponent<StorageComponent>();   // 0x140006270
+    StorageComponent* storage = _storageEntity->FindComponent<StorageComponent>();   // 0x140006270
 
     // bump the storage item's reserve for the matching material
     int invCount = storage->storageSlots._size;
@@ -355,13 +355,13 @@ void PickupStoredRawMaterial::AddMaterial(ComponentDescription* material, int co
     }
 
     // list find: if the material is already present, add to its count and return
-    int carCount = _field30.count;
+    int carCount = _materials.count;
     if (0 < carCount) {
-        Entry* p = _field30.data;
+        Entry* p = _materials.data;
         int idx = 0;
         while (true) {
             if (p->material == material) {
-                _field30.data[idx].count += count;
+                _materials.data[idx].count += count;
                 return;
             }
             idx++; p++;
@@ -370,28 +370,28 @@ void PickupStoredRawMaterial::AddMaterial(ComponentDescription* material, int co
     }
 
     // not found: append {material, count, reserved=0} (grow-if-full)
-    uint32_t oldCount = static_cast<uint32_t>(_field30.count);
+    uint32_t oldCount = static_cast<uint32_t>(_materials.count);
     uint32_t newCount = oldCount + 1;
     if (newCount == oldCount) return;
     Entry newEntry;
     newEntry.material = material;
     newEntry.count = count;
     newEntry.reserved = 0;
-    Entry* oldArr = _field30.data;
-    _field30.count = static_cast<int32_t>(newCount);
-    if (_field30.capacity < (int)newCount) {
-        _field30.capacity = static_cast<int32_t>(newCount);
-        if (oldCount != 0) _field30.capacity = static_cast<int32_t>(newCount * 3);
-        _field30.data = System::MemoryAllocator::_singleton
-            ? static_cast<Entry*>(System::MemoryAllocator::MemAlloc((uint64_t)((int64_t)_field30.capacity << 4), 8))
+    Entry* oldArr = _materials.data;
+    _materials.count = static_cast<int32_t>(newCount);
+    if (_materials.capacity < (int)newCount) {
+        _materials.capacity = static_cast<int32_t>(newCount);
+        if (oldCount != 0) _materials.capacity = static_cast<int32_t>(newCount * 3);
+        _materials.data = System::MemoryAllocator::_singleton
+            ? static_cast<Entry*>(System::MemoryAllocator::MemAlloc((uint64_t)((int64_t)_materials.capacity << 4), 8))
             : nullptr;
     }
     int copyStart = 0;
-    if (oldArr == _field30.data) copyStart = (int)oldCount;
+    if (oldArr == _materials.data) copyStart = (int)oldCount;
     int64_t i = copyStart;
     if (i < (int)newCount) {
         do {
-            Entry* dst = &_field30.data[i];
+            Entry* dst = &_materials.data[i];
             if (dst != nullptr) {
                 const Entry* src = (i < (int)oldCount) ? &oldArr[i] : &newEntry;
                 *dst = *src;
@@ -399,7 +399,7 @@ void PickupStoredRawMaterial::AddMaterial(ComponentDescription* material, int co
             i++;
         } while (i < (int)newCount);
     }
-    if (oldArr != _field30.data) System::MemoryAllocator::MemFree(oldArr);
+    if (oldArr != _materials.data) System::MemoryAllocator::MemFree(oldArr);
 }
 
 
@@ -419,11 +419,11 @@ PickupStoredRawMaterial::PickupStoredRawMaterial(CitizenComponent* const* citize
                                                  ComponentEntity* const* storageEntity,
                                                  ComponentDescription* material, int param_5,
                                                  bool flag)
-    : _field20(*citizen),
-      _field28(*storageEntity),
-      _field30{nullptr, 0, 0},
-      _field40(flag) {
-    StorageComponent* storage = _field28->FindComponent<StorageComponent>();   // 0x140006270
+    : _citizen(*citizen),
+      _storageEntity(*storageEntity),
+      _materials{nullptr, 0, 0},
+      _allowPartial(flag) {
+    StorageComponent* storage = _storageEntity->FindComponent<StorageComponent>();   // 0x140006270
 
     if (material == nullptr) return;
 
@@ -451,7 +451,7 @@ PickupStoredRawMaterial::PickupStoredRawMaterial(CitizenComponent* const* citize
     int requested = param_5;
     if (requested <= 0) {
         // LEFT: 0x140116540 is declared in Work/exe_bodies.h (WORK) taking the citizen as intptr_t.
-        int total = _field20.Get()->FreeStorageCapacity();   // 0x140116540
+        int total = _citizen.Get()->FreeStorageCapacity();   // 0x140116540
         // B6 (14d G69): param_5 = total / [desc+0x48] through the narrowed (or 0) pointer,
         // no null or zero test (0x1400ca520).
         requested = total / rawMatDesc->_weight;

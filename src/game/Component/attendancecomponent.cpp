@@ -137,7 +137,7 @@ static void AttendanceComponent_ReleaseLinkSlot(CitizenComponent* self, Object::
 }
 
 void CitizenComponent::ReleaseLink230() {
-    AttendanceComponent_ReleaseLinkSlot(this, field_0x230);
+    AttendanceComponent_ReleaseLinkSlot(this, chapel);
 }
 void CitizenComponent::ReleaseCareBuilding() {
     AttendanceComponent_ReleaseLinkSlot(this, careBuilding);
@@ -159,7 +159,7 @@ void AttendanceComponent::ProcessQueue() {
             if (worker->careBuilding == this) {
                 worker->ReleaseCareBuilding();
             } else {
-                if (worker->field_0x230 == this) {
+                if (worker->chapel == this) {
                     worker->ReleaseLink230();
                 }
             }

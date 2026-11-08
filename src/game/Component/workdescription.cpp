@@ -43,22 +43,22 @@
 // the defaults.
 WorkDescription::WorkDescription()
     : Description(),
-      _b20(false),
-      _i24(0),
-      _i28(1),
-      _i2c(100),
-      _i30(1),
-      _b34(false) {}
+      _allowCountChange(false),
+      _defaultWorkers(0),
+      _minWorkerCount(1),
+      _maxWorkerCount(100),
+      _maxArea(1),
+      _scaleWorkersWithSize(false) {}
 
 // [5] 0x14012e8b0: stream order as retail.
 bool WorkDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_i24, nullptr);
-    ser.Serialize(_i28, nullptr);
-    ser.Serialize(_i2c, nullptr);
-    ser.Serialize(_b34, nullptr);
-    ser.Serialize(_i30, nullptr);
-    ser.Serialize(_b20, nullptr);
+    ser.Serialize(_defaultWorkers, nullptr);
+    ser.Serialize(_minWorkerCount, nullptr);
+    ser.Serialize(_maxWorkerCount, nullptr);
+    ser.Serialize(_scaleWorkersWithSize, nullptr);
+    ser.Serialize(_maxArea, nullptr);
+    ser.Serialize(_allowCountChange, nullptr);
     return true;
 }
 

@@ -173,12 +173,12 @@ void CitizenComponent::Persist(IO::Stream& stream) {
     s->Serialize(health, nullptr);
     s->Serialize(statusFlags, nullptr);
     foodTimer.Serialize(*s);
-    field_0x60.Serialize(*s);
+    diseaseRollTimer.Serialize(*s);
 
     ::Object::SerializeExternal<Disease>(*s, disease);   // 0x140030790 (B8 RT2)
 
-    field_0x70.Serialize(*s);
-    field_0x78.Serialize(*s);
+    diseaseTimer.Serialize(*s);
+    diseaseSpreadTimer.Serialize(*s);
     s->Serialize(happiness, nullptr);
     s->Serialize(happinessFlags, nullptr);
     happinessTimer.Serialize(*s);
@@ -191,17 +191,17 @@ void CitizenComponent::Persist(IO::Stream& stream) {
 
     ::Object::SerializeExternal<Profession>(*s, profession);   // 0x140018020 (B8 RT2)
 
-    s->Serialize(field_0xAC, nullptr);
+    s->Serialize(toolUses, nullptr);
     s->Serialize(toolId, nullptr);
     {
         int v = s->GetVersion();
-        if (v > 0) s->Serialize(field_0xA8, nullptr);
+        if (v > 0) s->Serialize(toolGrade, nullptr);
     }
     s->Serialize(clothingLevel, nullptr);
     clothingTimer.Serialize(*s);
     {
         int v = s->GetVersion();
-        if (v > 1) s->Serialize(field_0x1E0, nullptr);
+        if (v > 1) s->Serialize(clothingType, nullptr);
     }
 
     // +0xb0 is a PLAIN UINT, not a MeshInstance (save/load wave 2026-08-28).
@@ -213,7 +213,7 @@ void CitizenComponent::Persist(IO::Stream& stream) {
     // (wrong citizen clothing after load was the visible symptom).
     s->Serialize(reinterpret_cast<uint32_t&>(lastErrand), nullptr);
 
-    s->Serialize(field_0x30, nullptr);
+    s->Serialize(lastWorkId, nullptr);
 
     SerializeValidatedIBP(&home, *s, ComponentEntity::TypeId());
     s->Serialize(homeSlot, nullptr);
@@ -232,15 +232,15 @@ void CitizenComponent::Persist(IO::Stream& stream) {
         int v = s->GetVersion();
         if (v > 2) schoolTime.Serialize(*s);
     }
-    s->Serialize(field_0x220, nullptr);
+    s->Serialize(hasBeenSchooled, nullptr);
     SerializeValidatedIBP(&careBuilding, *s, AttendanceComponent::TypeId());
-    SerializeValidatedIBP(&field_0x230, *s, AttendanceComponent::TypeId());
+    SerializeValidatedIBP(&chapel, *s, AttendanceComponent::TypeId());
     SerializeValidatedIBP(&character, *s, CharacterComponent::TypeId());
     SerializeValidatedIBP(&statusIcon, *s, StatusIconComponent::TypeId());
 
     ::Object::SerializeExternal<CitizenDescription>(*s, description);   // 0x140030990 (B8 RT2)
 
-    s->Serialize(field_0x34, nullptr);
+    s->Serialize(appearanceVariant, nullptr);
 
 
     s->~Serializer();

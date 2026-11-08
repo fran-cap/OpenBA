@@ -98,7 +98,7 @@ Save::SaveLoad::SaveInfo::SaveInfo(const SaveInfo& other)
       sortKey(other.sortKey),           // +0x30
       name(other.name),                 // +0x38
       saveIndex(other.saveIndex),       // +0x40
-      field44(other.field44),           // +0x44
+      formatVersion(other.formatVersion),           // +0x44
       mods() {                          // +0x48 / +0x50: ZEROED, assigned below
     // 0x180033f30 — `Array<ModInfo>::operator=`, the ported J4 forwarder
     // (array_destroy.cpp), called directly by name.

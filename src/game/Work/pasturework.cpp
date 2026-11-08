@@ -135,9 +135,9 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
     // -------------------------------------------------------
     // Step 2: Find the WorkComponent (0x140003050) and PastureComponent (0x140004fe0)
     // -------------------------------------------------------
-    WorkComponent* local_58 = field_10->FindComponent<WorkComponent>();
+    WorkComponent* local_58 = _entity->FindComponent<WorkComponent>();
 
-    PastureComponent* local_a8 = field_10->FindComponent<PastureComponent>();
+    PastureComponent* local_a8 = _entity->FindComponent<PastureComponent>();
 
     // -------------------------------------------------------
     // Step 3: Get pasture description and worker count
@@ -178,7 +178,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         bVar8 = (maxCount <= currentCount);  // at capacity?
 
         // Set the status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
-        StatusIconComponent* meshInst = field_10->FindComponent<StatusIconComponent>();
+        StatusIconComponent* meshInst = _entity->FindComponent<StatusIconComponent>();
         meshInst->SetFlag(2, bVar8 ? 1 : 0);
     }
 
@@ -263,7 +263,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                             Component* local_a0_ibp = natResIBP;   // the AnimalComponent IBP
                             RemoveAnimalActions(
                                 &local_90,              // citizenIBP
-                                field_20,               // priority
+                                _workId,               // priority
                                 local_70,               // position
                                 animalCell,             // cell index
                                 &local_a0_ibp,          // the AnimalComponent IBP
@@ -271,7 +271,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                                 1);                     // flag (CONCAT31 result)
 
                             // Assign work to citizen
-                            int priority = field_20;
+                            int priority = _workId;
                             CitizenComponent* citizenEnt = *citizenIBP;
 
                             // Call vtable slot +0x50 (GetTarget)
@@ -279,7 +279,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                             GetTarget(&workEnt);
 
                             citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-                            citizenEnt->field_0x30 = priority;
+                            citizenEnt->lastWorkId = priority;
                             citizenEnt->lastErrand = CitizenErrand::None;
 
                             if (workEnt == citizenEnt->profession && priority >= 0) {
@@ -297,7 +297,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         // -------------------------------------------------------
         // Branch B: At animal capacity -> try position-based overflow storage work
         // -------------------------------------------------------
-        InteractComponent* posComp = field_10->FindComponent<InteractComponent>();
+        InteractComponent* posComp = _entity->FindComponent<InteractComponent>();
 
         int posCount = posComp->NodeCount(2);   // 0x140123070
 
@@ -346,7 +346,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         // Branch C: Final fallback -> random area position, create grazing work
         // (the MapComponent footprint rect, 0x140004680)
         // -------------------------------------------------------
-        MapComponent* area = field_10->FindComponent<MapComponent>();
+        MapComponent* area = _entity->FindComponent<MapComponent>();
 
         System::Random* rng = gameWorld->m_random;
 
@@ -382,11 +382,11 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                 map->GetTerrainPos(&local_50.x, &local_70_pos.x, '\0', nullptr);
 
                 // Create grazing work action (FUN_1400bb0a0)
-                ComponentEntity* workEntity = field_10.Get();
+                ComponentEntity* workEntity = _entity.Get();
                 CitizenComponent* local_90_val = *citizenIBP;
                 WorkAct_GrazingWorkCtor_bb0a0(
                     &local_90_val,          // citizenIBP value
-                    field_20,               // priority
+                    _workId,               // priority
                     &workEntity,            // work entity IBP
                     0,                      // param4
                     &local_50.x,            // dest position
@@ -396,7 +396,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                     0);                     // param9
 
                 // Assign work to citizen
-                int priority = field_20;
+                int priority = _workId;
                 CitizenComponent* citizenEnt = *citizenIBP;
 
                 // ⚠ Retail saves the citizen IBP pointer (pIVar15) BEFORE the
@@ -411,7 +411,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
                 GetTarget(&workEnt);
 
                 citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-                citizenEnt->field_0x30 = priority;
+                citizenEnt->lastWorkId = priority;
                 citizenEnt->lastErrand = CitizenErrand::None;
 
                 // Profession match: slot 10's result vs citizen+0x1F0 (Profession*).
@@ -616,7 +616,7 @@ int PastureWork::Validate() {
 // profession (+0x48) into the return slot.
 // ============================================================
 Profession** PastureWork::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }
@@ -682,20 +682,20 @@ PastureWork::PastureWork() : AutoPickupWork() {
 // (The entity slot is void*, the caller's ABI: LEFT.)
 // ============================================================
 PastureWork::PastureWork(ComponentEntity* const* entityIBP) : AutoPickupWork() {
-    field_10 = *entityIBP;
-    if (field_10 != nullptr &&
+    _entity = *entityIBP;
+    if (_entity != nullptr &&
         GameUpdateLoop::_singleton != nullptr) {
-        MapComponent* a = field_10->FindComponent<MapComponent>();
+        MapComponent* a = _entity->FindComponent<MapComponent>();
         if (a != nullptr) {
             int mapDim = GameUpdateLoop::_singleton->m_game->size;
-            field_28 =
+            _cell =
                 (((int)a->tileY1 >> 1) +
                   (int)a->tileY0) * mapDim +
                 ((int)a->tileX1 >> 1) +
                  (int)a->tileX0;
         }
         // 0x140003050 = the WorkComponent finder
-        field_18 = field_10->FindComponent<WorkComponent>();
+        _workComponent = _entity->FindComponent<WorkComponent>();
     }
 }
 // Convenience for PastureComponent Slot14 (pasturecomponent_states.cpp, block MI-B):

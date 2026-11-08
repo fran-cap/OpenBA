@@ -45,9 +45,9 @@ int64_t FillRun(const Span* spans, int32_t count, int32_t stride, uint8_t* vb, u
 
 bool JoinsBatch(const InstanceKey& head, const InstanceKey& next) {
     if (next.instance != head.instance) return false;
-    if (next.arg5 != head.arg5) return false;
+    if (next.listIndex != head.listIndex) return false;
     if (next.userData != head.userData) return false;
-    return next.arg10 == head.arg10;
+    return next.animationHandle == head.animationHandle;
 }
 
 int32_t WideBatchCap(int32_t arg8, int32_t backendCap) {
@@ -59,7 +59,7 @@ int32_t WideBatchCap(int32_t arg8, int32_t backendCap) {
 bool ContinuesPastCut(const InstanceKey& head, const InstanceKey& cut, const InstanceKey* afterCut) {
     if (!head.wideOk || !cut.wideOk) return false;
     if (!JoinsBatch(head, cut)) return false;
-    if (cut.arg8 != head.arg8) return false;
+    if (cut.maxInstances != head.maxInstances) return false;
     if (cut.opacity != head.opacity || cut.opacityPrev != head.opacityPrev) return false;
     if (afterCut == nullptr) return false;
     return JoinsBatch(cut, *afterCut);

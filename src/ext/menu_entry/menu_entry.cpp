@@ -156,8 +156,8 @@ const char* RecordDifference(const RtIO::Mod& a, const RtIO::Mod& b) {
     if (!SameChars(a.name._data, b.name._data) || !SameChars(a.author._data, b.author._data) ||
         !SameChars(a.description._data, b.description._data))
         return "strings";
-    if (a.i18 != b.i18 || a.i1c != b.i1c || a.order != b.order || a.i24 != b.i24 || a.i28 != b.i28 ||
-        a.i2c != b.i2c || a.enabled != b.enabled)
+    if (a.version != b.version || a.userVersion != b.userVersion || a.order != b.order || a.iconWidth != b.iconWidth || a.iconHeight != b.iconHeight ||
+        a.crc != b.crc || a.enabled != b.enabled)
         return "ints";
     if (!SameArray(a.ints, b.ints))
         return "icon";

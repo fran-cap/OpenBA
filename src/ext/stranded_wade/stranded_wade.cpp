@@ -155,7 +155,7 @@ ComponentEntity* NearestStorage(const Map* map, int cell, uint16_t zone, Math::V
     ComponentEntity* best = nullptr;
     long long bestDist = 0;
     for (int pass = 0; pass < 2; ++pass) {
-        const CitizenIbpList<ComponentEntity>& list = pass == 0 ? town->field_0x00 : town->field_0x10;
+        const CitizenIbpList<ComponentEntity>& list = pass == 0 ? town->storageLocations : town->marketLocations;
         for (int i = 0; i < list._size; ++i) {
             ComponentEntity* entity = list._data[i].Get();
             Math::Vector3 at;
@@ -251,8 +251,8 @@ void PushRescueWalk(CitizenComponent* citizen, float* dest) {
         ComponentEntity* entityIBP = citizen->_entity.Get();
         lead = new (leadMem) SendComponentMessage(&entityIBP, &msgId, 0, &destIBP, 0);   // 0x1400cb1d0
     }
-    if (stack->field_0x10 != nullptr) stack->field_0x10.DeletePtr();
-    stack->field_0x10 = lead;
+    if (stack->completionAction != nullptr) stack->completionAction.DeletePtr();
+    stack->completionAction = lead;
 
     void* walkMem = System::MemoryAllocator::MemAlloc(0x480, 8);
     Action* walk = nullptr;

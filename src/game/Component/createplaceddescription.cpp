@@ -59,9 +59,9 @@
 CreatePlacedDescription::CreatePlacedDescription()
     : Description(),
       _category(0),
-      _i40(0),
-      _i44(1),
-      _i48(1),
+      _footprintRotation(0),
+      _width(1),
+      _height(1),
       _created(nullptr) {}
 
 // dtor (slot 0 0x140032ad0 minus the stamps): the body is empty. ~_placeArray frees the
@@ -143,9 +143,9 @@ bool CreatePlacedDescription::Serialize(IO::Stream& stream) {
         ser.Serialize(arr[i], nullptr);   // enum element
     }
     _name.Serialize(ser);
-    ser.Serialize(_i44, nullptr);
-    ser.Serialize(_i48, nullptr);
-    ser.Serialize(_i40, nullptr);
+    ser.Serialize(_width, nullptr);
+    ser.Serialize(_height, nullptr);
+    ser.Serialize(_footprintRotation, nullptr);
     ::Object::SerializeExternal<ComponentDescription>(ser, _created);
     return true;
 }

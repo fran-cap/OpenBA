@@ -45,21 +45,21 @@ public:
     UI::StringTable* _stringTable;   // +0x20  ExternalPtr<StringTable> (weak)
     System::String   _name;          // +0x28  (Construct 0x140019040 stores qword 0; dtor 0x140018f60 runs ~String first)
 
-    float   _field30;       // +0x30  1.0f
-    float   _field34;       // +0x34  0.0f
-    float   _field38;       // +0x38  1.0f
-    float   _field3C;       // +0x3c  10.0f
-    float   _field40;       // +0x40  0.0f
+    float   _spreadIntervalMonths;       // +0x30  1.0f
+    float   _contagion;       // +0x34  0.0f
+    float   _spreadRadius;       // +0x38  1.0f
+    float   _catchWeight;       // +0x3c  10.0f
+    float   _deathOdds;       // +0x40  0.0f
     uint8_t _pad44[4];      // +0x44
 };
 
 static_assert(sizeof(Disease) == 0x48, "Disease is 0x48 (create 0x14008fd0 MemAlloc(0x48))");
-static_assert(offsetof(Disease, _field34) == 0x34, "Disease::_field34");
-static_assert(offsetof(Disease, _field38) == 0x38, "Disease::_field38");
-static_assert(offsetof(Disease, _field3C) == 0x3C, "Disease::_field3C");
+static_assert(offsetof(Disease, _contagion) == 0x34, "Disease::_contagion");
+static_assert(offsetof(Disease, _spreadRadius) == 0x38, "Disease::_spreadRadius");
+static_assert(offsetof(Disease, _catchWeight) == 0x3C, "Disease::_catchWeight");
 static_assert(offsetof(Disease, _pad44) == 0x44, "Disease::_pad44");
 static_assert(alignof(Disease) == 8, "qword-aligned");
 static_assert(offsetof(Disease, _stringTable) == 0x20, "+0x20");
 static_assert(offsetof(Disease, _name)        == 0x28, "+0x28");
-static_assert(offsetof(Disease, _field30)     == 0x30, "+0x30");
-static_assert(offsetof(Disease, _field40)     == 0x40, "+0x40");
+static_assert(offsetof(Disease, _spreadIntervalMonths)     == 0x30, "+0x30");
+static_assert(offsetof(Disease, _deathOdds)     == 0x40, "+0x40");

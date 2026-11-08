@@ -178,7 +178,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
 // 0x140109d74) are the ctor's own stores; Startup still re-writes both, as it
 // did when the inert factory zero-filled them.
 CharacterComponent::CharacterComponent()
-    : field_0x28(false), _pad29{}, field_0x2C(), field_0x38(0), field_0x3C(0),
+    : steeredByMover(false), _pad29{}, moveDirection(), moveSpeedScale(0), targetHeading(0),
       characterIndex(-1), _pad44{},
       actionStack(),
       modelComponent(nullptr), pickingComponent(nullptr), characterDescription(nullptr) {
@@ -226,7 +226,7 @@ void CharacterComponent::Startup() {
 // load route re-registers in Persist (charactercomponent_serialize.cpp).
 void CharacterComponent::OnAdded() {
     ModelComponent* model = modelComponent.Get();
-    field_0x3C = model->yaw;
+    targetHeading = model->yaw;
     Object::InternalPtr<CharacterComponent> self(this);
     CharacterGrid* charMgr = GameUpdateLoop::_singleton->m_characterGrid;
     characterIndex = static_cast<int32_t>(charMgr->Register(&self));

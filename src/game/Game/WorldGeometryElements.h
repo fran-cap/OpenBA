@@ -85,18 +85,18 @@ struct GeometryBatch {
     int32_t  minY;                                 // +0x30
     int32_t  maxX;                                 // +0x34
     int32_t  maxY;                                 // +0x38
-    uint8_t  field_0x3C;                           // +0x3C (Serialize uchar)
+    uint8_t  alpha;                           // +0x3C (Serialize uchar)
     uint8_t  _pad3D[3];                            // +0x3D
-    int32_t  field_0x40;                           // +0x40 (Serialize int)
-    bool     field_0x44;                           // +0x44 (Serialize bool)
+    int32_t  rotation;                           // +0x40 (Serialize int)
+    bool     tiled;                           // +0x44 (Serialize bool)
     uint8_t  _pad45[3];                            // +0x45
-    float    field_0x48[5];                        // +0x48 .. +0x58 (Serialize float x5)
+    float    uvParams[5];                        // +0x48 .. +0x58 (Serialize float x5)
     // NOT RETAIL (type only, review F-008): retail's +0x5C is a raw byte. The default
     // constructor leaves it as found and RebuildRoadMesh never sets it, so the copy
     // constructor 0x14001f5e0 copies whatever byte the heap held (UBSan saw 64); typed
     // `bool`, that copy was a load of an invalid bool value (UB). A uint8_t copies the
     // byte exactly as retail does; Serialize still goes through the bool slot (+0x78).
-    uint8_t  field_0x5C;                           // +0x5C (Serialize bool, raw byte)
+    uint8_t  isDecal;                           // +0x5C (Serialize bool, raw byte)
     bool     alternateKey;                         // +0x5D (version >= 2) decal draw key 3 instead of 1
     uint8_t  _pad5E[2];                            // +0x5E
 };
@@ -112,11 +112,11 @@ static_assert(offsetof(GeometryBatch, indices) == 0x18, "GeometryBatch::indices 
 static_assert(offsetof(GeometryBatch, slot) == 0x28, "GeometryBatch::slot @ +0x28");
 static_assert(offsetof(GeometryBatch, minX) == 0x2C, "GeometryBatch::minX @ +0x2C");
 static_assert(offsetof(GeometryBatch, maxY) == 0x38, "GeometryBatch::maxY @ +0x38");
-static_assert(offsetof(GeometryBatch, field_0x3C) == 0x3C, "GeometryBatch +0x3C");
-static_assert(offsetof(GeometryBatch, field_0x40) == 0x40, "GeometryBatch +0x40");
-static_assert(offsetof(GeometryBatch, field_0x44) == 0x44, "GeometryBatch +0x44");
-static_assert(offsetof(GeometryBatch, field_0x48) == 0x48, "GeometryBatch +0x48");
-static_assert(offsetof(GeometryBatch, field_0x5C) == 0x5C, "GeometryBatch +0x5C");
+static_assert(offsetof(GeometryBatch, alpha) == 0x3C, "GeometryBatch +0x3C");
+static_assert(offsetof(GeometryBatch, rotation) == 0x40, "GeometryBatch +0x40");
+static_assert(offsetof(GeometryBatch, tiled) == 0x44, "GeometryBatch +0x44");
+static_assert(offsetof(GeometryBatch, uvParams) == 0x48, "GeometryBatch +0x48");
+static_assert(offsetof(GeometryBatch, isDecal) == 0x5C, "GeometryBatch +0x5C");
 static_assert(offsetof(GeometryBatch, alternateKey) == 0x5D, "GeometryBatch +0x5D");
 static_assert(offsetof(GeometryBatch, vertices) + offsetof(Collection::Array<GeometryBatchVertex>, _size) == 0x10,
               "GeometryBatch::vertices._size @ +0x10 (the road draw's vertex-count test)");

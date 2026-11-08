@@ -7,7 +7,7 @@
 // (Build/Sharp<Kit>_<px>Sheet.rsc). This provider builds the same four when
 // the factory's disk lookup misses on any of their paths:
 //   1. the base font (Font/<Kit>.rsc) is FindOrLoaded, as sharp_ui.cpp does;
-//      it must be the game's face (UI::Font::_string20 == FrancophilSans) --
+//      it must be the game's face (UI::Font::_fontName == FrancophilSans) --
 //      a translation mod's font keeps sharp_ui's retail draw;
 //   2. the codepoints are the base sheet's sprite names ("c65"), in sprite
 //      order, so the variant's glyph i IS the base's glyph i and the base's
@@ -138,9 +138,9 @@ Object::External* BuildVariant(const VariantPath& vp) {
 
     UI::Font* const base = LoadAs<UI::Font>(names.baseFontPath.c_str());
     if (base == nullptr) { std::fprintf(stderr, "[ExtRes] font %s: base %s not loaded\n", names.file.c_str(), names.baseFontPath.c_str()); return nullptr; }
-    if (base->_string20._data == nullptr || std::strcmp(base->_string20._data, kGameFace) != 0) {
+    if (base->_fontName._data == nullptr || std::strcmp(base->_fontName._data, kGameFace) != 0) {
         std::fprintf(stderr, "[ExtRes] font %s: base face '%s' is not %s, not provided\n", names.file.c_str(),
-                     base->_string20._data != nullptr ? base->_string20._data : "", kGameFace);
+                     base->_fontName._data != nullptr ? base->_fontName._data : "", kGameFace);
         return nullptr;
     }
     UI::SpriteSheet* const baseSheet = base->_spriteSheet.Get();
@@ -193,14 +193,14 @@ Object::External* BuildVariant(const VariantPath& vp) {
     void* mem = Object::detail::InternalMemAlloc(sizeof(UI::Font), 8);
     if (mem == nullptr) return nullptr;
     UI::Font* const font = ::new (mem) UI::Font();
-    font->_string20   = System::String(kGameFace);              // the face
+    font->_fontName   = System::String(kGameFace);              // the face
     font->_lineHeight = rf->height;                             // _fontHeight
-    font->_string80   = System::String(names.sheetName.c_str());    // _sheetName
-    font->_field70    = sheet.sheetWidth;                       // _sheetWidth
-    font->_field74    = sheet.sheetHeight;                      // _sheetHeight
-    font->_string88   = System::String(names.materialName.c_str()); // _materialName
-    font->_string78   = System::String(names.imageName.c_str());    // _imageName
-    font->_field28    = base->_field28;                         // the CharacterSet, shared
+    font->_sheetName   = System::String(names.sheetName.c_str());    // _sheetName
+    font->_sheetWidth    = sheet.sheetWidth;                       // _sheetWidth
+    font->_sheetHeight    = sheet.sheetHeight;                      // _sheetHeight
+    font->_materialName   = System::String(names.materialName.c_str()); // _materialName
+    font->_imageName   = System::String(names.imageName.c_str());    // _imageName
+    font->_characterSet    = base->_characterSet;                         // the CharacterSet, shared
     font->_spriteSheet = sheet.sheet;
     font->_material    = sheet.material;
     font->_charToGlyph.SetSize(base->_charToGlyph._size);

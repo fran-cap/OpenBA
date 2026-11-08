@@ -109,7 +109,7 @@ void ComboElement::Update(const System::Time& time, UserInterface* ui,
     const uint32_t flags = _flags;
     const bool open = (flags & UI::kElementFlagAnyDisabled) == 0 &&
                       _strings._size > 0 &&
-                      state.b04 != 0 &&
+                      state.leftReleased != 0 &&
                       (flags & kElementFlagHovered) != 0 &&
                       (flags & kElementFlagPressed) != 0;
 

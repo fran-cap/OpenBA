@@ -175,7 +175,7 @@ public:
     UI::TextElement*   _textNotEnough   = nullptr;    // +0x120 "textNotEnough"
     // +0x128: retail's dtor frees it as an Array; no TradeUI body the tree has
     // ported reads it, so its element type is not known (byte guess).
-    Collection::Array<uint8_t> field_0x128;           // +0x128
+    Collection::Array<uint8_t> _unusedArray;           // +0x128
     UI::ComboElement*  _comboPurchase   = nullptr;    // +0x138 "comboPurchase"
     UI::ComboElement*  _sortCombo       = nullptr;    // +0x140 "sortCombo"
 };
@@ -243,7 +243,7 @@ static_assert(offsetof(TradeUI, _numberBuyTotal)  == 0x108, "TradeUI +0x108");
 static_assert(offsetof(TradeUI, _textNoStorage)   == 0x110, "TradeUI +0x110");
 static_assert(offsetof(TradeUI, _textTooMuch)     == 0x118, "TradeUI +0x118");
 static_assert(offsetof(TradeUI, _textNotEnough)   == 0x120, "TradeUI +0x120");
-static_assert(offsetof(TradeUI, field_0x128)      == 0x128, "TradeUI +0x128 (dtor 0x140086a75)");
+static_assert(offsetof(TradeUI, _unusedArray)      == 0x128, "TradeUI +0x128 (dtor 0x140086a75)");
 static_assert(offsetof(TradeUI, _comboPurchase)   == 0x138, "TradeUI +0x138");
 static_assert(offsetof(TradeUI, _sortCombo)       == 0x140, "TradeUI +0x140");
 

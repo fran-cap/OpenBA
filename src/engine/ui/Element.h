@@ -247,14 +247,14 @@ public:
     struct UpdateState {
         uint8_t  dragActive;      // +0x00  = (_dragDropDialog != 0)
         uint8_t  buttonPressed;   // +0x01  -> event 2
-        uint8_t  b02;             // +0x02  -> event 4
-        uint8_t  b03;             // +0x03  -> event 3
-        uint8_t  b04;             // +0x04  -> event 5 / the drop
-        uint8_t  b05;             // +0x05  -> event 7
-        uint8_t  b06;             // +0x06  -> event 6
+        uint8_t  middlePressed;             // +0x02  -> event 4
+        uint8_t  rightPressed;             // +0x03  -> event 3
+        uint8_t  leftReleased;             // +0x04  -> event 5 / the drop
+        uint8_t  middleReleased;             // +0x05  -> event 7
+        uint8_t  rightReleased;             // +0x06  -> event 6
         uint8_t  leftDown;        // +0x07
-        uint8_t  b08;             // +0x08  ctor 0 (word store with +0x09)
-        uint8_t  b09;             // +0x09
+        uint8_t  rightDown;             // +0x08  ctor 0 (word store with +0x09)
+        uint8_t  middleDown;             // +0x09
         uint8_t  pad0a[2];        // +0x0a  written by nothing
         int32_t  dragDx;          // +0x0c  ctor 0 (qword store with +0x10)
         int32_t  dragDy;          // +0x10
@@ -268,8 +268,8 @@ public:
         // 0x180115600, transcribed store for store; the bytes it does not
         // write stay unwritten (no member initialisers).
         UpdateState() {
-            dragActive = buttonPressed = b02 = b03 = b04 = b05 = b06 = leftDown = 0;
-            b08 = b09 = 0;
+            dragActive = buttonPressed = middlePressed = rightPressed = leftReleased = middleReleased = rightReleased = leftDown = 0;
+            rightDown = middleDown = 0;
             dragDx = dragDy = 0;
             mouseCaptured = 0;
             mouseX = mouseY = -1;
@@ -435,7 +435,7 @@ public:
     int32_t  _layoutTop;         // +0x6c
     int32_t  _layoutRight;       // +0x70
     int32_t  _layoutBottom;      // +0x74
-    int32_t  _unknown78;         // +0x78  ctor -1
+    int32_t  _unreadIndex;         // +0x78  ctor -1
     uint32_t _pad7c;             // +0x7c  never written
     Object::Base* _userData;     // +0x80  ?GetUserData@ 0x180115550 (B4 H4: typed)
     int32_t  _elementId;         // +0x88  ctor -1
@@ -457,19 +457,19 @@ static_assert(sizeof(Element::UpdateState) == 0x30,
               "UpdateState is 0x30 (operator= 0x180035880 copies six qwords)");
 static_assert(offsetof(Element::UpdateState, dragActive) == 0x0, "UpdateState::dragActive");
 static_assert(offsetof(Element::UpdateState, buttonPressed) == 0x1, "UpdateState::buttonPressed");
-static_assert(offsetof(Element::UpdateState, b02) == 0x2, "UpdateState::b02");
-static_assert(offsetof(Element::UpdateState, b03) == 0x3, "UpdateState::b03");
-static_assert(offsetof(Element::UpdateState, b04) == 0x4, "UpdateState::b04");
-static_assert(offsetof(Element::UpdateState, b05) == 0x5, "UpdateState::b05");
-static_assert(offsetof(Element::UpdateState, b06) == 0x6, "UpdateState::b06");
-static_assert(offsetof(Element::UpdateState, b09) == 0x9, "UpdateState::b09");
+static_assert(offsetof(Element::UpdateState, middlePressed) == 0x2, "UpdateState::middlePressed");
+static_assert(offsetof(Element::UpdateState, rightPressed) == 0x3, "UpdateState::rightPressed");
+static_assert(offsetof(Element::UpdateState, leftReleased) == 0x4, "UpdateState::leftReleased");
+static_assert(offsetof(Element::UpdateState, middleReleased) == 0x5, "UpdateState::middleReleased");
+static_assert(offsetof(Element::UpdateState, rightReleased) == 0x6, "UpdateState::rightReleased");
+static_assert(offsetof(Element::UpdateState, middleDown) == 0x9, "UpdateState::middleDown");
 static_assert(offsetof(Element::UpdateState, pad0a) == 0xA, "UpdateState::pad0a");
 static_assert(offsetof(Element::UpdateState, pad21) == 0x21, "UpdateState::pad21");
 static_assert(alignof(Element::UpdateState) == 8, "UpdateState aligns to 8");
 static_assert(std::is_trivially_copyable<Element::UpdateState>::value,
               "operator= 0x180035880 is a plain six-qword copy");
 static_assert(offsetof(Element::UpdateState, leftDown)      == 0x07, "");
-static_assert(offsetof(Element::UpdateState, b08)           == 0x08, "");
+static_assert(offsetof(Element::UpdateState, rightDown)           == 0x08, "");
 static_assert(offsetof(Element::UpdateState, dragDx)        == 0x0c, "");
 static_assert(offsetof(Element::UpdateState, dragDy)        == 0x10, "");
 static_assert(offsetof(Element::UpdateState, wheel)         == 0x14, "");
@@ -501,7 +501,7 @@ static_assert(offsetof(Element, _layoutLeft)       == 0x68, "");
 static_assert(offsetof(Element, _layoutTop)        == 0x6c, "");
 static_assert(offsetof(Element, _layoutRight)      == 0x70, "");
 static_assert(offsetof(Element, _layoutBottom)     == 0x74, "");
-static_assert(offsetof(Element, _unknown78)        == 0x78, "");
+static_assert(offsetof(Element, _unreadIndex)        == 0x78, "");
 static_assert(offsetof(Element, _userData)         == 0x80, "");
 static_assert(offsetof(Element, _elementId)        == 0x88, "");
 static_assert(offsetof(Element, _dialogParent)     == 0x90, "");

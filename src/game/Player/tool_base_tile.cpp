@@ -251,17 +251,17 @@ uint64_t PlacementTool::CreateAt(int param_2, int param_3, int param_4, int para
     }
 
     const PlayerToolManager* lvCfg = dialogPtr;
-    if (lvCfg->field_0x80) {
+    if (lvCfg->tutorialRestricted) {
         int iVar1 = gameWorld->m_game->size;
-        long long c98 = lvCfg->field_0x98;
-        long long c9c = lvCfg->field_0x9C;
+        long long c98 = lvCfg->tutorialStartCell;
+        long long c9c = lvCfg->tutorialEndCell;
         int col0 = static_cast<int>(c98 % iVar1);
         int row0 = static_cast<int>(c98 / iVar1);
         int col1 = static_cast<int>(c9c % iVar1);
         int row1 = static_cast<int>(c9c / iVar1);
         if ((param_2 != col0) || (param_3 != row0) ||
             (col1 != param_4) || (row1 != param_5) ||
-            (lvCfg->field_0xA0 != iVar11)) {
+            (lvCfg->tutorialRotation != iVar11)) {
             return uVar7 & 0xffffffffffffff00ULL;
         }
         // Retail reuses piVar10's register for col0 here; it is only ever the

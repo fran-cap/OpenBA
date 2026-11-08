@@ -37,10 +37,10 @@ public:
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
     uint32_t _type;                             // +0x20 enum (serialized through the uint door)
-    float _f24;                                 // +0x24
+    float _growthPercentOnTend;                                 // +0x24
 };
 
 static_assert(sizeof(CropFieldDescription) == 0x28, "CropFieldDescription is 0x28 (create 0x140032f30 MemAlloc(0x28))");
 static_assert(alignof(CropFieldDescription) == 8, "CropFieldDescription alignment");
 static_assert(offsetof(CropFieldDescription, _type) == 0x20, "CropFieldDescription::_type @ +0x20");
-static_assert(offsetof(CropFieldDescription, _f24) == 0x24, "CropFieldDescription::_f24 @ +0x24");
+static_assert(offsetof(CropFieldDescription, _growthPercentOnTend) == 0x24, "CropFieldDescription::_growthPercentOnTend @ +0x24");

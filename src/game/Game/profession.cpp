@@ -49,9 +49,9 @@ Profession::Profession() {
     spriteSheet = nullptr;
 
     // Numeric fields
-    field48 = 0;
-    field4C = 0;
-    field4D = 0;
+    sortPriority = 0;
+    transient = 0;
+    immuneToDisease = 0;
     isAvailable = 1;
     priority = 100;
     skillMult1 = 1.0f;
@@ -106,9 +106,9 @@ bool Profession::Serialize(IO::Stream& stream) {
     stringTool.Serialize(serializer);  // +0x40
 
     // Serialize numeric fields
-    serializer.Serialize(field48, nullptr);      // +0x48 int
-    serializer.Serialize(field4C, nullptr);      // +0x4C bool
-    serializer.Serialize(field4D, nullptr);      // +0x4D bool
+    serializer.Serialize(sortPriority, nullptr);      // +0x48 int
+    serializer.Serialize(transient, nullptr);      // +0x4C bool
+    serializer.Serialize(immuneToDisease, nullptr);      // +0x4D bool
     serializer.Serialize(skillMult1, nullptr);   // +0x54 float
     serializer.Serialize(skillMult2, nullptr);   // +0x58 float
     serializer.Serialize(priority, nullptr);     // +0x50 int

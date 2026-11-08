@@ -308,7 +308,7 @@ void DestroyComponent::ScatterContents(int baseX, int baseY, int width, int dept
     BuildDescription* desc = static_cast<BuildDescription*>(rawDesc);
 
     int delivered = buildComp->laborProgress;
-    int required  = desc->_i30 * buildComp->costMultiplier;
+    int required  = desc->_workRequired * buildComp->costMultiplier;
     BuildCost* recipeBase = desc->_costs;
 
     // ---- Phase 1: scatter list ----
@@ -456,7 +456,7 @@ static int Yard_Required(BuildComponent* prod) {
     if (!prod) return 0;
     Description* desc = prod->_description;
     if (!desc) return 0;
-    return static_cast<BuildDescription*>(desc)->_i30 * prod->costMultiplier;
+    return static_cast<BuildDescription*>(desc)->_workRequired * prod->costMultiplier;
 }
 
 // ============================================================
@@ -530,7 +530,7 @@ char DestroyComponent::State4Enter(StateMachine* sm) {
     }
 
     // Queue a ClearStorage work (type 1) on the production yard. Faithful ctor
-    // path: Work_Ctor25 base bind (field_10 = entity) + ClearStorage vtable +
+    // path: Work_Ctor25 base bind (_entity = entity) + ClearStorage vtable +
     // zeroed tail fields (ClearStorage_Ctor 0x1400e74b0 shape).
     WorkComponent* yard = FindOn<WorkComponent>(entity);
     if (yard && ::System::MemoryAllocator::_singleton) {
@@ -581,7 +581,7 @@ char DestroyComponent::State5Enter() {
         MultiObjectComponent* yard0 = FindOn<MultiObjectComponent>(entity);
         int mult = yard0 ? static_cast<int>(yard0->multiCount) : 1;
         Description* desc = prod->_description;
-        int base = desc ? static_cast<BuildDescription*>(desc)->_i30 : 0;
+        int base = desc ? static_cast<BuildDescription*>(desc)->_workRequired : 0;
         int recovered = (base * mult) / 2;
         if (recovered == 0) recovered = 1;
         progressTarget = recovered;

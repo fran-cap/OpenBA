@@ -703,7 +703,7 @@ void TownHallUI::UpdateGraph() {
     // Arrays, one per series; series 0's count is the current tick).
     CitizenBehavior* town =
         GameUpdateLoop::_singleton->m_citizenList;
-    const Collection::Array<int>* history = town->field_0x150._data;
+    const Collection::Array<int>* history = town->statHistory._data;
 
     // Cache game tick
     cachedGameTick = history[0]._size;
@@ -898,7 +898,7 @@ void TownHallUI::UpdateGeneral() {
     textMonth->SetText(&monthCopy);
 
     // Home count
-    int homeCount = town->field_0x20._size;
+    int homeCount = town->residences._size;
     numberHomes->SetValue(static_cast<int32_t>(homeCount));
 
     // Citizen counts
@@ -994,9 +994,9 @@ void TownHallUI::UpdateProfessions() {
             prodLimits[i].stock->SetValue(static_cast<int32_t>(stock));
 
             int usedCur = town->QueryProductionStat(resIdx - 1, currentYearTick, endTick);   // 0x140090f20
-            int usedStock = town->professionResources._data[i].field_0x0C;
+            int usedStock = town->professionResources._data[i].consumedCount;
             int prodCur = town->QueryProductionStat(resIdx, currentYearTick, endTick);   // 0x140090f20
-            int prodStock = town->professionResources._data[i]._field10;
+            int prodStock = town->professionResources._data[i].producedCount;
             int usedPrev = town->QueryProductionStat(resIdx - 1, prevStart, prevEnd);   // 0x140090f20
             int prodPrev = town->QueryProductionStat(resIdx, prevStart, prevEnd);   // 0x140090f20
 
@@ -1159,7 +1159,7 @@ void TownHallUI::UpdateProduction() {
             invTable[i].label->SetSprite(&spriteBuf);
 
             // Create UIString from ValueDescription+0x30 (stringTable) and +0x38 (stringName)
-            UI::String uiStrBuf(::Object::ExternalPtr<UI::StringTable>(valDesc->_ref30), valDesc->_s38);
+            UI::String uiStrBuf(::Object::ExternalPtr<UI::StringTable>(valDesc->_stringTable), valDesc->_stringName);
 
             // Set text on label element
             invTable[i].label->SetText(&uiStrBuf);
@@ -1210,10 +1210,10 @@ void TownHallUI::UpdateAgriculture() {
     // Build temporary BST from the town's description list (+0x120/+0x128)
     AgricultureNode* tempBSTRoot = nullptr;
     int tempBSTCount = 0;
-    int entityCount = town->field_0x120._size;
+    int entityCount = town->availableFarmTypes._size;
 
     for (int i = 0; i < entityCount; i++) {
-        const ComponentDescription* entityPtr = town->field_0x120._data[i];
+        const ComponentDescription* entityPtr = town->availableFarmTypes._data[i];
 
         if (!tempBSTRoot) {
             // First node — allocate root
@@ -1295,12 +1295,12 @@ next_entity: ;
 
                 // Original always sets sprite/text when found in BST (even if selectDesc is NULL)
                 // Create sprite from SelectDescription+0x20/+0x28
-                UI::Sprite spriteBuf(::Object::ExternalPtr<UI::SpriteSheet>(selectDesc->_ref20), selectDesc->_s28);
+                UI::Sprite spriteBuf(::Object::ExternalPtr<UI::SpriteSheet>(selectDesc->_spriteSheet), selectDesc->_spriteName);
 
                 agriLabels[displayIdx]->SetSprite(&spriteBuf);
 
                 // Create UIString from SelectDescription+0x30/+0x38
-                UI::String uiStrBuf(::Object::ExternalPtr<UI::StringTable>(selectDesc->_ref30), selectDesc->_s38);
+                UI::String uiStrBuf(::Object::ExternalPtr<UI::StringTable>(selectDesc->_stringTable), selectDesc->_stringName);
 
                 agriLabels[displayIdx]->SetText(&uiStrBuf);
 
@@ -1362,7 +1362,7 @@ void TownHallUI::UpdateInventory() {
         Profession* profTypeId = profList->professions.GetData()[p];
 
         // Look up profession type in the town's profession tree (+0x100)
-        ProfessionBucket* bstNode = town->field_0x100._root;
+        ProfessionBucket* bstNode = town->workplacesByProfession._root;
         while (bstNode) {
             Profession* nodeKey = bstNode->element.key;
             if (profTypeId < nodeKey)
@@ -1478,9 +1478,9 @@ void TownHallUI::UpdateAll() {
 
     // Phase 1: For each tracked description (+0x110/+0x118),
     // zero or insert entry in invBST
-    int trackedCount = town->field_0x110._size;
+    int trackedCount = town->knownRawMaterials._size;
     for (int i = 0; i < trackedCount; i++) {
-        ComponentDescription* entityPtr = town->field_0x110._data[i];
+        ComponentDescription* entityPtr = town->knownRawMaterials._data[i];
 
         // Look up in invBST
         InventoryNode* bstNode = InvBST_Find(invBST.root, entityPtr);
@@ -1505,8 +1505,8 @@ void TownHallUI::UpdateAll() {
     // The town's first four arrays (+0x00/+0x10/+0x20/+0x30, each {data, count})
     Collection::Array<ComponentEntity*> entityArr;
 
-    Object::InternalPtr<ComponentEntity>* const lists[4] = { town->field_0x00._data, town->field_0x10._data, town->field_0x20._data, town->field_0x30._data };
-    const int32_t listCounts[4] = { town->field_0x00._size, town->field_0x10._size, town->field_0x20._size, town->field_0x30._size };
+    Object::InternalPtr<ComponentEntity>* const lists[4] = { town->storageLocations._data, town->marketLocations._data, town->residences._data, town->tradePosts._data };
+    const int32_t listCounts[4] = { town->storageLocations._size, town->marketLocations._size, town->residences._size, town->tradePosts._size };
     for (int listIdx = 0; listIdx < 4; listIdx++) {
         for (int j = 0; j < listCounts[listIdx]; j++) {
             entityArr.SetSize(entityArr.GetSize() + 1, lists[listIdx][j].Get());
@@ -1676,7 +1676,7 @@ bool TownReady() {
     if (!townMgr || !profList) return false;
     if (profList->professions.GetSize() <= 0 || profList->professions.GetData() == nullptr) return false;
     if (gw->m_dayCounter == nullptr) return false;
-    if (townMgr->field_0x150._data == nullptr) return false;           // stat-history series
+    if (townMgr->statHistory._data == nullptr) return false;           // stat-history series
     if (townMgr->professionResources._data == nullptr) return false;   // production records
     return true;
 }
@@ -1720,13 +1720,13 @@ void DiagPrint(const char* where, const TownHallUI* self) {
                 static_cast<void*>(gw), gw->m_citizenList, static_cast<void*>(profList),
                 profList ? profList->professions.GetSize() : -1,
                 gw->m_dayCounter,
-                townMgr ? townMgr->field_0x150._data : nullptr,
+                townMgr ? townMgr->statHistory._data : nullptr,
                 townMgr ? static_cast<void*>(townMgr->professionResources._data) : nullptr);
         // UpdateGeneral's two data sources: the town citizen list (+0xa0/+0xa8,
         // CitizenComponent_OnAdd) and the residence list (+0x20/+0x28, helper_9de0).
         if (townMgr)
             fprintf(stderr, "[TownHallSA]   citizens(+0xa8)=%d homes(+0x28)=%d\n",
-                    townMgr->citizens._size, townMgr->field_0x20._size);
+                    townMgr->citizens._size, townMgr->residences._size);
     } else {
         fprintf(stderr, "[TownHallSA]   GameUpdateLoop::_singleton=%p\n",
                 static_cast<void*>(GameUpdateLoop::_singleton));
@@ -1823,7 +1823,7 @@ void TownHallUI::OnUpdate(const System::Time& /*time*/) {
     }
     CitizenBehavior* town =
         GameUpdateLoop::_singleton->m_citizenList;
-    int currentTick = town->field_0x150._data[0]._size;
+    int currentTick = town->statHistory._data[0]._size;
 
     if (this->cachedGameTick != currentTick) {
         this->cachedGameTick = currentTick;

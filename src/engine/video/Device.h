@@ -309,7 +309,7 @@ public:
         // is "no adapter/output chosen yet".
         int32_t      dxgiAdapterIndex;  // +0x2C  ctor = -1 (same qword store as +0x28)
         int32_t      dxgiOutputIndex;   // +0x30  ctor = -1
-        int32_t      field34;           // +0x34  not written by the ctor; tail padding or an unrecovered field
+        int32_t      pad34;           // +0x34  not written by the ctor; tail padding or an unrecovered field
     };
 
     // ------------------------------------------------------------------------
@@ -569,7 +569,7 @@ public:
     int32_t           refreshRateIndex;    // +0x10  index into the chosen mode's refresh list, or -1
     int32_t           dxgiAdapterIndex;    // +0x14  copied verbatim from Adapter+0x2C
     int32_t           dxgiOutputIndex;     // +0x18  copied verbatim from Adapter+0x30
-    int32_t           gap1C;               // +0x1C  ctor-zeroed; no writer found
+    int32_t           pad1C;               // +0x1C  ctor-zeroed; no writer found
     DisplayMode*      modeData;            // +0x20  Array<DisplayMode>::_data      (ApplyChangedSettings)
     int32_t           modeCount;           // +0x28  Array<DisplayMode>::_size      (ApplyChangedSettings)
     int32_t           modeCapacity;        // +0x2C  Array<DisplayMode>::_capacity  (inferred from the Array shape)
@@ -599,14 +599,14 @@ public:
                                            //        `*(int*)(vidDev + 0x98)`. Not written by the
                                            //        ctor — adapter enumeration fills it.
     uint8_t           settingsChanged;     // +0x9C  ApplyChangedSettings sets it to 1
-    uint8_t           field9D;             // +0x9D  ctor zeroes it in the same 2-byte store
-    uint8_t           gap9E[2];            // +0x9E..+0x9F
+    uint8_t           adjustingDisplay;             // +0x9D  ctor zeroes it in the same 2-byte store
+    uint8_t           pad9E[2];            // +0x9E..+0x9F
     void*             monitor;             // +0xA0  HMONITOR: AdjustDisplay hands it to GetMonitorInfoW
                                            //        (0x1800f7e68); the ctor zeroes it
-    uint8_t           gapA8[8];            // +0xA8  the ctor zeroes it; meaning not recovered
+    uint8_t           unusedMonitorPair[8];            // +0xA8  the ctor zeroes it; meaning not recovered
     InterfaceSlot     dllSlots[3];         // +0xB0  DX9, DX11, GL — src/app/video_interface.cpp writes slot 1 here
     int32_t           activeInterface;     // +0xF8  ctor = -1; Startup copies it back into Configuration::interfaceIndex
-    int32_t           gapFC;               // +0xFC
+    int32_t           padFC;               // +0xFC
     DeviceData*       deviceData;          // +0x100 src/render/dx11/ reads this at exactly this offset
 };
 
@@ -707,7 +707,7 @@ public:
     int  GetShadowMapScalar() const;   // 0x18000d690   NOT PORTED
     int  GetShaderDetail() const;      // 0x18000d6a0   NOT PORTED
     int  GetReflectionDetail() const;  // 0x18000d6b0   NOT PORTED
-    // 0x18000d6c0 names +0x42, which this header calls `field42`; Startup does
+    // 0x18000d6c0 names +0x42, which this header calls `hideWindow`; Startup does
     // not read it and Save does not write it.
     bool HideWindow() const;           // 0x18000d6c0   NOT PORTED
 
@@ -751,7 +751,7 @@ public:
     int32_t  refreshDenominator;// +0x3C  ctor = 1;  Save -> "RefreshD"
     uint8_t  fullscreen;        // +0x40  ctor = 1;  Save -> "Fullscreen"      (bool)
     uint8_t  vsync;             // +0x41  ctor = 1;  Save -> "VSync"           (bool)
-    uint8_t  field42;           // +0x42  ctor = 0;  not persisted — the ctor's LAST store
+    uint8_t  hideWindow;           // +0x42  ctor = 0;  not persisted — the ctor's LAST store
 };
 
 // ----------------------------------------------------------------------------
@@ -888,7 +888,7 @@ static_assert(offsetof(Video::Device::Adapter, multisampleCap) == 0x24, "Adapter
 static_assert(offsetof(Video::Device::Adapter, maxFilterLevel) == 0x28, "Adapter::maxFilterLevel");
 static_assert(offsetof(Video::Device::Adapter, dxgiAdapterIndex) == 0x2C, "Adapter::dxgiAdapterIndex");
 static_assert(offsetof(Video::Device::Adapter, dxgiOutputIndex) == 0x30, "Adapter::dxgiOutputIndex");
-static_assert(offsetof(Video::Device::Adapter, field34) == 0x34, "Adapter::field34");
+static_assert(offsetof(Video::Device::Adapter, pad34) == 0x34, "Adapter::pad34");
 // ENDGAME B5 DEV-B: the name is the real one-pointer String, not its data pointer.
 static_assert(std::is_same<decltype(Video::Device::Adapter::name), System::String>::value,
               "Adapter::name is a System::String member");
@@ -916,9 +916,9 @@ static_assert(offsetof(Video::Device::InterfaceSlot, createDeviceData) == 0x10, 
 
 // ---- Video::Device ----
 static_assert(sizeof(Video::Device) == 0x108, "Device is 0x108 bytes");
-static_assert(offsetof(Video::Device, gap1C) == 0x1C, "Device::gap1C");
-static_assert(offsetof(Video::Device, gap9E) == 0x9E, "Device::gap9E");
-static_assert(offsetof(Video::Device, gapFC) == 0xFC, "Device::gapFC");
+static_assert(offsetof(Video::Device, pad1C) == 0x1C, "Device::pad1C");
+static_assert(offsetof(Video::Device, pad9E) == 0x9E, "Device::pad9E");
+static_assert(offsetof(Video::Device, padFC) == 0xFC, "Device::padFC");
 static_assert(alignof(Video::Device) == 8, "Device aligns to 8");
 // RULE B5-6 in assert form: no vptr, no user ctor/dtor, so the object our ports
 // and dx11 read by named member is still exactly retail's bytes.
@@ -951,9 +951,9 @@ static_assert(offsetof(Video::Device, lockRecursionCount) == 0x8C, "Device::lock
 static_assert(offsetof(Video::Device, windowHandle) == 0x90, "Device::windowHandle");
 static_assert(offsetof(Video::Device, maxAnisotropy) == 0x98, "Device::maxAnisotropy — must match optionsdialog.cpp:359");
 static_assert(offsetof(Video::Device, settingsChanged) == 0x9C, "Device::settingsChanged");
-static_assert(offsetof(Video::Device, field9D) == 0x9D, "Device::field9D");
+static_assert(offsetof(Video::Device, adjustingDisplay) == 0x9D, "Device::adjustingDisplay");
 static_assert(offsetof(Video::Device, monitor) == 0xA0, "Device::monitor (B.4 R-VIDEO)");
-static_assert(offsetof(Video::Device, gapA8) == 0xA8, "Device::gapA8");
+static_assert(offsetof(Video::Device, unusedMonitorPair) == 0xA8, "Device::unusedMonitorPair");
 static_assert(offsetof(Video::Device, dllSlots) == 0xB0, "Device::dllSlots — must match src/app/video_interface.cpp kSlot0");
 static_assert(offsetof(Video::Device, activeInterface) == 0xF8, "Device::activeInterface — must match src/app/main.cpp:1068");
 static_assert(offsetof(Video::Device, deviceData) == 0x100, "Device::deviceData — must match src/render/dx11/buffers.cpp:209");
@@ -988,7 +988,7 @@ static_assert(offsetof(Video::Configuration, refreshNumerator) == 0x38, "Configu
 static_assert(offsetof(Video::Configuration, refreshDenominator) == 0x3C, "Configuration::refreshDenominator");
 static_assert(offsetof(Video::Configuration, fullscreen) == 0x40, "Configuration::fullscreen");
 static_assert(offsetof(Video::Configuration, vsync) == 0x41, "Configuration::vsync");
-static_assert(offsetof(Video::Configuration, field42) == 0x42, "Configuration::field42");
+static_assert(offsetof(Video::Configuration, hideWindow) == 0x42, "Configuration::hideWindow");
 
 // ---- Video::RenderBuffer ----
 static_assert(sizeof(Video::RenderBuffer) == 0x30, "RenderBuffer is 0x30 bytes (minimap_paint.cpp:193 allocates 0x30)");

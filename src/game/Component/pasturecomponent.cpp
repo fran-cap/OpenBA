@@ -100,7 +100,7 @@ int PastureComponent::ComputeCapacity() const {
     }
     // No test of the desc or the divisor: 0x140128644 `IMUL R15D,R12D; CDQ;
     // IDIV dword ptr [RBX+0x24]`, RBX the CMOVNZ scan result or 0.
-    return (int)(w * h) / found->_i24;
+    return (int)(w * h) / found->_requiredArea;
 }
 
 // B4 FORWARD: 1 outside caller file (Dialog/debugui.cpp).
@@ -134,7 +134,7 @@ void AnimalComponent::ReleaseToWander() {
     habitatCell = mapW * y + x;
     const AnimalDescription* animalTmpl = tmpl->IsDerivedFrom(AnimalDescription::TypeId())
                                               ? static_cast<const AnimalDescription*>(tmpl) : nullptr;
-    GetWanderBox(&wanderX, &wanderY, &wanderWidth, &wanderHeight, animalTmpl->_i20);   // 0x140105e20
+    GetWanderBox(&wanderX, &wanderY, &wanderWidth, &wanderHeight, animalTmpl->_roamSize);   // 0x140105e20
 
     System::Time t{0};
     RtSystem_Time_Ctor(&t, 0.0f);
@@ -339,7 +339,7 @@ void PastureComponent::OnEvent(int msgId) {
         PathType* terrain = &grid[cell].terrainType;   // +0x29
         const uint8_t was = static_cast<uint8_t>(*terrain);
         const bool wasRough = ((1u << (was & 0x1f)) & Bits(PathBits::Zoneless)) != 0;
-        map->field_0xA2 = map->field_0xA2 | wasRough;
+        map->zonesStale = map->zonesStale | wasRough;
         *terrain = PathType::Normal;
         TerrainSidecar::NoteWrite(&grid[cell]);   // [terrain sidecar] mirror (missing until AMBMEMO)
         CellStamp::NoteWrite(&grid[cell]);   // [AMBMEMO] cell write clock

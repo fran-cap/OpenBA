@@ -4,7 +4,7 @@
 // src/engine/graphics/draw_sort.h promises that DrawSort::SortFastExact leaves
 // the item array bit for bit as retail's sort (DrawSort::SortReference) does, for
 // every input, and that SortFast (SORTCMP's plain path) leaves it equal on every
-// field the consumer reads (byte-equal unless a tie group of agreeing _arg8 was
+// field the consumer reads (byte-equal unless a tie group of agreeing _maxInstances was
 // permuted). These tests check the two halves of the proof and the whole:
 //   * the key order IS the comparator: KeyLess(key(a), key(b)) == DrawItemLess(a, b)
 //     and KeyEqual <=> neither sorts first, over millions of random pairs drawn
@@ -13,12 +13,12 @@
 //   * SortKeyBits reverses the float order and merges +0 / -0;
 //   * BuildKeys refuses a NaN sort key and a pointer at or above 2^48;
 //   * whole lists of 2..4000 items, including full ties that differ only in
-//     _arg8 and the never-written pads, NaN lists and high pointers: SortFastExact's
+//     _maxInstances and the never-written pads, NaN lists and high pointers: SortFastExact's
 //     array memcmp-equal to SortReference's;
 //   * the shadow entry point reports a match and leaves the reference order;
 //   * SORTCMP: the plain path on the same random lists is ConsumerEqual to the
 //     reference item by item (byte-equal whenever the output has no tie); a
-//     planted differing-_arg8 tie makes it fall back and the output is byte-equal;
+//     planted differing-_maxInstances tie makes it fall back and the output is byte-equal;
 //     SortPlain leaves data untouched when it refuses; NaN lists stay inline; the
 //     run / tie / instancing census on crafted lists.
 //   * SORTMEMO: a memo hit (byte-equal input, or equal but for the pads) leaves
@@ -99,10 +99,10 @@ RendererDrawItem RandomItem(Rng& r, int pool, bool allowNaN, bool high) {
     SetPtr(it._instance, PtrVal(r, pool, high));
     SetPtr(it._userData, PtrVal(r, pool, high));
     it._flags   = r.Below(4) == 0 ? static_cast<uint16_t>(r.U32()) : static_cast<uint16_t>(0x8000 | r.Below(pool));
-    it._arg5    = r.Below(4) == 0 ? static_cast<uint16_t>(r.U32()) : static_cast<uint16_t>(r.Below(pool));
-    it._arg10   = r.Below(4) == 0 ? r.U32() : (r.Below(2) ? 0xFFFFFFFFu : static_cast<uint32_t>(r.Below(pool)));
+    it._node    = r.Below(4) == 0 ? static_cast<uint16_t>(r.U32()) : static_cast<uint16_t>(r.Below(pool));
+    it._animationInstanceId   = r.Below(4) == 0 ? r.U32() : (r.Below(2) ? 0xFFFFFFFFu : static_cast<uint32_t>(r.Below(pool)));
     it._sortKey = AnyKey(r, allowNaN);
-    it._arg8    = r.Below(3) == 0 ? r.Below(64) : 1;
+    it._maxInstances    = r.Below(3) == 0 ? r.Below(64) : 1;
     return it;
 }
 
@@ -129,8 +129,8 @@ UNIT_TEST(draw_sort_key_order_is_the_comparator) {
             if (same > 1) b._sortKey = r.Below(4) ? a._sortKey : (a._sortKey == 0.0f ? -a._sortKey : a._sortKey);
             if (same > 2) b._material = a._material;
             if (same > 3) b._instance = a._instance;
-            if (same > 4) b._arg5 = a._arg5;
-            if (same > 5) b._arg10 = a._arg10;
+            if (same > 4) b._node = a._node;
+            if (same > 5) b._animationInstanceId = a._animationInstanceId;
             if (same > 6) b._userData = a._userData;
             if (same > 7) b._geometry = a._geometry;
         }
@@ -203,11 +203,11 @@ UNIT_TEST(draw_sort_fast_equals_reference_bit_for_bit) {
         const bool high = r.Below(8) == 0;
         std::vector<RendererDrawItem> in(static_cast<size_t>(n));
         for (int i = 0; i < n; ++i) in[static_cast<size_t>(i)] = RandomItem(r, pool, allowNaN, high);
-        // Full ties that differ only in _arg8 and the pads: copies of earlier items.
+        // Full ties that differ only in _maxInstances and the pads: copies of earlier items.
         const int dups = r.Below(n / 2 + 1);
         for (int d = 0; d < dups; ++d) {
             RendererDrawItem c = in[static_cast<size_t>(r.Below(n))];
-            c._arg8 = r.Below(64);
+            c._maxInstances = r.Below(64);
             c._pad24 = static_cast<int32_t>(r.U32());
             c._pad34 = static_cast<int32_t>(r.U32());
             in[static_cast<size_t>(r.Below(n))] = c;
@@ -242,7 +242,7 @@ UNIT_TEST(draw_sort_shadow_reports_and_counts) {
     DrawSort::TakeCounters();
     std::vector<RendererDrawItem> in(500);
     for (auto& it : in) it = RandomItem(r, 5, false, false);
-    in[10] = in[20]; in[10]._arg8 = 2; in[20]._arg8 = 3;   // a full tie with differing _arg8
+    in[10] = in[20]; in[10]._maxInstances = 2; in[20]._maxInstances = 3;   // a full tie with differing _maxInstances
     std::vector<RendererDrawItem> ref = in;
     DrawSort::SortReference(ref.data(), 500);
     DrawSort::Sort(in.data(), 500);
@@ -260,7 +260,7 @@ UNIT_TEST(draw_sort_shadow_reports_and_counts) {
     CHECK(c.compares > 500ull);
     CHECK(c.ties >= 1ull);
     CHECK(c.tiesArg8 >= 1ull);
-    // SORTCMP: the list took the plain path and fell back on the differing-_arg8 tie.
+    // SORTCMP: the list took the plain path and fell back on the differing-_maxInstances tie.
     CHECK_EQ(c.plainLists, DrawSort::kPlainSort ? 1ull : 0ull);
     CHECK_EQ(c.fallbacks, DrawSort::kPlainSort ? 1ull : 0ull);
     CHECK_EQ(c.shadowBytes, 0ull);
@@ -288,7 +288,7 @@ bool HasTie(const std::vector<RendererDrawItem>& sorted) {
 bool HasArg8Tie(const std::vector<RendererDrawItem>& sorted) {
     for (size_t i = 1; i < sorted.size(); ++i)
         if (!DrawSort::DrawItemLess(sorted[i - 1], sorted[i]) && !DrawSort::DrawItemLess(sorted[i], sorted[i - 1]) &&
-            sorted[i - 1]._arg8 != sorted[i]._arg8)
+            sorted[i - 1]._maxInstances != sorted[i]._maxInstances)
             return true;
     return false;
 }
@@ -308,10 +308,10 @@ std::vector<RendererDrawItem> GatherLike(Rng& r, int n, int meshes) {
         SetPtr(it._instance, 0x00000200C0000000ull + static_cast<uint64_t>(m) * 0x60);
         SetPtr(it._userData, 0x00000200D0000000ull + static_cast<uint64_t>(m / 3) * 0x200);
         it._flags   = static_cast<uint16_t>(m % 3 == 0 ? 0x8000 : 0);
-        it._arg5    = static_cast<uint16_t>(m % 4);
-        it._arg10   = 0xFFFFFFFFu;
+        it._node    = static_cast<uint16_t>(m % 4);
+        it._animationInstanceId   = 0xFFFFFFFFu;
         it._sortKey = 0.0f;
-        it._arg8    = (m % 2) ? 10 : 1;
+        it._maxInstances    = (m % 2) ? 10 : 1;
     }
     return v;
 }
@@ -339,11 +339,11 @@ UNIT_TEST(draw_sort_plain_is_consumer_exact) {
             for (int i = 0; i < n; ++i) in[static_cast<size_t>(i)] = RandomItem(r, pool, r.Below(16) == 0, r.Below(16) == 0);
         }
         // Planted full ties: copies of earlier items with fresh pads, and (sometimes)
-        // a fresh _arg8 or a sort key of the other zero sign.
+        // a fresh _maxInstances or a sort key of the other zero sign.
         const int dups = r.Below(n / 3 + 1);
         for (int d = 0; d < dups; ++d) {
             RendererDrawItem c = in[static_cast<size_t>(r.Below(n))];
-            if (r.Below(6) == 0) c._arg8 = r.Below(64);
+            if (r.Below(6) == 0) c._maxInstances = r.Below(64);
             if (c._sortKey == 0.0f && r.Below(2)) c._sortKey = -c._sortKey;
             c._pad24 = static_cast<int32_t>(r.U32());
             c._pad34 = static_cast<int32_t>(r.U32());
@@ -355,7 +355,7 @@ UNIT_TEST(draw_sort_plain_is_consumer_exact) {
         DrawSort::SortFast(fast.data(), n);
         bool ok = ConsumerSame(ref, fast);
         // A list whose output has no tie is byte-equal; so is one with a
-        // differing-_arg8 tie (it fell back to the keyed skeleton).
+        // differing-_maxInstances tie (it fell back to the keyed skeleton).
         if (ok && (!HasTie(ref) || HasArg8Tie(ref))) ok = SameBytes(ref, fast);
         if (!ok) {
             std::printf("  mismatch: round %d n %d\n", round, n);
@@ -375,7 +375,7 @@ UNIT_TEST(draw_sort_plain_falls_back_on_differing_arg8) {
     Rng r{99};
     DrawSort::g_profOn = 1;
     DrawSort::TakeCounters();
-    // (a) a harmless tie group: same keys and _arg8, different pads -> plain, no fallback.
+    // (a) a harmless tie group: same keys and _maxInstances, different pads -> plain, no fallback.
     std::vector<RendererDrawItem> in = GatherLike(r, 600, 50);
     for (int k = 0; k < 4; ++k) {
         RendererDrawItem c = in[100];
@@ -394,8 +394,8 @@ UNIT_TEST(draw_sort_plain_falls_back_on_differing_arg8) {
     CHECK_EQ(c.ties, 4ull);          // five equal keys: four adjacent pairs
     CHECK_EQ(c.tiesArg8, 0ull);
     CHECK_EQ(c.maxTie, 5ull);
-    // (b) the same list with one copy's _arg8 changed -> fallback, byte-equal.
-    in[300]._arg8 = in[100]._arg8 + 1;
+    // (b) the same list with one copy's _maxInstances changed -> fallback, byte-equal.
+    in[300]._maxInstances = in[100]._maxInstances + 1;
     ref = in; out = in;
     DrawSort::SortReference(ref.data(), 600);
     DrawSort::Sort(out.data(), 600);
@@ -419,7 +419,7 @@ UNIT_TEST(draw_sort_plain_refusal_leaves_data_and_keys) {
     Rng r{2024};
     std::vector<RendererDrawItem> in = GatherLike(r, 300, 30);
     in[250] = in[10];
-    in[250]._arg8 = in[10]._arg8 + 3;
+    in[250]._maxInstances = in[10]._maxInstances + 3;
     std::vector<DrawSort::Key> keys(300), keys0;
     bool nan = true, ptr = true;
     CHECK(DrawSort::BuildKeys(in.data(), 300, keys.data(), &nan, &ptr));
@@ -432,11 +432,11 @@ UNIT_TEST(draw_sort_plain_refusal_leaves_data_and_keys) {
     CHECK(std::memcmp(keys.data(), keys0.data(), keys.size() * sizeof(DrawSort::Key)) == 0);
     CHECK(groups >= 1u && groups <= 30u);
     // Without the differing tie it sorts: every adjacent pair in order.
-    in[250]._arg8 = in[10]._arg8;
+    in[250]._maxInstances = in[10]._maxInstances;
     CHECK(DrawSort::SortPlain(in.data(), 300, keys.data(), &cmp, &groups));
     for (size_t i = 1; i < in.size(); ++i) CHECK(!DrawSort::DrawItemLess(in[i], in[i - 1]));
     std::vector<RendererDrawItem> ref = before;
-    ref[250]._arg8 = ref[10]._arg8;
+    ref[250]._maxInstances = ref[10]._maxInstances;
     DrawSort::SortReference(ref.data(), 300);
     CHECK(ConsumerSame(ref, in));
 }
@@ -454,7 +454,7 @@ UNIT_TEST(draw_sort_census_runs_and_instancing) {
     CHECK_EQ(c.runs, 1ull);
     CHECK_EQ(c.ties, 0ull);
     uint64_t inst = 0;
-    for (const RendererDrawItem& it : in) inst += it._arg8 > 1 ? 1u : 0u;
+    for (const RendererDrawItem& it : in) inst += it._maxInstances > 1 ? 1u : 0u;
     CHECK_EQ(c.instItems, inst);
     CHECK(inst > 0u);
     // Reversed: every key a run of its own.
@@ -534,8 +534,8 @@ UNIT_TEST(draw_sort_memo_hit_is_a_fresh_sort) {
             in.resize(static_cast<size_t>(n));
             for (int i = 0; i < n; ++i) in[static_cast<size_t>(i)] = RandomItem(r, pool, r.Below(16) == 0, r.Below(16) == 0);
         }
-        // Planted full ties with fresh pads: harmless ones (same _arg8) and, in a
-        // quarter of the lists, one whose _arg8 differs (SORTCMP's fallback).
+        // Planted full ties with fresh pads: harmless ones (same _maxInstances) and, in a
+        // quarter of the lists, one whose _maxInstances differs (SORTCMP's fallback).
         const int dups = r.Below(n / 4 + 1);
         for (int d = 0; d < dups; ++d) {
             RendererDrawItem c = in[static_cast<size_t>(r.Below(n))];
@@ -545,7 +545,7 @@ UNIT_TEST(draw_sort_memo_hit_is_a_fresh_sort) {
         }
         if (r.Below(4) == 0) {
             RendererDrawItem c = in[0];
-            c._arg8 = in[0]._arg8 + 1;
+            c._maxInstances = in[0]._maxInstances + 1;
             in[static_cast<size_t>(1 + r.Below(n - 1))] = c;
         }
         const bool keyable = Keyable(in);

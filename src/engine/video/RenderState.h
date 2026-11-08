@@ -247,7 +247,7 @@ public:
     RenderState() : Object::External(), _alphaBlend(), _depth(), _stencil() {
         _cullMode = 1;         // +0x68
         _fillMode = 0;         // +0x6c
-        _flag70   = 0;         // +0x70
+        _scissorEnable   = 0;         // +0x70
         PlatformConstruct();   // +0x78
     }
 
@@ -330,7 +330,7 @@ public:
     Stencil          _stencil;    // +0x44
     CullMode         _cullMode;   // +0x68  default 1
     FillMode         _fillMode;   // +0x6c  default 0; ==1 means wireframe
-    bool             _flag70;     // +0x70  (B.4 R-VIDEO: bool, H4 — Initialize's `_N` flag)
+    bool             _scissorEnable;     // +0x70  (B.4 R-VIDEO: bool, H4 — Initialize's `_N` flag)
     uint8_t          _pad71[7];   // +0x71  never written
     RenderStateData* _data;       // +0x78  from DeviceData slot 17
 };
@@ -344,7 +344,7 @@ static_assert(offsetof(RenderState, _depth)      == 0x34, "RenderState::_depth @
 static_assert(offsetof(RenderState, _stencil)    == 0x44, "RenderState::_stencil @ +0x44");
 static_assert(offsetof(RenderState, _cullMode)   == 0x68, "RenderState::_cullMode @ +0x68");
 static_assert(offsetof(RenderState, _fillMode)   == 0x6c, "RenderState::_fillMode @ +0x6c");
-static_assert(offsetof(RenderState, _flag70)     == 0x70, "RenderState::_flag70 @ +0x70");
+static_assert(offsetof(RenderState, _scissorEnable)     == 0x70, "RenderState::_scissorEnable @ +0x70");
 static_assert(offsetof(RenderState, _data)       == 0x78, "RenderState::_data @ +0x78");
 
 static_assert(sizeof(RenderState::AlphaBlend) == 0x14,

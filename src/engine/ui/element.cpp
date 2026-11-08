@@ -630,7 +630,7 @@ void Element::InitFields() {
     _layoutTop        = 0;
     _layoutRight      = 0;
     _layoutBottom     = 0;
-    _unknown78        = -1;                                 // +0x7c deliberately untouched
+    _unreadIndex        = -1;                                 // +0x7c deliberately untouched
     _userData         = nullptr;
     _elementId        = -1;                                 // +0x8c deliberately untouched
     _dialogParent     = nullptr;

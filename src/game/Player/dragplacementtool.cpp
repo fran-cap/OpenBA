@@ -168,19 +168,19 @@ int DragPlacementTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
     const CreateDragDescription* desc = placementDesc;
 
     // Check min size (desc +0x30 = minWidth, +0x34 = minHeight)
-    if (width < desc->_i30 || height < desc->_i34) {
+    if (width < desc->_minWidth || height < desc->_minHeight) {
         return 1;
     }
 
     // Check max size (desc +0x28 = maxWidth, +0x2C = maxHeight)
-    if (desc->_i28 < width || desc->_i2c < height) {
+    if (desc->_maxWidth < width || desc->_maxHeight < height) {
         return 2;
     }
 
     // Validate terrain for each cell in the rectangle
-    uint32_t terrainMask = desc->_shape;
-    char allowOverlap = desc->_b24;
-    const ComponentDescription* entityTemplate = desc->_created;
+    uint32_t terrainMask = desc->_placeBits;
+    char allowOverlap = desc->_ignoreZones;
+    const ComponentDescription* entityTemplate = desc->_allowAndRemove;
 
     bool allValid = true;
     for (int row = minRow; row <= maxRow && allValid; row++) {
@@ -201,12 +201,12 @@ int DragPlacementTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
     if (allValid) {
         // The owner's single-rectangle constraint (PlayerToolManager +0x80 / +0x98 / +0x9C)
         const PlayerToolManager* dlg = dialogPtr;
-        if (dlg && dlg->field_0x80) {
+        if (dlg && dlg->tutorialRestricted) {
             int existGridSize = GameUpdateLoop::_singleton->m_game->size;
-            int existStartCol = dlg->field_0x98 % existGridSize;
-            int existStartRow = dlg->field_0x98 / existGridSize;
-            int existEndCol = dlg->field_0x9C % existGridSize;
-            int existEndRow = dlg->field_0x9C / existGridSize;
+            int existStartCol = dlg->tutorialStartCell % existGridSize;
+            int existStartRow = dlg->tutorialStartCell / existGridSize;
+            int existEndCol = dlg->tutorialEndCell % existGridSize;
+            int existEndRow = dlg->tutorialEndCell / existGridSize;
             if (minCol != existStartCol || minRow != existStartRow ||
                 existEndCol != maxCol || existEndRow != maxRow) {
                 return 3;
@@ -252,11 +252,11 @@ void DragPlacementTool::Draw(Video::Context* context, char param3) {
 
     // --- Section 1: the constraint rectangle overlay (yellow tiles) ---
     const PlayerToolManager* dialogCtrl = dialogPtr;
-    if (dialogCtrl->field_0x80) {
+    if (dialogCtrl->tutorialRestricted) {
         int gridSize = gameWorld->m_game->size;
 
-        int existStart = dialogCtrl->field_0x98;
-        int existEnd = dialogCtrl->field_0x9C;
+        int existStart = dialogCtrl->tutorialStartCell;
+        int existEnd = dialogCtrl->tutorialEndCell;
 
         int existStartCol = existStart % gridSize;
         int existStartRow = existStart / gridSize;
@@ -332,15 +332,15 @@ void DragPlacementTool::Draw(Video::Context* context, char param3) {
         const CreateDragDescription* desc = placementDesc;
         bool tooBig = false;
         if (desc) {
-            if (desc->_i28 < width || desc->_i2c < height) {
+            if (desc->_maxWidth < width || desc->_maxHeight < height) {
                 tooBig = true;
             }
         }
 
         // Read description fields for terrain validation
-        uint32_t terrainMask = desc ? desc->_shape : 0;
-        char allowOverlap = desc ? desc->_b24 : 0;
-        const ComponentDescription* entityTemplate = desc ? desc->_created : nullptr;
+        uint32_t terrainMask = desc ? desc->_placeBits : 0;
+        char allowOverlap = desc ? desc->_ignoreZones : 0;
+        const ComponentDescription* entityTemplate = desc ? desc->_allowAndRemove : nullptr;
         Map* mapPtr = gameWorld->m_game;
 
         // Build tile array for drag area
@@ -455,12 +455,12 @@ bool DragPlacementTool::CalcPath(int startCell, int endCell) {
 
     // Check the owner's constraint (+0x80 / +0x98 / +0x9C)
     const PlayerToolManager* dlg = dialogPtr;
-    if (dlg->field_0x80) {
+    if (dlg->tutorialRestricted) {
         int cGridSize = GameUpdateLoop::_singleton->m_game->size;
-        int cStartCol = dlg->field_0x98 % cGridSize;
-        int cStartRow = dlg->field_0x98 / cGridSize;
-        int cEndCol = dlg->field_0x9C % cGridSize;
-        int cEndRow = dlg->field_0x9C / cGridSize;
+        int cStartCol = dlg->tutorialStartCell % cGridSize;
+        int cStartRow = dlg->tutorialStartCell / cGridSize;
+        int cEndCol = dlg->tutorialEndCell % cGridSize;
+        int cEndRow = dlg->tutorialEndCell / cGridSize;
 
         if (minCol != cStartCol || minRow != cStartRow ||
             cEndCol != maxCol || cEndRow != maxRow) {
@@ -471,7 +471,7 @@ bool DragPlacementTool::CalcPath(int startCell, int endCell) {
     }
 
     // Clear existing path entities
-    const ComponentDescription* entityTemplate = this->placementDesc->_created;
+    const ComponentDescription* entityTemplate = this->placementDesc->_allowAndRemove;
 
     DragPlacementTool_ClearPathEntities_1018d0(this, minCol, minRow, maxCol, maxRow, entityTemplate);
 

@@ -159,7 +159,7 @@ static void AssignWorkToEntity(ForesterWork* self, CitizenComponent** citizenIBP
     // Set citizen flags
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->lastErrand = CitizenErrand::None;
-    citizen->field_0x30 = priority;
+    citizen->lastWorkId = priority;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0,
     // set the "owned work" flag
@@ -197,7 +197,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     { static int s_tc = 0;
       if (s_tc < 6) { ++s_tc;
         fprintf(stderr, "[ForesterWork::Execute] tick#%d this=%p workArea+0x10=%p cell+0x28=%d\n",
-                s_tc, (void*)this, field_10.Get(), field_28);
+                s_tc, (void*)this, _entity.Get(), _cell);
         fflush(stderr); } }
 
     // Save citizen ref for later use
@@ -217,11 +217,11 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     // -------------------------------------------------------
 
     // The WorkComponent of the workplace entity (self+0x10) (0x140003050)
-    WorkComponent* matDesc = field_10->FindComponent<WorkComponent>();
+    WorkComponent* matDesc = _entity->FindComponent<WorkComponent>();
 
     // Find ForesterComponent on workplace entity (DAT_1401c7740, ENDGAME B.3.9 D5:
     // by cell -- not the legacy variable name "WorkplaceComponent").
-    ForesterComponent* workplaceComp = field_10->FindComponent<ForesterComponent>();
+    ForesterComponent* workplaceComp = _entity->FindComponent<ForesterComponent>();
 
     // Get ForesterDescription from workplace description (+0x18) (DAT_1401c7778,
     // ENDGAME B.3.9 D5: by cell -- not the legacy variable name "RadiusComponent").
@@ -233,7 +233,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 
     // Find RadiusDescription on the workplace's ComponentDescription (+0x28) (DAT_1401c4870,
     // ENDGAME B.3.9 D5: by cell -- not the legacy variable name "MaterialComponent").
-    RadiusDescription* materialComp = FindSubComponentInList<RadiusDescription>(field_10->_description);
+    RadiusDescription* materialComp = FindSubComponentInList<RadiusDescription>(_entity->_description);
 
     // -------------------------------------------------------
     // Step 3: Check capacity — is material count at limit?
@@ -247,7 +247,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     bool atCapacity = resEntry.maxCount <= resEntry.currentCount;
 
     // Set the status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
-    StatusIconComponent* statusIcon = field_10->FindComponent<StatusIconComponent>();
+    StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
     statusIcon->SetFlag(2, atCapacity ? 1 : 0);
 
     // Get tree count (the assigned count, self+0x50)
@@ -279,13 +279,13 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     int maxAttempts = (int)searchArea;
 
     // Workplace grid cell position
-    int workplaceCell = field_28;
+    int workplaceCell = _cell;
     int cellRow = workplaceCell / mapSize;
     int cellCol = workplaceCell % mapSize;
 
     // Get the GrowthDescription from the forester description's material ref
     GrowthDescription* natResDesc = nullptr;
-    natResDesc = radiusComp->_ref20->FindDescription<GrowthDescription>();   // 0x14000c3c0
+    natResDesc = radiusComp->_naturalResource->FindDescription<GrowthDescription>();   // 0x14000c3c0
 
     // Get citizen's current position: CharacterComponent (+0x278) -> ModelComponent
     // (+0x68) -> the transform's translation (+0x158)
@@ -305,7 +305,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     uint32_t citizenGridCell = mapSz * citizenCellY + citizenCellX;
 
     // Get entity's grid cell for distance calculations
-    ComponentEntity* entityIBPBuf[2] = { field_10.Get(), nullptr };
+    ComponentEntity* entityIBPBuf[2] = { _entity.Get(), nullptr };
     uint32_t entityGridCell = EntityAnchorCell(entityIBPBuf, nullptr);
 
     // -------------------------------------------------------
@@ -416,7 +416,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                             bool densityOk = static_cast<uint8_t>(natResDesc->CheckFootprint(testCellX, testCellY));   // the door read AL
                             if (densityOk) {
                                 // Reset fail counter
-                                _field58 = 0;
+                                _failedSearchCount = 0;
 
                                 // Calculate world position for target cell
                                 float halfOffset = (float)(map->size >> 1) - kRdata_140172114;
@@ -430,7 +430,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                                 map->GetTerrainPos(pathPos, &targetPos.x, 0, nullptr);
 
                                 // The forester description's material ref for the plant action
-                                ComponentDescription* matDescRef = radiusComp->_ref20;
+                                ComponentDescription* matDescRef = radiusComp->_naturalResource;
 
                                 // Create plant action chain
                                 CitizenComponent* plantBuf[2] = { *citizenIBP, nullptr };
@@ -438,7 +438,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                                 uint32_t resCountBuf[4] = { 0, 0, 0, 0 };
                                 WorkAct_PlantWorkCtor_be6e0(
                                     plantBuf,                          // entityIBP
-                                    field_20,                          // priority (workplaceId)
+                                    _workId,                          // priority (workplaceId)
                                     matDescRef,                        // matDescRef
                                     0,                                 // param4
                                     pathPos,                           // pathPos
@@ -450,7 +450,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                                     0);                                // param11
 
                                 // Assign work and register with AI
-                                AssignWorkToEntity(this, citizenIBP, field_20);
+                                AssignWorkToEntity(this, citizenIBP, _workId);
                                 return 2;
                             }
                         }
@@ -504,7 +504,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                             if (!canPath2) goto next_attempt;
 
                             // Reset fail counter
-                            _field58 = 0;
+                            _failedSearchCount = 0;
 
                             // Calculate world position for nearest cell
                             float halfOffset2 = (float)(map->size >> 1) - kRdata_140172114;
@@ -558,14 +558,14 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
                             NaturalResourceComponent* cutTargetBuf[2] = { natResComp2, nullptr };
                             WorkAct_PerformWorkCtor_c1eb0(
                                 cutBuf,                            // entityIBP
-                                field_20,                          // priority (workplaceId)
+                                _workId,                          // priority (workplaceId)
                                 cutTargetBuf,                      // targetIBP
                                 cutPathPos,                        // position
                                 0,                                 // flag
                                 1);                                // param6
 
                             // Assign work and register with AI
-                            AssignWorkToEntity(this, citizenIBP, field_20);
+                            AssignWorkToEntity(this, citizenIBP, _workId);
                             return 2;
                         }
                     }
@@ -580,7 +580,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     // -------------------------------------------------------
     // Step 7: No work found — handle failure
     // -------------------------------------------------------
-    int failCount = _field58;
+    int failCount = _failedSearchCount;
 
     if (failCount > maxAttempts) {
         // Too many failures — check if citizen's storage has items, then replan
@@ -597,10 +597,10 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     else {
         // Play idle animation and increment fail counter
         CitizenComponent* idleBuf[2] = { *citizenIBP, nullptr };
-        WorkAct_PlayAnimationCtor_c2490(idleBuf, field_20, 0);
+        WorkAct_PlayAnimationCtor_c2490(idleBuf, _workId, 0);
 
         // Assign work (idle animation) and register with AI
-        int priority = field_20;
+        int priority = _workId;
         CitizenComponent* citizenEnt2 = *citizenIBP;
 
         // Call vtable slot +0x50 (GetTarget)
@@ -608,7 +608,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
         GetTarget(&workEnt);
 
         citizenEnt2->statusFlags |= Bits(CitizenStatus::TaskDone);
-        citizenEnt2->field_0x30 = priority;
+        citizenEnt2->lastWorkId = priority;
         citizenEnt2->lastErrand = CitizenErrand::None;
 
         if (workEnt == citizenEnt2->profession && priority >= 0) {
@@ -620,7 +620,7 @@ int ForesterWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
         WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenIBP);
 
         // Increment fail counter
-        _field58 = failCount + 1;
+        _failedSearchCount = failCount + 1;
     }
 
     return 2;
@@ -658,7 +658,7 @@ void ForesterWork::Persist(IO::Stream& stream) {
     WorkBST_BST_Serialize_296b0(&_citizens, &serializer2);
 
     // Serialize int field at self+0x58
-    serializer2.Serialize(_field58, nullptr);
+    serializer2.Serialize(_failedSearchCount, nullptr);
 }
 
 
@@ -834,7 +834,7 @@ int ForesterWork::Validate() {
 // Hidden return ptr ABI: RCX=self, RDX=retbuf.
 // ============================================================
 Profession** ForesterWork::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }
@@ -848,7 +848,7 @@ int ForesterWork::GetPriority() {
 }
 // Ctor — the bytes the tree's factory built (Work_GenericCtor): the Work base init,
 // the leaf fields zeroed. The three stamps are the compiler's.
-ForesterWork::ForesterWork() : AutoPickupWork(), _field58(0) {
+ForesterWork::ForesterWork() : AutoPickupWork(), _failedSearchCount(0) {
 }
 
 // ============================================================

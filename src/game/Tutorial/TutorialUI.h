@@ -49,7 +49,7 @@ private:
     void QuitTutorial();                                           // 0x1400e34e0
 
 public:
-    uint64_t data30;             // +0x30: zeroed, never read by the class
+    uint64_t unusedElement;             // +0x30: zeroed, never read by the class
     UI::Element* preText;        // +0x38: InternalPtr<UI::Element> "preText"
     UI::Element* postText;       // +0x40: InternalPtr<UI::Element> "postText"
     UI::Element* imageTable;     // +0x48: InternalPtr<UI::Element> "imageTable"
@@ -57,7 +57,7 @@ public:
     UI::Element* quitButton;     // +0x58: InternalPtr<UI::Element> "quitButton" (id 0x579)
 };
 
-static_assert(offsetof(TutorialUI, data30) == 0x30, "+0x30");
+static_assert(offsetof(TutorialUI, unusedElement) == 0x30, "+0x30");
 static_assert(offsetof(TutorialUI, preText) == 0x38, "+0x38");
 static_assert(offsetof(TutorialUI, postText) == 0x40, "+0x40");
 static_assert(offsetof(TutorialUI, imageTable) == 0x48, "+0x48");

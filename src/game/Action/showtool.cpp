@@ -62,13 +62,13 @@ void ShowTool::Persist(IO::Stream& stream) {
     Action::Persist(stream);   // inlined in retail: Serializer(stream, 0), status +0x18
 
     IO::Serializer ser(stream, 0);
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, CitizenComponent::TypeId())) {   // cell 0x1401c7158
-            _field20 = nullptr;
+    _citizen.InternalBasePtr::Serialize(ser);
+    if (!_citizen.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_citizen, CitizenComponent::TypeId())) {   // cell 0x1401c7158
+            _citizen = nullptr;
         }
     }
-    ser.Serialize(_field28, nullptr);   // +0x28 int
+    ser.Serialize(_toolId, nullptr);   // +0x28 int
 }
 
 // ============================================================
@@ -82,12 +82,12 @@ int  ShowTool::AbstractImpl(ActionStack* actionStack) {
     // B6 (14d G73 / G74): 0x14004271a-0x140042772 tests neither the citizen nor its removal:
     // toolId > 10 (unsigned) and != -2 -> 0x1401176e0 on [+0x20]; else 0x1401173b0 on
     // [+0x20] with the toolId (the carry path, -2, included).
-    uint32_t toolId = static_cast<uint32_t>(_field28);
+    uint32_t toolId = static_cast<uint32_t>(_toolId);
     if (toolId > 10 && toolId != 0xFFFFFFFE) {
-        _field20.Get()->HideTool();   // 0x1401176e0
+        _citizen.Get()->HideTool();   // 0x1401176e0
         return 1;
     }
-    _field20.Get()->ShowTool(static_cast<int>(toolId));   // 0x1401173b0
+    _citizen.Get()->ShowTool(static_cast<int>(toolId));   // 0x1401173b0
     return 1;
 }
 
@@ -97,7 +97,7 @@ int  ShowTool::AbstractImpl(ActionStack* actionStack) {
 // test (B6 14d G73).
 // ============================================================
 void ShowTool::CheckEntity() {
-    _field20.Get()->HideTool();   // 0x1401176e0
+    _citizen.Get()->HideTool();   // 0x1401176e0
 }
 
 // ============================================================
@@ -106,7 +106,7 @@ void ShowTool::CheckEntity() {
 // 0x14004269a / 0x1400426a0 read [+0x20] then its +0x10 with no test (B6 14d G73).
 // ============================================================
 bool ShowTool::GetTarget(ComponentEntity** param) {
-    return _field20->_entity.Get() == *param;
+    return _citizen->_entity.Get() == *param;
 }
 
 // ============================================================
@@ -121,8 +121,8 @@ bool ShowTool::GetTarget(ComponentEntity** param) {
 // the tree's factory zero-filled every field instead. B38 B8-1: the retail stores are kept; the
 // fields retail leaves unwritten stay zero-filled (MemAlloc gives no guarantee).
 ShowTool::ShowTool()
-    : _field20(nullptr),
-      _field28(-1),
+    : _citizen(nullptr),
+      _toolId(-1),
       _pad2C{} {}
 
 // [3] 0x140042780
@@ -153,6 +153,6 @@ void ShowTool::Exit(ActionStack*) {}
 // door's double store `+0x20 = 0; +0x20 = *param_2`: the InternalPtr's own ctor stores
 // the 0), +0x28.
 ShowTool::ShowTool(CitizenComponent* const* citizen, int toolId)
-    : _field20(*citizen), _field28(toolId) {}
+    : _citizen(*citizen), _toolId(toolId) {}
 
 DEFINE_EXE_TYPE(ShowTool, "Action")

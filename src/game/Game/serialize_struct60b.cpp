@@ -42,8 +42,8 @@
 GeometryBatch::GeometryBatch()
     : material(nullptr), vertices(), indices(), slot(-1),
       minX(0), minY(0), maxX(0), maxY(0),
-      field_0x3C(0), field_0x40(0), field_0x44(false),
-      field_0x48{0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, alternateKey(false) {}
+      alpha(0), rotation(0), tiled(false),
+      uvParams{0.0f, 0.0f, 0.0f, 0.0f, 0.0f}, alternateKey(false) {}
 
 // 0x14001f5e0: material copied; each array header zeroed (its member ctor) and
 // deep-assigned (0x14001fdb0 / 0x14001fe60 = Collection::Array<T>::operator=:
@@ -58,12 +58,12 @@ GeometryBatch::GeometryBatch(const GeometryBatch& s)
     minY       = s.minY;                               // +0x30
     maxX       = s.maxX;                               // +0x34
     maxY       = s.maxY;                               // +0x38
-    field_0x3C = s.field_0x3C;                         // +0x3c byte
-    field_0x40 = s.field_0x40;                         // +0x40
-    field_0x44 = s.field_0x44;                         // +0x44 byte
+    alpha = s.alpha;                         // +0x3c byte
+    rotation = s.rotation;                         // +0x40
+    tiled = s.tiled;                         // +0x44 byte
     for (int i = 0; i < 5; ++i)                        // +0x48 .. +0x58
-        field_0x48[i] = s.field_0x48[i];
-    field_0x5C   = s.field_0x5C;                       // +0x5c byte
+        uvParams[i] = s.uvParams[i];
+    isDecal   = s.isDecal;                       // +0x5c byte
     alternateKey = s.alternateKey;                     // +0x5d byte
 }
 

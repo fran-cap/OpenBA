@@ -700,7 +700,7 @@ void UI::UserInterface::SetCursor(Object::ExternalPtr<Cursor> cursorPtr) {
     _cursor = cursor;
     if (!cursor) {  return; }
 
-    // B.4 LEFT: `SpriteSheet::m_field30` (+0x30) is a `uint64_t` another block
+    // B.4 LEFT: `SpriteSheet::m_materialInstance` (+0x30) is a `uint64_t` another block
     // writes as an integer (saveload_draw.cpp). The sheet's MaterialInstance
     // texture 0 (`_textures` +0x50, entry +0x08 the image) goes to
     // `DeviceData` slot 8 (+0x40) `SetImageBuffer(image, hotX, hotY)`
@@ -710,7 +710,7 @@ void UI::UserInterface::SetCursor(Object::ExternalPtr<Cursor> cursorPtr) {
 
     const SpriteSheet* sheet = cursor->_spriteSheet.Get();
     const Graphics::MaterialInstance* const material =
-        sheet->m_field30;
+        sheet->m_materialInstance;
     Video::ImageBuffer* const image = material->_textures.GetData()[0].image;
 
     backend->SetImageBuffer(image, cursor->_hotSpotX, cursor->_hotSpotY);
@@ -1070,7 +1070,7 @@ void UI::UserInterface::UpdateEvents() {
         // DialogInstance vtable slot 8 (+0x40) `OnElementEvent` — VIRTUAL, so
         // an exe dialog's hand-built slot 8 is what runs.
         ev.dialog->OnElementEvent(&elem,
-            ev.eventId, ev.arg14, ev.arg18, ev.arg1C, ev.arg20, ev.userData);
+            ev.eventId, ev.elementId, ev.mouseX, ev.mouseY, ev.value, ev.userData);
     }
 
     _events._size = 0;   // FUN_180079df0 -- see banner

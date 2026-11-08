@@ -101,7 +101,7 @@ static void* MemAlloc(int64_t size, int64_t align) {
 void DropOffRawMaterial::DropOnGround(ComponentDescription* material, int count) {
     GameUpdateLoop* world = GameUpdateLoop::_singleton;
     if (count == 0) return;
-    CitizenComponent* citizen = _field30.Get();   // 0x1400c7916 [R14+0x30] (RCX = the action)
+    CitizenComponent* citizen = _citizen.Get();   // 0x1400c7916 [R14+0x30] (RCX = the action)
 
     Map* map = world->m_game;
     // 0x14009bd40's allow slot (retail's local_res20, a null InternalBasePtr; the same stack
@@ -143,7 +143,7 @@ void DropOffRawMaterial::DropOnGround(ComponentDescription* material, int count)
 // because 78c0 mutates it (12d150 compacts the array).
 // ============================================================
 void DropOffRawMaterial::SpillAllStorage() {
-    CitizenComponent* citizen = _field30.Get();   // InternalPtr<CitizenComponent> (B.4 ACT-b)
+    CitizenComponent* citizen = _citizen.Get();   // InternalPtr<CitizenComponent> (B.4 ACT-b)
     StorageComponent* storage = citizen->_entity->FindComponent<StorageComponent>();   // 0x140006270
     int n = storage->storageSlots._size;
     while (0 < n) {
@@ -158,17 +158,17 @@ void DropOffRawMaterial::SpillAllStorage() {
 
 // ============================================================
 // FUN_1400c7620 — DropOffRawMaterial executor (deposit-or-move branch).
-// The deposit amount = min(self->_field24 cap, the free count from 1167c0); if it fits
+// The deposit amount = min(self->_maxCount cap, the free count from 1167c0); if it fits
 // (StorageCanAdd 0x14012cd80) deposit it (d000 AddItem + 116760 source subtract) and return
-// 1. Otherwise, if self->_field20 is set, search for a storage destination (8d590); if none,
-// spill via 78c0 and return 2; else stash the found entity at self->_field38, build a
+// 1. Otherwise, if self->_searchOtherStorage is set, search for a storage destination (8d590); if none,
+// spill via 78c0 and return 2; else stash the found entity at self->_destination, build a
 // MoveTo toward it and push it (c54e0). Returns 1.
 // ============================================================
 uint64_t DropOffRawMaterial::Deposit(ActionStack* stack, StorageComponent* const* target,
                                      ComponentDescription* material) {
-    CitizenComponent* citizen = _field30.Get();   // InternalPtr<CitizenComponent> (B.4 ACT-b)
+    CitizenComponent* citizen = _citizen.Get();   // InternalPtr<CitizenComponent> (B.4 ACT-b)
     int iVar5 = citizen->StorageCountDelta(material);   // 0x1401167c0
-    int iVar8 = _field24;
+    int iVar8 = _maxCount;
     int iVar9 = iVar5;
     if ((-1 < iVar8) && (iVar9 = iVar8, iVar5 < iVar8)) {
         iVar9 = iVar5;
@@ -180,7 +180,7 @@ uint64_t DropOffRawMaterial::Deposit(ActionStack* stack, StorageComponent* const
             return 1;
         }
     }
-    if (_field20 != 0) {
+    if (_searchOtherStorage != 0) {
         GameUpdateLoop* world = GameUpdateLoop::_singleton;
         Map* map = world->m_game;
         float dropPos[6] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};   // local_50
@@ -203,7 +203,7 @@ uint64_t DropOffRawMaterial::Deposit(ActionStack* stack, StorageComponent* const
             DropOnGround(material, iVar9);
             return 2;
         }
-        _field38 = found;
+        _destination = found;
         void* mem = MemAlloc(0x480, 8);
         if (mem != nullptr) {
             CharacterComponent* character =
@@ -221,7 +221,7 @@ uint64_t DropOffRawMaterial::Deposit(ActionStack* stack, StorageComponent* const
 // FUN_1400bbea0 — RemoveAnimal_Action Ctor. Builds a child-action sub-tree on the citizen's
 // action stack (citizen->character, +0x48). `task` = a CompleteTask arg; `destination` =
 // the MoveTo destination; `createFlag` = the CreateRawMaterial flag arg; `animal` = the
-// animal's component IBP; `description` = the animal's AnimalDescription (its _refs are
+// animal's component IBP; `description` = the animal's AnimalDescription (its _rawMaterials are
 // the raw-material templates it leaves); `gate` (low byte). If gated, installs a
 // SendComponentMessage and pushes a CompleteTask. Then for each template pushes a
 // CreateRawMaterial action; appends a RemoveAnimal, a PerformWork, and a MoveTo; finally
@@ -247,10 +247,10 @@ void RemoveAnimalActions(CitizenComponent* const* citizenIBP, uint32_t task, flo
             ComponentEntity* entity = citizen->_entity.Get();
             message = new (mem) SendComponentMessage(&entity, &msgId, 0, &nullIBP, 0);   // 0x1400cb1d0
         }
-        if (character->actionStack.field_0x10 != nullptr) {
-            character->actionStack.field_0x10.DeletePtr();
+        if (character->actionStack.completionAction != nullptr) {
+            character->actionStack.completionAction.DeletePtr();
         }
-        character->actionStack.field_0x10 = message;
+        character->actionStack.completionAction = message;
         // --- CompleteTask child action ---
         void* mem2 = MemAlloc(0x38, 8);
         Action* complete = nullptr;
@@ -272,9 +272,9 @@ void RemoveAnimalActions(CitizenComponent* const* citizenIBP, uint32_t task, flo
     uint32_t capacity = static_cast<uint32_t>(storage->capacity);
 
     // --- CreateRawMaterial action per template ---
-    // AnimalDescription::_refs: the raw-material ComponentDescription templates.
-    ComponentDescription* const* templates = description->_refs;
-    if (0 < description->_refCount) {
+    // AnimalDescription::_rawMaterials: the raw-material ComponentDescription templates.
+    ComponentDescription* const* templates = description->_rawMaterials;
+    if (0 < description->_rawMaterialCount) {
         int i = 0;
         do {
             void* mem = MemAlloc(0x58, 8);
@@ -302,7 +302,7 @@ void RemoveAnimalActions(CitizenComponent* const* citizenIBP, uint32_t task, flo
             ::Object::InternalPtr<Action> pushed(create);
             ActionStackPush(stack, &pushed);   // 0x1400c54e0
             i = i + 1;
-        } while (i < description->_refCount);
+        } while (i < description->_rawMaterialCount);
     }
 
     // --- RemoveAnimal action (raw 0x28-byte, no dedicated ctor) ---

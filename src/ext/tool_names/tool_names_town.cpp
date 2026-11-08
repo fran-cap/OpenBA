@@ -80,7 +80,7 @@ const RawMaterialDescription* ToolFor(const CitizenComponent* citizen, int32_t u
     if (!Claim(who, uses, path)) return nullptr;
     const RawMaterialDescription* item = ItemAtPath(path);
     // the game no longer has the item, or it is another tool now
-    if (item == nullptr || item->_i54 != uses) return nullptr;
+    if (item == nullptr || item->_useValue != uses) return nullptr;
     Remember(citizen, item, uses, who, path);
     return item;
 }

@@ -76,7 +76,7 @@ void FinishTutorialInstance::Persist(IO::Stream& stream) {
     // 0x1401c6668, TutorialInstance's cell — Table 1), exactly retail's
     // 0x1400d7c3a `MOV EDX,[0x1401c6668]` / 0x1400d7c40 `CALL [0x140152a98]`.
     // InternalPtr<T>::Serialize(ser, typeId) is that sequence.
-    _field20.Serialize(serializer, TutorialInstance::TypeId());
+    _tutorialInstance.Serialize(serializer, TutorialInstance::TypeId());
 }
 
 // ============================================================
@@ -120,7 +120,7 @@ void FinishTutorialInstance::Startup() {
     }
 
     // Step 4: store the new instance in self+0x20
-    _field20 = newObj;
+    _tutorialInstance = newObj;
 
     // Step 5: IsDerivedFrom check on self+0x18 (goal pointer) against FinishTutorialGoal
     // (0x1400d7b2d: CALL IsDerivedFrom; XOR EDI,EDI; CMOVNZ RDI,RBX).
@@ -134,8 +134,8 @@ void FinishTutorialInstance::Startup() {
     // Step 6: CheckPtr on self+0x20, then copy goal fields to tutInst, with no
     // test of either (0x1400d7b44: MOV RDX,[RSI]; MOV RAX,[RDI+0x30];
     // MOV [RDX+0x30],RAX; MOV dword ptr [RDX+0x10],0).
-    TutorialInstance* tutInst = _field20.Get();
-    tutInst->tutorialDef = ftGoal->_field30;
+    TutorialInstance* tutInst = _tutorialInstance.Get();
+    tutInst->tutorialDef = ftGoal->_tutorial;
     tutInst->currentStep = 0;
 
     { if (s_logStartup.fetch_add(1) == 0) {
@@ -184,7 +184,7 @@ void FinishTutorialInstance::Update(const System::Time& time, const Achievement:
     const Achievement::GoalList* p3 = &list;      // R8, forwarded unchanged
 
     // Read the TutorialInstance pointer
-    TutorialInstance* tutInst = _field20.Get();
+    TutorialInstance* tutInst = _tutorialInstance.Get();
     { if (s_logUpdate.fetch_add(1) < 3) {
         std::fprintf(stderr, "[FinTutInst] Slot5 TICK self=%p tutInst=%p\n",
                 static_cast<void*>(self), static_cast<void*>(tutInst)); std::fflush(stderr); } }
@@ -205,7 +205,7 @@ void FinishTutorialInstance::Update(const System::Time& time, const Achievement:
 Achievement::Goal::GoalState FinishTutorialInstance::CheckGoalState() const {
     // Read the TutorialInstance pointer and its tutorial definition, with no test
     // (0x1400d7bb0: MOV RDX,[RBX]; MOV RCX,[RDX+0x30]; MOV ECX,[RCX+0x30]).
-    const TutorialInstance* tutInst = _field20.Get();
+    const TutorialInstance* tutInst = _tutorialInstance.Get();
     const Tutorial* tutDef = tutInst->tutorialDef;
 
     // Compare: totalSteps <= currentStep
@@ -220,13 +220,13 @@ Achievement::Goal::GoalState FinishTutorialInstance::CheckGoalState() const {
 // ============================================================
 // create 0x140026070: MemAlloc(0x28, 8), GoalInstance() (import slot
 // 0x140152858), the vptr, +0x20 = 0 (the base ctor zeroes +0x10 and +0x18).
-FinishTutorialInstance::FinishTutorialInstance() : _field20(nullptr) {}
+FinishTutorialInstance::FinishTutorialInstance() : _tutorialInstance(nullptr) {}
 
 // The dtor inside [0] 0x140026200 (and 0x1400d7c70): stamp, DeletePtr on the
 // TutorialInstance handle at +0x20; the compiler then runs ~GoalInstance
 // (re-stamp + ~Internal, the InternalFactory swap-remove).
 FinishTutorialInstance::~FinishTutorialInstance() {
-    _field20.DeletePtr();
+    _tutorialInstance.DeletePtr();
 }
 
 ::Object::Base* FinishTutorialInstance::CreateNewObject() {

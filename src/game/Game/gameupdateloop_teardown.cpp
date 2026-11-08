@@ -284,8 +284,8 @@ void PlayerToolManager::Teardown() {
         set.root = nullptr;
         set.count = 0;
     };
-    freeSet(field_0x60);
-    freeSet(field_0x50);
+    freeSet(trackedEntities);
+    freeSet(pinnedToolDialogs);
 
     // Tool registry tree (+0x10): nodes carry an IBP payload at +0x10.
     IbpTree_Clear_2de90(&toolRegistry);
@@ -322,15 +322,15 @@ void WorkScheduler::Teardown() {
 
     // Tree at +0x120 whose nodes each own a sub-tree (kids +0x20/+0x28).
     {
-        WorkSchedulerBucketNode* root = field_0x120;
+        WorkSchedulerBucketNode* root = professionBucketRoot;
         if (root) {
-            TreeNodeFree_2ce60(&field_0x120, root->left);
-            TreeNodeFree_2ce60(&field_0x120, root->right);
+            TreeNodeFree_2ce60(&professionBucketRoot, root->left);
+            TreeNodeFree_2ce60(&professionBucketRoot, root->right);
             NodeSubTree_Clear_2cf30(root);
             MemFree(root);
         }
-        field_0x120 = nullptr;
-        field_0x128 = 0;
+        professionBucketRoot = nullptr;
+        professionBucketCount = 0;
     }
 
     // 15 tree headers of 0x10 bytes at +0x30, cleared back to front.
@@ -338,25 +338,25 @@ void WorkScheduler::Teardown() {
 
     // Tree at +0x20 (kids +0x18/+0x20).
     {
-        WorkSchedulerNode20* root = field_0x20;
+        WorkSchedulerNode20* root = unusedTreeRoot;
         if (root) {
-            WorkBase_TreeNodeFree(&field_0x20, root->left);
-            WorkBase_TreeNodeFree(&field_0x20, root->right);
+            WorkBase_TreeNodeFree(&unusedTreeRoot, root->left);
+            WorkBase_TreeNodeFree(&unusedTreeRoot, root->right);
             MemFree(root);
         }
-        field_0x20 = nullptr;
-        field_0x28 = 0;
+        unusedTreeRoot = nullptr;
+        unusedTreeCount = 0;
     }
 
     // Tree at +0x10 (kids +0x10/+0x18).
     {
-        WorkSchedulerCountNode* root = field_0x10.root;
+        WorkSchedulerCountNode* root = queueOrderTree.root;
         if (root) {
-            WorkBase_TreeNodeFree(&field_0x10.root, root->left);
-            WorkBase_TreeNodeFree(&field_0x10.root, root->right);
+            WorkBase_TreeNodeFree(&queueOrderTree.root, root->left);
+            WorkBase_TreeNodeFree(&queueOrderTree.root, root->right);
             MemFree(root);
         }
-        field_0x10.count = 0;
-        field_0x10.root = nullptr;
+        queueOrderTree.count = 0;
+        queueOrderTree.root = nullptr;
     }
 }

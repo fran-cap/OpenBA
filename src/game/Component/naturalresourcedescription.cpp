@@ -56,52 +56,52 @@ inline float FloatBits(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f
 NaturalResourceDescription::NaturalResourceDescription()
     : Description(),
       _building(nullptr),
-      _f28(1.0f),
-      _f2c(4.0f),
-      _f30(1.0f),
-      _f34(0.0f),
-      _f38(0.5f),
-      _f3c(0.0f),
-      _f40(16.0f),
-      _f44(FloatBits(0x3f733333)),
-      _b48(false),
-      _f4c(1.0f),
-      _f50(1.0f),
-      _f54(1.0f),
-      _f58(0.0f),
-      _i5c(1),
-      _f60(0.0f),
-      _b64(false),
+      _noisePersistance(1.0f),
+      _noiseOctaves(4.0f),
+      _noiseScale(1.0f),
+      _noiseCutoff(0.0f),
+      _spawnChance(0.5f),
+      _minHeight(0.0f),
+      _maxHeight(16.0f),
+      _maxAngle(FloatBits(0x3f733333)),
+      _groupModels(false),
+      _groupPersistance(1.0f),
+      _groupOctaves(1.0f),
+      _groupScale(1.0f),
+      _groupCutOff(0.0f),
+      _groupRandom(1),
+      _positionTolerance(0.0f),
+      _animated(false),
       _profession(nullptr),
-      _u80(0xb) {
-    RtSystem_Time_Ctor(&_time68, 1.0f);   // ??0Time@System@@QEAA@M@Z
-    RtSystem_Time_Ctor(&_time70, 1.0f);
+      _toolType(0xb) {
+    RtSystem_Time_Ctor(&_preAnimateTime, 1.0f);   // ??0Time@System@@QEAA@M@Z
+    RtSystem_Time_Ctor(&_postAnimateTime, 1.0f);
 }
 
 // [5] 0x140125e10: stream order as retail.
 bool NaturalResourceDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
     ::Object::SerializeExternal<ComponentDescription>(ser, _building);   // +0x20 ExternalPtr<BuildingDescription>
-    ser.Serialize(_f28, nullptr);
-    ser.Serialize(_f2c, nullptr);
-    ser.Serialize(_f30, nullptr);
-    ser.Serialize(_f34, nullptr);
-    ser.Serialize(_f38, nullptr);
-    ser.Serialize(_b48, nullptr);
-    ser.Serialize(_f4c, nullptr);
-    ser.Serialize(_f50, nullptr);
-    ser.Serialize(_f54, nullptr);
-    ser.Serialize(_f58, nullptr);
-    ser.Serialize(_i5c, nullptr);
-    ser.Serialize(_f3c, nullptr);
-    ser.Serialize(_f40, nullptr);
-    ser.Serialize(_f44, nullptr);
-    ser.Serialize(_b64, nullptr);
-    _time68.Serialize(ser);
-    _time70.Serialize(ser);
-    ser.Serialize(_u80, nullptr);   // enum through the UINT door
+    ser.Serialize(_noisePersistance, nullptr);
+    ser.Serialize(_noiseOctaves, nullptr);
+    ser.Serialize(_noiseScale, nullptr);
+    ser.Serialize(_noiseCutoff, nullptr);
+    ser.Serialize(_spawnChance, nullptr);
+    ser.Serialize(_groupModels, nullptr);
+    ser.Serialize(_groupPersistance, nullptr);
+    ser.Serialize(_groupOctaves, nullptr);
+    ser.Serialize(_groupScale, nullptr);
+    ser.Serialize(_groupCutOff, nullptr);
+    ser.Serialize(_groupRandom, nullptr);
+    ser.Serialize(_minHeight, nullptr);
+    ser.Serialize(_maxHeight, nullptr);
+    ser.Serialize(_maxAngle, nullptr);
+    ser.Serialize(_animated, nullptr);
+    _preAnimateTime.Serialize(ser);
+    _postAnimateTime.Serialize(ser);
+    ser.Serialize(_toolType, nullptr);   // enum through the UINT door
     ::Object::SerializeExternal<Profession>(ser, _profession);   // +0x78 ExternalRef<Profession> (0x140018020)
-    ser.Serialize(_f60, nullptr);
+    ser.Serialize(_positionTolerance, nullptr);
     return true;
 }
 

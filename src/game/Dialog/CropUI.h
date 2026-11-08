@@ -46,12 +46,12 @@ public:
     // trivially destructible), and none of CropUI's bodies (OnCreated 0x1400b2b50,
     // OnUpdateLayout 0x1400b2a50, SetResource 0x1400b2920, GetResource 0x1400b29d0)
     // reads them: the element type is not recoverable, so they are byte arrays.
-    Collection::Array<uint8_t> array40;   // +0x40
-    Collection::Array<uint8_t> array50;   // +0x50
+    Collection::Array<uint8_t> soilWholeStars;   // +0x40
+    Collection::Array<uint8_t> soilHalfStars;   // +0x50
 };
 
 static_assert(sizeof(CropUI) == 0x60, "CropUI is 0x60 (create 0x140020b10 MemAlloc(0x60))");
 static_assert(alignof(CropUI) == 8, "qword-aligned (the vptr)");
 static_assert(offsetof(CropUI, yield) == 0x38, "yield @ +0x38 (0x1400b2b50)");
-static_assert(offsetof(CropUI, array40) == 0x40, "+0x40");
-static_assert(offsetof(CropUI, array50) == 0x50, "+0x50");
+static_assert(offsetof(CropUI, soilWholeStars) == 0x40, "+0x40");
+static_assert(offsetof(CropUI, soilHalfStars) == 0x50, "+0x50");

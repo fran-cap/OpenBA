@@ -1092,7 +1092,7 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
         constexpr double kTooltipDelaySeconds = 0.25;
 
         // Ext seam (NOT RETAIL, P11b): null (retail, the faithful profile) = the plain button test.
-        const bool buttonsUp = state.b08 == 0 && state.b09 == 0 && state.leftDown == 0;
+        const bool buttonsUp = state.rightDown == 0 && state.middleDown == 0 && state.leftDown == 0;
         if (buttonsUp || (UserInterface::_extHoverWhileDown != nullptr && UserInterface::_extHoverWhileDown(this))) {
             const int32_t mx = state.mouseX;
             const int32_t my = state.mouseY;
@@ -1158,14 +1158,14 @@ void DialogInstance::Update(const System::Time& time, UserInterface* ui,
             const int32_t px = state.mouseX;
             const int32_t py = state.mouseY;
             if (state.buttonPressed != 0) PushEvent(EventId::DialogLeftPress,   0, px, py);
-            if (state.b03 != 0)           PushEvent(EventId::DialogRightPress,  0, px, py);
-            if (state.b02 != 0)           PushEvent(EventId::DialogMiddlePress, 0, px, py);
-            state.leftDown = 0;          state.b08 = 0;        // retail: one WORD store at +0x07
-            state.buttonPressed = 0;     state.b02 = 0;        // one WORD store at +0x01
-            state.b04 = 0;               state.b05 = 0;        // one WORD store at +0x04
-            state.b09 = 0;
-            state.b03 = 0;
-            state.b06 = 0;
+            if (state.rightPressed != 0)           PushEvent(EventId::DialogRightPress,  0, px, py);
+            if (state.middlePressed != 0)           PushEvent(EventId::DialogMiddlePress, 0, px, py);
+            state.leftDown = 0;          state.rightDown = 0;        // retail: one WORD store at +0x07
+            state.buttonPressed = 0;     state.middlePressed = 0;        // one WORD store at +0x01
+            state.leftReleased = 0;               state.middleReleased = 0;        // one WORD store at +0x04
+            state.middleDown = 0;
+            state.rightPressed = 0;
+            state.rightReleased = 0;
             state.mouseCaptured = 1;
         }
     }

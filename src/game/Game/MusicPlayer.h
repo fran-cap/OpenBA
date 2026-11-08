@@ -27,7 +27,7 @@ public:
     uint32_t        effect;      // +0x00 the playing track's audio effect handle (ctor -1)
     uint8_t         _pad04[4];    // +0x04 not written
     MusicList*      trackList;    // +0x08 ExternalPtr (Load's Find)
-    Object::External* field_0x10; // +0x10 the last played track's sound (ctor 0, qword); 0x1400a40e0 compares and stores it
+    Object::External* lastTrack; // +0x10 the last played track's sound (ctor 0, qword); 0x1400a40e0 compares and stores it
 
     void Update();                // 0x1400a40e0 (body: unreg_lane5_musicplayer.cpp, B4 GAME-c)
 };
@@ -36,4 +36,4 @@ static_assert(sizeof(MusicPlayer) == 0x18, "MusicPlayer is 0x18 (Load MemAlloc(0
 static_assert(offsetof(MusicPlayer, effect) == 0x00, "MusicPlayer::effect @ +0x00");
 static_assert(offsetof(MusicPlayer, _pad04) == 0x04, "MusicPlayer +0x04");
 static_assert(offsetof(MusicPlayer, trackList) == 0x08, "MusicPlayer::trackList @ +0x08");
-static_assert(offsetof(MusicPlayer, field_0x10) == 0x10, "MusicPlayer +0x10");
+static_assert(offsetof(MusicPlayer, lastTrack) == 0x10, "MusicPlayer +0x10");

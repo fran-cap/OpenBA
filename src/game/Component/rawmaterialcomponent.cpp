@@ -55,35 +55,35 @@
 // old elements, writes the material into the new tail slot, and frees the old buffer.
 void CitizenBehavior::RegisterRawMaterial(ComponentDescription* material) {
     // Scan for existing entry
-    int count = field_0x110._size;
-    ComponentDescription** arr = field_0x110._data;
+    int count = knownRawMaterials._size;
+    ComponentDescription** arr = knownRawMaterials._data;
     for (int64_t i = 0; i < count; i++) {
         if (arr[i] == material) {
             return;
         }
     }
 
-    int oldCount = field_0x110._size;
+    int oldCount = knownRawMaterials._size;
     int newCount = oldCount + 1;
     if (newCount == oldCount) return; // unreachable, matches original guard
 
-    ComponentDescription** oldBuf = field_0x110._data;
-    field_0x110._size = newCount;
+    ComponentDescription** oldBuf = knownRawMaterials._data;
+    knownRawMaterials._size = newCount;
 
-    if (field_0x110._capacity < newCount) {
-        field_0x110._capacity = newCount;
+    if (knownRawMaterials._capacity < newCount) {
+        knownRawMaterials._capacity = newCount;
         if (oldCount != 0) {
-            field_0x110._capacity = newCount * 3;
+            knownRawMaterials._capacity = newCount * 3;
         }
-        field_0x110._data = static_cast<ComponentDescription**>(
-            System::MemoryAllocator::MemAlloc((uint64_t)((int64_t)field_0x110._capacity << 3), 8));
+        knownRawMaterials._data = static_cast<ComponentDescription**>(
+            System::MemoryAllocator::MemAlloc((uint64_t)((int64_t)knownRawMaterials._capacity << 3), 8));
     }
 
     int start = 0;
-    if (oldBuf == field_0x110._data) {
+    if (oldBuf == knownRawMaterials._data) {
         start = oldCount;
     }
-    ComponentDescription** dst = field_0x110._data;
+    ComponentDescription** dst = knownRawMaterials._data;
     for (int i = start; i < newCount; i++) {
         ComponentDescription** slot = dst + i;
         if (slot) {
@@ -95,7 +95,7 @@ void CitizenBehavior::RegisterRawMaterial(ComponentDescription* material) {
         }
     }
 
-    if (oldBuf != field_0x110._data) {
+    if (oldBuf != knownRawMaterials._data) {
         System::MemoryAllocator::MemFree(oldBuf);
     }
 }

@@ -116,13 +116,13 @@ static_assert(sizeof(OverlayVertex) == 0x18, "the 0x18-byte overlay vertex (Begi
 extern "C" void PlayerTileRender_TerrainCorners_b10e0(const WorldGeometry* param_1, int col, int row,
                                                       float* out /*18 floats*/) {
     const float hScale = C_hScale();
-    int base = (param_1->_gridSize - param_1->_fieldC4) >> 1;
+    int base = (param_1->_gridSize - param_1->_mapSize) >> 1;
     int c0 = base + col;          // iVar11
     int r0 = base + row;          // iVar3
     int c1 = c0 + 1;              // iVar10
     int r1 = r0 + 1;              // iVar8
     float center = (float)(param_1->_gridSize >> 1);
-    int hdim = param_1->_fieldD0;
+    int hdim = param_1->_heightRowStride;
     const int16_t* hmap = param_1->_heights.data;
 
     float pC0 = (float)c0 - center;   // fVar15 (world X at c0)

@@ -167,7 +167,7 @@ const rtcoll::ArraySpec kSpec_ProfessionRow = {          // exe 0x140015800
 // [startTick, endTick] (clamped to [0, count-1]).
 // ===========================================================================
 int CitizenBehavior::QueryProductionStat(int seriesIdx, int startTick, int endTick) const {
-    const Collection::Array<int32_t>* seriesBase = field_0x150._data;
+    const Collection::Array<int32_t>* seriesBase = statHistory._data;
     if (!seriesBase) return 0;
     const Collection::Array<int32_t>& series = seriesBase[seriesIdx];
     const int32_t* data = series.GetData();
@@ -271,7 +271,7 @@ void CitizenBehavior::RemoveWorker(const Profession* profession) {
     // Row 1142: the loop singleton and its ProfessionList are read with no test
     // (0x140091199 MOV RAX,[0x1401c3dd8]; 0x1400911a6 MOV RDI,[RAX+0xb0];
     // 0x1400911b0 MOV RDI,[RDI+0x30]).
-    Profession* laborer = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    Profession* laborer = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
     // `profession` is the ExternalPtr<Profession> the callers hold (compared as an unsigned qword).
 
     // Pass 1: idle (no-workplace) adult worker of this profession.
@@ -286,7 +286,7 @@ void CitizenBehavior::RemoveWorker(const Profession* profession) {
 
     // Pass 2: the profession's tree node — the workplace with the most
     // rostered workers.
-    ProfessionBucket* node = field_0x100._root;
+    ProfessionBucket* node = workplacesByProfession._root;
     ProfessionBucket* found = nullptr;
     while (node) {
         const Profession* k = node->element.key;

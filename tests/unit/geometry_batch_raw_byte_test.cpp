@@ -20,8 +20,8 @@
 
 UNIT_TEST(GeometryBatchRawByte_FieldIsAByte) {
     // A bool member may only hold 0 or 1; retail stores any byte at +0x5C.
-    CHECK((std::is_same<decltype(GeometryBatch::field_0x5C), uint8_t>::value));
-    CHECK_EQ(offsetof(GeometryBatch, field_0x5C), static_cast<size_t>(0x5C));
+    CHECK((std::is_same<decltype(GeometryBatch::isDecal), uint8_t>::value));
+    CHECK_EQ(offsetof(GeometryBatch, isDecal), static_cast<size_t>(0x5C));
 }
 
 UNIT_TEST(GeometryBatchRawByte_CopyKeepsTheByte) {

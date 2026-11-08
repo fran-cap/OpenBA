@@ -160,8 +160,8 @@ void WeatherTypeStateMachine(WeatherSimulation* w, GameUpdateLoop* gw, float sec
             accInt  += rng->RandFloatTol() * k1_12;   // -> +0x48
             accType += rng->RandFloatTol() * k1_12;   // -> +0x30
         }
-        w->field_0x30 = accType * c->windSpeed + c->temperatureBase;   // climate +0x40 / +0x34
-        w->field_0x48 = accInt * c->_field104;                         // climate +0x104
+        w->meanTemperatureTarget = accType * c->windSpeed + c->temperatureBase;   // climate +0x40 / +0x34
+        w->rainChanceBiasTarget = accInt * c->_rainBiasScale;                         // climate +0x104
     }
 
     float randf = rng->RandFloat();
@@ -170,16 +170,16 @@ void WeatherTypeStateMachine(WeatherSimulation* w, GameUpdateLoop* gw, float sec
         int type = static_cast<int32_t>(w->weatherType);
         int month = (kf + ((kf >> 31) & 3)) >> 2;
         // ClimateGenerator +0x44: 48 floats, four per month.
-        float thresh = w->field_0x44 + c->_climateData[(size_t)(month * 4 + type)];
+        float thresh = w->rainChanceBias + c->_climateData[(size_t)(month * 4 + type)];
         if (randf < thresh) break;
         w->weatherType = static_cast<WeatherType>(type + 1);
     } while (static_cast<int32_t>(w->weatherType) < static_cast<int32_t>(WeatherType::Sunny));
 
     WeatherType idx = w->weatherType;
-    if (idx == WeatherType::Rain) w->field_0x14 += 1;
-    else if (idx == WeatherType::Sunny) w->field_0x14 -= 1;
-    if (w->field_0x14 > 5) w->field_0x14 = 5;
-    else if (w->field_0x14 < 0) w->field_0x14 = 0;
+    if (idx == WeatherType::Rain) w->rainLevel += 1;
+    else if (idx == WeatherType::Sunny) w->rainLevel -= 1;
+    if (w->rainLevel > 5) w->rainLevel = 5;
+    else if (w->rainLevel < 0) w->rainLevel = 0;
 }
 
 // Part 6 chance — FUN_1400a9290(timer=+0x70, p=climate+0x108, rng). Consumes and
@@ -222,10 +222,10 @@ RtUtility::PerlinNoise NewWeatherNoise() {
 // {+0x14 = 4, +0x18 = 0}, three qword zeroes over +0x1C..+0x33, the noise,
 // then +0x44..+0x77 (the two Arrays' four zero qwords and the time) after it.
 WeatherSimulation::WeatherSimulation()
-    : environment(nullptr), climate(nullptr), weatherType(WeatherType::Rain), field_0x14(4), temperature(0.0f),
-      field_0x1C(), field_0x2C(0.0f), field_0x30(0.0f),
+    : environment(nullptr), climate(nullptr), weatherType(WeatherType::Rain), rainLevel(4), temperature(0.0f),
+      terrainWeatherParams(), meanTemperature(0.0f), meanTemperatureTarget(0.0f),
       noise(NewWeatherNoise()),
-      field_0x44(0.0f), field_0x48(0.0f), seasonStep(-1),
+      rainChanceBias(0.0f), rainChanceBiasTarget(0.0f), seasonStep(-1),
       effects(), emitters(), disasterTime{0} {}
 
 // ============================================================
@@ -292,14 +292,14 @@ void WeatherSimulation::Update(const System::Time* time) {
     }
 
     // --- Part 2: exponential smoothing of the mean-temp and precip targets. ---
-    field_0x2C = field_0x30 * kSmoothIn + field_0x2C * kSmoothOld;
-    field_0x44 = field_0x48 * kSmoothIn + field_0x44 * kSmoothOld;
+    meanTemperature = meanTemperatureTarget * kSmoothIn + meanTemperature * kSmoothOld;
+    rainChanceBias = rainChanceBiasTarget * kSmoothIn + rainChanceBias * kSmoothOld;
 
     // --- Part 3: temperature accumulation (Weather_helper_3810) -> +0x18.
     //     temp = sin(seasonalPhase) * variation + mean  +  perlin * noiseAmp   ---
     {
         ClimateGenerator* c = climate;
-        float mean = field_0x2C;
+        float mean = meanTemperature;
         float variation, noiseAmp;
         if (c) {
             variation = c->tempVariation;   // +0x38
@@ -349,10 +349,10 @@ void WeatherSimulation::Update(const System::Time* time) {
             }
         }
 
-        field_0x1C.x = coverage;       // +0x1C
-        field_0x1C.y = fadeA;          // +0x20
-        field_0x1C.z = fadeB;          // +0x24
-        field_0x1C.w = maxIntensity;   // +0x28
+        terrainWeatherParams.x = coverage;       // +0x1C
+        terrainWeatherParams.y = fadeA;          // +0x20
+        terrainWeatherParams.z = fadeB;          // +0x24
+        terrainWeatherParams.w = maxIntensity;   // +0x28
     }
 
     // --- Part 5: at each keyframe boundary, run the weather-type state machine
@@ -395,7 +395,7 @@ void WeatherSimulation::Update(const System::Time* time) {
         if (temperature > kColdThresh &&
             weatherType == WeatherType::Rain &&
             ((disasterBits >> 7) & 1) == 0 && c && rng) {
-            if (SpawnChance(&disasterTime, c->_field108, c->_field10C, rng)) {   // climate +0x108 / +0x10C
+            if (SpawnChance(&disasterTime, c->_tornadoIntervalYears, c->_tornadoRarity, rng)) {   // climate +0x108 / +0x10C
                 SpawnAmbientEntity(this, gw);
             }
         }

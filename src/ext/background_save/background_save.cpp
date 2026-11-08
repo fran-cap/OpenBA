@@ -127,12 +127,12 @@ void Finish(Job* job) {
     // camera to; they become the real ones now.
     ErrLine("[BackgroundSave] save %d done: frozenUpdates=%d camera real(+3c,+40,+44)=%.3f,%.3f,%.3f "
             "(at start %.3f,%.3f,%.3f) -> shadow %.3f,%.3f,%.3f\n",
-            g_saves, job->frozenUpdates, tm->field_0x3C, tm->field_0x40, tm->field_0x44,
+            g_saves, job->frozenUpdates, tm->zoomTarget, tm->pitchTarget, tm->manualPitch,
             job->start3C, job->start40, job->start44,
-            job->shadow->field_0x3C, job->shadow->field_0x40, job->shadow->field_0x44);
-    tm->field_0x3C = job->shadow->field_0x3C;
-    tm->field_0x40 = job->shadow->field_0x40;
-    tm->field_0x44 = job->shadow->field_0x44;
+            job->shadow->zoomTarget, job->shadow->pitchTarget, job->shadow->manualPitch);
+    tm->zoomTarget = job->shadow->zoomTarget;
+    tm->pitchTarget = job->shadow->pitchTarget;
+    tm->manualPitch = job->shadow->manualPitch;
 
     if (job->verify) {
         std::vector<uint8_t> image;
@@ -225,20 +225,20 @@ bool Start(Save::SavedState* state) {
     // finds the lists empty.
     loop->m_entityList->FlushForSerialize(*job->cms);
 
-    job->start3C = loop->m_toolManager->field_0x3C;
-    job->start40 = loop->m_toolManager->field_0x40;
-    job->start44 = loop->m_toolManager->field_0x44;
+    job->start3C = loop->m_toolManager->zoomTarget;
+    job->start40 = loop->m_toolManager->pitchTarget;
+    job->start44 = loop->m_toolManager->manualPitch;
     // The fields PlayerToolManager::UpdateCamera (camera_input.cpp) reads or writes.
     const PlayerToolManager* const real = loop->m_toolManager;
     job->shadow = &job->shadowManager;
-    job->shadow->field_0x38 = real->field_0x38;
-    job->shadow->field_0x3C = real->field_0x3C;
-    job->shadow->field_0x40 = real->field_0x40;
-    job->shadow->field_0x44 = real->field_0x44;
-    job->shadow->field_0x48 = real->field_0x48;
-    job->shadow->field_0xA4 = real->field_0xA4;
-    job->shadow->field_0xA8 = real->field_0xA8;
-    job->shadow->field_0xAC = real->field_0xAC;
+    job->shadow->followActive = real->followActive;
+    job->shadow->zoomTarget = real->zoomTarget;
+    job->shadow->pitchTarget = real->pitchTarget;
+    job->shadow->manualPitch = real->manualPitch;
+    job->shadow->tickSoundCooldown = real->tickSoundCooldown;
+    job->shadow->cameraMoveActive = real->cameraMoveActive;
+    job->shadow->cameraMoveStartCell = real->cameraMoveStartCell;
+    job->shadow->cameraMoveEndCell = real->cameraMoveEndCell;
     job->mainMs = LoadTime::NowMs() - tMain;
 
     g_job = job;

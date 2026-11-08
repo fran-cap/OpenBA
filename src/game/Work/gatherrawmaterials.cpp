@@ -175,10 +175,10 @@ void GatherRawMaterials::Persist(IO::Stream& stream) {
 // ============================================================
 int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* context) {
     // --- Find the InteractComponent on the work entity (self+0x10) (0x140002ed0) ---
-    InteractComponent* posComp = field_10->FindComponent<InteractComponent>();
+    InteractComponent* posComp = _entity->FindComponent<InteractComponent>();
 
     // --- Find the BuildComponent on the work entity (0x14000d6c0) ---
-    BuildComponent* descComp = field_10->FindComponent<BuildComponent>();
+    BuildComponent* descComp = _entity->FindComponent<BuildComponent>();
 
     // Its BuildDescription (+0x18)
     Description* descBase = descComp->_description;
@@ -240,7 +240,7 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
             // --- Search for a storage entity with this resource ---
             ComponentEntity* foundEntity = nullptr;
             float searchPos[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-            Object::InternalPtr<ComponentEntity> excludeIBP = nullptr;  // Original: local null-initialized IBP (NOT &self->field_10)
+            Object::InternalPtr<ComponentEntity> excludeIBP = nullptr;  // Original: local null-initialized IBP (NOT &self->_entity)
 
             worldEntityList->PickBestDropTarget(
                 &foundEntity, citizenCell,
@@ -361,13 +361,13 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
                 // before the call; that value and the slot's two other qwords are never read).
                 ::Object::InternalPtr<Action> pathBuf;
                 ComponentEntity* destEntity = foundEntity;
-                ComponentEntity* srcEntity = field_10.Get();  // Reread from self
+                ComponentEntity* srcEntity = _entity.Get();  // Reread from self
                 CitizenComponent* citizenPtr = *entityIBP;
 
                 WorkAct_GatherRawMatCtor_bf790(
                     &pathBuf,           // the hidden return slot
                     &citizenPtr,        // citizenPtr
-                    field_20,           // pathType (priority/workplaceId)
+                    _workId,           // pathType (priority/workplaceId)
                     &srcEntity,         // the work entity
                     targetPos,          // targetPos
                     &destEntity,        // destEntityPtr
@@ -378,7 +378,7 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
                     0, '\0', 0, 0);
 
                 // --- Finalize: set citizen state and register work ---
-                int priority = field_20;
+                int priority = _workId;
                 CitizenComponent* citizenFinal = *entityIBP;
 
                 // Call vtable slot +0x50 (GetTarget)
@@ -386,7 +386,7 @@ int GatherRawMaterials::Execute(CitizenComponent** entityIBP, System::Time* cont
                 GetTarget(&workEntity);
 
                 citizenFinal->statusFlags |= Bits(CitizenStatus::TaskDone);
-                citizenFinal->field_0x30 = priority;
+                citizenFinal->lastWorkId = priority;
                 citizenFinal->lastErrand = CitizenErrand::None;
 
                 if (workEntity == citizenFinal->profession && priority >= 0) {
@@ -634,7 +634,7 @@ int GatherRawMaterials::Validate() {
 // Hidden return ptr: RCX=self, RDX=retbuf.
 // ============================================================
 Profession** GatherRawMaterials::GetTarget(Profession** retbuf) {
-    *retbuf = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    *retbuf = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
     return retbuf;
 }
 

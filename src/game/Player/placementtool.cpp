@@ -118,7 +118,7 @@ void PlacementTool::Shutdown() {
 
     // Close dialog if open: the owner (+0x10) holds it at its +0x00
     PlayerToolManager* owner = dialogPtr;
-    UI::DialogInstance* ibpVal = owner->field_0x00;
+    UI::DialogInstance* ibpVal = owner->toolDialog;
     if (ibpVal != nullptr) {
         // Close the dialog via UI::UserInterface
         UI::UserInterface* uiMgr = gameWorld->m_userInterface;
@@ -128,7 +128,7 @@ void PlacementTool::Shutdown() {
         }
 
         // Clear the InternalBasePtr
-        owner->field_0x00 = nullptr;
+        owner->toolDialog = nullptr;
     }
 }
 
@@ -154,18 +154,18 @@ char PlacementTool::OnKey(char param2) {
     // --- Dialog open/close logic ---
     if (param2 == 0) {
         // Close dialog if open (check value twice, matching original)
-        if (owner->field_0x00 != nullptr && owner->field_0x00 != nullptr) {
-            Object::InternalPtr<UI::DialogInstance> localIBP(owner->field_0x00);
+        if (owner->toolDialog != nullptr && owner->toolDialog != nullptr) {
+            Object::InternalPtr<UI::DialogInstance> localIBP(owner->toolDialog);
             UI::UserInterface* uiMgr = GameUpdateLoop::_singleton->m_userInterface;
             if (uiMgr) {
                 uiMgr->CloseDialog(&localIBP);
             }
             // Clear IBP
-            owner->field_0x00 = nullptr;
+            owner->toolDialog = nullptr;
         }
     } else {
         // Open dialog if not already open
-        if (owner->field_0x00 == nullptr) {
+        if (owner->toolDialog == nullptr) {
             UI::DialogInstance* localResult = nullptr;
             owner->OpenToolDialog(&localResult, descriptionPtr);
         }
@@ -380,16 +380,16 @@ void PlacementTool::Update(const System::Time* /*param2*/, char param3) {
 
     // Check the owner's constraint flag (+0x80)
     const PlayerToolManager* dialogCtrl = dialogPtr;
-    if (dialogCtrl->field_0x80) {
+    if (dialogCtrl->tutorialRestricted) {
         int mapSz = gameWorld->m_game->size;
         // Original checks: startCol vs (+0x98)%mapSz, startRow vs (+0x98)/mapSz,
         //                   endCol vs (+0x9c)%mapSz, endRow vs (+0x9c)/mapSz,
         //                   yawInt vs (+0xa0)
-        if (startCol != dialogCtrl->field_0x98 % mapSz ||
-            startRow != dialogCtrl->field_0x98 / mapSz ||
-            dialogCtrl->field_0x9C % mapSz != endCol ||
-            dialogCtrl->field_0x9C / mapSz != endRow ||
-            dialogCtrl->field_0xA0 != yawInt) {
+        if (startCol != dialogCtrl->tutorialStartCell % mapSz ||
+            startRow != dialogCtrl->tutorialStartCell / mapSz ||
+            dialogCtrl->tutorialEndCell % mapSz != endCol ||
+            dialogCtrl->tutorialEndCell / mapSz != endRow ||
+            dialogCtrl->tutorialRotation != yawInt) {
             tileValid = 0;
         }
     }
@@ -501,7 +501,7 @@ void PlacementTool::Draw(Video::Context* context, char param3) {
             int yawInt = rotationIBP->rotation * 0x5a;
 
             // yawAngle from first descComponent read (+0x40)
-            int yawAngle = descComp1->_i40;
+            int yawAngle = descComp1->_footprintRotation;
 
             PlayerTileRender_BuildRecords_1380(
                 &mapComp->_footprint,            // param1: mapComponent+0x28 (never read)
@@ -529,14 +529,14 @@ void PlacementTool::Draw(Video::Context* context, char param3) {
 
     // --- Section 2: Existing placement marker (if the owner's constraint is set) ---
     const PlayerToolManager* dialogCtrl = dialogPtr;
-    if (dialogCtrl->field_0x80) {
+    if (dialogCtrl->tutorialRestricted) {
         const CreatePlacedDescription* descComp = descComponent;  // +0x28
         int mapSz1 = gameWorld->m_game->size;
         int mapSz2 = gameWorld->m_game->size;  // re-read (matches original)
 
-        int existStart = dialogCtrl->field_0x98;
-        int existEnd = dialogCtrl->field_0x9C;
-        uint32_t existYaw = static_cast<uint32_t>(dialogCtrl->field_0xA0);
+        int existStart = dialogCtrl->tutorialStartCell;
+        int existEnd = dialogCtrl->tutorialEndCell;
+        uint32_t existYaw = static_cast<uint32_t>(dialogCtrl->tutorialRotation);
 
         PlayerTileRender_BuildRecords_1380(
             nullptr,                             // param1: (retail: the yaw in RCX; never read)
@@ -555,7 +555,7 @@ void PlacementTool::Draw(Video::Context* context, char param3) {
             0,                                   // param14: allowOverlap = false
             &mapComponent->_footprint,          // param15: mapComp+0x28
             (int)existYaw,                       // param16: yawInt
-            descComp->_i40,                     // param17: yaw angle from desc
+            descComp->_footprintRotation,                     // param17: yaw angle from desc
             1,                                   // param18: isExisting = true
             descComp->_created                  // param19: entityTemplate
         );
@@ -856,8 +856,8 @@ static bool HarnessCellPlacement(PlacementTool* self, int centerCell,
     if (!descComp) return false;
 
     // Footprint dims live in the CreatePlacedDescription (+0x44 width, +0x48 height).
-    uint32_t dimX = static_cast<uint32_t>(descComp->_i44);
-    uint32_t dimY = static_cast<uint32_t>(descComp->_i48);
+    uint32_t dimX = static_cast<uint32_t>(descComp->_width);
+    uint32_t dimY = static_cast<uint32_t>(descComp->_height);
 
     Map* grid = GameUpdateLoop::_singleton->m_game;
     int width = grid->size;
@@ -938,7 +938,7 @@ extern "C" int PlacementTool_HarnessPlaceAtCell(PlacementTool* self, int centerC
     int r0 = centerCell / width;
     const CreatePlacedDescription* dc = self->descComponent;
     fprintf(stderr, "[Placement] PLACE: scanning from (col=%d row=%d) foot=%ux%u for a buildable cell...\n",
-            c0, r0, static_cast<uint32_t>(dc->_i44), static_cast<uint32_t>(dc->_i48));
+            c0, r0, static_cast<uint32_t>(dc->_width), static_cast<uint32_t>(dc->_height));
     fflush(stderr);
 
     // A harness-owned manager whose +0x80 constraint flag is clear (the ctor

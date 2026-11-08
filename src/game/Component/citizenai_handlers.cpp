@@ -90,10 +90,10 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
         msgAction = ::new (mem) SendComponentMessage(&entityIBP, msgId, 0, &destIBP, 0);   // 0x1400cb1d0
     }
     Action* msgIBP = msgAction;   // the InternalPtr's ctor is a plain store
-    if (character->actionStack.field_0x10 != nullptr) {
-        character->actionStack.field_0x10.DeletePtr();
+    if (character->actionStack.completionAction != nullptr) {
+        character->actionStack.completionAction.DeletePtr();
     }
-    character->actionStack.field_0x10 = msgIBP;
+    character->actionStack.completionAction = msgIBP;
 
     // (3) PlayAnimation action (only when animTime > 0)
     if (0.0f < animTime) {
@@ -106,10 +106,10 @@ static void CitizenAI_PlayAnimationActionCtor5(CitizenComponent* const* param_1,
             // ENDGAME B.3.9 EXA: the real class (was the `??0Internal` door and
             // two stamps); then retail's inlined leaf stores.
             PlayAnimation* a = ::new (pmem) PlayAnimation();
-            a->_field20        = entityIBP;   // raw IBP copy, as retail
+            a->_entity        = entityIBP;   // raw IBP copy, as retail
             a->animation       = 0;
-            a->_field30        = timeStore;
-            a->_field38._ticks = 0;
+            a->_duration        = timeStore;
+            a->_elapsed._ticks = 0;
             animAction = a;
         }
         ::Object::InternalPtr<Action> animIBP = animAction;   // the InternalPtr<Action> the push copies

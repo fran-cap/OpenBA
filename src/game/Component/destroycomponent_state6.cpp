@@ -174,9 +174,9 @@ extern "C" void ActionStack_AbortForEntity_c52c0(ActionStack* stack, ComponentEn
     }
 
     stack->current = -1;
-    if (stack->field_0x10.Get() != nullptr) {
-        stack->field_0x10.DeletePtr();
-        stack->field_0x10 = ::Object::InternalPtr<Action>();   // a null IBP
+    if (stack->completionAction.Get() != nullptr) {
+        stack->completionAction.DeletePtr();
+        stack->completionAction = ::Object::InternalPtr<Action>();   // a null IBP
     }
 
     if (Milestone()) {

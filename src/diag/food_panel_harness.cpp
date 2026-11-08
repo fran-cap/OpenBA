@@ -355,7 +355,7 @@ void ProbeClass(PlayerToolManager* entityUI, const FoodClass& fc) {
                 // The profession bucket tree (0x1400172f0 compares the key as an
                 // unsigned qword: the profession's address).
                 Profession* const prof = wpc->profession;                     // +0x48
-                ProfessionBucket* node = townMgr->field_0x100._root;                // +0x100
+                ProfessionBucket* node = townMgr->workplacesByProfession._root;                // +0x100
                 while (node) {
                     if (prof < node->element.key)      node = node->left;             // +0x20
                     else if (prof > node->element.key) node = node->right;            // +0x28
@@ -558,7 +558,7 @@ void FollowUp(int frameNum) {
         queued = a->queue._size;                                                // +0x30
         // An AttendanceComponent's description is its AttendanceDescription.
         if (Description* d = a->_description)                                  // +0x18
-            capacity = static_cast<AttendanceDescription*>(d)->_i20;           // desc+0x20
+            capacity = static_cast<AttendanceDescription*>(d)->_maxCitizens;           // desc+0x20
     }
     std::fprintf(stderr, "[FoodPanel]   seat +%d frames: roster(+0x60)=%d%s",
                  frameNum - s_seatFrame, roster,
@@ -597,7 +597,7 @@ void FollowUp(int frameNum) {
                 if (rec->_professions[2] == keyP) ++k30;                    // rec+0x30
                 if (rec->_professions[1] == keyP) ++k28;                    // rec+0x28
                 if (cz->careBuilding) ++linked228;                          // +0x228
-                if (cz->field_0x230) ++linked230;                           // +0x230
+                if (cz->chapel) ++linked230;                           // +0x230
                 // "Nobody carries the key" has two very different causes: the town has
                 // no eligible citizens (faithful), or the record's key fields were never
                 // populated at all (a data-load gap). All-zero keys distinguish them, so
@@ -613,8 +613,8 @@ void FollowUp(int frameNum) {
                     const unsigned long long rec20 = reinterpret_cast<uint64_t>(rec->_professions[0]);  // CAST-OK: ptr_int
                     const unsigned long long rec28 = reinterpret_cast<uint64_t>(rec->_professions[1]);  // CAST-OK: ptr_int
                     const unsigned long long rec30 = reinterpret_cast<uint64_t>(rec->_professions[2]);  // CAST-OK: ptr_int
-                    const unsigned long long pr30 = pr ? reinterpret_cast<uint64_t>(pr->field_0x30) : 0;  // CAST-OK: ptr_int
-                    const unsigned long long pr38 = pr ? reinterpret_cast<uint64_t>(pr->field_0x38) : 0;  // CAST-OK: ptr_int
+                    const unsigned long long pr30 = pr ? reinterpret_cast<uint64_t>(pr->laborerProfession) : 0;  // CAST-OK: ptr_int
+                    const unsigned long long pr38 = pr ? reinterpret_cast<uint64_t>(pr->builderProfession) : 0;  // CAST-OK: ptr_int
                     std::fprintf(stderr, "[FoodPanel]       citizen[%d]=%p rec(+0x288)=%p\n"
                                  "[FoodPanel]         rec+0x20=0x%llx  rec+0x28=0x%llx  rec+0x30=0x%llx\n"
                                  "[FoodPanel]         schoolWPC+0x48=0x%llx  laborer(profReg+0x30)=0x%llx  "

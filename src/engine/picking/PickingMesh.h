@@ -160,7 +160,7 @@ public:
     // B4 X-RH: the +0x20 / +0x28 zeroes are the two System::String members'
     // default constructors, run before this body.
     PickingMesh() : Object::External() {
-        _flag30 = false;
+        _allowChildren = false;
     }
 
     // ---- the nine slots, in measured order ----
@@ -223,9 +223,9 @@ public:
     // destroys +0x38 (0x1801228c4), then +0x28 (0x1801228ca..), then +0x20
     // (0x1801228f4..), then ~External (0x180122926): the body does +0x38, the
     // compiler the two Strings in reverse declaration order.
-    System::String              _string20;   // +0x20
-    System::String              _string28;   // +0x28
-    bool                        _flag30;     // +0x30  kScalarBool
+    System::String              _meshName;   // +0x20
+    System::String              _subObject;   // +0x28
+    bool                        _allowChildren;     // +0x30  kScalarBool
     uint8_t                     _pad31[7];   // +0x31  never written (one-byte store)
     Collection::Array<SubMesh, Collection::DefaultAllocator,
                       Collection::ExplicitSpec<&rtcoll::kSpecD2_SubMesh80>>
@@ -256,13 +256,13 @@ static_assert(sizeof(PickingMesh) == 0x48,
               "Picking::PickingMesh is 0x48 bytes (MOV EDX,0x48 in slot 0, 0x180072050)");
 static_assert(offsetof(PickingMesh, _pad31) == 0x31, "PickingMesh::_pad31");
 static_assert(alignof(PickingMesh) == 8, "Picking::PickingMesh aligns to 8 (the vptr)");
-static_assert(offsetof(PickingMesh, _string20) == 0x20, "PickingMesh +0x20 String");
-static_assert(offsetof(PickingMesh, _string28) == 0x28, "PickingMesh +0x28 String");
-static_assert(offsetof(PickingMesh, _flag30)   == 0x30, "PickingMesh +0x30 bool");
+static_assert(offsetof(PickingMesh, _meshName) == 0x20, "PickingMesh +0x20 String");
+static_assert(offsetof(PickingMesh, _subObject) == 0x28, "PickingMesh +0x28 String");
+static_assert(offsetof(PickingMesh, _allowChildren)   == 0x30, "PickingMesh +0x30 bool");
 static_assert(offsetof(PickingMesh, _nodes)    == 0x38, "GetNode 0x180071e90 indexes +0x38");
 static_assert(offsetof(PickingMesh, _nodes) + offsetof(Collection::Array<PickingMesh::SubMesh>, _size) == 0x40,
               "GetSubMeshCount 0x180071dc0 returns +0x40");
-static_assert(offsetof(PickingMesh, _string20) == sizeof(Object::External),
+static_assert(offsetof(PickingMesh, _meshName) == sizeof(Object::External),
               "PickingMesh's own bytes begin right after Object::External");
 
 }  // namespace Picking

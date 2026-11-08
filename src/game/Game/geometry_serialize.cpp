@@ -165,10 +165,10 @@ void WorldGeometry::Serialize(IO::Stream& stream) {
     // ---- Step 2: six ints at +0xC0 .. +0xD4. ----
     // Disassembly @ 0x1400b051f .. 0x1400b059e: 6 calls to slot 0x140152ac8.
     serializer.Serialize(_gridSize, nullptr);           // +0xC0
-    serializer.Serialize(_fieldC4, nullptr);            // +0xC4
+    serializer.Serialize(_mapSize, nullptr);            // +0xC4
     serializer.Serialize(_chunkSize, nullptr);          // +0xC8
-    serializer.Serialize(_fieldCC, nullptr);            // +0xCC
-    serializer.Serialize(_fieldD0, nullptr);            // +0xD0
+    serializer.Serialize(_chunkVertsPerSide, nullptr);            // +0xCC
+    serializer.Serialize(_heightRowStride, nullptr);            // +0xD0
     serializer.Serialize(_chunkIndexStride, nullptr);   // +0xD4
 
     // ---- Step 3: the height words at +0xD8 (count = the header's low dword). ----
@@ -194,11 +194,11 @@ void WorldGeometry::Serialize(IO::Stream& stream) {
     // then exit), as Map::Serialize refuses a damaged map. Retail builds the mesh from
     // the raw fields and overruns its vertex scratch and the height array.
     if (IsLoading(serializer) &&
-        !LoadedTerrainIsConsistent(_gridSize, _chunkSize, _fieldCC, _fieldD0, _chunkIndexStride,
+        !LoadedTerrainIsConsistent(_gridSize, _chunkSize, _chunkVertsPerSide, _heightRowStride, _chunkIndexStride,
                                    local_count)) {
         fprintf(stderr,
                 "[WorldGeometry::Serialize] FATAL: terrain grid %d chunk %d %d stride %d %d, %d heights\n",
-                _gridSize, _chunkSize, _fieldCC, _fieldD0, _chunkIndexStride, local_count);
+                _gridSize, _chunkSize, _chunkVertsPerSide, _heightRowStride, _chunkIndexStride, local_count);
         fflush(stderr);
         System::Error::SetText("This save's terrain is damaged and cannot be loaded.", true);
         System::Error::Display();   // the box; _stopApplication then exits the process

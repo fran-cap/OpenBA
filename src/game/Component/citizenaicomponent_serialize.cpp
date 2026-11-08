@@ -96,7 +96,7 @@ void CitizenAIComponent::Persist(IO::Stream& stream) {
     version = s->GetVersion();
     if (version > 2) leisureTimer.Serialize(*s);   // System::Time (X-G1-1b)
     version = s->GetVersion();
-    if (version > 3) dataC8.Serialize(*s);
+    if (version > 3) carryingTimer.Serialize(*s);
 
     s->~Serializer();
 }

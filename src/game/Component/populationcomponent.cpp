@@ -280,7 +280,7 @@ extern "C" void PopulationComponent_Serialize_Real(PopulationComponent* self, IO
 // the compiler's; every field = 0; flags |= 0xcb.
 PopulationComponent::PopulationComponent()
     : description(nullptr), habitatDim(0), _pad34{}, herdDim(0), _pad4C{},
-      smoothTimer{0}, scanIndex(0), field_0x6c(0) {
+      smoothTimer{0}, scanIndex(0), unusedSerializedInt(0) {
     OrFlagsInCtor(0xcb);
 }
 

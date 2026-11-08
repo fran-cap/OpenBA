@@ -158,7 +158,7 @@ Work* WorkScheduler::FindWorkAtCell(int cell) {
             // The disasm calls InternalBasePtr_Ctor(ret, 0): a null result.
             return nullptr;
         }
-        if (node->work->field_28 == cell) {
+        if (node->work->_cell == cell) {
             return node->work.Get();
         }
         // in-order successor
@@ -220,7 +220,7 @@ static void SM_RunPhase(StateMachine* sm, const System::Time* timeOutSlot) {
                 // Update(node, sm, idx). Without `it` the ControllerLive
                 // dispatcher read garbage and bounds-rejected every dispatch.
                 while (((it < 0) || (p->Update(sm, it) == 0)) &&
-                       ((p = p->_data08) != nullptr)) {
+                       ((p = p->_parent) != nullptr)) {
                     it = p->FindState(sm->currentInput);
                 }
                 if (-1 < sm->transitionState) {
@@ -237,14 +237,14 @@ static void SM_RunPhase(StateMachine* sm, const System::Time* timeOutSlot) {
             sm->currentInput = cur52;
             // descend to the deepest child via the +0x10 chain
             Controller* deepest = head;
-            for (Controller* c = head->_data10; c != nullptr; c = c->_data10) {
+            for (Controller* c = head->_child; c != nullptr; c = c->_child) {
                 deepest = c;
             }
             sm->current = deepest;
             int8_t st = static_cast<int8_t>(deepest->FindState(cur52));
             sm->activeState = st;
             while (st < 0) {
-                Controller* nxt = sm->current->_data08;
+                Controller* nxt = sm->current->_parent;
                 sm->current = nxt;
                 st = static_cast<int8_t>(nxt->FindState(sm->currentInput));
                 sm->activeState = st;
@@ -256,7 +256,7 @@ static void SM_RunPhase(StateMachine* sm, const System::Time* timeOutSlot) {
             // FIX(lead 2026-07-20, bug-class #6): slot +0x18 is
             // Enter(node, sm, idx) — idx rides R8D, dropped by the decompile.
             while (((it < 0) || (p->Enter(sm, it) == 0)) &&
-                   ((p = p->_data08) != nullptr)) {
+                   ((p = p->_parent) != nullptr)) {
                 it = p->FindState(sm->currentInput);
             }
         } while (-1 < sm->pendingState);
@@ -269,7 +269,7 @@ static void SM_RunPhase(StateMachine* sm, const System::Time* timeOutSlot) {
             // FIX(lead 2026-07-20, bug-class #6): slot +0x30 is
             // Tick(node, sm, time/out, idx) — idx rides R9D, also dropped.
             while (((it < 0) || (p->Tick(sm, timeOutSlot, it) == 0)) &&
-                   ((p = p->_data08) != nullptr)) {
+                   ((p = p->_parent) != nullptr)) {
                 it = p->FindState(sm->currentInput);
             }
             first = false;
@@ -361,7 +361,7 @@ void DestroyComponent::RunStateMachine() {
 // ============================================================
 uint64_t Map::RemovePendingRoad(int param_2) {
     InitTypeIds();
-    const AvlNode28* root = field_0xE8.root;
+    const AvlNode28* root = pendingRoadCells.root;
     uint32_t retLow = 2;
     int removeKind = 0xff;   // iVar9 / R12D
     uint8_t ebx = 0;         // the +0x64 byte (road branch) / the IBP's low byte
@@ -390,10 +390,10 @@ uint64_t Map::RemovePendingRoad(int param_2) {
                 if (isRoad) {
                     road = (s_tid_6860 && Object::IsDerivedFromNullSafe(work, *s_tid_6860))
                            ? static_cast<BuildRoad*>(work) : nullptr;
-                    removeKind = road->field_60;
-                    ebx = (uint8_t)road->field_64;   // ptr = *(uint*)(bp+100)
-                    res10 = road->field_68;
-                    GameUpdateLoop::_singleton->m_tutorial->TaskCleanup(work->field_20);   // 0x1400f8e30
+                    removeKind = road->_prevRoadType;
+                    ebx = (uint8_t)road->_prevRoadBlend;   // ptr = *(uint*)(bp+100)
+                    res10 = road->_prevTerrainType;
+                    GameUpdateLoop::_singleton->m_tutorial->TaskCleanup(work->_workId);   // 0x1400f8e30
                     r13 = (removeKind == 0xff) ? 1 : 0;  // bVar10 = (removeKind==0xff)
                 } else {
                     ebx = 0;   // the low byte of the still-null IBP
@@ -406,14 +406,14 @@ uint64_t Map::RemovePendingRoad(int param_2) {
             r7 = ebx;  // uVar7 = the +0x64 byte for the road branch
 
             // second BST pass: erase the matched node (0x14001a6e0)
-            AvlNode28* n2 = field_0xE8.root;
+            AvlNode28* n2 = pendingRoadCells.root;
             while (n2 != nullptr) {
                 if (param_2 < n2->key) {
                     n2 = n2->left;
                 } else if (n2->key < param_2) {
                     n2 = n2->right;
                 } else {
-                    WorkBST_BSTRemove_a6e0(&field_0xE8, n2);   // 0x14001a6e0
+                    WorkBST_BSTRemove_a6e0(&pendingRoadCells, n2);   // 0x14001a6e0
                     break;
                 }
             }
@@ -426,10 +426,10 @@ uint64_t Map::RemovePendingRoad(int param_2) {
     // ---- LAB_14009c8a0: apply to map cell ----
     MapCell* cell = &cells.GetData()[param_2];
     uint64_t result;
-    if (cell->field_0x2A == MapCell::kNoRoadBatch) {
+    if (cell->roadType == MapCell::kNoRoadBatch) {
         uint8_t bVar1 = static_cast<uint8_t>(cell->terrainType);
         uint8_t setBit = ((1u << (bVar1 & 0x1f)) & Bits(PathBits::Zoneless)) != 0 ? 1 : 0;
-        field_0xA2 = field_0xA2 | (setBit != 0);
+        zonesStale = zonesStale | (setBit != 0);
         cell->terrainType = PathType::Normal;
         TerrainSidecar::NoteWrite(cell);   // [terrain sidecar] mirror
         CellStamp::NoteWrite(cell);   // [AMBMEMO] cell write clock
@@ -444,8 +444,8 @@ uint64_t Map::RemovePendingRoad(int param_2) {
         if (found) {
             CellTrace::NoteCount(this, cell, cell->footprintCount, -r13, "RemovePendingRoad");
             cell->footprintCount = static_cast<uint8_t>(cell->footprintCount - r13);
-            cell->field_0x2A = static_cast<uint8_t>(removeKind);
-            cell->field_0x2B = r7;
+            cell->roadType = static_cast<uint8_t>(removeKind);
+            cell->roadAlpha = r7;
             SetTerrainType(param_2, retLow);   // 0x14009f2f0
             if (removeKind == 0xff) {
                 result = 0;
@@ -485,9 +485,9 @@ void WorkScheduler::PrioritizeWork(int workId) {
             Object::InternalPtr<Work>& self = piVar4->work;
             WorkSchedulerCountNode* puVar7 = nullptr;
             int iVar6 = 0;
-            if (field_0x10.count != 0) {
-                WorkSchedulerCountNode* p3 = field_0x10.root;
-                WorkSchedulerCountNode* p4 = field_0x10.root;
+            if (queueOrderTree.count != 0) {
+                WorkSchedulerCountNode* p3 = queueOrderTree.root;
+                WorkSchedulerCountNode* p4 = queueOrderTree.root;
                 while (p3 != nullptr) {
                     WorkSchedulerCountNode* p2 = p3;
                     p4 = p2;
@@ -496,22 +496,22 @@ void WorkScheduler::PrioritizeWork(int workId) {
                 iVar6 = p4->key + -1;
             }
             // erase any node already keyed by the work's +0x24
-            WorkSchedulerCountNode* pk = field_0x10.root;
+            WorkSchedulerCountNode* pk = queueOrderTree.root;
             while (pk != nullptr) {
-                int entId = self->field_24;
+                int entId = self->_queueOrder;
                 if (entId < pk->key) {
                     pk = pk->left;
                 } else if (pk->key < entId) {
                     pk = pk->right;
                 } else {
-                    WorkBST_BSTRemove_a6e0(&field_0x10, pk);   // 0x14001a6e0
+                    WorkBST_BSTRemove_a6e0(&queueOrderTree, pk);   // 0x14001a6e0
                     break;
                 }
             }
-            self->field_24 = iVar6;
-            uint32_t uVar1 = static_cast<uint32_t>(self->field_20);
+            self->_queueOrder = iVar6;
+            uint32_t uVar1 = static_cast<uint32_t>(self->_workId);
 
-            WorkSchedulerCountNode* cur = field_0x10.root;
+            WorkSchedulerCountNode* cur = queueOrderTree.root;
             if (cur == nullptr) {
                 WorkSchedulerCountNode* nodeMem = static_cast<WorkSchedulerCountNode*>(System::MemoryAllocator::MemAlloc(0x28, 8));
                 if (nodeMem != nullptr) {
@@ -522,7 +522,7 @@ void WorkScheduler::PrioritizeWork(int workId) {
                     nodeMem->workId = uVar1;
                     puVar7 = nodeMem;
                 }
-                field_0x10.root = puVar7;
+                queueOrderTree.root = puVar7;
             } else {
                 WorkSchedulerCountNode* localRes18 = cur;
                 WorkSchedulerCountNode* prev;
@@ -572,10 +572,10 @@ void WorkScheduler::PrioritizeWork(int workId) {
             balance:
                 {
                     WorkSchedulerCountNode* res18local = prev;
-                    AvlRebalance(&field_0x10.root, &res18local);   // 0x14001a8c0
+                    AvlRebalance(&queueOrderTree.root, &res18local);   // 0x14001a8c0
                 }
             }
-            field_0x10.count = field_0x10.count + 1;
+            queueOrderTree.count = queueOrderTree.count + 1;
             return;
         }
         if (piVar4 == nullptr) return;
@@ -597,7 +597,7 @@ void WorkScheduler::PrioritizeWork(int workId) {
 static void PlaceRemovalMarker(const CreateRemovalDescription* desc, int col, int row) {
     ComponentEntity* mem = static_cast<ComponentEntity*>(System::MemoryAllocator::MemAlloc(0x48, 8));
     ComponentEntity* cloned = nullptr;
-    if (mem) cloned = ::new (mem) ComponentEntity(desc->_ref38);
+    if (mem) cloned = ::new (mem) ComponentEntity(desc->_remover);
     MapComponent* comp = cloned->FindComponent<MapComponent>();
     comp->tileX0 = (int16_t)col;
     comp->tileY0 = (int16_t)row;
@@ -608,7 +608,7 @@ static void PlaceRemovalMarker(const CreateRemovalDescription* desc, int col, in
     comp->extraField = 0;
     Object::InternalPtr<ComponentEntity> local_70 = cloned;
     GameUpdateLoop::_singleton->m_entityList->RegisterEntity(&local_70,
-                                   static_cast<int>(desc->_ref38->_category));
+                                   static_cast<int>(desc->_remover->_category));
 }
 
 bool RemovalTool::CalcPath(int param_2, int param_3) {
@@ -645,21 +645,21 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
 
     // the owner's single-rectangle constraint (+0x80 flag)
     const PlayerToolManager* lVar21 = dialogPtr;
-    if (lVar21->field_0x80) {
+    if (lVar21->tutorialRestricted) {
         int iVar24 = dim;
-        int64_t uVar16b = (int64_t)lVar21->field_0x9C / iVar24;
-        if (((int)uVar4 != lVar21->field_0x98 % iVar24) ||
-            ((int)uVar26 != lVar21->field_0x98 / iVar24) ||
-            (lVar21->field_0x9C % iVar24 != (int)uVar3) ||
+        int64_t uVar16b = (int64_t)lVar21->tutorialEndCell / iVar24;
+        if (((int)uVar4 != lVar21->tutorialStartCell % iVar24) ||
+            ((int)uVar26 != lVar21->tutorialStartCell / iVar24) ||
+            (lVar21->tutorialEndCell % iVar24 != (int)uVar3) ||
             ((int)uVar16b != (int)uVar13)) {
             return false;   // AL = 0 (retail: uVar16b & ~0xff in RAX; callers test AL)
         }
     }
 
     // RemovalTool_helper_d960 on the description's +0x38 template, if any
-    if (removalDesc->_ref38 != nullptr) {
+    if (removalDesc->_remover != nullptr) {
         void* tmp58 = nullptr;
-        RemovalCalc_helper_d960(removalDesc->_ref38, &tmp58);
+        RemovalCalc_helper_d960(removalDesc->_remover, &tmp58);
         uVar22 = (int64_t)local_res18;
     }
 
@@ -699,14 +699,14 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
 
                     // ---- road removal (flag desc+0x40) ----
                     Map* piVar15 = GameUpdateLoop::_singleton->m_game;
-                    if (removalDesc->_b40) {
+                    if (removalDesc->_removeRoads) {
                         int cid = piVar15->size * iRow + iCol;
                         const MapCell* cl = &piVar15->cells.GetData()[cid];
                         uint32_t mask = Bits(PathBitOf(cl->terrainType));
                         bool hit = false;
                         if (((mask & Bits(PathBits::Fast)) == 0) && ((mask & Bits(PathBits::Faster)) == 0) &&
-                            (cl->field_0x2A == MapCell::kNoRoadBatch)) {
-                            const AvlNode28* bn = piVar15->field_0xE8.root;
+                            (cl->roadType == MapCell::kNoRoadBatch)) {
+                            const AvlNode28* bn = piVar15->pendingRoadCells.root;
                             while (bn != nullptr) {
                                 if (cid < bn->key) {
                                     bn = bn->left;
@@ -730,7 +730,7 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
                     // ---- mark-for-removal of the resident entity (0x140104770) ----
                     local_e0 = local_e8;
                     if ((char)CanRemoveRoad(&local_e0) != 0) {
-                        if (local_e8->_description == removalDesc->_ref38) {
+                        if (local_e8->_description == removalDesc->_remover) {
                             local_e0 = local_e8;
                             EntityList* lst = GameUpdateLoop::_singleton->m_entityList;
                             if ((local_e0->_entityFlags & Bits(ComponentFlags::MarkedForRemoval)) == 0) {
@@ -764,7 +764,7 @@ bool RemovalTool::CalcPath(int param_2, int param_3) {
 
                     // ---- citizen-AI notify (flag desc+0x43) ----
                     local_e0 = local_e8;
-                    if (removalDesc->_b43 && (local_e8 != nullptr)) {
+                    if (removalDesc->_increasePriority && (local_e8 != nullptr)) {
                         WorkComponent* comp = local_e0->FindComponent<WorkComponent>();
                         if (comp != nullptr) {
                             if (comp->IsWorkPosted()) {   // 0x14012ead0

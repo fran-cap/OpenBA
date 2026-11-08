@@ -385,11 +385,11 @@ void Renderer::AddDrawItem(const Geometry* geometry, const MaterialInstance* mat
     rec._material = mtl;                              // [RSP+0x38]
     rec._instance = material;                         // [RSP+0x40]
     rec._flags    = flags;                            // [RSP+0x48]
-    rec._arg5     = arg5;                             // [RSP+0x4a]
+    rec._node     = arg5;                             // [RSP+0x4a]
     rec._sortKey  = arg6;                             // [RSP+0x4c]
-    rec._arg8     = arg8;                             // [RSP+0x50]
+    rec._maxInstances     = arg8;                             // [RSP+0x50]
     rec._userData = arg9;                             // [RSP+0x58]
-    rec._arg10    = arg10;                            // [RSP+0x60]
+    rec._animationInstanceId    = arg10;                            // [RSP+0x60]
 
     // `group + 0x1c0 + pass*0x10` (LEA RCX,[R11+0x1c]; SHL RCX,4; ADD RCX,R10):
     // the pass's item list by name. Every caller passes 0..2, and retail applies

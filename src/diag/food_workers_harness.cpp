@@ -173,12 +173,12 @@ void Fire(int frameNum) {
                                      "null, arrows dead\n",
                                      frameNum, foodName, static_cast<void*>(wIBP), cur);
                     } else {
-                        const int32_t dflt = wd->_i24;                    // +0x24
-                        const int32_t mn   = wd->_i28;                    // +0x28
-                        const int32_t mx   = wd->_i2c;                    // +0x2c
-                        const int32_t area = wd->_i30;                    // +0x30
-                        const uint8_t allow = wd->_b20;                   // +0x20
-                        const uint8_t scale = wd->_b34;                   // +0x34
+                        const int32_t dflt = wd->_defaultWorkers;                    // +0x24
+                        const int32_t mn   = wd->_minWorkerCount;                    // +0x28
+                        const int32_t mx   = wd->_maxWorkerCount;                    // +0x2c
+                        const int32_t area = wd->_maxArea;                    // +0x30
+                        const uint8_t allow = wd->_allowCountChange;                   // +0x20
+                        const uint8_t scale = wd->_scaleWorkersWithSize;                   // +0x34
                         std::fprintf(stderr,
                             "[JobArrowData] frame=%d: %s workComp=%p desc=%p | "
                             "wpMax(+0x30)=%d | _allowCountChange(+0x20)=%d "

@@ -588,7 +588,7 @@ uint32_t Engine::Engine::Startup(const char* cmdLine, uint32_t minRangeMB,
     // retail exactly as here.
     if (_noConfigure)
         _videoConfiguration->fullscreen = 0;                        // +0x40
-    _videoConfiguration->field42 = _noConfigure;                    // +0x42
+    _videoConfiguration->hideWindow = _noConfigure;                    // +0x42
 
     // --- 0x1800dbccf: Video::Device -----------------------------------------
     // Allocated through Video::Device's own class operator new (align 8, not 4)

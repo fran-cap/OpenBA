@@ -552,7 +552,7 @@ void Save::SaveLoad::Draw(Video::Context& context,
         // the class's real constructor; the minted-table stamp is retired.
         if (p != nullptr) sheet = ::new (p) SpriteSheet();
     }
-    sheet->m_field30 = mat;   // the sheet's material, +0x30
+    sheet->m_materialInstance = mat;   // the sheet's material, +0x30
 
     {
         // Two EMPTY Strings, passed by reference. `Set`'s third parameter is

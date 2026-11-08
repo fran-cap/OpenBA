@@ -84,7 +84,7 @@ public:
     HerdList herds;        // +0x50 the spawned herds (count +0x58, capacity +0x5C)
     System::Time smoothTimer; // +0x60 SmoothDensity every 300 s
     int32_t  scanIndex;    // +0x68 the round-robin habitability cursor
-    int32_t  field_0x6c;   // +0x6C serialized, not read by the ported bodies
+    int32_t  unusedSerializedInt;   // +0x6C serialized, not read by the ported bodies
 };
 
 static_assert(sizeof(PopulationComponent) == 0x70, "PopulationComponent is 0x70 (create 0x14000af50)");
@@ -106,4 +106,4 @@ static_assert(offsetof(PopulationComponent, herds) == 0x50, "");
 static_assert(offsetof(PopulationComponent, herds) + offsetof(PopulationComponent::HerdList, _size) == 0x58, "");
 static_assert(offsetof(PopulationComponent, smoothTimer) == 0x60, "");
 static_assert(offsetof(PopulationComponent, scanIndex) == 0x68, "");
-static_assert(offsetof(PopulationComponent, field_0x6c) == 0x6C, "");
+static_assert(offsetof(PopulationComponent, unusedSerializedInt) == 0x6C, "");

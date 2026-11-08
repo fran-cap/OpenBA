@@ -78,7 +78,7 @@
 #include "Component/InteractComponent.h"
 #include "Component/MapComponent.h"
 #include "Entity/ComponentEntity.h"
-#include "Entity/CitizenBehavior.h"   // CitizenBehavior::field_0x00 / field_0x10 (PickBestDropTarget)
+#include "Entity/CitizenBehavior.h"   // CitizenBehavior::storageLocations / marketLocations (PickBestDropTarget)
 #include "stress_harness.h"   // PFBENCH: PfMainTimer (ph_pathdistance_ms; stress harness only)
 #include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
@@ -335,7 +335,7 @@ ComponentEntity** CitizenBehavior::PickBestDropTarget(ComponentEntity** best,
     int pass = 0;
     do {
         // Retail steps the two adjacent lists +0x00 / +0x10 by their 0x10 stride.
-        const CitizenIbpList<ComponentEntity>* list = &(&field_0x00)[pass];
+        const CitizenIbpList<ComponentEntity>* list = &(&storageLocations)[pass];
         // Collection::Array's copy into the empty local: MemFree of its (null) buffer,
         // MemAlloc(count * 8), then each element constructed in place.
         ComponentEntity** snapshot = nullptr;

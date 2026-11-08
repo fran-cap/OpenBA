@@ -313,12 +313,12 @@ void TradeComponent::BuildMerchantManifest() {
         const int pick = static_cast<int>(rng->Rand(static_cast<uint32_t>(values.count)));
         const ValueDescription* vd = values.base[pick];
 
-        int stock = vd->_baseValue / tier.stockDivisor;
-        if (stock < vd->_weight)
-            stock = vd->_weight;
+        int stock = vd->_stackCount / tier.stockDivisor;
+        if (stock < vd->_minStackCount)
+            stock = vd->_minStackCount;
         if (stock < 1) stock = 1;
 
-        int price = vd->_i40;
+        int price = vd->_baseValue;
         if (fromOrder) price = static_cast<int>(static_cast<float>(price) * 1.25f);  // DAT_140172158
         if (price < 1) price = 1;
 
@@ -503,13 +503,13 @@ void TradeComponent::AutoTrade() {
                     paid += unit;
                     ++sold;
 
-                    townMgr->field_0x1AC += unit;
+                    townMgr->totalTradeValue += unit;
                     // Retail passes the unit price where every other caller of 0x140088f90
                     // passes a StorageComponent. The function ignores its first parameter,
                     // so the body (which reads the material only) is called with it alone.
                     const int cat = ResourceCategory(resource);   // 0x140088f90
                     if (cat >= 0) {
-                        townMgr->professionResources._data[cat].field_0x0C += 1;
+                        townMgr->professionResources._data[cat].consumedCount += 1;
                     }
                     if (mapOverlays) {
                         // ext.map_overlays: one unit sold by auto-trade, at the trading post

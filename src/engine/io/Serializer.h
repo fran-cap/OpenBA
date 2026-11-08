@@ -139,16 +139,16 @@ static_assert(offsetof(ReaderWriter, stream)               == 0x18, "ReaderWrite
 //          0x180023ab0 is the same instruction).
 struct BinaryCodec {
     ReaderWriter base;    // +0x00 .. +0x1f
-    int32_t      word20;  // +0x20
-    int32_t      word24;  // +0x24
+    int32_t      lengthField;  // +0x20
+    int32_t      recordStart;  // +0x24
     int32_t      version; // +0x28
     int32_t      _pad2c;  // +0x2c
 };
 static_assert(offsetof(BinaryCodec, version) == 0x28, "BinaryCodec.version @ 0x28");
 static_assert(sizeof(BinaryCodec) == 0x30, "BinaryCodec is 0x30 bytes (allocator asks for 0x30)");
 static_assert(offsetof(BinaryCodec, base) == 0x0, "BinaryCodec::base");
-static_assert(offsetof(BinaryCodec, word20) == 0x20, "BinaryCodec::word20");
-static_assert(offsetof(BinaryCodec, word24) == 0x24, "BinaryCodec::word24");
+static_assert(offsetof(BinaryCodec, lengthField) == 0x20, "BinaryCodec::lengthField");
+static_assert(offsetof(BinaryCodec, recordStart) == 0x24, "BinaryCodec::recordStart");
 static_assert(offsetof(BinaryCodec, _pad2c) == 0x2C, "BinaryCodec::_pad2c");
 
 // The THIRD ReaderWriter the engine actually produces is an IO::Visitor (the
@@ -570,7 +570,7 @@ static_assert(rt::io::rw_vtbl::kSerializeBytes / 8 == 25, "26 slots, 0..25");
 // one — the recovered source tree has `IO\BinaryReader.cpp` and no Codec file —
 // and ENDGAME decision 5 says the classes take the ORIGINAL names. So
 // `BinaryReader` and `BinaryWriter` each declare the three fields, which is also
-// honest about the fact that `word20`/`word24` MEAN different things on the two
+// honest about the fact that the +0x20/+0x24 words MEAN different things on the two
 // sides (reader: the back-patched record length and the position just after it,
 // whose sum `Skip()` seeks to; writer: two back-patch positions).
 //
@@ -617,8 +617,8 @@ public:
     void SerializeSChar (signed char&,   const char*) override;
     void SerializeBytes(int, void*, const char*) override;             // 0x1800a8970
 
-    int32_t word20;    // +0x20  the back-patched record LENGTH, read from the stream
-    int32_t word24;    // +0x24  GetCurrentPos() just after it
+    int32_t recordLength;    // +0x20  the back-patched record LENGTH, read from the stream
+    int32_t recordStart;    // +0x24  GetCurrentPos() just after it
     int32_t version;   // +0x28
     int32_t _pad2c;    // +0x2c
 };
@@ -664,8 +664,8 @@ public:
     void SerializeSChar (signed char&,   const char*) override;
     void SerializeBytes(int, void*, const char*) override;             // 0x1800a9070
 
-    int32_t word20;    // +0x20  where the length placeholder lands, for back-patching
-    int32_t word24;    // +0x24  the position just after it
+    int32_t lengthFieldPos;    // +0x20  where the length placeholder lands, for back-patching
+    int32_t recordStart;    // +0x24  the position just after it
     int32_t version;   // +0x28
     int32_t _pad2c;    // +0x2c
 };
@@ -731,11 +731,11 @@ static_assert(sizeof(Visitor)      == sizeof(rt::io::VisitorCodec), "POD agrees"
 static_assert(offsetof(ReaderWriter, allowCustomSerialize) == 0x08, "ReaderWriter+0x08");
 static_assert(offsetof(ReaderWriter, serializer)           == 0x10, "ReaderWriter+0x10");
 static_assert(offsetof(ReaderWriter, stream)               == 0x18, "ReaderWriter+0x18");
-static_assert(offsetof(BinaryReader, word20)  == 0x20, "BinaryReader+0x20");
-static_assert(offsetof(BinaryReader, word24)  == 0x24, "BinaryReader+0x24");
+static_assert(offsetof(BinaryReader, recordLength)  == 0x20, "BinaryReader+0x20");
+static_assert(offsetof(BinaryReader, recordStart)  == 0x24, "BinaryReader+0x24");
 static_assert(offsetof(BinaryReader, version) == 0x28, "0x180023930 MOV EAX,[RCX+0x28]");
-static_assert(offsetof(BinaryWriter, word20)  == 0x20, "BinaryWriter+0x20");
-static_assert(offsetof(BinaryWriter, word24)  == 0x24, "BinaryWriter+0x24");
+static_assert(offsetof(BinaryWriter, lengthFieldPos)  == 0x20, "BinaryWriter+0x20");
+static_assert(offsetof(BinaryWriter, recordStart)  == 0x24, "BinaryWriter+0x24");
 static_assert(offsetof(BinaryWriter, version) == 0x28, "0x180023ab0 MOV EAX,[RCX+0x28]");
 // THE TRAP, pinned so it cannot be "tidied" into uniformity with the other two:
 static_assert(offsetof(Visitor, version) == 0x20,
@@ -1007,12 +1007,12 @@ inline ReaderWriter::ReaderWriter(Serializer& ser)
 // if that read fails, which is why the store stays. The magic is read into a
 // stack slot and never inspected.
 inline BinaryReader::BinaryReader(Serializer& ser, int ver)
-    : ReaderWriter(ser), word20(0), word24(0), version(ver) {
+    : ReaderWriter(ser), recordLength(0), recordStart(0), version(ver) {
     Stream* s = stream;
     int32_t magic;
     rw_stream::Read(s, 4, &magic);
-    rw_stream::Read(s, 4, &word20);
-    word24 = rw_stream::GetPos(s);
+    rw_stream::Read(s, 4, &recordLength);
+    recordStart = rw_stream::GetPos(s);
     rw_stream::Read(s, 4, &version);
 }
 
@@ -1028,13 +1028,13 @@ inline BinaryReader::~BinaryReader() {
 // to be emitted), then magic / placeholder / version, remembering the two
 // positions the dtor back-patches through.
 inline BinaryWriter::BinaryWriter(Serializer& ser, int ver)
-    : ReaderWriter(ser), word20(0), word24(-1), version(ver) {
+    : ReaderWriter(ser), lengthFieldPos(0), recordStart(-1), version(ver) {
     Stream* s = stream;
     int32_t magic = static_cast<int32_t>(kRecordMagic);
     rw_stream::Write(s, 4, &magic);
-    word20 = rw_stream::GetPos(s);           // where the placeholder lands
-    rw_stream::Write(s, 4, &word24);         // emit the -1 placeholder
-    word24 = rw_stream::GetPos(s);
+    lengthFieldPos = rw_stream::GetPos(s);           // where the placeholder lands
+    rw_stream::Write(s, 4, &recordStart);         // emit the -1 placeholder
+    recordStart = rw_stream::GetPos(s);
     rw_stream::Write(s, 4, &version);
 }
 
@@ -1042,11 +1042,11 @@ inline BinaryWriter::BinaryWriter(Serializer& ser, int ver)
 // VERSION DWORD INCLUDED; trailer, then seek back, patch, seek forward.
 inline BinaryWriter::~BinaryWriter() {
     Stream* s = stream;
-    const int32_t len = rw_stream::GetPos(s) - word24;
+    const int32_t len = rw_stream::GetPos(s) - recordStart;
     int32_t trailer = static_cast<int32_t>(kRecordTrailer);
     rw_stream::Write(s, 4, &trailer);
     const int32_t resume = rw_stream::GetPos(s);
-    rw_stream::SetPos(s, word20);
+    rw_stream::SetPos(s, lengthFieldPos);
     int32_t lenOut = len;
     rw_stream::Write(s, 4, &lenOut);
     rw_stream::SetPos(s, resume);

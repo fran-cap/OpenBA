@@ -1956,7 +1956,7 @@ void ContextData::BindTransforms() {
         ctx->_transformConstants.Bind(*ctx, ctx->_transforms, 0, ctx->_transformCount << 6);
     }
     ctx = _owner;
-    if (ctx->_unknown0024 > 0) ctx->_boneConstants.Bind(*ctx, ctx->_boneAndProjectionStaging, 0, 0x0cc0);
+    if (ctx->_boneCount > 0) ctx->_boneConstants.Bind(*ctx, ctx->_boneAndProjectionStaging, 0, 0x0cc0);
 }
 
 // Slot 9 (pixel stage only, as retail).
@@ -2002,11 +2002,11 @@ bool ContextData::BeginVertices(int vertexCount, int vertexStride) {
     ::Video::Context* ctx = _owner;
     if (ctx->_dynamicVertexBuffer->size <= vertexCount * vertexStride) return false;
     _owner->_dynamicVertexStride = vertexStride;
-    _owner->_unknown2104 = vertexCount;
+    _owner->_dynamicVertexCount = vertexCount;
     ctx = _owner;
-    void* mapped = ctx->_dynamicVertexBuffer->Lock(vertexCount * vertexStride, ctx->_unknown2100);
+    void* mapped = ctx->_dynamicVertexBuffer->Lock(vertexCount * vertexStride, ctx->_dynamicVertexOffset);
     _owner->_dynamicVertexCursor = static_cast<uint8_t*>(mapped);   // CAST-OK: gpu_map (the Lock result)
-    _owner->_unknown2108 = _owner->_dynamicVertexCursor;
+    _owner->_dynamicVertexBase = _owner->_dynamicVertexCursor;
     return _owner->_dynamicVertexCursor != nullptr;
 }
 
@@ -2021,16 +2021,16 @@ void ContextData::EndVertices(int primitiveType) {
     _owner->_dynamicVertexCursor = nullptr;
     _owner->_dynamicVertexBuffer->Unlock();
     ::Video::Context* ctx = _owner;
-    ctx->SetVertexBuffer(ctx->_dynamicVertexBuffer, 0, ctx->_unknown2100, ctx->_dynamicVertexStride);
+    ctx->SetVertexBuffer(ctx->_dynamicVertexBuffer, 0, ctx->_dynamicVertexOffset, ctx->_dynamicVertexStride);
     ctx = _owner;
-    const int vertexCount = ctx->_unknown2104;
+    const int vertexCount = ctx->_dynamicVertexCount;
     ctx->_trianglesSubmitted += vertexCount / 3;
-    _owner->_verticesSubmitted += _owner->_unknown2104;
+    _owner->_verticesSubmitted += _owner->_dynamicVertexCount;
     _owner->_drawsSubmitted += 1;
     _owner->_objectsSubmitted += 1;
     _owner->BindResources();
     ApplyPrimitiveType(primitiveType);
-    IssueDraw(false, static_cast<uint32_t>(_owner->_unknown2104), 1, 0, 0);
+    IssueDraw(false, static_cast<uint32_t>(_owner->_dynamicVertexCount), 1, 0, 0);
 }
 
 // Slot 16: slot 18 with one instance.
@@ -2051,18 +2051,18 @@ bool ContextData::BeginInstancedIndexedVertices(int vertexCount, int vertexStrid
     if (vertexCapacity <= vertexCount * vertexStride) return false;
     if (indexCount * 2 >= vertexCapacity) return false;   // sic, as retail
     ctx->_dynamicVertexStride = vertexStride;
-    _owner->_unknown2104 = vertexCount;
+    _owner->_dynamicVertexCount = vertexCount;
     _owner->_instanceCount = instanceCount;
     ctx = _owner;
-    void* mappedVertices = ctx->_dynamicVertexBuffer->Lock(vertexCount * vertexStride, ctx->_unknown2100);
+    void* mappedVertices = ctx->_dynamicVertexBuffer->Lock(vertexCount * vertexStride, ctx->_dynamicVertexOffset);
     _owner->_dynamicVertexCursor = static_cast<uint8_t*>(mappedVertices);   // CAST-OK: gpu_map
-    _owner->_unknown2108 = _owner->_dynamicVertexCursor;
+    _owner->_dynamicVertexBase = _owner->_dynamicVertexCursor;
     if (_owner->_dynamicVertexCursor == nullptr) return false;
-    _owner->_unknown2124 = indexCount;
+    _owner->_dynamicIndexCount = indexCount;
     ctx = _owner;
-    void* mappedIndices = ctx->_dynamicIndexBuffer->Lock(indexCount * 2, ctx->_unknown2120);
+    void* mappedIndices = ctx->_dynamicIndexBuffer->Lock(indexCount * 2, ctx->_dynamicIndexOffset);
     _owner->_dynamicIndexCursor = static_cast<uint16_t*>(mappedIndices);   // CAST-OK: gpu_map
-    _owner->_unknown2128 = _owner->_dynamicIndexCursor;
+    _owner->_dynamicIndexBase = _owner->_dynamicIndexCursor;
     return _owner->_dynamicIndexCursor != nullptr;
 }
 
@@ -2073,29 +2073,29 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     _owner->_dynamicIndexCursor = nullptr;
     _owner->_dynamicIndexBuffer->Unlock();
     ::Video::Context* ctx = _owner;
-    ctx->SetVertexBuffer(ctx->_dynamicVertexBuffer, 0, ctx->_unknown2100, ctx->_dynamicVertexStride);
+    ctx->SetVertexBuffer(ctx->_dynamicVertexBuffer, 0, ctx->_dynamicVertexOffset, ctx->_dynamicVertexStride);
     ctx = _owner;
     ::Video::IndexBuffer* const dynIb = ctx->_dynamicIndexBuffer;
-    const int32_t dynOffset = ctx->_unknown2120;
+    const int32_t dynOffset = ctx->_dynamicIndexOffset;
     if (dynIb != ctx->_indexBuffer || dynOffset != ctx->_indexOffset) {
         ctx->_dirty |= RtVideo::kDirtyIndexBuffer;
         ctx->_indexBuffer = dynIb;
         ctx->_indexOffset = dynOffset;
     }
     ctx = _owner;
-    const int indexCount = ctx->_unknown2124;
+    const int indexCount = ctx->_dynamicIndexCount;
     const int instanceCount = ctx->_instanceCount;
     ctx->_trianglesSubmitted += (indexCount / 3) * instanceCount;
     ctx = _owner;
-    ctx->_verticesSubmitted += ctx->_instanceCount * ctx->_unknown2104;
+    ctx->_verticesSubmitted += ctx->_instanceCount * ctx->_dynamicVertexCount;
     _owner->_drawsSubmitted += 1;
     _owner->_objectsSubmitted += _owner->_instanceCount;
     _owner->BindResources();
     ApplyPrimitiveType(primitiveType);
     ctx = _owner;
     const uint32_t startIndex =
-        static_cast<uint32_t>(static_cast<uint64_t>(static_cast<int64_t>(ctx->_unknown2120)) >> 1);
-    IssueDraw(true, static_cast<uint32_t>(ctx->_unknown2124), static_cast<uint32_t>(ctx->_instanceCount), startIndex,
+        static_cast<uint32_t>(static_cast<uint64_t>(static_cast<int64_t>(ctx->_dynamicIndexOffset)) >> 1);
+    IssueDraw(true, static_cast<uint32_t>(ctx->_dynamicIndexCount), static_cast<uint32_t>(ctx->_instanceCount), startIndex,
               0);
 }
 

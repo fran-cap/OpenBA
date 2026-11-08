@@ -33,7 +33,7 @@ public:
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400c5560
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    Object::InternalPtr<ComponentEntity> _field20;   // +0x20 the natural-resource entity (Persist checks ComponentEntity)
+    Object::InternalPtr<ComponentEntity> resourceEntity;   // +0x20 the natural-resource entity (Persist checks ComponentEntity)
     int32_t   animIndex;         // +0x28 animation index
     bool      waitForAnim;       // +0x2C wait for the animation (Persist 0x1400c5707: the bool overload)
     uint8_t   _pad2D[3];         // +0x2D padding
@@ -42,6 +42,6 @@ public:
 static_assert(sizeof(AnimateNaturalResource) == 0x30, "AnimateNaturalResource is 0x30 (create 0x140021dc0 MemAlloc)");
 static_assert(offsetof(AnimateNaturalResource, _pad2D) == 0x2D, "AnimateNaturalResource::_pad2D");
 static_assert(alignof(AnimateNaturalResource) == 8, "AnimateNaturalResource is 8-aligned");
-static_assert(offsetof(AnimateNaturalResource, _field20) == 0x20, "AnimateNaturalResource +0x20");
+static_assert(offsetof(AnimateNaturalResource, resourceEntity) == 0x20, "AnimateNaturalResource +0x20");
 static_assert(offsetof(AnimateNaturalResource, animIndex) == 0x28, "AnimateNaturalResource +0x28");
 static_assert(offsetof(AnimateNaturalResource, waitForAnim) == 0x2c, "AnimateNaturalResource +0x2c");

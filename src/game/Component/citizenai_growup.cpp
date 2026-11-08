@@ -429,7 +429,7 @@ void CitizenComponent::LongTermPlan() {
         }
 
         // commit the action-state flags on the citizen and run the executor.
-        field_0x30 = -1;
+        lastWorkId = -1;
         statusFlags |= Bits(CitizenStatus::TaskDone);
         lastErrand = CitizenErrand::None;
 
@@ -560,7 +560,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
         if (prio && !Ext::ItemPriority::Eligible(Ext::ItemPriority::kHealth, rm, bestRank)) {
             continue;
         }
-        if (rm->_unknown58 != '\0') {
+        if (rm->_preferred != '\0') {
             preferred = eligible;   // remember the flagged candidate's ordinal
         }
         ++eligible;
@@ -609,7 +609,7 @@ uint64_t CitizenAIComponent::State_GrowUp() {
                     // success epilogue: flag triplet on the citizen.
                     CitizenComponent* cz = citizen.Get();
                     cz->statusFlags |= Bits(CitizenStatus::TaskDone);
-                    cz->field_0x30 = -1;
+                    cz->lastWorkId = -1;
                     cz->lastErrand = CitizenErrand::None;
 
                     // walk-time-scaled cooldown: desc = cz->_description, require

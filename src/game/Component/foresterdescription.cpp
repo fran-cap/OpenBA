@@ -32,13 +32,13 @@
 // the defaults.
 ForesterDescription::ForesterDescription()
     : Description(),
-      _ref20(nullptr),
+      _naturalResource(nullptr),
       _type(0) {}
 
 // [5] 0x14011fa80: stream order as retail.
 bool ForesterDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 1);
-    ::Object::SerializeExternal<ComponentDescription>(ser, _ref20);
+    ::Object::SerializeExternal<ComponentDescription>(ser, _naturalResource);
     if (ser.GetVersion() > 0) ser.Serialize(_type, nullptr);   // version-gated, as retail
     return true;
 }

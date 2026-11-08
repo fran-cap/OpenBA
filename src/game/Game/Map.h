@@ -75,23 +75,23 @@ namespace IO { class Stream; }
 namespace System { class String; }
 
 struct MapCell {
-    // field_0x2A when the cell carries no road batch (resize 0x14001aa90's init;
+    // roadType when the cell carries no road batch (resize 0x14001aa90's init;
     // FinishRoadCell 0x14009c640 clears it back to it).
     static constexpr uint8_t kNoRoadBatch = 0xFF;
 
     Object::InternalPtr<ComponentEntity> blocker;    // +0x00 (0x14009d360)
     Object::InternalPtr<ComponentEntity> occupant;   // +0x08 (0x14009dc20)
-    ComponentDescription* field_0x10;   // +0x10 ExternalPtr<ComponentDescription> (serialized by 0x140002340; typed B8 RT2)
+    ComponentDescription* lastGrownDescription;   // +0x10 ExternalPtr<ComponentDescription> (serialized by 0x140002340; typed B8 RT2)
     int32_t  regionId;               // +0x18 init -1; not serialized, copied on resize
-    std::array<uint8_t, 9> field_0x1C;   // +0x1C Serialize(9, uchar*) (0x14001aca0); +0x22 read by 0x140115be0;
+    std::array<uint8_t, 9> influenceCounts;   // +0x1C Serialize(9, uchar*) (0x14001aca0); +0x22 read by 0x140115be0;
                                      //       indexed by influence state (0x14009f990); resize copies it whole
     uint8_t  _pad25;                 // +0x25 written by neither resize arm
     uint16_t zone;                   // +0x26 path-region word (Serialize ushort)
     uint8_t  footprintCount;         // +0x28 (Serialize uchar)
     PathType terrainType;            // +0x29 (Serialize uchar): the cell's PathType
-    uint8_t  field_0x2A;             // +0x2A init 0xFF (Serialize uchar); the tree: road batch id
-    uint8_t  field_0x2B;             // +0x2B (Serialize uchar); the tree: road blend / orientation
-    uint8_t  field_0x2C;             // +0x2C (Serialize uchar); the tree: growth level (/255)
+    uint8_t  roadType;             // +0x2A init 0xFF (Serialize uchar); the tree: road batch id
+    uint8_t  roadAlpha;             // +0x2B (Serialize uchar); the tree: road blend / orientation
+    uint8_t  soilQuality;             // +0x2C (Serialize uchar); the tree: growth level (/255)
     int8_t   floorCount;             // +0x2D (Serialize signed char)
     uint8_t  _pad2E[2];              // +0x2E written by neither resize arm
 };
@@ -100,17 +100,17 @@ static_assert(sizeof(MapCell) == 0x30, "MapCell stride 0x30 (0x14001aa90 / 0x140
 static_assert(alignof(MapCell) == 8, "MapCell is qword-aligned");
 static_assert(offsetof(MapCell, blocker) == 0x00, "MapCell::blocker @ +0x00");
 static_assert(offsetof(MapCell, occupant) == 0x08, "MapCell::occupant @ +0x08");
-static_assert(offsetof(MapCell, field_0x10) == 0x10, "MapCell +0x10");
+static_assert(offsetof(MapCell, lastGrownDescription) == 0x10, "MapCell +0x10");
 static_assert(offsetof(MapCell, regionId) == 0x18, "MapCell::regionId @ +0x18");
-static_assert(offsetof(MapCell, field_0x1C) == 0x1C, "MapCell +0x1C");
+static_assert(offsetof(MapCell, influenceCounts) == 0x1C, "MapCell +0x1C");
 static_assert(sizeof(std::array<uint8_t, 9>) == 9, "MapCell +0x1C is nine bytes (+0x1C..+0x24)");
 static_assert(offsetof(MapCell, _pad25) == 0x25, "MapCell +0x25");
 static_assert(offsetof(MapCell, zone) == 0x26, "MapCell::zone @ +0x26");
 static_assert(offsetof(MapCell, footprintCount) == 0x28, "MapCell::footprintCount @ +0x28");
 static_assert(offsetof(MapCell, terrainType) == 0x29, "MapCell::terrainType @ +0x29");
-static_assert(offsetof(MapCell, field_0x2A) == 0x2A, "MapCell +0x2A");
-static_assert(offsetof(MapCell, field_0x2B) == 0x2B, "MapCell +0x2B");
-static_assert(offsetof(MapCell, field_0x2C) == 0x2C, "MapCell +0x2C");
+static_assert(offsetof(MapCell, roadType) == 0x2A, "MapCell +0x2A");
+static_assert(offsetof(MapCell, roadAlpha) == 0x2B, "MapCell +0x2B");
+static_assert(offsetof(MapCell, soilQuality) == 0x2C, "MapCell +0x2C");
 static_assert(offsetof(MapCell, floorCount) == 0x2D, "MapCell::floorCount @ +0x2D");
 static_assert(offsetof(MapCell, _pad2E) == 0x2E, "MapCell +0x2E");
 
@@ -160,8 +160,8 @@ public:
     // +0x80, qword +0x88); its dtor frees it after cellQueue (0x14009ee2c..ee40):
     // the compiler's member destruction after ~Map's body.
     MapCellArray cells;          // +0x80
-    int16_t  field_0x90[9];      // +0x90 Serialize(9, short*)
-    uint8_t  field_0xA2;         // +0xA2 ctor 1; the zones-stale flag, a raw byte (B.4 H8): retail ORs
+    int16_t  influenceTotals[9];      // +0x90 Serialize(9, short*)
+    uint8_t  zonesStale;         // +0xA2 ctor 1; the zones-stale flag, a raw byte (B.4 H8): retail ORs
                                  //       a byte into it (known_port_issues row 311); every
                                  //       writer in the tree stores 0 / 1
     uint8_t  _padA3[5];          // +0xA3
@@ -174,7 +174,7 @@ public:
     // +0xF4 unwritten): 0x28 nodes keyed by cell (0x14009c640). The dtor's body
     // frees it (0x140014c30 on both children, MemFree the root, root / count
     // zeroed): a trivial POD here, released by hand where retail does.
-    AvlTreeHead<AvlNode28> field_0xE8;   // +0xE8
+    AvlTreeHead<AvlNode28> pendingRoadCells;   // +0xE8
 
     void RemoveFloor(uint32_t floorId, int x, int y, int w, int h);   // 0x14009cba0 (defined in Component/floorcomponent.cpp)
     void StampInfluence(int state, int cx, int cy, int r, short delta);  // 0x14009f990 (defined in Component/happinesscomponent.cpp)
@@ -225,12 +225,12 @@ static_assert(offsetof(Map, regionGraph) == 0x70, "Map::regionGraph @ +0x70");
 static_assert(offsetof(Map, regionPairCache) == 0x78, "Map::regionPairCache @ +0x78");
 static_assert(offsetof(Map, cells) == 0x80, "Map::cells @ +0x80");
 static_assert(sizeof(MapCellArray) == 0x10, "Map::cells is the 0x10 Array header (+0x80..+0x90)");
-static_assert(offsetof(Map, field_0x90) == 0x90, "Map +0x90");
-static_assert(offsetof(Map, field_0xA2) == 0xA2, "Map +0xA2");
+static_assert(offsetof(Map, influenceTotals) == 0x90, "Map +0x90");
+static_assert(offsetof(Map, zonesStale) == 0xA2, "Map +0xA2");
 static_assert(offsetof(Map, _padA3) == 0xA3, "Map +0xA3");
 static_assert(offsetof(Map, cellQueue) == 0xA8, "Map::cellQueue @ +0xA8");
 static_assert(offsetof(Map, cellQueue) + offsetof(MapCellQueue, pool) +
               offsetof(PathNodePool, growCount) == 0xD0, "Map +0xD0 (ctor 8) is the queue pool's growCount");
-static_assert(offsetof(Map, field_0xE8) == 0xE8, "Map +0xE8");
-static_assert(offsetof(Map, field_0xE8) + offsetof(AvlTreeHead<AvlNode28>, count) == 0xF0, "Map +0xF0 (the tree's count)");
+static_assert(offsetof(Map, pendingRoadCells) == 0xE8, "Map +0xE8");
+static_assert(offsetof(Map, pendingRoadCells) + offsetof(AvlTreeHead<AvlNode28>, count) == 0xF0, "Map +0xF0 (the tree's count)");
 static_assert(std::is_trivially_destructible<AvlTreeHead<AvlNode28>>::value, "the +0xE8 header is a POD");

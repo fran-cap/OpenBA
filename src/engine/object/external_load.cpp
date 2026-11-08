@@ -405,8 +405,8 @@ extern "C" ::Object::External* RtObject_External_Load(const System::Filename* pa
                 for (int32_t i = 0; i < depCount; ++i, ++elem) {
                     ++g_lc.deps;
                     elem->owned.AsString().Serialize(ser);                    // 1800bc7e9
-                    SerUInt(rw, &elem->field_0x08);                          // 1800bc7fc
-                    SerUInt(rw, &elem->field_0x0c);                          // 1800bc811
+                    SerUInt(rw, &elem->timeStampLow);                          // 1800bc7fc
+                    SerUInt(rw, &elem->timeStampHigh);                          // 1800bc811
                 }
 
                 // ---- 1800bc820..1800bc82b -------------------------------

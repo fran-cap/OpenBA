@@ -220,9 +220,9 @@ public:
     // built, copied and destroyed only by that row. Names by offset: no body
     // read says what the two strings and the float mean.
     struct Tag {
-        System::String _string00;            // +0x00
-        System::String _string08;            // +0x08
-        float    _float10;                   // +0x10  init 0.1f
+        System::String _from;            // +0x00
+        System::String _to;            // +0x08
+        float    _blendTime;                   // +0x10  init 0.1f
         uint32_t _pad14;                     // +0x14  never written
     };
     // B.4 Y RT: `_tags` names retail's row (kSpec_TagStrStrF18), so its
@@ -248,9 +248,9 @@ static_assert(sizeof(AnimationGroup::Tag) == 0x18, "AnimationGroup::Tag stride 0
 static_assert(!std::is_trivially_destructible<AnimationGroup::Tag>::value,
               "Tag holds two real Strings (B.4 Y RT): `_tags` takes retail's row, "
               "never the trait-derived one");
-static_assert(offsetof(AnimationGroup::Tag, _string00) == 0x00, "Tag +0x00 String");
-static_assert(offsetof(AnimationGroup::Tag, _string08) == 0x08, "Tag +0x08 String");
-static_assert(offsetof(AnimationGroup::Tag, _float10)  == 0x10, "Tag +0x10 float (init 0.1f)");
+static_assert(offsetof(AnimationGroup::Tag, _from) == 0x00, "Tag +0x00 String");
+static_assert(offsetof(AnimationGroup::Tag, _to) == 0x08, "Tag +0x08 String");
+static_assert(offsetof(AnimationGroup::Tag, _blendTime)  == 0x10, "Tag +0x10 float (init 0.1f)");
 static_assert(offsetof(AnimationGroup::Tag, _pad14)    == 0x14, "Tag +0x14 never written");
 static_assert(sizeof(Animation) == 0x70,
               "AnimationGroup::_clips has stride 0x70 (GetAnimation's imul); if "

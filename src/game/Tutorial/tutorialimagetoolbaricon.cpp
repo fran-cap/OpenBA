@@ -158,7 +158,7 @@ Object::InternalPtr<UI::Element>* TutorialImageToolbarIcon::CreateElement(Object
     const System::String* spriteName = nullptr;
 
     if (toolbar) {
-        const ComponentDescription* componentList = toolbar->_field58;
+        const ComponentDescription* componentList = toolbar->componentDescription;
 
         if (componentList == nullptr) {
             // No template — use toolbar's direct sprite data
@@ -166,13 +166,13 @@ Object::InternalPtr<UI::Element>* TutorialImageToolbarIcon::CreateElement(Object
             _toolbarRef.ResolveToolbar();
 
             toolbar = ResolvedToolbar(_toolbarRef); // re-read after resolve
-            spriteSheet = toolbar->_field28;
-            spriteName = &toolbar->_field38;
+            spriteSheet = toolbar->spriteSheet;
+            spriteName = &toolbar->spriteName;
         } else {
             // Has a template — walk it for its ToolbarDescription
             _toolbarRef.ResolveToolbar();
 
-            componentList = toolbar->_field58;
+            componentList = toolbar->componentDescription;
             int count = componentList->_subDescCount;
             Description** arrayData = componentList->_subDescs;
 
@@ -198,8 +198,8 @@ Object::InternalPtr<UI::Element>* TutorialImageToolbarIcon::CreateElement(Object
                 spriteName = &matchedComp->_name;
             } else {
                 // Fallback: use toolbar's direct data (matchedComp stays null)
-                spriteSheet = toolbar->_field28;
-                spriteName = &toolbar->_field38;
+                spriteSheet = toolbar->spriteSheet;
+                spriteName = &toolbar->spriteName;
             }
         }
     }

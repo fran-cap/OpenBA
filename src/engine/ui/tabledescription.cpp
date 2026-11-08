@@ -265,7 +265,7 @@ Object::InternalPtr<Element>* TableDescription::CreateInstance(
 // `_cells.~Array()` afterwards is a no-op). The restamps, the base's
 // _textName (+0x60) and the tail JMP into ~External are the compiler's chain.
 TableDescription::~TableDescription() {
-    ReleaseStringField(&_unknown90);                           // 18011e710
+    ReleaseStringField(&_unreadOwnedString);                           // 18011e710
     rtcoll::RtColl_ArrayDtor_180079870(&_cells);              // 18011e74a
 }
 

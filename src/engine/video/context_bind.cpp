@@ -146,10 +146,10 @@
 //
 // ** The 0x4000 arm is NOT a plain bit test. ** 0x1800ef0f5 reads
 //
-//     if ((dirty & 0x4000) || transformCount > 0 || _unknown0024 > 0)
+//     if ((dirty & 0x4000) || transformCount > 0 || _boneCount > 0)
 //
 // — a bit OR two SIGNED comparisons on the qword at +0x20, and the second
-// comparison is on a field Context.h calls `_unknown0024`. That is why the
+// comparison is on a field Context.h calls `_boneCount`. That is why the
 // function's final store is `MOV qword ptr [RBX+0x20],RBP`: a QWORD write
 // clearing BOTH +0x20 and +0x24 at once. Clearing only the dword at +0x20
 // would leave a live transform binding that never re-binds again, and it is one
@@ -195,7 +195,7 @@
 //     array by its own offsets;
 // and two things are spelled from the member they start in:
 //   * the QWORD clear over +0x20..+0x27 (0x1800ef317), `_transformCount` AND
-//     `_unknown0024`, written as the two named fields in address order (H7);
+//     `_boneCount`, written as the two named fields in address order (H7);
 //   * the five constant-buffer STAGING sources at +0x208 / +0x248 / +0x328 /
 //     +0x3f8 / +0x1dd8, two of which start mid-array.
 //
@@ -317,7 +317,7 @@ void Video::Context::BindResources() {
     }
 
     // --- 0x04000 transforms, OR a live transform count ----------------------
-    if ((_dirty & RtVideo::kDirtyTransformConstants) || _transformCount > 0 || _unknown0024 > 0)
+    if ((_dirty & RtVideo::kDirtyTransformConstants) || _transformCount > 0 || _boneCount > 0)
         cd->BindTransforms();
 
     // --- 0x00008 the sixteen vertex streams ---------------------------------
@@ -392,11 +392,11 @@ void Video::Context::BindResources() {
     }
 
     // 0x1800ef317 / 0x1800ef31b — a QWORD zero over +0x20..+0x27, then the
-    // dirty mask. That single store covers `_transformCount` AND `_unknown0024`;
+    // dirty mask. That single store covers `_transformCount` AND `_boneCount`;
     // both are cleared (clearing only the dword would leave a live transform
     // binding that never re-binds again).
     _transformCount = 0;
-    _unknown0024    = 0;
+    _boneCount    = 0;
     _dirty = 0;
 }
 

@@ -64,7 +64,7 @@ public:
     ScrollElement() : Element() {
         _vertical       = 1;
         _barColor       = System::kColorWhite;   // one unaligned qword of -1 ...
-        _unknown158     = 0xffffffffu;           // ... covering both
+        _highlightColor     = 0xffffffffu;           // ... covering both
         _currentValue   = 0.0f;
         _displayPercent = 0.33333334f;   // 0x3eaaaaab
         _maxValue       = 4.0f;          // 0x40800000
@@ -121,7 +121,7 @@ public:
     uint8_t  _vertical;          // +0x150  ctor 1
     uint8_t  _pad151[3];         // +0x151  written by nothing
     uint32_t _barColor;          // +0x154  ctor -1 (one unaligned qword with +0x158); Draw's thumb colour
-    uint32_t _unknown158;        // +0x158  ctor -1; ScrollDescription::CreateInstance writes it; no body reads it
+    uint32_t _highlightColor;        // +0x158  ctor -1; ScrollDescription::CreateInstance writes it; no body reads it
     int32_t  _inset;             // +0x15c  NOT written by the ctor; GetBarLayout recesses the track by it
     float    _currentValue;      // +0x160  ctor 0
     float    _displayPercent;    // +0x164  ctor 0.33333334f; the visible fraction
@@ -155,7 +155,7 @@ static_assert(offsetof(ScrollElement, _hotMiddle)      == 0x130, "");
 static_assert(offsetof(ScrollElement, _hotEnd)         == 0x140, "");
 static_assert(offsetof(ScrollElement, _vertical)       == 0x150, "");
 static_assert(offsetof(ScrollElement, _barColor)       == 0x154, "");
-static_assert(offsetof(ScrollElement, _unknown158)     == 0x158, "");
+static_assert(offsetof(ScrollElement, _highlightColor)     == 0x158, "");
 static_assert(offsetof(ScrollElement, _inset)          == 0x15c, "");
 static_assert(offsetof(ScrollElement, _currentValue)   == 0x160, "");
 static_assert(offsetof(ScrollElement, _displayPercent) == 0x164, "");

@@ -23,7 +23,7 @@
 
 // ctor 0x1400d79e0 (inlined in create 0x1400260f0): Goal(), the vptr, the
 // tutorial reference zeroed.
-FinishTutorialGoal::FinishTutorialGoal() : _field30(nullptr) {}
+FinishTutorialGoal::FinishTutorialGoal() : _tutorial(nullptr) {}
 
 // ============================================================
 // FinishTutorialGoal::Serialize (vtable +0x28, 0x1400d7970)
@@ -38,7 +38,7 @@ bool FinishTutorialGoal::Serialize(IO::Stream& stream) {
     IO::Serializer serializer(stream, 0);
 
     // Serialize the tutorial External* at +0x30
-    ::Object::SerializeExternal<Tutorial>(serializer, _field30);   // 0x1400262b0
+    ::Object::SerializeExternal<Tutorial>(serializer, _tutorial);   // 0x1400262b0
 
     return true;
 }

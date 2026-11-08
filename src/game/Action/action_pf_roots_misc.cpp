@@ -90,7 +90,7 @@ static inline float C_neg1() { return -1.0f; }
 // Chebyshev distance component equals the ring radius are tested (abs(dRow)==r ||
 // abs(dCol)==r). A candidate cell must: be in-bounds; have no occupant; either no blocker
 // OR (allow set AND the blocker is it); have a terrain type with neither bit 1 nor 2 set
-// AND field_0x2A == 0xff; and NOT be present in the skip tree at field_0xE8 (key = cell
+// AND field_0x2A == 0xff; and NOT be present in the skip tree at pendingRoadCells (key = cell
 // index). If param_3==0: additionally validate the cell's terrain position against the
 // terrain (the two f3e0 samples must agree within 1000.0 and the growth >= 0.97). If
 // param_3!=0: require the walkability bit (param_5 >> (terrainType&0x1f) & 1). On success
@@ -157,9 +157,9 @@ int Map::FindPlacementCell(int param_2, char param_3, ComponentEntity* const* al
                                     PathBits uVar8 = PathBitOf(cell.terrainType);
                                     if (!Any(uVar8 & PathBits::Fast) &&
                                         (!Any(uVar8 & PathBits::Faster)
-                                         && (cell.field_0x2A == MapCell::kNoRoadBatch))) {
-                                        // the skip tree at field_0xE8 (key = cell index)
-                                        const AvlNode28* piVar2 = field_0xE8.root;
+                                         && (cell.roadType == MapCell::kNoRoadBatch))) {
+                                        // the skip tree at pendingRoadCells (key = cell index)
+                                        const AvlNode28* piVar2 = pendingRoadCells.root;
                                         bool skip = false;
                                         while (piVar2 != nullptr) {
                                             if (iVar7 < piVar2->key) {

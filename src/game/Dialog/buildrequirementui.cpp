@@ -291,7 +291,7 @@ void BuildRequirementUI::OnCreated() {
 
 check_multi:
     // If the BuildDescription's multi-build flag (+0x34) is set, show "labelBuildMulti"
-    if (resourceComp->_b34 != 0) {
+    if (resourceComp->_scaledWithSize != 0) {
         if (labelMulti) {
             labelMulti->SetFlagsOnOff(0, UI::kElementFlagHidden);  // show
         }

@@ -58,8 +58,8 @@ UNIT_TEST(ext_walk_batch_grid_registry_row) {
         if (mods[(size_t)k].path == "ext:walk_batch_grid") {
             ++sawGrid;
             CHECK(mods[(size_t)k].formatVersion == 1);
-            CHECK(mods[(size_t)k].field14 == Ext::kPseudoModField14);
-            CHECK(mods[(size_t)k].field10 == 0);
+            CHECK(mods[(size_t)k].gameVersion == Ext::kPseudoModField14);
+            CHECK(mods[(size_t)k].versionMajor == 0);
             CHECK(mods[(size_t)k].name == e.displayName);
         }
         if (mods[(size_t)k].path == "ext:walk_batch") ++sawA;

@@ -27,16 +27,16 @@
 // LAYOUT, sizeof 0x88 (`MOV EDX,0x88` at 0x18004a77f). ElementDescription
 // (0x68) plus:
 //     +0x68  ExternalPtr<UI::Font>   ctor 0, serialized by 0x18003f1e0
-//     +0x70  uint32  _u70   kScalarUInt (vt+0x98) — NOT the int slot
-//     +0x74  int32   _i74   kScalarInt
-//     +0x78  float   _f78   kScalarFloat (vt+0x80); the ctor writes it as an
-//                           integer zero (`MOV dword [RCX+0x78],EDX`), which is
-//                           0.0f, so nothing is lost by calling it a float —
-//                           but the SERIALIZER is what says it is one.
-//     +0x7c  bool    _b7c
+//     +0x70  uint32  _numberType  kScalarUInt (vt+0x98) — NOT the int slot
+//     +0x74  int32   _ivalue      kScalarInt
+//     +0x78  float   _fvalue      kScalarFloat (vt+0x80); the ctor writes it as an
+//                                 integer zero (`MOV dword [RCX+0x78],EDX`), which is
+//                                 0.0f, so nothing is lost by calling it a float —
+//                                 but the SERIALIZER is what says it is one.
+//     +0x7c  bool    _showSign
 //     +0x7d..+0x87 never written by the ctor
 // The ctor's +0x68 store is ONE QWORD covering +0x68..+0x6f and the +0x70 store
-// is another covering +0x70..+0x77, which is what pins _u70 and _i74 as the two
+// is another covering +0x70..+0x77, which is what pins _numberType and _ivalue as the two
 // halves of that second qword.
 //
 // NOT PORTED HERE: ??0NumberElement@UI@@QEAA@XZ (0x180118c70), reached through
@@ -85,10 +85,10 @@ void NumberDescription::Destruct() { this->~NumberDescription(); }
 // ============================================================================
 //   ElementDescription::Serialize                   0x180116b00 (qualified)
 //   ExternalPtr<UI::Font>::Serialize(&_font, &pair) 0x18003f1e0
-//   kScalarUInt  (vt+0x98)  _u70
-//   kScalarInt   (vt+0xa0)  _i74
-//   kScalarFloat (vt+0x80)  _f78
-//   kScalarBool  (vt+0x78)  _b7c
+//   kScalarUInt  (vt+0x98)  _numberType
+//   kScalarInt   (vt+0xa0)  _ivalue
+//   kScalarFloat (vt+0x80)  _fvalue
+//   kScalarBool  (vt+0x78)  _showSign
 //
 // FOUR DIFFERENT SCALAR SLOTS IN FOUR CONSECUTIVE CALLS. This is the body that
 // says what the four fields' types are; nothing else in the class does.
@@ -103,10 +103,10 @@ bool NumberDescription::Serialize(IO::Stream& streamv) {
 
     Object::SerializeExternal<UI::Font>(ser, _font);          // 180118e88
 
-    rw->SerializeUInt(_u70, nullptr);
-    rw->SerializeInt(_i74, nullptr);
-    rw->SerializeFloat(_f78, nullptr);
-    rw->SerializeBool(_b7c, nullptr);
+    rw->SerializeUInt(_numberType, nullptr);
+    rw->SerializeInt(_ivalue, nullptr);
+    rw->SerializeFloat(_fvalue, nullptr);
+    rw->SerializeBool(_showSign, nullptr);
 
     // ~Serializer (0x1800b99b0) inlined here: rw's scalar deleting dtor                                       // 180118ee7
     return true;
@@ -121,8 +121,8 @@ bool NumberDescription::Serialize(IO::Stream& streamv) {
 // constructor is CALLED out of line (0x180118c70, the real ctor), not inlined.
 //
 // THE FIVE COPIES ARE NOT AT MATCHING OFFSETS on the two objects, and the gap
-// is not uniform: _font -> +0xc0, _u70 -> _mode (+0xc8), _i74 -> _intValue
-// (+0xd8), _f78 -> _floatValue (+0xdc), _b7c -> _showSign (+0xe0).
+// is not uniform: _font -> +0xc0, _numberType -> _mode (+0xc8), _ivalue -> _intValue
+// (+0xd8), _fvalue -> _floatValue (+0xdc), _showSign -> _showSign (+0xe0).
 Object::InternalPtr<Element>* NumberDescription::CreateInstance(
         Object::InternalPtr<Element>* ret, const Dialog* /*dialog*/) const {
     void* raw = System::MemoryAllocator::MemAlloc(0xe8, 8);    // 180118f51 (inlined)
@@ -138,10 +138,10 @@ Object::InternalPtr<Element>* NumberDescription::CreateInstance(
         &slot);
 
     elem->_font = _font;                                       // 180118fa3
-    elem->_mode = static_cast<int32_t>(_u70);                  // 180118fad
-    elem->_intValue = _i74;                                    // 180118fb6
-    __builtin_memcpy(&elem->_floatValue, &_f78, 4);            // 180118fbf  4 raw bytes
-    elem->_showSign = _b7c;                                    // 180118fc9
+    elem->_mode = static_cast<int32_t>(_numberType);                  // 180118fad
+    elem->_intValue = _ivalue;                                    // 180118fb6
+    __builtin_memcpy(&elem->_floatValue, &_fvalue, 4);            // 180118fbf  4 raw bytes
+    elem->_showSign = _showSign;                                    // 180118fc9
 
     *ret = Object::InternalPtr<Element>(elem);                     // 180118fcf
     return ret;

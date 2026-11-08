@@ -160,10 +160,10 @@ public:
 
 public:
     int32_t  _gridSize;           // +0xC0  heightmap edge (cells)
-    int32_t  _fieldC4;            // +0xC4
+    int32_t  _mapSize;            // +0xC4
     int32_t  _chunkSize;          // +0xC8  cells per chunk edge
-    int32_t  _fieldCC;            // +0xCC
-    int32_t  _fieldD0;            // +0xD0
+    int32_t  _chunkVertsPerSide;            // +0xCC
+    int32_t  _heightRowStride;            // +0xD0
     int32_t  _chunkIndexStride;   // +0xD4  index count per chunk (the ctor leaves it)
     WorldGeometryArray<int16_t> _heights;   // +0xD8  the int16 heightmap (0x14009e0e0 stores one word; B.4 ACT-a H4)
     DirtyChunkSet _dirtyChunks;   // +0xE8  set of dirty chunks (nodes: children +0x10/+0x18; count +0xF0)
@@ -220,9 +220,9 @@ public:
 };
 
 static_assert(sizeof(WorldGeometry) == 0x230, "WorldGeometry is MemAlloc(0x230)");
-static_assert(offsetof(WorldGeometry, _fieldC4) == 0xC4, "WorldGeometry::_fieldC4");
-static_assert(offsetof(WorldGeometry, _fieldCC) == 0xCC, "WorldGeometry::_fieldCC");
-static_assert(offsetof(WorldGeometry, _fieldD0) == 0xD0, "WorldGeometry::_fieldD0");
+static_assert(offsetof(WorldGeometry, _mapSize) == 0xC4, "WorldGeometry::_mapSize");
+static_assert(offsetof(WorldGeometry, _chunkVertsPerSide) == 0xCC, "WorldGeometry::_chunkVertsPerSide");
+static_assert(offsetof(WorldGeometry, _heightRowStride) == 0xD0, "WorldGeometry::_heightRowStride");
 static_assert(offsetof(WorldGeometry, _waterMaterialB) == 0x158, "WorldGeometry::_waterMaterialB");
 static_assert(alignof(WorldGeometry) == 8, "qword-aligned");
 static_assert(offsetof(WorldGeometry, _gridSize) == 0xC0, "+0xC0");

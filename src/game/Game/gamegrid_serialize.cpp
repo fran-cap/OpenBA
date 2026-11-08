@@ -111,32 +111,32 @@ namespace {
 void CopyMapCell(MapCell* d, const MapCell* s) {
     d->blocker = s->blocker;            // +0x00
     d->occupant = s->occupant;          // +0x08
-    d->field_0x10 = s->field_0x10;      // +0x10
+    d->lastGrownDescription = s->lastGrownDescription;      // +0x10
     d->regionId = s->regionId;          // +0x18
-    d->field_0x1C = s->field_0x1C;      // +0x1C..+0x24, the 9-byte block (retail: one qword and one byte)
+    d->influenceCounts = s->influenceCounts;      // +0x1C..+0x24, the 9-byte block (retail: one qword and one byte)
 
     d->zone = s->zone;                  // +0x26
 
     d->footprintCount = s->footprintCount;   // +0x28
     d->terrainType = s->terrainType;    // +0x29
-    d->field_0x2A = s->field_0x2A;      // +0x2A
-    d->field_0x2B = s->field_0x2B;      // +0x2B
-    d->field_0x2C = s->field_0x2C;      // +0x2C
+    d->roadType = s->roadType;      // +0x2A
+    d->roadAlpha = s->roadAlpha;      // +0x2B
+    d->soilQuality = s->soilQuality;      // +0x2C
     d->floorCount = s->floorCount;      // +0x2D
 }
 // Brand-new element: zero the refs/raw block, sentinel the flag bytes.
 void ZeroMapCell(MapCell* d) {
     d->blocker = nullptr;               // +0x00
     d->occupant = nullptr;              // +0x08
-    d->field_0x10 = nullptr;            // +0x10
+    d->lastGrownDescription = nullptr;            // +0x10
     d->regionId = -1;                   // +0x18 0xffffffff
-    d->field_0x1C = {};                 // +0x1C..+0x24 zero (retail: one qword 0 and one byte 0)
+    d->influenceCounts = {};                 // +0x1C..+0x24 zero (retail: one qword 0 and one byte 0)
     d->zone = 0;                        // +0x26..+0x29 zero
     d->footprintCount = 0;
     d->terrainType = PathType{};
-    d->field_0x2A = MapCell::kNoRoadBatch;   // +0x2A = 0xff
-    d->field_0x2B = 0;                  // +0x2B..+0x2D = 0
-    d->field_0x2C = 0;
+    d->roadType = MapCell::kNoRoadBatch;   // +0x2A = 0xff
+    d->roadAlpha = 0;                  // +0x2B..+0x2D = 0
+    d->soilQuality = 0;
     d->floorCount = 0;
 }
 void AssignMapCell(uint8_t* dst, const uint8_t* src) {
@@ -186,9 +186,9 @@ static void GameGrid_SerializeCellArray_ac10(IO::Serializer* serializer, int32_t
             CellStamp::NoteWrite(elem);   // [AMBMEMO] cell write clock
         }
 
-        ::Object::SerializeExternal<ComponentDescription>(*serializer, elem->field_0x10);
+        ::Object::SerializeExternal<ComponentDescription>(*serializer, elem->lastGrownDescription);
 
-        serializer->Serialize(9, elem->field_0x1C.data(), nullptr);
+        serializer->Serialize(9, elem->influenceCounts.data(), nullptr);
 
         serializer->Serialize(elem->zone, nullptr);
 
@@ -203,9 +203,9 @@ static void GameGrid_SerializeCellArray_ac10(IO::Serializer* serializer, int32_t
 
         serializer->Serialize(elem->footprintCount, nullptr);
         serializer->Serialize(reinterpret_cast<uint8_t&>(elem->terrainType), nullptr);   // the uchar door
-        serializer->Serialize(elem->field_0x2A, nullptr);
-        serializer->Serialize(elem->field_0x2B, nullptr);
-        serializer->Serialize(elem->field_0x2C, nullptr);
+        serializer->Serialize(elem->roadType, nullptr);
+        serializer->Serialize(elem->roadAlpha, nullptr);
+        serializer->Serialize(elem->soilQuality, nullptr);
         serializer->Serialize(elem->floorCount, nullptr);
 
         ++elem;
@@ -245,11 +245,11 @@ void Map::Serialize(IO::Stream& stream) {
     if (!isSaving) StillTerrain::Bump();   // [STILLTERRAIN] size, the cell array and every floorCount were streamed in
 
     // 9 shorts at +0x90.
-    serializer.Serialize(9, field_0x90, nullptr);
+    serializer.Serialize(9, influenceTotals, nullptr);
 
     if (!isSaving) {
         // ---- LOAD-only fixup block ----
-        field_0xA2 = true;
+        zonesStale = true;
 
         int version = serializer.GetVersion();
         CellTrace::DumpCells(this, "raw", version);   // the cells as saved, before the fix-up
@@ -286,11 +286,11 @@ void Map::Serialize(IO::Stream& stream) {
                 if (e->footprintCount == 0) {
                     uint8_t mask = static_cast<uint8_t>(Bits(PathBitOf(e->terrainType)));
                     if ((mask & Bits(PathBits::Fast)) == 0 && (mask & Bits(PathBits::Faster)) == 0 &&
-                        e->field_0x2A == MapCell::kNoRoadBatch) {
+                        e->roadType == MapCell::kNoRoadBatch) {
                         // Walk the AVL tree rooted at +0xe8 for key == i (the
                         // 0x28 AvlNode28 of Action/PathAvl.h: key +0, left +0x10,
                         // right +0x18).
-                        const AvlNode28* node = field_0xE8.root;
+                        const AvlNode28* node = pendingRoadCells.root;
                         while (node != nullptr) {
                             int32_t key = node->key;
                             if (i < key) {

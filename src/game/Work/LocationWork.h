@@ -57,9 +57,9 @@ public:
     // +0x48: the citizen standing here, an InternalPtr<CitizenComponent> (Persist
     // 0x1400efba0 checks it IsDerivedFrom CitizenComponent; Cleanup 0x1400efaf0 reads
     // its +0x278). Raw storage (H5).
-    Object::InternalPtr<CitizenComponent> _field48;  // +0x48: zeroed (the assigned citizen)
+    Object::InternalPtr<CitizenComponent> _assignedCitizen;  // +0x48: zeroed (the assigned citizen)
 };
 
 static_assert(sizeof(LocationWork) == 0x50, "LocationWork is 0x50 (retail create MemAlloc)");
 static_assert(alignof(LocationWork) == 8, "LocationWork is 8-aligned");
-static_assert(offsetof(LocationWork, _field48) == 0x48, "LocationWork +0x48");
+static_assert(offsetof(LocationWork, _assignedCitizen) == 0x48, "LocationWork +0x48");

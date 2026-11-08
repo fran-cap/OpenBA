@@ -162,7 +162,7 @@ void CitizenComponent::OnRemove() {
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     {
         ProfessionList* professionRoot = gw->m_professionList;
-        Profession* defaultProfession = professionRoot->field_0x30;
+        Profession* defaultProfession = professionRoot->laborerProfession;
         if (profession != defaultProfession) {
             CitizenComponent* retbuf[2] = { nullptr, nullptr };
             ComponentEntity* nearIBP = formerHouse;

@@ -41,10 +41,11 @@ static T* FindElementAs(MapParamsDialog* dialog, const char* name) {
     return static_cast<T*>(dialog->FindElement(nameStr).Get());
 }
 
-// The UI::String of a generator's name: its StringTable (+0x20) and name key (+0x28).
-template <class Generator>
-static UI::String GeneratorNameString(const Generator* desc) {
-    UI::String uiStr(Object::ExternalPtr<UI::StringTable>(desc->_field20), desc->_field28);
+// The UI::String of a generator's name: its StringTable (+0x20) and name key (+0x28). The
+// generator classes spell those members as their .rsc files do, so the caller names them.
+template <class Generator, class Table, class Name>
+static UI::String GeneratorNameString(const Generator* desc, Table Generator::*table, Name Generator::*name) {
+    UI::String uiStr(Object::ExternalPtr<UI::StringTable>(desc->*table), desc->*name);
     uiStr.pad0C = 0;   // built in a zeroed 16-byte slot before
     return uiStr;
 }
@@ -121,7 +122,7 @@ void MapParamsDialog::OnOpened() {
     {
         const MapGenerator* desc = gameWorld->m_mapConfig;
         if (desc && textCondition) {
-            UI::String uiStr = GeneratorNameString(desc);
+            UI::String uiStr = GeneratorNameString(desc, &MapGenerator::stringTable, &MapGenerator::name);
             textCondition->SetText(&uiStr);
         }
     }
@@ -130,7 +131,7 @@ void MapParamsDialog::OnOpened() {
     {
         const TerrainGenerator* desc = gameWorld->m_terrainConfig;
         if (desc && textTerrain) {
-            UI::String uiStr = GeneratorNameString(desc);
+            UI::String uiStr = GeneratorNameString(desc, &TerrainGenerator::stringTable, &TerrainGenerator::text);
             textTerrain->SetText(&uiStr);
         }
     }
@@ -150,7 +151,7 @@ void MapParamsDialog::OnOpened() {
     {
         const ClimateGenerator* desc = gameWorld->m_climateConfig;
         if (desc && textClimate) {
-            UI::String uiStr = GeneratorNameString(desc);
+            UI::String uiStr = GeneratorNameString(desc, &ClimateGenerator::_stringTable, &ClimateGenerator::_text);
             textClimate->SetText(&uiStr);
         }
     }

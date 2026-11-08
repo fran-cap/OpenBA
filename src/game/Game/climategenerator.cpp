@@ -37,18 +37,18 @@
 // External() and the 0x14015e140 stamp are the compiler's; then the defaults.
 // ExternalPtr at +0x20 = null; String at +0x28 = the empty String (qword 0),
 // in address order as retail stores them.
-ClimateGenerator::ClimateGenerator() : _field20(nullptr), _field28() {
+ClimateGenerator::ClimateGenerator() : _stringTable(nullptr), _text() {
     // Climate parameters
-    _field30 = true;           // enabled
+    _exposed = true;           // enabled
     temperatureBase = 50.0f;   // base temperature
     tempVariation = 30.0f;     // temperature variation
     precipitation = 5.0f;      // precipitation amount
     windSpeed = 10.0f;         // wind speed
 
     // Trailing float fields
-    _field104 = 0;             // zeroed (float 0.0 or uint 0)
-    _field108 = 1.0f;
-    _field10C = 1.0f;
+    _rainBiasScale = 0;             // zeroed (float 0.0 or uint 0)
+    _tornadoIntervalYears = 1.0f;
+    _tornadoRarity = 1.0f;
 
     // Zero the 0xC0-byte climate data block at +0x44
     memset(_climateData, 0, 0xC0);
@@ -85,13 +85,13 @@ bool ClimateGenerator::Serialize(IO::Stream& stream) {
     IO::Serializer s(stream, 0);
 
     // Serialize ExternalPtr at +0x20
-    ::Object::SerializeExternal<UI::StringTable>(s, _field20);
+    ::Object::SerializeExternal<UI::StringTable>(s, _stringTable);
 
     // Serialize String at +0x28
-    _field28.Serialize(s);
+    _text.Serialize(s);
 
     // Serialize bool at +0x30
-    s.Serialize(_field30, nullptr);
+    s.Serialize(_exposed, nullptr);
 
     // Serialize float fields: temperatureBase(+0x34), tempVariation(+0x38),
     // precipitation(+0x3C), windSpeed(+0x40)
@@ -105,9 +105,9 @@ bool ClimateGenerator::Serialize(IO::Stream& stream) {
     s.Serialize(0x30, _climateData, nullptr);
 
     // Serialize float fields at end: field104(+0x104), field108(+0x108), field10C(+0x10C)
-    s.Serialize(_field104, nullptr);
-    s.Serialize(_field108, nullptr);
-    s.Serialize(_field10C, nullptr);
+    s.Serialize(_rainBiasScale, nullptr);
+    s.Serialize(_tornadoIntervalYears, nullptr);
+    s.Serialize(_tornadoRarity, nullptr);
 
     return true;   // ~Serializer runs here, after the last field, as before
 

@@ -53,8 +53,8 @@ public:
     HighlightGroup* _groups;                    // +0x20 group array data (0x10 stride)
     int32_t _groupCount;                        // +0x28
     int32_t _groupCap;                          // +0x2c
-    Graphics::MaterialInstance* _ref0;          // +0x30 ExternalPtr<Graphics::MaterialInstance> (0x140007140, as Radius / Picking)
-    Graphics::MaterialInstance* _ref1;          // +0x38 ExternalPtr<Graphics::MaterialInstance> (0x140007140)
+    Graphics::MaterialInstance* _maskMaterial;          // +0x30 ExternalPtr<Graphics::MaterialInstance> (0x140007140, as Radius / Picking)
+    Graphics::MaterialInstance* _edgeMaterial;          // +0x38 ExternalPtr<Graphics::MaterialInstance> (0x140007140)
 };
 
 static_assert(sizeof(HighlightDescription) == 0x40, "HighlightDescription is 0x40 (create 0x140006ea0 MemAlloc(0x40))");
@@ -62,5 +62,5 @@ static_assert(alignof(HighlightDescription) == 8, "HighlightDescription alignmen
 static_assert(offsetof(HighlightDescription, _groups) == 0x20, "HighlightDescription::_groups @ +0x20");
 static_assert(offsetof(HighlightDescription, _groupCount) == 0x28, "HighlightDescription::_groupCount @ +0x28");
 static_assert(offsetof(HighlightDescription, _groupCap) == 0x2c, "HighlightDescription::_groupCap @ +0x2c");
-static_assert(offsetof(HighlightDescription, _ref0) == 0x30, "HighlightDescription::_ref0 @ +0x30");
-static_assert(offsetof(HighlightDescription, _ref1) == 0x38, "HighlightDescription::_ref1 @ +0x38");
+static_assert(offsetof(HighlightDescription, _maskMaterial) == 0x30, "HighlightDescription::_maskMaterial @ +0x30");
+static_assert(offsetof(HighlightDescription, _edgeMaterial) == 0x38, "HighlightDescription::_edgeMaterial @ +0x38");

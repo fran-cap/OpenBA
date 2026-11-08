@@ -201,7 +201,7 @@ namespace {
 // `MOV [0x1801fe7b0],RBX`. +0x9d4 is never written (no initialiser names it).
 namespace Graphics {
 AnimationManager::AnimationManager() : _instances() {
-    _f10 = 0;
+    _rngIndex = 0;
 
     const uint32_t seed = static_cast<uint32_t>(std::time(nullptr));
     _rngState[0] = seed;

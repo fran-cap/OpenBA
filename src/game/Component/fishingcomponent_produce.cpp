@@ -32,7 +32,7 @@ namespace {
 // 0x14009f990 Map::StampInfluence(state, cx, cy, r, delta) — ported
 // (happinesscomponent.cpp), called directly. Adds `delta` to the byte at
 // cell+0x1c+state over a disk of radius r, then to the per-state total
-// Map::field_0x90[state]. The fishing dock uses state 8.
+// Map::influenceTotals[state]. The fishing dock uses state 8.
 
 constexpr int kFishingCoverageState = 8;
 

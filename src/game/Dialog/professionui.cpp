@@ -475,7 +475,7 @@ void ProfessionUI::OnOpened() {
         // NB: retail hides child index 2 here (verified in the 0x140076CA0 disassembly:
         // `MOV R8D,0x2` before the Child call), NOT index 4 — hiding 4 wrongly removed the
         // laborer's goto button.
-        Profession* noneProfession = profListPtr->field_0x30;
+        Profession* noneProfession = profListPtr->laborerProfession;
         if (profDesc == noneProfession) {
             number->SetFlagsOnOff(UI::kElementFlagHidden, 0);   // child[3] numberAvailable
 
@@ -591,7 +591,7 @@ void ProfessionUI::OnUpdate(const System::Time& /*time*/) {
         Profession* profKey = profArrayPtr[p];
 
         // Look up profession in world BST at citizenMgr+0x100 to get entity count
-        ProfessionBucket* bstNode = citizenMgr->field_0x100._root;
+        ProfessionBucket* bstNode = citizenMgr->workplacesByProfession._root;
         int entityCount = 0;
 
         while (bstNode) {
@@ -614,7 +614,7 @@ void ProfessionUI::OnUpdate(const System::Time& /*time*/) {
         int totalWorkers = 0;
         for (int e = 0; e < entityCount; e++) {
             // Re-search BST each iteration (original does this to get fresh entity list)
-            ProfessionBucket* bstNode2 = citizenMgr->field_0x100._root;
+            ProfessionBucket* bstNode2 = citizenMgr->workplacesByProfession._root;
             ProfessionBucket* hit = nullptr;
             while (bstNode2) {
                 Profession* nk = bstNode2->element.key;

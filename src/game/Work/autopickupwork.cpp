@@ -40,12 +40,12 @@ void AutoPickupWork::Persist(IO::Stream& stream) {
 // FUN_140022520 (FindComponent<AutoPickupComponent>), then free its item list (+0x30)
 // and zero the list pair (+0x30/+0x38). Retail's two CheckPtr calls are bare RETs.
 int AutoPickupWork::Cleanup() {
-    AutoPickupComponent* component = field_10->FindComponent<AutoPickupComponent>();
-    System::MemoryAllocator::MemFree(component->field30._data);
+    AutoPickupComponent* component = _entity->FindComponent<AutoPickupComponent>();
+    System::MemoryAllocator::MemFree(component->pileWorkIds._data);
 
-    component->field30._data = nullptr;
-    component->field30._size = 0;      // H7: retail zeroes +0x38 with one qword store
-    component->field30._capacity = 0;
+    component->pileWorkIds._data = nullptr;
+    component->pileWorkIds._size = 0;      // H7: retail zeroes +0x38 with one qword store
+    component->pileWorkIds._capacity = 0;
     return 0;
 }
 

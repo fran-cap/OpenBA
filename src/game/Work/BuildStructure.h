@@ -48,9 +48,9 @@ public:
 
     // --- BuildStructure fields (+0x48) ---
     // Note: ctor doesn't init +0x48/+0x4C (set by Serialize or caller)
-    bool     field_48;           // +0x48: bool — serialized flag (has initial setup?)
+    bool     _isDemolition;           // +0x48: bool — serialized flag (has initial setup?)
     uint8_t  _pad49[3];          // +0x49: padding
-    int32_t  field_4c;           // +0x4C: current slot index (round-robin for assignment)
+    int32_t  _scanIndex;           // +0x4C: current slot index (round-robin for assignment)
     // +0x50: Collection::Array<uint8_t> {data, count +0x58, capacity +0x5C}: slot
     // availability, one byte per build point (0 = free, 1 = busy; Persist 0x1400e5850 uses
     // the unsigned-char array overload). +0x60: Collection::Set<InternalPtr<CitizenComponent>>
@@ -69,8 +69,8 @@ public:
 static_assert(sizeof(BuildStructure) == 0x70, "BuildStructure is 0x70 (retail create MemAlloc)");
 static_assert(offsetof(BuildStructure, _pad49) == 0x49, "BuildStructure::_pad49");
 static_assert(alignof(BuildStructure) == 8, "BuildStructure is 8-aligned");
-static_assert(offsetof(BuildStructure, field_48) == 0x48, "BuildStructure +0x48");
-static_assert(offsetof(BuildStructure, field_4c) == 0x4c, "BuildStructure +0x4c");
+static_assert(offsetof(BuildStructure, _isDemolition) == 0x48, "BuildStructure +0x48");
+static_assert(offsetof(BuildStructure, _scanIndex) == 0x4c, "BuildStructure +0x4c");
 static_assert(offsetof(BuildStructure, _slots) == 0x50, "BuildStructure +0x50");
 static_assert(offsetof(BuildStructure, _slots) + offsetof(Collection::Array<uint8_t>, _size) == 0x58, "BuildStructure +0x58");
 static_assert(offsetof(BuildStructure, _slots) + offsetof(Collection::Array<uint8_t>, _capacity) == 0x5c, "BuildStructure +0x5c");

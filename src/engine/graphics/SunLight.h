@@ -231,7 +231,7 @@ public:
     Math::Vector3 _direction;   // +0xC0  ctor (0, 0, -1)
     Math::Vector4 _sun;         // +0xCC  ctor (1, 1, 1, 1)
     Math::Vector4 _ambient;     // +0xDC  ctor (0, 0, 0, 1)
-    uint32_t _holdEC;          // +0xEC  NEVER WRITTEN by ctor, Set or dtor
+    uint32_t _padEC;          // +0xEC  NEVER WRITTEN by ctor, Set or dtor
     // B.4: the three pointers carry their classes (the bytes are unchanged).
     Video::ImageBuffer*  _colourTarget;  // +0xF0  (capability-gated)
     Video::ImageBuffer*  _depthTarget;   // +0xF8  (always built)
@@ -247,7 +247,7 @@ static_assert(alignof(SunLight) == 8, "qword aligned (the vptr)");
 static_assert(offsetof(SunLight, _direction)    == 0xC0,  "SunLight::_direction @ +0xC0 (??0 0x1801081f0; .z = -1.0f @ +0xC8)");
 static_assert(offsetof(SunLight, _sun)          == 0xCC,  "SunLight::_sun @ +0xCC (Set arg 2)");
 static_assert(offsetof(SunLight, _ambient)      == 0xDC,  "SunLight::_ambient @ +0xDC (Set arg 3; .w @ +0xE8)");
-static_assert(offsetof(SunLight, _holdEC)       == 0xEC,  "SunLight::+0xEC is never written by any of the three bodies");
+static_assert(offsetof(SunLight, _padEC)       == 0xEC,  "SunLight::+0xEC is never written by any of the three bodies");
 static_assert(offsetof(SunLight, _colourTarget) == 0xF0,  "SunLight::_colourTarget @ +0xF0 (Usage 0 = render target)");
 static_assert(offsetof(SunLight, _depthTarget)  == 0xF8,  "SunLight::_depthTarget @ +0xF8 (Usage 1 = depth)");
 static_assert(offsetof(SunLight, _renderBuffer) == 0x100, "SunLight::_renderBuffer @ +0x100");

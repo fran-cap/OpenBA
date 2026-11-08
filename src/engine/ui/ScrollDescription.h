@@ -68,7 +68,7 @@ public:
         _vertical  = true;
         _inset     = 1;
         _barColor  = System::kColorWhite;
-        _unknownC4 = 0xffffffffu;
+        _highlightColor = 0xffffffffu;
     }
 
     // [0] 0x18003a790 -- MSVC's VECTOR deleting destructor (retail; here the
@@ -107,7 +107,7 @@ public:
     uint8_t  _padb9[3];           // +0xb9  written by nothing
     int32_t  _inset;              // +0xbc  ctor 1; -> ScrollElement::_inset (+0x15c)
     uint32_t _barColor;           // +0xc0  ctor -1 (one qword with +0xc4); -> ScrollElement::_barColor (+0x154)
-    uint32_t _unknownC4;          // +0xc4  ctor -1; -> ScrollElement::_unknown158
+    uint32_t _highlightColor;          // +0xc4  ctor -1; -> ScrollElement::_highlightColor
 };
 
 static_assert(sizeof(ScrollDescription) == 0xc8,
@@ -121,6 +121,6 @@ static_assert(offsetof(ScrollDescription, _spriteNames) == 0x70, "");
 static_assert(offsetof(ScrollDescription, _vertical)    == 0xb8, "");
 static_assert(offsetof(ScrollDescription, _inset)       == 0xbc, "");
 static_assert(offsetof(ScrollDescription, _barColor)    == 0xc0, "");
-static_assert(offsetof(ScrollDescription, _unknownC4)   == 0xc4, "");
+static_assert(offsetof(ScrollDescription, _highlightColor)   == 0xc4, "");
 
 }  // namespace UI

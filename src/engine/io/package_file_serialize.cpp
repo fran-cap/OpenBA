@@ -25,8 +25,8 @@
 //   1800b60ea  String::Serialize  +0x40  name
 //   1800b60ff  String::Serialize  +0x48  author
 //   1800b610c  String::Serialize  +0x50  description
-//   1800b6119  String::Serialize  +0x58  _string58
-//   1800b6126  String::Serialize  +0x60  _string60
+//   1800b6119  String::Serialize  +0x58  _icon
+//   1800b6126  String::Serialize  +0x60  _preview
 //   1800b6139  rw kScalarInt      +0x6c  userVersion
 //   1800b614d  rw kScalarInt      +0x70  priority
 //   1800b6167  rw kScalarInt      (a LOCAL copy of +0x28 — see below)
@@ -215,8 +215,8 @@ bool PackageFile::Serialize(IO::Stream& streamv) {
     _name.Serialize(ser);                                      // 1800b60ea
     _author.Serialize(ser);                                    // 1800b60ff
     _description.Serialize(ser);                               // 1800b610c
-    _string58.Serialize(ser);                                  // 1800b6119
-    _string60.Serialize(ser);                                  // 1800b6126
+    _icon.Serialize(ser);                                  // 1800b6119
+    _preview.Serialize(ser);                                  // 1800b6126
 
     RecInt(rw, &_userVersion);                // 1800b6139
     RecInt(rw, &_priority);                   // 1800b614d
@@ -225,22 +225,22 @@ bool PackageFile::Serialize(IO::Stream& streamv) {
     // LOCAL, size the array from it on the reading side only, then hand the
     // element walker the count and the data pointer. See the banner.
     {
-        int32_t n = _stringArray20._size;                         // 1800b6153
+        int32_t n = _includeList._size;                         // 1800b6153
         RecInt(rw, &n);                                           // 1800b6167
         if (ser._stream->_direction == rt::io::kDirectionReading) {  // 1800b6171
             n = CountTheStreamCanHold(ser._stream, n);              // F-072, not retail
-            rtcoll::RtColl_ArraySetSize_180029a80(&_stringArray20, n);  // 1800b617e
+            rtcoll::RtColl_ArraySetSize_180029a80(&_includeList, n);  // 1800b617e
         }
-        RtIo_SerializeStringArray(&ser, n, _stringArray20._data, nullptr);  // 1800b618e
+        RtIo_SerializeStringArray(&ser, n, _includeList._data, nullptr);  // 1800b618e
     }
     {
-        int32_t m = _stringArray30._size;                         // 1800b6193
+        int32_t m = _excludeList._size;                         // 1800b6193
         RecInt(rw, &m);                                           // 1800b61a7
         if (ser._stream->_direction == rt::io::kDirectionReading) {  // 1800b61b1
             m = CountTheStreamCanHold(ser._stream, m);              // F-072, not retail
-            rtcoll::RtColl_ArraySetSize_180029a80(&_stringArray30, m);  // 1800b61be
+            rtcoll::RtColl_ArraySetSize_180029a80(&_excludeList, m);  // 1800b61be
         }
-        RtIo_SerializeStringArray(&ser, m, _stringArray30._data, nullptr);  // 1800b61ce
+        RtIo_SerializeStringArray(&ser, m, _excludeList._data, nullptr);  // 1800b61ce
     }
 
     RecBool(rw, &_overridable);               // 1800b61e4

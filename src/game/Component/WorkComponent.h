@@ -53,7 +53,7 @@ public:
     // PUBLIC while the ported bodies read them (B38 decision 1).
     int32_t  workId;       // +0x28 posted work id (ctor -1 = none posted)
     int32_t  workFlags;    // +0x2c (ctor 0x80000000 = the same sentinel; B6 row 19: retail serializes it through Serialize(int&), 0x14012e7ab); really the posted work's
-                           //        queue-order key (CancelWork copies Work::field_24 back; known_port_issues 201)
+                           //        queue-order key (CancelWork copies Work::_queueOrder back; known_port_issues 201)
     int32_t  workState;    // +0x30 work capacity (ctor 0); really the cached max worker count
                            //        (OnAdded 0x14012e6f0 stores CalcMaxWorkers; known_port_issues 173)
     uint8_t  _pad34[4];    // +0x34

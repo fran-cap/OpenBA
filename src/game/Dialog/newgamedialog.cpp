@@ -87,8 +87,9 @@ static inline bool ResourceIsType(const ::Object::External* resource, uint32_t t
 // Helper: populate combo from ExternalList with type check
 // ============================================================
 // `visible` is the generator's exposed flag (MapGenerator +0x38, the Climate /
-// Terrain generators' +0x30).
-template <class Generator, class Flag>
+// Terrain generators' +0x30); `Table` and `Name` its StringTable (+0x20) and name key
+// (+0x28), which the generator classes spell as their .rsc files do.
+template <auto Table, auto Name, class Generator, class Flag>
 static void PopulateGeneratorCombo(UI::ComboElement* combo, ::Object::ExternalList* externalList,
                                    uint32_t typeId, Flag Generator::*visible) {
     // Standalone safety: the generator ExternalLists may be unpopulated if the Game
@@ -108,7 +109,7 @@ static void PopulateGeneratorCombo(UI::ComboElement* combo, ::Object::ExternalLi
         // Check the visibility flag
         if (typed && typed->*visible != 0) {
             // UI::String from the resource's name: its StringTable (+0x20) and name key (+0x28).
-            UI::String uiStr(Object::ExternalPtr<UI::StringTable>(typed->_field20), typed->_field28);
+            UI::String uiStr(Object::ExternalPtr<UI::StringTable>(typed->*Table), typed->*Name);
 
             // Convert UI::String to System::String
             System::String sysStr(uiStr.operator System::String());
@@ -267,14 +268,14 @@ void NewGameDialog::UpdateDescription() {
     }
 
     // UI::String from the description: StringTable (+0x20), description key (+0x30).
-    UI::String uiStr(Object::ExternalPtr<UI::StringTable>(mapGen->_field20), mapGen->_field30);
+    UI::String uiStr(Object::ExternalPtr<UI::StringTable>(mapGen->stringTable), mapGen->description);
 
     textDescription->SetText(&uiStr);
 }
 
 // The start condition's name key (MapGenerator +0x28), for the log lines.
 static const char* GeneratorName(const ::Object::External* res) {
-    return static_cast<const MapGenerator*>(res)->_field28._data;
+    return static_cast<const MapGenerator*>(res)->name._data;
 }
 
 // ============================================================
@@ -324,7 +325,7 @@ static void SelectStartConditionOverride(NewGameDialog* self) {
     for (int i = 0; i < count; ++i) {
         const ::Object::External* res = list->_resources[i];
         const char* name = res ? GeneratorName(res) : nullptr;
-        uint8_t vis = res ? static_cast<const MapGenerator*>(res)->enabled : 0;
+        uint8_t vis = res ? static_cast<const MapGenerator*>(res)->exposed : 0;
         fprintf(stderr, "[NewGameDialog] startCondition[%d] name=\"%.32s\" visible=%d\n",
                 i, name ? name : "(null)", (int)vis);
         if (target < 0 && !numeric && containsNoCase(name, want))
@@ -393,12 +394,12 @@ void NewGameDialog::OnOpened() {
 
     // --- Populate generator combos. Guarded for standalone: the ExternalLists may
     //     be unpopulated (PopulateGeneratorCombo null-checks the list internally). ---
-    PopulateGeneratorCombo(comboCondition, mapGeneratorList,
-                           MapGenerator::TypeId(), &MapGenerator::enabled);
-    PopulateGeneratorCombo(comboClimate, climateGeneratorList,
-                           ClimateGenerator::TypeId(), &ClimateGenerator::_field30);
-    PopulateGeneratorCombo(comboTerrain, terrainGeneratorList,
-                           TerrainGenerator::TypeId(), &TerrainGenerator::_field30);
+    PopulateGeneratorCombo<&MapGenerator::stringTable, &MapGenerator::name>(
+        comboCondition, mapGeneratorList, MapGenerator::TypeId(), &MapGenerator::exposed);
+    PopulateGeneratorCombo<&ClimateGenerator::_stringTable, &ClimateGenerator::_text>(
+        comboClimate, climateGeneratorList, ClimateGenerator::TypeId(), &ClimateGenerator::_exposed);
+    PopulateGeneratorCombo<&TerrainGenerator::stringTable, &TerrainGenerator::text>(
+        comboTerrain, terrainGeneratorList, TerrainGenerator::TypeId(), &TerrainGenerator::exposed);
 
     // --- Find button elements ---
     UI::Element* buttonNewName = FindElementAs<UI::Element>(this, "buttonNewName");

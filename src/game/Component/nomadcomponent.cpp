@@ -102,7 +102,7 @@ void PlayerToolManager::OnEntityRemoved(ComponentEntity* const* entity) {
     }
 
     ComponentEntity* key = *entity;
-    Avl38SetFindRemove(&field_0x60, &key);   // 0x14002c690
+    Avl38SetFindRemove(&trackedEntities, &key);   // 0x14002c690
 
     UI::UserInterface* ui = GameUpdateLoop::_singleton->m_userInterface;
     // HISTORY, kept because it cost two bugs. Retail reaches this list through

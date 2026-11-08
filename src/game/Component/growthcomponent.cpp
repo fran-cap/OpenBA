@@ -95,7 +95,7 @@ static void DoHarvestReset(GrowthComponent* comp, const Map* resourceMgr, float 
     // had an extra deref (*(uintptr_t*)gridBase), which read the zeroed first qword
     // of tile-record 0 and wrote to ~0x10 → access violation (misattributed to a
     // "missing resourceMgr grid"; the grid exists — see maptilegrid.cpp).
-    resourceMgr->cells._data[(int64_t)resIdx].field_0x10 = ownerPos;   // Map +0x80, MapCell +0x10
+    resourceMgr->cells._data[(int64_t)resIdx].lastGrownDescription = ownerPos;   // Map +0x80, MapCell +0x10
 
     NaturalResourceComponent* resource = comp->resource.Get();
 
@@ -179,7 +179,7 @@ void GrowthComponent::SetResourceAmount(float amount) {
     int64_t cell = (int64_t)((int)x + (int)y * map->size);
     // DAT_14017222c is the byte<->float scale (255.0)
     const float divisor = RdataF(kRdata_14017222c);
-    uint8_t* cellByte = &grid[cell].field_0x2C;
+    uint8_t* cellByte = &grid[cell].soilQuality;
     float fv = (float)(*cellByte) / divisor;
     if (0.0f <= amount) fv = fv * fv * amount;
     else fv = fv - amount;
@@ -214,14 +214,14 @@ void GrowthComponent::SpawnSubResource(GrowthDescription* cfg) {
     // UV scale retail passes to the placement test below -- the two constants were confused.)
     // No zero test: retail divides 1.0f by the float of [cfg+0x48]; a 0 gives +inf and the
     // COMISS never skips (B8 audit Q1: the port returned on 0 until 2026-10-10).
-    int spawnChanceDenom = cfg->_i48;
+    int spawnChanceDenom = cfg->_seedChance;
     if (roll > kRdata_14017214c / (float)spawnChanceDenom) return;
 
     MapComponent* res = _entity->FindComponent<MapComponent>();   // 0x140004680
     int16_t baseX = static_cast<int16_t>(res->tileX0);
     int16_t baseY = static_cast<int16_t>(res->tileY0);
 
-    int tol = cfg->_i4c;
+    int tol = cfg->_seedDistance;
     int x = (int)baseX + rng->RandTol(static_cast<int32_t>(tol));
     int y = (int)baseY + rng->RandTol(static_cast<int32_t>(tol));
     if (!(x >= 0 && y >= 0 && x < map->size && y < map->size)) return;
@@ -343,11 +343,11 @@ void GrowthComponent::Startup() {
     config = cfg;
 
     // growthScale@+0x4c.
-    float minScale = cfg ? cfg->_f20 : -1.0f;
+    float minScale = cfg ? cfg->_maxGrowth : -1.0f;
     if (minScale <= 0.0f) {
         growthScale = -1.0f;   // 0xbf800000
     } else {
-        float range = cfg->_f24;
+        float range = cfg->_maxGrowthTolerance;
         float r = 0.0f;
         GameUpdateLoop* world = GameUpdateLoop::_singleton;
         if (world) {
@@ -376,13 +376,13 @@ void GrowthComponent::OnRemove() {
     ComponentDescription* ownerDesc = _entity->_description;
     const int cellIndex = GetResourceIndex();
     const float clamped = (kRdata_14017214c > growth) ? growth : kRdata_14017214c;
-    const float amount = (map->cells._data[cellIndex].field_0x10 == ownerDesc)
-                             ? clamped * config->_f3c
-                             : clamped * config->_f40;
+    const float amount = (map->cells._data[cellIndex].lastGrownDescription == ownerDesc)
+                             ? clamped * config->_soilQualityChangeOnRemove
+                             : clamped * config->_soilQualityChangeOnDecay;
     SetResourceAmount(amount);
 
     map = GameUpdateLoop::_singleton->m_game;
-    map->cells._data[GetResourceIndex()].field_0x10 = _entity->_description;
+    map->cells._data[GetResourceIndex()].lastGrownDescription = _entity->_description;
 }
 
 // [9] 0x140120050. RDX is a pointer to the elapsed System::Time (EntityList
@@ -429,7 +429,7 @@ void GrowthComponent::Update(const System::Time* time) {
     GrowthDescription* cfg = config;
 
     // Base growth rate: 1.0 / (config+0x28 * 300.0)
-    float configGrowthTime = cfg->_f28;
+    float configGrowthTime = cfg->_growthInMonths;
     float growthRate = fOne / (configGrowthTime * fGrowthTimeScale);
 
     // Get current growth value from resource component at +0x28
@@ -438,14 +438,14 @@ void GrowthComponent::Update(const System::Time* time) {
 
     // Apply seasonal temperature modulation
     float tempModifier = fOne;
-    if (cfg->_b2c) {
+    if (cfg->_temperatureDependent) {
         // Get current temperature from world singleton
         // world->weather(+0x130)->temp(+0x18)
         float currentTemp = GameUpdateLoop::_singleton->m_weather->temperature;
 
         // Compute temperature distance from optimal
-        float optimalTemp = cfg->_f30;
-        float tempRange = cfg->_f34;
+        float optimalTemp = cfg->_growthTemp;
+        float tempRange = cfg->_growthTempRange;
 
         // fabsf via double abs with bitmask (matches original bitwise pattern)
         double diff = static_cast<double>(currentTemp - optimalTemp);
@@ -494,14 +494,14 @@ void GrowthComponent::Update(const System::Time* time) {
         }
 
         // Sub-resource spawning check
-        if (cfg->_b44) {
-            float spawnThreshold = cfg->_f54;
+        if (cfg->_autoSeed) {
+            float spawnThreshold = cfg->_growthForSeeding;
             if (spawnThreshold <= newGrowth && newGrowth != spawnThreshold) {
                 // Accumulate spawn timer at comp+0x40
                 spawnTimer._ticks += deltaTime->_ticks;
 
                 float spawnTimerSec = spawnTimer.AsSeconds();
-                float spawnInterval = static_cast<float>(cfg->_i50) * fGrowthTimeScale;
+                float spawnInterval = static_cast<float>(cfg->_seedTimeMonths) * fGrowthTimeScale;
 
                 if (spawnInterval < spawnTimerSec) {
                     do {
@@ -528,7 +528,7 @@ void GrowthComponent::Update(const System::Time* time) {
                     float harvestAmount = (newGrowth <= fOne) ? newGrowth : fOne;
 
                     // Set resource amount scaled by config+0x40
-                    float configResourceScale = cfg->_f40;
+                    float configResourceScale = cfg->_soilQualityChangeOnDecay;
                     DoHarvestReset(this, resourceMgr, harvestAmount * configResourceScale);
 
                     // Clear flags bits 3,4 via ModifyFlags(this, 0, 0x18)
@@ -538,7 +538,7 @@ void GrowthComponent::Update(const System::Time* time) {
         }
     } else {
         // Growth went negative -- do full harvest/reset
-        float configResourceScale = cfg->_f40;
+        float configResourceScale = cfg->_soilQualityChangeOnDecay;
         DoHarvestReset(this, resourceMgr, configResourceScale);
 
         // Clear flags bits 3,4 directly
@@ -596,7 +596,7 @@ void GrowthComponent::PostUpdate() {
     if (target > kOne) target = kOne;
 
     GrowthDescription* desc = config;
-    float descFloor = desc->_f60;
+    float descFloor = desc->_minScale;
     if (descFloor > target) target = descFloor;
 
     float cur = displayScale;
@@ -614,7 +614,7 @@ void GrowthComponent::PostUpdate() {
     // meshInstance+0x10c..+0x118).
     float* color = model.Get()->meshInstance._color;
 
-    if (desc->_b64) {
+    if (desc->_zScale) {
         // Crop form: spread (x,y) reaches full early, height (z) tracks growth.
         float spread = scale / kCropSpreadDiv;
         if (spread < 0.0f)      spread = 0.0f;

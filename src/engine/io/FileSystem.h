@@ -183,7 +183,7 @@ struct FileInfo {
         : handle(kHandleNone), size(0), cursor(0), baseOffset(0) {
         winHandle = Platform::kInvalidFileHandle;   // INVALID_HANDLE_VALUE, stored after the names as retail does
     }
-    // +0x04 (`_unk04`) is retail's unwritten window: the default ctor leaves it
+    // +0x04 (`copiedUnwrittenWord`) is retail's unwritten window: the default ctor leaves it
     // whatever the stack held and the copy / assign move the byte as is
     // (B6 C8). With String's release inline (B7 RT) GCC's -O2 inliner can see
     // the stack temporary of `*fi = FileInfo()` and reports the copy of that
@@ -204,7 +204,7 @@ struct FileInfo {
     // -- so -1 and -2 both take the loose path -- and recovers the pack index as
     // the TOP BYTE (`MOVZX R10D,byte [RDX+3]`).
     int32_t  handle;
-    int32_t  _unk04;      // +0x04 — never initialised by OpenFile; see the note
+    int32_t  copiedUnwrittenWord;      // +0x04 — never initialised by OpenFile; see the note
                           //         in filesystem_openfile.cpp on why the
                           //         oracle must exclude it.
     int32_t  size;        // +0x08 — byte size of the file or of the pack entry
@@ -218,7 +218,7 @@ struct FileInfo {
 };
 static_assert(sizeof(FileInfo) == 0x30, "FileInfo is 0x30 bytes (OpenFile's frame)");
 static_assert(offsetof(FileInfo, handle) == 0x0, "FileInfo::handle");
-static_assert(offsetof(FileInfo, _unk04) == 0x4, "FileInfo::_unk04");
+static_assert(offsetof(FileInfo, copiedUnwrittenWord) == 0x4, "FileInfo::copiedUnwrittenWord");
 static_assert(offsetof(FileInfo, size)       == 0x08,
               "OpenFile 0x1800acb94: `MOV dword ptr [RDI+0x8],R9D` (the entry size)");
 static_assert(offsetof(FileInfo, cursor)     == 0x0C,
@@ -284,7 +284,7 @@ static_assert(offsetof(FilenameArray, capacity) == 0x0c, "0x180026880: CMP ESI,[
 //     String packDirectory;
 //     uint8_t          existsInPackfileGate; // +0x18 — Exists()'s `CMP byte [RCX+0x18],0`
 //     uint8_t          platformExistsGate;   // +0x19 — Exists()'s `CMP byte [RBX+0x19],0`
-//     uint8_t          _unknown1A[0x20 - 0x1A];
+//     uint8_t          _pad1A[0x20 - 0x1A];
 //     PackageFileView** packfiles;         // +0x20 — GetPackfileId's `*(this+0x20)`, array of PackageFile*
 //     int32_t          packfileCount;      // +0x28 — read by ModProbe_DumpPackageIndex, not by this lane
 //     // +0x2C — the packfiles array's CAPACITY. Named by Wave 9 lane PKG from
@@ -639,7 +639,7 @@ public:
     System::Filename   _packDirectory;         // +0x10  ctor 0x1800ac7f0, dtor 0x1800ac720
     uint8_t            _existsInPackfileGate;  // +0x18
     uint8_t            _platformExistsGate;    // +0x19
-    uint8_t            _unknown1A[0x20 - 0x1A];
+    uint8_t            _pad1A[0x20 - 0x1A];
     // B.4 Y RT (`behaviour:`): the real Array. Retail's dtor 0x1800ac6d0 frees
     // +0x40 and +0x30 (the body), then ~Array<PackageFile*> on +0x20
     // (0x1800ac71a, J1: free + zero header), then the three Filenames: this
@@ -652,7 +652,7 @@ public:
     RtIO::ModArrayOf<System::Filename> _userPackFilenames;   // +0x30 {data, size +0x38, capacity +0x3c}
     RtIO::PackfileIndexTree _packfileIndex;     // +0x40 root, +0x48 count
 };
-static_assert(offsetof(FileSystem, _unknown1A) == 0x1A, "FileSystem::_unknown1A");
+static_assert(offsetof(FileSystem, _pad1A) == 0x1A, "FileSystem::_pad1A");
 
 // The POD carries no `sizeof` assert because its tail is opaque padding and
 // nothing pins the total size; the class inherits that honestly. A class MAY

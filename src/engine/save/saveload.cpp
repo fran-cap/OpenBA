@@ -179,13 +179,13 @@ static void SaveLoad_CtorLogic(SaveLoad* self) {
     self->_operation        = RtSave::kOpNone;
     self->_elapsed          = 0;
     self->_minOperationTime = ZeroTime();
-    self->_string20._data   = nullptr;
+    self->_operationSaveName._data   = nullptr;
     // One qword store of 0 at +0x28 in retail, which is _id AND _size together,
     // then the pointer at +0x30 — see the embedded-SavedState note in the header.
     self->_embeddedState._id   = 0;
     self->_embeddedState._size = 0;
     self->_embeddedState._data = nullptr;
-    self->field38           = 0;
+    self->_metadataCursor           = 0;
     self->_selectedIndex    = -1;
     self->_saves._data      = nullptr;   // +0x50 qword
     self->_saves._size      = 0;         // +0x58 qword: _size and _capacity together
@@ -430,7 +430,7 @@ void RtSave_SaveLoad_Dtor(SaveLoad* self) {
     void* buffer30 = self->_embeddedState._data;
     if (buffer30) MemFree(buffer30);
 
-    self->_string20.System::String::~String();
+    self->_operationSaveName.System::String::~String();
 }
 
 // ============================================================================
@@ -767,8 +767,8 @@ int Save::SaveLoad::CheckMod(int saveIndex, int modIndex) const {
     } else {
         const RtIO::Mod& entry = base[found];
         // Equality only (`CMP ; JZ`): signedness is unobservable.
-        if (static_cast<uint32_t>(entry.i2c) != mod->versionMajor)      ours = 4;
-        else if (static_cast<uint32_t>(entry.i1c) != mod->versionMinor) ours = 3;
+        if (static_cast<uint32_t>(entry.crc) != mod->versionMajor)      ours = 4;
+        else if (static_cast<uint32_t>(entry.userVersion) != mod->versionMinor) ours = 3;
         else ours = (mod->gameVersion < System::kModMinGameVersion) ? 2 : 0;
     }
 

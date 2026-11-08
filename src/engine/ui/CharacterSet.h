@@ -93,16 +93,16 @@ public:
 
 public:
     // ---- the 0x08 bytes CharacterSet adds (public: the doors reach them) ----
-    System::String _string20;     // +0x20  the one member; see the banner
+    System::String _characters;     // +0x20  the one member; see the banner
 };
 
 static_assert(sizeof(CharacterSet) == 0x28,
               "UI::CharacterSet is 0x28 bytes (MOV EDX,0x28 in slot 0, 0x1800378a0)");
 static_assert(alignof(CharacterSet) == 8, "UI::CharacterSet aligns to 8 (the vptr)");
-static_assert(offsetof(CharacterSet, _string20) == 0x20,
+static_assert(offsetof(CharacterSet, _characters) == 0x20,
               "CharacterSet +0x20: released by ~CharacterSet 0x1800cb840, "
               "serialized by 0x1800cb7b0");
-static_assert(offsetof(CharacterSet, _string20) == sizeof(Object::External),
+static_assert(offsetof(CharacterSet, _characters) == sizeof(Object::External),
               "CharacterSet's own bytes begin right after Object::External");
 
 }  // namespace UI

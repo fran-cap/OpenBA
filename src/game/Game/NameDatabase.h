@@ -26,16 +26,16 @@
 // One element of the +0x20 array (stride 0xc): Serialize 0x1400a45e0 writes it
 // as four raw bytes, a uchar and a uint. No field has a retail name.
 struct NameDatabaseEntry {
-    uint32_t field_0x00;     // +0x00 the 4-gram: SerializeBytes(4); the name generator reads it as one dword
-    uint8_t  field_0x04;     // +0x04 uchar
+    uint32_t context;     // +0x00 the 4-gram: SerializeBytes(4); the name generator reads it as one dword
+    uint8_t  isWordEnd;     // +0x04 uchar
     uint8_t  _pad05[3];      // +0x05
-    uint32_t field_0x08;     // +0x08 uint
+    uint32_t nextCharMask;     // +0x08 uint
 };
 static_assert(sizeof(NameDatabaseEntry) == 0xC, "stride 0xc (0x14001c7c0)");
-static_assert(offsetof(NameDatabaseEntry, field_0x00) == 0x0, "NameDatabaseEntry::field_0x00");
+static_assert(offsetof(NameDatabaseEntry, context) == 0x0, "NameDatabaseEntry::context");
 static_assert(offsetof(NameDatabaseEntry, _pad05) == 0x5, "NameDatabaseEntry::_pad05");
-static_assert(offsetof(NameDatabaseEntry, field_0x04) == 0x04, "+0x04");
-static_assert(offsetof(NameDatabaseEntry, field_0x08) == 0x08, "+0x08");
+static_assert(offsetof(NameDatabaseEntry, isWordEnd) == 0x04, "+0x04");
+static_assert(offsetof(NameDatabaseEntry, nextCharMask) == 0x08, "+0x08");
 
 class NameDatabase final : public Object::External {
     DECLARE_EXE_TYPE(NameDatabase)

@@ -167,9 +167,9 @@ bool Map::TestPlacement(int param_2, int param_3, uint32_t param_4,
 // when the state is not 3/4/5 (Demolish / HaulAway / Deconstruct).
 // ============================================================
 uint64_t RemovalTool::CanRemoveBuilding(ComponentEntity* const* param_2) {
-    if (removalDesc->_b41 && (*param_2 != nullptr)) {
+    if (removalDesc->_removeBuildings && (*param_2 != nullptr)) {
         ComponentEntity* entity = *param_2;
-        if (entity->_description != removalDesc->_ref38) {
+        if (entity->_description != removalDesc->_remover) {
             DestroyComponent* destroy = (*param_2)->FindComponent<DestroyComponent>();
 
             StateMachineComponent* machine = (*param_2)->FindComponent<StateMachineComponent>();
@@ -195,9 +195,9 @@ uint64_t RemovalTool::CanRemoveBuilding(ComponentEntity* const* param_2) {
 // and returns 1 when that says removable (or the template matches).
 // ============================================================
 uint64_t RemovalTool::CanRemoveRoad(ComponentEntity* const* param_2) {
-    if (removalDesc->_b42 && (*param_2 != nullptr)) {
+    if (removalDesc->_cancelClear && (*param_2 != nullptr)) {
         ComponentEntity* entity = *param_2;
-        if (entity->_description == removalDesc->_ref38) {
+        if (entity->_description == removalDesc->_remover) {
             return 1;  // LAB_1401047aa
         }
         DestroyComponent* comp = (*param_2)->FindComponent<DestroyComponent>();
@@ -230,7 +230,7 @@ uint64_t RemovalTool::CanRemoveField(ComponentEntity* const* param_2, int param_
     // Scan the +0x38 template's sub-descriptions for the CreateDragDescription.
     CreateDragDescription* matched = nullptr;  // pvVar9
     {
-        const ComponentDescription* lst = removalDesc->_ref38;
+        const ComponentDescription* lst = removalDesc->_remover;
         if (lst != nullptr) {
             int n = lst->_subDescCount;
             int idx = 0;
@@ -247,10 +247,10 @@ uint64_t RemovalTool::CanRemoveField(ComponentEntity* const* param_2, int param_
         }
     }
 
-    if (removalDesc->_b20 && (matched != nullptr) && (*param_2 != nullptr)) {
+    if (removalDesc->_removeResources && (matched != nullptr) && (*param_2 != nullptr)) {
         NaturalResourceComponent* resource = (*param_2)->FindComponent<NaturalResourceComponent>();
         if (resource != nullptr) {
-            int compCount = removalDesc->_refs._size;
+            int compCount = removalDesc->_removeTypes._size;
             int iVar12 = compCount;  // captured before the loop (decompile semantics)
 
             // Determine whether param_2's entity belongs to this field.
@@ -259,21 +259,21 @@ uint64_t RemovalTool::CanRemoveField(ComponentEntity* const* param_2, int param_
                 int idx = 0;
                 while (idx < compCount) {
                     const ComponentDescription* lv =
-                        removalDesc->_refs[idx];
+                        removalDesc->_removeTypes[idx];
                     if (lv == (*param_2)->_description) {
                         atWorkBlock = true;  // LAB_140104a0f
                         break;
                     }
                     idx++;
-                    compCount = removalDesc->_refs._size;
+                    compCount = removalDesc->_removeTypes._size;
                 }
             }
             if (!atWorkBlock && iVar12 == 0) atWorkBlock = true;  // 'if (iVar12 == 0) goto LAB_140104a0f'
 
             bool ok = false;
             if (atWorkBlock) {
-                char cVar1 = static_cast<char>(matched->_b24);   // override flag
-                uint32_t passMask = matched->_shape;
+                char cVar1 = static_cast<char>(matched->_ignoreZones);   // override flag
+                uint32_t passMask = matched->_placeBits;
 
                 // The y/x loops each run exactly once: y in [param_4,param_4],
                 // x in [param_3,param_3].

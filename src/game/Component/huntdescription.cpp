@@ -28,13 +28,13 @@
 // the defaults.
 HuntDescription::HuntDescription()
     : Description(),
-      _f20(0.0f),
+      _killTimeInMonths(0.0f),
       _type(5) {}
 
 // [5] 0x140122960: stream order as retail.
 bool HuntDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 1);
-    ser.Serialize(_f20, nullptr);
+    ser.Serialize(_killTimeInMonths, nullptr);
     if (ser.GetVersion() > 0) ser.Serialize(_type, nullptr);   // version-gated, as retail
     return true;
 }

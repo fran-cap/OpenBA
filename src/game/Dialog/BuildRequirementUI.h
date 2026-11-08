@@ -43,7 +43,7 @@ public:
     // ---- fields (B4 DLG-a) ----------------------------------------------
     // +0x30 the building's ComponentDescription (resolved from the data source)
     ComponentDescription* description = nullptr;
-    uint32_t field_0x38 = 1;           // +0x38: initialized to 1 by the factory
+    uint32_t sizeMultiplier = 1;           // +0x38: initialized to 1 by the factory
     uint8_t _pad3C[4] = {};            // +0x3C: gap
     // +0x40 the "labelBuild%i" labels; +0x50 each cost's quantity. Create
     // 0x1400107f0 zeroes the four qwords +0x40..+0x58 (0x14001083b..0x140010847);
@@ -57,6 +57,6 @@ public:
 static_assert(sizeof(BuildRequirementUI) == 0x60, "BuildRequirementUI is 0x60 (create 0x1400107f0 MemAlloc(0x60))");
 static_assert(alignof(BuildRequirementUI) == 8, "qword-aligned (the vptr)");
 static_assert(offsetof(BuildRequirementUI, description) == 0x30, "BuildRequirementUI::description @ +0x30");
-static_assert(offsetof(BuildRequirementUI, field_0x38) == 0x38, "BuildRequirementUI::field_0x38 @ +0x38");
+static_assert(offsetof(BuildRequirementUI, sizeMultiplier) == 0x38, "BuildRequirementUI::sizeMultiplier @ +0x38");
 static_assert(offsetof(BuildRequirementUI, labels) == 0x40, "BuildRequirementUI::labels @ +0x40");
 static_assert(offsetof(BuildRequirementUI, counts) == 0x50, "BuildRequirementUI::counts @ +0x50");

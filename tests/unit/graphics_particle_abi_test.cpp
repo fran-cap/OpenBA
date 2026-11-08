@@ -48,7 +48,7 @@ UNIT_TEST(graphics_particle_sizes_match_retail) {
     // and NO second vptr: retail's constructor inlines the base stores and then
     // writes its own first field at exactly `sizeof(base)` with no gap.
     CHECK_EQ(offsetof(Graphics::Particle, _active),   sizeof(Object::External));
-    CHECK_EQ(offsetof(Graphics::ParticleSystem, _f48), sizeof(Graphics::Particle));
+    CHECK_EQ(offsetof(Graphics::ParticleSystem, _emissionRate), sizeof(Graphics::Particle));
 }
 
 UNIT_TEST(graphics_particle_field_offsets) {

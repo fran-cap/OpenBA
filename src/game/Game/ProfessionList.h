@@ -49,8 +49,8 @@ public:
     // PostLifeEvent, which titles a child with +0x40's name and a student with
     // +0x48's; +0x30 / +0x38 keep typed guess names.
     Collection::Array<Profession*> professions;   // +0x20: the player-selectable professions, sorted
-    Profession* field_0x30;      // +0x30: ExternalPtr<Profession>
-    Profession* field_0x38;      // +0x38: ExternalPtr<Profession>
+    Profession* laborerProfession;      // +0x30: ExternalPtr<Profession>
+    Profession* builderProfession;      // +0x38: ExternalPtr<Profession>
     Profession* childProfession;   // +0x40: ExternalPtr<Profession>: a child's title (PostLifeEvent)
     Profession* studentProfession; // +0x48: ExternalPtr<Profession>: a student's title (PostLifeEvent)
 };
@@ -58,7 +58,7 @@ public:
 static_assert(sizeof(ProfessionList) == 0x50, "ProfessionList is 0x50");
 static_assert(offsetof(ProfessionList, professions) == 0x20, "+0x20");
 static_assert(sizeof(Collection::Array<Profession*>) == 0x10, "Array header is 0x10");
-static_assert(offsetof(ProfessionList, field_0x30) == 0x30, "+0x30");
-static_assert(offsetof(ProfessionList, field_0x38) == 0x38, "+0x38");
+static_assert(offsetof(ProfessionList, laborerProfession) == 0x30, "+0x30");
+static_assert(offsetof(ProfessionList, builderProfession) == 0x38, "+0x38");
 static_assert(offsetof(ProfessionList, childProfession) == 0x40, "+0x40");
 static_assert(offsetof(ProfessionList, studentProfession) == 0x48, "+0x48");

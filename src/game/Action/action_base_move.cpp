@@ -61,13 +61,13 @@
 // normalizes (x,y,0) into +0x2c..+0x34, stores Heading(dir) at +0x3c.
 // Caller signature: void fn(void* comp, void* vector3)
 void CharacterComponent::SetFacingDirection(const Math::Vector3& dir) {
-    field_0x28 = false;
+    steeredByMover = false;
     Math::Vector3 tmp(dir.x, dir.y, 0.0f);
     Math::Vector3 n = tmp.Normalize();
-    field_0x2C.x = n.x;
-    field_0x2C.y = n.y;
-    field_0x2C.z = n.z;
-    field_0x3C = dir.Heading();
+    moveDirection.x = n.x;
+    moveDirection.y = n.y;
+    moveDirection.z = n.z;
+    targetHeading = dir.Heading();
 }
 
 
@@ -122,17 +122,17 @@ void MoveTo::UpdateFacing() {
 
     // Re-read the character, store the normalized 3D facing into it.
     CharacterComponent* character2 = this->character.Get();
-    character2->field_0x28 = false;
+    character2->steeredByMover = false;
 
     // local_58/54/50 = (dir2.x, dir2.y, 0) from the Vector2::Normalize result.
     Math::Vector3 dir3(dir2.x, dir2.y, 0.0f);
     Math::Vector3 n = dir3.Normalize();
-    character2->field_0x2C.x = n.x;
-    character2->field_0x2C.y = n.y;
-    character2->field_0x2C.z = n.z;
+    character2->moveDirection.x = n.x;
+    character2->moveDirection.y = n.y;
+    character2->moveDirection.z = n.z;
 
     Math::Vector3 head3(dir2.x, dir2.y, 0.0f);
-    character2->field_0x3C = head3.Heading();
+    character2->targetHeading = head3.Heading();
 }
 
 // ============================================================
@@ -148,10 +148,10 @@ void MoveTo::UpdateFacing() {
 void CharacterComponent::SetAnimation(uint32_t animId, float p3, float p4) {
     const CharacterDescription* desc = characterDescription;
     // 5th arg (p3) is a float passed on the stack in the original (MOVSS [RSP+0x20]).
-    modelComponent.Get()->PlayAnimation(animId, 0.0f, desc->_turnFilter, p3);   // 0x1401250f0
+    modelComponent.Get()->PlayAnimation(animId, 0.0f, desc->_defaultAnimationBlendTime, p3);   // 0x1401250f0
     // ModelComponent +0x13c is the embedded MeshInstance's (+0x28) +0x114: _color[2]
     // (Mesh.h's guess name for the four floats the ctor seeds with 1.0).
-    field_0x38 = modelComponent->meshInstance._color[2] * p4;
+    moveSpeedScale = modelComponent->meshInstance._color[2] * p4;
 }
 
 
@@ -177,7 +177,7 @@ uint8_t CitizenComponent::BreakCheck() {
     if (pendingProfession != nullptr)
         return 1;
 
-    int taskId = field_0x30;
+    int taskId = lastWorkId;
     if (taskId < 0)
         return 0;
 
@@ -216,9 +216,9 @@ uint8_t CitizenComponent::BreakCheck() {
     float duePair[2];
     duePair[0] = outRec->skillMult1;
     duePair[1] = outRec->skillMult2;
-    // LEFT: CitizenComponent::field_0x200 (block COMP-b's header) is declared int64_t, not
+    // LEFT: CitizenComponent::professionRollTimer (block COMP-b's header) is declared int64_t, not
     // System::Time.
-    bool ok = BreakTimeCheck(&field_0x200, duePair, gw->m_random);   // 0x1400a9290
+    bool ok = BreakTimeCheck(&professionRollTimer, duePair, gw->m_random);   // 0x1400a9290
     if (ok) {
         pendingProfession = outRec;
         return 1;

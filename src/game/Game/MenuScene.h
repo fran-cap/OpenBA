@@ -146,7 +146,7 @@ public:
     Collection::Array<Graphics::Particle*>     particleResources;  // +0x60 ExternalPtr<Particle> (0x14001bff0)
 
     Graphics::GraphicsMesh* terrainMesh;   // +0x70: ExternalPtr<GraphicsMesh> (0x14001b8e0); the menu loop's main mesh
-    float    _field78;           // +0x78: float (version >= 2)
+    float    weatherIntensity;           // +0x78: float (version >= 2)
     uint8_t  _pad7C[4];          // +0x7C: padding
     Weather* weather;            // +0x80: ExternalPtr<Weather> (0x1400196a0)
 
@@ -161,14 +161,14 @@ public:
     float    fogDensity;         // +0x1A8: 0.95f
     float    sunIntensity;       // +0x1AC: 120.0f (the menu loop reads it as the sun's yaw)
     float    ambientIntensity;   // +0x1B0: 65.0f (the menu loop reads it as the sun's pitch)
-    Math::Vector4 field_0x1B4;   // +0x1B4: zero; serialized; copied to Video::Context +0x3b8 / +0x288
+    Math::Vector4 weatherTerms;   // +0x1B4: zero; serialized; copied to Video::Context +0x3b8 / +0x288
     uint8_t  _pad1C4[4];         // +0x1C4: padding
 
     // Two {Array, tree} records (behaviour: B4 wave Y): retail's dtor body
     // 0x1400a3970 runs 0x14001b860 on +0x1E8 then +0x1C8 before freeing the
     // arrays: reverse declaration order of these two members.
-    MenuSceneTreeMap _field1C8;  // +0x1C8
-    MenuSceneTreeMap _field1E8;  // +0x1E8
+    MenuSceneTreeMap meshResourceIndices;  // +0x1C8
+    MenuSceneTreeMap particleResourceIndices;  // +0x1E8
 };
 
 static_assert(sizeof(MenuScene) == 0x208, "MenuScene is 0x208");
@@ -181,7 +181,7 @@ static_assert(offsetof(MenuScene, meshResources) == 0x40, "+0x40");
 static_assert(offsetof(MenuScene, particles) == 0x50, "+0x50");
 static_assert(offsetof(MenuScene, particleResources) == 0x60, "+0x60");
 static_assert(offsetof(MenuScene, terrainMesh) == 0x70, "+0x70");
-static_assert(offsetof(MenuScene, _field78) == 0x78, "+0x78");
+static_assert(offsetof(MenuScene, weatherIntensity) == 0x78, "+0x78");
 static_assert(offsetof(MenuScene, weather) == 0x80, "+0x80");
 static_assert(offsetof(MenuScene, transform) == 0x88, "+0x88");
 static_assert(offsetof(MenuScene, ambientColor) == 0x194, "+0x194");
@@ -192,8 +192,8 @@ static_assert(offsetof(MenuScene, fogEnd) == 0x1A4, "+0x1A4");
 static_assert(offsetof(MenuScene, fogDensity) == 0x1A8, "+0x1A8");
 static_assert(offsetof(MenuScene, sunIntensity) == 0x1AC, "+0x1AC");
 static_assert(offsetof(MenuScene, ambientIntensity) == 0x1B0, "+0x1B0");
-static_assert(offsetof(MenuScene, field_0x1B4) == 0x1B4, "+0x1B4");
+static_assert(offsetof(MenuScene, weatherTerms) == 0x1B4, "+0x1B4");
 static_assert(offsetof(MenuScene, _pad1C4) == 0x1C4, "+0x1C4");
-static_assert(offsetof(MenuScene, _field1C8) == 0x1C8, "+0x1C8");
-static_assert(offsetof(MenuScene, _field1E8) == 0x1E8, "+0x1E8");
-static_assert(offsetof(MenuScene, _field1E8) + offsetof(MenuSceneTreeMap, count) == 0x200, "+0x200");
+static_assert(offsetof(MenuScene, meshResourceIndices) == 0x1C8, "+0x1C8");
+static_assert(offsetof(MenuScene, particleResourceIndices) == 0x1E8, "+0x1E8");
+static_assert(offsetof(MenuScene, particleResourceIndices) + offsetof(MenuSceneTreeMap, count) == 0x200, "+0x200");

@@ -35,7 +35,7 @@ struct TerrainSizeRow {
     int32_t riverCount1;         // +0x10 cd460 pass 1: point count
     int32_t riverMinEdge1;       // +0x14
     int32_t riverMaxEdge1;       // +0x18
-    int32_t field_0x1C;          // +0x1C
+    int32_t flatAreaConnections;          // +0x1C
     int32_t secondaryPathCount;  // +0x20 ccf60
     int32_t erosionIterations;   // +0x24 cc080
     int32_t minRangeCount;       // +0x28 cd150
@@ -53,7 +53,7 @@ static_assert(offsetof(TerrainSizeRow, riverMinEdge2) == 0x8, "TerrainSizeRow::r
 static_assert(offsetof(TerrainSizeRow, riverMaxEdge2) == 0xC, "TerrainSizeRow::riverMaxEdge2");
 static_assert(offsetof(TerrainSizeRow, riverMinEdge1) == 0x14, "TerrainSizeRow::riverMinEdge1");
 static_assert(offsetof(TerrainSizeRow, riverMaxEdge1) == 0x18, "TerrainSizeRow::riverMaxEdge1");
-static_assert(offsetof(TerrainSizeRow, field_0x1C) == 0x1C, "TerrainSizeRow::field_0x1C");
+static_assert(offsetof(TerrainSizeRow, flatAreaConnections) == 0x1C, "TerrainSizeRow::flatAreaConnections");
 static_assert(offsetof(TerrainSizeRow, maxRangeCount) == 0x2C, "TerrainSizeRow::maxRangeCount");
 static_assert(offsetof(TerrainSizeRow, minRangeBand) == 0x30, "TerrainSizeRow::minRangeBand");
 static_assert(offsetof(TerrainSizeRow, maxRangeBand) == 0x34, "TerrainSizeRow::maxRangeBand");

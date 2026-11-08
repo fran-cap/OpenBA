@@ -80,8 +80,8 @@ T* TD_AllocArray(T*& base, int32_t& capacity, int n) {
 // the defaults.
 TradeDescription::TradeDescription()
     : Description(),
-      _ref20(nullptr),
-      _ref28(nullptr),
+      _resourceSpriteSheet(nullptr),
+      _resourceStringTable(nullptr),
       _merchantTemplate(nullptr),
       _pairs(nullptr),
       _pairCount(0),
@@ -92,8 +92,8 @@ TradeDescription::TradeDescription()
       _prices(nullptr),
       _priceCount(0),
       _priceCap(0),
-      _f68(FloatBits(0x3eaa7efa)),
-      _i6c(3) {}
+      _sicknessAmount(FloatBits(0x3eaa7efa)),
+      _sicknessTimeInMonths(3) {}
 
 // dtor (slot 0 0x14000dc50 minus the stamps): frees the merchant (and its inner arrays/Strings), string-pair and price arrays.
 // The compiler then chains ~Description -> ~External.
@@ -104,7 +104,7 @@ TradeDescription::~TradeDescription() {
     if (TradeMerchant* m = _merchants) {
         for (int i = 0; i < merchN; ++i, ++m) {
             if (m->goods) System::MemoryAllocator::MemFree(m->goods);
-            if (m->field_0x30) System::MemoryAllocator::MemFree(m->field_0x30);
+            if (m->naturalResources) System::MemoryAllocator::MemFree(m->naturalResources);
             m->name.~String();
         }
         System::MemoryAllocator::MemFree(_merchants);
@@ -146,14 +146,14 @@ bool TradeDescription::Serialize(IO::Stream& stream) {
             // ComponentDescription instantiation (cell 0x1401c7318).
             Object::SerializeExternalArray<ComponentDescription>(ser, extN, m->goods);
             // the enum array @ +0x30 (count @ +0x38) through the uint door
-            ser.Serialize(m->field_0x30Count, nullptr);
-            int intN = m->field_0x30Count;
-            if (static_cast<int>(ser.GetDirection()) == 0 && intN > 0) TD_AllocArray(m->field_0x30, m->field_0x30Cap, intN);
-            uint32_t* ia = m->field_0x30;
+            ser.Serialize(m->naturalResourceCount, nullptr);
+            int intN = m->naturalResourceCount;
+            if (static_cast<int>(ser.GetDirection()) == 0 && intN > 0) TD_AllocArray(m->naturalResources, m->naturalResourceCap, intN);
+            uint32_t* ia = m->naturalResources;
             for (int j = 0; j < intN && ia; ++j, ++ia)
                 ser.Serialize(*ia, nullptr);
             ser.Serialize(m->stockRolls, nullptr);       // int @+0x40
-            ser.Serialize(m->field_0x10, nullptr);       // enum @+0x10
+            ser.Serialize(m->sellFlags, nullptr);       // enum @+0x10
             ser.Serialize(m->fullPriceFlags, nullptr);   // enum @+0x14
             ser.Serialize(m->discountFlags, nullptr);    // enum @+0x18
         }
@@ -174,8 +174,8 @@ bool TradeDescription::Serialize(IO::Stream& stream) {
         }
     }
 
-    ::Object::SerializeExternal<UI::SpriteSheet>(ser, _ref20);   // ExternalPtr +0x20
-    ::Object::SerializeExternal<UI::StringTable>(ser, _ref28);   // ExternalPtr +0x28
+    ::Object::SerializeExternal<UI::SpriteSheet>(ser, _resourceSpriteSheet);   // ExternalPtr +0x20
+    ::Object::SerializeExternal<UI::StringTable>(ser, _resourceStringTable);   // ExternalPtr +0x28
 
     // goods-category array @ +0x38 (count @ +0x40)
     ser.Serialize(_pairCount, nullptr);
@@ -189,8 +189,8 @@ bool TradeDescription::Serialize(IO::Stream& stream) {
             sp->textName.Serialize(ser);                   // String @+0x10
         }
     }
-    ser.Serialize(_f68, nullptr);
-    ser.Serialize(_i6c, nullptr);
+    ser.Serialize(_sicknessAmount, nullptr);
+    ser.Serialize(_sicknessTimeInMonths, nullptr);
     return true;
 }
 

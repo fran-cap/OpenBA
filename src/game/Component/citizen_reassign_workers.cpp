@@ -173,7 +173,7 @@ extern "C" uint64_t Entity_ReassignCost_6c60(const void* /*param_1*/,   // LEFT:
         if (adult &&
             worker->school == nullptr &&                                      // not at school
             worker->workplace != nullptr &&                                   // has a workplace
-            worker->profession != reg->field_0x30) {                          // profession != default
+            worker->profession != reg->laborerProfession) {                          // profession != default
             ComponentEntity* workplaceIBP = worker->workplace.Get();
             uint32_t wpCell = static_cast<uint32_t>(EntityAnchorCell(&workplaceIBP, nullptr));
             // WorkBase_ValidateCell_a00f0 returns its bool in the low byte of a uint64.
@@ -193,8 +193,8 @@ extern "C" uint64_t Entity_ReassignCost_6c60(const void* /*param_1*/,   // LEFT:
 void PathGraph::ReassignWorkers() {
     // Row 330 (B7 RES): 0x1400d62a0 reads [gw+0xf0] and its +0x20 / +0x28 with no test.
     CitizenBehavior* townMgr = GameUpdateLoop::_singleton->m_citizenList;
-    int               resCount = townMgr->field_0x20._size;
-    Object::InternalPtr<ComponentEntity>* resArray = townMgr->field_0x20._data;
+    int               resCount = townMgr->residences._size;
+    Object::InternalPtr<ComponentEntity>* resArray = townMgr->residences._data;
 
     // FIX alloc_tiebreak (NOT RETAIL, docs/extensions/handins/ALLOCTIEBREAK.md): both trees order
     // equal keys by the residence's entity id instead of by address. Off: every id is 0 and the

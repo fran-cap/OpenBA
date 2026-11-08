@@ -204,24 +204,24 @@ void ActRm_ArrayResize16_da70(RawArray<MaterialCount16>* arr, int newCount) {
 void AutoPickupComponent::Append(uint32_t value) {
     if (!isEnabled) return;
 
-    int oldN = field30._size;
+    int oldN = pileWorkIds._size;
     int newN = oldN + 1;
     if (newN == oldN) return;
 
-    int32_t* oldBuf = field30._data;
-    field30._size = newN;
-    if (field30._capacity < newN) {
-        field30._capacity = newN;
-        if (oldN != 0) field30._capacity = newN * 3;
-        field30._data = static_cast<int32_t*>(System::MemoryAllocator::MemAlloc(static_cast<uint64_t>(field30._capacity) << 2, 4));
+    int32_t* oldBuf = pileWorkIds._data;
+    pileWorkIds._size = newN;
+    if (pileWorkIds._capacity < newN) {
+        pileWorkIds._capacity = newN;
+        if (oldN != 0) pileWorkIds._capacity = newN * 3;
+        pileWorkIds._data = static_cast<int32_t*>(System::MemoryAllocator::MemAlloc(static_cast<uint64_t>(pileWorkIds._capacity) << 2, 4));
     }
-    int srcIdx = (oldBuf == field30._data) ? oldN : 0;
+    int srcIdx = (oldBuf == pileWorkIds._data) ? oldN : 0;
     for (int i = srcIdx; i < newN; i++) {
-        int32_t* dst = field30._data + i;
+        int32_t* dst = pileWorkIds._data + i;
         if (!dst) continue;
         *dst = (i < oldN) ? oldBuf[i] : static_cast<int32_t>(value);
     }
-    if (oldBuf != field30._data)
+    if (oldBuf != pileWorkIds._data)
         System::MemoryAllocator::MemFree(oldBuf);
 }
 
@@ -377,7 +377,7 @@ void CitizenBehavior::CountProducedMaterial(ComponentEntity* const* source,
     }
     int cat = ResourceCategory(material);   // 0x140088f90
     if (cat >= 0) {
-        professionResources._data[cat]._field10 += quantity;
+        professionResources._data[cat].producedCount += quantity;
     }
 }
 

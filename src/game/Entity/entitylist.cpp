@@ -483,7 +483,7 @@ static constexpr size_t kWalkPrefetchStride = 1;
 //                            lines a walking character's MoveTo is read at next (ext.walk_batch's
 //                            Eligible and MoveTo::Execute): +0x00..+0x43 (vptr, _status, _next,
 //                            character, description, destination), +0x60 (pathIndex, pathCount),
-//                            +0x474 (field_0x474, speedMultiplier). The vptr is not resident at
+//                            +0x474 (isFollowing, speedMultiplier). The vptr is not resident at
 //                            i+1, so the lines are named for any action; a shorter one wastes the
 //                            two far prefetches. ARM only (docs/android/P13_WALK.md): measured on
 //                            the Galaxy S10, not on the desktop, whose object stays as it was.
@@ -631,7 +631,7 @@ template <class Fn>
                             if constexpr (kPrefetchCovMoveTo) {
                                 __builtin_prefetch(a + offsetof(MoveTo, destination) + 0xB);
                                 __builtin_prefetch(a + offsetof(MoveTo, pathIndex));
-                                __builtin_prefetch(a + offsetof(MoveTo, field_0x474));
+                                __builtin_prefetch(a + offsetof(MoveTo, isFollowing));
                             } else {
                                 __builtin_prefetch(a + 0x1F);
                             }

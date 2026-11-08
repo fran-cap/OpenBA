@@ -21,7 +21,7 @@
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
 #include "Entity/ComponentEntity.h"   // B4: the component array by name
 #include "Entity/EntityList.h"        // B4: GameUpdateLoop::m_entityList
-#include "Entity/CitizenBehavior.h"     // B4: m_citizenList->field_0x120
+#include "Entity/CitizenBehavior.h"     // B4: m_citizenList->availableFarmTypes
 #include "Component/ComponentDescription.h"
 #include "Object/factory_registration.h"
 #include "Component/CropFieldComponent.h"
@@ -135,8 +135,8 @@ void Fire(int frame) {
             const uint32_t tidNatRes = NaturalResourceDescription::TypeId();
             GameUpdateLoop* gw2 = GameUpdateLoop::_singleton;
             CitizenBehavior* town = gw2 ? gw2->m_citizenList : nullptr;    // +0xf0
-            ComponentDescription** types = town ? town->field_0x120._data : nullptr;   // +0x120
-            const int typeN = town ? town->field_0x120._size : 0;                // +0x128
+            ComponentDescription** types = town ? town->availableFarmTypes._data : nullptr;   // +0x120
+            const int typeN = town ? town->availableFarmTypes._size : 0;                // +0x128
             // VARIETY, not just "a crop": collect every planable type and hand each
             // field the NEXT one, rather than the first match for all of them.
             //

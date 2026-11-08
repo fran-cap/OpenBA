@@ -110,7 +110,7 @@ void PrefetchParticle(const Graphics::Particle& particle) {
 // render thread. Every sheet (the UI's, the fonts', the cursors') is queued as it loads instead, and
 // KEPT: an idle eviction would only bring the same frame back the next time the window opens.
 void KeepSpriteSheet(const UI::SpriteSheet& sheet) {
-    QueueMaterial(sheet.m_field30, true);
+    QueueMaterial(sheet.m_materialInstance, true);
 }
 
 }}  // namespace Ext::CreateOnDemand

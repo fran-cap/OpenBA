@@ -127,7 +127,7 @@ void ScenarioDialog::OnOpened() {
         }
 
         // Filter by difficulty: Scenario +0x69 must match this one's
-        uint8_t scenDifficulty = static_cast<uint8_t>(scenario->_field69);
+        uint8_t scenDifficulty = static_cast<uint8_t>(scenario->tutorial);
         printf("[ScenarioDialog::Slot4] scenario[%d] at %p: difficulty=%d (want %d), isScenario=%d\n",
                i, static_cast<void*>(scenario), scenDifficulty, difficulty, isScenario);
         if (scenDifficulty != difficulty) continue;
@@ -193,7 +193,7 @@ void ScenarioDialog::OnOpened() {
         // "tutorial N legitimately continues N-1's town" from a real off-by-one.
         {
             const char* nameData = ScenarioString(scenario->scenarioName)._data;
-            const char* saveData = ScenarioString(scenario->_field88)._data;
+            const char* saveData = ScenarioString(scenario->saveGame)._data;
             int nameLen = nameData ? RtSystem::StringLength(nameData) : 0;
             int saveLen = saveData ? RtSystem::StringLength(saveData) : 0;
             printf("[ScenarioID] entry[%d] scenario[%d] name=\"%.*s\" (len=%d) "
@@ -263,7 +263,7 @@ void ScenarioDialog::LoadSelected() {
     Scenario* scenario = selectedEntry.scenario;
 
     // The save name (+0x88) and the display name (+0x58)
-    System::String saveNameStr = ScenarioString(scenario->_field88);
+    System::String saveNameStr = ScenarioString(scenario->saveGame);
     System::String displayNameStr = ScenarioString(scenario->scenarioName);
 
     const char* saveStrPtr = saveNameStr._data;
@@ -273,9 +273,9 @@ void ScenarioDialog::LoadSelected() {
 
     if (!hasSaveState) {
         // New scenario: start fresh game with scenario parameters
-        uint32_t seedVal = static_cast<uint32_t>(scenario->_field60);
-        uint32_t terrainSizeVal = static_cast<uint32_t>(scenario->_field64);
-        char disasterOff = static_cast<char>(scenario->_field68);
+        uint32_t seedVal = static_cast<uint32_t>(scenario->randomSeed);
+        uint32_t terrainSizeVal = static_cast<uint32_t>(scenario->terrainSize);
+        char disasterOff = static_cast<char>(scenario->disasters);
         // Scenario generator triple. These offsets were labelled climate/terrain/map;
         // retail's own LoadSelected (0x140077cb0, the call at +0x243) proves the outer
         // two are the other way round: it passes +0x70 as arg6 and +0x80 as arg8, and

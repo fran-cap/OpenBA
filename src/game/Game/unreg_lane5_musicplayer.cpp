@@ -169,10 +169,10 @@ void MusicPlayer::Update() {
     matches.reserve(4);
     for (int i = 0; i < trackCount; ++i) {
         const MusicListTrack* e = &tracks[i];
-        const int   monthLo = e->field_0x10;
-        const int   monthHi = e->field_0x14;
-        const float moodLo  = e->field_0x08;
-        const float moodHi  = e->field_0x0C;
+        const int   monthLo = e->minMonth;
+        const int   monthHi = e->maxMonth;
+        const float moodLo  = e->minStatus;
+        const float moodHi  = e->maxStatus;
         if (monthLo <= month && month <= monthHi && moodLo <= mood && mood <= moodHi) {
             matches.push_back(e->sound);
         }
@@ -189,7 +189,7 @@ void MusicPlayer::Update() {
         if (!rng) return;
         pick = static_cast<int>(rng->Rand(static_cast<uint32_t>(n)));
         // Don't immediately repeat the last track: step one past it, wrapping.
-        if (matches[static_cast<size_t>(pick)] == mp->field_0x10) {
+        if (matches[static_cast<size_t>(pick)] == mp->lastTrack) {
             ++pick;
         }
         if (pick >= n) pick = 0;
@@ -211,5 +211,5 @@ void MusicPlayer::Update() {
             static_cast<void*>(audioScene), handle);
     fflush(stderr);
     mp->effect = handle;
-    mp->field_0x10 = matches[static_cast<size_t>(pick)];
+    mp->lastTrack = matches[static_cast<size_t>(pick)];
 }

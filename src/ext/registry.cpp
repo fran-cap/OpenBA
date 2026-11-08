@@ -1255,8 +1255,8 @@ int PseudoModsForSave(PseudoMod* out, int capacity) {
         if (out != nullptr && n < capacity) {
             out[n].path = std::string("ext:") + e.id;
             out[n].name = e.displayName;
-            out[n].field10 = 0;
-            out[n].field14 = kPseudoModField14;
+            out[n].versionMajor = 0;
+            out[n].gameVersion = kPseudoModField14;
             out[n].formatVersion = e.formatVersion;
         }
         ++n;
@@ -1271,8 +1271,8 @@ int ProvideExtraModsForSave(PseudoModRecord* out, int capacity) {
     for (int i = 0; out != nullptr && i < n && i < capacity; ++i) {
         out[i].path = held[i].path.c_str();
         out[i].name = held[i].name.c_str();
-        out[i].field10 = held[i].field10;
-        out[i].field14 = held[i].field14;
+        out[i].versionMajor = held[i].versionMajor;
+        out[i].gameVersion = held[i].gameVersion;
         out[i].formatVersion = held[i].formatVersion;
     }
     return n;

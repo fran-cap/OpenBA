@@ -673,9 +673,9 @@ void MenuDialogLoopT::DrawScene_PhaseA(float alpha, Video::Context* context) {
     //   ctx[+0x3B8..+0x3C4] = MenuScene[+0x1B4..+0x1C0]  (4 dwords)
     //   ctx[+0x288..+0x294] = same 4 dwords             (mirrored)
     //   ctx[+0x10] |= 0x10800                            (fog/sky enable bits)
-    context->_unknown03b8 = menuScene->field_0x1B4;
+    context->_userPosition = menuScene->weatherTerms;
     // Context +0x288: Context::PixelConstantStaging::pixel[4] (Video/Context.h).
-    std::memcpy(&context->_pixelConstantStaging.pixel[4], &menuScene->field_0x1B4, 16);
+    std::memcpy(&context->_pixelConstantStaging.pixel[4], &menuScene->weatherTerms, 16);
     context->_dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     // Fog color Vector4 — the skyColor's RGB; the 4th component is fog density.

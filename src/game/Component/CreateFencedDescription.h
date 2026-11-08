@@ -36,27 +36,27 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140004920
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    uint32_t _u20;                              // +0x20 enum (serialized through the uint door)
+    uint32_t _placeBits;                              // +0x20 enum (serialized through the uint door)
     uint8_t _pad24[4];                          // +0x24 never written by the ctor
-    class ComponentDescription* _refs[6];       // +0x28 ExternalPtr[6], inline (B4 PLAYER H4: the section templates FencedTool::CalcPath clones, [0] the shelter)
-    int32_t _i58;                               // +0x58
-    int32_t _i5c;                               // +0x5c
-    int32_t _i60;                               // +0x60
-    int32_t _i64;                               // +0x64
-    bool _b68;                                  // +0x68
+    class ComponentDescription* _sections[6];       // +0x28 ExternalPtr[6], inline (B4 PLAYER H4: the section templates FencedTool::CalcPath clones, [0] the shelter)
+    int32_t _maxWidth;                               // +0x58
+    int32_t _maxHeight;                               // +0x5c
+    int32_t _minWidth;                               // +0x60
+    int32_t _minHeight;                               // +0x64
+    bool _centerBuilding;                                  // +0x68
     uint8_t _pad69[7];                          // +0x69 never written by the ctor
-    class ComponentDescription* _ref70;         // +0x70 ExternalPtr (a raw pointer; B4 PLAYER H4: the template whose entities FencedTool::CalcPath clears, 0x1401018d0)
+    class ComponentDescription* _allowAndRemove;         // +0x70 ExternalPtr (a raw pointer; B4 PLAYER H4: the template whose entities FencedTool::CalcPath clears, 0x1401018d0)
 };
 
 static_assert(sizeof(CreateFencedDescription) == 0x78, "CreateFencedDescription is 0x78 (create 0x1400048e0 MemAlloc(0x78))");
 static_assert(offsetof(CreateFencedDescription, _pad24) == 0x24, "CreateFencedDescription::_pad24");
 static_assert(offsetof(CreateFencedDescription, _pad69) == 0x69, "CreateFencedDescription::_pad69");
 static_assert(alignof(CreateFencedDescription) == 8, "CreateFencedDescription alignment");
-static_assert(offsetof(CreateFencedDescription, _u20) == 0x20, "CreateFencedDescription::_u20 @ +0x20");
-static_assert(offsetof(CreateFencedDescription, _refs) == 0x28, "CreateFencedDescription::_refs @ +0x28");
-static_assert(offsetof(CreateFencedDescription, _i58) == 0x58, "CreateFencedDescription::_i58 @ +0x58");
-static_assert(offsetof(CreateFencedDescription, _i5c) == 0x5c, "CreateFencedDescription::_i5c @ +0x5c");
-static_assert(offsetof(CreateFencedDescription, _i60) == 0x60, "CreateFencedDescription::_i60 @ +0x60");
-static_assert(offsetof(CreateFencedDescription, _i64) == 0x64, "CreateFencedDescription::_i64 @ +0x64");
-static_assert(offsetof(CreateFencedDescription, _b68) == 0x68, "CreateFencedDescription::_b68 @ +0x68");
-static_assert(offsetof(CreateFencedDescription, _ref70) == 0x70, "CreateFencedDescription::_ref70 @ +0x70");
+static_assert(offsetof(CreateFencedDescription, _placeBits) == 0x20, "CreateFencedDescription::_placeBits @ +0x20");
+static_assert(offsetof(CreateFencedDescription, _sections) == 0x28, "CreateFencedDescription::_sections @ +0x28");
+static_assert(offsetof(CreateFencedDescription, _maxWidth) == 0x58, "CreateFencedDescription::_maxWidth @ +0x58");
+static_assert(offsetof(CreateFencedDescription, _maxHeight) == 0x5c, "CreateFencedDescription::_maxHeight @ +0x5c");
+static_assert(offsetof(CreateFencedDescription, _minWidth) == 0x60, "CreateFencedDescription::_minWidth @ +0x60");
+static_assert(offsetof(CreateFencedDescription, _minHeight) == 0x64, "CreateFencedDescription::_minHeight @ +0x64");
+static_assert(offsetof(CreateFencedDescription, _centerBuilding) == 0x68, "CreateFencedDescription::_centerBuilding @ +0x68");
+static_assert(offsetof(CreateFencedDescription, _allowAndRemove) == 0x70, "CreateFencedDescription::_allowAndRemove @ +0x70");

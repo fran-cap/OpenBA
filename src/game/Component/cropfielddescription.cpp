@@ -28,12 +28,12 @@
 CropFieldDescription::CropFieldDescription()
     : Description(),
       _type(5),
-      _f24(0.0f) {}
+      _growthPercentOnTend(0.0f) {}
 
 // [5] 0x14011b270: stream order as retail.
 bool CropFieldDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 1);
-    ser.Serialize(_f24, nullptr);
+    ser.Serialize(_growthPercentOnTend, nullptr);
     if (ser.GetVersion() > 0) ser.Serialize(_type, nullptr);   // version-gated, as retail
     return true;
 }

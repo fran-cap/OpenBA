@@ -46,25 +46,25 @@
 // the defaults.
 CreateBridgeDescription::CreateBridgeDescription()
     : Description(),
-      _u20(0),
-      _u24(0),
-      _u28(0),
-      _u2c(0),
-      _u30(0),
-      _i34(0) {
-    for (auto& r : _refs) r = nullptr;
+      _placeBits(0),
+      _invalidBits(0),
+      _startEndBits(0),
+      _requiredBits(0),
+      _edgeBits(0),
+      _edgeWidth(0) {
+    for (auto& r : _sections) r = nullptr;
 }
 
 // [5] 0x1401195d0: stream order as retail.
 bool CreateBridgeDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_u20, nullptr);
-    ser.Serialize(_u28, nullptr);
-    ser.Serialize(_u2c, nullptr);
-    ser.Serialize(_u24, nullptr);
-    ser.Serialize(_u30, nullptr);
-    ser.Serialize(_i34, nullptr);
-    ::Object::SerializeExternalArray<ComponentDescription>(ser, 5, _refs);   // ExtPtr[5] +0x38 (0x1400049c0)
+    ser.Serialize(_placeBits, nullptr);
+    ser.Serialize(_startEndBits, nullptr);
+    ser.Serialize(_requiredBits, nullptr);
+    ser.Serialize(_invalidBits, nullptr);
+    ser.Serialize(_edgeBits, nullptr);
+    ser.Serialize(_edgeWidth, nullptr);
+    ::Object::SerializeExternalArray<ComponentDescription>(ser, 5, _sections);   // ExtPtr[5] +0x38 (0x1400049c0)
     return true;
 }
 

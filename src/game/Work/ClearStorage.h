@@ -68,13 +68,13 @@ public:
     // zeroes its +0x0c pad (+0x64), which retail's leaves (row 640).
     using CitizenSet     = Collection::Set<CitizenComponent*>;
     using AssignmentNode = CitizenSet::Node;
-    Collection::Array<uint8_t> _field48;   // +0x48
+    Collection::Array<uint8_t> _unreadArray;   // +0x48
     CitizenSet _citizens;                  // +0x58
 };
 
 static_assert(sizeof(ClearStorage) == 0x68, "ClearStorage is 0x68 (retail create MemAlloc)");
 static_assert(alignof(ClearStorage) == 8, "ClearStorage is 8-aligned");
-static_assert(offsetof(ClearStorage, _field48) == 0x48, "ClearStorage +0x48");
-static_assert(offsetof(ClearStorage, _field48) + offsetof(Collection::Array<uint8_t>, _size) == 0x50, "ClearStorage +0x50");
+static_assert(offsetof(ClearStorage, _unreadArray) == 0x48, "ClearStorage +0x48");
+static_assert(offsetof(ClearStorage, _unreadArray) + offsetof(Collection::Array<uint8_t>, _size) == 0x50, "ClearStorage +0x50");
 static_assert(offsetof(ClearStorage, _citizens) == 0x58, "ClearStorage +0x58");
 static_assert(offsetof(ClearStorage, _citizens) + offsetof(ClearStorage::CitizenSet, _count) == 0x60, "ClearStorage +0x60");

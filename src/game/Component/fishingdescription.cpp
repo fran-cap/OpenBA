@@ -35,7 +35,7 @@
 FishingDescription::FishingDescription()
     : Description(),
       _fish(nullptr),
-      _u28(5),
+      _resourceLimit(5),
       _terrainMask(0x180) {}
 
 // [5] 0x14011f170: stream order as retail.
@@ -43,7 +43,7 @@ bool FishingDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 1);
     ::Object::SerializeExternal<ComponentDescription>(ser, _fish);
     ser.Serialize(_terrainMask, nullptr);
-    if (ser.GetVersion() > 0) ser.Serialize(_u28, nullptr);   // version-gated, as retail
+    if (ser.GetVersion() > 0) ser.Serialize(_resourceLimit, nullptr);   // version-gated, as retail
     return true;
 }
 

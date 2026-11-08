@@ -218,7 +218,7 @@ void EventNotifyDialog::OnUpdate(const System::Time& time) {
                     }
 
                     // Check category filter flag
-                    if (eventLogPtr->field_0x10[category] != 0 &&
+                    if (eventLogPtr->notifyCategories[category] != 0 &&
                         eventArray[scanIdx].iconIndex >= 0) {
 
                         // Check if popup needed (+0x20 field >= 0 means show popup).

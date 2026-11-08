@@ -91,10 +91,10 @@ UI::DialogInstance** PlayerToolManager::OpenToolDialog(UI::DialogInstance** ret,
     UI::UserInterface* ui = GameUpdateLoop::_singleton->m_userInterface;
 
     // (1) Close any existing dialog and null the IBP.
-    if (field_0x00 != nullptr) {
-        Object::InternalPtr<UI::DialogInstance> local(field_0x00);
+    if (toolDialog != nullptr) {
+        Object::InternalPtr<UI::DialogInstance> local(toolDialog);
         ui->CloseDialog(&local);
-        field_0x00 = nullptr;
+        toolDialog = nullptr;
     }
 
     ui = GameUpdateLoop::_singleton->m_userInterface;
@@ -125,7 +125,7 @@ UI::DialogInstance** PlayerToolManager::OpenToolDialog(UI::DialogInstance** ret,
     }
 
     // (4) Store it in the manager, and add it to the UI.
-    field_0x00 = dialog;
+    toolDialog = dialog;
     {
         Object::InternalPtr<UI::DialogInstance> addIBP(dialog);
         ui->AddDialog(&addIBP);
@@ -133,8 +133,8 @@ UI::DialogInstance** PlayerToolManager::OpenToolDialog(UI::DialogInstance** ret,
 
     // (5) Reset the two cached float coords (+0x08, +0x0C) to -1.0f. Retail
     // stores the dword 0xbf800000 twice.
-    field_0x08 = -1.0f;
-    field_0x0C = -1.0f;
+    createBarScreenX = -1.0f;
+    createBarScreenY = -1.0f;
 
     // (6) Probe the description's sub-descriptions for the ToolbarDescription
     // (cell 0x1401c7f58); retail calls IsDerivedFrom on the match and discards it.
@@ -153,6 +153,6 @@ UI::DialogInstance** PlayerToolManager::OpenToolDialog(UI::DialogInstance** ret,
     }
 
     // (7) Return the manager's dialog through the hidden slot.
-    *ret = field_0x00;
+    *ret = toolDialog;
     return ret;
 }

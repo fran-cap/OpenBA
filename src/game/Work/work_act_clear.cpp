@@ -176,9 +176,9 @@ void WorkAct_HarvestAreaCtor_c1530(CitizenComponent* const* citizenRef, uint32_t
             sm = new (obj) SendComponentMessage(&entityInner, &msgId, 0, &innerIbp, 0);
         }
         ibpA = sm;
-        if (character->actionStack.field_0x10 != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
-            character->actionStack.field_0x10.DeletePtr();
-        character->actionStack.field_0x10 = ibpA;
+        if (character->actionStack.completionAction != nullptr)   // [0x140151ab8] = InternalBasePtr::DeletePtr
+            character->actionStack.completionAction.DeletePtr();
+        character->actionStack.completionAction = ibpA;
     }
 
     // --- CompleteTask action; append via FUN_1400c54e0 (0x1400c1677..0x1400c16dc) ---
@@ -248,8 +248,8 @@ void WorkAct_HarvestAreaCtor_c1530(CitizenComponent* const* citizenRef, uint32_t
 
     // --- actionType: EBX=8 default; if the description's +0x80 <= 0xa: EBX = that+9 (0x1400c1936..0x1400c194b) ---
     int actionType = 8;
-    if (local_60->_u80 <= 0xa)   // read through the narrowed pointer with no test (B6 14d G24)
-        actionType = static_cast<int>(local_60->_u80) + 9;
+    if (local_60->_toolType <= 0xa)   // read through the narrowed pointer with no test (B6 14d G24)
+        actionType = static_cast<int>(local_60->_toolType) + 9;
 
     // --- PerformWork_Ctor7: heading(XMM2)=heading, actionType(R9)=actionType,
     //     time=description+0x68, p6=1, p7=description+0x80 (0x1400c194e..0x1400c1998) ---
@@ -260,8 +260,8 @@ void WorkAct_HarvestAreaCtor_c1530(CitizenComponent* const* citizenRef, uint32_t
         Action* pwIbp = nullptr;
         if (obj) {
             CitizenComponent* entityInner = *citizenRef;
-            int p7  = static_cast<int>(local_60->_u80);         // [RSP+0x30]
-            int64_t time = local_60->_time68._ticks;            // [RSP+0x20]
+            int p7  = static_cast<int>(local_60->_toolType);         // [RSP+0x30]
+            int64_t time = local_60->_preAnimateTime._ticks;            // [RSP+0x20]
             Action* pw = nullptr;
             pw = new (obj) PerformWork(&entityInner, heading, actionType, time, 1, p7);
             ibpA = pw;
@@ -282,7 +282,7 @@ void WorkAct_HarvestAreaCtor_c1530(CitizenComponent* const* citizenRef, uint32_t
             // jump table @0x1400c1e7c (idx = resKind+1, 0-based):
             //   idx0→0x1b3f Slow(1); idx1,2,5,6,7,8→0x1b31 Fast(2); idx3,4→0x1b38 Fastest(3).
             int pathType;
-            uint32_t resKind = local_60->_u80;
+            uint32_t resKind = local_60->_toolType;
             uint32_t idx = resKind + 1; // INC ECX @0x1400c1b14
             if (idx > 8) {
                 pathType = 1; // Slow (default; CMP ECX,8 / JA @0x1400c1b16)
@@ -316,7 +316,7 @@ void WorkAct_HarvestAreaCtor_c1530(CitizenComponent* const* citizenRef, uint32_t
         Action* stIbp = nullptr;
         if (obj) {
             CitizenComponent* entityInner = *citizenRef;                  // RBX
-            uint32_t toolType = local_60->_u80;                           // EDI = [R15+0x80]
+            uint32_t toolType = local_60->_toolType;                           // EDI = [R15+0x80]
             // 0x1400c1d1e..0x1400c1d3f: the inlined ShowTool ctor — the real ctor.
             ibpB = new (obj) ShowTool(&entityInner, static_cast<int>(toolType)); // &local_res20
             stIbp = ibpB.Get();

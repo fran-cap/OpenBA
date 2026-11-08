@@ -94,7 +94,7 @@ bool BuildKeys(const RendererDrawItem* data, int32_t n, Key* out, bool* nanFound
         Key& k = out[i];
         k.w[0] = (f << 48) | (s << 16) | (mat >> 32);
         k.w[1] = (mat << 32) | (inst >> 16);
-        k.w[2] = (inst << 48) | (static_cast<uint64_t>(it._arg5) << 32) | it._arg10;
+        k.w[2] = (inst << 48) | (static_cast<uint64_t>(it._node) << 32) | it._animationInstanceId;
         k.w[3] = (user << 16) | (geo >> 32);
         k.w[4] = (geo << 32) | static_cast<uint32_t>(i);
     }
@@ -166,7 +166,7 @@ void SortKeyed(RendererDrawItem* data, int32_t count, Key* keys, uint64_t* compa
 // (3) place each item's (geometry << 16 | index) word in its group's segment;
 // (4) sort each segment as plain uint64 (geometry first; the index only orders
 // equal geometries, which are full-key ties); (5) scan the segments for
-// full-key ties whose `_arg8` differs -- one such tie and the function returns
+// full-key ties whose `_maxInstances` differs -- one such tie and the function returns
 // false before anything has been written to `data` or `keys`; (6) gather.
 // ---------------------------------------------------------------------------
 inline uint64_t PrefixHash(const Key& k) {
@@ -260,10 +260,10 @@ bool SortPlainImpl(RendererDrawItem* data, int32_t count, const Key* keys,
         }
         for (int32_t j = 1; j < n; ++j) {
             if (((lo[j] ^ lo[j - 1]) >> 16) == 0 &&
-                data[lo[j] & 0xFFFFu]._arg8 != data[lo[j - 1] & 0xFFFFu]._arg8) {
+                data[lo[j] & 0xFFFFu]._maxInstances != data[lo[j - 1] & 0xFFFFu]._maxInstances) {
                 *compares += cmp;
                 *groupsOut = static_cast<uint32_t>(groupCount);
-                return false;   // a differing-_arg8 tie: only retail's swap sequence is exact
+                return false;   // a differing-_maxInstances tie: only retail's swap sequence is exact
             }
         }
     }
@@ -301,13 +301,13 @@ uint64_t KeyArrayHash(const Key* keys, int32_t n) {
     return h;
 }
 
-// The record as seven little-endian qwords. q[4] = _arg8 (low half) | _pad24
-// (high half), q[6] = _arg10 (low half) | _pad34 (high half); the other five
+// The record as seven little-endian qwords. q[4] = _maxInstances (low half) | _pad24
+// (high half), q[6] = _animationInstanceId (low half) | _pad34 (high half); the other five
 // qwords hold no pad byte.
 static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "the pad masks assume little-endian qwords");
 static_assert(sizeof(RendererDrawItem) == 7 * 8, "seven qwords");
-static_assert(offsetof(RendererDrawItem, _arg8) == 0x20 && offsetof(RendererDrawItem, _pad24) == 0x24 &&
-              offsetof(RendererDrawItem, _arg10) == 0x30 && offsetof(RendererDrawItem, _pad34) == 0x34,
+static_assert(offsetof(RendererDrawItem, _maxInstances) == 0x20 && offsetof(RendererDrawItem, _pad24) == 0x24 &&
+              offsetof(RendererDrawItem, _animationInstanceId) == 0x30 && offsetof(RendererDrawItem, _pad34) == 0x34,
               "the pads are the high halves of qwords 4 and 6");
 constexpr uint64_t kLowHalf = 0x00000000FFFFFFFFull;
 
@@ -360,14 +360,14 @@ void CountOutput(const RendererDrawItem* data, int32_t count) {
     if (static_cast<uint64_t>(count) > c.maxItems) c.maxItems = static_cast<uint64_t>(count);
     // Ties: adjacent sorted items neither of which sorts before the other.
     uint64_t tieRun = 1;
-    if (count > 0 && data[0]._arg8 > 1) ++c.instItems;
+    if (count > 0 && data[0]._maxInstances > 1) ++c.instItems;
     for (int32_t i = 1; i < count; ++i) {
         const RendererDrawItem& a = data[i - 1];
         const RendererDrawItem& b = data[i];
-        if (b._arg8 > 1) ++c.instItems;
+        if (b._maxInstances > 1) ++c.instItems;
         if (!DrawItemLess(a, b) && !DrawItemLess(b, a)) {
             ++c.ties;
-            if (a._arg8 != b._arg8) ++c.tiesArg8;
+            if (a._maxInstances != b._maxInstances) ++c.tiesArg8;
             if (++tieRun > c.maxTie) c.maxTie = tieRun;
         } else {
             tieRun = 1;
@@ -639,7 +639,7 @@ void Sort(RendererDrawItem* data, int32_t count) {
         // the arrays compared ITEM BY ITEM ON WHAT THE CONSUMER OBSERVES
         // (ConsumerEqual: the seven fields DrawItemList reads, _flags, and
         // _sortKey up to the comparator's equivalence). A permutation inside a
-        // tie group of agreeing _arg8 (SORTCMP's plain path) moves only pad and
+        // tie group of agreeing _maxInstances (SORTCMP's plain path) moves only pad and
         // raw sort-key bytes: it is a match, counted in `shadowBytes`. Anything
         // else is a mismatch, reported as (count << 32) | first differing
         // index. Whenever the bytes differ at all, retail's order is copied

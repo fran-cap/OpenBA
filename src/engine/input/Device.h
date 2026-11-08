@@ -75,7 +75,7 @@ public:
         bool     pressed;        // +0x06 — Device::Pressed
         bool     released;       // +0x07 — Device::Released
         bool     repeat;         // +0x08 — key-repeat pulse for this frame
-        uint8_t  _unknown09[7];  // +0x09..+0x0F — never written by any body read so far
+        uint8_t  pad09[7];  // +0x09..+0x0F — never written by any body read so far
         int64_t  holdTicks;      // +0x10 — accumulated hold time, in System::Time ticks
     };
     // State::value's full scales: a pressed key / button, or a positive axis
@@ -216,7 +216,7 @@ static_assert(!std::is_polymorphic<Device>::value,
               "Input::Device has no vtable: the ctor's first stores are State zeroes");
 static_assert(std::is_standard_layout<Device>::value, "reached by offset from outside");
 static_assert(sizeof(Device::State) == 0x18, "State is 0x18");
-static_assert(offsetof(Device::State, _unknown09) == 0x9, "State::_unknown09");
+static_assert(offsetof(Device::State, pad09) == 0x9, "State::pad09");
 static_assert(offsetof(Device::State, normalized) == 0x00, "State.normalized @ +0x00");
 static_assert(offsetof(Device::State, value)      == 0x04, "State.value @ +0x04");
 static_assert(offsetof(Device::State, pressed)    == 0x06, "State.pressed @ +0x06");

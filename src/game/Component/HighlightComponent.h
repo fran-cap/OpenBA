@@ -55,7 +55,7 @@ public:
 
     // PUBLIC while the ported bodies read them (B38 decision 1).
     Graphics::EdgeMeshInstance edgeMeshInstance; // +0x28 (ctor 0x14004c930: CALL [0x140151358] ??0EdgeMeshInstance; dtor 0x14004c8c0: CALL [0x1401513b0] ??1)
-    Graphics::EdgeMesh* fieldF8;     // +0xF8 the built outline mesh (ctor 0; Impl_b930 0x14004b930 MemAlloc(0x180) + EdgeMesh ctor; dtor 0x14004c8c0 deletes it)
+    Graphics::EdgeMesh* outlineMesh;     // +0xF8 the built outline mesh (ctor 0; Impl_b930 0x14004b930 MemAlloc(0x180) + EdgeMesh ctor; dtor 0x14004c8c0 deletes it)
     Math::Transform transform;       // +0x100 (ctor 0x14004c930: ??0Transform at +0x100 = identity; trivially destroyed, 0x14004c8c0 never touches it)
     uint8_t  highlightFlag;          // +0x11C (ctor 0)
     uint8_t  _pad11D[3];             // +0x11D
@@ -68,7 +68,7 @@ static_assert(offsetof(HighlightComponent, _pad11D) == 0x11D, "HighlightComponen
 static_assert(offsetof(HighlightComponent, _pad124) == 0x124, "HighlightComponent::_pad124");
 static_assert(alignof(HighlightComponent) == 8, "HighlightComponent alignment");
 static_assert(offsetof(HighlightComponent, edgeMeshInstance) == 0x28, "");
-static_assert(offsetof(HighlightComponent, fieldF8) == 0xF8, "");
+static_assert(offsetof(HighlightComponent, outlineMesh) == 0xF8, "");
 static_assert(offsetof(HighlightComponent, transform) == 0x100, "");
 static_assert(offsetof(HighlightComponent, highlightFlag) == 0x11C, "");
 static_assert(offsetof(HighlightComponent, highlightId) == 0x120, "");

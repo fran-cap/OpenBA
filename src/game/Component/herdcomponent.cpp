@@ -482,7 +482,7 @@ void HerdComponent::Populate(int count) {
                 ? static_cast<AnimalDescription*>(animalDescRaw) : nullptr;
             float r = rng->RandFloat();
             if (animalDesc)
-                animal->age = r * animalDesc->_f28;
+                animal->age = r * animalDesc->_maxAge;
             animal->UpdateBehavior();   // 0x140107320
         }
 

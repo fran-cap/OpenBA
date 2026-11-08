@@ -178,7 +178,7 @@ static int BC8_Target(BuildComponent* bc, BuildDescription* matComp) {
     if (!matComp) return 0;
     // target = base build effort (matComp+0x30) * multiplier (bc+0x4c), no clamp
     // (0x140107bb5 MOV EAX,[RBX+0x30] / 0x140107bb8 IMUL EAX,[R15+0x4c]; review F-175).
-    return matComp->_i30 * bc->costMultiplier;
+    return matComp->_workRequired * bc->costMultiplier;
 }
 
 // Ensure the construction mesh list (+0x58 / count +0x60) is populated.
@@ -277,7 +277,7 @@ char BuildComponent::State8Enter(StateMachine* sm) {
             void* mem = (::System::MemoryAllocator::_singleton)
                             ? ::System::MemoryAllocator::MemAlloc(0x70, 8) : nullptr;
             // Construct via the FULL retail ctor (0x1400e59c0): it routes base init through
-            // Work_Ctor25 (sets field_10=site entity, +0x18 WorkComponent, +0x28 target cell)
+            // Work_Ctor25 (sets _entity=site entity, +0x18 WorkComponent, +0x28 target cell)
             // AND allocates the build-position byte array field_50/field_58 from the site's
             // PositionComponent footprint. sub_7ae0 passes &(*(BuildComponent+0x10)) as the
             // entity IBP. Without the array, BuildStructure::Execute sees 0 unbuilt positions
@@ -502,7 +502,7 @@ void BuildComponent::State8Finalize() {
         if (resIdx >= 0 && townMgr) {
             ProfessionResourceEntry* stockBase = townMgr->professionResources._data;
             if (stockBase) {
-                int* pStock = &stockBase[resIdx].field_0x0C;
+                int* pStock = &stockBase[resIdx].consumedCount;
                 *pStock += count;
             }
         }

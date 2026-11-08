@@ -87,10 +87,10 @@ static inline float RdataF(uint32_t bits) {
 // ------------------------------------------------------------
 // Early-false without a home. Counts the occupied household rows of the home's
 // ResidenceComponent, multiplies by this household's row (residentSlots[homeSlot])
-// and the CitizenDescription _fc4 factor (truncated to int), then compares against
+// and the CitizenDescription foodLevel factor (truncated to int), then compares against
 // the home's edible GetResourceCount.
 //   iVar2 = residentSlots[homeSlot].count      (+8, stride 0x10)
-//   fVar1 = description->_fc4                  -> CVTTSS2SI (trunc to int)
+//   fVar1 = description->foodLevel             -> CVTTSS2SI (trunc to int)
 //   iVar7 = count of rows whose count (+8, stride 0x10) > 0
 //   iVar4 = Storage_GetResourceCount(residence)
 //   return  iVar7 * iVar2 * (int)fVar1 <= iVar4
@@ -111,7 +111,7 @@ int CitizenComponent::HasSufficientResources() {
     // Row 291 (B7 RES): 0x14011575d-0x140115767 and 0x140115791-0x140115798 read both
     // finds' +0x50 / +0x58 with no test; the tree's [STANDALONE GUARD] returns are gone.
     int iVar2 = storageObj->residentSlots[homeSlot]._size;
-    float fVar1 = lVar3desc->_fc4;   // CVTTSS2SI = trunc
+    float fVar1 = lVar3desc->foodLevel;   // CVTTSS2SI = trunc
     int factor = (int)fVar1;
 
     // Row scan over local_res8.
@@ -135,10 +135,10 @@ int CitizenComponent::HasSufficientResources() {
 // 3. CitizenComponent::HasSufficientResources2 (0x1401157f0)
 // ------------------------------------------------------------
 // Like (2) but a single find, uses Storage_GetResourceCount2, a float threshold
-// description->_fd4, and a FLOAT comparison:
+// description->fuelLevel, and a FLOAT comparison:
 //   iVar6 = count of rows where slot count (+8, stride 0x10) > 0
 //   iVar3 = Storage_GetResourceCount2(storage)
-//   return (float)iVar6 * _fd4 <= (float)iVar3       (COMISS / SETNC)
+//   return (float)iVar6 * fuelLevel <= (float)iVar3       (COMISS / SETNC)
 // ============================================================
 int CitizenComponent::HasSufficientResources2() {
     if (home == nullptr) return 0;
@@ -160,7 +160,7 @@ int CitizenComponent::HasSufficientResources2() {
     }
 
     int iVar3 = local_res8->GetFuelCount();
-    float threshold = lVar1desc->_fd4;
+    float threshold = lVar1desc->fuelLevel;
     // Distribution diagnostic (firewood-evenness): per-house fuel sufficiency
     // inputs — occupied roster rows x CitizenDesc+0xd4 vs fuel units on hand.
     { static int n = 0;
@@ -290,35 +290,35 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
         }
     }
 
-    // --- hunger (state 0xe, prio 7) : desc _fcc ---
+    // --- hunger (state 0xe, prio 7) : desc starvingLevel ---
     cz = citizen.Get();
     {
         float fv = cz->hunger;
-        float* pf = &cz->description->_fcc;
+        float* pf = &cz->description->starvingLevel;
         if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::EatUrgent, 7);
     }
 
-    // --- coldness (id 0xf, prio 7) : desc _fec ---
+    // --- coldness (id 0xf, prio 7) : desc freezingLevel ---
     cz = citizen.Get();
     {
         float fv = cz->coldness;
-        float* pf = &cz->description->_fec;
+        float* pf = &cz->description->freezingLevel;
         if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::WarmUrgent, 7);
     }
 
-    // --- hunger-other (id 0, prio 6) : desc _fc8 ---
+    // --- hunger-other (id 0, prio 6) : desc hungerLevel ---
     cz = citizen.Get();
     {
         float fv = cz->hunger;
-        float* pf = &cz->description->_fc8;
+        float* pf = &cz->description->hungerLevel;
         if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::Eat, 6);
     }
 
-    // --- coldness-other (id 1, prio 6) : desc _fe8 ---
+    // --- coldness-other (id 1, prio 6) : desc coldnessLevel ---
     cz = citizen.Get();
     {
         float fv = cz->coldness;
-        float* pf = &cz->description->_fe8;
+        float* pf = &cz->description->coldnessLevel;
         if (*pf <= fv && fv != *pf) AppendCandidate(outList, CitizenAIState::Warm, 6);
     }
 
@@ -333,10 +333,10 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
         cz = citizen.Get();
         if (cz->clothingLevel == 0) AppendCandidate(outList, CitizenAIState::GetClothing, 3);
 
-        // GrowUp (id 4, prio 3) if desc _f74 is in (health, ..] and (statusFlags>>9 & 1)==0
+        // GrowUp (id 4, prio 3) if desc unhealthyLevel is in (health, ..] and (statusFlags>>9 & 1)==0
         cz = citizen.Get();
         {
-            float fv = cz->description->_f74;
+            float fv = cz->description->unhealthyLevel;
             float work50 = cz->health;
             if ((work50 <= fv && fv != work50) &&
                 ((cz->statusFlags & Bits(CitizenStatus::UsedHealthItem)) == 0)) {
@@ -357,8 +357,8 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
     {
         cz = citizen.Get();
         bool leisure = false;
-        // (desc _fb8 in (happiness,..] and AsSeconds(leisureTimer) > DAT_1721fc)
-        float fv1 = cz->description->_fb8;
+        // (desc depressedLevel in (happiness,..] and AsSeconds(leisureTimer) > DAT_1721fc)
+        float fv1 = cz->description->depressedLevel;
         float* pf1 = &cz->happiness;
         float c1721fc = kRdata_1401721fc;
         if ((*pf1 <= fv1 && fv1 != *pf1) &&
@@ -366,9 +366,9 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
             leisure = true;
         }
         if (!leisure) {
-            // OR (desc _fb4 in (happiness,..] and AsSeconds(leisureTimer) > DAT_172234)
+            // OR (desc unhappyLevel in (happiness,..] and AsSeconds(leisureTimer) > DAT_172234)
             cz = citizen.Get();
-            float fv2 = cz->description->_fb4;
+            float fv2 = cz->description->unhappyLevel;
             float* pf2 = &cz->happiness;
             float c172234 = kRdata_140172234;
             if ((*pf2 <= fv2 && fv2 != *pf2) &&
@@ -429,7 +429,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
                 if (!reserved6) {
                     cz = citizen.Get();
                     float fv = cz->hunger;
-                    float* pf = &cz->description->_fcc;
+                    float* pf = &cz->description->starvingLevel;
                     int prio = (*pf <= fv && fv != *pf) ? 6 : 4;
                     AppendCandidate(outList, CitizenAIState::GatherFood, prio);
                 }
@@ -447,7 +447,7 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
                 if (!reserved7) {
                     cz = citizen.Get();
                     float fv = cz->coldness;
-                    float* pf = &cz->description->_fec;
+                    float* pf = &cz->description->freezingLevel;
                     int prio = (*pf <= fv && fv != *pf) ? 6 : 4;
                     AppendCandidate(outList, CitizenAIState::GatherFuel, prio);
                 }
@@ -457,9 +457,9 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
         // --- LAB_14010ea39: idle / happiness / long-term-plan tail ---
         cz = citizen.Get();
         if (cz->disease == nullptr) {   // else -> LAB_14010f144 (shuffle/sort)
-            // SeekHappiness (id 8, prio 5) if field_0xAC < 1
+            // SeekHappiness (id 8, prio 5) if toolUses < 1
             cz = citizen.Get();
-            if (cz->field_0xAC < 1) AppendCandidate(outList, CitizenAIState::GetTool, 5);
+            if (cz->toolUses < 1) AppendCandidate(outList, CitizenAIState::GetTool, 5);
 
             // Idle (id 9, prio 2)  -- unconditional
             AppendCandidate(outList, CitizenAIState::Idle, 2);
@@ -468,11 +468,11 @@ void CitizenAIComponent::BuildCandidateStateList(StateCandidateList* outList, ch
             int happy = citizen->CarryCount();
             int ltpPrio = 0;
             if (happy >= 1) {
-                // Time t(DAT_172234); prio = (t < dataC8) ? 3 : 1
+                // Time t(DAT_172234); prio = (t < carryingTimer) ? 3 : 1
                 System::Time timeBuf = {};
                 float c172234 = kRdata_140172234;
                 RtSystem_Time_Ctor(&timeBuf, c172234);
-                int64_t acc = dataC8._ticks;
+                int64_t acc = carryingTimer._ticks;
                 ltpPrio = (timeBuf._ticks < acc) ? 3 : 1;
                 AppendCandidate(outList, CitizenAIState::LongTermPlan, ltpPrio);
             }

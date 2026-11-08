@@ -82,8 +82,8 @@ ActionStack::~ActionStack() {
         if (actions[i] != nullptr)
             actions[i].DeletePtr();
     }
-    if (field_0x10 != nullptr)
-        field_0x10.DeletePtr();
+    if (completionAction != nullptr)
+        completionAction.DeletePtr();
 }
 
 // ============================================================

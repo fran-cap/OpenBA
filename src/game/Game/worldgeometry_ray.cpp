@@ -122,13 +122,13 @@ int Pf_RayTriIntersect_aa810(void* /*self*/, const float* P, const float* D,
 // ============================================================
 // FUN_1400aaa20 — terrain-cell quad (2-tri) ray test.
 // ============================================================
-// Reads the heightmap (_fieldD0 width, _arrayD8) for the 4 corners of cell (x,y), builds
+// Reads the heightmap (_heightRowStride width, _arrayD8) for the 4 corners of cell (x,y), builds
 // two triangles split by parity of (x+y), and ray-tests each via aa810. Writes the world
 // hit point (origin + t*dir) into outHit and t into outT. Returns whether any tri was hit.
 static int RayTestCell(WorldGeometry* geo, int x, int y, const float* dir, const float* origin,
                 const float* maxT, float* outHit, float* outT, float* outNormal) {
     int half = geo->_gridSize >> 1;
-    int hmW = geo->_fieldD0;
+    int hmW = geo->_heightRowStride;
     int64_t lW = hmW;
     const int16_t* hm = geo->_heights.data;
     float hscale = f1720bc();
@@ -266,7 +266,7 @@ static bool TerrainHeightOnly(const WorldGeometry* geo, const float* point, floa
     const int x = static_cast<int>(ox);
     const int y = static_cast<int>(oy);
 
-    const int hmW = geo->_fieldD0;
+    const int hmW = geo->_heightRowStride;
     const int64_t lW = hmW;
     const int16_t* hm = geo->_heights.data;
     const float hscale = f1720bc();

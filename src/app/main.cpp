@@ -457,7 +457,7 @@ static void DumpVideoState() {
         printf("[VideoProbe]   +0x20 windowH   = %d%s\n", cfgWinH,
                cfgWinH <= 0 ? "   <-- POISONED (AdjustDisplay latched an externally-forced size)" : "");
         printf("[VideoProbe]   +0x40 fullscreen= %d  +0x41 vsync=%d  +0x42 skipShow=%d\n",
-               config->fullscreen, config->vsync, config->field42);
+               config->fullscreen, config->vsync, config->hideWindow);
     }
 
     printf("[VideoProbe] Device::_singleton        = %p\n", (void*)device);

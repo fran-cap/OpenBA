@@ -92,7 +92,7 @@ public:
     // (0x140053384..0x140053392): reverse declaration order after the body.
     //
     // +0x28 grows through 0x14000a590 (stride 1, align 1, NO tail write: the trait row of a
-    // trivial bool, as HarvestArea::_field58).
+    // trivial bool, as HarvestArea::_slotsAvailable).
     using ActiveFlags = Collection::Array<bool>;
     ActiveFlags          active;        // +0x28 per-emitter "running" flags (count +0x30, capacity +0x34)
     // +0x38 grows through 0x14000a640 (ParticleComponentRows::kSpec_EmitterSlot).

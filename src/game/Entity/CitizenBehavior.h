@@ -72,18 +72,18 @@ struct ProfessionResourceEntry {
     int32_t  currentCount;    // +0x00
     int32_t  previousCount;   // +0x04
     int32_t  maxCount;        // +0x08: set in ctor (200, 50, 5000, etc.)
-    int32_t  field_0x0C;      // +0x0C: int, serialized
-    int32_t  _field10;        // +0x10
-    int32_t  _field14;        // +0x14: not serialized
+    int32_t  consumedCount;      // +0x0C: int, serialized
+    int32_t  producedCount;        // +0x10
+    int32_t  _pad14;        // +0x14: not serialized
     System::Time timer;       // +0x18: System::Time
 };
 static_assert(sizeof(ProfessionResourceEntry) == 0x20, "ProfessionResourceEntry size");
 static_assert(offsetof(ProfessionResourceEntry, currentCount)  == 0x00, "");
 static_assert(offsetof(ProfessionResourceEntry, previousCount) == 0x04, "");
 static_assert(offsetof(ProfessionResourceEntry, maxCount)      == 0x08, "");
-static_assert(offsetof(ProfessionResourceEntry, field_0x0C)    == 0x0C, "");
-static_assert(offsetof(ProfessionResourceEntry, _field10)      == 0x10, "");
-static_assert(offsetof(ProfessionResourceEntry, _field14)      == 0x14, "");
+static_assert(offsetof(ProfessionResourceEntry, consumedCount)    == 0x0C, "");
+static_assert(offsetof(ProfessionResourceEntry, producedCount)      == 0x10, "");
+static_assert(offsetof(ProfessionResourceEntry, _pad14)      == 0x14, "");
 static_assert(offsetof(ProfessionResourceEntry, timer)         == 0x18, "");
 
 // ============================================================
@@ -107,16 +107,16 @@ static_assert(offsetof(ResourceNotifyEntry, timer)       == 0x08, "");
 struct PopulationSummary {
     int32_t  totalWorkers;     // +0x00: total workers (alive + not dead)
     int32_t  totalWorkersIncl; // +0x04: total including dead
-    int32_t  _field08;         // +0x08
-    int32_t  _field0C;         // +0x0C
+    int32_t  adultCount;         // +0x08
+    int32_t  childCount;         // +0x0C
     int32_t  deadCount;        // +0x10: dead citizens this frame
     int32_t  educatedCount;    // +0x14: educated workers count
 };
 static_assert(sizeof(PopulationSummary) == 0x18, "PopulationSummary size");
 static_assert(offsetof(PopulationSummary, totalWorkers)     == 0x00, "");
 static_assert(offsetof(PopulationSummary, totalWorkersIncl) == 0x04, "");
-static_assert(offsetof(PopulationSummary, _field08)         == 0x08, "");
-static_assert(offsetof(PopulationSummary, _field0C)         == 0x0C, "");
+static_assert(offsetof(PopulationSummary, adultCount)         == 0x08, "");
+static_assert(offsetof(PopulationSummary, childCount)         == 0x0C, "");
 static_assert(offsetof(PopulationSummary, deadCount)        == 0x10, "");
 static_assert(offsetof(PopulationSummary, educatedCount)    == 0x14, "");
 
@@ -360,10 +360,10 @@ class CitizenBehavior {
 public:
     // +0x00..+0xFF: sixteen Collection::Array<InternalPtr<T>> (0x10 each), T = the
     // cell the serializer validates each element against.
-    CitizenIbpList<ComponentEntity>     field_0x00;           // +0x00 (cell 0x1401c5d70 ComponentEntity)
-    CitizenIbpList<ComponentEntity>     field_0x10;           // +0x10 (cell 0x1401c5d70)
-    CitizenIbpList<ComponentEntity>     field_0x20;           // +0x20 (cell 0x1401c5d70)
-    CitizenIbpList<ComponentEntity>     field_0x30;           // +0x30 (cell 0x1401c5d70)
+    CitizenIbpList<ComponentEntity>     storageLocations;           // +0x00 (cell 0x1401c5d70 ComponentEntity)
+    CitizenIbpList<ComponentEntity>     marketLocations;           // +0x10 (cell 0x1401c5d70)
+    CitizenIbpList<ComponentEntity>     residences;           // +0x20 (cell 0x1401c5d70)
+    CitizenIbpList<ComponentEntity>     tradePosts;           // +0x30 (cell 0x1401c5d70)
     CitizenIbpList<CemeteryComponent>   cemeteries;           // +0x40 (cell 0x1401c4090)
     CitizenIbpList<HappinessComponent>  happinessComponents;  // +0x50 (cell 0x1401c42c0)
     CitizenIbpList<AttendanceComponent> attendanceComponents; // +0x60 (cell 0x1401c3f40)
@@ -377,29 +377,29 @@ public:
     CitizenIbpList<WellComponent>       wells;                // +0xE0 (cell 0x1401c4c28)
     CitizenIbpList<DiseaseComponent>    diseases;             // +0xF0 (cell 0x1401c4170; serialized at version > 0)
 
-    CitizenBucketSet<Profession> field_0x100;      // +0x100 tree {root, dword count} (0x38-byte nodes; the
+    CitizenBucketSet<Profession> workplacesByProfession;      // +0x100 tree {root, dword count} (0x38-byte nodes; the
                                                    //        key is an ExternalPtr<Profession>, serialized by
                                                    //        0x140018020)
-    CitizenPtrList<ComponentDescription> field_0x110; // +0x110 Array<ExternalPtr<ComponentDescription>>
-    CitizenPtrList<ComponentDescription> field_0x120; // +0x120 Array<ExternalPtr<ComponentDescription>>
-    WaterCellPairArray   field_0x130;              // +0x130 Array of {int32, int32} pairs (0x140017f60)
-    CitizenIntAssocArray field_0x140;              // +0x140 Array of 0x10-byte elements, each an inner int Array
+    CitizenPtrList<ComponentDescription> knownRawMaterials; // +0x110 Array<ExternalPtr<ComponentDescription>>
+    CitizenPtrList<ComponentDescription> availableFarmTypes; // +0x120 Array<ExternalPtr<ComponentDescription>>
+    WaterCellPairArray   waterAccessPairs;              // +0x130 Array of {int32, int32} pairs (0x140017f60)
+    CitizenIntAssocArray coarseWaterIndex;              // +0x140 Array of 0x10-byte elements, each an inner int Array
                                                    //        (0x140017640; version > 4): the COARSE water
                                                    //        index, (W>>3)^2 buckets of water ids (< 0: a
                                                    //        well, -1-id into +0xE0; >= 0: a +0x130 pair)
-    CitizenIntAssocArray field_0x150;              // +0x150 Array of 0x10-byte elements, each an inner int Array;
+    CitizenIntAssocArray statHistory;              // +0x150 Array of 0x10-byte elements, each an inner int Array;
                                                    //        the ctor sizes it to 71 (0x140017640)
-    CitizenBucketSet<ComponentDescription> field_0x160; // +0x160 tree {root, dword count} (serialized by
+    CitizenBucketSet<ComponentDescription> entitiesByTemplate; // +0x160 tree {root, dword count} (serialized by
                                                    //        0x140017cd0; key a ComponentDescription template)
     ProfessionResourceArray professionResources;   // +0x170 the ctor sizes it to 21
     ResourceNotifyArray  notifyEntries;            // +0x180 the ctor sizes it to 2
-    System::Time field_0x190;              // +0x190 System::Time: += dt; drives the path graph (Update)
-    System::Time field_0x198;              // +0x198 System::Time: -= dt; < 1 -> 0x14008a730 (Update)
-    System::Time field_0x1A0;              // +0x1A0 System::Time: -= dt; < 0 -> +0x1A8 = 0 (Update)
-    float    field_0x1A8;                  // +0x1A8 float (serialized by the float overload; Update
+    System::Time pathGraphTimer;              // +0x190 System::Time: += dt; drives the path graph (Update)
+    System::Time statsTimer;              // +0x198 System::Time: -= dt; < 1 -> 0x14008a730 (Update)
+    System::Time diseaseRiskTimer;              // +0x1A0 System::Time: -= dt; < 0 -> +0x1A8 = 0 (Update)
+    float    diseaseRisk;                  // +0x1A8 float (serialized by the float overload; Update
                                            //        stores dword 0)
-    int32_t  field_0x1AC;                  // +0x1AC int (version > 1)
-    int32_t  field_0x1B0;                  // +0x1B0 int (version > 2)
+    int32_t  totalTradeValue;                  // +0x1AC int (version > 1)
+    int32_t  totalNomadsAccepted;                  // +0x1B0 int (version > 2)
     uint8_t  _pad1B4[4];                   // +0x1B4 (no store in the ctor)
     PathGraph* pathGraph;                  // +0x1B8 MemAlloc(0x28, 4) in the ctor
 
@@ -497,10 +497,10 @@ public:
 
 static_assert(sizeof(CitizenBehavior) == 0x1C0, "CitizenBehavior is 0x1C0 (MemAlloc in 0x140096b00)");
 static_assert(alignof(CitizenBehavior) == 8, "CitizenBehavior alignment");
-static_assert(offsetof(CitizenBehavior, field_0x00) == 0x0, "");
-static_assert(offsetof(CitizenBehavior, field_0x10) == 0x10, "");
-static_assert(offsetof(CitizenBehavior, field_0x20) == 0x20, "");
-static_assert(offsetof(CitizenBehavior, field_0x30) == 0x30, "");
+static_assert(offsetof(CitizenBehavior, storageLocations) == 0x0, "");
+static_assert(offsetof(CitizenBehavior, marketLocations) == 0x10, "");
+static_assert(offsetof(CitizenBehavior, residences) == 0x20, "");
+static_assert(offsetof(CitizenBehavior, tradePosts) == 0x30, "");
 static_assert(offsetof(CitizenBehavior, cemeteries) == 0x40, "");
 static_assert(offsetof(CitizenBehavior, happinessComponents) == 0x50, "");
 static_assert(offsetof(CitizenBehavior, attendanceComponents) == 0x60, "");
@@ -513,21 +513,21 @@ static_assert(offsetof(CitizenBehavior, populations) == 0xC0, "");
 static_assert(offsetof(CitizenBehavior, buildComponents) == 0xD0, "");
 static_assert(offsetof(CitizenBehavior, wells) == 0xE0, "");
 static_assert(offsetof(CitizenBehavior, diseases) == 0xF0, "");
-static_assert(offsetof(CitizenBehavior, field_0x100) == 0x100, "");
-static_assert(offsetof(CitizenBehavior, field_0x110) == 0x110, "");
-static_assert(offsetof(CitizenBehavior, field_0x120) == 0x120, "");
-static_assert(offsetof(CitizenBehavior, field_0x130) == 0x130, "");
-static_assert(offsetof(CitizenBehavior, field_0x140) == 0x140, "");
-static_assert(offsetof(CitizenBehavior, field_0x150) == 0x150, "");
-static_assert(offsetof(CitizenBehavior, field_0x160) == 0x160, "");
+static_assert(offsetof(CitizenBehavior, workplacesByProfession) == 0x100, "");
+static_assert(offsetof(CitizenBehavior, knownRawMaterials) == 0x110, "");
+static_assert(offsetof(CitizenBehavior, availableFarmTypes) == 0x120, "");
+static_assert(offsetof(CitizenBehavior, waterAccessPairs) == 0x130, "");
+static_assert(offsetof(CitizenBehavior, coarseWaterIndex) == 0x140, "");
+static_assert(offsetof(CitizenBehavior, statHistory) == 0x150, "");
+static_assert(offsetof(CitizenBehavior, entitiesByTemplate) == 0x160, "");
 static_assert(offsetof(CitizenBehavior, professionResources) == 0x170, "");
 static_assert(offsetof(CitizenBehavior, notifyEntries) == 0x180, "");
-static_assert(offsetof(CitizenBehavior, field_0x190) == 0x190, "");
-static_assert(offsetof(CitizenBehavior, field_0x198) == 0x198, "");
-static_assert(offsetof(CitizenBehavior, field_0x1A0) == 0x1A0, "");
-static_assert(offsetof(CitizenBehavior, field_0x1A8) == 0x1A8, "");
-static_assert(offsetof(CitizenBehavior, field_0x1AC) == 0x1AC, "");
-static_assert(offsetof(CitizenBehavior, field_0x1B0) == 0x1B0, "");
+static_assert(offsetof(CitizenBehavior, pathGraphTimer) == 0x190, "");
+static_assert(offsetof(CitizenBehavior, statsTimer) == 0x198, "");
+static_assert(offsetof(CitizenBehavior, diseaseRiskTimer) == 0x1A0, "");
+static_assert(offsetof(CitizenBehavior, diseaseRisk) == 0x1A8, "");
+static_assert(offsetof(CitizenBehavior, totalTradeValue) == 0x1AC, "");
+static_assert(offsetof(CitizenBehavior, totalNomadsAccepted) == 0x1B0, "");
 static_assert(offsetof(CitizenBehavior, _pad1B4) == 0x1B4, "");
 static_assert(sizeof(Collection::Array<int32_t>) == 0x10, "+0x140 bucket stride 0x10 (0x140088730)");
 static_assert(offsetof(CitizenBehavior, pathGraph) == 0x1B8, "");

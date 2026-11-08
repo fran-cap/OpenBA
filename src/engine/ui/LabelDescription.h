@@ -22,12 +22,12 @@
 // SIZE 0xb8 (`MOV EDX,0xb8` in 0x180042730). LAYOUT, from the ctor
 // `??0LabelDescription@UI@@QEAA@XZ` (0x1800d29d0, read as DISASSEMBLY by block
 // C3: `CALL ??0TextDescription` then):
-//     +0x90 dword 3     _word90  kScalarUInt  -> LabelElement +0x110 (_align)
-//     +0x94 QWORD 1     _word94  kScalarUInt  -> +0x114 (_mode)     } one store
-//                       _word98  kScalarInt   -> +0x118 (_minTextWidth)
-//     +0x9c dword 2     _word9c  kScalarInt   -> +0x11c (_gap)
-//     +0xa0 QWORD -1    _worda0  kScalarInt   -> +0x120 (_iconWidth) } one store
-//                       _worda4  kScalarInt   -> +0x124 (_iconHeight)
+//     +0x90 dword 3     _textAlignment  kScalarUInt  -> LabelElement +0x110 (_align)
+//     +0x94 QWORD 1     _labelPosition  kScalarUInt  -> +0x114 (_mode)     } one store
+//                       _textWidth      kScalarInt   -> +0x118 (_minTextWidth)
+//     +0x9c dword 2     _spacing        kScalarInt   -> +0x11c (_gap)
+//     +0xa0 QWORD -1    _imageWidth     kScalarInt   -> +0x120 (_iconWidth) } one store
+//                       _imageHeight    kScalarInt   -> +0x124 (_iconHeight)
 //     +0xa8 qword 0     _spriteSheet  ExternalPtr<UI::SpriteSheet> (0x180004590)
 //     +0xb0 qword 0     _spriteName   System::String (0x1800c9930)
 // The field names are the POD's (DescriptionsBatch1.h); where each one lands on
@@ -60,12 +60,12 @@ public:
     // over +0x94/+0x98, +0x9c DWORD 2, ONE QWORD -1 over +0xa0/+0xa4, +0xa8
     // and +0xb0 QWORD zero.
     LabelDescription() : TextDescription() {
-        _word90 = MidLeft;
-        _word94 = 1;
-        _word98 = 0;
-        _word9c = 2;
-        _worda0 = -1;
-        _worda4 = -1;
+        _textAlignment = MidLeft;
+        _labelPosition = 1;
+        _textWidth = 0;
+        _spacing = 2;
+        _imageWidth = -1;
+        _imageHeight = -1;
         _spriteSheet = nullptr;
         // +0xb0 `_spriteName`: its own String() (the zero store) runs as a member.
     }
@@ -100,12 +100,12 @@ public:
 private:
 
 public:
-    uint32_t     _word90;        // +0x90  kScalarUInt, ctor 3
-    uint32_t     _word94;        // +0x94  kScalarUInt, ctor 1
-    int32_t      _word98;        // +0x98  kScalarInt,  ctor 0
-    int32_t      _word9c;        // +0x9c  kScalarInt,  ctor 2
-    int32_t      _worda0;        // +0xa0  kScalarInt,  ctor -1
-    int32_t      _worda4;        // +0xa4  kScalarInt,  ctor -1
+    uint32_t     _textAlignment;        // +0x90  kScalarUInt, ctor 3
+    uint32_t     _labelPosition;        // +0x94  kScalarUInt, ctor 1
+    int32_t      _textWidth;        // +0x98  kScalarInt,  ctor 0
+    int32_t      _spacing;        // +0x9c  kScalarInt,  ctor 2
+    int32_t      _imageWidth;        // +0xa0  kScalarInt,  ctor -1
+    int32_t      _imageHeight;        // +0xa4  kScalarInt,  ctor -1
     SpriteSheet* _spriteSheet;   // +0xa8  ExternalPtr<UI::SpriteSheet>
     System::String _spriteName;  // +0xb0  ctor 0x1800d29d0 zero store, dtor 0x1800d2960 release
 };
@@ -115,14 +115,14 @@ static_assert(sizeof(LabelDescription) == 0xb8,
 static_assert(alignof(LabelDescription) == 8, "UI::LabelDescription aligns to 8");
 static_assert(std::has_virtual_destructor<LabelDescription>::value, "B3X W1: the normal-virtual cutover");
 static_assert(!std::is_abstract<LabelDescription>::value, "B39 D1: concrete");
-static_assert(offsetof(LabelDescription, _word90) == sizeof(TextDescription),
+static_assert(offsetof(LabelDescription, _textAlignment) == sizeof(TextDescription),
               "LabelDescription's own fields begin at the end of TextDescription");
-static_assert(offsetof(LabelDescription, _word90)      == 0x90, "");
-static_assert(offsetof(LabelDescription, _word94)      == 0x94, "");
-static_assert(offsetof(LabelDescription, _word98)      == 0x98, "");
-static_assert(offsetof(LabelDescription, _word9c)      == 0x9c, "");
-static_assert(offsetof(LabelDescription, _worda0)      == 0xa0, "");
-static_assert(offsetof(LabelDescription, _worda4)      == 0xa4, "");
+static_assert(offsetof(LabelDescription, _textAlignment)      == 0x90, "");
+static_assert(offsetof(LabelDescription, _labelPosition)      == 0x94, "");
+static_assert(offsetof(LabelDescription, _textWidth)      == 0x98, "");
+static_assert(offsetof(LabelDescription, _spacing)      == 0x9c, "");
+static_assert(offsetof(LabelDescription, _imageWidth)      == 0xa0, "");
+static_assert(offsetof(LabelDescription, _imageHeight)      == 0xa4, "");
 static_assert(offsetof(LabelDescription, _spriteSheet) == 0xa8, "");
 static_assert(offsetof(LabelDescription, _spriteName)  == 0xb0, "");
 // RtUI::LabelDescription is an ALIAS of this class since fragment pass F2; the

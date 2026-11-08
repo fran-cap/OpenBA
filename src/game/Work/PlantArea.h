@@ -63,8 +63,8 @@ public:
     // qwords after the set; the dtor 0x1400f4600 restamps, MemFree(+0x58), +0x58 = +0x60 = 0,
     // THEN clears the set: reverse declaration order (~Array before ~Set).
     using SlotFlags = Collection::Array<bool>;
-    SlotFlags field_58;
-    ComponentDescription* field_68;   // +0x68: ExternalPtr<ComponentDescription> (0x140002340):
+    SlotFlags _unplantedCells;
+    ComponentDescription* _crop;   // +0x68: ExternalPtr<ComponentDescription> (0x140002340):
                                       //        the crop the field plants
 };
 
@@ -72,7 +72,7 @@ static_assert(sizeof(PlantArea) == 0x70, "PlantArea is 0x70 (retail create MemAl
 static_assert(alignof(PlantArea) == 8, "PlantArea is 8-aligned");
 static_assert(offsetof(PlantArea, _cells) == 0x48, "PlantArea +0x48");
 static_assert(offsetof(PlantArea, _cells) + offsetof(PlantArea::CellSet, _count) == 0x50, "PlantArea +0x50");
-static_assert(offsetof(PlantArea, field_58) == 0x58, "PlantArea +0x58");
-static_assert(offsetof(PlantArea, field_58) + offsetof(PlantArea::SlotFlags, _size) == 0x60, "PlantArea +0x60");
-static_assert(offsetof(PlantArea, field_58) + offsetof(PlantArea::SlotFlags, _capacity) == 0x64, "PlantArea +0x64");
-static_assert(offsetof(PlantArea, field_68) == 0x68, "PlantArea +0x68");
+static_assert(offsetof(PlantArea, _unplantedCells) == 0x58, "PlantArea +0x58");
+static_assert(offsetof(PlantArea, _unplantedCells) + offsetof(PlantArea::SlotFlags, _size) == 0x60, "PlantArea +0x60");
+static_assert(offsetof(PlantArea, _unplantedCells) + offsetof(PlantArea::SlotFlags, _capacity) == 0x64, "PlantArea +0x64");
+static_assert(offsetof(PlantArea, _crop) == 0x68, "PlantArea +0x68");

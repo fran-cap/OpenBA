@@ -76,7 +76,7 @@
 // GetDescPage (0x140011320)
 // ============================================================
 // Searches the entity's ComponentDescription sub-descriptions (_subDescs /
-// _subDescCount) for the UIDescription (DAT_1401c7f90). Its _valHead (+0x40)
+// _subDescCount) for the UIDescription (DAT_1401c7f90). Its _displayPage (+0x40)
 // is the default page index. The null guards are the tree's (retail has none).
 static UIDescription* GetDescPage_Impl(const ComponentDescription* entityDesc)
 {
@@ -119,7 +119,7 @@ bool BuildComponent::IsBuildComplete() const
 
     if (!resourceComp) return false;
 
-    int totalRequired = resourceComp->_i30;
+    int totalRequired = resourceComp->_workRequired;
     int multiplier    = costMultiplier;
     int delivered     = laborProgress;
 
@@ -213,7 +213,7 @@ void PlayerToolManager::TrackEntity(ComponentEntity* const* entityPtr,
                                  uint32_t x, uint32_t y) {
     PlayerToolManager* manager = this;
     ComponentEntity* entityKey = *entityPtr;
-    TrackedEntityNode** rootPtr = &manager->field_0x60.root;
+    TrackedEntityNode** rootPtr = &manager->trackedEntities.root;
 
     // Search the tree for an existing node with this key
     TrackedEntityNode* node = *rootPtr;
@@ -271,7 +271,7 @@ void PlayerToolManager::TrackEntity(ComponentEntity* const* entityPtr,
     }
 
     // One more tracked entity (+0x68)
-    manager->field_0x60.count = manager->field_0x60.count + 1;
+    manager->trackedEntities.count = manager->trackedEntities.count + 1;
 }
 
 // ============================================================
@@ -358,7 +358,7 @@ void EntityUI::OnClosed() {
     // The tracking set: the tool manager (g_pGameWorldSingleton +0x120) +0x60
     PlayerToolManager* tools = GameUpdateLoop::_singleton->m_toolManager;
 
-    Avl38SetFindRemove(&tools->field_0x60, &entityKey);   // 0x14002c690
+    Avl38SetFindRemove(&tools->trackedEntities, &entityKey);   // 0x14002c690
 }
 
 // ============================================================
@@ -407,7 +407,7 @@ void EntityUI::OnUpdateLayout() {
         if (smComp == nullptr || pageIdx != SmId(BuildingState::ClearSite)) {
             // Get default page from entity's description
             UIDescription* descResult = GetDescPage_Impl(entity->_description);
-            pageIdx = descResult ? descResult->_valHead : 2;
+            pageIdx = descResult ? descResult->_displayPage : 2;
         } else {
             pageIdx = 2;
         }
@@ -440,7 +440,7 @@ void EntityUI::OnUpdateLayout() {
                 int activePage = pagesElem ? pagesElem->GetActivePage() : 0;
                 pageIdx = activePage;
                 if (activePage != 4) {
-                    pageIdx = descResult ? descResult->_valHead : 2;
+                    pageIdx = descResult ? descResult->_displayPage : 2;
                 }
             } else {
                 pageIdx = 2;
@@ -666,7 +666,7 @@ void EntityUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::Eve
         if (checkPin->_checked == 0) {
             ComponentEntity* entityKey = entity;
             PlayerToolManager* worldObj = GameUpdateLoop::_singleton->m_toolManager;
-            Avl38SetFindRemove(&worldObj->field_0x60, &entityKey);   // 0x14002c690
+            Avl38SetFindRemove(&worldObj->trackedEntities, &entityKey);   // 0x14002c690
             return;
         }
 
@@ -821,7 +821,7 @@ void PlayerToolManager::Startup() {
 
     // The pinned utility dialogs (and a tutorial's panel, 0x1401001f0): every
     // node whose byte is set is toggled open. The returned dialog is unread.
-    for (PinnedToolNode* node = FirstInOrder(field_0x50.root); node != nullptr; node = NextInOrder(node)) {
+    for (PinnedToolNode* node = FirstInOrder(pinnedToolDialogs.root); node != nullptr; node = NextInOrder(node)) {
         if (node->active)
             ToggleUtilityDialog(node->key);   // 0x140101a80
     }
@@ -833,7 +833,7 @@ void PlayerToolManager::Startup() {
     // description carries a UIDescription, placed where it was, its pin box
     // checked and synced back into this set.
     UI::UserInterface* ui = GameUpdateLoop::_singleton->m_userInterface;   // +0x98
-    for (TrackedEntityNode* node = FirstInOrder(field_0x60.root); node != nullptr; node = NextInOrder(node)) {
+    for (TrackedEntityNode* node = FirstInOrder(trackedEntities.root); node != nullptr; node = NextInOrder(node)) {
         ComponentEntity* entity = node->key.Get();
         UIDescription* uiDesc = entity->_description->FindDescription<UIDescription>();
         if (uiDesc == nullptr) continue;
@@ -871,9 +871,9 @@ int32_t PlayerToolManager::Update(System::Time time, bool inputFlag) {
     if (currentTool == nullptr)
         SelectTool(nullptr);
     // A tutorial step's pending tool replaces an idle EditTool (exact type).
-    if (field_0x80 && field_0x88 != nullptr) {
+    if (tutorialRestricted && tutorialTool != nullptr) {
         if (currentTool == nullptr || currentTool.Get()->IsA(EditTool::TypeId()))
-            SelectTool(field_0x88);
+            SelectTool(tutorialTool);
     }
 
     if (::Application::Application::_singleton->IsPaused()) {

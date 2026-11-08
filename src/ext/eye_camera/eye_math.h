@@ -11,7 +11,7 @@
 //     = (-sin H, cos H, 0), and Math::Vector3::Heading() inverts it.
 //   * A citizen's model rotation is a pure Z rotation built by the move tick
 //     (CharacterComponent_MoveTick_1094c0, citizenai_executor.cpp) as
-//     q = (0, 0, -sin(Y/2), cos(Y/2)) with Y = heading + CharacterDescription::_f24
+//     q = (0, 0, -sin(Y/2), cos(Y/2)) with Y = heading + CharacterDescription::_headingOffset
 //     (the description's model yaw offset); ModelYawFromQuaternion inverts it.
 //   * Units: world units. A tile is one unit, and the shipped citizen mesh
 //     (data0.pkg Models\Citizen\CitizenMaleMesh_resource.crs, its bounding box

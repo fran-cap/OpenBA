@@ -132,7 +132,7 @@ static void EnsureInit() {
 // Stamp cooldown (Time(75.0) -> timers[3]). Early-return if the citizen's
 // clothingLevel != 0. Otherwise find the best target via dd30 (goal cell = citizen
 // ModelComponent position, B-goal = the home anchor cell or -1). If none found:
-// clear field_0x1E0, set happinessFlags bit 2, return 0. If found: build the Ctor10
+// clear clothingType, set happinessFlags bit 2, return 0. If found: build the Ctor10
 // work sequence toward it and set state flags; return 1.
 // ============================================================
 uint64_t CitizenAIComponent::State_Education() {
@@ -184,7 +184,7 @@ uint64_t CitizenAIComponent::State_Education() {
     });
 
     if (outBest == nullptr) {
-        citizen->field_0x1E0 = 0;
+        citizen->clothingType = 0;
         citizen->happinessFlags |= 4;
         return 0;  // low byte 0
     }
@@ -196,7 +196,7 @@ uint64_t CitizenAIComponent::State_Education() {
 
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->lastErrand = CitizenErrand::None;
-    citizen->field_0x30 = -1;
+    citizen->lastWorkId = -1;
 
     return 1;  // CONCAT71(.., 1) -> low byte 1
 }
@@ -204,9 +204,9 @@ uint64_t CitizenAIComponent::State_Education() {
 // ============================================================
 // 0x14010c580 — CitizenAIComponent::State_SeekHappiness  (state id 8)
 // ------------------------------------------------------------
-// Stamp cooldown (Time(75.0) -> timers[8]). Early-return if field_0xAC > 0. Find the
+// Stamp cooldown (Time(75.0) -> timers[8]). Early-return if toolUses > 0. Find the
 // best target via dd30 (category 2). If found: build the Ctor5 work sequence and set
-// state flags (return 1). If NOT found: clear field_0xA8, set happinessFlags bit 2,
+// state flags (return 1). If NOT found: clear toolGrade, set happinessFlags bit 2,
 // and run the StatusIconComponent "show icon" branch (faithful inline copy of
 // FUN_14012c3f0's value=1/flagIndex=4 path), then return 0.
 // ============================================================
@@ -217,7 +217,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
     RtSystem_Time_Ctor(&timeStamp, kRdata_1401721fc);
     timers[static_cast<int32_t>(CitizenAIState::GetTool)] = timeStamp;
 
-    if (0 < citizen->field_0xAC) {
+    if (0 < citizen->toolUses) {
         return 0;  // low byte 0
     }
 
@@ -257,7 +257,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
 
     if (outBest == nullptr) {
         // --- no target: clear state + run the StatusIconComponent "show" branch ---
-        citizen->field_0xA8 = 0;
+        citizen->toolGrade = 0;
         citizen->happinessFlags |= 4;
 
         StatusIconComponent* mi = citizen->_entity->FindComponent<StatusIconComponent>();
@@ -314,7 +314,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
 
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->lastErrand = CitizenErrand::None;
-    citizen->field_0x30 = -1;
+    citizen->lastWorkId = -1;
 
     return 1;
 }
@@ -326,7 +326,7 @@ uint64_t CitizenAIComponent::State_SeekHappiness() {
 // citizen ModelComponent world pos, run the walkable-position search (122be0 over the
 // InteractDescription transform sub + 122b00 over each use location). If a walkable
 // target is found: push the WalkTowards action toward it (time read from the
-// citizen's CitizenDescription _f120) and set state flags (return 1). Else:
+// citizen's CitizenDescription educationWorkLength) and set state flags (return 1). Else:
 // FUN_140115a50(citizen, 1) (release/reroll the partner slot) and return 0.
 // ============================================================
 uint64_t CitizenAIComponent::State_FindWork() {
@@ -367,18 +367,18 @@ uint64_t CitizenAIComponent::State_FindWork() {
     }
 
     if (found != 0) {
-        // WalkTowards toward outVec; time = citizen CitizenDescription _f120
+        // WalkTowards toward outVec; time = citizen CitizenDescription educationWorkLength
         Description* descRaw = citizen->_description;
         const CitizenDescription* desc = (descRaw && Object::IsDerivedFromNullSafe(descRaw, s_tid_CitizenDescription))
                      ? static_cast<const CitizenDescription*>(descRaw) : nullptr;
         CitizenComponent* ibpHolder = citizen.Get();
         // [STANDALONE GUARD] the desc null-check is ours; the original derefs +0x120
         // unconditionally (would fault if the description type-check failed).
-        float walkTime = desc ? desc->_f120 : 0.0f;
+        float walkTime = desc ? desc->educationWorkLength : 0.0f;
         CitizenAI_Pathfinding_WalkTowards_bb490(&ibpHolder, 0xffffffff, outVec, 4, walkTime, 1);
 
         citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-        citizen->field_0x30 = -1;
+        citizen->lastWorkId = -1;
         citizen->lastErrand = CitizenErrand::None;
 
         return 1;

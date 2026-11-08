@@ -42,10 +42,10 @@
 //   }
 // param_1 is the tool's owner, the PlayerToolManager (Tool +0x10).
 void PlayerToolManager::CloseToolDialog() {
-    if (field_0x00 != nullptr) {
-        Object::InternalPtr<UI::DialogInstance> local(field_0x00);
+    if (toolDialog != nullptr) {
+        Object::InternalPtr<UI::DialogInstance> local(toolDialog);
         GameUpdateLoop::_singleton->m_userInterface->CloseDialog(&local);
-        field_0x00 = nullptr;
+        toolDialog = nullptr;
     }
 }
 
@@ -64,7 +64,7 @@ void PlayerToolManager::CloseToolDialog() {
 //   }
 // param_1 is the tool's owner, the PlayerToolManager (Tool +0x10).
 void PlayerToolManager::PlayTickSound() {
-    if (field_0x48 < 1) {
+    if (tickSoundCooldown < 1) {
         System::Time t;
         RtSystem_Time_Ctor(&t, 0.0f);
         GameUpdateLoop::_singleton->m_audioScene->PlayEffect(
@@ -73,7 +73,7 @@ void PlayerToolManager::PlayTickSound() {
         // Re-set the throttle timer to 0.05s (DAT_1401720d4 == 0.05f).
         System::Time throttle;
         RtSystem_Time_Ctor(&throttle, 0.05f);
-        field_0x48 = throttle._ticks;
+        tickSoundCooldown = throttle._ticks;
     }
 }
 

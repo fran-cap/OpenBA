@@ -365,7 +365,7 @@ struct ProgressElementProbe final : UI::ProgressElement {
 UNIT_TEST(ui_c5_progress_layout) {
     CheckShape<UI::ProgressDescription, UI::ElementDescription>(0xb0, true);   // 0x180077c80
     CheckShape<UI::ProgressElement, UI::Element>(0x130, true);                 // 0x180078150
-    CHECK_EQ(offsetof(UI::ProgressDescription, _unknown68), sizeof(UI::ElementDescription));
+    CHECK_EQ(offsetof(UI::ProgressDescription, _backgroundColor), sizeof(UI::ElementDescription));
     CHECK_EQ(offsetof(UI::ProgressElement, _fillLeft), sizeof(UI::Element));
     CHECK_EQ(offsetof(UI::ProgressElement, _backgroundColor), (size_t)0x120);
 }
@@ -632,7 +632,7 @@ UNIT_TEST(b39_uib_c5_graph_ctor_stores) {
     CHECK_EQ(gd->_width, 100);
     CHECK_EQ(gd->_height, 100);
     CHECK_EQ(gd->_tickSize, 4);
-    CHECK_EQ(gd->_unknown74, 0xffffffffu);
+    CHECK_EQ(gd->_lineColor, 0xffffffffu);
     CHECK(gd->_spriteSheet == nullptr);
     CHECK(gd->_spriteName._data == nullptr);
     CHECK_EQ(gd->_id, -1);
@@ -645,7 +645,7 @@ UNIT_TEST(b39_uib_c5_graph_ctor_stores) {
     CHECK_EQ(ge->_width, 100);
     CHECK_EQ(ge->_height, 100);
     CHECK_EQ(ge->_tickSize, 4);
-    CHECK_EQ(ge->_unknownCC, -1);
+    CHECK_EQ(ge->_lineColor, -1);
     CHECK(ge->_lineSprite.spriteSheet == nullptr);
     CHECK_EQ(ge->_lineSprite.spriteIndex, -1);
     CHECK(ge->_yRange == 1.0f);
@@ -731,7 +731,7 @@ UNIT_TEST(b39_uib_c5_progress_ribbon_pmf_and_ctors) {
     alignas(8) uint8_t pd[0xb0];
     std::memset(pd, 0xCD, sizeof pd);
     auto* p = ::new (static_cast<void*>(pd)) UI::ProgressDescription();
-    CHECK_EQ(p->_unknown68, 0u);
+    CHECK_EQ(p->_backgroundColor, 0u);
     CHECK_EQ((int)pd[0x6c], 0xCD);
     CHECK(p->_spriteSheet == nullptr);
     CHECK(p->_fillLeftName._data == nullptr);

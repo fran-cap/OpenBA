@@ -107,7 +107,7 @@ void UIDescription::AddControllers(UI::DialogInstance* const* dialog, Object::Ba
             [[maybe_unused]] const UIDescriptionEntry& e = entries[j];
             printf("[UIDescAdd]   entry[%d]@%p type=%u elemDesc=%p config=%p tabDesc=%p "
                    "nameStrPtr=%p\n", j, static_cast<const void*>(&e), static_cast<uint32_t>(e.type),
-                   static_cast<void*>(e.ref08), static_cast<void*>(e.ref10), static_cast<void*>(e.ref18),
+                   static_cast<void*>(e.element), static_cast<void*>(e.config), static_cast<void*>(e.tabButton),
                    static_cast<const void*>(e.name._data));
         }
         fflush(stdout);
@@ -143,8 +143,8 @@ void UIDescription::AddControllers(UI::DialogInstance* const* dialog, Object::Ba
             (*dialog)->AddController(
                 entry.type,
                 dataSource,
-                Object::ExternalPtr<UI::DialogControllerConfig>(entry.ref10),   // controllerConfig
-                Object::ExternalPtr<UI::ElementDescription>(entry.ref08),       // elementDesc
+                Object::ExternalPtr<UI::DialogControllerConfig>(entry.config),   // controllerConfig
+                Object::ExternalPtr<UI::ElementDescription>(entry.element),       // elementDesc
                 entry.name);
             continue;
         }
@@ -156,14 +156,14 @@ void UIDescription::AddControllers(UI::DialogInstance* const* dialog, Object::Ba
 
         // Create a new tab page: AddTab(tabDesc, elementDesc)
         Object::InternalPtr<UI::Element> tabPage = tabElement->AddTab(
-            Object::ExternalPtr<UI::ElementDescription>(entry.ref18),   // tabDesc
-            Object::ExternalPtr<UI::ElementDescription>(entry.ref08));  // elementDesc
+            Object::ExternalPtr<UI::ElementDescription>(entry.tabButton),   // tabDesc
+            Object::ExternalPtr<UI::ElementDescription>(entry.element));  // elementDesc
 
         // The 5-arg AddController with the tab page element
         (*dialog)->AddController(
             entry.type,
             dataSource,
-            Object::ExternalPtr<UI::DialogControllerConfig>(entry.ref10),       // controllerConfig
+            Object::ExternalPtr<UI::DialogControllerConfig>(entry.config),       // controllerConfig
             Object::InternalPtr<UI::Element>(tabPage.Get()));                   // tab page element
     }
 }
@@ -346,7 +346,7 @@ static int ToolUI_MouseY(const Input::KeyMap* keyMap, const UI::DialogInstance* 
 // The node of the tool manager's +0x50 set keyed by `key` (the ToolUI's
 // description; the set also holds entity keys: the compare is by address).
 static PinnedToolNode* ToolUI_FindTracked(const ComponentDescription* key) {
-    PinnedToolNode* node = GameUpdateLoop::_singleton->m_toolManager->field_0x50.root;
+    PinnedToolNode* node = GameUpdateLoop::_singleton->m_toolManager->pinnedToolDialogs.root;
     while (node != nullptr) {
         const ComponentDescription* nodeKey = node->key;
         if (key < nodeKey) {

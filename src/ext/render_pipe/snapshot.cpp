@@ -511,7 +511,7 @@ SnapshotResult BuildReference(Builder& b, int32_t slot, Graphics::Renderer& r) {
                     return result;
                 }
                 if (typeid(*g) == typeid(WorldGeometry)) {
-                    const uint32_t key = item._arg5;
+                    const uint32_t key = item._node;
                     if (!WorldItemCopied(key)) continue;   // the live object (2.2)
                     const uint32_t mode = key & WorldGeometry::DrawKey::kModeMask;
                     const char* why = nullptr;
@@ -548,7 +548,7 @@ SnapshotResult BuildReference(Builder& b, int32_t slot, Graphics::Renderer& r) {
                 // (review F-219: they bound the copy's embedded buffers, and ext.better_water
                 // took a strip slot per arena address).
                 const Entry& e = b.entries[static_cast<size_t>(index)];
-                if (e.kind == Kind::WorldBatches && !WorldItemCopied(item._arg5)) continue;
+                if (e.kind == Kind::WorldBatches && !WorldItemCopied(item._node)) continue;
                 item._geometry = e.copy;
             }
         }
@@ -610,7 +610,7 @@ SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
                 }
                 if (typeid(*g) == typeid(WorldGeometry)) {
                     last.Clear();
-                    const uint32_t key = item._arg5;
+                    const uint32_t key = item._node;
                     if (!WorldItemCopied(key)) {   // the live object (2.2)
                         b.itemEntry[at] = kKeepLive;
                         ++kept;

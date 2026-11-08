@@ -301,7 +301,7 @@ uint32_t TakesMeshByValue(void* self, Object::ExternalPtr<Picking::PickingMesh> 
 // ---------------------------------------------------------------------------
 UNIT_TEST(picking_pickingmesh_layout) {
     CHECK_EQ((int)alignof(Picking::PickingMesh), 8);
-    CHECK_EQ((int)offsetof(Picking::PickingMesh, _string20), (int)sizeof(Object::External));
+    CHECK_EQ((int)offsetof(Picking::PickingMesh, _meshName), (int)sizeof(Object::External));
     CHECK((std::is_base_of<Object::External, Picking::PickingMesh>::value));
     // ENDGAME B.3.9 pilot (B39_RULES D1): CONCRETE, with retail's public
     // default constructor.
@@ -342,9 +342,9 @@ UNIT_TEST(b39_pickingmesh_ctor_makes_retails_stores) {
     CHECK(m->_refs._data == nullptr);
     CHECK_EQ(m->_refs._size, 0);
     CHECK_EQ(m->_refs._capacity, 0);
-    CHECK(m->_string20._data == nullptr);
-    CHECK(m->_string28._data == nullptr);
-    CHECK(!m->_flag30);
+    CHECK(m->_meshName._data == nullptr);
+    CHECK(m->_subObject._data == nullptr);
+    CHECK(!m->_allowChildren);
     for (int i = 0; i < 7; ++i) CHECK_EQ((int)buf[0x31 + i], 0xCD);
     CHECK(m->_nodes._data == nullptr);
     CHECK_EQ(m->_nodes._size, 0);

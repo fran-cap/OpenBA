@@ -61,12 +61,12 @@ static_assert(offsetof(WorkSchedulerTree, _pad0C) == 0x0C, "WorkSchedulerTree +0
 // unknown. 0x14000e320 is shared by many node types (the id trees' 0x14000dcb0, the
 // work walk's candidate tree 0x1400f79b0 ...): it does not identify the element.
 struct WorkSchedulerNode20 {
-    uint8_t              _unknown00[0x18];   // +0x00 element / parent: no retail reader found
+    uint8_t              unreadElementAndParent[0x18];   // +0x00 element / parent: no retail reader found
     WorkSchedulerNode20* left;               // +0x18 freed first by 0x14000e320
     WorkSchedulerNode20* right;              // +0x20
 };
 static_assert(sizeof(WorkSchedulerNode20) == 0x28, "the links 0x14000e320 walks end at +0x28");
-static_assert(offsetof(WorkSchedulerNode20, _unknown00) == 0x0, "WorkSchedulerNode20::_unknown00");
+static_assert(offsetof(WorkSchedulerNode20, unreadElementAndParent) == 0x0, "WorkSchedulerNode20::unreadElementAndParent");
 static_assert(offsetof(WorkSchedulerNode20, left) == 0x18, "WorkSchedulerNode20::left @ +0x18 (0x14000e320)");
 static_assert(offsetof(WorkSchedulerNode20, right) == 0x20, "WorkSchedulerNode20::right @ +0x20 (0x14000e320)");
 
@@ -74,17 +74,17 @@ class WorkScheduler {
 public:
     // Better names (CAI-6, from the code; NOT renamed: readers in other blocks' files
     // spell the field_0x.. names; known_port_issues 14f):
-    int32_t           field_0x00;       // +0x00 (Serialize int) the work-id counter (wraps at 0x7ffffffe)
-    int32_t           field_0x04;       // +0x04 (Serialize int) the queue-order counter
+    int32_t           lastWorkId;       // +0x00 (Serialize int) the work-id counter (wraps at 0x7ffffffe)
+    int32_t           nextQueueOrder;       // +0x04 (Serialize int) the queue-order counter
     uint32_t          stepCount;        // +0x08 ctor 1 (Serialize uint); +1 per simulation step
     uint8_t           _pad0C[4];        // +0x0C
-    AvlTreeHead<WorkSchedulerCountNode> field_0x10;   // +0x10 the queue-order tree {root (int key; rebuilt on load), count +0x18}
-    WorkSchedulerNode20* field_0x20;    // +0x20 ctor 0; tree root (freed by the dtor only)
-    int32_t           field_0x28;       // +0x28 ctor 0; its count
+    AvlTreeHead<WorkSchedulerCountNode> queueOrderTree;   // +0x10 the queue-order tree {root (int key; rebuilt on load), count +0x18}
+    WorkSchedulerNode20* unusedTreeRoot;    // +0x20 ctor 0; tree root (freed by the dtor only)
+    int32_t           unusedTreeCount;       // +0x28 ctor 0; its count
     uint8_t           _pad2C[4];        // +0x2C
     WorkSchedulerTree trees[15];        // +0x30 (TradeDescription_impl_d060: 14 before version 3)
-    WorkSchedulerBucketNode* field_0x120; // +0x120 tree root (TradeWork_impl_d5f0) the per-profession bucket tree
-    int32_t           field_0x128;      // +0x128 tree count (the bucket tree's)
+    WorkSchedulerBucketNode* professionBucketRoot; // +0x120 tree root (TradeWork_impl_d5f0) the per-profession bucket tree
+    int32_t           professionBucketCount;      // +0x128 tree count (the bucket tree's)
     uint8_t           _pad12C[4];       // +0x12C
     System::Time      time;             // +0x130 the scheduler clock (+= dt per step)
 
@@ -102,16 +102,16 @@ public:
 };
 
 static_assert(sizeof(WorkScheduler) == 0x138, "WorkScheduler is 0x138 (Load MemAlloc(0x138, 4))");
-static_assert(offsetof(WorkScheduler, field_0x00) == 0x00, "WorkScheduler +0x00");
-static_assert(offsetof(WorkScheduler, field_0x04) == 0x04, "WorkScheduler +0x04");
+static_assert(offsetof(WorkScheduler, lastWorkId) == 0x00, "WorkScheduler +0x00");
+static_assert(offsetof(WorkScheduler, nextQueueOrder) == 0x04, "WorkScheduler +0x04");
 static_assert(offsetof(WorkScheduler, stepCount) == 0x08, "WorkScheduler::stepCount @ +0x08");
 static_assert(offsetof(WorkScheduler, _pad0C) == 0x0C, "WorkScheduler +0x0C");
-static_assert(offsetof(WorkScheduler, field_0x10) == 0x10, "WorkScheduler +0x10");
-static_assert(offsetof(WorkScheduler, field_0x20) == 0x20, "WorkScheduler +0x20");
-static_assert(offsetof(WorkScheduler, field_0x28) == 0x28, "WorkScheduler +0x28");
+static_assert(offsetof(WorkScheduler, queueOrderTree) == 0x10, "WorkScheduler +0x10");
+static_assert(offsetof(WorkScheduler, unusedTreeRoot) == 0x20, "WorkScheduler +0x20");
+static_assert(offsetof(WorkScheduler, unusedTreeCount) == 0x28, "WorkScheduler +0x28");
 static_assert(offsetof(WorkScheduler, _pad2C) == 0x2C, "WorkScheduler +0x2C");
 static_assert(offsetof(WorkScheduler, trees) == 0x30, "WorkScheduler::trees @ +0x30");
-static_assert(offsetof(WorkScheduler, field_0x120) == 0x120, "WorkScheduler +0x120");
-static_assert(offsetof(WorkScheduler, field_0x128) == 0x128, "WorkScheduler +0x128");
+static_assert(offsetof(WorkScheduler, professionBucketRoot) == 0x120, "WorkScheduler +0x120");
+static_assert(offsetof(WorkScheduler, professionBucketCount) == 0x128, "WorkScheduler +0x128");
 static_assert(offsetof(WorkScheduler, _pad12C) == 0x12C, "WorkScheduler +0x12C");
 static_assert(offsetof(WorkScheduler, time) == 0x130, "WorkScheduler::time @ +0x130");

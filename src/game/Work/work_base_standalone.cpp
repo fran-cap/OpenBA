@@ -22,9 +22,9 @@
 // (e.g. BuildRoad_Ctor 0x1400e4ad0). The 0x140161a80 stamp is the compiler's.
 Work::Work()
     : Object::Internal(),
-      field_10(nullptr), field_18(nullptr),
-      field_20(-1), field_24(0), field_28(-1), field_2c(0),
-      field_30{0}, field_38{0}, field_40(0) {}
+      _entity(nullptr), _workComponent(nullptr),
+      _workId(-1), _queueOrder(0), _cell(-1), _lastRejectStep(0),
+      _waitTime{0}, _waitBaseTime{0}, _tooFarCount(0) {}
 
 // 0x1400f72e0 (Work_Ctor25): `??0Internal`, the compiler's stamp, then
 // Work::InitFromEntity (work_base_reimpl.cpp).

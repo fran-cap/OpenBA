@@ -137,12 +137,12 @@ int RoadTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
     const PlayerToolManager* descEntity = dialogPtr;
     Map* mapGrid = GameUpdateLoop::_singleton->m_game;
 
-    if (descEntity && descEntity->field_0x80) {
+    if (descEntity && descEntity->tutorialRestricted) {
         int gridSize = mapGrid->size;
-        uint32_t constraintA = gridSize * (descEntity->field_0x98 / gridSize) +
-            descEntity->field_0x98 % gridSize;
-        uint32_t constraintB = gridSize * (descEntity->field_0x9C / gridSize) +
-            descEntity->field_0x9C % gridSize;
+        uint32_t constraintA = gridSize * (descEntity->tutorialStartCell / gridSize) +
+            descEntity->tutorialStartCell % gridSize;
+        uint32_t constraintB = gridSize * (descEntity->tutorialEndCell / gridSize) +
+            descEntity->tutorialEndCell % gridSize;
 
         // Cells must match the description constraints (in either order)
         if ((constraintA != sc || constraintB != ec) &&
@@ -213,10 +213,10 @@ void RoadTool::Draw(Video::Context* context, char param3) {
     int pathBuf[2048]; // large stack buffer for pathfinding output
 
     // ---- Phase 1: Constrained path from the owner's constraint ----
-    if (descEntity->field_0x80) {
+    if (descEntity->tutorialRestricted) {
         int gridSize = mapGrid->size;
-        int constrainStart = descEntity->field_0x98;
-        int constrainEnd   = descEntity->field_0x9C;
+        int constrainStart = descEntity->tutorialStartCell;
+        int constrainEnd   = descEntity->tutorialEndCell;
 
         // Normalize to cell indices
         int startNorm = gridSize * (constrainStart / gridSize) + constrainStart % gridSize;

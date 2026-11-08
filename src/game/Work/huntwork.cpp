@@ -157,9 +157,9 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     // -------------------------------------------------------
     // Step 3: Find the WorkComponent and the HuntComponent
     // -------------------------------------------------------
-    WorkComponent* matDesc = field_10->FindComponent<WorkComponent>();
+    WorkComponent* matDesc = _entity->FindComponent<WorkComponent>();
 
-    HuntComponent* huntComp = field_10->FindComponent<HuntComponent>();
+    HuntComponent* huntComp = _entity->FindComponent<HuntComponent>();
 
     // Its description, as a HuntDescription
     Description* herdObj = huntComp->_description;
@@ -169,7 +169,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     HuntDescription* huntDesc = isHerd ? static_cast<HuntDescription*>(herdObj) : nullptr;
 
     // The RadiusDescription on the workplace's ComponentDescription (+0x28)
-    RadiusDescription* area = FindRadiusDescription(field_10->_description);
+    RadiusDescription* area = FindRadiusDescription(_entity->_description);
 
     // -------------------------------------------------------
     // Step 4: Check animal population via resource tracker
@@ -183,7 +183,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     // -------------------------------------------------------
     // Step 5: The status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
     // -------------------------------------------------------
-    StatusIconComponent* statusIcon = field_10->FindComponent<StatusIconComponent>();
+    StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
     statusIcon->SetFlag(2, atCapacity ? 1 : 0);
 
     if (atCapacity) {
@@ -218,7 +218,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     int mapSize = map->size;
 
     // Workplace grid cell position
-    int workCell = field_28;
+    int workCell = _cell;
     int cellCol = workCell % mapSize;
     int cellRow = workCell / mapSize;
 
@@ -258,7 +258,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     int citizenGridCell = mapSz * citizenCellY + citizenCellX;
 
     // Get workplace entity's grid cell for distance check
-    ComponentEntity* entityIBPBuf[2] = { field_10.Get(), nullptr };
+    ComponentEntity* entityIBPBuf[2] = { _entity.Get(), nullptr };
     uint32_t entityGridCell = EntityAnchorCell(entityIBPBuf, nullptr);
 
     // -------------------------------------------------------
@@ -312,11 +312,11 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
 
         CitizenComponent* citizenEntRef = *citizenIBP;
 
-        HuntComponent* huntComp2 = field_10->FindComponent<HuntComponent>();
+        HuntComponent* huntComp2 = _entity->FindComponent<HuntComponent>();
 
         WorkAct_HuntWorkCtor_bbbc0(
             &citizenEntRef,        // citizen entity IBP
-            field_20,              // priority
+            _workId,              // priority
             &huntComp2,            // hunt component IBP
             pathPos,               // terrain position
             0.0f,                  // float param
@@ -328,13 +328,13 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
         // -------------------------------------------------------
         CitizenComponent* citizenEntRef2 = *citizenIBP;
 
-        HuntComponent* huntComp3 = field_10->FindComponent<HuntComponent>();
+        HuntComponent* huntComp3 = _entity->FindComponent<HuntComponent>();
 
         float fallbackPos[3] = { 0.0f, 0.0f, 0.0f };
 
         WorkAct_HuntWorkCtor_bbbc0(
             &citizenEntRef2,       // citizen entity IBP
-            field_20,              // priority
+            _workId,              // priority
             &huntComp3,            // hunt component IBP
             fallbackPos,           // fallback position (0,0,0)
             kRdata_140172198,     // float param (roaming radius)
@@ -344,7 +344,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
     // -------------------------------------------------------
     // Both paths: assign work and return 2
     // -------------------------------------------------------
-    int priority = field_20;
+    int priority = _workId;
     CitizenComponent* citizenEnt = *citizenIBP;
 
     Profession* workEnt = nullptr;
@@ -352,7 +352,7 @@ int HuntWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) 
 
     citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizenEnt->lastErrand = CitizenErrand::None;
-    citizenEnt->field_0x30 = priority;
+    citizenEnt->lastWorkId = priority;
 
     if (workEnt == citizenEnt->profession && priority >= 0) {
         citizenEnt->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
@@ -532,7 +532,7 @@ int HuntWork::Validate() {
 // the return slot.
 // ============================================================
 Profession** HuntWork::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }

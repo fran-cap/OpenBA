@@ -183,13 +183,13 @@ using EdgeVtxArray = Collection::Array<EdgeVertex16>;
 // ===========================================================================
 void SampleTile(const WorldGeometry* hf, int col, int row, float* out) {
     const float hscale = 0.00390625f;  // DAT_1401720bc = 1/256
-    int base = (hf->_gridSize - hf->_fieldC4) >> 1;
+    int base = (hf->_gridSize - hf->_mapSize) >> 1;
     int cx = base + col;
     int cy = base + row;
     int cx1 = cx + 1;
     int cy1 = cy + 1;
     float half = (float)(hf->_gridSize >> 1);
-    int dim = hf->_fieldD0;
+    int dim = hf->_heightRowStride;
     float fx  = (float)cx  - half;
     float fy  = (float)cy  - half;
     float fx1 = (float)cx1 - half;
@@ -378,10 +378,10 @@ void Impl_b930(HighlightComponent* hc) {
     }
 
     // Release the previous EdgeMesh (vtable slot 0 = scalar deleting dtor, arg 1 = free).
-    Graphics::EdgeMesh* oldMesh = hc->fieldF8;
+    Graphics::EdgeMesh* oldMesh = hc->outlineMesh;
     if (oldMesh) {
         delete oldMesh;   // slot 0, free
-        hc->fieldF8 = nullptr;
+        hc->outlineMesh = nullptr;
     }
 
     // Allocate + construct a fresh EdgeMesh.
@@ -389,7 +389,7 @@ void Impl_b930(HighlightComponent* hc) {
     if (mesh) {
         ::new (mesh) Graphics::EdgeMesh();   // B.3.9 GFX: the real ctor (was the ??0 door)
     }
-    hc->fieldF8 = mesh;
+    hc->outlineMesh = mesh;
 
     // Two GraphicsMesh::TriangleList descriptors { pad, vtxCount@+4, pad, idxCount@+0xc, pad, pad }.
     Graphics::GraphicsMesh::TriangleList triList0 = {0, fillVtx._size, 0, fillIdx._size, 0, 0};
@@ -435,9 +435,9 @@ void Impl_b930(HighlightComponent* hc) {
     // so this reproduces it exactly. Argument order is (mask, edge, skinMask,
     // skinEdge) — see Mesh.h's note; the fields are grouped differently.
     if (mesh && desc) {
-        Graphics::MaterialInstance* m0 = desc->_ref0;
-        Graphics::MaterialInstance* m1 = desc->_ref1;
-        hc->fieldF8
+        Graphics::MaterialInstance* m0 = desc->_maskMaterial;
+        Graphics::MaterialInstance* m1 = desc->_edgeMaterial;
+        hc->outlineMesh
             ->SetMaterials(Object::ExternalPtr<Graphics::MaterialInstance>(m0),
                            Object::ExternalPtr<Graphics::MaterialInstance>(m1),
                            Object::ExternalPtr<Graphics::MaterialInstance>(m0),
@@ -477,11 +477,11 @@ void HighlightComponent::Repaint() {
     }
     // Release the built EdgeMesh (vtable slot 0).
     {
-        Graphics::EdgeMesh* m = fieldF8;
+        Graphics::EdgeMesh* m = outlineMesh;
         highlightId = -1;
         if (m) {
             delete m;   // slot 0, free
-            fieldF8 = nullptr;
+            outlineMesh = nullptr;
         }
     }
     if (highlightFlag == 0) return;   // highlight not active
@@ -513,7 +513,7 @@ void HighlightComponent::Repaint() {
                 if (sibHi != nullptr) {
                     bool active = !(sibHi->highlightFlag == 0 ||
                                     sibHi->highlightId < 0 ||
-                                    sibHi->fieldF8 != nullptr);
+                                    sibHi->outlineMesh != nullptr);
                     neighbourActive = neighbourActive || active;
                 }
                 i++;
@@ -525,9 +525,9 @@ void HighlightComponent::Repaint() {
     // No per-cell mesh (both indices < 0) -> build+submit our own EdgeMesh.
     if (iVar10 < 0 || iVar11 < 0) {
         MapComponent* r = _entity->FindComponent<MapComponent>();   // 0x140004680
-        if (r && desc && desc->_ref0 != nullptr) {
+        if (r && desc && desc->_maskMaterial != nullptr) {
             Impl_b930(this);
-            inst.SetMesh(Object::ExternalPtr<Graphics::EdgeMesh>(fieldF8),
+            inst.SetMesh(Object::ExternalPtr<Graphics::EdgeMesh>(outlineMesh),
                          nullptr);
             inst.SetTransform(transform);
             System::Time time;

@@ -432,15 +432,15 @@ UNIT_TEST(TextFileStream_and_VisitorStream_are_layout_identical_to_their_PODs) {
           (int)offsetof(IO::TextFileStream, _objectType));
 
     // THE CLASS SAYS MORE THAN THE POD AT +0x78, and this is the pin for it:
-    // the POD's single `void* _unk78` is the class's `_bufSize` + `_bufCursor`
+    // the POD's single `void* bufferSizeAndCursor` is the class's `_bufSize` + `_bufCursor`
     // int32 pair, occupying the same eight bytes. `GetSize` returns +0x78 in
     // its buffer arm and the inherited FileInfo::size in its file arm, which is
     // what identifies +0x78 as a SIZE and not a pointer.
     CHECK_EQ((int)offsetof(IO::TextFileStream, _bufSize),
-             (int)offsetof(RtIo::TextFileStream, _unk78));
+             (int)offsetof(RtIo::TextFileStream, bufferSizeAndCursor));
     CHECK_EQ((int)(sizeof(TextFileStreamProbe::_bufSize) +
                    sizeof(TextFileStreamProbe::_bufCursor)),
-             (int)sizeof(RtIo::TextFileStream::_unk78));
+             (int)sizeof(RtIo::TextFileStream::bufferSizeAndCursor));
 
     // A field write through the CLASS is visible through the POD at the same
     // bytes — the property every reinterpret_cast in text_file_stream.cpp

@@ -31,17 +31,17 @@ namespace Object { class Base; }
 struct UIDescriptionEntry {
     Object::Type   type;         // +0x00 (Object::Type::Serialize, import 0x1401516b0)
     uint8_t        _pad04[4];    // +0x04
-    UI::ElementDescription*     ref08;  // +0x08 ExternalPtr (0x140027ad0): the controller's element (B4 DLG-d: 0x14012e100)
-    UI::DialogControllerConfig* ref10;  // +0x10 ExternalPtr (0x140039840): its config (B4 DLG-d: 0x14012e100)
-    UI::ElementDescription*     ref18;  // +0x18 ExternalPtr (0x140027ad0): the tab button (B4 DLG-d: 0x14012e100)
+    UI::ElementDescription*     element;  // +0x08 ExternalPtr (0x140027ad0): the controller's element (B4 DLG-d: 0x14012e100)
+    UI::DialogControllerConfig* config;  // +0x10 ExternalPtr (0x140039840): its config (B4 DLG-d: 0x14012e100)
+    UI::ElementDescription*     tabButton;  // +0x18 ExternalPtr (0x140027ad0): the tab button (B4 DLG-d: 0x14012e100)
     System::String name;         // +0x20
 };
 static_assert(sizeof(UIDescriptionEntry) == 0x28, "UIDescriptionEntry stride 0x28");
 static_assert(offsetof(UIDescriptionEntry, type) == 0x0, "UIDescriptionEntry::type");
 static_assert(offsetof(UIDescriptionEntry, _pad04) == 0x4, "UIDescriptionEntry::_pad04");
-static_assert(offsetof(UIDescriptionEntry, ref08) == 0x08, "UIDescriptionEntry +0x08");
-static_assert(offsetof(UIDescriptionEntry, ref10) == 0x10, "UIDescriptionEntry +0x10");
-static_assert(offsetof(UIDescriptionEntry, ref18) == 0x18, "UIDescriptionEntry +0x18");
+static_assert(offsetof(UIDescriptionEntry, element) == 0x08, "UIDescriptionEntry +0x08");
+static_assert(offsetof(UIDescriptionEntry, config) == 0x10, "UIDescriptionEntry +0x10");
+static_assert(offsetof(UIDescriptionEntry, tabButton) == 0x18, "UIDescriptionEntry +0x18");
 static_assert(offsetof(UIDescriptionEntry, name) == 0x20, "UIDescriptionEntry +0x20");
 
 class UIDescription final : public Description {
@@ -59,13 +59,13 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140039620
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    int32_t _valTail;                           // +0x20 serialized LAST; slot 8 builds a UIComponent only when > 0
+    int32_t _settingsBufferSize;                           // +0x20 serialized LAST; slot 8 builds a UIComponent only when > 0
     uint8_t _pad24[4];                          // +0x24 never written by the ctor
     UI::Dialog* _dialog;                        // +0x28 ExternalPtr<UI::Dialog> (0x140028650: ?_typeInfo@Dialog@UI@@ gate)
     UIDescriptionEntry* _entries;               // +0x30 element array data
     int32_t _entryCount;                        // +0x38
     int32_t _entryCap;                          // +0x3c
-    int32_t _valHead;                           // +0x40
+    int32_t _displayPage;                           // +0x40
     uint8_t _pad44[4];                          // +0x44 never written by the ctor
 
     // B4 DLG-d (appended): 0x14012e100, ToolUI::OnCreated's call: adds each
@@ -78,9 +78,9 @@ static_assert(sizeof(UIDescription) == 0x48, "UIDescription is 0x48 (create 0x14
 static_assert(offsetof(UIDescription, _pad24) == 0x24, "UIDescription::_pad24");
 static_assert(offsetof(UIDescription, _pad44) == 0x44, "UIDescription::_pad44");
 static_assert(alignof(UIDescription) == 8, "UIDescription alignment");
-static_assert(offsetof(UIDescription, _valTail) == 0x20, "UIDescription::_valTail @ +0x20");
+static_assert(offsetof(UIDescription, _settingsBufferSize) == 0x20, "UIDescription::_settingsBufferSize @ +0x20");
 static_assert(offsetof(UIDescription, _dialog) == 0x28, "UIDescription::_dialog @ +0x28");
 static_assert(offsetof(UIDescription, _entries) == 0x30, "UIDescription::_entries @ +0x30");
 static_assert(offsetof(UIDescription, _entryCount) == 0x38, "UIDescription::_entryCount @ +0x38");
 static_assert(offsetof(UIDescription, _entryCap) == 0x3c, "UIDescription::_entryCap @ +0x3c");
-static_assert(offsetof(UIDescription, _valHead) == 0x40, "UIDescription::_valHead @ +0x40");
+static_assert(offsetof(UIDescription, _displayPage) == 0x40, "UIDescription::_displayPage @ +0x40");

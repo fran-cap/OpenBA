@@ -232,7 +232,7 @@ void StatusIconGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
     const UI::SpriteSheet* sheet = spriteSheet;
     // UI::SpriteSheet +0x30 is its ExternalPtr<MaterialInstance>.
     const Graphics::MaterialInstance* material =
-        sheet ? sheet->m_field30 : nullptr;
+        sheet ? sheet->m_materialInstance : nullptr;
     if (material) {
         // AddDrawItem(geom, material, 0x8000, 0, 0.0, uvScale, 1, null, 0)
         rendererRef.AddDrawItem(this, material, 0x8000, 0, 0.0f, kUVScale, 1, nullptr, 0);

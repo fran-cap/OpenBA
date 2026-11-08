@@ -240,10 +240,10 @@ void SpinnerElement::Update(const System::Time& time, UserInterface* ui,
     ev.dialog   = dialog->Get();
     ev.element  = this;
     ev.eventId  = UI::EventId::ValueChanged;
-    ev.arg14    = _elementId;
-    ev.arg18    = state.mouseX;
-    ev.arg1C    = state.mouseY;
-    ev.arg20    = 0;
+    ev.elementId    = _elementId;
+    ev.mouseX    = state.mouseX;
+    ev.mouseY    = state.mouseY;
+    ev.value    = 0;
     ev.userData = nullptr;
     rtcoll::RtColl_ArraySetSizeFill_180033690(&ui->_events, ui->_events._size + 1, &ev);
 }

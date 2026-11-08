@@ -76,13 +76,13 @@ public:
     ConsumeProduceRecipe* _recipes;             // +0x28 recipe array data (0x28 stride)
     int32_t _recipeCount;                       // +0x30
     int32_t _recipeCap;                         // +0x34
-    uint32_t _toolType;                         // +0x38 Object::Type (the tool's type id; serialized as a name)
-    int32_t _i3c;                               // +0x3c
-    int32_t _i40;                               // +0x40
-    float _f44;                                 // +0x44
-    int32_t _i48;                               // +0x48
+    uint32_t _messageType;                         // +0x38 Object::Type (the tool's type id; serialized as a name)
+    int32_t _messageId;                               // +0x3c
+    int32_t _workRequired;                               // +0x40
+    float _workTime;                                 // +0x44
+    int32_t _maximumProduction;                               // +0x48
     int32_t _defaultRecipe;                     // +0x4c the recipe Startup 0x140118ef0 selects
-    uint32_t _u50;                              // +0x50 enum (serialized through the uint door)
+    uint32_t _toolType;                              // +0x50 enum (serialized through the uint door)
     uint8_t _pad54[4];                          // +0x54 never written by the ctor
 };
 
@@ -93,10 +93,10 @@ static_assert(offsetof(ConsumeProduceDescription, _stringTable) == 0x20, "Consum
 static_assert(offsetof(ConsumeProduceDescription, _recipes) == 0x28, "ConsumeProduceDescription::_recipes @ +0x28");
 static_assert(offsetof(ConsumeProduceDescription, _recipeCount) == 0x30, "ConsumeProduceDescription::_recipeCount @ +0x30");
 static_assert(offsetof(ConsumeProduceDescription, _recipeCap) == 0x34, "ConsumeProduceDescription::_recipeCap @ +0x34");
-static_assert(offsetof(ConsumeProduceDescription, _toolType) == 0x38, "ConsumeProduceDescription::_toolType @ +0x38");
-static_assert(offsetof(ConsumeProduceDescription, _i3c) == 0x3c, "ConsumeProduceDescription::_i3c @ +0x3c");
-static_assert(offsetof(ConsumeProduceDescription, _i40) == 0x40, "ConsumeProduceDescription::_i40 @ +0x40");
-static_assert(offsetof(ConsumeProduceDescription, _f44) == 0x44, "ConsumeProduceDescription::_f44 @ +0x44");
-static_assert(offsetof(ConsumeProduceDescription, _i48) == 0x48, "ConsumeProduceDescription::_i48 @ +0x48");
+static_assert(offsetof(ConsumeProduceDescription, _messageType) == 0x38, "ConsumeProduceDescription::_messageType @ +0x38");
+static_assert(offsetof(ConsumeProduceDescription, _messageId) == 0x3c, "ConsumeProduceDescription::_messageId @ +0x3c");
+static_assert(offsetof(ConsumeProduceDescription, _workRequired) == 0x40, "ConsumeProduceDescription::_workRequired @ +0x40");
+static_assert(offsetof(ConsumeProduceDescription, _workTime) == 0x44, "ConsumeProduceDescription::_workTime @ +0x44");
+static_assert(offsetof(ConsumeProduceDescription, _maximumProduction) == 0x48, "ConsumeProduceDescription::_maximumProduction @ +0x48");
 static_assert(offsetof(ConsumeProduceDescription, _defaultRecipe) == 0x4c, "ConsumeProduceDescription::_defaultRecipe @ +0x4c");
-static_assert(offsetof(ConsumeProduceDescription, _u50) == 0x50, "ConsumeProduceDescription::_u50 @ +0x50");
+static_assert(offsetof(ConsumeProduceDescription, _toolType) == 0x50, "ConsumeProduceDescription::_toolType @ +0x50");

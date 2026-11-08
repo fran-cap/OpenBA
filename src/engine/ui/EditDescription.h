@@ -21,12 +21,12 @@
 // SIZE 0x88 (`MOV EDX,0x88` in 0x18003fa20). LAYOUT, the ctor
 // `??0EditDescription@UI@@QEAA@XZ` (0x1800d12c0, read as DISASSEMBLY by block
 // C3) after ElementDescription's +0x60:
-//     +0x68 qword 0   _ptr68     ExternalPtr<UI::Font> (0x18003f1e0) -> EditElement::_font
-//     +0x70 qword 0   _string70  System::String                      -> EditElement::_text
-//     +0x78 dword 0   _word78    kScalarInt                          -> EditElement::_maxLength
-//     +0x7c byte  0   _flag7c    kScalarBool                         -> EditElement::_password
+//     +0x68 qword 0   _font                ExternalPtr<UI::Font> (0x18003f1e0) -> EditElement::_font
+//     +0x70 qword 0   _initialText         System::String                      -> EditElement::_text
+//     +0x78 dword 0   _maxLength           kScalarInt                          -> EditElement::_maxLength
+//     +0x7c byte  0   _password            kScalarBool                         -> EditElement::_password
 //     +0x7d..+0x7f    NOT written
-//     +0x80 qword 0   _string80  System::String                      -> EditElement::_filter
+//     +0x80 qword 0   _allowableCharacters System::String                      -> EditElement::_filter
 // Names: the POD's. Where each lands is CreateInstance's copy (editdescription.cpp).
 //
 // ENDGAME B.3 step 9 (block UI-A, B39_RULES D1/D2): CONCRETE. The real public
@@ -58,10 +58,10 @@ public:
     // +0x70 QWORD 0, +0x78 DWORD 0, +0x7c BYTE 0, +0x80 QWORD 0. The three pad
     // bytes after +0x7c stay unwritten.
     EditDescription() : ElementDescription() {
-        _ptr68    = nullptr;
+        _font    = nullptr;
         // +0x70 / +0x80: the System::String members' own String() (B4 Y RT-UI).
-        _word78   = 0;
-        _flag7c   = 0;
+        _maxLength   = 0;
+        _password   = 0;
     }
 
     // [0] 0x18003fa20 — MSVC's VECTOR deleting destructor, both arms exactly as
@@ -94,12 +94,12 @@ public:
 private:
 
 public:
-    Font*   _ptr68;       // +0x68  ExternalPtr<UI::Font>
-    System::String _string70;  // +0x70  ctor 0x1800d12c0, dtor 0x1800d11f0 (second release)
-    int32_t _word78;      // +0x78  kScalarInt
-    bool    _flag7c;      // +0x7c  kScalarBool (B4: retail's SerializeBool operand)
+    Font*   _font;       // +0x68  ExternalPtr<UI::Font>
+    System::String _initialText;  // +0x70  ctor 0x1800d12c0, dtor 0x1800d11f0 (second release)
+    int32_t _maxLength;      // +0x78  kScalarInt
+    bool    _password;      // +0x7c  kScalarBool (B4: retail's SerializeBool operand)
     uint8_t _pad7d[3];    // +0x7d  never written
-    System::String _string80;  // +0x80  ctor 0x1800d12c0, dtor 0x1800d11f0 (first release)
+    System::String _allowableCharacters;  // +0x80  ctor 0x1800d12c0, dtor 0x1800d11f0 (first release)
 };
 
 static_assert(sizeof(EditDescription) == 0x88,
@@ -108,12 +108,12 @@ static_assert(offsetof(EditDescription, _pad7d) == 0x7D, "EditDescription::_pad7
 static_assert(alignof(EditDescription) == 8, "UI::EditDescription aligns to 8");
 static_assert(std::has_virtual_destructor<EditDescription>::value, "B3X W1: the normal-virtual cutover");
 static_assert(!std::is_abstract<EditDescription>::value, "B39 D1: concrete");
-static_assert(offsetof(EditDescription, _ptr68) == sizeof(ElementDescription), "");
-static_assert(offsetof(EditDescription, _ptr68)    == 0x68, "");
-static_assert(offsetof(EditDescription, _string70) == 0x70, "");
-static_assert(offsetof(EditDescription, _word78)   == 0x78, "");
-static_assert(offsetof(EditDescription, _flag7c)   == 0x7c, "");
-static_assert(offsetof(EditDescription, _string80) == 0x80, "");
+static_assert(offsetof(EditDescription, _font) == sizeof(ElementDescription), "");
+static_assert(offsetof(EditDescription, _font)    == 0x68, "");
+static_assert(offsetof(EditDescription, _initialText) == 0x70, "");
+static_assert(offsetof(EditDescription, _maxLength)   == 0x78, "");
+static_assert(offsetof(EditDescription, _password)   == 0x7c, "");
+static_assert(offsetof(EditDescription, _allowableCharacters) == 0x80, "");
 // RtUI::EditDescription is an ALIAS of this class since fragment pass F2; the
 // POD's offsets are the absolute asserts above.
 

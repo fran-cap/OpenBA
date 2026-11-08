@@ -196,7 +196,7 @@ void MoveTo::Persist(IO::Stream& stream) {
         }
     }
 
-    ser.Serialize(field_0x474, nullptr);       // +0x474 bool
+    ser.Serialize(isFollowing, nullptr);       // +0x474 bool
     ser.Serialize(speedMultiplier, nullptr);   // +0x478 float
 }
 
@@ -405,7 +405,7 @@ int  MoveTo::Execute(ActionStack* actionStack, const System::Time* time) {
         // Build 3D facing vector and set on character
         Math::Vector3 facing3d(dir2dN.x, dir2dN.y, 0.0f);
         CharacterComponent* mover = character.Get();
-        mover->field_0x28 = false;  // Clear animation lock flag
+        mover->steeredByMover = false;  // Clear animation lock flag
 
         // Build normalized facing vector from 2D components
         float scalarX = facing3d.x;
@@ -415,13 +415,13 @@ int  MoveTo::Execute(ActionStack* actionStack, const System::Time* time) {
         Math::Vector3 normalized = tempVec.Normalize();
 
         // Write facing direction to character (+0x2c, +0x30, +0x34)
-        mover->field_0x2C.x = normalized.x;
-        mover->field_0x2C.y = normalized.y;
-        mover->field_0x2C.z = normalized.z;
+        mover->moveDirection.x = normalized.x;
+        mover->moveDirection.y = normalized.y;
+        mover->moveDirection.z = normalized.z;
 
         // Compute heading angle from facing direction
         float heading = facing3d.Heading();
-        mover->field_0x3C = heading;
+        mover->targetHeading = heading;
 
         return 1;
     }
@@ -451,21 +451,21 @@ int  MoveTo::Execute(ActionStack* actionStack, const System::Time* time) {
                                             map->cells.GetSize(), curCell);
 
     float speed;
-    bool onRoad = field_0x474;
+    bool following = isFollowing;
 
-    if (onRoad) {
+    if (following) {
         // Following: the description's +0x30 speed
-        speed = description->_f30;
+        speed = description->_slowSpeed;
     } else {
         // Check terrain type for road tiles
         // terrainType & ~0x08 in {1, 0} means road/path tile: (type - 1) & ~8 is 0 exactly
         // for PathType::Fast (1, dirt road) and PathType::Bridge (9); retail's bit trick kept.
         if (((terrainType - 1) & 0xFFFFFFF7) == 0) {
             // Road tile -- use road speed
-            speed = description->_f34;
+            speed = description->_fastSpeed;
         } else if (terrainType == ToUnderlying(PathType::Faster)) {
             // PathType::Faster (stone road) -- the description's +0x38 speed
-            speed = description->_f38;
+            speed = description->_fastestSpeed;
         } else {
             // Default speed (e.g., grass) -- use g_fUVScale (1.0)
             speed = kRdata_14017214c;
@@ -473,7 +473,7 @@ int  MoveTo::Execute(ActionStack* actionStack, const System::Time* time) {
     }
 
     // Apply speed multiplier and set on character
-    character->field_0x38 = speed * speedMultiplier;
+    character->moveSpeedScale = speed * speedMultiplier;
 
     // Check if the citizen's CURRENT cell has reached the current waypoint cell.
     // Verified vs the real MoveTo::Execute (0x1400c8570): the comparison is
@@ -527,26 +527,26 @@ void MoveTo::Enter(ActionStack*, const System::Time*) {
             CharacterComponent* mover = character.Get();
 
             // Our character's facing direction (+0x2c..+0x34)
-            Math::Vector3 myFacing(mover->field_0x2C.x,
-                                   mover->field_0x2C.y,
-                                   mover->field_0x2C.z);
+            Math::Vector3 myFacing(mover->moveDirection.x,
+                                   mover->moveDirection.y,
+                                   mover->moveDirection.z);
 
             // The other character's facing direction
-            Math::Vector3 bridgeFacing(bridgeResult->field_0x2C.x,
-                                       bridgeResult->field_0x2C.y,
-                                       bridgeResult->field_0x2C.z);
+            Math::Vector3 bridgeFacing(bridgeResult->moveDirection.x,
+                                       bridgeResult->moveDirection.y,
+                                       bridgeResult->moveDirection.z);
 
             // this = bridgeFacing, other = myFacing (the original's RCX / R8).
             float dotOut = bridgeFacing.Dot(myFacing).v;
             if (dotOut > 0.0f) {
-                field_0x474 = true;
+                isFollowing = true;
                 return;
             }
         }
     }
 
     // None, or facing away -- clear the flag
-    field_0x474 = false;
+    isFollowing = false;
 }
 
 // ============================================================
@@ -594,12 +594,7 @@ MoveTo::MoveTo()
       character(nullptr),
       description(nullptr),
       destination(),
-      field_0x44(0),
-      field_0x48(0),
-      field_0x4C(0),
-      field_0x50(0),
-      field_0x54(0),
-      field_0x58(0),
+      unusedZeroed{0, 0, 0, 0, 0, 0},
       passFlags(0),
       pathIndex(-1),
       pathCount(0),
@@ -607,7 +602,7 @@ MoveTo::MoveTo()
       moveAnimation(0),
       stopAnimation(0),
       movementProfile(0),
-      field_0x474(false),
+      isFollowing(false),
       _pad475{},
       speedMultiplier(1.0f),
       _pad47C{} {
@@ -656,19 +651,16 @@ MoveTo::MoveTo(CharacterComponent* const* characterRef, uint32_t moveAnim, int s
     destination.y = dest[1];
     destination.z = dest[2];
     // H7: retail zeroes +0x44..+0x5B with three qword stores.
-    field_0x44 = 0;
-    field_0x48 = 0;
-    field_0x4C = 0;
-    field_0x50 = 0;
-    field_0x54 = 0;
-    field_0x58 = 0;
+    for (int32_t& word : unusedZeroed) {
+        word = 0;
+    }
     passFlags = Bits(passFlagsArg);
     pathIndex = -1;
     pathCount = 0;
     moveAnimation = static_cast<int32_t>(moveAnim);
     stopAnimation = stopAnim;
     movementProfile = profile;
-    field_0x474 = false;
+    isFollowing = false;
     Description* obj = character->_description;
     // DAT_1401c70b0 is CharacterDescription's type-id cell (Table 1).
     // B6 (14d G67): IsDerivedFrom(+0x18, cell 0x1401c70b0) with no zero-id test, and

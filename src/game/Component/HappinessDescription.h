@@ -41,7 +41,7 @@ public:
     bool _needsGoods;               // +0x25 IsActive 0x14004a550: a stored good matching _goodsFlags
     uint8_t _pad26[2];              // +0x26 never written by the ctor
     uint32_t _goodsFlags;           // +0x28 RawMaterialDescription::_flags mask (serialized as an enum)
-    int32_t _i2c;                               // +0x2c
+    int32_t _idleRange;                               // +0x2c
 };
 
 static_assert(sizeof(HappinessDescription) == 0x30, "HappinessDescription is 0x30 (create 0x140005c10 MemAlloc(0x30))");
@@ -51,4 +51,4 @@ static_assert(offsetof(HappinessDescription, _happinessType) == 0x20, "Happiness
 static_assert(offsetof(HappinessDescription, _needsWorkers) == 0x24, "HappinessDescription::_needsWorkers @ +0x24");
 static_assert(offsetof(HappinessDescription, _needsGoods) == 0x25, "HappinessDescription::_needsGoods @ +0x25");
 static_assert(offsetof(HappinessDescription, _goodsFlags) == 0x28, "HappinessDescription::_goodsFlags @ +0x28");
-static_assert(offsetof(HappinessDescription, _i2c) == 0x2c, "HappinessDescription::_i2c @ +0x2c");
+static_assert(offsetof(HappinessDescription, _idleRange) == 0x2c, "HappinessDescription::_idleRange @ +0x2c");

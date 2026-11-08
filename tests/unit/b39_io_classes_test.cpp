@@ -227,8 +227,8 @@ UNIT_TEST(b39_io_binarywriter_ctor_and_dtor_frame_the_record) {
     for (int i = 0x09; i < 0x10; ++i) CHECK_EQ((int)mem[i], 0xCD);   // not written
     CHECK(w->serializer == &ser);
     CHECK(w->stream == static_cast<void*>(&f));
-    CHECK_EQ(w->word20, 4);                              // after the magic
-    CHECK_EQ(w->word24, 8);                              // after the placeholder
+    CHECK_EQ(w->lengthFieldPos, 4);                              // after the magic
+    CHECK_EQ(w->recordStart, 8);                              // after the placeholder
     CHECK_EQ(w->version, 7);
     CHECK_EQ(w->GetVersion(), 7);
     CHECK_EQ((uint32_t)Dword(f, 0), IO::kRecordMagic);
@@ -255,8 +255,8 @@ UNIT_TEST(b39_io_binaryreader_consumes_the_record_both_arms) {
     SerBuf sb; IO::Serializer& ser = SerOver(sb, f);
     void* p = std::malloc(0x30);
     IO::BinaryReader* r = ::new (p) IO::BinaryReader(ser, 99);
-    CHECK_EQ(r->word20, 8);
-    CHECK_EQ(r->word24, 8);
+    CHECK_EQ(r->recordLength, 8);
+    CHECK_EQ(r->recordStart, 8);
     CHECK_EQ(r->version, 9);                             // 99 overwritten by the read
     CHECK_EQ(f.reads, 3);
     f.pos = 16;                                          // past the payload
@@ -366,7 +366,7 @@ UNIT_TEST(b39_io_filestream_family_shape) {
 }
 
 // 0x1800aaa10: Stream base, `_filename` null, FileInfo handle -1, size/cursor
-// 0, baseOffset 0, both names null, winHandle -1; +0x24 (_unk04), +0x34
+// 0, baseOffset 0, both names null, winHandle -1; +0x24 (copiedUnwrittenWord), +0x34
 // (_pad14) and +0x0c never written; NO encoding. 0x1800a8200 adds the BINARY
 // encoding and nothing else.
 UNIT_TEST(b39_io_filestream_and_binaryfilestream_ctor_stores) {
@@ -386,7 +386,7 @@ UNIT_TEST(b39_io_filestream_and_binaryfilestream_ctor_stores) {
     CHECK(fs->_file._name0._data == nullptr);
     CHECK(fs->_file._name1._data == nullptr);
     for (int i = 0x0c; i < 0x10; ++i) CHECK_EQ((int)mem[i], 0xCD);
-    for (int i = 0x24; i < 0x28; ++i) CHECK_EQ((int)mem[i], 0xCD);   // FileInfo::_unk04
+    for (int i = 0x24; i < 0x28; ++i) CHECK_EQ((int)mem[i], 0xCD);   // FileInfo::copiedUnwrittenWord
     for (int i = 0x34; i < 0x38; ++i) CHECK_EQ((int)mem[i], 0xCD);   // FileInfo padding at +0x14
     fs->~FileStream();                                  // retail flags 0
 
@@ -534,10 +534,10 @@ UNIT_TEST(b39_io_packagefile_shape_ctor_and_both_arms) {
     std::memset(mem, 0xCD, sizeof mem);
     IO::PackageFile* pf = ::new (mem) IO::PackageFile();
     CHECK(pf->_path._data == nullptr);
-    CHECK(pf->_stringArray20._data == nullptr);
-    CHECK_EQ(pf->_stringArray30._size, 0);
+    CHECK(pf->_includeList._data == nullptr);
+    CHECK_EQ(pf->_excludeList._size, 0);
     CHECK(pf->_name._data == nullptr);
-    CHECK(pf->_string60._data == nullptr);
+    CHECK(pf->_preview._data == nullptr);
     CHECK_EQ(pf->_version, 0);
     CHECK_EQ(pf->_priority, IO::PackageFile::kDefaultPriority);
     CHECK_EQ(pf->_platform, 0);

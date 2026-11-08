@@ -439,7 +439,7 @@ bool Start() {
     ScreenSize(run.screenW, run.screenH);
     // the ground's height range, from the height words (z * 256); trees and buildings stand above it
     const int16_t* heights = game->m_worldGeometry->_heights.data;
-    const int stride = game->m_worldGeometry->_fieldD0;
+    const int stride = game->m_worldGeometry->_heightRowStride;
     float zLow = 0.0f;
     float zHigh = 0.0f;
     if (heights != nullptr && stride > 0) {
@@ -585,7 +585,7 @@ void DrawScene(Graphics::Renderer& renderer, Video::Context& context, float alph
     if (g_run.hideSnow) {
         // The snow lying on the ground is a coverage the weather pushes to the terrain's shaders every frame
         // (WeatherSimulation::DrawUpdate, step 5); the screenshot draws the ground bare.
-        context._unknown03b8.x = 0.0f;
+        context._userPosition.x = 0.0f;
         context._pixelConstantStaging.pixel[4].x = 0.0f;
         context._dirty |= kSnowConstantsDirty;
     }

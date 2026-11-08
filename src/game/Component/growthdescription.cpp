@@ -42,46 +42,46 @@
 // the defaults.
 GrowthDescription::GrowthDescription()
     : Description(),
-      _f20(-1.0f),
-      _f24(0.0f),
-      _f28(1.0f),
-      _b2c(false),
-      _f30(0.0f),
-      _f34(0.0f),
-      _b38(false),
-      _f3c(1.0f),
-      _f40(1.0f),
-      _b44(false),
-      _i48(0),
-      _i4c(0),
-      _i50(0),
-      _f54(0.0f),
-      _i58(3),
-      _i5c(3),
-      _f60(0.0f),
-      _b64(false) {}
+      _maxGrowth(-1.0f),
+      _maxGrowthTolerance(0.0f),
+      _growthInMonths(1.0f),
+      _temperatureDependent(false),
+      _growthTemp(0.0f),
+      _growthTempRange(0.0f),
+      _soilDependent(false),
+      _soilQualityChangeOnRemove(1.0f),
+      _soilQualityChangeOnDecay(1.0f),
+      _autoSeed(false),
+      _seedChance(0),
+      _seedDistance(0),
+      _seedTimeMonths(0),
+      _growthForSeeding(0.0f),
+      _maxNeighbors(3),
+      _maxNeighborsSelf(3),
+      _minScale(0.0f),
+      _zScale(false) {}
 
 // [5] 0x140120980: stream order as retail.
 bool GrowthDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_f20, nullptr);
-    ser.Serialize(_f24, nullptr);
-    ser.Serialize(_f28, nullptr);
-    ser.Serialize(_b2c, nullptr);
-    ser.Serialize(_f30, nullptr);
-    ser.Serialize(_f34, nullptr);
-    ser.Serialize(_b38, nullptr);
-    ser.Serialize(_f3c, nullptr);
-    ser.Serialize(_f40, nullptr);
-    ser.Serialize(_b44, nullptr);
-    ser.Serialize(_i4c, nullptr);
-    ser.Serialize(_i50, nullptr);
-    ser.Serialize(_i48, nullptr);
-    ser.Serialize(_f54, nullptr);
-    ser.Serialize(_i58, nullptr);
-    ser.Serialize(_i5c, nullptr);
-    ser.Serialize(_f60, nullptr);
-    ser.Serialize(_b64, nullptr);
+    ser.Serialize(_maxGrowth, nullptr);
+    ser.Serialize(_maxGrowthTolerance, nullptr);
+    ser.Serialize(_growthInMonths, nullptr);
+    ser.Serialize(_temperatureDependent, nullptr);
+    ser.Serialize(_growthTemp, nullptr);
+    ser.Serialize(_growthTempRange, nullptr);
+    ser.Serialize(_soilDependent, nullptr);
+    ser.Serialize(_soilQualityChangeOnRemove, nullptr);
+    ser.Serialize(_soilQualityChangeOnDecay, nullptr);
+    ser.Serialize(_autoSeed, nullptr);
+    ser.Serialize(_seedDistance, nullptr);
+    ser.Serialize(_seedTimeMonths, nullptr);
+    ser.Serialize(_seedChance, nullptr);
+    ser.Serialize(_growthForSeeding, nullptr);
+    ser.Serialize(_maxNeighbors, nullptr);
+    ser.Serialize(_maxNeighborsSelf, nullptr);
+    ser.Serialize(_minScale, nullptr);
+    ser.Serialize(_zScale, nullptr);
     return true;
 }
 

@@ -44,8 +44,8 @@
 #include "system/Value.h"      // System::Time (+0x30 / +0x38; trivial, 8 bytes)
 #include "collection/Collection.h"   // Collection::Set<T>::Node (the leaves' worker sets)
 
-class ComponentEntity;   // B4 WORK-a: field_10 typed (H4)
-class WorkComponent;     // B4 WORK-c: field_18 typed (H4)
+class ComponentEntity;   // B4 WORK-a: _entity typed (H4)
+class WorkComponent;     // B4 WORK-c: _workComponent typed (H4)
 class CitizenComponent;
 class CompleteTask;
 class Profession;        // B4 P2 S2: slot 10's return buffer
@@ -76,7 +76,7 @@ static_assert(sizeof(WorkEntitySetNode) == 0x30, "entity set node: MemAlloc(0x30
 static_assert(sizeof(WorkCellSetNode) == 0x30, "cell set node: MemAlloc(0x30)");
 
 // The per-spot state of a work with fixed positions: one int32 per spot in
-// FishingWork::spotStates (+0x58) and ConsumeProduce::field_68 (+0x68). Both arrays stay
+// FishingWork::spotStates (+0x58) and ConsumeProduce::_spotStates (+0x68). Both arrays stay
 // Collection::Array<int32_t> (the 0x1400021d0 trait row, Persist's int-array overload);
 // the enum only names the values retail stores. The cycle: Execute claims an Available
 // spot (InUse); OnComplete, or Validate for a spot no citizen holds, marks it NeedsReset;
@@ -135,15 +135,15 @@ public:
 
     // ---- the 0x38 bytes Work adds, retail order ------------------------------
     // PUBLIC while unconverted bodies read them at raw offsets (decision 1).
-    Object::InternalPtr<ComponentEntity> field_10;   // +0x10 the owning entity (Persist 0x1400f7400 validates ComponentEntity)
-    Object::InternalPtr<WorkComponent>   field_18;   // +0x18 the entity's WorkComponent (Persist validates it)
-    int32_t  field_20;   // +0x20 work id (-1)
-    int32_t  field_24;   // +0x24 (Persist copies +0x20 into it before v1)
-    int32_t  field_28;   // +0x28 target map cell (-1)
-    int32_t  field_2c;   // +0x2c
-    System::Time field_30;   // +0x30 System::Time (Persist v3, ?Serialize@Time@System@@)
-    System::Time field_38;   // +0x38 System::Time (Persist v3)
-    int32_t  field_40;   // +0x40
+    Object::InternalPtr<ComponentEntity> _entity;   // +0x10 the owning entity (Persist 0x1400f7400 validates ComponentEntity)
+    Object::InternalPtr<WorkComponent>   _workComponent;   // +0x18 the entity's WorkComponent (Persist validates it)
+    int32_t  _workId;   // +0x20 work id (-1)
+    int32_t  _queueOrder;   // +0x24 (Persist copies +0x20 into it before v1)
+    int32_t  _cell;   // +0x28 target map cell (-1)
+    int32_t  _lastRejectStep;   // +0x2c
+    System::Time _waitTime;   // +0x30 System::Time (Persist v3, ?Serialize@Time@System@@)
+    System::Time _waitBaseTime;   // +0x38 System::Time (Persist v3)
+    int32_t  _tooFarCount;   // +0x40
     uint8_t  _pad44[4];  // +0x44 never written
 
     // The body of the shared base ctor 0x1400f72e0 MINUS its `??0Internal` call
@@ -187,13 +187,13 @@ public:
 static_assert(sizeof(Work) == 0x48, "Work is 0x48 bytes (0x10 Internal + 0x38)");
 static_assert(offsetof(Work, _pad44) == 0x44, "Work::_pad44");
 static_assert(alignof(Work) == 8, "Work is 8-aligned");
-static_assert(offsetof(Work, field_10) == 0x10, "Work +0x10 entity InternalPtr (Persist 0x1400f7400)");
-static_assert(offsetof(Work, field_18) == 0x18, "Work +0x18 WorkComponent InternalPtr");
-static_assert(offsetof(Work, field_20) == 0x20, "Work +0x20 work id, -1 (0x1400f72e0)");
-static_assert(offsetof(Work, field_24) == 0x24, "Work +0x24");
-static_assert(offsetof(Work, field_28) == 0x28, "Work +0x28 target cell, -1 (0x1400f72e0)");
-static_assert(offsetof(Work, field_2c) == 0x2c, "Work +0x2c");
-static_assert(offsetof(Work, field_30) == 0x30, "Work +0x30 System::Time (Persist v3)");
-static_assert(offsetof(Work, field_38) == 0x38, "Work +0x38 System::Time (Persist v3)");
-static_assert(offsetof(Work, field_40) == 0x40, "Work +0x40 (Persist v3)");
+static_assert(offsetof(Work, _entity) == 0x10, "Work +0x10 entity InternalPtr (Persist 0x1400f7400)");
+static_assert(offsetof(Work, _workComponent) == 0x18, "Work +0x18 WorkComponent InternalPtr");
+static_assert(offsetof(Work, _workId) == 0x20, "Work +0x20 work id, -1 (0x1400f72e0)");
+static_assert(offsetof(Work, _queueOrder) == 0x24, "Work +0x24");
+static_assert(offsetof(Work, _cell) == 0x28, "Work +0x28 target cell, -1 (0x1400f72e0)");
+static_assert(offsetof(Work, _lastRejectStep) == 0x2c, "Work +0x2c");
+static_assert(offsetof(Work, _waitTime) == 0x30, "Work +0x30 System::Time (Persist v3)");
+static_assert(offsetof(Work, _waitBaseTime) == 0x38, "Work +0x38 System::Time (Persist v3)");
+static_assert(offsetof(Work, _tooFarCount) == 0x40, "Work +0x40 (Persist v3)");
 

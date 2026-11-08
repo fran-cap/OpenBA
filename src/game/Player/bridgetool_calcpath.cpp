@@ -231,8 +231,8 @@ bool BridgeTool::CalcPath(int startCell, int endCell) {
 
     const CreateBridgeDescription* desc = bridgeDesc;
     if (!desc) return 0;
-    const uint32_t maskBody = desc->_u20;
-    const int      radius   = desc->_i34;
+    const uint32_t maskBody = desc->_placeBits;
+    const int      radius   = desc->_edgeWidth;
 
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
     if (!gameWorld) return 0;
@@ -354,7 +354,7 @@ bool BridgeTool::CalcPath(int startCell, int endCell) {
         else if (rawSize == 4) tplIdx = 3;
         else if (rawSize == 8) tplIdx = 4;
 
-        ComponentDescription* tpl = desc->_refs[tplIdx];
+        ComponentDescription* tpl = desc->_sections[tplIdx];
         ComponentEntity* seg = CloneEntity(tpl);
         if (seg) {
             Object::InternalPtr<ComponentEntity> segIBP = seg;   // the InternalBasePtr's eight bytes

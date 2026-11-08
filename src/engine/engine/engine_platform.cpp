@@ -232,7 +232,7 @@ void ResetConfigurations(EngineT* self) {
             p->refreshDenominator = 1;                    // +0x3c
             p->fullscreen         = 1;                    // +0x40
             p->vsync              = 1;                    // +0x41
-            p->field42            = 0;                    // +0x42
+            p->hideWindow            = 0;                    // +0x42
             ::Video::Configuration::_singleton = p;
         }
         self->_videoConfiguration = p;
