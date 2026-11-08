@@ -97,4 +97,11 @@ bool BackendAvailable(int index);
 // range or while a device exists.
 bool SelectBackend(int index);
 
+// True once a backend other than the active one has made a device on the game window this run (only in an
+// exe with more than one backend; a one-backend build answers false). A Windows window that has carried a
+// Vulkan swap chain no longer shows a blit-model DXGI swap chain presented with a sync interval (the picture
+// stays on the last Vulkan frame while Present returns S_OK); the DX11 backend asks this to make a flip-model
+// swap chain instead (src/render/dx11/devicedata.cpp, ext.render_backend).
+bool WindowPresentedByOtherBackend();
+
 }  // namespace Render

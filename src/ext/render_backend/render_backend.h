@@ -22,8 +22,9 @@
 //   1                   1               Vulkan, DirectX 11 when Vulkan cannot start
 //
 // THE MENU. With the row on, the Video tab's Renderer combo lists one item per backend in slot 1's place
-// (retail's DX9 placeholder item stays). Picking the other backend makes ApplyVideoSettings run retail's
-// full restart (ReadVideoRow says the renderer changed); CommitVideoRow, between Device::Shutdown and
+// and nothing else (the index placeholder "DirectX 9" is not listed: only DirectX 11 and Vulkan).
+// Picking the other backend makes ApplyVideoSettings run retail's full restart (ReadVideoRow says the
+// renderer changed); CommitVideoRow, between Device::Shutdown and
 // Device::Startup, selects the backend and lists the adapters again (the two backends' adapter lists
 // mean different things: DXGI adapter / output pairs, Vulkan physical devices).
 //

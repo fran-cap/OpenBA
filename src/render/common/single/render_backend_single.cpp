@@ -45,4 +45,8 @@ bool SelectBackend(int index) {
     return index == 0;
 }
 
+bool WindowPresentedByOtherBackend() {
+    return false;
+}
+
 }  // namespace Render

@@ -83,6 +83,26 @@ nvoglv64.dll.
   `ReleaseShader` erases only its own entry.
 - **Scope:** Vulkan's own device-lost recovery has the same window.
 
+## Fixes from the maintainer's hand test (2026-11-08)
+
+1. **"DirectX 9" in the Renderer combo.** The interface list keeps retail's index == slot invariant with
+   a placeholder in slot 0 ("DirectX 9" in the DX11 build, "Vulkan (compatibility slot)" in the Vulkan
+   build; its CreateDevice always fails, `dx9_placeholder.cpp`). Retail lists DirectX 9 because it ships
+   VideoDX9-x64.dll. The dual exe's combo (`OpenVideoRow`) now lists slot 1's backends only: DirectX 11
+   and Vulkan. The one-backend builds still list their placeholder, as main does; hiding it there would
+   change the faithful Options dialog and is left for a ruling.
+2. **Vulkan -> DirectX 11 froze the picture.** Reproduced with the user's settings: the frame loop runs,
+   every Present returns S_OK, and the window keeps the last Vulkan frame. The trigger is `VideoVSync=true`
+   alone (the same run with VSync off stays live; the window size, `ext.render_pipe` and the extension set
+   do not matter, and destroying the VkInstance at the switch does not help). After a Vulkan swap chain on
+   a window, retail's blit-model DXGI swap chain (`DXGI_SWAP_EFFECT_DISCARD`) presented with a sync
+   interval no longer reaches the screen. Fix: `Render::WindowPresentedByOtherBackend()` (neutral; the
+   dispatcher records which backends made a device on the window, a one-backend build answers false), and
+   the DX11 backend makes a flip-model chain (`DXGI_SWAP_EFFECT_FLIP_DISCARD`) only then; its resize keeps
+   two buffers for such a chain (retail resizes its blit chain to one). Every other DX11 start keeps
+   retail's chain. Checked with window captures (`PrintWindow`, a hash every 2 s): the user's settings,
+   DX11 -> Vulkan -> DX11 -> Vulkan -> DX11, the picture live in every phase.
+
 ## Tests (Windows, RTX 5080, 2026-11-08, rebased on main 250bbfee2)
 
 | Test | Result |
@@ -91,6 +111,8 @@ nvoglv64.dll.
 | dual debug, boot Vulkan with AO, Fancy clouds and water on (the shared depth copy), Vulkan -> DX11 -> Vulkan -> DX11 | PASS, clean shutdown; the depth copy is made, released and made again on each backend |
 | forced Vulkan CreateDevice failure at boot (`failcreate=vulkan`) | DX11 fallback PASS; `fallback saved: ext.render_api=0`; the next plain boot wants and starts DX11 |
 | fresh install over a retail registry import (`settings.cfg` moved aside, the retail registry present) | PASS: the file is written as the import (155 entries) plus the two keys, and the boot starts Vulkan |
+| user's settings (VSync, MSAA 4x, AO High, borderless row, `render_pipe=0`), DX11 -> Vulkan -> DX11 -> Vulkan -> DX11, window captures | PASS after the flip-model fix (frozen before it) |
+| Options Video tab, dual exe | 2 renderer items (DirectX 11, Vulkan) |
 | fresh install with nothing to import | not run: it needs the retail registry key gone |
 | probe-level failure (`Available()` false) | not run: the Vulkan loader ignores `VK_LOADER_DRIVERS_*` in an elevated shell |
 | `tools/build.sh unit` (DX11) | 2297 ok, 0 FAIL |

@@ -79,6 +79,9 @@ int Count() {
 // The active backend's index. Written only by SelectBackend (no device exists then); read by every
 // forward below, the loader and render threads' included.
 std::atomic<int> g_active{0};
+// The backends that made a device on the game window this run, a bit per index (CreateDeviceData with the
+// window known): WindowPresentedByOtherBackend.
+std::atomic<uint32_t> g_onWindow{0};
 
 const BackendTable& Active() {
     return TableAt(g_active.load(std::memory_order_acquire));
@@ -242,7 +245,15 @@ const char* DeviceName() {
     // placeholder, whose CreateDevice fails, so PlatformStartup's fallback runs on a real failure path.
     if (RenderSwitchDrive::TakeFailCreate(Active().id, device != nullptr && device->windowHandle != nullptr))
         return Active().placeholderCreateDeviceData(device);
+    if (device != nullptr && device->windowHandle != nullptr)
+        g_onWindow.fetch_or(1u << g_active.load(std::memory_order_acquire), std::memory_order_acq_rel);
     return Active().createDeviceData(device);
+}
+
+bool WindowPresentedByOtherBackend() {
+    const uint32_t others = g_onWindow.load(std::memory_order_acquire) &
+                            ~(1u << g_active.load(std::memory_order_acquire));
+    return others != 0;
 }
 
 // The game window is made before any backend is picked for certain, and with no graphics-API flag:

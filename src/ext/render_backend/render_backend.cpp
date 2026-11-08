@@ -241,27 +241,23 @@ void OpenVideoRow(UI::DialogInstance* dialog, UI::ComboElement* comboRenderer) {
     if (!Offered() || dialog == nullptr || comboRenderer == nullptr) return;
     const Video::Device* vidDev = Video::Device::_singleton;
     if (vidDev == nullptr || vidDev->interfaceCount <= kSharedSlot) return;
-    // Retail's items rebuilt in the same order, slot 1's one item replaced by one per backend. Every
-    // backend item carries slot 1's index as its data, so retail's handlers (the Renderer combo's
-    // SelectionChanged, ApplyVideoSettings) still read interface 1.
-    const int32_t current = comboRenderer->GetCurrentItem();
-    const intptr_t currentSlot = current >= 0 ? reinterpret_cast<intptr_t>(comboRenderer->GetItemData(current)) : -1;
+    // Slot 1's one item replaced by one per backend, and nothing else: the other slots hold the index
+    // placeholder ("DirectX 9", whose CreateDevice always fails; dx9_placeholder.cpp), which the dual exe
+    // does not offer (maintainer ruling 2026-11-08: only DirectX 11 and Vulkan are listed). Every backend
+    // item carries slot 1's index as its data, so retail's handlers (the Renderer combo's SelectionChanged,
+    // ApplyVideoSettings) still read interface 1.
     comboRenderer->RemoveAllItems();
     int32_t select = -1;
     for (int i = 0; i < vidDev->interfaceCount; ++i) {
         UI::Sprite sprite;
         void* itemData = reinterpret_cast<void*>(static_cast<intptr_t>(i));   // CAST-OK: ptr_int (retail's item data)
-        if (i != kSharedSlot) {
-            const int32_t item = comboRenderer->AddItem(sprite, vidDev->interfaceData[i].name, itemData);
-            if (currentSlot == i) select = item;
-            continue;
-        }
+        if (i != kSharedSlot) continue;
         for (int b = 0; b < Render::BackendCount(); ++b) {
             System::String name;
             name.Set(Render::BackendName(b));
             const int32_t item = comboRenderer->AddItem(sprite, name, itemData);
             if (b == 0) g_firstBackendItem = item;
-            if (currentSlot == i && b == Render::ActiveBackend()) select = item;
+            if (b == Render::ActiveBackend()) select = item;   // the device runs on slot 1 (the placeholder never starts)
         }
     }
     if (select >= 0) comboRenderer->SetCurrentItem(select);
