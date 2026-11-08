@@ -59,9 +59,9 @@ UNIT_TEST(ext_high_limits_registry_row) {
         return;
     CHECK(e->tier == Ext::Tier::Extension);
     CHECK(e->cls == Ext::Class::B);   // no per-town state, but a value the faithful spinner cannot show
-    CHECK(!e->defaultOn);
+    CHECK(e->defaultOn);   // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(Ext::SettingsKey(*e) == "ext.high_limits");
-    CHECK(!ResolveText("").ext.high_limits);
+    CHECK(ResolveText("").ext.high_limits);   // ON by default (ruled 2026-11-08 for 1.0.3)
     CHECK(ResolveText("ext.high_limits=1\n").ext.high_limits);
     CHECK(!ResolveText("profile=faithful\n").ext.high_limits);   // the faithful profile turns it off
 }
@@ -77,7 +77,7 @@ UNIT_TEST(ext_high_limits_the_values_are_consistent) {
 }
 
 UNIT_TEST(ext_high_limits_the_values_follow_the_row) {
-    InstallText("");
+    InstallText("ext.high_limits=0\n");
     CHECK(!Active());
     CHECK_EQ(MaxValue(), kRetailMax);
     CHECK_EQ(MaxDigits(), kRetailDigits);   // off: retail's range

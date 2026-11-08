@@ -32,7 +32,7 @@ UNIT_TEST(ext_drain_split_registry_row) {
     const Ext::Entry& e = E("drain_split");
     CHECK(e.tier == Ext::Tier::Extension);
     CHECK(e.cls == Ext::Class::B);           // the seats move a frame: the sim diverges
-    CHECK(!e.defaultOn);
+    CHECK(e.defaultOn);   // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(e.formatVersion == 1);
     CHECK(std::strstr(e.description, "iverges") != nullptr);
     CHECK(Ext::SettingsKey(e) == "ext.drain_split");

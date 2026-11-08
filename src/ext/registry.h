@@ -256,7 +256,7 @@ struct Entry {
     const char* id;             // settings key suffix: `fix.<id>` / `ext.<id>`
     Tier        tier;
     Class       cls;            // Class::None for a fix
-    bool        defaultOn;      // fixes and class A default ON, class B / C OFF (DESIGN.md §2)
+    bool        defaultOn;      // fixes and class A default ON, class B / C OFF but the 1.0.3 rows (DESIGN.md §2)
     const char* displayName;    // the dialog's row title
     const char* description;    // the dialog's row text
     int32_t     formatVersion;  // class B and C: >= 1 (pseudo-mod ModInfo +0x18, the save manifest); 0 otherwise

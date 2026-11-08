@@ -268,13 +268,13 @@ UNIT_TEST(ext_winter_ice_channel_keeps_to_the_middle) {
 
 // ---- ext.walk_on_ice (WINTERICE.md section 5): the row and its save record ----------------------------
 
-UNIT_TEST(ext_walk_on_ice_row_is_class_c_default_off) {
+UNIT_TEST(ext_walk_on_ice_row_is_class_c_default_on) {
     const Ext::Entry* found = Ext::FindEntry("walk_on_ice");
     CHECK(found != nullptr);
     if (!found) return;
     CHECK(found->tier == Ext::Tier::Extension);
     CHECK(found->cls == Ext::Class::C);
-    CHECK(!found->defaultOn);
+    CHECK(found->defaultOn);   // ON by default (ruled 2026-11-08 for 1.0.3)
     CHECK(found->formatVersion == Ext::WinterIce::kWalkWireVersion);
     CHECK(Ext::SettingsKey(*found) == "ext.walk_on_ice");
     const Ext::SaveTail::StateCodec* codec = Ext::SaveTail::FindCodec("walk_on_ice");

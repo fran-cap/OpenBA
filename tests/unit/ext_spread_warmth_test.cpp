@@ -26,7 +26,7 @@ UNIT_TEST(ext_spread_warmth_registry_row) {
     const Ext::Entry& e = E("spread_warmth");
     CHECK(e.tier == Ext::Tier::Extension);
     CHECK(e.cls == Ext::Class::B);           // a deferred citizen diverges from retail
-    CHECK(!e.defaultOn);
+    CHECK(e.defaultOn);   // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(e.formatVersion == 1);
     CHECK(std::strstr(e.description, "iverges") != nullptr);
     CHECK(Ext::SettingsKey(e) == "ext.spread_warmth");
