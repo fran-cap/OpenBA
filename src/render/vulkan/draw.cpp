@@ -207,6 +207,10 @@ struct Frame {
     // Issue #253: the AO apply runs in the main target's pass, which DrawAoEnd leaves open for the
     // Blended draws (DrawAoBeginApply).
     bool aoApplyInMain = false;
+    // The shared depth copy (depth_copy/depth_copy.h): every engine draw that may write the main depth (a
+    // pass with the main depth attached and a state that tests and writes it) and every depth clear
+    // counts here. A copy made at count N is the main depth as long as the count is still N.
+    uint64_t mainDepthWrites = 0;
     VkPipeline pipeline = VK_NULL_HANDLE;
     bool viewportSet = false;
     VkViewport viewport{};
@@ -1369,6 +1373,7 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
         ++g_frame.failedDraws;
         return;
     }
+    if (state.depthTest && state.depthWrite && g_frame.pass.depth == &g_main.depthState) ++g_frame.mainDepthWrites;
     VkCommandBuffer cb = g_frame.target.cb;
 
     PipelineKey key;
@@ -1910,6 +1915,7 @@ void ContextData::Clear(Video::ClearFlags flags, unsigned color, float depth, in
     if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::Depth)) {
         g_clear.depth = true;
         g_clear.depthValue = depth;
+        ++g_frame.mainDepthWrites;   // any depth clear (the shared depth copy's rule: never under-count)
     }
     if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::Stencil)) {
         g_clear.stencil = true;
@@ -2140,6 +2146,25 @@ bool DrawAoBegin(AoTargets* out) {
     out->colorFormat = SwapchainFormat();
     g_frame.aoDepthRead = true;
     return true;
+}
+
+bool DrawAoBeginKeepDepth(AoTargets* out) {
+    if (!g_frame.active || !g_main.depth.image || !g_main.readable || !g_main.depthSampled) return false;
+    FlushPendingClear();
+    EndPass();
+    out->cb = g_frame.target.cb;
+    out->slot = g_frame.target.slot;
+    out->frame = g_frame.index;
+    out->depthView = g_main.depthSampled;   // not to be read: the depth stays an attachment
+    out->extent = g_main.extent;
+    out->samples = g_main.samples;
+    out->msrtss = g_main.samples > 1 && g_main.msrtss;
+    out->colorFormat = SwapchainFormat();
+    return true;
+}
+
+uint64_t DrawMainDepthWrites() {
+    return g_frame.mainDepthWrites;
 }
 
 uint64_t DrawFrameIndex() {
