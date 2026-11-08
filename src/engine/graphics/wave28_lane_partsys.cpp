@@ -876,6 +876,9 @@ namespace Graphics {
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): ext.eye_camera's shadow-fit view (SunLight.h has the contract).
 const Camera* SunLight::_extShadowFitView = nullptr;
 
+// NOT RETAIL (ext.camera_angle): null = retail's 256-deep sun box.
+const bool* SunLight::_extDeepSunBox = nullptr;
+
 // NOT RETAIL (ext.staggered_passes, graphics/stagger_hold.h): null = retail.
 const int32_t* SunLight::_extStaggerEvery = nullptr;
 

@@ -63,6 +63,8 @@ lines crossed the status icons.
 
 The third is in `GameUpdateLoop::Load` (`gameupdateloop_load.cpp`), after the class lock: `OnGameStart` (see section 1).
 
+The draw sets the scene's camera itself (`Context::SetCamera`, as `MapOverlays::DrawVertices` does) rather than relying on the camera the opaque list left bound: on Vulkan the draw before it in the seam (ext.better_clouds Fancy's shadow pass) ends the pass and resets the bound state. It streams its triangles in batches of 6 x 8192 vertices, so a box near `kMaxTiles` never asks the 8 MB stream for one oversized block.
+
 The icon is `tools/ext_icons/showgrid.py` (`Entry_show_grid.png`, `ExtensionsSprites.rsc`, rebaked
 `ext_sprites_data.h`).
 

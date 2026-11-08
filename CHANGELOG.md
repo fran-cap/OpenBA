@@ -7,6 +7,14 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 ## Unreleased
 
 **Extensions**
+- Better water (`ext.better_water`, any level): where a river leaves a lake, the lake's water now fades into the
+  river's over six tiles instead of stopping on a straight line across the channel (retail cuts the lake's water
+  off at a box round the lake). The saved water mesh is not changed; the fade is a copy drawn in its place.
+- Camera angle (`ext.camera_angle`): a flat tilt or a wide view no longer leaves a dark, straight-edged wedge over
+  the far terrain on the side away from the sun. The sun's shadow box now reaches as deep as the view needs
+  (retail's is a fixed 256 deep, and ground past it read as fully shadowed); a view that fits retail's box keeps
+  retail's numbers.
+- Show grid (`ext.show_grid`): the grid sets the scene camera itself and streams its lines in batches.
 - Touch screens (issue #96): the camera pad, the placement bar and the screen-edge margin now have their own
   sizes, in a new "Touch screen" group at the top of the Options Enhanced tab. "Camera pad" Off / 50 % to 125 %
   (`ext.touch_mode_pad_scale`; Off hides the pad for gesture-only play and gives the toolbar the whole bottom
