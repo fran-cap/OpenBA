@@ -23,9 +23,11 @@ namespace BetterClouds {
 constexpr int kMaxSpeed = 3;
 
 // The wind on the cloud layer: direction (dome space, unit) and speed (layer units a second at 1x).
+// A quarter of the first cut's 0.009 (the user's ruling, 2026-11-08: too distracting at 2x and 3x);
+// the octaves, the warp field and the ground shadows all scale with it.
 constexpr double kWindX = 0.8;
 constexpr double kWindY = 0.6;
-constexpr double kWindSpeed = 0.009;
+constexpr double kWindSpeed = 0.00225;
 
 // An octave of the program: rotation (cos, sin), frequency, speed relative to the wind.
 struct Octave {
