@@ -173,32 +173,43 @@ void ExtensionsDialog::OnOpened() {
             profile->Hide(true);
     }
 
-    // Two tabs, one table each: Optional (defaultOn false) and Default (defaultOn true), each in
-    // registry order. The rows keep one id space (1000 + row) whichever table holds them.
+    // Three tabs, one table each: Optional (defaultOn false), Default (defaultOn true) and Experimental
+    // (Ext::Experimental, whatever the default: the phone extensions and staggered passes, ruled 2026-11-08), each
+    // in registry order. The rows keep one id space (1000 + row) whichever table holds them.
     _tableOptional = FindElement(System::String("tableOptional"));
     _tableDefault = FindElement(System::String("tableDefault"));
+    _tableExperimental = FindElement(System::String("tableExperimental"));
     const UI::Dialog* dialog = _dialog;
     if (_tableOptional.Get() == nullptr || _tableDefault.Get() == nullptr || dialog == nullptr) {
         printf("[ExtDialog] no tableOptional / tableDefault / dialog resource: empty dialog\n");
         return;
     }
+    // A resource without the third tab (an older loose Extensions.crs) keeps those rows on Optional / Default.
+    const bool experimentalTab = _tableExperimental.Get() != nullptr;
     UI::SpriteSheet* sprites = ExtSprites();
 
-    // The registry indices in row order: the Optional half first, then the Default half.
+    // Which tab a row goes on: 0 Optional, 1 Default, 2 Experimental.
+    auto tabOf = [experimentalTab](const Ext::Entry& e) {
+        if (experimentalTab && Ext::Experimental(e)) return 2;
+        return e.defaultOn ? 1 : 0;
+    };
+    // The registry indices in row order: Optional first, then Default, then Experimental.
     int order[kMaxRows];
     int orderCount = 0;
-    for (int half = 0; half < 2; ++half) {
+    for (int tab = 0; tab < 3; ++tab) {
         for (int i = 0; i < Ext::EntryCount() && orderCount < kMaxRows; ++i) {
-            if (Ext::EntryAt(i).defaultOn == (half == 1)) order[orderCount++] = i;
+            if (tabOf(Ext::EntryAt(i)) == tab) order[orderCount++] = i;
         }
     }
 
     _rowCount = 0;
     int optionalRows = 0;
+    int experimentalRows = 0;
     for (int k = 0; k < orderCount; ++k) {
         const int i = order[k];
         const Ext::Entry& entry = Ext::EntryAt(i);
-        UI::Element* table = entry.defaultOn ? _tableDefault.Get() : _tableOptional.Get();
+        const int tab = tabOf(entry);
+        UI::Element* table = tab == 2 ? _tableExperimental.Get() : tab == 1 ? _tableDefault.Get() : _tableOptional.Get();
 
         Object::ExternalPtr<UI::ElementDescription> rowTemplate = dialog->GetTemplate(0);   // entryRow
         if (rowTemplate.Get() == nullptr) break;
@@ -206,7 +217,8 @@ void ExtensionsDialog::OnOpened() {
         rowTemplate->CreateInstance(&row, dialog);
         if (row.Get() == nullptr) break;
         table->AddChild(&row);
-        if (!entry.defaultOn) ++optionalRows;
+        if (tab == 0) ++optionalRows;
+        if (tab == 2) ++experimentalRows;
 
         auto child = [&row](const char* name) {
             return row->FindElement(System::String(name)).Get();
@@ -235,8 +247,9 @@ void ExtensionsDialog::OnOpened() {
         RefreshRow(_rowCount);
         ++_rowCount;
     }
-    printf("[ExtDialog] opened: %d row(s) (optional %d, default %d), game=%p locked=%d\n", _rowCount,
-           optionalRows, _rowCount - optionalRows, (void*)GameUpdateLoop::_singleton, Ext::Locked() ? 1 : 0);
+    printf("[ExtDialog] opened: %d row(s) (optional %d, default %d, experimental %d), game=%p locked=%d\n",
+           _rowCount, optionalRows, _rowCount - optionalRows - experimentalRows, experimentalRows,
+           (void*)GameUpdateLoop::_singleton, Ext::Locked() ? 1 : 0);
 }
 
 void ExtensionsDialog::RefreshRow(int index) {

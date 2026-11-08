@@ -12,6 +12,8 @@
 // ============================================================================
 
 #include "ext/registry.h"
+#include "ext/no_fog/no_fog.h"               // ext.no_fog: the fog_distance settings migration
+#include "ext/camera_angle/camera_angle.h"   // ext.camera_angle: the better_camera -> camera_angle settings migration
 #include "ext/draw_gather/draw_gather.h"   // ext.draw_gather: its engine seams follow the toggle
 #include "ext/draw_batch/draw_batch.h"     // ext.draw_batch: the Renderer::_extDrawItemList seam follows the toggle
 #include "ext/background_save/background_save.h"   // ext.background_save: the Save::SaveLoad seam follows the toggle
@@ -167,6 +169,36 @@ void InitFromSettings() {
                     p->Set(KeyPrefix(Tier::Extension), "better_trees", 1);
                 std::fprintf(stderr, "[Ext] migrated ext.foliage_aa / ext.billboard_shadow -> ext.better_trees=1\n");
             }
+        }
+    }
+    // Settings migration (CAMERAANGLE.md): ext.better_camera carried a steady tilt until ext.camera_angle took it
+    // over. A file with better_camera=1 and no camera_angle key keeps the tilt it had: the row on at the slider's
+    // steady point, both keys written (the caller's flush persists them).
+    if (report.profile == Profile::PerEntry) {
+        std::string v, cam;
+        if (!PersistenceLookup(nullptr, "ext.camera_angle", v) &&
+            PersistenceLookup(nullptr, "ext.better_camera", cam) && cam == "1") {
+            requested.ext.camera_angle = true;
+            requested.val.camera_tilt = CameraAngle::kTiltSteady;
+            if (::IO::Persistence* p = ::IO::Persistence::_singleton) {
+                p->Set(KeyPrefix(Tier::Extension), "camera_angle", 1);
+                p->Set(KeyPrefix(Tier::Extension), "camera_tilt", CameraAngle::kTiltSteady);
+            }
+            std::fprintf(stderr, "[Ext] migrated ext.better_camera=1 -> ext.camera_angle=1 ext.camera_tilt=%d\n",
+                         CameraAngle::kTiltSteady);
+        }
+    }
+    // Settings migration (NOFOG.md): ext.no_fog=1 meant no fog until ext.fog_distance's default became 0 (retail's
+    // fog, the row shipping ON). A file with the row on and no fog_distance key keeps no fog: the key written at 100.
+    if (report.profile == Profile::PerEntry) {
+        std::string v, fog;
+        if (!PersistenceLookup(nullptr, "ext.fog_distance", v) &&
+            PersistenceLookup(nullptr, "ext.no_fog", fog) && fog == "1") {
+            requested.val.fog_distance = NoFog::kDistanceOff;
+            if (::IO::Persistence* p = ::IO::Persistence::_singleton)
+                p->Set(KeyPrefix(Tier::Extension), "fog_distance", NoFog::kDistanceOff);
+            std::fprintf(stderr, "[Ext] migrated ext.no_fog=1 -> ext.fog_distance=%d (no fog, as before)\n",
+                         NoFog::kDistanceOff);
         }
     }
     Install(requested, report.profile, report.profileFromCommandLine);

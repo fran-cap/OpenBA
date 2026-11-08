@@ -11,6 +11,8 @@
 //   better_trees/enhanced_entry.cpp        combo "Better trees"
 //   winter_ice/enhanced_entry.cpp          combo "Better ice" Off / On (WINTERICE; ext.winter_ice)
 //   better_clouds/enhanced_entry.cpp       combo "Better clouds" Off / On / Fancy (BETTERCLOUDS)
+//   better_camera/enhanced_entry.cpp       combo "Wider zoom" Off / On (next game) (BETTERCAM; class B, the request)
+//   camera_angle/enhanced_entry.cpp        slider "Camera angle" 0..100, 50 = retail (CAMERAANGLE; ext.camera_tilt)//   no_fog/enhanced_entry.cpp              slider "Fog distance" 0 (retail) .. 100 (no fog) (NOFOG; ext.fog_distance)
 //   sharp_ui/enhanced_entry.cpp            combo "Sharp UI" Off / Text / Text + icons (SHARP_SPRITES)
 //   max_shadow_res/enhanced_entry.cpp      combos "Max shadow resolution" and "Adaptive shadow map"
 //                                          (SHADOWZOOM; ext.max_shadow_zoom)
@@ -71,6 +73,9 @@ const Contribution& SharpUiEntry();      // src/ext/sharp_ui/enhanced_entry.cpp:
 const Contribution& BetterWaterEntry();   // src/ext/better_water/enhanced_entry.cpp: ext.better_water (BETTERWATER)
 const Contribution& WinterIceEntry();     // src/ext/winter_ice/enhanced_entry.cpp: ext.winter_ice (WINTERICE)
 const Contribution& BetterCloudsEntry();  // src/ext/better_clouds/enhanced_entry.cpp: ext.better_clouds (BETTERCLOUDS)
+const Contribution& BetterCameraEntry();  // src/ext/better_camera/enhanced_entry.cpp: ext.better_camera, "Wider zoom" (BETTERCAM)
+const Contribution& CameraAngleEntry();   // src/ext/camera_angle/enhanced_entry.cpp: ext.camera_angle + ext.camera_tilt (CAMERAANGLE)
+const Contribution& FogDistanceEntry();   // src/ext/no_fog/enhanced_entry.cpp: ext.no_fog + ext.fog_distance (NOFOG)
 const Contribution& MaxShadowResEntry();
 const Contribution& SeamlessLoopsEntry();
 const Contribution& TextureQualityEntry();   // src/ext/texture_quality/enhanced_entry.cpp (TEXQUALITY)

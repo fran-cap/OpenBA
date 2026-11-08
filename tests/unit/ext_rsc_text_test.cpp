@@ -114,23 +114,27 @@ UNIT_TEST(ext_rsc_text_parse_extensions) {
         const Field* ov = notice->body.Find("_override");
         CHECK(ov && ov->blocks.size() == 3 && ov->blocks[1].fields.size() == 1);
     }
-    // Two tabs, Optional first: each its own button and list, down to its own table (the controller finds
-    // tableOptional / tableDefault by name), all deriving from the bases the in-game pages share.
+    // Three tabs, Optional first, then Default and Experimental (ruled 2026-11-08): each its own button and list,
+    // down to its own table (the controller finds tableOptional / tableDefault / tableExperimental by name), all
+    // deriving from the bases the in-game pages share.
     const Object* tabs = f.Find("tabExtensions");
     CHECK(tabs && tabs->type == "TabDescription" && tabs->base == "Mod.rsc:tabMod");
     if (tabs) {
         const Field* list = tabs->body.Find("_tabs");
-        CHECK(list && list->isArray && list->blocks.size() == 2);
-        if (list && list->blocks.size() == 2) {
+        CHECK(list && list->isArray && list->blocks.size() == 3);
+        if (list && list->blocks.size() == 3) {
             const Field* b0 = list->blocks[0].Find("_button");
             const Field* c0 = list->blocks[0].Find("_content");
             const Field* b1 = list->blocks[1].Find("_button");
             const Field* c1 = list->blocks[1].Find("_content");
+            const Field* b2 = list->blocks[2].Find("_button");
+            const Field* c2 = list->blocks[2].Find("_content");
             CHECK(b0 && b0->tokens[0].text == "tabButtonOptional" && c0 && c0->tokens[0].text == "entryListOptional");
             CHECK(b1 && b1->tokens[0].text == "tabButtonDefault" && c1 && c1->tokens[0].text == "entryListDefault");
+            CHECK(b2 && b2->tokens[0].text == "tabButtonExperimental" && c2 && c2->tokens[0].text == "entryListExperimental");
         }
     }
-    for (const char* half : { "Optional", "Default" }) {
+    for (const char* half : { "Optional", "Default", "Experimental" }) {
         const std::string h(half);
         const Object* caption = f.Find(("tabCaption" + h).c_str());
         CHECK(caption && caption->base == "tabCaption");
@@ -158,8 +162,9 @@ UNIT_TEST(ext_rsc_text_parse_extensions) {
     // The bases the in-game pages derive from (RestrictedFoodsPage.rsc, ItemPriorityPage.rsc) stay.
     CHECK(f.Find("entryList") && f.Find("tableList") && f.Find("tableMods"));
     // 46 + fix.save_failure_notice's box (saveFailed, noticeSaveFailed) + 2: buttonGameFiles and labelGameFiles
-    // (issue #96) + 2: fix.mods_persist's in-game warning (modsInGame, noticeModsInGame)
-    CHECK(f.objects.size() == 52);
+    // (issue #96) + 2: fix.mods_persist's in-game warning (modsInGame, noticeModsInGame) + 5: the Experimental
+    // tab (button, caption, list, table list, table)
+    CHECK(f.objects.size() == 57);
 }
 
 UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
@@ -179,7 +184,7 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     CHECK(page && page->body.Find("_content") &&
           page->body.Find("_content")->tokens[0].text == "enhancedOptionsTable");
     const Object* table = e.Find("enhancedOptionsTable");
-    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 45);   // twenty-three labels, twenty-two controls (SHADOWZOOM: adaptive shadow map; BETTERWATER: better water; WINTERICE: better ice; BETTERCLOUDS: better clouds; SHARP_SPRITES: Sharp UI; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin; the reporter's follow-up: corner camera buttons)
+    CHECK(table && table->body.Find("_items") && table->body.Find("_items")->blocks.size() == 51);   // twenty-six labels, twenty-five controls (BETTERCAM: wider zoom; CAMERAANGLE: camera angle; NOFOG: fog distance; SHADOWZOOM: adaptive shadow map; BETTERWATER: better water; WINTERICE: better ice; BETTERCLOUDS: better clouds; SHARP_SPRITES: Sharp UI; NATURAL_GROWTH.md: natural tree growth; COMPRESSAO: the cache size and, under it, its button; TEXQUALITY: texture quality; P8: render scale, frame rate cap; TOUCHMODE: touch controls; P11b: touch pointer; issue #96: the "Touch screen" and "General" headers, camera pad, placement bar, screen edge margin; the reporter's follow-up: corner camera buttons)
     // Issue #96: one combo item per choice of its value key (registry.cpp), in the key's order.
     const char* const keyCombos[][2] = {{"touchPadItems", "touch_mode_pad_scale"},
                                         {"touchCameraButtonItems", "touch_mode_camera_buttons"},
@@ -214,18 +219,19 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS
     // page, + 18 for the Find Buildings page and its favorites window, + 52 for the map window's overlay
     // views, + 4 for the dynamic Professions window (its title, its two column-button tips and its resize
-    // strip)
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4);
+    // strip), + 1 for the Experimental tab's caption
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1);
     if (strings) {
-        // The Extensions dialog's two tab captions.
+        // The Extensions dialog's three tab captions.
         int tabKeys = 0;
         for (const auto& b : strings->blocks) {
             const Field* n = b.Find("_name");
             if (n && !n->tokens.empty() &&
-                (n->tokens[0].text == "ExtensionsTabOptional" || n->tokens[0].text == "ExtensionsTabDefault"))
+                (n->tokens[0].text == "ExtensionsTabOptional" || n->tokens[0].text == "ExtensionsTabDefault" ||
+                 n->tokens[0].text == "ExtensionsTabExperimental"))
                 ++tabKeys;
         }
-        CHECK(tabKeys == 2);
+        CHECK(tabKeys == 3);
     }
     if (strings) {
         // The load notice with two parameters (found by its text: the window and page keys sit before the

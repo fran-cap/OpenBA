@@ -50,12 +50,12 @@ UNIT_TEST(ext_better_camera_registry_row) {
     if (!e) return;
     CHECK(e->tier == Ext::Tier::Extension);
     CHECK(e->cls == Ext::Class::B);                                   // the save records it: the zoom target and distance can leave retail's range
-    CHECK(!e->defaultOn);                                             // class B ships off
+    CHECK(e->defaultOn);                                              // ON on a desktop since 1.0.3 (ruled 2026-11-08; Android seeds it off)
     CHECK(e->displayName != nullptr && *e->displayName != 0 && e->description != nullptr && *e->description != 0);
     CHECK(e->formatVersion == 1);                                     // class B carries a format version (the pseudo-mod's)
     CHECK(Ext::SettingsKey(*e) == "ext.better_camera");
 
-    CHECK(!ResolveText("").ext.better_camera);                        // absent key = the default (off)
+    CHECK(ResolveText("").ext.better_camera);                         // absent key = the default (on, a desktop)
     CHECK(ResolveText("ext.better_camera=1\n").ext.better_camera);
     CHECK(!ResolveText("ext.better_camera=0\n").ext.better_camera);
     CHECK(!ResolveText("profile=faithful\next.better_camera=1\n").ext.better_camera);   // the faithful profile turns it off
