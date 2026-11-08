@@ -105,7 +105,8 @@ struct Extensions {
     // class A: src/ext/dynamic_professions/ (docs/extensions/handins/DYNAMICPROFESSIONS.md)
     bool dynamic_professions = false;
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
-    bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 + steady tilt
+    bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 ("Wider zoom")
+    bool camera_angle = false;  // class A, live: src/ext/camera_angle/, the far pitch pair in PlayerToolManager::UpdateCamera (docs/extensions/handins/CAMERAANGLE.md)
     bool high_limits = false;   // class B: src/ext/high_limits/ (docs/extensions/handins/HIGHLIMITS.md)
     bool sharp_ui   = false;   // class A: src/ext/sharp_ui/ (docs/extensions/handins/SHARPUI.md)
     bool fast_paths = false;   // class B: src/ext/fast_paths/ (docs/extensions/handins/FASTPATHS.md)
@@ -228,6 +229,8 @@ struct Values {
     int32_t staggered_passes_reflection = 2; // ext.staggered_passes_reflection 1 | 2 | 4 | 8 (owner staggered_passes): the water's reflection image renders at least every N frames on a near-still view (1 = every frame); 2 is the ruled default (issue #253)
     int32_t sharp_ui_icons = 0; // ext.sharp_ui_icons 0..1 (owner sharp_ui): 1 = the dialog and Extensions sheets drawn from their magnified copies with our art (SHARP_SPRITES.md); 0 = the text only (the default, the user 2026-11-04)
     int32_t better_clouds_mode = 1; // ext.better_clouds_mode 1..2 (owner better_clouds): 1 On (the drifting clouds in the sky), 2 Fancy (+ their shadows on the ground) (BETTERCLOUDS.md)
+    int32_t camera_tilt = 50;   // ext.camera_tilt 0..100 (owner camera_angle): the far pitch pair, 50 = retail's, 90 = the near pair (steady), 100 = 10 % flatter (camera_angle.h)
+    int32_t fog_distance = 0;   // ext.fog_distance 0..100 (owner no_fog): how far back the fog goes while the row is on: 0 = retail's fog (the default), 1..99 fog near / far x 100 / (100 - d), 100 = no fog (no_fog.h, NOFOG.md)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
 
@@ -464,6 +467,11 @@ ExtraModsProvider SaveModsProvider();
 
 // [a-z0-9_]+
 bool ValidId(const char* id);
+
+// The rows the Extensions dialog lists on its "Experimental" tab instead of Optional / Default (maintainer
+// ruling 2026-11-08): the phone extensions (touch_mode, touch_pointer, phone_menu) and staggered_passes. Only
+// where the row is shown changes; its class, default and behaviour are its own.
+bool Experimental(const Entry& e);
 
 // The load notice (SaveLoadDialog::DoLoad, block EXTSAVE). A save's mod-list
 // entry is a pseudo-mod when its path starts with `ext:`; such entries never

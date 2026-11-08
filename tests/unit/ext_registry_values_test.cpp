@@ -50,8 +50,8 @@ UNIT_TEST(ext_values_table_shape) {
     // (ext_rock_seat_test.cpp), derived_cache_mb (ext_compress_ao_test.cpp), create_on_demand_idle_min
     // (ext_create_on_demand_test.cpp), texture_quality_drop (ext_texture_quality_test.cpp), fps_cap_rate
     // (ext_fps_cap_test.cpp), touch_mode_toolbar_scale / _zoom_min (ext_touch_mode_test.cpp),
-    // touch_pointer_lift / _pick_radius / _tap_twice (ext_touch_pointer_test.cpp)
-    CHECK_EQ(Ext::ValueKeyCount(), 32);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
+    // touch_pointer_lift / _pick_radius / _tap_twice (ext_touch_pointer_test.cpp), fog_distance (ext_no_fog_test.cpp), camera_tilt (ext_camera_angle_test.cpp)
+    CHECK_EQ(Ext::ValueKeyCount(), 34);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
                                           // + max_shadow_zoom (SHADOWZOOM: 0..1, default 1, checked below)
                                           // + staggered_passes_shadow / _reflection (issue #253, checked below)
                                           // + fullscreen_borderless (ext_fullscreen_mode_test.cpp)

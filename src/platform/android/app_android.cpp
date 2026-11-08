@@ -137,6 +137,8 @@ void MirrorThread() {
 // Issue #253 (ruled 2026-11-05): the shadow map and the water's reflection on alternate frames while the
 // view is still (ext.staggered_passes, docs/android/I253_RENDER.md §3); it stays a row of Options >
 // Extensions, and an existing phone gets it on its next start unless its file already has the key.
+// 1.0.3 (ruled 2026-11-08): ext.better_camera (Wider zoom), ext.camera_angle and ext.no_fog (Fog distance) are ON
+// by default on a desktop only, so the phone seeds them off; an existing phone gets the lines the same way.
 const char kPhoneSettings[] =
     "GameEdgeScroll=false\n"
     "VideoRenderScale=50\n"
@@ -153,7 +155,10 @@ const char kPhoneSettings[] =
     "ext.touch_mode=1\n"
     "ext.touch_mode_toolbar_scale=200\n"
     "ext.touch_pointer=1\n"
-    "ext.staggered_passes=1\n";
+    "ext.staggered_passes=1\n"
+    "ext.better_camera=0\n"
+    "ext.camera_angle=0\n"
+    "ext.no_fog=0\n";
 
 // P13 (ruled 2026-10-28, docs/android/P13_MEM.md §6): a low-memory phone (Platform::Memory: total RAM
 // below 6.5 GiB) also loads its textures at Half (ext.texture_quality; Options > Enhanced > Texture

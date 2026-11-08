@@ -330,14 +330,27 @@ const Entry kEntries[] = {
       "Follow a citizen at eye level, looking where they look.",
       0, [](State& s) -> bool& { return s.ext.eye_camera; } },
 
-    // BETTERCAM (docs/extensions/handins/BETTERCAM.md): the two camera fixes of Banished Game Tweaks, in source.
-    // Class B (PR review): with the row on, the zoom target and the camera distance, which retail serializes,
-    // can hold values outside retail's range, so a save records the extension.
-    { "better_camera", Tier::Extension, Class::B, false,
-      "Better camera",
-      "Zoom in much closer and out much farther, and keep the camera's tilt when zoomed out "
-      "instead of flattening to top-down.",
+    // BETTERCAM (docs/extensions/handins/BETTERCAM.md): Banished Game Tweaks' wider zoom range, in source. The
+    // steady tilt it also carried is ext.camera_angle's slider since 2026-11-08 (a file with better_camera=1 and no
+    // camera_angle key is migrated to the slider's steady point, registry_boot.cpp). Class B (PR review): with the
+    // row on, the zoom target and the camera distance, which retail serializes, can hold values outside retail's
+    // range, so a save records the extension. ON by default on a desktop (ruled 2026-11-08 for 1.0.3); the Android
+    // first run seeds it off (app_android.cpp kPhoneSettings: the touch zoom has its own near limit).
+    { "better_camera", Tier::Extension, Class::B, true,
+      "Wider zoom",
+      "Zoom in much closer and out much farther (6 to 200 instead of 20 to 130). Takes effect at the next new "
+      "game or load.",
       1, [](State& s) -> bool& { return s.ext.better_camera; } },
+    // CAMERAANGLE (docs/extensions/handins/CAMERAANGLE.md): how far the camera tilts toward top-down as it zooms
+    // out, ext.camera_tilt 0..100 (the Enhanced tab's "Camera angle" slider, 50 = this row off = retail). Class A:
+    // the pitch target is recomputed every frame, nothing saved, live. ON by default on a desktop (ruled 2026-11-08):
+    // with ext.camera_tilt at its default 50 that is retail's pitch, the slider in place; the Android first run seeds
+    // it off.
+    { "camera_angle", Tier::Extension, Class::A, true,
+      "Camera angle",
+      "Changes how far the camera tilts toward top-down as you zoom out: steeper, or the same tilt at every "
+      "zoom and a little flatter. Set it in Options > Enhanced > Camera angle.",
+      0, [](State& s) -> bool& { return s.ext.camera_angle; } },
     // RECIPESKIP (docs/extensions/handins/RECIPESKIP.md): a workshop set to every recipe stops, in retail, as
     // soon as ONE recipe's material is at its limit. With the row on that recipe is left out of the draw and
     // the building only stops when every recipe is at its limit. Class B: no serialized state, but the
@@ -697,12 +710,16 @@ const Entry kEntries[] = {
       "Keeps recently freed memory ready instead of handing it back to the system and asking for it "
       "again, so large mod sets load faster. Same game data. Takes effect at the next start.",
       0, [](State& s) -> bool& { return s.ext.heap_slack; } },
-    // NOFOG (docs/extensions/handins/NOFOG.md): the fog is taken off the finished lighting each frame, so
-    // the far map stays clear when the camera is zoomed out. Class A: a picture-only change, no sim effect,
-    // nothing saved, live. OFF by default: how the map looks is the player's choice (like eye_camera).
-    { "no_fog", Tier::Extension, Class::A, false,
-      "No fog",
-      "Removes the fog that hazes the far map when the camera is zoomed far out.",
+    // NOFOG (docs/extensions/handins/NOFOG.md): the fog is pushed back on the finished lighting each frame,
+    // as far as ext.fog_distance says (100, the default: taken off), so the far map stays clear when the
+    // camera is zoomed out. The Enhanced tab's "Fog distance" slider sets both (0 = this row off). Class A: a
+    // picture-only change, no sim effect, nothing saved, live. ON by default on a desktop (ruled 2026-11-08 for
+    // 1.0.3) with ext.fog_distance at its default 0, which is retail's fog: the slider in place, nothing changed
+    // until the player moves it. The Android first run seeds it off.
+    { "no_fog", Tier::Extension, Class::A, true,
+      "Fog distance",
+      "Pushes back the fog that hazes the far map when the camera is zoomed far out, up to no fog at all. "
+      "Set how far in Options > Enhanced > Fog distance.",
       0, [](State& s) -> bool& { return s.ext.no_fog; } },
     // SHOWGRID (docs/extensions/handins/SHOWGRID.md): a grid of tile outlines over the map, for planning with
     // the game paused. Class A: a picture-only change, no sim effect, nothing saved, live. OFF by default:
@@ -986,6 +1003,16 @@ const ValueKey kValueKeys[] = {
     // the row). Fancy adds the shore strip on the bank side of the waterline.
     { "better_water_mode", "better_water", 1, 2, 1,
       [](State& s) -> int32_t& { return s.val.better_water_mode; }, nullptr, 0 },
+    // NOFOG.md: the Enhanced tab's "Fog distance" slider. 0 = retail's fog (the default since the row ships ON,
+    // ruled 2026-11-08), 1..99 push fog near and far out by 100 / (100 - d), 100 = no fog. A settings.cfg with
+    // ext.no_fog=1 and no ext.fog_distance key (the row's no-fog meaning before the key) is migrated to 100 at
+    // boot (registry_boot.cpp).
+    { "fog_distance", "no_fog", 0, 100, 0,
+      [](State& s) -> int32_t& { return s.val.fog_distance; }, nullptr, 0 },
+    // CAMERAANGLE.md: the Enhanced tab's "Camera angle" slider while the row camera_angle is on (the slider's 50 is
+    // the row off). camera_angle.h has the curve: 0 top-down zoomed out, 50 retail, 90 steady, 100 a touch flatter.
+    { "camera_tilt", "camera_angle", 0, 100, 50,
+      [](State& s) -> int32_t& { return s.val.camera_tilt; }, nullptr, 0 },
     // SHARP_SPRITES.md: Sharp UI's level, the Enhanced tab's "Sharp UI" Text / Text + icons (Off is the row).
     // 0 = the text only (scale-matched fonts, whole-pixel quads); 1 = also the magnified sprite sheets.
     { "sharp_ui_icons", "sharp_ui", 0, 1, 0,
@@ -1322,6 +1349,14 @@ int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion) {
     if (savedFormatVersion > e->formatVersion) return 1;
     if (!Requested(*e)) return 1;
     return 0;
+}
+
+// The Extensions dialog's Experimental tab (registry.h Experimental).
+bool Experimental(const Entry& e) {
+    static const char* const kExperimental[] = { "touch_mode", "touch_pointer", "phone_menu", "staggered_passes" };
+    for (const char* id : kExperimental)
+        if (std::strcmp(e.id, id) == 0) return true;
+    return false;
 }
 
 bool ValidId(const char* id) {

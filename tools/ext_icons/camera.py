@@ -39,3 +39,24 @@ def draw_better_camera(px):
 ICONS = {
     "better_camera": ("B", draw_better_camera),
 }
+
+
+def draw_camera_angle(px):
+    """An eye looking down a slope at a dark ground line: the camera's tilt."""
+    _paint(px, [
+        "............",
+        ".##.........",
+        "####........",
+        ".##.#.......",
+        ".....#......",
+        "......#.....",
+        ".......#....",
+        "........#...",
+        ".........#..",
+        "kkkkkkkkkkkk",
+        "kkkkkkkkkkkk",
+        "............",
+    ])
+
+
+ICONS["camera_angle"] = ("A", draw_camera_angle)

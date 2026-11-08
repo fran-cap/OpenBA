@@ -48,6 +48,7 @@ static bool BcOnByDefault(const char* id) {
         "path_workers", "fast_paths", "anim_batch", "spread_warmth", "drain_split", "walk_batch_grid",
         "restricted_foods", "item_priority", "tool_names", "recipe_skip", "high_limits", "boat_lane",
         "walk_on_ice", "map_overlays",
+        "better_camera",   // Wider zoom: ON on a desktop (the Android first run seeds it off)
     };
     for (const char* on : kBcOn)
         if (std::strcmp(id, on) == 0) return true;
@@ -88,7 +89,7 @@ UNIT_TEST(ext_registry_table_shape) {
         // family_tree stay OFF.
         // The unit_* test rows keep OFF: the lock tests below start from nothing on.
         // eye_camera is class A but changes how the game is played: the player's call, OFF.
-        // no_fog is class A but changes how the map looks: the player's call, OFF. So is show_grid.
+        // show_grid is class A but changes how the map looks: the player's call, OFF (no_fog was too; ON since 1.0.3 at retail's fog).
         // fps_counter is class A but adds the toolbar's extension button: the player's call, OFF (FPSCOUNTER).
         // building_finder is class A but adds a tab to the extension window: OFF (BUILDINGFINDER).
         // dynamic_professions is class A but replaces the Professions window: OFF (DYNAMICPROFESSIONS).
@@ -100,7 +101,7 @@ UNIT_TEST(ext_registry_table_shape) {
         // render_backend was OFF in the table until 1.0.3; ON since (maintainer ruling 2026-11-08).
         if (e.tier == Ext::Tier::Extension && std::strncmp(e.id, "unit_", 5) != 0)
             CHECK(e.defaultOn == (e.cls == Ext::Class::A ? (std::strcmp(e.id, "eye_camera") != 0 &&
-                                  std::strcmp(e.id, "no_fog") != 0 && std::strcmp(e.id, "show_grid") != 0 &&
+                                  std::strcmp(e.id, "show_grid") != 0 &&
                                   std::strcmp(e.id, "fps_counter") != 0 &&
                                   std::strcmp(e.id, "building_finder") != 0 &&
                                   std::strcmp(e.id, "dynamic_professions") != 0 &&

@@ -1,5 +1,5 @@
 // Dialog/EnhancedOptions.rsc -- the Options dialog's fifth tab "Enhanced" (NOT RETAIL; blocks AOMENU,
-// FAA-MENU, BETTER-TREES, BETTERWATER, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer, issue #96's "Touch screen" and "General" groups: twenty-three rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
+// FAA-MENU, BETTER-TREES, BETTERWATER, TEXQUALITY, COMPRESSAO, P8 render scale + frame rate cap, TOUCHMODE touch controls, P11b touch pointer, issue #96's "Touch screen" and "General" groups: twenty-six rows in the Game tab's container, docs/extensions/AO.md §6.3; was AoOptions.rsc). Added at run time by UI::TabElement::AddTab from
 // OptionsDialog::OnOpened (src/ext/enhanced_tab/enhanced_tab.cpp). Every name here is NEW:
 // a loose .crs never overrides a name the game's packages hold (IO::FileSystem::OpenFile looks
 // in the packfile index first, handins/AOSPIKE.md S5). The look inherits the kit's own
@@ -18,6 +18,9 @@ StringTable aoStrings
 		{ String _name = "BetterIce";		String _text = "Better ice"; }
 		{ String _name = "BetterClouds";	String _text = "Better clouds"; }
 		{ String _name = "SharpUi";		String _text = "Sharp UI"; }
+		{ String _name = "BetterCamera";	String _text = "Wider zoom"; }
+		{ String _name = "CameraAngle";		String _text = "Camera angle"; }
+		{ String _name = "FogDistance";	String _text = "Fog distance"; }
 		{ String _name = "MaxShadowRes";	String _text = "Max shadow resolution"; }
 		{ String _name = "ShadowZoom";		String _text = "Adaptive shadow map"; }
 		{ String _name = "SeamlessLoops";	String _text = "Seamless ambient loops"; }
@@ -116,6 +119,17 @@ StringTable sharpUiItems
 		{ String _name = "Item0";		String _text = "Off";	}
 		{ String _name = "Item1";		String _text = "Text";	}
 		{ String _name = "Item2";		String _text = "Text + icons";	}
+	]
+}
+
+// Wider zoom (BETTERCAM): 0 = the bool row ext.better_camera off, 1 = on. Class B: the request, taken by the next
+// new game or load (a running game keeps the camera it started with; a loaded save keeps its own set).
+StringTable betterCameraItems
+{
+	Entry _strings
+	[
+		{ String _name = "Item0";		String _text = "Off";				}
+		{ String _name = "Item1";		String _text = "On (next game)";	}
 	]
 }
 
@@ -331,10 +345,10 @@ ContainerDescription enhancedOptions : "Options.rsc:gameOptions"
 	ElementDescription _content = "enhancedOptionsTable";
 }
 
-// The rows: Options.rsc:gameOptionsTable's shape, twenty-three rows. First the "Touch screen" group (issue #96: its header,
+// The rows: Options.rsc:gameOptionsTable's shape, twenty-six rows. First the "Touch screen" group (issue #96: its header,
 // Touch controls, Camera pad, Placement bar, Touch pointer, Screen edge margin), at the top so a phone shows it without
 // scrolling the page; then the "General" header over the rest: AO combo, AO slider, Better trees, natural tree growth,
-// Better water, Better ice (WINTERICE), Better clouds (BETTERCLOUDS), Sharp UI, shadow resolution, adaptive shadow map (SHADOWZOOM), loops, texture quality (TEXQUALITY), render scale and frame rate cap (P8), the derived-data cache's
+// Better water, Better ice (WINTERICE), Better clouds (BETTERCLOUDS), Sharp UI, Wider zoom (BETTERCAM), Camera angle (CAMERAANGLE), Fog distance (NOFOG), shadow resolution, adaptive shadow map (SHADOWZOOM), loops, texture quality (TEXQUALITY), render scale and frame rate cap (P8), the derived-data cache's
 // size and, under it, its "Clear cache" button: COMPRESSAO). The size sits in the control column, not in the label: "0 MB (cleared at the next
 // start)" in the label column made that column, and so the dialog, wider than the retail tabs.
 TableDescription enhancedOptionsTable
@@ -347,7 +361,7 @@ TableDescription enhancedOptionsTable
 	Alignment _alignment = TopLeft;
 
 	int _width = 2;
-	int _height = 24;
+	int _height = 27;
 
 	TableItem _items
 	[
@@ -367,13 +381,16 @@ TableDescription enhancedOptionsTable
 		{ int _x = 0; int _y = 13; ElementDescription _element = "textBetterIce"; }
 		{ int _x = 0; int _y = 14; ElementDescription _element = "textBetterClouds"; }
 		{ int _x = 0; int _y = 15; ElementDescription _element = "textSharpUi"; }
-		{ int _x = 0; int _y = 16; ElementDescription _element = "textMaxShadowRes"; }
-		{ int _x = 0; int _y = 17; ElementDescription _element = "textShadowZoom"; }
-		{ int _x = 0; int _y = 18; ElementDescription _element = "textSeamlessLoops"; }
-		{ int _x = 0; int _y = 19; ElementDescription _element = "textTextureQuality"; }
-		{ int _x = 0; int _y = 20; ElementDescription _element = "textRenderScale"; }
-		{ int _x = 0; int _y = 21; ElementDescription _element = "textFpsCap"; }
-		{ int _x = 0; int _y = 22; ElementDescription _element = "textDerivedCache"; }
+		{ int _x = 0; int _y = 16; ElementDescription _element = "textBetterCamera"; }
+		{ int _x = 0; int _y = 17; ElementDescription _element = "textCameraAngle"; }
+		{ int _x = 0; int _y = 18; ElementDescription _element = "textFogDistance"; }
+		{ int _x = 0; int _y = 19; ElementDescription _element = "textMaxShadowRes"; }
+		{ int _x = 0; int _y = 20; ElementDescription _element = "textShadowZoom"; }
+		{ int _x = 0; int _y = 21; ElementDescription _element = "textSeamlessLoops"; }
+		{ int _x = 0; int _y = 22; ElementDescription _element = "textTextureQuality"; }
+		{ int _x = 0; int _y = 23; ElementDescription _element = "textRenderScale"; }
+		{ int _x = 0; int _y = 24; ElementDescription _element = "textFpsCap"; }
+		{ int _x = 0; int _y = 25; ElementDescription _element = "textDerivedCache"; }
 
 		{ int _x = 1; int _y = 1; ElementDescription _element = "comboTouchMode"; }
 		{ int _x = 1; int _y = 2; ElementDescription _element = "comboTouchPad"; }
@@ -389,14 +406,17 @@ TableDescription enhancedOptionsTable
 		{ int _x = 1; int _y = 13; ElementDescription _element = "comboBetterIce"; }
 		{ int _x = 1; int _y = 14; ElementDescription _element = "comboBetterClouds"; }
 		{ int _x = 1; int _y = 15; ElementDescription _element = "comboSharpUi"; }
-		{ int _x = 1; int _y = 16; ElementDescription _element = "comboMaxShadowRes"; }
-		{ int _x = 1; int _y = 17; ElementDescription _element = "comboShadowZoom"; }
-		{ int _x = 1; int _y = 18; ElementDescription _element = "comboSeamlessLoops"; }
-		{ int _x = 1; int _y = 19; ElementDescription _element = "comboTextureQuality"; }
-		{ int _x = 1; int _y = 20; ElementDescription _element = "comboRenderScale"; }
-		{ int _x = 1; int _y = 21; ElementDescription _element = "comboFpsCap"; }
-		{ int _x = 1; int _y = 22; ElementDescription _element = "textDerivedCacheSize"; }
-		{ int _x = 1; int _y = 23; ElementDescription _element = "buttonDerivedCacheClear"; }
+		{ int _x = 1; int _y = 16; ElementDescription _element = "comboBetterCamera"; }
+		{ int _x = 1; int _y = 17; ElementDescription _element = "sliderCameraAngle"; }
+		{ int _x = 1; int _y = 18; ElementDescription _element = "sliderFogDistance"; }
+		{ int _x = 1; int _y = 19; ElementDescription _element = "comboMaxShadowRes"; }
+		{ int _x = 1; int _y = 20; ElementDescription _element = "comboShadowZoom"; }
+		{ int _x = 1; int _y = 21; ElementDescription _element = "comboSeamlessLoops"; }
+		{ int _x = 1; int _y = 22; ElementDescription _element = "comboTextureQuality"; }
+		{ int _x = 1; int _y = 23; ElementDescription _element = "comboRenderScale"; }
+		{ int _x = 1; int _y = 24; ElementDescription _element = "comboFpsCap"; }
+		{ int _x = 1; int _y = 25; ElementDescription _element = "textDerivedCacheSize"; }
+		{ int _x = 1; int _y = 26; ElementDescription _element = "buttonDerivedCacheClear"; }
 	]
 }
 
@@ -416,6 +436,9 @@ TextDescription textBetterWater : "textAoOption" { String _text = "BetterWater";
 TextDescription textBetterIce : "textAoOption" { String _text = "BetterIce"; }
 TextDescription textBetterClouds : "textAoOption" { String _text = "BetterClouds"; }
 TextDescription textSharpUi : "textAoOption" { String _text = "SharpUi"; }
+TextDescription textBetterCamera : "textAoOption" { String _text = "BetterCamera"; }
+TextDescription textCameraAngle : "textAoOption" { String _text = "CameraAngle"; }
+TextDescription textFogDistance : "textAoOption" { String _text = "FogDistance"; }
 TextDescription textMaxShadowRes : "textAoOption" { String _text = "MaxShadowRes"; }
 TextDescription textShadowZoom : "textAoOption" { String _text = "ShadowZoom"; }
 TextDescription textSeamlessLoops : "textAoOption" { String _text = "SeamlessLoops"; }
@@ -504,6 +527,29 @@ ComboDescription comboSharpUi : "Options.rsc:comboAutosave"
 	int _minWidth = 180;
 	int _bottomPad = 3;
 	StringTable _initialData = "EnhancedOptions.rsc:sharpUiItems";
+}
+
+ComboDescription comboBetterCamera : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:betterCameraItems";
+}
+
+// Camera angle (CAMERAANGLE): 0..100, 50 = the row ext.camera_angle off (retail), any other value = on with ext.camera_tilt. Live.
+SliderDescription sliderCameraAngle : "Options.rsc:sliderUI"
+{
+	int _bottomPad = 2;
+	int _minWidth = 180;
+	ElementDescription _number = "Options.rsc:number";
+}
+
+// Fog distance (NOFOG): 0 = the row ext.no_fog off (retail's fog), 1..100 = on with ext.fog_distance (100 = no fog). Live.
+SliderDescription sliderFogDistance : "Options.rsc:sliderUI"
+{
+	int _bottomPad = 2;
+	int _minWidth = 180;
+	ElementDescription _number = "Options.rsc:number";
 }
 
 ComboDescription comboMaxShadowRes : "Options.rsc:comboAutosave"

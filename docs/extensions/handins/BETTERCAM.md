@@ -44,3 +44,16 @@ No engine seam and no new setting keys beyond `ext.better_camera`. No new serial
 * VERIFIED: unit 1180 / 0 failures / 5 skipped (the skips need the ModKit or the Francophil font); the exe builds clean with the new code.
 * LOOKED AT BY THE USER (2026-10-18, a run of the build): the row in the Extensions menu, the wider zoom range and the steady tilt - "everything looks great". Pan speed and the draw distance at zoom 200 were not examined separately.
 * STILL THE MAINTAINER'S: the default-OFF choice.
+
+## 5. The Enhanced tab row (2026-11-08, maintainer ruling)
+
+Options > Enhanced gains "Better camera" Off / On (next game) (`src/ext/better_camera/enhanced_entry.cpp`, `EnhancedOptions.rsc` row 16), beside the Extensions dialog row; both write the same `ext.better_camera`. Class B is unchanged: the combo writes the REQUESTED value through `SetAndRecord`, so in a running game it is taken by the next new game or load, and a loaded save keeps the set it was saved with. Default OFF (ruled).
+
+* VERIFIED: unit 2303 / 0 / 3 skipped; the exe builds; `tools/build.sh run` (faithful) reaches a running game.
+* NOT YET LOOKED AT in game: the combo on the Enhanced tab.
+
+## 6. Steady tilt moved to Camera angle (2026-11-08, maintainer ruling)
+
+The row is now the zoom range only, shown as "Wider zoom" in the Extensions dialog and on the Enhanced tab. The steady tilt is `ext.camera_angle`'s slider at 90 (CAMERAANGLE.md); a settings.cfg with `ext.better_camera=1` and no `ext.camera_angle` key is migrated there at boot. `BetterCamera::PitchTarget` is still the pitch expression (called with `steady = false` and the far pair `CameraAngle::FarPair` hands it).
+
+ON by default on a desktop since 1.0.3 (maintainer ruling 2026-11-08); the Android first run seeds `ext.better_camera=0`. Class B as before: a new game's save lists `ext:better_camera`.

@@ -43,3 +43,16 @@ No game content ships (DESIGN.md hook rule 7): the icon is drawn by `tools/ext_i
 * **Performance (hook rule 6):** not measured with the stress town. The only change on the faithful profile is one load and one store of the same value per drawn frame, and the row adds no per-frame work beyond that.
 * **Looked at in a Windows run by the author, on this build:** the same scene zoomed out in clear weather, rain and snow, once with vanilla, once with the community no-fog mod and once with the row on. In clear weather the mod and the row look the same, with the haze gone. In rain and snow both remove most of the haze, but the mod keeps a light veil (its rain block carries `_fogMax = 0.4`), where the row removes all of it while the particles and the weather's darker light remain. Zero was chosen on purpose.
 * **Not run:** Linux, macOS, the resave gate (nothing is saved).
+
+## 6. Fog distance (2026-11-08, maintainer ruling)
+
+The row became a range. `ext.fog_distance` (1..100, owner `no_fog`, default 100) says how far back the fog goes while the row is on: 1..99 multiply the blended record's fog near and far by `100 / (100 - d)` (2x at 50, 4x at 75, 100x at 99; colour and maximum kept), 100 zeroes the maximum as before. The default is 100, so a `settings.cfg` holding `ext.no_fog=1` from before the key keeps no fog. The seam is now `Ext::NoFog::Apply(near, far, max, row, key)` at the same place; with the row off it touches nothing (bits unchanged, unit-tested). AO's zoom fade and the clouds' fade read the fog from the same record (`Context::SetFog`), so they follow the pushed fog.
+
+The Enhanced tab gains a "Fog distance" slider (`src/ext/no_fog/enhanced_entry.cpp`, `EnhancedOptions.rsc` row 17): 0 = the row off (retail), 1..100 = the row on with the key. The Extensions dialog row is renamed "Fog distance"; toggled there it uses the stored key. Default OFF, unchanged.
+
+* VERIFIED: unit 2303 / 0 / 3 skipped (the new tests: the key's range, default and clamp; the scale curve; Apply off / at 50 / at 100); the exe builds; `tools/build.sh run` (faithful) reaches a running game, empty crash log.
+* NOT YET LOOKED AT in game: the slider on the Enhanced tab and the picture at intermediate distances.
+
+## 7. On by default, retail at 0 (2026-11-08, maintainer ruling)
+
+The row ships ON on a desktop (the Android first run seeds `ext.no_fog=0`). `ext.fog_distance` became 0..100 with default 0 = retail's fog (`Apply` returns before touching the record, bit-identical, unit-tested), so a new player sees retail until the slider moves. The slider no longer turns the row off. A settings.cfg with `ext.no_fog=1` and no `ext.fog_distance` key (the old no-fog meaning) is migrated to `ext.fog_distance=100` at boot (`registry_boot.cpp`).

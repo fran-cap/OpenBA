@@ -52,6 +52,7 @@
 #include "Player/Tool.h"            // UpdateHotkeys: the current tool's OnKey / OnCancel
 #include "ext/registry.h"             // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md, BETTERCAM.md): Ext::Ext()
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera's zoom
+#include "ext/camera_angle/camera_angle.h"     // EXT SEAM (NOT RETAIL, docs/extensions/handins/CAMERAANGLE.md): ext.camera_angle's far pitch pair
 #include "ext/better_camera/better_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera's zoom range + steady tilt
 #include "ext/touch_mode/touch_mode.h"   // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's camera controls
 #include "ext/touch_mode/touch_math.h"   // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ApplyHeldZoom
@@ -211,8 +212,9 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
         manualPitch -= kPitchStep;
     manualPitch = clampf(manualPitch, 0.0f, 1.0f);
 
-    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera's zoom range and steady
-    // tilt, the toggle read once per frame. Off = retail's own constants (the values below are the same floats).
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera's zoom range ("Wider zoom"),
+    // the toggle read once per frame. Off = retail's own constants (the values below are the same floats). The
+    // steady tilt it once carried is ext.camera_angle's (below).
     const bool betterCam = Ext::Ext().better_camera;
     const float zMin  = betterCam ? Ext::BetterCamera::kZoomMin  : kZoomMin;
     const float zMax  = betterCam ? Ext::BetterCamera::kZoomMax  : kZoomMax;
@@ -241,7 +243,14 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // ── pitch/distance coupling ──
     const float manual  = manualPitch;                        // 0..1
     const float normZ   = (zoomTarget - zMin) / zSpan;       // 0..1
-    const float newPitchTarget = Ext::BetterCamera::PitchTarget(manual, normZ, kPitchFarMan, kPitchFarFlat, kPitchNearMan, kPitchNearFlt, betterCam);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/CAMERAANGLE.md): ext.camera_angle replaces the far pair from
+    // ext.camera_tilt (camera_angle.h); row off = retail's two constants, and with steady = false PitchTarget is
+    // retail's expression in retail's order, so the faithful pitch is bit-identical.
+    float farMan = kPitchFarMan;
+    float farFlat = kPitchFarFlat;
+    Ext::CameraAngle::FarPair(Ext::Ext().camera_angle, Ext::Val().camera_tilt, kPitchFarMan, kPitchFarFlat,
+                              kPitchNearMan, kPitchNearFlt, farMan, farFlat);
+    const float newPitchTarget = Ext::BetterCamera::PitchTarget(manual, normZ, farMan, farFlat, kPitchNearMan, kPitchNearFlt, false);
     pitchTarget = newPitchTarget;                             // +0x40
 
     // pan speed scales with zoom (near=12, far=70)
