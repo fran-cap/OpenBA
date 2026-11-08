@@ -9,12 +9,20 @@ Branch `feat/dual-backend`. Row `ext.render_backend` (class A) with the value ke
 1. **A shared function-pointer table in the render glue is approved** (`render_backend_table.h`).
 2. **Vulkan is the default on future installs.** This is a deliberate exception to "extension rows
    default off":
-   - A fresh install (no `settings.cfg`, nothing to import) starts on Vulkan.
-     `Ext::RenderBackend::SeedFreshInstall` (`src/app/main.cpp`, before `Engine::Startup`) writes
-     `ext.render_backend=1` and `ext.render_api=1` into the new file.
+   - A fresh install starts on Vulkan. `Ext::RenderBackend::SeedFreshInstall` (`src/app/main.cpp`,
+     before `Engine::Startup`) writes `ext.render_backend=1` and `ext.render_api=1` when there is no
+     `settings.cfg`.
+   - **A retail registry import counts as a fresh install** (a retail player's first OpenBA run). The
+     file is written as the imported set plus the two keys, and the engine's `ReadSettings` reads that
+     file instead of importing again. An import that already names `ext.render_backend` is left alone.
    - An existing `settings.cfg` that lacks the keys keeps DirectX 11: the table default is off. Current
-     players are never switched silently.
-   - The DirectX 11 fallback on a failed Vulkan start is on in both cases.
+     OpenBA players are never switched silently.
+   - The DirectX 11 fallback on a failed Vulkan start is on in every case.
+3. **A fallback is saved.** When the wanted backend fails and another one starts,
+   `Ext::RenderBackend::SaveFallback` writes the backend that started to `ext.render_api` (and turns the
+   row on) and flushes `settings.cfg`, so the next launch starts on the working one. It runs after every
+   successful `Device::Startup`: the boot (`game_main.cpp`, after `Ext::InitFromSettings`), the Options
+   dialog's full restart and `SwitchNow`. Nothing is recorded in the faithful profile.
    - The registry row's comment (`src/ext/registry.cpp`) and `tests/unit/ext_registry_test.cpp`
      (class A default-on exception list) both name this ruling.
    - The faithful profile turns every row off, so `/profile:faithful` (and `tools/build.sh run`)
@@ -94,14 +102,15 @@ nvoglv64.dll.
 Stripped perf exe: dual 16.26 MB, DX11-only 13.44 MB, Vulkan-only 14.90 MB. The dual perf build
 took 350 s at -j3.
 
-## Open questions
+## Accepted as they are (maintainer, 2026-11-08)
 
-- Should a retail registry import (a retail player's first OpenBA run) count as a fresh install?
-  The current answer is no, so that player stays on DirectX 11.
-- A fallback is not persisted to `ext.render_api`, so the next start tries Vulkan again (and falls
-  back again).
 - `failcreate=` (the harness `BANISHED_RENDER_SWITCH`) injects at boot only.
 - The tweak overlay is off in the dual build: its default needs a DX11-only build.
 - After a switch, the Options combo re-reads the saved fields and lists the adapters again. A second
   switch in the same dialog session has not been driven by hand.
+- The 7-8 shader entries still held at a Vulkan shutdown are not identified (harmless since the
+  orphaning fix).
+
+## Open
+
 - CI has no dual configure yet. A Windows `dx11+vulkan` configure + unit would cover the table.

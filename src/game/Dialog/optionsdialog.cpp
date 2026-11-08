@@ -1059,8 +1059,10 @@ void OptionsDialog::ApplyVideoSettings() {
         vidCfg->Save();
         // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): a backend change listed the
         // adapters again (the other backend's list), so the combos the dialog keeps open after Apply are
-        // filled again from it, as OnOpened fills them. Retail's lists never change while it runs.
-        if (backendChanged) {
+        // filled again from it, as OnOpened fills them. Retail's lists never change while it runs. A start
+        // that fell back to the other backend is saved (ext.render_api) and refills them too.
+        const bool fellBack = Ext::RenderBackend::SaveFallback();
+        if (backendChanged || fellBack) {
             savedRenderer   = vidCfg->interfaceIndex;
             savedAdapter    = vidCfg->adapterIndex;
             savedWidth      = vidCfg->width;

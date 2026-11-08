@@ -27,20 +27,24 @@
 // Device::Startup, selects the backend and lists the adapters again (the two backends' adapter lists
 // mean different things: DXGI adapter / output pairs, Vulkan physical devices).
 //
-// THE DEFAULT (maintainer ruling 2026-11-08, a deliberate exception to "extension rows default off"): a
-// fresh install starts on Vulkan, an existing player stays on DirectX 11. The table's default is off;
-// SeedFreshInstall, before Engine::Startup, writes ext.render_backend=1 and ext.render_api=1 into a new
-// settings.cfg when there is none and nothing to import (IO::SettingsStore::Source::None). A settings.cfg
-// without the keys, or a retail registry import, keeps the default: DirectX 11, never a silent switch.
-// The fallback to DirectX 11 is on in both cases. The faithful profile turns every extension row off,
-// so it always runs DirectX 11 (retail's renderer).
+// THE DEFAULT (maintainer rulings 2026-11-08, a deliberate exception to "extension rows default off"): a
+// fresh install starts on Vulkan, an existing OpenBA player stays on DirectX 11. The table's default is
+// off; SeedFreshInstall, before Engine::Startup, writes ext.render_backend=1 and ext.render_api=1 when
+// there is no settings.cfg: with nothing to import (IO::SettingsStore::Source::None) a new file holds the
+// two keys; with a retail registry import (Source::Legacy, a retail player's first OpenBA run, which
+// counts as a fresh install) the file is written as the imported set plus the two keys. A settings.cfg
+// without the keys keeps the default: DirectX 11, never a silent switch. The fallback to DirectX 11 is on
+// in every case. The faithful profile turns every extension row off, so it always runs DirectX 11
+// (retail's renderer).
 //
 // THE FALLBACK. At boot the wanted backend is skipped when its probe fails (Render::BackendAvailable:
 // no Vulkan loader, a loader older than 1.1, no adapter). A CreateDevice that fails later (vkCreateDevice,
 // the swap chain) reaches Device::PlatformStartup's own fallback, whose seam (Video::Device::
 // _extInterfaceRetry) asks RetryInterface: the next backend is selected, the adapters listed again and
-// slot 1 tried once more before the loop steps to another slot. ext.render_api is not rewritten by a
-// fallback: the next start tries the wanted backend again (logged).
+// slot 1 tried once more before the loop steps to another slot. A fallback is SAVED (maintainer ruling
+// 2026-11-08): once Engine::Startup succeeded on the other backend, SaveFallback writes it to
+// ext.render_api (and turns the row on), so the next launch starts on the backend that worked. Not in the
+// faithful profile, which always wants DirectX 11.
 //
 // THE HARNESS. BANISHED_RENDER_SWITCH (src/app/options.h; tools/dual_backend_check.sh) runs the same
 // restart from the game loop at given frames (src/diag/render_switch_harness.cpp -> SwitchNow).
@@ -61,10 +65,17 @@ namespace RenderBackend {
 bool Offered();
 
 // src/app/main.cpp, before Engine::Startup (THE DEFAULT above): in an exe with more than one backend and
-// with no settings at all (no settings.cfg, no registry to import), settings.cfg is created holding
-// ext.render_backend=1 and ext.render_api=1. No-op otherwise. Uses only IO::SettingsStore (no engine
-// allocator yet).
+// with no settings.cfg (nothing to import, or a retail registry import), settings.cfg is written with
+// ext.render_backend=1 and ext.render_api=1 (after the imported entries, if any). No-op otherwise, and
+// when an import already names ext.render_backend. Uses only IO::SettingsStore (no engine allocator yet).
 void SeedFreshInstall();
+
+// After a Device::Startup that succeeded -- the boot (src/game/Game/game_main.cpp, after
+// Ext::InitFromSettings), the Options dialog's full restart and SwitchNow: a start that fell back to
+// another backend (THE FALLBACK above) records it, ext.render_api = the backend now running and
+// ext.render_backend = 1, and flushes settings.cfg. Returns whether a fallback happened (the Options
+// dialog then fills its combos again). Records nothing in the faithful profile.
+bool SaveFallback();
 
 // The first Device::InitializeInterfaces (inside Engine::Startup, before the adapters are listed): the
 // wanted backend selected, or the next available one; installs the PlatformStartup seam. No-op in a

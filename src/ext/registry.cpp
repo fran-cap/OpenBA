@@ -825,11 +825,13 @@ const Entry kEntries[] = {
     // Vulkan behind retail's one renderer slot; the row lists both in the Video tab's Renderer combo and
     // starts the one ext.render_api names, falling back to DirectX 11 when Vulkan cannot start. Class A:
     // the renderer only, nothing saved in a town. Off: retail's DirectX 11. A one-backend build ignores it.
-    // DEFAULT (maintainer ruling 2026-11-08, a deliberate exception to "extension rows default off"): the
-    // table says off, so an existing settings.cfg without the key (a current player) stays on DirectX 11;
-    // a fresh install (no settings.cfg, nothing to import) gets the row on and Vulkan written at its first
-    // start (Ext::RenderBackend::SeedFreshInstall). The DirectX 11 fallback is on in both cases.
-    // docs/extensions/handins/RENDERBACKEND.md.
+    // DEFAULT (maintainer rulings 2026-11-08, a deliberate exception to "extension rows default off"): the
+    // table says off, so an existing settings.cfg without the key (a current OpenBA player) stays on
+    // DirectX 11; a fresh install -- no settings.cfg, whether there is nothing to import or a retail
+    // registry import (a retail player's first OpenBA run) -- gets the row on and Vulkan written at its
+    // first start (Ext::RenderBackend::SeedFreshInstall). The DirectX 11 fallback is on in every case, and
+    // a fallback is SAVED: the backend that started is written to ext.render_api (and the row turned on)
+    // so the next launch starts on it (Ext::RenderBackend::SaveFallback). docs/extensions/handins/RENDERBACKEND.md.
     { "render_backend", Tier::Extension, Class::A, false,
       "Renderer choice",
       "The Video tab's Renderer lists DirectX 11 and Vulkan; the game restarts its graphics on the one you "

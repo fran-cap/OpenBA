@@ -70,6 +70,10 @@ int32_t ApiForBackend(int backend) {
 // never returns to one of them.
 uint32_t g_failed = 0;
 
+// A boot that started another backend than the wanted one (BootSelect's probe, RetryInterface): saved by
+// SaveFallback once the device is up.
+bool g_bootFellBack = false;
+
 // The interface list (Video::Device +0x40) emptied and listed again by every slot's DeviceData, the
 // active backend's in slot 1: Device::EnumerateVideoModes (0x1800f8610) appends one GraphicsInterface
 // per slot to an empty list, which retail does once, inside Engine::Startup. Only while no device
@@ -123,13 +127,35 @@ void SeedFreshInstall() {
     std::string path;
     IO::SettingsFile::Entries entries;
     if (!IO::SettingsStore::DefaultPath(path)) return;
-    if (IO::SettingsStore::Load(path, entries) != IO::SettingsStore::Source::None) return;
-    entries.clear();
+    const IO::SettingsStore::Source source = IO::SettingsStore::Load(path, entries);
+    if (source == IO::SettingsStore::Source::File) return;   // an existing player: the file decides
+    if (source == IO::SettingsStore::Source::None) entries.clear();
+    for (const IO::SettingsFile::Entry& e : entries) {
+        if (e.key == "ext.render_backend") return;   // the import already says
+    }
+    // A retail registry import counts as a fresh install (ruling 2026-11-08): the file is written as the
+    // imported set plus the two keys, which the engine's ReadSettings then reads instead of importing again.
     entries.push_back(IO::SettingsFile::Entry{"ext.render_api", "1"});
     entries.push_back(IO::SettingsFile::Entry{"ext.render_backend", "1"});
     const bool ok = IO::SettingsStore::Store(path, entries);
-    std::fprintf(stderr, "[RenderBackend] fresh install: %s ext.render_backend=1 ext.render_api=1 (Vulkan first)\n",
-                 ok ? "settings.cfg created with" : "FAILED to write");
+    std::fprintf(stderr, "[RenderBackend] fresh install (%s): %s ext.render_backend=1 ext.render_api=1 (Vulkan first)\n",
+                 source == IO::SettingsStore::Source::Legacy ? "retail registry imported" : "no settings",
+                 ok ? "settings.cfg written with" : "FAILED to write");
+}
+
+bool SaveFallback() {
+    if (!g_bootFellBack) return false;
+    g_bootFellBack = false;
+    if (CurrentProfile() == Profile::Faithful) return true;   // the faithful profile always wants DirectX 11
+    const int32_t api = ApiForBackend(Render::ActiveBackend());
+    if (api < 0) return true;
+    SetValueAndRecord(ApiKey(), api);
+    if (!Ext().render_backend) SetAndRecord(*FindEntry("render_backend"), true);
+    PersistSettings();
+    std::fprintf(stderr, "[RenderBackend] fallback saved: ext.render_backend=1 ext.render_api=%d (%s), the next "
+                         "launch starts on it\n",
+                 api, Render::BackendId(Render::ActiveBackend()));
+    return true;
 }
 
 void BootSelect() {
@@ -155,7 +181,8 @@ void BootSelect() {
     Render::SelectBackend(pick);
     std::fprintf(stderr, "[RenderBackend] boot: row %s, wanted %s, starting %s%s\n", RowOn() ? "on" : "off",
                  Render::BackendId(wanted), Render::BackendId(pick),
-                 pick != wanted ? " (FALLBACK: the wanted backend cannot start here; ext.render_api kept)" : "");
+                 pick != wanted ? " (FALLBACK: the wanted backend cannot start here; saved once the device is up)" : "");
+    if (pick != wanted) g_bootFellBack = true;
 }
 
 bool RetryInterface(int index) {
@@ -171,6 +198,7 @@ bool RetryInterface(int index) {
     std::fprintf(stderr, "[RenderBackend] FALLBACK: %s failed to start (CreateDevice); trying %s\n",
                  Render::BackendId(failed), Render::BackendId(next));
     if (!Render::SelectBackend(next)) return false;
+    g_bootFellBack = true;   // SaveFallback records it once the device is up
     ListAdaptersAgain();
     return true;
 }
@@ -189,12 +217,16 @@ bool SwitchNow(int index) {
     vidDev->ReleaseDynamic();
     vidDev->Shutdown();
     g_failed = 0;
+    g_bootFellBack = false;
     Render::SelectBackend(index);
     ListAdaptersAgain();
     const bool success = vidDev->Startup();
     vidDev->RecreateDynamic();
     if (mainLoop != nullptr) mainLoop->OnVideoRestart();
-    if (success) vidCfg->Save();
+    if (success) {
+        vidCfg->Save();
+        SaveFallback();   // the picked backend failed and another one started: keep the one that works
+    }
     std::fprintf(stderr, "[RenderBackend] switch done: %s, active %s\n", success ? "OK" : "FAILED",
                  Render::BackendId(Render::ActiveBackend()));
     return success;
