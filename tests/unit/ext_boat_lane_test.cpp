@@ -79,7 +79,7 @@ UNIT_TEST(ext_boat_lane_row_is_class_b_default_off) {
     CHECK(row != nullptr);
     if (row == nullptr) return;
     CHECK(row->cls == Ext::Class::B);
-    CHECK(!row->defaultOn);         // the B / C rule (the user's ruling, 2026-11-06)
+    CHECK(row->defaultOn);          // on by default (ruled 2026-11-08 for 1.0.3, DESIGN.md section 2)
     CHECK(row->formatVersion >= 1); // class B: in the save manifest
 }
 

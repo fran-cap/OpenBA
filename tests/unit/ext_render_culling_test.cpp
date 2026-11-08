@@ -119,7 +119,7 @@ UNIT_TEST(ext_render_culling_registry_rows) {
     const Ext::Entry& batch = E("anim_batch");
     CHECK(batch.tier == Ext::Tier::Extension);
     CHECK(batch.cls == Ext::Class::B);
-    CHECK(!batch.defaultOn);
+    CHECK(batch.defaultOn);   // ON by default (ruled 2026-11-08 for 1.0.3)
     CHECK(batch.formatVersion >= 1);
 
     // Defaults and the faithful profile: both off.

@@ -95,7 +95,7 @@ UNIT_TEST(ext_map_overlays_registry_row) {
     if (!found) return;
     CHECK(found->tier == Ext::Tier::Extension);
     CHECK(found->cls == Ext::Class::C);
-    CHECK(!found->defaultOn);
+    CHECK(found->defaultOn);   // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(found->formatVersion == kWireVersion);
     CHECK(Ext::SettingsKey(*found) == "ext.map_overlays");
     const Ext::SaveTail::StateCodec* codec = Ext::SaveTail::FindCodec("map_overlays");

@@ -83,11 +83,11 @@ UNIT_TEST(ext_item_priority_registry_row) {
     }
     CHECK(e->tier == Ext::Tier::Extension);
     CHECK(e->cls == Ext::Class::C);                    // the lists are the town's state: recorded in the save
-    CHECK(!e->defaultOn);
+    CHECK(e->defaultOn);   // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(e->formatVersion == 2);                      // v2 added the Never list; v1 payloads still load
     CHECK(Ext::SettingsKey(*e) == "ext.item_priority");
     CHECK(std::string(kId) == e->id);
-    CHECK(!ResolveText("").ext.item_priority);
+    CHECK(ResolveText("").ext.item_priority);   // ON by default (ruled 2026-11-08 for 1.0.3)
     CHECK(ResolveText("ext.item_priority=1\n").ext.item_priority);
     CHECK(!ResolveText("profile=faithful\n").ext.item_priority);   // the faithful profile turns it off
     CHECK(TheCodec() != nullptr);

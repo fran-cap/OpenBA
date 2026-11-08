@@ -47,14 +47,16 @@ set(BANISHED_GAME_DIR "C:/GOG Games/Banished" CACHE PATH "where sa-deploy copies
 # docs/reference/tweak_overlay.md): ON for the debug flavour on Windows only. OFF, not one source
 # of it is compiled and every `#if BANISHED_TWEAK_OVERLAY` site is out, so og / perf / release build
 # exactly as without it.
-# The renderer backend (src/render/common/README.md): dx11 on Windows, metal on APPLE, vulkan on
-# every other host (Linux, since Vulkan P5) and by choice on Windows (docs/vulkan/PLAN.md). Chosen
+# The renderer backend (src/render/common/README.md): the dual dx11+vulkan exe on Windows (both backends,
+# the renderer picked in game by ext.render_backend; the default since 1.0.3, maintainer ruling 2026-11-08,
+# so the shipped exe carries Vulkan), metal on APPLE, vulkan on every other host (Linux, since Vulkan P5).
+# A dx11-only Windows build is BANISHED_RENDER_BACKEND=dx11 (the tweak overlay needs it). Chosen
 # here because the tweak overlay below is DX11-only; the fragment itself is included further down,
 # with the sources. dx11 is Windows-only: its backend.cmake answers not-ready elsewhere.
 if(APPLE)
   set(BANISHED_RENDER_BACKEND_DEFAULT metal)
 elseif(WIN32)
-  set(BANISHED_RENDER_BACKEND_DEFAULT dx11)
+  set(BANISHED_RENDER_BACKEND_DEFAULT dx11+vulkan)
 else()
   set(BANISHED_RENDER_BACKEND_DEFAULT vulkan)
 endif()

@@ -16,7 +16,7 @@ namespace {
 
 // ---------------------------------------------------------------------------
 // THE TABLE. Fixes first (default ON), then extensions (class A default ON,
-// class B / C default OFF: DESIGN.md section 2, ruled 2026-10-18), in the
+// class B / C default OFF but the rows ruled ON for 1.0.3: DESIGN.md section 2), in the
 // order the dialog lists them. A fix's description says what the player saw
 // in retail; docs/retail_bugs.md carries the mechanism and the lever.
 // ---------------------------------------------------------------------------
@@ -342,7 +342,7 @@ const Entry kEntries[] = {
     // soon as ONE recipe's material is at its limit. With the row on that recipe is left out of the draw and
     // the building only stops when every recipe is at its limit. Class B: no serialized state, but the
     // town's production differs from retail's, so it is locked for the game and recorded in the save.
-    { "recipe_skip", Tier::Extension, Class::B, false,
+    { "recipe_skip", Tier::Extension, Class::B, true,
       "Skip recipes at their limit",
       "A workshop that makes every recipe in turn keeps working on the others when one recipe's limit "
       "is reached, instead of stopping.",
@@ -351,7 +351,7 @@ const Entry kEntries[] = {
     // window and the production buildings take values up to 999,999,999 and 9 typed digits instead of
     // 999,999 and 6. Class B: no serialized state, but a limit above 999,999 is a value the faithful
     // spinner cannot show, so it is locked for the game and recorded in the save.
-    { "high_limits", Tier::Extension, Class::B, false,
+    { "high_limits", Tier::Extension, Class::B, true,
       "Higher limit values",
       "Lets the limit boxes in the Town Hall, the Limits window and the production buildings take values "
       "up to 999,999,999 (retail stops at 999,999). Play diverges.",
@@ -363,12 +363,12 @@ const Entry kEntries[] = {
       "Layout is unchanged.",
       0, [](State& s) -> bool& { return s.ext.sharp_ui; } },
 
-    { "fast_paths", Tier::Extension, Class::B, false,
+    { "fast_paths", Tier::Extension, Class::B, true,
       "Faster pathfinding",
       "Same-length routes for far less work. Ties can differ, so play diverges.",
       1, [](State& s) -> bool& { return s.ext.fast_paths; } },
 
-    { "path_workers", Tier::Extension, Class::B, false,
+    { "path_workers", Tier::Extension, Class::B, true,
       "Parallel pathfinding",
       "Finds paths on several threads. Same paths, but play diverges.",
       1, [](State& s) -> bool& { return s.ext.path_workers; } },
@@ -378,7 +378,7 @@ const Entry kEntries[] = {
       "Off-screen citizens, icons and effects pause until you look.",
       0, [](State& s) -> bool& { return s.ext.render_culling; } },
 
-    { "anim_batch", Tier::Extension, Class::B, false,
+    { "anim_batch", Tier::Extension, Class::B, true,
       "Batched animation",
       "Above 1x speed, animations step once per frame. Play diverges.",
       1, [](State& s) -> bool& { return s.ext.anim_batch; } },
@@ -400,7 +400,7 @@ const Entry kEntries[] = {
 
     // WALKGRID: walk_batch's measured class B variant (WALKBATCH.md sections 3, 11, 13). On, it
     // batches the walk by itself (walk_batch need not be on) and also skips Place.
-    { "walk_batch_grid", Tier::Extension, Class::B, false,
+    { "walk_batch_grid", Tier::Extension, Class::B, true,
       "Batched walking, faster",
       "Batched walking; walkers seen a frame late. Diverges from the original.",
       1, [](State& s) -> bool& { return s.ext.walk_batch_grid; } },
@@ -457,7 +457,7 @@ const Entry kEntries[] = {
     // ext.winter_ice keeps open in the ice. Class B: a boat's route and so its travel time change. OFF by
     // default, the B / C rule (the user's ruling, 2026-11-06; extension defaults to be revisited next
     // release).
-    { "boat_lane", Tier::Extension, Class::B, false,
+    { "boat_lane", Tier::Extension, Class::B, true,
       "Boat lane",
       "Trade boats sail a smooth lane down the middle of rivers and lakes instead of hugging the cheapest "
       "bank in grid steps.",
@@ -475,7 +475,7 @@ const Entry kEntries[] = {
     // its cells are open to walkers (never a river, never the open water round a dock or along the boat
     // channel). Class C: the ice is the town's own state, kept in the save's tail
     // (src/ext/winter_ice/ice_town.cpp), so the lake opens on the same day after a reload. Owner winter_ice.
-    { "walk_on_ice", Tier::Extension, Class::C, false,
+    { "walk_on_ice", Tier::Extension, Class::C, true,
       "Walk on ice",
       "Citizens and animals can cross a lake while it is frozen solid in winter. Rivers stay a barrier. Play "
       "diverges; the ice is recorded in the save.",
@@ -497,7 +497,7 @@ const Entry kEntries[] = {
     // RESTRICTEDFOODS (docs/extensions/handins/RESTRICTEDFOODS.md): the foods checked on the Foods page stay
     // Edible for storage, markets and recipes but are not eaten by citizens. Class C: the checked list is the
     // town's own state, recorded in the save's tail (src/ext/restricted_foods/save_state.cpp).
-    { "restricted_foods", Tier::Extension, Class::C, false,
+    { "restricted_foods", Tier::Extension, Class::C, true,
       "Restricted foods",
       "Lets you stop citizens eating foods you choose, from the Foods page in a game. Play diverges; the "
       "choice is recorded in the save.",
@@ -506,7 +506,7 @@ const Entry kEntries[] = {
     // health items its citizens fetch from a storage; a citizen takes the best-ranked item. Class C:
     // the ranked lists are the town's own state, recorded in the save's tail
     // (src/ext/item_priority/save_state.cpp).
-    { "item_priority", Tier::Extension, Class::C, false,
+    { "item_priority", Tier::Extension, Class::C, true,
       "Item priority",
       "Lets you rank the tools, fuels, clothing and health items citizens take first, from the "
       "Priority page in a game. Play diverges; the choice is recorded in the save.",
@@ -542,7 +542,7 @@ const Entry kEntries[] = {
     // map (production, consumption, stock, services, traffic, citizens, natural resources). Class C: the last
     // year's production, consumption and traffic history is the town's own state, kept in the save's tail
     // (src/ext/map_overlays/save_state.cpp).
-    { "map_overlays", Tier::Extension, Class::C, false,
+    { "map_overlays", Tier::Extension, Class::C, true,
       "Map data views",
       "Adds views to the map window that show where goods are produced, consumed and stored, where services "
       "reach and where citizens walk. The last year's history is kept in the save.",
@@ -550,7 +550,7 @@ const Entry kEntries[] = {
     // HITCH_PFBURST (docs/extensions/handins/HITCH_PFBURST.md): a per-frame budget of the cold
     // citizens' warm-house scans (one region path search per residence), so a cold spell at high
     // speed spreads its scans over a few frames instead of one 10-20 ms frame.
-    { "spread_warmth", Tier::Extension, Class::B, false,
+    { "spread_warmth", Tier::Extension, Class::B, true,
       "Spread warmth searches",
       "At high speed, cold citizens pick a warm house a few frames later. Play diverges.",
       1, [](State& s) -> bool& { return s.ext.spread_warmth; } },
@@ -565,7 +565,7 @@ const Entry kEntries[] = {
     // HITCH_DRAINSPLIT (docs/extensions/handins/HITCH_DRAINSPLIT.md): the PathGraph drain's two
     // halves in two frames -- ReassignWorkers in the drain tick, AssignCitizens in the first sim
     // tick of the next frame -- so the five-minute job pass is not one frame's work at high speed.
-    { "drain_split", Tier::Extension, Class::B, false,
+    { "drain_split", Tier::Extension, Class::B, true,
       "Split the job reassignment",
       "At high speed, the five-minute job assignment runs one frame after the housing pass. "
       "Play diverges.",
@@ -743,8 +743,8 @@ const Entry kEntries[] = {
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a
-    // load (src/ext/tool_names/tool_names.cpp). No sim effect. OFF by default like the other class C rows.
-    { "tool_names", Tier::Extension, Class::C, false,
+    // load (src/ext/tool_names/tool_names.cpp). No sim effect. ON by default (ruled 2026-11-08: modded tools are the common case).
+    { "tool_names", Tier::Extension, Class::C, true,
       "Tool names",
       "The citizen panel shows the name of the tool a citizen carries, so modded tools are not all shown "
       "as iron or steel. The tool each citizen carries is recorded in the save.",
@@ -801,10 +801,10 @@ const Entry kEntries[] = {
     // last frame's image on a near-still view, rendering at least every ext.staggered_passes_shadow /
     // _reflection frames (2: one frame held at most, the two passes on alternate frames) and at once on a
     // turn, a move past a small tolerance, a zoom, a settings change or a target rebuild. Class A: frames
-    // only, nothing saved, live. OFF by default on a desktop: a held frame lags moving shadows and
-    // reflections by a frame, ruled acceptable but the player's call. The Android first run turns it on
-    // (src/platform/android/app_android.cpp kPhoneSettings, ruled 2026-11-05).
-    { "staggered_passes", Tier::Extension, Class::A, false,
+    // only, nothing saved, live. ON by default on every platform (ruled 2026-11-08 for 1.0.3; it was OFF on a
+    // desktop): a held frame lags moving shadows and reflections by a frame, ruled acceptable. The Android
+    // first run also seeds it on (src/platform/android/app_android.cpp kPhoneSettings, ruled 2026-11-05).
+    { "staggered_passes", Tier::Extension, Class::A, true,
       "Staggered shadow and reflection",
       "Renders the shadows and the water's reflection every other frame while the view is still, on "
       "alternate frames: a higher frame rate on slower devices; moving shadows and reflections may "
@@ -825,14 +825,13 @@ const Entry kEntries[] = {
     // Vulkan behind retail's one renderer slot; the row lists both in the Video tab's Renderer combo and
     // starts the one ext.render_api names, falling back to DirectX 11 when Vulkan cannot start. Class A:
     // the renderer only, nothing saved in a town. Off: retail's DirectX 11. A one-backend build ignores it.
-    // DEFAULT (maintainer rulings 2026-11-08, a deliberate exception to "extension rows default off"): the
-    // table says off, so an existing settings.cfg without the key (a current OpenBA player) stays on
-    // DirectX 11; a fresh install -- no settings.cfg, whether there is nothing to import or a retail
-    // registry import (a retail player's first OpenBA run) -- gets the row on and Vulkan written at its
-    // first start (Ext::RenderBackend::SeedFreshInstall). The DirectX 11 fallback is on in every case, and
+    // DEFAULT ON (maintainer ruling 2026-11-08, for 1.0.3; it was off in the table so a current player stayed
+    // on DirectX 11): every settings.cfg without the key now starts the renderer ext.render_api names, Vulkan by
+    // default. A fresh install still has both keys written at its first start (Ext::RenderBackend::
+    // SeedFreshInstall), which now only makes them explicit. The DirectX 11 fallback is on in every case, and
     // a fallback is SAVED: the backend that started is written to ext.render_api (and the row turned on)
     // so the next launch starts on it (Ext::RenderBackend::SaveFallback). docs/extensions/handins/RENDERBACKEND.md.
-    { "render_backend", Tier::Extension, Class::A, false,
+    { "render_backend", Tier::Extension, Class::A, true,
       "Renderer choice",
       "The Video tab's Renderer lists DirectX 11 and Vulkan; the game restarts its graphics on the one you "
       "pick. If Vulkan cannot start on this computer, DirectX 11 is used.",

@@ -28,7 +28,7 @@ UNIT_TEST(ext_walk_batch_grid_registry_row) {
     const Ext::Entry& e = E("walk_batch_grid");
     CHECK(e.tier == Ext::Tier::Extension);
     CHECK(e.cls == Ext::Class::B);          // the grid lags inside the frame (WALKGRID.md)
-    CHECK(!e.defaultOn);
+    CHECK(e.defaultOn);   // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(e.formatVersion == 1);            // pseudo-mod ModInfo +0x18, the save manifest
     CHECK(e.displayName != nullptr && e.description != nullptr);
     CHECK(std::strstr(e.description, "iverges from the original") != nullptr);

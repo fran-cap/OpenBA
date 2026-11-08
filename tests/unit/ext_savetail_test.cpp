@@ -32,6 +32,9 @@ const Ext::Entry& E(const char* id) {
 // A requested state with the given extensions on (everything else default).
 Ext::State With(std::initializer_list<const char*> on) {
     Ext::State s = Ext::Resolve(nullptr, nullptr, nullptr, nullptr);
+    // Every B / C row off first: some ship ON (DESIGN.md section 2, 1.0.3), and these tests count records.
+    for (int i = 0; i < Ext::EntryCount(); ++i)
+        if (Ext::IsLockedClass(Ext::EntryAt(i).cls)) Ext::EntryAt(i).slot(s) = false;
     for (const char* id : on) E(id).slot(s) = true;
     return s;
 }
