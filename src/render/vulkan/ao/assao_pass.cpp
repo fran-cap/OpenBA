@@ -7,8 +7,9 @@
 //
 // THE FRAME (Graphics::ExtAoAfterOpaque, the recording thread, between the Opaque and Blended lists):
 //   draw.cpp DrawAoBegin    the main pass ends, the main depth (made readable: draw.h) -> SHADER_READ
-//   the resolve             main depth (MSAA: sample 0; 1x: a copy) -> 1x R32F raw depth
-//                           (src/render/dx11/ao/ao_depth_resolve.hlsl; ao_pass.cpp's DepthResolve::Run)
+//   the depth copy          MSAA: THE SHARED DEPTH COPY (depth_copy/depth_copy.h), sample 0 -> 1x R32F
+//                           raw depth, made here (the first reader of the frame) or reused; a
+//                           single-sampled depth is read directly (issue #253)
 //   ASSAO Draw              UpdateConstants(pass 0), PrepareDepths, GenerateSSAO (4 deinterleaved
 //                           passes, each a generate and its blurs), then the Apply: a pass on the main
 //                           colour (draw.cpp DrawAoBeginApply) multiplying the AO term into it
@@ -28,8 +29,8 @@
 // row-major (AoMath::AssaoProjection), the fade from this frame's fog (AoMath::FadeFromFog).
 //
 // VULKAN SHAPE. One descriptor set layout for the pixel stage (cb0, t0..t5, s0..s3, u4 at the bindings
-// shader_convert.h gives those registers), an empty one for the vertex stage (VSMain / VSFullscreen
-// read no resource). One dynamic-rendering pass per fullscreen draw, as D3D11 binds targets per draw.
+// shader_convert.h gives those registers), an empty one for the vertex stage (VSMain reads no
+// resource). One dynamic-rendering pass per fullscreen draw, as D3D11 binds targets per draw.
 // The pass's images keep a layout per subresource (a depth mip is rendered while the one above it is
 // sampled), with sync2 barriers between the draws. Constants go to a per-frame-slot host ring, sets to a
 // per-frame-slot pool, both reset when the slot's frame comes round (its fence was waited for).
@@ -41,6 +42,7 @@
 // ============================================================================
 #include "ao/assao_pass.h"
 
+#include "depth_copy/depth_copy.h"
 #include "device_objects.h"
 #include "draw.h"
 #include "pipelines.h"
@@ -55,9 +57,6 @@
 #include "video/Context.h"
 
 #include "ao/shaders/VSMain.h"
-#include "ao/shaders/VSFullscreen.h"
-#include "ao/shaders/PSResolveDepthMS.h"
-#include "ao/shaders/PSResolveDepth1x.h"
 #include "ao/shaders/PSPrepareDepths.h"
 #include "ao/shaders/PSPrepareDepthsAndNormals.h"
 #include "ao/shaders/PSPrepareDepthsHalf.h"
@@ -137,9 +136,6 @@ static_assert(sizeof(Constants) <= kSlotBytes, "one constants block per ring slo
 
 enum Program : int {
     kVsMain,
-    kVsFullscreen,
-    kResolveMs,
-    kResolve1x,
     kPrepareDepths,
     kPrepareDepthsAndNormals,
     kPrepareDepthsHalf,
@@ -169,9 +165,6 @@ struct ProgramBlob {
 #define AO_BLOB(name, stage) { g_ao_##name, sizeof(g_ao_##name), Shaders::Stage::stage, #name }
 const ProgramBlob kBlobs[kProgramCount] = {
     AO_BLOB(VSMain, Vertex),
-    AO_BLOB(VSFullscreen, Vertex),
-    AO_BLOB(PSResolveDepthMS, Pixel),
-    AO_BLOB(PSResolveDepth1x, Pixel),
     AO_BLOB(PSPrepareDepths, Pixel),
     AO_BLOB(PSPrepareDepthsAndNormals, Pixel),
     AO_BLOB(PSPrepareDepthsHalf, Pixel),
@@ -235,7 +228,6 @@ struct State {
     uint32_t halfHeight = 0;
     uint32_t quarterWidth = 0;
     uint32_t quarterHeight = 0;
-    Image depthResolved;   // the resolve's 1x R32F raw depth (ao_pass.cpp's DepthResolve target)
     Image depths[4];       // m_halfDepths: R16F, half size, four mips
     Image normals;         // m_normals: RGBA8, full size, the UAV
     Image pingA;           // m_pingPongHalfResultA: RG8, half size
@@ -343,7 +335,6 @@ void DropImage(Image* im, bool now) {
 }
 
 void DropTargets(bool now) {
-    DropImage(&g.depthResolved, now);
     for (Image& d : g.depths)
         DropImage(&d, now);
     DropImage(&g.normals, now);
@@ -356,12 +347,12 @@ void DropTargets(bool now) {
 
 // ASSAODX11.cpp UpdateTextures: the sizes, then every target (re)made for them and the one-time clear.
 bool Resize(uint32_t width, uint32_t height) {
-    if (width == g.width && height == g.height && g.depthResolved.gpu.image) return true;
+    if (width == g.width && height == g.height && g.results.gpu.image) return true;
     DropTargets(false);
     const uint32_t hw = (width + 1) / 2;
     const uint32_t hh = (height + 1) / 2;
     const VkImageUsageFlags target = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    bool ok = MakeImage(&g.depthResolved, width, height, VK_FORMAT_R32_SFLOAT, 1, 1, target);
+    bool ok = true;
     for (Image& d : g.depths)
         ok = ok && MakeImage(&d, hw, hh, VK_FORMAT_R16_SFLOAT, kDepthMips, 1, target);
     ok = ok && MakeImage(&g.normals, width, height, VK_FORMAT_R8G8B8A8_UNORM, 1, 1, VK_IMAGE_USAGE_STORAGE_BIT);
@@ -500,7 +491,7 @@ VkPipeline PipelineFor(const PipelineShape& s) {
     std::vector<VkVertexInputBindingDescription> bindings;
     std::vector<VkVertexInputAttributeDescription> attributes;
     // VSMain reads ASSAO's CommonSimpleVertex (SV_Position float4 at 0, TEXCOORD float2 at 16, 24-byte
-    // stride); VSFullscreen reads nothing (SV_VertexID).
+    // stride).
     for (const Shaders::IoElement& in : vs.reflection.inputs) {
         if (in.builtIn != Shaders::IoElement::kNoBuiltIn) continue;
         VkVertexInputAttributeDescription a{};
@@ -879,32 +870,12 @@ VkRect2D Rect(uint32_t width, uint32_t height) {
 // changes no pixel; it saves a full-resolution pass, its barrier and its write on the phone.
 bool DirectDepth(const AoTargets& t) { return t.samples <= 1 || t.msrtss; }
 
-// ao_pass.cpp's DepthResolve::Run: sample 0 of the multisampled depth, or a 1x copy, into the R32F target.
-bool ResolveDepth(VkCommandBuffer cb, SlotState& slot, const AoTargets& t) {
-    std::vector<VkImageMemoryBarrier2> barriers;
-    MoveAll(g.depthResolved, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, &barriers);
-    FlushBarriers(cb, &barriers);
-    DrawDesc d;
-    d.vs = kVsFullscreen;
-    // The tiler's MSAA: the depth image is single-sampled (sample 0, resolved by the main passes).
-    d.ps = t.samples > 1 && !t.msrtss ? kResolveMs : kResolve1x;
-    d.colors[0] = g.depthResolved.attach[0];
-    d.formats[0] = VK_FORMAT_R32_SFLOAT;
-    d.colorCount = 1;
-    d.area = { g.width, g.height };
-    d.viewportWidth = static_cast<float>(g.width);
-    d.viewportHeight = static_cast<float>(g.height);
-    d.scissor = Rect(g.width, g.height);
-    d.textures[0] = t.depthView;
-    return Draw(cb, slot, d);
-}
-
-// ASSAODX11.cpp PrepareDepths with generateNormals (NormalSRV null). `depth` is the R32F resolve, or
-// the main depth's own sampled view when that is already single-sampled (DirectDepth).
+// ASSAODX11.cpp PrepareDepths with generateNormals (NormalSRV null). `depth` is the shared R32F copy
+// (left SHADER_READ_ONLY by depth_copy.cpp), or the main depth's own sampled view when that is already
+// single-sampled (DirectDepth).
 bool PrepareDepths(VkCommandBuffer cb, SlotState& slot, const Graphics::ExtAoFrame& f, VkDeviceSize constants,
-                   VkImageView depth, bool resolved) {
+                   VkImageView depth) {
     std::vector<VkImageMemoryBarrier2> barriers;
-    if (resolved) MoveAll(g.depthResolved, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
     MoveAll(g.normals, VK_IMAGE_LAYOUT_GENERAL, &barriers);
     DrawDesc d;
     d.textures[0] = depth;
@@ -1250,11 +1221,12 @@ void AfterOpaque(Video::Context& context, const Graphics::ExtAoFrame& frame, con
         g.requiresClear = false;
     }
     const bool direct = DirectDepth(t);
-    bool ok = direct || ResolveDepth(cb, slot, t);
+    const VkImageView depth = direct ? t.depthView
+                                     : VideoVulkan::DepthCopy::ViewOf(VideoVulkan::DepthCopy::InBracket(t));
+    bool ok = depth != VK_NULL_HANDLE;
     // ASSAODX11.cpp Draw: UpdateConstants(pass 0), PrepareDepths, GenerateSSAO, Apply.
     const VkDeviceSize first = ok ? WriteConstants(slot, MakeConstants(projection, fogged, 0)) : ~0ull;
-    ok = ok && first != ~0ull &&
-         PrepareDepths(cb, slot, fogged, first, direct ? t.depthView : g.depthResolved.gpu.view, !direct);
+    ok = ok && first != ~0ull && PrepareDepths(cb, slot, fogged, first, depth);
     const VkDeviceSize last = ok ? GenerateSsao(cb, slot, projection, fogged) : ~0ull;
     ok = ok && last != ~0ull && Apply(slot, t, fogged, last);
     if (!ok) LogOnce(2, "a step of the pass failed (logged above): this frame has no AO");

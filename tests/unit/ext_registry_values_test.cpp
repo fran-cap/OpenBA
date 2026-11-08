@@ -51,13 +51,17 @@ UNIT_TEST(ext_values_table_shape) {
     // (ext_create_on_demand_test.cpp), texture_quality_drop (ext_texture_quality_test.cpp), fps_cap_rate
     // (ext_fps_cap_test.cpp), touch_mode_toolbar_scale / _zoom_min (ext_touch_mode_test.cpp),
     // touch_pointer_lift / _pick_radius / _tap_twice (ext_touch_pointer_test.cpp)
-    CHECK_EQ(Ext::ValueKeyCount(), 30);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
+    CHECK_EQ(Ext::ValueKeyCount(), 31);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
+                                          // + max_shadow_zoom (SHADOWZOOM: 0..1, default 1, checked below)
                                           // + staggered_passes_shadow / _reflection (issue #253, checked below)
                                           // + fullscreen_borderless (ext_fullscreen_mode_test.cpp)
                                           // + better_clouds_mode (ext_better_clouds_test.cpp)
     CHECK_EQ(K("sharp_ui_icons").minValue, 0);
     CHECK_EQ(K("sharp_ui_icons").maxValue, 1);
     CHECK_EQ(K("sharp_ui_icons").defaultValue, 0);
+    CHECK_EQ(K("max_shadow_zoom").defaultValue, 1);
+    CHECK_EQ(K("max_shadow_zoom").maxValue, 1);
+    CHECK_STREQ(K("max_shadow_zoom").owner, "max_shadow_res");
     // Issue #253: discrete, 2 by default (the ruling), 1 = every frame as retail.
     CHECK_EQ(K("staggered_passes_shadow").defaultValue, 2);
     CHECK_EQ(K("staggered_passes_shadow").choiceCount, 4);

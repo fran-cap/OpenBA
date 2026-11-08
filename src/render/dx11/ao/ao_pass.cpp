@@ -10,7 +10,7 @@
 //   2. Graphics::ExtAoAfterOpaque (renderer_ext_ao.h): the pass Renderer::Draw
 //      runs between the Opaque and Blended lists of the game's main entry:
 //        save every D3D binding the pass touches
-//        resolve the main depth (MSAA or 1x) -> R32F raw depth   ao_depth_resolve
+//        resolve the main depth (MSAA or 1x) -> R32F raw depth   THE SHARED DEPTH COPY (depth_copy/depth_copy.h)
 //        rebind the main colour + depth, run the AO stage        ao_stage_assao
 //          (ASSAO multiplies into the bound colour: blend ZERO / SRC_COLOR,
 //           its own depth state = test and write off)
@@ -26,11 +26,11 @@
 //      dynamic_resources.cpp RecreateDynamic).
 // ============================================================================
 #include "ao/ao_backend.h"
-#include "ao/ao_depth_resolve.h"
 #include "ao/ao_depth_views.h"
 #include "ao/ao_stage.h"
 #include "ao/ao_state_backup.h"
 
+#include "depth_copy/depth_copy.h"
 #include "dx11_backend_access.h"
 #include "ext/ambient_occlusion/ao_math.h"
 #include "graphics/Camera.h"
@@ -63,6 +63,8 @@ bool Supported() {
 
 void RequestReadableDepth(bool on) {
     g_readableRequested.store(on);
+    // THE SHARED DEPTH COPY (depth_copy/depth_copy.h): the pass's raw depth is that copy.
+    VideoDX11::DepthCopy::Request(VideoDX11::DepthCopy::kReaderAo, on);
     ::Video::Device* const dev = ::Video::Device::_singleton;
     if (dev == nullptr || LiveDevice() == nullptr) return;   // the first CreateDepthBuffer reads it
     if (g_depthReadable.load() != on) {
@@ -114,14 +116,12 @@ namespace {
 // ---------------------------------------------------------------------------
 struct PassObjects {
     ID3D11Device*         device = nullptr;   // the device they belong to (not AddRef'd)
-    AoStage::DepthResolve resolve;
     AoStage::Stage*       stage  = nullptr;
     bool                  failed = false;     // creation failed on this device: skip until it changes
 
     void Drop() {
         delete stage;
         stage = nullptr;
-        resolve.Release();
         failed = false;
         device = nullptr;
     }
@@ -130,11 +130,8 @@ struct PassObjects {
         if (device != nullptr) std::fprintf(stderr, "[AmbientOcclusion] device changed: the AO stage is rebuilt\n");
         Drop();
         device = dev;
-        failed = !resolve.Create(dev);
-        if (!failed) {
-            stage  = AoStage::CreateAssao(dev);
-            failed = stage == nullptr;
-        }
+        stage  = AoStage::CreateAssao(dev);
+        failed = stage == nullptr;
         return !failed;
     }
 };
@@ -164,7 +161,6 @@ void ExtAoAfterOpaque(Video::Context& context, const ExtAoFrame& frame,
 
     D3D11_TEXTURE2D_DESC td;
     depth->texture->GetDesc(&td);
-    if (!g_pass.resolve.Resize(dev, td.Width, td.Height)) return;
     g_pass.stage->Resize(dev, td.Width, td.Height);
 
     float lh[16];
@@ -172,8 +168,11 @@ void ExtAoAfterOpaque(Video::Context& context, const ExtAoFrame& frame,
 
     StateBackup saved(dc);
     if (saved.Colour() == nullptr) return;   // nothing bound to darken (never seen; restored by `saved`)
-    ID3D11ShaderResourceView* const raw = g_pass.resolve.Run(dc, depthSrv, td.SampleDesc.Count);
-    saved.RebindTargets();
+    // The main depth -> 1x R32F raw depth: THE SHARED DEPTH COPY, made here (the first reader of the
+    // frame) from the readable depth's SRV; it puts back every binding it touches.
+    ID3D11ShaderResourceView* const raw =
+        VideoDX11::DepthCopy::Acquire(context, VideoDX11::DepthCopy::Source::Main);
+    if (raw == nullptr) return;
     // The fade follows this frame's fog (Weather::DrawUpdate -> Context::SetFog ran
     // before Renderer::Draw): the materials fogged their pixels already, so AO must be
     // gone where the fog is (ao_math.h FadeFromFog; the user's look 2026-10-14).

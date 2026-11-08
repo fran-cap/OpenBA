@@ -37,6 +37,7 @@
 #include "vulkan_entry.h"
 #include "ao/assao_pass.h"                         // P4: ext.ambient_occlusion's pass objects
 #include "better_water/scene_depth_pass.h"         // ext.better_water's scene depth copy
+#include "depth_copy/depth_copy.h"                 // the shared depth copy (AO, clouds, water)
 #include "better_clouds/cloud_shadow_pass.h"       // ext.better_clouds' shadow pass
 #include "async_gpu_create/async_create.h"         // P4: ext.async_gpu_create (the loader bracket)
 #include "boot_device_lost/boot_device_lost.h"     // P4: fix.boot_device_lost
@@ -1251,6 +1252,7 @@ void DeviceData::Shutdown() {
             Assao::Shutdown();
             SceneDepth::Shutdown();
             CloudShadow::Shutdown();
+            DepthCopy::Shutdown();   // after its three readers: the shared depth copy
             Rewrites::Shutdown();
             ShareGpuData::Clear();
             PresentShutdown();

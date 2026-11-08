@@ -18,6 +18,7 @@
 #include "vulkan_entry.h"
 #include "draw.h"
 #include "ao/assao_pass.h"
+#include "depth_copy/depth_copy.h"
 
 #include "video/Context.h"
 #include "video/Device.h"
@@ -34,12 +35,14 @@
 namespace AoBackend {
 
 bool Supported() {
-    return VideoVulkan::DeviceLive() && VideoVulkan::Assao::Ready();
+    return VideoVulkan::DeviceLive() && VideoVulkan::Assao::Ready() && VideoVulkan::DepthCopy::Supported();
 }
 
 void RequestReadableDepth(bool on) {
     // The AO pass's own request (draw.h THE READABLE DEPTH: ext.better_water's scene depth copy is the
     // other reader); logged when it changes.
+    // THE SHARED DEPTH COPY (depth_copy/depth_copy.h): the pass reads it with a multisampled depth.
+    VideoVulkan::DepthCopy::Request(VideoVulkan::kDepthReaderAo, on);
     if (VideoVulkan::DrawRequestReadableDepth(VideoVulkan::kDepthReaderAo, on)) {
         std::fprintf(stderr, "[AmbientOcclusion] main depth -> %s: rebuilt at the next frame (Vulkan)\n",
                      on ? "readable (sampled view)" : "retail (attachment only, unless another reader asks)");

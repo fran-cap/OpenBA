@@ -156,6 +156,15 @@ struct AoTargets {
 // ext.better_clouds' shadow pass use the same bracket (DrawAoBegin, its own pass, DrawAoEnd). False, nothing done, outside a frame or
 // while the depth is not readable (the frames between the request and the remake).
 bool DrawAoBegin(AoTargets* out);
+// The same bracket for a pass that does not read the main depth itself (it reads the shared depth copy,
+// depth_copy/depth_copy.h, made earlier this frame): the pass in progress ends (its clears land) and
+// `out` is filled, but the main depth stays in its attachment layout (no transition to SHADER_READ_ONLY
+// and back) and does not count as read for THE DEPTH DISCARD. False, nothing done, outside a frame or
+// while the depth is not readable.
+bool DrawAoBeginKeepDepth(AoTargets* out);
+// The engine draws (and depth clears) that may have written the main depth so far this frame
+// (THE SHARED DEPTH COPY: a copy made at count N is still the main depth while the count is N).
+uint64_t DrawMainDepthWrites();
 // The pass of the AO apply, on the main colour (LOAD; resolved like every main pass). Issue #253: when
 // the bound render buffer is the main target (colour and depth: the Blended list's pass), the pass is
 // that one, with the main depth attached and LOADed, and DrawAoEnd leaves it open for the Blended draws

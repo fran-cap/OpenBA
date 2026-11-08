@@ -12,7 +12,8 @@
 //   winter_ice/enhanced_entry.cpp          combo "Better ice" Off / On (WINTERICE; ext.winter_ice)
 //   better_clouds/enhanced_entry.cpp       combo "Better clouds" Off / On / Fancy (BETTERCLOUDS)
 //   sharp_ui/enhanced_entry.cpp            combo "Sharp UI" Off / Text / Text + icons (SHARP_SPRITES)
-//   max_shadow_res/enhanced_entry.cpp      combo "Max shadow resolution"
+//   max_shadow_res/enhanced_entry.cpp      combos "Max shadow resolution" and "Adaptive shadow map"
+//                                          (SHADOWZOOM; ext.max_shadow_zoom)
 //   seamless_loops/enhanced_entry.cpp      combo "Seamless ambient loops"
 //   texture_quality/enhanced_entry.cpp     combo "Texture quality" (TEXQUALITY)
 //   enhanced_tab/render_scale_entry.cpp    combo "Render scale" (P8; the platform key VideoRenderScale)
