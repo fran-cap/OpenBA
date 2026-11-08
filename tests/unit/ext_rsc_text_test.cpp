@@ -39,13 +39,14 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 21);
+    CHECK(kEmbeddedCount == 22);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/RestrictedFoodsPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ItemPriorityPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/ItemLimitsPanel.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreePage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreeWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreeSummary.rsc") != nullptr);
@@ -214,8 +215,8 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // + 1 for the touch pointer bar's Shift tip, + 1 for fix.mods_persist's in-game warning, + 9 for the FPS
     // page, + 18 for the Find Buildings page and its favorites window, + 52 for the map window's overlay
     // views, + 4 for the dynamic Professions window (its title, its two column-button tips and its resize
-    // strip)
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4);
+    // strip), + 3 for ext.item_limits' panel row (label, two tips)
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 3);
     if (strings) {
         // The Extensions dialog's two tab captions.
         int tabKeys = 0;
@@ -288,6 +289,31 @@ UNIT_TEST(ext_rsc_text_parse_restricted_foods_page) {
           f.Find("labelRestrictedFoodsRow") && f.Find("checkRestrictedFoodsRow") &&
           f.Find("checkRestrictedFoodsShowAll") && f.Find("textRestrictedFoodsHint"));
     CheckKnownTypes(f, "RestrictedFoodsPage.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_item_limits_panel) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/ItemLimitsPanel.rsc", f));
+    // The row panel_row.cpp clones onto a workshop panel: a check box and the text, by the names it looks up.
+    const Object* row = f.Find("ribbonItemLimitsRow");
+    CHECK(row && row->type == "RibbonDescription");
+    if (row) {
+        const Field* els = row->body.Find("_elements");
+        CHECK(els && els->tokens.size() == 2 && els->tokens[0].text == "checkItemLimitsRow" &&
+              els->tokens[1].text == "textItemLimitsRow");
+    }
+    const Object* check = f.Find("checkItemLimitsRow");
+    CHECK(check && check->type == "CheckDescription" && check->base == "Extensions.rsc:checkLoaded");
+    const Object* text = f.Find("textItemLimitsRow");
+    CHECK(text && text->type == "TextDescription");
+    // The column that takes the category row's slot: vertical, so the row gets its own line under it.
+    const Object* column = f.Find("ribbonItemLimitsColumn");
+    CHECK(column && column->type == "RibbonDescription");
+    if (column) {
+        const Field* vertical = column->body.Find("_vertical");
+        CHECK(vertical && !vertical->tokens.empty() && vertical->tokens[0].text == "true");
+    }
+    CheckKnownTypes(f, "ItemLimitsPanel.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_item_priority_page) {

@@ -20,6 +20,8 @@ With the row on, in the every-recipe mode only:
 
 A building set to one recipe, and any building with the row off, is untouched. The weights are the building's own.
 
+With ext.item_limits active for the town, a recipe whose product is at its own item limit counts as at its limit here too (`Read`), so it is skipped in the draw and the building stops only when every recipe is at one limit or the other; the depletion test in `Work/consumeproduce.cpp` does not add the item-limit stop after this answer (docs/extensions/handins/ITEMLIMITS.md section 6).
+
 | file | role |
 |---|---|
 | `src/ext/recipe_skip/recipe_skip_math.h` | the draw and the all-at-limit test (pure, unit tested) |

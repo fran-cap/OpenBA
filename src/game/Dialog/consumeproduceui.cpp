@@ -34,6 +34,8 @@
 #include "Component/ConsumeProduceComponent.h"   // B4 DLG-a: by-name reads
 #include "Component/ComponentDescription.h"
 #include "Dialog/ConsumeProduceUI.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the item limit row
+#include "ext/item_limits/item_limits.h"
 
 // ConsumeProduceUI: PROMOTED from a bare UI_DIALOG_STUB 2026-08-24. The Tavern panel
 // rendered its authored layout -- worker spinner, Inventory, "Alcohol Limit 500",
@@ -215,6 +217,10 @@ void ConsumeProduceUI::OnCreated() {
         // Set the progress maximum to 1.0f
         progressRemaining->_maxValue = 1.0f;
     }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the item limit
+    // row under the category limit
+    Ext::ItemLimits::PanelOpened(this);
 }
 
 // ============================================================
@@ -231,6 +237,10 @@ void ConsumeProduceUI::OnUpdateLayout() {
     // Bail if the datasource entity is gone or marked-for-removal — otherwise the
     // IsDerivedFrom below runs on a dying entity (crash class 2026-07-21).
     if (!SA_DialogEntityAlive(this)) return;
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the row follows
+    // the combo and the item's town-wide limit
+    Ext::ItemLimits::PanelLayout(this);
 
     // The progress element
     UI::ProgressElement* progressElem = progressRemaining;
@@ -270,6 +280,10 @@ void ConsumeProduceUI::OnUpdateLayout() {
 // [9] 0x14005f330
 void ConsumeProduceUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::EventId param3, int32_t param4,
                                       int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the item limit
+    // row's check box and spinner
+    if (Ext::ItemLimits::PanelEvent(this, param3, param4)) return;
+
     if (param3 != UI::EventId::SelectionChanged || param4 != 22000) return;
 
     // Find component
