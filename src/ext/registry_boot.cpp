@@ -249,6 +249,10 @@ void InitFromSettings() {
     // registry's discrete key never holds another value). Same rule as the bool above.
     ::Graphics::SunLight::_extMaxShadowSize =
         CurrentProfile() == Profile::Faithful ? nullptr : &Val().max_shadow_size;
+    // ext.max_shadow_zoom (SHADOWZOOM.md section 6): the drawn share of the map follows the view while
+    // the row is on. Live (read every frame); same rule as the two above.
+    ::Graphics::SunLight::_extShadowZoom =
+        CurrentProfile() == Profile::Faithful ? nullptr : &Val().max_shadow_zoom;
     // ext.terrain_batch (class A, live): the WorldGeometry seam follows the row's live bool. Installed
     // once, like the sun map's: under the faithful profile it stays null, so no run index buffer is
     // built and the terrain loop and draw pay one null test each.

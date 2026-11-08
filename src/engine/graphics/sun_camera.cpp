@@ -298,7 +298,9 @@ Camera SunLight::GetSunCamera(Renderer& renderer) const {
     // word at +0x34, the device's back-buffer width for bits 8 / 9 (signed /2),
     // else the image's own width shifted by `Configuration::shadowScalar` for
     // bit 6. The ported member is that ladder (buffers.cpp).
-    const int32_t dim = self->_depthTarget->Width();
+    // EXT SEAM (NOT RETAIL, ext.max_shadow_zoom, graphics/shadow_zoom.h): the snap follows the share
+    // of the map the casters are drawn into, which is retail's snap at that size. Shift 0 = retail.
+    const int32_t dim = self->_depthTarget->Width() >> SunLight::ExtShadowZoomShift();
 
     // One shadow-map texel, in world units. The snap below is what stops the
     // shadow edges crawling as the view camera pans.

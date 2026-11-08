@@ -868,6 +868,11 @@ const ValueKey kValueKeys[] = {
     // retail's 1024 / 512 whatever this says (src/engine/graphics/sunlight.cpp SunMapRawSize).
     { "max_shadow_size", "max_shadow_res", 4096, 8192, 4096,
       [](State& s) -> int32_t& { return s.val.max_shadow_size; }, kMaxShadowSizes, 2 },
+    // SHADOWZOOM (docs/extensions/handins/SHADOWZOOM.md section 6): while the row is on, the shadow casters
+    // are drawn into the share of the map the view can show (src/engine/graphics/shadow_zoom.h): the full
+    // map up close, half of it along each axis when zoomed out at the default tilt. No rebuild; live.
+    { "max_shadow_zoom", "max_shadow_res", 0, 1, 1,
+      [](State& s) -> int32_t& { return s.val.max_shadow_zoom; }, nullptr, 0 },
     // ROCKSEAT: how fix.rock_seat seats a rock (src/ext/rock_seat/rock_seat_math.h): 1 sinks it to the
     // lowest ground under its bottom ring, 2 tilts it to the slope and seats it (the default: sink
     // buries small rocks on a slope, ROCKSEAT.md section 4). The only valued key owned by a fix; the
