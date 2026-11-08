@@ -188,8 +188,12 @@ RibbonDescription entryColumn
 	bool _vertical = true; ElementDescription _elements [ "textModName" "textKind" "textState" ]
 }
 
+// The name / kind / state column wraps short of the description, which starts 200 px into the row's text
+// area: a long name ("Seamless audio loops ...") or state ("Disabled for this game, enabled from the next")
+// otherwise runs under the description.
 TextDescription textModName : "Mod.rsc:textModName"
 {
+	bool _wordWrap = true; int _wordWrapSize = 192;
 }
 
 // The description's wrap width is our own, not the game's: the row puts the toggle 230 px past the description's left edge, and a mod that
@@ -210,12 +214,14 @@ TextDescription smallNote
 TextDescription textKind : "smallNote"
 {
 	String _text = "ExtensionsKindFix";
+	bool _wordWrap = true; int _wordWrapSize = 192;
 }
 
 // ... and ExtensionsStateEnabled / Disabled / LockedEnabled / LockedDisabled / LockedOn / LockedOff.
 TextDescription textState : "smallNote"
 {
 	String _text = "ExtensionsStateEnabled";
+	bool _wordWrap = true; int _wordWrapSize = 192;
 }
 
 // The toggle: the Mods "loaded" check with our tooltip.

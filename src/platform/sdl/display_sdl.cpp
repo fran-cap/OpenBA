@@ -30,6 +30,7 @@
 
 #include <SDL3/SDL_properties.h>
 #include <SDL3/SDL_rect.h>
+#include <SDL3/SDL_stdinc.h>
 #include <SDL3/SDL_video.h>
 
 #include <cstring>
@@ -286,6 +287,40 @@ int32_t GetCurrentDisplayRefreshHz() {
     const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
     if (mode == nullptr || mode->refresh_rate <= 1.0f) return 0;
     return static_cast<int32_t>(mode->refresh_rate + 0.5f);
+}
+
+int32_t GetDisplayRefreshRates(int32_t (*rates)[2], int32_t cap) {
+    int modeCount = 0;
+    SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(SDL_GetPrimaryDisplay(), &modeCount);
+    if (modes == nullptr) return 0;
+    int32_t count = 0;
+    for (int i = 0; i < modeCount; ++i) {
+        const SDL_DisplayMode* m = modes[i];
+        int32_t num = m->refresh_rate_numerator;
+        int32_t den = m->refresh_rate_denominator;
+        if (num <= 0 || den <= 0) {
+            // No exact rate: the float, in whole Hz.
+            if (m->refresh_rate <= 1.0f) continue;
+            num = static_cast<int32_t>(m->refresh_rate + 0.5f);
+            den = 1;
+        }
+        // One entry per whole Hz the Options combo shows (num / den): a display lists 59.94 and 60
+        // under several sizes; the first exact pair seen for that Hz is kept.
+        const int32_t hz = num / den;
+        int32_t at = 0;
+        while (at < count && rates[at][0] / rates[at][1] < hz) ++at;
+        if (at < count && rates[at][0] / rates[at][1] == hz) continue;
+        if (count == cap) continue;
+        for (int32_t k = count; k > at; --k) {
+            rates[k][0] = rates[k - 1][0];
+            rates[k][1] = rates[k - 1][1];
+        }
+        rates[at][0] = num;
+        rates[at][1] = den;
+        ++count;
+    }
+    SDL_free(modes);
+    return count;
 }
 
 

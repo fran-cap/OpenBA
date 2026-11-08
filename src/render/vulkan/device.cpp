@@ -55,7 +55,7 @@
 #include "boot_window.h"   // BootWindow::ArmDeferredShow (src/app): the deferred first show
 #include "stall_debug.h"   // StallDebug::Mark (src/diag): the boot timeline
 #include "platform/common/cursor_image.h"            // Platform::Cursor::SetFromTexels
-#include "platform/common/platform_window.h"         // Platform::Window::ShowDefault
+#include "platform/common/platform_window.h"         // Platform::Window::ShowDefault, GetDisplayRefreshRates
 #include "platform/common/platform_window_hooks.h"   // Platform::Window::QueryScreenForModes
 #include "display_geometry.h"                        // Platform::Window::BuildResolutionList
 #include "platform/sdl/window_sdl_internal.h"         // Platform::Window::Sdl::GameWindow
@@ -864,7 +864,20 @@ bool Enumerate(Video::Device* dev, const char* name) {
     Platform::Window::QueryScreenForModes(&mw, &mh, &nw, &nh);
     int32_t sizes[32][2];
     const int modeCount = Platform::Window::BuildResolutionList(mw, mh, nw, nh, sizes, 32);
-    const D::RefreshRate rate{ 60, 1 };
+    // The display's own refresh rates (dx11 lists each mode's from DXGI), every one under every size:
+    // the sizes are BuildResolutionList's, not the display's modes. 60 Hz when the display says none.
+    int32_t rateList[32][2];
+    int rateCount = Platform::Window::GetDisplayRefreshRates(rateList, 32);
+    if (rateCount == 0) {
+        rateList[0][0] = 60;
+        rateList[0][1] = 1;
+        rateCount = 1;
+    }
+    std::string rateText;
+    for (int r = 0; r < rateCount; ++r) {
+        rateText += " " + std::to_string(rateList[r][0]) + "/" + std::to_string(rateList[r][1]);
+    }
+    std::fprintf(stderr, "[Vulkan] display refresh rates:%s\n", rateText.c_str());
 
     for (int i = 0; i < adapterCount; ++i) {
         auto& a = *new (g.adapterData + i) D::Adapter();
@@ -894,7 +907,9 @@ bool Enumerate(Video::Device* dev, const char* name) {
             D::DisplayMode mode{};
             mode.width = sizes[m][0];
             mode.height = sizes[m][1];
-            a.FindOrAddMode(mode, rate);
+            for (int r = 0; r < rateCount; ++r) {
+                a.FindOrAddMode(mode, D::RefreshRate{ rateList[r][0], rateList[r][1] });
+            }
         }
     }
     dev->interfaceData = list;
