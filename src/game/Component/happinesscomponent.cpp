@@ -118,7 +118,7 @@ void Map::StampInfluence(int state, int cx, int cy, int r, short delta) {
                     if (ix >= 0 && yy >= 0 && ix < width && yy < width &&
                         dy * dy + dx * dx <= r * r) {
                         // MapCell +0x1C, the nine per-state bytes, indexed by `state`
-                        uint8_t* cell = &grid[(int64_t)(width * yy + ix)].field_0x1C[(int64_t)state];
+                        uint8_t* cell = &grid[(int64_t)(width * yy + ix)].influenceCounts[(int64_t)state];
                         *cell = (uint8_t)(*cell + (uint8_t)delta);
                     }
                     ix++;
@@ -129,7 +129,7 @@ void Map::StampInfluence(int state, int cx, int cy, int r, short delta) {
             dy--;
         } while (yy <= cy + r);
     }
-    field_0x90[state] = (short)(field_0x90[state] + delta);
+    influenceTotals[state] = (short)(influenceTotals[state] + delta);
 }
 
 // Retail's `IsDerivedFrom(p, tid) ? p : nullptr` idiom on a component's description.
@@ -502,7 +502,7 @@ void HappinessComponent::OnMessage(int message, void* /*data*/, uint32_t /*arg0*
             CitizenBehavior* town = GameUpdateLoop::_singleton->m_citizenList;
             int category = ResourceCategory(spent);                 // 0x140088f90
             if (category >= 0)
-                town->professionResources._data[category].field_0x0C += 1;
+                town->professionResources._data[category].consumedCount += 1;
             return;
         }
     }

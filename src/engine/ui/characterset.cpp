@@ -104,7 +104,7 @@ bool CharacterSet::Serialize(IO::Stream& streamv) {
     // [RSP+0x28], [RSP+0x30]; 1800cb7d0..1800cb7ed the factory by _direction.
     IO::Serializer ser(*stream, 0);
 
-    _string20.Serialize(ser);                               // 1800cb7fb
+    _characters.Serialize(ser);                               // 1800cb7fb
 
     // 1800cb806..1800cb813: ~Serializer, `if (rw) delete rw`.
     return true;                                             // 1800cb815 MOV AL,1
@@ -115,7 +115,7 @@ bool CharacterSet::Serialize(IO::Stream& streamv) {
 // content is the release of the String at +0x20 (1800cb860..1800cb88a:
 // System::String's own refcount protocol, the count at `s[-4]`, the block at
 // `s[-8]`, retail's asymmetry), then the tail JMP to ~External (0x1800cb892).
-// B4 X-RH: `_string20` is a System::String member, so the release is the
+// B4 X-RH: `_characters` is a System::String member, so the release is the
 // member's destructor, which the compiler runs after this (empty) body and
 // before ~External: retail's order.
 CharacterSet::~CharacterSet() {

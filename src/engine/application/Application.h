@@ -225,7 +225,7 @@ public:
     // field. Corrected at its source per PLAN.md §6 step 8, not only in a doc.
     uint8_t _cursorEnabled;    // +0x10
     uint8_t _running;          // +0x11  IsPaused: this[0x11] == 0 means PAUSED. Ctor sets 1.
-    uint8_t _unknown12[0x06];  // +0x12..+0x17  unproven.
+    uint8_t _pad12[0x06];  // +0x12..+0x17  unproven.
 
     // +0x18  THE MESSAGE-CALLBACK SET. Named by Wave 9 lane VID2 from
     // `?RegisterMessageCallback@Application@1@…` (0x18009fa60), which does
@@ -262,7 +262,7 @@ static_assert(offsetof(Application, _quitRequested)        == 0x28, "Application
 // 0x1800dbbb3 (`MemAlloc(0x30, 4)`), not by this struct's field list.
 static_assert(sizeof(Application) == 0x30,
               "Application is 0x30 bytes -- Engine::Startup 0x1800dbbb3 allocates 0x30");
-static_assert(offsetof(Application, _unknown12) == 0x12, "Application::_unknown12");
+static_assert(offsetof(Application, _pad12) == 0x12, "Application::_pad12");
 
 }  // namespace Application
 

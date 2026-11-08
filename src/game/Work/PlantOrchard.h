@@ -66,8 +66,8 @@ public:
     // +0x60 as two qwords after the set; the dtor 0x1400f5010 restamps, MemFree(+0x58),
     // +0x58 = +0x60 = 0, THEN clears the set: reverse declaration order (~Array before ~Set).
     using SlotFlags = Collection::Array<bool>;
-    SlotFlags field_58;
-    ComponentDescription* field_68;   // +0x68: ExternalPtr<ComponentDescription> (0x140002340): the
+    SlotFlags _claimedSlots;
+    ComponentDescription* _treeType;   // +0x68: ExternalPtr<ComponentDescription> (0x140002340): the
                                       //        TREE TYPE template chosen in OrchardUI's combo (copied
                                       //        from OrchardComponent+0x60). NOT the OrchardDescription.
 };
@@ -76,7 +76,7 @@ static_assert(sizeof(PlantOrchard) == 0x70, "PlantOrchard is 0x70 (retail create
 static_assert(alignof(PlantOrchard) == 8, "PlantOrchard is 8-aligned");
 static_assert(offsetof(PlantOrchard, _cells) == 0x48, "PlantOrchard +0x48");
 static_assert(offsetof(PlantOrchard, _cells) + offsetof(PlantOrchard::CellSet, _count) == 0x50, "PlantOrchard +0x50");
-static_assert(offsetof(PlantOrchard, field_58) == 0x58, "PlantOrchard +0x58");
-static_assert(offsetof(PlantOrchard, field_58) + offsetof(PlantOrchard::SlotFlags, _size) == 0x60, "PlantOrchard +0x60");
-static_assert(offsetof(PlantOrchard, field_58) + offsetof(PlantOrchard::SlotFlags, _capacity) == 0x64, "PlantOrchard +0x64");
-static_assert(offsetof(PlantOrchard, field_68) == 0x68, "PlantOrchard +0x68");
+static_assert(offsetof(PlantOrchard, _claimedSlots) == 0x58, "PlantOrchard +0x58");
+static_assert(offsetof(PlantOrchard, _claimedSlots) + offsetof(PlantOrchard::SlotFlags, _size) == 0x60, "PlantOrchard +0x60");
+static_assert(offsetof(PlantOrchard, _claimedSlots) + offsetof(PlantOrchard::SlotFlags, _capacity) == 0x64, "PlantOrchard +0x64");
+static_assert(offsetof(PlantOrchard, _treeType) == 0x68, "PlantOrchard +0x68");

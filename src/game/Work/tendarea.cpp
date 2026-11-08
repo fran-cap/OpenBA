@@ -90,7 +90,7 @@
 //
 int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) {
     // Step 1: Check max workers
-    WorkComponent* workComp = field_10->FindComponent<WorkComponent>();   // 0x140003050
+    WorkComponent* workComp = _entity->FindComponent<WorkComponent>();   // 0x140003050
 
     int currentWorkers = _citizens._count;
 
@@ -132,7 +132,7 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
 
     if (tendMode == 0) {
         // Crop mode: the field's CropFieldComponent (0x140005380)
-        CropFieldComponent* crop = field_10->FindComponent<CropFieldComponent>();
+        CropFieldComponent* crop = _entity->FindComponent<CropFieldComponent>();
 
         uint32_t areaSize = static_cast<uint32_t>(crop->slots._size);
         randIdx = rng->Rand(areaSize);
@@ -142,7 +142,7 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
         typeId = CropFieldComponent::TypeId();  // DAT_1401c7510
     } else {
         // Orchard mode: the OrchardComponent (0x140005440)
-        OrchardComponent* orchard = field_10->FindComponent<OrchardComponent>();
+        OrchardComponent* orchard = _entity->FindComponent<OrchardComponent>();
 
         uint32_t areaSize = static_cast<uint32_t>(orchard->slotCount);
         randIdx = rng->Rand(areaSize);
@@ -180,12 +180,12 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
     map->GetTerrainPos(citizenTerrain, &citizenPos.x, '\0', nullptr);
 
     // Step 7: Create PerformWork action
-    ComponentEntity* workEntityRef = field_10.Get();
+    ComponentEntity* workEntityRef = _entity.Get();
     CitizenComponent* entityBuf[2] = { *citizenRef, nullptr };
 
     WorkAct_GrazingWorkCtor_bb0a0(
         entityBuf,                  // citizenIBP
-        field_20,                   // priority
+        _workId,                   // priority
         &workEntityRef,             // work entity
         0,                          // unused
         citizenTerrain,             // target position
@@ -195,7 +195,7 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
         randIdx);                   // cell index
 
     // Step 8: Assign work and register with AI
-    int priority = field_20;
+    int priority = _workId;
     CitizenComponent* citEnt = *citizenRef;
 
     // Slot 10 (GetTarget): the workplace's Profession
@@ -203,7 +203,7 @@ int TendArea::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) 
     GetTarget(&workEnt);
 
     citEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citEnt->field_0x30 = priority;
+    citEnt->lastWorkId = priority;
     citEnt->lastErrand = CitizenErrand::None;
 
     if (workEnt == citEnt->profession && priority >= 0) {
@@ -375,7 +375,7 @@ int TendArea::Validate() {
 // ============================================================
 Profession** TendArea::GetTarget(Profession** outPtr) {
     // 0x140002e10 = FindComponent<WorkPlaceComponent>.
-    WorkPlaceComponent* workplace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workplace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workplace->profession;
     return outPtr;
 }

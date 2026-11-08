@@ -38,37 +38,37 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x14002f0c0
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    int32_t _i20;                               // +0x20
-    int32_t _i24;                               // +0x24
-    float _f28;                                 // +0x28
-    float _f2c;                                 // +0x2c
-    float _f30;                                 // +0x30
-    float _f34;                                 // +0x34
-    float _f38;                                 // +0x38
-    bool _b3c;                                  // +0x3c
+    int32_t _roamSize;                               // +0x20
+    int32_t _requiredArea;                               // +0x24
+    float _maxAge;                                 // +0x28
+    float _maxAgeTolerance;                                 // +0x2c
+    float _ageForOffspring;                                 // +0x30
+    float _offspringTerm;                                 // +0x34
+    float _offspringTermTolerance;                                 // +0x38
+    bool _randomIdleHeading;                                  // +0x3c
     uint8_t _pad3d[3];                          // +0x3d never written by the ctor
-    float _f40;                                 // +0x40
+    float _idleTime;                                 // +0x40
     uint8_t _pad44[4];                          // +0x44 never written by the ctor
-    ComponentDescription** _refs;               // +0x48 Array<ExternalPtr<ComponentDescription>> data (Serialize
+    ComponentDescription** _rawMaterials;               // +0x48 Array<ExternalPtr<ComponentDescription>> data (Serialize
                                                 //       0x140107050 -> 0x1400049c0 checks each entry against
                                                 //       ComponentDescription's cell 0x1401c7318)
-    int32_t _refCount;                          // +0x50
-    int32_t _refCap;                            // +0x54
+    int32_t _rawMaterialCount;                          // +0x50
+    int32_t _rawMaterialCap;                            // +0x54
 };
 
 static_assert(sizeof(AnimalDescription) == 0x58, "AnimalDescription is 0x58 (create 0x14002f080 MemAlloc(0x58))");
 static_assert(offsetof(AnimalDescription, _pad3d) == 0x3D, "AnimalDescription::_pad3d");
 static_assert(offsetof(AnimalDescription, _pad44) == 0x44, "AnimalDescription::_pad44");
 static_assert(alignof(AnimalDescription) == 8, "AnimalDescription alignment");
-static_assert(offsetof(AnimalDescription, _i20) == 0x20, "AnimalDescription::_i20 @ +0x20");
-static_assert(offsetof(AnimalDescription, _i24) == 0x24, "AnimalDescription::_i24 @ +0x24");
-static_assert(offsetof(AnimalDescription, _f28) == 0x28, "AnimalDescription::_f28 @ +0x28");
-static_assert(offsetof(AnimalDescription, _f2c) == 0x2c, "AnimalDescription::_f2c @ +0x2c");
-static_assert(offsetof(AnimalDescription, _f30) == 0x30, "AnimalDescription::_f30 @ +0x30");
-static_assert(offsetof(AnimalDescription, _f34) == 0x34, "AnimalDescription::_f34 @ +0x34");
-static_assert(offsetof(AnimalDescription, _f38) == 0x38, "AnimalDescription::_f38 @ +0x38");
-static_assert(offsetof(AnimalDescription, _b3c) == 0x3c, "AnimalDescription::_b3c @ +0x3c");
-static_assert(offsetof(AnimalDescription, _f40) == 0x40, "AnimalDescription::_f40 @ +0x40");
-static_assert(offsetof(AnimalDescription, _refs) == 0x48, "AnimalDescription::_refs @ +0x48");
-static_assert(offsetof(AnimalDescription, _refCount) == 0x50, "AnimalDescription::_refCount @ +0x50");
-static_assert(offsetof(AnimalDescription, _refCap) == 0x54, "AnimalDescription::_refCap @ +0x54");
+static_assert(offsetof(AnimalDescription, _roamSize) == 0x20, "AnimalDescription::_roamSize @ +0x20");
+static_assert(offsetof(AnimalDescription, _requiredArea) == 0x24, "AnimalDescription::_requiredArea @ +0x24");
+static_assert(offsetof(AnimalDescription, _maxAge) == 0x28, "AnimalDescription::_maxAge @ +0x28");
+static_assert(offsetof(AnimalDescription, _maxAgeTolerance) == 0x2c, "AnimalDescription::_maxAgeTolerance @ +0x2c");
+static_assert(offsetof(AnimalDescription, _ageForOffspring) == 0x30, "AnimalDescription::_ageForOffspring @ +0x30");
+static_assert(offsetof(AnimalDescription, _offspringTerm) == 0x34, "AnimalDescription::_offspringTerm @ +0x34");
+static_assert(offsetof(AnimalDescription, _offspringTermTolerance) == 0x38, "AnimalDescription::_offspringTermTolerance @ +0x38");
+static_assert(offsetof(AnimalDescription, _randomIdleHeading) == 0x3c, "AnimalDescription::_randomIdleHeading @ +0x3c");
+static_assert(offsetof(AnimalDescription, _idleTime) == 0x40, "AnimalDescription::_idleTime @ +0x40");
+static_assert(offsetof(AnimalDescription, _rawMaterials) == 0x48, "AnimalDescription::_rawMaterials @ +0x48");
+static_assert(offsetof(AnimalDescription, _rawMaterialCount) == 0x50, "AnimalDescription::_rawMaterialCount @ +0x50");
+static_assert(offsetof(AnimalDescription, _rawMaterialCap) == 0x54, "AnimalDescription::_rawMaterialCap @ +0x54");

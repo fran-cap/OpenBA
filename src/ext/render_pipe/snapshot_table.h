@@ -23,7 +23,7 @@
 namespace Ext {
 namespace RenderPipe {
 
-// A WorldGeometry item with this draw key (RendererDrawItem::_arg5) draws from the copy.
+// A WorldGeometry item with this draw key (RendererDrawItem::_node) draws from the copy.
 inline bool WorldItemCopied(uint32_t key) {
     const uint32_t mode = key & WorldDrawKey::kModeMask;
     return mode == WorldDrawKey::kModeDecal || mode == WorldDrawKey::kModeRoad;

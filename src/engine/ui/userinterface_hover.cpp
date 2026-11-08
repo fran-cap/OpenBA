@@ -201,10 +201,10 @@ void UI::UserInterface::EndDragDrop() {
     rec.dialog    = _dragDropDialog;        // 0x180120afa / 0x180120b04
     rec.element   = nullptr;                // 0x180120b21
     rec.eventId   = UI::EventId::DragDropCancel;  // 0x180120b26  drag-drop CANCEL
-    rec.arg14     = -1;                     // 0x180120b2e
-    rec.arg18     = 0;                      // 0x180120b36 } one QWORD
-    rec.arg1C     = 0;                      //             }
-    rec.arg20     = static_cast<int32_t>(_dragDropId);   // 0x180120b09 / 0x180120b10
+    rec.elementId     = -1;                     // 0x180120b2e
+    rec.mouseX     = 0;                      // 0x180120b36 } one QWORD
+    rec.mouseY     = 0;                      //             }
+    rec.value     = static_cast<int32_t>(_dragDropId);   // 0x180120b09 / 0x180120b10
     rec.userData  = _dragDropData;          // 0x180120b14 / 0x180120b3b
     rtcoll::RtColl_ArraySetSizeFill_180033690(&_events, _events._size + 1, &rec);               // 0x180120b40
 
@@ -263,10 +263,10 @@ void UI::DialogInstance::EndHover(UserInterface* ui) {
         rec.dialog    = this;                       // 0x180113d2b
         rec.element   = nullptr;                    // 0x180113d45
         rec.eventId   = UI::EventId::HoverEnd;      // 0x180113d39 (a QWORD store,
-        rec.arg14     = 0;                          //   covering +0x10 AND +0x14)
-        rec.arg18     = 0;                          // 0x180113d4a } one QWORD
-        rec.arg1C     = 0;                          //             }
-        rec.arg20     = 0;                          // 0x180113d51
+        rec.elementId     = 0;                          //   covering +0x10 AND +0x14)
+        rec.mouseX     = 0;                          // 0x180113d4a } one QWORD
+        rec.mouseY     = 0;                          //             }
+        rec.value     = 0;                          // 0x180113d51
         rec.userData  = nullptr;                    // 0x180113d55
         rtcoll::RtColl_ArraySetSizeFill_180033690(&ui->_events, ui->_events._size + 1, &rec);   // 0x180113d5a
     }

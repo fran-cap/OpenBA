@@ -18,7 +18,7 @@
 #include "object/TypeInfo.h"
 #include "Component/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Entity/CitizenBehavior.h"   // CitizenBehavior::field_0x00 (the storage-location list)
+#include "Entity/CitizenBehavior.h"   // CitizenBehavior::storageLocations (the storage-location list)
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -89,7 +89,7 @@ static char StorageLoc_State3Enter(StorageLocationComponent* data, StateMachine*
     if (!townMgr) return 0;
     StorageLocationComponent* self = data;   // the dispatcher's [node+0x18]
     ComponentEntity* entityRef = self->_entity.Get();
-    townMgr->field_0x00.Remove(entityRef);
+    townMgr->storageLocations.Remove(entityRef);
     return 0;
 }
 
@@ -101,7 +101,7 @@ static char StorageLoc_State3Enter(StorageLocationComponent* data, StateMachine*
 // this component (ctor flag bit 1), so a stockpile / barn marked for demolition leaves
 // the list at mark time, whatever state its controller is in.
 void StorageLocationComponent::OnRemove() {
-    GameUpdateLoop::_singleton->m_citizenList->field_0x00.Remove(_entity.Get());
+    GameUpdateLoop::_singleton->m_citizenList->storageLocations.Remove(_entity.Get());
 }
 
 // Built ONCE at static-init time, as retail's SetupCrossRefs does (B38 D6/D7).

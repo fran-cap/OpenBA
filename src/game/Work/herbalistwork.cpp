@@ -127,7 +127,7 @@ static void AssignWorkToEntity(HerbalistWork* self, CitizenComponent** citizenIB
     // Set citizen flags
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->lastErrand = CitizenErrand::None;
-    citizen->field_0x30 = priority;
+    citizen->lastWorkId = priority;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0,
     // set the "owned work" flag
@@ -182,11 +182,11 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     // -------------------------------------------------------
 
     // The WorkComponent of the workplace entity (self+0x10) (0x140003050)
-    WorkComponent* matDesc = field_10->FindComponent<WorkComponent>();
+    WorkComponent* matDesc = _entity->FindComponent<WorkComponent>();
 
     // DAT_1401c43a0 = HerbalistComponent (ENDGAME B.3.9 D5: by cell, not the legacy
     // variable name "WorkplaceComponent").
-    HerbalistComponent* workplaceComp = field_10->FindComponent<HerbalistComponent>();
+    HerbalistComponent* workplaceComp = _entity->FindComponent<HerbalistComponent>();
 
     // Its description (+0x18)
     Description* workplaceDesc = workplaceComp->_description;
@@ -199,19 +199,19 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
 
     // DAT_1401c4870 = RadiusDescription on the workplace's ComponentDescription (+0x28)
     // (ENDGAME B.3.9 D5: by cell, not the legacy variable name "MaterialComponent").
-    RadiusDescription* materialComp = FindSubComponentInList(field_10->_description);
+    RadiusDescription* materialComp = FindSubComponentInList(_entity->_description);
 
     // -------------------------------------------------------
     // Step 3: Check capacity — is material count at limit?
     // (the town's per-resource counts, CitizenBehavior +0x170)
     // -------------------------------------------------------
-    int materialIdx = (int)radiusComp->_u30;
+    int materialIdx = (int)radiusComp->_resourceLimit;
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
     const ProfessionResourceEntry& resEntry = gameWorld->m_citizenList->professionResources._data[materialIdx];
     bool atCapacity = resEntry.maxCount <= resEntry.currentCount;
 
     // Set the status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
-    StatusIconComponent* statusIcon = field_10->FindComponent<StatusIconComponent>();
+    StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
     statusIcon->SetFlag(2, atCapacity ? 1 : 0);
 
     // Get herb count (the assigned count, self+0x50)
@@ -245,7 +245,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     int maxAttempts = (int)searchArea;
 
     // Workplace grid cell position
-    int workplaceCell = field_28;
+    int workplaceCell = _cell;
     int cellRow = workplaceCell / mapSize;
     int cellCol = workplaceCell % mapSize;
 
@@ -266,7 +266,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     int citizenGridCell = mapSz * citizenCellY + citizenCellX;
 
     // Get entity's grid cell for distance calculations
-    ComponentEntity* entityIBPBuf[2] = { field_10.Get(), nullptr };
+    ComponentEntity* entityIBPBuf[2] = { _entity.Get(), nullptr };
     uint32_t entityGridCell = EntityAnchorCell(entityIBPBuf, nullptr);
 
     float fGrowthVal = kRdata_14017214c;
@@ -382,14 +382,14 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
                 NaturalResourceComponent* harvestTargetBuf[2] = { natResComp2, nullptr };
                 WorkAct_PerformWorkCtor_c1eb0(
                     harvestBuf,
-                    field_20,
+                    _workId,
                     harvestTargetBuf,
                     pathPos,
                     0,
                     1);
 
-                _field58 = 0;
-                AssignWorkToEntity(this, citizenIBP, field_20);
+                _failedSearchCount = 0;
+                AssignWorkToEntity(this, citizenIBP, _workId);
                 return 2;
             }
         }
@@ -398,7 +398,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     // -------------------------------------------------------
     // Step 7: No work found — handle failure
     // -------------------------------------------------------
-    int failCount = _field58;
+    int failCount = _failedSearchCount;
 
     if (failCount > maxAttempts) {
         // Too many failures — check if citizen's storage has items, then replan
@@ -415,10 +415,10 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
     else {
         // Play idle animation and increment fail counter
         CitizenComponent* idleBuf[2] = { *citizenIBP, nullptr };
-        WorkAct_PlayAnimationCtor_c2490(idleBuf, field_20, 0);
+        WorkAct_PlayAnimationCtor_c2490(idleBuf, _workId, 0);
 
         // Assign work (idle animation) and register with AI
-        int priority = field_20;
+        int priority = _workId;
         CitizenComponent* citizenEnt2 = *citizenIBP;
 
         // Call vtable slot +0x50 (GetTarget)
@@ -426,7 +426,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
         GetTarget(&workEnt);
 
         citizenEnt2->statusFlags |= Bits(CitizenStatus::TaskDone);
-        citizenEnt2->field_0x30 = priority;
+        citizenEnt2->lastWorkId = priority;
         citizenEnt2->lastErrand = CitizenErrand::None;
 
         if (workEnt == citizenEnt2->profession && priority >= 0) {
@@ -438,7 +438,7 @@ int HerbalistWork::Execute(CitizenComponent** citizenIBP, System::Time* /*contex
         WorkBST_RegisterWork_1a30(&_citizens, &inserted, citizenIBP);
 
         // Increment fail counter
-        _field58 = failCount + 1;
+        _failedSearchCount = failCount + 1;
     }
 
     return 2;
@@ -616,7 +616,7 @@ int HerbalistWork::Validate() {
 // into the return slot.
 // ============================================================
 Profession** HerbalistWork::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }
@@ -642,7 +642,7 @@ void HerbalistWork::Persist(IO::Stream& stream) {
     WorkBST_BST_Serialize_296b0(&_citizens, &serializer2);
 
     // Serialize int at self+0x58
-    serializer2.Serialize(_field58, nullptr);
+    serializer2.Serialize(_failedSearchCount, nullptr);
 }
 
 
@@ -664,7 +664,7 @@ int HerbalistWork::GetPriority() {
 }
 // Ctor — the bytes the tree's factory built (Work_GenericCtor): the Work base init,
 // the leaf fields zeroed. The three stamps are the compiler's.
-HerbalistWork::HerbalistWork() : AutoPickupWork(), _field58(0) {
+HerbalistWork::HerbalistWork() : AutoPickupWork(), _failedSearchCount(0) {
 }
 
 // ============================================================

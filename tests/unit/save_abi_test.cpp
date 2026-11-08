@@ -119,7 +119,7 @@ UNIT_TEST(save_saveinfo_template_ctor_is_updatelist_state1) {
     CHECK_EQ(row->sortKey._highDateTime, 0u);                   // +0x34
     CHECK(row->name == nullptr);                                // +0x38
     CHECK_EQ(row->saveIndex, 7);                                // +0x40
-    CHECK_EQ(row->field44, -1);                                 // +0x44
+    CHECK_EQ(row->formatVersion, -1);                                 // +0x44
     CHECK(row->mods._data == nullptr);                          // +0x48
     CHECK_EQ(row->mods._size, 0);                               // +0x50
     CHECK_EQ(row->mods._capacity, 0);                           // +0x54

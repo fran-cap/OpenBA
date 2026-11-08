@@ -36,11 +36,11 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140002750
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    int32_t _i20;                               // +0x20
+    int32_t _maxCitizens;                               // +0x20
     uint8_t _pad24[4];                          // +0x24 never written by the ctor
 };
 
 static_assert(sizeof(AttendanceDescription) == 0x28, "AttendanceDescription is 0x28 (create 0x1400026f0 MemAlloc(0x28))");
 static_assert(offsetof(AttendanceDescription, _pad24) == 0x24, "AttendanceDescription::_pad24");
 static_assert(alignof(AttendanceDescription) == 8, "AttendanceDescription alignment");
-static_assert(offsetof(AttendanceDescription, _i20) == 0x20, "AttendanceDescription::_i20 @ +0x20");
+static_assert(offsetof(AttendanceDescription, _maxCitizens) == 0x20, "AttendanceDescription::_maxCitizens @ +0x20");

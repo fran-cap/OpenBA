@@ -61,7 +61,7 @@ static void MarkovGenerate(const NameDatabase* db, System::Random* rng, int minL
     uint32_t s = rng->Rand(static_cast<uint32_t>(startCnt));
     uint16_t startIdx = startArr[(int)s];
     if ((int)startIdx >= recCount) { out[0] = 0; return; }
-    uint32_t seedKey = table[startIdx].field_0x00;
+    uint32_t seedKey = table[startIdx].context;
     *(uint32_t*)out = seedKey;   // CAST-OK: byte_io (the 4-gram stored into the caller's char buffer as one dword, as retail does)
     out[0] = (char)(out[0] - 0x20);   // uppercase the first letter ('a'-0x20 = 'A')
 
@@ -91,7 +91,7 @@ static void MarkovGenerate(const NameDatabase* db, System::Random* rng, int minL
             if (mid < 0 || mid >= recCount) return;   // context not found -> stop
             // The 4-gram's bytes in memory order (little-endian: byte 0 is the
             // dword's low byte), most significant first.
-            const uint32_t rk = table[mid].field_0x00;
+            const uint32_t rk = table[mid].context;
             uint32_t rkey = ((rk & 0xFFu) << 24) | (((rk >> 8) & 0xFFu) << 16)
                           | (((rk >> 16) & 0xFFu) << 8) | (rk >> 24);
             if (rkey == ctxKey) { foundIdx = mid; break; }
@@ -100,14 +100,14 @@ static void MarkovGenerate(const NameDatabase* db, System::Random* rng, int minL
         }
 
         const NameDatabaseEntry* rec = &table[foundIdx];
-        uint32_t recKey  = rec->field_0x00;
-        uint32_t mask    = rec->field_0x08;
+        uint32_t recKey  = rec->context;
+        uint32_t mask    = rec->nextCharMask;
         // Slide the context window: drop the oldest byte (recKey byte0), keep 1..3.
         c0 = (unsigned char)(recKey >> 8);
         c1 = (unsigned char)(recKey >> 16);
         c2 = (unsigned char)(recKey >> 24);
         if (mask == 0) return;                         // no continuations
-        unsigned char flag = rec->field_0x04;   // the low byte of the old dword read at +4
+        unsigned char flag = rec->isWordEnd;   // the low byte of the old dword read at +4
         if (maxLen <= charCount && flag != 0) return;  // too long, at a word boundary
         if (flag != 0) lastBoundary = outIdx + 4;
 

@@ -68,7 +68,7 @@ public:
         float pitchLow;                            // +0x08
         float pitchHigh;                           // +0x0c
         float volume;                              // +0x10
-        float unused14;                            // +0x14  forwarded to PlayPlatform, never read
+        float unusedPlayFactor;                            // +0x14  forwarded to PlayPlatform, never read
     };
     // One sample, stride 0x18 (Compile's outer loop `ADD RDI,0x18`).
     struct Sample {
@@ -149,7 +149,7 @@ static_assert(offsetof(SoundEffect::Variant, buffer) == 0x0, "Variant::buffer");
 static_assert(offsetof(SoundEffect::Variant, pitchLow) == 0x8, "Variant::pitchLow");
 static_assert(offsetof(SoundEffect::Variant, pitchHigh) == 0xC, "Variant::pitchHigh");
 static_assert(offsetof(SoundEffect::Variant, volume)   == 0x10, "variant +0x10 volume");
-static_assert(offsetof(SoundEffect::Variant, unused14) == 0x14, "variant +0x14");
+static_assert(offsetof(SoundEffect::Variant, unusedPlayFactor) == 0x14, "variant +0x14");
 static_assert(sizeof(SoundEffect::Sample) == 0x18, "SoundEffect sample stride 0x18");
 static_assert(offsetof(SoundEffect::Sample, startSeconds) == 0x0, "Sample::startSeconds");
 static_assert(offsetof(SoundEffect::Sample, _pad04) == 0x4, "Sample::_pad04");

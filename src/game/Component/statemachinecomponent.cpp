@@ -34,10 +34,10 @@ using Controller = ControllerComponent::Controller;
 
 // The chain links of a node: +0x08 parent, +0x10 child.
 static inline Controller* NodeParent(const Controller* node) {
-    return node->_data08;
+    return node->_parent;
 }
 static inline Controller* NodeChild(const Controller* node) {
-    return node->_data10;
+    return node->_child;
 }
 
 // ============================================================
@@ -58,8 +58,8 @@ void StateMachineComponent::RelinkAndResume() {
         Component* comp = _entity->_components[i].Get();
         if (comp->IsDerivedFrom(ControllerComponent::TypeId())) {   // import 0x140152a98
             Controller* node = static_cast<ControllerComponent*>(comp)->GetController();
-            node->_data08 = tail;
-            tail->_data10 = node;
+            node->_parent = tail;
+            tail->_child = node;
             tail = node;
         }
     }
@@ -160,8 +160,8 @@ void StateMachineComponent::Startup() {
             gotDefault = true;
         }
         Controller* node = controller->GetController();
-        node->_data08 = tail;
-        tail->_data10 = node;
+        node->_parent = tail;
+        tail->_child = node;
         tail = node;
     }
 }

@@ -106,17 +106,17 @@ struct ExternalArrayElement {
                           //         FUN_180006ac0, copied (and delimiter-
                           //         normalised) by 0x1800067d0; the array's row
                           //         kSpec_ExtArrayElem owns the lifecycle
-    uint32_t field_0x08;  // +0x08 — SerializeUInt at 0x1800bc7fc; copied by SetSize
-    uint32_t field_0x0c;  // +0x0c — SerializeUInt at 0x1800bc811; copied by SetSize
+    uint32_t timeStampLow;  // +0x08 — SerializeUInt at 0x1800bc7fc; copied by SetSize
+    uint32_t timeStampHigh;  // +0x0c — SerializeUInt at 0x1800bc811; copied by SetSize
 };
 static_assert(sizeof(ExternalArrayElement) == 0x10,
               "the destructor's element stride is 0x10 (FUN_180006ac0), and "
               "SetSize's SHL RCX,0x4 at 0x18002c70a agrees");
 static_assert(offsetof(ExternalArrayElement, owned)  == 0x00,
               "ExternalArrayElement::owned @ +0x00 (MOV RAX,[RBX] at 0x180006b0a)");
-static_assert(offsetof(ExternalArrayElement, field_0x08) == 0x08,
+static_assert(offsetof(ExternalArrayElement, timeStampLow) == 0x08,
               "ExternalArrayElement +0x08 (MOV [R14+0x8],RAX at 0x18002c77d; 0x1800bc7fc)");
-static_assert(offsetof(ExternalArrayElement, field_0x0c) == 0x0c,
+static_assert(offsetof(ExternalArrayElement, timeStampHigh) == 0x0c,
               "ExternalArrayElement +0x0c (0x1800bc811)");
 
 }  // namespace RtObject

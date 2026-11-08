@@ -20,10 +20,10 @@
 // Construct and Reconstruct (no ??0 export is called by either; the exported
 // `??0NumberDescription@UI@@QEAA@XZ` 0x180118b60 is ui_factory_wave28.cpp's):
 //     +0x68 qword 0   _font  ExternalPtr<UI::Font> (0x18003f1e0) -> NumberElement::_font
-//     +0x70 qword 0   _u70   kScalarUInt  -> NumberElement::_mode      } one
-//                     _i74   kScalarInt   -> NumberElement::_intValue  } store
-//     +0x78 dword 0   _f78   kScalarFloat -> NumberElement::_floatValue
-//     +0x7c byte  0   _b7c   kScalarBool  -> NumberElement::_showSign
+//     +0x70 qword 0   _numberType kScalarUInt  -> NumberElement::_mode      } one
+//                     _ivalue     kScalarInt   -> NumberElement::_intValue  } store
+//     +0x78 dword 0   _fvalue     kScalarFloat -> NumberElement::_floatValue
+//     +0x7c byte  0   _showSign   kScalarBool  -> NumberElement::_showSign
 //     +0x7d..+0x87 never written
 // The `NumberType` enum `?GetNumberType@NumberElement@UI@@` returns is nested
 // here (`W4NumberType@NumberDescription@2@`); its enumerator names are not in
@@ -58,14 +58,14 @@ public:
     // ??0NumberDescription@UI@@QEAA@XZ 0x180118b60 — the REAL constructor, the
     // same stores Construct / Reconstruct inline (0x18004a586..0x18004a600):
     // ElementDescription()'s stores, then +0x68 QWORD 0, +0x70 QWORD 0 (both
-    // _u70 and _i74), +0x78 DWORD 0 (0.0f), +0x7c BYTE 0. The tail pad stays
+    // _numberType and _ivalue), +0x78 DWORD 0 (0.0f), +0x7c BYTE 0. The tail pad stays
     // unwritten.
     NumberDescription() : ElementDescription() {
         _font = nullptr;
-        _u70  = 0;
-        _i74  = 0;
-        _f78  = 0.0f;
-        _b7c  = 0;
+        _numberType  = 0;
+        _ivalue  = 0;
+        _fvalue  = 0.0f;
+        _showSign  = 0;
     }
 
     // [0] 0x18004a760 — MSVC's VECTOR deleting destructor, both arms exactly as
@@ -99,10 +99,10 @@ private:
 
 public:
     Font*    _font;       // +0x68  ExternalPtr<UI::Font>
-    uint32_t _u70;        // +0x70  kScalarUInt
-    int32_t  _i74;        // +0x74  kScalarInt
-    float    _f78;        // +0x78  kScalarFloat (the ctor stores integer 0 = 0.0f)
-    bool     _b7c;        // +0x7c  kScalarBool
+    uint32_t _numberType;        // +0x70  kScalarUInt
+    int32_t  _ivalue;        // +0x74  kScalarInt
+    float    _fvalue;        // +0x78  kScalarFloat (the ctor stores integer 0 = 0.0f)
+    bool     _showSign;        // +0x7c  kScalarBool
     uint8_t  _pad7d[11];  // +0x7d  never written
 };
 
@@ -115,9 +115,9 @@ static_assert(!std::is_abstract<NumberDescription>::value, "B39 D1: concrete");
 static_assert(sizeof(NumberDescription::NumberType) == 4, "a W4 enum is four bytes");
 static_assert(offsetof(NumberDescription, _font) == sizeof(ElementDescription), "");
 static_assert(offsetof(NumberDescription, _font) == 0x68, "");
-static_assert(offsetof(NumberDescription, _u70)  == 0x70, "");
-static_assert(offsetof(NumberDescription, _i74)  == 0x74, "");
-static_assert(offsetof(NumberDescription, _f78)  == 0x78, "");
-static_assert(offsetof(NumberDescription, _b7c)  == 0x7c, "");
+static_assert(offsetof(NumberDescription, _numberType)  == 0x70, "");
+static_assert(offsetof(NumberDescription, _ivalue)  == 0x74, "");
+static_assert(offsetof(NumberDescription, _fvalue)  == 0x78, "");
+static_assert(offsetof(NumberDescription, _showSign)  == 0x7c, "");
 
 }  // namespace UI

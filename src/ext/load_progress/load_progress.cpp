@@ -134,10 +134,10 @@ bool Hook(Engine::LoaderLoop& /*loop*/, int32_t point, const System::Time* time)
     ctx->_time.z = 0.0f;
     ctx->_time.w = 0.0f;
     ctx->_dirty |= RtVideo::kDirtyGlobalConstants;
-    ctx->_unknown03b8.x = secs;
-    ctx->_unknown03b8.y = 0.0f;
-    ctx->_unknown03b8.z = 0.0f;
-    ctx->_unknown03b8.w = 0.0f;
+    ctx->_userPosition.x = secs;
+    ctx->_userPosition.y = 0.0f;
+    ctx->_userPosition.z = 0.0f;
+    ctx->_userPosition.w = 0.0f;
     Math::Vector4& staging = ctx->_pixelConstantStaging.pixel[4];
     staging.x = secs;
     staging.y = 0.0f;

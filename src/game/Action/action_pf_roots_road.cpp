@@ -49,7 +49,7 @@ inline float RdataF(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); 
 
 // ============================================================
 // 0x14009c480 — ZoneRefresh. (Ghidra: FUN_14009c480.) Map::FillZones.
-//   If the zones are stale (field_0xA2): clear the flag, zero every cell's zone, then walk
+//   If the zones are stale (zonesStale): clear the flag, zero every cell's zone, then walk
 //   the cells and for each walkable (terrain type bit in 0xe1f) cell whose zone is still
 //   0, flood-fill (0x14009c170) its connected run with the next zone id (starting at 1).
 // ONE parameter (B3R Leftovers, read in retail): Ghidra's prototype had four, built from
@@ -66,9 +66,9 @@ void Map::FillZones() {
     int64_t uVar5;
     short sVar6;
 
-    if (static_cast<char>(field_0xA2) != '\0') {
+    if (static_cast<char>(zonesStale) != '\0') {
         uVar5 = 0;
-        field_0xA2 = 0;
+        zonesStale = 0;
         uVar2 = 0;
         int64_t i = 0;
         if (0 < cells.GetSize()) {
@@ -103,7 +103,7 @@ void Map::FillZones() {
 // ============================================================
 // 0x14009f2f0 — set a cell's terrain type + dirty/enqueue. (Ghidra: FUN_14009f2f0.)
 //   Old type = cells[cell].terrainType. If the change crosses between the walkable set
-//   0xe1f and the road set 0x1e0 (either way), the zones go stale (field_0xA2 |= 1).
+//   0xe1f and the road set 0x1e0 (either way), the zones go stale (zonesStale |= 1).
 //   Writes the new type (the low byte of `type`). If the transition crosses the
 //   road/path boundary, marks the cell's region block dirty (0x1400a8c90) and sets uVar6
 //   (the road-bit flag) accordingly. Finally sends the type to the worker (0x1400a6fe0).
@@ -125,7 +125,7 @@ void Map::SetTerrainType(int param_2, uint param_3) {
     } else {
         bVar2 = 1;
     }
-    field_0xA2 = static_cast<uint8_t>(field_0xA2) | bVar2;
+    zonesStale = static_cast<uint8_t>(zonesStale) | bVar2;
     lVar3->terrainType = static_cast<PathType>(bVar4);
     TerrainSidecar::NoteWrite(lVar3);   // [terrain sidecar] mirror
     CellStamp::NoteWrite(lVar3);   // [AMBMEMO] cell write clock
@@ -180,7 +180,7 @@ void Map::ResetTerrainHeights(int param_2, int param_3, int param_4, int param_5
                 gw[2] = 0.0f;  // original: local_90 = 0 (a 4-byte zero into the z slot; the same bits)
                 fVar7 = static_cast<float>(lVar2->_gridSize >> 1);
                 co = Math::Vector3(gw[0] + fVar7, gw[1] + fVar7, 0.0f);
-                lVar2->_heights.data[static_cast<int64_t>(lVar2->_fieldD0) * static_cast<int64_t>(static_cast<int>(co.y)) +
+                lVar2->_heights.data[static_cast<int64_t>(lVar2->_heightRowStride) * static_cast<int64_t>(static_cast<int>(co.y)) +
                                 static_cast<int64_t>(static_cast<int>(co.x))] = static_cast<short>(static_cast<int>(fVar4 * 0.0f));
                 StillTerrain::Bump();   // [STILLTERRAIN] a heightmap word was written
                 lVar2->MarkChunksDirty(static_cast<int>(co.x), static_cast<int>(co.y));   // 0x1400ab150
@@ -198,11 +198,11 @@ void Map::ResetTerrainHeights(int param_2, int param_3, int param_4, int param_5
 
 // ============================================================
 // 0x14009c640 — finalize a road cell edit. (Ghidra: CompleteRoad_helper_c640.)
-//   If type == 2 (removal): footprintCount -1, field_0x2A / field_0x2B = 0xff / 0 (one
+//   If type == 2 (removal): footprintCount -1, field_0x2A / roadAlpha = 0xff / 0 (one
 //     word store), terrain type 2 via 0x14009f2f0.
-//   Else: field_0x2B = orientation, terrain type (type & 0xff) via 0x14009f2f0, then
+//   Else: roadAlpha = orientation, terrain type (type & 0xff) via 0x14009f2f0, then
 //     reset the terrain heights (0x14009e0e0) over [col..col+1] x [row..row+1].
-//   Then walk the tree at field_0xE8 (0x28 nodes keyed by cell) and if the cell is
+//   Then walk the tree at pendingRoadCells (0x28 nodes keyed by cell) and if the cell is
 //   present, delete it (0x14001a6e0). Finally rebuild the road mesh (0x1400af370).
 // ============================================================
 void Map::FinishRoadCell(int param_2, uint8_t param_3, uint param_4) {
@@ -215,24 +215,24 @@ void Map::FinishRoadCell(int param_2, uint8_t param_3, uint param_4) {
     if (param_4 == ToUnderlying(PathType::Normal)) {   // the road removed
         CellTrace::NoteCount(this, lVar4, lVar4->footprintCount, -1, "FinishRoadCell");
         lVar4->footprintCount = lVar4->footprintCount + -1;
-        lVar4->field_0x2A = MapCell::kNoRoadBatch;   // disasm: MOV word ptr,0xff over +0x2a / +0x2b (H7)
-        lVar4->field_0x2B = 0;
+        lVar4->roadType = MapCell::kNoRoadBatch;   // disasm: MOV word ptr,0xff over +0x2a / +0x2b (H7)
+        lVar4->roadAlpha = 0;
         SetTerrainType(param_2, ToUnderlying(PathType::Normal));   // 0x14009f2f0
     } else {
-        lVar4->field_0x2B = param_3;
+        lVar4->roadAlpha = param_3;
         SetTerrainType(param_2, param_4 & 0xff);   // 0x14009f2f0
         iVar3 = param_2 / size;
         iVar2 = param_2 % size;
         ResetTerrainHeights(iVar2, iVar3, iVar2 + 1, iVar3 + 1);   // 0x14009e0e0
     }
-    piVar1 = field_0xE8.root;
+    piVar1 = pendingRoadCells.root;
     do {
         if (piVar1 == nullptr) {
             goto LAB_14009c6d2;
         }
         if (piVar1->key <= param_2) {
             if (param_2 <= piVar1->key) {
-                WorkBST_BSTRemove_a6e0(&field_0xE8, piVar1);   // 0x14001a6e0
+                WorkBST_BSTRemove_a6e0(&pendingRoadCells, piVar1);   // 0x14001a6e0
                 goto LAB_14009c6d2;
             }
             piVar1 = piVar1->right;

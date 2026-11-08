@@ -44,21 +44,21 @@
 ValueDescription::ValueDescription()
     : Description(),
       _sprite(nullptr),
-      _ref30(nullptr),
-      _i40(0),
-      _baseValue(100),
-      _weight(0) {}
+      _stringTable(nullptr),
+      _baseValue(0),
+      _stackCount(100),
+      _minStackCount(0) {}
 
 // [5] 0x14005cd60: stream order as retail.
 bool ValueDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
     ::Object::SerializeExternal<UI::SpriteSheet>(ser, _sprite);
     _name.Serialize(ser);
-    ::Object::SerializeExternal<UI::StringTable>(ser, _ref30);
-    _s38.Serialize(ser);
-    ser.Serialize(_i40, nullptr);
+    ::Object::SerializeExternal<UI::StringTable>(ser, _stringTable);
+    _stringName.Serialize(ser);
     ser.Serialize(_baseValue, nullptr);
-    ser.Serialize(_weight, nullptr);
+    ser.Serialize(_stackCount, nullptr);
+    ser.Serialize(_minStackCount, nullptr);
     return true;
 }
 

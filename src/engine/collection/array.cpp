@@ -506,10 +506,10 @@ static void EventAssign(UI::Event* d, const UI::Event* s) {
     d->element  = nullptr;
     d->element  = s->element;
     d->eventId  = s->eventId;
-    d->arg14    = s->arg14;
-    d->arg18    = s->arg18;
-    d->arg1C    = s->arg1C;
-    d->arg20    = s->arg20;
+    d->elementId    = s->elementId;
+    d->mouseX    = s->mouseX;
+    d->mouseY    = s->mouseY;
+    d->value    = s->value;
     // +0x24..+0x27 deliberately untouched -- retail does not write it either.
     d->userData = s->userData;
 }
@@ -851,8 +851,8 @@ void DestroyStringPair10Range(void* ignoredThis, uint8_t* base, int count) {
 static void ExtArrayElemAssign(RtObject::ExternalArrayElement* d,
                                const RtObject::ExternalArrayElement* s) {
     new (&d->owned) System::Filename(s->owned);                  // 18002c773  0x1800067d0
-    d->field_0x08 = s->field_0x08;           // 18002c779: one qword in retail (H7)
-    d->field_0x0c = s->field_0x0c;
+    d->timeStampLow = s->timeStampLow;           // 18002c779: one qword in retail (H7)
+    d->timeStampHigh = s->timeStampHigh;
 }
 void AssignExtArrayElem(uint8_t* d, const uint8_t* s) {
     AssignAs<RtObject::ExternalArrayElement, &ExtArrayElemAssign>(d, s);
@@ -2142,17 +2142,17 @@ const ArraySpec kSpec_AnimClip70 = {              // 0x180059e70
 // B.4 (X-RL): the element is `Graphics::AnimationGroup::Tag` (AnimationGroup.h).
 static void AnimTagAssign(Graphics::AnimationGroup::Tag* d,
                           const Graphics::AnimationGroup::Tag* s) {
-    AdoptString(d->_string00._data, s->_string00._data);            // 18005a2c8 (as AssignStringPair10)
-    AdoptString(d->_string08._data, s->_string08._data);
-    d->_float10 = s->_float10;                                      // 18005a2ed
+    AdoptString(d->_from._data, s->_from._data);            // 18005a2c8 (as AssignStringPair10)
+    AdoptString(d->_to._data, s->_to._data);
+    d->_blendTime = s->_blendTime;                                      // 18005a2ed
 }
 void AssignTagStrStrF18(uint8_t* d, const uint8_t* s) {
     AssignAs<Graphics::AnimationGroup::Tag, &AnimTagAssign>(d, s);
 }
 static void AnimTagInit(Graphics::AnimationGroup::Tag* d) {
-    d->_string00._data = nullptr;                                   // 18005a303
-    d->_string08._data = nullptr;                                   // 18005a306
-    d->_float10       = 0.1f;                                       // 18005a30a  0x3dcccccd
+    d->_from._data = nullptr;                                   // 18005a303
+    d->_to._data = nullptr;                                   // 18005a306
+    d->_blendTime       = 0.1f;                                       // 18005a30a  0x3dcccccd
 }
 void InitTagStrStrF18(uint8_t* d) {
     InitAs<Graphics::AnimationGroup::Tag, &AnimTagInit>(d);
@@ -3652,19 +3652,19 @@ void RtColl_DestroySubMesh_180073ee0(void* ignoredThis, void* base, int count);
 // 0x180065b70 -- `Collision2D::CollisionMesh::Face::Face(const Face&)`, the
 // element copy constructor 0x180066350's grow arm CALLs. Read out of its own
 // body, in retail's order:
-//     MOV EAX,[RDX]      ; MOV [RCX],EAX            field0, a DWORD at +0x00
+//     MOV EAX,[RDX]      ; MOV [RCX],EAX            surfaceIndex, a DWORD at +0x00
 //     the two qwords of the inner Array header at +0x08 zeroed
 //     CALL 0x180066de0   ; Array<Triple3>::operator= at +0x08
 //     the two qwords of the inner Array header at +0x18 zeroed
 //     CALL 0x180066b30   ; Array<Quad4>::operator=   at +0x18
 //     MOV RAX,RCX
-// +0x04..+0x07 (the padding after field0) is NEVER WRITTEN by this arm, which
+// +0x04..+0x07 (the padding after surfaceIndex) is NEVER WRITTEN by this arm, which
 // is the assign window below. The pre-zeroing is load-bearing and not tidying:
 // each `operator=` opens by destroying the DESTINATION, so a non-zero header
 // there would be freed as a live buffer.
 using CollisionFace = Collision2D::CollisionMesh::Face;
 static void FaceAssign(CollisionFace* d, const CollisionFace* s) {
-    d->field0 = s->field0;
+    d->surfaceIndex = s->surfaceIndex;
     d->triples._data     = nullptr;
     d->triples._size     = 0;            // one qword in retail (H7)
     d->triples._capacity = 0;
@@ -3680,7 +3680,7 @@ void* AssignFace28Impl(uint8_t* d, const uint8_t* s) {
 }
 void AssignFace28(uint8_t* d, const uint8_t* s) { AssignFace28Impl(d, s); }
 // 0x180066350's `else` (init) arm: FOUR zero qwords at +0x08, +0x10, +0x18 and
-// +0x20 -- and NOTHING at +0x00..+0x07. A fresh Face's `field0` and its padding
+// +0x20 -- and NOTHING at +0x00..+0x07. A fresh Face's `surfaceIndex` and its padding
 // are left holding whatever the allocation contained, which is why the init
 // window below is +0x00..+0x08 and not empty.
 static void FaceInit(CollisionFace* d) {
@@ -3805,8 +3805,8 @@ const ArraySpec kSpecD2_Edge6A2Z = {              // 0x180066e80
 const ArraySpec kSpecD2_Face28 = {                // 0x180066350
     "Array<Collision2D::Face>", 0x28, 8,
     &AssignFace28, &InitFace28, &DestroyFace28Range, false,
-    /*assign unwritten*/ 0x04, 0x08,   // the pad after field0
-    /*init   unwritten*/ 0x00, 0x08,   // field0 AND its pad
+    /*assign unwritten*/ 0x04, 0x08,   // the pad after surfaceIndex
+    /*init   unwritten*/ 0x00, 0x08,   // surfaceIndex AND its pad
     /*seed zero       */ 0x08, 0x28 }; // both inner Array headers are destroyed
 
 // 0x1800774d0  UI::Font::Serialize's uint16 scratch array.

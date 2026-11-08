@@ -77,7 +77,7 @@ void CitizenBehavior::AddZoneEntity(Object::InternalPtr<ComponentEntity>* entity
     // depends on the ordering of heap description pointers — which differs run to
     // run. Reached step 18 by a jump and the tree was small enough to work; reached
     // it organically, with WoodHouse and Clear already registered, and it did not.
-    TemplateBucket* node = field_0x160._root;
+    TemplateBucket* node = entitiesByTemplate._root;
     TemplateBucket* found = nullptr;
     for (;;) {
         found = nullptr;
@@ -94,7 +94,7 @@ void CitizenBehavior::AddZoneEntity(Object::InternalPtr<ComponentEntity>* entity
     if (found == nullptr) {
         TemplateBucket* outNode[2] = {nullptr, nullptr};
         CitizenBucketEntities empty = {};   // the 0x10 array record: retail zeroes two qwords (0x140088e89 / e8e)
-        TemplateBucket** ret = InsertCitizenBucket(&field_0x160, outNode, &key, &empty);   // 0x140017230
+        TemplateBucket** ret = InsertCitizenBucket(&entitiesByTemplate, outNode, &key, &empty);   // 0x140017230
         if (ret) found = *ret;
         System::MemoryAllocator::MemFree(nullptr);
     }
@@ -249,7 +249,7 @@ void ZoneComponent::OnRemove() {
     CitizenBehavior* zoneMap = world->m_citizenList;
     ComponentDescription* key = _entity->_description;
 
-    TemplateBucket* node = zoneMap->field_0x160._root;
+    TemplateBucket* node = zoneMap->entitiesByTemplate._root;
     TemplateBucket* found = nullptr;
     while (node != nullptr) {
         if (key < node->element.key) {

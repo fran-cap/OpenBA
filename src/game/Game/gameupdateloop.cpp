@@ -608,7 +608,7 @@ inline void ApplyForceSpeed(PlayerToolManager* toolManager) {
     }
     if (g_forceSpeed > 0 && toolManager) {
         toolManager->paused = false;               // not paused
-        toolManager->field_0x34 = g_forceSpeed;        // speed multiplier
+        toolManager->gameSpeed = g_forceSpeed;        // speed multiplier
     }
 }
 
@@ -903,7 +903,7 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
         PlayerToolManager* toolManager = m_toolManager;
         bool entityUIPaused = toolManager->paused;
         if (!entityUIPaused) {
-            speedMultiplier = toolManager->field_0x34;
+            speedMultiplier = toolManager->gameSpeed;
         }
         TRACE("[GameUpdateLoop::Update] entityUIPaused=%d, speedMultiplier=%d\n",
                (int)entityUIPaused, speedMultiplier);
@@ -1243,7 +1243,7 @@ post_simulation:
         int speedMul = 0;
         PlayerToolManager* toolManager = m_toolManager;
         if (!toolManager->paused) {
-            speedMul = toolManager->field_0x34;
+            speedMul = toolManager->gameSpeed;
         }
 
         {
@@ -1414,7 +1414,7 @@ post_simulation:
             entCount = m_entityList->buckets[1]._size;   // +0x30
         int spd = 0;
         if (m_toolManager && !m_toolManager->paused)
-            spd = m_toolManager->field_0x34;
+            spd = m_toolManager->gameSpeed;
         SimProfReport(spd, entCount);
     }
     // [STRESS] close the Update bracket; the harness's own periodic work (CSV row,
@@ -1565,7 +1565,7 @@ void GameUpdateLoop::Draw(float alpha) {
             if (s_forceSnow) s_snowVal = ClampedAtof(e);   // F-087: a double beyond float range
         }
         if (s_forceSnow) {
-            videoCtx->_unknown03b8.x = s_snowVal;
+            videoCtx->_userPosition.x = s_snowVal;
             videoCtx->_pixelConstantStaging.pixel[4].x = s_snowVal;
         }
     }
@@ -2125,7 +2125,7 @@ void GameUpdateLoop::Shutdown() {
 
             if (age >= maxAge && school == nullptr) {
                 // The profession list's +0x30 profession
-                Profession* defaultProfession = m_professionList->field_0x30;
+                Profession* defaultProfession = m_professionList->laborerProfession;
 
                 // Current profession (+0x1f0) and workplace (+0x248)
                 Profession* citProfession = citizen->profession;

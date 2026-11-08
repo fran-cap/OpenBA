@@ -171,8 +171,8 @@ static void LoadProfessionList_Step2(GameUpdateLoop* self) {
     self->m_professionList = static_cast<ProfessionList*>(profList);   // unchecked, as before
 
     ProfessionList* profs = self->m_professionList;
-    Profession* defProf  = profs ? profs->field_0x30 : nullptr;
-    Profession* profRef2 = profs ? profs->field_0x38 : nullptr;
+    Profession* defProf  = profs ? profs->laborerProfession : nullptr;
+    Profession* profRef2 = profs ? profs->builderProfession : nullptr;
     fprintf(stderr, "[GUL::ProfList] gw+0xb0=%p defaultProf(+0x30)=%p profRef2(+0x38)=%p\n",
             profList, defProf, profRef2);
     fflush(stderr);
@@ -317,9 +317,9 @@ static void LoadDiseaseList_Step1(GameUpdateLoop* self) {
             fprintf(stderr, "[GUL::DiseaseList]   [%d] %p spreadMonths(+0x30)=%.3f "
                     "contagion(+0x34)=%.3f radius(+0x38)=%.3f weight(+0x3c)=%.3f "
                     "recipMortality(+0x40)=%.3f%s\n",
-                    i, (const void*)d, d->_field30, d->_field34,
-                    d->_field38, d->_field3C, d->_field40,
-                    (d->_field40 == 0.0f) ? "  <== ZERO: deathChance is INFINITE" : "");
+                    i, (const void*)d, d->_spreadIntervalMonths, d->_contagion,
+                    d->_spreadRadius, d->_catchWeight, d->_deathOdds,
+                    (d->_deathOdds == 0.0f) ? "  <== ZERO: deathChance is INFINITE" : "");
         }
     }
     fflush(stderr);
@@ -366,9 +366,9 @@ void CopyCamView(PlayerCameraView* d, const PlayerCameraView* s) {
     d->position.x = s->position.x;   // +0x00
     d->position.y = s->position.y;   // +0x04
     d->position.z = s->position.z;   // +0x08
-    d->field_0x0C = s->field_0x0C;
-    d->field_0x10 = s->field_0x10;
-    d->field_0x14 = s->field_0x14;
+    d->yaw = s->yaw;
+    d->pitch = s->pitch;
+    d->distance = s->distance;
     d->used = s->used;               // +0x18, the raw byte
 }
 void ZeroCamView(PlayerCameraView* d) {
@@ -376,9 +376,9 @@ void ZeroCamView(PlayerCameraView* d) {
     d->position.x = 0.0f;
     d->position.y = 0.0f;
     d->position.z = 0.0f;
-    d->field_0x0C = 0.0f;
-    d->field_0x10 = 0.0f;
-    d->field_0x14 = 0.0f;
+    d->yaw = 0.0f;
+    d->pitch = 0.0f;
+    d->distance = 0.0f;
     d->used = false;
 }
 void AssignCamView(uint8_t* d, const uint8_t* s) {
@@ -470,12 +470,12 @@ Map::Map()
       regionGraph(nullptr),
       regionPairCache(nullptr),
       cells(),
-      field_0xA2(1),
+      zonesStale(1),
       cellQueue() {
-    field_0xE8.root = nullptr;                // +0xE8 qword 0
-    field_0xE8.count = 0;                     // +0xF0 dword 0
+    pendingRoadCells.root = nullptr;                // +0xE8 qword 0
+    pendingRoadCells.count = 0;                     // +0xF0 dword 0
     for (int i = 0; i < 9; ++i)               // +0x90 / +0x98 qwords, +0xA0 word
-        field_0x90[i] = 0;
+        influenceTotals[i] = 0;
 }
 
 // 0x1400f9180 — the WorkScheduler ctor's body (+0x118, 0x138).
@@ -501,8 +501,8 @@ void WeatherSimulation::Bind(EnvironmentDescription* env, ClimateGenerator* clim
     }
     if (climateGen) {
         float v = climateGen->temperatureBase;   // climate+0x34
-        field_0x2C = v;
-        field_0x30 = v;
+        meanTemperature = v;
+        meanTemperatureTarget = v;
     }
 }
 
@@ -563,30 +563,30 @@ void PlayerController::UpdateCamera(float fovY, float nearZ, float farZ) {
 // (+0x00, +0x28) are declared as plain pointers (H5); their null ctor is the
 // null store.
 PlayerToolManager::PlayerToolManager() {
-    field_0x00 = nullptr;
+    toolDialog = nullptr;
     toolRegistry.root = nullptr;
     toolRegistry.count = 0;
-    field_0x20 = 0;
+    activeToolGroup = 0;
     // +0x28 currentTool: the member's InternalPtr ctor stores the null (0x1401025fe).
     paused = false;
-    field_0x34 = 1;
-    field_0x38 = false;
-    field_0x3C = 0.0f;                        // +0x3c / +0x40: one qword store (H7: two stores)
-    field_0x40 = 0.0f;
-    field_0x44 = 0.75f;
-    field_0x48 = 0;
-    field_0x50.root = nullptr;
-    field_0x50.count = 0;
-    field_0x60.root = nullptr;
-    field_0x60.count = 0;
+    gameSpeed = 1;
+    followActive = false;
+    zoomTarget = 0.0f;                        // +0x3c / +0x40: one qword store (H7: two stores)
+    pitchTarget = 0.0f;
+    manualPitch = 0.75f;
+    tickSoundCooldown = 0;
+    pinnedToolDialogs.root = nullptr;
+    pinnedToolDialogs.count = 0;
+    trackedEntities.root = nullptr;
+    trackedEntities.count = 0;
     // +0x70: the Array member's own ctor zeroes data / count / capacity.
-    field_0x80 = false;
-    field_0x88 = nullptr;
-    field_0x90 = nullptr;
-    field_0x98 = -1;                          // +0x98 / +0x9c: one qword store of -1
-    field_0x9C = -1;
-    field_0xA0 = -1;
-    field_0xA4 = false;
+    tutorialRestricted = false;
+    tutorialTool = nullptr;
+    tutorialSelectTarget = nullptr;
+    tutorialStartCell = -1;                          // +0x98 / +0x9c: one qword store of -1
+    tutorialEndCell = -1;
+    tutorialRotation = -1;
+    cameraMoveActive = false;
     cameraViews.SetSize(5);   // 0x14002e000
 }
 
@@ -1020,7 +1020,7 @@ void GameUpdateLoop::Load() {
             }
             player->effect = 0xFFFFFFFFu;         // -1
             player->trackList = list;
-            player->field_0x10 = 0;
+            player->lastTrack = 0;
         }
         m_musicPlayer = player;
     }
@@ -1179,12 +1179,12 @@ void GameUpdateLoop::Load() {
                 CitizenBehavior* townMgr = m_citizenList;
                 if (townMgr && dim > 0) {
                     const int coarse = (int)dim >> 3;
-                    townMgr->field_0x140.SetSize(coarse * coarse);   // 0x140017640
+                    townMgr->coarseWaterIndex.SetSize(coarse * coarse);   // 0x140017640
                     fprintf(stderr, "[TownMgr] coarse cell index sized: dim=%u coarse=%d "
                             "buckets=%d base=%p (FireWork water search indexes this; a "
                             "null base faults at coarseCell*0x10)\n",
                             dim, coarse, coarse * coarse,
-                            townMgr->field_0x140._data);
+                            townMgr->coarseWaterIndex._data);
                     fflush(stderr);
                 }
             }
@@ -1279,15 +1279,15 @@ void GameUpdateLoop::Load() {
                         mapGen, game, wgeom, pctrl);
                 if (mapGen) {
                     fprintf(stderr, "[startTown::DIAG]   mapGen+0x3c(townSize)=%d\n",
-                            mapGen->subdivisions);
+                            mapGen->startAreaSize);
                     fprintf(stderr, "[startTown::DIAG]   pools: a0=%p a8(cnt)=%d | b0=%p b8(cnt)=%d | "
                             "c0=%p c8(cnt)=%d | d0=%p d8(cnt)=%d | e0=%d e4=%d e8=%d\n",
-                            mapGen->refArray4._data, mapGen->refArray4._size,
-                            mapGen->refArray5._data, mapGen->refArray5._size,
-                            mapGen->refArray6._data, mapGen->refArray6._size,
-                            mapGen->refArray7._data, mapGen->refArray7._size,
-                            mapGen->paramE0, mapGen->paramE4,
-                            mapGen->paramE8);
+                            mapGen->initialVisibleList._data, mapGen->initialVisibleList._size,
+                            mapGen->initialPlantList._data, mapGen->initialPlantList._size,
+                            mapGen->initialTreeList._data, mapGen->initialTreeList._size,
+                            mapGen->initialLivestockList._data, mapGen->initialLivestockList._size,
+                            mapGen->plantCount, mapGen->treeCount,
+                            mapGen->livestockCount);
                 }
                 if (game) {
                     int gdim = game->size;

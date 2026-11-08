@@ -246,10 +246,10 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
         WeatherSimulation* const w = g.m_weather;
         EnvironmentDescription::WeatherEntry setting;
         w->BlendLighting(&setting);
-        p.weather[0] = w->field_0x1C.x;
-        p.weather[1] = w->field_0x1C.y;
-        p.weather[2] = w->field_0x1C.z;
-        p.weather[3] = w->field_0x1C.w;
+        p.weather[0] = w->terrainWeatherParams.x;
+        p.weather[1] = w->terrainWeatherParams.y;
+        p.weather[2] = w->terrainWeatherParams.z;
+        p.weather[3] = w->terrainWeatherParams.w;
         p.fogNear = setting.fogNear;
         p.fogFar  = setting.fogFar;
         const Math::Vector4 fog = UnpackColor(setting.fogColor, setting.fogMax);
@@ -382,10 +382,10 @@ struct EngineOps {
         if (p.seasonStamp > 0.0f) ctx->_time.y = p.seasonStamp;   // NATURAL_GROWTH.md (GameUpdateLoop::Draw step 2)
     }
     void WeatherContext(const Packet& p) {
-        ctx->_unknown03b8.x = p.weather[0];
-        ctx->_unknown03b8.y = p.weather[1];
-        ctx->_unknown03b8.z = p.weather[2];
-        ctx->_unknown03b8.w = p.weather[3];
+        ctx->_userPosition.x = p.weather[0];
+        ctx->_userPosition.y = p.weather[1];
+        ctx->_userPosition.z = p.weather[2];
+        ctx->_userPosition.w = p.weather[3];
         ctx->_pixelConstantStaging.pixel[4].x = p.weather[0];
         ctx->_pixelConstantStaging.pixel[4].y = p.weather[1];
         ctx->_pixelConstantStaging.pixel[4].z = p.weather[2];
@@ -396,7 +396,7 @@ struct EngineOps {
     }
     void ForceSnow(const Packet& p) {
         if (p.forceSnow) {
-            ctx->_unknown03b8.x = p.snow;
+            ctx->_userPosition.x = p.snow;
             ctx->_pixelConstantStaging.pixel[4].x = p.snow;
         }
     }

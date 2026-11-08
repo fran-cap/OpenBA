@@ -116,7 +116,7 @@ struct ActionStack {
     // CharacterComponent's ctor 0x140109d20 builds the sub-object inline: +0x00 = +0x08 =
     // +0x10 = 0 (0x140109d69..0x140109d70: `actions`' Array ctor and the null +0x10),
     // +0x18 = -1 (0x140109d74). +0x1C is not written.
-    ActionStack() : actions(), field_0x10(), current(-1) {}
+    ActionStack() : actions(), completionAction(), current(-1) {}
     ~ActionStack();                                   // 0x1400c5150
     // Cancels every entry (slot 8 down each chain), DeletePtr's the entries, current = -1,
     // releases +0x10 (work_base_reimpl.cpp).
@@ -129,7 +129,7 @@ struct ActionStack {
     ActionStack& operator=(const ActionStack&) = delete;
 
     ActionList actions;                       // +0x00 the entries (count +0x08, capacity +0x0C)
-    ::Object::InternalPtr<Action> field_0x10; // +0x10 (the executor 0x1400c4c50 and the stack clear
+    ::Object::InternalPtr<Action> completionAction; // +0x10 (the executor 0x1400c4c50 and the stack clear
                                               //       0x1400c5400 DeletePtr it; a trivial type: layout-neutral)
     int32_t  current;                         // +0x18 index of the running entry (-1 = none)
     uint8_t  _pad1C[4];                       // +0x1C
@@ -140,7 +140,7 @@ static_assert(offsetof(ActionStack, _pad1C) == 0x1C, "ActionStack::_pad1C");
 static_assert(offsetof(ActionStack, actions)    == 0x00, "ActionStack::actions @ +0x00");
 static_assert(offsetof(ActionStack, actions) + offsetof(ActionStack::ActionList, _size)     == 0x08, "ActionStack count @ +0x08");
 static_assert(offsetof(ActionStack, actions) + offsetof(ActionStack::ActionList, _capacity) == 0x0C, "ActionStack capacity @ +0x0C");
-static_assert(offsetof(ActionStack, field_0x10) == 0x10, "ActionStack +0x10");
+static_assert(offsetof(ActionStack, completionAction) == 0x10, "ActionStack +0x10");
 static_assert(offsetof(ActionStack, current)    == 0x18, "ActionStack::current @ +0x18");
 
 void ActionStackWalkClear(ActionStack* stack, ::Object::InternalPtr<Action>* cursor);   // 0x1400c4f10 (action_pf_ctors.cpp)

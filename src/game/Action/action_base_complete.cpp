@@ -133,11 +133,11 @@ void WorkScheduler::TaskReassign(CitizenComponent* const* entityRef, int taskIdx
 // Walks the id tree (trees[0]) to the matching task node, then:
 //  1. For each of the 14 action-list trees (trees[1..14]), find and remove (ca60) the node
 //     whose key == taskIdx.
-//  2. Find/remove the matching node in the field_0x10 ORDER tree (key compared against the
+//  2. Find/remove the matching node in the queueOrderTree ORDER tree (key compared against the
 //     Work's +0x24 field; this tree uses the 0x28-node layout: parent@+0x08,
 //     less@+0x10, greater@+0x18 — remove via a6e0). A long-lived offset inversion here
 //     (fixed 2026-07-26) meant the order-tree node was never found.
-//  3. The Work's slot 10 (GetTarget) gives a key; look it up in the field_0x120 bucket
+//  3. The Work's slot 10 (GetTarget) gives a key; look it up in the professionBucketRoot bucket
 //     tree and remove the task's entry from that bucket (ca60).
 //  4. Work slots 9 then 8, DeletePtr the Work, then remove the task node itself (ca60).
 //
@@ -178,11 +178,11 @@ void WorkScheduler::TaskCleanup(int taskIdx) {
         }
     }
 
-    // 3. Remove from the order tree (field_0x10) keyed on the Work's +0x24 field.
+    // 3. Remove from the order tree (queueOrderTree) keyed on the Work's +0x24 field.
     {
-        // The Work's queue-order key (Work::field_24, +0x24).
-        int wantKey = task->work->field_24;
-        WorkSchedulerCountNode* n = field_0x10.root;
+        // The Work's queue-order key (Work::_queueOrder, +0x24).
+        int wantKey = task->work->_queueOrder;
+        WorkSchedulerCountNode* n = queueOrderTree.root;
         while (n != nullptr) {
             int k = n->key;
             // Retail 8e30 step: `want < nodeKey -> node+0x10`, `nodeKey < want ->
@@ -192,20 +192,20 @@ void WorkScheduler::TaskCleanup(int taskIdx) {
             } else if (k < wantKey) {
                 n = n->right;   // greater
             } else {
-                WorkBST_BSTRemove_a6e0(&field_0x10,
+                WorkBST_BSTRemove_a6e0(&queueOrderTree,
                                        n);   // 0x14001a6e0
                 break;
             }
         }
     }
 
-    // 4. Work slot 10 -> key; look it up in the field_0x120 bucket tree and remove the entry.
+    // 4. Work slot 10 -> key; look it up in the professionBucketRoot bucket tree and remove the entry.
     {
         Work* owner = task->work.Get();
         Profession* keyTmp = nullptr;
         Profession** keyPtr = owner->GetTarget(&keyTmp);   // slot 10, retslot
 
-        WorkBucketNode* node = field_0x120;
+        WorkBucketNode* node = professionBucketRoot;
         if (node != nullptr) {
             while (true) {
                 Profession* v = node->bucket.key;
@@ -270,7 +270,7 @@ void CitizenComponent::HideTool() {
 
 // Reimpl of Entity_impl_73b0 — show a tool mesh on the citizen.
 //   - If a tool is already shown (toolSceneId >= 0), hide it first (FUN_1401176e0).
-//   - toolId >= 0: the mesh from the citizen description's _refs table, with g_fUVScale.
+//   - toolId >= 0: the mesh from the citizen description's _tools table, with g_fUVScale.
 //   - toolId < 0: the storage's largest stack: its ModelDescription for the mesh and its
 //     RawMaterialDescription for the UV scale. (The crash-prone path the ShowTool call
 //     site deliberately guards off; ported faithfully.)
@@ -348,8 +348,8 @@ void CitizenComponent::ShowTool(int toolId) {
         }
         uvScale = rawComp->_carryScale;
     } else {
-        // the mesh table of the citizen description (_refs, +0x138)
-        meshPtr = description->_refs[toolId];
+        // the mesh table of the citizen description (_tools, +0x138)
+        meshPtr = description->_tools[toolId];
         uvScale = kRdata_14017214c;   // g_fUVScale, 0x14017214c
     }
 

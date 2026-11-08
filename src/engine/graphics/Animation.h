@@ -437,18 +437,18 @@ public:
     System::String _sourceName;    // +0x20  GetSourceName 0x180015f90
     int32_t  _instanceCount; // +0x28  GetInstanceCount; ctor default 1
     bool     _instanced;     // +0x2c  IsInstanced 0x180016020
-    uint8_t  _gap2d[3];      // +0x2d  NEVER WRITTEN by the ctor — a real hole
+    uint8_t  _pad2d[3];      // +0x2d  NEVER WRITTEN by the ctor — a real hole
     int32_t  _startFrame;    // +0x30  GetStartTime 0x180015fd0
     int32_t  _endFrame;      // +0x34  GetEndTime   0x180015fe0
     float    _rate;          // +0x38  GetRate      0x180015ff0
     bool     _looping;       // +0x3c  IsLooping    0x180016010
-    uint8_t  _gap3d[3];      // +0x3d  NEVER WRITTEN — a real hole
+    uint8_t  _pad3d[3];      // +0x3d  NEVER WRITTEN — a real hole
     int32_t  _loopFrame;     // +0x40  anim_clip::kLoopFrame; 0 short-circuits
     float    _frameRate;     // +0x44  anim_clip::kFrameRate, frames per second
     float    _loopScale;     // +0x48  GetLoopPoint's final multiplier
     int32_t  _boneCount;     // +0x4c  anim_clip::kBoneCount
     int32_t  _frameCount;    // +0x50  anim_clip::kFrameCount
-    uint8_t  _gap54[4];      // +0x54  NEVER WRITTEN — a real hole
+    uint8_t  _pad54[4];      // +0x54  NEVER WRITTEN — a real hole
     int64_t  _duration;      // +0x58  System::Time ticks; GetLength 0x180016000
     // +0x60  Collection::Array<Math::Transform>, stride 0x1c, _boneCount *
     //        _frameCount keys (anim_clip::kKeys, 0x1800fade4).
@@ -458,9 +458,9 @@ static_assert(sizeof(Animation) == 0x70,
               "Graphics::Animation is 0x70 bytes -- the imul 0x70 in GetAnimation "
               "(0x180016660) and the ctor store list at 0x1800fb1d0");
 static_assert(offsetof(Animation, _events) == 0x0, "Animation::_events");
-static_assert(offsetof(Animation, _gap2d) == 0x2D, "Animation::_gap2d");
-static_assert(offsetof(Animation, _gap3d) == 0x3D, "Animation::_gap3d");
-static_assert(offsetof(Animation, _gap54) == 0x54, "Animation::_gap54");
+static_assert(offsetof(Animation, _pad2d) == 0x2D, "Animation::_pad2d");
+static_assert(offsetof(Animation, _pad3d) == 0x3D, "Animation::_pad3d");
+static_assert(offsetof(Animation, _pad54) == 0x54, "Animation::_pad54");
 static_assert(alignof(Animation) == 8, "Graphics::Animation aligns to 8");
 static_assert(sizeof(Animation::Event) == 0x10,
               "Animation::Event stride 0x10 -- SHL RAX,0x4 at 0x180016093");

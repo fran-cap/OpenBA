@@ -200,10 +200,10 @@ void BirthGate(int frameNum, Object::InternalPtr<CitizenComponent>* list, int n)
         const CitizenDescription* desc = c->description;          // +0x288
         if (!desc) { tally[11]++; continue; }
 
-        const float hungerWarn = (desc->maxHunger - desc->_fcc) * hungerFrac +    // +0xD0, +0xCC
-                                 desc->_fcc;
-        const float warmthWarn = (desc->maxColdness - desc->_fec) * warmthFrac +  // +0xF0, +0xEC
-                                 desc->_fec;
+        const float hungerWarn = (desc->maxHunger - desc->starvingLevel) * hungerFrac +    // +0xD0, +0xCC
+                                 desc->starvingLevel;
+        const float warmthWarn = (desc->maxColdness - desc->freezingLevel) * warmthFrac +  // +0xF0, +0xEC
+                                 desc->freezingLevel;
         if (!haveDesc) {
             haveDesc = true;
             hWarn = hungerWarn; wWarn = warmthWarn;
@@ -285,7 +285,7 @@ void BirthGate(int frameNum, Object::InternalPtr<CitizenComponent>* list, int n)
             std::fprintf(stderr,
                 "[BirthGate]   roll consts: chanceLow(desc+0x68)=%.4f chanceHigh(desc+0x64)=%.4f "
                 "scoreMax(desc+0x70)=%.2f cooldownBase(desc+0x5C)=%.1f range(desc+0x60)=%.1f\n",
-                d->_f68, d->_f64, d->maxHealth, d->_f5c, d->_f60);
+                d->childBirthUnhealthy, d->childBirthHealthy, d->maxHealth, d->postChildTerm, d->postChildTermTol);
             break;
         }
     }
@@ -318,11 +318,11 @@ void Couples(int frameNum, Object::InternalPtr<CitizenComponent>* list, int n) {
         s_checkedCouple.insert(c);
         const CitizenDescription* d = c->description;              // +0x288
         const float gap = std::fabs(c->age - s->age);              // +0x3c
-        const bool ok = c->gender != s->gender && s->spouse.Get() == c && gap <= d->_f4c;
+        const bool ok = c->gender != s->gender && s->spouse.Get() == c && gap <= d->marriageRange;
         std::fprintf(stderr, "[Couple] %s frame %d: %p (gender %d, age %.2f) + %p (gender %d, "
                      "age %.2f) gap %.3f window(+0x4c) %.2f marriageAge(+0x48) %.2f\n",
                      ok ? "PASS" : "FAIL", frameNum, static_cast<void*>(c), c->gender, c->age,
-                     static_cast<void*>(s), s->gender, s->age, gap, d->_f4c, d->marriageAge);
+                     static_cast<void*>(s), s->gender, s->age, gap, d->marriageRange, d->marriageAge);
     }
     std::fflush(stderr);
 }
@@ -453,9 +453,9 @@ void Census(int frameNum) {
     // empty in standalone's start town, so report them next to the gate counts — an
     // "ELIGIBLE=0 / noGuardian=0" census means nothing without knowing whether the finder
     // it depends on had anything to find.
-    Object::InternalPtr<ComponentEntity>* reg = townMgr->field_0x20._data;           // +0x20
-    int     regN  = townMgr->field_0x20._size;                   // +0x28
-    void*   bst   = townMgr->field_0x100._root;                  // +0x100
+    Object::InternalPtr<ComponentEntity>* reg = townMgr->residences._data;           // +0x20
+    int     regN  = townMgr->residences._size;                   // +0x28
+    void*   bst   = townMgr->workplacesByProfession._root;                  // +0x100
     int     bldgN = townMgr->attendanceComponents._size;     // +0x68
     std::fprintf(stderr, "[FamilyCensus]   townMgr=%p buildingRegistry(+0x20)=%p count(+0x28)=%d "
                  "profBST(+0x100)=%p bldgCount(+0x68)=%d\n",
@@ -669,7 +669,7 @@ bool ProbeCase(const char* label, CitizenComponent* seeker, CitizenComponent* ca
     if (got != nullptr) {
         const float gap = std::fabs(got->age - seeker->age);
         if (got->gender == seeker->gender || got->spouse != nullptr || got->age <= d->marriageAge ||
-            gap > d->_f4c)
+            gap > d->marriageRange)
             ok = false;
     }
     std::fprintf(stderr, "[SpouseProbe]   %-14s seeker age %.2f, candidate age %.2f (diff %+.2f): "
@@ -701,7 +701,7 @@ void SpouseProbe(int frameNum) {
         return;
     }
     const CitizenDescription* d = seeker->description;
-    const float w = d->_f4c;
+    const float w = d->marriageRange;
     const float savedSeeker = seeker->age;
     seeker->age = d->marriageAge + w + 2.0f;
     const float a = seeker->age;
@@ -786,7 +786,7 @@ void SpouseOrganic(int frameNum) {
         }
         wifeOfA->HandleLifeEvent(3, nullptr);                      // 0x140116dd0
         husbandOfB->HandleLifeEvent(3, nullptr);
-        const float w = s_widower->description->_f4c;
+        const float w = s_widower->description->marriageRange;
         s_widow->age = s_widower->age + w + 1.0f;
         std::fprintf(stderr, "[SpouseOrganic] frame %d: widowed %p (gender 1, age %.2f) and %p "
                      "(gender 0, age %.2f -- set to the window %.2f + 1 above him); spouses now %p / %p\n",
@@ -803,7 +803,7 @@ void SpouseOrganic(int frameNum) {
                          s_widower->age, s_widow->age);
             s_organicStage = OrganicStage::Done;
         } else if (frameNum - s_organicFrame >= 1800) {
-            const float w = s_widower->description->_f4c;
+            const float w = s_widower->description->marriageRange;
             std::fprintf(stderr, "[SpouseOrganic] beyond ok frame %d: no marriage in %d frames at a gap "
                          "of %.2f (window %.2f); setting her age inside it\n", frameNum,
                          frameNum - s_organicFrame, s_widow->age - s_widower->age, w);
@@ -876,7 +876,7 @@ void PostHallEvent(ImmigrationComponent* imm, int eventId) {
 
 void VerifyAnswer(int frameNum, ImmigrationComponent* imm, CitizenBehavior* townMgr) {
     s_verifyPending = false;
-    const int admitted = townMgr->field_0x1B0 - s_admittedBefore;
+    const int admitted = townMgr->totalNomadsAccepted - s_admittedBefore;
     int added = 0, nullProfession = 0;
     for (int i = 0; i < townMgr->citizens._size; i++) {
         CitizenComponent* c = townMgr->citizens._data[i].Get();
@@ -944,7 +944,7 @@ void NomadHarness(int frameNum) {
         for (int i = 0; i < townMgr->citizens._size; i++)
             s_beforeAnswer.insert(townMgr->citizens._data[i].Get());
         s_answerGroup = imm->group._size;
-        s_admittedBefore = townMgr->field_0x1B0;
+        s_admittedBefore = townMgr->totalNomadsAccepted;
         s_answered = static_cast<NomadAnswerStage>(static_cast<int>(s_answered) + 1);
         const int eventId = (s_answered == NomadAnswerStage::Allowed) ? SmId(BuildingEvent::AllowImmigrants)
                                                                       : SmId(BuildingEvent::DenyImmigrants);

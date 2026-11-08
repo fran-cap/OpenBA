@@ -32,8 +32,8 @@ class ComponentDescription;   // Component/ComponentDescription.h
 struct TradeGoodsCategory {
     uint32_t       rawMaterialFlags;   // +0x00 enum (TradeComponent::Setup copies it into the buy orders)
     uint8_t        _pad04[4];          // +0x04
-    System::String spriteName;         // +0x08 TradeUI: the sprite in _ref20
-    System::String textName;           // +0x10 TradeUI: the string in _ref28
+    System::String spriteName;         // +0x08 TradeUI: the sprite in _resourceSpriteSheet
+    System::String textName;           // +0x10 TradeUI: the string in _resourceStringTable
 };
 static_assert(sizeof(TradeGoodsCategory) == 0x18, "TradeGoodsCategory stride 0x18");
 static_assert(offsetof(TradeGoodsCategory, rawMaterialFlags) == 0x0, "TradeGoodsCategory::rawMaterialFlags");
@@ -48,16 +48,16 @@ static_assert(offsetof(TradeGoodsCategory, textName) == 0x10, "TradeGoodsCategor
 struct TradeMerchant {
     UI::StringTable*       stringTable;      // +0x00 ExternalPtr (0x14000bf40)
     System::String         name;             // +0x08
-    uint32_t               field_0x10;       // +0x10 enum
+    uint32_t               sellFlags;       // +0x10 enum
     uint32_t               fullPriceFlags;   // +0x14 categories bought at the full price (0x14005a520)
     uint32_t               discountFlags;    // +0x18 categories bought at the discount (0x14005a520)
     uint8_t                _pad1C[4];        // +0x1c
     ComponentDescription** goods;            // +0x20 Array<ExternalPtr<ComponentDescription>> data
     int32_t                goodsCount;       // +0x28
     int32_t                goodsCap;         // +0x2c
-    uint32_t*              field_0x30;       // +0x30 Array<enum> data
-    int32_t                field_0x30Count;  // +0x38
-    int32_t                field_0x30Cap;    // +0x3c
+    uint32_t*              naturalResources;       // +0x30 Array<enum> data
+    int32_t                naturalResourceCount;  // +0x38
+    int32_t                naturalResourceCap;    // +0x3c
     int32_t                stockRolls;       // +0x40 manifest rolls, divided by the tier's rollDivisor (0x14005b580)
     uint8_t                _pad44[4];        // +0x44
 };
@@ -65,16 +65,16 @@ static_assert(sizeof(TradeMerchant) == 0x48, "TradeMerchant stride 0x48");
 static_assert(offsetof(TradeMerchant, stringTable) == 0x0, "TradeMerchant::stringTable");
 static_assert(offsetof(TradeMerchant, _pad1C) == 0x1C, "TradeMerchant::_pad1C");
 static_assert(offsetof(TradeMerchant, goodsCap) == 0x2C, "TradeMerchant::goodsCap");
-static_assert(offsetof(TradeMerchant, field_0x30Cap) == 0x3C, "TradeMerchant::field_0x30Cap");
+static_assert(offsetof(TradeMerchant, naturalResourceCap) == 0x3C, "TradeMerchant::naturalResourceCap");
 static_assert(offsetof(TradeMerchant, _pad44) == 0x44, "TradeMerchant::_pad44");
 static_assert(offsetof(TradeMerchant, name) == 0x08, "TradeMerchant +0x08");
-static_assert(offsetof(TradeMerchant, field_0x10) == 0x10, "TradeMerchant +0x10");
+static_assert(offsetof(TradeMerchant, sellFlags) == 0x10, "TradeMerchant +0x10");
 static_assert(offsetof(TradeMerchant, fullPriceFlags) == 0x14, "TradeMerchant +0x14");
 static_assert(offsetof(TradeMerchant, discountFlags) == 0x18, "TradeMerchant +0x18");
 static_assert(offsetof(TradeMerchant, goods) == 0x20, "TradeMerchant +0x20");
 static_assert(offsetof(TradeMerchant, goodsCount) == 0x28, "TradeMerchant +0x28");
-static_assert(offsetof(TradeMerchant, field_0x30) == 0x30, "TradeMerchant +0x30");
-static_assert(offsetof(TradeMerchant, field_0x30Count) == 0x38, "TradeMerchant +0x38");
+static_assert(offsetof(TradeMerchant, naturalResources) == 0x30, "TradeMerchant +0x30");
+static_assert(offsetof(TradeMerchant, naturalResourceCount) == 0x38, "TradeMerchant +0x38");
 static_assert(offsetof(TradeMerchant, stockRolls) == 0x40, "TradeMerchant +0x40");
 
 // +0x58 element (0x14): a merchant tier, picked by the town's population
@@ -84,7 +84,7 @@ struct TradeTier {
     float   delayBase;         // +0x04 merchant delay, x300 s (0x14005b450)
     float   delayTolerance;    // +0x08
     int32_t rollDivisor;       // +0x0c divides TradeMerchant::stockRolls
-    int32_t stockDivisor;      // +0x10 divides ValueDescription::_baseValue
+    int32_t stockDivisor;      // +0x10 divides ValueDescription::_stackCount
 };
 static_assert(sizeof(TradeTier) == 0x14, "TradeTier stride 0x14");
 static_assert(offsetof(TradeTier, populationLimit) == 0x0, "TradeTier::populationLimit");
@@ -108,8 +108,8 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x14000dc10
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    UI::SpriteSheet* _ref20;                    // +0x20 ExternalPtr (a raw pointer)
-    UI::StringTable* _ref28;                    // +0x28 ExternalPtr (a raw pointer)
+    UI::SpriteSheet* _resourceSpriteSheet;                    // +0x20 ExternalPtr (a raw pointer)
+    UI::StringTable* _resourceStringTable;                    // +0x28 ExternalPtr (a raw pointer)
     ComponentDescription* _merchantTemplate;    // +0x30 ExternalPtr<ComponentDescription> (0x140002340): the merchant boat
     TradeGoodsCategory* _pairs;                 // +0x38 goods-category array data
     int32_t _pairCount;                         // +0x40
@@ -120,14 +120,14 @@ public:
     TradeTier* _prices;                         // +0x58 merchant-tier array data
     int32_t _priceCount;                        // +0x60
     int32_t _priceCap;                          // +0x64
-    float _f68;                                 // +0x68 ~0.333
-    int32_t _i6c;                               // +0x6c
+    float _sicknessAmount;                                 // +0x68 ~0.333
+    int32_t _sicknessTimeInMonths;                               // +0x6c
 };
 
 static_assert(sizeof(TradeDescription) == 0x70, "TradeDescription is 0x70 (create 0x14000dbd0 MemAlloc(0x70))");
 static_assert(alignof(TradeDescription) == 8, "TradeDescription alignment");
-static_assert(offsetof(TradeDescription, _ref20) == 0x20, "TradeDescription::_ref20 @ +0x20");
-static_assert(offsetof(TradeDescription, _ref28) == 0x28, "TradeDescription::_ref28 @ +0x28");
+static_assert(offsetof(TradeDescription, _resourceSpriteSheet) == 0x20, "TradeDescription::_resourceSpriteSheet @ +0x20");
+static_assert(offsetof(TradeDescription, _resourceStringTable) == 0x28, "TradeDescription::_resourceStringTable @ +0x28");
 static_assert(offsetof(TradeDescription, _merchantTemplate) == 0x30, "TradeDescription::_merchantTemplate @ +0x30");
 static_assert(offsetof(TradeDescription, _pairs) == 0x38, "TradeDescription::_pairs @ +0x38");
 static_assert(offsetof(TradeDescription, _pairCount) == 0x40, "TradeDescription::_pairCount @ +0x40");
@@ -138,5 +138,5 @@ static_assert(offsetof(TradeDescription, _merchantCap) == 0x54, "TradeDescriptio
 static_assert(offsetof(TradeDescription, _prices) == 0x58, "TradeDescription::_prices @ +0x58");
 static_assert(offsetof(TradeDescription, _priceCount) == 0x60, "TradeDescription::_priceCount @ +0x60");
 static_assert(offsetof(TradeDescription, _priceCap) == 0x64, "TradeDescription::_priceCap @ +0x64");
-static_assert(offsetof(TradeDescription, _f68) == 0x68, "TradeDescription::_f68 @ +0x68");
-static_assert(offsetof(TradeDescription, _i6c) == 0x6c, "TradeDescription::_i6c @ +0x6c");
+static_assert(offsetof(TradeDescription, _sicknessAmount) == 0x68, "TradeDescription::_sicknessAmount @ +0x68");
+static_assert(offsetof(TradeDescription, _sicknessTimeInMonths) == 0x6c, "TradeDescription::_sicknessTimeInMonths @ +0x6c");

@@ -39,10 +39,10 @@ public:
 
 public:
     int32_t eventIndex;                                            // +0xb8 event-log index
-    int32_t _holeBC;                                               // +0xbc
+    int32_t _padBC;                                               // +0xbc
 };
 
 static_assert(offsetof(EventPopupDialog, eventIndex) == 0xb8, "EventPopupDialog +0xb8");
 static_assert(sizeof(EventPopupDialog) == 0xc0, "EventPopupDialog is 0xc0 (create 0x140011920)");
-static_assert(offsetof(EventPopupDialog, _holeBC) == 0xBC, "EventPopupDialog::_holeBC");
+static_assert(offsetof(EventPopupDialog, _padBC) == 0xBC, "EventPopupDialog::_padBC");
 static_assert(alignof(EventPopupDialog) == 8, "EventPopupDialog is qword-aligned");

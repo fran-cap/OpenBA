@@ -121,14 +121,14 @@ namespace RtGraphics {
 // pointer.
 struct ParticleBoundsRecord;
 
-// B.4: the per-instance EMITTER record (`ParticleSystemInstance::_f_d8`,
+// B.4: the per-instance EMITTER record (`ParticleSystemInstance::_emitter`,
 // element of `ParticleSystem::_pool`) and the per-particle EXTRA record its
 // array holds, parallel to the pool record's live particles. Named from
 // wave28_lane_partsys.cpp's kEmit_* / kExt_* measurements. Neither has a
 // retail name (Particle.h's H2 note: no `Emitter` symbol in the DLL); both are
 // built by stores into raw blocks, never by a C++ constructor:
 // ParticleSystem::Serialize / ParticleSystemInstance::SetParticle zero the
-// array header, copy `ParticleSystem::_f48`'s bits into `_rate`, and size the
+// array header, copy `ParticleSystem::_emissionRate`'s bits into `_rate`, and size the
 // array through the kSpec_Rec14 row (0x180020e90).
 struct ParticleExtra {
     float _velX, _velY, _velZ;   // +0x00  velocity
@@ -610,13 +610,13 @@ public:
     // ---- the 0xc0 bytes ParticleSystem adds --------------------------------
     // Each comment is the instruction that reads or writes the field: `ctor` is
     // 0x1800a5320's store list, `Update` is wave28's measured read.
-    float    _f48;            // +0x48  ctor 5.0f. Serialize emits it FIRST, and
+    float    _emissionRate;            // +0x48  ctor 5.0f. Serialize emits it FIRST, and
                               //        Serialize's read-side tail RAW-BIT-COPIES
                               //        it into each pool record's +0x10. No
                               //        reader identified it, so it keeps a
                               //        position name.
-    float    _rateAccelA;     // +0x4c  MULSS 0x4c(%rdi) @ 0x1800a5758; ctor 0.0f
-    float    _rateAccelB;     // +0x50  MULSS 0x50(%rdi) @ 0x1800a5764; ctor 1.0f
+    float    _emissionAcceleration;     // +0x4c  MULSS 0x4c(%rdi) @ 0x1800a5758; ctor 0.0f
+    float    _emissionDrag;     // +0x50  MULSS 0x50(%rdi) @ 0x1800a5764; ctor 1.0f
     uint32_t _pad54;          // +0x54  MEASURED GAP — ctor and Serialize skip it
     int64_t  _durationTicks;  // +0x58  MOV 0x58(%rdi),%rcx @ 0x1800a5781.
                               //        ctor `(int64)(-1.0 / _secondsPerTick)` —
@@ -698,12 +698,12 @@ static_assert(offsetof(ParticleSystem, _sizeDamp) == 0xD0, "ParticleSystem::_siz
 static_assert(offsetof(ParticleSystem, _colorT1) == 0xD8, "ParticleSystem::_colorT1");
 static_assert(offsetof(ParticleSystem, _pad_e4) == 0xE4, "ParticleSystem::_pad_e4");
 static_assert(alignof(ParticleSystem) == 8, "qword aligned (the vptr)");
-static_assert(offsetof(ParticleSystem, _f48) == sizeof(Particle),
+static_assert(offsetof(ParticleSystem, _emissionRate) == sizeof(Particle),
               "ParticleSystem's own fields begin at the end of the Particle base: "
               "the ctor inlines Particle's stores and then writes +0x48 with no gap");
-static_assert(offsetof(ParticleSystem, _f48)           == 0x48,  "+0x48");
-static_assert(offsetof(ParticleSystem, _rateAccelA)    == 0x4c,  "+0x4c");
-static_assert(offsetof(ParticleSystem, _rateAccelB)    == 0x50,  "+0x50");
+static_assert(offsetof(ParticleSystem, _emissionRate)           == 0x48,  "+0x48");
+static_assert(offsetof(ParticleSystem, _emissionAcceleration)    == 0x4c,  "+0x4c");
+static_assert(offsetof(ParticleSystem, _emissionDrag)    == 0x50,  "+0x50");
 static_assert(offsetof(ParticleSystem, _durationTicks) == 0x58,  "+0x58");
 static_assert(offsetof(ParticleSystem, _emitDirX)      == 0x60,  "+0x60");
 static_assert(offsetof(ParticleSystem, _spreadX)       == 0x6c,  "+0x6c");

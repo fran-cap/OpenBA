@@ -40,11 +40,11 @@ public:
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
     UI::SpriteSheet* _sprite;                   // +0x20 ExternalPtr (sprite/icon)
     System::String _name;                       // +0x28 String
-    UI::StringTable* _ref30;                    // +0x30 ExternalPtr (a raw pointer)
-    System::String _s38;                        // +0x38 String
-    int32_t _i40;                               // +0x40
-    int32_t _baseValue;                         // +0x44
-    int32_t _weight;                            // +0x48
+    UI::StringTable* _stringTable;                    // +0x30 ExternalPtr (a raw pointer)
+    System::String _stringName;                        // +0x38 String
+    int32_t _baseValue;                               // +0x40
+    int32_t _stackCount;                         // +0x44
+    int32_t _minStackCount;                            // +0x48
     uint8_t _pad4c[4];                          // +0x4c never written by the ctor
 };
 
@@ -53,8 +53,8 @@ static_assert(offsetof(ValueDescription, _pad4c) == 0x4C, "ValueDescription::_pa
 static_assert(alignof(ValueDescription) == 8, "ValueDescription alignment");
 static_assert(offsetof(ValueDescription, _sprite) == 0x20, "ValueDescription::_sprite @ +0x20");
 static_assert(offsetof(ValueDescription, _name) == 0x28, "ValueDescription::_name @ +0x28");
-static_assert(offsetof(ValueDescription, _ref30) == 0x30, "ValueDescription::_ref30 @ +0x30");
-static_assert(offsetof(ValueDescription, _s38) == 0x38, "ValueDescription::_s38 @ +0x38");
-static_assert(offsetof(ValueDescription, _i40) == 0x40, "ValueDescription::_i40 @ +0x40");
-static_assert(offsetof(ValueDescription, _baseValue) == 0x44, "ValueDescription::_baseValue @ +0x44");
-static_assert(offsetof(ValueDescription, _weight) == 0x48, "ValueDescription::_weight @ +0x48");
+static_assert(offsetof(ValueDescription, _stringTable) == 0x30, "ValueDescription::_stringTable @ +0x30");
+static_assert(offsetof(ValueDescription, _stringName) == 0x38, "ValueDescription::_stringName @ +0x38");
+static_assert(offsetof(ValueDescription, _baseValue) == 0x40, "ValueDescription::_baseValue @ +0x40");
+static_assert(offsetof(ValueDescription, _stackCount) == 0x44, "ValueDescription::_stackCount @ +0x44");
+static_assert(offsetof(ValueDescription, _minStackCount) == 0x48, "ValueDescription::_minStackCount @ +0x48");

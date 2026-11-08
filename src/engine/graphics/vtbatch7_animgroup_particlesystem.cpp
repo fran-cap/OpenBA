@@ -362,9 +362,9 @@ bool AnimationGroup::Serialize(IO::Stream& streamv) {
     {
         Tag* p = _tags._data;
         for (int32_t i = 0; i < n; ++i, ++p) {           // stride 0x18
-            p->_string00.Serialize(ser);
-            p->_string08.Serialize(ser);
-            ser._readerWriter->SerializeFloat(p->_float10, nullptr);
+            p->_from.Serialize(ser);
+            p->_to.Serialize(ser);
+            ser._readerWriter->SerializeFloat(p->_blendTime, nullptr);
         }
     }
 
@@ -492,8 +492,8 @@ Graphics::ParticleSystem::ParticleSystem() : Particle() {
     ParticleSystem* const self = this;
     const double spt = SecondsPerTick();
 
-    self->_f48 = 5.0f;  self->_rateAccelA = 0.0f;         // 1800a538d  one qword
-    self->_rateAccelB = 1.0f;                             // 1800a5395
+    self->_emissionRate = 5.0f;  self->_emissionAcceleration = 0.0f;         // 1800a538d  one qword
+    self->_emissionDrag = 1.0f;                             // 1800a5395
     self->_durationTicks = static_cast<int64_t>(-1.0 / spt); // 1800a539c..b1
     self->_emitDirX = 0.0f; self->_emitDirY = 0.0f;       // 1800a53b5  one qword
     self->_emitDirZ = 1.0f;                               // 1800a53b9
@@ -669,9 +669,9 @@ bool ParticleSystem::Serialize(IO::Stream& streamv) {
     IO::Serializer ser(stream, 0);
     IO::ReaderWriter* rw = ser._readerWriter;
 
-    rw->SerializeFloat(_f48, nullptr);
-    rw = ser._readerWriter; rw->SerializeFloat(_rateAccelA, nullptr);
-    rw = ser._readerWriter; rw->SerializeFloat(_rateAccelB, nullptr);
+    rw->SerializeFloat(_emissionRate, nullptr);
+    rw = ser._readerWriter; rw->SerializeFloat(_emissionAcceleration, nullptr);
+    rw = ser._readerWriter; rw->SerializeFloat(_emissionDrag, nullptr);
     // ENDGAME B.3.5 block H2 — THE FIRST OF THE THREE HAND-INLINED int64 SLOT
     // CALLS B35_RULES section 11 listed in this file as "receiver-side work".
     // Block H2 owns this receiver, and `IO::Serializer::Serialize(int64_t&, const
@@ -756,7 +756,7 @@ bool ParticleSystem::Serialize(IO::Stream& streamv) {
                 rec->_extra._data     = nullptr;                        // 1800a50d8/db
                 rec->_extra._size     = 0;
                 rec->_extra._capacity = 0;
-                rec->_rate = _f48;                                      // 1800a50df/e2 (a dword move)
+                rec->_rate = _emissionRate;                                      // 1800a50df/e2 (a dword move)
                 rtcoll::RtColl_ArraySetSize_180020e90(&rec->_extra, _subCount);  // 1800a50eb
             }
             // Retail stores RDI unconditionally, so a failed allocation parks a

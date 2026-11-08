@@ -198,9 +198,9 @@ std::vector<uint8_t> WriteSheet(const UI::SpriteSheet& s) {
     r.Begin(0);
     r.Str(s.m_groupName);     // +0x40 first
     r.Str(s.m_textureName);   // +0x38
-    r.I32(s.m_field48);
-    r.I32(s.m_field4C);
-    r.Bool(s.m_field50);
+    r.I32(s.m_imageWidth);
+    r.I32(s.m_imageHeight);
+    r.Bool(s.m_padForFiltering);
     r.I32(s.m_sprites._size);
     for (int32_t i = 0; i < s.m_sprites._size; ++i) {
         const UI::SpriteInfo& e = s.m_sprites._data[i];
@@ -210,7 +210,7 @@ std::vector<uint8_t> WriteSheet(const UI::SpriteSheet& s) {
         r.I32(e._reserved18);   // fifth of the five ints
         r.F32(e.u0); r.F32(e.v0); r.F32(e.u1); r.F32(e.v1);
     }
-    r.ExtPtr(reinterpret_cast<const Object::External*>(s.m_field30));
+    r.ExtPtr(reinterpret_cast<const Object::External*>(s.m_materialInstance));
     r.End();
     return r.b;
 }

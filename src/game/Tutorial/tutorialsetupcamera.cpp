@@ -87,9 +87,9 @@ void TutorialSetupCamera::Begin() {
     int32_t absY = cameraChunkCol * cellSize + cameraY;
 
     // Write to camera object
-    camera->field_0xA8 = absX;
-    camera->field_0xA4 = true;   // Flag: camera position is set / needs update
-    camera->field_0xAC = absY;
+    camera->cameraMoveStartCell = absX;
+    camera->cameraMoveActive = true;   // Flag: camera position is set / needs update
+    camera->cameraMoveEndCell = absY;
 }
 
 // ============================================================

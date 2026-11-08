@@ -36,7 +36,7 @@
 #include "Component/AutoPickupComponent.h"
 
 // 0x140044ae0: Component() is the CALL 0x1401188b0; the 0x140158df0 stamp is
-// the compiler's; isEnabled (+0x28) = 1; +0x30 = +0x38 = 0 (field30's Array ctor);
+// the compiler's; isEnabled (+0x28) = 1; +0x30 = +0x38 = 0 (pileWorkIds's Array ctor);
 // flags |= 0x80.
 AutoPickupComponent::AutoPickupComponent()
     : isEnabled(true), _pad29{} {
@@ -50,16 +50,16 @@ void AutoPickupComponent::Persist(IO::Stream& stream) {
     Component::Persist(stream);
     IO::Serializer ser(stream, 0);
     ser.Serialize(isEnabled, nullptr);
-    int count = field30._size;
+    int count = pileWorkIds._size;
     ser.Serialize(count, nullptr);
     if (static_cast<int>(ser.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
-        // +0x30 field30: exe 0x1400021d0 (called at 140044a40) copies only the
+        // +0x30 pileWorkIds: exe 0x1400021d0 (called at 140044a40) copies only the
         // old prefix and leaves a grown tail as-found. Safe: this arm runs only when
         // loading, and the bulk read below (140044a55) writes all `count` elements
         // from the stream before any of them is read.
-        field30.SetSize(count);
+        pileWorkIds.SetSize(count);
     }
-    ser.Serialize(count, field30._data, nullptr);
+    ser.Serialize(count, pileWorkIds._data, nullptr);
 }
 
 // [4] 0x140044990: isEnabled (+0x28) = the description's _enabled (+0x20), the
@@ -83,7 +83,7 @@ uint32_t AutoPickupComponent::CommandMask(int /*command*/) {
 void AutoPickupComponent::Command(int /*command*/) {
     isEnabled = !isEnabled;
     if (!isEnabled) {
-        field30.DestroyAndFree();
+        pileWorkIds.DestroyAndFree();
     }
 }
 

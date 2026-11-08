@@ -272,7 +272,7 @@ void WorkPlaceComponent::EvictRoster() {
 
         // Pick the finder off the worker's profession record (+0x1f0 -> +0x4c).
         ComponentEntity* newWorkplace = nullptr;
-        if (!worker->profession->field4C) {
+        if (!worker->profession->transient) {
             newWorkplace = worker->FindWorkplace();         // 0x14010ffc0
         } else {
             newWorkplace = worker->FindRankedWorkplace();   // 0x140110470
@@ -466,7 +466,7 @@ void WorkPlaceComponent::LeaveBuilderProfession() {
 
     Profession* key = profession;
     ProfessionList* profReg = gw->m_professionList;
-    Profession* builderKey = profReg ? profReg->field_0x38 : nullptr;
+    Profession* builderKey = profReg ? profReg->builderProfession : nullptr;
     if (key == nullptr || key != builderKey) {
         return;   // not a construction workplace
     }
@@ -476,7 +476,7 @@ void WorkPlaceComponent::LeaveBuilderProfession() {
     // address).
     ComponentEntity* ownerRef = _entity.Get();
     CitizenBehavior* townMgr = gw->m_citizenList;
-    ProfessionBucket* node = townMgr ? townMgr->field_0x100._root : nullptr;
+    ProfessionBucket* node = townMgr ? townMgr->workplacesByProfession._root : nullptr;
     while (node) {
         if (key < node->element.key) {
             node = node->left;          // +0x20
@@ -799,7 +799,7 @@ void WorkPlaceComponent::OnRemove() {
 
         // The town's profession tree: CitizenBehavior +0x100 (ProfessionBucket nodes).
         CitizenBehavior* gameState = GameUpdateLoop::_singleton->m_citizenList;
-        ProfessionBucket* node = gameState->field_0x100._root;
+        ProfessionBucket* node = gameState->workplacesByProfession._root;
         Profession* const key = professionId;
 
         bool found = false;

@@ -46,7 +46,7 @@ public:
     int32_t bucketsToOut;                               // +0x3c
     int32_t maxFirefighters;                               // +0x40
     float igniteChance[2];                      // +0x44 the {rate, weight} pair FUN_1400a9290 rolls
-    int32_t _i4c;                               // +0x4c zeroed, never serialized
+    int32_t _pad4c;                               // +0x4c zeroed, never serialized
 };
 
 static_assert(sizeof(FireDescription) == 0x50, "FireDescription is 0x50 (create 0x140005640 MemAlloc(0x50))");
@@ -61,4 +61,4 @@ static_assert(offsetof(FireDescription, dangerRadius) == 0x38, "FireDescription:
 static_assert(offsetof(FireDescription, bucketsToOut) == 0x3c, "FireDescription::bucketsToOut @ +0x3c");
 static_assert(offsetof(FireDescription, maxFirefighters) == 0x40, "FireDescription::maxFirefighters @ +0x40");
 static_assert(offsetof(FireDescription, igniteChance) == 0x44, "FireDescription::igniteChance @ +0x44");
-static_assert(offsetof(FireDescription, _i4c) == 0x4c, "FireDescription::_i4c @ +0x4c");
+static_assert(offsetof(FireDescription, _pad4c) == 0x4c, "FireDescription::_pad4c @ +0x4c");

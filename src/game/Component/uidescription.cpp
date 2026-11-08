@@ -9,12 +9,12 @@
 //
 // Field layout (from Factory inline ctor + Serialize FUN_14012de80 + dtor
 // FUN_140039700 / element-array cleanup FUN_1400397d0):
-//   +0x20: int32  _valTail        (serialized LAST)                 (default 0)
+//   +0x20: int32  _settingsBufferSize (serialized LAST)             (default 0)
 //   +0x28: void*  _descRef        ExternalPtr (Description)         (default 0)
 //   +0x30: void*  _entries[]      element-array buffer (stride 0x28)(default 0)
 //   +0x38: int32  _entryCount                                       (default 0)
 //   +0x3c: int32  _entryCap                                         (default 0)
-//   +0x40: int32  _valHead        (serialized 2nd)                  (default 0)
+//   +0x40: int32  _displayPage    (serialized 2nd)                  (default 0)
 //
 // Per-element layout (stride 0x28):
 //   +0x00: Object::Type  (4B, serialized via Object::Type::Serialize, import slot 0x1401516b0)
@@ -86,12 +86,12 @@
 // the defaults.
 UIDescription::UIDescription()
     : Description(),
-      _valTail(0),
+      _settingsBufferSize(0),
       _dialog(nullptr),
       _entries(nullptr),
       _entryCount(0),
       _entryCap(0),
-      _valHead(0) {}
+      _displayPage(0) {}
 
 // dtor (slot 0 0x140039700 minus the stamps): FUN_140039700 / element cleanup FUN_1400397d0.
 // The compiler then chains ~Description -> ~External.
@@ -117,7 +117,7 @@ bool UIDescription::Serialize(IO::Stream& stream) {
     //    to the registered Serialize2 (typeId trusted in standalone).
     ::Object::SerializeExternal<UI::Dialog>(ser, _dialog);
     // 2. int (+0x40)
-    ser.Serialize(_valHead, nullptr);
+    ser.Serialize(_displayPage, nullptr);
     // 3. count (+0x38)
     ser.Serialize(_entryCount, nullptr);
     int count = _entryCount;
@@ -142,9 +142,9 @@ bool UIDescription::Serialize(IO::Stream& stream) {
             for (int i = 0; i < count; ++i, ++e) {
                 e->type._type = 0;             // the tree zeroes the whole first qword
                 e->_pad04[0] = e->_pad04[1] = e->_pad04[2] = e->_pad04[3] = 0;
-                e->ref08 = nullptr;
-                e->ref10 = nullptr;
-                e->ref18 = nullptr;
+                e->element = nullptr;
+                e->config = nullptr;
+                e->tabButton = nullptr;
                 ::new (&e->name) System::String();   // _data = null (0x180006760)
             }
         }
@@ -158,13 +158,13 @@ bool UIDescription::Serialize(IO::Stream& stream) {
     if (UIDescriptionEntry* e = _entries) {
         for (int i = 0; i < count; ++i, ++e) {
             RtObject::RtObject_Type_Serialize(&e->type._type, &ser);   // import slot 0x1401516b0
-            ::Object::SerializeExternal<UI::ElementDescription>(ser, e->ref08);
-            ::Object::SerializeExternal<UI::DialogControllerConfig>(ser, e->ref10);
-            ::Object::SerializeExternal<UI::ElementDescription>(ser, e->ref18);
+            ::Object::SerializeExternal<UI::ElementDescription>(ser, e->element);
+            ::Object::SerializeExternal<UI::DialogControllerConfig>(ser, e->config);
+            ::Object::SerializeExternal<UI::ElementDescription>(ser, e->tabButton);
             e->name.Serialize(ser);
         }
     }
-    ser.Serialize(_valTail, nullptr);
+    ser.Serialize(_settingsBufferSize, nullptr);
     return true;
 }
 
@@ -178,11 +178,11 @@ Object::External* UIDescription::Reconstruct() {
 // [7] 0x140001640: retail's shared body, a virtual `this->~T()` (retail: slot 0, flags 0) (D9 #10).
 void UIDescription::Destruct() { this->~UIDescription(); }
 
-// [8] 0x1400396e0: UIComponent's type id when _valTail > 0, else 0 (see above).
+// [8] 0x1400396e0: UIComponent's type id when _settingsBufferSize > 0, else 0 (see above).
 // The tree read the id through a first-call cache over the exe cell 0x1401c7fc8;
 // the by-name lookup is the same registered id, without the lazy static (B6-5).
 Object::Type* UIDescription::GetComponentType(Object::Type* ret) const {
-    ret->_type = (_valTail > 0) ? UIComponent::TypeId() : 0u;
+    ret->_type = (_settingsBufferSize > 0) ? UIComponent::TypeId() : 0u;
     return ret;
 }
 

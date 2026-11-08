@@ -29,7 +29,7 @@
 #include "Component/ModelComponent.h"
 #include "Component/AmbientEmitterComponent.h"   // what Entity::FindAudioComponent (0x140002280) returns
 #include "Entity/ComponentEntity.h"
-#include "Entity/CitizenBehavior.h"   // CitizenBehavior::field_0x20 (the residence list)
+#include "Entity/CitizenBehavior.h"   // CitizenBehavior::residences (the residence list)
 #include "Component/firecomponent_funcs.h"
 #include "object/TypeInfo.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
@@ -78,7 +78,7 @@ void ResidenceComponent::EvictAndUnregister() {
     CitizenBehavior* worldMgr = GameUpdateLoop::_singleton->m_citizenList;
 
     // Unregister the entity from the town's residence entity list (+0x20)
-    worldMgr->field_0x20.Remove(entityPtr);   // 0x140002cc0
+    worldMgr->residences.Remove(entityPtr);   // 0x140002cc0
 }
 
 // Resident per-family member-array copy on grow.
@@ -499,7 +499,7 @@ void ResidenceComponent::AddResident(int family, Object::InternalPtr<CitizenComp
 char ResidenceComponent::EnterBuilt() {
     ComponentEntity* entity = _entity.Get();
     CitizenIbpList<ComponentEntity>& residences =
-        GameUpdateLoop::_singleton->m_citizenList->field_0x20;
+        GameUpdateLoop::_singleton->m_citizenList->residences;
     residences.SetSizeFill(residences._size + 1, &entity);
     return 0;
 }

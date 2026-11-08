@@ -37,29 +37,29 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x14002fa00
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    float _speedScale;                          // +0x20
-    float _f24;                                 // +0x24 high dword of the ctor's 8-byte +0x20 store
-    float _slowSpeed;                           // +0x28 0.85
-    float _turnFilter;                          // +0x2c 0.1
-    float _f30;                                 // +0x30
-    float _f34;                                 // +0x34
-    float _f38;                                 // +0x38
-    bool _b3c;                                  // +0x3c
+    float _radius;                          // +0x20
+    float _headingOffset;                                 // +0x24 high dword of the ctor's 8-byte +0x20 store
+    float _turnFilter;                           // +0x28 0.85
+    float _defaultAnimationBlendTime;                          // +0x2c 0.1
+    float _slowSpeed;                                 // +0x30
+    float _fastSpeed;                                 // +0x34
+    float _fastestSpeed;                                 // +0x38
+    bool _forceHeight;                                  // +0x3c
     uint8_t _pad3d[3];                          // +0x3d never written by the ctor
-    float _f40;                                 // +0x40
-    float _f44;                                 // +0x44
+    float _height;                                 // +0x40
+    float _minHeight;                                 // +0x44
 };
 
 static_assert(sizeof(CharacterDescription) == 0x48, "CharacterDescription is 0x48 (create 0x14002f9c0 MemAlloc(0x48))");
 static_assert(offsetof(CharacterDescription, _pad3d) == 0x3D, "CharacterDescription::_pad3d");
 static_assert(alignof(CharacterDescription) == 8, "CharacterDescription alignment");
-static_assert(offsetof(CharacterDescription, _speedScale) == 0x20, "CharacterDescription::_speedScale @ +0x20");
-static_assert(offsetof(CharacterDescription, _f24) == 0x24, "CharacterDescription::_f24 @ +0x24");
-static_assert(offsetof(CharacterDescription, _slowSpeed) == 0x28, "CharacterDescription::_slowSpeed @ +0x28");
-static_assert(offsetof(CharacterDescription, _turnFilter) == 0x2c, "CharacterDescription::_turnFilter @ +0x2c");
-static_assert(offsetof(CharacterDescription, _f30) == 0x30, "CharacterDescription::_f30 @ +0x30");
-static_assert(offsetof(CharacterDescription, _f34) == 0x34, "CharacterDescription::_f34 @ +0x34");
-static_assert(offsetof(CharacterDescription, _f38) == 0x38, "CharacterDescription::_f38 @ +0x38");
-static_assert(offsetof(CharacterDescription, _b3c) == 0x3c, "CharacterDescription::_b3c @ +0x3c");
-static_assert(offsetof(CharacterDescription, _f40) == 0x40, "CharacterDescription::_f40 @ +0x40");
-static_assert(offsetof(CharacterDescription, _f44) == 0x44, "CharacterDescription::_f44 @ +0x44");
+static_assert(offsetof(CharacterDescription, _radius) == 0x20, "CharacterDescription::_radius @ +0x20");
+static_assert(offsetof(CharacterDescription, _headingOffset) == 0x24, "CharacterDescription::_headingOffset @ +0x24");
+static_assert(offsetof(CharacterDescription, _turnFilter) == 0x28, "CharacterDescription::_turnFilter @ +0x28");
+static_assert(offsetof(CharacterDescription, _defaultAnimationBlendTime) == 0x2c, "CharacterDescription::_defaultAnimationBlendTime @ +0x2c");
+static_assert(offsetof(CharacterDescription, _slowSpeed) == 0x30, "CharacterDescription::_slowSpeed @ +0x30");
+static_assert(offsetof(CharacterDescription, _fastSpeed) == 0x34, "CharacterDescription::_fastSpeed @ +0x34");
+static_assert(offsetof(CharacterDescription, _fastestSpeed) == 0x38, "CharacterDescription::_fastestSpeed @ +0x38");
+static_assert(offsetof(CharacterDescription, _forceHeight) == 0x3c, "CharacterDescription::_forceHeight @ +0x3c");
+static_assert(offsetof(CharacterDescription, _height) == 0x40, "CharacterDescription::_height @ +0x40");
+static_assert(offsetof(CharacterDescription, _minHeight) == 0x44, "CharacterDescription::_minHeight @ +0x44");

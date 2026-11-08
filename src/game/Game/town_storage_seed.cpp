@@ -131,8 +131,8 @@ static RawMaterialDescription* FindRawMatDescOnTemplate(const ComponentDescripti
 bool Component::RegisterStorageLocation() const {
     CitizenBehavior* townMgr = TownMgr();
     ComponentEntity* entityRef = _entity.Get();   // the component's +0x10 entity
-    int newCount = townMgr->field_0x00._size + 1;
-    townMgr->field_0x00.SetSizeFill(newCount, &entityRef);   // 0x140003110
+    int newCount = townMgr->storageLocations._size + 1;
+    townMgr->storageLocations.SetSizeFill(newCount, &entityRef);   // 0x140003110
     // Retail does not dedup here, so EVERY caller is an append. On a LOADED world the
     // tutorial's single starting stockpile came back registered TWICE (count=2, same
     // entity at [0] and [1]), which put goalstoragebarnfinished permanently out of
@@ -163,7 +163,7 @@ void Component::BuildCompleteStorageInit() {
             int cnt = slot->_count;
             int idx = ResourceCategory(slot->_resource);   // 0x140088f90
             if (idx >= 0) {
-                int* cell = &townMgr->professionResources._data[idx].field_0x0C;
+                int* cell = &townMgr->professionResources._data[idx].consumedCount;
                 *cell += cnt;
             }
         }
@@ -215,8 +215,8 @@ extern "C" void TownStorage_SpawnResources_91660(CitizenBehavior* townMgr, uint3
     // `if (!matched) break` out-of-memory bail is gone.
     Collection::Array<ComponentDescription*> matched;
 
-    int tmplCount = townMgr->field_0x110._size;
-    ComponentDescription** tmplArr = townMgr->field_0x110._data;
+    int tmplCount = townMgr->knownRawMaterials._size;
+    ComponentDescription** tmplArr = townMgr->knownRawMaterials._data;
     for (int t = 0; t < tmplCount; t++) {
         ComponentDescription* tmpl = tmplArr[t];
         RawMaterialDescription* desc = FindRawMatDescOnTemplate(tmpl);
@@ -234,10 +234,10 @@ extern "C" void TownStorage_SpawnResources_91660(CitizenBehavior* townMgr, uint3
     if (matchedCount > 0 && count > 0) {
         for (;;) {
             bool progress = false;
-            int locCount = townMgr->field_0x00._size;   // +0x08 (retail: the low dword of the qword)
+            int locCount = townMgr->storageLocations._size;   // +0x08 (retail: the low dword of the qword)
             if (locCount < 1) break;
             for (int i = 0; i < locCount; i++) {
-                ComponentEntity* entityRef = townMgr->field_0x00._data[i].Get();
+                ComponentEntity* entityRef = townMgr->storageLocations._data[i].Get();
                 // The inline FindComponent<StorageComponent> (cell 0x1401c7e78), wrapped in
                 // an IBP; cd80 is called on it with no test (0x1400918cf onward).
                 ::Object::InternalPtr<StorageComponent> compIBP(entityRef->FindComponent<StorageComponent>());
@@ -269,11 +269,11 @@ void MapGenerator::SeedStartingResources() {
     // best current guesses for the remaining start-resource classes
     // (logs/stone/iron/tools/clothing) — amounts and masks are exe-faithful
     // regardless of naming.
-    TownStorage_SpawnResources_91660(townMgr, 0x400,  sc->paramFC);
-    TownStorage_SpawnResources_91660(townMgr, 0x800,  sc->param100);
-    TownStorage_SpawnResources_91660(townMgr, 0x1000, sc->param104);
-    TownStorage_SpawnResources_91660(townMgr, 0x200,  sc->param108);
-    TownStorage_SpawnResources_91660(townMgr, 0x20,   sc->param10C);
-    TownStorage_SpawnResources_91660(townMgr, 0x40,   sc->param110);
-    TownStorage_SpawnResources_91660(townMgr, 0x4000, sc->param114);
+    TownStorage_SpawnResources_91660(townMgr, 0x400,  sc->initialWoodCount);
+    TownStorage_SpawnResources_91660(townMgr, 0x800,  sc->initialStoneCount);
+    TownStorage_SpawnResources_91660(townMgr, 0x1000, sc->initialIronCount);
+    TownStorage_SpawnResources_91660(townMgr, 0x200,  sc->initialToolCount);
+    TownStorage_SpawnResources_91660(townMgr, 0x20,   sc->initialFoodCount);
+    TownStorage_SpawnResources_91660(townMgr, 0x40,   sc->initialFuelCount);
+    TownStorage_SpawnResources_91660(townMgr, 0x4000, sc->initialClothingCount);
 }

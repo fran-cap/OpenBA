@@ -31,7 +31,7 @@
 
 // ============================================================
 // HuntAnimal_helper_2a80 (0x140122a80) — is the hunt done: the HuntComponent's
-// description, when a HuntDescription, gives the hunt time (_f20 * DAT_140172234 seconds);
+// description, when a HuntDescription, gives the hunt time (_killTimeInMonths * DAT_140172234 seconds);
 // returns whether that Time (in raw ticks) is <= the component's huntProgress.
 // ============================================================
 bool HuntComponent::IsReady() const {
@@ -42,7 +42,7 @@ bool HuntComponent::IsReady() const {
     float scale = kRdata_140172234;   // 0x140172234 = 300.0f
     // B6 (14d G58): 0x140122ab0 CMOVNZ RDX,RBX over RDX = 0, 0x140122ab4 MOVSS XMM1,[RDX+0x20]:
     // no test.
-    float holdSeconds = desc->_f20;
+    float holdSeconds = desc->_killTimeInMonths;
 
     System::Time time = {};
     RtSystem_Time_Ctor(&time, holdSeconds * scale);   // ??0Time@System@@QEAA@M@Z

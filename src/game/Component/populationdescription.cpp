@@ -48,7 +48,7 @@ PopulationDescription::PopulationDescription()
       _blockedByEntity(true),
       _habitatDensity(4),
       _densityGrowth(1),
-      _i44(1),
+      _populationDecreasePerHarvest(1),
       _rescan(false),
       _herdTemplate(nullptr) {}
 
@@ -62,7 +62,7 @@ bool PopulationDescription::Serialize(IO::Stream& stream) {
     ser.Serialize(_blockedByEntity, nullptr);
     ser.Serialize(_habitatDensity, nullptr);
     ser.Serialize(_densityGrowth, nullptr);
-    ser.Serialize(_i44, nullptr);
+    ser.Serialize(_populationDecreasePerHarvest, nullptr);
     ser.Serialize(_rescan, nullptr);
     ::Object::SerializeExternal<ComponentDescription>(ser, _herdTemplate);   // 0x140002340
     _name.Serialize(ser);

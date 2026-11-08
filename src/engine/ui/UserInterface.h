@@ -193,10 +193,10 @@ struct Event {
     DialogInstancePtr dialog; // +0x00  the list's element type (B4 P2 H4: typed)
     Element* element;    // +0x08
     EventId  eventId;    // +0x10  UI::EventId (ui/EventId.h)
-    int32_t  arg14;      // +0x14
-    int32_t  arg18;      // +0x18
-    int32_t  arg1C;      // +0x1c
-    int32_t  arg20;      // +0x20
+    int32_t  elementId;      // +0x14
+    int32_t  mouseX;      // +0x18
+    int32_t  mouseY;      // +0x1c
+    int32_t  value;      // +0x20
     int32_t  _pad24;     // +0x24  never written, never copied
     void*    userData;   // +0x28
 };
@@ -204,10 +204,10 @@ static_assert(sizeof(Event) == 0x30, "UI event record stride, from CleanRemovedD
 static_assert(offsetof(Event, dialog)   == 0x00, "Event::dialog @ +0x00");
 static_assert(offsetof(Event, element)  == 0x08, "Event::element @ +0x08");
 static_assert(offsetof(Event, eventId)  == 0x10, "Event::eventId @ +0x10");
-static_assert(offsetof(Event, arg14)    == 0x14, "Event::arg14 @ +0x14");
-static_assert(offsetof(Event, arg18)    == 0x18, "Event::arg18 @ +0x18");
-static_assert(offsetof(Event, arg1C)    == 0x1c, "Event::arg1C @ +0x1c");
-static_assert(offsetof(Event, arg20)    == 0x20, "Event::arg20 @ +0x20");
+static_assert(offsetof(Event, elementId)    == 0x14, "Event::elementId @ +0x14");
+static_assert(offsetof(Event, mouseX)    == 0x18, "Event::mouseX @ +0x18");
+static_assert(offsetof(Event, mouseY)    == 0x1c, "Event::mouseY @ +0x1c");
+static_assert(offsetof(Event, value)    == 0x20, "Event::value @ +0x20");
 static_assert(offsetof(Event, _pad24)   == 0x24, "Event::_pad24 @ +0x24");
 static_assert(offsetof(Event, userData) == 0x28, "Event::userData @ +0x28");
 

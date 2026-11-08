@@ -13,7 +13,7 @@
 //
 // (B.4 acceptance MOD: RtIO::Mod is the real class -- String / Filename / Array
 // members -- so its readers below take them by name.)
-// SpriteSheet::m_field30 is `uint64_t` (R-UI) and
+// SpriteSheet::m_materialInstance is `uint64_t` (R-UI) and
 // MaterialInstance::AddTexture takes the RtSystem::String POD (R-GFX).
 
 // ENDGAME B.3.5 batch K1: the runtime type headers come FIRST — they reach
@@ -160,8 +160,8 @@ conflict_done:
 
         // Format version string: "versionMinor (versionString)"
         {
-            uint32_t versionMajor = (uint32_t)mod.i18;
-            uint32_t versionMinor = (uint32_t)mod.i1c;
+            uint32_t versionMajor = (uint32_t)mod.version;
+            uint32_t versionMinor = (uint32_t)mod.userVersion;
 
             // GetVersionString returns a String for the version major (as game build version)
             // ?GetVersionString@Configuration@System@@ is a by-value static; its door
@@ -369,7 +369,7 @@ void ModDialog::OnOpened() {
             entry.spriteSheet = sprSheet;
 
             // The sheet's material instance (+0x30).
-            sprSheet->m_field30 = matInst;
+            sprSheet->m_materialInstance = matInst;
 
             // operator= empty strings at +0x40 and +0x38 (the two String fields).
             // LEFT: SpriteSheet holds them as char* (H5, R-UI's header).
@@ -378,10 +378,10 @@ void ModDialog::OnOpened() {
             sprSheet->m_textureName = emptyStr2;
 
             // w/h at +0x48/+0x4c = 48 (0x30)
-            sprSheet->m_field48 = 0x30;
-            sprSheet->m_field4C = 0x30;
+            sprSheet->m_imageWidth = 0x30;
+            sprSheet->m_imageHeight = 0x30;
             // Zero +0x50 (one qword store in the transcription: the flag and its pad)
-            sprSheet->m_field50 = false;
+            sprSheet->m_padForFiltering = false;
             for (uint8_t& b : sprSheet->_pad51) b = 0;
 
             // AddSpriteInfo(sheet, empty, empty, 0, 0, 48, 48)

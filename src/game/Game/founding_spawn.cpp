@@ -223,8 +223,8 @@ extern "C" float StartTown_FoundingChildAge(const ComponentDescription* citizenT
 static ComponentDescription* FoundingSpawn_RefreshTemplate(MapGenerator* startConfig, ComponentDescription* fallback) {
     if (!startConfig) return fallback;
     if (::Object::ExternalFactory::_singleton)
-        startConfig->templateRef.ResolveDescription();   // +0x48
-    ::Object::External** cache = &startConfig->templateRef.resolved;   // +0x58
+        startConfig->citizen.ResolveDescription();   // +0x48
+    ::Object::External** cache = &startConfig->citizen.resolved;   // +0x58
     if (*cache == nullptr && fallback != nullptr) {
         *cache = fallback;                       // restore what FindOrLoad had loaded
         if (s_trace < 24) { ++s_trace;
@@ -306,7 +306,7 @@ extern "C" ComponentEntity* StartTown_SpawnColonistRetail(MapGenerator* startCon
 
     // 5. spawn position — jittered around the town centre. Draw order preserved:
     //    first RandFloatTol scales Y, second scales X.
-    float jitter = startConfig->scale;   // +0x40 (_citizenRadius)
+    float jitter = startConfig->citizenRadius;   // +0x40 (_citizenRadius)
     if (!(jitter == jitter) || jitter < 0.0f || jitter > 1.0e4f) jitter = 0.0f;  // deviation (d)
     float jy = (rng ? rng->RandFloatTol() : 0.0f) * jitter;
     float jx = (rng ? rng->RandFloatTol() : 0.0f) * jitter;
@@ -320,7 +320,7 @@ extern "C" ComponentEntity* StartTown_SpawnColonistRetail(MapGenerator* startCon
     if (GameUpdateLoop::_singleton != nullptr) {
         ProfessionList* profList = GameUpdateLoop::_singleton->m_professionList;
         if (profList) {
-            laborer = profList->field_0x30;
+            laborer = profList->laborerProfession;
         }
     }
 

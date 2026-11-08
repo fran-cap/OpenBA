@@ -165,9 +165,9 @@ void TradeComponent::GetBuyEntries(void* outArray) const {
     const ::Object::ExternalFactory* ebuyFactory = ::Object::ExternalFactory::_singleton;
     const uint32_t tidComponentDesc = ComponentDescription::TypeId();
 
-    const uint32_t rawMatMask = M.field_0x10;
-    const uint32_t* selectIds = M.field_0x30;
-    const int32_t  selectN    = M.field_0x30Count;
+    const uint32_t rawMatMask = M.sellFlags;
+    const uint32_t* selectIds = M.naturalResources;
+    const int32_t  selectN    = M.naturalResourceCount;
 
     const ::Object::External* cur = ebuyFactory->FindNext(tidComponentDesc, nullptr);
     while (cur) {
@@ -197,7 +197,7 @@ void TradeComponent::GetBuyEntries(void* outArray) const {
             const SelectDescription* sel = static_cast<const SelectDescription*>(
                 FindComp(desc, SelectDescription::TypeId()));
             if (sel) {
-                const uint32_t selId = sel->_u40;
+                const uint32_t selId = sel->_group;
                 for (int32_t k = 0; k < selectN; ++k) {
                     if (selId == selectIds[k]) AppendPtr(out, desc);
                 }

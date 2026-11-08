@@ -97,8 +97,8 @@ public:
     const IPathInfo* _pathInfo;      // +0x00  ctor arg 1 (MOV [RCX],RDX)
     uint8_t  _nodes[0x60];           // +0x08  Utility::HashGrid<Node>, opaque
     uint8_t  _links[0x10];           // +0x68  Collection::Array<Link> header
-    uint8_t  _array78[0x10];         // +0x78  Collection::Array<?> header
-    int32_t  _int88;                 // +0x88  ctor -1
+    uint8_t  _searchRecords[0x10];         // +0x78  Collection::Array<?> header
+    int32_t  _freeLink;                 // +0x88  ctor -1
     float    _radius;                // +0x8c  ctor arg 2 (XMM2), stored raw
 };
 
@@ -108,8 +108,8 @@ static_assert(offsetof(Scene, _pathInfo) == 0x0, "Scene::_pathInfo");
 static_assert(alignof(Scene) == 8, "Pathfinding::Scene aligns to 8 (the leading pointer)");
 static_assert(offsetof(Scene, _nodes)   == 0x08, "GetNodes 0x18006ca50 is LEA [RCX+0x08]");
 static_assert(offsetof(Scene, _links)   == 0x68, "GetLinks 0x18006ca60 is LEA [RCX+0x68]");
-static_assert(offsetof(Scene, _array78) == 0x78, "second Array copied by 0x18006fe90");
-static_assert(offsetof(Scene, _int88)   == 0x88, "ctor stores -1 at +0x88");
+static_assert(offsetof(Scene, _searchRecords) == 0x78, "second Array copied by 0x18006fe90");
+static_assert(offsetof(Scene, _freeLink)   == 0x88, "ctor stores -1 at +0x88");
 static_assert(offsetof(Scene, _radius)  == 0x8c, "ctor stores its float at +0x8c");
 
 }  // namespace Pathfinding

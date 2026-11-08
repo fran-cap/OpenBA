@@ -17,7 +17,7 @@
 // B.4 W1 COMP-b: Leisure is a CitizenAIComponent member; `citizen` is the sibling
 //   CitizenComponent (its _description = CitizenDescription, IsDerivedFrom 0x1c7190; home;
 //   character->modelComponent whose transform +0x158/+0x15c/+0x160 = world pos, raw).
-//   Success epilogue writes field_0x30 = -1, statusFlags |= 4, lastErrand = None and
+//   Success epilogue writes lastWorkId = -1, statusFlags |= 4, lastErrand = None and
 //   leisureTimer = 0, then returns 1.
 //
 // GameUpdateLoop: m_game (+0xf8) = the Map (size, cells: MapCell stride 0x30),
@@ -409,14 +409,14 @@ LAB_14010a7e0:
     {
         // 0x14010a7e7 / 0x14010a81c MOV R9D,[RSI+0xbc]: RSI is the narrowed (or 0)
         // CitizenDescription, read with no test (B6 row 240).
-        uint32_t radius = pvVar26->_ibc;
+        uint32_t radius = pvVar26->idleRange;
         ComponentEntity* findBuf = nullptr;
         ComponentEntity** pr = CitizenAI_State_Leisure_sub_99d0(GameUpdateLoop::_singleton->m_citizenList,
                                                                 &findBuf, uVar37, static_cast<int>(radius));
         local_res20 = *pr;
         if (local_res20 == nullptr) {
             if (static_cast<int>(uVar14) >= 0) {
-                uint32_t radius2 = pvVar26->_ibc;
+                uint32_t radius2 = pvVar26->idleRange;
                 ComponentEntity* findBuf2 = nullptr;
                 ComponentEntity** pr2 = CitizenAI_State_Leisure_sub_99d0(GameUpdateLoop::_singleton->m_citizenList,
                                                                          &findBuf2, uVar14, static_cast<int>(radius2));
@@ -551,7 +551,7 @@ LAB_14010abbc:
         Description* pvr = ScanType5(local_res20, s_tid_HappinessDescription);
         // 0x14010ac30 MOV R12D,[RCX+0x2c]: a miss leaves RCX = 0 (0x14010ac2c) and the read
         // has no test (B6 row 240).
-        iVar27 = static_cast<HappinessDescription*>(pvr)->_i2c;
+        iVar27 = static_cast<HappinessDescription*>(pvr)->_idleRange;
     }
 
 LAB_after_target:
@@ -719,7 +719,7 @@ LAB_14010ae8a:
                                        fVar39t * kAgeMult + kAnimTimeBase,
                                        static_cast<uint32_t>(static_cast<unsigned char>(cVar12)));
 
-            citizen->field_0x30 = -1;
+            citizen->lastWorkId = -1;
             citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
             citizen->lastErrand = CitizenErrand::None;
             leisureTimer._ticks = 0;

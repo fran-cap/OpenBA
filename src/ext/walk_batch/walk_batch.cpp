@@ -52,10 +52,10 @@ bool TraceOn() {
 struct Fields {
     Math::Vector3 pos;   // model +0x158
     float yaw;           // model +0x168
-    float char38;        // CharacterComponent +0x38 (the speed Execute stores)
-    bool  char28;        // +0x28 (UpdateFacing clears it)
+    float speed;        // CharacterComponent +0x38 (the speed Execute stores)
+    bool  steering;        // +0x28 (UpdateFacing clears it)
     Math::Vector3 dir;   // +0x2C (UpdateFacing)
-    float char3C;        // +0x3C (UpdateFacing)
+    float targetHeading;        // +0x3C (UpdateFacing)
     int32_t pathIndex;   // MoveTo +0x60
 };
 
@@ -63,10 +63,10 @@ Fields Read(const CharacterComponent* self, const ModelComponent* model, const M
     Fields f;
     f.pos = model->transform.translation;
     f.yaw = model->yaw;
-    f.char38 = self->field_0x38;
-    f.char28 = self->field_0x28;
-    f.dir = self->field_0x2C;
-    f.char3C = self->field_0x3C;
+    f.speed = self->moveSpeedScale;
+    f.steering = self->steeredByMover;
+    f.dir = self->moveDirection;
+    f.targetHeading = self->targetHeading;
     f.pathIndex = mv->pathIndex;
     return f;
 }
@@ -74,10 +74,10 @@ Fields Read(const CharacterComponent* self, const ModelComponent* model, const M
 void Write(CharacterComponent* self, ModelComponent* model, MoveTo* mv, const Fields& f) {
     model->transform.translation = f.pos;
     model->yaw = f.yaw;
-    self->field_0x38 = f.char38;
-    self->field_0x28 = f.char28;
-    self->field_0x2C = f.dir;
-    self->field_0x3C = f.char3C;
+    self->moveSpeedScale = f.speed;
+    self->steeredByMover = f.steering;
+    self->moveDirection = f.dir;
+    self->targetHeading = f.targetHeading;
     mv->pathIndex = f.pathIndex;
 }
 
@@ -110,7 +110,7 @@ MoveTo* Eligible(CharacterComponent* self, int* curCellOut, int* destCellOut) {
     const int mapSize = map->size;
     const int destCell = WorldToCell(mapSize, mv->destination.x, mv->destination.y);
     const int curCell = WorldToCell(mapSize, at.x, at.y);
-    if (DecideWalk(pathIndex, mv->pathCount, curCell, destCell, mv->field_0x474) != kBatch)
+    if (DecideWalk(pathIndex, mv->pathCount, curCell, destCell, mv->isFollowing) != kBatch)
         return nullptr;
     *curCellOut = curCell;
     *destCellOut = destCell;
@@ -127,8 +127,8 @@ void Step(CharacterComponent* self, MoveTo* mv, int curCell) {
     // ---- MoveTo::Execute 0x1400c8570, case 2, not in the destination cell -------------
     const uint8_t terrainType = TerrainSidecar::Get(map->cells.GetData(), map->cells.GetSize(), curCell);
     const CharacterDescription* mdesc = mv->description;   // MoveTo +0x30
-    const float cellSpeed = TerrainSpeed(terrainType, mdesc->_f34, mdesc->_f38);
-    self->field_0x38 = cellSpeed * mv->speedMultiplier;    // character->+0x38 (character == self)
+    const float cellSpeed = TerrainSpeed(terrainType, mdesc->_fastSpeed, mdesc->_fastestSpeed);
+    self->moveSpeedScale = cellSpeed * mv->speedMultiplier;    // character->+0x38 (character == self)
     const int32_t pathIndex = mv->pathIndex;
     if (curCell == mv->path[pathIndex]) {
         mv->pathIndex = pathIndex + 1;
@@ -140,12 +140,12 @@ void Step(CharacterComponent* self, MoveTo* mv, int curCell) {
     const float fy = model->transform.translation.y;
     const float fz = model->transform.translation.z;
     const CharacterDescription* desc = self->characterDescription;
-    float fVar14 = Heading(self->field_0x3C, model->yaw, desc->_f24, desc->_slowSpeed);
+    float fVar14 = Heading(self->targetHeading, model->yaw, desc->_headingOffset, desc->_turnFilter);
     const Math::Vector3 root = model->meshInstance.RootAnimationOffset();
-    const float speed = RootSpeed(root.x, root.y, root.z, self->field_0x38);
-    const Pos p = StepPos(fx, fy, fz, speed, self->field_0x2C.x, self->field_0x2C.y,
-                          self->field_0x2C.z, desc->_b3c, desc->_f40);
-    fVar14 = fVar14 + desc->_f24;
+    const float speed = RootSpeed(root.x, root.y, root.z, self->moveSpeedScale);
+    const Pos p = StepPos(fx, fy, fz, speed, self->moveDirection.x, self->moveDirection.y,
+                          self->moveDirection.z, desc->_forceHeight, desc->_height);
+    fVar14 = fVar14 + desc->_headingOffset;
     model->transform.translation.x = p.x;
     model->transform.translation.y = p.y;
     model->transform.translation.z = p.z;
@@ -231,9 +231,9 @@ bool TickShadow(CharacterComponent* self, const System::Time* time) {
     if (!(dx <= tol && dx >= -tol) || !(dy <= tol && dy >= -tol) || !(dz <= tol && dz >= -tol))
         detail |= 1;
     if (std::memcmp(&real.pos, &batched.pos, sizeof real.pos) != 0) detail |= 2;
-    if (Bits(real.yaw) != Bits(batched.yaw) || Bits(real.char38) != Bits(batched.char38) ||
+    if (Bits(real.yaw) != Bits(batched.yaw) || Bits(real.speed) != Bits(batched.speed) ||
         std::memcmp(&real.dir, &batched.dir, sizeof real.dir) != 0 ||
-        Bits(real.char3C) != Bits(batched.char3C) || real.char28 != batched.char28 ||
+        Bits(real.targetHeading) != Bits(batched.targetHeading) || real.steering != batched.steering ||
         real.pathIndex != batched.pathIndex)
         detail |= 4;
     StressHarness_Verify("WalkBatchSim", detail == 0, detail);

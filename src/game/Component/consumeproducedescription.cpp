@@ -77,13 +77,13 @@ ConsumeProduceDescription::ConsumeProduceDescription()
       _recipes(nullptr),
       _recipeCount(0),
       _recipeCap(0),
-      _toolType(0),
-      _i3c(0),
-      _i40(1),
-      _f44(4.0f),
-      _i48(-1),
+      _messageType(0),
+      _messageId(0),
+      _workRequired(1),
+      _workTime(4.0f),
+      _maximumProduction(-1),
       _defaultRecipe(0),
-      _u50(0xb) {}
+      _toolType(0xb) {}
 
 // dtor (slot 0 0x1400323e0 minus the stamps): frees each recipe's inner array and String, then the recipe array.
 // The compiler then chains ~Description -> ~External.
@@ -135,14 +135,14 @@ bool ConsumeProduceDescription::Serialize(IO::Stream& stream) {
             e.name.Serialize(ser);                                          // String +0x20
         }
     }
-    ser.Serialize(_i40, nullptr);
-    ser.Serialize(_u50, nullptr);
+    ser.Serialize(_workRequired, nullptr);
+    ser.Serialize(_toolType, nullptr);
     // Type @ +0x38: Object::Type::Serialize (import slot 0x1401516b0; body
     // RtObject_Type_Serialize, src/engine/object/Type.h).
-    RtObject::RtObject_Type_Serialize(&_toolType, &ser);
-    ser.Serialize(_i3c, nullptr);
-    ser.Serialize(_f44, nullptr);
-    ser.Serialize(_i48, nullptr);
+    RtObject::RtObject_Type_Serialize(&_messageType, &ser);
+    ser.Serialize(_messageId, nullptr);
+    ser.Serialize(_workTime, nullptr);
+    ser.Serialize(_maximumProduction, nullptr);
     ser.Serialize(_defaultRecipe, nullptr);
     return true;
 }

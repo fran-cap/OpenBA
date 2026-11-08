@@ -44,17 +44,17 @@ public:
     virtual Object::External* Construct();                         // [10] 0x140025de0
 
 public:
-    bool     _field30;           // +0x30: requireAll (1 = every listed type, 0 = any); Serialize(bool&)
+    bool     _requireAll;           // +0x30: requireAll (1 = every listed type, 0 = any); Serialize(bool&)
     uint8_t  _pad31[7];          // +0x31: padding
     // +0x38: Array<by-name ComponentDescription reference> (stride 0x18;
     //   resolved by 0x14001b1d0). B4 Y GAMEA (H5): the member's ~Array is the
     //   0x14001b030 retail's dtor 0x140025eab runs, after the (empty) body.
-    NamedExternalRefArray _field38;
+    NamedExternalRefArray _buildingTypes;
 };
 
-static_assert(offsetof(BuildingGoal, _field30) == 0x30, "BuildingGoal +0x30 requireAll");
-static_assert(offsetof(BuildingGoal, _field38) == 0x38, "BuildingGoal +0x38 entry array");
-static_assert(offsetof(BuildingGoal, _field38) + offsetof(NamedExternalRefArray, _size) == 0x40, "BuildingGoal +0x40 entry count");
+static_assert(offsetof(BuildingGoal, _requireAll) == 0x30, "BuildingGoal +0x30 requireAll");
+static_assert(offsetof(BuildingGoal, _buildingTypes) == 0x38, "BuildingGoal +0x38 entry array");
+static_assert(offsetof(BuildingGoal, _buildingTypes) + offsetof(NamedExternalRefArray, _size) == 0x40, "BuildingGoal +0x40 entry count");
 static_assert(sizeof(BuildingGoal) == 0x48, "BuildingGoal is 0x48 (create 0x140025d80 MemAlloc(0x48))");
 static_assert(offsetof(BuildingGoal, _pad31) == 0x31, "BuildingGoal::_pad31");
 static_assert(alignof(BuildingGoal) == 8, "BuildingGoal is qword-aligned");

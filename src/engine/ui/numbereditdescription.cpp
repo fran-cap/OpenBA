@@ -23,19 +23,19 @@
 // LAYOUT, sizeof 0x88 (`MOV EDX,0x88` at 0x1800461af). ElementDescription
 // (0x68) plus:
 //     +0x68  ExternalPtr<UI::Font>   ctor 0, serialized by 0x18003f1e0
-//     +0x70  int32   _i70    *** NEVER WRITTEN BY THE CONSTRUCTOR *** — the
-//                            ctor's qword store at +0x68 stops at +0x6f and the
-//                            next store is the dword at +0x74. It IS serialized
-//                            (kScalarInt) and it IS read by CreateInstance
-//                            (formatted into the element's text with "%i"), so
-//                            a fresh, never-deserialized description formats
-//                            whatever the allocator left there. That is
-//                            retail's; zeroing it here would be a divergence
-//                            and would hide the fact if it ever matters.
-//     +0x74  int32   _i74    ctor 6
-//     +0x78  int32   _i78    ctor 0xffff8001  (-32767)
-//     +0x7c  int32   _i7c    ctor 0x7fff
-//     +0x80  bool    _b80    ctor 1 — selects the character set (see below)
+//     +0x70  int32   _initialValue   *** NEVER WRITTEN BY THE CONSTRUCTOR *** — the
+//                                    ctor's qword store at +0x68 stops at +0x6f and the
+//                                    next store is the dword at +0x74. It IS serialized
+//                                    (kScalarInt) and it IS read by CreateInstance
+//                                    (formatted into the element's text with "%i"), so
+//                                    a fresh, never-deserialized description formats
+//                                    whatever the allocator left there. That is
+//                                    retail's; zeroing it here would be a divergence
+//                                    and would hide the fact if it ever matters.
+//     +0x74  int32   _maxLength      ctor 6
+//     +0x78  int32   _minValue       ctor 0xffff8001  (-32767)
+//     +0x7c  int32   _maxValue       ctor 0x7fff
+//     +0x80  bool    _allowNegative  ctor 1 — selects the character set (see below)
 //     +0x81..+0x87 never written
 //
 // NOT PORTED HERE, DELIBERATELY: ??0EditElement@UI@@QEAA@XZ (0x1800d0f10), the
@@ -136,11 +136,11 @@ bool NumberEditDescription::Serialize(IO::Stream& streamv) {
 
     Object::SerializeExternal<UI::Font>(ser, _font);          // 1800d4f38
 
-    rw->SerializeInt(_i70, nullptr);
-    rw->SerializeInt(_i78, nullptr);
-    rw->SerializeInt(_i7c, nullptr);
-    rw->SerializeInt(_i74, nullptr);
-    rw->SerializeBool(_b80, nullptr);
+    rw->SerializeInt(_initialValue, nullptr);
+    rw->SerializeInt(_minValue, nullptr);
+    rw->SerializeInt(_maxValue, nullptr);
+    rw->SerializeInt(_maxLength, nullptr);
+    rw->SerializeBool(_allowNegative, nullptr);
 
     // ~Serializer (0x1800b99b0) inlined here: rw's scalar deleting dtor                                       // 1800d4faf
     return true;
@@ -161,8 +161,8 @@ bool NumberEditDescription::Serialize(IO::Stream& streamv) {
 // them and the tail's stores then run against a null pointer anyway.
 //
 // TWO STRING FIELDS ARE BUILT:
-//   _text   String::Format("%i", _i70)        the initial text
-//   _filter _b80 ? "0123456789-" : "0123456789"   the accepted character set
+//   _text   String::Format("%i", _initialValue)                the initial text
+//   _filter _allowNegative ? "0123456789-" : "0123456789"   the accepted character set
 // (both literals read out of .rdata at 0x180156f50 / 0x180156f60, and the
 // format string out of 0x180154848).
 //
@@ -191,20 +191,20 @@ Object::InternalPtr<Element>* NumberEditDescription::CreateInstance(
     {
         char* tmp = nullptr;                                   // [RSP+0x50]
         new (static_cast<void*>(&tmp)) System::String(                     // 1800d4d87
-            System::String::Format("%i", _i70));                   // 0x1800c9730, retslot = &tmp
+            System::String::Format("%i", _initialValue));                   // 0x1800c9730, retslot = &tmp
         char** made = &tmp;
 
         StringAssignInline(&elem->_text._data, *made);               // 1800d4d8f
         StringReleaseInline(&tmp);                             // 1800d4dd8
     }
 
-    elem->_maxLength = _i74;                                   // 1800d4e05
+    elem->_maxLength = _maxLength;                                   // 1800d4e05
 
     // --- the accepted character set -----------------------------------------
     {
-        // The MINUS SIGN is in the set only when _b80 is set, which is what
+        // The MINUS SIGN is in the set only when _allowNegative is set, which is what
         // makes that field an "allow negative" switch.
-        const char* set = _b80 != 0 ? "0123456789-" : "0123456789";  // 1800d4e1c
+        const char* set = _allowNegative != 0 ? "0123456789-" : "0123456789";  // 1800d4e1c
 
         System::String tmp;                                    // 1800d4e27
         tmp.Set(set);                                          // 1800d4e31  0x1800c95d0
@@ -217,8 +217,8 @@ Object::InternalPtr<Element>* NumberEditDescription::CreateInstance(
         // never writes `tmp`.
     }
 
-    elem->_min = _i78;                                         // 1800d4ea7
-    elem->_max = _i7c;                                         // 1800d4eb0
+    elem->_min = _minValue;                                         // 1800d4ea7
+    elem->_max = _maxValue;                                         // 1800d4eb0
 
     *ret = Object::InternalPtr<Element>(elem);                     // 1800d4eb6
     return ret;

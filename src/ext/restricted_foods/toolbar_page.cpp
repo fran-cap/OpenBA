@@ -141,7 +141,7 @@ std::unordered_set<const void*> TownMaterials() {
     if (game == nullptr || game->m_citizenList == nullptr) {
         return out;
     }
-    const auto& list = game->m_citizenList->field_0x110;
+    const auto& list = game->m_citizenList->knownRawMaterials;
     const uint32_t tid = RawMaterialDescription::TypeId();
     for (int32_t i = 0; i < list._size; ++i) {
         const ComponentDescription* cd = list._data[i];

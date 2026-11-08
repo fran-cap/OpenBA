@@ -141,11 +141,11 @@ void HashItem(Hasher& h, const Graphics::RendererDrawItem& it) {
     h.P(it._material);
     h.P(it._instance);
     h.U32(it._flags);
-    h.U32(it._arg5);
+    h.U32(it._node);
     h.F(it._sortKey);
-    h.I32(it._arg8);
+    h.I32(it._maxInstances);
     h.P(it._userData);
-    h.U32(it._arg10);
+    h.U32(it._animationInstanceId);
     HashGeometry(h, it._geometry);
 }
 

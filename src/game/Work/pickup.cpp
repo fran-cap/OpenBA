@@ -250,7 +250,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     const uint32_t tidPickup     = Pickup::TypeId();
 
     // --- pile's RawMaterialComponent + its RawMaterialDescription ---------------
-    RawMaterialComponent* rawMatIBP = field_10->FindComponent<RawMaterialComponent>();
+    RawMaterialComponent* rawMatIBP = _entity->FindComponent<RawMaterialComponent>();
     Description* descRaw = rawMatIBP->_description;
     RawMaterialDescription* desc = Object::IsDerivedFromNullSafe(descRaw, tidRawMatDesc)
         ? static_cast<RawMaterialDescription*>(descRaw) : nullptr;
@@ -296,13 +296,13 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     const int citizenCell = cz * dim + cx;
 
     // Work+0x28 = this work's target cell (32-bit; the decompiler widens it to 64).
-    const int selfCell = field_28;
+    const int selfCell = _cell;
     const int pileCol  = selfCell % dim;
     const int pileRow  = selfCell / dim;
 
     // --- gate: does the town still want this resource? --------------------------
     int amount = rawMatIBP->quantity;
-    if (!townMgr->HasStorageFor(field_10->_description, amount))
+    if (!townMgr->HasStorageFor(_entity->_description, amount))
         return 1;
 
     const int selfAccess = grid->FindCell(selfCell, citizenCell, PathBits::Access);
@@ -322,7 +322,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     amount = rawMatIBP->quantity;
     townMgr->PickBestDropTarget(
                        &storeOut, static_cast<uint32_t>(selfAccess),
-                       field_10->_description,
+                       _entity->_description,
                        amount, 1, &scratch.x, &dropIBP);   // 0x14008d590
     if (storeOut == nullptr) return 1;
 
@@ -335,8 +335,8 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     cand.accessCell = selfAccess;
     cand.distance   = grid->CalcDistance(static_cast<uint32_t>(citizenCell),
                                    static_cast<uint32_t>(selfCell));
-    cand.typeId     = field_20;
-    cand.entity     = field_10.Get();
+    cand.typeId     = _workId;
+    cand.entity     = _entity.Get();
     cand.rawMat     = rawMatIBP;
 
     int count = 1;
@@ -460,7 +460,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     }
 
     // --- stamp the citizen ------------------------------------------------------
-    const int32_t workTypeId = field_20;
+    const int32_t workTypeId = _workId;
     CitizenComponent* citEntity = *citizenRef;
 
     // vtable slot 10 (+0x50) GetTarget: member value-return ABI -- RCX=this,
@@ -468,7 +468,7 @@ int Pickup::Execute(CitizenComponent** citizenRef, System::Time* time) {
     Profession* targetOut = nullptr;
     GetTarget(&targetOut);   // slot 10, virtual in retail
 
-    citEntity->field_0x30 = workTypeId;
+    citEntity->lastWorkId = workTypeId;
     citEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
     citEntity->lastErrand = CitizenErrand::None;
     if (targetOut == citEntity->profession && workTypeId >= 0) {
@@ -603,7 +603,7 @@ int Pickup::Validate() {
 // This is a global target, not per-instance.
 // ============================================================
 Profession** Pickup::GetTarget(Profession** outPtr) {
-    *outPtr = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    *outPtr = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
     return outPtr;
 }
 
@@ -631,8 +631,8 @@ int Pickup::GetPriority() {
 // ============================================================
 void Pickup::Slot12(int /*version*/) {
     GameUpdateLoop* world = GameUpdateLoop::_singleton;
-    world->m_tutorial->Rekey(static_cast<uint32_t>(field_20), candidateList,
-                             world->m_professionList->field_0x30);   // 0x1400f8400
+    world->m_tutorial->Rekey(static_cast<uint32_t>(_workId), candidateList,
+                             world->m_professionList->laborerProfession);   // 0x1400f8400
 }
 
 

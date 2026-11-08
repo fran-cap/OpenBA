@@ -63,29 +63,29 @@
 // real leaf (LocationWork / ClearStorage / FireWork) through `Work(void*)`.
 void Work::InitFromEntity(ComponentEntity* const* pEntityIBP) {
     ComponentEntity* const* entityRef = pEntityIBP;   // LEFT: SIG Work::InitFromEntity(void*) / Work(void*): the leaves' builders (resourceproduce_creatework.cpp, tradecomponent_states.cpp, cropfieldcomponent_states.cpp ...) hand the entity reference untyped
-    field_10 = nullptr;
-    field_10 = *entityRef;   // 0x1400f731a MOV RAX,[RSI]: no test (B6 14d G21)
-    field_18 = nullptr;
-    field_20 = -1;
-    field_24 = 0;
-    field_28 = -1;
-    field_2c = 0;
-    field_30._ticks = 0;
-    field_38._ticks = 0;
-    field_40 = 0;
+    _entity = nullptr;
+    _entity = *entityRef;   // 0x1400f731a MOV RAX,[RSI]: no test (B6 14d G21)
+    _workComponent = nullptr;
+    _workId = -1;
+    _queueOrder = 0;
+    _cell = -1;
+    _lastRejectStep = 0;
+    _waitTime._ticks = 0;
+    _waitBaseTime._ticks = 0;
+    _tooFarCount = 0;
 
-    if (field_10 != nullptr) {
+    if (_entity != nullptr) {
         // 0x140004680 = FindComponent<MapComponent>, called twice as retail does
         // (0x1400f7361 / 0x1400f737f); the first result is tested (0x1400f7366), the
         // second and [0x1401c3dd8]+0xf8 are read with no test (0x1400f7390-0x1400f73b0).
-        if (field_10->FindComponent<MapComponent>() != nullptr) {
-            MapComponent* footprint = field_10->FindComponent<MapComponent>();
+        if (_entity->FindComponent<MapComponent>() != nullptr) {
+            MapComponent* footprint = _entity->FindComponent<MapComponent>();
             Map* map = GameUpdateLoop::_singleton->m_game;
-            field_28 = (((int)footprint->tileY1 >> 1) + (int)footprint->tileY0) * map->size +
+            _cell = (((int)footprint->tileY1 >> 1) + (int)footprint->tileY0) * map->size +
                        (((int)footprint->tileX1 >> 1) + (int)footprint->tileX0);
         }
         // 0x140003050 = FindComponent<WorkComponent>, on the entity re-read from *param_2.
-        field_18 = (*entityRef)->FindComponent<WorkComponent>();
+        _workComponent = (*entityRef)->FindComponent<WorkComponent>();
     }
 }
 
@@ -126,11 +126,11 @@ void ActionStack::Clear() {
         *slot = ::Object::InternalPtr<Action>(nullptr);
     }
     current = -1;
-    if (field_0x10 != nullptr) {
-        field_0x10.DeletePtr();
+    if (completionAction != nullptr) {
+        completionAction.DeletePtr();
         Action* nul = nullptr;
         new (&nul) ::Object::InternalBasePtr(nullptr);
-        field_0x10 = nul;
+        completionAction = nul;
     }
 }
 
@@ -150,27 +150,27 @@ void Work::Persist(IO::Stream& stream) {
     // +0x10 / +0x18 are InternalPtrs retail serializes through
     // InternalBasePtr::Serialize (the typed wrapper's Serialize(ser, typeId) hides
     // it; the tree validates with IsDerivedFromNullSafe below).
-    field_10.Object::InternalBasePtr::Serialize(ser);
-    if (field_10) {
-        if (!Object::IsDerivedFromNullSafe(field_10, ComponentEntity::TypeId()))
-            field_10 = nullptr;
+    _entity.Object::InternalBasePtr::Serialize(ser);
+    if (_entity) {
+        if (!Object::IsDerivedFromNullSafe(_entity, ComponentEntity::TypeId()))
+            _entity = nullptr;
     }
-    field_18.Object::InternalBasePtr::Serialize(ser);
-    if (field_18) {
-        if (!Object::IsDerivedFromNullSafe(field_18, WorkComponent::TypeId()))
-            field_18 = nullptr;
+    _workComponent.Object::InternalBasePtr::Serialize(ser);
+    if (_workComponent) {
+        if (!Object::IsDerivedFromNullSafe(_workComponent, WorkComponent::TypeId()))
+            _workComponent = nullptr;
     }
-    ser.Serialize(field_20, nullptr);
-    ser.Serialize(field_28, nullptr);
+    ser.Serialize(_workId, nullptr);
+    ser.Serialize(_cell, nullptr);
     int ver = ser.GetVersion();
     if (ver < 1)
-        field_24 = field_20;
+        _queueOrder = _workId;
     else
-        ser.Serialize(field_24, nullptr);
+        ser.Serialize(_queueOrder, nullptr);
     if (ser.GetVersion() > 2) {
-        field_30.Serialize(ser);
-        field_38.Serialize(ser);
-        ser.Serialize(field_40, nullptr);
+        _waitTime.Serialize(ser);
+        _waitBaseTime.Serialize(ser);
+        ser.Serialize(_tooFarCount, nullptr);
     }
 }   // ~Serializer after the last field, as retail
 
@@ -192,7 +192,7 @@ bool Work::ValidateTask(void* /*unusedRdx*/, CitizenComponent** citizen, Complet
         // The tid arm is the tree's guard; retail calls IsDerivedFrom directly.
         CompleteTask* task = (completeTaskTid && Object::IsDerivedFromNullSafe(action, completeTaskTid))
                                  ? static_cast<CompleteTask*>(action) : nullptr;
-        if (task != nullptr && task->taskIndex == field_20) {
+        if (task != nullptr && task->taskIndex == _workId) {
             if (out) *out = task;
             return true;
         }

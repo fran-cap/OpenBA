@@ -937,7 +937,7 @@ bool RenderStateData::Create() {
     }
     block = s;
     stencilReference = rs->_stencil.reference;
-    scissorEnable = rs->_flag70 != 0;
+    scissorEnable = rs->_scissorEnable != 0;
     return true;
 }
 

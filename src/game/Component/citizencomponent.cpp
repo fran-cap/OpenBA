@@ -58,7 +58,7 @@
 #include "Game/WorkScheduler.h"                // B4 P2 CIT-4: GameUpdateLoop::m_tutorial trees
 #include "Game/WorkSchedulerNodes.h"           // B4 P2 CIT-4: WorkSchedulerIdNode
 #include "Entity/CitizenBehavior.h"            // B4 P2 CIT-4: GameUpdateLoop::m_citizenList
-#include "Work/Work.h"                         // B4 P2 CIT-4: Work::field_24
+#include "Work/Work.h"                         // B4 P2 CIT-4: Work::_queueOrder
 #include "Component/MapComponent.h"            // B4 P2 CIT-4: the footprint CanFindHousing reads
 #include "system/String.h"
 #include <cstdint>
@@ -224,8 +224,8 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     if (school != nullptr) {
         schoolTime._ticks += dt_ticks;   // school timer
     }
-    field_0x200._ticks += dt_ticks;      // general timer
-    field_0x60._ticks += dt_ticks;              // work timer
+    professionRollTimer._ticks += dt_ticks;      // general timer
+    diseaseRollTimer._ticks += dt_ticks;              // work timer
 
     // Clothing worn out: back to no clothing
     if (clothingTimer._ticks < 0) {
@@ -236,7 +236,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     // --- Adult transition: post became-adult event (10 = found partner, 9 = alone) ---
     if (!isAdult && adultAge <= newAge && school == nullptr) {
         int eventType;
-        if (!field_0x220) {
+        if (!hasBeenSchooled) {
             // Not yet had partner — try to find one
             char found = TryEnrolInSchool(nullptr);
             eventType = 10;
@@ -375,7 +375,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     }
 
     // --- Find storage if needed ---
-    if (field_0x230 == nullptr) {
+    if (chapel == nullptr) {
         FindStorage();
     }
 
@@ -385,7 +385,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     statusIcon.Get()->SetFlag(0, workplaceRef == nullptr);
 
     // Hunger warning flag
-    float hungerThreshLow = desc->_fcc;
+    float hungerThreshLow = desc->starvingLevel;
     float hungerThreshHigh = desc->maxHunger;
     float fVar4 = kRdata_140172114;
     float hungerWarnLevel = (hungerThreshHigh - hungerThreshLow) * fVar4 + hungerThreshLow;
@@ -393,7 +393,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     statusIcon.Get()->SetFlag(1, hungerWarnLevel < curHunger);
 
     // Thirst warning flag
-    float thirstThreshLow = desc->_fec;
+    float thirstThreshLow = desc->freezingLevel;
     float thirstThreshHigh = desc->maxColdness;
     float fThirstFrac = kRdata_140172100;
     float thirstWarnLevel = (thirstThreshHigh - thirstThreshLow) * fThirstFrac + thirstThreshLow;
@@ -405,7 +405,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
     Profession* profData1F0 = profession;
     // B6 row 171: 0x1401132f8 MOV RAX,[RDI+0x1f0]; 0x1401132ff CMP byte ptr [RAX+0x4c],0 --
     // no test (every citizen carries a profession: B6_RULES C5, row 990).
-    char profByte = profData1F0->field4C;
+    char profByte = profData1F0->transient;
     if (profByte == 0 && workplace == nullptr) {
         isUnemployed = 1;
     } else {
@@ -418,13 +418,13 @@ void CitizenComponent::Update(const System::Time* timeArg) {
 
     // --- Hunger/thirst urgency bit flags at +0x54 and +0x88 ---
     desc = description;  // re-read (may have changed)
-    hungerThreshLow = desc->_fcc;
+    hungerThreshLow = desc->starvingLevel;
     hungerThreshHigh = desc->maxHunger;
     if ((hungerThreshHigh - hungerThreshLow) * fVar4 + hungerThreshLow < hunger) {
         statusFlags |= Bits(CitizenStatus::Hungry);
         happinessFlags |= 1;
     }
-    thirstThreshLow = desc->_fec;
+    thirstThreshLow = desc->freezingLevel;
     thirstThreshHigh = desc->maxColdness;
     if ((thirstThreshHigh - thirstThreshLow) * fThirstFrac + thirstThreshLow < coldness) {
         statusFlags |= Bits(CitizenStatus::Cold);
@@ -516,7 +516,7 @@ void CitizenComponent::Update(const System::Time* timeArg) {
         ComponentEntity* housingResult = nullptr;
         profData1F0 = profession;
         // 0x1401135db / 0x1401135e6: the +0x4C byte read with no test (B6 row 171).
-        char profByte634 = profData1F0->field4C;
+        char profByte634 = profData1F0->transient;
         if (profByte634 == 0) {
             // Unranked profession
             housingResult = FindWorkplace();
@@ -619,8 +619,8 @@ LAB_140113873:
         adultAge = desc->adultAge;
         newAge = this->age;
         if (adultAge <= newAge && school == nullptr) {
-            float hungerWarn = (desc->maxHunger - desc->_fcc) * fVar4 + desc->_fcc;
-            float thirstWarn = (desc->maxColdness - desc->_fec) * fThirstFrac + desc->_fec;
+            float hungerWarn = (desc->maxHunger - desc->starvingLevel) * fVar4 + desc->starvingLevel;
+            float thirstWarn = (desc->maxColdness - desc->freezingLevel) * fThirstFrac + desc->freezingLevel;
 
             bool isHungryOrThirsty = (hungerWarn < hunger) || (thirstWarn < coldness);
 
@@ -671,8 +671,8 @@ LAB_140113873:
                     // ---------------------------------------------------------------
                     float health = this->health;
                     float maxHealth = desc->maxHealth;
-                    float deathChanceAtMaxHealth = desc->_f64;
-                    float deathChanceAtZeroHealth = desc->_f68;
+                    float deathChanceAtMaxHealth = desc->childBirthHealthy;
+                    float deathChanceAtZeroHealth = desc->childBirthUnhealthy;
 
                     float roll = gameWorld->m_random->RandFloat();
 
@@ -686,8 +686,8 @@ LAB_140113873:
                         // Post-partum recovery interval.
                         desc = description;
                         float roll2 = GameUpdateLoop::_singleton->m_random->RandFloat();
-                        float timerBase = desc->_f5c;
-                        float timerRange = desc->_f60;
+                        float timerBase = desc->postChildTerm;
+                        float timerRange = desc->postChildTermTol;
                         // The post-birth cooldown is stored NEGATIVE: retail is
                         //   XORPS XMM0, [0x1401722c0]   (0x80000000 x4 = the float sign mask)
                         // i.e. `+0x4c = -(rand*range + base)`, which the `fVar14 < 0` branch
@@ -746,7 +746,7 @@ LAB_140113873:
 }
 
 // ============================================================
-// The profession registry tree (gameWorld+0xF0 -> CitizenBehavior::field_0x100):
+// The profession registry tree (gameWorld+0xF0 -> CitizenBehavior::workplacesByProfession):
 // ProfessionBucket nodes (CitizenBehavior.h), keyed by the Profession's address,
 // each holding the entities of that profession (entities / count).
 // The work scheduler's by-id tree (gameWorld+0x118 -> +0x30): WorkSchedulerIdNode.
@@ -757,7 +757,7 @@ LAB_140113873:
 // Returns count of jobs, or 0 if not found.
 // ============================================================
 static int LookupProfessionJobCount(const CitizenBehavior* registry, const Profession* key) {
-    const ProfessionBucket* node = registry->field_0x100._root;
+    const ProfessionBucket* node = registry->workplacesByProfession._root;
     while (node) {
         const Profession* nodeKey = node->element.key;
         if (key < nodeKey) {
@@ -774,7 +774,7 @@ static int LookupProfessionJobCount(const CitizenBehavior* registry, const Profe
 
 // Get job array entry from profession registry
 static ComponentEntity* GetJobEntity(const CitizenBehavior* registry, const Profession* key, int64_t index) {
-    const ProfessionBucket* node = registry->field_0x100._root;
+    const ProfessionBucket* node = registry->workplacesByProfession._root;
     while (node) {
         const Profession* nodeKey = node->element.key;
         if (key < nodeKey) {
@@ -845,7 +845,7 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
     int jobCount = LookupProfessionJobCount(registry, profKey);
 
     // Read workplace entity flag at +0x4C
-    uint8_t workplaceFlag = profession->field4C;
+    uint8_t workplaceFlag = profession->transient;
 
     if (workplaceFlag != 0) {
         // ====== ASSIGNED PATH ======
@@ -862,7 +862,7 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
 
         // A miss hands back a null InternalPtr and +0x24 is read from it unguarded
         // (0x140110ac5-0x140110ae3): no miss arm.
-        int currentPriority = regionDesc->field_24;
+        int currentPriority = regionDesc->_queueOrder;
 
         // Check if current workplace is valid (reachable)
         char valid = CanReach(workplace.Get());
@@ -899,7 +899,7 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
 
             // A miss is read unguarded as above (0x140110c2f-0x140110c49 CMP [RAX+0x24],EDI).
             // If other region has lower priority value, switch
-            if (otherRegionDesc->field_24 < currentPriority) {
+            if (otherRegionDesc->_queueOrder < currentPriority) {
                 // Double-check vacancy
                 if (fn_CitizenComponent_HasVacancy(workplaceComp))
                     return true;
@@ -1023,7 +1023,7 @@ CitizenComponent* CitizenComponent::FindSpouse() {
                     bits &= kRdata_1401722b0;
                     __builtin_memcpy(&diff, &bits, sizeof(diff));
                     float adiff = static_cast<float>(diff);
-                    if (adiff <= description->_f4c) {
+                    if (adiff <= description->marriageRange) {
                         return cand;
                     }
                 }
@@ -1047,10 +1047,10 @@ void CitizenComponent::SetParent(CitizenComponent* parent) {
 }
 
 // CitizenComponent::FindWorkplace (0x14010ffc0):
-// find the best workplace for the citizen's profession (one whose field4C is clear),
+// find the best workplace for the citizen's profession (one whose transient is clear),
 // choosing the one with the most free worker slots that the citizen can reach; scans
 // the town manager's profession tree keyed by the citizen's profession (+0x1f0).
-// The tree hangs off GameUpdateLoop::m_citizenList (CitizenBehavior::field_0x100, a
+// The tree hangs off GameUpdateLoop::m_citizenList (CitizenBehavior::workplacesByProfession, a
 // void* root whose 0x38-byte nodes have no struct yet: read raw, LEFT for ENT); each
 // entry is a ComponentEntity.
 ComponentEntity* CitizenComponent::FindWorkplace() {
@@ -1062,7 +1062,7 @@ ComponentEntity* CitizenComponent::FindWorkplace() {
     // tree lookup helper (ordered by the Profession's address; CitizenBehavior.h's
     // ProfessionBucket: key, entities, count, left +0x20, right +0x28)
     auto findNode = [&](const Profession* k) -> ProfessionBucket* {
-        ProfessionBucket* p = tree->field_0x100._root;
+        ProfessionBucket* p = tree->workplacesByProfession._root;
         while (p != nullptr) {
             if (k < p->element.key) p = p->left;
             else if (k <= p->element.key) return p;
@@ -1114,7 +1114,7 @@ ComponentEntity* CitizenComponent::FindWorkplace() {
 }
 
 // CitizenComponent::FindRankedWorkplace (0x140110470):
-// find the best workplace for a profession whose field4C is set: builds a candidate
+// find the best workplace for a profession whose transient is set: builds a candidate
 // array of reachable workplaces with a free slot, sorts it (0x1400302a0), then returns
 // the first whose free-slot count exceeds the workplace's current workers. Same
 // scanning structure as FindWorkplace plus a grow-array.
@@ -1124,7 +1124,7 @@ ComponentEntity* CitizenComponent::FindRankedWorkplace() {
     Profession* key = profession;
 
     auto findNode = [&](const Profession* k) -> ProfessionBucket* {
-        ProfessionBucket* p = tree->field_0x100._root;
+        ProfessionBucket* p = tree->workplacesByProfession._root;
         while (p != nullptr) {
             if (k < p->element.key) p = p->left;
             else if (k <= p->element.key) return p;
@@ -1203,9 +1203,9 @@ ComponentEntity* CitizenComponent::FindRankedWorkplace() {
 }
 
 // CitizenComponent::FindNewWorkplace (0x14010ff80): the ranked finder when the
-// profession's field4C (+0x4c) is set, else the plain one.
+// profession's transient (+0x4c) is set, else the plain one.
 ComponentEntity* CitizenComponent::FindNewWorkplace() {
-    if (profession->field4C) {
+    if (profession->transient) {
         return FindRankedWorkplace();
     }
     return FindWorkplace();
@@ -1232,7 +1232,7 @@ char CitizenComponent::CanFindHousing() {
         int dim = GameUpdateLoop::_singleton->m_game->size;
         int64_t idx = (((int64_t)res8->tileY1 >> 1) + (int64_t)res8->tileY0) * dim +
                       (((int64_t)res8->tileX1 >> 1) + (int64_t)res8->tileX0);
-        return base[idx].field_0x1C[6] != '\0';   // +0x22
+        return base[idx].influenceCounts[6] != '\0';   // +0x22
     };
 
     if (home != nullptr) {
@@ -1255,7 +1255,7 @@ char CitizenComponent::CanFindHousing() {
     if (y < 0) y = 0;
     if (dim <= y) y = dim - 1;
     int64_t cell = (int64_t)dim * y + x;
-    return grid->cells.GetData()[cell].field_0x1C[6] != '\0';   // +0x22
+    return grid->cells.GetData()[cell].influenceCounts[6] != '\0';   // +0x22
 }
 
 // The standalone type-name -> CRC registry lookup (also declared further down, next to
@@ -1276,7 +1276,7 @@ void CitizenComponent::GiveBirth() {
     for (int i = 0; i < total; i++) {
         CitizenComponent* cand = list->citizens._data[i].Get();
         if (cand->spouse == nullptr) {
-            float maxAge = description->_f4c;
+            float maxAge = description->marriageRange;
             float candAge = cand->age;
             if (candAge <= maxAge) {
                 if (cand->gender == 1) mature++;
@@ -1327,7 +1327,7 @@ void CitizenComponent::GiveBirth() {
         return;
     }
 
-    Profession* spawnArg = gw->m_professionList->field_0x30;
+    Profession* spawnArg = gw->m_professionList->laborerProfession;
 
     // parent world position from ModelComponent (+0x278 -> +0x68 -> +0x158..0x160:
     // the +0x148 transform's translation)
@@ -1454,7 +1454,7 @@ void CitizenComponent::EatFrom(ComponentEntity* target) {
         {
             uint32_t idx = ResourceCategory(work);   // 0x140088f90 (its first argument, the storage, is never read)
             if (-1 < (int)idx) {
-                int* p = &worldGrid->professionResources._data[(int64_t)(int)idx].field_0x0C;
+                int* p = &worldGrid->professionResources._data[(int64_t)(int)idx].consumedCount;
                 *p = *p + 1;
             }
         }
@@ -1505,7 +1505,7 @@ void CitizenComponent::EatFrom(ComponentEntity* target) {
 // NOTE: this is a long, deeply engine-coupled scan; ported structurally from Ghidra.
 // `slot` receives the household slot; retail returns the InternalPtr through RDX.
 // The registry is GameUpdateLoop::m_citizenList's residence array (CitizenBehavior
-// field_0x20 / field_0x28).
+// residences (+0x20 / +0x28)).
 ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
     int* param_3 = slot;
     char param_4 = anyHousehold;
@@ -1578,7 +1578,7 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
         }
     }
 
-    int count = townMgr->field_0x20._size;
+    int count = townMgr->residences._size;
     Map* mapInfo = GameUpdateLoop::_singleton->m_game;
 
     // B6 row 171: the home cell is computed BEFORE the count test (0x1401110c5 reads
@@ -1597,7 +1597,7 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
         int64_t homeCellIdx = static_cast<int64_t>(homeY * mapW + homeX);
 
         for (int64_t entryIdx = 0; entryIdx < count; entryIdx++) {
-            ComponentEntity* entry = townMgr->field_0x20._data[entryIdx].Get();  // local_98
+            ComponentEntity* entry = townMgr->residences._data[entryIdx].Get();  // local_98
 
             Component* resComp = FindEntityComp(entry, ResidenceComponent::TypeId());   // 0x1401c7cf0
             // The InternalPtr retail builds holds the IsDerivedFrom-checked component;
@@ -1785,7 +1785,7 @@ ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, Compone
         int demand = listBase[row]._count -
                      listBase[row]._reserve;
         if (bitSet && demand > 0) {
-            if (mat->_unknown58 != '\0')
+            if (mat->_preferred != '\0')
                 chosen = eligible;
             eligible++;
         }
@@ -1902,12 +1902,12 @@ void CitizenComponent::UpdateHappiness() {
     if ((f & 0x20) == 0) fVar5 += uv;
     if ((f & 1) == 0)    fVar5 += uv;
     if ((f >> 0x11 & 1) != 0) {
-        if (field_0x84 < desc->_ib0) fVar5 += c114;
+        if (ownProfessionWorkCount < desc->workForHappiness) fVar5 += c114;
         else fVar5 += uv;
     }
     if ((f >> 0x10 & 1) != 0) {
-        if (desc->_ia8 < consumedTypes._size) {
-            if (desc->_iac <= consumedTypes._size) fVar5 += uv;
+        if (desc->minFoodForHappiness < consumedTypes._size) {
+            if (desc->maxFoodForHappiness <= consumedTypes._size) fVar5 += uv;
         } else {
             fVar5 -= uv;
         }
@@ -1918,18 +1918,18 @@ void CitizenComponent::UpdateHappiness() {
         Map* mapInfo = gw->m_game;
         int region = EntityAnchorCell(&wpIBP, nullptr);
         const MapCell* tile = mapInfo->cells.GetData() + (int64_t)region;
-        int climate = ((tile->field_0x1C[4] != 0) +    // +0x20
-                       (tile->field_0x1C[3] != 0) +    // +0x1f
-                       (tile->field_0x1C[2] != 0) +    // +0x1e
-                       (tile->field_0x1C[1] != 0) +    // +0x1d
-                       (tile->field_0x1C[0] != 0)) -   // +0x1c
-                      (int)tile->field_0x1C[5];                // +0x21
+        int climate = ((tile->influenceCounts[4] != 0) +    // +0x20
+                       (tile->influenceCounts[3] != 0) +    // +0x1f
+                       (tile->influenceCounts[2] != 0) +    // +0x1e
+                       (tile->influenceCounts[1] != 0) +    // +0x1d
+                       (tile->influenceCounts[0] != 0)) -   // +0x1c
+                      (int)tile->influenceCounts[5];                // +0x21
         if (climate < 0) climate = 0;
         ResidenceComponent* st = home->FindComponent<ResidenceComponent>();
         if (st->residentSlots._size > 1) climate >>= 2;
         fVar5 += (float)climate;
     }
-    if (field_0x230 != nullptr) fVar5 += uv;
+    if (chapel != nullptr) fVar5 += uv;
 
     float cur = *acc;
     fVar5 = fVar5 * c0ec * desc->maxHappiness;
@@ -1989,7 +1989,7 @@ bool CitizenComp_sub_40f0(AttendanceComponent* att, CitizenComponent* citizen) {
     uint32_t attTid = AttendanceDescription::TypeId();   // cell 0x1401c3f78 (NOT Residence)
     AttendanceDescription* res = (obj && attTid && Object::IsDerivedFromNullSafe(obj, attTid))
                                      ? static_cast<AttendanceDescription*>(obj) : nullptr;
-    int cap = res ? res->_i20 : 0;
+    int cap = res ? res->_maxCitizens : 0;
     g_sub40f0_attTid = (int)attTid;
     g_sub40f0_cap    = cap;
     g_sub40f0_count  = att->queue._size;
@@ -2181,7 +2181,7 @@ void CitizenComponent::FindStorage() {
         if (CitizenComp_sub_40f0(found, this)) {
             // exe 0x140003110 IS Collection::Array<void*>::SetSize(n, fill) (kSpec_PtrZero).
             found->queue.SetSizeFill(found->queue._size + 1, &keyIBP);
-            field_0x230 = found;
+            chapel = found;
         }
     }
 }
@@ -2219,7 +2219,7 @@ char CitizenComponent::TryEnrolInSchool(AttendanceComponent* exclude) {
             // exe 0x140003110 IS Collection::Array<void*>::SetSize(n, fill) (kSpec_PtrZero).
             found->queue.SetSizeFill(found->queue._size + 1, &keyIBP);
             school = found;
-            field_0x220 = true;
+            hasBeenSchooled = true;
             return 1;
         }
     }
@@ -2299,16 +2299,16 @@ static Component* CitizenComp_FindSiblingByTypeId(ComponentEntity* ownerEntity, 
 // +0xB8: Graphics::MeshInstance::MeshInstance() (retail CALL [0x140151490] at
 // 0x140114808), in declaration order between +0xAC and +0x1D8 as retail.
 CitizenComponent::CitizenComponent()
-    : name(), field_0x30(-1), field_0x34(0), gender(0), age(0), maxAge(0), hunger(0),
+    : name(), lastWorkId(-1), appearanceVariant(0), gender(0), age(0), maxAge(0), hunger(0),
       coldness(0), pregnancyTimer(0), health(0), statusFlags(0), foodTimer{0},
-      field_0x60{0}, disease(nullptr), field_0x70{0}, field_0x78{0}, happiness(0),
-      field_0x84(0), happinessFlags(0), _pad8C{}, happinessTimer{0},
+      diseaseRollTimer{0}, disease(nullptr), diseaseTimer{0}, diseaseSpreadTimer{0}, happiness(0),
+      ownProfessionWorkCount(0), happinessFlags(0), _pad8C{}, happinessTimer{0},
       consumedTypes(),
-      field_0xA8(-1), field_0xAC(0), lastErrand(CitizenErrand::None), _padB4{},
-      meshInstance(), toolId(-1), toolSceneId(-1), field_0x1E0(4), clothingLevel(0),
+      toolGrade(-1), toolUses(0), lastErrand(CitizenErrand::None), _padB4{},
+      meshInstance(), toolId(-1), toolSceneId(-1), clothingType(4), clothingLevel(0),
       clothingTimer{0}, profession(nullptr), pendingProfession(nullptr),
-      field_0x200{0}, school(nullptr), education(0), _pad214{}, schoolTime{0},
-      field_0x220(false), _pad221{}, careBuilding(nullptr), field_0x230(nullptr),
+      professionRollTimer{0}, school(nullptr), education(0), _pad214{}, schoolTime{0},
+      hasBeenSchooled(false), _pad221{}, careBuilding(nullptr), chapel(nullptr),
       home(nullptr), homeSlot(0), _pad244{}, workplace(nullptr), spouse(nullptr),
       _parent(nullptr), _firstChild(nullptr), _nextSibling(nullptr),
       _prevSibling(nullptr), character(nullptr), statusIcon(nullptr),
@@ -2341,7 +2341,7 @@ void CitizenComponent::Startup() {
     // then +0x6c / +0xa4 are read UNGUARDED (0x1401140c8 / 0x1401140ce).
     description = _description->IsDerivedFrom(CitizenDescription::TypeId())
                       ? static_cast<CitizenDescription*>(_description) : nullptr;
-    health = description->_f6c;
+    health = description->health;
     happiness = description->maxHappiness;
 }
 

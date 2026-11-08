@@ -365,15 +365,15 @@ void CitizenUI::OnUpdateLayout() {
     // If tool count < 1: value = 0
     // Else: compare the tool item with the description's +0x110; 1 if same, 2 if different
     int toolValue;
-    if (ai->field_0xAC < 1) {
+    if (ai->toolUses < 1) {
         toolValue = 0;
     } else {
-        int toolItem = ai->field_0xA8;
+        int toolItem = ai->toolGrade;
         // The same checked cast of the same _description as citizenDesc above.
         // desc2 (CitizenDescription) may be null on a partially-initialized standalone
         // citizen — treat a missing description as "default tool" rather than faulting.
         CitizenDescription* desc2 = citizenDesc;
-        toolValue = desc2 ? ((toolItem != desc2->_i110) + 1) : 1;
+        toolValue = desc2 ? ((toolItem != desc2->toolQuality) + 1) : 1;
     }
     if (textTool) {
         UI::String text = textTool->_text;
@@ -382,7 +382,7 @@ void CitizenUI::OnUpdateLayout() {
         // tool the citizen carries from the item's own string table; retail's word (above) when no note
         // matches.
         if (toolValue != 0 && ::Ext::Ext().tool_names) {
-            const RawMaterialDescription* item = ::Ext::ToolNames::ToolFor(ai, ai->field_0xA8);
+            const RawMaterialDescription* item = ::Ext::ToolNames::ToolFor(ai, ai->toolGrade);
             if (item != nullptr && item->_stringTable != nullptr) {
                 UI::String named(Object::ExternalPtr<UI::StringTable>(item->_stringTable), item->_name);
                 if (named.IsValid()) {
@@ -472,7 +472,7 @@ void CitizenUI::OnUpdateLayout() {
     // Special case: if action is Idle (idle/searching), check if citizen has a home tile
     if (actionIndex == static_cast<int32_t>(CitizenAIState::Idle)) {
         Work* homeWork = nullptr;
-        int homeTile = ai->field_0x30;
+        int homeTile = ai->lastWorkId;
         if (homeTile >= 0) {
             // Look up the Work at the home tile via the world work tree (gw+0x118)
             homeWork = WorldGrid_FindEntity_Impl(GameUpdateLoop::_singleton->m_tutorial, homeTile);

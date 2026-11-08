@@ -49,26 +49,26 @@ public:
     int   GetPriority() override;                                       // [11] 0x1400295a0
 
     // --- BuildRoad fields (+0x48) ---
-    Object::InternalPtr<CitizenComponent> field_48;  // +0x48: the assigned citizen (zeroed;
+    Object::InternalPtr<CitizenComponent> _citizen;  // +0x48: the assigned citizen (zeroed;
                                  //        Persist 0x1400e4980 validates it against CitizenComponent)
-    ComponentDescription* field_50; // +0x50: ExternalPtr<ComponentDescription> — the road's material (zeroed; Persist
+    ComponentDescription* _material; // +0x50: ExternalPtr<ComponentDescription> — the road's material (zeroed; Persist
                                  //        0x1400e4980 streams it by the ExternalPtr body; Execute hands it to
                                  //        StorageComponent::QueryAvailable 0x14012ce70 and PickBestDropTarget 0x14008d590)
-    int32_t  field_58;           // +0x58: map cell index (-1 sentinel)
-    uint32_t field_5c;           // +0x5C: road type (2 = default; Persist 0x1400e4980 streams it through the uint overload)
-    int32_t  field_60;           // +0x60: material type (0xff default if version < 1)
-    int32_t  field_64;           // +0x64: field (serialized, version >= 1)
-    int32_t  field_68;           // +0x68: material count (2 default if version < 1)
+    int32_t  _roadCell;           // +0x58: map cell index (-1 sentinel)
+    uint32_t _cellType;           // +0x5C: road type (2 = default; Persist 0x1400e4980 streams it through the uint overload)
+    int32_t  _prevRoadType;           // +0x60: material type (0xff default if version < 1)
+    int32_t  _prevRoadBlend;           // +0x64: field (serialized, version >= 1)
+    int32_t  _prevTerrainType;           // +0x68: material count (2 default if version < 1)
     uint8_t  _pad6c[4];          // +0x6C: padding
 };
 
 static_assert(sizeof(BuildRoad) == 0x70, "BuildRoad is 0x70 (create 0x140029560 MemAlloc(0x70))");
 static_assert(offsetof(BuildRoad, _pad6c) == 0x6C, "BuildRoad::_pad6c");
 static_assert(alignof(BuildRoad) == 8, "BuildRoad is 8-aligned");
-static_assert(offsetof(BuildRoad, field_48) == 0x48, "BuildRoad +0x48");
-static_assert(offsetof(BuildRoad, field_50) == 0x50, "BuildRoad +0x50");
-static_assert(offsetof(BuildRoad, field_58) == 0x58, "BuildRoad +0x58");
-static_assert(offsetof(BuildRoad, field_5c) == 0x5c, "BuildRoad +0x5c");
-static_assert(offsetof(BuildRoad, field_60) == 0x60, "BuildRoad +0x60");
-static_assert(offsetof(BuildRoad, field_64) == 0x64, "BuildRoad +0x64");
-static_assert(offsetof(BuildRoad, field_68) == 0x68, "BuildRoad +0x68");
+static_assert(offsetof(BuildRoad, _citizen) == 0x48, "BuildRoad +0x48");
+static_assert(offsetof(BuildRoad, _material) == 0x50, "BuildRoad +0x50");
+static_assert(offsetof(BuildRoad, _roadCell) == 0x58, "BuildRoad +0x58");
+static_assert(offsetof(BuildRoad, _cellType) == 0x5c, "BuildRoad +0x5c");
+static_assert(offsetof(BuildRoad, _prevRoadType) == 0x60, "BuildRoad +0x60");
+static_assert(offsetof(BuildRoad, _prevRoadBlend) == 0x64, "BuildRoad +0x64");
+static_assert(offsetof(BuildRoad, _prevTerrainType) == 0x68, "BuildRoad +0x68");

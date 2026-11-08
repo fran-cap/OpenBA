@@ -136,7 +136,7 @@
 //
 // IO::Visitor is NOT a BinaryCodec. It shares the IO::ReaderWriter base (+0x00
 // vtable, +0x08 allowCustomSerialize, +0x10 serializer, +0x18 stream) and then
-// diverges: it has no `word20`/`word24` record framing to carry, so its version
+// diverges: it has no `recordLength`/`recordStart` record framing to carry, so its version
 // lands eight bytes earlier. Three identically-named GetVersion functions where
 // one reads a different offset is exactly the shape that gets "fixed" into
 // uniformity by the next person to tidy this file, so Visitor gets its own
@@ -145,18 +145,18 @@
 //
 // ----------------------------------------------------------------------------
 // BinaryReader::Skip vs BinaryWriter::Skip — asymmetric, and the reader's Skip
-// is what finally explains the reader's word20/word24
+// is what finally explains the reader's recordLength/recordStart
 // ----------------------------------------------------------------------------
 //     0x1800a83f0  ?Skip@BinaryReader@IO@@UEAAXXZ
 //         MOV RAX,[RCX+0x18]      ; stream
-//         MOV EDX,[RCX+0x24]      ; word24
-//         ADD EDX,[RCX+0x20]      ; + word20
+//         MOV EDX,[RCX+0x24]      ; recordStart
+//         ADD EDX,[RCX+0x20]      ; + recordLength
 //         MOV R8,[RAX] ; MOV RCX,RAX
 //         JMP [R8+0x20]           ; TAIL JUMP to Stream::SetCurrentPos(pos)
 //
 //     0x1800a8b00  ?Skip@BinaryWriter@IO@@UEAAXXZ      RET
 //
-// So on the reading side `word20 + word24` is the ONE-PAST-THE-END position of
+// So on the reading side `recordLength + recordStart` is the ONE-PAST-THE-END position of
 // the current record, and Skip is "abandon the rest of this record and jump to
 // the next one" — the reader's half of the length-prefixed, magic-bracketed
 // frame whose writing half lane ENC-2 documented in binary_writer.cpp. Serializer.h
@@ -373,14 +373,14 @@ void BinaryReader::SerializeBoolArray(int count, bool* arr, const char* name) {
 }
 
 // ?Skip@BinaryReader@IO@@UEAAXXZ   0x1800a83f0
-// word20 + word24 is the ONE-PAST-THE-END position of the current record, so
+// recordLength + recordStart is the ONE-PAST-THE-END position of the current record, so
 // Skip is "abandon the rest of this record and jump to the next".
 void BinaryReader::Skip() {
-    // NOT RETAIL in spelling only (review F-142, signed overflow): word20 is the record
+    // NOT RETAIL in spelling only (review F-142, signed overflow): recordLength is the record
     // length read from the stream, and retail's 32-bit ADD wraps; in int the same add is
     // undefined, so it runs in uint32_t. Same position.
-    const int32_t end = static_cast<int32_t>(static_cast<uint32_t>(word24) +
-                                             static_cast<uint32_t>(word20));
+    const int32_t end = static_cast<int32_t>(static_cast<uint32_t>(recordStart) +
+                                             static_cast<uint32_t>(recordLength));
     stream->SetCurrentPos(end);   // +0x20
 }
 

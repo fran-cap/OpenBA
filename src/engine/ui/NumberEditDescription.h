@@ -23,13 +23,13 @@
 // `??0NumberEditDescription@UI@@QEAA@XZ` (0x1800d5050, transcribed in
 // numbereditdescription.cpp) after ElementDescription's 0x68:
 //     +0x68 qword 0      _font  ExternalPtr<UI::Font> (0x18003f1e0)
-//     +0x70              _i70   *** NEVER WRITTEN BY THE CONSTRUCTOR *** —
-//                               serialized (kScalarInt) and formatted into the
-//                               element's initial text with "%i"
-//     +0x74 dword 6      _i74   -> EditElement::_maxLength
-//     +0x78 dword -32767 _i78   -> NumberEditElement::_min
-//     +0x7c dword 0x7fff _i7c   -> NumberEditElement::_max
-//     +0x80 byte  1      _b80   "allow negative": selects "0123456789-"
+//     +0x70              _initialValue  *** NEVER WRITTEN BY THE CONSTRUCTOR *** —
+//                                       serialized (kScalarInt) and formatted into the
+//                                       element's initial text with "%i"
+//     +0x74 dword 6      _maxLength     -> EditElement::_maxLength
+//     +0x78 dword -32767 _minValue      -> NumberEditElement::_min
+//     +0x7c dword 0x7fff _maxValue      -> NumberEditElement::_max
+//     +0x80 byte  1      _allowNegative "allow negative": selects "0123456789-"
 //     +0x81..+0x87 never written
 // Names: the ported file's; meanings where CreateInstance proves them.
 //
@@ -62,10 +62,10 @@ public:
     // +0x7c 0x7fff, +0x80 BYTE 1 (0x1800d50cd..0x1800d50e6).
     NumberEditDescription() : ElementDescription() {
         _font = nullptr;
-        _i74  = 6;
-        _i78  = static_cast<int32_t>(0xffff8001u);
-        _i7c  = 0x7fff;
-        _b80  = 1;
+        _maxLength  = 6;
+        _minValue  = static_cast<int32_t>(0xffff8001u);
+        _maxValue  = 0x7fff;
+        _allowNegative  = 1;
     }
 
     // [0] 0x180046190 — MSVC's VECTOR deleting destructor, both arms exactly as
@@ -98,11 +98,11 @@ private:
 
 public:
     Font*   _font;       // +0x68  ExternalPtr<UI::Font>
-    int32_t _i70;        // +0x70  NEVER written by the ctor
-    int32_t _i74;        // +0x74  ctor 6
-    int32_t _i78;        // +0x78  ctor 0xffff8001
-    int32_t _i7c;        // +0x7c  ctor 0x7fff
-    bool    _b80;        // +0x80  ctor 1 (B4: kScalarBool, retail's type)
+    int32_t _initialValue;        // +0x70  NEVER written by the ctor
+    int32_t _maxLength;        // +0x74  ctor 6
+    int32_t _minValue;        // +0x78  ctor 0xffff8001
+    int32_t _maxValue;        // +0x7c  ctor 0x7fff
+    bool    _allowNegative;        // +0x80  ctor 1 (B4: kScalarBool, retail's type)
     uint8_t _pad81[7];   // +0x81  never written
 };
 
@@ -114,10 +114,10 @@ static_assert(std::has_virtual_destructor<NumberEditDescription>::value, "B3X W1
 static_assert(!std::is_abstract<NumberEditDescription>::value, "B39 D1: concrete");
 static_assert(offsetof(NumberEditDescription, _font) == sizeof(ElementDescription), "");
 static_assert(offsetof(NumberEditDescription, _font) == 0x68, "");
-static_assert(offsetof(NumberEditDescription, _i70)  == 0x70, "");
-static_assert(offsetof(NumberEditDescription, _i74)  == 0x74, "");
-static_assert(offsetof(NumberEditDescription, _i78)  == 0x78, "");
-static_assert(offsetof(NumberEditDescription, _i7c)  == 0x7c, "");
-static_assert(offsetof(NumberEditDescription, _b80)  == 0x80, "");
+static_assert(offsetof(NumberEditDescription, _initialValue)  == 0x70, "");
+static_assert(offsetof(NumberEditDescription, _maxLength)  == 0x74, "");
+static_assert(offsetof(NumberEditDescription, _minValue)  == 0x78, "");
+static_assert(offsetof(NumberEditDescription, _maxValue)  == 0x7c, "");
+static_assert(offsetof(NumberEditDescription, _allowNegative)  == 0x80, "");
 
 }  // namespace UI

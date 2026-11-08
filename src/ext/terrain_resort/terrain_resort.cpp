@@ -24,7 +24,7 @@ bool CellShouldHeal(Map* map, int index) {
     CellView view;
     view.terrainType    = static_cast<uint8_t>(cell.terrainType);
     view.footprintCount = cell.footprintCount;
-    view.road           = cell.field_0x2A;
+    view.road           = cell.roadType;
     view.blocked        = cell.blocker.Get() != nullptr;
     view.occupied       = cell.occupant.Get() != nullptr;
     return ShouldHeal(view, map->ClassifyTerrain(index));   // 0x14009e2c0

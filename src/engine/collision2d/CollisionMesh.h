@@ -46,7 +46,7 @@ public:
     struct Triple3 { uint16_t a, b, c; };
     struct Quad4 { uint16_t a, b, c, d; };
     struct Face {
-        int32_t                    field0;   // +0x00  kScalarInt
+        int32_t                    surfaceIndex;   // +0x00  kScalarInt
         int32_t                    _pad04;   // +0x04
         Collection::Array<Triple3> triples;  // +0x08
         Collection::Array<Quad4>   quads;    // +0x18
@@ -108,7 +108,7 @@ static_assert(offsetof(CollisionMesh::Quad4, b) == 0x2, "Quad4::b");
 static_assert(offsetof(CollisionMesh::Quad4, c) == 0x4, "Quad4::c");
 static_assert(offsetof(CollisionMesh::Quad4, d) == 0x6, "Quad4::d");
 static_assert(sizeof(CollisionMesh::Face) == 0x28, "CollisionMesh::Face is 0x28 bytes");
-static_assert(offsetof(CollisionMesh::Face, field0) == 0x0, "Face::field0");
+static_assert(offsetof(CollisionMesh::Face, surfaceIndex) == 0x0, "Face::surfaceIndex");
 static_assert(offsetof(CollisionMesh::Face, _pad04) == 0x4, "Face::_pad04");
 static_assert(offsetof(CollisionMesh::Face, triples) == 0x08, "Face +0x08");
 static_assert(offsetof(CollisionMesh::Face, quads)   == 0x18, "Face +0x18");

@@ -32,8 +32,8 @@ void UIComponent::Startup() {
     Description* obj = _description;
     UIDescription* desc = obj->IsDerivedFrom(UIDescription::TypeId())   // import 0x140152a98
                               ? static_cast<UIDescription*>(obj) : nullptr;
-    data.SetSize(desc->_valTail);
-    std::memset(data._data, 0, static_cast<size_t>(desc->_valTail));
+    data.SetSize(desc->_settingsBufferSize);
+    std::memset(data._data, 0, static_cast<size_t>(desc->_settingsBufferSize));
 }
 
 // create 0x140039550: MemAlloc(0x38, 8), then the ctor.

@@ -58,8 +58,8 @@ RawMaterialDescription::RawMaterialDescription()
       _weight(1),
       _createChance(0),
       _carryScale(FloatBits(0x3ea8f5c3)),
-      _i54(0),
-      _unknown58(false),
+      _useValue(0),
+      _preferred(false),
       _flags(0) {}
 
 // [5] 0x140129520: stream order as retail.
@@ -75,8 +75,8 @@ bool RawMaterialDescription::Serialize(IO::Stream& stream) {
     ser.Serialize(_createChance, nullptr);
     ser.Serialize(_flags, nullptr);
     ser.Serialize(_carryScale, nullptr);
-    ser.Serialize(_i54, nullptr);
-    ser.Serialize(_unknown58, nullptr);
+    ser.Serialize(_useValue, nullptr);
+    ser.Serialize(_preferred, nullptr);
     return true;
 }
 

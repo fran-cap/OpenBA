@@ -130,7 +130,7 @@ const Video::RenderState* GridState(const Graphics::MaterialInstance* instance) 
     depth.write = false;
     depth.func = 4;   // the engine's default: less or equal
     state->Initialize(overlay->_alphaBlend, depth, overlay->_stencil, overlay->_cullMode, overlay->_fillMode,
-                      overlay->_flag70);
+                      overlay->_scissorEnable);
     ours = state;   // kept for the life of the process, like the other leaked statics
     source = overlay;
     return ours;
@@ -184,7 +184,7 @@ void Draw(Video::Context* context, const Graphics::Camera& camera) {
     const int mapSize = game->m_game->size;
     if (mapSize <= 0) return;
     const WorldGeometry* terrain = game->m_worldGeometry;
-    if (terrain->_heights.data == nullptr || terrain->_fieldD0 <= 0) return;
+    if (terrain->_heights.data == nullptr || terrain->_heightRowStride <= 0) return;
 
     static const float kPoints[][2] = {
         {0.001f, 0.001f}, {0.999f, 0.001f}, {0.001f, 0.999f}, {0.999f, 0.999f}, {0.5f, 0.001f},
@@ -210,10 +210,10 @@ void Draw(Video::Context* context, const Graphics::Camera& camera) {
     style.width = Ext::Val().show_grid_width;
     style.hue = Ext::Val().show_grid_hue;
     style.saturation = Ext::Val().show_grid_saturation;
-    const int base = (terrain->_gridSize - terrain->_fieldC4) >> 1;
+    const int base = (terrain->_gridSize - terrain->_mapSize) >> 1;
     Ground ground;
     ground.base = base;
-    ground.dim = terrain->_fieldD0;
+    ground.dim = terrain->_heightRowStride;
     ground.heights = terrain->_heights.data;
     // One read of each vertex under the box a frame (a few thousand at most): a loaded town or edited terrain
     // changes the hash, and the lines follow the new ground.

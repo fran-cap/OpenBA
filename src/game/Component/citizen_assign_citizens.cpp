@@ -124,8 +124,8 @@
 #include "Work/exe_bodies.h"
 #include "Game/exe_constants.h"
 #include "Game/Map.h"                       // Map::size / cells / PathDistance
-#include "Game/ProfessionList.h"            // professions (+0x20), field_0x30 default
-#include "Entity/CitizenBehavior.h"         // citizens (+0xA0), field_0x100 bucket tree
+#include "Game/ProfessionList.h"            // professions (+0x20), laborerProfession default
+#include "Entity/CitizenBehavior.h"         // citizens (+0xA0), workplacesByProfession bucket tree
 #include "Entity/ComponentEntity.h"         // FindComponent<T>
 #include "Component/CitizenComponent.h"
 #include "Component/CitizenDescription.h"
@@ -239,7 +239,7 @@ void NormalizeMismatched(CitizenComponent* c, ProfessionList* reg) {
 
     if (reqProf == curProf) return;                     // already matches
 
-    Profession* defaultKey = reg->field_0x30;   // +0x30
+    Profession* defaultKey = reg->laborerProfession;   // +0x30
     // skip if already reset (default profession AND no workplace)
     if (curProf == defaultKey && c->workplace == nullptr) return;
 
@@ -462,7 +462,7 @@ void PathGraph::AssignCitizens() {
 
     Object::InternalPtr<CitizenComponent>* citArray = townMgr->citizens._data;      // +0xa0
     int                citCount = townMgr->citizens._size;  // +0xa8
-    ProfessionBucket*  mapRoot  = townMgr->field_0x100._root;   // +0x100
+    ProfessionBucket*  mapRoot  = townMgr->workplacesByProfession._root;   // +0x100
     float     uvScale  = kRdata_14017214c;   // g_fUVScale 0x14017214c
 
     // ---------- Phase 1: housing-sync ----------

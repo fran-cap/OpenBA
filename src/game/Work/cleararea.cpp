@@ -71,7 +71,7 @@
 // class's table).
 ClearArea::ClearArea()
     : Work(),
-      field_68(nullptr) { // map entity IBP
+      _targetFilter(nullptr) { // map entity IBP
 }
 
 // ============================================================
@@ -83,10 +83,10 @@ ClearArea::ClearArea()
 ClearArea::ClearArea(ComponentEntity* const* pEntityIBP, ComponentDescription* descRef, bool clearTrees,
                      bool clearGround, bool clearBuildings)
     : Work(pEntityIBP),
-      field_68(descRef),
-      field_70(clearTrees),
-      field_71(clearGround),
-      field_72(clearBuildings) {}
+      _targetFilter(descRef),
+      _clearTrees(clearTrees),
+      _clearGround(clearGround),
+      _clearPiles(clearBuildings) {}
 
 // ============================================================
 // ClearArea::BaseDtor (0x1400e6810)
@@ -114,10 +114,10 @@ void ClearArea::Persist(IO::Stream& stream) {
     WorkLeaf_BstSerializeIBPpair_29c10(&_entities, &serializer);
 
     // Serialize the description ExternalPtr at +0x68
-    ::Object::SerializeExternal<ComponentDescription>(serializer, field_68);
+    ::Object::SerializeExternal<ComponentDescription>(serializer, _targetFilter);
 
     // Serialize clearTrees bool at +0x70 (the field is uint8_t storage)
-    serializer.Serialize(field_70, nullptr);
+    serializer.Serialize(_clearTrees, nullptr);
 
     // Version >= 1: serialize additional fields
     int version = serializer.GetVersion();
@@ -126,10 +126,10 @@ void ClearArea::Persist(IO::Stream& stream) {
         WorkCellBST_Serialize_9de0(&_cells, &serializer);
 
         // Serialize clearGround bool at +0x71
-        serializer.Serialize(field_71, nullptr);
+        serializer.Serialize(_clearGround, nullptr);
 
         // Serialize clearBuildings bool at +0x72
-        serializer.Serialize(field_72, nullptr);
+        serializer.Serialize(_clearPiles, nullptr);
     }
 }
 
@@ -250,7 +250,7 @@ int ClearArea::Cleanup() {
 // Returns the profession list's +0x30 profession (GameUpdateLoop::m_professionList).
 // Uses hidden return pointer ABI (member function returning non-trivial).
 Profession** ClearArea::GetTarget(Profession** retbuf) {
-    *retbuf = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    *retbuf = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
     return retbuf;
 }
 
@@ -290,8 +290,8 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
 
 
     // --- Check if work entity is valid ---
-    // CheckPtr on field_18 (the WorkComponent InternalPtr at +0x18)
-    WorkComponent* workEntity = field_18.Get();
+    // CheckPtr on _workComponent (the WorkComponent InternalPtr at +0x18)
+    WorkComponent* workEntity = _workComponent.Get();
 
     // Get total slot count for the entity
     if (workEntity->workState == 0) {
@@ -307,11 +307,11 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
 
     // --- Check the work entity's WorkPlaceComponent is accepting ---
     // (fn_FindComponent_WorkPlace, 0x140002e10)
-    WorkPlaceComponent* workPlace = field_10.Get()->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity.Get()->FindComponent<WorkPlaceComponent>();
 
     if (workPlace != nullptr) {
         // Re-find and check if component is active (byte at +0x50)
-        WorkPlaceComponent* workPlace2 = field_10.Get()->FindComponent<WorkPlaceComponent>();
+        WorkPlaceComponent* workPlace2 = _entity.Get()->FindComponent<WorkPlaceComponent>();
         if (workPlace2->isAccepting == 0) {
             return 1;  // component not active
         }
@@ -339,10 +339,10 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     // safe because a clearGround=false query returns occupied tiles only.
     // Passing +0x70 instead let empty tiles into the array and phase 3
     // faulted on READ of 0x38.
-    char includeEmptyTiles = field_71;  // +0x71 = clearGround flag
+    char includeEmptyTiles = _clearGround;  // +0x71 = clearGround flag
 
     // Find MapComponent on the work entity (fn_FindComponent_Build: the cell is MapComponent)
-    MapComponent* area = field_10.Get()->FindComponent<MapComponent>();
+    MapComponent* area = _entity.Get()->FindComponent<MapComponent>();
 
     // Read area bounds (shorts at +0x28, +0x2a, +0x2c, +0x2e)
     int16_t x1 = area->tileX0;
@@ -390,9 +390,9 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
         map->SortTilesByDistance(&tileArray, refTileIdx);
 
         // ============================================================
-        // Phase 1: Clear trees (field_70)
+        // Phase 1: Clear trees (_clearTrees)
         // ============================================================
-        if (field_70 != 0 && tileCount > 0) {
+        if (_clearTrees != 0 && tileCount > 0) {
             GridTile* tiles = tileArray.data;
             for (int i = 0; i < tileCount; i++) {
                 GridTile* tile = &tiles[i];
@@ -422,9 +422,9 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                     continue;
                 }
 
-                // Check filter: if field_68 is set, the tree's description (+0x28) must match
-                if (field_68 != nullptr) {
-                    if (treeEntity->_description != field_68) {
+                // Check filter: if _targetFilter is set, the tree's description (+0x28) must match
+                if (_targetFilter != nullptr) {
+                    if (treeEntity->_description != _targetFilter) {
                         continue;  // doesn't match filter
                     }
                 }
@@ -483,10 +483,10 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 CitizenComponent* citizenRef = *citizenIBP;
 
                 // PerformWork_Action_Ctor3(citizenIBP, workId, targetIBP, worldPos, 0, 0)
-                WorkAct_PerformWorkCtor_c1eb0(&citizenRef, field_20, &targetIBP, walkPos, 0, 0);
+                WorkAct_PerformWorkCtor_c1eb0(&citizenRef, _workId, &targetIBP, walkPos, 0, 0);
 
                 // Post-work setup on citizen
-                int workId = field_20;
+                int workId = _workId;
                 CitizenComponent* citizenObj = *citizenIBP;
 
                 // Call vtable[10] (+0x50) on this — Work::GetTarget(this, &workIBP)
@@ -494,7 +494,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                 Profession* workEntity2 = *GetTarget(&workIBP);
 
                 // Set fields on citizen: +0x30 = workId, +0x54 |= 4, +0xb0 lastErrand = None
-                citizenObj->field_0x30 = workId;
+                citizenObj->lastWorkId = workId;
                 citizenObj->statusFlags |= Bits(CitizenStatus::TaskDone);
                 citizenObj->lastErrand = CitizenErrand::None;
 
@@ -518,9 +518,9 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
         }
 
         // ============================================================
-        // Phase 2: Clear ground tiles (field_71)
+        // Phase 2: Clear ground tiles (_clearGround)
         // ============================================================
-        if (field_71 != 0 && tileCount > 0) {
+        if (_clearGround != 0 && tileCount > 0) {
             GridTile* tiles = tileArray.data;
             for (int i = 0; i < tileCount; i++) {
                 GridTile* tile = &tiles[i];
@@ -574,7 +574,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
 
                 // Create PerformWork action for ground clearing
                 CitizenComponent* citizenRef = *citizenIBP;
-                int workId = field_20;
+                int workId = _workId;
 
                 WorkAct_PerformWorkCtor_bffd0(&citizenRef, workId, walkPos,
                                      static_cast<int>(tileIdx),   // the door passed (uint64_t)tileIdx; the body reads R9D
@@ -582,14 +582,14 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                                      clearInfo, &nullIBP);
 
                 // Post-work setup on citizen
-                int workIdSaved = field_20;
+                int workIdSaved = _workId;
                 CitizenComponent* citizenObj = *citizenIBP;
 
                 // Call vtable[10] (+0x50) — Work::GetTarget
                 Profession* workIBP = nullptr;
                 Profession* workEntity2 = *GetTarget(&workIBP);
 
-                citizenObj->field_0x30 = workIdSaved;
+                citizenObj->lastWorkId = workIdSaved;
                 citizenObj->statusFlags |= Bits(CitizenStatus::TaskDone);
                 citizenObj->lastErrand = CitizenErrand::None;
 
@@ -616,15 +616,15 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
         }
 
         // ============================================================
-        // Phase 3: Clear natural resources (field_72)
+        // Phase 3: Clear natural resources (_clearPiles)
         // ============================================================
-        if (field_72 != 0 && tileCount > 0) {
+        if (_clearPiles != 0 && tileCount > 0) {
             GridTile* tiles = tileArray.data;
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/FOUNDATIONPILES.md): with
             // fix.foundation_piles on, a site whose footprint holds only piles carries a pile
             // no storage takes to free ground outside it, where retail leaves it there.
             const bool relocatePiles = Ext::Fix().foundation_piles &&
-                                       Ext::FoundationPiles::WaitsOnPilesOnly(field_10.Get(), tiles, tileCount);
+                                       Ext::FoundationPiles::WaitsOnPilesOnly(_entity.Get(), tiles, tileCount);
             for (int i = 0; i < tileCount; i++) {
                 GridTile* tile = &tiles[i];
 
@@ -652,7 +652,7 @@ int ClearArea::Execute(CitizenComponent** citizenIBP, System::Time* time) {
                     result = 2;
                     goto cleanup;
                 }
-                if (relocatePiles && Ext::FoundationPiles::Relocate(field_10.Get(), tile->entity, citizenIBP) == 2) {
+                if (relocatePiles && Ext::FoundationPiles::Relocate(_entity.Get(), tile->entity, citizenIBP) == 2) {
                     result = 2;
                     goto cleanup;
                 }

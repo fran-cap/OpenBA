@@ -49,7 +49,7 @@ class FencedTool final : public DragTool {
 public:
     FencedTool()                                                           // 0x1400dd070
         : fencedDesc(nullptr), areaDesc(nullptr), fenceDesc(nullptr), rotationSetting(nullptr),
-          sceneObjectId(-1), _field5C(0), _field60(0), _pad64{}, meshInstance(nullptr) {}
+          sceneObjectId(-1), footprintWidth(0), footprintDepth(0), _pad64{}, meshInstance(nullptr) {}
 
     // 0x1400dd020: no body
     ~FencedTool() override = default;                                      // [0]  0x140026930
@@ -73,8 +73,8 @@ public:
     ModelDescription* fenceDesc;         // +0x48 cell 0x1401c7a88 (B4 PLAYER)
     RotationSetting*  rotationSetting;   // +0x50 InternalBasePtr<RotationSetting> (B4 PLAYER)
     int32_t  sceneObjectId;     // +0x58 Graphics::Scene object id, -1 = not added
-    uint32_t _field5C;          // +0x5c from the size description +0x44
-    uint32_t _field60;          // +0x60 from the size description +0x48
+    uint32_t footprintWidth;          // +0x5c from the size description +0x44
+    uint32_t footprintDepth;          // +0x60 from the size description +0x48
     uint8_t  _pad64[4];         // +0x64
     Graphics::MeshInstance* meshInstance; // +0x68 the fence preview (B4 PLAYER)
 };
@@ -88,6 +88,6 @@ static_assert(offsetof(FencedTool, areaDesc)        == 0x40, "FencedTool +0x40")
 static_assert(offsetof(FencedTool, fenceDesc)       == 0x48, "FencedTool +0x48");
 static_assert(offsetof(FencedTool, rotationSetting) == 0x50, "FencedTool +0x50 (ctor 0x1400dd0d4)");
 static_assert(offsetof(FencedTool, sceneObjectId)   == 0x58, "FencedTool +0x58 = -1 (ctor 0x1400dd0d8)");
-static_assert(offsetof(FencedTool, _field5C)        == 0x5c, "FencedTool +0x5c");
-static_assert(offsetof(FencedTool, _field60)        == 0x60, "FencedTool +0x60");
+static_assert(offsetof(FencedTool, footprintWidth)        == 0x5c, "FencedTool +0x5c");
+static_assert(offsetof(FencedTool, footprintDepth)        == 0x60, "FencedTool +0x60");
 static_assert(offsetof(FencedTool, meshInstance)    == 0x68, "FencedTool +0x68 (ctor 0x1400dd0df)");

@@ -36,10 +36,10 @@ public:
 
     // ---- fields -------------------------------------------------------
     UI::SpinnerElement* editLimit = nullptr;   // +0x30: the "editLimit" spinner (InternalBasePtr, OnCreated 0x140077970)
-    uint64_t data38 = 0;           // +0x38: zeroed
+    uint64_t unusedElement = 0;           // +0x38: zeroed
 };
 
 static_assert(sizeof(ResourceLimitUI) == 0x40, "ResourceLimitUI is 0x40 (create 0x1400136b0 MemAlloc(0x40))");
 static_assert(alignof(ResourceLimitUI) == 8, "qword-aligned (the vptr)");
 static_assert(offsetof(ResourceLimitUI, editLimit) == 0x30, "ResourceLimitUI +0x30");
-static_assert(offsetof(ResourceLimitUI, data38) == 0x38, "ResourceLimitUI +0x38");
+static_assert(offsetof(ResourceLimitUI, unusedElement) == 0x38, "ResourceLimitUI +0x38");

@@ -93,7 +93,7 @@ bool ScrollDescription::Serialize(IO::Stream& streamv) {
     rw->SerializeInt(_inset, nullptr);
     // BOTH of the last two are kScalarUInt (vt+0x98), not kScalarInt.
     rw->SerializeUInt(_barColor, nullptr);
-    rw->SerializeUInt(_unknownC4, nullptr);
+    rw->SerializeUInt(_highlightColor, nullptr);
 
     // The inlined ~Serializer deletes the ReaderWriter (18011aa96).
     return true;
@@ -148,7 +148,7 @@ Object::InternalPtr<Element>* ScrollDescription::CreateInstance(
     elem->_vertical   = _vertical;                             // 18011ad2e
     elem->_inset      = _inset;                                // 18011ad3a
     elem->_barColor   = _barColor;                             // 18011ad46
-    elem->_unknown158 = _unknownC4;                            // 18011ad52
+    elem->_highlightColor = _highlightColor;                            // 18011ad52
 
     *ret = Object::InternalPtr<Element>(elem);                 // 18011ad58
     return ret;

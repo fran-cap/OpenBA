@@ -122,8 +122,8 @@ void ListUnlink(T* self, T*& first, T* T::*next, T* T::*prev) {
 // names the Index/Vertex +0x10 `listPrev` and +0x18 `listNext`; in ListLink's
 // terms +0x10 is `next` and +0x18 `prev`. The offsets are retail's, the names
 // are guesses and are not changed here.)
-static_assert(offsetof(Video::ImageBuffer, _field50) == 0x50, "ImageBuffer list next");
-static_assert(offsetof(Video::ImageBuffer, _field58) == 0x58, "ImageBuffer list prev");
+static_assert(offsetof(Video::ImageBuffer, _nextSurface) == 0x50, "ImageBuffer list next");
+static_assert(offsetof(Video::ImageBuffer, _prevSurface) == 0x58, "ImageBuffer list prev");
 static_assert(offsetof(Video::IndexBuffer, listPrev) == 0x10, "IndexBuffer list next");
 static_assert(offsetof(Video::IndexBuffer, listNext) == 0x18, "IndexBuffer list prev");
 static_assert(offsetof(Video::VertexBuffer, listPrev) == 0x10, "VertexBuffer list next");
@@ -346,7 +346,7 @@ void ImageBuffer::PlatformConstruct() {
     DeviceData* dd = Device::_singleton->deviceData;
     _data = dd ? dd->CreateImageBufferData(this) : nullptr;       // slot 10, +0x50
     RtVideoDeviceLock(&Device::_singleton);
-    ListLink(this, _firstSurface, &ImageBuffer::_field50, &ImageBuffer::_field58);
+    ListLink(this, _firstSurface, &ImageBuffer::_nextSurface, &ImageBuffer::_prevSurface);
     RtVideoDeviceUnlock(&Device::_singleton);
 }
 
@@ -356,7 +356,7 @@ void ImageBuffer::PlatformDestruct() {
     if (ImageBufferData* companion = _data)
         delete companion;
     RtVideoDeviceLock(&Device::_singleton);
-    ListUnlink(this, _firstSurface, &ImageBuffer::_field50, &ImageBuffer::_field58);
+    ListUnlink(this, _firstSurface, &ImageBuffer::_nextSurface, &ImageBuffer::_prevSurface);
     RtVideoDeviceUnlock(&Device::_singleton);
 }
 

@@ -206,13 +206,13 @@ void BindIndexBuffer(Video::Context& context, const Video::IndexBuffer* buffer, 
     context._indexBuffer = buffer;
 }
 
-// The draw itself: `obj = ctx->_contextData; obj->vtable[12](obj, 0, rec->_f00,
-// rec->_f04, rec->_f08, rec->_f0c, last)` — `Context::DrawIndexed`
+// The draw itself: `obj = ctx->_contextData; obj->vtable[12](obj, 0, rec->_baseVertex,
+// rec->_vertexCount, rec->_startIndex, rec->_indexCount, last)` — `Context::DrawIndexed`
 // (0x1800f22.. , context.cpp: `ContextData::DrawIndexed`) inlined. SEVEN values —
 // two of them on the stack — and Ghidra's C output prints four.
 void IssueDraw(Video::Context& context, const Graphics::GraphicsMesh::TriangleList& rec,
                int32_t last) {
-    context.DrawIndexed(0, rec._f00, rec._f04, rec._f08, rec._f0c, last);
+    context.DrawIndexed(0, rec._baseVertex, rec._vertexCount, rec._startIndex, rec._indexCount, last);
 }
 
 }  // namespace
@@ -259,7 +259,7 @@ void MeshInstance::Draw(Video::Context& context, const Camera& camera,
     const GraphicsMesh::TriangleList& rec = level._triangleLists._data[sub];
 
     if (pass == 1) {
-        const int32_t boneNode = rec._f14;
+        const int32_t boneNode = rec._node;
 
         Math::Transform world;                     // 0x1c
 
@@ -319,7 +319,7 @@ void MeshInstance::Draw(Video::Context& context, const Camera& camera,
     // why it is loaded twice below rather than reused from `level`.
     {
         const GraphicsMesh::DetailLevel& l1 = DetailLevels(GetMesh().Get())[node];
-        const bool skinned = rec._f14 < 0;
+        const bool skinned = rec._node < 0;
         context.SetVertexBuffer(skinned ? &l1._skinVertexBuffer : &l1._vertexBuffer,
                                 0, 0, skinned ? 0x20 : 0x18);
 
@@ -371,7 +371,7 @@ void EdgeMeshInstance::Draw(Video::Context& context, const Camera& camera,
     const EdgeMesh* const mesh = _mesh.Get();
     const GraphicsMesh::TriangleList& rec =
         (edgePass ? mesh->_edgeLists : mesh->_triangleLists)._data[sub];
-    const int32_t boneNode = rec._f14;
+    const int32_t boneNode = rec._node;
 
     const MeshInstance* const poseSource = _followed;
 

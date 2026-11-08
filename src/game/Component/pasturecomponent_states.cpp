@@ -436,7 +436,7 @@ void PastureProduce(PastureComponent* self) {
                 // (0x140126a5c-0x140126ae2; the same retype as the cemetery's grave).
                 const uint8_t old = static_cast<uint8_t>(rec.terrainType);       // +0x29
                 const bool wasZoneless = ((1u << (old & 0x1f)) & Bits(PathBits::Zoneless)) != 0;   // old 5..8
-                map->field_0xA2 |= static_cast<uint8_t>(wasZoneless);
+                map->zonesStale |= static_cast<uint8_t>(wasZoneless);
                 rec.terrainType = PathType::Normal;
                 TerrainSidecar::NoteWrite(&rec);   // [terrain sidecar] mirror (missing until PERFXEXT)
                 CellStamp::NoteWrite(&rec);   // [AMBMEMO] cell write clock
@@ -481,7 +481,7 @@ void PastureProduce(PastureComponent* self) {
         }
         const int idx = static_cast<int>(ResourceCategory(produced));
         if (idx >= 0)
-            town->professionResources._data[idx]._field10 += perUnit;
+            town->professionResources._data[idx].producedCount += perUnit;
         if (mapOverlays) {
             // ext.map_overlays: livestock produce (wool, milk, eggs), at the pasture
             Ext::MapOverlays::OnProducedAt(produced, pastureEntity, perUnit);
@@ -708,7 +708,7 @@ uint64_t Map::StampCellRefs(int x, int y, int w, int h, ComponentDescription* re
     for (int64_t dx = 0; dx < w; ++dx) {
         for (int64_t dy = 0; dy < h; ++dy) {
             const int64_t cell = (dy + y) * dim + x + dx;
-            cells[cell].field_0x10 = ref;
+            cells[cell].lastGrownDescription = ref;
         }
     }
     return 0;

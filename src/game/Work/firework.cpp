@@ -6,7 +6,7 @@
 // Vtable: 0x1401612a0
 //
 // Fields:
-//   +0x48: int   _field48   -- max fire workers capacity
+//   +0x48: int   _maxFirefighters -- max fire workers capacity
 //   +0x50: Set   _citizens  -- the assigned citizens (root +0x50, count +0x58: the
 //                              number of currently assigned fire workers)
 //
@@ -78,7 +78,7 @@ static uint32_t WorldToCell(int gridSize, float x, float z) {
 // Slot4 (0x1400e9620): Fire suppression work assignment.
 //
 // Algorithm:
-// 1. Check if at capacity (_field48 >= _citizens._count)
+// 1. Check if at capacity (_maxFirefighters >= _citizens._count)
 // 2. Get citizen position, compute grid cell
 // 3. Call FireWork_helper_81d0 to find a burning entity in spiral
 // 4. Check pathfinding accessibility (FUN_140122be0/FUN_140122b00)
@@ -89,12 +89,12 @@ static uint32_t WorldToCell(int gridSize, float x, float z) {
 // ============================================================
 int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     // CheckPtr on the entity IBP at +0x10; its InteractComponent
-    InteractComponent* posCompIBP = field_10->FindComponent<InteractComponent>();
+    InteractComponent* posCompIBP = _entity->FindComponent<InteractComponent>();
 
-    // Check capacity: _field48 (max capacity) vs _citizens._count (assigned count)
+    // Check capacity: _maxFirefighters (max capacity) vs _citizens._count (assigned count)
     // Original: if ((int)param_1[9] <= (int)param_1[0xb]) return 1;
     // i.e. if max_capacity <= assigned_count, we're at capacity.
-    int32_t maxCap   = _field48;
+    int32_t maxCap   = _maxFirefighters;
     int32_t assigned = _citizens._count;
     if (maxCap <= assigned) {
         return 1;
@@ -127,7 +127,7 @@ int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     float destPos[3] = {0.0f, 0.0f, 0.0f};
 
     // Search for a burning entity (spiral search from citizen position)
-    int searchRadius = citizenComp->_if8;
+    int searchRadius = citizenComp->maxWaterForFireSearch;
     bool found = static_cast<uint8_t>(townMgr->FindWater(centerCell, searchRadius, srcPos, destPos)) != 0;
 
     if (!found) {
@@ -183,8 +183,8 @@ int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
     // Set up fire suppression action queue
     // Original: local_res8 = param_1[2]; local_88 = *(int**)param_2;
     // local_88 is REASSIGNED from mapGrid to citizen entity ptr here.
-    ComponentEntity* workEntityIBP = field_10.Get();
-    int priority = field_20;
+    ComponentEntity* workEntityIBP = _entity.Get();
+    int priority = _workId;
     CitizenComponent* citizenPtr = *citizenIBP;
     WorkAct_PerformWorkCopyCtor_ba9f0(
         &citizenPtr,
@@ -200,7 +200,7 @@ int FireWork::Execute(CitizenComponent** citizenIBP, System::Time* time) {
 
     // Set citizen flags
     citizenVal->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizenVal->field_0x30 = priority;
+    citizenVal->lastWorkId = priority;
     citizenVal->lastErrand = CitizenErrand::None;
 
     if (targetVal == citizenVal->profession && priority >= 0) {
@@ -437,7 +437,7 @@ int FireWork::Cleanup() {
 // non-trivial InternalBasePtr): RCX=this, RDX=retbuf.
 // ============================================================
 Profession** FireWork::GetTarget(Profession** retbuf) {
-    *retbuf = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    *retbuf = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
     return retbuf;
 }
 
@@ -467,7 +467,7 @@ void FireWork::Persist(IO::Stream& stream) {
 
     IO::Serializer ser(stream, 0);
     WorkBST_BST_Serialize_296b0(&_citizens, &ser);
-    ser.Serialize(_field48, nullptr);
+    ser.Serialize(_maxFirefighters, nullptr);
 }
 
 // ============================================================
@@ -487,13 +487,13 @@ int FireWork::GetPriority() {
 // Ctor — the bytes the tree's factory built (Work_GenericCtor): the Work base init,
 // the leaf fields zeroed. The stamps are the compiler's.
 // ============================================================
-FireWork::FireWork() : Work(), _field48(0), _field4C(0) {
+FireWork::FireWork() : Work(), _maxFirefighters(0), _pad4C(0) {
 }
 
 // 0x1400e9bd0: `MOV dword [RDI+0x48],EBX` -- a DWORD store; +0x4C keeps whatever
 // the allocation held (retail's).
 FireWork::FireWork(ComponentEntity* const* pEntityIBP, uint32_t capacity)
-    : Work(pEntityIBP), _field48(static_cast<int32_t>(capacity)) {
+    : Work(pEntityIBP), _maxFirefighters(static_cast<int32_t>(capacity)) {
 }
 
 // ============================================================

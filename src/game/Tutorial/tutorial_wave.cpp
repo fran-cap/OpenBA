@@ -124,7 +124,7 @@ void PlayerToolManager::TutorialTreeInsert(ComponentDescription* tutorialId,
 
     // Walk. The node is PinnedToolNode (Game/PlayerToolManager.h), keyed by
     // address.
-    PinnedToolNode* node = field_0x50.root;
+    PinnedToolNode* node = pinnedToolDialogs.root;
     while (node) {
         const void* nodeKey = node->key;
         if (key < nodeKey) { node = node->left; continue; }
@@ -142,7 +142,7 @@ void PlayerToolManager::TutorialTreeInsert(ComponentDescription* tutorialId,
     rec.active = 1;
     for (int i = 0; i < 7; ++i) rec._pad11[i] = 0;
 
-    Avl38SetInsert(&field_0x50, rec);   // 0x140014890
+    Avl38SetInsert(&pinnedToolDialogs, rec);   // 0x140014890
 }
 
 // ===========================================================================
@@ -313,7 +313,7 @@ void TutorialSetupDialog::OpenHighlightDialog(char checkExisting) {
     if (toolbarRef.resolved != nullptr) {
         GameUpdateLoop* gw = GameUpdateLoop::_singleton;
         CitizenBehavior* mgr = gw ? gw->m_citizenList : nullptr;
-        TemplateBucket* root = mgr ? mgr->field_0x160._root : nullptr;
+        TemplateBucket* root = mgr ? mgr->entitiesByTemplate._root : nullptr;
 
         const Object::External* key = TutWave_ExternalRefResolve(toolbarRef);
 

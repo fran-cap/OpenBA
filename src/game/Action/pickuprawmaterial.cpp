@@ -67,18 +67,18 @@ void PickupRawMaterial::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // The carrying citizen (+0x20)
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, CitizenComponent::TypeId())) {
-            _field20 = nullptr;
+    _citizen.InternalBasePtr::Serialize(ser);
+    if (!_citizen.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_citizen, CitizenComponent::TypeId())) {
+            _citizen = nullptr;
         }
     }
 
     // The raw-material pile entity (+0x28)
-    _field28.InternalBasePtr::Serialize(ser);
-    if (!_field28.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field28, ComponentEntity::TypeId())) {
-            _field28 = nullptr;
+    _pile.InternalBasePtr::Serialize(ser);
+    if (!_pile.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_pile, ComponentEntity::TypeId())) {
+            _pile = nullptr;
         }
     }
 }
@@ -97,20 +97,20 @@ int  PickupRawMaterial::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
 
     // The pile's RawMaterialComponent and its quantity
-    RawMaterialComponent* rawMaterial = _field28->FindComponent<RawMaterialComponent>();   // 0x1400223c0
+    RawMaterialComponent* rawMaterial = _pile->FindComponent<RawMaterialComponent>();   // 0x1400223c0
     int quantity = rawMaterial->quantity;
 
     // The pile's template
-    ComponentDescription* itemType = _field28->_description;
+    ComponentDescription* itemType = _pile->_description;
 
     // The StorageComponent on the citizen's entity
-    StorageComponent* storage = _field20->_entity->FindComponent<StorageComponent>();   // 0x140006270
+    StorageComponent* storage = _citizen->_entity->FindComponent<StorageComponent>();   // 0x140006270
 
     // Add the material to the storage
     storage->AddItem(itemType, quantity);   // 0x14012d000
 
     // Check the pile entity again, flag it for removal if not yet flagged
-    ComponentEntity* entityRef = _field28.Get();
+    ComponentEntity* entityRef = _pile.Get();
     EntityList* worldList = GameUpdateLoop::_singleton->m_entityList;
 
     if (entityRef != nullptr) {
@@ -138,11 +138,11 @@ int  PickupRawMaterial::AbstractImpl(ActionStack* actionStack) {
 bool PickupRawMaterial::GetTarget(ComponentEntity** param) {
     void* paramVal = *param;
 
-    if (_field28.Get() == paramVal) {
+    if (_pile.Get() == paramVal) {
         return true;
     }
 
-    return _field20->_entity.Get() == paramVal;
+    return _citizen->_entity.Get() == paramVal;
 }
 
 // ============================================================
@@ -156,8 +156,8 @@ bool PickupRawMaterial::GetTarget(ComponentEntity** param) {
 // create 0x140022c60 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 PickupRawMaterial::PickupRawMaterial()
-    : _field20(nullptr),
-      _field28(nullptr) {}
+    : _citizen(nullptr),
+      _pile(nullptr) {}
 
 // [3] 0x1400c99e0
 // [4] 0x1400c98d0

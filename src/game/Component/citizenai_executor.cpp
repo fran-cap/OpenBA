@@ -130,7 +130,7 @@ static inline void CallExit(Action* node, ActionStack* stack) {
 // ===========================================================================
 // B4 P2 CAI-2: no declaration outside this file; the stack is typed (Action.h ActionStack).
 extern "C" void CitizenAI_ActionFlush_c4bb0(ActionStack* param_1) {
-    Action* node = param_1->field_0x10.Get();
+    Action* node = param_1->completionAction.Get();
     if (node != nullptr) {
         do {
             node->_status = true;                                // node+0x18 = 1
@@ -138,9 +138,9 @@ extern "C" void CitizenAI_ActionFlush_c4bb0(ActionStack* param_1) {
             if (iVar1 != 1) break;
             node = node->_next.Get();                            // advance via node+0x10
         } while (node != nullptr);
-        param_1->field_0x10.DeletePtr();
+        param_1->completionAction.DeletePtr();
         // re-Ctor a default InternalBasePtr (null internal) and store into [stack+0x10]
-        param_1->field_0x10 = nullptr;
+        param_1->completionAction = nullptr;
     }
 }
 
@@ -354,8 +354,8 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     float pos[3] = { fx, fy, fz };
     const float mtEntryX = fx, mtEntryY = fy, mtEntryZ = fz;  // for movement trace
 
-    float fVar14 = self->field_0x3C;
-    float fVar10 = self->modelComponent->yaw - self->characterDescription->_f24;
+    float fVar14 = self->targetHeading;
+    float fVar10 = self->modelComponent->yaw - self->characterDescription->_headingOffset;
     float fVar13 = fVar14 - fVar10;
     // Exe .rdata math constants (exe_constants.h; values verified against the exe):
     // 0x140172220=180, 0x140172238=360, 0x1401720e4=0.1 (turn epsilon),
@@ -376,7 +376,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
         }
     }
     if (c1720e4 < fabs_f(fVar13)) {
-        float t = self->characterDescription->_slowSpeed;   // +0x28
+        float t = self->characterDescription->_turnFilter;   // +0x28
         fVar14 = (fVar13 + fVar10) * (uvScale - t) + t * fVar10;
         if (fVar14 <= c172220) {
             if (fVar14 < c1722a0) fVar14 = fVar14 + c172238;
@@ -398,11 +398,11 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     // builtin compiles to SQRTSS, which is correctly rounded, so this is bit-identical
     // and saves an indirect call per character per tick (1.4% of the phase).
     float speed = __builtin_sqrtf(dotOut);
-    speed = speed * self->field_0x38;
+    speed = speed * self->moveSpeedScale;
     if (0.0f < speed) {
-        float ax = speed * self->field_0x2C.x;
-        float ay = speed * self->field_0x2C.y;
-        float az = speed * self->field_0x2C.z;
+        float ax = speed * self->moveDirection.x;
+        float ay = speed * self->moveDirection.y;
+        float az = speed * self->moveDirection.z;
         // two Vector3 ctors in the original (locals), result folded into pos.
         pos[0] = fx + ax; pos[1] = fy + ay; pos[2] = fz + az;
         fx = pos[0]; fy = pos[1];
@@ -423,8 +423,8 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     uint32_t stillBefore[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
     if (StillPath::kEnabled && rootOnly != 0 && !(0.0f < speed)) {
         const CharacterDescription* stillDesc = self->characterDescription;
-        const float yawOut = fVar14 + stillDesc->_f24;
-        const float zOut = StillPath::ZOut(stillDesc->_b3c, stillDesc->_f40, fz);
+        const float yawOut = fVar14 + stillDesc->_headingOffset;
+        const float zOut = StillPath::ZOut(stillDesc->_forceHeight, stillDesc->_height, fz);
         const Math::Quaternion& rot = model->transform.rotation;
         if (StillPath::IsFixedPoint(rot.x, rot.y, rot.z, rot.w, fz, model->yaw, yawOut, zOut,
                                     s_stillMemo.Find(self->characterIndex)) &&
@@ -468,7 +468,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     }
 
     if (!blockedHandled) {
-        if (!self->characterDescription->_b3c) {
+        if (!self->characterDescription->_forceHeight) {
             if (rootOnly == 0) {
                 float triOut[4] = { 0, 0, 0, 0 };
                 float* pf = nullptr;
@@ -499,7 +499,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
                 // pos.z = Scalar(gridZ).Max(desc+0x44)  — clamp terrain height to the
                 // description's min. Const-member by-value ABI: (this=gridZ, retbuf, other).
                 float maxThis  = pf[2];
-                float maxOther = self->characterDescription->_f44;
+                float maxOther = self->characterDescription->_minHeight;
                 float maxRet   = maxThis;
                 fx = pf[0]; fy = pf[1];
                 InlScalarMax(&maxThis, &maxRet, &maxOther);   // was s_slot_max (Runtime call)
@@ -507,13 +507,13 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
                 pos[0] = fx; pos[1] = fy;
             }
         } else {
-            pos[2] = self->characterDescription->_f40;
+            pos[2] = self->characterDescription->_height;
             pos[0] = fx; pos[1] = fy;
         }
     }
 
     // LAB_14010981e:
-    fVar14 = fVar14 + self->characterDescription->_f24;
+    fVar14 = fVar14 + self->characterDescription->_headingOffset;
     // deg->half-angle: 0x1401720cc=0.0174533 (pi/180) * 0x140172114=0.5 (half angle for
     // the (-sin,cos) heading pair).
     float c1720cc = RdataF(kRdata_1401720cc);
@@ -582,7 +582,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
     // after the pinned region so the literal copies (copy_drift_test.cpp) stay the faithful tail; it runs
     // before the transform reaches the Geometry. One null test while no lake holds walkable ice.
     if (Ext::WalkOnIce::g_surface != nullptr && rootOnly == 0 && !blockedHandled &&
-        !self->characterDescription->_b3c) {
+        !self->characterDescription->_forceHeight) {
         float& z = model->transform.translation.z;
         z = Ext::WalkOnIce::OnIce(*gameWorld, pos[0], pos[1], z);
     }
@@ -624,7 +624,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
             // citizen moves but appliedYaw never changes, the facing pipeline is
             // not turning the mesh; if desiredFacing changes but appliedYaw lags,
             // it is the smoothing (desc+0x28). model is the ModelComponent (self+0x68).
-            float desiredFacing = self->field_0x3C;
+            float desiredFacing = self->targetHeading;
             float appliedYaw    = model ? model->yaw : 0.0f;
             // Log every move, plus a heartbeat every 240 calls even when static.
             if (moved || (s_calls % 240) == 0) {
@@ -634,7 +634,7 @@ extern "C" void CharacterComponent_MoveTick_1094c0(CharacterComponent* self, con
                     "facing(want=%.3f applied=%.3f)\n",
                     slot, (void*)self, self->characterIndex,
                     pos[0], pos[1], pos[2], dx, dy, dz, speed,
-                    self->field_0x38,
+                    self->moveSpeedScale,
                     self->actionStack.current,
                     desiredFacing, appliedYaw);
                 fflush(stderr);

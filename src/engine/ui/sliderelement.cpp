@@ -94,10 +94,10 @@ void QueueEvent(UI::SliderElement* self, UI::UserInterface* ui,
     ev.dialog   = dialog->Get();
     ev.element  = self;
     ev.eventId  = UI::EventId::SliderChanged;
-    ev.arg14    = self->_elementId;
-    ev.arg18    = state.mouseX;
-    ev.arg1C    = state.mouseY;
-    ev.arg20    = 0;
+    ev.elementId    = self->_elementId;
+    ev.mouseX    = state.mouseX;
+    ev.mouseY    = state.mouseY;
+    ev.value    = 0;
     ev.userData = nullptr;
     rtcoll::RtColl_ArraySetSizeFill_180033690(&ui->_events, ui->_events._size + 1, &ev);
 }
@@ -318,7 +318,7 @@ void SliderElement::Update(const System::Time& time, UserInterface* ui,
     }
 
     bool doDrag = true;
-    if ((flags & UI::kElementFlagPressed) != 0 && state.b04 != 0) {       // +0x04: the release
+    if ((flags & UI::kElementFlagPressed) != 0 && state.leftReleased != 0) {       // +0x04: the release
         SetFlags(this, flags & ~UI::kElementFlagPressed);
         if (isNear) static_cast<UI::UserInterface*>(ui)->Play(5);
         else        doDrag = false;

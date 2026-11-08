@@ -50,7 +50,7 @@ public:
     uint8_t _pad39[3];                          // +0x39 never written by the ctor
     int32_t _habitatDensity;                    // +0x3c a habitable cell's density (default 4)
     int32_t _densityGrowth;                     // +0x40 added to every smoothed density per smoothing pass (default 1)
-    int32_t _i44;                               // +0x44 (default 1)
+    int32_t _populationDecreasePerHarvest;                               // +0x44 (default 1)
     bool _rescan;                               // +0x48 Update rescans the habitability grid (default 0)
     uint8_t _pad49[7];                          // +0x49 never written by the ctor
     ComponentDescription* _herdTemplate;        // +0x50 ExternalPtr<ComponentDescription> (Serialize 0x1400548b2 -> 0x140002340)
@@ -68,6 +68,6 @@ static_assert(offsetof(PopulationDescription, _blockingTerrain) == 0x34, "Popula
 static_assert(offsetof(PopulationDescription, _blockedByEntity) == 0x38, "PopulationDescription::_blockedByEntity @ +0x38");
 static_assert(offsetof(PopulationDescription, _habitatDensity) == 0x3c, "PopulationDescription::_habitatDensity @ +0x3c");
 static_assert(offsetof(PopulationDescription, _densityGrowth) == 0x40, "PopulationDescription::_densityGrowth @ +0x40");
-static_assert(offsetof(PopulationDescription, _i44) == 0x44, "PopulationDescription::_i44 @ +0x44");
+static_assert(offsetof(PopulationDescription, _populationDecreasePerHarvest) == 0x44, "PopulationDescription::_populationDecreasePerHarvest @ +0x44");
 static_assert(offsetof(PopulationDescription, _rescan) == 0x48, "PopulationDescription::_rescan @ +0x48");
 static_assert(offsetof(PopulationDescription, _herdTemplate) == 0x50, "PopulationDescription::_herdTemplate @ +0x50");

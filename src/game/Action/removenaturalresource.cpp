@@ -68,23 +68,23 @@ void RemoveNaturalResource::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // The working citizen (+0x20)
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, CitizenComponent::TypeId())) {
-            _field20 = nullptr;
+    _citizen.InternalBasePtr::Serialize(ser);
+    if (!_citizen.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_citizen, CitizenComponent::TypeId())) {
+            _citizen = nullptr;
         }
     }
 
     // The natural-resource entity (+0x28)
-    _field28.InternalBasePtr::Serialize(ser);
-    if (!_field28.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field28, ComponentEntity::TypeId())) {
-            _field28 = nullptr;
+    _resource.InternalBasePtr::Serialize(ser);
+    if (!_resource.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_resource, ComponentEntity::TypeId())) {
+            _resource = nullptr;
         }
     }
 
     // Serialize harvest flag (+0x30)
-    ser.Serialize(_field30, nullptr);
+    ser.Serialize(_harvestFlag, nullptr);
 }
 
 // ============================================================
@@ -96,7 +96,7 @@ int  RemoveNaturalResource::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
 
     // The resource entity's NaturalResourceComponent (+0x28)
-    NaturalResourceComponent* nrComp = _field28->FindComponent<NaturalResourceComponent>();   // 0x1400052c0
+    NaturalResourceComponent* nrComp = _resource->FindComponent<NaturalResourceComponent>();   // 0x1400052c0
 
     // B6 (14d G71): 0x1400cab10 reads the found component's +0x18 with no test (CheckPtr,
     // then obj = [local_res8+0x18]); the old guard's cause, the swapped
@@ -110,27 +110,27 @@ int  RemoveNaturalResource::AbstractImpl(ActionStack* actionStack) {
 
     // The resource's profession, against the town's default (ProfessionList +0x30)
     void* ownerRef = natResDesc->_profession;
-    Profession* townOwner = GameUpdateLoop::_singleton->m_professionList->field_0x30;
+    Profession* townOwner = GameUpdateLoop::_singleton->m_professionList->laborerProfession;
 
     if (ownerRef != nullptr && ownerRef != townOwner) {
         // Not harvestable unless the citizen has the resource's profession
-        if (_field20->profession != ownerRef) {
+        if (_citizen->profession != ownerRef) {
             nrComp->harvestable = false;
         }
     }
 
     // Mature when the citizen's education has reached its description's maximum
-    CitizenComponent* citizen = _field20.Get();
+    CitizenComponent* citizen = _citizen.Get();
     int threshold = citizen->description->maxEducation;
     int growthValue = citizen->education;
 
     nrComp->mature = (threshold <= growthValue);
 
     // The citizen's workplace (+0x248)
-    ComponentEntity* workEntityIBP = _field20->workplace.Get();
+    ComponentEntity* workEntityIBP = _citizen->workplace.Get();
 
     // Call the removal helper
-    nrComp->RemoveResource(&workEntityIBP, _field30);   // 0x1401260f0
+    nrComp->RemoveResource(&workEntityIBP, _harvestFlag);   // 0x1401260f0
 
     return 0;
 }
@@ -140,7 +140,7 @@ int  RemoveNaturalResource::AbstractImpl(ActionStack* actionStack) {
 // Clears the "in use" bit (bit 20) of the resource's NaturalResourceComponent flags.
 // ============================================================
 void RemoveNaturalResource::CheckEntity() {
-    NaturalResourceComponent* nrComp = _field28->FindComponent<NaturalResourceComponent>();   // 0x1400052c0
+    NaturalResourceComponent* nrComp = _resource->FindComponent<NaturalResourceComponent>();   // 0x1400052c0
 
     // B6 (14d G71): 0x1400caaa0 reads [comp+0x20] with no test.
     uint32_t flagsOld = nrComp->_flags;
@@ -163,11 +163,11 @@ void RemoveNaturalResource::CheckEntity() {
 bool RemoveNaturalResource::GetTarget(ComponentEntity** param) {
     void* target = *param;
 
-    if (target == _field28.Get()) {
+    if (target == _resource.Get()) {
         return true;
     }
 
-    return _field20->_entity.Get() == target;
+    return _citizen->_entity.Get() == target;
 }
 
 // ============================================================
@@ -181,9 +181,9 @@ bool RemoveNaturalResource::GetTarget(ComponentEntity** param) {
 // create 0x140022f70 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 RemoveNaturalResource::RemoveNaturalResource()
-    : _field20(nullptr),
-      _field28(nullptr),
-      _field30(false),
+    : _citizen(nullptr),
+      _resource(nullptr),
+      _harvestFlag(false),
       _pad31{} {}
 
 // [3] 0x1400cac50
@@ -210,8 +210,8 @@ RemoveNaturalResource::RemoveNaturalResource()
 // 0x1400cadf0: +0x20 = *param_3 ; +0x28 = *param_2 ; +0x30 = param_4.
 RemoveNaturalResource::RemoveNaturalResource(ComponentEntity* const* resource, CitizenComponent* const* citizen,
                                              bool flag)
-    : _field20(*citizen),
-      _field28(*resource),
-      _field30(flag) {}
+    : _citizen(*citizen),
+      _resource(*resource),
+      _harvestFlag(flag) {}
 
 DEFINE_EXE_TYPE(RemoveNaturalResource, "Action")

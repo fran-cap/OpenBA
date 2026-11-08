@@ -296,7 +296,7 @@ static int Cemetery_CountBurials_6dd0(const CemeteryComponent* cemetery) {
 // file-local, typed): sum the int series `series` of the +0x150 table over the
 // [first..last] index window, two columns at a time.
 static int CitizenBehavior_SumSeries_0f20(const CitizenBehavior* cb, int series, int first, int last) {
-    const Collection::Array<int32_t>& row = cb->field_0x150._data[series];
+    const Collection::Array<int32_t>& row = cb->statHistory._data[series];
     if (first < 0) first = 0;
     int rowCount = row.GetSize();
     if (rowCount <= last) last = rowCount - 1;
@@ -360,10 +360,10 @@ static uint32_t Helper_a2a0(const Object::External* ext) {
     for (int i = 0; i < n; i++) {
         const CitizenComponent* c = cb->citizens._data[i].Get();
         if (IsAdultNotInSchool(c)) {
-            int homeId = c->field_0xA8;
-            int wantId = prof->_i54;
+            int homeId = c->toolGrade;
+            int wantId = prof->_useValue;
             if (homeId == wantId) { count++; continue; }
-            if (c->field_0xA8 < 0) count++;
+            if (c->toolGrade < 0) count++;
         }
     }
     return (uint32_t)count;
@@ -380,7 +380,7 @@ static uint32_t Helper_a150(const Object::External* ext) {
     int count = 0;
     for (int i = 0; i < n; i++) {
         const CitizenComponent* c = cb->citizens._data[i].Get();
-        int state = c->field_0x1E0;
+        int state = c->clothingType;
         if ((((state - 2U) & 0xfffffffd) == 0 && (prof->_flags & 0x8000) != 0) ||
             ((state == 1 || state == 4) && (prof->_flags & 0x8000) == 0)) {
             count++;
@@ -492,11 +492,11 @@ static uint32_t Helper_9b80() {
 // list; count those whose SelectDescription +0x40 == `wantState`.
 static int LimitedResourceCount(uint32_t wantState) {
     CitizenBehavior* cb = Citizens();
-    int n = cb->field_0x120._size;
+    int n = cb->availableFarmTypes._size;
     int count = 0;
     for (int i = 0; i < n; i++) {
-        SelectDescription* comp = FindSubDescription<SelectDescription>(cb->field_0x120._data[i]);
-        if (comp && comp->_u40 == wantState) count++;
+        SelectDescription* comp = FindSubDescription<SelectDescription>(cb->availableFarmTypes._data[i]);
+        if (comp && comp->_group == wantState) count++;
     }
     return count;
 }
@@ -538,7 +538,7 @@ uint32_t StatGoal::CountDistinctTracked(const Object::External* ext) const {
         // BST lookup at +0x100 keyed by regionKey -> bucket count.
         int bucketCount = 0;
         {
-            ProfessionBucket* node = cb->field_0x100._root;
+            ProfessionBucket* node = cb->workplacesByProfession._root;
             while (node) {
                 if (regionKey < node->element.key) node = node->left;
                 else if (regionKey <= node->element.key) { bucketCount = node->element.entities._size; break; }
@@ -547,7 +547,7 @@ uint32_t StatGoal::CountDistinctTracked(const Object::External* ext) const {
         }
         for (int bi = 0; bi < bucketCount; bi++) {
             // re-lookup node, then bucket entry [bi].
-            ProfessionBucket* node = cb->field_0x100._root;
+            ProfessionBucket* node = cb->workplacesByProfession._root;
             ProfessionBucket* match = nullptr;
             while (node) {
                 if (regionKey < node->element.key) node = node->left;
@@ -626,7 +626,7 @@ uint32_t StatGoal::SumTrackedForProfession(const Object::External* ext) const {
     // BST at +0x100 keyed by `key` -> bucket count.
     int bucketCount = 0;
     {
-        ProfessionBucket* node = cb->field_0x100._root;
+        ProfessionBucket* node = cb->workplacesByProfession._root;
         while (node) {
             if (key < node->element.key) node = node->left;
             else if (key <= node->element.key) { bucketCount = node->element.entities._size; break; }
@@ -635,7 +635,7 @@ uint32_t StatGoal::SumTrackedForProfession(const Object::External* ext) const {
     }
     int total = 0;
     for (int bi = 0; bi < bucketCount; bi++) {
-        ProfessionBucket* node = cb->field_0x100._root;
+        ProfessionBucket* node = cb->workplacesByProfession._root;
         while (node) {
             if (key < node->element.key) node = node->left;
             else { if (key <= node->element.key) break; node = node->right; }
@@ -673,7 +673,7 @@ static uint32_t Helper_86e0(const Object::External* ext) {
 
     int bucketCount = 0;
     {
-        ProfessionBucket* node = cb->field_0x100._root;
+        ProfessionBucket* node = cb->workplacesByProfession._root;
         while (node) {
             if (key < node->element.key) node = node->left;
             else if (key <= node->element.key) { bucketCount = node->element.entities._size; break; }
@@ -682,7 +682,7 @@ static uint32_t Helper_86e0(const Object::External* ext) {
     }
     int total = 0;
     for (int bi = 0; bi < bucketCount; bi++) {
-        ProfessionBucket* node = cb->field_0x100._root;
+        ProfessionBucket* node = cb->workplacesByProfession._root;
         while (node) {
             if (key < node->element.key) node = node->left;
             else { if (key <= node->element.key) break; node = node->right; }
@@ -710,11 +710,11 @@ uint32_t StatGoal::ReadSubTypeEntry() const {
 // is null, returns the raw count.
 static uint32_t Helper_85f0(const Object::External* ext) {
     CitizenBehavior* cb = Citizens();
-    int n = cb->field_0x20._size;
+    int n = cb->residences._size;
     if (ext == nullptr) return (uint32_t)n;
     int count = 0;
     for (int i = 0; i < n; i++) {
-        if (cb->field_0x20._data[i]->_description == ext) count++;
+        if (cb->residences._data[i]->_description == ext) count++;
     }
     return (uint32_t)count;
 }
@@ -732,7 +732,7 @@ static DestroyComponent* FinishedStanding(ComponentEntity* entRef) {
         done = true;
     } else {
         const BuildDescription* desc = AsType<BuildDescription>(work->_description);
-        int needed = desc->_i30 * work->costMultiplier;   // no test of the BuildDescription narrow
+        int needed = desc->_workRequired * work->costMultiplier;   // no test of the BuildDescription narrow
         done = (needed <= work->laborProgress);
     }
     if (!done) return nullptr;
@@ -757,7 +757,7 @@ static uint32_t Helper_81b0(const Object::External* ext) {
     // BST at +0x160 keyed by keyObj -> bucket count.
     int bucketCount = 0;
     {
-        TemplateBucket* node = cb->field_0x160._root;
+        TemplateBucket* node = cb->entitiesByTemplate._root;
         while (node) {
             if (keyObj < node->element.key) node = node->left;
             else if (keyObj <= node->element.key) { bucketCount = node->element.entities._size; break; }
@@ -766,7 +766,7 @@ static uint32_t Helper_81b0(const Object::External* ext) {
     }
     int result = 0;
     for (int bi = 0; bi < bucketCount; bi++) {
-        TemplateBucket* node = cb->field_0x160._root;
+        TemplateBucket* node = cb->entitiesByTemplate._root;
         ComponentEntity* entRef = nullptr;
         while (node) {
             if (keyObj < node->element.key) node = node->left;
@@ -790,7 +790,7 @@ static uint32_t Helper_7cf0(const Object::External* ext) {
 
     int bucketCount = 0;
     {
-        TemplateBucket* node = cb->field_0x160._root;
+        TemplateBucket* node = cb->entitiesByTemplate._root;
         while (node) {
             if (keyObj < node->element.key) node = node->left;
             else if (keyObj <= node->element.key) { bucketCount = node->element.entities._size; break; }
@@ -799,7 +799,7 @@ static uint32_t Helper_7cf0(const Object::External* ext) {
     }
     int result = 0;
     for (int bi = 0; bi < bucketCount; bi++) {
-        TemplateBucket* node = cb->field_0x160._root;
+        TemplateBucket* node = cb->entitiesByTemplate._root;
         ComponentEntity* entRef = nullptr;
         while (node) {
             if (keyObj < node->element.key) node = node->left;
@@ -835,7 +835,7 @@ uint32_t StatGoal::SumStorageAmounts(const Object::External* ext) const {
     // A flat array of the three lists' entities: +0x00, +0x10, +0x30.
     int total = 0;
     {
-        int c0 = cb->field_0x00._size, c1 = cb->field_0x10._size, c2 = cb->field_0x30._size;
+        int c0 = cb->storageLocations._size, c1 = cb->marketLocations._size, c2 = cb->tradePosts._size;
         total = c0 + c1 + c2;
     }
     ComponentEntity** gathered = nullptr;
@@ -844,12 +844,12 @@ uint32_t StatGoal::SumStorageAmounts(const Object::External* ext) const {
     }
     int gi = 0;
     if (gathered) {
-        int c0 = cb->field_0x00._size;
-        for (int i = 0; i < c0; i++) gathered[gi++] = cb->field_0x00._data[i].Get();
-        int c1 = cb->field_0x10._size;
-        for (int i = 0; i < c1; i++) gathered[gi++] = cb->field_0x10._data[i].Get();
-        int c2 = cb->field_0x30._size;
-        for (int i = 0; i < c2; i++) gathered[gi++] = cb->field_0x30._data[i].Get();
+        int c0 = cb->storageLocations._size;
+        for (int i = 0; i < c0; i++) gathered[gi++] = cb->storageLocations._data[i].Get();
+        int c1 = cb->marketLocations._size;
+        for (int i = 0; i < c1; i++) gathered[gi++] = cb->marketLocations._data[i].Get();
+        int c2 = cb->tradePosts._size;
+        for (int i = 0; i < c2; i++) gathered[gi++] = cb->tradePosts._data[i].Get();
     }
 
     int result = 0;
@@ -893,7 +893,7 @@ uint32_t StatGoal::StatValue(uint32_t statType, const Object::External* ext) con
     case 0xa:  return Helper_9c80(ext);
     case 0xb:  return Helper_9c10(ext);
     case 0xc:  return Helper_9b80();
-    case 0xd:  return (uint32_t)loop->m_citizenList->field_0x1AC;
+    case 0xd:  return (uint32_t)loop->m_citizenList->totalTradeValue;
     case 0xe:  return SumStorageAmounts(ext);
     case 0xf:  return Helper_9560();
     case 0x10: return Helper_9470();
@@ -908,7 +908,7 @@ uint32_t StatGoal::StatValue(uint32_t statType, const Object::External* ext) con
     case 0x19: return Helper_81b0(ext);
     case 0x1a: return (uint32_t)loop->m_dayCounter->year;
     case 0x1b: return (uint32_t)loop->m_mapSize;
-    case 0x1c: return (uint32_t)loop->m_citizenList->field_0x1B0;
+    case 0x1c: return (uint32_t)loop->m_citizenList->totalNomadsAccepted;
     case 0x1d: return Helper_7cf0(ext);
     default:   return 0;
     }

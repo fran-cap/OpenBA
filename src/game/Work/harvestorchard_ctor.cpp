@@ -34,7 +34,7 @@
 namespace {
 // 0x140005440 is WorkAcc_FindComponent_5440 (Work/exe_bodies.h), called by name (B3R).
 // 0x14000a590 (Array<bool>::SetSize) is the exe-side Collection::Array<T>
-// monomorphisation: `_field58.SetSize` below.
+// monomorphisation: `_slotsAvailable.SetSize` below.
 // ENDGAME B.3.8: the file-level lazy Resolve() is gone (B38 D7) — Work_Ctor25 is the
 // base ctor Work(void*), the two stamps are the compiler's (the old AutoPickupWork
 // stamp read 0x140161380, an RTTI descriptor, and was always skipped), and the finder
@@ -47,25 +47,25 @@ namespace {
 // reads the pointer once, so passing the caller's IBP is the same read.
 HarvestOrchard::HarvestOrchard(ComponentEntity* const* entityIBP) : AutoPickupWork(entityIBP) {
     OrchardDiag_NoteHarvestConstructed();   // the port's diagnostic counter (no-op when off)
-    // +0x48 / +0x50: the `_cells` member's ctor zeroes the set, then `_field58`'s ctor
+    // +0x48 / +0x50: the `_cells` member's ctor zeroes the set, then `_slotsAvailable`'s ctor
     // zeroes +0x58 / +0x60 (retail 0x1400ee0ae..0x1400ee0b8, under its EH state).
 
     // The entity's OrchardComponent (0x140005440)
     // B6 (14d G47): 0x1400ee0df / 0x1400ee0e4 read the orchard's +0x58 with no test; the
     // loop (0x1400ee100-0x1400ee137) reads +0x50 and the work item's +0x58 each pass with
     // no test of the orchard, the byte array or the slot array.
-    OrchardComponent* orchard = field_10->FindComponent<OrchardComponent>();
+    OrchardComponent* orchard = _entity->FindComponent<OrchardComponent>();
 
     // 0x14000a590 == Collection::Array<bool>::SetSize (no tail write: every slot is
     // written by the loop below).
-    _field58.SetSize(orchard->slotCount);
+    _slotsAvailable.SetSize(orchard->slotCount);
 
     // One byte per orchard slot: 1 = there is a tree here to pick, 0 = hole. Retail
     // re-runs CheckPtr on the orchard IBP every iteration and loops on the WORK item's
     // own count (+0x60) — the value the resize just produced — not the component's.
-    for (int i = 0; i < _field58._size; ++i) {
+    for (int i = 0; i < _slotsAvailable._size; ++i) {
         OrchardSlot* slots = orchard->slots;
-        bool* base = _field58._data;
+        bool* base = _slotsAvailable._data;
         base[i] = (slots[i].tree != nullptr) ? 1 : 0;
     }
 }

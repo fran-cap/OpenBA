@@ -125,7 +125,7 @@ Video::Device** DeviceSingletonSlot() {
 // The simplest of the five, and the only one that calls no unexported internal
 // at all: two states, one exported callee.
 //
-//   state 0  point `_string20` at the selected save's name (the refcount idiom,
+//   state 0  point `_operationSaveName` at the selected save's name (the refcount idiom,
 //            skipped entirely when the two pointers are already equal), ask
 //            IO::Persistence to begin the delete, advance to state 1.
 //   state 1  unconditionally finish: clear the operation, reset the timer to
@@ -156,9 +156,9 @@ void Save::SaveLoad::UpdateDelete() {
         // holds this exact pointer, retail skips BOTH halves of the idiom, so
         // the refcount is not bumped and not dropped: String::operator=
         // (0x1800c9810), inlined. The index is sign-extended (MOVSXD).
-        _string20 = _saves._data[_selectedIndex].name;
+        _operationSaveName = _saves._data[_selectedIndex].name;
 
-        PersistenceSingleton()->BeginDelete(_string20);
+        PersistenceSingleton()->BeginDelete(_operationSaveName);
 
         _progress = Progress::DeleteFinish;
         return;
@@ -1042,19 +1042,19 @@ void Save::SaveLoad::UpdateSaveTail() {
         // ENDGAME B.3.7 B2: a direct member call (was an RT_EXPORT_ONCE
         // door). The returned String lands in `generated` exactly as
         // retail's hidden slot does — born at refcount 1, nothing added —
-        // is String::operator='d (0x1800c9810) into _string20 and released
+        // is String::operator='d (0x1800c9810) into _operationSaveName and released
         // as it leaves the scope.
         System::String generated = GetAutoSaveName();
-        _string20 = generated;
+        _operationSaveName = generated;
     } else {
         const SaveInfo& row = _saves._data[sel];
         if (row.saveIndex >= 0) {
-            _string20 = row.name;
+            _operationSaveName = row.name;
         } else {
             // ENDGAME B.3.7 B2: a direct member call (was an RT_EXPORT_ONCE
             // door); the returned String lands in `generated` as above.
             System::String generated = GenerateSaveName();
-            _string20 = generated;
+            _operationSaveName = generated;
         }
     }
 
@@ -1075,7 +1075,7 @@ void Save::SaveLoad::UpdateSaveTail() {
     ::IO::Persistence* persistence = PersistenceSingleton();
     g_extSaveQueued = false;   // NOT RETAIL: fix.save_failure_notice's state-2 read
     if (!persistence->_worker.IsWorking()) {
-        System::Filename filename = persistence->GetSaveFilename(_string20);
+        System::Filename filename = persistence->GetSaveFilename(_operationSaveName);
         RtIo_PersistenceWorker_EnqueueSave(&persistence->_worker,
                                            &filename.AsString(), 2, blocks);
         g_extSaveQueued = true;
@@ -1311,7 +1311,7 @@ using LoadMetaDataFn = void (*)(SaveLoad* self, const char** description,
 //   VERIFIED, and these are real, changing predictions on every real pass:
 //     * the STATE MACHINE itself — every `_progress` transition, in every
 //       state, including state 2's two-way exit and state 5's time gate;
-//     * the cursor `field38`, both its reset in state 1 and every increment
+//     * the cursor `_metadataCursor`, both its reset in state 1 and every increment
 //       state 2 and state 4 make;
 //     * the worker handshake words at Persistence+0x48/+0x4c in state 0;
 //     * state 5's four-field reset, including the `System::Time(0.0f)`
@@ -1567,7 +1567,7 @@ void Save::SaveLoad::UpdateList() {
             }
         }
 
-        field38   = 0;   // the metadata cursor
+        _metadataCursor   = 0;   // the metadata cursor
         _progress = Progress::ListNextRow;
         return;
     }
@@ -1575,20 +1575,20 @@ void Save::SaveLoad::UpdateList() {
     // ---- state 2 -----------------------------------------------------------
     if (progress == Progress::ListNextRow) {
         const int32_t count = _saves._size;
-        if (static_cast<int32_t>(field38) < count) {
+        if (static_cast<int32_t>(_metadataCursor) < count) {
             const SaveInfo* base = _saves._data;
             for (;;) {
-                const int32_t at = static_cast<int32_t>(field38);
+                const int32_t at = static_cast<int32_t>(_metadataCursor);
                 // saveIndex >= 0 -> a real save, stop here and load it.
                 // saveIndex <  0 -> the blank "new save" row; step over it.
                 if (base[at].saveIndex >= 0) break;
                 const int32_t next = at + 1;
-                field38 = static_cast<uint32_t>(next);   // skipping a row with no save
+                _metadataCursor = static_cast<uint32_t>(next);   // skipping a row with no save
                 if (next >= count) break;
             }
         }
 
-        const int32_t at = static_cast<int32_t>(field38);
+        const int32_t at = static_cast<int32_t>(_metadataCursor);
         if (at == count) {
             _progress = Progress::ListFinish;   // list complete
             return;
@@ -1613,7 +1613,7 @@ void Save::SaveLoad::UpdateList() {
             // ENDGAME B.3.7 B2: a direct member call (was an RT_EXPORT_ONCE door).
             block = _embeddedState.SetupLoad();
 
-            const SaveInfo& row = _saves._data[static_cast<int32_t>(field38)];
+            const SaveInfo& row = _saves._data[static_cast<int32_t>(_metadataCursor)];
             persistence->BeginLoad(row.name, 1, &block);
         }
         _progress = Progress::ListReadRowMeta;
@@ -1622,7 +1622,7 @@ void Save::SaveLoad::UpdateList() {
 
     // ---- state 4 -----------------------------------------------------------
     if (progress == Progress::ListReadRowMeta) {
-        const int32_t at  = static_cast<int32_t>(field38);
+        const int32_t at  = static_cast<int32_t>(_metadataCursor);
         SaveInfo&     row = _saves._data[at];
 
 
@@ -1641,12 +1641,12 @@ void Save::SaveLoad::UpdateList() {
 
                 row.SetThumbnail(pixels, w, h);
 
-                // Retail RE-READS field38 and _savesData here (0x1800c22e8)
+                // Retail RE-READS _metadataCursor and _savesData here (0x1800c22e8)
                 // rather than reusing `row`: SetThumbnail can run arbitrary
                 // code. Pointer compare, release, adopt, AddRef:
                 // String::operator= (0x1800c9810), inlined.
-                _saves._data[static_cast<int32_t>(field38)].description = description;
-                _saves._data[static_cast<int32_t>(field38)].field44 = field44;
+                _saves._data[static_cast<int32_t>(_metadataCursor)].description = description;
+                _saves._data[static_cast<int32_t>(_metadataCursor)].formatVersion = field44;
 
                 // The by-value String LoadMetaData filled is ours to drop: its
                 // destructor, as it leaves this scope.
@@ -1663,10 +1663,10 @@ void Save::SaveLoad::UpdateList() {
                 // Pointer compare, release, adopt, AddRef: String::operator=
                 // (0x1800c9810), inlined; the temporary is released as it
                 // leaves this scope.
-                _saves._data[static_cast<int32_t>(field38)].description = empty;
+                _saves._data[static_cast<int32_t>(_metadataCursor)].description = empty;
             }
 
-            _saves._data[static_cast<int32_t>(field38)].field44 = 0;
+            _saves._data[static_cast<int32_t>(_metadataCursor)].formatVersion = 0;
 
             // Three independent reads of the sprite dimensions — see point 5.
             const int32_t w1 = _saveSprite.Width();
@@ -1690,10 +1690,10 @@ void Save::SaveLoad::UpdateList() {
             const int32_t w3 = _saveSprite.Width();
             const int32_t h3 = _saveSprite.Height();
             // ENDGAME B.3.7 B2: a direct member call (was a by-address door).
-            _saves._data[static_cast<int32_t>(field38)].SetThumbnail(pixels, w3, h3);
+            _saves._data[static_cast<int32_t>(_metadataCursor)].SetThumbnail(pixels, w3, h3);
         }
 
-        field38 = field38 + 1;   // next row
+        _metadataCursor = _metadataCursor + 1;   // next row
         _progress = Progress::ListNextRow;
         return;
     }

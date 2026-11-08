@@ -33,13 +33,13 @@ public:
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x140042680
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    Object::InternalPtr<CitizenComponent> _field20;   // +0x20 the citizen (Persist checks CitizenComponent)
-    int32_t   _field28;          // +0x28 tool id (-1 = the carried resource)
+    Object::InternalPtr<CitizenComponent> _citizen;   // +0x20 the citizen (Persist checks CitizenComponent)
+    int32_t   _toolId;          // +0x28 tool id (-1 = the carried resource)
     uint8_t   _pad2C[4];         // +0x2C padding
 };
 
 static_assert(sizeof(ShowTool) == 0x30, "ShowTool is 0x30 (create 0x1400013b0 MemAlloc)");
 static_assert(offsetof(ShowTool, _pad2C) == 0x2C, "ShowTool::_pad2C");
 static_assert(alignof(ShowTool) == 8, "ShowTool is 8-aligned");
-static_assert(offsetof(ShowTool, _field20) == 0x20, "ShowTool +0x20");
-static_assert(offsetof(ShowTool, _field28) == 0x28, "ShowTool +0x28");
+static_assert(offsetof(ShowTool, _citizen) == 0x20, "ShowTool +0x20");
+static_assert(offsetof(ShowTool, _toolId) == 0x28, "ShowTool +0x28");

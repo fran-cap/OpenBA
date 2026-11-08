@@ -320,8 +320,8 @@ uint8_t PlacementTool::GetPlacement(int* param_2, int* param_3, int* param_4,
     const float yawScalar  = 90.0f;  // DAT_140172204 = 0x42b40000
     const float halfCell   = 0.5f;   // DAT_140172114 = 0x3f000000
 
-    uint32_t footW = static_cast<uint32_t>(descComponent->_i44);
-    uint32_t footH = static_cast<uint32_t>(descComponent->_i48);
+    uint32_t footW = static_cast<uint32_t>(descComponent->_width);
+    uint32_t footH = static_cast<uint32_t>(descComponent->_height);
 
     // Orientation: rotation == 1 or 3 swaps width/height.
     uint32_t dimX = footW, dimY = footH;

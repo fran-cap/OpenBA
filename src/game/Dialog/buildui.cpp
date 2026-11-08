@@ -293,7 +293,7 @@ void BuildUI::OnCreated() {
             }
         } else if (rowIdx == resourceCount && resourceComp != nullptr) {
             // Total row: shows total required labour
-            int totalCount = resourceComp->_i30;
+            int totalCount = resourceComp->_workRequired;
             int multiplier = posComp->costMultiplier;
             System::String totStr =
                 System::String::Format("%d", (int)(uint32_t)(totalCount * multiplier));
@@ -360,7 +360,7 @@ void BuildUI::OnUpdateLayout() {
 
     // Check if build is complete: cost * multiplier <= laborProgress
     if (posComp != nullptr && resourceComp != nullptr) {
-        int totalRequired = resourceComp->_i30;
+        int totalRequired = resourceComp->_workRequired;
         int multiplier = posComp->costMultiplier;
         if (totalRequired * multiplier <= posComp->laborProgress) {
             return;  // Build complete, nothing to update
@@ -442,7 +442,7 @@ void BuildUI::OnUpdateLayout() {
 
         // Calculate totals for progress
         int multiplier = posComp->costMultiplier;
-        totalRequired = resourceComp->_i30 * multiplier + (int)smComp->clearState + sumCapacity;
+        totalRequired = resourceComp->_workRequired * multiplier + (int)smComp->clearState + sumCapacity;
         totalDelivered = posComp->laborProgress + sumDelivered + remaining;
     }
 

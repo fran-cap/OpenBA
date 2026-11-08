@@ -15,8 +15,8 @@
 //
 // B.4 W1 COMP-b: the handlers are CitizenAIComponent members; `citizen` is the sibling
 //   CitizenComponent, its fields read by name (home, careBuilding, hunger, coldness,
-//   description->_fcc / _fec / _f124, character->modelComponent whose transform
-//   +0x158/+0x15c/+0x160 = world pos, raw). Success epilogue writes field_0x30 = -1,
+//   description->starvingLevel / freezingLevel / medicateWorkLength, character->modelComponent whose transform
+//   +0x158/+0x15c/+0x160 = world pos, raw). Success epilogue writes lastWorkId = -1,
 //   statusFlags |= 4, lastErrand = None and returns 1. Cooldown-fail stamps Time(3.75) into
 //   timers[0] & timers[14] (Adult) or timers[1] & timers[15] (Elder) and returns 0.
 //
@@ -111,7 +111,7 @@ static uint32_t ModelCell(const ModelComponent* model, const Map* mapGrid) {
 
 // success epilogue: set the action-state flags on the CitizenComponent and return 1.
 static uint64_t Pushed(CitizenComponent* cz) {
-    cz->field_0x30 = -1;
+    cz->lastWorkId = -1;
     cz->statusFlags |= Bits(CitizenStatus::TaskDone);
     cz->lastErrand = CitizenErrand::None;
     return 1;  // CONCAT71(cz>>8, 1): the caller reads the low byte
@@ -138,13 +138,13 @@ uint64_t CitizenAIComponent::State_ElderTransition() {
     // cooldown later. Always false while the row is off.
     bool deferred = false;
 
-    // coldness above the description's _fec threshold
-    if (desc != nullptr && desc->_fec <= age && age != desc->_fec) {
+    // coldness above the description's freezingLevel threshold
+    if (desc != nullptr && desc->freezingLevel <= age && age != desc->freezingLevel) {
         Map* mg = MapGrid();
         CitizenBehavior* listEnt = GameUpdateLoop::_singleton->m_citizenList;
         const ModelComponent* model = CitizenModel(citizen.Get());
         uint32_t cell = ModelCell(model, mg);
-        deferred = Ext::SpreadWarmth::Defer(listEnt->field_0x20._size);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_PFBURST.md): ext.spread_warmth (above)
+        deferred = Ext::SpreadWarmth::Defer(listEnt->residences._size);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_PFBURST.md): ext.spread_warmth (above)
         if (!deferred) {
             Ext::SpreadWarmth::ScanMeter<RegionPairCache> meter(mg->regionPairCache);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_PFBURST.md): ext.spread_warmth (above), inert while off
             listEnt->FindElderResidence(&found, cell, &dest.x);   // find nearest valid residence
@@ -189,7 +189,7 @@ uint64_t CitizenAIComponent::State_AdultTransition() {
     EnsureInit();
     float age = citizen->hunger;
     CitizenDescription* desc = citizen->description;
-    bool isAdult = (desc != nullptr) && (age > desc->_fcc);
+    bool isAdult = (desc != nullptr) && (age > desc->starvingLevel);
 
     Math::Vector3 dest;
     ComponentEntity* found = nullptr;     // local_res8 (chosen target entity)
@@ -369,11 +369,11 @@ uint64_t CitizenAIComponent::State_Work() {
     CitizenComponent* holderCitizen = citizen.Get();
     // [STANDALONE GUARD] the citDesc null-check is ours; the original derefs +0x124
     // unconditionally (would fault if the description type-check failed).
-    float walkTime = citDesc ? citDesc->_f124 : 0.0f;
+    float walkTime = citDesc ? citDesc->medicateWorkLength : 0.0f;
     CitizenAI_Pathfinding_WalkTowards_bb490(&holderCitizen, 0xffffffff, walkOut, 5, walkTime, 1);
 
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizen->field_0x30 = -1;
+    citizen->lastWorkId = -1;
     citizen->lastErrand = CitizenErrand::None;
     return 0;  // low byte 0 (retail's RAX carries the citizen pointer above it)
 }

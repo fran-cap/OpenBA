@@ -160,11 +160,11 @@ uint64_t FencedTool::CalcAnchor(uint32_t* param_2, uint32_t* param_3,
     // Footprint reject: width must be >= config width (+0x60), depth >= config depth (+0x64).
     const CreateFencedDescription* config = fencedDesc;
     uint32_t spanW = (*param_4 - *param_2) + 1;
-    if (static_cast<int>(spanW) < config->_i60) {
+    if (static_cast<int>(spanW) < config->_minWidth) {
         return (static_cast<uint64_t>(spanW) >> 8) << 8;  // low byte 0 == false
     }
     uint32_t spanD = (*param_5 - *param_3) + 1;
-    if (static_cast<int>(spanD) < config->_i64) {
+    if (static_cast<int>(spanD) < config->_minHeight) {
         return (static_cast<uint64_t>(spanD) >> 8) << 8;
     }
 
@@ -179,15 +179,15 @@ uint64_t FencedTool::CalcAnchor(uint32_t* param_2, uint32_t* param_3,
     int rotA = rotationSetting->rotation;
     int fw, fd;
     if (rotA == 1 || rotA == 3) {
-        fw = static_cast<int>(_field60);
-        fd = static_cast<int>(_field5C);
+        fw = static_cast<int>(footprintDepth);
+        fd = static_cast<int>(footprintWidth);
     } else {
-        fw = static_cast<int>(_field5C);
-        fd = static_cast<int>(_field60);
+        fw = static_cast<int>(footprintWidth);
+        fd = static_cast<int>(footprintDepth);
     }
 
     // Snap the rectangle: branch on the "centered" flag (config +0x68).
-    if (!config->_b68) {
+    if (!config->_centerBuilding) {
         int r = rotationSetting->rotation;
         if (r == 0) {
             *param_2 = (*param_4 - fw) + 1;

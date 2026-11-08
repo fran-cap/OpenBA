@@ -39,7 +39,7 @@ DiseaseDescription::DiseaseDescription()
       spreadMonths(0.0f),
       durationMonths(0.0f),
       spreadRadius(0),
-      _i44(0) {}
+      _pad44(0) {}
 
 // [5] 0x140048e40: stream order as retail.
 bool DiseaseDescription::Serialize(IO::Stream& stream) {

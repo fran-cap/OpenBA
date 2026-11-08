@@ -53,7 +53,7 @@
 #include "Component/WorkComponent.h"   // B4 P2 CIT-4: WorkComponent::workId
 #include "Game/WorkScheduler.h"        // B4 P2 CIT-4: GameUpdateLoop::m_tutorial trees
 #include "Game/WorkSchedulerNodes.h"   // B4 P2 CIT-4: WorkSchedulerIdNode
-#include "Work/Work.h"                 // B4 P2 CIT-4: Work::field_24
+#include "Work/Work.h"                 // B4 P2 CIT-4: Work::_queueOrder
 #include "Component/CharacterComponent.h"   // B4 S4 RT2: InternalPtr<CharacterComponent>::Get() needs the class complete
 
 // Clean C++ name generator (src/game/Game/citizen_names.cpp) — replaces the retail
@@ -160,7 +160,7 @@ static int LookupProfessionPriority(int key) {
     }
     // An absent key leaves a null IBP (0x140110420), and retail reads its +0x24 anyway.
     Work* value = node ? node->work.Get() : nullptr;   // node+0x8
-    return value->field_24;
+    return value->_queueOrder;
 }
 
 static inline int ProfessionPriorityOf(ComponentEntity* handle) {
@@ -219,16 +219,16 @@ void CitizenComponent::Initialize(const Math::Vector3* pos, uint32_t gender, cha
 
     // 6. appearance variant 0..7 — faithful (Rand()+Rand())&7 (two draws; (a%8+b%8)&7==(a+b)&7)
     if (rng)
-        field_0x34 = static_cast<int32_t>((rng->Rand(8u) + rng->Rand(8u)) & 7);
+        appearanceVariant = static_cast<int32_t>((rng->Rand(8u) + rng->Rand(8u)) & 7);
 
     // 7. employment: unemployed unless forced or the world "start-employed" flag (bit 9) is set
     CitizenDescription* desc = description;
     uint32_t worldFlags = world ? world->m_gameFlags : 0;
     if (forceEmploy == 0 && ((worldFlags >> 9) & 1) == 0) {
-        field_0x220 = false;
+        hasBeenSchooled = false;
         education = 0;
     } else {
-        field_0x220 = true;
+        hasBeenSchooled = true;
         education = desc ? desc->maxEducation : 0;
     }
 
@@ -259,8 +259,8 @@ void CitizenComponent::Initialize(const Math::Vector3* pos, uint32_t gender, cha
 
     // 12. lifespan = RandFloatTol(rng) * desc+0x3c (age span) + desc+0x38 (base age)
     float rf    = rng ? rng->RandFloatTol() : 0.0f;
-    float baseA = desc ? desc->_f38 : 0.0f;
-    float spanA = desc ? desc->_f3c : 0.0f;
+    float baseA = desc ? desc->maxAge : 0.0f;
+    float spanA = desc ? desc->maxAgeTolerance : 0.0f;
     maxAge = rf * spanA + baseA;
 
     // 13. sprite/anim init on the CharacterComponent (+0x278)

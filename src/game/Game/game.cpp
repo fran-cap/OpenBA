@@ -57,8 +57,8 @@ GameContainer* g_gameContainer = nullptr;
 // +0x120 list unless it is already there (the tree's Game_RemoveEntity).
 void CitizenBehavior::RemoveEntity(ComponentDescription* entity) {
     // Check if entity is already in the removal queue
-    int count = field_0x120._size;
-    ComponentDescription** arr = field_0x120._data;
+    int count = availableFarmTypes._size;
+    ComponentDescription** arr = availableFarmTypes._data;
     for (int i = 0; i < count; i++) {
         if (arr[i] == entity) return;  // already queued
     }
@@ -67,16 +67,16 @@ void CitizenBehavior::RemoveEntity(ComponentDescription* entity) {
     int newCount = count + 1;
     if (newCount != count) {
         ComponentDescription** oldArr = arr;
-        field_0x120._size = newCount;
-        int capacity = field_0x120._capacity;
+        availableFarmTypes._size = newCount;
+        int capacity = availableFarmTypes._capacity;
         if (capacity < newCount) {
             // Grow: triple capacity if non-empty, else use newCount
             capacity = (count != 0) ? newCount * 3 : newCount;
-            field_0x120._capacity = capacity;
-            field_0x120._data = static_cast<ComponentDescription**>(
+            availableFarmTypes._capacity = capacity;
+            availableFarmTypes._data = static_cast<ComponentDescription**>(
                 System::MemoryAllocator::MemAlloc((uint64_t)capacity * 8, 8));
         }
-        ComponentDescription** newArr = field_0x120._data;
+        ComponentDescription** newArr = availableFarmTypes._data;
         int copyStart = (oldArr == newArr) ? count : 0;
         for (int i = copyStart; i < newCount; i++) {
             if (i < count) {
@@ -137,7 +137,7 @@ void Game_TriggerDisasterByType_Impl(int disasterType) {
                     }
                 }
                 // Check if SelectDescription.type (+0x40) matches requested disaster type
-                if (selectDesc && static_cast<int>(selectDesc->_u40) == disasterType) {
+                if (selectDesc && static_cast<int>(selectDesc->_group) == disasterType) {
                     citizenList->RemoveEntity(desc);   // 0x140091a20
                 }
             }
@@ -156,10 +156,10 @@ void CitizenBehavior::SpawnResources(uint32_t resourceFlag, int count) {
 
     // Phase 1: Build array of entity pointers whose RawMaterialDescription flags match
     // resourceFlag. The description array is +0x110 (data) / +0x118 (count).
-    if (field_0x110._size > 0) {
+    if (knownRawMaterials._size > 0) {
         int entityIdx = 0;
         do {
-            ComponentDescription* entityDesc = field_0x110._data[entityIdx];
+            ComponentDescription* entityDesc = knownRawMaterials._data[entityIdx];
             ComponentDescription* entity = entityDesc;
 
             // Find the RawMaterialDescription among its sub-descriptions (+0x28/+0x30)
@@ -236,7 +236,7 @@ void CitizenBehavior::SpawnResources(uint32_t resourceFlag, int count) {
             }
 
             entityIdx++;
-        } while (entityIdx < field_0x110._size);
+        } while (entityIdx < knownRawMaterials._size);
 
         // Phase 2: Round-robin distribute items across citizens' StorageComponents
         // Citizens are InternalBasePtr entries: +0x00 = array ptr, +0x08 = count
@@ -246,11 +246,11 @@ void CitizenBehavior::SpawnResources(uint32_t resourceFlag, int count) {
             while (true) {
                 bool anyAdded = false;
                 int citizenIdx = 0;
-                if (field_0x00._size < 1) break;
+                if (storageLocations._size < 1) break;
 
                 do {
                     // Each citizen entry is an InternalBasePtr — load then CheckPtr
-                    ComponentEntity* citizen = field_0x00._data[citizenIdx].Get();
+                    ComponentEntity* citizen = storageLocations._data[citizenIdx].Get();
 
                     // Find StorageComponent on citizen
                     // Citizen component array is IBP entries at citizen+0x30, count at citizen+0x38
@@ -303,7 +303,7 @@ void CitizenBehavior::SpawnResources(uint32_t resourceFlag, int count) {
                     }
 
                     citizenIdx++;
-                } while (citizenIdx < field_0x00._size);
+                } while (citizenIdx < storageLocations._size);
 
                 if (!anyAdded || spawned >= count) break;
             }

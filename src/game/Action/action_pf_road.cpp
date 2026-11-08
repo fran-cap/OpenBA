@@ -129,7 +129,7 @@ static inline int ClampCell(int v, int w) {
 // ============================================================
 // FUN_1400acaa0 — fill one road-mesh vertex.
 // ============================================================
-// `geo`: the WorldGeometry. _gridSize = tile span (>>1 = half), _fieldD0 = heightmap width,
+// `geo`: the WorldGeometry. _gridSize = tile span (>>1 = half), _heightRowStride = heightmap width,
 // _arrayD8 = the heightmap (int16). Computes the surface normal (e270) into a local Vector3,
 // then writes the packed vertex: x-half, y-half, the clamped heightmap sample, the blend,
 // the normal as three bytes, the AO uv shorts.
@@ -151,7 +151,7 @@ static void FillRoadVertex(WorldGeometry* geo, int x, int y, RoadVertexScratch* 
     // washed-out decal lighting) and ALSO swapped the two constants.
     const float addOff = 1.0f;    // DAT_14017214c
     const float encScl = 127.5f;  // DAT_140172214
-    int hmW = geo->_fieldD0;
+    int hmW = geo->_heightRowStride;
 
     int cx = (x < 0) ? 0 : x;
     if (hmW <= cx) cx = hmW - 1;
@@ -569,8 +569,8 @@ int EntityAnchorCell(ComponentEntity* const* entityIBP, float* param_2) {
 //   +0x210 (_arrays[7]) the per-batch source table (a qword per batch; its count is the
 //                       batch count);
 //   +0x220 (_arrays[8]) the per-batch fill counters (int).
-// _gridSize / _fieldC4 = tile span / inset; (span - inset) >> 1 = vtxOff. _chunkSize = the
-// block dimension. MapCell::field_0x2A = batchId, field_0x2B = blendId.
+// _gridSize / _mapSize = tile span / inset; (span - inset) >> 1 = vtxOff. _chunkSize = the
+// block dimension. MapCell::field_0x2A = batchId, roadAlpha = blendId.
 //
 // Phases: (1) sync the counter array length to the batch count (021d0) then zero it; (2)
 // f250-size a local working batch array; per block, seed each batch header (source, culling
@@ -606,7 +606,7 @@ void WorldGeometry::RebuildRoadMesh(Map* map) {
     Collection::Array<int32_t>* counters = &_batchCounters;  // +0x220
     GeometryBatch_Resize(*meshBatches, 0);                   // f250(local_a8, 0)
 
-    int vtxOff = (_gridSize - _fieldC4) >> 1; // iVar12
+    int vtxOff = (_gridSize - _mapSize) >> 1; // iVar12
 
     // Phase 1: counter array length sync (vs the batch count) then zero every counter.
     if (counters->_size != sources->size) {
@@ -678,8 +678,8 @@ void WorldGeometry::RebuildRoadMesh(Map* map) {
                             do {               // fine col within block (local_e0)
                                 int fineCol = local_e0 + local_f4; // iVar20 (local_cc)
                                 uint64_t cellIdx = static_cast<uint64_t>(rowBase + fineCol);
-                                uint8_t batchId = map->cells.GetData()[cellIdx].field_0x2A;
-                                uint8_t blendId = map->cells.GetData()[cellIdx].field_0x2B;
+                                uint8_t batchId = map->cells.GetData()[cellIdx].roadType;
+                                uint8_t blendId = map->cells.GetData()[cellIdx].roadAlpha;
 
                                 if (batchId != 0xff) {
                                     if (blendId == 0xff) {
@@ -702,7 +702,7 @@ void WorldGeometry::RebuildRoadMesh(Map* map) {
                                                     if (iVar1 < 0 || iVar1 >= gridDim || row < 0 || row >= gridDim) {
                                                         local_f0[slot] = 0;
                                                     } else {
-                                                        local_f0[slot] = (map->cells.GetData()[static_cast<int64_t>(iVar1) + rowOff].field_0x2A != MapCell::kNoRoadBatch) ? 1 : 0;
+                                                        local_f0[slot] = (map->cells.GetData()[static_cast<int64_t>(iVar1) + rowOff].roadType != MapCell::kNoRoadBatch) ? 1 : 0;
                                                     }
                                                 }
                                                 slot++;

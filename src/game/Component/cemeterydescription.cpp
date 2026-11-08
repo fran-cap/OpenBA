@@ -31,12 +31,12 @@
 // the defaults.
 CemeteryDescription::CemeteryDescription()
     : Description(),
-      _ref20(nullptr) {}
+      _tombstone(nullptr) {}
 
 // [5] 0x140047800: stream order as retail.
 bool CemeteryDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ::Object::SerializeExternal<ComponentDescription>(ser, _ref20);
+    ::Object::SerializeExternal<ComponentDescription>(ser, _tombstone);
     return true;
 }
 

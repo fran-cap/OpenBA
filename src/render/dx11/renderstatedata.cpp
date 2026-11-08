@@ -121,7 +121,7 @@ namespace {
 //   +0x4c _stencil.reference (byte)
 //   +0x50/+0x54/+0x58 _stencil.failOp / depthFailOp / passOp       (front)
 //   +0x5c/+0x60/+0x64 _stencil.backFailOp / backDepthFailOp / backPassOp
-//   +0x68 _cullMode   +0x6c _fillMode   +0x70 _flag70 (the scissor enable)
+//   +0x68 _cullMode   +0x6c _fillMode   +0x70 _scissorEnable
 //
 // Layout proven by three independent Runtime functions rather than inferred
 // from the DX11 reads alone:
@@ -406,9 +406,9 @@ bool RenderStateData::Create() {
     rasterDesc.SlopeScaledDepthBias  =
         rs->_depth.slopeBias * kSlopeScaledBiasScale;             // 0x180003863-0x180003885
     rasterDesc.DepthClipEnable       = TRUE;                      // hard 1,   0x180003868
-    // RenderState+0x70 is Initialize's trailing `bool` (`_flag70` in the real
+    // RenderState+0x70 is Initialize's trailing `bool` (`_scissorEnable` in the real
     // header); this read is what makes it the scissor enable.
-    rasterDesc.ScissorEnable         = (rs->_flag70 != 0);        // RS+0x70,  0x18000388a
+    rasterDesc.ScissorEnable         = (rs->_scissorEnable != 0);        // RS+0x70,  0x18000388a
     // `mov qword [RBP-0x28], 1` @ 0x1800038f8 covers both trailing BOOLs.
     rasterDesc.MultisampleEnable     = TRUE;
     rasterDesc.AntialiasedLineEnable = FALSE;

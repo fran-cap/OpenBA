@@ -111,11 +111,11 @@ namespace UI {
 // GraphElementOffsets documents above (B4).
 struct GraphSeries {
     uint32_t colour;                        // +0x00  AddGraph's argument
-    uint32_t hole04;                        // +0x04  NEVER WRITTEN BY ANY ARM
+    uint32_t pad04;                        // +0x04  NEVER WRITTEN BY ANY ARM
     Collection::Array<int32_t> points;      // +0x08  data / +0x10 size / +0x14 capacity
 };
 static_assert(sizeof(GraphSeries) == GraphElementOffsets::kSeriesStride, "");
-static_assert(offsetof(GraphSeries, hole04) == 0x4, "GraphSeries::hole04");
+static_assert(offsetof(GraphSeries, pad04) == 0x4, "GraphSeries::pad04");
 static_assert(offsetof(GraphSeries, colour) == GraphElementOffsets::kSeriesColour, "");
 static_assert(offsetof(GraphSeries, points) == GraphElementOffsets::kSeriesPointsArray, "");
 
@@ -128,7 +128,7 @@ public:
         _width          = 100;
         _height         = 100;
         _tickSize       = 4;
-        _unknownCC      = -1;
+        _lineColor      = -1;
         _yRange         = 1.0f;
         _xDivisions     = 12;
         _yDivisions     = 4;
@@ -176,7 +176,7 @@ public:
     int32_t  _width;          // +0xc0  ctor 100; ComputeSize -> _layoutWidth
     int32_t  _height;         // +0xc4  ctor 100; ComputeSize -> _layoutHeight
     int32_t  _tickSize;       // +0xc8  ctor 4; grid overhang outside the frame
-    int32_t  _unknownCC;      // +0xcc  ctor -1; CreateInstance copies it; no slot reads it
+    int32_t  _lineColor;      // +0xcc  ctor -1; CreateInstance copies it; no slot reads it
     ::Sprite _lineSprite;     // +0xd0  the 1x1 line sprite (index +0xd8, ctor -1)
     float    _yRange;         // +0xe0  ctor 1.0f; the value drawn at full height
     int32_t  _xDivisions;     // +0xe4  ctor 12; vertical grid lines
@@ -198,7 +198,7 @@ static_assert(alignof(GraphElement) == 8, "UI::GraphElement aligns to 8");
 static_assert(offsetof(GraphElement, _width)       == 0xc0, "");
 static_assert(offsetof(GraphElement, _height)      == 0xc4, "");
 static_assert(offsetof(GraphElement, _tickSize)    == 0xc8, "");
-static_assert(offsetof(GraphElement, _unknownCC)   == 0xcc, "");
+static_assert(offsetof(GraphElement, _lineColor)   == 0xcc, "");
 static_assert(offsetof(GraphElement, _lineSprite)  == 0xd0, "");
 static_assert(offsetof(GraphElement, _yRange)      == 0xe0, "");
 static_assert(offsetof(GraphElement, _xDivisions)  == 0xe4, "");

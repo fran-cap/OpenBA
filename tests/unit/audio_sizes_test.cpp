@@ -204,7 +204,7 @@ static void LoadSoundBuffer(Audio::SoundBuffer& buf, ByteStream& s) {
     ser._readerWriter = &r;
     r.SerializeBool(buf._loopForever, nullptr);
     r.SerializeBool(buf._streamed, nullptr);
-    buf._string28.Serialize(ser);
+    buf._wave.Serialize(ser);
     buf._streamPath.Serialize(ser);
     r.SerializeFloat(buf._durationSeconds, nullptr);
     buf.PlatformSerialize(ser);

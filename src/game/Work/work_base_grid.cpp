@@ -81,7 +81,7 @@ uint64_t WorkScheduler::TryAssignWorkplace(CitizenComponent** citizenRef, int ce
 
     Work* work = node->work.Get();   // IBP
     uint32_t mgrGen = stepCount;
-    if (static_cast<uint32_t>(work->field_2c) == mgrGen)
+    if (static_cast<uint32_t>(work->_lastRejectStep) == mgrGen)
         return static_cast<uint64_t>(mgrGen & 0xffffff00u);
 
     // [9] Validate, RCX only (0x1400f86ad); [4] Execute(&citizen, scheduler+0x130) (0x1400f86d3).
@@ -103,7 +103,7 @@ uint64_t WorkScheduler::TryAssignWorkplace(CitizenComponent** citizenRef, int ce
                 return (assignR & 0xffffffffffffff00ull) | 1;
         }
         uVar2 = mgrGen;
-        work->field_2c = static_cast<int32_t>(mgrGen);
+        work->_lastRejectStep = static_cast<int32_t>(mgrGen);
     }
     return uVar2 & 0xffffffffffffff00ull;
 }
@@ -119,18 +119,18 @@ uint64_t WorkScheduler::TryAssignWorkplace(CitizenComponent** citizenRef, int ce
 // RCX is a Work (only its +0x10 entity is read): the Work leaves' Execute calls it
 // with `this`.
 int Work::TryAutoPickup(CitizenComponent** citizenRef) {
-    AutoPickupComponent* apComp = field_10->FindComponent<AutoPickupComponent>();   // 0x140022520
+    AutoPickupComponent* apComp = _entity->FindComponent<AutoPickupComponent>();   // 0x140022520
     // B6 (14d G22): 0x1400e3de0 / 0x1400e3de5 read the component's +0x28 with no test;
     // 0x1400e3df5 / 0x1400e3e06 read [0x1401c3dd8]+0x118 with no test.
     if (!apComp->isEnabled) return 0;
     WorkScheduler* mgr = GameUpdateLoop::_singleton->m_tutorial;
 
     int i = 0;
-    if (apComp->field30._size <= 0) return 0;
+    if (apComp->pileWorkIds._size <= 0) return 0;
 
     do {
         WorkSchedulerIdNode* node = mgr->trees[0].root;
-        int cellId = apComp->field30._data[i];
+        int cellId = apComp->pileWorkIds._data[i];
         bool keepElement = false;
         while (node != nullptr) {
             if (cellId < node->key) {
@@ -149,22 +149,22 @@ int Work::TryAutoPickup(CitizenComponent** citizenRef) {
         }
         if (!keepElement) {
             // not found in the map -> compact arr[i] out of the list
-            int count = apComp->field30._size;
+            int count = apComp->pileWorkIds._size;
             int shiftIdx = i;
             int j = i;
             while (j < count) {
                 j++;
                 if (j < count) {
-                    int32_t* p = apComp->field30._data + shiftIdx;
+                    int32_t* p = apComp->pileWorkIds._data + shiftIdx;
                     p[0] = p[1];
                 }
                 shiftIdx += 1;
             }
-            apComp->field30._size = count - 1;
+            apComp->pileWorkIds._size = count - 1;
             i -= 1;
         }
         i += 1;
-    } while (i < apComp->field30._size);
+    } while (i < apComp->pileWorkIds._size);
 
     return 0;
 }

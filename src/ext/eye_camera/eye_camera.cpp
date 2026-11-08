@@ -136,10 +136,10 @@ bool SampleCitizen(const ComponentEntity* entity, float alpha, bool hiddenToo,
     // The age scale SetupYoung / SetupAdult / SetupElder wrote (eye_math.h,
     // CONVENTIONS): uniform, so the z component is the height factor.
     scale = model->meshInstance._color[2];
-    // Model yaw = heading + CharacterDescription::_f24 (the move tick's offset).
+    // Model yaw = heading + CharacterDescription::_headingOffset (the move tick's offset).
     float offset = 0.0f;
     if (const CharacterComponent* ch = entity->FindComponent<CharacterComponent>())
-        if (ch->characterDescription != nullptr) offset = ch->characterDescription->_f24;
+        if (ch->characterDescription != nullptr) offset = ch->characterDescription->_headingOffset;
     heading = WrapDegrees(ModelYawFromQuaternion(t.rotation.z, t.rotation.w) - offset);
     return true;
 }
@@ -205,7 +205,7 @@ bool Active() {
     // is not a test since EYECAM3: it is one byte for any number of
     // FollowDialogs, so closing one of two clears it while the other still
     // follows. The open dialog list is the truth; the trace reports the flag.
-    const bool followFlag = loop->m_toolManager->field_0x38;
+    const bool followFlag = loop->m_toolManager->followActive;
     FollowDialog* dialog = FindFollowDialog(loop->m_userInterface);
     const ComponentEntity* front = nullptr;
     if (dialog != nullptr && dialog->citizen != nullptr)

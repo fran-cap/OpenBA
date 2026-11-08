@@ -342,8 +342,8 @@ UNIT_TEST(ui_c3_field_offsets_and_pod_agreement) {
 
     CHECK_EQ(offsetof(UI::LabelDescription, _spriteName),
              offsetof(RtUI::LabelDescription, _spriteName));
-    CHECK_EQ(offsetof(UI::EditDescription, _string80),
-             offsetof(RtUI::EditDescription, _string80));
+    CHECK_EQ(offsetof(UI::EditDescription, _allowableCharacters),
+             offsetof(RtUI::EditDescription, _allowableCharacters));
 }
 
 // ===========================================================================
@@ -610,12 +610,12 @@ UNIT_TEST(b39_uia_edit_number_ctors_make_retails_stores) {
         std::memset(buf, 0xCD, sizeof buf);
         UI::EditDescription* d = ::new (buf) UI::EditDescription();
         CHECK_EQ(d->_id, -1);
-        CHECK(d->_ptr68 == nullptr);
-        CHECK(d->_string70._data == nullptr);
-        CHECK_EQ(d->_word78, 0);
-        CHECK_EQ((int)d->_flag7c, 0);
+        CHECK(d->_font == nullptr);
+        CHECK(d->_initialText._data == nullptr);
+        CHECK_EQ(d->_maxLength, 0);
+        CHECK_EQ((int)d->_password, 0);
         CHECK_EQ((int)buf[0x7d], 0xCD);
-        CHECK(d->_string80._data == nullptr);
+        CHECK(d->_allowableCharacters._data == nullptr);
         g_b39DtorCount = 0;
         d->~EditDescription();
         CHECK_EQ(g_b39DtorCount, 1);
@@ -625,11 +625,11 @@ UNIT_TEST(b39_uia_edit_number_ctors_make_retails_stores) {
         std::memset(buf, 0xCD, sizeof buf);
         UI::NumberEditDescription* d = ::new (buf) UI::NumberEditDescription();
         CHECK(d->_font == nullptr);
-        CHECK_EQ((uint32_t)d->_i70, 0xCDCDCDCDu);   // NEVER written by the ctor
-        CHECK_EQ(d->_i74, 6);
-        CHECK_EQ(d->_i78, -32767);
-        CHECK_EQ(d->_i7c, 0x7fff);
-        CHECK_EQ((int)d->_b80, 1);
+        CHECK_EQ((uint32_t)d->_initialValue, 0xCDCDCDCDu);   // NEVER written by the ctor
+        CHECK_EQ(d->_maxLength, 6);
+        CHECK_EQ(d->_minValue, -32767);
+        CHECK_EQ(d->_maxValue, 0x7fff);
+        CHECK_EQ((int)d->_allowNegative, 1);
         d->~NumberEditDescription();
     }
     {
@@ -637,10 +637,10 @@ UNIT_TEST(b39_uia_edit_number_ctors_make_retails_stores) {
         std::memset(buf, 0xCD, sizeof buf);
         UI::NumberDescription* d = ::new (buf) UI::NumberDescription();
         CHECK(d->_font == nullptr);
-        CHECK_EQ(d->_u70, 0u);
-        CHECK_EQ(d->_i74, 0);
-        CHECK(d->_f78 == 0.0f);
-        CHECK_EQ((int)d->_b7c, 0);
+        CHECK_EQ(d->_numberType, 0u);
+        CHECK_EQ(d->_ivalue, 0);
+        CHECK(d->_fvalue == 0.0f);
+        CHECK_EQ((int)d->_showSign, 0);
         d->~NumberDescription();
     }
     {
@@ -713,13 +713,13 @@ UNIT_TEST(b39_uia_text_label_ctors_make_retails_stores) {
         CHECK(d->_font == nullptr);
         CHECK(d->_stringTable2 == nullptr);
         CHECK(d->_name._data == nullptr);
-        CHECK_EQ(d->_u80, 0u);
-        CHECK_EQ((int)d->_b84, 0);
-        CHECK_EQ((int)d->_b85, 0);
+        CHECK_EQ(d->_justify, 0u);
+        CHECK_EQ((int)d->_dropShadow, 0);
+        CHECK_EQ((int)d->_wordWrap, 0);
         CHECK_EQ((int)d->_pad86[0], 0xCD);            // NOT written
         CHECK_EQ((int)d->_pad86[1], 0xCD);
         CHECK_EQ(d->_wordWrapSize, 0xc8);
-        CHECK_EQ(d->_i8c, -1);
+        CHECK_EQ(d->_maxWidth, -1);
         TextDescriptionProbe probe;
         CHECK(VTableOf(d) != VTableOf(&probe));
         g_b39DtorCount = 0;
@@ -731,12 +731,12 @@ UNIT_TEST(b39_uia_text_label_ctors_make_retails_stores) {
         std::memset(buf, 0xCD, sizeof buf);
         UI::LabelDescription* d = ::new (buf) UI::LabelDescription();
         CHECK_EQ(d->_wordWrapSize, 0xc8);                      // TextDescription() ran
-        CHECK_EQ(d->_word90, 3u);
-        CHECK_EQ(d->_word94, 1u);
-        CHECK_EQ(d->_word98, 0);
-        CHECK_EQ(d->_word9c, 2);
-        CHECK_EQ(d->_worda0, -1);
-        CHECK_EQ(d->_worda4, -1);
+        CHECK_EQ(d->_textAlignment, 3u);
+        CHECK_EQ(d->_labelPosition, 1u);
+        CHECK_EQ(d->_textWidth, 0);
+        CHECK_EQ(d->_spacing, 2);
+        CHECK_EQ(d->_imageWidth, -1);
+        CHECK_EQ(d->_imageHeight, -1);
         CHECK(d->_spriteSheet == nullptr);
         CHECK(d->_spriteName._data == nullptr);
         g_b39DtorCount = 0;

@@ -36,11 +36,11 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140034ff0
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    float _f20;                                 // +0x20
+    float _killTimeInMonths;                                 // +0x20
     uint32_t _type;                             // +0x24 enum (serialized through the uint door)
 };
 
 static_assert(sizeof(HuntDescription) == 0x28, "HuntDescription is 0x28 (create 0x140034f90 MemAlloc(0x28))");
 static_assert(alignof(HuntDescription) == 8, "HuntDescription alignment");
-static_assert(offsetof(HuntDescription, _f20) == 0x20, "HuntDescription::_f20 @ +0x20");
+static_assert(offsetof(HuntDescription, _killTimeInMonths) == 0x20, "HuntDescription::_killTimeInMonths @ +0x20");
 static_assert(offsetof(HuntDescription, _type) == 0x24, "HuntDescription::_type @ +0x24");

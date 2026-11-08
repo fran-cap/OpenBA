@@ -1000,7 +1000,7 @@ UNIT_TEST(b39_uia_button_family_ctors_make_retails_stores) {
         UI::ComboDescription* d = ::new (buf) UI::ComboDescription();
         CHECK_EQ(d->_id, -1);
         for (int i = 0; i < 5; ++i) CHECK(d->_childDesc[i] == nullptr);
-        CHECK_EQ(d->_word90, 0); CHECK_EQ(d->_word9c, 0);
+        CHECK_EQ(d->_enabledColor, 0); CHECK_EQ(d->_pressedColor, 0);
         CHECK(d->_listDesc == nullptr);
         CHECK(d->_itemDesc == nullptr);
         CHECK(d->_stringTable == nullptr);

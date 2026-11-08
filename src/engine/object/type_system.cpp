@@ -191,7 +191,7 @@ bool RtObject_Base_IsDerivedFrom(const ::Object::Base* self, uint32_t typeId) {
 // the 4-byte type id and `self` was already the field pointer. The old third
 // argument `0` was the ignored `const char* name`.
 // B4 S4 LAST: `self` is uint32_t* — every caller's field is the 4-byte type id
-// (ConsumeProduce::field_50 retyped uint32_t: retail reads it only as a dword
+// (ConsumeProduce::_notifyComponentType retyped uint32_t: retail reads it only as a dword
 // copy, 0x1400e8d00).
 void RtObject_Type_Serialize(uint32_t* self, ::IO::Serializer* serializer) {
     serializer->Serialize(*self, nullptr);   // 0x98 = uint door

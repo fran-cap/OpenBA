@@ -77,12 +77,12 @@ bool LabelDescription::Serialize(IO::Stream& streamv) {
     Object::SerializeExternal<UI::SpriteSheet>(ser, _spriteSheet); // 1800d287b ExternalPtr<SpriteSheet>
     _spriteName.Serialize(ser);           // 1800d288c System::String
 
-    rw->SerializeUInt(_word90, nullptr);                     // 1800d28a3
-    rw->SerializeUInt(_word94, nullptr);                     // 1800d28bb
-    rw->SerializeInt(_word98, nullptr);                      // 1800d28d3
-    rw->SerializeInt(_word9c, nullptr);                      // 1800d28eb
-    rw->SerializeInt(_worda0, nullptr);                      // 1800d2903
-    rw->SerializeInt(_worda4, nullptr);                      // 1800d291b
+    rw->SerializeUInt(_textAlignment, nullptr);                     // 1800d28a3
+    rw->SerializeUInt(_labelPosition, nullptr);                     // 1800d28bb
+    rw->SerializeInt(_textWidth, nullptr);                      // 1800d28d3
+    rw->SerializeInt(_spacing, nullptr);                      // 1800d28eb
+    rw->SerializeInt(_imageWidth, nullptr);                      // 1800d2903
+    rw->SerializeInt(_imageHeight, nullptr);                      // 1800d291b
 
     // ~Serializer (0x1800b99b0) inlined here: rw's scalar deleting dtor                  // 1800d2934
     return true;
@@ -135,12 +135,12 @@ Object::InternalPtr<Element>* LabelDescription::CreateInstance(
         __builtin_memcpy(&elem->_sprite.spriteIndex, &idxSlot, 8);        // 1800d27a2 QWORD
     }
 
-    elem->_align        = static_cast<int32_t>(_word90);     // 1800d27a9 .. 1800d27eb
-    elem->_mode         = _word94;
-    elem->_minTextWidth = _word98;
-    elem->_gap          = _word9c;
-    elem->_iconWidth    = _worda0;
-    elem->_iconHeight   = _worda4;
+    elem->_align        = static_cast<int32_t>(_textAlignment);     // 1800d27a9 .. 1800d27eb
+    elem->_mode         = _labelPosition;
+    elem->_minTextWidth = _textWidth;
+    elem->_gap          = _spacing;
+    elem->_iconWidth    = _imageWidth;
+    elem->_iconHeight   = _imageHeight;
 
     elem->_iconColor = _id;                                  // 1800d27f1
 

@@ -524,7 +524,7 @@ public:
     Object::InternalPtr<Element> _root;   // +0x50
     SpriteSheet*   _spriteSheet;   // +0x58  (B4 H4: typed)
     int32_t        _spriteIndex;   // +0x60
-    int32_t        _hole64;        // +0x64  NOT written by the ctor
+    int32_t        _pad64;        // +0x64  NOT written by the ctor
     Collection::Array<RtUI::DialogTimer> _timers;                 // +0x68..+0x77
     Collection::Array<DialogController*> _controllers;            // +0x78..+0x87
     int32_t        _upperLeftX;    // +0x88
@@ -532,12 +532,12 @@ public:
     int32_t        _hoverMouseX;   // +0x90  ctor -1
     int32_t        _hoverMouseY;   // +0x94  ctor -1
     uint8_t        _hovering;      // +0x98  IsHovering 0x1800455a0
-    uint8_t        _hole99[7];     // +0x99  NOT written by the ctor
+    uint8_t        _pad99[7];     // +0x99  NOT written by the ctor
     int64_t        _hoverTime;     // +0xa0  System::Time ticks
     void*          _userData;      // +0xa8  ctor param 5
     int32_t        _userFlags;     // +0xb0  ctor param 6 — NOT padding, as the
                                    //        old engine POD claimed
-    int32_t        _holeB4;        // +0xb4  NOT written by the ctor
+    int32_t        _padB4;        // +0xb4  NOT written by the ctor
 };
 
 static_assert(sizeof(DialogInstance) == 0xb8,
@@ -552,7 +552,7 @@ static_assert(offsetof(DialogInstance, _children) == 0x38, "DialogInstance::_chi
 static_assert(offsetof(DialogInstance, _root) == 0x50, "DialogInstance::_root");
 static_assert(offsetof(DialogInstance, _spriteSheet) == 0x58, "DialogInstance::_spriteSheet");
 static_assert(offsetof(DialogInstance, _spriteIndex) == 0x60, "DialogInstance::_spriteIndex");
-static_assert(offsetof(DialogInstance, _hole64) == 0x64, "DialogInstance::_hole64");
+static_assert(offsetof(DialogInstance, _pad64) == 0x64, "DialogInstance::_pad64");
 static_assert(offsetof(DialogInstance, _timers) == 0x68, "DialogInstance::_timers");
 static_assert(offsetof(DialogInstance, _controllers) == 0x78, "DialogInstance::_controllers");
 static_assert(offsetof(DialogInstance, _upperLeftX) == 0x88, "DialogInstance::_upperLeftX");
@@ -560,11 +560,11 @@ static_assert(offsetof(DialogInstance, _upperLeftY) == 0x8C, "DialogInstance::_u
 static_assert(offsetof(DialogInstance, _hoverMouseX) == 0x90, "DialogInstance::_hoverMouseX");
 static_assert(offsetof(DialogInstance, _hoverMouseY) == 0x94, "DialogInstance::_hoverMouseY");
 static_assert(offsetof(DialogInstance, _hovering) == 0x98, "DialogInstance::_hovering");
-static_assert(offsetof(DialogInstance, _hole99) == 0x99, "DialogInstance::_hole99");
+static_assert(offsetof(DialogInstance, _pad99) == 0x99, "DialogInstance::_pad99");
 static_assert(offsetof(DialogInstance, _hoverTime) == 0xA0, "DialogInstance::_hoverTime");
 static_assert(offsetof(DialogInstance, _userData) == 0xA8, "DialogInstance::_userData");
 static_assert(offsetof(DialogInstance, _userFlags) == 0xB0, "DialogInstance::_userFlags");
-static_assert(offsetof(DialogInstance, _holeB4) == 0xB4, "DialogInstance::_holeB4");
+static_assert(offsetof(DialogInstance, _padB4) == 0xB4, "DialogInstance::_padB4");
 static_assert(alignof(DialogInstance) == 8, "qword-aligned (the vptr)");
 static_assert(offsetof(DialogInstance, _ui) == sizeof(Object::Internal),
               "DialogInstance's own fields begin at the end of the Internal base");

@@ -53,7 +53,7 @@
 // ------------------------------------------------------------------
 
 // FUN_14001b030 for BuildingGoal's entry array (~BuildingGoal, 0x140025e80): B4 Y
-// GAMEA typed BuildingGoal::_field38 as NamedExternalRefArray (Goal/goal_exe_helpers.h),
+// GAMEA typed BuildingGoal::_buildingTypes as NamedExternalRefArray (Goal/goal_exe_helpers.h),
 // so the body is that member's own `~Array`; Game_DestroyStringArray18 is deleted.
 
 // FUN_14000a8a0 (gameupdateloop.cpp, EventNotifier_Cleanup) — String at element+8,

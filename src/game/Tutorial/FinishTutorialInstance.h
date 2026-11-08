@@ -43,9 +43,9 @@ public:
     Achievement::Goal::GoalState CheckGoalState() const override;  // [6] 0x1400d7bb0
 
 public:
-    Object::InternalPtr<TutorialInstance> _field20;   // +0x20: the tutorial instance (Startup builds it)
+    Object::InternalPtr<TutorialInstance> _tutorialInstance;   // +0x20: the tutorial instance (Startup builds it)
 };
 
-static_assert(offsetof(FinishTutorialInstance, _field20) == 0x20, "FinishTutorialInstance +0x20 tutorial instance");
+static_assert(offsetof(FinishTutorialInstance, _tutorialInstance) == 0x20, "FinishTutorialInstance +0x20 tutorial instance");
 static_assert(sizeof(FinishTutorialInstance) == 0x28, "FinishTutorialInstance is 0x28 (create 0x140026070 MemAlloc(0x28))");
 static_assert(alignof(FinishTutorialInstance) == 8, "FinishTutorialInstance is qword-aligned");

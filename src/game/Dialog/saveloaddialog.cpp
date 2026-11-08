@@ -267,7 +267,7 @@ void SaveLoadDialog::PopulateFileList() {
             }
 
             // Set material on spritesheet
-            sheetFinal->m_field30 = matInstFinal;
+            sheetFinal->m_materialInstance = matInstFinal;
 
             // Get image dimensions
             Video::ImageBuffer* imageBuffer = saveInfo.imageBuffer;
@@ -278,9 +278,9 @@ void SaveLoadDialog::PopulateFileList() {
             System::String emptyStr1(""), emptyStr2("");
             sheetFinal->m_groupName = emptyStr1;
             sheetFinal->m_textureName = emptyStr2;
-            sheetFinal->m_field48 = imgWidth;
-            sheetFinal->m_field4C = imgHeight;
-            sheetFinal->m_field50 = false;   // the tree's qword zero at +0x50 (the flag and its pad)
+            sheetFinal->m_imageWidth = imgWidth;
+            sheetFinal->m_imageHeight = imgHeight;
+            sheetFinal->m_padForFiltering = false;   // the tree's qword zero at +0x50 (the flag and its pad)
 
             // Add sprite info (full image as single sprite)
             System::String nameStr1(""), nameStr2("");
@@ -303,8 +303,8 @@ void SaveLoadDialog::PopulateFileList() {
 
             entry.spriteSheet = sheetFinal;
 
-            // Check save validity: SaveInfo::field44 (+0x44, the format version)
-            if (saveInfo.field44 == 2) {
+            // Check save validity: SaveInfo::formatVersion (+0x44, the format version)
+            if (saveInfo.formatVersion == 2) {
                 // Valid save: hide imageCorrupt overlay
                 entry.imageCorrupt->SetFlagsOnOff(UI::kElementFlagHidden, 0);
             } else {
@@ -315,7 +315,7 @@ void SaveLoadDialog::PopulateFileList() {
 
         // --- Set text parameters if save has valid data ---
         if (saveInfo.saveIndex >= 0) {
-            if (saveInfo.field44 == 2) {
+            if (saveInfo.formatVersion == 2) {
                 // Valid save: show formatted date string
                 // ?AsString@DateTime@System@@ returns by value.
                 System::String dateStr = saveInfo.sortKey.AsString();
@@ -482,8 +482,8 @@ void SaveLoadDialog::OnUpdateLayout() {
         bool loadEnabled = false;
         if (saveCountNow >= 1 && selectedIdx >= 0) {
             const Save::SaveLoad::SaveInfo& saveInfo = saveLoad->GetSaveInfo(selectedIdx);
-            // SaveInfo::field44 == 2 means valid save
-            if (saveInfo.field44 == 2) {
+            // SaveInfo::formatVersion == 2 means valid save
+            if (saveInfo.formatVersion == 2) {
                 loadEnabled = true;
             }
         }

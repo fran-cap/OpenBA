@@ -43,7 +43,7 @@
 // compiler's).
 Disease::Disease()
     : _stringTable(nullptr), _name(),            // ExternalPtr (weak), empty String (qword 0)
-      _field30(1.0f), _field34(0.0f), _field38(1.0f), _field3C(10.0f), _field40(0.0f) {}
+      _spreadIntervalMonths(1.0f), _contagion(0.0f), _spreadRadius(1.0f), _catchWeight(10.0f), _deathOdds(0.0f) {}
 
 // Dtor 0x140018f60: ~String(+0x28) (the member's), then ~External: the
 // compiler's chain, in that order.
@@ -54,11 +54,11 @@ bool Disease::Serialize(IO::Stream& stream) {
     IO::Serializer s(stream, 0);
     ::Object::SerializeExternal<UI::StringTable>(s, _stringTable);
     _name.Serialize(s);
-    s.Serialize(_field30, nullptr);
-    s.Serialize(_field34, nullptr);
-    s.Serialize(_field38, nullptr);
-    s.Serialize(_field3C, nullptr);
-    s.Serialize(_field40, nullptr);
+    s.Serialize(_spreadIntervalMonths, nullptr);
+    s.Serialize(_contagion, nullptr);
+    s.Serialize(_spreadRadius, nullptr);
+    s.Serialize(_catchWeight, nullptr);
+    s.Serialize(_deathOdds, nullptr);
     return true;   // ~Serializer runs here, after the last field, as before
 
 }

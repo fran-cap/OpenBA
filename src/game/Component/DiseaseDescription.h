@@ -56,7 +56,7 @@ public:
     float spreadMonths;                         // +0x38 months per spread attempt
     float durationMonths;                       // +0x3c outbreak length
     int32_t spreadRadius;                       // +0x40 spread offset, tiles
-    int32_t _i44;                               // +0x44 zeroed by the tree's ctor, never serialized
+    int32_t _pad44;                               // +0x44 zeroed by the tree's ctor, never serialized
 };
 
 static_assert(sizeof(DiseaseDescription) == 0x48, "DiseaseDescription is 0x48 (create 0x140004e10 MemAlloc(0x48))");
@@ -70,4 +70,4 @@ static_assert(offsetof(DiseaseDescription, killMonths) == 0x34, "DiseaseDescript
 static_assert(offsetof(DiseaseDescription, spreadMonths) == 0x38, "DiseaseDescription::spreadMonths @ +0x38");
 static_assert(offsetof(DiseaseDescription, durationMonths) == 0x3c, "DiseaseDescription::durationMonths @ +0x3c");
 static_assert(offsetof(DiseaseDescription, spreadRadius) == 0x40, "DiseaseDescription::spreadRadius @ +0x40");
-static_assert(offsetof(DiseaseDescription, _i44) == 0x44, "DiseaseDescription::_i44 @ +0x44");
+static_assert(offsetof(DiseaseDescription, _pad44) == 0x44, "DiseaseDescription::_pad44 @ +0x44");

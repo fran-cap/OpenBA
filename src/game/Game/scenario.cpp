@@ -39,9 +39,9 @@
 //   *(uint64*)(+0x58)=0, *(uint64*)(+0x60)=0, *(uint16*)(+0x68)=1,
 //   *(uint64*)(+0x70)=0, *(uint64*)(+0x78)=0, *(uint64*)(+0x80)=0, *(uint64*)(+0x88)=0
 Scenario::Scenario()
-    : _field60(0), _field64(0), _field68(true), _field69(false),
+    : randomSeed(0), terrainSize(0), disasters(true), tutorial(false),
       _pad6A{}, mapGenerator(nullptr), terrainGenerator(nullptr), climateGenerator(nullptr),
-      _field88() {}
+      saveGame() {}
 
 // The dtor inside [0] 0x14001eb40: the two Strings (+0x88 then +0x58), the
 // compiler's member destruction; the compiler then runs ~Achievement
@@ -73,8 +73,8 @@ bool Scenario::Serialize(IO::Stream& stream) {
     IO::Serializer serializer(stream, 0);
 
     // Serialize Scenario-specific fields
-    serializer.Serialize(_field60, nullptr);
-    serializer.Serialize(_field64, nullptr);
+    serializer.Serialize(randomSeed, nullptr);
+    serializer.Serialize(terrainSize, nullptr);
 
     scenarioName.Serialize(serializer);
 
@@ -82,10 +82,10 @@ bool Scenario::Serialize(IO::Stream& stream) {
     ::Object::SerializeExternal<TerrainGenerator>(serializer, terrainGenerator);
     ::Object::SerializeExternal<ClimateGenerator>(serializer, climateGenerator);
 
-    _field88.Serialize(serializer);
+    saveGame.Serialize(serializer);
 
-    serializer.Serialize(_field68, nullptr);
-    serializer.Serialize(_field69, nullptr);
+    serializer.Serialize(disasters, nullptr);
+    serializer.Serialize(tutorial, nullptr);
 
     return true;
 }

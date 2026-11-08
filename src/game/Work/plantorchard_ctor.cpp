@@ -35,7 +35,7 @@ namespace {
 // 0x140005440 WorkAcc_FindComponent_5440 (Work/exe_bodies.h) and 0x140051830
 // OrchardComponent_ValidateRefs (Component/exe_bodies.h) are called by name (B3R).
 // 0x14000a590 (Array<bool>::SetSize) is the exe-side Collection::Array<T>
-// monomorphisation: `field_58.SetSize` below.
+// monomorphisation: `_claimedSlots.SetSize` below.
 // ENDGAME B.3.8: the file-level lazy Resolve() is gone (B38 D7) — Work_Ctor25 is the
 // base ctor Work(void*), the stamp is the compiler's, and the two helpers are resolved
 // where they are used.
@@ -54,14 +54,14 @@ PlantOrchard::PlantOrchard(ComponentEntity* const* entityIBP, ComponentDescripti
     // PlantOrchard's own fields. Retail writes +0x60 as one 8-byte store, which clears
     // BOTH the count (+0x60) and the capacity (+0x64) of the array triple at +0x58:
     // here the two named fields, in address order.
-    // +0x48 / +0x50: the `_cells` member's ctor zeroes the set, then `field_58`'s ctor
+    // +0x48 / +0x50: the `_cells` member's ctor zeroes the set, then `_claimedSlots`'s ctor
     // zeroes +0x58 / +0x60 (retail 0x1400f50b0, under its EH state).
-    field_68 = treeType;   // tree type, stored verbatim: no null test, no validation,
+    _treeType = treeType;   // tree type, stored verbatim: no null test, no validation,
                            // no refcount — as retail does.
 
     // Read unguarded (0x1400f51b1 -> 0x1400f51c6): a PlantOrchard is only built for an
     // entity that has an orchard.
-    OrchardComponent* orchard = field_10->FindComponent<OrchardComponent>();   // 0x140005440
+    OrchardComponent* orchard = _entity->FindComponent<OrchardComponent>();   // 0x140005440
 
     orchard->ValidateRefs();   // 0x140051830
 
@@ -69,14 +69,14 @@ PlantOrchard::PlantOrchard(ComponentEntity* const* entityIBP, ComponentDescripti
     // 0x14000a590 == Collection::Array<bool>::SetSize (no tail write: the loop below
     // writes every slot).
     const int slotCount = orchard->slotCount;
-    field_58.SetSize(slotCount);
+    _claimedSlots.SetSize(slotCount);
 
     // Zero each byte. Retail re-reads orchardComp->+0x58 and re-runs CheckPtr on every
     // iteration; the re-read is preserved because ValidateRefs/CheckPtr can in principle
     // shrink the component's slot array underneath the loop. No data test
     // (0x1400f5200..0x1400f5221): SetSize allocated whenever the loop runs.
     for (int i = 0; i < orchard->slotCount; ++i) {
-        bool* base = field_58._data;
+        bool* base = _claimedSlots._data;
         base[i] = false;
     }
 }

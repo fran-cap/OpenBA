@@ -409,7 +409,7 @@ int32_t MeshInstance::SetSharedInstanceData(Video::Context& context, int32_t pac
 
     // B.4: `levels` is `GetMesh()->_detailLevels._data`, `rec` that level's
     // `_triangleLists._data`, and +0x14 of the 24-byte record is
-    // `TriangleList::_f14`.
+    // `TriangleList::_node`.
     const GraphicsMesh::DetailLevel* const levels =
         GetMesh()->_detailLevels._data;
     const GraphicsMesh::TriangleList* const rec = levels[hi]._triangleLists._data;
@@ -417,7 +417,7 @@ int32_t MeshInstance::SetSharedInstanceData(Video::Context& context, int32_t pac
     // without a test. If either is null here, something upstream handed us a
     // mesh with no detail level and THAT is the bug
     // (CLAUDE.md, "Don't 'fix' a faithful crash with a null check").
-    if (rec[lo]._f14 >= 0) {
+    if (rec[lo]._node >= 0) {
         ++g_miSSIDskip;
         return 0;                                            // 0x1801016a7  JGE
     }

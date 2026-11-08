@@ -111,7 +111,7 @@ char AttendanceComponent::AllFull() {
         Description* d = entry->_description;
         AttendanceDescription* desc = ::Object::IsDerivedFromNullSafe(d, AttendanceDescription::TypeId())
                                           ? static_cast<AttendanceDescription*>(d) : nullptr;
-        const int capacity = desc->_i20;
+        const int capacity = desc->_maxCitizens;
         if (entry->queue._size < capacity)
             return 0;
     }

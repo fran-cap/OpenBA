@@ -488,8 +488,8 @@ public:
     // sweeps walk (+0x50 is written with the head, +0x58 with the head's old
     // tail). B.4 (R-VIDEO), H4: typed as the ImageBuffer pointers they hold; the
     // guess names stay (tests/unit/video_imagebuffer_abi_test.cpp pins them).
-    ImageBuffer* _field50;     // +0x50  list link (next)
-    ImageBuffer* _field58;     // +0x58  list link (prev; the one the sweeps step)
+    ImageBuffer* _nextSurface;     // +0x50  list link (next)
+    ImageBuffer* _prevSurface;     // +0x58  list link (prev; the one the sweeps step)
     // The `Video::ImageBufferData*` the Device factory hands back (`DeviceData`
     // slot 10, +0x50 — `Dx11_CreateImageBufferData`). THIS is the field
     // `src/render/dx11/dx11_backend_access.h`'s deleted `ImageBufferOwner` view pinned
@@ -528,8 +528,8 @@ RT_VIDEO_IMAGEBUFFER_PIN(_addressV,   addressV,     0x3C);
 RT_VIDEO_IMAGEBUFFER_PIN(_addressW,   addressW,     0x40);
 RT_VIDEO_IMAGEBUFFER_PIN(_filter,     filter,       0x44);
 RT_VIDEO_IMAGEBUFFER_PIN(_sourceName, pixelData,    0x48);
-RT_VIDEO_IMAGEBUFFER_PIN(_field50,    field50,      0x50);
-RT_VIDEO_IMAGEBUFFER_PIN(_field58,    field58,      0x58);
+RT_VIDEO_IMAGEBUFFER_PIN(_nextSurface,    field50,      0x50);
+RT_VIDEO_IMAGEBUFFER_PIN(_prevSurface,    field58,      0x58);
 RT_VIDEO_IMAGEBUFFER_PIN(_data,       platformData, 0x60);
 
 #undef RT_VIDEO_IMAGEBUFFER_PIN

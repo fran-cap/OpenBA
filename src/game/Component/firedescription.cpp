@@ -46,7 +46,7 @@ FireDescription::FireDescription()
       bucketsToOut(100),
       maxFirefighters(50),
       igniteChance{1.0f, 1.0f},
-      _i4c(0) {}
+      _pad4c(0) {}
 
 // [5] 0x140049c00: stream order as retail.
 bool FireDescription::Serialize(IO::Stream& stream) {

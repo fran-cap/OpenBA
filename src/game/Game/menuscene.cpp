@@ -308,7 +308,7 @@ bool MenuScene::Serialize(IO::Stream& stream) {
 
     // ----- Atmosphere: Vector4 + 3 Colors + 5 Floats -----
     // ?Serialize@Vector4@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x18001d360
-    field_0x1B4.Serialize(outer);   // +0x1B4
+    weatherTerms.Serialize(outer);   // +0x1B4
     ambientColor.Serialize(outer);
     sunColor.Serialize(outer);
     skyColor.Serialize(outer);
@@ -335,7 +335,7 @@ bool MenuScene::Serialize(IO::Stream& stream) {
     // Weather externalPtr at +0x80 (FUN_1400196a0).
     ::Object::SerializeExternal<Weather>(outer, weather);
     // Single float at +0x78 (the v2-only "scene-time" or similar).
-    outer.Serialize(_field78, nullptr);
+    outer.Serialize(weatherIntensity, nullptr);
 
     // ----- Particle element array (+0x50, stride 0x14: 4 floats + 1 int) -----
     int count58 = particles.GetSize();
@@ -377,7 +377,7 @@ bool MenuScene::Serialize(IO::Stream& stream) {
     }
 
     if (!s_atmosLogged.exchange(true)) {
-        [[maybe_unused]] const Math::Vector4& v4 = field_0x1B4;
+        [[maybe_unused]] const Math::Vector4& v4 = weatherTerms;
         printf("[MenuScene::Slot5_Serialize] atmosphere deserialized: "
                "amb=0x%08x sun=0x%08x sky=0x%08x "
                "fogStart=%.2f fogEnd=%.2f fogDensity=%.3f "

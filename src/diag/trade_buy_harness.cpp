@@ -148,8 +148,8 @@ void TradeWatchAutoTrade(int frameNum, TradeComponent* post) {
     }
     ComponentDescription* freeGood = nullptr;
     ComponentDescription* paidGood = nullptr;
-    for (int i = 0; i < town->field_0x110._size; ++i) {
-        ComponentDescription* t = town->field_0x110._data[i];
+    for (int i = 0; i < town->knownRawMaterials._size; ++i) {
+        ComponentDescription* t = town->knownRawMaterials._data[i];
         if (!t || !storage->AcceptsMaterial(t)) continue;
         const int price = post->GetResourcePrice(t);
         if (price <= 0 && !freeGood) freeGood = t;
@@ -164,8 +164,8 @@ void TradeWatchAutoTrade(int frameNum, TradeComponent* post) {
         post->tradeId = m;
         freeGood = nullptr;
         paidGood = nullptr;
-        for (int i = 0; i < town->field_0x110._size; ++i) {
-            ComponentDescription* t = town->field_0x110._data[i];
+        for (int i = 0; i < town->knownRawMaterials._size; ++i) {
+            ComponentDescription* t = town->knownRawMaterials._data[i];
             if (!t || !storage->AcceptsMaterial(t)) continue;
             const int price = post->GetResourcePrice(t);
             if (price <= 0 && !freeGood) freeGood = t;
@@ -281,8 +281,8 @@ void TradeWatch(int frameNum) {
         float q[3] = {p.x, p.y, 0.0f};
         const float* tp = gw->m_game->GetTerrainPos(tri, q, '\0', nullptr);
         std::fprintf(stderr, "[TradeWatch]   boat height rule: fixed(+0x3c)=%d z(+0x40)=%.3f floor(+0x44)=%.3f "
-                     "terrain under it %.3f\n", cd ? cd->_b3c : -1, cd ? cd->_f40 : 0.0f,
-                     cd ? cd->_f44 : 0.0f, tp[2]);
+                     "terrain under it %.3f\n", cd ? cd->_forceHeight : -1, cd ? cd->_height : 0.0f,
+                     cd ? cd->_minHeight : 0.0f, tp[2]);
     }
     if (!s_watchCut && !boat && post->merchantTimer._ticks > 1) {
         // The post's own placement (its model translation): the dock's z is this z plus
@@ -393,7 +393,7 @@ extern "C" void TradeSellHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         return;
     }
 
-    const int creditBefore = townMgr->field_0x1AC;   // +0x1ac
+    const int creditBefore = townMgr->totalTradeValue;   // +0x1ac
 
     // Fill the SELL rows. self+0x30 array, count +0x38, stride 0x20, pending qty at
     // entry+0x18 — the same layout the checkout consumes. entry+0x10 is the row's
@@ -440,8 +440,8 @@ extern "C" void TradeSellHarness_Tick(PlayerToolManager* entityUI, int frameNum)
             // fault walking a field that was never a tree.
             // Found by exact type id.
             TradeComponent* tradeComp = static_cast<TradeComponent*>(FindCompOnEntity(postEnt, tidTrade));
-            ComponentDescription** tmpls = townMgr->field_0x110._data;   // +0x110
-            const int tmplN = townMgr->field_0x110._size;                 // +0x118
+            ComponentDescription** tmpls = townMgr->knownRawMaterials._data;   // +0x110
+            const int tmplN = townMgr->knownRawMaterials._size;                 // +0x118
             if (tradeComp && tmpls && tmplN > 0) {
                 for (int i = 0; i < tmplN; ++i) {
                     if (!tmpls[i]) continue;
@@ -494,7 +494,7 @@ extern "C" void TradeSellHarness_Tick(PlayerToolManager* entityUI, int frameNum)
 
     tui->OnTradeButton();
 
-    const int creditAfter = townMgr->field_0x1AC;    // +0x1ac
+    const int creditAfter = townMgr->totalTradeValue;    // +0x1ac
     s_totalSold += (creditAfter - creditBefore);
     ++s_visits;
     std::fprintf(stderr, "[TradeSell] f=%d visit=%d rows=%d/%d queued=%d units -> credit "

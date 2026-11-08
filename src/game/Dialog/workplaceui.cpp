@@ -205,7 +205,7 @@ void PopulateCounts(WorkPlaceUI* self) {
 //   if (wc->workState == 0) wc->workState = CalcStartingJobCount(wc);   // FUN_14012e5c0
 //   SetMaxWorkers(wpc, wc->workState + delta);                  // 0x14012fb00
 // No clamping here — retail bounds the player with the button-enable tail in
-// OnUpdateLayout (up: capacity < WorkDescription _i2c; down: capacity > _i28, or
+// OnUpdateLayout (up: capacity < WorkDescription _maxWorkerCount; down: capacity > _minWorkerCount, or
 // > 1 on the laborer branch), so the spinner is bounded by a greyed arrow.
 void WorkPlaceUI::AdjustJobCount(int delta) {
     ::Object::Base* source = _dataSource;
@@ -316,7 +316,7 @@ void WorkPlaceUI::OnCreated() {
     WorkDescription* workDesc = ::Object::IsDerivedFromNullSafe(descSource, WorkDescription::TypeId())
         ? static_cast<WorkDescription*>(descSource) : nullptr;
 
-    if (workDesc && !workDesc->_b20) {
+    if (workDesc && !workDesc->_allowCountChange) {
         jobCountUp->SetFlagsOnOff(UI::kElementFlagHidden, 0);
         jobCountDown->SetFlagsOnOff(UI::kElementFlagHidden, 0);
     }
@@ -361,11 +361,11 @@ void WorkPlaceUI::OnUpdateLayout() {
 #ifdef _DEBUG
     printf("[WorkPlaceUI] entity=%p wpComp=%p workComp=%p jobType=%p jt+0x20=%d prof=%p\n",
         static_cast<void*>(entity), static_cast<void*>(workPlace), static_cast<void*>(work),
-        static_cast<void*>(workDesc), workDesc ? static_cast<int>(workDesc->_b20) : -1,
+        static_cast<void*>(workDesc), workDesc ? static_cast<int>(workDesc->_allowCountChange) : -1,
         static_cast<void*>(workPlace->profession));
 #endif
-    bool showJobArrows = workDesc->_b20;
-    if (!showJobArrows && workPlace->profession == professions->field_0x38) {
+    bool showJobArrows = workDesc->_allowCountChange;
+    if (!showJobArrows && workPlace->profession == professions->builderProfession) {
         // The laborer-style profession: the arrows show while a BuildComponent exists.
         if (entity->FindComponent<BuildComponent>() != nullptr)   // 0x14000d6c0
             showJobArrows = true;
@@ -402,7 +402,7 @@ void WorkPlaceUI::OnUpdateLayout() {
 
     // Count the town's adults of this profession, and its laborers.
     CitizenBehavior* town = GameUpdateLoop::_singleton->m_citizenList;
-    Profession* laborer = professions->field_0x30;
+    Profession* laborer = professions->laborerProfession;
 
     int workplaceWorkerCount = 0;
     int laborerCount = 0;
@@ -447,17 +447,17 @@ void WorkPlaceUI::OnUpdateLayout() {
         "wpProf=%p laborProf30=%p jt+0x28=%d jt+0x2c=%d jt+0x34=%d\n",
         workerCount, capacity, workplaceWorkerCount, laborerCount, wpMaxCount,
         citizenCount, static_cast<void*>(workPlace->profession), static_cast<void*>(laborer),
-        workDesc ? workDesc->_i28 : -1,
-        workDesc ? workDesc->_i2c : -1,
-        workDesc ? static_cast<int>(workDesc->_b34) : -1);
+        workDesc ? workDesc->_minWorkerCount : -1,
+        workDesc ? workDesc->_maxWorkerCount : -1,
+        workDesc ? static_cast<int>(workDesc->_scaleWorkersWithSize) : -1);
     fflush(stderr);
 #endif
 
-    if (workPlace->profession == professions->field_0x38) {
+    if (workPlace->profession == professions->builderProfession) {
         // The laborer-style profession with a BuildComponent: the limit is the
         // smaller of the description's maximum and the InteractComponent's count.
         if (entity->FindComponent<BuildComponent>() != nullptr) {   // 0x14000d6c0
-            int maxCap = workDesc->_i2c;
+            int maxCap = workDesc->_maxWorkerCount;
             InteractComponent* interact = entity->FindComponent<InteractComponent>();   // 0x140002ed0
             int posCount = interact->NodeCount(1);   // 0x140123070
             if (posCount < maxCap) {
@@ -470,9 +470,9 @@ void WorkPlaceUI::OnUpdateLayout() {
         }
     }
 
-    int jobMinCount = workDesc->_i28;
+    int jobMinCount = workDesc->_minWorkerCount;
 
-    jobCountUp->Enable(wpMaxCount < workDesc->_i2c);
+    jobCountUp->Enable(wpMaxCount < workDesc->_maxWorkerCount);
     jobCountDown->Enable(wpMaxCount != jobMinCount && wpMaxCount > jobMinCount);
 }
 

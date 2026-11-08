@@ -125,9 +125,9 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     }
 
     // Step 2: Find components (0x140003050 WorkComponent, 0x140005440 OrchardComponent)
-    WorkComponent* matDesc = field_10->FindComponent<WorkComponent>();
+    WorkComponent* matDesc = _entity->FindComponent<WorkComponent>();
 
-    OrchardComponent* orchard = field_10->FindComponent<OrchardComponent>();
+    OrchardComponent* orchard = _entity->FindComponent<OrchardComponent>();
 
     // Get OrchardDescription object
     Description* descObj = orchard->_description;
@@ -152,7 +152,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     bool atCapacity = resEntry.maxCount <= resEntry.currentCount;
 
     // The status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
-    StatusIconComponent* statusIcon = field_10->FindComponent<StatusIconComponent>();
+    StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
     statusIcon->SetFlag(2, atCapacity ? 1 : 0);
 
     if (atCapacity) {
@@ -176,12 +176,12 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     uint32_t citizenGridCell = mapSz * citizenCellY + citizenCellX;
 
     // Step 4: Iterate orchard slots
-    int fieldCellCount = _field58._size;
+    int fieldCellCount = _slotsAvailable._size;
     [[maybe_unused]] float cellFloat = 0.0f;
 
     if (fieldCellCount > 0) {
         for (int i = 0; i < fieldCellCount; i++) {
-            bool* validityArray = _field58._data;
+            bool* validityArray = _slotsAvailable._data;
             if (validityArray[i] == 0) {
                 goto next_cell;
             }
@@ -232,8 +232,8 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                                 bool isDescDerived = Object::IsDerivedFromNullSafe(descCompObj, FruitDescription::TypeId());
                                 FruitDescription* descComp = isDescDerived ? static_cast<FruitDescription*>(descCompObj) : nullptr;
 
-                                // The fruit's raw material (FruitDescription::_ref30)
-                                ComponentDescription* rawMatRef = descComp->_ref30;
+                                // The fruit's raw material (FruitDescription::_rawMaterial)
+                                ComponentDescription* rawMatRef = descComp->_rawMaterial;
                                 rawMatRef->FindDescription<RawMaterialDescription>();   // 0x140006330 (its result is never read)
 
                                 // Arg 7 of the action ctor. Read from the FruitComponent
@@ -291,7 +291,7 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 
                                 WorkAct_GatherWorkCtor_bb7b0(
                                     actionBuf,                     // citizenIBP
-                                    (uint32_t)field_20,            // work id / priority (self+0x20)
+                                    (uint32_t)_workId,            // work id / priority (self+0x20)
                                     &entityRef,                    // entity ref ptr
                                     pathPos,                       // position
                                     rawMatRef,                     // raw material ref
@@ -309,14 +309,14 @@ int HarvestOrchard::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                                                                    // reference_int_arg_typed_as_float.
 
                                 // Assign work and register with AI
-                                int priority = field_20;
+                                int priority = _workId;
                                 CitizenComponent* citizenEnt = *citizenIBP;
 
                                 Profession* workEnt = nullptr;
                                 GetTarget(&workEnt);
 
                                 citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-                                citizenEnt->field_0x30 = priority;
+                                citizenEnt->lastWorkId = priority;
                                 citizenEnt->lastErrand = CitizenErrand::None;
 
                                 if (workEnt == citizenEnt->profession && priority >= 0) {
@@ -411,7 +411,7 @@ int HarvestOrchard::OnCancel(CitizenComponent** /*param2*/, ComponentEntity** /*
     }
 
     // Mark slot as valid
-    bool* validityArray = _field58._data;
+    bool* validityArray = _slotsAvailable._data;
     validityArray[param4] = 1;
     return 0;
 }
@@ -508,7 +508,7 @@ int HarvestOrchard::Validate() {
                 collectCount = newCount;
             }
 
-            bool* validityArray = _field58._data;
+            bool* validityArray = _slotsAvailable._data;
             validityArray[node->element.slot] = 1;
         }
 
@@ -564,7 +564,7 @@ cleanup:
 // (0x140002e10), its profession (+0x48) into the return slot.
 // ============================================================
 Profession** HarvestOrchard::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }
@@ -585,13 +585,13 @@ void HarvestOrchard::Persist(IO::Stream& stream) {
     // (the helper takes the container as uintptr_t*: LEFT)
     WorkCellBST_Serialize_9de0(&_cells, &serializer2);
 
-    int cellCount = _field58._size;
+    int cellCount = _slotsAvailable._size;
     int cellCountBuf[2] = { cellCount, 0 };
     serializer2.Serialize(cellCountBuf[0], nullptr);
 
     // 0x14000a590 == Collection::Array<bool>::SetSize.
     if (static_cast<int>(serializer2.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
-        _field58.SetSize(cellCountBuf[0]);
+        _slotsAvailable.SetSize(cellCountBuf[0]);
     }
 
     // Serialize validity array through the BOOL-ARRAY door.
@@ -609,14 +609,14 @@ void HarvestOrchard::Persist(IO::Stream& stream) {
     // the old `s_fn_Serializer_SerializeBoolArray` alias pointed at (removed with
     // its door in the B.3.4a closing sweep). See
     // harvestarea.cpp for the full argument.
-    serializer2.Serialize(cellCountBuf[0], _field58._data, nullptr);   // slot 0x140151458 = bool-array door
+    serializer2.Serialize(cellCountBuf[0], _slotsAvailable._data, nullptr);   // slot 0x140151458 = bool-array door
 }
 
 
 // The HarvestOrchard / AutoPickupWork / Work stamps and the `~Internal` call are the
 // compiler's chain.
 HarvestOrchard::~HarvestOrchard() {
-    // The +0x58 flags are the `_field58` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
+    // The +0x58 flags are the `_slotsAvailable` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
     // then the +0x48 set's Clear is the `_cells` member's ~Set: reverse declaration order
     // after this empty body (0x1400edf60).
 }

@@ -124,7 +124,7 @@ public:
                                  //       (version < 5 streams carry 14, +0xB0/+0xB8 then = Time(0))
     System::Time leisureTimer;   // +0xC0 System::Time (version > 2): += dt (Decide); the leisure
                                  //       candidate's priority reads its seconds
-    System::Time dataC8;         // +0xC8 System::Time (version > 3): += dt (Decide), reset to 0
+    System::Time carryingTimer;         // +0xC8 System::Time (version > 3): += dt (Decide), reset to 0
                                  //       while the citizen carries nothing; the LongTermPlan
                                  //       candidate's priority compares it
 };
@@ -148,4 +148,4 @@ static_assert(offsetof(CitizenAIComponent, _pad32)        == 0x32, "");
 static_assert(offsetof(CitizenAIComponent, citizen)       == 0x38, "");
 static_assert(offsetof(CitizenAIComponent, timers)        == 0x40, "");
 static_assert(offsetof(CitizenAIComponent, leisureTimer)  == 0xC0, "");
-static_assert(offsetof(CitizenAIComponent, dataC8)        == 0xC8, "");
+static_assert(offsetof(CitizenAIComponent, carryingTimer)        == 0xC8, "");

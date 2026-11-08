@@ -205,7 +205,7 @@ static const int kRollBudget = 400;
 // raster and cell+0x08 the entity raster — a different thing entirely).
 // Outer loop walks x across `w`, inner loop steps whole rows down `h`.
 // Its receiver is the Map (GameUpdateLoop +0xf8): Map::HasIdentityInRect. The compared
-// cell field is MapCell::field_0x10 (the ExternalPtr identity, Map.h).
+// cell field is MapCell::lastGrownDescription (the ExternalPtr identity, Map.h).
 bool Map::HasIdentityInRect(int x, int y, int w, int h,
                             const ComponentDescription* wantIdentity) const {
     const int32_t width = size;
@@ -213,7 +213,7 @@ bool Map::HasIdentityInRect(int x, int y, int w, int h,
     for (int64_t dx = 0; dx < w; ++dx) {
         const MapCell* cell = &cells.GetData()[((int64_t)width * y) + dx + x];
         for (int64_t dy = 0; dy < h; ++dy) {
-            if (cell->field_0x10 == wantIdentity) return true;
+            if (cell->lastGrownDescription == wantIdentity) return true;
             cell += width;
         }
     }
@@ -471,7 +471,7 @@ void DiseaseComponent::Infect() {
     // the settings BLOCK (this read indexed the cell pointer, 0xb8 bytes past it).
     if (g_gameSettings != nullptr && g_gameSettings->autoSlow != 0 && gw) {
         PlayerToolManager* speedObj = gw->m_toolManager;   // +0x120
-        if (speedObj) speedObj->field_0x34 = 1;            // 0x14004854f MOV dword [RCX+0x34],1
+        if (speedObj) speedObj->gameSpeed = 1;            // 0x14004854f MOV dword [RCX+0x34],1
     }
 
     // ---- Start every emitter on the entity's ParticleComponent (the swarm VFX).

@@ -38,7 +38,7 @@
 #include "Component/CitizenDescription.h"   // adultAge (+0x44)
 #include "Entity/CitizenBehavior.h"         // the town manager's arrays (+0x20, +0xA0)
 #include "Entity/ComponentEntity.h"         // _components / FindComponent<T>
-#include "Game/ProfessionList.h"            // field_0x30 (the laborer profession)
+#include "Game/ProfessionList.h"            // laborerProfession (the laborer profession)
 #include "Component/exe_bodies.h"
 #include "Action/exe_bodies.h"   // Pf_EntityAnchorCell_7fb0 (0x140087fb0)
 #include "Work/exe_bodies.h"     // WorkBase_CalcDistance_8830 (0x140008830)
@@ -67,7 +67,7 @@ void EnsureFns() {
 }
 
 // The default (laborer) profession: *(gw+0xb0)+0x30, re-read at every use.
-inline Profession* LaborerKey()  { return GameUpdateLoop::_singleton->m_professionList->field_0x30; }
+inline Profession* LaborerKey()  { return GameUpdateLoop::_singleton->m_professionList->laborerProfession; }
 
 // citizen adult (desc+0x44 <= cz+0x3c) && idle (cz+0x208 == 0). No CheckPtr (caller
 // already CheckPtr'd; the exe reads these two fields before the mid-check CheckPtr).
@@ -113,13 +113,13 @@ inline void SeatWorker(CitizenComponent* citizen, ComponentEntity* avail, Profes
 // townMgr+0x28 count). Uses System::Random::Rand(*(gw+0xd8), n).
 // ============================================================================
 void Shuffle896a0(CitizenBehavior* townMgr) {
-    uint32_t n = townMgr->field_0x20._size;
+    uint32_t n = townMgr->residences._size;
     System::Random* rng = GameUpdateLoop::_singleton->m_random;   // +0xd8
     if ((int)n <= 1) return;
     for (int64_t i = 0; (int64_t)i < (int)n; ++i) {
         uint32_t j = rng->Rand(static_cast<uint32_t>(n));
         if ((uint32_t)i != j) {
-            Object::InternalPtr<ComponentEntity>* base = townMgr->field_0x20._data;
+            Object::InternalPtr<ComponentEntity>* base = townMgr->residences._data;
             ComponentEntity* tmp = base[i].Get();
             base[i] = base[(int)j];
             base[(int)j] = tmp;
@@ -298,9 +298,9 @@ CitizenComponent** Strat_c5f0(CitizenBehavior* townMgr, CitizenComponent** out,
 
     Shuffle896a0(townMgr);
 
-    int houseCnt = townMgr->field_0x20._size;
+    int houseCnt = townMgr->residences._size;
     for (int h = 0; h < houseCnt; ++h) {   // local_50[0] = h * 8
-        ComponentEntity* house = townMgr->field_0x20._data[h].Get();   // local_60
+        ComponentEntity* house = townMgr->residences._data[h].Get();   // local_60
         ResidenceComponent* c7cf0 = FindResidenceComp(house);   // local_70
         int recCount = c7cf0->residentSlots._size;
         for (int r = 0; r < recCount; ++r) {

@@ -189,9 +189,9 @@ Object::Base* SpriteSheet::CreateInPlaceObject(void* place) {
 //       and desync every subsequent record. Transcribed from the LEA operands,
 //       not from field order.
 //
-//   18011d7a2  CALL [RAX+0xa0]   (RBX+0x48, null) int   m_field48
-//   18011d7b7  CALL [RAX+0xa0]   (RBX+0x4c, null) int   m_field4C
-//   18011d7cc  CALL [RAX+0x78]   (RBX+0x50, null) bool  m_field50
+//   18011d7a2  CALL [RAX+0xa0]   (RBX+0x48, null) int   m_imageWidth
+//   18011d7b7  CALL [RAX+0xa0]   (RBX+0x4c, null) int   m_imageHeight
+//   18011d7cc  CALL [RAX+0x78]   (RBX+0x50, null) bool  m_padForFiltering
 //     ^ RCX for all three is reloaded from [RSP+0x30] each time — the
 //       ReaderWriter, not the Encoding. See the banner.
 //
@@ -275,7 +275,7 @@ Object::Base* SpriteSheet::CreateInPlaceObject(void* place) {
 
 namespace {
 
-// ExternalPtr<MaterialInstance>::Serialize (0x180014520), by name. `m_field30`
+// ExternalPtr<MaterialInstance>::Serialize (0x180014520), by name. `m_materialInstance`
 // is spelt uint64_t (saveload_draw.cpp stores it as an integer), and the body
 // takes the rt::io POD view of the Serializer (cursor.cpp does the same).
 void MaterialPtrSerialize(Graphics::MaterialInstance** field, IO::Serializer* ser) {
@@ -396,9 +396,9 @@ bool SpriteSheet::Serialize(IO::Stream& streamv) {
     m_groupName.Serialize(ser);     // +0x40 FIRST — see banner
     m_textureName.Serialize(ser);   // +0x38 second
 
-    ser.Serialize(m_field48, nullptr);       // +0x48
-    ser.Serialize(m_field4C, nullptr);       // +0x4c
-    ser.Serialize(m_field50, nullptr);       // +0x50, Serialize(bool&)
+    ser.Serialize(m_imageWidth, nullptr);       // +0x48
+    ser.Serialize(m_imageHeight, nullptr);       // +0x4c
+    ser.Serialize(m_padForFiltering, nullptr);       // +0x50, Serialize(bool&)
 
     int32_t count = m_sprites._size;   // +0x28, into the RSP+0x50 temporary
     ser.Serialize(count, nullptr);
@@ -410,7 +410,7 @@ bool SpriteSheet::Serialize(IO::Stream& streamv) {
     // Re-read AFTER SetSize: it reallocates.
     RtUi_SpriteSheet_SerializeEntries(&ser, count, m_sprites._data);   // 0x180078ad0
 
-    MaterialPtrSerialize(&m_field30, &ser);  // +0x30
+    MaterialPtrSerialize(&m_materialInstance, &ser);  // +0x30
 
     // EXT SEAM (NOT RETAIL): ext.create_on_demand's prefetch (SpriteSheet.h has the contract).
     if (ser._stream->_direction == 0 && _extLoaded != nullptr) _extLoaded(*this);

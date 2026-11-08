@@ -98,7 +98,7 @@ void PerformWork::Persist(IO::Stream& stream) {
     elapsedTime.Serialize(ser);
 
     ser.Serialize(useTool, nullptr);   // +0x40 bool
-    ser.Serialize(field44, nullptr);   // +0x44 int
+    ser.Serialize(toolType, nullptr);   // +0x44 int
 }
 
 // ============================================================
@@ -131,8 +131,8 @@ int  PerformWork::AbstractImpl(ActionStack* actionStack) {
 
     // If use tool flag is set, decrement tool durability
     if (useTool) {
-        if (workTarget->field_0xAC > 0) {
-            int32_t* toolDurability = &workTarget->field_0xAC;
+        if (workTarget->toolUses > 0) {
+            int32_t* toolDurability = &workTarget->toolUses;
             (*toolDurability)--;
             if (*toolDurability < 0) {
                 *toolDurability = 0;
@@ -212,7 +212,7 @@ PerformWork::PerformWork()
       elapsedTime{0},
       useTool(false),
       _pad41{},
-      field44(-1) {}
+      toolType(-1) {}
 
 // [3] 0x1400c9550
 // [4] 0x1400c9420
@@ -250,20 +250,20 @@ PerformWork::PerformWork(CitizenComponent* const* citizen, float animIndex, uint
     requiredTime._ticks = time;
     elapsedTime._ticks = 0;
     useTool = useToolArg;
-    field44 = param_7;
+    toolType = param_7;
     if (useToolArg) {
-        if ((*citizen)->field_0xAC < 1) {
+        if ((*citizen)->toolUses < 1) {
             // 0x1400c97d1-0x1400c97ee: comp = IsDerivedFrom(desc, CitizenDescription) ? desc
             // : null (CMOVNZ), then +0x114 is read with no test (a miss faults, as retail).
             Description* obj = workTarget->_description;
             const CitizenDescription* comp =
                 obj->IsDerivedFrom(CitizenDescription::TypeId()) ? static_cast<const CitizenDescription*>(obj)
                                                                  : nullptr;
-            // 0x1400c97fb Time(comp->_f114); 0x1400c9808 / 0x1400c9814 Time::AsSeconds on
+            // 0x1400c97fb Time(comp->toolPenalty); 0x1400c9808 / 0x1400c9814 Time::AsSeconds on
             // requiredTime and on that Time; MULSS; 0x1400c9826 Time(product) into +0x30.
             System::Time scaleTime;
             scaleTime._ticks = 0;
-            RtSystem_Time_Ctor(&scaleTime, comp->_f114);
+            RtSystem_Time_Ctor(&scaleTime, comp->toolPenalty);
             float selfSecs  = requiredTime.AsSeconds();
             float scaleSecs = scaleTime.AsSeconds();
             System::Time prod;

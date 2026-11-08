@@ -1580,8 +1580,8 @@ namespace {
 //   GraphicsMesh::DetailLevel (stride 0xb0) is `_distance` (+0x10, compared
 //   SQUARED), `_triangleLists` (+0x98 / count +0xa0) and `_maxInstances`
 //   (+0xa8, AddDrawItem's arg8);
-//   GraphicsMesh::TriangleList (stride 0x18) is `_f10` (+0x10, the index into
-//   MeshInstance::_materials) and `_f14` (+0x14, NEGATIVE means "skinned").
+//   GraphicsMesh::TriangleList (stride 0x18) is `_materialIndex` (+0x10, the index into
+//   MeshInstance::_materials) and `_node` (+0x14, NEGATIVE means "skinned").
 
 // The name door for the append. Spelled on ONE line: runtime_census.py's
 // called-scan cannot see a mangled name split across a C++ string-literal
@@ -2119,7 +2119,7 @@ Math::Matrix* MeshInstance::GetInstanceTransform(Math::Matrix* ret, int packed,
     const GraphicsMesh::TriangleList* const lists =
         mesh->_detailLevels._data[level]
             ._triangleLists._data;
-    const int64_t node = lists[element]._f14;     // MOVSXD
+    const int64_t node = lists[element]._node;     // MOVSXD
 
     Transform xf;
     if (node < 0) {
@@ -2228,7 +2228,7 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
         uint32_t arg10 = 0xffffffffu;                          // OR $-1,%r10d
         int32_t arg8 = meshNow->_detailLevels._data[level]._maxInstances;
 
-        if (lists[i]._f14 < 0) {                               // 180101103  JGE
+        if (lists[i]._node < 0) {                               // 180101103  JGE
             if (!_animation._instanced) {                      // 180101116
                 arg8 = 1;                                      // 180101138
             } else {
@@ -2237,7 +2237,7 @@ void MeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) const {
             }
         }
 
-        const int32_t matIndex = lists[i]._f10;
+        const int32_t matIndex = lists[i]._materialIndex;
         const MaterialInstance* material = _materials._data[matIndex].Get();
 
         // 16-BIT add: `ADD 0x28(%rbx),%r9w`. It WRAPS; it does not promote.
@@ -2299,7 +2299,7 @@ Math::Matrix* EdgeMeshInstance::GetInstanceTransform(Math::Matrix* ret, int pack
     const EdgeMesh* const mesh = _mesh.Get();
     const GraphicsMesh::TriangleList* const listData =
         whichList ? mesh->_edgeLists._data : mesh->_triangleLists._data;
-    const int32_t node = listData[index]._f14;   // plain MOV dword; see the door
+    const int32_t node = listData[index]._node;   // plain MOV dword; see the door
 
     if (node >= 0 && _followed != nullptr) {
         // ENDGAME B.3.5: `MeshInstance::GetNodeToWorld(int, float)` is now a
@@ -2370,7 +2370,7 @@ void EdgeMeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) cons
             const GraphicsMesh::TriangleList* const lists = em->_triangleLists._data;
 
             const MaterialInstance* material =
-                (lists[i]._f14 >= 0)                            // 1800a305f  JGE
+                (lists[i]._node >= 0)                            // 1800a305f  JGE
                     ? emNow->_maskMaterial.Get()                // +0x28
                     : emNow->_skinMaskMaterial.Get();           // +0x30
 
@@ -2391,7 +2391,7 @@ void EdgeMeshInstance::AddDrawItems(const Scene& scene, Renderer& renderer) cons
             const GraphicsMesh::TriangleList* const lists = em->_edgeLists._data;
 
             const MaterialInstance* material =
-                (lists[i]._f14 >= 0)                            // 1800a30ef  JGE
+                (lists[i]._node >= 0)                            // 1800a30ef  JGE
                     ? emNow->_edgeMaterial.Get()                // +0x38
                     : emNow->_skinEdgeMaterial.Get();           // +0x40
 

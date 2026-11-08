@@ -98,10 +98,10 @@ void RadioElement::Update(const System::Time& time, UserInterface* ui,
     ev.dialog   = dialog->Get();     // the handle's 8 bytes
     ev.element  = this;
     ev.eventId  = UI::EventId::RadioSelected;
-    ev.arg14    = _elementId;
-    ev.arg18    = state.mouseX;
-    ev.arg1C    = state.mouseY;
-    ev.arg20    = value;
+    ev.elementId    = _elementId;
+    ev.mouseX    = state.mouseX;
+    ev.mouseY    = state.mouseY;
+    ev.value    = value;
     ev.userData = nullptr;
     rtcoll::RtColl_ArraySetSizeFill_180033690(&ui->_events, ui->_events._size + 1, &ev);
 }

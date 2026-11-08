@@ -415,7 +415,7 @@ static void StartTown_TileToWorld(Map* game, int tileX, int tileY, float out3[3]
 extern "C" void StartTown_ComputeCamera(MapGenerator* startConfig, Map* game, float camPosOut[3]) {
     camPosOut[0] = camPosOut[1] = camPosOut[2] = 0.0f;
     if (!startConfig || !game) return;
-    int size = startConfig->subdivisions;   // townSize (mapGen+0x3c, _startAreaSize)
+    int size = startConfig->startAreaSize;   // townSize (mapGen+0x3c, _startAreaSize)
     if (size <= 0) size = 1;
 
     int tileX = game->size >> 1, tileY = tileX;      // default = map center
@@ -579,9 +579,9 @@ static void StartTown_SeedAvailableAgriculture(MapGenerator* sc, Map* game,
     float centre[3] = { 0.0f, 0.0f, 0.0f };
     StartTown_TileToWorld(game, spawnX, spawnY, centre);
 
-    SeedAgriPool(sc, townMgr, rng, sc->refArray5, sc->paramE0, "plants");
-    SeedAgriPool(sc, townMgr, rng, sc->refArray6, sc->paramE4, "trees");
-    SeedAgriPool(sc, townMgr, rng, sc->refArray7, sc->paramE8, "livestock", centre);
+    SeedAgriPool(sc, townMgr, rng, sc->initialPlantList, sc->plantCount, "plants");
+    SeedAgriPool(sc, townMgr, rng, sc->initialTreeList, sc->treeCount, "trees");
+    SeedAgriPool(sc, townMgr, rng, sc->initialLivestockList, sc->livestockCount, "livestock", centre);
 }
 
 // [WGPAR] the start town's per-entity diagnostic lines (port-only; one unbuffered
@@ -607,8 +607,8 @@ static struct StartTownDiagTally {
 // entry in the pool at startConfig+0x90 (count at +0x98), resolve its template
 // and spawn+register a copy. No transforms, no terrain queries.
 static int StartTown_SpawnSimplePool(MapGenerator* startConfig, EntityList* entityList) {
-    const int count = startConfig->refArray3._size;
-    MapGenerator::ExternalRef* pool = startConfig->refArray3._data;
+    const int count = startConfig->populations._size;
+    MapGenerator::ExternalRef* pool = startConfig->populations._data;
     if (count <= 0 || !pool) return 0;
     int spawned = 0;
     for (int i = 0; i < count; ++i) {
@@ -1127,7 +1127,7 @@ static ComponentDescription* ShowroomResolveTree(MapGenerator* startConfig, cons
         candidates.push_back(ResolveTemplateByPath("Template\\NaturalResourceTree.rsc"));
     } else {
         if (startConfig) {
-            const MapGenerator::ExternalRefArray& pool = startConfig->refArray6;
+            const MapGenerator::ExternalRefArray& pool = startConfig->initialTreeList;
             for (int i = 0; i < pool._size; ++i) {
                 MapGenerator::ExternalRef local = pool._data[i];
                 ComponentDescription* tmpl = StartTown_ResolveTemplate(&local);
@@ -1379,8 +1379,8 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
         int w = 0, h = 0;
         if (const CreatePlacedDescription* cpd =
                 FindDescriptionOnTemplate<CreatePlacedDescription>(tmpl, tidCPD)) {
-            w = cpd->_i44;
-            h = cpd->_i48;
+            w = cpd->_width;
+            h = cpd->_height;
         }
         if (w <= 0 || h <= 0) { w = b.fw; h = b.fh; }
 
@@ -1520,12 +1520,12 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
                 continue;
             }
             const CreatePlacedDescription* cpd = FindDescriptionOnTemplate<CreatePlacedDescription>(tmpl, tidCPD);
-            if (!cpd || cpd->_i44 <= 0 || cpd->_i48 <= 0) {
+            if (!cpd || cpd->_width <= 0 || cpd->_height <= 0) {
                 // Say what the template carries instead, so the reason can be read off the log.
                 char cpdText[160] = "none";
                 if (cpd) {
                     std::snprintf(cpdText, sizeof(cpdText), "category=%u i40=%d i44=%d i48=%d placeArray=%d",
-                                  cpd->_category, cpd->_i40, cpd->_i44, cpd->_i48, cpd->_placeArray._size);
+                                  cpd->_category, cpd->_footprintRotation, cpd->_width, cpd->_height, cpd->_placeArray._size);
                 }
                 std::string why = std::string("no CreatePlacedDescription footprint (") + cpdText + "); descriptions:";
                 for (int d = 0; d < tmpl->_subDescCount; ++d) {
@@ -1853,8 +1853,8 @@ static int StartTown_StressSpawnStructures(MapGenerator* startConfig, Map* game,
 
 static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* entityList,
                                      Map* game, int spawnX, int spawnY) {
-    const int count = startConfig->refArray2._size;
-    MapGenerator::InitialStructure* pool = startConfig->refArray2._data;
+    const int count = startConfig->structures._size;
+    MapGenerator::InitialStructure* pool = startConfig->structures._data;
     if (count <= 0 || !pool) return 0;
     const uint32_t tidCreatePlaced  = CreatePlacedDescription::TypeId();
     const uint32_t tidMapComponent  = MapComponent::TypeId();
@@ -2192,7 +2192,7 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 if ((int32_t)mult <= 0) mult = 1;
                 const Description* linked = bc->_description;
                 const BuildDescription* bDesc = static_cast<const BuildDescription*>(linked);
-                int required = bDesc ? bDesc->_i30 * (int)mult : 0;
+                int required = bDesc ? bDesc->_workRequired * (int)mult : 0;
                 bc->costMultiplier = (int32_t)mult;
                 bc->laborProgress = required;
                 fprintf(stderr, "[startTown::struct] [%d] instant-path FALLBACK: delivered was 0 "
@@ -2280,8 +2280,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
         CreatePlacedDescription* placed =
             FindDescriptionOnTemplate<CreatePlacedDescription>(tmpl, tidCreatePlaced);
         if (placed) {
-            w0 = placed->_i44;
-            h0 = placed->_i48;
+            w0 = placed->_width;
+            h0 = placed->_height;
         } else {
             w0 = entry->width;
             h0 = entry->height;
@@ -2381,8 +2381,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 const CreatePlacedDescription* cpd =
                     FindDescriptionOnTemplate<CreatePlacedDescription>(ptmpl, CreatePlacedDescription::TypeId());
                 if (cpd) {
-                    pw = cpd->_i44;
-                    ph = cpd->_i48;
+                    pw = cpd->_width;
+                    ph = cpd->_height;
                 }
                 if (pw <= 0 || ph <= 0) { pw = 8; ph = 8; }
             }
@@ -2450,8 +2450,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 const CreatePlacedDescription* cpd =
                     FindDescriptionOnTemplate<CreatePlacedDescription>(otmpl, CreatePlacedDescription::TypeId());
                 if (cpd) {
-                    ow = cpd->_i44;
-                    oh = cpd->_i48;
+                    ow = cpd->_width;
+                    oh = cpd->_height;
                 }
                 // Variable-size like pastures, so the authored default may be 0.
                 if (ow <= 0 || oh <= 0) { ow = 8; oh = 8; }
@@ -2529,8 +2529,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 const CreatePlacedDescription* cpd =
                     FindDescriptionOnTemplate<CreatePlacedDescription>(ttmpl, CreatePlacedDescription::TypeId());
                 if (cpd) {
-                    tw = cpd->_i44;
-                    th = cpd->_i48;
+                    tw = cpd->_width;
+                    th = cpd->_height;
                 }
                 // Observed live via BANISHED_TRADE_PROBE: CreatePlacedDescription 12x11.
                 if (tw <= 0 || th <= 0) { tw = 12; th = 11; }
@@ -3062,8 +3062,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                 const CreatePlacedDescription* cpd =
                     FindDescriptionOnTemplate<CreatePlacedDescription>(tmpl, CreatePlacedDescription::TypeId());
                 if (cpd) {
-                    w = cpd->_i44;
-                    h = cpd->_i48;
+                    w = cpd->_width;
+                    h = cpd->_height;
                 }
                 // Drag-created areas (the crop field) carry a CreateDragDescription
                 // instead, so there is no authored footprint to read — hence the
@@ -3216,8 +3216,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                     if (hw <= 0 || hh <= 0) {
                         if (const CreatePlacedDescription* cpd = FindDescriptionOnTemplate<CreatePlacedDescription>(
                                 htmpl, CreatePlacedDescription::TypeId())) {
-                            hw = cpd->_i44;
-                            hh = cpd->_i48;
+                            hw = cpd->_width;
+                            hh = cpd->_height;
                         }
                         if (hw <= 0 || hh <= 0) { hw = 8; hh = 8; }
                     }
@@ -3273,8 +3273,8 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                         const CreatePlacedDescription* cpd = FindDescriptionOnTemplate<CreatePlacedDescription>(
                             gtmpl, CreatePlacedDescription::TypeId());
                         if (cpd) {
-                            gw_ = cpd->_i44;
-                            gh_ = cpd->_i48;
+                            gw_ = cpd->_width;
+                            gh_ = cpd->_height;
                         }
                         if (gw_ <= 0 || gh_ <= 0) { gw_ = 8; gh_ = 8; }
                     }
@@ -3471,14 +3471,14 @@ static int StartTown_SpawnStructures(MapGenerator* startConfig, EntityList* enti
                     FindDescriptionOnTemplate<CreatePlacedDescription>(ftmpl, CreatePlacedDescription::TypeId());
                 if (cpd) {
                     if (fw <= 0 || fh <= 0) {
-                        fw = cpd->_i44;
-                        fh = cpd->_i48;
+                        fw = cpd->_width;
+                        fh = cpd->_height;
                     }
                     // `_footprintRotation` sits at +0x40, immediately before _width
                     // (+0x44) and _height (+0x48) — measured from the live description
                     // (the retail exe carries no resource field names to look it up by).
                     // FishermansDock.rsc sets it to 180.
-                    const int rv = cpd->_i40;
+                    const int rv = cpd->_footprintRotation;
                     if (rv == 90 || rv == 180 || rv == 270) fdockRot = rv;
                 }
                 if (fw <= 0 || fh <= 0) { fw = 8; fh = 8; }
@@ -3989,7 +3989,7 @@ static void StartTown_SeedLaborerProfessions() {
     if (GameUpdateLoop::_singleton == nullptr) return;
     ProfessionList* profList = GameUpdateLoop::_singleton->m_professionList;
     if (!profList) return;
-    Profession* laborerKey = profList->field_0x30;
+    Profession* laborerKey = profList->laborerProfession;
     if (!laborerKey) {
         fprintf(stderr, "[startTown::laborer] ProfessionList+0x30 (default profession) null "
                 "— Profession.rsc not live; Job line stays blank\n"); fflush(stderr);
@@ -4357,8 +4357,8 @@ static void StartTown_SeedHouseInventory(int unitsPerHouse) {
     // Pick an edible raw-material template (RawMaterialDescription+0x5c & 0x20 = edible)
     // from the town template pool (townMgr+0x110 base / +0x118 count).
     uint32_t tidRawMat = RawMaterialDescription::TypeId();
-    int tmplCount = townMgr->field_0x110._size;
-    ComponentDescription** tmplArr = townMgr->field_0x110._data;
+    int tmplCount = townMgr->knownRawMaterials._size;
+    ComponentDescription** tmplArr = townMgr->knownRawMaterials._data;
     ComponentDescription* foodTmpl = nullptr;
     uint32_t foodFlags = 0;
     // [STAND-IN, NOT THE FIX] Firewood. The residence heat tick (0x140129970) pins the
@@ -4415,7 +4415,7 @@ static void StartTown_SeedHouseInventory(int unitsPerHouse) {
                 const Object::InternalPtr<CitizenComponent>* slot0data = slotArr[0]._data;   // slot[0].data
                 const CitizenComponent* resident = slot0data ? slot0data[0].Get() : nullptr;      // data[0]
                 const CitizenDescription* cd = resident ? resident->description : nullptr;   // CitizenDescription
-                if (cd) reqInt = (int)cd->_fc4;
+                if (cd) reqInt = (int)cd->foodLevel;
             }
         }
         int threshold = residents * reqInt;
@@ -4530,8 +4530,8 @@ static void StartTown_SeedHouseInventory(int unitsPerHouse) {
 // world position the colonists are jittered around (citizen Foundation-F).
 static int StartTown_SpawnCitizens(MapGenerator* startConfig, EntityList* entityList,
                                    Map* game, int spawnX, int spawnY) {
-    const int famCount  = startConfig->families._size;   // read as int32 (Serialize int&)
-    MapGenerator::InitialFamily* families = startConfig->families._data;
+    const int famCount  = startConfig->citizens._size;   // read as int32 (Serialize int&)
+    MapGenerator::InitialFamily* families = startConfig->citizens._data;
     if (famCount <= 0 || !families) return 0;
     // Town-centre world position (same tile->world mapping as the camera) +
     // founding-family spawn jitter radius (startConfig+0x40). FUN_1400a3300 found
@@ -4542,7 +4542,7 @@ static int StartTown_SpawnCitizens(MapGenerator* startConfig, EntityList* entity
 
     // Resolve the shared citizen template once (ExternalRef at startConfig+0x48,
     // same {name,gen,template} layout the pool entries use).
-    ComponentDescription* citizenTemplate = StartTown_ResolveTemplate(&startConfig->templateRef);
+    ComponentDescription* citizenTemplate = StartTown_ResolveTemplate(&startConfig->citizen);
     if (!citizenTemplate) {
         fprintf(stderr, "[startTown::citizen] citizen template unresolved\n");
         fflush(stderr);
@@ -4983,7 +4983,7 @@ static void StartTown_PlaceResourceCell(ComponentEntity* entity, int cellIdx, Ma
         const Description* linked = nrComp->_description;
         const NaturalResourceDescription* desc =
             static_cast<const NaturalResourceDescription*>(linked);
-        if (desc) jitter = desc->_f60;
+        if (desc) jitter = desc->_positionTolerance;
     }
 
     // terrain position for the cell centre (matches StartTown_TileToWorld).
@@ -5101,8 +5101,8 @@ static void SeedInitialSpawn(ComponentEntity* ent, uint32_t tidSpawnComp,
 
 static int StartTown_SpawnResources(MapGenerator* startConfig, GameUpdateLoop* world,
                                     int spawnX, int spawnY, int sizeSq) {
-    const int count = startConfig->refArray1._size;
-    MapGenerator::ExternalRef* pool = startConfig->refArray1._data;
+    const int count = startConfig->naturalResources._size;
+    MapGenerator::ExternalRef* pool = startConfig->naturalResources._data;
     if (count <= 0 || !pool) return 0;
     Map* game = world->m_game;
     if (!game) return 0;
@@ -5160,16 +5160,16 @@ static int StartTown_SpawnResources(MapGenerator* startConfig, GameUpdateLoop* w
             FindDescriptionOnTemplate<NaturalResourceDescription>(tmpl, tidNatRes);
         if (!desc) { fprintf(stderr, "[startTown::res] [%d] no NaturalResourceDescription\n", e); fflush(stderr); continue; }
 
-        const float persist  = desc->_f28;
-        const float octaves  = desc->_f2c;
-        float div            = desc->_f30;
+        const float persist  = desc->_noisePersistance;
+        const float octaves  = desc->_noiseOctaves;
+        float div            = desc->_noiseScale;
         if (div == 0.0f) div = 1.0f;
         const float scale    = uvScale / div;
-        const float threshold = desc->_f34;
-        const float density   = desc->_f38;
-        const float hMin      = desc->_f3c;
-        const float hMax      = desc->_f40;
-        const float slopeMin  = desc->_f44;
+        const float threshold = desc->_noiseCutoff;
+        const float density   = desc->_spawnChance;
+        const float hMin      = desc->_minHeight;
+        const float hMax      = desc->_maxHeight;
+        const float slopeMin  = desc->_maxAngle;
         const int category = static_cast<int32_t>(tmpl->_category);
 
         // Per-pool growth-variant setup (FUN_1400a12b0's NaturalResourceDescription
@@ -5182,17 +5182,17 @@ static int StartTown_SpawnResources(MapGenerator* startConfig, GameUpdateLoop* w
         // RNG, so the build order decides which seeds each field receives — it must run
         // variant-then-scatter or trees end up with a different distribution than vanilla
         // for a given map seed (and every later pool inherits the RNG offset).
-        const bool hasVariants = desc->_b48 != 0;
+        const bool hasVariants = desc->_groupModels != 0;
         ModelDescription* modelDesc = hasVariants
             ? FindDescriptionOnTemplate<ModelDescription>(tmpl, ModelDescription::TypeId()) : nullptr;
         int   variantCount = modelDesc ? modelDesc->_meshGroupCount : 0;
-        const float vFreqX = desc->_f4c;
-        const float vFreqY = desc->_f50;
-        float vDiv         = desc->_f54;
+        const float vFreqX = desc->_groupPersistance;
+        const float vFreqY = desc->_groupOctaves;
+        float vDiv         = desc->_groupScale;
         if (vDiv == 0.0f) vDiv = 1.0f;
         const float vScale  = uvScale / vDiv;
-        const float vThresh = desc->_f58;
-        int vOverrideDenom  = desc->_i5c;
+        const float vThresh = desc->_groupCutOff;
+        int vOverrideDenom  = desc->_groupRandom;
         if (vOverrideDenom <= 0) vOverrideDenom = 1;
         static constexpr int MAX_VARIANTS = 8;
         RtUtility::PerlinNoise vPerlin[MAX_VARIANTS];
@@ -5439,8 +5439,8 @@ static int StartTown_SpawnEnvironment(MapGenerator* startConfig, GameUpdateLoop*
     static constexpr int ENV_PASS_CAP = 2000;
 
     // Pass 1 — emitters along worldGeom polylines.
-    ComponentDescription* emitterTmpl = StartTown_ResolveTemplate(&startConfig->descRef1);
-    const float spacing = startConfig->terrainAmplitude;
+    ComponentDescription* emitterTmpl = StartTown_ResolveTemplate(&startConfig->riverAmbient);
+    const float spacing = startConfig->riverAmbientSpacing;
     if (emitterTmpl && worldGeom && spacing > 0.0f) {
         const int pathCount = worldGeom->_contourOutlines.size;
         RawArray<Math::Vector2>* pathArr = worldGeom->_contourOutlines.data;
@@ -5470,8 +5470,8 @@ static int StartTown_SpawnEnvironment(MapGenerator* startConfig, GameUpdateLoop*
     // live, stamp each volume's biome-sample region + emitter position from its
     // tile (gridX=x, gridY=y, rw=rh=chunk) so biome sampling varies by location and
     // the emitters aren't all stuck at the world origin.
-    ComponentDescription* ambTmpl = StartTown_ResolveTemplate(&startConfig->descRef2);
-    const int chunk = startConfig->chunkSize;
+    ComponentDescription* ambTmpl = StartTown_ResolveTemplate(&startConfig->mapAmbient);
+    const int chunk = startConfig->mapAmbientSpacing;
     const int dim   = game ? game->size : 0;
     if (ambTmpl && chunk > 0 && dim > 0) {
         for (int y = 0; y < dim && n2 < ENV_PASS_CAP; y += chunk)
@@ -5486,7 +5486,7 @@ static int StartTown_SpawnEnvironment(MapGenerator* startConfig, GameUpdateLoop*
     // the AmbientEmitterDescription at comp+0x18, its sounds[0]->GetRadius() at +0x20,
     // both derefs unguarded). The template is spawned first so the description is read
     // from the real component, then positioned and registered as in retail.
-    ComponentDescription* envTmpl = StartTown_ResolveTemplate(&startConfig->descRef3);
+    ComponentDescription* envTmpl = StartTown_ResolveTemplate(&startConfig->windAmbient);
     if (envTmpl) {
         ComponentEntity* mem = static_cast<ComponentEntity*>(System::MemoryAllocator::MemAlloc(ENTITY_SIZE, 8));
         ComponentEntity* ent = mem ? ::new (mem) ComponentEntity(envTmpl) : nullptr;
@@ -5498,7 +5498,7 @@ static int StartTown_SpawnEnvironment(MapGenerator* startConfig, GameUpdateLoop*
                     ::Object::IsDerivedFromNullSafe(emitter->_description, AmbientEmitterDescription::TypeId())
                         ? static_cast<AmbientEmitterDescription*>(emitter->_description) : nullptr;
                 const float radius = desc->_emitters[0]->GetRadius();   // retail: unguarded, as here
-                emitter->MoveTo(Math::Vector3(0.0f, 0.0f, radius + startConfig->param170));
+                emitter->MoveTo(Math::Vector3(0.0f, 0.0f, radius + startConfig->windAmbientHeight));
             }
             ::Object::InternalPtr<ComponentEntity> ibp(ent);
             entityList->RegisterEntity(&ibp, static_cast<int32_t>(envTmpl->_category));
@@ -5560,8 +5560,8 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
     // DIAG — dump every spawn pool's count so we know what's populated.
     fprintf(stderr, "[startTown::spawn] pools: simple(+0x98)=%d bldg(+0x88)=%d "
             "resource(+0x78)=%d citizenFam(+0x68)=%d\n",
-            sc->refArray3._size, sc->refArray2._size,
-            sc->refArray1._size, sc->families._size);
+            sc->populations._size, sc->structures._size,
+            sc->naturalResources._size, sc->citizens._size);
     fflush(stderr);
 
     // DIAG — fn-pointer state + per-pool first-entry resolution probe.
@@ -5577,11 +5577,11 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
     };
     // The first entry of each pool (the structure pool's entry starts with its ref).
     struct { const char* tag; MapGenerator::ExternalRef* first; int count; bool inlineRef; } probes[] = {
-        { "citizenRef(+0x48)", &sc->templateRef, 1, true },
-        { "resource(+0x70)", sc->refArray1._data, sc->refArray1._size, false },
-        { "structure(+0x80)", sc->refArray2._data ? &sc->refArray2._data->structure : nullptr,
-          sc->refArray2._size, false },
-        { "simple(+0x90)", sc->refArray3._data, sc->refArray3._size, false },
+        { "citizenRef(+0x48)", &sc->citizen, 1, true },
+        { "resource(+0x70)", sc->naturalResources._data, sc->naturalResources._size, false },
+        { "structure(+0x80)", sc->structures._data ? &sc->structures._data->structure : nullptr,
+          sc->structures._size, false },
+        { "simple(+0x90)", sc->populations._data, sc->populations._size, false },
     };
     for (auto& p : probes) {
         MapGenerator::ExternalRef* base = p.first;
@@ -5600,7 +5600,7 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
     Map* game = world->m_game;
     int spawnX = (game ? game->size : 0) >> 1, spawnY = spawnX;
     if (game) {
-        int size = sc->subdivisions;
+        int size = sc->startAreaSize;
         if (size <= 0) size = 1;
         StartTown_FindSpawnTile(game, size, &spawnX, &spawnY);
     }
@@ -5637,7 +5637,7 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
 
     // RESOURCES (impl_a12b0) — perlin scatter of trees/stone/iron across the map,
     // excluding the town site (radius = townSize, sizeSq = size*size).
-    int resSize = sc->subdivisions;
+    int resSize = sc->startAreaSize;
     if (resSize <= 0) resSize = 1;
     int nr = StartTown_SpawnResources(sc, world, spawnX, spawnY, resSize * resSize);
     int afterRes = entityList->masterArray._size;
@@ -5690,8 +5690,8 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
         if (GameUpdateLoop::_singleton != nullptr)
             townMgr = GameUpdateLoop::_singleton->m_citizenList;
 
-        const int rmCount = sc->refArray4._size;
-        MapGenerator::ExternalRef* rmPool = sc->refArray4._data;
+        const int rmCount = sc->initialVisibleList._size;
+        MapGenerator::ExternalRef* rmPool = sc->initialVisibleList._data;
         int registered = 0;
         if (townMgr && rmPool) {
             for (int i = 0; i < rmCount; ++i) {
@@ -5718,9 +5718,9 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
         int savedStock[7];
         // The seven start-stock counts (startConfig+0xfc..+0x114).
         int32_t MapGenerator::* const kStock[7] = {
-            &MapGenerator::paramFC, &MapGenerator::param100, &MapGenerator::param104,
-            &MapGenerator::param108, &MapGenerator::param10C, &MapGenerator::param110,
-            &MapGenerator::param114 };
+            &MapGenerator::initialWoodCount, &MapGenerator::initialStoneCount, &MapGenerator::initialIronCount,
+            &MapGenerator::initialToolCount, &MapGenerator::initialFoodCount, &MapGenerator::initialFuelCount,
+            &MapGenerator::initialClothingCount };
         if (foodMult > 1) {
             for (int k = 0; k < 7; ++k) {
                 int* slot = &(sc->*kStock[k]);
@@ -5730,13 +5730,13 @@ extern "C" void StartTown_SpawnEntities(MapGenerator* startConfig, GameUpdateLoo
             fprintf(stderr, "[Stress::food] start stock x%d: [0]%d->%d [1]%d->%d [2]%d->%d "
                             "[3]%d->%d [4]%d->%d [5]%d->%d [6]%d->%d\n",
                     foodMult,
-                    savedStock[0], sc->paramFC,
-                    savedStock[1], sc->param100,
-                    savedStock[2], sc->param104,
-                    savedStock[3], sc->param108,
-                    savedStock[4], sc->param10C,
-                    savedStock[5], sc->param110,
-                    savedStock[6], sc->param114);
+                    savedStock[0], sc->initialWoodCount,
+                    savedStock[1], sc->initialStoneCount,
+                    savedStock[2], sc->initialIronCount,
+                    savedStock[3], sc->initialToolCount,
+                    savedStock[4], sc->initialFoodCount,
+                    savedStock[5], sc->initialFuelCount,
+                    savedStock[6], sc->initialClothingCount);
             fflush(stderr);
         }
         sc->SeedStartingResources();

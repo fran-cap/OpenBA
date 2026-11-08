@@ -44,9 +44,9 @@ public:
     virtual Object::External* Construct();                         // [10] 0x140026150
 
 public:
-    Tutorial* _field30;          // +0x30: ExternalPtr<Tutorial> — the tutorial definition
+    Tutorial* _tutorial;          // +0x30: ExternalPtr<Tutorial> — the tutorial definition
 };
 
-static_assert(offsetof(FinishTutorialGoal, _field30) == 0x30, "FinishTutorialGoal +0x30 tutorial");
+static_assert(offsetof(FinishTutorialGoal, _tutorial) == 0x30, "FinishTutorialGoal +0x30 tutorial");
 static_assert(sizeof(FinishTutorialGoal) == 0x38, "FinishTutorialGoal is 0x38 (create 0x1400260f0 MemAlloc(0x38))");
 static_assert(alignof(FinishTutorialGoal) == 8, "FinishTutorialGoal is qword-aligned");

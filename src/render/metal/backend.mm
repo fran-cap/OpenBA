@@ -1338,7 +1338,7 @@ void ContextData::BindTransforms() {
     auto c = _owner;
     if (c->_dirty & RtVideo::kDirtyTransformConstants)
         c->_transformConstants.Bind(*c, c->_transforms, 0, c->_transformCount << 6);
-    if (c->_unknown0024 > 0) c->_boneConstants.Bind(*c, c->_boneAndProjectionStaging, 0, 0x0cc0);
+    if (c->_boneCount > 0) c->_boneConstants.Bind(*c, c->_boneAndProjectionStaging, 0, 0x0cc0);
 }
 void ContextData::BindTextureNone(int slot) {
     if (slot >= 0 && slot < 31) {
@@ -1372,21 +1372,21 @@ bool ContextData::BeginVertices(int vertexCount, int vertexStride) {
     if (vertexCount < 0 || vertexStride <= 0) return false;
     auto c = _owner;
     c->_dynamicVertexStride = vertexStride;
-    c->_unknown2104 = vertexCount;
+    c->_dynamicVertexCount = vertexCount;
     c->_dynamicVertexCursor =
-        static_cast<uint8_t*>(c->_dynamicVertexBuffer->Lock(vertexCount * vertexStride, c->_unknown2100));
-    c->_unknown2108 = c->_dynamicVertexCursor;
+        static_cast<uint8_t*>(c->_dynamicVertexBuffer->Lock(vertexCount * vertexStride, c->_dynamicVertexOffset));
+    c->_dynamicVertexBase = c->_dynamicVertexCursor;
     return c->_dynamicVertexCursor != nullptr;
 }
 void ContextData::EndVertices(int primitiveType) {
     auto c = _owner;
     c->_dynamicVertexCursor = nullptr;
     c->_dynamicVertexBuffer->Unlock();
-    c->SetVertexBuffer(c->_dynamicVertexBuffer, 0, c->_unknown2100, c->_dynamicVertexStride);
+    c->SetVertexBuffer(c->_dynamicVertexBuffer, 0, c->_dynamicVertexOffset, c->_dynamicVertexStride);
     c->BindResources();
-    Draw(c, primitiveType, c->_unknown2104, 1, false, 0, 0);
-    c->_trianglesSubmitted += c->_unknown2104 / 3;
-    c->_verticesSubmitted += c->_unknown2104;
+    Draw(c, primitiveType, c->_dynamicVertexCount, 1, false, 0, 0);
+    c->_trianglesSubmitted += c->_dynamicVertexCount / 3;
+    c->_verticesSubmitted += c->_dynamicVertexCount;
     c->_drawsSubmitted++;
     c->_objectsSubmitted++;
 }
@@ -1400,9 +1400,9 @@ bool ContextData::BeginInstancedIndexedVertices(int vertexCount, int vertexStrid
     if (!BeginVertices(vertexCount, vertexStride) || indexCount < 0) return false;
     auto c = _owner;
     c->_instanceCount = instanceCount;
-    c->_unknown2124 = indexCount;
-    c->_dynamicIndexCursor = static_cast<uint16_t*>(c->_dynamicIndexBuffer->Lock(indexCount * 2, c->_unknown2120));
-    c->_unknown2128 = c->_dynamicIndexCursor;
+    c->_dynamicIndexCount = indexCount;
+    c->_dynamicIndexCursor = static_cast<uint16_t*>(c->_dynamicIndexBuffer->Lock(indexCount * 2, c->_dynamicIndexOffset));
+    c->_dynamicIndexBase = c->_dynamicIndexCursor;
     return c->_dynamicIndexCursor != nullptr;
 }
 void ContextData::EndInstancedIndexedVertices(int primitiveType) {
@@ -1411,13 +1411,13 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     c->_dynamicIndexBuffer->Unlock();
     c->_dynamicVertexCursor = nullptr;
     c->_dynamicVertexBuffer->Unlock();
-    c->SetVertexBuffer(c->_dynamicVertexBuffer, 0, c->_unknown2100, c->_dynamicVertexStride);
-    if (c->_indexBuffer != c->_dynamicIndexBuffer || c->_indexOffset != c->_unknown2120) {
+    c->SetVertexBuffer(c->_dynamicVertexBuffer, 0, c->_dynamicVertexOffset, c->_dynamicVertexStride);
+    if (c->_indexBuffer != c->_dynamicIndexBuffer || c->_indexOffset != c->_dynamicIndexOffset) {
         c->_dirty |= RtVideo::kDirtyIndexBuffer;
         c->_indexBuffer = c->_dynamicIndexBuffer;
-        c->_indexOffset = c->_unknown2120;
+        c->_indexOffset = c->_dynamicIndexOffset;
     }
-    DrawIndexed(primitiveType, 0, c->_unknown2104, 0, c->_unknown2124, c->_instanceCount);
+    DrawIndexed(primitiveType, 0, c->_dynamicVertexCount, 0, c->_dynamicIndexCount, c->_instanceCount);
 }
 ImageBufferData::~ImageBufferData() {
     CreateOnDemand::Forget(this);   // NOT RETAIL (ext.create_on_demand): no first-use create after this
@@ -2244,7 +2244,7 @@ bool RenderStateData::Create() {
 void RenderStateData::Bind(void* context) {
     bound.depth = depthState;
     bound.blend = blend;
-    bound.scissor = _owner->_flag70 != 0;
+    bound.scissor = _owner->_scissorEnable != 0;
     const MTLCullMode modes[] = { MTLCullModeFront, MTLCullModeBack, MTLCullModeNone };
     bound.cull = modes[std::clamp<int>(_owner->_cullMode, 0, 2)];
     bound.fill = _owner->_fillMode ? MTLTriangleFillModeLines : MTLTriangleFillModeFill;

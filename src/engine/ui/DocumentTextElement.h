@@ -181,7 +181,7 @@ public:
         int32_t color;      // +0x18  resolved from _colors at emit time
         int32_t index;      // +0x1c  text: font slot; sprite: sheet slot
         uint8_t kind;       // +0x20  0 text, 1 sprite, 2 capture, 3 blank/tab
-        uint8_t byte21;     // +0x21  Update's underline: 0 none, 1 full, 2 trimmed
+        uint8_t underline;     // +0x21  Update's underline: 0 none, 1 full, 2 trimmed
         uint8_t pad22[2];   // +0x22
     };
     // One clickable span. Its compiler-generated operator= (0x18003c760,
@@ -300,7 +300,7 @@ public:
     int32_t  _penX;               // +0x178  row origin / left margin (^ml)
     int32_t  _hangIndent;         // +0x17c  folded into _penX at the next flush
     int32_t  _rightEdge;          // +0x180  ^mr; defaults to _wrapWidth
-    int32_t  _unknown184;         // +0x184  saved/restored across ^lo only
+    int32_t  _unwrittenPenState;         // +0x184  saved/restored across ^lo only
     int32_t  _rowPenX;            // +0x188  running x inside the row being built
     int32_t  _penY;               // +0x18c
     int32_t  _rowFirstItem;       // +0x190
@@ -340,7 +340,7 @@ static_assert(offsetof(DocumentTextElement, _textPos) == 0x174, "DocumentTextEle
 static_assert(offsetof(DocumentTextElement, _penX) == 0x178, "DocumentTextElement::_penX");
 static_assert(offsetof(DocumentTextElement, _hangIndent) == 0x17C, "DocumentTextElement::_hangIndent");
 static_assert(offsetof(DocumentTextElement, _rightEdge) == 0x180, "DocumentTextElement::_rightEdge");
-static_assert(offsetof(DocumentTextElement, _unknown184) == 0x184, "DocumentTextElement::_unknown184");
+static_assert(offsetof(DocumentTextElement, _unwrittenPenState) == 0x184, "DocumentTextElement::_unwrittenPenState");
 static_assert(offsetof(DocumentTextElement, _rowPenX) == 0x188, "DocumentTextElement::_rowPenX");
 static_assert(offsetof(DocumentTextElement, _penY) == 0x18C, "DocumentTextElement::_penY");
 static_assert(offsetof(DocumentTextElement, _rowFirstItem) == 0x190, "DocumentTextElement::_rowFirstItem");
@@ -364,7 +364,7 @@ static_assert(offsetof(DocumentTextElement::DocumentItem, last)   == 0x14, "");
 static_assert(offsetof(DocumentTextElement::DocumentItem, color)  == 0x18, "");
 static_assert(offsetof(DocumentTextElement::DocumentItem, index)  == 0x1c, "");
 static_assert(offsetof(DocumentTextElement::DocumentItem, kind)   == 0x20, "");
-static_assert(offsetof(DocumentTextElement::DocumentItem, byte21) == 0x21, "");
+static_assert(offsetof(DocumentTextElement::DocumentItem, underline) == 0x21, "");
 static_assert(sizeof(DocumentTextElement::Link) == DocumentTextElementOffsets::kLinkEntryStride, "");
 static_assert(offsetof(DocumentTextElement::Link, text) == 0x0, "Link::text");
 static_assert(offsetof(DocumentTextElement::Link, pad11) == 0x11, "Link::pad11");
@@ -397,7 +397,7 @@ static_assert(offsetof(C, _textPos)         == kTextPos, "");
 static_assert(offsetof(C, _penX)            == kPenX, "");
 static_assert(offsetof(C, _hangIndent)      == kHangIndent, "");
 static_assert(offsetof(C, _rightEdge)       == kRightEdge, "");
-static_assert(offsetof(C, _unknown184)      == kInt184, "");
+static_assert(offsetof(C, _unwrittenPenState)      == kInt184, "");
 static_assert(offsetof(C, _rowPenX)         == kRowPenX, "");
 static_assert(offsetof(C, _penY)            == kPenY, "");
 static_assert(offsetof(C, _rowFirstItem)    == kRowFirstItem, "");

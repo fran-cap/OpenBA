@@ -37,17 +37,17 @@ public:
     // +0x20: the HuntComponent (Persist checks HuntComponent; Enter tests HuntIsReady and clears
     // its huntProgress). +0x28: the HUNTING CITIZEN (Persist checks CitizenComponent; its
     // character's position seeds the query). The tree called them "animal" and "herd".
-    Object::InternalPtr<HuntComponent>    _field20;
-    Object::InternalPtr<CitizenComponent> _field28;
-    void*     _field30;          // +0x30 ctor 0; read by no slot
-    bool      _field38;          // +0x38 hunt started flag (Persist: the bool overload)
+    Object::InternalPtr<HuntComponent>    _hunt;
+    Object::InternalPtr<CitizenComponent> _hunter;
+    void*     _unreadZeroedPointer;          // +0x30 ctor 0; read by no slot
+    bool      _huntStarted;          // +0x38 hunt started flag (Persist: the bool overload)
     uint8_t   _pad39[7];         // +0x39 padding
 };
 
 static_assert(sizeof(HuntAnimal) == 0x40, "HuntAnimal is 0x40 (create 0x140022700 MemAlloc)");
 static_assert(offsetof(HuntAnimal, _pad39) == 0x39, "HuntAnimal::_pad39");
 static_assert(alignof(HuntAnimal) == 8, "HuntAnimal is 8-aligned");
-static_assert(offsetof(HuntAnimal, _field20) == 0x20, "HuntAnimal +0x20");
-static_assert(offsetof(HuntAnimal, _field28) == 0x28, "HuntAnimal +0x28");
-static_assert(offsetof(HuntAnimal, _field30) == 0x30, "HuntAnimal +0x30");
-static_assert(offsetof(HuntAnimal, _field38) == 0x38, "HuntAnimal +0x38");
+static_assert(offsetof(HuntAnimal, _hunt) == 0x20, "HuntAnimal +0x20");
+static_assert(offsetof(HuntAnimal, _hunter) == 0x28, "HuntAnimal +0x28");
+static_assert(offsetof(HuntAnimal, _unreadZeroedPointer) == 0x30, "HuntAnimal +0x30");
+static_assert(offsetof(HuntAnimal, _huntStarted) == 0x38, "HuntAnimal +0x38");

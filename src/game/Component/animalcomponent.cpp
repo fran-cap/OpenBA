@@ -259,7 +259,7 @@ void AnimalComponent::UpdateBehavior() {
     AnimalDescription* desc = AnimalDesc(this);
     if (!desc) return;                       // retail trusts the type check; see notes
 
-    const float adultAge = desc->_f30;
+    const float adultAge = desc->_ageForOffspring;
     if (adultAge == 0.0f) return;
 
     float scale = (age / adultAge) * ScaleGain() + ScaleBase();
@@ -313,13 +313,13 @@ void AnimalComponent::SetWanderTimer(uint32_t animId, float seconds) {
     if (model && charDesc) {
         // ActMvDep_AnimHelper_50f0 is a forwarder: its body is PlayModelAnimation.
         model->PlayAnimation(animId, 0.0f,
-                           charDesc->_turnFilter, ScaleMax());   // 0x1401250f0
+                           charDesc->_defaultAnimationBlendTime, ScaleMax());   // 0x1401250f0
     }
 
     RtSystem_Time_Ctor(&moveTimer, seconds);
 
     AnimalDescription* desc = AnimalDesc(this);
-    if (!desc || !desc->_b3c) return;
+    if (!desc || !desc->_randomIdleHeading) return;
 
     System::Random* rng = Rng();
     if (!rng) return;
@@ -330,15 +330,15 @@ void AnimalComponent::SetWanderTimer(uint32_t animId, float seconds) {
 
     Math::Vector3 dir = src.Normalize();
 
-    character->field_0x28 = false;
+    character->steeredByMover = false;
 
     const Math::Vector3 src2(dir.x, dir.y, 0.0f);
     Math::Vector3 facing = src2.Normalize();
-    character->field_0x2C.x = facing.x;
-    character->field_0x2C.y = facing.y;
-    character->field_0x2C.z = facing.z;
+    character->moveDirection.x = facing.x;
+    character->moveDirection.y = facing.y;
+    character->moveDirection.z = facing.z;
 
-    character->field_0x3C = dir.Heading();
+    character->targetHeading = dir.Heading();
 }
 
 // ============================================================
@@ -403,7 +403,7 @@ void AnimalComponent::Startup() {
     }
 
     float tol = rng->RandFloatTol();
-    deathAge = tol * desc->_f2c + desc->_f28;
+    deathAge = tol * desc->_maxAgeTolerance + desc->_maxAge;
 }
 void AnimalComponent::OnAdded() {
     const uint32_t flags = _flags;
@@ -431,7 +431,7 @@ void AnimalComponent::OnAdded() {
     AnimalDescription* desc = AnimalDesc(this);
     if (desc) {
         GetWanderBox(&wanderX, &wanderY, &wanderWidth, &wanderHeight,
-                                         desc->_i20);
+                                         desc->_roamSize);
     }
 
     // Retail: System::Time::Time(&t, 0.0f) then (*vtable[9])(this, &t). Slot 9 is
@@ -485,7 +485,7 @@ void AnimalComponent::Update(const System::Time* time) {
         float seconds = 0.0f;
         bool rearm = true;
 
-        if (timer != 0 || newAge <= desc->_f30) {
+        if (timer != 0 || newAge <= desc->_ageForOffspring) {
             if (timer < 1) {
                 rearm = false;                       // nothing to run down
             } else {
@@ -499,7 +499,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 }
             }
         } else {
-            const float interval = desc->_f34;
+            const float interval = desc->_offspringTerm;
             const float roll = rng ? rng->RandFloat() : 0.0f;
             seconds = (roll * interval + interval) * HoursToSec();
         }
@@ -559,7 +559,7 @@ void AnimalComponent::Update(const System::Time* time) {
             if ((cells && CellTerrain(cells, cell) != PathType::Normal) || blocked) {
                 habitatCell = FindHabitat();
                 GetWanderBox(&wanderX, &wanderY, &wanderWidth, &wanderHeight,
-                                                 desc->_i20);
+                                                 desc->_roamSize);
             }
         }
 
@@ -643,7 +643,7 @@ void AnimalComponent::Update(const System::Time* time) {
                 if (misses > 10) {
                     habitatCell = FindHabitat();
                     GetWanderBox(&wanderX, &wanderY, &wanderWidth, &wanderHeight,
-                                                     desc->_i20);
+                                                     desc->_roamSize);
                     misses = 0;
                 }
                 ++misses;
@@ -699,7 +699,7 @@ void AnimalComponent::Update(const System::Time* time) {
         }
     }
 
-    const float retry = desc->_f40;
+    const float retry = desc->_idleTime;
     const float roll = rng ? Rng()->RandFloat() : 0.0f;
     SetWanderTimer(wanderDir, roll * retry + retry);
 }

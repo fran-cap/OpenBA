@@ -30,11 +30,11 @@
 // Face (0x28, from FUN_1800665c0 0x1800665c0 disassembled at instruction level --
 // Ghidra's decompile of this one drops several call arguments, a known project
 // pitfall, so this shape came from the raw disassembly, not the pseudo-C):
-//   +0x00  int32_t                field0      kScalarInt
+//   +0x00  int32_t                surfaceIndex kScalarInt
 //   +0x04  (pad)
 //   +0x08  Array<Triple3>         _triples    {data,size@0x10,cap@0x14}  align2
 //   +0x18  Array<Quad4>           _quads      {data,size@0x20,cap@0x24}  align2
-// Serialize order per face: field0, THEN _quads (count, resize, 4x kScalarUShort
+// Serialize order per face: surfaceIndex, THEN _quads (count, resize, 4x kScalarUShort
 // per element), THEN _triples (count, resize, kArrayUShort(n=3) per element).
 // Grow: FUN_180066350 (Face array, element assign FUN_180065b70 deep-clones both
 // nested arrays via FUN_180066de0/FUN_180066b30, shrink-tail destroy FUN_1800664c0
@@ -161,7 +161,7 @@ void SerializeQuadsBody(IO::Serializer* ser, int32_t count, Quad4* base) {
 }
 
 // 0x1800665c0(Serializer* ser, int count, Face* base) -- the per-face walk.
-// Order, from the disassembly: field0, THEN quads (count, grow when reading,
+// Order, from the disassembly: surfaceIndex, THEN quads (count, grow when reading,
 // then 0x180066d50), THEN triples (count, grow when reading, then one
 // kArrayUShort(n=3) per element). The `if (reading)` test retail writes is
 // `*(int*)(ser->stream + 8) == 0`, i.e. Stream::direction.
@@ -171,7 +171,7 @@ void SerializeFacesBody(IO::Serializer* ser, int32_t count, Face* base) {
     const bool reading = (ser->_stream->_direction == rt::io::kDirectionReading);
     for (int32_t i = 0; i < count; ++i) {
         Face* f = &base[i];
-        rw->SerializeInt(f->field0, nullptr);              // +0xa0
+        rw->SerializeInt(f->surfaceIndex, nullptr);              // +0xa0
 
         int32_t quadCount = f->quads._size;
         rw->SerializeInt(quadCount, nullptr);

@@ -298,7 +298,7 @@ void TradeUI::RefreshSellTable()
 
     // Get resource table from game world singleton (+0xf0 = resource manager)
     CitizenBehavior* resourceMgr = GameUpdateLoop::_singleton->m_citizenList;
-    int resourceCount = resourceMgr->field_0x110._size;
+    int resourceCount = resourceMgr->knownRawMaterials._size;
 
     // Clear sell data array at +0x30 (stride 0x20)
     _sellItems.Clear();   // 0x140016050
@@ -310,7 +310,7 @@ void TradeUI::RefreshSellTable()
             RawMaterialDescription* resTypeComp = nullptr;
 
             // Get resource entity from resource table
-            ComponentDescription* resEntity = resourceMgr->field_0x110._data[ri];
+            ComponentDescription* resEntity = resourceMgr->knownRawMaterials._data[ri];
             const ComponentDescription* resKey = resEntity;
 
             // Search the post's storage BST for this resource
@@ -399,7 +399,7 @@ void TradeUI::RefreshSellTable()
             sellUI.label->SetSprite(&sprite);
 
             // Set text from ValueDescription (+0x30=stringTable, +0x38=stringName)
-            UI::String uiStr(::Object::ExternalPtr<UI::StringTable>(valueDesc->_ref30), valueDesc->_s38);
+            UI::String uiStr(::Object::ExternalPtr<UI::StringTable>(valueDesc->_stringTable), valueDesc->_stringName);
             sellUI.label->SetText(&uiStr);
 
             // Set sellable count on number element (sellUI+0x10)
@@ -589,7 +589,7 @@ void TradeUI::RefreshBuyTable()
             buyUI.label->SetSprite(&sprite);
 
             // Set text from ValueDescription
-            UI::String uiStr(::Object::ExternalPtr<UI::StringTable>(valDesc->_ref30), valDesc->_s38);
+            UI::String uiStr(::Object::ExternalPtr<UI::StringTable>(valDesc->_stringTable), valDesc->_stringName);
             buyUI.label->SetText(&uiStr);
 
             // Set quantity number (buyUI+0x18)
@@ -699,7 +699,7 @@ void TradeUI::RefreshBuyTable()
                     static_cast<UI::LabelElement*>(childElem)->SetSprite(&sprite);
 
                     // Set text
-                    UI::String uiStr(::Object::ExternalPtr<UI::StringTable>(valDesc->_ref30), valDesc->_s38);
+                    UI::String uiStr(::Object::ExternalPtr<UI::StringTable>(valDesc->_stringTable), valDesc->_stringName);
                     childElem->SetText(&uiStr);
                 }
 
@@ -1848,7 +1848,7 @@ void TradeUI::RefreshOrderDisplay() {
         // Sprite name is at pairs + (typeIdx*3 + 1)*8 (the 0x18-stride pair array)
         TradeGoodsCategory* entriesBase = tradeDesc->_pairs;
         const System::String* spriteName = &entriesBase[typeIdx].spriteName;
-        UI::Sprite spriteTemp(::Object::ExternalPtr<UI::SpriteSheet>(tradeDesc->_ref20), *spriteName);
+        UI::Sprite spriteTemp(::Object::ExternalPtr<UI::SpriteSheet>(tradeDesc->_resourceSpriteSheet), *spriteName);
 
         // Copy constructed sprite to local for SetSprite (matches MOVAPS/MOVDQA in original)
         UI::Sprite spriteLocal = spriteTemp;
@@ -1867,7 +1867,7 @@ void TradeUI::RefreshOrderDisplay() {
         // String name is at pairs + typeIdx*0x18 + 0x10
         entriesBase = tradeDesc->_pairs;
         const System::String* stringName = &entriesBase[typeIdx].textName;
-        UI::String stringTemp(::Object::ExternalPtr<UI::StringTable>(tradeDesc->_ref28), *stringName);
+        UI::String stringTemp(::Object::ExternalPtr<UI::StringTable>(tradeDesc->_resourceStringTable), *stringName);
 
         // Copy constructed string to local for SetText (matches MOVAPS/MOVDQA in original)
         UI::String stringLocal = stringTemp;
@@ -1909,14 +1909,14 @@ void TradeUI::RefreshOrderDisplay() {
 void TradeUI::RefreshDisplay() {
     // Get the raw-material list from game world singleton (+0xF0)
     CitizenBehavior* tradeList = GameUpdateLoop::_singleton->m_citizenList;
-    int entityCount = tradeList->field_0x110._size;
+    int entityCount = tradeList->knownRawMaterials._size;
 
     // Clear display entries array at self+0x50
     _storageItems.Clear();   // 0x140016200
 
     // Build display entries: for each entity, find ResourceType + ValueDescription
     for (int i = 0; i < entityCount; i++) {
-        ComponentDescription* entity = tradeList->field_0x110._data[i];
+        ComponentDescription* entity = tradeList->knownRawMaterials._data[i];
 
         RawMaterialDescription* resourceComp = nullptr;
         {
@@ -1997,7 +1997,7 @@ void TradeUI::RefreshDisplay() {
 
         // Set text name from ValueDescription (+0x30=stringTable, +0x38=stringName)
         // Original uses fn_UIString_Ctor — TextElement::SetText expects UI::String, not System::String
-        UI::String strBuf(::Object::ExternalPtr<UI::StringTable>(valueDesc->_ref30), valueDesc->_s38);
+        UI::String strBuf(::Object::ExternalPtr<UI::StringTable>(valueDesc->_stringTable), valueDesc->_stringName);
         UI::String strVal = strBuf;
         uiRow.label->SetText(&strVal);
 

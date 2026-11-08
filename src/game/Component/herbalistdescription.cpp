@@ -46,7 +46,7 @@ HerbalistDescription::HerbalistDescription()
       _herbs(nullptr),
       _herbCount(0),
       _herbCap(0),
-      _u30(6) {}
+      _resourceLimit(6) {}
 
 // dtor (slot 0 0x140006cf0 minus the stamps): frees the External* array buffer (entries are non-owning).
 // The compiler then chains ~Description -> ~External.
@@ -68,7 +68,7 @@ bool HerbalistDescription::Serialize(IO::Stream& stream) {
     }
     // 0x14004b345 CALL 0x1400049c0: the ComponentDescription instantiation (cell 0x1401c7318).
     Object::SerializeExternalArray<ComponentDescription>(ser, n, _herbs);
-    ser.Serialize(_u30, nullptr);
+    ser.Serialize(_resourceLimit, nullptr);
     return true;
 }
 

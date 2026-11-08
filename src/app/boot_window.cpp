@@ -3,7 +3,7 @@
 #include "boot_window.h"
 #include "stall_debug.h"
 #include "options.h"
-#include "video/Device.h"   // B4: Video::Configuration::field42
+#include "video/Device.h"   // B4: Video::Configuration::hideWindow
 #include "platform_window.h"   // Platform::Window::ShowDefault (Phase D.4 RENDER-3)
 #include <cstdio>
 #include <cstdlib>
@@ -42,7 +42,7 @@ bool ArmDeferredShow(::Video::Configuration* videoConfig, void* hwnd) {
     if (g_armed || g_shown) return g_armed;   // only the first device creation arms
 
     // B5 DEV-A (B5_RULES D7): src/render/dx11/devicedata.cpp hands the typed configuration.
-    videoConfig->field42 = 1;   // +0x42 (kCfgSkipShow)
+    videoConfig->hideWindow = 1;   // +0x42 (kCfgSkipShow)
 
     g_hwnd      = hwnd;
     g_armed     = true;

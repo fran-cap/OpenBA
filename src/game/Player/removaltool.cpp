@@ -121,12 +121,12 @@ int RemovalTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
 
     // Check the owner's constraint
     const PlayerToolManager* descEntity = dialogPtr;
-    if (descEntity->field_0x80) {
+    if (descEntity->tutorialRestricted) {
         // Constrained removal — verify selection matches the constrained area exactly
         int cGridSize = GameUpdateLoop::_singleton->m_game->size;
 
-        int constrainStartCell = descEntity->field_0x98;
-        int constrainEndCell   = descEntity->field_0x9C;
+        int constrainStartCell = descEntity->tutorialStartCell;
+        int constrainEndCell   = descEntity->tutorialEndCell;
 
         int cStartCol = constrainStartCell % cGridSize;
         int cStartRow = constrainStartCell / cGridSize;
@@ -181,10 +181,10 @@ void RemovalTool::Draw(Video::Context* ctx, char param3) {
     Map* mapGrid = GameUpdateLoop::_singleton->m_game;
 
     // ---- Phase 1: Constrained entity tiles ----
-    if (descEntity->field_0x80) {
+    if (descEntity->tutorialRestricted) {
         int gridSize = mapGrid->size;
-        int constrainStart = descEntity->field_0x98;
-        int constrainEnd   = descEntity->field_0x9C;
+        int constrainStart = descEntity->tutorialStartCell;
+        int constrainEnd   = descEntity->tutorialEndCell;
 
         int startCol = constrainStart % gridSize;
         int startRow = constrainStart / gridSize;
@@ -288,20 +288,20 @@ void RemovalTool::Draw(Video::Context* ctx, char param3) {
                     mapGrid = GameUpdateLoop::_singleton->m_game;
 
                     // Check road removal flag (+0x40 on removalDesc)
-                    if (removalDesc && removalDesc->_b40) {
+                    if (removalDesc && removalDesc->_removeRoads) {
                         int tileIdx2 = mapGrid->size * (int)r + (int)c;
                         const MapCell* cellBase2 = &mapGrid->cells.GetData()[tileIdx2];
                         uint32_t terrainFlag = Bits(PathBitOf(cellBase2->terrainType));
 
                         // Check if cell has road-type terrain (bits 0 or 1)
                         if ((terrainFlag & Bits(PathBits::Fast)) != 0 || (terrainFlag & Bits(PathBits::Faster)) != 0 ||
-                            cellBase2->field_0x2A != MapCell::kNoRoadBatch) {
+                            cellBase2->roadType != MapCell::kNoRoadBatch) {
                             canRemove = true;
                         }
 
                         if (!canRemove) {
                             // The map's road-cell BST (+0xE8): key at +0, children +0x10 / +0x18
-                            const AvlNode28* bstNode = mapGrid->field_0xE8.root;
+                            const AvlNode28* bstNode = mapGrid->pendingRoadCells.root;
                             while (bstNode != nullptr) {
                                 if (tileIdx2 < bstNode->key) {
                                     bstNode = bstNode->left;
@@ -329,7 +329,7 @@ void RemovalTool::Draw(Video::Context* ctx, char param3) {
 
                     if (!canRemove) {
                         // Check removeBuildings flag (+0x43) and parent entity destruction
-                        if (removalDesc && removalDesc->_b43 && entity != nullptr) {
+                        if (removalDesc && removalDesc->_increasePriority && entity != nullptr) {
                             ComponentEntity* entityForCheck = entity;
 
                             // The entity's WorkComponent (0x140003050 = FindComponent<WorkComponent>)

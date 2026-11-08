@@ -74,7 +74,7 @@ public:
     // THEN clears the set: reverse declaration order (~Array before ~Set). It grows through
     // 0x14000a590 (stride 1, align 1, NO tail write: the trait row of a trivial bool).
     using SlotFlags = Collection::Array<bool>;
-    SlotFlags _field58;
+    SlotFlags _slotsAvailable;
 };
 
 static_assert(sizeof(HarvestArea::Claim) == 0x10, "HarvestArea claim element 0x10");
@@ -90,6 +90,6 @@ static_assert(sizeof(HarvestArea) == 0x68, "HarvestArea is 0x68 (retail create M
 static_assert(alignof(HarvestArea) == 8, "HarvestArea is 8-aligned");
 static_assert(offsetof(HarvestArea, _cells) == 0x48, "HarvestArea +0x48");
 static_assert(offsetof(HarvestArea, _cells) + offsetof(HarvestArea::CellSet, _count) == 0x50, "HarvestArea +0x50");
-static_assert(offsetof(HarvestArea, _field58) == 0x58, "HarvestArea +0x58");
-static_assert(offsetof(HarvestArea, _field58) + offsetof(HarvestArea::SlotFlags, _size) == 0x60, "HarvestArea +0x60");
-static_assert(offsetof(HarvestArea, _field58) + offsetof(HarvestArea::SlotFlags, _capacity) == 0x64, "HarvestArea +0x64");
+static_assert(offsetof(HarvestArea, _slotsAvailable) == 0x58, "HarvestArea +0x58");
+static_assert(offsetof(HarvestArea, _slotsAvailable) + offsetof(HarvestArea::SlotFlags, _size) == 0x60, "HarvestArea +0x60");
+static_assert(offsetof(HarvestArea, _slotsAvailable) + offsetof(HarvestArea::SlotFlags, _capacity) == 0x64, "HarvestArea +0x64");

@@ -61,7 +61,7 @@ int Video::Device::SizeWindow(void* hwnd, unsigned /*msg*/,
                               uint64_t /*wParam*/, int64_t /*lParam*/) {
     Device* dev = Device::_singleton;
     if (!dev) return 1;
-    if (dev->field9D != 0) return 1;
+    if (dev->adjustingDisplay != 0) return 1;
 
     Configuration* cfg = Configuration::_singleton;
     if (cfg && cfg->fullscreen != 0) return 1;
@@ -105,7 +105,7 @@ int Video::Device::MoveWindow(void* hwnd, unsigned /*msg*/,
                               uint64_t /*wParam*/, int64_t /*lParam*/) {
     Device* dev = Device::_singleton;
     if (!dev) return 1;
-    if (dev->field9D != 0) return 1;
+    if (dev->adjustingDisplay != 0) return 1;
 
     Configuration* cfg = Configuration::_singleton;
     if (cfg && cfg->fullscreen != 0) return 1;

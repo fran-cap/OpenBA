@@ -180,7 +180,7 @@ namespace {
 // (stride 0x28). Version-1 section; entries capped at the LAST 200.
 void EventLog::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 1);
-    ser.Serialize(6, field_0x10, nullptr);
+    ser.Serialize(6, notifyCategories, nullptr);
     if (ser.GetVersion() > 0) {
         int total = entries.GetSize();
         int capped = total > 200 ? 200 : total;
@@ -222,14 +222,14 @@ void WeatherSimulation::Serialize(IO::Stream& stream) {
     ::Object::SerializeExternal<ClimateGenerator>(ser, climate);      // 0x1400194a0
 
     ser.Serialize(reinterpret_cast<int32_t&>(weatherType), nullptr);
-    ser.Serialize(field_0x14, nullptr);
+    ser.Serialize(rainLevel, nullptr);
     ser.Serialize(temperature, nullptr);
     // ?Serialize@Vector4@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x18001d360
-    field_0x1C.Serialize(ser);
-    ser.Serialize(field_0x2C, nullptr);
-    ser.Serialize(field_0x30, nullptr);
-    ser.Serialize(field_0x44, nullptr);
-    ser.Serialize(field_0x48, nullptr);
+    terrainWeatherParams.Serialize(ser);
+    ser.Serialize(meanTemperature, nullptr);
+    ser.Serialize(meanTemperatureTarget, nullptr);
+    ser.Serialize(rainChanceBias, nullptr);
+    ser.Serialize(rainChanceBiasTarget, nullptr);
     ser.Serialize(seasonStep, nullptr);
 
     int slotCount = effects.GetSize();
@@ -434,13 +434,13 @@ static void IbpTree_Serialize_e470(TrackedEntityNode** root, int32_t* countField
 void PlayerToolManager::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 2);
     ser.Serialize(paused, nullptr);
-    ser.Serialize(field_0x34, nullptr);
-    ser.Serialize(field_0x3C, nullptr);
-    ser.Serialize(field_0x40, nullptr);
-    ser.Serialize(field_0x44, nullptr);
-    GoalRefTree_Serialize_e2e0(&field_0x50, &ser);
+    ser.Serialize(gameSpeed, nullptr);
+    ser.Serialize(zoomTarget, nullptr);
+    ser.Serialize(pitchTarget, nullptr);
+    ser.Serialize(manualPitch, nullptr);
+    GoalRefTree_Serialize_e2e0(&pinnedToolDialogs, &ser);
     if (ser.GetVersion() > 0) {
-        IbpTree_Serialize_e470(&field_0x60.root, &field_0x60.count, &ser);
+        IbpTree_Serialize_e470(&trackedEntities.root, &trackedEntities.count, &ser);
     }
     if (ser.GetVersion() > 1) {
         int count = cameraViews.GetSize();
@@ -454,9 +454,9 @@ void PlayerToolManager::Serialize(IO::Stream& stream) {
             PlayerCameraView& e = cameraViews[i];
             // ?Serialize@Vector3@Math@@QEAAXAEAVSerializer@IO@@@Z  retail 0x1800150e0
             e.position.Serialize(ser);
-            ser.Serialize(e.field_0x0C, nullptr);
-            ser.Serialize(e.field_0x10, nullptr);
-            ser.Serialize(e.field_0x14, nullptr);
+            ser.Serialize(e.yaw, nullptr);
+            ser.Serialize(e.pitch, nullptr);
+            ser.Serialize(e.distance, nullptr);
             ser.Serialize(e.used, nullptr);
         }
     }

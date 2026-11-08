@@ -183,7 +183,7 @@ void ButtonElement::Draw(SpriteContext& context, uint8_t alpha) const {
 //   }
 //
 // UpdateState bytes read here (Element.h names them): +0x01 `buttonPressed`
-// (the mouse-down edge), +0x04 `b04` (the mouse-up edge), +0x07 `leftDown`
+// (the mouse-down edge), +0x04 `leftReleased` (the mouse-up edge), +0x07 `leftDown`
 // (held), +0x18/+0x1c the mouse, +0x28 `config` (the Input::KeyMap*).
 //
 // The base call is QUALIFIED (`Element::Update`): an unqualified one would
@@ -248,7 +248,7 @@ void ButtonElement::Update(const System::Time& time, UserInterface* ui,
     }
 
     bool fire = false;
-    if (state.b04 != 0) {
+    if (state.leftReleased != 0) {
         const uint32_t f = _flags;
         if ((f & kElementFlagHovered) != 0 && (f & kElementFlagPressed) != 0) fire = true;
     }

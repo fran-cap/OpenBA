@@ -58,13 +58,8 @@ public:
                                  //       character's description when it is one (ctor)
     Math::Vector3 destination;   // +0x38 Persist: Vector3::Serialize
     // +0x44..+0x5B: the ctor zeroes them with three qword stores (0x44, 0x4C, 0x54);
-    // no slot body reads them.
-    int32_t   field_0x44;        // +0x44
-    int32_t   field_0x48;        // +0x48
-    int32_t   field_0x4C;        // +0x4C
-    int32_t   field_0x50;        // +0x50
-    int32_t   field_0x54;        // +0x54
-    int32_t   field_0x58;        // +0x58
+    // no slot body reads them and Persist does not serialize them.
+    int32_t   unusedZeroed[6];   // +0x44
     uint32_t  passFlags;         // +0x5C RequestPath's pass flags (0x1400c8c10); Persist: uint
     int32_t   pathIndex;         // +0x60 the waypoint being walked to (-1 = no path yet)
     int32_t   pathCount;         // +0x64 cells in `path`
@@ -72,7 +67,7 @@ public:
     int32_t   moveAnimation;     // +0x468 played when a path starts (Persist: int)
     int32_t   stopAnimation;     // +0x46C played when the path ends / on Exit (Persist: int)
     int32_t   movementProfile;   // +0x470 SetMovementCosts' profile (0x1400c8c10; Persist: int)
-    bool      field_0x474;       // +0x474 set by Enter when the nearest character faces our
+    bool      isFollowing;       // +0x474 set by Enter when the nearest character faces our
                                  //        way; Execute then walks at description->_f30
     uint8_t   _pad475[3];        // +0x475 padding
     float     speedMultiplier;   // +0x478 walk speed
@@ -87,12 +82,7 @@ static_assert(offsetof(MoveTo, ticket) == 0x20, "MoveTo +0x20");
 static_assert(offsetof(MoveTo, character) == 0x28, "MoveTo +0x28");
 static_assert(offsetof(MoveTo, description) == 0x30, "MoveTo +0x30");
 static_assert(offsetof(MoveTo, destination) == 0x38, "MoveTo +0x38");
-static_assert(offsetof(MoveTo, field_0x44) == 0x44, "MoveTo +0x44");
-static_assert(offsetof(MoveTo, field_0x48) == 0x48, "MoveTo +0x48");
-static_assert(offsetof(MoveTo, field_0x4C) == 0x4C, "MoveTo +0x4C");
-static_assert(offsetof(MoveTo, field_0x50) == 0x50, "MoveTo +0x50");
-static_assert(offsetof(MoveTo, field_0x54) == 0x54, "MoveTo +0x54");
-static_assert(offsetof(MoveTo, field_0x58) == 0x58, "MoveTo +0x58");
+static_assert(offsetof(MoveTo, unusedZeroed) == 0x44, "MoveTo +0x44");
 static_assert(offsetof(MoveTo, passFlags) == 0x5C, "MoveTo +0x5C");
 static_assert(offsetof(MoveTo, pathIndex) == 0x60, "MoveTo +0x60");
 static_assert(offsetof(MoveTo, pathCount) == 0x64, "MoveTo +0x64");
@@ -100,5 +90,5 @@ static_assert(offsetof(MoveTo, path) == 0x68, "MoveTo +0x68");
 static_assert(offsetof(MoveTo, moveAnimation) == 0x468, "MoveTo +0x468");
 static_assert(offsetof(MoveTo, stopAnimation) == 0x46C, "MoveTo +0x46C");
 static_assert(offsetof(MoveTo, movementProfile) == 0x470, "MoveTo +0x470");
-static_assert(offsetof(MoveTo, field_0x474) == 0x474, "MoveTo +0x474");
+static_assert(offsetof(MoveTo, isFollowing) == 0x474, "MoveTo +0x474");
 static_assert(offsetof(MoveTo, speedMultiplier) == 0x478, "MoveTo +0x478");

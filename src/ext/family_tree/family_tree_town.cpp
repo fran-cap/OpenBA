@@ -375,8 +375,8 @@ std::string JobText(const std::string& key) {
     if (list == nullptr) return key;
     std::vector<const Profession*> all;
     for (int i = 0; i < list->professions.GetSize(); ++i) all.push_back(list->professions.GetData()[i]);
-    all.push_back(list->field_0x30);
-    all.push_back(list->field_0x38);
+    all.push_back(list->laborerProfession);
+    all.push_back(list->builderProfession);
     all.push_back(list->childProfession);
     all.push_back(list->studentProfession);
     for (const Profession* prof : all) {

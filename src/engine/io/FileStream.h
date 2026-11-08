@@ -105,7 +105,7 @@ namespace RtIo {
 //
 // THE CONSTRUCTOR LEAVES ONE FIELD UNWRITTEN. ??0FileStream (0x1800aaa10)
 // writes +0x18 q, +0x20 d, +0x28 q, +0x30 d, +0x38 q(-1), +0x40 q, +0x48 q.
-// That never touches +0x24 — which is FileInfo::_unk04, the field
+// That never touches +0x24 — which is FileInfo::copiedUnwrittenWord, the field
 // FileSystem.h ALREADY records as "never initialised by OpenFile" and which
 // filesystem_openfile.cpp's oracle already excludes. Two unrelated
 // functions leave the same field alone; that agreement is the point.
@@ -334,16 +334,16 @@ static_assert(sizeof(CompressedFileStream) == 0xb8,
 struct TextFileStream {
     FileStream base;             // +0x00
     int32_t    objectVersion;    // +0x50
-    int32_t    _unk54;           // +0x54 — never written by either ctor
+    int32_t    _pad54;           // +0x54 — never written by either ctor
     char*      objectName;       // +0x58  System::String, refcounted
     char*      objectType;       // +0x60  System::String, refcounted
     int32_t    requestedFormat;  // +0x68  ctor: 6
     int32_t    activeEncoding;   // +0x6c  ctor: 6 — the BOM selector
     void*      buffer;           // +0x70  owned, bare MemFree
-    void*      _unk78;           // +0x78  zeroed by the ctor, never freed
+    void*      bufferSizeAndCursor;           // +0x78  zeroed by the ctor, never freed
 };
 static_assert(offsetof(RtIo::TextFileStream, base) == 0x0, "TextFileStream::base");
-static_assert(offsetof(RtIo::TextFileStream, _unk54) == 0x54, "TextFileStream::_unk54");
+static_assert(offsetof(RtIo::TextFileStream, _pad54) == 0x54, "TextFileStream::_pad54");
 static_assert(offsetof(TextFileStream, objectVersion)   == 0x50,
               "??0TextFileStream 0x1800ba55d writes +0x50 = 0; SetObject writes the version there");
 static_assert(offsetof(TextFileStream, objectName)      == 0x58,
@@ -469,7 +469,7 @@ public:
     // ENDGAME B.3.9 IO -- ??0FileStream@IO@@QEAA@XZ 0x1800aaa10, eleven
     // stores and nothing else (no encoding): the Stream base, `_filename`
     // null, then the FileInfo's handle -1, size/cursor (one qword) 0,
-    // baseOffset 0, both names null, winHandle -1. FileInfo::_unk04 (+0x24)
+    // baseOffset 0, both names null, winHandle -1. FileInfo::copiedUnwrittenWord (+0x24)
     // and the padding at +0x34 are NOT written -- a `= {}` would be a
     // divergence. B.4 Z LAST IO: the FileInfo's stores (1800a8243..1800a8268)
     // are its own default ctor, run as the member's construction after
@@ -613,9 +613,9 @@ static_assert(offsetof(FileStream, _file) ==
 // deleting_dtor.cpp) because nothing holds a `TextFileStream` by value.
 //
 // ---------------------------------------------------------------------------
-// +0x78 IS TWO int32s, NOT THE POD'S `void* _unk78`
+// +0x78 IS TWO int32s, NOT THE POD'S `void* bufferSizeAndCursor`
 // ---------------------------------------------------------------------------
-// The `RtIo::TextFileStream` POD above models +0x78 as `void* _unk78`, "zeroed
+// The `RtIo::TextFileStream` POD above models +0x78 as `void* bufferSizeAndCursor`, "zeroed
 // by the ctor, never freed", and text_file_stream.cpp reached the two real
 // fields through explicit offsets rather than edit that POD — deliberately, so
 // the disagreement stayed visible at the point of use. The CLASS resolves it,
@@ -792,12 +792,12 @@ static_assert(offsetof(TextFileStream, _activeEncoding) ==
 static_assert(offsetof(TextFileStream, _buffer) ==
                   offsetof(RtIo::TextFileStream, buffer), "alias buffer");
 // The one place the class says MORE than the POD: the POD's single `void*
-// _unk78` covers the class's `_bufSize` + `_bufCursor` pair. Same eight bytes,
+// bufferSizeAndCursor` covers the class's `_bufSize` + `_bufCursor` pair. Same eight bytes,
 // and the pin is that the pair STARTS where the POD's field does.
 static_assert(offsetof(TextFileStream, _bufSize) ==
-                  offsetof(RtIo::TextFileStream, _unk78),
+                  offsetof(RtIo::TextFileStream, bufferSizeAndCursor),
               "the class's int32 pair starts at the POD's _unk78");
-static_assert(sizeof(RtIo::TextFileStream::_unk78) ==
+static_assert(sizeof(RtIo::TextFileStream::bufferSizeAndCursor) ==
                   sizeof(TextFileStream::_bufSize) + sizeof(TextFileStream::_bufCursor),
               "two int32s cover exactly the POD's one pointer-sized field");
 // B.4 Z LAST IO: the RtIo POD view holds a FileInfo, which has real special

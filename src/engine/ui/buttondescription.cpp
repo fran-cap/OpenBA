@@ -98,10 +98,10 @@ bool ButtonDescription::Serialize(IO::Stream& streamv) {
     for (int i = 0; i < 5; ++i)                            // 18011142f .. 180111476
         Object::SerializeExternal<UI::ElementDescription>(ser, _childDesc[i]);
 
-    rw->SerializeUInt(_word90, nullptr);                     // 18011147b .. 1801114d5
-    rw->SerializeUInt(_word94, nullptr);
-    rw->SerializeUInt(_word98, nullptr);
-    rw->SerializeUInt(_word9c, nullptr);
+    rw->SerializeUInt(_enabledColor, nullptr);                     // 18011147b .. 1801114d5
+    rw->SerializeUInt(_disabledColor, nullptr);
+    rw->SerializeUInt(_highlightedColor, nullptr);
+    rw->SerializeUInt(_pressedColor, nullptr);
 
     // ~Serializer (0x1800b99b0) inlined here: rw's scalar deleting dtor                // 1801114ee
     return true;
@@ -122,7 +122,7 @@ bool ButtonDescription::Serialize(IO::Stream& streamv) {
 //       Array<Element*>::SetSize(&parent->_children, size+1, made)
 //       mark parent and every ancestor kElementFlagNeedsSizeCalc
 //   e = *elemPtr ; c = e->_children._data[4]
-//   if (c) c->vt[0x50](c, self->_word90)
+//   if (c) c->vt[0x50](c, self->_enabledColor)
 //   e->+0xc8 = self->+0x90 ; e->+0xcc = +0x94 ; e->+0xd0 = +0x98 ; e->+0xd4 = +0x9c
 //       (each through a FRESH `*elemPtr` read)
 //
@@ -163,14 +163,14 @@ void ButtonDescription::CreateInstance(Object::InternalPtr<ButtonElement>* eleme
         ButtonElement* e = element->Get();                           // 180110a96
         Element* c = e->_children._data[4];                          // 180110aa0
         if (c != nullptr)                                            // 180110aa4
-            c->SetColor(_word90);                                    // 180110ab2 vt[0x50]
+            c->SetColor(_enabledColor);                                    // 180110ab2 vt[0x50]
     }
 
     // Four dwords, each preceded by its own `MOV RCX,[RDI]`.
-    element->Get()->_stateColor[0] = _word90;                // 180110ab5 .. 180110afa
-    element->Get()->_stateColor[1] = _word94;
-    element->Get()->_stateColor[2] = _word98;
-    element->Get()->_stateColor[3] = _word9c;
+    element->Get()->_stateColor[0] = _enabledColor;                // 180110ab5 .. 180110afa
+    element->Get()->_stateColor[1] = _disabledColor;
+    element->Get()->_stateColor[2] = _highlightedColor;
+    element->Get()->_stateColor[3] = _pressedColor;
 }
 
 // ============================================================================

@@ -5,7 +5,7 @@
 // Vtable: 0x140160300
 //
 // Fields (from Ghidra decompilation):
-//   +0x30: bool   requireAll (_field30)  — true = all buildings required, false = any
+//   +0x30: bool   requireAll (_requireAll)  — true = all buildings required, false = any
 //   +0x38: void*  buildingTypeArray      — array of 0x18-byte entries
 //   +0x40: int    buildingTypeCount      — number of entries
 //
@@ -46,7 +46,7 @@
 // ============================================================
 // ctor 0x1400d77a0: Goal() (the base's real ctor), the vptr (the compiler's),
 // then requireAll = 1 and the entry array header zeroed.
-BuildingGoal::BuildingGoal() : _field30(true), _pad31{}, _field38() {}
+BuildingGoal::BuildingGoal() : _requireAll(true), _pad31{}, _buildingTypes() {}
 
 // The dtor inside [0] 0x140025e80 (body 0x1400d77a0): destroy the entry array at
 // +0x38 (0x14001b030, the member's ~Array after this empty body); the compiler
@@ -70,21 +70,21 @@ bool BuildingGoal::Serialize(IO::Stream& stream) {
     IO::Serializer serializer(stream, 0);
 
     // requireAll (bool at +0x30)
-    serializer.Serialize(_field30, nullptr);
+    serializer.Serialize(_requireAll, nullptr);
 
     // the entry count (a local copy)
-    int countLocal = _field38._size;
+    int countLocal = _buildingTypes._size;
     serializer.Serialize(countLocal, nullptr);
 
     // Check if loading (encoding mode == 0 means loading)
     int encodingMode = static_cast<int>(serializer.GetDirection());   // IO::Serializer::GetDirection, retail 0x180006210
     if (encodingMode == 0) {
         // Loading: resize the entry array (0x14001b340, the row's SetSize).
-        _field38.SetSize(countLocal);
+        _buildingTypes.SetSize(countLocal);
     }
 
     // Serialize each entry
-    NamedExternalRef* entry = _field38._data;
+    NamedExternalRef* entry = _buildingTypes._data;
     if (countLocal > 0) {
         for (uint32_t i = 0; i < static_cast<uint32_t>(countLocal); i++) {
             // Filename temporary retail's compiler emitted for this loop body.
@@ -131,12 +131,12 @@ Achievement::Goal::GoalState BuildingGoal::CheckGoalState() const {
     CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;
 
     int matchCount = 0;
-    int entryCount = _field38._size;
+    int entryCount = _buildingTypes._size;
     int entryIdx = 0;
 
     if (entryCount > 0) {
         do {
-            const NamedExternalRef& entry = _field38._data[entryIdx];
+            const NamedExternalRef& entry = _buildingTypes._data[entryIdx];
 
             // Retail copies the WHOLE 0x18 reference to the stack, resolves into
             // the COPY, and reads the pointer back out of it — the array entry
@@ -152,7 +152,7 @@ Achievement::Goal::GoalState BuildingGoal::CheckGoalState() const {
             }                                      // ~String, before the walk
 
             // BST lookup in the +0x160 template tree
-            TemplateBucket* node = worldData->field_0x160._root;
+            TemplateBucket* node = worldData->entitiesByTemplate._root;
             while (node != nullptr) {
                 const Object::External* nodeKey = node->element.key;
                 if (lookupKey < nodeKey) {
@@ -173,7 +173,7 @@ Achievement::Goal::GoalState BuildingGoal::CheckGoalState() const {
     }
 
     // Evaluate result based on requireAll flag
-    if (_field30) {
+    if (_requireAll) {
         // requireAll mode
         if (matchCount == entryCount) {
             return kMet;  // all matched — goal complete
@@ -237,9 +237,9 @@ extern "C" void BuildingGoal_Probe(const char* templateName) {
     // per distinct built building type).
     TemplateBucket* stack[64];
     int sp = 0, dumped = 0;
-    TemplateBucket* node = worldData->field_0x160._root;
+    TemplateBucket* node = worldData->entitiesByTemplate._root;
     fprintf(stderr, "[GoalProbe] world building BST @ %p:\n",
-            static_cast<void*>(&worldData->field_0x160._root));
+            static_cast<void*>(&worldData->entitiesByTemplate._root));
     while ((node || sp) && dumped < 64) {
         while (node && sp < 64) { stack[sp++] = node; node = node->left; }
         if (!sp) break;
@@ -257,9 +257,9 @@ extern "C" void BuildingGoal_Probe(const char* templateName) {
     // Evaluated through a QUALIFIED (non-dispatching) member call, as before.
     BuildingGoal goalObject;
     BuildingGoal* goal = &goalObject;
-    goal->_field30 = true;                             // requireAll
-    goal->_field38.SetSize(1);                         // seeds generation -1
-    NamedExternalRef* entry = goal->_field38._data;
+    goal->_requireAll = true;                             // requireAll
+    goal->_buildingTypes.SetSize(1);                         // seeds generation -1
+    NamedExternalRef* entry = goal->_buildingTypes._data;
     if (!entry) { fprintf(stderr, "[GoalProbe] resize FAILED (null array)\n"); fflush(stderr); return; }
 
     fprintf(stderr, "[GoalProbe] seeded entry gen=%d ptr=%p (gen must be -1, else the "
@@ -277,7 +277,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName) {
         resolved = refCopy.resolved;
     }
 
-    goal->_field38._size = 1;                          // count = 1
+    goal->_buildingTypes._size = 1;                          // count = 1
     int verdict = static_cast<int>(goal->BuildingGoal::CheckGoalState());
 
     fprintf(stderr, "[GoalProbe] name=\"%s\" resolved=%p verdict=%d "

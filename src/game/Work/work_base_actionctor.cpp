@@ -164,9 +164,9 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
         sm = new (obj) SendComponentMessage(&entityInner, &msgId, 0, &innerIbp, 0);
     }
     ibpA = sm;
-    if (character->actionStack.field_0x10 != nullptr)
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpA;
+    if (character->actionStack.completionAction != nullptr)
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpA;
 
     // --- CompleteTask action ---
     obj = System::MemoryAllocator::MemAlloc(0x38, 8);
@@ -210,16 +210,16 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
 
     // --- compute performWork param_5 from the description's +0x80 ---
     int pwParam = 8;
-    if (derivedTarget->_u80 < 0xb)
-        pwParam = static_cast<int>(derivedTarget->_u80) + 9;
+    if (derivedTarget->_toolType < 0xb)
+        pwParam = static_cast<int>(derivedTarget->_toolType) + 9;
 
     // --- if the description's +0x64 (byte) is set: inline PerformWork + two AnimateNaturalResource ---
-    if (derivedTarget->_b64) {
+    if (derivedTarget->_animated) {
         void* inlineObj = System::MemoryAllocator::MemAlloc(0x48, 8);
         Action* pw = nullptr;
         if (inlineObj) {
-            uint32_t resKind = derivedTarget->_u80;
-            int64_t res70   = derivedTarget->_time70._ticks;
+            uint32_t resKind = derivedTarget->_toolType;
+            int64_t res70   = derivedTarget->_postAnimateTime._ticks;
             // the inlined PerformWork ctor 0x1400c9720 (useTool = 0, +0x44 = resKind): the real ctor.
             pw = new (inlineObj) PerformWork(citizenRef, heading, static_cast<uint32_t>(pwParam),
                                              res70, 0, static_cast<int>(resKind));
@@ -254,8 +254,8 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
     Action* pw7 = nullptr;
     if (obj) {
         CitizenComponent* entityInner = *citizenRef;
-        int resKind  = static_cast<int>(derivedTarget->_u80);
-        int64_t time = derivedTarget->_time68._ticks;
+        int resKind  = static_cast<int>(derivedTarget->_toolType);
+        int64_t time = derivedTarget->_preAnimateTime._ticks;
         pw7 = new (obj) PerformWork(&entityInner, heading, pwParam, time, 1, resKind);
     }
     ibpA = pw7;
@@ -266,7 +266,7 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
     Action* mv = nullptr;
     if (obj) {
         int pathType = 1; // Slow default (disasm: EBX=1 at 0x1400c2123)
-        switch (derivedTarget->_u80) {
+        switch (derivedTarget->_toolType) {
             case 0: case 1: case 4: case 5: case 6: case 7: pathType = 2; break; // Fast
             case 2: case 3: pathType = 3; break;                                  // Fastest
             case 0xffffffff: pathType = 1; break;                                 // Slow
@@ -285,7 +285,7 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
     Action* st2 = nullptr;
     if (obj) {
         CitizenComponent* entityInner = *citizenRef;
-        int toolType = static_cast<int>(derivedTarget->_u80);
+        int toolType = static_cast<int>(derivedTarget->_toolType);
         st2 = new (obj) ShowTool(&entityInner, toolType);
     }
     ibpA = st2;
@@ -320,8 +320,8 @@ void WorkAct_PerformWorkCtor_c1eb0(CitizenComponent* const* citizenRef, uint32_t
 // placement-news it on the MemAlloc it tested). 0x1400c9bbe `MOV RAX,[RBX]` and 0x1400c9bc9
 // `MOV RAX,[RDI]` read both slots with no test (row 1181).
 PickupRawMaterial::PickupRawMaterial(CitizenComponent* const* p2, ComponentEntity* const* p3)
-    : _field20(*p2),
-      _field28(*p3) {
+    : _citizen(*p2),
+      _pile(*p3) {
 }
 
 // ============================================================
@@ -389,9 +389,9 @@ void WorkAct_PerformWorkCtor9_c0ad0(CitizenComponent* const* citizenRef, uint32_
     }
     ::Object::InternalPtr<Action> ibpSm;
     ibpSm = sm;
-    if (character->actionStack.field_0x10 != nullptr)
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpSm;
+    if (character->actionStack.completionAction != nullptr)
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpSm;
 
     // --- path-mask byte from the pile's map cell (terrain type +0x29) ---
     // 0x1400c0c24-0x1400c0c44: [0x1401c3dd8]+0xf8 and the cell read with no test.
@@ -513,9 +513,9 @@ void WorkAct_PlayAnimationCtor_c2490(CitizenComponent* const* citizenRef, uint32
         sm = new (obj) SendComponentMessage(&entityInner, &msgId, 0, &innerIbp, 0);
     }
     ibp30 = sm;
-    if (character->actionStack.field_0x10 != nullptr)
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibp30;
+    if (character->actionStack.completionAction != nullptr)
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibp30;
 
     // --- CompleteTask action (param_3 forwarded as param_5) ---
     obj = System::MemoryAllocator::MemAlloc(0x38, 8);
@@ -538,8 +538,8 @@ void WorkAct_PlayAnimationCtor_c2490(CitizenComponent* const* citizenRef, uint32
         ComponentEntity* entityInner = (*citizenRef)->_entity.Get();
         // The real ctor (Action(), fields zeroed; +0x28 animation = 0), then the stores.
         PlayAnimation* a = new (inlineObj) PlayAnimation();
-        a->_field20 = entityInner;
-        a->_field30 = timeVal;   // PlayAnimation +0x30 is the System::Time (B.4 ACT-b)
+        a->_entity = entityInner;
+        a->_duration = timeVal;   // PlayAnimation +0x30 is the System::Time (B.4 ACT-b)
         pa = a;
     }
     ibpRes20 = pa;
@@ -581,9 +581,9 @@ void WorkAct_GrazingWorkCtor_bb0a0(CitizenComponent* const* citizenRef, uint32_t
         sm = new (obj) SendComponentMessage(&entityInner, &msgId, 0, &innerIbp, 0);
     }
     ibp30 = sm;
-    if (character->actionStack.field_0x10 != nullptr)
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibp30;
+    if (character->actionStack.completionAction != nullptr)
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibp30;
 
     // --- CompleteTask action ---
     obj = System::MemoryAllocator::MemAlloc(0x38, 8);
@@ -702,9 +702,9 @@ void WorkAct_PlantWorkCtor_be6e0(CitizenComponent* const* citizenRef, uint32_t p
         sm = new (obj) SendComponentMessage(&entityInner, &msgId, 0, &innerIbp, 0);
     }
     ibp40 = sm;
-    if (character->actionStack.field_0x10 != nullptr)
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibp40;
+    if (character->actionStack.completionAction != nullptr)
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibp40;
 
     // --- CompleteTask action (param_5 = param_7) ---
     obj = System::MemoryAllocator::MemAlloc(0x38, 8);

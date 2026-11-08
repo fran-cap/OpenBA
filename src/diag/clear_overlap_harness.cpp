@@ -233,8 +233,8 @@ const char* ActionName(const Action* a) {
 
 const char* ProfessionTag(const CitizenComponent* c) {
     ProfessionList* pl = GameUpdateLoop::_singleton->m_professionList;
-    if (c->profession == pl->field_0x30) return "laborer";
-    if (c->profession == pl->field_0x38) return "builder";
+    if (c->profession == pl->laborerProfession) return "laborer";
+    if (c->profession == pl->builderProfession) return "builder";
     return nullptr;
 }
 
@@ -288,16 +288,16 @@ int ClearRemaining(ComponentEntity* e) {
 // ---- the census ------------------------------------------------------------------
 
 void DumpClearArea(const char* tag, ClearArea* ca, uint32_t stepCount) {
-    WorkComponent* wc = ca->field_18.Get();
-    ComponentEntity* owner = ca->field_10.Get();
+    WorkComponent* wc = ca->_workComponent.Get();
+    ComponentEntity* owner = ca->_entity.Get();
     Rect r = RectOf(owner);
     std::fprintf(stderr,
                  "[ClearOverlap]   %s ClearArea id=%d owner=%p rect=(%d,%d %dx%d) flags=%d%d%d filter=%p "
                  "entities=%d cells=%d maxWorkers=%d visited=%d\n",
-                 tag, ca->field_20, static_cast<void*>(owner), r.x0, r.y0, r.w, r.h, ca->field_70 ? 1 : 0,
-                 ca->field_71 ? 1 : 0, ca->field_72 ? 1 : 0, static_cast<void*>(ca->field_68),
+                 tag, ca->_workId, static_cast<void*>(owner), r.x0, r.y0, r.w, r.h, ca->_clearTrees ? 1 : 0,
+                 ca->_clearGround ? 1 : 0, ca->_clearPiles ? 1 : 0, static_cast<void*>(ca->_targetFilter),
                  ca->_entities._count, ca->_cells._count, wc ? wc->workState : -1,
-                 static_cast<uint32_t>(ca->field_2c) == stepCount ? 1 : 0);
+                 static_cast<uint32_t>(ca->_lastRejectStep) == stepCount ? 1 : 0);
     for (auto it = ca->_entities.Begin(); it != ca->_entities.End(); ++it) {
         CitizenComponent* cit = (*it).citizen.Get();
         bool holds = cit ? ca->ValidateTask(nullptr, &cit, nullptr) : false;
@@ -319,7 +319,7 @@ void WalkWorks(WorkSchedulerIdNode* node, uint32_t stepCount, int* nAreaWorks, i
     WalkWorks(node->left, stepCount, nAreaWorks, nOther);
     Work* w = node->work.Get();
     if (w) {
-        ComponentEntity* owner = w->field_10.Get();
+        ComponentEntity* owner = w->_entity.Get();
         Rect r = RectOf(owner);
         bool near = r.w > 0 && (r.Intersects(s_area) || (s_hall.w > 0 && r.Intersects(s_hall)));
         if (near) {
@@ -334,8 +334,8 @@ void WalkWorks(WorkSchedulerIdNode* node, uint32_t stepCount, int* nAreaWorks, i
             } else {
                 ++*nOther;
                 std::fprintf(stderr, "[ClearOverlap]   work %s id=%d owner=%p rect=(%d,%d %dx%d) visited=%d\n",
-                             w->TypeName(), w->field_20, static_cast<void*>(owner), r.x0, r.y0, r.w, r.h,
-                             static_cast<uint32_t>(w->field_2c) == stepCount ? 1 : 0);
+                             w->TypeName(), w->_workId, static_cast<void*>(owner), r.x0, r.y0, r.w, r.h,
+                             static_cast<uint32_t>(w->_lastRejectStep) == stepCount ? 1 : 0);
             }
         }
     }
@@ -382,7 +382,7 @@ void Census(int frame) {
         }
     }
     for (int pass = 0; pass < 2; ++pass) {
-        const auto& list = pass == 0 ? town->field_0x00 : town->field_0x10;
+        const auto& list = pass == 0 ? town->storageLocations : town->marketLocations;
         for (int i = 0; i < list._size; ++i) {
             ComponentEntity* e = list._data[i].Get();
             StorageComponent* st = e ? e->FindComponent<StorageComponent>() : nullptr;
@@ -411,7 +411,7 @@ void Census(int frame) {
         if (depth > 0) ++busy;
         else ++idle;
         std::fprintf(stderr, "[ClearOverlap]   %s %p job=%d stack=%d top=%s\n", prof, static_cast<void*>(c),
-                     c->field_0x30, depth, ActionName(top));
+                     c->lastWorkId, depth, ActionName(top));
     }
     std::fprintf(stderr, "[ClearOverlap]   laborers+builders: %d busy, %d idle\n", busy, idle);
 
@@ -459,7 +459,7 @@ bool CommitRemoval(PlayerToolManager* ui, const char* path, int startCell, int e
                      path, tool ? tool->TypeName() : "(none)");
         return false;
     }
-    if (!s_clearMarker) s_clearMarker = rt->removalDesc->_ref38;
+    if (!s_clearMarker) s_clearMarker = rt->removalDesc->_remover;
     CellCounts before = CountRect(s_area);
     bool ok = rt->CalcPath(startCell, endCell);
     CellCounts after = CountRect(s_area);

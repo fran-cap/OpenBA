@@ -578,14 +578,14 @@ struct RegionPairEntry {                     // stride 0x18 (0x14001cca0)
     int32_t regionA;                         // +0x00 the larger id, -1 = empty
     int32_t regionB;                         // +0x04 the smaller id
     int32_t distance;                        // +0x08
-    uint32_t field_0x0C;                     // +0x0C never read; 0x1400a5b30 stores a stale stack dword
+    uint32_t unusedDistanceHigh;                     // +0x0C never read; 0x1400a5b30 stores a stale stack dword
     int64_t time;                            // +0x10 System::Time ticks of `now` when stored
 };
 static_assert(sizeof(RegionPairEntry) == 0x18, "RegionPairEntry stride 0x18");
 static_assert(offsetof(RegionPairEntry, regionA) == 0x00, "RegionPairEntry::regionA @ +0x00");
 static_assert(offsetof(RegionPairEntry, regionB) == 0x04, "RegionPairEntry::regionB @ +0x04");
 static_assert(offsetof(RegionPairEntry, distance) == 0x08, "RegionPairEntry::distance @ +0x08");
-static_assert(offsetof(RegionPairEntry, field_0x0C) == 0x0C, "RegionPairEntry +0x0C");
+static_assert(offsetof(RegionPairEntry, unusedDistanceHigh) == 0x0C, "RegionPairEntry +0x0C");
 static_assert(offsetof(RegionPairEntry, time) == 0x10, "RegionPairEntry::time @ +0x10");
 
 struct RegionPairCache {

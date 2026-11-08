@@ -88,7 +88,7 @@
 // (src/engine/audio/SoundBuffer.h, SoundEffect.h). The two anonymous-
 // namespace structs that carried the layouts here MOVED into those headers
 // under the retail names and the getter-attested field names (B6-8): the
-// SoundBuffer's `str1`/`str2` are `_string28`/`_streamPath`, `audioData`/
+// SoundBuffer's `str1`/`str2` are `_wave`/`_streamPath`, `audioData`/
 // `audioBytes` are `_data`/`_length`, `segmentTable`/`segmentBytes` are
 // `_wmaData`/`_wmaLength`; the SoundEffect's `f20`/`f24` are `_radius`/
 // `_innerRadius`, `offsetTicks` is `_maxLength` and the `buffer*` triple is
@@ -346,7 +346,7 @@ void FinishXwmaJob(SoundBuffer& buf, const XwmaJob& job) {
         // before the payload, and PlayPlatform loops a buffer by that flag alone.
         if (LoopSeamApplies(SoundBuffer::_extLoopSeam != nullptr, buf._loopForever, pcm, samples))
             samples = SoundBuffer::_extLoopSeam(pcm, static_cast<uint32_t>(samples), job.channels,
-                                                job.sampleRate, buf._string28._data);
+                                                job.sampleRate, buf._wave._data);
     } else {
         // Not mono / stereo WMA v2 or a short payload: no shipped sound. SDL
         // cannot play the packets, so the buffer becomes an empty PCM buffer.
@@ -439,7 +439,7 @@ bool SoundBuffer::Serialize(IO::Stream& streamv) {
     ser._readerWriter->SerializeBool(_streamed, nullptr);
 
     // `?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z` (0x1800c9930).
-    _string28.Serialize(ser);
+    _wave.Serialize(ser);
     _streamPath.Serialize(ser);
 
     ser._readerWriter->SerializeFloat(_durationSeconds, nullptr);   // +0x80

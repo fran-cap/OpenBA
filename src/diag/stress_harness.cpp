@@ -1206,8 +1206,8 @@ void StaffPass(GameUpdateLoop* gw, int worldFrame) {
             const Description* baseDesc = wc->_description;
             const WorkDescription* wd = static_cast<const WorkDescription*>(baseDesc);
             if (wd) {
-                const int dflt = wd->_i24;   // +0x24
-                const int mx   = wd->_i2c;   // +0x2c
+                const int dflt = wd->_defaultWorkers;   // +0x24
+                const int mx   = wd->_maxWorkerCount;   // +0x2c
                 want = dflt > 0 ? dflt : 1;
                 if (mx > 0 && want > mx) want = mx;
             }
@@ -1268,9 +1268,9 @@ int EdibleUnits(const StorageComponent* sc) {
 void UniqueStorageLocations(CitizenBehavior* townMgr, std::vector<StorageComponent*>& out) {
     out.clear();
     std::vector<ComponentEntity*> seen;
-    const int nLoc = townMgr->field_0x00._size;
+    const int nLoc = townMgr->storageLocations._size;
     for (int i = 0; i < nLoc; ++i) {
-        ComponentEntity* e = townMgr->field_0x00._data[i].Get();
+        ComponentEntity* e = townMgr->storageLocations._data[i].Get();
         if (!e || (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) continue;
         if (std::find(seen.begin(), seen.end(), e) != seen.end()) continue;
         seen.push_back(e);
@@ -1349,8 +1349,8 @@ void FoodPass(GameUpdateLoop* gw) {
     if (deficit <= 0) return;
 
     std::vector<ComponentDescription*> foods;
-    for (int t = 0; t < townMgr->field_0x110._size; ++t) {
-        ComponentDescription* tmpl = townMgr->field_0x110._data[t];
+    for (int t = 0; t < townMgr->knownRawMaterials._size; ++t) {
+        ComponentDescription* tmpl = townMgr->knownRawMaterials._data[t];
         const RawMaterialDescription* rm = RawMatOf(tmpl);
         if (rm && (rm->_flags & RawMaterialFlags::Edible)) foods.push_back(tmpl);
     }
@@ -1478,7 +1478,7 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
     int speed = 0;
     {
         PlayerToolManager* eui = gul->m_toolManager;                    // +0x120
-        if (eui && eui->paused == 0) speed = eui->field_0x34;            // +0x30 / +0x34
+        if (eui && eui->paused == 0) speed = eui->gameSpeed;            // +0x30 / +0x34
     }
     const double fps = windowS > 0 ? s_drawN / windowS : 0.0;
     const double updMean = s_updN ? s_updMsSum / s_updN : 0.0;
@@ -1739,7 +1739,7 @@ extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
     PlayerToolManager* eui = gul->m_toolManager;                        // +0x120
     int frameSpeed = 0;
     if (eui && eui->paused == 0) {                                       // +0x30
-        int spd = eui->field_0x34;                                       // +0x34
+        int spd = eui->gameSpeed;                                       // +0x34
         if (spd > 0) { s_simIters += spd; frameSpeed = spd; }
     }
     s_hCur.speed = frameSpeed;   // HITCH

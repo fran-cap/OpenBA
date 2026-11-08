@@ -102,17 +102,17 @@ static WorkSchedulerBucketNode* WS_ceb0(WorkSchedulerBucketNode* dst, const Work
 
 // ==================================================================================
 // TradeWork_impl_ccf0 — BST insert (0x38 nodes) into the scheduler's +0x120 tree
-// (root field_0x120, count field_0x128). key = pKey->key. On existing key: writes node
+// (root professionBucketRoot, count professionBucketCount). key = pKey->key. On existing key: writes node
 // to *pOut and returns. Otherwise allocates via ceb0, links, rebalances (4b40).
 // ==================================================================================
 static WorkSchedulerBucketNode** WS_ccf0(WorkScheduler* ws, WorkSchedulerBucketNode** pOut,
                                          const WorkSchedulerBucket* pKey) {
-    WorkSchedulerBucketNode* root = ws->field_0x120;
+    WorkSchedulerBucketNode* root = ws->professionBucketRoot;
     if (root == nullptr) {
         WorkSchedulerBucketNode* n = static_cast<WorkSchedulerBucketNode*>(System::MemoryAllocator::MemAlloc(sizeof(WorkSchedulerBucketNode), 8));
         WorkSchedulerBucketNode* node = nullptr;
         if (n) node = WS_ceb0(n, pKey, nullptr);
-        ws->field_0x120 = node;
+        ws->professionBucketRoot = node;
         *pOut = node;
     } else {
         WorkSchedulerBucketNode* cur = root;
@@ -147,10 +147,10 @@ static WorkSchedulerBucketNode** WS_ccf0(WorkScheduler* ws, WorkSchedulerBucketN
             }
         }
         WorkSchedulerBucketNode* localTmp = parent;   // &local_res8 holds `parent` for the rebalance
-        Avl38Retrace(&ws->field_0x120, &localTmp);   // 0x140014b40 (TradeWork_impl_4b40's body)
+        Avl38Retrace(&ws->professionBucketRoot, &localTmp);   // 0x140014b40 (TradeWork_impl_4b40's body)
         *pOut = cur;
     }
-    ws->field_0x128 += 1;   // count++
+    ws->professionBucketCount += 1;   // count++
     return pOut;
 }
 
@@ -204,35 +204,35 @@ int WorkScheduler::Insert(Object::InternalPtr<Work>* workRef, uint32_t code,
                                               char fromExisting, int prio) {
 
     // --- assign id (wraps at 0x7ffffffe) ---
-    field_0x00 += 1;
-    int id = field_0x00;
-    if (id == 0x7ffffffe) field_0x00 = 0;
+    lastWorkId += 1;
+    int id = lastWorkId;
+    if (id == 0x7ffffffe) lastWorkId = 0;
 
     // --- assign priority ---
     if (fromExisting == '\0') {
-        prio = field_0x04;
-        field_0x04 = prio + 1;
+        prio = nextQueueOrder;
+        nextQueueOrder = prio + 1;
     } else {
         // dedup: while a primary node already holds `prio`, decrement and restart search
-        WorkSchedulerCountNode* p = field_0x10.root;
+        WorkSchedulerCountNode* p = queueOrderTree.root;
         while (p != nullptr) {
             int nodeKey = p->key;
             if (prio < nodeKey)      p = p->left;
             else if (nodeKey < prio) p = p->right;
-            else { prio -= 1; p = field_0x10.root; }
+            else { prio -= 1; p = queueOrderTree.root; }
         }
     }
 
     // --- stamp the work IBP: +0x20 = id, +0x24 = prio ---
     Work* work = workRef->Get();
-    work->field_20 = id;
+    work->_workId = id;
     work = workRef->Get();
-    work->field_24 = prio;
+    work->_queueOrder = prio;
 
     // --- insert into the primary AVL (0x28 nodes) at sched+0x10, keyed by prio ---
     // key node scratch = {prio, id}
     struct { int prio; int id; } keyNode = { prio, id };
-    WorkSchedulerCountNode* proot = field_0x10.root;
+    WorkSchedulerCountNode* proot = queueOrderTree.root;
     if (proot == nullptr) {
         WorkSchedulerCountNode* n = static_cast<WorkSchedulerCountNode*>(System::MemoryAllocator::MemAlloc(sizeof(WorkSchedulerCountNode), 8));
         if (n) {
@@ -244,7 +244,7 @@ int WorkScheduler::Insert(Object::InternalPtr<Work>* workRef, uint32_t code,
             n->balance = 0;
             n->height = 0;
         }
-        field_0x10.root = n;
+        queueOrderTree.root = n;
     } else {
         WorkSchedulerCountNode* cur = proot;
         WorkSchedulerCountNode* parent = cur;
@@ -289,8 +289,8 @@ int WorkScheduler::Insert(Object::InternalPtr<Work>* workRef, uint32_t code,
         }
         if (linked) {
             WorkSchedulerCountNode* tmp = parent;
-            AvlRebalance(&field_0x10.root, &tmp);   // 0x14001a8c0
-            field_0x10.count += 1;   // +0x18 primary count
+            AvlRebalance(&queueOrderTree.root, &tmp);   // 0x14001a8c0
+            queueOrderTree.count += 1;   // +0x18 primary count
         }
     }
 
@@ -384,7 +384,7 @@ int WorkScheduler::Insert(Object::InternalPtr<Work>* workRef, uint32_t code,
     Profession* slot50Buf[2] = {nullptr, nullptr};
     Profession** targetKey = wobj->GetTarget(slot50Buf);   // Work slot 10, retslot
 
-    WorkSchedulerBucketNode* froot = field_0x120;
+    WorkSchedulerBucketNode* froot = professionBucketRoot;
     WorkSchedulerBucketNode* found = nullptr;
     if (froot != nullptr) {
         WorkSchedulerBucketNode* p = froot;
@@ -520,7 +520,7 @@ void WorkComponent::PostWork(uint32_t code, char flag, Object::InternalPtr<Work>
     }
     // On a miss retail builds a NULL InternalPtr (0x14012ed09..0x14012ed1b) and reads
     // [RAX+0x24] through it (0x14012ed2b): no test, a null read, not a 0 (B6 row 200).
-    workFlags = payload->field_24;
+    workFlags = payload->_queueOrder;
     // The id-map half of the post is the one nothing downstream can see going wrong: a miss
     // here silently writes priority 0 into workComp+0x2c and makes the f8400 re-key a no-op
     // ("NOT in the sched+0x30 id-map"). Report the map's own state next to the lookup result
@@ -572,7 +572,7 @@ void WorkScheduler::Rekey(uint32_t workId,
     }
 
     // 2. The OLD profession's bucket (the +0x120 tree).
-    WorkSchedulerBucketNode* oldBucket = field_0x120;
+    WorkSchedulerBucketNode* oldBucket = professionBucketRoot;
     while (oldBucket) {
         Profession* bk = oldBucket->bucket.key;
         if (oldProf < bk)      oldBucket = oldBucket->left;
@@ -606,7 +606,7 @@ void WorkScheduler::Rekey(uint32_t workId,
 
     // 5. The NEW profession's bucket, created if this is its first item.
     WorkSchedulerBucketNode* newBucket = nullptr;
-    for (WorkSchedulerBucketNode* p = field_0x120; p; ) {
+    for (WorkSchedulerBucketNode* p = professionBucketRoot; p; ) {
         Profession* bk = p->bucket.key;
         if (newProf < bk)      p = p->left;
         else if (bk < newProf) p = p->right;

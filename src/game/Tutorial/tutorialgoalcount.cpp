@@ -268,7 +268,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
     // --------------------------------------------------------
     case 2: {
         CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;
-        count = worldData->field_0x20._size;
+        count = worldData->residences._size;
         break;
     }
 
@@ -299,7 +299,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
     // stepCutter7 (step 60): count=4 target=3 ge=0, forever.
     case 4: {
         CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;
-        count = worldData->field_0x00._size;
+        count = worldData->storageLocations._size;
         break;
     }
 
@@ -308,7 +308,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
     // --------------------------------------------------------
     case 5: {
         Map* worldData2 = GameUpdateLoop::_singleton->m_game;
-        count = (worldData2->field_0xE8.count > 0) ? 1 : 0;
+        count = (worldData2->pendingRoadCells.count > 0) ? 1 : 0;
         break;
     }
 
@@ -333,7 +333,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
             // Re-read worldData each iteration (matches original)
             worldData = GameUpdateLoop::_singleton->m_citizenList;
             // Retail reads the miss's null node's +0x8 (no test after the find).
-            ProfessionBucket* node = BSTFind(worldData->field_0x100._root, curProfType);
+            ProfessionBucket* node = BSTFind(worldData->workplacesByProfession._root, curProfType);
 
             ComponentEntity* entity = node->element.entities._data[i].Get();
 
@@ -357,8 +357,8 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
     // TradeComponent, and sums the stock tree's (+0x60) quantity for the type.
     case 7: {
         CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;
-        int entityCount = worldData->field_0x30._size;
-        Object::InternalPtr<ComponentEntity>* entityArray = worldData->field_0x30._data;
+        int entityCount = worldData->tradePosts._size;
+        Object::InternalPtr<ComponentEntity>* entityArray = worldData->tradePosts._data;
         int total = 0;
 
         for (int i = 0; i < entityCount; i++) {
@@ -393,8 +393,8 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
     // item counts of its slots.
     case 8: {
         CitizenBehavior* worldData = GameUpdateLoop::_singleton->m_citizenList;
-        int entityCount = worldData->field_0x30._size;
-        Object::InternalPtr<ComponentEntity>* entityArray = worldData->field_0x30._data;
+        int entityCount = worldData->tradePosts._size;
+        Object::InternalPtr<ComponentEntity>* entityArray = worldData->tradePosts._data;
         int total = 0;
 
         for (int i = 0; i < entityCount; i++) {
@@ -459,7 +459,7 @@ bool TutorialGoalCount::IsComplete(const System::Time* param2, void* param3) {
             // Re-resolve the type each iteration (original code does this)
             const ComponentDescription* curTypePtr = ResolveTypePtr<ComponentDescription>(typeRef);
             worldData = GameUpdateLoop::_singleton->m_citizenList;
-            TemplateBucket* node = BSTFind(worldData->field_0x160._root, curTypePtr);
+            TemplateBucket* node = BSTFind(worldData->entitiesByTemplate._root, curTypePtr);
 
             // Retail's miss builds InternalBasePtr(null) and finds on it (0x1400df4dc).
             ComponentEntity* entity = nullptr;

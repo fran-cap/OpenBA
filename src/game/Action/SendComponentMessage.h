@@ -32,20 +32,20 @@ public:
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400cae80
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    Object::InternalPtr<ComponentEntity> _field20;   // +0x20 target entity (Persist checks ComponentEntity)
-    Object::InternalPtr<ComponentEntity> _field28;   // +0x28 source entity handed to OnMessage (Persist checks ComponentEntity)
-    uint32_t  _field30;          // +0x30 component type id (Object::Type::Serialize)
-    int32_t   _field34;          // +0x34 message id (Persist: int)
-    uint32_t  _field38;          // +0x38 message arg (Persist: uint)
-    uint32_t  _field3C;          // +0x3C second message arg, ctor 0 (Persist: uint)
+    Object::InternalPtr<ComponentEntity> _target;   // +0x20 target entity (Persist checks ComponentEntity)
+    Object::InternalPtr<ComponentEntity> _sender;   // +0x28 source entity handed to OnMessage (Persist checks ComponentEntity)
+    uint32_t  _componentTypeId;          // +0x30 component type id (Object::Type::Serialize)
+    int32_t   _message;          // +0x34 message id (Persist: int)
+    uint32_t  _messageArg;          // +0x38 message arg (Persist: uint)
+    uint32_t  _secondMessageArg;          // +0x3C second message arg, ctor 0 (Persist: uint)
 };
 
-static_assert(offsetof(SendComponentMessage, _field3C) == 0x3C, "SendComponentMessage +0x3C");
+static_assert(offsetof(SendComponentMessage, _secondMessageArg) == 0x3C, "SendComponentMessage +0x3C");
 
 static_assert(sizeof(SendComponentMessage) == 0x40, "SendComponentMessage is 0x40 (create 0x140023070 MemAlloc)");
 static_assert(alignof(SendComponentMessage) == 8, "SendComponentMessage is 8-aligned");
-static_assert(offsetof(SendComponentMessage, _field20) == 0x20, "SendComponentMessage +0x20");
-static_assert(offsetof(SendComponentMessage, _field28) == 0x28, "SendComponentMessage +0x28");
-static_assert(offsetof(SendComponentMessage, _field30) == 0x30, "SendComponentMessage +0x30");
-static_assert(offsetof(SendComponentMessage, _field34) == 0x34, "SendComponentMessage +0x34");
-static_assert(offsetof(SendComponentMessage, _field38) == 0x38, "SendComponentMessage +0x38");
+static_assert(offsetof(SendComponentMessage, _target) == 0x20, "SendComponentMessage +0x20");
+static_assert(offsetof(SendComponentMessage, _sender) == 0x28, "SendComponentMessage +0x28");
+static_assert(offsetof(SendComponentMessage, _componentTypeId) == 0x30, "SendComponentMessage +0x30");
+static_assert(offsetof(SendComponentMessage, _message) == 0x34, "SendComponentMessage +0x34");
+static_assert(offsetof(SendComponentMessage, _messageArg) == 0x38, "SendComponentMessage +0x38");

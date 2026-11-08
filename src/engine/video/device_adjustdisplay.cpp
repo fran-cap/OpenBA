@@ -18,7 +18,7 @@
 // WHAT IT DOES. Re-lays the window out for the current Video::Configuration,
 // then reads back the client area and publishes it as the new backbuffer size:
 //
-//   device->field9D = 1                      (a re-entrancy flag; cleared at the end)
+//   device->adjustingDisplay = 1                   (a re-entrancy flag; cleared at the end)
 //   style = GetWindowLongW(hwnd, GWL_STYLE)
 //   MONITORINFO mi = {}; mi.cbSize = 0x28
 //   if (device+0xA0) GetMonitorInfoW(device+0xA0, &mi)
@@ -31,7 +31,7 @@
 //   } else {
 //       ... the windowed branch, below ...
 //   }
-//   device->field9D = 0
+//   device->adjustingDisplay = 0
 //
 // EVERY IMPORT SLOT WAS RESOLVED BY NAME, NOT GUESSED FROM THE CALL SHAPE.
 // pefile against the shipped DLL's import table:
@@ -96,13 +96,13 @@
 
 // ?AdjustDisplay@Device@Video@@ — B.4 (R-VIDEO): the member itself, on named
 // fields (Device +0x04/+0x08 backBufferWidth/Height, +0x90 windowHandle, +0x9D
-// field9D, +0xA0 monitor; Configuration +0x14..+0x20 window rect, +0x40
+// adjustingDisplay, +0xA0 monitor; Configuration +0x14..+0x20 window rect, +0x40
 // fullscreen).
 void Video::Device::AdjustDisplay() {
     // The re-entrancy flag. SizeWindow/MoveWindow read it to tell an
     // application-driven resize from this one; set before the first Win32 call
     // and cleared on BOTH exits (0x1800f7e37 and 0x1800f8088).
-    field9D = 1;
+    adjustingDisplay = 1;
 
     void* const hwnd = windowHandle;
     // GetWindowLongW(hwnd, GWL_STYLE) at 0x18014b510: the style is read here and modified
@@ -128,7 +128,7 @@ void Video::Device::AdjustDisplay() {
                      monitorRect.left, monitorRect.top,
                      backBufferWidth, backBufferHeight,
                      Platform::Window::kPosFrameChangedNoActivate);
-        field9D = 0;
+        adjustingDisplay = 0;
         return;
     }
 
@@ -215,5 +215,5 @@ void Video::Device::AdjustDisplay() {
     cfg->windowWidth  = cw;
     cfg->windowHeight = ch;
 
-    field9D = 0;
+    adjustingDisplay = 0;
 }

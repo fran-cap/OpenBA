@@ -232,7 +232,7 @@ void DocumentTextElement::Draw(SpriteContext& context, uint8_t alpha) const {
                             tmp, false, 0, 0, -1,
                             item->x + L, item->y + T, static_cast<uint32_t>(item->color));
 
-            const uint8_t underline = item->byte21;
+            const uint8_t underline = item->underline;
             if (underline == 1 || underline == 2) {
                 int width = item->width;
                 if (underline == 2) {
@@ -341,14 +341,14 @@ void DocumentTextElement::Update(const System::Time& time, UserInterface* ui,
             Item* item = _items._data + j;
             if (item->kind != 0) continue;
             item->color = static_cast<int32_t>(colour);
-            if (j == link->lastItem - 1 && pressed) item->byte21 = 2;
-            else                                    item->byte21 = pressed ? 1 : 0;
+            if (j == link->lastItem - 1 && pressed) item->underline = 2;
+            else                                    item->underline = pressed ? 1 : 0;
         }
 
         if (state.buttonPressed != 0 && hit && link->armed != 0)
             PlayInline(ui, kUiHoverSound);
 
-        if (state.b04 != 0 && hit && link->armed != 0) {
+        if (state.leftReleased != 0 && hit && link->armed != 0) {
             ::Event ev;
             ev.dialog    = dialog->Get();
             ev.element   = this;

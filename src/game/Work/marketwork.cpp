@@ -102,7 +102,7 @@
 // (The slot's key parameter is void* in Work.h: LEFT.)
 //
 int MarketWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
-    MarketBst_aaa0(&_field48, param2);
+    MarketBst_aaa0(&_claims, param2);
     return false;
 }
 
@@ -120,7 +120,7 @@ int MarketWork::OnComplete(CitizenComponent** param2, ComponentEntity** /*arg2*/
 // Verified by decompiling 0x1400eff50 and 0x1400eff60 — both call 0x14002aaa0.
 //
 int MarketWork::OnCancel(CitizenComponent** param2, ComponentEntity** /*arg2*/, int /*arg3*/) {
-    MarketBst_aaa0(&_field48, param2);
+    MarketBst_aaa0(&_claims, param2);
     return 0;
 }
 
@@ -132,11 +132,11 @@ int MarketWork::OnCancel(CitizenComponent** param2, ComponentEntity** /*arg2*/, 
 // citizen, its CharacterComponent (+0x278), the action list (+0x48) is cleared.
 //
 int MarketWork::Cleanup() {
-    int count = _field48.count;
+    int count = _claims.count;
 
     while (count > 0) {
         // Find leftmost node in the claim tree
-        ClaimNode* node = _field48.root;
+        ClaimNode* node = _claims.root;
         ClaimNode* leftmost = node;
         while (node != nullptr) {
             leftmost = node;
@@ -147,7 +147,7 @@ int MarketWork::Cleanup() {
         CitizenComponent* citizen = leftmost->element.citizen.Get();
         citizen->character->actionStack.Clear();
 
-        count = _field48.count;
+        count = _claims.count;
     }
     return 0;
 }
@@ -162,7 +162,7 @@ int MarketWork::Cleanup() {
 // Uses MarketWork_sub_ac40 for the removal (not CitizenAI_impl_a6e0).
 //
 int MarketWork::Validate() {
-    ClaimNode* root = _field48.root;
+    ClaimNode* root = _claims.root;
     CitizenComponent** removeArr = nullptr;
     uint32_t removeCount = 0;
     uint32_t removeCapacity = 0;
@@ -248,13 +248,13 @@ int MarketWork::Validate() {
     if (removeCount > 0) {
         for (uint32_t i = 0; i < removeCount; i++) {
             // Find and remove the node with this key
-            ClaimNode* searchNode = _field48.root;
+            ClaimNode* searchNode = _claims.root;
             while (searchNode != nullptr) {
                 if (removeArr[i] < searchNode->element.citizen.Get()) {
                     searchNode = searchNode->left;
                 } else {
                     if (removeArr[i] <= searchNode->element.citizen.Get()) {
-                        MarketBst_ac40(&_field48, searchNode);
+                        MarketBst_ac40(&_claims, searchNode);
                         break;
                     }
                     searchNode = searchNode->right;
@@ -276,7 +276,7 @@ int MarketWork::Validate() {
 // profession (+0x48) into the return slot. IDENTICAL pattern to other Work classes.
 //
 Profession** MarketWork::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }
@@ -337,7 +337,7 @@ void MarketWork::Persist(IO::Stream& stream) {
                 //          always-null data pointer of that temporary.
                 ClaimNode* outIbp = nullptr;
                 CarryList vecDesc = {nullptr, 0, 0};
-                MarketBst_a9f0(&_field48, &outIbp, &node->element, &vecDesc);
+                MarketBst_a9f0(&_claims, &outIbp, &node->element, &vecDesc);
                 vecDesc.data = nullptr;
                 vecDesc.count = 0;
                 vecDesc.capacity = 0;
@@ -371,7 +371,7 @@ void MarketWork::Persist(IO::Stream& stream) {
         }
     } else {
         // NEW format: call MarketWork_helper_b290 directly
-        MarketBst_b290(&_field48, &serializer);
+        MarketBst_b290(&_claims, &serializer);
     }
 }
 
@@ -503,7 +503,7 @@ static void MW_ReportTreeMiss(const char* site, int entityIdx, const void* entit
             path[i] = '\0';
         }
     }
-    const int regCount = town->field_0x110._size;
+    const int regCount = town->knownRawMaterials._size;
     fprintf(stderr, "[MarketWork::Execute] TREE MISS at %s: storage entity[%d]=%p holds resType=%p "
             "(%s) rawMatDesc=%p flags=0x%x -- not among the %d types in townMgr+0x110; "
             "about to fault faithfully\n",
@@ -571,8 +571,8 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     // cache of "how many haulers may work here at once", computed by CalcMaxWorkers
     // (0x14012e5c0). Full -> 1 = examined but declined. (The tree has two ports of 0x14012e5c0 that differ; the one
     // called here takes the component as an integer: LEFT.)
-    const int claimed = _field48.count;
-    WorkComponent* workComp = field_18.Get();
+    const int claimed = _claims.count;
+    WorkComponent* workComp = _workComponent.Get();
     if (workComp->workState == 0) {
         workComp->workState = workComp->CalcMaxWorkers();
     }
@@ -598,13 +598,13 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     // self+0x10 is the market Entity: its MarketComponent (retail keeps a strong ref
     // for the rest of the body), then the component's Description narrowed to
     // MarketDescription.
-    MarketComponent* marketComp = field_10->FindComponent<MarketComponent>();
+    MarketComponent* marketComp = _entity->FindComponent<MarketComponent>();
     Description* descRaw = marketComp->_description;
     MarketDescription* marketDesc = Object::IsDerivedFromNullSafe(descRaw, MarketDescription::TypeId())
         ? static_cast<MarketDescription*>(descRaw) : nullptr;
 
     // --- 0x1400f011c..0x1400f0132: the market's own StorageComponent ------
-    StorageComponent* marketStorage = field_10->FindComponent<StorageComponent>();
+    StorageComponent* marketStorage = _entity->FindComponent<StorageComponent>();
 
     // --- 0x1400f0132..0x1400f01c5: the citizen's terrain cell index -------
     // The map's size is the edge length; the citizen's CharacterComponent (+0x278)
@@ -667,9 +667,9 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
 
     MW_SupplyTree tree = {nullptr, 0, 0};
     {
-        const int typeCount = town->field_0x110._size;
+        const int typeCount = town->knownRawMaterials._size;
         for (int i = 0; i < typeCount; ++i) {
-            ComponentDescription* key = town->field_0x110._data[i];
+            ComponentDescription* key = town->knownRawMaterials._data[i];
 
             MW_SupplyNode* root = tree.root;
             if (root == nullptr) {
@@ -780,7 +780,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     // records take unitSize*qty -- checked at 0x1400f0626 (ADD [RAX+0x10],R8D)
     // versus 0x1400f0648 (ADD [RDX],R9D).
     {
-        ClaimNode* node = _field48.root;
+        ClaimNode* node = _claims.root;
         if (node != nullptr) {
             while (node->left != nullptr)
                 node = node->left;
@@ -829,12 +829,12 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     // available stock. Tree and records both take the plain unitSize*available
     // here (0x1400f0907 / 0x1400f0928).
     {
-        const int entityCount = town->field_0x00._size;
+        const int entityCount = town->storageLocations._size;
         for (int e = 0; e < entityCount; ++e) {
-            ComponentEntity* entity = town->field_0x00._data[e].Get();
+            ComponentEntity* entity = town->storageLocations._data[e].Get();
             StorageComponent* storage = entity->FindComponent<StorageComponent>();
 
-            entity = town->field_0x00._data[e].Get();
+            entity = town->storageLocations._data[e].Get();
             ConsumeProduceComponent* consumeProduce = entity->FindComponent<ConsumeProduceComponent>();
 
             if (consumeProduce != nullptr) continue;   // 0x1400f0812: has a consumer -> skip
@@ -934,7 +934,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             // descriptor's capacity field. (0x14008d590 takes the town, the resource
             // and the position by name.)
             float destPos[3] = {0.0f, 0.0f, 0.0f};
-            Object::InternalPtr<ComponentEntity> exclude = field_10;  // this market
+            Object::InternalPtr<ComponentEntity> exclude = _entity;  // this market
             ComponentEntity* found = nullptr;
             town->PickBestDropTarget(
                                &found,
@@ -945,7 +945,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             // ============ THE CLAIM (retail returns 2 from here) ============
             // 0x1400f0be3: a random interact point on the MARKET, weighted by the
             // InteractDescription's use-node count plus each part's recursive sum.
-            InteractComponent* interact = field_10->FindComponent<InteractComponent>();
+            InteractComponent* interact = _entity->FindComponent<InteractComponent>();
             Description* icDescRaw = interact->_description;
             InteractDescription* icDesc = Object::IsDerivedFromNullSafe(icDescRaw, InteractDescription::TypeId())
                 ? static_cast<InteractDescription*>(icDescRaw) : nullptr;
@@ -962,20 +962,20 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             // Arg 8 is the resource TYPE ENTITY POINTER, full 64 bits -- see the
             // engine_funcs.h note; it was truncated to 32 once before and crashed.
             ComponentEntity* pathDest = found;                    // where to deliver
-            ComponentEntity* pathSrc = field_10.Get();                  // this market
+            ComponentEntity* pathSrc = _entity.Get();                  // this market
             CitizenComponent* pathWalker = *citizenSlot;
             ::Object::InternalPtr<Action> pathOut;   // retail discards this handle on this arm
-            const int pathType = field_20;
+            const int pathType = _workId;
             WorkAct_GatherRawMatCtor_bf790(&pathOut, &pathWalker, pathType, &pathDest, destPos,
                           &pathSrc, &marketPos.x, resType, take,
                           0, 1, '\0', 0, 1);
 
             // 0x1400f0de1..0x1400f0e2a: stamp the citizen.
-            const int pathTypeAfter = field_20;
+            const int pathTypeAfter = _workId;
             CitizenComponent* citizen3 = *citizenSlot;
             Profession* tgtVal = nullptr;
             GetTarget(&tgtVal);                     // 0x1400f0e03 MOV RAX,[RAX]
-            citizen3->field_0x30   = pathTypeAfter;
+            citizen3->lastWorkId   = pathTypeAfter;
             citizen3->statusFlags |= Bits(CitizenStatus::TaskDone);
             citizen3->lastErrand   = CitizenErrand::None;
             if (tgtVal == citizen3->profession && pathTypeAfter >= 0) {
@@ -991,7 +991,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             // exactly as in the v0 save-migration path in Serialize above.
             CarryList vecDesc = {nullptr, 0, 0};
             ClaimNode* claimNode = nullptr;
-            MarketBst_a9f0(&_field48, &claimNode, citizenSlot, &vecDesc);
+            MarketBst_a9f0(&_claims, &claimNode, citizenSlot, &vecDesc);
             System::MemoryAllocator::MemFree(nullptr);
             vecDesc.data = nullptr;
             vecDesc.count = 0;
@@ -1018,10 +1018,10 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     int  result     = 1;      // uVar29 / R10D
     int  bestIndex  = -1;     // local_160, 0x1400f0e87 MOV dword [RBP-0x68],0xffffffff
     float bestScore = 0.0f;   // 0x1400f0e8e XORPS XMM6,XMM6
-    const int townEntityCount = town->field_0x00._size;
+    const int townEntityCount = town->storageLocations._size;
 
     for (int e = 0; e < townEntityCount; ++e) {
-        Object::InternalPtr<ComponentEntity>* const townEntities = town->field_0x00._data;
+        Object::InternalPtr<ComponentEntity>* const townEntities = town->storageLocations._data;
 
         StorageComponent* candStorage = townEntities[e]->FindComponent<StorageComponent>();
         MapComponent* candMap = townEntities[e]->FindComponent<MapComponent>();
@@ -1123,7 +1123,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
     // STAGE 5 -- take list, path, transfer, claim.  retail 0x1400f13a3..0x1400f1c15
     // ======================================================================
     if (bestIndex >= 0) {   // 0x1400f0e8a-era check: local_160 < 0 -> straight to epilogue
-        ComponentEntity* const winner = town->field_0x00._data[bestIndex].Get();
+        ComponentEntity* const winner = town->storageLocations._data[bestIndex].Get();
         StorageComponent* winStorage = winner->FindComponent<StorageComponent>();
 
         // --- 0x1400f1425..0x1400f16a0: build the take list ------------------
@@ -1194,7 +1194,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
         if (takeList.count > 1) MarketBst_ba70(takeList.data, takeList.count);
 
         // --- 0x1400f16a5..0x1400f18c0: two interact points -------------------
-        InteractComponent* mic = field_10->FindComponent<InteractComponent>();
+        InteractComponent* mic = _entity->FindComponent<InteractComponent>();
         Description* micDescRaw = mic->_description;
         InteractDescription* micDesc = Object::IsDerivedFromNullSafe(micDescRaw, InteractDescription::TypeId())
             ? static_cast<InteractDescription*>(micDescRaw) : nullptr;
@@ -1266,21 +1266,21 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             // Retail builds each FindPath argument as InternalBasePtr() + Copy
             // (0x140152ac0 / 0x140152ab8: an 8-byte copy, not refcounted).
             ComponentEntity* pathWinner = winner;
-            ComponentEntity* pathMarket = field_10.Get();
+            ComponentEntity* pathMarket = _entity.Get();
             CitizenComponent* pathCitizen = *citizenSlot;
 
             // Note the direction: SRC is the winner (pick up there), DEST is the
             // market (drop off here) -- the mirror of the S3 shed arm. Args 8/9 are
             // 0 and -1 here, not a material template and a count.
             ::Object::InternalPtr<Action> pathOut2;
-            const int pathType2 = field_20;
+            const int pathType2 = _workId;
             WorkAct_GatherRawMatCtor_bf790(&pathOut2, &pathCitizen, pathType2, &pathMarket, &marketPos2.x,
                           &pathWinner, winnerPos, nullptr, -1, 0, 1, '\0', 0, 1);
 
             CitizenComponent* citizen5 = *citizenSlot;
             Profession* tgtVal2 = nullptr;
             GetTarget(&tgtVal2);
-            citizen5->field_0x30   = pathType2;
+            citizen5->lastWorkId   = pathType2;
             citizen5->statusFlags |= Bits(CitizenStatus::TaskDone);
             citizen5->lastErrand   = CitizenErrand::None;
             if (tgtVal2 == citizen5->profession && pathType2 >= 0) {
@@ -1295,7 +1295,7 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
             }
 
             ClaimNode* claimNode = nullptr;
-            MarketBst_a9f0(&_field48, &claimNode, citizenSlot, &carry);
+            MarketBst_a9f0(&_claims, &claimNode, citizenSlot, &carry);
             result = 2;
 
         }
@@ -1327,12 +1327,12 @@ int MarketWork::Execute(CitizenComponent** citizenSlot, System::Time* ctx) {
 // MarketWork dtor (inlined in retail slot 0 0x14002a910). The stamps and the `~Internal` call are the compiler's chain.
 MarketWork::~MarketWork() {
     // Free the claim tree using market-specific cleanup
-    ClaimNode* bstRoot = _field48.root;
+    ClaimNode* bstRoot = _claims.root;
     if (bstRoot != nullptr) {
         // FUN_14002af40 recursively frees left, right, then the node's carry list,
         // zeros it, frees the node
-        WorkLeaf_MarketTreeCleanup_2af40(&_field48.root, bstRoot->left);
-        WorkLeaf_MarketTreeCleanup_2af40(&_field48.root, bstRoot->right);
+        WorkLeaf_MarketTreeCleanup_2af40(&_claims.root, bstRoot->left);
+        WorkLeaf_MarketTreeCleanup_2af40(&_claims.root, bstRoot->right);
         // Free root node's carry list and the root itself
         Carry* rootData = bstRoot->element.carries.data;
         if (rootData) {
@@ -1342,8 +1342,8 @@ MarketWork::~MarketWork() {
     }
 
     // Zero out the tree root and count
-    _field48.root = nullptr;
-    _field48.count = 0;
+    _claims.root = nullptr;
+    _claims.count = 0;
 
 }
 
@@ -1354,14 +1354,14 @@ MarketWork::~MarketWork() {
 // ============================================================
 // 9 bytes, too small to hook.
 int MarketWork::GetPriority() {
-    return _field48.count > 0 ? 1 : 0;
+    return _claims.count > 0 ? 1 : 0;
 }
 
 
 
 // Ctor 0x1400f1f70: `??0Internal`, the Work base fields, the leaf fields zeroed (the
 // two stamps are the compiler's).
-MarketWork::MarketWork() : Work(), _field48{nullptr, 0} {
+MarketWork::MarketWork() : Work(), _claims{nullptr, 0} {
 }
 
 // ============================================================

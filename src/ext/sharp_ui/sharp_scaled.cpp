@@ -148,7 +148,7 @@ bool SamePathNoCase(const char* a, const char* b) {
 }
 
 Video::ImageBuffer* DiffuseOf(const UI::SpriteSheet& sheet) {
-    const Graphics::MaterialInstance* const m = sheet.m_field30;
+    const Graphics::MaterialInstance* const m = sheet.m_materialInstance;
     if (m == nullptr) return nullptr;
     const int32_t i = m->FindTexture(System::String("diffuse"));
     if (i < 0 || i >= m->_textures._size) return nullptr;
@@ -234,7 +234,7 @@ std::shared_ptr<Job> StartJob(UI::SpriteSheet& sheet, SheetKind kind, int factor
     job->factor  = factor;
     job->width   = w;
     job->height  = h;
-    job->pad     = sheet.m_field50 ? 1 : 0;
+    job->pad     = sheet.m_padForFiltering ? 1 : 0;
     job->pixels  = std::move(pixels);
     job->started = t0;
     const int count = sheet.m_sprites._size;
@@ -288,7 +288,7 @@ Built Finish(UI::SpriteSheet& sheet, const Video::ImageBuffer& base, Job& job) {
     spec.imageFormat  = job.compress ? kFormatBc3 : kFormatBgra8;
     spec.imageFlags   = job.compress ? Video::ImageBuffer::kMipmaps : 0u;
 
-    Graphics::Material* const baseMaterial = sheet.m_field30->_material.Get();
+    Graphics::Material* const baseMaterial = sheet.m_materialInstance->_material.Get();
     b.texture  = NewObject<Video::ImageBuffer>();
     b.material = NewObject<Graphics::MaterialInstance>();
     if (b.texture == nullptr || b.material == nullptr || baseMaterial == nullptr) {

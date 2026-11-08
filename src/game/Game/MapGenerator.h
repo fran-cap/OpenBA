@@ -93,53 +93,53 @@ public:
     virtual Object::External* Construct();                        // [8] 0x14001ae20
 
 public:
-    UI::StringTable* _field20;   // +0x20: ExternalPtr<StringTable> (_stringTable)
-    System::String _field28;     // +0x28: _name (B.4 GAME-b: the ctor stored 0, the dtor ran ~String last)
-    System::String _field30;     // +0x30: _description
-    uint8_t  enabled;            // +0x38: bool, default 1 (_exposed)
+    UI::StringTable* stringTable;   // +0x20: ExternalPtr<StringTable> (_stringTable)
+    System::String name;     // +0x28: _name (B.4 GAME-b: the ctor stored 0, the dtor ran ~String last)
+    System::String description;     // +0x30: _description
+    uint8_t  exposed;            // +0x38: bool, default 1 (_exposed)
     uint8_t  _pad39[3];          // +0x39: padding
-    int32_t  subdivisions;       // +0x3C: default 8 (_startAreaSize)
-    float    scale;              // +0x40: default 2.0f (_citizenRadius)
+    int32_t  startAreaSize;       // +0x3C: default 8 (_startAreaSize)
+    float    citizenRadius;              // +0x40: default 2.0f (_citizenRadius)
     uint8_t  _pad44[4];          // +0x44: padding
 
-    ExternalRef templateRef;     // +0x48: _citizen template ref
+    ExternalRef citizen;     // +0x48: _citizen template ref
 
     // +0x60: InitialFamily array (8-byte elements, raw MemAlloc/MemFree); the
     // count is retail's int32 at +0x68, the capacity +0x6C.
-    InitialFamilyArray families;  // +0x60 _citizens {data, count +0x68, capacity +0x6C} (dtor 0x14001af47: MemFree, zero both qwords)
+    InitialFamilyArray citizens;  // +0x60 _citizens {data, count +0x68, capacity +0x6C} (dtor 0x14001af47: MemFree, zero both qwords)
 
-    ExternalRefArray      refArray1;   // +0x70: ExternalRef (0x18) pool (dtor 0x14001af41 -> 0x14001b030)
-    InitialStructureArray refArray2;   // +0x80: InitialStructure (0x30) pool (dtor 0x14001af37 -> 0x14001b0a0)
-    ExternalRefArray      refArray3;   // +0x90: ExternalRef pool (dtor 0x14001af2a -> 0x14001b030)
-    ExternalRefArray      refArray4;   // +0xA0: ExternalRef pool (dtor 0x14001af1d -> 0x14001b030)
-    ExternalRefArray      refArray5;   // +0xB0: ExternalRef pool (dtor 0x14001af10 -> 0x14001b030)
-    ExternalRefArray      refArray6;   // +0xC0: ExternalRef pool (dtor 0x14001af03 -> 0x14001b030)
-    ExternalRefArray      refArray7;   // +0xD0: ExternalRef pool (dtor 0x14001aef6 -> 0x14001b030)
+    ExternalRefArray      naturalResources;   // +0x70: ExternalRef (0x18) pool (dtor 0x14001af41 -> 0x14001b030)
+    InitialStructureArray structures;   // +0x80: InitialStructure (0x30) pool (dtor 0x14001af37 -> 0x14001b0a0)
+    ExternalRefArray      populations;   // +0x90: ExternalRef pool (dtor 0x14001af2a -> 0x14001b030)
+    ExternalRefArray      initialVisibleList;   // +0xA0: ExternalRef pool (dtor 0x14001af1d -> 0x14001b030)
+    ExternalRefArray      initialPlantList;   // +0xB0: ExternalRef pool (dtor 0x14001af10 -> 0x14001b030)
+    ExternalRefArray      initialTreeList;   // +0xC0: ExternalRef pool (dtor 0x14001af03 -> 0x14001b030)
+    ExternalRefArray      initialLivestockList;   // +0xD0: ExternalRef pool (dtor 0x14001aef6 -> 0x14001b030)
 
     // +0xE0: Scalar generation parameters
-    int32_t  paramE0;            // +0xE0
-    int32_t  paramE4;            // +0xE4
-    int32_t  paramE8;            // +0xE8
-    float    paramEC;            // +0xEC
-    float    paramF0;            // +0xF0
-    float    paramF4;            // +0xF4
-    int32_t  paramF8;            // +0xF8
-    int32_t  paramFC;            // +0xFC
-    int32_t  param100;           // +0x100
-    int32_t  param104;           // +0x104
-    int32_t  param108;           // +0x108
-    int32_t  param10C;           // +0x10C
-    int32_t  param110;           // +0x110
-    int32_t  param114;           // +0x114
+    int32_t  plantCount;            // +0xE0
+    int32_t  treeCount;            // +0xE4
+    int32_t  livestockCount;            // +0xE8
+    float    livestockOffsetX;            // +0xEC
+    float    livestockOffsetY;            // +0xF0
+    float    livestockRadius;            // +0xF4
+    int32_t  livestockGroupCount;            // +0xF8
+    int32_t  initialWoodCount;            // +0xFC
+    int32_t  initialStoneCount;           // +0x100
+    int32_t  initialIronCount;           // +0x104
+    int32_t  initialToolCount;           // +0x108
+    int32_t  initialFoodCount;           // +0x10C
+    int32_t  initialFuelCount;           // +0x110
+    int32_t  initialClothingCount;           // +0x114
 
-    ExternalRef descRef1;        // +0x118: terrain description ref
-    float    terrainAmplitude;   // +0x130: default 6.0f
+    ExternalRef riverAmbient;        // +0x118: terrain description ref
+    float    riverAmbientSpacing;   // +0x130: default 6.0f
     uint8_t  _pad134[4];         // +0x134
-    ExternalRef descRef2;        // +0x138: climate description ref
-    int32_t  chunkSize;          // +0x150: default 16
+    ExternalRef mapAmbient;        // +0x138: climate description ref
+    int32_t  mapAmbientSpacing;          // +0x150: default 16
     uint8_t  _pad154[4];         // +0x154
-    ExternalRef descRef3;        // +0x158: vegetation description ref
-    float    param170;           // +0x170: last serialized field
+    ExternalRef windAmbient;        // +0x158: vegetation description ref
+    float    windAmbientHeight;           // +0x170: last serialized field
     uint8_t  _pad174[4];         // +0x174: padding to 0x178
     void SeedStartingResources();   // 0x1400a1f00 (Game/town_storage_seed.cpp)
     int SpawnStartingHerd(const float* centre, ComponentDescription* tmpl);   // 0x1400a0b10 (Component/pasturecomponent_spawn.cpp)
@@ -160,24 +160,24 @@ static_assert(offsetof(MapGenerator::InitialStructure, _pad2C) == 0x2C, "Initial
 static_assert(sizeof(MapGenerator) == 0x178, "MapGenerator is 0x178");
 static_assert(offsetof(MapGenerator, _pad39) == 0x39, "MapGenerator::_pad39");
 static_assert(offsetof(MapGenerator, _pad44) == 0x44, "MapGenerator::_pad44");
-static_assert(offsetof(MapGenerator, paramE4) == 0xE4, "MapGenerator::paramE4");
-static_assert(offsetof(MapGenerator, paramE8) == 0xE8, "MapGenerator::paramE8");
-static_assert(offsetof(MapGenerator, paramF0) == 0xF0, "MapGenerator::paramF0");
-static_assert(offsetof(MapGenerator, paramF4) == 0xF4, "MapGenerator::paramF4");
-static_assert(offsetof(MapGenerator, paramF8) == 0xF8, "MapGenerator::paramF8");
-static_assert(offsetof(MapGenerator, paramFC) == 0xFC, "MapGenerator::paramFC");
-static_assert(offsetof(MapGenerator, param100) == 0x100, "MapGenerator::param100");
-static_assert(offsetof(MapGenerator, param104) == 0x104, "MapGenerator::param104");
-static_assert(offsetof(MapGenerator, param108) == 0x108, "MapGenerator::param108");
-static_assert(offsetof(MapGenerator, param10C) == 0x10C, "MapGenerator::param10C");
-static_assert(offsetof(MapGenerator, param110) == 0x110, "MapGenerator::param110");
+static_assert(offsetof(MapGenerator, treeCount) == 0xE4, "MapGenerator::treeCount");
+static_assert(offsetof(MapGenerator, livestockCount) == 0xE8, "MapGenerator::livestockCount");
+static_assert(offsetof(MapGenerator, livestockOffsetY) == 0xF0, "MapGenerator::livestockOffsetY");
+static_assert(offsetof(MapGenerator, livestockRadius) == 0xF4, "MapGenerator::livestockRadius");
+static_assert(offsetof(MapGenerator, livestockGroupCount) == 0xF8, "MapGenerator::livestockGroupCount");
+static_assert(offsetof(MapGenerator, initialWoodCount) == 0xFC, "MapGenerator::initialWoodCount");
+static_assert(offsetof(MapGenerator, initialStoneCount) == 0x100, "MapGenerator::initialStoneCount");
+static_assert(offsetof(MapGenerator, initialIronCount) == 0x104, "MapGenerator::initialIronCount");
+static_assert(offsetof(MapGenerator, initialToolCount) == 0x108, "MapGenerator::initialToolCount");
+static_assert(offsetof(MapGenerator, initialFoodCount) == 0x10C, "MapGenerator::initialFoodCount");
+static_assert(offsetof(MapGenerator, initialFuelCount) == 0x110, "MapGenerator::initialFuelCount");
 static_assert(offsetof(MapGenerator, _pad134) == 0x134, "MapGenerator::_pad134");
 static_assert(offsetof(MapGenerator, _pad154) == 0x154, "MapGenerator::_pad154");
 static_assert(offsetof(MapGenerator, _pad174) == 0x174, "MapGenerator::_pad174");
 static_assert(alignof(MapGenerator) == 8, "qword-aligned");
-static_assert(offsetof(MapGenerator, _field20) == 0x20, "+0x20");
-static_assert(offsetof(MapGenerator, _field28) == 0x28, "+0x28");
-static_assert(offsetof(MapGenerator, _field30) == 0x30, "+0x30");
+static_assert(offsetof(MapGenerator, stringTable) == 0x20, "+0x20");
+static_assert(offsetof(MapGenerator, name) == 0x28, "+0x28");
+static_assert(offsetof(MapGenerator, description) == 0x30, "+0x30");
 static_assert(sizeof(MapGenerator::InitialFamily) == 8, "InitialFamily stride 8 (0x14001b270)");
 static_assert(offsetof(MapGenerator::InitialFamily, educated) == 0x0, "InitialFamily::educated");
 static_assert(offsetof(MapGenerator::InitialFamily, _pad01) == 0x1, "InitialFamily::_pad01");
@@ -185,28 +185,28 @@ static_assert(offsetof(MapGenerator::InitialFamily, maxChildCount) == 4, "Initia
 static_assert(sizeof(MapGenerator::InitialStructure) == 0x30, "InitialStructure stride 0x30 (0x14001b4e0)");
 static_assert(offsetof(MapGenerator::InitialStructure, offsetX) == 0x18, "InitialStructure +0x18");
 static_assert(offsetof(MapGenerator::InitialStructure, rotation) == 0x28, "InitialStructure +0x28");
-static_assert(offsetof(MapGenerator, enabled) == 0x38, "+0x38");
-static_assert(offsetof(MapGenerator, subdivisions) == 0x3C, "+0x3C");
-static_assert(offsetof(MapGenerator, scale) == 0x40, "+0x40");
-static_assert(offsetof(MapGenerator, templateRef) == 0x48, "+0x48");
-static_assert(offsetof(MapGenerator, families) == 0x60, "+0x60");
+static_assert(offsetof(MapGenerator, exposed) == 0x38, "+0x38");
+static_assert(offsetof(MapGenerator, startAreaSize) == 0x3C, "+0x3C");
+static_assert(offsetof(MapGenerator, citizenRadius) == 0x40, "+0x40");
+static_assert(offsetof(MapGenerator, citizen) == 0x48, "+0x48");
+static_assert(offsetof(MapGenerator, citizens) == 0x60, "+0x60");
 static_assert(offsetof(MapGenerator::InitialFamilyArray, _size) == 0x08, "+0x68 count");
 static_assert(offsetof(MapGenerator::ExternalRef, generation) == 0x08, "ExternalRef +0x08");
 static_assert(offsetof(MapGenerator::ExternalRef, resolved) == 0x10, "ExternalRef +0x10");
 
-static_assert(offsetof(MapGenerator, refArray1) == 0x70, "+0x70");
-static_assert(offsetof(MapGenerator, refArray2) == 0x80, "+0x80");
-static_assert(offsetof(MapGenerator, refArray3) == 0x90, "+0x90");
-static_assert(offsetof(MapGenerator, refArray4) == 0xA0, "+0xA0");
-static_assert(offsetof(MapGenerator, refArray5) == 0xB0, "+0xB0");
-static_assert(offsetof(MapGenerator, refArray6) == 0xC0, "+0xC0");
-static_assert(offsetof(MapGenerator, refArray7) == 0xD0, "+0xD0");
-static_assert(offsetof(MapGenerator, paramE0) == 0xE0, "+0xE0");
-static_assert(offsetof(MapGenerator, paramEC) == 0xEC, "+0xEC");
-static_assert(offsetof(MapGenerator, param114) == 0x114, "+0x114");
-static_assert(offsetof(MapGenerator, descRef1) == 0x118, "+0x118");
-static_assert(offsetof(MapGenerator, terrainAmplitude) == 0x130, "+0x130");
-static_assert(offsetof(MapGenerator, descRef2) == 0x138, "+0x138");
-static_assert(offsetof(MapGenerator, chunkSize) == 0x150, "+0x150");
-static_assert(offsetof(MapGenerator, descRef3) == 0x158, "+0x158");
-static_assert(offsetof(MapGenerator, param170) == 0x170, "+0x170");
+static_assert(offsetof(MapGenerator, naturalResources) == 0x70, "+0x70");
+static_assert(offsetof(MapGenerator, structures) == 0x80, "+0x80");
+static_assert(offsetof(MapGenerator, populations) == 0x90, "+0x90");
+static_assert(offsetof(MapGenerator, initialVisibleList) == 0xA0, "+0xA0");
+static_assert(offsetof(MapGenerator, initialPlantList) == 0xB0, "+0xB0");
+static_assert(offsetof(MapGenerator, initialTreeList) == 0xC0, "+0xC0");
+static_assert(offsetof(MapGenerator, initialLivestockList) == 0xD0, "+0xD0");
+static_assert(offsetof(MapGenerator, plantCount) == 0xE0, "+0xE0");
+static_assert(offsetof(MapGenerator, livestockOffsetX) == 0xEC, "+0xEC");
+static_assert(offsetof(MapGenerator, initialClothingCount) == 0x114, "+0x114");
+static_assert(offsetof(MapGenerator, riverAmbient) == 0x118, "+0x118");
+static_assert(offsetof(MapGenerator, riverAmbientSpacing) == 0x130, "+0x130");
+static_assert(offsetof(MapGenerator, mapAmbient) == 0x138, "+0x138");
+static_assert(offsetof(MapGenerator, mapAmbientSpacing) == 0x150, "+0x150");
+static_assert(offsetof(MapGenerator, windAmbient) == 0x158, "+0x158");
+static_assert(offsetof(MapGenerator, windAmbientHeight) == 0x170, "+0x170");

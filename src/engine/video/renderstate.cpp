@@ -272,7 +272,7 @@ void RenderState::Initialize(const AlphaBlend& alphaBlend, const Depth& depth,
     _stencil    = stencil;
     _fillMode   = fillMode;     // retail stores fillMode BEFORE cullMode
     _cullMode   = cullMode;
-    _flag70     = flag ? 1 : 0;
+    _scissorEnable     = flag ? 1 : 0;
     PlatformCreate();           // retail derefs _data unguarded
 }
 
@@ -295,7 +295,7 @@ bool RenderState::Serialize(IO::Stream& stream) {
         _stencil.Serialize(ser);       // a real CALL 0x1800f48e0
         ser.Serialize(_cullMode, nullptr);
         ser.Serialize(_fillMode, nullptr);
-        ser.Serialize(_flag70, nullptr);
+        ser.Serialize(_scissorEnable, nullptr);
 
         if (s.GetDirection() == IO::kReading)
             PlatformCreate();          // retail derefs _data unguarded

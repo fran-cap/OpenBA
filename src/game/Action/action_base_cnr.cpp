@@ -95,15 +95,15 @@ inline float RdataF(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f); 
 // ============================================================
 // Reimpl of CreateNaturalResource_helper_cb00 (FUN_14009cb00) — cell terrain
 // availability check. Returns 1 (true) in the low byte if the cell is unavailable
-// (terrain bit 0/1, field_0x2A set, or pending in the field_0xE8 tree), else 0.
+// (terrain bit 0/1, roadType set, or pending in the pendingRoadCells tree), else 0.
 // ============================================================
 uint64_t Map::CheckCellTerrain(int cellIndex) const {
     const MapCell& rec = cells.GetData()[cellIndex];
     uint32_t passBits = Bits(PathBitOf(rec.terrainType));
     uint64_t high = passBits;   // retail's RAX before the tree walk
     if (((passBits & Bits(PathBits::Fast)) == 0) && ((passBits & Bits(PathBits::Faster)) == 0) &&
-        (rec.field_0x2A == MapCell::kNoRoadBatch)) {
-        const AvlNode28* node = field_0xE8.root;
+        (rec.roadType == MapCell::kNoRoadBatch)) {
+        const AvlNode28* node = pendingRoadCells.root;
         while (true) {
             while (true) {
                 if (node == nullptr) return 0;
@@ -132,7 +132,7 @@ void GrowthComponent::SetProgress(float progress) {
     displayScale = clamped;
 
     ModelComponent* target = model.Get();
-    if (!config->_b64) {
+    if (!config->_zScale) {
         float g = (growth <= uvScale) ? growth : uvScale;
         float scalar = g;
         {
@@ -159,7 +159,7 @@ void GrowthComponent::SetProgress(float progress) {
     float rf = GameUpdateLoop::_singleton->m_random->RandFloat();
     float timeScale = kRdata_140172234;   // 0x140172234
     System::Time timeObj = {};
-    RtSystem_Time_Ctor(&timeObj, rf * static_cast<float>(desc->_i50) * timeScale);   // slot 0x140152b00
+    RtSystem_Time_Ctor(&timeObj, rf * static_cast<float>(desc->_seedTimeMonths) * timeScale);   // slot 0x140152b00
 
     uint32_t flagsOld = _flags;
     spawnTimer = timeObj;
@@ -222,7 +222,7 @@ void ModelComponent::SelectMesh(uint16_t variant, int16_t subVariant) {
 // ============================================================
 // Reimpl of AnimateNaturalResource_helper_6440 (FUN_140126440) — NaturalResourceComponent:
 // set the animation index.
-// If the description (type-gated 0x1401c7b68) _b64 == 0: if the dead bit (_flags bit 21) is
+// If the description (type-gated 0x1401c7b68) _animated == 0: if the dead bit (_flags bit 21) is
 // set, run RemoveNatRes (FUN_1401260f0) with a null IBP. Else: play the animation on the
 // entity's ModelComponent, set _flags bit 2, and on a low-16-bit flag change with a
 // non-null entity, notify the entity.
@@ -232,7 +232,7 @@ void NaturalResourceComponent::SetAnimation(uint32_t animIdx) {
     const NaturalResourceDescription* d = (::Object::IsDerivedFromNullSafe(desc, NaturalResourceDescription::TypeId()))
                                               ? static_cast<const NaturalResourceDescription*>(desc) : nullptr;
 
-    if (!d->_b64) {
+    if (!d->_animated) {
         if (((_flags >> 0x15) & 1) != 0) {
             ComponentEntity* nullIBP = nullptr;
             RemoveResource(&nullIBP, 0);
@@ -263,7 +263,7 @@ uint64_t NaturalResourceComponent::PlaceAtCell(int cellIndex) {
 
     const NaturalResourceDescription* d = (::Object::IsDerivedFromNullSafe(desc, NaturalResourceDescription::TypeId()))
                                               ? static_cast<const NaturalResourceDescription*>(desc) : nullptr;
-    float jitter = d->_f60;
+    float jitter = d->_positionTolerance;
 
     float halfBias = kRdata_140172114;   // 0x140172114
     float half = static_cast<float>(map->size >> 1) - halfBias;
@@ -363,7 +363,7 @@ void NaturalResourceComponent::RemoveResource(ComponentEntity* const* citizenIBP
     Work* surf = gameWorld->m_tutorial->FindWorkAtCell(cell);   // 0x1400f8d50
     uint32_t surfMatId = 0xffffffff;
     if (surf != nullptr) {
-        surfMatId = static_cast<uint32_t>(surf->field_24);   // Work +0x24
+        surfMatId = static_cast<uint32_t>(surf->_queueOrder);   // Work +0x24
     }
 
     // Spawn a new raw-material entity cloned from the resource description's template.

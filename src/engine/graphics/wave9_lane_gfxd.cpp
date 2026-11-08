@@ -348,9 +348,9 @@ void DrawItemInit(uint8_t* dstv) {
     dst->_material = nullptr;                          // +0x08
     dst->_instance = nullptr;                          // +0x10
     dst->_flags    = 0;                                // +0x18 \ one dword
-    dst->_arg5     = 0;                                // +0x1a /
-    dst->_arg8     = 1;                                // +0x20
-    dst->_arg10    = 0;                                // +0x30
+    dst->_node     = 0;                                // +0x1a /
+    dst->_maxInstances     = 1;                                // +0x20
+    dst->_animationInstanceId    = 0;                                // +0x30
 }
 
 // Renderer::Drawable, stride 0x10. ASSIGN copies two qwords; INIT writes a zero

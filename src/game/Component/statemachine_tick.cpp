@@ -16,10 +16,10 @@ using Controller = ControllerComponent::Controller;
 
 // The chain links of a node: +0x08 parent, +0x10 child.
 static inline Controller* NodeParent(const Controller* node) {
-    return node->_data08;
+    return node->_parent;
 }
 static inline Controller* NodeChild(const Controller* node) {
-    return node->_data10;
+    return node->_child;
 }
 
 // ============================================================

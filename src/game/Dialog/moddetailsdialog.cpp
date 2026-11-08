@@ -5,7 +5,7 @@
 // Layout: DialogInstance base (0xB8), +0xB8 = sprite sheet, +0xC0 = mod index
 //
 // The mod is an RtIO::Mod (src/engine/io/Modification.h): name / author /
-// description are System::Strings, file a System::Filename, i18 / i1c the
+// description are System::Strings, file a System::Filename, version / userVersion the
 // version pair, `set` the Filename-keyed resource set, `files` the
 // Array<Filename> of the mods this one conflicts with.
 
@@ -183,8 +183,8 @@ void ModDetailsDialog::OnOpened() {
     {
         // ?GetVersionString@Configuration@System@@ is a by-value static; its door
         // placement-constructed the result over this (empty) local.
-        System::String versionStr = System::Configuration::GetVersionString((uint32_t)mod.i18, false);
-        System::String formatted = System::String::Format("%i (%s)", (int)(uint32_t)mod.i1c,
+        System::String versionStr = System::Configuration::GetVersionString((uint32_t)mod.version, false);
+        System::String formatted = System::String::Format("%i (%s)", (int)(uint32_t)mod.userVersion,
                          versionStr._data);
         textVersion->SetParameter(0, formatted);
     }

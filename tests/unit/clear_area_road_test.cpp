@@ -37,7 +37,7 @@ struct TestMap {
         for (int i = 0; i < kDim * kDim; ++i) {
             MapCell& c = Cell(i);
             c.terrainType = PathType::Normal;          // buildable
-            c.field_0x2A = MapCell::kNoRoadBatch;   // no road pending
+            c.roadType = MapCell::kNoRoadBatch;   // no road pending
         }
     }
     Map* Get() { return reinterpret_cast<Map*>(mapBytes); }
@@ -56,8 +56,8 @@ struct TestMap {
 void MakeFinishedRoad(MapCell& c, PathType terrain) {
     c.footprintCount = 1;
     c.terrainType = terrain;
-    c.field_0x2A = 0;
-    c.field_0x2B = 0xff;
+    c.roadType = 0;
+    c.roadAlpha = 0xff;
 }
 
 }  // namespace
@@ -91,13 +91,13 @@ UNIT_TEST(clear_area_removed_road_is_clear) {
     // terrain 2, +0x2A back to 0xff.
     MapCell& c = t.Cell(5, 1);
     c.terrainType = PathType::Normal;
-    c.field_0x2A = MapCell::kNoRoadBatch;
+    c.roadType = MapCell::kNoRoadBatch;
     CHECK(t.Get()->IsGroundClear(5, 1, 1, 1));
 }
 
 UNIT_TEST(clear_area_pending_road_is_not_clear) {
     TestMap t;
-    t.Cell(1, 1).field_0x2A = 0;   // a road queued on buildable ground (PlaceRoadCell)
+    t.Cell(1, 1).roadType = 0;   // a road queued on buildable ground (PlaceRoadCell)
     CHECK(!t.Get()->IsGroundClear(1, 1, 1, 1));
     CHECK(t.Get()->IsAreaEmpty(1, 1, 1, 1));
 }
@@ -113,13 +113,13 @@ UNIT_TEST(clear_area_road_tree_cell_is_not_clear) {
     right.key = 6 * kDim + 6;
     root.left = &left;
     root.right = &right;
-    t.Get()->field_0xE8.root = &root;
+    t.Get()->pendingRoadCells.root = &root;
     CHECK(!t.Get()->IsGroundClear(2, 1, 1, 1));
     CHECK(!t.Get()->IsGroundClear(3, 3, 1, 1));
     CHECK(!t.Get()->IsGroundClear(6, 6, 1, 1));
     CHECK(t.Get()->IsGroundClear(4, 3, 1, 1));
     CHECK(t.Get()->IsGroundClear(0, 0, 2, 2));
-    t.Get()->field_0xE8.root = nullptr;
+    t.Get()->pendingRoadCells.root = nullptr;
 }
 
 UNIT_TEST(clear_area_occupant_is_not_empty) {

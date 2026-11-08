@@ -201,12 +201,12 @@ public:
     // them as six interchangeable 4-byte scalars in ascending order.
     // ========================================================================
     struct TriangleList {
-        int32_t _f00;   // +0x00
-        int32_t _f04;   // +0x04
-        int32_t _f08;   // +0x08
-        int32_t _f0c;   // +0x0c
-        int32_t _f10;   // +0x10
-        int32_t _f14;   // +0x14
+        int32_t _baseVertex;   // +0x00
+        int32_t _vertexCount;   // +0x04
+        int32_t _startIndex;   // +0x08
+        int32_t _indexCount;   // +0x0c
+        int32_t _materialIndex;   // +0x10
+        int32_t _node;   // +0x14
 
         // ??0TriangleList@GraphicsMesh@Graphics@@QEAA@XZ  0x1800125a0 —
         // `MOV RAX,RCX ; RET`, i.e. it writes NOTHING. A default-constructed
@@ -372,9 +372,9 @@ public:
     // B.4 Y RT: `_name`'s null store is its own ctor, first, as retail's
     // 0x1800ff1bf is the first store after the stamps.
     GraphicsMesh() : CompiledExternal(), _name() {
-        _vector28.x = 1.0f;  _vector28.y = 1.0f;  _vector28.z = 1.0f;
-        _vector34.x = -1.0f; _vector34.y = -1.0f; _vector34.z = -1.0f;
-        _field40          = 1;
+        _boundsMin.x = 1.0f;  _boundsMin.y = 1.0f;  _boundsMin.z = 1.0f;
+        _boundsMax.x = -1.0f; _boundsMax.y = -1.0f; _boundsMax.z = -1.0f;
+        _instanceCount          = 1;
         _scale            = 1.0f;
         _maxDepthDistance = 10000.0f;
         _aabb.min.x = 1e8f;  _aabb.min.y = 1e8f;  _aabb.min.z = 1e8f;
@@ -505,9 +505,9 @@ public:
     // (the same `Release`) after the dtor body, the arrays' implicit ~Arrays
     // being no-ops on the headers the body's explicit calls zeroed.
     System::String _name;             // +0x20  ?GetMeshName@ 0x180012730
-    ::Vector3 _vector28;               // +0x28  ctor ( 1, 1, 1) — role not established
-    ::Vector3 _vector34;               // +0x34  ctor (-1,-1,-1) — role not established
-    int32_t  _field40;                // +0x40  ctor 1; Serialize emits it as a dword
+    ::Vector3 _boundsMin;               // +0x28  ctor ( 1, 1, 1) — role not established
+    ::Vector3 _boundsMax;               // +0x34  ctor (-1,-1,-1) — role not established
+    int32_t  _instanceCount;                // +0x40  ctor 1; Serialize emits it as a dword
     float    _scale;                  // +0x44  ctor 1.0f;      ?GetScale@
     float    _maxDepthDistance;       // +0x48  ctor 10000.0f;  ?GetMaxDepthDistance@
     uint32_t _pad4c;                  // +0x4c  no body read touches it. FOUR bytes,
@@ -559,9 +559,9 @@ static_assert(offsetof(GraphicsMesh, _pad4c) == 0x4C, "GraphicsMesh::_pad4c");
 static_assert(alignof(GraphicsMesh) == 8, "Graphics::GraphicsMesh aligns to 8 (the vptr)");
 
 static_assert(offsetof(GraphicsMesh, _name)            == 0x20, "GraphicsMesh::_name @ +0x20 (GetMeshName 0x180012730)");
-static_assert(offsetof(GraphicsMesh, _vector28)        == 0x28, "GraphicsMesh::_vector28 @ +0x28 (ctor 1,1,1)");
-static_assert(offsetof(GraphicsMesh, _vector34)        == 0x34, "GraphicsMesh::_vector34 @ +0x34 (ctor -1,-1,-1)");
-static_assert(offsetof(GraphicsMesh, _field40)         == 0x40, "GraphicsMesh::_field40 @ +0x40 (ctor 1)");
+static_assert(offsetof(GraphicsMesh, _boundsMin)        == 0x28, "GraphicsMesh::_boundsMin @ +0x28 (ctor 1,1,1)");
+static_assert(offsetof(GraphicsMesh, _boundsMax)        == 0x34, "GraphicsMesh::_boundsMax @ +0x34 (ctor -1,-1,-1)");
+static_assert(offsetof(GraphicsMesh, _instanceCount)         == 0x40, "GraphicsMesh::_instanceCount @ +0x40 (ctor 1)");
 static_assert(offsetof(GraphicsMesh, _scale)           == 0x44, "GraphicsMesh::_scale @ +0x44 (GetScale 0x180012720)");
 static_assert(offsetof(GraphicsMesh, _maxDepthDistance)== 0x48, "GraphicsMesh::_maxDepthDistance @ +0x48 (0x180012680)");
 static_assert(offsetof(GraphicsMesh, _detailLevels)    == 0x50, "GraphicsMesh::_detailLevels @ +0x50 (GetDetailLevelCount reads +0x58)");
@@ -595,12 +595,12 @@ static_assert(sizeof(GraphicsMesh::TriangleList) == 0x18,
               "GraphicsMesh::TriangleList is 0x18 bytes (six dwords; "
               "?Serialize@TriangleList@ 0x1800ff300 emits +0x00..+0x14, and the "
               "array helper 0x180014850 strides 0x18)");
-static_assert(offsetof(GraphicsMesh::TriangleList, _f00) == 0x0, "TriangleList::_f00");
-static_assert(offsetof(GraphicsMesh::TriangleList, _f04) == 0x4, "TriangleList::_f04");
-static_assert(offsetof(GraphicsMesh::TriangleList, _f08) == 0x8, "TriangleList::_f08");
-static_assert(offsetof(GraphicsMesh::TriangleList, _f0c) == 0xC, "TriangleList::_f0c");
-static_assert(offsetof(GraphicsMesh::TriangleList, _f10) == 0x10, "TriangleList::_f10");
-static_assert(offsetof(GraphicsMesh::TriangleList, _f14) == 0x14, "TriangleList::_f14");
+static_assert(offsetof(GraphicsMesh::TriangleList, _baseVertex) == 0x0, "TriangleList::_baseVertex");
+static_assert(offsetof(GraphicsMesh::TriangleList, _vertexCount) == 0x4, "TriangleList::_vertexCount");
+static_assert(offsetof(GraphicsMesh::TriangleList, _startIndex) == 0x8, "TriangleList::_startIndex");
+static_assert(offsetof(GraphicsMesh::TriangleList, _indexCount) == 0xC, "TriangleList::_indexCount");
+static_assert(offsetof(GraphicsMesh::TriangleList, _materialIndex) == 0x10, "TriangleList::_materialIndex");
+static_assert(offsetof(GraphicsMesh::TriangleList, _node) == 0x14, "TriangleList::_node");
 static_assert(alignof(GraphicsMesh::TriangleList) == 4, "six dwords, dword aligned");
 
 static_assert(sizeof(GraphicsMesh::Node) == 0x48,

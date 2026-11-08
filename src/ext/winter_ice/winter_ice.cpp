@@ -236,7 +236,7 @@ struct TradePost {
 // cells; the height still says they lie in the water.
 float CellHeight(const WorldGeometry& geo, int index, int32_t size) {
     const int16_t* heights = geo._heights.data;
-    const int n = geo._fieldD0;
+    const int n = geo._heightRowStride;
     if (heights == nullptr || n <= 0) return 0.0f;
     const int half = geo._gridSize >> 1;
     const int col = index % size - (size >> 1) + half;
@@ -487,7 +487,7 @@ void SendWalkSet(Map& map, const std::vector<uint8_t>& set, bool frozen) {
             cell, static_cast<int>(frozen ? WalkOnIce::kFrozenType : cells[i].terrainType));
         ++count;
     }
-    map.field_0xA2 = 1;   // the zones go stale (as Map::SetTerrainType 0x14009f2f0 marks them)
+    map.zonesStale = 1;   // the zones go stale (as Map::SetTerrainType 0x14009f2f0 marks them)
     std::fprintf(stderr, "[WalkOnIce] %s: %d lake cell(s) %s\n", frozen ? "frozen solid" : "thaw",
                  count, frozen ? "open to walkers" : "back to water");
 }

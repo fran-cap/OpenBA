@@ -15,7 +15,7 @@
 #include "Entity/exe_bodies.h"
 #include "Dialog/exe_bodies.h"
 #include "Game/GameUpdateLoop.h"   // B3R STORAGE: GameUpdateLoop::_singleton
-#include "Entity/CitizenBehavior.h"   // m_citizenList->field_0x120 (B4 DLG-d merge fix)
+#include "Entity/CitizenBehavior.h"   // m_citizenList->availableFarmTypes (B4 DLG-d merge fix)
 #include "system/String.h"
 #include <cstdint>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
@@ -256,7 +256,7 @@ void PastureUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI
 
         // The town's template list (CitizenBehavior +0x120)
         GameUpdateLoop* world = GameUpdateLoop::_singleton;
-        ComponentDescription* resourceType = world->m_citizenList->field_0x120._data[resourceIndex];
+        ComponentDescription* resourceType = world->m_citizenList->availableFarmTypes._data[resourceIndex];
 
         SetResource(resourceType);   // slot 11, virtual (as retail)
     }

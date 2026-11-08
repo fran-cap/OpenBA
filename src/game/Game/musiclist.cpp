@@ -111,10 +111,10 @@ static void MusicList_ResizeEntries_Fallback(Collection::Array<MusicListTrack>& 
         } else {
             // Default-init a fresh entry (matches exe FUN_14001c3c0).
             elem->sound      = nullptr;
-            elem->field_0x08 = 0.0f;
-            elem->field_0x0C = 1.0f;
-            elem->field_0x10 = 0;
-            elem->field_0x14 = 11;
+            elem->minStatus = 0.0f;
+            elem->maxStatus = 1.0f;
+            elem->minMonth = 0;
+            elem->maxMonth = 11;
         }
     }
 
@@ -156,10 +156,10 @@ bool MusicList::Serialize(IO::Stream& stream) {
         for (int i = 0; i < count; ++i) {
             // ORDER IS LOAD-BEARING: float@+0x08, float@+0x0c, int@+0x10,
             // int@+0x14, then the reference @+0x00.
-            ser.Serialize(elem[i].field_0x08, nullptr);
-            ser.Serialize(elem[i].field_0x0C, nullptr);
-            ser.Serialize(elem[i].field_0x10, nullptr);
-            ser.Serialize(elem[i].field_0x14, nullptr);
+            ser.Serialize(elem[i].minStatus, nullptr);
+            ser.Serialize(elem[i].maxStatus, nullptr);
+            ser.Serialize(elem[i].minMonth, nullptr);
+            ser.Serialize(elem[i].maxMonth, nullptr);
             // +0x00 is an Object::External REFERENCE (the track's audio resource),
             // NOT a String. The original element serializer (exe FUN_1400019a0) is
             // the templated ExternalPtr::Serialize (encoding/ref-mode aware: reads a

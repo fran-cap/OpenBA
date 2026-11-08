@@ -43,8 +43,8 @@
 // External() and the 0x14015ef50 stamp are the compiler's; then zero all fields.
 ProfessionList::ProfessionList() {
     // +0x20 professions: Collection::Array() is the three zero stores.
-    field_0x30 = nullptr;
-    field_0x38 = nullptr;
+    laborerProfession = nullptr;
+    builderProfession = nullptr;
     childProfession = nullptr;
     studentProfession = nullptr;
 }
@@ -96,8 +96,8 @@ bool ProfessionList::Serialize(IO::Stream& stream) {
     IO::Serializer serializer(stream, 0);
 
     // Serialize four ExternalPtr<Profession> references
-    ::Object::SerializeExternal<Profession>(serializer, field_0x30);         // +0x30
-    ::Object::SerializeExternal<Profession>(serializer, field_0x38);         // +0x38
+    ::Object::SerializeExternal<Profession>(serializer, laborerProfession);         // +0x30
+    ::Object::SerializeExternal<Profession>(serializer, builderProfession);         // +0x38
     ::Object::SerializeExternal<Profession>(serializer, childProfession);    // +0x40
     ::Object::SerializeExternal<Profession>(serializer, studentProfession);  // +0x48
     return true;
@@ -154,7 +154,7 @@ void ProfessionList::Startup() {
     if (professions.GetSize() >= 2)
         IntroSort24::Sort(professions.GetData(), professions.GetSize(),
                       [](Profession* const* a, Profession* const* b) {
-                          return (*a)->field48 < (*b)->field48;   // +0x48
+                          return (*a)->sortPriority < (*b)->sortPriority;   // +0x48
                       });
 
 #ifdef _DEBUG

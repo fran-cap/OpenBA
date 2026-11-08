@@ -94,9 +94,9 @@ bool Surface::Serialize(IO::Stream& stream) {
 
     // SerializeUInt is +0x98.
     IO::ReaderWriter* rwc = ser._readerWriter;
-    rwc->SerializeUInt(_f20, nullptr);
-    rwc->SerializeUInt(_f28, nullptr);
-    rwc->SerializeUInt(_f24, nullptr);
+    rwc->SerializeUInt(_reportOnly, nullptr);
+    rwc->SerializeUInt(_color, nullptr);
+    rwc->SerializeUInt(_mask, nullptr);
 
     return true;   // ~Serializer deletes the ReaderWriter
 }

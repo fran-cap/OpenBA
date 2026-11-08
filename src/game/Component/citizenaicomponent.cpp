@@ -95,14 +95,14 @@ void CitizenAIComponent::Decide(const System::Time* time) {
 
     // --- Phase 2: the two accumulators ---
     leisureTimer._ticks += dt;
-    dataC8._ticks += dt;
+    carryingTimer._ticks += dt;
 
     // --- Phase 3: the citizen's own StorageComponent (what it carries) ---
     // 0x14010f447-0x14010f4bc: FindComponent<StorageComponent> (cell 0x1401c7e78) on
     // the citizen's entity, then QueryCount 0x14012cf10 on the result, unguarded.
     StorageComponent* storageComp = citizen->_entity->FindComponent<StorageComponent>();
     if (storageComp->QueryCount() == 0) {
-        dataC8._ticks = 0;
+        carryingTimer._ticks = 0;
     }
 
     // --- Phase 4: the seeking flags ---
@@ -119,7 +119,7 @@ void CitizenAIComponent::Decide(const System::Time* time) {
     // --- Phase 5: hunger ---
     CitizenComponent* citizenData = citizen.Get();
     float health = citizenData->hunger;
-    float* pHungerThresh = &citizenData->description->_fcc;
+    float* pHungerThresh = &citizenData->description->starvingLevel;
 
     if (health <= *pHungerThresh || health == *pHungerThresh || isInNeedState ||
         ((uint32_t)(static_cast<int32_t>(aiState) - static_cast<int32_t>(CitizenAIState::EatUrgent)) < 2) ||
@@ -128,7 +128,7 @@ void CitizenAIComponent::Decide(const System::Time* time) {
         if (hungerFlag != 0) {
             citizenData = citizen.Get();
             health = citizenData->hunger;
-            pHungerThresh = &citizenData->description->_fcc;
+            pHungerThresh = &citizenData->description->starvingLevel;
 
             if (health < *pHungerThresh || health == *pHungerThresh) {
                 seekingFood = 0;
@@ -148,7 +148,7 @@ void CitizenAIComponent::Decide(const System::Time* time) {
         // Re-check hunger after eating
         citizenData = citizen.Get();
         health = citizenData->hunger;
-        pHungerThresh = &citizenData->description->_fcc;
+        pHungerThresh = &citizenData->description->starvingLevel;
 
         if (*pHungerThresh <= health && health != *pHungerThresh) {
             TransitionState(1);
@@ -159,7 +159,7 @@ void CitizenAIComponent::Decide(const System::Time* time) {
     // --- Phase 6: coldness ---
     citizenData = citizen.Get();
     float hydration = citizenData->coldness;
-    float* pThirstThresh = &citizenData->description->_fec;
+    float* pThirstThresh = &citizenData->description->freezingLevel;
 
     // Re-read flags (may have been modified above)
     thirstFlag = seekingWarmth;
@@ -174,7 +174,7 @@ void CitizenAIComponent::Decide(const System::Time* time) {
         if (thirstFlag != 0) {
             citizenData = citizen.Get();
             hydration = citizenData->coldness;
-            pThirstThresh = &citizenData->description->_fec;
+            pThirstThresh = &citizenData->description->freezingLevel;
 
             if (hydration < *pThirstThresh || hydration == *pThirstThresh) {
                 seekingWarmth = 0;
@@ -268,7 +268,7 @@ static constexpr float kScaleElder = 0.66f;  // child / small render
 // scale constant, then CharacterComponent (+0x278) -> its ModelComponent (+0x68) ->
 // the MeshInstance colour (+0x134..+0x140), every pointer read unguarded.
 static void CitizenComp_SetupAgeMesh(CitizenComponent* citizen, float scale) {
-    const int idx = citizen->field_0x34;
+    const int idx = citizen->appearanceVariant;
     ModelComponent* model = citizen->character.Get()->modelComponent.Get();
     model->meshInstance._color[0] = scale;
     model->meshInstance._color[1] = scale;
@@ -441,7 +441,7 @@ static std::atomic<int> s_caiForceWorkLog{0};   // the [ForceWork] trace cap (ha
 CitizenAIComponent::CitizenAIComponent()
     : state(CitizenAIState::Leisure), queuedState(CitizenAIState::None), seekingFood(false),
       seekingWarmth(false), _pad32{},
-      citizen(nullptr), timers{}, leisureTimer{0}, dataC8{0} {
+      citizen(nullptr), timers{}, leisureTimer{0}, carryingTimer{0} {
     OrFlagsInCtor(0x89);
 }
 

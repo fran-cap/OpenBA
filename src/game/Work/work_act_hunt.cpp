@@ -116,9 +116,9 @@ void WorkAct_HuntWorkCtor_bbbc0(CitizenComponent* const* citizenIBP, uint32_t wo
         sm = new (obj) SendComponentMessage(&entityInner, &msgId, 0, &innerIbp, 0);
     }
     ibpA = sm;
-    if (character->actionStack.field_0x10 != nullptr)
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpA;       // [RDI+0x10] = character+0x58
+    if (character->actionStack.completionAction != nullptr)
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpA;       // [RDI+0x10] = character+0x58
 
     // --- CompleteTask action --- disasm 0x1400bbcad..0x1400bbd0f (alloc 0x38,8)
     obj = WAH_Alloc(0x38, 8);
@@ -225,9 +225,9 @@ void WorkAct_ShowToolCtor3_bdd20(CitizenComponent** citizenRef, uint32_t workId,
         sm = new (obj) SendComponentMessage(&entityInner, &msgId, 0, &innerIbp, 0);
     }
     ibpA = sm;
-    if (character->actionStack.field_0x10 != nullptr)
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpA;
+    if (character->actionStack.completionAction != nullptr)
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpA;
 
     // --- CompleteTask action (param_5 = param_8) --- disasm 0x1400bde13..0x1400bde72 (alloc 0x38,8)
     obj = WAH_Alloc(0x38, 8);

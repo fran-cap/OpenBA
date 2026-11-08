@@ -156,7 +156,7 @@ struct Row {
 
 // The town's entities whose workplace staffs `profession` (retail's ProfessionBucket tree), or null.
 const ProfessionBucket* BucketOf(const CitizenBehavior* town, const Profession* profession) {
-    const ProfessionBucket* node = town->field_0x100._root;
+    const ProfessionBucket* node = town->workplacesByProfession._root;
     while (node != nullptr) {
         const Profession* key = node->element.key;
         if (profession < key) {
@@ -428,8 +428,8 @@ private:
             }
             slots_[static_cast<size_t>(p)] = total;
         }
-        laborer_ = IndexOf(profs, n, list->field_0x30);
-        builder_ = IndexOf(profs, n, list->field_0x38);
+        laborer_ = IndexOf(profs, n, list->laborerProfession);
+        builder_ = IndexOf(profs, n, list->builderProfession);
         probed_ = true;
         sinceProbe_ = 0;
     }
@@ -739,7 +739,7 @@ bool Handles(const UIDescription* ui) {
         if (static_cast<uint32_t>(ui->_entries[i].type) != ProfessionUI::TypeId()) continue;
         // only retail's own layout (Dialog/Profession.rsc:content): MegaMod's sized variants
         // (DSProfession1.rsc, ProfessionVN.rsc ...) are chosen on purpose and keep their windows
-        const ::Object::External* layout = ui->_entries[i].ref08;
+        const ::Object::External* layout = ui->_entries[i].element;
         if (layout == nullptr) continue;
         const System::Filename path = layout->GetPath();
         std::string name = path._data != nullptr ? std::string(path._data) : std::string();

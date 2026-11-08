@@ -50,7 +50,7 @@ struct Terrain {
         std::memset(bytes, 0, sizeof(bytes));
         wg = reinterpret_cast<WorldGeometry*>(bytes);
         wg->_gridSize = gridSize;
-        wg->_fieldD0 = N;
+        wg->_heightRowStride = N;
         wg->_heights.data = heights.data();
         wg->_heights.size = (int32_t)heights.size();
         wg->_heights.capacity = wg->_heights.size;

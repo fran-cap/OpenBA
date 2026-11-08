@@ -174,7 +174,7 @@ void BuildRequirementUI::SetStatusText(const System::String* costStr) {
 // +0x38 = the size multiplier (param_8). For each of the +0x58 costs (label element
 // array +0x40, quantity array +0x50): text = "%i" of quantity[i] * multiplier.
 void BuildRequirementUI::SetSizeMultiplier(uint32_t param_8) {
-    field_0x38 = param_8;
+    sizeMultiplier = param_8;
     int count = counts._size;
     if (count <= 0) return;
     // Retail indexes the label-element array (+0x40, count at +0x48) using the REQUIREMENT
@@ -195,7 +195,7 @@ void BuildRequirementUI::SetSizeMultiplier(uint32_t param_8) {
         }
     }
     for (int i = 0; i < count; i++) {
-        int mult = static_cast<int>(field_0x38);
+        int mult = static_cast<int>(sizeMultiplier);
         int val = counts._data[i] * mult;
 
         System::String s = System::String::Format("%i", static_cast<int>(static_cast<uint32_t>(val)));
@@ -272,8 +272,8 @@ void PlayerToolManager::UpdateCreateBar(int param_2, int param_3,
                      int param_8, int param_9, int param_10, const ::Box* param_11,
                      const Math::Transform* param_12) {
     // No dialog open -> nothing to update.
-    if (field_0x00 == nullptr) return;
-    UI::DialogInstance* dialog = field_0x00;
+    if (toolDialog == nullptr) return;
+    UI::DialogInstance* dialog = toolDialog;
 
     // Resolve the CreateBar controller (BuildRequirementUI) from the dialog.
     uint32_t ctrlTid = BuildRequirementUI::TypeId();
@@ -377,8 +377,8 @@ void PlayerToolManager::UpdateCreateBar(int param_2, int param_3,
     int screenY = static_cast<int>(cy) - halfH;
 
     // --- Smooth toward the target (0.25 new / 0.75 cached); first frame (cached<0) snaps ---
-    float* cachedX = &field_0x08;
-    float* cachedY = &field_0x0C;
+    float* cachedX = &createBarScreenX;
+    float* cachedY = &createBarScreenY;
     if (*cachedX >= 0.0f) {
         *cachedX = static_cast<float>(screenX) * 0.25f + *cachedX * 0.75f;  // DAT_140172100 / DAT_140172124
         *cachedY = static_cast<float>(screenY) * 0.25f + *cachedY * 0.75f;

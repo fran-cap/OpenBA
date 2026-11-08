@@ -24,13 +24,13 @@
 //
 // Layout (factory pair 0x180064b60 / 0x180064c10: +0x20 zeroed as ONE qword,
 // +0x28 as ONE dword; +0x2c is never written):
-//   +0x20  uint32_t _f20     Serialize order: _f20, _f28, _f24
-//   +0x24  uint32_t _f24
-//   +0x28  uint32_t _f28
+//   +0x20  uint32_t _reportOnly  Serialize order: _reportOnly, _color, _mask
+//   +0x24  uint32_t _mask
+//   +0x28  uint32_t _color
 //   +0x2c  uint32_t _pad2c   never written (8-byte tail alignment)
 // Retail exports three getters (`Mask` 0x180064d50, `Color` 0x180064d60,
-// `IsReportOnly` 0x180064d70) that would name the fields; they are not ported
-// and have no caller in the tree, so the fields keep their offset names.
+// `IsReportOnly` 0x180064d70) that name the fields; they are not ported
+// and have no caller in the tree, but the fields carry their names.
 // ============================================================================
 
 #include <cstdint>
@@ -47,9 +47,9 @@ public:
     // External() (Base's and External's vptr and zero stores), Surface's vptr
     // (the compiler's), then the qword at +0x20 and the dword at +0x28.
     Surface() : Object::External() {
-        _f20 = 0;
-        _f24 = 0;
-        _f28 = 0;
+        _reportOnly = 0;
+        _mask = 0;
+        _color = 0;
     }
 
     // [0] 0x180064ea0 -- MSVC's VECTOR deleting destructor (retail; here
@@ -79,19 +79,19 @@ public:
     // `::new (p) Surface()`.
 
 public:
-    uint32_t _f20;     // +0x20
-    uint32_t _f24;     // +0x24
-    uint32_t _f28;     // +0x28
+    uint32_t _reportOnly;     // +0x20
+    uint32_t _mask;     // +0x24
+    uint32_t _color;     // +0x28
     uint32_t _pad2c;   // +0x2c  never written
 };
 
 static_assert(sizeof(Surface) == 0x30, "Collision2D::Surface is 0x30 bytes (element size of slot 0)");
 static_assert(offsetof(Surface, _pad2c) == 0x2C, "Surface::_pad2c");
 static_assert(alignof(Surface) == 8, "Collision2D::Surface aligns to 8 (the vptr)");
-static_assert(offsetof(Surface, _f20) == 0x20, "Surface +0x20");
-static_assert(offsetof(Surface, _f24) == 0x24, "Surface +0x24");
-static_assert(offsetof(Surface, _f28) == 0x28, "Surface +0x28");
-static_assert(offsetof(Surface, _f20) == sizeof(Object::External),
+static_assert(offsetof(Surface, _reportOnly) == 0x20, "Surface +0x20");
+static_assert(offsetof(Surface, _mask) == 0x24, "Surface +0x24");
+static_assert(offsetof(Surface, _color) == 0x28, "Surface +0x28");
+static_assert(offsetof(Surface, _reportOnly) == sizeof(Object::External),
               "Surface's own bytes begin right after Object::External");
 
 }  // namespace Collision2D

@@ -120,9 +120,9 @@ int BridgeTool::CalcCost(int startCell, int endCell, uint32_t* outValid,
                     "neigh=%08x radius=%d)\n",
                     startCell, endCell, snappedEnd, valid, bridgeLength,
                     static_cast<const void*>(d),
-                    d ? d->_u20 : 0, d ? d->_u24 : 0,
-                    d ? d->_u2c : 0, d ? d->_u30 : 0,
-                    d ? d->_i34 : -1);
+                    d ? d->_placeBits : 0, d ? d->_invalidBits : 0,
+                    d ? d->_requiredBits : 0, d ? d->_edgeBits : 0,
+                    d ? d->_edgeWidth : -1);
             fflush(stderr);
         }
     }

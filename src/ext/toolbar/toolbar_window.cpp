@@ -468,7 +468,7 @@ int InsertAt(const ::Toolbar* group, const ::Toolbar* const* items, int n) {
     }
     int at = n;
     for (int i = 0; i < n; ++i) {
-        if (items[i] != nullptr && items[i]->_field50 > kToolbarSortPriority) {
+        if (items[i] != nullptr && items[i]->sortPriority > kToolbarSortPriority) {
             at = i;
             break;
         }

@@ -362,7 +362,7 @@ Vec3f QuatRotate(float qx, float qy, float qz, float qw, const Vec3f& v) {
 //     regardless (CMOVNE leaves EDI zero). Every retail caller hands a
 //     ParticleSystem; if our standalone ever reaches that arm, the fault IS the
 //     diagnosis.
-//   * `this->_f_d8` is dereferenced with no test.
+//   * `this->_emitter` is dereferenced with no test.
 // ============================================================================
 // ENDGAME B.3.5 block E: BODY MOVED onto
 // `Graphics::ParticleSystemInstance::Update` (slot 1 — the class that finally
@@ -422,7 +422,7 @@ void ParticleSystemInstance::Update(const System::Time& timeRef) {
     //
     // *** THE NULL CASE IS UNCHANGED AND STILL FAITHFUL. *** Retail's CMOVNE leaves
     // the register null when the test fails and then reads `sys + 0x4c` two
-    // instructions later anyway; `ps->_rateAccelA` on a null `ps` is the SAME
+    // instructions later anyway; `ps->_emissionAcceleration` on a null `ps` is the SAME
     // unguarded deref, not a new one, and CLAUDE.md's rule is that a guard here
     // would skip retail's behaviour rather than restore it. Every retail caller
     // hands a ParticleSystem.
@@ -434,13 +434,13 @@ void ParticleSystemInstance::Update(const System::Time& timeRef) {
     pool->_spawnAccum += deltaTicks;
     pool->_totalTicks += deltaTicks;
 
-    RtGraphics::ParticleEmitter* const emitter = _f_d8;     // +0xd8, unguarded
+    RtGraphics::ParticleEmitter* const emitter = _emitter;     // +0xd8, unguarded
     {
-        // rate += dt² * _rateAccelA * _rateAccelB, in retail's order:
+        // rate += dt² * _emissionAcceleration * _emissionDrag, in retail's order:
         // the dt² register is multiplied by both fields, THEN added.
         float r = dt2;
-        r *= ps->_rateAccelA;
-        r *= ps->_rateAccelB;
+        r *= ps->_emissionAcceleration;
+        r *= ps->_emissionDrag;
         r += emitter->_rate;
         emitter->_rate = r;
     }

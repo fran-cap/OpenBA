@@ -31,7 +31,7 @@
 // create 0x140029400: DialogController() (the base's real ctor), the stamp
 // (the compiler's), then +0x30..+0x58 zeroed.
 TutorialUI::TutorialUI()
-    : data30(0), preText(nullptr), postText(nullptr), imageTable(nullptr),
+    : unusedElement(0), preText(nullptr), postText(nullptr), imageTable(nullptr),
       nextButton(nullptr), quitButton(nullptr) {}
 
 // Helper: FindElemByName with IsDerivedFrom check, stores InternalBasePtr

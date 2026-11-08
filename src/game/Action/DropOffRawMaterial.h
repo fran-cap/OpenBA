@@ -26,7 +26,7 @@ class DropOffRawMaterial final : public Action {
     DECLARE_EXE_TYPE(DropOffRawMaterial)
 
 public:
-    // The ctor's `count` (0x1400c7cd0, stored at _field24) that drops every unit carried.
+    // The ctor's `count` (0x1400c7cd0, stored at _maxCount) that drops every unit carried.
     static constexpr uint32_t kAllUnits = 0xffffffffu;
 
     DropOffRawMaterial();                                                   // create 0x140022600
@@ -45,19 +45,19 @@ public:
     void     DropOnGround(ComponentDescription* material, int count);   // 0x1400c78c0
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    bool      _field20;          // +0x20 search for another storage when full (Persist: the bool overload)
+    bool      _searchOtherStorage;          // +0x20 search for another storage when full (Persist: the bool overload)
     uint8_t   _pad21[3];         // +0x21 padding
-    int32_t   _field24;          // +0x24 count cap (-1 = all)
-    ComponentDescription* _field28;   // +0x28 ExternalPtr<ComponentDescription>: the material (null = every stack)
-    Object::InternalPtr<CitizenComponent> _field30;   // +0x30 the carrying citizen (Persist checks CitizenComponent)
-    Object::InternalPtr<ComponentEntity>  _field38;   // +0x38 the destination entity (Persist checks ComponentEntity)
+    int32_t   _maxCount;          // +0x24 count cap (-1 = all)
+    ComponentDescription* _material;   // +0x28 ExternalPtr<ComponentDescription>: the material (null = every stack)
+    Object::InternalPtr<CitizenComponent> _citizen;   // +0x30 the carrying citizen (Persist checks CitizenComponent)
+    Object::InternalPtr<ComponentEntity>  _destination;   // +0x38 the destination entity (Persist checks ComponentEntity)
 };
 
 static_assert(sizeof(DropOffRawMaterial) == 0x40, "DropOffRawMaterial is 0x40 (create 0x140022600 MemAlloc)");
 static_assert(offsetof(DropOffRawMaterial, _pad21) == 0x21, "DropOffRawMaterial::_pad21");
 static_assert(alignof(DropOffRawMaterial) == 8, "DropOffRawMaterial is 8-aligned");
-static_assert(offsetof(DropOffRawMaterial, _field20) == 0x20, "DropOffRawMaterial +0x20");
-static_assert(offsetof(DropOffRawMaterial, _field24) == 0x24, "DropOffRawMaterial +0x24");
-static_assert(offsetof(DropOffRawMaterial, _field28) == 0x28, "DropOffRawMaterial +0x28");
-static_assert(offsetof(DropOffRawMaterial, _field30) == 0x30, "DropOffRawMaterial +0x30");
-static_assert(offsetof(DropOffRawMaterial, _field38) == 0x38, "DropOffRawMaterial +0x38");
+static_assert(offsetof(DropOffRawMaterial, _searchOtherStorage) == 0x20, "DropOffRawMaterial +0x20");
+static_assert(offsetof(DropOffRawMaterial, _maxCount) == 0x24, "DropOffRawMaterial +0x24");
+static_assert(offsetof(DropOffRawMaterial, _material) == 0x28, "DropOffRawMaterial +0x28");
+static_assert(offsetof(DropOffRawMaterial, _citizen) == 0x30, "DropOffRawMaterial +0x30");
+static_assert(offsetof(DropOffRawMaterial, _destination) == 0x38, "DropOffRawMaterial +0x38");

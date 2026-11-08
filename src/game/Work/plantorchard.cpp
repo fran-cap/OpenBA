@@ -104,8 +104,8 @@ static WorkCellSetNode* FindCell(WorkCellSetNode* node, int key) {
 //
 int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context*/) {
     // Step 1: Find components
-    WorkComponent* workComp = field_10->FindComponent<WorkComponent>();          // 0x140003050
-    OrchardComponent* orchard = field_10->FindComponent<OrchardComponent>();     // 0x140005440
+    WorkComponent* workComp = _entity->FindComponent<WorkComponent>();          // 0x140003050
+    OrchardComponent* orchard = _entity->FindComponent<OrchardComponent>();     // 0x140005440
 
     // Step 2: Refresh orchard slot state
     orchard->ValidateRefs();   // 0x140051830
@@ -137,11 +137,11 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
     uint32_t citizenGridCell = (uint32_t)(mapSz * citizenCellY + citizenCellX);
 
     // Step 5: Iterate orchard cells
-    int fieldCellCount = field_58._size;
+    int fieldCellCount = _claimedSlots._size;
 
     if (fieldCellCount > 0) {
         for (int i = 0; i < fieldCellCount; i++) {
-            bool* validityArray = field_58._data;
+            bool* validityArray = _claimedSlots._data;
 
             // Orchard uses inverted validity: 0 = available, 1 = planted
             if (validityArray[i] != 0) {
@@ -174,7 +174,7 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
 
             // Valid spot found -- create orchard planting action
             uint32_t typeConstVal = OrchardComponent::TypeId();  // DAT_1401c46b0
-            ComponentEntity* entityRef = field_10.Get();
+            ComponentEntity* entityRef = _entity.Get();
 
             float halfOffset = (float)(map->size >> 1) - kRdata_140172114;
             Math::Vector3 targetPos(
@@ -191,20 +191,20 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
             // Call FUN_1400be6e0 orchard planting action ctor
             WorkAct_PlantWorkCtor_be6e0(
                 &citizenBuf,                      // RCX: citizenIBP
-                field_20,                         // EDX: priority
-                field_68,                         // R8: the tree type (ExternalPtr)
+                _workId,                         // EDX: priority
+                _treeType,                         // R8: the tree type (ExternalPtr)
                 0,                                // R9D: 0
                 pathPos,                          // [RSP+0x20]: position
                 srcCellIdx,                       // [RSP+0x28]: srcCellIdx
                 (uint32_t)i,                      // [RSP+0x30]: cellIdx (integer, EBX)
-                &entityRef,                       // [RSP+0x38]: entity ref from field_10
+                &entityRef,                       // [RSP+0x38]: entity ref from _entity
                 &typeConstVal,                    // [RSP+0x40]: type constant
                 0,                                // [RSP+0x48]: unused
                 (uint32_t)i                       // [RSP+0x50]: cellIdx again (integer, EBX)
             );
 
             // Assign work
-            int priority = field_20;
+            int priority = _workId;
             CitizenComponent* citizenEnt = *citizenRef;
 
             // Slot 10 (GetTarget): the workplace's Profession
@@ -212,7 +212,7 @@ int PlantOrchard::Execute(CitizenComponent** citizenRef, System::Time* /*context
             GetTarget(&workEnt);
 
             citizenEnt->statusFlags |= Bits(CitizenStatus::TaskDone);
-            citizenEnt->field_0x30 = priority;
+            citizenEnt->lastWorkId = priority;
             citizenEnt->lastErrand = CitizenErrand::None;
 
             if (workEnt == citizenEnt->profession && priority >= 0) {
@@ -265,7 +265,7 @@ int PlantOrchard::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** /*
     }
 
     // Mark cell as available (validity = 0 for orchard)
-    bool* validityArray = field_58._data;
+    bool* validityArray = _claimedSlots._data;
     validityArray[param4] = 0;
     return 0;
 }
@@ -290,7 +290,7 @@ int PlantOrchard::OnCancel(CitizenComponent** /*param2*/, ComponentEntity** /*pa
     }
 
     // Mark cell as available
-    bool* validityArray = field_58._data;
+    bool* validityArray = _claimedSlots._data;
     validityArray[param4] = 0;
     return 0;
 }
@@ -385,7 +385,7 @@ int PlantOrchard::Validate() {
             }
 
             // Mark cell available (orchard uses 0 for available)
-            bool* validityArray = field_58._data;
+            bool* validityArray = _claimedSlots._data;
             validityArray[node->element.cell] = 0;
         }
 
@@ -441,7 +441,7 @@ cleanup:
 // ============================================================
 Profession** PlantOrchard::GetTarget(Profession** outPtr) {
     // 0x140002e10 = FindComponent<WorkPlaceComponent>.
-    WorkPlaceComponent* workplace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workplace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workplace->profession;
     return outPtr;
 }
@@ -466,12 +466,12 @@ void PlantOrchard::Persist(IO::Stream& stream) {
 
     WorkCellBST_Serialize_9de0(&_cells, &ser);
 
-    int cellCountBuf[2] = { field_58._size, 0 };
+    int cellCountBuf[2] = { _claimedSlots._size, 0 };
     ser.Serialize(cellCountBuf[0], nullptr);
 
     // 0x14000a590 == Collection::Array<bool>::SetSize.
     if (static_cast<int>(ser.GetDirection()) == 0) {   // IO::Serializer::GetDirection, retail 0x180006210
-        field_58.SetSize(cellCountBuf[0]);
+        _claimedSlots.SetSize(cellCountBuf[0]);
     }
 
     // Serialize validity array through the BOOL-ARRAY door.
@@ -487,9 +487,9 @@ void PlantOrchard::Persist(IO::Stream& stream) {
     //     1400f4fd1  CALL qword ptr [0x140151458]   ; the bool-array door
     // The local pointer was aliased onto 0x140152ac8, the three-parameter
     // `Serialize(int&)` scalar door, and called with four arguments.
-    ser.Serialize(cellCountBuf[0], field_58._data, nullptr);   // 0x140151458 = the bool-array overload
+    ser.Serialize(cellCountBuf[0], _claimedSlots._data, nullptr);   // 0x140151458 = the bool-array overload
 
-    ::Object::SerializeExternal<ComponentDescription>(ser, field_68);
+    ::Object::SerializeExternal<ComponentDescription>(ser, _treeType);
 }   // ~Serializer
 
 
@@ -498,7 +498,7 @@ void PlantOrchard::Persist(IO::Stream& stream) {
 // The stamps and the `~Internal` call are the compiler's chain.
 // ============================================================
 PlantOrchard::~PlantOrchard() {
-    // The +0x58 flags are the `field_58` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
+    // The +0x58 flags are the `_claimedSlots` member's ~Array (MemFree, then +0x58 = +0x60 = 0),
     // then the +0x48 set's Clear is the `_cells` member's ~Set: reverse declaration order
     // after this empty body (0x1400f5010).
 
@@ -513,7 +513,7 @@ PlantOrchard::~PlantOrchard() {
 // factory ctor did the same).
 PlantOrchard::PlantOrchard()
     : Work(),
-      field_68(nullptr) {
+      _treeType(nullptr) {
     OrchardDiag_NotePlantConstructed();
 }
 

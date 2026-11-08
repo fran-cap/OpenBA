@@ -83,7 +83,7 @@ void HighlightComponent::OnRemove() {
 // teardown, and a 0 would make it Scene::RemoveObject(scene, 0) on whichever
 // object genuinely owns id 0 (live freeze 2026-07-25).
 HighlightComponent::HighlightComponent()
-    : edgeMeshInstance(), fieldF8(nullptr), transform(), highlightFlag(0),
+    : edgeMeshInstance(), outlineMesh(nullptr), transform(), highlightFlag(0),
       _pad11D{}, highlightId(-1), _pad124{} {
     OrFlagsInCtor(0x2);
 }
@@ -93,8 +93,8 @@ HighlightComponent::HighlightComponent()
 // ~EdgeMeshInstance on +0x28 (CALL [0x1401513b0]) is the member destruction,
 // and the Component restamp + ~Internal (JMP [0x140152770]) the base's.
 HighlightComponent::~HighlightComponent() {
-    delete fieldF8;
-    fieldF8 = nullptr;
+    delete outlineMesh;
+    outlineMesh = nullptr;
 }
 
 // [3] 0x14004c880 — Component::Persist (a direct CALL 0x1401189b0) PLUS its own

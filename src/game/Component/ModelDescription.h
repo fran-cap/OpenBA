@@ -32,13 +32,13 @@ namespace Object { class External; }
 // import 0x140151f20 = GraphicsMesh) whose element is the mesh a ModelComponent's
 // meshIndex selects (0x140107400, 0x140124ac0).
 struct ModelMeshGroup {
-    Graphics::AnimationGroup* field_0x00;  // +0x00 ExternalPtr<AnimationGroup> (the group's animations)
+    Graphics::AnimationGroup* animations;  // +0x00 ExternalPtr<AnimationGroup> (the group's animations)
     Graphics::GraphicsMesh** meshes;       // +0x08 Array<ExternalPtr<GraphicsMesh>> data
     int32_t                  meshCount;    // +0x10
     int32_t                  meshCapacity; // +0x14
 };
 static_assert(sizeof(ModelMeshGroup) == 0x18, "ModelDescription mesh group stride 0x18");
-static_assert(offsetof(ModelMeshGroup, field_0x00) == 0x0, "ModelMeshGroup::field_0x00");
+static_assert(offsetof(ModelMeshGroup, animations) == 0x0, "ModelMeshGroup::animations");
 static_assert(offsetof(ModelMeshGroup, meshes) == 0x08, "");
 static_assert(offsetof(ModelMeshGroup, meshCount) == 0x10, "");
 static_assert(offsetof(ModelMeshGroup, meshCapacity) == 0x14, "");

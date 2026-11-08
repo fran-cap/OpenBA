@@ -784,11 +784,11 @@ void FirePreviewPlacement(PlayerToolManager* entityUI) {
     // Log the controller's +0x00 before/after so we can confirm the CreateBar opens.
     {
         PlayerToolManager* controller = tool->dialogPtr;   // = EntityUI (dialog controller)
-        // field_0x00, the dialog IBP, is logged as an integer (%llx).
-        uint64_t before = controller ? reinterpret_cast<uint64_t>(controller->field_0x00) : 0;   // +0x00  // CAST-OK: ptr_int
+        // toolDialog, the dialog IBP, is logged as an integer (%llx).
+        uint64_t before = controller ? reinterpret_cast<uint64_t>(controller->toolDialog) : 0;   // +0x00  // CAST-OK: ptr_int
         // EntityUI+0x28 is the active Tool; slot 6 (+0x30) is Tool::OnKey; param 1 -> open CreateBar.
         tool->OnKey(1);
-        uint64_t after = controller ? reinterpret_cast<uint64_t>(controller->field_0x00) : 0;   // +0x00  // CAST-OK: ptr_int
+        uint64_t after = controller ? reinterpret_cast<uint64_t>(controller->toolDialog) : 0;   // +0x00  // CAST-OK: ptr_int
         fprintf(stderr, "[ToolHarness] CreateBar open probe: controller(tool+0x10)=%p dialogIBP(+0x00) "
                "before=%llx after=%llx -> %s\n", controller,
                (unsigned long long)before, (unsigned long long)after,
@@ -810,7 +810,7 @@ void FirePreviewPlacement(PlayerToolManager* entityUI) {
         // The tool FireActivatePlacement installed is the PlacementTool.
         Graphics::MeshInstance* mesh = static_cast<PlacementTool*>(tool)->meshInstance;
         if (controller && mesh &&
-            controller->field_0x00 != nullptr /*dialog open*/) {
+            controller->toolDialog != nullptr /*dialog open*/) {
             const ::Box* box = &mesh->_localBounds;   // Geometry +0x34
             // Geometry::GetTransform(mesh) -> Transform by value (member; import slot
             // 0x140151460 ?GetTransform@Geometry@Graphics@@, 0x180015800).
@@ -824,7 +824,7 @@ void FirePreviewPlacement(PlayerToolManager* entityUI) {
         } else {
             fprintf(stderr, "[ToolHarness] operator_fc60 probe skipped (controller=%p mesh=%p "
                    "dialogOpen=%d)\n", controller, mesh,
-                   controller ? (controller->field_0x00 != nullptr) : 0);
+                   controller ? (controller->toolDialog != nullptr) : 0);
         }
     }
 }
@@ -2275,13 +2275,13 @@ void FireClearHarvest() {
 
     // Work scheduler: gw+0x118; primary AVL count at +0x18 (sched[6]).
     WorkScheduler* sched = gw->m_tutorial;
-    int schedBefore = sched ? sched->field_0x10.count : -1;
+    int schedBefore = sched ? sched->queueOrderTree.count : -1;
 
     fprintf(stderr, "[ClearHarvest] house[0]=%p ClearAreaComp=%p resource=(%d,%d) ent=%p — driving "
            "State0Enter (harvest dispatch)...\n", house, caComp, rcCol, rcRow, resEnt);
     ClearArea_State0Enter(caComp, nullptr);   // not-done path: sm unused
 
-    int schedAfter = sched ? sched->field_0x10.count : -1;
+    int schedAfter = sched ? sched->queueOrderTree.count : -1;
 
     // Restore footprint.
     bc->tileX0 = sCol;
@@ -2364,7 +2364,7 @@ int UpgradeRequired(BuildComponent* bc) {
     if (!bc) return 0;
     Description* desc = bc->_description;
     if (!desc) return 0;
-    return static_cast<BuildDescription*>(desc)->_i30 *   // as Yard_Required (destroycomponent_states.cpp)
+    return static_cast<BuildDescription*>(desc)->_workRequired *   // as Yard_Required (destroycomponent_states.cpp)
            bc->costMultiplier;
 }
 
@@ -2886,11 +2886,11 @@ void FireBridgeTool(PlayerToolManager* entityUI) {
     }
 
     // The masks ValidatePath enforces (see bridgetool_validate.cpp).
-    const uint32_t maskBody     = bridgeDesc->_u20;
-    const uint32_t maskApproach = bridgeDesc->_u24;
+    const uint32_t maskBody     = bridgeDesc->_placeBits;
+    const uint32_t maskApproach = bridgeDesc->_invalidBits;
     fprintf(stderr, "[ToolHarness][bridge]   maskBody=0x%x maskApproach=0x%x maskRequired=0x%x "
            "maskNeighbor=0x%x radius=%d\n", maskBody, maskApproach,
-           bridgeDesc->_u2c, bridgeDesc->_u30, bridgeDesc->_i34);
+           bridgeDesc->_requiredBits, bridgeDesc->_edgeBits, bridgeDesc->_edgeWidth);
 
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     Map* mapGrid = gw ? gw->m_game : nullptr;

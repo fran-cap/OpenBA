@@ -71,8 +71,8 @@ public:
         virtual char HasStates() = 0;
 
         // +0x08 / +0x10 zeroed by every family ctor; +0x18 the owner.
-        Controller* _data08 = nullptr;   // +0x08
-        Controller* _data10 = nullptr;   // +0x10
+        Controller* _parent = nullptr;   // +0x08
+        Controller* _child = nullptr;   // +0x10
         Component* _owner  = nullptr;   // +0x18 — read by every slot body
 
     protected:
@@ -96,7 +96,7 @@ static_assert(sizeof(ControllerComponent) == 0x28,
               "ControllerComponent adds no bytes; the controller member lives in each leaf");
 static_assert(sizeof(ControllerComponent::Controller) == 0x20,
               "the embedded controller is 0x20 bytes (vptr, +8, +0x10, owner +0x18)");
-static_assert(offsetof(ControllerComponent::Controller, _data08) == 0x8, "Controller::_data08");
-static_assert(offsetof(ControllerComponent::Controller, _data10) == 0x10, "Controller::_data10");
+static_assert(offsetof(ControllerComponent::Controller, _parent) == 0x8, "Controller::_parent");
+static_assert(offsetof(ControllerComponent::Controller, _child) == 0x10, "Controller::_child");
 static_assert(offsetof(ControllerComponent::Controller, _owner) == 0x18,
               "controller +0x18 = owning component (every slot body: MOV RCX,[RCX+0x18])");

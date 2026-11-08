@@ -309,16 +309,16 @@ public:
     // +0x58/+0x60. What IS known: the serializer writes each as
     // count-then-elements through `StringArraySerialize`, and sizes the array
     // from the count on the reading side only.
-    Collection::Array<System::String> _stringArray20;  // +0x20  ctor 0x1800b4489, dtor 0x1800b4666
-    Collection::Array<System::String> _stringArray30;  // +0x30  ctor 0x1800b4491, dtor 0x1800b465c
+    Collection::Array<System::String> _includeList;  // +0x20  ctor 0x1800b4489, dtor 0x1800b4666
+    Collection::Array<System::String> _excludeList;  // +0x30  ctor 0x1800b4491, dtor 0x1800b465c
 
     // The five refcounted Strings ~PackageFile releases, in the order the
     // three getters and the serializer name them (see the banner).
     System::String _name;         // +0x40
     System::String _author;       // +0x48
     System::String _description;  // +0x50
-    System::String _string58;     // +0x58 — purpose unknown; type from ~PackageFile
-    System::String _string60;     // +0x60 — purpose unknown; type from ~PackageFile
+    System::String _icon;     // +0x58 — purpose unknown; type from ~PackageFile
+    System::String _preview;     // +0x60 — purpose unknown; type from ~PackageFile
 
     int32_t  _version;      // +0x68
     int32_t  _userVersion;  // +0x6c
@@ -402,17 +402,17 @@ static_assert(offsetof(PackageFile, _padAd) == 0xAD, "PackageFile::_padAd");
 static_assert(sizeof(Object::External) == 0x20,
               "PackageFile's own fields start where External's end");
 
-static_assert(offsetof(PackageFile, _stringArray20)      == 0x20, "ctor 1800b4489 PutQ(0x20,0)");
-static_assert(offsetof(PackageFile, _stringArray20) + offsetof(Collection::Array<System::String>, _size) == 0x28,
+static_assert(offsetof(PackageFile, _includeList)      == 0x20, "ctor 1800b4489 PutQ(0x20,0)");
+static_assert(offsetof(PackageFile, _includeList) + offsetof(Collection::Array<System::String>, _size) == 0x28,
               "Serialize 1800b6153 reads the count at +0x28");
-static_assert(offsetof(PackageFile, _stringArray30)      == 0x30, "ctor 1800b4491 PutQ(0x30,0)");
-static_assert(offsetof(PackageFile, _stringArray30) + offsetof(Collection::Array<System::String>, _size) == 0x38,
+static_assert(offsetof(PackageFile, _excludeList)      == 0x30, "ctor 1800b4491 PutQ(0x30,0)");
+static_assert(offsetof(PackageFile, _excludeList) + offsetof(Collection::Array<System::String>, _size) == 0x38,
               "Serialize 1800b6193 reads the count at +0x38");
 static_assert(offsetof(PackageFile, _name)        == 0x40, "GetName 0x18002532a MOV RAX,[RCX+0x40]");
 static_assert(offsetof(PackageFile, _author)      == 0x48, "GetAuthor 0x18002536a");
 static_assert(offsetof(PackageFile, _description) == 0x50, "GetDescription 0x1800253aa");
-static_assert(offsetof(PackageFile, _string58)    == 0x58, "~PackageFile 0x1800b45c0 releases [RBX+0x58]");
-static_assert(offsetof(PackageFile, _string60)    == 0x60, "~PackageFile 0x1800b4599 releases [RBX+0x60]");
+static_assert(offsetof(PackageFile, _icon)    == 0x58, "~PackageFile 0x1800b45c0 releases [RBX+0x58]");
+static_assert(offsetof(PackageFile, _preview)    == 0x60, "~PackageFile 0x1800b4599 releases [RBX+0x60]");
 static_assert(offsetof(PackageFile, _version)     == 0x68, "GetVersion 0x1800253d0");
 static_assert(offsetof(PackageFile, _userVersion) == 0x6c, "GetUserVersion 0x1800253e0");
 static_assert(offsetof(PackageFile, _priority)    == 0x70, "sort 0x1800264a0 CMP dword [RCX+0x70],EAX");

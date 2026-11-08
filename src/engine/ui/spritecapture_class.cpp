@@ -326,10 +326,10 @@ void SpriteCapture::Draw(SpriteContext& ctx, int32_t ox, int32_t oy) const {
         // array (+0x28) and pass 0, that VideoProgram's RenderState (+0x38) —
         // `?GetRenderState@Material@Graphics@@` (0x180102980) with pass 0,
         // inlined — then `?IsWireframe@RenderState@Video@@` (0x18004b730,
-        // `CMP dword [RCX+0x6c],1`), inlined. `m_field30` is spelt uint64_t
+        // `CMP dword [RCX+0x6c],1`), inlined. `m_materialInstance` is spelt uint64_t
         // (saveload_draw.cpp stores it as an integer).
         const Graphics::MaterialInstance* const instance =
-            sheet->m_field30;  // 1800d93fb
+            sheet->m_materialInstance;  // 1800d93fb
         const Graphics::Material* const material = instance->_material.Get();       // 1800d9406
         const Video::VideoProgram* const pass0 = material->_passes.GetData()[0].Get();  // 1800d9410 / 1800d9417
         const Video::RenderState* const state = pass0->_renderState.Get();          // 1800d941a

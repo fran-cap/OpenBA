@@ -84,7 +84,7 @@ int  CompleteTask::AbstractImpl(ActionStack* actionStack) {
 
     // Lazy-resolve task index from the work citizen
     if (this->taskIndex == 0x7FFFFFFF) {
-        this->taskIndex = workEntity->field_0x30;
+        this->taskIndex = workEntity->lastWorkId;
     }
 
     // taskIdx < 0 is EXPECTED, not a gap. The build-material haul tree
@@ -120,7 +120,7 @@ int  CompleteTask::AbstractImpl(ActionStack* actionStack) {
 void CompleteTask::CheckEntity() {
     // Lazy-resolve task index
     if (this->taskIndex == 0x7FFFFFFF) {
-        this->taskIndex = workEntity->field_0x30;
+        this->taskIndex = workEntity->lastWorkId;
     }
 
     ComponentEntity* entityRef28 = this->targetEntity.Get();

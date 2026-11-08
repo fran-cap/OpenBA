@@ -60,7 +60,7 @@ using namespace rtui;
 namespace {
 
 // UpdateState fields these bodies read (UI::Element::UpdateState names):
-//   buttonPressed +0x01, b04 (released) +0x04, dragDx +0x0c, dragDy +0x10,
+//   buttonPressed +0x01, leftReleased +0x04, dragDx +0x0c, dragDy +0x10,
 //   mouseX +0x18, mouseY +0x1c.
 
 // 0x18016169c — `00 00 80 3f`, read from the shipped .rdata.
@@ -295,7 +295,7 @@ void ScrollElement::Update(const System::Time& time, UserInterface* ui,
         isNear = true;
     }
     if ((flags & UI::kElementFlagPressed) == 0 || isNear) {
-        if ((flags & UI::kElementFlagPressed) != 0 && state.b04 != 0) {
+        if ((flags & UI::kElementFlagPressed) != 0 && state.leftReleased != 0) {
             SetFlags(this, flags & ~UI::kElementFlagPressed);
             if (!isNear) return;
             static_cast<UI::UserInterface*>(ui)->Play(5);

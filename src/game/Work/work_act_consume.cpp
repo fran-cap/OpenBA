@@ -186,9 +186,9 @@ void WorkAct_ConsumeProduceCtor_bef70(CitizenComponent* const* citizenRef, uint3
     }
     ::Object::InternalPtr<Action> ibpSm1;
     ibpSm1 = sm1;                // ctor(&local_60, sm1)
-    if (character->actionStack.field_0x10 != nullptr)     // [lVar2+0x58]
-        character->actionStack.field_0x10.DeletePtr();
-    character->actionStack.field_0x10 = ibpSm1;
+    if (character->actionStack.completionAction != nullptr)     // [lVar2+0x58]
+        character->actionStack.completionAction.DeletePtr();
+    character->actionStack.completionAction = ibpSm1;
 
     // --- CompleteTask action (0x1400bf06b..) ---
     obj = WCP_Alloc(0x38);                    // LEA ECX,[RDX+0x30] => 0x38
@@ -257,10 +257,10 @@ void WorkAct_ConsumeProduceCtor_bef70(CitizenComponent* const* citizenRef, uint3
 
     // --- 1st search over the entity's description; derive toolType (0x1400bf293..) ---
     ConsumeProduceDescription* foundComp1 = WCP_FindComponentDerived((*entityRef)->_description);
-    // toolType = found->_u50. When none is found retail reads [0 + 0x50] (RCX = R14 = 0):
+    // toolType = found->_toolType. When none is found retail reads [0 + 0x50] (RCX = R14 = 0):
     // a read through the null receiver that faults exactly as retail's does. Not guarded.
     // The null-receiver read is spelled as the address it faults on.
-    uint32_t toolType = foundComp1 ? foundComp1->_u50
+    uint32_t toolType = foundComp1 ? foundComp1->_toolType
                                    : *reinterpret_cast<uint32_t*>(0x50);   // the null-receiver read is spelled as the address it faults on.  // CAST-OK: null_receiver
     // actionType = (toolType <= 0xa) ? toolType+9 : 8   (0x1400bf307..0x1400bf312)
     int actionType = 8;

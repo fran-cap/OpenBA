@@ -86,7 +86,7 @@ bool ProgressDescription::Serialize(IO::Stream& streamArg) {
     IO::ReaderWriter* const rw = ser._readerWriter;
 
     // kScalarUInt, NOT kScalarInt — vt+0x98 at 0x180119fbe.
-    rw->SerializeUInt(_unknown68, nullptr);
+    rw->SerializeUInt(_backgroundColor, nullptr);
 
     Object::SerializeExternal<UI::SpriteSheet>(ser, _spriteSheet);            // 180119fcd ExternalPtr<SpriteSheet>
     _fillLeftName.Serialize(ser);           // 180119fdb

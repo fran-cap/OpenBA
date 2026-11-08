@@ -143,7 +143,7 @@ void WorkPlaceComponent::SetMaxWorkers(int newMax) {
         Profession* profession = citizen->profession;
         ComponentEntity* targetIBP = nullptr;   // the InternalPtr<ComponentEntity> the finders return
         if (profession) {
-            if (!profession->field4C) {
+            if (!profession->transient) {
                 targetIBP = citizen->FindWorkplace();         // 0x14010ffc0
             } else {
                 targetIBP = citizen->FindRankedWorkplace();   // 0x140110470
@@ -189,7 +189,7 @@ void WorkPlaceComponent::EnterBuilderProfession() {
     WorkComponent* workComp = _entity->FindComponent<WorkComponent>();   // 0x140003050
 
     ProfessionList* profReg = gw->m_professionList;   // +0xb0
-    Profession* const builderKey = profReg ? profReg->field_0x38 : nullptr;
+    Profession* const builderKey = profReg ? profReg->builderProfession : nullptr;
 
     // 3. Re-key a pending work item from the OLD profession (+0x48, still unmodified here)
     //    to Builder, so a task already in flight when demolition starts is offered to

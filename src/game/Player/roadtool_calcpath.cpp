@@ -91,7 +91,7 @@ T* FindDescription(const ComponentDescription* entity) {
 
 // The pending-road BST at Map +0xE8 (AvlNode28: key +0x00, left +0x10, right +0x18).
 bool PendingRoad(const Map* map, int cellIdx) {
-    const AvlNode28* node = map->field_0xE8.root;
+    const AvlNode28* node = map->pendingRoadCells.root;
     while (node) {
         int key = node->key;
         if (cellIdx < key)      node = node->left;
@@ -149,7 +149,7 @@ void Map::PlaceRoadCell(uint32_t cellIdx,
     MapCell* cell = &cells.GetData()[(int)cellIdx];   // 0x14009c992: [RCX+0x80], no test
 
     // Only upgrade: bail unless the new road type outranks what is already there.
-    if (!(roadType < cell->field_0x2A)) return;
+    if (!(roadType < cell->roadType)) return;
 
     // If this cell already has a pending road entry, clear it first.
     if (PendingRoad(this, (int)cellIdx)) {
@@ -163,7 +163,7 @@ void Map::PlaceRoadCell(uint32_t cellIdx,
         const MapCell* tb = &cells.GetData()[(int)cellIdx];
         uint32_t terrainFlag = Bits(PathBitOf(tb->terrainType));
         if ((terrainFlag & Bits(PathBits::Fast)) == 0 && (terrainFlag & Bits(PathBits::Faster)) == 0 &&
-            tb->field_0x2A == MapCell::kNoRoadBatch) {
+            tb->roadType == MapCell::kNoRoadBatch) {
             bool pending = PendingRoad(this, (int)cellIdx);
             if (!pending) {
                 CellTrace::NoteCount(this, cell, cell->footprintCount, 1, "PlaceRoadCell");
@@ -180,8 +180,8 @@ void Map::PlaceRoadCell(uint32_t cellIdx,
         new (&ownerIbp) ::Object::InternalBasePtr(nullptr);   // the IBP ctor 0x140152a90
         work = new (mem) BuildRoad(&ownerIbp, cellIdx,   // 0x1400e4b50
                                    mapDescVal, roadDescExtra,
-                                   cell->field_0x2A,      // existing road type
-                                   cell->field_0x2B,      // existing road state
+                                   cell->roadType,      // existing road type
+                                   cell->roadAlpha,      // existing road state
                                    static_cast<uint8_t>(cell->terrainType));    // terrain type
     }
 
@@ -199,11 +199,11 @@ void Map::PlaceRoadCell(uint32_t cellIdx,
     {
         int32_t key = static_cast<int32_t>(cellIdx);
         AvlNode28* inserted = nullptr;
-        AvlInsert28(&field_0xE8, &inserted, &key);   // Map +0xE8, the Set header
+        AvlInsert28(&pendingRoadCells, &inserted, &key);   // Map +0xE8, the Set header
     }
 
-    cell->field_0x2A = roadType;
-    cell->field_0x2B = 0x80;   // queued-for-construction marker
+    cell->roadType = roadType;
+    cell->roadAlpha = 0x80;   // queued-for-construction marker
 }
 
 // ============================================================================
@@ -235,11 +235,11 @@ bool RoadTool::CalcPath(int startCell, int endCell) {
 
     // Honour the owner's fixed-endpoint constraint (used by scripted/tutorial roads).
     const PlayerToolManager* controller = dialogPtr;
-    if (controller && controller->field_0x80) {
+    if (controller && controller->tutorialRestricted) {
         int gridSize = mapGrid->size;
         if (gridSize != 0) {
-            int a = controller->field_0x98;
-            int b = controller->field_0x9C;
+            int a = controller->tutorialStartCell;
+            int b = controller->tutorialEndCell;
             uint32_t ca = (uint32_t)(gridSize * (a / gridSize) + a % gridSize);
             uint32_t cb = (uint32_t)(gridSize * (b / gridSize) + b % gridSize);
             if ((ca != sc || cb != ec) && (ca != ec || cb != sc)) return false;
@@ -272,7 +272,7 @@ bool RoadTool::CalcPath(int startCell, int endCell) {
     }
     uint32_t mapDescVal = mapDesc->_cellType;
     // +0x20 is the bool CreateRoadDescription serializes; retail reads its byte (0 or 1).
-    const uint8_t roadType       = static_cast<uint8_t>(roadDesc->_b20);
+    const uint8_t roadType       = static_cast<uint8_t>(roadDesc->_index);
     ComponentDescription* const roadDescExtra = roadDesc->_created;
 
     WorldGeometry* decalMgr = gameWorld->m_worldGeometry;

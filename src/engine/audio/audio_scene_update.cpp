@@ -516,7 +516,7 @@ bool Scene::Update(System::Time delta, System::Time now, System::Random& rng,
                         const float pitch = (hi - lo) * t + lo;           // 1800dfa7e/82
 
                         const float vVol   = v->volume;
-                        const float vThird = v->unused14;
+                        const float vThird = v->unusedPlayFactor;
                         SoundBuffer* const bufferRef = v->buffer.Get();
 
                         ch->sampleVolume = vVol;                          // 1800dfa9b

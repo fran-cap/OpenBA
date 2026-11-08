@@ -113,10 +113,10 @@ char DragTool::OnKey(char key) {
 
         // Close dialog if the manager holds one
         // Original: CMP [RBX], 0 — dereferences the manager's +0x00
-        if (dialogPtr != nullptr && dialogPtr->field_0x00 != nullptr) {
-            Object::InternalPtr<UI::DialogInstance> tempIBP(dialogPtr->field_0x00);
+        if (dialogPtr != nullptr && dialogPtr->toolDialog != nullptr) {
+            Object::InternalPtr<UI::DialogInstance> tempIBP(dialogPtr->toolDialog);
             GameUpdateLoop::_singleton->m_userInterface->CloseDialog(&tempIBP);
-            dialogPtr->field_0x00 = nullptr;   // write the null IBP back
+            dialogPtr->toolDialog = nullptr;   // write the null IBP back
         }
 
         // Check if the primary action button was released
@@ -153,7 +153,7 @@ char DragTool::OnKey(char key) {
 
         // Ensure dialog is open (re-open if it was somehow closed)
         // Original: CMP [manager], 0
-        if (dialogPtr->field_0x00 == nullptr) {
+        if (dialogPtr->toolDialog == nullptr) {
             UI::DialogInstance* tempStr;
             dialogPtr->OpenToolDialog(&tempStr, descriptionPtr);
         }
@@ -304,10 +304,10 @@ char DragTool::OnCancel() {
     dragState = DragState::Idle;
     singleClick = 0;   // retail: MOV word ptr [self+0x28], 0
     PlayerToolManager* owner = dialogPtr;
-    if (owner && owner->field_0x00) {
-        Object::InternalPtr<UI::DialogInstance> tempIBP(owner->field_0x00);
+    if (owner && owner->toolDialog) {
+        Object::InternalPtr<UI::DialogInstance> tempIBP(owner->toolDialog);
         GameUpdateLoop::_singleton->m_userInterface->CloseDialog(&tempIBP);
-        owner->field_0x00 = nullptr;
+        owner->toolDialog = nullptr;
     }
     return 1;
 }

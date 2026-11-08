@@ -121,9 +121,9 @@ extern "C" void BuildStructure_SetupBuildActions(CitizenComponent** citizenRef, 
             ComponentEntity* targetEntity = citizen->_entity.Get();
             act = ::new (mem) SendComponentMessage(&targetEntity, &msgId, 0, &outIBP, 0);   // 0x1400cb1d0
         }
-        if (character->actionStack.field_0x10 != nullptr)
-            character->actionStack.field_0x10.DeletePtr();
-        character->actionStack.field_0x10 = act;
+        if (character->actionStack.completionAction != nullptr)
+            character->actionStack.completionAction.DeletePtr();
+        character->actionStack.completionAction = act;
     }
 
     // uVar2 = Random::Rand(*(gw+0xd8), 2) — tool/anim variant (0 or 1).

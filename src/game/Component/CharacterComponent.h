@@ -68,12 +68,12 @@ public:
     // slots: 0x140152a68 Math::Vector3::Serialize, 0x140152a60 float,
     // 0x140152a58 bool, 0x140152ac8 int, 0x140152aa0 InternalBasePtr + an
     // IsDerivedFrom check against the cell named on the field.
-    bool     field_0x28;          // +0x28 bool, ctor 0; serialized
+    bool     steeredByMover;          // +0x28 bool, ctor 0; serialized
     uint8_t  _pad29[3];           // +0x29
-    Math::Vector3 field_0x2C;     // +0x2C serialized by 0x140152a68 (Vector3::Serialize); ctor 0
+    Math::Vector3 moveDirection;     // +0x2C serialized by 0x140152a68 (Vector3::Serialize); ctor 0
                                   //       (the ctor zeroes +0x2C..+0x3B with two qword stores)
-    float    field_0x38;          // +0x38 float, ctor 0; serialized
-    float    field_0x3C;          // +0x3C float, NOT written by the retail ctor (the tree zeroes
+    float    moveSpeedScale;          // +0x38 float, ctor 0; serialized
+    float    targetHeading;          // +0x3C float, NOT written by the retail ctor (the tree zeroes
                                   //       it); serialized
     int32_t  characterIndex;      // +0x40 int, ctor -1; the index the character manager
                                   //       (GameUpdateLoop+0x88, 0x1400183f0) returns on load
@@ -86,7 +86,7 @@ public:
     //                  0x1400c4f10 as an InternalBasePtr); 0x1400c5150 DeletePtr's every
     //                  element, then MemFree
     //   +0x08 count    Array count (serialized)   +0x0C capacity
-    //   +0x10 field_0x10  InternalPtr<Action>, DeletePtr'd by 0x1400c5150; the Work action
+    //   +0x10 completionAction  InternalPtr<Action>, DeletePtr'd by 0x1400c5150; the Work action
     //                  builders DeletePtr it (IAT 0x140151ab8) before storing the lead
     //                  SendComponentMessage (e.g. 0x1400bb89b MOV [RSI+0x10],RAX)
     //   +0x18 current  int, ctor -1: the index into `actions` Update runs (>= 0)
@@ -99,17 +99,17 @@ public:
 
 static_assert(sizeof(CharacterComponent) == 0x80, "CharacterComponent is 0x80 (create 0x14002f960)");
 static_assert(alignof(CharacterComponent) == 8, "CharacterComponent alignment");
-static_assert(offsetof(CharacterComponent, field_0x28)           == 0x28, "");
+static_assert(offsetof(CharacterComponent, steeredByMover)           == 0x28, "");
 static_assert(offsetof(CharacterComponent, _pad29)               == 0x29, "");
-static_assert(offsetof(CharacterComponent, field_0x2C)           == 0x2C, "");
-static_assert(offsetof(CharacterComponent, field_0x38)           == 0x38, "");
-static_assert(offsetof(CharacterComponent, field_0x3C)           == 0x3C, "");
+static_assert(offsetof(CharacterComponent, moveDirection)           == 0x2C, "");
+static_assert(offsetof(CharacterComponent, moveSpeedScale)           == 0x38, "");
+static_assert(offsetof(CharacterComponent, targetHeading)           == 0x3C, "");
 static_assert(offsetof(CharacterComponent, characterIndex)       == 0x40, "");
 static_assert(offsetof(CharacterComponent, _pad44)               == 0x44, "");
 static_assert(offsetof(CharacterComponent, actionStack)          == 0x48, "");
 static_assert(offsetof(CharacterComponent, actionStack.actions._size)     == 0x50, "");
 static_assert(offsetof(CharacterComponent, actionStack.actions._capacity) == 0x54, "");
-static_assert(offsetof(CharacterComponent, actionStack.field_0x10) == 0x58, "");
+static_assert(offsetof(CharacterComponent, actionStack.completionAction) == 0x58, "");
 static_assert(offsetof(CharacterComponent, actionStack.current)  == 0x60, "");
 static_assert(offsetof(CharacterComponent, modelComponent)       == 0x68, "");
 static_assert(offsetof(CharacterComponent, pickingComponent)     == 0x70, "");

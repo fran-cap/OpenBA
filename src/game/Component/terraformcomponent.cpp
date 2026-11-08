@@ -129,7 +129,7 @@ static uint8_t TerraformCellType(Map* map, float wx, float wy) {
 // row stride +0xD0.
 static int16_t& TerraformHeightAt(WorldGeometry* terrain, int mapX, int mapY) {
     int16_t* heights = terrain->_heights.data;
-    return heights[static_cast<int64_t>(terrain->_fieldD0) * mapY + mapX];
+    return heights[static_cast<int64_t>(terrain->_heightRowStride) * mapY + mapX];
 }
 
 // ------------------------------------------------------------
@@ -262,7 +262,7 @@ void TerraformComponent::ApplyFootprint() {
             PathType* type = TerraformCellTypeAt(map, idx);
             if (*type != PathType::Walkable) continue;
 
-            map->field_0xA2 |= 1;
+            map->zonesStale |= 1;
             *type = PathType::Unusable;
             map->regionGraph->MarkCellDirty(
                 idx % map->size, idx / map->size);   // 0x1400a8c90 (Pf_FineCellDirty_a8c90's body)
@@ -384,7 +384,7 @@ void TerraformComponent::OnRemove() {
 
             // The old type was zoneless (PathBits::Zoneless): the zones go stale
             bool wasZoneless = ((1 << (oldType & 0x1F)) & static_cast<int>(PathBits::Zoneless)) != 0;
-            map->field_0xA2 |= (wasZoneless ? 1 : 0);
+            map->zonesStale |= (wasZoneless ? 1 : 0);
 
             // Set tile type to PathType::Walkable (10)
             *type = PathType::Walkable;

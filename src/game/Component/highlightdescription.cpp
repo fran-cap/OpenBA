@@ -62,8 +62,8 @@ HighlightDescription::HighlightDescription()
       _groups(nullptr),
       _groupCount(0),
       _groupCap(0),
-      _ref0(nullptr),
-      _ref1(nullptr) {}
+      _maskMaterial(nullptr),
+      _edgeMaterial(nullptr) {}
 
 // dtor (slot 0 0x140006fe0 minus the stamps): frees every group's ref array, then the group array.
 // The compiler then chains ~Description -> ~External.
@@ -110,8 +110,8 @@ bool HighlightDescription::Serialize(IO::Stream& stream) {
         }
         ::Object::SerializeExternalArray<Graphics::EdgeMesh>(ser, refCount, e->refs);   // 0x140007580 (0x14004ca7d)
     }
-    ::Object::SerializeExternal<Graphics::MaterialInstance>(ser, _ref0);
-    ::Object::SerializeExternal<Graphics::MaterialInstance>(ser, _ref1);
+    ::Object::SerializeExternal<Graphics::MaterialInstance>(ser, _maskMaterial);
+    ::Object::SerializeExternal<Graphics::MaterialInstance>(ser, _edgeMaterial);
     return true;
 }
 

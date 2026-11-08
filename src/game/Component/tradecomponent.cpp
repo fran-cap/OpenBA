@@ -362,8 +362,8 @@ void TradeComponent::OnAdded() {
     CitizenBehavior* worldMgr = GameUpdateLoop::_singleton->m_citizenList;
 
     // Add to the trading-post list at +0x30
-    int currentCount = worldMgr->field_0x30._size;
-    worldMgr->field_0x30
+    int currentCount = worldMgr->tradePosts._size;
+    worldMgr->tradePosts
         .SetSizeFill(currentCount + 1, &entityPtr);
 
     Setup();   // 0x14005c220
@@ -392,7 +392,7 @@ void TradeComponent::OnRemove() {
     CitizenBehavior* worldMgr = GameUpdateLoop::_singleton->m_citizenList;
 
     // Unregister the entity from the trading-post list at +0x30
-    worldMgr->field_0x30.Remove(entityPtr);   // 0x140002cc0
+    worldMgr->tradePosts.Remove(entityPtr);   // 0x140002cc0
 }
 // [13] 0x14005c140 / [14] 0x14005c000 — the work-enable pair; they go together (a
 // live query over a stub toggle reports a state nothing can change). Neither

@@ -97,14 +97,14 @@ void WeatherSimulation::DrawUpdate(Video::Context& context) {
     Graphics::SunLight* sun = GameUpdateLoop::_singleton->m_sunLight;   // +0x100
 
     // The four terrain weather floats, to +0x3B8 and to pixel constant 4 (+0x288).
-    context._unknown03b8.x = field_0x1C.x;
-    context._unknown03b8.y = field_0x1C.y;
-    context._unknown03b8.z = field_0x1C.z;
-    context._unknown03b8.w = field_0x1C.w;
-    context._pixelConstantStaging.pixel[4].x = field_0x1C.x;
-    context._pixelConstantStaging.pixel[4].y = field_0x1C.y;
-    context._pixelConstantStaging.pixel[4].z = field_0x1C.z;
-    context._pixelConstantStaging.pixel[4].w = field_0x1C.w;
+    context._userPosition.x = terrainWeatherParams.x;
+    context._userPosition.y = terrainWeatherParams.y;
+    context._userPosition.z = terrainWeatherParams.z;
+    context._userPosition.w = terrainWeatherParams.w;
+    context._pixelConstantStaging.pixel[4].x = terrainWeatherParams.x;
+    context._pixelConstantStaging.pixel[4].y = terrainWeatherParams.y;
+    context._pixelConstantStaging.pixel[4].z = terrainWeatherParams.z;
+    context._pixelConstantStaging.pixel[4].w = terrainWeatherParams.w;
     context._dirty |= RtVideo::kDirtyGlobalConstants | RtVideo::kDirtyPixelConstants;
 
     // The fog colour's fourth channel is the record's fog maximum.

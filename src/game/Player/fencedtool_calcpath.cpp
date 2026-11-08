@@ -79,7 +79,7 @@
 //   0x140004740 FindComponent<MultiObjectComponent>
 namespace {
 
-// The section templates are CreateFencedDescription::_refs (+0x28).
+// The section templates are CreateFencedDescription::_sections (+0x28).
 
 // Stamp cell rect + rotation onto a MapComponent (+0x28 shorts, +0x30 degrees
 // normalised into [0,360) by repeated +360 exactly like retail).
@@ -162,7 +162,7 @@ void SpawnFencePiece_dbc80(FencedTool* self, int sectionIdx, int x, int y,
     centre[1] = (a[1] + b[1]) * 0.5f;
     centre[2] = 0.0f;                       // retail zeroes z (0x1400dbdfa)
 
-    ComponentDescription* sectionTmpl = self->fencedDesc->_refs[sectionIdx];
+    ComponentDescription* sectionTmpl = self->fencedDesc->_sections[sectionIdx];
     if (!sectionTmpl) return;
 
     ComponentEntity* mem = static_cast<ComponentEntity*>(System::MemoryAllocator::MemAlloc(0x48, 8));
@@ -230,7 +230,7 @@ void EdgeRun_db8c0(FencedTool* self, int x0, int y0, int x1, int y1,
 
     // bVar4: TRUE when the shelter touches none of this run's cells.
     bool noShelterOnRun = true;
-    if (self->fencedDesc->_b68 != 0 && y0 <= y1) {
+    if (self->fencedDesc->_centerBuilding != 0 && y0 <= y1) {
         for (int yy = y0; yy <= y1; ++yy)
             for (int xx = x0; xx <= x1; ++xx)
                 if (shMinX <= xx && xx <= shMaxX && shMinY <= yy && yy <= shMaxY)
@@ -326,9 +326,9 @@ bool FencedTool::CalcPath(int startCell, int endCell) {
     //    tool+0x10 unconditionally; null-guarded here (SA: the placement dialog
     //    object may be absent in harness flows — treated as "not editing").
     PlayerToolManager* editObj = dialogPtr;
-    if (editObj && editObj->field_0x80 != 0) {
-        int sc = editObj->field_0x98;
-        int ec = editObj->field_0x9C;
+    if (editObj && editObj->tutorialRestricted != 0) {
+        int sc = editObj->tutorialStartCell;
+        int ec = editObj->tutorialEndCell;
         if (minCol != sc % W || minRow != sc / W || maxCol != ec % W || maxRow != ec / W) {
             return 0;
         }
@@ -355,13 +355,13 @@ bool FencedTool::CalcPath(int startCell, int endCell) {
     MultiObjectComponent* multi = master->FindComponent<MultiObjectComponent>();   // 0x140004740
 
     {
-        const ComponentDescription* clearTmpl = fencedDesc->_ref70;
+        const ComponentDescription* clearTmpl = fencedDesc->_allowAndRemove;
         DragPlacementTool_ClearPathEntities_1018d0(master, minCol, minRow,
                                                    maxCol, maxRow, clearTmpl);
     }
 
     // 5. Shelter entity from sections[0].
-    ComponentDescription* shelterTmpl = fencedDesc->_refs[0];
+    ComponentDescription* shelterTmpl = fencedDesc->_sections[0];
     ComponentEntity* smem = static_cast<ComponentEntity*>(System::MemoryAllocator::MemAlloc(0x48, 8));
     ComponentEntity* shelter = (smem && shelterTmpl) ? ::new (smem) ComponentEntity(shelterTmpl) : nullptr;
     if (shelter) {

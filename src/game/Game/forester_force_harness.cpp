@@ -184,10 +184,10 @@ extern "C" bool StartTown_ForcePushForesterWork(CitizenComponent* citizen) {
     if (!s_fw) {
         s_fw = static_cast<Work*>(ForesterWork::CreateNewObject());   // a ForesterWork
         if (!s_fw) return true;
-        new (&s_fw->field_10) ::Object::InternalBasePtr(
+        new (&s_fw->_entity) ::Object::InternalBasePtr(
             lodge);   // +0x10 work-area IBP; ComponentEntity is-an Object::Internal
         int cell = ForceWork::WorkAreaCenterCell(lodge);
-        if (cell >= 0) s_fw->field_28 = cell;   // +0x28 target cell
+        if (cell >= 0) s_fw->_cell = cell;   // +0x28 target cell
         fprintf(stderr, "[ForceForester] constructed ForesterWork=%p work+0x10=lodge "
                 "work+0x28(cell)=%d\n", s_fw, cell);
         fflush(stderr);

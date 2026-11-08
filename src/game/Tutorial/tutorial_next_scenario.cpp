@@ -171,7 +171,7 @@ void TutorialInstance::LoadNextScenario() {
 
     System::String saveNameStr("");
     // Scenario::GetSaveName (+0x88)
-    saveNameStr = ScenarioString(scenario->_field88);
+    saveNameStr = ScenarioString(scenario->saveGame);
 
     bool hasSaveState = (saveNameStr._data != nullptr && saveNameStr.GetLength() > 0);
 
@@ -195,9 +195,9 @@ void TutorialInstance::LoadNextScenario() {
         // positionally p9/p10/p11 -> loop +0x40/+0x48/+0x50, which
         // GameUpdateLoop::Load reads back in that order. Same mapping
         // ScenarioDialog::LoadSelected documents.
-        uint32_t seedVal        = static_cast<uint32_t>(scenario->_field60);
-        uint32_t terrainSizeVal = static_cast<uint32_t>(scenario->_field64);
-        bool     disasterOff    = scenario->_field68;
+        uint32_t seedVal        = static_cast<uint32_t>(scenario->randomSeed);
+        uint32_t terrainSizeVal = static_cast<uint32_t>(scenario->terrainSize);
+        bool     disasterOff    = scenario->disasters;
 
         void* gameLoop = System::MemoryAllocator::MemAlloc(0x160, 8);
         if (gameLoop) {

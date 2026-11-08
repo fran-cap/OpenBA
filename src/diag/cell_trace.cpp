@@ -42,7 +42,7 @@ void NoteCount(const Map* map, const MapCell* cell, uint8_t before, int delta, c
     ErrLine("[CellTrace] count %s cell=%d (%d,%d) %u%+d -> %u terrain=%u road=%02x blocker=%s\n",
             site, index, index % map->size, index / map->size, before, delta,
             static_cast<unsigned>(static_cast<uint8_t>(after)), static_cast<unsigned>(cell->terrainType),
-            cell->field_0x2A,
+            cell->roadType,
             EntityName(cell->blocker.Get()).c_str());
 }
 
@@ -52,7 +52,7 @@ void NoteResort(const Map* map, int cellIndex, uint8_t before, uint8_t after) {
     const MapCell* cell = &map->cells.GetData()[cellIndex];
     ErrLine("[CellTrace] resort cell=%d (%d,%d) terrain %u -> %u count=%u road=%02x\n",
             cellIndex, cellIndex % map->size, cellIndex / map->size, before, after,
-            cell->footprintCount, cell->field_0x2A);
+            cell->footprintCount, cell->roadType);
 }
 
 void DumpCells(const Map* map, const char* stage, int version) {
@@ -81,8 +81,8 @@ void DumpCells(const Map* map, const char* stage, int version) {
         query->GetTerrainPos(pos, inXY, '\x01', tri);
         std::fprintf(out, "%d %d %d %u %u %u %u %u %d %u %s %s %d %.4f %.4f\n",
                      i, i % size, i / size, cell.footprintCount, static_cast<unsigned>(cell.terrainType),
-                     cell.field_0x2A,
-                     cell.field_0x2B, cell.field_0x2C, cell.floorCount, cell.zone,
+                     cell.roadType,
+                     cell.roadAlpha, cell.soilQuality, cell.floorCount, cell.zone,
                      EntityName(cell.blocker.Get()).c_str(), EntityName(cell.occupant.Get()).c_str(),
                      query->ClassifyTerrain(i), pos[2], tri[2]);
     }

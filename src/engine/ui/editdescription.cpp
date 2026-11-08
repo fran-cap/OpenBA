@@ -98,13 +98,13 @@ bool EditDescription::Serialize(IO::Stream& streamv) {
     IO::Serializer ser(*stream, 0);  // ??0Serializer (0x1800b9960) inlined
     IO::ReaderWriter* rw = ser._readerWriter;
 
-    Object::SerializeExternal<UI::Font>(ser, _ptr68);       // 1800d1168
-    _string70.Serialize(ser);             // 1800d1176
+    Object::SerializeExternal<UI::Font>(ser, _font);       // 1800d1168
+    _initialText.Serialize(ser);             // 1800d1176
 
-    rw->SerializeInt(_word78, nullptr);                      // 1800d118a
-    rw->SerializeBool(_flag7c, nullptr);                     // 1800d119f
+    rw->SerializeInt(_maxLength, nullptr);                      // 1800d118a
+    rw->SerializeBool(_password, nullptr);                     // 1800d119f
 
-    _string80.Serialize(ser);             // 1800d11ae
+    _allowableCharacters.Serialize(ser);             // 1800d11ae
 
     // ~Serializer (0x1800b99b0) inlined here: rw's scalar deleting dtor                  // 1800d11c6
     return true;
@@ -135,11 +135,11 @@ Object::InternalPtr<Element>* EditDescription::CreateInstance(
     UI::ElementDescription::CreateInstance(                   // 1800d101a
         &slot);
 
-    elem->_font = _ptr68;                                    // 1800d1023 QWORD
-    AssignStringField(elem->_text._data, _string70._data);               // 1800d102a
-    elem->_maxLength = _word78;                              // 1800d107c DWORD
-    AssignStringField(elem->_filter._data, _string80._data);             // 1800d1082
-    elem->_password = _flag7c;                               // 1800d10d7 BYTE
+    elem->_font = _font;                                    // 1800d1023 QWORD
+    AssignStringField(elem->_text._data, _initialText._data);               // 1800d102a
+    elem->_maxLength = _maxLength;                              // 1800d107c DWORD
+    AssignStringField(elem->_filter._data, _allowableCharacters._data);             // 1800d1082
+    elem->_password = _password;                               // 1800d10d7 BYTE
 
     *ret = Object::InternalPtr<Element>(elem);                   // 1800d10e1
     return ret;

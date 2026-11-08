@@ -14,13 +14,13 @@
 // ============================================================
 bool Map::IsGroundClear(int x1, int y1, int w, int h) const {
     const MapCell* tiles = cells.GetData();
-    const AvlNode28* bstRoot = field_0xE8.root;
+    const AvlNode28* bstRoot = pendingRoadCells.root;
     for (int row = y1; row < y1 + h; ++row) {
         for (int col = x1; col < x1 + w; ++col) {
             int cell = size * row + col;
             const MapCell& t = tiles[static_cast<uintptr_t>(cell)];
             uint32_t f = Bits(PathBitOf(t.terrainType));   // +0x29
-            if ((f & Bits(PathBits::Fast)) || (f & Bits(PathBits::Faster)) || t.field_0x2A != MapCell::kNoRoadBatch)
+            if ((f & Bits(PathBits::Fast)) || (f & Bits(PathBits::Faster)) || t.roadType != MapCell::kNoRoadBatch)
                 return false;
             for (const AvlNode28* node = bstRoot; node;) {
                 int nk = node->key;

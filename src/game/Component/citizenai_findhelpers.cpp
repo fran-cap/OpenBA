@@ -226,11 +226,11 @@ ComponentEntity** CitizenBehavior::FindElderResidence(ComponentEntity** found, u
     Map* mapGrid = map;
     int best = 0x7fffffff;
     *found = nullptr;
-    if (field_0x20._size < 1) return found;
+    if (residences._size < 1) return found;
 
     int idx = 0;
     do {
-        ComponentEntity* cand = field_0x20._data[idx].Get();
+        ComponentEntity* cand = residences._data[idx].Get();
 
         // the inline FindComponent<InteractComponent> (cell 0x1401c7900), wrapped in an IBP
         InteractComponent* interact = cand->FindComponent<InteractComponent>();
@@ -243,7 +243,7 @@ ComponentEntity** CitizenBehavior::FindElderResidence(ComponentEntity** found, u
         if (cost < best) {
             uint64_t valid = mapGrid->ValidateCell(PathBits::Walk, param_3, static_cast<int>(cell));
             if (static_cast<char>(valid) != '\0') {
-                ComponentEntity* self_00 = field_0x20._data[idx].Get();
+                ComponentEntity* self_00 = residences._data[idx].Get();
                 // 0x140008090 (was its CitizenComp_Entity_FindComponent_Storage forwarder)
                 ResidenceComponent* storComp = self_00->FindComponent<ResidenceComponent>();
                 bool ok = storComp->CheckHeating();   // CheckPtr'd, no test
@@ -257,7 +257,7 @@ ComponentEntity** CitizenBehavior::FindElderResidence(ComponentEntity** found, u
             }
         }
         ++idx;
-    } while (idx < field_0x20._size);
+    } while (idx < residences._size);
     return found;
 }
 
@@ -311,10 +311,10 @@ ComponentEntity** CitizenBehavior::FindAdultTarget(ComponentEntity** found, uint
     }
 
     // -------- Phase B: market candidate list (param_1[2] / count param_1[3]) --------
-    if (0 < field_0x10._size) {
+    if (0 < marketLocations._size) {
         int i = 0;
         do {
-            ComponentEntity* cand = field_0x10._data[i].Get();
+            ComponentEntity* cand = marketLocations._data[i].Get();
             ComponentEntity* candIBP = cand;
             uint32_t cell = static_cast<uint32_t>(EntityAnchorCell(&candIBP, nullptr));
             int cost = CellCost(map, cell, param_3);
@@ -342,14 +342,14 @@ ComponentEntity** CitizenBehavior::FindAdultTarget(ComponentEntity** found, uint
                 }
             }
             ++i;
-        } while (i < field_0x10._size);
+        } while (i < marketLocations._size);
     }
 
     // -------- Phase C: raw-material / storage candidate list (param_1[0] / count param_1[1]) --------
-    if (0 < field_0x00._size) {
+    if (0 < storageLocations._size) {
         int i = 0;
         do {
-            ComponentEntity* cand = field_0x00._data[i].Get();
+            ComponentEntity* cand = storageLocations._data[i].Get();
             ComponentEntity* candIBP = cand;
             uint32_t cell = static_cast<uint32_t>(EntityAnchorCell(&candIBP, nullptr));
             int cost = CellCost(map, cell, param_3);
@@ -401,14 +401,14 @@ ComponentEntity** CitizenBehavior::FindAdultTarget(ComponentEntity** found, uint
                 }
             }
             ++i;
-        } while (i < field_0x00._size);
+        } while (i < storageLocations._size);
     }
 
     // -------- Phase D: residence candidate list (param_1[4] / count param_1[5]) --------
-    if (0 < field_0x20._size) {
+    if (0 < residences._size) {
         int i = 0;
         do {
-            ComponentEntity* cand = field_0x20._data[i].Get();
+            ComponentEntity* cand = residences._data[i].Get();
 
             // ResidenceComponent on the entity (comp-list1 at cand+0x30 / +0x38)
             ResidenceComponent* resComp = cand->FindComponent<ResidenceComponent>();
@@ -470,7 +470,7 @@ ComponentEntity** CitizenBehavior::FindAdultTarget(ComponentEntity** found, uint
                 }
             }
             ++i;
-        } while (i < field_0x20._size);
+        } while (i < residences._size);
     }
 
     return ret;

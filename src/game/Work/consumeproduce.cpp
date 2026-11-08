@@ -77,17 +77,17 @@
 //   0x1400bef70 SetupConsumeProduceWorkChain       WorkAct_ConsumeProduceCtor_bef70
 // Object::Internal ctor/dtor (IAT 0x140152768 / 0x140152770) and Work::Serialize
 // (0x1400f7400) are the real base classes. 0x1400032e0 / 0x1400021d0 are
-// the field_58 / field_68 members' SetSize.
+// the _slotCitizens / _spotStates members' SetSize.
 
 // ============================================================
 // Constructor (0x1400e9340)
 // Object::Internal::Internal() -> Work fields -> ConsumeProduce vtable + fields
 // ============================================================
-// The Work base init and the two stamps are the compiler's. field_48 (bool) and
-// field_4c/field_54 (ints) are NOT initialized by retail's ctor.
+// The Work base init and the two stamps are the compiler's. _outputBlocked (bool) and
+// _completedCycles/_notifyMessage (ints) are NOT initialized by retail's ctor.
 ConsumeProduce::ConsumeProduce()
     : Work(),
-      field_50(0) {        // Type; +0x58 / +0x68 are the two arrays' ctors
+      _notifyComponentType(0) {        // Type; +0x58 / +0x68 are the two arrays' ctors
 }
 
 // BaseDtor 0x1400e9190. The stamps (ConsumeProduce, then Work) and the `~Internal`
@@ -114,22 +114,22 @@ void ConsumeProduce::Persist(IO::Stream& stream) {
     // --- Serialize IBP array count (+0x60) ---
     // Use a local copy like the original does (original serializes into a stack local,
     // not directly into self->field_60). This avoids issues if ResizeIBPArray
-    // modifies field_58._size as a side-effect.
-    int ibpCount = field_58._size;
+    // modifies _slotCitizens._size as a side-effect.
+    int ibpCount = _slotCitizens._size;
     serializer.Serialize(ibpCount, nullptr);
 
     // If loading, resize the IBP array to match deserialized count.
     // 0x1400032e0 == Collection::Array<InternalPtr>::SetSize (kSpec_PtrZero).
     if (isLoading) {
-        field_58.SetSize(ibpCount);
+        _slotCitizens.SetSize(ibpCount);
     }
 
     // Serialize each InternalBasePtr in the array
-    Object::InternalPtr<CitizenComponent>* ibpArray = field_58._data;
+    Object::InternalPtr<CitizenComponent>* ibpArray = _slotCitizens._data;
 #ifdef _DEBUG
     if (ibpCount > 0 && ibpArray == nullptr) {
         printf("[ConsumeProduce::Serialize] BUG: ibpCount=%d but ibpArray=NULL! this=%p isLoading=%d field_58=%p field_58._size=%d\n",
-               ibpCount, (void*)this, (int)isLoading, (void*)field_58._data, field_58._size);
+               ibpCount, (void*)this, (int)isLoading, (void*)_slotCitizens._data, _slotCitizens._size);
     }
 #endif
     for (int i = 0; i < ibpCount; i++) {
@@ -162,7 +162,7 @@ void ConsumeProduce::Persist(IO::Stream& stream) {
     }
 
     // --- Serialize int array count (+0x70) ---
-    int intCount = field_68._size;
+    int intCount = _spotStates._size;
     serializer.Serialize(intCount, nullptr);
 
     // If loading, resize the int array.
@@ -171,18 +171,18 @@ void ConsumeProduce::Persist(IO::Stream& stream) {
     // left as the allocation found it, like retail. Safe: the resize runs only when
     // loading and the bulk int read below writes all intCount elements from the stream.
     if (isLoading) {
-        field_68.SetSize(intCount);
+        _spotStates.SetSize(intCount);
     }
 
     // Bulk-serialize the int array
     // Original: IO::Serializer::Serialize(serializer, count, intArrayPtr, name)
-    serializer.Serialize(intCount, field_68._data, nullptr);
+    serializer.Serialize(intCount, _spotStates._data, nullptr);
 
     // --- Serialize ConsumeProduce fields ---
-    serializer.Serialize(*reinterpret_cast<bool*>(&field_48), nullptr);   // LEFT: WORK:H8, byte_io candidate: retail 0x1400e911a / 0x1400e9126 hands &this+0x48 to slot 0x140152a58 = Serialize(bool&), the byte as retail's bool, which Execute compares raw; typed bool (tried, B11 -O2), Execute's `field_48 == 0` (cmpb $0x0 / jne) becomes cmpb $0x1 / je, which reads a loaded byte > 1 differently; the field stays uint8_t  // CAST-OK: byte_io (S4 ruling)
-    serializer.Serialize(field_4c, nullptr);    // int at +0x4C
-    RtObject::RtObject_Type_Serialize(&field_50, &serializer);            // Type at +0x50
-    serializer.Serialize(field_54, nullptr);    // int at +0x54
+    serializer.Serialize(*reinterpret_cast<bool*>(&_outputBlocked), nullptr);   // LEFT: WORK:H8, byte_io candidate: retail 0x1400e911a / 0x1400e9126 hands &this+0x48 to slot 0x140152a58 = Serialize(bool&), the byte as retail's bool, which Execute compares raw; typed bool (tried, B11 -O2), Execute's `_outputBlocked == 0` (cmpb $0x0 / jne) becomes cmpb $0x1 / je, which reads a loaded byte > 1 differently; the field stays uint8_t  // CAST-OK: byte_io (S4 ruling)
+    serializer.Serialize(_completedCycles, nullptr);    // int at +0x4C
+    RtObject::RtObject_Type_Serialize(&_notifyComponentType, &serializer);            // Type at +0x50
+    serializer.Serialize(_notifyMessage, nullptr);    // int at +0x54
 }
 
 // ============================================================
@@ -232,15 +232,15 @@ static int FinalizeAction(ConsumeProduce* self, CitizenComponent** citizenIBP, i
     Profession* actionPtr = *self->GetTarget(&targetBuf);
 
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citizen->field_0x30 = priority;
+    citizen->lastWorkId = priority;
     citizen->lastErrand = CitizenErrand::None;
 
     if (actionPtr == citizen->profession && priority >= 0) {
         citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 
-    // Store citizen entity ref at self->field_58[slotIndex]
-    self->field_58[slotIndex] = *citizenIBP;
+    // Store citizen entity ref at self->_slotCitizens[slotIndex]
+    self->_slotCitizens[slotIndex] = *citizenIBP;
     return 2;
 }
 
@@ -257,10 +257,10 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     CitizenBehavior* worldEntityList = gameWorld->m_citizenList;
 
     // --- Find InteractComponent on work entity ---
-    InteractComponent* posComp = field_10->FindComponent<InteractComponent>();
+    InteractComponent* posComp = _entity->FindComponent<InteractComponent>();
 
     // --- Find ConsumeProduceComponent (type 0x1401c7350) on work entity ---
-    ConsumeProduceComponent* smComp = field_10.Get()->FindComponent<ConsumeProduceComponent>();
+    ConsumeProduceComponent* smComp = _entity.Get()->FindComponent<ConsumeProduceComponent>();
 
     // --- Get ConsumeProduceDescription from the component's description (+0x18) ---
     Description* descBase = smComp->_description;
@@ -268,7 +268,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     ConsumeProduceDescription* cpDesc = isDerived ? static_cast<ConsumeProduceDescription*>(descBase) : nullptr;
 
     // --- Find StorageLocationComponent (for storage slot lookup) ---
-    StorageLocationComponent* storageLoc = field_10.Get()->FindComponent<StorageLocationComponent>();
+    StorageLocationComponent* storageLoc = _entity.Get()->FindComponent<StorageLocationComponent>();
 
     // --- Check resource depletion (bVar6) ---
     // Get active product index from ConsumeProduce component
@@ -310,13 +310,13 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     }
 
     // --- Find StatusIconComponent (type 0x1401c7e08) on work entity ---
-    StatusIconComponent* statusIcon = field_10->FindComponent<StatusIconComponent>();
+    StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
 
     // Set active state = 2, enabled = resourcesDepleted
     statusIcon->SetFlag(2, resourcesDepleted ? '\x01' : '\0');   // 0x14012c3f0
 
     // --- Find ConsumeProduceComponent (type 0x1401c7350) for produce check ---
-    ConsumeProduceComponent* smComp2 = field_10->FindComponent<ConsumeProduceComponent>();
+    ConsumeProduceComponent* smComp2 = _entity->FindComponent<ConsumeProduceComponent>();
 
     // Check produce threshold
     uint64_t canProduce = smComp2->CanProduce();
@@ -343,16 +343,16 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
         }
 
         // --- Pick random empty output slot ---
-        uint32_t startSlot = gameWorld->m_random->Rand((uint32_t)field_58._size);
-        int totalSlots = field_58._size;
+        uint32_t startSlot = gameWorld->m_random->Rand((uint32_t)_slotCitizens._size);
+        int totalSlots = _slotCitizens._size;
         uint32_t slot = startSlot;
 
         if (totalSlots < 1) {
             return 1;
         }
 
-        // Find an empty slot (field_58[slot] == 0)
-        Object::InternalPtr<CitizenComponent>* slotCitizens = field_58._data;
+        // Find an empty slot (_slotCitizens[slot] == 0)
+        Object::InternalPtr<CitizenComponent>* slotCitizens = _slotCitizens._data;
         int attempts = 0;
         while (slotCitizens[slot] != nullptr) {
             slot++;
@@ -370,7 +370,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
         }
 
         // --- Find StorageComponent on work entity ---
-        StorageComponent* storage = field_10->FindComponent<StorageComponent>();
+        StorageComponent* storage = _entity->FindComponent<StorageComponent>();
 
         // --- Setup loop vars for product iteration ---
         ConsumeProduceRecipe* recipe = &recipes[activeProductIdx];   // the active recipe (0x28 stride)
@@ -477,19 +477,19 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                 float searchPos[3] = { 0.0f, 0.0f, 0.0f };
 
                 // Get entity ref for pathfinding
-                ComponentEntity* entityRef = field_10.Get();
+                ComponentEntity* entityRef = _entity.Get();
 
                 // 0x1400e7eec: the drop target into [RBP-0x60]; 0x1400e7ef1 MOV RDI,[RBP-0x60]
                 // keeps it in RDI for the setup at 0x1400e837c.
                 ComponentEntity* foundEntity = nullptr;
                 worldEntityList->PickBestDropTarget(&foundEntity,
-                    (uint32_t)field_28, matEntity,
-                    available, '\x01', searchPos, &field_10);   // 0x14008d590
+                    (uint32_t)_cell, matEntity,
+                    available, '\x01', searchPos, &_entity);   // 0x14008d590
 
                 if (foundEntity != nullptr) {
                     // Check passability
                     uint64_t passable = map->ValidateCell(PathBits::Walk, (uint32_t)citizenCell,
-                                                             (uint32_t)field_28);
+                                                             (uint32_t)_cell);
                     if ((char)passable == '\0') {
                         return 1;
                     }
@@ -536,11 +536,11 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                         ::Object::InternalPtr<Action> pickup;
                         WorkAct_GatherRawMatCtor_bf790(
                             &pickup, &destEntityRef,
-                            field_20, &destEntity,
+                            _workId, &destEntity,
                             searchPos, &entityRef, terrainPos,
                             matEntity, available, slot, 0, '\x01', 0, 0);
 
-                        int priority = field_20;
+                        int priority = _workId;
                         return FinalizeAction(this, citizenIBP, priority, slot);
                     }
                 }
@@ -595,7 +595,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                 ComponentEntity* foundStorage = nullptr;
                 worldEntityList->PickBestDropTarget(&foundStorage,
                     mapSize * by + bx, matEntity2, 1, '\0', searchPos2,
-                    &field_10);   // 0x14008d590
+                    &_entity);   // 0x14008d590
 
                 if (foundStorage != nullptr) {
                     // Found storage -- check if it has the material available
@@ -644,7 +644,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                                         Vector3Slot fetchPos;
                                         posComp->NodePosition(&fetchPos.v, 0, slot, nullptr);   // 0x140122e20
 
-                                        ComponentEntity* pathSrc = field_10.Get();
+                                        ComponentEntity* pathSrc = _entity.Get();
 
                                         // arg2 is the CITIZEN entity IBP, not the world entity
                                         // list. FindPath immediately does *(*arg2 + 0x278) to
@@ -661,11 +661,11 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
                                         ::Object::InternalPtr<Action> pickup;
                                         WorkAct_GatherRawMatCtor_bf790(
                                             &pickup, &pathCitizen,
-                                            field_20, &pathSrc,
+                                            _workId, &pathSrc,
                                             &fetchPos.v.x, &fetchDest, searchPos2,
                                             matEntity2, fetchCount, slot, 1, '\0', 0, 0);   // retail -1 (0x1400e8785)
 
-                                        int priority2 = field_20;
+                                        int priority2 = _workId;
                                         return FinalizeAction(this, citizenIBP, priority2, slot);
                                     }
                                 }
@@ -680,12 +680,12 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
         // --- Third pass: check assigned positions for validity ---
         // Retail 0x1400e7840 bounds BOTH position loops below by *(int*)(self+0x70) — the
         // status INT ARRAY's own count (param_1[0xe]) — not by the citizen-slot count at
-        // +0x60 (param_1[0xc]). The port used field_58._size: a workplace with more worker slots
+        // +0x60 (param_1[0xc]). The port used _slotCitizens._size: a workplace with more worker slots
         // than produce positions (e.g. 20 vs 18) then read and WROTE statusArray[18..19],
         // which is the next heap block's boundary tag (+1 then +2 in its high dword, the
         // "free-list link with wrong high bits" teardown crash in the 800x10 stress run,
         // caught 2026-09-04 by a hardware watchpoint: Execute wrote 1, OnComplete wrote 2).
-        int totalPositions = (int)field_68._size;  // number of output positions (= int array count)
+        int totalPositions = (int)_spotStates._size;  // number of output positions (= int array count)
         uint32_t firstFreePos = 0xffffffff;
         int firstFreeIndex = -1;
         uint32_t freeCount = 0;
@@ -705,7 +705,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
             int posCell = py * mapSize + px;
 
             // Check if position is NeedsReset but has no structure (the cell's occupant, +0x08)
-            int* statusArray = field_68._data;
+            int* statusArray = _spotStates._data;
             MapCell* structBase = map->cells.GetData();
             if (static_cast<WorkSpotState>(statusArray[posIdx]) == WorkSpotState::NeedsReset &&
                 structBase[posCell].occupant == nullptr) {
@@ -723,13 +723,13 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 
         // If all positions are free, mark as not producing
         if (freeCount == (uint32_t)totalPositions) {
-            field_48 = 0;
+            _outputBlocked = 0;
         }
 
         // If no free position found, mark as producing
         if ((int)firstFreePos < 0) {
-            field_48 = 1;
-        } else if (field_48 == 0 && allInputsAvailable) {
+            _outputBlocked = 1;
+        } else if (_outputBlocked == 0 && allInputsAvailable) {
             goto setup_produce_action;
         }
 
@@ -752,7 +752,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
             ComponentEntity* structEntity = structBase2[checkCell].occupant.Get();   // +0x08
 
             if (structEntity != nullptr) {
-                if (structEntity != field_10.Get()) {
+                if (structEntity != _entity.Get()) {
                     // Found a different entity at this position -- its WorkComponent
                     WorkComponent* locComp = structEntity->FindComponent<WorkComponent>();
 
@@ -774,7 +774,7 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     setup_produce_action:
         // --- Set up produce action ---
         // Find StatusIconComponent again and toggle state 3
-        StatusIconComponent* statusIcon2 = field_10->FindComponent<StatusIconComponent>();
+        StatusIconComponent* statusIcon2 = _entity->FindComponent<StatusIconComponent>();
         statusIcon2->SetFlag(3, !allInputsAvailable ? '\x01' : '\0');   // 0x14012c3f0
 
         if (allInputsAvailable) {
@@ -813,42 +813,42 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 
                 // Check if enough consume cycles have passed
                 char canFinish = '\0';
-                if (cpDesc->_i40 <= field_4c) {
+                if (cpDesc->_workRequired <= _completedCycles) {
                     canFinish = '\x01';
-                    field_4c -= cpDesc->_i40;
+                    _completedCycles -= cpDesc->_workRequired;
 
                     // Increment produce counter on ConsumeProduceComponent
-                    ConsumeProduceComponent* smComp3 = field_10->FindComponent<ConsumeProduceComponent>();
+                    ConsumeProduceComponent* smComp3 = _entity->FindComponent<ConsumeProduceComponent>();
                     smComp3->consumeState += 1;
                 }
 
                 // Create work action chain
                 CitizenComponent* citizenRef4 = *citizenIBP;
-                ComponentEntity* workEntityRef = field_10.Get();
-                // The tree's read of the qword at +0x50, truncated to int: field_50
-                int actionPriority = field_50;
+                ComponentEntity* workEntityRef = _entity.Get();
+                // The tree's read of the qword at +0x50, truncated to int: _notifyComponentType
+                int actionPriority = _notifyComponentType;
 
                 WorkAct_ConsumeProduceCtor_bef70(
                     &citizenRef4,
-                    field_20,
+                    _workId,
                     &workEntityRef,
                     &producePos.v.x,
                     produceHeading[0],
-                    field_10->_description,
+                    _entity->_description,
                     recipe->product,   // +0x10
                     (uint32_t)canFinish,
                     &actionPriority,
-                    (uint32_t)field_54,
+                    (uint32_t)_notifyMessage,
                     firstFreeIndex,
-                    cpDesc->_f44,
+                    cpDesc->_workTime,
                     (canFinish ? 0x8000 : 0) | ((firstFreePos | 0x100) << 8) | slot);
 
                 // Update status array for the position
                 if (canFinish != '\0') {
-                    field_68[(int)firstFreePos] = static_cast<int32_t>(WorkSpotState::InUse);
+                    _spotStates[(int)firstFreePos] = static_cast<int32_t>(WorkSpotState::InUse);
                 }
 
-                int priority3 = field_20;
+                int priority3 = _workId;
                 return FinalizeAction(this, citizenIBP, priority3, slot);
             }
         }
@@ -899,29 +899,29 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
 // OnComplete (0x1400e77c0) -- vtable slot 6
 // Stores null IBP into the assigned citizen slot, updates state tracking.
 // param4 encodes: bits [6:0] = slot index, bit 15 = update int array,
-//   bits [14:8] = int array index, bit 16 = increment field_4c
+//   bits [14:8] = int array index, bit 16 = increment _completedCycles
 // ============================================================
 int ConsumeProduce::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** /*param3*/, int arg3) {
     const uint32_t param4 = static_cast<uint32_t>(arg3);
     // Clear the citizen assignment: store null IBP into slot
     uint32_t slotIdx = param4 & 0x7F;
-    field_58[slotIdx] = nullptr;   // the InternalBasePtr ctor with null
+    _slotCitizens[slotIdx] = nullptr;   // the InternalBasePtr ctor with null
 
     // If bit 15 set, mark the int array slot as state 2 (NeedsReset, completed)
     if ((param4 >> 15) & 1) {
-        int* intArray = field_68._data;
+        int* intArray = _spotStates._data;
         uint32_t intIdx = (param4 >> 8) & 0x7F;
         // TEARDOWN_WILD_WRITE.md: retail (0x1400e77c0) stores this 2 unbounded, and a
         // 4-mod-8 store of a 2 past a small int array is exactly the teardown damage.
         // Report an index past the array's own count BEFORE the faithful store below,
         // with everything needed to say how the index and the array came apart.
-        if ((int)intIdx >= field_68._size || slotIdx >= (uint32_t)field_58._size) {
+        if ((int)intIdx >= _spotStates._size || slotIdx >= (uint32_t)_slotCitizens._size) {
             std::fprintf(stderr,
                 "[WILDWRITE] ConsumeProduce::OnComplete OUT OF RANGE: work=%p entity=%p "
                 "workId=%d param4=0x%x -> posIdx=%u (count %d, cap %d, array %p) "
                 "slotIdx=%u (count %d)\n",
-                (void*)this, field_10.Get(), field_20, param4, intIdx,
-                field_68._size, field_68._capacity, (void*)intArray, slotIdx, field_58._size);
+                (void*)this, _entity.Get(), _workId, param4, intIdx,
+                _spotStates._size, _spotStates._capacity, (void*)intArray, slotIdx, _slotCitizens._size);
             RedzoneAlloc_PrintBacktrace("ConsumeProduce::OnComplete");
         }
         intArray[intIdx] = static_cast<int32_t>(WorkSpotState::NeedsReset);
@@ -929,7 +929,7 @@ int ConsumeProduce::OnComplete(CitizenComponent** /*param2*/, ComponentEntity** 
 
     // If bit 16 set, increment the produce counter
     if (param4 & 0x10000) {
-        field_4c += 1;
+        _completedCycles += 1;
     }
 
     return 0;
@@ -955,10 +955,10 @@ int ConsumeProduce::OnCancel(CitizenComponent** param2, ComponentEntity** param3
 // Iterates assigned citizens in the IBP array, clears their task state.
 // ============================================================
 int ConsumeProduce::Cleanup() {
-    int count = field_58._size;
+    int count = _slotCitizens._size;
     if (count <= 0) return 0;
 
-    Object::InternalPtr<CitizenComponent>* ibpArray = field_58._data;
+    Object::InternalPtr<CitizenComponent>* ibpArray = _slotCitizens._data;
 
     for (int i = 0; i < count; i++) {
         if (ibpArray[i] == nullptr) continue;
@@ -978,13 +978,13 @@ int ConsumeProduce::Cleanup() {
 // Returns: 1 = all valid, 0 = some invalid (with cleanup).
 // ============================================================
 int ConsumeProduce::Validate() {
-    int count = field_58._size;
+    int count = _slotCitizens._size;
     if (count <= 0) {
         // No assigned citizens -- return valid
         return 1;
     }
 
-    Object::InternalPtr<CitizenComponent>* ibpArray = field_58._data;
+    Object::InternalPtr<CitizenComponent>* ibpArray = _slotCitizens._data;
     bool allValid = true;
     int validCount = 0;
     int* tempTypes = nullptr;  // dynamic array of type IDs per valid citizen
@@ -1043,8 +1043,8 @@ int ConsumeProduce::Validate() {
 
     // If some citizens were invalidated, update the int array state
     if (!allValid) {
-        int* intArray = field_68._data;
-        int intCount = field_68._size;
+        int* intArray = _spotStates._data;
+        int intCount = _spotStates._size;
         for (int k = 0; k < intCount; k++) {
             // Check if this slot's type is still present in valid citizens
             bool found = false;
@@ -1076,7 +1076,7 @@ Profession** ConsumeProduce::GetTarget(Profession** retbuf) {
     // CheckPtr on the entity IBP at +0x10
 
     // Find the WorkPlaceComponent (type 0x1401c80e0) on the entity
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
 
     // CheckPtr on the found component
 
@@ -1090,7 +1090,7 @@ Profession** ConsumeProduce::GetTarget(Profession** retbuf) {
 // body ClearStorage also uses: tree count at +0x60, not the +0x50 the generic
 // Work_Slot11_HasActiveTasks reads). Was pinned to 0 by Work_SlotRet0 (2026-09-05).
 int ConsumeProduce::GetPriority() {
-    return field_58._size > 0 ? 1 : 0;
+    return _slotCitizens._size > 0 ? 1 : 0;
 }
 
 // Slot12 (+0x60) — retail 0x1400e9010, this class's own `RET 0` (every other Work

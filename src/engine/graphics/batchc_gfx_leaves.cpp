@@ -224,8 +224,8 @@ void ReleaseString(char** slot) {
 // ############################################################################
 //
 //   this->vtable = ??_7ParticleSystemInstance@
-//   if (this->_resource->[0x20] == 0 && this->_f_d8)    // UNGUARDED deref
-//       { ArrayDtor(_f_d8); operator delete(_f_d8); }
+//   if (this->_resource->[0x20] == 0 && this->_emitter)    // UNGUARDED deref
+//       { ArrayDtor(_emitter); operator delete(_emitter); }
 //   this->vtable = ??_7ParticleInstance@
 //   ParticleInstance::RemoveState(this)
 //   tail ~Geometry(this)
@@ -242,7 +242,7 @@ void ReleaseString(char** slot) {
 // (~ParticleInstance) and the ~Geometry tail are the compiler's chain.
 Graphics::ParticleSystemInstance::~ParticleSystemInstance() {
     if (_resource->_active == 0) {                      // +0x20, UNGUARDED, as retail
-        RtGraphics::ParticleEmitter* const owned = _f_d8;
+        RtGraphics::ParticleEmitter* const owned = _emitter;
         if (owned != nullptr) {
             // 0x180021490: ~Array<T> for a trivially destructible T — frees
             // [0] and zeroes [0]/[8]. 0x180020600: the matching class
@@ -596,12 +596,12 @@ void GraphicsMesh::PlatformSerialize(IO::Serializer& serializer) {
                 // this arm (0x1800a4b90..0x1800a4c0e, stride 0x18).
                 TriangleList* e = triData;
                 for (int32_t j = 0; j < n; ++j, ++e) {
-                    rw->SerializeInt(e->_f00, nullptr);
-                    rw->SerializeInt(e->_f04, nullptr);
-                    rw->SerializeInt(e->_f08, nullptr);
-                    rw->SerializeInt(e->_f0c, nullptr);
-                    rw->SerializeInt(e->_f10, nullptr);
-                    rw->SerializeInt(e->_f14, nullptr);
+                    rw->SerializeInt(e->_baseVertex, nullptr);
+                    rw->SerializeInt(e->_vertexCount, nullptr);
+                    rw->SerializeInt(e->_startIndex, nullptr);
+                    rw->SerializeInt(e->_indexCount, nullptr);
+                    rw->SerializeInt(e->_materialIndex, nullptr);
+                    rw->SerializeInt(e->_node, nullptr);
                 }
             }
 
@@ -761,11 +761,11 @@ void Renderer::DrawItemList(Video::Context& context, int groupIndex, int listInd
             }
             item._instance->Setup(context, shaderIndex);
 
-            if (item._arg8 > 1) {
+            if (item._maxInstances > 1) {
                 // ---- the instancing batch ---------------------------------
                 // Geometry slot 7 `SetSharedInstanceData`, by name (B3X W0).
                 int32_t slotIndex = item._geometry->SetSharedInstanceData(
-                    context, item._arg5, _alphaT);
+                    context, item._node, _alphaT);
                 const int32_t base = emitted - slotIndex;
 
                 batchCount = 0;
@@ -780,19 +780,19 @@ void Renderer::DrawItemList(Video::Context& context, int groupIndex, int listInd
                     // XFORMMEMO (NOT RETAIL, graphics/xform_memo.h): the same matrix,
                     // computed once per (instance, list, t) per Renderer::Draw.
                     const Math::Matrix* const m = XformMemo::kEnabled
-                        ? XformMemo::Transform(*cur._geometry, cur._arg5, _alphaT, &view)
-                        : cur._geometry->GetInstanceTransform(&view, cur._arg5, _alphaT);
+                        ? XformMemo::Transform(*cur._geometry, cur._node, _alphaT, &view)
+                        : cur._geometry->GetInstanceTransform(&view, cur._node, _alphaT);
                     context.SetTransform(slotIndex, *m);
 
                     ++slotIndex;
                     if (base + slotIndex >= count) break;
-                    if (batchCount >= item._arg8) break;
+                    if (batchCount >= item._maxInstances) break;
 
                     const RendererDrawItem& nxt = items._data[itemIndex];
                     if (nxt._instance != item._instance) break;
-                    if (nxt._arg5 != item._arg5) break;
+                    if (nxt._node != item._node) break;
                     if (nxt._userData != item._userData) break;
-                    if (nxt._arg10 != item._arg10) break;
+                    if (nxt._animationInstanceId != item._animationInstanceId) break;
                 }
                 // ESI and R15 are the SAME count in retail (both bumped once
                 // per consumed item at 0x1801055c4/0x1801055c6), and both are
@@ -813,7 +813,7 @@ void Renderer::DrawItemList(Video::Context& context, int groupIndex, int listInd
                 group._cullCamera,
                 ExternalPtrHandle{ const_cast<MaterialInstance*>(item._instance) },  // LEFT: FLOOR? (const_api proposed) retail drops this const itself: ?AddDrawItem@Renderer 0x1801057b0 takes and stores `const MaterialInstance*` (PEBV), and Geometry slot 2 Draw takes ExternalPtr<MaterialInstance> by value (non-const) -- no typing on either side removes it  // CAST-OK: const_api (S4 ruling)
                 _alphaT,
-                static_cast<int32_t>(item._arg5),
+                static_cast<int32_t>(item._node),
                 shaderIndex,
                 batchCount);
             ++drawn;
@@ -851,7 +851,7 @@ void Renderer::DrawItemList(Video::Context& context, int groupIndex, int listInd
 //               if (shader == 0 && item->instance->hasRenderTexture)
 //                   GenerateTextures(item->instance, ctx, this->contextSerial)
 //               MaterialInstance::Setup(item->instance, ctx, shader)
-//               if (item->arg8 > 1) { ...the instancing batch, below... }
+//               if (item->_maxInstances > 1) { ...the instancing batch, below... }
 //               item->geometry->vt[2](geometry, ctx, &group->cullCamera,
 //                                     item->instance, this->frameAlpha,
 //                                     item->arg5, shader, batchCount)
@@ -865,12 +865,12 @@ void Renderer::DrawItemList(Video::Context& context, int groupIndex, int listInd
 // VideoProgram with a null +0x20, a null-or-empty +0x28, or a null-or-empty
 // +0x30. On every one of them `step` stays 1 and nothing is drawn.
 //
-// THE INSTANCING BATCH (`item->arg8 > 1`) is the part no decompile shows
+// THE INSTANCING BATCH (`item->_maxInstances > 1`) is the part no decompile shows
 // honestly. It calls the geometry's slot 7 to reserve N instance transform
 // slots, then walks forward over CONSECUTIVE items that agree on all four of
 // (instance, arg5, userData, arg10), asking each one's slot 6 for a Matrix and
 // pushing it with Context::SetTransform. It stops on the first mismatch, on
-// `item->arg8` items, or when the running index would pass the list's size.
+// `item->_maxInstances` items, or when the running index would pass the list's size.
 // `step` is then the number of items consumed, so the outer loop skips the
 // whole batch and the single Draw below carries them all.
 //

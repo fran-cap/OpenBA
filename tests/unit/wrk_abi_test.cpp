@@ -148,9 +148,9 @@ UNIT_TEST(wrk_leaf_clearstorage) {
 
 UNIT_TEST(wrk_leaf_consumeproduce) {
     WRK_LEAF_SHAPE(ConsumeProduce, Work, 0x78);
-    CHECK_EQ(offsetof(ConsumeProduce, field_58) + offsetof(ConsumeProduce::CitizenRefList, _size), (size_t)0x60);
-    CHECK_EQ(offsetof(ConsumeProduce, field_68) + offsetof(Collection::Array<int32_t>, _size), (size_t)0x70);
-    CHECK_EQ(offsetof(ConsumeProduce, field_68) + offsetof(Collection::Array<int32_t>, _capacity), (size_t)0x74);
+    CHECK_EQ(offsetof(ConsumeProduce, _slotCitizens) + offsetof(ConsumeProduce::CitizenRefList, _size), (size_t)0x60);
+    CHECK_EQ(offsetof(ConsumeProduce, _spotStates) + offsetof(Collection::Array<int32_t>, _size), (size_t)0x70);
+    CHECK_EQ(offsetof(ConsumeProduce, _spotStates) + offsetof(Collection::Array<int32_t>, _capacity), (size_t)0x74);
 }
 
 UNIT_TEST(wrk_leaf_firework) {
@@ -181,13 +181,13 @@ UNIT_TEST(wrk_leaf_gatherrawmaterials) {
 UNIT_TEST(wrk_leaf_harvestarea) {
     WRK_LEAF_SHAPE(HarvestArea, AutoPickupWork, 0x68);
     CHECK_EQ(offsetof(HarvestArea, _cells) + offsetof(HarvestArea::CellSet, _count), (size_t)0x50);
-    CHECK_EQ(offsetof(HarvestArea, _field58) + offsetof(HarvestArea::SlotFlags, _size), (size_t)0x60);
+    CHECK_EQ(offsetof(HarvestArea, _slotsAvailable) + offsetof(HarvestArea::SlotFlags, _size), (size_t)0x60);
 }
 
 UNIT_TEST(wrk_leaf_harvestorchard) {
     WRK_LEAF_SHAPE(HarvestOrchard, AutoPickupWork, 0x68);
     CHECK_EQ(offsetof(HarvestOrchard, _cells) + offsetof(HarvestOrchard::CellSet, _count), (size_t)0x50);
-    CHECK_EQ(offsetof(HarvestOrchard, _field58) + offsetof(HarvestOrchard::SlotFlags, _size), (size_t)0x60);
+    CHECK_EQ(offsetof(HarvestOrchard, _slotsAvailable) + offsetof(HarvestOrchard::SlotFlags, _size), (size_t)0x60);
 }
 
 UNIT_TEST(wrk_leaf_herbalistwork) {
@@ -206,7 +206,7 @@ UNIT_TEST(wrk_leaf_locationwork) {
 
 UNIT_TEST(wrk_leaf_marketwork) {
     WRK_LEAF_SHAPE(MarketWork, Work, 0x58);
-    CHECK_EQ(offsetof(MarketWork, _field48.count), (size_t)0x50);
+    CHECK_EQ(offsetof(MarketWork, _claims.count), (size_t)0x50);
 }
 
 UNIT_TEST(wrk_leaf_pasturework) {
@@ -221,14 +221,14 @@ UNIT_TEST(wrk_leaf_pickup) {
 UNIT_TEST(wrk_leaf_plantarea) {
     WRK_LEAF_SHAPE(PlantArea, Work, 0x70);
     CHECK_EQ(offsetof(PlantArea, _cells) + offsetof(PlantArea::CellSet, _count), (size_t)0x50);
-    CHECK_EQ(offsetof(PlantArea, field_58) + offsetof(PlantArea::SlotFlags, _size), (size_t)0x60);
+    CHECK_EQ(offsetof(PlantArea, _unplantedCells) + offsetof(PlantArea::SlotFlags, _size), (size_t)0x60);
 }
 
 UNIT_TEST(wrk_leaf_plantorchard) {
     WRK_LEAF_SHAPE(PlantOrchard, Work, 0x70);
     CHECK_EQ(offsetof(PlantOrchard, _cells) + offsetof(PlantOrchard::CellSet, _count), (size_t)0x50);
-    CHECK_EQ(offsetof(PlantOrchard, field_58) + offsetof(PlantOrchard::SlotFlags, _size), (size_t)0x60);
-    CHECK_EQ(offsetof(PlantOrchard, field_58) + offsetof(PlantOrchard::SlotFlags, _capacity), (size_t)0x64);
+    CHECK_EQ(offsetof(PlantOrchard, _claimedSlots) + offsetof(PlantOrchard::SlotFlags, _size), (size_t)0x60);
+    CHECK_EQ(offsetof(PlantOrchard, _claimedSlots) + offsetof(PlantOrchard::SlotFlags, _capacity), (size_t)0x64);
 }
 
 UNIT_TEST(wrk_leaf_tendarea) {

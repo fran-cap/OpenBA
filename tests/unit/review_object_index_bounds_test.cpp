@@ -232,7 +232,7 @@ UNIT_TEST(review_bounds_f025_model_mesh_group_and_index_past_the_description) {
     Graphics::GraphicsMesh* const meshB = reinterpret_cast<Graphics::GraphicsMesh*>(uintptr_t{0x2000});
     Graphics::GraphicsMesh* meshes[2] = {meshA, meshB};
     ModelMeshGroup groups[2];
-    groups[0].field_0x00   = nullptr;
+    groups[0].animations   = nullptr;
     groups[0].meshes       = meshes;
     groups[0].meshCount    = 1;
     groups[0].meshCapacity = 2;

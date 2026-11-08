@@ -52,7 +52,7 @@ inline uint32_t TerrainBit(const MapCell* cell) {
 // The pending/queued-cell BST at Map +0xE8 (AvlNode28: key +0x00, left +0x10,
 // right +0x18). Returns true if cellIdx is present, which makes the cell unavailable.
 bool PendingContains(const Map* mapGrid, int cellIdx) {
-    const AvlNode28* node = mapGrid->field_0xE8.root;
+    const AvlNode28* node = mapGrid->pendingRoadCells.root;
     while (node != nullptr) {
         if (cellIdx < node->key) {
             node = node->left;
@@ -122,11 +122,11 @@ uint32_t BridgeTool::ValidatePath(int startCell, int endCell, int* outLength) co
     const MapCell* terrainBase = mapGrid->cells.GetData();
 
     const CreateBridgeDescription* desc = bridgeDesc;
-    const uint32_t maskBody     = desc->_u20;
-    const uint32_t maskApproach = desc->_u24;
-    const uint32_t maskRequired = desc->_u2c;
-    const uint32_t maskNeighbor = desc->_u30;
-    const int      radius       = desc->_i34;
+    const uint32_t maskBody     = desc->_placeBits;
+    const uint32_t maskApproach = desc->_invalidBits;
+    const uint32_t maskRequired = desc->_requiredBits;
+    const uint32_t maskNeighbor = desc->_edgeBits;
+    const int      radius       = desc->_edgeWidth;
 
     // Normalise the span to [minRow..maxRow] x [minCol..maxCol].
     int startRow = startCell / width, startCol = startCell % width;
@@ -241,7 +241,7 @@ uint32_t BridgeTool::ValidatePath(int startCell, int endCell, int* outLength) co
                 const bool free = (cell->blocker == nullptr)
                                && ((bit & Bits(PathBits::Fast)) == 0)
                                && ((bit & Bits(PathBits::Faster)) == 0)
-                               && (cell->field_0x2A == MapCell::kNoRoadBatch);
+                               && (cell->roadType == MapCell::kNoRoadBatch);
                 if (!free || PendingContains(mapGrid, idx))
                     result = 0;
             }

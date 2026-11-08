@@ -207,7 +207,7 @@ namespace {
 // both callers here pass IID_IDXGIFactory1 and nothing else, so the resolved
 // pointer is typed as what it returns into: `IDXGIFactory1**`. The pointer is
 // already the product of the cast below; typing it means the
-// two call sites write straight into their IDXGIFactory1* (DeviceData::unk10 /
+// two call sites write straight into their IDXGIFactory1* (DeviceData::dxgiFactory /
 // the walk's local) with no `void**` cast of their own (the `com_iid` floor
 // ceiling is full).
 // ============================================================
@@ -274,7 +274,7 @@ const GUID kIID_IDXGIFactory1 =
 //   Device+0x100       deviceData              the active Video::DeviceData*.
 //   Configuration+0x1c/+0x20 windowWidth/Height  -1 = skip the override
 //   Configuration+0x24 multisample, +0x40 fullscreen,
-//   Configuration+0x42 field42                 not persisted; suppresses the ShowWindow
+//   Configuration+0x42 hideWindow              not persisted; suppresses the ShowWindow
 // ============================================================
 
 // Device.h keeps the HWND as `void*` (that header is <windows.h>-free); this is
@@ -1006,7 +1006,7 @@ int DeviceData_OnSetCursor(void* /*hwnd*/, uint32_t /*msg*/,
 // ============================================================
 DeviceData::DeviceData(::Video::Device* owner)
     : ::Video::DeviceData(owner),
-      unk10(nullptr), swapChain(nullptr), d3dDevice(nullptr), d3dContext(nullptr),
+      dxgiFactory(nullptr), swapChain(nullptr), d3dDevice(nullptr), d3dContext(nullptr),
       depthBuffer(nullptr), colorBuffer(nullptr),
       wasFullscreen(0),                 // byte only — pad41 untouched, as shipped
       cursor(nullptr), cursorImage(nullptr),
@@ -1185,11 +1185,11 @@ bool DeviceData::CreateDevice() {
     ::Video::Device* dev = _owner;
     StallDebug::Mark("  DX11 CreateDevice: entry");
 
-    if (createFactory(kIID_IDXGIFactory1, &unk10) != 0) {
+    if (createFactory(kIID_IDXGIFactory1, &dxgiFactory) != 0) {
         System::Error::SetText("VideoDX11: Couldn't create a dxgi factory!", false);
         return false;
     }
-    IDXGIFactory1* factory = unk10;
+    IDXGIFactory1* factory = dxgiFactory;
 
     IDXGIAdapter1* adapter = nullptr;
     if (factory->EnumAdapters1(static_cast<UINT>(dev->dxgiAdapterIndex),
@@ -1236,7 +1236,7 @@ bool DeviceData::CreateDevice() {
     // 6 — SW_SHOWDEFAULT (10) honours the STARTUPINFO the process was launched
     // with, so the resulting show-state is a property of the launcher, not of
     // this code. See the Task B note in the lane report.
-    if (cfg->field42 == 0) {
+    if (cfg->hideWindow == 0) {
         Platform::Window::ShowDefault(dev->windowHandle);
         // From here the engine window is ON SCREEN. Everything between this
         // point and the first splash Present is a visible, unpainted window,

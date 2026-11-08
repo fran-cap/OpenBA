@@ -253,7 +253,7 @@ int WorldGeometry::AddDecal(int param_2, int param_3, int param_4,
     }
 haveSlot:
     (void)grew;
-    iVar2 = (_gridSize - _fieldC4) >> 1;
+    iVar2 = (_gridSize - _mapSize) >> 1;
     GeometryBatch* entry = &decals._data[iVar3];
     entry->material = material;
     entry->slot = iVar3;
@@ -261,16 +261,16 @@ haveSlot:
     entry->minY = iVar2 + param_3;
     entry->maxX = iVar2 + param_4;
     entry->maxY = param_5 + iVar2;
-    entry->field_0x3C = param_6;
-    entry->field_0x40 = static_cast<int32_t>(param_7);
-    entry->field_0x44 = param_9;   // the bool parameter's byte, stored as is
+    entry->alpha = param_6;
+    entry->rotation = static_cast<int32_t>(param_7);
+    entry->tiled = param_9;   // the bool parameter's byte, stored as is
     // +0x48..+0x58: retail's five float stack parameters, each a MOVSS load / store (0x1400b0ee7).
-    entry->field_0x48[0] = param_10;
-    entry->field_0x48[1] = param_11;
-    entry->field_0x48[2] = param_12;
-    entry->field_0x48[3] = param_13;
-    entry->field_0x48[4] = param_14;
-    entry->field_0x5C = 1;
+    entry->uvParams[0] = param_10;
+    entry->uvParams[1] = param_11;
+    entry->uvParams[2] = param_12;
+    entry->uvParams[3] = param_13;
+    entry->uvParams[4] = param_14;
+    entry->isDecal = 1;
     entry->alternateKey = param_19;
     TessellateDecal(iVar3, param_15, param_16, param_17);
     return iVar3;

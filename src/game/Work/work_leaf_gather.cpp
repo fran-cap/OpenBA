@@ -138,8 +138,8 @@ long long GrowthDescription::CheckFootprint(int col, int row) const {
         }
     }
 
-    if (owned   > _i5c ||
-        touched > _i58)
+    if (owned   > _maxNeighborsSelf ||
+        touched > _maxNeighbors)
         return 0;
     return 1;
 }

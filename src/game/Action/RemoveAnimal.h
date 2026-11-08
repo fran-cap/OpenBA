@@ -32,9 +32,9 @@ public:
     bool GetTarget(ComponentEntity** param) override;                      // [9] 0x1400ca720
 
     // ---- fields, retail order (PUBLIC: the slot bodies are C functions) ----
-    Object::InternalPtr<ComponentEntity> _field20;   // +0x20 the animal entity
+    Object::InternalPtr<ComponentEntity> _animal;   // +0x20 the animal entity
 };
 
 static_assert(sizeof(RemoveAnimal) == 0x28, "RemoveAnimal is 0x28 (create 0x140022e70 MemAlloc)");
 static_assert(alignof(RemoveAnimal) == 8, "RemoveAnimal is 8-aligned");
-static_assert(offsetof(RemoveAnimal, _field20) == 0x20, "RemoveAnimal +0x20");
+static_assert(offsetof(RemoveAnimal, _animal) == 0x20, "RemoveAnimal +0x20");

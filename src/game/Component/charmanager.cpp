@@ -82,7 +82,7 @@ static float* CharMgr_helper_28c0(const Object::InternalPtr<CharacterComponent>*
     const Math::Vector3& pos = model->transform.translation;
     float px = pos.x;
     float py = pos.y;
-    float r = ch->characterDescription->_speedScale;
+    float r = ch->characterDescription->_radius;
     outRect[0] = px - r;   // min.x
     outRect[1] = py - r;   // min.y
     outRect[2] = px + r;   // max.x

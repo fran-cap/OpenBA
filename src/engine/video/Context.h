@@ -191,7 +191,7 @@
 //
 // BindResources also settles what +0x20 and +0x24 are for: its transform arm
 // fires on `(dirty & 0x4000) || (int32)+0x20 > 0 || (int32)+0x24 > 0`, and its
-// final clear is a QWORD store over BOTH. So `_unknown0024` is a live counter
+// final clear is a QWORD store over BOTH. So `_boneCount` is a live counter
 // with the same sign convention as `_transformCount`, not padding.
 // ============================================================================
 
@@ -463,11 +463,11 @@ public:
     int32_t  _frameIndex;                               // 0x0008
     int32_t  _shaderDetail;                             // 0x000c
     uint32_t _dirty;                                    // 0x0010
-    uint32_t _unknown0014;                              // 0x0014
+    uint32_t _unreadDirtyCompanion;                              // 0x0014
     uint32_t _imageBufferDirty;                         // 0x0018
     uint32_t _vertexBufferDirty;                        // 0x001c
     int32_t  _transformCount;                           // 0x0020
-    int32_t  _unknown0024;                              // 0x0024
+    int32_t  _boneCount;                              // 0x0024
     // Retail: const RenderBuffer*, const ImageBuffer*[16] (the setters'
     // mangled names, `PEBVRenderBuffer@2@` / `PEBVImageBuffer@2@`).
     const RenderBuffer* _renderBuffer;                  // 0x0028
@@ -480,7 +480,7 @@ public:
     // QEAAXPEBVIndexBuffer@2@H@Z` (0x180019fb0) stores here.
     const IndexBuffer* _indexBuffer;                    // 0x01b8
     int32_t  _indexOffset;                              // 0x01c0
-    int32_t  _unknown01c4;                              // 0x01c4
+    int32_t  _pad01c4;                              // 0x01c4
     const RenderState* _renderState;                    // 0x01c8
     Viewport _viewport;                                 // 0x01d0
     Viewport _scissor;                                  // 0x01e0
@@ -518,7 +518,7 @@ public:
     Math::Matrix   _viewProjection;                     // 0x0328
     Math::Matrix   _inverseView;                        // 0x0368
     Math::Vector4  _cameraPosition;                     // 0x03a8
-    Math::Vector4  _unknown03b8;                        // 0x03b8
+    Math::Vector4  _userPosition;                        // 0x03b8
     Math::Vector4  _time;                               // 0x03c8
     Math::Vector4  _fogParams;                          // 0x03d8
     Math::Vector4  _fogColor;                           // 0x03e8
@@ -547,7 +547,7 @@ public:
         float    farPlane;         // +0x40
         float    negNearPlane;     // +0x44  -nearPlane, by sign-mask XOR
         float    invRange;         // +0x48  1.0f / (far - near)
-        float    zero4c;           // +0x4c
+        float    depthRangeW;           // +0x4c
         float    shadow[4];        // +0x50  1.0f / shadowResolution, 0, 0, 0
         uint8_t  _unwritten60[0x40];   // +0x60
         // +0xa0 (Context+0x1e78): the shadow matrix the Graphics lights'
@@ -565,7 +565,7 @@ public:
 
     uint8_t* _dynamicVertexCursor;                      // 0x20e0
     int32_t  _dynamicVertexStride;                      // 0x20e8
-    int32_t  _unknown20ec;                              // 0x20ec
+    int32_t  _pad20ec;                              // 0x20ec
     // The dynamic INDEX cursor: the backend (dx11 contextdata.cpp
     // kDynIndexCursor) maps it, the geometry writers store 16-bit indices
     // through it and step it (wave27_lane_gfxpart.cpp: `ADD R14W,4`, word
@@ -580,15 +580,15 @@ public:
     //                           through its `int&` out-parameter
     //   0x2104 / 0x2124  int32  vertex count (BeginVertices) / index count
     //   0x2108 / 0x2128  void*  a copy of the Lock result (the mapped base)
-    int32_t  _unknown2100;                              // 0x2100
-    int32_t  _unknown2104;                              // 0x2104
-    void*    _unknown2108;                              // 0x2108
+    int32_t  _dynamicVertexOffset;                              // 0x2100
+    int32_t  _dynamicVertexCount;                              // 0x2104
+    void*    _dynamicVertexBase;                              // 0x2108
     int32_t  _instanceCount;                            // 0x2110
-    int32_t  _unknown2114;                              // 0x2114
+    int32_t  _pad2114;                              // 0x2114
     IndexBuffer* _dynamicIndexBuffer;                   // 0x2118
-    int32_t  _unknown2120;                              // 0x2120
-    int32_t  _unknown2124;                              // 0x2124
-    void*    _unknown2128;                              // 0x2128
+    int32_t  _dynamicIndexOffset;                              // 0x2120
+    int32_t  _dynamicIndexCount;                              // 0x2124
+    void*    _dynamicIndexBase;                              // 0x2128
     VertexBuffer* _dynamicInstanceBuffer;               // 0x2130
     RenderBuffer* _defaultRenderBuffer;                 // 0x2138
     ImageBuffer*  _defaultColorImage;                   // 0x2140
@@ -609,7 +609,7 @@ static_assert(offsetof(Context, _dirty)                 == 0x0010, "Context::_di
 static_assert(offsetof(Context, _imageBufferDirty)      == 0x0018, "Context::_imageBufferDirty");
 static_assert(offsetof(Context, _vertexBufferDirty)     == 0x001c, "Context::_vertexBufferDirty");
 static_assert(offsetof(Context, _transformCount)        == 0x0020, "Context::_transformCount");
-static_assert(offsetof(Context, _unknown0024)           == 0x0024, "Context::_unknown0024 (BindResources' second counter)");
+static_assert(offsetof(Context, _boneCount)           == 0x0024, "Context::_boneCount (BindResources' second counter)");
 static_assert(offsetof(Context, _renderBuffer)          == 0x0028, "Context::_renderBuffer");
 static_assert(offsetof(Context, _imageBuffers)          == 0x0030, "Context::_imageBuffers");
 static_assert(offsetof(Context, _dynamicIndexCursor)    == 0x20f0, "Context::_dynamicIndexCursor");
@@ -651,7 +651,7 @@ static_assert(offsetof(Context::LightStaging, attenuationDot) == 0x3c, "LightSta
 static_assert(offsetof(Context::LightStaging, farPlane)       == 0x40, "LightStaging::farPlane");
 static_assert(offsetof(Context::LightStaging, negNearPlane)   == 0x44, "LightStaging::negNearPlane");
 static_assert(offsetof(Context::LightStaging, invRange)       == 0x48, "LightStaging::invRange");
-static_assert(offsetof(Context::LightStaging, zero4c)         == 0x4c, "LightStaging::zero4c");
+static_assert(offsetof(Context::LightStaging, depthRangeW)         == 0x4c, "LightStaging::depthRangeW");
 static_assert(offsetof(Context::LightStaging, shadow)         == 0x50, "LightStaging::shadow");
 static_assert(offsetof(Context::LightStaging, _unwritten60)   == 0x60, "LightStaging +0x60");
 static_assert(offsetof(Context::LightStaging, shadowMatrix)   == 0xa0, "LightStaging::shadowMatrix (Context+0x1e78)");
@@ -678,17 +678,17 @@ static_assert(offsetof(Context, _contextData)           == 0x2160, "Context::_co
 
 // The allocation size in Engine::MainLoop::CreateVideoContext (0x1800dd500).
 static_assert(sizeof(Context) == 0x2168, "sizeof(Video::Context) == 0x2168");
-static_assert(offsetof(Context, _unknown0014) == 0x14, "Context::_unknown0014");
-static_assert(offsetof(Context, _unknown01c4) == 0x1C4, "Context::_unknown01c4");
-static_assert(offsetof(Context, _unknown03b8) == 0x3B8, "Context::_unknown03b8");
-static_assert(offsetof(Context, _unknown20ec) == 0x20EC, "Context::_unknown20ec");
-static_assert(offsetof(Context, _unknown2100) == 0x2100, "Context::_unknown2100");
-static_assert(offsetof(Context, _unknown2104) == 0x2104, "Context::_unknown2104");
-static_assert(offsetof(Context, _unknown2108) == 0x2108, "Context::_unknown2108");
-static_assert(offsetof(Context, _unknown2114) == 0x2114, "Context::_unknown2114");
-static_assert(offsetof(Context, _unknown2120) == 0x2120, "Context::_unknown2120");
-static_assert(offsetof(Context, _unknown2124) == 0x2124, "Context::_unknown2124");
-static_assert(offsetof(Context, _unknown2128) == 0x2128, "Context::_unknown2128");
+static_assert(offsetof(Context, _unreadDirtyCompanion) == 0x14, "Context::_unreadDirtyCompanion");
+static_assert(offsetof(Context, _pad01c4) == 0x1C4, "Context::_pad01c4");
+static_assert(offsetof(Context, _userPosition) == 0x3B8, "Context::_userPosition");
+static_assert(offsetof(Context, _pad20ec) == 0x20EC, "Context::_pad20ec");
+static_assert(offsetof(Context, _dynamicVertexOffset) == 0x2100, "Context::_dynamicVertexOffset");
+static_assert(offsetof(Context, _dynamicVertexCount) == 0x2104, "Context::_dynamicVertexCount");
+static_assert(offsetof(Context, _dynamicVertexBase) == 0x2108, "Context::_dynamicVertexBase");
+static_assert(offsetof(Context, _pad2114) == 0x2114, "Context::_pad2114");
+static_assert(offsetof(Context, _dynamicIndexOffset) == 0x2120, "Context::_dynamicIndexOffset");
+static_assert(offsetof(Context, _dynamicIndexCount) == 0x2124, "Context::_dynamicIndexCount");
+static_assert(offsetof(Context, _dynamicIndexBase) == 0x2128, "Context::_dynamicIndexBase");
 static_assert(alignof(Context) == 8, "Video::Context is qword-aligned (MemAlloc's align 8)");
 
 // The property that makes the 0x2168-byte block a flat block: nine files read

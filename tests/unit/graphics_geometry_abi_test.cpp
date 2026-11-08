@@ -69,7 +69,7 @@ UNIT_TEST(graphics_derived_fields_begin_at_end_of_base) {
     // base constructor and then write their own first field at exactly
     // `sizeof(base)` with no gap.
     // and the one that is two levels deep
-    CHECK_EQ(offsetof(Graphics::ParticleSystemInstance, _f_d8),
+    CHECK_EQ(offsetof(Graphics::ParticleSystemInstance, _emitter),
              sizeof(Graphics::ParticleInstance));
 }
 

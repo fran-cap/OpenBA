@@ -132,7 +132,7 @@ void SpawnComponent::InitialSpawn() {
         }
         if (!growthDesc) continue;
 
-        const float perSpawn = growthDesc->_f20;
+        const float perSpawn = growthDesc->_maxGrowth;
         if (!(perSpawn > 0.0f)) continue;
         const int repeats = (int)(growth / perSpawn) + 1;
         for (int r = 0; r < repeats; ++r) {
@@ -236,7 +236,7 @@ void SpawnComponent::DoSpawn(SpawnDescription* desc, int entryIndex, char random
 
     // Density roll
     float roll = random->RandFloat();
-    float density = kRdata_14017214c / (float)templ->_i48;
+    float density = kRdata_14017214c / (float)templ->_seedChance;
     if (roll > density) { ++g_doSpawn.densityRoll; return; }
 
     // Owner tile (FindComponent<MapComponent> 0x140004680)
@@ -244,7 +244,7 @@ void SpawnComponent::DoSpawn(SpawnDescription* desc, int entryIndex, char random
     int16_t baseX = footprint->tileX0;
     int16_t baseY = footprint->tileY0;
 
-    int tol = templ->_i4c;
+    int tol = templ->_seedDistance;
     int x = baseX + random->RandTol(static_cast<int32_t>(tol));
     int y = baseY + random->RandTol(static_cast<int32_t>(tol));
     if (x < 0 || y < 0) { ++g_doSpawn.offMap; return; }
@@ -475,7 +475,7 @@ void SpawnComponent::Update(const System::Time* timeV) {
         }
 
         // Convert spawn interval to ticks
-        float intervalSecs = spawnIntervalComp->_f28 * SECS_PER_SEASON;
+        float intervalSecs = spawnIntervalComp->_growthInMonths * SECS_PER_SEASON;
         int64_t intervalTicks = (int64_t)((double)intervalSecs / ::System::Timer::_secondsPerTick);
 
         while (intervalTicks > 0 && timers[i]._ticks >= intervalTicks) {

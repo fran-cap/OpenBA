@@ -69,8 +69,8 @@ static inline float RdataF(uint32_t bits) {
 // ============================================================
 void CitizenComponent::AddHappiness(int param) {
     statusIcon->SetFlag(4, 0);
-    field_0xAC += param;
-    field_0xA8  = param;
+    toolUses += param;
+    toolGrade  = param;
 }
 
 // ============================================================
@@ -86,7 +86,7 @@ void CitizenComponent::AdvanceSchooling() {
     *counter += 1;
     CitizenDescription* desc = description;   // 0x1401117b0, no test (B8 RES, row 310)
     int32_t threshold  = desc->maxEducation;
-    float   perUnitSec = desc->_f11c;
+    float   perUnitSec = desc->educationTimeLength;
     float budgetSecs = perUnitSec * RdataF(kRdata_14017225c);   // 3600.0f
     float elapsed = schoolTime.AsSeconds();
     if (*counter < threshold && elapsed <= budgetSecs) return;
@@ -105,10 +105,10 @@ void CitizenComponent::AdvanceSchooling() {
 void CitizenComponent::ShortenDisease() {
     if (disease == nullptr) return;
     CitizenDescription* desc = description;   // 0x140111550, no test (B8 RES, row 310)
-    float base = desc->_f12c;
+    float base = desc->medicineEffectivenessInMonths;
     System::Time t{};
     RtSystem_Time_Ctor(&t, base * kRdata_140172234);
-    field_0x70._ticks -= t._ticks;
+    diseaseTimer._ticks -= t._ticks;
 }
 
 // ============================================================
@@ -172,11 +172,11 @@ void CitizenComponent::OnMessage(int message, void* data, uint32_t arg0, uint32_
         return;
     }
     case 6:
-        field_0x1E0 = 1;
+        clothingType = 1;
         clothingLevel = 1;
         break;      // falls through to the shared Time tail
     case 7:
-        field_0x1E0 = 2;
+        clothingType = 2;
         clothingLevel = 2;
         break;      // falls through to the shared Time tail
     case 8:
@@ -192,7 +192,7 @@ void CitizenComponent::OnMessage(int message, void* data, uint32_t arg0, uint32_
     // 0x14011231d: +0x288 read with no test (B8 RES, row 310).
     System::Time t{};
     CitizenDescription* desc = description;
-    float base = desc->_f130;
+    float base = desc->clothingLengthInMonths;
     RtSystem_Time_Ctor(&t, base * kRdata_140172234);
     happinessFlags |= 0x800;
     clothingTimer = t;

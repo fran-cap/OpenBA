@@ -56,23 +56,23 @@ static uint32_t GRMC_BuildDescTypeId() {
 }
 
 // The base ctor is Work(buildEntityIBP) = Work_Ctor25 (0x1400f72e0) on a temp IBP
-// holding the raw build-entity pointer (it reads *param only, into field_10); the two
+// holding the raw build-entity pointer (it reads *param only, into _entity); the two
 // stamps are the compiler's.
 GatherRawMaterials::GatherRawMaterials(ComponentEntity* const* buildEntityIBP) : Work(buildEntityIBP) {
     // The +0x48 / +0x58 arrays and the +0x68 set are members: their ctors zero them (retail
     // 0x1400ec752..0x1400ec771: four qwords, then the set's root qword and count dword).
 
     // --- Locate BuildComponent (-> BuildDescription at +0x18) on the build entity ---
-    // (the entity is *buildEntityIBP, which the Work base stored in field_10).
+    // (the entity is *buildEntityIBP, which the Work base stored in _entity).
     // 0x1400ec788 CALL 0x14000d6c0, 0x1400ec7a3 [RAX+0x18] unguarded; IsDerivedFrom
     // (0x1400ec7b0) ? desc : null (CMOVNZ, 0x1400ec7bb).
-    BuildComponent* buildComp = field_10->FindComponent<BuildComponent>();
+    BuildComponent* buildComp = _entity->FindComponent<BuildComponent>();
     Description* descObj = buildComp->_description;
     BuildDescription* desc = descObj->IsDerivedFrom(GRMC_BuildDescTypeId())
                                  ? static_cast<BuildDescription*>(descObj) : nullptr;
 
     // --- Locate the site StorageComponent (0x1400ec7d3 CALL 0x140006270) ---
-    StorageComponent* storage = field_10->FindComponent<StorageComponent>();
+    StorageComponent* storage = _entity->FindComponent<StorageComponent>();
 
     // --- Size the two parallel int arrays to the material count ---
     // 0x1400ec7d8 / 0x1400ec7e5 read desc+0x28 with no test (a non-BuildDescription faults,

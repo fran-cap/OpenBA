@@ -181,7 +181,7 @@ Description* FindInDescList(ComponentDescription* list, uint32_t tid) {
 
 // The per-slot byte array Plant/Harvest carry at +0x58: sized to the crop field's slot
 // count and filled with 1s.
-// The array is PlantArea::field_58 / HarvestArea::_field58 (both Collection::Array<bool>;
+// The array is PlantArea::_unplantedCells / HarvestArea::_slotsAvailable (both Collection::Array<bool>;
 // exe 0x14000a590 IS its SetSize(n), which leaves the new tail as found: the loop writes
 // every byte, 0x1400f4734..0x1400f4751).
 void CF_FillPerSlotArray(Collection::Array<bool>* arr, ComponentEntity* entity) {
@@ -202,9 +202,9 @@ Work* CF_MakePlantArea(CropFieldComponent* comp) {
     work->InitFromEntity(&entity);
     work->_cells._root = nullptr;
     work->_cells._count = 0;
-    // +0x58 / +0x60: the `field_58` member's ctor (0x1400f46a0's two qword stores).
-    work->field_68 = comp->cropDescription;
-    CF_FillPerSlotArray(&work->field_58, work->field_10.Get());
+    // +0x58 / +0x60: the `_unplantedCells` member's ctor (0x1400f46a0's two qword stores).
+    work->_crop = comp->cropDescription;
+    CF_FillPerSlotArray(&work->_unplantedCells, work->_entity.Get());
     return work;
 }
 
@@ -217,8 +217,8 @@ Work* CF_MakeHarvestArea(CropFieldComponent* comp) {
     work->InitFromEntity(&entity);
     work->_cells._root = nullptr;
     work->_cells._count = 0;
-    // +0x58 / +0x60: the `_field58` member's ctor (0x1400ed4c0's two qword stores).
-    CF_FillPerSlotArray(&work->_field58, work->field_10.Get());
+    // +0x58 / +0x60: the `_slotsAvailable` member's ctor (0x1400ed4c0's two qword stores).
+    CF_FillPerSlotArray(&work->_slotsAvailable, work->_entity.Get());
     return work;
 }
 

@@ -118,7 +118,7 @@ public:
     };
 
     // --- MarketWork fields (+0x48) ---
-    ClaimTree _field48;          // +0x48: the claim tree {root +0x48, count +0x50}
+    ClaimTree _claims;          // +0x48: the claim tree {root +0x48, count +0x50}
 };
 
 static_assert(sizeof(MarketWork::Carry) == 0x10, "MarketWork carry entry stride 0x10 (Execute 0x1400f18c0)");
@@ -167,8 +167,8 @@ void WorkLeaf_MarketTreeCleanup_2af40(MarketWork::ClaimNode* const* ctx, MarketW
 
 static_assert(sizeof(MarketWork) == 0x58, "MarketWork is 0x58 (retail create MemAlloc)");
 static_assert(alignof(MarketWork) == 8, "MarketWork is 8-aligned");
-static_assert(offsetof(MarketWork, _field48) == 0x48, "MarketWork +0x48");
-static_assert(offsetof(MarketWork, _field48.count) == 0x50, "MarketWork +0x50");
+static_assert(offsetof(MarketWork, _claims) == 0x48, "MarketWork +0x48");
+static_assert(offsetof(MarketWork, _claims.count) == 0x50, "MarketWork +0x50");
 static_assert(sizeof(MarketWork::ClaimTree) == 0x10, "Set header {root, count} + pad");
 static_assert(offsetof(MarketWork::ClaimTree, root) == 0x0, "ClaimTree::root");
 static_assert(offsetof(MarketWork::ClaimTree, count) == 0x8, "ClaimTree::count");

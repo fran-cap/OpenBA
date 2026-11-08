@@ -86,7 +86,7 @@ static void CreditBuildProgress(BuildComponent* bc) {
     // matComp is the component's description (Component +0x18), a BuildDescription.
     const Description* matComp = bc->_description;
     int base = ForceWork::Readable(matComp, 0x34)
-                   ? static_cast<const BuildDescription*>(matComp)->_i30 : 0;   // +0x30
+                   ? static_cast<const BuildDescription*>(matComp)->_workRequired : 0;   // +0x30
     int mult = bc->costMultiplier;   // +0x4c
     if (mult <= 0) mult = 1;
     int target = base * mult;

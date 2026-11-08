@@ -299,7 +299,7 @@ struct Cand { ComponentEntity* entity; FireComponent* fire; int x; int y; int32_
 
 void ForceFire(int frameNum, int want) {
     Object::InternalPtr<ComponentEntity>* arr = nullptr; int n = 0;
-    if (!Registry(&CitizenBehavior::field_0x20, &arr, &n)) {
+    if (!Registry(&CitizenBehavior::residences, &arr, &n)) {
         DLOG("Fire", "frame %d: structure registry (townMgr+0x20/+0x28) empty or absent "
              "— nothing to ignite\n", frameNum);
         return;

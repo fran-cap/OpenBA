@@ -57,10 +57,10 @@ public:
     System::String stringTool;     // +0x40: name NOT confirmed from retail:
                                    //        CitizenComponent::Update builds UI::String(stringTable,
                                    //        +0x40) for HandleLifeEvent(7) (a profession change)
-    int32_t  field48;              // +0x48: int (serialized)
-    bool     field4C;              // +0x4C: bool (serialized); CitizenComponent::Update raises the
+    int32_t  sortPriority;              // +0x48: int (serialized)
+    bool     transient;              // +0x4C: bool (serialized); CitizenComponent::Update raises the
                                    //        "no job" icon only when it is 0
-    bool     field4D;              // +0x4D: bool (serialized)
+    bool     immuneToDisease;              // +0x4D: bool (serialized)
     bool     isAvailable;          // +0x4E: bool, default 1 (serialized); name NOT confirmed from retail
     uint8_t  _pad4F;               // +0x4F: padding
     int32_t  priority;             // +0x50: int, default 100 (serialized); name NOT confirmed from retail
@@ -75,9 +75,9 @@ static_assert(offsetof(Profession, spriteSheet) == 0x28, "+0x28");
 static_assert(offsetof(Profession, stringName) == 0x30, "+0x30");
 static_assert(offsetof(Profession, stringDesc) == 0x38, "+0x38");
 static_assert(offsetof(Profession, stringTool) == 0x40, "+0x40");
-static_assert(offsetof(Profession, field48) == 0x48, "+0x48");
-static_assert(offsetof(Profession, field4C) == 0x4C, "+0x4C");
-static_assert(offsetof(Profession, field4D) == 0x4D, "+0x4D");
+static_assert(offsetof(Profession, sortPriority) == 0x48, "+0x48");
+static_assert(offsetof(Profession, transient) == 0x4C, "+0x4C");
+static_assert(offsetof(Profession, immuneToDisease) == 0x4D, "+0x4D");
 static_assert(offsetof(Profession, isAvailable) == 0x4E, "+0x4E");
 static_assert(offsetof(Profession, _pad4F) == 0x4F, "+0x4F");
 static_assert(offsetof(Profession, priority) == 0x50, "+0x50");

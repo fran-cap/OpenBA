@@ -58,8 +58,8 @@ static char MarketLoc_State2Enter(MarketLocationComponent* self, StateMachine* /
     if (GameUpdateLoop::_singleton == nullptr) return 0;
     ComponentEntity* entityPtr = self->_entity.Get();
     CitizenBehavior* town = MarketTown();
-    const int count = town->field_0x10._size;
-    town->field_0x10
+    const int count = town->marketLocations._size;
+    town->marketLocations
         .SetSizeFill(count + 1, &entityPtr);
     return 0;
 }
@@ -163,7 +163,7 @@ void MarketLocationComponent::OnRemove() {
     ComponentEntity* entityPtr = _entity.Get();
 
     // Erase the owner entity from the town's market-location list
-    MarketTown()->field_0x10.Remove(entityPtr);   // 0x140002cc0
+    MarketTown()->marketLocations.Remove(entityPtr);   // 0x140002cc0
 }
 
 DEFINE_EXE_TYPE(MarketLocationComponent, "ControllerComponent")

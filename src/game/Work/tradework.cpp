@@ -145,14 +145,14 @@ static void TW_PushEntry(TWEntry** arr, uint32_t* count, uint32_t* cap, Componen
 // read straight back and the scratch is not read again.
 int TradeWork::CommitAssignment(CitizenComponent* const* citizenRef, ComponentDescription* resource,
                                 int quantity) {
-    int taskId = field_20;                                        // plVar31[4] low dword
+    int taskId = _workId;                                        // plVar31[4] low dword
 
     CitizenComponent* citizen = *citizenRef;
 
     Profession* target = nullptr;
     GetTarget(&target);   // slot 10, by name (B.3.x)
 
-    citizen->field_0x30 = taskId;
+    citizen->lastWorkId = taskId;
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->lastErrand = CitizenErrand::None;
     if (target == citizen->profession && taskId >= 0)
@@ -177,16 +177,16 @@ int TradeWork::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
 
     // ---- 0. capacity gate ----------------------------------------------------
     int workers = assignments.count;                           // param_1[10]
-    WorkComponent* workComp = field_18.Get();                  // param_1[3]
+    WorkComponent* workComp = _workComponent.Get();                  // param_1[3]
     if (workComp->workState == 0)
         workComp->workState = workComp->CalcMaxWorkers();
     if (workComp->workState <= workers)
         return 1;
 
     // ---- find components -----------------------------------------------------
-    TradeComponent*    tradeComp = field_10->FindComponent<TradeComponent>();      // 0x140015140 (local_58)
-    StorageComponent*  bldgStor  = field_10->FindComponent<StorageComponent>();    // 0x140006270 (local_50 / local_78)
-    InteractComponent* posComp   = field_10->FindComponent<InteractComponent>();   // 0x140002ed0 (local_e0)
+    TradeComponent*    tradeComp = _entity->FindComponent<TradeComponent>();      // 0x140015140 (local_58)
+    StorageComponent*  bldgStor  = _entity->FindComponent<StorageComponent>();    // 0x140006270 (local_50 / local_78)
+    InteractComponent* posComp   = _entity->FindComponent<InteractComponent>();   // 0x140002ed0 (local_e0)
     CitizenBehavior*   resList   = gw ? gw->m_citizenList : nullptr;               // pplVar30 / local_70
 
     // ---- 1. citizen already carrying trade goods? ---------------------------
@@ -198,8 +198,8 @@ int TradeWork::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
     }
 
     // ---- 2. PASS 1: build import/export lists over all resource types --------
-    int resCount = resList ? resList->field_0x110._size : 0;                    // pplVar30[0x23]
-    ComponentDescription** resArr = resList ? resList->field_0x110._data : nullptr;   // pplVar30[0x22]
+    int resCount = resList ? resList->knownRawMaterials._size : 0;                    // pplVar30[0x23]
+    ComponentDescription** resArr = resList ? resList->knownRawMaterials._data : nullptr;   // pplVar30[0x22]
     for (int i = 0; i < resCount; i++) {
         ComponentDescription* resType = resArr[i];
 
@@ -280,7 +280,7 @@ int TradeWork::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
         }
 
         // building storage comp -> its items, find resType:
-        StorageComponent* bldgStorComp = TW_StorageOf(field_10.Get());   // -> local_e8
+        StorageComponent* bldgStorComp = TW_StorageOf(_entity.Get());   // -> local_e8
         // The null arm is the tree's guard.
         if (!bldgStorComp || bldgStorComp->storageSlots._size <= 0) continue;
         StorageComponent::Item* items = bldgStorComp->storageSlots._data;
@@ -320,8 +320,8 @@ int TradeWork::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
         // build the fetch path (branch 1): dest = source storage, src = trade-post building.
         ComponentEntity* destStorage = srcStorPrimary;                  // local_d8 = local_b8
         CitizenComponent* citizenVal = *citizenRef;                     // local_b0 = *param2
-        ComponentEntity* bldgVal = field_10.Get();                            // local_res20 = *local_b0(old)
-        uint32_t pathType = static_cast<uint32_t>(field_20);
+        ComponentEntity* bldgVal = _entity.Get();                            // local_res20 = *local_b0(old)
+        uint32_t pathType = static_cast<uint32_t>(_workId);
         WorkAct_GatherRawMatCtor_bf790(&outBuf, &citizenVal, pathType, &destStorage,
                           searchPos, &bldgVal, &destPos.v.x, resType,
                           qty, 1, 0, 1, 0, 1);
@@ -409,9 +409,9 @@ int TradeWork::Execute(CitizenComponent** citizenRef, System::Time* /*context*/)
 
         // build the fetch path (branch 2): dest = trade-post building, src = source storage.
         CitizenComponent* citizenVal = *citizenRef;                        // local_b0 = *param2
-        ComponentEntity* bldgVal = field_10.Get();                               // local_d8 = *local_b0(old)
+        ComponentEntity* bldgVal = _entity.Get();                               // local_d8 = *local_b0(old)
         ComponentEntity* srcStorVal = srcEntity;                           // local_90 = local_e8
-        uint32_t pathType = static_cast<uint32_t>(field_20);
+        uint32_t pathType = static_cast<uint32_t>(_workId);
         WorkAct_GatherRawMatCtor_bf790(&outBuf, &citizenVal, pathType, &bldgVal,
                           &srcPos2.v.x, &srcStorVal, srcPos, resType,
                           qtyMove, 0, 0, 0, 0, 1);
@@ -582,7 +582,7 @@ int TradeWork::Validate() {
 // ============================================================
 Profession** TradeWork::GetTarget(Profession** outPtr) {
     // 0x140002e10 = FindComponent<WorkPlaceComponent>.
-    WorkPlaceComponent* workplace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workplace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workplace->profession;
     return outPtr;
 }

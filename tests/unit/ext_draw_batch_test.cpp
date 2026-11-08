@@ -631,10 +631,10 @@ int g_meshTag = 0;
 InstanceKey Tree(uint32_t opacityBits = 0x3F800000u) {
     InstanceKey k;
     k.instance = &g_instanceTag;
-    k.arg5 = 0x1003;
+    k.listIndex = 0x1003;
     k.userData = &g_meshTag;
-    k.arg10 = 0xffffffffu;
-    k.arg8 = kRetailInstanceSlots;
+    k.animationHandle = 0xffffffffu;
+    k.maxInstances = kRetailInstanceSlots;
     k.opacity = opacityBits;
     k.opacityPrev = opacityBits;
     k.wideOk = true;
@@ -644,20 +644,20 @@ InstanceKey Tree(uint32_t opacityBits = 0x3F800000u) {
 // Retail's batch length at keys[first] (DrawItemList: the join keys, the head's _arg8, the list's end).
 int32_t RetailLength(const std::vector<InstanceKey>& keys, size_t first) {
     int32_t n = 1;
-    while (first + n < keys.size() && n < keys[first].arg8 && JoinsBatch(keys[first], keys[first + n])) ++n;
+    while (first + n < keys.size() && n < keys[first].maxInstances && JoinsBatch(keys[first], keys[first + n])) ++n;
     return n;
 }
 
 // draw_batch.cpp's batch loop on keys alone: the same tests in the same order.
 int32_t WideLength(const std::vector<InstanceKey>& keys, size_t first, int32_t bankCap) {
     const InstanceKey& head = keys[first];
-    const int32_t wideCap = WideBatchCap(head.arg8, bankCap);
+    const int32_t wideCap = WideBatchCap(head.maxInstances, bankCap);
     int32_t n = 0;
     for (;;) {
         ++n;
         const size_t at = first + n;
         if (at >= keys.size()) break;
-        if (n >= head.arg8 && n % head.arg8 == 0) {
+        if (n >= head.maxInstances && n % head.maxInstances == 0) {
             const InstanceKey* after = at + 1 < keys.size() ? &keys[at + 1] : nullptr;
             const bool goesOn = n < wideCap && ContinuesPastCut(head, keys[at], after);
             if (!goesOn) break;
@@ -685,7 +685,7 @@ UNIT_TEST(ext_draw_batch_wide_continues_only_where_retail_draws_the_same) {
     CHECK(ContinuesPastCut(head, next, &next));
     CHECK(!ContinuesPastCut(head, next, nullptr));    // the retail batch there is a single draw
     InstanceKey other = Tree();
-    other.arg5 = 0x1004;
+    other.listIndex = 0x1004;
     CHECK(!ContinuesPastCut(head, next, &other));     // ... likewise
     CHECK(!ContinuesPastCut(head, other, &other));    // another list
     const InstanceKey fading = Tree(0x3F000000u);
@@ -695,7 +695,7 @@ UNIT_TEST(ext_draw_batch_wide_continues_only_where_retail_draws_the_same) {
     CHECK(!ContinuesPastCut(head, skinned, &skinned));
     CHECK(!ContinuesPastCut(skinned, next, &next));
     InstanceKey smaller = Tree();
-    smaller.arg8 = 26;
+    smaller.maxInstances = 26;
     CHECK(!ContinuesPastCut(head, smaller, &smaller));
 }
 
@@ -710,7 +710,7 @@ UNIT_TEST(ext_draw_batch_wide_batches_end_where_retail_batches_end) {
             keys.push_back(Tree(fade ? 0x3F400000u : 0x3F800000u));
         }
         InstanceKey other = Tree();
-        other.arg5 = 0x2000u + static_cast<uint32_t>(rng() % 3);
+        other.listIndex = 0x2000u + static_cast<uint32_t>(rng() % 3);
         other.wideOk = rng() % 2 == 0;
         keys.push_back(other);
     }
@@ -722,7 +722,7 @@ UNIT_TEST(ext_draw_batch_wide_batches_end_where_retail_batches_end) {
         while (i < keys.size()) {
             CHECK(retailHead[i]);   // every wide batch starts (so the one before ends) where a retail one does
             const int32_t n = WideLength(keys, i, bank);
-            CHECK(n <= WideBatchCap(keys[i].arg8, bank));
+            CHECK(n <= WideBatchCap(keys[i].maxInstances, bank));
             // Every retail head crossed has the wide head's keys and opacity and starts a draw of two or more.
             for (int32_t k = 1; k < n; ++k) {
                 if (!retailHead[i + k]) continue;

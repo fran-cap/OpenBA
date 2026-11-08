@@ -49,26 +49,26 @@ public:
 
 public:
     System::String scenarioName; // +0x58 (ctor 0x1400a9480 stores 0 = String(); dtor 0x14001eb40 runs ~String on +0x88 then +0x58, the compiler's order)
-    int32_t  _field60;           // +0x60: int, serialized
-    int32_t  _field64;           // +0x64: int, serialized
-    bool     _field68;           // +0x68: bool, serialized (default true)
-    bool     _field69;           // +0x69: bool, serialized (default false)
+    int32_t  randomSeed;           // +0x60: int, serialized
+    int32_t  terrainSize;           // +0x64: int, serialized
+    bool     disasters;           // +0x68: bool, serialized (default true)
+    bool     tutorial;           // +0x69: bool, serialized (default false)
     uint8_t  _pad6A[6];          // +0x6A: padding
     MapGenerator*     mapGenerator;      // +0x70: ExternalPtr<MapGenerator>, serialized
     TerrainGenerator* terrainGenerator;  // +0x78: ExternalPtr<TerrainGenerator>, serialized
     ClimateGenerator* climateGenerator;  // +0x80: ExternalPtr<ClimateGenerator>, serialized
-    System::String _field88;     // +0x88: the save name
+    System::String saveGame;     // +0x88: the save name
 };
 
 static_assert(offsetof(Scenario, scenarioName) == 0x58, "Scenario +0x58 name");
-static_assert(offsetof(Scenario, _field60) == 0x60, "Scenario +0x60");
-static_assert(offsetof(Scenario, _field64) == 0x64, "Scenario +0x64");
-static_assert(offsetof(Scenario, _field68) == 0x68, "Scenario +0x68");
-static_assert(offsetof(Scenario, _field69) == 0x69, "Scenario +0x69");
+static_assert(offsetof(Scenario, randomSeed) == 0x60, "Scenario +0x60");
+static_assert(offsetof(Scenario, terrainSize) == 0x64, "Scenario +0x64");
+static_assert(offsetof(Scenario, disasters) == 0x68, "Scenario +0x68");
+static_assert(offsetof(Scenario, tutorial) == 0x69, "Scenario +0x69");
 static_assert(offsetof(Scenario, mapGenerator) == 0x70, "Scenario +0x70");
 static_assert(offsetof(Scenario, terrainGenerator) == 0x78, "Scenario +0x78");
 static_assert(offsetof(Scenario, climateGenerator) == 0x80, "Scenario +0x80");
-static_assert(offsetof(Scenario, _field88) == 0x88, "Scenario +0x88");
+static_assert(offsetof(Scenario, saveGame) == 0x88, "Scenario +0x88");
 static_assert(sizeof(Scenario) == 0x90, "Scenario is 0x90 (create 0x14001e9f0 MemAlloc(0x90))");
 static_assert(offsetof(Scenario, _pad6A) == 0x6A, "Scenario::_pad6A");
 static_assert(alignof(Scenario) == 8, "Scenario is qword-aligned");

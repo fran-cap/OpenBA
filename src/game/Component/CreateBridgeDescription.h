@@ -36,21 +36,21 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x1400328c0
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    uint32_t _u20;                              // +0x20 enum (serialized through the uint door)
-    uint32_t _u24;                              // +0x24 enum (serialized through the uint door)
-    uint32_t _u28;                              // +0x28 enum (serialized through the uint door)
-    uint32_t _u2c;                              // +0x2c enum (serialized through the uint door)
-    uint32_t _u30;                              // +0x30 enum (serialized through the uint door)
-    int32_t _i34;                               // +0x34
-    class ComponentDescription* _refs[5];       // +0x38 ExternalPtr[5], inline (B4 PLAYER H4: the segment templates BridgeTool::CalcPath clones: end piece, 1/2/4/8 cells)
+    uint32_t _placeBits;                              // +0x20 enum (serialized through the uint door)
+    uint32_t _invalidBits;                              // +0x24 enum (serialized through the uint door)
+    uint32_t _startEndBits;                              // +0x28 enum (serialized through the uint door)
+    uint32_t _requiredBits;                              // +0x2c enum (serialized through the uint door)
+    uint32_t _edgeBits;                              // +0x30 enum (serialized through the uint door)
+    int32_t _edgeWidth;                               // +0x34
+    class ComponentDescription* _sections[5];       // +0x38 ExternalPtr[5], inline (B4 PLAYER H4: the segment templates BridgeTool::CalcPath clones: end piece, 1/2/4/8 cells)
 };
 
 static_assert(sizeof(CreateBridgeDescription) == 0x60, "CreateBridgeDescription is 0x60 (create 0x140032880 MemAlloc(0x60))");
 static_assert(alignof(CreateBridgeDescription) == 8, "CreateBridgeDescription alignment");
-static_assert(offsetof(CreateBridgeDescription, _u20) == 0x20, "CreateBridgeDescription::_u20 @ +0x20");
-static_assert(offsetof(CreateBridgeDescription, _u24) == 0x24, "CreateBridgeDescription::_u24 @ +0x24");
-static_assert(offsetof(CreateBridgeDescription, _u28) == 0x28, "CreateBridgeDescription::_u28 @ +0x28");
-static_assert(offsetof(CreateBridgeDescription, _u2c) == 0x2c, "CreateBridgeDescription::_u2c @ +0x2c");
-static_assert(offsetof(CreateBridgeDescription, _u30) == 0x30, "CreateBridgeDescription::_u30 @ +0x30");
-static_assert(offsetof(CreateBridgeDescription, _i34) == 0x34, "CreateBridgeDescription::_i34 @ +0x34");
-static_assert(offsetof(CreateBridgeDescription, _refs) == 0x38, "CreateBridgeDescription::_refs @ +0x38");
+static_assert(offsetof(CreateBridgeDescription, _placeBits) == 0x20, "CreateBridgeDescription::_placeBits @ +0x20");
+static_assert(offsetof(CreateBridgeDescription, _invalidBits) == 0x24, "CreateBridgeDescription::_invalidBits @ +0x24");
+static_assert(offsetof(CreateBridgeDescription, _startEndBits) == 0x28, "CreateBridgeDescription::_startEndBits @ +0x28");
+static_assert(offsetof(CreateBridgeDescription, _requiredBits) == 0x2c, "CreateBridgeDescription::_requiredBits @ +0x2c");
+static_assert(offsetof(CreateBridgeDescription, _edgeBits) == 0x30, "CreateBridgeDescription::_edgeBits @ +0x30");
+static_assert(offsetof(CreateBridgeDescription, _edgeWidth) == 0x34, "CreateBridgeDescription::_edgeWidth @ +0x34");
+static_assert(offsetof(CreateBridgeDescription, _sections) == 0x38, "CreateBridgeDescription::_sections @ +0x38");

@@ -170,11 +170,11 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     if (keyMap->GetValue(0, ToUnderlying(GameKey::Back))) panY =  1.0f; // Back
 
     // ── zoom target (+0x3c) init + wheel/key input ──
-    if (field_0x3C == 0.0f)
-        field_0x3C = pc->distance; // seed from current distance
+    if (zoomTarget == 0.0f)
+        zoomTarget = pc->distance; // seed from current distance
 
     short wheel = keyMap->GetValue(0, ToUnderlying(GameKey::MouseWheel));
-    if (inputFlag == 0 && !field_0x38) wheel = 0; // no wheel zoom if UI focused (+0x38)
+    if (inputFlag == 0 && !followActive) wheel = 0; // no wheel zoom if UI focused (+0x38)
     int zoomDir;
     if (keyMap->Pressed(0, ToUnderlying(GameKey::ZoomIn))) {          // ZoomIn
         zoomDir = 1;
@@ -206,10 +206,10 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
 
     // ── manual pitch accumulator +0x44 (0..1) from PitchUp/PitchDown (ids 0x11/0x12) ──
     if (keyMap->Pressed(0, ToUnderlying(GameKey::PitchUp)))
-        field_0x44 += kPitchStep;
+        manualPitch += kPitchStep;
     else if (keyMap->Pressed(0, ToUnderlying(GameKey::PitchDown)))
-        field_0x44 -= kPitchStep;
-    field_0x44 = clampf(field_0x44, 0.0f, 1.0f);
+        manualPitch -= kPitchStep;
+    manualPitch = clampf(manualPitch, 0.0f, 1.0f);
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERCAM.md): ext.better_camera's zoom range and steady
     // tilt, the toggle read once per frame. Off = retail's own constants (the values below are the same floats).
@@ -225,32 +225,32 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     // zoom for the pitch and the pan speed below, stay the frame's own. Row off: zNear == zMin.
     const float zNear = Ext::TouchMode::NearZoomLimit(zMin, Ext::Ext().touch_mode, Ext::Val().touch_mode_zoom_min);
     if (!betterCam)
-        field_0x3C = Ext::BetterCamera::ClampToRetailRange(field_0x3C, zNear);
+        zoomTarget = Ext::BetterCamera::ClampToRetailRange(zoomTarget, zNear);
 
     // ── apply zoom step to the zoom target, clamp 20..130 ──
     if (zoomDir != 0) {
-        float z = field_0x3C + (zoomDir < 1 ? kZoomStep : -kZoomStep);
-        field_0x3C = clampf(z, zNear, zMax);
+        float z = zoomTarget + (zoomDir < 1 ? kZoomStep : -kZoomStep);
+        zoomTarget = clampf(z, zNear, zMax);
     }
     // EXT SEAM (NOT RETAIL, docs/android/TOUCH_MODE.md): ext.touch_mode's held zoom button and the pinch, the zoom
     // target and the smoothed distance moved together inside the frame's range (retail's or better_camera's, the
     // near end touch_mode's).
     if (heldZoom != 0.0f)
-        Ext::TouchMode::ApplyHeldZoom(heldZoom, kZoomStep, zNear, zMax, field_0x3C, pc->distance);
+        Ext::TouchMode::ApplyHeldZoom(heldZoom, kZoomStep, zNear, zMax, zoomTarget, pc->distance);
 
     // ── pitch/distance coupling ──
-    const float manual  = field_0x44;                        // 0..1
-    const float normZ   = (field_0x3C - zMin) / zSpan;       // 0..1
-    const float pitchTarget = Ext::BetterCamera::PitchTarget(manual, normZ, kPitchFarMan, kPitchFarFlat, kPitchNearMan, kPitchNearFlt, betterCam);
-    field_0x40 = pitchTarget;                                // +0x40
+    const float manual  = manualPitch;                        // 0..1
+    const float normZ   = (zoomTarget - zMin) / zSpan;       // 0..1
+    const float newPitchTarget = Ext::BetterCamera::PitchTarget(manual, normZ, kPitchFarMan, kPitchFarFlat, kPitchNearMan, kPitchNearFlt, betterCam);
+    pitchTarget = newPitchTarget;                             // +0x40
 
     // pan speed scales with zoom (near=12, far=70)
     const float panSpeed = normZ * kPanSpeedFar + (1.0f - normZ) * kPanSpeedNear;
 
     // commit yaw; smooth pitch and distance toward their targets
     pc->yaw = yaw;
-    pc->pitch = pitchTarget * kSmoothNew + pc->pitch * kSmoothOld;
-    pc->distance = pc->distance * kSmoothOld + field_0x3C * kSmoothNew;
+    pc->pitch = newPitchTarget * kSmoothNew + pc->pitch * kSmoothOld;
+    pc->distance = pc->distance * kSmoothOld + zoomTarget * kSmoothNew;
 
     // ── pan: move focus along the camera's ground-plane basis ──
     // Original reads the camera right-vector from PlayerController+0x98; that field is
@@ -287,14 +287,14 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
     }
 
     // ── follow/center-on-entity smooth move (only when the +0xa4 flag is set) ──
-    if (field_0xA4) {
+    if (cameraMoveActive) {
         Map* grid = GameUpdateLoop::_singleton->m_game;
         if (grid) {
             const int gw = grid->size;
             const float halfCell = (float)(gw >> 1) - kHalf;
             float worldA[3] = {0,0,0}, worldB[3] = {0,0,0};
-            int cellA = field_0xAC;
-            int cellB = field_0xA8;
+            int cellA = cameraMoveEndCell;
+            int cellB = cameraMoveStartCell;
             float inA[3] = { (float)(cellA % gw) - halfCell, (float)(cellA / gw) - halfCell, 0.0f };
             float inB[3] = { (float)(cellB % gw) - halfCell, (float)(cellB / gw) - halfCell, 0.0f };
             grid->GetTerrainPos(worldA, inA, '\0', nullptr);   // 0x14009f3e0
@@ -309,7 +309,7 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
             *fz = 0.0f * kFollowLerp + *fz * kFollowKeep;
             float dx = *fx - midX, dy = *fy - midY, dz = *fz;
             if (std::sqrt(dx*dx + dy*dy + dz*dz) < kFollowSnap)
-                field_0xA4 = false;
+                cameraMoveActive = false;
         }
     }
 
@@ -408,18 +408,18 @@ void PlayerToolManager::UpdateCamera(int inputFlag, int64_t timeTicks) {
         if (s_sweep) {
             s_sweepT += dt;
             pc->yaw = s_pinYaw + 40.0f * s_sweepT;
-            field_0x3C = clampf(s_pinDist + 25.0f * std::sin(s_sweepT * 2.0f), kZoomMin, kZoomMax);
-            field_0x44 = 0.5f + 0.5f * std::sin(s_sweepT * 1.3f);
+            zoomTarget = clampf(s_pinDist + 25.0f * std::sin(s_sweepT * 2.0f), kZoomMin, kZoomMax);
+            manualPitch = 0.5f + 0.5f * std::sin(s_sweepT * 1.3f);
         } else {
             pc->distance = s_pinDist;
-            field_0x3C = s_pinDist;   // zoom target, so smoothing doesn't fight it
+            zoomTarget = s_pinDist;   // zoom target, so smoothing doesn't fight it
             if (s_pinHasYaw) pc->yaw = s_pinYaw;
         }
     }
 
 
     // ── decrement the controller's input timer (+0x48) ──
-    int64_t* tmr = &field_0x48;
+    int64_t* tmr = &tickSoundCooldown;
     *tmr -= timeTicks;
     if (*tmr < 0) *tmr = 0;
 
@@ -436,14 +436,14 @@ void PlayerToolManager::ApplyCameraView(int index) {
 
     PlayerController* pc = GameUpdateLoop::_singleton->m_playerController;
     if (!pc) return;
-    pc->distance = p->field_0x14; // distance
-    pc->yaw = p->field_0x0C;      // yaw
+    pc->distance = p->distance; // distance
+    pc->yaw = p->yaw;      // yaw
     pc->target.x = p->position.x;  // focus x
     pc->target.y = p->position.y;  // focus y
     pc->target.z = p->position.z;  // focus z
-    pc->pitch = p->field_0x10;    // pitch
-    field_0x3C = p->field_0x14;   // zoom target
-    field_0x40 = p->field_0x10;   // pitch target
+    pc->pitch = p->pitch;    // pitch
+    zoomTarget = p->distance;   // zoom target
+    pitchTarget = p->pitch;   // pitch target
     // Re-run movement with dt=0 to settle smoothing onto the preset immediately.
     UpdateCamera(0, 0);
 }
@@ -467,7 +467,7 @@ void PlayerToolManager::UpdateHotkeys(bool inputFlag) {
             if (keyMap->Pressed(0, i + ToUnderlying(GameKey::Camera0)))
                 ApplyCameraView(i);
         }
-        if (inputFlag && keyMap->Pressed(0, ToUnderlying(GameKey::MouseRight)) && !field_0x80) {
+        if (inputFlag && keyMap->Pressed(0, ToUnderlying(GameKey::MouseRight)) && !tutorialRestricted) {
             if (!currentTool.Get()->OnCancel())
                 SelectTool(nullptr);
         }

@@ -77,10 +77,10 @@ public:
     // (0x180110b8d..0x180110bae): the five child handles and the four colours.
     ButtonDescription() : ElementDescription() {
         for (int i = 0; i < 5; ++i) _childDesc[i] = nullptr;
-        _word90 = 0;
-        _word94 = 0;
-        _word98 = 0;
-        _word9c = 0;
+        _enabledColor = 0;
+        _disabledColor = 0;
+        _highlightedColor = 0;
+        _pressedColor = 0;
     }
 
     // ---- the ten slots, in measured order ---------------------------------
@@ -133,10 +133,10 @@ public:
     // one `ElementDescription::_childDesc` if it is ever needed.
     ElementDescription* _childDesc[5]; // +0x68 .. +0x88 (B4 H4: typed)  ExternalPtr<ElementDescription>:
                                    //   [0..3] the four state backgrounds, [4] the label
-    uint32_t _word90;              // +0x90  state-0 colour; also the label's slot-10 arg (B4: kScalarUInt, retail's type)
-    uint32_t _word94;              // +0x94  state-1 colour
-    uint32_t _word98;              // +0x98  state-2 colour
-    uint32_t _word9c;              // +0x9c  state-3 colour
+    uint32_t _enabledColor;              // +0x90  state-0 colour; also the label's slot-10 arg (B4: kScalarUInt, retail's type)
+    uint32_t _disabledColor;              // +0x94  state-1 colour
+    uint32_t _highlightedColor;              // +0x98  state-2 colour
+    uint32_t _pressedColor;              // +0x9c  state-3 colour
 };
 
 static_assert(sizeof(ButtonDescription) == 0xa0,
@@ -147,9 +147,9 @@ static_assert(!std::is_abstract<ButtonDescription>::value, "B39 D1: concrete");
 static_assert(offsetof(ButtonDescription, _childDesc) == sizeof(ElementDescription), "");
 // The POD offsets, absolute (RtUI::ButtonDescription is an ALIAS since fragment pass F2).
 static_assert(offsetof(ButtonDescription, _childDesc) == 0x68, "");
-static_assert(offsetof(ButtonDescription, _word90)    == 0x90, "");
-static_assert(offsetof(ButtonDescription, _word94)    == 0x94, "");
-static_assert(offsetof(ButtonDescription, _word98)    == 0x98, "");
-static_assert(offsetof(ButtonDescription, _word9c)    == 0x9c, "");
+static_assert(offsetof(ButtonDescription, _enabledColor)    == 0x90, "");
+static_assert(offsetof(ButtonDescription, _disabledColor)    == 0x94, "");
+static_assert(offsetof(ButtonDescription, _highlightedColor)    == 0x98, "");
+static_assert(offsetof(ButtonDescription, _pressedColor)    == 0x9c, "");
 
 }  // namespace UI

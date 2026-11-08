@@ -357,14 +357,14 @@ void DumpOrchards(int frameNum) {
             // +0x10 (child/next) pointer — a flat singly-linked list, not a tree (see
             // file header comment). Bounded to guard against a corrupt/cyclic chain.
             const ControllerComponent::Controller* target = &comp->_controller;   // comp+0x28
-            const ControllerComponent::Controller* walk = smc->_controller._data10;   // sm+0x38
+            const ControllerComponent::Controller* walk = smc->_controller._child;   // sm+0x38
             bool linked = false;
             int chainLen = 0;
             constexpr int kMaxWalk = 256;
             while (walk && chainLen < kMaxWalk) {
                 ++chainLen;
                 if (walk == target) { linked = true; break; }
-                walk = walk->_data10;                                  // node+0x10
+                walk = walk->_child;                                  // node+0x10
             }
 
             fprintf(stderr, "[OrchardDiag]   hasStateMachine=YES smc=%p  stateFlags: "

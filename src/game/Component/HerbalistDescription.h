@@ -41,7 +41,7 @@ public:
     ComponentDescription** _herbs;              // +0x20 Array<ExternalPtr<ComponentDescription>> data (herb material refs, 0x1400049c0)
     int32_t _herbCount;                         // +0x28
     int32_t _herbCap;                           // +0x2c
-    uint32_t _u30;                              // +0x30 enum (serialized through the uint door)
+    uint32_t _resourceLimit;                              // +0x30 enum (serialized through the uint door)
     uint8_t _pad34[4];                          // +0x34 never written by the ctor
 };
 
@@ -51,4 +51,4 @@ static_assert(alignof(HerbalistDescription) == 8, "HerbalistDescription alignmen
 static_assert(offsetof(HerbalistDescription, _herbs) == 0x20, "HerbalistDescription::_herbs @ +0x20");
 static_assert(offsetof(HerbalistDescription, _herbCount) == 0x28, "HerbalistDescription::_herbCount @ +0x28");
 static_assert(offsetof(HerbalistDescription, _herbCap) == 0x2c, "HerbalistDescription::_herbCap @ +0x2c");
-static_assert(offsetof(HerbalistDescription, _u30) == 0x30, "HerbalistDescription::_u30 @ +0x30");
+static_assert(offsetof(HerbalistDescription, _resourceLimit) == 0x30, "HerbalistDescription::_resourceLimit @ +0x30");

@@ -287,12 +287,12 @@ void RtGraphics_EdgeMesh_SerializeTriangleListArray(IO::Serializer& ser, int cou
         // hoisted load would be one less indirection than retail performs and
         // would miss a reader/writer swapped mid-element. `ser` is a reference,
         // so each `ser._readerWriter` below is a fresh load.
-        ser._readerWriter->SerializeInt(e->_f00, nullptr);
-        ser._readerWriter->SerializeInt(e->_f04, nullptr);
-        ser._readerWriter->SerializeInt(e->_f08, nullptr);
-        ser._readerWriter->SerializeInt(e->_f0c, nullptr);
-        ser._readerWriter->SerializeInt(e->_f10, nullptr);
-        ser._readerWriter->SerializeInt(e->_f14, nullptr);
+        ser._readerWriter->SerializeInt(e->_baseVertex, nullptr);
+        ser._readerWriter->SerializeInt(e->_vertexCount, nullptr);
+        ser._readerWriter->SerializeInt(e->_startIndex, nullptr);
+        ser._readerWriter->SerializeInt(e->_indexCount, nullptr);
+        ser._readerWriter->SerializeInt(e->_materialIndex, nullptr);
+        ser._readerWriter->SerializeInt(e->_node, nullptr);
         ++e;
     } while (--n);
 }

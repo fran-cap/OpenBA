@@ -60,9 +60,9 @@ public:
     int   GetPriority() override;                                   // [11] 0x14002a220
 
     // --- FireWork fields (+0x48) ---
-    int32_t  _field48;           // +0x48: the firefighter capacity (Persist 0x1400e9a50 int&;
+    int32_t  _maxFirefighters;           // +0x48: the firefighter capacity (Persist 0x1400e9a50 int&;
                                  //        Execute 0x1400e9620 compares it signed with +0x58)
-    uint32_t _field4C;           // +0x4C: the default ctor zeroes it (a qword store with +0x48);
+    uint32_t _pad4C;           // +0x4C: the default ctor zeroes it (a qword store with +0x48);
                                  //        the 3-argument ctor 0x1400e9bd0 leaves it
     // +0x50: Collection::Set<InternalPtr<CitizenComponent>> (the T = 8 node; Cleanup
     // 0x1400e99a0 reads the element's +0x278): the citizens fighting this fire. A real
@@ -77,7 +77,7 @@ public:
 
 static_assert(sizeof(FireWork) == 0x60, "FireWork is 0x60 (retail create MemAlloc)");
 static_assert(alignof(FireWork) == 8, "FireWork is 8-aligned");
-static_assert(offsetof(FireWork, _field48) == 0x48, "FireWork +0x48");
-static_assert(offsetof(FireWork, _field4C) == 0x4c, "FireWork +0x4c");
+static_assert(offsetof(FireWork, _maxFirefighters) == 0x48, "FireWork +0x48");
+static_assert(offsetof(FireWork, _pad4C) == 0x4c, "FireWork +0x4c");
 static_assert(offsetof(FireWork, _citizens) == 0x50, "FireWork +0x50");
 static_assert(offsetof(FireWork, _citizens) + offsetof(FireWork::CitizenSet, _count) == 0x58, "FireWork +0x58");

@@ -20,9 +20,9 @@
 // The slot is a GeometryBatch (Game/WorldGeometryElements.h, the 0x60-byte decal
 // element at WorldGeometry +0x1F0; batch = decals.data + param_2):
 //   vertices (+0x08, 0x14-byte GeometryBatchVertex)   indices (+0x18, uint16)
-//   minX / minY / maxX / maxY (+0x2c..+0x38)   field_0x40 yawDeg (int)
-//   field_0x3C byte (passed to cc10)   field_0x44 modeFlag (cVar1)
-//   field_0x48[0..4] float UV params (when modeFlag==0)
+//   minX / minY / maxX / maxY (+0x2c..+0x38)   rotation (+0x40, int yawDeg)
+//   alpha (+0x3C, byte passed to cc10)   tiled (+0x44, modeFlag cVar1)
+//   uvParams[0..4] (+0x48, float UV params when modeFlag==0)
 
 #include "Game/exe_constants.h"   // kRdata_* (B3R Leftovers: the .rdata constants)
 #include "math/Math.h"
@@ -141,7 +141,7 @@ void WorldGeometry::TessellateDecal(int param_2, char param_3,
     Math::Vector2 corner[4];
 
     float fVar3 = fUV;
-    char  cVar1 = batch->field_0x44;   // modeFlag
+    char  cVar1 = batch->tiled;   // modeFlag
 
     float fVar8 = 0.0f;   // the rotation seed (uVar8)
     float fVar33 = 0.0f;
@@ -150,12 +150,12 @@ void WorldGeometry::TessellateDecal(int param_2, char param_3,
     float local_290_hi;
 
     if (cVar1 == '\0') {
-        float fVar_div = batch->field_0x48[0];
+        float fVar_div = batch->uvParams[0];
         local_288 = 0.0f;
-        fVar33 = batch->field_0x48[1] / fVar_div;
-        fVar31 = (batch->field_0x48[3] - batch->field_0x48[1]) / fVar_div;
-        fVar32 = (batch->field_0x48[4] - batch->field_0x48[2]) / fVar_div;
-        fVar34 = batch->field_0x48[2] / fVar_div;
+        fVar33 = batch->uvParams[1] / fVar_div;
+        fVar31 = (batch->uvParams[3] - batch->uvParams[1]) / fVar_div;
+        fVar32 = (batch->uvParams[4] - batch->uvParams[2]) / fVar_div;
+        fVar34 = batch->uvParams[2] / fVar_div;
         fVar35 = kDAT_140172260;
         fStack_284 = fUV;
         local_290_hi = kDAT_140172280;
@@ -173,7 +173,7 @@ void WorldGeometry::TessellateDecal(int param_2, char param_3,
     }
 
     Math::Scalar local_2a0;                                // 0.0f
-    Math::Scalar local_29c((float)batch->field_0x40);     // yawDeg
+    Math::Scalar local_29c((float)batch->rotation);     // yawDeg
     Math::Scalar local_2b0_0;                              // 0.0f
 
     Math::Vector2 local_228(fVar8, fVar8);
@@ -297,7 +297,7 @@ void WorldGeometry::TessellateDecal(int param_2, char param_3,
                         // cc10: emit the 4 corner descriptors into descBlock.
                         TessCornerBlock descBlock;
                         BuildRoadQuad(iVar22, iVar18, descBlock.corner, iVar13,
-                                         batch->field_0x3C);
+                                         batch->alpha);
 
                         // per-tile UV: 4 corners, write short pos pair into descBlock.
                         {

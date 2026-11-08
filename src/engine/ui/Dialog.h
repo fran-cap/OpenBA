@@ -330,7 +330,7 @@ public:
     int32_t  _drawLevel;               // +0x34
     ElementDescription* _rootDescription; // +0x38  ExternalPtr<ElementDescription> (B4 H4)
     uint32_t _defaultFlags;            // +0x40
-    uint32_t _unknown44;               // +0x44  never written by the ctor
+    uint32_t _pad44;               // +0x44  never written by the ctor
     // B4 Y RT-UI: the four arrays are real members, each on retail's own
     // hand-derived row (SetSize / ~Array):
     //   +0x48  0x180075b20 / 0x180039280   +0x58  0x180075d20 / 0x180039360
@@ -358,7 +358,7 @@ static_assert(offsetof(Dialog, _backgroundColor) == 0x30, "Dialog::_backgroundCo
 static_assert(offsetof(Dialog, _drawLevel) == 0x34, "Dialog::_drawLevel");
 static_assert(offsetof(Dialog, _rootDescription) == 0x38, "Dialog::_rootDescription");
 static_assert(offsetof(Dialog, _defaultFlags) == 0x40, "Dialog::_defaultFlags");
-static_assert(offsetof(Dialog, _unknown44) == 0x44, "Dialog::_unknown44");
+static_assert(offsetof(Dialog, _pad44) == 0x44, "Dialog::_pad44");
 static_assert(offsetof(Dialog, _controllerConfigs) == 0x48, "Dialog::_controllerConfigs");
 static_assert(offsetof(Dialog, _namedTemplates) == 0x58, "Dialog::_namedTemplates");
 static_assert(offsetof(Dialog, _templates) == 0x68, "Dialog::_templates");

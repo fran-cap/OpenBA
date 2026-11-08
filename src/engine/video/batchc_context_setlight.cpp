@@ -151,7 +151,7 @@ void Video::Context::SetLight(const Math::Vector3& direction, const Math::Vector
     L.farPlane     = farPlane;
     L.negNearPlane = NegateBySignMask(nearPlane);
     L.invRange     = invRange;
-    L.zero4c       = 0.0f;
+    L.depthRangeW       = 0.0f;
 
     // +0x1df8 .. +0x1e04 — the direction, with w = 1.0f.
     L.direction[0] = direction.x;

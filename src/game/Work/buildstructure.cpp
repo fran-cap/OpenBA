@@ -6,8 +6,8 @@
 // Vtable: 0x1401610a0
 //
 // Fields:
-//   +0x48: bool   field_48      — use alternate animation flag (serialized)
-//   +0x4C: int    field_4c      — rotating scan index into bool array (serialized)
+//   +0x48: bool   _isDemolition — use alternate animation flag (serialized)
+//   +0x4C: int    _scanIndex    — rotating scan index into bool array (serialized)
 //   +0x50: void*  _slots      — byte array (one per build position: 0=free, 1=claimed)
 #include "Work/exe_bodies.h"
 //   +0x58: int    _slots._size      — count of build positions
@@ -15,8 +15,8 @@
 //   +0x68: int    _citizens._count      — build progress counter
 //
 // Work base fields used:
-//   +0x10: void*  field_10      — InternalBasePtr to building entity
-//   +0x20: int    field_20      — priority value
+//   +0x10: void*  _entity      — InternalBasePtr to building entity
+//   +0x20: int    _workId      — priority value
 //
 // Decompiled from Application-x64.exe using Ghidra.
 
@@ -63,7 +63,7 @@ BuildStructure::BuildStructure()
 // Full Ctor (0x1400e59c0) — 3-arg: (self, &entityIBP, altAnim)
 // ============================================================
 // The REAL retail ctor used by BuildComponent State8Enter (sub_7ae0). Unlike the
-// 1-arg ctor (0x1400e5a90) it (a) routes base init through Work_Ctor25 so field_10
+// 1-arg ctor (0x1400e5a90) it (a) routes base init through Work_Ctor25 so _entity
 // (building entity), +0x18 (WorkComponent) and +0x28 (target cell) are populated, and
 // (b) ALLOCATES the build-position byte array _slots/_slots._size sized to the site's
 // PositionComponent footprint (FUN_140123070 position count -> FUN_14000a590 resize),
@@ -72,14 +72,14 @@ BuildStructure::BuildStructure()
 // 2c-B blocker. Faithful offset-for-offset port of the Ghidra decompilation.
 BuildStructure::BuildStructure(ComponentEntity* const* entityIBP, bool altAnim)
     : Work(entityIBP),   // local_res10 = *entityIBP; Work_Ctor25(this, &local_res10)
-      field_48(altAnim), field_4c(0) {
+      _isDemolition(altAnim), _scanIndex(0) {
     // The +0x50 array and the +0x60 set are members: their ctors zero data, count and
     // capacity (retail 0x1400e5a0a / 0x1400e5a0e: two qwords, so the resize below never
     // reads a garbage capacity) and the set's root (qword) and count (dword).
     // Allocate the build-position byte array from the site's PositionComponent count.
     if (entityIBP) {
-        // The site's InteractComponent (Work(entityIBP) stored *entityIBP in field_10)
-        InteractComponent* posComp = field_10->FindComponent<InteractComponent>();
+        // The site's InteractComponent (Work(entityIBP) stored *entityIBP in _entity)
+        InteractComponent* posComp = _entity->FindComponent<InteractComponent>();
         int count = posComp->NodeCount(1);   // 0x140123070
         // Array<uint8_t>::SetSize (0x14000a590): new bytes are uninitialised, so zero-fill below.
         _slots.SetSize(count);
@@ -170,7 +170,7 @@ void BuildStructure::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // Serialize bool at +0x48 (the field is uint8_t storage)
-    ser.Serialize(field_48, nullptr);
+    ser.Serialize(_isDemolition, nullptr);
 
     // Serialize BST at +0x60 (InternalBasePtr tree)
     WorkBST_BST_Serialize_296b0(&_citizens, &ser);
@@ -188,7 +188,7 @@ void BuildStructure::Persist(IO::Stream& stream) {
     ser.Serialize(count, _slots._data, nullptr);
 
     // Serialize rotating scan index at +0x4C
-    ser.Serialize(field_4c, nullptr);
+    ser.Serialize(_scanIndex, nullptr);
 
     // The serializer's destructor runs here
 }
@@ -237,10 +237,10 @@ static int WorldToCell(int gridSize, float x, float z) {
 int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*context*/) {
     // --- Phase 1: Validate building is enabled ---
     // Find InteractComponent (the build positions) on the building entity
-    InteractComponent* posComp = field_10->FindComponent<InteractComponent>();
+    InteractComponent* posComp = _entity->FindComponent<InteractComponent>();
 
     // Find the BuildComponent (type DWORD_1401c7008)
-    BuildComponent* buildMgmt = field_10->FindComponent<BuildComponent>();
+    BuildComponent* buildMgmt = _entity->FindComponent<BuildComponent>();
 
     // Traverse: buildMgmt -> its entity (+0x10) -> the WorkPlaceComponent (DWORD_1401c80e0).
     // (Was documented as "build description"; corrected 2026-08-09 — the +0x50 read below
@@ -259,7 +259,7 @@ int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*conte
     }
 
     // --- Phase 3: Check builder count vs max, verify citizen authorization ---
-    WorkPlaceComponent* bc = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* bc = _entity->FindComponent<WorkPlaceComponent>();
     int currentBuilders = bc->workers._size;
 
     WorkComponent* matDesc = bc->_entity->FindComponent<WorkComponent>();
@@ -327,13 +327,13 @@ int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*conte
         int scanTotal = _slots._size;
         if (scanTotal > 0) {
             for (int scan = 0; scan < scanTotal; scan++) {
-                int idx = field_4c;
+                int idx = _scanIndex;
                 if (_slots[idx] == 0) {
                     chosenIndex = idx;
                 }
                 int next = idx + 1;
                 if (next >= scanTotal) next = 0;
-                field_4c = next;
+                _scanIndex = next;
                 if (chosenIndex >= 0) break;
             }
         }
@@ -471,15 +471,15 @@ int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*conte
                     // Args: citizenEntityIBP, priority, buildingEntityIBPptr, position, index, altAnim
                     BuildStructure_SetupBuildActions(
                         &citizenEntityVal,
-                        field_20,
-                        &field_10,
+                        _workId,
+                        &_entity,
                         &bestPos.v.x,
                         chosenIndex,
-                        field_48
+                        _isDemolition
                     );
 
                     // Update building entity state
-                    int priority = field_20;
+                    int priority = _workId;
                     CitizenComponent* bldgEntity = *citizenPtr;
 
                     // Get target via vtable slot 10 (GetTarget, +0x50)
@@ -487,7 +487,7 @@ int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*conte
                     Profession* targetVal = *GetTarget(&targetIBP);
 
                     bldgEntity->statusFlags |= Bits(CitizenStatus::TaskDone);
-                    bldgEntity->field_0x30 = priority;
+                    bldgEntity->lastWorkId = priority;
                     bldgEntity->lastErrand = CitizenErrand::None;
 
                     if (targetVal == bldgEntity->profession && priority >= 0) {
@@ -518,7 +518,7 @@ int BuildStructure::Execute(CitizenComponent** citizenPtr, System::Time* /*conte
 // Returns the profession list's +0x38 profession (GameUpdateLoop::m_professionList).
 // Uses hidden return pointer ABI: RCX=self, RDX=retBuf
 Profession** BuildStructure::GetTarget(Profession** retBuf) {
-    *retBuf = GameUpdateLoop::_singleton->m_professionList->field_0x38;
+    *retBuf = GameUpdateLoop::_singleton->m_professionList->builderProfession;
     return retBuf;
 }
 
@@ -729,7 +729,7 @@ DEFINE_EXE_TYPE(BuildStructure, "Work")
 // state 8 crash-free; this drives the site 8 -> 2.
 
 // Build a BuildStructure bound to a construction SITE entity using the FAITHFUL full ctor
-// (0x1400e59c0): it routes base init through Work_Ctor25 (field_10=site entity, +0x18
+// (0x1400e59c0): it routes base init through Work_Ctor25 (_entity=site entity, +0x18
 // WorkComponent, +0x28 target cell) AND allocates the build-position byte array (_slots/
 // _slots._size) from the site's PositionComponent footprint — without which Execute's unbuilt-
 // position scan finds nothing (_slots._size==0) and returns 1 (never assigns labor). buildEntityIBP

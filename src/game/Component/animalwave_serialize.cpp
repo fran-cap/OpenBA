@@ -137,7 +137,7 @@ extern "C" void PopulationComponent_Serialize_Real(PopulationComponent* self, IO
 
     self->smoothTimer.Serialize(ser);
     ser.Serialize(self->scanIndex, nullptr);
-    ser.Serialize(self->field_0x6c, nullptr);
+    ser.Serialize(self->unusedSerializedInt, nullptr);
 }
 
 void AnimalComponent::Persist(IO::Stream& stream) {

@@ -156,14 +156,14 @@ static uint32_t ModelCell(const ModelComponent* model, const Map* map) {
     return static_cast<uint32_t>(w * row + col);
 }
 
-// cooldown rate scalar: ( (IsDerivedFrom(citizen->_description, CitizenDescription) ? desc : 0)->_fd8 ) * mult.
+// cooldown rate scalar: ( (IsDerivedFrom(citizen->_description, CitizenDescription) ? desc : 0)->retryInMonths ) * mult.
 // Row 251 (B7 RES): retail reads [narrowed+0xd8] with no test (IsDerivedFrom, CMOVNZ over 0,
 // in 0x14010bc90 / 0x14010b3e0's three cooldown tails); the tree's 0.0 fallback is gone.
 static int64_t CooldownStamp(CitizenComponent* citizen, float mult) {
     Description* desc = citizen->_description;
     CitizenDescription* cd = desc->IsDerivedFrom(s_tid_CitizenDescription)
                                  ? static_cast<CitizenDescription*>(desc) : nullptr;
-    float rate = cd->_fd8;
+    float rate = cd->retryInMonths;
     System::Time stamp = {0};
     RtSystem_Time_Ctor(&stamp, rate * mult);
     return stamp._ticks;
@@ -292,7 +292,7 @@ static void SelectAndTransfer(ComponentEntity* found, ::Object::InternalPtr<Acti
                 flagged = false;
             }
             if (flagged && avail > 0) {
-                if (rm->_unknown58)
+                if (rm->_preferred)
                     chosenIdx = matchCount;
                 ++matchCount;
             }
@@ -424,8 +424,8 @@ uint64_t CitizenAIComponent::State_GatherResources() {
                        &destEntityIBP, &destPos.v.x, &found,
                        dest, nullptr, -1, 0, 1, '\x01', 1, 0);
 
-        // 3) capLeft = max( the profession list's field_0x30 carry amount, FUN_140116540(citizen) )
-        int townCap = GameUpdateLoop::_singleton->m_professionList->field_0x30->priority;
+        // 3) capLeft = max( the profession list's laborerProfession carry amount, FUN_140116540(citizen) )
+        int townCap = GameUpdateLoop::_singleton->m_professionList->laborerProfession->priority;
         int citCap = citizen.Get()->FreeStorageCapacity();
         int capLeft = (townCap < citCap) ? citCap : townCap;
 
@@ -434,13 +434,13 @@ uint64_t CitizenAIComponent::State_GatherResources() {
 
         // 5) set citizen action-state flags + return 1
         citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-        citizen->field_0x30 = -1;
+        citizen->lastWorkId = -1;
         citizen->lastErrand = CitizenErrand::None;
         citizen->lastErrand = CitizenErrand::GatherFood;
         return 1;  // CONCAT71(citizen >> 8, 1): the caller reads the low byte
     }
 
-    // ---- no reachable home: cooldown(_fd8 * 75.0) -> timers[6] ----
+    // ---- no reachable home: cooldown(retryInMonths * 75.0) -> timers[6] ----
     int64_t stamp = CooldownStamp(citizen.Get(), kMultInvalid);
     timers[static_cast<int32_t>(CitizenAIState::GatherFood)]._ticks = stamp;
     return static_cast<uint64_t>(stamp) & 0xffffffffffffff00ULL;
@@ -533,8 +533,8 @@ uint64_t CitizenAIComponent::State_GatherResources2() {
                        &destEntityIBP, &destPos.v.x, &found,
                        srcPos, nullptr, -1, 0, 1, '\x01', 1, 0);
 
-        // capLeft = max( the profession list's field_0x30 carry amount, FUN_140116540(citizen) )
-        int townCap = GameUpdateLoop::_singleton->m_professionList->field_0x30->priority;
+        // capLeft = max( the profession list's laborerProfession carry amount, FUN_140116540(citizen) )
+        int townCap = GameUpdateLoop::_singleton->m_professionList->laborerProfession->priority;
         int citCap = citizen.Get()->FreeStorageCapacity();
         int capLeft = (townCap < citCap) ? citCap : townCap;
         // Distribution diagnostic (firewood-evenness): the per-trip take budget is
@@ -557,13 +557,13 @@ uint64_t CitizenAIComponent::State_GatherResources2() {
 
         // ---- set citizen action-state flags + return 1 ----
         citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
-        citizen->field_0x30 = -1;
+        citizen->lastWorkId = -1;
         citizen->lastErrand = CitizenErrand::None;
         citizen->lastErrand = CitizenErrand::GatherFuel;
         return 1;  // CONCAT71(citizen >> 8, 1): the caller reads the low byte
     }
 
-    // ---- no reachable home: cooldown(_fd8 * 75.0) -> timers[7] ----
+    // ---- no reachable home: cooldown(retryInMonths * 75.0) -> timers[7] ----
     int64_t stamp = CooldownStamp(citizen.Get(), kMultInvalid);
     timers[static_cast<int32_t>(CitizenAIState::GatherFuel)]._ticks = stamp;
     return static_cast<uint64_t>(stamp) & 0xffffffffffffff00ULL;

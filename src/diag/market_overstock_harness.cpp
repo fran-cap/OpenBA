@@ -273,8 +273,8 @@ static void DoOverstock(int frameNum) {
     ComponentDescription* tmpl = nullptr;
     int unitSize = 0;
     {
-        const int tc = town->field_0x110._size;                                  // +0x118
-        ComponentDescription** ta = town->field_0x110._data;                     // +0x110
+        const int tc = town->knownRawMaterials._size;                                  // +0x118
+        ComponentDescription** ta = town->knownRawMaterials._data;                     // +0x110
         for (int t = 0; t < tc; ++t) {
             ComponentDescription* cand = ta[t];
             // Found by IsDerivedFrom(RawMaterialDescription).

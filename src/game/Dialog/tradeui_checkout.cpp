@@ -196,13 +196,13 @@ void TradeComponent::ExtendMerchantStay() {
         GameUpdateLoop::_singleton->m_citizenList;
     if (!town) return;
 
-    float weight = d->_f68;
-    if (weight > town->field_0x1A8) town->field_0x1A8 = weight;
+    float weight = d->_sicknessAmount;
+    if (weight > town->diseaseRisk) town->diseaseRisk = weight;
 
-    int32_t units = d->_i6c;
+    int32_t units = d->_sicknessTimeInMonths;
     System::Time stay{};                               // 8 bytes — the ctor fills all of it
     RtSystem_Time_Ctor(&stay, static_cast<float>(units) * 300.0f);
-    if (town->field_0x1A0._ticks < stay._ticks) town->field_0x1A0._ticks = stay._ticks;
+    if (town->diseaseRiskTimer._ticks < stay._ticks) town->diseaseRiskTimer._ticks = stay._ticks;
 }
 
 // ============================================================
@@ -231,7 +231,7 @@ void TradeUI::OnTradeButton() {
     // exactly the report this wave was opened on — so the tail below prints what actually
     // moved, not that the handler was entered.
     int soldRows = 0, soldUnits = 0, boughtRows = 0, boughtUnits = 0;
-    const int creditBefore = town->field_0x1AC;
+    const int creditBefore = town->totalTradeValue;
     const bool mapOverlays = Ext::MapOverlays::g_on;   // ext.map_overlays: tested once, above both loops
 
     // ── Phase 1: sell rows ───────────────────────────────────────────────────
@@ -257,7 +257,7 @@ void TradeUI::OnTradeButton() {
             {
                 int cat = ResourceCategory(resEntity);   // 0x140088f90 (its first argument, the storage, is never read)
                 if (cat >= 0) {
-                    town->professionResources._data[cat].field_0x0C += qty;
+                    town->professionResources._data[cat].consumedCount += qty;
                 }
             }
 
@@ -271,7 +271,7 @@ void TradeUI::OnTradeButton() {
     // (+0x100, current value at element+0xd8) rather than recomputed, so the
     // displayed figure and the credited figure cannot disagree.
     {
-        town->field_0x1AC += _numberSellTotal->_intValue;
+        town->totalTradeValue += _numberSellTotal->_intValue;
     }
 
     // ── Phase 2: buy rows ────────────────────────────────────────────────────
@@ -322,7 +322,7 @@ void TradeUI::OnTradeButton() {
     fprintf(stderr, "[TradeCheckout] committed: sold %d unit(s) over %d row(s), "
                     "bought %d unit(s) over %d row(s), town trade credit %d -> %d\n",
             soldUnits, soldRows, boughtUnits, boughtRows,
-            creditBefore, town->field_0x1AC);
+            creditBefore, town->totalTradeValue);
     fflush(stderr);
 
     // ── Phase 3: repaint ─────────────────────────────────────────────────────

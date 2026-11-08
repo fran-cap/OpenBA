@@ -56,8 +56,8 @@ public:
     BuildCost* _costs;                          // +0x20 cost array data (0x10 stride)
     int32_t _costCount;                         // +0x28 NOT initialised by the tree's ctor (only +0x20..+0x27 are)
     int32_t _costCap;                           // +0x2c idem
-    int32_t _i30;                               // +0x30
-    bool _b34;                                  // +0x34
+    int32_t _workRequired;                               // +0x30
+    bool _scaledWithSize;                                  // +0x34
     uint8_t _pad35[3];                          // +0x35 never written by the ctor
 };
 
@@ -67,5 +67,5 @@ static_assert(alignof(BuildDescription) == 8, "BuildDescription alignment");
 static_assert(offsetof(BuildDescription, _costs) == 0x20, "BuildDescription::_costs @ +0x20");
 static_assert(offsetof(BuildDescription, _costCount) == 0x28, "BuildDescription::_costCount @ +0x28");
 static_assert(offsetof(BuildDescription, _costCap) == 0x2c, "BuildDescription::_costCap @ +0x2c");
-static_assert(offsetof(BuildDescription, _i30) == 0x30, "BuildDescription::_i30 @ +0x30");
-static_assert(offsetof(BuildDescription, _b34) == 0x34, "BuildDescription::_b34 @ +0x34");
+static_assert(offsetof(BuildDescription, _workRequired) == 0x30, "BuildDescription::_workRequired @ +0x30");
+static_assert(offsetof(BuildDescription, _scaledWithSize) == 0x34, "BuildDescription::_scaledWithSize @ +0x34");

@@ -8,8 +8,8 @@
 // an exact faster sort (docs/extensions/handins/DRAWSORT.md section 2).
 //
 // WHY RETAIL'S ALGORITHM STAYS. The consumer, `Renderer::DrawItemList`
-// (batchc_gfx_leaves.cpp), reads `_arg8` (the instancing batch limit) and
-// `_arg8` is not one of the eight compared terms; and a NaN `_sortKey` makes the
+// (batchc_gfx_leaves.cpp), reads `_maxInstances` (the instancing batch limit) and
+// `_maxInstances` is not one of the eight compared terms; and a NaN `_sortKey` makes the
 // comparator a non-strict-weak order, where the result depends on the algorithm.
 // So this keeps retail's skeleton (introsort_msvc.h) and its swap sequence, and
 // makes each DECISION cheaper:
@@ -34,12 +34,12 @@
 // SORTCMP (docs/extensions/handins/SORTCMP.md): FEWER COMPARES, EXACT FOR THE
 // CONSUMER. After any correct sort, items with equal full keys are contiguous.
 // Equal keys mean equal flags, material, instance, arg5, arg10, userData and
-// geometry; if their `_arg8` is equal too, the records agree on every field
+// geometry; if their `_maxInstances` is equal too, the records agree on every field
 // `DrawItemList` reads (the pads and the raw `_sortKey` bits are never read),
 // so the order inside such a tie group cannot change a draw. `SortPlain`
 // therefore sorts the keyed list by any correct method (hash-group by the
 // 240-bit prefix above the geometry term, sort the distinct prefixes, sort each
-// group by its 48-bit geometry) and scans the result: one tie whose `_arg8`
+// group by its 48-bit geometry) and scans the result: one tie whose `_maxInstances`
 // differs and the list falls back to the keyed skeleton above, run from the
 // ORIGINAL order (neither the keys nor the items are touched before the final
 // gather). Kill switch `kPlainSort`.
@@ -123,8 +123,8 @@ inline bool DrawItemLess(const RendererDrawItem& a, const RendererDrawItem& b) {
     const std::less<> less;
     if (a._material != b._material) return less(a._material, b._material);   // +0x08
     if (a._instance != b._instance) return less(a._instance, b._instance);   // +0x10
-    if (a._arg5  != b._arg5)  return a._arg5  < b._arg5;                      // +0x1a
-    if (a._arg10 != b._arg10) return a._arg10 < b._arg10;                     // +0x30
+    if (a._node  != b._node)  return a._node  < b._node;                      // +0x1a
+    if (a._animationInstanceId != b._animationInstanceId) return a._animationInstanceId < b._animationInstanceId;                     // +0x30
     if (a._userData != b._userData) return less(a._userData, b._userData);   // +0x28
     // +0x00, the last term: `CMP RAX,[RBP] / JAE <not less>`.
     return less(a._geometry, b._geometry);
@@ -183,7 +183,7 @@ void SortReferenceSmall(RendererDrawItem* lo, RendererDrawItem* hi);
 // The fast sort: keyed when the list can be keyed and is long enough, else the
 // inlined skeleton on the items. With kPlainSort a keyed list takes SortPlain
 // (keyed skeleton on its fallback). Afterwards: ConsumerEqual to SortReference's
-// array item by item, and byte-equal unless a tie group of agreeing _arg8 was
+// array item by item, and byte-equal unless a tie group of agreeing _maxInstances was
 // permuted (then only pad / raw sort-key bytes differ, never a read field).
 void SortFast(RendererDrawItem* data, int32_t count);
 
@@ -206,7 +206,7 @@ bool   MemoCorruptForTest(const void* buffer);
 
 // SORTCMP's plain sort of a keyed list (keys from BuildKeys, n <= kPlainMaxCount).
 // Returns false, with data and keys untouched, when a tie group carries differing
-// `_arg8` (the caller then runs the keyed skeleton); else permutes data into
+// `_maxInstances` (the caller then runs the keyed skeleton); else permutes data into
 // sorted order. `compares` counts every key comparison including hash probes;
 // `groups` = the distinct 240-bit prefixes.
 bool SortPlain(RendererDrawItem* data, int32_t count, const Key* keys,
@@ -217,9 +217,9 @@ bool SortPlain(RendererDrawItem* data, int32_t count, const Key* keys,
 // (neither greater). The shadow's verdict and the unit tests' oracle.
 inline bool ConsumerEqual(const RendererDrawItem& a, const RendererDrawItem& b) {
     return a._geometry == b._geometry && a._material == b._material && a._instance == b._instance &&
-           a._flags == b._flags && a._arg5 == b._arg5 && !(a._sortKey > b._sortKey) &&
-           !(b._sortKey > a._sortKey) && a._arg8 == b._arg8 && a._userData == b._userData &&
-           a._arg10 == b._arg10;
+           a._flags == b._flags && a._node == b._node && !(a._sortKey > b._sortKey) &&
+           !(b._sortKey > a._sortKey) && a._maxInstances == b._maxInstances && a._userData == b._userData &&
+           a._animationInstanceId == b._animationInstanceId;
 }
 
 // The entry the renderer calls (both callers of 0x180062d60): the kill switch,
@@ -240,17 +240,17 @@ struct Counters {
     uint64_t ptrLists;      // lists with a pointer >= 2^48 (inlined skeleton on items)
     uint64_t compares;      // comparator calls
     uint64_t ties;          // adjacent pairs in the sorted output that compare equal
-    uint64_t tiesArg8;      // of those, pairs whose _arg8 differs
+    uint64_t tiesArg8;      // of those, pairs whose _maxInstances differs
     uint64_t maxItems;      // the longest list
     // ---- SORTCMP's census ----
     uint64_t plainLists;    // keyed lists that took SortPlain (fallbacks included)
-    uint64_t fallbacks;     // of those, lists with a differing-_arg8 tie: keyed skeleton rerun
+    uint64_t fallbacks;     // of those, lists with a differing-_maxInstances tie: keyed skeleton rerun
     uint64_t groups;        // distinct 240-bit prefixes, summed over plain lists
     uint64_t runs;          // ascending runs of the key array before sorting, keyable lists
     uint64_t repeatChecks;  // keyable lists whose buffer was sorted before (a previous frame)
     uint64_t repeatHits;    // of those, key array hash equal to that previous sort's
     uint64_t maxTie;        // the longest tie group (items) in any sorted output
-    uint64_t instItems;     // items with _arg8 > 1 (each can open an instancing batch)
+    uint64_t instItems;     // items with _maxInstances > 1 (each can open an instancing batch)
     uint64_t shadowBytes;   // shadow: lists consumer-equal to the reference but not byte-equal
     // ---- SORTMEMO's census (taken whatever kSortMemo says) ----
     uint64_t keyable;       // lists >= kKeyedMinCount whose keys build (the census's base)

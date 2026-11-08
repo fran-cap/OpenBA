@@ -270,17 +270,17 @@ bool Font::Serialize(IO::Stream& streamv) {
     IO::Serializer ser(*stream, 2);                                  // [RBP-0x28], [RBP-0x20]
     IO::ReaderWriter* const rw = ser._readerWriter;
 
-    StringSerialize(_string20, &ser);                                // 18011772c
+    StringSerialize(_fontName, &ser);                                // 18011772c
     ScalarInt(rw, _lineHeight);                                      // 18011773f
-    StringSerialize(_string80, &ser);                                // 180117750
-    ScalarInt(rw, _field70);                                         // 180117763
-    ScalarInt(rw, _field74);                                         // 180117777
-    StringSerialize(_string88, &ser);                                // 180117788
-    StringSerialize(_string78, &ser);                                // 180117795
+    StringSerialize(_sheetName, &ser);                                // 180117750
+    ScalarInt(rw, _sheetWidth);                                         // 180117763
+    ScalarInt(rw, _sheetHeight);                                         // 180117777
+    StringSerialize(_materialName, &ser);                                // 180117788
+    StringSerialize(_imageName, &ser);                                // 180117795
 
     // LEFT: the ExternalPtr<T>::Serialize thunks take RtObject::External** and
     // the rt::io::Serializer POD (External.h, block R-IO).
-    Object::SerializeExternal<UI::CharacterSet>(ser, _field28);                  // 1801177a2
+    Object::SerializeExternal<UI::CharacterSet>(ser, _characterSet);                  // 1801177a2
     _spriteSheet.Serialize(ser);                  // 1801177af  ExternalPtr<SpriteSheet>
     Object::SerializeExternal<Graphics::MaterialInstance>(ser, _material);                  // 1801177bc  ExternalPtr<MaterialInstance>
 

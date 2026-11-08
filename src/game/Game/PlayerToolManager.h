@@ -44,17 +44,17 @@ namespace System { class String; }
 // Only ever an element of that raw-allocated array (never constructed by C++).
 struct PlayerCameraView {
     Math::Vector3 position;       // +0x00 (Vector3::Serialize)
-    float         field_0x0C;     // +0x0C (Serialize float)
-    float         field_0x10;     // +0x10 (Serialize float)
-    float         field_0x14;     // +0x14 (Serialize float)
+    float         yaw;     // +0x0C (Serialize float)
+    float         pitch;     // +0x10 (Serialize float)
+    float         distance;     // +0x14 (Serialize float)
     bool          used;           // +0x18 (Serialize bool)
     uint8_t       _pad19[3];      // +0x19 never written by the copy
 };
 static_assert(sizeof(PlayerCameraView) == 0x1C, "PlayerCameraView stride 0x1C (0x14002e000)");
 static_assert(offsetof(PlayerCameraView, position) == 0x00, "PlayerCameraView::position @ +0x00");
-static_assert(offsetof(PlayerCameraView, field_0x0C) == 0x0C, "PlayerCameraView +0x0C");
-static_assert(offsetof(PlayerCameraView, field_0x10) == 0x10, "PlayerCameraView +0x10");
-static_assert(offsetof(PlayerCameraView, field_0x14) == 0x14, "PlayerCameraView +0x14");
+static_assert(offsetof(PlayerCameraView, yaw) == 0x0C, "PlayerCameraView +0x0C");
+static_assert(offsetof(PlayerCameraView, pitch) == 0x10, "PlayerCameraView +0x10");
+static_assert(offsetof(PlayerCameraView, distance) == 0x14, "PlayerCameraView +0x14");
 static_assert(offsetof(PlayerCameraView, used) == 0x18, "PlayerCameraView::used @ +0x18");
 static_assert(offsetof(PlayerCameraView, _pad19) == 0x19, "PlayerCameraView +0x19");
 
@@ -152,46 +152,46 @@ public:
     // 0x1401024d0's port and MemFrees the block.
     PlayerToolManager();
 
-    UI::DialogInstance* field_0x00;   // +0x00 InternalPtr<UI::DialogInstance>: the open tool dialog (0x1400ff9e0 stores it; ctor null)
-    float    field_0x08;         // +0x08 not written by the ctor; the CreateBar dialog's smoothed screen x (0x1400ffc60: MOVSS [RCX+0x8] at 0x14010004d, [RCX+0xc] at 0x140100097; it blends them; the open path stores -1.0f)
-    float    field_0x0C;         // +0x0C not written by the ctor; the smoothed screen y (the same; two dword stores of 0xbf800000)
+    UI::DialogInstance* toolDialog;   // +0x00 InternalPtr<UI::DialogInstance>: the open tool dialog (0x1400ff9e0 stores it; ctor null)
+    float    createBarScreenX;         // +0x08 not written by the ctor; the CreateBar dialog's smoothed screen x (0x1400ffc60: MOVSS [RCX+0x8] at 0x14010004d, [RCX+0xc] at 0x140100097; it blends them; the open path stores -1.0f)
+    float    createBarScreenY;         // +0x0C not written by the ctor; the smoothed screen y (the same; two dword stores of 0xbf800000)
     // +0x10: the tool registry, a Collection::Set header {root, int count}
     // (root +0x10, count +0x18; ctor 0, two stores) that SelectTool 0x140102b60
     // walks and 0x14002de90 clears by its header (node: Dialog/ToolRegistryNode.h).
     AvlTreeHead<struct ToolRegistryNode> toolRegistry;
-    ComponentDescription* field_0x20; // +0x20 ctor 0; the active tool group SelectTool 0x140102b60 stores (B4 H4: typed, DLG-d)
+    ComponentDescription* activeToolGroup; // +0x20 ctor 0; the active tool group SelectTool 0x140102b60 stores (B4 H4: typed, DLG-d)
     // +0x28: retail's ctor 0x1401025c0 builds it with ??0InternalBasePtr(null)
     // (0x1401025fe); the teardown 0x1401024d0 DeletePtr()s it. Trivially
     // destructible, so the class still runs no destructor.
     Object::InternalPtr<Tool> currentTool;
     bool     paused;             // +0x30 ctor 0; the toolbar pause / unpause buttons write it (0x1400b92a0 cases 7 / 8), their enable state (0x1400b8d40) and Draw read it (B4 DLG-d)
     uint8_t  _pad31[3];          // +0x31
-    int32_t  field_0x34;         // +0x34 ctor 1 (the tree: game speed)
-    bool     field_0x38;         // +0x38 ctor 0
+    int32_t  gameSpeed;         // +0x34 ctor 1 (the tree: game speed)
+    bool     followActive;         // +0x38 ctor 0
     uint8_t  _pad39[3];          // +0x39
-    float    field_0x3C;         // +0x3C ctor 0 (one qword store with +0x40); Serialize float (0x140102920)
-    float    field_0x40;         // +0x40 ctor 0; Serialize float
-    float    field_0x44;         // +0x44 ctor 0.75
-    int64_t  field_0x48;         // +0x48 ctor 0; a Time the camera update (0x1400feec0) counts down to 0
+    float    zoomTarget;         // +0x3C ctor 0 (one qword store with +0x40); Serialize float (0x140102920)
+    float    pitchTarget;         // +0x40 ctor 0; Serialize float
+    float    manualPitch;         // +0x44 ctor 0.75
+    int64_t  tickSoundCooldown;         // +0x48 ctor 0; a Time the camera update (0x1400feec0) counts down to 0
     // +0x50 / +0x60: two Collection::Set headers {root, int count} (POD: the ctor
     // zeroes them, 0x1401024d0 frees their nodes by hand; no C++ dtor runs).
-    AvlTreeHead<PinnedToolNode> field_0x50;      // +0x50 ctor 0 (root +0x50, count +0x58); the pinned tool-dialog set (key = the dialog's description; 0x140101a80 inserts)
-    AvlTreeHead<TrackedEntityNode> field_0x60;   // +0x60 ctor 0 (root +0x60, count +0x68); the open-entity set (EntityUI::SyncPin 0x1400666b0 inserts / removes, EntityUI::OnClosed removes)
+    AvlTreeHead<PinnedToolNode> pinnedToolDialogs;      // +0x50 ctor 0 (root +0x50, count +0x58); the pinned tool-dialog set (key = the dialog's description; 0x140101a80 inserts)
+    AvlTreeHead<TrackedEntityNode> trackedEntities;   // +0x60 ctor 0 (root +0x60, count +0x68); the open-entity set (EntityUI::SyncPin 0x1400666b0 inserts / removes, EntityUI::OnClosed removes)
     // +0x70 Array<CameraView> (sized to 5 by the ctor; saved views 1-5). Retail's
     // ctor 0x1401025c0 zeroes it inline and SetSizes it to 5; its dtor 0x1401024d0
     // frees it (inlined ~Array) after the current tool and before the two sets.
     PlayerCameraViewArray cameraViews;
-    bool     field_0x80;         // +0x80 pending-tool flag (ctor 0)
+    bool     tutorialRestricted;         // +0x80 pending-tool flag (ctor 0)
     uint8_t  _pad81[7];          // +0x81
-    ComponentDescription* field_0x88; // +0x88 pending tool (ctor 0): the group SelectTool 0x140102b60 forces while +0x80 is set (B4 H4: typed, DLG-d)
-    void*    field_0x90;         // +0x90 ctor 0
-    int32_t  field_0x98;         // +0x98 ctor -1 (one qword store with +0x9C)
-    int32_t  field_0x9C;         // +0x9C ctor -1
-    int32_t  field_0xA0;         // +0xA0 ctor -1
-    bool     field_0xA4;         // +0xA4 ctor 0
+    ComponentDescription* tutorialTool; // +0x88 pending tool (ctor 0): the group SelectTool 0x140102b60 forces while +0x80 is set (B4 H4: typed, DLG-d)
+    void*    tutorialSelectTarget;         // +0x90 ctor 0
+    int32_t  tutorialStartCell;         // +0x98 ctor -1 (one qword store with +0x9C)
+    int32_t  tutorialEndCell;         // +0x9C ctor -1
+    int32_t  tutorialRotation;         // +0xA0 ctor -1
+    bool     cameraMoveActive;         // +0xA4 ctor 0
     uint8_t  _padA5[3];          // +0xA5
-    int32_t  field_0xA8;         // +0xA8 not written by the ctor
-    int32_t  field_0xAC;         // +0xAC not written by the ctor
+    int32_t  cameraMoveStartCell;         // +0xA8 not written by the ctor
+    int32_t  cameraMoveEndCell;         // +0xAC not written by the ctor
 
     // ---- members (D.4 DRAW; bodies in Dialog/entityui.cpp; retail calls them EntityUI::) ----
     void Startup();                                       // 0x140101ee0 (GameUpdateLoop::Startup)
@@ -235,35 +235,35 @@ public:
 };
 
 static_assert(sizeof(PlayerToolManager) == 0xB0, "PlayerToolManager is 0xB0 (Load MemAlloc(0xb0, 4))");
-static_assert(offsetof(PlayerToolManager, field_0x00) == 0x00, "+0x00");
-static_assert(offsetof(PlayerToolManager, field_0x08) == 0x08, "+0x08");
-static_assert(offsetof(PlayerToolManager, field_0x0C) == 0x0C, "+0x0C");
+static_assert(offsetof(PlayerToolManager, toolDialog) == 0x00, "+0x00");
+static_assert(offsetof(PlayerToolManager, createBarScreenX) == 0x08, "+0x08");
+static_assert(offsetof(PlayerToolManager, createBarScreenY) == 0x0C, "+0x0C");
 static_assert(offsetof(PlayerToolManager, toolRegistry) == 0x10, "+0x10");
 static_assert(offsetof(PlayerToolManager, toolRegistry.count) == 0x18, "+0x18");
-static_assert(offsetof(PlayerToolManager, field_0x20) == 0x20, "+0x20");
+static_assert(offsetof(PlayerToolManager, activeToolGroup) == 0x20, "+0x20");
 static_assert(offsetof(PlayerToolManager, currentTool) == 0x28, "PlayerToolManager::currentTool @ +0x28 (0x1401026a0)");
 static_assert(offsetof(PlayerToolManager, paused) == 0x30, "PlayerToolManager::paused @ +0x30 (0x1400b8d40)");
 static_assert(offsetof(PlayerToolManager, _pad31) == 0x31, "+0x31");
-static_assert(offsetof(PlayerToolManager, field_0x34) == 0x34, "+0x34");
-static_assert(offsetof(PlayerToolManager, field_0x38) == 0x38, "+0x38");
+static_assert(offsetof(PlayerToolManager, gameSpeed) == 0x34, "+0x34");
+static_assert(offsetof(PlayerToolManager, followActive) == 0x38, "+0x38");
 static_assert(offsetof(PlayerToolManager, _pad39) == 0x39, "+0x39");
-static_assert(offsetof(PlayerToolManager, field_0x3C) == 0x3C, "+0x3C");
-static_assert(offsetof(PlayerToolManager, field_0x40) == 0x40, "+0x40");
-static_assert(offsetof(PlayerToolManager, field_0x44) == 0x44, "+0x44");
-static_assert(offsetof(PlayerToolManager, field_0x48) == 0x48, "+0x48");
-static_assert(offsetof(PlayerToolManager, field_0x50) == 0x50, "+0x50");
-static_assert(offsetof(PlayerToolManager, field_0x50.count) == 0x58, "+0x58 the pinned set's count");
-static_assert(offsetof(PlayerToolManager, field_0x60) == 0x60, "+0x60");
-static_assert(offsetof(PlayerToolManager, field_0x60.count) == 0x68, "+0x68 the open-entity set's count");
+static_assert(offsetof(PlayerToolManager, zoomTarget) == 0x3C, "+0x3C");
+static_assert(offsetof(PlayerToolManager, pitchTarget) == 0x40, "+0x40");
+static_assert(offsetof(PlayerToolManager, manualPitch) == 0x44, "+0x44");
+static_assert(offsetof(PlayerToolManager, tickSoundCooldown) == 0x48, "+0x48");
+static_assert(offsetof(PlayerToolManager, pinnedToolDialogs) == 0x50, "+0x50");
+static_assert(offsetof(PlayerToolManager, pinnedToolDialogs.count) == 0x58, "+0x58 the pinned set's count");
+static_assert(offsetof(PlayerToolManager, trackedEntities) == 0x60, "+0x60");
+static_assert(offsetof(PlayerToolManager, trackedEntities.count) == 0x68, "+0x68 the open-entity set's count");
 static_assert(offsetof(PlayerToolManager, cameraViews) == 0x70, "PlayerToolManager::cameraViews @ +0x70 (count +0x78, capacity +0x7C)");
-static_assert(offsetof(PlayerToolManager, field_0x80) == 0x80, "+0x80");
+static_assert(offsetof(PlayerToolManager, tutorialRestricted) == 0x80, "+0x80");
 static_assert(offsetof(PlayerToolManager, _pad81) == 0x81, "+0x81");
-static_assert(offsetof(PlayerToolManager, field_0x88) == 0x88, "+0x88");
-static_assert(offsetof(PlayerToolManager, field_0x90) == 0x90, "+0x90");
-static_assert(offsetof(PlayerToolManager, field_0x98) == 0x98, "+0x98");
-static_assert(offsetof(PlayerToolManager, field_0x9C) == 0x9C, "+0x9C");
-static_assert(offsetof(PlayerToolManager, field_0xA0) == 0xA0, "+0xA0");
-static_assert(offsetof(PlayerToolManager, field_0xA4) == 0xA4, "+0xA4");
+static_assert(offsetof(PlayerToolManager, tutorialTool) == 0x88, "+0x88");
+static_assert(offsetof(PlayerToolManager, tutorialSelectTarget) == 0x90, "+0x90");
+static_assert(offsetof(PlayerToolManager, tutorialStartCell) == 0x98, "+0x98");
+static_assert(offsetof(PlayerToolManager, tutorialEndCell) == 0x9C, "+0x9C");
+static_assert(offsetof(PlayerToolManager, tutorialRotation) == 0xA0, "+0xA0");
+static_assert(offsetof(PlayerToolManager, cameraMoveActive) == 0xA4, "+0xA4");
 static_assert(offsetof(PlayerToolManager, _padA5) == 0xA5, "+0xA5");
-static_assert(offsetof(PlayerToolManager, field_0xA8) == 0xA8, "+0xA8");
-static_assert(offsetof(PlayerToolManager, field_0xAC) == 0xAC, "+0xAC");
+static_assert(offsetof(PlayerToolManager, cameraMoveStartCell) == 0xA8, "+0xA8");
+static_assert(offsetof(PlayerToolManager, cameraMoveEndCell) == 0xAC, "+0xAC");

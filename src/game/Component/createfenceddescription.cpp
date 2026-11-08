@@ -48,27 +48,27 @@
 // the defaults.
 CreateFencedDescription::CreateFencedDescription()
     : Description(),
-      _u20(0),
-      _i58(0),
-      _i5c(0),
-      _i60(0),
-      _i64(0),
-      _b68(false),
-      _ref70(nullptr) {
-    for (auto& r : _refs) r = nullptr;
+      _placeBits(0),
+      _maxWidth(0),
+      _maxHeight(0),
+      _minWidth(0),
+      _minHeight(0),
+      _centerBuilding(false),
+      _allowAndRemove(nullptr) {
+    for (auto& r : _sections) r = nullptr;
 }
 
 // [5] 0x1400478f0: stream order as retail.
 bool CreateFencedDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_u20, nullptr);
-    ::Object::SerializeExternalArray<ComponentDescription>(ser, 6, _refs);   // ExtPtr[6] +0x28 (0x1400049c0)
-    ser.Serialize(_i58, nullptr);
-    ser.Serialize(_i5c, nullptr);
-    ser.Serialize(_i60, nullptr);
-    ser.Serialize(_i64, nullptr);
-    ser.Serialize(_b68, nullptr);
-    ::Object::SerializeExternal<ComponentDescription>(ser, _ref70);
+    ser.Serialize(_placeBits, nullptr);
+    ::Object::SerializeExternalArray<ComponentDescription>(ser, 6, _sections);   // ExtPtr[6] +0x28 (0x1400049c0)
+    ser.Serialize(_maxWidth, nullptr);
+    ser.Serialize(_maxHeight, nullptr);
+    ser.Serialize(_minWidth, nullptr);
+    ser.Serialize(_minHeight, nullptr);
+    ser.Serialize(_centerBuilding, nullptr);
+    ::Object::SerializeExternal<ComponentDescription>(ser, _allowAndRemove);
     return true;
 }
 

@@ -370,10 +370,10 @@ std::vector<Category> CollectCategories(const std::vector<Material>& materials) 
             }
             Category c;
             c.flags = group.rawMaterialFlags;
-            const std::string text = TableText(trade->_ref28, group.textName);
+            const std::string text = TableText(trade->_resourceStringTable, group.textName);
             c.text = System::String(text.empty() ? "?" : text.c_str());
-            if (trade->_ref20 != nullptr && group.spriteName._data != nullptr) {
-                c.sprite = UI::Sprite(Object::ExternalPtr<UI::SpriteSheet>(trade->_ref20), group.spriteName);
+            if (trade->_resourceSpriteSheet != nullptr && group.spriteName._data != nullptr) {
+                c.sprite = UI::Sprite(Object::ExternalPtr<UI::SpriteSheet>(trade->_resourceSpriteSheet), group.spriteName);
             }
             if (!c.sprite.IsValid()) {
                 c.sprite = FirstSprite(materials, c.flags);

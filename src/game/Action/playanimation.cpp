@@ -36,15 +36,15 @@ void PlayAnimation::Persist(IO::Stream& stream) {
     Action::Persist(stream);   // inlined in retail: Serializer(stream, 0), status +0x18
 
     IO::Serializer ser(stream, 0);
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
-            _field20 = nullptr;
+    _entity.InternalBasePtr::Serialize(ser);
+    if (!_entity.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_entity, ComponentEntity::TypeId())) {
+            _entity = nullptr;
         }
     }
     ser.Serialize(animation, nullptr);   // +0x28 int
-    _field30.Serialize(ser);             // +0x30 Time
-    _field38.Serialize(ser);             // +0x38 Time
+    _duration.Serialize(ser);             // +0x30 Time
+    _elapsed.Serialize(ser);             // +0x38 Time
 }
 
 // ============================================================
@@ -61,7 +61,7 @@ void PlayAnimation::Persist(IO::Stream& stream) {
 // weak ref to it", is retired since B.4 gave every class its ctor.)
 int  PlayAnimation::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
-    CharacterComponent* character = _field20.Get()->FindComponent<CharacterComponent>();   // 0x1400012d0
+    CharacterComponent* character = _entity.Get()->FindComponent<CharacterComponent>();   // 0x1400012d0
     character->SetAnimation(static_cast<uint32_t>(animation), kRdata_14017214c, kRdata_14017214c);   // 0x14010a1f0
     return 1;
 }
@@ -69,14 +69,14 @@ int  PlayAnimation::AbstractImpl(ActionStack* actionStack) {
 // ============================================================
 // PlayAnimation::Execute (0x140042400)
 // Accumulates elapsed time, returns true while still animating.
-//   self->_field38 += *time;
-//   return (self->_field38 < self->_field30);
+//   self->_elapsed += *time;
+//   return (self->_elapsed < self->_duration);
 // ============================================================
 int  PlayAnimation::Execute(ActionStack* actionStack, const System::Time* time) {
     (void)actionStack;
     int64_t elapsed = time->_ticks;
-    _field38._ticks += elapsed;
-    return (_field38._ticks < _field30._ticks) ? 1 : 0;
+    _elapsed._ticks += elapsed;
+    return (_elapsed._ticks < _duration._ticks) ? 1 : 0;
 }
 
 // ============================================================
@@ -84,7 +84,7 @@ int  PlayAnimation::Execute(ActionStack* actionStack, const System::Time* time) 
 // Returns true if param matches entity at +0x20.
 // ============================================================
 bool PlayAnimation::GetTarget(ComponentEntity** param) {
-    return _field20.Get() == *param;
+    return _entity.Get() == *param;
 }
 
 // ============================================================
@@ -98,11 +98,11 @@ bool PlayAnimation::GetTarget(ComponentEntity** param) {
 // create 0x1400011f0 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 PlayAnimation::PlayAnimation()
-    : _field20(nullptr),
+    : _entity(nullptr),
       animation(0),
       _pad2C{},
-      _field30{0},
-      _field38{0} {}
+      _duration{0},
+      _elapsed{0} {}
 
 // [3] 0x140042480
 // [4] 0x140042420

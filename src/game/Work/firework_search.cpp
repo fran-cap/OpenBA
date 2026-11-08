@@ -79,14 +79,14 @@ void CitizenBehavior::ScanWaterCell(Map* map, int coarseCell, int ringX, int rin
                                     uint32_t srcCell, int* bestCost, int* bestId,
                                     WellComponent** bestWell) {
     // The bucket {int* ids, int count, ...}; its count is re-read every pass.
-    if (field_0x140._data[coarseCell].GetSize() <= 0)
+    if (coarseWaterIndex._data[coarseCell].GetSize() <= 0)
         return;
 
     int idx = 0;
     do {
         // Ring radius (in fine units, *8) vs current best/limit squared distance.
         if (ringY * 8 * ringY * 8 + ringX * 8 * ringX * 8 <= (*bestCost) * (*bestCost)) {
-            int id = field_0x140._data[coarseCell][idx];   // water id
+            int id = coarseWaterIndex._data[coarseCell][idx];   // water id
             uint32_t uVar7;
             if (id < 0) {
                 // Negative id -> the well at wells[-1-id].
@@ -105,7 +105,7 @@ void CitizenBehavior::ScanWaterCell(Map* map, int coarseCell, int ringX, int rin
                 if (iVar6 <= iVar3)  iVar3 = iVar6 - 1;
                 uVar7 = static_cast<uint32_t>(iVar6 * iVar3 + iVar2);
             } else {
-                uVar7 = static_cast<uint32_t>(field_0x130._data[static_cast<int64_t>(id)].cellA);
+                uVar7 = static_cast<uint32_t>(waterAccessPairs._data[static_cast<int64_t>(id)].cellA);
                 // Cell-type gate: bit (cellType & 0x1f) of mask 0xe07 must be set.
                 // cellType = byte +0x29 of the 0x30-byte map cell (disasm:
                 // MOV RAX,[R14 + 0x80]).
@@ -139,7 +139,7 @@ void CitizenBehavior::ScanWaterCell(Map* map, int coarseCell, int ringX, int rin
         }
     next:
         idx = idx + 1;
-    } while (idx < field_0x140._data[coarseCell].GetSize());
+    } while (idx < coarseWaterIndex._data[coarseCell].GetSize());
 }
 
 // ===========================================================================
@@ -230,7 +230,7 @@ int64_t CitizenBehavior::FindWater(uint32_t centreCell, int extent, float* outA,
         float half = static_cast<float>(map->size >> 1) - HalfCell();
 
         // First terrain position: the pair's first cell id at +0x130[best].
-        int cellA = field_0x130._data[lVar7].cellA;
+        int cellA = waterAccessPairs._data[lVar7].cellA;
         float inXY_a[3];
         inXY_a[0] = static_cast<float>(cellA % map->size) - half;
         inXY_a[1] = static_cast<float>(cellA / map->size) - half;
@@ -242,7 +242,7 @@ int64_t CitizenBehavior::FindWater(uint32_t centreCell, int extent, float* outA,
         outA[2] = outPosA[2];
 
         // Second terrain position: the pair's second cell id.
-        int cellB = field_0x130._data[lVar7].cellB;
+        int cellB = waterAccessPairs._data[lVar7].cellB;
         float half2 = static_cast<float>(map->size >> 1) - HalfCell();
         float inXY_b[3];
         inXY_b[0] = static_cast<float>(cellB % map->size) - half2;

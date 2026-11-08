@@ -113,7 +113,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;
 
     // Find FishingComponent (DAT_1401c7660) on the building entity (+0x10)
-    FishingComponent* fishing = field_10->FindComponent<FishingComponent>();
+    FishingComponent* fishing = _entity->FindComponent<FishingComponent>();
 
     // Get fishing description via IsDerivedFrom check on component+0x18
     Description* compBase = fishing->_description;
@@ -124,14 +124,14 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
 
     // Check if fishing season is valid
     // The town's resource entry for fishingDesc+0x28 (CitizenBehavior +0x170, 0x20 stride)
-    int spotMapIdx = (int)fishingDesc->_u28;
+    int spotMapIdx = (int)fishingDesc->_resourceLimit;
     ProfessionResourceEntry* mapEntries = gameWorld->m_citizenList->professionResources._data;
     ProfessionResourceEntry& entry = mapEntries[spotMapIdx];
     // atCapacity = (limit <= current) — true when resource count is at/above limit
     bool atCapacity = entry.maxCount <= entry.currentCount;   // +0x08 / +0x00
 
     // Toggle status icon visibility based on capacity (visGroup 2)
-    StatusIconComponent* statusIcon = field_10->FindComponent<StatusIconComponent>();
+    StatusIconComponent* statusIcon = _entity->FindComponent<StatusIconComponent>();
     statusIcon->SetFlag(2, atCapacity ? 1 : 0);   // 0x14012c3f0
 
     if (atCapacity) {
@@ -139,7 +139,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
     }
 
     // Find InteractComponent (the spot positions) on building entity
-    InteractComponent* posComp = field_10->FindComponent<InteractComponent>();
+    InteractComponent* posComp = _entity->FindComponent<InteractComponent>();
 
     int citizenCount = citizenRefs._size;  // +0x50
 
@@ -243,14 +243,14 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             // DAT_1401c4870 = RadiusDescription (ENDGAME B.3.9 D5: by cell, not by the
             // legacy variable name "RadiusComponent").
             RadiusDescription* radiusComp = static_cast<RadiusDescription*>(
-                FindComponentOnSubObject(field_10->_description, RadiusDescription::TypeId()));
+                FindComponentOnSubObject(_entity->_description, RadiusDescription::TypeId()));
 
             int radius = radiusComp->_radius;
             int radiusSq = radius * radius;
 
             // The work's target cell (+0x28) as grid coordinates for the random offset
-            int citizenGridX = field_28 / cMapSize;
-            int citizenGridY = field_28 % cMapSize;
+            int citizenGridX = _cell / cMapSize;
+            int citizenGridY = _cell % cMapSize;
 
             // Get random source from game world
             System::Random* randPtr = gameWorld->m_random;
@@ -283,7 +283,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                 // Check map cell for valid water terrain
                 int64_t mapCellIdx = (int64_t)(cMapSize * targetY + targetX);
                 MapCell* mapData = map->cells.GetData();
-                uint8_t terrainType = mapData[mapCellIdx].field_0x1C[8];   // +0x24 (field_0x1C[8])
+                uint8_t terrainType = mapData[mapCellIdx].influenceCounts[8];   // +0x24 (influenceCounts[8])
                 uint8_t terrainBit = static_cast<uint8_t>(mapData[mapCellIdx].terrainType);   // +0x29
 
                 // Check fishing description allows this terrain and terrain is nonzero
@@ -300,13 +300,13 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                 // Valid spot found — create fishing action
 
                 // Build action parameters
-                ComponentEntity* entityRef = field_10.Get();
+                ComponentEntity* entityRef = _entity.Get();
                 CitizenComponent* citizenRef = *citizenIBP;
                 float uvScale = (kRdata_14017214c / (float)terrainType) * fishing->fishingRate;
                 uint32_t spotInfo = ((freeSpot | 0x800) << 4) | emptySlot;
 
                 WorkAct_FishWorkCtor_beae0(
-                    &citizenRef, field_20, &entityRef,
+                    &citizenRef, _workId, &entityRef,
                     &citizenPos.v.x, citizenHeading,
                     fishingDesc->_fish,
                     uvScale, freeSpotMapCell, spotInfo);
@@ -315,14 +315,14 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                 spotStates[freeSpot] = static_cast<int32_t>(WorkSpotState::InUse);
 
                 // Finalize: push action, set citizen slot
-                int priority = field_20;  // +0x20
+                int priority = _workId;  // +0x20
                 CitizenComponent* ce = *citizenIBP;
 
                 Profession* targetBuf;   // retail: slot 10 writes into the reused entityRef stack slot
                 Profession* actionVal = *GetTarget(&targetBuf);
 
                 ce->statusFlags |= Bits(CitizenStatus::TaskDone);
-                ce->field_0x30 = priority;
+                ce->lastWorkId = priority;
                 ce->lastErrand = CitizenErrand::None;
 
                 if (actionVal == ce->profession && priority >= 0) {
@@ -339,16 +339,16 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             // All 10 random attempts failed — retry with animation if under limit
             if (retryCount < 0xb) {  // retry count < 11
                 CitizenComponent* citizenRef2 = *citizenIBP;
-                WorkAct_PlayAnimationCtor_c2490(&citizenRef2, field_20, emptySlot);
+                WorkAct_PlayAnimationCtor_c2490(&citizenRef2, _workId, emptySlot);
 
-                int priority = field_20;
+                int priority = _workId;
                 CitizenComponent* ce = *citizenIBP;
 
                 Profession* targetBuf;   // retail: slot 10 writes into the reused citizenRef2 stack slot
                 Profession* actionVal = *GetTarget(&targetBuf);
 
                 ce->statusFlags |= Bits(CitizenStatus::TaskDone);
-                ce->field_0x30 = priority;
+                ce->lastWorkId = priority;
                 ce->lastErrand = CitizenErrand::None;
 
                 if (actionVal == ce->profession && priority >= 0) {
@@ -417,7 +417,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
             // leaves those cells unowned, so this branch should now be unreachable. It
             // stays as a tripwire: if it ever fires again the claim is back, and the
             // dock's 4-catch cap is back with it.
-            if (cellEntity == field_10.Get()) {
+            if (cellEntity == _entity.Get()) {
                 static bool s_warned = false;
                 if (!s_warned) {
                     s_warned = true;
@@ -479,7 +479,7 @@ int FishingWork::Execute(CitizenComponent** citizenIBP, System::Time* /*time*/) 
                         "[FishWork] +0x28 NULL: spot[%d] cell=%d tile=(%d,%d) "
                         "cellEntity=%p dock=%p wanted tid=0x%x (%s) — entity carries "
                         "%d component(s):\n", i, cellIdx, cx, cy, static_cast<void*>(cellEnt),
-                        static_cast<void*>(field_10.Get()), want,
+                        static_cast<void*>(_entity.Get()), want,
                         wantName ? wantName : "UNREGISTERED", compCount);
                     for (int k = 0; k < compCount; ++k) {
                         Component* c2 = cellEnt->_components[k].Get();
@@ -719,7 +719,7 @@ int FishingWork::OnComplete(CitizenComponent** param2, ComponentEntity** param3,
             std::fprintf(stderr,
                 "[WILDWRITE] FishingWork::Slot6 OUT OF RANGE: work=%p entity=%p workId=%d "
                 "param4=0x%x -> spotIdx=%u (count %d, cap %d, array %p) citizenSlot=%u (count %d)\n",
-                (void*)this, static_cast<void*>(field_10.Get()), field_20, param4,
+                (void*)this, static_cast<void*>(_entity.Get()), _workId, param4,
                 spotIdx, spotStates._size, spotStates._capacity, static_cast<void*>(spotStates._data),
                 citizenSlot, citizenRefs._size);
             RedzoneAlloc_PrintBacktrace("FishingWork::Slot6");
@@ -795,7 +795,7 @@ int FishingWork::Cleanup() {
 Profession** FishingWork::GetTarget(Profession** param2) {
     // CheckPtr on building entity IBP (at self+0x10); its WorkPlaceComponent
     // (FUN_140002e10)
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
 
     // CheckPtr on the returned IBP
 

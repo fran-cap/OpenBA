@@ -167,8 +167,8 @@ inline bool SerializerLoading(IO::Serializer* serializer) {
 // looks like "everyone froze, then starved".
 void RegistryCensus(const CitizenBehavior* cb, const char* leg, const char* when) {
     const struct { int32_t count; const char* name; } kReg[] = {
-        {cb->field_0x00._size, "entA"},   {cb->field_0x10._size, "entB"},
-        {cb->field_0x20._size, "residence"}, {cb->field_0x30._size, "entC"},
+        {cb->storageLocations._size, "entA"},   {cb->marketLocations._size, "entB"},
+        {cb->residences._size, "residence"}, {cb->tradePosts._size, "entC"},
         {cb->cemeteries._size, "cemetery"},
         {cb->happinessComponents._size, "happiness"},
         {cb->attendanceComponents._size, "attendance"},
@@ -488,15 +488,15 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
     const char* leg = SerializerLoading(ser) ? "LOAD" : "SAVE";
     RegistryCensus(this, leg, "enter");
 
-    SerializeIBPArray(field_0x00, ser, ComponentEntity::TypeId());
-    SerializeIBPArray(field_0x10, ser, ComponentEntity::TypeId());
-    SerializeIBPArray(field_0x30, ser, ComponentEntity::TypeId());
-    SerializeIBPArray(field_0x20, ser, ComponentEntity::TypeId());
+    SerializeIBPArray(storageLocations, ser, ComponentEntity::TypeId());
+    SerializeIBPArray(marketLocations, ser, ComponentEntity::TypeId());
+    SerializeIBPArray(tradePosts, ser, ComponentEntity::TypeId());
+    SerializeIBPArray(residences, ser, ComponentEntity::TypeId());
     SerializeIBPArray(healers, ser, HealerComponent::TypeId());
     SerializeIBPArray(citizens, ser, CitizenComponent::TypeId());
 
     // Unconditional TREE #1: 0x140017a40, its keys ExternalPtr<Profession> (0x140018020; B7 LX2).
-    SerializeCompRefTree<Profession>(field_0x100, ser);   // 0x140017a40 -> 0x140018020 (Profession)
+    SerializeCompRefTree<Profession>(workplacesByProfession, ser);   // 0x140017a40 -> 0x140018020 (Profession)
 
     SerializeIBPArray(pastures, ser, PastureComponent::TypeId());
     SerializeIBPArray(cemeteries, ser, CemeteryComponent::TypeId());
@@ -516,52 +516,52 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
     // (FUN_140001bb0) then bulk-serialized via Reimpl_ExternalPtrArray_Serialize
     // (0x1400049c0), matching FUN_140001bb0(hdr,count) + FUN_1400049c0(ser,count,ptr,p4).
     {
-        int32_t count = field_0x110._size;
+        int32_t count = knownRawMaterials._size;
         ser->Serialize(count, nullptr);
         // B.3.2: Collection::Array<T>::SetSize — retail 0x140001bb0, stride 8 align 8,
         // new tail zeroed. Element is the 8-byte ExternalPtr<ComponentDescription>.
         if (SerializerLoading(ser))
-            field_0x110.SetSize(count);
+            knownRawMaterials.SetSize(count);
         // LEFT: the array body takes the element base as long long (Game/exe_bodies.h,
         // serialize_externals_array.cpp).
-        ::Object::SerializeExternalArray<ComponentDescription>(*ser, count, field_0x110._data);   // 0x1400049c0
+        ::Object::SerializeExternalArray<ComponentDescription>(*ser, count, knownRawMaterials._data);   // 0x1400049c0
     }
     {
-        int32_t count = field_0x120._size;
+        int32_t count = availableFarmTypes._size;
         ser->Serialize(count, nullptr);
         // B.3.2: Collection::Array<T>::SetSize — retail 0x140001bb0, stride 8 align 8,
         // new tail zeroed. Element is the 8-byte ExternalPtr<ComponentDescription>.
         if (SerializerLoading(ser))
-            field_0x120.SetSize(count);
-        ::Object::SerializeExternalArray<ComponentDescription>(*ser, count, field_0x120._data);   // 0x1400049c0
+            availableFarmTypes.SetSize(count);
+        ::Object::SerializeExternalArray<ComponentDescription>(*ser, count, availableFarmTypes._data);   // 0x1400049c0
         // EXT SEAM (NOT RETAIL, docs/retail_bugs.md section 21): fix.unresolved_seeds. 0x1400049c0
         // stores null for an entry whose resource no longer loads (a mod's crop, tree or animal
         // with the mod now off); the crop field / orchard / pasture panels fault on it (0x140078830).
         if (SerializerLoading(ser) && Ext::Fix().unresolved_seeds) {
-            const int32_t kept = Ext::UnresolvedSeeds::DropNulls(field_0x120._data, count);
+            const int32_t kept = Ext::UnresolvedSeeds::DropNulls(availableFarmTypes._data, count);
             if (kept != count) {
                 fprintf(stderr, "[UnresolvedSeeds] %d agriculture entries no longer resolve: dropped\n",
                         count - kept);
-                field_0x120.SetSize(kept);
+                availableFarmTypes.SetSize(kept);
             }
         }
     }
 
     // LEFT: the three clocks are declared int64_t (CitizenBehavior.h, block WORK-a).
-    field_0x190.Serialize(*ser);
-    field_0x198.Serialize(*ser);
+    pathGraphTimer.Serialize(*ser);
+    statsTimer.Serialize(*ser);
 
     // "Stats" int-assoc array at +0x150.
-    SerializeIntAssocArray(field_0x150, ser);
+    SerializeIntAssocArray(statHistory, ser);
     // Retail 0x14008fe50..0x14008fed0 (B6 row 14): on a LOAD the outer array is sized to 0x47
     // (through 0x140017640) when it is not, and every entry past the old count is sized to
     // entry 0's inner count (0x1400021d0) and zero-filled; both counts are re-read each turn.
     if (SerializerLoading(ser)) {
-        const int32_t oldCount = field_0x150._size;
-        if (oldCount != 0x47) field_0x150.SetSize(0x47);
-        for (int32_t i = oldCount; i < field_0x150._size; ++i) {
-            field_0x150._data[i].SetSize(field_0x150._data[0]._size);
-            Collection::Array<int32_t>& inner = field_0x150._data[i];
+        const int32_t oldCount = statHistory._size;
+        if (oldCount != 0x47) statHistory.SetSize(0x47);
+        for (int32_t i = oldCount; i < statHistory._size; ++i) {
+            statHistory._data[i].SetSize(statHistory._data[0]._size);
+            Collection::Array<int32_t>& inner = statHistory._data[i];
             for (int32_t j = 0; j < inner._size; ++j) inner._data[j] = 0;
         }
     }
@@ -583,7 +583,7 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
         legacyRoot = nullptr;
         legacyCount = 0;
     } else {
-        SerializeCompRefTree<ComponentDescription>(field_0x160, ser);   // 0x140017cd0 -> 0x140002340 (ComponentDescription)
+        SerializeCompRefTree<ComponentDescription>(entitiesByTemplate, ser);   // 0x140017cd0 -> 0x140002340 (ComponentDescription)
     }
     // (B6 row 15: the tree used to clear the +0x160 tree header here at version 5; retail
     // 0x14008f760 has no version-5 step between the +0x160 tree and the wells -- its one
@@ -593,11 +593,11 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
 
     // Stride-8 int-pair array at +0x130.
     {
-        int32_t count = field_0x130._size;
+        int32_t count = waterAccessPairs._size;
         ser->Serialize(count, nullptr);
         bool loading = SerializerLoading(ser);
-        if (loading) field_0x130.SetSize(count);
-        WaterCellPair* pairs = field_0x130._data;
+        if (loading) waterAccessPairs.SetSize(count);
+        WaterCellPair* pairs = waterAccessPairs._data;
         for (int32_t i = 0; i < count; ++i) {
             ser->Serialize(pairs[i].cellA, nullptr);
             ser->Serialize(pairs[i].cellB, nullptr);
@@ -605,10 +605,10 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
     }
 
     if (ser->GetVersion() > 4) {
-        SerializeIntAssocArray(field_0x140, ser);
+        SerializeIntAssocArray(coarseWaterIndex, ser);
     }
     if (ser->GetVersion() == 5) {
-        field_0x140.SetSize(0);
+        coarseWaterIndex.SetSize(0);
     }
 
     if (ser->GetVersion() < 4) {
@@ -629,8 +629,8 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
                 ser->Serialize(entry->currentCount, nullptr);
                 ser->Serialize(entry->previousCount, nullptr);
                 ser->Serialize(entry->maxCount, nullptr);
-                ser->Serialize(entry->field_0x0C, nullptr);
-                ser->Serialize(entry->_field10, nullptr);
+                ser->Serialize(entry->consumedCount, nullptr);
+                ser->Serialize(entry->producedCount, nullptr);
                 // Retail 0x14008ff9d: Time::Serialize(piVar7 + 4) with piVar7 = entry + 8, i.e.
                 // the entry's Time at +0x18 (B6 row 13; the tree used to write the 8 bytes at +0x14).
                 entry->timer.Serialize(*ser);
@@ -657,14 +657,14 @@ void CitizenBehavior::Serialize(IO::Stream& stream) {
         }
     }
 
-    ser->Serialize(field_0x1A8, nullptr);
-    field_0x1A0.Serialize(*ser);
+    ser->Serialize(diseaseRisk, nullptr);
+    diseaseRiskTimer.Serialize(*ser);
 
     if (ser->GetVersion() > 1) {
-        ser->Serialize(field_0x1AC, nullptr);
+        ser->Serialize(totalTradeValue, nullptr);
     }
     if (ser->GetVersion() > 2) {
-        ser->Serialize(field_0x1B0, nullptr);
+        ser->Serialize(totalNomadsAccepted, nullptr);
     }
 
     RegistryCensus(this, leg, "exit ");
@@ -686,23 +686,23 @@ static uint32_t DWORD_1401c79e0_TypeId() {
 }
 
 void CitizenBehavior::PostLoad() {
-    if (field_0x140._size >= 1) return;   // already populated
+    if (coarseWaterIndex._size >= 1) return;   // already populated
 
     Map* mapGrid = GameUpdateLoop::_singleton->m_game;
     int side = mapGrid->size >> 3;
-    field_0x140.SetSize(side * side);
+    coarseWaterIndex.SetSize(side * side);
     std::fprintf(stderr, "[CitPostLoad] mapGrid=%p mapWidth=%d side=%d cells=%d "
             "cellMap=%p residence{ptr=%p count=%d} ent{ptr=%p count=%d}\n",
             static_cast<void*>(mapGrid), mapGrid->size, side, side * side,
-            static_cast<void*>(field_0x140._data),
-            static_cast<void*>(field_0x130._data),
-            field_0x130._size,
+            static_cast<void*>(coarseWaterIndex._data),
+            static_cast<void*>(waterAccessPairs._data),
+            waterAccessPairs._size,
             static_cast<void*>(wells._data),
             wells._size);
     std::fflush(stderr);
 
     int idx = 0;
-    int32_t residenceCount = field_0x130._size;
+    int32_t residenceCount = waterAccessPairs._size;
     if (residenceCount > 0) {
         // +0x130 is the STRIDE-8 int-pair array (ResizeStride08Pair in Serialize
         // above); retail walks it with `lVar11 += 8` and reads only the low int
@@ -710,7 +710,7 @@ void CitizenBehavior::PostLoad() {
         // element from the pair's HIGH half, which is not a cell index at all —
         // the resulting x/y ran off the 32x32 cell map and AddCellEntry wrote
         // through a wild record pointer.
-        WaterCellPair* residenceCells = field_0x130._data;
+        WaterCellPair* residenceCells = waterAccessPairs._data;
         int mapWidth = mapGrid->size;
         for (; idx < residenceCount; ++idx) {
             int cell = residenceCells[idx].cellA;

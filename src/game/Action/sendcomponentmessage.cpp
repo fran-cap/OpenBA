@@ -37,27 +37,27 @@ void SendComponentMessage::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // Target entity ref (+0x20) with type validation
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, ComponentEntity::TypeId())) {
-            _field20 = nullptr;
+    _target.InternalBasePtr::Serialize(ser);
+    if (!_target.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_target, ComponentEntity::TypeId())) {
+            _target = nullptr;
         }
     }
 
     // Source entity ref (+0x28) with type validation
-    _field28.InternalBasePtr::Serialize(ser);
-    if (!_field28.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field28, ComponentEntity::TypeId())) {
-            _field28 = nullptr;
+    _sender.InternalBasePtr::Serialize(ser);
+    if (!_sender.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_sender, ComponentEntity::TypeId())) {
+            _sender = nullptr;
         }
     }
 
     // Component type (+0x30) — Object::Type::Serialize
-    RtObject::RtObject_Type_Serialize(&_field30, &ser);   // slot 0x1401516b0
+    RtObject::RtObject_Type_Serialize(&_componentTypeId, &ser);   // slot 0x1401516b0
 
-    ser.Serialize(_field34, nullptr);   // +0x34 message id (int)
-    ser.Serialize(_field38, nullptr);   // +0x38 message param (uint)
-    ser.Serialize(_field3C, nullptr);   // +0x3C message param (uint)
+    ser.Serialize(_message, nullptr);   // +0x34 message id (int)
+    ser.Serialize(_messageArg, nullptr);   // +0x38 message param (uint)
+    ser.Serialize(_secondMessageArg, nullptr);   // +0x3C message param (uint)
 }
 
 // ============================================================
@@ -69,7 +69,7 @@ void SendComponentMessage::Persist(IO::Stream& stream) {
 int  SendComponentMessage::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
 
-    uint32_t componentTypeId = _field30;
+    uint32_t componentTypeId = _componentTypeId;
 
     // 0x1400caf1a CheckPtr(+0x20); 0x1400caf20-0x1400caf57: the target's component array
     // (+0x30 data, +0x38 count) scanned by slot 2 (Type) with no test of the target, of a
@@ -79,7 +79,7 @@ int  SendComponentMessage::AbstractImpl(ActionStack* actionStack) {
     // reason is retired with PlayAnimation's, since B.4 gave every class its ctor. If a
     // message reaches a freed or dying entity again, that is an upstream finding: the
     // action should not outlive its target.)
-    ComponentEntity* target = _field20.Get();
+    ComponentEntity* target = _target.Get();
     int32_t compCount = target->_components._size;
     Object::InternalPtr<Component>* compArray = target->_components._data;
     Component* foundComp = nullptr;
@@ -99,8 +99,8 @@ int  SendComponentMessage::AbstractImpl(ActionStack* actionStack) {
 
     // Call the component's message handler (slot 15, vtable+0x78):
     // component, msgId, &sourceEntity, param1, param2
-    ComponentEntity* sourceEntityRef = _field28.Get();
-    foundComp->OnMessage(_field34, &sourceEntityRef, _field38, _field3C);
+    ComponentEntity* sourceEntityRef = _sender.Get();
+    foundComp->OnMessage(_message, &sourceEntityRef, _messageArg, _secondMessageArg);
 
     return 0;
 }
@@ -111,12 +111,12 @@ int  SendComponentMessage::AbstractImpl(ActionStack* actionStack) {
 // ============================================================
 bool SendComponentMessage::GetTarget(ComponentEntity** param) {
     // CheckPtr on +0x20, then compare [param] directly (no CheckPtr on param)
-    if (*param == _field20.Get()) {
+    if (*param == _target.Get()) {
         return true;
     }
 
     // CheckPtr on +0x28, then compare [param]
-    return *param == _field28.Get();
+    return *param == _sender.Get();
 }
 
 // ============================================================
@@ -131,12 +131,12 @@ bool SendComponentMessage::GetTarget(ComponentEntity** param) {
 // the tree's factory zero-filled every field instead. B38 B8-1: the retail stores are kept; the
 // fields retail leaves unwritten stay zero-filled (MemAlloc gives no guarantee).
 SendComponentMessage::SendComponentMessage()
-    : _field20(nullptr),
-      _field28(nullptr),
-      _field30(0),
-      _field34(-1),
-      _field38(0),
-      _field3C(0) {}
+    : _target(nullptr),
+      _sender(nullptr),
+      _componentTypeId(0),
+      _message(-1),
+      _messageArg(0),
+      _secondMessageArg(0) {}
 
 // [3] 0x1400cb000
 // [4] 0x1400caef0
@@ -159,12 +159,12 @@ SendComponentMessage::SendComponentMessage()
 SendComponentMessage::SendComponentMessage(ComponentEntity* const* param_2, const uint32_t* param_3,
                                            uint32_t param_4, ComponentEntity* const* param_5,
                                            uint32_t param_6)
-    : _field20(*param_2),
-      _field28(*param_5) {
-    _field30 = *param_3;
-    _field34 = static_cast<int32_t>(param_4);
-    _field38 = param_6;
-    _field3C = 0;
+    : _target(*param_2),
+      _sender(*param_5) {
+    _componentTypeId = *param_3;
+    _message = static_cast<int32_t>(param_4);
+    _messageArg = param_6;
+    _secondMessageArg = 0;
 }
 
 DEFINE_EXE_TYPE(SendComponentMessage, "Action")

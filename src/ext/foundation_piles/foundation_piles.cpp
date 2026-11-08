@@ -129,7 +129,7 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
 
     const int size = map->size;
     const int citizenCell = CitizenCell(map, citizen);
-    const int pileCell = pickup->field_28;
+    const int pileCell = pickup->_cell;
     const int pileAccess = map->FindCell(pileCell, citizenCell, PathBits::Access);
     if (pileAccess < 0) return 0;
     if (!map->ValidateCell(PathBits::Walk, static_cast<uint32_t>(pileAccess), citizenCell)) return 0;
@@ -191,17 +191,17 @@ int Relocate(ComponentEntity* site, ComponentEntity* pile, CitizenComponent** ci
     CellWorldPos(map, pileAccess, pilePos);
     ComponentEntity* pileRef = pile;
     CitizenComponent* who = citizen;
-    WorkAct_PerformWorkCtor9_c0ad0(&who, static_cast<uint32_t>(pickup->field_20), &pileRef, pilePos, pileCell, 0);
+    WorkAct_PerformWorkCtor9_c0ad0(&who, static_cast<uint32_t>(pickup->_workId), &pileRef, pilePos, pileCell, 0);
 
     // Claim and stamp as Pickup::Execute does after its dispatch (0x1400f2f00).
     pickup->status = PickupStatus::Assigned;
     pickup->citizenIBP = citizen;
     Profession* target10 = nullptr;
     pickup->GetTarget(&target10);
-    citizen->field_0x30 = pickup->field_20;
+    citizen->lastWorkId = pickup->_workId;
     citizen->statusFlags |= Bits(CitizenStatus::TaskDone);
     citizen->lastErrand = CitizenErrand::None;
-    if (target10 == citizen->profession && pickup->field_20 >= 0) {
+    if (target10 == citizen->profession && pickup->_workId >= 0) {
         citizen->happinessFlags |= CitizenComponent::kHappinessWorkedOwnProfession;
     }
 

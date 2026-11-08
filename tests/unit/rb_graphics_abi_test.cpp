@@ -102,7 +102,7 @@ void        Particle::ReleaseFields() { Log(kPaRel, this); }
 // ENDGAME B.3.9 block GFX: ParticleSystem is concrete; its out-of-line members
 // are markers here (its vtable emits in this TU). The ctor marker makes one
 // store so the test can see it ran after Particle's.
-ParticleSystem::ParticleSystem() : Particle() { _f48 = 5.0f; }
+ParticleSystem::ParticleSystem() : Particle() { _emissionRate = 5.0f; }
 ParticleSystem::~ParticleSystem() { Log(kPsRel, this); }
 int32_t     ParticleSystem::GetFileVersion() const { return 0x1001; }
 bool        ParticleSystem::Serialize(IO::Stream&) { return true; }
@@ -510,7 +510,7 @@ UNIT_TEST(b39_gfx_particlesystem_concrete_slot_order_and_both_slot0_arms) {
     CHECK_SLOT(PS, CreateSystem,   0x40/8);   // 0x1800a5140
     CHECK_SLOT(PS, Construct,      0x48/8);   // 0x180020580
 
-    // Particle's six stores run under the base ctor (the marker ctor adds _f48).
+    // Particle's six stores run under the base ctor (the marker ctor adds _emissionRate).
     alignas(8) unsigned char buf[sizeof(PS)];
     std::memset(buf, 0xCD, sizeof buf);
     PS* ps = ::new (static_cast<void*>(buf)) PS();

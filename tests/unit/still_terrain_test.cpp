@@ -55,7 +55,7 @@ struct Floor { int x0, y0, w, h; float z; bool live; };
 struct World {
     int dim = 0;                       // Map::size (cells per edge)
     int gridSize = 0;                  // WorldGeometry::_gridSize (heightmap edge, dim here)
-    int N = 0;                         // WorldGeometry::_fieldD0 (gridSize + 1)
+    int N = 0;                         // WorldGeometry::_heightRowStride (gridSize + 1)
     std::vector<int16_t> heights;      // WorldGeometry::_heights
     std::vector<int8_t> floorCount;    // MapCell::floorCount
     std::vector<Floor> floors;         // the map's picking scene (Map +0x08)
@@ -385,7 +385,7 @@ UNIT_TEST(still_terrain_real_get_terrain_pos_matches_the_copy) {
         std::memset(wgBytes, 0, sizeof(wgBytes));
         WorldGeometry* wg = reinterpret_cast<WorldGeometry*>(wgBytes);
         wg->_gridSize = w.gridSize;
-        wg->_fieldD0 = w.N;
+        wg->_heightRowStride = w.N;
         wg->_heights.data = w.heights.data();
         wg->_heights.size = static_cast<int32_t>(w.heights.size());
         wg->_heights.capacity = wg->_heights.size;

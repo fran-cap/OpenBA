@@ -95,23 +95,23 @@ void HuntAnimal::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // The HuntComponent (+0x20)
-    _field20.InternalBasePtr::Serialize(ser);
-    if (!_field20.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field20, HuntComponent::TypeId())) {
-            _field20 = nullptr;
+    _hunt.InternalBasePtr::Serialize(ser);
+    if (!_hunt.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_hunt, HuntComponent::TypeId())) {
+            _hunt = nullptr;
         }
     }
 
     // The hunting citizen (+0x28)
-    _field28.InternalBasePtr::Serialize(ser);
-    if (!_field28.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field28, CitizenComponent::TypeId())) {
-            _field28 = nullptr;
+    _hunter.InternalBasePtr::Serialize(ser);
+    if (!_hunter.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_hunter, CitizenComponent::TypeId())) {
+            _hunter = nullptr;
         }
     }
 
     // Serialize hunt started flag (+0x38)
-    ser.Serialize(_field38, nullptr);
+    ser.Serialize(_huntStarted, nullptr);
 }
 
 // ============================================================
@@ -120,7 +120,7 @@ void HuntAnimal::Persist(IO::Stream& stream) {
 // ============================================================
 int  HuntAnimal::AbstractImpl(ActionStack* actionStack) {
     (void)actionStack;
-    return (!_field38) ? 1 : 0;
+    return (!_huntStarted) ? 1 : 0;
 }
 
 // ============================================================
@@ -130,7 +130,7 @@ int  HuntAnimal::AbstractImpl(ActionStack* actionStack) {
 int  HuntAnimal::Execute(ActionStack* actionStack, const System::Time* time) {
     (void)actionStack;
     (void)time;
-    return (!_field38) ? 1 : 0;
+    return (!_huntStarted) ? 1 : 0;
 }
 
 // ============================================================
@@ -154,12 +154,12 @@ int  HuntAnimal::Execute(ActionStack* actionStack, const System::Time* time) {
 void HuntAnimal::Enter(ActionStack*, const System::Time*) {
 
     // If hunt already started, return early
-    if (_field38) {
+    if (_huntStarted) {
         return;
     }
 
     // Check if the hunt component at +0x20 is ready
-    if (!_field20.Get()->IsReady()) {   // 0x140122a80
+    if (!_hunt.Get()->IsReady()) {   // 0x140122a80
         return;
     }
 
@@ -173,7 +173,7 @@ void HuntAnimal::Enter(ActionStack*, const System::Time*) {
     int searchTypeId = static_cast<int>(WildAnimalComponent::TypeId());
 
     // The hunter's position
-    const Math::Vector3& hunterPos = _field28->character->modelComponent->transform.translation;
+    const Math::Vector3& hunterPos = _hunter->character->modelComponent->transform.translation;
     float searchPos[3];
     searchPos[0] = hunterPos.x;
     searchPos[1] = hunterPos.y;
@@ -212,7 +212,7 @@ void HuntAnimal::Enter(ActionStack*, const System::Time*) {
     float foundPosY = foundPos.y;
 
     // The hunter's position again for its grid cell
-    const Math::Vector3& hunterPos2 = _field28->character->modelComponent->transform.translation;
+    const Math::Vector3& hunterPos2 = _hunter->character->modelComponent->transform.translation;
 
     int mapSize = map->size;
     float herdPosX2 = hunterPos2.x;
@@ -279,7 +279,7 @@ void HuntAnimal::Enter(ActionStack*, const System::Time*) {
 
     // Build the removal actions on the hunter: citizen, task -1, worldPos, fromCell, the
     // animal, its description, gate 0
-    CitizenComponent* herdIBP_local = _field28.Get();
+    CitizenComponent* herdIBP_local = _hunter.Get();
 
     RemoveAnimalActions(&herdIBP_local, (uint32_t)-1, worldPos, fromCell,   // 0x1400bbea0
                         &corpseModelIBP, modelDesc, 0);
@@ -290,9 +290,9 @@ void HuntAnimal::Enter(ActionStack*, const System::Time*) {
     wild->herd.Get()->StartMigration();   // 0x140122340
 
     // Clear the hunt component's progress and set hunt started flag
-    _field20->huntProgress._ticks = 0;
+    _hunt->huntProgress._ticks = 0;
 
-    _field38 = true;
+    _huntStarted = true;
 }
 
 // ============================================================
@@ -303,11 +303,11 @@ void HuntAnimal::Enter(ActionStack*, const System::Time*) {
 bool HuntAnimal::GetTarget(ComponentEntity** param) {
     void* target = *param;
 
-    if (_field28->_entity.Get() == target) {
+    if (_hunter->_entity.Get() == target) {
         return true;
     }
 
-    if (_field20->_entity.Get() == target) {
+    if (_hunt->_entity.Get() == target) {
         return true;
     }
 
@@ -325,10 +325,10 @@ bool HuntAnimal::GetTarget(ComponentEntity** param) {
 // create 0x140022700 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 HuntAnimal::HuntAnimal()
-    : _field20(nullptr),
-      _field28(nullptr),
-      _field30(nullptr),
-      _field38(false),
+    : _hunt(nullptr),
+      _hunter(nullptr),
+      _unreadZeroedPointer(nullptr),
+      _huntStarted(false),
       _pad39{} {}
 
 // [3] 0x1400c8260
@@ -354,9 +354,9 @@ HuntAnimal::HuntAnimal()
 // ============================================================
 // 0x1400c8400: +0x20 = *p3 ; +0x28 = *p2 ; +0x30 = 0 ; +0x38 = 0 (byte).
 HuntAnimal::HuntAnimal(CitizenComponent* const* hunter, HuntComponent* const* hunt)
-    : _field20(*hunt),
-      _field28(*hunter),
-      _field30(nullptr),
-      _field38(false) {}
+    : _hunt(*hunt),
+      _hunter(*hunter),
+      _unreadZeroedPointer(nullptr),
+      _huntStarted(false) {}
 
 DEFINE_EXE_TYPE(HuntAnimal, "Action")

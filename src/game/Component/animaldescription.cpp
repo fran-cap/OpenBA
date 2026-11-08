@@ -35,49 +35,49 @@
 // the defaults.
 AnimalDescription::AnimalDescription()
     : Description(),
-      _i20(5),
-      _i24(4),
-      _f28(1.0f),
-      _f2c(0.0f),
-      _f30(1.0f),
-      _f34(0.5f),
-      _f38(0.5f),
-      _b3c(true),
-      _f40(4.0f),
-      _refs(nullptr),
-      _refCount(0),
-      _refCap(0) {}
+      _roamSize(5),
+      _requiredArea(4),
+      _maxAge(1.0f),
+      _maxAgeTolerance(0.0f),
+      _ageForOffspring(1.0f),
+      _offspringTerm(0.5f),
+      _offspringTermTolerance(0.5f),
+      _randomIdleHeading(true),
+      _idleTime(4.0f),
+      _rawMaterials(nullptr),
+      _rawMaterialCount(0),
+      _rawMaterialCap(0) {}
 
 // dtor (slot 0 0x14002f100 minus the stamps): frees the External* array buffer.
 // The compiler then chains ~Description -> ~External.
 AnimalDescription::~AnimalDescription() {
-    if (_refs) ::System::MemoryAllocator::MemFree(_refs);
-    _refs = nullptr;
+    if (_rawMaterials) ::System::MemoryAllocator::MemFree(_rawMaterials);
+    _rawMaterials = nullptr;
 }
 
 // [5] 0x140107050: stream order as retail.
 bool AnimalDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
     // External*-array @ +0x48 (count @ +0x50, stride 8)
-    ser.Serialize(_refCount, nullptr);
-    int n = _refCount;
+    ser.Serialize(_rawMaterialCount, nullptr);
+    int n = _rawMaterialCount;
     // IO::Serializer::GetDirection (retail 0x180006210: the stream's +0x08 word), 0 = reading.
     if (static_cast<int>(ser.GetDirection()) == 0 && n > 0 && ::System::MemoryAllocator::_singleton) {
         ComponentDescription** buf = static_cast<ComponentDescription**>(::System::MemoryAllocator::MemAlloc((uint64_t)n * 8, 8));
-        _refs = buf;
-        _refCap = n;
+        _rawMaterials = buf;
+        _rawMaterialCap = n;
         if (buf) for (int i = 0; i < n; ++i) buf[i] = nullptr;
     }
     // 0x1401070b5 CALL 0x1400049c0: the ComponentDescription instantiation (cell 0x1401c7318).
-    Object::SerializeExternalArray<ComponentDescription>(ser, n, _refs);
-    ser.Serialize(_i20, nullptr);
-    ser.Serialize(_i24, nullptr);
-    ser.Serialize(_f28, nullptr);
-    ser.Serialize(_f2c, nullptr);
-    ser.Serialize(_f30, nullptr);
-    ser.Serialize(_f34, nullptr);
-    ser.Serialize(_f38, nullptr);
-    ser.Serialize(_b3c, nullptr);
+    Object::SerializeExternalArray<ComponentDescription>(ser, n, _rawMaterials);
+    ser.Serialize(_roamSize, nullptr);
+    ser.Serialize(_requiredArea, nullptr);
+    ser.Serialize(_maxAge, nullptr);
+    ser.Serialize(_maxAgeTolerance, nullptr);
+    ser.Serialize(_ageForOffspring, nullptr);
+    ser.Serialize(_offspringTerm, nullptr);
+    ser.Serialize(_offspringTermTolerance, nullptr);
+    ser.Serialize(_randomIdleHeading, nullptr);
     return true;
 }
 

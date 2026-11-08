@@ -68,12 +68,12 @@ void LocationWork::Persist(IO::Stream& stream) {
     IO::Serializer serializer(stream, 0);
 
     // Serialize InternalBasePtr at +0x48 (the member is raw storage, H5: LEFT)
-    _field48.InternalBasePtr::Serialize(serializer);
+    _assignedCitizen.InternalBasePtr::Serialize(serializer);
 
-    // Validate: if _field48 is non-null, check IsDerivedFrom
-    if (!_field48.IsNull()) {
-        if (!Object::IsDerivedFromNullSafe(_field48, CitizenComponent::TypeId())) {
-            _field48 = nullptr;
+    // Validate: if _assignedCitizen is non-null, check IsDerivedFrom
+    if (!_assignedCitizen.IsNull()) {
+        if (!Object::IsDerivedFromNullSafe(_assignedCitizen, CitizenComponent::TypeId())) {
+            _assignedCitizen = nullptr;
         }
     }
 }
@@ -93,7 +93,7 @@ void LocationWork::Persist(IO::Stream& stream) {
 // ============================================================
 int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*/) {
     // Step 1: Already has target?
-    if (_field48.Get() != nullptr) {
+    if (_assignedCitizen.Get() != nullptr) {
         return 1;
     }
 
@@ -106,7 +106,7 @@ int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     }
 
     // Step 3: The InteractComponent of the workplace entity (self+0x10)
-    InteractComponent* interact = field_10->FindComponent<InteractComponent>();
+    InteractComponent* interact = _entity->FindComponent<InteractComponent>();
 
     // Step 4: Get citizen's current position: CharacterComponent (+0x278) ->
     // ModelComponent (+0x68) -> the transform's translation
@@ -157,13 +157,13 @@ int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     // the pattern is: (citizenIBP, priority, position, 0, g_fUVScale, flag&0xffffff00)
     CitizenAI_Pathfinding_WalkTowards_bb490(
         &citizenIBPLocal,
-        field_20,                // priority from self+0x20
+        _workId,                // priority from self+0x20
         bestPos,
         0,                       // flag1
         kRdata_14017214c,            // UV scale constant
         0);                      // flag2 (cleared upper bits)
 
-    int priority = field_20;
+    int priority = _workId;
 
     // Get work entity via vtable slot +0x50 (Slot10)
     CitizenComponent* citEntPost = *citizenIBP;
@@ -173,7 +173,7 @@ int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 
     // Set citizen flags
     citEntPost->statusFlags |= Bits(CitizenStatus::TaskDone);
-    citEntPost->field_0x30 = priority;
+    citEntPost->lastWorkId = priority;
     citEntPost->lastErrand = CitizenErrand::None;
 
     // If the work's profession matches the citizen's (+0x1f0) and priority >= 0, set
@@ -183,7 +183,7 @@ int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
     }
 
     // Store citizen as target at +0x48
-    _field48 = *citizenIBP;
+    _assignedCitizen = *citizenIBP;
 
     return 2;
 }
@@ -194,7 +194,7 @@ int LocationWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context
 // Constructs null InternalBasePtr into +0x48 (a plain null store).
 // ============================================================
 int LocationWork::OnComplete(CitizenComponent** /*arg1*/, ComponentEntity** /*arg2*/, int /*arg3*/) {
-    _field48 = nullptr;
+    _assignedCitizen = nullptr;
     return false;
 }
 
@@ -204,7 +204,7 @@ int LocationWork::OnComplete(CitizenComponent** /*arg1*/, ComponentEntity** /*ar
 // Constructs null InternalBasePtr into +0x48 (a plain null store).
 // ============================================================
 int LocationWork::OnCancel(CitizenComponent** /*arg1*/, ComponentEntity** /*arg2*/, int /*arg3*/) {
-    _field48 = nullptr;
+    _assignedCitizen = nullptr;
     return 0;
 }
 
@@ -214,11 +214,11 @@ int LocationWork::OnCancel(CitizenComponent** /*arg1*/, ComponentEntity** /*arg2
 // If the target at +0x48 exists, cancels its action list (CharacterComponent +0x48).
 // ============================================================
 int LocationWork::Cleanup() {
-    if (_field48.Get() == nullptr) {
+    if (_assignedCitizen.Get() == nullptr) {
         return 0;
     }
 
-    CitizenComponent* targetEntity = _field48.Get();
+    CitizenComponent* targetEntity = _assignedCitizen.Get();
     targetEntity->character->actionStack.Clear();
     return 0;
 }
@@ -231,7 +231,7 @@ int LocationWork::Cleanup() {
 // Returns true if valid (or no target).
 // ============================================================
 int LocationWork::Validate() {
-    CitizenComponent* targetIBP = _field48.Get();
+    CitizenComponent* targetIBP = _assignedCitizen.Get();
 
     if (targetIBP == nullptr) {
         return true;  // No target — considered valid (nothing to invalidate)
@@ -242,7 +242,7 @@ int LocationWork::Validate() {
 
     if (!stillValid) {
         // Clear the target (a null InternalBasePtr)
-        _field48 = nullptr;
+        _assignedCitizen = nullptr;
         return false;
     }
 
@@ -256,7 +256,7 @@ int LocationWork::Validate() {
 // slot: LEFT). IDENTICAL to HuntWork/PastureWork Slot10.
 // ============================================================
 Profession** LocationWork::GetTarget(Profession** outPtr) {
-    WorkPlaceComponent* workPlace = field_10->FindComponent<WorkPlaceComponent>();
+    WorkPlaceComponent* workPlace = _entity->FindComponent<WorkPlaceComponent>();
     *outPtr = workPlace->profession;
     return outPtr;
 }
@@ -277,7 +277,7 @@ void LocationWork::Slot12(int /*version*/) {}
 // Too small to hook (10 bytes).
 // ============================================================
 int LocationWork::GetPriority() {
-    return _field48.Get() != nullptr ? 1 : 0;
+    return _assignedCitizen.Get() != nullptr ? 1 : 0;
 }
 // ~LocationWork is defaulted: the LocationWork then Work stamps and `~Internal` are the
 // compiler's chain — all retail's 0x14002a850 does before the free.
@@ -285,10 +285,10 @@ int LocationWork::GetPriority() {
 
 // Ctor — the bytes the tree's factory built (Work_GenericCtor): the Work base init,
 // the leaf field zeroed. The stamps are the compiler's.
-LocationWork::LocationWork() : Work(), _field48(nullptr) {
+LocationWork::LocationWork() : Work(), _assignedCitizen(nullptr) {
 }
 
-LocationWork::LocationWork(ComponentEntity* const* pEntityIBP) : Work(pEntityIBP), _field48(nullptr) {
+LocationWork::LocationWork(ComponentEntity* const* pEntityIBP) : Work(pEntityIBP), _assignedCitizen(nullptr) {
 }
 
 // ============================================================

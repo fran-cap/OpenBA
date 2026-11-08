@@ -39,7 +39,7 @@ namespace Ext {
 namespace Resources {
 
 // The typeface the game's fonts are compiled from (the kit's Font/*.rsc
-// `_fontName`); sharp_ui checks the same name on UI::Font::_string20.
+// `_fontName`); sharp_ui checks the same name on UI::Font::_fontName.
 constexpr const char* kGameFace = "FrancophilSans";
 
 struct RasterGlyph {

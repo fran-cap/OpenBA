@@ -83,7 +83,7 @@ void AttendanceUI::OnCreated() {
             ? static_cast<AttendanceDescription*>(description) : nullptr;
 
     // Progress maximum = the capacity (+0x20)
-    progress->_maxValue = (float)attendDesc->_i20;
+    progress->_maxValue = (float)attendDesc->_maxCitizens;
 }
 
 // ============================================================

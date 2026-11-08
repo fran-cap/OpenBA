@@ -13,7 +13,7 @@
 // maximal sequence of consecutive items, at least two, that all
 //   * draw (the material's pass program test) with the same MaterialInstance and Material,
 //   * have no render texture (so GenerateTextures, shader 0 only, never runs for any of them),
-//   * are the same WorldGeometry with the same mode and _arg8 <= 1 (no instancing batch),
+//   * are the same WorldGeometry with the same mode and _maxInstances <= 1 (no instancing batch),
 //   * name a batch with at least one vertex that retail's capacity tests accept on its own,
 // cut where the merged request would fail retail's capacity tests or pass 65536 vertices.
 // Faithfully each item runs Setup, then Draw's SetTransform(0, lerp(_transform)) and SetColor(1,
@@ -29,7 +29,7 @@
 // render texture, whose pass's vertex program has its rewritten copy (smoke_vs_rewrite.h: the
 // emitter's transform slot is read from the vertex's +0x0C as well as SV_InstanceID). The items are
 // cut into retail's instancing groups by retail's own rule (DrawItemList's batch loop: the same
-// instance, _arg5, _userData and _arg10, at most _arg8, not past the list's end), and a group is
+// instance, _node, _userData and _arg10, at most _maxInstances, not past the list's end), and a group is
 // added while the run's slots stay <= 52 and its vertices pass the capacity tests and 65536.
 // Faithfully each group is one draw: Setup, the group's transforms in slots 0..n-1 (GetInstanceTransform
 // + SetTransform; a group of one gets the same matrix from Draw's SetTransformScale), then the head's
@@ -154,12 +154,12 @@ bool ProgramDraws(const Material* material, int shaderIndex) {
            pp != nullptr && pp->_byteCode._size > 0;
 }
 
-// The batch a decal / road item draws (WorldGeometry::Draw: key = arg5 & ~0xE000), or null
+// The batch a decal / road item draws (WorldGeometry::Draw: key = _node & ~0xE000), or null
 // when the item is not one a run can take.
 const GeometryBatch* DecalBatch(const RendererDrawItem& item, uint32_t* mode) {
-    if (item._arg8 > 1) return nullptr;
+    if (item._maxInstances > 1) return nullptr;
     if (item._instance->_hasRenderTexture != 0) return nullptr;
-    const uint32_t key = static_cast<uint32_t>(static_cast<int32_t>(item._arg5));
+    const uint32_t key = static_cast<uint32_t>(static_cast<int32_t>(item._node));
     const uint32_t m   = key & WorldGeometry::DrawKey::kModeMask;
     if (m != WorldGeometry::DrawKey::kModeDecal && m != WorldGeometry::DrawKey::kModeRoad) return nullptr;
     if (Classify(item._geometry) != Kind::World) return nullptr;
@@ -258,9 +258,9 @@ struct SmokeGroup {
 SmokeGroup g_groups[kSmokeSlots];
 
 bool SmokeItem(const RendererDrawItem& item) {
-    // ParticleInstance::AddDrawItems' item: _arg5 0 and the pool as _userData (a quick reject of
+    // ParticleInstance::AddDrawItems' item: _node 0 and the pool as _userData (a quick reject of
     // the meshes before the class test).
-    if (item._arg5 != 0 || item._userData == nullptr) return false;
+    if (item._node != 0 || item._userData == nullptr) return false;
     if (item._instance->_hasRenderTexture != 0) return false;
     return Classify(item._geometry) == Kind::Particle;
 }
@@ -269,7 +269,7 @@ bool SmokeItem(const RendererDrawItem& item) {
 // SetSharedInstanceData's 0 for the particle classes): the items it would consume.
 int32_t RetailGroupSize(const Collection::Array<RendererDrawItem>& items, int64_t first) {
     const RendererDrawItem& head = items._data[first];
-    if (head._arg8 <= 1) return 1;
+    if (head._maxInstances <= 1) return 1;
     const int64_t count = items._size;
     int32_t batch = 0;
     int64_t at = first;
@@ -277,12 +277,12 @@ int32_t RetailGroupSize(const Collection::Array<RendererDrawItem>& items, int64_
         ++batch;
         ++at;
         if (at >= count) break;
-        if (batch >= head._arg8) break;
+        if (batch >= head._maxInstances) break;
         const RendererDrawItem& nxt = items._data[at];
         if (nxt._instance != head._instance) break;
-        if (nxt._arg5 != head._arg5) break;
+        if (nxt._node != head._node) break;
         if (nxt._userData != head._userData) break;
-        if (nxt._arg10 != head._arg10) break;
+        if (nxt._animationInstanceId != head._animationInstanceId) break;
     }
     return batch;
 }
@@ -339,7 +339,7 @@ int32_t MergeSmoke(const Renderer& renderer, Video::Context& context,
         const SmokeGroup& g = g_groups[gi];
         for (int32_t j = 0; j < g.members; ++j) {
             const RendererDrawItem& cur = items._data[g.first + j];
-            const Math::Matrix* const m = cur._geometry->GetInstanceTransform(&scratch, cur._arg5, renderer._alphaT);
+            const Math::Matrix* const m = cur._geometry->GetInstanceTransform(&scratch, cur._node, renderer._alphaT);
             context.SetTransform(slot, *m);
             ++slot;
         }
@@ -378,25 +378,25 @@ int32_t MergeSmoke(const Renderer& renderer, Video::Context& context,
 // Issue #253: wide instancing batches (batch_fill.h, src/render/common/draw_batch/instance_bank.h).
 // ---------------------------------------------------------------------------
 // An item's join keys and head state. wideOk: an exact MeshInstance (MeshInstance::Draw draws the batch)
-// whose list is rigid (TriangleList::_f14 >= 0, SetSharedInstanceData's early out) and whose instance
+// whose list is rigid (TriangleList::_node >= 0, SetSharedInstanceData's early out) and whose instance
 // has no render texture (GenerateTextures runs per head).
 InstanceKey KeyOf(const RendererDrawItem& item) {
     InstanceKey k;
     k.instance = item._instance;
-    k.arg5 = item._arg5;
+    k.listIndex = item._node;
     k.userData = item._userData;
-    k.arg10 = item._arg10;
-    k.arg8 = item._arg8;
+    k.animationHandle = item._animationInstanceId;
+    k.maxInstances = item._maxInstances;
     std::memcpy(&k.opacity, &item._geometry->_opacity, sizeof(float));
     std::memcpy(&k.opacityPrev, &item._geometry->_opacityPrev, sizeof(float));
-    if (item._arg8 <= 1) return k;
+    if (item._maxInstances <= 1) return k;
     if (item._instance->_hasRenderTexture != 0) return k;
     if (typeid(*item._geometry) != typeid(Graphics::MeshInstance)) return k;
     const auto* const mi = static_cast<const Graphics::MeshInstance*>(item._geometry);
-    const uint32_t lo = static_cast<uint32_t>(item._arg5) & 0xfffu;          // SetSharedInstanceData's split
-    const uint32_t hi = (static_cast<uint32_t>(item._arg5) >> 12) & 0xfu;
+    const uint32_t lo = static_cast<uint32_t>(item._node) & 0xfffu;          // SetSharedInstanceData's split
+    const uint32_t hi = (static_cast<uint32_t>(item._node) >> 12) & 0xfu;
     const Graphics::GraphicsMesh::DetailLevel& level = mi->GetMesh().Get()->_detailLevels._data[hi];
-    k.wideOk = level._triangleLists._data[lo]._f14 >= 0;
+    k.wideOk = level._triangleLists._data[lo]._node >= 0;
     return k;
 }
 
@@ -421,10 +421,10 @@ void FoldChain(BatchCounters& tally, int64_t chain) {
 }
 
 // COMPPROF=4 `DrawBatchWide`: every item of the list, in draw order, against the same list expanded
-// with retail's batches (cap = _arg8). Both expansions name, per item, how it was drawn and the batch
+// with retail's batches (cap = _maxInstances). Both expansions name, per item, how it was drawn and the batch
 // head whose state the draw used; an instanced item also carries the transform its slot received.
 // Equal when every item is drawn the same way, in the same order, with an equivalent head (the same
-// item, or one with the same join keys, _arg8, opacity pair and wideOk) and the same transform: the
+// item, or one with the same join keys, _maxInstances, opacity pair and wideOk) and the same transform: the
 // same instances with the same state, wherever the splits fall.
 enum : uint8_t { kDrewNothing = 0, kDrewMerged = 1, kDrewSingle = 2, kDrewInstanced = 3 };
 struct DrawnItem {
@@ -440,7 +440,7 @@ bool SameHead(const Collection::Array<RendererDrawItem>& items, int64_t a, int64
     const InstanceKey ka = KeyOf(items._data[a]);
     const InstanceKey kb = KeyOf(items._data[b]);
     if (!ka.wideOk || !kb.wideOk) return false;
-    if (!JoinsBatch(ka, kb) || ka.arg8 != kb.arg8) return false;
+    if (!JoinsBatch(ka, kb) || ka.maxInstances != kb.maxInstances) return false;
     return ka.opacity == kb.opacity && ka.opacityPrev == kb.opacityPrev;
 }
 
@@ -453,7 +453,7 @@ int64_t VerifyWide(const Renderer& renderer, const Collection::Array<RendererDra
         const RendererDrawItem& item = items._data[i];
         const DrawnItem& live = g_drawn[i];
         if (live.kind == kDrewNothing || live.kind == kDrewMerged) {
-            // Not drawn, or a merged run: neither depends on the cap (a run's head has _arg8 <= 1 or is
+            // Not drawn, or a merged run: neither depends on the cap (a run's head has _maxInstances <= 1 or is
             // a particle, never an item inside an instancing batch). Copied as drawn.
             if (live.head != i) return i;
             if (live.kind == kDrewNothing && ProgramDraws(item._material, shaderIndex)) return i;
@@ -475,7 +475,7 @@ int64_t VerifyWide(const Renderer& renderer, const Collection::Array<RendererDra
             if (n > 1) {
                 const RendererDrawItem& cur = items._data[i + k];
                 Math::Matrix scratch;
-                d.m = *cur._geometry->GetInstanceTransform(&scratch, cur._arg5, renderer._alphaT);
+                d.m = *cur._geometry->GetInstanceTransform(&scratch, cur._node, renderer._alphaT);
             }
         }
         i += n;
@@ -564,12 +564,12 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
             }
             item._instance->Setup(context, shaderIndex);
 
-            if (item._arg8 > 1) {
-                int32_t slotIndex = item._geometry->SetSharedInstanceData(context, item._arg5, renderer._alphaT);
+            if (item._maxInstances > 1) {
+                int32_t slotIndex = item._geometry->SetSharedInstanceData(context, item._node, renderer._alphaT);
                 const int32_t base = emitted - slotIndex;
                 const int64_t head = itemIndex;
-                // Issue #253: past _arg8 only at the retail cuts the batch may cross (batch_fill.h).
-                const int32_t wideCap = WideBatchCap(item._arg8, bankCap);
+                // Issue #253: past _maxInstances only at the retail cuts the batch may cross (batch_fill.h).
+                const int32_t wideCap = WideBatchCap(item._maxInstances, bankCap);
                 if (counting) {
                     if (!chainOpen) chain = 0;
                     ++chain;
@@ -596,8 +596,8 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
                     // XFORMMEMO (graphics/xform_memo.h): the same matrix, computed once per
                     // (instance, list, t) per Renderer::Draw.
                     const Math::Matrix* const m = XformMemo::kEnabled
-                        ? XformMemo::Transform(*cur._geometry, cur._arg5, renderer._alphaT, &view)
-                        : cur._geometry->GetInstanceTransform(&view, cur._arg5, renderer._alphaT);
+                        ? XformMemo::Transform(*cur._geometry, cur._node, renderer._alphaT, &view)
+                        : cur._geometry->GetInstanceTransform(&view, cur._node, renderer._alphaT);
                     if (slotIndex < kRetailInstanceSlots) {
                         context.SetTransform(slotIndex, *m);
                     } else {
@@ -612,12 +612,12 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
 
                     ++slotIndex;
                     if (base + slotIndex >= count) break;
-                    if (batchCount >= item._arg8 && batchCount % item._arg8 == 0) {
-                        // A retail cut. With wideCap == _arg8 (and not counting) this is retail's cap test.
+                    if (batchCount >= item._maxInstances && batchCount % item._maxInstances == 0) {
+                        // A retail cut. With wideCap == _maxInstances (and not counting) this is retail's cap test.
                         const bool goesOn = (batchCount < wideCap || counting) && CutGoesOn(items, head, itemIndex);
                         if (goesOn && batchCount >= wideCap) chainOpen = true;
                         if (!goesOn || batchCount >= wideCap) {
-                            breakReason = (goesOn || wideCap == item._arg8) ? 1 : 6;
+                            breakReason = (goesOn || wideCap == item._maxInstances) ? 1 : 6;
                             break;
                         }
                         if (counting) ++chain;
@@ -628,7 +628,7 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
                         breakReason = 2;
                         break;
                     }
-                    if (nxt._arg5 != item._arg5) {
+                    if (nxt._node != item._node) {
                         breakReason = 3;
                         break;
                     }
@@ -636,7 +636,7 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
                         breakReason = 4;
                         break;
                     }
-                    if (nxt._arg10 != item._arg10) {
+                    if (nxt._animationInstanceId != item._animationInstanceId) {
                         breakReason = 5;
                         break;
                     }
@@ -663,7 +663,7 @@ void ExtDrawItemList(const Renderer& renderer, Video::Context& context, int grou
                 group._cullCamera,
                 Graphics::ExternalPtrHandle{ const_cast<MaterialInstance*>(item._instance) },  // CAST-OK: const_api (DrawItemList's own, batchc_gfx_leaves.cpp)
                 renderer._alphaT,
-                static_cast<int32_t>(item._arg5),
+                static_cast<int32_t>(item._node),
                 shaderIndex,
                 batchCount);
         }

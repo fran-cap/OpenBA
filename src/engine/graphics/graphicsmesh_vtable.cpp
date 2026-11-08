@@ -480,9 +480,9 @@ bool GraphicsMesh::Serialize(IO::Stream& streamv) {
     *SerializeCurrentMesh() = this;
 
     _name.Serialize(ser);
-    rw->SerializeFloatArray(3, &_vector28.x, nullptr);
-    rw->SerializeFloatArray(3, &_vector34.x, nullptr);
-    rw->SerializeInt  (_field40, nullptr);
+    rw->SerializeFloatArray(3, &_boundsMin.x, nullptr);
+    rw->SerializeFloatArray(3, &_boundsMax.x, nullptr);
+    rw->SerializeInt  (_instanceCount, nullptr);
     rw->SerializeFloat(_scale, nullptr);
     rw->SerializeFloat(_maxDepthDistance, nullptr);
 

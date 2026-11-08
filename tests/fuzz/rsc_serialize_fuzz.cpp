@@ -311,11 +311,11 @@ void SeedGen(const char* dir) {
         pf._name.Set("pkg");
         pf._author.Set("me");
         pf._description.Set("desc");
-        pf._stringArray20.SetSize(2);
-        pf._stringArray20._data[0].Set("a");
-        pf._stringArray20._data[1].Set("bb");
-        pf._stringArray30.SetSize(1);
-        pf._stringArray30._data[0].Set("ccc");
+        pf._includeList.SetSize(2);
+        pf._includeList._data[0].Set("a");
+        pf._includeList._data[1].Set("bb");
+        pf._excludeList.SetSize(1);
+        pf._excludeList._data[0].Set("ccc");
         pf._iconWidth = 2;
         pf._iconHeight = 2;
         pf._iconData.SetSize(4);

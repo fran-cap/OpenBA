@@ -44,16 +44,16 @@
 // Retail zeroes +0xE0..+0x114 as seven qwords (0x1400a30f2..0x1400a311c); the
 // tree writes the fourteen named fields (H7).
 MapGenerator::MapGenerator()
-    : _field20(nullptr),       // +0x20 ExternalPtr
-      enabled(1),              // +0x38 bool, default true
-      subdivisions(8),         // +0x3C grid subdivision count
-      scale(2.0f),             // +0x40 terrain scale
-      paramE0(0), paramE4(0), paramE8(0),
-      paramEC(0.0f), paramF0(0.0f), paramF4(0.0f),
-      paramF8(0), paramFC(0), param100(0), param104(0),
-      param108(0), param10C(0), param110(0), param114(0),
-      terrainAmplitude(6.0f),  // +0x130, after descRef1
-      chunkSize(16) {}         // +0x150, after descRef2
+    : stringTable(nullptr),       // +0x20 ExternalPtr
+      exposed(1),              // +0x38 bool, default true
+      startAreaSize(8),         // +0x3C grid subdivision count
+      citizenRadius(2.0f),             // +0x40 citizen radius
+      plantCount(0), treeCount(0), livestockCount(0),
+      livestockOffsetX(0.0f), livestockOffsetY(0.0f), livestockRadius(0.0f),
+      livestockGroupCount(0), initialWoodCount(0), initialStoneCount(0), initialIronCount(0),
+      initialToolCount(0), initialFoodCount(0), initialFuelCount(0), initialClothingCount(0),
+      riverAmbientSpacing(6.0f),  // +0x130, after riverAmbient
+      mapAmbientSpacing(16) {}         // +0x150, after mapAmbient
 
 // ============================================================
 // MapGenerator::~MapGenerator (body 0x14001aea0) / DeletingDtor (slot 0)
@@ -62,9 +62,9 @@ MapGenerator::MapGenerator()
 // three String dtors, 5x b030, 1x b0a0, 1x b030, MemFree, three String dtors,
 // then a tail JMP to External::~External, which is the compiler's chain here).
 // That is exactly reverse member order, so the members' own destructors run it
-// (B4 P2 GAME-3): descRef3 / descRef2 / descRef1 (~String of each ref's name),
-// refArray7 .. refArray1 (the pool destructors below), families (+0x60),
-// templateRef, _field30, _field28, then ~External.
+// (B4 P2 GAME-3): windAmbient / mapAmbient / riverAmbient (~String of each ref's name),
+// initialLivestockList .. naturalResources (the pool destructors below), citizens (+0x60),
+// citizen, description, name, then ~External.
 MapGenerator::~MapGenerator() {}
 
 // The pool destructors 0x14001b030 / 0x14001b0a0 are the String pools' own
@@ -307,32 +307,32 @@ bool MapGenerator::Serialize(IO::Stream& stream) {
 
     // --- scalar header (order matches Easy.rsc: _stringTable,_name,_description,
     //     _exposed,_startAreaSize,_citizenRadius,_citizen) ---
-    ::Object::SerializeExternal<UI::StringTable>(serializer, _field20);   // +0x20 _stringTable ref
-    _field28.Serialize(serializer);       // +0x28 _name
-    _field30.Serialize(serializer);       // +0x30 _description
-    serializer.Serialize(enabled, nullptr);        // +0x38 _exposed
-    serializer.Serialize(subdivisions, nullptr);   // +0x3c _startAreaSize (townSize)
-    serializer.Serialize(scale, nullptr);          // +0x40 _citizenRadius
-    templateRef.name.Serialize(serializer);       // +0x48 _citizen template ref
+    ::Object::SerializeExternal<UI::StringTable>(serializer, stringTable);   // +0x20 _stringTable ref
+    name.Serialize(serializer);       // +0x28 _name
+    description.Serialize(serializer);       // +0x30 _description
+    serializer.Serialize(exposed, nullptr);        // +0x38 _exposed
+    serializer.Serialize(startAreaSize, nullptr);   // +0x3c _startAreaSize (townSize)
+    serializer.Serialize(citizenRadius, nullptr);          // +0x40 _citizenRadius
+    citizen.name.Serialize(serializer);       // +0x48 _citizen template ref
 
     // --- _citizens: InitialFamily[] (stride 8: bool _educated@0, int _maxChildCount@4) ---
     {
-        const int n = MG_SerializeCount(serializer, families, families._size);
-        InitialFamily* e = families._data;
+        const int n = MG_SerializeCount(serializer, citizens, citizens._size);
+        InitialFamily* e = citizens._data;
         for (int i = 0; e && i < n; ++i) {
             serializer.Serialize(e[i].educated, nullptr);        // _educated
             serializer.Serialize(e[i].maxChildCount, nullptr);   // _maxChildCount
         }
     }
 
-    // --- refArray1 (+0x70): ExternalRef pool ---
-    MG_ReadRefPool(serializer, refArray1);
+    // --- naturalResources (+0x70): ExternalRef pool ---
+    MG_ReadRefPool(serializer, naturalResources);
 
     // --- _structures: InitialStructure[] (stride 0x30: ExternalRef@0,
     //     int _offsetX@0x18, _offsetY@0x1c, _width@0x20, _height@0x24, _rotation@0x28) ---
     {
-        const int n = MG_SerializeCount(serializer, refArray2, refArray2._size);
-        InitialStructure* e = refArray2._data;
+        const int n = MG_SerializeCount(serializer, structures, structures._size);
+        InitialStructure* e = structures._data;
         for (int i = 0; e && i < n; ++i) {   // FUN_14001b6c0, in place
             e[i].structure.name.Serialize(serializer);   // _structure ref name
             serializer.Serialize(e[i].offsetX, nullptr);    // _offsetX
@@ -343,36 +343,36 @@ bool MapGenerator::Serialize(IO::Stream& stream) {
         }
     }
 
-    // --- refArray3..refArray7 (+0x90,+0xA0,+0xB0,+0xC0,+0xD0): ExternalRef pools ---
-    MG_ReadRefPool(serializer, refArray3);
-    MG_ReadRefPool(serializer, refArray4);
-    MG_ReadRefPool(serializer, refArray5);
-    MG_ReadRefPool(serializer, refArray6);
-    MG_ReadRefPool(serializer, refArray7);
+    // --- populations..initialLivestockList (+0x90,+0xA0,+0xB0,+0xC0,+0xD0): ExternalRef pools ---
+    MG_ReadRefPool(serializer, populations);
+    MG_ReadRefPool(serializer, initialVisibleList);
+    MG_ReadRefPool(serializer, initialPlantList);
+    MG_ReadRefPool(serializer, initialTreeList);
+    MG_ReadRefPool(serializer, initialLivestockList);
 
     // --- scalar tail (cull counts, initial resource counts, livestock params) ---
-    serializer.Serialize(paramE0, nullptr);
-    serializer.Serialize(paramE4, nullptr);
-    serializer.Serialize(paramE8, nullptr);
-    serializer.Serialize(paramEC, nullptr);
-    serializer.Serialize(paramF0, nullptr);
-    serializer.Serialize(paramF4, nullptr);
-    serializer.Serialize(paramF8, nullptr);
-    serializer.Serialize(paramFC, nullptr);
-    serializer.Serialize(param100, nullptr);
-    serializer.Serialize(param104, nullptr);
-    serializer.Serialize(param108, nullptr);
-    serializer.Serialize(param10C, nullptr);
-    serializer.Serialize(param110, nullptr);
-    serializer.Serialize(param114, nullptr);
+    serializer.Serialize(plantCount, nullptr);
+    serializer.Serialize(treeCount, nullptr);
+    serializer.Serialize(livestockCount, nullptr);
+    serializer.Serialize(livestockOffsetX, nullptr);
+    serializer.Serialize(livestockOffsetY, nullptr);
+    serializer.Serialize(livestockRadius, nullptr);
+    serializer.Serialize(livestockGroupCount, nullptr);
+    serializer.Serialize(initialWoodCount, nullptr);
+    serializer.Serialize(initialStoneCount, nullptr);
+    serializer.Serialize(initialIronCount, nullptr);
+    serializer.Serialize(initialToolCount, nullptr);
+    serializer.Serialize(initialFoodCount, nullptr);
+    serializer.Serialize(initialFuelCount, nullptr);
+    serializer.Serialize(initialClothingCount, nullptr);
 
     // --- env template refs + interleaved scalars (EXACT stream order) ---
-    descRef1.name.Serialize(serializer);       // descRef1 (terrain)
-    descRef2.name.Serialize(serializer);       // descRef2 (climate)
-    serializer.Serialize(terrainAmplitude, nullptr);   // terrainAmplitude
-    serializer.Serialize(chunkSize, nullptr);          // chunkSize
-    descRef3.name.Serialize(serializer);       // descRef3 (vegetation)
-    serializer.Serialize(param170, nullptr);
+    riverAmbient.name.Serialize(serializer);       // riverAmbient (terrain)
+    mapAmbient.name.Serialize(serializer);       // mapAmbient (climate)
+    serializer.Serialize(riverAmbientSpacing, nullptr);   // riverAmbientSpacing
+    serializer.Serialize(mapAmbientSpacing, nullptr);          // mapAmbientSpacing
+    windAmbient.name.Serialize(serializer);       // windAmbient (vegetation)
+    serializer.Serialize(windAmbientHeight, nullptr);
 
     return true;   // retail returns AL=1
 }

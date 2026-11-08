@@ -376,7 +376,7 @@ void Context::SetTransform(int32_t slot, const Math::Matrix& m) {
 
 // ---- ?SetBones@Context@Video@@QEAAXHPEBVMatrix@Math@@@Z  0x18001a780 -------
 // ---- ordinal 3835.  BATCH 8. ------------------------------------------------
-// Writes `count` to `_unknown0024` (the same "live counter" BindResources'
+// Writes `count` to `_boneCount` (the same "live counter" BindResources'
 // transform-dirty test already reads alongside `_transformCount`), then
 // copies `count` Matrix entries (0x40 bytes each) from `matrices` into
 // `_boneAndProjectionStaging` starting at its own +0x00 — i.e. bone i lands
@@ -384,11 +384,11 @@ void Context::SetTransform(int32_t slot, const Math::Matrix& m) {
 // dirty bit into `_dirty` on every iteration (retail re-ORs it once per bone,
 // not once at the end; reproduced faithfully even though it is redundant
 // after the first iteration, since retail's own listing does exactly this).
-// A `count <= 0` call touches only `_unknown0024` and nothing else, matching
+// A `count <= 0` call touches only `_boneCount` and nothing else, matching
 // retail's `if (0 < param_1)` guard around the whole copy loop.
 void Context::SetBones(int32_t count, const Math::Matrix* matrices) {
 
-    _unknown0024 = count;
+    _boneCount = count;
     for (int32_t i = 0; i < count; ++i) {
         std::memcpy(_boneAndProjectionStaging + static_cast<size_t>(i) * sizeof(Math::Matrix),
                     &matrices[i], sizeof(Math::Matrix));
@@ -506,7 +506,7 @@ void Context::Reset() {
     std::memset(static_cast<void*>(&_lightStaging), 0, sizeof(_lightStaging));
 
     _transformCount = 0;
-    _unknown0024    = 0;   // retail zeroes +0x20 as one qword
+    _boneCount    = 0;   // retail zeroes +0x20 as one qword
 
     for (int i = 0; i < RtVideo::kImageBufferSlots; ++i) {
         if (_imageBuffers[i] != nullptr) {

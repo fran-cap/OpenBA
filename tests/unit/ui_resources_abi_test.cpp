@@ -163,7 +163,7 @@ void CheckCompileInherited(void* raw) {
 // ---------------------------------------------------------------------------
 UNIT_TEST(ui_characterset_layout) {
     CHECK_EQ((int)alignof(UI::CharacterSet), 8);
-    CHECK_EQ((int)offsetof(UI::CharacterSet, _string20), (int)sizeof(Object::External));
+    CHECK_EQ((int)offsetof(UI::CharacterSet, _characters), (int)sizeof(Object::External));
     CHECK((std::is_base_of<Object::External, UI::CharacterSet>::value));
     CHECK(!std::is_abstract<UI::CharacterSet>::value);      // B.3.9 UI-D: concrete
     CHECK(std::is_destructible<UI::CharacterSet>::value);   // B3X W1: public virtual dtor
@@ -313,7 +313,7 @@ struct FontProbe final : UI::Font {
 
 UNIT_TEST(ui_font_layout) {
     CHECK_EQ((int)alignof(UI::Font), 8);
-    CHECK_EQ((int)offsetof(UI::Font, _string20), (int)sizeof(Object::External));
+    CHECK_EQ((int)offsetof(UI::Font, _fontName), (int)sizeof(Object::External));
     CHECK_EQ((int)sizeof(UI::Font::Kerning), 0x10);
     CHECK((std::is_base_of<Object::External, UI::Font>::value));
     CHECK(!std::is_abstract<UI::Font>::value);       // B.3.9 UI-D: concrete

@@ -71,7 +71,7 @@ bool GraphDescription::Serialize(IO::Stream& streamArg) {
     rw->SerializeInt(_width, nullptr);                                  // 1800d1a8e
     rw->SerializeInt(_height, nullptr);                                 // 1800d1aa3
     rw->SerializeInt(_tickSize, nullptr);                               // 1800d1ab8
-    rw->SerializeUInt(_unknown74, nullptr);                             // 1800d1acd
+    rw->SerializeUInt(_lineColor, nullptr);                             // 1800d1acd
 
     Object::SerializeExternal<UI::SpriteSheet>(ser, _spriteSheet);            // 1800d1adc ExternalPtr<SpriteSheet>
     _spriteName.Serialize(ser);             // 1800d1aed System::String
@@ -107,7 +107,7 @@ Object::InternalPtr<Element>* GraphDescription::CreateInstance(
 
     elem->_width     = _width;                                          // 1800d19ae
     elem->_height    = _height;                                         // 1800d19b7
-    elem->_unknownCC = static_cast<int32_t>(_unknown74);                // 1800d19c0
+    elem->_lineColor = static_cast<int32_t>(_lineColor);                // 1800d19c0
     elem->_tickSize  = _tickSize;                                       // 1800d19c9
 
     // 1800d19cf..1800d19e2 the sheet and the index slot; 1800d19f5 / 1800d1a01

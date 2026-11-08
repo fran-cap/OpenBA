@@ -431,9 +431,9 @@ void Save::SaveLoad::SaveMetaData(void* pixels, int width, int height,
                 tmp.path = work;
             }
 
-            tmp.versionMajor = entry->i2c;   // -> CheckMod status 4
-            tmp.gameVersion  = entry->i18;   // -> CheckMod status 2 (< 0x1000400)
-            tmp.versionMinor = entry->i1c;   // -> CheckMod status 3
+            tmp.versionMajor = entry->crc;   // -> CheckMod status 4
+            tmp.gameVersion  = entry->version;   // -> CheckMod status 2 (< 0x1000400)
+            tmp.versionMinor = entry->userVersion;   // -> CheckMod status 3
             // tmp.pad1c is deliberately NOT written; retail does not write it and
             // the array copy above does not copy it.
 
@@ -455,8 +455,8 @@ void Save::SaveLoad::SaveMetaData(void* pixels, int width, int height,
                     ModInfo tmp;
                     tmp.name.Set(recs[i].name);
                     tmp.path.Set(recs[i].path);
-                    tmp.versionMajor = static_cast<uint32_t>(recs[i].field10);         // +0x10
-                    tmp.gameVersion  = recs[i].field14;                                // +0x14
+                    tmp.versionMajor = static_cast<uint32_t>(recs[i].versionMajor);         // +0x10
+                    tmp.gameVersion  = recs[i].gameVersion;                                // +0x14
                     tmp.versionMinor = static_cast<uint32_t>(recs[i].formatVersion);   // +0x18
                     // tmp.pad1c not written, as retail's loop above.
                     ModInfoArraySetSize(&arr, arr.size + 1, &tmp);

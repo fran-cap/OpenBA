@@ -38,10 +38,10 @@ public:
     virtual Object::External* Construct();                                 // [9] 0x140004110
 
     // ---- fields (PUBLIC: the components read them at raw offsets today) ----
-    ComponentDescription* _ref20;               // +0x20 ExternalPtr<ComponentDescription> (Serialize 0x140047800 -> 0x140002340,
+    ComponentDescription* _tombstone;               // +0x20 ExternalPtr<ComponentDescription> (Serialize 0x140047800 -> 0x140002340,
                                                 //       IsDerivedFrom ComponentDescription; the tombstone the burial builds)
 };
 
 static_assert(sizeof(CemeteryDescription) == 0x28, "CemeteryDescription is 0x28 (create 0x1400040b0 MemAlloc(0x28))");
 static_assert(alignof(CemeteryDescription) == 8, "CemeteryDescription alignment");
-static_assert(offsetof(CemeteryDescription, _ref20) == 0x20, "CemeteryDescription::_ref20 @ +0x20");
+static_assert(offsetof(CemeteryDescription, _tombstone) == 0x20, "CemeteryDescription::_tombstone @ +0x20");

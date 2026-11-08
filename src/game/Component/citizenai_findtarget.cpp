@@ -133,10 +133,10 @@ CitizenBehavior* CitizenBehavior::FindBestTarget(ComponentEntity** found, uint32
     int local_a8_best = 0x7fffffff;   // best cost so far
 
     // -------- Phase 1: scan the PRIMARY list (param_1[2], count param_1[3]) --------
-    if (0 < field_0x10._size) {
+    if (0 < marketLocations._size) {
         int iVar20 = 0;
         do {
-            ComponentEntity* local_a0 = field_0x10._data[iVar20].Get();                // candidate entity
+            ComponentEntity* local_a0 = marketLocations._data[iVar20].Get();                // candidate entity
             ComponentEntity* local_90 = local_a0;                                // IBP scratch
             uint32_t cell = EntityAnchorCell(&local_90, nullptr);        // entity -> cell idx
 
@@ -209,7 +209,7 @@ CitizenBehavior* CitizenBehavior::FindBestTarget(ComponentEntity** found, uint32
                 }
             }
             iVar20 = iVar20 + 1;
-        } while (iVar20 < field_0x10._size);
+        } while (iVar20 < marketLocations._size);
 
         // If a "B"-qualified primary hit was found, return immediately (skip fallback).
         if ((static_cast<char>(local_98_flag) != '\0') && (*found != nullptr)) {
@@ -218,11 +218,11 @@ CitizenBehavior* CitizenBehavior::FindBestTarget(ComponentEntity** found, uint32
     }
 
     // -------- Phase 2: scan the FALLBACK list (param_1[0], count param_1[1]) --------
-    if (0 < field_0x00._size) {
+    if (0 < storageLocations._size) {
         int iVar20 = 0;
         int iVar15loop = local_a8_best;
         do {
-            ComponentEntity* local_a0 = field_0x00._data[iVar20].Get();               // candidate entity
+            ComponentEntity* local_a0 = storageLocations._data[iVar20].Get();               // candidate entity
             ComponentEntity* local_58 = local_a0;                               // IBP scratch
             uint32_t cell = EntityAnchorCell(&local_58, nullptr);
 
@@ -302,7 +302,7 @@ CitizenBehavior* CitizenBehavior::FindBestTarget(ComponentEntity** found, uint32
                 }
             }
             iVar20 = iVar20 + 1;
-        } while (iVar20 < field_0x00._size);
+        } while (iVar20 < storageLocations._size);
     }
 
     return this;

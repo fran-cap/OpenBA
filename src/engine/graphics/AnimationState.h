@@ -88,7 +88,7 @@ struct AnimationLayer {
     //        fast path that uses the frame delta verbatim.
     float   speed;
 
-    int32_t _unpinned_14;   // +0x14  no reader in Update
+    int32_t _pad14;   // +0x14  no reader in Update
 
     // +0x18  accumulated playback position in System::Time ticks.
     //        Read/written at 0x1800fdd49, 0x1800fdd80, 0x1800fdd98,
@@ -107,12 +107,12 @@ struct AnimationLayer {
     //        (`MOV BYTE PTR [RAX+0x30],0x1` at 0x1800fdb84).
     uint8_t restarted;
 
-    uint8_t _unpinned_31[7];   // +0x31  no reader in Update
+    uint8_t _pad31[7];   // +0x31  no reader in Update
 };
 static_assert(sizeof(AnimationLayer) == 0x38, "Graphics AnimationLayer stride is 0x38");
 static_assert(offsetof(AnimationLayer, group) == 0x0, "AnimationLayer::group");
-static_assert(offsetof(AnimationLayer, _unpinned_14) == 0x14, "AnimationLayer::_unpinned_14");
-static_assert(offsetof(AnimationLayer, _unpinned_31) == 0x31, "AnimationLayer::_unpinned_31");
+static_assert(offsetof(AnimationLayer, _pad14) == 0x14, "AnimationLayer::_pad14");
+static_assert(offsetof(AnimationLayer, _pad31) == 0x31, "AnimationLayer::_pad31");
 static_assert(offsetof(AnimationLayer, clipIndex)     == 0x08, "AnimationLayer::clipIndex @ +0x08");
 static_assert(offsetof(AnimationLayer, handle)        == 0x0c, "AnimationLayer::handle @ +0x0c");
 static_assert(offsetof(AnimationLayer, speed)         == 0x10, "AnimationLayer::speed @ +0x10");
@@ -128,29 +128,29 @@ static_assert(offsetof(AnimationLayer, restarted)     == 0x30, "AnimationLayer::
 // this header claims nothing about the other 0x48 of it.
 // ============================================================================
 struct AnimationClipPrefix {
-    uint8_t  _head_00[0x08];  // +0x00  no reader in Update
+    uint8_t  events[0x08];  // +0x00  no reader in Update
 
     // +0x08  event count. `> 0` (together with the caller's 8th bool and
     //        layer index 0) is what gates the Animation::ApplyEvents call
     //        (`CMP DWORD PTR [RBP+0x8],R12D / JLE` at 0x1800fdd61).
     int32_t  eventCount;
 
-    uint8_t  _head_0c[0x24];  // +0x0c  no reader in Update
+    uint8_t  eventCapacityAndNames[0x24];  // +0x0c  no reader in Update
 
     int32_t  frameFirst;      // +0x30  subtrahend in the loop-restart fraction
     int32_t  frameLast;       // +0x34  frameLast - frameFirst is the denominator
-    int32_t  _unpinned_38;    // +0x38  no reader in Update
+    int32_t  rate;    // +0x38  no reader in Update
 
     // +0x3c  looping flag. Non-zero => wrap `time` modulo `duration` and add a
     //        restart offset; zero => clamp `time` to `duration`
     //        (`CMP BYTE PTR [RBP+0x3c],0x0 / JE` at 0x1800fdd84).
     uint8_t  looping;
-    uint8_t  _unpinned_3d[3]; // +0x3d
+    uint8_t  _pad3d[3]; // +0x3d
 
     int32_t  loopFrame;       // +0x40  ZERO short-circuits the whole fraction to 0
-    int32_t  _unpinned_44;    // +0x44
+    int32_t  frameRate;    // +0x44
     float    loopScale;       // +0x48  final multiplier
-    int32_t  _unpinned_4c;    // +0x4c
+    int32_t  boneCount;    // +0x4c
     // +0x50  read as an INT and cvtdq2ps'd to float.
     //
     // *** THIS IS THE CLIP'S FRAME COUNT, NOT ITS FRAME RATE. Corrected
@@ -163,7 +163,7 @@ struct AnimationClipPrefix {
     // and +0x50 is the number of keyframes; `loopScale` at +0x48 above has no
     // reader in GetPoseAtTime and is left as this lane named it.
     int32_t  frameCount;      // +0x50
-    int32_t  _unpinned_54;    // +0x54
+    int32_t  _pad54;    // +0x54
 
     // +0x58  clip duration in System::Time ticks (int64, compared against
     //        `layer.time` with a SIGNED 64-bit CMP at 0x1800fdd8a).
@@ -181,13 +181,13 @@ static_assert(sizeof(AnimationClipPrefix) == 0x60,
               "the PREFIX of an animation clip Update reads ends at +0x60; the "
               "record itself is 0x70 and this struct deliberately covers only "
               "the part that has a named reader");
-static_assert(offsetof(AnimationClipPrefix, _head_00) == 0x0, "AnimationClipPrefix::_head_00");
-static_assert(offsetof(AnimationClipPrefix, _head_0c) == 0xC, "AnimationClipPrefix::_head_0c");
-static_assert(offsetof(AnimationClipPrefix, _unpinned_38) == 0x38, "AnimationClipPrefix::_unpinned_38");
-static_assert(offsetof(AnimationClipPrefix, _unpinned_3d) == 0x3D, "AnimationClipPrefix::_unpinned_3d");
-static_assert(offsetof(AnimationClipPrefix, _unpinned_44) == 0x44, "AnimationClipPrefix::_unpinned_44");
-static_assert(offsetof(AnimationClipPrefix, _unpinned_4c) == 0x4C, "AnimationClipPrefix::_unpinned_4c");
-static_assert(offsetof(AnimationClipPrefix, _unpinned_54) == 0x54, "AnimationClipPrefix::_unpinned_54");
+static_assert(offsetof(AnimationClipPrefix, events) == 0x0, "AnimationClipPrefix::events");
+static_assert(offsetof(AnimationClipPrefix, eventCapacityAndNames) == 0xC, "AnimationClipPrefix::eventCapacityAndNames");
+static_assert(offsetof(AnimationClipPrefix, rate) == 0x38, "AnimationClipPrefix::rate");
+static_assert(offsetof(AnimationClipPrefix, _pad3d) == 0x3D, "AnimationClipPrefix::_pad3d");
+static_assert(offsetof(AnimationClipPrefix, frameRate) == 0x44, "AnimationClipPrefix::frameRate");
+static_assert(offsetof(AnimationClipPrefix, boneCount) == 0x4C, "AnimationClipPrefix::boneCount");
+static_assert(offsetof(AnimationClipPrefix, _pad54) == 0x54, "AnimationClipPrefix::_pad54");
 
 // ============================================================================
 // Graphics::AnimationState — 0x48 bytes.
@@ -308,7 +308,7 @@ public:
         int32_t _clipIndex;      // +0x08  index into _group->_clips, scaled 0x70
         int32_t _handle;         // +0x0c  packed (instance << 8 | frame), or < 0
         float   _speed;          // +0x10
-        int32_t _unpinned_14;    // +0x14  no reader in any body read
+        int32_t _pad14;    // +0x14  no reader in any body read
         // B.4: System::Time, retail's type -- `GetPoseAtTime` takes `+0x18` as
         // its `const Time&` (0x1800fcc20) and the fade weight reads the other two
         // as tick counts.
@@ -316,7 +316,7 @@ public:
         System::Time _fadeLength;    // +0x20  > 0 is what ARMS the countdown
         System::Time _fadeRemaining; // +0x28  <= 0 removes the layer
         bool    _restarted;      // +0x30  bool: SerializeBool (0x18005cb40)
-        uint8_t _unpinned_31[7]; // +0x31
+        uint8_t _pad31[7]; // +0x31
     };
 
     // ---- the members retail exports ----------------------------------------
@@ -461,8 +461,8 @@ static_assert(alignof(AnimationState) == 8, "Graphics::AnimationState aligns to 
 static_assert(sizeof(AnimationState::Layer) == 0x38,
               "Graphics::AnimationState::Layer stride is 0x38");
 static_assert(offsetof(AnimationState::Layer, _group) == 0x0, "Layer::_group");
-static_assert(offsetof(AnimationState::Layer, _unpinned_14) == 0x14, "Layer::_unpinned_14");
-static_assert(offsetof(AnimationState::Layer, _unpinned_31) == 0x31, "Layer::_unpinned_31");
+static_assert(offsetof(AnimationState::Layer, _pad14) == 0x14, "Layer::_pad14");
+static_assert(offsetof(AnimationState::Layer, _pad31) == 0x31, "Layer::_pad31");
 static_assert(offsetof(AnimationState, _instanced)  == 0x00, "AnimationState::_instanced @ +0x00");
 static_assert(offsetof(AnimationState, _layers)     == 0x08, "AnimationState::_layers @ +0x08");
 

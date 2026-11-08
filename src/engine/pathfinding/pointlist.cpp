@@ -49,7 +49,7 @@
 // PointList wears the MINTED table, whose slots resolve back to these doors.
 // The factory rows, the deleting-dtor row and ~PointList's door body stay.
 // Field names follow the getters: +0x20 `_meshName` (GetMeshName), +0x28
-// `_string28` (no getter), +0x30 `_points` (Points), +0x40 `_pathPoints`
+// `_subObject` (no getter), +0x30 `_points` (Points), +0x40 `_pathPoints`
 // (PathPoints) — so "_pointsB before _pointsA" above reads "_pathPoints
 // before _points".
 //
@@ -225,7 +225,7 @@ Object::Base* PointList::CreateInPlaceObject(void* place) {
 // ============================================================================
 // [5] ?Serialize@PointList@Pathfinding@@UEAA_NAEAVStream@IO@@@Z   0x18010f6e0
 // ============================================================================
-// Order: _meshName, _string28, then _pathPoints (+0x40, count at +0x48) and
+// Order: _meshName, _subObject, then _pathPoints (+0x40, count at +0x48) and
 // only THEN _points (+0x30, count at +0x38) — retail serializes the SECOND
 // array field before the first. Per Point: String, kArrayFloat(n=3) at +8,
 // kScalarFloat at +0x14.
@@ -238,7 +238,7 @@ bool PointList::Serialize(IO::Stream& stream) {
 
     // `?Serialize@String@System@@QEAAXAEAVSerializer@IO@@@Z` (0x1800c9930).
     _meshName.Serialize(ser);
-    _string28.Serialize(ser);
+    _subObject.Serialize(ser);
 
     // SerializeInt +0xa0, SerializeFloat +0x80, SerializeFloatArray +0x28.
     IO::ReaderWriter* rwc = ser._readerWriter;
@@ -267,7 +267,7 @@ bool PointList::Serialize(IO::Stream& stream) {
 // on BOTH arrays at 0x18010f904 and 0x18010f90e -- NOT SetSize(0), which would
 // keep (leak) the buffer. That body frees and ZEROES each header, so the
 // compiler-emitted `~Array` of each member afterwards is a no-op (MemFree of
-// null). The compiler then releases `_string28` and `_meshName` and chains
+// null). The compiler then releases `_subObject` and `_meshName` and chains
 // ~External -- retail's order and retail's tail call.
 PointList::~PointList() {
     PointArrayDtor(&_pathPoints);

@@ -173,7 +173,7 @@ bool ImmigrationComponent::CanAccept() {
     int req = desc->_requiredBuildingCount;
     if (req < 1) return true;
     // The +0x160 template bucket tree (key compared as an unsigned qword, 0x1400172f0).
-    TemplateBucket* root = tm->field_0x160._root;
+    TemplateBucket* root = tm->entitiesByTemplate._root;
     ComponentDescription** keys = desc->_requiredBuildings;
     for (int i = 0; i < req; ++i) {
         ComponentDescription* key = keys[i];
@@ -309,8 +309,8 @@ void ImmigrationComponent::Spawn() {
     // Empty household slots across every registered house (townMgr+0x20/+0x28).
     int emptySlots = 0;
     {
-        int nh = tm->field_0x20._size;
-        Object::InternalPtr<ComponentEntity>* houses = tm->field_0x20._data;
+        int nh = tm->residences._size;
+        Object::InternalPtr<ComponentEntity>* houses = tm->residences._data;
         for (int i = 0; i < nh; ++i) {
             ComponentEntity* h = houses[i].Get();
             // Neither the house nor its ResidenceComponent is tested (0x14004de75, the +0x58 read).
@@ -419,7 +419,7 @@ CitizenComponent* NomadComponent::ConvertToCitizen(CitizenComponent** out, Citiz
     else              age = rng->RandFloat() * aLo;
     uint32_t r = rng->Rand(1u);
     char flag = (r == 0 || isChild != 0) ? 0 : 1;
-    Profession* key = gw->m_professionList->field_0x30;
+    Profession* key = gw->m_professionList->laborerProfession;
     cit->Initialize(&pos, static_cast<uint32_t>(genderArg), isChild, age, flag,
                     *parent, key);   // 0x140117080
 
@@ -445,14 +445,14 @@ void ImmigrationComponent::Accept() {
     CitizenBehavior* tm = TownMgr(gw);
 
     float chance = desc->_diseaseChance;
-    if (tm->field_0x1A8 < chance) tm->field_0x1A8 = chance;
+    if (tm->diseaseRisk < chance) tm->diseaseRisk = chance;
     System::Time dur;
     dur._ticks = 0;
     RtSystem_Time_Ctor(&dur, static_cast<float>(desc->_diseaseMonths) * kSecondsPerMonth);
-    if (tm->field_0x1A0._ticks < dur._ticks) tm->field_0x1A0._ticks = dur._ticks;
+    if (tm->diseaseRiskTimer._ticks < dur._ticks) tm->diseaseRiskTimer._ticks = dur._ticks;
 
     const int n = group._size;
-    TownMgr(gw)->field_0x1B0 += n;
+    TownMgr(gw)->totalNomadsAccepted += n;
 
     Object::InternalPtr<ComponentEntity>* arr = group._data;
     auto nomadAt = [&](int i) -> ComponentEntity* {

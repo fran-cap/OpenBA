@@ -183,7 +183,7 @@ static void PlagueBootReport(CitizenComponent* citizen) {
 
     if (!s_bootReported) {
         s_bootReported = true;
-        float careMult = desc->_f128;
+        float careMult = desc->doctorChanceOfDeathScalar;
         fprintf(stderr,
                 "[Plague] BOOT: careMult(desc+0x128)=%.4f%s healerProf(desc+0x30)=%p "
                 "maxHealth(+0x70)=%.3f durBase(+0x94)=%.3f durSpread(+0x98)=%.3f "
@@ -191,8 +191,8 @@ static void PlagueBootReport(CitizenComponent* citizen) {
                 careMult,
                 (careMult == 0.0f) ? "  <== ZERO: (1/recipMortality)/0 is INFINITE, every"
                                      " treated citizen dies instantly" : "",
-                healerProf, desc->maxHealth, desc->_f94,
-                desc->_f98, desc->_f9c,
+                healerProf, desc->maxHealth, desc->diseasePeriod,
+                desc->diseasePeriodTol, desc->immunityLength,
                 diseaseList, s_tidDisease);
         fflush(stderr);
     }
@@ -353,7 +353,7 @@ void* CharacterGrid::RadiusQuery(void** out, float* pos, float* radius,
 // ============================================================
 // 0x140116b90 — infect a citizen with `disease`
 // ============================================================
-// Skips if already sick, still immune (+0x70 > 0), or (profession field4D set AND
+// Skips if already sick, still immune (+0x70 > 0), or (profession immuneToDisease set AND
 // employed +0x248 != 0). Posts the type-0xb (sev 3) event UNLESS an epidemic is already
 // active (AnyCitizenSick) — the text formats {0}=season {1}=year {2}=disease name from
 // the disease's own StringTable (+0x20) keyed by its name String (+0x28). Then:
@@ -375,14 +375,14 @@ void CitizenComponent::Infect(Disease* disease) {
             fprintf(stderr, "[Plague] INFECT skip=alreadySick citizen=%p\n", self), fflush(stderr);
         return;
     }
-    if (field_0x70._ticks > 0) {
+    if (diseaseTimer._ticks > 0) {
         if (PlagueTraceOn())
             fprintf(stderr, "[Plague] INFECT skip=immune citizen=%p immunityTicks=%lld\n",
-                    self, (long long)field_0x70._ticks), fflush(stderr);
+                    self, (long long)diseaseTimer._ticks), fflush(stderr);
         return;
     }
     Profession* p1f0 = profession;
-    if (p1f0 && p1f0->field4D && workplace != nullptr) {
+    if (p1f0 && p1f0->immuneToDisease && workplace != nullptr) {
         if (PlagueTraceOn())
             fprintf(stderr, "[Plague] INFECT skip=exemptProfessionAndHoused citizen=%p\n",
                     self), fflush(stderr);
@@ -416,10 +416,10 @@ void CitizenComponent::Infect(Disease* disease) {
     this->disease = disease;
     CitizenDescription* desc = description;
     float tol = rng->RandFloatTol();   // ?RandFloatTol@Random@System@@ 0x1800c8000
-    field_0x70._ticks = TimeFromSeconds(
-        (tol * desc->_f98 + desc->_f94) * SecsPerMonth());
-    field_0x78._ticks = TimeFromSeconds(
-        disease->_field30 * SecsPerMonth());
+    diseaseTimer._ticks = TimeFromSeconds(
+        (tol * desc->diseasePeriodTol + desc->diseasePeriod) * SecsPerMonth());
+    diseaseSpreadTimer._ticks = TimeFromSeconds(
+        disease->_spreadIntervalMonths * SecsPerMonth());
     FindCareBuilding();   // 0x140111590
 
     // Both arms: whether the care link actually got made. +0x228 == 0 here means
@@ -430,8 +430,8 @@ void CitizenComponent::Infect(Disease* disease) {
         fprintf(stderr,
                 "[Plague] INFECT ok citizen=%p disease=%p durationTicks=%lld "
                 "spreadTicks=%lld care(+0x228)=%s finderResolved=%d\n",
-                self, (void*)disease, (long long)field_0x70._ticks,
-                (long long)field_0x78._ticks,
+                self, (void*)disease, (long long)diseaseTimer._ticks,
+                (long long)diseaseSpreadTimer._ticks,
                 (careBuilding != nullptr) ? "LINKED" : "NOT-LINKED",
                 1);   // the finder is a direct call: always resolved
         fflush(stderr);
@@ -480,7 +480,7 @@ void CitizenComponent::CatchDisease() {
     for (int i = 0; i < count; i++) {
         ::Object::External* entry = list->_resources[i];
         Disease* d = Object::IsDerivedFromNullSafe(entry, s_tidDisease) ? static_cast<Disease*>(entry) : nullptr;
-        total += d->_field3C;   // faithful: NULL deref if not Disease
+        total += d->_catchWeight;   // faithful: NULL deref if not Disease
         CitizenComp_IntArrayResize(&cum, cum.size + 1, &total);
     }
 
@@ -528,7 +528,7 @@ void CitizenComponent::SpreadDisease() {
     if (!disease) return;
 
     float contagionRoll = gw->m_random->RandFloat();
-    float contagion = disease->_field34;
+    float contagion = disease->_contagion;
     if (contagionRoll > contagion) {
         if (PlagueTraceOn())
             fprintf(stderr, "[Plague] SPREAD citizen=%p roll=FAILED (%.4f > contagion %.4f)\n",
@@ -536,7 +536,7 @@ void CitizenComponent::SpreadDisease() {
         return;
     }
 
-    float radius = disease->_field38;
+    float radius = disease->_spreadRadius;
     uint32_t typeId = CitizenComponent::TypeId();   // cell 0x1401c7158 (D5)
     if (typeId == 0) return;
 
@@ -591,31 +591,31 @@ char CitizenComponent::RecoverOrDie() {
 
     float r = gw->m_random->RandFloat();
     CitizenDescription* desc = description;
-    float mult = (careBuilding != nullptr) ? desc->_f128 : 1.0f;
+    float mult = (careBuilding != nullptr) ? desc->doctorChanceOfDeathScalar : 1.0f;
     Disease* disease = this->disease;
-    float deathChance = (1.0f / disease->_field40) / mult;
+    float deathChance = (1.0f / disease->_deathOdds) / mult;
 
     bool treated = (careBuilding != nullptr);
     if (deathChance >= r) {                     // COMISS deathChance,r; !JC
         if (PlagueTraceOn()) {
             fprintf(stderr, "[Plague] RESOLVE citizen=%p outcome=DIED deathChance=%.5f "
                     "roll=%.5f recipMortality(+0x40)=%.3f careMult=%.4f care(+0x228)=%s\n",
-                    self, deathChance, r, disease->_field40, mult,
+                    self, deathChance, r, disease->_deathOdds, mult,
                     treated ? "LINKED" : "NOT-LINKED");
             fflush(stderr);
         }
         ReleaseCareBuilding();   // 0x1401159b0
         return 0;                               // dead
     }
-    field_0x78._ticks = 0;
-    field_0x70._ticks = TimeFromSeconds(desc->_f9c * SecsPerMonth());
+    diseaseSpreadTimer._ticks = 0;
+    diseaseTimer._ticks = TimeFromSeconds(desc->immunityLength * SecsPerMonth());
     this->disease = nullptr;
     if (PlagueTraceOn()) {
         fprintf(stderr, "[Plague] RESOLVE citizen=%p outcome=RECOVERED deathChance=%.5f "
                 "roll=%.5f recipMortality(+0x40)=%.3f careMult=%.4f care(+0x228)=%s "
                 "immunityTicks=%lld\n",
-                self, deathChance, r, disease->_field40, mult,
-                treated ? "LINKED" : "NOT-LINKED", (long long)field_0x70._ticks);
+                self, deathChance, r, disease->_deathOdds, mult,
+                treated ? "LINKED" : "NOT-LINKED", (long long)diseaseTimer._ticks);
         fflush(stderr);
     }
     ReleaseCareBuilding();   // 0x1401159b0
@@ -642,8 +642,8 @@ char CitizenComponent::UpdateDisease(const System::Time* dtTime) {
     PlagueBootReport(this);
 
     if (disease == nullptr) {
-        field_0x70._ticks -= *dt;
-        if (field_0x70._ticks < 0) field_0x70._ticks = 0;
+        diseaseTimer._ticks -= *dt;
+        if (diseaseTimer._ticks < 0) diseaseTimer._ticks = 0;
 
         CitizenDescription* desc = description;
         // The town health scale is CitizenBehavior +0x1a8.
@@ -651,21 +651,21 @@ char CitizenComponent::UpdateDisease(const System::Time* dtTime) {
         System::Random* rng = gw->m_random;
 
         float t = 1.0f - health / desc->maxHealth;
-        float a = (desc->_f84 - desc->_f7c) * t + desc->_f7c;
-        float b = (desc->_f88 - desc->_f80) * t + desc->_f80;
-        float m = mgr->field_0x1A8;
-        float A = (desc->_f8c - a) * m + a;
-        float B = (desc->_f90 - b) * m + b;
+        float a = (desc->diseaseChanceUnhealthyYears - desc->diseaseChanceHealthyYears) * t + desc->diseaseChanceHealthyYears;
+        float b = (desc->diseaseChanceUnhealthyPopulation - desc->diseaseChanceHealthyPopulation) * t + desc->diseaseChanceHealthyPopulation;
+        float m = mgr->diseaseRisk;
+        float A = (desc->diseaseChanceNomadTradeYears - a) * m + a;
+        float B = (desc->diseaseChanceNomadTradePopulation - b) * m + b;
 
         ++s_rollCalls;
         if (!(B > 0.0f)) {                       // COMISS 0,B; !JC (B <= 0 or NaN)
             ++s_rollSkippedNoWindow;
-            field_0x60._ticks = 0;
+            diseaseRollTimer._ticks = 0;
             PlagueCensusTick();
             return 1;
         }
-        float elapsed = field_0x60.AsSeconds();
-        field_0x60._ticks = 0;
+        float elapsed = diseaseRollTimer.AsSeconds();
+        diseaseRollTimer._ticks = 0;
         float denom = A * MonthsPerYear() * SecsPerMonth() * B;
         float ratio = elapsed / denom;
         float r = rng->RandFloat();
@@ -706,12 +706,12 @@ char CitizenComponent::UpdateDisease(const System::Time* dtTime) {
     }
 
     // sick
-    field_0x70._ticks -= *dt;
-    field_0x78._ticks -= *dt;
-    if (field_0x78._ticks <= 0) {
+    diseaseTimer._ticks -= *dt;
+    diseaseSpreadTimer._ticks -= *dt;
+    if (diseaseSpreadTimer._ticks <= 0) {
         SpreadDisease();
-        field_0x78._ticks = TimeFromSeconds(this->disease->_field30 * SecsPerMonth());
+        diseaseSpreadTimer._ticks = TimeFromSeconds(this->disease->_spreadIntervalMonths * SecsPerMonth());
     }
-    if (field_0x70._ticks > 0) return 1;
+    if (diseaseTimer._ticks > 0) return 1;
     return RecoverOrDie();      // original tail-jumps here
 }

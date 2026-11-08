@@ -55,7 +55,7 @@ namespace {
 // key is the profession, compared as an unsigned qword (a pointer compare), its
 // value the Array<InternalPtr<ComponentEntity>> of workplace buildings.
 ProfessionBucket* TreeRoot(const CitizenBehavior* town) {
-    return town->field_0x100._root;
+    return town->workplacesByProfession._root;
 }
 } // namespace
 
@@ -88,7 +88,7 @@ void CitizenBehavior::RegisterWorkplace(ComponentEntity** param_2, const Profess
     if (found == nullptr) {
         ProfessionBucket* out = nullptr;
         CitizenBucketEntities emptyRec = {};   // array record: +0x00 data / +0x08 count+cap
-        InsertCitizenBucket(&field_0x100, &out, &profession, &emptyRec);   // 0x140017230
+        InsertCitizenBucket(&workplacesByProfession, &out, &profession, &emptyRec);   // 0x140017230
         found = out;     // *out = the new node
         if (found == nullptr) return;
     }

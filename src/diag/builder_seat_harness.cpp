@@ -95,7 +95,7 @@ extern "C" void BuilderSeat_Tick(int frameNum) {
     if (!townMgr || !profMgr) return;
 
     s_fired = true;
-    Profession* const builder = profMgr->field_0x38;  // +0x38
+    Profession* const builder = profMgr->builderProfession;  // +0x38
     const uint64_t builderKey = reinterpret_cast<uintptr_t>(builder);   // the log line prints the pointer as an integer (%016llx)  // CAST-OK: ptr_int
     const int before = CountProfession(townMgr, builder);
 

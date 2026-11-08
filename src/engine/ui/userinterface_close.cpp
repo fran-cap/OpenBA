@@ -321,10 +321,10 @@ void UI::UserInterface::CloseDialog(Object::InternalPtr<DialogInstance>* dialog)
             ev.dialog   = drag;                                            // 0x180121011
             ev.element  = nullptr;                                         // 0x180121016
             ev.eventId  = UI::EventId::DragDropEnd;                        // 0x18012101b
-            ev.arg14    = -1;                                              // 0x180121023
-            ev.arg18    = 0;                                               // 0x18012102b } one QWORD
-            ev.arg1C    = 0;                                               //             }
-            ev.arg20    = static_cast<int32_t>(_dragDropId);               // 0x180121030
+            ev.elementId    = -1;                                              // 0x180121023
+            ev.mouseX    = 0;                                               // 0x18012102b } one QWORD
+            ev.mouseY    = 0;                                               //             }
+            ev.value    = static_cast<int32_t>(_dragDropId);               // 0x180121030
             ev._pad24   = 0;   // never written by retail, never copied
             ev.userData = _dragDropData;                                   // 0x180121034
 

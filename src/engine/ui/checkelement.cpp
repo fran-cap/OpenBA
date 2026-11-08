@@ -113,14 +113,14 @@ void CheckElement::Draw(SpriteContext& context, uint8_t alpha) const {
 // Toggle on a click or on the shortcut key, then run ButtonElement::Update —
 // which is what actually raises the activation event. The toggle happens
 // FIRST, so the event a listener sees already reflects the new check state.
-// UpdateState +0x04 is `b04` (the mouse-up edge), +0x28 `config` (the KeyMap).
+// UpdateState +0x04 is `leftReleased` (the mouse-up edge), +0x28 `config` (the KeyMap).
 void CheckElement::Update(const System::Time& time, UserInterface* ui,
                           Object::InternalPtr<DialogInstance>* dialog,
                           const UpdateState& state) {
     const uint32_t flags = _flags;
     bool toggle = false;
     if ((flags & UI::kElementFlagAnyDisabled) == 0) {
-        if (state.b04 != 0 && (flags & kElementFlagHovered) != 0 &&
+        if (state.leftReleased != 0 && (flags & kElementFlagHovered) != 0 &&
             (flags & kElementFlagPressed) != 0) {
             toggle = true;
         } else {

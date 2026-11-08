@@ -25,12 +25,12 @@
 // the defaults.
 AttendanceDescription::AttendanceDescription()
     : Description(),
-      _i20(0xf) {}
+      _maxCitizens(0xf) {}
 
 // [5] 0x1400446b0: stream order as retail.
 bool AttendanceDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ser.Serialize(_i20, nullptr);
+    ser.Serialize(_maxCitizens, nullptr);
     return true;
 }
 

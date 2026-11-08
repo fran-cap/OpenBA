@@ -248,14 +248,14 @@ char BoatComponent::Steer() {
 
     CharacterComponent* chr = character.Get();
     if (!chr) return ok;
-    chr->field_0x28 = false;
+    chr->steeredByMover = false;
 
     const Math::Vector3 flat(dir.x, dir.y, 0.0f);
     const Math::Vector3 nrm = flat.Normalize();
-    chr->field_0x2C.x = nrm.x;
-    chr->field_0x2C.y = nrm.y;
-    chr->field_0x2C.z = nrm.z;
-    chr->field_0x3C = dir.Heading();
+    chr->moveDirection.x = nrm.x;
+    chr->moveDirection.y = nrm.y;
+    chr->moveDirection.z = nrm.z;
+    chr->targetHeading = dir.Heading();
     return ok;
 }
 
@@ -300,7 +300,7 @@ int NextRoutePoint(BoatComponent* boat, const Math::Vector3* ref) {
 //     character+0x3c = heading      (passed in — retail hands it boat+0x4c)
 //     character+0x38 = character.model(+0x13c) * speed
 void CharacterComponent::DriveToward(const Math::Vector3* target, float heading, float speed) {
-    field_0x28 = true;
+    steeredByMover = true;
 
     ModelComponent* model = modelComponent.Get();
     if (!model) return;
@@ -308,13 +308,13 @@ void CharacterComponent::DriveToward(const Math::Vector3* target, float heading,
 
     const Math::Vector3 v(target->x - mp->x, target->y - mp->y, target->z - mp->z);
     const Math::Vector3 nrm = v.Normalize();
-    field_0x2C.x = nrm.x;
-    field_0x2C.y = nrm.y;
-    field_0x2C.z = nrm.z;
+    moveDirection.x = nrm.x;
+    moveDirection.y = nrm.y;
+    moveDirection.z = nrm.z;
     ModelComponent* model2 = modelComponent.Get();
-    field_0x3C = heading;
+    targetHeading = heading;
     // +0x13c is the MeshInstance's _color[2], the visual scale AnimalComponent writes.
-    field_0x38 =
+    moveSpeedScale =
         model2 ? model2->meshInstance._color[2] * speed : 0.0f;
 }
 
@@ -569,13 +569,13 @@ char BoatComponent::State3Tick(StateMachine* smV) {
     const float gate = gateLen.v;
 
     if (CharacterComponent* chr = character.Get()) {
-        chr->field_0x28 = false;
+        chr->steeredByMover = false;
         const Math::Vector3 flat(dir.x, dir.y, 0.0f);
         const Math::Vector3 nrm = flat.Normalize();
-        chr->field_0x2C.x = nrm.x;
-        chr->field_0x2C.y = nrm.y;
-        chr->field_0x2C.z = nrm.z;
-        chr->field_0x3C = dir.Heading();
+        chr->moveDirection.x = nrm.x;
+        chr->moveDirection.y = nrm.y;
+        chr->moveDirection.z = nrm.z;
+        chr->targetHeading = dir.Heading();
     }
 
     if (kArrive > gate) {

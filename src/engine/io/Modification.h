@@ -177,12 +177,12 @@ struct Mod {
     System::String author;        // +0x08
     System::String description;   // +0x10
 
-    int32_t  i18;           // +0x18
-    int32_t  i1c;           // +0x1c
+    int32_t  version;           // +0x18
+    int32_t  userVersion;           // +0x1c
     int32_t  order;         // +0x20 — SaveList writes the loop index here
-    int32_t  i24;           // +0x24
-    int32_t  i28;           // +0x28
-    int32_t  i2c;           // +0x2c
+    int32_t  iconWidth;           // +0x24
+    int32_t  iconHeight;           // +0x28
+    int32_t  crc;           // +0x2c
 
     Collection::Array<uint32_t> ints;    // +0x30 — op= 0x180011110, ~Array 0x1800111a0 (filled from ?GetIconData@ `?$Array@I`)
     Collection::Array<uint8_t>  bytes;   // +0x40 — op= 0x180011220, ~Array 0x1800112a0
@@ -200,12 +200,12 @@ static_assert(sizeof(Mod) == 0x80,
 static_assert(offsetof(Mod, name)        == 0x00, "CopyCtor 0x180010208 MOV [RCX],RBP");
 static_assert(offsetof(Mod, author)      == 0x08, "CopyCtor 0x180010219 MOV [RCX+0x8],RBP");
 static_assert(offsetof(Mod, description) == 0x10, "CopyCtor 0x18001022d MOV [RCX+0x10],RBP");
-static_assert(offsetof(Mod, i18)     == 0x18, "CopyCtor 0x180010244");
-static_assert(offsetof(Mod, i1c)     == 0x1c, "CopyCtor 0x18001024a");
+static_assert(offsetof(Mod, version)     == 0x18, "CopyCtor 0x180010244");
+static_assert(offsetof(Mod, userVersion)     == 0x1c, "CopyCtor 0x18001024a");
 static_assert(offsetof(Mod, order)   == 0x20, "SaveList 0x1800b0654");
-static_assert(offsetof(Mod, i24)     == 0x24, "CopyCtor 0x180010256");
-static_assert(offsetof(Mod, i28)     == 0x28, "CopyCtor 0x18001025c");
-static_assert(offsetof(Mod, i2c)     == 0x2c, "CopyCtor 0x180010262");
+static_assert(offsetof(Mod, iconWidth)     == 0x24, "CopyCtor 0x180010256");
+static_assert(offsetof(Mod, iconHeight)     == 0x28, "CopyCtor 0x18001025c");
+static_assert(offsetof(Mod, crc)     == 0x2c, "CopyCtor 0x180010262");
 static_assert(offsetof(Mod, ints)    == 0x30, "CopyCtor 0x180010265 ADD RCX,0x30");
 static_assert(offsetof(Mod, bytes)   == 0x40, "CopyCtor 0x180010283 LEA RCX,[RBX+0x40]");
 static_assert(offsetof(Mod, enabled) == 0x50, "Enable 0x1800aeabe MOV [RDX+RAX+0x50],R8B");
@@ -254,7 +254,7 @@ struct ReloadEntry {
         : typeId(t), external(e), file(f) {}
 
     uint32_t             typeId;    // +0x00
-    uint32_t             _hole04;   // +0x04 — NEVER WRITTEN
+    uint32_t             _pad04;   // +0x04 — NEVER WRITTEN
     ::Object::External*  external;  // +0x08
     System::Filename     file;      // +0x10
 };
@@ -262,7 +262,7 @@ static_assert(offsetof(ReloadEntry, external) == 0x08, "0x1800af058 MOV [RBP-0x6
 static_assert(offsetof(ReloadEntry, file)     == 0x10, "0x1800af064 MOV [RBP-0x61],R13");
 static_assert(sizeof(ReloadEntry) == 0x18, "0x180028d2d stride, cap*3*8");
 static_assert(offsetof(ReloadEntry, typeId) == 0x0, "ReloadEntry::typeId");
-static_assert(offsetof(ReloadEntry, _hole04) == 0x4, "ReloadEntry::_hole04");
+static_assert(offsetof(ReloadEntry, _pad04) == 0x4, "ReloadEntry::_pad04");
 
 // (B.4 Z RT2: the RtIO::Modification POD mirror is gone; IO::Modification below
 // is the one layout.)

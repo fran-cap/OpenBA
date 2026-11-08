@@ -69,27 +69,27 @@ void DropOffRawMaterial::Persist(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
 
     // The carrying citizen (+0x30)
-    _field30.InternalBasePtr::Serialize(ser);
-    if (!_field30.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field30, CitizenComponent::TypeId())) {
-            _field30 = nullptr;
+    _citizen.InternalBasePtr::Serialize(ser);
+    if (!_citizen.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_citizen, CitizenComponent::TypeId())) {
+            _citizen = nullptr;
         }
     }
 
     // The destination entity (+0x38)
-    _field38.InternalBasePtr::Serialize(ser);
-    if (!_field38.IsNull()) {
-        if (!::Object::IsDerivedFromNullSafe(_field38, ComponentEntity::TypeId())) {
-            _field38 = nullptr;
+    _destination.InternalBasePtr::Serialize(ser);
+    if (!_destination.IsNull()) {
+        if (!::Object::IsDerivedFromNullSafe(_destination, ComponentEntity::TypeId())) {
+            _destination = nullptr;
         }
     }
 
     // Serialize resource type ExternalPtr (+0x28)
-    ::Object::SerializeExternal<ComponentDescription>(ser, _field28);   // 0x140002340
+    ::Object::SerializeExternal<ComponentDescription>(ser, _material);   // 0x140002340
 
     // Serialize flag (+0x20) and count (+0x24)
-    ser.Serialize(_field20, nullptr);
-    ser.Serialize(_field24, nullptr);
+    ser.Serialize(_searchOtherStorage, nullptr);
+    ser.Serialize(_maxCount, nullptr);
 }
 
 // ============================================================
@@ -105,17 +105,17 @@ int  DropOffRawMaterial::AbstractImpl(ActionStack* actionStack) {
     ActionStack* stack = actionStack;
 
     // If the destination is null, drop all inventory items
-    if (_field38.Get() == nullptr) {
+    if (_destination.Get() == nullptr) {
         SpillAllStorage();   // 0x1400c7570
         return 1;
     }
 
     // The destination's StorageComponent
-    StorageComponent* storage = _field38->FindComponent<StorageComponent>();   // 0x140006270
+    StorageComponent* storage = _destination->FindComponent<StorageComponent>();   // 0x140006270
 
     // If resource type (+0x28) is specified, transfer just that type
-    if (_field28 != nullptr) {
-        uint64_t result = Deposit(stack, &storage, _field28);   // 0x1400c7620
+    if (_material != nullptr) {
+        uint64_t result = Deposit(stack, &storage, _material);   // 0x1400c7620
         if ((int)result == 2) {
             return 2;
         }
@@ -124,7 +124,7 @@ int  DropOffRawMaterial::AbstractImpl(ActionStack* actionStack) {
 
     // Resource type not specified: copy every stack of the carrying citizen's own storage,
     // then transfer each.
-    StorageComponent* parentStorage = _field30->_entity->FindComponent<StorageComponent>();   // 0x140006270
+    StorageComponent* parentStorage = _citizen->_entity->FindComponent<StorageComponent>();   // 0x140006270
 
     // Build dynamic array of (resourceType, count) pairs from the citizen's storage
     StorageComponent::Item* itemArray = nullptr;
@@ -227,11 +227,11 @@ void DropOffRawMaterial::CheckEntity() {
 bool DropOffRawMaterial::GetTarget(ComponentEntity** param) {
     void* target = *param;
 
-    if (target == _field38.Get()) {
+    if (target == _destination.Get()) {
         return true;
     }
 
-    return _field30->_entity.Get() == target;
+    return _citizen->_entity.Get() == target;
 }
 
 // ============================================================
@@ -245,12 +245,12 @@ bool DropOffRawMaterial::GetTarget(ComponentEntity** param) {
 // create 0x140022600 (inlined ctor). The tree's factory zeroed every field above
 // +0x10; kept (not a behaviour change of this step).
 DropOffRawMaterial::DropOffRawMaterial()
-    : _field20(false),
+    : _searchOtherStorage(false),
       _pad21{},
-      _field24(0),
-      _field28(nullptr),
-      _field30(nullptr),
-      _field38(nullptr) {}
+      _maxCount(0),
+      _material(nullptr),
+      _citizen(nullptr),
+      _destination(nullptr) {}
 
 // [3] 0x1400c7b10
 // [4] 0x1400c7300
@@ -276,10 +276,10 @@ DropOffRawMaterial::DropOffRawMaterial()
 // 0x1400c7cd0: +0x20 = p6 (byte) ; +0x24 = p5 ; +0x28 = p4 ; +0x30 = *p2 ; +0x38 = *p3.
 DropOffRawMaterial::DropOffRawMaterial(CitizenComponent* const* citizen, ComponentEntity* const* destination,
                                        ComponentDescription* material, uint32_t count, bool flag)
-    : _field20(flag),
-      _field24(static_cast<int32_t>(count)),
-      _field28(material),
-      _field30(*citizen),
-      _field38(*destination) {}
+    : _searchOtherStorage(flag),
+      _maxCount(static_cast<int32_t>(count)),
+      _material(material),
+      _citizen(*citizen),
+      _destination(*destination) {}
 
 DEFINE_EXE_TYPE(DropOffRawMaterial, "Action")

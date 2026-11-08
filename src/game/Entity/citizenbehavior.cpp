@@ -82,9 +82,9 @@ extern "C" void BuilderPool_Tick();
 // Original: Entity_impl_c2b0
 void CitizenBehavior::Update(const System::Time* deltaTime) {
     // Advance timers
-    field_0x190._ticks += deltaTime->_ticks;       // pathAccumTimer
-    field_0x198._ticks -= deltaTime->_ticks;       // statsTimer
-    field_0x1A0._ticks -= deltaTime->_ticks;       // notifyTimer
+    pathGraphTimer._ticks += deltaTime->_ticks;       // pathAccumTimer
+    statsTimer._ticks -= deltaTime->_ticks;       // statsTimer
+    diseaseRiskTimer._ticks -= deltaTime->_ticks;       // notifyTimer
 
     // CountResources â€” Entity_helper_9ed0(self)
     CountResources();
@@ -105,9 +105,9 @@ void CitizenBehavior::Update(const System::Time* deltaTime) {
     // AssignCitizens a split drain owes runs here, at the drain's place in the first Update of the
     // next frame (or now, if the path-graph branch below is due: it may rebuild the cost map).
     // g_pending is never set while the row is off.
-    if (Ext::DrainSplit::g_pending) Ext::DrainSplit::RunDue(pathGraph, pathInterval <= field_0x190._ticks);
+    if (Ext::DrainSplit::g_pending) Ext::DrainSplit::RunDue(pathGraph, pathInterval <= pathGraphTimer._ticks);
 
-    if (pathInterval <= field_0x190._ticks) {
+    if (pathInterval <= pathGraphTimer._ticks) {
         // Try to process pending paths. The null tests on the path graph are the
         // tree's (the ctor always allocates it; retail has none): listed, kept.
         bool pathsDone = false;
@@ -117,7 +117,7 @@ void CitizenBehavior::Update(const System::Time* deltaTime) {
         if (!pathsDone) {
             // Build new path graph
             if (pg) pg->BuildPathGraph();
-        } else if (pg && pg->m_pendingIdx < 0 && pathInterval < field_0x190._ticks) {
+        } else if (pg && pg->m_pendingIdx < 0 && pathInterval < pathGraphTimer._ticks) {
             // Clamp accumulated time: subtract intervals until within one interval.
             // Guard against pathInterval <= 0 (BANISHED_PATHGRAPH_FAST forces 0, or a failed
             // interval resolve) â€” `acc -= 0` would spin forever. This branch is reached only
@@ -125,33 +125,33 @@ void CitizenBehavior::Update(const System::Time* deltaTime) {
             // be non-empty (e.g. a registered construction site) â€” so it stayed latent until
             // the natural builder flow first populated that BST.
             if (pathInterval > 0) {
-                int64_t acc = field_0x190._ticks;
+                int64_t acc = pathGraphTimer._ticks;
                 do {
                     acc -= pathInterval;
                 } while (pathInterval < acc);
-                field_0x190._ticks = acc;
+                pathGraphTimer._ticks = acc;
             } else {
-                field_0x190._ticks = 0;   // no positive interval to modulo by -> reset the accumulator
+                pathGraphTimer._ticks = 0;   // no positive interval to modulo by -> reset the accumulator
             }
         }
     }
 
     // Stats collection (periodic)
-    if (field_0x198._ticks < 1) {
+    if (statsTimer._ticks < 1) {
         CollectStats();
         // Reset timer from DAT_1401721fc (float seconds)
         {
             System::Time newTime;
             newTime._ticks = 0;
             RtSystem_Time_Ctor(&newTime, kRdata_1401721fc);   // 0x1401721fc
-            field_0x198._ticks = newTime._ticks;
+            statsTimer._ticks = newTime._ticks;
         }
     }
 
     // Notification timer reset: retail stores a dword 0 into +0x1A8 (the float's bits)
-    if (field_0x1A0._ticks < 0) {
-        field_0x1A8 = 0.0f;
-        field_0x1A0._ticks = 0;
+    if (diseaseRiskTimer._ticks < 0) {
+        diseaseRisk = 0.0f;
+        diseaseRiskTimer._ticks = 0;
     }
 
     // Tick-driven Builder pool (BANISHED_BUILDER_NATURAL, opt-in): keep registered
@@ -415,8 +415,8 @@ void PathGraph::BuildPathGraph() {
     // Retail (0x1400d70c0): lVar3 = *(gw+0xf0), loop over *(int*)(lVar3+0x28)
     // entries of *(longlong*)(lVar3+0x20) — the CitizenBehavior/town RESIDENCE
     // list, NOT gw+0xb0 (that is the ProfessionList, used only in Step 4 keys).
-    int buildingCount = town->field_0x20._size;
-    Object::InternalPtr<ComponentEntity>* buildingArray = town->field_0x20._data;
+    int buildingCount = town->residences._size;
+    Object::InternalPtr<ComponentEntity>* buildingArray = town->residences._data;
 
     // Dynamic array for building grid IDs
     int* buildingCells = nullptr;
@@ -473,7 +473,7 @@ void PathGraph::BuildPathGraph() {
         Profession* profKey = buildingList->professions.GetData()[gi];
 
         // Look up profession BST at citizenBehavior+0x100
-        ProfessionBucket* profNode = town->field_0x100._root;
+        ProfessionBucket* profNode = town->workplacesByProfession._root;
         int entityCount = 0;
         while (profNode != nullptr) {
             if (profKey < profNode->element.key) {
@@ -489,7 +489,7 @@ void PathGraph::BuildPathGraph() {
         // For each entity in this profession group
         for (int64_t ei = 0; ei < entityCount; ei++) {
             // Re-lookup profession BST (same pattern as decompiled code)
-            ProfessionBucket* lookupNode = town->field_0x100._root;
+            ProfessionBucket* lookupNode = town->workplacesByProfession._root;
             ProfessionBucket* foundNode = nullptr;
             while (lookupNode != nullptr) {
                 if (profKey < lookupNode->element.key) {
@@ -754,10 +754,10 @@ void CitizenBehavior::CountResources() {
     // --- Phase 1: Iterate first entity array (+0x00/+0x08) ---
     // These entities have StorageComponent; their items are tallied for both
     // profession resource counts AND notification summaries.
-    int64_t firstCount = static_cast<int64_t>(field_0x00._size);
+    int64_t firstCount = static_cast<int64_t>(storageLocations._size);
     for (int64_t idx = 0; idx < firstCount; idx++) {
         // Find StorageComponent on this entity
-        Component* storageComp = findComponent(field_0x00._data[idx].Get(), StorageComponent::TypeId());
+        Component* storageComp = findComponent(storageLocations._data[idx].Get(), StorageComponent::TypeId());
         // (found by the type id and IsDerivedFrom above: B10)
         StorageComponent* storage = static_cast<StorageComponent*>(storageComp);
 
@@ -831,10 +831,10 @@ void CitizenBehavior::CountResources() {
 
     // --- Phase 2: Iterate second entity array (+0x10/+0x18) ---
     // Same logic as Phase 1 but WITHOUT notification summary updates.
-    int64_t secondCount = static_cast<int64_t>(field_0x10._size);
+    int64_t secondCount = static_cast<int64_t>(marketLocations._size);
     for (int64_t idx = 0; idx < secondCount; idx++) {
         // Find StorageComponent on this entity
-        Component* storageComp = findComponent(field_0x10._data[idx].Get(), StorageComponent::TypeId());
+        Component* storageComp = findComponent(marketLocations._data[idx].Get(), StorageComponent::TypeId());
         StorageComponent* storage = static_cast<StorageComponent*>(storageComp);
 
         // Read item count from storage (+0x30)
@@ -1119,7 +1119,7 @@ void CitizenBehavior::CollectStats() {
     // 21 professions, 3 values each, at hist + 0x80 + profIdx*0x30 + {0, 0x10, 0x20}
     // The +0x150 data is an array of Collection::Array<int32_t> (0x10 each): [0..7]
     // the population series, then three series per profession entry.
-    Collection::Array<int32_t>* hist = field_0x150._data;
+    Collection::Array<int32_t>* hist = statHistory._data;
 
     for (int prof = 0; prof < 21; prof++) {
         Collection::Array<int32_t>* histSlot = &hist[8 + prof * 3];   // hist + 0x80 + prof * 0x30
@@ -1134,13 +1134,13 @@ void CitizenBehavior::CollectStats() {
         int curArrayCount = histSlot[0].GetSize();
         histSlot[0].SetSize(curArrayCount + 1, profEntry.currentCount);
 
-        // Push field_0x0C (+0x0C)
+        // Push consumedCount (+0x0C)
         int f0CArrayCount = histSlot[1].GetSize();
-        histSlot[1].SetSize(f0CArrayCount + 1, profEntry.field_0x0C);
+        histSlot[1].SetSize(f0CArrayCount + 1, profEntry.consumedCount);
 
-        // Push _field10 (+0x10)
+        // Push producedCount (+0x10)
         int f10ArrayCount = histSlot[2].GetSize();
-        histSlot[2].SetSize(f10ArrayCount + 1, profEntry._field10);
+        histSlot[2].SetSize(f10ArrayCount + 1, profEntry.producedCount);
     }
 
     // -- Phase 3: Push population stats --
@@ -1159,8 +1159,8 @@ void CitizenBehavior::CollectStats() {
     // -- Phase 4: Clear per-tick accumulators in profResources --
     // Clear +0x0C and +0x10 of each ProfessionResourceEntry
     for (int e = 0; e < 21; e++) {
-        professionResources._data[e].field_0x0C = 0;  // +0x0C of entry
-        professionResources._data[e]._field10 = 0;    // +0x10 of entry
+        professionResources._data[e].consumedCount = 0;  // +0x0C of entry
+        professionResources._data[e].producedCount = 0;    // +0x10 of entry
     }
 }
 
@@ -1237,8 +1237,8 @@ void ZeroProfResEntry(ProfessionResourceEntry* e) {
     e->currentCount  = 0;       // +0x00 / +0x04: retail's u64 0 (H7: two stores)
     e->previousCount = 0;
     e->maxCount      = 100;     // +0x08 / +0x0C: retail's u64 100 (H7: two stores)
-    e->field_0x0C    = 0;
-    e->_field10      = 0;       // +0x10 u32; +0x14 left untouched
+    e->consumedCount    = 0;
+    e->producedCount      = 0;       // +0x10 u32; +0x14 left untouched
     e->timer._ticks  = 0;       // +0x18 u64
 }
 void AssignProfResEntry(uint8_t* d, const uint8_t* s) {
@@ -1288,11 +1288,11 @@ const rtcoll::ArraySpec kSpec_IntPair = {                // exe 0x140017f60
 // +0x180), each Set's root qword and dword count (+0x100 at 0x140090b08 /
 // 0x140090b0b, +0x160 at 0x140090b60 / 0x140090b63). The body is the rest.
 CitizenBehavior::CitizenBehavior() {
-    field_0x190._ticks = 0;                   // 0x140090b82
-    field_0x198._ticks = 0;                   // 0x140090b89
-    field_0x1A0._ticks = 0;                   // 0x140090b90
-    field_0x1AC = 0;                          // 0x140090b97: one qword store over +0x1AC / +0x1B0 (H7: two stores)
-    field_0x1B0 = 0;
+    pathGraphTimer._ticks = 0;                   // 0x140090b82
+    statsTimer._ticks = 0;                   // 0x140090b89
+    diseaseRiskTimer._ticks = 0;                   // 0x140090b90
+    totalTradeValue = 0;                          // 0x140090b97: one qword store over +0x1AC / +0x1B0 (H7: two stores)
+    totalNomadsAccepted = 0;
     professionResources.SetSize(0x15);        // 0x1400177c0
     ProfessionResourceEntry* prices = professionResources._data;
     if (prices) {
@@ -1304,8 +1304,8 @@ CitizenBehavior::CitizenBehavior() {
             prices[i].maxCount = kDefaultPrices[i];
     }
     notifyEntries.SetSize(2);                 // 0x14000f090
-    field_0x150.SetSize(0x47);                // 0x140017640
-    field_0x1A8 = 0.0f;                       // retail's dword store of 0 (the same bits)
+    statHistory.SetSize(0x47);                // 0x140017640
+    diseaseRisk = 0.0f;                       // retail's dword store of 0 (the same bits)
     PathGraph* sub = static_cast<PathGraph*>(System::MemoryAllocator::MemAlloc(0x28, 4));
     if (sub) {
         sub->m_pairs = nullptr;

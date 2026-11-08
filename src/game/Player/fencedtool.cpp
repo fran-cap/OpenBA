@@ -274,17 +274,17 @@ int FencedTool::CalcCost(int startCell, int endCell,
 
     // Read size constraints from description
     const CreateFencedDescription* desc = fencedDesc;
-    int minW = desc->_i60;
-    int minH = desc->_i64;
+    int minW = desc->_minWidth;
+    int minH = desc->_minHeight;
     if (width < minW || height < minH) return 1;  // Too small
 
-    int maxW = desc->_i58;
-    int maxH = desc->_i5c;
+    int maxW = desc->_maxWidth;
+    int maxH = desc->_maxHeight;
     if (maxW < width || maxH < height) return 2;  // Too large
 
     // Read terrain type mask and allowed entity type
-    uint32_t terrainMask = desc->_u20;
-    const ComponentDescription* allowedEntityType = desc->_ref70;
+    uint32_t terrainMask = desc->_placeBits;
+    const ComponentDescription* allowedEntityType = desc->_allowAndRemove;
 
     // Cell data base pointer
     const MapCell* cellDataBase = mapGrid->cells.GetData();
@@ -359,10 +359,10 @@ int FencedTool::CalcCost(int startCell, int endCell,
 
     // Check the owner's constraint rectangle
     const PlayerToolManager* toolState = dialogPtr;
-    if (toolState->field_0x80) {
+    if (toolState->tutorialRestricted) {
         int mw = gameWorld->m_game->size;
-        int storedStart = toolState->field_0x98;
-        int storedEnd   = toolState->field_0x9C;
+        int storedStart = toolState->tutorialStartCell;
+        int storedEnd   = toolState->tutorialEndCell;
         if (minCol != (uint32_t)(storedStart % mw)) return 3;
         if (minRow != (uint32_t)(storedStart / mw)) return 3;
         if (effectiveMaxCol != (uint32_t)(storedEnd % mw)) return 3;
@@ -408,9 +408,9 @@ void FencedTool::Draw(Video::Context* context, char param3) {
     int mapWidth = mapGrid->size;
 
     // ---- Phase 1: the owner's constraint rectangle ----
-    if (dialog->field_0x80) {
-        int storedStart = dialog->field_0x98;
-        int storedEnd   = dialog->field_0x9C;
+    if (dialog->tutorialRestricted) {
+        int storedStart = dialog->tutorialStartCell;
+        int storedEnd   = dialog->tutorialEndCell;
 
         int startCol = storedStart / mapWidth;
         int startRow = storedStart % mapWidth;
@@ -471,14 +471,14 @@ void FencedTool::Draw(Video::Context* context, char param3) {
     // Check size constraints from description
     const CreateFencedDescription* desc = fencedDesc;
     bool tooLarge = false;
-    if (width > desc->_i58 || height > desc->_i5c) {
+    if (width > desc->_maxWidth || height > desc->_maxHeight) {
         tooLarge = true;
     }
 
     // Read terrain info for per-cell validation
     const MapCell* cellDataBase = mapGrid->cells.GetData();
-    uint32_t terrainMask = desc->_u20;
-    const ComponentDescription* allowedEntityType = desc->_ref70;
+    uint32_t terrainMask = desc->_placeBits;
+    const ComponentDescription* allowedEntityType = desc->_allowAndRemove;
 
     // Build a placement validity bitmap (using System::String pattern from decompilation)
     // The original builds a string-like structure for the grid. We simplify to direct checks.
@@ -602,7 +602,7 @@ static T* FencedFindComponent(const ComponentDescription* entity) {
 
 // The section-0 template of a CreateFencedDescription (+0x28, ExternalPtr[6]).
 static const ComponentDescription* FencedSection0(const CreateFencedDescription* desc) {
-    return desc->_refs[0];
+    return desc->_sections[0];
 }
 
 // ============================================================
@@ -617,7 +617,7 @@ static const ComponentDescription* FencedSection0(const CreateFencedDescription*
 //   2. MapDescription (cell 0x1401c7a18) on the tool group -> this->areaDesc (+0x40)
 //   3. ModelDescription (cell 0x1401c7a88) on fencedDesc's section 0 -> this->fenceDesc (+0x48)
 //   4. CreatePlacedDescription (cell 0x1401c7468) on fencedDesc's section 0 ->
-//      this->_field5C, _field60
+//      this->footprintWidth (+0x5C), footprintDepth (+0x60)
 //
 // Also resolves RotationSetting IBP from toolSetting and allocates MeshInstance.
 // Original: 0x1400dcd50
@@ -652,14 +652,14 @@ void FencedTool::Startup() {
     // 5. Find CreatePlacedDescription on fencedDesc's section 0 -> read +0x44 and +0x48
     const CreatePlacedDescription* sizeDesc1 =
         FencedFindComponent<CreatePlacedDescription>(FencedSection0(this->fencedDesc));
-    // Read field +0x44 from CreatePlacedDescription -> this->_field5C
-    _field5C = static_cast<uint32_t>(sizeDesc1->_i44);
+    // Read field +0x44 from CreatePlacedDescription -> this->footprintWidth
+    footprintWidth = static_cast<uint32_t>(sizeDesc1->_width);
 
     // Find CreatePlacedDescription again for +0x48 (original code does two separate lookups)
     const CreatePlacedDescription* sizeDesc2 =
         FencedFindComponent<CreatePlacedDescription>(FencedSection0(this->fencedDesc));
-    // Read field +0x48 from CreatePlacedDescription -> this->_field60
-    _field60 = static_cast<uint32_t>(sizeDesc2->_i48);
+    // Read field +0x48 from CreatePlacedDescription -> this->footprintDepth
+    footprintDepth = static_cast<uint32_t>(sizeDesc2->_height);
 
     // 6. Allocate MeshInstance (0x120 bytes, alignment 8)
     void* meshMem = System::MemoryAllocator::MemAlloc(0x120, 8);

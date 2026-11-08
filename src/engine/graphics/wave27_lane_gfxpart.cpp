@@ -565,16 +565,16 @@ void (*ParticleInstance::_extParticleAssigned)(const Particle& particle) = nullp
 // Retail:
 //   ParticleInstance::SetParticle(this, p);           // CALL 0x180104a00
 //   res = this->_resource;
-//   if (res && !res->_active && this->_f_d8) 0x180020d60(this->_f_d8);
+//   if (res && !res->_active && this->_emitter) 0x180020d60(this->_emitter);
 //   sys = IsDerivedFrom(p, ParticleSystem::_typeInfo.typeId) ? p : nullptr;
 //   if (this->_resource->_active)
-//       this->_f_d8 = sys->_pool._data[this->_index];
+//       this->_emitter = sys->_pool._data[this->_index];
 //   else {
 //       void* m = operator new(...);                   // 0x1800205a0
 //       if (m) { *(u64*)m = 0; *(u64*)(m+8) = 0;
-//                *(u32*)(m+0x10) = sys->_f48 (raw bits);
+//                *(u32*)(m+0x10) = sys->_emissionRate (raw bits);
 //                0x180020e90(m, sys->_subCount); }
-//       this->_f_d8 = m;
+//       this->_emitter = m;
 //   }
 //
 // TWO FAITHFUL DEREFS OF A POINTER RETAIL DOES NOT CHECK, left unguarded on
@@ -589,7 +589,7 @@ void (*ParticleInstance::_extParticleAssigned)(const Particle& particle) = nullp
 // `?_typeInfo@ParticleSystem@Graphics@@0VBaseTypeInfo@Object@@A` (0x1801f9a58)
 // is read for its FIRST DWORD only — the typeId.
 //
-// The 0x18-byte emitter record (`_f_d8`) has no retail name (the Emitter
+// The 0x18-byte emitter record (`_emitter`) has no retail name (the Emitter
 // banner below); B.4 names its fields as `RtGraphics::ParticleEmitter`
 // (Particle.h), built through its own stores into the raw block.
 // ============================================================================
@@ -605,11 +605,11 @@ void ParticleSystemInstance::SetParticle(Object::ExternalPtr<Particle> particle)
     this->ParticleInstance::SetParticle(particle);
 
     const Particle* const res = _resource;
-    if (res && res->_active == 0 && _f_d8) {
+    if (res && res->_active == 0 && _emitter) {
         // The emitter release at retail 0x180020d60, UNNAMED (checked by VA):
         // RtGraphics_Emitter_DeleteDtor, by name. Reached only on the
         // inactive-resource path.
-        RtGraphics_Emitter_DeleteDtor(_f_d8);
+        RtGraphics_Emitter_DeleteDtor(_emitter);
     }
 
     // ?IsDerivedFrom@Base@Object@@QEBA_NI@Z (0x1800c0390), the member, against
@@ -621,7 +621,7 @@ void ParticleSystemInstance::SetParticle(Object::ExternalPtr<Particle> particle)
             ? static_cast<const ParticleSystem*>(asParticle) : nullptr;
 
     if (_resource->_active != 0) {
-        _f_d8 = sys->_pool._data[_index];
+        _emitter = sys->_pool._data[_index];
         return;
     }
 
@@ -635,12 +635,12 @@ void ParticleSystemInstance::SetParticle(Object::ExternalPtr<Particle> particle)
         m->_extra._data     = nullptr;                  // two zeroed qwords
         m->_extra._size     = 0;
         m->_extra._capacity = 0;
-        m->_rate = sys->_f48;                           // a dword move: the raw bits
+        m->_rate = sys->_emissionRate;                           // a dword move: the raw bits
         // The emitter initialiser at 0x180020e90, UNNAMED: the Array SetSize
         // rtcoll::RtColl_ArraySetSize_180020e90, by name.
         rtcoll::RtColl_ArraySetSize_180020e90(&m->_extra, sys->_subCount);
     }
-    _f_d8 = m;
+    _emitter = m;
 }
 
 }  // namespace Graphics

@@ -25,7 +25,7 @@
 //     `[RBX+0xb8]` and `[RBX+0xbc]` as two separate DWORD moves;
 //   * the element ctor (0x1800daca0) forwards its fourth argument to the base
 //     ctor as `dataSource` and writes NOTHING past +0xb8; no ported body reads
-//     them either. So they are named `_unknownB8`/`_unknownBC` (RULE B6-8: a
+//     them either. So they are named `_unreadCopiedHead`/`_unreadCopiedTail` (RULE B6-8: a
 //     writer exists — the copy ctor — but nothing names them).
 //
 // ENDGAME B.3 step 9 (block UI-D, B39_RULES D1/D2): CONCRETE. Retail's two
@@ -95,17 +95,17 @@ public:
     //   0x18004cf90  ?_ParentTypeName@ -> "UI::DialogInstance"   (QUALIFIED)
 
 public:
-    int32_t _unknownB8;   // +0xb8  copied by 0x18004d180, otherwise unread
-    int32_t _unknownBC;   // +0xbc  copied by 0x18004d180, otherwise unread
+    int32_t _unreadCopiedHead;   // +0xb8  copied by 0x18004d180, otherwise unread
+    int32_t _unreadCopiedTail;   // +0xbc  copied by 0x18004d180, otherwise unread
 };
 
 static_assert(sizeof(ToolTipDialog) == 0xc0,
               "UI::ToolTipDialog is 0xc0 bytes (deleting dtor 0x18004d270; "
               "BeginToolTip allocates 0xc0)");
 static_assert(alignof(ToolTipDialog) == 8, "qword-aligned (the vptr)");
-static_assert(offsetof(ToolTipDialog, _unknownB8) == sizeof(DialogInstance),
+static_assert(offsetof(ToolTipDialog, _unreadCopiedHead) == sizeof(DialogInstance),
               "ToolTipDialog's own fields begin at the end of the DialogInstance base");
-static_assert(offsetof(ToolTipDialog, _unknownBC) == 0xbc, "_unknownBC @ +0xbc");
+static_assert(offsetof(ToolTipDialog, _unreadCopiedTail) == 0xbc, "_unknownBC @ +0xbc");
 
 }  // namespace UI
 

@@ -144,8 +144,8 @@ static uint64_t PickupGate_Accepts_12d990(StorageLocationComponent* slComp, Comp
 // ============================================================
 bool CitizenBehavior::HasStorageFor(ComponentDescription* resource, int amount) {
     // `if (0 < (int)param_1[1])` — the list's int32 count.
-    int count = field_0x00._size;
-    Object::InternalPtr<ComponentEntity>* arr = field_0x00._data;
+    int count = storageLocations._size;
+    Object::InternalPtr<ComponentEntity>* arr = storageLocations._data;
 
     for (int i = 0; i < count; ++i) {
         Object::InternalPtr<ComponentEntity>* slot = &arr[i];

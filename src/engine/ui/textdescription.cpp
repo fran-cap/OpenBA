@@ -106,13 +106,13 @@ TextDescription::~TextDescription() {
 //   ExternalPtr<UI::Font>::Serialize(&_font, &pair)        0x18003f1e0
 //   ExternalPtr<UI::StringTable>::Serialize(&_tbl, &pair)  0x1800042a0
 //   System::String::Serialize(&_name, &pair)               0x1800c9930
-//   rw->vt[0x78](rw, &_b84, 0)   kScalarBool
-//   rw->vt[0x78](rw, &_b85, 0)   kScalarBool
+//   rw->vt[0x78](rw, &_dropShadow, 0)   kScalarBool
+//   rw->vt[0x78](rw, &_wordWrap, 0)     kScalarBool
 //   rw->vt[0xa0](rw, &_wordWrapSize, 0)   kScalarInt
-//   rw->vt[0x98](rw, &_u80, 0)   kScalarUInt   <- NOT in offset order, and
-//                                                 NOT the same slot as _wordWrapSize
+//   rw->vt[0x98](rw, &_justify, 0)      kScalarUInt   <- NOT in offset order, and
+//                                                        NOT the same slot as _wordWrapSize
 //   if (rw->GetVersion() >= 1 || !encoding->vt[0]())
-//       rw->vt[0xa0](rw, &_i8c, 0)   kScalarInt
+//       rw->vt[0xa0](rw, &_maxWidth, 0)   kScalarInt
 //   if (rw) rw->vt[0](rw, 1)
 //
 // *** THIS BODY PASSES 1, NOT 0, AS THE VERSION TO THE ENCODING FACTORY. ***
@@ -120,7 +120,7 @@ TextDescription::~TextDescription() {
 // R8 is the `int version` the Serializer ctor forwards to
 // ??0Binary{Reader,Writer}@IO@@, and BinaryWriter WRITES it into the stream.
 //
-// THE LAST FIELD IS CONDITIONAL. `_i8c` is serialized only when the reader's
+// THE LAST FIELD IS CONDITIONAL. `_maxWidth` is serialized only when the reader's
 // own version is >= 1, OR when the encoding's vtable slot 0 predicate says no.
 // The two are read in THAT order and the `||` short-circuits.
 bool TextDescription::Serialize(IO::Stream& streamv) {
@@ -137,10 +137,10 @@ bool TextDescription::Serialize(IO::Stream& streamv) {
     Object::SerializeExternal<UI::StringTable>(ser, _stringTable2);  // 18011ee99 ExternalPtr<StringTable>
     _name.Serialize(ser);                                     // 18011eea7 String 0x1800c9930
 
-    rw->SerializeBool(_b84, nullptr);
-    rw->SerializeBool(_b85, nullptr);
+    rw->SerializeBool(_dropShadow, nullptr);
+    rw->SerializeBool(_wordWrap, nullptr);
     rw->SerializeInt(_wordWrapSize, nullptr);
-    rw->SerializeUInt(_u80, nullptr);
+    rw->SerializeUInt(_justify, nullptr);
 
     const int32_t rwVersion = rw->GetVersion();                // 18011ef0e
 
@@ -149,7 +149,7 @@ bool TextDescription::Serialize(IO::Stream& streamv) {
         emitTail = !stream->_encoding->IsBinary();             // 18011ef16, slot 0
     }
     if (emitTail) {
-        rw->SerializeInt(_i8c, nullptr);
+        rw->SerializeInt(_maxWidth, nullptr);
     }
 
     // The inlined ~Serializer deletes the ReaderWriter (18011ef41).

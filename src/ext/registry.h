@@ -437,8 +437,8 @@ constexpr uint32_t kPseudoModField14 = 0x010007ffu;
 struct PseudoMod {
     std::string path;           // "ext:<id>"
     std::string name;           // the display name
-    int32_t     field10;        // ModInfo +0x10: 0
-    uint32_t    field14;        // ModInfo +0x14: kPseudoModField14
+    int32_t     versionMajor;        // ModInfo +0x10: 0
+    uint32_t    gameVersion;        // ModInfo +0x14: kPseudoModField14
     int32_t     formatVersion;  // ModInfo +0x18
 };
 int PseudoModsForSave(PseudoMod* out, int capacity);   // returns the count (all, even past capacity)
@@ -448,8 +448,8 @@ int PseudoModsForSave(PseudoMod* out, int capacity);   // returns the count (all
 struct PseudoModRecord {
     const char* path;
     const char* name;
-    int32_t     field10;
-    uint32_t    field14;
+    int32_t     versionMajor;
+    uint32_t    gameVersion;
     int32_t     formatVersion;
 };
 using ExtraModsProvider = int (*)(PseudoModRecord* out, int capacity);   // count, as above

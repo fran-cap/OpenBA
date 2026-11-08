@@ -247,7 +247,7 @@ W* AllocWork(int size) {
 //                                                  description's CHILD list here.
 //   cpDesc   = first child whose GetTypeId == ConsumeProduceDescription (0x1401c7388)
 //   work     = ConsumeProduceAction_Ctor(MemAlloc(0x78,8), &entity,
-//                                        &cpDesc->_toolType, cpDesc->_i3c)
+//                                        &cpDesc->_toolType, cpDesc->_messageId)
 //
 // ⚠ retail dereferences cpDesc UNGUARDED after the loop — with no matching child it
 // reads [0x38] off a null and faults. That deref is left faithful: a ConsumeProduce
@@ -274,10 +274,10 @@ static ConsumeProduce* ConsumeProduceAction_Ctor(ConsumeProduce* work, Component
     new (work) ConsumeProduce();
     work->InitFromEntity(entity);
 
-    work->field_48 = 0;
-    work->field_4c = 0;
-    work->field_50 = productIdx ? *productIdx : 0;
-    work->field_54 = second;
+    work->_outputBlocked = 0;
+    work->_completedCycles = 0;
+    work->_notifyComponentType = productIdx ? *productIdx : 0;
+    work->_notifyMessage = second;
     // +0x58..+0x74: the two arrays' ctors (the four qword stores of 0x1400e9200).
 
     {
@@ -285,14 +285,14 @@ static ConsumeProduce* ConsumeProduceAction_Ctor(ConsumeProduce* work, Component
         if (pos) {
             const int n0 = pos->NodeCount(0);
             const int n2 = pos->NodeCount(2);
-            // 0x1400032e0 is field_58.SetSize, 0x1400021d0 is field_68.SetSize (retail
+            // 0x1400032e0 is _slotCitizens.SetSize, 0x1400021d0 is _spotStates.SetSize (retail
             // ConsumeProduceAction_Ctor calls them at 1400e92d8 / 1400e92e3). 0x1400021d0
             // leaves a grown tail as-found. Safe — the zero loop right below (retail
             // 1400e9300) writes all the slots before any is read.
-            work->field_58.SetSize(n0);
-            work->field_68.SetSize(n2);
-            const int cnt = work->field_68._size;
-            int32_t* slots = work->field_68._data;
+            work->_slotCitizens.SetSize(n0);
+            work->_spotStates.SetSize(n2);
+            const int cnt = work->_spotStates._size;
+            int32_t* slots = work->_spotStates._data;
             if (slots) for (int i = 0; i < cnt; ++i) slots[i] = static_cast<int32_t>(WorkSpotState::Available);
         }
     }
@@ -333,8 +333,8 @@ extern "C" void ConsumeProduce_DumpRecipes(const ConsumeProduceDescription* cpDe
     ConsumeProduce* obj = nullptr;
     if (mem) {
         // Faithful unguarded description read — see the note above.
-        const int first  = static_cast<int32_t>(cpDesc->_toolType);
-        const int second = cpDesc->_i3c;
+        const int first  = static_cast<int32_t>(cpDesc->_messageType);
+        const int second = cpDesc->_messageId;
         obj = ConsumeProduceAction_Ctor(mem, &entity, &first, second);
     }
 

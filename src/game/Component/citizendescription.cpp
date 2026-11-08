@@ -58,73 +58,73 @@ inline float FloatBits(uint32_t bits) { float f; std::memcpy(&f, &bits, sizeof f
 // the defaults.
 CitizenDescription::CitizenDescription()
     : Description(),
-      _f38(FloatBits(0x41700000)),
-      _f3c(FloatBits(0x40000000)),
+      maxAge(FloatBits(0x41700000)),
+      maxAgeTolerance(FloatBits(0x40000000)),
       agingRate(FloatBits(0x3991a2b4)),
       adultAge(FloatBits(0x40000000)),
       marriageAge(FloatBits(0x40000000)),
-      _f4c(FloatBits(0x40400000)),
+      marriageRange(FloatBits(0x40400000)),
       minPregnancyAge(FloatBits(0x40000000)),
       maxPregnancyAge(FloatBits(0x41000000)),
       pregnancyTime(FloatBits(0x44610000)),
-      _f5c(FloatBits(0x44e10000)),
-      _f60(FloatBits(0x45a8c000)),
-      _f64(FloatBits(0x3c23d70a)),
-      _f68(FloatBits(0x3dcccccd)),
-      _f6c(FloatBits(0x40c00000)),
+      postChildTerm(FloatBits(0x44e10000)),
+      postChildTermTol(FloatBits(0x45a8c000)),
+      childBirthHealthy(FloatBits(0x3c23d70a)),
+      childBirthUnhealthy(FloatBits(0x3dcccccd)),
+      health(FloatBits(0x40c00000)),
       maxHealth(FloatBits(0x41200000)),
-      _f74(FloatBits(0x41000000)),
+      unhealthyLevel(FloatBits(0x41000000)),
       foodInterval(FloatBits(0x40400000)),
-      _f7c(FloatBits(0x3f800000)),
-      _f80(FloatBits(0x3f800000)),
-      _f84(FloatBits(0x3f800000)),
-      _f88(FloatBits(0x3f800000)),
-      _f8c(FloatBits(0x3f800000)),
-      _f90(FloatBits(0x3f800000)),
-      _f94(FloatBits(0x3f800000)),
-      _f98(FloatBits(0x3f000000)),
-      _f9c(FloatBits(0x41400000)),
+      diseaseChanceHealthyYears(FloatBits(0x3f800000)),
+      diseaseChanceHealthyPopulation(FloatBits(0x3f800000)),
+      diseaseChanceUnhealthyYears(FloatBits(0x3f800000)),
+      diseaseChanceUnhealthyPopulation(FloatBits(0x3f800000)),
+      diseaseChanceNomadTradeYears(FloatBits(0x3f800000)),
+      diseaseChanceNomadTradePopulation(FloatBits(0x3f800000)),
+      diseasePeriod(FloatBits(0x3f800000)),
+      diseasePeriodTol(FloatBits(0x3f000000)),
+      immunityLength(FloatBits(0x41400000)),
       happinessInterval(FloatBits(0x3e800000)),
       maxHappiness(FloatBits(0x41200000)),
-      _ia8(4),
-      _iac(12),
-      _ib0(3),
-      _fb4(FloatBits(0x3f19999a)),
-      _fb8(FloatBits(0x3e800000)),
-      _ibc(20),
+      minFoodForHappiness(4),
+      maxFoodForHappiness(12),
+      workForHappiness(3),
+      unhappyLevel(FloatBits(0x3f19999a)),
+      depressedLevel(FloatBits(0x3e800000)),
+      idleRange(20),
       hungerRate(FloatBits(0x42c80000)),
-      _fc4(FloatBits(0x42c80000)),
-      _fc8(FloatBits(0x425c0000)),
-      _fcc(FloatBits(0x42960000)),
+      foodLevel(FloatBits(0x42c80000)),
+      hungerLevel(FloatBits(0x425c0000)),
+      starvingLevel(FloatBits(0x42960000)),
       maxHunger(FloatBits(0x42c80000)),
-      _fd4(FloatBits(0x41c80000)),
-      _fd8(FloatBits(0x3dcccccd)),
-      _fe8(FloatBits(0x42480000)),
-      _fec(FloatBits(0x42960000)),
+      fuelLevel(FloatBits(0x41c80000)),
+      retryInMonths(FloatBits(0x3dcccccd)),
+      coldnessLevel(FloatBits(0x42480000)),
+      freezingLevel(FloatBits(0x42960000)),
       maxColdness(FloatBits(0x42c80000)),
       warmTemperature(FloatBits(0x42400000)),
-      _if8(60),
-      _ifc(60),
-      _i100(2000),
-      _i104(6),
-      _i108(200),
-      _f10c(FloatBits(0x42340000)),
-      _i110(100),
-      _f114(FloatBits(0x40a00000)),
+      maxWaterForFireSearch(60),
+      minDistanceForWork(60),
+      maxDistanceForWork(2000),
+      timeUntilMaxDistanceForWorkInMonths(6),
+      maxWalkInWinter(200),
+      minTemperatureForWinterWalk(FloatBits(0x42340000)),
+      toolQuality(100),
+      toolPenalty(FloatBits(0x40a00000)),
       maxEducation(200),
-      _f11c(FloatBits(0x40800000)),
-      _f120(FloatBits(0x40a00000)),
-      _f124(FloatBits(0x40a00000)),
-      _f128(FloatBits(0x40000000)),
-      _f12c(FloatBits(0x3c23d70a)),
-      _f130(FloatBits(0x42700000)) {
+      educationTimeLength(FloatBits(0x40800000)),
+      educationWorkLength(FloatBits(0x40a00000)),
+      medicateWorkLength(FloatBits(0x40a00000)),
+      doctorChanceOfDeathScalar(FloatBits(0x40000000)),
+      medicineEffectivenessInMonths(FloatBits(0x3c23d70a)),
+      clothingLengthInMonths(FloatBits(0x42700000)) {
     _professions[0] = _professions[1] = _professions[2] = nullptr;
     coldRate[0] = coldRate[1] = coldRate[2] = FloatBits(0x41200000);
 }
 
 // dtor (slot 0 0x1400301f0 minus the stamps): the tree's slot 0 skipped ~External; the compiler chain now runs it (B38 D2 — this commit's behaviour change)
 // The compiler then chains ~Description -> ~External.
-// The body is empty: ~_refs frees the mesh table unconditionally and zeroes +0x138 /
+// The body is empty: ~_tools frees the mesh table unconditionally and zeroes +0x138 /
 // +0x140 (0x140030217..0x14003022d; the entries are non-owning, no element release).
 CitizenDescription::~CitizenDescription() {
 }
@@ -133,81 +133,81 @@ CitizenDescription::~CitizenDescription() {
 bool CitizenDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
     ser.Serialize(adultAge, nullptr);
-    ser.Serialize(_f6c, nullptr);
+    ser.Serialize(health, nullptr);
     ser.Serialize(maxHealth, nullptr);
-    ser.Serialize(_f74, nullptr);
+    ser.Serialize(unhealthyLevel, nullptr);
     ser.Serialize(foodInterval, nullptr);
-    ser.Serialize(_f7c, nullptr);
-    ser.Serialize(_f80, nullptr);
-    ser.Serialize(_f84, nullptr);
-    ser.Serialize(_f88, nullptr);
-    ser.Serialize(_f8c, nullptr);
-    ser.Serialize(_f90, nullptr);
-    ser.Serialize(_f38, nullptr);
-    ser.Serialize(_f3c, nullptr);
+    ser.Serialize(diseaseChanceHealthyYears, nullptr);
+    ser.Serialize(diseaseChanceHealthyPopulation, nullptr);
+    ser.Serialize(diseaseChanceUnhealthyYears, nullptr);
+    ser.Serialize(diseaseChanceUnhealthyPopulation, nullptr);
+    ser.Serialize(diseaseChanceNomadTradeYears, nullptr);
+    ser.Serialize(diseaseChanceNomadTradePopulation, nullptr);
+    ser.Serialize(maxAge, nullptr);
+    ser.Serialize(maxAgeTolerance, nullptr);
     ser.Serialize(agingRate, nullptr);
     ser.Serialize(hungerRate, nullptr);
-    ser.Serialize(_fd8, nullptr);
+    ser.Serialize(retryInMonths, nullptr);
     ser.Serialize(3, coldRate, nullptr);   // float[3] bulk at +0xdc
     ser.Serialize(marriageAge, nullptr);
-    ser.Serialize(_f4c, nullptr);
+    ser.Serialize(marriageRange, nullptr);
     ser.Serialize(minPregnancyAge, nullptr);
     ser.Serialize(maxPregnancyAge, nullptr);
     ser.Serialize(pregnancyTime, nullptr);
-    ser.Serialize(_f5c, nullptr);
-    ser.Serialize(_f60, nullptr);
-    ser.Serialize(_fc4, nullptr);
-    ser.Serialize(_fd4, nullptr);
-    ser.Serialize(_fc8, nullptr);
-    ser.Serialize(_fcc, nullptr);
+    ser.Serialize(postChildTerm, nullptr);
+    ser.Serialize(postChildTermTol, nullptr);
+    ser.Serialize(foodLevel, nullptr);
+    ser.Serialize(fuelLevel, nullptr);
+    ser.Serialize(hungerLevel, nullptr);
+    ser.Serialize(starvingLevel, nullptr);
     ser.Serialize(maxHunger, nullptr);
-    ser.Serialize(_fe8, nullptr);
-    ser.Serialize(_fec, nullptr);
+    ser.Serialize(coldnessLevel, nullptr);
+    ser.Serialize(freezingLevel, nullptr);
     ser.Serialize(maxColdness, nullptr);
     ser.Serialize(warmTemperature, nullptr);
-    ser.Serialize(_i110, nullptr);
+    ser.Serialize(toolQuality, nullptr);
     {
         // dynamic External* array (count at +0x140, data at +0x138)
-        int32_t count = _refs._size;
+        int32_t count = _tools._size;
         ser.Serialize(count, nullptr);   // local temp, as retail
         if (static_cast<int>(ser.GetDirection()) == 0) {   // loading
             // exe 0x140001bb0 IS Collection::Array<void*>::SetSize(n) (kSpec_PtrZero).
-            _refs.SetSize(count);
+            _tools.SetSize(count);
         }
         // 0x14001bcc0 takes three arguments: its prologue spills R9 to the home slot
         // [RBP+0x58], which the body only reuses as a local after writing it, so the
         // old door's 4th nullptr was never read.
-        ::Object::SerializeExternalArray<Graphics::GraphicsMesh>(ser, count, _refs._data);
+        ::Object::SerializeExternalArray<Graphics::GraphicsMesh>(ser, count, _tools._data);
     }
-    ser.Serialize(_f114, nullptr);
+    ser.Serialize(toolPenalty, nullptr);
     ser.Serialize(maxEducation, nullptr);
-    ser.Serialize(_f120, nullptr);
-    ser.Serialize(_f11c, nullptr);
-    ser.Serialize(_f128, nullptr);
-    ser.Serialize(_f124, nullptr);
-    ser.Serialize(_f130, nullptr);
+    ser.Serialize(educationWorkLength, nullptr);
+    ser.Serialize(educationTimeLength, nullptr);
+    ser.Serialize(doctorChanceOfDeathScalar, nullptr);
+    ser.Serialize(medicateWorkLength, nullptr);
+    ser.Serialize(clothingLengthInMonths, nullptr);
     ser.Serialize(maxHappiness, nullptr);
-    ser.Serialize(_ia8, nullptr);
-    ser.Serialize(_iac, nullptr);
+    ser.Serialize(minFoodForHappiness, nullptr);
+    ser.Serialize(maxFoodForHappiness, nullptr);
     ser.Serialize(happinessInterval, nullptr);
-    ser.Serialize(_ib0, nullptr);
-    ser.Serialize(_fb4, nullptr);
-    ser.Serialize(_fb8, nullptr);
-    ser.Serialize(_ibc, nullptr);
+    ser.Serialize(workForHappiness, nullptr);
+    ser.Serialize(unhappyLevel, nullptr);
+    ser.Serialize(depressedLevel, nullptr);
+    ser.Serialize(idleRange, nullptr);
     {
         // ExternalRef<Profession> x3 at +0x20/+0x28/+0x30 (0x140018020)
         ::Object::SerializeExternal<Profession>(ser, _professions[0]);
         ::Object::SerializeExternal<Profession>(ser, _professions[1]);
         ::Object::SerializeExternal<Profession>(ser, _professions[2]);
     }
-    ser.Serialize(_f64, nullptr);
-    ser.Serialize(_f68, nullptr);
-    ser.Serialize(_if8, nullptr);
-    ser.Serialize(_ifc, nullptr);
-    ser.Serialize(_i100, nullptr);
-    ser.Serialize(_i104, nullptr);
-    ser.Serialize(_i108, nullptr);
-    ser.Serialize(_f10c, nullptr);
+    ser.Serialize(childBirthHealthy, nullptr);
+    ser.Serialize(childBirthUnhealthy, nullptr);
+    ser.Serialize(maxWaterForFireSearch, nullptr);
+    ser.Serialize(minDistanceForWork, nullptr);
+    ser.Serialize(maxDistanceForWork, nullptr);
+    ser.Serialize(timeUntilMaxDistanceForWorkInMonths, nullptr);
+    ser.Serialize(maxWalkInWinter, nullptr);
+    ser.Serialize(minTemperatureForWinterWalk, nullptr);
     return true;
 }
 

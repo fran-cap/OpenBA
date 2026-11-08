@@ -127,7 +127,7 @@ void EventLogUI::OnOpened() {
         // Copy the notification flag from the event log into the check box:
         // ONE byte, flags[i] (retail 0x140067a55 / 0x140067a69).
         static_cast<UI::CheckElement*>(btnElem)->_checked =
-            eventLogSingleton->field_0x10[i];
+            eventLogSingleton->notifyCategories[i];
 
         // Push button ptr to the notification array.
         ElementArray& notifyBtns = notifyButtons;
@@ -207,9 +207,9 @@ void EventLogUI::ToggleNotification(int32_t btnIdx) {
     EventLog* eventLog = EventLogAddress();
     // LEFT (audit WORK:H8, not executable in this file set): the source
     // UI::CheckElement::_checked is uint8_t (src/engine/ui/CheckElement.h) and the
-    // target EventLog::field_0x10 bool[6] (Game/EventLog.h); a uint8_t -> bool store
+    // target EventLog::notifyCategories bool[6] (Game/EventLog.h); a uint8_t -> bool store
     // would normalise the check box's raw byte, the byte store does not.
-    *reinterpret_cast<uint8_t*>(&eventLog->field_0x10[btnIdx]) = btnElem->_checked;   // LEFT: H8, byte_io candidate: retail 0x14006734f / 0x14006735b is MOVZX byte [check+0xd8] then MOV byte [eventLog+0x10+idx], a raw byte copy (MSVC bool to bool); the field stays bool because GameUpdateLoop serializes it through Serialize(6, bool*) (gameupdateloop_serialize.cpp:165); a uint8_t -> bool assignment adds a != 0 normalisation where retail moves the check box's byte (CheckElement::_checked, uint8_t): a byte_io marker candidate  // CAST-OK: byte_io (S4 ruling)
+    *reinterpret_cast<uint8_t*>(&eventLog->notifyCategories[btnIdx]) = btnElem->_checked;   // LEFT: H8, byte_io candidate: retail 0x14006734f / 0x14006735b is MOVZX byte [check+0xd8] then MOV byte [eventLog+0x10+idx], a raw byte copy (MSVC bool to bool); the field stays bool because GameUpdateLoop serializes it through Serialize(6, bool*) (gameupdateloop_serialize.cpp:165); a uint8_t -> bool assignment adds a != 0 normalisation where retail moves the check box's byte (CheckElement::_checked, uint8_t): a byte_io marker candidate  // CAST-OK: byte_io (S4 ruling)
 }
 
 // ============================================================

@@ -44,18 +44,18 @@
 // the defaults.
 SelectDescription::SelectDescription()
     : Description(),
-      _ref20(nullptr),
-      _ref30(nullptr),
-      _u40(0) {}
+      _spriteSheet(nullptr),
+      _stringTable(nullptr),
+      _group(0) {}
 
 // [5] 0x140055630: stream order as retail.
 bool SelectDescription::Serialize(IO::Stream& stream) {
     IO::Serializer ser(stream, 0);
-    ::Object::SerializeExternal<UI::SpriteSheet>(ser, _ref20);
-    _s28.Serialize(ser);
-    ::Object::SerializeExternal<UI::StringTable>(ser, _ref30);
-    _s38.Serialize(ser);
-    ser.Serialize(_u40, nullptr);
+    ::Object::SerializeExternal<UI::SpriteSheet>(ser, _spriteSheet);
+    _spriteName.Serialize(ser);
+    ::Object::SerializeExternal<UI::StringTable>(ser, _stringTable);
+    _stringName.Serialize(ser);
+    ser.Serialize(_group, nullptr);
     return true;
 }
 

@@ -412,10 +412,10 @@ void Map::GetTilesInArea(int x, int y, int w, int h,
                 uint32_t mask = 1u << (passByte & 0x1f);
                 bool emit;
                 if ((mask & Bits(PathBits::Fast)) == 0 && (mask & Bits(PathBits::Faster)) == 0 &&
-                    cell.field_0x2A == MapCell::kNoRoadBatch) {
+                    cell.roadType == MapCell::kNoRoadBatch) {
                     // Pass/flag condition HOLDS: walk the Map's +0xE8 set (int keys).
                     // Exe: found (cellIdx <= *node) -> EMIT; exhausted -> SKIP.
-                    const AvlNode28* bnode = field_0xE8.root;   // key +0x00, left +0x10, right +0x18
+                    const AvlNode28* bnode = pendingRoadCells.root;   // key +0x00, left +0x10, right +0x18
                     emit = false;
                     while (bnode != nullptr) {
                         if (cellIdx < bnode->key) {

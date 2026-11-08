@@ -178,21 +178,21 @@ void TutorialSetupRestrictPlayer::Begin() {
 
     int32_t toolFlags = restrictToolFlags;
 
-    playerCtrl->field_0x80 = true;                         // restrictions active
-    playerCtrl->field_0x88 = AsDescription(toolRefPtr);    // resolved tool description
-    playerCtrl->field_0x90 = cameraRefPtr;                 // resolved camera description
-    playerCtrl->field_0x98 = absMin;                       // min bound
-    playerCtrl->field_0x9C = absMax;                       // max bound
-    playerCtrl->field_0xA0 = toolFlags;                    // tool restriction flags
+    playerCtrl->tutorialRestricted = true;                         // restrictions active
+    playerCtrl->tutorialTool = AsDescription(toolRefPtr);    // resolved tool description
+    playerCtrl->tutorialSelectTarget = cameraRefPtr;                 // resolved camera description
+    playerCtrl->tutorialStartCell = absMin;                       // min bound
+    playerCtrl->tutorialEndCell = absMax;                       // max bound
+    playerCtrl->tutorialRotation = toolFlags;                    // tool restriction flags
 
     // Resolve toolRef on original (+0x38) and if it has a cached External ptr,
     // also set camera restriction bounds
     toolRef.ResolveDescription();
     if (toolRef.resolved != nullptr) {
         PlayerToolManager* playerCtrl2 = gameWorld->m_toolManager;
-        playerCtrl2->field_0xA8 = absMin;
-        playerCtrl2->field_0xAC = absMax;
-        playerCtrl2->field_0xA4 = true;
+        playerCtrl2->cameraMoveStartCell = absMin;
+        playerCtrl2->cameraMoveEndCell = absMax;
+        playerCtrl2->cameraMoveActive = true;
     }
 }
 
@@ -209,12 +209,12 @@ void TutorialSetupRestrictPlayer::End() {
     if (!playerCtrl) return;
 
     // Clear restriction state (+0x98 / +0x9C: one qword store of -1, H7)
-    playerCtrl->field_0x80 = false;
-    playerCtrl->field_0x88 = nullptr;
-    playerCtrl->field_0x90 = nullptr;
-    playerCtrl->field_0x98 = -1;
-    playerCtrl->field_0x9C = -1;
-    playerCtrl->field_0xA0 = -1;                      // tool flags cleared
+    playerCtrl->tutorialRestricted = false;
+    playerCtrl->tutorialTool = nullptr;
+    playerCtrl->tutorialSelectTarget = nullptr;
+    playerCtrl->tutorialStartCell = -1;
+    playerCtrl->tutorialEndCell = -1;
+    playerCtrl->tutorialRotation = -1;                      // tool flags cleared
 
     // Resolve toolRef on original (+0x38) and if it has a cached External,
     // clear the tool selection (SelectTool(nullptr), 0x140102b60)
