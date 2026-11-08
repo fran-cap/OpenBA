@@ -5,6 +5,7 @@
 #include "options.h"
 #include "render_backend.h"
 
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -25,6 +26,7 @@ struct Plan {
     std::vector<Switch> switches;
     std::string failCreate;   // empty: none
     bool failTaken = false;
+    std::vector<std::string> failSwitch;   // failswitch=: backends whose next in-game CreateDevice fails, once each
     bool ticked = false;      // the game loop has run: the boot is over
 };
 
@@ -43,6 +45,17 @@ Plan& Parsed() {
             if (tok.empty()) continue;
             if (tok.compare(0, 11, "failcreate=") == 0) {
                 p.failCreate = tok.substr(11);
+                continue;
+            }
+            if (tok.compare(0, 11, "failswitch=") == 0) {
+                const std::string list = tok.substr(11);
+                size_t from = 0;
+                while (from <= list.size()) {
+                    size_t plus = list.find('+', from);
+                    if (plus == std::string::npos) plus = list.size();
+                    if (plus > from) p.failSwitch.push_back(list.substr(from, plus - from));
+                    from = plus + 1;
+                }
                 continue;
             }
             const size_t colon = tok.find(':');
@@ -67,6 +80,7 @@ Plan& Parsed() {
 void Tick(int frameNum) {
     if (Opt().renderSwitch == nullptr) return;
     Parsed().ticked = true;
+    Ext::RenderBackend::RunPendingSwitch();   // a switch asked for while the window was minimised
     for (Switch& s : Parsed().switches) {
         if (s.done || frameNum < s.frame) continue;
         s.done = true;
@@ -84,7 +98,17 @@ void Tick(int frameNum) {
 bool TakeFailCreate(const char* backendId, bool deviceStartup) {
     if (Opt().renderSwitch == nullptr || backendId == nullptr || !deviceStartup) return false;
     Plan& p = Parsed();
-    if (p.ticked || p.failTaken || p.failCreate.empty() || p.failCreate != backendId) return false;
+    if (p.ticked) {
+        if (Ext::RenderBackend::ListingAdapters()) return false;   // the listing's throwaway DeviceData
+        for (size_t i = 0; i < p.failSwitch.size(); ++i) {
+            if (p.failSwitch[i] != backendId) continue;
+            p.failSwitch.erase(p.failSwitch.begin() + static_cast<std::ptrdiff_t>(i));
+            std::fprintf(stderr, "[RenderSwitch] failswitch: %s's CreateDevice fails once (injected)\n", backendId);
+            return true;
+        }
+        return false;
+    }
+    if (p.failTaken || p.failCreate.empty() || p.failCreate != backendId) return false;
     p.failTaken = true;
     std::fprintf(stderr, "[RenderSwitch] failcreate: %s's CreateDevice fails once (injected)\n", backendId);
     return true;

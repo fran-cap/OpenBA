@@ -48,7 +48,7 @@
 // faithful profile, which always wants DirectX 11.
 //
 // THE HARNESS. BANISHED_RENDER_SWITCH (src/app/options.h; tools/dual_backend_check.sh) runs the same
-// restart from the game loop at given frames (src/diag/render_switch_harness.cpp -> SwitchNow).
+// restart from the game loop at given frames (src/diag/render_switch_drive.cpp -> SwitchNow).
 #pragma once
 
 #include <cstdint>
@@ -90,7 +90,23 @@ bool RetryInterface(int index);
 
 // The restart retail's ApplyVideoSettings runs for a renderer change, onto backend `index`, from the
 // game loop (the harness). False, nothing done, when `index` is the active backend or out of range.
+//  * DEFERRED while the game window is minimised: neither backend can make a device on an iconic window
+//    (DX11's colour buffer is 0 x 0, Vulkan's surface has no pixels), so the restart would end with no
+//    device at all. Nothing is torn down; the switch is kept and RunPendingSwitch runs it once the window
+//    is restored. (The Options dialog's Apply cannot be pressed on a minimised window.)
+//  * A restart that still starts no backend (the picked one and the fallback both failed) starts the
+//    backend that was running again. If that fails too there is no device: retail's own end for a device
+//    that cannot be made again (the DX11 device-lost recovery, contextdata.cpp): System::Error::SetText
+//    (stop) + Display, and the restart's tail (RecreateDynamic, OnVideoRestart) does not run on no device.
 bool SwitchNow(int index);
+
+// The switch SwitchNow deferred, run once the window is no longer minimised. Called every frame by the
+// caller of SwitchNow (src/diag/render_switch_drive.cpp). No-op without one.
+void RunPendingSwitch();
+
+// True while the adapters are being listed again (each slot makes a throwaway DeviceData): the harness's
+// failswitch injection (src/diag/render_switch_drive.cpp) skips those.
+bool ListingAdapters();
 
 // ---- the Options dialog's Video tab (src/game/Dialog/optionsdialog.cpp) ----------------------------
 

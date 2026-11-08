@@ -103,6 +103,22 @@ nvoglv64.dll.
    retail's chain. Checked with window captures (`PrintWindow`, a hash every 2 s): the user's settings,
    DX11 -> Vulkan -> DX11 -> Vulkan -> DX11, the picture live in every phase.
 
+3. **A switch while the window is minimised.** Neither backend makes a device on an iconic window (DX11's
+   colour buffer is 0 x 0, Vulkan's surface has no pixels), so the restart ended with no device:
+   `Device::deviceData` null after PlatformStartup's loop (the port's slot 0 is the never-starting
+   placeholder where retail had a real DX9 plugin), and the restart tail crashed in
+   `ImageBuffer::RecreateDynamic` (`dynamic_resources.cpp:265`, the null companion of a null DeviceData).
+   `SwitchNow` now defers: while the window is minimised nothing is torn down and the switch is kept;
+   `RunPendingSwitch` runs it once the window is restored. A restart that still starts no backend starts
+   the one that was running again; if that fails too, retail's end for a device it cannot make again (the
+   DX11 device-lost recovery): `System::Error::SetText` (stop) + `Display`, with no restart tail on no
+   device. The Options dialog's Apply cannot be pressed on a minimised window, and its double failure is
+   the fallback's (the other backend is the one that was running); both failing there runs retail's
+   ApplyVideoSettings tail, as retail does. Harness: `failswitch=<backend>[+<backend>]` (in-game
+   CreateDevice failures, the adapter listing skipped). Tested: maximise, minimise across the switch,
+   restore (deferred, then run; the picture live); `failswitch=vulkan+dx11` (the running DX11 again, then
+   a normal switch to Vulkan).
+
 ## Tests (Windows, RTX 5080, 2026-11-08, rebased on main 250bbfee2)
 
 | Test | Result |

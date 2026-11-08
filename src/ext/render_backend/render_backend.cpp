@@ -9,12 +9,15 @@
 #include "engine/MainLoop.h"
 #include "io/settings_store.h"   // IO::SettingsStore (SeedFreshInstall, before Engine::Startup)
 #include "render/common/render_backend.h"   // Render::BackendCount / SelectBackend / ... (by path: this directory has its own render_backend.h)
+#include "system/Error.h"   // System::Error::SetText / Display (SwitchNow with no backend left)
 #include "system/MemoryAllocator.h"
 #include "system/String.h"
 #include "ui/ComboElement.h"
 #include "ui/DialogInstance.h"
 #include "ui/Sprite.h"
 #include "video/Device.h"
+
+#include "platform_window.h"   // Platform::Window::IsIconic (SwitchNow's deferral)
 
 #include <cstdio>
 #include <cstring>
@@ -74,6 +77,11 @@ uint32_t g_failed = 0;
 // SaveFallback once the device is up.
 bool g_bootFellBack = false;
 
+// The backend SwitchNow was asked for while the window was minimised, -1 = none (RunPendingSwitch).
+int g_pendingSwitch = -1;
+
+bool g_listing = false;   // inside ListAdaptersAgain (ListingAdapters)
+
 // The interface list (Video::Device +0x40) emptied and listed again by every slot's DeviceData, the
 // active backend's in slot 1: Device::EnumerateVideoModes (0x1800f8610) appends one GraphicsInterface
 // per slot to an empty list, which retail does once, inside Engine::Startup. Only while no device
@@ -87,7 +95,9 @@ void ListAdaptersAgain() {
     dev->interfaceData = nullptr;
     dev->interfaceCount = 0;
     dev->interfaceCapacity = 0;
+    g_listing = true;
     dev->EnumerateVideoModes();
+    g_listing = false;
     std::fprintf(stderr, "[RenderBackend] adapters listed again: %d interface(s), slot 1 = %s\n",
                  dev->interfaceCount,
                  dev->interfaceCount > kSharedSlot ? dev->interfaceData[kSharedSlot].name._data : "(none)");
@@ -209,8 +219,18 @@ bool SwitchNow(int index) {
     Video::Configuration* vidCfg = Video::Configuration::_singleton;
     Engine::MainLoop* mainLoop = Engine::MainLoop::_singleton;
     if (vidDev == nullptr || vidCfg == nullptr) return false;
+    if (Platform::Window::IsIconic(vidDev->windowHandle)) {
+        if (g_pendingSwitch != index) {
+            std::fprintf(stderr, "[RenderBackend] switch to %s deferred: the window is minimised\n",
+                         Render::BackendId(index));
+        }
+        g_pendingSwitch = index;
+        return false;
+    }
+    g_pendingSwitch = -1;
+    const int from = Render::ActiveBackend();
     std::fprintf(stderr, "[RenderBackend] switch %s -> %s: the full video restart\n",
-                 Render::BackendId(Render::ActiveBackend()), Render::BackendId(index));
+                 Render::BackendId(from), Render::BackendId(index));
     // ApplyVideoSettings' renderer-change arm (exe 0x140071e10), in its order.
     Ext::RenderPipe::SettleBeforeStepWrite();
     if (mainLoop != nullptr) mainLoop->OnVideoError();
@@ -220,16 +240,45 @@ bool SwitchNow(int index) {
     g_bootFellBack = false;
     Render::SelectBackend(index);
     ListAdaptersAgain();
-    const bool success = vidDev->Startup();
+    bool success = vidDev->Startup();
+    if (!success) {
+        // No backend started (the fallback included): the one that was running, again.
+        std::fprintf(stderr, "[RenderBackend] switch to %s started no backend: %s again\n",
+                     Render::BackendId(index), Render::BackendId(from));
+        g_failed = 0;
+        Render::SelectBackend(from);
+        ListAdaptersAgain();
+        success = vidDev->Startup();
+    }
+    if (!success) {
+        // No device: the end retail gives a device it cannot make again (see SwitchNow in the header).
+        std::fprintf(stderr, "[RenderBackend] switch: no backend could be started\n");
+        System::Error::SetText("Video::Device: no renderer could be started after a renderer change.", true);
+        System::Error::Display();
+        return false;
+    }
     vidDev->RecreateDynamic();
     if (mainLoop != nullptr) mainLoop->OnVideoRestart();
-    if (success) {
-        vidCfg->Save();
-        SaveFallback();   // the picked backend failed and another one started: keep the one that works
-    }
-    std::fprintf(stderr, "[RenderBackend] switch done: %s, active %s\n", success ? "OK" : "FAILED",
-                 Render::BackendId(Render::ActiveBackend()));
-    return success;
+    vidCfg->Save();
+    SaveFallback();   // the picked backend failed and another one started: keep the one that works
+    std::fprintf(stderr, "[RenderBackend] switch done: OK, active %s%s\n", Render::BackendId(Render::ActiveBackend()),
+                 Render::ActiveBackend() == index ? "" : " (the picked backend did not start)");
+    return Render::ActiveBackend() == index;
+}
+
+bool ListingAdapters() {
+    return g_listing;
+}
+
+void RunPendingSwitch() {
+    if (g_pendingSwitch < 0) return;
+    const Video::Device* vidDev = Video::Device::_singleton;
+    if (vidDev == nullptr || Platform::Window::IsIconic(vidDev->windowHandle)) return;
+    const int index = g_pendingSwitch;
+    std::fprintf(stderr, "[RenderBackend] the window is restored: the deferred switch to %s runs\n",
+                 Render::BackendId(index));
+    g_pendingSwitch = -1;
+    if (index != Render::ActiveBackend()) SwitchNow(index);
 }
 
 void OpenVideoRow(UI::DialogInstance* dialog, UI::ComboElement* comboRenderer) {

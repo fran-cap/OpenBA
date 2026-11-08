@@ -11,6 +11,9 @@
 //                          render_backend_dispatch.cpp), so its fallback runs; once per process, and
 //                          only before the game loop's first frame (the adapter listing, which makes a
 //                          DeviceData too, never takes it: PlatformStartup has set Device::windowHandle)
+//   failswitch=<backend>[+<backend>]  after the game loop's first frame, each named backend's next
+//                          CreateDevice fails once (the same placeholder): a switch whose picked backend
+//                          and fallback both fail, so SwitchNow's "no backend started" arm runs
 // A one-backend build parses nothing and does nothing.
 // ============================================================================
 #pragma once
