@@ -83,21 +83,26 @@ nvoglv64.dll.
   `ReleaseShader` erases only its own entry.
 - **Scope:** Vulkan's own device-lost recovery has the same window.
 
-## Tests (Windows, RTX 5080, 2026-11-08)
+## Tests (Windows, RTX 5080, 2026-11-08, rebased on main 250bbfee2)
 
 | Test | Result |
 |---|---|
 | dual debug, boot DX11, town loaded, DX11 -> Vulkan -> DX11 -> Vulkan -> DX11 (`tools/dual_backend_check.sh dx11 "900:vulkan,1800:dx11,2700:vulkan,3600:dx11"`) | PASS, clean shutdown |
-| dual debug, boot Vulkan, Vulkan -> DX11 -> Vulkan | PASS, clean shutdown |
-| forced Vulkan CreateDevice failure at boot (`failcreate=vulkan`), then a switch to Vulkan | DX11 fallback PASS, switch PASS |
-| fresh-install seed | not reachable on this machine: the retail registry exists, so a missing `settings.cfg` is a registry import (DX11, as ruled for existing players) |
+| dual debug, boot Vulkan with AO, Fancy clouds and water on (the shared depth copy), Vulkan -> DX11 -> Vulkan -> DX11 | PASS, clean shutdown; the depth copy is made, released and made again on each backend |
+| forced Vulkan CreateDevice failure at boot (`failcreate=vulkan`) | DX11 fallback PASS; `fallback saved: ext.render_api=0`; the next plain boot wants and starts DX11 |
+| fresh install over a retail registry import (`settings.cfg` moved aside, the retail registry present) | PASS: the file is written as the import (155 entries) plus the two keys, and the boot starts Vulkan |
+| fresh install with nothing to import | not run: it needs the retail registry key gone |
 | probe-level failure (`Available()` false) | not run: the Vulkan loader ignores `VK_LOADER_DRIVERS_*` in an elevated shell |
-| `tools/build.sh unit` (DX11) | 2287 ok, rc 0 |
-| `tools/build.sh unit` (dx11+vulkan) | 2318 ok, rc 0 |
+| `tools/build.sh unit` (DX11) | 2297 ok, 0 FAIL |
+| `tools/build.sh unit` (dx11+vulkan) | 2328 ok, 0 FAIL |
 | DX11 gate `tools/build.sh run` | PASS (in game, no crash) |
 | Vulkan `run-menu` (one-backend build) | PASS |
-| one-backend DX11 and Vulkan debug builds; dual perf build | compile |
+| `tools/acceptance/acceptance.sh` | 0 lines off target |
 | Metal | not compiled (no Mac); its macros are empty and `single/` is compiled |
+
+The shared depth copy (#278) adds no backend call to neutral code (`depth_copy_backend.h` is inline), so
+the table needed no new entry. DX11's copy is remade when the device pointer changes (`EnsureDevice`);
+Vulkan's `DepthCopy::Shutdown` runs with the device.
 
 Stripped perf exe: dual 16.26 MB, DX11-only 13.44 MB, Vulkan-only 14.90 MB. The dual perf build
 took 350 s at -j3.
