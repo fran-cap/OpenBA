@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/better_trees/billboard_shadow_backend.h -- ext.billboard_shadow's render side,
 // as the extension sees it (docs/extensions/TREE_SHADOW.md, handins/TS-CORE.md)
@@ -10,6 +12,7 @@
 #include "better_trees/receiver_rewrite.h"   // BbsRewrite::Params (pure, no D3D)
 
 namespace BbsBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The extension's one call (Ext::BillboardShadow::Sync, main thread). Idempotent.
 //   on   points the seam (VideoDX11::g_extBillboardShadow) at the stage now; the rewritten vertex
@@ -29,4 +32,5 @@ void RequestParams(const BbsRewrite::Params& p);
 BbsRewrite::Params AppliedParams();
 #endif
 
+BANISHED_RENDER_IMPL_END
 }  // namespace BbsBackend

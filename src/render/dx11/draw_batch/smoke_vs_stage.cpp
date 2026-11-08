@@ -173,6 +173,7 @@ void Stage::VertexDestroyed(VertexProgramData* p) {
 }  // namespace VideoDX11
 
 namespace SmokeVsBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on) {
     using namespace VideoDX11;
@@ -196,4 +197,5 @@ bool Rewritten(const Video::VertexProgram* vp) {
     return DbStage::Complete(it->second, it->second.data);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace SmokeVsBackend

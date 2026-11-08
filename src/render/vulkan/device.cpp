@@ -824,6 +824,13 @@ void DestroyShaderModule(VkShaderModule module) {
     vkDestroyShaderModule(device, module, nullptr);
 }
 
+bool Available() {
+    std::string why;
+    if (EnsureInstance(&why)) return true;
+    std::fprintf(stderr, "[Vulkan] not available: %s\n", why.c_str());
+    return false;
+}
+
 // One GraphicsInterface with one Adapter per physical device (dxgiAdapterIndex = its index in
 // physicalDevices; CreateDevice reads it back from Device::dxgiAdapterIndex). The mode list is
 // the usable screen's, as on Metal: there is no DXGI output to ask.

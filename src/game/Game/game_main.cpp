@@ -92,6 +92,7 @@ extern "C" void BootState_MarkQuitting();
 #include "chunked_scene_loader.h"
 #include "ext/registry.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSCAFFOLD.md): Ext::InitFromSettings
 #include "ext/load_progress/load_progress.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/LOADPROGRESS.md): BootBegin
+#include "ext/render_backend/render_backend.h"   // EXT SEAM (NOT RETAIL): Ext::RenderBackend::SaveFallback
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 
 // ============================================================
@@ -353,6 +354,9 @@ int RunGameMain(void* platformHandle, const char* cmdLine) {
     // extensions toggles, read ONCE from settings.cfg (Persistence::ReadSettings
     // ran inside Startup) and the command line's /profile:<name>.
     if (ok != 0) Ext::InitFromSettings();
+    // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): a boot that fell back to another
+    // renderer saves it, so the next launch starts on the one that worked.
+    if (ok != 0) Ext::RenderBackend::SaveFallback();
     StallDebug::Mark("Engine::Startup");
 
     // On Engine::Startup failure, dump System::Error::_errorString

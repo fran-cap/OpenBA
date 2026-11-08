@@ -55,6 +55,7 @@ void Shutdown() {
 }  // namespace VideoVulkan
 
 namespace SceneDepthBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 using namespace VideoVulkan::SceneDepth;
 
@@ -99,4 +100,5 @@ const Video::ImageBuffer* Image() {
     return g_image;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace SceneDepthBackend

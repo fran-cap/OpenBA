@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/compress_ao/compress_ao_backend.h -- ext.compress_ao's render side, as the
 // extension sees it (docs/extensions/handins/COMPRESSAO.md, issue #13)
@@ -22,6 +24,7 @@ class Store;
 }  // namespace Ext
 
 namespace CompressAoBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The extension's one call (Ext::CompressAo::Boot, main thread, once at boot: the row takes effect
 // at the next start). `cache` may be null (no cache: every texture is encoded). Off: retail's R8.
@@ -31,4 +34,5 @@ void Request(bool on, Ext::DerivedCache::Store* cache);
 // BC texture compression): the request is then ignored and the textures stay R8.
 bool Supported();
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CompressAoBackend

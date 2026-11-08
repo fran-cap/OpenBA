@@ -264,6 +264,7 @@ void LoadEnd() {
 
 // ---- the backend-neutral interface (share_gpu_data_backend.h) -------------------------------------
 namespace ShareGpuDataBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on) {
     VideoDX11::ShareGpuData::g_requested.store(on, std::memory_order_relaxed);
@@ -275,4 +276,5 @@ bool Supported() {
     return true;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace ShareGpuDataBackend

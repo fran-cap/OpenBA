@@ -577,6 +577,7 @@ void Shutdown() {
 // ---- the backend-neutral interfaces ----------------------------------------------------------------
 
 namespace FaaBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // foliage_aa_stage.cpp's Request: the same normalisation and the same generation rule.
 void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither, bool naturalGrowth) {
@@ -635,9 +636,11 @@ TweakStats Stats() {
 }
 #endif
 
+BANISHED_RENDER_IMPL_END
 }  // namespace FaaBackend
 
 namespace BbsBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on, bool naturalGrowth) {
     using namespace VideoVulkan::Rewrites;
@@ -663,9 +666,11 @@ BbsRewrite::Params AppliedParams() {
 }
 #endif
 
+BANISHED_RENDER_IMPL_END
 }  // namespace BbsBackend
 
 namespace SmokeVsBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on) {
     using namespace VideoVulkan::Rewrites;
@@ -689,4 +694,5 @@ bool Rewritten(const Video::VertexProgram* vp) {
     return Complete(it->second, p);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace SmokeVsBackend

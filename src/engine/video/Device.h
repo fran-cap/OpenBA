@@ -548,6 +548,12 @@ public:
     // foreign readers (dx11, UI, Graphics) read it directly.
     static Device* _singleton;
 
+    // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): PlatformStartup's loop, after slot
+    // `index`'s CreateDevice failed and its DeviceData was torn down, asks whether to try the same slot
+    // again (the dual exe's second backend behind slot 1, selected by the call). Null by default: retail
+    // steps to the next slot. A class static, so the layout below is untouched.
+    static bool (*_extInterfaceRetry)(int index);
+
     // ========================================================================
     // Data — retail layout, unchanged from Wave 6 lane B.
     // ========================================================================

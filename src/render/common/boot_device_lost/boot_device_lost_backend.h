@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/boot_device_lost/boot_device_lost_backend.h -- fix.boot_device_lost's render
 // side, as the registry sees it (docs/retail_bugs.md section 10, known_port_issues rows 1332 / 1334)
@@ -16,10 +18,12 @@
 #include <atomic>
 
 namespace BootDeviceLostBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The row's live atomic (Ext::LiveFix, set by registry_boot.cpp on the main thread once at boot;
 // the menu toggle is read through it, from the render thread under ext.render_pipe: review
 // F-262). Null, or false: retail's behaviour.
 void SetFixFlag(const std::atomic<bool>* live);
 
+BANISHED_RENDER_IMPL_END
 }  // namespace BootDeviceLostBackend

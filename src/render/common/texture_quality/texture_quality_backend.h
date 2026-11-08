@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/texture_quality/texture_quality_backend.h -- ext.texture_quality's render side,
 // as the extension sees it (docs/extensions/handins/TEXQUALITY.md)
@@ -12,8 +14,10 @@
 // ============================================================================
 
 namespace TextureQualityBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // False: the backend creates every texture from all its levels; the request is ignored.
 bool Supported();
 
+BANISHED_RENDER_IMPL_END
 }  // namespace TextureQualityBackend

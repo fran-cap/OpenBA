@@ -16,6 +16,8 @@
 #   exe     [flavour]   print the exe path (for scripts)
 #   build dirs: build/cmake-<flavour> (Windows, Linux); on macOS build/mac-<flavour>, with debug = build/mac-arm64.
 #   env BANISHED_RENDER_BACKEND=vulkan picks the Vulkan backend into build/cmake-<flavour>-vulkan.
+#   env BANISHED_RENDER_BACKEND=dx11+vulkan builds the dual Windows exe (both backends, the renderer picked
+#               in game: src/render/common/README.md) into build/cmake-<flavour>-dx11+vulkan.
 #               The default backend: dx11 on Windows, vulkan on Linux (plain build/cmake-<flavour>),
 #               Metal on Darwin.
 #   flavours: debug (default) | og | perf | release   -- CMakeLists.txt's BANISHED_FLAVOUR

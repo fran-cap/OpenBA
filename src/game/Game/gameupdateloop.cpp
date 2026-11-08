@@ -460,6 +460,7 @@ static void HonourPlatformSaveRequest(UI::UserInterface* ui) {
 // BANISHED_TOOL_HARNESS. No-op unless that env var is set.
 extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum);
 #include "pausemenu_harness.h"   // PauseMenuHarness_Tick (src/diag)
+#include "render_switch_drive.h"   // RenderSwitchDrive::Tick (src/diag)
 #include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 extern "C" void FoodPanel_Tick(PlayerToolManager* entityUI, int frameNum);  // src/diag/food_panel_harness.cpp
 extern "C" void FoodPlace_Tick(int frameNum);                  // src/diag/food_placement_harness.cpp
@@ -732,6 +733,11 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // live world underneath it. No-op unless BANISHED_PAUSEMENU is set
     // (src/diag/pausemenu_harness.cpp).
     PauseMenuHarness_Tick(m_toolManager, s_frameNum);
+
+    // The dual exe's renderer switch at given frames (the full video restart onto the other backend,
+    // as the Options dialog's Renderer change runs it). No-op unless BANISHED_RENDER_SWITCH is set
+    // (src/diag/render_switch_drive.h).
+    RenderSwitchDrive::Tick(s_frameNum);
 
     // Dialog harness for the six food-production panels: opens each building's info
     // panel and reports the controllers on it plus the component's CanCommand verdicts

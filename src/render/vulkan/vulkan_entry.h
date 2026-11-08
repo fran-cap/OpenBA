@@ -25,6 +25,11 @@ bool Enumerate(::Video::Device* device, const char* interfaceName);
 // True between a successful CreateDevice and Shutdown.
 bool DeviceLive();
 
+// Whether Vulkan can start here, without making a device: the process's instance (made once and kept,
+// as Enumerate makes it) loads and lists at least one adapter with a graphics queue. The dual exe's
+// backend probe (render_backend_vulkan.cpp); the reason is logged when it cannot.
+bool Available();
+
 }  // namespace VideoVulkan
 
 namespace Video {

@@ -9,7 +9,10 @@
 
 #include <d3d11.h>
 
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
+
 namespace AoBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // CreateDepthBuffer: whether THIS build of the main depth is the readable one.
 // Reads the extension's request (ao_backend.h) and records it as what exists.
@@ -24,4 +27,5 @@ bool BuildReadableDepth();
 void CreateMainDepthViews(ID3D11Device* device, ID3D11Texture2D* depth,
                           ID3D11DepthStencilView** dsv, ID3D11ShaderResourceView** srv);
 
+BANISHED_RENDER_IMPL_END
 }  // namespace AoBackend

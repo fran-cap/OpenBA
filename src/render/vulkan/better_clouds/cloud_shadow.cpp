@@ -410,6 +410,7 @@ void Shutdown() {
 }  // namespace VideoVulkan
 
 namespace CloudShadowBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 using namespace VideoVulkan::CloudShadow;
 
@@ -460,4 +461,5 @@ void Draw(Video::Context& /*context*/, const Video::ImageBuffer* noise, const Fr
     VideoVulkan::DrawAoEnd();
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CloudShadowBackend

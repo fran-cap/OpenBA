@@ -234,6 +234,7 @@ void LoadEnd() {
 
 // ---- the backend-neutral interface (share_gpu_data_backend.h) -------------------------------------
 namespace ShareGpuDataBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // Sharing needs nothing of the device: every Vulkan device supports it.
 void Request(bool on) {
@@ -246,4 +247,5 @@ bool Supported() {
     return true;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace ShareGpuDataBackend

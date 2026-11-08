@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/decal_fog/decal_fog_backend.h -- fix.decal_fog_order's render side, as the registry
 // sees it (docs/retail_bugs.md section 32)
@@ -25,7 +27,9 @@ namespace DecalFogBackend {
 void SetFixFlag(const std::atomic<bool>* live);
 
 // The backend's answer (one body per backend).
+BANISHED_RENDER_IMPL_BEGIN
 bool Supported();
+BANISHED_RENDER_IMPL_END
 
 // A pixel permutation's corrected copy: true with `out` filled when the row is on and the program is
 // one of the decal programs the rewrite matches; false (retail's bytes are used) otherwise. Logs the

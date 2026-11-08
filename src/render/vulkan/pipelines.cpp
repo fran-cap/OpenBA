@@ -939,6 +939,17 @@ void PipelinesShutdown() {
     SaveWarmList();
     SaveCacheBlob();
     {
+        // Entries a holder still references (the "still held" modules DeviceData::Shutdown destroys with
+        // the device) leave the registry here: the next device must not find a dead module by hash (a
+        // video restart, a backend switch, a device-lost recovery). The holder's ReleaseShader frees the
+        // orphan; its module is nulled so that release never destroys a later device's module that
+        // happens to reuse the handle value.
+        std::lock_guard<std::mutex> guard(g_shaderLock);
+        for (auto& kv : g_shaders)
+            kv.second->module = VK_NULL_HANDLE;
+        g_shaders.clear();
+    }
+    {
         std::lock_guard<std::mutex> guard(g_pipelineLock);
         for (auto& kv : g_pipelines) {
             if (kv.second) vkDestroyPipeline(LiveDevice(), kv.second, nullptr);
@@ -1095,7 +1106,8 @@ void ReleaseShader(ShaderEntry* entry) {
     {
         std::lock_guard<std::mutex> guard(g_shaderLock);
         if (--entry->refs > 0) return;
-        g_shaders.erase(entry->hash);
+        auto it = g_shaders.find(entry->hash);
+        if (it != g_shaders.end() && it->second == entry) g_shaders.erase(it);   // not an orphan's successor
     }
     DestroyShaderModule(entry->module);
     delete entry;
