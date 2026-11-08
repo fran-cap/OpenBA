@@ -152,7 +152,8 @@ headroom the zoom-adaptive map needs. (The "18 texels per pixel" estimate of the
 area ratio over the whole map, not a per-pixel one.)
 
 **The mechanism** (`src/engine/graphics/shadow_zoom.h`, seam `SunLight::_extShadowZoom`; a valued key of
-`ext.max_shadow_res`, 0..1, default 1, settings.cfg only, no menu control). The map is not rebuilt.
+`ext.max_shadow_res`, 0..1, default 1; Options > Enhanced "Adaptive shadow map" Off / On, under "Max shadow
+resolution", `src/ext/max_shadow_res/enhanced_entry.cpp`). The map is not rebuilt.
 `AddDrawItems` scales the sun camera's projection in clip space so the box lands in the map's first
 1 / 2^shift along x and y; the casters (`DrawItemList`) and `DrawLight`'s sampling matrix both read that
 projection, so the map and its matrix match on every backend with no backend code. `GetSunCamera`
@@ -178,3 +179,7 @@ GPU-bound scene, PresentMon GPUBusy medians; RenderDoc replay of the shadow pass
 
 Visual: the captured sun map holds the casters in one quadrant on both backends; the final frames at
 zoom 130 read the same side by side at 3x (same sun, same shadows, no offset).
+
+**Rulings (2026-11-08).** The sharpness trade is accepted: the 0.9 / 0.8 thresholds stay. The user
+watched the 8192 / 4096 crossover live and could not see it. The key gets the Enhanced row above; the
+default stays on.
