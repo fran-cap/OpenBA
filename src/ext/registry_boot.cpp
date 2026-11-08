@@ -285,6 +285,10 @@ void InitFromSettings() {
     // the row is on. Live (read every frame); same rule as the two above.
     ::Graphics::SunLight::_extShadowZoom =
         CurrentProfile() == Profile::Faithful ? nullptr : &Val().max_shadow_zoom;
+    // ext.camera_angle (class A, live): the sun box's depth follows the view (SunLight::_extDeepSunBox), for
+    // the far ground a shallow tilt brings into view. Same rule as the three above.
+    ::Graphics::SunLight::_extDeepSunBox =
+        CurrentProfile() == Profile::Faithful ? nullptr : &Ext().camera_angle;
     // ext.terrain_batch (class A, live): the WorldGeometry seam follows the row's live bool. Installed
     // once, like the sun map's: under the faithful profile it stays null, so no run index buffer is
     // built and the terrain loop and draw pay one null test each.

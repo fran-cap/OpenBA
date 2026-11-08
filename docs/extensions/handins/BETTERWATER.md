@@ -260,3 +260,15 @@ to within v / far): no projection constant is needed. Foam where that, times the
 banks (the depth alone cannot tell a bank above the waterline from a pier: both write alpha 0): the contact
 line only where the frame alpha is 0, the ring only where the bed behind is at least 0.15 down.
 
+
+## 9. River mouths: the lake hands over to the river
+
+**The seam.** Retail's lake water (phase 2, `WorldGeometry::BuildWaterShores`, the 0x8000 ranges) covers every cell with a wet corner in a box round the lake (centre +/- radius + 2). Its per-vertex alpha (the byte the water vertex program passes as `lightFogAlpha.w`) falls with the distance from the lake but is still about `1 - 2 / (radius + 2)` at the box's side. Where a river channel crosses that side the lake's water stops in one step over the river's own water: a straight line across the channel between the lake's slow broad ripples and the river's fast ones.
+
+**The fade** (`src/ext/better_water/river_mouth.h`, pure; `tests/unit/ext_better_water_river_mouth_test.cpp`). The vertices of a lake range on its extent's sides that are under water (height <= -0.75) are where the box cut the water: a vertex on the mesh's shore edge is dry, since a cell is meshed only when a corner is wet. Each vertex of the range has its alpha multiplied by `smoothstep(0, 6 tiles, distance to the nearest cut vertex)`. A lake no river leaves has no cut vertex and is unchanged; river vertices are never touched.
+
+**The draw.** The saved mesh (`_contourVertices`) is serialized, so it is not edited. With the row on at any level, `BetterWater::WaterVertices` hands `WorldGeometry::Draw`'s contour-range draw (`geometry_draw.cpp`, `DrawContourRange`) a copy of the mesh with the lakes faded, made when the heights, the mesh or the lake ranges change (the shore strip's slots, key and device-restart handling: `OnVideoError`, `Forget`). Null, and retail's buffer, while the row is off, when no vertex changed or when the copy could not be made. The shore, contact and ice passes draw the ranges with the bound buffer, so they fade with it. Engine buffers and retail's installed water programs only: DX11, Vulkan and Metal alike.
+
+**Verified.** Unit 2342 / 0 / 3 skipped. In game (Vulkan, 2026-11-08): `[BetterWater] river mouths: 148 lake vertices faded of 22612` on the autostart map, 430 of 28577 on a Valleys save; by hand on a Valleys map, the river's ripples crossfade into the lake over the six tiles with no hole. Gate and resave check PASS.
+
+**Not in this section.** A river that turns sharply between two of its rows (its whole strip kinks on one row) shows a straight seam in the water there, and its outer bank can cut the corner and leave wet ground uncovered; retail does both. Both are left for a smoothed river mesh.

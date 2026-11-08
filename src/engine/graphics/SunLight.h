@@ -163,6 +163,13 @@ public:
     // pointer, not a hook: no indirect call, GetSunCamera itself unchanged.
     static const Camera* _extShadowFitView;
 
+    // EXT SEAM (NOT RETAIL, ext.camera_angle, docs/extensions/handins/CAMERAANGLE.md section 6): null by
+    // default and under the faithful profile; otherwise src/ext/registry_boot.cpp points it at the row's
+    // live bool. While it points at true, GetSunCamera's box is as deep along the sun as the view's
+    // sphere needs (retail: a fixed 256), so far ground on the side away from the sun is shadow-tested
+    // instead of reading as shadowed past the far plane. A view that fits retail's box is unchanged.
+    static const bool* _extDeepSunBox;
+
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAA-SHADOW.md): the engine end of ext.max_shadow_res
     // (FOLIAGE_AA.md §7). Null by default
     // (and always under the faithful profile); otherwise src/ext/registry_boot.cpp

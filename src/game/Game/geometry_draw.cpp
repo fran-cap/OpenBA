@@ -442,7 +442,10 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
 
     // The contour vertex/index buffers, then DrawIndexed from one range record.
     auto DrawContourRange = [&](const GeometryDrawRange* ranges) {
-        context.SetVertexBuffer(&_waterVertexBuffer, 0, 0, 0x10);
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTERWATER.md section 9): with ext.better_water on,
+        // a copy of the water mesh whose lakes fade out where a river leaves them (null: retail's buffer).
+        const Video::VertexBuffer* faded = Ext::BetterWater::WaterVertices(*this);
+        context.SetVertexBuffer(faded != nullptr ? faded : &_waterVertexBuffer, 0, 0, 0x10);
         BindIndexBuffer(&_waterIndexBuffer);
         const GeometryDrawRange& range = ranges[static_cast<int>(key)];
         // DrawIndexed(context, primType=0, [1], [2], [0], [3], 1)

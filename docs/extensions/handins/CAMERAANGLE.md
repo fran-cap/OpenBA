@@ -34,3 +34,11 @@ Class A. The pitch target is reassigned from scratch every frame and the smoothe
 * VERIFIED: unit 2307 / 0 / 3 skipped (`tests/unit/ext_camera_angle_test.cpp`: the row and key, retail's bits with the row off, the four anchors, the -85 .. -22.5 envelope, 90 independent of zoom); the exe builds.
 * NOT YET LOOKED AT in game: the slider and the camera at its positions; the migration on a real settings.cfg.
 * For a ruling: 100's "touch more" is 10 % (kShallowAtMax); 0 is fully top-down zoomed out.
+
+## 6. The sun box's depth (SunLight::_extDeepSunBox)
+
+Retail's sun shadow box (`GetSunCamera`, `src/engine/graphics/sun_camera.cpp`) is wide enough for the view but a fixed 256 deep along the sun: the eye 128 back from the centre of the view's bounding sphere, the far plane at 256. A shallow tilt or a wide zoom puts ground more than 128 past the centre on the side away from the sun; that ground lies past the far plane, its shadow depth clamps to 1.0 and the LESS compare against the cleared map reads it as fully shadowed: a dark, straight-edged wedge over the distant terrain (seen with the slider past 50).
+
+With the row on (the seam is null under the faithful profile, `registry_boot.cpp`), the eye is pulled back `radius + 64` (casters above the sphere toward the sun) and the far plane set at `pull + radius + 1`, only when that is more than retail's 128; a view whose sphere fits retail's box keeps retail's numbers bit for bit. The box's width, the texel snap and ext.max_shadow_zoom's scale are unchanged. D24 over a deeper range costs depth steps that the unbiased front-face-cull compare does not notice.
+
+* VERIFIED by hand (the maintainer, 2026-11-08): the wedge is gone at a high tilt. Unit 2342 / 0 / 3 skipped; gate and resave check PASS.
