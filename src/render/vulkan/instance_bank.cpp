@@ -34,6 +34,7 @@ uint32_t ConstantBufferRange() {
 }  // namespace VideoVulkan
 
 namespace InstanceBank {
+BANISHED_RENDER_IMPL_BEGIN
 
 int32_t Cap() {
     return VideoVulkan::LiveInstanceCap();
@@ -54,4 +55,5 @@ void SetWide(Video::Context& context, int32_t slot, const Math::Matrix& m) {
     }
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace InstanceBank

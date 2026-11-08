@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/draw_batch/smoke_vs_backend.h -- ext.draw_batch's render side, as the extension
 // sees it (docs/extensions/handins/DRAWBATCH.md, Idea B)
@@ -12,6 +14,7 @@ class VertexProgram;
 }
 
 namespace SmokeVsBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The extension's one call (Ext::DrawBatch::Sync, main thread). Idempotent.
 //   on   points the seam (VideoDX11::g_extDrawBatchVs) at the stage now; the rewritten particle vertex
@@ -26,4 +29,5 @@ void Request(bool on);
 // are not made yet (they are made at its next bind). Any thread (the stage's mutex).
 bool Rewritten(const Video::VertexProgram* vp);
 
+BANISHED_RENDER_IMPL_END
 }  // namespace SmokeVsBackend

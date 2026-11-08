@@ -167,6 +167,7 @@ void Enqueue(const void* obj, uint64_t bytes, std::function<void()> run) {
 
 // ---- the backend-neutral interface (async_gpu_create_backend.h) -----------------------------------
 namespace AsyncGpuCreateBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on) {
     VideoVulkan::AsyncCreate::g_requested.store(on, std::memory_order_release);
@@ -177,4 +178,5 @@ bool Supported() {
     return VideoVulkan::DeviceLive();
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace AsyncGpuCreateBackend

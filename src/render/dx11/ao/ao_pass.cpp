@@ -43,6 +43,7 @@
 #include <cstdio>
 
 namespace AoBackend {
+BANISHED_RENDER_IMPL_BEGIN
 namespace {
 
 std::atomic<bool> g_readableRequested{false};   // the extension's (main thread)
@@ -107,6 +108,7 @@ void CreateMainDepthViews(ID3D11Device* device, ID3D11Texture2D* depth,
                  static_cast<unsigned long>(h2));
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace AoBackend
 
 namespace {
@@ -142,6 +144,7 @@ using AoStage::StateBackup;   // ao_state_backup.h
 }  // namespace
 
 namespace Graphics {
+BANISHED_RENDER_IMPL_BEGIN
 
 void ExtAoAfterOpaque(Video::Context& context, const ExtAoFrame& frame,
                       const RendererSceneEntry& entry) {
@@ -181,4 +184,5 @@ void ExtAoAfterOpaque(Video::Context& context, const ExtAoFrame& frame,
     g_pass.stage->Draw(dc, raw, lh, fogged);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace Graphics

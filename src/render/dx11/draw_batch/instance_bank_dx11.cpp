@@ -8,6 +8,7 @@
 #include "draw_batch/instance_bank.h"
 
 namespace InstanceBank {
+BANISHED_RENDER_IMPL_BEGIN
 
 int32_t Cap() {
     return 52;
@@ -19,4 +20,5 @@ void SetWide(Video::Context& context, int32_t slot, const Math::Matrix& m) {
     (void)m;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace InstanceBank

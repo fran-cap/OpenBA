@@ -113,6 +113,7 @@ void CopyLocked(const ::Video::Context& context) {
 }  // namespace
 
 namespace SceneDepthBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 bool Supported() {
     ID3D11Device* const d = LiveDevice();
@@ -149,4 +150,5 @@ const Video::ImageBuffer* Image() {
     return g_copy.image;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace SceneDepthBackend

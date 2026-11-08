@@ -18,6 +18,7 @@
 #include <cstdio>
 
 namespace Render {
+BANISHED_RENDER_IMPL_BEGIN
 namespace {
 
 class PlaceholderDeviceData final : public ::Video::DeviceData {
@@ -72,4 +73,19 @@ const char* PlaceholderDeviceName() {
     return new PlaceholderDeviceData(device);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace Render
+
+#if defined(BANISHED_RENDER_IMPL_NS)
+// ---- the dual exe (BANISHED_RENDER_BACKEND=dx11+vulkan) ----------------------------------------
+// This backend's BackendTable (src/render/common/render_backend_table.h): its entry points behind the
+// backend-neutral headers, for src/render/common/multi/render_backend_dispatch.cpp. The probe is the
+// instance the adapter list needs anyway (VideoVulkan::Available, device.cpp): no loader, a loader
+// older than 1.1 or no adapter with a graphics queue answers false before any device is made.
+#include "render_backend_table_fill.h"
+
+const Render::BackendTable& RenderBackendTable_vulkan() {
+    static const Render::BackendTable table = MakeBackendTable("vulkan", &VideoVulkan::Available);
+    return table;
+}
+#endif

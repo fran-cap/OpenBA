@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/share_gpu_data/share_gpu_data_backend.h -- ext.share_gpu_data's render side, as
 // the extension sees it (docs/extensions/handins/SHAREGPUDATA.md, issue #13)
@@ -15,6 +17,7 @@
 // ============================================================================
 
 namespace ShareGpuDataBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The extension's one call (Ext::ShareGpuData::Boot, main thread, once at boot: the row takes effect
 // at the next start). Off: one object per create, retail's.
@@ -24,4 +27,5 @@ void Request(bool on);
 // then ignored.
 bool Supported();
 
+BANISHED_RENDER_IMPL_END
 }  // namespace ShareGpuDataBackend

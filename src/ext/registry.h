@@ -171,6 +171,7 @@ struct Extensions {
     bool touch_pointer = false; // class A, live: src/ext/touch_pointer/, seams Input::Device::_extAfterUpdate + Platform::Touch::SetSink + ext.touch_mode's camera hold and place hook (docs/android/P11_TOUCH_POINTER.md)
     bool staggered_passes = false; // class A, live: src/ext/staggered_passes/, seams Graphics::SunLight::_extStaggerEvery + Graphics::ReflectionImageBuffer::_extStaggerEvery (graphics/stagger_hold.h; issue #253)
     bool fullscreen_mode = true; // class A, next video reset: src/ext/fullscreen_mode/, the Options Video tab's Fullscreen cell + the DX11 swap chain's seams (src/render/dx11/devicedata.cpp)
+    bool render_backend = false; // class A, next video reset: src/ext/render_backend/, the Options Video tab's Renderer combo + the seam Video::Device::_extInterfaceRetry; the dual Windows exe only (BANISHED_RENDER_BACKEND=dx11+vulkan)
 #ifdef BANISHED_UNIT_TEST
     // tests/unit/ext_registry_test.cpp only: one extension per class, so the
     // lock semantics are tested before a real extension exists. Not in the exe.
@@ -200,6 +201,7 @@ struct Values {
     int32_t texture_quality_drop = 0; // ext.texture_quality_drop 0..1 (owner texture_quality): the top mip levels a qualifying texture is made without, 0 = Full (the default: the row or profile=all alone drops nothing), 1 = Half; an older 2 (Quarter, removed by ruling) clamps to 1; read once at boot (TEXQUALITY.md)
     int32_t fps_cap_rate = 60; // ext.fps_cap_rate 30 | 60 | 90 | 120 (owner fps_cap): the menu's and the game's frame-rate ceiling while the row is on; 60 is the phone's ruled default (docs/android/P8_INPUT_OPTIONS.md)
     int32_t fullscreen_borderless = 0; // ext.fullscreen_borderless 0..1 (owner fullscreen_mode): with VideoFullscreen on, 0 = exclusive (retail's DXGI mode switch), 1 = borderless (a windowed swap chain in a popup over the whole monitor, at the desktop's size)
+    int32_t render_api = 1; // ext.render_api 0..1 (owner render_backend): the renderer the dual exe starts, 0 = DirectX 11, 1 = Vulkan (DirectX 11 when Vulkan cannot start)
     int32_t touch_mode_toolbar_scale = 200; // ext.touch_mode_toolbar_scale 100 | 125 | 150 | 175 | 200 (owner touch_mode): the in-game toolbar's own scale in percent, shrunk to fit beside the control cluster (docs/android/TOUCH_MODE.md)
     int32_t touch_mode_pad_scale = 100; // ext.touch_mode_pad_scale 0 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): the camera pad cluster's size in percent of its own (a cell of 0.11 of the short edge), 0 = the cluster hidden; 100 = the size it always had (issue #96, docs/android/TOUCH_MODE.md section 5)
     int32_t touch_mode_action_bar_scale = 100; // ext.touch_mode_action_bar_scale 25 | 30 | 35 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): ext.touch_pointer's placement bar (place / rotate / flip / cancel) in percent of the cluster's 100 % cell, whatever the pad's own scale; 100 = the size it always had (issue #96)

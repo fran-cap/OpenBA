@@ -50,6 +50,7 @@ bool ConvertForCreate(D3D11_TEXTURE2D_DESC* desc, D3D11_SUBRESOURCE_DATA* subres
 
 // ---- the backend-neutral interface (compress_ao_backend.h) ----------------------------------------
 namespace CompressAoBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // BC4_UNORM is required of every D3D11 device (feature level 10_0 and up), so DX11 always supports it.
 void Request(bool on, Ext::DerivedCache::Store* cache) {
@@ -63,4 +64,5 @@ bool Supported() {
     return true;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CompressAoBackend

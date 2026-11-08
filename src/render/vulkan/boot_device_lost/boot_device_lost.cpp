@@ -25,9 +25,11 @@ bool On() {
 }  // namespace VideoVulkan
 
 namespace BootDeviceLostBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void SetFixFlag(const std::atomic<bool>* live) {
     VideoVulkan::BootDeviceLost::g_flag.store(live, std::memory_order_relaxed);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace BootDeviceLostBackend

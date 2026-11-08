@@ -32,6 +32,7 @@ bool Requested() {
 
 // ---- the backend-neutral interface (compress_ao_backend.h) ----------------------------------------
 namespace CompressAoBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on, Ext::DerivedCache::Store* cache) {
     if (on && !Supported()) on = false;
@@ -59,4 +60,5 @@ bool Supported() {
     return false;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CompressAoBackend

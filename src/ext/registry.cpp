@@ -821,6 +821,15 @@ const Entry kEntries[] = {
       "The Video tab's Fullscreen setting becomes Off / Exclusive / Borderless. Borderless covers the "
       "screen at the desktop's resolution and stays on screen when you switch to another window.",
       0, [](State& s) -> bool& { return s.ext.fullscreen_mode; } },
+    // RENDERBACKEND (src/ext/render_backend/render_backend.h): the dual Windows exe carries DirectX 11 and
+    // Vulkan behind retail's one renderer slot; the row lists both in the Video tab's Renderer combo and
+    // starts the one ext.render_api names, falling back to DirectX 11 when Vulkan cannot start. Class A:
+    // the renderer only, nothing saved in a town. Off: retail's DirectX 11. A one-backend build ignores it.
+    { "render_backend", Tier::Extension, Class::A, false,
+      "Renderer choice",
+      "The Video tab's Renderer lists DirectX 11 and Vulkan; the game restarts its graphics on the one you "
+      "pick. If Vulkan cannot start on this computer, DirectX 11 is used.",
+      0, [](State& s) -> bool& { return s.ext.render_backend; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.
@@ -904,6 +913,10 @@ const ValueKey kValueKeys[] = {
     // 1 = borderless. A range key.
     { "fullscreen_borderless", "fullscreen_mode", 0, 1, 0,
       [](State& s) -> int32_t& { return s.val.fullscreen_borderless; }, nullptr, 0 },
+    // RENDERBACKEND: the renderer the dual exe starts while the row render_backend is on: 0 = DirectX 11,
+    // 1 = Vulkan (the default: the row on means Vulkan first). A range key.
+    { "render_api", "render_backend", 0, 1, 1,
+      [](State& s) -> int32_t& { return s.val.render_api; }, nullptr, 0 },
     // SHOWGRID: the grid lines' hue in degrees (read every frame, so a settings.cfg edit shows at the next
     // start). A range key.
     { "show_grid_hue", "show_grid", 0, 359, 0,

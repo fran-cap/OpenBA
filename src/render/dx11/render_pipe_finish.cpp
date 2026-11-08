@@ -40,6 +40,7 @@
 
 namespace Ext {
 namespace RenderPipe {
+BANISHED_RENDER_IMPL_BEGIN
 namespace {
 
 // contextdata.cpp's ForceDeviceLostThisFrame, with this file's own count (see the banner).
@@ -156,5 +157,6 @@ void FinishRecover(Video::Device& device, int32_t hrIn) {
     std::fflush(stderr);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace RenderPipe
 }  // namespace Ext

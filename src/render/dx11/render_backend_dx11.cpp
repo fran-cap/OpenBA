@@ -12,6 +12,7 @@
 #include "VideoDX11Plugin.h"    // VideoDX11::Dx11_* / Dx9Placeholder_*
 
 namespace Render {
+BANISHED_RENDER_IMPL_BEGIN
 
 const char* DeviceName() {
     return VideoDX11::Dx11_GetDeviceName();
@@ -33,4 +34,19 @@ const char* PlaceholderDeviceName() {
     return VideoDX11::Dx9Placeholder_CreateDeviceData(device);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace Render
+
+#if defined(BANISHED_RENDER_IMPL_NS)
+// ---- the dual exe (BANISHED_RENDER_BACKEND=dx11+vulkan) ----------------------------------------
+// This backend's BackendTable (src/render/common/render_backend_table.h): its entry points behind the
+// backend-neutral headers, for src/render/common/multi/render_backend_dispatch.cpp. DX11 has no probe
+// cheaper than its device: D3D11 is part of every Windows this exe runs on, and a machine whose
+// adapter cannot make a device is judged by CreateDevice (Video::Device::PlatformStartup's loop).
+#include "render_backend_table_fill.h"
+
+const Render::BackendTable& RenderBackendTable_dx11() {
+    static const Render::BackendTable table = MakeBackendTable("dx11", [] { return true; });
+    return table;
+}
+#endif

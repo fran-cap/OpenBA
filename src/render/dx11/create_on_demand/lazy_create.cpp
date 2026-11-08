@@ -338,6 +338,7 @@ void AfterSweep(int64_t evicted) {
 
 // ---- the backend-neutral interface (create_on_demand_backend.h) -----------------------------------
 namespace CreateOnDemandBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on, int idleMinutes) {
     if (on && VideoDX11::CreateOnDemand::g_table.load(std::memory_order_relaxed) == nullptr) {
@@ -383,4 +384,5 @@ bool ImageMade(const void* companion) {
                static_cast<const VideoDX11::ImageBufferData*>(companion)->shaderResourceView) != nullptr;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CreateOnDemandBackend

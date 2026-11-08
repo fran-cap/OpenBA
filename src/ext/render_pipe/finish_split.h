@@ -20,12 +20,15 @@
 // ============================================================================
 #pragma once
 
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
+
 #include <cstdint>
 
 namespace Video { class Context; class Device; }
 
 namespace Ext {
 namespace RenderPipe {
+BANISHED_RENDER_IMPL_BEGIN
 
 // Steps 1-4 of Finish: Present(vsync, 0), drop the device lock, the
 // BANISHED_FORCE_DEVICE_LOST drive (its own count: the Nth packet Present), the
@@ -39,5 +42,6 @@ int32_t FinishPresent(Video::Context& ctx);
 // (the Context itself is destroyed by the notify).
 void FinishRecover(Video::Device& device, int32_t hr);
 
+BANISHED_RENDER_IMPL_END
 }  // namespace RenderPipe
 }  // namespace Ext

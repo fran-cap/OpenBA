@@ -144,6 +144,7 @@ Program g_program;
 }  // namespace
 
 namespace CloudShadowBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 bool Supported() {
     ID3D11Device* const d = LiveDevice();
@@ -209,4 +210,5 @@ void Draw(Video::Context& context, const Video::ImageBuffer* noise, const Frame&
     dc->Draw(3, 0);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CloudShadowBackend

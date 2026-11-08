@@ -406,6 +406,8 @@ bool Video::Device::CreateVideoInterface(int index) {
 // The two message callbacks are registered only on the success path, and their
 // ids are 5 (WM_SIZE) and 0x232 (WM_EXITSIZEMOVE).
 // ============================================================================
+bool (*Video::Device::_extInterfaceRetry)(int index) = nullptr;
+
 bool Video::Device::PlatformStartup() {
     // 0x1800f8266: the HWND comes from Application::_singleton[0].
     windowHandle = ::Application::Application::_singleton->_windowHandle;
@@ -464,6 +466,9 @@ bool Video::Device::PlatformStartup() {
             if (Video::DeviceData* d2 = deviceData)
                 delete d2;   // B5 DEV-A (D10): slot 0, flags 1
             deviceData = nullptr;
+            // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): the dual exe's other backend
+            // behind the same slot, tried before the loop steps on. Null: retail's loop.
+            if (_extInterfaceRetry != nullptr && _extInterfaceRetry(idx)) continue;
         }
 
         // 0x1800f8345: step DOWN, wrapping to 2.
