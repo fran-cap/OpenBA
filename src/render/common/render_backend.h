@@ -104,4 +104,13 @@ bool SelectBackend(int index);
 // swap chain instead (src/render/dx11/devicedata.cpp, ext.render_backend).
 bool WindowPresentedByOtherBackend();
 
+// True once another backend made a device on the game window AFTER the active backend's first device there
+// (only in an exe with more than one backend; a one-backend build answers false). Vulkan -> DX11 -> Vulkan:
+// the DX11 backend made a flip-model DXGI swap chain on the window (above), and from then on the window
+// shows a Vulkan swap chain only in FIFO (NVIDIA, 2026-11-08): MAILBOX and IMMEDIATE presents return
+// VK_SUCCESS while the window keeps the last DX11 frame, though the DXGI swap chain is destroyed. A window
+// that carried only retail's blit-model chain (DX11 -> Vulkan) shows every mode. The Vulkan backend asks
+// this to present in FIFO with VSync off (src/render/vulkan/device.cpp CreateSwapchain).
+bool WindowTakenOverByOtherBackend();
+
 }  // namespace Render

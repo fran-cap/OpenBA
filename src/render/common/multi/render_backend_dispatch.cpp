@@ -83,6 +83,12 @@ std::atomic<int> g_active{0};
 // The backends that made a device on the game window this run, a bit per index (CreateDeviceData with the
 // window known): WindowPresentedByOtherBackend.
 std::atomic<uint32_t> g_onWindow{0};
+// The order of those devices, for WindowTakenOverByOtherBackend: a counter bumped by each one, and per
+// backend the count of its first and of its latest (0 = none yet).
+constexpr int kMaxBackends = 32;   // g_onWindow's bits
+std::atomic<uint32_t> g_onWindowCount{0};
+std::atomic<uint32_t> g_firstOnWindow[kMaxBackends]{};
+std::atomic<uint32_t> g_lastOnWindow[kMaxBackends]{};
 
 const BackendTable& Active() {
     return TableAt(g_active.load(std::memory_order_acquire));
@@ -251,8 +257,14 @@ const char* DeviceName() {
     // placeholder, whose CreateDevice fails, so PlatformStartup's fallback runs on a real failure path.
     if (RenderSwitchDrive::TakeFailCreate(Active().id, device != nullptr && device->windowHandle != nullptr))
         return Active().placeholderCreateDeviceData(device);
-    if (device != nullptr && device->windowHandle != nullptr)
-        g_onWindow.fetch_or(1u << g_active.load(std::memory_order_acquire), std::memory_order_acq_rel);
+    if (device != nullptr && device->windowHandle != nullptr) {
+        const int active = g_active.load(std::memory_order_acquire);
+        g_onWindow.fetch_or(1u << active, std::memory_order_acq_rel);
+        const uint32_t order = g_onWindowCount.fetch_add(1, std::memory_order_acq_rel) + 1;
+        uint32_t none = 0;
+        g_firstOnWindow[active].compare_exchange_strong(none, order, std::memory_order_acq_rel);
+        g_lastOnWindow[active].store(order, std::memory_order_release);
+    }
     return Active().createDeviceData(device);
 }
 
@@ -260,6 +272,16 @@ bool WindowPresentedByOtherBackend() {
     const uint32_t others = g_onWindow.load(std::memory_order_acquire) &
                             ~(1u << g_active.load(std::memory_order_acquire));
     return others != 0;
+}
+
+bool WindowTakenOverByOtherBackend() {
+    const int active = g_active.load(std::memory_order_acquire);
+    const uint32_t first = g_firstOnWindow[active].load(std::memory_order_acquire);
+    if (first == 0) return false;
+    for (int b = 0; b < Count(); ++b) {
+        if (b != active && g_lastOnWindow[b].load(std::memory_order_acquire) > first) return true;
+    }
+    return false;
 }
 
 // The game window is made before any backend is picked for certain, and with no graphics-API flag:

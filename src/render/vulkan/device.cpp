@@ -34,6 +34,7 @@
 #include "tweak_overlay_vulkan.h"   // the debug tweak overlay's renderer (debug flavour only)
 #endif
 #include "pipelines.h"
+#include "render_backend.h"   // Render::WindowTakenOverByOtherBackend (ext.render_backend, CreateSwapchain)
 #include "resources.h"
 #include "spirv_legalize.h"
 #include "vulkan11.h"
@@ -415,7 +416,18 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
     // VSync on: FIFO (always available). Off: mailbox, then immediate, then FIFO anyway.
     const bool vsync = Video::Configuration::_singleton ? Video::Configuration::_singleton->vsync != 0 : true;
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if (!vsync || Opt().stress) {
+    // EXT SEAM (NOT RETAIL, ext.render_backend, src/render/common/render_backend.h): once a DX11 flip-model
+    // swap chain has been on the window after this backend's first one, only FIFO reaches the screen.
+    const bool fifoOnly = Render::WindowTakenOverByOtherBackend();
+    if (fifoOnly && (!vsync || Opt().stress)) {
+        static bool noted = false;
+        if (!noted) {
+            noted = true;
+            std::fprintf(stderr, "[Vulkan] present mode: FIFO with VSync off, the window has carried another "
+                                 "backend's swap chain since this backend's first (render_backend.h)\n");
+        }
+    }
+    if ((!vsync || Opt().stress) && !fifoOnly) {
         uint32_t modeCount = 0;
         vkGetPhysicalDeviceSurfacePresentModesKHR(physical, surface, &modeCount, nullptr);
         std::vector<VkPresentModeKHR> modes(modeCount);
