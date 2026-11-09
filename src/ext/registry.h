@@ -129,6 +129,7 @@ struct Extensions {
     bool winter_ice = true;    // class A, live: src/ext/winter_ice/, seam WorldGeometry's lake-range draw (docs/extensions/handins/WINTERICE.md)
     bool walk_on_ice = false;  // class C: src/ext/winter_ice/ (owner winter_ice), citizens cross a solid lake (WINTERICE.md section 5)
     bool better_clouds = false; // class A, live: src/ext/better_clouds/, the sky material's pass slots + the material setup seam (docs/extensions/handins/BETTERCLOUDS.md)
+    bool fancy_terrain = false; // class A, live: src/ext/fancy_terrain/, a horizon map of the heightmap multiplied in at the ground-draw seam
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten
     bool restricted_foods = false;

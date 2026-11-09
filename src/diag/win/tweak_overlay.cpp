@@ -65,7 +65,7 @@ using detail::g_open;
 // The rows and keys the overlay touches (registry ids, registry.cpp's tables).
 // ---------------------------------------------------------------------------
 constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
-                                 "eye_camera", "winter_ice", "better_clouds"};
+                                 "eye_camera", "winter_ice", "better_clouds", "fancy_terrain"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
 constexpr int kKeyCount = static_cast<int>(sizeof(kKeys) / sizeof(kKeys[0]));
@@ -116,6 +116,7 @@ Ext::Tweak::Bbs g_uiBbs;
 Ext::Tweak::Water g_uiWater;
 Ext::Tweak::Ice g_uiIce;
 Ext::BetterClouds::Look g_uiClouds;
+Ext::FancyTerrain::Look g_uiTerrain;
 bool            g_uiLoaded = false;
 
 void Queue(Act kind, const char* id, int value) {
@@ -435,6 +436,36 @@ void DrawPanels(const Snapshot& s) {
                     g_uiIce.edge.wobble, g_uiIce.edge.wobbleSize, g_uiIce.edge.grain);
     }
 
+    // ext.fancy_terrain: the terrain light's look, live (Ext::FancyTerrain::Look, read every frame; a new
+    // radius rebuilds the horizon map).
+    if (ImGui::CollapsingHeader("Fancy terrain", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::FancyTerrain::Look& t = g_uiTerrain;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("fancy_terrain")] ? "on" : "off (tick fancy_terrain under Rows)");
+        changed |= ImGui::SliderFloat("ambient share of the light", &t.ambientShare, 0.05f, 0.95f, "%.2f");
+        changed |= ImGui::SliderFloat("sky visibility strength", &t.skyStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("sun shadow strength (far)", &t.sunStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("sun shadow share near the camera", &t.sunNear, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("full sun shadow from (distance)", &t.nearDistance, 0.0f, 400.0f, "%.0f");
+        changed |= ImGui::SliderFloat("sun edge softness (rad)", &t.softness, 0.005f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("fade above the ground (units)", &t.heightFade, 0.5f, 40.0f, "%.1f");
+        changed |= ImGui::SliderFloat("bounce", &t.bounce, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("fog fade range (x the fog's)", &t.fogScale, 0.5f, 6.0f, "%.2f");
+        changed |= ImGui::ColorEdit3("bounce colour", t.tint);
+        changed |= ImGui::SliderInt("horizon radius (rebuilds)", &t.radius, 8, 192);
+        if (changed) Ext::Tweak::SetTerrain(t);
+        if (ImGui::Button("terrain defaults")) {
+            t = Ext::FancyTerrain::Look{};
+            Ext::Tweak::SetTerrain(t);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/fancy_terrain/terrain_params.h (Look):");
+        ImGui::Text("sky %.2f sun %.2f near %.2f nearDist %.0f soft %.3f fade %.1f bounce %.2f tint %.2f %.2f %.2f",
+                    t.skyStrength, t.sunStrength, t.sunNear, t.nearDistance, t.softness, t.heightFade, t.bounce,
+                    t.tint[0], t.tint[1], t.tint[2]);
+        ImGui::Text("ambientShare %.2f fogScale %.2f radius %d", t.ambientShare, t.fogScale, t.radius);
+    }
+
     // ext.better_clouds (BETTERCLOUDS): the sky program's look, live (Ext::BetterClouds::Look, published
     // by BeginFrame every frame); the reflection in the water uses the same values.
     if (ImGui::CollapsingHeader("Better clouds", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -668,6 +699,7 @@ void BeforePresent(Renderer& renderer, unsigned width, unsigned height) {
         g_uiWater = Ext::Tweak::WaterValues();
         g_uiIce = Ext::Tweak::IceValues();
         g_uiClouds = Ext::Tweak::CloudsValues();
+        g_uiTerrain = Ext::Tweak::TerrainValues();
         g_uiLoaded = true;
     }
 

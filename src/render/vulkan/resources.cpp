@@ -914,6 +914,7 @@ void UploadImage(const GpuImage& image, const ImageRegion* regions, size_t regio
         c = VkBufferImageCopy{};
         c.bufferOffset = at + regions[i].offset;
         c.imageSubresource = { copyAspect, regions[i].mip, regions[i].layer, 1 };
+        c.imageOffset = { regions[i].x, regions[i].y, 0 };
         c.imageExtent = { regions[i].width, regions[i].height, 1 };
     }
     vkCmdCopyBufferToImage(b->cb, staging, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,

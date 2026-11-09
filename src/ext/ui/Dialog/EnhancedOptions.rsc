@@ -17,6 +17,7 @@ StringTable aoStrings
 		{ String _name = "BetterWater";		String _text = "Better water"; }
 		{ String _name = "BetterIce";		String _text = "Better ice"; }
 		{ String _name = "BetterClouds";	String _text = "Better clouds"; }
+		{ String _name = "FancyTerrain";	String _text = "Fancy terrain"; }
 		{ String _name = "SharpUi";		String _text = "Sharp UI"; }
 		{ String _name = "BetterCamera";	String _text = "Wider zoom"; }
 		{ String _name = "CameraAngle";		String _text = "Camera angle"; }
@@ -380,17 +381,18 @@ TableDescription enhancedOptionsTable
 		{ int _x = 0; int _y = 12; ElementDescription _element = "textBetterWater"; }
 		{ int _x = 0; int _y = 13; ElementDescription _element = "textBetterIce"; }
 		{ int _x = 0; int _y = 14; ElementDescription _element = "textBetterClouds"; }
-		{ int _x = 0; int _y = 15; ElementDescription _element = "textSharpUi"; }
-		{ int _x = 0; int _y = 16; ElementDescription _element = "textBetterCamera"; }
-		{ int _x = 0; int _y = 17; ElementDescription _element = "textCameraAngle"; }
-		{ int _x = 0; int _y = 18; ElementDescription _element = "textFogDistance"; }
-		{ int _x = 0; int _y = 19; ElementDescription _element = "textMaxShadowRes"; }
-		{ int _x = 0; int _y = 20; ElementDescription _element = "textShadowZoom"; }
-		{ int _x = 0; int _y = 21; ElementDescription _element = "textSeamlessLoops"; }
-		{ int _x = 0; int _y = 22; ElementDescription _element = "textTextureQuality"; }
-		{ int _x = 0; int _y = 23; ElementDescription _element = "textRenderScale"; }
-		{ int _x = 0; int _y = 24; ElementDescription _element = "textFpsCap"; }
-		{ int _x = 0; int _y = 25; ElementDescription _element = "textDerivedCache"; }
+		{ int _x = 0; int _y = 15; ElementDescription _element = "textFancyTerrain"; }
+		{ int _x = 0; int _y = 16; ElementDescription _element = "textSharpUi"; }
+		{ int _x = 0; int _y = 17; ElementDescription _element = "textBetterCamera"; }
+		{ int _x = 0; int _y = 18; ElementDescription _element = "textCameraAngle"; }
+		{ int _x = 0; int _y = 19; ElementDescription _element = "textFogDistance"; }
+		{ int _x = 0; int _y = 20; ElementDescription _element = "textMaxShadowRes"; }
+		{ int _x = 0; int _y = 21; ElementDescription _element = "textShadowZoom"; }
+		{ int _x = 0; int _y = 22; ElementDescription _element = "textSeamlessLoops"; }
+		{ int _x = 0; int _y = 23; ElementDescription _element = "textTextureQuality"; }
+		{ int _x = 0; int _y = 24; ElementDescription _element = "textRenderScale"; }
+		{ int _x = 0; int _y = 25; ElementDescription _element = "textFpsCap"; }
+		{ int _x = 0; int _y = 26; ElementDescription _element = "textDerivedCache"; }
 
 		{ int _x = 1; int _y = 1; ElementDescription _element = "comboTouchMode"; }
 		{ int _x = 1; int _y = 2; ElementDescription _element = "comboTouchPad"; }
@@ -405,18 +407,19 @@ TableDescription enhancedOptionsTable
 		{ int _x = 1; int _y = 12; ElementDescription _element = "comboBetterWater"; }
 		{ int _x = 1; int _y = 13; ElementDescription _element = "comboBetterIce"; }
 		{ int _x = 1; int _y = 14; ElementDescription _element = "comboBetterClouds"; }
-		{ int _x = 1; int _y = 15; ElementDescription _element = "comboSharpUi"; }
-		{ int _x = 1; int _y = 16; ElementDescription _element = "comboBetterCamera"; }
-		{ int _x = 1; int _y = 17; ElementDescription _element = "sliderCameraAngle"; }
-		{ int _x = 1; int _y = 18; ElementDescription _element = "sliderFogDistance"; }
-		{ int _x = 1; int _y = 19; ElementDescription _element = "comboMaxShadowRes"; }
-		{ int _x = 1; int _y = 20; ElementDescription _element = "comboShadowZoom"; }
-		{ int _x = 1; int _y = 21; ElementDescription _element = "comboSeamlessLoops"; }
-		{ int _x = 1; int _y = 22; ElementDescription _element = "comboTextureQuality"; }
-		{ int _x = 1; int _y = 23; ElementDescription _element = "comboRenderScale"; }
-		{ int _x = 1; int _y = 24; ElementDescription _element = "comboFpsCap"; }
-		{ int _x = 1; int _y = 25; ElementDescription _element = "textDerivedCacheSize"; }
-		{ int _x = 1; int _y = 26; ElementDescription _element = "buttonDerivedCacheClear"; }
+		{ int _x = 1; int _y = 15; ElementDescription _element = "comboFancyTerrain"; }
+		{ int _x = 1; int _y = 16; ElementDescription _element = "comboSharpUi"; }
+		{ int _x = 1; int _y = 17; ElementDescription _element = "comboBetterCamera"; }
+		{ int _x = 1; int _y = 18; ElementDescription _element = "sliderCameraAngle"; }
+		{ int _x = 1; int _y = 19; ElementDescription _element = "sliderFogDistance"; }
+		{ int _x = 1; int _y = 20; ElementDescription _element = "comboMaxShadowRes"; }
+		{ int _x = 1; int _y = 21; ElementDescription _element = "comboShadowZoom"; }
+		{ int _x = 1; int _y = 22; ElementDescription _element = "comboSeamlessLoops"; }
+		{ int _x = 1; int _y = 23; ElementDescription _element = "comboTextureQuality"; }
+		{ int _x = 1; int _y = 24; ElementDescription _element = "comboRenderScale"; }
+		{ int _x = 1; int _y = 25; ElementDescription _element = "comboFpsCap"; }
+		{ int _x = 1; int _y = 26; ElementDescription _element = "textDerivedCacheSize"; }
+		{ int _x = 1; int _y = 27; ElementDescription _element = "buttonDerivedCacheClear"; }
 	]
 }
 
@@ -435,6 +438,7 @@ TextDescription textNaturalGrowth : "textAoOption" { String _text = "NaturalGrow
 TextDescription textBetterWater : "textAoOption" { String _text = "BetterWater"; }
 TextDescription textBetterIce : "textAoOption" { String _text = "BetterIce"; }
 TextDescription textBetterClouds : "textAoOption" { String _text = "BetterClouds"; }
+TextDescription textFancyTerrain : "textAoOption" { String _text = "FancyTerrain"; }
 TextDescription textSharpUi : "textAoOption" { String _text = "SharpUi"; }
 TextDescription textBetterCamera : "textAoOption" { String _text = "BetterCamera"; }
 TextDescription textCameraAngle : "textAoOption" { String _text = "CameraAngle"; }
@@ -520,6 +524,14 @@ ComboDescription comboBetterClouds : "Options.rsc:comboAutosave"
 	int _minWidth = 180;
 	int _bottomPad = 3;
 	StringTable _initialData = "EnhancedOptions.rsc:betterCloudsItems";
+}
+
+// Fancy terrain (FANCYTERRAIN): Off / On = the bool row ext.fancy_terrain (live); the Off / On table is Better ice's.
+ComboDescription comboFancyTerrain : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 180;
+	int _bottomPad = 3;
+	StringTable _initialData = "EnhancedOptions.rsc:betterIceItems";
 }
 
 ComboDescription comboSharpUi : "Options.rsc:comboAutosave"

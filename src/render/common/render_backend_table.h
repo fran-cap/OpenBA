@@ -41,6 +41,10 @@ struct Params;
 namespace FaaBackend {
 struct TweakStats;
 }
+namespace TerrainLightBackend {
+struct Frame;
+struct Textures;
+}
 namespace CloudShadowBackend {
 struct Frame;
 }
@@ -90,6 +94,12 @@ struct BackendTable {
     void (*cloudShadowRequest)(bool on);
     void (*cloudShadowDraw)(::Video::Context& context, const ::Video::ImageBuffer* noise,
                             const ::CloudShadowBackend::Frame& frame);
+
+    // ---- fancy_terrain/terrain_light_backend.h -------------------------------------------------
+    bool (*terrainLightSupported)();
+    void (*terrainLightRequest)(bool on);
+    void (*terrainLightDraw)(::Video::Context& context, const ::TerrainLightBackend::Textures& textures,
+                             const ::TerrainLightBackend::Frame& frame);
 
     // ---- compress_ao/compress_ao_backend.h -----------------------------------------------------
     void (*compressAoRequest)(bool on, ::Ext::DerivedCache::Store* cache);
