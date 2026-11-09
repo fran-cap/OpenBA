@@ -509,6 +509,14 @@ const Entry kEntries[] = {
       "Hills and cliffs shade the land around them: the sun is hidden behind ridges, valleys and the foot "
       "of a cliff see less sky, and shaded slopes keep a warm light. Terrain edits update it.",
       0, [](State& s) -> bool& { return s.ext.fancy_terrain; } },
+    // DOF (docs/extensions/DOF.md section 3.1): a half-resolution depth of field after the main scene's lists
+    // (the scene-draw seam), focused on the camera's target. Class A: drawing only, nothing saved, live. The row
+    // ships ON; the blur itself is the valued key ext.depth_blur (the Enhanced tab's "Depth blur"), OFF by default.
+    { "depth_of_field", Tier::Extension, Class::A, true,
+      "Depth blur",
+      "What is far from the point the camera looks at is softly blurred, like a photograph with a shallow "
+      "depth of field: the far hills, the sky and anything close to the camera.",
+      0, [](State& s) -> bool& { return s.ext.depth_of_field; } },
     // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at 4096 when the retail
     // Shadow Resolution combo is at High; Medium / Low keep their retail sizes.
     { "max_shadow_res", Tier::Extension, Class::A, true,
@@ -1007,6 +1015,9 @@ const ValueKey kValueKeys[] = {
     // Fancy adds the clouds' shadows on the ground.
     { "better_clouds_mode", "better_clouds", 1, 2, 1,
       [](State& s) -> int32_t& { return s.val.better_clouds_mode; }, nullptr, 0 },
+    // DOF: the Enhanced tab's "Depth blur" while the row depth_of_field is on: 0 = Off (the default), 1 = On.
+    { "depth_blur", "depth_of_field", 0, 1, 0,
+      [](State& s) -> int32_t& { return s.val.depth_blur; }, nullptr, 0 },
     // BETTERWATER.md section 7: Better water's level, the Enhanced tab's "Better water" Plain / Fancy (Off is
     // the row). Fancy adds the shore strip on the bank side of the waterline.
     { "better_water_mode", "better_water", 1, 2, 1,

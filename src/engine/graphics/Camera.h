@@ -706,6 +706,13 @@ public:
     using ExtGroundDrawFn = void (*)(Video::Context& context, const Camera& camera);
     static ExtGroundDrawFn _extGroundDraw;
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): a draw over the whole main scene, after the last of the
+    // main scene entry's three lists (src/ext/scene_draw.h): ext.depth_of_field's depth blur. Called with the
+    // entry's camera, the main colour and depth bound. Null always, except for the span of the game's own Draw
+    // call while a scene draw is on (GameUpdateLoop::Draw step 7 arms and disarms it; the render-thread copy
+    // of the loop carries the pointer in its packet instead).
+    static ExtGroundDrawFn _extSceneDraw;
+
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/DRAWBATCH.md): ext.draw_batch's replacement of
     // DrawItemList (src/ext/draw_batch/). Null by default: DrawItemList tests it once per call (one
     // test per pass list, never per item) and otherwise runs retail's body unchanged. Set and

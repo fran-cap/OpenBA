@@ -45,6 +45,9 @@ namespace TerrainLightBackend {
 struct Frame;
 struct Textures;
 }
+namespace DofBackend {
+struct Frame;
+}
 namespace CloudShadowBackend {
 struct Frame;
 }
@@ -100,6 +103,11 @@ struct BackendTable {
     void (*terrainLightRequest)(bool on);
     void (*terrainLightDraw)(::Video::Context& context, const ::TerrainLightBackend::Textures& textures,
                              const ::TerrainLightBackend::Frame& frame);
+
+    // ---- dof/dof_backend.h ---------------------------------------------------------------------
+    bool (*dofSupported)();
+    void (*dofRequest)(bool on);
+    void (*dofDraw)(::Video::Context& context, const ::DofBackend::Frame& frame);
 
     // ---- compress_ao/compress_ao_backend.h -----------------------------------------------------
     void (*compressAoRequest)(bool on, ::Ext::DerivedCache::Store* cache);

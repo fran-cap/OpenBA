@@ -154,6 +154,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/ambient_occlusion/ambient_occlusion.h"     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, Draw step 7
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ext.touch_pointer, Draw step 11 (ToolAimHeld)
 #include "ext/ground_draw.h"   // EXT SEAM (NOT RETAIL, MAPOVERLAYS.md): the ground draw, Draw step 7
+#include "ext/scene_draw.h"    // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): the scene draw, Draw step 7
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
 #include "Component/AmbientEnvironmentComponent.h"   // AMBMEMO: ReportMemo at teardown
@@ -1626,6 +1627,10 @@ void GameUpdateLoop::Draw(float alpha) {
         // map and the tile grid lie on the ground, under the water, the particles and the status icons. Both
         // rows off: null.
         Graphics::Renderer::_extGroundDraw = Ext::GroundDraw();
+        // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): ext.depth_of_field arms the scene draw
+        // (Graphics::Renderer::_extSceneDraw) for this one Draw: the depth blur over the finished scene,
+        // before the tool and the UI draw. The row off: null.
+        Graphics::Renderer::_extSceneDraw = Ext::SceneDraw();
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): while
         // ext.eye_camera follows a citizen, the same Renderer::Draw with the
         // sun's shadow camera fitted to a view over the citizen (retail's fit
@@ -1644,6 +1649,7 @@ void GameUpdateLoop::Draw(float alpha) {
                 m_playerController->camera);
         if (aoArmed) Ext::AmbientOcclusion::Disarm();
         Graphics::Renderer::_extGroundDraw = nullptr;
+        Graphics::Renderer::_extSceneDraw = nullptr;
     }
     TRACE("[GameUpdateLoop::Draw] Renderer::Draw done\n");
 

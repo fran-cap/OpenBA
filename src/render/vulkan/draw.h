@@ -52,6 +52,7 @@
 
 namespace Video {
 class Context;
+class ImageBuffer;
 class RenderBuffer;
 }  // namespace Video
 
@@ -135,6 +136,7 @@ enum DepthReader : uint32_t {
     kDepthReaderSceneDepth = 2u,
     kDepthReaderClouds = 4u,
     kDepthReaderTerrain = 8u,   // ext.fancy_terrain's terrain light (fancy_terrain/terrain_light.cpp)
+    kDepthReaderDof = 16u,      // ext.depth_of_field's depth blur (dof/dof_pass.cpp)
 };
 bool DrawRequestReadableDepth(uint32_t reader, bool on);
 bool DrawDepthReadable();
@@ -163,6 +165,11 @@ bool DrawAoBegin(AoTargets* out);
 // and back) and does not count as read for THE DEPTH DISCARD. False, nothing done, outside a frame or
 // while the depth is not readable.
 bool DrawAoBeginKeepDepth(AoTargets* out);
+// Inside the AO bracket (after DrawAoBegin / DrawAoBeginKeepDepth): the main colour as it stands (the
+// resolved frame so far, single-sampled) copied into `to`, an engine render-buffer image of the main
+// colour's size and format (ext.depth_of_field, dof/dof_pass.cpp), left in SHADER_READ_ONLY. False, nothing
+// done, outside a frame or for an image with no colour image of its own.
+bool DrawAoCopyMainColor(Video::ImageBuffer* to);
 // The engine draws (and depth clears) that may have written the main depth so far this frame
 // (THE SHARED DEPTH COPY: a copy made at count N is still the main depth while the count is N).
 uint64_t DrawMainDepthWrites();

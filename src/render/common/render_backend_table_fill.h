@@ -21,6 +21,7 @@
 #include "async_gpu_create/async_gpu_create_backend.h"
 #include "better_clouds/cloud_shadow_backend.h"
 #include "fancy_terrain/terrain_light_backend.h"
+#include "dof/dof_backend.h"
 #include "better_trees/billboard_shadow_backend.h"
 #include "better_trees/foliage_aa_backend.h"
 #include "better_water/scene_depth_backend.h"
@@ -75,6 +76,10 @@ Render::BackendTable MakeBackendTable(const char* id, bool (*available)()) {
     t.terrainLightSupported = &TerrainLightBackend::Supported;
     t.terrainLightRequest = &TerrainLightBackend::Request;
     t.terrainLightDraw = &TerrainLightBackend::Draw;
+
+    t.dofSupported = &DofBackend::Supported;
+    t.dofRequest = &DofBackend::Request;
+    t.dofDraw = &DofBackend::Draw;
 
     t.compressAoRequest = &CompressAoBackend::Request;
     t.compressAoSupported = &CompressAoBackend::Supported;

@@ -51,12 +51,16 @@ UNIT_TEST(ext_values_table_shape) {
     // (ext_create_on_demand_test.cpp), texture_quality_drop (ext_texture_quality_test.cpp), fps_cap_rate
     // (ext_fps_cap_test.cpp), touch_mode_toolbar_scale / _zoom_min (ext_touch_mode_test.cpp),
     // touch_pointer_lift / _pick_radius / _tap_twice (ext_touch_pointer_test.cpp), fog_distance (ext_no_fog_test.cpp), camera_tilt (ext_camera_angle_test.cpp)
-    CHECK_EQ(Ext::ValueKeyCount(), 34);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
+    CHECK_EQ(Ext::ValueKeyCount(), 35);   // + sharp_ui_icons (SHARP_SPRITES: 0..1, default 0, checked below)
                                           // + max_shadow_zoom (SHADOWZOOM: 0..1, default 1, checked below)
                                           // + staggered_passes_shadow / _reflection (issue #253, checked below)
                                           // + fullscreen_borderless (ext_fullscreen_mode_test.cpp)
                                           // + render_api (src/ext/render_backend/: 0..1, default 1)
                                           // + better_clouds_mode (ext_better_clouds_test.cpp)
+                                          // + depth_blur (DOF.md: 0..1, default 0 = the blur off, checked below)
+    CHECK_EQ(K("depth_blur").minValue, 0);
+    CHECK_EQ(K("depth_blur").maxValue, 1);
+    CHECK_EQ(K("depth_blur").defaultValue, 0);
     CHECK_EQ(K("sharp_ui_icons").minValue, 0);
     CHECK_EQ(K("sharp_ui_icons").maxValue, 1);
     CHECK_EQ(K("sharp_ui_icons").defaultValue, 0);

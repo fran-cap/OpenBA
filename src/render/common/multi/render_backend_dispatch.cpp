@@ -25,6 +25,7 @@
 #include "async_gpu_create/async_gpu_create_backend.h"
 #include "better_clouds/cloud_shadow_backend.h"
 #include "fancy_terrain/terrain_light_backend.h"
+#include "dof/dof_backend.h"
 #include "better_trees/billboard_shadow_backend.h"
 #include "better_trees/foliage_aa_backend.h"
 #include "better_trees/receiver_rewrite.h"
@@ -118,6 +119,7 @@ struct Requests {
     Recorded<const std::atomic<bool>*> bootDeviceLostFlag;
     Recorded<bool> cloudShadow;
     Recorded<bool> terrainLight;
+    Recorded<bool> dof;
     Recorded<bool> compressAo;
     Ext::DerivedCache::Store* compressAoCache = nullptr;
     Recorded<bool> createOnDemand;
@@ -191,6 +193,10 @@ void Replay(const BackendTable& t) {
     }
     if (r.terrainLight.made) {
         t.terrainLightRequest(r.terrainLight.value);
+        ++made;
+    }
+    if (r.dof.made) {
+        t.dofRequest(r.dof.value);
         ++made;
     }
     std::fprintf(stderr, "[RenderBackend] %s: %d recorded request(s) made again\n", t.id, made);
@@ -406,6 +412,22 @@ void Draw(Video::Context& context, const Textures& textures, const Frame& frame)
     Render::Active().terrainLightDraw(context, textures, frame);
 }
 }  // namespace TerrainLightBackend
+
+namespace DofBackend {
+bool Supported() {
+    return Render::Active().dofSupported();
+}
+void Request(bool on) {
+    {
+        std::lock_guard<std::mutex> guard(Render::g_requestsLock);
+        Render::g_requests.dof = {true, on};
+    }
+    Render::Active().dofRequest(on);
+}
+void Draw(Video::Context& context, const Frame& frame) {
+    Render::Active().dofDraw(context, frame);
+}
+}  // namespace DofBackend
 
 namespace CompressAoBackend {
 void Request(bool on, Ext::DerivedCache::Store* cache) {

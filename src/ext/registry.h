@@ -130,6 +130,7 @@ struct Extensions {
     bool walk_on_ice = false;  // class C: src/ext/winter_ice/ (owner winter_ice), citizens cross a solid lake (WINTERICE.md section 5)
     bool better_clouds = false; // class A, live: src/ext/better_clouds/, the sky material's pass slots + the material setup seam (docs/extensions/handins/BETTERCLOUDS.md)
     bool fancy_terrain = false; // class A, live: src/ext/fancy_terrain/, a horizon map of the heightmap multiplied in at the ground-draw seam
+    bool depth_of_field = false; // class A, live: src/ext/depth_of_field/, the depth blur at the scene-draw seam (docs/extensions/DOF.md)
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten
     bool restricted_foods = false;
@@ -229,6 +230,7 @@ struct Values {
     int32_t staggered_passes_shadow = 2; // ext.staggered_passes_shadow 1 | 2 | 3 | 4 (owner staggered_passes): the sun's shadow map renders at least every N frames on a near-still view (1 = every frame, as retail); 2 is the ruled default (issue #253)
     int32_t staggered_passes_reflection = 2; // ext.staggered_passes_reflection 1 | 2 | 4 | 8 (owner staggered_passes): the water's reflection image renders at least every N frames on a near-still view (1 = every frame); 2 is the ruled default (issue #253)
     int32_t sharp_ui_icons = 0; // ext.sharp_ui_icons 0..1 (owner sharp_ui): 1 = the dialog and Extensions sheets drawn from their magnified copies with our art (SHARP_SPRITES.md); 0 = the text only (the default, the user 2026-11-04)
+    int32_t depth_blur = 0;         // ext.depth_blur 0..1 (owner depth_of_field): the Enhanced tab's "Depth blur", 0 Off (the default), 1 On (docs/extensions/DOF.md)
     int32_t better_clouds_mode = 1; // ext.better_clouds_mode 1..2 (owner better_clouds): 1 On (the drifting clouds in the sky), 2 Fancy (+ their shadows on the ground) (BETTERCLOUDS.md)
     int32_t camera_tilt = 50;   // ext.camera_tilt 0..100 (owner camera_angle): the far pitch pair, 50 = retail's, 90 = the near pair (steady), 100 = 10 % flatter (camera_angle.h)
     int32_t fog_distance = 0;   // ext.fog_distance 0..100 (owner no_fog): how far back the fog goes while the row is on: 0 = retail's fog (the default), 1..99 fog near / far x 100 / (100 - d), 100 = no fog (no_fog.h, NOFOG.md)
