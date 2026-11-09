@@ -93,12 +93,28 @@ UI::ElementDescription* Template(const char* rsc) {
     return const_cast<UI::ElementDescription*>(static_cast<const UI::ElementDescription*>(ext));
 }
 
-// Puts `row` on its own line under the category limit row: a vertical column takes the category row's slot
-// in `holder` (same alignment and stretch, so it sits where the row sat) and holds the category row, then
-// `row`. Adding `row` to `holder` itself would overlay it on the panel's controls when the holder is a group,
-// or put it after the holder's other children when it is a ribbon. The holder owns the column and the column
+// Frees an element made by CreateInstance that never joined the panel's tree (a parent would own it): its
+// destructor frees its own children.
+void Discard(Object::InternalPtr<UI::Element>& elem) {
+    delete elem.Get();
+}
+
+// Appends `row` to `holder`. A ribbon goes through AddItem, which grows its extents with its children
+// (Element::AddChild does not, and the ribbon's layout reads one extent per child).
+void Append(UI::Element* holder, Object::InternalPtr<UI::Element>* row) {
+    if (::Object::IsDerivedFromNullSafe(holder, UI::RibbonElement::TypeId())) {
+        static_cast<UI::RibbonElement*>(holder)->AddItem(row);
+    } else {
+        holder->AddChild(row);
+    }
+}
+
+// Puts `row` on its own line under `productRow` (the Product row): a vertical column takes that row's slot
+// in `holder` (same alignment and stretch, so it sits where the row sat) and holds that row, then `row`.
+// Adding `row` to `holder` itself would overlay it on the panel's controls when the holder is a group, or
+// put it after the holder's other children when it is a ribbon. The holder owns the column and the column
 // owns both rows, so the elements are freed as before. False (nothing changed) when the slot is not found.
-bool AddUnder(UI::Element* holder, UI::Element* categoryRow, const UI::Dialog* window,
+bool AddUnder(UI::Element* holder, UI::Element* productRow, const UI::Dialog* window,
               Object::InternalPtr<UI::Element>* row) {
     UI::ElementDescription* columnDesc = Template(kColumnRsc);
     if (columnDesc == nullptr) return false;
@@ -106,7 +122,7 @@ bool AddUnder(UI::Element* holder, UI::Element* categoryRow, const UI::Dialog* w
     const int32_t count = holder->_children.GetSize();
     int32_t slot = -1;
     for (int32_t i = 0; i < count; ++i) {
-        if (slots[i] == categoryRow) {
+        if (slots[i] == productRow) {
             slot = i;
             break;
         }
@@ -115,15 +131,18 @@ bool AddUnder(UI::Element* holder, UI::Element* categoryRow, const UI::Dialog* w
     Object::InternalPtr<UI::Element> columnElem;
     columnDesc->CreateInstance(&columnElem, window);
     UI::Element* column = columnElem.Get();
-    if (!::Object::IsDerivedFromNullSafe(column, UI::RibbonElement::TypeId())) return false;
+    if (!::Object::IsDerivedFromNullSafe(column, UI::RibbonElement::TypeId())) {
+        Discard(columnElem);
+        return false;
+    }
     const uint32_t stretch = UI::kElementFlagAlignArg1 | UI::kElementFlagAlignArg2;
-    column->_alignment = categoryRow->_alignment;
-    column->_flags = (column->_flags & ~stretch) | (categoryRow->_flags & stretch);
+    column->_alignment = productRow->_alignment;
+    column->_flags = (column->_flags & ~stretch) | (productRow->_flags & stretch);
     slots[slot] = column;
     column->_parent = holder;
-    Object::InternalPtr<UI::Element> categoryElem(categoryRow);
+    Object::InternalPtr<UI::Element> productElem(productRow);
     auto* ribbon = static_cast<UI::RibbonElement*>(column);
-    ribbon->AddItem(&categoryElem);
+    ribbon->AddItem(&productElem);
     ribbon->AddItem(row);
     holder->SetNeedsSizeCalc();
     return true;
@@ -228,6 +247,8 @@ void PanelOpenedSlow(ConsumeProduceUI* panel) {
     UI::Element* rowRoot = rowElem.Get();
     UI::Element* spinnerRoot = spinnerElem.Get();
     if (rowRoot == nullptr || !::Object::IsDerivedFromNullSafe(spinnerRoot, UI::SpinnerElement::TypeId())) {
+        Discard(rowElem);
+        Discard(spinnerElem);
         return;
     }
     Row row;
@@ -236,6 +257,8 @@ void PanelOpenedSlow(ConsumeProduceUI* panel) {
     row.spinner = static_cast<UI::SpinnerElement*>(spinnerRoot);
     if (row.check == nullptr || row.text == nullptr) {
         std::fprintf(stderr, "[ItemLimits] %s lacks checkItemLimitsRow / textItemLimitsRow\n", kRowRsc);
+        Discard(rowElem);
+        Discard(spinnerElem);
         return;
     }
     row.check->SetElementId(kCheckId);
@@ -257,7 +280,7 @@ void PanelOpenedSlow(ConsumeProduceUI* panel) {
     if (productHolder == nullptr || !AddUnder(productHolder, productRow, window, &rowElem)) {
         std::fprintf(stderr, "[ItemLimits] no Product row (comboProduct %p) or %s did not load: the row goes at "
                      "the category limit holder's end\n", static_cast<void*>(panel->comboProduct), kColumnRsc);
-        holder->AddChild(&rowElem);
+        Append(holder, &rowElem);
     }
     Refresh(panel, row);
     g_rows[panel] = row;

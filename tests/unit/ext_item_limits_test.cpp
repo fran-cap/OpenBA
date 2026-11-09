@@ -6,7 +6,7 @@
 // codec (round trip, empty state, every kind of damaged payload, a refused payload leaving the old list
 // alone), the resolution into the flat array the seams scan, the count and the limit test, `g_on` following
 // the row and the list, and the lock-owner rule for the reset. The seams, the factory walk and the panel row
-// are the exe's (item_limits_town.cpp, panel_row.cpp).
+// are the exe's (item_limits_town.cpp, panel_row.cpp); PanelsForget is a counting stand-in here.
 // ============================================================================
 #include "unit.h"
 #include "ext/item_limits/item_limits.h"
@@ -17,6 +17,16 @@
 #include <string>
 #include <utility>
 #include <vector>
+
+// The exe's PanelsForget is panel_row.cpp's (the UI side, not in the unit build): this one counts its calls.
+namespace Ext {
+namespace ItemLimits {
+int g_panelsForgotten = 0;
+void PanelsForget() {
+    ++g_panelsForgotten;
+}
+}  // namespace ItemLimits
+}  // namespace Ext
 
 namespace {
 
@@ -247,7 +257,8 @@ UNIT_TEST(ext_item_limits_resolves_counts_and_tests_the_limit) {
     CHECK(!AtLimit(&steel));
     Tally(&steel, 1);
     CHECK(AtLimit(&steel));                                            // retail's `limit <= stock`
-    CHECK(!AtLimit(&steel2) && !AtLimit(&iron) && !AtLimit(nullptr));
+    CHECK(AtLimit(&steel2));                                           // the same path: the same count
+    CHECK(!AtLimit(&iron) && !AtLimit(nullptr));
     // a limit edited between the count and a workshop's test keeps the count
     CHECK(SetLimit(kSteel, 4));
     CHECK(NeedsResolve(1));
@@ -270,6 +281,41 @@ UNIT_TEST(ext_item_limits_resolves_counts_and_tests_the_limit) {
     Resolve(2, game);
     CHECK(g_items.empty() && Limits().size() == 1);
     ResetState();
+}
+
+UNIT_TEST(ext_item_limits_counts_every_template_of_a_path_together) {
+    ResetState();
+    int steel = 0, steelVariant = 0, iron = 0;
+    const std::vector<Candidate> game = {
+        { &steel, kSteel },
+        { &steelVariant, "MODS\\STEEL.RSC:RAWMATERIAL" },            // a mod's variant on the same material
+        { &iron, kIron },
+    };
+    CHECK(SetLimit(kSteel, 5));
+    CHECK(SetLimit(kIron, 100));
+    Resolve(1, game);
+    CHECK(g_items.size() == 3);
+    BeginCount();
+    Tally(&steel, 3);
+    Tally(&steelVariant, 1);
+    CHECK(!AtLimit(&steel) && !AtLimit(&steelVariant));               // 4 of 5, both templates together
+    Tally(&steelVariant, 1);
+    CHECK(AtLimit(&steel) && AtLimit(&steelVariant));                 // 5: every workshop making either stops
+    CHECK(!AtLimit(&iron));
+    // a path joining the list moves the entries; the counts stay with their paths
+    CHECK(ClearLimit(kIron));
+    CHECK(SetLimit(kIron, 1));
+    Resolve(1, game);
+    CHECK(AtLimit(&steel) && AtLimit(&steelVariant) && !AtLimit(&iron));
+    Tally(&iron, 1);
+    CHECK(AtLimit(&iron) && AtLimit(&steel));
+    ResetState();
+}
+
+UNIT_TEST(ext_item_limits_a_reset_forgets_the_panel_rows) {
+    const int before = g_panelsForgotten;
+    ResetState();                                                      // the game ends or another starts
+    CHECK(g_panelsForgotten == before + 1);
 }
 
 UNIT_TEST(ext_item_limits_a_value_change_needs_no_walk) {

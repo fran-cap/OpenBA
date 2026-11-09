@@ -21,11 +21,11 @@
 //
 // COUNTING. Retail's CitizenBehavior::CountResources tallies the stock per category every tick. Right after
 // it, CountTown walks the same two storage lists and tallies only the limited items (the flat array
-// `g_items`, a short linear scan per stored row). Nothing is counted while the row is off or no limit is set.
+// `g_items`, a short linear scan per stored row, adding into the row's path in `g_counts`). Nothing is counted while the row is off or no limit is set.
 //
 // SELECTION (DESIGN.md hook rule 4). BeginFrame resolves the saved paths once, when the list or the lock
 // epoch changes, into `g_items`: per limited item the item templates (ComponentDescription) that carry its
-// RawMaterialDescription, its limit and its count. The seams test `g_on` once and never touch a string or a
+// RawMaterialDescription and its limit; `g_counts` keeps one count per path. The seams test `g_on` once and never touch a string or a
 // map.
 //
 // THE PANEL. A workshop's panel (ConsumeProduceUI) gets one more row under its Product row: a check box,
@@ -71,7 +71,7 @@ bool SetLimit(const std::string& path, int32_t limit);
 bool ClearLimit(const std::string& path);
 // Replaces the whole list (the codec's decode). Resolved again at the next frame.
 void ReplaceLimits(const std::vector<Limit>& limits);
-// A new game, or the game ends: no limits, nothing resolved, `g_on` false.
+// A new game, or the game ends: no limits, nothing resolved, `g_on` false, every panel row forgotten.
 void ResetState();
 
 // ---- resolving the list against the running game ---------------------------------------------------------
@@ -90,45 +90,49 @@ bool NeedsResolve(uint32_t epoch);
 bool NeedsWalk(uint32_t epoch);
 void RefreshLimits();
 // Rebuilds `g_items` for the lock epoch `epoch`. A path the game does not have stays in the list and limits
-// nothing. A template that stays limited keeps its last count, so a value edited mid-tick never reads 0.
+// nothing. A path that stays limited keeps its last count, so a value edited mid-tick never reads 0.
 void Resolve(uint32_t epoch, const std::vector<Candidate>& items);
 // `g_on` for this frame: the game's locked row value and something resolved.
 void SetRowActive(bool rowOn);
 
 // ---- run time (the seams) --------------------------------------------------------------------------------
 
-// One limited item template: its limit and how many the town's storages held at the last count.
+// One limited item template and the entry of Limits() it belongs to. Several templates can carry one
+// RawMaterialDescription (a mod's variant of an item): they share that path's limit AND its count.
 struct Resolved {
     const void* item = nullptr;   // the ComponentDescription a StorageComponent::Item and a recipe name
-    int32_t limit = 0;
-    int32_t count = 0;
+    int32_t limit = 0;            // Limits()[slot].limit
     int32_t slot = -1;            // its entry in Limits() (stable until a path joins or leaves the list)
 };
 
 // This frame: the row is active for the game AND at least one limit resolved.
 extern bool g_on;
 extern std::vector<Resolved> g_items;
+// Per entry of Limits() (by `slot`): how many items of that path the town's storages held at the last count,
+// every template of the path together.
+extern std::vector<int32_t> g_counts;
 
-// The count: zero every resolved item, then add each stored row of a limited item.
+// The count: zero every path, then add each stored row of a limited item to its path.
 inline void BeginCount() {
-    for (Resolved& r : g_items) {
-        r.count = 0;
+    for (int32_t& c : g_counts) {
+        c = 0;
     }
 }
 inline void Tally(const void* item, int32_t count) {
-    for (Resolved& r : g_items) {
+    for (const Resolved& r : g_items) {
         if (r.item == item) {
-            r.count += count;
+            g_counts[static_cast<size_t>(r.slot)] += count;
             return;
         }
     }
 }
-// Whether the town holds as many of `item` as its limit allows (retail's `limit <= stock`). False for an item
-// with no limit. Two templates of one material are counted apart; each meets the material's limit on its own.
+// Whether the town holds as many of `item`'s path as its limit allows (retail's `limit <= stock`), counting
+// every template of that path: the number the panel shows is the town's ceiling for the item. False for an
+// item with no limit.
 inline bool AtLimit(const void* item) {
     for (const Resolved& r : g_items) {
         if (r.item == item) {
-            return r.limit <= r.count;
+            return r.limit <= g_counts[static_cast<size_t>(r.slot)];
         }
     }
     return false;

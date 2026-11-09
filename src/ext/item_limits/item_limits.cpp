@@ -12,6 +12,7 @@ namespace ItemLimits {
 bool g_on = false;
 bool g_rowOn = false;
 std::vector<Resolved> g_items;
+std::vector<int32_t> g_counts;
 
 namespace {
 
@@ -110,6 +111,7 @@ void ReplaceLimits(const std::vector<Limit>& limits) {
 void ResetState() {
     s_limits.clear();
     g_items.clear();
+    g_counts.clear();
     g_on = false;
     g_rowOn = false;
     ++s_version;
@@ -117,6 +119,7 @@ void ResetState() {
     s_resolvedVersion = 0;
     s_resolvedPathsVersion = 0;
     s_resolvedEpoch = ~0u;
+    PanelsForget();   // the game ends (UnlockForGame) or another starts: none of its panels is left
 }
 
 bool NeedsResolve(uint32_t epoch) {
@@ -138,6 +141,7 @@ void RefreshLimits() {
 
 void Resolve(uint32_t epoch, const std::vector<Candidate>& items) {
     std::vector<Resolved> next;
+    std::vector<int32_t> counts(s_limits.size(), 0);
     for (const Candidate& c : items) {
         if (c.item == nullptr) {
             continue;
@@ -160,17 +164,19 @@ void Resolve(uint32_t epoch, const std::vector<Candidate>& items) {
         r.item = c.item;
         r.limit = s_limits[static_cast<size_t>(slot)].limit;
         r.slot = slot;
-        // Keep the last count of a template that stays limited: the count is refreshed every tick, and a
-        // limit edited between the count and a workshop's test must not read an empty town.
+        // Keep the last count of a path that stays limited: the count is refreshed every tick, and a limit
+        // edited between the count and a workshop's test must not read an empty town. Every template of a
+        // path carried its path's count, so any one of them gives it.
         for (const Resolved& old : g_items) {
-            if (old.item == c.item) {
-                r.count = old.count;
+            if (old.item == c.item && old.slot >= 0 && static_cast<size_t>(old.slot) < g_counts.size()) {
+                counts[static_cast<size_t>(slot)] = g_counts[static_cast<size_t>(old.slot)];
                 break;
             }
         }
         next.push_back(r);
     }
     g_items.swap(next);
+    g_counts.swap(counts);
     s_resolvedVersion = s_version;
     s_resolvedPathsVersion = s_pathsVersion;
     s_resolvedEpoch = epoch;
