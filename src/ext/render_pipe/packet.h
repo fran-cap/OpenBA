@@ -71,6 +71,8 @@ struct Packet {
     // ---- the ground draw (MAPOVERLAYS): what GameUpdateLoop::Draw step 7 would arm the static -------------
     // Renderer::_extGroundDraw with, carried by value; pass 2 (passes.cpp) calls it. Null = none.
     void (*groundDraw)(Video::Context&, const Graphics::Camera&) = nullptr;
+    // The scene draw (DOF.md): what step 7 would arm Renderer::_extSceneDraw with. Null = none.
+    void (*sceneDraw)(Video::Context&, const Graphics::Camera&) = nullptr;
 
     // ---- ext.staggered_passes (issue #253): pass 1 held the sun's shadow map -------
     // MainHalf records SunLight::ExtTakeShadowHeld after pass 1; pass 2 hands it to

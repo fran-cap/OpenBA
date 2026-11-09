@@ -7,13 +7,14 @@
 //
 // THE FRAME (the ground-draw seam, the recording thread, between the Opaque and Blended lists), in
 // draw.cpp's AO bracket as ext.better_water's scene depth copy runs:
-//   DrawAoBegin      the main pass ends, the main depth (made readable: draw.h THE READABLE DEPTH, this
-//                    pass's own reader bit) -> SHADER_READ_ONLY
-//   the copy         one fullscreen draw into a 1x R32F image of ours: sample 0 of a multisampled depth,
-//                    a plain copy of a single-sampled one (the tiler's MSAA: the main passes resolved
-//                    sample 0 already). AO's depth resolve programs (ao_depth_resolve.hlsl), as the AO
-//                    pass and the scene depth copy run them. The apply below cannot read the main depth
-//                    itself: on the main target its pass has that depth attached.
+//   the copy         THE SHARED DEPTH COPY (depth_copy/depth_copy.h): a 1x R32F copy of the main depth
+//                    (sample 0 of a multisampled one). When the AO pass made it at the same seam a moment
+//                    ago and nothing has written the depth since, it is taken as it is and the bracket
+//                    is DrawAoBeginKeepDepth (the pass in progress ends, the main depth stays in its
+//                    attachment layout). Otherwise DrawAoBegin (the main depth, made readable: draw.h THE
+//                    READABLE DEPTH, this pass's own reader bit -> SHADER_READ_ONLY) and the copy is made
+//                    here. The apply below cannot read the main depth itself: on the main target its pass
+//                    has that depth attached.
 //   the apply        DrawAoBeginApply's pass on the main colour (on the main target: the Blended list's
 //                    pass, the depth attached and never tested): AO's fullscreen triangle with our
 //                    program (cloud_shadow.hlsl), blend colour ZERO / SRC_COLOR, RGB only (the alpha
@@ -23,13 +24,13 @@
 //
 // LIFETIME. The modules, layouts, pools, pipelines and the constants ring per device (Shutdown, from
 // DeviceData::Shutdown, destroys them; the next device makes them again on its first Supported()). The
-// copy is an engine Video::ImageBuffer (a colour render buffer, R32F), remade when the frame's size
-// changes and released with the device or when the request goes off.
+// copy belongs to depth_copy.cpp.
 // ============================================================================
 #include "better_clouds/cloud_shadow_backend.h"
 #include "better_clouds/cloud_shadow_pass.h"
 
 #include "VideoVulkanData.h"
+#include "depth_copy/depth_copy.h"
 #include "device_objects.h"
 #include "draw.h"
 #include "pipelines.h"
@@ -41,8 +42,6 @@
 #include "video/ImageBuffer.h"
 
 #include "ao/shaders/VSFullscreen.h"
-#include "ao/shaders/PSResolveDepthMS.h"
-#include "ao/shaders/PSResolveDepth1x.h"
 #include "better_clouds/cloud_shadow_ps.h"
 
 #include <algorithm>
@@ -59,15 +58,13 @@ namespace CloudShadow {
 
 namespace {
 
-constexpr uint32_t kSetsPerSlot = 8;          // a frame draws the pass once: a copy set and an apply set
+constexpr uint32_t kSetsPerSlot = 8;          // a frame draws the pass once: an apply set
 constexpr VkDeviceSize kRingSlots = 8;        // a frame writes one constants block
 constexpr VkDeviceSize kSlotBytes = 256;      // one block, at the strictest uniform offset alignment
 static_assert(sizeof(CloudShadowBackend::Frame) <= kSlotBytes, "one constants block per ring slot");
 
 enum Program : int {
     kVsFullscreen,
-    kResolveMs,
-    kResolve1x,
     kShadow,
     kProgramCount
 };
@@ -84,8 +81,6 @@ struct ProgramBlob {
 
 const ProgramBlob kBlobs[kProgramCount] = {
     { g_ao_VSFullscreen, sizeof(g_ao_VSFullscreen), Shaders::Stage::Vertex, "VSFullscreen", 0, 0, 0 },
-    { g_ao_PSResolveDepthMS, sizeof(g_ao_PSResolveDepthMS), Shaders::Stage::Pixel, "PSResolveDepthMS", 0, 1, 0 },
-    { g_ao_PSResolveDepth1x, sizeof(g_ao_PSResolveDepth1x), Shaders::Stage::Pixel, "PSResolveDepth1x", 0, 1, 0 },
     { g_bc_PSCloudShadow, sizeof(g_bc_PSCloudShadow), Shaders::Stage::Pixel, "PSCloudShadow", 1, 3, 2 },
 };
 
@@ -98,7 +93,6 @@ struct State {
     VkDescriptorSetLayout vertexLayout = VK_NULL_HANDLE;     // empty: VSFullscreen reads nothing
     VkDescriptorSetLayout pixelLayout = VK_NULL_HANDLE;      // b0, t0, t1, s1
     VkPipelineLayout layout = VK_NULL_HANDLE;
-    VkPipeline resolve[2] = {};                              // by kResolveMs / kResolve1x - kResolveMs
     std::unordered_map<uint64_t, VkPipeline> apply;          // by the main pass's shape
     VkDescriptorPool pools[kFramesInFlight] = {};
     uint64_t poolFrame[kFramesInFlight] = {};
@@ -112,11 +106,6 @@ State g;
 std::mutex g_mutex;
 
 std::atomic<bool> g_requested{false};
-Video::ImageBuffer* g_image = nullptr;   // the depth copy (an engine object; it outlives a device)
-const void* g_companion = nullptr;
-uint32_t g_width = 0;
-uint32_t g_height = 0;
-uint32_t g_samples = 0;
 
 void LogOnce(uint32_t bit, const char* message) {
     if (g.logged & bit) return;
@@ -127,9 +116,6 @@ void LogOnce(uint32_t bit, const char* message) {
 void DestroyLocked() {
     VkDevice dev = LiveDevice();
     if (dev) {
-        for (VkPipeline p : g.resolve) {
-            if (p) vkDestroyPipeline(dev, p, nullptr);
-        }
         for (auto& kv : g.apply) {
             if (kv.second) vkDestroyPipeline(dev, kv.second, nullptr);
         }
@@ -147,10 +133,9 @@ void DestroyLocked() {
     g = State{};
 }
 
-// The fullscreen triangle. The resolve: into one R32F target, opaque, single-sampled. The apply: into the
-// main pass (its colour format, depth / stencil formats and sample count), multiply, RGB only.
+// The fullscreen triangle into the main pass (its colour format, depth / stencil formats and sample
+// count), multiply, RGB only.
 VkPipeline MakePipeline(Program ps, VkFormat color, VkFormat depth, VkFormat stencil, uint32_t samples) {
-    const bool apply = ps == kShadow;
     VkPipelineShaderStageCreateInfo stages[2];
     stages[0] = Make<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
     stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -176,18 +161,14 @@ VkPipeline MakePipeline(Program ps, VkFormat color, VkFormat depth, VkFormat ste
     auto ds = Make<VkPipelineDepthStencilStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO);
     ds.depthCompareOp = VK_COMPARE_OP_ALWAYS;
     VkPipelineColorBlendAttachmentState blend{};
-    if (apply) {
-        blend.blendEnable = VK_TRUE;
-        blend.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-        blend.dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-        blend.colorBlendOp = VK_BLEND_OP_ADD;
-        blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        blend.alphaBlendOp = VK_BLEND_OP_ADD;
-        blend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT;
-    } else {
-        blend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT;
-    }
+    blend.blendEnable = VK_TRUE;
+    blend.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blend.dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+    blend.colorBlendOp = VK_BLEND_OP_ADD;
+    blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    blend.alphaBlendOp = VK_BLEND_OP_ADD;
+    blend.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT;
     auto cbs = Make<VkPipelineColorBlendStateCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO);
     cbs.attachmentCount = 1;
     cbs.pAttachments = &blend;
@@ -328,46 +309,8 @@ bool InitLocked() {
             return false;
         }
     }
-    g.resolve[0] = MakePipeline(kResolveMs, VK_FORMAT_R32_SFLOAT, VK_FORMAT_UNDEFINED, VK_FORMAT_UNDEFINED, 1);
-    g.resolve[1] = MakePipeline(kResolve1x, VK_FORMAT_R32_SFLOAT, VK_FORMAT_UNDEFINED, VK_FORMAT_UNDEFINED, 1);
-    if (!g.resolve[0] || !g.resolve[1]) return false;
     g.ready = true;
     std::fprintf(stderr, "[BetterClouds] Vulkan: shadow pass ready\n");
-    return true;
-}
-
-// The depth copy at the frame's size, (re)made when the size changed (scene_depth.cpp EnsureImageLocked).
-bool EnsureImageLocked(const AoTargets& t) {
-    const uint32_t w = t.extent.width;
-    const uint32_t h = t.extent.height;
-    if (w == 0 || h == 0) return false;
-    bool make = false;
-    if (g_image == nullptr) {
-        g_image = static_cast<Video::ImageBuffer*>(Video::ImageBuffer::CreateNewObject());
-        if (g_image == nullptr) return false;
-        make = true;
-    }
-    // Between the engine's ReleaseDynamic and RecreateDynamic (a device restart) the image has no
-    // companion; no frame is recorded then.
-    if (g_image->_data == nullptr) return false;
-    if (make || w != g_width || h != g_height) {
-        // A colour render buffer (kind 0), R32F (format 6), point filter, clamp.
-        if (!g_image->Create(0, 0, 6, 0u, static_cast<int32_t>(w), static_cast<int32_t>(h), 0, 1, 1, 1, nullptr)) {
-            LogOnce(1, "the depth copy's image could not be made: no shadows");
-            return false;
-        }
-        g_width = w;
-        g_height = h;
-        g_companion = nullptr;
-    }
-    const auto* c = static_cast<const ImageBufferData*>(g_image->_data);
-    if (!c->attachmentView || !c->image.view || !c->state.image) return false;
-    if (c != g_companion || t.samples != g_samples) {
-        g_companion = c;
-        g_samples = t.samples;
-        std::fprintf(stderr, "[BetterClouds] Vulkan: shadow depth copy %ux%u R32F made, from the main depth x%u%s\n",
-                     w, h, t.samples, t.msrtss ? " (the tiler's resolve)" : "");
-    }
     return true;
 }
 
@@ -442,67 +385,24 @@ void Fullscreen(VkCommandBuffer cb, VkPipeline pipeline, VkDescriptorSet set, ui
     vkCmdDraw(cb, 3, 1, 0, 0);
 }
 
-// The main depth (SHADER_READ_ONLY, DrawAoBegin) -> the copy, left SHADER_READ_ONLY.
-bool CopyDepthLocked(const AoTargets& t, VkDeviceSize constants, VkImageView noise, VkSampler noiseSampler) {
-    const VkDescriptorSet set = SetLocked(t.slot, constants, t.depthView, noise, noiseSampler);
+// The multiply into the main colour, in DrawAoBeginApply's pass; `depth` is the shared copy's view.
+bool ApplyLocked(const AoTargets& t, VkDeviceSize constants, VkImageView depth, VkImageView noise,
+                 VkSampler noiseSampler) {
+    const VkDescriptorSet set = SetLocked(t.slot, constants, depth, noise, noiseSampler);
     if (!set) return false;
-    auto* c = static_cast<ImageBufferData*>(g_image->_data);
-    VkCommandBuffer cb = t.cb;
-    std::vector<VkImageMemoryBarrier2> barriers;
-    TransitionImage(c->state, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, &barriers);
-    FlushBarriers(cb, &barriers);
-    auto color = Make<VkRenderingAttachmentInfo>(VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO);
-    color.imageView = c->attachmentView;
-    color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;   // the draw covers the whole target
-    color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    auto ri = Make<VkRenderingInfo>(VK_STRUCTURE_TYPE_RENDERING_INFO);
-    ri.renderArea = { { 0, 0 }, { g_width, g_height } };
-    ri.layerCount = 1;
-    ri.colorAttachmentCount = 1;
-    ri.pColorAttachments = &color;
-    vkCmdBeginRendering(cb, &ri);
-    DrawNoteAoPass();
-    // The tiler's MSAA: the depth image is single-sampled (sample 0, resolved by the main passes).
-    const bool ms = t.samples > 1 && !t.msrtss;
-    Fullscreen(cb, g.resolve[ms ? 0 : 1], set, g_width, g_height);
-    vkCmdEndRendering(cb);
-    TransitionImage(c->state, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &barriers);
-    FlushBarriers(cb, &barriers);
-    return true;
-}
-
-// The multiply into the main colour, in DrawAoBeginApply's pass.
-bool ApplyLocked(const AoTargets& t, VkDeviceSize constants, VkImageView noise, VkSampler noiseSampler) {
-    const auto* c = static_cast<const ImageBufferData*>(g_image->_data);
-    const VkDescriptorSet set = SetLocked(t.slot, constants, c->image.view, noise, noiseSampler);
-    if (!set) return false;
-    VkFormat depth = VK_FORMAT_UNDEFINED;
-    VkFormat stencil = VK_FORMAT_UNDEFINED;
-    if (!DrawAoBeginApply(&depth, &stencil)) return false;
-    const VkPipeline pipeline = ApplyPipeline(t.colorFormat, depth, stencil, t.samples);
+    VkFormat depthFormat = VK_FORMAT_UNDEFINED;
+    VkFormat stencilFormat = VK_FORMAT_UNDEFINED;
+    if (!DrawAoBeginApply(&depthFormat, &stencilFormat)) return false;
+    const VkPipeline pipeline = ApplyPipeline(t.colorFormat, depthFormat, stencilFormat, t.samples);
     if (!pipeline) return false;
     Fullscreen(t.cb, pipeline, set, t.extent.width, t.extent.height);
     return true;
-}
-
-void ReleaseImageLocked() {
-    if (g_image == nullptr) return;
-    // The companion's destructor retires the image (the frame being recorded may still read it).
-    delete g_image;
-    g_image = nullptr;
-    g_companion = nullptr;
-    g_width = 0;
-    g_height = 0;
-    g_samples = 0;
-    std::fprintf(stderr, "[BetterClouds] Vulkan: shadow depth copy released\n");
 }
 
 }  // namespace
 
 void Shutdown() {
     std::lock_guard<std::mutex> guard(g_mutex);
-    ReleaseImageLocked();
     DestroyLocked();
 }
 
@@ -510,21 +410,23 @@ void Shutdown() {
 }  // namespace VideoVulkan
 
 namespace CloudShadowBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 using namespace VideoVulkan::CloudShadow;
 
 bool Supported() {
     if (!VideoVulkan::DeviceLive()) return false;
-    std::lock_guard<std::mutex> guard(g_mutex);
-    return InitLocked();
+    {
+        std::lock_guard<std::mutex> guard(g_mutex);
+        if (!InitLocked()) return false;
+    }
+    return VideoVulkan::DepthCopy::Supported();
 }
 
 void Request(bool on) {
     if (g_requested.exchange(on) == on) return;
     VideoVulkan::DrawRequestReadableDepth(VideoVulkan::kDepthReaderClouds, on);
-    if (on) return;
-    std::lock_guard<std::mutex> guard(g_mutex);
-    ReleaseImageLocked();
+    VideoVulkan::DepthCopy::Request(VideoVulkan::kDepthReaderClouds, on);
 }
 
 void Draw(Video::Context& /*context*/, const Video::ImageBuffer* noise, const Frame& frame) {
@@ -534,9 +436,16 @@ void Draw(Video::Context& /*context*/, const Video::ImageBuffer* noise, const Fr
     std::lock_guard<std::mutex> guard(g_mutex);
     if (!InitLocked()) return;
     // Outside a frame, or the frames before the main depth is remade readable: no shadows this frame.
+    // The shared copy when it is still fresh (the AO pass made it at this seam), else made here.
+    const Video::ImageBuffer* copy = VideoVulkan::DepthCopy::Fresh();
     VideoVulkan::AoTargets t;
-    if (!VideoVulkan::DrawAoBegin(&t)) return;
-    bool ok = t.slot < VideoVulkan::kFramesInFlight && EnsureImageLocked(t);
+    if (copy != nullptr) {
+        if (!VideoVulkan::DrawAoBeginKeepDepth(&t)) return;
+    } else {
+        if (!VideoVulkan::DrawAoBegin(&t)) return;
+        copy = VideoVulkan::DepthCopy::InBracket(t);
+    }
+    bool ok = t.slot < VideoVulkan::kFramesInFlight && copy != nullptr;
     VkDeviceSize constants = ~0ull;
     if (ok) {
         BeginSlotLocked(t);
@@ -547,10 +456,10 @@ void Draw(Video::Context& /*context*/, const Video::ImageBuffer* noise, const Fr
         ok = constants != ~0ull;
     }
     const VkSampler sampler = n->sampler ? n->sampler : VideoVulkan::DefaultSampler();
-    ok = ok && CopyDepthLocked(t, constants, n->image.view, sampler);
-    ok = ok && ApplyLocked(t, constants, n->image.view, sampler);
+    ok = ok && ApplyLocked(t, constants, VideoVulkan::DepthCopy::ViewOf(copy), n->image.view, sampler);
     if (!ok) LogOnce(4, "a step of the shadow pass failed (logged above): those frames have no cloud shadows");
     VideoVulkan::DrawAoEnd();
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CloudShadowBackend

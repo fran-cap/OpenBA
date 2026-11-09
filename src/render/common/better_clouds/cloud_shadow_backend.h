@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/better_clouds/cloud_shadow_backend.h -- ext.better_clouds Fancy: the clouds' shadows
 // on the ground (docs/extensions/handins/BETTERCLOUDS.md section 2.6)
@@ -33,6 +35,7 @@ struct Frame {
     float camera[4];         // xyz: the camera's world position
 };
 static_assert(sizeof(Frame) == 40 * sizeof(float), "the program's constant buffer");
+BANISHED_RENDER_IMPL_BEGIN
 
 // The backend can draw the pass on the live device. Any thread; false before the device exists.
 bool Supported();
@@ -46,4 +49,5 @@ void Request(bool on);
 // the backend reads through its own companion). A no-op when unsupported or when no depth is bound.
 void Draw(Video::Context& context, const Video::ImageBuffer* noise, const Frame& frame);
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CloudShadowBackend

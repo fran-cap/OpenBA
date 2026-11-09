@@ -5,8 +5,8 @@
 // NOT RETAIL. Block TWEAKUI; docs/reference/tweak_overlay.md (the panels, how to add a
 // tweakable). Log lines: `[TweakOverlay] ...` on stderr (standalone_error.log).
 //
-// Dear ImGui (third_party/imgui, v1.92.9b, unmodified) with its SDL3 and DX11 backends,
-// used through their public API with four integration choices made here:
+// Dear ImGui (third_party/imgui, v1.92.9b, unmodified) with its SDL3 platform backend; the
+// renderer is the graphics backend's (tweak_overlay.h RENDERERS). Four integration choices:
 //   * ImGui_ImplSDL3_NewFrame is NOT called: it calls SDL video / mouse functions
 //     (SDL_CaptureMouse, SDL_WarpMouseInWindow, SDL_SetCursor, the IME) that belong on the
 //     main thread, and the frame is built on the presenting thread (the render thread
@@ -33,7 +33,6 @@
 #include "graphics/SunLight.h"               // ExtTweakSunMapSize
 
 #include "imgui.h"
-#include "backends/imgui_impl_dx11.h"
 #include "backends/imgui_impl_sdl3.h"
 
 #include <SDL3/SDL_events.h>
@@ -44,10 +43,6 @@
 #include <cmath>
 #include <SDL3/SDL_timer.h>
 #include <SDL3/SDL_video.h>
-
-#include <windows.h>
-#include <d3d11.h>
-#include <dxgi.h>
 
 #include <cstdio>
 #include <cstring>
@@ -70,7 +65,7 @@ using detail::g_open;
 // The rows and keys the overlay touches (registry ids, registry.cpp's tables).
 // ---------------------------------------------------------------------------
 constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
-                                 "eye_camera", "winter_ice", "better_clouds"};
+                                 "eye_camera", "winter_ice", "better_clouds", "fancy_terrain", "depth_of_field"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
 constexpr int kKeyCount = static_cast<int>(sizeof(kKeys) / sizeof(kKeys[0]));
@@ -109,8 +104,8 @@ std::atomic<bool>   g_mainWork{false};   // open, or actions still queued: MainT
 bool          g_contextReady = false;     // ImGui context + SDL3 backend (main thread, first open)
 SDL_ThreadID  g_mainThread   = 0;
 
-std::mutex     g_drawMu;                   // BeforePresent vs OnDeviceShutdown
-ID3D11Device*  g_dx11Device  = nullptr;    // the device the DX11 backend was initialised on
+std::mutex     g_drawMu;                   // BeforePresent vs OnRendererShutdown
+Renderer*      g_renderer    = nullptr;    // the renderer registered with ImGui (Init done)
 uint64_t       g_lastTicks   = 0;
 SDL_ThreadID   g_loggedDrawThread = 0;
 
@@ -121,6 +116,8 @@ Ext::Tweak::Bbs g_uiBbs;
 Ext::Tweak::Water g_uiWater;
 Ext::Tweak::Ice g_uiIce;
 Ext::BetterClouds::Look g_uiClouds;
+Ext::FancyTerrain::Look g_uiTerrain;
+Ext::DepthOfField::Look g_uiDof;
 bool            g_uiLoaded = false;
 
 void Queue(Act kind, const char* id, int value) {
@@ -178,7 +175,7 @@ void InitContext(SDL_Window* window) {
         had[i] = v != nullptr;
         if (v) saved[i] = v;
     }
-    ImGui_ImplSDL3_InitForD3D(window);
+    ImGui_ImplSDL3_InitForOther(window);   // the renderer is the graphics backend's
     for (int i = 0; i < 2; ++i) {
         if (had[i]) SDL_SetHint(kHints[i], saved[i].c_str());
         else        SDL_ResetHint(kHints[i]);
@@ -440,6 +437,66 @@ void DrawPanels(const Snapshot& s) {
                     g_uiIce.edge.wobble, g_uiIce.edge.wobbleSize, g_uiIce.edge.grain);
     }
 
+    // ext.fancy_terrain: the terrain light's look, live (Ext::FancyTerrain::Look, read every frame; a new
+    // radius rebuilds the horizon map).
+    if (ImGui::CollapsingHeader("Fancy terrain", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::FancyTerrain::Look& t = g_uiTerrain;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("fancy_terrain")] ? "on" : "off (tick fancy_terrain under Rows)");
+        changed |= ImGui::SliderFloat("ambient share of the light", &t.ambientShare, 0.05f, 0.95f, "%.2f");
+        changed |= ImGui::SliderFloat("sky visibility strength", &t.skyStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("sun shadow strength (far)", &t.sunStrength, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("sun shadow share near the camera", &t.sunNear, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("full sun shadow from (distance)", &t.nearDistance, 0.0f, 400.0f, "%.0f");
+        changed |= ImGui::SliderFloat("sun edge softness (rad)", &t.softness, 0.005f, 0.3f, "%.3f");
+        changed |= ImGui::SliderFloat("fade above the ground (units)", &t.heightFade, 0.5f, 40.0f, "%.1f");
+        changed |= ImGui::SliderFloat("bounce", &t.bounce, 0.0f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("fog fade range (x the fog's)", &t.fogScale, 0.5f, 6.0f, "%.2f");
+        changed |= ImGui::ColorEdit3("bounce colour", t.tint);
+        changed |= ImGui::SliderInt("horizon radius (rebuilds)", &t.radius, 8, 192);
+        if (changed) Ext::Tweak::SetTerrain(t);
+        if (ImGui::Button("terrain defaults")) {
+            t = Ext::FancyTerrain::Look{};
+            Ext::Tweak::SetTerrain(t);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/fancy_terrain/terrain_params.h (Look):");
+        ImGui::Text("sky %.2f sun %.2f near %.2f nearDist %.0f soft %.3f fade %.1f bounce %.2f tint %.2f %.2f %.2f",
+                    t.skyStrength, t.sunStrength, t.sunNear, t.nearDistance, t.softness, t.heightFade, t.bounce,
+                    t.tint[0], t.tint[1], t.tint[2]);
+        ImGui::Text("ambientShare %.2f fogScale %.2f radius %d", t.ambientShare, t.fogScale, t.radius);
+    }
+
+    // ext.depth_of_field (DOF.md): the depth blur's look and focus, live (Ext::DepthOfField::Look, read every
+    // frame).
+    if (ImGui::CollapsingHeader("Depth blur", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::DepthOfField::Look& d = g_uiDof;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("depth_of_field")] ? "on" : "off (tick depth_of_field under Rows)");
+        static const char* const kFocusModes[] = { "camera target", "screen centre", "manual distance" };
+        changed |= ImGui::Combo("focus", &d.focusMode, kFocusModes, 3);
+        if (d.focusMode == static_cast<int>(Ext::DepthOfField::FocusMode::CameraTarget))
+            changed |= ImGui::SliderFloat("focus x target distance", &d.focusScale, 0.5f, 1.5f, "%.2f");
+        if (d.focusMode == static_cast<int>(Ext::DepthOfField::FocusMode::Manual))
+            changed |= ImGui::SliderFloat("focus distance (units)", &d.focusDistance, 5.0f, 400.0f, "%.0f");
+        changed |= ImGui::SliderFloat("strength (gain)", &d.gain, 0.0f, 10.0f, "%.2f");
+        changed |= ImGui::SliderFloat("max blur (half px @1080)", &d.maxCoc, 1.0f, 24.0f, "%.1f");
+        changed |= ImGui::SliderFloat("in-focus band", &d.band, 0.0f, 0.5f, "%.3f");
+        changed |= ImGui::SliderFloat("highlight boost", &d.boost, 0.0f, 10.0f, "%.2f");
+        changed |= ImGui::SliderFloat("highlight threshold (luma)", &d.threshold, 0.0f, 0.99f, "%.2f");
+        changed |= ImGui::Checkbox("show blur map (red far, blue near)", &d.showCoc);
+        if (changed) Ext::Tweak::SetDof(d);
+        if (ImGui::Button("depth blur defaults")) {
+            d = Ext::DepthOfField::Look{};
+            Ext::Tweak::SetDof(d);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/depth_of_field/dof_params.h (Look):");
+        ImGui::Text("gain %.2f maxCoc %.1f band %.3f boost %.2f threshold %.2f focusMode %d focusScale %.2f "
+                    "focusDistance %.0f", d.gain, d.maxCoc, d.band, d.boost, d.threshold, d.focusMode, d.focusScale,
+                    d.focusDistance);
+    }
+
     // ext.better_clouds (BETTERCLOUDS): the sky program's look, live (Ext::BetterClouds::Look, published
     // by BeginFrame every frame); the reflection in the water uses the same values.
     if (ImGui::CollapsingHeader("Better clouds", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -649,17 +706,21 @@ void MainThreadTick() {
 // ---------------------------------------------------------------------------
 // The presenting thread
 // ---------------------------------------------------------------------------
-void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* swapChain) {
+void BeforePresent(Renderer& renderer, unsigned width, unsigned height) {
     if (!g_open.load(std::memory_order_acquire)) return;
     std::lock_guard<std::mutex> draw(g_drawMu);
-    // A frame presented while the device is being rebuilt has none: nothing to draw into.
-    if (!g_contextReady || device == nullptr || context == nullptr || swapChain == nullptr) return;
+    // A frame presented while the device is being rebuilt has no size: nothing to draw into.
+    if (!g_contextReady || width == 0 || height == 0) return;
 
-    if (g_dx11Device != device) {
-        if (g_dx11Device != nullptr) ImGui_ImplDX11_Shutdown();
-        ImGui_ImplDX11_Init(device, context);
-        g_dx11Device = device;
-        std::fprintf(stderr, "[TweakOverlay] DX11 backend on device %p (thread %llu)\n", static_cast<void*>(device),
+    if (g_renderer != &renderer) {
+        if (g_renderer != nullptr) {
+            std::fprintf(stderr, "[TweakOverlay] %s renderer released (now %s)\n", g_renderer->Name(), renderer.Name());
+            g_renderer->Shutdown();
+            g_renderer = nullptr;
+        }
+        if (!renderer.Init()) return;
+        g_renderer = &renderer;
+        std::fprintf(stderr, "[TweakOverlay] %s renderer ready (thread %llu)\n", renderer.Name(),
                      static_cast<unsigned long long>(SDL_GetCurrentThreadID()));
     }
     if (!g_uiLoaded) {
@@ -669,19 +730,10 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
         g_uiWater = Ext::Tweak::WaterValues();
         g_uiIce = Ext::Tweak::IceValues();
         g_uiClouds = Ext::Tweak::CloudsValues();
+        g_uiTerrain = Ext::Tweak::TerrainValues();
+        g_uiDof = Ext::Tweak::DofValues();
         g_uiLoaded = true;
     }
-
-    ID3D11Texture2D* back = nullptr;
-    if (FAILED(swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&back))) ||  // CAST-OK: com_iid
-        back == nullptr)
-        return;
-    D3D11_TEXTURE2D_DESC td;
-    back->GetDesc(&td);
-    ID3D11RenderTargetView* rtv = nullptr;
-    const HRESULT hr = device->CreateRenderTargetView(back, nullptr, &rtv);
-    back->Release();
-    if (FAILED(hr) || rtv == nullptr) return;
 
     // Input and the registry snapshot, taken from the pump thread's queue.
     std::vector<SDL_Event> events;
@@ -703,7 +755,7 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
     }
     for (const SDL_Event& e : events) ImGui_ImplSDL3_ProcessEvent(&e);
 
-    io.DisplaySize = ImVec2(static_cast<float>(td.Width), static_cast<float>(td.Height));
+    io.DisplaySize = ImVec2(static_cast<float>(width), static_cast<float>(height));
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
     const uint64_t now = SDL_GetTicksNS();
     float dt = g_lastTicks != 0 && now > g_lastTicks ? static_cast<float>(static_cast<double>(now - g_lastTicks) * 1e-9)
@@ -712,37 +764,28 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
     io.DeltaTime = dt;
     g_lastTicks = now;
 
-    ImGui_ImplDX11_NewFrame();
+    renderer.NewFrame();
     ImGui::NewFrame();
     DrawPanels(snap);
     ImGui::Render();
-
-    ID3D11RenderTargetView* oldRtv[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
-    ID3D11DepthStencilView* oldDsv = nullptr;
-    context->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, oldRtv, &oldDsv);
-    context->OMSetRenderTargets(1, &rtv, nullptr);
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());   // backs up and restores the rest of the state
-    context->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, oldRtv, oldDsv);
-    for (ID3D11RenderTargetView*& v : oldRtv)
-        if (v) v->Release();
-    if (oldDsv) oldDsv->Release();
-    rtv->Release();
+    renderer.Render(ImGui::GetDrawData());
 
     const SDL_ThreadID self = SDL_GetCurrentThreadID();
     if (self != g_loggedDrawThread) {
         g_loggedDrawThread = self;
-        std::fprintf(stderr, "[TweakOverlay] drawing on thread %llu (%s; ext.render_pipe=%d) at %ux%u\n",
-                     static_cast<unsigned long long>(self), self == g_mainThread ? "the main thread" : "NOT the main thread",
-                     Ext::Ext().render_pipe ? 1 : 0, td.Width, td.Height);
+        std::fprintf(stderr, "[TweakOverlay] %s drawing on thread %llu (%s; ext.render_pipe=%d) at %ux%u\n",
+                     renderer.Name(), static_cast<unsigned long long>(self),
+                     self == g_mainThread ? "the main thread" : "NOT the main thread", Ext::Ext().render_pipe ? 1 : 0,
+                     width, height);
     }
 }
 
-void OnDeviceShutdown() {
+void OnRendererShutdown(Renderer& renderer) {
     std::lock_guard<std::mutex> draw(g_drawMu);
-    if (g_dx11Device == nullptr) return;
-    ImGui_ImplDX11_Shutdown();
-    g_dx11Device = nullptr;
-    std::fprintf(stderr, "[TweakOverlay] DX11 backend released (device shutdown)\n");
+    if (g_renderer != &renderer) return;
+    renderer.Shutdown();
+    g_renderer = nullptr;
+    std::fprintf(stderr, "[TweakOverlay] %s renderer released (device shutdown)\n", renderer.Name());
 }
 
 }  // namespace TweakOverlay

@@ -34,6 +34,7 @@ static_assert(offsetof(DXGI_SWAP_CHAIN_DESC, Windowed) == 56,
               "Windowed offset mismatch");
 
 namespace Render {
+BANISHED_RENDER_IMPL_BEGIN
 
 void DumpSwapChainState(const char* tag) {
     if (!::Video::Device::_singleton) {
@@ -106,4 +107,5 @@ bool BootedExclusiveFullscreen() {
     return desc.Windowed == 0;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace Render

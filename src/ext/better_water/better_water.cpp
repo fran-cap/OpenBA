@@ -30,6 +30,8 @@
 #include "better_water/shore_contact_river_ps.h"   // src/render/common: g_bw_PSContactRiver
 #include "better_water/scene_depth_backend.h"      // src/render/common: the backend's depth copy
 #include "ext/better_water/shore_strip.h"
+#include "ext/better_water/river_mouth.h"
+#include "ext/better_water/river_rows.h"
 
 #include "Game/WorldGeometry.h"
 #include "video/Buffers.h"
@@ -43,6 +45,7 @@
 #include <atomic>
 #include <mutex>
 #include <new>
+#include <vector>
 
 namespace Ext {
 namespace BetterWater {
@@ -280,11 +283,144 @@ StripSlot* StripFor(const WorldGeometry& geo) {
     return s;
 }
 
+// ---- the river mouths (river_mouth.h) and the river rows (river_rows.h): a copy of the water mesh with the
+// lakes faded toward their cut sides and the rivers' rows laid across a smoothed centreline
+struct FadeSlot {
+    const WorldGeometry* owner = nullptr;
+    const void* heights = nullptr;
+    const void* waterVertices = nullptr;
+    int32_t waterCount = -1;
+    const void* waterIndices = nullptr;
+    int32_t indexCount = -1;
+    const void* riverRanges = nullptr;
+    int32_t riverCount = -1;
+    const void* lakeRanges = nullptr;
+    int32_t lakeCount = -1;
+    StripState state = StripState::Unbuilt;
+    std::vector<TerrainVertex> vertices;   // empty: nothing changed, retail's buffer is drawn
+    Video::VertexBuffer* vb = nullptr;     // never `delete`d, as the strip's
+    bool linked = false;
+};
+
+FadeSlot g_fades[kStripSlots];
+
+FadeSlot* FindFade(const WorldGeometry& geo) {
+    for (FadeSlot& s : g_fades) {
+        if (s.owner == &geo) return &s;
+    }
+    return nullptr;
+}
+
+void UnlinkFade(FadeSlot& s) {
+    if (s.linked) s.vb->PlatformDestruct();
+    s.linked = false;
+    if (s.state == StripState::Ready) s.state = StripState::NeedsUpload;
+}
+
+bool UploadFade(FadeSlot& s) {
+    if (s.vertices.empty()) return false;
+    if (s.vb == nullptr) {
+        s.vb = new (::operator new(sizeof(Video::VertexBuffer))) Video::VertexBuffer;
+        Video_VertexBuffer_Ctor(s.vb);
+    } else {
+        UnlinkFade(s);
+        s.vb->PlatformConstruct();
+    }
+    s.linked = true;
+    if (s.vb->platformData == nullptr) return false;
+    const int bytes = static_cast<int>(s.vertices.size() * sizeof(TerrainVertex));
+    if (!s.vb->Create(bytes, false, s.vertices.data())) {
+        std::fprintf(stderr, "[BetterWater] the river mouths' water buffer (%d bytes) was not made\n", bytes);
+        return false;
+    }
+    s.state = StripState::Ready;
+    return true;
+}
+
+// The geometry's faded water buffer, made or made again when its water changed; null when retail's is drawn.
+FadeSlot* FadeFor(const WorldGeometry& geo) {
+    const void* heights = geo._heights.data;
+    const void* waterVertices = geo._contourVertices.data;
+    const int32_t waterCount = geo._contourVertices.size;
+    const void* waterIndices = geo._contourIndices.data;
+    const int32_t indexCount = geo._contourIndices.size;
+    const void* riverRanges = geo._contourRangesA.data;
+    const int32_t riverCount = geo._contourRangesA.size;
+    const void* lakeRanges = geo._contourRangesB.data;
+    const int32_t lakeCount = geo._contourRangesB.size;
+
+    FadeSlot* s = FindFade(geo);
+    if (s == nullptr) {
+        for (FadeSlot& f : g_fades) {
+            if (f.owner == nullptr) {
+                s = &f;
+                break;
+            }
+        }
+        if (s == nullptr) return nullptr;
+        s->owner = &geo;
+        g_anyStrip.store(true, std::memory_order_release);
+    }
+    const bool same = s->heights == heights && s->waterVertices == waterVertices && s->waterCount == waterCount &&
+                      s->waterIndices == waterIndices && s->indexCount == indexCount &&
+                      s->riverRanges == riverRanges && s->riverCount == riverCount && s->lakeRanges == lakeRanges &&
+                      s->lakeCount == lakeCount;
+    if (!same || s->state == StripState::Unbuilt) {
+        s->heights = heights;
+        s->waterVertices = waterVertices;
+        s->waterCount = waterCount;
+        s->waterIndices = waterIndices;
+        s->indexCount = indexCount;
+        s->riverRanges = riverRanges;
+        s->riverCount = riverCount;
+        s->lakeRanges = lakeRanges;
+        s->lakeCount = lakeCount;
+        s->state = StripState::NeedsUpload;
+        std::vector<RiverMouth::Range> ranges;
+        for (int32_t i = 0; i < lakeCount; ++i) {
+            const GeometryDrawRange& r = geo._contourRangesB.data[i];
+            ranges.push_back(RiverMouth::Range{r.values[1], r.values[2]});
+        }
+        const int faded = RiverMouth::Fade(geo._contourVertices.data, waterCount, ranges.data(),
+                                           static_cast<int32_t>(ranges.size()), geo._heights.data,
+                                           geo._heightRowStride, geo._gridSize >> 1, RiverMouth::kFadeTiles,
+                                           s->vertices);
+        std::vector<RiverRows::Range> rivers;
+        for (int32_t i = 0; i < riverCount; ++i) {
+            const GeometryDrawRange& r = geo._contourRangesA.data[i];
+            rivers.push_back(RiverRows::Range{r.values[0], r.values[1], r.values[2], r.values[3]});
+        }
+        int skipped = 0;
+        const int relaid = RiverRows::Relay(s->vertices, geo._contourIndices.data, indexCount, rivers.data(),
+                                            static_cast<int32_t>(rivers.size()), &skipped);
+        if (faded == 0 && relaid == 0) s->vertices.clear();
+        std::fprintf(stderr,
+                     "[BetterWater] river mouths: %d lake vertices faded of %d; river rows: %d vertices relaid "
+                     "(%d ranges not a strip)\n",
+                     faded, waterCount, relaid, skipped);
+    }
+    if (s->state != StripState::Ready) {
+        if (s->state == StripState::UploadFailed) return nullptr;
+        if (!UploadFade(*s)) {
+            s->state = StripState::UploadFailed;
+            return nullptr;
+        }
+    }
+    return s;
+}
+
 }  // namespace
 
 bool Enabled() { return Ext::Ext().better_water; }
 
 bool StripEnabled() { return Ext::Ext().better_water && Ext::Val().better_water_mode >= 2; }
+
+const Video::VertexBuffer* WaterVertices(const WorldGeometry& geo) {
+    if (!Ext::Ext().better_water) return nullptr;
+    const std::lock_guard<std::mutex> lock(g_stripMutex);
+    FadeSlot* s = FadeFor(geo);
+    return s != nullptr ? s->vb : nullptr;
+}
 
 // The linearisation of the context's 0..1 hardware depth, from its view-projection (row-vector
 // convention, v * M: clip z is column 2, clip w column 3). A perspective projection's clip z is
@@ -445,6 +581,10 @@ void DrawStrip(const WorldGeometry& geo, Video::Context& context) {
 void OnVideoError(const WorldGeometry& geo) {
     if (!g_anyStrip.load(std::memory_order_acquire)) return;
     const std::lock_guard<std::mutex> lock(g_stripMutex);
+    if (FadeSlot* f = FindFade(geo)) {
+        UnlinkFade(*f);
+        if (f->state != StripState::Unbuilt) f->state = StripState::NeedsUpload;
+    }
     StripSlot* s = FindStrip(geo);
     if (s == nullptr) return;
     UnlinkStrip(*s);
@@ -464,6 +604,11 @@ void OnVideoLost() {
 void Forget(const WorldGeometry& geo) {
     if (!g_anyStrip.load(std::memory_order_acquire)) return;
     const std::lock_guard<std::mutex> lock(g_stripMutex);
+    if (FadeSlot* f = FindFade(geo)) {
+        UnlinkFade(*f);
+        ::operator delete(static_cast<void*>(f->vb));
+        *f = FadeSlot{};
+    }
     StripSlot* s = FindStrip(geo);
     if (s == nullptr) return;
     UnlinkStrip(*s);

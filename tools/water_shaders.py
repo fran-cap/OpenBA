@@ -28,6 +28,8 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WATER_DIR = os.path.join(REPO, "src", "render", "common", "better_water")
 ICE_DIR = os.path.join(REPO, "src", "render", "common", "winter_ice")
 CLOUDS_DIR = os.path.join(REPO, "src", "render", "common", "better_clouds")
+TERRAIN_DIR = os.path.join(REPO, "src", "render", "common", "fancy_terrain")
+DOF_DIR = os.path.join(REPO, "src", "render", "common", "dof")
 
 # (source, entry, profile, variable, header, defines). ps_4_0: the profile retail's own water programs
 # use, so the overlay runs wherever the water does.
@@ -45,6 +47,14 @@ SHADERS = [
     ("better_clouds/cloud_shadow.hlsl", "PSCloudShadow", "ps_4_0", "g_bc_PSCloudShadow", "better_clouds/cloud_shadow_ps.h", []),
     ("better_clouds/cloud_sky.hlsl", "PSCloudSky", "ps_4_0", "g_bc_PSCloudSkyCheap", "better_clouds/cloud_sky_cheap_ps.h",
      ["CLOUDS_CHEAP=1"]),
+    # ext.fancy_terrain's terrain light (src/ext/fancy_terrain/horizon.h): the full-screen multiply.
+    ("fancy_terrain/terrain_light.hlsl", "PSTerrainLight", "ps_4_0", "g_ft_PSTerrainLight",
+     "fancy_terrain/terrain_light_ps.h", []),
+    # ext.depth_of_field's depth blur (docs/extensions/DOF.md section 3.1): the four full-screen passes.
+    ("dof/dof.hlsl", "PSDofPrefilter", "ps_4_0", "g_dof_PSPrefilter", "dof/dof_prefilter_ps.h", []),
+    ("dof/dof.hlsl", "PSDofGather", "ps_4_0", "g_dof_PSGather", "dof/dof_gather_ps.h", []),
+    ("dof/dof.hlsl", "PSDofTent", "ps_4_0", "g_dof_PSTent", "dof/dof_tent_ps.h", []),
+    ("dof/dof.hlsl", "PSDofComposite", "ps_4_0", "g_dof_PSComposite", "dof/dof_composite_ps.h", []),
 ]
 FLAGS = ["/O3", "/WX", "/Ges"]
 
@@ -77,6 +87,10 @@ def source_path(name):
         return os.path.join(ICE_DIR, name[len("winter_ice/"):])
     if name.startswith("better_clouds/"):
         return os.path.join(CLOUDS_DIR, name[len("better_clouds/"):])
+    if name.startswith("fancy_terrain/"):
+        return os.path.join(TERRAIN_DIR, name[len("fancy_terrain/"):])
+    if name.startswith("dof/"):
+        return os.path.join(DOF_DIR, name[len("dof/"):])
     return os.path.join(WATER_DIR, name)
 
 

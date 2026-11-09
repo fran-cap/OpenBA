@@ -105,7 +105,8 @@ struct Extensions {
     // class A: src/ext/dynamic_professions/ (docs/extensions/handins/DYNAMICPROFESSIONS.md)
     bool dynamic_professions = false;
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
-    bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 + steady tilt
+    bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 ("Wider zoom")
+    bool camera_angle = false;  // class A, live: src/ext/camera_angle/, the far pitch pair in PlayerToolManager::UpdateCamera (docs/extensions/handins/CAMERAANGLE.md)
     bool high_limits = false;   // class B: src/ext/high_limits/ (docs/extensions/handins/HIGHLIMITS.md)
     bool sharp_ui   = false;   // class A: src/ext/sharp_ui/ (docs/extensions/handins/SHARPUI.md)
     bool fast_paths = false;   // class B: src/ext/fast_paths/ (docs/extensions/handins/FASTPATHS.md)
@@ -128,6 +129,8 @@ struct Extensions {
     bool winter_ice = true;    // class A, live: src/ext/winter_ice/, seam WorldGeometry's lake-range draw (docs/extensions/handins/WINTERICE.md)
     bool walk_on_ice = false;  // class C: src/ext/winter_ice/ (owner winter_ice), citizens cross a solid lake (WINTERICE.md section 5)
     bool better_clouds = false; // class A, live: src/ext/better_clouds/, the sky material's pass slots + the material setup seam (docs/extensions/handins/BETTERCLOUDS.md)
+    bool fancy_terrain = false; // class A, live: src/ext/fancy_terrain/, a horizon map of the heightmap multiplied in at the ground-draw seam
+    bool depth_of_field = false; // class A, live: src/ext/depth_of_field/, the depth blur at the scene-draw seam (docs/extensions/DOF.md)
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten
     bool restricted_foods = false;
@@ -174,6 +177,7 @@ struct Extensions {
     bool touch_pointer = false; // class A, live: src/ext/touch_pointer/, seams Input::Device::_extAfterUpdate + Platform::Touch::SetSink + ext.touch_mode's camera hold and place hook (docs/android/P11_TOUCH_POINTER.md)
     bool staggered_passes = false; // class A, live: src/ext/staggered_passes/, seams Graphics::SunLight::_extStaggerEvery + Graphics::ReflectionImageBuffer::_extStaggerEvery (graphics/stagger_hold.h; issue #253)
     bool fullscreen_mode = true; // class A, next video reset: src/ext/fullscreen_mode/, the Options Video tab's Fullscreen cell + the DX11 swap chain's seams (src/render/dx11/devicedata.cpp)
+    bool render_backend = false; // class A, next video reset: src/ext/render_backend/, the Options Video tab's Renderer combo + the seam Video::Device::_extInterfaceRetry; the dual Windows exe only (BANISHED_RENDER_BACKEND=dx11+vulkan)
 #ifdef BANISHED_UNIT_TEST
     // tests/unit/ext_registry_test.cpp only: one extension per class, so the
     // lock semantics are tested before a real extension exists. Not in the exe.
@@ -197,11 +201,13 @@ struct Values {
     int32_t ao_opacity = 20;    // ext.ao_opacity  0..30 percent (owner ambient_occlusion): the apply's strength; the user's look 2026-10-14: 20 is the max that reads well, 30 the ceiling
     int32_t foliage_aa_mode = 2; // ext.foliage_aa_mode 1..2 (owner better_trees): 1 smooth edges, 2 + distance fill (FOLIAGE_AA.md §1 ruling 4)
     int32_t max_shadow_size = 4096; // ext.max_shadow_size 4096 | 8192 (owner max_shadow_res): the sun map at High (FAA-SHADOW2)
+    int32_t max_shadow_zoom = 1; // ext.max_shadow_zoom 0..1 (owner max_shadow_res): 1 = the casters drawn into a share of the map sized to the view (graphics/shadow_zoom.h, SHADOWZOOM.md section 6), 0 = the whole map
     int32_t rock_seat_mode = 2; // ext.rock_seat_mode 1..2 (owner fix rock_seat): 1 sink to the lowest ground under the rock, 2 tilt to the slope (the default, ROCKSEAT.md)
     int32_t create_on_demand_idle_min = 0; // ext.create_on_demand_idle_min 0..120 (owner create_on_demand): minutes unused before a made object is given back, 0 = never, the default until re-makes are prefetched (CREATEONDEMAND.md section 7)
     int32_t texture_quality_drop = 0; // ext.texture_quality_drop 0..1 (owner texture_quality): the top mip levels a qualifying texture is made without, 0 = Full (the default: the row or profile=all alone drops nothing), 1 = Half; an older 2 (Quarter, removed by ruling) clamps to 1; read once at boot (TEXQUALITY.md)
     int32_t fps_cap_rate = 60; // ext.fps_cap_rate 30 | 60 | 90 | 120 (owner fps_cap): the menu's and the game's frame-rate ceiling while the row is on; 60 is the phone's ruled default (docs/android/P8_INPUT_OPTIONS.md)
     int32_t fullscreen_borderless = 0; // ext.fullscreen_borderless 0..1 (owner fullscreen_mode): with VideoFullscreen on, 0 = exclusive (retail's DXGI mode switch), 1 = borderless (a windowed swap chain in a popup over the whole monitor, at the desktop's size)
+    int32_t render_api = 1; // ext.render_api 0..1 (owner render_backend): the renderer the dual exe starts, 0 = DirectX 11, 1 = Vulkan (DirectX 11 when Vulkan cannot start)
     int32_t touch_mode_toolbar_scale = 200; // ext.touch_mode_toolbar_scale 100 | 125 | 150 | 175 | 200 (owner touch_mode): the in-game toolbar's own scale in percent, shrunk to fit beside the control cluster (docs/android/TOUCH_MODE.md)
     int32_t touch_mode_pad_scale = 100; // ext.touch_mode_pad_scale 0 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): the camera pad cluster's size in percent of its own (a cell of 0.11 of the short edge), 0 = the cluster hidden; 100 = the size it always had (issue #96, docs/android/TOUCH_MODE.md section 5)
     int32_t touch_mode_action_bar_scale = 100; // ext.touch_mode_action_bar_scale 25 | 30 | 35 | 50 | 60 | 75 | 100 | 125 (owner touch_mode): ext.touch_pointer's placement bar (place / rotate / flip / cancel) in percent of the cluster's 100 % cell, whatever the pad's own scale; 100 = the size it always had (issue #96)
@@ -227,7 +233,10 @@ struct Values {
     int32_t staggered_passes_shadow = 2; // ext.staggered_passes_shadow 1 | 2 | 3 | 4 (owner staggered_passes): the sun's shadow map renders at least every N frames on a near-still view (1 = every frame, as retail); 2 is the ruled default (issue #253)
     int32_t staggered_passes_reflection = 2; // ext.staggered_passes_reflection 1 | 2 | 4 | 8 (owner staggered_passes): the water's reflection image renders at least every N frames on a near-still view (1 = every frame); 2 is the ruled default (issue #253)
     int32_t sharp_ui_icons = 0; // ext.sharp_ui_icons 0..1 (owner sharp_ui): 1 = the dialog and Extensions sheets drawn from their magnified copies with our art (SHARP_SPRITES.md); 0 = the text only (the default, the user 2026-11-04)
+    int32_t depth_blur = 0;         // ext.depth_blur 0..1 (owner depth_of_field): the Enhanced tab's "Depth blur", 0 Off (the default), 1 On (docs/extensions/DOF.md)
     int32_t better_clouds_mode = 1; // ext.better_clouds_mode 1..2 (owner better_clouds): 1 On (the drifting clouds in the sky), 2 Fancy (+ their shadows on the ground) (BETTERCLOUDS.md)
+    int32_t camera_tilt = 50;   // ext.camera_tilt 0..100 (owner camera_angle): the far pitch pair, 50 = retail's, 90 = the near pair (steady), 100 = 10 % flatter (camera_angle.h)
+    int32_t fog_distance = 0;   // ext.fog_distance 0..100 (owner no_fog): how far back the fog goes while the row is on: 0 = retail's fog (the default), 1..99 fog near / far x 100 / (100 - d), 100 = no fog (no_fog.h, NOFOG.md)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
 };
 
@@ -256,7 +265,7 @@ struct Entry {
     const char* id;             // settings key suffix: `fix.<id>` / `ext.<id>`
     Tier        tier;
     Class       cls;            // Class::None for a fix
-    bool        defaultOn;      // fixes and class A default ON, class B / C OFF (DESIGN.md §2)
+    bool        defaultOn;      // fixes and class A default ON, class B / C OFF but the 1.0.3 rows (DESIGN.md §2)
     const char* displayName;    // the dialog's row title
     const char* description;    // the dialog's row text
     int32_t     formatVersion;  // class B and C: >= 1 (pseudo-mod ModInfo +0x18, the save manifest); 0 otherwise
@@ -464,6 +473,11 @@ ExtraModsProvider SaveModsProvider();
 
 // [a-z0-9_]+
 bool ValidId(const char* id);
+
+// The rows the Extensions dialog lists on its "Experimental" tab instead of Optional / Default (maintainer
+// ruling 2026-11-08): the phone extensions (touch_mode, touch_pointer, phone_menu) and staggered_passes. Only
+// where the row is shown changes; its class, default and behaviour are its own.
+bool Experimental(const Entry& e);
 
 // The load notice (SaveLoadDialog::DoLoad, block EXTSAVE). A save's mod-list
 // entry is a pseudo-mod when its path starts with `ext:`; such entries never

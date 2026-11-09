@@ -50,6 +50,7 @@
 #include "io/Persistence.h"   // ENDGAME B.3.4 caller batch P
 #include "ext/enhanced_tab/enhanced_tab.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): the Enhanced tab
 #include "ext/fullscreen_mode/fullscreen_mode.h"   // EXT SEAM (NOT RETAIL): the Video tab's Off / Exclusive / Borderless
+#include "ext/render_backend/render_backend.h"   // EXT SEAM (NOT RETAIL): the Video tab's DirectX 11 / Vulkan
 #include "graphics/SunLight.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAA-MENU.md): ExtRequestMaxShadowResSync
 #include "ext/phone_menu/phone_menu.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/PHONEMENU.md): UI scale minimum
 #include "ext/render_pipe/render_pipe.h"   // EXT SEAM (NOT RETAIL, review S-028): SettleBeforeStepWrite
@@ -621,6 +622,9 @@ void OptionsDialog::OnOpened() {
             this->savedFilter     = vidCfg->textureFilter;
         }
         PopulateVideoComboBoxes();
+        // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): the dual exe's Renderer combo
+        // lists one item per backend in slot 1's place. Retail's items otherwise.
+        Ext::RenderBackend::OpenVideoRow(this, this->comboRenderer);
     }
 
     // --- Shadow/reflection combos ---
@@ -753,6 +757,7 @@ void OptionsDialog::OnOpened() {
 void OptionsDialog::OnClosed() {
     Ext::EnhancedTab::Close(this);   // EXT SEAM (NOT RETAIL, docs/extensions/handins/AOMENU.md): forget the Enhanced tab's elements
     Ext::FullscreenMode::CloseVideoRow(this);   // EXT SEAM (NOT RETAIL): forget the Video tab's combo
+    Ext::RenderBackend::CloseVideoRow(this);    // EXT SEAM (NOT RETAIL): forget the Renderer combo's backends
 }
 
 // ============================================================
@@ -950,13 +955,17 @@ void OptionsDialog::ApplyVideoSettings() {
     // its choice into the hidden checkbox read below; Exclusive <-> Borderless keeps VideoFullscreen at 1,
     // so the "nothing changed" test also asks whether that choice changed. False without the row.
     const bool fullscreenModeChanged = Ext::FullscreenMode::ReadVideoRow(this);
+    // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): the dual exe's Renderer combo names
+    // the other backend behind the same interface; a renderer change for the test below. False without
+    // the row.
+    const bool backendChanged = Ext::RenderBackend::ReadVideoRow(this);
 
     // Fullscreen / VSync checkboxes
     uint8_t newFullscreen = checkFullscreen->_checked;
     uint8_t newVsync = checkVSync->_checked;
 
     // Check if anything changed. If nothing changed, return early.
-    bool rendererChanged = (oldRenderer != newRenderer);
+    bool rendererChanged = (oldRenderer != newRenderer) || backendChanged;
     bool adapterChanged = (oldAdapter != newAdapter);
     bool needsFullRestart = rendererChanged || adapterChanged;
 
@@ -1002,6 +1011,9 @@ void OptionsDialog::ApplyVideoSettings() {
     // EXT SEAM (NOT RETAIL, src/ext/fullscreen_mode/fullscreen_mode.h): ext.fullscreen_borderless follows the
     // combo before the reset below reads it (DX11's swap chain and window size).
     Ext::FullscreenMode::CommitVideoRow(this);
+    // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): with the device shut down, the
+    // picked backend is selected and the adapters listed again before Startup below.
+    Ext::RenderBackend::CommitVideoRow(this);
 
     // Write new settings to video config
     vidCfg->interfaceIndex = newRenderer;
@@ -1045,6 +1057,23 @@ void OptionsDialog::ApplyVideoSettings() {
     if (success) {
         // Save the new config
         vidCfg->Save();
+        // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): a backend change listed the
+        // adapters again (the other backend's list), so the combos the dialog keeps open after Apply are
+        // filled again from it, as OnOpened fills them. Retail's lists never change while it runs. A start
+        // that fell back to the other backend is saved (ext.render_api) and refills them too.
+        const bool fellBack = Ext::RenderBackend::SaveFallback();
+        if (backendChanged || fellBack) {
+            savedRenderer   = vidCfg->interfaceIndex;
+            savedAdapter    = vidCfg->adapterIndex;
+            savedWidth      = vidCfg->width;
+            savedHeight     = vidCfg->height;
+            savedRefreshNum = vidCfg->refreshNumerator;
+            savedRefreshDen = vidCfg->refreshDenominator;
+            savedAntialias  = vidCfg->multisample;
+            savedFilter     = vidCfg->textureFilter;
+            PopulateVideoComboBoxes();
+            Ext::RenderBackend::OpenVideoRow(this, this->comboRenderer);
+        }
     } else {
         // Rollback to old config
         vidCfg->adapterIndex = oldAdapter;
@@ -1061,6 +1090,7 @@ void OptionsDialog::ApplyVideoSettings() {
         vidCfg->shaderDetail = oldShadowQ;
         vidCfg->reflectionDetail = oldReflQ;
         Ext::FullscreenMode::RollbackVideoRow(this);   // EXT SEAM (NOT RETAIL): the borderless choice too
+        Ext::RenderBackend::RollbackVideoRow(this);    // EXT SEAM (NOT RETAIL): the renderer choice too
     }
 }
 

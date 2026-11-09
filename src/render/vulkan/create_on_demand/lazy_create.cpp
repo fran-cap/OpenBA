@@ -309,6 +309,7 @@ void FinishPrefetches() {
 
 // ---- the backend-neutral interface (create_on_demand_backend.h) -----------------------------------
 namespace CreateOnDemandBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on, int idleMinutes) {
     if (on && VideoVulkan::CreateOnDemand::g_table.load(std::memory_order_relaxed) == nullptr) {
@@ -361,4 +362,5 @@ bool ImageMade(const void* companion) {
     return ::CreateOnDemand::LoadPublished(image->image.view) != VK_NULL_HANDLE;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CreateOnDemandBackend

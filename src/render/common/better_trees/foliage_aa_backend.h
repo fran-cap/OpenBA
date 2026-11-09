@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/better_trees/foliage_aa_backend.h -- ext.foliage_aa's render side, as the
 // extension sees it (docs/extensions/FOLIAGE_AA.md, handins/FAA-CORE.md)
@@ -11,6 +13,7 @@
 #include <cstdint>
 
 namespace FaaBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The extension's one call (Ext::FoliageAA::Sync, main thread). `mode` 0 = off, 1 = smooth edges,
 // 2 = smooth edges + distance fill with `fillK`, applied only where the sampled alpha >= `fillFloor`
@@ -35,6 +38,7 @@ void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* d
 // shorter shader. Vulkan does (shader_rewrites.cpp); DX11 and Metal always draw the copy with the blossom
 // and ignore the call, which is the same image at the full cost.
 void SetDrawBloom(bool bloom);
+BANISHED_RENDER_IMPL_END
 
 #if BANISHED_TWEAK_OVERLAY
 // The debug tweak overlay's stats line (debug flavour only): the applied generation's counters,
@@ -47,7 +51,9 @@ struct TweakStats {
     int   blobsSeen = 0, blobsTransformed = 0, programsTransformed = 0, createFailed = 0;
     int64_t xfBinds = 0, pixelBinds = 0;
 };
+BANISHED_RENDER_IMPL_BEGIN
 TweakStats Stats();
+BANISHED_RENDER_IMPL_END
 #endif
 
 }  // namespace FaaBackend

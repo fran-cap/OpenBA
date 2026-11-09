@@ -201,6 +201,11 @@ UNIT_TEST(ui_clean_removed_dialogs_deletes_a_dialog_queued_during_the_drain) {
 
 // F-155: the handle is retail's wrapped 32-bit `(index * 2) | (counter << 9)`.
 UNIT_TEST(ui_play_handle_wraps_like_retail_shl) {
+    // Restored on exit: a leaked 1e-7 skews every later Timer test in the same chunk.
+    struct SecondsPerTickRestore {
+        double saved = System::Timer::_secondsPerTick;
+        ~SecondsPerTickRestore() { System::Timer::_secondsPerTick = saved; }
+    } restoreSecondsPerTick;
     System::Timer::_secondsPerTick = 1.0 / 10000000.0;
     void* uiMem = std::calloc(1, sizeof(UI::UserInterface));
     auto* ui = static_cast<UI::UserInterface*>(uiMem);

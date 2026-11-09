@@ -449,6 +449,7 @@ void Stage::RenderStateDestroyed(ID3D11BlendState* retailBlend) {
 }  // namespace VideoDX11
 
 namespace FaaBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(int mode, float fillK, float fillFloor, const BbsRewrite::Params* dither, bool naturalGrowth) {
     using namespace VideoDX11;
@@ -516,4 +517,5 @@ TweakStats Stats() {
 }
 #endif
 
+BANISHED_RENDER_IMPL_END
 }  // namespace FaaBackend

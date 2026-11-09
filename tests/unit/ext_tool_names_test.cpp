@@ -66,10 +66,10 @@ UNIT_TEST(ext_tool_names_registry_row) {
     }
     CHECK(e->tier == Ext::Tier::Extension);
     CHECK(e->cls == Ext::Class::C);              // which tool each citizen carries is the town's own state
-    CHECK(!e->defaultOn);                        // class C ships OFF, like the other class C rows
+    CHECK(e->defaultOn);                         // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(e->formatVersion == 1);
     CHECK(Ext::SettingsKey(*e) == "ext.tool_names");
-    CHECK(!ResolveText("").ext.tool_names);                      // absent key = the default (off)
+    CHECK(ResolveText("").ext.tool_names);   // ON by default (ruled 2026-11-08 for 1.0.3)                      // absent key = the default (off)
     CHECK(!ResolveText("ext.tool_names=0\n").ext.tool_names);
     CHECK(ResolveText("ext.tool_names=1\n").ext.tool_names);
     CHECK(!ResolveText("profile=faithful\n").ext.tool_names);    // the faithful profile turns it off

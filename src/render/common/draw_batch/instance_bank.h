@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/draw_batch/instance_bank.h -- ext.draw_batch's wide instancing batches, as the
 // extension sees the backend (docs/extensions/handins/DRAWBATCH.md, issue #253 "instance cap")
@@ -26,6 +28,7 @@ class Context;
 }
 
 namespace InstanceBank {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The instance transforms one instanced draw can take on this backend: 52 (the Context's own bank)
 // unless the backend holds more. Constant once the device exists. Any thread.
@@ -36,4 +39,5 @@ int32_t Cap();
 // Never called while Cap() is 52. The emitting thread only.
 void SetWide(Video::Context& context, int32_t slot, const Math::Matrix& m);
 
+BANISHED_RENDER_IMPL_END
 }  // namespace InstanceBank

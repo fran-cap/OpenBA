@@ -16,7 +16,9 @@
 #   exe     [flavour]   print the exe path (for scripts)
 #   build dirs: build/cmake-<flavour> (Windows, Linux); on macOS build/mac-<flavour>, with debug = build/mac-arm64.
 #   env BANISHED_RENDER_BACKEND=vulkan picks the Vulkan backend into build/cmake-<flavour>-vulkan.
-#               The default backend: dx11 on Windows, vulkan on Linux (plain build/cmake-<flavour>),
+#   env BANISHED_RENDER_BACKEND=dx11+vulkan builds the dual Windows exe (both backends, the renderer picked
+#               in game: src/render/common/README.md) into build/cmake-<flavour>-dx11+vulkan.
+#               The default backend: dx11+vulkan on Windows (since 1.0.3), vulkan on Linux (plain build/cmake-<flavour>),
 #               Metal on Darwin.
 #   flavours: debug (default) | og | perf | release   -- CMakeLists.txt's BANISHED_FLAVOUR
 #
@@ -52,13 +54,20 @@ if [ "$(uname -s)" = Darwin ]; then
 fi
 # The renderer backend (src/render/common/README.md): env BANISHED_RENDER_BACKEND picks a non-default
 # one (vulkan; docs/vulkan/PLAN.md) and keys its own build directory, build/cmake-<flavour>-<backend>,
-# so the default build is never reconfigured under it. Unset = the platform default (dx11 on Windows,
-# vulkan on Linux, metal on macOS).
+# so the default build is never reconfigured under it. Unset = the platform default (the dual dx11+vulkan
+# exe on Windows since 1.0.3, vulkan on Linux, metal on macOS). On Windows the default is also passed
+# explicitly and checked in configure(): a build/cmake-<flavour> configured before the change (cached dx11,
+# with the dx11-only tweak overlay) is wiped and configured again rather than silently staying dx11.
 BACKEND="${BANISHED_RENDER_BACKEND:-}"
 BACKEND_CMAKE=""
+WANT_BACKEND=""
 if [ -n "$BACKEND" ]; then
   B="$B-$BACKEND"
   BACKEND_CMAKE="-DBANISHED_RENDER_BACKEND=$BACKEND"
+  WANT_BACKEND="$BACKEND"
+elif [ "$EXT" = .exe ]; then
+  BACKEND_CMAKE="-DBANISHED_RENDER_BACKEND=dx11+vulkan"
+  WANT_BACKEND="dx11+vulkan"
 fi
 # The checking builds (CMakeLists.txt BANISHED_SANITIZE, docs/reference/checking_builds.md): env
 # BANISHED_SANITIZE=check|asan|ubsan|tsan|fuzz keys its own build directory, build/cmake-<flavour>[-<backend>]-<sanitize>.
@@ -98,6 +107,9 @@ configure() {
     if [ -n "$COMPILER_CMAKE" ] && ! { grep -q "^CMAKE_CXX_COMPILER:[A-Z]*=$GCC_DIR/g++.exe$" "$B/CMakeCache.txt" &&
                                        grep -q "^CMAKE_AR:[A-Z]*=$GCC_DIR/gcc-ar.exe$" "$B/CMakeCache.txt"; } 2>/dev/null; then
       echo "== $B was configured with another compiler / archiver; wiping it for $GCC_DIR"
+      rm -rf "$B"
+    elif [ -n "$WANT_BACKEND" ] && ! grep -qF "BANISHED_RENDER_BACKEND:STRING=$WANT_BACKEND" "$B/CMakeCache.txt" 2>/dev/null; then
+      echo "== $B was configured with another renderer backend; wiping it for $WANT_BACKEND"
       rm -rf "$B"
     else
       return 0

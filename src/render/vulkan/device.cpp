@@ -30,14 +30,21 @@
 #include "device_objects.h"
 #include "draw.h"
 #include "present.h"
+#if BANISHED_TWEAK_OVERLAY
+#include "tweak_overlay_vulkan.h"   // the debug tweak overlay's renderer (debug flavour only)
+#endif
 #include "pipelines.h"
+#include "render_backend.h"   // Render::WindowTakenOverByOtherBackend (ext.render_backend, CreateSwapchain)
 #include "resources.h"
 #include "spirv_legalize.h"
 #include "vulkan11.h"
 #include "vulkan_entry.h"
 #include "ao/assao_pass.h"                         // P4: ext.ambient_occlusion's pass objects
 #include "better_water/scene_depth_pass.h"         // ext.better_water's scene depth copy
+#include "depth_copy/depth_copy.h"                 // the shared depth copy (AO, clouds, water)
 #include "better_clouds/cloud_shadow_pass.h"       // ext.better_clouds' shadow pass
+#include "fancy_terrain/terrain_light_pass.h"       // ext.fancy_terrain's terrain light
+#include "dof/dof_pass.h"                          // ext.depth_of_field's depth blur
 #include "async_gpu_create/async_create.h"         // P4: ext.async_gpu_create (the loader bracket)
 #include "boot_device_lost/boot_device_lost.h"     // P4: fix.boot_device_lost
 #include "create_on_demand/lazy_create.h"          // P4: ext.create_on_demand
@@ -54,7 +61,7 @@
 #include "boot_window.h"   // BootWindow::ArmDeferredShow (src/app): the deferred first show
 #include "stall_debug.h"   // StallDebug::Mark (src/diag): the boot timeline
 #include "platform/common/cursor_image.h"            // Platform::Cursor::SetFromTexels
-#include "platform/common/platform_window.h"         // Platform::Window::ShowDefault
+#include "platform/common/platform_window.h"         // Platform::Window::ShowDefault, GetDisplayRefreshRates
 #include "platform/common/platform_window_hooks.h"   // Platform::Window::QueryScreenForModes
 #include "display_geometry.h"                        // Platform::Window::BuildResolutionList
 #include "platform/sdl/window_sdl_internal.h"         // Platform::Window::Sdl::GameWindow
@@ -410,7 +417,18 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
     // VSync on: FIFO (always available). Off: mailbox, then immediate, then FIFO anyway.
     const bool vsync = Video::Configuration::_singleton ? Video::Configuration::_singleton->vsync != 0 : true;
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if (!vsync || Opt().stress) {
+    // EXT SEAM (NOT RETAIL, ext.render_backend, src/render/common/render_backend.h): once a DX11 flip-model
+    // swap chain has been on the window after this backend's first one, only FIFO reaches the screen.
+    const bool fifoOnly = Render::WindowTakenOverByOtherBackend();
+    if (fifoOnly && (!vsync || Opt().stress)) {
+        static bool noted = false;
+        if (!noted) {
+            noted = true;
+            std::fprintf(stderr, "[Vulkan] present mode: FIFO with VSync off, the window has carried another "
+                                 "backend's swap chain since this backend's first (render_backend.h)\n");
+        }
+    }
+    if ((!vsync || Opt().stress) && !fifoOnly) {
         uint32_t modeCount = 0;
         vkGetPhysicalDeviceSurfacePresentModesKHR(physical, surface, &modeCount, nullptr);
         std::vector<VkPresentModeKHR> modes(modeCount);
@@ -823,6 +841,13 @@ void DestroyShaderModule(VkShaderModule module) {
     vkDestroyShaderModule(device, module, nullptr);
 }
 
+bool Available() {
+    std::string why;
+    if (EnsureInstance(&why)) return true;
+    std::fprintf(stderr, "[Vulkan] not available: %s\n", why.c_str());
+    return false;
+}
+
 // One GraphicsInterface with one Adapter per physical device (dxgiAdapterIndex = its index in
 // physicalDevices; CreateDevice reads it back from Device::dxgiAdapterIndex). The mode list is
 // the usable screen's, as on Metal: there is no DXGI output to ask.
@@ -856,7 +881,20 @@ bool Enumerate(Video::Device* dev, const char* name) {
     Platform::Window::QueryScreenForModes(&mw, &mh, &nw, &nh);
     int32_t sizes[32][2];
     const int modeCount = Platform::Window::BuildResolutionList(mw, mh, nw, nh, sizes, 32);
-    const D::RefreshRate rate{ 60, 1 };
+    // The display's own refresh rates (dx11 lists each mode's from DXGI), every one under every size:
+    // the sizes are BuildResolutionList's, not the display's modes. 60 Hz when the display says none.
+    int32_t rateList[32][2];
+    int rateCount = Platform::Window::GetDisplayRefreshRates(rateList, 32);
+    if (rateCount == 0) {
+        rateList[0][0] = 60;
+        rateList[0][1] = 1;
+        rateCount = 1;
+    }
+    std::string rateText;
+    for (int r = 0; r < rateCount; ++r) {
+        rateText += " " + std::to_string(rateList[r][0]) + "/" + std::to_string(rateList[r][1]);
+    }
+    std::fprintf(stderr, "[Vulkan] display refresh rates:%s\n", rateText.c_str());
 
     for (int i = 0; i < adapterCount; ++i) {
         auto& a = *new (g.adapterData + i) D::Adapter();
@@ -886,7 +924,9 @@ bool Enumerate(Video::Device* dev, const char* name) {
             D::DisplayMode mode{};
             mode.width = sizes[m][0];
             mode.height = sizes[m][1];
-            a.FindOrAddMode(mode, rate);
+            for (int r = 0; r < rateCount; ++r) {
+                a.FindOrAddMode(mode, D::RefreshRate{ rateList[r][0], rateList[r][1] });
+            }
         }
     }
     dev->interfaceData = list;
@@ -1251,9 +1291,15 @@ void DeviceData::Shutdown() {
             Assao::Shutdown();
             SceneDepth::Shutdown();
             CloudShadow::Shutdown();
+            TerrainLight::Shutdown();   // ext.fancy_terrain: its map images and pass objects
+            Dof::Shutdown();            // ext.depth_of_field: its images and pass objects
+            DepthCopy::Shutdown();   // after its three readers: the shared depth copy
             Rewrites::Shutdown();
             ShareGpuData::Clear();
             PresentShutdown();
+#if BANISHED_TWEAK_OVERLAY
+            TweakOverlayShutdown();   // the debug tweak overlay's renderer; it re-inits on the next open frame
+#endif
             DrawShutdown();
             PipelinesShutdown();
             ResourcesShutdown();

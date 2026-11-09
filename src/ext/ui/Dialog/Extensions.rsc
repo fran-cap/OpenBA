@@ -1,7 +1,7 @@
 // Dialog/Extensions.rsc -- the Extensions dialog, its menu button and the save-load notices
 // (NOT RETAIL; authored for this port, src/ext).
 //
-// Shape of the dialog: a column (dialogBody) holding a heading row, two tabs with an entry list each
+// Shape of the dialog: a column (dialogBody) holding a heading row, three tabs with an entry list each
 // (Optional, shown first: the registry rows off by default; Default: the rows on by default), and a
 // right-aligned button row. The list is the game's own Mods list (Dialog/Mod.rsc:tableList,
 // tableMods, borderLine) taken by reference, so the Extensions dialog sits in the same frame and
@@ -68,12 +68,15 @@ RibbonDescription buttonRow
 	ElementDescription _elements [ "SharedElements.rsc:buttonCancel" "SharedElements.rsc:buttonOk" ]
 }
 
-// Two tabs in the Mods dialog's tab frame; the first (shown when the dialog opens) is Optional.
+// Three tabs in the Mods dialog's tab frame; the first (shown when the dialog opens) is Optional. Experimental
+// (maintainer ruling 2026-11-08) holds Ext::Experimental's rows (the phone extensions, staggered passes) whatever
+// their default.
 TabDescription tabExtensions : "Mod.rsc:tabMod"
 {
 	Tab _tabs [
 		{ ElementDescription _button = "tabButtonOptional"; ElementDescription _content = "entryListOptional"; }
 		{ ElementDescription _button = "tabButtonDefault"; ElementDescription _content = "entryListDefault"; }
+		{ ElementDescription _button = "tabButtonExperimental"; ElementDescription _content = "entryListExperimental"; }
 	]
 }
 
@@ -91,6 +94,8 @@ ButtonDescription tabButtonOptional : "tabButton" { ElementDescription _content 
 ButtonDescription tabButtonDefault  : "tabButton" { ElementDescription _content = "tabCaptionDefault"; }
 TextDescription tabCaptionOptional  : "tabCaption" { String _text = "ExtensionsTabOptional"; }
 TextDescription tabCaptionDefault   : "tabCaption" { String _text = "ExtensionsTabDefault"; }
+ButtonDescription tabButtonExperimental : "tabButton" { ElementDescription _content = "tabCaptionExperimental"; }
+TextDescription tabCaptionExperimental  : "tabCaption" { String _text = "ExtensionsTabExperimental"; }
 
 // A tab's content: the column headers over the scrolling list. entryList / tableList / tableMods are
 // the bases (the in-game window's pages derive from entryList and tableList too); each tab has its
@@ -102,6 +107,7 @@ RibbonDescription entryList : "Mod.rsc:modGroup"
 
 RibbonDescription entryListOptional : "entryList" { ElementDescription _elements [ "columnHeaders" "tableListOptional" ] }
 RibbonDescription entryListDefault  : "entryList" { ElementDescription _elements [ "columnHeaders" "tableListDefault" ] }
+RibbonDescription entryListExperimental : "entryList" { ElementDescription _elements [ "columnHeaders" "tableListExperimental" ] }
 
 RibbonDescription columnHeaders : "Mod.rsc:headerLine"
 {
@@ -142,6 +148,8 @@ ContainerDescription tableListOptional : "tableList" { ElementDescription _conte
 ContainerDescription tableListDefault  : "tableList" { ElementDescription _content = "tableDefault"; }
 RibbonDescription tableOptional : "tableMods" { }
 RibbonDescription tableDefault  : "tableMods" { }
+ContainerDescription tableListExperimental : "tableList" { ElementDescription _content = "tableExperimental"; }
+RibbonDescription tableExperimental : "tableMods" { }
 
 // ---------------------------------------------------------------------------------------------
 // A row: [icon] [name / kind / state column] ... [description] ... [toggle]. The text column is a
@@ -188,8 +196,12 @@ RibbonDescription entryColumn
 	bool _vertical = true; ElementDescription _elements [ "textModName" "textKind" "textState" ]
 }
 
+// The name / kind / state column wraps short of the description, which starts 200 px into the row's text
+// area: a long name ("Seamless audio loops ...") or state ("Disabled for this game, enabled from the next")
+// otherwise runs under the description.
 TextDescription textModName : "Mod.rsc:textModName"
 {
+	bool _wordWrap = true; int _wordWrapSize = 192;
 }
 
 // The description's wrap width is our own, not the game's: the row puts the toggle 230 px past the description's left edge, and a mod that
@@ -210,12 +222,14 @@ TextDescription smallNote
 TextDescription textKind : "smallNote"
 {
 	String _text = "ExtensionsKindFix";
+	bool _wordWrap = true; int _wordWrapSize = 192;
 }
 
 // ... and ExtensionsStateEnabled / Disabled / LockedEnabled / LockedDisabled / LockedOn / LockedOff.
 TextDescription textState : "smallNote"
 {
 	String _text = "ExtensionsStateEnabled";
+	bool _wordWrap = true; int _wordWrapSize = 192;
 }
 
 // The toggle: the Mods "loaded" check with our tooltip.

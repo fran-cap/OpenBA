@@ -1,5 +1,8 @@
 # SHADOWZOOM: sun map size by zoom (GPUFRAME rank 1), derivation only, NOT BUILT
 
+> **Update (2026-11-07): BUILT as `ext.max_shadow_zoom`, section 6.** Sections 1-3 assumed the manual
+> pitch at 0; retail's default is 0.75, and there the ratio does change with the zoom.
+>
 > **Outcome (2026-10-20): not built.** Under the user's ruling ("on-screen shadow sharpness stays what
 > the 8192 map gives at every zoom level") the zoom-adaptive map is a no-op: the shadow texels per
 > screen pixel barely change with zoom, so no zoom ever has the 2x surplus needed to halve the map.
@@ -135,3 +138,48 @@ STRESS_EXT stress legs at `BANISHED_CAMERA_PIN=town,130` and `town,50`, reading 
 (machine load CLEAN). `capture_arm.sh` + `gpu_timing.py`: the shadow pass's ms and the shadow draws'
 ns/tri. Screenshots at zoom 20 / 50 / 90 / 130 for the user's eye. A pixel diff between runs measures
 nothing.
+
+## 6. BUILT (2026-11-07): `ext.max_shadow_zoom`, and why sections 1-3 were wrong
+
+**The error.** Sections 1-3 modelled the camera with the manual pitch at 0 (the steepest tilt, -60 at
+zoom 20). Retail starts at `PlayerToolManager::manualPitch = 0.75` (`gameupdateloop_load.cpp`), so the
+default camera is -34 degrees at zoom 20 and -70 at zoom 130. RenderDoc captures of the stress town at
+`BANISHED_CAMERA_PIN=town,20` / `town,130` confirm it (view forward z -0.563 / -0.940) and the sun box
+side (63.0 / 234.0 world units, the replica above gives 64.2 / 234.0 with fovY 40). At the default tilt
+the bottom-centre pixel, in its smaller direction, gets **1.09 texels at zoom 20 and 1.94 at zoom 130**
+(8192 map, 2560x1440): the zoomed-out view draws 1.8x the texels the screen shows, which is the
+headroom the zoom-adaptive map needs. (The "18 texels per pixel" estimate of the GPU profile was an
+area ratio over the whole map, not a per-pixel one.)
+
+**The mechanism** (`src/engine/graphics/shadow_zoom.h`, seam `SunLight::_extShadowZoom`; a valued key of
+`ext.max_shadow_res`, 0..1, default 1; Options > Enhanced "Adaptive shadow map" Off / On, under "Max shadow
+resolution", `src/ext/max_shadow_res/enhanced_entry.cpp`). The map is not rebuilt.
+`AddDrawItems` scales the sun camera's projection in clip space so the box lands in the map's first
+1 / 2^shift along x and y; the casters (`DrawItemList`) and `DrawLight`'s sampling matrix both read that
+projection, so the map and its matrix match on every backend with no backend code. `GetSunCamera`
+snaps with `Width() >> shift` (retail's snap at that size). The PCF texel size stays 1 / Width(), one
+texel. The cull frustum is unchanged. The group that draws the map picks the next frame's shift from
+the engine's own reading of the bottom-centre pixel's ground size against the sun box texel: halve when
+the halved map still gives >= 0.9 texels per pixel, go back below 0.8, never below 2048. One stderr
+line per switch, the first 16 only. Row off or faithful profile: shift 0, retail.
+
+At 2560x1440, default tilt: 4096 drawn from about zoom 115 out (the engine reads 1.90 at zoom 130 on
+DX11, 1.81 on Vulkan at the switch frame), 8192 back below about zoom 90. 1920x1080: from about zoom 45.
+3840x2160: never.
+
+**A/B** (stress town, 2560x1440 4x MSAA, every visual ext on, ext.no_fog; three other agents compiling,
+GPU-bound scene, PresentMon GPUBusy medians; RenderDoc replay of the shadow pass):
+
+| | zoom 130 off | zoom 130 on | zoom 20 off | zoom 20 on |
+|---|---|---|---|---|
+| DX11 GPUBusy ms | 2.155 / 2.156 | 1.799 / 1.743 | 1.118 | 1.163 (no switch: noise) |
+| Vulkan GPUBusy ms | 1.746 / 1.806 | 1.366 / 1.379 | 0.842 | 0.838 (no switch) |
+| DX11 replay shadow pass ms | 0.816 | 0.527 | | |
+| Vulkan replay shadow pass ms | 0.448 | 0.151 | | |
+
+Visual: the captured sun map holds the casters in one quadrant on both backends; the final frames at
+zoom 130 read the same side by side at 3x (same sun, same shadows, no offset).
+
+**Rulings (2026-11-08).** The sharpness trade is accepted: the 0.9 / 0.8 thresholds stay. The user
+watched the 8192 / 4096 crossover live and could not see it. The key gets the Enhanced row above; the
+default stays on.

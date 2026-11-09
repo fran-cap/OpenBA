@@ -42,6 +42,19 @@ const Ext::Entry& E(const char* id) {
 
 }  // namespace
 
+// The class B / C rows ruled ON by default for 1.0.3 (2026-11-08, DESIGN.md section 2).
+static bool BcOnByDefault(const char* id) {
+    static const char* const kBcOn[] = {
+        "path_workers", "fast_paths", "anim_batch", "spread_warmth", "drain_split", "walk_batch_grid",
+        "restricted_foods", "item_priority", "tool_names", "recipe_skip", "high_limits", "boat_lane",
+        "walk_on_ice", "map_overlays",
+        "better_camera",   // Wider zoom: ON on a desktop (the Android first run seeds it off)
+    };
+    for (const char* on : kBcOn)
+        if (std::strcmp(id, on) == 0) return true;
+    return false;
+}
+
 UNIT_TEST(ext_registry_table_shape) {
     // The three fixes block FIXPILOT wires, default ON, no class.
     for (const char* id : {"icon_slide", "residence_goto", "tavern_counter", "start_barn_height",
@@ -71,10 +84,12 @@ UNIT_TEST(ext_registry_table_shape) {
         if (Ext::IsLockedClass(e.cls)) CHECK(e.formatVersion >= 1);
         if (e.tier == Ext::Tier::Fix) CHECK(e.cls == Ext::Class::None);
         else CHECK(e.cls != Ext::Class::None);
-        // Class A ships ON, class B / C OFF (DESIGN.md section 2, ruled 2026-10-18).
+        // Class A ships ON (DESIGN.md section 2, ruled 2026-10-18). Class B / C ship OFF except the rows
+        // ruled ON for 1.0.3 (2026-11-08): kBcOn below. better_camera, terrain_edit, town_screenshot and
+        // family_tree stay OFF.
         // The unit_* test rows keep OFF: the lock tests below start from nothing on.
         // eye_camera is class A but changes how the game is played: the player's call, OFF.
-        // no_fog is class A but changes how the map looks: the player's call, OFF. So is show_grid.
+        // show_grid is class A but changes how the map looks: the player's call, OFF (no_fog was too; ON since 1.0.3 at retail's fog).
         // fps_counter is class A but adds the toolbar's extension button: the player's call, OFF (FPSCOUNTER).
         // building_finder is class A but adds a tab to the extension window: OFF (BUILDINGFINDER).
         // dynamic_professions is class A but replaces the Professions window: OFF (DYNAMICPROFESSIONS).
@@ -83,17 +98,17 @@ UNIT_TEST(ext_registry_table_shape) {
         // fps_cap is class A but caps a desktop's game, retail's uncapped: OFF; the Android first run turns it on (P8).
         // touch_mode is class A but puts camera controls over a desktop's game: OFF; the Android first run turns it on.
         // touch_pointer is class A but takes a touch screen's fingers from the mouse: OFF; the Android first run turns it on.
-        // staggered_passes is class A but lets shadows and reflections trail by a frame: the player's call, OFF (issue #253).
+        // render_backend was OFF in the table until 1.0.3; ON since (maintainer ruling 2026-11-08).
         if (e.tier == Ext::Tier::Extension && std::strncmp(e.id, "unit_", 5) != 0)
-            CHECK(e.defaultOn == (e.cls == Ext::Class::A && std::strcmp(e.id, "eye_camera") != 0 &&
-                                  std::strcmp(e.id, "no_fog") != 0 && std::strcmp(e.id, "show_grid") != 0 &&
+            CHECK(e.defaultOn == (e.cls == Ext::Class::A ? (std::strcmp(e.id, "eye_camera") != 0 &&
+                                  std::strcmp(e.id, "show_grid") != 0 &&
                                   std::strcmp(e.id, "fps_counter") != 0 &&
                                   std::strcmp(e.id, "building_finder") != 0 &&
                                   std::strcmp(e.id, "dynamic_professions") != 0 &&
                                   std::strcmp(e.id, "texture_quality") != 0 &&
                                   std::strcmp(e.id, "phone_menu") != 0 && std::strcmp(e.id, "fps_cap") != 0 &&
-                                  std::strcmp(e.id, "touch_mode") != 0 && std::strcmp(e.id, "touch_pointer") != 0 &&
-                                  std::strcmp(e.id, "staggered_passes") != 0));
+                                  std::strcmp(e.id, "touch_mode") != 0 && std::strcmp(e.id, "touch_pointer") != 0)
+                                                         : BcOnByDefault(e.id)));
     }
     CHECK(!Ext::ValidId("a.b"));
     CHECK(!Ext::ValidId("Abc"));
@@ -314,8 +329,13 @@ UNIT_TEST(ext_registry_in_game_change_keeps_the_request) {
 }
 
 UNIT_TEST(ext_registry_pseudo_mods_for_save) {
-    Ext::Install(ResolveText("ext.unit_a=1\next.unit_b=1\next.unit_c=1\n"),
-                 Ext::Profile::PerEntry, false);
+    // The shipped B / C rows off (some ship ON, DESIGN.md section 2, 1.0.3): only the unit rows count.
+    Ext::State s = ResolveText("ext.unit_a=1\next.unit_b=1\next.unit_c=1\n");
+    for (int i = 0; i < Ext::EntryCount(); ++i) {
+        const Ext::Entry& e = Ext::EntryAt(i);
+        if (Ext::IsLockedClass(e.cls) && std::strncmp(e.id, "unit_", 5) != 0) e.slot(s) = false;
+    }
+    Ext::Install(s, Ext::Profile::PerEntry, false);
     Ext::PseudoMod mods[4];
     // Class A never goes in the save; B and C do, as `ext:<id>`.
     CHECK_EQ(Ext::PseudoModsForSave(mods, 4), 2);

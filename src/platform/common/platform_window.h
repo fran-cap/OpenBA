@@ -129,6 +129,10 @@ void GetCurrentDisplaySize(int32_t* width, int32_t* height);
 // The primary display's current refresh rate in whole Hz, 0 when unknown
 // (src/app/frame_limiter.cpp's query; ours, not retail's).
 int32_t GetCurrentDisplayRefreshHz();
+// The primary display's refresh rates (its fullscreen modes', distinct by whole Hz), lowest first,
+// as numerator / denominator pairs; at most `cap`. Returns the count, 0 when unknown. For a renderer
+// with no output to ask (the Vulkan backend's mode list; ours, not retail's).
+int32_t GetDisplayRefreshRates(int32_t (*rates)[2], int32_t cap);
 
 // The window procedure's OS half (SDL plan W2). DefWindowProcW: the default handling
 // Application::WindowProc falls through to. From W3 SDL owns the real WndProc and has

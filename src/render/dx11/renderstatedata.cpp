@@ -85,6 +85,7 @@
 #include <d3d11.h>
 
 #include "dx11_backend_access.h"   // Dx11DeviceData / Dx11Device / Dx11Context
+#include "depth_copy/depth_copy.h"     // NOT RETAIL: THE SHARED DEPTH COPY counts the main-depth writes
 #include "VideoDX11Data.h"
 
 // The real `Video::RenderStateData` abstract base. B5 RES: `VideoDX11::
@@ -490,6 +491,8 @@ void RenderStateData::Bind(void* /*videoContext — unused, as in the original*/
     ctx->OMSetDepthStencilState(depthStencilState,
                                 static_cast<UINT>(rs->_stencil.reference));   // byte, RS+0x4c
     ctx->RSSetState(rasterizerState);
+    // NOT RETAIL: THE SHARED DEPTH COPY (depth_copy/depth_copy.h): the draws under this state write depth?
+    DepthCopy::NoteDepthStateBound(rs->_depth.test != 0 && rs->_depth.write != 0);
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/BETTER-TREES.md, FAA-CORE.md): ext.better_trees' foliage_aa stage, null unless the row is on. BindResources binds the
     // pixel program BEFORE the render state, so the A2C clone goes on here, over the retail state.
     if (FaaStage::Stage* faa = g_extFoliageAA.load(std::memory_order_acquire)) faa->AfterRenderState(ctx, blendState);

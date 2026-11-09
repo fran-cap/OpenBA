@@ -34,7 +34,14 @@ bool EntriesLookup(void* ctx, const char* key, std::string& value) {
 
 Ext::State ResolveText(const char* text) {
     Entries entries = IO::SettingsFile::Parse(std::string(text));
-    return Ext::Resolve(&EntriesLookup, &entries, nullptr, nullptr);
+    Ext::State s = Ext::Resolve(&EntriesLookup, &entries, nullptr, nullptr);
+    // A B / C row the text does not turn on is off: some ship ON (DESIGN.md section 2, 1.0.3).
+    for (int i = 0; i < Ext::EntryCount(); ++i) {
+        const Ext::Entry& e = Ext::EntryAt(i);
+        if (Ext::IsLockedClass(e.cls) && std::string(text).find(std::string("ext.") + e.id + "=1") == std::string::npos)
+            e.slot(s) = false;
+    }
+    return s;
 }
 
 void StubOpen(UI::Element*, int32_t) {}

@@ -140,8 +140,9 @@
 #include "application/Application.h"   // -Iruntime/types: ENDGAME B.3.7 callers (K5)
 #include "platform_gfx.h"   // Platform::ResolveD3D11CreateDevice / ResolveCreateDXGIFactory1
 #include "ao/ao_depth_views.h"   // NOT RETAIL: ext.ambient_occlusion's readable main depth (CreateDepthBuffer)
+#include "render_backend.h"   // NOT RETAIL: Render::WindowPresentedByOtherBackend (ext.render_backend, FillSwapChainDesc)
 #if BANISHED_TWEAK_OVERLAY
-#include "tweak_overlay.h"   // the debug tweak overlay (debug flavour only, src/diag)
+#include "tweak_overlay_dx11.h"   // the debug tweak overlay's renderer (debug flavour only)
 #endif
 #include "platform_window.h"   // Phase D.4 SDL W2: the message ids; RENDER-3: window state, show, cursor
 #include "platform_thread.h"   // Platform::CurrentThreadId (TraceGeom)
@@ -471,6 +472,10 @@ void FillSwapChainDesc(DeviceData* self, DXGI_SWAP_CHAIN_DESC* desc) {
     // in the fullscreen popup AdjustDisplay makes.
     if (Ext::FullscreenMode::Borderless()) desc->Windowed = TRUE;
     desc->SwapEffect   = DXGI_SWAP_EFFECT_DISCARD;
+    // EXT SEAM (NOT RETAIL, ext.render_backend, src/render/common/render_backend.h): after a Vulkan swap chain
+    // on this window, retail's blit model shows nothing once Present waits for a vertical blank (VideoVSync);
+    // the flip model does. One colour buffer, BGRA8, single-sampled: the description is valid for both.
+    if (Render::WindowPresentedByOtherBackend()) desc->SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     desc->Flags        = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;      // 2
 
     Video_DisplayMode_Dtor(&mode);
@@ -893,8 +898,15 @@ int DeviceData_Resize(DeviceData* self) {
         fflush(stderr);
     }
 
+    // EXT SEAM (NOT RETAIL, ext.render_backend): a flip-model chain (FillSwapChainDesc, after another backend
+    // presented on the window) needs at least two buffers; retail's blit chain is resized to one.
+    UINT bufferCount = 1;
+    {
+        DXGI_SWAP_CHAIN_DESC current{};
+        if (sc->GetDesc(&current) == 0 && current.SwapEffect != DXGI_SWAP_EFFECT_DISCARD) bufferCount = 2;
+    }
     if (hrTarget == 0 &&
-        sc->ResizeBuffers(1,
+        sc->ResizeBuffers(bufferCount,
                           static_cast<UINT>(dev->backBufferWidth),
                           static_cast<UINT>(dev->backBufferHeight),
                           DXGI_FORMAT_B8G8R8A8_UNORM,
@@ -1088,7 +1100,7 @@ void DeviceData::Shutdown() {
 #if BANISHED_TWEAK_OVERLAY
     // The debug tweak overlay releases its DX11 objects and its device / context references before
     // the device goes (device lost, a settings rebuild, exit); it re-inits on the next open frame.
-    Diag::TweakOverlay::OnDeviceShutdown();
+    Dx11TweakOverlay::OnDeviceShutdown();
 #endif
     ::Application::Application* app = AppOf();
     app->UnregisterMessageCallback(Platform::Window::kMsgSetCursor);   // 0x20

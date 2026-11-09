@@ -22,6 +22,8 @@
 // ============================================================================
 #pragma once
 
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
+
 #include <cstdint>
 
 namespace Video { class Context; }
@@ -48,7 +50,9 @@ struct ExtAoFrame {
 // The backend's pass (src/render/dx11/ao/ao_pass.cpp): resolve the main depth,
 // run the AO stage, multiply its result into the bound (main, MSAA) colour.
 // Leaves every D3D binding as it found it.
+BANISHED_RENDER_IMPL_BEGIN
 void ExtAoAfterOpaque(Video::Context& context, const ExtAoFrame& frame,
                       const RendererSceneEntry& entry);
+BANISHED_RENDER_IMPL_END
 
 }  // namespace Graphics

@@ -286,6 +286,7 @@ void EnqueueTexture(const void* obj, ID3D11Device* dev, const D3D11_TEXTURE2D_DE
 
 // ---- the backend-neutral interface (async_gpu_create_backend.h) -----------------------------------
 namespace AsyncGpuCreateBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on) {
     VideoDX11::AsyncCreate::g_requested.store(on, std::memory_order_release);
@@ -296,4 +297,5 @@ bool Supported() {
            VideoDX11::AsyncCreate::DriverThreading::Concurrent;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace AsyncGpuCreateBackend

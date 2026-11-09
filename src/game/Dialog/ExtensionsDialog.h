@@ -76,6 +76,7 @@ private:
     int32_t _rowCount = 0;
     Object::InternalPtr<UI::Element>  _tableOptional; // "tableOptional": the rows with defaultOn false
     Object::InternalPtr<UI::Element>  _tableDefault;  // "tableDefault": the rows with defaultOn true
+    Object::InternalPtr<UI::Element>  _tableExperimental; // "tableExperimental": Ext::Experimental rows, whatever their default
     Object::InternalPtr<MainMenuDialog> _parentMenu; // the menu that opened it (the reload goes through it)
 };
 

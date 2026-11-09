@@ -7,7 +7,10 @@
 // ============================================================================
 #pragma once
 
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
+
 namespace AoBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // True when the live device was granted feature level 11_0 or better (ASSAO's
 // shaders are ps_5_0). False before the device exists.
@@ -25,4 +28,5 @@ void RequestReadableDepth(bool on);
 // The depth that exists (devicedata.cpp CreateDepthBuffer records it).
 bool DepthReadable();
 
+BANISHED_RENDER_IMPL_END
 }  // namespace AoBackend

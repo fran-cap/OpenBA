@@ -269,6 +269,7 @@ void Stage::VertexDestroyed(VertexProgramData* p) {
 }  // namespace VideoDX11
 
 namespace BbsBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void Request(bool on, bool naturalGrowth) {
     using namespace VideoDX11;
@@ -304,4 +305,5 @@ BbsRewrite::Params AppliedParams() {
 }
 #endif
 
+BANISHED_RENDER_IMPL_END
 }  // namespace BbsBackend

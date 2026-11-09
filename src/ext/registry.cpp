@@ -16,7 +16,7 @@ namespace {
 
 // ---------------------------------------------------------------------------
 // THE TABLE. Fixes first (default ON), then extensions (class A default ON,
-// class B / C default OFF: DESIGN.md section 2, ruled 2026-10-18), in the
+// class B / C default OFF but the rows ruled ON for 1.0.3: DESIGN.md section 2), in the
 // order the dialog lists them. A fix's description says what the player saw
 // in retail; docs/retail_bugs.md carries the mechanism and the lever.
 // ---------------------------------------------------------------------------
@@ -330,19 +330,32 @@ const Entry kEntries[] = {
       "Follow a citizen at eye level, looking where they look.",
       0, [](State& s) -> bool& { return s.ext.eye_camera; } },
 
-    // BETTERCAM (docs/extensions/handins/BETTERCAM.md): the two camera fixes of Banished Game Tweaks, in source.
-    // Class B (PR review): with the row on, the zoom target and the camera distance, which retail serializes,
-    // can hold values outside retail's range, so a save records the extension.
-    { "better_camera", Tier::Extension, Class::B, false,
-      "Better camera",
-      "Zoom in much closer and out much farther, and keep the camera's tilt when zoomed out "
-      "instead of flattening to top-down.",
+    // BETTERCAM (docs/extensions/handins/BETTERCAM.md): Banished Game Tweaks' wider zoom range, in source. The
+    // steady tilt it also carried is ext.camera_angle's slider since 2026-11-08 (a file with better_camera=1 and no
+    // camera_angle key is migrated to the slider's steady point, registry_boot.cpp). Class B (PR review): with the
+    // row on, the zoom target and the camera distance, which retail serializes, can hold values outside retail's
+    // range, so a save records the extension. ON by default on a desktop (ruled 2026-11-08 for 1.0.3); the Android
+    // first run seeds it off (app_android.cpp kPhoneSettings: the touch zoom has its own near limit).
+    { "better_camera", Tier::Extension, Class::B, true,
+      "Wider zoom",
+      "Zoom in much closer and out much farther (6 to 200 instead of 20 to 130). Takes effect at the next new "
+      "game or load.",
       1, [](State& s) -> bool& { return s.ext.better_camera; } },
+    // CAMERAANGLE (docs/extensions/handins/CAMERAANGLE.md): how far the camera tilts toward top-down as it zooms
+    // out, ext.camera_tilt 0..100 (the Enhanced tab's "Camera angle" slider, 50 = this row off = retail). Class A:
+    // the pitch target is recomputed every frame, nothing saved, live. ON by default on a desktop (ruled 2026-11-08):
+    // with ext.camera_tilt at its default 50 that is retail's pitch, the slider in place; the Android first run seeds
+    // it off.
+    { "camera_angle", Tier::Extension, Class::A, true,
+      "Camera angle",
+      "Changes how far the camera tilts toward top-down as you zoom out: steeper, or the same tilt at every "
+      "zoom and a little flatter. Set it in Options > Enhanced > Camera angle.",
+      0, [](State& s) -> bool& { return s.ext.camera_angle; } },
     // RECIPESKIP (docs/extensions/handins/RECIPESKIP.md): a workshop set to every recipe stops, in retail, as
     // soon as ONE recipe's material is at its limit. With the row on that recipe is left out of the draw and
     // the building only stops when every recipe is at its limit. Class B: no serialized state, but the
     // town's production differs from retail's, so it is locked for the game and recorded in the save.
-    { "recipe_skip", Tier::Extension, Class::B, false,
+    { "recipe_skip", Tier::Extension, Class::B, true,
       "Skip recipes at their limit",
       "A workshop that makes every recipe in turn keeps working on the others when one recipe's limit "
       "is reached, instead of stopping.",
@@ -351,7 +364,7 @@ const Entry kEntries[] = {
     // window and the production buildings take values up to 999,999,999 and 9 typed digits instead of
     // 999,999 and 6. Class B: no serialized state, but a limit above 999,999 is a value the faithful
     // spinner cannot show, so it is locked for the game and recorded in the save.
-    { "high_limits", Tier::Extension, Class::B, false,
+    { "high_limits", Tier::Extension, Class::B, true,
       "Higher limit values",
       "Lets the limit boxes in the Town Hall, the Limits window and the production buildings take values "
       "up to 999,999,999 (retail stops at 999,999). Play diverges.",
@@ -363,12 +376,12 @@ const Entry kEntries[] = {
       "Layout is unchanged.",
       0, [](State& s) -> bool& { return s.ext.sharp_ui; } },
 
-    { "fast_paths", Tier::Extension, Class::B, false,
+    { "fast_paths", Tier::Extension, Class::B, true,
       "Faster pathfinding",
       "Same-length routes for far less work. Ties can differ, so play diverges.",
       1, [](State& s) -> bool& { return s.ext.fast_paths; } },
 
-    { "path_workers", Tier::Extension, Class::B, false,
+    { "path_workers", Tier::Extension, Class::B, true,
       "Parallel pathfinding",
       "Finds paths on several threads. Same paths, but play diverges.",
       1, [](State& s) -> bool& { return s.ext.path_workers; } },
@@ -378,7 +391,7 @@ const Entry kEntries[] = {
       "Off-screen citizens, icons and effects pause until you look.",
       0, [](State& s) -> bool& { return s.ext.render_culling; } },
 
-    { "anim_batch", Tier::Extension, Class::B, false,
+    { "anim_batch", Tier::Extension, Class::B, true,
       "Batched animation",
       "Above 1x speed, animations step once per frame. Play diverges.",
       1, [](State& s) -> bool& { return s.ext.anim_batch; } },
@@ -400,7 +413,7 @@ const Entry kEntries[] = {
 
     // WALKGRID: walk_batch's measured class B variant (WALKBATCH.md sections 3, 11, 13). On, it
     // batches the walk by itself (walk_batch need not be on) and also skips Place.
-    { "walk_batch_grid", Tier::Extension, Class::B, false,
+    { "walk_batch_grid", Tier::Extension, Class::B, true,
       "Batched walking, faster",
       "Batched walking; walkers seen a frame late. Diverges from the original.",
       1, [](State& s) -> bool& { return s.ext.walk_batch_grid; } },
@@ -457,7 +470,7 @@ const Entry kEntries[] = {
     // ext.winter_ice keeps open in the ice. Class B: a boat's route and so its travel time change. OFF by
     // default, the B / C rule (the user's ruling, 2026-11-06; extension defaults to be revisited next
     // release).
-    { "boat_lane", Tier::Extension, Class::B, false,
+    { "boat_lane", Tier::Extension, Class::B, true,
       "Boat lane",
       "Trade boats sail a smooth lane down the middle of rivers and lakes instead of hugging the cheapest "
       "bank in grid steps.",
@@ -475,7 +488,7 @@ const Entry kEntries[] = {
     // its cells are open to walkers (never a river, never the open water round a dock or along the boat
     // channel). Class C: the ice is the town's own state, kept in the save's tail
     // (src/ext/winter_ice/ice_town.cpp), so the lake opens on the same day after a reload. Owner winter_ice.
-    { "walk_on_ice", Tier::Extension, Class::C, false,
+    { "walk_on_ice", Tier::Extension, Class::C, true,
       "Walk on ice",
       "Citizens and animals can cross a lake while it is frozen solid in winter. Rivers stay a barrier. Play "
       "diverges; the ice is recorded in the save.",
@@ -488,6 +501,22 @@ const Entry kEntries[] = {
       "Clouds drift across the sky and its reflection in the water with the wind, thicker and darker "
       "in winter and in bad weather. They stop when the game is paused.",
       0, [](State& s) -> bool& { return s.ext.better_clouds; } },
+    // FANCYTERRAIN (src/ext/fancy_terrain/fancy_terrain.h): the terrain shades itself from a horizon map of
+    // the heightmap (sun hidden by a ridge, less sky in a valley, a warm bounce), multiplied into the opaque
+    // scene at the ground-draw seam. Class A: drawing only, nothing saved, live; ON by default.
+    { "fancy_terrain", Tier::Extension, Class::A, true,
+      "Fancy terrain",
+      "Hills and cliffs shade the land around them: the sun is hidden behind ridges, valleys and the foot "
+      "of a cliff see less sky, and shaded slopes keep a warm light. Terrain edits update it.",
+      0, [](State& s) -> bool& { return s.ext.fancy_terrain; } },
+    // DOF (docs/extensions/DOF.md section 3.1): a half-resolution depth of field after the main scene's lists
+    // (the scene-draw seam), focused on the camera's target. Class A: drawing only, nothing saved, live. The row
+    // ships ON; the blur itself is the valued key ext.depth_blur (the Enhanced tab's "Depth blur"), OFF by default.
+    { "depth_of_field", Tier::Extension, Class::A, true,
+      "Depth blur",
+      "What is far from the point the camera looks at is softly blurred, like a photograph with a shallow "
+      "depth of field: the far hills, the sky and anything close to the camera.",
+      0, [](State& s) -> bool& { return s.ext.depth_of_field; } },
     // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at 4096 when the retail
     // Shadow Resolution combo is at High; Medium / Low keep their retail sizes.
     { "max_shadow_res", Tier::Extension, Class::A, true,
@@ -497,7 +526,7 @@ const Entry kEntries[] = {
     // RESTRICTEDFOODS (docs/extensions/handins/RESTRICTEDFOODS.md): the foods checked on the Foods page stay
     // Edible for storage, markets and recipes but are not eaten by citizens. Class C: the checked list is the
     // town's own state, recorded in the save's tail (src/ext/restricted_foods/save_state.cpp).
-    { "restricted_foods", Tier::Extension, Class::C, false,
+    { "restricted_foods", Tier::Extension, Class::C, true,
       "Restricted foods",
       "Lets you stop citizens eating foods you choose, from the Foods page in a game. Play diverges; the "
       "choice is recorded in the save.",
@@ -506,7 +535,7 @@ const Entry kEntries[] = {
     // health items its citizens fetch from a storage; a citizen takes the best-ranked item. Class C:
     // the ranked lists are the town's own state, recorded in the save's tail
     // (src/ext/item_priority/save_state.cpp).
-    { "item_priority", Tier::Extension, Class::C, false,
+    { "item_priority", Tier::Extension, Class::C, true,
       "Item priority",
       "Lets you rank the tools, fuels, clothing and health items citizens take first, from the "
       "Priority page in a game. Play diverges; the choice is recorded in the save.",
@@ -551,7 +580,7 @@ const Entry kEntries[] = {
     // map (production, consumption, stock, services, traffic, citizens, natural resources). Class C: the last
     // year's production, consumption and traffic history is the town's own state, kept in the save's tail
     // (src/ext/map_overlays/save_state.cpp).
-    { "map_overlays", Tier::Extension, Class::C, false,
+    { "map_overlays", Tier::Extension, Class::C, true,
       "Map data views",
       "Adds views to the map window that show where goods are produced, consumed and stored, where services "
       "reach and where citizens walk. The last year's history is kept in the save.",
@@ -559,7 +588,7 @@ const Entry kEntries[] = {
     // HITCH_PFBURST (docs/extensions/handins/HITCH_PFBURST.md): a per-frame budget of the cold
     // citizens' warm-house scans (one region path search per residence), so a cold spell at high
     // speed spreads its scans over a few frames instead of one 10-20 ms frame.
-    { "spread_warmth", Tier::Extension, Class::B, false,
+    { "spread_warmth", Tier::Extension, Class::B, true,
       "Spread warmth searches",
       "At high speed, cold citizens pick a warm house a few frames later. Play diverges.",
       1, [](State& s) -> bool& { return s.ext.spread_warmth; } },
@@ -574,7 +603,7 @@ const Entry kEntries[] = {
     // HITCH_DRAINSPLIT (docs/extensions/handins/HITCH_DRAINSPLIT.md): the PathGraph drain's two
     // halves in two frames -- ReassignWorkers in the drain tick, AssignCitizens in the first sim
     // tick of the next frame -- so the five-minute job pass is not one frame's work at high speed.
-    { "drain_split", Tier::Extension, Class::B, false,
+    { "drain_split", Tier::Extension, Class::B, true,
       "Split the job reassignment",
       "At high speed, the five-minute job assignment runs one frame after the housing pass. "
       "Play diverges.",
@@ -706,12 +735,16 @@ const Entry kEntries[] = {
       "Keeps recently freed memory ready instead of handing it back to the system and asking for it "
       "again, so large mod sets load faster. Same game data. Takes effect at the next start.",
       0, [](State& s) -> bool& { return s.ext.heap_slack; } },
-    // NOFOG (docs/extensions/handins/NOFOG.md): the fog is taken off the finished lighting each frame, so
-    // the far map stays clear when the camera is zoomed out. Class A: a picture-only change, no sim effect,
-    // nothing saved, live. OFF by default: how the map looks is the player's choice (like eye_camera).
-    { "no_fog", Tier::Extension, Class::A, false,
-      "No fog",
-      "Removes the fog that hazes the far map when the camera is zoomed far out.",
+    // NOFOG (docs/extensions/handins/NOFOG.md): the fog is pushed back on the finished lighting each frame,
+    // as far as ext.fog_distance says (100, the default: taken off), so the far map stays clear when the
+    // camera is zoomed out. The Enhanced tab's "Fog distance" slider sets both (0 = this row off). Class A: a
+    // picture-only change, no sim effect, nothing saved, live. ON by default on a desktop (ruled 2026-11-08 for
+    // 1.0.3) with ext.fog_distance at its default 0, which is retail's fog: the slider in place, nothing changed
+    // until the player moves it. The Android first run seeds it off.
+    { "no_fog", Tier::Extension, Class::A, true,
+      "Fog distance",
+      "Pushes back the fog that hazes the far map when the camera is zoomed far out, up to no fog at all. "
+      "Set how far in Options > Enhanced > Fog distance.",
       0, [](State& s) -> bool& { return s.ext.no_fog; } },
     // SHOWGRID (docs/extensions/handins/SHOWGRID.md): a grid of tile outlines over the map, for planning with
     // the game paused. Class A: a picture-only change, no sim effect, nothing saved, live. OFF by default:
@@ -752,8 +785,8 @@ const Entry kEntries[] = {
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a
-    // load (src/ext/tool_names/tool_names.cpp). No sim effect. OFF by default like the other class C rows.
-    { "tool_names", Tier::Extension, Class::C, false,
+    // load (src/ext/tool_names/tool_names.cpp). No sim effect. ON by default (ruled 2026-11-08: modded tools are the common case).
+    { "tool_names", Tier::Extension, Class::C, true,
       "Tool names",
       "The citizen panel shows the name of the tool a citizen carries, so modded tools are not all shown "
       "as iron or steel. The tool each citizen carries is recorded in the save.",
@@ -810,10 +843,10 @@ const Entry kEntries[] = {
     // last frame's image on a near-still view, rendering at least every ext.staggered_passes_shadow /
     // _reflection frames (2: one frame held at most, the two passes on alternate frames) and at once on a
     // turn, a move past a small tolerance, a zoom, a settings change or a target rebuild. Class A: frames
-    // only, nothing saved, live. OFF by default on a desktop: a held frame lags moving shadows and
-    // reflections by a frame, ruled acceptable but the player's call. The Android first run turns it on
-    // (src/platform/android/app_android.cpp kPhoneSettings, ruled 2026-11-05).
-    { "staggered_passes", Tier::Extension, Class::A, false,
+    // only, nothing saved, live. ON by default on every platform (ruled 2026-11-08 for 1.0.3; it was OFF on a
+    // desktop): a held frame lags moving shadows and reflections by a frame, ruled acceptable. The Android
+    // first run also seeds it on (src/platform/android/app_android.cpp kPhoneSettings, ruled 2026-11-05).
+    { "staggered_passes", Tier::Extension, Class::A, true,
       "Staggered shadow and reflection",
       "Renders the shadows and the water's reflection every other frame while the view is still, on "
       "alternate frames: a higher frame rate on slower devices; moving shadows and reflections may "
@@ -830,6 +863,21 @@ const Entry kEntries[] = {
       "The Video tab's Fullscreen setting becomes Off / Exclusive / Borderless. Borderless covers the "
       "screen at the desktop's resolution and stays on screen when you switch to another window.",
       0, [](State& s) -> bool& { return s.ext.fullscreen_mode; } },
+    // RENDERBACKEND (src/ext/render_backend/render_backend.h): the dual Windows exe carries DirectX 11 and
+    // Vulkan behind retail's one renderer slot; the row lists both in the Video tab's Renderer combo and
+    // starts the one ext.render_api names, falling back to DirectX 11 when Vulkan cannot start. Class A:
+    // the renderer only, nothing saved in a town. Off: retail's DirectX 11. A one-backend build ignores it.
+    // DEFAULT ON (maintainer ruling 2026-11-08, for 1.0.3; it was off in the table so a current player stayed
+    // on DirectX 11): every settings.cfg without the key now starts the renderer ext.render_api names, Vulkan by
+    // default. A fresh install still has both keys written at its first start (Ext::RenderBackend::
+    // SeedFreshInstall), which now only makes them explicit. The DirectX 11 fallback is on in every case, and
+    // a fallback is SAVED: the backend that started is written to ext.render_api (and the row turned on)
+    // so the next launch starts on it (Ext::RenderBackend::SaveFallback). docs/extensions/handins/RENDERBACKEND.md.
+    { "render_backend", Tier::Extension, Class::A, true,
+      "Renderer choice",
+      "The Video tab's Renderer lists DirectX 11 and Vulkan; the game restarts its graphics on the one you "
+      "pick. If Vulkan cannot start on this computer, DirectX 11 is used.",
+      0, [](State& s) -> bool& { return s.ext.render_backend; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.
@@ -877,6 +925,11 @@ const ValueKey kValueKeys[] = {
     // retail's 1024 / 512 whatever this says (src/engine/graphics/sunlight.cpp SunMapRawSize).
     { "max_shadow_size", "max_shadow_res", 4096, 8192, 4096,
       [](State& s) -> int32_t& { return s.val.max_shadow_size; }, kMaxShadowSizes, 2 },
+    // SHADOWZOOM (docs/extensions/handins/SHADOWZOOM.md section 6): while the row is on, the shadow casters
+    // are drawn into the share of the map the view can show (src/engine/graphics/shadow_zoom.h): the full
+    // map up close, half of it along each axis when zoomed out at the default tilt. No rebuild; live.
+    { "max_shadow_zoom", "max_shadow_res", 0, 1, 1,
+      [](State& s) -> int32_t& { return s.val.max_shadow_zoom; }, nullptr, 0 },
     // ROCKSEAT: how fix.rock_seat seats a rock (src/ext/rock_seat/rock_seat_math.h): 1 sinks it to the
     // lowest ground under its bottom ring, 2 tilts it to the slope and seats it (the default: sink
     // buries small rocks on a slope, ROCKSEAT.md section 4). The only valued key owned by a fix; the
@@ -908,6 +961,10 @@ const ValueKey kValueKeys[] = {
     // 1 = borderless. A range key.
     { "fullscreen_borderless", "fullscreen_mode", 0, 1, 0,
       [](State& s) -> int32_t& { return s.val.fullscreen_borderless; }, nullptr, 0 },
+    // RENDERBACKEND: the renderer the dual exe starts while the row render_backend is on: 0 = DirectX 11,
+    // 1 = Vulkan (the default: the row on means Vulkan first). A range key.
+    { "render_api", "render_backend", 0, 1, 1,
+      [](State& s) -> int32_t& { return s.val.render_api; }, nullptr, 0 },
     // SHOWGRID: the grid lines' hue in degrees (read every frame, so a settings.cfg edit shows at the next
     // start). A range key.
     { "show_grid_hue", "show_grid", 0, 359, 0,
@@ -967,10 +1024,23 @@ const ValueKey kValueKeys[] = {
     // Fancy adds the clouds' shadows on the ground.
     { "better_clouds_mode", "better_clouds", 1, 2, 1,
       [](State& s) -> int32_t& { return s.val.better_clouds_mode; }, nullptr, 0 },
+    // DOF: the Enhanced tab's "Depth blur" while the row depth_of_field is on: 0 = Off (the default), 1 = On.
+    { "depth_blur", "depth_of_field", 0, 1, 0,
+      [](State& s) -> int32_t& { return s.val.depth_blur; }, nullptr, 0 },
     // BETTERWATER.md section 7: Better water's level, the Enhanced tab's "Better water" Plain / Fancy (Off is
     // the row). Fancy adds the shore strip on the bank side of the waterline.
     { "better_water_mode", "better_water", 1, 2, 1,
       [](State& s) -> int32_t& { return s.val.better_water_mode; }, nullptr, 0 },
+    // NOFOG.md: the Enhanced tab's "Fog distance" slider. 0 = retail's fog (the default since the row ships ON,
+    // ruled 2026-11-08), 1..99 push fog near and far out by 100 / (100 - d), 100 = no fog. A settings.cfg with
+    // ext.no_fog=1 and no ext.fog_distance key (the row's no-fog meaning before the key) is migrated to 100 at
+    // boot (registry_boot.cpp).
+    { "fog_distance", "no_fog", 0, 100, 0,
+      [](State& s) -> int32_t& { return s.val.fog_distance; }, nullptr, 0 },
+    // CAMERAANGLE.md: the Enhanced tab's "Camera angle" slider while the row camera_angle is on (the slider's 50 is
+    // the row off). camera_angle.h has the curve: 0 top-down zoomed out, 50 retail, 90 steady, 100 a touch flatter.
+    { "camera_tilt", "camera_angle", 0, 100, 50,
+      [](State& s) -> int32_t& { return s.val.camera_tilt; }, nullptr, 0 },
     // SHARP_SPRITES.md: Sharp UI's level, the Enhanced tab's "Sharp UI" Text / Text + icons (Off is the row).
     // 0 = the text only (scale-matched fonts, whole-pixel quads); 1 = also the magnified sprite sheets.
     { "sharp_ui_icons", "sharp_ui", 0, 1, 0,
@@ -1307,6 +1377,14 @@ int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion) {
     if (savedFormatVersion > e->formatVersion) return 1;
     if (!Requested(*e)) return 1;
     return 0;
+}
+
+// The Extensions dialog's Experimental tab (registry.h Experimental).
+bool Experimental(const Entry& e) {
+    static const char* const kExperimental[] = { "touch_mode", "touch_pointer", "phone_menu", "staggered_passes" };
+    for (const char* id : kExperimental)
+        if (std::strcmp(e.id, id) == 0) return true;
+    return false;
 }
 
 bool ValidId(const char* id) {

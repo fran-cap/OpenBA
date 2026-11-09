@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/create_on_demand/create_on_demand_backend.h -- ext.create_on_demand's render
 // side, as the extension sees it (docs/extensions/handins/CREATEONDEMAND.md, issue #13)
@@ -16,6 +18,7 @@
 // ============================================================================
 
 namespace CreateOnDemandBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The extension's one call (Ext::CreateOnDemand::Boot, main thread, once at boot, before the first
 // load: the row takes effect at the next start). Off: every object is created at load, retail's.
@@ -41,4 +44,5 @@ bool VertexBufferMade(const void* companion);
 // The same for an image's companion (its shader view).
 bool ImageMade(const void* companion);
 
+BANISHED_RENDER_IMPL_END
 }  // namespace CreateOnDemandBackend

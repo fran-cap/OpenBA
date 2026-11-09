@@ -18,6 +18,7 @@
 #include "vulkan_entry.h"
 #include "draw.h"
 #include "ao/assao_pass.h"
+#include "depth_copy/depth_copy.h"
 
 #include "video/Context.h"
 #include "video/Device.h"
@@ -32,14 +33,17 @@
 // rebuilds the main targets at the next frame; no settings change is raised: the main targets are this
 // backend's own, not the engine's render buffer).
 namespace AoBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 bool Supported() {
-    return VideoVulkan::DeviceLive() && VideoVulkan::Assao::Ready();
+    return VideoVulkan::DeviceLive() && VideoVulkan::Assao::Ready() && VideoVulkan::DepthCopy::Supported();
 }
 
 void RequestReadableDepth(bool on) {
     // The AO pass's own request (draw.h THE READABLE DEPTH: ext.better_water's scene depth copy is the
     // other reader); logged when it changes.
+    // THE SHARED DEPTH COPY (depth_copy/depth_copy.h): the pass reads it with a multisampled depth.
+    VideoVulkan::DepthCopy::Request(VideoVulkan::kDepthReaderAo, on);
     if (VideoVulkan::DrawRequestReadableDepth(VideoVulkan::kDepthReaderAo, on)) {
         std::fprintf(stderr, "[AmbientOcclusion] main depth -> %s: rebuilt at the next frame (Vulkan)\n",
                      on ? "readable (sampled view)" : "retail (attachment only, unless another reader asks)");
@@ -50,6 +54,7 @@ bool DepthReadable() {
     return VideoVulkan::DrawDepthReadable();
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace AoBackend
 
 // ext.render_pipe: the render thread runs PresentFrame (Finish's present half), the main thread the
@@ -57,6 +62,7 @@ bool DepthReadable() {
 // the present's result: 0, or VK_ERROR_DEVICE_LOST.
 namespace Ext {
 namespace RenderPipe {
+BANISHED_RENDER_IMPL_BEGIN
 
 int32_t FinishPresent(Video::Context& ctx) {
     return VideoVulkan::PresentFrame(ctx);
@@ -67,15 +73,18 @@ void FinishRecover(Video::Device& device, int32_t state) {
     VideoVulkan::RecoverLostDevice(device, state);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace RenderPipe
 }  // namespace Ext
 
 // ext.ambient_occlusion's pass hook (renderer_ext_ao.h): Renderer::Draw calls it between the Opaque and
 // Blended lists of the main entry while the row is on and AoBackend::Supported() is true.
 namespace Graphics {
+BANISHED_RENDER_IMPL_BEGIN
 
 void ExtAoAfterOpaque(Video::Context& context, const ExtAoFrame& frame, const RendererSceneEntry& entry) {
     VideoVulkan::Assao::AfterOpaque(context, frame, entry);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace Graphics

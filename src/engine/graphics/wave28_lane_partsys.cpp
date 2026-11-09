@@ -135,6 +135,8 @@
 // by reading the WRITER (SetParticle), not by the element type.
 // ============================================================================
 
+#include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -148,6 +150,8 @@
 #include "graphics/SunLight.h"
 #include "graphics/pass_split.h"   // issue #253: the stress harness's per-group CPU split
 #include "graphics/stagger_hold.h"   // ext.staggered_passes: the shadow hold (NOT RETAIL)
+#include "graphics/shadow_zoom.h"    // ext.max_shadow_zoom: the drawn share of the map (NOT RETAIL)
+#include "volume/Volume.h"           // ext.max_shadow_zoom: the view frustum's near corners
 #include "video/ImageBuffer.h"       // ext.staggered_passes: the map's Width() in the hold key
 #include "math/Math.h"
 #include "graphics/Camera.h"    // ENDGAME B.3.5 caller batch: Renderer, Camera
@@ -872,6 +876,9 @@ namespace Graphics {
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): ext.eye_camera's shadow-fit view (SunLight.h has the contract).
 const Camera* SunLight::_extShadowFitView = nullptr;
 
+// NOT RETAIL (ext.camera_angle): null = retail's 256-deep sun box.
+const bool* SunLight::_extDeepSunBox = nullptr;
+
 // NOT RETAIL (ext.staggered_passes, graphics/stagger_hold.h): null = retail.
 const int32_t* SunLight::_extStaggerEvery = nullptr;
 
@@ -889,7 +896,57 @@ constexpr float kShadowMoveFraction = 0.005f;
 
 const Camera& HeldSunCamera() { return *reinterpret_cast<const Camera*>(g_heldSunCameraBytes); }
 
+// NOT RETAIL (ext.max_shadow_zoom, graphics/shadow_zoom.h): the shift the next pass 1 draws the map
+// with. Written by the group that draws the map, after its sun camera is made (main thread).
+std::atomic<int32_t> g_shadowZoomShift{ 0 };
+// The switch lines on stderr: the first few only (a zoom near the line may cross it often).
+int32_t g_shadowZoomLines = 0;
+constexpr int32_t kShadowZoomMaxLines = 16;
+
+// The texels per bottom-centre pixel the full map gives for `view` and the sun box made from it,
+// then the next shift. Unknown (a ray misses the ground) = the full map.
+void ExtUpdateShadowZoom(const Camera& view, const Camera& sunCamera, int32_t fullSize) {
+    ::Frustum frustum = view._frustum;
+    Math::Vector3 corner[8];
+    RtVolume_Frustum_GetCorners(&frustum, corner);
+    float near4[4][3];
+    for (int i = 0; i < 4; ++i) {
+        near4[i][0] = corner[i].x;
+        near4[i][1] = corner[i].y;
+        near4[i][2] = corner[i].z;
+    }
+    const Math::Transform3& t = view._cameraToWorld;
+    const float xf[12] = { t.axisX.x, t.axisX.y, t.axisX.z, t.axisY.x, t.axisY.y, t.axisY.z,
+                           t.axisZ.x, t.axisZ.y, t.axisZ.z, t.translation.x, t.translation.y, t.translation.z };
+    const ::Video::Device* const device = ::Video::Device::_singleton;
+    const int32_t current = g_shadowZoomShift.load(std::memory_order_relaxed);
+    float pixel = 0.0f;
+    float texelsPerPixel = 0.0f;
+    const float side = 2.0f * std::fabs(sunCamera._frustum.planes[2].w);   // GetSunCamera's 2 * radius * skew
+    if (device != nullptr && side > 0.0f && fullSize > 0 &&
+        ShadowZoom::BottomPixelWorld(near4, xf, device->backBufferWidth, device->backBufferHeight, pixel))
+        texelsPerPixel = pixel / (side / static_cast<float>(fullSize));
+    const int32_t next = ShadowZoom::SelectShift(current, texelsPerPixel, fullSize);
+    if (next == current)
+        return;
+    g_shadowZoomShift.store(next, std::memory_order_relaxed);
+    if (g_shadowZoomLines < kShadowZoomMaxLines) {
+        ++g_shadowZoomLines;
+        std::fprintf(stderr, "[ShadowZoom] %d -> %d of %d (%.2f texels per bottom pixel at full size)\n",
+                     fullSize >> current, fullSize >> next, fullSize, static_cast<double>(texelsPerPixel));
+    }
+}
+
 }  // namespace
+
+// NOT RETAIL (ext.max_shadow_zoom): null = retail (the whole map).
+const int32_t* SunLight::_extShadowZoom = nullptr;
+
+int32_t SunLight::ExtShadowZoomShift() {
+    if (_extMaxShadowRes == nullptr || !*_extMaxShadowRes || _extShadowZoom == nullptr || *_extShadowZoom == 0)
+        return 0;
+    return g_shadowZoomShift.load(std::memory_order_relaxed);
+}
 
 bool SunLight::ExtTakeShadowHeld() {
     const bool held = g_shadowHeldThisDraw;
@@ -985,10 +1042,24 @@ void SunLight::AddDrawItems(const Scene& sceneRef, Renderer& rendererRef) const 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): null unless
     // ext.eye_camera is drawing (selected at GameUpdateLoop::Draw step 7);
     // then the shadow fit uses its view. Otherwise retail's line, unchanged.
-    const ::Graphics::Camera sunCamera =
+    // EXT SEAM (NOT RETAIL, ext.max_shadow_zoom): the shift GetSunCamera snaps with; 0 = retail.
+    const int32_t zoomShift = ExtShadowZoomShift();
+    ::Graphics::Camera sunCamera =
         (_extShadowFitView != nullptr)
             ? ExtShadowFitSunCamera(*this, rendererRef, *_extShadowFitView)
             : this->::Graphics::SunLight::GetSunCamera(rendererRef);
+
+    // EXT SEAM (NOT RETAIL, ext.max_shadow_zoom, graphics/shadow_zoom.h): the box lands in the map's
+    // first 1 / 2^shift along x and y; the casters (DrawItemList) and DrawLight's sampling matrix both
+    // read this projection, so the map and its matrix match on every backend. The group that draws the
+    // map then picks the shift of the next frame from this view.
+    if (zoomShift != 0)
+        ShadowZoom::ScaleProjection(sunCamera._projection.m, zoomShift);
+    if (_extShadowZoom != nullptr && *_extShadowZoom != 0 && _extMaxShadowRes != nullptr && *_extMaxShadowRes &&
+        rendererRef._shaderDetail != 0)
+        ExtUpdateShadowZoom(_extShadowFitView != nullptr ? *_extShadowFitView
+                                                         : rendererRef._drawGroups._data[0]._camera,
+                            sunCamera, _depthTarget->Width());
 
     // EXT SEAM (NOT RETAIL, issue #253): ext.staggered_passes keeps the camera this map is
     // rendered with, for the frames that hold it.

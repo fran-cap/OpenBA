@@ -16,6 +16,9 @@
 #include "pipelines.h"
 #include "resources.h"
 #include "shader_rewrites.h"   // issue #253: Rewrites::DrawBloom (natural growth's copy without the blossom)
+#if BANISHED_TWEAK_OVERLAY
+#include "tweak_overlay_vulkan.h"   // the debug tweak overlay's renderer (debug flavour only)
+#endif
 #include "vulkan11.h"
 #include "create_on_demand/lazy_create.h"   // P4: ext.create_on_demand's use gate around a draw
 
@@ -207,6 +210,10 @@ struct Frame {
     // Issue #253: the AO apply runs in the main target's pass, which DrawAoEnd leaves open for the
     // Blended draws (DrawAoBeginApply).
     bool aoApplyInMain = false;
+    // The shared depth copy (depth_copy/depth_copy.h): every engine draw that may write the main depth (a
+    // pass with the main depth attached and a state that tests and writes it) and every depth clear
+    // counts here. A copy made at count N is the main depth as long as the count is still N.
+    uint64_t mainDepthWrites = 0;
     VkPipeline pipeline = VK_NULL_HANDLE;
     bool viewportSet = false;
     VkViewport viewport{};
@@ -1369,6 +1376,7 @@ void IssueDraw(bool indexed, uint32_t count, uint32_t instances, uint32_t first,
         ++g_frame.failedDraws;
         return;
     }
+    if (state.depthTest && state.depthWrite && g_frame.pass.depth == &g_main.depthState) ++g_frame.mainDepthWrites;
     VkCommandBuffer cb = g_frame.target.cb;
 
     PipelineKey key;
@@ -1634,9 +1642,26 @@ void DrawEndFrame() {
         TransitionImage(swapImage, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, &g_barriers);
         FlushBarriers(cb, &g_barriers);
         PresentRecord(cb, g_frame.target.presentImage, g_frame.target.presentView, g_frame.target.presentExtent);
+#if BANISHED_TWEAK_OVERLAY
+        // The debug tweak overlay over the swap-chain image, at the window's size (the image is still a
+        // colour attachment after the present pass).
+        if (TweakOverlayOpen())
+            TweakOverlayRecord(cb, g_frame.target.slot, g_frame.target.presentView, g_frame.target.presentExtent,
+                               SwapchainFormat());
+#endif
         ResetCommandState();
         TransitionImage(swapImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, &g_barriers);
     } else {
+#if BANISHED_TWEAK_OVERLAY
+        // The debug tweak overlay over the swap-chain image (one atomic test while it is closed).
+        if (TweakOverlayOpen()) {
+            TransitionImage(g_swap, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, &g_barriers);
+            FlushBarriers(cb, &g_barriers);
+            TweakOverlayRecord(cb, g_frame.target.slot, g_frame.target.view, g_frame.target.extent,
+                               SwapchainFormat());
+            ResetCommandState();
+        }
+#endif
         TransitionImage(g_swap, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, &g_barriers);
     }
     // Every companion image this frame used goes back to SHADER_READ_ONLY (resources.h ImageState).
@@ -1910,6 +1935,7 @@ void ContextData::Clear(Video::ClearFlags flags, unsigned color, float depth, in
     if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::Depth)) {
         g_clear.depth = true;
         g_clear.depthValue = depth;
+        ++g_frame.mainDepthWrites;   // any depth clear (the shared depth copy's rule: never under-count)
     }
     if (static_cast<uint32_t>(flags) & static_cast<uint32_t>(Video::ClearFlags::Stencil)) {
         g_clear.stencil = true;
@@ -2142,6 +2168,25 @@ bool DrawAoBegin(AoTargets* out) {
     return true;
 }
 
+bool DrawAoBeginKeepDepth(AoTargets* out) {
+    if (!g_frame.active || !g_main.depth.image || !g_main.readable || !g_main.depthSampled) return false;
+    FlushPendingClear();
+    EndPass();
+    out->cb = g_frame.target.cb;
+    out->slot = g_frame.target.slot;
+    out->frame = g_frame.index;
+    out->depthView = g_main.depthSampled;   // not to be read: the depth stays an attachment
+    out->extent = g_main.extent;
+    out->samples = g_main.samples;
+    out->msrtss = g_main.samples > 1 && g_main.msrtss;
+    out->colorFormat = SwapchainFormat();
+    return true;
+}
+
+uint64_t DrawMainDepthWrites() {
+    return g_frame.mainDepthWrites;
+}
+
 uint64_t DrawFrameIndex() {
     return g_frame.active ? g_frame.index : ~0ull;
 }
@@ -2179,6 +2224,29 @@ void DrawAoEnd() {
 
 void DrawNoteAoPass() {
     ++g_frame.aoPasses;
+}
+
+// DrawResolve's copy of the main colour, for a pass inside the AO bracket (the pass in progress ended).
+bool DrawAoCopyMainColor(Video::ImageBuffer* to) {
+    if (!g_frame.active || to == nullptr) return false;
+    ImageBufferData* dst = MutableCompanion(to);
+    if (!dst || !dst->state.image || dst->mainTarget != ImageBufferData::MainTarget::None) return false;
+    FlushPendingClear();
+    EndPass();
+    if (!EnsureMainTargets()) return false;
+    VkCommandBuffer cb = g_frame.target.cb;
+    ImageState* source = MainColorSource();
+    TransitionImage(*source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, &g_barriers);
+    TransitionImage(dst->state, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &g_barriers);
+    Touch(&dst->state);
+    FlushBarriers(cb, &g_barriers);
+    CopyColor(cb, source->image, SwapchainFormat(), g_frame.target.extent, dst->image.image, dst->image.format,
+              { dst->image.width, dst->image.height });
+    TransitionImage(dst->state, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &g_barriers);
+    FlushBarriers(cb, &g_barriers);
+    g_discard.Note(StructureToken(&dst->state, 'F'));
+    ++g_frame.resolves;
+    return true;
 }
 
 }  // namespace VideoVulkan

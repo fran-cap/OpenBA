@@ -25,6 +25,8 @@
 #include "ext/winter_ice/winter_ice.h"      // ext.winter_ice's look (WINTERICE)
 #include "ext/better_clouds/cloud_params.h" // ext.better_clouds' look (BETTERCLOUDS)
 #include "ext/winter_ice/open_mask.h"       // ...and the boat channel's default width
+#include "ext/fancy_terrain/terrain_params.h" // ext.fancy_terrain's look
+#include "ext/depth_of_field/dof_params.h"    // ext.depth_of_field's look (DOF.md)
 #include "ext/better_water/shore_params.h"   // ext.better_water's look (BETTERWATER)   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
 
 namespace Ext {
@@ -84,6 +86,12 @@ void  SetIce(const Ice& v);
 // ext.better_clouds (BETTERCLOUDS): the sky program's look and the wind's speed, read by BeginFrame.
 BetterClouds::Look CloudsValues();
 void  SetClouds(const BetterClouds::Look& v);
+// ext.fancy_terrain: the terrain light's look, read by TerrainDraw (main) and its draw (drawing thread).
+FancyTerrain::Look TerrainValues();
+void  SetTerrain(const FancyTerrain::Look& v);
+// ext.depth_of_field (DOF.md): the depth blur's look and focus, read by SceneDraw (main) and its draw (drawing thread).
+DepthOfField::Look DofValues();
+void  SetDof(const DepthOfField::Look& v);
 
 }  // namespace Tweak
 }  // namespace Ext

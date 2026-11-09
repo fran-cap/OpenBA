@@ -184,6 +184,7 @@ StringTable resource
 		// the Extensions dialog's two tabs (Extensions.rsc:tabCaptionOptional / tabCaptionDefault)
 		{ String _name = "ExtensionsTabOptional";	String _text = "Optional"; }
 		{ String _name = "ExtensionsTabDefault";		String _text = "Default"; }
+		{ String _name = "ExtensionsTabExperimental";	String _text = "Experimental"; }
 
 		// ext.building_finder's page in it (BuildingFinderPage.rsc); the rows' texts are set by the controller through FinderParam
 		{ String _name = "FinderTab";				String _text = "Find Buildings"; }

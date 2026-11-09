@@ -17,6 +17,8 @@ Bbs        g_bbs;
 Water      g_water;
 Ice        g_ice;
 BetterClouds::Look g_clouds;
+FancyTerrain::Look g_terrain;
+DepthOfField::Look g_dof;
 }  // namespace
 
 Ao AoValues() {
@@ -67,6 +69,26 @@ Ice IceValues() {
 void SetIce(const Ice& v) {
     std::lock_guard<std::mutex> lock(g_mu);
     g_ice = v;
+}
+
+FancyTerrain::Look TerrainValues() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_terrain;
+}
+
+void SetTerrain(const FancyTerrain::Look& v) {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_terrain = v;
+}
+
+DepthOfField::Look DofValues() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_dof;
+}
+
+void SetDof(const DepthOfField::Look& v) {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_dof = v;
 }
 
 BetterClouds::Look CloudsValues() {

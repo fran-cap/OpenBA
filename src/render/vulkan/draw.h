@@ -52,6 +52,7 @@
 
 namespace Video {
 class Context;
+class ImageBuffer;
 class RenderBuffer;
 }  // namespace Video
 
@@ -134,6 +135,8 @@ enum DepthReader : uint32_t {
     kDepthReaderAo = 1u,
     kDepthReaderSceneDepth = 2u,
     kDepthReaderClouds = 4u,
+    kDepthReaderTerrain = 8u,   // ext.fancy_terrain's terrain light (fancy_terrain/terrain_light.cpp)
+    kDepthReaderDof = 16u,      // ext.depth_of_field's depth blur (dof/dof_pass.cpp)
 };
 bool DrawRequestReadableDepth(uint32_t reader, bool on);
 bool DrawDepthReadable();
@@ -156,6 +159,20 @@ struct AoTargets {
 // ext.better_clouds' shadow pass use the same bracket (DrawAoBegin, its own pass, DrawAoEnd). False, nothing done, outside a frame or
 // while the depth is not readable (the frames between the request and the remake).
 bool DrawAoBegin(AoTargets* out);
+// The same bracket for a pass that does not read the main depth itself (it reads the shared depth copy,
+// depth_copy/depth_copy.h, made earlier this frame): the pass in progress ends (its clears land) and
+// `out` is filled, but the main depth stays in its attachment layout (no transition to SHADER_READ_ONLY
+// and back) and does not count as read for THE DEPTH DISCARD. False, nothing done, outside a frame or
+// while the depth is not readable.
+bool DrawAoBeginKeepDepth(AoTargets* out);
+// Inside the AO bracket (after DrawAoBegin / DrawAoBeginKeepDepth): the main colour as it stands (the
+// resolved frame so far, single-sampled) copied into `to`, an engine render-buffer image of the main
+// colour's size and format (ext.depth_of_field, dof/dof_pass.cpp), left in SHADER_READ_ONLY. False, nothing
+// done, outside a frame or for an image with no colour image of its own.
+bool DrawAoCopyMainColor(Video::ImageBuffer* to);
+// The engine draws (and depth clears) that may have written the main depth so far this frame
+// (THE SHARED DEPTH COPY: a copy made at count N is still the main depth while the count is N).
+uint64_t DrawMainDepthWrites();
 // The pass of the AO apply, on the main colour (LOAD; resolved like every main pass). Issue #253: when
 // the bound render buffer is the main target (colour and depth: the Blended list's pass), the pass is
 // that one, with the main depth attached and LOADed, and DrawAoEnd leaves it open for the Blended draws

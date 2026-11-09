@@ -9,9 +9,11 @@
 #include "decal_fog/decal_fog_backend.h"
 
 namespace DecalFogBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 bool Supported() {
     return true;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace DecalFogBackend

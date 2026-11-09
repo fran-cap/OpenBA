@@ -290,15 +290,33 @@ Camera SunLight::GetSunCamera(Renderer& renderer) const {
     const float skew   = RtLibm::Sqrt(AbsF((m[4] * kZero + m[3] * kZero) - m[5] * kOne));
     const float radius = RtLibm::Sqrt(r2);
 
-    cz = self->_direction.z * kEyePull + cz;
-    cx = self->_direction.x * kEyePull + cx;
-    cy = self->_direction.y * kEyePull + cy;
+    // EXT SEAM (NOT RETAIL, ext.camera_angle, SunLight::_extDeepSunBox): retail's box is a fixed 256 deep
+    // along the sun (the eye 128 back from the centre, the far plane at 256) while its width follows the
+    // view. A shallow tilt or a wide zoom puts ground more than 128 past the centre, on the side away
+    // from the sun; it lies past the far plane, its depth clamps to 1.0 and the LESS compare against the
+    // cleared map reads it as fully shadowed (a dark wedge over the distant terrain). With the seam on the
+    // depth follows the view's sphere; a view whose sphere fits retail's box keeps retail's numbers.
+    float eyePull = kEyePull;
+    float farW = kFarW;
+    if (SunLight::_extDeepSunBox != nullptr && *SunLight::_extDeepSunBox) {
+        constexpr float kCasterMargin = 64.0f;   // casters above the sphere toward the sun (peaks, trees)
+        const float pull = radius + kCasterMargin;
+        if (pull > NegF(kEyePull)) {
+            eyePull = NegF(pull);
+            farW = NegF(pull + radius + kOne);
+        }
+    }
+    cz = self->_direction.z * eyePull + cz;
+    cx = self->_direction.x * eyePull + cx;
+    cy = self->_direction.y * eyePull + cy;
 
     // `Video::ImageBuffer::Width()` (0x1800f2530) INLINED by retail: the flags
     // word at +0x34, the device's back-buffer width for bits 8 / 9 (signed /2),
     // else the image's own width shifted by `Configuration::shadowScalar` for
     // bit 6. The ported member is that ladder (buffers.cpp).
-    const int32_t dim = self->_depthTarget->Width();
+    // EXT SEAM (NOT RETAIL, ext.max_shadow_zoom, graphics/shadow_zoom.h): the snap follows the share
+    // of the map the casters are drawn into, which is retail's snap at that size. Shift 0 = retail.
+    const int32_t dim = self->_depthTarget->Width() >> SunLight::ExtShadowZoomShift();
 
     // One shadow-map texel, in world units. The snap below is what stops the
     // shadow edges crawling as the view camera pans.
@@ -323,7 +341,7 @@ Camera SunLight::GetSunCamera(Renderer& renderer) const {
 
     Frustum f;
     f.planes[0] = { kZero,  kOne,  kZero,  kOne  };
-    f.planes[1] = { kZero, -kOne,  kZero,  kFarW };
+    f.planes[1] = { kZero, -kOne,  kZero,  farW  };
     f.planes[2] = { kOne,   kZero, kZero,  w     };
     f.planes[3] = { -kOne,  kZero, kZero,  w     };
     f.planes[4] = { kZero,  kZero, -kOne,  w     };

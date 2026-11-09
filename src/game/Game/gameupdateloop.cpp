@@ -156,6 +156,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/ambient_occlusion/ambient_occlusion.h"     // EXT SEAM (NOT RETAIL, docs/extensions/AO.md): ext.ambient_occlusion, Draw step 7
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ext.touch_pointer, Draw step 11 (ToolAimHeld)
 #include "ext/ground_draw.h"   // EXT SEAM (NOT RETAIL, MAPOVERLAYS.md): the ground draw, Draw step 7
+#include "ext/scene_draw.h"    // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): the scene draw, Draw step 7
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
 #include "Component/AmbientEnvironmentComponent.h"   // AMBMEMO: ReportMemo at teardown
@@ -462,6 +463,7 @@ static void HonourPlatformSaveRequest(UI::UserInterface* ui) {
 // BANISHED_TOOL_HARNESS. No-op unless that env var is set.
 extern "C" void ToolHarness_Tick(PlayerToolManager* entityUI, int frameNum);
 #include "pausemenu_harness.h"   // PauseMenuHarness_Tick (src/diag)
+#include "render_switch_drive.h"   // RenderSwitchDrive::Tick (src/diag)
 #include "object/class_vptr.h"   // Object::ClassVptr (the ctor records the vptr hint)
 extern "C" void FoodPanel_Tick(PlayerToolManager* entityUI, int frameNum);  // src/diag/food_panel_harness.cpp
 extern "C" void FoodPlace_Tick(int frameNum);                  // src/diag/food_placement_harness.cpp
@@ -736,6 +738,11 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     // live world underneath it. No-op unless BANISHED_PAUSEMENU is set
     // (src/diag/pausemenu_harness.cpp).
     PauseMenuHarness_Tick(m_toolManager, s_frameNum);
+
+    // The dual exe's renderer switch at given frames (the full video restart onto the other backend,
+    // as the Options dialog's Renderer change runs it). No-op unless BANISHED_RENDER_SWITCH is set
+    // (src/diag/render_switch_drive.h).
+    RenderSwitchDrive::Tick(s_frameNum);
 
     // Dialog harness for the six food-production panels: opens each building's info
     // panel and reports the controllers on it plus the component's CanCommand verdicts
@@ -1624,6 +1631,10 @@ void GameUpdateLoop::Draw(float alpha) {
         // map and the tile grid lie on the ground, under the water, the particles and the status icons. Both
         // rows off: null.
         Graphics::Renderer::_extGroundDraw = Ext::GroundDraw();
+        // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): ext.depth_of_field arms the scene draw
+        // (Graphics::Renderer::_extSceneDraw) for this one Draw: the depth blur over the finished scene,
+        // before the tool and the UI draw. The row off: null.
+        Graphics::Renderer::_extSceneDraw = Ext::SceneDraw();
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md §9): while
         // ext.eye_camera follows a citizen, the same Renderer::Draw with the
         // sun's shadow camera fitted to a view over the citizen (retail's fit
@@ -1642,6 +1653,7 @@ void GameUpdateLoop::Draw(float alpha) {
                 m_playerController->camera);
         if (aoArmed) Ext::AmbientOcclusion::Disarm();
         Graphics::Renderer::_extGroundDraw = nullptr;
+        Graphics::Renderer::_extSceneDraw = nullptr;
     }
     TRACE("[GameUpdateLoop::Draw] Renderer::Draw done\n");
 

@@ -76,11 +76,11 @@ UNIT_TEST(ext_restricted_foods_registry_row) {
     CHECK(e->tier == Ext::Tier::Extension);
     // per-town state: the checked list is recorded in the save
     CHECK(e->cls == Ext::Class::C);
-    CHECK(!e->defaultOn);
+    CHECK(e->defaultOn);   // ruled 2026-11-08 for 1.0.3, DESIGN.md section 2
     CHECK(e->formatVersion == 1);
     CHECK(Ext::SettingsKey(*e) == "ext.restricted_foods");
     CHECK(std::string(kId) == e->id);
-    CHECK(!ResolveText("").ext.restricted_foods);                      // absent key = the default (off)
+    CHECK(ResolveText("").ext.restricted_foods);   // ON by default (ruled 2026-11-08 for 1.0.3)                      // absent key = the default (off)
     CHECK(ResolveText("ext.restricted_foods=1\n").ext.restricted_foods);
     CHECK(!ResolveText("profile=faithful\n").ext.restricted_foods);   // the faithful profile turns it off
     CHECK(TheCodec() != nullptr);                                      // class C: it has a state codec

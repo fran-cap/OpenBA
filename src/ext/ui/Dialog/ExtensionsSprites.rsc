@@ -74,6 +74,8 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_winter_ice";	String _source = "Sprite/Extensions/Entry_winter_ice.png"; }
 		{ String _name = "ExtensionsEntry_walk_on_ice";	String _source = "Sprite/Extensions/Entry_walk_on_ice.png"; }
 		{ String _name = "ExtensionsEntry_better_clouds";	String _source = "Sprite/Extensions/Entry_better_clouds.png"; }
+		{ String _name = "ExtensionsEntry_fancy_terrain";	String _source = "Sprite/Extensions/Entry_fancy_terrain.png"; }
+		{ String _name = "ExtensionsEntry_depth_of_field";	String _source = "Sprite/Extensions/Entry_depth_of_field.png"; }
 		{ String _name = "ExtensionsEntry_boat_lane";	String _source = "Sprite/Extensions/Entry_boat_lane.png"; }
 		{ String _name = "ExtensionsEntry_max_shadow_res";	String _source = "Sprite/Extensions/Entry_max_shadow_res.png"; }
 		{ String _name = "ExtensionsEntry_seamless_loops";	String _source = "Sprite/Extensions/Entry_seamless_loops.png"; }
@@ -82,6 +84,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_drain_split";	String _source = "Sprite/Extensions/Entry_drain_split.png"; }
 		{ String _name = "ExtensionsEntry_background_save";	String _source = "Sprite/Extensions/Entry_background_save.png"; }
 		{ String _name = "ExtensionsEntry_better_camera";	String _source = "Sprite/Extensions/Entry_better_camera.png"; }
+		{ String _name = "ExtensionsEntry_camera_angle";	String _source = "Sprite/Extensions/Entry_camera_angle.png"; }
 		{ String _name = "ExtensionsEntry_no_fog";	String _source = "Sprite/Extensions/Entry_no_fog.png"; }
 		{ String _name = "ExtensionsEntry_show_grid";	String _source = "Sprite/Extensions/Entry_show_grid.png"; }
 		{ String _name = "ExtensionsEntry_fps_counter";	String _source = "Sprite/Extensions/Entry_fps_counter.png"; }
@@ -147,5 +150,6 @@ SpriteSheet resource
 		{ String _name = "TreeGapStem";	String _source = "Sprite/Extensions/TreeGapStem.png"; }
 		{ String _name = "GameFilesIcon";		String _source = "Sprite/Extensions/GameFilesIcon.png"; }	// ext.phone_menu's Game files menu button (issue #96)
 		{ String _name = "ExtensionsEntry_fullscreen_mode";	String _source = "Sprite/Extensions/Entry_fullscreen_mode.png"; }
+		{ String _name = "ExtensionsEntry_render_backend";	String _source = "Sprite/Extensions/Entry_render_backend.png"; }
 	]
 }

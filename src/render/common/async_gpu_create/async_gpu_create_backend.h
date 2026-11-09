@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/async_gpu_create/async_gpu_create_backend.h -- ext.async_gpu_create's render side,
 // as the extension sees it (docs/extensions/handins/ASYNCGPUCREATE.md, issue #13)
@@ -15,6 +17,7 @@
 // ============================================================================
 
 namespace AsyncGpuCreateBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The extension's one call (Ext::AsyncGpuCreate::Sync, main thread). Idempotent. Takes effect at the
 // next load the loader starts; a load already running keeps the mode it started with.
@@ -25,4 +28,5 @@ void Request(bool on);
 // loader, retail's path. Known only once a device exists; false before.
 bool Supported();
 
+BANISHED_RENDER_IMPL_END
 }  // namespace AsyncGpuCreateBackend

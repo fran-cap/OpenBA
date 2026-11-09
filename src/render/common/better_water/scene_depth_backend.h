@@ -1,4 +1,6 @@
 #pragma once
+
+#include "render_impl.h"   // BANISHED_RENDER_IMPL_BEGIN / _END (several backends in one exe)
 // ============================================================================
 // src/render/common/better_water/scene_depth_backend.h -- ext.better_water Fancy's contact foam: the
 // scene depth the water pass reads (docs/extensions/handins/BETTERWATER.md section 8)
@@ -38,6 +40,7 @@ class ImageBuffer;
 }
 
 namespace SceneDepthBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 // The backend can make the copy on this device. Any thread; false before the device exists.
 bool Supported();
@@ -57,4 +60,5 @@ void Copy(void* context);
 // null when not requested, not supported, or no Copy() ran yet on the current device.
 const Video::ImageBuffer* Image();
 
+BANISHED_RENDER_IMPL_END
 }  // namespace SceneDepthBackend

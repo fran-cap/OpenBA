@@ -105,7 +105,8 @@ void Pass1(Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float al
 }
 
 void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao,
-           void (*ground)(Video::Context&, const Graphics::Camera&), bool shadowHeld) {
+           void (*ground)(Video::Context&, const Graphics::Camera&), bool shadowHeld,
+           void (*scene)(Video::Context&, const Graphics::Camera&)) {
     const SkinMemo::Scope skinMemoScope;   // fix 6: pass 2's memo, opened around pass 2 only
     // ext.staggered_passes: the packet's "pass 1 held the sun map", for DrawShadowMap on this thread.
     Graphics::SunLight::ExtShadowHoldEmit(shadowHeld);
@@ -171,6 +172,11 @@ void Pass2(Renderer& r, Video::Context& context, const Graphics::ExtAoFrame* ao,
                 e->_renderBuffer == context._defaultRenderBuffer)
                 ground(context, e->_camera);
         }
+        // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): the scene draw, the faithful loop's test, with the
+        // packet's pointer instead of the static.
+        if (scene != nullptr && e->_shader == static_cast<int32_t>(Graphics::MaterialPass::Normal) &&
+            e->_renderBuffer == context._defaultRenderBuffer)
+            scene(context, e->_camera);
         PassSplit::End(PassSplit::P2Slot(e->_shader), lightT0);
     }
     Graphics::SunLight::ExtShadowHoldEmit(false);

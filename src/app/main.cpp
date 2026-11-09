@@ -19,6 +19,7 @@
 #include "io/settings_store.h"    //   and DumpVideoSettings read settings.cfg
 #include "runtime_init.h"
 #include "render_backend.h"   // Render::DumpSwapChainState / BootedExclusiveFullscreen (the two swap-chain probes)
+#include "ext/render_backend/render_backend.h"   // EXT SEAM (NOT RETAIL): Ext::RenderBackend::SeedFreshInstall
 #include "video_interface.h"
 #include "renderdoc_integration.h"
 #include "stall_debug.h"
@@ -813,6 +814,9 @@ static bool Init() {
     //     engine reads comes from settings.cfg via Persistence::ReadSettings and
     //     Video::Configuration::Startup.
     DumpVideoSettings("AT-BOOT");
+    // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): a fresh install of the dual exe
+    // (no settings.cfg, nothing to import) starts on Vulkan (maintainer ruling 2026-11-08). No-op otherwise.
+    Ext::RenderBackend::SeedFreshInstall();
     HarnessGuardUnattendedBoot();
     // Start publishing boot state BEFORE Engine::Startup: a modal dialog inside Startup
     // (an error box; the launcher dialog itself is gone since SETTINGS E.5) keeps the

@@ -52,6 +52,7 @@
 // (src/render/common/render_backend.h): the DX11 backend's are forwarders to those four
 // (src/render/dx11/render_backend_dx11.cpp); another backend supplies its own.
 #include "render_backend.h"
+#include "ext/render_backend/render_backend.h"   // EXT SEAM (NOT RETAIL): Ext::RenderBackend::BootSelect
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -136,6 +137,9 @@ void VideoInterfaceFillDx9Placeholder(Video::Device* device) {
 namespace {
 
 void FillDx11Slot(Video::Device* device) {
+    // EXT SEAM (NOT RETAIL, src/ext/render_backend/render_backend.h): the dual exe picks the backend this
+    // slot makes before the first listing of the adapters (once; a no-op in a one-backend build).
+    Ext::RenderBackend::BootSelect();
     // B5 DEV-A: as the placeholder fill above -- typed Device, exact types.
     Video::Device::InterfaceSlot& slot = device->dllSlots[kInterfaceDX11];
     slot.module           = SentinelModule();

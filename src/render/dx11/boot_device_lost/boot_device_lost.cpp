@@ -14,9 +14,11 @@ std::atomic<const std::atomic<bool>*> g_extBootDeviceLost{nullptr};
 }  // namespace VideoDX11
 
 namespace BootDeviceLostBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 void SetFixFlag(const std::atomic<bool>* live) {
     VideoDX11::g_extBootDeviceLost.store(live, std::memory_order_relaxed);
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace BootDeviceLostBackend

@@ -12,9 +12,11 @@
 #include "texture_quality/texture_quality_backend.h"
 
 namespace TextureQualityBackend {
+BANISHED_RENDER_IMPL_BEGIN
 
 bool Supported() {
     return true;
 }
 
+BANISHED_RENDER_IMPL_END
 }  // namespace TextureQualityBackend

@@ -220,6 +220,7 @@
 #include "d3d_debug.h"
 #include "clamped_atoi.h"     // review F-087: atoi on BANISHED_* text
 #include "dx11_backend_access.h"
+#include "depth_copy/depth_copy.h"   // NOT RETAIL: THE SHARED DEPTH COPY counts the main-depth writes
 #include "async_gpu_create/async_create.h"   // NOT RETAIL: ext.async_gpu_create
 #include "boot_device_lost/boot_device_lost.h"   // NOT RETAIL: fix.boot_device_lost
 #include "platform_window.h"   // NOT RETAIL: IsIconic, fix.boot_device_lost's minimised-window wait
@@ -231,7 +232,7 @@
 // `Video::{Vertex,Index}Buffer::Lock/Unlock` (block VC's members).
 #include "video/Buffers.h"
 #if BANISHED_TWEAK_OVERLAY
-#include "tweak_overlay.h"   // the debug tweak overlay (debug flavour only, src/diag)
+#include "tweak_overlay_dx11.h"   // the debug tweak overlay's renderer (debug flavour only)
 #endif
 
 #include <windows.h>
@@ -644,7 +645,7 @@ void ContextData::Finish() {
 
 #if BANISHED_TWEAK_OVERLAY
     // The debug tweak overlay draws into the back buffer EndCommands resolved (one atomic test closed).
-    Diag::TweakOverlay::BeforePresent(dd->d3dDevice, d3dContext, dd->swapChain);
+    Dx11TweakOverlay::BeforePresent(dd->d3dDevice, d3dContext, dd->swapChain);
 #endif
     // NOT RETAIL (lock scope only): retail presents, then drops the device lock.
     // Here the device lock goes first and the Present runs under the Present
@@ -764,6 +765,7 @@ void ContextData::Clear(::Video::ClearFlags flags, unsigned color, float depth, 
         clearFlags |= D3D11_CLEAR_STENCIL;
 
     if (clearFlags) {
+        DepthCopy::NoteDepthClear();   // NOT RETAIL: THE SHARED DEPTH COPY (depth_copy/depth_copy.h)
         const RenderBufferOwner* rb = _owner->_renderBuffer;
         d3dContext->ClearDepthStencilView(Dx11ImageDsv(rb->depthBuffer),
                                           clearFlags, depth, static_cast<UINT8>(stencil));
@@ -967,6 +969,7 @@ void ContextData::DrawIndexed(int primitiveType, int baseVertex, int vertexCount
     _owner->_objectsSubmitted   += instanceCount;
 
     _owner->BindResources();
+    DepthCopy::NoteDraw();   // NOT RETAIL: THE SHARED DEPTH COPY (depth_copy/depth_copy.h)
 
     if (topology != D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST) {
         topology = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -1094,6 +1097,7 @@ void ContextData::EndVertices(int primitiveType) {
     _owner->BindResources();
 
     ApplyPrimitiveType(primitiveType);
+    DepthCopy::NoteDraw();   // NOT RETAIL: THE SHARED DEPTH COPY (depth_copy/depth_copy.h)
 
     d3dContext->Draw(static_cast<UINT>(_owner->_dynamicVertexCount), 0);
 }
@@ -1243,6 +1247,7 @@ void ContextData::EndInstancedIndexedVertices(int primitiveType) {
     ctx = _owner;
     const UINT startIndex = static_cast<UINT>(
         static_cast<uint64_t>(static_cast<int64_t>(ctx->_dynamicIndexOffset)) >> 1);
+    DepthCopy::NoteDraw();   // NOT RETAIL: THE SHARED DEPTH COPY (depth_copy/depth_copy.h)
 
     if (ctx->_instanceCount == 1) {
         d3dContext->DrawIndexed(static_cast<UINT>(ctx->_dynamicIndexCount), startIndex, 0);

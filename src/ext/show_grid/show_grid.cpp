@@ -27,6 +27,7 @@
 #include "Game/Map.h"
 #include "Game/WorldGeometry.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdio>
 #include <vector>
@@ -136,7 +137,11 @@ const Video::RenderState* GridState(const Graphics::MaterialInstance* instance) 
     return ours;
 }
 
-void DrawTriangles(Video::Context* context, const std::vector<LineVertex>& triangles) {
+// Vertices per BeginVertices: whole triangles, 1.2 MB of the context's 8 MB stream (map_overlays' batch). A wide
+// view (Wider zoom, a shallow Camera angle) builds more lines than one stream holds.
+constexpr size_t kVerticesPerDraw = 6 * 8192;
+
+void DrawTriangles(Video::Context* context, const Graphics::Camera& camera, const std::vector<LineVertex>& triangles) {
     const Graphics::MaterialInstance* material = nullptr;
     System::Filename name("Terrain/Selection.rsc");
     ::Object::ExternalFactory* factory = ::Object::ExternalFactory::_singleton;
@@ -150,18 +155,26 @@ void DrawTriangles(Video::Context* context, const std::vector<LineVertex>& trian
         context->_dirty |= RtVideo::kDirtyRenderState;
         context->_renderState = gridState;
     }
+    // The scene's camera, as map_overlays' DrawVertices sets it: the draws before this one in the ground seam
+    // (ext.better_clouds Fancy's shadow pass on Vulkan ends the pass and resets the bound state) do not leave
+    // the scene's global constants bound.
+    const Math::Matrix view = camera._cameraToWorld.AsMatrix();
+    context->SetCamera(view, camera._projection);
     Math::Matrix identity = Math::Matrix::Identity();
     context->SetTransform(0, identity);
-    if (!context->BeginVertices(static_cast<int32_t>(triangles.size()), sizeof(LineVertex))) {
-        if (!g_reportedFailure) {
-            g_reportedFailure = true;
-            std::fprintf(stderr, "[ShowGrid] the vertex stream refused %zu vertices: no grid\n",
-                         triangles.size());
+    const size_t total = triangles.size();
+    for (size_t first = 0; first < total; first += kVerticesPerDraw) {
+        const size_t count = std::min(total - first, kVerticesPerDraw);
+        if (!context->BeginVertices(static_cast<int32_t>(count), sizeof(LineVertex))) {
+            if (!g_reportedFailure) {
+                g_reportedFailure = true;
+                std::fprintf(stderr, "[ShowGrid] the vertex stream refused %zu vertices: no grid\n", count);
+            }
+            return;
         }
-        return;
+        for (size_t i = first; i < first + count; ++i) context->AddVertex(&triangles[i]);
+        context->EndVertices(0);
     }
-    for (const LineVertex& v : triangles) context->AddVertex(&v);
-    context->EndVertices(0);
 }
 
 }  // namespace
@@ -234,7 +247,7 @@ void Draw(Video::Context* context, const Graphics::Camera& camera) {
         g_built = true;
     }
     if (Triangles().empty()) return;
-    DrawTriangles(context, Triangles());
+    DrawTriangles(context, camera, Triangles());
 }
 
 }  // namespace ShowGrid

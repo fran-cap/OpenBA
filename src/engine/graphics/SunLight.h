@@ -163,6 +163,13 @@ public:
     // pointer, not a hook: no indirect call, GetSunCamera itself unchanged.
     static const Camera* _extShadowFitView;
 
+    // EXT SEAM (NOT RETAIL, ext.camera_angle, docs/extensions/handins/CAMERAANGLE.md section 6): null by
+    // default and under the faithful profile; otherwise src/ext/registry_boot.cpp points it at the row's
+    // live bool. While it points at true, GetSunCamera's box is as deep along the sun as the view's
+    // sphere needs (retail: a fixed 256), so far ground on the side away from the sun is shadow-tested
+    // instead of reading as shadowed past the far plane. A view that fits retail's box is unchanged.
+    static const bool* _extDeepSunBox;
+
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAA-SHADOW.md): the engine end of ext.max_shadow_res
     // (FOLIAGE_AA.md §7). Null by default
     // (and always under the faithful profile); otherwise src/ext/registry_boot.cpp
@@ -178,6 +185,14 @@ public:
     // under the faithful profile; read only while `_extMaxShadowRes` points at true. An 8192 map
     // the device cannot create falls back to 4096 (one stderr line; the key is left as set).
     static const int32_t* _extMaxShadowSize;
+    // NOT RETAIL -- ext.max_shadow_zoom (SHADOWZOOM.md section 6, graphics/shadow_zoom.h): 1 = the
+    // casters are drawn into a corner of the map sized to the view (full size up close, half when
+    // zoomed out at the default tilt), 0 = the whole map. Null by default and under the faithful
+    // profile; read only while `_extMaxShadowRes` points at true.
+    static const int32_t* _extShadowZoom;
+    // The shift GetSunCamera snaps with and AddDrawItems scales the sun projection by (0 = the
+    // whole map, retail). 0 unless the row and the key are on. Main thread (pass 1).
+    static int32_t ExtShadowZoomShift();
 
     // EXT SEAM (NOT RETAIL, issue #253): the engine end of ext.staggered_passes' shadow hold
     // (graphics/stagger_hold.h). Null by default and while the row is off (retail: the map is
