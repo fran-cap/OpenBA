@@ -44,6 +44,7 @@
 #include "depth_copy/depth_copy.h"                 // the shared depth copy (AO, clouds, water)
 #include "better_clouds/cloud_shadow_pass.h"       // ext.better_clouds' shadow pass
 #include "fancy_terrain/terrain_light_pass.h"       // ext.fancy_terrain's terrain light
+#include "dof/dof_pass.h"                          // ext.depth_of_field's depth blur
 #include "async_gpu_create/async_create.h"         // P4: ext.async_gpu_create (the loader bracket)
 #include "boot_device_lost/boot_device_lost.h"     // P4: fix.boot_device_lost
 #include "create_on_demand/lazy_create.h"          // P4: ext.create_on_demand
@@ -1291,6 +1292,7 @@ void DeviceData::Shutdown() {
             SceneDepth::Shutdown();
             CloudShadow::Shutdown();
             TerrainLight::Shutdown();   // ext.fancy_terrain: its map images and pass objects
+            Dof::Shutdown();            // ext.depth_of_field: its images and pass objects
             DepthCopy::Shutdown();   // after its three readers: the shared depth copy
             Rewrites::Shutdown();
             ShareGpuData::Clear();

@@ -75,6 +75,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_walk_on_ice";	String _source = "Sprite/Extensions/Entry_walk_on_ice.png"; }
 		{ String _name = "ExtensionsEntry_better_clouds";	String _source = "Sprite/Extensions/Entry_better_clouds.png"; }
 		{ String _name = "ExtensionsEntry_fancy_terrain";	String _source = "Sprite/Extensions/Entry_fancy_terrain.png"; }
+		{ String _name = "ExtensionsEntry_depth_of_field";	String _source = "Sprite/Extensions/Entry_depth_of_field.png"; }
 		{ String _name = "ExtensionsEntry_boat_lane";	String _source = "Sprite/Extensions/Entry_boat_lane.png"; }
 		{ String _name = "ExtensionsEntry_max_shadow_res";	String _source = "Sprite/Extensions/Entry_max_shadow_res.png"; }
 		{ String _name = "ExtensionsEntry_seamless_loops";	String _source = "Sprite/Extensions/Entry_seamless_loops.png"; }

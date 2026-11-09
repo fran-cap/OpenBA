@@ -2226,4 +2226,27 @@ void DrawNoteAoPass() {
     ++g_frame.aoPasses;
 }
 
+// DrawResolve's copy of the main colour, for a pass inside the AO bracket (the pass in progress ended).
+bool DrawAoCopyMainColor(Video::ImageBuffer* to) {
+    if (!g_frame.active || to == nullptr) return false;
+    ImageBufferData* dst = MutableCompanion(to);
+    if (!dst || !dst->state.image || dst->mainTarget != ImageBufferData::MainTarget::None) return false;
+    FlushPendingClear();
+    EndPass();
+    if (!EnsureMainTargets()) return false;
+    VkCommandBuffer cb = g_frame.target.cb;
+    ImageState* source = MainColorSource();
+    TransitionImage(*source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, &g_barriers);
+    TransitionImage(dst->state, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &g_barriers);
+    Touch(&dst->state);
+    FlushBarriers(cb, &g_barriers);
+    CopyColor(cb, source->image, SwapchainFormat(), g_frame.target.extent, dst->image.image, dst->image.format,
+              { dst->image.width, dst->image.height });
+    TransitionImage(dst->state, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &g_barriers);
+    FlushBarriers(cb, &g_barriers);
+    g_discard.Note(StructureToken(&dst->state, 'F'));
+    ++g_frame.resolves;
+    return true;
+}
+
 }  // namespace VideoVulkan

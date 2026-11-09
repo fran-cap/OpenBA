@@ -1061,6 +1061,9 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): the ground draw (Camera.h), read once per
     // frame; null (retail) unless the game's draw armed it for this call.
     const ExtGroundDrawFn extGround = _extGroundDraw;
+    // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): the scene draw (Camera.h), read once per frame; null
+    // (retail) unless the game's draw armed it for this call.
+    const ExtGroundDrawFn extScene = _extSceneDraw;
     for (int64_t si = static_cast<int32_t>(_sceneGroups._size) - 1; si >= 0; --si) {
         // `_data` is RE-READ at the top of every iteration (MOV RBP,[RDI] at
         // 0x180104d60) while the byte offset is carried in RBX and decremented.
@@ -1137,6 +1140,10 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
                 e->_renderBuffer == context._defaultRenderBuffer)
                 extGround(context, e->_camera);
         }
+        // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): the scene draw, after the last list of the MAIN entry.
+        if (extScene != nullptr && e->_shader == static_cast<int32_t>(MaterialPass::Normal) &&
+            e->_renderBuffer == context._defaultRenderBuffer)
+            extScene(context, e->_camera);
     }
     SunLight::ExtShadowHoldEmit(false);   // NOT RETAIL (ext.staggered_passes): this frame's emit is over
 }
@@ -1145,5 +1152,7 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
 const ExtAoFrame* Renderer::_extAo = nullptr;
 // NOT RETAIL: the ground-draw seam (Camera.h).
 Renderer::ExtGroundDrawFn Renderer::_extGroundDraw = nullptr;
+// NOT RETAIL: the scene-draw seam (Camera.h).
+Renderer::ExtGroundDrawFn Renderer::_extSceneDraw = nullptr;
 
 }  // namespace Graphics

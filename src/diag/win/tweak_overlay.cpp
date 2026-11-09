@@ -65,7 +65,7 @@ using detail::g_open;
 // The rows and keys the overlay touches (registry ids, registry.cpp's tables).
 // ---------------------------------------------------------------------------
 constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
-                                 "eye_camera", "winter_ice", "better_clouds", "fancy_terrain"};
+                                 "eye_camera", "winter_ice", "better_clouds", "fancy_terrain", "depth_of_field"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
 constexpr int kKeyCount = static_cast<int>(sizeof(kKeys) / sizeof(kKeys[0]));
@@ -117,6 +117,7 @@ Ext::Tweak::Water g_uiWater;
 Ext::Tweak::Ice g_uiIce;
 Ext::BetterClouds::Look g_uiClouds;
 Ext::FancyTerrain::Look g_uiTerrain;
+Ext::DepthOfField::Look g_uiDof;
 bool            g_uiLoaded = false;
 
 void Queue(Act kind, const char* id, int value) {
@@ -466,6 +467,36 @@ void DrawPanels(const Snapshot& s) {
         ImGui::Text("ambientShare %.2f fogScale %.2f radius %d", t.ambientShare, t.fogScale, t.radius);
     }
 
+    // ext.depth_of_field (DOF.md): the depth blur's look and focus, live (Ext::DepthOfField::Look, read every
+    // frame).
+    if (ImGui::CollapsingHeader("Depth blur", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::DepthOfField::Look& d = g_uiDof;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("depth_of_field")] ? "on" : "off (tick depth_of_field under Rows)");
+        static const char* const kFocusModes[] = { "camera target", "screen centre", "manual distance" };
+        changed |= ImGui::Combo("focus", &d.focusMode, kFocusModes, 3);
+        if (d.focusMode == static_cast<int>(Ext::DepthOfField::FocusMode::CameraTarget))
+            changed |= ImGui::SliderFloat("focus x target distance", &d.focusScale, 0.5f, 1.5f, "%.2f");
+        if (d.focusMode == static_cast<int>(Ext::DepthOfField::FocusMode::Manual))
+            changed |= ImGui::SliderFloat("focus distance (units)", &d.focusDistance, 5.0f, 400.0f, "%.0f");
+        changed |= ImGui::SliderFloat("strength (gain)", &d.gain, 0.0f, 10.0f, "%.2f");
+        changed |= ImGui::SliderFloat("max blur (half px @1080)", &d.maxCoc, 1.0f, 24.0f, "%.1f");
+        changed |= ImGui::SliderFloat("in-focus band", &d.band, 0.0f, 0.5f, "%.3f");
+        changed |= ImGui::SliderFloat("highlight boost", &d.boost, 0.0f, 10.0f, "%.2f");
+        changed |= ImGui::SliderFloat("highlight threshold (luma)", &d.threshold, 0.0f, 0.99f, "%.2f");
+        changed |= ImGui::Checkbox("show blur map (red far, blue near)", &d.showCoc);
+        if (changed) Ext::Tweak::SetDof(d);
+        if (ImGui::Button("depth blur defaults")) {
+            d = Ext::DepthOfField::Look{};
+            Ext::Tweak::SetDof(d);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/depth_of_field/dof_params.h (Look):");
+        ImGui::Text("gain %.2f maxCoc %.1f band %.3f boost %.2f threshold %.2f focusMode %d focusScale %.2f "
+                    "focusDistance %.0f", d.gain, d.maxCoc, d.band, d.boost, d.threshold, d.focusMode, d.focusScale,
+                    d.focusDistance);
+    }
+
     // ext.better_clouds (BETTERCLOUDS): the sky program's look, live (Ext::BetterClouds::Look, published
     // by BeginFrame every frame); the reflection in the water uses the same values.
     if (ImGui::CollapsingHeader("Better clouds", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -700,6 +731,7 @@ void BeforePresent(Renderer& renderer, unsigned width, unsigned height) {
         g_uiIce = Ext::Tweak::IceValues();
         g_uiClouds = Ext::Tweak::CloudsValues();
         g_uiTerrain = Ext::Tweak::TerrainValues();
+        g_uiDof = Ext::Tweak::DofValues();
         g_uiLoaded = true;
     }
 

@@ -117,6 +117,7 @@
 #include "ext/eye_camera/eye_camera.h"
 #include "ext/touch_pointer/touch_pointer.h"   // ToolAimHeld: the tool flag (P11b)
 #include "ext/ground_draw.h"   // the ground draw (ext.map_overlays, ext.show_grid), carried to pass 2 in the packet
+#include "ext/scene_draw.h"    // the scene draw (ext.depth_of_field), carried to pass 2 in the packet
 #include "ext/sharp_ui/sharp_ui.h"
 #include "ext/ambient_occlusion/ambient_occlusion.h"   // AOCORE: the AO arm, recorded into the packet
 #include "options.h"
@@ -313,6 +314,8 @@ void MainHalf(::Engine::MainLoop& loop, GameUpdateLoop& g, Graphics::Renderer& r
     p.aoOn = Ext::AmbientOcclusion::Enabled() && Ext::AmbientOcclusion::BuildFrame(*g.m_playerController, p.ao);
     // Step 7's ground draw arm (GameUpdateLoop::Draw, MAPOVERLAYS), as a value for pass 2.
     p.groundDraw = Ext::GroundDraw();
+    // Step 7's scene draw arm (GameUpdateLoop::Draw, DOF.md), as a value for pass 2.
+    p.sceneDraw = Ext::SceneDraw();
 
     StressHarness_PipeMainEnd();   // [STRESS] draw main ms
 }
@@ -412,7 +415,8 @@ struct EngineOps {
                                  (static_cast<long long>(r._frameIndex) << 32) |
                                      static_cast<long long>(static_cast<uint32_t>(ctx->_frameIndex)));
         }
-        Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr, p.groundDraw, p.shadowHeld);
+        Ext::RenderPipe::Pass2(*p.renderer, *ctx, p.aoOn ? &p.ao : nullptr, p.groundDraw, p.shadowHeld,
+                               p.sceneDraw);
     }
     // P13_OVERLAP: when the next Frame's steps claimed the gate, wait until they are over, the
     // device lock dropped meanwhile (a step that uploads takes it: P13_OVERLAP 2.5).
