@@ -96,7 +96,7 @@ UI::ElementDescription* Template(const char* rsc) {
 // Frees an element made by CreateInstance that never joined the panel's tree (a parent would own it): its
 // destructor frees its own children.
 void Discard(Object::InternalPtr<UI::Element>& elem) {
-    delete elem.Get();
+    elem.DeletePtr();
 }
 
 // Appends `row` to `holder`. A ribbon goes through AddItem, which grows its extents with its children

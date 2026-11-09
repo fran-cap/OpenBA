@@ -21,12 +21,13 @@
 //
 // COUNTING. Retail's CitizenBehavior::CountResources tallies the stock per category every tick. Right after
 // it, CountTown walks the same two storage lists and tallies only the limited items (the flat array
-// `g_items`, a short linear scan per stored row, adding into the row's path in `g_counts`). Nothing is counted while the row is off or no limit is set.
+// `g_items`, a short linear scan per stored row, adding into the row's path in `g_counts`). Nothing is
+// counted while the row is off or no limit is set.
 //
 // SELECTION (DESIGN.md hook rule 4). BeginFrame resolves the saved paths once, when the list or the lock
 // epoch changes, into `g_items`: per limited item the item templates (ComponentDescription) that carry its
-// RawMaterialDescription and its limit; `g_counts` keeps one count per path. The seams test `g_on` once and never touch a string or a
-// map.
+// RawMaterialDescription and its limit; `g_counts` keeps one count per path. The seams test `g_on` once and
+// never touch a string or a map.
 //
 // THE PANEL. A workshop's panel (ConsumeProduceUI) gets one more row under its Product row: a check box,
 // the product's name and a spinner like the category's. Checked = the item has its own limit. It follows the
