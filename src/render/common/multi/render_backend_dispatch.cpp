@@ -325,6 +325,16 @@ void Request(bool on, bool naturalGrowth) {
     }
     Render::Active().bbsRequest(on, naturalGrowth);
 }
+#if BANISHED_TWEAK_OVERLAY
+// The debug tweak overlay (debug flavour): not replayed on a backend switch; the overlay's next change
+// sends the set again.
+void RequestParams(const BbsRewrite::Params& p) {
+    Render::Active().bbsRequestParams(p);
+}
+BbsRewrite::Params AppliedParams() {
+    return Render::Active().bbsAppliedParams();
+}
+#endif
 }  // namespace BbsBackend
 
 namespace BootDeviceLostBackend {
@@ -421,6 +431,11 @@ void SetDrawBloom(bool bloom) {
     }
     Render::Active().faaSetDrawBloom(bloom);
 }
+#if BANISHED_TWEAK_OVERLAY
+TweakStats Stats() {
+    return Render::Active().faaStats();
+}
+#endif
 }  // namespace FaaBackend
 
 namespace InstanceBank {

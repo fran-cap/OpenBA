@@ -232,7 +232,7 @@
 // `Video::{Vertex,Index}Buffer::Lock/Unlock` (block VC's members).
 #include "video/Buffers.h"
 #if BANISHED_TWEAK_OVERLAY
-#include "tweak_overlay.h"   // the debug tweak overlay (debug flavour only, src/diag)
+#include "tweak_overlay_dx11.h"   // the debug tweak overlay's renderer (debug flavour only)
 #endif
 
 #include <windows.h>
@@ -645,7 +645,7 @@ void ContextData::Finish() {
 
 #if BANISHED_TWEAK_OVERLAY
     // The debug tweak overlay draws into the back buffer EndCommands resolved (one atomic test closed).
-    Diag::TweakOverlay::BeforePresent(dd->d3dDevice, d3dContext, dd->swapChain);
+    Dx11TweakOverlay::BeforePresent(dd->d3dDevice, d3dContext, dd->swapChain);
 #endif
     // NOT RETAIL (lock scope only): retail presents, then drops the device lock.
     // Here the device lock goes first and the Present runs under the Present

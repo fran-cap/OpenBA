@@ -5,8 +5,8 @@
 // NOT RETAIL. Block TWEAKUI; docs/reference/tweak_overlay.md (the panels, how to add a
 // tweakable). Log lines: `[TweakOverlay] ...` on stderr (standalone_error.log).
 //
-// Dear ImGui (third_party/imgui, v1.92.9b, unmodified) with its SDL3 and DX11 backends,
-// used through their public API with four integration choices made here:
+// Dear ImGui (third_party/imgui, v1.92.9b, unmodified) with its SDL3 platform backend; the
+// renderer is the graphics backend's (tweak_overlay.h RENDERERS). Four integration choices:
 //   * ImGui_ImplSDL3_NewFrame is NOT called: it calls SDL video / mouse functions
 //     (SDL_CaptureMouse, SDL_WarpMouseInWindow, SDL_SetCursor, the IME) that belong on the
 //     main thread, and the frame is built on the presenting thread (the render thread
@@ -33,7 +33,6 @@
 #include "graphics/SunLight.h"               // ExtTweakSunMapSize
 
 #include "imgui.h"
-#include "backends/imgui_impl_dx11.h"
 #include "backends/imgui_impl_sdl3.h"
 
 #include <SDL3/SDL_events.h>
@@ -44,10 +43,6 @@
 #include <cmath>
 #include <SDL3/SDL_timer.h>
 #include <SDL3/SDL_video.h>
-
-#include <windows.h>
-#include <d3d11.h>
-#include <dxgi.h>
 
 #include <cstdio>
 #include <cstring>
@@ -109,8 +104,8 @@ std::atomic<bool>   g_mainWork{false};   // open, or actions still queued: MainT
 bool          g_contextReady = false;     // ImGui context + SDL3 backend (main thread, first open)
 SDL_ThreadID  g_mainThread   = 0;
 
-std::mutex     g_drawMu;                   // BeforePresent vs OnDeviceShutdown
-ID3D11Device*  g_dx11Device  = nullptr;    // the device the DX11 backend was initialised on
+std::mutex     g_drawMu;                   // BeforePresent vs OnRendererShutdown
+Renderer*      g_renderer    = nullptr;    // the renderer registered with ImGui (Init done)
 uint64_t       g_lastTicks   = 0;
 SDL_ThreadID   g_loggedDrawThread = 0;
 
@@ -178,7 +173,7 @@ void InitContext(SDL_Window* window) {
         had[i] = v != nullptr;
         if (v) saved[i] = v;
     }
-    ImGui_ImplSDL3_InitForD3D(window);
+    ImGui_ImplSDL3_InitForOther(window);   // the renderer is the graphics backend's
     for (int i = 0; i < 2; ++i) {
         if (had[i]) SDL_SetHint(kHints[i], saved[i].c_str());
         else        SDL_ResetHint(kHints[i]);
@@ -649,17 +644,21 @@ void MainThreadTick() {
 // ---------------------------------------------------------------------------
 // The presenting thread
 // ---------------------------------------------------------------------------
-void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain* swapChain) {
+void BeforePresent(Renderer& renderer, unsigned width, unsigned height) {
     if (!g_open.load(std::memory_order_acquire)) return;
     std::lock_guard<std::mutex> draw(g_drawMu);
-    // A frame presented while the device is being rebuilt has none: nothing to draw into.
-    if (!g_contextReady || device == nullptr || context == nullptr || swapChain == nullptr) return;
+    // A frame presented while the device is being rebuilt has no size: nothing to draw into.
+    if (!g_contextReady || width == 0 || height == 0) return;
 
-    if (g_dx11Device != device) {
-        if (g_dx11Device != nullptr) ImGui_ImplDX11_Shutdown();
-        ImGui_ImplDX11_Init(device, context);
-        g_dx11Device = device;
-        std::fprintf(stderr, "[TweakOverlay] DX11 backend on device %p (thread %llu)\n", static_cast<void*>(device),
+    if (g_renderer != &renderer) {
+        if (g_renderer != nullptr) {
+            std::fprintf(stderr, "[TweakOverlay] %s renderer released (now %s)\n", g_renderer->Name(), renderer.Name());
+            g_renderer->Shutdown();
+            g_renderer = nullptr;
+        }
+        if (!renderer.Init()) return;
+        g_renderer = &renderer;
+        std::fprintf(stderr, "[TweakOverlay] %s renderer ready (thread %llu)\n", renderer.Name(),
                      static_cast<unsigned long long>(SDL_GetCurrentThreadID()));
     }
     if (!g_uiLoaded) {
@@ -671,17 +670,6 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
         g_uiClouds = Ext::Tweak::CloudsValues();
         g_uiLoaded = true;
     }
-
-    ID3D11Texture2D* back = nullptr;
-    if (FAILED(swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&back))) ||  // CAST-OK: com_iid
-        back == nullptr)
-        return;
-    D3D11_TEXTURE2D_DESC td;
-    back->GetDesc(&td);
-    ID3D11RenderTargetView* rtv = nullptr;
-    const HRESULT hr = device->CreateRenderTargetView(back, nullptr, &rtv);
-    back->Release();
-    if (FAILED(hr) || rtv == nullptr) return;
 
     // Input and the registry snapshot, taken from the pump thread's queue.
     std::vector<SDL_Event> events;
@@ -703,7 +691,7 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
     }
     for (const SDL_Event& e : events) ImGui_ImplSDL3_ProcessEvent(&e);
 
-    io.DisplaySize = ImVec2(static_cast<float>(td.Width), static_cast<float>(td.Height));
+    io.DisplaySize = ImVec2(static_cast<float>(width), static_cast<float>(height));
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
     const uint64_t now = SDL_GetTicksNS();
     float dt = g_lastTicks != 0 && now > g_lastTicks ? static_cast<float>(static_cast<double>(now - g_lastTicks) * 1e-9)
@@ -712,37 +700,28 @@ void BeforePresent(ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwap
     io.DeltaTime = dt;
     g_lastTicks = now;
 
-    ImGui_ImplDX11_NewFrame();
+    renderer.NewFrame();
     ImGui::NewFrame();
     DrawPanels(snap);
     ImGui::Render();
-
-    ID3D11RenderTargetView* oldRtv[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = {};
-    ID3D11DepthStencilView* oldDsv = nullptr;
-    context->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, oldRtv, &oldDsv);
-    context->OMSetRenderTargets(1, &rtv, nullptr);
-    ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());   // backs up and restores the rest of the state
-    context->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, oldRtv, oldDsv);
-    for (ID3D11RenderTargetView*& v : oldRtv)
-        if (v) v->Release();
-    if (oldDsv) oldDsv->Release();
-    rtv->Release();
+    renderer.Render(ImGui::GetDrawData());
 
     const SDL_ThreadID self = SDL_GetCurrentThreadID();
     if (self != g_loggedDrawThread) {
         g_loggedDrawThread = self;
-        std::fprintf(stderr, "[TweakOverlay] drawing on thread %llu (%s; ext.render_pipe=%d) at %ux%u\n",
-                     static_cast<unsigned long long>(self), self == g_mainThread ? "the main thread" : "NOT the main thread",
-                     Ext::Ext().render_pipe ? 1 : 0, td.Width, td.Height);
+        std::fprintf(stderr, "[TweakOverlay] %s drawing on thread %llu (%s; ext.render_pipe=%d) at %ux%u\n",
+                     renderer.Name(), static_cast<unsigned long long>(self),
+                     self == g_mainThread ? "the main thread" : "NOT the main thread", Ext::Ext().render_pipe ? 1 : 0,
+                     width, height);
     }
 }
 
-void OnDeviceShutdown() {
+void OnRendererShutdown(Renderer& renderer) {
     std::lock_guard<std::mutex> draw(g_drawMu);
-    if (g_dx11Device == nullptr) return;
-    ImGui_ImplDX11_Shutdown();
-    g_dx11Device = nullptr;
-    std::fprintf(stderr, "[TweakOverlay] DX11 backend released (device shutdown)\n");
+    if (g_renderer != &renderer) return;
+    renderer.Shutdown();
+    g_renderer = nullptr;
+    std::fprintf(stderr, "[TweakOverlay] %s renderer released (device shutdown)\n", renderer.Name());
 }
 
 }  // namespace TweakOverlay

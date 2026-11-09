@@ -30,6 +30,9 @@
 #include "device_objects.h"
 #include "draw.h"
 #include "present.h"
+#if BANISHED_TWEAK_OVERLAY
+#include "tweak_overlay_vulkan.h"   // the debug tweak overlay's renderer (debug flavour only)
+#endif
 #include "pipelines.h"
 #include "resources.h"
 #include "spirv_legalize.h"
@@ -1278,6 +1281,9 @@ void DeviceData::Shutdown() {
             Rewrites::Shutdown();
             ShareGpuData::Clear();
             PresentShutdown();
+#if BANISHED_TWEAK_OVERLAY
+            TweakOverlayShutdown();   // the debug tweak overlay's renderer; it re-inits on the next open frame
+#endif
             DrawShutdown();
             PipelinesShutdown();
             ResourcesShutdown();

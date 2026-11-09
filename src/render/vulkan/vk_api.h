@@ -115,6 +115,7 @@ namespace VideoVulkan {
     X(vkDestroyDescriptorPool)                           \
     X(vkResetDescriptorPool)                             \
     X(vkAllocateDescriptorSets)                          \
+    X(vkFreeDescriptorSets)                              \
     X(vkUpdateDescriptorSets)                            \
     X(vkCreatePipelineCache)                             \
     X(vkDestroyPipelineCache)                            \

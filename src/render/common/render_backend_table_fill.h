@@ -60,6 +60,10 @@ Render::BackendTable MakeBackendTable(const char* id, bool (*available)()) {
     t.asyncGpuCreateSupported = &AsyncGpuCreateBackend::Supported;
 
     t.bbsRequest = &BbsBackend::Request;
+#if BANISHED_TWEAK_OVERLAY
+    t.bbsRequestParams = &BbsBackend::RequestParams;
+    t.bbsAppliedParams = &BbsBackend::AppliedParams;
+#endif
 
     t.bootDeviceLostSetFixFlag = &BootDeviceLostBackend::SetFixFlag;
 
@@ -81,6 +85,9 @@ Render::BackendTable MakeBackendTable(const char* id, bool (*available)()) {
 
     t.faaRequest = &FaaBackend::Request;
     t.faaSetDrawBloom = &FaaBackend::SetDrawBloom;
+#if BANISHED_TWEAK_OVERLAY
+    t.faaStats = &FaaBackend::Stats;
+#endif
 
     t.instanceBankCap = &InstanceBank::Cap;
     t.instanceBankSetWide = &InstanceBank::SetWide;

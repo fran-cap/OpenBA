@@ -16,6 +16,9 @@
 #include "pipelines.h"
 #include "resources.h"
 #include "shader_rewrites.h"   // issue #253: Rewrites::DrawBloom (natural growth's copy without the blossom)
+#if BANISHED_TWEAK_OVERLAY
+#include "tweak_overlay_vulkan.h"   // the debug tweak overlay's renderer (debug flavour only)
+#endif
 #include "vulkan11.h"
 #include "create_on_demand/lazy_create.h"   // P4: ext.create_on_demand's use gate around a draw
 
@@ -1639,9 +1642,26 @@ void DrawEndFrame() {
         TransitionImage(swapImage, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, &g_barriers);
         FlushBarriers(cb, &g_barriers);
         PresentRecord(cb, g_frame.target.presentImage, g_frame.target.presentView, g_frame.target.presentExtent);
+#if BANISHED_TWEAK_OVERLAY
+        // The debug tweak overlay over the swap-chain image, at the window's size (the image is still a
+        // colour attachment after the present pass).
+        if (TweakOverlayOpen())
+            TweakOverlayRecord(cb, g_frame.target.slot, g_frame.target.presentView, g_frame.target.presentExtent,
+                               SwapchainFormat());
+#endif
         ResetCommandState();
         TransitionImage(swapImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, &g_barriers);
     } else {
+#if BANISHED_TWEAK_OVERLAY
+        // The debug tweak overlay over the swap-chain image (one atomic test while it is closed).
+        if (TweakOverlayOpen()) {
+            TransitionImage(g_swap, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, &g_barriers);
+            FlushBarriers(cb, &g_barriers);
+            TweakOverlayRecord(cb, g_frame.target.slot, g_frame.target.view, g_frame.target.extent,
+                               SwapchainFormat());
+            ResetCommandState();
+        }
+#endif
         TransitionImage(g_swap, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, &g_barriers);
     }
     // Every companion image this frame used goes back to SHADER_READ_ONLY (resources.h ImageState).
