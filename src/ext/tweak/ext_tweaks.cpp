@@ -17,6 +17,7 @@ Bbs        g_bbs;
 Water      g_water;
 Ice        g_ice;
 BetterClouds::Look g_clouds;
+FancyTerrain::Look g_terrain;
 }  // namespace
 
 Ao AoValues() {
@@ -67,6 +68,16 @@ Ice IceValues() {
 void SetIce(const Ice& v) {
     std::lock_guard<std::mutex> lock(g_mu);
     g_ice = v;
+}
+
+FancyTerrain::Look TerrainValues() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_terrain;
+}
+
+void SetTerrain(const FancyTerrain::Look& v) {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_terrain = v;
 }
 
 BetterClouds::Look CloudsValues() {

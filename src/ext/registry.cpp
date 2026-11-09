@@ -501,6 +501,14 @@ const Entry kEntries[] = {
       "Clouds drift across the sky and its reflection in the water with the wind, thicker and darker "
       "in winter and in bad weather. They stop when the game is paused.",
       0, [](State& s) -> bool& { return s.ext.better_clouds; } },
+    // FANCYTERRAIN (src/ext/fancy_terrain/fancy_terrain.h): the terrain shades itself from a horizon map of
+    // the heightmap (sun hidden by a ridge, less sky in a valley, a warm bounce), multiplied into the opaque
+    // scene at the ground-draw seam. Class A: drawing only, nothing saved, live; ON by default.
+    { "fancy_terrain", Tier::Extension, Class::A, true,
+      "Fancy terrain",
+      "Hills and cliffs shade the land around them: the sun is hidden behind ridges, valleys and the foot "
+      "of a cliff see less sky, and shaded slopes keep a warm light. Terrain edits update it.",
+      0, [](State& s) -> bool& { return s.ext.fancy_terrain; } },
     // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at 4096 when the retail
     // Shadow Resolution combo is at High; Medium / Low keep their retail sizes.
     { "max_shadow_res", Tier::Extension, Class::A, true,

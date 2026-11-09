@@ -38,6 +38,13 @@ struct RendererSceneEntry;
 namespace BbsRewrite {
 struct Params;
 }
+namespace FaaBackend {
+struct TweakStats;
+}
+namespace TerrainLightBackend {
+struct Frame;
+struct Textures;
+}
 namespace CloudShadowBackend {
 struct Frame;
 }
@@ -74,6 +81,10 @@ struct BackendTable {
 
     // ---- better_trees/billboard_shadow_backend.h -----------------------------------------------
     void (*bbsRequest)(bool on, bool naturalGrowth);
+#if BANISHED_TWEAK_OVERLAY
+    void (*bbsRequestParams)(const ::BbsRewrite::Params& p);   // the debug tweak overlay (debug flavour)
+    ::BbsRewrite::Params (*bbsAppliedParams)();
+#endif
 
     // ---- boot_device_lost/boot_device_lost_backend.h -------------------------------------------
     void (*bootDeviceLostSetFixFlag)(const std::atomic<bool>* live);
@@ -83,6 +94,12 @@ struct BackendTable {
     void (*cloudShadowRequest)(bool on);
     void (*cloudShadowDraw)(::Video::Context& context, const ::Video::ImageBuffer* noise,
                             const ::CloudShadowBackend::Frame& frame);
+
+    // ---- fancy_terrain/terrain_light_backend.h -------------------------------------------------
+    bool (*terrainLightSupported)();
+    void (*terrainLightRequest)(bool on);
+    void (*terrainLightDraw)(::Video::Context& context, const ::TerrainLightBackend::Textures& textures,
+                             const ::TerrainLightBackend::Frame& frame);
 
     // ---- compress_ao/compress_ao_backend.h -----------------------------------------------------
     void (*compressAoRequest)(bool on, ::Ext::DerivedCache::Store* cache);
@@ -103,6 +120,9 @@ struct BackendTable {
     void (*faaRequest)(int mode, float fillK, float fillFloor, const ::BbsRewrite::Params* dither,
                        bool naturalGrowth);
     void (*faaSetDrawBloom)(bool bloom);
+#if BANISHED_TWEAK_OVERLAY
+    ::FaaBackend::TweakStats (*faaStats)();   // the debug tweak overlay's stats line (debug flavour)
+#endif
 
     // ---- draw_batch/instance_bank.h ------------------------------------------------------------
     int32_t (*instanceBankCap)();

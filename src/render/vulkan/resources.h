@@ -140,13 +140,16 @@ struct GpuImage {
     uint32_t layers = 0;
 };
 
-// One copy into an image: `offset` bytes into the staging blob, the subresource and its extent.
+// One copy into an image: `offset` bytes into the staging blob, the subresource and its extent, at texel
+// (x, y) of the subresource (0, 0 for a whole level; ext.fancy_terrain uploads edited rectangles).
 struct ImageRegion {
     VkDeviceSize offset = 0;
     uint32_t mip = 0;
     uint32_t layer = 0;
     uint32_t width = 0;
     uint32_t height = 0;
+    int32_t x = 0;
+    int32_t y = 0;
 };
 
 // The layout tracking of one image (P3, draw.cpp): the render targets, the backend's main targets and

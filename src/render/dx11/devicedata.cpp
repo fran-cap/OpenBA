@@ -142,7 +142,7 @@
 #include "ao/ao_depth_views.h"   // NOT RETAIL: ext.ambient_occlusion's readable main depth (CreateDepthBuffer)
 #include "render_backend.h"   // NOT RETAIL: Render::WindowPresentedByOtherBackend (ext.render_backend, FillSwapChainDesc)
 #if BANISHED_TWEAK_OVERLAY
-#include "tweak_overlay.h"   // the debug tweak overlay (debug flavour only, src/diag)
+#include "tweak_overlay_dx11.h"   // the debug tweak overlay's renderer (debug flavour only)
 #endif
 #include "platform_window.h"   // Phase D.4 SDL W2: the message ids; RENDER-3: window state, show, cursor
 #include "platform_thread.h"   // Platform::CurrentThreadId (TraceGeom)
@@ -1100,7 +1100,7 @@ void DeviceData::Shutdown() {
 #if BANISHED_TWEAK_OVERLAY
     // The debug tweak overlay releases its DX11 objects and its device / context references before
     // the device goes (device lost, a settings rebuild, exit); it re-inits on the next open frame.
-    Diag::TweakOverlay::OnDeviceShutdown();
+    Dx11TweakOverlay::OnDeviceShutdown();
 #endif
     ::Application::Application* app = AppOf();
     app->UnregisterMessageCallback(Platform::Window::kMsgSetCursor);   // 0x20

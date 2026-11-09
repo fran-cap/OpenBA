@@ -44,15 +44,15 @@ set_property(CACHE BANISHED_FLAVOUR PROPERTY STRINGS debug og perf release)
 option(BANISHED_USE_CCACHE "Compile through ccache when it is on PATH" ON)
 set(BANISHED_GAME_DIR "C:/GOG Games/Banished" CACHE PATH "where sa-deploy copies the exe")
 # The debug tweak overlay (Dear ImGui, Alt+F10; src/diag/tweak_overlay.h + src/diag/win/tweak_overlay.cpp, third_party/imgui,
-# docs/reference/tweak_overlay.md): ON for the debug flavour on Windows only. OFF, not one source
+# docs/reference/tweak_overlay.md): ON for the debug flavour on Windows, whatever the backend list (each
+# backend renders it: src/render/dx11/tweak_overlay_dx11.cpp, src/render/vulkan/tweak_overlay_vulkan.cpp). OFF, not one source
 # of it is compiled and every `#if BANISHED_TWEAK_OVERLAY` site is out, so og / perf / release build
 # exactly as without it.
 # The renderer backend (src/render/common/README.md): the dual dx11+vulkan exe on Windows (both backends,
 # the renderer picked in game by ext.render_backend; the default since 1.0.3, maintainer ruling 2026-11-08,
 # so the shipped exe carries Vulkan), metal on APPLE, vulkan on every other host (Linux, since Vulkan P5).
-# A dx11-only Windows build is BANISHED_RENDER_BACKEND=dx11 (the tweak overlay needs it). Chosen
-# here because the tweak overlay below is DX11-only; the fragment itself is included further down,
-# with the sources. dx11 is Windows-only: its backend.cmake answers not-ready elsewhere.
+# A dx11-only Windows build is BANISHED_RENDER_BACKEND=dx11. The fragment itself is included further
+# down, with the sources. dx11 is Windows-only: its backend.cmake answers not-ready elsewhere.
 if(APPLE)
   set(BANISHED_RENDER_BACKEND_DEFAULT metal)
 elseif(WIN32)
@@ -61,12 +61,12 @@ else()
   set(BANISHED_RENDER_BACKEND_DEFAULT vulkan)
 endif()
 set(BANISHED_RENDER_BACKEND ${BANISHED_RENDER_BACKEND_DEFAULT} CACHE STRING "Renderer backend: src/render/<name>/backend.cmake")
-if(BANISHED_FLAVOUR STREQUAL "debug" AND WIN32 AND BANISHED_RENDER_BACKEND STREQUAL "dx11")
+if(BANISHED_FLAVOUR STREQUAL "debug" AND WIN32)
   set(_banished_tweak_default ON)
 else()
   set(_banished_tweak_default OFF)
 endif()
-option(BANISHED_TWEAK_OVERLAY "Debug tweak overlay (Dear ImGui): debug flavour on Windows, dx11 backend only" ${_banished_tweak_default})
+option(BANISHED_TWEAK_OVERLAY "Debug tweak overlay (Dear ImGui): debug flavour on Windows" ${_banished_tweak_default})
 
 if(BANISHED_USE_CCACHE)
   find_program(CCACHE_PROGRAM ccache)
@@ -585,7 +585,7 @@ target_link_libraries(OpenBA PRIVATE wmadec)
 target_link_libraries(OpenBA PRIVATE freetype_min)
 if(BANISHED_TWEAK_OVERLAY)
   # Dear ImGui v1.92.9b, unmodified (third_party/imgui/README.banished.md): the core + the SDL3 and
-  # DX11 backends. Upstream's warnings are not ours to fix: silenced per file, as for ASSAO.
+  # DX11 backends (the Vulkan renderer is our own, in src/render/vulkan). Upstream's warnings are not ours to fix: silenced per file, as for ASSAO.
   set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
   set(IMGUI_SRCS ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_tables.cpp
                  ${IMGUI_DIR}/imgui_widgets.cpp ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp

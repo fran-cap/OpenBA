@@ -119,6 +119,20 @@ nvoglv64.dll.
    restore (deferred, then run; the picture live); `failswitch=vulkan+dx11` (the running DX11 again, then
    a normal switch to Vulkan).
 
+4. **Vulkan -> DirectX 11 -> Vulkan froze the picture with VSync off** (fix 2's reverse; fix 2 was
+   checked with VSync on). Every `vkQueuePresentKHR` returns VK_SUCCESS and the frame counter runs, but
+   the window keeps the last DX11 frame. The trigger is the flip-model DXGI chain fix 2 makes: on a
+   window that has carried one, a Vulkan swap chain reaches the screen only in FIFO; MAILBOX (VSync off)
+   and IMMEDIATE do not. The DXGI chain is gone by then (a private-data sentinel on it is released inside
+   the switch), so no outstanding reference holds it, and a `ClearState` + `Flush` before the release
+   changes nothing. A window that carried only retail's blit chain (DX11 boot -> Vulkan) shows MAILBOX.
+   Fix: `Render::WindowTakenOverByOtherBackend()` (the dispatcher records the order of the devices on the
+   window), and the Vulkan backend presents in FIFO with VSync off once it is true, one `[Vulkan] present
+   mode: FIFO with VSync off` line per process. The cost is VSync-capped Vulkan until the next launch,
+   only after such a round trip. Checked with window captures as above, VSync off: Vulkan -> DX11 ->
+   Vulkan -> DX11 -> Vulkan and DX11 -> Vulkan (MAILBOX) -> DX11 -> Vulkan (FIFO), the picture live in
+   every phase; on main 5ef295300 (perf build) the same route freezes.
+
 ## Tests (Windows, RTX 5080, 2026-11-08, rebased on main 250bbfee2)
 
 | Test | Result |

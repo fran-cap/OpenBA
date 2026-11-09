@@ -27,7 +27,7 @@
 #include "video/CompanionData.h"
 #include "video/Device.h"
 #if BANISHED_TWEAK_OVERLAY
-#include "tweak_overlay.h"   // the debug tweak overlay (debug flavour only, src/diag)
+#include "tweak_overlay_dx11.h"   // the debug tweak overlay's renderer (debug flavour only)
 #endif
 
 #include <windows.h>
@@ -83,7 +83,7 @@ int32_t FinishPresent(Video::Context& ctx) {
 
 #if BANISHED_TWEAK_OVERLAY
     // The debug tweak overlay, on the thread that presents (the render thread here).
-    Diag::TweakOverlay::BeforePresent(dd->d3dDevice, dd->d3dContext, dd->swapChain);
+    Dx11TweakOverlay::BeforePresent(dd->d3dDevice, dd->d3dContext, dd->swapChain);
 #endif
     HRESULT hr = dd->swapChain->Present(sync, 0);
     device->Unlock();

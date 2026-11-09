@@ -33,6 +33,7 @@ enum Reader : uint32_t {
     kReaderAo = 1u,
     kReaderSceneDepth = 2u,
     kReaderClouds = 4u,
+    kReaderTerrain = 8u,   // ext.fancy_terrain's terrain light (fancy_terrain/terrain_light.cpp)
 };
 
 // A reader wants the copy, or no longer does. Any thread. With no reader left the copy's objects are

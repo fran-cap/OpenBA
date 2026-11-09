@@ -13,7 +13,8 @@
 // records the same value in its packet for the render thread's pass 2. Null while no ground draw is on, so
 // with every row off the seam is one null test a frame.
 //
-// The draws, in order: ext.better_clouds Fancy's cloud shadows (a full-screen multiply over the opaque
+// The draws, in order: ext.fancy_terrain's terrain light (a full-screen multiply from a horizon map of the
+// heightmap, src/ext/fancy_terrain/fancy_terrain.h), ext.better_clouds Fancy's cloud shadows (a full-screen multiply over the opaque
 // scene, BETTERCLOUDS.md section 2.6), ext.map_overlays' heat map (MapOverlays::DrawOnTerrain), ext.show_grid's tile grid
 // (ShowGrid::Draw) over it. The tool (Tool::Draw, step 11) still draws after the scene, over both.
 // ============================================================================

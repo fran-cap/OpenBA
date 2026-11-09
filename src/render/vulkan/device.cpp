@@ -30,7 +30,11 @@
 #include "device_objects.h"
 #include "draw.h"
 #include "present.h"
+#if BANISHED_TWEAK_OVERLAY
+#include "tweak_overlay_vulkan.h"   // the debug tweak overlay's renderer (debug flavour only)
+#endif
 #include "pipelines.h"
+#include "render_backend.h"   // Render::WindowTakenOverByOtherBackend (ext.render_backend, CreateSwapchain)
 #include "resources.h"
 #include "spirv_legalize.h"
 #include "vulkan11.h"
@@ -39,6 +43,7 @@
 #include "better_water/scene_depth_pass.h"         // ext.better_water's scene depth copy
 #include "depth_copy/depth_copy.h"                 // the shared depth copy (AO, clouds, water)
 #include "better_clouds/cloud_shadow_pass.h"       // ext.better_clouds' shadow pass
+#include "fancy_terrain/terrain_light_pass.h"       // ext.fancy_terrain's terrain light
 #include "async_gpu_create/async_create.h"         // P4: ext.async_gpu_create (the loader bracket)
 #include "boot_device_lost/boot_device_lost.h"     // P4: fix.boot_device_lost
 #include "create_on_demand/lazy_create.h"          // P4: ext.create_on_demand
@@ -411,7 +416,18 @@ bool CreateSwapchain(SDL_Window* window, std::string* why) {
     // VSync on: FIFO (always available). Off: mailbox, then immediate, then FIFO anyway.
     const bool vsync = Video::Configuration::_singleton ? Video::Configuration::_singleton->vsync != 0 : true;
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    if (!vsync || Opt().stress) {
+    // EXT SEAM (NOT RETAIL, ext.render_backend, src/render/common/render_backend.h): once a DX11 flip-model
+    // swap chain has been on the window after this backend's first one, only FIFO reaches the screen.
+    const bool fifoOnly = Render::WindowTakenOverByOtherBackend();
+    if (fifoOnly && (!vsync || Opt().stress)) {
+        static bool noted = false;
+        if (!noted) {
+            noted = true;
+            std::fprintf(stderr, "[Vulkan] present mode: FIFO with VSync off, the window has carried another "
+                                 "backend's swap chain since this backend's first (render_backend.h)\n");
+        }
+    }
+    if ((!vsync || Opt().stress) && !fifoOnly) {
         uint32_t modeCount = 0;
         vkGetPhysicalDeviceSurfacePresentModesKHR(physical, surface, &modeCount, nullptr);
         std::vector<VkPresentModeKHR> modes(modeCount);
@@ -1274,10 +1290,14 @@ void DeviceData::Shutdown() {
             Assao::Shutdown();
             SceneDepth::Shutdown();
             CloudShadow::Shutdown();
+            TerrainLight::Shutdown();   // ext.fancy_terrain: its map images and pass objects
             DepthCopy::Shutdown();   // after its three readers: the shared depth copy
             Rewrites::Shutdown();
             ShareGpuData::Clear();
             PresentShutdown();
+#if BANISHED_TWEAK_OVERLAY
+            TweakOverlayShutdown();   // the debug tweak overlay's renderer; it re-inits on the next open frame
+#endif
             DrawShutdown();
             PipelinesShutdown();
             ResourcesShutdown();

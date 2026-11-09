@@ -51,7 +51,9 @@ struct TweakStats {
     int   blobsSeen = 0, blobsTransformed = 0, programsTransformed = 0, createFailed = 0;
     int64_t xfBinds = 0, pixelBinds = 0;
 };
+BANISHED_RENDER_IMPL_BEGIN
 TweakStats Stats();
+BANISHED_RENDER_IMPL_END
 #endif
 
 }  // namespace FaaBackend

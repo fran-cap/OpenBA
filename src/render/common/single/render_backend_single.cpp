@@ -49,4 +49,8 @@ bool WindowPresentedByOtherBackend() {
     return false;
 }
 
+bool WindowTakenOverByOtherBackend() {
+    return false;
+}
+
 }  // namespace Render
