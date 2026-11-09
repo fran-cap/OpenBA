@@ -540,6 +540,15 @@ const Entry kEntries[] = {
       "Lets you rank the tools, fuels, clothing and health items citizens take first, from the "
       "Priority page in a game. Play diverges; the choice is recorded in the save.",
       2, [](State& s) -> bool& { return s.ext.item_priority; } },
+    // ITEMLIMITS (docs/extensions/handins/ITEMLIMITS.md): a limit for one item beside its category's, set in
+    // the panel of a workshop that makes it; every workshop making the item stops at it. Class C: the limits
+    // are the town's own state, recorded in the save's tail (src/ext/item_limits/save_state.cpp).
+    { "item_limits", Tier::Extension, Class::C, false,
+      "Item limits",
+      "Lets you give one item, such as steel tools, its own limit beside its category's, from the panel "
+      "of a workshop that makes it. Every workshop making that item stops at the limit. Play diverges; "
+      "the limits are recorded in the save.",
+      1, [](State& s) -> bool& { return s.ext.item_limits; } },
 
     // TERRAINEDIT (docs/extensions/handins/TERRAINEDIT.md): a brush tool, started from the Terrain page of
     // the extension window, that edits the terrain under the mouse. Class B: play diverges (the map is no

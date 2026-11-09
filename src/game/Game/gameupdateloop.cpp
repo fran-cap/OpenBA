@@ -78,6 +78,8 @@
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md):
 // ext.item_priority (class C), Ext::ItemPriority::BeginFrame
 #include "ext/item_priority/item_priority.h"
+// ext.item_limits (class C), Ext::ItemLimits::BeginFrame
+#include "ext/item_limits/item_limits.h"
 #include "ext/better_trees/better_trees.h"   // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md): Ext::BetterTrees::SeasonStamp
 #include "ext/better_trees/falling_leaves.h" // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): the falling leaves
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md):
@@ -696,6 +698,8 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     Ext::RestrictedFoods::BeginFrame();
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMPRIO.md): ext.item_priority (C) read once per frame
     Ext::ItemPriority::BeginFrame();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (C) read once per frame
+    Ext::ItemLimits::BeginFrame();
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md): ext.tool_names (C) drops the notes and
     // waiting records of citizens who are gone
     Ext::ToolNames::BeginFrame();

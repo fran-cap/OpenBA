@@ -56,6 +56,8 @@
 #include "ext/registry.h"         // Ext::Fix().input_fetch_room
 #include "ext/input_fetch_room/input_fetch_room_rule.h"   // fix.input_fetch_room: the fetch count
 #include "ext/recipe_skip/recipe_skip.h"   // EXT SEAM (NOT RETAIL, RECIPESKIP.md): ext.recipe_skip
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the item limit test
+#include "ext/item_limits/item_limits.h"
 
 // ============================================================
 // Sub-functions, called by name (B3R; Work/Action/Component exe_bodies.h)
@@ -278,8 +280,10 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
     // The recipe array (+0x28, 0x28 stride)
     ConsumeProduceRecipe* recipes = cpDesc->_recipes;
 
+    bool recipeSkipTested = false;   // EXT SEAM (NOT RETAIL): ext.recipe_skip answered, item limits included
     if (smComp->consumeResourceId == -1 && ::Ext::Ext().recipe_skip &&
         ::Ext::RecipeSkip::AllAtLimit(smComp, resourcesDepleted)) {
+        recipeSkipTested = true;
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/RECIPESKIP.md): the building only counts as depleted
         // when EVERY recipe's material is at its limit; PickConsumeRecipe above left the others in the draw.
         // (When the recipes cannot be read, the branch below is retail's own test.)
@@ -307,6 +311,15 @@ int ConsumeProduce::Execute(CitizenComponent** citizenIBP, System::Time* /*conte
         int supply = matArray[materialType].currentCount;   // +0x00
         int demand = matArray[materialType].maxCount;       // +0x08
         resourcesDepleted = (demand <= supply);
+    }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): with ext.item_limits active for this town,
+    // a product at its own item limit counts as depleted too, in retail's shape (every recipe in the random
+    // mode, else the active one); retail's test above is untouched. With ext.recipe_skip's answer above, the
+    // item limits are already in it (a limited recipe is skipped, not a reason to stop).
+    if (!resourcesDepleted && !recipeSkipTested && Ext::ItemLimits::g_on) {
+        resourcesDepleted =
+            Ext::ItemLimits::RecipeAtLimitSlow(cpDesc, smComp->consumeResourceId < 0, activeProductIdx);
     }
 
     // --- Find StatusIconComponent (type 0x1401c7e08) on work entity ---

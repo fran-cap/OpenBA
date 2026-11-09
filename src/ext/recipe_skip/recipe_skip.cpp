@@ -6,6 +6,7 @@
 #include "ext/recipe_skip/recipe_skip.h"
 
 #include "ext/recipe_skip/recipe_skip_math.h"
+#include "ext/item_limits/item_limits.h"   // a product at its own item limit is at its limit too
 
 #include "Component/ConsumeProduceComponent.h"
 #include "Component/ConsumeProduceDescription.h"
@@ -42,6 +43,12 @@ bool Read(const ConsumeProduceComponent* component, float* weights, char* atLimi
         weights[i] = component->consumeRates._data[i];
         const ProfessionResourceEntry& material = materials[description->_recipes[i].materialType];
         atLimit[i] = material.maxCount <= material.currentCount ? 1 : 0;
+        // ext.item_limits: a product at its own item limit is skipped the same way, so the two together
+        // stop the workshop only when every recipe is at one limit or the other.
+        if (atLimit[i] == 0 && ::Ext::ItemLimits::g_on &&
+            ::Ext::ItemLimits::AtLimit(description->_recipes[i].product)) {
+            atLimit[i] = 1;
+        }
     }
     return true;
 }

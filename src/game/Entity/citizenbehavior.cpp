@@ -10,6 +10,8 @@
 // Decompiled from Application-x64.exe using Ghidra.
 
 #include "Entity/CitizenBehavior.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the item count
+#include "ext/item_limits/item_limits.h"
 #include "Game/Map.h"                          // Map::size / cells / PathDistance
 #include "Component/ComponentDescription.h"   // StorageComponent::Item::_resource sub-descriptions
 #include "Component/Description.h"
@@ -88,6 +90,9 @@ void CitizenBehavior::Update(const System::Time* deltaTime) {
 
     // CountResources â€” Entity_helper_9ed0(self)
     CountResources();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C) counts the
+    // limited items on the same storages; nothing while the row is off or no limit is set
+    Ext::ItemLimits::CountTown(this);
 
     // CheckThresholds â€” Entity_helper_c100(self, deltaTime)
     CheckThresholds(deltaTime);

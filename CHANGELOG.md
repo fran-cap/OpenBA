@@ -15,6 +15,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   (retail's is a fixed 256 deep, and ground past it read as fully shadowed); a view that fits retail's box keeps
   retail's numbers.
 - Show grid (`ext.show_grid`): the grid sets the scene camera itself and streams its lines in batches.
+- Item limits (`ext.item_limits`, class C, off by default): give one item, such as steel tools, its own limit
+  beside its category's, from a new row in the panel of a workshop that makes it (a check box and a number under
+  the Product row). The limit is the item's, town-wide: every workshop making it stops when the town holds
+  that many. Recorded in the town's save (`docs/extensions/handins/ITEMLIMITS.md`).
 - Touch screens (issue #96): the camera pad, the placement bar and the screen-edge margin now have their own
   sizes, in a new "Touch screen" group at the top of the Options Enhanced tab. "Camera pad" Off / 50 % to 125 %
   (`ext.touch_mode_pad_scale`; Off hides the pad for gesture-only play and gives the toolbar the whole bottom
