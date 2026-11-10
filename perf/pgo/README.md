@@ -54,8 +54,13 @@ aliases (`DEFINE_EXE_VTABLE`, a vtable named by its assembler symbol); they were
 - **Retrain for every release** (`perf/pgo/train.sh --build`), on a quiet machine with the mods
   parked. Between releases the set drifts as sources change: a function whose shape no longer
   matches its record is compiled without a profile and GCC warns (`coverage-mismatch`, not an
-  error); nothing breaks, the gain just erodes until the next retrain. The owner's ruling
-  2026-10-26: releases are infrequent, drift between them is accepted.
+  error), and the gain erodes until the next retrain. Usually that is all, but a stale set can also
+  break the release build: GCC 16.2 has failed with an internal compiler error ("during IPA pass:
+  profile") and a multi-GB allocation on files changed since the last retrain. The fix is a retrain;
+  until then build the release flavour without the set:
+  `CMAKE_EXTRA="-DBANISHED_PGO=off" tools/build.sh build release` (a cache variable: it sticks in
+  `build/cmake-release` until set back). The owner's ruling 2026-10-26: releases are infrequent,
+  drift between them is accepted.
 - **Only the release flavour reads the set by default.** `perf` stays plain so `perf/baselines/`
   keeps comparing like with like; measure a PGO exe with an explicit `-DBANISHED_PGO=use`.
 - The training runs are the harness towns, not a saved game: no game content is involved and the

@@ -81,27 +81,21 @@ the merge. Renaming a CI job means updating the required checks in branch protec
   (`tools/acceptance/acceptance.sh` must stay at target). Wiring a body into a `PORT GAP` arm
   changes behaviour: read the consumer first, title it `behaviour:`.
 - **Never run `find /`** or any unscoped filesystem search; it has contaminated perf A/Bs.
-  Use Grep/Glob scoped to the worktree. Memory lives at `~/.claude/memory/` and
-  `~/.claude/projects/C--code-GIT-untitled-rev-eng-project/memory/` (index `MEMORY.md`;
-  history in `archive/`, open only when a task needs it).
+  Use Grep/Glob scoped to the worktree. Memory: `~/.claude/projects/C--code-GIT-untitled-rev-eng-project/memory/`
+  (index `MEMORY.md`; `archive/` only when a task needs the history). No memory entries for PRs or sessions.
 - **No game content in the tree or the exe.** No retail shader source / DXBC, textures, models, sounds,
   `.rsc` copies, or ports / derivatives of them; retail data is read from the user's install at run
   time (transform it at load if needed, never ship it). Rule 7 in `docs/extensions/DESIGN.md` §3.
 - MSYS2 packages are stale: don't `pacman -S`. The compiler is not MSYS2's anyway (above).
 
 ## Subagents
-Use a cheaper model where the task allows: `haiku` for file/log searches, greps and
-lookups; `sonnet` for mechanical edits following an established pattern and for Ghidra
-lookups; inherit the main model only for porting, debugging and design. Subagents may not
-see this file's context — put the relevant hard rules in the prompt.
-- Agents block in the FOREGROUND on builds and game runs: a background job does not wake an
-  idle agent. Up to 10 min per command; an until-loop (`tools/boot_state.sh --wait`) for longer.
-- Agents take a game dir from `tools/game_dirs.sh env <lane> perf|functional` (eval its output)
-  and `release <lane>` after. Perf runs only on the perf dir, on a quiet machine.
+Skill `agent-team` holds the brief template, worktrees, build jobs, game-dir lanes, hand-in and merge
+rules. Models, passed on every call: `opus` for porting, debugging, design and research; `sonnet` for
+mechanical edits on an established pattern and Ghidra lookups; `haiku` for file / log searches.
+Subagents do not see this file: put the relevant hard rules in the prompt.
 
-## Logs (all in the game dir, `C:/GOG Games/Banished/` by default)
-- `standalone_debug.log` — stdout (TRACE/printf, unbuffered)
-- `standalone_error.log` — stderr (survives abnormal exit; `[AutoStart]`, `[BootState]`)
+## Logs (all in the game dir, `$BANISHED_DIR`, `C:/GOG Games/Banished/` by default)
+- `standalone_debug.log` — stdout (TRACE/printf) · `standalone_error.log` — stderr (`[AutoStart]`, `[BootState]`)
 - `standalone_crash.log` — VEH crash dump · `standalone_hang.log` — watchdog thread stacks
 - `standalone_boot_state.txt` — one-line machine-readable boot state
 
@@ -111,13 +105,17 @@ see this file's context — put the relevant hard rules in the prompt.
 | Crash / hang / stuck boot, exit codes, symbolizing | skill `triage-run` |
 | Clicking menus unattended, autostart internals, modal answers | skill `menu-driver` |
 | Perf runs, stress test, profilers | skill `stress-test`, `perf/README.md` |
-| Framing a screenshot, rendering verification | skill `camera-pin`, `tools/trace_oracle/README.md` |
+| Framing or taking a screenshot, rendering verification | skill `camera-pin`, `tools/trace_oracle/README.md` |
+| Launching a build for the user's own check | skill `hand-test` |
+| Reviewing a contributor PR, landing a PR, stale branches | skills `review-pr`, `land-pr`, `cleanup-branches` |
+| A new `fix.*` / `ext.*` row, Enhanced toggle, tweak tunables | skill `new-extension`, `docs/extensions/DESIGN.md` |
+| The Android phone loop, apks | skill `android-device`, `docs/android/README.md` |
+| Cutting a release, a tester apk | skill `release` |
 | Ghidra setup and naming conventions | skill `ghidra`, `docs/reference/HOW_TO_START_GHIDRA.md` |
-| Type header ABI rules | `.claude/rules/type-headers.md` (auto-loads on `*/types/`) |
+| Type header ABI rules | `.claude/rules/type-headers.md` (auto-loads on `src/engine/**`) |
 | Retail binary facts, import table, modding toolkit | `docs/reference/binaries.md` |
 | Main loop, launcher dialog, threading, address resolution | `docs/reference/engine_architecture.md` |
 | Toolchain versions, VS Code / MCP debugging | `docs/reference/environment.md` |
 | Per-binary function inventories | `decomp/README.md` |
-| Known retail bugs | `docs/retail_bugs.md` |
-| Known / suspected bugs in OUR port, not yet fixed | `docs/known_port_issues.md` |
+| A player's bug report; known retail bugs; bugs in OUR port | skill `bug-report`, `docs/retail_bugs.md`, `docs/known_port_issues.md` |
 | Wave / step history, old notes, lane logs (archive, open only when a task needs it) | `docs/history/` |
