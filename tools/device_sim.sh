@@ -288,11 +288,12 @@ if [ "$VIEW" = options ] && kill -0 "$PID" 2>/dev/null; then
     # This run's process only (the lane's other users may have their own OpenBA.exe running).
     WINPID="$(cat "/proc/$PID/winpid" 2> /dev/null)"
     [ -n "$WINPID" ] && taskkill //F //PID "$WINPID" > /dev/null 2>&1
+    bash "$HERE/kill_game.sh" "$G"    # winpid can be the launch wrapper's: end the exe of this game dir
     kill -9 "$PID" 2> /dev/null
 fi
 if [ "$ENDED" = no ] && kill -0 "$PID" 2>/dev/null; then
     KILLED=yes
-    taskkill //F //IM OpenBA.exe > /dev/null 2>&1
+    bash "$HERE/kill_game.sh" "$G"
     kill -9 "$PID" 2> /dev/null
 fi
 wait "$PID" 2> /dev/null

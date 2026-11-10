@@ -25,6 +25,26 @@ A numeric value > 1 overrides the menu settle-frame count (default 60). A direct
 - A 600-frame (~10 s) timeout aborts the Start injection if `NewGameDialog::buttonOk`
   (+0xF0) never populates, rather than crashing on half-built combos.
 
+## Load a save, or quit
+Same state machine, other routes (`src/diag/autostart.cpp`), both unattended:
+- `BANISHED_AUTOLOAD=<save name>` drives menu -> Load -> select that save -> Load, the full retail
+  load path. `1` means the autosave `Auto`. The save is read from the run's user dir
+  (`Documents/Banished/Save`, or `$BANISHED_USER_DIR/Save` in the functional game dir), so copy a
+  reporter's or fixture save there first. A save that carries mods or `ext:` rows raises a modal:
+  add `BANISHED_MODAL_ANSWER=2` to accept it (the most common pairing in practice). The trace is
+  `[AutoStart] AUTOLOAD ... sequence fired` in `standalone_error.log`.
+- `BANISHED_AUTOQUIT[=<settle frames>]` clicks the menu's Quit: the only retail exit path, so it
+  is the one that writes settings.cfg back. Use it to check a setting round-trips.
+
+## Hold a building panel open
+`BANISHED_PANEL_HOLD=<ComponentTypeName>` (e.g. `StorageComponent`, `ConsumeProduceComponent`,
+`ResidenceComponent`) selects one such building in game and leaves its info panel up for the rest
+of the run, for a window capture (`tools/capture_window.ps1`, skill `camera-pin`).
+`BANISHED_PANEL_HOLD_FRAME=<n>` is when (default 3000; give a workplace time to staff and stock),
+`BANISHED_PANEL_HOLD_CLICK=<Controller>:<elementId>` presses one of that panel's buttons, every
+`BANISHED_PANEL_HOLD_CLICK_EVERY=<frames>` (default 300) from the open frame on
+(`src/diag/panel_hold_harness.cpp`).
+
 ## Front-end buttons
 `BANISHED_AUTOMENU_BUTTON=<id>` clicks one main-menu button and stops there:
 New=0, Load=2, Options=4, Quit=6, Mods=7, Achievements=8. Id 10 (Goals) is NOT a front-end

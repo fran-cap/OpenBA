@@ -58,6 +58,10 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   `BANISHED_RENDER_BACKEND=vulkan`) and on Android; the shore shaders read the water's own texture coordinates,
   where they had assumed the DX11 layout.
 
+**Platforms and packages**
+- The Windows zip is now named `OpenBA-v<version>-win-x64.zip`, in line with the other platforms' packages. Its
+  layout is unchanged.
+
 **Android**
 - Installing the game files (issue #96): with no Banished packages yet, the app opens a first-run screen in
   the game's dialog style. "Choose the folder" or "Choose an archive" (a `.zip`) in the system's picker, and the

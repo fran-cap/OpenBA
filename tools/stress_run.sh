@@ -313,7 +313,9 @@ echo "== launching  label=$LABEL speed=${SPEED:-default} citizens=${CITIZENS:-de
 echo "   results -> $OUT"
 # STRESS_PROFILE (default faithful): the exe's /profile:<name> switch (docs/extensions/DESIGN.md);
 # `all` turns every fix and extension on for the everything-on comparison.
-( cd "$GAME_DIR" && MSYS2_ARG_CONV_EXCL="/profile:" ./OpenBA.exe $PROFILE_ARG ) &
+# exec: $LAUNCH_PID then lives exactly as long as this run's game, so the loop below waits on THIS run
+# only (another OpenBA.exe, the user's own game in the other game dir, is never waited on or killed).
+( cd "$GAME_DIR" && exec env MSYS2_ARG_CONV_EXCL="/profile:" ./OpenBA.exe $PROFILE_ARG ) &
 LAUNCH_PID=$!
 
 echo "== waiting for boot"
@@ -328,7 +330,7 @@ echo "== running (timeout ${TIMEOUT}s; Ctrl-C leaves the game up)"
 start=$(date +%s)
 last_row=""
 poll=0
-while tasklist 2>/dev/null | grep -qi 'OpenBA.exe'; do
+while kill -0 "$LAUNCH_PID" 2>/dev/null; do
     if [ "$LOAD" = 1 ]; then
         want_cpu=0
         [ $(( poll % LOAD_CPU_EVERY )) -eq 0 ] && want_cpu=1
@@ -346,7 +348,8 @@ while tasklist 2>/dev/null | grep -qi 'OpenBA.exe'; do
     fi
     if [ "$TIMEOUT" -gt 0 ] && [ $(( $(date +%s) - start )) -ge "$TIMEOUT" ]; then
         echo "!! timeout after ${TIMEOUT}s -- killing"
-        taskkill //F //IM OpenBA.exe >/dev/null 2>&1
+        bash tools/kill_game.sh "$GAME_DIR"      # this game dir's exe only, never by image name
+        kill -9 "$LAUNCH_PID" 2>/dev/null
         sleep 2
         cp -f "$GAME_DIR"/standalone_stress*.* "$GAME_DIR/standalone_error.log" "$OUT/" 2>/dev/null
         exit 4

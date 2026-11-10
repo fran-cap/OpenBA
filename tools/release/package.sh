@@ -3,7 +3,7 @@
 #
 # usage: tools/release/package.sh windows|linux <version> [out-dir]
 #   windows  build/cmake-release/OpenBA.exe + the FrancophilSans files + README / LICENCE texts
-#            -> <out>/OpenBA-v<version>.zip            (the v1.0.0 layout: files at the zip root)
+#            -> <out>/OpenBA-v<version>-win-x64.zip    (the v1.0.0 layout: files at the zip root)
 #   linux    build/cmake-release/OpenBA (the Vulkan backend) + libSDL3.so.0 + OpenBA.sh
 #            + the same texts -> <out>/OpenBA-v<version>-linux-x64.tar.gz (one top-level folder)
 # No .sha256 file: GitHub records each release asset's SHA-256. Run from the repo root, after
@@ -41,7 +41,7 @@ case "$PLAT" in
     cp -f "$EXE" "$STAGE/OpenBA.exe"
     texts "$STAGE"
     no_game_content "$STAGE"
-    ZIP="$OUT/OpenBA-v$VER.zip"
+    ZIP="$OUT/OpenBA-v$VER-win-x64.zip"
     rm -f "$ZIP"
     # python's zipfile: present on every build machine (CMake already needs it); MSYS2 has no zip.
     (cd "$STAGE" && python3 -m zipfile -c "$ZIP" ./*) || (cd "$STAGE" && python -m zipfile -c "$ZIP" ./*)

@@ -277,7 +277,8 @@ done
 KILLED=no
 if kill -0 "$PID" 2>/dev/null; then
     KILLED=YES
-    taskkill //F //IM OpenBA.exe >/dev/null 2>&1
+    # This run's process only (the user or another lane may have their own OpenBA.exe running).
+    bash "$HERE/kill_game.sh" "$G"
     kill -9 "$PID" 2>/dev/null
 fi
 wait "$PID" 2>/dev/null
