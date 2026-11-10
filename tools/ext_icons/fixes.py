@@ -522,6 +522,24 @@ def draw_bridge_fog(px):
     ])
 
 
+def draw_steady_shadow(px):
+    # a tree and its shadow on a ground line, a magnifier's ring over them (shadows hold still in a zoom)
+    _paint(px, [
+        "..##........",
+        ".####...###.",
+        ".####..#...#",
+        "..##...#...#",
+        "..##...#...#",
+        "..##....###.",
+        "###########+",
+        "..++++......",
+        "...++++.....",
+        "....++++....",
+        "............",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -551,4 +569,5 @@ ICONS = {
     "stream_free_wait": ("fix", draw_stream_wait),   # a music note beside a pause sign
     "minimap_outline_clip": ("fix", draw_outline_clip),   # a map frame with a whole camera trapezoid
     "decal_fog_order": ("fix", draw_bridge_fog),     # a bridge over water under haze dots
+    "shadow_zoom_pulse": ("fix", draw_steady_shadow),   # a tree's shadow under a magnifier
 }

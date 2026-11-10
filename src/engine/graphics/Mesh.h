@@ -479,6 +479,13 @@ public:
     // Called from ext.gather_threads' helpers too (src/ext/draw_gather/draw_gather.cpp DISPATCHPAR), two
     // at a time: an installed body is thread-safe (create_on_demand's is a lock-free test and a locked queue).
     static void (*_extLevelGathered)(const MeshInstance& instance, int32_t level);
+    // EXT SEAM (NOT RETAIL, docs/extensions/LEAF_LOD.md): ext.leaf_lod's reduced canopies. Run by Draw
+    // where it binds a rigid list's buffers, with the level and list the draw item carries: the extension
+    // may replace the vertex buffer, the index buffer and the list's range (same vertex layout, same node).
+    // Called on the drawing thread. Null = retail.
+    static void (*_extDrawLists)(const MeshInstance& instance, int32_t level, int32_t list,
+                                 const Video::VertexBuffer** vertexBuffer, const Video::IndexBuffer** indexBuffer,
+                                 const GraphicsMesh::TriangleList** range);
     // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md §2.3, DESIGN.md hook rule 5): ext.render_pipe's
     // frozen copies. Null by default and under the faithful profile. Consulted only on the instanced
     // branch of the four pose lookups (GetBones, InstancedPoses, RtInstancedPoolSlot, SkinMemo's

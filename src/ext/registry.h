@@ -89,6 +89,7 @@ struct Fixes {
     bool minimap_outline_clip = true;   // docs/retail_bugs.md §31, src/ext/minimap_outline_clip/: UI only, the minimap's camera outline keeps every side when a corner lies off the map
     bool stream_free_wait  = true;   // review S-027 (engine seam Audio::Device::_extFixStreamFreeWait): a streamed sound freed while its stream pass runs waits for the pass, so the worker reads no freed seek table
     bool decal_fog_order   = true;   // docs/retail_bugs.md §32, src/render/common/decal_fog/ (backend seam DecalFogBackend::SetFixFlag): render only, next start; the decal pixel programs tint, then fog
+    bool shadow_zoom_pulse = true;   // docs/retail_bugs.md §33, SunLight::_extSteadySunBox (sun_camera.cpp): render only, live; the sun box's size steps on a ladder, so a zoom does not move the shadow grid every frame
 };
 
 // One bool per registered extension (settings key `ext.<id>`). Each extension
@@ -131,6 +132,7 @@ struct Extensions {
     bool better_clouds = false; // class A, live: src/ext/better_clouds/, the sky material's pass slots + the material setup seam (docs/extensions/handins/BETTERCLOUDS.md)
     bool fancy_terrain = false; // class A, live: src/ext/fancy_terrain/, a horizon map of the heightmap multiplied in at the ground-draw seam
     bool depth_of_field = false; // class A, live: src/ext/depth_of_field/, the depth blur at the scene-draw seam (docs/extensions/DOF.md)
+    bool leaf_lod = false; // class A, live: src/ext/leaf_lod/, fewer, larger leaf cards when zoomed out at MeshInstance::_extDrawLists (docs/extensions/LEAF_LOD.md)
     // class C: src/ext/restricted_foods/ (docs/extensions/handins/RESTRICTEDFOODS.md); the foods checked on the
     // Foods page are not eaten
     bool restricted_foods = false;

@@ -170,6 +170,12 @@ public:
     // instead of reading as shadowed past the far plane. A view that fits retail's box is unchanged.
     static const bool* _extDeepSunBox;
 
+    // EXT SEAM (NOT RETAIL, fix.shadow_zoom_pulse, docs/retail_bugs.md section 33): null by default and
+    // under the faithful profile; otherwise src/ext/registry_boot.cpp points it at the fix's bool. While
+    // it points at true, GetSunCamera rounds the box's half size up to ShadowZoom::SteadyHalf's ladder, so
+    // a zoom does not move the shadow grid on every frame.
+    static const bool* _extSteadySunBox;
+
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/FAA-SHADOW.md): the engine end of ext.max_shadow_res
     // (FOLIAGE_AA.md §7). Null by default
     // (and always under the faithful profile); otherwise src/ext/registry_boot.cpp

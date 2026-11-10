@@ -19,7 +19,18 @@ Ice        g_ice;
 BetterClouds::Look g_clouds;
 FancyTerrain::Look g_terrain;
 DepthOfField::Look g_dof;
+LeafLod::Look g_leafLod;
 }  // namespace
+
+LeafLod::Look LeafLodValues() {
+    std::lock_guard<std::mutex> lock(g_mu);
+    return g_leafLod;
+}
+
+void SetLeafLod(const LeafLod::Look& v) {
+    std::lock_guard<std::mutex> lock(g_mu);
+    g_leafLod = v;
+}
 
 Ao AoValues() {
     std::lock_guard<std::mutex> lock(g_mu);

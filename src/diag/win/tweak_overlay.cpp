@@ -65,7 +65,8 @@ using detail::g_open;
 // The rows and keys the overlay touches (registry ids, registry.cpp's tables).
 // ---------------------------------------------------------------------------
 constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
-                                 "eye_camera", "winter_ice", "better_clouds", "fancy_terrain", "depth_of_field"};
+                                 "eye_camera", "winter_ice", "better_clouds", "fancy_terrain", "depth_of_field",
+                                 "leaf_lod"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
 constexpr int kKeyCount = static_cast<int>(sizeof(kKeys) / sizeof(kKeys[0]));
@@ -118,6 +119,7 @@ Ext::Tweak::Ice g_uiIce;
 Ext::BetterClouds::Look g_uiClouds;
 Ext::FancyTerrain::Look g_uiTerrain;
 Ext::DepthOfField::Look g_uiDof;
+Ext::LeafLod::Look g_uiLeafLod;
 bool            g_uiLoaded = false;
 
 void Queue(Act kind, const char* id, int value) {
@@ -467,6 +469,28 @@ void DrawPanels(const Snapshot& s) {
         ImGui::Text("ambientShare %.2f fogScale %.2f radius %d", t.ambientShare, t.fogScale, t.radius);
     }
 
+    // ext.leaf_lod (LEAF_LOD.md): the zoom range and the reduced canopies, live (keep / grow rebuild them).
+    if (ImGui::CollapsingHeader("Lighter far trees", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::LeafLod::Look& t = g_uiLeafLod;
+        bool changed = false;
+        ImGui::Text("row %s", s.rowRequested[RowIndex("leaf_lod")] ? "on" : "off (tick leaf_lod under Rows)");
+        changed |= ImGui::SliderFloat("first level from zoom (units)", &t.start, 20.0f, 300.0f, "%.0f");
+        changed |= ImGui::SliderFloat("last level from zoom (units)", &t.end, 20.0f, 300.0f, "%.0f");
+        changed |= ImGui::SliderFloat("leaf cards kept at the last level", &t.keep, 0.05f, 1.0f, "%.2f");
+        changed |= ImGui::SliderFloat("kept cards grow (1 = same total area)", &t.grow, 0.0f, 2.0f, "%.2f");
+        changed |= ImGui::SliderFloat("outline may move in by (share of crown)", &t.outline, 0.0f, 0.20f, "%.3f");
+        changed |= ImGui::SliderInt("force level (-1 = by zoom)", &t.force, -1, Ext::LeafLod::kLevels);
+        if (changed) Ext::Tweak::SetLeafLod(t);
+        if (ImGui::Button("leaf lod defaults")) {
+            t = Ext::LeafLod::Look{};
+            Ext::Tweak::SetLeafLod(t);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/leaf_lod/leaf_lod_params.h (Look):");
+        ImGui::Text("start %.0f end %.0f keep %.2f grow %.2f outline %.3f", t.start, t.end, t.keep, t.grow,
+                    t.outline);
+    }
+
     // ext.depth_of_field (DOF.md): the depth blur's look and focus, live (Ext::DepthOfField::Look, read every
     // frame).
     if (ImGui::CollapsingHeader("Depth blur", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -732,6 +756,7 @@ void BeforePresent(Renderer& renderer, unsigned width, unsigned height) {
         g_uiClouds = Ext::Tweak::CloudsValues();
         g_uiTerrain = Ext::Tweak::TerrainValues();
         g_uiDof = Ext::Tweak::DofValues();
+        g_uiLeafLod = Ext::Tweak::LeafLodValues();
         g_uiLoaded = true;
     }
 

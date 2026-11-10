@@ -67,7 +67,8 @@ UNIT_TEST(ext_registry_table_shape) {
                            "save_failure_notice", "boat_reach_notice", "cancel_refund",
                            "autotrade_free_goods", "input_fetch_room", "stranded_wade",
                            "debug_spawn_origin", "statusbar_empty_town",
-                           "stream_free_wait", "minimap_outline_clip", "decal_fog_order"}) {
+                           "stream_free_wait", "minimap_outline_clip", "decal_fog_order",
+                           "shadow_zoom_pulse"}) {
         const Ext::Entry& e = E(id);
         CHECK(e.tier == Ext::Tier::Fix);
         CHECK(e.cls == Ext::Class::None);

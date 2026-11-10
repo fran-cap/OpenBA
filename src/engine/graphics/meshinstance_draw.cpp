@@ -320,6 +320,18 @@ void MeshInstance::Draw(Video::Context& context, const Camera& camera,
     {
         const GraphicsMesh::DetailLevel& l1 = DetailLevels(GetMesh().Get())[node];
         const bool skinned = rec._node < 0;
+        // EXT SEAM (NOT RETAIL, docs/extensions/LEAF_LOD.md): ext.leaf_lod draws a rigid canopy list from
+        // its own reduced copy (Mesh.h has the contract). Null: retail's buffers and range.
+        if (!skinned && _extDrawLists != nullptr) {
+            const Video::VertexBuffer* vertexBuffer = &l1._vertexBuffer;
+            const Video::IndexBuffer* indexBuffer = &DetailLevels(GetMesh().Get())[node]._indexBuffer;
+            const GraphicsMesh::TriangleList* range = &rec;
+            _extDrawLists(*this, node, sub, &vertexBuffer, &indexBuffer, &range);
+            context.SetVertexBuffer(vertexBuffer, 0, 0, 0x18);
+            BindIndexBuffer(context, indexBuffer, 0);
+            IssueDraw(context, *range, pass);
+            return;
+        }
         context.SetVertexBuffer(skinned ? &l1._skinVertexBuffer : &l1._vertexBuffer,
                                 0, 0, skinned ? 0x20 : 0x18);
 

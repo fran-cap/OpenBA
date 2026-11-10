@@ -61,6 +61,7 @@
 #include "ext/better_water/better_water.h"
 #include "ext/winter_ice/winter_ice.h"
 #include "ext/better_clouds/better_clouds.h"
+#include "ext/leaf_lod/leaf_lod.h"
 #include "io/Persistence.h"
 #include "save/SaveLoad.h"      // the pseudo-mod seam Save::SaveLoad::_extExtraMods (DESIGN.md hook rule 5)
 #include "system/Configuration.h"
@@ -135,6 +136,7 @@ void VideoLost() {
     MapOverlays::OnVideoLost();  // the map window's overlay image
     WinterIce::OnVideoLost();    // the ice textures and the ice program's twins
     BetterClouds::OnVideoLost(); // the sky's own programs back, our programs and twins forgotten, the noise released
+    LeafLod::OnVideoLost();     // the reduced canopies' buffers (built again as their meshes draw)
 }
 // Engine::MainLoop::_extVideoRestored: the same objects made again, after the reload.
 void VideoRestored() {
@@ -289,6 +291,9 @@ void InitFromSettings() {
     // the far ground a shallow tilt brings into view. Same rule as the three above.
     ::Graphics::SunLight::_extDeepSunBox =
         CurrentProfile() == Profile::Faithful ? nullptr : &Ext().camera_angle;
+    // fix.shadow_zoom_pulse (live): the sun box's size steps on a ladder (SunLight::_extSteadySunBox). Same rule.
+    ::Graphics::SunLight::_extSteadySunBox =
+        CurrentProfile() == Profile::Faithful ? nullptr : &Fix().shadow_zoom_pulse;
     // ext.terrain_batch (class A, live): the WorldGeometry seam follows the row's live bool. Installed
     // once, like the sun map's: under the faithful profile it stays null, so no run index buffer is
     // built and the terrain loop and draw pay one null test each.

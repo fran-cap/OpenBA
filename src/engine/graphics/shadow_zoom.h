@@ -148,5 +148,24 @@ inline void ScaleProjection(float m[16], int32_t shift) {
     }
 }
 
+// ---- fix.shadow_zoom_pulse (docs/retail_bugs.md section 33) -------------------------------------
+// Retail sizes the sun box to the view's ground footprint, so one shadow texel's size on the ground
+// changes on every frame of a zoom (and of a tilt): the whole map is sampled on a new grid each frame,
+// and every shadow edge moves at once, which reads as the shadows pulsing. The snap in GetSunCamera only
+// holds the grid still for a pan. With the fix the box's half size is rounded UP to a ladder of sizes
+// kSteadySteps to the octave: the texel size holds while a zoom stays inside a step and changes only
+// when it crosses one. The box always covers what retail's does; it is at most 2^(1 / kSteadySteps)
+// larger (12%), so a texel is at most that much coarser.
+constexpr int32_t kSteadySteps = 6;
+
+inline float SteadyHalf(float half) {
+    if (!(half > 1.0e-6f) || !(half < 1.0e12f)) return half;   // nothing to fit, or not a size
+    const float steps = static_cast<float>(kSteadySteps);
+    // a hair under the exponent, so a size already on the ladder stays where it is
+    const float rung = std::ceil(std::log2(half) * steps - 1.0e-3f);
+    const float size = std::exp2(rung / steps);
+    return size < half ? half : size;
+}
+
 }  // namespace ShadowZoom
 }  // namespace Graphics

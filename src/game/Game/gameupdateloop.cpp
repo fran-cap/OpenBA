@@ -80,6 +80,7 @@
 #include "ext/item_priority/item_priority.h"
 // ext.item_limits (class C), Ext::ItemLimits::BeginFrame
 #include "ext/item_limits/item_limits.h"
+#include "ext/leaf_lod/leaf_lod.h"   // EXT SEAM (NOT RETAIL, docs/extensions/LEAF_LOD.md)
 #include "ext/better_trees/better_trees.h"   // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md): Ext::BetterTrees::SeasonStamp
 #include "ext/better_trees/falling_leaves.h" // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): the falling leaves
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/TOOLNAMES.md):
@@ -1522,6 +1523,8 @@ void GameUpdateLoop::Draw(float alpha) {
             videoCtx->_time.y = Ext::BetterTrees::SeasonStamp(m_dayCounter->yearTime.AsSeconds());
         // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): and its falling leaves' frame.
         Ext::BetterTrees::LeavesFrame(*this);
+        // EXT SEAM (NOT RETAIL, docs/extensions/LEAF_LOD.md): ext.leaf_lod's level for this frame's zoom.
+        Ext::LeafLod::Frame(*this);
     }
     TRACE("[GameUpdateLoop::Draw] video context time set\n");
 
@@ -2185,6 +2188,8 @@ void GameUpdateLoop::Shutdown() {
         Ext::BetterClouds::Forget();
         // EXT SEAM (NOT RETAIL, docs/extensions/NATURAL_GROWTH.md §7): natural tree growth's falling leaves.
         Ext::BetterTrees::LeavesShutdown(gs);
+        // EXT SEAM (NOT RETAIL, docs/extensions/LEAF_LOD.md): ext.leaf_lod's reduced canopies.
+        Ext::LeafLod::Forget();
     }
 
     // Delete scenario instance
