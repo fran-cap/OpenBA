@@ -114,7 +114,8 @@ UNIT_TEST(ext_camera_angle_pitch_stays_inside_retail_ceiling) {
 }
 
 // The Extensions dialog's Experimental tab (registry.h Experimental, ruled 2026-11-08): the phone rows and staggered
-// passes, nothing else. Only where a row is listed changes.
+// passes, and the lighter far trees while their look is judged (LEAF_LOD.md), nothing else. Only where a row is
+// listed changes.
 UNIT_TEST(ext_registry_experimental_rows) {
     int n = 0;
     for (int i = 0; i < Ext::EntryCount(); ++i) {
@@ -123,9 +124,10 @@ UNIT_TEST(ext_registry_experimental_rows) {
         ++n;
         CHECK(e.tier == Ext::Tier::Extension);
         CHECK(std::strcmp(e.id, "touch_mode") == 0 || std::strcmp(e.id, "touch_pointer") == 0 ||
-              std::strcmp(e.id, "phone_menu") == 0 || std::strcmp(e.id, "staggered_passes") == 0);
+              std::strcmp(e.id, "phone_menu") == 0 || std::strcmp(e.id, "staggered_passes") == 0 ||
+              std::strcmp(e.id, "leaf_lod") == 0);
     }
-    CHECK(n == 4);
+    CHECK(n == 5);
     CHECK(!Ext::Experimental(*Ext::FindEntry("camera_angle")));
     CHECK(!Ext::Experimental(*Ext::FindEntry("fps_cap")));
 }

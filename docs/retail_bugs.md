@@ -1580,3 +1580,26 @@ harness and pin as above: row off, the dark band; row on, the bridge's decal fad
 the rest of the scene; without the forced fog, the shadow under the bridge is unchanged. Unit tests:
 `tests/unit/ext_decal_fog_test.cpp` (synthetic programs in two register layouts, evaluated before and
 after).
+
+## 33. Shadows pulse while the camera zooms
+
+**Symptom.** While the camera zooms in or out (and while it tilts), every shadow edge in view shifts a
+little on every frame: the shade on tree crowns and roofs flickers and pulses until the zoom settles. It
+is strongest with a small shadow map, where one shadow texel covers the most ground.
+
+**Retail mechanism.** `SunLight::GetSunCamera` (0x180107010) sizes the sun's orthographic box to the
+view: the bounding sphere of the view's ground footprint, its radius times `sqrt(|forward.z|)`. One
+shadow texel on the ground is that size times two over the map's width, so it changes on every frame of
+a zoom. The function snaps the box's centre to whole texels, which holds the shadow grid still while the
+camera pans, but the snap is in units of a texel whose size is itself moving: during a zoom the map is
+sampled on a new grid each frame and every edge lands on different texels.
+
+**Fix.** `fix.shadow_zoom_pulse` (default ON, render only, live; nothing is saved; off under the
+faithful profile). `SunLight::_extSteadySunBox` points `GetSunCamera` at the row's bool; while it is on,
+the box's half size is rounded up to a ladder of six sizes to the octave
+(`Graphics::ShadowZoom::SteadyHalf`, `src/engine/graphics/shadow_zoom.h`) before the texel size, the
+snap and the box's side planes are worked out from it. The texel holds still while a zoom stays inside a
+step and changes once when it crosses one. The box always covers what retail's does and is at most 12%
+larger, so a texel is at most 12% coarser. `ext.max_shadow_zoom` reads the box's side plane, so its
+choice follows the stepped size. Unit test: `shadow_zoom_steady_half_ladder`
+(`tests/unit/shadow_zoom_test.cpp`).

@@ -319,6 +319,13 @@ const Entry kEntries[] = {
       "The dark ground marking under a bridge or dock over water fades into fog like everything else, "
       "instead of showing as a sharp dark band through it. Takes effect at the next start.",
       0, [](State& s) -> bool& { return s.fix.decal_fog_order; } },
+    // SHADOWZOOMPULSE (docs/retail_bugs.md section 33): the sun box is sized to the view on every frame, so
+    // a zoom samples the shadow map on a new grid each frame and every shadow edge moves at once. With the
+    // row on the box's size steps on a ladder (Graphics::ShadowZoom::SteadyHalf). Render only; nothing saved.
+    { "shadow_zoom_pulse", Tier::Fix, Class::None, true,
+      "Steady shadows while zooming",
+      "Shadows no longer flicker and pulse while the camera zooms in or out.",
+      0, [](State& s) -> bool& { return s.fix.shadow_zoom_pulse; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its
@@ -517,6 +524,13 @@ const Entry kEntries[] = {
       "What is far from the point the camera looks at is softly blurred, like a photograph with a shallow "
       "depth of field: the far hills, the sky and anything close to the camera.",
       0, [](State& s) -> bool& { return s.ext.depth_of_field; } },
+    // LEAF_LOD (docs/extensions/LEAF_LOD.md): zoomed out, every leafy tree draws a share of its leaf cards,
+    // each a little larger, from reduced copies of the installed meshes built at run time. Class A: drawing
+    // only, nothing saved, live. On the Experimental tab while the look is being judged.
+    { "leaf_lod", Tier::Extension, Class::A, true,
+      "Lighter far trees",
+      "When the camera is zoomed out, leafy trees are drawn with fewer, larger leaves. Faster over forests.",
+      0, [](State& s) -> bool& { return s.ext.leaf_lod; } },
     // FAA-SHADOW (docs/extensions/FOLIAGE_AA.md section 7): the sun map at 4096 when the retail
     // Shadow Resolution combo is at High; Medium / Low keep their retail sizes.
     { "max_shadow_res", Tier::Extension, Class::A, true,
@@ -1381,7 +1395,8 @@ int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion) {
 
 // The Extensions dialog's Experimental tab (registry.h Experimental).
 bool Experimental(const Entry& e) {
-    static const char* const kExperimental[] = { "touch_mode", "touch_pointer", "phone_menu", "staggered_passes" };
+    static const char* const kExperimental[] = { "touch_mode", "touch_pointer", "phone_menu", "staggered_passes",
+                                                         "leaf_lod" };
     for (const char* id : kExperimental)
         if (std::strcmp(e.id, id) == 0) return true;
     return false;

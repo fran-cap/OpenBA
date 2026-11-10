@@ -27,6 +27,7 @@
 #include "ext/winter_ice/open_mask.h"       // ...and the boat channel's default width
 #include "ext/fancy_terrain/terrain_params.h" // ext.fancy_terrain's look
 #include "ext/depth_of_field/dof_params.h"    // ext.depth_of_field's look (DOF.md)
+#include "ext/leaf_lod/leaf_lod_params.h" // ext.leaf_lod's look (LEAF_LOD.md)
 #include "ext/better_water/shore_params.h"   // ext.better_water's look (BETTERWATER)   // src/render/common: BbsRewrite::kDefaultParams (pure, no D3D)
 
 namespace Ext {
@@ -92,6 +93,9 @@ void  SetTerrain(const FancyTerrain::Look& v);
 // ext.depth_of_field (DOF.md): the depth blur's look and focus, read by SceneDraw (main) and its draw (drawing thread).
 DepthOfField::Look DofValues();
 void  SetDof(const DepthOfField::Look& v);
+// ext.leaf_lod (LEAF_LOD.md): the zoom range and the reduced canopies' shares, read by Frame (main).
+LeafLod::Look LeafLodValues();
+void  SetLeafLod(const LeafLod::Look& v);
 
 }  // namespace Tweak
 }  // namespace Ext

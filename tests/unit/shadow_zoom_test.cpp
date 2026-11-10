@@ -6,7 +6,8 @@
 // hand; a ray that misses the ground is unknown; the shift steps down only
 // past kStepDown, back up only below kStepUp (hysteresis), never below
 // kMinSize; the projection scale maps clip [-1, 1] onto the map's first
-// 1 / 2^shift and leaves depth alone.
+// 1 / 2^shift and leaves depth alone. fix.shadow_zoom_pulse's ladder (SteadyHalf): never smaller than the
+// size asked for, at most one step larger, the same for every size inside a step, a size on the ladder kept.
 // ============================================================================
 #include "unit.h"
 #include "graphics/shadow_zoom.h"
@@ -97,4 +98,27 @@ UNIT_TEST(shadow_zoom_scale_projection) {
     CHECK_EQ(m[10], before[10]);
     CHECK_EQ(m[14], before[14]);
     CHECK_EQ(m[15], before[15]);
+}
+
+UNIT_TEST(shadow_zoom_steady_half_ladder) {
+    const float step = std::exp2(1.0f / static_cast<float>(SZ::kSteadySteps));
+    for (float half = 3.0f; half < 900.0f; half *= 1.037f) {
+        const float steady = SZ::SteadyHalf(half);
+        CHECK(steady >= half);                       // the box always covers retail's
+        CHECK(steady <= half * step * 1.001f);       // ...and is at most one step larger
+        // on the ladder: a whole number of steps
+        const float rungs = std::log2(steady) * static_cast<float>(SZ::kSteadySteps);
+        CHECK(Near(rungs, std::round(rungs), 2e-3f));
+    }
+    // every size inside one step lands on the same size (the texel holds through a zoom)
+    const float top = std::exp2(30.0f / static_cast<float>(SZ::kSteadySteps));   // a rung: 32
+    CHECK_EQ(SZ::SteadyHalf(top * 0.90f), SZ::SteadyHalf(top * 0.99f));
+    CHECK(Near(SZ::SteadyHalf(top * 0.95f), top, 1e-3f));
+    CHECK(Near(SZ::SteadyHalf(top), top, 1e-3f));                  // a size on the ladder stays
+    CHECK(SZ::SteadyHalf(top * 1.01f) > top * 1.05f);              // past it: the next rung
+    // not a size: handed back as it is
+    CHECK_EQ(SZ::SteadyHalf(0.0f), 0.0f);
+    CHECK_EQ(SZ::SteadyHalf(-4.0f), -4.0f);
+    CHECK(std::isnan(SZ::SteadyHalf(NAN)));
+    CHECK(std::isinf(SZ::SteadyHalf(INFINITY)));
 }

@@ -2012,6 +2012,10 @@ void MeshInstance::SetMaterialInstance(int index, Object::ExternalPtr<MaterialIn
 
 void (*MeshInstance::_extMaterialAssigned)(const MaterialInstance* material) = nullptr;
 void (*MeshInstance::_extLevelGathered)(const MeshInstance& instance, int32_t level) = nullptr;
+void (*MeshInstance::_extDrawLists)(const MeshInstance& instance, int32_t level, int32_t list,
+                                    const Video::VertexBuffer** vertexBuffer,
+                                    const Video::IndexBuffer** indexBuffer,
+                                    const GraphicsMesh::TriangleList** range) = nullptr;
 const InstancedAnimationState* (*MeshInstance::_extInstancedState)(const MeshInstance& instance) = nullptr;
 
 // ---------------------------------------------------------------------------

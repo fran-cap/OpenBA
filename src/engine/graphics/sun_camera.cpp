@@ -83,6 +83,7 @@
 #include "volume/Volume.h"
 #include "graphics/Camera.h"
 #include "graphics/SunLight.h"
+#include "graphics/shadow_zoom.h"   // NOT RETAIL (fix.shadow_zoom_pulse): ShadowZoom::SteadyHalf
 #include "video/ImageBuffer.h"   // B.4: Video::ImageBuffer::Width
 #include "../crt/msvc_libm.h"
 
@@ -318,9 +319,14 @@ Camera SunLight::GetSunCamera(Renderer& renderer) const {
     // of the map the casters are drawn into, which is retail's snap at that size. Shift 0 = retail.
     const int32_t dim = self->_depthTarget->Width() >> SunLight::ExtShadowZoomShift();
 
+    // EXT SEAM (NOT RETAIL, fix.shadow_zoom_pulse, docs/retail_bugs.md section 33): the box's half size
+    // rounded up to a ladder, so the texel below holds still through a zoom. Null or false: retail's.
+    float half = radius * skew;
+    if (SunLight::_extSteadySunBox != nullptr && *SunLight::_extSteadySunBox) half = ShadowZoom::SteadyHalf(half);
+
     // One shadow-map texel, in world units. The snap below is what stops the
     // shadow edges crawling as the view camera pans.
-    const float texel = (radius * skew * kTwo) / static_cast<float>(dim);
+    const float texel = (half * kTwo) / static_cast<float>(dim);
 
     float a = p[1] * cy + p[0] * cx + p[2] * cz;
     float b = p[4] * cy + p[3] * cx + p[5] * cz;
@@ -337,7 +343,7 @@ Camera SunLight::GetSunCamera(Renderer& renderer) const {
     xf.translation.y = p[1] * a + p[4] * b + p[7] * c;
     xf.translation.z = p[2] * a + p[5] * b + p[8] * c;
 
-    const float w = NegF(radius * skew);
+    const float w = NegF(half);
 
     Frustum f;
     f.planes[0] = { kZero,  kOne,  kZero,  kOne  };

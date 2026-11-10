@@ -7,6 +7,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 ## Unreleased
 
 **Extensions**
+- Lighter far trees (`ext.leaf_lod`, Experimental tab): when the camera is zoomed out, leafy trees draw fewer
+  of their leaf cards, each a touch larger, which cuts the overlapping leaf drawing that makes a zoomed-out
+  forest slow. The trunk, colours and shadows are the game's own; the cards that draw a crown's outline are
+  kept, and the change is spread over 64 small steps so no step shows while zooming
+  (`docs/extensions/LEAF_LOD.md`).
 - Better water (`ext.better_water`, any level): where a river leaves a lake, the lake's water now fades into the
   river's over six tiles instead of stopping on a straight line across the channel (retail cuts the lake's water
   off at a box round the lake). The saved water mesh is not changed; the fade is a copy drawn in its place.
@@ -75,6 +80,8 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
   ends the edit, as Enter does on a PC; what the game's own US keyboard table has is what can be typed.
 
 **Fixes**
+- Shadows no longer flicker and pulse while the camera zooms in or out: the area the sun's shadow map covers
+  now changes size in steps instead of on every frame (`fix.shadow_zoom_pulse`, `docs/retail_bugs.md` section 33).
 - Mods during a game (issue #100): the pause menu's Mods button works again, and so does Extensions beside it. It
   first asks whether to go on: a change reloads the town, and turning off a mod the town uses (one that adds
   buildings, resources or items) can damage it, so save first. A change made in a game is now kept, where the
