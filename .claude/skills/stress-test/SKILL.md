@@ -69,6 +69,21 @@ not the same frame number.
    (the clean DX11 / Vulkan A/B of the shadow-depth work used it). Sample
    `nvidia-smi --query-gpu=utilization.gpu,clocks.sm,pstate --format=csv -lms 500` beside it.
    The version in the exe name changes with reinstalls: `ls` the folder.
+   **No CSV, no header, only "Started recording / Stopped recording": the display is asleep.**
+   PresentMon holds each present until it reaches the screen, and `GPUBusy` needs that display
+   tracking, so with the monitor off nothing is ever written (seen 2026-11-09: an unattended night
+   run, the display timeout 60 s, the user away; it is not elevation, the process filter or the
+   output path). Check before an unattended series, not after it:
+   - `powercfg /q SCHEME_CURRENT SUB_VIDEO VIDEOIDLE` (the AC index is the timeout in seconds) and
+     how long the user has been away; a session driven from another device has an idle console.
+   - Probe: `PresentMon ... --timed 4 --no_track_display --no_track_gpu --no_track_input
+     --output_stdout`. Rows here and none without the three flags = the display is off. This form
+     gives `FrameTime` / `CPUBusy` only, never `GPUBusy`.
+   - Ask the user to leave the display on for the series (`powercfg /change monitor-timeout-ac 0`,
+     put back after); do not wake a sleeping monitor with synthetic input unasked.
+   - With no `GPUBusy`: quote the stress CSV's frame period with `nvidia-smi` utilisation beside it,
+     say so in the report, and compare only legs taken in the same display state (a run with the
+     display off is not comparable to one with it on).
 2. **Where it goes, per pass and per shader: a RenderDoc capture.**
    `tools/trace_oracle/capture_arm.sh <tag> --frame N --out <ABSOLUTE dir> --expect-log RE [--exe-args '...'] -- ENV=V ...`
    (or `renderdoccmd capture --opt-ref-all-resources` with `BANISHED_CAPTURE_INGAME=<frame>`; the
