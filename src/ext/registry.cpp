@@ -892,6 +892,18 @@ const Entry kEntries[] = {
       "The Video tab's Renderer lists DirectX 11 and Vulkan; the game restarts its graphics on the one you "
       "pick. If Vulkan cannot start on this computer, DirectX 11 is used.",
       0, [](State& s) -> bool& { return s.ext.render_backend; } },
+    // WORKCAND (docs/extensions/handins/WORKCAND.md): the idle work search's candidates (the plain-cost
+    // builder 0x1400f8000 of the walk 0x1400f79b0) in a sorted flat array instead of a transient AVL of one
+    // MemAlloc node per job: the same jobs visited in the same order (retail's cost / work id order and
+    // duplicate rule; the COMPPROF=4 shadow compares the two). Class B: the arena allocations it skips move
+    // later heap addresses, and EntityList's update tree orders entities by address, so a town diverges
+    // from retail's as it does between two installs (known_port_issues row 1280). Default ON (ruled
+    // 2026-11-09); the open ruling is whether it is faithful perf work with no row (WORKCAND.md section 2).
+    { "work_cand", Tier::Extension, Class::B, true,
+      "Faster job search",
+      "Idle citizens look through the open jobs without building a list item by item. The same jobs in "
+      "the same order; play diverges.",
+      1, [](State& s) -> bool& { return s.ext.work_cand; } },
 
 #ifdef BANISHED_UNIT_TEST
     // The unit tests' three classes (registry.h). Not compiled into the exe.

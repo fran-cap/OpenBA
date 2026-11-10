@@ -102,6 +102,11 @@
 #include "Game/Profession.h"
 #include "Component/ModelComponent.h"
 #include "Entity/CitizenBehavior.h"    // ProfessionResourceEntry
+#include "ext/registry.h"              // EXT SEAM (NOT RETAIL, WORKCAND.md): Ext::Ext().work_cand
+#include "ext/work_cand/work_cand.h"   // EXT SEAM (NOT RETAIL, WORKCAND.md): the sorted flat candidate list
+#include "stress_harness.h"            // g_verifyOn / StressHarness_Verify (WORKCAND's COMPPROF=4 shadow)
+#include <memory>
+#include <vector>
 
 // 2c-B probe: the last BuildStructure work spawned by State8Enter (buildcomponent_state8.cpp).
 extern "C" void* g_pBuildStructureWork;
@@ -141,6 +146,9 @@ uint64_t      Helper_sub_79b0(WorkScheduler* param_1, CitizenComponent* const* p
                               WorkSchedulerIdNode* const* param_3, Profession* param_4,
                               char param_5, char param_6);                                 // 0x1400f79b0
 uint64_t      Helper_7550(WorkScheduler* param_1, CitizenComponent* const* param_2);      // 0x1400f7550
+// EXT BODY (NOT RETAIL, docs/extensions/handins/WORKCAND.md): ext.work_cand's plain-cost walk (below 79b0).
+uint64_t      Helper_sub_79b0_Flat(WorkScheduler* param_1, CitizenComponent* const* param_2,
+                                   WorkSchedulerIdNode* const* param_3, Profession* param_4, char param_6);
 
 // ============================================================
 // 0x14003f010 — memset(dst, byteVal, count). Pure leaf; just call memset.
@@ -501,6 +509,11 @@ uint8_t Helper_sub_7b60(WorkScheduler* param_1, CitizenComponent* const* param_2
 uint64_t Helper_sub_79b0(WorkScheduler* param_1, CitizenComponent* const* param_2,
                          WorkSchedulerIdNode* const* param_3, Profession* param_4,
                          char param_5, char param_6) {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/WORKCAND.md): ext.work_cand -- the plain-cost build
+    // (0x1400f8000) into a sorted flat array instead of this transient AVL; the COMPPROF=4 shadow builds both.
+    if (param_5 == '\0' && (::Ext::Ext().work_cand || g_verifyOn != 0)) {
+        return Helper_sub_79b0_Flat(param_1, param_2, param_3, param_4, param_6);
+    }
     Profession* local_res20 = param_4;
     CitizenComponent* citizen0 = *param_2;
     ComponentEntity* gate = citizen0->workplace.Get();   // pIVar5 = *(citizen+0x248)
@@ -564,6 +577,171 @@ uint64_t Helper_sub_79b0(WorkScheduler* param_1, CitizenComponent* const* param_
     if (r != nullptr) {
         WorkBase_TreeNodeFree(&resultPair.root, r->left);
         WorkBase_TreeNodeFree(&resultPair.root, r->right);
+        System::MemoryAllocator::MemFree(r);
+    }
+    return ret;
+}
+
+// ============================================================
+// EXT BODY (NOT RETAIL, docs/extensions/handins/WORKCAND.md): ext.work_cand, class B.
+//   Helper_sub_79b0 above for its plain-cost builder (param_5 == 0, 0x1400f8000): the candidates go into a
+//   sorted flat array (Ext::WorkCand::CandidateList, src/ext/work_cand/work_cand.h: retail's
+//   (Work +0x24, Work +0x20) order and duplicate rule) instead of the transient AVL, and the walk
+//   (0x1400f7b60) visits that array: no MemAlloc / MemFree per job. The gate test, the two builds into one
+//   set, the visit (Validate, Execute, the reject stamp) and the return are 79b0's and 7b60's.
+//   Class B because the arena allocations it skips move later heap addresses, which pointer-keyed sets
+//   (EntityList's update tree) order by (WORKCAND.md section 2); the walk itself is retail's.
+//   Under the COMPPROF=4 shadow (g_verifyOn) retail's AVL is built too, from the same source tree, and its
+//   in-order sequence is compared with the array after each build ("WorkCandidates", once per build). The
+//   walk then follows the row: the array with ext.work_cand on, retail's tree (7b60) with it off, so a
+//   faithful shadow run allocates and plays as retail.
+// ============================================================
+struct WorkIdOf {
+    int32_t operator()(const Work* w) const { return w->_workId; }   // Work +0x20, read at each insert
+};
+using WorkCandidateList = ::Ext::WorkCand::CandidateList<Work, WorkIdOf>;
+
+// One list per nesting level of the walk (a job's Execute is game code; a nested walk gets its own list).
+// The lists live for the process: no allocation per walk once they have grown.
+std::vector<std::unique_ptr<WorkCandidateList>> g_workCandLists;
+size_t g_workCandDepth = 0;
+
+struct WorkCandidateLease {
+    WorkCandidateList* list;
+    WorkCandidateLease() {
+        if (g_workCandDepth == g_workCandLists.size()) {
+            g_workCandLists.push_back(std::make_unique<WorkCandidateList>());
+        }
+        list = g_workCandLists[g_workCandDepth].get();
+        ++g_workCandDepth;
+        list->Clear();
+    }
+    ~WorkCandidateLease() { --g_workCandDepth; }
+    WorkCandidateLease(const WorkCandidateLease&) = delete;
+    WorkCandidateLease& operator=(const WorkCandidateLease&) = delete;
+};
+
+// 0x1400f8000's source walk and filter into the list: the source tree in order (parent +0x10, left +0x18,
+// right +0x20), each job whose Work +0x10 entity is `skipKey` when it is set (every job when it is null), at
+// cost Work +0x24.
+void BuildFlat(WorkCandidateList& list, ComponentEntity* skipKey, WorkSchedulerIdNode* cur) {
+    while (cur != nullptr) {
+        Work* payload = cur->work.Get();
+        if (skipKey == nullptr || payload->_entity.Get() == skipKey) {
+            list.Stage(payload, payload->_queueOrder);
+        }
+        WorkSchedulerIdNode* rc = cur->right;
+        if (rc != nullptr) {
+            while (rc->left != nullptr) rc = rc->left;
+            cur = rc;
+            continue;
+        }
+        // no right subtree: climb while cur is a right child, then its parent is next (null: the end)
+        WorkSchedulerIdNode* up = cur->parent;
+        while (up != nullptr && up->right == cur) {
+            cur = up;
+            up = up->parent;
+        }
+        cur = up;
+    }
+    list.Commit();
+}
+
+// 0x1400f7b60 over the list: the same visit per job, in the same order.
+uint8_t WalkFlat(WorkScheduler* param_1, CitizenComponent* const* param_2, const WorkCandidateList& list) {
+    for (size_t i = 0; i < list.Size(); ++i) {
+        Work* work = list.At(i).item;
+        if (work->_lastRejectStep != static_cast<int32_t>(param_1->stepCount)) {
+            work->Validate();   // slot 9
+            CitizenComponent* citizen = *param_2;
+            const int r = work->Execute(&citizen, &param_1->time);   // slot 4
+            if (r == 2) return 1;
+            if (r == 1) {
+                work->_lastRejectStep = static_cast<int32_t>(param_1->stepCount);
+            }
+        }
+    }
+    return 0;
+}
+
+// The shadow's compare: retail's tree in order against the list (the job and the stored cost of each entry)
+// and its insert count against the list's size. `detail` = the entries matched << 32 | the tree's count.
+void VerifyCandidates(const WorkCandidateList& list, const WorkCandidateTree& tree) {
+    WorkCandidateNode* cur = tree.root;
+    while (cur != nullptr && cur->left != nullptr) cur = cur->left;
+    size_t matched = 0;
+    bool ok = static_cast<size_t>(tree.count) == list.Size();
+    while (ok && cur != nullptr) {
+        if (matched >= list.Size() || cur->work.Get() != list.At(matched).item ||
+            cur->cost != list.At(matched).cost) {
+            ok = false;
+            break;
+        }
+        ++matched;
+        WorkCandidateNode* rc = cur->right;
+        if (rc != nullptr) {
+            while (rc->left != nullptr) rc = rc->left;
+            cur = rc;
+            continue;
+        }
+        WorkCandidateNode* up = cur->parent;
+        while (up != nullptr && up->right == cur) {
+            cur = up;
+            up = up->parent;
+        }
+        cur = up;
+    }
+    if (ok && matched != list.Size()) ok = false;
+    StressHarness_Verify("WorkCandidates", ok,
+                         (static_cast<long long>(matched) << 32) | static_cast<uint32_t>(tree.count));
+}
+
+uint64_t Helper_sub_79b0_Flat(WorkScheduler* param_1, CitizenComponent* const* param_2,
+                              WorkSchedulerIdNode* const* param_3, Profession* param_4, char param_6) {
+    CitizenComponent* citizen0 = *param_2;
+    ComponentEntity* gate = citizen0->workplace.Get();   // *(citizen+0x248)
+    if (param_6 != '\0') {
+        gate = nullptr;   // 79b0's fresh empty IBP
+    }
+    const bool verify = g_verifyOn != 0;
+    const bool walkFlat = ::Ext::Ext().work_cand;
+    WorkCandidateLease lease;
+    WorkCandidateList& list = *lease.list;
+    WorkCandidateTree shadow = {};   // retail's tree: built under the shadow only
+
+    // 79b0's BuildAndWalk for the plain cost: both builds go into the one list (and the one shadow tree).
+    auto BuildAndWalk = [&](ComponentEntity* skipKey) -> uint8_t {
+        BuildFlat(list, skipKey, *param_3);
+        if (verify) {
+            ComponentEntity* skipHolder = skipKey;
+            WorkSchedulerIdNode* srcRoot = *param_3;
+            Helper_sub_8000(citizen0, &skipHolder, &srcRoot, &shadow);
+            VerifyCandidates(list, shadow);
+        }
+        CitizenComponent* citHolder = *param_2;
+        if (walkFlat) return WalkFlat(param_1, &citHolder, list);
+        return Helper_sub_7b60(param_1, &citHolder, &shadow);
+    };
+
+    uint64_t ret = 0;
+    bool tryCommon = true;
+    if (gate != nullptr && param_4 == (*param_2)->profession) {
+        // the key matches: the workplace's jobs only
+        if (BuildAndWalk(gate) != 0) {
+            ret = 1;
+            tryCommon = false;
+        }
+    }
+    if (tryCommon && ret == 0 && (param_4->transient || param_6 != '\0')) {
+        // LAB_1400f7a89: the whole bucket
+        ret = BuildAndWalk(nullptr) != 0 ? 1 : 0;
+    }
+
+    // the shadow's tree is freed as 79b0 frees its own
+    WorkCandidateNode* r = shadow.root;
+    if (r != nullptr) {
+        WorkBase_TreeNodeFree(&shadow.root, r->left);
+        WorkBase_TreeNodeFree(&shadow.root, r->right);
         System::MemoryAllocator::MemFree(r);
     }
     return ret;

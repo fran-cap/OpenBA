@@ -62,6 +62,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 - `ext.better_water`: the shore edge is now drawn on Vulkan (Linux, and Windows with
   `BANISHED_RENDER_BACKEND=vulkan`) and on Android; the shore shaders read the water's own texture coordinates,
   where they had assumed the DX11 layout.
+- Faster job search (`ext.work_cand`, class B, on by default): an idle citizen's search through its profession's
+  open jobs sorts them into one list instead of a tree of one allocation per job; the jobs are tried in the
+  same order. Locked for the game and recorded in saves, because the memory it no longer allocates moves where
+  later objects land, which can change the order entities update in
+  (`docs/extensions/handins/WORKCAND.md`).
 
 **Platforms and packages**
 - The Windows zip is now named `OpenBA-v<version>-win-x64.zip`, in line with the other platforms' packages. Its
