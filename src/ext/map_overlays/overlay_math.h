@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "ext/map_overlays/overlay_core.h"   // LandClass
+
 namespace Ext {
 namespace MapOverlays {
 
@@ -27,6 +29,13 @@ uint32_t Ramp(float t);
 
 // grid -> RGBA with Ramp(value / maxValue).
 void Colourise(const std::vector<float>& grid, float maxValue, std::vector<uint32_t>& out);
+
+// The Land view's flat colour of a class, 0xAABBGGRR: green (Open), amber (NeedsClearing), red
+// (Unbuildable); 0 for None and anything out of range.
+uint32_t LandColour(LandClass c);
+
+// grid of LandClass values (as floats) -> RGBA with LandColour.
+void ColouriseLand(const std::vector<float>& grid, std::vector<uint32_t>& out);
 
 }  // namespace MapOverlays
 }  // namespace Ext

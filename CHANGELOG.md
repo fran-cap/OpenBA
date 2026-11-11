@@ -7,6 +7,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 ## Unreleased
 
 **Extensions**
+- Map data views (`ext.map_overlays`): a ninth view, Land, shows where a building can stand: green for open
+  ground, amber for ground that is buildable once its trees, rocks or ore are cleared, red for water, slopes
+  and mountain. It uses the placement tool's own test of a tile, and "Show overlay on terrain" draws it on the
+  ground for planning a town. On a phone the map now fills its side of the window: it grows to the height of
+  the finger-sized view buttons instead of staying at the desktop size with empty space under it.
 - Lighter far trees (`ext.leaf_lod`, Experimental tab): when the camera is zoomed out, leafy trees draw fewer
   of their leaf cards, each a touch larger, which cuts the overlapping leaf drawing that makes a zoomed-out
   forest slow. The trunk, colours and shadows are the game's own; the cards that draw a crown's outline are

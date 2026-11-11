@@ -29,8 +29,10 @@
 //             Iron); wildlife = WildAnimalComponent entities at their tile; fish: the game keeps no fish
 //             stock, so the view shows the water the fishing docks reach (MapCell influence byte 8, the
 //             count FishingComponent stamps and FishingWork samples).
+//   Land      one LandClass per tile, by the placement tool's own cell test (land_class.h).
 // ============================================================================
 #include "ext/map_overlays/map_overlays.h"
+#include "ext/map_overlays/land_class.h"
 #include "ext/map_overlays/overlay_views_internal.h"
 
 #include <cstdint>
@@ -576,6 +578,25 @@ void BuildNatural(const Selection& s, int size, std::vector<float>& out) {
     });
 }
 
+// One LandClass per tile, from the cell array alone (no entity walk).
+void BuildLand(int size, std::vector<float>& out) {
+    GameUpdateLoop* g = GameUpdateLoop::_singleton;
+    const Map* map = g != nullptr ? g->m_game : nullptr;
+    if (map == nullptr || map->size != size) {
+        return;
+    }
+    const MapCell* cells = map->cells.GetData();
+    if (cells == nullptr || !Map::CellsCoverSize(size, map->cells._size)) {
+        return;
+    }
+    const size_t n = static_cast<size_t>(size) * size;
+    for (size_t i = 0; i < n; ++i) {
+        const MapCell& cell = cells[i];
+        const LandClass c = ClassifyLand(cell.terrainType, cell.blocker.Get() != nullptr, cell.footprintCount);
+        out[i] = static_cast<float>(static_cast<uint8_t>(c));
+    }
+}
+
 }  // namespace
 
 void BuildResourceMask(const Selection& s, const std::vector<std::string>& resources, std::vector<uint8_t>& mask) {
@@ -633,6 +654,9 @@ bool BuildInstantTiles(const Selection& s, int size, std::vector<float>& out) {
             return true;
         case View::Natural:
             BuildNatural(s, size, out);
+            return true;
+        case View::Land:
+            BuildLand(size, out);
             return true;
         default:
             out.clear();

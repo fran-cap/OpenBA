@@ -229,5 +229,30 @@ void Colourise(const std::vector<float>& grid, float maxValue, std::vector<uint3
     }
 }
 
+uint32_t LandColour(LandClass c) {
+    // 0xAABBGGRR. The alpha is lower than the ramp's top: the classes cover most of the map, and the
+    // ground under them should still read.
+    switch (c) {
+        case LandClass::Open:
+            return 0x8c50c85au;   // green  (90, 200, 80)
+        case LandClass::NeedsClearing:
+            return 0x8c28b4f0u;   // amber  (240, 180, 40)
+        case LandClass::Unbuildable:
+            return 0x8c3232dcu;   // red    (220, 50, 50)
+        default:
+            return 0u;
+    }
+}
+
+void ColouriseLand(const std::vector<float>& grid, std::vector<uint32_t>& out) {
+    out.assign(grid.size(), 0u);
+    for (size_t i = 0; i < grid.size(); ++i) {
+        const float v = grid[i];
+        if (v >= 1.0f && v < static_cast<float>(LandClass::Count)) {
+            out[i] = LandColour(static_cast<LandClass>(static_cast<int>(v)));
+        }
+    }
+}
+
 }  // namespace MapOverlays
 }  // namespace Ext

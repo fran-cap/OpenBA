@@ -164,7 +164,8 @@ const FieldDesc kLayoutItem[] = {
 const FieldDesc kLayout[] = { FR("_elements", kLayoutItem) };
 const FieldDesc kTableItem[] = { F("_x", Int), F("_y", Int), F("_element", Ext) };
 const FieldDesc kTable[] = { F("_width", Int), F("_height", Int), F("_spacing", Int), FR("_items", kTableItem) };
-const FieldDesc kImage[] = { F("_spriteSheet", Ext), F("_spriteName", String), F("", Int), F("", Int) };
+// _width / _height: the size the image is drawn at (Map.rsc's imageMap sets them); -1 = the sprite's own.
+const FieldDesc kImage[] = { F("_spriteSheet", Ext), F("_spriteName", String), F("_width", Int), F("_height", Int) };
 const FieldDesc kSlider[] = {
     F("_number", Ext), F("", Ext), F("", String), F("", String), F("", String), F("", String), F("", String),
     F("", Int), F("", Int), F("", Float), F("", Float), F("", Int),

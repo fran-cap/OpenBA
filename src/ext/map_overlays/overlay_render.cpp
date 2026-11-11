@@ -23,6 +23,13 @@
 // stay under kMaxCells quads; they are built again only when those cells, the step, the image or the ground
 // changes.
 //
+// THE EXACT VIEWS (Land). A view of classes is drawn from a texture instead of vertex colours: our own
+// ImageBuffer of one pixel per tile, POINT filtered, on an instance of the Selection material's own Material
+// (as MapUI::SetupImage makes one over the minimap's image). The triangles are white and carry the image's
+// texture coordinates, so every tile shows its own colour at any zoom; the coarse grid of a far view only
+// follows the ground. One texture per map size met, made and uploaded on the main thread (RenderFrame, when
+// the image's version changes) and never freed: the draw may be reading it on the render thread.
+//
 // THREADS. With ext.render_pipe the ground draw (DrawOnTerrain) runs on the render thread's pass 2. It never calls
 // Image(): RenderFrame (main thread, the end of BeginFrame) copies the image into a snapshot under a mutex
 // when its version changes, and the draw reads only the snapshot.
@@ -32,6 +39,7 @@
 // (GameUpdateLoop::OnVideoError / Minimap::OnVideoRestart) it is released on the loss (OnVideoLost, from
 // MainLoop::_extVideoLost) and recreated and refilled from the retained pixels on the restore
 // (OnVideoRestored, from MainLoop::_extVideoRestored). The material and the sheet hold no device object.
+// The terrain's textures (THE EXACT VIEWS) go the same way.
 // ============================================================================
 
 #include "ext/map_overlays/map_overlays.h"
@@ -49,6 +57,7 @@
 #include "volume/Volume.h"
 #include "system/Filename.h"
 #include "system/String.h"
+#include "system/MemoryAllocator.h"
 #include "object/External.h"
 #include "ui/Element.h"
 #include "ui/ImageElement.h"
@@ -157,6 +166,8 @@ struct Snapshot {
     int size = 0;
     uint32_t version = 0;
     bool valid = false;
+    // THE EXACT VIEWS: the material over the image's texture; null = vertex colours on the Selection material
+    const Graphics::MaterialInstance* material = nullptr;
 };
 
 Snapshot& Snap() {
@@ -177,6 +188,7 @@ struct TerrainCache {
     uint32_t version = 0;
     uint64_t groundHash = 0;
     bool built = false;
+    bool textured = false;
     bool reportedFailure = false;
     // the heightmap's summary (GroundOf)
     const int16_t* heights = nullptr;
@@ -290,14 +302,97 @@ const Video::RenderState* TerrainState(const Graphics::MaterialInstance* instanc
     return ours;
 }
 
-void DrawVertices(Video::Context& ctx, const Graphics::Camera& camera, const std::vector<TerrainVertex>& vertices) {
-    Video::Context* context = &ctx;
-    const Graphics::MaterialInstance* material = nullptr;
+// The game's tile overlay material (Terrain/Selection.rsc).
+const Graphics::MaterialInstance* SelectionInstance() {
     System::Filename name("Terrain/Selection.rsc");
     ::Object::ExternalFactory* factory = ::Object::ExternalFactory::_singleton;
     const Object::External* object = factory != nullptr ? factory->FindOrLoad(name) : nullptr;
-    if (object != nullptr && Object::IsDerivedFromNullSafe(object, Graphics::MaterialInstance::TypeId()))
-        material = static_cast<const Graphics::MaterialInstance*>(object);
+    if (object == nullptr || !Object::IsDerivedFromNullSafe(object, Graphics::MaterialInstance::TypeId())) {
+        return nullptr;
+    }
+    return static_cast<const Graphics::MaterialInstance*>(object);
+}
+
+// ---- the terrain's texture (THE EXACT VIEWS) ---------------------------------------------------------------
+
+struct TerrainTexture {
+    Video::ImageBuffer* image = nullptr;
+    Graphics::MaterialInstance* material = nullptr;
+    int size = 0;
+    uint32_t version = 0;
+    bool uploaded = false;
+    std::vector<uint32_t> pixels;   // what the texture holds (TexturePixel order, tile rows): kept for a restart
+};
+
+// One per map size met; never freed (the header).
+std::vector<TerrainTexture*>& Textures() {
+    static std::vector<TerrainTexture*>* textures = new std::vector<TerrainTexture*>();
+    return *textures;
+}
+
+void UploadTerrain(TerrainTexture& t) {
+    if (t.image == nullptr || t.pixels.empty() || ::Video::Device::_singleton == nullptr) return;
+    ::Video::Device::_singleton->Lock();
+    t.image->CopyToTexture(t.pixels.data(), t.size, t.size);
+    ::Video::Device::_singleton->Unlock();
+    t.uploaded = true;
+}
+
+// The texture of `size` with its material: the minimap's image parameters but POINT filtered (filter 0), on a
+// MaterialInstance of the Selection material's Material with the image as its "diffuse" (Selection.rsc's own
+// texture name). Null when it cannot be made.
+TerrainTexture* TerrainTextureOf(int size) {
+    for (TerrainTexture* t : Textures()) {
+        if (t->size == size) return t;
+    }
+    const Graphics::MaterialInstance* selection = SelectionInstance();
+    const Graphics::Material* material = selection != nullptr ? selection->_material.Get() : nullptr;
+    if (material == nullptr) return nullptr;
+    Video::ImageBuffer* image = new Video::ImageBuffer();
+    if (image == nullptr) return nullptr;
+    image->Create(0, 2, 5, 0u, size, size, 0, 1, 1, 1, nullptr);
+    // As MapUI::SetupImage (0x14006cb00) makes its own: the engine's allocator, the public constructor.
+    void* memory = System::MemoryAllocator::MemAlloc(sizeof(Graphics::MaterialInstance), 8);
+    if (memory == nullptr) {
+        delete image;
+        return nullptr;
+    }
+    Graphics::MaterialInstance* instance = ::new (memory) Graphics::MaterialInstance();
+    instance->SetMaterial(Object::ExternalPtr<Graphics::Material>(const_cast<Graphics::Material*>(material)));
+    instance->AddTexture(System::String("diffuse"), Object::ExternalPtr<Video::ImageBuffer>(image));
+    instance->BuildParameters();
+    TerrainTexture* t = new TerrainTexture();
+    t->image = image;
+    t->material = instance;
+    t->size = size;
+    Textures().push_back(t);
+    return t;
+}
+
+// Main thread: the material over `image` (size * size overlay pixels at `version`), its texture uploaded when
+// the version is new. Null when the texture cannot be made (the caller falls back to vertex colours).
+const Graphics::MaterialInstance* TerrainMaterialFor(const std::vector<uint32_t>& image, int size, uint32_t version) {
+    TerrainTexture* t = TerrainTextureOf(size);
+    if (t == nullptr) return nullptr;
+    if (!t->uploaded || t->version != version) {
+        const size_t count = static_cast<size_t>(size) * static_cast<size_t>(size);
+        t->pixels.resize(count);
+        for (size_t i = 0; i < count; ++i) {
+            t->pixels[i] = TexturePixel(image[i]);
+        }
+        t->version = version;
+        UploadTerrain(*t);
+    }
+    return t->uploaded ? t->material : nullptr;
+}
+
+// `material`: the exact views' own (TerrainMaterialFor), or null for the Selection material.
+void DrawVertices(Video::Context& ctx, const Graphics::Camera& camera, const std::vector<TerrainVertex>& vertices,
+                  const Graphics::MaterialInstance* material) {
+    Video::Context* context = &ctx;
+    if (material == nullptr) {
+        material = SelectionInstance();
+    }
     if (material == nullptr) return;
     material->Setup(*context, 0);
     const Video::RenderState* state = TerrainState(material);
@@ -396,6 +491,11 @@ void RenderFrame() {
         g_terrainShown.store(false, std::memory_order_relaxed);
         return;
     }
+    // THE EXACT VIEWS: the image as a texture, uploaded here when it is new.
+    const Graphics::MaterialInstance* material = nullptr;
+    if (CurrentSelection().view == View::Land) {
+        material = TerrainMaterialFor(image, size, version);
+    }
     Snapshot& s = Snap();
     {
         std::lock_guard<std::mutex> guard(s.lock);
@@ -405,6 +505,7 @@ void RenderFrame() {
             s.version = version;
             s.valid = true;
         }
+        s.material = material;
     }
     g_terrainShown.store(true, std::memory_order_relaxed);
 }
@@ -440,9 +541,12 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
     const uint64_t groundHash = cache.heightsHash ^ static_cast<uint64_t>(base);
 
     Snapshot& s = Snap();
+    const Graphics::MaterialInstance* material = nullptr;
     {
         std::lock_guard<std::mutex> guard(s.lock);
         if (!s.valid) return;
+        material = s.material;
+        const bool textured = material != nullptr;
         if (step > 1) {
             if (cache.grid.Step() != step || cache.grid.MapSize() != mapSize) {
                 cache.grid.Reset(step, mapSize);
@@ -453,10 +557,11 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
         }
         const bool same = cache.built && step == cache.step && mapSize == cache.mapSize &&
                           s.version == cache.version && groundHash == cache.groundHash &&
-                          SameCellRows(rows, cache.rows);
+                          textured == cache.textured && SameCellRows(rows, cache.rows);
         if (!same) {
             BuildTerrainVertices(rows, mapSize, origin, origin, s.pixels, s.size, kTerrainOpacity, ground,
-                                 cache.grid, cache.vertices);
+                                 cache.grid, cache.vertices, textured);
+            cache.textured = textured;
             cache.rows = std::move(rows);
             cache.step = step;
             cache.mapSize = mapSize;
@@ -466,7 +571,7 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
         }
     }
     if (cache.vertices.empty()) return;
-    DrawVertices(context, camera, cache.vertices);
+    DrawVertices(context, camera, cache.vertices, material);
 }
 
 // ---- the device ------------------------------------------------------------------------------------------
@@ -474,13 +579,23 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
 void OnVideoLost() {
     MapPicture& p = Picture();
     if (p.image != nullptr) p.image->Release();
+    for (TerrainTexture* t : Textures()) {
+        t->image->Release();
+        t->uploaded = false;
+    }
 }
 
 void OnVideoRestored() {
     MapPicture& p = Picture();
-    if (p.image == nullptr) return;
-    p.image->Recreate();
-    Upload(p);
+    if (p.image != nullptr) {
+        p.image->Recreate();
+        Upload(p);
+    }
+    // The terrain's textures: made again and refilled from the kept pixels.
+    for (TerrainTexture* t : Textures()) {
+        t->image->Recreate();
+        UploadTerrain(*t);
+    }
 }
 
 }  // namespace MapOverlays
