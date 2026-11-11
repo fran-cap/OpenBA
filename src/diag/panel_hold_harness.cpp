@@ -34,6 +34,25 @@
 // BANISHED_PANEL_HOLD_CLICK_EVERY=<frames>  (default 300) from the open frame on; a
 //                                           press the controller has nothing to do with
 //                                           is the same no-op as in retail.
+// BANISHED_PANEL_HOLD_TAB=<index>           show that tab (0-based; -1 = the last) of the
+//                                           held panel's first tab control, 30 frames after
+//                                           the panel opened: UI::TabElement::SetActiveTab,
+//                                           what a click on the tab's button does. For a tab
+//                                           the panel does not open on (the town hall's
+//                                           Inventory, an extension's added tab).
+// BANISHED_PANEL_HOLD_REOPEN=1              close the held panel 90 frames after it opened
+//                                           (the deselect, then the close button's call) and
+//                                           select its building again 30 frames later, then
+//                                           log the tab the reopened panel shows: the check
+//                                           of what a panel remembers across a close.
+//
+// THE PANEL STAYS UP ONLY WHILE ITS BUILDING IS ON SCREEN. EditTool::Update closes an
+// unpinned panel whose entity has no screen rect (retail 0x1400fcebc), and a loaded
+// save's camera is wherever the player left it, so a bare select was closed again on
+// the next frame whenever the building happened to be out of view. The harness
+// therefore presses the panel's own "go to" right after the select
+// (PlayerToolManager::CenterOnEntity 0x140103040: it pins the panel and puts the camera
+// on the building), which is what a player does to keep a panel.
 //
 // Diagnostic harness: it drives the same retail path a player click drives and writes
 // nothing of its own.
@@ -49,6 +68,9 @@
 #include "object/TypeInfo.h"   // Object::IsDerivedFromNullSafe
 #include "ui/UserInterface.h"
 #include "ui/DialogInstance.h"   // ENDGAME B.3.6 UI callers (K4)
+#include "ui/Element.h"
+#include "ui/TabElement.h"        // BANISHED_PANEL_HOLD_TAB
+#include "Game/PlayerToolManager.h"   // CenterOnEntity 0x140103040
 #include <new>
 #include <cstdint>
 #include <cstdio>
@@ -58,6 +80,7 @@
 namespace {
 UI::DialogInstance* s_heldDialog = nullptr;
 int   s_heldAtFrame = -1;
+ComponentEntity* s_heldEntity = nullptr;   // BANISHED_PANEL_HOLD_REOPEN selects it again
 
 // BANISHED_PANEL_HOLD_CLICK — see the file header.
 void PanelHoldClick(int frameNum) {
@@ -143,6 +166,109 @@ namespace {
 
 uint32_t Tid(const char* n) { return ::Object::GetTypeIdByName(n); }
 
+// Whether the held panel is still one of the open dialogs (it is freed when it closes).
+bool HeldDialogOpen() {
+    GameUpdateLoop* gw = GameUpdateLoop::_singleton;
+    UI::UserInterface* ui = gw ? gw->m_userInterface : nullptr;
+    if (!ui || !s_heldDialog) return false;
+    for (auto it = ui->_dialogs.GetFirst(); it; ++it) {
+        if (it.node->element == s_heldDialog) return true;
+    }
+    return false;
+}
+
+// The first tab control under `e`, depth first.
+UI::TabElement* FindTabs(UI::Element* e, int depth) {
+    if (!e || depth > 32) return nullptr;
+    if (::Object::IsDerivedFromNullSafe(e, UI::TabElement::TypeId())) return static_cast<UI::TabElement*>(e);
+    const int n = e->ChildCount();
+    for (int i = 0; i < n; ++i) {
+        if (UI::TabElement* found = FindTabs(e->Child(i).Get(), depth + 1)) return found;
+    }
+    return nullptr;
+}
+
+// BANISHED_PANEL_HOLD_TAB -- see the file header.
+void PanelHoldTab(int frameNum) {
+    static bool s_tabDone = false;
+    if (s_tabDone || !s_heldDialog || frameNum < s_heldAtFrame + 30) return;
+    s_tabDone = true;
+    const char* e = Opt().panelHoldTab;
+    if (!e || !e[0]) return;
+    if (!HeldDialogOpen()) {
+        std::fprintf(stderr, "[PanelHold] frame %d: the held panel closed before its tab could be shown\n", frameNum);
+        std::fflush(stderr);
+        return;
+    }
+    UI::TabElement* tabs = FindTabs(s_heldDialog->GetRoot().Get(), 0);
+    if (!tabs) {
+        std::fprintf(stderr, "[PanelHold] frame %d: the held panel has no tab control\n", frameNum);
+        std::fflush(stderr);
+        return;
+    }
+    int index = HarnessAtoi(e);
+    if (index < 0) index = tabs->_tabCount - 1;
+    if (index >= tabs->_tabCount) {
+        std::fprintf(stderr, "[PanelHold] frame %d: tab %d asked, the panel has %d\n", frameNum, index,
+                     tabs->_tabCount);
+        std::fflush(stderr);
+        return;
+    }
+    tabs->SetActiveTab(index);
+    std::fprintf(stderr, "[PanelHold] frame %d: showing tab %d of %d\n", frameNum, index, tabs->_tabCount);
+    std::fflush(stderr);
+}
+
+// BANISHED_PANEL_HOLD_REOPEN -- see the file header.
+void PanelHoldReopen(PlayerToolManager* entityUI, int frameNum) {
+    static int s_step = 0;   // 0 waiting to close, 1 closed, 2 done
+    static int s_firstOpen = -1;
+    const char* e = Opt().panelHoldReopen;
+    if (s_step == 2 || !e || !e[0] || e[0] == '0' || !s_heldEntity || !entityUI) return;
+    if (s_firstOpen < 0) s_firstOpen = s_heldAtFrame;
+    if (s_step == 0) {
+        if (frameNum < s_firstOpen + 90) return;
+        EditTool* tool = EditTool_HarnessAcquire(entityUI);
+        if (!tool) return;
+        tool->CloseInfoDialog();   // 0x1400fcc90: the deselect; a pinned panel survives it
+        GameUpdateLoop* gw = GameUpdateLoop::_singleton;
+        UI::UserInterface* ui = gw ? gw->m_userInterface : nullptr;
+        if (ui && HeldDialogOpen()) {
+            // the panel's own close button: UserInterface::CloseDialog (0x180120f20)
+            Object::InternalPtr<UI::DialogInstance> held(s_heldDialog);
+            ui->CloseDialog(&held);
+        }
+        std::fprintf(stderr, "[PanelHold] frame %d: closed the held panel %p\n", frameNum, (void*)s_heldDialog);
+        std::fflush(stderr);
+        s_heldDialog = nullptr;
+        s_step = 1;
+        return;
+    }
+    if (frameNum < s_firstOpen + 120) return;
+    s_step = 2;
+    EditTool* tool = EditTool_HarnessAcquire(entityUI);
+    if (!tool) return;
+    EditTool_HarnessSelectEntity(tool, s_heldEntity);
+    UI::DialogInstance* dialog = tool->entityRef;   // +0x28
+    s_heldDialog = dialog;
+    s_heldAtFrame = frameNum;
+    if (dialog == nullptr) {
+        std::fprintf(stderr, "[PanelHold] frame %d: the panel did not reopen\n", frameNum);
+        std::fflush(stderr);
+        return;
+    }
+    ComponentEntity* const target = s_heldEntity;
+    entityUI->CenterOnEntity(&dialog, &target);   // 0x140103040
+    UI::TabElement* tabs = FindTabs(dialog->GetRoot().Get(), 0);
+    if (tabs) {
+        std::fprintf(stderr, "[PanelHold] frame %d: reopened as %p, showing tab %d of %d\n", frameNum, (void*)dialog,
+                     tabs->GetActiveTab(), tabs->_tabCount);
+    } else {
+        std::fprintf(stderr, "[PanelHold] frame %d: reopened (no tab control)\n", frameNum);
+    }
+    std::fflush(stderr);
+}
+
 Component* FindComp(ComponentEntity* ent, uint32_t tid) {
     if (!ent || !tid) return nullptr;
     const int n = ent->_components._size;                           // +0x38
@@ -174,6 +300,8 @@ extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         if (s_at < 1) s_at = 3000;
     }
     if (s_done) PanelHoldClick(frameNum);
+    if (s_done) PanelHoldTab(frameNum);
+    if (s_done) PanelHoldReopen(entityUI, frameNum);
     if (s_at < 0 || s_done || !entityUI || frameNum < s_at) return;
 
     GameUpdateLoop* gw = (GameUpdateLoop::_singleton != nullptr) ? GameUpdateLoop::_singleton : nullptr;
@@ -202,6 +330,13 @@ extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum)
         s_done = true;
         s_heldDialog = dialog;
         s_heldAtFrame = frameNum;
+        s_heldEntity = ent;
+        // The panel's "go to": pinned and the camera on the building, so EditTool::Update does not close
+        // it for having no screen rect (the file header).
+        if (dialog != nullptr) {
+            ComponentEntity* const target = ent;
+            entityUI->CenterOnEntity(&dialog, &target);   // 0x140103040
+        }
         // Deliberately NOT calling EditTool_CloseInfoDialog — the whole point is that the
         // panel stays up.
         std::fprintf(stderr, "[PanelHold] frame %d: opened %s panel ent=%p dialog=%p "

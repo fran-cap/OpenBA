@@ -75,6 +75,17 @@ StringTable resource
 		{ String _name = "ShowGridHueLabel";			String _text = "Hue"; }
 		{ String _name = "ShowGridSaturationLabel";		String _text = "Color"; }
 		{ String _name = "ShowGridWidthLabel";			String _text = "Width"; }
+		// ext.storage_metrics' tab in the Town Hall window (Dialog/StorageMetricsTab.rsc)
+		{ String _name = "StorageMetricsTab";			String _text = "Storage"; }
+		{ String _name = "StorageMetricsTitle";			String _text = "Storage space"; }
+		{ String _name = "StorageMetricsHeaderName";		String _text = "Storage"; }
+		{ String _name = "StorageMetricsHeaderBuildings";	String _text = "Buildings"; }
+		{ String _name = "StorageMetricsHeaderSpace";		String _text = "Used / capacity"; }
+		{ String _name = "StorageMetricsHeaderFull";		String _text = "Full"; }
+		{ String _name = "StorageMetricsStockpiles";		String _text = "Stockpiles"; }
+		{ String _name = "StorageMetricsBarns";			String _text = "Storage barns"; }
+		{ String _name = "StorageMetricsTradingPosts";		String _text = "Trading posts"; }
+		{ String _name = "StorageMetricsParam";			String _text = "@0"; }
 		{ String _name = "FpsCounterTab";			String _text = "FPS"; }
 		{ String _name = "FpsCounterCurrentLabel";			String _text = "Current"; }
 		{ String _name = "FpsCounterAverageLabel";			String _text = "Average"; }

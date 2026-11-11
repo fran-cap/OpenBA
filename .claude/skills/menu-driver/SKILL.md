@@ -43,7 +43,18 @@ of the run, for a window capture (`tools/capture_window.ps1`, skill `camera-pin`
 `BANISHED_PANEL_HOLD_FRAME=<n>` is when (default 3000; give a workplace time to staff and stock),
 `BANISHED_PANEL_HOLD_CLICK=<Controller>:<elementId>` presses one of that panel's buttons, every
 `BANISHED_PANEL_HOLD_CLICK_EVERY=<frames>` (default 300) from the open frame on
-(`src/diag/panel_hold_harness.cpp`).
+(`src/diag/panel_hold_harness.cpp`). `BANISHED_PANEL_HOLD_TAB=<index>` shows that tab of the held panel
+30 frames after it opened (0-based, `-1` = the last: an extension's added tab). The harness presses the
+panel's "go to" after the select, so the panel is pinned and the camera is on the building: retail closes
+an unpinned panel whose building is off screen, which is what a loaded save's camera usually gave.
+
+## A mod's template paths
+`BANISHED_TEMPLATE_DUMP=<DescriptionTypeName>` (`*` = every building) logs, 120 frames into a game, the
+template path of each placeable building whose template carries that description
+(`StorageLocationDescription`, `TradeDescription`, ...) as `[TemplateDump]` lines in
+`standalone_error.log` (`src/diag/template_dump.cpp`). The paths feed `BANISHED_SHOWROOM`'s list
+(finished buildings; a `bench <dist>` line keeps the game running with no shots) and
+`BANISHED_PLACEMENT_TEMPLATE`.
 
 ## Front-end buttons
 `BANISHED_AUTOMENU_BUTTON=<id>` clicks one main-menu button and stops there:

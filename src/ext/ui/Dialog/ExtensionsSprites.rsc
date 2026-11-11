@@ -91,6 +91,8 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_show_grid";	String _source = "Sprite/Extensions/Entry_show_grid.png"; }
 		{ String _name = "ExtensionsEntry_fps_counter";	String _source = "Sprite/Extensions/Entry_fps_counter.png"; }
 		{ String _name = "ExtensionsEntry_building_finder";	String _source = "Sprite/Extensions/Entry_building_finder.png"; }
+		{ String _name = "ExtensionsEntry_storage_metrics";	String _source = "Sprite/Extensions/Entry_storage_metrics.png"; }
+		{ String _name = "ExtensionsGlyph_storage_metrics_tab";	String _source = "Sprite/Extensions/Glyph_storage_metrics_tab.png"; }
 		{ String _name = "ExtensionsEntry_dynamic_professions";	String _source = "Sprite/Extensions/Entry_dynamic_professions.png"; }
 		{ String _name = "ExtensionsEntry_tool_names";	String _source = "Sprite/Extensions/Entry_tool_names.png"; }
 		{ String _name = "ExtensionsEntry_high_limits";	String _source = "Sprite/Extensions/Entry_high_limits.png"; }

@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 22);
+    CHECK(kEmbeddedCount == 23);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -57,6 +57,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/TownScreenshotPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ShowGridPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FpsCounterPage.rsc") != nullptr);
+    CHECK(Embedded("Dialog/StorageMetricsTab.rsc") != nullptr);
     CHECK(Embedded("Dialog/BuildingFinderPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FavoritesWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/FullscreenMode.rsc") != nullptr);
@@ -221,8 +222,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // page, + 18 for the Find Buildings page and its favorites window, + 52 for the map window's overlay
     // views, + 4 for the dynamic Professions window (its title, its two column-button tips and its resize
     // strip), + 1 for the Experimental tab's caption, + 3 for ext.item_limits' panel row (label, two tips),
-    // + 5 for the map window's Land view (caption, tip, the three key texts)
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5);
+    // + 5 for the map window's Land view (caption, tip, the three key texts), + 10 for
+    // ext.storage_metrics' Town Hall tab
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10);
     if (strings) {
         // The Extensions dialog's three tab captions.
         int tabKeys = 0;
@@ -446,6 +448,28 @@ UNIT_TEST(ext_rsc_text_parse_fps_counter_page) {
     const Object* reset = f.Find("buttonFpsCounterReset");
     CHECK(reset && reset->type == "ButtonDescription");
     CheckKnownTypes(f, "FpsCounterPage.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_storage_metrics_tab) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/StorageMetricsTab.rsc", f));
+    CHECK(f.Find("resource") == nullptr);   // a tab's button and page, not a dialog
+    const Object* button = f.Find("buttonStorageMetricsTab");
+    CHECK(button && button->type == "ButtonDescription");
+    const Object* page = f.Find("pageStorageMetrics");
+    CHECK(page && page->type == "RibbonDescription");
+    const Object* table = f.Find("tableStorageMetrics");
+    CHECK(table && table->type == "TableDescription");
+    // the names townhall_tab.cpp looks up in a cloned row
+    const char* const cells[] = { "textStorageMetricsTotalName", "textStorageMetricsTypeName",
+                                  "textStorageMetricsBuildings", "textStorageMetricsSpace",
+                                  "textStorageMetricsFull" };
+    for (const char* name : cells) {
+        const Object* cell = f.Find(name);
+        CHECK(cell && cell->type == "TextDescription");
+    }
+    CHECK(f.Find("ribbonStorageMetricsTotalRow") && f.Find("ribbonStorageMetricsTypeRow"));
+    CheckKnownTypes(f, "StorageMetricsTab.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_building_finder_page) {

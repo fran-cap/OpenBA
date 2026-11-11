@@ -7,6 +7,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 ## Unreleased
 
 **Extensions**
+- Storage space (`ext.storage_metrics`, class A, off by default): a Storage tab in the Town Hall window with the
+  used and total space of the town's stockpiles, storage barns and trading posts, as figures ("12,400 / 15,000")
+  and in percent, so a full barn or stockpile shows before production stalls. A kind with several building types
+  (a mod's special stores) lists each type under its total; buildings are recognised by their components, not
+  their names (`docs/extensions/handins/STORAGEMETRICS.md`).
 - Map data views (`ext.map_overlays`): a ninth view, Land, shows where a building can stand: green for open
   ground, amber for ground that is buildable once its trees, rocks or ore are cleared, red for water, slopes
   and mountain. It uses the placement tool's own test of a tile, and "Show overlay on terrain" draws it on the

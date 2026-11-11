@@ -163,6 +163,7 @@ separate axis, a *surface*, and every surface is built once as a host that exten
 | Extensions dialog (front end) | `src/game/Dialog/ExtensionsDialog.*` | its registry row (mandatory), in the Optional tab when `defaultOn` is false, in the Default tab when it is true |
 | Enhanced tab (Options dialog) | `src/ext/enhanced_tab/` | rows for its class A values (`EnhancedTab::Contribution`: open / apply / close) |
 | In-game toolbar window | one extension button on the toolbar opening a window of pages, built with the first extension that needs it | a page, offered only while the extension is active for the town |
+| A tab in one of the game's own tabbed windows | the window's own `UI::TabElement` (the Town Hall's: `TownHallUI::tabElement`), `AddTab` after the game's tabs | the tab's button and page (our text `.rsc`), for a report that belongs with that window's own (`ext.storage_metrics`, `handins/STORAGEMETRICS.md`); the tab the window remembers is recorded as one retail has |
 
 A new window is never a new class and never a button per feature: the toolbar gets ONE extension
 button, the window shows one page per active contributing extension, and with no active contributor

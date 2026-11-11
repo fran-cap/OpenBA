@@ -785,6 +785,15 @@ const Entry kEntries[] = {
       "Adds a Find Buildings page to the extension window: search every building by name, and keep a list of "
       "favorites you can start placing with one click.",
       0, [](State& s) -> bool& { return s.ext.building_finder; } },
+    // STORAGEMETRICS (docs/extensions/handins/STORAGEMETRICS.md): a Storage tab in the Town Hall window with
+    // the used and total space of the town's stockpiles, storage barns and trading posts, in figures and in
+    // percent, by building type too where a kind has several (a mod's stores). Class A: it only reads the
+    // town, nothing saved, live. OFF by default: it adds a tab to the Town Hall window, the player's call.
+    { "storage_metrics", Tier::Extension, Class::A, false,
+      "Storage space",
+      "Adds a Storage tab to the Town Hall window: how much room the stockpiles, storage barns and trading "
+      "posts have and how much of it is used, as figures and in percent.",
+      0, [](State& s) -> bool& { return s.ext.storage_metrics; } },
     // DYNAMICPROFESSIONS (docs/extensions/handins/DYNAMICPROFESSIONS.md): the toolbar's Professions button
     // opens a window that lists only the professions the town can use (the laborer and the builder always,
     // then every profession with a workplace built or a citizen in it), in place of retail's list of all of
