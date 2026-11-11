@@ -53,14 +53,6 @@ UNIT_TEST(input_sizes_and_shape) {
     CHECK(std::is_trivial<State>::value);
 }
 
-// ---------------------------------------------------------------- PART B
-UNIT_TEST(input_field_offsets) {
-    // KeyMap: the suspend count, then the embedded Set<Binding>.
-
-    // The joystick stride every reader multiplies by (`IMUL R8,RDI,0x1b0`).
-    CHECK_EQ((int)sizeof(Device::_joystick[0]), 0x1B0);
-}
-
 // ---------------------------------------------------------------- PART C
 UNIT_TEST(input_declared_signatures) {
     CHECK((std::is_same<decltype(&KeyMap::Pressed),  bool (KeyMap::*)(int32_t, int32_t) const>::value));

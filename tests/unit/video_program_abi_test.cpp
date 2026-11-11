@@ -71,31 +71,6 @@ UNIT_TEST(video_program_parents) {
 }
 
 // ===========================================================================
-// PART B — the five layouts, straight off the real classes.
-//
-// Sizes from the `MOV EDX,imm` in each class's own slot-0 vector deleting
-// destructor, which is also what its `RT_DELDTOR` row carries; offsets from the
-// exported getters and the constructors named in the headers.
-// ===========================================================================
-UNIT_TEST(video_program_layout) {
-    CHECK_EQ(alignof(Video::ShaderProgram), (size_t)8);
-    CHECK_EQ(alignof(Video::VideoProgram),  (size_t)8);
-
-    // ShaderProgram's three arrays, and the `_size` each accessor reads.
-    CHECK_EQ(offsetof(Video::ShaderProgram, _byteCode) +
-                 offsetof(Collection::Array<Collection::Array<uint8_t>>, _size),
-             (size_t)0x48);
-
-    // The one pointer each program subclass adds, and the two are at the SAME
-    // offset — identical layouts, different vtables.
-
-    // VideoProgram's four references and its companion, each named by its own
-    // four-instruction exported getter (0x18004ee10 .. 0x18004ee50).
-    // Each is exactly one pointer: the ctor's four zero stores and Serialize's
-    // four per-T calls describe the same object only if this holds.
-}
-
-// ===========================================================================
 // PART C — `ShaderProgram::Parameter` MUST STAY TRIVIAL, and this is the test
 // that catches the double release.
 //

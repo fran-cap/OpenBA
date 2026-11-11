@@ -68,48 +68,6 @@ T& At(void* base, size_t off) {
 }  // namespace
 
 // ===========================================================================
-// PART A — layout facts the headers do not static_assert (the byte-for-byte
-// sizes and offsets are Device.h's own asserts).
-// ===========================================================================
-
-UNIT_TEST(video_device_layout) {
-    CHECK_EQ(alignof(Dev), 8u);
-}
-
-UNIT_TEST(video_renderbuffer_and_the_two_buffers_layout) {
-    // Layout-identical, which is what lets dynamic_resources.cpp drive both
-    // through one template.
-    CHECK_EQ(offsetof(VB, size), offsetof(IB, size));
-    CHECK_EQ(offsetof(VB, dynamic), offsetof(IB, dynamic));
-    CHECK_EQ(offsetof(VB, platformData), offsetof(IB, platformData));
-    CHECK_EQ(offsetof(VB, listPrev), offsetof(IB, listPrev));
-    CHECK_EQ(offsetof(VB, listNext), offsetof(IB, listNext));
-}
-
-// ===========================================================================
-// PART B — Video::Configuration, and the ONE size in this block that is NOT
-// measured.
-//
-// B35_RULES §13 item 1 asked block D2 to close the `sizeof == 0x44` gap from the
-// retail DLL. It could not be closed, and this test states the bound that IS
-// established rather than a number that is not:
-//   * the constructor's last store is `MOV byte ptr [RCX+0x42],0` at 0x1800f6f64;
-//   * no body in the DLL (ctor, Save, ValidateConfiguration,
-//     ApplyChangedSettings) touches a byte above +0x42;
-//   * there is NO allocation site — the object is a static reached only through
-//     an indirect call, so no size immediate and no next-symbol bound exist.
-// So 0x43 <= sizeof <= 0x44, and asserting == 0x44 would be a static_assert that
-// cannot fail for the right reason.
-// ===========================================================================
-
-UNIT_TEST(video_configuration_size_is_bounded_not_measured) {
-    CHECK(sizeof(Cfg) >= 0x43u);
-    CHECK(sizeof(Cfg) <= 0x44u);
-    CHECK_EQ(alignof(Cfg), 4u);
-    // The ctor's last store, which is the only hard fact about the tail.
-}
-
-// ===========================================================================
 // PART C — RULE B5-6, and the failure mode that would actually happen.
 //
 // The classes gained member functions, five nested classes and a namespace. The

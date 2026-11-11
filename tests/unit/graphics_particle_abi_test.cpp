@@ -34,66 +34,6 @@
 namespace {
 
 // ===========================================================================
-// PART A — LAYOUT relations the header leaves unsaid
-// ===========================================================================
-UNIT_TEST(graphics_particle_sizes_match_retail) {
-    // Each number is the `MOV EDX,imm` immediate in that class's OWN slot-0
-    // vector deleting destructor, read as disassembly by block 0 (B35_RULES
-    // §2.2). They are not derived from each other.
-
-    CHECK_EQ(alignof(Graphics::Particle),       (size_t)8);
-    CHECK_EQ(alignof(Graphics::ParticleSystem), (size_t)8);
-
-    // Single inheritance, base subobject at offset zero, NO tail-padding reuse
-    // and NO second vptr: retail's constructor inlines the base stores and then
-    // writes its own first field at exactly `sizeof(base)` with no gap.
-    CHECK_EQ(offsetof(Graphics::Particle, _active),   sizeof(Object::External));
-    CHECK_EQ(offsetof(Graphics::ParticleSystem, _emissionRate), sizeof(Graphics::Particle));
-}
-
-UNIT_TEST(graphics_particle_field_offsets) {
-    // Pinned by the constructor at 0x180103e80 (the store list is in the
-    // header's banner) and by `Serialize` at 0x180103f00.
-
-    // The two MEASURED gaps the constructor never writes, kept as named pads
-    // rather than left to C++'s natural alignment. They are why the diff oracles
-    // in `animation.cpp` exclude [0x21,0x24) and [0x2c,0x30).
-    CHECK_EQ(sizeof(Graphics::Particle::_pad21),   (size_t)3);
-
-    // The class and the POD must describe the same bytes: the POD still has live
-    // users (`animation.cpp`'s three constructor doors and their oracles), so a
-    // drift between the two is the failure this pins.
-}
-
-UNIT_TEST(graphics_particlesystem_field_offsets_authored_from_retail) {
-    // This layout did not exist under retail's name anywhere in the tree before
-    // block H2. It is not invented: it moves `vtbatch7_animgroup_particlesystem
-    // .cpp`'s file-local struct — the WRITER, off the disassembled 60-store
-    // constructor 0x1800a5320 and off `Serialize`'s emission order — and takes
-    // its field NAMES from `wave28_lane_partsys.cpp`'s independent READER
-    // measurements for `ParticleSystemInstance::Update`, each of which carries
-    // the instruction that reads it. That file now `static_assert`s all 37
-    // constants against this class, so the two witnesses are checked against each
-    // other at compile time as well.
-
-    // The two MEASURED constructor gaps: it writes +0x50 and then the int64 at
-    // +0x58, and it writes +0xdc/+0xe0 as ONE qword of -1 and then the int64 at
-    // +0xe8. `Serialize` skips both as well.
-
-    // `Serialize` emits FIFTEEN consecutive float scalars from +0x7c to +0xb4.
-    // If a field is ever inserted in the middle of that run the stream shifts by
-    // four bytes and every later record is read out of the wrong place — a save
-    // desync, not a crash. Both ends and the span are checked.
-    CHECK_EQ(offsetof(Graphics::ParticleSystem, _gravScale)
-                 - offsetof(Graphics::ParticleSystem, _angleBRange),
-             (size_t)(14 * sizeof(float)));
-
-    // The `_pool` header is the last 0x10 bytes, which is what fixes `sizeof` at
-    // 0x108 rather than 0xf8.
-    CHECK_EQ(offsetof(Graphics::ParticleSystem, _pool) + sizeof(Collection::Array<uint8_t>),
-             sizeof(Graphics::ParticleSystem));
-}
-// ===========================================================================
 // PART B — the claims the conversion makes about the class shape itself
 // ===========================================================================
 

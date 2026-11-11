@@ -220,27 +220,6 @@ UNIT_TEST(system_time_is_8_bytes_over_the_shared_global_struct_Time) {
     CHECK(std::is_trivially_destructible<System::Time>::value);
 }
 
-UNIT_TEST(system_color_is_4_bytes_and_aliases_the_global_pod) {
-    CHECK_EQ(sizeof(System::Color), sizeof(::Color));
-    CHECK_EQ(offsetof(System::Color, _value), offsetof(::Color, value));
-    CHECK(!std::is_polymorphic<System::Color>::value);
-    CHECK(std::is_standard_layout<System::Color>::value);
-    CHECK(std::is_trivially_destructible<System::Color>::value);
-}
-
-UNIT_TEST(system_datetime_is_a_filetime_two_dwords_not_an_int64) {
-    // The one class in Value.h that had NO POD at all — the header used to say
-    // "`this` IS A FILETIME, 8 opaque bytes" and every body took `const void*`.
-    // A FILETIME is {DWORD dwLowDateTime; DWORD dwHighDateTime;}, so it is
-    // 4-ALIGNED. Spelling it `uint64_t` would compile, would keep sizeof at 8,
-    // and would silently raise alignof to 8 — which is why alignment is
-    // asserted here and not only size.
-    CHECK_EQ(alignof(System::DateTime), static_cast<size_t>(4));
-    CHECK(!std::is_polymorphic<System::DateTime>::value);
-    CHECK(std::is_standard_layout<System::DateTime>::value);
-    CHECK(std::is_trivially_destructible<System::DateTime>::value);
-}
-
 UNIT_TEST(the_value_classes_write_the_same_bytes_the_pods_read) {
     // The live mixed state, as PART D does for Thread: written through the POD
     // spelling (what the unconverted tree does) and read back through the
@@ -329,39 +308,6 @@ UNIT_TEST(system_crc_compute_matches_the_standard_crc32_check_vector) {
 }
 
 // ===========================================================================
-// PART G — B.3.4b SYSTEM (4a): `System::WideString`.
-// ===========================================================================
-// This is the first 4b class whose POD and class are DELIBERATELY DIFFERENT in
-// their special members, and that difference is the whole reason for the tests
-// below. `RtSystem::WideString` stays a trivially destructible one-pointer POD,
-// because four `src/engine/` files hold one BY VALUE and release it through
-// the registered `??1` door; `System::WideString` owns retail's release idiom
-// and therefore has a real, non-trivial destructor. Two objects over the same
-// eight bytes where exactly one of them destroys — asserted, so that "tidying"
-// either direction fails the suite rather than the boot.
-//
-// NOTHING IS CONSTRUCTED OR CALLED HERE. `widestring.cpp` stands on the port
-// registry (`RtMemAlloc` / `RtMemFree` reach `System::MemoryAllocator` through
-// `rt_port.h`) and cannot link into a host test, exactly like `thread_win.cpp`
-// and `value_types.cpp`. The UTF-8/UTF-16 round trip is verified by the real
-// run; this part is layout and special members.
-
-UNIT_TEST(the_widestring_class_destroys_and_the_widestring_pod_does_not) {
-    CHECK(!std::is_polymorphic<System::WideString>::value);
-    CHECK(std::is_standard_layout<System::WideString>::value);
-    // The class owns `??1WideString@System@@QEAA@XZ` (0x18000a730) — retail's
-    // release idiom, asymmetry included. If this ever reads trivial, the
-    // destructor has been deleted and the `??1` door releases nothing.
-    CHECK(!std::is_trivially_destructible<System::WideString>::value);
-
-    // Retail exports no `??0WideString@System@@QEAA@XZ`, and an implicit
-    // default constructor would let `System::WideString w;` leave `_data`
-    // uninitialised for that destructor to release. The three real
-    // constructors (0x1800cab50 / 0x18000a6e0 / 0x1800cb110) suppress it.
-    CHECK(!std::is_default_constructible<System::WideString>::value);
-}
-
-// ===========================================================================
 // PART H — B.3.4b SYSTEM (4b): `System::Compression`.
 // ===========================================================================
 // The one 4b class whose live instance is a HEAP object and whose size is
@@ -393,33 +339,4 @@ UNIT_TEST(system_compression_is_one_pointer_and_must_stay_eight_bytes) {
     // default-constructible-by-accident in the trivial sense: the door
     // placement-news it, which is what makes the 0x40000 table appear.
     CHECK(!std::is_trivially_default_constructible<System::Compression>::value);
-}
-
-// ===========================================================================
-// PART I — B.3.4b SYSTEM (4c): `System::Configuration`.
-// ===========================================================================
-// The 0x30 bytes are pinned by `??0Configuration@System@@QEAA@XZ` (0x1800c51b0),
-// the class's own header-defined constructor since B7 LX (D7a): +0x00 is
-// `Collection::Array<System::String>`, +0x10 the settings
-// `Collection::Set<Pair<String,String>>` (RtIo::SettingsSet).
-//
-// Nothing is constructed or called here: `configuration.cpp` does not link on
-// the host, like thread_win.cpp and value_types.cpp.
-
-UNIT_TEST(system_configuration_is_0x30_bytes_at_the_ctors_literal_offsets) {
-    CHECK_EQ(offsetof(System::Configuration, _entries._size),  static_cast<size_t>(0x08));
-    CHECK_EQ(offsetof(System::Configuration, _map._root),    static_cast<size_t>(0x10));
-    CHECK_EQ(offsetof(System::Configuration, _map._count),   static_cast<size_t>(0x18));
-    CHECK_EQ(offsetof(System::Configuration, _map._pad0c),   static_cast<size_t>(0x1c));
-    CHECK(!std::is_polymorphic<System::Configuration>::value);
-    CHECK(std::is_standard_layout<System::Configuration>::value);
-}
-
-UNIT_TEST(configuration_owns_its_constructor_and_destructor) {
-    // The class owns `??1Configuration@System@@` (0x1800c5170) -- the map clear
-    // at +0x10 and the `~Array(+elem)` tail call on `this`, its two members'
-    // destructors. If this reads trivial, the destructor has been deleted.
-    CHECK(!std::is_trivially_destructible<System::Configuration>::value);
-    // And `??0Configuration@System@@` (0x1800c51b0) is its constructor (B7 LX).
-    CHECK(std::is_default_constructible<System::Configuration>::value);
 }

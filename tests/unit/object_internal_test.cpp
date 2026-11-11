@@ -153,14 +153,6 @@ UNIT_TEST(internal_layout_matches_the_alias_pod) {
     CHECK_EQ(sizeof(::Object::Internal), (size_t)0x10);
 }
 
-UNIT_TEST(internalfactory_layout_matches_the_alias_pod) {
-    static_assert(sizeof(::Object::InternalFactory) == 0x9e8, "0x9e4 fields, alignof 8");
-    static_assert(offsetof(::Object::InternalFactory, _objects)    == 0x00, "");
-    static_assert(offsetof(::Object::InternalFactory, _persistIds) == 0x10, "");
-    static_assert(offsetof(::Object::InternalFactory, _random)     == 0x20, "");
-    CHECK_EQ(sizeof(::Object::InternalFactory), (size_t)0x9e8);
-}
-
 // ===========================================================================
 // The vtable, read the way an unconverted C body reads it
 // ===========================================================================

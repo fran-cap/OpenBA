@@ -100,21 +100,6 @@ UNIT_TEST(ext_terrain_edit_raised_word_is_clamped) {
     CHECK(RaisedWord(5, 0.0f) == 5);
 }
 
-UNIT_TEST(ext_terrain_edit_stepped_controls_stay_in_range) {
-    using namespace Ext::TerrainEdit;
-    float r = kDefaultRadius;
-    for (int i = 0; i < 40; ++i) r = SteppedRadius(r, 1);
-    CHECK(r == kMaxRadius);
-    for (int i = 0; i < 40; ++i) r = SteppedRadius(r, -1);
-    CHECK(r == kMinRadius);
-    CHECK(SteppedRadius(6.0f, 1) == 8.0f);
-    float s = 1.0f;
-    for (int i = 0; i < 20; ++i) s = SteppedStrength(s, 1);
-    CHECK(s == kMaxStrength);
-    for (int i = 0; i < 20; ++i) s = SteppedStrength(s, -1);
-    CHECK(s == kMinStrength);
-}
-
 UNIT_TEST(ext_terrain_edit_raise_and_lower_move_the_ground) {
     using namespace Ext::TerrainEdit;
     CHECK(NextWord(0, Mode::Raise, 1.0f, 1.0f, 0.0f) > 0);

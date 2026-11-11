@@ -45,10 +45,6 @@ namespace {
 // ===========================================================================
 // ToolSetting / RotationSetting
 // ===========================================================================
-UNIT_TEST(tool_setting_layout) {
-    CHECK_EQ(alignof(RotationSetting), (size_t)8);
-}
-
 UNIT_TEST(tool_setting_slot_order) {
     CHECK_DTOR_SLOT(ToolSetting);
     CHECK_SLOT(ToolSetting, TypeName, 0x08/8);
@@ -107,10 +103,6 @@ UNIT_TEST(tool_base_shape) {
 // ===========================================================================
 // The nine leaves
 // ===========================================================================
-UNIT_TEST(tool_leaf_sizes_match_retail_create) {
-    CHECK_EQ(offsetof(PathTool, segments._size),          (size_t)0x58);   // B4 PLAYER: +0x50 is Collection::Array segments
-}
-
 UNIT_TEST(tool_leaf_overrides_land_on_retail_slots) {
     CHECK_DTOR_SLOT(BridgeTool);   // 0x14002d7f0
     CHECK_SLOT(BridgeTool, Startup,           0x20/8);   // 0x1400fb7a0

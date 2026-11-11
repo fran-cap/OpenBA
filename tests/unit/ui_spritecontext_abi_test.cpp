@@ -35,16 +35,6 @@ UNIT_TEST(ui_spritecontext_size_is_0x88) {
     CHECK(!std::is_copy_assignable<UI::SpriteContext>::value);
 }
 
-UNIT_TEST(ui_spritecontext_field_offsets) {
-    CHECK_EQ((int)(offsetof(UI::SpriteContext, _layout) +
-                   offsetof(RtUI::FontLayout, _entries)), 0x58);
-    CHECK_EQ((int)(offsetof(UI::SpriteContext, _layout) +
-                   offsetof(RtUI::FontLayout, _entries._size)), 0x60);
-    CHECK_EQ((int)(offsetof(UI::SpriteContext, _layout) +
-                   offsetof(RtUI::FontLayout, _lineWidths)), 0x68);
-    CHECK((std::is_same<UI::SpriteContext::SpriteDraw, UI::SpriteDraw>::value));
-}
-
 // The B6-4.5 shape: a stack instance built the way saveload_draw.cpp builds it.
 // The four Array members come up empty, and the implicit destructor (retail's
 // 0x18011d250 member-wise) is safe on them.

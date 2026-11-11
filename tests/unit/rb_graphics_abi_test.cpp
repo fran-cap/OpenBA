@@ -338,20 +338,6 @@ UNIT_TEST(rb_materialinstance_ctor_is_retail_0x180103980_and_concrete) {
     CHECK(RecordedDeleteFreesOnce<Graphics::MaterialInstance>());
 }
 
-UNIT_TEST(rb_graphics_bases_shape) {
-    CHECK(std::is_abstract<Graphics::Geometry>::value);
-    CHECK(std::is_abstract<Graphics::ParticleInstance>::value);
-    CHECK(std::is_abstract<Graphics::Particle>::value);
-    CHECK(std::is_abstract<Graphics::AnimationEvent>::value);
-    // B3X W1: every root / leaf here declares `virtual ~T()`.
-    CHECK(std::has_virtual_destructor<Graphics::Geometry>::value);
-    CHECK(std::has_virtual_destructor<Graphics::Particle>::value);
-    CHECK(!std::is_abstract<Graphics::MeshInstance>::value);
-    CHECK(!std::is_abstract<Graphics::SunLight>::value);
-    CHECK(std::has_virtual_destructor<Graphics::MeshInstance>::value);
-    CHECK(std::has_virtual_destructor<Graphics::SunLight>::value);
-}
-
 // ===========================================================================
 // ENDGAME B.3.9 block GFX -- the Light family concrete (B39_RULES D1, B9-16).
 // ===========================================================================

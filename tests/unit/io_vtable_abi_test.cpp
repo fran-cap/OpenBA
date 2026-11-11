@@ -1081,22 +1081,6 @@ UNIT_TEST(package_file_adds_exactly_one_virtual_at_slot_8_over_External) {
     CHECK_EQ(RetailSlot<PkgOrderProbe>(8), 9L);
 }
 
-UNIT_TEST(the_real_PackageFile_is_0xf0_bytes_with_retails_field_offsets) {
-    // The REAL class, not the probe. Every one of these is also a static_assert
-    // in src/engine/io/PackageFile.h; they are restated as CHECKs so a
-    // regression names the field instead of failing the build with one message.
-
-    CHECK_EQ(offsetof(IO::PackageFile, _entries) + 8,   static_cast<size_t>(0xb8));
-
-    // (B.4 Z LAST IO: the `RtIO::PackageFileView` POD is deleted; the four
-    // cross-checks against it went with it.)
-
-    // 0xc0 + 0x30 == 0xf0: the embedded FileInfo is what closes the object, and
-    // it is also why the constructor's last store is at object offset 0xd8.
-    CHECK_EQ(offsetof(IO::PackageFile, _file) + sizeof(RtIO::FileInfo),
-             sizeof(IO::PackageFile));
-}
-
 // ===========================================================================
 // PART H — ENDGAME B.3.4b SYSTEM (5): `IO::Serializer::Serialize(int64_t&)`.
 // ===========================================================================

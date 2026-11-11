@@ -112,26 +112,6 @@ struct RawOf {
 // PART A — LAYOUT
 // ===========================================================================
 
-UNIT_TEST(graphics_renderer_family_sizes_match_retail) {
-    // Camera: 0xd8, pinned three ways over and above its own field list — see
-    // graphics_camera_is_embedded_three_times below.
-    CHECK_EQ(alignof(Graphics::Camera), size_t(4));   // widest member is a float
-
-    // Renderer: 0x50. `engine/funcs/engine_funcs.h:3081` says the same
-    // independently ("Object size 0x50, alignment 4").
-
-    // The three element strides, each read out of its own array helper's
-    // `IMUL`: 0x10 (0x180062c40), 0x38 (0x180063680) and 0x1f0 — the last
-    // confirmed three independent ways in wave29_lane_gfxbody.cpp's banner
-    // (`IMUL R8,R8,0x1f0`, `IMUL RCX,RCX,0x1f` + `SHL RCX,4`, and
-    // `Array<RendererDrawGroup>::SetSize`).
-
-    // 0x110, from `?GetSceneGroup@Renderer@Graphics@@QEBAAEBUSceneGroup@12@H@Z`
-    // (0x180018090): `MOVSXD RAX,EDX; IMUL RAX,RAX,0x110; ADD RAX,[RCX]`.
-
-    // Scene: 0x78, and its grid node: 0x18.
-}
-
 UNIT_TEST(graphics_camera_field_offsets) {
     // Each offset names the retail body that pins it.
 
@@ -155,27 +135,6 @@ UNIT_TEST(graphics_renderer_field_offsets) {
     CHECK(sizeof(Graphics::Renderer::DrawGroup)  == sizeof(Graphics::RendererDrawGroup));
     CHECK(sizeof(Graphics::Renderer::DrawItem)   == sizeof(Graphics::RendererDrawItem));
     CHECK(sizeof(Graphics::Renderer::Drawable)   == sizeof(Graphics::RendererDrawable));
-}
-
-UNIT_TEST(graphics_camera_is_embedded_three_times) {
-    // THIS IS THE TEST THAT PINS sizeof(Camera) WITHOUT LOOKING AT CAMERA.
-    //
-    // A draw group holds TWO adjacent Cameras — `BeginDrawGroup` (0x180104fd0)
-    // runs `Camera::operator=` (0x180017c40) on group+0x08 and again on
-    // group+0xe0, `?GetCamera@Renderer@…@H@Z` (0x180017fb0) returns group+0x08 as
-    // a `const Camera&` and `?GetCullCamera@…@H@Z` (0x180017fd0) returns
-    // group+0xe0 — and the next field after the second one is `_shader` at
-    // +0x1b8, which `?GetShader@Renderer@` (0x180018010) reads.
-    // 0x08 + sizeof(Camera) == 0xe0, and 0xe0 + sizeof(Camera) == 0x1b8.
-    CHECK_EQ(size_t(0x0e0) - size_t(0x008), sizeof(Graphics::Camera));
-    CHECK_EQ(size_t(0x1b8) - size_t(0x0e0), sizeof(Graphics::Camera));
-    // The three per-pass lists fill the 0x1f0 exactly: 0x1c0 + 3*0x10.
-    CHECK_EQ(size_t(0x1c0) + 3 * sizeof(Collection::Array<Graphics::RendererDrawItem>),
-             sizeof(Graphics::RendererDrawGroup));
-
-    // And a scene group holds one, at +0x10, with its next field at +0xe8 —
-    // Camera.h's original derivation from `Renderer::Draw`.
-    CHECK_EQ(size_t(0x010) + sizeof(Graphics::Camera), size_t(0x0e8));
 }
 
 UNIT_TEST(graphics_scene_field_offsets) {

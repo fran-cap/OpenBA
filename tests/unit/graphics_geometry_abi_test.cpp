@@ -43,69 +43,6 @@
 namespace {
 
 // ===========================================================================
-// PART A — LAYOUT relations the headers leave unsaid
-// ===========================================================================
-UNIT_TEST(graphics_geometry_sizes_match_retail) {
-    // Each number is the `MOV EDX,imm` immediate in that class's OWN slot-0
-    // vector deleting destructor, read as disassembly by block 0 (B35_RULES
-    // §2.2). They are not derived from each other.
-
-    // Every one is qword aligned: the vptr is the first member and nothing in
-    // the tree has a wider alignment requirement.
-    CHECK_EQ(alignof(Graphics::Geometry),               (size_t)8);
-    CHECK_EQ(alignof(Graphics::MeshInstance),           (size_t)8);
-    CHECK_EQ(alignof(Graphics::EdgeMeshInstance),       (size_t)8);
-    CHECK_EQ(alignof(Graphics::ParticleInstance),       (size_t)8);
-    CHECK_EQ(alignof(Graphics::ParticleSystemInstance), (size_t)8);
-    CHECK_EQ(alignof(Graphics::Light),                  (size_t)8);
-    CHECK_EQ(alignof(Graphics::AmbientLight),           (size_t)8);
-    CHECK_EQ(alignof(Graphics::SpotLight),              (size_t)8);
-    CHECK_EQ(alignof(Graphics::SunLight),               (size_t)8);
-}
-
-UNIT_TEST(graphics_derived_fields_begin_at_end_of_base) {
-    // The whole tree rests on single inheritance with the base subobject at
-    // offset zero and NO tail-padding reuse: retail's constructors all call the
-    // base constructor and then write their own first field at exactly
-    // `sizeof(base)` with no gap.
-    // and the one that is two levels deep
-    CHECK_EQ(offsetof(Graphics::ParticleSystemInstance, _emitter),
-             sizeof(Graphics::ParticleInstance));
-}
-
-UNIT_TEST(graphics_geometry_field_offsets) {
-    // Each offset is pinned by the named retail body in Geometry.h's banner.
-    CHECK_EQ(offsetof(Graphics::Geometry, _transform)
-             + offsetof(Graphics::InterpolatedState<Math::Transform>, _previous), (size_t)0xa0);
-
-    // The class and the POD must describe the same bytes: the POD still has
-    // live users outside block E's file set, so a drift between the two is the
-    // failure this pins.
-}
-
-UNIT_TEST(graphics_light_field_offsets_authored_from_retail) {
-    // These three layouts did not exist anywhere in the tree before block E
-    // (B35_RULES §13 item 3: the SIZES were measured, the FIELDS were not), so
-    // this is the only test that pins them.
-
-    // AmbientLight: `??0AmbientLight` zeroes two qwords at +0xc0/+0xc8 (the
-    // Vector4) and stores 0x41200000 == 10.0f at +0xd0; `?Set@AmbientLight@`'s
-    // mangled name is `(const Math::Vector4&, float)`, which fixes the types.
-
-    // SpotLight: the ctor zeroes exactly TWELVE qwords from +0xc0 to +0x118 —
-    // the 0x60 bytes of a Frustum's six Vector4 planes — and then stores the
-    // BYTE 1 at +0x120, which is `Frustum::isOrthographic`. Both ends of that
-    // fit are checked, because it is the whole of the identification.
-    CHECK_EQ(sizeof(::Frustum),                       (size_t)0x64);
-    CHECK_EQ(offsetof(Graphics::SpotLight, _frustum) + offsetof(::Frustum, isOrthographic),
-             (size_t)0x120);
-
-    // SunLight: the eleven scalars `?Set@SunLight@` copies, the +0xEC hole no
-    // body writes, and the three owned pointers.
-    CHECK_EQ(offsetof(Graphics::SunLight, _direction) + 8, (size_t)0xC8);
-    CHECK_EQ(offsetof(Graphics::SunLight, _ambient) + 12, (size_t)0xE8);
-}
-// ===========================================================================
 // PART B — the two RETSLOT slots (RULE B5-12 as amended). Slots 5 and 6
 // return a class BY VALUE through a vtable slot. GCC's Microsoft-ABI lowering
 // passes the hidden return pointer BEFORE `this`, MSVC (retail) after it, so

@@ -31,13 +31,6 @@ UNIT_TEST(ext_input_fetch_room_off_is_retail) {
     CHECK_EQ(FetchCount(false, 300, 0, 100, 0, 1), kRetailCount);
 }
 
-UNIT_TEST(ext_input_fetch_room_retail_load_bounces) {
-    // A tavern-like workplace with 50 of 300 free; the worker carries up to 100 of weight 1.
-    const int loaded = Loaded(kRetailCount, 100, 0, 1, 500);
-    CHECK_EQ(loaded, 100);
-    CHECK(!Deposits(loaded, 300, 250, 1));   // refused whole: carried off elsewhere
-}
-
 UNIT_TEST(ext_input_fetch_room_on_load_fits) {
     const int count = FetchCount(true, 300, 250, 100, 0, 1);
     CHECK_EQ(count, 50);

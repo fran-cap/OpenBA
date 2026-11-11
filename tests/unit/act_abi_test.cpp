@@ -48,11 +48,6 @@ namespace {
 // ===========================================================================
 // Action (the base, retail 0x14015faa0)
 // ===========================================================================
-UNIT_TEST(act_action_layout) {
-    // sizeof / alignof / the field offsets are Action.h's static_asserts.
-    CHECK_EQ(sizeof(Action::_next), (size_t)8);
-}
-
 UNIT_TEST(act_action_shape) {
     CHECK(std::is_polymorphic<Action>::value);
     CHECK(std::is_abstract<Action>::value);                 // [4] _purecall 0x14003addc

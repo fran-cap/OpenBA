@@ -58,16 +58,6 @@
 namespace {
 
 // ===========================================================================
-// PART A — LAYOUT
-// ===========================================================================
-UNIT_TEST(vis_member_offsets) {
-    CHECK_EQ(offsetof(StorageComponent, storageSlots) + offsetof(StorageComponent::ItemArray, _size), (size_t)0x30);
-    CHECK_EQ(offsetof(StorageDisplayComponent, piles) + offsetof(StorageDisplayComponent::PileArray, _size), (size_t)0x30);
-    // D6: the two embedded members at +0x28.
-    // The strays.
-}
-
-// ===========================================================================
 // PART B — SHAPE
 // ===========================================================================
 template <typename T, typename Base>

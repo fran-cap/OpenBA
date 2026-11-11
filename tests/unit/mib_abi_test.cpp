@@ -155,10 +155,6 @@ UNIT_TEST(mib_controller_leaf_shape_and_member_offset) {
     CHECK_SLOT(MultiObjectComponent, OnEvent,  12);     // 0x140125490
 }
 
-UNIT_TEST(mib_controller_member_fields) {
-    CHECK_EQ(offsetof(WorkPlaceComponent, workers) + offsetof(WorkPlaceComponent::WorkerList, _size),(size_t)0x60);
-}
-
 UNIT_TEST(mib_controller_own_slots_land_on_retail_indices) {
     CHECK_SLOT(CropFieldComponent, Startup,        4);    // 0x14011ae60
     CHECK_SLOT(CropFieldComponent, CommandMask,    13);   // 0x14011ada0

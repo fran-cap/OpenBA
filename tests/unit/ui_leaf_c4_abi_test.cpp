@@ -248,13 +248,6 @@ const ::Object::BaseTypeInfo* WhoRecord(int tag) {
 // ===========================================================================
 // PART A — LAYOUT
 // ===========================================================================
-UNIT_TEST(ui_c4_sizes_match_retail) {
-    // `MOV EDX,imm` in each class's own slot-0 vector deleting destructor.
-    CHECK_EQ(alignof(UI::ContainerElement), (size_t)8);
-    CHECK_EQ(alignof(UI::ScrollElement), (size_t)8);
-    CHECK_EQ(alignof(UI::LayoutDescription), (size_t)8);
-}
-
 UNIT_TEST(ui_c4_classes_are_concrete_single_base_with_a_virtual_dtor) {
     // ENDGAME B.3.9 UI-B: the converted classes are CONCRETE (their own
     // test below); the rest stay abstract until their commit.
@@ -396,11 +389,6 @@ UNIT_TEST(ui_c4_description_field_offsets) {
     // F2 (DescriptionsBatch1.h): the old POD names are gone, the offsets above
     // are the ones it pinned.
     CHECK((std::is_same<RtUI::ContainerDescription, UI::ContainerDescription>::value));
-}
-
-UNIT_TEST(ui_c4_element_field_offsets) {
-    CHECK_EQ(offsetof(UI::TableElement, _columnCount), (size_t)0xc4);
-    CHECK_EQ(offsetof(UI::TableElement, _columnSizes), (size_t)0xe0);
 }
 
 // ===========================================================================

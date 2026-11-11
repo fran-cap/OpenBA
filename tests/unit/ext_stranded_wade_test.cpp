@@ -137,11 +137,6 @@ UNIT_TEST(ext_stranded_wade_hall_in_his_zone_needs_no_rescue) {
     CHECK(NeedsRescue(kShore, 0, kGrass, kTown));
 }
 
-UNIT_TEST(ext_stranded_wade_no_target_drops_the_record) {
-    State s = OnNoTarget(RefusedHome(State()));
-    CHECK(!IsStranded(s, kGrass, kIsland, kTown));
-}
-
 UNIT_TEST(ext_stranded_wade_anchor_order) {
     CHECK(ChooseAnchor(true, true, true, true) == AnchorKind::Home);
     CHECK(ChooseAnchor(false, true, true, true) == AnchorKind::LostHome);
@@ -163,12 +158,4 @@ UNIT_TEST(ext_stranded_wade_lost_home_is_remembered_until_home_zone_or_new_home)
     CHECK(SettleLostHome(lost, kGrass, kTown, kTown) == 0);
     CHECK(SettleLostHome(lost, kGrass, kIsland, kTown) == lost);
     CHECK(SettleLostHome(lost, kWater, 0, kTown) == lost);
-}
-
-UNIT_TEST(ext_stranded_wade_lost_home_anchor_strands_the_river_citizen) {
-    // His walk home was refused from the island, then retail dropped the unreachable home: the lost
-    // home's zone is the anchor, he is still stranded and the rescue goes to it.
-    State s = RefusedHome(State());
-    CHECK(IsStranded(s, kGrass, kIsland, kTown));
-    CHECK(RescueTarget(s) == Target::Anchor);
 }

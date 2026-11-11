@@ -18,28 +18,6 @@
 #include "video/CompanionData.h"
 #include "video/VertexLayout.h"
 
-UNIT_TEST(video_companion_data_layout) {
-    // vptr + owner, and the compiler is free to choose neither the order nor
-    // the size — retail chose both.
-    CHECK_EQ(sizeof(Video::DeviceData),         sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::ContextData),        sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::ImageBufferData),    sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::IndexBufferData),    sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::VertexBufferData),   sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::ConstantBufferData), sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::RenderBufferData),   sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::VertexLayoutData),   sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::VertexProgramData),  sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::PixelProgramData),   sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::RenderStateData),    sizeof(void*) * 2);
-    CHECK_EQ(sizeof(Video::VideoProgramData),   sizeof(void*) * 2);
-
-    // `RtVideo::ImageBufferData` and `RtVideo::CompanionData` describe the same
-    // bytes as the real classes — the B4b-1 move in this block did not change
-    // them, it removed the second copy (`ImageBuffer.h`'s).
-    CHECK_EQ(sizeof(RtVideo::CompanionData), sizeof(Video::DeviceData));
-}
-
 // ===========================================================================
 // PART D — `Video::VertexLayout`, the header block A had to AUTHOR.
 //

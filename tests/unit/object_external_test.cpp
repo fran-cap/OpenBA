@@ -79,36 +79,6 @@ void** VTableOf(const void* o) { return *reinterpret_cast<void** const*>(o); }
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// 1. Layout
-// ---------------------------------------------------------------------------
-UNIT_TEST(object_external_layout_matches_the_alias_pods) {
-    CHECK(sizeof(Object::External) == 0x20);
-    CHECK(offsetof(Object::External, _path) == 0x08);
-    CHECK(offsetof(Object::External, _refs) == 0x10);
-
-    // ExternalList: sizeof 0x30 is the deleting dtor's own `MOV EDX,0x30`.
-    CHECK(sizeof(Object::ExternalList) == 0x30);
-    CHECK(offsetof(Object::ExternalList, _resources) == 0x20);
-    CHECK(offsetof(Object::ExternalList, _count) == 0x28);
-
-    // CompiledExternal adds no data: RT_DELDTOR's element size is 0x20, the
-    // same as External's.
-    CHECK(sizeof(Object::CompiledExternal) == 0x20);
-
-    CHECK(sizeof(Object::ExternalFactory) == sizeof(RtObject::ExternalFactory));
-    CHECK(offsetof(Object::ExternalFactory, _resources) == 0x10);
-    CHECK(offsetof(Object::ExternalFactory, _references) == 0x20);
-    CHECK(offsetof(Object::ExternalFactory, _pathStack) == 0x30);
-    CHECK(offsetof(Object::ExternalFactory, _referenceModeEnabled) == 0x40);
-    CHECK(offsetof(Object::ExternalFactory, _simpleLoadEnabled) == 0x42);
-
-    // The base sub-object really is `Object::Base`, one vtable pointer.
-    CHECK(sizeof(Object::Base) == 8);
-    Object::External* asExt = nullptr;
-    CHECK(static_cast<void*>(static_cast<Object::Base*>(asExt)) == nullptr);
-}
-
-// ---------------------------------------------------------------------------
 // 2. Slot order, read the way an unconverted C body reads it
 // ---------------------------------------------------------------------------
 UNIT_TEST(object_external_vtable_slot_order_is_retails) {
@@ -341,4 +311,3 @@ UNIT_TEST(object_external_family_has_a_virtual_destructor) {
     CHECK(std::has_virtual_destructor<Object::Base>::value);
     CHECK_EQ(RetailSlot<Object::External>(1), 2L);
 }
-

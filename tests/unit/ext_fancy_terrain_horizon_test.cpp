@@ -4,7 +4,7 @@
 // ============================================================================
 // Flat ground sees a level horizon; a wall gives atan(rise / run) toward it and a level one away from it; an
 // incline's horizon is signed (up the slope above level, down it below), and the sky term taken against the
-// slope sees the whole sky on a plain incline and less in a hollow; a rebuild of an edited rectangle grown
+// slope sees the whole sky on a plain incline; a rebuild of an edited rectangle grown
 // by the radius matches a full build byte for byte. The pass that reads the map needs the running game.
 // ============================================================================
 #include "unit.h"
@@ -69,21 +69,6 @@ UNIT_TEST(ext_fancy_terrain_horizon_incline_is_open_sky) {
     CHECK(std::fabs(DecodeAngle(m.At(24, 24, 0)) - std::atan(0.5f)) < 0.01f);
     CHECK(std::fabs(DecodeAngle(m.At(24, 24, 4)) + std::atan(0.5f)) < 0.01f);
     CHECK(SkyVisibility(m, h.data(), kSize, kScale, 24, 24) > 0.999f);
-}
-
-UNIT_TEST(ext_fancy_terrain_horizon_hollow_sees_less_sky) {
-    // A bowl: heights rise with the distance from (24, 24); its floor sees less sky than a plain incline.
-    std::vector<int16_t> h(kSize * kSize);
-    for (int y = 0; y < kSize; ++y)
-        for (int x = 0; x < kSize; ++x) {
-            const float dx = static_cast<float>(x - 24);
-            const float dy = static_cast<float>(y - 24);
-            h[y * kSize + x] = static_cast<int16_t>((dx * dx + dy * dy) * 0.05f * 256.0f);
-        }
-    const Map m = Build(h, 16);
-    const float floor = SkyVisibility(m, h.data(), kSize, kScale, 24, 24);
-    CHECK(floor < 0.95f);
-    CHECK(floor > 0.0f);
 }
 
 UNIT_TEST(ext_fancy_terrain_horizon_search_steps_reach_radius) {

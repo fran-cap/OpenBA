@@ -73,13 +73,6 @@ UNIT_TEST(mia_controller_member_at_retail_offset) {
     CheckMember<ResidenceComponent>(0x28);
 }
 
-UNIT_TEST(mia_component_member_offsets) {
-    CHECK_EQ(offsetof(AttendanceComponent, queue) + offsetof(AttendanceComponent::QueueList, _size), (size_t)0x30);
-    CHECK_EQ(offsetof(BuildComponent, pickingComponents) + offsetof(BuildComponent::PickingList, _size), (size_t)0x70);
-    CHECK_EQ(offsetof(CemeteryComponent, plots) + offsetof(Collection::Array<int32_t>, _capacity), (size_t)0x54);
-    CHECK_EQ(offsetof(ResidenceComponent, residentSlots) + offsetof(ResidenceComponent::FamilyArray, _size), (size_t)0x58);
-}
-
 // ===========================================================================
 // PART B — SHAPE
 // ===========================================================================
