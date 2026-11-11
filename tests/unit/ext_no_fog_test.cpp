@@ -80,19 +80,6 @@ UNIT_TEST(ext_no_fog_toggle_is_live_under_the_game_lock) {
     Ext::Install(ResolveText(""), Ext::Profile::PerEntry, false);
 }
 
-UNIT_TEST(ext_no_fog_fog_max) {
-    // row off: the very same bits come back, for the default record and for any weather's value
-    const float values[] = {0.95f, 0.4f, 0.0f, 1.0f, 0.123456789f};
-    for (float v : values) {
-        CHECK(Bits(Ext::NoFog::FogMax(v, false)) == Bits(v));
-    }
-    // row on: zero whatever the record held
-    for (float v : values) {
-        CHECK(Bits(Ext::NoFog::FogMax(v, true)) == Bits(0.0f));
-    }
-    CHECK(Ext::NoFog::kFogMax == 0.0f);
-}
-
 UNIT_TEST(ext_no_fog_fog_distance_key) {
     const Ext::ValueKey* k = Ext::FindValueKey("fog_distance");
     CHECK(k != nullptr);

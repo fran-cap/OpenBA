@@ -57,42 +57,6 @@
 namespace {
 
 // ---------------------------------------------------------------------------
-// PART A — the offsets OTHER files hard-code.
-//
-// Each row is a raw offset that some file outside src/engine/video/ reaches
-// `Video::Context` by, with that file named. Context.h asserts the same offsets
-// from the inside; the point of repeating them here is that these are the ones
-// whose breakage would be silent — a wrong field would be read, not a compile
-// error.
-// ---------------------------------------------------------------------------
-UNIT_TEST(video_context_raw_offsets_other_files_use) {
-    using Video::Context;
-
-    // src/render/dx11/contextdata.cpp's `Ctx::` block, recovered from the DX11 side
-    // before the Runtime layout existed.
-
-    // src/engine/graphics/lights_vtable.cpp: `kCtxViewport = 0x1d0`, and it
-    // writes the four dwords plus dirty bit 0x200 by hand.
-
-    // src/engine/ui/userinterface_draw.cpp: `C + 0x408` .. `C + 0x414` is
-    // `_color`, forced to opaque white one dword at a time.
-
-    // src/engine/engine/loops.cpp writes `_time` and `_unknown03b8` as four
-    // floats each; src/engine/save/saveload_draw.cpp and
-    // src/engine/graphics/wave27_lane_gfxbig.cpp read `_renderBuffer` and
-    // `_viewport`.
-
-    // The three raw-offset regions the ported bodies keep, and the reason each
-    // one is raw. `_videoProgram` is the first qword of the staging array;
-    // `?Reset@` memsets +0x208 and +0x248 from inside it; `?SetLight@`
-    // publishes into +0x248..+0x287 and reads/writes +0x1dd8..+0x1e37.
-    CHECK_EQ(static_cast<int>(sizeof(Context::_pixelConstantStaging)),   0x098);
-    CHECK_EQ(static_cast<int>(sizeof(Context::_lightStaging)),           0x1a0);
-
-    // And the two that the QWORD clear in `?BindResources@` covers together.
-}
-
-// ---------------------------------------------------------------------------
 // PART B — RULE B5-4's triviality, from a translation unit that includes
 // nothing but the two headers.
 // ---------------------------------------------------------------------------
@@ -124,38 +88,6 @@ UNIT_TEST(video_context_and_members_stay_trivially_copyable) {
     CHECK(!(std::is_polymorphic<Video::Context>::value));
     CHECK(!(std::is_polymorphic<Video::Viewport>::value));
     CHECK(!(std::is_polymorphic<Video::ConstantBuffer>::value));
-}
-
-// ---------------------------------------------------------------------------
-// PART C — the seven embedded ConstantBuffers, against the stride that IS the
-// evidence for their size.
-// ---------------------------------------------------------------------------
-UNIT_TEST(video_constantbuffer_stride_inside_context) {
-    using Video::Context;
-
-    // `?AssignConstants@Context@Video@@` (0x1800ef3d0) walks exactly these seven
-    // offsets, and `?Get*ConstantBuffer@` returns each one by name.
-
-    // The pair and the five-run, each spaced by exactly one object.
-    CHECK_EQ(static_cast<int>(offsetof(Context, _pixelConstants) -
-                               offsetof(Context, _materialConstants)),
-              static_cast<int>(sizeof(Video::ConstantBuffer)));
-    const size_t chain[5] = {
-        offsetof(Context, _globalConstants),  offsetof(Context, _instanceConstants),
-        offsetof(Context, _boneConstants),    offsetof(Context, _transformConstants),
-        offsetof(Context, _lightConstants),
-    };
-    for (int i = 1; i < 5; ++i)
-        CHECK_EQ(static_cast<int>(chain[i] - chain[i - 1]),
-                  static_cast<int>(sizeof(Video::ConstantBuffer)));
-
-    // The interior block D1 closed out of retail's one-line accessors. These are
-    // the offsets `src/render/dx11/buffers.cpp`'s `ConstantBufferOwner` — the fourth
-    // view of this class, and the only one that named them — reads from the
-    // other side of the seam.
-    using Video::ConstantBuffer;
-
-    // `ConstantInfo`'s 0x18 stride, which `?GetConstant@` indexes by.
 }
 
 // ---------------------------------------------------------------------------

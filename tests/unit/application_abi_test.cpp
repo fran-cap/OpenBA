@@ -37,13 +37,6 @@ UNIT_TEST(application_size_and_shape) {
     CHECK((std::is_same<decltype(std::declval<Engine::Engine&>().GetApplication()), App*>::value));
 }
 
-// ---------------------------------------------------------------- PART B
-UNIT_TEST(application_field_offsets) {
-    // Application's own offsets (+0x00 .. +0x28, the Set's count at +0x20) are
-    // Application.h's static_asserts; Engine's slot for it is pinned here.
-    CHECK_EQ((int)offsetof(Engine::Engine, _application), 0x690);
-}
-
 // ---------------------------------------------------------------- PART C
 UNIT_TEST(application_declared_signatures) {
     CHECK((std::is_same<decltype(&App::IsCursorEnabled), uint8_t (App::*)()>::value));

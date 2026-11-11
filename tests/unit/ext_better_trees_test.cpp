@@ -769,17 +769,6 @@ UNIT_TEST(ext_better_trees_receiver_refusals) {
     }
 }
 
-UNIT_TEST(ext_better_trees_registry_row) {
-    const Ext::Entry* e = Ext::FindEntry("better_trees");
-    CHECK(e != nullptr);
-    if (e == nullptr) return;
-    CHECK(e->tier == Ext::Tier::Extension);
-    CHECK(e->cls == Ext::Class::A);
-    CHECK(e->defaultOn);   // class A ships ON (DESIGN.md section 2, ruled 2026-10-18)
-    CHECK_STREQ(Ext::SettingsKey(*e).c_str(), "ext.better_trees");
-    CHECK_STREQ(e->displayName, "Better trees");
-}
-
 }  // namespace bbs
 
 // ============================================================================
@@ -1231,6 +1220,7 @@ UNIT_TEST(ext_better_trees_registry_row_and_mode_key) {
     CHECK(e != nullptr);
     CHECK(e->tier == Ext::Tier::Extension && e->cls == Ext::Class::A && e->defaultOn && e->formatVersion == 0);
     CHECK_STREQ(Ext::SettingsKey(*e).c_str(), "ext.better_trees");
+    CHECK_STREQ(e->displayName, "Better trees");
     const Ext::ValueKey* k = Ext::FindValueKey("foliage_aa_mode");
     CHECK(k != nullptr);
     CHECK_STREQ(k->owner, "better_trees");

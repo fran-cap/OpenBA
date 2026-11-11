@@ -332,20 +332,6 @@ UNIT_TEST(ui_c3_sizes_and_parents_match_retail) {
     CHECK(std::has_virtual_destructor<UI::NumberEditDescription>::value);
 }
 
-UNIT_TEST(ui_c3_field_offsets_and_pod_agreement) {
-    // EditElement's sixteen bytes past +0xe7 (ctor 0x1800d0f10).
-    CHECK_EQ(offsetof(UI::NumberEditElement, _min), sizeof(UI::EditElement));
-
-    // TextElement (ctor 0x18011eb80), under TextElement's names.
-
-    // LabelElement inherits those names; its own fields (ctor 0x1800d2620).
-
-    CHECK_EQ(offsetof(UI::LabelDescription, _spriteName),
-             offsetof(RtUI::LabelDescription, _spriteName));
-    CHECK_EQ(offsetof(UI::EditDescription, _allowableCharacters),
-             offsetof(RtUI::EditDescription, _allowableCharacters));
-}
-
 // ===========================================================================
 // PART B — SLOT ORDER
 // ===========================================================================

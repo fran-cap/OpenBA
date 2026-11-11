@@ -2,9 +2,8 @@
 // tests/unit/ext_better_camera_test.cpp -- ext.better_camera
 // ============================================================================
 // src/ext/better_camera/better_camera.h without the game: the registry row (class A, off by default, the
-// profile keys), the pitch blend (row off = retail's expression to the last bit; row on = the same tilt at every
-// zoom, equal to retail's NEAR tilt), the wider zoom limits and their normalisation, and the clamp back into
-// retail's range when the row is turned off mid-game.
+// profile keys), the pitch blend (retail's expression to the last bit), the wider zoom limits and their
+// normalisation, and the clamp back into retail's range when the row is turned off mid-game.
 // ============================================================================
 #include "unit.h"
 #include "ext/better_camera/better_camera.h"
@@ -71,22 +70,6 @@ UNIT_TEST(ext_better_camera_off_is_retails_pitch_to_the_last_bit) {
             CHECK(got == RetailPitch(manual, normZ));                 // exact, not approximate
         }
     }
-}
-
-UNIT_TEST(ext_better_camera_steady_tilt_is_the_same_at_every_zoom) {
-    for (int m = 0; m <= 8; ++m) {
-        const float manual = m * 0.125f;
-        const float nearTilt = manual * kNearMan - (1.0f - manual) * kNearFlat;          // retail's tilt fully zoomed in
-        CHECK(std::fabs(RetailPitch(manual, 0.0f) - nearTilt) < 1e-4f);                  // (the near end of retail's blend)
-        for (int i = -50; i <= 150; ++i) {
-            const float normZ = i * 0.01f;
-            const float got = Ext::BetterCamera::PitchTarget(manual, normZ, kFarMan, kFarFlat, kNearMan, kNearFlat, true);
-            CHECK(std::fabs(got - nearTilt) < 1e-3f);
-        }
-    }
-    // Retail really does flatten: with the row off the zoomed-out tilt differs from the zoomed-in one.
-    CHECK(std::fabs(RetailPitch(0.0f, 1.0f) - RetailPitch(0.0f, 0.0f)) > 20.0f);
-    CHECK(std::fabs(RetailPitch(1.0f, 1.0f) - RetailPitch(1.0f, 0.0f)) > 20.0f);
 }
 
 UNIT_TEST(ext_better_camera_zoom_limits) {

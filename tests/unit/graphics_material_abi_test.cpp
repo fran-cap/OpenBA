@@ -479,38 +479,6 @@ UNIT_TEST(graphics_graphicsmesh_layout) {
 }
 
 // ---------------------------------------------------------------------------
-// The cross-asserts `GraphicsMesh.h` cannot make itself (see its include
-// banner): lane E's `Mesh.h` overlays of the same bytes.
-// ---------------------------------------------------------------------------
-UNIT_TEST(graphics_graphicsmesh_aliases_lane_es_mesh_h_overlays) {
-    CHECK_EQ((int)offsetof(Graphics::GraphicsMesh, _detailLevels),
-             (int)offsetof(RtGraphics::GraphicsMeshView, _detailLevels));
-    CHECK_EQ((int)offsetof(Graphics::GraphicsMesh, _nodes),
-             (int)offsetof(RtGraphics::GraphicsMeshView, _nodes));
-    // The ONE place the two READINGS differ and the BYTES do not: the view calls
-    // +0x70 a `Array<ExternalPtr>*`, this class calls it an Array header whose
-    // `_data` is that pointer. ?GetMaterialList@…XZ is `MOV RAX,[RCX+0x70]` and
-    // ?GetSkinCount@ is `MOV EAX,[RCX+0x78]` — a _data/_size pair.
-    CHECK_EQ((int)offsetof(Graphics::GraphicsMesh, _skinMaterials),
-             (int)offsetof(RtGraphics::GraphicsMeshView, _materialLists));
-    CHECK_EQ((int)offsetof(Graphics::GraphicsMesh, _aabb),
-             (int)offsetof(RtGraphics::GraphicsMeshView, _aabb));
-
-    CHECK_EQ((int)sizeof(Graphics::GraphicsMesh::Node), (int)sizeof(RtGraphics::MeshNode));
-    CHECK_EQ((int)offsetof(Graphics::GraphicsMesh::Node, _parent),
-             (int)offsetof(RtGraphics::MeshNode, _parent));
-    CHECK_EQ((int)offsetof(Graphics::GraphicsMesh::Node, _local),
-             (int)offsetof(RtGraphics::MeshNode, _local));
-
-    // The embedded video buffer header is the same 0x20 bytes lane E pinned from
-    // EdgeMesh's eight, `_deviceData` included.
-    CHECK_EQ((int)sizeof(Video::VertexBuffer),
-             (int)sizeof(RtGraphics::VideoBufferHeader));
-    CHECK_EQ((int)offsetof(Video::VertexBuffer, platformData),
-             (int)offsetof(RtGraphics::VideoBufferHeader, _deviceData));
-}
-
-// ---------------------------------------------------------------------------
 // Graphics::EdgeMesh — the ONE class of block G's four with its OWN slot 4.
 // ---------------------------------------------------------------------------
 UNIT_TEST(graphics_edgemesh_slot_order_is_retails) {

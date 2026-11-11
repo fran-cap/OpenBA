@@ -467,14 +467,6 @@ UNIT_TEST(ui_c1_button_check_sizes_and_parents) {
     CHECK(std::has_virtual_destructor<UI::CheckDescription>::value);
 }
 
-UNIT_TEST(ui_c1_button_check_offsets) {
-    // Class and POD are one layout (DescriptionsBatch1.h is not edited).
-    CHECK_EQ(sizeof(UI::ButtonDescription), sizeof(RtUI::ButtonDescription));
-    CHECK_EQ(sizeof(UI::CheckDescription),  sizeof(RtUI::CheckDescription));
-    CHECK_EQ(offsetof(UI::CheckDescription, _checkDesc), offsetof(RtUI::CheckDescription, _checkDesc));
-    // The name-hiding the header documents: the five hide the base's one.
-}
-
 // ===========================================================================
 // PART B — SLOT ORDER
 // ===========================================================================

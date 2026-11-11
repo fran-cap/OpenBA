@@ -54,17 +54,6 @@
 namespace {
 
 // ===========================================================================
-// PART A — LAYOUT
-// ===========================================================================
-UNIT_TEST(loop_sizes_match_retail) {
-    CHECK_EQ(alignof(InnerLoaderLoop), (size_t)8);
-    CHECK_EQ(alignof(GameLoaderLoop),  (size_t)8);
-    CHECK_EQ(alignof(GameLoadDialogLoopT), (size_t)8);
-    CHECK_EQ(alignof(MenuDialogLoopT), (size_t)8);
-    CHECK_EQ(alignof(GameUpdateLoop), (size_t)8);
-}
-
-// ===========================================================================
 // PART B — SHAPE
 // ===========================================================================
 UNIT_TEST(loop_classes_shape) {

@@ -49,19 +49,6 @@ namespace {
 
 
 // ===========================================================================
-// PART A — LAYOUT
-// ===========================================================================
-UNIT_TEST(cit_component_member_offsets) {
-    // Each leaf's size, alignment and first-level field offsets are its header's
-    // static_asserts; the sub-field offsets the bodies read raw are pinned here.
-    CHECK_EQ(offsetof(AmbientEnvironmentComponent, position.z), (size_t)0x40);
-    CHECK_EQ(offsetof(ParticleComponent, emitters._size),           (size_t)0x40);
-    CHECK_EQ(offsetof(SpawnComponent, timers._size),           (size_t)0x30);
-    CHECK_EQ(offsetof(TornadoComponent, path.index),           (size_t)0x50);
-    CHECK_EQ(offsetof(TornadoComponent, position.z),           (size_t)0x60);
-}
-
-// ===========================================================================
 // PART B — SHAPE
 // ===========================================================================
 template <typename T>

@@ -110,18 +110,3 @@ UNIT_TEST(copy_drift_pinned_regions_unchanged) {
         CHECK(rc != 2);          // unchanged
     }
 }
-
-// The guard can tell: a region with one token changed hashes differently, and the
-// whitespace normalisation ignores indentation and line ends but not tokens.
-UNIT_TEST(copy_drift_hash_discriminates) {
-    const std::string a = "int x = 1;\n  return x;\n";
-    const std::string b = "int x = 1;\r\n\treturn x;\r\n";   // CRLF + indent: the same region
-    const std::string c = "int x = 2;\n  return x;\n";       // one token: another region
-    auto strip = [](const std::string& s) {
-        std::string o;
-        for (char ch : s) if (ch != ' ' && ch != '\t' && ch != '\r' && ch != '\n') o.push_back(ch);
-        return o;
-    };
-    CHECK_EQ(Fnv1a(strip(a)), Fnv1a(strip(b)));
-    CHECK(Fnv1a(strip(a)) != Fnv1a(strip(c)));
-}

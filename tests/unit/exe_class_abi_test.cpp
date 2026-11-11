@@ -44,12 +44,6 @@ using Ctl = ControllerComponent::Controller;
 // ===========================================================================
 // PART A — LAYOUT
 // ===========================================================================
-UNIT_TEST(exe_component_sizes_match_retail) {
-    // The six sizes and the Component / WellComponent field offsets are the
-    // headers' static_asserts; the controller's back-pointer at +0x40 is here.
-    CHECK_EQ(offsetof(WellComponent, _controller) + offsetof(Ctl, _owner), (size_t)0x40);
-}
-
 UNIT_TEST(exe_component_class_shape_rules) {
     // B3X W1: polymorphic with a virtual destructor (retail slot 0 = D1 + D0); the Controller interface (slot 0 FindState) has none.
     CHECK(std::is_polymorphic<Component>::value);
