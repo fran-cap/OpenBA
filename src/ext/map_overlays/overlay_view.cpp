@@ -93,11 +93,17 @@ void Rebuild() {
         s_legend = 0.0f;
         return;
     }
-    Blur(s_grid, size, BlurRadiusTiles(s_selection.scale));
-    const float maxValue = s_selection.view == View::Citizens ? kCitizensFullScale : RangeMax(s_grid);
-    s_legend = maxValue;
     std::vector<uint32_t> pixels;
-    Colourise(s_grid, maxValue, pixels);
+    if (s_selection.view == View::Land) {
+        // Classes, not amounts: exact per tile, one flat colour each, no range.
+        s_legend = 0.0f;
+        ColouriseLand(s_grid, pixels);
+    } else {
+        Blur(s_grid, size, BlurRadiusTiles(s_selection.scale));
+        const float maxValue = s_selection.view == View::Citizens ? kCitizensFullScale : RangeMax(s_grid);
+        s_legend = maxValue;
+        Colourise(s_grid, maxValue, pixels);
+    }
     const bool same = size == s_size && pixels.size() == s_pixels.size() &&
                       std::memcmp(pixels.data(), s_pixels.data(), pixels.size() * sizeof(uint32_t)) == 0;
     if (!same) {

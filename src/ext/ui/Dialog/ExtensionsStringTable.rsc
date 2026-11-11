@@ -225,6 +225,7 @@ StringTable resource
 		{ String _name = "MapOverlaysTabTraffic";		String _text = "Traffic"; }
 		{ String _name = "MapOverlaysTabCitizens";		String _text = "Homes"; }
 		{ String _name = "MapOverlaysTabNatural";		String _text = "Nature"; }
+		{ String _name = "MapOverlaysTabLand";			String _text = "Land"; }
 		{ String _name = "MapOverlaysTabMapTip";			String _text = "The map as the game draws it, with no overlay."; }
 		{ String _name = "MapOverlaysTabProductionTip";	String _text = "Where goods were made: the items produced on each spot over the last months."; }
 		{ String _name = "MapOverlaysTabConsumptionTip";	String _text = "Where goods were used: eaten, burned, worked into other goods or built with, over the last months."; }
@@ -233,6 +234,10 @@ StringTable resource
 		{ String _name = "MapOverlaysTabTrafficTip";		String _text = "Where citizens walk: footsteps over the last months."; }
 		{ String _name = "MapOverlaysTabCitizensTip";	String _text = "How homes fare: the residents' happiness, health, food, warmth or age."; }
 		{ String _name = "MapOverlaysTabNaturalTip";		String _text = "Where the natural resources are: trees, stone, iron, wildlife and fish."; }
+		{ String _name = "MapOverlaysTabLandTip";		String _text = "Where a building can stand: open ground, ground to clear first, and water, slopes and mountain that take none."; }
+		{ String _name = "MapOverlaysLandOpen";			String _text = "Buildable"; }
+		{ String _name = "MapOverlaysLandClearing";		String _text = "Buildable once cleared"; }
+		{ String _name = "MapOverlaysLandUnbuildable";	String _text = "Not buildable"; }
 		{ String _name = "MapOverlaysCategoryLabel";		String _text = "Goods"; }
 		{ String _name = "MapOverlaysResourceLabel";		String _text = "Item"; }
 		{ String _name = "MapOverlaysKindLabel";			String _text = "Show"; }

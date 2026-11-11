@@ -265,3 +265,33 @@ UNIT_TEST(ext_map_overlays_render_empty_image_draws_nothing) {
     BuildTerrainVertices(AllCells(size, 2), size, 0.0f, 0.0f, image, size, 100, Flat, grid, out);
     CHECK(out.empty());
 }
+
+// The exact views (Land): white vertices with the image's texture coordinates, at step 1 and on a coarse grid.
+UNIT_TEST(ext_map_overlays_render_textured_vertices_carry_the_image_coordinates) {
+    const int size = 8;
+    std::vector<uint32_t> image(static_cast<size_t>(size) * size, 0u);
+    image[static_cast<size_t>(3) * size + 5] = 0x80112233u;   // tile (col 5, row 3)
+    CoarseGrid grid;
+    std::vector<TerrainVertex> out;
+    BuildTerrainVertices(AllCells(size, 1), size, -4.0f, -4.0f, image, size, 50, Flat, grid, out, true);
+    CHECK(out.size() == 6);   // the one tile with a colour
+    for (const TerrainVertex& v : out) {
+        CHECK(v.color == 0x7FFFFFFFu);   // white, alpha 255 * 50 %
+        CHECK(v.u >= 5.0f / 8.0f - 1e-6f && v.u <= 6.0f / 8.0f + 1e-6f);
+        CHECK(v.v >= 3.0f / 8.0f - 1e-6f && v.v <= 4.0f / 8.0f + 1e-6f);
+        CHECK(std::fabs((v.x + 4.0f) / 8.0f - v.u) < 1e-6f);
+        CHECK(std::fabs((v.y + 4.0f) / 8.0f - v.v) < 1e-6f);
+    }
+    // A coarse grid draws every cell (the texture carries the picture), over the whole image.
+    grid.Reset(4, size);
+    BuildTerrainVertices(AllCells(size, 4), size, -4.0f, -4.0f, image, size, 100, Flat, grid, out, true);
+    CHECK(out.size() == 4 * 6);
+    float lowU = 1.0f;
+    float highU = 0.0f;
+    for (const TerrainVertex& v : out) {
+        CHECK(v.color == 0xFFFFFFFFu);
+        lowU = std::min(lowU, v.u);
+        highU = std::max(highU, v.u);
+    }
+    CHECK(lowU == 0.0f && highU == 1.0f);
+}

@@ -8,6 +8,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/map_overlays/overlay_math.h"
+#include "ext/map_overlays/land_class.h"
 
 #include <cmath>
 #include <cstdint>
@@ -162,4 +163,47 @@ UNIT_TEST(ext_map_overlays_colourise) {
     for (uint32_t c : px) {
         CHECK(c == 0u);
     }
+}
+
+// The Land view: the placement tool's cell test for an ordinary building (place bits Normal | Obstacle).
+UNIT_TEST(ext_map_overlays_land_class_follows_the_placement_test) {
+    CHECK(ClassifyLand(PathType::Normal, false, 0) == LandClass::Open);
+    CHECK(ClassifyLand(PathType::Obstacle, false, 0) == LandClass::NeedsClearing);
+    CHECK(ClassifyLand(PathType::Water, false, 0) == LandClass::Unbuildable);
+    CHECK(ClassifyLand(PathType::DeepWater, false, 0) == LandClass::Unbuildable);
+    CHECK(ClassifyLand(PathType::Unusable, false, 0) == LandClass::Unbuildable);
+    CHECK(ClassifyLand(PathType::Walkable, false, 0) == LandClass::Unbuildable);
+    // What is built on is left to the map: roads, fields, a pit, a bridge, a tunnel.
+    CHECK(ClassifyLand(PathType::Faster, false, 0) == LandClass::None);
+    CHECK(ClassifyLand(PathType::Fast, false, 0) == LandClass::None);
+    CHECK(ClassifyLand(PathType::Occasional, false, 0) == LandClass::None);
+    CHECK(ClassifyLand(PathType::Immovable, false, 0) == LandClass::None);
+    CHECK(ClassifyLand(PathType::Bridge, false, 0) == LandClass::None);
+    CHECK(ClassifyLand(PathType::Tunnel, false, 0) == LandClass::None);
+    // A blocker or a building's yard on the cell refuses the placement whatever the ground.
+    CHECK(ClassifyLand(PathType::Normal, true, 0) == LandClass::None);
+    CHECK(ClassifyLand(PathType::Normal, false, 1) == LandClass::None);
+    CHECK(ClassifyLand(PathType::Water, true, 0) == LandClass::None);
+}
+
+UNIT_TEST(ext_map_overlays_land_colours) {
+    CHECK(LandColour(LandClass::None) == 0u);
+    CHECK(LandColour(LandClass::Count) == 0u);
+    const uint32_t open = LandColour(LandClass::Open);
+    const uint32_t clearing = LandColour(LandClass::NeedsClearing);
+    const uint32_t no = LandColour(LandClass::Unbuildable);
+    CHECK(G(open) > R(open) && G(open) > B(open));
+    CHECK(R(clearing) > B(clearing) && G(clearing) > B(clearing));
+    CHECK(R(no) > G(no) && R(no) > B(no));
+    CHECK(A(open) > 0 && A(open) == A(clearing) && A(open) == A(no));
+    std::vector<float> g = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, -1.0f};
+    std::vector<uint32_t> px;
+    ColouriseLand(g, px);
+    CHECK(px.size() == 6);
+    CHECK(px[0] == 0u);
+    CHECK(px[1] == open);
+    CHECK(px[2] == clearing);
+    CHECK(px[3] == no);
+    CHECK(px[4] == 0u);   // out of range
+    CHECK(px[5] == 0u);
 }

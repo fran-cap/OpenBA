@@ -222,8 +222,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // page, + 18 for the Find Buildings page and its favorites window, + 52 for the map window's overlay
     // views, + 4 for the dynamic Professions window (its title, its two column-button tips and its resize
     // strip), + 1 for the Experimental tab's caption, + 3 for ext.item_limits' panel row (label, two tips),
-    // + 10 for ext.storage_metrics' Town Hall tab
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 10);
+    // + 5 for the map window's Land view (caption, tip, the three key texts), + 10 for
+    // ext.storage_metrics' Town Hall tab
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10);
     if (strings) {
         // The Extensions dialog's three tab captions.
         int tabKeys = 0;
@@ -524,7 +525,9 @@ UNIT_TEST(ext_rsc_text_parse_map_overlays) {
     const Object* pages = f.Find("groupMapOverlaysPages");
     CHECK(pages && pages->type == "GroupDescription");
     CHECK(f.Find("pageMapOverlaysMap") && f.Find("pageMapOverlaysResource") && f.Find("pageMapOverlaysKind") &&
-          f.Find("pageMapOverlaysTraffic"));
+          f.Find("pageMapOverlaysTraffic") && f.Find("pageMapOverlaysLand"));
+    CHECK(f.Find("columnMapOverlaysLandKey") && f.Find("rowMapOverlaysLandKey") &&
+          f.Find("imageMapOverlaysLandSwatch") && f.Find("textMapOverlaysLandKey"));
     CHECK(f.Find("comboMapOverlaysCategory") && f.Find("comboMapOverlaysResource") &&
           f.Find("comboMapOverlaysKind") && f.Find("rowMapOverlaysMonths") && f.Find("sliderMapOverlaysMonths") &&
           f.Find("sliderMapOverlaysScale") && f.Find("ribbonMapOverlaysRamp") &&
