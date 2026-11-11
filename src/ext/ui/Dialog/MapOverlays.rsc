@@ -9,10 +9,11 @@
 // only the button column stands beside the map.
 //
 // Controller: src/ext/map_overlays/map_window.cpp. It looks up, by name: ribbonMapOverlays, groupMapOverlaysMapSlot (the
-// map's cell), columnMapOverlaysViews (its children are the eight buttons, in view order), groupMapOverlaysPages (its
-// children are the eight pages, in view order), and in each page comboMapOverlaysCategory, comboMapOverlaysResource,
+// map's cell), columnMapOverlaysViews (its children are the nine buttons, in view order), groupMapOverlaysPages (its
+// children are the nine pages, in view order), and in each page comboMapOverlaysCategory, comboMapOverlaysResource,
 // comboMapOverlaysKind, rowMapOverlaysMonths, sliderMapOverlaysMonths, sliderMapOverlaysScale, ribbonMapOverlaysRamp
-// (its children are the swatches), textMapOverlaysLegendMax, checkMapOverlaysTerrain. Texts:
+// (its children are the swatches), textMapOverlaysLegendMax, checkMapOverlaysTerrain, columnMapOverlaysLandKey (its
+// children are the Land view's key rows: a swatch, a text). Texts:
 // Dialog/ExtensionsStringTable.rsc (the MapOverlays* keys).
 
 // The row: the map's cell, the view buttons, the shown view's controls.
@@ -28,7 +29,7 @@ GroupDescription groupMapOverlaysMapSlot
 	Alignment _alignment = TopLeft;
 }
 
-// Map, Made, Used, Stock, Services, Traffic, Homes, Nature, top to bottom, all one width; the top pad lines the first
+// Map, Made, Used, Stock, Services, Traffic, Homes, Nature, Land, top to bottom, all one width; the top pad lines the first
 // button up with the minimap (Map.rsc:content pads its image by 2), clear of the title bar.
 RibbonDescription columnMapOverlaysViews
 {
@@ -37,6 +38,7 @@ RibbonDescription columnMapOverlaysViews
 	[
 		"buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab"
 		"buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab" "buttonMapOverlaysTab"
+		"buttonMapOverlaysTab"
 	]
 }
 
@@ -61,6 +63,7 @@ GroupDescription groupMapOverlaysPages
 	[
 		"pageMapOverlaysMap" "pageMapOverlaysResource" "pageMapOverlaysResource" "pageMapOverlaysResource"
 		"pageMapOverlaysKind" "pageMapOverlaysTraffic" "pageMapOverlaysKind" "pageMapOverlaysKind"
+		"pageMapOverlaysLand"
 	]
 }
 
@@ -101,6 +104,13 @@ RibbonDescription pageMapOverlaysTraffic
 	[
 		"rowMapOverlaysMonths" "rowMapOverlaysScale" "rowMapOverlaysLegend" "rowMapOverlaysTerrain"
 	]
+}
+
+// Land: the key (one colour per class: no scale, no ramp), and the terrain check box.
+RibbonDescription pageMapOverlaysLand
+{
+	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 2; int _topPad = 2;
+	ElementDescription _elements [ "columnMapOverlaysLandKey" "rowMapOverlaysTerrain" ]
 }
 
 // ---- the rows ------------------------------------------------------------------------------------------------------
@@ -152,6 +162,19 @@ RibbonDescription ribbonMapOverlaysRamp
 		"imageMapOverlaysSwatch" "imageMapOverlaysSwatch" "imageMapOverlaysSwatch" "imageMapOverlaysSwatch"
 		"imageMapOverlaysSwatch" "imageMapOverlaysSwatch"
 	]
+}
+
+// The Land view's key: one row per class, a swatch and its text; the controller colours and names them.
+RibbonDescription columnMapOverlaysLandKey
+{
+	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 2;
+	ElementDescription _elements [ "rowMapOverlaysLandKey" "rowMapOverlaysLandKey" "rowMapOverlaysLandKey" ]
+}
+
+RibbonDescription rowMapOverlaysLandKey
+{
+	Alignment _alignment = MidLeft; int _cellPad = 4;
+	ElementDescription _elements [ "imageMapOverlaysLandSwatch" "textMapOverlaysLandKey" ]
 }
 
 RibbonDescription rowMapOverlaysTerrain
@@ -248,6 +271,20 @@ ImageDescription imageMapOverlaysSwatch
 	Flags _flags = ExpandWidth | ExpandHeight;
 	int _minWidth = 9; int _minHeight = 10;
 	SpriteSheet _spriteSheet = "SpriteSheet.rsc"; String _spriteName = "White";
+}
+
+// A class's colour in the Land view's key: the same white sprite, a fixed box (an image takes its size from
+// _width / _height, as Map.rsc's do; without them it is the sprite's own few pixels).
+ImageDescription imageMapOverlaysLandSwatch
+{
+	int _width = 14; int _height = 14;
+	SpriteSheet _spriteSheet = "SpriteSheet.rsc"; String _spriteName = "White";
+}
+
+TextDescription textMapOverlaysLandKey : "Extensions.rsc:textProfile"
+{
+	Alignment _alignment = MidLeft;
+	String _text = "MapOverlaysLandOpen";
 }
 
 CheckDescription checkMapOverlaysTerrain : "Extensions.rsc:checkLoaded"

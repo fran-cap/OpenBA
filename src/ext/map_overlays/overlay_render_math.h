@@ -25,6 +25,11 @@
 // does not change, and keeps its value until a finer one fits with room to spare, so turning the camera never
 // flips the picture between two steps (it flickered while the box of the screen rays swung with the yaw).
 // Only cells with a corner (or the tile) of non-zero alpha are emitted.
+//
+// TEXTURED (the exact views: Land). A view of classes must not blend: the same cells are drawn white, with
+// texture coordinates over the whole image (u = column / mapSize, v = row / mapSize), and the renderer binds
+// the image itself as a point-sampled texture. Every tile then keeps its own colour at any step; a coarse
+// cell only stands for the ground's shape, not for the picture.
 // ============================================================================
 #include <algorithm>
 #include <cmath>
@@ -377,28 +382,31 @@ private:
 // The triangles of the picture over `rows` (CellRowsOf). `originX` / `originY` are the world position of
 // tile vertex 0 (a tile is one world unit); `height(vc, vr)` the ground at tile vertex (vc, vr), vertices 0 ..
 // mapSize. For a step > 1, `grid` holds that step's vertices (Reset to it by the caller). `out` is cleared
-// and filled.
+// and filled. `textured`: the vertices are white (alpha by `opacityPercent`) and carry the image's texture
+// coordinates instead of the tile's colour (TEXTURED above); every cell of a step > 1 is then emitted.
 template <class HeightFn>
 void BuildTerrainVertices(const CellRows& rows, int mapSize, float originX, float originY,
                           const std::vector<uint32_t>& image, int imageSize, int opacityPercent, HeightFn height,
-                          CoarseGrid& grid, std::vector<TerrainVertex>& out) {
+                          CoarseGrid& grid, std::vector<TerrainVertex>& out, bool textured = false) {
     out.clear();
     const int step = rows.step;
     if (mapSize <= 0 || imageSize <= 0 || step < 1) return;
+    const float perTile = 1.0f / static_cast<float>(mapSize);
+    const uint32_t white = VertexColor(0xFFFFFFFFu, opacityPercent);
     // two triangles (0 = (c0, r0), 1 = (c1, r0), 2 = (c1, r1), 3 = (c0, r1)), clockwise seen from above (the
     // winding of show_grid's strips, which the overlay's cull mode keeps), split along 0-2 or along 1-3
     static const int kSplit02[6] = {0, 2, 1, 0, 3, 2};
     static const int kSplit13[6] = {0, 3, 1, 1, 3, 2};
-    const auto emit = [&out](const float* px, const float* py, const float* pz, const uint32_t* colors,
-                             const int* order) {
+    const auto emit = [&out, textured, perTile, originX, originY](const float* px, const float* py, const float* pz,
+                                                                  const uint32_t* colors, const int* order) {
         for (int k = 0; k < 6; ++k) {
             const int i = order[k];
             TerrainVertex v;
             v.x = px[i];
             v.y = py[i];
             v.z = pz[i];
-            v.u = Ext::ShowGrid::kSolidU;
-            v.v = Ext::ShowGrid::kSolidV;
+            v.u = textured ? (px[i] - originX) * perTile : Ext::ShowGrid::kSolidU;
+            v.v = textured ? (py[i] - originY) * perTile : Ext::ShowGrid::kSolidV;
             v.color = colors[i];
             out.push_back(v);
         }
@@ -420,7 +428,7 @@ void BuildTerrainVertices(const CellRows& rows, int mapSize, float originX, floa
                     px[i] = originX + static_cast<float>(vc[i]);
                     py[i] = originY + static_cast<float>(vr[i]);
                     pz[i] = height(vc[i], vr[i]) + kTerrainLift;
-                    colors[i] = color;
+                    colors[i] = textured ? white : color;
                 }
                 // the terrain mesh's own split (TerrainHeightOnly, worldgeometry_ray.cpp): 0-2 where the tile's
                 // column + row is odd, 1-3 where it is even, so the picture lies on the ground's triangles
@@ -437,7 +445,7 @@ void BuildTerrainVertices(const CellRows& rows, int mapSize, float originX, floa
             uint32_t colors[4];
             uint32_t alpha = 0;
             for (int q = 0; q < 4; ++q) {
-                colors[q] = grid.Color(gi[q], gj[q], image, imageSize, opacityPercent);
+                colors[q] = textured ? white : grid.Color(gi[q], gj[q], image, imageSize, opacityPercent);
                 alpha |= colors[q] >> 24;
             }
             if (alpha == 0) continue;

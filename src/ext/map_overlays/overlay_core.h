@@ -56,6 +56,16 @@ enum class View : uint8_t {
     Traffic,          // history: footsteps
     Citizens,         // instant: homes by a wellbeing measure
     Natural,          // instant: trees, stone, iron, wildlife, fish
+    Land,             // instant: where a building can stand (LandClass per tile, land_class.h)
+    Count
+};
+
+// The Land view's value per tile: a class, not an amount (never blurred, one flat colour each).
+enum class LandClass : uint8_t {
+    None = 0,         // built on (a building, its yard, a road, a field, a bridge): the map shows it
+    Open,             // a building can stand here now
+    NeedsClearing,    // a building can stand here; the trees, rocks or ore on it are cleared first
+    Unbuildable,      // water, steep ground or mountain
     Count
 };
 

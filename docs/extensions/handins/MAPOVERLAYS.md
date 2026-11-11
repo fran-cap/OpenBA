@@ -25,10 +25,26 @@ painted by `MapComponent`). Retail has no spatial view of any flow; the Town Hal
 | Traffic | history | footsteps (a citizen entering the tile) in the last N months |
 | Citizens | instant | homes by a measure (happiness, health, food, warmth, age), averaged over the residents |
 | Natural | instant | trees, stone, iron, wildlife, fish |
+| Land | instant | a class, not an amount: buildable (green), buildable once the trees, rocks or ore on it are cleared (amber), not buildable: water, steep ground, mountain (red). Built-on tiles (buildings and their yards, roads, fields, bridges) are left clear |
+
+**Land** is the placement tool's own test of one footprint cell, `Map::TestPlacement` (0x14009f5d0), for an
+ordinary building: the cell's `PathType` is in the building's place bits, `MapCell::blocker` is null and
+`MapCell::footprintCount` is 0 (`land_class.h`). The place bits are per building; the view uses
+`Normal | Obstacle`, which nearly every building has. The ones that differ need the other ground (docks and
+bridges onto water, mines and quarries on the hillside), so red reads "no ordinary building". The view is
+exact per tile (no blur, no scale slider) and its page is a three-row key in place of the ramp. On the
+terrain it is drawn from a point-sampled texture of the image (white triangles with texture coordinates, on
+an instance of the Selection material's Material), so a tile keeps its own colour at any zoom; the heat views
+keep their vertex colours, which blend between the cells of a far view.
 
 Resource pickers list the materials of the running game (the factory walk of RawMaterialDescription, as
 `ext.restricted_foods` does), grouped by the `_flags` categories, with each material's own sprite. A mod's
 material appears with no code; a mod's flag bits above the retail ones show as "Other".
+
+**The map's size.** Retail's map is a fixed 192-unit square (`Map.rsc`). The row is as tall as its tallest
+cell, so when the button column is taller (nine finger-sized buttons under `ext.phone_menu`) the map takes
+the column's height (`MapWindowController::FitMap`): the two images and the camera outline are resized
+together, and retail's click and outline code read the elements' own sizes. Never smaller than retail's.
 
 ## 3. The save (class C)
 
@@ -108,7 +124,8 @@ selection; the minimap and the terrain upload only when its version changes.
 | `overlay_core.h` / `.cpp` | the History (sites, resource table, month buckets, traffic grid) and its wire format; standard C++ |
 | `save_state.cpp` | the class C codec and `Town()` |
 | `map_overlays.h`, `map_overlays_town.cpp` | the game-side seams: `g_on`, `BeginFrame`, the flow and footstep entry points, site resolution |
-| `overlay_math.h` / `.cpp` | blur, range, colour ramp; standard C++ |
+| `overlay_math.h` / `.cpp` | blur, range, colour ramp, the Land view's class colours; standard C++ |
+| `land_class.h` | the Land view's rule for one tile; standard C++ and `Game/PathType.h` |
 | `overlay_view.cpp`, `overlay_views.cpp`, `overlay_views_internal.h` | the selection, the image build, the instant views |
 | `map_window.h` / `.cpp`, `src/ext/ui/Dialog/MapOverlays.rsc` | the map window's view buttons and controls (injected beside retail's map content) |
 | `overlay_render.h` / `.cpp`, `overlay_render_math.h` | the minimap image (rows flipped to retail's order) and the terrain picture |
