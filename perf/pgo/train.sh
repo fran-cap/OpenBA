@@ -40,11 +40,17 @@ fi
 echo "== 1. instrumented release build ($GEN)"
 # Its own build dir, configured once with BANISHED_PGO=generate; tools/build.sh's configure
 # would not pass the flag to an existing dir, so the configure is done here.
-if [ ! -f "$GEN/build.ninja" ] || ! grep -q '^BANISHED_PGO:STRING=generate$' "$GEN/CMakeCache.txt"; then
+# The backend is passed and checked as tools/build.sh does for the release dir: a pgogen dir configured
+# before the dual exe became the default (1.0.3) keeps a cached dx11, and a profile trained on it has
+# no Vulkan counters and does not match the dual release objects.
+BACKEND="dx11+vulkan"
+if [ ! -f "$GEN/build.ninja" ] || ! grep -q '^BANISHED_PGO:STRING=generate$' "$GEN/CMakeCache.txt" \
+   || ! grep -qx "BANISHED_RENDER_BACKEND:STRING=$BACKEND" "$GEN/CMakeCache.txt"; then
     rm -rf "$GEN"
     GCC_DIR="${BANISHED_GCC_DIR:-C:/winlibs-gcc16/mingw64/bin}"
     export PATH="$(cygpath -u "$GCC_DIR"):$PATH"   # POSIX spelling: bash splits C:/... at the colon
     cmake -S . -B "$GEN" -G Ninja -DBANISHED_FLAVOUR=release -DBANISHED_PGO=generate \
+          -DBANISHED_RENDER_BACKEND="$BACKEND" \
           -DBANISHED_GAME_DIR="$GAME_DIR" -DBANISHED_USE_CCACHE=OFF \
           -DCMAKE_C_COMPILER="$GCC_DIR/gcc.exe" -DCMAKE_CXX_COMPILER="$GCC_DIR/g++.exe" \
           -DCMAKE_RC_COMPILER="$GCC_DIR/windres.exe" \

@@ -4,219 +4,35 @@ One section per release, newest first. The section of the version being tagged i
 release's notes (`.github/workflows/release.yml` reads it with `tools/release/changelog_section.py`).
 Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CMakeLists.txt`.
 
-## Unreleased
+## v1.0.3 (2026-11-10)
 
-**Extensions**
-- Storage space (`ext.storage_metrics`, class A, off by default): a Storage tab in the Town Hall window with the
-  used and total space of the town's stockpiles, storage barns and trading posts, as figures ("12,400 / 15,000")
-  and in percent, so a full barn or stockpile shows before production stalls. A kind with several building types
-  (a mod's special stores) lists each type under its total; buildings are recognised by their components, not
-  their names (`docs/extensions/handins/STORAGEMETRICS.md`).
-- Map data views (`ext.map_overlays`): a ninth view, Land, shows where a building can stand: green for open
-  ground, amber for ground that is buildable once its trees, rocks or ore are cleared, red for water, slopes
-  and mountain. It uses the placement tool's own test of a tile, and "Show overlay on terrain" draws it on the
-  ground for planning a town. On a phone the map now fills its side of the window: it grows to the height of
-  the finger-sized view buttons instead of staying at the desktop size with empty space under it.
-- Lighter far trees (`ext.leaf_lod`, Experimental tab): when the camera is zoomed out, leafy trees draw fewer
-  of their leaf cards, each a touch larger, which cuts the overlapping leaf drawing that makes a zoomed-out
-  forest slow. The trunk, colours and shadows are the game's own; the cards that draw a crown's outline are
-  kept, and the change is spread over 64 small steps so no step shows while zooming
-  (`docs/extensions/LEAF_LOD.md`).
-- Better water (`ext.better_water`, any level): where a river leaves a lake, the lake's water now fades into the
-  river's over six tiles instead of stopping on a straight line across the channel (retail cuts the lake's water
-  off at a box round the lake). The saved water mesh is not changed; the fade is a copy drawn in its place.
-- Camera angle (`ext.camera_angle`): a flat tilt or a wide view no longer leaves a dark, straight-edged wedge over
-  the far terrain on the side away from the sun. The sun's shadow box now reaches as deep as the view needs
-  (retail's is a fixed 256 deep, and ground past it read as fully shadowed); a view that fits retail's box keeps
-  retail's numbers.
-- Show grid (`ext.show_grid`): the grid sets the scene camera itself and streams its lines in batches.
-- Item limits (`ext.item_limits`, class C, off by default): give one item, such as steel tools, its own limit
-  beside its category's, from a new row in the panel of a workshop that makes it (a check box and a number under
-  the Product row). The limit is the item's, town-wide: every workshop making it stops when the town holds
-  that many. Recorded in the town's save (`docs/extensions/handins/ITEMLIMITS.md`).
-- Touch screens (issue #96): the camera pad, the placement bar and the screen-edge margin now have their own
-  sizes, in a new "Touch screen" group at the top of the Options Enhanced tab. "Camera pad" Off / 50 % to 125 %
-  (`ext.touch_mode_pad_scale`; Off hides the pad for gesture-only play and gives the toolbar the whole bottom
-  edge), "Placement bar" 25 % to 125 % (`ext.touch_mode_action_bar_scale`), and "Screen edge margin" None / 2 % /
-  3.4 % / 4.5 % / 6 % (`ext.phone_menu_safe_margin`; None puts panels on a tablet's edges). The defaults are the
-  sizes they had, so nothing changes until a player picks another.
-- Touch screens (issue #96, the reporter's follow-ups): "Corner camera buttons" in the same group, Off / 15 % to
-  125 % (`ext.touch_mode_camera_buttons`, Off by default): rotate left / right and zoom in / out as one compact
-  column in the upper right, held like the camera pad's own buttons. Independent of the pad, so a player can use
-  the pad, the corner buttons, both, or neither (gestures only). The small steps are for high-resolution tablets,
-  where 100 % is a thumb-sized button; a column too tall for the screen is laid out at the largest size that fits.
-- Touch screens (issue #96): a tablet (a screen of 3.3 inches or more across its short side) starts with the
-  camera pad and the placement bar at 50 % and the game UI at the desktop scale, instead of the phone's sizes.
-- Touch pointer (`ext.touch_pointer`): a Shift button on the placement bar, between "Change model" and Cancel,
-  shown for buildings and roads. On, a road routes diagonally (what Shift does on the PC), and a building keeps
-  its current model after each placement, so a row of identical houses takes one tap each. It goes off on a tap,
-  when the tool changes, or when a mouse takes over (`docs/android/P11_TOUCH_POINTER.md`).
-- Touch pointer (`ext.touch_pointer`): a tool armed before the first aim (a building picked from the toolbar on a
-  tablet) parks the cursor on the world, so the placement bar and the ghost appear at once.
-- Natural tree growth (`ext.better_trees`): in spring the deciduous trees now flower, each on its own
-  schedule for a week or two. Plum, cherry, peach, pear and apple carry white and pink blossom, and the
-  early ones flower on bare branches. Oak, birch, pecan and chestnut carry catkins. Modded trees get a pale
-  blossom colour picked from their names. The flowers are drawn in the existing tree shaders, so DX11,
-  Vulkan and Metal all get them (`docs/extensions/BLOSSOM.md`).
-- `ext.better_water` (on, the Enhanced tab's "Better water" Off / Plain / Fancy, Plain by default): a shore
-  edge on rivers and lakes. Plain: the ground under the shallows darkens as wet ground does, the waterline
-  wanders a little instead of following the terrain contour exactly, and a thin line runs along it, white on
-  the outside of bends. Fancy adds the bank side (a wet, darker bank and a foam fringe where the water
-  visibly starts) and foam where the water meets piers, bridge feet and boats (DX11 and Vulkan; Metal draws
-  none yet). Extra passes over the water with our own shaders; retail's water shader is not touched
-  (`docs/extensions/handins/BETTERWATER.md`). Off under `/profile:faithful`.
-- Touch pointer (`ext.touch_pointer`): a two-finger gesture now locks to the first thing it does. A drag
-  no longer zooms or turns the camera, and a pinch no longer drags it; a deliberate twist (past 24 degrees)
-  may still turn the camera during a pinch. Lift both fingers to switch (`docs/android/P11_TOUCH_POINTER.md`).
-  The idea, and the first cut of it, came from sintaxcz (PR #91).
-- `ext.better_water`: the shore edge is now drawn on Vulkan (Linux, and Windows with
-  `BANISHED_RENDER_BACKEND=vulkan`) and on Android; the shore shaders read the water's own texture coordinates,
-  where they had assumed the DX11 layout.
-- Faster job search (`ext.work_cand`, class B, on by default): an idle citizen's search through its profession's
-  open jobs sorts them into one list instead of a tree of one allocation per job; the jobs are tried in the
-  same order. Locked for the game and recorded in saves, because the memory it no longer allocates moves where
-  later objects land, which can change the order entities update in
-  (`docs/extensions/handins/WORKCAND.md`).
+**Major Changes:**
+1. Vulkan by default on Windows: one exe carries DirectX 11 and Vulkan, switched in Options > Video, DirectX 11 fallback (`ext.render_backend`, #279, #281).
+2. Winter ice: lakes and rivers freeze in cold winters (`ext.winter_ice`, #266, #268); citizens cross frozen lakes (`ext.walk_on_ice`, off by default, #273).
+3. Better clouds: drifting clouds with ground shadows (`ext.better_clouds`, #269).
+4. Fancy terrain: horizon-map terrain light (`ext.fancy_terrain`, #285).
+5. Depth blur: half-resolution depth of field (`ext.depth_of_field`, #286).
+6. Lighter far trees: fewer, larger leaf cards when zoomed out (`ext.leaf_lod`, #288); spring blossom and catkins (`ext.better_trees`).
+7. Better water: shore edge on Vulkan and Android, lakes fade into rivers, smooth river bends (`ext.better_water`, #283, #284).
+8. Steady shadows: no flicker while zooming (`fix.shadow_zoom_pulse`), adaptive shadow map (`ext.max_shadow_res`, #278), no dark wedge at a flat camera angle (#283).
+9. Camera: fog distance and camera angle sliders, wider zoom; an Experimental tab in the Extensions dialog (#282).
+10. Map data views: made, used, stock, services, traffic, homes, nature and land, with a terrain overlay (`ext.map_overlays`, #263, #292).
+11. Storage tab in the Town Hall: used / total space per storage kind (`ext.storage_metrics`, #293).
+12. Item limits: a town-wide limit per item, set from the workshop panel (`ext.item_limits`, #277).
+13. Building finder with favourites (`ext.building_finder`, #158); Professions window lists only usable professions (`ext.dynamic_professions`, #270); workshops skip a recipe at its limit (`ext.recipe_skip`, #271).
+14. Sharp UI: crisp menu sprites at 2x / 4x, readable text at low render scale (`ext.sharp_ui`, #155, #260).
+15. Fullscreen Off / Exclusive / Borderless (`ext.fullscreen_mode`, #261); FPS tab (`ext.fps_counter`, #157); tile grid (`ext.show_grid`, #90).
+16. Faster: job search (`ext.work_cand`, #289), exact grid pathfinding (#257), Android render passes (#256).
+17. Android tablets (issue #96): touch size settings, corner camera buttons, Shift toggle, game-files installer, save export / import (#98); screen keyboard types into text boxes (#116).
+18. 12 community-reported retail bugs fixed as `fix.*` rows: stranded citizens, stuck crop fields, nomads, auto-trade, foundation piles and more (#97).
+19. Mods button usable in a game, behind a warning, change kept (`fix.mods_persist`, #156).
+20. Code review hardening: crashes and hangs on malformed saves, mods and packages, thread races, Vulkan / Metal device-loss recovery.
 
-**Platforms and packages**
-- The Windows zip is now named `OpenBA-v<version>-win-x64.zip`, in line with the other platforms' packages. Its
-  layout is unchanged.
+Plus 175 misc bugs fixed.
 
-**Android**
-- Installing the game files (issue #96): with no Banished packages yet, the app opens a first-run screen in
-  the game's dialog style. "Choose the folder" or "Choose an archive" (a `.zip`) in the system's picker, and the
-  app copies the retail `.pkg` files of the player's own Banished install into its data folder, with a progress
-  bar and a cancel, then starts the game. Mods (`.pkm` files) in that folder are copied beside the packages.
-  No file manager access to `Android/data` is needed any more.
-- "Game files": a button in the main and pause menus (and the app icon's long-press shortcut) opens the same
-  screen at any time to export the saves to a `.zip` or import them from one (`docs/android/README.md`).
-- Typing (issue #100): tapping a text box (the village name and the map seed of a new game, a save's name)
-  opens the screen keyboard, and its keys type into the box. Return or the system's Back closes the keyboard and
-  ends the edit, as Enter does on a PC; what the game's own US keyboard table has is what can be typed.
-
-**Fixes**
-- Shadows no longer flicker and pulse while the camera zooms in or out: the area the sun's shadow map covers
-  now changes size in steps instead of on every frame (`fix.shadow_zoom_pulse`, `docs/retail_bugs.md` section 33).
-- Mods during a game (issue #100): the pause menu's Mods button works again, and so does Extensions beside it. It
-  first asks whether to go on: a change reloads the town, and turning off a mod the town uses (one that adds
-  buildings, resources or items) can damage it, so save first. A change made in a game is now kept, where the
-  original game quietly brought back the old mod list at the next main menu (`fix.mods_persist`).
-- `fix.ui_scale_layout` (on): the building's name shown while placing it now sits by the ghost on a touch
-  screen. Retail scales that label's position by the UI scale twice, so at any scale but 100 % it floated far
-  from the building (`docs/retail_bugs.md` section 5; issue #96).
-- `ext.phone_menu` and the Enhanced tab keep their scroll bar when a mod replaces the Options page with one that
-  has none (the North 7 mod hid the UI-scale slider and everything below it; issue #96).
-- `fix.debug_spawn_origin` (on): the debug panel's "spawn citizens" button (a debug-menu mod such as
-  MegaMod) no longer freezes the game in a town whose storage has no place to put new citizens (only
-  stockpiles). Retail kept looking for one for ever; the new citizens now appear on free land near the
-  middle of the map (`docs/retail_bugs.md` section 29). Off under `/profile:faithful`.
-- `fix.stranded_wade` (on): a citizen stuck on land cut off from the town (he crossed a stream where it
-  touches a mountain or shore, or a builder was left on a finished dock or bridge piece) no longer stands
-  there "going somewhere to get warm" until he starves. Once a walk of his toward home was refused because
-  the place is cut off, he wades or climbs back: to his home, or to the house he just lost (the game takes
-  a house from a citizen who cannot reach it), else to the town hall or a storage building, as retail
-  already lets other walks do (`docs/retail_bugs.md` section 19). Off under `/profile:faithful`.
-- `fix.mods_persist` (on): a change in the Mods window is saved to `settings.cfg` as soon as it is
-  confirmed, so a crash no longer brings back the old mod list. Mods are changed from the main menu only:
-  the pause menu's Mods button is greyed out, since retail dropped an in-game change at the next menu
-  anyway (`docs/retail_bugs.md` section 23). Off under `/profile:faithful`.
-- `fix.nomad_arrival` (on): nomads who cannot walk to the town hall (cut off by a river, for example) no
-  longer count as arrived where they are stuck. Retail let such a group be allowed in, and the new citizens
-  appeared where they stood and starved there. With the fix a nomad must reach the hall; it tries once more,
-  then leaves (`docs/retail_bugs.md` section 22). Off under `/profile:faithful`.
-- `fix.input_fetch_room` (on): a brewer, smith or other production worker no longer walks back and forth
-  between a barn and a nearly full building. Retail sends the worker for a full load of an input whatever
-  room the building has left, the building refuses a load it cannot take whole, and the worker carries it
-  back to storage and comes for it again; with the fix the worker fetches only what fits
-  (`docs/retail_bugs.md` section 25). Off under `/profile:faithful`.
-- ConsumeProduce workers (brewers, smiths, tailors...) no longer set off for an input while already
-  carrying something or with no room to carry it; as in retail, they re-plan instead.
-- `fix.autotrade_free_goods` (on): a trading post set to trade automatically no longer hands the merchant
-  whole stacks of goods he does not buy. Retail pays for an automatic purchase by selling stored goods one
-  unit at a time until the price is covered, and a good the merchant values at nothing never covers it, so
-  the whole stack went for nothing; with the fix such goods are not used to pay (`docs/retail_bugs.md`
-  section 24). Off under `/profile:faithful`.
-- `fix.firefighter_wells` (on): the Firefighter achievement ("Build 20 wells in a single town") is
-  awarded at 20 wells. The game's data asks for 40, a long-known mismatch with the description
-  (`docs/retail_bugs.md` section 20). Off under `/profile:faithful`.
-- `fix.crop_planting_exit` (on): a crop field no longer stays in "planting" forever. Retail never finishes
-  planting a field with a row the farmers cannot reach (a steep or fenced-off edge), so the field is never
-  tended or harvested and its crop rots; nor does it move on when every crop was lost before planting
-  finished. With the fix, the unreachable slots are left bare and the field goes on to tending and harvest,
-  and a field with nothing left growing is cleared for replanting (`docs/retail_bugs.md` section 11). Off
-  under `/profile:faithful`.
-- `fix.unresolved_seeds` (on): selecting a crop field, orchard or pasture no longer crashes when the
-  town's list of crops, trees and animals names one that no installed mod provides: a starting condition
-  naming a missing resource (one mod's "Fig" where the package has "Fig Tree"), or a save made with a
-  mod's crop, loaded with that mod off. Retail puts an empty entry in the list and the panel's menu reads
-  it; the fix leaves the entry out (`docs/retail_bugs.md` section 21). Off under `/profile:faithful`.
-- `fix.save_failure_notice` (on): a save that cannot be written (a read-only or OneDrive save folder,
-  Windows Controlled Folder Access, an antivirus block, a full disk) shows a message naming the save
-  folder, where the game used to fail without a word. The save is written to a temporary file and moved
-  over the old one only when complete, so a failed save no longer leaves the previous save of that name
-  broken (`docs/retail_bugs.md` section 27). Off under `/profile:faithful`.
-- `fix.boat_reach_notice` (on): when a merchant's boat finds no water route to a trading post's dock (a
-  pond, a lake, shallows between the dock and the river), the event log says so, at the post. The game
-  used to send the boat past without a word, for ever, so the post never traded and nothing said why
-  (`docs/retail_bugs.md` section 28). Where boats sail is unchanged. Off under `/profile:faithful`.
-- Better trees (`ext.better_trees`): the light and shadow on growing trees' crowns no longer shimmer. The
-  billboard self-shadow picked each leaf card's cut from a hash of its world position, which includes the
-  tree's growth scale, and retail eases that scale a little every frame (also while paused with Space, and
-  most after a spell at high speed), so each step re-rolled the cut. The hash now reads the card's model
-  position and the tree's map position, which growth never changes (`receiver_rewrite.h` "THE HASH").
-- `fix.foundation_piles` (on): a building placed over trees or rocks no longer stalls forever when the
-  town's storage is full. Retail leaves the felled logs and stone on the site, because no store will take
-  them, and the site never finishes (the piles rot a year later). With the fix, citizens carry those piles
-  to free ground just outside the foundation, and a stockpile collects them later as usual
-  (`docs/retail_bugs.md` section 17). Off under `/profile:faithful`.
-- Clearing road or field ground under a new building: a citizen given that task is no longer counted as
-  still free, so the next job can no longer overwrite the task (`ClearArea::Execute` returns 2 there, as
-  retail does).
-- Missing game data (issue #72): when the game folder's `WinData/` is missing, holds no `.pkg` files or has
-  no `data0.pkg`, OpenBA now shows one message that names the folder it looked in and says what to copy
-  there (on Android: the USB / MTP steps into `Android/data/org.openba.game/files/WinData/`), then exits
-  with code 6. Before, the boot failed with no explanation on every platform.
-- Log size: diagnostic lines that printed on every game tick or every window update no longer reach
-  `standalone_error.log` in released builds. A tester's 2-hour session had written a 1 GB log. The
-  plague, tornado and citizen-vitals traces are now off unless `BANISHED_PLAGUE_TRACE=1`,
-  `BANISHED_TORNADO_TRACE=1` or `BANISHED_VITALS=1` is set.
-- Construction after a load: a building that was under construction when the game was saved now
-  finishes properly. Before, it kept its construction storage, so a house finished that way took no food
-  or firewood. Buildings already finished that way in an existing save are not repaired
-  (`docs/known_port_issues.md` row 1345).
-- Merchant boats: a boat leaving a trading post no longer sometimes stops on the river and stays there.
-  Its departure now ends when it reaches its waypoint, as retail's does (`BoatComponent::State3Tick`,
-  `docs/known_port_issues.md` row 1344).
-- `fix.cancel_refund` (on): a building site cancelled after its materials arrived now leaves all of them in
-  piles on and around its ground. Retail lays piles only on the few free cells of the site's own ground and
-  drops the rest, a third of a town hall's delivery in one test (`docs/retail_bugs.md` section 26). A site
-  that builders had already started still gives back half, as in retail. Off under `/profile:faithful`.
-- `fix.commute_cost` (on): the job allocator no longer treats the walk from a newly built home to a
-  workplace (or from a home to a newly built workplace) as no walk at all the first time it asks for it, so
-  such a citizen is no longer sent to a far workplace for that reason. Retail answers 0 for a commute it has
-  not measured yet (`docs/retail_bugs.md` section 6). Off under `/profile:faithful`.
-- `fix.path_query_first` (on): in a large town the game no longer freezes for 15 to 20 seconds when a
-  merchant boat sets off, or while a road is drawn. Retail queues that path query behind every citizen
-  route search already waiting; with the fix it is answered first, and those citizens get their routes a
-  few ticks later (`docs/retail_bugs.md` section 18). Off under `/profile:faithful`.
-- A crash in large towns at high game speed (`ext.render_culling`): a citizen or building removed while
-  offscreen no longer leaves entries behind that the next frame without a game tick writes through. Seen
-  after 7.8 hours in a 1588-citizen town (`docs/known_port_issues.md` row 1346).
-- A crash after upgrading or demolishing buildings (the game stops with "pure virtual call" while it draws
-  the frame): a removed building's status icon could be put back on the screen after the building was
-  gone. The icon's removal now empties its flags as retail does, so a later change to them no longer
-  brings it back. Seen in a MegaMod X game about two hours in (`docs/known_port_issues.md` row 1350).
-- Render thread (`ext.render_pipe`): no more long lines flickering across the screen, and no more crash of
-  the render thread, most often seen while placing a building with a radius circle (a well, a market)
-  and moving the camera. The frame copy the render thread draws from wrote two parts of itself over each
-  other (`docs/known_port_issues.md` row 1347).
-- A workplace no longer keeps its "no workers" icon while it is staffed, whether its workers were hired by
-  the town or sent from another workplace (a field, orchard, pasture or workshop that stops taking workers,
-  or a building whose worker count was lowered); a workplace that loses its last worker shows the icon
-  again. Both as in retail (`docs/known_port_issues.md` row 1349).
-
-Thanks to sintaxcz for the Android tablet reports, the gesture-lock idea (PR #91) and the testing of every build
-along the way (issue #96).
+Thanks to kralyerg (#83, #84, #90, #158, #255, #270, #271, #272) and myungjoo (#92, #93, #94, #95, #102, #277) for their pull requests, 
+Karl 19825 for his placement bug reports and suggestions, 
+and to sintaxcz for the Android tablet reports, the gesture-lock idea (PR #91) and the testing of every build along the way (issue #96).
 
 ## v1.0.2 (2026-10-30)
 
