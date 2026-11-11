@@ -94,6 +94,7 @@ UNIT_TEST(ext_registry_table_shape) {
         // show_grid is class A but changes how the map looks: the player's call, OFF (no_fog was too; ON since 1.0.3 at retail's fog).
         // fps_counter is class A but adds the toolbar's extension button: the player's call, OFF (FPSCOUNTER).
         // building_finder is class A but adds a tab to the extension window: OFF (BUILDINGFINDER).
+        // storage_metrics is class A but adds a tab to the Town Hall window: OFF (STORAGEMETRICS).
         // dynamic_professions is class A but replaces the Professions window: OFF (DYNAMICPROFESSIONS).
         // texture_quality is class A but lowers texture detail: the player's call, OFF (TEXQUALITY).
         // phone_menu is class A but moves the desktop menu: OFF; the Android first run turns it on (PHONEMENU).
@@ -106,6 +107,7 @@ UNIT_TEST(ext_registry_table_shape) {
                                   std::strcmp(e.id, "show_grid") != 0 &&
                                   std::strcmp(e.id, "fps_counter") != 0 &&
                                   std::strcmp(e.id, "building_finder") != 0 &&
+                                  std::strcmp(e.id, "storage_metrics") != 0 &&
                                   std::strcmp(e.id, "dynamic_professions") != 0 &&
                                   std::strcmp(e.id, "texture_quality") != 0 &&
                                   std::strcmp(e.id, "phone_menu") != 0 && std::strcmp(e.id, "fps_cap") != 0 &&

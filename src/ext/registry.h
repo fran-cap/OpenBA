@@ -103,6 +103,8 @@ struct Extensions {
     bool fps_counter = false;  // class A: src/ext/fps_counter/, FrameLimiter::g_extGameFrame (docs/extensions/handins/FPSCOUNTER.md)
     // class A: src/ext/building_finder/ (docs/extensions/handins/BUILDINGFINDER.md)
     bool building_finder = false;
+    // class A: src/ext/storage_metrics/, a Storage tab in the Town Hall window (docs/extensions/handins/STORAGEMETRICS.md)
+    bool storage_metrics = false;
     // class A: src/ext/dynamic_professions/ (docs/extensions/handins/DYNAMICPROFESSIONS.md)
     bool dynamic_professions = false;
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)

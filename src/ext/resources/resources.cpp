@@ -259,6 +259,7 @@ void InitText() {
     Register("Dialog/FamilyTreeSummary", &ProvideText, nullptr);
     Register("Dialog/ShowGridPage", &ProvideText, nullptr);
     Register("Dialog/FpsCounterPage", &ProvideText, nullptr);
+    Register("Dialog/StorageMetricsTab", &ProvideText, nullptr);
     Register("Dialog/BuildingFinderPage", &ProvideText, nullptr);
     Register("Dialog/FavoritesWindow", &ProvideText, nullptr);
     Register("Dialog/ProfessionsWindow", &ProvideText, nullptr);

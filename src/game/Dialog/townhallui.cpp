@@ -84,6 +84,8 @@
 #include "Game/Calendar.h"     // GameUpdateLoop::m_dayCounter (year, yearTime)
 #include "Game/PlayerToolManager.h"   // CenterOnEntity 0x140103040
 #include "Component/AttendanceComponent.h"   // B4 S4 RT2: InternalPtr<AttendanceComponent>::Get() needs the class complete
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEMETRICS.md): ext.storage_metrics (class A), the Storage tab
+#include "ext/storage_metrics/storage_metrics.h"
 
 // ============================================================
 // Helpers
@@ -1753,6 +1755,9 @@ void TownHallUI::OnCreated() {
     InitInventory();
     InitGraph();
     InitAgriculture();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEMETRICS.md): ext.storage_metrics (class A) adds
+    // its Storage tab after the game's own
+    Ext::StorageMetrics::TownHallCreated(this, tabElement);
 }
 
 // ============================================================
@@ -1762,7 +1767,9 @@ void TownHallUI::OnCreated() {
 void TownHallUI::OnSerializeSettings(IO::Stream& stream) {
     if (!townhallui_sa::Built(this) || !townhallui_sa::Ready() || !townhallui_sa::TownReady()) return;
 
-    int tabIndex = tabElement->_activeTab;
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEMETRICS.md): ext.storage_metrics (class A), its
+    // Storage tab is recorded as a tab retail has
+    int tabIndex = Ext::StorageMetrics::SavedTab(this, tabElement->_activeTab);
     int combo1 = productionCombo->_currentItem;
     int combo2 = inventoryCombo->_currentItem;
     int combo3 = sortCombo->_currentItem;
@@ -1791,6 +1798,9 @@ void TownHallUI::OnSerializeSettings(IO::Stream& stream) {
         graphCombo->SetCurrentItem(combo5);
         UpdateGraph();
     }
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEMETRICS.md): ext.storage_metrics (class A) notes,
+    // for this session only, that the window closed on an added tab, and goes back to it on reopening
+    Ext::StorageMetrics::TownHallSettings(this, serializer.GetDirection() == IO::kReading);
 }
 
 // ============================================================
@@ -1833,6 +1843,9 @@ void TownHallUI::OnUpdate(const System::Time& /*time*/) {
     UpdateInventory();
     UpdateAll();
     if ((agriBST.tail)++ % 30 == 0) TownHallUI::OnUpdateLayout();
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEMETRICS.md): ext.storage_metrics (class A) keeps
+    // its Storage tab's figures current while it shows
+    Ext::StorageMetrics::TownHallUpdate(this);
 }
 
 // ============================================================
@@ -1904,6 +1917,9 @@ extern "C" void TownHallSA_Diag(int frameNum) {
 // 0x140015930) -- retail's descending-offset order; then ~DialogController ->
 // ~Internal.
 TownHallUI::~TownHallUI() {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/STORAGEMETRICS.md): ext.storage_metrics (class A) forgets
+    // the window's Storage tab
+    Ext::StorageMetrics::TownHallClosed(this);
 }
 
 

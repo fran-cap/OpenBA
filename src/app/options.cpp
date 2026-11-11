@@ -347,6 +347,9 @@ void OptionsInit() {
     o.panelHoldFrame        = Raw("BANISHED_PANEL_HOLD_FRAME");
     o.panelHoldClick        = Raw("BANISHED_PANEL_HOLD_CLICK");
     o.panelHoldClickEvery   = Raw("BANISHED_PANEL_HOLD_CLICK_EVERY");
+    o.panelHoldTab          = Raw("BANISHED_PANEL_HOLD_TAB");
+    o.templateDump          = Raw("BANISHED_TEMPLATE_DUMP");
+    o.panelHoldReopen       = Raw("BANISHED_PANEL_HOLD_REOPEN");
 
     o.mouseInject  = Raw("BANISHED_MOUSE_INJECT");
     o.mouseHold    = Raw("BANISHED_MOUSE_HOLD");

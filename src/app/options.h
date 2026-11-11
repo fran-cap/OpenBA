@@ -291,6 +291,10 @@ struct Options {
     const char* panelHoldFrame       = nullptr;// BANISHED_PANEL_HOLD_FRAME
     const char* panelHoldClick       = nullptr;// BANISHED_PANEL_HOLD_CLICK — "<control>:<id>"
     const char* panelHoldClickEvery  = nullptr;// BANISHED_PANEL_HOLD_CLICK_EVERY
+    const char* panelHoldTab         = nullptr;// BANISHED_PANEL_HOLD_TAB=<index> -- shows that tab of the held panel (-1 = the last)
+    const char* panelHoldReopen      = nullptr;// BANISHED_PANEL_HOLD_REOPEN=1 -- closes the held panel, selects its building again, logs the tab shown
+    const char* templateDump         = nullptr;// BANISHED_TEMPLATE_DUMP=<DescriptionTypeName|*> -- src/diag/template_dump.cpp lists the
+                                               //   placeable buildings whose template carries that description (a mod's template paths)
     const char* clearOverlap         = nullptr;// BANISHED_CLEAR_OVERLAP=<start>[,<delay>[,<period>[,<deadline>]]] --
                                                //   src/diag/clear_overlap_harness.cpp; tools/harness_route.sh clearoverlap
 

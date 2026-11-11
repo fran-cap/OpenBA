@@ -328,6 +328,7 @@ set(EXT_RSC_SOURCES
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FamilyTreeSummary.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/ShowGridPage.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FpsCounterPage.rsc
+  ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/StorageMetricsTab.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/BuildingFinderPage.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FavoritesWindow.rsc
   ${CMAKE_SOURCE_DIR}/src/ext/ui/Dialog/FullscreenMode.rsc

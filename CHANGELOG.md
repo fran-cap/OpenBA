@@ -7,6 +7,11 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 ## Unreleased
 
 **Extensions**
+- Storage space (`ext.storage_metrics`, class A, off by default): a Storage tab in the Town Hall window with the
+  used and total space of the town's stockpiles, storage barns and trading posts, as figures ("12,400 / 15,000")
+  and in percent, so a full barn or stockpile shows before production stalls. A kind with several building types
+  (a mod's special stores) lists each type under its total; buildings are recognised by their components, not
+  their names (`docs/extensions/handins/STORAGEMETRICS.md`).
 - Lighter far trees (`ext.leaf_lod`, Experimental tab): when the camera is zoomed out, leafy trees draw fewer
   of their leaf cards, each a touch larger, which cuts the overlapping leaf drawing that makes a zoomed-out
   forest slow. The trunk, colours and shadows are the game's own; the cards that draw a crown's outline are

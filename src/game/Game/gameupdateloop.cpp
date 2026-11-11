@@ -478,6 +478,7 @@ extern "C" void PastureFillHarness_Tick(int frameNum);    // src/diag/pasture_ha
 extern "C" void MarketOverstock_Tick(int frameNum);   // src/diag/market_overstock_harness.cpp
 extern "C" void PanelStaffingDriver_Tick(PlayerToolManager* entityUI, int frameNum);
 extern "C" void PanelHoldHarness_Tick(PlayerToolManager* entityUI, int frameNum);  // src/diag/panel_staffing_driver.cpp
+extern "C" void TemplateDump_Tick(int frameNum);   // src/diag/template_dump.cpp
 extern "C" void BuilderSeat_Tick(int frameNum);        // src/diag/builder_seat_harness.cpp
 extern "C" void ClearOverlap_Tick(PlayerToolManager* ui, int frameNum);   // src/diag/clear_overlap_harness.cpp
 extern "C" float AchClock_TimeScale();                 // src/diag/ach_clock.cpp
@@ -806,6 +807,9 @@ bool GameUpdateLoop::Update(const System::Time& timeRef) {
     PanelStaffingDriver_Tick(m_toolManager, s_frameNum);
     // Hold one building panel open so its layout can be captured (BANISHED_PANEL_HOLD).
     PanelHoldHarness_Tick(m_toolManager, s_frameNum);
+    // List the placeable buildings of one kind, for a harness that needs a mod's template paths
+    // (BANISHED_TEMPLATE_DUMP).
+    TemplateDump_Tick(s_frameNum);
 
     // Player stand-in for the town-hall Builder spinner. No-op unless BANISHED_BUILDERS.
     BuilderSeat_Tick(s_frameNum);
