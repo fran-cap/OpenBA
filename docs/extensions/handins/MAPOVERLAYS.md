@@ -117,6 +117,23 @@ full colour is a high percentile of the non-zero tiles. The ramp is transparent 
 green, yellow to red. The image is rebuilt at most once a second while a view shows, at once on a change of
 selection; the minimap and the terrain upload only when its version changes.
 
+Near, steep ground (2026-11-11): a coarse quad floats over a hillside by the cell's relief, which a near
+camera with a long view showed as a sheet standing off the slope and past the ridge (a player's "red aura on
+top of mountains"). `RefineCells` (`overlay_render_math.h`) picks the cells whose float is over 1% of their
+distance from the eye, worst first, up to 8192 tiles a frame; they are drawn tile by tile on the ground, their
+edge vertices on a coarse neighbour's edge so the two meet with no gap or overlap (a first version without that
+stitch showed dark lines where two sheets blended twice). Checked with the coarse step forced to 4 at a close
+view of a player's save, Vulkan: before, the picture floats over ridges, the river and tree bases; after, it is
+the per-tile picture.
+
+A new game (2026-11-11): the renderers keep nothing that points at the last game's Externals. The game's
+Materials are freed with the game and an `ExternalPtr` holds no reference, so `OnGameStartRender`
+(`overlay_render.cpp`, from `OnGameStart`) drops the map window's sheet and material, each terrain texture's
+MaterialInstance and the snapshot's material; they are made again at the next use. Before, the Land view on
+the terrain in a second game of one process drew with the first game's freed Material (a player's report:
+the game aborts on "Show overlay on terrain"). Repro: `BANISHED_AUTOSTART_GAMES=2` with
+`BANISHED_PAUSEMENU_BUTTON=5` and the view forced on in each game.
+
 ## 6. Files
 
 | file | what it holds |

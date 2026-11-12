@@ -31,6 +31,7 @@
 #include "ext/registry.h"            // Ext::Fix().start_barn_height, Ext::Fix().rock_seat, Ext::Fix().terrain_resort
 #include "ext/rock_seat/rock_seat.h"   // fix.rock_seat (docs/extensions/handins/ROCKSEAT.md)
 #include "ext/terrain_resort/terrain_resort_rule.h"   // fix.terrain_resort (docs/extensions/handins/TERRAINRESORT.md)
+#include "Component/ClearResourceComponent.h"   // fix.terrain_resort: the Remove tool's marker
 #include "cell_trace.h"   // red square: BANISHED_CELL_TRACE (src/diag/cell_trace.h)
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "Game/worldgen_cells.h"     // [PERLINPRE] WgCells_PerlinTable (row-parallel scatter noise)
@@ -4928,7 +4929,12 @@ extern "C" void StartTown_UnmarkResourceCellGrid(Map* game, ComponentEntity* own
                 // occupant (a tree or ore on steep ground, a goods pile) leaves the cell buildable,
                 // as it was placeable while the occupant stood.
                 if (Ext::Fix().terrain_resort) {
-                    const bool zoned = cellOwner != nullptr && cellOwner != ownerEntity;
+                    // The Remove tool's marker (the entity with a ClearResourceComponent) blocks the
+                    // cell while its resource is cleared and claims no ground.
+                    const bool blockedByOther = cellOwner != nullptr && cellOwner != ownerEntity;
+                    const bool marker = blockedByOther &&
+                                        cellOwner->FindComponent<ClearResourceComponent>() != nullptr;
+                    const bool zoned = Ext::TerrainResort::ZonedByOther(blockedByOther, marker);
                     t = static_cast<uint8_t>(
                         Ext::TerrainResort::ClearedCellType(static_cast<uint8_t>(cell->terrainType), t, zoned));
                 }

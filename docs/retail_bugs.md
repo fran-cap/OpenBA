@@ -319,6 +319,15 @@ existing save: nothing records that a stored 10 held a tree. `src/ext/terrain_re
 docs/extensions/handins/TERRAINRESORT.md. With the fix on, the four saves load with 0 such
 cells left.
 
+**The Remove tool's marker (2026-11-11).** A second player report, with a save pair of one town:
+red cells where stone and iron had been cleared with the Remove Resources tool, fix on. The tool
+puts a one-cell marker entity on each resource (`RemovalTool::CalcPath` `0x1401035e0`), which is the
+cell's blocker while the resource is cleared. Lever (b) took any blocker other than the leaving
+entity for an owner's zone and left the cell to the re-sort, so it turned 10: 9 cells between the
+two saves, and 15 more within seconds of loading the later one. The marker (the entity with a
+`ClearResourceComponent`) is now no owner (`ZonedByOther`): the same load re-sorts no cell to 10.
+Cells that turned red before stay red, as for lever (b).
+
 **What red means.** `Map::TestPlacement` (`0x14009f5d0`, `Player/tool_base_path.cpp`) fails a
 cell on any of: (a) its terrain type (MapCell `+0x29`) is outside the tool's mask; (b) a
 blocker entity (`+0x00`); (c) `footprintCount` (`+0x28`) non-zero while the tested cell is not
@@ -1603,3 +1612,29 @@ step and changes once when it crosses one. The box always covers what retail's d
 larger, so a texel is at most 12% coarser. `ext.max_shadow_zoom` reads the box's side plane, so its
 choice follows the stepped size. Unit test: `shadow_zoom_steady_half_ladder`
 (`tests/unit/shadow_zoom_test.cpp`).
+
+## 34. "Increase priority" ranks behind earlier priorities after a save is loaded
+
+**Status: read in the retail disassembly and shown on a player's save; fixed by `fix.priority_after_load`
+(default on, ruled 2026-11-11: an oversight in retail).**
+Reported 2026-11-11: the Increase Priority tool "may get temporarily totally suspended / ignored", seen
+after saving and reloading.
+
+**Mechanism.** A job's place in the idle work search is `Work::_queueOrder` (+0x24), ascending. A new job
+gets `nextQueueOrder++`. `WorkScheduler::PrioritizeWork` (`0x1400f9ad0`) gives a job the lowest key of the
+scheduler's queue-order tree (+0x10) minus one, or 0 when that tree is empty. `_queueOrder` is saved with
+each job, but the tree is not, and `WorkScheduler::Serialize` (`0x1400f9240`) rebuilds it on load only for a
+version-2 save (`cmp eax,2` / `jne` at `0x1400f934f`); the game writes version 3. After any load the tree is
+empty, so the first prioritized job gets 0, the next -1, and so on: behind every job prioritized before the
+save that is still waiting (those keep their negative keys), until the new keys count down past them.
+
+**Shown.** The player's save loads with 189 jobs, keys -2146 .. 5982 (three of them negative), a tree of 0
+nodes; `PrioritizeWork` on the job with key 5982 right after the load stores 0 where an unbroken session
+would store -2147. With three old priorities waiting the effect there is small; a large area prioritized
+before the save (one key per tree or stone) is what a later priority has to wait behind.
+
+**Fix: `fix.priority_after_load`** (default on). The load arm inserts each job of a version-3 save into the
+tree under its saved `_queueOrder` (the version-2 arm's insert, with the job's own key), so the tree holds
+what it held when the save was written; one `[PriorityAfterLoad]` line per load gives the count. It changes
+which job an idle worker takes after a load (sim-visible); nothing is saved differently. Row off: retail's
+empty tree. `src/ext/priority_after_load/`, seam `WorkScheduler::Serialize` (`src/game/Game/goals_serialize.cpp`).

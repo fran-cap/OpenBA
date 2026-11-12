@@ -13,5 +13,8 @@ namespace MapOverlays {
 void OnVideoLost();       // the image's device companion released (Minimap: GameUpdateLoop::OnVideoError)
 void OnVideoRestored();   // made again and refilled from the kept pixels (Minimap::OnVideoRestart)
 
+// A new game or a load (from OnGameStart): drops what points at the last game's Externals.
+void OnGameStartRender();
+
 }  // namespace MapOverlays
 }  // namespace Ext

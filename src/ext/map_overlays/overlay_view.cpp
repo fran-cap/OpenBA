@@ -12,6 +12,7 @@
 #include "ext/map_overlays/map_overlays.h"
 #include "ext/registry.h"   // Ext::Ext() (OnGameStart reads the lock)
 #include "ext/map_overlays/overlay_math.h"
+#include "ext/map_overlays/overlay_render.h"   // OnGameStartRender
 #include "ext/map_overlays/overlay_views_internal.h"
 
 #include <cstring>
@@ -163,6 +164,7 @@ void OnGameStart() {
     s_legend = 0.0f;
     ++s_version;   // the renderers drop what they uploaded for the last town
     ForgetMaterials();
+    OnGameStartRender();   // the renderers' objects over the last game's Externals
 }
 
 }  // namespace MapOverlays

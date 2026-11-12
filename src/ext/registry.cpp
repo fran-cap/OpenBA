@@ -326,6 +326,15 @@ const Entry kEntries[] = {
       "Steady shadows while zooming",
       "Shadows no longer flicker and pulse while the camera zooms in or out.",
       0, [](State& s) -> bool& { return s.fix.shadow_zoom_pulse; } },
+    // PRIORITYAFTERLOAD (docs/retail_bugs.md section 34): retail rebuilds the scheduler's queue-order tree
+    // on load only for a version-2 save, so after a load Increase Priority counts down from 0 again and
+    // ranks behind every priority given before the save. With the row on the tree is rebuilt from the
+    // jobs' saved keys. Sim-visible (which job an idle worker takes); nothing saved.
+    { "priority_after_load", Tier::Fix, Class::None, true,
+      "Priority tool after loading",
+      "After loading a save, the Increase Priority tool again puts work ahead of everything else, "
+      "including work that was prioritized before the save.",
+      0, [](State& s) -> bool& { return s.fix.priority_after_load; } },
 
     // Extensions. Each one adds a field to Ext::Extensions and a row here:
     // Tier::Extension, its Class, default true for class A / false for B or C, and for class B or C its

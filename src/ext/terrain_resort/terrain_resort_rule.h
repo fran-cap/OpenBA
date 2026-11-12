@@ -46,6 +46,16 @@ constexpr uint8_t kTypeResource = static_cast<uint8_t>(PathType::Obstacle);
 // cell the classifier calls steep does the same when it is picked up. The fix keeps the cell
 // buildable. Only 10 is replaced; water (7, 8) and high mountain (6) stay what the classifier
 // says.
+//
+// `zoned` is ZonedByOther: another entity blocks the cell (a pasture's fence and a cemetery's stone
+// are type 4 inside their owner's zone). The Remove tool's marker is no such owner: it blocks the one
+// cell only while its resource is cleared, so stone, iron or a tree removed with the tool is a lone
+// occupant too. Without that exception every resource cleared with the tool on such ground left a
+// red cell, where the same resource taken by a forester or a gatherer left none.
+inline bool ZonedByOther(bool blockedByOther, bool blockerIsRemovalMarker) {
+    return blockedByOther && !blockerIsRemovalMarker;
+}
+
 inline int ClearedCellType(uint8_t typeBefore, int classified, bool zoned) {
     if (typeBefore != kTypeResource || zoned) return classified;
     if (classified != kTypeSteep) return classified;
