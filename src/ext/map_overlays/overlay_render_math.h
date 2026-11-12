@@ -26,6 +26,15 @@
 // flips the picture between two steps (it flickered while the box of the screen rays swung with the yaw).
 // Only cells with a corner (or the tile) of non-zero alpha are emitted.
 //
+// NEAR, STEEP GROUND (RefineCells). A coarse quad over a hillside floats above the ground it spans by up to
+// the cell's relief: seen from near, a sheet of colour stands off the slope and past the ridge line (a
+// player's "aura" over the mountains; a tilted camera sees far, so the step is coarse even under a near
+// camera). A cell whose float is more than kFloatPerDistance of its distance from the eye is drawn tile by
+// tile on the ground instead, the worst cells first, up to kMaxFineQuads tiles a frame. Where such a cell
+// meets a coarse one, its vertices on the shared edge take the coarse quad's edge (the lifted corners and the
+// straight line between them), so the two meet without a gap or an overlap: two sheets one over the other
+// would blend twice and show as a dark line.
+//
 // TEXTURED (the exact views: Land). A view of classes must not blend: the same cells are drawn white, with
 // texture coordinates over the whole image (u = column / mapSize, v = row / mapSize), and the renderer binds
 // the image itself as a point-sampled texture. Every tile then keeps its own colour at any step; a coarse
@@ -48,6 +57,9 @@ constexpr int kMaxStep = 64;              // a 4096 map seen whole: 64 x 64 cell
 constexpr float kFinerShare = 0.5f;       // a finer step is taken when its cells fit in this share of kMaxCells
 constexpr float kTerrainLift = 0.05f;     // tile units above the ground (show_grid's lines float at 0.03)
 constexpr float kTerrainMargin = 2.0f;    // tiles beyond the footprint
+constexpr float kFloatPerDistance = 0.01f;   // a coarse quad may float this share of its distance from the eye
+constexpr float kMinFloat = 0.2f;         // tile units: flatter cells are never refined
+constexpr int kMaxFineQuads = 8192;       // tiles drawn one by one inside refined cells, a frame
 
 struct Point2 {
     float x = 0.0f;
@@ -314,11 +326,19 @@ public:
         heights_.assign(count, 0.0f);
         colorStamp_.assign(count, 0u);
         heightStamp_.assign(count, 0u);
+        lows_.assign(count, 0.0f);
+        lowStamp_.assign(count, 0u);
         colorEpoch_ = 1;
         heightEpoch_ = 1;
     }
     void InvalidateColors() { Bump(colorEpoch_, colorStamp_); }
-    void InvalidateHeights() { Bump(heightEpoch_, heightStamp_); }
+    void InvalidateHeights() {
+        const uint32_t before = heightEpoch_;
+        Bump(heightEpoch_, heightStamp_);
+        if (heightEpoch_ < before) {   // wrapped: the lows are stamped with the same epoch
+            std::fill(lowStamp_.begin(), lowStamp_.end(), 0u);
+        }
+    }
     int Step() const { return step_; }
     int MapSize() const { return mapSize_; }
     int GridCoord(int i) const { return std::min(mapSize_, i * step_); }
@@ -356,6 +376,27 @@ public:
         return heights_[k];
     }
 
+    // The lowest ground of cell (i, j): its tile vertices GridCoord(i) .. GridCoord(i + 1), rows likewise.
+    template <class HeightFn>
+    float CellLow(int i, int j, HeightFn& height) {
+        const size_t k = Index(i, j);
+        if (lowStamp_[k] != heightEpoch_) {
+            lowStamp_[k] = heightEpoch_;
+            const int c0 = GridCoord(i);
+            const int c1 = GridCoord(i + 1);
+            const int r0 = GridCoord(j);
+            const int r1 = GridCoord(j + 1);
+            float low = height(c0, r0);
+            for (int r = r0; r <= r1; ++r) {
+                for (int c = c0; c <= c1; ++c) {
+                    low = std::min(low, height(c, r));
+                }
+            }
+            lows_[k] = low;
+        }
+        return lows_[k];
+    }
+
 private:
     size_t Index(int i, int j) const {
         return static_cast<size_t>(j) * static_cast<size_t>(side_) + static_cast<size_t>(i);
@@ -375,19 +416,77 @@ private:
     std::vector<float> heights_;
     std::vector<uint32_t> colorStamp_;
     std::vector<uint32_t> heightStamp_;
+    std::vector<float> lows_;
+    std::vector<uint32_t> lowStamp_;
     uint32_t colorEpoch_ = 1;
     uint32_t heightEpoch_ = 1;
 };
+
+// The cells of `rows` (a step > 1, `grid` Reset to it) to draw tile by tile (NEAR, STEEP GROUND above): `mask`
+// gets one byte per cell of the map's cell grid (row * CellsPerSide + column), 1 = refine. `eye` is the
+// camera's position in tile coordinates. A cell's float is its highest corner over its lowest ground; the
+// cells over kFloatPerDistance of their distance are taken worst first while their tiles fit kMaxFineQuads.
+template <class HeightFn>
+void RefineCells(const CellRows& rows, int mapSize, const Point3& eye, HeightFn height, CoarseGrid& grid,
+                 std::vector<uint8_t>& mask) {
+    const int step = rows.step;
+    const int side = static_cast<int>(rows.first.size());
+    mask.assign(static_cast<size_t>(side) * static_cast<size_t>(side), 0);
+    if (step <= 1 || grid.Step() != step || grid.MapSize() != mapSize) return;
+    struct Candidate {
+        float ratio;
+        int cell;
+        int tiles;
+    };
+    std::vector<Candidate> candidates;
+    for (int j = 0; j < side; ++j) {
+        for (int i = rows.first[static_cast<size_t>(j)]; i <= rows.last[static_cast<size_t>(j)]; ++i) {
+            float top = grid.Height(i, j, height);
+            top = std::max(top, grid.Height(i + 1, j, height));
+            top = std::max(top, grid.Height(i + 1, j + 1, height));
+            top = std::max(top, grid.Height(i, j + 1, height));
+            const float low = grid.CellLow(i, j, height);
+            const float floats = top - kTerrainLift - low;
+            if (floats < kMinFloat) continue;
+            const float x0 = static_cast<float>(grid.GridCoord(i));
+            const float x1 = static_cast<float>(grid.GridCoord(i + 1));
+            const float y0 = static_cast<float>(grid.GridCoord(j));
+            const float y1 = static_cast<float>(grid.GridCoord(j + 1));
+            const float dx = std::max(0.0f, std::max(x0 - eye.x, eye.x - x1));
+            const float dy = std::max(0.0f, std::max(y0 - eye.y, eye.y - y1));
+            const float dz = std::max(0.0f, std::max(low - eye.z, eye.z - top));
+            const float distance = std::max(1.0f, std::sqrt(dx * dx + dy * dy + dz * dz));
+            const float ratio = floats / distance;
+            if (ratio <= kFloatPerDistance) continue;
+            Candidate c;
+            c.ratio = ratio;
+            c.cell = j * side + i;
+            c.tiles = static_cast<int>((x1 - x0) * (y1 - y0));
+            candidates.push_back(c);
+        }
+    }
+    std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
+        return a.ratio > b.ratio || (a.ratio == b.ratio && a.cell < b.cell);
+    });
+    int budget = kMaxFineQuads;
+    for (const Candidate& c : candidates) {
+        if (c.tiles > budget) continue;
+        budget -= c.tiles;
+        mask[static_cast<size_t>(c.cell)] = 1;
+    }
+}
 
 // The triangles of the picture over `rows` (CellRowsOf). `originX` / `originY` are the world position of
 // tile vertex 0 (a tile is one world unit); `height(vc, vr)` the ground at tile vertex (vc, vr), vertices 0 ..
 // mapSize. For a step > 1, `grid` holds that step's vertices (Reset to it by the caller). `out` is cleared
 // and filled. `textured`: the vertices are white (alpha by `opacityPercent`) and carry the image's texture
 // coordinates instead of the tile's colour (TEXTURED above); every cell of a step > 1 is then emitted.
+// `refine` (RefineCells; null = none): the cells of a step > 1 drawn as their tiles, like step 1.
 template <class HeightFn>
 void BuildTerrainVertices(const CellRows& rows, int mapSize, float originX, float originY,
                           const std::vector<uint32_t>& image, int imageSize, int opacityPercent, HeightFn height,
-                          CoarseGrid& grid, std::vector<TerrainVertex>& out, bool textured = false) {
+                          CoarseGrid& grid, std::vector<TerrainVertex>& out, bool textured = false,
+                          const std::vector<uint8_t>* refine = nullptr) {
     out.clear();
     const int step = rows.step;
     if (mapSize <= 0 || imageSize <= 0 || step < 1) return;
@@ -412,34 +511,87 @@ void BuildTerrainVertices(const CellRows& rows, int mapSize, float originX, floa
         }
     };
     const int side = static_cast<int>(rows.first.size());
+    // one tile, flat in its own colour, its corners at `vertexZ(vc, vr)`
+    const auto emitTile = [&](int c, int r, const auto& vertexZ) {
+        const uint32_t p = PixelAt(image, imageSize, mapSize, c, r);
+        const uint32_t color = VertexColor(p, opacityPercent);
+        if ((color >> 24) == 0) return;
+        const int vc[4] = {c, c + 1, c + 1, c};
+        const int vr[4] = {r, r, r + 1, r + 1};
+        float px[4];
+        float py[4];
+        float pz[4];
+        uint32_t colors[4];
+        for (int i = 0; i < 4; ++i) {
+            px[i] = originX + static_cast<float>(vc[i]);
+            py[i] = originY + static_cast<float>(vr[i]);
+            pz[i] = vertexZ(vc[i], vr[i]);
+            colors[i] = textured ? white : color;
+        }
+        // the terrain mesh's own split (TerrainHeightOnly, worldgeometry_ray.cpp): 0-2 where the tile's
+        // column + row is odd, 1-3 where it is even, so the picture lies on the ground's triangles
+        emit(px, py, pz, colors, ((c + r) & 1) != 0 ? kSplit02 : kSplit13);
+    };
+    // on the ground's own vertices
+    const auto groundZ = [&](int vc, int vr) { return height(vc, vr) + kTerrainLift; };
     if (step == 1) {
         for (int r = 0; r < side; ++r) {
             for (int c = rows.first[static_cast<size_t>(r)]; c <= rows.last[static_cast<size_t>(r)]; ++c) {
-                const uint32_t p = PixelAt(image, imageSize, mapSize, c, r);
-                const uint32_t color = VertexColor(p, opacityPercent);
-                if ((color >> 24) == 0) continue;
-                const int vc[4] = {c, c + 1, c + 1, c};
-                const int vr[4] = {r, r, r + 1, r + 1};
-                float px[4];
-                float py[4];
-                float pz[4];
-                uint32_t colors[4];
-                for (int i = 0; i < 4; ++i) {
-                    px[i] = originX + static_cast<float>(vc[i]);
-                    py[i] = originY + static_cast<float>(vr[i]);
-                    pz[i] = height(vc[i], vr[i]) + kTerrainLift;
-                    colors[i] = textured ? white : color;
-                }
-                // the terrain mesh's own split (TerrainHeightOnly, worldgeometry_ray.cpp): 0-2 where the tile's
-                // column + row is odd, 1-3 where it is even, so the picture lies on the ground's triangles
-                emit(px, py, pz, colors, ((c + r) & 1) != 0 ? kSplit02 : kSplit13);
+                emitTile(c, r, groundZ);
             }
         }
         return;
     }
     if (grid.Step() != step || grid.MapSize() != mapSize) return;
+    const size_t cells = static_cast<size_t>(side) * static_cast<size_t>(side);
+    const bool refining = refine != nullptr && refine->size() == cells;
+    // cell (ci, cj) is on the map and drawn as one coarse quad
+    const auto coarse = [&](int ci, int cj) {
+        if (ci < 0 || cj < 0 || ci >= side || cj >= side) return false;
+        return (*refine)[static_cast<size_t>(cj) * static_cast<size_t>(side) + static_cast<size_t>(ci)] == 0;
+    };
     for (int j = 0; j < side; ++j) {
         for (int i = rows.first[static_cast<size_t>(j)]; i <= rows.last[static_cast<size_t>(j)]; ++i) {
+            if (refining && !coarse(i, j)) {
+                const int c0 = grid.GridCoord(i);
+                const int c1 = grid.GridCoord(i + 1);
+                const int r0 = grid.GridCoord(j);
+                const int r1 = grid.GridCoord(j + 1);
+                // A vertex of the refined cell: on the ground, except on an edge or a corner it shares with
+                // a coarse cell, where it lies on that quad's edge (NEAR, STEEP GROUND above).
+                const auto stitchedZ = [&](int vc, int vr) {
+                    const bool onC = vc == c0 || vc == c1;
+                    const bool onR = vr == r0 || vr == r1;
+                    if (!onC && !onR) return groundZ(vc, vr);
+                    const int gi = vc == c0 ? i : i + 1;   // the grid column of a vertex on a column edge
+                    const int gj = vr == r0 ? j : j + 1;
+                    if (onC && onR) {
+                        const bool shared = coarse(gi - 1, gj - 1) || coarse(gi, gj - 1) || coarse(gi - 1, gj) ||
+                                            coarse(gi, gj);
+                        return shared ? grid.Height(gi, gj, height) : groundZ(vc, vr);
+                    }
+                    if (onC) {
+                        const int other = vc == c0 ? i - 1 : i + 1;
+                        if (!coarse(other, j)) return groundZ(vc, vr);
+                        const float t = static_cast<float>(vr - r0) / static_cast<float>(r1 - r0);
+                        const float a = grid.Height(gi, j, height);
+                        const float b = grid.Height(gi, j + 1, height);
+                        return a + (b - a) * t;
+                    }
+                    const int other = vr == r0 ? j - 1 : j + 1;
+                    if (!coarse(i, other)) return groundZ(vc, vr);
+                    const float t = static_cast<float>(vc - c0) / static_cast<float>(c1 - c0);
+                    const float a = grid.Height(i, gj, height);
+                    const float b = grid.Height(i + 1, gj, height);
+                    return a + (b - a) * t;
+                };
+                for (int r = r0; r < r1; ++r) {
+                    for (int c = c0; c < c1; ++c) {
+                        emitTile(c, r, stitchedZ);
+                    }
+                }
+                continue;
+            }
             const int gi[4] = {i, i + 1, i + 1, i};
             const int gj[4] = {j, j, j + 1, j + 1};
             uint32_t colors[4];

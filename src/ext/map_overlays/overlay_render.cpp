@@ -193,6 +193,7 @@ struct TerrainCache {
     int mapSize = 0;
     uint32_t version = 0;
     uint64_t groundHash = 0;
+    std::vector<uint8_t> refine;   // RefineCells' answer the vertices were built with
     bool built = false;
     bool textured = false;
     bool reportedFailure = false;
@@ -209,6 +210,12 @@ TerrainCache& Cache() {
     return *cache;
 }
 
+// RefineCells' answer for the frame being drawn (kept: no allocation a frame).
+std::vector<uint8_t>& RefineScratch() {
+    static std::vector<uint8_t>* scratch = new std::vector<uint8_t>();
+    return *scratch;
+}
+
 // The camera's frustum corners (Volume::Frustum::GetCorners' order) in tile coordinates: world minus the world
 // position of tile vertex 0.
 void FrustumCorners(const Graphics::Camera& camera, float originX, float originY, Point3 (&out)[8]) {
@@ -222,6 +229,20 @@ void FrustumCorners(const Graphics::Camera& camera, float originX, float originY
         out[i].y = w.y - originY;
         out[i].z = w.z;
     }
+}
+
+// The camera's position in tile coordinates.
+Point3 EyeOf(const Graphics::Camera& camera, float originX, float originY) {
+    Math::Vector3 zero;
+    zero.x = 0.0f;
+    zero.y = 0.0f;
+    zero.z = 0.0f;
+    const Math::Vector3 w = camera._cameraToWorld.operator*(zero);
+    Point3 eye;
+    eye.x = w.x - originX;
+    eye.y = w.y - originY;
+    eye.z = w.z;
+    return eye;
 }
 
 // The ground at vertex (vc, vr): the heightmap's int16 / 256, clamped to the heightmap (show_grid's Ground).
@@ -572,12 +593,16 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
                 if (groundHash != cache.groundHash) cache.grid.InvalidateHeights();
             }
         }
+        // near, steep cells are drawn tile by tile (overlay_render_math.h): which ones moves with the camera
+        std::vector<uint8_t>& refine = RefineScratch();
+        RefineCells(rows, mapSize, EyeOf(camera, origin, origin), ground, cache.grid, refine);
         const bool same = cache.built && step == cache.step && mapSize == cache.mapSize &&
                           s.version == cache.version && groundHash == cache.groundHash &&
-                          textured == cache.textured && SameCellRows(rows, cache.rows);
+                          textured == cache.textured && SameCellRows(rows, cache.rows) && refine == cache.refine;
         if (!same) {
             BuildTerrainVertices(rows, mapSize, origin, origin, s.pixels, s.size, kTerrainOpacity, ground,
-                                 cache.grid, cache.vertices, textured);
+                                 cache.grid, cache.vertices, textured, &refine);
+            cache.refine = refine;
             cache.textured = textured;
             cache.rows = std::move(rows);
             cache.step = step;

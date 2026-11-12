@@ -1612,3 +1612,26 @@ step and changes once when it crosses one. The box always covers what retail's d
 larger, so a texel is at most 12% coarser. `ext.max_shadow_zoom` reads the box's side plane, so its
 choice follows the stepped size. Unit test: `shadow_zoom_steady_half_ladder`
 (`tests/unit/shadow_zoom_test.cpp`).
+
+## 34. "Increase priority" ranks behind earlier priorities after a save is loaded
+
+**Status: read in the retail disassembly and shown on a player's save; no fix row yet (awaits a ruling).**
+Reported 2026-11-11: the Increase Priority tool "may get temporarily totally suspended / ignored", seen
+after saving and reloading.
+
+**Mechanism.** A job's place in the idle work search is `Work::_queueOrder` (+0x24), ascending. A new job
+gets `nextQueueOrder++`. `WorkScheduler::PrioritizeWork` (`0x1400f9ad0`) gives a job the lowest key of the
+scheduler's queue-order tree (+0x10) minus one, or 0 when that tree is empty. `_queueOrder` is saved with
+each job, but the tree is not, and `WorkScheduler::Serialize` (`0x1400f9240`) rebuilds it on load only for a
+version-2 save (`cmp eax,2` / `jne` at `0x1400f934f`); the game writes version 3. After any load the tree is
+empty, so the first prioritized job gets 0, the next -1, and so on: behind every job prioritized before the
+save that is still waiting (those keep their negative keys), until the new keys count down past them.
+
+**Shown.** The player's save loads with 189 jobs, keys -2146 .. 5982 (three of them negative), a tree of 0
+nodes; `PrioritizeWork` on the job with key 5982 right after the load stores 0 where an unbroken session
+would store -2147. With three old priorities waiting the effect there is small; a large area prioritized
+before the save (one key per tree or stone) is what a later priority has to wait behind.
+
+**The lever, if ruled a fix.** Rebuild the tree on load for version 3 from each job's saved `_queueOrder`
+(the version-2 arm's insert with the job's own key). It changes which job a laborer takes after a load, so
+it is a sim change (class B).

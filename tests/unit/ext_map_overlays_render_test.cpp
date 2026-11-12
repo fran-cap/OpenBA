@@ -295,3 +295,57 @@ UNIT_TEST(ext_map_overlays_render_textured_vertices_carry_the_image_coordinates)
     }
     CHECK(lowU == 0.0f && highU == 1.0f);
 }
+
+UNIT_TEST(ext_map_overlays_render_near_steep_cells_are_refined) {
+    const int size = 16;
+    CoarseGrid grid;
+    grid.Reset(4, size);
+    std::vector<uint8_t> mask;
+    // the eye just above the bump: the four cells that share vertex (8, 8) float 5 over their low ground
+    Point3 nearEye;
+    nearEye.x = 8.0f;
+    nearEye.y = 8.0f;
+    nearEye.z = 20.0f;
+    RefineCells(AllCells(size, 4), size, nearEye, Bump, grid, mask);
+    CHECK(mask.size() == 16u);
+    int refined = 0;
+    for (uint8_t m : mask) refined += m;
+    CHECK(refined == 4);
+    CHECK(mask[1 * 4 + 1] == 1 && mask[1 * 4 + 2] == 1 && mask[2 * 4 + 1] == 1 && mask[2 * 4 + 2] == 1);
+    // from far away the same float is under kFloatPerDistance of the distance: nothing is refined
+    Point3 farEye = nearEye;
+    farEye.z = 5.0f / kFloatPerDistance + 100.0f;
+    RefineCells(AllCells(size, 4), size, farEye, Bump, grid, mask);
+    refined = 0;
+    for (uint8_t m : mask) refined += m;
+    CHECK(refined == 0);
+    // flat ground is never refined (the grid forgets the bump's heights first)
+    grid.InvalidateHeights();
+    RefineCells(AllCells(size, 4), size, nearEye, Flat, grid, mask);
+    refined = 0;
+    for (uint8_t m : mask) refined += m;
+    CHECK(refined == 0);
+}
+
+UNIT_TEST(ext_map_overlays_render_refined_cell_lies_on_the_ground) {
+    const int size = 16;
+    std::vector<uint32_t> image(size * size, kRedOpaque);
+    CoarseGrid grid;
+    grid.Reset(4, size);
+    std::vector<uint8_t> mask(16, 0);
+    mask[1 * 4 + 1] = 1;   // cell (1, 1): tiles 4..7 x 4..7, its corner (8, 8) on the bump
+    std::vector<TerrainVertex> out;
+    BuildTerrainVertices(AllCells(size, 4), size, 0.0f, 0.0f, image, size, 100, Bump, grid, out, false, &mask);
+    // 15 coarse quads and the refined cell's 16 tiles
+    CHECK(out.size() == (15u + 16u) * 6u);
+    // inside the refined cell the picture is on the ground: vertex (6, 6) is 0 high, where the coarse quad
+    // (corner (8, 8) at 5) passed well above it
+    bool sawInner = false;
+    for (const TerrainVertex& v : out) {
+        if (v.x == 6.0f && v.y == 6.0f) {
+            sawInner = true;
+            CHECK(v.z == 0.0f + kTerrainLift);
+        }
+    }
+    CHECK(sawInner);
+}
