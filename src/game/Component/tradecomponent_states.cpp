@@ -96,6 +96,8 @@
 #include "Entity/EntityList.h"        // EntityList::RegisterEntity (0x1400c48a0)
 #include "Component/CitizenComponent.h"   // B4 S4 RT2: InternalPtr<CitizenComponent>::Get() needs the class complete
 #include "Game/EventLog.h"   // EventLog::AddEvent (0x140095580)
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C)
+#include "ext/trader_request/trader_request.h"
 
 // TradeCtrlTag lives in TradeComponent.h (the member type needs it).
 using TradeDispatch = ::ControllerLive::Dispatcher<TradeCtrlTag>;
@@ -417,6 +419,10 @@ char TradeComponent::TickIdle(StateMachine* smV, const System::Time* deltaTime) 
 // BoatComponent's route head, which occupies the same offsets on a different object. The
 // two are easy to confuse when reading b160 and 56e0 side by side.
 char TradeComponent::Teardown() {
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C), a
+    // demolished post's request goes with it
+    Ext::TraderRequest::PostRemoved(this);
+
     ComponentEntity* entityIBP = _entity.Get();
     GameUpdateLoop* gw = GameUpdateLoop::_singleton;
     if (gw) {

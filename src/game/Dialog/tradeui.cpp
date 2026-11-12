@@ -69,6 +69,8 @@
 #include "Component/SelectDescription.h"   // X::TypeId() (B.3.9 CG2)
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
 #include "Entity/CitizenBehavior.h"   // the town's raw-material list (+0x110 / +0x118)
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C), the request row
+#include "ext/trader_request/trader_request.h"
 
 
 // Retail's sell/buy tables call the min/max setter through exe .rdata dispatch slot
@@ -1040,6 +1042,10 @@ void TradeUI::OnCreated() {
     RefreshDisplay();
     RefreshSellTable();
     RefreshBuyTable();
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C), the
+    // request row under the Orders tab's order combo
+    Ext::TraderRequest::PanelOpened(this);
 }
 
 // ============================================================
@@ -1087,6 +1093,10 @@ static int FindResourceValue(const ComponentDescription* resourceEntity) {
 void TradeUI::OnUpdateLayout() {
     if (!tradeui_sa::IsSetUp(this)) return;
     tradeui_sa::Trace("Slot7-values", this);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C), the
+    // request row follows the post's request (an arrival uses a "next visit" request up)
+    Ext::TraderRequest::PanelLayout(this);
 
     // Find the TradeComponent and StorageComponent
     ::Object::Base* source = _dataSource;
@@ -1242,6 +1252,10 @@ void TradeUI::OnElementEvent(Object::InternalPtr<UI::Element>* /*element*/, UI::
                              int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
     if (!tradeui_sa::IsSetUp(this)) return;
     tradeui_sa::Trace("Slot9-event", this);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C), the
+    // Orders tab's request row's two combos
+    if (Ext::TraderRequest::PanelEvent(this, eventType, eventId)) return;
 
 
     // The id ladder: 0 = Activated (0x12), two on = SelectionChanged, one more = ValueChanged.

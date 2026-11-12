@@ -39,7 +39,7 @@ bool ParseEmbedded(const char* path, File& f) {
 }  // namespace
 
 UNIT_TEST(ext_rsc_text_embedded_files) {
-    CHECK(kEmbeddedCount == 23);
+    CHECK(kEmbeddedCount == 24);
     CHECK(Embedded("Dialog/Extensions.rsc") != nullptr);
     CHECK(Embedded("Dialog/EnhancedOptions.rsc") != nullptr);
     CHECK(Embedded("Dialog/ExtensionsStringTable.rsc") != nullptr);
@@ -47,6 +47,7 @@ UNIT_TEST(ext_rsc_text_embedded_files) {
     CHECK(Embedded("Dialog/RestrictedFoodsPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ItemPriorityPage.rsc") != nullptr);
     CHECK(Embedded("Dialog/ItemLimitsPanel.rsc") != nullptr);
+    CHECK(Embedded("Dialog/TraderRequestPanel.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreePage.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreeWindow.rsc") != nullptr);
     CHECK(Embedded("Dialog/FamilyTreeSummary.rsc") != nullptr);
@@ -223,8 +224,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // views, + 4 for the dynamic Professions window (its title, its two column-button tips and its resize
     // strip), + 1 for the Experimental tab's caption, + 3 for ext.item_limits' panel row (label, two tips),
     // + 5 for the map window's Land view (caption, tip, the three key texts), + 10 for
-    // ext.storage_metrics' Town Hall tab, + 2 for ext.road_upgrade's button (its tooltip's title and text)
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10 + 2);
+    // ext.storage_metrics' Town Hall tab, + 2 for ext.road_upgrade's button (its tooltip's title and text),
+    // + 5 for ext.trader_request's Orders tab row (label, tip, any trader, the two modes)
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10 + 2 + 5);
     if (strings) {
         // The Extensions dialog's three tab captions.
         int tabKeys = 0;
@@ -323,6 +325,29 @@ UNIT_TEST(ext_rsc_text_parse_item_limits_panel) {
         CHECK(vertical && !vertical->tokens.empty() && vertical->tokens[0].text == "true");
     }
     CheckKnownTypes(f, "ItemLimitsPanel.rsc");
+}
+
+UNIT_TEST(ext_rsc_text_parse_trader_request_panel) {
+    File f;
+    CHECK(ParseEmbedded("Dialog/TraderRequestPanel.rsc", f));
+    // The row panel_row.cpp clones onto the trading post window's Orders tab: the text, by the name the rsc
+    // lists; the two combos are copies of the window's own order combo.
+    const Object* row = f.Find("ribbonTraderRequestRow");
+    CHECK(row && row->type == "RibbonDescription");
+    if (row) {
+        const Field* els = row->body.Find("_elements");
+        CHECK(els && els->tokens.size() == 1 && els->tokens[0].text == "textTraderRequestRow");
+    }
+    const Object* text = f.Find("textTraderRequestRow");
+    CHECK(text && text->type == "TextDescription");
+    // The column that takes the order combo's row's slot: vertical, so the row gets its own line under it.
+    const Object* column = f.Find("ribbonTraderRequestColumn");
+    CHECK(column && column->type == "RibbonDescription");
+    if (column) {
+        const Field* vertical = column->body.Find("_vertical");
+        CHECK(vertical && !vertical->tokens.empty() && vertical->tokens[0].text == "true");
+    }
+    CheckKnownTypes(f, "TraderRequestPanel.rsc");
 }
 
 UNIT_TEST(ext_rsc_text_parse_item_priority_page) {

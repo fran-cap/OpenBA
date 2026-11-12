@@ -88,6 +88,7 @@
 #include "ext/registry.h"        // Ext::Fix().autotrade_free_goods
 #include "ext/autotrade_free_goods/autotrade_free_goods_rule.h"   // fix.autotrade_free_goods
 #include "ext/map_overlays/map_overlays.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/MAPOVERLAYS.md): ext.map_overlays
+#include "ext/trader_request/trader_request.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request
 
 namespace {
 
@@ -259,8 +260,11 @@ void TradeComponent::BuildMerchantManifest() {
 
     // Roll which merchant arrived, and remember it: everything below indexes on it, and
     // so does the panel.
-    const int merchantIdx = static_cast<int>(rng->Rand(
+    int merchantIdx = static_cast<int>(rng->Rand(
         static_cast<uint32_t>(desc->_merchantCount)));
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): ext.trader_request (class C), a post
+    // with a request gets the trader it asked for instead of the roll, at RequestedPrice below
+    const bool requestedTrader = Ext::TraderRequest::Arriving(this, desc, merchantIdx);
     tradeId = merchantIdx;
 
     const TradeMerchant& merchantRec = desc->_merchants[merchantIdx];
@@ -321,6 +325,10 @@ void TradeComponent::BuildMerchantManifest() {
         int price = vd->_baseValue;
         if (fromOrder) price = static_cast<int>(static_cast<float>(price) * 1.25f);  // DAT_140172158
         if (price < 1) price = 1;
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/TRADERREQUEST.md): a requested trader's goods cost double
+        if (requestedTrader) {
+            price = Ext::TraderRequest::RequestedPrice(price);
+        }
 
         ComponentDescription* good = goods.base[pick];
 

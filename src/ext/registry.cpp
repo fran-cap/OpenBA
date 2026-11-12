@@ -572,6 +572,14 @@ const Entry kEntries[] = {
       "of a workshop that makes it. Every workshop making that item stops at the limit. Play diverges; "
       "the limits are recorded in the save.",
       1, [](State& s) -> bool& { return s.ext.item_limits; } },
+    // TRADERREQUEST (docs/extensions/handins/TRADERREQUEST.md): a trading post can ask for one trader, for the
+    // next visit or every visit, from its Orders tab; a requested trader's goods cost double. Class C: the
+    // requests are the town's own state, recorded in the save's tail (src/ext/trader_request/save_state.cpp).
+    { "trader_request", Tier::Extension, Class::C, true,
+      "Request a trader",
+      "Lets a trading post ask for one trader, for the next visit or every visit, from its Orders tab. "
+      "A requested trader's goods cost double. Play diverges; the requests are recorded in the save.",
+      1, [](State& s) -> bool& { return s.ext.trader_request; } },
 
     // TERRAINEDIT (docs/extensions/handins/TERRAINEDIT.md): a brush tool, started from the Terrain page of
     // the extension window, that edits the terrain under the mouse. Class B: play diverges (the map is no
