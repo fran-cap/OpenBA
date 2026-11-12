@@ -26,7 +26,7 @@
 // the game no longer has is never "arriving": the post gets retail's roll and the request stays.
 //
 // THE PANEL. The trading post window's Orders tab gets one row at its foot: "Request trader
-// (double prices)", a combo of the traders ("Any trader" first) and a combo of the mode.
+// (price mult)", a combo of the traders ("Any trader" first) and a combo of the mode.
 //
 // The list and the codec are standard C++ only: tests/unit/ext_trader_request_test.cpp links
 // trader_request.cpp and save_state.cpp on their own. The game side is trader_request_town.cpp (the arrival,
@@ -88,6 +88,11 @@ bool TraderIsValid(const std::string& trader);
 // index of the requested trader, or -1 when the post has no request or its trader is not in the list. A
 // kModeOnce request that is honoured is removed.
 int TakeArrival(int32_t post, const std::vector<std::string>& traders);
+
+// A trader's line in the row's combo: its display name without a trailing " Merchant" or " Trader" (compared
+// without case; "General Goods Merchant" is cut off in the combo), then the price multiple: "Food (2x)".
+// A name that is only that word, or has none, is kept whole.
+std::string ComboLabel(const std::string& displayName);
 
 // A manifest line's price for a requested visit: `price` (retail's, after its order markup) times
 // kPriceFactor, never below 1 and never past INT32_MAX.

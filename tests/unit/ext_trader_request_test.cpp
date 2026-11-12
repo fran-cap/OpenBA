@@ -153,6 +153,16 @@ UNIT_TEST(ext_trader_request_a_requested_visit_costs_double) {
     CHECK(RequestedPrice(top) == top);
 }
 
+UNIT_TEST(ext_trader_request_combo_labels_are_short_and_carry_the_multiple) {
+    CHECK(ComboLabel("Food Merchant") == "Food (2x)");
+    CHECK(ComboLabel("General Goods Merchant") == "General Goods (2x)");
+    CHECK(ComboLabel("Seed merchant ") == "Seed (2x)");
+    CHECK(ComboLabel("Spice TRADER") == "Spice (2x)");                // a mod's trader
+    CHECK(ComboLabel("Olga") == "Olga (2x)");                         // no such word: the name as it is
+    CHECK(ComboLabel("Merchant") == "Merchant (2x)");                 // only that word: kept
+    CHECK(ComboLabel("") == " (2x)");
+}
+
 UNIT_TEST(ext_trader_request_state_codec_round_trip) {
     const Ext::SaveTail::StateCodec* c = TheCodec();
     CHECK(c != nullptr);

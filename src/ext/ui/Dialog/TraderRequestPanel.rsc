@@ -2,7 +2,7 @@
 // RETAIL; authored for this port, src/ext).
 //
 // docs/extensions/handins/TRADERREQUEST.md, src/ext/trader_request/panel_row.cpp. One row at the foot of the
-// tab: the text "Request trader (double prices)". The controller adds two copies of the tab's order combo
+// tab: the text "Request trader (price mult)". The controller adds two copies of the tab's order combo
 // (the window's "comboOrder", made from its description) as the row's last elements, so they look like that
 // one: the traders ("Any trader" first) and the mode (next visit / every visit). It puts the row in a column
 // with the order combo's parent (ribbonTraderRequestColumn).
@@ -21,6 +21,7 @@ RibbonDescription ribbonTraderRequestColumn
 RibbonDescription ribbonTraderRequestRow
 {
 	Alignment _alignment = MidLeft;
+	int _leftPad = 8;
 	int _topPad = 2;
 	int _cellPad = 4;
 	ElementDescription _elements [ "textTraderRequestRow" ]

@@ -2,8 +2,8 @@
 // src/ext/trader_request/panel_row.cpp -- ext.trader_request's row on the trading post window's Orders tab
 // ============================================================================
 // docs/extensions/handins/TRADERREQUEST.md section 4. The trading post window (TradeUI, tradeui.cpp) gets one
-// more row on its Orders tab: the text "Request trader (double prices)", a combo of the post's traders with
-// "Any trader" first, and a combo of the mode (next visit / every visit). The text is our own description
+// more row on its Orders tab: the text "Request trader (price mult)", a combo of the post's traders with
+// "Any trader (1x)" first and each trader as "Food (2x)", and a combo of the mode (next visit / every visit). The text is our own description
 // (TraderRequestPanel.rsc:ribbonTraderRequestRow); the two combos are copies of the tab's order combo
 // ("comboOrder"), made from its description, so they look exactly like it in the retail window or a mod's.
 // A vertical column (ribbonTraderRequestColumn) takes the slot of the order combo's parent and holds that
@@ -254,7 +254,9 @@ void PanelOpenedSlow(TradeUI* panel) {
     for (int32_t i = 0; i < desc->_merchantCount; ++i) {
         const TradeMerchant& m = desc->_merchants[i];
         const UI::String shown(Object::ExternalPtr<UI::StringTable>(m.stringTable), m.name);
-        row.trader->AddItem(UI::Sprite(), static_cast<System::String>(shown), nullptr);
+        const System::String display = static_cast<System::String>(shown);
+        const std::string label = ComboLabel(display._data != nullptr ? std::string(display._data) : std::string());
+        row.trader->AddItem(UI::Sprite(), System::String(label.c_str()), nullptr);
         row.traders.push_back(m.name._data != nullptr ? std::string(m.name._data) : std::string());
     }
     row.mode->AddItem(UI::Sprite(), OurText("TraderRequestOnce"), nullptr);

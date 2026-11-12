@@ -3,6 +3,7 @@
 // trader_request.h and docs/extensions/handins/TRADERREQUEST.md.
 #include "ext/trader_request/trader_request.h"
 
+#include <cctype>
 #include <limits>
 
 namespace Ext {
@@ -108,6 +109,38 @@ int TakeArrival(int32_t post, const std::vector<std::string>& traders) {
         g_requests.erase(g_requests.begin() + i);
     }
     return found;
+}
+
+std::string ComboLabel(const std::string& displayName) {
+    std::string name = displayName;
+    while (!name.empty() && name.back() == ' ') {
+        name.pop_back();
+    }
+    for (const char* suffix : { " merchant", " trader" }) {
+        const std::string tail(suffix);
+        if (name.size() <= tail.size()) {
+            continue;
+        }
+        bool same = true;
+        const std::size_t at = name.size() - tail.size();
+        for (std::size_t i = 0; i < tail.size(); ++i) {
+            if (std::tolower(static_cast<unsigned char>(name[at + i])) != tail[i]) {
+                same = false;
+                break;
+            }
+        }
+        if (same) {
+            name.erase(at);
+            while (!name.empty() && name.back() == ' ') {
+                name.pop_back();
+            }
+            break;
+        }
+    }
+    if (name.empty()) {
+        name = displayName;
+    }
+    return name + " (" + std::to_string(kPriceFactor) + "x)";
 }
 
 int32_t RequestedPrice(int32_t price) {
