@@ -4,6 +4,12 @@ One section per release, newest first. The section of the version being tagged i
 release's notes (`.github/workflows/release.yml` reads it with `tools/release/changelog_section.py`).
 Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CMakeLists.txt`.
 
+## Unreleased
+
+**Fixes:**
+1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).
+2. No red cell left where stone, iron or a tree was cleared with the Remove Resources tool on uneven ground (`fix.terrain_resort`).
+
 ## v1.0.3 (2026-11-10)
 
 **Major Changes:**

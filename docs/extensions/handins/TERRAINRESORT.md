@@ -60,6 +60,10 @@ calls steep (951 too high, 88 too sloped), 0 of 3,015 rocks. Of those 1,039 cell
 fully placeable 2x2 square today, 417 in a 4x4 one; every one is road-placeable while the
 resource stands.
 
+2026-11-11: the Remove tool's one-cell marker is the cell's blocker while its resource is cleared; it
+is not an owner's zone (`ZonedByOther`), or every resource cleared with the tool on such ground left a
+red cell (docs/retail_bugs.md §8, "The Remove tool's marker").
+
 The rule (`ClearedCellType`): the cell was type 4, no other entity's zone claims it (a pasture's
 fence and a cemetery's stone are type 4 inside their owner's zone, so they are left), and the
 classifier says 10: write 2. It is not limited to natural resources: a fix-on run of a player's

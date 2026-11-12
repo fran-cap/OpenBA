@@ -319,6 +319,15 @@ existing save: nothing records that a stored 10 held a tree. `src/ext/terrain_re
 docs/extensions/handins/TERRAINRESORT.md. With the fix on, the four saves load with 0 such
 cells left.
 
+**The Remove tool's marker (2026-11-11).** A second player report, with a save pair of one town:
+red cells where stone and iron had been cleared with the Remove Resources tool, fix on. The tool
+puts a one-cell marker entity on each resource (`RemovalTool::CalcPath` `0x1401035e0`), which is the
+cell's blocker while the resource is cleared. Lever (b) took any blocker other than the leaving
+entity for an owner's zone and left the cell to the re-sort, so it turned 10: 9 cells between the
+two saves, and 15 more within seconds of loading the later one. The marker (the entity with a
+`ClearResourceComponent`) is now no owner (`ZonedByOther`): the same load re-sorts no cell to 10.
+Cells that turned red before stay red, as for lever (b).
+
 **What red means.** `Map::TestPlacement` (`0x14009f5d0`, `Player/tool_base_path.cpp`) fails a
 cell on any of: (a) its terrain type (MapCell `+0x29`) is outside the tool's mask; (b) a
 blocker entity (`+0x00`); (c) `footprintCount` (`+0x28`) non-zero while the tested cell is not

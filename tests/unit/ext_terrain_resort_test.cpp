@@ -81,3 +81,13 @@ UNIT_TEST(ext_terrain_resort_cleared_cell_only_for_a_lone_occupant) {
     CHECK_EQ(ClearedCellType(kTypeResource, kTypeSteep, true), kTypeSteep);
     CHECK_EQ(ClearedCellType(5, kTypeSteep, false), kTypeSteep);
 }
+
+UNIT_TEST(ext_terrain_resort_removal_marker_claims_no_ground) {
+    // Stone cleared with the Remove tool: the tool's marker blocks the cell, the stone is still a
+    // lone occupant and the cell stays buildable. Another building's blocker keeps the exclusion.
+    CHECK(!ZonedByOther(false, false));
+    CHECK(ZonedByOther(true, false));
+    CHECK(!ZonedByOther(true, true));
+    CHECK_EQ(ClearedCellType(kTypeResource, kTypeSteep, ZonedByOther(true, true)), kTypeBuildable);
+    CHECK_EQ(ClearedCellType(kTypeResource, kTypeSteep, ZonedByOther(true, false)), kTypeSteep);
+}
