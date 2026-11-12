@@ -149,6 +149,9 @@ struct Extensions {
     // class C: src/ext/item_limits/ (docs/extensions/handins/ITEMLIMITS.md); a town-wide limit per item, set
     // in a workshop's panel
     bool item_limits = false;
+    // class C: src/ext/trader_request/ (docs/extensions/handins/TRADERREQUEST.md); a trading post asks for one
+    // trader, whose goods then cost double
+    bool trader_request = false;
     // class B: src/ext/terrain_edit/ (docs/extensions/handins/TERRAINEDIT.md); a brush tool that edits the
     // terrain under the mouse
     bool terrain_edit = false;

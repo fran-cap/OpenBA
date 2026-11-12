@@ -249,6 +249,7 @@ void InitText() {
     Register("Dialog/RestrictedFoodsPage", &ProvideText, nullptr);
     Register("Dialog/ItemPriorityPage", &ProvideText, nullptr);
     Register("Dialog/ItemLimitsPanel", &ProvideText, nullptr);
+    Register("Dialog/TraderRequestPanel", &ProvideText, nullptr);
     Register("Dialog/TerrainEditPage", &ProvideText, nullptr);
     Register("Dialog/TouchControls", &ProvideText, nullptr);
     Register("Dialog/TouchPointer", &ProvideText, nullptr);

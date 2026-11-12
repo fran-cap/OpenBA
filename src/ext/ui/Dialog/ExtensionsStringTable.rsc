@@ -144,6 +144,12 @@ StringTable resource
 		{ String _name = "ItemLimitsLabel";			String _text = "@0 limit"; }
 		{ String _name = "ItemLimitsCheckTip";		String _text = "Check to give this item its own limit. Every workshop making it stops when the town holds this many, even under the category limit."; }
 		{ String _name = "ItemLimitsSpinnerTip";	String _text = "The town-wide limit for this item, shared by every workshop that makes it."; }
+		// ext.trader_request's row on the trading post window's Orders tab (TraderRequestPanel.rsc)
+		{ String _name = "TraderRequestLabel";		String _text = "Request trader (double prices)"; }
+		{ String _name = "TraderRequestTip";		String _text = "Ask for one trader instead of whoever turns up. A requested trader's goods cost double."; }
+		{ String _name = "TraderRequestAny";		String _text = "Any trader"; }
+		{ String _name = "TraderRequestOnce";		String _text = "Next visit"; }
+		{ String _name = "TraderRequestAlways";		String _text = "Every visit"; }
 		{ String _name = "ItemPriorityShowAllTip";	String _text = "Unchecked: only items your town has made or stored, and the ranked ones."; }
 
 		// ext.family_tree's page in it (FamilyTreePage.rsc); the rows' texts are set by the controller through FamilyParam

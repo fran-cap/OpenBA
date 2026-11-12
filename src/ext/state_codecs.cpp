@@ -10,6 +10,7 @@
 #include "ext/restricted_foods/restricted_foods.h"   // RestrictedFoods::Codec()
 #include "ext/item_priority/item_priority.h"   // ItemPriority::Codec()
 #include "ext/item_limits/item_limits.h"   // ItemLimits::Codec()
+#include "ext/trader_request/trader_request.h"   // TraderRequest::Codec()
 #include "ext/tool_names/tool_names.h"   // ToolNames::Codec()
 #include "ext/family_tree/family_tree.h"   // FamilyTree::Codec()
 #include "ext/map_overlays/map_overlays.h"   // MapOverlays::Codec()
@@ -26,6 +27,7 @@ const StateCodec* const* Codecs(int& n) {
         &RestrictedFoods::Codec(),
         &ItemPriority::Codec(),
         &ItemLimits::Codec(),
+        &TraderRequest::Codec(),
         &ToolNames::Codec(),
         &FamilyTree::Codec(),
         &MapOverlays::Codec(),
