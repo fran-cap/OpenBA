@@ -40,6 +40,12 @@
 // MainLoop::_extVideoLost) and recreated and refilled from the retained pixels on the restore
 // (OnVideoRestored, from MainLoop::_extVideoRestored). The material and the sheet hold no device object.
 // The terrain's textures (THE EXACT VIEWS) go the same way.
+//
+// A NEW GAME. The game's Externals (the Selection material's Material, the map window's blend Material) are
+// freed with the game that loaded them and loaded anew by the next one, and an ExternalPtr holds no
+// reference. OnGameStartRender therefore drops every object here that points at one: the map window's sheet
+// and material, each terrain texture's MaterialInstance (made again at its next use) and the snapshot's
+// material. Without it the second game of a session drew the Land view with the first game's freed Material.
 // ============================================================================
 
 #include "ext/map_overlays/map_overlays.h"
@@ -341,26 +347,37 @@ void UploadTerrain(TerrainTexture& t) {
 // The texture of `size` with its material: the minimap's image parameters but POINT filtered (filter 0), on a
 // MaterialInstance of the Selection material's Material with the image as its "diffuse" (Selection.rsc's own
 // texture name). Null when it cannot be made.
-TerrainTexture* TerrainTextureOf(int size) {
-    for (TerrainTexture* t : Textures()) {
-        if (t->size == size) return t;
-    }
+// A MaterialInstance of this game's Selection Material over `image`. Null when it cannot be made.
+Graphics::MaterialInstance* TerrainMaterialOver(Video::ImageBuffer* image) {
     const Graphics::MaterialInstance* selection = SelectionInstance();
     const Graphics::Material* material = selection != nullptr ? selection->_material.Get() : nullptr;
     if (material == nullptr) return nullptr;
-    Video::ImageBuffer* image = new Video::ImageBuffer();
-    if (image == nullptr) return nullptr;
-    image->Create(0, 2, 5, 0u, size, size, 0, 1, 1, 1, nullptr);
     // As MapUI::SetupImage (0x14006cb00) makes its own: the engine's allocator, the public constructor.
     void* memory = System::MemoryAllocator::MemAlloc(sizeof(Graphics::MaterialInstance), 8);
-    if (memory == nullptr) {
-        delete image;
-        return nullptr;
-    }
+    if (memory == nullptr) return nullptr;
     Graphics::MaterialInstance* instance = ::new (memory) Graphics::MaterialInstance();
     instance->SetMaterial(Object::ExternalPtr<Graphics::Material>(const_cast<Graphics::Material*>(material)));
     instance->AddTexture(System::String("diffuse"), Object::ExternalPtr<Video::ImageBuffer>(image));
     instance->BuildParameters();
+    return instance;
+}
+
+TerrainTexture* TerrainTextureOf(int size) {
+    for (TerrainTexture* t : Textures()) {
+        if (t->size != size) continue;
+        if (t->material == nullptr) {
+            t->material = TerrainMaterialOver(t->image);   // dropped by a new game (the header)
+        }
+        return t->material != nullptr ? t : nullptr;
+    }
+    Video::ImageBuffer* image = new Video::ImageBuffer();
+    if (image == nullptr) return nullptr;
+    image->Create(0, 2, 5, 0u, size, size, 0, 1, 1, 1, nullptr);
+    Graphics::MaterialInstance* instance = TerrainMaterialOver(image);
+    if (instance == nullptr) {
+        delete image;
+        return nullptr;
+    }
     TerrainTexture* t = new TerrainTexture();
     t->image = image;
     t->material = instance;
@@ -572,6 +589,25 @@ void DrawOnTerrain(Video::Context& context, const Graphics::Camera& camera) {
     }
     if (cache.vertices.empty()) return;
     DrawVertices(context, camera, cache.vertices, material);
+}
+
+// ---- a new game ------------------------------------------------------------------------------------------
+
+void OnGameStartRender() {
+    g_terrainShown.store(false, std::memory_order_relaxed);
+    Snapshot& s = Snap();
+    {
+        std::lock_guard<std::mutex> guard(s.lock);
+        s.valid = false;
+        s.material = nullptr;
+    }
+    // The last game's MapUI is gone and its Materials with it: the sheet and the material over them go too
+    // (neither destructor reads its Material).
+    DestroyPicture();
+    for (TerrainTexture* t : Textures()) {
+        delete t->material;
+        t->material = nullptr;
+    }
 }
 
 // ---- the device ------------------------------------------------------------------------------------------

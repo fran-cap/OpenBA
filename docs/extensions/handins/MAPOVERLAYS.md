@@ -117,6 +117,14 @@ full colour is a high percentile of the non-zero tiles. The ramp is transparent 
 green, yellow to red. The image is rebuilt at most once a second while a view shows, at once on a change of
 selection; the minimap and the terrain upload only when its version changes.
 
+A new game (2026-11-11): the renderers keep nothing that points at the last game's Externals. The game's
+Materials are freed with the game and an `ExternalPtr` holds no reference, so `OnGameStartRender`
+(`overlay_render.cpp`, from `OnGameStart`) drops the map window's sheet and material, each terrain texture's
+MaterialInstance and the snapshot's material; they are made again at the next use. Before, the Land view on
+the terrain in a second game of one process drew with the first game's freed Material (a player's report:
+the game aborts on "Show overlay on terrain"). Repro: `BANISHED_AUTOSTART_GAMES=2` with
+`BANISHED_PAUSEMENU_BUTTON=5` and the view forced on in each game.
+
 ## 6. Files
 
 | file | what it holds |
