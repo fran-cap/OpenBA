@@ -197,6 +197,10 @@ StringTable resource
 		{ String _name = "ExtensionsTabDefault";		String _text = "Default"; }
 		{ String _name = "ExtensionsTabExperimental";	String _text = "Experimental"; }
 
+		// ext.road_upgrade's button in the toolbar's roads group (src/ext/road_upgrade)
+		{ String _name = "RoadUpgradeTitle";			String _text = "Upgrade Roads"; }
+		{ String _name = "RoadUpgradeTip";			String _text = "Drag over an area to rebuild its dirt roads as stone roads."; }
+
 		// ext.building_finder's page in it (BuildingFinderPage.rsc); the rows' texts are set by the controller through FinderParam
 		{ String _name = "FinderTab";				String _text = "Find Buildings"; }
 		{ String _name = "FinderHint";			String _text = "Press a name to place it. + adds it to your favorites."; }

@@ -814,6 +814,16 @@ const Entry kEntries[] = {
       "Replaces the Professions window with one that lists only the professions your town can use: the "
       "laborer and builder, and any profession with a workplace built or a citizen working at it.",
       0, [](State& s) -> bool& { return s.ext.dynamic_professions; } },
+    // ROADUPGRADE (docs/extensions/handins/ROADUPGRADE.md): a drag tool with its own button in the toolbar's
+    // roads group: every dirt road in the dragged rectangle is ordered rebuilt as stone, through the order
+    // the stone road tool places. Class A: the orders are the game's own (a player can place the same ones
+    // by tracing the roads with the stone road tool), nothing is kept, live.
+    // ON by default (class A; the user's ruling of 2026-11-11).
+    { "road_upgrade", Tier::Extension, Class::A, true,
+      "Upgrade roads",
+      "Adds an Upgrade Roads tool to the toolbar's roads menu: drag a rectangle and every dirt road in it "
+      "is rebuilt as a stone road, without tracing each road again.",
+      0, [](State& s) -> bool& { return s.ext.road_upgrade; } },
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a

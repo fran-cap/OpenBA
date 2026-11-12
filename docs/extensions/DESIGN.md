@@ -165,6 +165,8 @@ separate axis, a *surface*, and every surface is built once as a host that exten
 | In-game toolbar window | one extension button on the toolbar opening a window of pages, built with the first extension that needs it | a page, offered only while the extension is active for the town |
 | A tab in one of the game's own tabbed windows | the window's own `UI::TabElement` (the Town Hall's: `TownHallUI::tabElement`), `AddTab` after the game's tabs | the tab's button and page (our text `.rsc`), for a report that belongs with that window's own (`ext.storage_metrics`, `handins/STORAGEMETRICS.md`); the tab the window remembers is recorded as one retail has |
 
+| A tool button in a toolbar group | the toolbar host, one button per group at most (`Ext::Toolbar::InsertAt` / `ButtonTemplate` / `Style` / `Click` / `SyncButton`) | a placement tool that belongs beside the game's own tools (`ext.road_upgrade` in the roads group, ruled 2026-11-11, `handins/ROADUPGRADE.md`) |
+
 A new window is never a new class and never a button per feature: the toolbar gets ONE extension
 button, the window shows one page per active contributing extension, and with no active contributor
 the button is not added and the toolbar is retail's. Dialog resources are our own text `.rsc`

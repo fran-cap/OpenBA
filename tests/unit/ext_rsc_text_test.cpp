@@ -223,8 +223,8 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // views, + 4 for the dynamic Professions window (its title, its two column-button tips and its resize
     // strip), + 1 for the Experimental tab's caption, + 3 for ext.item_limits' panel row (label, two tips),
     // + 5 for the map window's Land view (caption, tip, the three key texts), + 10 for
-    // ext.storage_metrics' Town Hall tab
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10);
+    // ext.storage_metrics' Town Hall tab, + 2 for ext.road_upgrade's button (its tooltip's title and text)
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10 + 2);
     if (strings) {
         // The Extensions dialog's three tab captions.
         int tabKeys = 0;

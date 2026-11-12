@@ -108,6 +108,8 @@ struct Extensions {
     bool storage_metrics = false;
     // class A: src/ext/dynamic_professions/ (docs/extensions/handins/DYNAMICPROFESSIONS.md)
     bool dynamic_professions = false;
+    // class A, live: src/ext/road_upgrade/, a drag tool in the toolbar's roads group (docs/extensions/handins/ROADUPGRADE.md)
+    bool road_upgrade = false;
     bool tool_names = false;   // class C: src/ext/tool_names/ (docs/extensions/handins/TOOLNAMES.md)
     bool better_camera = false; // class B: src/ext/better_camera/ (docs/extensions/handins/BETTERCAM.md): zoom range 6 .. 200 ("Wider zoom")
     bool camera_angle = false;  // class A, live: src/ext/camera_angle/, the far pitch pair in PlayerToolManager::UpdateCamera (docs/extensions/handins/CAMERAANGLE.md)
