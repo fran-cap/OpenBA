@@ -254,7 +254,7 @@ UNIT_TEST(ext_sharp_sheet_art_table) {
 }
 
 UNIT_TEST(ext_sharp_sheet_ext_art_table) {
-    CHECK(SpritesData2x::kExtSpriteCount == 3);
+    CHECK(SpritesData2x::kExtSpriteCount == 4);
     CheckArtTable(SpritesData2x::kExtSprites, SpritesData2x::kExtSpriteCount, 2);
     CheckArtTable(SpritesData4x::kExtSprites, SpritesData4x::kExtSpriteCount, 4);
     CheckSameSprites(SpritesData2x::kExtSprites, SpritesData2x::kExtSpriteCount, 2,
@@ -264,5 +264,6 @@ UNIT_TEST(ext_sharp_sheet_ext_art_table) {
     const int n = SpritesData4x::kExtSpriteCount;
     CHECK(FindArt(ext, n, "ExtensionsIcon", 16, 16, 4) != nullptr);
     CHECK(FindArt(ext, n, "ToolbarExtensions", 32, 32, 4) != nullptr);
+    CHECK(FindArt(ext, n, "ToolbarRoadUpgrade", 32, 32, 4) != nullptr);
     CHECK(FindArt(ext, n, "GameFilesIcon", 16, 16, 4) != nullptr);
 }

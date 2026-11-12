@@ -5,7 +5,7 @@ Writes src/ext/ui/Dialog/Sprite/Extensions/{ExtensionsIcon,OptionsEnhanced,TierF
 RGBA like the Mods button's "Mod" sprite (the kit's Dialog/Sprite/ButtonIcons/Scenario.png). The
 PNGs are committed; rerun this only to regenerate the placeholder art. The user replaces the PNGs
 with real art later (tools/ext_resources.sh recompiles them into the sprite sheet). Also writes the 2x / 4x
-ExtensionsIcon, Toolbar_extensions and GameFilesIcon for ext.sharp_ui (SHARP_SPRITES below).
+ExtensionsIcon, Toolbar_extensions, Toolbar_road_upgrade and GameFilesIcon for ext.sharp_ui (SHARP_SPRITES below).
 
 usage: python tools/ext_sprites.py        (from the repo root; needs Pillow)
 """
@@ -51,6 +51,43 @@ def icon(size=W):
     ipx, apx = img.load(), alpha.load()
     for y in range(H):
         for x in range(W):
+            ipx[x, y] = (255, 255, 255, apx[x, y])
+    return img
+
+
+def road_upgrade_icon(size=32):
+    """ext.road_upgrade's toolbar button (src/ext/road_upgrade): a dirt road tile (an outline with loose
+    pebbles), an arrow, a stone road tile (laid stones): a dirt road becomes a stone road. White with
+    antialiased alpha and no outline like icon(), at the toolbar icons' 32 px; our own drawing, not the
+    game's road icons. Drawn at 8x on a 32-unit grid and box-filtered down."""
+    from PIL import ImageDraw
+    S = 8
+    k = size * S / 32.0
+    big = Image.new("L", (size * S, size * S), 0)
+    d = ImageDraw.Draw(big)
+
+    def box(x0, y0, x1, y1, fill=255):
+        d.rectangle([x0 * k, y0 * k, x1 * k - 1, y1 * k - 1], fill=fill)
+
+    # the dirt tile: a frame with pebbles
+    box(1, 8, 12, 24)
+    box(2.5, 9.5, 10.5, 22.5, fill=0)
+    for cx, cy in ((4.75, 12), (8.25, 14), (5, 16.5), (8.25, 19), (4.75, 20.5)):
+        d.ellipse([(cx - 1.0) * k, (cy - 1.0) * k, (cx + 1.0) * k - 1, (cy + 1.0) * k - 1], fill=255)
+    # the arrow
+    box(13, 15, 16.5, 17)
+    d.polygon([(16 * k, 12.5 * k), (19.5 * k, 16 * k), (16 * k, 19.5 * k)], fill=255)
+    # the stone tile: four courses of laid stones, the joints staggered
+    for row, y in enumerate((8, 12.25, 16.5, 20.75)):
+        xs = ((20.5, 25.5), (26.5, 31)) if row % 2 == 0 else ((20.5, 22.5), (23.5, 28), (29, 31))
+        for x0, x1 in xs:
+            box(x0, y, x1, y + 3.25)
+    alpha = big.resize((size, size), Image.BOX)
+    img = Image.new("RGBA", (size, size), CLEAR)
+    img.putalpha(alpha)
+    ipx, apx = img.load(), alpha.load()
+    for y in range(size):
+        for x in range(size):
             ipx[x, y] = (255, 255, 255, apx[x, y])
     return img
 
@@ -207,6 +244,7 @@ SHARP_FACTORS = (2, 4)
 SHARP_SPRITES = [  # (png name, draw(size), 1x size)
     ("ExtensionsIcon", icon, 16),
     ("Toolbar_extensions", icon, 32),
+    ("Toolbar_road_upgrade", road_upgrade_icon, 32),
     ("GameFilesIcon", game_files_icon, 16),
 ]
 
@@ -217,6 +255,7 @@ def main():
     options_enhanced().save(os.path.join(OUT, "OptionsEnhanced.png"))
     game_files_icon().save(os.path.join(OUT, "GameFilesIcon.png"))
     icon(32).save(os.path.join(OUT, "Toolbar_extensions.png"))   # the toolbar's one extension button: the cog at the toolbar icons' 32 px
+    road_upgrade_icon(32).save(os.path.join(OUT, "Toolbar_road_upgrade.png"))   # ext.road_upgrade's tool button in the roads group
     glyph("F", TIER_COLOUR["fix"]).save(os.path.join(OUT, "TierFix.png"))
     glyph("A", TIER_COLOUR["A"]).save(os.path.join(OUT, "TierA.png"))
     glyph("B", TIER_COLOUR["B"]).save(os.path.join(OUT, "TierB.png"))
@@ -230,7 +269,7 @@ def main():
     glyphs = glyph_sprites()
     for glyph_id, draw in sorted(glyphs.items()):
         draw().save(os.path.join(OUT, "Glyph_%s.png" % glyph_id))
-    print("wrote %d sprites to %s" % (7 + len(icons) + len(glyphs), OUT))
+    print("wrote %d sprites to %s" % (8 + len(icons) + len(glyphs), OUT))
     for factor in SHARP_FACTORS:
         out = os.path.join(SHARP_OUT, "%dx" % factor, "Extensions")
         os.makedirs(out, exist_ok=True)

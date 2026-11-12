@@ -6,6 +6,9 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 
 ## Unreleased
 
+**Extensions:**
+1. Upgrade Roads tool in the roads menu: drag a rectangle and its dirt roads are rebuilt as stone (`ext.road_upgrade`).
+
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).
 2. No red cell left where stone, iron or a tree was cleared with the Remove Resources tool on uneven ground (`fix.terrain_resort`).

@@ -16,6 +16,7 @@
 #include "ui/TextElement.h"
 #include "ui/ImageElement.h"
 #include "ui/ButtonElement.h"
+#include "ui/CheckElement.h"
 #include "ui/ComboElement.h"
 #include "ui/ElementDescription.h"
 #include "ui/Element.h"
@@ -37,8 +38,10 @@
 #include "system/MemoryAllocator.h"
 #include "Game/GameUpdateLoop.h"
 #include "Game/Toolbar.h"
+#include "Component/ComponentDescription.h"   // a tool button's user data (the template its tool builds from)
 
 #include "ext/toolbar/toolbar.h"
+#include "ext/road_upgrade/road_upgrade.h"   // the roads group's tool button
 #include "ext/registry.h"
 #include "ext/ui/find_element.h"
 #include "ext/toolbar/window_state.h"   // SavedWindow(): open / where / which page, the host record
@@ -46,6 +49,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <new>
 #include <string>
 #include <vector>
@@ -452,11 +456,25 @@ void Toggle(UI::UserInterface* ui) {
 // The toolbar button (EXT SEAMS in ToolbarDialog)
 // ===========================================================================
 int InsertAt(const ::Toolbar* group, const ::Toolbar* const* items, int n) {
-    if (GroupName(group) != "reports") {
-        return -1;
-    }
     if (GameUpdateLoop::_singleton == nullptr) {
         return -1;
+    }
+    if (GroupName(group) != "reports") {
+        // ext.road_upgrade's tool button, in the group that holds the road tools (found by its tools, not
+        // by its name: a mod may rename or regroup them)
+        if (GateProfileForced()) {
+            return -1;
+        }
+        const int road = RoadUpgrade::InsertAt(group, items, n);
+        if (road < 0) {
+            return -1;
+        }
+        if (OurStringTable() == nullptr || OurSpriteSheet() == nullptr) {
+            std::fprintf(stderr, "[ExtToolbar] ExtensionsStringTable / ExtensionsSprites did not load: "
+                         "no road upgrade button\n");
+            return -1;
+        }
+        return road;
     }
     if (!Offered()) {
         return -1;
@@ -478,16 +496,24 @@ int InsertAt(const ::Toolbar* group, const ::Toolbar* const* items, int n) {
     return at;
 }
 
-void Style(UI::Element* button, int32_t index) {
+int ButtonTemplate(const ::Toolbar* group) {
+    // a tool button looks and holds like the group's own tool buttons (2); the window's is a utility (3)
+    return RoadUpgrade::OwnsGroup(group) ? 2 : 3;
+}
+
+void Style(const ::Toolbar* group, UI::Element* button, int32_t index) {
+    const bool road = RoadUpgrade::OwnsGroup(group);
     if (!::Object::IsDerivedFromNullSafe(button, UI::ButtonElement::TypeId())) {
-        std::fprintf(stderr, "[ExtToolbar] template 3 clone is not a ButtonElement\n");
+        std::fprintf(stderr, "[ExtToolbar] template %d clone is not a ButtonElement\n", ButtonTemplate(group));
         return;
     }
     UI::ButtonElement* b = static_cast<UI::ButtonElement*>(button);
-    button->SetName(System::String("extensions"));
+    button->SetName(System::String(road ? RoadUpgrade::kButtonName : "extensions"));
     b->SetElementId(index);
-    b->SetUserData(nullptr);
-    b->SetToolTip(OurString("ExtensionsWindowTip"));
+    // a tool button carries the template its tool builds from, as the group's own tool buttons do: the
+    // tooltip's cost lines are read from it (BuildRequirementUI::OnCreated, and ToolTipOpened below)
+    b->SetUserData(road ? RoadUpgrade::Target() : nullptr);
+    b->SetToolTip(OurString(road ? RoadUpgrade::kButtonTip : "ExtensionsWindowTip"));
     b->SetFlagsOnOff(UI::kElementFlagRaisesEvents, 0);
     UI::SpriteSheet* sheet = OurSpriteSheet();
     if (sheet == nullptr) {
@@ -499,10 +525,48 @@ void Style(UI::Element* button, int32_t index) {
         if (!::Object::IsDerivedFromNullSafe(child, UI::ImageElement::TypeId())) {
             continue;
         }
-        UI::Sprite sprite(Object::ExternalPtr<UI::SpriteSheet>(sheet), System::String("ToolbarExtensions"));
+        UI::Sprite sprite(Object::ExternalPtr<UI::SpriteSheet>(sheet),
+                          System::String(road ? RoadUpgrade::kButtonSprite : "ToolbarExtensions"));
         if (sprite.IsValid()) {
             static_cast<UI::ImageElement*>(child)->SetSprite(&sprite);
         }
+    }
+}
+
+void Click(const ::Toolbar* group, UI::UserInterface* ui, UI::CheckElement* button) {
+    if (RoadUpgrade::OwnsGroup(group)) {
+        RoadUpgrade::Click(button);   // a tool button: it stays pressed while its tool is the one in use
+        return;
+    }
+    // The window's button is released at once (the window's own close button can close it too).
+    if (button != nullptr) {
+        button->_checked = 0;
+    }
+    Toggle(ui);
+}
+
+void ToolTipOpened(UI::Element* button, UI::DialogInstance* tip) {
+    if (button == nullptr || tip == nullptr || button->_name == nullptr ||
+        std::strcmp(button->_name, RoadUpgrade::kButtonName) != 0) {
+        return;
+    }
+    UI::Element* title = tip->FindElement(System::String("textTitle")).Get();
+    if (::Object::IsDerivedFromNullSafe(title, UI::TextElement::TypeId())) {
+        const UI::String text = OurString(RoadUpgrade::kButtonTitle);
+        static_cast<UI::TextElement*>(title)->SetText(&text);
+    }
+    UI::Element* hotKey = tip->FindElement(System::String("textHotKey")).Get();
+    if (hotKey != nullptr) {
+        hotKey->SetFlagsOnOff(UI::kElementFlagHidden, 0);
+    }
+}
+
+void SyncButton(const ::Toolbar* group, UI::Element* button) {
+    if (!RoadUpgrade::OwnsGroup(group)) {
+        return;
+    }
+    if (::Object::IsDerivedFromNullSafe(button, UI::CheckElement::TypeId())) {
+        RoadUpgrade::SyncButton(static_cast<UI::CheckElement*>(button));
     }
 }
 

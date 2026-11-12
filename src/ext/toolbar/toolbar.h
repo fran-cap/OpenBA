@@ -18,8 +18,8 @@
 // page's own span, with the LOCAL id (0 .. kPageIdSpan - 1).
 //
 // The host's arms (the one EXT SEAM line per site):
-//   src/game/Dialog/toolbardialog.cpp   InsertAt / Style while the Reports group is built, Toggle on the
-//                                       button's click
+//   src/game/Dialog/toolbardialog.cpp   InsertAt / ButtonTemplate / Style while a group is built, Click on
+//                                       the button's click, SyncButton in the layout pass
 //   src/game/Dialog/entityui.cpp        RestoreWindow in PlayerToolManager::Startup (the window reopens
 //                                       with the save, window_state.h)
 //
@@ -32,6 +32,8 @@
 #include <string>
 
 namespace UI {
+class CheckElement;
+class DialogInstance;
 class Element;
 class String;
 class UserInterface;
@@ -99,14 +101,33 @@ std::string Lower(const char* s);
 // already). For a control elsewhere in the game that leads to a page (the citizen panel's Family button).
 void ShowPage(UI::UserInterface* ui, const char* pageId);
 
-// ---- the button (toolbar_window.cpp; EXT SEAMS in ToolbarDialog) ----
-// Where in the sorted `items` (count `n`) of the Reports group the button goes, or -1 for none: not the
-// Reports group, no running game, not Offered(), or the resources do not load. The toolbar keeps a null
-// entry in its item array for it, so each retail reader of that array skips null.
+// ---- the buttons (toolbar_window.cpp; EXT SEAMS in ToolbarDialog) ----
+// The host adds at most one button to a toolbar group: the extension window's to the Reports group, and
+// ext.road_upgrade's tool button to the group that holds the road tools (src/ext/road_upgrade; a button of
+// its own by the user's ruling of 2026-11-11: a placement tool sits beside the tools it works with).
+//
+// Where in the sorted `items` (count `n`) of `group` its button goes, or -1 for none: no running game, the
+// resources do not load, or nothing to add (Reports: not Offered(); roads: the row is off or the group has no
+// road to upgrade to). The toolbar keeps a null entry in its item array for it, so each retail reader of that
+// array skips null.
 int InsertAt(const ::Toolbar* group, const ::Toolbar* const* items, int n);
-// Name, id, tooltip and icon on the freshly cloned toolbar button `button` (a template-3 clone) at `index`.
-void Style(UI::Element* button, int32_t index);
-// The button's click: opens the window, or closes it when it is open.
+// Which of the toolbar dialog's button templates the group's button is cloned from: 3 (a utility button)
+// for the window's, 2 (a tool button) for a tool's.
+int ButtonTemplate(const ::Toolbar* group);
+// Name, id, tooltip and icon on the freshly cloned toolbar button `button` at `index`.
+void Style(const ::Toolbar* group, UI::Element* button, int32_t index);
+// The button's click. The window's button is released at once and opens the window, or closes it when it is
+// open; a tool button starts its tool when pressed and drops back to the game's own tool when released.
+void Click(const ::Toolbar* group, UI::UserInterface* ui, UI::CheckElement* button);
+// Every layout pass of the toolbar, for the group's button: a tool button is released when its tool is no
+// longer the one in use (what the toolbar does for its own tool buttons).
+void SyncButton(const ::Toolbar* group, UI::Element* button);
+// BuildRequirementUI::OnCreated's EXT SEAM: the tooltip `tip` of toolbar button `button` was filled from the
+// template the button carries. A tool button of the host's carries the template its tool builds from, so
+// the cost lines are right as they are; this puts the tool's own name in the title and hides the hotkey text
+// (the button has no hotkey). Any other element is left alone.
+void ToolTipOpened(UI::Element* button, UI::DialogInstance* tip);
+// Opens the extension window, or closes it when it is open.
 void Toggle(UI::UserInterface* ui);
 // PlayerToolManager::Startup's EXT SEAM, after retail reopened its pinned utility windows: reopens the
 // window when the town's save had it open (window_state.h) and some page is offered.

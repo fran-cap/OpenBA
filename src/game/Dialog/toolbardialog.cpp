@@ -912,8 +912,9 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
     }
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): the extension window's one button
-    // (src/ext/toolbar) in the Reports group. A null entry in the item list marks its slot; the readers of
-    // toolbarItems below and in UpdateButtons / OnUpdateLayout / OnElementEvent skip it.
+    // (src/ext/toolbar) in the Reports group, or ext.road_upgrade's tool button in the roads group
+    // (ROADUPGRADE.md). A null entry in the item list marks its slot; the readers of toolbarItems below and
+    // in UpdateButtons / OnUpdateLayout / OnElementEvent skip it.
     {
         const int extSlot = Ext::Toolbar::InsertAt(group, itemList, itemListCount);
         if (extSlot >= 0 && extSlot <= itemListCount) {
@@ -965,8 +966,10 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
         const Toolbar* item = itemList[i];
         if (item == nullptr) {
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): the extension button, a
-            // utility-style button (template 3) with no Toolbar item behind it.
-            const UI::ElementDescription* extTemplate = dialog->GetTemplate(3).Get();
+            // utility-style button (template 3) with no Toolbar item behind it; a tool button of the host's
+            // is a clone of the tool buttons' template (2).
+            const UI::ElementDescription* extTemplate =
+                dialog->GetTemplate(Ext::Toolbar::ButtonTemplate(group)).Get();
             Object::InternalPtr<UI::Element> extClone;
             extTemplate->CreateInstance(&extClone, dialog);
             UI::Element* extElement = extClone.Get();
@@ -974,7 +977,7 @@ ToolbarDialog::ToolbarDialog(UI::UserInterface* userInterface, const UI::Dialog*
             toolbarItems.SetSize(toolbarItems.GetSize() + 1, nullptr);
             Object::InternalPtr<UI::Element> extPtr(extElement);
             tableElement->SetChild(&extPtr, buttonIndex);
-            Ext::Toolbar::Style(extElement, buttonIndex);
+            Ext::Toolbar::Style(group, extElement, buttonIndex);
             buttonIndex++;
             continue;
         }
@@ -1206,8 +1209,10 @@ void ToolbarDialog::OnUpdateLayout() {
     for (int i = 0; i < itemCount; i++) {
         const Toolbar* item = toolbarItems[i];
         // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): the extension button
-        // has no Toolbar item
+        // has no Toolbar item; a tool button of the host's (ROADUPGRADE.md) is released here when its tool
+        // is no longer the one in use
         if (item == nullptr) {
+            Ext::Toolbar::SyncButton(toolbarGroup, buttonElements[i]);
             continue;
         }
         int32_t actionType = item->actionType;
@@ -1307,18 +1312,16 @@ void ToolbarDialog::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI
 
         if (item == nullptr) {
             // EXT SEAM (NOT RETAIL, docs/extensions/handins/RESTRICTEDFOODS.md): the extension button. Like a
-            // utility button: it opens the window or closes it. The button is released at once (the window's
-            // own close button can close it too); any open sub-toolbar closes as for every non-Tool button.
+            // utility button: it opens the window or closes it, and is released at once (the window's own
+            // close button can close it too); a tool button of the host's (ROADUPGRADE.md) starts its tool
+            // and stays pressed. Any open sub-toolbar closes as for every non-Tool button.
             if (subDialog.Get() != nullptr) {
                 Object::InternalPtr<UI::DialogInstance> closeRef = subDialog;
                 _ui->CloseDialog(&closeRef);
                 subDialog = Object::InternalPtr<UI::DialogInstance>(nullptr);
                 openSubIndex = -1;
             }
-            if (checkElem != nullptr) {
-                checkElem->_checked = 0;
-            }
-            Ext::Toolbar::Toggle(_ui);   // open, or close when open
+            Ext::Toolbar::Click(toolbarGroup, _ui, checkElem);
             return;
         }
 

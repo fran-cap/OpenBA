@@ -38,6 +38,7 @@
 #include "Component/BuildDescription.h"   // X::TypeId() (B.3.8 callers)
 #include "Component/ComponentDescription.h"   // X::TypeId() (ENDGAME B.3.9)
 #include "Component/ToolbarDescription.h"   // X::TypeId() (ENDGAME B.3.9)
+#include "ext/toolbar/toolbar.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/ROADUPGRADE.md): ToolTipOpened
 #include "Component/RawMaterialDescription.h"   // X::TypeId() (B.3.8 callers)
 #include "Entity/ComponentEntity.h"   // X::TypeId() (B.3.8 callers)
 #include "Dialog/BuildRequirementUI.h"
@@ -105,6 +106,7 @@ void BuildRequirementUI::OnCreated() {
     //   2. ComponentEntity — its _description
     //   3. UI::Element — its user data, if a ComponentDescription
     Object::Base* dataSource = _dataSource;
+    UI::Element* sourceElement = nullptr;   // EXT SEAM (below): the button the tooltip is for, when it is one
 
     // NULL-datasource guard (standalone): the Runtime's Object::Base::IsDerivedFrom
     // (0x1800c0390) reads `this->vtable[2]()` with NO null check on `this`, so calling
@@ -134,6 +136,7 @@ void BuildRequirementUI::OnCreated() {
             bool isInternal = dataSource && ::Object::IsDerivedFromNullSafe(dataSource, internalTypeId);
             UI::Element* elemPtr = isInternal ? static_cast<UI::Element*>(dataSource) : nullptr;
 
+            sourceElement = elemPtr;
             if (elemPtr) {
                 Object::Base* userData = elemPtr->GetUserData();
                 // Element_GetUserData can return NULL (element carries no user data);
@@ -188,6 +191,13 @@ void BuildRequirementUI::OnCreated() {
                              buildReqComp->_str1);
             textPtr->SetText(&uiStr);
         }
+    }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/ROADUPGRADE.md): a tool button of the toolbar host's
+    // carries the template its tool builds from (the cost shown is that one's) and names its own tool in
+    // the title.
+    if (sourceElement != nullptr) {
+        Ext::Toolbar::ToolTipOpened(sourceElement, dialogInst);
     }
 
     // --- Find "labelBuildMulti" element, hide initially ---
