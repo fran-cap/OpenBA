@@ -12,10 +12,12 @@
 // Texts: Dialog/ExtensionsStringTable.rsc (the TraderRequest* keys).
 
 // The column the controller puts in the place of the order combo's parent: that parent, then this row.
+// The bottom pad keeps the row's combos clear of the page's lower border (a pad on the row itself adds none).
 RibbonDescription ribbonTraderRequestColumn
 {
 	Alignment _alignment = TopLeft;
 	bool _vertical = true;
+	int _bottomPad = 6;
 }
 
 RibbonDescription ribbonTraderRequestRow
