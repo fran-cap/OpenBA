@@ -18,15 +18,19 @@
 // is unchanged). Each row's ends stay on retail's banks: the row slides along each bank to where the line
 // across the smoothed centreline, perpendicular to it, meets that bank, the distance along the bank never
 // going back (a sharp inner corner holds the rows on the corner and they fan round it) and smoothed like the
-// centreline (the fan opens gradually, no row is a crease). The water covers what retail's banks enclose.
+// centreline (the fan opens gradually, no row is a crease), and no row advancing less than a share of the
+// bank's usual step (Spread: the fan's rows do not pinch onto the corner). The water covers what retail's
+// banks enclose.
 // Each end is then pushed out along the row toward the smoothed width, by at most kMaxPush tiles, which
 // fills the outside of a bend where retail's bank is a chord across the corner. The middle three vertices
-// are spaced evenly between the ends, as retail's are. Vertex count, indices and uvs are unchanged: only positions move.
+// are spaced evenly between the ends, as retail's are. The streamwise uv is then laid along the new rows at
+// retail's scale. Vertex count, indices and the cross-channel uv are unchanged.
 // A range whose indices are not retail's strip is left as it is. Pure: the caller uploads the copy.
 // ============================================================================
 
 #include "Game/WorldGeometryElements.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -42,6 +46,7 @@ constexpr int kIndicesPerRow = 24;    // four quads of two triangles
 constexpr float kSigmaRows = 2.5f;    // the centreline's smoothing (rows are about a tile apart)
 constexpr int kReachRows = 8;         // the smoothing window's half-width, about 3 sigma
 constexpr float kMaxPush = 1.5f;      // tiles an end may be pushed past retail's bank
+constexpr float kMinStep = 0.4f;      // a row's least advance along a bank, as a share of that bank's median step
 
 // One river range: GeometryDrawRange::values {first index, base vertex, vertex count, index count}.
 struct Range {
@@ -221,6 +226,46 @@ inline void Smooth(std::vector<float>& at) {
     Advance(at);
 }
 
+// No pinch: rows held on a sharp inner corner (Advance) all end on one point of the bank, and the water's
+// texture is squeezed to nothing there: a wedge of streaks across the channel. Every row is made to advance at
+// least `kMinStep` of the bank's median step. Each run of rows that advance less is widened, a row at a time
+// on both sides, until the rows of the window advance twice that on average; inside the window the distances
+// are blended toward an even spacing by just enough to reach the least step. The window's ends stay where
+// they are, the order is kept, and rows outside a window do not move.
+inline void Spread(std::vector<float>& at) {
+    const int n = static_cast<int>(at.size());
+    if (n < 3) return;
+    std::vector<float> steps(n - 1);
+    for (int r = 0; r + 1 < n; ++r) steps[r] = at[r + 1] - at[r];
+    std::vector<float> sorted(steps);
+    std::sort(sorted.begin(), sorted.end());
+    const float least = kMinStep * sorted[sorted.size() / 2];
+    if (least <= 1e-4f) return;
+    int r = 0;
+    while (r + 1 < n) {
+        if (at[r + 1] - at[r] >= least * 0.999f) {
+            ++r;
+            continue;
+        }
+        int lo = r;
+        int hi = r + 1;
+        while (hi + 1 < n && at[hi + 1] - at[hi] < least) ++hi;
+        while ((lo > 0 || hi < n - 1) && at[hi] - at[lo] < 2.0f * least * static_cast<float>(hi - lo)) {
+            if (lo > 0) --lo;
+            if (hi < n - 1) ++hi;
+        }
+        const float mean = (at[hi] - at[lo]) / static_cast<float>(hi - lo);
+        float blend = mean > 1e-6f ? least / mean : 1.0f;
+        if (blend > 1.0f) blend = 1.0f;
+        const float first = at[lo];
+        for (int k = lo + 1; k < hi; ++k) {
+            const float even = first + mean * static_cast<float>(k - lo);
+            at[k] = at[k] + (even - at[k]) * blend;
+        }
+        r = hi;
+    }
+}
+
 // Lays the rows of one strip again (the header). `pos` holds the range's vertex positions in tiles and is
 // rewritten in place for the vertices that move; `moved` marks them. Returns the number moved.
 inline int RelayRows(const std::vector<Row>& rows, std::vector<P2>& pos, std::vector<uint8_t>& moved) {
@@ -287,6 +332,8 @@ inline int RelayRows(const std::vector<Row>& rows, std::vector<P2>& pos, std::ve
     }
     Advance(atL);
     Advance(atR);
+    Spread(atL);
+    Spread(atR);
     Smooth(atL);
     Smooth(atR);
 
@@ -344,13 +391,16 @@ inline int16_t Pack(float tiles) {
 }
 
 // `out` (a copy of the water mesh, already sized to it) with every river range's rows laid again. Returns the
-// number of vertices whose position changed; `skipped` counts the ranges that were not retail's strip.
+// number of vertices whose position or uv changed; `skipped` counts the ranges that were not retail's strip.
 inline int Relay(std::vector<TerrainVertex>& out, const uint16_t* indices, int32_t indexTotal, const Range* ranges,
                  int32_t rangeCount, int* skipped) {
     int changed = 0;
     std::vector<Row> rows;
     std::vector<P2> pos;
     std::vector<uint8_t> moved;
+    std::vector<int16_t> uvY;
+    std::vector<uint8_t> uvSet;
+    std::vector<float> arcs;
     const int32_t count = static_cast<int32_t>(out.size());
     for (int32_t ri = 0; ri < rangeCount; ++ri) {
         const Range& rg = ranges[ri];
@@ -368,14 +418,46 @@ inline int Relay(std::vector<TerrainVertex>& out, const uint16_t* indices, int32
             pos[i] = {static_cast<float>(v[i].position[0]) / kPosScale, static_cast<float>(v[i].position[1]) / kPosScale};
         }
         if (RelayRows(rows, pos, moved) == 0) continue;
+        // The streamwise uv follows the rows: retail's uv.y is the distance along the row midpoints, so a row
+        // that moved keeps the texture at retail's scale only when its uv.y is that distance again. Left as
+        // it was, the water's pattern is squeezed between rows that came closer and stretched between rows
+        // that moved apart. The first and last rows keep their values, so the strip's own scale (retail's uv per
+        // tile over its whole length) is kept; int16 wraps as retail's does (a seamless tile).
+        uvY.assign(static_cast<size_t>(rg.vertexCount), 0);
+        uvSet.assign(static_cast<size_t>(rg.vertexCount), 0);
+        arcs.assign(rows.size(), 0.0f);
+        int32_t span = 0;
+        for (size_t r = 1; r < rows.size(); ++r) {
+            const P2 a = Mul(Add(pos[rows[r - 1][0]], pos[rows[r - 1][kColumns - 1]]), 0.5f);
+            const P2 b = Mul(Add(pos[rows[r][0]], pos[rows[r][kColumns - 1]]), 0.5f);
+            arcs[r] = arcs[r - 1] + Len(Sub(b, a));
+            span += static_cast<int16_t>(static_cast<uint16_t>(v[rows[r][0]].uv[1] - v[rows[r - 1][0]].uv[1]));
+        }
+        const bool measured = arcs.back() >= 1e-3f;
+        const float perTile = measured ? static_cast<float>(span) / arcs.back() : 0.0f;
+        const int32_t firstV = v[rows[0][0]].uv[1];
+        for (size_t r = 0; measured && r < rows.size(); ++r) {
+            const int32_t value = firstV + static_cast<int32_t>(std::lround(arcs[r] * perTile));
+            for (int32_t vi : rows[r]) {
+                if (uvSet[vi]) continue;   // a welded vertex two rows share keeps its first row's value
+                uvSet[vi] = 1;
+                uvY[vi] = static_cast<int16_t>(static_cast<uint16_t>(static_cast<uint32_t>(value)));
+            }
+        }
         for (int32_t i = 0; i < rg.vertexCount; ++i) {
-            if (!moved[i]) continue;
-            const int16_t x = Pack(pos[i].x);
-            const int16_t y = Pack(pos[i].y);
-            if (x == v[i].position[0] && y == v[i].position[1]) continue;
-            v[i].position[0] = x;
-            v[i].position[1] = y;
-            ++changed;
+            bool differs = false;
+            if (moved[i]) {
+                const int16_t x = Pack(pos[i].x);
+                const int16_t y = Pack(pos[i].y);
+                differs = x != v[i].position[0] || y != v[i].position[1];
+                v[i].position[0] = x;
+                v[i].position[1] = y;
+            }
+            if (uvSet[i] && uvY[i] != v[i].uv[1]) {
+                v[i].uv[1] = uvY[i];
+                differs = true;
+            }
+            if (differs) ++changed;
         }
     }
     return changed;

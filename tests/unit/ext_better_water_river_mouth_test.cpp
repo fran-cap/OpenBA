@@ -94,3 +94,38 @@ UNIT_TEST(ext_better_water_river_mouth_ignores_a_bad_range) {
     CHECK(Fade(mesh.data(), 4, &bad, 1, heights.data(), kStride, kHalf, kFadeTiles, out) == 0);
     CHECK(out.size() == 4);
 }
+
+UNIT_TEST(ext_better_water_river_mouth_fades_toward_a_rim_over_water) {
+    // The lake's alpha reaches 0 at column 8, inside its extent (dry vertices reach column 12 on row 0), over
+    // the wet rows 1..3: the falloff's rim across a channel.
+    const std::vector<int16_t> heights = Heights();
+    std::vector<TerrainVertex> mesh;
+    for (int row = 0; row <= 4; ++row) {
+        for (int col = 0; col <= 8; ++col) mesh.push_back(V(col, row, col == 8 ? 0 : 200));
+    }
+    for (int col = 9; col <= 12; ++col) mesh.push_back(V(col, 0, 0));
+    const Range lake{0, static_cast<int32_t>(mesh.size())};
+    std::vector<TerrainVertex> out;
+    CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &lake, 1, heights.data(), kStride, kHalf,
+               kFadeTiles, out) > 0);
+    CHECK(out[Find(out, 8, 2)].normal[2] == 0);
+    const uint8_t close = out[Find(out, 7, 2)].normal[2];
+    const uint8_t mid = out[Find(out, 5, 2)].normal[2];
+    CHECK(close > 0 && close < mid);                        // one tile in: nearly handed over
+    CHECK(mid < 200);                                       // three tiles in: still fading
+    CHECK(out[Find(out, 2, 2)].normal[2] == 200);          // a fade's width in: the lake as it was
+}
+
+UNIT_TEST(ext_better_water_river_mouth_ignores_a_dry_rim) {
+    // Alpha 0 on dry ground only (the lake's own shore): nothing to hand over.
+    std::vector<int16_t> heights(kStride * kStride, static_cast<int16_t>(256));
+    heights[(2 + kHalf) * kStride + (2 + kHalf)] = -256;
+    std::vector<TerrainVertex> mesh;
+    for (int row = 0; row <= 4; ++row) {
+        for (int col = 0; col <= 4; ++col) mesh.push_back(V(col, row, col == 3 && row == 3 ? 0 : 180));
+    }
+    const Range lake{0, static_cast<int32_t>(mesh.size())};
+    std::vector<TerrainVertex> out;
+    CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &lake, 1, heights.data(), kStride, kHalf,
+               kFadeTiles, out) == 0);
+}

@@ -166,3 +166,74 @@ UNIT_TEST(ext_better_water_river_rows_skip_indices_that_are_not_a_strip) {
     CHECK_EQ(skipped, 1);
     for (size_t i = 0; i < before.size(); ++i) CHECK_EQ(s.vertices[i].position[0], before[i].position[0]);
 }
+
+UNIT_TEST(ext_better_water_river_rows_spread_keeps_a_least_step) {
+    // Six rows held on one point of the bank (a sharp inner corner), a tile a row elsewhere.
+    std::vector<float> at;
+    for (int r = 0; r <= 30; ++r) at.push_back(static_cast<float>(r));
+    for (int r = 0; r < 5; ++r) at.push_back(30.0f);
+    for (int r = 1; r <= 30; ++r) at.push_back(30.0f + static_cast<float>(r));
+    const std::vector<float> before = at;
+    Spread(at);
+    CHECK_EQ(at.front(), before.front());
+    CHECK_EQ(at.back(), before.back());
+    for (size_t r = 0; r + 1 < at.size(); ++r) CHECK(at[r + 1] - at[r] > kMinStep * 0.99f);
+    // Rows away from the corner do not move.
+    CHECK_EQ(at[5], before[5]);
+    CHECK_EQ(at[60], before[60]);
+    CHECK(at[28] != before[28]);
+
+    std::vector<float> even = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+    Spread(even);
+    for (size_t r = 0; r < even.size(); ++r) CHECK_EQ(even[r], static_cast<float>(r));
+}
+
+UNIT_TEST(ext_better_water_river_rows_do_not_pinch_on_an_inner_corner) {
+    // Along +x, then a quarter turn about the right bank's corner (10, -3), then along -y: retail's fan,
+    // five rows ending on the corner.
+    std::vector<P2> left;
+    std::vector<P2> right;
+    for (int r = 0; r <= 10; ++r) {
+        left.push_back({static_cast<float>(r), 3.0f});
+        right.push_back({static_cast<float>(r), -3.0f});
+    }
+    for (int k = 1; k <= 5; ++k) {
+        const float angle = (90.0f - 15.0f * static_cast<float>(k)) / 57.29578f;
+        left.push_back({10.0f + 6.0f * std::cos(angle), -3.0f + 6.0f * std::sin(angle)});
+        right.push_back({10.0f, -3.0f});
+    }
+    for (int r = 0; r <= 10; ++r) {
+        left.push_back({16.0f, -3.0f - static_cast<float>(r)});
+        right.push_back({10.0f, -3.0f - static_cast<float>(r)});
+    }
+    Strip s = MakeStrip(left, right);
+    const int rows = static_cast<int>(left.size());
+    int pinchedBefore = 0;
+    for (int r = 1; r < rows; ++r) {
+        if (Len(Sub(At(s.vertices, r, kColumns - 1), At(s.vertices, r - 1, kColumns - 1))) < 0.05f) ++pinchedBefore;
+    }
+    CHECK(pinchedBefore >= 5);
+    int skipped = 0;
+    CHECK(RelayAll(s, &skipped) > 0);
+    for (int r = 1; r < rows; ++r) {
+        CHECK(Len(Sub(At(s.vertices, r, kColumns - 1), At(s.vertices, r - 1, kColumns - 1))) > 0.15f);
+    }
+    // The streamwise uv advances with the rows' midpoints at one scale along the whole strip (retail's uv,
+    // left on the moved rows, runs faster and slower than that round the corner); the ends keep theirs.
+    CHECK_EQ(s.vertices[0].uv[1], 0);
+    CHECK_EQ(s.vertices[static_cast<size_t>((rows - 1) * kColumns)].uv[1], (rows - 1) * 32);
+    std::vector<float> steps;
+    float total = 0.0f;
+    for (int r = 1; r < rows; ++r) {
+        const P2 a = Mul(Add(At(s.vertices, r - 1, 0), At(s.vertices, r - 1, kColumns - 1)), 0.5f);
+        const P2 b = Mul(Add(At(s.vertices, r, 0), At(s.vertices, r, kColumns - 1)), 0.5f);
+        steps.push_back(Len(Sub(b, a)));
+        total += steps.back();
+    }
+    const float scale = static_cast<float>((rows - 1) * 32) / total;
+    for (int r = 1; r < rows; ++r) {
+        const int uvStep = s.vertices[static_cast<size_t>(r * kColumns)].uv[1] -
+                           s.vertices[static_cast<size_t>((r - 1) * kColumns)].uv[1];
+        CHECK(std::fabs(static_cast<float>(uvStep) - scale * steps[static_cast<size_t>(r - 1)]) < 2.0f);
+    }
+}

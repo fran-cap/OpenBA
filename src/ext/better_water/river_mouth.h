@@ -16,6 +16,12 @@
 // multiplied by smoothstep(0, fade, distance to the nearest such cut vertex), so the lake hands over to the
 // river across `fade` tiles. A range with no cut vertex is unchanged (a lake no river leaves), as is every
 // river vertex. Pure: the caller uploads the copy (the saved mesh is never edited; it is serialized).
+//
+// The rim: a lake's alpha can also reach 0 inside its box, on the circle where its distance falloff ends. Where
+// that circle crosses open water (a river running through or out of the lake) the lake hands over in the last
+// three tiles of the falloff, a band straight across the channel. A vertex of the range that is under water
+// and has alpha 0 is a cut vertex too, so the hand-over there is `fade` tiles wide as well. A dry vertex with
+// alpha 0 is the lake's ordinary shore and is not one.
 // ============================================================================
 
 #include "Game/WorldGeometryElements.h"
@@ -83,7 +89,9 @@ inline int Fade(const TerrainVertex* vertices, int32_t count, const Range* range
         for (int32_t i = first; i < first + n; ++i) {
             const int x = vertices[i].position[0];
             const int y = vertices[i].position[1];
-            if (x != minX && x != maxX && y != minY && y != maxY) continue;
+            const bool side = x == minX || x == maxX || y == minY || y == maxY;
+            const bool rim = vertices[i].normal[2] == 0;
+            if (!side && !rim) continue;
             const int col = static_cast<int>(std::lround(static_cast<float>(x) / kPosScale));
             const int row = static_cast<int>(std::lround(static_cast<float>(y) / kPosScale));
             if (HeightAt(heights, stride, halfGrid, col, row) > kUnderwater) continue;
