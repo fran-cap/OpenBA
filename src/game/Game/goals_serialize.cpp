@@ -51,6 +51,8 @@
 #include "Work/Work.h"                // Work::TypeId() -- cell 0x1401c6cf8 (ENDGAME B.3.9 RF)
 #include <cstdint>
 #include <cstdio>
+#include "ext/registry.h"                                   // Ext::Fix().priority_after_load
+#include "ext/priority_after_load/priority_after_load.h"   // fix.priority_after_load (docs/retail_bugs.md section 34)
 #include <cstdlib>
 #include "object/Internal.h"   // ENDGAME B.3.3 step 6B
 #include "io/Serializer.h"   // ENDGAME B.3.4 caller batch B
@@ -462,6 +464,9 @@ void WorkScheduler::Serialize(IO::Stream& stream) {
     bool loading = (static_cast<int>(stream.GetDirection()) == 0);   // IO::Stream::GetDirection, retail 0x180006200
     if (loading) {
         WorkSchedulerCountNode* workCountRoot = queueOrderTree.root;
+        // FIX priority_after_load: decided once, above the walk.
+        const bool rebuildFromSavedKeys =
+            Ext::PriorityAfterLoad::RebuildsFromSavedKeys(Ext::Fix().priority_after_load, ser.GetVersion());
 
         // --- Stage 1: walk the id tree (+0x30), notify each Work (slot 12), and for
         // version==2 entries build the +0x10 tree keyed by the running counter at +0x18. ---
@@ -482,9 +487,22 @@ void WorkScheduler::Serialize(IO::Stream& stream) {
                     if (inserted) {
                         queueOrderTree.count = counter + 1;
                     }
+                } else if (rebuildFromSavedKeys) {
+                    // FIX priority_after_load (NOT RETAIL, docs/retail_bugs.md section 34): the job goes
+                    // back into the queue-order tree under the key it was saved with.
+                    bool inserted = false;
+                    CountTreeInsert(&workCountRoot, node->work->_queueOrder,
+                                    static_cast<uint32_t>(node->work->_workId), &inserted);
+                    if (inserted) {
+                        queueOrderTree.count += 1;
+                    }
                 }
             }
             queueOrderTree.root = workCountRoot;
+            if (rebuildFromSavedKeys) {
+                fprintf(stderr, "[PriorityAfterLoad] queue-order tree rebuilt: %d key(s)\n",
+                        static_cast<int>(queueOrderTree.count));
+            }
         }
 
         // --- Stage 2: re-walk the id tree; for Works whose entity (+0x10) is set, collect the

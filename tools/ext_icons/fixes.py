@@ -540,6 +540,24 @@ def draw_steady_shadow(px):
     ])
 
 
+def draw_priority_load(px):
+    # a queue of three bars, an arrow lifting the last one to the front (priority, kept after a load)
+    _paint(px, [
+        "............",
+        ".#######....",
+        "............",
+        ".+++++......",
+        "..........#.",
+        ".+++++...###",
+        "........#.#.",
+        ".#######..#.",
+        "..........#.",
+        "...########.",
+        "............",
+        "............",
+    ])
+
+
 ICONS = {
     "icon_slide": ("fix", draw_slide),               # "!" marker over a ground line
     "residence_goto": ("fix", draw_goto),            # house with a target box on the wall
@@ -570,4 +588,5 @@ ICONS = {
     "minimap_outline_clip": ("fix", draw_outline_clip),   # a map frame with a whole camera trapezoid
     "decal_fog_order": ("fix", draw_bridge_fog),     # a bridge over water under haze dots
     "shadow_zoom_pulse": ("fix", draw_steady_shadow),   # a tree's shadow under a magnifier
+    "priority_after_load": ("fix", draw_priority_load),   # a waiting bar lifted to the front of its queue
 }

@@ -10,6 +10,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).
 2. No red cell left where stone, iron or a tree was cleared with the Remove Resources tool on uneven ground (`fix.terrain_resort`).
 3. Map data views: the terrain overlay no longer floats off near hillsides and ridges when the view reaches far (`ext.map_overlays`).
+4. After loading a save, the Increase Priority tool ranks ahead of work prioritized before the save (retail bug, `fix.priority_after_load`).
 
 ## v1.0.3 (2026-11-10)
 

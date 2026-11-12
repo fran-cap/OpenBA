@@ -1615,7 +1615,8 @@ choice follows the stepped size. Unit test: `shadow_zoom_steady_half_ladder`
 
 ## 34. "Increase priority" ranks behind earlier priorities after a save is loaded
 
-**Status: read in the retail disassembly and shown on a player's save; no fix row yet (awaits a ruling).**
+**Status: read in the retail disassembly and shown on a player's save; fixed by `fix.priority_after_load`
+(default on, ruled 2026-11-11: an oversight in retail).**
 Reported 2026-11-11: the Increase Priority tool "may get temporarily totally suspended / ignored", seen
 after saving and reloading.
 
@@ -1632,6 +1633,8 @@ nodes; `PrioritizeWork` on the job with key 5982 right after the load stores 0 w
 would store -2147. With three old priorities waiting the effect there is small; a large area prioritized
 before the save (one key per tree or stone) is what a later priority has to wait behind.
 
-**The lever, if ruled a fix.** Rebuild the tree on load for version 3 from each job's saved `_queueOrder`
-(the version-2 arm's insert with the job's own key). It changes which job a laborer takes after a load, so
-it is a sim change (class B).
+**Fix: `fix.priority_after_load`** (default on). The load arm inserts each job of a version-3 save into the
+tree under its saved `_queueOrder` (the version-2 arm's insert, with the job's own key), so the tree holds
+what it held when the save was written; one `[PriorityAfterLoad]` line per load gives the count. It changes
+which job an idle worker takes after a load (sim-visible); nothing is saved differently. Row off: retail's
+empty tree. `src/ext/priority_after_load/`, seam `WorkScheduler::Serialize` (`src/game/Game/goals_serialize.cpp`).

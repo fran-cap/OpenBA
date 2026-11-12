@@ -89,6 +89,7 @@ struct Fixes {
     bool minimap_outline_clip = true;   // docs/retail_bugs.md §31, src/ext/minimap_outline_clip/: UI only, the minimap's camera outline keeps every side when a corner lies off the map
     bool stream_free_wait  = true;   // review S-027 (engine seam Audio::Device::_extFixStreamFreeWait): a streamed sound freed while its stream pass runs waits for the pass, so the worker reads no freed seek table
     bool decal_fog_order   = true;   // docs/retail_bugs.md §32, src/render/common/decal_fog/ (backend seam DecalFogBackend::SetFixFlag): render only, next start; the decal pixel programs tint, then fog
+    bool priority_after_load = true;   // docs/retail_bugs.md §34, src/ext/priority_after_load/ (seam WorkScheduler::Serialize, goals_serialize.cpp): sim-visible; a load rebuilds the queue-order tree, so Increase Priority ranks ahead of the priorities given before the save
     bool shadow_zoom_pulse = true;   // docs/retail_bugs.md §33, SunLight::_extSteadySunBox (sun_camera.cpp): render only, live; the sun box's size steps on a ladder, so a zoom does not move the shadow grid every frame
 };
 
