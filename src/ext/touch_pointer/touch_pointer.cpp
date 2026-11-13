@@ -11,6 +11,8 @@
 #include "ext/touch_mode/touch_mode.h"    // the camera hold (Source::Fingers), the bar's and cell's sizes
 #include "ext/touch_mode/touch_math.h"    // Margin: the bar keeps touch_mode's safe margin rule
 #include "ext/phone_menu/phone_math.h"    // SafeMargin (read only)
+#include "ext/radius_all/radius_all.h"       // the long press (ext.radius_all)
+#include "ext/radius_all/radius_all_math.h"  // IsLongPress
 
 #include "platform_touch.h"
 
@@ -747,6 +749,21 @@ void AfterUpdate(Input::Device& dev) {
         std::fprintf(stderr, "[TouchPointer] %s\n", on ? "fingers taken (touch-to-mouse off)" : "fingers released");
     }
     if (!on || !g_owns) return;
+
+    // ext.radius_all (docs/extensions/handins/RADIUSALL.md): a finger held still on the world with no tool is a
+    // long press, the finger's Shift+click: the pick a tap makes, armed so that EditTool::OnKey shows or hides
+    // the work circles of the picked building's kind (a building with no circle is selected, as by a tap).
+    // It fires once, while the finger is still down; the lift then does nothing.
+    if (Ext().radius_all && g_fingers.size() == 1) {
+        Finger& held = g_fingers.front();
+        if (held.role == Role::Pick &&
+            RadiusAll::IsLongPress(static_cast<float>(Now() - held.downAt), held.travel, ShortEdge())) {
+            held.role = Role::Ignored;
+            std::fprintf(stderr, "[TouchPointer] long press at %.0f,%.0f\n", held.x, held.y);
+            RadiusAll::ArmLongPress();
+            PickTap(held.x, held.y);
+        }
+    }
 
     const PointerState s = g_queue.Pop();
     // The UI hold ends on the poll that shows the cursor back on the world: no finger on a dialog any more and

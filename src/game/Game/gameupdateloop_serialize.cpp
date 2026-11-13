@@ -99,6 +99,7 @@
 #include "ext/registry.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSAVE.md): the B / C lock from the save
 #include "ext/savetail.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EXTSAVE.md): the block-1 tail manifest
 #include "ext/async_save_compress/async_save_compress.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_SAVE.md): ext.async_save_compress, the save arm
+#include "ext/radius_all/radius_all.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): ext.radius_all, its circles out of a save
 #include "ext/rock_seat/rock_seat.h"   // FIX rock_seat (NOT RETAIL, docs/extensions/handins/ROCKSEAT.md): the post-load seat
 #include <string>
 #include <vector>
@@ -588,6 +589,12 @@ void GameUpdateLoop::SerializeAllHead(IO::Stream& stream, SerializeScope& scope)
     fprintf(stderr, "[GUL::Serialize] %s ENTER self=%p stream=%p\n",
             IsSaving(&stream) ? "SAVE" : "LOAD", static_cast<void*>(this), static_cast<void*>(&stream));
     fflush(stderr);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): ext.radius_all's circles are terrain decals,
+    // which WorldGeometry serialises: they are taken out before a save is written (a no-op with none shown).
+    if (IsSaving(&stream)) {
+        Ext::RadiusAll::BeforeSave();
+    }
 
     extFactory->EnableReferenceMode(true);
     // The Serializer's lifetime ends right after reference mode is switched off (the body's
