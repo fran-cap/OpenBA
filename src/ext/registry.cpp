@@ -841,6 +841,16 @@ const Entry kEntries[] = {
       "Adds an Upgrade Roads tool to the toolbar's roads menu: drag a rectangle and every dirt road in it "
       "is rebuilt as a stone road, without tracing each road again.",
       0, [](State& s) -> bool& { return s.ext.road_upgrade; } },
+    // RADIUSALL (docs/extensions/handins/RADIUSALL.md): a Shift+click (a long press with ext.touch_pointer) on
+    // a building that has a work circle shows the circle of every building of its kind, and again hides
+    // them. Class A: the circles are the game's own decals, taken out before a save is written; the kinds
+    // shown are forgotten with the game; live.
+    { "radius_all", Tier::Extension, Class::A, true,
+      "Work circles of a kind",
+      "Shift+click a building that has a work circle (a gatherer, a forester, a market...) to show the circle "
+      "of every building of its kind while you select or place others; Shift+click one again to hide them. "
+      "On a touch screen: a long press.",
+      0, [](State& s) -> bool& { return s.ext.radius_all; } },
     // TOOLNAMES (docs/extensions/handins/TOOLNAMES.md): the citizen panel names the tool the citizen carries
     // (the item's own name) instead of retail's "default tool / other tool" words. Class C: which tool each
     // citizen carries is the town's own state, recorded in the save's tail so a tool keeps its name across a
