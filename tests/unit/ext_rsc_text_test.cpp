@@ -225,8 +225,9 @@ UNIT_TEST(ext_rsc_text_parse_enhanced_and_strings) {
     // strip), + 1 for the Experimental tab's caption, + 3 for ext.item_limits' panel row (label, two tips),
     // + 5 for the map window's Land view (caption, tip, the three key texts), + 10 for
     // ext.storage_metrics' Town Hall tab, + 2 for ext.road_upgrade's button (its tooltip's title and text),
-    // + 5 for ext.trader_request's Orders tab row (label, tip, any trader, the two modes)
-    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10 + 2 + 5);
+    // + 5 for ext.trader_request's Orders tab row (label, tip, any trader, the two modes), + 6 for the map
+    // window's Traffic filter buttons (three captions, three tips)
+    CHECK(strings && strings->blocks.size() == 142 + 18 + 52 + 4 + 1 + 3 + 5 + 10 + 2 + 5 + 6);
     if (strings) {
         // The Extensions dialog's three tab captions.
         int tabKeys = 0;
@@ -557,6 +558,8 @@ UNIT_TEST(ext_rsc_text_parse_map_overlays) {
           f.Find("comboMapOverlaysKind") && f.Find("rowMapOverlaysMonths") && f.Find("sliderMapOverlaysMonths") &&
           f.Find("sliderMapOverlaysScale") && f.Find("ribbonMapOverlaysRamp") &&
           f.Find("textMapOverlaysLegendMax") && f.Find("checkMapOverlaysTerrain"));
+    const Object* trip = f.Find("buttonMapOverlaysTrip");
+    CHECK(f.Find("rowMapOverlaysTrips") && trip && trip->type == "ButtonDescription");
     CheckKnownTypes(f, "MapOverlays.rsc");
 }
 

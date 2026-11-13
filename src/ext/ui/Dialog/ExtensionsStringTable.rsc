@@ -242,6 +242,12 @@ StringTable resource
 		{ String _name = "MapOverlaysTabStockTip";		String _text = "Where goods are now: storage, stockpiles, markets and homes."; }
 		{ String _name = "MapOverlaysTabServicesTip";	String _text = "Where a service reaches: brighter where several buildings of the kind overlap."; }
 		{ String _name = "MapOverlaysTabTrafficTip";		String _text = "Where citizens walk: footsteps over the last months."; }
+		{ String _name = "MapOverlaysTripAll";			String _text = "All"; }
+		{ String _name = "MapOverlaysTripWork";			String _text = "To work"; }
+		{ String _name = "MapOverlaysTripHome";			String _text = "To home"; }
+		{ String _name = "MapOverlaysTripAllTip";		String _text = "Every footstep."; }
+		{ String _name = "MapOverlaysTripWorkTip";		String _text = "Only citizens walking to their workplace. Long bright trails are long commutes."; }
+		{ String _name = "MapOverlaysTripHomeTip";		String _text = "Only citizens walking back to their home."; }
 		{ String _name = "MapOverlaysTabCitizensTip";	String _text = "How homes fare: the residents' happiness, health, food, warmth or age."; }
 		{ String _name = "MapOverlaysTabNaturalTip";		String _text = "Where the natural resources are: trees, stone, iron, wildlife and fish."; }
 		{ String _name = "MapOverlaysTabLandTip";		String _text = "Where a building can stand: open ground, ground to clear first, and water, slopes and mountain that take none."; }

@@ -5,9 +5,9 @@
 //
 // The state is the town's History (overlay_core.h): what was produced and consumed at which tile in each of
 // the last twelve months, by resource template path, and the footsteps per 2x2-tile cell in each of the last
-// four seasons. Town() lives here, beside its codec, so the unit build links the codec table without the game.
+// four seasons, by Trip (to work, to home, other). Town() lives here, beside its codec, so the unit build links the codec table without the game.
 //
-// Wire format v1 (little-endian; History::Encode / Decode, overlay_core.cpp):
+// Wire format v2 (little-endian; History::Encode / Decode, overlay_core.cpp):
 //   u32  mapSize                 0..kMaxMapSize (0: a history that never saw a map; nothing follows but
 //                                empty lists)
 //   i32  now                     the month stamp of the last AdvanceTo (kNoStamp: none)
@@ -21,7 +21,9 @@
 //     cellCount x { u16 resource (< resourceCount)  u8 flow (0 produced, 1 consumed)  u32 counts[12] }
 //   }                            no (resource, flow) twice at a tile
 //   u32  trafficCells            == ceil(mapSize / 2)
-//   trafficCells^2 x { u16 count[4] }    row-major, z * trafficCells + x
+//   trafficCells^2 x { u16 count[3][4] } row-major, z * trafficCells + x; [Trip][season bucket]
+// v1 is the same with { u16 count[4] } per cell (footsteps had no Trip); it loads as Trip::Other, so an old
+// save's traffic shows under All and the two filters fill from then on.
 // Decode accepts exactly what Encode writes and refuses a cut payload, trailing bytes, a map size above
 // kMaxMapSize, a count past the payload, or an index outside the table. A refused payload is NOT fatal to the
 // load (MAPOVERLAYS.md §3): the history is emptied, one line goes to stderr, and the game plays on.
@@ -49,8 +51,8 @@ void Encode(std::vector<uint8_t>& payload) {
 }
 
 bool Decode(const uint8_t* bytes, size_t size, int32_t savedVersion) {
-    // Validate already refused a NEWER version; an older one would migrate here.
-    if (savedVersion == kWireVersion && Town().Decode(bytes, size)) {
+    // Validate already refused a NEWER version; History::Decode reads v1 and v2.
+    if (Town().Decode(bytes, size, savedVersion)) {
         return true;
     }
     Town().Clear();

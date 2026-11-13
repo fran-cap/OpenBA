@@ -12,13 +12,22 @@
 // is x, y, w, h: EntityAnchorCell's fallback arm); else its translation (a pile's ModelComponent, a walking
 // citizen's CharacterComponent::modelComponent, as DropOnGround reads it).
 //
+// A FOOTSTEP'S TRIP (OnStep). The walk's destination (MoveTo::destination, the world position the action
+// was built with) as a tile, against the footprints of the walker's workplace and home: within kTripReach
+// tiles of the workplace it is a walk to work, of the home a walk home (the nearer one when both are in
+// reach, the workplace on a tie). A building's interaction node, where a walk to it ends, is at its door,
+// on the footprint's edge or one tile outside. A walk to a tree, a pile or a storage is Trip::Other, as is
+// every walker that is not a citizen. Read once per tile crossed: three component lookups, no allocation.
+//
 // THE MONTH STAMP is ext.family_tree's (FamilyTree::NowStamp: year * 12 + EventLog::SeasonString's month).
 // ============================================================================
 #include "ext/map_overlays/map_overlays.h"
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 
+#include "Action/MoveTo.h"
 #include "Component/CharacterComponent.h"
 #include "Component/CitizenComponent.h"
 #include "Component/ComponentDescription.h"
@@ -133,6 +142,54 @@ void AddAtEntity(Flow flow, const ComponentDescription* item, const ComponentEnt
     }
 }
 
+// How far, in tiles, `x`, `z` is outside the entity's footprint (0 inside); kNoFootprint with no entity or
+// no placed footprint.
+constexpr int kNoFootprint = 1 << 20;
+constexpr int kTripReach = 1;   // a walk that ends this close to the footprint is a walk to the building
+
+int TilesFromFootprint(const ComponentEntity* entity, int x, int z) {
+    if (entity == nullptr) {
+        return kNoFootprint;
+    }
+    const MapComponent* footprint = entity->FindComponent<MapComponent>();
+    if (footprint == nullptr || footprint->tileX0 < 0 || footprint->tileY0 < 0) {
+        return kNoFootprint;
+    }
+    const int x0 = footprint->tileX0;
+    const int z0 = footprint->tileY0;
+    const int x1 = x0 + footprint->tileX1 - 1;   // the footprint is x, y, w, h
+    const int z1 = z0 + footprint->tileY1 - 1;
+    const int dx = std::max(std::max(x0 - x, x - x1), 0);
+    const int dz = std::max(std::max(z0 - z, z - z1), 0);
+    return std::max(dx, dz);
+}
+
+Trip TripOf(const MoveTo& move) {
+    const CharacterComponent* character = move.character.Get();
+    if (character == nullptr || character->_entity.Get() == nullptr) {
+        return Trip::Other;
+    }
+    const CitizenComponent* citizen = character->_entity.Get()->FindComponent<CitizenComponent>();
+    if (citizen == nullptr) {
+        return Trip::Other;   // a nomad band's or a trader's walker
+    }
+    const int size = Town().MapSize();
+    const int x = TileOf(move.destination.x, size);
+    const int z = TileOf(move.destination.y, size);
+    if (x < 0 || z < 0) {
+        return Trip::Other;
+    }
+    const int toWork = TilesFromFootprint(citizen->workplace.Get(), x, z);
+    const int toHome = TilesFromFootprint(citizen->home.Get(), x, z);
+    if (toWork <= kTripReach && toWork <= toHome) {
+        return Trip::ToWork;
+    }
+    if (toHome <= kTripReach) {
+        return Trip::ToHome;
+    }
+    return Trip::Other;
+}
+
 }  // namespace
 
 void BeginFrame() {
@@ -169,8 +226,8 @@ void OnConsumedAt(const ComponentDescription* item, const ComponentEntity* site,
     AddAtEntity(Flow::Consumed, item, site, count);
 }
 
-void OnStep(int tileX, int tileZ) {
-    Town().AddStep(tileX, tileZ);
+void OnStep(int tileX, int tileZ, const MoveTo& move) {
+    Town().AddStep(tileX, tileZ, TripOf(move));
 }
 
 }  // namespace MapOverlays
