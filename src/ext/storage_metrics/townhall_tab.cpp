@@ -194,6 +194,23 @@ void Refresh(Tab& tab) {
     }
 }
 
+// The window's page frame is as wide as its widest page: TabElement::ComputeSize (0x1800d9ea0) leaves the tab
+// strip out of the window's width. The game's six buttons fit inside its widest page; a seventh runs past the
+// frame's right edge. So the Storage page gets a floor that brings the frame out to the last button. The first
+// button starts at the frame's left edge and the buttons are a gap apart; `_tabBarWidth` counts a gap before
+// each button and one after the last, so the last button ends at the frame's right edge when the widest page is
+// `_tabBarWidth` less two gaps wide. Every tab shows in the one frame, so all of them get the few pixels.
+// Nothing in TownHall.rsc is sized to the screen, so measuring before the window is shown reads nothing that is
+// not there yet.
+void FitTabStrip(UI::TabElement* tabs, UI::Element* page) {
+    tabs->ComputeSize();   // AddTab left the layout dirty
+    const int32_t strip = tabs->_tabBarWidth - 2 * tabs->_gap;
+    if (page->_minWidth < strip) {
+        page->_minWidth = strip;
+        page->SetNeedsSizeCalc();
+    }
+}
+
 }  // namespace
 
 void TownHallCreated(const TownHallUI* hall, UI::TabElement* tabs) {
@@ -211,6 +228,7 @@ void TownHallCreated(const TownHallUI* hall, UI::TabElement* tabs) {
         std::fprintf(stderr, "[StorageMetrics] AddTab failed: no Storage tab\n");
         return;
     }
+    FitTabStrip(tabs, root.Get());
     Tab tab;
     tab.tabs = tabs;
     tab.index = tabs->_tabCount - 1;
