@@ -9,6 +9,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 **Extensions:**
 1. Upgrade Roads tool in the roads menu: drag a rectangle and its dirt roads are rebuilt as stone (`ext.road_upgrade`).
 2. Request a trader: a trading post's Orders tab can ask for one trader, for the next visit or every visit; a requested trader's goods cost double (`ext.trader_request`).
+3. Wider thin rivers: on a new map, a river thinner than two tiles gets a channel that wide instead of a staircase of single tiles; off by default (`ext.river_channel`).
 
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).

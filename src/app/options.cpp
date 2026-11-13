@@ -405,6 +405,7 @@ void OptionsInit() {
 
     o.cellDump  = Raw("BANISHED_CELL_DUMP");
     o.cellTrace = On("BANISHED_CELL_TRACE");
+    o.waterDump = Raw("BANISHED_WATER_DUMP");
 
     // The stress town rewrites the run's world setup, so it goes LAST — and it
     // is the only thing in the process that writes the environment.

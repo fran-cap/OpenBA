@@ -61,6 +61,8 @@
 #include "system/Value.h"      // ENDGAME B.3.4b System caller batch (Random/Time/Color)
 #include "Game/worldgen_cells.h"   // [WGPAR] the row-parallel cell loops of e5d0 / cf440
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
+#include "ext/registry.h"                      // EXT SEAM: Ext::Ext().river_channel
+#include "ext/river_channel/river_channel.h"   // EXT SEAM: Ext::RiverChannel::Apply
 
 // ============================================================
 // Reused helpers from sibling reimpl TUs (already registered/defined)
@@ -225,6 +227,11 @@ static void wg_HeightmapPipeline_f390(TerrainHeightfield* hf) {
         wg_f390_smooth(hf);      // c350
         LoadTime::Stamp("wg.smooth2");   // NOT RETAIL: print-only
         wg_f390_smooth(hf);      // c350 (second pass)
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/RIVERCHANNEL.md): a least channel along thin rivers
+        if (Ext::Ext().river_channel) {
+            LoadTime::Stamp("wg.river_channel");   // NOT RETAIL: print-only
+            Ext::RiverChannel::Apply(hf);
+        }
     }
 }
 

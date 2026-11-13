@@ -353,6 +353,9 @@ struct Options {
     const char* cellDump             = nullptr;// BANISHED_CELL_DUMP — directory; each save load writes cells_raw.txt / cells_fixed.txt
     bool        cellTrace            = false;  // BANISHED_CELL_TRACE — log footprintCount wraps and buildable -> unbuildable re-sorts
 
+    // ── the water-mesh dump (src/diag/water_dump.cpp; tools/water_view/water_view.sh)
+    const char* waterDump            = nullptr;// BANISHED_WATER_DUMP — directory; each water-copy rebuild writes water_dump.bin (heights + water mesh)
+
     // ── NOT read by the exe ──────────────────────────────────────────────────
     // BANISHED_DIR      — Makefile only (where sa-deploy copies the exe).
     // BANISHED_GAME_DIR — tools/game_dir_lock.sh only (the shared game directory).
