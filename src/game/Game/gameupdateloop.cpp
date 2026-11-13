@@ -158,6 +158,7 @@ extern "C" void BuildingGoal_Probe(const char* templateName);  // src/game/Goal/
 #include "ext/touch_pointer/touch_pointer.h"   // EXT SEAM (NOT RETAIL, docs/android/P11B_POINTER.md): ext.touch_pointer, Draw step 11 (ToolAimHeld)
 #include "ext/ground_draw.h"   // EXT SEAM (NOT RETAIL, MAPOVERLAYS.md): the ground draw, Draw step 7
 #include "ext/scene_draw.h"    // EXT SEAM (NOT RETAIL, docs/extensions/DOF.md): the scene draw, Draw step 7
+#include "ext/radius_all/radius_all.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): ext.radius_all, Update after step 14
 #include "load_time.h"   // [LoadTime] stamps (NOT RETAIL, print-only; block LOADSTAMP)
 #include "Game/cell_stamp.h"   // AMBMEMO: CellStamp::Invalidate at teardown
 #include "Component/AmbientEnvironmentComponent.h"   // AMBMEMO: ReportMemo at teardown
@@ -1354,6 +1355,10 @@ post_simulation:
         m_saveLoad->Update(*time);
         TRACE("[GameUpdateLoop::Update] SaveLoad::Update done\n");
     }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): ext.radius_all keeps the work circles of the
+    // kinds the player asked for (a no-op until one is asked for). After step 14: a save takes them out first.
+    Ext::RadiusAll::Frame();
 
     // Step 14b: Calculate sun direction (normalized)
     // Original at 0x140096717-0x14009676f computes direction from PlayerController

@@ -46,6 +46,7 @@
 #include "Game/WorldGeometry.h"
 #include "ext/registry.h"                 // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): Ext::Ext()
 #include "ext/eye_camera/eye_camera.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/EYECAM.md): ext.eye_camera's followed entity
+#include "ext/radius_all/radius_all.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): ext.radius_all's Shift+click
 #include "Game/Map.h"
 #include "Game/PlayerController.h"   // PlayerController::WorldToScreen (0x140098210)
 
@@ -598,6 +599,13 @@ char EditTool::OnKey(char param2) {
             if (foundEntity->_description != manager->tutorialSelectTarget) {
                 return 1;  // type mismatch, skip
             }
+        }
+
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/RADIUSALL.md): with ext.radius_all a Shift+click (a long
+        // press of a finger) on a building that has a work circle shows or hides the circles of every building
+        // of its kind and selects nothing. Row off, no Shift, or no circle: retail's selection below.
+        if (Ext::Ext().radius_all && Ext::RadiusAll::Click(foundEntity, keyMap)) {
+            return 1;
         }
 
         // Check if entity is different from last selected
