@@ -13,7 +13,8 @@
 // children are the nine pages, in view order), and in each page comboMapOverlaysCategory, comboMapOverlaysResource,
 // comboMapOverlaysKind, rowMapOverlaysMonths, sliderMapOverlaysMonths, sliderMapOverlaysScale, ribbonMapOverlaysRamp
 // (its children are the swatches), textMapOverlaysLegendMax, checkMapOverlaysTerrain, columnMapOverlaysLandKey (its
-// children are the Land view's key rows: a swatch, a text). Texts:
+// children are the Land view's key rows: a swatch, a text), rowMapOverlaysTrips (its children are the Traffic view's
+// three filter buttons: all walks, walks to work, walks home). Texts:
 // Dialog/ExtensionsStringTable.rsc (the MapOverlays* keys).
 
 // The row: the map's cell, the view buttons, the shown view's controls.
@@ -96,14 +97,28 @@ RibbonDescription pageMapOverlaysKind
 	]
 }
 
-// Traffic: the months, and the shared rows.
+// Traffic: which walks, the months, and the shared rows.
 RibbonDescription pageMapOverlaysTraffic
 {
 	Alignment _alignment = TopLeft; bool _vertical = true; int _cellPad = 2; int _topPad = 2;
 	ElementDescription _elements
 	[
-		"rowMapOverlaysMonths" "rowMapOverlaysScale" "rowMapOverlaysLegend" "rowMapOverlaysTerrain"
+		"rowMapOverlaysTrips" "rowMapOverlaysMonths" "rowMapOverlaysScale" "rowMapOverlaysLegend"
+		"rowMapOverlaysTerrain"
 	]
+}
+
+// The Traffic view's filter: All, To work, To home, left to right (overlay_core.h TrafficFilter). The controller
+// names them and dims all but the picked one, as it does the view buttons.
+RibbonDescription rowMapOverlaysTrips
+{
+	Alignment _alignment = MidLeft; int _cellPad = 2;
+	ElementDescription _elements [ "buttonMapOverlaysTrip" "buttonMapOverlaysTrip" "buttonMapOverlaysTrip" ]
+}
+
+ButtonDescription buttonMapOverlaysTrip : "Mod.rsc:buttonMod"
+{
+	ElementDescription _content = "tabCaptionMapOverlays";
 }
 
 // Land: the key (one colour per class: no scale, no ramp), and the terrain check box.

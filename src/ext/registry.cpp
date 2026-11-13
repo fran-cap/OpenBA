@@ -624,7 +624,7 @@ const Entry kEntries[] = {
       "Map data views",
       "Adds views to the map window that show where goods are produced, consumed and stored, where services "
       "reach and where citizens walk. The last year's history is kept in the save.",
-      1, [](State& s) -> bool& { return s.ext.map_overlays; } },
+      2, [](State& s) -> bool& { return s.ext.map_overlays; } },
     // HITCH_PFBURST (docs/extensions/handins/HITCH_PFBURST.md): a per-frame budget of the cold
     // citizens' warm-house scans (one region path search per residence), so a cold spell at high
     // speed spreads its scans over a few frames instead of one 10-20 ms frame.

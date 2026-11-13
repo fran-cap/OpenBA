@@ -18,7 +18,8 @@
 //     buckets (stamp % kMonths); each bucket remembers the stamp it holds, and AdvanceTo clears a bucket
 //     before it is reused, so a query over N months reads only buckets whose stamp is in the window;
 //   * TRAFFIC is a grid of kTrafficCell x kTrafficCell tile cells with kTrafficBuckets seasonal buckets
-//     of saturating 16-bit counts (one step = a citizen entering a new tile).
+//     of saturating 16-bit counts (one step = a citizen entering a new tile), one set per Trip: the walk
+//     the step belongs to (to the walker's workplace, to its home, anything else).
 //
 // THE VIEW (not saved). A Selection picks what the map shows; BuildTiles fills a size*size float grid for
 // it (history views here, the instant views -- stock, services, citizens, natural -- game side in
@@ -34,7 +35,7 @@ namespace Ext {
 namespace MapOverlays {
 
 constexpr const char* kId = "map_overlays";
-constexpr int kWireVersion = 1;          // the registry row's formatVersion
+constexpr int kWireVersion = 2;          // the registry row's formatVersion (2: footsteps per Trip)
 
 constexpr int kMonths = 12;              // the rolling window: one game year, one bucket per month
 constexpr int kTrafficCell = 2;          // tiles per traffic cell edge
@@ -45,6 +46,15 @@ constexpr size_t kMaxResources = 65535;  // entries in the resource table (16-bi
 constexpr size_t kMaxPathBytes = 1023;
 
 enum class Flow : uint8_t { Produced = 0, Consumed = 1, Count = 2 };
+
+// What walk a footstep belongs to: the walker is a citizen on its way to its workplace, or to its home;
+// Other is every other walk (hauling, gathering, a walker with neither, nomads, traders). Saved: the wire
+// keeps one count set per Trip in this order.
+enum class Trip : uint8_t { Other = 0, ToWork = 1, ToHome = 2, Count = 3 };
+constexpr int kTrips = static_cast<int>(Trip::Count);
+
+// The Traffic view's filter (Selection::kind): every footstep, or one Trip's.
+enum class TrafficFilter : uint8_t { All = 0, ToWork = 1, ToHome = 2, Count = 3 };
 
 // The views, in tab order (MAPOVERLAYS.md §2). The first is retail's map, drawn by MapUI unchanged.
 enum class View : uint8_t {
@@ -72,7 +82,8 @@ enum class LandClass : uint8_t {
 // What one view shows. `filter` is per view:
 //   Production / Consumption / Stock: a resource set (resourceMask over the history's table, built from a
 //     category flag mask or a single path by the UI);
-//   Services: a service kind (ServiceKind); Citizens: a measure (CitizenMeasure); Natural: a NaturalKind.
+//   Services: a service kind (ServiceKind); Citizens: a measure (CitizenMeasure); Natural: a NaturalKind;
+//   Traffic: a TrafficFilter.
 enum class ServiceKind : uint8_t { Market, Well, Herbalist, Chapel, School, Tavern, TownHall, Count };
 enum class CitizenMeasure : uint8_t { Happiness, Health, Food, Warmth, Age, Count };
 enum class NaturalKind : uint8_t { Trees, Stone, Iron, Wildlife, Fish, Count };
@@ -81,7 +92,7 @@ struct Selection {
     View view = View::Map;
     uint32_t categoryFlags = 0;        // RawMaterialDescription::_flags bits; 0 with resourcePath empty = all
     std::string resourcePath;          // one resource (template path); wins over categoryFlags when set
-    uint8_t kind = 0;                  // ServiceKind / CitizenMeasure / NaturalKind for those views
+    uint8_t kind = 0;                  // ServiceKind / CitizenMeasure / NaturalKind / TrafficFilter
     int months = kMonths;              // history views: how many recent months to sum (1..kMonths)
     float scale = 0.5f;                // the slider: 0 = exact per tile .. 1 = coarsest blur (overlay_math.h)
     bool onTerrain = false;            // "Show overlay on terrain"
@@ -117,24 +128,25 @@ public:
     // One flow of `count` items at a tile, in the current month. Ignored outside the map, for kNoResource,
     // and before the first AdvanceTo.
     void Add(Flow flow, SiteKey site, uint16_t resource, uint32_t count);
-    // One footstep at a tile.
-    void AddStep(int tileX, int tileZ);
+    // One footstep at a tile, of a walk of kind `trip`.
+    void AddStep(int tileX, int tileZ, Trip trip = Trip::Other);
 
     // Sums the last `months` months of `flow` per tile into `out` (size MapSize()^2, row-major z * size + x;
     // resized and zeroed here). `mask` has one entry per table index; an empty mask means every resource.
     void SumFlow(Flow flow, const std::vector<uint8_t>& mask, int months, std::vector<float>& out) const;
-    // Footsteps of the last `months` months (rounded up to whole seasons) per tile; a cell's count is
-    // spread over its tiles.
-    void SumTraffic(int months, std::vector<float>& out) const;
+    // Footsteps of the last `months` months (rounded up to whole seasons) per tile, every Trip's or the
+    // filter's one; a cell's count is spread over its tiles.
+    void SumTraffic(TrafficFilter filter, int months, std::vector<float>& out) const;
 
     void Clear();   // keeps the map size
     bool Empty() const;
 
     // The wire format (MAPOVERLAYS.md §3). Decode replaces the whole history, or leaves it untouched and
     // returns false when the payload is malformed (cut, trailing bytes, counts past the payload, a map size
-    // out of range, an index outside the table).
+    // out of range, an index outside the table). `version` is the payload's: 1 (one footstep count set,
+    // read as Trip::Other) or kWireVersion; any other is refused.
     void Encode(std::vector<uint8_t>& out) const;
-    bool Decode(const uint8_t* data, size_t size);
+    bool Decode(const uint8_t* data, size_t size, int version = kWireVersion);
 
 private:
     struct Cell {
@@ -160,7 +172,7 @@ private:
     std::vector<std::string> resources_;
     std::unordered_map<std::string, uint16_t> folded_;   // lower-case path -> index (case-insensitive lookup)
     std::vector<Site> sites_;              // sorted by (z, x)
-    std::vector<uint16_t> traffic_;        // cells^2 * kTrafficBuckets
+    std::vector<uint16_t> traffic_;        // cells^2 * kTrips * kTrafficBuckets: [cell][trip][bucket]
 };
 
 }  // namespace MapOverlays

@@ -105,7 +105,7 @@ void MoveTo::UpdateFacing() {
     if (Ext::MapOverlays::g_on && curIdx > 1) {
         // ext.map_overlays: a footstep, the waypoint just reached (path[0] is the start cell, not entered)
         const int reached = path[curIdx - 1];
-        Ext::MapOverlays::OnStep(reached % gridW, reached / gridW);
+        Ext::MapOverlays::OnStep(reached % gridW, reached / gridW, *this);
     }
     float center = static_cast<float>(gridW >> 1) - halfCell;
     float inGrid[3];

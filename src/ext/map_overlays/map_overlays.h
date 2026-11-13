@@ -21,6 +21,7 @@ class RawMaterialDescription;
 class MapUI;
 class ComponentDescription;
 class ComponentEntity;
+class MoveTo;
 
 namespace Ext {
 namespace MapOverlays {
@@ -45,8 +46,9 @@ void OnConsumed(const RawMaterialDescription* material, float worldX, float worl
 // nothing is counted when either is missing.
 void OnProducedAt(const ComponentDescription* item, const ComponentEntity* site, int count);
 void OnConsumedAt(const ComponentDescription* item, const ComponentEntity* site, int count);
-// A citizen entered a new tile (the movement seam; MAPOVERLAYS.md §4 for the cost rule).
-void OnStep(int tileX, int tileZ);
+// A walker entered a new tile (the movement seam; MAPOVERLAYS.md §4 for the cost rule). `move` is the walk:
+// the step's Trip is read from its character and destination.
+void OnStep(int tileX, int tileZ, const MoveTo& move);
 
 // ---- the view (overlay_view.cpp) ---------------------------------------------------------------------------
 const Selection& CurrentSelection();

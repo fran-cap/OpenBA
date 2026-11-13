@@ -255,7 +255,7 @@ UNIT_TEST(ext_map_overlays_traffic_saturates_and_spreads) {
     h.AddStep(4, 3);
     h.AddStep(4, 2);   // cell (2, 1)
     std::vector<float> out;
-    h.SumTraffic(kMonths, out);
+    h.SumTraffic(TrafficFilter::All, kMonths, out);
     CHECK_EQ(out.size(), 25u);
     // 65535 over the four tiles of cell (0, 0)
     CHECK_EQ(TileOf(out, 5, 0, 0), 65535.0f / 4.0f);
@@ -275,19 +275,83 @@ UNIT_TEST(ext_map_overlays_traffic_rolls_over_by_season) {
     h.AddStep(0, 0);
     h.AddStep(0, 0);
     std::vector<float> out;
-    h.SumTraffic(3, out);   // this season
+    h.SumTraffic(TrafficFilter::All, 3, out);   // this season
     CHECK_EQ(TileOf(out, 4, 0, 0), 0.5f);
-    h.SumTraffic(4, out);   // rounded up to two seasons
+    h.SumTraffic(TrafficFilter::All, 4, out);   // rounded up to two seasons
     CHECK_EQ(TileOf(out, 4, 0, 0), 0.75f);
-    h.SumTraffic(kMonths, out);
+    h.SumTraffic(TrafficFilter::All, kMonths, out);
     CHECK_EQ(TileOf(out, 4, 0, 0), 0.75f);
     h.AdvanceTo(112);   // season 37: 34..37 in the window, 33 out
-    h.SumTraffic(kMonths, out);
+    h.SumTraffic(TrafficFilter::All, kMonths, out);
     CHECK_EQ(TileOf(out, 4, 0, 0), 0.5f);
     h.AdvanceTo(115);   // season 38: 34 out too
-    h.SumTraffic(kMonths, out);
+    h.SumTraffic(TrafficFilter::All, kMonths, out);
     CHECK_EQ(TileOf(out, 4, 0, 0), 0.0f);
     CHECK(h.Empty());
+}
+
+UNIT_TEST(ext_map_overlays_traffic_filters_by_trip) {
+    History h;
+    h.SetMapSize(4);   // 2x2 cells of four tiles
+    h.AdvanceTo(100);
+    h.AddStep(0, 0);                  // Trip::Other
+    h.AddStep(0, 0, Trip::ToWork);
+    h.AddStep(1, 1, Trip::ToWork);
+    h.AddStep(0, 0, Trip::ToHome);
+    h.AddStep(2, 2, Trip::ToHome);
+    h.AddStep(3, 3, Trip::Count);     // not a Trip: nothing
+    std::vector<float> out;
+    h.SumTraffic(TrafficFilter::All, kMonths, out);
+    CHECK_EQ(TileOf(out, 4, 0, 0), 1.0f);    // four steps over four tiles
+    CHECK_EQ(TileOf(out, 4, 2, 2), 0.25f);
+    h.SumTraffic(TrafficFilter::ToWork, kMonths, out);
+    CHECK_EQ(TileOf(out, 4, 0, 0), 0.5f);
+    CHECK_EQ(TileOf(out, 4, 2, 2), 0.0f);
+    h.SumTraffic(TrafficFilter::ToHome, kMonths, out);
+    CHECK_EQ(TileOf(out, 4, 0, 0), 0.25f);
+    CHECK_EQ(TileOf(out, 4, 2, 2), 0.25f);
+    // each Trip saturates on its own, and rolls out with its season
+    for (int i = 0; i < 70000; ++i) {
+        h.AddStep(2, 0, Trip::ToWork);
+    }
+    h.AddStep(2, 0, Trip::ToHome);
+    h.SumTraffic(TrafficFilter::ToWork, kMonths, out);
+    CHECK_EQ(TileOf(out, 4, 2, 0), 65535.0f / 4.0f);
+    h.SumTraffic(TrafficFilter::All, kMonths, out);
+    CHECK_EQ(TileOf(out, 4, 2, 0), 65536.0f / 4.0f);
+    h.AdvanceTo(112);   // four seasons on
+    h.SumTraffic(TrafficFilter::ToWork, kMonths, out);
+    CHECK_EQ(Total(out), 0.0f);
+    CHECK(h.Empty());
+}
+
+// A v1 payload (one count set per traffic cell) loads with its footsteps as Trip::Other.
+UNIT_TEST(ext_map_overlays_wire_reads_v1_traffic) {
+    History h = SmallTown();          // its two steps are Trip::Other
+    const std::vector<uint8_t> v2 = Bytes(h);
+    const size_t cells = 9;
+    const size_t setBytes = 2 * kTrafficBuckets;
+    const size_t trafficAt = v2.size() - cells * kTrips * setBytes;   // the first cell's counts
+    std::vector<uint8_t> v1(v2.begin(), v2.begin() + static_cast<std::ptrdiff_t>(trafficAt));
+    for (size_t cell = 0; cell < cells; ++cell) {
+        const size_t at = trafficAt + cell * kTrips * setBytes;       // the cell's Trip::Other set
+        v1.insert(v1.end(), v2.begin() + static_cast<std::ptrdiff_t>(at),
+                  v2.begin() + static_cast<std::ptrdiff_t>(at + setBytes));
+    }
+    History back;
+    CHECK(back.Decode(v1.data(), v1.size(), 1));
+    CHECK(Bytes(back) == v2);
+    std::vector<float> out;
+    back.SumTraffic(TrafficFilter::All, kMonths, out);
+    CHECK_EQ(TileOf(out, 5, 0, 0), 0.25f);
+    back.SumTraffic(TrafficFilter::ToWork, kMonths, out);
+    CHECK_EQ(Total(out), 0.0f);
+    // each layout is refused under the other's version, and so is a version this build does not know
+    CHECK(!back.Decode(v1.data(), v1.size(), kWireVersion));
+    CHECK(!back.Decode(v2.data(), v2.size(), 1));
+    CHECK(!back.Decode(v2.data(), v2.size(), 0));
+    CHECK(!back.Decode(v2.data(), v2.size(), kWireVersion + 1));
+    CHECK(Bytes(back) == v2);
 }
 
 UNIT_TEST(ext_map_overlays_map_size_change_clears) {
@@ -320,12 +384,14 @@ UNIT_TEST(ext_map_overlays_wire_round_trip) {
         back.SumFlow(static_cast<Flow>(f), {}, kMonths, b);
         CHECK(a == b);
     }
-    h.SumTraffic(kMonths, a);
-    back.SumTraffic(kMonths, b);
-    CHECK(a == b);
+    for (int f = 0; f < static_cast<int>(TrafficFilter::Count); ++f) {
+        h.SumTraffic(static_cast<TrafficFilter>(f), kMonths, a);
+        back.SumTraffic(static_cast<TrafficFilter>(f), kMonths, b);
+        CHECK(a == b);
+    }
     // the decoded history goes on counting where the saved one stopped
     back.AddStep(0, 0);
-    back.SumTraffic(3, b);
+    back.SumTraffic(TrafficFilter::All, 3, b);
     CHECK_EQ(TileOf(b, 5, 0, 0), 0.5f);
     CHECK_EQ(back.FindResource("template\\materials\\wood.rsc"), 1);
     // an empty history, map or not, round-trips too
@@ -357,7 +423,7 @@ UNIT_TEST(ext_map_overlays_wire_layout_offsets) {
     CHECK_EQ(b[site1At], 4);
     const size_t trafficAt = site1At + 6 + kCellBytes;
     CHECK_EQ(b[trafficAt], 3);      // ceil(5 / 2)
-    CHECK_EQ(b.size(), trafficAt + 4 + 9 * 8);
+    CHECK_EQ(b.size(), trafficAt + 4 + 9 * kTrips * 8);
 }
 
 UNIT_TEST(ext_map_overlays_wire_refuses_every_damaged_payload) {

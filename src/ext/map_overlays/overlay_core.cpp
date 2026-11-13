@@ -64,7 +64,7 @@ bool SiteLess(SiteKey a, SiteKey b) {
 // The wire's fixed parts (MAPOVERLAYS.md §3), for the "count past the payload" checks.
 constexpr size_t kCellBytes = 2 + 1 + 4 * kMonths;
 constexpr size_t kSiteBytes = 2 + 2 + 2;
-constexpr size_t kTrafficCellBytes = 2 * kTrafficBuckets;
+constexpr size_t kTrafficSetBytes = 2 * kTrafficBuckets;   // one Trip's counts of a cell
 
 bool U16(SaveTail::Reader& r, uint16_t& v) {
     const uint8_t* at = nullptr;
@@ -214,8 +214,8 @@ void History::Add(Flow flow, SiteKey site, uint16_t resource, uint32_t count) {
     slot = (slot > UINT32_MAX - count) ? UINT32_MAX : slot + count;
 }
 
-void History::AddStep(int tileX, int tileZ) {
-    if (trafficBucket_ < 0) {
+void History::AddStep(int tileX, int tileZ, Trip trip) {
+    if (trafficBucket_ < 0 || trip >= Trip::Count) {
         return;
     }
     if (static_cast<unsigned>(tileX) >= static_cast<unsigned>(mapSize_) ||
@@ -223,7 +223,7 @@ void History::AddStep(int tileX, int tileZ) {
         return;
     }
     const size_t cell = static_cast<size_t>(tileZ / kTrafficCell) * TrafficCells() + tileX / kTrafficCell;
-    uint16_t& v = traffic_[cell * kTrafficBuckets + trafficBucket_];
+    uint16_t& v = traffic_[(cell * kTrips + static_cast<size_t>(trip)) * kTrafficBuckets + trafficBucket_];
     if (v != 0xffff) {
         ++v;
     }
@@ -262,7 +262,7 @@ void History::SumFlow(Flow flow, const std::vector<uint8_t>& mask, int months, s
     }
 }
 
-void History::SumTraffic(int months, std::vector<float>& out) const {
+void History::SumTraffic(TrafficFilter filter, int months, std::vector<float>& out) const {
     const size_t tiles = static_cast<size_t>(mapSize_) * mapSize_;
     out.assign(tiles, 0.0f);
     if (now_ == kNoStamp || mapSize_ == 0) {
@@ -275,14 +275,27 @@ void History::SumTraffic(int months, std::vector<float>& out) const {
     for (int b = 0; b < kTrafficBuckets; ++b) {
         use[b] = trafficStamp_[b] > season - seasons && trafficStamp_[b] <= season;
     }
+    // the Trips the filter reads: all of them, or its one
+    int firstTrip = 0;
+    int lastTrip = kTrips - 1;
+    if (filter == TrafficFilter::ToWork) {
+        firstTrip = static_cast<int>(Trip::ToWork);
+        lastTrip = firstTrip;
+    } else if (filter == TrafficFilter::ToHome) {
+        firstTrip = static_cast<int>(Trip::ToHome);
+        lastTrip = firstTrip;
+    }
     const int cells = TrafficCells();
     for (int cz = 0; cz < cells; ++cz) {
         for (int cx = 0; cx < cells; ++cx) {
-            const uint16_t* counts = &traffic_[(static_cast<size_t>(cz) * cells + cx) * kTrafficBuckets];
+            const uint16_t* cell = &traffic_[(static_cast<size_t>(cz) * cells + cx) * kTrips * kTrafficBuckets];
             uint32_t sum = 0;
-            for (int b = 0; b < kTrafficBuckets; ++b) {
-                if (use[b]) {
-                    sum += counts[b];
+            for (int t = firstTrip; t <= lastTrip; ++t) {
+                const uint16_t* counts = cell + t * kTrafficBuckets;
+                for (int b = 0; b < kTrafficBuckets; ++b) {
+                    if (use[b]) {
+                        sum += counts[b];
+                    }
                 }
             }
             if (sum == 0) {
@@ -315,7 +328,7 @@ void History::Clear() {
     folded_.clear();
     sites_.clear();
     const size_t cells = static_cast<size_t>(TrafficCells());
-    traffic_.assign(cells * cells * kTrafficBuckets, 0);
+    traffic_.assign(cells * cells * kTrips * kTrafficBuckets, 0);
 }
 
 bool History::Empty() const {
@@ -365,7 +378,10 @@ void History::Encode(std::vector<uint8_t>& out) const {
     }
 }
 
-bool History::Decode(const uint8_t* data, size_t size) {
+bool History::Decode(const uint8_t* data, size_t size, int version) {
+    if (version != 1 && version != kWireVersion) {
+        return false;
+    }
     if (data == nullptr && size != 0) {
         return false;
     }
@@ -459,14 +475,19 @@ bool History::Decode(const uint8_t* data, size_t size) {
     if (!r.U32(cells) || cells != static_cast<uint32_t>(h.TrafficCells())) {
         return false;
     }
+    // v1 has one count set per cell (no Trip was recorded: it reads as Trip::Other), v2 one per Trip
+    const size_t savedTrips = version == 1 ? 1 : static_cast<size_t>(kTrips);
     const size_t trafficCount = static_cast<size_t>(cells) * cells;
-    if (trafficCount > r.left / kTrafficCellBytes) {
+    if (trafficCount > r.left / (kTrafficSetBytes * savedTrips)) {
         return false;
     }
-    h.traffic_.resize(trafficCount * kTrafficBuckets);
-    for (uint16_t& v : h.traffic_) {
-        if (!U16(r, v)) {
-            return false;
+    h.traffic_.assign(trafficCount * kTrips * kTrafficBuckets, 0);
+    for (size_t cell = 0; cell < trafficCount; ++cell) {
+        uint16_t* counts = &h.traffic_[cell * kTrips * kTrafficBuckets];
+        for (size_t i = 0; i < savedTrips * kTrafficBuckets; ++i) {
+            if (!U16(r, counts[i])) {
+                return false;
+            }
         }
     }
     if (!r.AtEnd()) {

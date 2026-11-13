@@ -22,7 +22,7 @@ painted by `MapComponent`). Retail has no spatial view of any flow; the Town Hal
 | Consumption | history | items consumed at the tile (eaten, burned, used as input, used to build) |
 | Stock | instant | items held at the tile now (storage, stockpiles, markets, homes) |
 | Services | instant | coverage of a service kind (market, well, herbalist, chapel, school, tavern, town hall): 1 inside a building's radius, more where radii overlap |
-| Traffic | history | footsteps (a citizen entering the tile) in the last N months |
+| Traffic | history | footsteps (a citizen entering the tile) in the last N months: all of them, only walks to the walker's workplace, or only walks to its home (three buttons, All / To work / To home) |
 | Citizens | instant | homes by a measure (happiness, health, food, warmth, age), averaged over the residents |
 | Natural | instant | trees, stone, iron, wildlife, fish |
 | Land | instant | a class, not an amount: buildable (green), buildable once the trees, rocks or ore on it are cleared (amber), not buildable: water, steep ground, mountain (red). Built-on tiles (buildings and their yards, roads, fields, bridges) are left clear |
@@ -37,6 +37,13 @@ terrain it is drawn from a point-sampled texture of the image (white triangles w
 an instance of the Selection material's Material), so a tile keeps its own colour at any zoom; the heat views
 keep their vertex colours, which blend between the cells of a far view.
 
+**Traffic's filter** (2026-11-12). Each footstep is recorded under the Trip of its walk
+(`map_overlays_town.cpp` `TripOf`): the walk's destination tile (`MoveTo::destination`) lies in, or one tile
+from, the footprint of the citizen's workplace (to work) or of its home (to home); every other walk is
+"other" (hauling, a walk to a tree, a pile or a storage, nomads, traders). A long bright trail under To work
+is a long commute. A forester's or gatherer's walk to a tree is not a walk to the workplace. Footsteps
+recorded before the filter existed (a wire v1 save) are "other": they show under All only.
+
 Resource pickers list the materials of the running game (the factory walk of RawMaterialDescription, as
 `ext.restricted_foods` does), grouped by the `_flags` categories, with each material's own sprite. A mod's
 material appears with no code; a mod's flag bits above the retail ones show as "Other".
@@ -49,15 +56,19 @@ together, and retail's click and outline code read the elements' own sizes. Neve
 ## 3. The save (class C)
 
 Test of DESIGN.md: a reload must restore the history for the views to read as before, so the row is class C.
-The history travels in the extension's tail record (`save_state.cpp`, wire format v1), never in a retail
+The history travels in the extension's tail record (`save_state.cpp`, wire format v2), never in a retail
 class. Payload, little-endian:
 
 ```
 u32 mapSize  i32 now  i32 bucketStamp[12]  i32 trafficStamp[4]
 u32 resourceCount  { u16 len  bytes path } * resourceCount
 u32 siteCount  { u16 x  u16 z  u16 cellCount  { u16 resource  u8 flow  u32 counts[12] } * cellCount } * siteCount
-u32 trafficCells  { u16 count[4] } * trafficCells^2        (trafficCells = ceil(mapSize / 2))
+u32 trafficCells  { u16 count[3][4] } * trafficCells^2     (trafficCells = ceil(mapSize / 2); [Trip][season])
 ```
+
+v1 (before the Traffic filter) has `{ u16 count[4] }` per traffic cell and is otherwise the same; it is read
+with its counts as Trip "other". A v2 save does not load in a build that only knows v1 (the tail's newer
+`formatVersion` rule).
 
 Block 1 is compressed, so the empty traffic cells cost almost nothing. A site is a tile, not an entity: no
 binding after a load. Resources are paths, so a changed mod list keeps the save loadable. The decoder refuses
@@ -88,7 +99,7 @@ and has no seam.
 | `Component/happinesscomponent.cpp` `HappinessComponent::OnMessage` | a good spent by a happiness building | consumed | one unit (ale and the like), at the building. The material is read before the subtract, so the overlay counts the spent good under both arms of `fix.tavern_counter` |
 | `Component/residence_heattick.cpp` (the burn branch) | one fuel burned | consumed | firewood or coal, at the home |
 | `Component/buildcomponent_state8.cpp` (build complete, refund loop (a)) | each storage slot of a finished site | consumed | the construction materials, at the building. This is when retail tallies them |
-| movement: `Action/action_base_move.cpp` `MoveTo::UpdateFacing` | a waypoint reached (`pathIndex > 1`; `path[0]` is the start cell) | `OnStep` | one footstep at `path[pathIndex - 1]`. Faithful `MoveTo::Execute` case 2, `ext.walk_batch`'s and `ext.walk_batch_grid`'s batched `Step` (both call the real `UpdateFacing`) and `ext.fast_paths` (the same per-cell path format) all pass here. Every `MoveTo` walker is counted: citizens, nomads and traders on foot |
+| movement: `Action/action_base_move.cpp` `MoveTo::UpdateFacing` | a waypoint reached (`pathIndex > 1`; `path[0]` is the start cell) | `OnStep` | one footstep at `path[pathIndex - 1]`, under the walk's Trip (section 2). Faithful `MoveTo::Execute` case 2, `ext.walk_batch`'s and `ext.walk_batch_grid`'s batched `Step` (both call the real `UpdateFacing`) and `ext.fast_paths` (the same per-cell path format) all pass here. Every `MoveTo` walker is counted: citizens, nomads and traders on foot |
 | `GameUpdateLoop::Update` | `BeginFrame` | | |
 | `Renderer::Draw` pass 2 and ext.render_pipe's copy, after the opaque list of the main scene (`Renderer::_extGroundDraw`, armed by `GameUpdateLoop::Draw` step 7 through `Ext::GroundDraw`, `src/ext/ground_draw.h`) | `DrawOnTerrain` | | |
 | the map window | the overlay tabs | | |
@@ -107,8 +118,10 @@ move tick or `MoveTo::Execute`.
 | `Renderer::Draw` pass 2 and ext.render_pipe's copy (`Renderer::_extGroundDraw`, `src/ext/ground_draw.h`) | `DrawOnTerrain` |
 | the map window | the overlay tabs |
 
-**Cost rule for `OnStep`.** It runs per citizen per tile crossed. The body is an index computation and a
-saturating 16-bit add; no lookup, no allocation, no lock. Measured: stress run faithful vs row on.
+**Cost rule for `OnStep`.** It runs per citizen per tile crossed. The body is the Trip (three component
+lookups: the walker's CitizenComponent, the MapComponent of its workplace and of its home), an index
+computation and a saturating 16-bit add; no allocation, no lock. Measured before the Trip was added: stress
+run faithful vs row on (section 7); not re-measured with it.
 
 ## 5. The picture
 

@@ -63,7 +63,8 @@ bool BuildGrid(const Selection& s, int& size, std::vector<float>& grid) {
         }
         const int months = ClampMonths(s.months);
         if (s.view == View::Traffic) {
-            h.SumTraffic(months, grid);
+            const uint8_t filter = s.kind < static_cast<uint8_t>(TrafficFilter::Count) ? s.kind : 0;
+            h.SumTraffic(static_cast<TrafficFilter>(filter), months, grid);
             return true;
         }
         BuildResourceMask(s, h.Resources(), s_mask);
