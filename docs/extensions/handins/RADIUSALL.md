@@ -1,6 +1,6 @@
 # RADIUSALL hand-in
 
-Branch `ext/radius-peers`, on `main` f3066507. The task (the user's): Shift+click a gatherer or production
+Branch `ext/radius-peers`, on `main` af1ef837. The task (the user's): Shift+click a gatherer or production
 building's circle and the circle is shown for every building of that type, so the areas already covered are
 visible while a new one is placed; on a phone, a long press. **Result: `ext.radius_all`, class A, on by default.**
 
