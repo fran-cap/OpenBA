@@ -585,6 +585,15 @@ const Entry kEntries[] = {
     // the extension window, that edits the terrain under the mouse. Class B: play diverges (the map is no
     // longer the generated one) and no state of its own is recorded, because the save already carries the
     // heights and the cell types the brush writes.
+    // RIVERCHANNEL (docs/extensions/handins/RIVERCHANNEL.md): at the end of a new map's height pipeline, every
+    // stretch of river thinner than two tiles gets a channel that wide. Class B: nothing new is
+    // saved (the heights are), but the map differs from retail's for the same seed.
+    { "river_channel", Tier::Extension, Class::B, false,
+      "Wider thin rivers",
+      "On a new map, a river thinner than two tiles gets a channel that wide, so it no longer shows "
+      "as a staircase of single tiles. Wide rivers and lakes do not change. The map differs from the "
+      "original game's for the same seed; recorded in the save.",
+      1, [](State& s) -> bool& { return s.ext.river_channel; } },
     { "terrain_edit", Tier::Extension, Class::B, false,
       "Terrain editor",
       "A brush, started from the Terrain page in a game, that reshapes the ground under the mouse. "

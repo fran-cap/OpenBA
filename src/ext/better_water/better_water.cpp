@@ -34,6 +34,7 @@
 #include "ext/better_water/river_rows.h"
 
 #include "Game/WorldGeometry.h"
+#include "diag/water_dump.h"   // BANISHED_WATER_DUMP
 #include "video/Buffers.h"
 
 #include "video/Context.h"
@@ -393,24 +394,8 @@ FadeSlot* FadeFor(const WorldGeometry& geo) {
         int skipped = 0;
         const int relaid = RiverRows::Relay(s->vertices, geo._contourIndices.data, indexCount, rivers.data(),
                                             static_cast<int32_t>(rivers.size()), &skipped);
-        // TEMP DUMP (investigation, remove): the mesh before and after, for an offline plot.
-        if (FILE* df = std::fopen("bw_dump.bin", "wb")) {
-            const int32_t head[6] = {waterCount, indexCount, riverCount, lakeCount, geo._heightRowStride,
-                                     geo._gridSize >> 1};
-            std::fwrite(head, sizeof(head), 1, df);
-            std::fwrite(geo._contourVertices.data, sizeof(TerrainVertex), static_cast<size_t>(waterCount), df);
-            std::fwrite(s->vertices.data(), sizeof(TerrainVertex), static_cast<size_t>(waterCount), df);
-            std::fwrite(geo._contourIndices.data, sizeof(uint16_t), static_cast<size_t>(indexCount), df);
-            for (int32_t i = 0; i < riverCount; ++i) {
-                std::fwrite(geo._contourRangesA.data[i].values, sizeof(int32_t), 4, df);
-            }
-            for (int32_t i = 0; i < lakeCount; ++i) {
-                std::fwrite(geo._contourRangesB.data[i].values, sizeof(int32_t), 4, df);
-            }
-            std::fwrite(geo._heights.data, sizeof(int16_t),
-                        static_cast<size_t>(geo._heightRowStride) * static_cast<size_t>(geo._heightRowStride), df);
-            std::fclose(df);
-        }
+        // BANISHED_WATER_DUMP (src/diag/water_dump.h): the mesh before and after, for tools/water_view.
+        WaterDump::Write(geo, static_cast<int32_t>(s->vertices.size()) == waterCount ? s->vertices.data() : nullptr);
         if (faded == 0 && relaid == 0) s->vertices.clear();
         std::fprintf(stderr,
                      "[BetterWater] river mouths: %d lake vertices faded of %d; river rows: %d vertices relaid "

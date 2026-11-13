@@ -103,6 +103,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_trader_request";	String _source = "Sprite/Extensions/Entry_trader_request.png"; }
 		{ String _name = "ExtensionsEntry_family_tree";	String _source = "Sprite/Extensions/Entry_family_tree.png"; }
 		{ String _name = "ExtensionsEntry_map_overlays";	String _source = "Sprite/Extensions/Entry_map_overlays.png"; }
+		{ String _name = "ExtensionsEntry_river_channel";	String _source = "Sprite/Extensions/Entry_river_channel.png"; }
 		{ String _name = "ExtensionsEntry_terrain_edit";	String _source = "Sprite/Extensions/Entry_terrain_edit.png"; }
 		{ String _name = "ExtensionsEntry_staggered_passes";	String _source = "Sprite/Extensions/Entry_staggered_passes.png"; }
 		{ String _name = "ExtensionsGlyph_town_screenshot_view";	String _source = "Sprite/Extensions/Glyph_town_screenshot_view.png"; }

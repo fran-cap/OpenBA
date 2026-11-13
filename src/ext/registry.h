@@ -152,6 +152,9 @@ struct Extensions {
     // class C: src/ext/trader_request/ (docs/extensions/handins/TRADERREQUEST.md); a trading post asks for one
     // trader, whose goods then cost double
     bool trader_request = false;
+    // class B: src/ext/river_channel/ (docs/extensions/handins/RIVERCHANNEL.md); a new map's thin rivers get
+    // a channel at least two tiles wide
+    bool river_channel = false;
     // class B: src/ext/terrain_edit/ (docs/extensions/handins/TERRAINEDIT.md); a brush tool that edits the
     // terrain under the mouse
     bool terrain_edit = false;
