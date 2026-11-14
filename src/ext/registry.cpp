@@ -665,6 +665,16 @@ const Entry kEntries[] = {
       "Draws each row of visible terrain in one call and skips shadow work for terrain whose shadow "
       "cannot reach the screen. Same picture.",
       0, [](State& s) -> bool& { return s.ext.terrain_batch; } },
+    // TERRAINLATE (docs/extensions/handins/TERRAINLATE.md): the main pass draws the terrain after the
+    // other opaque objects instead of before them, so the early depth test skips the terrain pixels
+    // buildings, trees and citizens cover; the late terrain tests "less", so a depth tie stays the
+    // object's as in retail. The picture is unchanged. Class A, live, ON by default (the standing
+    // class A rule); on the Experimental tab until its GPU A/B is in.
+    { "terrain_late", Tier::Extension, Class::A, true,
+      "Terrain drawn last",
+      "Draws the ground after the buildings, trees and people, so the graphics card skips the ground "
+      "they hide. Same picture.",
+      0, [](State& s) -> bool& { return s.ext.terrain_late; } },
     // SEAMLESS (docs/extensions/handins/SEAMLESS.md, CHATTER-DIAG.md): every looping ambience's decoded
     // PCM loses its codec tail and has its end folded into its start, at load. The seam
     // Audio::SoundBuffer::_extLoopSeam is installed at boot, so a toggle takes effect at the next start.
@@ -1463,7 +1473,7 @@ int PseudoModLoadStatus(const char* path, int32_t savedFormatVersion) {
 // The Extensions dialog's Experimental tab (registry.h Experimental).
 bool Experimental(const Entry& e) {
     static const char* const kExperimental[] = { "touch_mode", "touch_pointer", "phone_menu", "staggered_passes",
-                                                         "leaf_lod" };
+                                                         "leaf_lod", "terrain_late" };
     for (const char* id : kExperimental)
         if (std::strcmp(e.id, id) == 0) return true;
     return false;

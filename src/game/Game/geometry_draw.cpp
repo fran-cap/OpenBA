@@ -45,6 +45,7 @@
 #include "ext/terrain_batch/terrain_batch.h"   // ext.terrain_batch: the row merge + the shadow chunk cull
 #include "ext/better_water/better_water.h"     // ext.better_water: the shore pass after a water range
 #include "ext/winter_ice/winter_ice.h"         // ext.winter_ice: the ice pass after a water range
+#include "ext/terrain_late/terrain_late.h"     // ext.terrain_late: the late terrain's less-test state
 #include "object/Internal.h"   // Object::detail::InternalMemFree
 #include <atomic>
 #include <cstdint>
@@ -75,6 +76,9 @@ std::atomic<bool> s_itemDrawLogged{false};
 // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINBATCH.md): null unless ext.terrain_batch
 // is registered for this run (registry_boot.cpp); then the row's live bool.
 const bool* WorldGeometry::_extTerrainBatch = nullptr;
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINLATE.md): null unless ext.terrain_late is
+// registered for this run (Ext::TerrainLate::Sync); then the row's live bool.
+const bool* WorldGeometry::_extTerrainLate = nullptr;
 
 
 // ============================================================
@@ -368,7 +372,7 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
 // in 0xE000 to choose draw mode).
 void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*camera*/,
                          Graphics::ExternalPtrHandle /*material*/,
-                         float param5, int a, int /*b*/, int /*c*/) const {
+                         float param5, int a, int shaderIndex, int /*c*/) const {
     const uint32_t param6 = static_cast<uint32_t>(a);
 
     if (!s_itemDrawLogged.exchange(true)) {
@@ -484,6 +488,13 @@ void WorldGeometry::Draw(Video::Context& context, const Graphics::Camera& /*came
         if (!ranges) return;
         DrawContourRange(ranges);
         return;
+    }
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINLATE.md): with ext.terrain_late on, the main
+    // entry's terrain draws after the other opaque items; its chunk and run draws in the Normal shader
+    // (DrawItemList's shader index) take the terrain state with the less test. Not the 0xA000 overlay.
+    if (_extTerrainLate != nullptr && *_extTerrainLate && shaderIndex == 0 && mode != 0xA000u) {
+        Ext::TerrainLate::BindLateState(context, *this);
     }
 
     // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINBATCH.md): a run item of

@@ -75,6 +75,7 @@
 #include "decal_fog/decal_fog_backend.h"                  // fix.decal_fog_order: the backend half
 #include "audio/Device.h"        // the fix.stream_free_wait seam (DESIGN.md hook rule 5)
 #include "Game/WorldGeometry.h"  // the ext.terrain_batch seam (DESIGN.md hook rule 5)
+#include "ext/terrain_late/terrain_late.h"   // ext.terrain_late: the Opaque-list and terrain-state seams
 
 namespace Ext {
 
@@ -299,6 +300,11 @@ void InitFromSettings() {
     // built and the terrain loop and draw pay one null test each.
     ::WorldGeometry::_extTerrainBatch =
         CurrentProfile() == Profile::Faithful ? nullptr : &Ext().terrain_batch;
+    // ext.terrain_late (class A, live): the Renderer's Opaque-list seam and the WorldGeometry state seam,
+    // installed once like terrain_batch's; both bodies follow the row's live bool, so the dialog's
+    // toggle needs no Sync. Null under the faithful profile: pass 1 and the terrain draw pay one null
+    // test each.
+    TerrainLate::Sync();
     // ext.better_water (class A, live): the Graphics::FrameCopyImageBuffer::Generate seam, installed
     // once like the two above; the body itself follows the live level (it copies only while Fancy's
     // contact foam is on). Null under the faithful profile: the frame copy pays one null test.

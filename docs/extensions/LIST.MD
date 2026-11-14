@@ -32,6 +32,7 @@
 | Ext A | Seamless ambient loops | When loops (ambient) end cleanly cycle into the next one. |
 | Ext A | Background save compression | Compresses the save on a worker thread; identical save files. |
 | Ext A | Batched terrain drawing | Draws each row of visible terrain chunks in one call and skips shadow work for terrain whose shadow cannot reach the screen. Same picture. |
+| Ext A | Terrain drawn last | Draws the ground after the buildings, trees and people, so the graphics card skips the ground they hide. Same picture. Experimental tab. |
 | Ext A | Parallel resource decoding | While a resource loads, the next compressed parts of its file are decoded on other cores. Same game data, faster loading of large mods. Takes effect at the next start. |
 | Ext A | Parallel graphics loading | While content loads, its GPU buffers and textures are created on other cores. Same resources, all made before the load ends; faster loading of large mods. Takes effect at the next load. |
 | Ext A | Compressed AO maps | Keeps the models' baked shading maps compressed (BC4): half their memory (-1.1 GB with MegaMod), the same look. The first start after a mod change prepares them; later starts reuse them from a cache beside settings.cfg (Options > Enhanced: size + Clear cache). Takes effect at the next start. |
