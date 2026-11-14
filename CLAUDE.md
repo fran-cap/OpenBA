@@ -35,7 +35,7 @@ tools/build.sh build [debug|og|perf|release]   # exe -> build/cmake-<flavour>/Op
 tools/build.sh deploy          # debug build + copy to C:/GOG Games/Banished
 tools/build.sh run             # THE GATE: deploy + launch, auto-starts a new game
 tools/build.sh run-menu        # same, stops at the main menu
-tools/build.sh unit [flavour]  # build + run the unit tests
+tools/build.sh unit [flavour]  # build + run the unit tests (--shards 4: ~12 s); does not compile the exe's sources: run `build` for an engine / game edit
 tools/build.sh stress          # perf build + the stress town (skill `stress-test`)
 tools/build.sh clean [flavour] # remove the build directory (all four without a flavour)
 tools/resave_gate/resave_gate.sh Gate   # serializer regression check (README alongside)
@@ -112,10 +112,10 @@ Subagents do not see this file: put the relevant hard rules in the prompt.
 | The Android phone loop, apks | skill `android-device`, `docs/android/README.md` |
 | Cutting a release, a tester apk | skill `release` |
 | Ghidra setup and naming conventions | skill `ghidra`, `docs/reference/HOW_TO_START_GHIDRA.md` |
+| Who calls, binds or overrides a function, before removing, renaming or calling it dead | skill `caller-sweep` |
 | Type header ABI rules | `.claude/rules/type-headers.md` (auto-loads on `src/engine/**`) |
-| Retail binary facts, import table, modding toolkit | `docs/reference/binaries.md` |
+| Retail binary facts, import table, modding toolkit; per-binary function inventories | `docs/reference/binaries.md`, `decomp/README.md` |
 | Main loop, launcher dialog, threading, address resolution | `docs/reference/engine_architecture.md` |
 | Toolchain versions, VS Code / MCP debugging | `docs/reference/environment.md` |
-| Per-binary function inventories | `decomp/README.md` |
 | A player's bug report; known retail bugs; bugs in OUR port | skill `bug-report`, `docs/retail_bugs.md`, `docs/known_port_issues.md` |
 | Wave / step history, old notes, lane logs (archive, open only when a task needs it) | `docs/history/` |

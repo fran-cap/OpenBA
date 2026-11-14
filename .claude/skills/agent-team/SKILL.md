@@ -70,6 +70,8 @@ A fresh worktree: `git -c protocol.file.allow=always submodule update --init --r
 - No `find /` or unscoped filesystem search: Grep/Glob inside your worktree only.
 - Build only with tools/build.sh, `--jobs <N>`. Block in the FOREGROUND on builds, lock acquires
   and runs (Bash timeout 600000); never a background job waiting for a notification.
+- Unit tests (they do not compile the exe's sources; `build` does): `tools/build.sh unit --shards 4 --jobs <N> > build/unit.log 2>&1; echo "exit=$?"`,
+  then `grep -E '^(FAIL|  FAIL|!! |[0-9]+ tests, )|FAILED:|: error:|undefined reference' build/unit.log | head -60; tail -n 5 build/unit.log`.
 - Game runs: `eval "$(tools/game_dirs.sh env <lane> functional)"` as its OWN command, never chained
   with &&; check BANISHED_DIR is set; `tools/game_dirs.sh release <lane>` after each run block.
   Back up that dir's settings.cfg and exe at lock time and restore them after.
