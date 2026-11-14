@@ -89,6 +89,11 @@ void Pass1(Renderer& r, const Video::RenderBuffer* defaultRenderBuffer, float al
                     uint64_t scratch[4];
                     rtgfxbig::RtGraphics_Renderer_DrawItemSort(list._data, list._size, scratch);
                 }
+                // ext.terrain_late (docs/extensions/handins/TERRAINLATE.md): the faithful pass 1's seam, at
+                // the same point of the same list.
+                if (k == 0 && Renderer::_extOpaqueOrder != nullptr &&
+                    e->_shader == static_cast<int32_t>(Graphics::MaterialPass::Normal) && list._size > 1)
+                    Renderer::_extOpaqueOrder(list._data, list._size);
             }
 
             PassSplit::End(splitSlot, splitT0);   // issue #253

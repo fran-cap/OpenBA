@@ -124,6 +124,7 @@ SpriteSheet resource
 		{ String _name = "ExtensionsEntry_road_upgrade";	String _source = "Sprite/Extensions/Entry_road_upgrade.png"; }
 		{ String _name = "ExtensionsEntry_radius_all";	String _source = "Sprite/Extensions/Entry_radius_all.png"; }
 		{ String _name = "ExtensionsEntry_terrain_batch";	String _source = "Sprite/Extensions/Entry_terrain_batch.png"; }
+		{ String _name = "ExtensionsEntry_terrain_late";	String _source = "Sprite/Extensions/Entry_terrain_late.png"; }
 		{ String _name = "ExtensionsEntry_decode_ahead";	String _source = "Sprite/Extensions/Entry_decode_ahead.png"; }
 		{ String _name = "ExtensionsEntry_load_progress";	String _source = "Sprite/Extensions/Entry_load_progress.png"; }
 		{ String _name = "ExtensionsEntry_async_gpu_create";	String _source = "Sprite/Extensions/Entry_async_gpu_create.png"; }

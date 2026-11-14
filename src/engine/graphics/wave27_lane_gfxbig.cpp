@@ -1038,6 +1038,12 @@ void Renderer::Draw(Video::Context& context, float alpha, const Scene& sceneRef,
                     rtgfxbig::RtGraphics_Renderer_DrawItemSort(list._data, list._size, scratch);
                     ++rtgfxbig::g_drawSorts;
                 }
+                // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINLATE.md): ext.terrain_late, the
+                // sorted Opaque list of the main entry (shader Normal) only; the shadow and reflection
+                // entries keep retail's order. Null (retail) unless the row is registered.
+                if (k == 0 && _extOpaqueOrder != nullptr &&
+                    e->_shader == static_cast<int32_t>(MaterialPass::Normal) && list._size > 1)
+                    _extOpaqueOrder(list._data, list._size);
             }
 
             ++_currentSceneGroup;
@@ -1154,5 +1160,7 @@ const ExtAoFrame* Renderer::_extAo = nullptr;
 Renderer::ExtGroundDrawFn Renderer::_extGroundDraw = nullptr;
 // NOT RETAIL: the scene-draw seam (Camera.h).
 Renderer::ExtGroundDrawFn Renderer::_extSceneDraw = nullptr;
+// NOT RETAIL: the ext.terrain_late seam (Camera.h).
+Renderer::ExtOpaqueOrderFn Renderer::_extOpaqueOrder = nullptr;
 
 }  // namespace Graphics

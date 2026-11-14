@@ -157,6 +157,11 @@ public:
     // registry_boot.cpp sets it. A static: the 0x230-byte layout is unchanged.
     static const bool* _extTerrainBatch;
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINLATE.md): ext.terrain_late's live bool,
+    // null by default and under the faithful profile; Ext::TerrainLate::Sync sets it. While it is on,
+    // Draw's terrain chunk / run draw in the Normal shader binds the late (less-test) terrain state.
+    static const bool* _extTerrainLate;
+
 
 public:
     int32_t  _gridSize;           // +0xC0  heightmap edge (cells)

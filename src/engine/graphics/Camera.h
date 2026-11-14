@@ -721,6 +721,14 @@ public:
                                        int list, int shader);
     static ExtDrawItemListFn _extDrawItemList;
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/TERRAINLATE.md): ext.terrain_late's reorder of the MAIN
+    // scene entry's Opaque list (shader Normal, list 0), run on that list right after Renderer::Draw's pass 1
+    // has sorted it (and by the ext.render_pipe copy of pass 1): the terrain's items move behind the other
+    // opaque items, so the early depth test rejects the terrain pixels they cover. Null by default and under
+    // the faithful profile; set once by Ext::TerrainLate::Sync, the body follows the row's live bool.
+    using ExtOpaqueOrderFn = void (*)(RendererDrawItem* items, int32_t count);
+    static ExtOpaqueOrderFn _extOpaqueOrder;
+
 public:
     Collection::Array<RendererSceneEntry> _sceneGroups;  // +0x00  GetSceneGroup
     Collection::Array<RendererDrawGroup>  _drawGroups;   // +0x10
