@@ -94,3 +94,8 @@ third_party/dxmt_src/
 third_party/airconv_build/build/
 third_party/llvm15_arm64/source/
 third_party/llvm15_arm64/build/
+
+# Claude Code agent worktrees (isolation: worktree), each a full checkout
+.claude/worktrees/
+# clangd config, copied per checkout from .claude/skills/caller-sweep/clangd.windows.yaml (Windows-only flags)
+/.clangd

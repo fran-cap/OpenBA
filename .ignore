@@ -1,0 +1,53 @@
+# .ignore: search scope for ripgrep (and so the Claude Code Grep tool), fd and ast-grep.
+# git, CMake, CI and the build do not read this file. VS Code search reads it while
+# "search.useIgnoreFiles" is on (the default), the same as .gitignore.
+#
+# To search a hidden area on purpose:
+#   Grep tool: path=<repo>/docs/history     an explicit directory still searches (dir rules end in "/")
+#   rg PATTERN docs/history                 same
+#   rg --no-ignore-dot PATTERN              drop this file only, keep .gitignore
+#   rg -u PATTERN                           drop every ignore file
+# The Grep tool's glob parameter does NOT reach a hidden directory (glob "docs/history/**" finds nothing).
+#
+# Directory rules end in "/" so an explicit path still reaches the files below them; a "/**" rule would
+# hide them even then.
+
+# Session logs and data dumps (1.9 GB, 225k md lines). Facts live in docs/reference/.
+/docs/history/
+
+# Submodule checkouts (1.58M lines of upstream code). Vendored imgui and wmadec stay visible.
+/third_party/SDL/
+/third_party/SPIRV-Headers/
+/third_party/Vulkan-Headers/
+/third_party/VulkanMemoryAllocator/
+/third_party/dxbc-spirv/
+/third_party/freetype/
+
+# Agent worktrees, each a full copy of the tree (also in .gitignore; repeated so `rg --no-ignore-vcs`
+# stays scoped).
+/.claude/worktrees/
+
+# Build and capture output (already in .gitignore; repeated so `rg --no-ignore-vcs` stays scoped).
+/build/
+/android/app/.cxx/
+/android/app/build/
+/captures/
+/Banished_RE.rep/
+/ToolKit/
+
+# Generated data headers: 42 files, 15.8 MB (34.8% of src bytes). The hand-written consumer of each
+# array stays visible; search a definition with an explicit file path or --no-ignore-dot.
+# These rules are BASENAMES (no "/"): the Grep tool's embedded ripgrep 14.1.1 does not apply a deep
+# anchored rule (/src/a/b/c/d.h) when the search path is an intermediate directory such as src/ (measured;
+# ripgrep 15.2 does). Every basename below is unique in the tree; *_ps.h and shaders/ match only
+# generated files today: a new hand-written *_ps.h or shaders/ directory would be hidden too.
+msvc_libm_tables.h
+leaf_textures_data.h
+ext_sprites_data.h
+sharp_sprites_data_2x.h
+sharp_sprites_data_4x.h
+ice_texture_data.h
+*_ps.h
+present_spirv.h
+overlay_spirv.h
+shaders/

@@ -14,3 +14,5 @@ Applies to new and contributed code. The reference is `.clang-format` at the rep
 - The config is a close fit, not an exact one: on ten sampled files it would touch about 7% of lines,
   almost all hand-aligned assignment blocks, `if (x)   stmt` columns and trailing comments, which no
   option reproduces. Trust the surrounding file over the tool.
+- Source files are edited with Edit / Write, never a Bash heredoc, `sed -i` or `python -c`: 24 of 27
+  broken string literals in 60 sessions came from shell-written source.

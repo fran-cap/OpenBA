@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "CLAUDE_CODE_GLOB_NO_IGNORE": "false"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"$BASH_VERSION\" ] && . \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_bash_guard.sh\" || bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_bash_guard.sh\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Bash(taskkill *IM OpenBA*)",
+      "PowerShell(taskkill *IM OpenBA*)",
+      "Bash(taskkill *im OpenBA*)",
+      "PowerShell(taskkill *im OpenBA*)",
+      "Bash(taskkill *IM openba*)",
+      "PowerShell(taskkill *IM openba*)",
+      "Bash(taskkill *im openba*)",
+      "PowerShell(taskkill *im openba*)",
+      "Bash(taskkill *IMAGENAME*)",
+      "PowerShell(taskkill *IMAGENAME*)",
+      "Bash(wmic *OpenBA*delete*)",
+      "PowerShell(wmic *OpenBA*delete*)",
+      "Bash(git push --force*)",
+      "PowerShell(git push --force*)",
+      "Bash(git push -f*)",
+      "PowerShell(git push -f*)",
+      "Bash(git push * --force*)",
+      "PowerShell(git push * --force*)",
+      "Bash(git push * -f)",
+      "PowerShell(git push * -f)",
+      "Bash(git push * -f *)",
+      "PowerShell(git push * -f *)",
+      "Bash(git push * +*)",
+      "PowerShell(git push * +*)",
+      "Bash(pacman -S*)",
+      "PowerShell(pacman -S*)",
+      "PowerShell(Stop-Process *OpenBA*)",
+      "PowerShell(Get-ChildItem C:\\ *)",
+      "PowerShell(Get-ChildItem C:/ *)",
+      "PowerShell(Get-ChildItem / *)",
+      "PowerShell(Get-ChildItem -Path C:\\ *)",
+      "PowerShell(Get-ChildItem -Path C:/ *)",
+      "Bash(find /)",
+      "Bash(find / *)",
+      "Bash(find /c)",
+      "Bash(find /c *)",
+      "Bash(find /c/ *)",
+      "Bash(find C:/ *)",
+      "Bash(powershell *Stop-Process*OpenBA*)",
+      "Bash(powershell *OpenBA*Stop-Process*)",
+      "Bash(pwsh *Stop-Process*OpenBA*)",
+      "Bash(pwsh *OpenBA*Stop-Process*)",
+      "Edit(**/third_party/SDL/**)",
+      "Edit(**/third_party/SPIRV-Headers/**)",
+      "Edit(**/third_party/Vulkan-Headers/**)",
+      "Edit(**/third_party/VulkanMemoryAllocator/**)",
+      "Edit(**/third_party/dxbc-spirv/**)",
+      "Edit(**/third_party/freetype/**)",
+      "Edit(**/Banished_RE.rep/**)",
+      "Edit(**/ToolKit/**)",
+      "Edit(**/build/cmake-*/**)",
+      "Edit(**/build/ext_resources/**)",
+      "Edit(**/android/app/.cxx/**)",
+      "Edit(**/android/app/build/**)",
+      "Edit(**/src/render/common/ao/shaders/**)",
+      "Edit(**/src/**/*_ps.h)",
+      "Edit(**/src/render/vulkan/**/*_spirv.h)",
+      "Edit(**/src/engine/crt/msvc_libm_tables.h)",
+      "Edit(**/src/ext/better_trees/leaf_textures_data.h)",
+      "Edit(**/src/ext/resources/ext_sprites_data.h)",
+      "Edit(**/src/ext/sharp_ui/sharp_sprites_data_*.h)",
+      "Edit(**/src/ext/winter_ice/ice_texture_data.h)",
+      "Edit(**/src/engine/video/shader_constants.inc)",
+      "Edit(**/src/platform/common/sdl_dik_tables.h)",
+      "Edit(**/*.pkg)",
+      "Edit(**/*.pkm)",
+      "Edit(**/*.crs)",
+      "Edit(**/*.dds)",
+      "Edit(**/*.cso)"
+    ]
+  }
+}

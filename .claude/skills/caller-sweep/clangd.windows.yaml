@@ -1,0 +1,65 @@
+# clangd project config TEMPLATE for Windows (skill caller-sweep). Copy it to the checkout root as .clangd
+# (gitignored there); clangd does not read it under this name. Not tracked at the root because the --target
+# line below is Windows-only.
+# Verified with clangd 23.1.5 on Windows against build/cmake-debug (dual dx11+vulkan, debug): 0 config-caused
+# errors over 1,630 tree TUs.
+CompileFlags:
+  # Relative to the .clangd file: <checkout>/build/cmake-debug/compile_commands.json.
+  # The background index lands in <worktree>/build/cmake-debug/.cache/clangd/index (gitignored build/);
+  # toolchain-header shards land in %LOCALAPPDATA%\clangd\index (outside any project).
+  CompilationDatabase: build/cmake-debug
+  # WINDOWS-ONLY LINE. The DB driver is a plain g++.exe, so clang would default to x86_64-pc-windows-msvc
+  # (MSVC STL, -fms-compatibility, -fdelayed-template-parsing): 16 errors in 6 of 193 sampled files.
+  # With this flag clang finds WinLibs libstdc++ 16.2 and the mingw-w64 headers from the driver path by
+  # itself; --query-driver is not needed (it gives the same result, 4 errors / 193). On Linux / macOS this
+  # line breaks the parse: drop it there.
+  Add: [--target=x86_64-w64-mingw32]
+  # Release / PGO DB flags clang rejects (verified on a scratch release DB: -flto=8 is a hard error, bare
+  # -fprofile-use reads a missing default.profdata). -fno-lifetime-dse is accepted by clang 23: kept.
+  Remove: [-flto=*, -fno-fat-lto-objects, -fprofile-*, -Wno-missing-profile, -Wno-error=coverage-mismatch]
+Index:
+  Background: Build
+Diagnostics:
+  # clangd include-cleaner: 146 "unused include" hints in the 193-file sample. Include order carries
+  # retail-address comments here (style.md); not a compiler diagnostic.
+  UnusedIncludes: None
+  MissingIncludes: None
+  # With no .clang-tidy file clangd runs a built-in default check set (bugprone-integer-division,
+  # misc-unused-using-decls, ...): 10 hits in the sample, none from GCC.
+  ClangTidy:
+    Remove: ['*']
+  # Clang-only warnings on GCC-clean code (GCC -fsyntax-only with the same DB command is silent on each):
+  #   unused-value          348  every fprintf/printf: src/app/one_write_stdio.h wraps them as int32_t(...)
+  #   unused-const-variable  14  clang enables it for C++ under -Wall; GCC does not
+  #   unused-but-set-global   4  new in clang 23
+  #   unused-lambda-capture   1  clang-only
+  #   deprecated-builtins     1  __has_trivial_destructor in Collection.h
+  # Further clang-only warnings found by the full sweep (1630 tree TUs; GCC silent on each example):
+  #   unused-function                     7  unused `static inline` helpers in .cpp files
+  #   dynamic-class-memaccess             5  memcpy of a polymorphic Geometry (render_pipe/snapshot.cpp)
+  #   undefined-internal                  5  RT_ASM_LABEL declarations in the `#if defined(__clang__)` arm
+  #                                          of tests/unit/rb_engine_abi_test.cpp (clangd parses that arm)
+  #   unneeded-internal-declaration       2
+  #   delete-non-abstract-non-virtual-dtor 2  retail-faithful non-virtual dtors (engine_lifecycle.cpp)
+  #   self-assign                         1  createrawmaterial.cpp:247
+  #   tautological-undefined-compare      1  b39_ti_rest_test.cpp
+  # Kept on purpose (GCC reports the same flags on the same files): unused-variable, unused-but-set-variable,
+  # format, sign-compare, unused-parameter, unused-local-typedef, missing-field-initializers.
+  Suppress: [unused-value, unused-const-variable, unused-but-set-global, unused-lambda-capture, deprecated-builtins,
+             unused-function, dynamic-class-memaccess, undefined-internal, unneeded-internal-declaration,
+             delete-non-abstract-non-virtual-dtor, self-assign, tautological-undefined-compare]
+---
+# Third-party sources: skip their bodies in the background index (1931 -> 1632 TUs, 56 s -> 46 s cold,
+# 35 MB -> 25 MB). Their headers are still indexed through the OpenBA TUs that include them.
+If:
+  PathMatch: [third_party/.*]
+Index:
+  Background: Skip
+---
+# These four TUs' FIRST DB entry is the vulkan-shader-check target (src/render/vulkan/backend.cmake), whose
+# include list lacks src/engine; GCC fails on shader_convert.cpp with that same command
+# ('system/annotated_mutex.h' not found). Paths in Add are relative to the DB entry's directory.
+If:
+  PathMatch: [src/render/vulkan/shader_convert\.cpp, src/render/vulkan/spirv_combine\.cpp, src/render/vulkan/spirv_legalize\.cpp, src/ext/derived_cache/hash64\.cpp]
+CompileFlags:
+  Add: [-I../../src/engine]
