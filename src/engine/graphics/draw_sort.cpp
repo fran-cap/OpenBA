@@ -120,6 +120,8 @@ std::vector<int32_t>&  GroupOfScratch() { static std::vector<int32_t> v; return 
 std::vector<int32_t>&  OffsetScratch()  { static std::vector<int32_t> v; return v; }
 std::vector<GroupKey>& GroupScratch()   { static std::vector<GroupKey> v; return v; }
 std::vector<uint64_t>& SegScratch()     { static std::vector<uint64_t> v; return v; }
+std::vector<uint64_t>& RadixTmpScratch()  { static std::vector<uint64_t> v; return v; }
+std::vector<uint32_t>& RadixHistScratch() { static std::vector<uint32_t> v; return v; }
 
 template <class T>
 T* Grow(std::vector<T>& v, int32_t n) {
@@ -184,7 +186,87 @@ inline bool GroupLess(const GroupKey& x, const GroupKey& y) {
     return x.d < y.d;
 }
 
-template <bool kCount>
+// ---------------------------------------------------------------------------
+// RADIXPLAIN: steps (3)-(5)'s seg[] by one LSD radix sort instead of a comparison
+// sort per segment. With the groups sorted (step 2), item i's place is decided by
+// (rank of its prefix, geometry, i), lexicographic, where rank = its group's position
+// in the sorted prefixes. Pack that into one word,
+//     v = rank << (geoBits + 16) | (geometry - minGeometry) << 16 | i
+// (both shifts order-preserving; geoBits = the bit width of maxGeometry - minGeometry),
+// when rankBits + geoBits + 16 <= 64. The words are built for i ascending, so a STABLE
+// sort on bits [16, 16 + geoBits + rankBits) alone leaves equal-upper-bits words in
+// ascending i: the array ends in ascending order of v, which is the order steps (3)-(4)
+// produce (segments in rank order, each sorted by geometry << 16 | i). The word the
+// steps store is (geometry << 16 | i), not v; both carry i in the low 16 bits and
+// (v ^ v') >> 16 == 0 exactly when the two have the same prefix and the same geometry,
+// which is all the tie scan, the gather and the memo's permutation read. Returns
+// -1 (nothing decided, the caller takes the segment path) when v does not fit;
+// else the sorted words are in SegScratch().
+// ---------------------------------------------------------------------------
+int RadixPlain(int32_t count, const Key* keys, int32_t groupCount, const GroupKey* gks) {
+    // The rank of each group id, and the geometry range.
+    int32_t* const rankOf = Grow(OffsetScratch(), groupCount);
+    for (int32_t r = 0; r < groupCount; ++r) rankOf[gks[r].g] = r;
+    const int32_t* const grp = GroupOfScratch().data();
+    uint64_t gmin = ~0ull;
+    uint64_t gmax = 0;
+    for (int32_t i = 0; i < count; ++i) {
+        const Key& k = keys[i];
+        const uint64_t geo = ((k.w[3] & 0xFFFFull) << 32) | (k.w[4] >> 32);
+        gmin = geo < gmin ? geo : gmin;
+        gmax = geo > gmax ? geo : gmax;
+    }
+    const uint64_t span = gmax - gmin;
+    const int geoBits = span == 0 ? 0 : 64 - __builtin_clzll(span);
+    const uint32_t topRank = static_cast<uint32_t>(groupCount - 1);
+    const int rankBits = topRank == 0 ? 0 : 32 - __builtin_clz(topRank);
+    const int bits = geoBits + rankBits;
+    if (bits + 16 > 64) return -1;
+
+    uint64_t* a = Grow(SegScratch(), count);
+    for (int32_t i = 0; i < count; ++i) {
+        const Key& k = keys[i];
+        const uint64_t geo = ((k.w[3] & 0xFFFFull) << 32) | (k.w[4] >> 32);
+        a[i] = (static_cast<uint64_t>(rankOf[grp[i]]) << (geoBits + 16)) | ((geo - gmin) << 16) |
+               static_cast<uint64_t>(i);
+    }
+    if (bits == 0) return 0;   // one prefix, one geometry: already in index order
+
+    // The passes: as few digits of at most kRadixDigitBits as cover `bits`, equal widths.
+    const int passes = (bits + kRadixDigitBits - 1) / kRadixDigitBits;
+    const int width = (bits + passes - 1) / passes;
+    const uint32_t buckets = 1u << width;
+    const uint64_t mask = buckets - 1;
+    uint32_t* const hist = Grow(RadixHistScratch(), static_cast<int32_t>(buckets) * passes);
+    std::fill(hist, hist + static_cast<size_t>(buckets) * static_cast<size_t>(passes), 0u);
+    for (int32_t i = 0; i < count; ++i) {
+        const uint64_t v = a[i] >> 16;
+        for (int p = 0; p < passes; ++p) ++hist[static_cast<uint32_t>(p) * buckets + ((v >> (p * width)) & mask)];
+    }
+    uint64_t* b = Grow(RadixTmpScratch(), count);
+    for (int p = 0; p < passes; ++p) {
+        uint32_t* const h = hist + static_cast<uint32_t>(p) * buckets;
+        const int shift = 16 + p * width;
+        // A digit every word shares moves nothing: skip the pass.
+        if (h[(a[0] >> shift) & mask] == static_cast<uint32_t>(count)) continue;
+        uint32_t sum = 0;
+        for (uint32_t d = 0; d < buckets; ++d) {
+            const uint32_t c = h[d];
+            h[d] = sum;
+            sum += c;
+        }
+        for (int32_t i = 0; i < count; ++i) {
+            const uint64_t v = a[i];
+            b[h[(v >> shift) & mask]++] = v;
+        }
+        std::swap(a, b);
+    }
+    uint64_t* const seg = SegScratch().data();
+    if (a != seg) std::memcpy(seg, a, static_cast<size_t>(count) * sizeof(uint64_t));
+    return 0;
+}
+
+template <bool kCount, bool kRadix = true>
 bool SortPlainImpl(RendererDrawItem* data, int32_t count, const Key* keys,
                    uint64_t* compares, uint32_t* groupsOut) {
     uint64_t cmp = 0;
@@ -225,6 +307,29 @@ bool SortPlainImpl(RendererDrawItem* data, int32_t count, const Key* keys,
         if constexpr (kCount) ++cmp;
         return GroupLess(x, y);
     });
+
+    // RADIXPLAIN: steps (3)-(5) as one radix sort when the packed word fits (see the
+    // function's comment below); the same seg[] words in the same order.
+    if (kRadix && count >= kRadixMinCount) {
+        const int r = RadixPlain(count, keys, groupCount, gks);
+        if (r >= 0) {
+            const uint64_t* const seg = SegScratch().data();
+            for (int32_t j = 1; j < count; ++j) {
+                if (((seg[j] ^ seg[j - 1]) >> 16) == 0 &&
+                    data[seg[j] & 0xFFFFu]._maxInstances != data[seg[j - 1] & 0xFFFFu]._maxInstances) {
+                    *compares += cmp;
+                    *groupsOut = static_cast<uint32_t>(groupCount);
+                    return false;   // the same verdict as the segment scan below
+                }
+            }
+            RendererDrawItem* const tmp = Grow(ItemScratch(), count);
+            for (int32_t i = 0; i < count; ++i) tmp[i] = data[seg[i] & 0xFFFFu];
+            std::memcpy(static_cast<void*>(data), tmp, static_cast<size_t>(count) * sizeof(RendererDrawItem));
+            *compares += cmp;
+            *groupsOut = static_cast<uint32_t>(groupCount);
+            return true;
+        }
+    }
 
     // (3) segment offsets in prefix order, then place every item.
     int32_t* const off = Grow(OffsetScratch(), groupCount);
@@ -277,30 +382,6 @@ bool SortPlainImpl(RendererDrawItem* data, int32_t count, const Key* keys,
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// The input census (COMPPROF only, taken before the memo whatever kSortMemo
-// says): the list's buffer pointer -> the hashes of its key words, of all its
-// bytes and of its bytes outside the pads, as that buffer's previous sort saw
-// them. (A group's item array keeps its buffer across frames: Renderer::Reset
-// sets the size to 0 and keeps the capacity.) `same-as-last` on the keys is
-// SORTCMP's option (c); `raw` and `masked` bound SORTMEMO's two kinds of hit.
-// ---------------------------------------------------------------------------
-struct RepeatEntry {
-    uint64_t key, raw, masked;
-};
-std::unordered_map<const void*, RepeatEntry>& RepeatMap() {
-    static std::unordered_map<const void*, RepeatEntry> m;
-    return m;
-}
-std::vector<Key>& CensusKeyScratch() { static std::vector<Key> v; return v; }
-
-uint64_t KeyArrayHash(const Key* keys, int32_t n) {
-    uint64_t h = 0xCBF29CE484222325ull ^ static_cast<uint64_t>(n);
-    for (int32_t i = 0; i < n; ++i)
-        for (int w = 0; w < 5; ++w) { h ^= keys[i].w[w]; h *= 0x100000001B3ull; h ^= h >> 31; }
-    return h;
-}
-
 // The record as seven little-endian qwords. q[4] = _maxInstances (low half) | _pad24
 // (high half), q[6] = _animationInstanceId (low half) | _pad34 (high half); the other five
 // qwords hold no pad byte.
@@ -313,43 +394,6 @@ constexpr uint64_t kLowHalf = 0x00000000FFFFFFFFull;
 
 inline void Qwords(const RendererDrawItem& it, uint64_t q[7]) {
     std::memcpy(q, static_cast<const void*>(&it), sizeof(RendererDrawItem));
-}
-
-uint64_t ItemArrayHash(const RendererDrawItem* data, int32_t n, bool masked) {
-    uint64_t h = 0xCBF29CE484222325ull ^ static_cast<uint64_t>(n);
-    for (int32_t i = 0; i < n; ++i) {
-        uint64_t q[7];
-        Qwords(data[i], q);
-        if (masked) { q[4] &= kLowHalf; q[6] &= kLowHalf; }
-        for (int w = 0; w < 7; ++w) { h ^= q[w]; h *= 0x100000001B3ull; h ^= h >> 31; }
-    }
-    return h;
-}
-
-void CensusInput(const RendererDrawItem* data, int32_t count) {
-    if (count < kKeyedMinCount) return;
-    Key* const keys = Grow(CensusKeyScratch(), count);
-    bool nan = false, ptr = false;
-    if (!BuildKeys(data, count, keys, &nan, &ptr)) return;
-    Counters& c = g_counters;
-    ++c.keyable;
-    // Presortedness of the gather's order.
-    uint64_t runs = 1;
-    for (int32_t i = 1; i < count; ++i) runs += KeyLess(keys[i], keys[i - 1]) ? 1u : 0u;
-    c.runs += runs;
-    const RepeatEntry h{KeyArrayHash(keys, count), ItemArrayHash(data, count, false),
-                        ItemArrayHash(data, count, true)};
-    auto& m = RepeatMap();
-    const auto it = m.find(data);
-    if (it != m.end()) {
-        ++c.repeatChecks;
-        if (it->second.key == h.key) ++c.repeatHits;
-        if (it->second.raw == h.raw) ++c.repeatRaw;
-        if (it->second.masked == h.masked) ++c.repeatMasked;
-        it->second = h;
-    } else {
-        m.emplace(data, h);
-    }
 }
 
 // The output census, after every sort (memo hits included).
@@ -391,6 +435,14 @@ Path SortFastImpl(RendererDrawItem* data, int32_t count) {
         Key* const keys = Grow(KeyScratch(), count);
         if (BuildKeys(data, count, keys, &nan, &ptr)) {
             keyed = true;
+            if constexpr (kCount) {
+                // Presortedness of the gather's order (keyable lists that were sorted:
+                // memo hits do not reach here).
+                uint64_t runs = 1;
+                for (int32_t i = 1; i < count; ++i) runs += KeyLess(keys[i], keys[i - 1]) ? 1u : 0u;
+                g_counters.runs += runs;
+                ++g_counters.keyable;
+            }
             path = Path::kKeyed;
             if (kPlain && count <= kPlainMaxCount) {
                 plain = true;
@@ -434,6 +486,8 @@ struct MemoEntry {
     uint32_t daz = 0;          // MXCSR.DAZ when the entry was sorted
     bool     havePerm = false; // false after the inlined skeleton: only a byte-equal hit is served
     uint64_t lastUse = 0;      // the table's sort sequence number
+    uint32_t missRun = 0;      // MEMOBACKOFF: consecutive misses of this buffer
+    uint32_t skip = 0;         // MEMOBACKOFF: sorts of this buffer left without the memo
     std::vector<RendererDrawItem> in, out;
     std::vector<uint32_t> perm;   // out[i] == in[perm[i]]
 };
@@ -496,12 +550,28 @@ void SortMemoized(RendererDrawItem* data, int32_t count) {
     const auto found = t.map.find(data);
     MemoEntry* e = found == t.map.end() ? nullptr : &found->second;
     int32_t reached = 0;
-    if (e != nullptr && e->count == count && e->daz == daz) {
+    // MEMOBACKOFF: a buffer in its back-off is sorted fresh, the memo neither read nor
+    // written (its entry still pairs a stored input with that input's sort, so it can
+    // never serve a wrong hit later). The last sort of the back-off stores, so the
+    // sort after it compares against the input just before it.
+    bool refresh = false;
+    if (e != nullptr && e->skip > 0) {
+        --e->skip;
+        e->lastUse = seq;
+        if (e->skip > 0) {
+            if constexpr (kCount) ++g_counters.memoSkips;
+            SortFastPath<kCount>(data, count);
+            return;
+        }
+        refresh = true;
+    }
+    if (!refresh && e != nullptr && e->count == count && e->daz == daz) {
         const MemoCmp r = CompareInput(data, e->in.data(), count, &reached);
         if (r == MemoCmp::kSame) {
             // Byte-equal input: a fresh sort would leave exactly the stored output.
             std::memcpy(static_cast<void*>(data), e->out.data(), bytes);
             e->lastUse = seq;
+            e->missRun = 0;
             if constexpr (kCount) {
                 ++g_counters.memoHits;
                 g_counters.memoCompared += bytes;
@@ -516,6 +586,7 @@ void SortMemoized(RendererDrawItem* data, int32_t count) {
             for (int32_t i = 0; i < count; ++i) tmp[i] = data[perm[i]];
             std::memcpy(static_cast<void*>(data), tmp, bytes);
             e->lastUse = seq;
+            e->missRun = 0;
             if constexpr (kCount) {
                 ++g_counters.memoPadHits;
                 g_counters.memoCompared += bytes;
@@ -524,9 +595,20 @@ void SortMemoized(RendererDrawItem* data, int32_t count) {
         }
     }
     if constexpr (kCount) {
-        if (e != nullptr) ++g_counters.memoMisses;
-        else              ++g_counters.memoNew;
+        if (refresh)           ++g_counters.memoRefreshes;
+        else if (e != nullptr) ++g_counters.memoMisses;
+        else                   ++g_counters.memoNew;
         g_counters.memoCompared += static_cast<uint64_t>(reached) * sizeof(RendererDrawItem);
+    }
+    // MEMOBACKOFF: kMemoBackoffAfter misses in a row and the buffer sorts without the
+    // memo for a while, doubling up to kMemoBackoffMax sorts (a list that changes every
+    // frame pays the input and output copies once per back-off, not every sort).
+    if (!refresh && e != nullptr && ++e->missRun >= kMemoBackoffAfter) {
+        const uint32_t k = e->missRun - kMemoBackoffAfter;
+        e->skip = k >= 5 ? kMemoBackoffMax : std::min<uint32_t>(2u << k, kMemoBackoffMax);
+        e->lastUse = seq;
+        SortFastPath<kCount>(data, count);
+        return;
     }
 
     // A miss: keep the input, sort, keep the output and the permutation.
@@ -568,7 +650,6 @@ void SortMemoized(RendererDrawItem* data, int32_t count) {
 
 template <bool kCount>
 void SortFastSwitch(RendererDrawItem* data, int32_t count) {
-    if constexpr (kCount) CensusInput(data, count);
     if constexpr (kSortMemo) {
         if (count >= kMemoMinCount) {
             SortMemoized<kCount>(data, count);
@@ -619,6 +700,13 @@ bool SortPlain(RendererDrawItem* data, int32_t count, const Key* keys,
     *compares = 0;
     *groups = 0;
     return SortPlainImpl<true>(data, count, keys, compares, groups);
+}
+
+bool SortPlainSegments(RendererDrawItem* data, int32_t count, const Key* keys,
+                       uint64_t* compares, uint32_t* groups) {
+    *compares = 0;
+    *groups = 0;
+    return SortPlainImpl<true, false>(data, count, keys, compares, groups);
 }
 
 void SortFast(RendererDrawItem* data, int32_t count) {

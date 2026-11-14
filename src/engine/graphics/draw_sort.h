@@ -59,6 +59,13 @@
 // compare, so a buffer reused by another list cannot hit wrongly. At most
 // kMemoMaxEntries entries; one unused for kMemoMaxAge sorts is freed. Kill
 // switch `kSortMemo`.
+//
+// RADIXPLAIN: SortPlain's per-group comparison sorts replaced, on lists of
+// kRadixMinCount or more, by one stable LSD radix sort of a packed (prefix rank,
+// geometry, index) word: the same order, so the same bytes (the unit test
+// draw_sort_radix_equals_segment_sort checks it against SortPlainSegments).
+// MEMOBACKOFF: a buffer that misses the memo kMemoBackoffAfter times in a row is
+// sorted without it for a doubling number of sorts; a skipped sort is a fresh sort.
 // ============================================================================
 
 #include <cstdint>
@@ -80,6 +87,13 @@ inline constexpr bool kPlainSort = true;
 // list (never seen: the longest is ~4,000) takes the keyed skeleton.
 inline constexpr int32_t kPlainMaxCount = 0xFFFF;
 
+// RADIXPLAIN (draw_sort.cpp, RadixPlain): a plain list this long or longer places its
+// items by one LSD radix sort of a packed (prefix rank, geometry, index) word instead
+// of a comparison sort per prefix group: the same order, so the same bytes. Digits are
+// at most kRadixDigitBits wide.
+inline constexpr int32_t kRadixMinCount  = 256;
+inline constexpr int     kRadixDigitBits = 11;
+
 // SORTMEMO's kill switch (only read when kFastSort is true). false = no memo:
 // every list is sorted, exactly as before this block (the call site vanishes).
 inline constexpr bool kSortMemo = true;
@@ -95,6 +109,14 @@ inline constexpr size_t   kMemoMaxEntries = 256;
 inline constexpr uint64_t kMemoSweepEvery = 1024;
 inline constexpr uint64_t kMemoMaxAge     = 1024;
 inline constexpr uint64_t kMemoFullAge    = 64;
+
+// MEMOBACKOFF: after kMemoBackoffAfter misses in a row, a buffer is sorted without the
+// memo (no compare, no copies) for 2, 4, 8 ... up to kMemoBackoffMax sorts, the last of
+// which stores again; a hit or a pad hit ends the streak. A skipped sort is a fresh
+// sort, so the bytes are the same either way; only the copies of a list that changes
+// every frame (the stress town at speed: every list misses) are saved.
+inline constexpr uint32_t kMemoBackoffAfter = 4;
+inline constexpr uint32_t kMemoBackoffMax   = 32;
 
 // Lists shorter than this skip the key build (retail's selection sort handles
 // up to 8 directly; below this the build and the move cost more than they save).
@@ -212,6 +234,12 @@ bool   MemoCorruptForTest(const void* buffer);
 bool SortPlain(RendererDrawItem* data, int32_t count, const Key* keys,
                uint64_t* compares, uint32_t* groups);
 
+// SortPlain without RADIXPLAIN (every list takes the per-segment comparison sort):
+// the unit tests' oracle for the radix path, which must leave the same bytes and
+// the same verdict.
+bool SortPlainSegments(RendererDrawItem* data, int32_t count, const Key* keys,
+                       uint64_t* compares, uint32_t* groups);
+
 // Equal in everything the consumer can observe: the seven fields DrawItemList
 // reads, `_flags` exactly, and `_sortKey` up to the comparator's equivalence
 // (neither greater). The shadow's verdict and the unit tests' oracle.
@@ -246,16 +274,13 @@ struct Counters {
     uint64_t plainLists;    // keyed lists that took SortPlain (fallbacks included)
     uint64_t fallbacks;     // of those, lists with a differing-_maxInstances tie: keyed skeleton rerun
     uint64_t groups;        // distinct 240-bit prefixes, summed over plain lists
-    uint64_t runs;          // ascending runs of the key array before sorting, keyable lists
-    uint64_t repeatChecks;  // keyable lists whose buffer was sorted before (a previous frame)
-    uint64_t repeatHits;    // of those, key array hash equal to that previous sort's
+    uint64_t runs;          // ascending runs of the key array before sorting, keyable lists sorted
     uint64_t maxTie;        // the longest tie group (items) in any sorted output
     uint64_t instItems;     // items with _maxInstances > 1 (each can open an instancing batch)
     uint64_t shadowBytes;   // shadow: lists consumer-equal to the reference but not byte-equal
-    // ---- SORTMEMO's census (taken whatever kSortMemo says) ----
-    uint64_t keyable;       // lists >= kKeyedMinCount whose keys build (the census's base)
-    uint64_t repeatRaw;     // of repeatChecks, all 56 bytes per item hash equal to the previous sort's
-    uint64_t repeatMasked;  // of repeatChecks, the bytes outside the pads hash equal
+    // The SORTCMP / SORTMEMO repeat census (key / raw / masked hashes of every list,
+    // ~half the counted sort's cost) closed with SORTMEMO's landing and is removed.
+    uint64_t keyable;       // lists >= kKeyedMinCount sorted whose keys build (the base of `runs`)
     // ---- SORTMEMO's memo (kSortMemo; lists >= kMemoMinCount) ----
     uint64_t memoHits;      // input byte-equal to the stored one: stored output copied
     uint64_t memoPadHits;   // equal except pad bytes: stored permutation applied to the fresh items
@@ -265,6 +290,8 @@ struct Counters {
     uint64_t memoFull;      // misses not stored: the table was full of recent entries
     uint64_t memoCompared;  // bytes of fresh input compared (each side), hits and misses
     uint64_t memoStored;    // bytes written into entries (input + output + permutation)
+    uint64_t memoSkips;     // MEMOBACKOFF: sorts in a back-off (memo not read or written)
+    uint64_t memoRefreshes; // MEMOBACKOFF: the last sort of a back-off: sorted and stored, not compared
     uint64_t memoEntries;   // gauge at TakeCounters: entries held
     uint64_t memoHeld;      // gauge at TakeCounters: bytes the entries hold
 };
