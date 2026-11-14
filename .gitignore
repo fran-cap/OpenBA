@@ -97,3 +97,5 @@ third_party/llvm15_arm64/build/
 
 # Claude Code agent worktrees (isolation: worktree), each a full checkout
 .claude/worktrees/
+# clangd config, copied per checkout from .claude/skills/caller-sweep/clangd.windows.yaml (Windows-only flags)
+/.clangd
