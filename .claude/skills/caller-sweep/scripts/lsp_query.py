@@ -240,7 +240,7 @@ class Client:
         try:
             self.proc.wait(timeout=30)
         except subprocess.TimeoutExpired:
-            self.proc.kill()  # our own child, by handle
+            self.proc.kill()  # the script's own child, by handle
         self.logf.close()
 
     def wait_index_idle(self, quiet=1.0, limit=3600):
@@ -340,12 +340,25 @@ def parse_args(argv):
     return o
 
 
+# positional words each mode needs, the mode included (index takes an optional file)
+MODE_ARGS = {"refs": 4, "callers": 4, "impl": 4, "subtypes": 4, "def": 4, "wsym": 2, "diags": 2, "inactive": 2,
+             "index": 1}
+
+
 def main():
     o = parse_args(sys.argv[1:])
     pos = o["pos"]
     if not pos:
         print(__doc__)
         return 2
+    # checked before clangd starts, so a typo is one line, not a traceback after a clangd spawn
+    if pos[0] not in MODE_ARGS:
+        raise SystemExit("unknown mode %r: one of %s (no arguments prints the usage)" % (pos[0], ", ".join(MODE_ARGS)))
+    if len(pos) < MODE_ARGS[pos[0]]:
+        raise SystemExit("%s needs %d arguments after the mode, got %d (no arguments prints the usage)" % (
+            pos[0], MODE_ARGS[pos[0]] - 1, len(pos) - 1))
+    if MODE_ARGS[pos[0]] == 4 and not pos[2].isdigit():
+        raise SystemExit("%s: <line> must be a 1-based line number, got %r" % (pos[0], pos[2]))
     root = o["root"] or git_toplevel(os.getcwd())
     if not root:
         raise SystemExit("not inside a git checkout: pass --root <checkout>")
@@ -383,7 +396,10 @@ def main():
         if mode == "wsym":
             if use_index:
                 # the CDB (and so the index) loads only when a file is opened
-                c.open("src/app/main.cpp" if os.path.exists(os.path.join(root, "src/app/main.cpp")) else pos[2])
+                if not os.path.exists(os.path.join(root, "src/app/main.cpp")):
+                    raise SystemExit("wsym --index opens src/app/main.cpp to load the compile DB: not found under %s"
+                                     % root)
+                c.open("src/app/main.cpp")
                 if wait:
                     t_idle, last = c.wait_index_idle()
                     print("# index idle after %.1f s (last progress %s)" % (t_idle or -1, last))
