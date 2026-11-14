@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # pre_bash_guard.sh -- PreToolUse hook (Bash|PowerShell): refuse an unscoped find, killing OpenBA.exe by name,
 # pacman installs, attribution trailers in commits / PR bodies, and staging retail content.
-# Wired in .claude/settings.json (sourced: `. "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_bash_guard.sh"`);
-# tests: python -I .claude/hooks/tests/test_hooks.py
+# Wired in .claude/settings.json: sourced when the hook shell is bash (Git Bash on Windows), else run with bash
+# (Claude Code runs a shell-form hook with `sh -c` on Linux / macOS, and dash lacks read -d, shopt, <<< and
+# [[ ]] used below); tests: python -I .claude/hooks/tests/test_hooks.py
 #
 # A bash-builtin prefilter passes most commands without starting python (Git Bash alone costs ~13-18 ms, python
 # ~13 ms more): only a command that names one of the trigger words reaches pre_bash_guard.py, which tokenizes
@@ -33,7 +34,9 @@ case $OSTYPE in
 esac
 command -v "$PY" > /dev/null 2>&1 || exit 0
 # Imported as a module (not run as a script) so python keeps its bytecode in __pycache__/ (gitignored).
-"$PY" -I -S -c 'import sys; sys.path.insert(0, sys.argv[1]); import pre_bash_guard as g; sys.exit(g.main())' \
-    "$HERE" <<< "$IN"
-[[ $? == 2 ]] && exit 2
+# A refusal comes back as 3, not 2: the interpreter itself exits 2 on a command-line error (a python that
+# rejects -I, say), which must fail open like every other guard error.
+"$PY" -I -S -c 'import sys; sys.path.insert(0, sys.argv[1]); import pre_bash_guard as g
+sys.exit(3 if g.main() == 2 else 0)' "$HERE" <<< "$IN"
+[[ $? == 3 ]] && exit 2
 exit 0

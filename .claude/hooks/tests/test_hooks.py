@@ -1,6 +1,7 @@
-"""Test runner for .claude/hooks/pre_bash_guard.sh: synthetic Claude Code hook input on stdin, run through
-bash in both forms a command hook can take, `bash <hook>` and the sourced `. "<hook>"` that
-.claude/settings.json uses.
+"""Test runner for .claude/hooks/pre_bash_guard.sh: synthetic Claude Code hook input on stdin, run in three
+forms: `bash <hook>`; "settings", the hook's command line read from .claude/settings.json and run by
+`bash -c` with CLAUDE_PROJECT_DIR set (Git Bash on Windows: the sourced branch); and "sh", the same line with
+BASH_VERSION unset (the `bash <hook>` branch that `sh -c` takes on Linux / macOS when sh is not bash).
 
 usage: python -I .claude/hooks/tests/test_hooks.py [--root <checkout>] [--bash <bash exe>] [--bench N]
 
@@ -24,6 +25,20 @@ import time
 TESTS = os.path.dirname(os.path.abspath(__file__))
 HOOKS = os.path.dirname(TESTS).replace("\\", "/")
 HOOK = "pre_bash_guard.sh"
+PROJECT = os.path.dirname(os.path.dirname(HOOKS))  # the checkout holding .claude/ (CLAUDE_PROJECT_DIR)
+FORMS = ("bash", "settings", "sh")
+
+
+def settings_command():
+    """The command line .claude/settings.json wires for this hook."""
+    path = PROJECT + "/.claude/settings.json"
+    with open(path, encoding="utf-8") as f:
+        d = json.load(f)
+    for entry in d.get("hooks", {}).get("PreToolUse", []):
+        for h in entry.get("hooks", []):
+            if HOOK in h.get("command", ""):
+                return h["command"]
+    raise SystemExit("no %s hook in %s" % (HOOK, path))
 
 
 def arg(name, default=None):
@@ -57,10 +72,12 @@ def find_bash():
 
 ROOT = (arg("--root") or git_toplevel(HOOKS) or os.path.dirname(os.path.dirname(HOOKS))).replace("\\", "/")
 BASH = arg("--bash") or find_bash()
+CMD = settings_command()
 TMP = tempfile.mkdtemp(prefix="hook-tests-").replace("\\", "/")
 GIT1 = TMP + "/gitrepo_untracked"
 GIT2 = TMP + "/gitrepo_staged"
 GIT3 = TMP + "/gitrepo_clean"
+GIT4 = TMP + "/gitrepo_removal"
 
 
 def win(p):
@@ -74,12 +91,16 @@ def bash_payload(cmd, tool="Bash", cwd=ROOT):
             "tool_input": {"command": cmd, "description": "test"}, "tool_use_id": "toolu_test"}
 
 
-def run(payload, sourced, env=None):
+def run(payload, form, env=None):
     data = payload if isinstance(payload, bytes) else json.dumps(payload).encode("utf-8")
-    if sourced:
-        argv = [BASH, "-c", '. "%s/%s"' % (HOOKS, HOOK)]
+    if form == "settings":
+        argv = [BASH, "-c", CMD]
+    elif form == "sh":
+        argv = [BASH, "-c", "unset BASH_VERSION; " + CMD]
     else:
         argv = [BASH, HOOKS + "/" + HOOK]
+    env = dict(os.environ if env is None else env)
+    env["CLAUDE_PROJECT_DIR"] = PROJECT
     t0 = time.perf_counter()
     p = subprocess.run(argv, input=data, capture_output=True, env=env)
     ms = (time.perf_counter() - t0) * 1000.0
@@ -101,6 +122,14 @@ def fixtures():
     subprocess.run(["git", "-C", GIT2, "add", "terrain.crs"], check=True)
     with open(GIT3 + "/src/ext/ui/Dialog/Mine.rsc", "w") as f:
         f.write("x\n")
+    # a retail file committed by mistake, then staged for removal (`git rm --cached`)
+    subprocess.run(["git", "init", "-q", GIT4], check=True)
+    with open(GIT4 + "/data0.pkg", "w") as f:
+        f.write("x\n")
+    subprocess.run(["git", "-C", GIT4, "add", "data0.pkg"], check=True)
+    subprocess.run(["git", "-C", GIT4, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                    "commit", "-q", "-m", "x"], check=True)
+    subprocess.run(["git", "-C", GIT4, "rm", "-q", "--cached", "data0.pkg"], check=True)
     with open(TMP + "/msg_trailer.txt", "w", encoding="utf-8") as f:
         f.write("fix: a thing\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n")
     with open(TMP + "/msg_clean.txt", "w", encoding="utf-8") as f:
@@ -241,6 +270,11 @@ def cases():
     ok("git add own .rsc", "git add src/ext/ui/Dialog/Mine.rsc", B, GIT3)
     ok("git add -A, own .rsc only", "git add -A", B, GIT3)
     ok("commit, clean index", "git commit -m \"x\"", B, GIT3)
+    ok("commit msg ends in .pkg", "git commit -m \"loader: read the retail data0.pkg\"", B, GIT3)
+    ok("commit -am msg ends in .rsc", "git commit -am \"fix: the dialog reads TownHall.rsc\"", B, GIT3)
+    ok("commit --author, msg ends in .crs", "git commit --author \"A <a@b.c>\" -m \"docs: terrain.crs\"", B, GIT3)
+    ok("commit of a staged removal", "git commit -m \"remove the copy\"", B, GIT4)
+    blk("commit -m x -- path.pkg", "git commit -m \"x\" -- data0.pkg", B, GIT3)
     ok("git status", "git status --short")
     return c
 
@@ -256,6 +290,15 @@ def failopen_cases():
         os.makedirs(nopy_path, exist_ok=True)
     nopy = dict(os.environ)
     nopy["PATH"] = nopy_path
+    # a python that dies on its own command line with exit 2 (a python 2 rejecting -I, say)
+    fake = TMP + "/fake-python"
+    os.makedirs(fake, exist_ok=True)
+    for name in ("python", "python3"):
+        with open(fake + "/" + name, "w", newline="\n") as f:
+            f.write("#!/bin/sh\necho 'Unknown option: -I' >&2\nexit 2\n")
+        os.chmod(fake + "/" + name, 0o755)
+    badpy = dict(os.environ)
+    badpy["PATH"] = os.pathsep.join([fake, nopy_path])
     kill = json.dumps(bash_payload("taskkill //IM OpenBA.exe //F"))
     return [
         ("malformed JSON", b"{not json", None),
@@ -268,6 +311,7 @@ def failopen_cases():
         ("invalid UTF-8 bytes + trigger", b'{"tool_name":"Bash","tool_input":{"command":"find \xff\xfe ."}}', None),
         ("deep nesting", (b"[" * 5000) + b"find" + (b"]" * 5000), None),
         ("no python on PATH: a refusable command passes", kill.encode(), nopy),
+        ("python exits 2 on its own: a refusable command passes", kill.encode(), badpy),
     ]
 
 
@@ -279,23 +323,22 @@ def bench(n):
         ("git commit, staged check in --root", bash_payload("git commit -m \"x\"")),
         ("git add -A dry run in --root", bash_payload("git add -A")),
     ]
-    print("== latency over %d runs per payload, sourced form (bash start + hook)" % n)
+    print("== latency over %d runs per payload, settings form (bash start + hook)" % n)
     for desc, payload in reps:
-        run(payload, True)
-        ts = sorted(run(payload, True)[3] for _ in range(n))
+        run(payload, "settings")
+        ts = sorted(run(payload, "settings")[3] for _ in range(n))
         print("  %-38s p50=%.0f p95=%.0f max=%.0f ms" % (desc, statistics.median(ts),
                                                          ts[min(n - 1, int(round(0.95 * (n - 1))))], ts[-1]))
 
 
 def main():
-    print("root %s; bash %s; hooks %s" % (ROOT, BASH, HOOKS))
+    print("root %s; bash %s; hooks %s\nsettings command: %s" % (ROOT, BASH, HOOKS, CMD))
     fixtures()
     fp = fn = fo = 0
     cs = cases()
-    for sourced in (False, True):
-        form = "sourced" if sourced else "bash"
+    for form in FORMS:
         for want, desc, payload in cs:
-            rc, out, err, ms = run(payload, sourced)
+            rc, out, err, ms = run(payload, form)
             got = "block" if rc == 2 else ("pass" if rc == 0 else "rc%d" % rc)
             lines = len([ln for ln in err.splitlines() if ln.strip()])
             if want == "pass":
@@ -305,20 +348,19 @@ def main():
                 good = got == "block" and lines == 1 and len(err) <= 700
                 fn += 0 if good else 1
             first = err.strip().splitlines()[0][:100] if err.strip() else ""
-            print("%s %-7s %-5s got=%-5s %4.0f ms  %-42s %s" % ("PASS" if good else "FAIL", form, want, got, ms,
-                                                              desc[:42], first))
+            print("%s %-8s %-5s got=%-5s %4.0f ms  %-42s %s" % ("PASS" if good else "FAIL", form, want, got, ms,
+                                                               desc[:42], first))
     nblock = sum(1 for x in cs if x[0] == "block")
-    print("== %d cases (%d must-block, %d must-pass) x 2 forms: false positives %d, false negatives %d" % (
-        len(cs), nblock, len(cs) - nblock, fp, fn))
+    print("== %d cases (%d must-block, %d must-pass) x %d forms: false positives %d, false negatives %d" % (
+        len(cs), nblock, len(cs) - nblock, len(FORMS), fp, fn))
     fcs = failopen_cases()
-    for sourced in (False, True):
+    for form in FORMS:
         for desc, data, env in fcs:
-            rc, out, err, ms = run(data, sourced, env)
+            rc, out, err, ms = run(data, form, env)
             good = rc == 0 and not out.strip()
             fo += 0 if good else 1
-            print("%s failopen %-7s rc=%d %4.0f ms  %s" % ("PASS" if good else "FAIL",
-                                                          "sourced" if sourced else "bash", rc, ms, desc))
-    print("== failopen: %d cases x 2 forms, %d failures" % (len(fcs), fo))
+            print("%s failopen %-8s rc=%d %4.0f ms  %s" % ("PASS" if good else "FAIL", form, rc, ms, desc))
+    print("== failopen: %d cases x %d forms, %d failures" % (len(fcs), len(FORMS), fo))
     nbench = int(arg("--bench", "0"))
     if nbench:
         bench(nbench)

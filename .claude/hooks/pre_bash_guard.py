@@ -25,7 +25,8 @@ Rules (each one names what it refuses; everything else passes):
                  (heredoc bodies included).
   R5 content     git add / git commit that would stage retail content (.pkg .pkm .crs .dds .cso, or .rsc
                  outside src/ext/): add pathspecs are listed with `git add --dry-run`, a commit checks
-                 `git diff --cached --name-only` plus its own pathspecs.
+                 `git diff --cached --name-only` (deletions not counted) plus its own pathspecs (option
+                 values such as the -m message are not pathspecs).
 Shell wrappers are unwrapped (bash|sh -c, cmd /c, powershell|pwsh -Command) and so are timeout, time, nice,
 nohup, env, sudo, command, builtin, exec, xargs, stdbuf, winpty.
 Not seen: commands inside a script file, variables ($X), aliases, eval of built strings, a message file
@@ -375,6 +376,31 @@ def bad_content(paths):
     return None
 
 
+# git commit options whose value is the next word (a message, a file, an author): never a pathspec.
+# A short-option cluster ending in one of m F C c t (`-am "msg"`) takes the next word the same way.
+COMMIT_VALUE_OPTS = {"-m", "--message", "-F", "--file", "-C", "--reuse-message", "-c", "--reedit-message",
+                     "--author", "--date", "-t", "--template", "--cleanup", "--fixup", "--squash", "--trailer",
+                     "--pathspec-from-file"}
+
+
+def commit_pathspecs(args):
+    """The pathspecs of `git commit <args>`: `git commit -m "read data0.pkg"` has none."""
+    out = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--":
+            out += args[i + 1:]
+            break
+        if a in COMMIT_VALUE_OPTS or re.match(r"^-[A-Za-z]*[mFCct]$", a):
+            i += 2
+            continue
+        if not a.startswith("-"):
+            out.append(a)
+        i += 1
+    return out
+
+
 def run_git(d, args):
     import subprocess  # lazy: only R5 spawns git, and the import costs ~6 ms of every call
     try:
@@ -463,8 +489,9 @@ def check_words(words, flavour, cwd, full, cd_dir):
                 if TRAILER.search(t):
                     return "git commit message carries an attribution trailer (Co-Authored-By / Claude-Session / " \
                            "Generated with): commits, PRs and issues carry none; remove the line"
-            paths = [a for a in args if not a.startswith("-")]
-            staged = run_git(gd, ["diff", "--cached", "--name-only"]).splitlines() if gd else []
+            paths = commit_pathspecs(args)
+            # --diff-filter=d: a staged deletion (`git rm --cached data0.pkg`) removes content, it records none
+            staged = run_git(gd, ["diff", "--cached", "--name-only", "--diff-filter=d"]).splitlines() if gd else []
             hit = bad_content(staged + paths)
             if hit:
                 return "git commit would record retail content (%s): AGENTS.md section 1; unstage it " \

@@ -10,7 +10,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ". \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_bash_guard.sh\"",
+            "command": "[ -n \"$BASH_VERSION\" ] && . \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_bash_guard.sh\" || bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_bash_guard.sh\"",
             "timeout": 15
           }
         ]
