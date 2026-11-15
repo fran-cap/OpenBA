@@ -188,6 +188,13 @@ void OptionsInit() {
     o.stressStaff     = Int("BANISHED_STRESS_STAFF",     1);
     o.stressCompProf  = Int("BANISHED_STRESS_COMPPROF",  0);
     if (o.stressCompProf < 0) o.stressCompProf = 0;
+    // 5 = level 4 + the render_pipe resource-pin provocation (P13_OVERLAP 2.8): it CHANGES the town
+    // (outline repaints every frame, a deselect every 300 frames), so it is never a timing or a
+    // sim-identity run. Read as level 4 everywhere else.
+    if (o.stressCompProf >= 5) {
+        o.stressPinProvoke = true;
+        o.stressCompProf   = 4;
+    }
     if (o.stressCompProf > 4) o.stressCompProf = 4;   // 3 = level 1 + ext.fast_paths shadow mode (PFBENCH);
                                                       // 4 = level 1 + the ELPROF verification shadows
                                                       //     (StressHarness_Verify: bucket PathDistance vs AVL,

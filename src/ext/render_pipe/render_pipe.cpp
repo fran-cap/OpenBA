@@ -80,6 +80,7 @@
 #include "ext/render_pipe/handoff.h"
 #include "ext/render_pipe/finish_split.h"
 #include "ext/render_pipe/snapshot.h"
+#include "ext/render_pipe/resource_pin.h"   // P13_OVERLAP 2.8: the EdgeMeshes a snapshot shares
 
 #include <cstdint>
 #include <cstdio>
@@ -425,6 +426,7 @@ struct EngineOps {
     // Not analysed (clang -Wthread-safety): it drops and re-takes the device lock BeginCommands took
     // for this job, a hold that spans calls (and threads) the analysis cannot follow.
     void Gate(const Packet& p) NO_THREAD_SAFETY_ANALYSIS {
+        PinReadsOver();   // P13_OVERLAP 2.8: pass 2 drew the pinned EdgeMeshes; a step may free them now
         if (handoff == nullptr || !p.overlap || handoff->PassGate()) return;
         Video::Device* const device = ctx->_device;
         device->Unlock();
@@ -604,6 +606,7 @@ struct EngineHost {
         // The render thread's frame work for its performance hint session (a no-op off Android).
         if (threaded) Platform::PerfHint::WorkBegin(Platform::PerfHint::Role::Render);
         Ext::RenderPipe::Emit(ops, p);
+        PinReadsOver();   // P13_OVERLAP 2.8: an emit that never reached its gate (a failed BeginCommands)
         if (threaded) Platform::PerfHint::WorkEnd(Platform::PerfHint::Role::Render);
         StressHarness_PipeEmitEnd();
 
@@ -643,6 +646,7 @@ struct EngineHost {
     // here with the render thread idle; the publish orders it before the emit's reads.
     void BeforePublish(const Packet& next) {
         Graphics::MeshInstance::_extInstancedState = next.overlap ? &FrozenInstancedState : nullptr;
+        PublishPins(next.overlap, next.slot);   // P13_OVERLAP 2.8: its snapshot's EdgeMeshes go in flight
     }
 
     void OverlapSwitch(const OverlapGovernor& gov) {
@@ -714,6 +718,7 @@ void StopThread() {
 void Uninstall() {
     ::Engine::MainLoop::_extFrame = nullptr;
     StopThread();
+    RemovePin();   // P13_OVERLAP 2.8: ~EdgeMesh runs retail's body alone again
     Graphics::MeshInstance::_extInstancedState = nullptr;
     FreeSnapshots();
     delete g_second;
@@ -762,6 +767,7 @@ void Sync() {
             g_driver.Attach(g_handoff);
             g_thread = new RenderThread();
             g_thread->Start();
+            InstallPin();   // P13_OVERLAP 2.8: only the render thread's emit overlaps a step
             std::fprintf(stderr, "[RenderPipe] render thread up (%d physical cores)\n", physical);
             std::fflush(stderr);
         } else {
@@ -798,6 +804,14 @@ Counters TakeWindow() {
     c.snapshotItems  = g_snapshot.items;
     c.snapshotReused = g_snapshot.reused;
     c.snapshotKept   = g_snapshot.kept;
+    {   // P13_OVERLAP 2.8: the resource pin's window
+        const PinStats pin = TakePinStats();
+        c.pinChecks   = pin.checks;
+        c.pinWaits    = pin.waits;
+        c.pinWaitUs   = pin.waitUs;
+        c.pinMaxUs    = pin.maxUs;
+        c.pinTimeouts = pin.timeouts;
+    }
     g_snapshot = SnapshotCounters{};
     return c;
 }

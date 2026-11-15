@@ -56,6 +56,43 @@ extern long long g_batchedTicks;
 extern long long g_profTicks;
 extern long long g_profCalls;
 
+// COMPPROF >= 2: the decline census. One count per exit of the batched decision (Eligible in
+// walk_batch.cpp; the last five are walk_batch_rules.h's Decline, in its order) for every
+// intermediate character tick the batched walk saw, read before the tick. Printed and reset
+// with the [COMPPROF] /char walkbatch row.
+enum Census : int {
+    kCensusBatch = 0,    // batched
+    kCensusIdle,         // the stack is empty
+    kCensusUnplaced,     // no grid index
+    kCensusNullTop,      // a null top slot (the executor pops it)
+    kCensusNotMoveTo,    // the top node is not a MoveTo
+    kCensusNotEntered,   // a MoveTo not entered yet (its precheck runs)
+    kCensusChained,      // a MoveTo with a next node
+    kCensusOtherChar,    // a MoveTo that moves another character
+    kCensusPathWait,     // Decline kPathWait
+    kCensusInDestCell,   // Decline kInDestCell
+    kCensusShortPath,    // Decline kShortPath
+    kCensusPathDone,     // Decline kPathDone
+    kCensusFollow,       // Decline kFollow
+    kCensusCount
+};
+const char* CensusName(int why);
+// The node type behind a kCensusNotMoveTo (the top), kCensusNotEntered (the MoveTo) or
+// kCensusChained (the MoveTo's next node) decline; walkChain = of which the top chain holds a
+// traversing MoveTo (char_prof.h's walk class).
+struct CensusTypeRow {
+    uint32_t typeId;
+    int why;
+    long long ticks;
+    long long walkChain;
+};
+constexpr int kCensusTypeMax = 48;
+extern long long g_census[kCensusCount];
+extern CensusTypeRow g_censusTypes[kCensusTypeMax];
+extern int g_censusTypeCount;
+extern long long g_censusTypeOverflow;
+void CensusReset();
+
 // GameUpdateLoop::Update, once per frame beside Ext::RenderCulling::BeginFrame: g_frameWalk = the walk the
 // frame's intermediate iterations take. kWalkNoPlace when ext.walk_batch_grid is on (its
 // per-game value under the class B lock; it implies the batch whether or not ext.walk_batch is
