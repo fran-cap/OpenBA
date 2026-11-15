@@ -33,6 +33,35 @@ namespace WalkBatch {
 long long g_batchedTicks = 0;
 long long g_profTicks = 0;
 long long g_profCalls = 0;
+long long g_census[kCensusCount] = {};
+CensusTypeRow g_censusTypes[kCensusTypeMax] = {};
+int g_censusTypeCount = 0;
+long long g_censusTypeOverflow = 0;
+
+const char* CensusName(int why) {
+    switch (why) {
+    case kCensusBatch:      return "batched";
+    case kCensusIdle:       return "idle";
+    case kCensusUnplaced:   return "unplaced";
+    case kCensusNullTop:    return "nulltop";
+    case kCensusNotMoveTo:  return "notmoveto";
+    case kCensusNotEntered: return "notentered";
+    case kCensusChained:    return "chained";
+    case kCensusOtherChar:  return "otherchar";
+    case kCensusPathWait:   return "pathwait";
+    case kCensusInDestCell: return "indestcell";
+    case kCensusShortPath:  return "shortpath";
+    case kCensusPathDone:   return "pathdone";
+    case kCensusFollow:     return "follow";
+    default:                return "?";
+    }
+}
+
+void CensusReset() {
+    for (int i = 0; i < kCensusCount; ++i) g_census[i] = 0;
+    g_censusTypeCount = 0;
+    g_censusTypeOverflow = 0;
+}
 
 namespace {
 
@@ -86,35 +115,111 @@ inline uint32_t Bits(float v) { uint32_t b; std::memcpy(&b, &v, sizeof b); retur
 // The decision. Returns the MoveTo whose walking branch this tick is, or null (the real tick
 // runs). Every test reads what the executor / Execute would read first, in their order, and
 // nothing a declined tick would not read.
-MoveTo* Eligible(CharacterComponent* self, int* curCellOut, int* destCellOut) {
+// kWhy (the COMPPROF >= 2 census only, CensusTick below): *why = the Census reason of the
+// exit taken. Eligible<false> is the batched tick's decision, with no store.
+template <bool kWhy = false>
+MoveTo* Eligible(CharacterComponent* self, int* curCellOut, int* destCellOut, int* why = nullptr) {
     // The move tick's head: the executor runs only for a non-empty stack, and the tail only
     // for a placed character. Neither an idle character nor an unplaced one is batched.
     const int32_t cur = self->actionStack.current;
-    if (cur < 0) return nullptr;
-    if (self->characterIndex < 0) return nullptr;
+    if (cur < 0) {
+        if constexpr (kWhy) *why = kCensusIdle;
+        return nullptr;
+    }
+    if (self->characterIndex < 0) {
+        if constexpr (kWhy) *why = kCensusUnplaced;
+        return nullptr;
+    }
     // The executor's top entry (ActionStack::Execute): a null slot pops, a node not yet
     // entered runs its precheck, a chain runs every node -- all real ticks. Batched: one
     // entered MoveTo, alone, that moves this character.
     Action* top = self->actionStack.actions[cur].Get();
-    if (top == nullptr) return nullptr;
-    if (*reinterpret_cast<const void* const*>(top) != Object::ClassVptr<MoveTo>::Get()) return nullptr;  // CAST-OK: vslot (MoveTo is final: the vptr names the class)
+    if (top == nullptr) {
+        if constexpr (kWhy) *why = kCensusNullTop;
+        return nullptr;
+    }
+    if (*reinterpret_cast<const void* const*>(top) != Object::ClassVptr<MoveTo>::Get()) {  // CAST-OK: vslot (MoveTo is final: the vptr names the class)
+        if constexpr (kWhy) *why = kCensusNotMoveTo;
+        return nullptr;
+    }
     MoveTo* mv = static_cast<MoveTo*>(top);
-    if (!mv->_status) return nullptr;
-    if (mv->_next.Get() != nullptr) return nullptr;
-    if (mv->character.Get() != self) return nullptr;
+    if (!mv->_status) {
+        if constexpr (kWhy) *why = kCensusNotEntered;
+        return nullptr;
+    }
+    if (mv->_next.Get() != nullptr) {
+        if constexpr (kWhy) *why = kCensusChained;
+        return nullptr;
+    }
+    if (mv->character.Get() != self) {
+        if constexpr (kWhy) *why = kCensusOtherChar;
+        return nullptr;
+    }
     // MoveTo::Execute's own branch tests (walk_batch_rules.h DecideWalk).
     const int32_t pathIndex = mv->pathIndex;
-    if (pathIndex < 0) return nullptr;   // kPathWait (read before the map, as Execute)
+    if (pathIndex < 0) {   // kPathWait (read before the map, as Execute)
+        if constexpr (kWhy) *why = kCensusPathWait;
+        return nullptr;
+    }
     const Map* map = GameUpdateLoop::_singleton->m_game;
     const Math::Vector3& at = self->modelComponent->transform.translation;
     const int mapSize = map->size;
     const int destCell = WorldToCell(mapSize, mv->destination.x, mv->destination.y);
     const int curCell = WorldToCell(mapSize, at.x, at.y);
-    if (DecideWalk(pathIndex, mv->pathCount, curCell, destCell, mv->isFollowing) != kBatch)
+    const Decline d = DecideWalk(pathIndex, mv->pathCount, curCell, destCell, mv->isFollowing);
+    if (d != kBatch) {
+        if constexpr (kWhy) *why = kCensusPathWait + (d - kPathWait);
         return nullptr;
+    }
+    if constexpr (kWhy) *why = kCensusBatch;
     *curCellOut = curCell;
     *destCellOut = destCell;
     return mv;
+}
+
+static_assert(kCensusFollow - kCensusPathWait == kFollow - kPathWait &&
+              kCensusCount - kCensusPathWait == kDeclineCount - kPathWait,
+              "Census's last rows are Decline's, in its order");
+
+// The census (COMPPROF >= 2): the reason of this intermediate tick, read before the tick as
+// the batched decision reads it, and for a declined top that is not one lone MoveTo the type
+// of the node that declined it (the top, or a chained MoveTo's next node).
+void CensusType(uint32_t typeId, int why, bool walkChain) {
+    for (int i = 0; i < g_censusTypeCount; ++i) {
+        if (g_censusTypes[i].typeId == typeId && g_censusTypes[i].why == why) {
+            ++g_censusTypes[i].ticks;
+            if (walkChain) ++g_censusTypes[i].walkChain;
+            return;
+        }
+    }
+    if (g_censusTypeCount >= kCensusTypeMax) {
+        ++g_censusTypeOverflow;
+        return;
+    }
+    CensusTypeRow& r = g_censusTypes[g_censusTypeCount++];
+    r.typeId = typeId;
+    r.why = why;
+    r.ticks = 1;
+    r.walkChain = walkChain ? 1 : 0;
+}
+
+void CensusTick(CharacterComponent* self) {
+    int curCell = -1, destCell = -1, why = kCensusBatch;
+    Eligible<true>(self, &curCell, &destCell, &why);
+    ++g_census[why];
+    if (why != kCensusNotMoveTo && why != kCensusChained && why != kCensusNotEntered) return;
+    const Action* top = self->actionStack.actions[self->actionStack.current].Get();
+    // walkChain: the chain holds a traversing MoveTo (char_prof.h's walk class).
+    bool walkChain = false;
+    const uint32_t tidMoveTo = MoveTo::TypeId();
+    for (const Action* n = top; n; n = n->_next.Get()) {
+        if (n->Type() == tidMoveTo) {
+            walkChain = static_cast<const MoveTo*>(n)->pathIndex >= 0;
+            break;
+        }
+    }
+    const Action* named = (why == kCensusChained) ? top->_next.Get() : top;
+    CensusType(named->Type(), why, walkChain);
 }
 
 // One batched tick: MoveTo::Execute's walking branch, then the move tick's tail with the
@@ -268,6 +373,7 @@ template <bool kPlace>
 template <bool kPlace>
 [[gnu::always_inline]] inline void TickCharacterImpl(CharacterComponent* self, const System::Time* time) {
     if (g_compProfOn >= 2) {
+        CensusTick(self);   // the decline census, before the tick and outside its bracket
         // As entitylist.cpp's TickOneComponent profiling arm (same brackets, same order).
         const int slot = CompProf_BeginKind(self, 1);
         const int charTok = CharProf_Begin(self, slot);

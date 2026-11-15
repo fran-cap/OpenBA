@@ -818,6 +818,36 @@ void CharProfReport(FILE* o) {
                      (double)bCalls / n, interCalls > 0 ? 100.0 * (double)bCalls / (double)interCalls : 0.0,
                      TscMs(bTicks) / n, bNs, (double)(fullCalls > 0 ? fullCalls : 0) / n, fullNs,
                      savedMs, elMs > 0 ? 100.0 * savedMs / elMs : 0.0);
+        // The decline census (walk_batch.h Census): every intermediate character tick the
+        // batched walk saw, by the exit of its decision, then the node types behind the
+        // not-a-lone-MoveTo exits (walk = of which the chain is char_prof.h's walk class).
+        long long all = 0;
+        for (int i = 0; i < Ext::WalkBatch::kCensusCount; ++i) all += Ext::WalkBatch::g_census[i];
+        if (all > 0) {
+            std::fprintf(o, "[COMPPROF]   /char walkbatch census (ticks/frame, %% of %.1f):", (double)all / n);
+            for (int i = 0; i < Ext::WalkBatch::kCensusCount; ++i) {
+                const long long c = Ext::WalkBatch::g_census[i];
+                if (c == 0) continue;
+                std::fprintf(o, "  %s %.1f (%.1f%%)", Ext::WalkBatch::CensusName(i), (double)c / n,
+                             100.0 * (double)c / (double)all);
+            }
+            std::fprintf(o, "\n");
+            Ext::WalkBatch::CensusTypeRow rows[Ext::WalkBatch::kCensusTypeMax];
+            const int nr = Ext::WalkBatch::g_censusTypeCount;
+            for (int i = 0; i < nr; ++i) rows[i] = Ext::WalkBatch::g_censusTypes[i];
+            std::sort(rows, rows + nr, [](const Ext::WalkBatch::CensusTypeRow& a,
+                                          const Ext::WalkBatch::CensusTypeRow& b) { return a.ticks > b.ticks; });
+            for (int k = 0; k < nr && k < 16; ++k) {
+                const char* nm = ::Object::GetTypeNameById(rows[k].typeId);
+                std::fprintf(o, "[COMPPROF]   /char walkbatch decline %-10s %-26s ticks/frame=%8.1f (%5.1f%%)  walk-class %5.1f%%\n",
+                             Ext::WalkBatch::CensusName(rows[k].why), nm && nm[0] ? nm : "?",
+                             (double)rows[k].ticks / n, 100.0 * (double)rows[k].ticks / (double)all,
+                             100.0 * (double)rows[k].walkChain / (double)rows[k].ticks);
+            }
+            if (Ext::WalkBatch::g_censusTypeOverflow)
+                std::fprintf(o, "[COMPPROF]   /char walkbatch decline overflow %lld\n",
+                             Ext::WalkBatch::g_censusTypeOverflow);
+        }
     }
     // The node types that decided the class, by time (top 14).
     int idx[CharProf::kMaxNodes];
@@ -1172,6 +1202,7 @@ void CompProfReport(int frame) {
     SkinMemoReset();
     XformMemoReset();
     Ext::WalkBatch::g_profTicks = 0; Ext::WalkBatch::g_profCalls = 0;   // WALKBATCH: the /char walkbatch row's window
+    Ext::WalkBatch::CensusReset();
     for (int i = 0; i < kCompSlots; ++i) { s_comp[i].ticks = 0; s_comp[i].calls = 0; }
     g_elProfDrainTicks = g_elProfPreTicks = g_elProfTreeTicks = g_elProfBucketTicks = 0;
     g_elProfTreeNodes = g_elProfBucketVisits = g_elProfBucketTicked = 0;
