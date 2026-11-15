@@ -37,6 +37,7 @@
 #include "Component/ComponentDescription.h"
 #include "Component/Description.h"
 #include "Action/PathSearch.h"   // RawArray (PickBestDropTarget)
+#include "Component/find_components3.h"   // PERF: Execute's three component scans in one walk
 
 // Sub-functions, called by name (B3R): 0x140025520 WorkBST_BSTFindRemove_25520,
 // 0x1400c5400 WorkBase_TaskListCleanup_c5400, 0x140014c30 WorkBase_TreeNodeFree_14c30.
@@ -72,11 +73,16 @@ static inline uint32_t WorldToCell(float x, float z, int gridSize) {
 int ClearStorage::Execute(CitizenComponent** citizenAI, System::Time* time) {
     // Find components on the entity (+0x10) through the guarded finders (typed locals)
     // 0x1400e6c8b CALL 0x140002ed0: FindComponent<InteractComponent> into [RBP-0x40]
-    InteractComponent* positionComp = _entity->FindComponent<InteractComponent>();
+    // then the inline StorageLocationComponent (cell 0x1401c7ee8) and StorageComponent scans.
+    // PERF: the three scans in one walk (Component/find_components3.h), the same three pointers.
+    const FoundComponents3<InteractComponent, StorageLocationComponent, StorageComponent> found =
+        FindComponents3<InteractComponent, StorageLocationComponent, StorageComponent>(_entity.Get());
+    if (g_verifyOn) VerifyComponents3(_entity.Get(), found);
+    InteractComponent* positionComp = found.a;
 
-    StorageLocationComponent* unknownComp = _entity.Get()->FindComponent<StorageLocationComponent>(); // cell 0x1401c7ee8
+    StorageLocationComponent* unknownComp = found.b;
 
-    StorageComponent* storage = _entity.Get()->FindComponent<StorageComponent>();
+    StorageComponent* storage = found.c;
 
     // Get game world grid data
     GameUpdateLoop* gameWorld = GameUpdateLoop::_singleton;

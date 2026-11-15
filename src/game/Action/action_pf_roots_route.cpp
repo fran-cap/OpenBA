@@ -80,6 +80,7 @@
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"   // CitizenBehavior::storageLocations / marketLocations (PickBestDropTarget)
 #include "stress_harness.h"   // PFBENCH: PfMainTimer (ph_pathdistance_ms; stress harness only)
+#include "Component/find_components3.h"   // PERF: PickBestDropTarget's three component scans in one walk
 #include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 namespace {
@@ -320,6 +321,13 @@ LAB_14012d744:
 //      (12d5d0, with a StorageLocationComponent) or PickReachableCell (4edb0), and on
 //      success record the entity (*best), the position and the cost.
 // Finally writes the best world position into outPos and returns `best`.
+namespace {
+
+// The three components each candidate is read for, in one walk (Component/find_components3.h).
+using DropTargetComponents = FoundComponents3<StorageLocationComponent, MarketLocationComponent, StorageComponent>;
+
+} // namespace
+
 ComponentEntity** CitizenBehavior::PickBestDropTarget(ComponentEntity** best,
                                      uint32_t param_3, const ComponentDescription* material,
                                      int param_5, char param_6, float* outPos,
@@ -359,9 +367,13 @@ ComponentEntity** CitizenBehavior::PickBestDropTarget(ComponentEntity** best,
             // 0x1401c4560, 0x1401c7e78) have no null-slot skip; the location's description
             // is narrowed (IsDerivedFrom, cell 0x1401c7f20) and its +0x20 read with no test;
             // the source's +0x5c is read with no test (the decompile's `pvVar19 + 0x5c`).
-            StorageLocationComponent* location = entity->FindComponent<StorageLocationComponent>();
-            MarketLocationComponent* market = entity->FindComponent<MarketLocationComponent>();
-            StorageComponent* storage = entity->FindComponent<StorageComponent>();
+            // PERF: the three scans in one walk (Component/find_components3.h), the same three pointers.
+            const DropTargetComponents found =
+                FindComponents3<StorageLocationComponent, MarketLocationComponent, StorageComponent>(entity);
+            if (g_verifyOn) VerifyComponents3(entity, found);
+            StorageLocationComponent* location = found.a;
+            MarketLocationComponent* market = found.b;
+            StorageComponent* storage = found.c;
             if (location != nullptr) {
                 Description* desc = location->_description;
                 const StorageLocationDescription* locDesc =
