@@ -6,7 +6,8 @@
 // (the panel's "editLimit", made from its description) as the row's last element, so the spinner looks like
 // that one, and puts the row in a column with the Product row (ribbonItemLimitsColumn).
 //
-// Controller: src/ext/item_limits/panel_row.cpp. It looks up, by name: checkItemLimitsRow, textItemLimitsRow.
+// Controller: src/ext/item_limits/panel_row.cpp. It looks up, by name: checkItemLimitsRow, textItemLimitsRow;
+// it makes comboItemLimitsItem itself.
 //
 // Texts: Dialog/ExtensionsStringTable.rsc (the ItemLimits* keys).
 
@@ -37,4 +38,12 @@ TextDescription textItemLimitsRow : "Extensions.rsc:textProfile"
 {
 	Alignment _alignment = MidLeft;
 	String _text = "ItemLimitsLabel";
+}
+
+// The item picker of a panel with more items than rows (a mod's gatherer gathers dozens): one combo listing
+// every item, above the one row that follows the item it selects. The controller fills it.
+ComboDescription comboItemLimitsItem : "Options.rsc:comboAutosave"
+{
+	int _minWidth = 220;
+	int _topPad = 2;
 }

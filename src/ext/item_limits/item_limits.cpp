@@ -187,5 +187,26 @@ void SetRowActive(bool rowOn) {
     g_on = rowOn && !g_items.empty();
 }
 
+std::vector<int32_t> FirstOfEach(const std::vector<const void*>& items, size_t max) {
+    std::vector<int32_t> out;
+    for (size_t i = 0; i < items.size() && out.size() < max; ++i) {
+        const void* item = items[i];
+        if (item == nullptr) {
+            continue;
+        }
+        bool seen = false;
+        for (int32_t j : out) {
+            if (items[static_cast<size_t>(j)] == item) {
+                seen = true;
+                break;
+            }
+        }
+        if (!seen) {
+            out.push_back(static_cast<int32_t>(i));
+        }
+    }
+    return out;
+}
+
 }  // namespace ItemLimits
 }  // namespace Ext

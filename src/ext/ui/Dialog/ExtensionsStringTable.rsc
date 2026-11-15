@@ -142,8 +142,8 @@ StringTable resource
 		{ String _name = "ItemPriorityShowAll";	String _text = "Show all items"; }
 		// ext.item_limits's row on a workshop's panel (ItemLimitsPanel.rsc)
 		{ String _name = "ItemLimitsLabel";			String _text = "@0 limit"; }
-		{ String _name = "ItemLimitsCheckTip";		String _text = "Check to give this item its own limit. Every workshop making it stops when the town holds this many, even under the category limit."; }
-		{ String _name = "ItemLimitsSpinnerTip";	String _text = "The town-wide limit for this item, shared by every workshop that makes it."; }
+		{ String _name = "ItemLimitsCheckTip";		String _text = "Check to give this item its own limit. When the town holds this many, even under the category limit, workshops and gatherers stop making it and pastures leave it out of a slaughter or the herd's produce."; }
+		{ String _name = "ItemLimitsSpinnerTip";	String _text = "The town-wide limit for this item, shared by every workshop, pasture and gatherer that makes it."; }
 		// ext.trader_request's row on the trading post window's Orders tab (TraderRequestPanel.rsc)
 		{ String _name = "TraderRequestLabel";		String _text = "Request trader (price mult)"; }
 		{ String _name = "TraderRequestTip";		String _text = "Ask for one trader instead of whoever turns up. A requested trader's goods cost double."; }

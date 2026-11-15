@@ -16,6 +16,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 7. Smoother motion at high game speed: while a long simulation step runs, the render thread shows the town again at a later blend instead of holding one picture. "Smooth fast speed" on the Experimental tab, off by default; needs Render thread (`ext.render_pipe_replay`).
 8. Map edge fade: the edge of the land fades into black instead of ending in a cut. "Map edge fade" on the Enhanced tab, on by default (`ext.map_edge_fade`).
 9. Custom maps: a new game can start on a map file (`.bmap`) made in a map editor; its ground, water paths, resources and town start replace the generated ones, picked with a Load custom map row in New Game (`ext.custom_maps`).
+10. Item limits on more buildings (`ext.item_limits`): a workshop without a product choice (a clay or sand pit, a mod's butcher) gets a limit row for each item it makes; a pasture gets one for each item its animals give, and a slaughter yields only the items still under their limits; a gatherer gets one for each item its plants give (a mod's gatherer with many items gets an item picker) and passes by the plants of an item at its limit.
 
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).

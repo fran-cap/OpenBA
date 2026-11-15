@@ -48,6 +48,13 @@ namespace Ext { namespace SaveTail { struct StateCodec; } }
 class CitizenBehavior;
 class ConsumeProduceDescription;
 class ConsumeProduceUI;
+class PastureComponent;
+class CitizenComponent;
+class ComponentDescription;
+class HerbalistDescription;
+class PastureUI;
+class ResourceLimitUI;
+class AnimalDescription;
 
 namespace Ext {
 namespace ItemLimits {
@@ -139,6 +146,33 @@ inline bool AtLimit(const void* item) {
     return false;
 }
 
+// ---- the producers' tests, without the game types (the seams below call them; unit-tested) -------------
+
+// Whether every one of `count` items (`itemAt(i)`, a template pointer or null) has reached its item limit: a
+// slaughter's yields, a gatherer's plants. False with no item, and a null item (a plant that names none) is
+// never at its limit, so it keeps the producer going, as retail.
+template <class ItemAt>
+inline bool AllAtLimit(int32_t count, ItemAt itemAt) {
+    if (count <= 0) {
+        return false;
+    }
+    for (int32_t i = 0; i < count; ++i) {
+        if (!AtLimit(itemAt(i))) {
+            return false;   // something left to make
+        }
+    }
+    return true;
+}
+// Whether a slaughter leaves `item` out: only for a pasture's herder (`forPasture`; a hunter's kill yields
+// everything, as retail) and only an item at its limit.
+inline bool SkipsYield(bool forPasture, const void* item) {
+    return forPasture && AtLimit(item);
+}
+// The panel rows' items: the index of the first occurrence of each non-null item of `items` (null = not an
+// item: no RawMaterialDescription), in order, at most `max` of them. A product two recipes make, or wild and
+// planted sunflowers, get one row: the limit is the item's.
+std::vector<int32_t> FirstOfEach(const std::vector<const void*>& items, size_t max);
+
 // ---- the game side (item_limits_town.cpp, panel_row.cpp; not in the unit build) --------------------------
 
 // GameUpdateLoop::Update, once per frame beside the other BeginFrame calls.
@@ -158,6 +192,51 @@ inline void CountTown(CitizenBehavior* town) {
 // reached its item limit. `allRecipes` is retail's random mode (every recipe is tested), else only `active`.
 bool RecipeAtLimitSlow(const ConsumeProduceDescription* desc, bool allRecipes, int active);
 
+// The AnimalDescription of the animal PastureWork::Execute would slaughter now: the one retail picks
+// (FindOldestLivestock, a const scan) when the pasture holds more animals than its capacity, if its
+// AnimalComponent is not flagged for removal. Null when there is none. It is the animal's own description, not
+// the pasture's selected livestock: after the player switches the livestock the old herd is slaughtered first.
+const AnimalDescription* SlaughterCandidate(const PastureComponent* pasture);
+// Whether every item a slaughter of `animal` yields (AnimalDescription::_rawMaterials) has reached its item
+// limit (AllAtLimit). Then the herder does not slaughter; hauling and grazing go on. While one of them is still
+// under its limit the slaughter goes on and yields only those (SlaughterSkipsYield).
+bool SlaughterAtLimitSlow(const AnimalDescription* animal);
+// PastureWork::Execute, before a slaughter (retail slaughters only while the pasture's category is under its
+// limit): SlaughterAtLimit for the animal the slaughter would take (SlaughterCandidate), the same animal whose
+// yields RemoveAnimalActions skips.
+inline bool SlaughterHeld(const PastureComponent* pasture) {
+    return g_on && SlaughterAtLimitSlow(SlaughterCandidate(pasture));
+}
+// RemoveAnimalActions (the slaughter's CreateRawMaterial per yield): SkipsYield for `citizen` (a pasture's
+// herder: its workplace has a PastureComponent). Then that yield is not created: a leather limit leaves the meat.
+bool SlaughterSkipsYieldSlow(const CitizenComponent* citizen, const void* item);
+inline bool SlaughterSkipsYield(const CitizenComponent* citizen, const void* item) {
+    return g_on && SlaughterSkipsYieldSlow(citizen, item);
+}
+// The item a gatherer gets from a plant it gathers (`herb`: one of HerbalistDescription::_herbs, a natural
+// resource template): its NaturalResourceDescription::_building, the template the harvest creates. Null when
+// the plant names none.
+const ComponentDescription* HerbItem(const ComponentDescription* herb);
+// HerbalistWork::Execute, for a plant of the gatherer's list it found: whether the plant's item (HerbItem) has
+// reached its item limit. Then the gatherer passes it by and looks on; the plants of other items are still
+// gathered.
+bool HerbAtLimitSlow(const ComponentDescription* herb);
+inline bool HerbAtLimit(const ComponentDescription* herb) {
+    return g_on && HerbAtLimitSlow(herb);
+}
+// HerbalistWork::Execute, after retail's category test passed: whether every item of the gatherer's list has
+// reached its item limit (AllAtLimit over HerbItem of each plant). Then the gatherer does no gathering, as at
+// the category limit.
+bool HerbsAtLimitSlow(const HerbalistDescription* desc);
+inline bool HerbsAtLimit(const HerbalistDescription* desc) {
+    return g_on && HerbsAtLimitSlow(desc);
+}
+// PastureProduce (the herd's byproduct: wool, milk, eggs ...): whether the byproduct has reached its item
+// limit. Then the production is spent with no pile, as retail does when the category is at its limit.
+inline bool ByproductAtLimit(const void* item) {
+    return g_on && AtLimit(item);
+}
+
 // The workshop panel's row (panel_row.cpp). One EXT SEAM line per site in consumeproduceui.cpp. The row is
 // built while the row is active for the game, whether or not a limit is set yet (`g_on` needs one).
 extern bool g_rowOn;   // the game's locked row value, this frame (SetRowActive)
@@ -169,6 +248,41 @@ void PanelLayoutSlow(ConsumeProduceUI* panel);   // OnUpdateLayout: follows the 
 // OnElementEvent: true when the event was the row's own
 bool PanelEventSlow(ConsumeProduceUI* panel, UI::EventId msg, int32_t id);
 void PanelsForget();                             // the game ends or the row goes off: forget every row
+// A workshop panel with no ConsumeProduceUI (a mod's butcher) gets its rows from its category limit's
+// controller, decided at that controller's first layout (panel_row.cpp). Seams in resourcelimitui.cpp.
+void LimitRowCreatedSlow(ResourceLimitUI* limit);                        // OnCreated: forget its old rows
+void LimitRowLayoutSlow(ResourceLimitUI* limit);                         // OnUpdateLayout
+bool LimitRowEventSlow(ResourceLimitUI* limit, UI::EventId msg, int32_t id);   // OnElementEvent: the rows' own
+inline void LimitRowCreated(ResourceLimitUI* limit) {
+    if (PanelActive()) {
+        LimitRowCreatedSlow(limit);
+    }
+}
+inline void LimitRowLayout(ResourceLimitUI* limit) {
+    if (PanelActive()) {
+        LimitRowLayoutSlow(limit);
+    }
+}
+inline bool LimitRowEvent(ResourceLimitUI* limit, UI::EventId msg, int32_t id) {
+    return PanelActive() && LimitRowEventSlow(limit, msg, id);
+}
+// The pasture panel's rows (pasture_rows.cpp), one per item its livestock gives. Seams in pastureui.cpp.
+void PastureOpenedSlow(PastureUI* panel);        // OnCreated, at its end: adds the rows
+void PastureLayoutSlow(PastureUI* panel);        // OnUpdateLayout: follows the combo and the other panels
+bool PastureEventSlow(PastureUI* panel, UI::EventId msg, int32_t id);   // OnElementEvent: the rows' own
+inline void PastureOpened(PastureUI* panel) {
+    if (PanelActive()) {
+        PastureOpenedSlow(panel);
+    }
+}
+inline void PastureLayout(PastureUI* panel) {
+    if (PanelActive()) {
+        PastureLayoutSlow(panel);
+    }
+}
+inline bool PastureEvent(PastureUI* panel, UI::EventId msg, int32_t id) {
+    return PanelActive() && PastureEventSlow(panel, msg, id);
+}
 inline void PanelOpened(ConsumeProduceUI* panel) {
     if (PanelActive()) {
         PanelOpenedSlow(panel);

@@ -69,6 +69,7 @@
 #include "Entity/ComponentEntity.h"
 #include "Game/Map.h"
 #include "math/Math.h"
+#include "ext/item_limits/item_limits.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits
 
 namespace {
 
@@ -275,6 +276,13 @@ void RemoveAnimalActions(CitizenComponent* const* citizenIBP, uint32_t task, flo
     if (0 < description->_rawMaterialCount) {
         int i = 0;
         do {
+            // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C). A
+            // pasture's slaughter creates no yield whose item is at its own limit (a leather limit leaves the
+            // meat); PastureWork holds the slaughter only when every yield is.
+            if (Ext::ItemLimits::SlaughterSkipsYield(citizen, templates[i])) {
+                i = i + 1;
+                continue;
+            }
             void* mem = MemAlloc(0x58, 8);
             Action* create = nullptr;
             if (mem != nullptr) {

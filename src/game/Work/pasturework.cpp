@@ -57,6 +57,8 @@
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"
 #include "Game/Map.h"
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the slaughter test
+#include "ext/item_limits/item_limits.h"
 
 
 // ============================================================
@@ -164,6 +166,8 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         return 1;
     }
 
+    bool slaughterHeld = false;   // ext.item_limits (see Step 5)
+
     // -------------------------------------------------------
     // Step 5: Check resource capacity via the town's per-resource counts
     //   (CitizenBehavior +0x170, indexed by the PastureDescription's type)
@@ -176,9 +180,16 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
         int maxCount = entry.maxCount;
         bVar8 = (maxCount <= currentCount);  // at capacity?
 
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C). When every
+        // item the slaughter below would yield (meat, leather ...) is at its own item limit the slaughter is
+        // held; the herder still hauls and grazes, and the status icon shows it as a limit reached. The test
+        // reads the animal branch A would take (FindOldestLivestock, its own AnimalDescription), so it agrees
+        // with the yields RemoveAnimalActions' seam skips while one is under its limit.
+        slaughterHeld = !bVar8 && Ext::ItemLimits::SlaughterHeld(local_a8);
+
         // Set the status icon's flag 2 from the capacity (0x140002f90, 0x14012c3f0)
         StatusIconComponent* meshInst = _entity->FindComponent<StatusIconComponent>();
-        meshInst->SetFlag(2, bVar8 ? 1 : 0);
+        meshInst->SetFlag(2, (bVar8 || slaughterHeld) ? 1 : 0);
     }
 
     // -------------------------------------------------------
@@ -206,7 +217,7 @@ int PastureWork::Execute(CitizenComponent** citizenIBP, System::Time* /*context*
 
         // Check if pasture is over its capacity (capacity < animal count)
         int pastureCount = local_a8->animals._size;
-        if (local_a8->capacity < pastureCount) {
+        if (local_a8->capacity < pastureCount && !slaughterHeld) {
             // Find an animal to remove (0x140128350, PastureComponent::FindOldestLivestock)
             int slotIdx = local_a8->FindOldestLivestock();
             if (slotIdx >= 0) {

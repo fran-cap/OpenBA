@@ -36,6 +36,9 @@
 #include "ui/SpinnerElement.h"  // ENDGAME B.3.6 UI callers round 2 (K3)
 #include "Dialog/ResourceLimitUIConfig.h"   // X::TypeId() (B.3.9 CG2)
 #include "ext/high_limits/high_limits.h"   // EXT SEAM ext.high_limits (class B): the spinner range (NOT RETAIL)
+// EXT SEAM (NOT RETAIL, docs/extensions/handins/ITEMLIMITS.md): ext.item_limits (class C), the item rows of a
+// workshop panel that has no ConsumeProduceUI
+#include "ext/item_limits/item_limits.h"
 
 // ============================================================
 // Standalone entry points — resource index supplied explicitly
@@ -113,6 +116,7 @@ namespace resourcelimitui_sa {
 // it at editLimit (+0x30), configure id/min/max, seed it from the live limit.
 // [4] 0x140077970
 void ResourceLimitUI::OnCreated() {
+    Ext::ItemLimits::LimitRowCreated(this);   // EXT SEAM (NOT RETAIL, ITEMLIMITS.md): forget the old rows
     int resourceIndex = resourcelimitui_sa::IdxFor(this);
     resourcelimitui_sa::Trace("Slot4", this, resourceIndex);
     UI::Element* dialogElem = _container;
@@ -135,6 +139,7 @@ void ResourceLimitUI::OnCreated() {
 // user is actively editing it.
 // [7] 0x1400778d0
 void ResourceLimitUI::OnUpdateLayout() {
+    Ext::ItemLimits::LimitRowLayout(this);   // EXT SEAM (NOT RETAIL, ITEMLIMITS.md): add or follow the rows
     int resourceIndex = resourcelimitui_sa::IdxFor(this);
     UI::SpinnerElement* spinner = this->editLimit;
     if (!spinner) return;
@@ -149,6 +154,7 @@ void ResourceLimitUI::OnUpdateLayout() {
 // [9] 0x1400777e0
 void ResourceLimitUI::OnElementEvent(Object::InternalPtr<UI::Element>* element, UI::EventId msg, int32_t id,
                                      int32_t /*c*/, int32_t /*d*/, int32_t /*e*/, void* /*userData*/) {
+    if (Ext::ItemLimits::LimitRowEvent(this, msg, id)) return;   // EXT SEAM (NOT RETAIL, ITEMLIMITS.md)
     if (msg != UI::EventId::ValueChanged || id != 0x3039) return;
     UI::SpinnerElement* spinner = this->editLimit;
     if (!spinner || !element) return;
