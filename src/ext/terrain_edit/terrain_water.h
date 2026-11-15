@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "ext/terrain_edit/terrain_edit_math.h"
+#include "ext/water_origin.h"
 
 namespace Ext {
 namespace TerrainEdit {
@@ -37,7 +38,7 @@ constexpr int   kDefaultWaterZ = -191;
 // Since z is not an identity, the edit's quads carry one in a byte the game leaves at 0 (the fourth
 // component of the normal), so they can be told from the game's own when the mesh is read again after a
 // load.
-constexpr uint8_t kEditMarker = 1;
+constexpr uint8_t kEditMarker = Ext::WaterOrigin::kTerrainEdit;
 // position and uv are the coordinate times this, as int16 (the mesh builder's pack scale)
 constexpr float kPosScale    = 48.0f;
 
