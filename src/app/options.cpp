@@ -186,7 +186,7 @@ void OptionsInit() {
     o.stressSpeed     = Int("BANISHED_STRESS_SPEED",    o.stressSpeed);
     o.stressFoodMult  = Int("BANISHED_STRESS_FOOD_MULT", 0);
     o.stressStaff     = Int("BANISHED_STRESS_STAFF",     1);
-    o.stressCompProf  = Int("BANISHED_STRESS_COMPPROF",  1);
+    o.stressCompProf  = Int("BANISHED_STRESS_COMPPROF",  0);
     if (o.stressCompProf < 0) o.stressCompProf = 0;
     if (o.stressCompProf > 4) o.stressCompProf = 4;   // 3 = level 1 + ext.fast_paths shadow mode (PFBENCH);
                                                       // 4 = level 1 + the ELPROF verification shadows
