@@ -81,6 +81,7 @@
 #include "Entity/CitizenBehavior.h"   // CitizenBehavior::storageLocations / marketLocations (PickBestDropTarget)
 #include "stress_harness.h"   // PFBENCH: PfMainTimer (ph_pathdistance_ms; stress harness only)
 #include "Component/find_components3.h"   // PERF: PickBestDropTarget's three component scans in one walk
+#include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
 #include "ext/winter_ice/walk_type.h"   // EXT SEAM (NOT RETAIL, WINTERICE.md 5.2): ext.walk_on_ice, a frozen lake cell reads as type 9
 
 namespace {
@@ -93,7 +94,7 @@ template <class T>
 const T* FindSubDescription(const ComponentDescription* material) {
     for (int32_t i = 0; i < material->_subDescCount; ++i) {
         Description* d = material->_subDescs[i];
-        if (d->Type() == T::TypeId())
+        if (TypeCache::TypeOf(d) == T::TypeId())   // PERF TYPECACHE: Type(), the same answer
             return d->IsDerivedFrom(T::TypeId()) ? static_cast<const T*>(d) : nullptr;
     }
     return nullptr;

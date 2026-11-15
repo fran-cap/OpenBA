@@ -47,6 +47,7 @@
 #include "diag/err_line.h"          // ErrLine: one write per diagnostic line
 #include "Entity/path_cost_index.h"  // PathCostIndex (HITCH_PAIRSPREAD): the m_bst map's storage
 #include "ext/drain_split/drain_split.h"   // EXT SEAM (NOT RETAIL, docs/extensions/handins/HITCH_DRAINSPLIT.md): ext.drain_split (class B), the drain's AssignCitizens owed a frame
+#include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
 #include <chrono>
 
 // Tick-driven Builder pool (builder_pool_driver.cpp). No-op unless BANISHED_BUILDER_NATURAL
@@ -671,7 +672,7 @@ void CitizenBehavior::CountResources() {
             Component* comp = entity->_components[i].Get();
             if (!comp) continue;
             // virtual slot 2 (+0x10): Type()
-            int compTypeId = static_cast<int>(comp->Type());
+            int compTypeId = static_cast<int>(TypeCache::TypeOf(comp));   // PERF TYPECACHE: the same answer
             if (static_cast<uint32_t>(compTypeId) == targetId) {
                 if (::Object::IsDerivedFromNullSafe(comp, targetId)) {
                     return comp;
@@ -788,7 +789,7 @@ void CitizenBehavior::CountResources() {
                 for (int k = 0; k < subCompCount; k++) {
                     Description* subComp = itemEntity->_subDescs[k];
                     if (!subComp) continue;
-                    int compTypeId = static_cast<int>(subComp->Type());
+                    int compTypeId = static_cast<int>(TypeCache::TypeOf(subComp));   // PERF TYPECACHE: the same answer
                     if (static_cast<uint32_t>(compTypeId) == rawMatTypeId) {
                         if (::Object::IsDerivedFromNullSafe(subComp, rawMatTypeId)) {
                             rawMat = static_cast<RawMaterialDescription*>(subComp);
@@ -859,7 +860,7 @@ void CitizenBehavior::CountResources() {
                 for (int k = 0; k < subCompCount; k++) {
                     Description* subComp = itemEntity->_subDescs[k];
                     if (!subComp) continue;
-                    int compTypeId = static_cast<int>(subComp->Type());
+                    int compTypeId = static_cast<int>(TypeCache::TypeOf(subComp));   // PERF TYPECACHE: the same answer
                     if (static_cast<uint32_t>(compTypeId) == rawMatTypeId) {
                         if (::Object::IsDerivedFromNullSafe(subComp, rawMatTypeId)) {
                             rawMat = static_cast<RawMaterialDescription*>(subComp);

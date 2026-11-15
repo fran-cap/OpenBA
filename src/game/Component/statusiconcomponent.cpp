@@ -288,6 +288,7 @@ void StatusIconComponent::ClearAllFlags() {
 // Standalone bring-up (Phase A): faithful construction + diagnostics
 // ============================================================
 #include "Object/factory_registration.h"
+#include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
 #include <cstdlib>
 
 // The embedded billboard (+0x28) is a real Graphics::Geometry subclass since
@@ -449,7 +450,7 @@ static Component* StatusIcon_FindCompByName(const ComponentEntity* entity, uint3
             }
             continue;
         }
-        uint32_t tid = comp->Type();
+        uint32_t tid = TypeCache::TypeOf(comp);   // PERF TYPECACHE: Type(), the same answer
         if (tid == want)
             return Object::IsDerivedFromNullSafe(comp, want) ? comp : nullptr;
     }

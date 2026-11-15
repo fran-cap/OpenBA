@@ -14,6 +14,7 @@
 
 #include "Component/StorageComponent.h"
 #include <cstdint>
+#include "Object/type_cache.h"   // PERF (TYPECACHE): QueryCount's Type() through the vptr cache
 #include "Component/RawMaterialDescription.h"
 #include "Component/StorageDescription.h"
 #include "Component/ComponentDescription.h"
@@ -317,7 +318,7 @@ int StorageComponent::QueryCount() const {
         const RawMaterialDescription* resourceType = nullptr;
         for (int j = 0; j < compCount; j++) {
             Description* comp = item->_subDescs[j];
-            uint32_t typeId = comp->Type();   // slot 2
+            uint32_t typeId = TypeCache::TypeOf(comp);   // slot 2 (PERF TYPECACHE: the same answer)
             if (typeId == RawMaterialDescription::TypeId()) {
                 if (Object::IsDerivedFromNullSafe(comp, RawMaterialDescription::TypeId())) {
                     resourceType = static_cast<const RawMaterialDescription*>(comp);
