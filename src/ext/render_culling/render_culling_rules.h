@@ -43,6 +43,13 @@ inline Flags FlagsFor(bool renderCulling, bool animBatch) {
     return f;
 }
 
+// The draw group whose cull camera the sim's off-screen tests use: the main view's, shader 0
+// (Graphics::MaterialPass::Normal; render_culling.cpp holds the static_assert). The terrain's collect
+// pass, which hands the frustum over, also runs for the shadow map's group (1), the reflection's (2)
+// and a spot light's (3), each with its own cull camera.
+constexpr int32_t kMainViewShader = 0;
+inline bool IsMainViewEntry(int32_t groupShader) { return groupShader == kMainViewShader; }
+
 // True when the PERFXTBL side table has a user (batch counts or particle verdicts).
 inline bool SideTableNeeded(const Flags& f) { return f.animBatch || f.particleCull; }
 

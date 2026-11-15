@@ -221,7 +221,10 @@ void WorldGeometry::AddDrawItems(const Graphics::Scene& /*scene*/,
     ::Frustum localFrustum = {};
     // worldFrustum = cameraFrustum * cameraTransform3
     RtVolume_Frustum_MulTransform3(&cameraFrustum, &worldFrustum, &cameraTransform3);
-    Ext::RenderCulling::SetWorldFrustum(&worldFrustum);   // [PerfX] the sim-side off-screen test uses this frame's planes
+    // [PerfX] the sim-side off-screen test uses this frame's planes. This body runs once per draw group
+    // (the sun's shadow map, the main view, the water's reflection), each with its own cull camera: the
+    // group's shader tells the extension which one it is handed.
+    Ext::RenderCulling::SetWorldFrustum(&worldFrustum, renderer.GetShader());
     // localFrustum = worldFrustum * geometryInverseTransform3
     RtVolume_Frustum_MulTransform3(&worldFrustum, &localFrustum, &selfInvTransform3);
 
