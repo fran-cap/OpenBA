@@ -39,6 +39,10 @@ void SleepMs(uint32_t ms)   { Sleep(ms); }
 uint32_t CurrentThreadId()  { return GetCurrentThreadId(); }
 
 bool DispatchSentMessages() {   // NOT RETAIL: platform_thread.h (review F-224)
+    // Only when a sent message is waiting (platform_thread.h, THE HUNG WINDOW): a filtered
+    // PeekMessage that finds nothing leaves the thread looking hung to Windows. GetQueueStatus
+    // reads the queue without that effect; its high word is what the queue holds now.
+    if ((HIWORD(GetQueueStatus(QS_SENDMESSAGE)) & QS_SENDMESSAGE) == 0) return true;
     MSG m;
     PeekMessageW(&m, nullptr, 0, 0, PM_NOREMOVE | PM_QS_SENDMESSAGE);
     return true;

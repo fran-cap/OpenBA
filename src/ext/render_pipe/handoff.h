@@ -12,7 +12,9 @@
 // message, which completes only once the main thread runs it. So the main thread's waits
 // (ClaimSteps, WaitIdle, WaitReleased) wake every millisecond to run the sent messages
 // (Platform::DispatchSentMessages, never a posted one) where the platform has them, and
-// park on the plain condition variable where it does not.
+// park on the plain condition variable where it does not. On Windows that call peeks only
+// when a sent message is waiting: an empty filtered peek every millisecond made Windows
+// flag the window as hung (platform_thread.h, THE HUNG WINDOW).
 //
 // ONE job slot. The main thread writes the job (the packet, held by the caller)
 // and then Publish()es it; the render thread blocks in WaitJob() until a job or

@@ -54,8 +54,20 @@ uint32_t CurrentThreadId();
 // NOT RETAIL (ext.render_pipe, review F-224): run the window procedures of the messages other
 // threads SENT to the calling thread's windows, taking no posted message, and return true. A
 // thread parked in a plain wait never runs them, so their sender blocks until it wakes.
-// Windows: PeekMessageW(&m, nullptr, 0, 0, PM_NOREMOVE | PM_QS_SENDMESSAGE). POSIX: there are
-// no cross-thread sent messages: a no-op that returns false (the caller waits without polling).
+// Windows: PeekMessageW(&m, nullptr, 0, 0, PM_NOREMOVE | PM_QS_SENDMESSAGE), and only when
+// GetQueueStatus(QS_SENDMESSAGE) says one is waiting. POSIX: there are no cross-thread sent
+// messages: a no-op that returns false (the caller waits without polling).
+//
+// THE HUNG WINDOW (the "Banished (Not Responding)" ghost). Handoff's main-thread waits call
+// this every millisecond, and a render-bound frame spends most of its time there. A filtered
+// PeekMessage (a PM_QS_* mask or a message range) that finds nothing, called that often, makes
+// IsHungAppWindow TRUE about 5 s later although the pump's unfiltered PM_REMOVE drain still runs
+// every step: measured in the game (Gate.sav 1x, ext.render_pipe on: 12 of 15 two-second samples
+// hung) and in a bare Win32 loop (a PM_REMOVE drain every 16 ms, filtered peeks every 1 ms
+// between: hung; plain Sleep, an unfiltered PM_NOREMOVE peek, or the GetQueueStatus test first:
+// never; a filtered peek that does run a sent message: never). GetQueueStatus reads the queue
+// without that effect, so the peek runs only when there is a sent message for it to run. Nothing
+// posted or input is retrieved either way: the pump inside the step is still the only reader.
 bool DispatchSentMessages();
 
 }  // namespace Platform
