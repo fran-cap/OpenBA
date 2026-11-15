@@ -278,6 +278,7 @@ struct HitchRing {
 struct HitchCur {   // the period being accumulated
     int updates = 0; int speed = 0; int frame = 0; int markers = 0;
     double updMs = 0, drawMs = 0, harnessMs = 0; double ph[kHitchPh] = {0}; long long pf[3] = {0};
+    double seg[2] = {0};   // HITCH_TAIL: ext.render_pipe's fence / tail hooks, main thread ms
 };
 // Two classes of period, with their own rings: MainLoop::Frame draws every loop and Updates
 // only when the fixed-step accumulator has a step, so at speed 50 a draw-only period is ~1 ms
@@ -318,7 +319,7 @@ void HitchOpenCsv() {
                              "update_ms,med_update_ms,draw_ms,med_draw_ms,outside_ms,med_outside_ms,harness_ms,"
                              "ph_paircache_ms,ph_animation_ms,ph_entitylist_ms,ph_weather_ms,ph_citizenlist_ms,ph_postsim_ms,"
                              "med_paircache_ms,med_animation_ms,med_entitylist_ms,med_weather_ms,med_citizenlist_ms,med_postsim_ms,"
-                             "pf_pathdistance_ms,pf_fillzones_ms,pf_syncwait_ms,markers\n");
+                             "pf_pathdistance_ms,pf_fillzones_ms,pf_syncwait_ms,markers,fence_ms,pipe_tail_ms\n");
     std::fflush(s_hitchCsv);
 }
 // Close the period [t0, t1) (QPC): test it, log it if it is a hitch, push it into the rings.
@@ -350,9 +351,9 @@ void HitchPeriod(long long t0, long long t1) {
                              s_hCur.harnessMs);
                 for (int i = 0; i < kHitchPh; ++i) std::fprintf(s_hitchCsv, "%.3f,", s_hCur.ph[i]);
                 for (int i = 0; i < kHitchPh; ++i) std::fprintf(s_hitchCsv, "%.3f,", cls.ph[i].Median());
-                std::fprintf(s_hitchCsv, "%.3f,%.3f,%.3f,%d\n",
+                std::fprintf(s_hitchCsv, "%.3f,%.3f,%.3f,%d,%.3f,%.3f\n",
                              TscMs(s_hCur.pf[PF_MAIN_PATHDISTANCE]), TscMs(s_hCur.pf[PF_MAIN_FILLZONES]),
-                             TscMs(s_hCur.pf[PF_MAIN_SYNCWAIT]), s_hCur.markers);
+                             TscMs(s_hCur.pf[PF_MAIN_SYNCWAIT]), s_hCur.markers, s_hCur.seg[0], s_hCur.seg[1]);
                 std::fflush(s_hitchCsv);
             }
         }
@@ -1842,6 +1843,21 @@ extern "C" void StressHarness_PipeEmitEnd() {
     s_pipeEmitTicks.fetch_add(QpcNow() - s_pipeEmitT0, std::memory_order_relaxed);
     s_pipeEmitN.fetch_add(1, std::memory_order_relaxed);
     s_pipeEmitT0 = 0;
+}
+// HITCH_TAIL: main thread only (MainLoop::Frame's two ext.render_pipe hooks).
+static long long s_pipeSegT0[2] = {0, 0};
+extern "C" void StressHarness_PipeSegBegin(int seg) {
+    if (!StressHarness_Enabled() || seg < 0 || seg > 1) return;
+    s_pipeSegT0[seg] = QpcNow();
+}
+extern "C" void StressHarness_PipeSegEnd(int seg) {
+    if (!StressHarness_Enabled() || seg < 0 || seg > 1 || !s_pipeSegT0[seg]) return;
+    // The tail's Draw entry closes the previous period: only the part from that entry on
+    // is this period's (it holds the main half, already in draw_ms).
+    long long t0 = s_pipeSegT0[seg];
+    if (seg == 1 && s_lastDrawEntry > t0) t0 = s_lastDrawEntry;
+    s_hCur.seg[seg] += QpcMs(QpcNow() - t0);
+    s_pipeSegT0[seg] = 0;
 }
 
 static void CompProf_WatchBegin(Object::Base* comp, uint32_t tid) {
