@@ -49,6 +49,7 @@
 #include "options.h"
 #include "ui/UserInterface.h"
 #include "object/TypeInfo.h"
+#include "Object/type_cache.h"                 // PERF (TYPECACHE): Type() through the vptr cache
 #include "graphics/Camera.h"
 #include "Tutorial/exe_bodies.h"
 #include "Game/exe_bodies.h"   // B3R STORAGE: g_gameSettings
@@ -925,7 +926,7 @@ bool CitizenComponent::ShouldSwitchWorkplace() {
             uint32_t wpTypeId = WorkPlaceComponent::TypeId();
             for (int ci = 0; ci < compCount; ci++) {
                 Component* comp = compArray[ci].Get();
-                uint32_t typeId = comp->Type();   // slot 2
+                uint32_t typeId = TypeCache::TypeOf(comp);   // slot 2 (PERF TYPECACHE: the same answer)
                 if (typeId == wpTypeId) {
                     // Verify with IsDerivedFrom
                     Component* finalComp = compArray[ci].Get();
@@ -1373,7 +1374,7 @@ static StorageComponent* StandaloneFindStorageComp(ComponentEntity* entity) {
     for (int i = 0; i < cnt && arr; ++i) {
         Component* comp = arr[i].Get();
         if (!comp) continue;
-        if (comp->Type() == tidStorage)
+        if (TypeCache::TypeOf(comp) == tidStorage)   // PERF TYPECACHE: Type(), the same answer
             return static_cast<StorageComponent*>(comp);
     }
     return nullptr;
@@ -1470,7 +1471,7 @@ void CitizenComponent::EatFrom(ComponentEntity* target) {
                        ? work->_subDescCount : 0;
         for (int i = 0; i < rows; i++) {
             Description* comp = work->_subDescs[i];
-            uint32_t tid = comp->Type();   // slot 2
+            uint32_t tid = TypeCache::TypeOf(comp);   // slot 2 (PERF TYPECACHE: the same answer)
             if (tid == matTid) {
                 mat = Object::IsDerivedFromNullSafe(comp, matTid)
                           ? static_cast<RawMaterialDescription*>(comp) : nullptr;
@@ -1542,7 +1543,7 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
         Object::InternalPtr<Component>* arr = entity->_components._data;
         for (int i = 0; i < cnt; i++) {
             Component* comp = arr[i].Get();
-            uint32_t ctid = comp->Type();   // slot 2
+            uint32_t ctid = TypeCache::TypeOf(comp);   // slot 2 (PERF TYPECACHE: the same answer)
             if (ctid == tid) {
                 Component* resolved = arr[i].Get();
                 return resolved->IsDerivedFrom(tid) ? resolved : nullptr;
@@ -1727,7 +1728,7 @@ ComponentDescription** CitizenComp_Entity_impl_ef40(const void* param_1, Compone
         Description** arr = taskEntity->_subDescs;
         for (int i = 0; i < rows; i++) {
             Description* comp = arr[i];
-            uint32_t tid = comp->Type();   // slot 2
+            uint32_t tid = TypeCache::TypeOf(comp);   // slot 2 (PERF TYPECACHE: the same answer)
             if (tid == rawMatTid) {
                 return comp->IsDerivedFrom(rawMatTid)
                            ? static_cast<RawMaterialDescription*>(comp) : nullptr;
@@ -2262,7 +2263,7 @@ static Component* CitizenComp_FindSiblingByTypeId(ComponentEntity* ownerEntity, 
     for (int i = 0; i < count; i++) {
         Component* comp = arr[i].Get();
         if (!comp) continue;
-        uint32_t tid = comp->Type();
+        uint32_t tid = TypeCache::TypeOf(comp);   // PERF TYPECACHE: Type(), the same answer
         if (tid == want)
             return Object::IsDerivedFromNullSafe(comp, want) ? comp : nullptr;
     }

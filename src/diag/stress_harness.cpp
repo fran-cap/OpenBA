@@ -77,6 +77,7 @@
 #include "ext/draw_batch/draw_batch.h"   // issue #253: the instancing batch counters (COMPPROF >= 2)
 #include "draw_batch/instance_bank.h"    // issue #253: the backend's instance cap (src/render/common)
 #include "graphics/xform_memo.h"   // XFORMMEMO: the instance-transform memo counters (/xform row) and its shadow hook
+#include "Object/type_cache.h"     // TYPECACHE: the Type() cache's COMPPROF=4 shadow hook
 #include "ext/draw_gather/draw_gather.h"   // DRAWGATHER: the [Stress::gather] counters
 #include "ext/render_pipe/render_pipe.h"   // RENDERPIPE: the [Stress::pipe] counters
 #include "graphics/stagger_hold.h"         // ext.staggered_passes: the [Stress::stagger] counters
@@ -187,6 +188,20 @@ void Resolve() {
             // XFORMMEMO: every memo hit recomputed with the virtual GetInstanceTransform, 64 bytes compared
             XformMemo::g_report = [](bool ok, long long detail) { StressHarness_Verify("XformMemo", ok, detail); };
             XformMemo::g_verify = 1;
+            // TYPECACHE: every cache hit asked Type() too (and every own-type narrowing IsDerivedFrom).
+            // Millions of checks a frame: a mismatch is reported at once ("TypeCache", exact), the
+            // matches as one "TypeCache/1024ok" check per 1024 (the verify lock per check would
+            // stall the run).
+            TypeCache::g_report = [](bool ok, long long detail) {
+                static std::atomic<long long> s_ok{0};
+                if (!ok) {
+                    StressHarness_Verify("TypeCache", false, detail);
+                    return;
+                }
+                if ((s_ok.fetch_add(1, std::memory_order_relaxed) & 1023) == 1023)
+                    StressHarness_Verify("TypeCache/1024ok", true, 0);
+            };
+            TypeCache::g_verify = 1;
             // DRAWSORT: the draw-item sort's shadow (retail's sort on a copy, whole arrays compared)
             DrawSort::g_report = [](bool ok, long long detail) { StressHarness_Verify("DrawItemSort", ok, detail); };
             DrawSort::g_verify = 1;
