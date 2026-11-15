@@ -16,6 +16,7 @@
 
 #include "Work/exe_bodies.h"          // WorkCellBST_Remove_ca60
 #include "Action/PathSearch.h"        // RegionPairCache, RegionPairEntry
+#include "Action/region_pair_index.h" // RegionPairIndex (NOT RETAIL: the hash mirror of the index)
 #include "system/MemoryAllocator.h"   // System::MemoryAllocator::MemAlloc / MemFree
 #include "system/Value.h"             // RtSystem_Time_Ctor
 #include <cstdint>
@@ -99,6 +100,10 @@ extern "C" RegionPairCache* Pf_RegionPairCache_Build() {
     // Init the ring at +0x18: 0x20000 entries of stride 0x18.
     RegionPairRingResize(&pc->ring);   // 0x14001cca0
 
+    // NOT RETAIL (perf): the hash mirror of pc->index starts empty with the tree
+    // (Action/region_pair_index.h).
+    RegionPairIndex::Reset(pc);
+
     return pc;
 }
 
@@ -174,6 +179,9 @@ void RegionPairCache::Expire(const int64_t* dt) {
                         }
                         if (keyB <= node->key1) {
                             WorkCellBST_Remove_ca60(&index, node);   // 0x14001ca60
+                            if (RegionPairIndex::Owns(this)) {
+                                RegionPairIndex::Erase(keyA, keyB);   // NOT RETAIL: the mirror (region_pair_index.h)
+                            }
                             break;
                         }
                     }
