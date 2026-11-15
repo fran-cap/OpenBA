@@ -66,7 +66,7 @@ using detail::g_open;
 // ---------------------------------------------------------------------------
 constexpr const char* kRows[] = {"ambient_occlusion", "better_trees", "better_water", "max_shadow_res", "render_pipe",
                                  "eye_camera", "winter_ice", "better_clouds", "fancy_terrain", "depth_of_field",
-                                 "leaf_lod"};
+                                 "leaf_lod", "render_pipe_replay"};
 constexpr int kRowCount = static_cast<int>(sizeof(kRows) / sizeof(kRows[0]));
 constexpr const char* kKeys[] = {"ao_quality", "ao_opacity", "foliage_aa_mode", "max_shadow_size"};
 constexpr int kKeyCount = static_cast<int>(sizeof(kKeys) / sizeof(kKeys[0]));
@@ -523,11 +523,12 @@ void DrawPanels(const Snapshot& s) {
     }
 
     // ext.render_pipe's replayed frames (SMOOTHREPLAY.md): the display delay, live (Ext::RenderPipe::ReplayLook,
-    // read by the emit each time it draws). The key itself (ext.render_pipe_replay) is settings.cfg's.
+    // read by the emit each time it draws). The row is render_pipe_replay (Rows above).
     if (ImGui::CollapsingHeader("Replayed frames", ImGuiTreeNodeFlags_DefaultOpen)) {
         Ext::RenderPipe::ReplayLook& r = g_uiReplay;
-        ImGui::Text("row %s; ext.render_pipe_replay=1 in settings.cfg turns the replayed frames on",
-                    s.rowRequested[RowIndex("render_pipe")] ? "on" : "off (tick render_pipe under Rows)");
+        ImGui::Text("row %s; render thread %s",
+                    s.rowRequested[RowIndex("render_pipe_replay")] ? "on" : "off (tick render_pipe_replay under Rows)",
+                    s.rowRequested[RowIndex("render_pipe")] ? "on" : "off (tick render_pipe too)");
         float delayMs = static_cast<float>(r.delayUs) / 1000.0f;
         if (ImGui::SliderFloat("display delay (ms)", &delayMs, 0.0f, 16.0f, "%.1f")) {
             r.delayUs = static_cast<int32_t>(delayMs * 1000.0f + 0.5f);

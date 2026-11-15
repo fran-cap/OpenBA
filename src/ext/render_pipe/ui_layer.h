@@ -2,7 +2,7 @@
 // src/ext/render_pipe/ui_layer.h -- SMOOTHREPLAY: the interface of the last real
 // frame, drawn again over each replayed frame
 // ============================================================================
-// NOT RETAIL. ext.render_pipe, value key render_pipe_replay
+// NOT RETAIL. ext.render_pipe, its row render_pipe_replay
 // (docs/extensions/handins/SMOOTHREPLAY.md section 3).
 //
 // A replayed frame (render_pipe.cpp, EngineOps::Replays) is drawn while the main

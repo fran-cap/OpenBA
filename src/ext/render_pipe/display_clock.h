@@ -2,7 +2,7 @@
 // src/ext/render_pipe/display_clock.h -- SMOOTHREPLAY: the alpha a frame is drawn
 // at, read from the wall clock when it is drawn
 // ============================================================================
-// NOT RETAIL. ext.render_pipe, value key render_pipe_replay
+// NOT RETAIL. ext.render_pipe, its row render_pipe_replay
 // (docs/extensions/handins/SMOOTHREPLAY.md section 2).
 //
 // MainLoop::Frame samples the accumulator at the Frame's start, so a packet's alpha

@@ -1,6 +1,6 @@
 // ============================================================================
 // tests/unit/ext_render_pipe_replay_test.cpp -- SMOOTHREPLAY: ext.render_pipe's
-// replayed frames (value key render_pipe_replay)
+// replayed frames (the row render_pipe_replay)
 // ============================================================================
 // The pure parts on their own:
 //   * display_clock.h: the alpha a frame is drawn at, from the wall clock;

@@ -1,7 +1,8 @@
 # SMOOTHREPLAY -- `ext.render_pipe`: replayed frames during a long sim step
 
-Addendum to RENDERPIPE1.md and `docs/android/P13_OVERLAP.md`. Value key `ext.render_pipe_replay` (0 / 1,
-default 0 until the look is ruled; settings.cfg only). Class A: presentation only, nothing saved, the sim
+Addendum to RENDERPIPE1.md and `docs/android/P13_OVERLAP.md`. Row `ext.render_pipe_replay`
+("Smooth fast speed", Experimental tab, off by default by the ruling of 2026-11-15; it does nothing without the
+render_pipe row's thread). Class A: presentation only, nothing saved, the sim
 untouched. First pass: the replay loop, the display clock and the recorded interface. Section 6 lists what is
 not built yet.
 

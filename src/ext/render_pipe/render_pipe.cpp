@@ -866,7 +866,7 @@ TailInputs Inputs(::Engine::MainLoop& loop, GameUpdateLoop* g) {
     in.eyeCamera = in.gameLoop && Ext::Ext().eye_camera && Ext::EyeCamera::Active();
     const char* cap = Opt().captureIngame;   // BANISHED_CAPTURE_INGAME counts sequential frames
     in.diagnostic = cap != nullptr && cap[0] != '\0';
-    in.replay = Ext::Val().render_pipe_replay != 0;   // SMOOTHREPLAY: the row's replayed frames
+    in.replay = Ext::Ext().render_pipe_replay;   // SMOOTHREPLAY: the row's replayed frames
     return in;
 }
 
