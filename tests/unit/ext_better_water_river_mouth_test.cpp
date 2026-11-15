@@ -86,6 +86,26 @@ UNIT_TEST(ext_better_water_river_mouth_leaves_a_closed_lake_alone) {
     for (const TerrainVertex& v : out) CHECK(v.normal[2] == 180);
 }
 
+UNIT_TEST(ext_better_water_river_mouth_leaves_a_full_alpha_tile_alone) {
+    // A coverage tile of ext.custom_maps: every vertex at full alpha, its side under water (a cut side by the
+    // box rule). Nothing fades, so the tile joins show no seam; the same range at 200 fades as before.
+    const std::vector<int16_t> heights = Heights();
+    std::vector<TerrainVertex> mesh;
+    for (int row = 0; row <= 4; ++row) {
+        for (int col = 0; col <= 10; ++col) mesh.push_back(V(col, row, 0xff));
+    }
+    const Range tile{0, static_cast<int32_t>(mesh.size())};
+    std::vector<TerrainVertex> out;
+    CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &tile, 1, heights.data(), kStride, kHalf,
+               kFadeTiles, out) == 0);
+    for (const TerrainVertex& v : out) CHECK(v.normal[2] == 0xff);
+
+    // one vertex short of full: a retail-style range, faded as usual
+    mesh[Find(mesh, 0, 0)].normal[2] = 0xfe;
+    CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &tile, 1, heights.data(), kStride, kHalf,
+               kFadeTiles, out) > 0);
+}
+
 UNIT_TEST(ext_better_water_river_mouth_ignores_a_bad_range) {
     const std::vector<int16_t> heights = Heights();
     std::vector<TerrainVertex> mesh(4, V(1, 1, 100));
