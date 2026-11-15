@@ -255,6 +255,10 @@ struct Values {
     int32_t camera_tilt = 50;   // ext.camera_tilt 0..100 (owner camera_angle): the far pitch pair, 50 = retail's, 90 = the near pair (steady), 100 = 10 % flatter (camera_angle.h)
     int32_t fog_distance = 0;   // ext.fog_distance 0..100 (owner no_fog): how far back the fog goes while the row is on: 0 = retail's fog (the default), 1..99 fog near / far x 100 / (100 - d), 100 = no fog (no_fog.h, NOFOG.md)
     int32_t better_water_mode = 1; // ext.better_water_mode 1..2 (owner better_water): 1 Plain (the shore pass), 2 Fancy (+ the shore strip on the bank side); Plain until Fancy is verified (BETTERWATER.md section 7)
+    // ext.render_pipe_replay 0..1 (owner render_pipe): 1 = while a long sim step runs, the render thread
+    // presents the frozen frame again at a later blend (replayed frames) and every frame's motion runs
+    // 8 ms behind; 0 (the default until the look is ruled) = one present per frame (SMOOTHREPLAY.md)
+    int32_t render_pipe_replay = 0;
 };
 
 // All three together: what the tables' `slot` accessors index.

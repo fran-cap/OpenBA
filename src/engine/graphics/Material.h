@@ -414,6 +414,12 @@ public:
     // draw's blossom code (Context::_time.zw) after Setup's retail body. Null by default and while natural
     // tree growth is off; set and cleared only by Ext::BetterTrees::Sync. A static: the layout is unchanged.
     static void (*_extAfterSetup)(const MaterialInstance& instance, Video::Context& context);
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/SMOOTHREPLAY.md section 3): ext.render_pipe's
+    // replayed frames draw recorded sprite batches by their MaterialInstance. Run first in
+    // ~MaterialInstance, on the freeing thread, before any byte of it is touched: the extension drops
+    // a record that names it (waiting out a draw in progress), then the destructor runs unchanged.
+    // Null by default, under the faithful profile and without a render thread. A static, as above.
+    static void (*_extBeforeDestroy)(const MaterialInstance* instance);
     void    RenderTextures(Renderer& renderer, const Scene& scene,
                            const Camera& camera, int32_t pass) const;  // 0x180102df0  wave9
     void    GenerateTextures(Video::Context& context, int32_t pass) const;  // 0x180102eb0  batchc

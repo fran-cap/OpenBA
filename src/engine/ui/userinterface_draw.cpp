@@ -142,6 +142,7 @@
 #include "ui/Cursor.h"
 #include "ui/SpriteSheet.h"
 #include "ui/SharpDraw.h"   // NOT RETAIL: ext.sharp_ui's snap origin (SpriteContext::_extSharp)
+#include "ui/SpriteRecord.h"   // NOT RETAIL: ext.render_pipe's replayed frames (SpriteContext::_extRecord)
 #include "video/CompanionData.h"   // NOT RETAIL: ext.touch_mode resets ImageBufferData::_extPointSampling
 // ENDGAME B.3.6 block E: element_common.h carries the same file-scope
 // `Module` / `ResolveAddr` declaration every other runtime/src file uses (the
@@ -272,6 +273,9 @@ void UI::UserInterface::Draw(Video::Context& context) {
 
         // `?SetCamera@Context@Video@@QEAAXAEBVMatrix@Math@@0@Z` (0x18001a150).
         context.SetCamera(view, proj);
+        // EXT SEAM (NOT RETAIL, docs/extensions/handins/SMOOTHREPLAY.md): ext.render_pipe's replayed
+        // frames draw the recorded batches under this camera. Null (the faithful profile): nothing.
+        if (SpriteContext::_extRecord != nullptr) SpriteContext::_extRecord->AddCamera(view.m, proj.m);
     }
 
     // ---- 0x180121cad: the SpriteContext, built on the stack ---------------

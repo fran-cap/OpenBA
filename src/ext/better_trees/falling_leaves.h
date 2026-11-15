@@ -10,7 +10,7 @@
 // ============================================================================
 
 class GameUpdateLoop;
-namespace Graphics { class Scene; }
+namespace Graphics { class Scene; class Geometry; }
 
 namespace Ext {
 namespace BetterTrees {
@@ -19,6 +19,11 @@ namespace BetterTrees {
 void LeavesFrame(GameUpdateLoop& game);
 // GameUpdateLoop::Shutdown, before the scene is destroyed: the geometry leaves the scene and is freed.
 void LeavesShutdown(Graphics::Scene* scene);
+// Main thread: the leaves' scene object, or null while there is none. ext.render_pipe's snapshot
+// leaves a draw item of it at the live object (P13_OVERLAP 2.2): its Draw reads only the card set
+// it shares with LeavesFrame under their lock, which no sim step writes, and the object stays
+// allocated from its first autumn to LeavesShutdown.
+const Graphics::Geometry* LeavesLiveGeometry();
 
 }  // namespace BetterTrees
 }  // namespace Ext

@@ -159,6 +159,7 @@
 #include "video/Device.h"   // ENDGAME B.3.9 close: Video::Device::_singleton
 #include "graphics/Material.h"    // ENDGAME B.3.5: Graphics::MaterialInstance
 #include "ui/SharpDraw.h"         // NOT RETAIL: ext.sharp_ui's engine end (SpriteContext::_extSharp)
+#include "ui/SpriteRecord.h"      // NOT RETAIL: ext.render_pipe's replayed frames (SpriteContext::_extRecord)
 #include "../collection/array_internal.h" // ENDGAME B.3.2 step 2 — kSpec_SpriteDraw
 
 // Same forward declarations, same spelling, as spritecontext.cpp — the linker
@@ -306,12 +307,17 @@ inline float DeviceHalfPixel(Video::DeviceData* deviceData) {
 // One vertex into the live buffer.
 // `_context` is re-read for EVERY vertex and so are both fields, exactly as
 // retail does (six `MOV RBX,[R13+0x30]` in the shared tail, 0x18011c46e..).
-inline void Emit(SpriteContext* self, const FlushVertex& v) {
+// `record` (NOT RETAIL, ui/SpriteRecord.h): null, or where the chunk's copy of the vertex goes.
+inline void Emit(SpriteContext* self, const FlushVertex& v, uint8_t*& record) {
     Video::Context* ctx    = self->_context;
     uint8_t*        cursor = ctx->_dynamicVertexCursor;
     const int32_t   stride = ctx->_dynamicVertexStride;
     std::memcpy(cursor, &v, static_cast<size_t>(stride));
     ctx->_dynamicVertexCursor = cursor + stride;
+    if (record != nullptr) {
+        std::memcpy(record, &v, static_cast<size_t>(stride));
+        record += stride;
+    }
 }
 
 // ---- effectiveness counters, printed by the report hook --------------------
@@ -329,6 +335,8 @@ namespace UI {
 
 // NOT RETAIL: ext.sharp_ui's engine-side seam (SpriteContext.h), null by default.
 const SharpDraw* SpriteContext::_extSharp = nullptr;
+// NOT RETAIL: ext.render_pipe's replayed frames (SpriteContext.h), null by default.
+SpriteRecord* SpriteContext::_extRecord = nullptr;
 
 void SpriteContext::Flush() {
     // 0x18011ba53..0x18011ba70, BEFORE the `_currentSheet` test. Retail derefs
@@ -411,6 +419,31 @@ void SpriteContext::Flush() {
     // continue (ui/SharpDraw.h, SharpRun). Untouched while `sharp` is null.
     SharpRun run;
 
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/SMOOTHREPLAY.md): ext.render_pipe's replayed
+    // frames, read ONCE per flush. Null (always in the faithful profile): nothing. Set: each chunk
+    // drawn below is also appended to the record, with the state it is drawn under.
+    SpriteRecord* const record = _extRecord;
+    SpriteRecordBatch recordState;
+    if (record != nullptr) {
+        if (swap == nullptr)
+            recordState.material = current->m_materialInstance;
+        else if (swap->material != nullptr)
+            recordState.material = swap->material;
+        else
+            recordState.material = swap->twin->m_materialInstance;
+        recordState.point = Video::ImageBufferData::_extPointSampling;
+        recordState.scissor[0] = ctxScissor.x;
+        recordState.scissor[1] = ctxScissor.y;
+        recordState.scissor[2] = ctxScissor.width;
+        recordState.scissor[3] = ctxScissor.height;
+        std::memcpy(recordState.transform, ctx->_transforms[0].m, sizeof(recordState.transform));
+        recordState.color[0] = ctx->_color.x;
+        recordState.color[1] = ctx->_color.y;
+        recordState.color[2] = ctx->_color.z;
+        recordState.color[3] = ctx->_color.w;
+        recordState.primitive = isLine ? 2 : 0;
+    }
+
     while (count > 0) {
         const int32_t n = (count < chunkCap) ? count : chunkCap;
         count -= n;
@@ -424,6 +457,14 @@ void SpriteContext::Flush() {
             base += n;
             ++g_mapFail;
             continue;
+        }
+
+        // NOT RETAIL (the record seam above): this chunk's copy. Null while `record` is.
+        uint8_t* recordCursor = nullptr;
+        if (record != nullptr) {
+            recordState.stride = _context->_dynamicVertexStride;
+            recordCursor = record->BeginChunk(static_cast<size_t>(n) * static_cast<size_t>(vertsPer) *
+                                              static_cast<size_t>(recordState.stride));
         }
 
         for (int32_t i = 0; i < n; ++i) {
@@ -468,8 +509,8 @@ void SpriteContext::Flush() {
                 b.x = static_cast<float>(d->x2); b.y = static_cast<float>(d->y2);
                 b.z = kZero; b.color = color;
                 b.u = u1; b.v = v1; b.cu = kOne;  b.cv = kOne;
-                Emit(this, a);
-                Emit(this, b);
+                Emit(this, a, recordCursor);
+                Emit(this, b, recordCursor);
                 continue;
             }
 
@@ -568,8 +609,8 @@ void SpriteContext::Flush() {
 
             // 0x18011c4ae..0x18011c58d: A, D, C, A, C, B — two triangles,
             // (TL,TR,BR) and (TL,BR,BL).
-            Emit(this, A); Emit(this, D); Emit(this, C);
-            Emit(this, A); Emit(this, C); Emit(this, B);
+            Emit(this, A, recordCursor); Emit(this, D, recordCursor); Emit(this, C, recordCursor);
+            Emit(this, A, recordCursor); Emit(this, C, recordCursor); Emit(this, B, recordCursor);
         }
         base += n;
 
@@ -577,6 +618,7 @@ void SpriteContext::Flush() {
         Video::ContextData* cd2 = _context->_contextData;
         const int32_t prim = isLine ? 2 : 0;
         cd2->EndVertices(prim);
+        if (record != nullptr) record->EndChunk(recordCursor, recordState);   // NOT RETAIL (the record seam)
     }
 
     // --- 0x18011c674..0x18011c685 ------------------------------------------

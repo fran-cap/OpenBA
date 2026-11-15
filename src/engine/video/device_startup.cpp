@@ -407,6 +407,8 @@ bool Video::Device::CreateVideoInterface(int index) {
 // ids are 5 (WM_SIZE) and 0x232 (WM_EXITSIZEMOVE).
 // ============================================================================
 bool (*Video::Device::_extInterfaceRetry)(int index) = nullptr;
+bool Video::Device::_extReplayBegin = false;   // NOT RETAIL (Device.h): ext.render_pipe's replayed frames
+std::atomic<int32_t>* Video::Device::_extLockWaiters = nullptr;   // NOT RETAIL (Device.h): the same row
 
 bool Video::Device::PlatformStartup() {
     // 0x1800f8266: the HWND comes from Application::_singleton[0].

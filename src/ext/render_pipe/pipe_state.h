@@ -35,6 +35,7 @@ struct TailInputs {
     bool eyeCamera       = false;   // ext.eye_camera engaged (ApplyFrame is alpha-dependent)
     bool screenshot      = false;   // m_quickSavePressed / m_quickLoadPressed (TakeScreenshot clears them)
     bool diagnostic      = false;   // a diagnostic that brackets the sequential frame
+    bool replay          = false;   // SMOOTHREPLAY: the replayed frames are asked for (render_pipe_replay)
 };
 
 struct TailPlan {

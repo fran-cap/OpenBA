@@ -1465,6 +1465,11 @@ bool ContextData::BeginCommands() NO_THREAD_SAFETY_ANALYSIS {
     ctx->_drawsSubmitted = 0;
     ctx->_objectsSubmitted = 0;
 
+    // EXT SEAM (NOT RETAIL, Device.h _extReplayBegin): a replayed frame's begin rebuilds nothing.
+    if (::Video::Device::_extReplayBegin &&
+        (dev->settingsChanged != 0 || backgrounded.load() || lost.load() || !surface || swapchainDirty))
+        return false;
+
     if (dev->settingsChanged != 0) {
         dev->Lock();
         ApplyEngineSettingsChange(dev);

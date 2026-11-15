@@ -1171,6 +1171,16 @@ bool ContextData::BeginCommands() {
             return false;
         }
         auto dev = Video::Device::_singleton;
+        // EXT SEAM (NOT RETAIL, Device.h _extReplayBegin): a replayed frame's begin rebuilds nothing.
+        if (Video::Device::_extReplayBegin) {
+            int rw = 0;
+            int rh = 0;
+            SDL_GetWindowSizeInPixels(static_cast<SDL_Window*>(dev->windowHandle), &rw, &rh);
+            CGSize now = layer.drawableSize;
+            if (dev->settingsChanged || rw <= 0 || rh <= 0 || now.width != rw || now.height != rh) {
+                return false;
+            }
+        }
         if (dev->settingsChanged) {
             // Ends the encoder and rebuilds the dynamic targets: shared state, so under the device lock (taken
             // here and dropped before the in-flight semaphore wait; no GPU wait happens inside).

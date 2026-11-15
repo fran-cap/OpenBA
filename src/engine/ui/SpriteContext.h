@@ -171,6 +171,7 @@ class Sprite;
 class SpriteCapture;
 class SpriteSheet;
 struct SharpDraw;   // ui/SharpDraw.h (NOT RETAIL, ext.sharp_ui's engine end)
+struct SpriteRecord;   // ui/SpriteRecord.h (NOT RETAIL, ext.render_pipe's replayed frames)
 class Font;
 
 // ============================================================
@@ -359,6 +360,12 @@ public:
     // sheet that has a twin (a font variant, a 2x sheet) from the twin. A static: the
     // 0x88-byte layout above is untouched.
     static const SharpDraw* _extSharp;
+
+    // NOT RETAIL (ext.render_pipe's replayed frames, docs/extensions/handins/SMOOTHREPLAY.md):
+    // null by default and in the faithful profile. While the game side points it at a
+    // SpriteRecord (ui/SpriteRecord.h), Flush appends each chunk it draws (its vertices and
+    // the context state it drew them under); read once per flush. A static, as above.
+    static SpriteRecord* _extRecord;
 };
 
 static_assert(sizeof(SpriteContext) == 0x88,

@@ -28,6 +28,7 @@
 #include "ext/render_pipe/snapshot.h"
 #include "ext/render_pipe/snapshot_table.h"
 #include "ext/render_pipe/resource_pin.h"   // SlotPins: the EdgeMeshes a packet shares (P13_OVERLAP 2.8)
+#include "ext/better_trees/falling_leaves.h"   // LeavesLiveGeometry: the one geometry kept live whole
 
 #include <algorithm>
 #include <atomic>
@@ -142,6 +143,9 @@ struct Builder {
     uint32_t                markGen = 0;
     const WorldGeometry*    world   = nullptr;
     std::vector<int32_t>    itemEntry;   // the lean builder: per draw item in walk order, its entry
+    // A geometry whose items keep the live object whatever their key: ext.better_trees' falling
+    // leaves (falling_leaves.h LeavesLiveGeometry: its Draw reads nothing a step writes). Null: none.
+    const Geometry*         keepLive = nullptr;
 };
 Builder g_builder;
 
@@ -449,6 +453,7 @@ bool BeginBuild(Builder& b, const Graphics::Renderer& r, SnapshotResult& result,
     b.entries.clear();
     b.states.clear();
     b.world = nullptr;
+    b.keepLive = Ext::BetterTrees::LeavesLiveGeometry();
     ++b.markGen;
     if (b.markGen == 0) {
         std::fill(b.decalMark.begin(), b.decalMark.end(), 0u);
@@ -607,6 +612,7 @@ SnapshotResult BuildReference(Builder& b, int32_t slot, Graphics::Renderer& r) {
                     result.refused = "a null geometry";
                     return result;
                 }
+                if (g == b.keepLive) continue;   // the live object (Builder::keepLive)
                 if (typeid(*g) == typeid(WorldGeometry)) {
                     const uint32_t key = item._node;
                     if (!WorldItemCopied(key)) continue;   // the live object (2.2)
@@ -707,6 +713,12 @@ SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
                     b.itemEntry[at] = known;
                     last.Set(g, known);
                     ++reused;
+                    continue;
+                }
+                if (g == b.keepLive) {   // the live object (Builder::keepLive)
+                    last.Clear();
+                    b.itemEntry[at] = kKeepLive;
+                    ++kept;
                     continue;
                 }
                 if (ahead && g_readAhead.facts[at].meshBytes != 0) {

@@ -444,6 +444,8 @@ bool ContextData::BeginCommands() {
     ctx->_objectsSubmitted   = 0;
 
     ::Video::Device* const device = ctx->_device;
+    // EXT SEAM (NOT RETAIL, Device.h _extReplayBegin): a replayed frame's begin never resizes.
+    if (::Video::Device::_extReplayBegin && device->settingsChanged != 0) return false;
     if (device->settingsChanged != 0) {
         // 0x180004340 — DeviceData swap-chain resize/recreate. Lane L6's
         // function; retail discards its result (`XOR AL,AL`).
