@@ -85,6 +85,8 @@
 #include "ext/walk_batch/walk_batch.h"   // WALKBATCH: the /char walkbatch row's counters
 #include "ext/spread_warmth/spread_warmth.h"   // HITCH_PFBURST: the [Stress::warmth] counters
 #include "ext/drain_split/drain_split.h"       // HITCH_DRAINSPLIT: the [Stress::drainsplit] counters
+#include "Component/HighlightComponent.h"   // P13_OVERLAP 2.8: COMPPROF=5's outline repaints (PinProvoke)
+#include "Component/MapComponent.h"         //   its targets: the outlines Repaint builds (fields, orchards)
 #define WIN32_LEAN_AND_MEAN
 #if defined(_WIN32)
 #include <windows.h>
@@ -1293,6 +1295,63 @@ void UniqueStorageLocations(CitizenBehavior* townMgr, std::vector<StorageCompone
     }
 }
 
+// ── P13_OVERLAP 2.8 (BANISHED_STRESS_COMPPROF=5, Opt().stressPinProvoke): the resource-pin race ──
+// ext.render_pipe's snapshot shares a HighlightComponent's outline EdgeMesh raw. Here, at the
+// step's start (StressHarness_UpdateBegin), up to kPinTargets entities whose outline Repaint
+// BUILDS (a MapComponent and no per-variant mesh: fields, orchards) are outlined and repainted
+// every frame: each Repaint deletes the mesh the packet in flight drew (a rebuild), so with the
+// steps claimed beside its emit the free lands in the window the pin guards (the [Stress::pin]
+// line counts the waits). Every kPinDeselectPeriod frames the first target is deselected for one
+// frame instead (Repaint with the flag clear: the free without a rebuild, a click elsewhere).
+// The entity-removal free (~HighlightComponent) is not provoked: a direct QueueDestroy skips the
+// building's deconstruction states and leaves its other scene objects dangling. This CHANGES the
+// town: never a timing or a sim-identity run.
+constexpr int kPinFirst          = 900;   // the town is built and staffed
+constexpr int kPinTargets        = 8;
+constexpr int kPinDeselectPeriod = 300;
+std::vector<const HighlightComponent*> s_pinSkip;   // entities whose Repaint built no outline (identities only)
+long long s_pinRepaints = 0, s_pinDeselects = 0;
+
+bool PinTargetModelless(ComponentEntity* e) {
+    ModelComponent* model = e->FindComponent<ModelComponent>();
+    return model == nullptr || model->meshGroup < 0 || model->meshIndex < 0;   // Repaint's build branch
+}
+
+void PinProvoke(GameUpdateLoop* gw, int worldFrame) {
+    if (worldFrame < kPinFirst) return;
+    EntityList* el = gw->m_entityList;
+    if (!el) return;
+    Object::InternalPtr<ComponentEntity>* arr = el->masterArray._data;
+    const int n = el->masterArray._size;
+    if (!arr || n <= 0) return;
+    const bool deselect = (worldFrame - kPinFirst) % kPinDeselectPeriod == kPinDeselectPeriod / 2;
+    int found = 0;
+    for (int i = 0; i < n && found < kPinTargets; ++i) {
+        ComponentEntity* e = arr[i].Get();
+        if (!e || (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) continue;
+        HighlightComponent* hc = e->FindComponent<HighlightComponent>();
+        if (!hc || !e->FindComponent<MapComponent>() || !PinTargetModelless(e)) continue;
+        if (std::find(s_pinSkip.begin(), s_pinSkip.end(), hc) != s_pinSkip.end()) continue;
+        if (deselect && found == 0 && hc->outlineMesh != nullptr) {
+            hc->highlightFlag = 0;
+            hc->Repaint();   // frees the outline the packet in flight drew, builds none
+            ++s_pinDeselects;
+            ++found;
+            continue;
+        }
+        hc->highlightFlag = 1;
+        hc->Repaint();   // frees the outline the packet in flight drew, builds the next
+        ++s_pinRepaints;
+        if (hc->outlineMesh == nullptr) {   // the description has no mask material: no outline here
+            hc->highlightFlag = 0;
+            hc->Repaint();
+            s_pinSkip.push_back(hc);
+            continue;
+        }
+        ++found;
+    }
+}
+
 long long s_foodAdded = 0, s_foodAddedWin = 0;   // FOOD: units the top-up pass placed
 int s_foodPasses = 0, s_foodShort = 0;          // passes that added / that could not place the whole deficit
 
@@ -1681,6 +1740,15 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          split[PassSplit::kP2Shadow], split[PassSplit::kP2Refl], split[PassSplit::kP2Main]);
         }
     }
+    // P13_OVERLAP 2.8: ext.render_pipe's resource pin (resource_pin.h), printed while it saw a free,
+    // with COMPPROF=5's own repaints and deselects (cumulative).
+    if (rp.pinChecks != 0 || Opt().stressPinProvoke) {
+        std::fprintf(stderr, "[Stress::pin] frees=%llu waits=%llu wait=%.3fms max=%.3fms timeouts=%llu | "
+                             "provoke: repaints=%lld deselects=%lld\n",
+                     static_cast<unsigned long long>(rp.pinChecks), static_cast<unsigned long long>(rp.pinWaits),
+                     static_cast<double>(rp.pinWaitUs) / 1000.0, static_cast<double>(rp.pinMaxUs) / 1000.0,
+                     static_cast<unsigned long long>(rp.pinTimeouts), s_pinRepaints, s_pinDeselects);
+    }
     // ext.staggered_passes (issue #253, graphics/stagger_hold.h): the window's held / rendered
     // decisions per pass. Printed only while the row counted something.
     {
@@ -1739,6 +1807,10 @@ extern "C" void StressHarness_UpdateBegin(int frameNum) {
     ++s_pfFrame;   // E2E SPLIT
     s_updT0 = QpcNow();
     if (!s_runT0) s_runT0 = s_updT0;
+    // P13_OVERLAP 2.8 (COMPPROF=5): at the step's start, where a claimed emit is likeliest
+    // still in its pass 2 (s_worldFrame: the previous Update's).
+    if (Opt().stressPinProvoke && GameUpdateLoop::_singleton != nullptr)
+        PinProvoke(GameUpdateLoop::_singleton, s_worldFrame);
 }
 
 extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {

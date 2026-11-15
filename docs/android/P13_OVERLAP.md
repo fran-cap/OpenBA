@@ -158,6 +158,60 @@ main thread. Estimate for the stress town: a few thousand MeshInstances (~0.3 KB
 Renderer slot), grown with headroom. Side effect: pass 2 walks contiguous copies instead of scattered
 objects (P13_RENDER section 3.3: the scattered MeshInstance vtable loads were 40 % of `ExtDrawItemList`).
 
+### 2.8 The resource pin: what the copies share, and the one step free in the window (2026-11-14)
+2.4 and 2.5 said "resources are factory-owned, freed only at a loop change". A sweep of every pointer a copy
+keeps (the copies share them raw: `Object::ExternalPtr` is one pointer with no refcount, `object/External.h`,
+so no reference per packet can be held) found that true for all but one:
+
+| shared through the copy | owner | freed by | inside the claimed steps? |
+|---|---|---|---|
+| `MeshInstance::_mesh` (GraphicsMesh, its levels and buffers), `_materials`, the items' `_material` / `_instance`, the layers' AnimationGroups, `ParticleInstance::_resource`, `StatusIconGeometry::spriteSheet`, `WeatherParticleGeometry::_descriptor`, `HighlightDescription`'s prebuilt EdgeMeshes | `ExternalFactory` | `Clean` at `~UpdateLoop` (joined first, 2.4); `ForceUnload` in the mod file-system setup (menu, never pipelined) | no |
+| ext.leaf_lod's reduced canopies (`_extDrawLists`) | the extension | retired `kRetireFrames` after a rebuild, under its shared mutex, in the main half | no |
+| GPU handles under ext.create_on_demand | its lazy table | the idle eviction, inside its UseGate (no use crosses it) | own gate |
+| the copied objects themselves (a demolished building's MeshInstance, the placement ghost, a removed decal, a ParticleInstance's pool record) | the entity | the step | yes, harmless: pass 2 reads only the copy and its arena arrays |
+| **`EdgeMeshInstance::_mesh` of a HighlightComponent outline**: a heap `EdgeMesh` (MemAlloc 0x180) | `HighlightComponent::outlineMesh` | `Repaint` and its builder (a selection change, `HighlightFollow`'s variant change, `OnEvent(0)` that construction stages, collapse, herd, clear-area and model changes send), `~HighlightComponent` (the entity removed) | **yes: a real latent bug** |
+
+`~EdgeMesh` zeroes `_edgeLists` / `_triangleLists` first and deletes its buffers' companions before
+`PlatformDestruct` takes the device lock, so a pass 2 still drawing the outline reads a null list array (the
+`spike/replay-emit` crash: a READ of 0x14 in `EdgeMeshInstance::Draw` under `SunLight::DrawLight`). The
+shipped overlap reaches it whenever such a free lands in the claimed steps before the emit reaches its gate.
+
+**The pin** (`src/ext/render_pipe/resource_pin.h`). Each slot's snapshot records the EdgeMeshes its copies
+share (`SlotPins`). `Host::BeforePublish` puts the packet's set in flight (`PublishPins`, render thread
+idle). The emit reports its reads over (`PinReadsOver`) first in `Gate`, the op right after pass 2, and again
+after the whole emit (a failed `BeginCommands` never reaches the gate). `~EdgeMesh` calls a null-by-default
+seam first, `Graphics::EdgeMesh::_extBeforeDestroy`, which is installed only while the render thread runs.
+A free of a mesh the packet in flight pins, before its reads are over, **waits** for them. Then the destructor
+runs unchanged, on the same thread with the same calls in the same order, so the heap sees exactly what it
+sees without the pin. Nothing is deferred: a deferred free would move later allocations and break the row's
+class A. A free of any other mesh, with no packet in flight, or once the reads are over, returns after one
+locked test. With the row off, under the faithful profile and in the sequential split, the seam is null.
+
+**Deadlock review.** The free sites hold nothing the emit's E1 waits for:
+- `Repaint` and the builder run in game code in a step. `~HighlightComponent` runs in `EntityList`'s removal
+  drain in a step. None of them holds the device lock (`~EdgeMesh` takes it only later, in `PlatformDestruct`,
+  after the seam), the allocator's critical section (held only inside `Allocate` / `Free`), a Scene lock, a
+  System::Parallel job, or any render_pipe lock.
+- E1 waits, before its reads are over, on: `BeginCommands`, the GPU and display pace (a claim exists only
+  after it returned, `ClaimSteps`); the window's sent messages (`Present` / a resize in `BeginCommands`), which
+  the waiting main thread runs every millisecond (`Platform::DispatchSentMessages`, as the hand-off's waits
+  do); and ext.create_on_demand's materializations and its UseGate (its workers, never the main thread; a
+  sweep gives up after its own bound).
+- The bound: one second. At the bound the free runs as it did before the pin, counted in
+  `[Stress::pin] timeouts` and said once on stderr. It only keeps a path the review missed from freezing the
+  game.
+
+The spike's replay mode 2 re-runs pass 2 until the gate opens. A pinned free there waits for the steps' end,
+which waits for the free: the spike's scratch rebase stops its replays while a free waits. The shipped emit
+runs pass 2 once.
+
+Verification: `tests/unit/ext_render_pipe_pin_test.cpp` (the gate with a std::thread render thread), and
+`BANISHED_STRESS_COMPPROF=5` (perf/README.md), which outlines and repaints up to eight fields and orchards
+at the start of every step and deselects one every 300 frames; its `[Stress::pin]` line counts the frees
+that waited. The entity-removal free (`~HighlightComponent`) is not provoked there: a direct `QueueDestroy`
+skips a building's deconstruction states and leaves its other scene objects dangling (tried: a fault in
+`Scene::Clean`, not in the pin). It reaches the same `~EdgeMesh` seam from `EntityList`'s removal drain.
+
 ## 3. Latency (ruling 2)
 Normal play today: post-to-present 38-42 ms, ~2.4 frames queued (P13_PROFILE section 8). The queue is the
 swap chain's: under FIFO the app runs ahead until `vkAcquireNextImageKHR` blocks, so the depth is the image
@@ -187,6 +241,7 @@ since section 10, the governor's state and measures.
    SetSharedInstanceData body; the RenderPipe shadow (COMPPROF=4) hashes, at E1, everything RENDERPIPE0's
    shadow lists, now from the copies.
 2. A step that frees a resource outside a loop change. None found (2.2); a crash would point at it.
+   *2026-11-14:* one found, HighlightComponent's outline EdgeMesh; it is pinned now (2.8).
 3. UI one step newer than the scene (2.1): a visible change only in motion.
 4. Device-lock waits in steps cost overlap on those steps only (never more than today's fence).
 

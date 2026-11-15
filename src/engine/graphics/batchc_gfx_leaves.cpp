@@ -400,7 +400,14 @@ extern "C" void RtGraphics_Animation_Dtor(void* selfv) {
 // B.4: the members by name. The two explicit ~Array calls zero their headers,
 // so the typed members' implicit `~Array<TriangleList>` that follows is the
 // same no-op the raw headers' was.
+// EXT SEAM (NOT RETAIL): ext.render_pipe's resource pin (Mesh.h). Null by default.
+void (*Graphics::EdgeMesh::_extBeforeDestroy)(const Graphics::EdgeMesh* mesh) = nullptr;
+
 Graphics::EdgeMesh::~EdgeMesh() {
+    // EXT SEAM (NOT RETAIL, P13_OVERLAP 2.8): null = retail. Waits while an overlapped
+    // emit still draws this mesh from its snapshot; the body below then runs unchanged.
+    if (_extBeforeDestroy != nullptr) _extBeforeDestroy(this);
+
     // 0x180013e70 — Array<T>::~Array for the two list arrays. An unexported
     // template instantiation, called by its body name.
     rtcoll::RtColl_ArrayDtor_180013e70(&_edgeLists);

@@ -11,7 +11,8 @@
 //                       instanced record, frozen: _nodes, _pose, its layers),
 //                       _nodes, _rootAnimationOffset, _color
 //   EdgeMeshInstance    Draw, GetInstanceTransform: the header, _mesh, and
-//                       _followed, re-pointed at the followed mesh's copy
+//                       _followed, re-pointed at the followed mesh's copy; the
+//                       EdgeMesh itself is pinned (resource_pin.h)
 //   ParticleInstance /  Draw, GetInstanceTransform, ext.draw_batch's smoke run:
 //   ParticleSystemInstance / TornadoInstance
 //                       the header and the _boundsPtr record with its _records
@@ -26,6 +27,7 @@
 // ============================================================================
 #include "ext/render_pipe/snapshot.h"
 #include "ext/render_pipe/snapshot_table.h"
+#include "ext/render_pipe/resource_pin.h"   // SlotPins: the EdgeMeshes a packet shares (P13_OVERLAP 2.8)
 
 #include <algorithm>
 #include <atomic>
@@ -522,10 +524,14 @@ unsigned char* CopyAll(Builder& b, int32_t slot, size_t bytes, bool parallel) {
     } else {
         CopyRange(b, base, 0, n);
     }
-    // An edge mesh follows its mesh's copy.
+    // An edge mesh follows its mesh's copy. Its EdgeMesh stays shared (a step may delete a
+    // HighlightComponent's outline): the slot's pins hold it (resource_pin.h).
+    PinSet& pins = SlotPins(slot);
+    pins.Clear();
     for (Entry& e : b.entries) {
         if (e.kind != Kind::Edge) continue;
         auto* const edge = static_cast<Graphics::EdgeMeshInstance*>(e.copy);
+        pins.Add(edge->_mesh.Get());
         if (edge->_followed == nullptr) continue;
         const int32_t followed = b.geometries.Find(edge->_followed, -1);
         edge->_followed = static_cast<MeshInstance*>(b.entries[static_cast<size_t>(followed)].copy);
