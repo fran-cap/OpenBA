@@ -215,7 +215,12 @@ public:
             const int64_t waitUs = FenceReleased(host);
             _idleUs += Span(openUs, Earlier(_handoff->BegunUs(), openUs + waitUs));
         }
-        if (_handoff != nullptr && _governor.Frame(_stepped ? _removableUs : 0, _idleUs))
+        // HITCH_TAIL: the governor is fed by the Frames that stepped only. A snapshot is taken
+        // only for a packet whose next Frame is expected to step (TailInputs::nextSteps), so the
+        // wait it removes and the copy it costs are both per stepping Frame; fed every Frame, a
+        // Frame that cannot have a fence wait diluted the wait (one Frame in three steps at
+        // speed 50 on the desktop: a 1.5 ms wait read as 0.5 ms, under kOffMinUs).
+        if (_handoff != nullptr && _stepped && _governor.Frame(_removableUs, _idleUs))
             host.OverlapSwitch(_governor);
         _removableUs = 0;
         _idleUs      = 0;
@@ -232,7 +237,7 @@ public:
             _state.FaithfulFrame();
             return plan.uninstall;
         }
-        Pipelined(host, plan);
+        Pipelined(host, plan, in.nextSteps);
         return false;
     }
 
@@ -349,7 +354,7 @@ private:
         return !res.failed && !res.lost;
     }
 
-    void Pipelined(Host& host, const TailPlan& plan) {
+    void Pipelined(Host& host, const TailPlan& plan, bool nextSteps) {
         const bool pending = _state.Pending();
         Packet next;
         next.slot = plan.pass1Slot;
@@ -361,7 +366,8 @@ private:
         const bool inFlight = pending || _tail;
         next.frameIndex = inFlight ? _held.frameIndex + 1 : host.ContextFrameIndex();
         next.modelIndex = inFlight ? _held.modelIndex + 1 : host.ContextFrameIndex();
-        next.snapshot   = _handoff != nullptr && _governor.On();
+        // HITCH_TAIL: only a packet a fence will wait for takes the copies (step_forecast.h).
+        next.snapshot   = _handoff != nullptr && _governor.On() && nextSteps;
 
         host.MainHalf(next, plan);   // threaded: concurrent with the emit of _held (or its tail)
         if (next.overlap) _governor.Copy(next.copyUs);
