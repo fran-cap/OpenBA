@@ -39,8 +39,15 @@ void UiLayerBegin();
 // Between the save-load draw and the interface's: what was recorded so far is the save-load
 // screen's. True when it drew something (the frame is then not replayable).
 bool UiLayerTakeSaveLoad();
-// After the interface draw: the seam cleared. `usable` false (the tool or the save-load
-// screen drew) leaves the record unusable. `owner` is what the frame belongs to (the game
+// Around Tool::Draw (between the save-load draw and the interface's). The tool's overlay is tiles on
+// the terrain drawn with Terrain/Selection.rsc through Context::BeginVertices .. EndVertices
+// (PlayerTileRender_DrawOverlay_08c0, every tool's one draw): each such stream is recorded under the
+// packet's camera (`view`, `proj`, 16 cells each), so a replayed frame draws the same tiles. ToolEnd
+// returns how many streams it recorded; the caller compares it with the draws the tool submitted.
+void UiLayerToolBegin(const float* view, const float* proj);
+int32_t UiLayerToolEnd();
+// After the interface draw: the seam cleared. `usable` false (the save-load screen drew, or the
+// tool drew something that was not recorded) leaves the record unusable. `owner` is what the frame belongs to (the game
 // loop): Ready answers only for the same one.
 void UiLayerEnd(Video::Context& ctx, const void* owner, bool usable);
 // The record is dropped (a frame that did not finish, the extension uninstalled).

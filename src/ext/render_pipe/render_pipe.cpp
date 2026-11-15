@@ -160,6 +160,7 @@ struct ReplayCounters {
     std::atomic<uint64_t> noLayer{0};   // claims with no usable interface record (a tool or the save-load screen drew)
     std::atomic<uint64_t> stopped{0};   // claims whose replays ended on a lost device or a refused begin
     std::atomic<uint64_t> yielded{0};   // claims whose replays ended because a step waited for the device lock
+    std::atomic<uint64_t> tool{0};      // real frames whose record carries the tool's overlay
 };
 ReplayCounters g_replay;
 std::atomic<int32_t> g_lockWaiters{0};   // Video::Device::_extLockWaiters while the render thread is up
@@ -577,7 +578,7 @@ struct EngineOps {
         return true;
     }
     // SMOOTHREPLAY: the save-load and interface draws are recorded on the render thread (ui_layer.h);
-    // the tool's is not, so a frame whose tool or save-load screen drew leaves no usable record.
+    // so are the tool's overlay streams (ToolDraw). A frame whose save-load screen drew leaves no usable record.
     void SaveLoadDraw(const Packet& p) {
         if (handoff != nullptr && p.replay) UiLayerBegin();
         if (p.saveLoad != nullptr)
@@ -606,9 +607,16 @@ struct EngineOps {
         if (hasInput && Ext::Ext().touch_pointer && Ext::TouchPointer::ToolAimHeld(tool))
             hasInput = false;
         const char toolFlag = (hasInput || pauseCheck) ? 1 : 0;
+        // SMOOTHREPLAY: the tool's overlay streams are recorded between the save-load screen's batches
+        // and the interface's (ui_layer.h). A draw it submitted that was not such a stream leaves the
+        // frame's record unusable, as before the overlay was recorded.
+        const bool record = handoff != nullptr && p.replay;
         const int32_t drawsBefore = ctx->_drawsSubmitted;
+        if (record) UiLayerToolBegin(p.view, p.proj);
         if (tool != nullptr) tool->Draw(ctx, toolFlag);
-        toolDrew = ctx->_drawsSubmitted != drawsBefore;   // SMOOTHREPLAY (above SaveLoadDraw)
+        const int32_t recorded = record ? UiLayerToolEnd() : 0;
+        toolDrew = ctx->_drawsSubmitted - drawsBefore != recorded;
+        if (recorded > 0 && !toolDrew) g_replay.tool.fetch_add(1, std::memory_order_relaxed);
     }
     void UIDraw(const Packet& p) {
         if (p.sharpUi)
@@ -983,6 +991,7 @@ Counters TakeWindow() {
     c.replayNoLayer = g_replay.noLayer.exchange(0, std::memory_order_relaxed);
     c.replayStopped = g_replay.stopped.exchange(0, std::memory_order_relaxed);
     c.replayYielded = g_replay.yielded.exchange(0, std::memory_order_relaxed);
+    c.replayTool    = g_replay.tool.exchange(0, std::memory_order_relaxed);
     return c;
 }
 

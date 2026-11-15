@@ -20,6 +20,9 @@
 
 #include "graphics/Material.h"      // Graphics::MaterialInstance::Setup, _extBeforeDestroy
 #include "math/Math.h"
+#include "object/External.h"        // Object::ExternalFactory: the tool overlay's material
+#include "object/TypeInfo.h"
+#include "system/Filename.h"
 #include "ui/SpriteContext.h"       // UI::SpriteContext::_extRecord
 #include "ui/SpriteRecord.h"
 #include "video/CompanionData.h"    // Video::ContextData (BeginVertices / EndVertices), ImageBufferData
@@ -108,6 +111,75 @@ bool UiLayerTakeSaveLoad() {
     return drew;
 }
 
+namespace {
+
+// ---- the tool's overlay (Video::Context::_extVertexTap, the render thread) ----
+const uint8_t*                    g_tapStart    = nullptr;   // the open stream's first vertex
+Graphics::MaterialInstance*       g_tapMaterial = nullptr;   // Terrain/Selection.rsc, looked up per tool draw
+bool                              g_tapLooked   = false;
+int32_t                           g_tapStreams  = 0;
+
+// The material every tool overlay is drawn with: the lookup PlayerTileRender_DrawOverlay_08c0 made
+// a moment ago on this thread, so it is a cache hit.
+Graphics::MaterialInstance* SelectionMaterial() {
+    if (g_tapLooked) return g_tapMaterial;
+    g_tapLooked = true;
+    System::Filename name("Terrain/Selection.rsc");
+    ::Object::ExternalFactory* const factory = ::Object::ExternalFactory::_singleton;
+    const Object::External* const obj = factory != nullptr ? factory->FindOrLoad(name) : nullptr;
+    if (obj != nullptr && Object::IsDerivedFromNullSafe(obj, Graphics::MaterialInstance::TypeId()))
+        g_tapMaterial = const_cast<Graphics::MaterialInstance*>(static_cast<const Graphics::MaterialInstance*>(obj));
+    return g_tapMaterial;
+}
+
+void TapBegin(Video::Context& ctx) {
+    g_tapStart = ctx._dynamicVertexCursor;
+}
+
+void TapEnd(Video::Context& ctx, int32_t primitiveType) {
+    const uint8_t* const start = g_tapStart;
+    g_tapStart = nullptr;
+    Graphics::MaterialInstance* const material = SelectionMaterial();
+    if (start == nullptr || material == nullptr || ctx._dynamicVertexCursor < start) return;
+    const size_t bytes = static_cast<size_t>(ctx._dynamicVertexCursor - start);
+    UI::SpriteRecordBatch b;
+    b.material   = material;
+    b.point      = Video::ImageBufferData::_extPointSampling;
+    b.scissor[0] = ctx._scissor.x;
+    b.scissor[1] = ctx._scissor.y;
+    b.scissor[2] = ctx._scissor.width;
+    b.scissor[3] = ctx._scissor.height;
+    std::memcpy(b.transform, ctx._transforms[0].m, sizeof(b.transform));
+    b.color[0]  = ctx._color.x;
+    b.color[1]  = ctx._color.y;
+    b.color[2]  = ctx._color.z;
+    b.color[3]  = ctx._color.w;
+    b.primitive = primitiveType;
+    b.stride    = ctx._dynamicVertexStride;
+    // The one read of the stream the tool just wrote (a few hundred vertices at most).
+    uint8_t* const to = g_record.BeginChunk(bytes);
+    std::memcpy(to, start, bytes);
+    g_record.EndChunk(to + bytes, b);
+    ++g_tapStreams;
+}
+
+const Video::Context::ExtVertexTap kTap = {&TapBegin, &TapEnd};
+
+}  // namespace
+
+void UiLayerToolBegin(const float* view, const float* proj) {
+    g_record.AddCamera(view, proj);
+    g_tapStart   = nullptr;
+    g_tapLooked  = false;
+    g_tapStreams = 0;
+    Video::Context::_extVertexTap = &kTap;
+}
+
+int32_t UiLayerToolEnd() {
+    Video::Context::_extVertexTap = nullptr;
+    return g_tapStreams;
+}
+
 void UiLayerEnd(Video::Context& ctx, const void* owner, bool usable) {
     UI::SpriteContext::_extRecord = nullptr;
     std::memcpy(g_endTransform, ctx._transforms[0].m, sizeof(g_endTransform));
@@ -119,6 +191,7 @@ void UiLayerEnd(Video::Context& ctx, const void* owner, bool usable) {
 
 void UiLayerDrop() {
     UI::SpriteContext::_extRecord = nullptr;
+    Video::Context::_extVertexTap = nullptr;
     std::lock_guard<std::mutex> lk(g_m);
     g_ready = false;
     g_owner = nullptr;

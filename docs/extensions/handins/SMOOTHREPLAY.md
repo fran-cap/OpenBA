@@ -70,9 +70,15 @@ Every interface and save-load pixel goes through `UI::SpriteContext::Flush`. Whi
 material instance, the sampler choice, the scissor, transform 0 and the colour; `UserInterface::Draw` adds
 the camera it set. The emit sets the seam around its save-load and interface draws on the render thread.
 
-- A frame whose **tool** drew (the context's draw count moved across `Tool::Draw`) or whose **save-load
-  screen** drew leaves no usable record: the next claimed steps get no replayed frames. The tool's draw is 3D
-  meshes from live tool state; recording it is a follow-up.
+- **The tool.** Every tool's draw is one function, `PlayerTileRender_DrawOverlay_08c0`: footprint tiles on
+  the terrain, drawn with `Terrain/Selection.rsc` through `Context::BeginVertices` .. `EndVertices`. It reads
+  the live map (placement tests, road paths), so a replayed frame cannot run it beside a step. Around
+  `Tool::Draw` the emit sets `Video::Context::_extVertexTap`: each stream's vertices are copied into the same
+  record, between the save-load screen's batches and the interface's, under the packet's camera. A replayed
+  frame draws the same tiles. A draw the tool submits that is not such a stream (the context's draw count
+  against the recorded streams) leaves the frame's record unusable.
+- A frame whose **save-load screen** drew leaves no usable record: the next claimed steps get no replayed
+  frames.
 - Only the frame drawn last may be replayed: an emit that recorded nothing, a faithful tail and a loop
   transition drop the record.
 - **Freed materials.** The record names material instances by pointer, and a step may free one (the map
@@ -104,12 +110,14 @@ the camera it set. The emit sets the seam around its save-load and interface dra
   sheets, the panel is complete in every window capture.
 - Falling leaves on (stress town, 50x, autumn reached): snapshots refused 0, 6.3 to 6.9 replayed frames per
   step, empty crash log; COMPPROF=4: `RenderPipeSnapshotLean checks=2086 mismatches=0`.
+- The tool (hand test, stress town, 50x, tools picked and dragged): 10177 real frames carried the overlay
+  into the record, 11253 replayed frames over 4798 steps, none without a record, none stopped, empty crash
+  log; the tiles and the motion behind them judged good by eye.
 - Gate.sav at 50x with the key on (per-entry profile): load, the retail autosave path at frame 1500 with
   replayed frames running, quit through the pause menu: exit 0, empty crash log.
 
 ## 6. Not built yet
 
-- The tool ghost on replayed frames (today: no replays while a tool draws).
 - The delay derived from the last step's span (today a constant, tunable in the debug overlay only).
 - A look on Vulkan and on the phone; PresentMon numbers on a quiet machine; the user's ruling on the default.
 - Camera pans stay at the step rate (the camera has no interpolation, in retail too): a separate question.

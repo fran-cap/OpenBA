@@ -653,11 +653,18 @@ int32_t Context::GetMaxDynamicInstances(int32_t a, int32_t b, int32_t c) const {
     return Backend(this)->GetMaxDynamicInstances(a, b, c);
 }
 
+const Context::ExtVertexTap* Context::_extVertexTap = nullptr;   // NOT RETAIL (Context.h)
+
 bool Context::BeginVertices(int32_t count, int32_t stride) {
-    return Backend(this)->BeginVertices(count, stride);
+    const bool began = Backend(this)->BeginVertices(count, stride);
+    // EXT SEAM (NOT RETAIL, Context.h _extVertexTap)
+    if (began && _extVertexTap != nullptr) _extVertexTap->begin(*this);
+    return began;
 }
 
 void Context::EndVertices(int32_t primitiveType) {
+    // EXT SEAM (NOT RETAIL, Context.h _extVertexTap)
+    if (_extVertexTap != nullptr) _extVertexTap->end(*this, primitiveType);
     Backend(this)->EndVertices(primitiveType);
 }
 
