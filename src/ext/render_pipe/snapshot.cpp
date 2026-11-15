@@ -50,6 +50,7 @@
 #include "Game/WeatherParticleGeometry.h"
 #include "Game/WorldGeometry.h"
 #include "Game/WorldGeometryElements.h"
+#include "system/parallel_for.h"   // System::ParallelFor: pass B's copies (CopyAll)
 
 namespace Ext {
 namespace RenderPipe {
@@ -189,7 +190,26 @@ void DeepCopyRaw(RawArray<T>& array, unsigned char*& at) {
 // Returns its index, or -1 with `why` set when the type is not covered.
 int32_t Admit(Builder& b, const Geometry* g, size_t& bytes, const char** why);
 
-int32_t AdmitMesh(Builder& b, const MeshInstance* mi, size_t& bytes) {
+// What AdmitMesh reads of a MeshInstance and its instanced state, read ahead (the lean
+// builder's pre-pass, ReadAhead): `meshBytes` 0 = the geometry is not a MeshInstance.
+struct MeshFacts {
+    uint32_t                       meshBytes  = 0;
+    uint32_t                       stateBytes = 0;   // `state` non-null: StateBytes(*state)
+    const InstancedAnimationState* state      = nullptr;   // instanced: LiveInstancedState
+};
+
+MeshFacts ReadMeshFacts(const MeshInstance& mi) {
+    MeshFacts f;
+    f.meshBytes = static_cast<uint32_t>(MeshBytes(mi));
+    if (mi._animation._instanced && mi._animation._layers._size > 0) {
+        f.state      = LiveInstancedState(mi);
+        f.stateBytes = static_cast<uint32_t>(StateBytes(*f.state));
+    }
+    return f;
+}
+
+// AdmitMesh on facts already read (`facts` as ReadMeshFacts gives them for `mi`).
+int32_t AdmitMeshFacts(Builder& b, const MeshInstance* mi, const MeshFacts& facts, size_t& bytes) {
     const int32_t index = static_cast<int32_t>(b.entries.size());
     const int32_t found = b.geometries.Find(mi, index);
     if (found >= 0) return found;
@@ -198,16 +218,16 @@ int32_t AdmitMesh(Builder& b, const MeshInstance* mi, size_t& bytes) {
     e.kind = Kind::Mesh;
     e.size = sizeof(MeshInstance);
     e.offset = bytes;
-    bytes += MeshBytes(*mi);
-    if (mi->_animation._instanced && mi->_animation._layers._size > 0) {
-        const InstancedAnimationState* const live = LiveInstancedState(*mi);
+    bytes += facts.meshBytes;
+    if (facts.state != nullptr) {
+        const InstancedAnimationState* const live = facts.state;
         const int32_t stateIndex = static_cast<int32_t>(b.states.size());
         int32_t s = b.stateTable.Find(live, stateIndex);
         if (s < 0) {
             StateEntry se;
             se.live   = live;
             se.offset = bytes;
-            bytes += StateBytes(*live);
+            bytes += facts.stateBytes;
             b.states.push_back(se);
             s = stateIndex;
         }
@@ -215,6 +235,10 @@ int32_t AdmitMesh(Builder& b, const MeshInstance* mi, size_t& bytes) {
     }
     b.entries.push_back(e);
     return index;
+}
+
+int32_t AdmitMesh(Builder& b, const MeshInstance* mi, size_t& bytes) {
+    return AdmitMeshFacts(b, mi, ReadMeshFacts(*mi), bytes);
 }
 
 int32_t Admit(Builder& b, const Geometry* g, size_t& bytes, const char** why) {
@@ -450,20 +474,10 @@ bool BeginBuild(Builder& b, const Graphics::Renderer& r, SnapshotResult& result,
 constexpr int32_t kItemAhead  = 8;
 constexpr size_t  kEntryAhead = 4;
 
-// Pass B, shared by both builders: the arena, then the copies, then the edge meshes at
-// their followed mesh's copy. Returns the arena's base.
-unsigned char* CopyAll(Builder& b, int32_t slot, size_t bytes) {
-    Arena& arena = g_arenas[slot & 1];
-    arena.Clear();   // nothing of the slot is a copy until its items point at the new ones
-    if (arena.capacity < bytes) {
-        const size_t grown = bytes + bytes / 2 + 4096;
-        arena.storage.reset(new unsigned char[grown]);
-        arena.capacity = grown;
-    }
-    unsigned char* const base = arena.Base();
-    for (StateEntry& s : b.states) CopyState(s, base);
-    const size_t n = b.entries.size();
-    for (size_t i = 0; i < n; ++i) {
+// Pass B's copies of entries [begin, end).
+void CopyRange(Builder& b, unsigned char* base, size_t begin, size_t end) {
+    const size_t n = end;
+    for (size_t i = begin; i < n; ++i) {
         // Hints only (issue #253): pass A read the object's sizes, not the arrays the copy
         // reads; the entry ahead's arrays start on these lines.
         if (i + kEntryAhead < n && b.entries[i + kEntryAhead].kind == Kind::Mesh) {
@@ -474,6 +488,40 @@ unsigned char* CopyAll(Builder& b, int32_t slot, size_t bytes) {
         }
         CopyEntry(b.entries[i], b, base);
     }
+}
+
+// Below this many entries pass B stays on the calling thread (a fork-join wakes every
+// worker: ~10-50 us, parallel_for.h).
+constexpr size_t kParallelMinEntries = 4096;
+
+// Pass B, shared by both builders: the arena, then the copies, then the edge meshes at
+// their followed mesh's copy. Returns the arena's base.
+//
+// `parallel` (the lean builder): the entries' copies run on the System::Parallel pool with
+// the calling thread. The split is exact (parallel_for.h's rule): each entry's copy reads
+// only its live object and arrays, the builder's records and its state's copy (made above,
+// before the fork), and writes only its own arena bytes [offset, offset + its bytes) and its
+// own Entry::copy; nothing else runs while the main thread waits in the join (the sim is
+// quiescent, the render thread reads only the other slot's arena). The reference builder
+// copies on one thread, so COMPPROF=4 compares the two (RenderPipeSnapshotLean).
+unsigned char* CopyAll(Builder& b, int32_t slot, size_t bytes, bool parallel) {
+    Arena& arena = g_arenas[slot & 1];
+    arena.Clear();   // nothing of the slot is a copy until its items point at the new ones
+    if (arena.capacity < bytes) {
+        const size_t grown = bytes + bytes / 2 + 4096;
+        arena.storage.reset(new unsigned char[grown]);
+        arena.capacity = grown;
+    }
+    unsigned char* const base = arena.Base();
+    for (StateEntry& s : b.states) CopyState(s, base);
+    const size_t n = b.entries.size();
+    if (parallel && n >= kParallelMinEntries) {
+        System::ParallelFor(0, static_cast<int>(n), 0, [&b, base](int begin, int end) {
+            CopyRange(b, base, static_cast<size_t>(begin), static_cast<size_t>(end));
+        });
+    } else {
+        CopyRange(b, base, 0, n);
+    }
     // An edge mesh follows its mesh's copy.
     for (Entry& e : b.entries) {
         if (e.kind != Kind::Edge) continue;
@@ -483,6 +531,49 @@ unsigned char* CopyAll(Builder& b, int32_t slot, size_t bytes) {
         edge->_followed = static_cast<MeshInstance*>(b.entries[static_cast<size_t>(followed)].copy);
     }
     return base;
+}
+
+// Below this many draw items the lean builder reads its meshes in pass A itself.
+constexpr size_t kReadAheadMinItems = 8192;
+
+// The lean builder's pre-pass scratch: per draw item in walk order, its geometry and, for a
+// MeshInstance, the facts AdmitMesh reads of it (meshBytes 0 for any other type).
+struct ReadAheadScratch {
+    std::vector<const Geometry*> geometry;
+    std::vector<MeshFacts>       facts;
+};
+ReadAheadScratch g_readAhead;
+
+// The lean builder's pre-pass, on the System::Parallel pool with the calling thread: every
+// item's MeshFacts, so pass A admits a mesh without reading its object (the first sight of
+// each of ~23k geometries a packet was a cache miss on the main thread). The split is exact
+// (parallel_for.h's rule): an item's facts read only its geometry and that geometry's
+// AnimationManager record, which nothing writes while the main thread waits in the join, and
+// write only the item's own slot; pass A then makes the same admissions from the same values.
+// False (no pre-pass) for a packet under kReadAheadMinItems.
+bool ReadAhead(const Graphics::Renderer& r, size_t itemCount, ReadAheadScratch& s) {
+    if (itemCount < kReadAheadMinItems) return false;
+    if (s.geometry.size() < itemCount) {
+        s.geometry.resize(itemCount);
+        s.facts.resize(itemCount);
+    }
+    size_t at = 0;
+    for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
+        for (const auto& list : r._drawGroups._data[gi]._items) {
+            for (int32_t k = 0; k < list._size; ++k) s.geometry[at++] = list._data[k]._geometry;
+        }
+    }
+    System::ParallelFor(0, static_cast<int>(at), 0, [&s](int begin, int end) {
+        for (int i = begin; i < end; ++i) {
+            const Geometry* const g = s.geometry[static_cast<size_t>(i)];
+            MeshFacts facts;
+            if (g != nullptr && typeid(*g) == typeid(MeshInstance)) {
+                facts = ReadMeshFacts(*static_cast<const MeshInstance*>(g));
+            }
+            s.facts[static_cast<size_t>(i)] = facts;
+        }
+    });
+    return true;
 }
 
 void Publish(int32_t slot, unsigned char* base, size_t bytes) {
@@ -535,7 +626,7 @@ SnapshotResult BuildReference(Builder& b, int32_t slot, Graphics::Renderer& r) {
     }
 
     // ---- pass B: the arena, then the copies ---------------------------------
-    unsigned char* const base = CopyAll(b, slot, bytes);
+    unsigned char* const base = CopyAll(b, slot, bytes, false);
 
     // ---- pass C: every item at its copy -------------------------------------
     for (int32_t gi = 0; gi < r._drawGroupsUsed && gi < r._drawGroups._size; ++gi) {
@@ -570,7 +661,10 @@ SnapshotResult BuildReference(Builder& b, int32_t slot, Graphics::Renderer& r) {
 //   * pass A records each item's entry (Builder::itemEntry, in walk order), so pass C
 //     re-points the items without probing the table again;
 //   * the probe of the item kItemAhead on, and the arrays of the entry kEntryAhead on, are
-//     hinted (prefetch).
+//     hinted (prefetch);
+//   * a large packet's mesh facts are read ahead on the System::Parallel pool (ReadAhead), and
+//     its copies made there too (CopyAll); the reference builder does both on one thread, so
+//     COMPPROF=4 compares the parallel arena with the sequential one.
 // A WorldGeometry item, and an item whose geometry is not yet an entry, run the reference's
 // steps unchanged.
 SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
@@ -578,6 +672,7 @@ SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
     size_t itemCount = 0;
     if (!BeginBuild(b, r, result, itemCount)) return result;
     if (b.itemEntry.size() < itemCount) b.itemEntry.resize(itemCount);
+    const bool ahead = ReadAhead(r, itemCount, g_readAhead);
 
     // ---- pass A: admit every drawn geometry, count the bytes, record each item's entry ----
     size_t   bytes  = 0;
@@ -606,6 +701,15 @@ SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
                     b.itemEntry[at] = known;
                     last.Set(g, known);
                     ++reused;
+                    continue;
+                }
+                if (ahead && g_readAhead.facts[at].meshBytes != 0) {
+                    // A MeshInstance's first sight: Admit's own route (its probe misses, its
+                    // type is MeshInstance), on the facts the pre-pass read.
+                    const auto* const mi = static_cast<const MeshInstance*>(g);
+                    const int32_t index = AdmitMeshFacts(b, mi, g_readAhead.facts[at], bytes);
+                    b.itemEntry[at] = index;
+                    last.Set(g, index);
                     continue;
                 }
                 if (typeid(*g) == typeid(WorldGeometry)) {
@@ -644,7 +748,7 @@ SnapshotResult BuildLean(Builder& b, int32_t slot, Graphics::Renderer& r) {
     }
 
     // ---- pass B: the arena, then the copies ---------------------------------
-    unsigned char* const base = CopyAll(b, slot, bytes);
+    unsigned char* const base = CopyAll(b, slot, bytes, true);
 
     // ---- pass C: every item at its copy, from the entry pass A recorded ------
     // The reference probed the table for the item's live geometry: the same entry, and
