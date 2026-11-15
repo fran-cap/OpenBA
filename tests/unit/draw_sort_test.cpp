@@ -595,6 +595,10 @@ UNIT_TEST(draw_sort_memo_one_byte_forces_a_miss) {
     const int n = 300;
     int misses = 0, padHits = 0;
     for (int list = 0; list < 2; ++list) {
+        // Each list starts on an empty memo: list 1's `buf` may get list 0's freed address
+        // (glibc and macOS malloc often hand it back), and that entry's miss streak would
+        // carry over into MEMOBACKOFF's back-off.
+        DrawSort::MemoClear();
         std::vector<RendererDrawItem> in;
         if (list == 0) {
             in = GatherLike(r, n, 25);
