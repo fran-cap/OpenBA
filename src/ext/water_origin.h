@@ -14,7 +14,7 @@ namespace Ext {
 namespace WaterOrigin {
 
 constexpr uint8_t kRetail = 0;        // the game's own water
-constexpr uint8_t kTerrainEdit = 1;   // ext.terrain_edit's lake patches (terrain_water.h)
+constexpr uint8_t kTerrainEdit = 1;   // ext.terrain_edit's patches (terrain_water.h)
 constexpr uint8_t kCustomMaps = 2;    // reserved: the coverage ranges of a map file's water
 
 }  // namespace WaterOrigin
