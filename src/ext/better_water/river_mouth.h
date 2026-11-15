@@ -15,7 +15,11 @@
 // corners it shares with an unmeshed cell are all dry). Every vertex of the range has its alpha byte
 // multiplied by smoothstep(0, fade, distance to the nearest such cut vertex), so the lake hands over to the
 // river across `fade` tiles. A range with no cut vertex is unchanged (a lake no river leaves), as is every
-// river vertex. Pure: the caller uploads the copy (the saved mesh is never edited; it is serialized).
+// river vertex. A range that another extension marked as its own, by the origin byte in the fourth component
+// of its vertices' normals (Ext::WaterOrigin::kCustomMaps, src/ext/water_origin.h), is left alone whatever
+// its alpha: such water can run at full alpha to the side of its box, and fading it drew a dark seam where
+// two such ranges join. Retail's lakes and ext.terrain_edit's patches are decided by their data as before.
+// Pure: the caller uploads the copy (the saved mesh is never edited; it is serialized).
 //
 // The rim: a lake's alpha can also reach 0 inside its box, on the circle where its distance falloff ends. Where
 // that circle crosses open water (a river running through or out of the lake) the lake hands over in the last
@@ -25,6 +29,7 @@
 // ============================================================================
 
 #include "Game/WorldGeometryElements.h"
+#include "ext/water_origin.h"
 
 #include <cmath>
 #include <cstdint>
@@ -75,6 +80,9 @@ inline int Fade(const TerrainVertex* vertices, int32_t count, const Range* range
         const int32_t first = ranges[ri].vertexStart;
         const int32_t n = ranges[ri].vertexCount;
         if (first < 0 || n <= 0 || first > count - n) continue;
+        if (vertices[first].normal[3] == Ext::WaterOrigin::kCustomMaps) {
+            continue;
+        }
         int minX = INT32_MAX, maxX = INT32_MIN, minY = INT32_MAX, maxY = INT32_MIN;
         for (int32_t i = first; i < first + n; ++i) {
             const int x = vertices[i].position[0];

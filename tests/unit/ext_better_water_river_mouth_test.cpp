@@ -8,6 +8,7 @@
 // ============================================================================
 #include "unit.h"
 #include "ext/better_water/river_mouth.h"
+#include "ext/water_origin.h"
 
 #include <cstdint>
 #include <vector>
@@ -29,13 +30,14 @@ std::vector<int16_t> Heights() {
     return h;
 }
 
-TerrainVertex V(int col, int row, uint8_t alpha) {
+TerrainVertex V(int col, int row, uint8_t alpha, uint8_t origin = Ext::WaterOrigin::kRetail) {
     TerrainVertex v{};
     v.position[0] = static_cast<int16_t>(col * 48);
     v.position[1] = static_cast<int16_t>(row * 48);
     v.normal[0] = 0x7f;
     v.normal[1] = 0x7f;
     v.normal[2] = alpha;
+    v.normal[3] = origin;
     return v;
 }
 
@@ -84,6 +86,44 @@ UNIT_TEST(ext_better_water_river_mouth_leaves_a_closed_lake_alone) {
     CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &lake, 1, heights.data(), kStride, kHalf,
                kFadeTiles, out) == 0);
     for (const TerrainVertex& v : out) CHECK(v.normal[2] == 180);
+}
+
+UNIT_TEST(ext_better_water_river_mouth_leaves_a_marked_range_alone) {
+    // Another extension's water, marked by its origin byte: its side is under water (a cut side by the box
+    // rule), yet nothing fades, at full alpha or with one vertex short of it.
+    const std::vector<int16_t> heights = Heights();
+    std::vector<TerrainVertex> mesh;
+    for (int row = 0; row <= 4; ++row) {
+        for (int col = 0; col <= 10; ++col) mesh.push_back(V(col, row, 0xff, Ext::WaterOrigin::kCustomMaps));
+    }
+    const Range tile{0, static_cast<int32_t>(mesh.size())};
+    std::vector<TerrainVertex> out;
+    CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &tile, 1, heights.data(), kStride, kHalf,
+               kFadeTiles, out) == 0);
+    for (const TerrainVertex& v : out) CHECK(v.normal[2] == 0xff);
+
+    mesh[Find(mesh, 0, 0)].normal[2] = 0xfe;
+    CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &tile, 1, heights.data(), kStride, kHalf,
+               kFadeTiles, out) == 0);
+    CHECK(out[Find(out, 0, 0)].normal[2] == 0xfe);
+}
+
+UNIT_TEST(ext_better_water_river_mouth_fades_an_unmarked_full_alpha_range) {
+    // The same range without the origin byte, retail's (0) or ext.terrain_edit's patch (1), fades as it does
+    // on main, whatever its alpha.
+    const std::vector<int16_t> heights = Heights();
+    const uint8_t origins[] = {Ext::WaterOrigin::kRetail, Ext::WaterOrigin::kTerrainEdit};
+    for (const uint8_t origin : origins) {
+        std::vector<TerrainVertex> mesh;
+        for (int row = 0; row <= 4; ++row) {
+            for (int col = 0; col <= 10; ++col) mesh.push_back(V(col, row, 0xff, origin));
+        }
+        const Range tile{0, static_cast<int32_t>(mesh.size())};
+        std::vector<TerrainVertex> out;
+        CHECK(Fade(mesh.data(), static_cast<int32_t>(mesh.size()), &tile, 1, heights.data(), kStride, kHalf,
+                   kFadeTiles, out) > 0);
+        CHECK(out[Find(out, 10, 2)].normal[2] == 0);
+    }
 }
 
 UNIT_TEST(ext_better_water_river_mouth_ignores_a_bad_range) {
