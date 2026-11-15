@@ -36,6 +36,8 @@
 #include "Component/Description.h"
 #include "Entity/ComponentEntity.h"
 #include "Entity/CitizenBehavior.h"
+#include "Object/type_cache.h"   // PERF (TYPECACHE): the two walks' Type() through the vptr cache
+#include "stress_harness.h"      // PERF (GATECUT): g_verifyOn / StressHarness_Verify, the COMPPROF=4 shadow
 
 namespace {
 
@@ -57,7 +59,7 @@ T* PG_FindComp(ComponentEntity* entity) {
     int count = entity->_components._size;
     for (int i = 0; i < count; ++i) {
         Component* comp = entity->_components[i].Get();
-        if (comp->Type() != tid) continue;
+        if (TypeCache::TypeOf(comp) != tid) continue;   // PERF TYPECACHE: Type(), the same answer
         Component* c = entity->_components[i].Get();
         return c->IsDerivedFrom(tid) ? static_cast<T*>(c) : nullptr;
     }
@@ -72,7 +74,7 @@ RawMaterialDescription* PG_FindRawMaterialDesc(ComponentDescription* descObj) {
     int count = descObj->_subDescCount;
     for (int i = 0; i < count; ++i) {
         Description* d = descObj->_subDescs[i];
-        if (d->Type() != tid) continue;
+        if (TypeCache::TypeOf(d) != tid) continue;   // PERF TYPECACHE: Type(), the same answer
         Description* c = descObj->_subDescs[i];
         return c->IsDerivedFrom(tid) ? static_cast<RawMaterialDescription*>(c) : nullptr;
     }
@@ -142,7 +144,48 @@ static uint64_t PickupGate_Accepts_12d990(StorageLocationComponent* slComp, Comp
 // loop does run; the "empty list" hypothesis was ruled out by probe, not assumed.
 // No null-entry test: 0x14008d400 / 0x14008d45f read the entry and its +0x38 count directly.
 // ============================================================
+//
+// PERF (GATECUT): the same answer for less work. Retail's body is HasStorageForRetail below; the
+// game runs this one. Every read in the loop is pure (Type(), IsDerivedFrom, AcceptMask's reads,
+// the description scan), and only CanAdd's answer leaves it, so:
+//  * the resource's RawMaterialDescription (d990's scan of `resource`, the same object every
+//    entry) is found once, at the first entry, where retail first finds it, and its category read
+//    there (a null still faults on that read, at the same entry);
+//  * the StorageComponent scan runs only for an entry whose mask accepts the category, the one
+//    case retail reads the pointer (CanAdd); for the others retail found it and dropped it.
+// Same CanAdd calls in the same order with the same arguments, the same return. Under the
+// COMPPROF=4 shadow retail's body runs beside it ("StorageGate").
 bool CitizenBehavior::HasStorageFor(ComponentDescription* resource, int amount) {
+    if (g_verifyOn != 0) {
+        const bool real = HasStorageForRetail(resource, amount);
+        const bool fast = HasStorageForFast(resource, amount);
+        StressHarness_Verify("StorageGate", real == fast, storageLocations._size);
+        return real;
+    }
+    return HasStorageForFast(resource, amount);
+}
+
+bool CitizenBehavior::HasStorageForFast(ComponentDescription* resource, int amount) {
+    const int count = storageLocations._size;
+    Object::InternalPtr<ComponentEntity>* arr = storageLocations._data;
+    uint32_t resCat = 0;
+    for (int i = 0; i < count; ++i) {
+        ComponentEntity* ent = arr[i].Get();
+        StorageLocationComponent* slComp = PG_FindComp<StorageLocationComponent>(ent);
+        if (i == 0) {
+            resCat = PG_FindRawMaterialDesc(resource)->_flags;
+        }
+        const uint32_t mask = static_cast<uint32_t>(slComp->AcceptMask());
+        if ((resCat & mask) == 0) continue;
+        StorageComponent* stComp = PG_FindComp<StorageComponent>(arr[i].Get());
+        if (static_cast<char>(stComp->CanAdd(resource, amount)))   // 0x14012cd80; the door read AL
+            return true;
+    }
+    return false;
+}
+
+// Retail's body (0x14008d3c0, line for line): the COMPPROF=4 shadow's reference.
+bool CitizenBehavior::HasStorageForRetail(ComponentDescription* resource, int amount) {
     // `if (0 < (int)param_1[1])` — the list's int32 count.
     int count = storageLocations._size;
     Object::InternalPtr<ComponentEntity>* arr = storageLocations._data;

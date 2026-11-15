@@ -13,6 +13,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 4. Map data views: the Traffic view can show only walks to work or only walks back home, to spot long commutes. Saves made with this version's map data views do not load in v1.0.3 (`ext.map_overlays`).
 5. Work circles of a kind: Shift+click (long press on a touch screen) a building with a work circle to show the circle of every building of its kind, also while placing a new one; again to hide them (`ext.radius_all`).
 6. Terrain drawn last (Experimental tab): the ground is drawn after the buildings, trees and people, so the graphics card skips the ground they hide; the picture is unchanged (`ext.terrain_late`).
+7. Smoother motion at high game speed: while a long simulation step runs, the render thread shows the town again at a later blend instead of holding one picture; off by default, `ext.render_pipe_replay=1` in settings.cfg turns it on (`ext.render_pipe`).
 
 **Fixes:**
 1. Map data views: no crash when "Show overlay on terrain" shows the Land view in a second game of one session (`ext.map_overlays`).
@@ -20,6 +21,7 @@ Headings are `## vX.Y.Z (YYYY-MM-DD)`; the version is the CMake `VERSION` in `CM
 3. Map data views: the terrain overlay no longer floats off near hillsides and ridges when the view reaches far (`ext.map_overlays`).
 4. After loading a save, the Increase Priority tool ranks ahead of work prioritized before the save (retail bug, `fix.priority_after_load`).
 5. Better water: no wedge of squeezed ripples on the inside of a sharp river bend, and no band across the channel where a river runs through a lake (`ext.better_water`).
+6. A tree that dies in view falls once instead of flickering between upright and fallen: the off-screen animation skip tested against the shadow or reflection camera instead of the view (`ext.render_culling`).
 
 ## v1.0.3 (2026-11-10)
 

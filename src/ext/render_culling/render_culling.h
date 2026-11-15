@@ -70,7 +70,9 @@ inline bool ParticleCull()   { return g_flags.particleCull; }
 void BeginFrame(Graphics::Renderer* renderer);
 // Draw side: the terrain collect pass hands over the world-space Volume::Frustum it
 // computed (6 planes {nx,ny,nz,d}); the cull camera reference is only valid inside Draw.
-void SetWorldFrustum(const void* frustum);
+// `groupShader` is the current draw group's shader (Renderer::GetShader): only the main
+// view's frustum is kept (render_culling_rules.h IsMainViewEntry).
+void SetWorldFrustum(const void* frustum, int32_t groupShader);
 // World teardown: forget every cached pointer (unconditional).
 void Reset();
 // Entity removal (the components' OnRemove, at MarkForRemoval): drop every deferred entry

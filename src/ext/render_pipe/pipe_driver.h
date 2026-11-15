@@ -81,6 +81,10 @@ struct EmitResult {
     int64_t presentUs = 0;       // NowUs() after Finish (the packet latency)
 };
 
+// SMOOTHREPLAY: the shortest steps worth a replayed frame, us (one costs about 2.5 ms and up:
+// a present, a begin and pass 2).
+constexpr int64_t kReplayStepUs = 4000;
+
 inline int64_t NowUs() {
     return std::chrono::duration_cast<std::chrono::microseconds>(
                std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -116,6 +120,10 @@ public:
         _removableUs = 0;
         _idleUs    = 0;
         _stepped   = false;
+        _stepsUs   = 0;
+        _stepSpanUs = 0;
+        _replay    = false;
+        _replaySnapshot = false;
     }
 
     Counters TakeWindow() {
@@ -132,6 +140,23 @@ public:
     // up to its post-draw callbacks (threaded: its tail may still run) --
     // P13_OVERLAP: except one whose emit reads frozen copies, parked at its gate.
     void BeforeSteps(Host& host) {
+        Fence(host);
+        _stepsUs = NowUs();   // SMOOTHREPLAY: the steps start here (the fence's wait is not theirs)
+    }
+
+    // True between a fence that let the steps overlap an emit's tail and the
+    // settle of that tail (the unit test reads it).
+    bool TailInFlight() const { return _tail; }
+
+    // True while the steps run beside an emit that has not reached its gate (the unit test reads it).
+    bool Overlapping() const { return _overlapping; }
+
+    // SMOOTHREPLAY: the next main half is asked for the copies whatever the governor says (the unit
+    // test reads it).
+    bool ReplaySnapshot() const { return _replaySnapshot; }
+
+private:
+    void Fence(Host& host) {
         _stepped = true;
         if (_state.DrainBeforeSteps(true)) {
             // P13_OVERLAP: a packet with a snapshot runs on during the steps, up to its gate --
@@ -157,13 +182,7 @@ public:
         }
     }
 
-    // True between a fence that let the steps overlap an emit's tail and the
-    // settle of that tail (the unit test reads it).
-    bool TailInFlight() const { return _tail; }
-
-    // True while the steps run beside an emit that has not reached its gate (the unit test reads it).
-    bool Overlapping() const { return _overlapping; }
-
+public:
     // kExtBeforeTransition (P13_OVERLAP): MainLoop::Update is about to shut down and
     // delete the current loop. Nothing of the emit may be in flight then: the render
     // thread is joined here (its gate opened by the wait). The Frame's tail then sees
@@ -196,6 +215,13 @@ public:
     // kExtFrameTail. True: the extension was switched off -- uninstall now (the
     // render thread is idle and joined).
     bool Tail(Host& host, const TailInputs& in) {
+        // SMOOTHREPLAY: replayed frames need a packet with copies in flight when a long step starts,
+        // and the governor turns the copies off where they do not shorten the frame (a GPU-bound
+        // town). So while the row's replay is asked for and the last steps ran at least
+        // kReplayStepUs, every main half takes them.
+        if (_stepped) _stepSpanUs = NowUs() - _stepsUs;
+        _replay = in.replay && _handoff != nullptr;
+        _replaySnapshot = _replay && _stepSpanUs >= kReplayStepUs;
         // P13_OVERLAP: the steps are over; the emit parked at its gate goes on, and THE FENCE
         // the steps skipped is waited for here.
         if (_overlapping) {
@@ -361,7 +387,8 @@ private:
         const bool inFlight = pending || _tail;
         next.frameIndex = inFlight ? _held.frameIndex + 1 : host.ContextFrameIndex();
         next.modelIndex = inFlight ? _held.modelIndex + 1 : host.ContextFrameIndex();
-        next.snapshot   = _handoff != nullptr && _governor.On();
+        next.snapshot   = _handoff != nullptr && (_governor.On() || _replaySnapshot);
+        next.replay     = _replay;
 
         host.MainHalf(next, plan);   // threaded: concurrent with the emit of _held (or its tail)
         if (next.overlap) _governor.Copy(next.copyUs);
@@ -395,6 +422,10 @@ private:
     int64_t    _removableUs = 0;   // this Frame's fence wait the snapshot removes, us
     int64_t    _idleUs    = 0;     // the main thread's other waits since the last Frame tail, us
     bool       _stepped   = false; // this Frame reached THE FENCE (it steps)
+    int64_t    _stepsUs   = 0;     // SMOOTHREPLAY: when this Frame's steps started (after the fence)
+    int64_t    _stepSpanUs = 0;    // SMOOTHREPLAY: the last stepping Frame's steps, us
+    bool       _replay    = false; // SMOOTHREPLAY: the replayed frames are asked for and a render thread is up
+    bool       _replaySnapshot = false;   // SMOOTHREPLAY: the main half takes the copies for the replayed frames
     EmitResult _result;            // written by the emitting thread before Done
     Handoff*   _handoff   = nullptr;
     int64_t    _publishUs = 0;

@@ -77,6 +77,7 @@
 #include "ext/draw_batch/draw_batch.h"   // issue #253: the instancing batch counters (COMPPROF >= 2)
 #include "draw_batch/instance_bank.h"    // issue #253: the backend's instance cap (src/render/common)
 #include "graphics/xform_memo.h"   // XFORMMEMO: the instance-transform memo counters (/xform row) and its shadow hook
+#include "Object/type_cache.h"     // TYPECACHE: the Type() cache's COMPPROF=4 shadow hook
 #include "ext/draw_gather/draw_gather.h"   // DRAWGATHER: the [Stress::gather] counters
 #include "ext/render_pipe/render_pipe.h"   // RENDERPIPE: the [Stress::pipe] counters
 #include "graphics/stagger_hold.h"         // ext.staggered_passes: the [Stress::stagger] counters
@@ -84,6 +85,8 @@
 #include "ext/walk_batch/walk_batch.h"   // WALKBATCH: the /char walkbatch row's counters
 #include "ext/spread_warmth/spread_warmth.h"   // HITCH_PFBURST: the [Stress::warmth] counters
 #include "ext/drain_split/drain_split.h"       // HITCH_DRAINSPLIT: the [Stress::drainsplit] counters
+#include "Component/HighlightComponent.h"   // P13_OVERLAP 2.8: COMPPROF=5's outline repaints (PinProvoke)
+#include "Component/MapComponent.h"         //   its targets: the outlines Repaint builds (fields, orchards)
 #define WIN32_LEAN_AND_MEAN
 #if defined(_WIN32)
 #include <windows.h>
@@ -187,6 +190,20 @@ void Resolve() {
             // XFORMMEMO: every memo hit recomputed with the virtual GetInstanceTransform, 64 bytes compared
             XformMemo::g_report = [](bool ok, long long detail) { StressHarness_Verify("XformMemo", ok, detail); };
             XformMemo::g_verify = 1;
+            // TYPECACHE: every cache hit asked Type() too (and every own-type narrowing IsDerivedFrom).
+            // Millions of checks a frame: a mismatch is reported at once ("TypeCache", exact), the
+            // matches as one "TypeCache/1024ok" check per 1024 (the verify lock per check would
+            // stall the run).
+            TypeCache::g_report = [](bool ok, long long detail) {
+                static std::atomic<long long> s_ok{0};
+                if (!ok) {
+                    StressHarness_Verify("TypeCache", false, detail);
+                    return;
+                }
+                if ((s_ok.fetch_add(1, std::memory_order_relaxed) & 1023) == 1023)
+                    StressHarness_Verify("TypeCache/1024ok", true, 0);
+            };
+            TypeCache::g_verify = 1;
             // DRAWSORT: the draw-item sort's shadow (retail's sort on a copy, whole arrays compared)
             DrawSort::g_report = [](bool ok, long long detail) { StressHarness_Verify("DrawItemSort", ok, detail); };
             DrawSort::g_verify = 1;
@@ -278,6 +295,9 @@ struct HitchRing {
 struct HitchCur {   // the period being accumulated
     int updates = 0; int speed = 0; int frame = 0; int markers = 0;
     double updMs = 0, drawMs = 0, harnessMs = 0; double ph[kHitchPh] = {0}; long long pf[3] = {0};
+    int pfRequests = 0;       // PATHBURST: command-5 path requests enqueued in the period (PfProf_Enqueue)
+    int pfPathDistCalls = 0;  // PATHBURST: Map::PathDistance calls in the period (PfProf_Main)
+    double seg[2] = {0};   // HITCH_TAIL: ext.render_pipe's fence / tail hooks, main thread ms
 };
 // Two classes of period, with their own rings: MainLoop::Frame draws every loop and Updates
 // only when the fixed-step accumulator has a step, so at speed 50 a draw-only period is ~1 ms
@@ -318,7 +338,8 @@ void HitchOpenCsv() {
                              "update_ms,med_update_ms,draw_ms,med_draw_ms,outside_ms,med_outside_ms,harness_ms,"
                              "ph_paircache_ms,ph_animation_ms,ph_entitylist_ms,ph_weather_ms,ph_citizenlist_ms,ph_postsim_ms,"
                              "med_paircache_ms,med_animation_ms,med_entitylist_ms,med_weather_ms,med_citizenlist_ms,med_postsim_ms,"
-                             "pf_pathdistance_ms,pf_fillzones_ms,pf_syncwait_ms,markers\n");
+                             "pf_pathdistance_ms,pf_fillzones_ms,pf_syncwait_ms,markers,pf_requests,pf_pathdistance_calls,"
+                             "fence_ms,pipe_tail_ms\n");
     std::fflush(s_hitchCsv);
 }
 // Close the period [t0, t1) (QPC): test it, log it if it is a hitch, push it into the rings.
@@ -350,9 +371,10 @@ void HitchPeriod(long long t0, long long t1) {
                              s_hCur.harnessMs);
                 for (int i = 0; i < kHitchPh; ++i) std::fprintf(s_hitchCsv, "%.3f,", s_hCur.ph[i]);
                 for (int i = 0; i < kHitchPh; ++i) std::fprintf(s_hitchCsv, "%.3f,", cls.ph[i].Median());
-                std::fprintf(s_hitchCsv, "%.3f,%.3f,%.3f,%d\n",
+                std::fprintf(s_hitchCsv, "%.3f,%.3f,%.3f,%d,%d,%d,%.3f,%.3f\n",
                              TscMs(s_hCur.pf[PF_MAIN_PATHDISTANCE]), TscMs(s_hCur.pf[PF_MAIN_FILLZONES]),
-                             TscMs(s_hCur.pf[PF_MAIN_SYNCWAIT]), s_hCur.markers);
+                             TscMs(s_hCur.pf[PF_MAIN_SYNCWAIT]), s_hCur.markers,
+                             s_hCur.pfRequests, s_hCur.pfPathDistCalls, s_hCur.seg[0], s_hCur.seg[1]);
                 std::fflush(s_hitchCsv);
             }
         }
@@ -798,6 +820,36 @@ void CharProfReport(FILE* o) {
                      (double)bCalls / n, interCalls > 0 ? 100.0 * (double)bCalls / (double)interCalls : 0.0,
                      TscMs(bTicks) / n, bNs, (double)(fullCalls > 0 ? fullCalls : 0) / n, fullNs,
                      savedMs, elMs > 0 ? 100.0 * savedMs / elMs : 0.0);
+        // The decline census (walk_batch.h Census): every intermediate character tick the
+        // batched walk saw, by the exit of its decision, then the node types behind the
+        // not-a-lone-MoveTo exits (walk = of which the chain is char_prof.h's walk class).
+        long long all = 0;
+        for (int i = 0; i < Ext::WalkBatch::kCensusCount; ++i) all += Ext::WalkBatch::g_census[i];
+        if (all > 0) {
+            std::fprintf(o, "[COMPPROF]   /char walkbatch census (ticks/frame, %% of %.1f):", (double)all / n);
+            for (int i = 0; i < Ext::WalkBatch::kCensusCount; ++i) {
+                const long long c = Ext::WalkBatch::g_census[i];
+                if (c == 0) continue;
+                std::fprintf(o, "  %s %.1f (%.1f%%)", Ext::WalkBatch::CensusName(i), (double)c / n,
+                             100.0 * (double)c / (double)all);
+            }
+            std::fprintf(o, "\n");
+            Ext::WalkBatch::CensusTypeRow rows[Ext::WalkBatch::kCensusTypeMax];
+            const int nr = Ext::WalkBatch::g_censusTypeCount;
+            for (int i = 0; i < nr; ++i) rows[i] = Ext::WalkBatch::g_censusTypes[i];
+            std::sort(rows, rows + nr, [](const Ext::WalkBatch::CensusTypeRow& a,
+                                          const Ext::WalkBatch::CensusTypeRow& b) { return a.ticks > b.ticks; });
+            for (int k = 0; k < nr && k < 16; ++k) {
+                const char* nm = ::Object::GetTypeNameById(rows[k].typeId);
+                std::fprintf(o, "[COMPPROF]   /char walkbatch decline %-10s %-26s ticks/frame=%8.1f (%5.1f%%)  walk-class %5.1f%%\n",
+                             Ext::WalkBatch::CensusName(rows[k].why), nm && nm[0] ? nm : "?",
+                             (double)rows[k].ticks / n, 100.0 * (double)rows[k].ticks / (double)all,
+                             100.0 * (double)rows[k].walkChain / (double)rows[k].ticks);
+            }
+            if (Ext::WalkBatch::g_censusTypeOverflow)
+                std::fprintf(o, "[COMPPROF]   /char walkbatch decline overflow %lld\n",
+                             Ext::WalkBatch::g_censusTypeOverflow);
+        }
     }
     // The node types that decided the class, by time (top 14).
     int idx[CharProf::kMaxNodes];
@@ -1152,6 +1204,7 @@ void CompProfReport(int frame) {
     SkinMemoReset();
     XformMemoReset();
     Ext::WalkBatch::g_profTicks = 0; Ext::WalkBatch::g_profCalls = 0;   // WALKBATCH: the /char walkbatch row's window
+    Ext::WalkBatch::CensusReset();
     for (int i = 0; i < kCompSlots; ++i) { s_comp[i].ticks = 0; s_comp[i].calls = 0; }
     g_elProfDrainTicks = g_elProfPreTicks = g_elProfTreeTicks = g_elProfBucketTicks = 0;
     g_elProfTreeNodes = g_elProfBucketVisits = g_elProfBucketTicked = 0;
@@ -1270,6 +1323,63 @@ void UniqueStorageLocations(CitizenBehavior* townMgr, std::vector<StorageCompone
         seen.push_back(e);
         StorageComponent* sc = e->FindComponent<StorageComponent>();
         if (sc) out.push_back(sc);
+    }
+}
+
+// ── P13_OVERLAP 2.8 (BANISHED_STRESS_COMPPROF=5, Opt().stressPinProvoke): the resource-pin race ──
+// ext.render_pipe's snapshot shares a HighlightComponent's outline EdgeMesh raw. Here, at the
+// step's start (StressHarness_UpdateBegin), up to kPinTargets entities whose outline Repaint
+// BUILDS (a MapComponent and no per-variant mesh: fields, orchards) are outlined and repainted
+// every frame: each Repaint deletes the mesh the packet in flight drew (a rebuild), so with the
+// steps claimed beside its emit the free lands in the window the pin guards (the [Stress::pin]
+// line counts the waits). Every kPinDeselectPeriod frames the first target is deselected for one
+// frame instead (Repaint with the flag clear: the free without a rebuild, a click elsewhere).
+// The entity-removal free (~HighlightComponent) is not provoked: a direct QueueDestroy skips the
+// building's deconstruction states and leaves its other scene objects dangling. This CHANGES the
+// town: never a timing or a sim-identity run.
+constexpr int kPinFirst          = 900;   // the town is built and staffed
+constexpr int kPinTargets        = 8;
+constexpr int kPinDeselectPeriod = 300;
+std::vector<const HighlightComponent*> s_pinSkip;   // entities whose Repaint built no outline (identities only)
+long long s_pinRepaints = 0, s_pinDeselects = 0;
+
+bool PinTargetModelless(ComponentEntity* e) {
+    ModelComponent* model = e->FindComponent<ModelComponent>();
+    return model == nullptr || model->meshGroup < 0 || model->meshIndex < 0;   // Repaint's build branch
+}
+
+void PinProvoke(GameUpdateLoop* gw, int worldFrame) {
+    if (worldFrame < kPinFirst) return;
+    EntityList* el = gw->m_entityList;
+    if (!el) return;
+    Object::InternalPtr<ComponentEntity>* arr = el->masterArray._data;
+    const int n = el->masterArray._size;
+    if (!arr || n <= 0) return;
+    const bool deselect = (worldFrame - kPinFirst) % kPinDeselectPeriod == kPinDeselectPeriod / 2;
+    int found = 0;
+    for (int i = 0; i < n && found < kPinTargets; ++i) {
+        ComponentEntity* e = arr[i].Get();
+        if (!e || (e->_entityFlags & Bits(ComponentFlags::MarkedForRemoval))) continue;
+        HighlightComponent* hc = e->FindComponent<HighlightComponent>();
+        if (!hc || !e->FindComponent<MapComponent>() || !PinTargetModelless(e)) continue;
+        if (std::find(s_pinSkip.begin(), s_pinSkip.end(), hc) != s_pinSkip.end()) continue;
+        if (deselect && found == 0 && hc->outlineMesh != nullptr) {
+            hc->highlightFlag = 0;
+            hc->Repaint();   // frees the outline the packet in flight drew, builds none
+            ++s_pinDeselects;
+            ++found;
+            continue;
+        }
+        hc->highlightFlag = 1;
+        hc->Repaint();   // frees the outline the packet in flight drew, builds the next
+        ++s_pinRepaints;
+        if (hc->outlineMesh == nullptr) {   // the description has no mask material: no outline here
+            hc->highlightFlag = 0;
+            hc->Repaint();
+            s_pinSkip.push_back(hc);
+            continue;
+        }
+        ++found;
     }
 }
 
@@ -1661,6 +1771,27 @@ void EmitRow(GameUpdateLoop* gul, int frame) {
                          split[PassSplit::kP2Shadow], split[PassSplit::kP2Refl], split[PassSplit::kP2Main]);
         }
     }
+    // SMOOTHREPLAY: ext.render_pipe's replayed frames, printed while a claim had the display clock on.
+    if (rp.replayClaims != 0) {
+        std::fprintf(stderr, "[Stress::replay] claims=%llu frames=%llu (%.2f/claim) no layer=%llu stopped=%llu "
+                             "yielded the lock=%llu tool frames=%llu\n",
+                     static_cast<unsigned long long>(rp.replayClaims),
+                     static_cast<unsigned long long>(rp.replayFrames),
+                     static_cast<double>(rp.replayFrames) / static_cast<double>(rp.replayClaims),
+                     static_cast<unsigned long long>(rp.replayNoLayer),
+                     static_cast<unsigned long long>(rp.replayStopped),
+                     static_cast<unsigned long long>(rp.replayYielded),
+                     static_cast<unsigned long long>(rp.replayTool));
+    }
+    // P13_OVERLAP 2.8: ext.render_pipe's resource pin (resource_pin.h), printed while it saw a free,
+    // with COMPPROF=5's own repaints and deselects (cumulative).
+    if (rp.pinChecks != 0 || Opt().stressPinProvoke) {
+        std::fprintf(stderr, "[Stress::pin] frees=%llu waits=%llu wait=%.3fms max=%.3fms timeouts=%llu | "
+                             "provoke: repaints=%lld deselects=%lld\n",
+                     static_cast<unsigned long long>(rp.pinChecks), static_cast<unsigned long long>(rp.pinWaits),
+                     static_cast<double>(rp.pinWaitUs) / 1000.0, static_cast<double>(rp.pinMaxUs) / 1000.0,
+                     static_cast<unsigned long long>(rp.pinTimeouts), s_pinRepaints, s_pinDeselects);
+    }
     // ext.staggered_passes (issue #253, graphics/stagger_hold.h): the window's held / rendered
     // decisions per pass. Printed only while the row counted something.
     {
@@ -1719,6 +1850,10 @@ extern "C" void StressHarness_UpdateBegin(int frameNum) {
     ++s_pfFrame;   // E2E SPLIT
     s_updT0 = QpcNow();
     if (!s_runT0) s_runT0 = s_updT0;
+    // P13_OVERLAP 2.8 (COMPPROF=5): at the step's start, where a claimed emit is likeliest
+    // still in its pass 2 (s_worldFrame: the previous Update's).
+    if (Opt().stressPinProvoke && GameUpdateLoop::_singleton != nullptr)
+        PinProvoke(GameUpdateLoop::_singleton, s_worldFrame);
 }
 
 extern "C" void StressHarness_UpdateEnd(GameUpdateLoop* gul, int frameNum) {
@@ -1842,6 +1977,21 @@ extern "C" void StressHarness_PipeEmitEnd() {
     s_pipeEmitTicks.fetch_add(QpcNow() - s_pipeEmitT0, std::memory_order_relaxed);
     s_pipeEmitN.fetch_add(1, std::memory_order_relaxed);
     s_pipeEmitT0 = 0;
+}
+// HITCH_TAIL: main thread only (MainLoop::Frame's two ext.render_pipe hooks).
+static long long s_pipeSegT0[2] = {0, 0};
+extern "C" void StressHarness_PipeSegBegin(int seg) {
+    if (!StressHarness_Enabled() || seg < 0 || seg > 1) return;
+    s_pipeSegT0[seg] = QpcNow();
+}
+extern "C" void StressHarness_PipeSegEnd(int seg) {
+    if (!StressHarness_Enabled() || seg < 0 || seg > 1 || !s_pipeSegT0[seg]) return;
+    // The tail's Draw entry closes the previous period: only the part from that entry on
+    // is this period's (it holds the main half, already in draw_ms).
+    long long t0 = s_pipeSegT0[seg];
+    if (seg == 1 && s_lastDrawEntry > t0) t0 = s_lastDrawEntry;
+    s_hCur.seg[seg] += QpcMs(QpcNow() - t0);
+    s_pipeSegT0[seg] = 0;
 }
 
 static void CompProf_WatchBegin(Object::Base* comp, uint32_t tid) {
@@ -2011,6 +2161,7 @@ extern "C" void PfProf_Enqueue(int slot, int queueDepth) {
         s_pfReadyTsc[slot].store(0, std::memory_order_relaxed);
         s_pfEnqFrame[slot] = s_pfFrame;
     }
+    ++s_hCur.pfRequests;   // PATHBURST: per-period request count (RequestPath runs on the main thread)
     std::lock_guard<std::mutex> g(s_pfLock);
     s_pfMain.Enqueued(queueDepth);
 }
@@ -2057,6 +2208,7 @@ extern "C" void PfProf_Main(int which, long long ticks) {
     if (which < 0 || which > PF_MAIN_SYNCWAIT || ticks <= 0) return;
     s_pfMainTicks[which].fetch_add(ticks, std::memory_order_relaxed);
     s_hCur.pf[which] += ticks;   // HITCH: main thread only (the three brackets are main-thread)
+    if (which == PF_MAIN_PATHDISTANCE) ++s_hCur.pfPathDistCalls;   // PATHBURST
 }
 
 PathGraphCostCounts g_pathGraphCost = { 0, 0, 0, 0, -1 };

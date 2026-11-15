@@ -93,6 +93,91 @@ def attribute(h):
     return dom, d
 
 
+def run_frames(errlog, from_frame):
+    """Draw-to-Draw periods the harness closed, from the [Stress::hitch] window lines (one per CSV row,
+    `frame=` = the row's world frame) of rows after `from_frame`. None when the log has none."""
+    import re
+    total, seen = 0, False
+    with open(errlog, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if "[Stress::hitch]" not in line:
+                continue
+            m = re.search(r"\bframes=(\d+)", line)
+            if not m:
+                continue
+            seen = True
+            total += int(m.group(1))
+    return total if seen else None
+
+
+def tail_class(h):
+    """HITCH_TAIL: the class of one tail frame and its split (ms). Classes, first match wins:
+       harness    the stress harness's own row / staffing work in the period (> 1 ms)
+       catch-up   two or more fixed steps in the period (the previous frame was long)
+       draw-only  no step: Draw, the render-pipe tail (join / hand-off wait) and Present only
+       step       one fixed step (sim + draw): the plain stepping frame"""
+    k = int(h["updates"])
+    fence = h.get("fence_ms", 0.0) or 0.0
+    tail = h.get("pipe_tail_ms", 0.0) or 0.0
+    tail_wait = max(0.0, tail - h["draw_ms"]) if tail > 0 else 0.0
+    harness = h.get("harness_ms", 0.0)
+    split = {
+        "update": h["update_ms"],
+        "draw": h["draw_ms"],
+        "fence": fence,
+        "tailwait": tail_wait,
+        "harness": harness,
+    }
+    split["other"] = h["period_ms"] - sum(split.values())
+    if harness > 1.0 or (int(h["markers"]) & 3):
+        return "harness", split
+    if k >= 2:
+        return "catch-up", split
+    if k == 0:
+        return "draw-only", split
+    return "step", split
+
+
+def tail_report(hitches, total, label):
+    """HITCH_TAIL: the slowest 5% / 1% of ALL periods, classified. Needs a run whose threshold is
+    near 0 (BANISHED_STRESS_HITCH_MS=0.01: every period above its class median is a row), so the
+    tail is complete in the rows; `total` is the run's period count."""
+    print("\nTAIL %s (%d periods in the run, %d rows above their class median)" % (label, total, len(hitches)))
+    rows = sorted(hitches, key=lambda h: -h["period_ms"])
+    steps = [h for h in hitches if int(h["updates"]) >= 1]
+    for frac, name in ((0.05, "p95"), (0.01, "p99")):
+        n = max(1, int(round(total * frac)))
+        if n > len(rows):
+            print("  %s: the rows do not cover the tail (%d needed, %d rows): rerun at BANISHED_STRESS_HITCH_MS=0.01" % (name, n, len(rows)))
+            continue
+        tail = rows[:n]
+        cut = tail[-1]["period_ms"]
+        over = sum(max(0.0, h["period_ms"] - 1000.0 / 140.0) for h in tail)
+        print("  slowest %s: %d periods, period >= %.2f ms; ms over 7.14 summed %.1f" % (name, n, cut, over))
+        print("    %-10s %6s %6s %8s %8s %7s %7s %7s %8s %7s %7s  %s" % (
+            "class", "count", "share", "over7ms", "period", "update", "draw", "fence", "tailwait", "harness", "other", "update>med"))
+        byc = collections.defaultdict(list)
+        for h in tail:
+            c, s = tail_class(h)
+            byc[c].append((h, s))
+        for c in ("step", "catch-up", "draw-only", "harness"):
+            xs = byc.get(c, [])
+            if not xs:
+                continue
+            m = lambda key: sum(s[key] for _, s in xs) / len(xs)
+            ov = sum(max(0.0, h["period_ms"] - 1000.0 / 140.0) for h, _ in xs)
+            grew = sum(h["update_ms"] - max(1, int(h["updates"])) * h["med_update_ms"] for h, _ in xs) / len(xs)
+            print("    %-10s %6d %5.1f%% %7.1f%% %8.2f %7.2f %7.2f %7.2f %8.2f %7.2f %7.2f  %+.2f" % (
+                c, len(xs), 100.0 * len(xs) / n, 100.0 * ov / over if over else 0.0,
+                sum(h["period_ms"] for h, _ in xs) / len(xs), m("update"), m("draw"), m("fence"), m("tailwait"),
+                m("harness"), m("other"), grew))
+    if steps:
+        per = [h["period_ms"] for h in steps]
+        print("  step-class rows: %d; period p50 %.2f p90 %.2f max %.2f; update p50 %.2f; class median period %.2f" % (
+            len(steps), pct(per, 0.5), pct(per, 0.9), max(per), pct([h["update_ms"] for h in steps], 0.5),
+            pct([h["med_period_ms"] for h in steps], 0.5)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("path", help="results dir or standalone_stress_hitch.csv")
@@ -102,6 +187,7 @@ def main():
     ap.add_argument("--top", type=int, default=25)
     ap.add_argument("--list", type=int, default=20, help="worst hitches to list")
     ap.add_argument("--min-excess", type=float, default=0.0, help="ignore hitches with less excess (ms)")
+    ap.add_argument("--errlog", default=None, help="standalone_error.log (period totals for the TAIL section)")
     a = ap.parse_args()
 
     hitch_path = a.path
@@ -157,6 +243,34 @@ def main():
     game = [h for h in hitches if attribute(h)[0] != "harness"]
     print("  verdict: %s (%d periods over the criterion, %d of them the harness's own row / staffing work)" % (
         "PASS" if not game else "FAIL", len(hitches), len(hitches) - len(game)))
+
+    # 2b. HITCH_TAIL: the slowest 5% / 1% of every period (a near-zero threshold run only)
+    errlog = a.errlog
+    if errlog is None and os.path.isdir(a.path) and os.path.exists(os.path.join(a.path, "standalone_error.log")):
+        errlog = os.path.join(a.path, "standalone_error.log")
+    if thr is not None and thr < 0.5 and errlog:
+        total = run_frames(errlog, 0)
+        if total:
+            tail_report(hitches, total, "(whole run)")
+            # steady state: past the first CSV row (world build, warm-up). By wall time: a draw-only
+            # period carries frame 0 (no Update set it).
+            first_wall = None
+            if a.stress and os.path.exists(a.stress):
+                _m, srows0 = read_csv(a.stress)
+                if srows0:
+                    first_wall = srows0[0]["wall_s"]
+            steady = [h for h in hitches if first_wall is not None and h["wall_s"] > first_wall]
+            if steady:
+                n_first = None
+                import re
+                with open(errlog, encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        m = re.search(r"\[Stress::hitch\].*\bframes=(\d+)", line)
+                        if m:
+                            n_first = int(m.group(1))
+                            break
+                if n_first:
+                    tail_report(steady, total - n_first, "(steady: after the first CSV row)")
 
     # 3. attribution
     by_dom = collections.defaultdict(list)

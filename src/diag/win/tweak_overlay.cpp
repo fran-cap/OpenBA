@@ -119,6 +119,7 @@ Ext::Tweak::Ice g_uiIce;
 Ext::BetterClouds::Look g_uiClouds;
 Ext::FancyTerrain::Look g_uiTerrain;
 Ext::DepthOfField::Look g_uiDof;
+Ext::RenderPipe::ReplayLook g_uiReplay;
 Ext::LeafLod::Look g_uiLeafLod;
 bool            g_uiLoaded = false;
 
@@ -521,6 +522,26 @@ void DrawPanels(const Snapshot& s) {
                     d.focusDistance);
     }
 
+    // ext.render_pipe's replayed frames (SMOOTHREPLAY.md): the display delay, live (Ext::RenderPipe::ReplayLook,
+    // read by the emit each time it draws). The key itself (ext.render_pipe_replay) is settings.cfg's.
+    if (ImGui::CollapsingHeader("Replayed frames", ImGuiTreeNodeFlags_DefaultOpen)) {
+        Ext::RenderPipe::ReplayLook& r = g_uiReplay;
+        ImGui::Text("row %s; ext.render_pipe_replay=1 in settings.cfg turns the replayed frames on",
+                    s.rowRequested[RowIndex("render_pipe")] ? "on" : "off (tick render_pipe under Rows)");
+        float delayMs = static_cast<float>(r.delayUs) / 1000.0f;
+        if (ImGui::SliderFloat("display delay (ms)", &delayMs, 0.0f, 16.0f, "%.1f")) {
+            r.delayUs = static_cast<int32_t>(delayMs * 1000.0f + 0.5f);
+            Ext::Tweak::SetReplay(r);
+        }
+        if (ImGui::Button("replayed frames defaults")) {
+            r = Ext::RenderPipe::ReplayLook{};
+            Ext::Tweak::SetReplay(r);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("copy into src/ext/render_pipe/display_clock.h (kDisplayDelayUs):");
+        ImGui::Text("delayUs %d", r.delayUs);
+    }
+
     // ext.better_clouds (BETTERCLOUDS): the sky program's look, live (Ext::BetterClouds::Look, published
     // by BeginFrame every frame); the reflection in the water uses the same values.
     if (ImGui::CollapsingHeader("Better clouds", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -756,6 +777,7 @@ void BeforePresent(Renderer& renderer, unsigned width, unsigned height) {
         g_uiClouds = Ext::Tweak::CloudsValues();
         g_uiTerrain = Ext::Tweak::TerrainValues();
         g_uiDof = Ext::Tweak::DofValues();
+        g_uiReplay = Ext::Tweak::ReplayValues();
         g_uiLeafLod = Ext::Tweak::LeafLodValues();
         g_uiLoaded = true;
     }

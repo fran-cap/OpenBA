@@ -44,6 +44,10 @@ struct Packet {
     // ---- fix 3: the context writes made before pass 2, replayed in retail's order
     float   frameTime     = 0;   // MainLoop::Frame tail: Context::_time.x
     int64_t frameStartTicks = 0; // RENDERPIPE-1: MainLoop::_frameStartTicks of the Frame that gathered it (FrameUpdateTime)
+    // ---- SMOOTHREPLAY: the display clock's inputs (display_clock.h) ----
+    int64_t stepTicks  = 0;      // MainLoop::_deltaTime: one fixed step, the alpha's unit (System::Timer ticks)
+    bool    alphaFixed = false;  // step 1 forced the alpha (a pause): the clock is not applied
+    bool    replay     = false;  // the row's replayed frames are on for this packet (render_pipe_replay)
     int64_t gameTimeTicks = 0;   // step 2: SetTime's game time (the frame time is read at emit)
     float   seasonStamp   = 0;   // step 2: ext.better_trees' natural growth, Context::_time.y after SetTime (0: none)
     float   weather[4]    = {};  // step 5: WeatherSimulation +0x1C -> Context +0x3B8 and pixel[4]
@@ -106,7 +110,10 @@ struct Packet {
 // `Gate` is not a retail step either (P13_OVERLAP.md): with a snapshot on the
 // render thread, the next Frame's steps may start during everything before it,
 // and then the emit waits there until they are over; everything after it reads
-// live UI, tool and save-load state.
+// live UI, tool and save-load state. SMOOTHREPLAY: while it waits it may present
+// the frame and draw pass 2 again (replayed frames); false means such a frame
+// lost the device or could not begin the next, the ops reported it, and nothing
+// is begun: the emit ends there.
 template <class Ops>
 void Emit(Ops& ops, const Packet& p) {
     ops.FrameTailTime(p);              // MainLoop::Frame: Context::_time, dirty 0x800
@@ -122,7 +129,7 @@ void Emit(Ops& ops, const Packet& p) {
     ops.WeatherContext(p);             // step 5: the four floats, dirty 0x10800, SetFog
     ops.ForceSnow(p);                  // step 5: the snow diagnostic
     ops.Pass2(p);                      // step 7: Renderer::Draw pass 2
-    ops.Gate(p);                       // (P13_OVERLAP: no step of the next Frame runs from here)
+    if (!ops.Gate(p)) return;          // (P13_OVERLAP: no step of the next Frame runs from here)
     ops.SaveLoadDraw(p);               // step 8
     ops.SetCamera(p);                  // step 10
     ops.ToolDraw(p);                   // step 11

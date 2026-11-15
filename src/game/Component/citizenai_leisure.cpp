@@ -92,6 +92,7 @@
 #include "Work/exe_bodies.h"
 #include "Game/exe_bodies.h"
 #include "system/MemoryAllocator.h"   // B3R: the allocator doors
+#include "Object/type_cache.h"   // PERF (TYPECACHE): Type() through the vptr cache
 
 namespace {
 
@@ -130,7 +131,7 @@ static inline System::Random* Rng() { return GameUpdateLoop::_singleton->m_rando
 // B6 row 240: retail calls [[slot]+0x10] with no null test (0x14010ac70 / 0x14010ac7c,
 // 0x14002fd90 / 0x14002fd9c); the tree's 0xffffffff for a null object is gone.
 static inline uint32_t VGetTypeId(const Object::Base* obj) {
-    return obj->Type();   // slot 2
+    return TypeCache::TypeOf(obj);   // slot 2 (PERF TYPECACHE: the same answer)
 }
 
 // The object an element of a scanned array holds.

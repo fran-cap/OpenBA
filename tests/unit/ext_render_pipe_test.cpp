@@ -47,6 +47,7 @@ using Ext::RenderPipe::TailPlan;
 struct RecordOps {
     std::vector<std::string> log;
     bool begin = true;
+    bool gateFails = false;   // SMOOTHREPLAY: a replayed frame lost the device or could not begin the next
     void FrameTailTime(const Packet&)  { log.push_back("FrameTailTime"); }
     bool BeginCommands()               { log.push_back("BeginCommands"); return begin; }
     void BeginFailed()                 { log.push_back("BeginFailed"); }
@@ -58,7 +59,10 @@ struct RecordOps {
     void WeatherContext(const Packet&) { log.push_back("WeatherContext"); }
     void ForceSnow(const Packet&)      { log.push_back("ForceSnow"); }
     void Pass2(const Packet&)          { log.push_back("Pass2"); }
-    void Gate(const Packet&)           { log.push_back("Gate"); }
+    bool Gate(const Packet&) {
+        log.push_back("Gate");
+        return !gateFails;
+    }
     void SaveLoadDraw(const Packet&)   { log.push_back("SaveLoadDraw"); }
     void SetCamera(const Packet&)      { log.push_back("SetCamera"); }
     void ToolDraw(const Packet&)       { log.push_back("ToolDraw"); }
@@ -98,6 +102,20 @@ UNIT_TEST(ext_render_pipe_emit_stops_after_a_failed_begin) {
     Packet p;
     Ext::RenderPipe::Emit(ops, p);
     const std::vector<std::string> want = { "FrameTailTime", "BeginCommands", "BeginFailed" };
+    CHECK(ops.log == want);
+}
+
+// SMOOTHREPLAY: a gate that answers false (its replayed frames ended with nothing begun) ends the
+// emit there: no interface draw, no post-draw callbacks, no release, no Present.
+UNIT_TEST(ext_render_pipe_emit_stops_at_a_gate_that_lost_its_frame) {
+    RecordOps ops;
+    ops.gateFails = true;
+    Packet p;
+    Ext::RenderPipe::Emit(ops, p);
+    const std::vector<std::string> want = {
+        "FrameTailTime", "BeginCommands", "ClearResourcesIfDirty", "ViewportReconcile",
+        "PacketBegin", "RenderDocFrame", "SetTime", "WeatherContext", "ForceSnow", "Pass2", "Gate",
+    };
     CHECK(ops.log == want);
 }
 

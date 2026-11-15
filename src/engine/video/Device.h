@@ -98,6 +98,7 @@
 // unrelated memory.
 // ============================================================================
 
+#include <atomic>   // NOT RETAIL: Device::_extLockWaiters
 #include <cstdint>
 #include <cstddef>
 #include <type_traits>
@@ -553,6 +554,22 @@ public:
     // again (the dual exe's second backend behind slot 1, selected by the call). Null by default: retail
     // steps to the next slot. A class static, so the layout below is untouched.
     static bool (*_extInterfaceRetry)(int index);
+
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/SMOOTHREPLAY.md): true only around the
+    // BeginCommands of a frame ext.render_pipe's render thread replays while the main thread's steps
+    // run. Such a begin answers a pending settings change, a lost device or a swap chain to rebuild
+    // with `false` and touches nothing: the rebuild is left to the next ordinary begin, which never
+    // runs beside a step. False by default (every other begin is retail's). Written and read by the
+    // emitting thread; a main-thread begin runs only while the render thread is joined.
+    static bool _extReplayBegin;
+
+    // EXT SEAM (NOT RETAIL, SMOOTHREPLAY.md section 4): how many threads are inside Lock() waiting
+    // for the render lock, counted only while this points at a counter. The lock is an unfair
+    // critical section: the render thread's replayed frames drop and retake it back to back, and a
+    // step that needs it (an upload) would otherwise wait until they end. The extension reads the
+    // count and stops replaying when it is not zero. Null by default, under the faithful profile and
+    // without a render thread: Lock() is retail's alone.
+    static std::atomic<int32_t>* _extLockWaiters;
 
     // ========================================================================
     // Data — retail layout, unchanged from Wave 6 lane B.

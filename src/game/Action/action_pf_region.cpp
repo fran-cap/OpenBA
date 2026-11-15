@@ -32,6 +32,7 @@
 #include "hw_watch.h"
 #include "stress_harness.h"           // g_verifyOn (PATHDIST shadow in PathLength; one branch when off)
 #include "Action/region_search.h"     // RegionSearch::Memo* (HITCH_PAIRSPREAD, NOT RETAIL)
+#include "Action/region_pair_index.h" // RegionPairIndex (the hash mirror of RegionPairCache::index, NOT RETAIL)
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -809,6 +810,28 @@ int RegionGraph::PathLength(int start, uint32_t goal) {
 // 0x1400a5cc3 / 0x1400a5cc7 on store): the second qword carries RSP+0x2C, a stack dword
 // nothing initialised, into +0x0C. There is no value to copy, so the field is left as it
 // was; nothing reads it.
+//
+// NOT RETAIL (perf, region_pair_index.h): the lookup is answered by the hash mirror of `index`
+// when it owns this cache; the insert and the eviction keep the mirror in step with the tree.
+
+// COMPPROF=4 only: retail's descent of `index` for (hi, lo) against the mirror's slot.
+static void VerifyPairIndex(const RegionPairCache* cache, int hi, int lo, int mirrorSlot) {
+    const AvlNode30* node = cache->index.root;
+    int treeSlot = -1;
+    while (node != nullptr) {
+        if (hi < node->key0 || (hi == node->key0 && lo < node->key1)) {
+            node = node->left;
+        } else if (hi > node->key0 || lo > node->key1) {
+            node = node->right;
+        } else {
+            treeSlot = node->key2;
+            break;
+        }
+    }
+    const bool ok = treeSlot == mirrorSlot && cache->index.count == RegionPairIndex::Count();
+    StressHarness_Verify("PairCacheIndex", ok, (static_cast<long long>(hi) << 32) | static_cast<uint32_t>(lo));
+}
+
 void RegionPairCache::Store(int param_2, int param_3, uint32_t param_4) {
     int iVar7 = param_2;
     int iVar8 = param_3;
@@ -818,6 +841,18 @@ void RegionPairCache::Store(int param_2, int param_3, uint32_t param_4) {
     }
     AvlNode30* piVar6 = index.root;
     AvlNode30* piVar4 = piVar6;
+    const bool mirrored = RegionPairIndex::Owns(this);
+    if (mirrored) {
+        const int slot = RegionPairIndex::Find(iVar7, iVar8);
+        if (g_verifyOn) {
+            VerifyPairIndex(this, iVar7, iVar8, slot);
+        }
+        if (slot >= 0) {
+            ring.data[slot].distance = static_cast<int32_t>(param_4);
+            return;
+        }
+        piVar4 = nullptr;   // absent: skip the descent, on to the insert
+    }
     while (piVar4 != nullptr) {
         int iVar2 = piVar4->key0;
         if (iVar7 < iVar2) {
@@ -858,6 +893,9 @@ LAB_1400a5c1b:
                         if (iVar3 < piVar6->key1) goto LAB_1400a5c1b;
                         if ((iVar8b <= iVar2) && ((iVar8b < iVar2 || (iVar3 <= piVar6->key1)))) {
                             WorkCellBST_Remove_ca60(&index, piVar6);   // 0x14001ca60
+                            if (mirrored) {
+                                RegionPairIndex::Erase(iVar8b, iVar3);   // NOT RETAIL: the mirror (region_pair_index.h)
+                            }
                             break;
                         }
                     }
@@ -899,6 +937,9 @@ LAB_1400a5c1b:
     int32_t key[3] = { local_res8, iStackX_c, iVar7 };
     AvlNode30* out = nullptr;
     AvlInsert30(&index, &out, key);   // 0x14001c940
+    if (mirrored && out != nullptr) {
+        RegionPairIndex::Insert(key[0], key[1], key[2]);   // NOT RETAIL: the mirror (region_pair_index.h)
+    }
 }
 
 // ============================================================
@@ -909,6 +950,15 @@ LAB_1400a5c1b:
 uint32_t RegionPairCache::Find(int a, int b) const {
     int hi = a, lo = b;
     if (a < b) { hi = b; lo = a; }
+    // NOT RETAIL (perf, region_pair_index.h): the same (key -> ring slot) answer from the hash
+    // mirror of `index`; at COMPPROF=4 the descent below runs too and the two slots are compared.
+    if (RegionPairIndex::Owns(this)) {
+        const int slot = RegionPairIndex::Find(hi, lo);
+        if (g_verifyOn) {
+            VerifyPairIndex(this, hi, lo, slot);
+        }
+        return slot < 0 ? 0xffffffffu : static_cast<uint32_t>(ring.data[slot].distance);
+    }
     const AvlNode30* node = index.root;
     while (true) {
         if (node == nullptr) return 0xffffffffu;

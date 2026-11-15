@@ -68,6 +68,11 @@ void StressHarness_PipePacketBegin();
 void StressHarness_PipePacketEnd();
 void StressHarness_PipeEmitBegin();
 void StressHarness_PipeEmitEnd();
+// HITCH_TAIL: the main thread's time inside ext.render_pipe's two MainLoop::Frame hooks, per
+// Draw-to-Draw period (the hitch rows' fence_ms / pipe_tail_ms): seg 0 = THE FENCE
+// (kExtBeforeSteps), seg 1 = the Frame tail (kExtFrameTail: main half + join + publish).
+void StressHarness_PipeSegBegin(int seg);
+void StressHarness_PipeSegEnd(int seg);
 
 // Per-component-type Update profile. g_compProfOn is the ONLY thing the hot loop in
 // EntityList_Update reads when the profile is off (one predictable branch).

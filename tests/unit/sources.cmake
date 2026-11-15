@@ -129,6 +129,7 @@ set(UNIT_TREE_SRCS
   ${CMAKE_SOURCE_DIR}/src/render/common/better_trees/blossom.cpp            # ext_natural_growth_test.cpp (BLOSSOM.md)
   ${CMAKE_SOURCE_DIR}/src/game/Action/grid_search.cpp
   ${CMAKE_SOURCE_DIR}/src/game/Action/action_pf_region_search.cpp
+  ${CMAKE_SOURCE_DIR}/src/game/Action/region_pair_index.cpp   # region_pair_index_test.cpp (PATHBURST)
   ${CMAKE_SOURCE_DIR}/src/game/Game/worldgen_f390_erosion.cpp   # worldgen_erosion_test.cpp (block EROSION)
   ${CMAKE_SOURCE_DIR}/src/ext/path_workers/pool.cpp
   ${CMAKE_SOURCE_DIR}/src/platform/common/cpu/roster.cpp

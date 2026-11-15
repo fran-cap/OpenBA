@@ -357,6 +357,16 @@ public:
     int32_t GetMaxDynamicInstances(int32_t a, int32_t b, int32_t c) const;     // 0x1800f21d0
     bool BeginVertices(int32_t count, int32_t stride);              // 0x1800f21b0
     void EndVertices(int32_t primitiveType);                       // 0x1800f2190
+    // EXT SEAM (NOT RETAIL, docs/extensions/handins/SMOOTHREPLAY.md section 3): null by default and in
+    // the faithful profile. While set, BeginVertices calls `begin` after a begin that succeeded (the
+    // cursor is at the stream's first vertex) and EndVertices calls `end` before it submits (the cursor
+    // is past the last one): ext.render_pipe copies the tool's overlay vertices for its replayed frames.
+    // Set and cleared on the drawing thread around Tool::Draw only.
+    struct ExtVertexTap {
+        void (*begin)(Context& context);
+        void (*end)(Context& context, int32_t primitiveType);
+    };
+    static const ExtVertexTap* _extVertexTap;
     bool BeginIndexedVertices(int32_t a, int32_t b, int32_t c);     // 0x1800f2170
     void EndIndexedVertices(int32_t primitiveType);                // 0x1800f2150
     bool BeginInstancedIndexedVertices(int32_t a, int32_t b,

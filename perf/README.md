@@ -275,6 +275,22 @@ path-graph rebuild is every 1800 frames at 10x, every 360 at 50x; a frame-counte
 at the same frame at every speed). The first 12 periods of each class are blind (the median
 needs them). Baseline rows: `perf/results/20261018_01*_hitch_s{50,20,10}*` (kept only on the machine that recorded them; results are not committed).
 
+**The tail of every frame (HITCH_TAIL, 2026-11-14).** Two columns end each hitch row: `fence_ms` (the
+main thread inside ext.render_pipe's THE FENCE, `kExtBeforeSteps`) and `pipe_tail_ms` (the Frame tail
+from the period's Draw entry on: the main half, which is `draw_ms`, then the hand-off wait and the
+publish). With `BANISHED_STRESS_HITCH_MS=0.01` every period above its class median is a row, so the
+slowest 5% and 1% of ALL periods are in the file; `hitch_report.py` then prints a **TAIL** section
+(the period count comes from the `[Stress::hitch] frames=` lines of `standalone_error.log`): the tail
+classified as `step` (one fixed step), `catch-up` (two or more), `draw-only` and `harness`, with the
+mean split (update, draw, fence, hand-off wait, harness, rest) and the update's excess over its
+median. Measured at 50x zoom 300 with the user's settings (Vulkan, render_pipe on), 3155a32f0: the
+p95 tail is 98.5% plain step frames (update 9.9 ms, +1.4 over median; draw 2.8; hand-off 1.35;
+fence 0.2), the p99 95%. There were no catch-up frames, and every draw-only frame was under 5.8 ms.
+The median step frame is 11.1 ms, so every step frame (one in three) is over one 140 fps frame
+while a step at 50x costs about 8 ms. Under load (a BANISHED_SAMPLE=2000 run on a busy machine,
+update p50 12 ms) the step period passes 16.7 ms and the tail turns into retail's catch-up: 71% of
+p95 and 95% of p99 were two-step frames.
+
 ## Optimisation log (2026-09-04, 800x10, sim ms / iteration)
 
 | step | ms/iter | note |
@@ -510,6 +526,14 @@ fast search runs on every request's inputs right after it, on the worker; the pa
 `pf_search_us` columns then include BOTH searches, so a level-3 run is for the shadow columns only;
 compare timing between separate faithful and `ext.fast_paths` runs. Set
 `BANISHED_STRESS_COMPPROF=3` in the environment of the run.
+
+### Resource-pin provocation (`BANISHED_STRESS_COMPPROF=5`)
+
+Level 5 = level 4 (every verify shadow) plus the ext.render_pipe resource-pin race provoked
+(docs/android/P13_OVERLAP.md section 2.8). It CHANGES the town: up to eight fields and orchards are
+outlined and repainted at the start of every step, and one of them is deselected every 300 frames, so it is never a
+timing or a sim-identity run. Read the `[Stress::pin]` line: `waits` > 0 means frees landed while a
+packet still drew the mesh, and `timeouts` must stay 0.
 
 ## Native macOS Metal measurement
 

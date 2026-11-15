@@ -266,6 +266,9 @@ void AnimBatchSimCheck(const ModelComponent* model, int64_t pending) {
 
 } // namespace
 
+static_assert(kMainViewShader == static_cast<int32_t>(::Graphics::MaterialPass::Normal),
+              "render_culling_rules.h kMainViewShader is Graphics::MaterialPass::Normal");
+
 bool RootOnlyNow() { return *RootOnlyByte() != 0; }
 bool* RootOnlyFlag() { return RootOnlyByte(); }
 
@@ -300,7 +303,13 @@ void BeginFrame(::Graphics::Renderer* renderer) {
 static float s_diagPlanes[6][4];
 static bool  s_diagHave = false;
 
-void SetWorldFrustum(const void* frustum) {
+void SetWorldFrustum(const void* frustum, int32_t groupShader) {
+    // The sim's off-screen tests are about the MAIN view. The shadow map's and the reflection's draw
+    // groups run the same terrain collect pass with their own cull cameras. Taking theirs (the last one
+    // fed won, and ext.staggered_passes changes which is last from frame to frame) called a model in the
+    // view off-screen on some ticks: its node pose pair was left stale while it was drawn, and a falling
+    // tree flipped between upright and fallen with the frame's blend factor.
+    if (!IsMainViewEntry(groupShader)) return;
     if (g_compProfOn >= 2 && frustum) {
         std::memcpy(s_diagPlanes, frustum, sizeof(s_diagPlanes));
         float mag = 0.0f;
