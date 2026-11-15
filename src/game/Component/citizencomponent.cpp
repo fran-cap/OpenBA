@@ -50,6 +50,7 @@
 #include "ui/UserInterface.h"
 #include "object/TypeInfo.h"
 #include "Object/type_cache.h"                 // PERF (TYPECACHE): Type() through the vptr cache
+#include "stress_harness.h"                    // PERF (HOMESCAN): g_verifyOn / StressHarness_Verify
 #include "graphics/Camera.h"
 #include "Tutorial/exe_bodies.h"
 #include "Game/exe_bodies.h"   // B3R STORAGE: g_gameSettings
@@ -1557,7 +1558,13 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
     // Pre-scan (only when the citizen already holds a workplace): fairness gate for
     // the "extra work" second call. Bail (return null) if any adult coworker is idle
     // or if our workplace is nearly full while a coworker's still has room.
-    if (home != nullptr) {
+    // PERF (HOMESCAN): `fast` skips the coworker's ResidenceComponent scan when our own residence
+    // holds more than one household: the scan is pure and its result is read only under
+    // `ownStore->residentSlots._size == 1`, which nothing in the loop changes. That is the
+    // shared-home re-search CitizenComponent::Update runs on every update of every citizen in a
+    // shared residence, once per other adult in town. Same returns; retail's form (fast = false)
+    // runs beside it under the COMPPROF=4 shadow ("HomePrescan").
+    auto prescanBails = [&](bool fast) -> bool {
         ResidenceComponent* ownStore = home->FindComponent<ResidenceComponent>();
         int citCount = townMgr->citizens._size;
         for (int64_t i = 0; i < citCount; i++) {
@@ -1566,17 +1573,29 @@ ComponentEntity* CitizenComponent::FindHome(int32_t* slot, bool anyHousehold) {
             if (other->description->adultAge <= other->age
                 && other->school == nullptr) {
                 if (other->home == nullptr) {
-                    return nullptr;   // LAB_140111497
+                    return true;   // LAB_140111497
                 }
+                if (fast && ownStore->residentSlots._size != 1) continue;
                 ComponentEntity* otherWp = other->home.Get();
                 ResidenceComponent* otherStore = otherWp->FindComponent<ResidenceComponent>();   // 0x140008090
                 if (ownStore->residentSlots._size == 1) {
                     if (1 < otherStore->residentSlots._size) {
-                        return nullptr;   // LAB_140111497
+                        return true;   // LAB_140111497
                     }
                 }
             }
         }
+        return false;
+    };
+    if (home != nullptr) {
+        bool bails;
+        if (g_verifyOn != 0) {
+            bails = prescanBails(false);
+            StressHarness_Verify("HomePrescan", bails == prescanBails(true), townMgr->citizens._size);
+        } else {
+            bails = prescanBails(true);
+        }
+        if (bails) return nullptr;   // LAB_140111497
     }
 
     int count = townMgr->residences._size;
