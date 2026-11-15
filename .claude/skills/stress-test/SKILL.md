@@ -44,8 +44,9 @@ Measure at 10x, 20x AND 50x: sim-periodic and frame-periodic causes differ. perf
 ## Profiling order
 1. `BANISHED_SAMPLE=1000` — sampling profiler (`src/diag/win/sampler.cpp`), report with
    `tools/sample_report.py`. Use this first.
-2. The per-component table second: it cannot see libm, runtime or walk time.
-   `BANISHED_STRESS_COMPPROF=2` adds the `/tree` rows and the `/char` rows (characters by
+2. The per-component table second: it cannot see libm, runtime or walk time. It is off by
+   default (level 1 adds about 3 ms/frame at 50x, zoom 300): `BANISHED_STRESS_COMPPROF=1` turns it
+   on, so frame-time A/Bs run without it. `BANISHED_STRESS_COMPPROF=2` adds the `/tree` rows and the `/char` rows (characters by
    on/off-screen x walk/pathwait/timed/idle/other, with the D1/D2/E1 ceilings; how to read
    them: `docs/extensions/handins/OFFSCREEN.md` §3).
 

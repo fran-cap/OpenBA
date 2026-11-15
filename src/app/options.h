@@ -128,7 +128,7 @@ struct Options {
     int         stressSpeed          = 10;     // STRESS_ARGS --speed
     int         stressFoodMult       = 0;      // 0 = derive from the citizen count
     int         stressStaff          = 1;      // staff every workplace through the real seat cascade
-    int         stressCompProf       = 1;      // 0 off, 1 bucket Updates, 2 + per-frame slot-8 ticks, 3 = 1 + pathfinding shadow mode (perf/README.md);
+    int         stressCompProf       = 0;      // 0 off (default: level 1 costs ~3 ms/frame at 50x), 1 bucket Updates, 2 + per-frame slot-8 ticks, 3 = 1 + pathfinding shadow mode (perf/README.md);
                                                //   4 = the verify shadows; 4 alone (no BANISHED_STRESS) arms ext.background_save's verify (HITCH_BGSAVE)
     const char* stressCsv            = nullptr;// CSV path override; null = standalone_stress.csv
     bool        stressHomeWatch      = false;  // perf/README.md — the opt-in [HomeLoss] per-Update watch
