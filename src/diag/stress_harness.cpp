@@ -77,6 +77,7 @@
 #include "ext/draw_batch/draw_batch.h"   // issue #253: the instancing batch counters (COMPPROF >= 2)
 #include "draw_batch/instance_bank.h"    // issue #253: the backend's instance cap (src/render/common)
 #include "graphics/xform_memo.h"   // XFORMMEMO: the instance-transform memo counters (/xform row) and its shadow hook
+#include "Object/type_cache.h"     // TYPECACHE: the Type() cache's COMPPROF=4 shadow hook
 #include "ext/draw_gather/draw_gather.h"   // DRAWGATHER: the [Stress::gather] counters
 #include "ext/render_pipe/render_pipe.h"   // RENDERPIPE: the [Stress::pipe] counters
 #include "graphics/stagger_hold.h"         // ext.staggered_passes: the [Stress::stagger] counters
@@ -187,6 +188,20 @@ void Resolve() {
             // XFORMMEMO: every memo hit recomputed with the virtual GetInstanceTransform, 64 bytes compared
             XformMemo::g_report = [](bool ok, long long detail) { StressHarness_Verify("XformMemo", ok, detail); };
             XformMemo::g_verify = 1;
+            // TYPECACHE: every cache hit asked Type() too (and every own-type narrowing IsDerivedFrom).
+            // Millions of checks a frame: a mismatch is reported at once ("TypeCache", exact), the
+            // matches as one "TypeCache/1024ok" check per 1024 (the verify lock per check would
+            // stall the run).
+            TypeCache::g_report = [](bool ok, long long detail) {
+                static std::atomic<long long> s_ok{0};
+                if (!ok) {
+                    StressHarness_Verify("TypeCache", false, detail);
+                    return;
+                }
+                if ((s_ok.fetch_add(1, std::memory_order_relaxed) & 1023) == 1023)
+                    StressHarness_Verify("TypeCache/1024ok", true, 0);
+            };
+            TypeCache::g_verify = 1;
             // DRAWSORT: the draw-item sort's shadow (retail's sort on a copy, whole arrays compared)
             DrawSort::g_report = [](bool ok, long long detail) { StressHarness_Verify("DrawItemSort", ok, detail); };
             DrawSort::g_verify = 1;
@@ -278,6 +293,9 @@ struct HitchRing {
 struct HitchCur {   // the period being accumulated
     int updates = 0; int speed = 0; int frame = 0; int markers = 0;
     double updMs = 0, drawMs = 0, harnessMs = 0; double ph[kHitchPh] = {0}; long long pf[3] = {0};
+    int pfRequests = 0;       // PATHBURST: command-5 path requests enqueued in the period (PfProf_Enqueue)
+    int pfPathDistCalls = 0;  // PATHBURST: Map::PathDistance calls in the period (PfProf_Main)
+    double seg[2] = {0};   // HITCH_TAIL: ext.render_pipe's fence / tail hooks, main thread ms
 };
 // Two classes of period, with their own rings: MainLoop::Frame draws every loop and Updates
 // only when the fixed-step accumulator has a step, so at speed 50 a draw-only period is ~1 ms
@@ -318,7 +336,8 @@ void HitchOpenCsv() {
                              "update_ms,med_update_ms,draw_ms,med_draw_ms,outside_ms,med_outside_ms,harness_ms,"
                              "ph_paircache_ms,ph_animation_ms,ph_entitylist_ms,ph_weather_ms,ph_citizenlist_ms,ph_postsim_ms,"
                              "med_paircache_ms,med_animation_ms,med_entitylist_ms,med_weather_ms,med_citizenlist_ms,med_postsim_ms,"
-                             "pf_pathdistance_ms,pf_fillzones_ms,pf_syncwait_ms,markers\n");
+                             "pf_pathdistance_ms,pf_fillzones_ms,pf_syncwait_ms,markers,pf_requests,pf_pathdistance_calls,"
+                             "fence_ms,pipe_tail_ms\n");
     std::fflush(s_hitchCsv);
 }
 // Close the period [t0, t1) (QPC): test it, log it if it is a hitch, push it into the rings.
@@ -350,9 +369,10 @@ void HitchPeriod(long long t0, long long t1) {
                              s_hCur.harnessMs);
                 for (int i = 0; i < kHitchPh; ++i) std::fprintf(s_hitchCsv, "%.3f,", s_hCur.ph[i]);
                 for (int i = 0; i < kHitchPh; ++i) std::fprintf(s_hitchCsv, "%.3f,", cls.ph[i].Median());
-                std::fprintf(s_hitchCsv, "%.3f,%.3f,%.3f,%d\n",
+                std::fprintf(s_hitchCsv, "%.3f,%.3f,%.3f,%d,%d,%d,%.3f,%.3f\n",
                              TscMs(s_hCur.pf[PF_MAIN_PATHDISTANCE]), TscMs(s_hCur.pf[PF_MAIN_FILLZONES]),
-                             TscMs(s_hCur.pf[PF_MAIN_SYNCWAIT]), s_hCur.markers);
+                             TscMs(s_hCur.pf[PF_MAIN_SYNCWAIT]), s_hCur.markers,
+                             s_hCur.pfRequests, s_hCur.pfPathDistCalls, s_hCur.seg[0], s_hCur.seg[1]);
                 std::fflush(s_hitchCsv);
             }
         }
@@ -1843,6 +1863,21 @@ extern "C" void StressHarness_PipeEmitEnd() {
     s_pipeEmitN.fetch_add(1, std::memory_order_relaxed);
     s_pipeEmitT0 = 0;
 }
+// HITCH_TAIL: main thread only (MainLoop::Frame's two ext.render_pipe hooks).
+static long long s_pipeSegT0[2] = {0, 0};
+extern "C" void StressHarness_PipeSegBegin(int seg) {
+    if (!StressHarness_Enabled() || seg < 0 || seg > 1) return;
+    s_pipeSegT0[seg] = QpcNow();
+}
+extern "C" void StressHarness_PipeSegEnd(int seg) {
+    if (!StressHarness_Enabled() || seg < 0 || seg > 1 || !s_pipeSegT0[seg]) return;
+    // The tail's Draw entry closes the previous period: only the part from that entry on
+    // is this period's (it holds the main half, already in draw_ms).
+    long long t0 = s_pipeSegT0[seg];
+    if (seg == 1 && s_lastDrawEntry > t0) t0 = s_lastDrawEntry;
+    s_hCur.seg[seg] += QpcMs(QpcNow() - t0);
+    s_pipeSegT0[seg] = 0;
+}
 
 static void CompProf_WatchBegin(Object::Base* comp, uint32_t tid) {
     if (!s_tidResolved) {
@@ -2011,6 +2046,7 @@ extern "C" void PfProf_Enqueue(int slot, int queueDepth) {
         s_pfReadyTsc[slot].store(0, std::memory_order_relaxed);
         s_pfEnqFrame[slot] = s_pfFrame;
     }
+    ++s_hCur.pfRequests;   // PATHBURST: per-period request count (RequestPath runs on the main thread)
     std::lock_guard<std::mutex> g(s_pfLock);
     s_pfMain.Enqueued(queueDepth);
 }
@@ -2057,6 +2093,7 @@ extern "C" void PfProf_Main(int which, long long ticks) {
     if (which < 0 || which > PF_MAIN_SYNCWAIT || ticks <= 0) return;
     s_pfMainTicks[which].fetch_add(ticks, std::memory_order_relaxed);
     s_hCur.pf[which] += ticks;   // HITCH: main thread only (the three brackets are main-thread)
+    if (which == PF_MAIN_PATHDISTANCE) ++s_hCur.pfPathDistCalls;   // PATHBURST
 }
 
 PathGraphCostCounts g_pathGraphCost = { 0, 0, 0, 0, -1 };

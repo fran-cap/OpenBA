@@ -34,7 +34,7 @@ FoundComponents3<A, B, C> FindComponents3(const ComponentEntity* entity) {
     bool haveC = false;
     for (int32_t i = 0; i < entity->_components._size; ++i) {
         Component* comp = entity->_components[i].Get();
-        const uint32_t type = comp->Type();
+        const uint32_t type = TypeCache::TypeOf(comp);   // PERF TYPECACHE: Type(), the same answer
         if (!haveA && type == idA) {
             haveA = true;
             out.a = comp->IsDerivedFrom(idA) ? static_cast<A*>(comp) : nullptr;

@@ -726,7 +726,9 @@ void Uninstall() {
 void Hook(::Engine::MainLoop& loop, int32_t point, float alpha, float time) {
     if (g_host.loop != &loop) g_host.loop = &loop;   // once (nothing is in flight before the first tail)
     if (point == ::Engine::MainLoop::kExtBeforeSteps) {
+        StressHarness_PipeSegBegin(0);   // HITCH_TAIL: the hitch rows' fence_ms
         g_driver.BeforeSteps(g_host);   // THE FENCE
+        StressHarness_PipeSegEnd(0);
         return;
     }
     if (point == ::Engine::MainLoop::kExtBeforeTransition) {
@@ -742,7 +744,10 @@ void Hook(::Engine::MainLoop& loop, int32_t point, float alpha, float time) {
     g_host.alpha  = alpha;
     g_host.time   = time;
     g_host.verify = g_verifyOn != 0;
-    if (g_driver.Tail(g_host, Inputs(loop, g))) Uninstall();
+    StressHarness_PipeSegBegin(1);   // HITCH_TAIL: the hitch rows' pipe_tail_ms
+    const bool uninstall = g_driver.Tail(g_host, Inputs(loop, g));
+    StressHarness_PipeSegEnd(1);
+    if (uninstall) Uninstall();
 }
 
 }  // namespace

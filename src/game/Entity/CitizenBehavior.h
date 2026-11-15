@@ -448,6 +448,10 @@ public:
     // B4 WORK-b; body in Work/pickup_gate.cpp: does a storage location in the +0x00 list
     // accept `amount` of `resource`? (Pickup::Execute's gate)
     bool HasStorageFor(ComponentDescription* resource, int amount);  // 0x14008d3c0
+    // PERF (GATECUT, pickup_gate.cpp): the same answer with fewer reads, and retail's body (the
+    // COMPPROF=4 shadow's reference). HasStorageFor runs the first.
+    bool HasStorageForFast(ComponentDescription* resource, int amount);
+    bool HasStorageForRetail(ComponentDescription* resource, int amount);
     // B4 TUT; bodies in Tutorial/tutorial_base.cpp: the entity count of one bucket
     // of the +0x160 (template) / +0x100 (profession) tree, 0 when absent.
     uint32_t CountByTemplate(const ComponentDescription* key) const;    // 0x140092010

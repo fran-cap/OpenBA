@@ -30,6 +30,7 @@
 #include "object/Internal.h"
 #include "system/Value.h"      // System::Time (+0x20; trivial, 8 bytes)
 #include "Object/exe_type.h"
+#include "Object/type_cache.h"     // PERF (TYPECACHE): FindComponent's Type() through the vptr cache
 #include "Component/Component.h"   // FindComponent<T>: Array<InternalPtr<Component>>
 #include "collection/Collection.h"   // Collection::Array (_components)
 
@@ -82,12 +83,15 @@ public:
     // No null check on the entity or on a component: retail has none.
     // (The generic 0x1400c3680 is a different body: exact-id compare only, no
     // IsDerivedFrom; it is not this template.)
+    // PERF (TYPECACHE, Object/type_cache.h): Type() is answered from the vptr-keyed cache and the
+    // narrowing of a Type() match is the IsDerivedFrom answer it always gives (true); the same
+    // components are read and the same pointer returned.
     template <class T>
     T* FindComponent() const {
         for (int32_t i = 0; i < _components._size; ++i) {
             Component* c = _components[i].Get();
-            if (c->Type() == T::TypeId())
-                return c->IsDerivedFrom(T::TypeId()) ? static_cast<T*>(c) : nullptr;
+            if (TypeCache::TypeOf(c) == T::TypeId())
+                return TypeCache::IsDerivedFromOwnType(c, T::TypeId()) ? static_cast<T*>(c) : nullptr;
         }
         return nullptr;
     }
@@ -97,10 +101,11 @@ public:
     // only, no IsDerivedFrom; the match is stored raw into the return slot
     // (`mov [r14],0; mov [r14],rax`), a miss through the InternalBasePtr ctor
     // with null. No null checks.
+    // PERF (TYPECACHE): Type() through the vptr-keyed cache, the same answer.
     Component* FindComponentByTypeId(uint32_t typeId) const {
         for (int32_t i = 0; i < _components._size; ++i) {
             Component* c = _components[i].Get();
-            if (c->Type() == typeId)
+            if (TypeCache::TypeOf(c) == typeId)
                 return c;
         }
         return nullptr;
