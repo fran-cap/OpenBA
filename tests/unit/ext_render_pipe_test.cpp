@@ -28,7 +28,6 @@
 #include "ext/render_pipe/pipe_state.h"
 #include "ext/render_pipe/pipe_driver.h"
 #include "ext/render_pipe/handoff.h"
-#include "ext/render_pipe/step_forecast.h"
 #include "ext/registry.h"
 
 #include <atomic>
@@ -812,65 +811,4 @@ UNIT_TEST(ext_render_pipe_governor_does_not_flap_on_a_noisy_frame) {
             last = i;
         }
     }
-}
-
-// ---- HITCH_TAIL: the step forecast (step_forecast.h) -----------------------
-namespace {
-// MainLoop::Frame's accumulator over a run of Frames: `drawTicks` of tail per Frame, `simTicks`
-// per step, a 1000-tick step, the tail's length jittered by up to `jitter`. Counts the
-// forecasts made at each tail against whether the next Frame stepped.
-struct ForecastRun {
-    int frames = 0, steps = 0, missed = 0, wasted = 0;
-};
-ForecastRun RunForecast(int64_t drawTicks, int64_t simTicks, int64_t jitter, uint32_t seed) {
-    Ext::RenderPipe::StepForecast f;
-    std::mt19937 rng(seed);
-    const int64_t step = 1000;
-    int64_t now = 1, start = 0, acc = 0;
-    bool forecast = true;
-    bool haveForecast = false;
-    ForecastRun r;
-    for (int i = 0; i < 20000; ++i) {
-        // The top of Frame: the sample, the accumulator, the steps.
-        acc += now - start;
-        start = now;
-        const bool stepped = acc >= step;
-        if (haveForecast) {
-            if (stepped && !forecast) ++r.missed;
-            if (!stepped && forecast) ++r.wasted;
-        }
-        while (acc >= step) {
-            acc -= step;
-            now += simTicks;
-            ++r.steps;
-        }
-        ++r.frames;
-        // The tail.
-        forecast = f.AtTail(now, start, acc, step, 30);
-        haveForecast = true;
-        now += drawTicks + (jitter > 0 ? static_cast<int64_t>(rng() % static_cast<uint32_t>(jitter)) : 0);
-    }
-    return r;
-}
-}  // namespace
-
-UNIT_TEST(ext_render_pipe_step_forecast_never_misses_a_steady_step) {
-    // Speed 50 on the desktop, scaled: a 16.7 ms step, ~3 ms tails, 8 ms of sim.
-    const ForecastRun r = RunForecast(180, 480, 0, 1u);
-    CHECK(r.steps > 0);
-    CHECK(r.missed == 0);
-    // Most Frames do not step, and most of those take no copy.
-    CHECK(r.wasted * 2 < r.frames - r.steps);
-    // Every Frame steps (normal play at the cap): every forecast says so.
-    const ForecastRun every = RunForecast(1100, 50, 0, 2u);
-    CHECK(every.steps >= every.frames - 1);
-    CHECK(every.missed == 0);
-}
-
-UNIT_TEST(ext_render_pipe_step_forecast_with_a_jittered_tail) {
-    // A tail varying 150..250 ticks: the stretch covers it, misses stay rare.
-    const ForecastRun r = RunForecast(150, 480, 100, 3u);
-    CHECK(r.steps > 0);
-    CHECK(r.missed * 50 < r.steps);
-    CHECK(r.wasted < r.frames - r.steps);
 }

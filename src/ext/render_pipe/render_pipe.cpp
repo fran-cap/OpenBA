@@ -80,7 +80,6 @@
 #include "ext/render_pipe/handoff.h"
 #include "ext/render_pipe/finish_split.h"
 #include "ext/render_pipe/snapshot.h"
-#include "ext/render_pipe/step_forecast.h"   // HITCH_TAIL: the snapshot only before a stepping Frame
 
 #include <cstdint>
 #include <cstdio>
@@ -680,15 +679,8 @@ public:
 };
 RenderThread* g_thread = nullptr;
 
-// HITCH_TAIL (step_forecast.h): whether the next Frame steps, so only the packets a
-// fence will wait for take the snapshot. Fed at every tail, main thread.
-StepForecast g_forecast;
-
 TailInputs Inputs(::Engine::MainLoop& loop, GameUpdateLoop* g) {
     TailInputs in;
-    static const int64_t s_marginTicks = System::Timer::SecondsToTicks(0.001f);
-    in.nextSteps = g_forecast.AtTail(System::Timer::CurrentTimeTicks(), loop._startTicks, loop._accumulator,
-                                     loop._deltaTime._ticks, s_marginTicks);
     in.want     = Ext::Ext().render_pipe;
     in.gameLoop = g != nullptr && loop._currentLoop == g && g->m_game != nullptr;
     in.quitting = loop._quit != 0;
