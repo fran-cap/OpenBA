@@ -861,6 +861,13 @@ public:
     // the empty box. The "NO REAL CONSTRUCTOR" paragraph above is history.
     EdgeMesh();
 
+    // EXT SEAM (NOT RETAIL, docs/android/P13_OVERLAP.md section 2.8, DESIGN.md hook rule 5):
+    // ext.render_pipe's resource pin. Null by default and under the faithful profile. Run first in
+    // ~EdgeMesh, on the freeing thread, before any byte of the mesh is touched: the extension waits
+    // there while an overlapped emit's pass 2 still draws this mesh from its snapshot, then the
+    // destructor runs unchanged. Static data: the 0x180-byte layout is untouched.
+    static void (*_extBeforeDestroy)(const EdgeMesh* mesh);
+
 public:
     // ---- the 0x160 bytes EdgeMesh adds after Object::External ---------------
     // PUBLIC for the reason `Object::External`'s are: unconverted bodies reach

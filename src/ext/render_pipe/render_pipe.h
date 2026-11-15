@@ -66,6 +66,12 @@ struct Counters {
     int64_t  governorRemovableUs   = 0;   // the fence wait a snapshot removes, per Frame
     int64_t  governorIdleUs        = 0;   // the main thread's other waits, per Frame
     int64_t  governorIdleWithoutUs = 0;   // on: what it would idle without the copies (off: = idle)
+    // The resource pin (resource_pin.h, P13_OVERLAP 2.8): EdgeMesh frees while the render thread runs
+    uint64_t pinChecks   = 0;   // ~EdgeMesh calls the seam saw
+    uint64_t pinWaits    = 0;   //   of which freed a mesh the packet in flight still drew: waited
+    uint64_t pinWaitUs   = 0;   //   their wait, us
+    uint64_t pinMaxUs    = 0;   //   the longest
+    uint64_t pinTimeouts = 0;   //   of which gave up at the bound (the free ran beside pass 2)
 };
 
 // True while the packet runs on the render thread (installed, >= 3 physical cores).
