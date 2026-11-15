@@ -207,7 +207,10 @@ runs pass 2 once.
 
 Verification: `tests/unit/ext_render_pipe_pin_test.cpp` (the gate with a std::thread render thread), and
 `BANISHED_STRESS_COMPPROF=5` (perf/README.md), which outlines and repaints up to eight fields and orchards
-every step and demolishes one every 600 frames; its `[Stress::pin]` line counts the frees that waited.
+at the start of every step and deselects one every 300 frames; its `[Stress::pin]` line counts the frees
+that waited. The entity-removal free (`~HighlightComponent`) is not provoked there: a direct `QueueDestroy`
+skips a building's deconstruction states and leaves its other scene objects dangling (tried: a fault in
+`Scene::Clean`, not in the pin). It reaches the same `~EdgeMesh` seam from `EntityList`'s removal drain.
 
 ## 3. Latency (ruling 2)
 Normal play today: post-to-present 38-42 ms, ~2.4 frames queued (P13_PROFILE section 8). The queue is the

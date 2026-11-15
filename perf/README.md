@@ -531,7 +531,7 @@ compare timing between separate faithful and `ext.fast_paths` runs. Set
 
 Level 5 = level 4 (every verify shadow) plus the ext.render_pipe resource-pin race provoked
 (docs/android/P13_OVERLAP.md section 2.8). It CHANGES the town: up to eight fields and orchards are
-outlined and repainted every frame, and one of them is demolished every 600 frames, so it is never a
+outlined and repainted at the start of every step, and one of them is deselected every 300 frames, so it is never a
 timing or a sim-identity run. Read the `[Stress::pin]` line: `waits` > 0 means frees landed while a
 packet still drew the mesh, and `timeouts` must stay 0.
 

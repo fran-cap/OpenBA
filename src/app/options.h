@@ -133,7 +133,7 @@ struct Options {
                                                //   5 = 4 + stressPinProvoke (stored as 4)
     bool        stressPinProvoke     = false;  // BANISHED_STRESS_COMPPROF=5 — the render_pipe resource-pin race provoked
                                                //   (src/diag/stress_harness.cpp PinProvoke, P13_OVERLAP 2.8): CHANGES the town
-                                               //   (outline repaints every frame, a demolition every 600 frames): never a
+                                               //   (outline repaints every frame, a deselect every 300 frames): never a
                                                //   timing or a sim-identity run
     const char* stressCsv            = nullptr;// CSV path override; null = standalone_stress.csv
     bool        stressHomeWatch      = false;  // perf/README.md — the opt-in [HomeLoss] per-Update watch
